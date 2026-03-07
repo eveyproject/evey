@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 	"time"
 
@@ -61,12 +62,20 @@ func StartPostgres(t *testing.T) (*sql.DB, func()) {
 
 func runMigrations(t *testing.T, db *sql.DB) {
 	t.Helper()
-	migrationPath := filepath.Join("..", "migrations", "000001_init.up.sql")
-	data, err := os.ReadFile(migrationPath)
-	if err != nil {
-		t.Fatalf("read migration: %v", err)
+	_, thisFile, _, _ := runtime.Caller(0)
+	migrationsDir := filepath.Join(filepath.Dir(thisFile), "..", "migrations")
+	migrations := []string{
+		filepath.Join(migrationsDir, "000001_init.up.sql"),
+		filepath.Join(migrationsDir, "000002_transcode_profiles.up.sql"),
+		filepath.Join(migrationsDir, "000003_profile_languages.up.sql"),
 	}
-	if _, err := db.Exec(string(data)); err != nil {
-		t.Fatalf("run migration: %v", err)
+	for _, path := range migrations {
+		data, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatalf("read migration %s: %v", path, err)
+		}
+		if _, err := db.Exec(string(data)); err != nil {
+			t.Fatalf("run migration %s: %v", path, err)
+		}
 	}
 }
