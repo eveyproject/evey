@@ -116,6 +116,7 @@ func (h *playbackHandler) GetNextUp(ctx context.Context, req *eveyv1.GetNextUpRe
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "%v", err)
 	}
+	// TODO: convert WatchProgress to MediaItem (needs media item lookup)
 	return &eveyv1.GetNextUpResponse{}, nil
 }
 

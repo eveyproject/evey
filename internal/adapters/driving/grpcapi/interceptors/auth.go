@@ -14,10 +14,10 @@ import (
 type claimsKey struct{}
 
 var publicMethods = map[string]bool{
-	"/evey.UserService/Login":              true,
-	"/evey.UserService/RegisterWithInvite": true,
-	"/evey.UserService/Setup":              true,
-	"/evey.UserService/CheckQuickConnect":  true,
+	"/evey.v1.UserService/Login":              true,
+	"/evey.v1.UserService/RegisterWithInvite": true,
+	"/evey.v1.AdminService/SetupWizard":       true,
+	"/evey.v1.UserService/CheckQuickConnect":  true,
 }
 
 type AuthInterceptor struct {

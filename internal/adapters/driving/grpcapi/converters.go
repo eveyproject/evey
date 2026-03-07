@@ -233,33 +233,31 @@ var playMethodFromProto = map[eveyv1.PlayMethod]string{
 }
 
 func watchProgressToProto(wp *playback.WatchProgress) *eveyv1.WatchProgress {
-	durationMs := int64(0)
-	percentComplete := float64(0)
-	if wp.PositionMs > 0 && durationMs > 0 {
-		percentComplete = float64(wp.PositionMs) / float64(durationMs) * 100
-	}
 	return &eveyv1.WatchProgress{
-		Id:              wp.ID,
-		ProfileId:       wp.ProfileID,
-		MediaItemId:     wp.MediaItemID,
-		PositionMs:      wp.PositionMs,
-		DurationMs:      durationMs,
-		PercentComplete: percentComplete,
-		Played:          wp.Completed,
-		PlayCount:       int32(wp.PlayCount),
-		LastPlayedAt:    toTimestamppb(wp.LastPlayedAt),
+		Id:          wp.ID,
+		ProfileId:   wp.ProfileID,
+		MediaItemId: wp.MediaItemID,
+		PositionMs:  wp.PositionMs,
+		Played:      wp.Completed,
+		PlayCount:   int32(wp.PlayCount),
+		LastPlayedAt: toTimestamppb(wp.LastPlayedAt),
 	}
 }
 
 func playSessionToProto(s *playback.PlaySession) *eveyv1.PlaySession {
-	return &eveyv1.PlaySession{
+	ps := &eveyv1.PlaySession{
 		Id:          s.ID,
 		ProfileId:   s.ProfileID,
 		MediaItemId: s.MediaItemID,
 		PlayMethod:  playMethodToProto[s.PlayMethod],
 		DeviceName:  s.DeviceName,
+		ClientName:  s.DeviceType,
 		StartedAt:   toTimestamppb(s.StartedAt),
 	}
+	if s.PositionMs != nil {
+		ps.PositionMs = *s.PositionMs
+	}
+	return ps
 }
 
 // --- Transcoding converters ---

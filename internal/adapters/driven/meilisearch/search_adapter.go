@@ -97,7 +97,8 @@ func BuildFilterString(filters map[string]string) string {
 	}
 	parts := make([]string, 0, len(filters))
 	for k, v := range filters {
-		parts = append(parts, fmt.Sprintf("%s = '%s'", k, v))
+		escaped := strings.ReplaceAll(v, "'", "\\'")
+		parts = append(parts, fmt.Sprintf("%s = '%s'", k, escaped))
 	}
 	return strings.Join(parts, " AND ")
 }

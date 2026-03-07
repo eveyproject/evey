@@ -3,6 +3,7 @@ package ebml
 import (
 	"context"
 	"fmt"
+	"os"
 	"os/exec"
 	"strconv"
 	"strings"
@@ -83,8 +84,7 @@ func (w *Writer) AddTrack(ctx context.Context, containerPath string, input mkv.T
 		return fmt.Errorf("ffmpeg add track: %w: %s", err, string(out))
 	}
 
-	mvCmd := exec.CommandContext(ctx, "mv", tmpOut, containerPath)
-	if err := mvCmd.Run(); err != nil {
+	if err := os.Rename(tmpOut, containerPath); err != nil {
 		return fmt.Errorf("replace original: %w", err)
 	}
 	return nil
@@ -106,8 +106,7 @@ func (w *Writer) RemoveTrack(ctx context.Context, containerPath string, trackID 
 		return fmt.Errorf("ffmpeg remove track: %w: %s", err, string(out))
 	}
 
-	mvCmd := exec.CommandContext(ctx, "mv", tmpOut, containerPath)
-	if err := mvCmd.Run(); err != nil {
+	if err := os.Rename(tmpOut, containerPath); err != nil {
 		return fmt.Errorf("replace original: %w", err)
 	}
 	return nil

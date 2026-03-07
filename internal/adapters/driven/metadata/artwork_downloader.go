@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 	"strings"
+	"time"
 )
 
 type TMDBArtworkDownloader struct {
@@ -15,7 +16,7 @@ type TMDBArtworkDownloader struct {
 
 func NewTMDBArtworkDownloader(httpClient *http.Client) *TMDBArtworkDownloader {
 	if httpClient == nil {
-		httpClient = &http.Client{}
+		httpClient = &http.Client{Timeout: 60 * time.Second}
 	}
 	return &TMDBArtworkDownloader{httpClient: httpClient}
 }
@@ -45,11 +46,12 @@ func (d *TMDBArtworkDownloader) Download(ctx context.Context, url, destPath stri
 	if err != nil {
 		return fmt.Errorf("create file: %w", err)
 	}
-	defer f.Close()
 
 	if _, err := io.Copy(f, resp.Body); err != nil {
+		f.Close()
+		os.Remove(destPath)
 		return fmt.Errorf("write file: %w", err)
 	}
 
-	return nil
+	return f.Close()
 }
