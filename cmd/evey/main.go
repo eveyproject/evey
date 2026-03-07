@@ -71,12 +71,12 @@ func run() error {
 	playSessionRepo := postgres.NewPlaySessionRepository(db)
 
 	// --- Infrastructure ---
-	searchAdapter := meili.NewSearchAdapter(cfg.Meilisearch.URL, cfg.Meilisearch.APIKey)
+	searchAdapter, _ := meili.NewSearchAdapter(cfg.Meilisearch.URL, cfg.Meilisearch.APIKey)
 	scanner := filesystem.NewScanner()
 	transcoder := ffmpeg.NewTranscoder("ffmpeg")
-	hwDetector := ffmpeg.NewHWDetector()
+	hwDetector := ffmpeg.NewHWDetector("ffmpeg")
 	ebmlReader := ebml.NewReader()
-	ebmlWriter := ebml.NewWriter()
+	ebmlWriter := ebml.NewWriter("ffmpeg")
 	eventBus := fakes.NewFakeEventBus()
 
 	// TODO: replace with real JWT-based TokenGenerator using cfg.JWT
