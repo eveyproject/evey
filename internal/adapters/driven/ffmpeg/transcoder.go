@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"regexp"
 	"strconv"
 	"strings"
@@ -27,15 +28,16 @@ type runningJob struct {
 
 type Transcoder struct {
 	binaryPath string
+	outputDir  string
 	jobs       sync.Map
 }
 
-func NewTranscoder(binaryPath string) *Transcoder {
-	return &Transcoder{binaryPath: binaryPath}
+func NewTranscoder(binaryPath, outputDir string) *Transcoder {
+	return &Transcoder{binaryPath: binaryPath, outputDir: outputDir}
 }
 
 func (t *Transcoder) Start(ctx context.Context, job *transcoding.TranscodeJob) (string, error) {
-	args := BuildTranscodeArgs(job)
+	args := t.BuildTranscodeArgs(job)
 
 	jobCtx, cancel := context.WithCancel(ctx)
 	cmd := exec.CommandContext(jobCtx, t.binaryPath, args...)
@@ -100,11 +102,12 @@ func (t *Transcoder) Progress(_ context.Context, jobID string) (*transcoding.Tra
 	return &p, nil
 }
 
-func BuildTranscodeArgs(job *transcoding.TranscodeJob) []string {
+func (t *Transcoder) BuildTranscodeArgs(job *transcoding.TranscodeJob) []string {
 	args := []string{"-y", "-progress", "pipe:2"}
 
-	if job.HWAccelType != "" && job.HWAccelType != string(transcoding.None) {
-		switch transcoding.HWAccelType(job.HWAccelType) {
+	hwAccel := transcoding.HWAccelType(job.HWAccelType)
+	if job.HWAccelType != "" && hwAccel != transcoding.None {
+		switch hwAccel {
 		case transcoding.VAAPI:
 			args = append(args, "-hwaccel", "vaapi", "-hwaccel_output_format", "vaapi")
 			if _, err := os.Stat("/dev/dri/renderD128"); err == nil {
@@ -117,7 +120,7 @@ func BuildTranscodeArgs(job *transcoding.TranscodeJob) []string {
 		}
 	}
 
-	args = append(args, "-i", job.MediaItemID)
+	args = append(args, "-i", job.InputPath)
 
 	vcodec := mapVideoEncoder(job.OutputCodec, job.HWAccelType)
 	args = append(args, "-c:v", vcodec)
@@ -129,16 +132,30 @@ func BuildTranscodeArgs(job *transcoding.TranscodeJob) []string {
 		args = append(args, "-b:v", strconv.FormatInt(job.BitrateOut, 10))
 	}
 	if job.ResolutionOut != "" {
-		args = append(args, "-vf", "scale="+job.ResolutionOut)
+		var scaleFilter string
+		switch hwAccel {
+		case transcoding.VAAPI:
+			scaleFilter = "scale_vaapi=w=" + strings.Replace(job.ResolutionOut, ":", ":h=", 1)
+		case transcoding.NVENC:
+			scaleFilter = "scale_cuda=w=" + strings.Replace(job.ResolutionOut, ":", ":h=", 1)
+		case transcoding.QSV:
+			scaleFilter = "scale_qsv=w=" + strings.Replace(job.ResolutionOut, ":", ":h=", 1)
+		default:
+			scaleFilter = "scale=" + job.ResolutionOut
+		}
+		args = append(args, "-vf", scaleFilter)
 	}
 
+	outBase := filepath.Join(t.outputDir, job.ID)
+
+	// TODO: use job's audio codec from TranscodeProfile when available; defaulting to aac
 	args = append(args,
 		"-c:a", "aac",
 		"-f", "hls",
 		"-hls_time", "6",
 		"-hls_list_size", "0",
-		"-hls_segment_filename", job.ID+"_%03d.ts",
-		job.ID+".m3u8",
+		"-hls_segment_filename", outBase+"_%03d.ts",
+		outBase+".m3u8",
 	)
 
 	return args

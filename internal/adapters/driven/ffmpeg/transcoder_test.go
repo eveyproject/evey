@@ -8,17 +8,22 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func newTestTranscoder() *Transcoder {
+	return NewTranscoder("ffmpeg", "/tmp/evey/transcode")
+}
+
 func TestBuildTranscodeArgs_Basic(t *testing.T) {
+	tr := newTestTranscoder()
 	job := &transcoding.TranscodeJob{
 		ID:          "job-1",
-		MediaItemID: "/input/video.mkv",
+		InputPath:   "/input/video.mkv",
 		OutputCodec: "h264",
 		Preset:      "fast",
 		BitrateOut:  4000000,
 		HWAccelType: "none",
 	}
 
-	args := BuildTranscodeArgs(job)
+	args := tr.BuildTranscodeArgs(job)
 
 	assert.Contains(t, args, "-y")
 	assert.Contains(t, args, "-i")
@@ -36,72 +41,77 @@ func TestBuildTranscodeArgs_Basic(t *testing.T) {
 }
 
 func TestBuildTranscodeArgs_VAAPI(t *testing.T) {
+	tr := newTestTranscoder()
 	job := &transcoding.TranscodeJob{
 		ID:          "job-2",
-		MediaItemID: "/input/video.mkv",
+		InputPath:   "/input/video.mkv",
 		OutputCodec: "h264",
 		HWAccelType: "vaapi",
 	}
 
-	args := BuildTranscodeArgs(job)
+	args := tr.BuildTranscodeArgs(job)
 	assert.Contains(t, args, "-hwaccel")
 	assert.Contains(t, args, "vaapi")
 	assert.Contains(t, args, "h264_vaapi")
 }
 
 func TestBuildTranscodeArgs_NVENC(t *testing.T) {
+	tr := newTestTranscoder()
 	job := &transcoding.TranscodeJob{
 		ID:          "job-3",
-		MediaItemID: "/input/video.mkv",
+		InputPath:   "/input/video.mkv",
 		OutputCodec: "hevc",
 		HWAccelType: "nvenc",
 	}
 
-	args := BuildTranscodeArgs(job)
+	args := tr.BuildTranscodeArgs(job)
 	assert.Contains(t, args, "-hwaccel")
 	assert.Contains(t, args, "cuda")
 	assert.Contains(t, args, "hevc_nvenc")
 }
 
 func TestBuildTranscodeArgs_QSV(t *testing.T) {
+	tr := newTestTranscoder()
 	job := &transcoding.TranscodeJob{
 		ID:          "job-4",
-		MediaItemID: "/input/video.mkv",
+		InputPath:   "/input/video.mkv",
 		OutputCodec: "h264",
 		HWAccelType: "qsv",
 	}
 
-	args := BuildTranscodeArgs(job)
+	args := tr.BuildTranscodeArgs(job)
 	assert.Contains(t, args, "-hwaccel")
 	assert.Contains(t, args, "qsv")
 	assert.Contains(t, args, "h264_qsv")
 }
 
 func TestBuildTranscodeArgs_Resolution(t *testing.T) {
+	tr := newTestTranscoder()
 	job := &transcoding.TranscodeJob{
 		ID:            "job-5",
-		MediaItemID:   "/input/video.mkv",
+		InputPath:     "/input/video.mkv",
 		OutputCodec:   "h264",
 		HWAccelType:   "none",
 		ResolutionOut: "1280:720",
 	}
 
-	args := BuildTranscodeArgs(job)
+	args := tr.BuildTranscodeArgs(job)
 	assert.Contains(t, args, "-vf")
 	assert.Contains(t, args, "scale=1280:720")
 }
 
 func TestBuildTranscodeArgs_HLSOutput(t *testing.T) {
+	tr := newTestTranscoder()
 	job := &transcoding.TranscodeJob{
 		ID:          "job-hls",
-		MediaItemID: "/input/video.mkv",
+		InputPath:   "/input/video.mkv",
 		OutputCodec: "h264",
 		HWAccelType: "none",
 	}
 
-	args := BuildTranscodeArgs(job)
-	assert.Contains(t, args, "job-hls.m3u8")
-	assert.Contains(t, args, "job-hls_%03d.ts")
+	args := tr.BuildTranscodeArgs(job)
+	assert.Contains(t, args, "/tmp/evey/transcode/job-hls.m3u8")
+	assert.Contains(t, args, "/tmp/evey/transcode/job-hls_%03d.ts")
 }
 
 func TestParseProgress(t *testing.T) {
@@ -132,9 +142,9 @@ func TestParseProgress_NoMatch(t *testing.T) {
 
 func TestMapVideoEncoder(t *testing.T) {
 	tests := []struct {
-		codec   string
-		hw      string
-		expect  string
+		codec  string
+		hw     string
+		expect string
 	}{
 		{"h264", "none", "libx264"},
 		{"hevc", "none", "libx265"},

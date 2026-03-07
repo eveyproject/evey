@@ -2,14 +2,17 @@ package main
 
 import (
 	"context"
+	"crypto/rand"
+	"crypto/rsa"
+	"crypto/x509"
 	"database/sql"
+	"encoding/pem"
 	"fmt"
 	"log"
 	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
-
 	_ "github.com/lib/pq"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
@@ -26,12 +29,15 @@ import (
 	"github.com/gravity-zero/evey/internal/adapters/driven/ffmpeg"
 	"github.com/gravity-zero/evey/internal/adapters/driven/filesystem"
 	meili "github.com/gravity-zero/evey/internal/adapters/driven/meilisearch"
+	metadataadapter "github.com/gravity-zero/evey/internal/adapters/driven/metadata"
+	"github.com/gravity-zero/evey/internal/adapters/driven/pluginrunner"
 	"github.com/gravity-zero/evey/internal/adapters/driven/postgres"
 	"github.com/gravity-zero/evey/internal/adapters/driving/grpcapi"
 	"github.com/gravity-zero/evey/internal/adapters/driving/grpcapi/interceptors"
 	"github.com/gravity-zero/evey/internal/config"
-	"github.com/gravity-zero/evey/internal/domain/shared/fakes"
-	"github.com/gravity-zero/evey/internal/domain/user"
+	"github.com/gravity-zero/evey/internal/pkg/auth"
+	"github.com/gravity-zero/evey/internal/domain/metadata"
+	"github.com/gravity-zero/evey/internal/pkg/eventbus"
 )
 
 const version = "0.1.0"
@@ -59,67 +65,103 @@ func run() error {
 	}
 	log.Println("connected to postgres")
 
-	if err := runMigrations(db); err != nil {
+	if err := postgres.RunMigrations(db); err != nil {
 		return fmt.Errorf("migrations: %w", err)
 	}
 
 	// --- Repositories ---
 	userRepo := postgres.NewUserRepository(db)
+	profileRepo := postgres.NewProfileRepository(db)
+	refreshTokenRepo := postgres.NewRefreshTokenRepository(db)
+	apiKeyRepo := postgres.NewAPIKeyRepository(db)
+	inviteLinkRepo := postgres.NewInviteLinkRepository(db)
+	quickConnectRepo := postgres.NewQuickConnectRepository(db)
+	roleRepo := postgres.NewRoleRepository(db)
+	userRoleRepo := postgres.NewUserRoleRepository(db)
+
 	libraryRepo := postgres.NewLibraryRepository(db)
 	mediaItemRepo := postgres.NewMediaItemRepository(db)
+	mediaStreamRepo := postgres.NewMediaStreamRepository(db)
+	personRepo := postgres.NewPersonRepository(db)
+	mediaPersonRepo := postgres.NewMediaPersonRepository(db)
+
 	watchProgressRepo := postgres.NewWatchProgressRepository(db)
 	playSessionRepo := postgres.NewPlaySessionRepository(db)
+
+	transcodeJobRepo := postgres.NewTranscodeJobRepository(db)
+	transcodeProfileRepo := postgres.NewTranscodeProfileRepository(db)
+
+	pluginRepo := postgres.NewPluginRepository(db)
+	pluginRuntimeRepo := postgres.NewPluginRuntimeRepository(db)
+
+	metadataOverrideRepo := postgres.NewMetadataOverrideRepository(db)
+	artworkRepo := postgres.NewArtworkRepository(db)
+
+	loginHistoryRepo := postgres.NewLoginHistoryRepository(db)
+	serverMetricRepo := postgres.NewServerMetricRepository(db)
+	auditLogRepo := postgres.NewAuditLogRepository(db)
+	playSessionStatsRepo := postgres.NewPlaySessionStatsReader(db)
 
 	// --- Infrastructure ---
 	searchAdapter, _ := meili.NewSearchAdapter(cfg.Meilisearch.URL, cfg.Meilisearch.APIKey)
 	scanner := filesystem.NewScanner()
-	transcoder := ffmpeg.NewTranscoder("ffmpeg")
+	transcoder := ffmpeg.NewTranscoder("ffmpeg", cfg.Transcoding.CacheDir)
 	hwDetector := ffmpeg.NewHWDetector("ffmpeg")
 	ebmlReader := ebml.NewReader()
 	ebmlWriter := ebml.NewWriter("ffmpeg")
-	eventBus := fakes.NewFakeEventBus()
+	bus := eventbus.New()
+	hasher := auth.BcryptHasher{}
+	tmdbProvider := metadataadapter.NewTMDBProvider(os.Getenv("EVEY_TMDB_API_KEY"), nil)
+	artworkDownloader := metadataadapter.NewTMDBArtworkDownloader(nil)
+	pluginRunner := pluginrunner.NewRunner()
+	manifestParser := pluginrunner.NewManifestParser()
 
-	// TODO: replace with real JWT-based TokenGenerator using cfg.JWT
-	var tokenGen user.TokenGenerator
+	// --- JWT ---
+	privateKey, err := loadOrGenerateRSAKey(cfg.JWT.PrivateKeyPath)
+	if err != nil {
+		return fmt.Errorf("jwt key: %w", err)
+	}
+	tokenGen := auth.NewJWTGenerator(privateKey, cfg.JWT.AccessTokenTTL)
 
 	// --- Application services ---
 	librarySvc := applibrary.NewService(
 		libraryRepo, mediaItemRepo,
-		nil, nil, nil,
-		scanner, searchAdapter, eventBus,
+		mediaStreamRepo, personRepo, mediaPersonRepo,
+		scanner, searchAdapter, bus,
 	)
 
 	userSvc := appuser.NewService(
 		userRepo,
-		nil, nil, nil, nil, nil, nil, nil,
-		nil, tokenGen, eventBus,
+		profileRepo, refreshTokenRepo, apiKeyRepo,
+		inviteLinkRepo, quickConnectRepo, roleRepo, userRoleRepo,
+		hasher, tokenGen, bus,
 	)
 
 	playbackSvc := appplayback.NewService(
-		watchProgressRepo, playSessionRepo, userRepo, eventBus,
+		watchProgressRepo, playSessionRepo, userRepo, bus,
 	)
 
 	transcodingSvc := apptranscoding.NewService(
 		transcoder, hwDetector,
-		nil, nil,
-		eventBus, cfg.Transcoding.MaxConcurrent,
+		transcodeJobRepo, transcodeProfileRepo,
+		bus, cfg.Transcoding.MaxConcurrent,
 	)
 
 	mkvSvc := appmkv.NewService(ebmlReader, ebmlWriter)
 
 	metadataSvc := appmetadata.NewService(
-		nil, nil, nil,
-		eventBus, nil,
+		metadataOverrideRepo, artworkRepo, artworkDownloader,
+		bus, []metadata.MetadataProvider{tmdbProvider},
 	)
 
 	activitySvc := appactivity.NewService(
-		nil, nil, nil, nil,
-		eventBus,
+		loginHistoryRepo, serverMetricRepo, auditLogRepo, playSessionStatsRepo,
+		bus,
 	)
 
 	pluginSvc := appplugin.NewService(
-		nil, nil, nil, nil,
-		eventBus,
+		pluginRepo, pluginRuntimeRepo, pluginRunner, manifestParser,
+		bus,
 	)
 
 	// --- Auth interceptor ---
@@ -190,17 +232,27 @@ func run() error {
 	return nil
 }
 
-func runMigrations(db *sql.DB) error {
-	data, err := os.ReadFile("internal/adapters/driven/postgres/migrations/000001_init.sql")
+func loadOrGenerateRSAKey(path string) (*rsa.PrivateKey, error) {
+	data, err := os.ReadFile(path)
+	if err == nil {
+		block, _ := pem.Decode(data)
+		if block != nil {
+			return x509.ParsePKCS1PrivateKey(block.Bytes)
+		}
+	}
+	log.Printf("generating RSA key (no key at %s)", path)
+	key, err := rsa.GenerateKey(rand.Reader, 2048)
 	if err != nil {
-		log.Printf("migration file not found, skipping: %v", err)
-		return nil
+		return nil, err
 	}
-	if _, err := db.Exec(string(data)); err != nil {
-		return fmt.Errorf("exec migration: %w", err)
+	f, err := os.Create(path)
+	if err != nil {
+		log.Printf("cannot save key to %s: %v (using ephemeral)", path, err)
+		return key, nil
 	}
-	log.Println("migrations applied")
-	return nil
+	defer f.Close()
+	pem.Encode(f, &pem.Block{Type: "RSA PRIVATE KEY", Bytes: x509.MarshalPKCS1PrivateKey(key)})
+	return key, nil
 }
 
 func registerGateway(grpcAddr string) http.Handler {
@@ -210,10 +262,6 @@ func registerGateway(grpcAddr string) http.Handler {
 		return nil
 	}
 	_ = conn
-	// TODO: when generated gw code exists, register handlers:
-	//   gw := runtime.NewServeMux()
-	//   eveyv1.RegisterLibraryServiceHandler(ctx, gw, conn)
-	//   ...
-	//   return gw
+	// TODO: register gateway handlers when proto gateway code is wired
 	return nil
 }

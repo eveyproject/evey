@@ -24,6 +24,7 @@ const (
 type TranscodeJob struct {
 	ID            string
 	MediaItemID   string
+	InputPath     string
 	InputCodec    string
 	OutputCodec   string
 	HWAccelType   string

@@ -53,8 +53,9 @@ type JWTConfig struct {
 }
 
 type TranscodingConfig struct {
-	MaxConcurrent int
-	CacheMaxGB    int
+	MaxConcurrent  int
+	CacheMaxGB     int
+	CacheDir       string
 	HWAccelEnabled bool
 }
 
@@ -106,6 +107,7 @@ func Load() (*Config, error) {
 		Transcoding: TranscodingConfig{
 			MaxConcurrent:  envInt("EVEY_TRANSCODING_MAX_CONCURRENT", 2),
 			CacheMaxGB:     envInt("EVEY_TRANSCODING_CACHE_MAX_GB", 50),
+			CacheDir:       envStr("EVEY_TRANSCODING_CACHE_DIR", "/tmp/evey/transcode"),
 			HWAccelEnabled: envBool("EVEY_TRANSCODING_HW_ACCEL_ENABLED", false),
 		},
 		OIDC: OIDCConfig{
