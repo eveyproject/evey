@@ -1,12 +1,29 @@
 package ffmpeg
 
 import (
+	"bufio"
 	"context"
-	"errors"
+	"fmt"
+	"os"
+	"os/exec"
+	"regexp"
+	"strconv"
+	"strings"
 	"sync"
 
 	"github.com/gravity-zero/evey/internal/domain/transcoding"
 )
+
+var reProgress = regexp.MustCompile(
+	`frame=\s*(\d+)\s+fps=\s*([\d.]+)\s+.*?size=\s*\S+\s+time=\s*(\d+):(\d+):(\d+)\.(\d+)\s+bitrate=\s*([\d.]+)kbits/s\s+speed=\s*([\d.]+)x`,
+)
+
+type runningJob struct {
+	cmd      *exec.Cmd
+	cancel   context.CancelFunc
+	progress *transcoding.TranscodeProgress
+	mu       sync.Mutex
+}
 
 type Transcoder struct {
 	binaryPath string
@@ -17,17 +34,204 @@ func NewTranscoder(binaryPath string) *Transcoder {
 	return &Transcoder{binaryPath: binaryPath}
 }
 
-func (t *Transcoder) Start(_ context.Context, job *transcoding.TranscodeJob) (string, error) {
-	// TODO: build ffmpeg command args from job, exec.CommandContext, store PID in jobs map
-	return "", errors.New("TODO: implement ffmpeg start")
+func (t *Transcoder) Start(ctx context.Context, job *transcoding.TranscodeJob) (string, error) {
+	args := BuildTranscodeArgs(job)
+
+	jobCtx, cancel := context.WithCancel(ctx)
+	cmd := exec.CommandContext(jobCtx, t.binaryPath, args...)
+
+	stderr, err := cmd.StderrPipe()
+	if err != nil {
+		cancel()
+		return "", fmt.Errorf("stderr pipe: %w", err)
+	}
+
+	if err := cmd.Start(); err != nil {
+		cancel()
+		return "", fmt.Errorf("start ffmpeg: %w", err)
+	}
+
+	rj := &runningJob{
+		cmd:    cmd,
+		cancel: cancel,
+		progress: &transcoding.TranscodeProgress{
+			JobID: job.ID,
+		},
+	}
+	t.jobs.Store(job.ID, rj)
+
+	go func() {
+		scanner := bufio.NewScanner(stderr)
+		scanner.Split(scanFFmpegLines)
+		for scanner.Scan() {
+			line := scanner.Text()
+			if p, ok := ParseProgress(line, job.ID, job.DurationMs); ok {
+				rj.mu.Lock()
+				rj.progress = p
+				rj.mu.Unlock()
+			}
+		}
+		_ = cmd.Wait()
+	}()
+
+	return job.ID, nil
 }
 
 func (t *Transcoder) Stop(_ context.Context, jobID string) error {
-	// TODO: lookup PID in jobs map, send SIGTERM
-	return errors.New("TODO: implement ffmpeg stop")
+	v, ok := t.jobs.Load(jobID)
+	if !ok {
+		return fmt.Errorf("job %s not found", jobID)
+	}
+	rj := v.(*runningJob)
+	rj.cancel()
+	t.jobs.Delete(jobID)
+	return nil
 }
 
 func (t *Transcoder) Progress(_ context.Context, jobID string) (*transcoding.TranscodeProgress, error) {
-	// TODO: parse ffmpeg progress output
-	return nil, errors.New("TODO: implement ffmpeg progress")
+	v, ok := t.jobs.Load(jobID)
+	if !ok {
+		return nil, fmt.Errorf("job %s not found", jobID)
+	}
+	rj := v.(*runningJob)
+	rj.mu.Lock()
+	defer rj.mu.Unlock()
+	p := *rj.progress
+	return &p, nil
+}
+
+func BuildTranscodeArgs(job *transcoding.TranscodeJob) []string {
+	args := []string{"-y", "-progress", "pipe:2"}
+
+	if job.HWAccelType != "" && job.HWAccelType != string(transcoding.None) {
+		switch transcoding.HWAccelType(job.HWAccelType) {
+		case transcoding.VAAPI:
+			args = append(args, "-hwaccel", "vaapi", "-hwaccel_output_format", "vaapi")
+			if _, err := os.Stat("/dev/dri/renderD128"); err == nil {
+				args = append(args, "-vaapi_device", "/dev/dri/renderD128")
+			}
+		case transcoding.NVENC:
+			args = append(args, "-hwaccel", "cuda", "-hwaccel_output_format", "cuda")
+		case transcoding.QSV:
+			args = append(args, "-hwaccel", "qsv", "-hwaccel_output_format", "qsv")
+		}
+	}
+
+	args = append(args, "-i", job.MediaItemID)
+
+	vcodec := mapVideoEncoder(job.OutputCodec, job.HWAccelType)
+	args = append(args, "-c:v", vcodec)
+
+	if job.Preset != "" {
+		args = append(args, "-preset", job.Preset)
+	}
+	if job.BitrateOut > 0 {
+		args = append(args, "-b:v", strconv.FormatInt(job.BitrateOut, 10))
+	}
+	if job.ResolutionOut != "" {
+		args = append(args, "-vf", "scale="+job.ResolutionOut)
+	}
+
+	args = append(args,
+		"-c:a", "aac",
+		"-f", "hls",
+		"-hls_time", "6",
+		"-hls_list_size", "0",
+		"-hls_segment_filename", job.ID+"_%03d.ts",
+		job.ID+".m3u8",
+	)
+
+	return args
+}
+
+func mapVideoEncoder(codec, hwAccel string) string {
+	base := strings.ToLower(codec)
+	switch transcoding.HWAccelType(hwAccel) {
+	case transcoding.VAAPI:
+		switch base {
+		case "h264", "libx264":
+			return "h264_vaapi"
+		case "hevc", "h265", "libx265":
+			return "hevc_vaapi"
+		}
+	case transcoding.NVENC:
+		switch base {
+		case "h264", "libx264":
+			return "h264_nvenc"
+		case "hevc", "h265", "libx265":
+			return "hevc_nvenc"
+		}
+	case transcoding.QSV:
+		switch base {
+		case "h264", "libx264":
+			return "h264_qsv"
+		case "hevc", "h265", "libx265":
+			return "hevc_qsv"
+		}
+	}
+
+	switch base {
+	case "h264":
+		return "libx264"
+	case "hevc", "h265":
+		return "libx265"
+	case "vp9":
+		return "libvpx-vp9"
+	case "av1":
+		return "libaom-av1"
+	}
+	return codec
+}
+
+func ParseProgress(line string, jobID string, durationMs *int64) (*transcoding.TranscodeProgress, bool) {
+	m := reProgress.FindStringSubmatch(line)
+	if m == nil {
+		return nil, false
+	}
+
+	fps, _ := strconv.ParseFloat(m[2], 64)
+	hours, _ := strconv.Atoi(m[3])
+	mins, _ := strconv.Atoi(m[4])
+	secs, _ := strconv.Atoi(m[5])
+	centis, _ := strconv.Atoi(m[6])
+
+	currentMs := int64(hours*3600000 + mins*60000 + secs*1000 + centis*10)
+	bitrate, _ := strconv.ParseFloat(m[7], 64)
+	speed, _ := strconv.ParseFloat(m[8], 64)
+
+	p := &transcoding.TranscodeProgress{
+		JobID:          jobID,
+		FPS:            fps,
+		Speed:          speed,
+		CurrentBitrate: int64(bitrate * 1000),
+	}
+
+	if durationMs != nil && *durationMs > 0 {
+		p.Percent = float64(currentMs) / float64(*durationMs) * 100
+		if p.Percent > 100 {
+			p.Percent = 100
+		}
+		remaining := float64(*durationMs-currentMs) / 1000
+		if speed > 0 {
+			p.ETAMs = int64(remaining / speed * 1000)
+		}
+	}
+
+	return p, true
+}
+
+// scanFFmpegLines splits on \r or \n (ffmpeg uses \r for progress)
+func scanFFmpegLines(data []byte, atEOF bool) (advance int, token []byte, err error) {
+	if atEOF && len(data) == 0 {
+		return 0, nil, nil
+	}
+	for i, b := range data {
+		if b == '\n' || b == '\r' {
+			return i + 1, data[:i], nil
+		}
+	}
+	if atEOF {
+		return len(data), data, nil
+	}
+	return 0, nil, nil
 }
