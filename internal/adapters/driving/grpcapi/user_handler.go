@@ -1,0 +1,311 @@
+package grpcapi
+
+import (
+	"context"
+	"fmt"
+
+	eveyv1 "github.com/gravity-zero/evey/gen/evey/v1"
+	"github.com/gravity-zero/evey/internal/adapters/driving/grpcapi/interceptors"
+	appuser "github.com/gravity-zero/evey/internal/app/user"
+	"github.com/gravity-zero/evey/internal/domain/user"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
+)
+
+type userHandler struct {
+	eveyv1.UnimplementedUserServiceServer
+	svc   *appuser.Service
+	users user.UserRepository
+}
+
+func (h *userHandler) Login(ctx context.Context, req *eveyv1.LoginRequest) (*eveyv1.AuthResponse, error) {
+	access, refresh, err := h.svc.Login(ctx, req.Username, req.Password)
+	if err != nil {
+		return nil, status.Errorf(codes.Unauthenticated, "%v", err)
+	}
+	u, _ := h.users.GetByUsername(ctx, req.Username)
+	resp := &eveyv1.AuthResponse{
+		AccessToken:  access,
+		RefreshToken: refresh,
+	}
+	if u != nil {
+		resp.User = userToProto(u)
+	}
+	return resp, nil
+}
+
+func (h *userHandler) RefreshToken(ctx context.Context, req *eveyv1.RefreshTokenRequest) (*eveyv1.AuthResponse, error) {
+	access, err := h.svc.RefreshToken(ctx, req.RefreshToken)
+	if err != nil {
+		return nil, status.Errorf(codes.Unauthenticated, "%v", err)
+	}
+	return &eveyv1.AuthResponse{AccessToken: access}, nil
+}
+
+func (h *userHandler) Logout(ctx context.Context, _ *eveyv1.LogoutRequest) (*eveyv1.LogoutResponse, error) {
+	claims := interceptors.ClaimsFromContext(ctx)
+	if claims == nil {
+		return nil, status.Error(codes.Unauthenticated, "not authenticated")
+	}
+	if err := h.svc.Logout(ctx, claims.UserID); err != nil {
+		return nil, status.Errorf(codes.Internal, "%v", err)
+	}
+	return &eveyv1.LogoutResponse{}, nil
+}
+
+func (h *userHandler) GetCurrentUser(ctx context.Context, _ *eveyv1.GetCurrentUserRequest) (*eveyv1.User, error) {
+	claims := interceptors.ClaimsFromContext(ctx)
+	if claims == nil {
+		return nil, status.Error(codes.Unauthenticated, "not authenticated")
+	}
+	u, err := h.users.GetByID(ctx, claims.UserID)
+	if err != nil {
+		return nil, status.Errorf(codes.NotFound, "%v", err)
+	}
+	return userToProto(u), nil
+}
+
+func (h *userHandler) CreateUser(ctx context.Context, req *eveyv1.CreateUserRequest) (*eveyv1.User, error) {
+	claims := interceptors.ClaimsFromContext(ctx)
+	if claims == nil {
+		return nil, status.Error(codes.Unauthenticated, "not authenticated")
+	}
+	u := &user.User{
+		ID:       fmt.Sprintf("usr-%d", nowUnixNano()),
+		Username: req.Username,
+		Email:    req.Email,
+		IsAdmin:  req.IsAdmin,
+		Enabled:  true,
+	}
+	if err := h.svc.CreateUser(ctx, claims.IsAdmin, u, req.Password); err != nil {
+		return nil, status.Errorf(codes.PermissionDenied, "%v", err)
+	}
+	return userToProto(u), nil
+}
+
+func (h *userHandler) UpdateUser(ctx context.Context, req *eveyv1.UpdateUserRequest) (*eveyv1.User, error) {
+	u, err := h.users.GetByID(ctx, req.Id)
+	if err != nil {
+		return nil, status.Errorf(codes.NotFound, "%v", err)
+	}
+	if req.Username != nil {
+		u.Username = *req.Username
+	}
+	if req.Email != nil {
+		u.Email = *req.Email
+	}
+	if req.IsAdmin != nil {
+		u.IsAdmin = *req.IsAdmin
+	}
+	if req.MaxStreams != nil {
+		ms := int(*req.MaxStreams)
+		u.MaxStreams = &ms
+	}
+	if err := h.svc.UpdateUser(ctx, u); err != nil {
+		return nil, status.Errorf(codes.Internal, "%v", err)
+	}
+	return userToProto(u), nil
+}
+
+func (h *userHandler) DeleteUser(ctx context.Context, req *eveyv1.DeleteUserRequest) (*eveyv1.DeleteUserResponse, error) {
+	if err := h.svc.DeleteUser(ctx, req.Id); err != nil {
+		return nil, status.Errorf(codes.Internal, "%v", err)
+	}
+	return &eveyv1.DeleteUserResponse{}, nil
+}
+
+func (h *userHandler) DisableUser(ctx context.Context, req *eveyv1.DisableUserRequest) (*eveyv1.User, error) {
+	if err := h.svc.DisableUser(ctx, req.Id); err != nil {
+		return nil, status.Errorf(codes.Internal, "%v", err)
+	}
+	u, err := h.users.GetByID(ctx, req.Id)
+	if err != nil {
+		return &eveyv1.User{Id: req.Id, Enabled: false}, nil
+	}
+	return userToProto(u), nil
+}
+
+func (h *userHandler) ListUsers(ctx context.Context, _ *eveyv1.ListUsersRequest) (*eveyv1.ListUsersResponse, error) {
+	users, err := h.svc.ListUsers(ctx)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "%v", err)
+	}
+	resp := &eveyv1.ListUsersResponse{}
+	for _, u := range users {
+		resp.Users = append(resp.Users, userToProto(u))
+	}
+	return resp, nil
+}
+
+func (h *userHandler) CreateProfile(ctx context.Context, req *eveyv1.CreateProfileRequest) (*eveyv1.Profile, error) {
+	p := &user.Profile{
+		ID:          fmt.Sprintf("prf-%d", nowUnixNano()),
+		UserID:      req.UserId,
+		Name:        req.Name,
+		Preferences: req.Preferences,
+	}
+	if req.AvatarPath != "" {
+		p.AvatarPath = &req.AvatarPath
+	}
+	if req.MaxRating != "" {
+		p.MaxRating = &req.MaxRating
+	}
+	if err := h.svc.CreateProfile(ctx, p); err != nil {
+		return nil, status.Errorf(codes.Internal, "%v", err)
+	}
+	return profileToProto(p), nil
+}
+
+func (h *userHandler) UpdateProfile(ctx context.Context, req *eveyv1.UpdateProfileRequest) (*eveyv1.Profile, error) {
+	p := &user.Profile{
+		ID:          req.Id,
+		Preferences: req.Preferences,
+	}
+	if req.Name != nil {
+		p.Name = *req.Name
+	}
+	if req.AvatarPath != nil {
+		p.AvatarPath = req.AvatarPath
+	}
+	if req.MaxRating != nil {
+		p.MaxRating = req.MaxRating
+	}
+	if err := h.svc.UpdateProfile(ctx, p); err != nil {
+		return nil, status.Errorf(codes.Internal, "%v", err)
+	}
+	return profileToProto(p), nil
+}
+
+func (h *userHandler) DeleteProfile(ctx context.Context, req *eveyv1.DeleteProfileRequest) (*eveyv1.DeleteProfileResponse, error) {
+	if err := h.svc.DeleteProfile(ctx, req.Id); err != nil {
+		return nil, status.Errorf(codes.Internal, "%v", err)
+	}
+	return &eveyv1.DeleteProfileResponse{}, nil
+}
+
+func (h *userHandler) ListProfiles(ctx context.Context, req *eveyv1.ListProfilesRequest) (*eveyv1.ListProfilesResponse, error) {
+	profiles, err := h.svc.ListProfiles(ctx, req.UserId)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "%v", err)
+	}
+	resp := &eveyv1.ListProfilesResponse{}
+	for _, p := range profiles {
+		resp.Profiles = append(resp.Profiles, profileToProto(p))
+	}
+	return resp, nil
+}
+
+func (h *userHandler) CreateInviteLink(ctx context.Context, req *eveyv1.CreateInviteLinkRequest) (*eveyv1.InviteLink, error) {
+	claims := interceptors.ClaimsFromContext(ctx)
+	if claims == nil {
+		return nil, status.Error(codes.Unauthenticated, "not authenticated")
+	}
+	link := &user.InviteLink{
+		ID:        fmt.Sprintf("inv-%d", nowUnixNano()),
+		CreatedBy: claims.UserID,
+		Token:     fmt.Sprintf("inv-tok-%d", nowUnixNano()),
+		MaxUses:   int(req.MaxUses),
+		ExpiresAt: fromTimestamppbPtr(req.ExpiresAt),
+	}
+	if err := h.svc.CreateInviteLink(ctx, link); err != nil {
+		return nil, status.Errorf(codes.Internal, "%v", err)
+	}
+	return inviteLinkToProto(link), nil
+}
+
+func (h *userHandler) ListInviteLinks(_ context.Context, _ *eveyv1.ListInviteLinksRequest) (*eveyv1.ListInviteLinksResponse, error) {
+	return &eveyv1.ListInviteLinksResponse{}, nil
+}
+
+func (h *userHandler) RevokeInviteLink(_ context.Context, _ *eveyv1.RevokeInviteLinkRequest) (*eveyv1.RevokeInviteLinkResponse, error) {
+	return &eveyv1.RevokeInviteLinkResponse{}, nil
+}
+
+func (h *userHandler) RegisterWithInvite(ctx context.Context, req *eveyv1.RegisterWithInviteRequest) (*eveyv1.AuthResponse, error) {
+	u, err := h.svc.RegisterWithInvite(ctx, req.InviteCode, req.Username, req.Password, req.Email)
+	if err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "%v", err)
+	}
+	access, refresh, loginErr := h.svc.Login(ctx, req.Username, req.Password)
+	if loginErr != nil {
+		return &eveyv1.AuthResponse{User: userToProto(u)}, nil
+	}
+	return &eveyv1.AuthResponse{
+		AccessToken:  access,
+		RefreshToken: refresh,
+		User:         userToProto(u),
+	}, nil
+}
+
+func (h *userHandler) InitiateQuickConnect(ctx context.Context, _ *eveyv1.InitiateQuickConnectRequest) (*eveyv1.QuickConnectResponse, error) {
+	qc := &user.QuickConnectRequest{
+		ID:     fmt.Sprintf("qc-%d", nowUnixNano()),
+		Code:   fmt.Sprintf("qc-code-%d", nowUnixNano()),
+		Secret: fmt.Sprintf("qc-secret-%d", nowUnixNano()),
+		Status: string(user.Pending),
+	}
+	if err := h.svc.InitiateQuickConnect(ctx, qc); err != nil {
+		return nil, status.Errorf(codes.Internal, "%v", err)
+	}
+	return quickConnectToProto(qc), nil
+}
+
+func (h *userHandler) AuthorizeQuickConnect(ctx context.Context, req *eveyv1.AuthorizeQuickConnectRequest) (*eveyv1.AuthorizeQuickConnectResponse, error) {
+	claims := interceptors.ClaimsFromContext(ctx)
+	if claims == nil {
+		return nil, status.Error(codes.Unauthenticated, "not authenticated")
+	}
+	if err := h.svc.AuthorizeQuickConnect(ctx, req.Code, claims.UserID); err != nil {
+		return nil, status.Errorf(codes.Internal, "%v", err)
+	}
+	return &eveyv1.AuthorizeQuickConnectResponse{}, nil
+}
+
+func (h *userHandler) CheckQuickConnect(ctx context.Context, req *eveyv1.CheckQuickConnectRequest) (*eveyv1.CheckQuickConnectResponse, error) {
+	qc, err := h.svc.CheckQuickConnect(ctx, req.Code)
+	if err != nil {
+		return nil, status.Errorf(codes.NotFound, "%v", err)
+	}
+	return &eveyv1.CheckQuickConnectResponse{
+		Authorized: qc.Status == string(user.Authorized),
+	}, nil
+}
+
+func (h *userHandler) CreateAPIKey(ctx context.Context, req *eveyv1.CreateAPIKeyRequest) (*eveyv1.APIKey, error) {
+	claims := interceptors.ClaimsFromContext(ctx)
+	if claims == nil {
+		return nil, status.Error(codes.Unauthenticated, "not authenticated")
+	}
+	key := &user.APIKeyModel{
+		ID:     fmt.Sprintf("ak-%d", nowUnixNano()),
+		UserID: claims.UserID,
+		Name:   req.Name,
+	}
+	if err := h.svc.CreateAPIKey(ctx, key); err != nil {
+		return nil, status.Errorf(codes.Internal, "%v", err)
+	}
+	return apiKeyToProto(key), nil
+}
+
+func (h *userHandler) ListAPIKeys(ctx context.Context, _ *eveyv1.ListAPIKeysRequest) (*eveyv1.ListAPIKeysResponse, error) {
+	claims := interceptors.ClaimsFromContext(ctx)
+	if claims == nil {
+		return nil, status.Error(codes.Unauthenticated, "not authenticated")
+	}
+	keys, err := h.svc.ListAPIKeys(ctx, claims.UserID)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "%v", err)
+	}
+	resp := &eveyv1.ListAPIKeysResponse{}
+	for _, k := range keys {
+		resp.ApiKeys = append(resp.ApiKeys, apiKeyToProto(k))
+	}
+	return resp, nil
+}
+
+func (h *userHandler) RevokeAPIKey(ctx context.Context, req *eveyv1.RevokeAPIKeyRequest) (*eveyv1.RevokeAPIKeyResponse, error) {
+	if err := h.svc.RevokeAPIKey(ctx, req.Id); err != nil {
+		return nil, status.Errorf(codes.Internal, "%v", err)
+	}
+	return &eveyv1.RevokeAPIKeyResponse{}, nil
+}
