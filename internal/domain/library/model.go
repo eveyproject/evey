@@ -41,15 +41,17 @@ const (
 )
 
 type Library struct {
-	ID                 string
-	Name               string
-	Type               string
-	Paths              []string
+	ID                  string
+	Name                string
+	Type                string
+	Paths               []string
 	ScanIntervalMinutes int
-	Enabled            bool
-	LastScannedAt      *time.Time
-	CreatedAt          time.Time
-	UpdatedAt          time.Time
+	Enabled             bool
+	ScanOnStartup       bool
+	RealtimeMonitoring  bool
+	LastScannedAt       *time.Time
+	CreatedAt           time.Time
+	UpdatedAt           time.Time
 }
 
 type MediaItem struct {

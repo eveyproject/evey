@@ -25,6 +25,8 @@ type Plugin struct {
 	Description  string
 	Author       string
 	Language     string
+	Entrypoint   string
+	InstallDir   string
 	Capabilities []string
 	Permissions  []string
 	ConfigSchema map[string]interface{}

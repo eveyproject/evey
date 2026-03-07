@@ -18,11 +18,14 @@ type libraryHandler struct {
 
 func (h *libraryHandler) CreateLibrary(ctx context.Context, req *eveyv1.CreateLibraryRequest) (*eveyv1.Library, error) {
 	lib := &library.Library{
-		ID:    fmt.Sprintf("lib-%d", nowUnixNano()),
-		Name:  req.Name,
-		Type:  libraryTypeFromProto[req.Type],
-		Paths: req.Paths,
-		Enabled: true,
+		ID:                  fmt.Sprintf("lib-%d", nowUnixNano()),
+		Name:                req.Name,
+		Type:                libraryTypeFromProto[req.Type],
+		Paths:               req.Paths,
+		Enabled:             true,
+		ScanOnStartup:       req.ScanOnStartup,
+		RealtimeMonitoring:  req.RealtimeMonitoring,
+		ScanIntervalMinutes: 360,
 	}
 	if err := h.svc.CreateLibrary(ctx, lib); err != nil {
 		return nil, status.Errorf(codes.Internal, "create library: %v", err)
