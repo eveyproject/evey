@@ -61,7 +61,7 @@ func StartPostgres(t *testing.T) (*sql.DB, func()) {
 
 func runMigrations(t *testing.T, db *sql.DB) {
 	t.Helper()
-	migrationPath := filepath.Join("..", "migrations", "000001_init.sql")
+	migrationPath := filepath.Join("..", "migrations", "000001_init.up.sql")
 	data, err := os.ReadFile(migrationPath)
 	if err != nil {
 		t.Fatalf("read migration: %v", err)

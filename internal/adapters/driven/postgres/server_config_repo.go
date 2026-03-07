@@ -3,14 +3,9 @@ package postgres
 import (
 	"context"
 	"database/sql"
-	"time"
-)
 
-type ServerConfigEntry struct {
-	Key       string
-	Value     string
-	UpdatedAt time.Time
-}
+	"github.com/gravity-zero/evey/internal/domain/shared"
+)
 
 type ServerConfigRepository struct {
 	db *sql.DB
@@ -20,8 +15,8 @@ func NewServerConfigRepository(db *sql.DB) *ServerConfigRepository {
 	return &ServerConfigRepository{db: db}
 }
 
-func (r *ServerConfigRepository) Get(ctx context.Context, key string) (*ServerConfigEntry, error) {
-	e := &ServerConfigEntry{}
+func (r *ServerConfigRepository) Get(ctx context.Context, key string) (*shared.ServerConfigEntry, error) {
+	e := &shared.ServerConfigEntry{}
 	err := r.db.QueryRowContext(ctx,
 		`SELECT key, value, updated_at FROM server_config WHERE key = $1`, key,
 	).Scan(&e.Key, &e.Value, &e.UpdatedAt)
@@ -45,16 +40,16 @@ func (r *ServerConfigRepository) Delete(ctx context.Context, key string) error {
 	return err
 }
 
-func (r *ServerConfigRepository) List(ctx context.Context) ([]*ServerConfigEntry, error) {
+func (r *ServerConfigRepository) List(ctx context.Context) ([]*shared.ServerConfigEntry, error) {
 	rows, err := r.db.QueryContext(ctx, `SELECT key, value, updated_at FROM server_config ORDER BY key`)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
 
-	var result []*ServerConfigEntry
+	var result []*shared.ServerConfigEntry
 	for rows.Next() {
-		e := &ServerConfigEntry{}
+		e := &shared.ServerConfigEntry{}
 		if err := rows.Scan(&e.Key, &e.Value, &e.UpdatedAt); err != nil {
 			return nil, err
 		}
