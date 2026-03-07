@@ -18,7 +18,8 @@ func TestRecordLogin(t *testing.T) {
 	statsReader := actfakes.NewFakePlaySessionStatsReader()
 	bus := sharedfakes.NewFakeEventBus()
 
-	svc := appactivity.NewService(loginRepo, metricRepo, auditRepo, statsReader, bus)
+	playHistoryRepo := actfakes.NewFakePlayHistoryRepository()
+	svc := appactivity.NewService(loginRepo, metricRepo, auditRepo, statsReader, playHistoryRepo, bus)
 
 	err := svc.RecordLogin(context.Background(), &activity.LoginEntry{
 		ID:         "l1",

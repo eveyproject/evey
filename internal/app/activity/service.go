@@ -13,6 +13,7 @@ type Service struct {
 	metrics      activity.ServerMetricRepository
 	auditLog     activity.AuditLogRepository
 	statsReader  activity.PlaySessionStatsReader
+	playHistory  activity.PlayHistoryRepository
 	events       shared.EventBus
 }
 
@@ -21,6 +22,7 @@ func NewService(
 	metrics activity.ServerMetricRepository,
 	auditLog activity.AuditLogRepository,
 	statsReader activity.PlaySessionStatsReader,
+	playHistory activity.PlayHistoryRepository,
 	events shared.EventBus,
 ) *Service {
 	return &Service{
@@ -28,6 +30,7 @@ func NewService(
 		metrics:      metrics,
 		auditLog:     auditLog,
 		statsReader:  statsReader,
+		playHistory:  playHistory,
 		events:       events,
 	}
 }
@@ -69,4 +72,8 @@ func (s *Service) GetUserStats(ctx context.Context, profileID string) (*activity
 
 func (s *Service) GetServerStats(ctx context.Context) (*activity.ServerStatsResult, error) {
 	return s.statsReader.GetServerStats(ctx)
+}
+
+func (s *Service) GetPlayHistory(ctx context.Context, filter activity.PlayHistoryFilter) ([]*activity.PlayHistoryEntry, error) {
+	return s.playHistory.List(ctx, filter)
 }

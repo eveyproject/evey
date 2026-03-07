@@ -39,16 +39,21 @@ var tvGenres = map[int]string{
 type TMDBProvider struct {
 	apiKey     string
 	baseURL    string
+	language   string // ISO 639-1, e.g. "en", "fr"
 	httpClient *http.Client
 }
 
-func NewTMDBProvider(apiKey string, httpClient *http.Client) *TMDBProvider {
+func NewTMDBProvider(apiKey string, language string, httpClient *http.Client) *TMDBProvider {
 	if httpClient == nil {
 		httpClient = &http.Client{Timeout: 30 * time.Second}
+	}
+	if language == "" {
+		language = "en"
 	}
 	return &TMDBProvider{
 		apiKey:     apiKey,
 		baseURL:    defaultBaseURL,
+		language:   language,
 		httpClient: httpClient,
 	}
 }
@@ -66,8 +71,9 @@ func (p *TMDBProvider) Search(ctx context.Context, query string, mediaType strin
 
 	for page := 1; ; page++ {
 		params := url.Values{
-			"query": {query},
-			"page":  {strconv.Itoa(page)},
+			"query":    {query},
+			"page":     {strconv.Itoa(page)},
+			"language": {p.language},
 		}
 		u := fmt.Sprintf("%s%s?%s", p.baseURL, endpoint, params.Encode())
 
@@ -101,6 +107,7 @@ func (p *TMDBProvider) GetByProviderID(ctx context.Context, providerID string, m
 
 	params := url.Values{
 		"append_to_response": {"credits,keywords,images"},
+		"language":           {p.language},
 	}
 	u := fmt.Sprintf("%s%s?%s", p.baseURL, endpoint, params.Encode())
 

@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 
 	"github.com/gravity-zero/evey/internal/domain/user"
+	"github.com/lib/pq"
 )
 
 type ProfileRepository struct {
@@ -21,10 +22,19 @@ func (r *ProfileRepository) Create(ctx context.Context, p *user.Profile) error {
 	if err != nil {
 		return err
 	}
+	audioLangs := p.AudioLanguages
+	if audioLangs == nil {
+		audioLangs = []string{}
+	}
+	subLangs := p.SubtitleLanguages
+	if subLangs == nil {
+		subLangs = []string{}
+	}
 	_, err = r.db.ExecContext(ctx,
-		`INSERT INTO profiles (id, user_id, name, avatar_path, preferences, max_rating, is_default, created_at)
-		 VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`,
-		p.ID, p.UserID, p.Name, p.AvatarPath, prefsJSON, p.MaxRating, p.IsDefault, p.CreatedAt,
+		`INSERT INTO profiles (id, user_id, name, avatar_path, preferences, max_rating, is_default, audio_languages, subtitle_languages, created_at)
+		 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
+		p.ID, p.UserID, p.Name, p.AvatarPath, prefsJSON, p.MaxRating, p.IsDefault,
+		pq.Array(audioLangs), pq.Array(subLangs), p.CreatedAt,
 	)
 	return err
 }
@@ -33,9 +43,10 @@ func (r *ProfileRepository) GetByID(ctx context.Context, id string) (*user.Profi
 	p := &user.Profile{}
 	var prefsJSON []byte
 	err := r.db.QueryRowContext(ctx,
-		`SELECT id, user_id, name, avatar_path, preferences, max_rating, is_default, created_at
+		`SELECT id, user_id, name, avatar_path, preferences, max_rating, is_default, audio_languages, subtitle_languages, created_at
 		 FROM profiles WHERE id = $1`, id,
-	).Scan(&p.ID, &p.UserID, &p.Name, &p.AvatarPath, &prefsJSON, &p.MaxRating, &p.IsDefault, &p.CreatedAt)
+	).Scan(&p.ID, &p.UserID, &p.Name, &p.AvatarPath, &prefsJSON, &p.MaxRating, &p.IsDefault,
+		pq.Array(&p.AudioLanguages), pq.Array(&p.SubtitleLanguages), &p.CreatedAt)
 	if err != nil {
 		return nil, err
 	}
@@ -45,7 +56,7 @@ func (r *ProfileRepository) GetByID(ctx context.Context, id string) (*user.Profi
 
 func (r *ProfileRepository) GetByUserID(ctx context.Context, userID string) ([]*user.Profile, error) {
 	rows, err := r.db.QueryContext(ctx,
-		`SELECT id, user_id, name, avatar_path, preferences, max_rating, is_default, created_at
+		`SELECT id, user_id, name, avatar_path, preferences, max_rating, is_default, audio_languages, subtitle_languages, created_at
 		 FROM profiles WHERE user_id = $1 ORDER BY is_default DESC, name`, userID)
 	if err != nil {
 		return nil, err
@@ -56,7 +67,8 @@ func (r *ProfileRepository) GetByUserID(ctx context.Context, userID string) ([]*
 	for rows.Next() {
 		p := &user.Profile{}
 		var prefsJSON []byte
-		if err := rows.Scan(&p.ID, &p.UserID, &p.Name, &p.AvatarPath, &prefsJSON, &p.MaxRating, &p.IsDefault, &p.CreatedAt); err != nil {
+		if err := rows.Scan(&p.ID, &p.UserID, &p.Name, &p.AvatarPath, &prefsJSON, &p.MaxRating, &p.IsDefault,
+			pq.Array(&p.AudioLanguages), pq.Array(&p.SubtitleLanguages), &p.CreatedAt); err != nil {
 			return nil, err
 		}
 		_ = json.Unmarshal(prefsJSON, &p.Preferences)
@@ -70,9 +82,18 @@ func (r *ProfileRepository) Update(ctx context.Context, p *user.Profile) error {
 	if err != nil {
 		return err
 	}
+	audioLangs := p.AudioLanguages
+	if audioLangs == nil {
+		audioLangs = []string{}
+	}
+	subLangs := p.SubtitleLanguages
+	if subLangs == nil {
+		subLangs = []string{}
+	}
 	_, err = r.db.ExecContext(ctx,
-		`UPDATE profiles SET name=$1, avatar_path=$2, preferences=$3, max_rating=$4, is_default=$5 WHERE id=$6`,
-		p.Name, p.AvatarPath, prefsJSON, p.MaxRating, p.IsDefault, p.ID,
+		`UPDATE profiles SET name=$1, avatar_path=$2, preferences=$3, max_rating=$4, is_default=$5, audio_languages=$6, subtitle_languages=$7 WHERE id=$8`,
+		p.Name, p.AvatarPath, prefsJSON, p.MaxRating, p.IsDefault,
+		pq.Array(audioLangs), pq.Array(subLangs), p.ID,
 	)
 	return err
 }

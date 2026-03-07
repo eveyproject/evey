@@ -2,6 +2,22 @@ package activity
 
 import "time"
 
+type PlayHistoryEntry struct {
+	ID          string
+	ProfileID   string
+	MediaItemID string
+	MediaTitle  string
+	MediaType   string
+	DurationMs  int64
+	PositionMs  int64
+	Completed   bool
+	DeviceName  string
+	ClientName  string
+	PlayMethod  string
+	StartedAt   time.Time
+	EndedAt     *time.Time
+}
+
 type AuthMethod string
 
 const (

@@ -25,14 +25,16 @@ type User struct {
 }
 
 type Profile struct {
-	ID          string
-	UserID      string
-	Name        string
-	AvatarPath  *string
-	Preferences map[string]string
-	MaxRating   *string
-	IsDefault   bool
-	CreatedAt   time.Time
+	ID               string
+	UserID           string
+	Name             string
+	AvatarPath       *string
+	Preferences      map[string]string
+	MaxRating        *string
+	IsDefault        bool
+	AudioLanguages   []string // ordered fallback list, e.g. ["fr","en"]
+	SubtitleLanguages []string // ordered fallback list
+	CreatedAt        time.Time
 }
 
 type RefreshToken struct {

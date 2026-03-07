@@ -52,9 +52,11 @@ func (r *Runner) Start(_ context.Context, p *plugin.Plugin) error {
 	if p.InstallDir != "" {
 		cmd.Dir = p.InstallDir
 	}
+	hostSock := filepath.Join(sockDir, "evey-host.sock")
 	cmd.Env = append(os.Environ(),
 		"EVEY_PLUGIN_ID="+p.ID,
 		"EVEY_PLUGIN_SOCK="+sock,
+		"EVEY_HOST_SOCK="+hostSock,
 	)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr

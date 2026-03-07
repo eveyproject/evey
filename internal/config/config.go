@@ -17,6 +17,11 @@ type Config struct {
 	Metrics     MetricsConfig
 	Library     LibraryConfig
 	Playback    PlaybackConfig
+	Metadata    MetadataConfig
+}
+
+type MetadataConfig struct {
+	Language string // ISO 639-1, default "en"
 }
 
 type ServerConfig struct {
@@ -126,6 +131,9 @@ func Load() (*Config, error) {
 		},
 		Playback: PlaybackConfig{
 			DefaultMaxStreams: envInt("EVEY_PLAYBACK_MAX_STREAMS", 0),
+		},
+		Metadata: MetadataConfig{
+			Language: envStr("EVEY_METADATA_LANGUAGE", "en"),
 		},
 	}
 	return cfg, nil

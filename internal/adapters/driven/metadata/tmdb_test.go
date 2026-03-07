@@ -14,13 +14,13 @@ import (
 
 func newTestServer(handler http.HandlerFunc) (*httptest.Server, *TMDBProvider) {
 	srv := httptest.NewServer(handler)
-	p := NewTMDBProvider("test-key", srv.Client())
+	p := NewTMDBProvider("test-key", "en", srv.Client())
 	p.baseURL = srv.URL
 	return srv, p
 }
 
 func TestName(t *testing.T) {
-	p := NewTMDBProvider("key", nil)
+	p := NewTMDBProvider("key", "en", nil)
 	assert.Equal(t, "tmdb", p.Name())
 }
 
@@ -100,7 +100,7 @@ func TestSearch_TVResponseMapping(t *testing.T) {
 }
 
 func TestSearch_UnsupportedMediaType(t *testing.T) {
-	p := NewTMDBProvider("key", nil)
+	p := NewTMDBProvider("key", "en", nil)
 	_, err := p.Search(context.Background(), "query", "book")
 	assert.ErrorContains(t, err, "unsupported media type")
 }
@@ -266,7 +266,7 @@ func TestGetByProviderID_TVDetail(t *testing.T) {
 }
 
 func TestGetByProviderID_UnsupportedMediaType(t *testing.T) {
-	p := NewTMDBProvider("key", nil)
+	p := NewTMDBProvider("key", "en", nil)
 	_, err := p.GetByProviderID(context.Background(), "123", "book")
 	assert.ErrorContains(t, err, "unsupported media type")
 }

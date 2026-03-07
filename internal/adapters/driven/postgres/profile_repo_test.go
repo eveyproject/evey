@@ -88,6 +88,35 @@ func TestProfileRepo_Update(t *testing.T) {
 	assert.True(t, got.IsDefault)
 }
 
+func TestProfileRepo_LanguagePreferences(t *testing.T) {
+	db, cleanup := testhelpers.StartPostgres(t)
+	defer cleanup()
+
+	userRepo := postgres.NewUserRepository(db)
+	profileRepo := postgres.NewProfileRepository(db)
+	ctx := context.Background()
+
+	u := newTestUser("pu5")
+	require.NoError(t, userRepo.Create(ctx, u))
+
+	p := newTestProfile("p5", u.ID)
+	p.AudioLanguages = []string{"fr", "en"}
+	p.SubtitleLanguages = []string{"fr"}
+	require.NoError(t, profileRepo.Create(ctx, p))
+
+	got, err := profileRepo.GetByID(ctx, p.ID)
+	require.NoError(t, err)
+	assert.Equal(t, []string{"fr", "en"}, got.AudioLanguages)
+	assert.Equal(t, []string{"fr"}, got.SubtitleLanguages)
+
+	got.AudioLanguages = []string{"de", "fr", "en"}
+	require.NoError(t, profileRepo.Update(ctx, got))
+
+	updated, err := profileRepo.GetByID(ctx, p.ID)
+	require.NoError(t, err)
+	assert.Equal(t, []string{"de", "fr", "en"}, updated.AudioLanguages)
+}
+
 func TestProfileRepo_Delete(t *testing.T) {
 	db, cleanup := testhelpers.StartPostgres(t)
 	defer cleanup()

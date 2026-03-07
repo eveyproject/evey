@@ -2,6 +2,7 @@ package grpcapi
 
 import (
 	"fmt"
+	"strings"
 	"time"
 
 	eveyv1 "github.com/gravity-zero/evey/gen/evey/v1"
@@ -171,11 +172,21 @@ func userToProto(u *user.User) *eveyv1.User {
 }
 
 func profileToProto(p *user.Profile) *eveyv1.Profile {
+	prefs := make(map[string]string)
+	for k, v := range p.Preferences {
+		prefs[k] = v
+	}
+	if len(p.AudioLanguages) > 0 {
+		prefs["audio_languages"] = strings.Join(p.AudioLanguages, ",")
+	}
+	if len(p.SubtitleLanguages) > 0 {
+		prefs["subtitle_languages"] = strings.Join(p.SubtitleLanguages, ",")
+	}
 	pb := &eveyv1.Profile{
 		Id:          p.ID,
 		UserId:      p.UserID,
 		Name:        p.Name,
-		Preferences: p.Preferences,
+		Preferences: prefs,
 		IsDefault:   p.IsDefault,
 		CreatedAt:   toTimestamppb(p.CreatedAt),
 	}
@@ -508,6 +519,25 @@ func serverMetricToProto(m *activity.ServerMetric) *eveyv1.ServerMetric {
 		ActiveStreams:     int32(m.ActiveStreams),
 		ActiveTranscodes: int32(m.ActiveTranscodes),
 	}
+}
+
+func playHistoryEntryToProto(e *activity.PlayHistoryEntry) *eveyv1.PlayHistoryEntry {
+	pb := &eveyv1.PlayHistoryEntry{
+		Id:          e.ID,
+		ProfileId:   e.ProfileID,
+		MediaItemId: e.MediaItemID,
+		MediaTitle:  e.MediaTitle,
+		MediaType:   mediaItemTypeToProto[e.MediaType],
+		DurationMs:  e.DurationMs,
+		PositionMs:  e.PositionMs,
+		Completed:   e.Completed,
+		DeviceName:  e.DeviceName,
+		ClientName:  e.ClientName,
+		PlayMethod:  e.PlayMethod,
+		StartedAt:   toTimestamppb(e.StartedAt),
+		EndedAt:     toTimestamppbPtr(e.EndedAt),
+	}
+	return pb
 }
 
 func auditLogEntryToProto(e *activity.AuditLogEntry) *eveyv1.AuditLogEntry {

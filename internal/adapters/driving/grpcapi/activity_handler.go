@@ -6,6 +6,7 @@ import (
 
 	eveyv1 "github.com/gravity-zero/evey/gen/evey/v1"
 	appactivity "github.com/gravity-zero/evey/internal/app/activity"
+	"github.com/gravity-zero/evey/internal/domain/activity"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -15,8 +16,26 @@ type activityHandler struct {
 	svc *appactivity.Service
 }
 
-func (h *activityHandler) GetPlayHistory(_ context.Context, _ *eveyv1.GetPlayHistoryRequest) (*eveyv1.GetPlayHistoryResponse, error) {
-	return &eveyv1.GetPlayHistoryResponse{}, nil
+func (h *activityHandler) GetPlayHistory(ctx context.Context, req *eveyv1.GetPlayHistoryRequest) (*eveyv1.GetPlayHistoryResponse, error) {
+	filter := activity.PlayHistoryFilter{
+		ProfileID:   req.ProfileId,
+		MediaItemID: req.MediaItemId,
+		From:        fromTimestamppbPtr(req.From),
+		To:          fromTimestamppbPtr(req.To),
+	}
+	if req.Pagination != nil {
+		filter.Limit = int(req.Pagination.PageSize)
+		filter.Offset = int((req.Pagination.Page - 1) * req.Pagination.PageSize)
+	}
+	entries, err := h.svc.GetPlayHistory(ctx, filter)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "get play history: %v", err)
+	}
+	resp := &eveyv1.GetPlayHistoryResponse{}
+	for _, e := range entries {
+		resp.Entries = append(resp.Entries, playHistoryEntryToProto(e))
+	}
+	return resp, nil
 }
 
 func (h *activityHandler) GetUserStats(ctx context.Context, req *eveyv1.GetUserStatsRequest) (*eveyv1.UserStats, error) {

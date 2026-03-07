@@ -90,6 +90,14 @@ func (s *Service) GetArtwork(ctx context.Context, mediaItemID string) ([]*metada
 	return s.artwork.GetByMediaItem(ctx, mediaItemID)
 }
 
+func (s *Service) ListProviders() []string {
+	names := make([]string, 0, len(s.providers))
+	for _, p := range s.providers {
+		names = append(names, p.Name())
+	}
+	return names
+}
+
 func (s *Service) DownloadArtwork(ctx context.Context, record *metadata.ArtworkRecord, destPath string) error {
 	if record.SourceURL == nil {
 		return fmt.Errorf("no source URL")

@@ -35,3 +35,16 @@ type PlaySessionStatsReader interface {
 	GetServerStats(ctx context.Context) (*ServerStatsResult, error)
 	GetMostPopular(ctx context.Context, limit int) ([]MediaPlayCount, error)
 }
+
+type PlayHistoryFilter struct {
+	ProfileID   string
+	MediaItemID string
+	From        *time.Time
+	To          *time.Time
+	Limit       int
+	Offset      int
+}
+
+type PlayHistoryRepository interface {
+	List(ctx context.Context, filter PlayHistoryFilter) ([]*PlayHistoryEntry, error)
+}

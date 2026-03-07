@@ -272,6 +272,14 @@ func (s *Service) CreateInviteLink(ctx context.Context, link *user.InviteLink) e
 	return s.invites.Create(ctx, link)
 }
 
+func (s *Service) ListInviteLinks(ctx context.Context, creatorID string) ([]*user.InviteLink, error) {
+	return s.invites.ListByCreator(ctx, creatorID)
+}
+
+func (s *Service) RevokeInviteLink(ctx context.Context, id string) error {
+	return s.invites.Delete(ctx, id)
+}
+
 func (s *Service) RegisterWithInvite(ctx context.Context, token, username, password, email string) (*user.User, error) {
 	invite, err := s.invites.GetByToken(ctx, token)
 	if err != nil {

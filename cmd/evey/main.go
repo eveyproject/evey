@@ -103,6 +103,7 @@ func run() error {
 	serverMetricRepo := postgres.NewServerMetricRepository(db)
 	auditLogRepo := postgres.NewAuditLogRepository(db)
 	playSessionStatsRepo := postgres.NewPlaySessionStatsReader(db)
+	playHistoryRepo := postgres.NewPlayHistoryRepository(db)
 
 	// --- Infrastructure ---
 	searchAdapter, _ := meili.NewSearchAdapter(cfg.Meilisearch.URL, cfg.Meilisearch.APIKey)
@@ -113,7 +114,7 @@ func run() error {
 	ebmlWriter := ebml.NewWriter("ffmpeg")
 	bus := eventbus.New()
 	hasher := auth.BcryptHasher{}
-	tmdbProvider := metadataadapter.NewTMDBProvider(os.Getenv("EVEY_TMDB_API_KEY"), nil)
+	tmdbProvider := metadataadapter.NewTMDBProvider(os.Getenv("EVEY_TMDB_API_KEY"), cfg.Metadata.Language, nil)
 	artworkDownloader := metadataadapter.NewTMDBArtworkDownloader(nil)
 	pluginRunner := pluginrunner.NewRunner()
 	manifestParser := pluginrunner.NewManifestParser()
@@ -157,7 +158,7 @@ func run() error {
 	)
 
 	activitySvc := appactivity.NewService(
-		loginHistoryRepo, serverMetricRepo, auditLogRepo, playSessionStatsRepo,
+		loginHistoryRepo, serverMetricRepo, auditLogRepo, playSessionStatsRepo, playHistoryRepo,
 		bus,
 	)
 

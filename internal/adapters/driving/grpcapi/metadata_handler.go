@@ -90,5 +90,14 @@ func (h *metadataHandler) ListMetadataOverrides(ctx context.Context, req *eveyv1
 }
 
 func (h *metadataHandler) GetMetadataProviders(_ context.Context, _ *eveyv1.GetMetadataProvidersRequest) (*eveyv1.GetMetadataProvidersResponse, error) {
-	return &eveyv1.GetMetadataProvidersResponse{}, nil
+	resp := &eveyv1.GetMetadataProvidersResponse{}
+	for i, name := range h.svc.ListProviders() {
+		resp.Providers = append(resp.Providers, &eveyv1.MetadataProvider{
+			Id:      name,
+			Name:    name,
+			Enabled: true,
+			Priority: int32(i + 1),
+		})
+	}
+	return resp, nil
 }

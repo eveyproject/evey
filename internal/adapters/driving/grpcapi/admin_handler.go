@@ -60,7 +60,7 @@ func (h *adminHandler) SetupWizard(ctx context.Context, req *eveyv1.SetupWizardR
 func (h *adminHandler) GetDashboard(ctx context.Context, _ *eveyv1.GetDashboardRequest) (*eveyv1.DashboardInfo, error) {
 	stats, err := h.activitySvc.GetServerStats(ctx)
 	if err != nil {
-		return &eveyv1.DashboardInfo{}, nil
+		return nil, status.Errorf(codes.Internal, "get server stats: %v", err)
 	}
 	return &eveyv1.DashboardInfo{
 		ActiveStreams:    int32(stats.ActiveStreams),

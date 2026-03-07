@@ -1,0 +1,17 @@
+name: python-example
+version: 1.0.0
+description: Example Evey plugin written in Python
+author: Evey Team
+language: python
+entrypoint: python main.py
+min_evey_version: 0.1.0
+capabilities:
+  - media.read
+  - notification.sender
+permissions:
+  - media.read
+  - api.library
+config_schema:
+  greeting:
+    type: string
+    default: "Hello from Python plugin!"

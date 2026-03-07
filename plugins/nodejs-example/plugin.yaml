@@ -1,0 +1,18 @@
+name: nodejs-example
+version: 1.0.0
+description: Example Evey plugin written in Node.js
+author: Evey Team
+language: nodejs
+entrypoint: node index.js
+min_evey_version: 0.1.0
+capabilities:
+  - metadata.provider
+  - media.read
+permissions:
+  - media.read
+  - api.library
+  - api.metadata
+config_schema:
+  api_key:
+    type: string
+    required: false

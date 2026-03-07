@@ -213,11 +213,27 @@ func (h *userHandler) CreateInviteLink(ctx context.Context, req *eveyv1.CreateIn
 	return inviteLinkToProto(link), nil
 }
 
-func (h *userHandler) ListInviteLinks(_ context.Context, _ *eveyv1.ListInviteLinksRequest) (*eveyv1.ListInviteLinksResponse, error) {
-	return &eveyv1.ListInviteLinksResponse{}, nil
+func (h *userHandler) ListInviteLinks(ctx context.Context, _ *eveyv1.ListInviteLinksRequest) (*eveyv1.ListInviteLinksResponse, error) {
+	claims := interceptors.ClaimsFromContext(ctx)
+	creatorID := ""
+	if claims != nil {
+		creatorID = claims.UserID
+	}
+	links, err := h.svc.ListInviteLinks(ctx, creatorID)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "%v", err)
+	}
+	resp := &eveyv1.ListInviteLinksResponse{}
+	for _, l := range links {
+		resp.InviteLinks = append(resp.InviteLinks, inviteLinkToProto(l))
+	}
+	return resp, nil
 }
 
-func (h *userHandler) RevokeInviteLink(_ context.Context, _ *eveyv1.RevokeInviteLinkRequest) (*eveyv1.RevokeInviteLinkResponse, error) {
+func (h *userHandler) RevokeInviteLink(ctx context.Context, req *eveyv1.RevokeInviteLinkRequest) (*eveyv1.RevokeInviteLinkResponse, error) {
+	if err := h.svc.RevokeInviteLink(ctx, req.Id); err != nil {
+		return nil, status.Errorf(codes.Internal, "%v", err)
+	}
 	return &eveyv1.RevokeInviteLinkResponse{}, nil
 }
 
