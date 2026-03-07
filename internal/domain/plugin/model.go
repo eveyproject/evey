@@ -37,16 +37,16 @@ type Plugin struct {
 }
 
 type PluginManifest struct {
-	Name           string
-	Version        string
-	Description    string
-	Author         string
-	Language       string
-	Entrypoint     string
-	Capabilities   []string
-	Permissions    []string
-	MinEveyVersion string
-	ConfigSchema   map[string]interface{}
+	Name           string                 `yaml:"name"`
+	Version        string                 `yaml:"version"`
+	Description    string                 `yaml:"description"`
+	Author         string                 `yaml:"author"`
+	Language       string                 `yaml:"language"`
+	Entrypoint     string                 `yaml:"entrypoint"`
+	Capabilities   []string               `yaml:"capabilities"`
+	Permissions    []string               `yaml:"permissions"`
+	MinEveyVersion string                 `yaml:"min_evey_version"`
+	ConfigSchema   map[string]interface{} `yaml:"config_schema"`
 }
 
 type PluginRuntime struct {
