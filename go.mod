@@ -5,6 +5,7 @@ go 1.25.7
 require (
 	github.com/golang-jwt/jwt/v5 v5.3.1
 	github.com/lib/pq v1.11.2
+	github.com/meilisearch/meilisearch-go v0.36.1
 	github.com/stretchr/testify v1.11.1
 	github.com/testcontainers/testcontainers-go v0.40.0
 	google.golang.org/grpc v1.79.2
@@ -14,6 +15,7 @@ require (
 	dario.cat/mergo v1.0.2 // indirect
 	github.com/Azure/go-ansiterm v0.0.0-20210617225240-d185dfc1b5a1 // indirect
 	github.com/Microsoft/go-winio v0.6.2 // indirect
+	github.com/andybalholm/brotli v1.1.1 // indirect
 	github.com/cenkalti/backoff/v4 v4.3.0 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/containerd/errdefs v1.0.0 // indirect

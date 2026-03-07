@@ -2,28 +2,145 @@ package meilisearch
 
 import (
 	"context"
-	"errors"
+	"fmt"
+	"strings"
+
+	ms "github.com/meilisearch/meilisearch-go"
 
 	"github.com/gravity-zero/evey/internal/domain/library"
 )
 
+const indexName = "media_items"
+
+type IndexClient interface {
+	AddDocumentsWithContext(ctx context.Context, documentsPtr interface{}, opts *ms.DocumentOptions) (*ms.TaskInfo, error)
+	DeleteDocumentWithContext(ctx context.Context, identifier string, opts *ms.DocumentOptions) (*ms.TaskInfo, error)
+	SearchWithContext(ctx context.Context, query string, request *ms.SearchRequest) (*ms.SearchResponse, error)
+	UpdateSettingsWithContext(ctx context.Context, request *ms.Settings) (*ms.TaskInfo, error)
+}
+
+type ServiceClient interface {
+	Index(uid string) ms.IndexManager
+	CreateIndexWithContext(ctx context.Context, config *ms.IndexConfig) (*ms.TaskInfo, error)
+	GetIndexWithContext(ctx context.Context, indexID string) (*ms.IndexResult, error)
+}
+
 type SearchAdapter struct {
-	url    string
-	apiKey string
+	index IndexClient
 }
 
-func NewSearchAdapter(url, apiKey string) *SearchAdapter {
-	return &SearchAdapter{url: url, apiKey: apiKey}
+func NewSearchAdapter(url, apiKey string) (*SearchAdapter, error) {
+	client := ms.New(url, ms.WithAPIKey(apiKey))
+	return newSearchAdapterFromClient(context.Background(), client)
 }
 
-func (a *SearchAdapter) IndexMediaItem(_ context.Context, _ *library.MediaItem) error {
-	return errors.New("TODO: implement Meilisearch index")
+func newSearchAdapterFromClient(ctx context.Context, client ServiceClient) (*SearchAdapter, error) {
+	if _, err := client.GetIndexWithContext(ctx, indexName); err != nil {
+		if _, createErr := client.CreateIndexWithContext(ctx, &ms.IndexConfig{
+			Uid:        indexName,
+			PrimaryKey: "id",
+		}); createErr != nil {
+			return nil, fmt.Errorf("create index: %w", createErr)
+		}
+	}
+
+	idx := client.Index(indexName)
+
+	if _, err := idx.UpdateSettingsWithContext(ctx, &ms.Settings{
+		SearchableAttributes: []string{"title", "original_title", "overview", "genres", "studios", "tags"},
+		FilterableAttributes: []string{"type", "library_id", "year", "genres"},
+		SortableAttributes:   []string{"title", "year", "added_at"},
+	}); err != nil {
+		return nil, fmt.Errorf("update settings: %w", err)
+	}
+
+	return &SearchAdapter{index: idx}, nil
 }
 
-func (a *SearchAdapter) RemoveMediaItem(_ context.Context, _ string) error {
-	return errors.New("TODO: implement Meilisearch delete")
+func newSearchAdapterWithIndex(index IndexClient) *SearchAdapter {
+	return &SearchAdapter{index: index}
 }
 
-func (a *SearchAdapter) Search(_ context.Context, _ string, _ map[string]string) ([]string, error) {
-	return nil, errors.New("TODO: implement Meilisearch search")
+type mediaDocument struct {
+	ID            string   `json:"id"`
+	Title         string   `json:"title"`
+	OriginalTitle string   `json:"original_title"`
+	Overview      string   `json:"overview"`
+	Genres        []string `json:"genres"`
+	Studios       []string `json:"studios"`
+	Tags          []string `json:"tags"`
+	Year          *int     `json:"year"`
+	Type          string   `json:"type"`
+	LibraryID     string   `json:"library_id"`
+	AddedAt       int64    `json:"added_at"`
+}
+
+func ToDocument(item *library.MediaItem) mediaDocument {
+	return mediaDocument{
+		ID:            item.ID,
+		Title:         item.Title,
+		OriginalTitle: item.OriginalTitle,
+		Overview:      item.Overview,
+		Genres:        item.Genres,
+		Studios:       item.Studios,
+		Tags:          item.Tags,
+		Year:          item.Year,
+		Type:          item.Type,
+		LibraryID:     item.LibraryID,
+		AddedAt:       item.AddedAt.Unix(),
+	}
+}
+
+func BuildFilterString(filters map[string]string) string {
+	if len(filters) == 0 {
+		return ""
+	}
+	parts := make([]string, 0, len(filters))
+	for k, v := range filters {
+		parts = append(parts, fmt.Sprintf("%s = '%s'", k, v))
+	}
+	return strings.Join(parts, " AND ")
+}
+
+func (a *SearchAdapter) IndexMediaItem(ctx context.Context, item *library.MediaItem) error {
+	doc := ToDocument(item)
+	_, err := a.index.AddDocumentsWithContext(ctx, []mediaDocument{doc}, nil)
+	if err != nil {
+		return fmt.Errorf("index media item: %w", err)
+	}
+	return nil
+}
+
+func (a *SearchAdapter) RemoveMediaItem(ctx context.Context, id string) error {
+	_, err := a.index.DeleteDocumentWithContext(ctx, id, nil)
+	if err != nil {
+		return fmt.Errorf("remove media item: %w", err)
+	}
+	return nil
+}
+
+func (a *SearchAdapter) Search(ctx context.Context, query string, filters map[string]string) ([]string, error) {
+	req := &ms.SearchRequest{
+		AttributesToRetrieve: []string{"id"},
+	}
+	if f := BuildFilterString(filters); f != "" {
+		req.Filter = f
+	}
+
+	resp, err := a.index.SearchWithContext(ctx, query, req)
+	if err != nil {
+		return nil, fmt.Errorf("search: %w", err)
+	}
+
+	ids := make([]string, 0, len(resp.Hits))
+	for _, hit := range resp.Hits {
+		var doc struct {
+			ID string `json:"id"`
+		}
+		if err := hit.DecodeInto(&doc); err != nil {
+			continue
+		}
+		ids = append(ids, doc.ID)
+	}
+	return ids, nil
 }
