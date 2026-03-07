@@ -3,7 +3,6 @@ package postgres
 import (
 	"context"
 	"database/sql"
-	"errors"
 
 	"github.com/gravity-zero/evey/internal/domain/user"
 )
@@ -16,34 +15,82 @@ func NewUserRepository(db *sql.DB) *UserRepository {
 	return &UserRepository{db: db}
 }
 
-func (r *UserRepository) Create(_ context.Context, _ *user.User) error {
-	return errors.New("TODO: implement SQL insert")
+func (r *UserRepository) Create(ctx context.Context, u *user.User) error {
+	_, err := r.db.ExecContext(ctx,
+		`INSERT INTO users (id, username, email, password_hash, is_admin, enabled, oidc_subject, oidc_issuer, max_streams, created_at, updated_at)
+		 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)`,
+		u.ID, u.Username, u.Email, u.PasswordHash, u.IsAdmin, u.Enabled,
+		u.OIDCSubject, u.OIDCIssuer, u.MaxStreams, u.CreatedAt, u.UpdatedAt,
+	)
+	return err
 }
 
-func (r *UserRepository) GetByID(_ context.Context, _ string) (*user.User, error) {
-	return nil, errors.New("TODO: implement SQL select")
+func (r *UserRepository) GetByID(ctx context.Context, id string) (*user.User, error) {
+	return r.scanUser(r.db.QueryRowContext(ctx,
+		`SELECT id, username, email, password_hash, is_admin, enabled, oidc_subject, oidc_issuer, max_streams, created_at, updated_at
+		 FROM users WHERE id = $1`, id))
 }
 
-func (r *UserRepository) GetByUsername(_ context.Context, _ string) (*user.User, error) {
-	return nil, errors.New("TODO: implement SQL select by username")
+func (r *UserRepository) GetByUsername(ctx context.Context, username string) (*user.User, error) {
+	return r.scanUser(r.db.QueryRowContext(ctx,
+		`SELECT id, username, email, password_hash, is_admin, enabled, oidc_subject, oidc_issuer, max_streams, created_at, updated_at
+		 FROM users WHERE username = $1`, username))
 }
 
-func (r *UserRepository) GetByOIDCSubject(_ context.Context, _, _ string) (*user.User, error) {
-	return nil, errors.New("TODO: implement SQL select by OIDC subject")
+func (r *UserRepository) GetByOIDCSubject(ctx context.Context, issuer, subject string) (*user.User, error) {
+	return r.scanUser(r.db.QueryRowContext(ctx,
+		`SELECT id, username, email, password_hash, is_admin, enabled, oidc_subject, oidc_issuer, max_streams, created_at, updated_at
+		 FROM users WHERE oidc_issuer = $1 AND oidc_subject = $2`, issuer, subject))
 }
 
-func (r *UserRepository) List(_ context.Context) ([]*user.User, error) {
-	return nil, errors.New("TODO: implement SQL select all")
+func (r *UserRepository) List(ctx context.Context) ([]*user.User, error) {
+	rows, err := r.db.QueryContext(ctx,
+		`SELECT id, username, email, password_hash, is_admin, enabled, oidc_subject, oidc_issuer, max_streams, created_at, updated_at
+		 FROM users ORDER BY username`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var result []*user.User
+	for rows.Next() {
+		u := &user.User{}
+		if err := rows.Scan(&u.ID, &u.Username, &u.Email, &u.PasswordHash, &u.IsAdmin, &u.Enabled,
+			&u.OIDCSubject, &u.OIDCIssuer, &u.MaxStreams, &u.CreatedAt, &u.UpdatedAt); err != nil {
+			return nil, err
+		}
+		result = append(result, u)
+	}
+	return result, rows.Err()
 }
 
-func (r *UserRepository) Update(_ context.Context, _ *user.User) error {
-	return errors.New("TODO: implement SQL update")
+func (r *UserRepository) Update(ctx context.Context, u *user.User) error {
+	_, err := r.db.ExecContext(ctx,
+		`UPDATE users SET username=$1, email=$2, password_hash=$3, is_admin=$4, enabled=$5,
+		 oidc_subject=$6, oidc_issuer=$7, max_streams=$8, updated_at=$9 WHERE id=$10`,
+		u.Username, u.Email, u.PasswordHash, u.IsAdmin, u.Enabled,
+		u.OIDCSubject, u.OIDCIssuer, u.MaxStreams, u.UpdatedAt, u.ID,
+	)
+	return err
 }
 
-func (r *UserRepository) Delete(_ context.Context, _ string) error {
-	return errors.New("TODO: implement SQL delete")
+func (r *UserRepository) Delete(ctx context.Context, id string) error {
+	_, err := r.db.ExecContext(ctx, `DELETE FROM users WHERE id = $1`, id)
+	return err
 }
 
-func (r *UserRepository) CountAdmins(_ context.Context) (int, error) {
-	return 0, errors.New("TODO: implement SQL count where is_admin")
+func (r *UserRepository) CountAdmins(ctx context.Context) (int, error) {
+	var count int
+	err := r.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM users WHERE is_admin = TRUE`).Scan(&count)
+	return count, err
+}
+
+func (r *UserRepository) scanUser(row *sql.Row) (*user.User, error) {
+	u := &user.User{}
+	err := row.Scan(&u.ID, &u.Username, &u.Email, &u.PasswordHash, &u.IsAdmin, &u.Enabled,
+		&u.OIDCSubject, &u.OIDCIssuer, &u.MaxStreams, &u.CreatedAt, &u.UpdatedAt)
+	if err != nil {
+		return nil, err
+	}
+	return u, nil
 }

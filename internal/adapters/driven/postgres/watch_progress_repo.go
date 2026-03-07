@@ -3,7 +3,6 @@ package postgres
 import (
 	"context"
 	"database/sql"
-	"errors"
 
 	"github.com/gravity-zero/evey/internal/domain/playback"
 )
@@ -16,22 +15,91 @@ func NewWatchProgressRepository(db *sql.DB) *WatchProgressRepository {
 	return &WatchProgressRepository{db: db}
 }
 
-func (r *WatchProgressRepository) Upsert(_ context.Context, _ *playback.WatchProgress) error {
-	return errors.New("TODO: implement SQL upsert")
+func (r *WatchProgressRepository) Upsert(ctx context.Context, wp *playback.WatchProgress) error {
+	_, err := r.db.ExecContext(ctx,
+		`INSERT INTO watch_progress (id, profile_id, media_item_id, position_ms, completed, play_count, last_played_at)
+		 VALUES ($1,$2,$3,$4,$5,$6,$7)
+		 ON CONFLICT (profile_id, media_item_id) DO UPDATE SET
+		   position_ms = EXCLUDED.position_ms,
+		   completed = EXCLUDED.completed,
+		   play_count = EXCLUDED.play_count,
+		   last_played_at = EXCLUDED.last_played_at`,
+		wp.ID, wp.ProfileID, wp.MediaItemID, wp.PositionMs, wp.Completed, wp.PlayCount, wp.LastPlayedAt,
+	)
+	return err
 }
 
-func (r *WatchProgressRepository) GetByProfileAndMedia(_ context.Context, _, _ string) (*playback.WatchProgress, error) {
-	return nil, errors.New("TODO: implement SQL select")
+func (r *WatchProgressRepository) GetByProfileAndMedia(ctx context.Context, profileID, mediaItemID string) (*playback.WatchProgress, error) {
+	wp := &playback.WatchProgress{}
+	err := r.db.QueryRowContext(ctx,
+		`SELECT id, profile_id, media_item_id, position_ms, completed, play_count, last_played_at
+		 FROM watch_progress WHERE profile_id = $1 AND media_item_id = $2`, profileID, mediaItemID,
+	).Scan(&wp.ID, &wp.ProfileID, &wp.MediaItemID, &wp.PositionMs, &wp.Completed, &wp.PlayCount, &wp.LastPlayedAt)
+	if err != nil {
+		return nil, err
+	}
+	return wp, nil
 }
 
-func (r *WatchProgressRepository) GetByProfile(_ context.Context, _ string, _, _ int) ([]*playback.WatchProgress, error) {
-	return nil, errors.New("TODO: implement SQL select by profile")
+func (r *WatchProgressRepository) GetByProfile(ctx context.Context, profileID string, limit, offset int) ([]*playback.WatchProgress, error) {
+	rows, err := r.db.QueryContext(ctx,
+		`SELECT id, profile_id, media_item_id, position_ms, completed, play_count, last_played_at
+		 FROM watch_progress WHERE profile_id = $1
+		 ORDER BY last_played_at DESC LIMIT $2 OFFSET $3`, profileID, limit, offset)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	return r.scanWatchProgressRows(rows)
 }
 
-func (r *WatchProgressRepository) GetResumeItems(_ context.Context, _ string, _ int) ([]*playback.WatchProgress, error) {
-	return nil, errors.New("TODO: implement SQL select incomplete items")
+func (r *WatchProgressRepository) GetResumeItems(ctx context.Context, profileID string, limit int) ([]*playback.WatchProgress, error) {
+	rows, err := r.db.QueryContext(ctx,
+		`SELECT id, profile_id, media_item_id, position_ms, completed, play_count, last_played_at
+		 FROM watch_progress WHERE profile_id = $1 AND completed = FALSE AND position_ms > 0
+		 ORDER BY last_played_at DESC LIMIT $2`, profileID, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	return r.scanWatchProgressRows(rows)
 }
 
-func (r *WatchProgressRepository) GetNextUp(_ context.Context, _ string, _ int) ([]*playback.WatchProgress, error) {
-	return nil, errors.New("TODO: implement SQL select next episodes")
+// GetNextUp returns the next unwatched episode for each series the profile has been watching.
+// It finds episodes where the previous episode (index_number - 1) was completed,
+// but the current episode has not been completed yet.
+func (r *WatchProgressRepository) GetNextUp(ctx context.Context, profileID string, limit int) ([]*playback.WatchProgress, error) {
+	rows, err := r.db.QueryContext(ctx,
+		`SELECT DISTINCT ON (mi.parent_id)
+		   COALESCE(wp.id, ''), $1, mi.id, COALESCE(wp.position_ms, 0),
+		   COALESCE(wp.completed, FALSE), COALESCE(wp.play_count, 0), COALESCE(wp.last_played_at, NOW())
+		 FROM media_items mi
+		 INNER JOIN watch_progress prev_wp ON prev_wp.profile_id = $1
+		   AND prev_wp.media_item_id = (
+		     SELECT id FROM media_items
+		     WHERE parent_id = mi.parent_id AND index_number = mi.index_number - 1
+		   )
+		   AND prev_wp.completed = TRUE
+		 LEFT JOIN watch_progress wp ON wp.profile_id = $1 AND wp.media_item_id = mi.id
+		 WHERE mi.type = 'episode' AND mi.index_number IS NOT NULL
+		   AND (wp.completed IS NULL OR wp.completed = FALSE)
+		 ORDER BY mi.parent_id, COALESCE(prev_wp.last_played_at, NOW()) DESC
+		 LIMIT $2`, profileID, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	return r.scanWatchProgressRows(rows)
+}
+
+func (r *WatchProgressRepository) scanWatchProgressRows(rows *sql.Rows) ([]*playback.WatchProgress, error) {
+	var result []*playback.WatchProgress
+	for rows.Next() {
+		wp := &playback.WatchProgress{}
+		if err := rows.Scan(&wp.ID, &wp.ProfileID, &wp.MediaItemID, &wp.PositionMs, &wp.Completed, &wp.PlayCount, &wp.LastPlayedAt); err != nil {
+			return nil, err
+		}
+		result = append(result, wp)
+	}
+	return result, rows.Err()
 }

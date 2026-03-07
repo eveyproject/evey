@@ -1,0 +1,64 @@
+package postgres
+
+import (
+	"context"
+	"database/sql"
+	"time"
+)
+
+type ServerConfigEntry struct {
+	Key       string
+	Value     string
+	UpdatedAt time.Time
+}
+
+type ServerConfigRepository struct {
+	db *sql.DB
+}
+
+func NewServerConfigRepository(db *sql.DB) *ServerConfigRepository {
+	return &ServerConfigRepository{db: db}
+}
+
+func (r *ServerConfigRepository) Get(ctx context.Context, key string) (*ServerConfigEntry, error) {
+	e := &ServerConfigEntry{}
+	err := r.db.QueryRowContext(ctx,
+		`SELECT key, value, updated_at FROM server_config WHERE key = $1`, key,
+	).Scan(&e.Key, &e.Value, &e.UpdatedAt)
+	if err != nil {
+		return nil, err
+	}
+	return e, nil
+}
+
+func (r *ServerConfigRepository) Set(ctx context.Context, key, value string) error {
+	_, err := r.db.ExecContext(ctx,
+		`INSERT INTO server_config (key, value, updated_at) VALUES ($1, $2, NOW())
+		 ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = NOW()`,
+		key, value,
+	)
+	return err
+}
+
+func (r *ServerConfigRepository) Delete(ctx context.Context, key string) error {
+	_, err := r.db.ExecContext(ctx, `DELETE FROM server_config WHERE key = $1`, key)
+	return err
+}
+
+func (r *ServerConfigRepository) List(ctx context.Context) ([]*ServerConfigEntry, error) {
+	rows, err := r.db.QueryContext(ctx, `SELECT key, value, updated_at FROM server_config ORDER BY key`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var result []*ServerConfigEntry
+	for rows.Next() {
+		e := &ServerConfigEntry{}
+		if err := rows.Scan(&e.Key, &e.Value, &e.UpdatedAt); err != nil {
+			return nil, err
+		}
+		result = append(result, e)
+	}
+	return result, rows.Err()
+}
