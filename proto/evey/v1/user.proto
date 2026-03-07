@@ -1,0 +1,350 @@
+syntax = "proto3";
+
+package evey.v1;
+
+import "google/api/annotations.proto";
+import "google/protobuf/timestamp.proto";
+
+option go_package = "github.com/gravity/evey/gen/evey/v1;eveyv1";
+
+service UserService {
+  rpc Login(LoginRequest) returns (AuthResponse) {
+    option (google.api.http) = {
+      post: "/api/v1/auth/login"
+      body: "*"
+    };
+  }
+
+  rpc RefreshToken(RefreshTokenRequest) returns (AuthResponse) {
+    option (google.api.http) = {
+      post: "/api/v1/auth/refresh"
+      body: "*"
+    };
+  }
+
+  rpc Logout(LogoutRequest) returns (LogoutResponse) {
+    option (google.api.http) = {
+      post: "/api/v1/auth/logout"
+      body: "*"
+    };
+  }
+
+  rpc GetCurrentUser(GetCurrentUserRequest) returns (User) {
+    option (google.api.http) = {
+      get: "/api/v1/users/me"
+    };
+  }
+
+  rpc CreateUser(CreateUserRequest) returns (User) {
+    option (google.api.http) = {
+      post: "/api/v1/users"
+      body: "*"
+    };
+  }
+
+  rpc UpdateUser(UpdateUserRequest) returns (User) {
+    option (google.api.http) = {
+      patch: "/api/v1/users/{id}"
+      body: "*"
+    };
+  }
+
+  rpc DeleteUser(DeleteUserRequest) returns (DeleteUserResponse) {
+    option (google.api.http) = {
+      delete: "/api/v1/users/{id}"
+    };
+  }
+
+  rpc DisableUser(DisableUserRequest) returns (User) {
+    option (google.api.http) = {
+      post: "/api/v1/users/{id}/disable"
+    };
+  }
+
+  rpc ListUsers(ListUsersRequest) returns (ListUsersResponse) {
+    option (google.api.http) = {
+      get: "/api/v1/users"
+    };
+  }
+
+  rpc CreateProfile(CreateProfileRequest) returns (Profile) {
+    option (google.api.http) = {
+      post: "/api/v1/users/{user_id}/profiles"
+      body: "*"
+    };
+  }
+
+  rpc UpdateProfile(UpdateProfileRequest) returns (Profile) {
+    option (google.api.http) = {
+      patch: "/api/v1/profiles/{id}"
+      body: "*"
+    };
+  }
+
+  rpc DeleteProfile(DeleteProfileRequest) returns (DeleteProfileResponse) {
+    option (google.api.http) = {
+      delete: "/api/v1/profiles/{id}"
+    };
+  }
+
+  rpc ListProfiles(ListProfilesRequest) returns (ListProfilesResponse) {
+    option (google.api.http) = {
+      get: "/api/v1/users/{user_id}/profiles"
+    };
+  }
+
+  rpc CreateInviteLink(CreateInviteLinkRequest) returns (InviteLink) {
+    option (google.api.http) = {
+      post: "/api/v1/invites"
+      body: "*"
+    };
+  }
+
+  rpc ListInviteLinks(ListInviteLinksRequest) returns (ListInviteLinksResponse) {
+    option (google.api.http) = {
+      get: "/api/v1/invites"
+    };
+  }
+
+  rpc RevokeInviteLink(RevokeInviteLinkRequest) returns (RevokeInviteLinkResponse) {
+    option (google.api.http) = {
+      delete: "/api/v1/invites/{id}"
+    };
+  }
+
+  rpc RegisterWithInvite(RegisterWithInviteRequest) returns (AuthResponse) {
+    option (google.api.http) = {
+      post: "/api/v1/auth/register"
+      body: "*"
+    };
+  }
+
+  rpc InitiateQuickConnect(InitiateQuickConnectRequest) returns (QuickConnectResponse) {
+    option (google.api.http) = {
+      post: "/api/v1/auth/quick-connect/initiate"
+    };
+  }
+
+  rpc AuthorizeQuickConnect(AuthorizeQuickConnectRequest) returns (AuthorizeQuickConnectResponse) {
+    option (google.api.http) = {
+      post: "/api/v1/auth/quick-connect/authorize"
+      body: "*"
+    };
+  }
+
+  rpc CheckQuickConnect(CheckQuickConnectRequest) returns (CheckQuickConnectResponse) {
+    option (google.api.http) = {
+      get: "/api/v1/auth/quick-connect/{code}"
+    };
+  }
+
+  rpc CreateAPIKey(CreateAPIKeyRequest) returns (APIKey) {
+    option (google.api.http) = {
+      post: "/api/v1/api-keys"
+      body: "*"
+    };
+  }
+
+  rpc ListAPIKeys(ListAPIKeysRequest) returns (ListAPIKeysResponse) {
+    option (google.api.http) = {
+      get: "/api/v1/api-keys"
+    };
+  }
+
+  rpc RevokeAPIKey(RevokeAPIKeyRequest) returns (RevokeAPIKeyResponse) {
+    option (google.api.http) = {
+      delete: "/api/v1/api-keys/{id}"
+    };
+  }
+}
+
+message User {
+  string id = 1;
+  string username = 2;
+  string email = 3;
+  bool is_admin = 4;
+  bool enabled = 5;
+  int32 max_streams = 6;
+  google.protobuf.Timestamp created_at = 7;
+  google.protobuf.Timestamp updated_at = 8;
+}
+
+message Profile {
+  string id = 1;
+  string user_id = 2;
+  string name = 3;
+  string avatar_path = 4;
+  map<string, string> preferences = 5;
+  string max_rating = 6;
+  bool is_default = 7;
+  google.protobuf.Timestamp created_at = 8;
+  google.protobuf.Timestamp updated_at = 9;
+}
+
+message AuthResponse {
+  string access_token = 1;
+  string refresh_token = 2;
+  User user = 3;
+}
+
+message InviteLink {
+  string id = 1;
+  string code = 2;
+  string created_by = 3;
+  int32 max_uses = 4;
+  int32 times_used = 5;
+  google.protobuf.Timestamp expires_at = 6;
+  google.protobuf.Timestamp created_at = 7;
+}
+
+message QuickConnectResponse {
+  string code = 1;
+  string secret = 2;
+  google.protobuf.Timestamp expires_at = 3;
+}
+
+message APIKey {
+  string id = 1;
+  string name = 2;
+  string key = 3;
+  string user_id = 4;
+  google.protobuf.Timestamp last_used_at = 5;
+  google.protobuf.Timestamp created_at = 6;
+}
+
+message LoginRequest {
+  string username = 1;
+  string password = 2;
+}
+
+message RefreshTokenRequest {
+  string refresh_token = 1;
+}
+
+message LogoutRequest {
+  string refresh_token = 1;
+}
+
+message LogoutResponse {}
+
+message GetCurrentUserRequest {}
+
+message CreateUserRequest {
+  string username = 1;
+  string password = 2;
+  string email = 3;
+  bool is_admin = 4;
+}
+
+message UpdateUserRequest {
+  string id = 1;
+  optional string username = 2;
+  optional string email = 3;
+  optional string password = 4;
+  optional bool is_admin = 5;
+  optional int32 max_streams = 6;
+}
+
+message DeleteUserRequest {
+  string id = 1;
+}
+
+message DeleteUserResponse {}
+
+message DisableUserRequest {
+  string id = 1;
+  bool disabled = 2;
+}
+
+message ListUsersRequest {}
+
+message ListUsersResponse {
+  repeated User users = 1;
+}
+
+message CreateProfileRequest {
+  string user_id = 1;
+  string name = 2;
+  string avatar_path = 3;
+  map<string, string> preferences = 4;
+  string max_rating = 5;
+}
+
+message UpdateProfileRequest {
+  string id = 1;
+  optional string name = 2;
+  optional string avatar_path = 3;
+  map<string, string> preferences = 4;
+  optional string max_rating = 5;
+}
+
+message DeleteProfileRequest {
+  string id = 1;
+}
+
+message DeleteProfileResponse {}
+
+message ListProfilesRequest {
+  string user_id = 1;
+}
+
+message ListProfilesResponse {
+  repeated Profile profiles = 1;
+}
+
+message CreateInviteLinkRequest {
+  int32 max_uses = 1;
+  google.protobuf.Timestamp expires_at = 2;
+}
+
+message ListInviteLinksRequest {}
+
+message ListInviteLinksResponse {
+  repeated InviteLink invite_links = 1;
+}
+
+message RevokeInviteLinkRequest {
+  string id = 1;
+}
+
+message RevokeInviteLinkResponse {}
+
+message RegisterWithInviteRequest {
+  string invite_code = 1;
+  string username = 2;
+  string password = 3;
+  string email = 4;
+}
+
+message InitiateQuickConnectRequest {}
+
+message AuthorizeQuickConnectRequest {
+  string code = 1;
+}
+
+message AuthorizeQuickConnectResponse {}
+
+message CheckQuickConnectRequest {
+  string code = 1;
+}
+
+message CheckQuickConnectResponse {
+  bool authorized = 1;
+  AuthResponse auth = 2;
+}
+
+message CreateAPIKeyRequest {
+  string name = 1;
+}
+
+message ListAPIKeysRequest {}
+
+message ListAPIKeysResponse {
+  repeated APIKey api_keys = 1;
+}
+
+message RevokeAPIKeyRequest {
+  string id = 1;
+}
+
+message RevokeAPIKeyResponse {}

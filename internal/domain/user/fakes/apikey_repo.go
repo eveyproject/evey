@@ -1,0 +1,64 @@
+package fakes
+
+import (
+	"context"
+	"sync"
+	"time"
+
+	"github.com/gravity-zero/evey/internal/domain/user"
+)
+
+type FakeAPIKeyRepository struct {
+	mu    sync.RWMutex
+	items map[string]*user.APIKeyModel
+}
+
+func NewFakeAPIKeyRepository() *FakeAPIKeyRepository {
+	return &FakeAPIKeyRepository{items: make(map[string]*user.APIKeyModel)}
+}
+
+func (r *FakeAPIKeyRepository) Create(_ context.Context, key *user.APIKeyModel) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.items[key.ID] = key
+	return nil
+}
+
+func (r *FakeAPIKeyRepository) GetByKeyHash(_ context.Context, hash string) (*user.APIKeyModel, error) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	for _, k := range r.items {
+		if k.KeyHash == hash {
+			return k, nil
+		}
+	}
+	return nil, ErrNotFound
+}
+
+func (r *FakeAPIKeyRepository) ListByUserID(_ context.Context, userID string) ([]*user.APIKeyModel, error) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	var result []*user.APIKeyModel
+	for _, k := range r.items {
+		if k.UserID == userID {
+			result = append(result, k)
+		}
+	}
+	return result, nil
+}
+
+func (r *FakeAPIKeyRepository) Delete(_ context.Context, id string) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	delete(r.items, id)
+	return nil
+}
+
+func (r *FakeAPIKeyRepository) UpdateLastUsed(_ context.Context, id string, t time.Time) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if k, ok := r.items[id]; ok {
+		k.LastUsedAt = &t
+	}
+	return nil
+}

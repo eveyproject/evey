@@ -1,0 +1,251 @@
+syntax = "proto3";
+
+package evey.v1;
+
+import "google/api/annotations.proto";
+
+option go_package = "github.com/gravity/evey/gen/evey/v1;eveyv1";
+
+service MKVService {
+  rpc GetContainerInfo(GetContainerInfoRequest) returns (Container) {
+    option (google.api.http) = {
+      get: "/api/v1/mkv/info"
+    };
+  }
+
+  rpc ListTracks(ListTracksRequest) returns (ListTracksResponse) {
+    option (google.api.http) = {
+      get: "/api/v1/mkv/tracks"
+    };
+  }
+
+  rpc ListChapters(ListChaptersRequest) returns (ListChaptersResponse) {
+    option (google.api.http) = {
+      get: "/api/v1/mkv/chapters"
+    };
+  }
+
+  rpc ListAttachments(ListAttachmentsRequest) returns (ListAttachmentsResponse) {
+    option (google.api.http) = {
+      get: "/api/v1/mkv/attachments"
+    };
+  }
+
+  rpc ExtractTrack(ExtractTrackRequest) returns (stream ExtractDataChunk) {
+    option (google.api.http) = {
+      post: "/api/v1/mkv/tracks/extract"
+      body: "*"
+    };
+  }
+
+  rpc ExtractAttachment(ExtractAttachmentRequest) returns (ExtractAttachmentResponse) {
+    option (google.api.http) = {
+      post: "/api/v1/mkv/attachments/extract"
+      body: "*"
+    };
+  }
+
+  rpc MuxContainer(MuxContainerRequest) returns (stream MuxProgress) {
+    option (google.api.http) = {
+      post: "/api/v1/mkv/mux"
+      body: "*"
+    };
+  }
+
+  rpc DemuxContainer(DemuxContainerRequest) returns (stream DemuxProgress) {
+    option (google.api.http) = {
+      post: "/api/v1/mkv/demux"
+      body: "*"
+    };
+  }
+
+  rpc AddTrack(AddTrackRequest) returns (AddTrackResponse) {
+    option (google.api.http) = {
+      post: "/api/v1/mkv/tracks/add"
+      body: "*"
+    };
+  }
+
+  rpc RemoveTrack(RemoveTrackRequest) returns (RemoveTrackResponse) {
+    option (google.api.http) = {
+      post: "/api/v1/mkv/tracks/remove"
+      body: "*"
+    };
+  }
+}
+
+enum TrackType {
+  TRACK_TYPE_UNSPECIFIED = 0;
+  TRACK_TYPE_VIDEO = 1;
+  TRACK_TYPE_AUDIO = 2;
+  TRACK_TYPE_SUBTITLE = 3;
+}
+
+message Container {
+  string path = 1;
+  ContainerInfo info = 2;
+  repeated Track tracks = 3;
+  repeated Chapter chapters = 4;
+  repeated Attachment attachments = 5;
+  repeated Tag tags = 6;
+  int64 duration_ms = 7;
+}
+
+message ContainerInfo {
+  string format = 1;
+  string muxing_app = 2;
+  string writing_app = 3;
+  int64 file_size = 4;
+  int64 duration_ms = 5;
+  int64 bitrate = 6;
+  string title = 7;
+  string date = 8;
+}
+
+message Track {
+  int32 id = 1;
+  TrackType type = 2;
+  string codec = 3;
+  string language = 4;
+  string name = 5;
+  bool is_default = 6;
+  bool is_forced = 7;
+  bool is_enabled = 8;
+  int32 width = 9;
+  int32 height = 10;
+  double frame_rate = 11;
+  string pixel_format = 12;
+  int32 channels = 13;
+  int32 sample_rate = 14;
+  int32 bit_depth = 15;
+  int64 bitrate = 16;
+}
+
+message Chapter {
+  string id = 1;
+  string title = 2;
+  int64 start_ms = 3;
+  int64 end_ms = 4;
+  string language = 5;
+}
+
+message Attachment {
+  int32 id = 1;
+  string name = 2;
+  string mime_type = 3;
+  int64 size = 4;
+  string description = 5;
+}
+
+message Tag {
+  string target_type = 1;
+  int64 target_type_value = 2;
+  string name = 3;
+  string value = 4;
+  string language = 5;
+}
+
+message ExtractDataChunk {
+  bytes data = 1;
+  int64 offset = 2;
+  int64 total_size = 3;
+}
+
+message MuxProgress {
+  double percent = 1;
+  int64 bytes_written = 2;
+  string phase = 3;
+  string error = 4;
+}
+
+message DemuxProgress {
+  double percent = 1;
+  int32 tracks_extracted = 2;
+  int32 total_tracks = 3;
+  string current_track = 4;
+  string error = 5;
+}
+
+message GetContainerInfoRequest {
+  string path = 1;
+}
+
+message ListTracksRequest {
+  string path = 1;
+}
+
+message ListTracksResponse {
+  repeated Track tracks = 1;
+}
+
+message ListChaptersRequest {
+  string path = 1;
+}
+
+message ListChaptersResponse {
+  repeated Chapter chapters = 1;
+}
+
+message ListAttachmentsRequest {
+  string path = 1;
+}
+
+message ListAttachmentsResponse {
+  repeated Attachment attachments = 1;
+}
+
+message ExtractTrackRequest {
+  string path = 1;
+  int32 track_id = 2;
+}
+
+message ExtractAttachmentRequest {
+  string path = 1;
+  int32 attachment_id = 2;
+  string output_path = 3;
+}
+
+message ExtractAttachmentResponse {
+  string output_path = 1;
+  int64 size = 2;
+}
+
+message MuxContainerRequest {
+  string output_path = 1;
+  repeated MuxInput inputs = 2;
+  repeated Chapter chapters = 3;
+  repeated Tag tags = 4;
+  string title = 5;
+}
+
+message MuxInput {
+  string path = 1;
+  repeated int32 track_ids = 2;
+}
+
+message DemuxContainerRequest {
+  string path = 1;
+  string output_dir = 2;
+  repeated int32 track_ids = 3;
+}
+
+message AddTrackRequest {
+  string container_path = 1;
+  string track_path = 2;
+  TrackType type = 3;
+  string language = 4;
+  string name = 5;
+  bool is_default = 6;
+  bool is_forced = 7;
+}
+
+message AddTrackResponse {
+  int32 track_id = 1;
+}
+
+message RemoveTrackRequest {
+  string container_path = 1;
+  int32 track_id = 2;
+}
+
+message RemoveTrackResponse {}

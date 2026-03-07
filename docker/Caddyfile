@@ -1,0 +1,9 @@
+{$EVEY_DOMAIN:localhost} {
+	handle /grpc/* {
+		reverse_proxy h2c://evey:50051
+	}
+
+	handle {
+		reverse_proxy evey:8080
+	}
+}

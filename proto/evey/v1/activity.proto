@@ -1,0 +1,188 @@
+syntax = "proto3";
+
+package evey.v1;
+
+import "google/api/annotations.proto";
+import "google/protobuf/timestamp.proto";
+import "evey/v1/library.proto";
+
+option go_package = "github.com/gravity/evey/gen/evey/v1;eveyv1";
+
+service ActivityService {
+  rpc GetPlayHistory(GetPlayHistoryRequest) returns (GetPlayHistoryResponse) {
+    option (google.api.http) = {
+      get: "/api/v1/activity/history"
+    };
+  }
+
+  rpc GetUserStats(GetUserStatsRequest) returns (UserStats) {
+    option (google.api.http) = {
+      get: "/api/v1/activity/stats/user/{profile_id}"
+    };
+  }
+
+  rpc GetServerStats(GetServerStatsRequest) returns (ServerStats) {
+    option (google.api.http) = {
+      get: "/api/v1/activity/stats/server"
+    };
+  }
+
+  rpc GetLoginHistory(GetLoginHistoryRequest) returns (GetLoginHistoryResponse) {
+    option (google.api.http) = {
+      get: "/api/v1/activity/logins"
+    };
+  }
+
+  rpc ListServerMetrics(ListServerMetricsRequest) returns (ListServerMetricsResponse) {
+    option (google.api.http) = {
+      get: "/api/v1/activity/metrics"
+    };
+  }
+}
+
+message PlayHistoryEntry {
+  string id = 1;
+  string profile_id = 2;
+  string media_item_id = 3;
+  string media_title = 4;
+  MediaItemType media_type = 5;
+  int64 duration_ms = 6;
+  int64 position_ms = 7;
+  bool completed = 8;
+  string device_name = 9;
+  string client_name = 10;
+  string play_method = 11;
+  google.protobuf.Timestamp started_at = 12;
+  google.protobuf.Timestamp ended_at = 13;
+}
+
+message GenreBreakdown {
+  string genre = 1;
+  int64 total_time_ms = 2;
+  int32 play_count = 3;
+  double percent = 4;
+}
+
+message MostPlayed {
+  string media_item_id = 1;
+  string title = 2;
+  MediaItemType type = 3;
+  int32 play_count = 4;
+  int64 total_time_ms = 5;
+}
+
+message MonthlyPlayCount {
+  int32 year = 1;
+  int32 month = 2;
+  int32 play_count = 3;
+  int64 total_time_ms = 4;
+}
+
+message UserStats {
+  string profile_id = 1;
+  int64 total_watch_time_ms = 2;
+  int32 total_plays = 3;
+  repeated GenreBreakdown genres = 4;
+  repeated MostPlayed most_played = 5;
+  repeated MonthlyPlayCount by_month = 6;
+  int32 unique_items_watched = 7;
+}
+
+message PopularMedia {
+  string media_item_id = 1;
+  string title = 2;
+  MediaItemType type = 3;
+  int32 play_count = 4;
+  int32 unique_viewers = 5;
+}
+
+message ActiveUser {
+  string user_id = 1;
+  string username = 2;
+  int32 play_count = 3;
+  int64 total_watch_time_ms = 4;
+  google.protobuf.Timestamp last_active_at = 5;
+}
+
+message ServerStats {
+  int32 total_plays = 1;
+  int64 total_bandwidth_bytes = 2;
+  repeated PopularMedia popular_media = 3;
+  repeated ActiveUser active_users = 4;
+  int32 total_users = 5;
+  int32 total_media_items = 6;
+  int64 total_storage_bytes = 7;
+}
+
+message LoginEntry {
+  string id = 1;
+  string user_id = 2;
+  string username = 3;
+  string ip_address = 4;
+  string user_agent = 5;
+  bool success = 6;
+  string failure_reason = 7;
+  google.protobuf.Timestamp timestamp = 8;
+}
+
+message ServerMetric {
+  google.protobuf.Timestamp timestamp = 1;
+  double cpu_percent = 2;
+  double memory_percent = 3;
+  int64 memory_used_bytes = 4;
+  int64 network_rx_bytes = 5;
+  int64 network_tx_bytes = 6;
+  int32 active_streams = 7;
+  int32 active_transcodes = 8;
+}
+
+message GetPlayHistoryRequest {
+  string profile_id = 1;
+  string media_item_id = 2;
+  MediaItemType type = 3;
+  google.protobuf.Timestamp from = 4;
+  google.protobuf.Timestamp to = 5;
+  PaginationRequest pagination = 6;
+}
+
+message GetPlayHistoryResponse {
+  repeated PlayHistoryEntry entries = 1;
+  PaginationResponse pagination = 2;
+}
+
+message GetUserStatsRequest {
+  string profile_id = 1;
+  google.protobuf.Timestamp from = 2;
+  google.protobuf.Timestamp to = 3;
+  int32 most_played_limit = 4;
+}
+
+message GetServerStatsRequest {
+  google.protobuf.Timestamp from = 1;
+  google.protobuf.Timestamp to = 2;
+  int32 popular_limit = 3;
+  int32 active_users_limit = 4;
+}
+
+message GetLoginHistoryRequest {
+  string user_id = 1;
+  bool success_only = 2;
+  google.protobuf.Timestamp from = 3;
+  google.protobuf.Timestamp to = 4;
+  PaginationRequest pagination = 5;
+}
+
+message GetLoginHistoryResponse {
+  repeated LoginEntry entries = 1;
+  PaginationResponse pagination = 2;
+}
+
+message ListServerMetricsRequest {
+  google.protobuf.Timestamp from = 1;
+  google.protobuf.Timestamp to = 2;
+  int32 interval_seconds = 3;
+}
+
+message ListServerMetricsResponse {
+  repeated ServerMetric metrics = 1;
+}

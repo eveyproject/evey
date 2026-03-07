@@ -1,0 +1,207 @@
+syntax = "proto3";
+
+package evey.v1;
+
+import "google/api/annotations.proto";
+import "google/protobuf/timestamp.proto";
+import "evey/v1/library.proto";
+
+option go_package = "github.com/gravity/evey/gen/evey/v1;eveyv1";
+
+service PlaybackService {
+  rpc GetStreamInfo(GetStreamInfoRequest) returns (StreamInfo) {
+    option (google.api.http) = {
+      get: "/api/v1/playback/{media_item_id}/stream-info"
+    };
+  }
+
+  rpc StartStream(StartStreamRequest) returns (PlaySession) {
+    option (google.api.http) = {
+      post: "/api/v1/playback/start"
+      body: "*"
+    };
+  }
+
+  rpc StopStream(StopStreamRequest) returns (StopStreamResponse) {
+    option (google.api.http) = {
+      post: "/api/v1/playback/stop"
+      body: "*"
+    };
+  }
+
+  rpc ReportProgress(ReportProgressRequest) returns (ReportProgressResponse) {
+    option (google.api.http) = {
+      post: "/api/v1/playback/progress"
+      body: "*"
+    };
+  }
+
+  rpc GetWatchProgress(GetWatchProgressRequest) returns (WatchProgress) {
+    option (google.api.http) = {
+      get: "/api/v1/playback/{media_item_id}/progress"
+    };
+  }
+
+  rpc GetWatchHistory(GetWatchHistoryRequest) returns (GetWatchHistoryResponse) {
+    option (google.api.http) = {
+      get: "/api/v1/playback/history"
+    };
+  }
+
+  rpc GetResumeItems(GetResumeItemsRequest) returns (GetResumeItemsResponse) {
+    option (google.api.http) = {
+      get: "/api/v1/playback/resume"
+    };
+  }
+
+  rpc GetNextUp(GetNextUpRequest) returns (GetNextUpResponse) {
+    option (google.api.http) = {
+      get: "/api/v1/playback/next-up"
+    };
+  }
+
+  rpc MarkAsWatched(MarkAsWatchedRequest) returns (MarkAsWatchedResponse) {
+    option (google.api.http) = {
+      post: "/api/v1/playback/{media_item_id}/watched"
+    };
+  }
+
+  rpc MarkAsUnwatched(MarkAsUnwatchedRequest) returns (MarkAsUnwatchedResponse) {
+    option (google.api.http) = {
+      post: "/api/v1/playback/{media_item_id}/unwatched"
+    };
+  }
+}
+
+enum PlayMethod {
+  PLAY_METHOD_UNSPECIFIED = 0;
+  PLAY_METHOD_DIRECT_PLAY = 1;
+  PLAY_METHOD_DIRECT_STREAM = 2;
+  PLAY_METHOD_TRANSCODE = 3;
+}
+
+message StreamInfo {
+  string media_item_id = 1;
+  string direct_play_url = 2;
+  string transcode_url = 3;
+  repeated MediaStream media_streams = 4;
+  PlayMethod play_method = 5;
+  string container = 6;
+  int64 bitrate = 7;
+}
+
+message WatchProgress {
+  string id = 1;
+  string profile_id = 2;
+  string media_item_id = 3;
+  int64 position_ms = 4;
+  int64 duration_ms = 5;
+  double percent_complete = 6;
+  bool played = 7;
+  int32 play_count = 8;
+  google.protobuf.Timestamp last_played_at = 9;
+  google.protobuf.Timestamp updated_at = 10;
+}
+
+message PlaySession {
+  string id = 1;
+  string profile_id = 2;
+  string media_item_id = 3;
+  PlayMethod play_method = 4;
+  string device_id = 5;
+  string device_name = 6;
+  string client_name = 7;
+  int64 position_ms = 8;
+  bool is_paused = 9;
+  google.protobuf.Timestamp started_at = 10;
+}
+
+message GetStreamInfoRequest {
+  string media_item_id = 1;
+  string device_id = 2;
+  int64 max_bitrate = 3;
+  int32 max_width = 4;
+  int32 max_height = 5;
+  repeated string supported_codecs = 6;
+  repeated string supported_containers = 7;
+  int32 audio_stream_index = 8;
+  int32 subtitle_stream_index = 9;
+}
+
+message StartStreamRequest {
+  string media_item_id = 1;
+  string profile_id = 2;
+  PlayMethod play_method = 3;
+  string device_id = 4;
+  string device_name = 5;
+  string client_name = 6;
+  int64 start_position_ms = 7;
+  int32 audio_stream_index = 8;
+  int32 subtitle_stream_index = 9;
+}
+
+message StopStreamRequest {
+  string session_id = 1;
+  int64 position_ms = 2;
+}
+
+message StopStreamResponse {}
+
+message ReportProgressRequest {
+  string session_id = 1;
+  int64 position_ms = 2;
+  bool is_paused = 3;
+  bool is_muted = 4;
+  int32 volume_level = 5;
+}
+
+message ReportProgressResponse {}
+
+message GetWatchProgressRequest {
+  string media_item_id = 1;
+  string profile_id = 2;
+}
+
+message GetWatchHistoryRequest {
+  string profile_id = 1;
+  int32 limit = 2;
+  PaginationRequest pagination = 3;
+}
+
+message GetWatchHistoryResponse {
+  repeated WatchProgress items = 1;
+  PaginationResponse pagination = 2;
+}
+
+message GetResumeItemsRequest {
+  string profile_id = 1;
+  int32 limit = 2;
+}
+
+message GetResumeItemsResponse {
+  repeated MediaItem items = 1;
+  repeated WatchProgress progress = 2;
+}
+
+message GetNextUpRequest {
+  string profile_id = 1;
+  int32 limit = 2;
+}
+
+message GetNextUpResponse {
+  repeated MediaItem items = 1;
+}
+
+message MarkAsWatchedRequest {
+  string media_item_id = 1;
+  string profile_id = 2;
+}
+
+message MarkAsWatchedResponse {}
+
+message MarkAsUnwatchedRequest {
+  string media_item_id = 1;
+  string profile_id = 2;
+}
+
+message MarkAsUnwatchedResponse {}

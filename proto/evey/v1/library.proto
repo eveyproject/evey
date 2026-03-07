@@ -1,0 +1,313 @@
+syntax = "proto3";
+
+package evey.v1;
+
+import "google/api/annotations.proto";
+import "google/protobuf/timestamp.proto";
+
+option go_package = "github.com/gravity/evey/gen/evey/v1;eveyv1";
+
+service LibraryService {
+  rpc CreateLibrary(CreateLibraryRequest) returns (Library) {
+    option (google.api.http) = {
+      post: "/api/v1/libraries"
+      body: "*"
+    };
+  }
+
+  rpc GetLibrary(GetLibraryRequest) returns (Library) {
+    option (google.api.http) = {
+      get: "/api/v1/libraries/{id}"
+    };
+  }
+
+  rpc ListLibraries(ListLibrariesRequest) returns (ListLibrariesResponse) {
+    option (google.api.http) = {
+      get: "/api/v1/libraries"
+    };
+  }
+
+  rpc DeleteLibrary(DeleteLibraryRequest) returns (DeleteLibraryResponse) {
+    option (google.api.http) = {
+      delete: "/api/v1/libraries/{id}"
+    };
+  }
+
+  rpc ScanLibrary(ScanLibraryRequest) returns (stream ScanProgress) {
+    option (google.api.http) = {
+      post: "/api/v1/libraries/{id}/scan"
+    };
+  }
+
+  rpc GetMediaItem(GetMediaItemRequest) returns (MediaItem) {
+    option (google.api.http) = {
+      get: "/api/v1/media/{id}"
+    };
+  }
+
+  rpc ListMediaItems(ListMediaItemsRequest) returns (ListMediaItemsResponse) {
+    option (google.api.http) = {
+      get: "/api/v1/media"
+    };
+  }
+
+  rpc SearchMedia(SearchMediaRequest) returns (SearchMediaResponse) {
+    option (google.api.http) = {
+      get: "/api/v1/media/search"
+    };
+  }
+}
+
+message Library {
+  string id = 1;
+  string name = 2;
+  LibraryType type = 3;
+  repeated string paths = 4;
+  bool scan_on_startup = 5;
+  bool realtime_monitoring = 6;
+  google.protobuf.Timestamp created_at = 7;
+  google.protobuf.Timestamp updated_at = 8;
+}
+
+enum LibraryType {
+  LIBRARY_TYPE_UNSPECIFIED = 0;
+  LIBRARY_TYPE_MOVIES = 1;
+  LIBRARY_TYPE_SHOWS = 2;
+  LIBRARY_TYPE_MUSIC = 3;
+  LIBRARY_TYPE_PHOTOS = 4;
+  LIBRARY_TYPE_BOOKS = 5;
+}
+
+message MediaItem {
+  string id = 1;
+  string library_id = 2;
+  string parent_id = 3;
+  MediaItemType type = 4;
+  string title = 5;
+  string sort_title = 6;
+  string original_title = 7;
+  string overview = 8;
+  string tagline = 9;
+  string file_path = 10;
+  int64 file_size = 11;
+  string container_format = 12;
+  int64 duration_ms = 13;
+  int64 bitrate = 14;
+  int32 index_number = 15;
+  double community_rating = 16;
+  string official_rating = 17;
+  google.protobuf.Timestamp premiere_date = 18;
+  int32 year = 19;
+  map<string, string> provider_ids = 20;
+  repeated string genres = 21;
+  repeated string studios = 22;
+  repeated string tags = 23;
+  repeated MediaStream streams = 24;
+  repeated MediaPerson people = 25;
+  repeated Artwork artwork = 26;
+  google.protobuf.Timestamp created_at = 27;
+  google.protobuf.Timestamp updated_at = 28;
+}
+
+enum MediaItemType {
+  MEDIA_ITEM_TYPE_UNSPECIFIED = 0;
+  MEDIA_ITEM_TYPE_MOVIE = 1;
+  MEDIA_ITEM_TYPE_SERIES = 2;
+  MEDIA_ITEM_TYPE_SEASON = 3;
+  MEDIA_ITEM_TYPE_EPISODE = 4;
+  MEDIA_ITEM_TYPE_ALBUM = 5;
+  MEDIA_ITEM_TYPE_ARTIST = 6;
+  MEDIA_ITEM_TYPE_TRACK = 7;
+  MEDIA_ITEM_TYPE_PHOTO = 8;
+  MEDIA_ITEM_TYPE_BOOK = 9;
+}
+
+message MediaStream {
+  int32 index = 1;
+  MediaStreamType type = 2;
+  string codec = 3;
+  string codec_long_name = 4;
+  string language = 5;
+  string title = 6;
+  bool is_default = 7;
+  bool is_forced = 8;
+  bool is_external = 9;
+  string external_path = 10;
+  int32 width = 11;
+  int32 height = 12;
+  double frame_rate = 13;
+  string pixel_format = 14;
+  string color_space = 15;
+  string color_transfer = 16;
+  string color_primaries = 17;
+  int32 channels = 18;
+  int32 sample_rate = 19;
+  int32 bit_depth = 20;
+  int64 bitrate = 21;
+  string profile = 22;
+  string level = 23;
+}
+
+enum MediaStreamType {
+  MEDIA_STREAM_TYPE_UNSPECIFIED = 0;
+  MEDIA_STREAM_TYPE_VIDEO = 1;
+  MEDIA_STREAM_TYPE_AUDIO = 2;
+  MEDIA_STREAM_TYPE_SUBTITLE = 3;
+  MEDIA_STREAM_TYPE_ATTACHMENT = 4;
+}
+
+message MediaPerson {
+  string id = 1;
+  string name = 2;
+  string role = 3;
+  PersonType type = 4;
+  string thumb_url = 5;
+  int32 sort_order = 6;
+}
+
+enum PersonType {
+  PERSON_TYPE_UNSPECIFIED = 0;
+  PERSON_TYPE_ACTOR = 1;
+  PERSON_TYPE_DIRECTOR = 2;
+  PERSON_TYPE_WRITER = 3;
+  PERSON_TYPE_PRODUCER = 4;
+  PERSON_TYPE_COMPOSER = 5;
+  PERSON_TYPE_GUEST_STAR = 6;
+}
+
+message Artwork {
+  string id = 1;
+  ArtworkType type = 2;
+  string url = 3;
+  string provider = 4;
+  string language = 5;
+  int32 width = 6;
+  int32 height = 7;
+  bool is_selected = 8;
+}
+
+enum ArtworkType {
+  ARTWORK_TYPE_UNSPECIFIED = 0;
+  ARTWORK_TYPE_PRIMARY = 1;
+  ARTWORK_TYPE_BACKDROP = 2;
+  ARTWORK_TYPE_BANNER = 3;
+  ARTWORK_TYPE_THUMB = 4;
+  ARTWORK_TYPE_LOGO = 5;
+  ARTWORK_TYPE_DISC = 6;
+}
+
+message ScanProgress {
+  string library_id = 1;
+  ScanPhase phase = 2;
+  int32 total_items = 3;
+  int32 processed_items = 4;
+  string current_path = 5;
+  double percent = 6;
+  string error = 7;
+}
+
+enum ScanPhase {
+  SCAN_PHASE_UNSPECIFIED = 0;
+  SCAN_PHASE_DISCOVERING = 1;
+  SCAN_PHASE_SCANNING = 2;
+  SCAN_PHASE_METADATA = 3;
+  SCAN_PHASE_ARTWORK = 4;
+  SCAN_PHASE_COMPLETE = 5;
+}
+
+message Collection {
+  string id = 1;
+  string name = 2;
+  string overview = 3;
+  repeated string media_item_ids = 4;
+  repeated Artwork artwork = 5;
+  google.protobuf.Timestamp created_at = 6;
+  google.protobuf.Timestamp updated_at = 7;
+}
+
+message PaginationRequest {
+  int32 page = 1;
+  int32 page_size = 2;
+}
+
+message PaginationResponse {
+  int32 page = 1;
+  int32 page_size = 2;
+  int32 total_items = 3;
+  int32 total_pages = 4;
+}
+
+enum SortOrder {
+  SORT_ORDER_UNSPECIFIED = 0;
+  SORT_ORDER_ASC = 1;
+  SORT_ORDER_DESC = 2;
+}
+
+enum MediaSortField {
+  MEDIA_SORT_FIELD_UNSPECIFIED = 0;
+  MEDIA_SORT_FIELD_TITLE = 1;
+  MEDIA_SORT_FIELD_YEAR = 2;
+  MEDIA_SORT_FIELD_RATING = 3;
+  MEDIA_SORT_FIELD_DATE_ADDED = 4;
+  MEDIA_SORT_FIELD_PREMIERE_DATE = 5;
+}
+
+message CreateLibraryRequest {
+  string name = 1;
+  LibraryType type = 2;
+  repeated string paths = 3;
+  bool scan_on_startup = 4;
+  bool realtime_monitoring = 5;
+}
+
+message GetLibraryRequest {
+  string id = 1;
+}
+
+message ListLibrariesRequest {}
+
+message ListLibrariesResponse {
+  repeated Library libraries = 1;
+}
+
+message DeleteLibraryRequest {
+  string id = 1;
+}
+
+message DeleteLibraryResponse {}
+
+message ScanLibraryRequest {
+  string id = 1;
+  bool force_refresh = 2;
+}
+
+message GetMediaItemRequest {
+  string id = 1;
+}
+
+message ListMediaItemsRequest {
+  string library_id = 1;
+  MediaItemType type = 2;
+  string genre = 3;
+  int32 year = 4;
+  string parent_id = 5;
+  MediaSortField sort_field = 6;
+  SortOrder sort_order = 7;
+  PaginationRequest pagination = 8;
+}
+
+message ListMediaItemsResponse {
+  repeated MediaItem items = 1;
+  PaginationResponse pagination = 2;
+}
+
+message SearchMediaRequest {
+  string query = 1;
+  MediaItemType type = 2;
+  int32 limit = 3;
+}
+
+message SearchMediaResponse {
+  repeated MediaItem items = 1;
+  int32 total_hits = 2;
+}

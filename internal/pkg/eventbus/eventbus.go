@@ -1,0 +1,60 @@
+package eventbus
+
+import (
+	"context"
+	"fmt"
+	"sync"
+	"sync/atomic"
+
+	"github.com/gravity-zero/evey/internal/domain/shared"
+)
+
+type subscription struct {
+	id      string
+	handler func(ctx context.Context, event shared.Event)
+}
+
+type InMemoryEventBus struct {
+	mu      sync.RWMutex
+	subs    map[string][]subscription
+	nextID  atomic.Int64
+}
+
+func New() *InMemoryEventBus {
+	return &InMemoryEventBus{
+		subs: make(map[string][]subscription),
+	}
+}
+
+func (b *InMemoryEventBus) Publish(ctx context.Context, event shared.Event) error {
+	b.mu.RLock()
+	handlers := make([]subscription, len(b.subs[event.EventName()]))
+	copy(handlers, b.subs[event.EventName()])
+	b.mu.RUnlock()
+
+	for _, s := range handlers {
+		go s.handler(ctx, event)
+	}
+	return nil
+}
+
+func (b *InMemoryEventBus) Subscribe(eventName string, handler func(ctx context.Context, event shared.Event)) string {
+	id := fmt.Sprintf("sub-%d", b.nextID.Add(1))
+	b.mu.Lock()
+	b.subs[eventName] = append(b.subs[eventName], subscription{id: id, handler: handler})
+	b.mu.Unlock()
+	return id
+}
+
+func (b *InMemoryEventBus) Unsubscribe(id string) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	for name, subs := range b.subs {
+		for i, s := range subs {
+			if s.id == id {
+				b.subs[name] = append(subs[:i], subs[i+1:]...)
+				return
+			}
+		}
+	}
+}

@@ -1,0 +1,55 @@
+package fakes
+
+import (
+	"context"
+	"sync"
+
+	"github.com/gravity-zero/evey/internal/domain/library"
+)
+
+type FakePersonRepository struct {
+	mu    sync.RWMutex
+	items map[string]*library.Person
+}
+
+func NewFakePersonRepository() *FakePersonRepository {
+	return &FakePersonRepository{items: make(map[string]*library.Person)}
+}
+
+func (r *FakePersonRepository) Create(_ context.Context, person *library.Person) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.items[person.ID] = person
+	return nil
+}
+
+func (r *FakePersonRepository) GetByID(_ context.Context, id string) (*library.Person, error) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	p, ok := r.items[id]
+	if !ok {
+		return nil, ErrNotFound
+	}
+	return p, nil
+}
+
+func (r *FakePersonRepository) GetByName(_ context.Context, name string) (*library.Person, error) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	for _, p := range r.items {
+		if p.Name == name {
+			return p, nil
+		}
+	}
+	return nil, ErrNotFound
+}
+
+func (r *FakePersonRepository) List(_ context.Context) ([]*library.Person, error) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	result := make([]*library.Person, 0, len(r.items))
+	for _, p := range r.items {
+		result = append(result, p)
+	}
+	return result, nil
+}

@@ -1,0 +1,166 @@
+syntax = "proto3";
+
+package evey.v1;
+
+import "google/api/annotations.proto";
+import "google/protobuf/timestamp.proto";
+
+option go_package = "github.com/gravity/evey/gen/evey/v1;eveyv1";
+
+service TranscodingService {
+  rpc StartTranscode(StartTranscodeRequest) returns (stream TranscodeProgress) {
+    option (google.api.http) = {
+      post: "/api/v1/transcoding/start"
+      body: "*"
+    };
+  }
+
+  rpc StopTranscode(StopTranscodeRequest) returns (StopTranscodeResponse) {
+    option (google.api.http) = {
+      post: "/api/v1/transcoding/{job_id}/stop"
+    };
+  }
+
+  rpc GetTranscodeStatus(GetTranscodeStatusRequest) returns (TranscodeJob) {
+    option (google.api.http) = {
+      get: "/api/v1/transcoding/{job_id}"
+    };
+  }
+
+  rpc ListActiveTranscodes(ListActiveTranscodesRequest) returns (ListActiveTranscodesResponse) {
+    option (google.api.http) = {
+      get: "/api/v1/transcoding/active"
+    };
+  }
+
+  rpc ListTranscodeProfiles(ListTranscodeProfilesRequest) returns (ListTranscodeProfilesResponse) {
+    option (google.api.http) = {
+      get: "/api/v1/transcoding/profiles"
+    };
+  }
+
+  rpc DetectHardware(DetectHardwareRequest) returns (DetectHardwareResponse) {
+    option (google.api.http) = {
+      get: "/api/v1/transcoding/hardware"
+    };
+  }
+}
+
+enum HWAccelType {
+  HW_ACCEL_TYPE_NONE = 0;
+  HW_ACCEL_TYPE_VAAPI = 1;
+  HW_ACCEL_TYPE_NVENC = 2;
+  HW_ACCEL_TYPE_QSV = 3;
+}
+
+enum TranscodeState {
+  TRANSCODE_STATE_UNSPECIFIED = 0;
+  TRANSCODE_STATE_QUEUED = 1;
+  TRANSCODE_STATE_RUNNING = 2;
+  TRANSCODE_STATE_COMPLETED = 3;
+  TRANSCODE_STATE_FAILED = 4;
+  TRANSCODE_STATE_CANCELLED = 5;
+}
+
+message TranscodeJob {
+  string id = 1;
+  string media_item_id = 2;
+  string session_id = 3;
+  TranscodeState state = 4;
+  string input_path = 5;
+  string output_path = 6;
+  string video_codec = 7;
+  string audio_codec = 8;
+  string container = 9;
+  int32 width = 10;
+  int32 height = 11;
+  int64 bitrate = 12;
+  HWAccelType hw_accel = 13;
+  double progress_percent = 14;
+  double fps = 15;
+  double speed = 16;
+  int64 output_size = 17;
+  google.protobuf.Timestamp started_at = 18;
+  google.protobuf.Timestamp completed_at = 19;
+  string error = 20;
+}
+
+message TranscodeProgress {
+  string job_id = 1;
+  TranscodeState state = 2;
+  double percent = 3;
+  double fps = 4;
+  double speed = 5;
+  int64 bitrate = 6;
+  int64 eta_ms = 7;
+  int64 output_size = 8;
+  string error = 9;
+}
+
+message TranscodeProfile {
+  string id = 1;
+  string name = 2;
+  string video_codec = 3;
+  string audio_codec = 4;
+  string container = 5;
+  int32 max_width = 6;
+  int32 max_height = 7;
+  int64 max_bitrate = 8;
+  int32 audio_channels = 9;
+  int32 audio_bitrate = 10;
+  HWAccelType hw_accel = 11;
+  bool is_default = 12;
+}
+
+message HWDevice {
+  HWAccelType type = 1;
+  string name = 2;
+  string device_path = 3;
+  repeated string supported_codecs = 4;
+  repeated string supported_decoders = 5;
+  repeated string supported_encoders = 6;
+}
+
+message StartTranscodeRequest {
+  string media_item_id = 1;
+  string session_id = 2;
+  string video_codec = 3;
+  string audio_codec = 4;
+  string container = 5;
+  int32 width = 6;
+  int32 height = 7;
+  int64 bitrate = 8;
+  HWAccelType hw_accel = 9;
+  int64 start_time_ms = 10;
+  int32 audio_stream_index = 11;
+  int32 subtitle_stream_index = 12;
+  string profile_id = 13;
+}
+
+message StopTranscodeRequest {
+  string job_id = 1;
+}
+
+message StopTranscodeResponse {}
+
+message GetTranscodeStatusRequest {
+  string job_id = 1;
+}
+
+message ListActiveTranscodesRequest {}
+
+message ListActiveTranscodesResponse {
+  repeated TranscodeJob jobs = 1;
+}
+
+message ListTranscodeProfilesRequest {}
+
+message ListTranscodeProfilesResponse {
+  repeated TranscodeProfile profiles = 1;
+}
+
+message DetectHardwareRequest {}
+
+message DetectHardwareResponse {
+  repeated HWDevice devices = 1;
+}
