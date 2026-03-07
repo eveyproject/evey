@@ -14,6 +14,8 @@ import (
 	"os/signal"
 	"syscall"
 	_ "github.com/lib/pq"
+	"github.com/grpc-ecosystem/grpc-gateway/v2/runtime"
+	eveyv1 "github.com/gravity-zero/evey/gen/evey/v1"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 
@@ -261,7 +263,21 @@ func registerGateway(grpcAddr string) http.Handler {
 		log.Printf("grpc-gateway dial failed: %v", err)
 		return nil
 	}
-	_ = conn
-	// TODO: register gateway handlers when proto gateway code is wired
-	return nil
+	ctx := context.Background()
+	mux := runtime.NewServeMux()
+	for _, fn := range []func(context.Context, *runtime.ServeMux, *grpc.ClientConn) error{
+		eveyv1.RegisterLibraryServiceHandler,
+		eveyv1.RegisterUserServiceHandler,
+		eveyv1.RegisterPlaybackServiceHandler,
+		eveyv1.RegisterTranscodingServiceHandler,
+		eveyv1.RegisterMKVServiceHandler,
+		eveyv1.RegisterMetadataServiceHandler,
+		eveyv1.RegisterAdminServiceHandler,
+		eveyv1.RegisterActivityServiceHandler,
+	} {
+		if err := fn(ctx, mux, conn); err != nil {
+			log.Printf("gateway register failed: %v", err)
+		}
+	}
+	return mux
 }
