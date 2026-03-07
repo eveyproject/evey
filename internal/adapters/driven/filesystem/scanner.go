@@ -22,19 +22,37 @@ func NewScanner() *Scanner {
 	return &Scanner{}
 }
 
-func (s *Scanner) Scan(_ context.Context, root string) ([]library.ScannedFile, error) {
+func (s *Scanner) Scan(ctx context.Context, root string) ([]library.ScannedFile, error) {
 	var files []library.ScannedFile
 	err := filepath.WalkDir(root, func(path string, d os.DirEntry, err error) error {
 		if err != nil {
+			if path == root {
+				return err
+			}
 			return nil
 		}
+		if ctx.Err() != nil {
+			return ctx.Err()
+		}
+
+		name := d.Name()
+
 		if d.IsDir() {
+			if name != "." && strings.HasPrefix(name, ".") {
+				return filepath.SkipDir
+			}
 			return nil
 		}
-		ext := strings.ToLower(filepath.Ext(path))
+
+		if strings.HasPrefix(name, ".") {
+			return nil
+		}
+
+		ext := strings.ToLower(filepath.Ext(name))
 		if !videoExtensions[ext] {
 			return nil
 		}
+
 		info, err := d.Info()
 		if err != nil {
 			return nil
