@@ -41,6 +41,7 @@ type PluginAPIServer struct {
 	pluginConfig PluginConfigPort
 	events       shared.EventBus
 	sockPath     string
+	listener     net.Listener
 
 	mu      sync.RWMutex
 	plugins map[string]*plugin.Plugin
@@ -92,7 +93,7 @@ func (s *PluginAPIServer) GetMediaItem(ctx context.Context, pluginID, mediaItemI
 	if err != nil {
 		return nil, err
 	}
-	if !pluginrunner.CheckCapability(p, "media.read") && !pluginrunner.CheckPermission(p, "media.read") {
+	if !pluginrunner.CheckCapability(p, "media.read") || !pluginrunner.CheckPermission(p, "media.read") {
 		return nil, fmt.Errorf("plugin %s lacks media.read capability", pluginID)
 	}
 	return s.library.GetMediaItem(ctx, mediaItemID)
@@ -103,7 +104,7 @@ func (s *PluginAPIServer) ListMediaItems(ctx context.Context, pluginID string, f
 	if err != nil {
 		return nil, err
 	}
-	if !pluginrunner.CheckCapability(p, "media.read") && !pluginrunner.CheckPermission(p, "media.read") {
+	if !pluginrunner.CheckCapability(p, "media.read") || !pluginrunner.CheckPermission(p, "media.read") {
 		return nil, fmt.Errorf("plugin %s lacks media.read capability", pluginID)
 	}
 	return s.library.ListMediaItems(ctx, filter)
@@ -114,7 +115,7 @@ func (s *PluginAPIServer) UpdateMetadata(ctx context.Context, pluginID string, o
 	if err != nil {
 		return err
 	}
-	if !pluginrunner.CheckCapability(p, "media.write") && !pluginrunner.CheckPermission(p, "media.write") {
+	if !pluginrunner.CheckCapability(p, "media.write") || !pluginrunner.CheckPermission(p, "media.write") {
 		return fmt.Errorf("plugin %s lacks media.write capability", pluginID)
 	}
 	return s.metadata.SetOverride(ctx, override)
@@ -141,9 +142,12 @@ func (s *PluginAPIServer) GetUserPreferences(ctx context.Context, pluginID, user
 }
 
 func (s *PluginAPIServer) EmitEvent(ctx context.Context, pluginID string, event shared.Event) error {
-	_, err := s.getPlugin(pluginID)
+	p, err := s.getPlugin(pluginID)
 	if err != nil {
 		return err
+	}
+	if !pluginrunner.CheckCapability(p, "notification.sender") {
+		return fmt.Errorf("plugin %s lacks notification.sender capability", pluginID)
 	}
 	return s.events.Publish(ctx, event)
 }
@@ -182,10 +186,14 @@ func (s *PluginAPIServer) Start() error {
 	if err != nil {
 		return err
 	}
+	s.listener = lis
 	log.Printf("plugin API server listening on %s", s.sockPath)
-	return lis.Close()
+	return nil
 }
 
 func (s *PluginAPIServer) Stop() {
+	if s.listener != nil {
+		s.listener.Close()
+	}
 	os.Remove(s.sockPath)
 }

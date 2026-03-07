@@ -2,10 +2,13 @@ package grpcapi
 
 import (
 	"context"
+	"database/sql"
+	"errors"
 	"fmt"
 
 	eveyv1 "github.com/gravity-zero/evey/gen/evey/v1"
 	"github.com/gravity-zero/evey/internal/adapters/driving/grpcapi/interceptors"
+	applibrary "github.com/gravity-zero/evey/internal/app/library"
 	appplayback "github.com/gravity-zero/evey/internal/app/playback"
 	"github.com/gravity-zero/evey/internal/domain/playback"
 	"google.golang.org/grpc/codes"
@@ -14,7 +17,8 @@ import (
 
 type playbackHandler struct {
 	eveyv1.UnimplementedPlaybackServiceServer
-	svc *appplayback.Service
+	svc     *appplayback.Service
+	librarySvc *applibrary.Service
 }
 
 func (h *playbackHandler) GetStreamInfo(ctx context.Context, req *eveyv1.GetStreamInfoRequest) (*eveyv1.StreamInfo, error) {
@@ -65,7 +69,10 @@ func (h *playbackHandler) ReportProgress(ctx context.Context, req *eveyv1.Report
 func (h *playbackHandler) GetWatchProgress(ctx context.Context, req *eveyv1.GetWatchProgressRequest) (*eveyv1.WatchProgress, error) {
 	wp, err := h.svc.GetWatchProgress(ctx, req.ProfileId, req.MediaItemId)
 	if err != nil {
-		return nil, status.Errorf(codes.NotFound, "%v", err)
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, status.Error(codes.NotFound, "watch progress not found")
+		}
+		return nil, status.Errorf(codes.Internal, "%v", err)
 	}
 	return watchProgressToProto(wp), nil
 }
@@ -112,12 +119,19 @@ func (h *playbackHandler) GetNextUp(ctx context.Context, req *eveyv1.GetNextUpRe
 	if limit <= 0 {
 		limit = 20
 	}
-	_, err := h.svc.GetNextUp(ctx, req.ProfileId, limit)
+	progresses, err := h.svc.GetNextUp(ctx, req.ProfileId, limit)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "%v", err)
 	}
-	// TODO: convert WatchProgress to MediaItem (needs media item lookup)
-	return &eveyv1.GetNextUpResponse{}, nil
+	resp := &eveyv1.GetNextUpResponse{}
+	for _, wp := range progresses {
+		item, err := h.librarySvc.GetMediaItem(ctx, wp.MediaItemID)
+		if err != nil {
+			continue
+		}
+		resp.Items = append(resp.Items, mediaItemToProto(item))
+	}
+	return resp, nil
 }
 
 func (h *playbackHandler) MarkAsWatched(ctx context.Context, req *eveyv1.MarkAsWatchedRequest) (*eveyv1.MarkAsWatchedResponse, error) {

@@ -41,10 +41,17 @@ func (r *Runner) Start(_ context.Context, p *plugin.Plugin) error {
 		return fmt.Errorf("create sock dir: %w", err)
 	}
 
-	sock := filepath.Join(sockDir, p.Name+".sock")
+	sock := filepath.Join(sockDir, p.ID+".sock")
 	os.Remove(sock)
 
-	cmd := exec.Command(p.Name)
+	entrypoint := p.Entrypoint
+	if entrypoint == "" {
+		entrypoint = p.Name
+	}
+	cmd := exec.Command(entrypoint)
+	if p.InstallDir != "" {
+		cmd.Dir = p.InstallDir
+	}
 	cmd.Env = append(os.Environ(),
 		"EVEY_PLUGIN_ID="+p.ID,
 		"EVEY_PLUGIN_SOCK="+sock,
@@ -52,12 +59,12 @@ func (r *Runner) Start(_ context.Context, p *plugin.Plugin) error {
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	cmd.SysProcAttr = &syscall.SysProcAttr{
-		Setpgid: true,
+		Setpgid:   true,
 		Pdeathsig: syscall.SIGTERM,
 	}
 
 	if err := cmd.Start(); err != nil {
-		return fmt.Errorf("start plugin %s: %w", p.Name, err)
+		return fmt.Errorf("start plugin %s: %w", p.ID, err)
 	}
 
 	entry := &processEntry{

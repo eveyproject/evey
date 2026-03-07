@@ -62,7 +62,7 @@ func NewGRPCServer(
 func (s *GRPCServer) RegisterServices() {
 	eveyv1.RegisterLibraryServiceServer(s.server, &libraryHandler{svc: s.library})
 	eveyv1.RegisterUserServiceServer(s.server, &userHandler{svc: s.user, users: s.users})
-	eveyv1.RegisterPlaybackServiceServer(s.server, &playbackHandler{svc: s.playback})
+	eveyv1.RegisterPlaybackServiceServer(s.server, &playbackHandler{svc: s.playback, librarySvc: s.library})
 	eveyv1.RegisterTranscodingServiceServer(s.server, &transcodingHandler{svc: s.transcoding})
 	eveyv1.RegisterMKVServiceServer(s.server, &mkvHandler{svc: s.mkv})
 	eveyv1.RegisterMetadataServiceServer(s.server, &metadataHandler{svc: s.metadata})

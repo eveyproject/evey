@@ -151,6 +151,17 @@ func (p *TMDBProvider) doRequestWithRetry(ctx context.Context, rawURL string) ([
 
 		if resp.StatusCode == http.StatusTooManyRequests {
 			lastErr = fmt.Errorf("rate limited (429)")
+			wait := retryWait * time.Duration(attempt+1)
+			if ra := resp.Header.Get("Retry-After"); ra != "" {
+				if secs, err := strconv.Atoi(ra); err == nil {
+					wait = time.Duration(secs) * time.Second
+				}
+			}
+			select {
+			case <-ctx.Done():
+				return nil, ctx.Err()
+			case <-time.After(wait):
+			}
 			continue
 		}
 

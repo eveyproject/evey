@@ -67,14 +67,14 @@ var libraryTypeFromProto = map[eveyv1.LibraryType]string{
 
 func libraryToProto(lib *library.Library) *eveyv1.Library {
 	return &eveyv1.Library{
-		Id:                lib.ID,
-		Name:              lib.Name,
-		Type:              libraryTypeToProto[lib.Type],
-		Paths:             lib.Paths,
-		ScanOnStartup:     lib.Enabled,
-		RealtimeMonitoring: lib.Enabled,
-		CreatedAt:         toTimestamppb(lib.CreatedAt),
-		UpdatedAt:         toTimestamppb(lib.UpdatedAt),
+		Id:                 lib.ID,
+		Name:               lib.Name,
+		Type:               libraryTypeToProto[lib.Type],
+		Paths:              lib.Paths,
+		ScanOnStartup:      lib.ScanOnStartup,
+		RealtimeMonitoring: lib.RealtimeMonitoring,
+		CreatedAt:          toTimestamppb(lib.CreatedAt),
+		UpdatedAt:          toTimestamppb(lib.UpdatedAt),
 	}
 }
 
