@@ -6,6 +6,7 @@ import (
 
 	eveyv1 "github.com/gravity-zero/evey/gen/evey/v1"
 	applibrary "github.com/gravity-zero/evey/internal/app/library"
+	appmetadata "github.com/gravity-zero/evey/internal/app/metadata"
 	"github.com/gravity-zero/evey/internal/domain/library"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -13,7 +14,8 @@ import (
 
 type libraryHandler struct {
 	eveyv1.UnimplementedLibraryServiceServer
-	svc *applibrary.Service
+	svc         *applibrary.Service
+	metadataSvc *appmetadata.Service
 }
 
 func (h *libraryHandler) CreateLibrary(ctx context.Context, req *eveyv1.CreateLibraryRequest) (*eveyv1.Library, error) {
@@ -76,7 +78,25 @@ func (h *libraryHandler) GetMediaItem(ctx context.Context, req *eveyv1.GetMediaI
 	if err != nil {
 		return nil, status.Errorf(codes.NotFound, "media item not found: %v", err)
 	}
-	return mediaItemToProto(item), nil
+	pb := mediaItemToProto(item)
+	if h.metadataSvc != nil {
+		if artworks, err := h.metadataSvc.GetArtwork(ctx, req.Id); err == nil {
+			for _, a := range artworks {
+				pb.Artwork = append(pb.Artwork, artworkRecordToProto(a))
+			}
+		}
+	}
+	if mediaPersons, persons, err := h.svc.GetCast(ctx, req.Id); err == nil {
+		personByID := make(map[string]*library.Person, len(persons))
+		for _, p := range persons {
+			personByID[p.ID] = p
+		}
+		for _, mp := range mediaPersons {
+			p := personByID[mp.PersonID]
+			pb.People = append(pb.People, mediaPersonToProto(mp, p))
+		}
+	}
+	return pb, nil
 }
 
 func (h *libraryHandler) ListMediaItems(ctx context.Context, req *eveyv1.ListMediaItemsRequest) (*eveyv1.ListMediaItemsResponse, error) {

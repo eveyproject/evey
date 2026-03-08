@@ -148,7 +148,6 @@ func run() error {
 	bus := eventbus.New()
 	hasher := auth.BcryptHasher{}
 	tmdbProvider := metadataadapter.NewTMDBProvider(os.Getenv("EVEY_TMDB_API_KEY"), cfg.Metadata.Language, nil)
-	enricher := metadataadapter.NewEnricher(tmdbProvider, mediaItemRepo, artworkRepo, rootLog)
 	artworkDownloader := metadataadapter.NewTMDBArtworkDownloader(nil)
 	pluginRunner := pluginrunner.NewRunner()
 	manifestParser := pluginrunner.NewManifestParser()
@@ -190,6 +189,8 @@ func run() error {
 		metadataOverrideRepo, artworkRepo, artworkDownloader,
 		bus, []metadata.MetadataProvider{tmdbProvider},
 	)
+	enricher := metadataadapter.NewEnricher(artworkRepo, personRepo, mediaPersonRepo, mediaItemRepo)
+	metadataSvc.WithEnricher(enricher, mediaItemRepo)
 
 	activitySvc := appactivity.NewService(
 		loginHistoryRepo, serverMetricRepo, auditLogRepo, playSessionStatsRepo, playHistoryRepo,
@@ -208,7 +209,7 @@ func run() error {
 			ctx := context.Background()
 			items, err := mediaItemRepo.List(ctx, domainlibrary.ListMediaItemsFilter{Limit: 5000})
 			if err == nil {
-				enricher.EnrichAll(ctx, items)
+				enricher.AutoEnrichAll(ctx, items, tmdbProvider, rootLog)
 			}
 		}()
 		bus.Subscribe("media.item.added", func(ctx context.Context, ev shared.Event) {
@@ -216,7 +217,7 @@ func run() error {
 				go func() {
 					item, err := mediaItemRepo.GetByID(context.Background(), e.MediaItemID)
 					if err == nil {
-						enricher.EnrichItem(context.Background(), item)
+						enricher.AutoEnrichItem(context.Background(), item, tmdbProvider, rootLog)
 					}
 				}()
 			}
@@ -276,12 +277,14 @@ func run() error {
 	var httpSrv *http.Server
 	if gwMux != nil {
 		mux := http.NewServeMux()
+
 		mux.HandleFunc("/healthz", func(w http.ResponseWriter, _ *http.Request) {
 			w.Header().Set("Content-Type", "application/json")
 			w.Write([]byte(`{"status":"ok","version":"` + version + `"}`))
 		})
 		mux.HandleFunc("/api/v1/admin/fs/browse", browseDirsHandler(tokenGen))
 		mux.HandleFunc("/api/v1/media/", mediaHandler(tokenGen, librarySvc, artworkRepo))
+		registerAdminRoutes(mux, metadataSvc, tmdbProvider, tokenGen)
 		mux.Handle("/", gwMux)
 		httpSrv = &http.Server{
 			Addr:    fmt.Sprintf(":%d", httpPort),
@@ -514,6 +517,93 @@ func loadOrGenerateRSAKey(path string) (*rsa.PrivateKey, error) {
 	defer f.Close()
 	pem.Encode(f, &pem.Block{Type: "RSA PRIVATE KEY", Bytes: x509.MarshalPKCS1PrivateKey(key)})
 	return key, nil
+}
+
+func registerAdminRoutes(mux *http.ServeMux, metaSvc *appmetadata.Service, tmdb *metadataadapter.TMDBProvider, tokenGen *auth.JWTGenerator) {
+	requireAdmin := func(r *http.Request) bool {
+		h := r.Header.Get("Authorization")
+		if !strings.HasPrefix(h, "Bearer ") {
+			return false
+		}
+		claims, err := tokenGen.ValidateAccessToken(strings.TrimPrefix(h, "Bearer "))
+		return err == nil && claims.IsAdmin
+	}
+
+	// POST /api/v1/admin/media/{id}/refresh-metadata  body: {"tmdb_id":"123","media_type":"movie"}
+	mux.HandleFunc("/api/v1/admin/media/", func(w http.ResponseWriter, r *http.Request) {
+		if !requireAdmin(r) {
+			http.Error(w, "unauthorized", http.StatusUnauthorized)
+			return
+		}
+		// route: /api/v1/admin/media/{id}/refresh-metadata  or /api/v1/admin/media/{id}/search-metadata
+		parts := strings.Split(strings.TrimPrefix(r.URL.Path, "/api/v1/admin/media/"), "/")
+		if len(parts) < 2 {
+			http.NotFound(w, r)
+			return
+		}
+		mediaItemID := parts[0]
+		action := parts[1]
+
+		switch {
+		case action == "refresh-metadata" && r.Method == http.MethodPost:
+			var body struct {
+				TmdbID    string `json:"tmdb_id"`
+				MediaType string `json:"media_type"`
+			}
+			if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+				http.Error(w, "bad request", http.StatusBadRequest)
+				return
+			}
+			if err := metaSvc.RefreshItemMetadata(r.Context(), mediaItemID, body.TmdbID, body.MediaType); err != nil {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
+			w.WriteHeader(http.StatusNoContent)
+
+		case action == "search-metadata" && r.Method == http.MethodGet:
+			query := r.URL.Query().Get("query")
+			mediaType := r.URL.Query().Get("type")
+			if query == "" || mediaType == "" {
+				http.Error(w, "query and type required", http.StatusBadRequest)
+				return
+			}
+			results, err := tmdb.Search(r.Context(), query, mediaType)
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
+			type searchResult struct {
+				TmdbID    string  `json:"tmdb_id"`
+				Title     string  `json:"title"`
+				Year      *int    `json:"year,omitempty"`
+				Overview  string  `json:"overview"`
+				PosterURL string  `json:"poster_url,omitempty"`
+			}
+			out := make([]searchResult, 0, len(results))
+			for _, r := range results {
+				sr := searchResult{
+					Title:    r.Title,
+					Year:     r.Year,
+					Overview: r.Overview,
+				}
+				if tmdbID, ok := r.ProviderIDs["tmdb"]; ok {
+					sr.TmdbID = tmdbID
+				}
+				for _, art := range r.Artwork {
+					if art.Type == "poster" {
+						sr.PosterURL = art.URL
+						break
+					}
+				}
+				out = append(out, sr)
+			}
+			w.Header().Set("Content-Type", "application/json")
+			json.NewEncoder(w).Encode(out)
+
+		default:
+			http.NotFound(w, r)
+		}
+	})
 }
 
 func registerGateway(grpcAddr string) http.Handler {

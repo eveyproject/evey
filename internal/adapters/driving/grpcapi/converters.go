@@ -140,6 +140,32 @@ func mediaItemToProto(item *library.MediaItem) *eveyv1.MediaItem {
 	return pb
 }
 
+var personRoleToProto = map[string]eveyv1.PersonType{
+	"actor":    eveyv1.PersonType_PERSON_TYPE_ACTOR,
+	"director": eveyv1.PersonType_PERSON_TYPE_DIRECTOR,
+	"writer":   eveyv1.PersonType_PERSON_TYPE_WRITER,
+	"producer": eveyv1.PersonType_PERSON_TYPE_PRODUCER,
+}
+
+func mediaPersonToProto(mp *library.MediaPerson, p *library.Person) *eveyv1.MediaPerson {
+	pb := &eveyv1.MediaPerson{
+		Id:        mp.PersonID,
+		Role:      mp.RoleType,
+		Type:      personRoleToProto[mp.RoleType],
+		SortOrder: int32(mp.SortOrder),
+	}
+	if mp.CharacterName != nil {
+		pb.Role = *mp.CharacterName
+	}
+	if p != nil {
+		pb.Name = p.Name
+		if p.ThumbPath != nil {
+			pb.ThumbUrl = *p.ThumbPath
+		}
+	}
+	return pb
+}
+
 var mediaSortFieldFromProto = map[eveyv1.MediaSortField]string{
 	eveyv1.MediaSortField_MEDIA_SORT_FIELD_TITLE:         "title",
 	eveyv1.MediaSortField_MEDIA_SORT_FIELD_YEAR:          "year",
@@ -469,10 +495,20 @@ func metadataOverrideToProto(o *domainmetadata.MetadataOverride) *eveyv1.Metadat
 	}
 }
 
+var artworkTypeToProto = map[string]eveyv1.ArtworkType{
+	"poster":   eveyv1.ArtworkType_ARTWORK_TYPE_PRIMARY,
+	"backdrop": eveyv1.ArtworkType_ARTWORK_TYPE_BACKDROP,
+	"banner":   eveyv1.ArtworkType_ARTWORK_TYPE_BANNER,
+	"thumb":    eveyv1.ArtworkType_ARTWORK_TYPE_THUMB,
+	"logo":     eveyv1.ArtworkType_ARTWORK_TYPE_LOGO,
+	"disc":     eveyv1.ArtworkType_ARTWORK_TYPE_DISC,
+}
+
 func artworkRecordToProto(a *domainmetadata.ArtworkRecord) *eveyv1.Artwork {
 	pb := &eveyv1.Artwork{
 		Id:       a.ID,
 		Provider: a.Provider,
+		Type:     artworkTypeToProto[a.Type],
 	}
 	if a.SourceURL != nil {
 		pb.Url = *a.SourceURL

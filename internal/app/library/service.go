@@ -158,6 +158,23 @@ func (s *Service) ListMediaItems(ctx context.Context, filter library.ListMediaIt
 	return s.mediaItems.List(ctx, filter)
 }
 
+// GetCast returns the cast for a media item joined with person info.
+func (s *Service) GetCast(ctx context.Context, mediaItemID string) ([]*library.MediaPerson, []*library.Person, error) {
+	mediaPersons, err := s.mediaPersons.GetByMediaItemID(ctx, mediaItemID)
+	if err != nil {
+		return nil, nil, fmt.Errorf("get media people: %w", err)
+	}
+	var persons []*library.Person
+	for _, mp := range mediaPersons {
+		p, err := s.persons.GetByID(ctx, mp.PersonID)
+		if err != nil {
+			continue
+		}
+		persons = append(persons, p)
+	}
+	return mediaPersons, persons, nil
+}
+
 func (s *Service) SearchMedia(ctx context.Context, query string, filters map[string]string) ([]*library.MediaItem, error) {
 	ids, err := s.search.Search(ctx, query, filters)
 	if err != nil {
