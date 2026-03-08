@@ -5,9 +5,10 @@ import type { V1StreamInfo } from "@evey/api/src/generated/playback.schemas";
 import type { AudioStream } from "./AudioTrackSelector";
 import type { SubtitleStream } from "./SubtitleSelector";
 import { PlayerControls } from "./PlayerControls";
+import type { EpisodeNavItem, SeasonNavItem } from "./PlayerControls";
 import { ProgressReporter } from "./ProgressReporter";
 
-export type { AudioStream, SubtitleStream };
+export type { AudioStream, SubtitleStream, EpisodeNavItem, SeasonNavItem };
 
 interface HLSPlayerProps {
   streamInfo: V1StreamInfo;
@@ -19,6 +20,12 @@ interface HLSPlayerProps {
   subtitleStreams?: SubtitleStream[];
   title?: string;
   onClose?: () => void;
+  seasons?: SeasonNavItem[];
+  currentSeasonId?: string;
+  episodes?: EpisodeNavItem[];
+  currentEpisodeId?: string;
+  onSeasonChange?: (id: string) => void;
+  onEpisodeChange?: (id: string) => void;
 }
 
 export function HLSPlayer({
@@ -31,6 +38,12 @@ export function HLSPlayer({
   subtitleStreams = [],
   title,
   onClose,
+  seasons,
+  currentSeasonId,
+  episodes,
+  currentEpisodeId,
+  onSeasonChange,
+  onEpisodeChange,
 }: HLSPlayerProps) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const hlsRef = useRef<InstanceType<typeof Hls> | null>(null);
@@ -195,6 +208,12 @@ export function HLSPlayer({
         onQualityChange={setCurrentQuality}
         currentSubtitleTrackIndex={currentSubtitle}
         onSubtitleChange={setCurrentSubtitle}
+        seasons={seasons}
+        currentSeasonId={currentSeasonId}
+        episodes={episodes}
+        currentEpisodeId={currentEpisodeId}
+        onSeasonChange={onSeasonChange}
+        onEpisodeChange={onEpisodeChange}
       />
     </div>
   );

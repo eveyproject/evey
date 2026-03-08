@@ -1,6 +1,7 @@
 import { createFileRoute, useRouter } from "@tanstack/react-router";
+import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { libraryServiceGetMediaItem } from "@evey/api";
+import { libraryServiceGetMediaItem, libraryServiceListMediaItems } from "@evey/api";
 import { usePlaySession } from "@/hooks/usePlaySession";
 import { HLSPlayer } from "@/features/playback/HLSPlayer";
 import { Spinner } from "@/components/ui/Spinner";
@@ -51,6 +52,43 @@ function PlayerPage() {
 
   const startPositionMs = progress?.positionMs ? Number(progress.positionMs) : 0;
 
+  const isEpisode = mediaItem?.type === "MEDIA_ITEM_TYPE_EPISODE";
+  const seasonId = isEpisode ? (mediaItem?.parentId ?? "") : "";
+
+  const { data: season } = useQuery({
+    queryKey: [`/api/v1/media/${seasonId}`],
+    queryFn: ({ signal }) => libraryServiceGetMediaItem(seasonId, signal),
+    enabled: !!seasonId,
+  });
+  const seriesId = season?.parentId ?? "";
+
+  const { data: seasonsData } = useQuery({
+    queryKey: ["/api/v1/media", { parentId: seriesId }],
+    queryFn: ({ signal }) => libraryServiceListMediaItems({ parentId: seriesId }, signal),
+    enabled: !!seriesId,
+  });
+
+  const [selectedSeasonId, setSelectedSeasonId] = useState(seasonId);
+  useEffect(() => { if (seasonId) setSelectedSeasonId(seasonId); }, [seasonId]);
+
+  const { data: episodesData } = useQuery({
+    queryKey: ["/api/v1/media", { parentId: selectedSeasonId }],
+    queryFn: ({ signal }) => libraryServiceListMediaItems({ parentId: selectedSeasonId }, signal),
+    enabled: !!selectedSeasonId,
+  });
+
+  const seasons = [...(seasonsData?.items ?? [])]
+    .sort((a, b) => (a.indexNumber ?? 0) - (b.indexNumber ?? 0))
+    .map((s) => ({ id: s.id!, title: s.title ?? `Season ${s.indexNumber}`, indexNumber: s.indexNumber }));
+
+  const episodes = [...(episodesData?.items ?? [])]
+    .sort((a, b) => (a.indexNumber ?? 0) - (b.indexNumber ?? 0))
+    .map((ep) => ({ id: ep.id!, title: ep.title ?? `Episode ${ep.indexNumber}`, indexNumber: ep.indexNumber }));
+
+  function handleEpisodeChange(episodeId: string) {
+    router.navigate({ to: "/player/$mediaId", params: { mediaId: episodeId } });
+  }
+
   return (
     <div
       className="fixed inset-0 bg-black z-50 flex items-center justify-center"
@@ -68,6 +106,12 @@ function PlayerPage() {
           title={mediaItem?.title}
           onClose={handleClose}
           onEnded={handleClose}
+          seasons={isEpisode ? seasons : undefined}
+          currentSeasonId={selectedSeasonId}
+          episodes={isEpisode ? episodes : undefined}
+          currentEpisodeId={mediaId}
+          onSeasonChange={setSelectedSeasonId}
+          onEpisodeChange={handleEpisodeChange}
         />
       )}
     </div>

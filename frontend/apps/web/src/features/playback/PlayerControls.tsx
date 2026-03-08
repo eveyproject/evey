@@ -2,6 +2,9 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { AudioStream } from "./AudioTrackSelector";
 import type { SubtitleStream } from "./SubtitleSelector";
 
+export interface EpisodeNavItem { id: string; title?: string; indexNumber?: number }
+export interface SeasonNavItem { id: string; title?: string; indexNumber?: number }
+
 const QUALITY_OPTIONS = [
   { label: "Original", value: 0 },
   { label: "1080p", value: 1080 },
@@ -9,6 +12,81 @@ const QUALITY_OPTIONS = [
   { label: "480p", value: 480 },
   { label: "360p", value: 360 },
 ];
+
+interface EpisodesPanelProps {
+  seasons: SeasonNavItem[];
+  currentSeasonId: string;
+  episodes: EpisodeNavItem[];
+  currentEpisodeId: string;
+  onSeasonChange: (id: string) => void;
+  onEpisodeChange: (id: string) => void;
+  onOpenChange: (open: boolean) => void;
+}
+
+function EpisodesPanel({ seasons, currentSeasonId, episodes, currentEpisodeId, onSeasonChange, onEpisodeChange, onOpenChange }: EpisodesPanelProps) {
+  const [open, setOpen] = useState(false);
+
+  function toggle(e: React.MouseEvent) {
+    e.stopPropagation();
+    const next = !open;
+    setOpen(next);
+    onOpenChange(next);
+  }
+
+  return (
+    <div className="relative">
+      <button onClick={toggle} aria-label="Episodes" className="text-white hover:text-[var(--accent)] transition-colors">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+          <path d="M3 13h2v-2H3v2zm0 4h2v-2H3v2zm0-8h2V7H3v2zm4 4h14v-2H7v2zm0 4h14v-2H7v2zM7 7v2h14V7H7z" />
+        </svg>
+      </button>
+      {open && (
+        <div
+          className="absolute bottom-full mb-2 right-0 w-72 rounded-[var(--radius-md)] shadow-xl overflow-hidden z-20"
+          style={{ backgroundColor: "var(--surface)", border: "1px solid var(--border)" }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          {seasons.length > 1 && (
+            <div className="px-3 py-2" style={{ borderBottom: "1px solid var(--border)" }}>
+              <select
+                value={currentSeasonId}
+                onChange={(e) => onSeasonChange(e.target.value)}
+                className="w-full text-sm outline-none"
+                style={{ color: "var(--text)", backgroundColor: "var(--surface-raised)", borderRadius: "var(--radius-sm)", padding: "4px 8px", border: "1px solid var(--border)" }}
+              >
+                {seasons.map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {s.title ?? `Season ${s.indexNumber}`}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+          <div className="max-h-72 overflow-y-auto">
+            {episodes.map((ep) => (
+              <button
+                key={ep.id}
+                onClick={() => { onEpisodeChange(ep.id); setOpen(false); onOpenChange(false); }}
+                className="flex items-center gap-2 w-full px-4 py-2 text-sm hover:bg-[var(--surface-raised)] transition-colors text-left"
+                style={{ color: ep.id === currentEpisodeId ? "var(--accent)" : "var(--text)" }}
+              >
+                <span className="w-8 flex-shrink-0 font-mono text-xs" style={{ color: "var(--text-muted)" }}>
+                  E{ep.indexNumber ?? "?"}
+                </span>
+                <span className="flex-1 truncate">{ep.title}</span>
+                {ep.id === currentEpisodeId && (
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" className="flex-shrink-0">
+                    <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z" />
+                  </svg>
+                )}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
 
 interface PlayerControlsProps {
   videoRef: React.RefObject<HTMLVideoElement | null>;
@@ -22,6 +100,12 @@ interface PlayerControlsProps {
   onQualityChange: (quality: number) => void;
   currentSubtitleTrackIndex: number | null;
   onSubtitleChange: (trackIndex: number | null) => void;
+  seasons?: SeasonNavItem[];
+  currentSeasonId?: string;
+  episodes?: EpisodeNavItem[];
+  currentEpisodeId?: string;
+  onSeasonChange?: (id: string) => void;
+  onEpisodeChange?: (id: string) => void;
 }
 
 function formatTime(seconds: number): string {
@@ -193,6 +277,12 @@ export function PlayerControls({
   onQualityChange,
   currentSubtitleTrackIndex,
   onSubtitleChange,
+  seasons = [],
+  currentSeasonId = "",
+  episodes = [],
+  currentEpisodeId = "",
+  onSeasonChange,
+  onEpisodeChange,
 }: PlayerControlsProps) {
   const [visible, setVisible] = useState(true);
   const [playing, setPlaying] = useState(false);
@@ -201,6 +291,7 @@ export function PlayerControls({
   const [volume, setVolume] = useState(1);
   const [fullscreen, setFullscreen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [episodesOpen, setEpisodesOpen] = useState(false);
   const hideTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const scheduleHide = useCallback(() => {
@@ -213,15 +304,15 @@ export function PlayerControls({
     if (!settingsOpen) scheduleHide();
   }, [settingsOpen, scheduleHide]);
 
-  // Keep visible and cancel timer when settings open
+  // Keep visible and cancel timer when settings or episodes panel open
   useEffect(() => {
-    if (settingsOpen) {
+    if (settingsOpen || episodesOpen) {
       if (hideTimer.current) clearTimeout(hideTimer.current);
       setVisible(true);
     } else {
       scheduleHide();
     }
-  }, [settingsOpen, scheduleHide]);
+  }, [settingsOpen, episodesOpen, scheduleHide]);
 
   useEffect(() => {
     scheduleHide();
@@ -377,6 +468,19 @@ export function PlayerControls({
           </div>
 
           <div className="flex-1" />
+
+          {/* Episodes panel (only for TV episodes) */}
+          {episodes.length > 0 && onEpisodeChange && (
+            <EpisodesPanel
+              seasons={seasons}
+              currentSeasonId={currentSeasonId}
+              episodes={episodes}
+              currentEpisodeId={currentEpisodeId}
+              onSeasonChange={onSeasonChange ?? (() => {})}
+              onEpisodeChange={onEpisodeChange}
+              onOpenChange={setEpisodesOpen}
+            />
+          )}
 
           {/* Settings gear */}
           <SettingsPanel
