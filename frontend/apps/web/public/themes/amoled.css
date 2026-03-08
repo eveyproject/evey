@@ -1,0 +1,14 @@
+/* Evey — AMOLED theme */
+:root {
+  --bg:            #000000;
+  --surface:       #0a0a0a;
+  --surface-raised:#141414;
+  --accent:        #bb86fc;
+  --accent-hover:  #9c5fd6;
+  --text:          #e1e1e1;
+  --text-muted:    #6b7280;
+  --border:        #1f1f1f;
+  --radius-sm:     4px;
+  --radius-md:     8px;
+  --radius-lg:     16px;
+}

@@ -26,3 +26,13 @@ docker/transcode-cache/
 
 vendor/
 tmp/
+
+# Frontend
+frontend/node_modules/
+frontend/apps/*/node_modules/
+frontend/packages/*/node_modules/
+frontend/apps/web/dist/
+frontend/apps/*/dist/
+frontend/packages/api/src/generated/
+frontend/.turbo/
+frontend/**/.turbo/

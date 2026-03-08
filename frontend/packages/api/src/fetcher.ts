@@ -7,23 +7,41 @@ export function setTokenProvider(fn: () => string | null) {
   getToken = fn;
 }
 
-export async function eveyFetch<T>(
-  url: string,
-  options: RequestInit = {}
-): Promise<T> {
+export interface FetcherRequest {
+  url: string;
+  method: string;
+  headers?: Record<string, string>;
+  data?: unknown;
+  params?: Record<string, unknown>;
+  signal?: AbortSignal;
+}
+
+export async function eveyFetch<T>(request: FetcherRequest): Promise<T> {
   const token = getToken?.();
-  const headers: Record<string, string> = {
-    "Content-Type": "application/json",
-    ...(options.headers as Record<string, string>),
-  };
+  const headers: Record<string, string> = { ...(request.headers ?? {}) };
+
   if (token) {
     headers["Authorization"] = `Bearer ${token}`;
   }
 
-  const response = await fetch(url, { ...options, headers });
+  let url = request.url;
+  if (request.params) {
+    const qs = new URLSearchParams(
+      Object.entries(request.params)
+        .filter(([, v]) => v !== undefined && v !== null)
+        .map(([k, v]) => [k, String(v)])
+    ).toString();
+    if (qs) url = `${url}?${qs}`;
+  }
+
+  const response = await fetch(url, {
+    method: request.method,
+    headers,
+    body: request.data !== undefined ? JSON.stringify(request.data) : undefined,
+    signal: request.signal,
+  });
 
   if (response.status === 401) {
-    // token expired — trigger logout via store
     window.dispatchEvent(new Event("evey:unauthorized"));
   }
 

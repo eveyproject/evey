@@ -1,0 +1,73 @@
+import { Card } from "@/components/ui/Card";
+import { Badge } from "@/components/ui/Badge";
+import { Button } from "@/components/ui/Button";
+import type { V1Plugin, V1PluginState } from "@evey/api/src/generated/admin.schemas";
+
+type BadgeVariant = "default" | "success" | "warning" | "error" | "info";
+
+function stateBadgeVariant(state?: V1PluginState): BadgeVariant {
+  switch (state) {
+    case "PLUGIN_STATE_RUNNING": return "success";
+    case "PLUGIN_STATE_ERROR": return "error";
+    case "PLUGIN_STATE_STOPPED": return "warning";
+    case "PLUGIN_STATE_INSTALLED": return "info";
+    default: return "default";
+  }
+}
+
+function stateLabel(state?: V1PluginState): string {
+  switch (state) {
+    case "PLUGIN_STATE_RUNNING": return "Running";
+    case "PLUGIN_STATE_ERROR": return "Error";
+    case "PLUGIN_STATE_STOPPED": return "Stopped";
+    case "PLUGIN_STATE_INSTALLED": return "Installed";
+    default: return "Unknown";
+  }
+}
+
+interface PluginCardProps {
+  plugin: V1Plugin;
+  onEnable: () => void;
+  onDisable: () => void;
+  onUninstall: () => void;
+}
+
+export function PluginCard({ plugin, onEnable, onDisable, onUninstall }: PluginCardProps) {
+  return (
+    <Card className="flex flex-col gap-3">
+      <div className="flex items-start justify-between gap-2">
+        <div className="flex flex-col gap-0.5 min-w-0">
+          <span className="font-semibold truncate" style={{ color: "var(--text)" }}>
+            {plugin.name}
+          </span>
+          <span className="text-xs" style={{ color: "var(--text-muted)" }}>
+            v{plugin.version} — {plugin.language}
+          </span>
+        </div>
+        <div className="flex items-center gap-2 shrink-0">
+          <Badge variant={stateBadgeVariant(plugin.state)}>{stateLabel(plugin.state)}</Badge>
+          {plugin.enabled ? (
+            <Badge variant="success">Enabled</Badge>
+          ) : (
+            <Badge variant="default">Disabled</Badge>
+          )}
+        </div>
+      </div>
+
+      {plugin.description && (
+        <p className="text-sm" style={{ color: "var(--text-muted)" }}>
+          {plugin.description}
+        </p>
+      )}
+
+      <div className="flex gap-2 pt-1">
+        {plugin.enabled ? (
+          <Button variant="secondary" onClick={onDisable}>Disable</Button>
+        ) : (
+          <Button variant="primary" onClick={onEnable}>Enable</Button>
+        )}
+        <Button variant="danger" onClick={onUninstall}>Uninstall</Button>
+      </div>
+    </Card>
+  );
+}

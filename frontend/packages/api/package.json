@@ -6,7 +6,13 @@
   "scripts": {
     "generate": "orval --config orval.config.ts"
   },
+  "dependencies": {
+    "@tanstack/react-query": "5.90.21",
+    "react": "19.2.4"
+  },
   "devDependencies": {
-    "orval": "7.9.0"
+    "@types/react": "19.1.0",
+    "orval": "7.9.0",
+    "typescript": "5.7.3"
   }
 }

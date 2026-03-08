@@ -1,6 +1,6 @@
 import { defineConfig } from "orval";
 
-const swaggerDir = "../../gen/evey/v1";
+const swaggerDir = "../../../gen/evey/v1";
 
 const services = [
   "library", "user", "playback", "transcoding", "mkv",
