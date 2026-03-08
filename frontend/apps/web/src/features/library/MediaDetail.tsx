@@ -264,6 +264,32 @@ function SeasonRow({ seasonId }: { seasonId: string }) {
   );
 }
 
+function PlaySeriesButton({ seriesId }: { seriesId: string }) {
+  const { data: seasonsData } = useLibraryServiceListMediaItems({ parentId: seriesId });
+  const seasons = [...(seasonsData?.items ?? [])].sort((a, b) => (a.indexNumber ?? 0) - (b.indexNumber ?? 0));
+  const firstSeason = seasons[0];
+
+  const { data: episodesData } = useLibraryServiceListMediaItems(
+    { parentId: firstSeason?.id ?? "" },
+    { query: { enabled: !!firstSeason?.id } } as never,
+  );
+  const episodes = [...(episodesData?.items ?? [])].sort((a, b) => (a.indexNumber ?? 0) - (b.indexNumber ?? 0));
+  const firstEpisode = episodes[0];
+
+  if (!firstEpisode?.id) return null;
+
+  return (
+    <Link to="/player/$mediaId" params={{ mediaId: firstEpisode.id }}>
+      <Button variant="primary">
+        <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+          <path d="M6.3 2.8L17 10 6.3 17.2V2.8z" />
+        </svg>
+        Play
+      </Button>
+    </Link>
+  );
+}
+
 function SeriesSection({ item }: { item: V1MediaItem }) {
   const { data: seasonsData } = useLibraryServiceListMediaItems({
     parentId: item.id ?? "",
@@ -538,6 +564,9 @@ export function MediaDetail({ item, onMetadataUpdated }: MediaDetailProps) {
           )}
 
           <div className="flex gap-3 flex-wrap pt-2">
+            {item.id && item.type === "MEDIA_ITEM_TYPE_SERIES" && (
+              <PlaySeriesButton seriesId={item.id} />
+            )}
             {item.id && item.type !== "MEDIA_ITEM_TYPE_SERIES" && item.type !== "MEDIA_ITEM_TYPE_SEASON" && (
               <Link to="/player/$mediaId" params={{ mediaId: item.id }}>
                 <Button variant="primary">
