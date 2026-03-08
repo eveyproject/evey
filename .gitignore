@@ -51,3 +51,4 @@ frontend/**/.turbo/
 frontend/**/.vite/
 frontend/apps/web/.env.local
 frontend/apps/*/env.local
+frontend/.pnpm-store/
