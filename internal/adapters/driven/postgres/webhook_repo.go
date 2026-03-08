@@ -1,0 +1,138 @@
+package postgres
+
+import (
+	"context"
+	"database/sql"
+	"encoding/json"
+
+	"github.com/gravity-zero/evey/internal/domain/webhook"
+	"github.com/lib/pq"
+)
+
+type WebhookRepository struct {
+	db *sql.DB
+}
+
+func NewWebhookRepository(db *sql.DB) *WebhookRepository {
+	return &WebhookRepository{db: db}
+}
+
+func (r *WebhookRepository) Create(ctx context.Context, cfg *webhook.Config) error {
+	headersJSON, err := json.Marshal(cfg.Headers)
+	if err != nil {
+		return err
+	}
+	events := cfg.Events
+	if events == nil {
+		events = []string{}
+	}
+	_, err = r.db.ExecContext(ctx,
+		`INSERT INTO webhook_configs (id, name, url, events, secret, headers, enabled, created_at)
+		 VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`,
+		cfg.ID, cfg.Name, cfg.URL, pq.Array(events), cfg.Secret, headersJSON, cfg.Enabled, cfg.CreatedAt,
+	)
+	return err
+}
+
+func (r *WebhookRepository) GetByID(ctx context.Context, id string) (*webhook.Config, error) {
+	cfg := &webhook.Config{}
+	var headersJSON []byte
+	err := r.db.QueryRowContext(ctx,
+		`SELECT id, name, url, events, secret, headers, enabled, created_at FROM webhook_configs WHERE id = $1`, id,
+	).Scan(&cfg.ID, &cfg.Name, &cfg.URL, pq.Array(&cfg.Events), &cfg.Secret, &headersJSON, &cfg.Enabled, &cfg.CreatedAt)
+	if err != nil {
+		return nil, err
+	}
+	_ = json.Unmarshal(headersJSON, &cfg.Headers)
+	return cfg, nil
+}
+
+func (r *WebhookRepository) List(ctx context.Context) ([]*webhook.Config, error) {
+	rows, err := r.db.QueryContext(ctx,
+		`SELECT id, name, url, events, secret, headers, enabled, created_at FROM webhook_configs ORDER BY created_at DESC`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var result []*webhook.Config
+	for rows.Next() {
+		cfg := &webhook.Config{}
+		var headersJSON []byte
+		if err := rows.Scan(&cfg.ID, &cfg.Name, &cfg.URL, pq.Array(&cfg.Events), &cfg.Secret, &headersJSON, &cfg.Enabled, &cfg.CreatedAt); err != nil {
+			return nil, err
+		}
+		_ = json.Unmarshal(headersJSON, &cfg.Headers)
+		result = append(result, cfg)
+	}
+	return result, rows.Err()
+}
+
+func (r *WebhookRepository) Update(ctx context.Context, cfg *webhook.Config) error {
+	headersJSON, err := json.Marshal(cfg.Headers)
+	if err != nil {
+		return err
+	}
+	events := cfg.Events
+	if events == nil {
+		events = []string{}
+	}
+	_, err = r.db.ExecContext(ctx,
+		`UPDATE webhook_configs SET name=$1, url=$2, events=$3, secret=$4, headers=$5, enabled=$6 WHERE id=$7`,
+		cfg.Name, cfg.URL, pq.Array(events), cfg.Secret, headersJSON, cfg.Enabled, cfg.ID,
+	)
+	return err
+}
+
+func (r *WebhookRepository) Delete(ctx context.Context, id string) error {
+	_, err := r.db.ExecContext(ctx, `DELETE FROM webhook_configs WHERE id = $1`, id)
+	return err
+}
+
+type WebhookDeliveryRepository struct {
+	db *sql.DB
+}
+
+func NewWebhookDeliveryRepository(db *sql.DB) *WebhookDeliveryRepository {
+	return &WebhookDeliveryRepository{db: db}
+}
+
+func (r *WebhookDeliveryRepository) Create(ctx context.Context, d *webhook.Delivery) error {
+	_, err := r.db.ExecContext(ctx,
+		`INSERT INTO webhook_deliveries (id, webhook_id, event, status_code, error, sent_at)
+		 VALUES ($1,$2,$3,$4,$5,$6)`,
+		d.ID, d.WebhookID, d.Event, d.StatusCode, d.Error, d.SentAt,
+	)
+	return err
+}
+
+func (r *WebhookDeliveryRepository) ListByWebhook(ctx context.Context, webhookID string, limit int) ([]*webhook.Delivery, error) {
+	q := `SELECT id, webhook_id, event, status_code, error, sent_at FROM webhook_deliveries WHERE webhook_id = $1 ORDER BY sent_at DESC`
+	if limit > 0 {
+		q += ` LIMIT $2`
+		rows, err := r.db.QueryContext(ctx, q, webhookID, limit)
+		if err != nil {
+			return nil, err
+		}
+		defer rows.Close()
+		return scanDeliveries(rows)
+	}
+	rows, err := r.db.QueryContext(ctx, q, webhookID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	return scanDeliveries(rows)
+}
+
+func scanDeliveries(rows *sql.Rows) ([]*webhook.Delivery, error) {
+	var result []*webhook.Delivery
+	for rows.Next() {
+		d := &webhook.Delivery{}
+		if err := rows.Scan(&d.ID, &d.WebhookID, &d.Event, &d.StatusCode, &d.Error, &d.SentAt); err != nil {
+			return nil, err
+		}
+		result = append(result, d)
+	}
+	return result, rows.Err()
+}

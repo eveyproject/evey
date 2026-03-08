@@ -28,11 +28,14 @@ func New() *InMemoryEventBus {
 
 func (b *InMemoryEventBus) Publish(ctx context.Context, event shared.Event) error {
 	b.mu.RLock()
-	handlers := make([]subscription, len(b.subs[event.EventName()]))
-	copy(handlers, b.subs[event.EventName()])
+	specific := append([]subscription{}, b.subs[event.EventName()]...)
+	wildcards := append([]subscription{}, b.subs["*"]...)
 	b.mu.RUnlock()
 
-	for _, s := range handlers {
+	for _, s := range specific {
+		go s.handler(ctx, event)
+	}
+	for _, s := range wildcards {
 		go s.handler(ctx, event)
 	}
 	return nil

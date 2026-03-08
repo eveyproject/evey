@@ -55,6 +55,16 @@ func (r *FakeProfileRepository) Update(_ context.Context, p *user.Profile) error
 	return nil
 }
 
+func (r *FakeProfileRepository) GetAll(_ context.Context) ([]*user.Profile, error) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	out := make([]*user.Profile, 0, len(r.items))
+	for _, p := range r.items {
+		out = append(out, p)
+	}
+	return out, nil
+}
+
 func (r *FakeProfileRepository) Delete(_ context.Context, id string) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()

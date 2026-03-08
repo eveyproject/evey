@@ -210,6 +210,9 @@ func (r *MediaItemRepository) scanMediaItem(row *sql.Row) (*library.MediaItem, e
 		&item.PremiereDate, &item.Year, &providerJSON, &genresJSON, &studiosJSON, &tagsJSON,
 		&item.AddedAt, &item.UpdatedAt,
 	)
+	if err == sql.ErrNoRows {
+		return nil, library.ErrNotFound
+	}
 	if err != nil {
 		return nil, err
 	}

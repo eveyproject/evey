@@ -20,6 +20,7 @@ type ProfileRepository interface {
 	Create(ctx context.Context, p *Profile) error
 	GetByID(ctx context.Context, id string) (*Profile, error)
 	GetByUserID(ctx context.Context, userID string) ([]*Profile, error)
+	GetAll(ctx context.Context) ([]*Profile, error)
 	Update(ctx context.Context, p *Profile) error
 	Delete(ctx context.Context, id string) error
 }

@@ -41,6 +41,7 @@ type MediaItemAdded struct {
 	LibraryID   string
 	Title       string
 	Type        string
+	Genres      []string
 	OccurredAt  time.Time
 }
 

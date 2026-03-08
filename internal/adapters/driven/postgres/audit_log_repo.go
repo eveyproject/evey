@@ -24,9 +24,9 @@ func (r *AuditLogRepository) Create(ctx context.Context, e *activity.AuditLogEnt
 		return err
 	}
 	_, err = r.db.ExecContext(ctx,
-		`INSERT INTO audit_log (id, user_id, action, resource_type, resource_id, details, client_ip, created_at)
-		 VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`,
-		e.ID, e.UserID, e.Action, e.ResourceType, e.ResourceID, detailsJSON, e.ClientIP, e.CreatedAt,
+		`INSERT INTO audit_log (id, user_id, action, resource_type, resource_id, details, client_ip, user_agent, device_name, created_at)
+		 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
+		e.ID, e.UserID, e.Action, e.ResourceType, e.ResourceID, detailsJSON, e.ClientIP, e.UserAgent, e.DeviceName, e.CreatedAt,
 	)
 	return err
 }
@@ -52,7 +52,7 @@ func (r *AuditLogRepository) List(ctx context.Context, f activity.AuditLogFilter
 		argIdx++
 	}
 
-	query := `SELECT id, user_id, action, resource_type, resource_id, details, client_ip, created_at FROM audit_log`
+	query := `SELECT id, user_id, action, resource_type, resource_id, details, client_ip, user_agent, device_name, created_at FROM audit_log`
 	if len(conditions) > 0 {
 		query += " WHERE " + strings.Join(conditions, " AND ")
 	}
@@ -75,7 +75,7 @@ func (r *AuditLogRepository) List(ctx context.Context, f activity.AuditLogFilter
 	for rows.Next() {
 		e := &activity.AuditLogEntry{}
 		var detailsJSON []byte
-		if err := rows.Scan(&e.ID, &e.UserID, &e.Action, &e.ResourceType, &e.ResourceID, &detailsJSON, &e.ClientIP, &e.CreatedAt); err != nil {
+		if err := rows.Scan(&e.ID, &e.UserID, &e.Action, &e.ResourceType, &e.ResourceID, &detailsJSON, &e.ClientIP, &e.UserAgent, &e.DeviceName, &e.CreatedAt); err != nil {
 			return nil, err
 		}
 		_ = json.Unmarshal(detailsJSON, &e.Details)

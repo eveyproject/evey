@@ -2,56 +2,45 @@ package notification
 
 import "time"
 
-type Event struct {
-	ID        string
-	Type      string
-	Source    string
-	Payload   map[string]interface{}
-	CreatedAt time.Time
-}
-
-type Subscription struct {
-	ID           string
-	SubscriberID string
-	EventType    string
-	Callback     func(Event)
-}
+type Type string
 
 const (
-	EventLibraryCreated       = "library.created"
-	EventLibraryDeleted       = "library.deleted"
-	EventLibraryScanStarted   = "library.scan.started"
-	EventLibraryScanCompleted = "library.scan.completed"
-	EventMediaItemAdded       = "media.item.added"
-	EventMediaItemUpdated     = "media.item.updated"
-	EventMediaItemRemoved     = "media.item.removed"
-	EventUserCreated          = "user.created"
-	EventUserDeleted          = "user.deleted"
-	EventUserDisabled         = "user.disabled"
-	EventProfileCreated       = "user.profile.created"
-	EventLoginSucceeded       = "user.login.succeeded"
-	EventLoginFailed          = "user.login.failed"
-	EventPlaybackStarted      = "playback.started"
-	EventPlaybackStopped      = "playback.stopped"
-	EventPlaybackProgress     = "playback.progress.reported"
-	EventMediaMarkedWatched   = "media.marked.watched"
-	EventTranscodeStarted     = "transcode.started"
-	EventTranscodeCompleted   = "transcode.completed"
-	EventTranscodeFailed      = "transcode.failed"
-	EventTranscodeCancelled   = "transcode.cancelled"
-	EventContainerParsed      = "mkv.container.parsed"
-	EventTrackExtracted       = "mkv.track.extracted"
-	EventContainerMuxed       = "mkv.container.muxed"
-	EventPluginInstalled      = "plugin.installed"
-	EventPluginUninstalled    = "plugin.uninstalled"
-	EventPluginStarted        = "plugin.started"
-	EventPluginStopped        = "plugin.stopped"
-	EventPluginError          = "plugin.error"
-	EventMetadataRefreshed    = "metadata.refreshed"
-	EventMetadataOverrideSet  = "metadata.override.set"
-	EventMetadataOverrideRm   = "metadata.override.removed"
-	EventArtworkDownloaded    = "metadata.artwork.downloaded"
-	EventLoginRecorded        = "activity.login.recorded"
-	EventMetricRecorded       = "activity.metric.recorded"
-	EventAuditLogCreated      = "activity.audit.created"
+	TypeNewMovie       Type = "new_movie"
+	TypeNewEpisode     Type = "new_episode"
+	TypeNewSeason      Type = "new_season"
+	TypeNewSeries      Type = "new_series"
+	TypeNewAlbum       Type = "new_album"
+	TypeLibraryScanned Type = "library_scanned"
+	TypePluginError    Type = "plugin_error"
+	TypeCustom         Type = "custom"
 )
+
+type Level string
+
+const (
+	LevelDisabled       Level = "disabled"
+	LevelAll            Level = "all"
+	LevelRelevant       Level = "relevant"
+	LevelHighlyRelevant Level = "highly_relevant"
+)
+
+type Notification struct {
+	ID          string
+	ProfileID   string
+	Type        Type
+	Title       string
+	Message     string
+	MediaItemID string
+	Level       Level
+	CreatedAt   time.Time
+	ExpiresAt   *time.Time
+	DeliveredAt *time.Time
+	ReadAt      *time.Time
+}
+
+type Settings struct {
+	ProfileID   string
+	MovieLevel  Level
+	SeriesLevel Level
+	MusicLevel  Level
+}

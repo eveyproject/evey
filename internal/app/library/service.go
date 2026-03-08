@@ -2,9 +2,11 @@ package library
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/gravity-zero/evey/internal/domain/library"
 	"github.com/gravity-zero/evey/internal/domain/shared"
 )
@@ -96,9 +98,12 @@ func (s *Service) ScanLibrary(ctx context.Context, libraryID string) error {
 		}
 		for _, f := range files {
 			existing, err := s.mediaItems.GetByFilePath(ctx, f.Path)
-			if err != nil {
+			if err != nil && !errors.Is(err, library.ErrNotFound) {
+				return fmt.Errorf("check media item %s: %w", f.Path, err)
+			}
+			if errors.Is(err, library.ErrNotFound) {
 				item := &library.MediaItem{
-					ID:        fmt.Sprintf("mi-%d", time.Now().UnixNano()),
+					ID:        uuid.New().String(),
 					LibraryID: libraryID,
 					FilePath:  f.Path,
 					FileSize:  f.Size,
@@ -115,6 +120,7 @@ func (s *Service) ScanLibrary(ctx context.Context, libraryID string) error {
 					LibraryID:   libraryID,
 					Title:       item.Title,
 					Type:        item.Type,
+					Genres:      item.Genres,
 					OccurredAt:  time.Now(),
 				})
 			} else {

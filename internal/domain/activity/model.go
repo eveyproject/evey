@@ -74,6 +74,8 @@ type AuditLogEntry struct {
 	ResourceID   *string
 	Details      map[string]interface{}
 	ClientIP     *string
+	UserAgent    *string
+	DeviceName   *string
 	CreatedAt    time.Time
 }
 

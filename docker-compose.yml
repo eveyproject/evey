@@ -1,0 +1,48 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: ${EVEY_DB_NAME:-evey}
+      POSTGRES_USER: ${EVEY_DB_USER:-evey}
+      POSTGRES_PASSWORD: ${EVEY_DB_PASSWORD:-changeme}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "${EVEY_DB_USER:-evey}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  meilisearch:
+    image: getmeili/meilisearch:v1.12
+    environment:
+      MEILI_MASTER_KEY: ${MEILI_MASTER_KEY:-changeme}
+      MEILI_NO_ANALYTICS: "true"
+    volumes:
+      - meilisearch_data:/meili_data
+    ports:
+      - "7700:7700"
+    restart: unless-stopped
+
+  evey:
+    build: .
+    ports:
+      - "9090:9090"
+      - "9091:9091"
+    env_file: .env
+    environment:
+      EVEY_DB_HOST: postgres
+      EVEY_MEILI_URL: http://meilisearch:7700
+    volumes:
+      - ./data:/data
+    depends_on:
+      postgres:
+        condition: service_healthy
+      meilisearch:
+        condition: service_started
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+  meilisearch_data:

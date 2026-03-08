@@ -6,7 +6,9 @@ import (
 
 	eveyv1 "github.com/gravity-zero/evey/gen/evey/v1"
 	"github.com/gravity-zero/evey/internal/adapters/driving/grpcapi/interceptors"
+	appactivity "github.com/gravity-zero/evey/internal/app/activity"
 	appuser "github.com/gravity-zero/evey/internal/app/user"
+	"github.com/gravity-zero/evey/internal/domain/activity"
 	"github.com/gravity-zero/evey/internal/domain/user"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -14,8 +16,30 @@ import (
 
 type userHandler struct {
 	eveyv1.UnimplementedUserServiceServer
-	svc   *appuser.Service
-	users user.UserRepository
+	svc         *appuser.Service
+	users       user.UserRepository
+	activitySvc *appactivity.Service
+}
+
+func (h *userHandler) audit(ctx context.Context, userID, action, resourceType string, resourceID *string) {
+	if h.activitySvc == nil {
+		return
+	}
+	ua := interceptors.UserAgentFromCtx(ctx)
+	dn := interceptors.DeviceNameFromCtx(ctx)
+	e := &activity.AuditLogEntry{
+		UserID:       userID,
+		Action:       action,
+		ResourceType: resourceType,
+		ResourceID:   resourceID,
+	}
+	if ua != "" {
+		e.UserAgent = &ua
+	}
+	if dn != "" {
+		e.DeviceName = &dn
+	}
+	_ = h.activitySvc.CreateAuditEntry(ctx, e)
 }
 
 func (h *userHandler) Login(ctx context.Context, req *eveyv1.LoginRequest) (*eveyv1.AuthResponse, error) {
@@ -30,6 +54,7 @@ func (h *userHandler) Login(ctx context.Context, req *eveyv1.LoginRequest) (*eve
 	}
 	if u != nil {
 		resp.User = userToProto(u)
+		h.audit(ctx, u.ID, "login", "user", &u.ID)
 	}
 	return resp, nil
 }
@@ -80,6 +105,7 @@ func (h *userHandler) CreateUser(ctx context.Context, req *eveyv1.CreateUserRequ
 	if err := h.svc.CreateUser(ctx, claims.IsAdmin, u, req.Password); err != nil {
 		return nil, status.Errorf(codes.PermissionDenied, "%v", err)
 	}
+	h.audit(ctx, claims.UserID, "create_user", "user", &u.ID)
 	return userToProto(u), nil
 }
 
@@ -111,6 +137,12 @@ func (h *userHandler) DeleteUser(ctx context.Context, req *eveyv1.DeleteUserRequ
 	if err := h.svc.DeleteUser(ctx, req.Id); err != nil {
 		return nil, status.Errorf(codes.Internal, "%v", err)
 	}
+	claims := interceptors.ClaimsFromContext(ctx)
+	callerID := req.Id
+	if claims != nil {
+		callerID = claims.UserID
+	}
+	h.audit(ctx, callerID, "delete_user", "user", &req.Id)
 	return &eveyv1.DeleteUserResponse{}, nil
 }
 
@@ -118,6 +150,12 @@ func (h *userHandler) DisableUser(ctx context.Context, req *eveyv1.DisableUserRe
 	if err := h.svc.DisableUser(ctx, req.Id); err != nil {
 		return nil, status.Errorf(codes.Internal, "%v", err)
 	}
+	claims := interceptors.ClaimsFromContext(ctx)
+	callerID := req.Id
+	if claims != nil {
+		callerID = claims.UserID
+	}
+	h.audit(ctx, callerID, "disable_user", "user", &req.Id)
 	u, err := h.users.GetByID(ctx, req.Id)
 	if err != nil {
 		return &eveyv1.User{Id: req.Id, Enabled: false}, nil

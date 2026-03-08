@@ -1,0 +1,17 @@
+{
+  "expo": {
+    "name": "Evey TV",
+    "slug": "evey-tv",
+    "version": "1.0.0",
+    "scheme": "evey",
+    "platforms": ["ios", "android"],
+    "ios": {
+      "bundleIdentifier": "com.evey.tv",
+      "isAppleTVOnly": true
+    },
+    "android": {
+      "package": "com.evey.tv"
+    },
+    "plugins": ["expo-router", "expo-video"]
+  }
+}

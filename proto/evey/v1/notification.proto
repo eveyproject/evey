@@ -1,0 +1,151 @@
+syntax = "proto3";
+
+package evey.v1;
+
+import "google/api/annotations.proto";
+import "google/protobuf/timestamp.proto";
+
+option go_package = "github.com/gravity/evey/gen/evey/v1;eveyv1";
+
+service NotificationService {
+  rpc ListNotifications(ListNotificationsRequest) returns (ListNotificationsResponse) {
+    option (google.api.http) = {
+      get: "/api/v1/notifications"
+    };
+  }
+
+  rpc MarkRead(MarkReadRequest) returns (MarkReadResponse) {
+    option (google.api.http) = {
+      post: "/api/v1/notifications/{id}/read"
+    };
+  }
+
+  rpc MarkAllRead(MarkAllReadRequest) returns (MarkAllReadResponse) {
+    option (google.api.http) = {
+      post: "/api/v1/notifications/read-all"
+      body: "*"
+    };
+  }
+
+  rpc GetUnreadCount(GetUnreadCountRequest) returns (GetUnreadCountResponse) {
+    option (google.api.http) = {
+      get: "/api/v1/notifications/unread-count"
+    };
+  }
+
+  rpc DeleteAllNotifications(DeleteAllNotificationsRequest) returns (DeleteAllNotificationsResponse) {
+    option (google.api.http) = {
+      delete: "/api/v1/notifications"
+    };
+  }
+
+  rpc GetNotificationSettings(GetNotificationSettingsRequest) returns (NotificationSettings) {
+    option (google.api.http) = {
+      get: "/api/v1/notifications/settings"
+    };
+  }
+
+  rpc UpdateNotificationSettings(UpdateNotificationSettingsRequest) returns (NotificationSettings) {
+    option (google.api.http) = {
+      put: "/api/v1/notifications/settings"
+      body: "*"
+    };
+  }
+
+  rpc GetGlobalNotificationSettings(GetGlobalNotificationSettingsRequest) returns (NotificationSettings) {
+    option (google.api.http) = {
+      get: "/api/v1/admin/notifications/settings"
+    };
+  }
+
+  rpc UpdateGlobalNotificationSettings(UpdateGlobalNotificationSettingsRequest) returns (NotificationSettings) {
+    option (google.api.http) = {
+      put: "/api/v1/admin/notifications/settings"
+      body: "*"
+    };
+  }
+}
+
+enum NotificationLevel {
+  NOTIFICATION_LEVEL_UNSPECIFIED = 0;
+  NOTIFICATION_LEVEL_DISABLED = 1;
+  NOTIFICATION_LEVEL_ALL = 2;
+  NOTIFICATION_LEVEL_RELEVANT = 3;
+  NOTIFICATION_LEVEL_HIGHLY_RELEVANT = 4;
+}
+
+message Notification {
+  string id = 1;
+  string profile_id = 2;
+  string type = 3;
+  string title = 4;
+  string message = 5;
+  string media_item_id = 6;
+  string level = 7;
+  google.protobuf.Timestamp created_at = 8;
+  google.protobuf.Timestamp expires_at = 9;
+  google.protobuf.Timestamp read_at = 10;
+}
+
+message NotificationSettings {
+  string profile_id = 1;
+  NotificationLevel movie_level = 2;
+  NotificationLevel series_level = 3;
+  NotificationLevel music_level = 4;
+}
+
+message ListNotificationsRequest {
+  string profile_id = 1;
+  bool unread_only = 2;
+  int32 limit = 3;
+  int32 offset = 4;
+}
+
+message ListNotificationsResponse {
+  repeated Notification notifications = 1;
+}
+
+message MarkReadRequest {
+  string id = 1;
+}
+
+message MarkReadResponse {}
+
+message MarkAllReadRequest {
+  string profile_id = 1;
+}
+
+message MarkAllReadResponse {}
+
+message GetUnreadCountRequest {
+  string profile_id = 1;
+}
+
+message GetUnreadCountResponse {
+  int32 count = 1;
+}
+
+message DeleteAllNotificationsRequest {
+  string profile_id = 1;
+}
+
+message DeleteAllNotificationsResponse {}
+
+message GetNotificationSettingsRequest {
+  string profile_id = 1;
+}
+
+message UpdateNotificationSettingsRequest {
+  string profile_id = 1;
+  NotificationLevel movie_level = 2;
+  NotificationLevel series_level = 3;
+  NotificationLevel music_level = 4;
+}
+
+message GetGlobalNotificationSettingsRequest {}
+
+message UpdateGlobalNotificationSettingsRequest {
+  NotificationLevel movie_level = 1;
+  NotificationLevel series_level = 2;
+  NotificationLevel music_level = 3;
+}

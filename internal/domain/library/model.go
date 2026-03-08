@@ -1,6 +1,11 @@
 package library
 
-import "time"
+import (
+	"errors"
+	"time"
+)
+
+var ErrNotFound = errors.New("not found")
 
 type LibraryType string
 

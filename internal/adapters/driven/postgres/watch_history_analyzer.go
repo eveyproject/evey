@@ -1,0 +1,99 @@
+package postgres
+
+import (
+	"context"
+	"database/sql"
+)
+
+// WatchHistoryAnalyzer implements notification.WatchHistoryAnalyzer using PostgreSQL.
+type WatchHistoryAnalyzer struct {
+	db *sql.DB
+}
+
+func NewWatchHistoryAnalyzer(db *sql.DB) *WatchHistoryAnalyzer {
+	return &WatchHistoryAnalyzer{db: db}
+}
+
+// GetFavoriteGenres returns genres the profile has watched at least minCount times.
+func (a *WatchHistoryAnalyzer) GetFavoriteGenres(ctx context.Context, profileID string, minCount int) ([]string, error) {
+	rows, err := a.db.QueryContext(ctx, `
+		SELECT genre, COUNT(*) AS cnt
+		FROM play_sessions ps
+		INNER JOIN media_items mi ON mi.id = ps.media_item_id
+		CROSS JOIN jsonb_array_elements_text(mi.genres) AS genre
+		WHERE ps.profile_id = $1
+		GROUP BY genre
+		HAVING COUNT(*) >= $2
+		ORDER BY cnt DESC
+	`, profileID, minCount)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var genres []string
+	for rows.Next() {
+		var genre string
+		var cnt int
+		if err := rows.Scan(&genre, &cnt); err != nil {
+			return nil, err
+		}
+		genres = append(genres, genre)
+	}
+	return genres, rows.Err()
+}
+
+// HasWatchedSeries returns true if the profile has any completed episodes in the series.
+func (a *WatchHistoryAnalyzer) HasWatchedSeries(ctx context.Context, profileID, mediaItemID string) (bool, error) {
+	var count int
+	err := a.db.QueryRowContext(ctx, `
+		SELECT COUNT(*)
+		FROM watch_progress wp
+		INNER JOIN media_items mi ON mi.id = wp.media_item_id
+		WHERE wp.profile_id = $1
+		  AND mi.parent_id IN (
+		      SELECT id FROM media_items WHERE parent_id = $2 AND type = 'season'
+		  )
+		  AND wp.completed = TRUE
+	`, profileID, mediaItemID).Scan(&count)
+	return count > 0, err
+}
+
+// IsCurrentlyWatchingSeries returns true if the profile has an in-progress episode in the series.
+func (a *WatchHistoryAnalyzer) IsCurrentlyWatchingSeries(ctx context.Context, profileID, mediaItemID string) (bool, error) {
+	var count int
+	err := a.db.QueryRowContext(ctx, `
+		SELECT COUNT(*)
+		FROM watch_progress wp
+		INNER JOIN media_items mi ON mi.id = wp.media_item_id
+		WHERE wp.profile_id = $1
+		  AND mi.parent_id IN (
+		      SELECT id FROM media_items WHERE parent_id = $2 AND type = 'season'
+		  )
+		  AND wp.position_ms > 0
+		  AND wp.completed = FALSE
+	`, profileID, mediaItemID).Scan(&count)
+	return count > 0, err
+}
+
+// CalculateRelevanceScore counts how many of the profile's favorite genres match the given genres.
+func (a *WatchHistoryAnalyzer) CalculateRelevanceScore(ctx context.Context, profileID string, genres []string) (int, error) {
+	if len(genres) == 0 {
+		return 0, nil
+	}
+	favorites, err := a.GetFavoriteGenres(ctx, profileID, 3)
+	if err != nil {
+		return 0, err
+	}
+	favSet := make(map[string]bool, len(favorites))
+	for _, g := range favorites {
+		favSet[g] = true
+	}
+	score := 0
+	for _, g := range genres {
+		if favSet[g] {
+			score++
+		}
+	}
+	return score, nil
+}

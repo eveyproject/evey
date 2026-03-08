@@ -2,8 +2,26 @@ package notification
 
 import "context"
 
-type EventBus interface {
-	Publish(ctx context.Context, event Event) error
-	Subscribe(ctx context.Context, sub Subscription) error
-	Unsubscribe(ctx context.Context, subscriptionID string) error
+type Repository interface {
+	Create(ctx context.Context, n *Notification) error
+	ListByProfile(ctx context.Context, profileID string, unreadOnly bool, limit, offset int) ([]*Notification, error)
+	MarkRead(ctx context.Context, id string) error
+	MarkAllRead(ctx context.Context, profileID string) error
+	UnreadCount(ctx context.Context, profileID string) (int, error)
+	DeleteAll(ctx context.Context, profileID string) error
+	CleanupExpired(ctx context.Context) error
+}
+
+type SettingsRepository interface {
+	GetByProfile(ctx context.Context, profileID string) (*Settings, error)
+	Upsert(ctx context.Context, s *Settings) error
+	GetGlobalDefaults(ctx context.Context) (*Settings, error)
+	UpsertGlobalDefaults(ctx context.Context, s *Settings) error
+}
+
+type WatchHistoryAnalyzer interface {
+	GetFavoriteGenres(ctx context.Context, profileID string, minCount int) ([]string, error)
+	HasWatchedSeries(ctx context.Context, profileID, mediaItemID string) (bool, error)
+	IsCurrentlyWatchingSeries(ctx context.Context, profileID, mediaItemID string) (bool, error)
+	CalculateRelevanceScore(ctx context.Context, profileID string, genres []string) (int, error)
 }

@@ -8,11 +8,12 @@ import (
 	"database/sql"
 	"encoding/pem"
 	"fmt"
-	"log"
+	"log/slog"
 	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 	_ "github.com/lib/pq"
 	"github.com/grpc-ecosystem/grpc-gateway/v2/runtime"
 	eveyv1 "github.com/gravity-zero/evey/gen/evey/v1"
@@ -20,13 +21,16 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 
 	appactivity "github.com/gravity-zero/evey/internal/app/activity"
+	appfeed "github.com/gravity-zero/evey/internal/app/feed"
 	applibrary "github.com/gravity-zero/evey/internal/app/library"
 	appmetadata "github.com/gravity-zero/evey/internal/app/metadata"
 	appmkv "github.com/gravity-zero/evey/internal/app/mkv"
+	appnotification "github.com/gravity-zero/evey/internal/app/notification"
 	appplayback "github.com/gravity-zero/evey/internal/app/playback"
 	appplugin "github.com/gravity-zero/evey/internal/app/plugin"
 	apptranscoding "github.com/gravity-zero/evey/internal/app/transcoding"
 	appuser "github.com/gravity-zero/evey/internal/app/user"
+	appwebhook "github.com/gravity-zero/evey/internal/app/webhook"
 	"github.com/gravity-zero/evey/internal/adapters/driven/ebml"
 	"github.com/gravity-zero/evey/internal/adapters/driven/ffmpeg"
 	"github.com/gravity-zero/evey/internal/adapters/driven/filesystem"
@@ -37,16 +41,18 @@ import (
 	"github.com/gravity-zero/evey/internal/adapters/driving/grpcapi"
 	"github.com/gravity-zero/evey/internal/adapters/driving/grpcapi/interceptors"
 	"github.com/gravity-zero/evey/internal/config"
-	"github.com/gravity-zero/evey/internal/pkg/auth"
 	"github.com/gravity-zero/evey/internal/domain/metadata"
+	"github.com/gravity-zero/evey/internal/pkg/auth"
 	"github.com/gravity-zero/evey/internal/pkg/eventbus"
+	eveylogger "github.com/gravity-zero/evey/internal/pkg/logger"
 )
 
 const version = "0.1.0"
 
 func main() {
 	if err := run(); err != nil {
-		log.Fatalf("fatal: %v", err)
+		slog.Error("fatal", slog.Any("err", err))
+		os.Exit(1)
 	}
 }
 
@@ -55,6 +61,17 @@ func run() error {
 	if err != nil {
 		return fmt.Errorf("load config: %w", err)
 	}
+
+	// --- Logger ---
+	logCfg := eveylogger.Config{
+		Level:         cfg.Log.Level,
+		Dir:           cfg.Log.Dir,
+		MaxSizeMB:     cfg.Log.MaxSizeMB,
+		RetentionDays: cfg.Log.RetentionDays,
+		DevMode:       cfg.Log.DevMode,
+	}
+	rootLog := eveylogger.New(logCfg)
+	slog.SetDefault(rootLog)
 
 	// --- Database ---
 	db, err := sql.Open("postgres", cfg.DB.DSN())
@@ -65,7 +82,7 @@ func run() error {
 	if err := db.Ping(); err != nil {
 		return fmt.Errorf("ping db: %w", err)
 	}
-	log.Println("connected to postgres")
+	rootLog.Info("connected to postgres")
 
 	if err := postgres.RunMigrations(db); err != nil {
 		return fmt.Errorf("migrations: %w", err)
@@ -104,6 +121,15 @@ func run() error {
 	auditLogRepo := postgres.NewAuditLogRepository(db)
 	playSessionStatsRepo := postgres.NewPlaySessionStatsReader(db)
 	playHistoryRepo := postgres.NewPlayHistoryRepository(db)
+
+	notificationRepo := postgres.NewNotificationRepository(db)
+	notificationSettingsRepo := postgres.NewNotificationSettingsRepository(db)
+	watchHistoryAnalyzer := postgres.NewWatchHistoryAnalyzer(db)
+	webhookRepo := postgres.NewWebhookRepository(db)
+	webhookDeliveryRepo := postgres.NewWebhookDeliveryRepository(db)
+	feedAdminCfgRepo := postgres.NewFeedAdminConfigRepository(db)
+	feedProfileCfgRepo := postgres.NewFeedProfileConfigRepository(db)
+	feedQuerier := postgres.NewFeedQuerier(db)
 
 	// --- Infrastructure ---
 	searchAdapter, _ := meili.NewSearchAdapter(cfg.Meilisearch.URL, cfg.Meilisearch.APIKey)
@@ -167,20 +193,46 @@ func run() error {
 		bus,
 	)
 
+	webhookLog := eveylogger.NewWith(rootLog, "webhook")
+	webhookSvc := appwebhook.NewService(webhookRepo, webhookDeliveryRepo, webhookLog, bus)
+
+	notifSvc := appnotification.NewService(
+		notificationRepo, notificationSettingsRepo, watchHistoryAnalyzer,
+		profileRepo, bus,
+	)
+	go func() {
+		if err := notifSvc.CleanupExpired(context.Background()); err != nil {
+			rootLog.Warn("notification cleanup", slog.Any("err", err))
+		}
+		ticker := time.NewTicker(24 * time.Hour)
+		defer ticker.Stop()
+		for range ticker.C {
+			if err := notifSvc.CleanupExpired(context.Background()); err != nil {
+				rootLog.Warn("notification cleanup", slog.Any("err", err))
+			}
+		}
+	}()
+
+	feedSvc := appfeed.NewService(feedAdminCfgRepo, feedProfileCfgRepo, feedQuerier, watchHistoryAnalyzer)
+
 	// --- Auth interceptor ---
 	authInterceptor := interceptors.NewAuthInterceptor(tokenGen)
+	grpcLog := eveylogger.NewWith(rootLog, "grpc")
 
 	// --- gRPC server ---
 	grpcSrv := grpcapi.NewGRPCServer(
 		librarySvc, userSvc, playbackSvc, transcodingSvc,
 		mkvSvc, pluginSvc, metadataSvc, activitySvc,
+		notifSvc, feedSvc, webhookSvc,
 		userRepo, version,
 		grpc.ChainUnaryInterceptor(
-			interceptors.LoggingUnary(),
+			interceptors.ClientInfoUnary(),
+			interceptors.LoggingUnary(grpcLog),
 			authInterceptor.Unary(),
 		),
 		grpc.ChainStreamInterceptor(
-			interceptors.LoggingStream(),
+			interceptors.ClientInfoStream(),
+			interceptors.LoggingStream(grpcLog),
 			authInterceptor.Stream(),
 		),
 	)
@@ -203,6 +255,36 @@ func run() error {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
+	go func() {
+		ticker := time.NewTicker(1 * time.Hour)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				if err := refreshTokenRepo.DeleteExpired(context.Background()); err != nil {
+					rootLog.Warn("refresh token cleanup", slog.Any("err", err))
+				}
+			}
+		}
+	}()
+
+	go func() {
+		ticker := time.NewTicker(1 * time.Hour)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				if err := quickConnectRepo.DeleteExpired(context.Background()); err != nil {
+					rootLog.Warn("quick connect cleanup", slog.Any("err", err))
+				}
+			}
+		}
+	}()
+
 	errCh := make(chan error, 2)
 
 	go func() {
@@ -213,7 +295,7 @@ func run() error {
 
 	if httpSrv != nil {
 		go func() {
-			log.Printf("HTTP gateway listening on :%d", httpPort)
+			rootLog.Info("HTTP gateway listening", slog.Int("port", httpPort))
 			if err := httpSrv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 				errCh <- err
 			}
@@ -222,7 +304,7 @@ func run() error {
 
 	select {
 	case <-ctx.Done():
-		log.Println("shutting down...")
+		rootLog.Info("shutting down...")
 	case err := <-errCh:
 		return err
 	}
@@ -231,7 +313,7 @@ func run() error {
 	if httpSrv != nil {
 		httpSrv.Shutdown(context.Background())
 	}
-	log.Println("shutdown complete")
+	rootLog.Info("shutdown complete")
 	return nil
 }
 
@@ -243,14 +325,14 @@ func loadOrGenerateRSAKey(path string) (*rsa.PrivateKey, error) {
 			return x509.ParsePKCS1PrivateKey(block.Bytes)
 		}
 	}
-	log.Printf("generating RSA key (no key at %s)", path)
+	slog.Info("generating RSA key", slog.String("path", path))
 	key, err := rsa.GenerateKey(rand.Reader, 2048)
 	if err != nil {
 		return nil, err
 	}
 	f, err := os.Create(path)
 	if err != nil {
-		log.Printf("cannot save key to %s: %v (using ephemeral)", path, err)
+		slog.Warn("cannot save RSA key, using ephemeral", slog.String("path", path), slog.Any("err", err))
 		return key, nil
 	}
 	defer f.Close()
@@ -261,7 +343,7 @@ func loadOrGenerateRSAKey(path string) (*rsa.PrivateKey, error) {
 func registerGateway(grpcAddr string) http.Handler {
 	conn, err := grpc.NewClient(grpcAddr, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
-		log.Printf("grpc-gateway dial failed: %v", err)
+		slog.Error("grpc-gateway dial failed", slog.Any("err", err))
 		return nil
 	}
 	ctx := context.Background()
@@ -275,9 +357,12 @@ func registerGateway(grpcAddr string) http.Handler {
 		eveyv1.RegisterMetadataServiceHandler,
 		eveyv1.RegisterAdminServiceHandler,
 		eveyv1.RegisterActivityServiceHandler,
+		eveyv1.RegisterNotificationServiceHandler,
+		eveyv1.RegisterFeedServiceHandler,
+		eveyv1.RegisterWebhookServiceHandler,
 	} {
 		if err := fn(ctx, mux, conn); err != nil {
-			log.Printf("gateway register failed: %v", err)
+			slog.Error("gateway register failed", slog.Any("err", err))
 		}
 	}
 	return mux

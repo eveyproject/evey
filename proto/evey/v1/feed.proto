@@ -1,0 +1,158 @@
+syntax = "proto3";
+
+package evey.v1;
+
+import "google/api/annotations.proto";
+
+option go_package = "github.com/gravity/evey/gen/evey/v1;eveyv1";
+
+service FeedService {
+  rpc GetFeedConfig(GetFeedConfigRequest) returns (GetFeedConfigResponse) {
+    option (google.api.http) = {
+      get: "/api/v1/feeds/config"
+    };
+  }
+
+  rpc ContinueWatching(ContinueWatchingRequest) returns (FeedResponse) {
+    option (google.api.http) = {
+      get: "/api/v1/feeds/continue-watching"
+    };
+  }
+
+  rpc RecentlyAdded(RecentlyAddedRequest) returns (FeedResponse) {
+    option (google.api.http) = {
+      get: "/api/v1/feeds/recently-added"
+    };
+  }
+
+  rpc Recommended(RecommendedRequest) returns (FeedResponse) {
+    option (google.api.http) = {
+      get: "/api/v1/feeds/recommended"
+    };
+  }
+
+  rpc SimilarItems(SimilarItemsRequest) returns (FeedResponse) {
+    option (google.api.http) = {
+      get: "/api/v1/feeds/similar/{media_item_id}"
+    };
+  }
+
+  rpc GetAdminFeedConfigs(GetAdminFeedConfigsRequest) returns (GetAdminFeedConfigsResponse) {
+    option (google.api.http) = {
+      get: "/api/v1/admin/feeds/config"
+    };
+  }
+
+  rpc UpdateAdminFeedConfig(UpdateAdminFeedConfigRequest) returns (AdminFeedConfig) {
+    option (google.api.http) = {
+      put: "/api/v1/admin/feeds/config/{feed_type}"
+      body: "*"
+    };
+  }
+
+  rpc UpdateProfileFeedConfig(UpdateProfileFeedConfigRequest) returns (ProfileFeedConfig) {
+    option (google.api.http) = {
+      put: "/api/v1/feeds/config/{feed_type}"
+      body: "*"
+    };
+  }
+
+  rpc ResetProfileFeedConfig(ResetProfileFeedConfigRequest) returns (ResetProfileFeedConfigResponse) {
+    option (google.api.http) = {
+      delete: "/api/v1/feeds/config/{feed_type}"
+    };
+  }
+}
+
+message FeedItem {
+  string media_item_id = 1;
+  string parent_id = 2;
+  string title = 3;
+  string type = 4;
+  int64 position_ms = 5;
+  string added_at = 6;
+  int32 score = 7;
+}
+
+message MergedFeedConfig {
+  string feed_type = 1;
+  bool enabled = 2;
+  int32 display_order = 3;
+  int32 max_items = 4;
+}
+
+message AdminFeedConfig {
+  string feed_type = 1;
+  bool enabled = 2;
+  int32 display_order = 3;
+  int32 max_items = 4;
+}
+
+message ProfileFeedConfig {
+  string profile_id = 1;
+  string feed_type = 2;
+  optional bool enabled = 3;
+  optional int32 display_order = 4;
+  optional int32 max_items = 5;
+}
+
+message GetFeedConfigRequest {
+  string profile_id = 1;
+}
+
+message GetFeedConfigResponse {
+  repeated MergedFeedConfig configs = 1;
+}
+
+message ContinueWatchingRequest {
+  string profile_id = 1;
+  int32 limit = 2;
+}
+
+message RecentlyAddedRequest {
+  int32 days_window = 1;
+  int32 limit = 2;
+}
+
+message RecommendedRequest {
+  string profile_id = 1;
+  int32 limit = 2;
+}
+
+message SimilarItemsRequest {
+  string media_item_id = 1;
+  string profile_id = 2;
+  int32 limit = 3;
+}
+
+message FeedResponse {
+  repeated FeedItem items = 1;
+}
+
+message GetAdminFeedConfigsRequest {}
+
+message GetAdminFeedConfigsResponse {
+  repeated AdminFeedConfig configs = 1;
+}
+
+message UpdateAdminFeedConfigRequest {
+  string feed_type = 1;
+  bool enabled = 2;
+  int32 display_order = 3;
+  int32 max_items = 4;
+}
+
+message UpdateProfileFeedConfigRequest {
+  string profile_id = 1;
+  string feed_type = 2;
+  optional bool enabled = 3;
+  optional int32 display_order = 4;
+  optional int32 max_items = 5;
+}
+
+message ResetProfileFeedConfigRequest {
+  string profile_id = 1;
+  string feed_type = 2;
+}
+
+message ResetProfileFeedConfigResponse {}

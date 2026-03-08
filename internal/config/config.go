@@ -18,10 +18,20 @@ type Config struct {
 	Library     LibraryConfig
 	Playback    PlaybackConfig
 	Metadata    MetadataConfig
+	Log         LogConfig
 }
 
 type MetadataConfig struct {
 	Language string // ISO 639-1, default "en"
+}
+
+type LogConfig struct {
+	Level         string
+	Dir           string
+	MaxSizeMB     int
+	RetentionDays int
+	DevMode       bool
+	PluginDebug   bool
 }
 
 type ServerConfig struct {
@@ -134,6 +144,14 @@ func Load() (*Config, error) {
 		},
 		Metadata: MetadataConfig{
 			Language: envStr("EVEY_METADATA_LANGUAGE", "en"),
+		},
+		Log: LogConfig{
+			Level:         envStr("EVEY_LOG_LEVEL", "info"),
+			Dir:           envStr("EVEY_LOG_DIR", "logs"),
+			MaxSizeMB:     envInt("EVEY_LOG_MAX_SIZE_MB", 50),
+			RetentionDays: envInt("EVEY_LOG_RETENTION_DAYS", 7),
+			DevMode:       envBool("EVEY_LOG_DEV_MODE", false),
+			PluginDebug:   envBool("EVEY_PLUGIN_DEBUG", false),
 		},
 	}
 	return cfg, nil

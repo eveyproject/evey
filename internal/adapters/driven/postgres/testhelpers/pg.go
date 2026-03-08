@@ -68,6 +68,10 @@ func runMigrations(t *testing.T, db *sql.DB) {
 		filepath.Join(migrationsDir, "000001_init.up.sql"),
 		filepath.Join(migrationsDir, "000002_transcode_profiles.up.sql"),
 		filepath.Join(migrationsDir, "000003_profile_languages.up.sql"),
+		filepath.Join(migrationsDir, "000004_audit_log_enrich.up.sql"),
+		filepath.Join(migrationsDir, "000005_notifications.up.sql"),
+		filepath.Join(migrationsDir, "000006_webhooks.up.sql"),
+		filepath.Join(migrationsDir, "000007_feeds.up.sql"),
 	}
 	for _, path := range migrations {
 		data, err := os.ReadFile(path)

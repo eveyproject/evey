@@ -1,34 +1,40 @@
 package grpcapi
 
 import (
-	"log"
+	"log/slog"
 	"net"
 
 	eveyv1 "github.com/gravity-zero/evey/gen/evey/v1"
 	appactivity "github.com/gravity-zero/evey/internal/app/activity"
+	appfeed "github.com/gravity-zero/evey/internal/app/feed"
 	applibrary "github.com/gravity-zero/evey/internal/app/library"
 	appmetadata "github.com/gravity-zero/evey/internal/app/metadata"
 	appmkv "github.com/gravity-zero/evey/internal/app/mkv"
+	appnotification "github.com/gravity-zero/evey/internal/app/notification"
 	appplayback "github.com/gravity-zero/evey/internal/app/playback"
 	appplugin "github.com/gravity-zero/evey/internal/app/plugin"
 	apptranscoding "github.com/gravity-zero/evey/internal/app/transcoding"
 	appuser "github.com/gravity-zero/evey/internal/app/user"
+	appwebhook "github.com/gravity-zero/evey/internal/app/webhook"
 	"github.com/gravity-zero/evey/internal/domain/user"
 	"google.golang.org/grpc"
 )
 
 type GRPCServer struct {
-	server      *grpc.Server
-	library     *applibrary.Service
-	user        *appuser.Service
-	playback    *appplayback.Service
-	transcoding *apptranscoding.Service
-	mkv         *appmkv.Service
-	plugin      *appplugin.Service
-	metadata    *appmetadata.Service
-	activity    *appactivity.Service
-	users       user.UserRepository
-	version     string
+	server       *grpc.Server
+	library      *applibrary.Service
+	user         *appuser.Service
+	playback     *appplayback.Service
+	transcoding  *apptranscoding.Service
+	mkv          *appmkv.Service
+	plugin       *appplugin.Service
+	metadata     *appmetadata.Service
+	activity     *appactivity.Service
+	notification *appnotification.Service
+	feed         *appfeed.Service
+	webhook      *appwebhook.Service
+	users        user.UserRepository
+	version      string
 }
 
 func NewGRPCServer(
@@ -40,28 +46,34 @@ func NewGRPCServer(
 	plugin *appplugin.Service,
 	metadata *appmetadata.Service,
 	activity *appactivity.Service,
+	notification *appnotification.Service,
+	feed *appfeed.Service,
+	webhook *appwebhook.Service,
 	users user.UserRepository,
 	version string,
 	opts ...grpc.ServerOption,
 ) *GRPCServer {
 	return &GRPCServer{
-		server:      grpc.NewServer(opts...),
-		library:     library,
-		user:        userSvc,
-		playback:    playback,
-		transcoding: transcoding,
-		mkv:         mkv,
-		plugin:      plugin,
-		metadata:    metadata,
-		activity:    activity,
-		users:       users,
-		version:     version,
+		server:       grpc.NewServer(opts...),
+		library:      library,
+		user:         userSvc,
+		playback:     playback,
+		transcoding:  transcoding,
+		mkv:          mkv,
+		plugin:       plugin,
+		metadata:     metadata,
+		activity:     activity,
+		notification: notification,
+		feed:         feed,
+		webhook:      webhook,
+		users:        users,
+		version:      version,
 	}
 }
 
 func (s *GRPCServer) RegisterServices() {
 	eveyv1.RegisterLibraryServiceServer(s.server, &libraryHandler{svc: s.library})
-	eveyv1.RegisterUserServiceServer(s.server, &userHandler{svc: s.user, users: s.users})
+	eveyv1.RegisterUserServiceServer(s.server, &userHandler{svc: s.user, users: s.users, activitySvc: s.activity})
 	eveyv1.RegisterPlaybackServiceServer(s.server, &playbackHandler{svc: s.playback, librarySvc: s.library})
 	eveyv1.RegisterTranscodingServiceServer(s.server, &transcodingHandler{svc: s.transcoding})
 	eveyv1.RegisterMKVServiceServer(s.server, &mkvHandler{svc: s.mkv})
@@ -74,6 +86,9 @@ func (s *GRPCServer) RegisterServices() {
 		version:        s.version,
 	})
 	eveyv1.RegisterActivityServiceServer(s.server, &activityHandler{svc: s.activity})
+	eveyv1.RegisterNotificationServiceServer(s.server, &notificationHandler{svc: s.notification})
+	eveyv1.RegisterFeedServiceServer(s.server, &feedHandler{svc: s.feed})
+	eveyv1.RegisterWebhookServiceServer(s.server, &webhookHandler{svc: s.webhook})
 }
 
 func (s *GRPCServer) Start(addr string) error {
@@ -81,7 +96,7 @@ func (s *GRPCServer) Start(addr string) error {
 	if err != nil {
 		return err
 	}
-	log.Printf("gRPC server listening on %s", addr)
+	slog.Info("gRPC server listening", slog.String("addr", addr))
 	return s.server.Serve(lis)
 }
 

@@ -2,13 +2,12 @@ package fakes
 
 import (
 	"context"
-	"errors"
 	"sync"
 
 	"github.com/gravity-zero/evey/internal/domain/library"
 )
 
-var ErrNotFound = errors.New("not found")
+var ErrNotFound = library.ErrNotFound
 
 type FakeLibraryRepository struct {
 	mu      sync.RWMutex

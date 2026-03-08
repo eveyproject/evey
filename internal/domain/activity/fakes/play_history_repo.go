@@ -16,6 +16,12 @@ func NewFakePlayHistoryRepository() *FakePlayHistoryRepository {
 	return &FakePlayHistoryRepository{}
 }
 
+func (r *FakePlayHistoryRepository) Add(entries ...*activity.PlayHistoryEntry) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.items = append(r.items, entries...)
+}
+
 func (r *FakePlayHistoryRepository) List(_ context.Context, filter activity.PlayHistoryFilter) ([]*activity.PlayHistoryEntry, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()

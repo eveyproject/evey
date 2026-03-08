@@ -98,6 +98,29 @@ func (r *ProfileRepository) Update(ctx context.Context, p *user.Profile) error {
 	return err
 }
 
+func (r *ProfileRepository) GetAll(ctx context.Context) ([]*user.Profile, error) {
+	rows, err := r.db.QueryContext(ctx,
+		`SELECT id, user_id, name, avatar_path, preferences, max_rating, is_default, audio_languages, subtitle_languages, created_at
+		 FROM profiles ORDER BY user_id, is_default DESC, name`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var result []*user.Profile
+	for rows.Next() {
+		p := &user.Profile{}
+		var prefsJSON []byte
+		if err := rows.Scan(&p.ID, &p.UserID, &p.Name, &p.AvatarPath, &prefsJSON, &p.MaxRating, &p.IsDefault,
+			pq.Array(&p.AudioLanguages), pq.Array(&p.SubtitleLanguages), &p.CreatedAt); err != nil {
+			return nil, err
+		}
+		_ = json.Unmarshal(prefsJSON, &p.Preferences)
+		result = append(result, p)
+	}
+	return result, rows.Err()
+}
+
 func (r *ProfileRepository) Delete(ctx context.Context, id string) error {
 	_, err := r.db.ExecContext(ctx, `DELETE FROM profiles WHERE id = $1`, id)
 	return err
