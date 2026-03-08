@@ -95,6 +95,15 @@ func (s *Service) Setup(ctx context.Context, username, password, email string) (
 		return nil, err
 	}
 	s.events.Publish(ctx, user.UserCreated{UserID: u.ID, Username: u.Username, IsAdmin: true, OccurredAt: time.Now()})
+
+	p := &user.Profile{
+		ID:        fmt.Sprintf("prf-%d", time.Now().UnixNano()),
+		UserID:    u.ID,
+		Name:      u.Username,
+		IsDefault: true,
+	}
+	_ = s.profiles.Create(ctx, p)
+
 	return u, nil
 }
 
@@ -118,10 +127,24 @@ func (s *Service) Login(ctx context.Context, username, password string) (accessT
 		perms = append(perms, r.Permissions...)
 	}
 
+	var defaultProfileID string
+	if profs, pErr := s.profiles.GetByUserID(ctx, u.ID); pErr == nil {
+		for _, p := range profs {
+			if p.IsDefault {
+				defaultProfileID = p.ID
+				break
+			}
+		}
+		if defaultProfileID == "" && len(profs) > 0 {
+			defaultProfileID = profs[0].ID
+		}
+	}
+
 	accessToken, err = s.tokens.GenerateAccessToken(user.Claims{
 		UserID:      u.ID,
 		Username:    u.Username,
 		IsAdmin:     u.IsAdmin,
+		ProfileID:   defaultProfileID,
 		Permissions: perms,
 	})
 	if err != nil {

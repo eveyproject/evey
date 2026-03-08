@@ -405,17 +405,6 @@ func mediaHandler(tokens interface {
 			http.ServeFile(w, r, item.FilePath)
 
 		case "artwork":
-			var artworkType string
-			switch artType {
-			case "poster":
-				artworkType = "ARTWORK_TYPE_PRIMARY"
-			case "backdrop":
-				artworkType = "ARTWORK_TYPE_BACKDROP"
-			case "thumb":
-				artworkType = "ARTWORK_TYPE_THUMB"
-			default:
-				artworkType = artType
-			}
 			records, err := artworkRepo.GetByMediaItem(r.Context(), mediaID)
 			if err != nil || len(records) == 0 {
 				http.NotFound(w, r)
@@ -423,7 +412,7 @@ func mediaHandler(tokens interface {
 			}
 			var url string
 			for _, rec := range records {
-				if artworkType == "" || rec.Type == artworkType {
+				if artType == "" || rec.Type == artType {
 					if rec.SourceURL != nil {
 						url = *rec.SourceURL
 						break

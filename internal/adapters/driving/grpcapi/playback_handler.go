@@ -39,9 +39,13 @@ func (h *playbackHandler) StartStream(ctx context.Context, req *eveyv1.StartStre
 	if claims == nil {
 		return nil, status.Error(codes.Unauthenticated, "not authenticated")
 	}
+	profileID := req.ProfileId
+	if profileID == "" {
+		profileID = claims.ProfileID
+	}
 	session := &playback.PlaySession{
 		ID:          fmt.Sprintf("ps-%d", nowUnixNano()),
-		ProfileID:   req.ProfileId,
+		ProfileID:   profileID,
 		MediaItemID: req.MediaItemId,
 		PlayMethod:  playMethodFromProto[req.PlayMethod],
 		DeviceName:  req.DeviceName,
@@ -65,14 +69,20 @@ func (h *playbackHandler) ReportProgress(ctx context.Context, req *eveyv1.Report
 	if claims == nil {
 		return nil, status.Error(codes.Unauthenticated, "not authenticated")
 	}
-	if err := h.svc.ReportProgress(ctx, claims.ProfileID, req.SessionId, req.PositionMs, false); err != nil {
+	if err := h.svc.ReportProgressBySession(ctx, req.SessionId, req.PositionMs); err != nil {
 		return nil, status.Errorf(codes.Internal, "%v", err)
 	}
 	return &eveyv1.ReportProgressResponse{}, nil
 }
 
 func (h *playbackHandler) GetWatchProgress(ctx context.Context, req *eveyv1.GetWatchProgressRequest) (*eveyv1.WatchProgress, error) {
-	wp, err := h.svc.GetWatchProgress(ctx, req.ProfileId, req.MediaItemId)
+	profileID := req.ProfileId
+	if profileID == "" {
+		if claims := interceptors.ClaimsFromContext(ctx); claims != nil {
+			profileID = claims.ProfileID
+		}
+	}
+	wp, err := h.svc.GetWatchProgress(ctx, profileID, req.MediaItemId)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, status.Error(codes.NotFound, "watch progress not found")

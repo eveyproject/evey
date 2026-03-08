@@ -86,6 +86,14 @@ func (s *Service) StopStream(ctx context.Context, sessionID string) error {
 	return nil
 }
 
+func (s *Service) ReportProgressBySession(ctx context.Context, sessionID string, positionMs int64) error {
+	session, err := s.sessions.GetByID(ctx, sessionID)
+	if err != nil {
+		return ErrSessionNotFound
+	}
+	return s.ReportProgress(ctx, session.ProfileID, session.MediaItemID, positionMs, false)
+}
+
 func (s *Service) ReportProgress(ctx context.Context, profileID, mediaItemID string, positionMs int64, completed bool) error {
 	wp := &playback.WatchProgress{
 		ID:           fmt.Sprintf("wp-%d", time.Now().UnixNano()),
