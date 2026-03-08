@@ -38,6 +38,7 @@ services:
       EVEY_TRANSCODING_HW_ACCEL_ENABLED: "true"
     volumes:
       - transcode-cache:/var/cache/evey
+      - ${MEDIA_DIR:-/media}:/media:ro
     devices:
       - /dev/dri:/dev/dri
     depends_on:

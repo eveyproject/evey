@@ -460,12 +460,14 @@ func browseDirsHandler(tokens interface {
 
 		dir := r.URL.Query().Get("path")
 		if dir == "" {
-			dir = "/"
+			dir = "/media"
 		}
 
 		dirEntries, err := os.ReadDir(dir)
 		if err != nil {
-			http.Error(w, `{"message":"cannot read dir"}`, http.StatusBadRequest)
+			// return empty array instead of error so frontend can degrade gracefully
+			w.Header().Set("Content-Type", "application/json")
+			w.Write([]byte("[]"))
 			return
 		}
 

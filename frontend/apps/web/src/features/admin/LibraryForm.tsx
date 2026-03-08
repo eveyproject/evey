@@ -16,8 +16,9 @@ export function LibraryForm({ onSuccess }: LibraryFormProps) {
 
   useEffect(() => {
     eveyFetch<{ name: string; path: string }[]>({
-      url: "/api/v1/admin/fs/browse?path=/media",
+      url: "/api/v1/admin/fs/browse",
       method: "GET",
+      params: { path: "/media" },
     })
       .then((dirs) => setMediaDirs(dirs.map((d) => d.path)))
       .catch(() => setMediaDirs([]));
@@ -45,10 +46,21 @@ export function LibraryForm({ onSuccess }: LibraryFormProps) {
       data: {
         name,
         type,
-        paths: paths.filter((p) => p.trim() !== ""),
+        paths: paths.filter((p) => p.trim() !== "" && p !== "__custom__"),
       },
     });
   }
+
+  const inputStyle: React.CSSProperties = {
+    backgroundColor: "var(--surface-raised)",
+    border: "1px solid var(--border)",
+    color: "var(--text)",
+    borderRadius: "var(--radius-md)",
+    padding: "0.5rem 0.75rem",
+    fontSize: "0.875rem",
+    flex: 1,
+    outline: "none",
+  };
 
   return (
     <form onSubmit={handleSubmit} className="flex flex-col gap-4">
@@ -66,12 +78,7 @@ export function LibraryForm({ onSuccess }: LibraryFormProps) {
         <select
           value={type}
           onChange={(e) => setType(e.target.value as V1LibraryType)}
-          className="px-3 py-2 rounded-[var(--radius-md)] text-sm"
-          style={{
-            backgroundColor: "var(--surface-raised)",
-            border: "1px solid var(--border)",
-            color: "var(--text)",
-          }}
+          style={{ ...inputStyle, flex: undefined, width: "100%" }}
         >
           <option value="LIBRARY_TYPE_MOVIES">Movies</option>
           <option value="LIBRARY_TYPE_SHOWS">TV Shows</option>
@@ -82,24 +89,36 @@ export function LibraryForm({ onSuccess }: LibraryFormProps) {
       <div className="flex flex-col gap-2">
         <span className="text-sm font-medium" style={{ color: "var(--text-muted)" }}>
           Paths
+          {mediaDirs.length === 0 && (
+            <span className="ml-2 text-xs font-normal">
+              (enter the full path inside the container, e.g. /media/movies)
+            </span>
+          )}
         </span>
+
         {paths.map((p, i) => (
-          <div key={i} className="flex gap-2">
-            <select
-              value={p}
-              onChange={(e) => updatePath(i, e.target.value)}
-              className="flex-1 px-3 py-2 rounded-[var(--radius-md)] text-sm"
-              style={{
-                backgroundColor: "var(--surface-raised)",
-                border: "1px solid var(--border)",
-                color: p ? "var(--text)" : "var(--text-muted)",
-              }}
-            >
-              <option value="">— select a directory —</option>
-              {mediaDirs.map((d) => (
-                <option key={d} value={d}>{d}</option>
-              ))}
-            </select>
+          <div key={i} className="flex gap-2 items-center">
+            {mediaDirs.length > 0 && p !== "__custom__" ? (
+              <select
+                value={p}
+                onChange={(e) => updatePath(i, e.target.value)}
+                style={inputStyle}
+              >
+                <option value="">— select a directory —</option>
+                {mediaDirs.map((d) => (
+                  <option key={d} value={d}>{d}</option>
+                ))}
+                <option value="__custom__">Enter custom path...</option>
+              </select>
+            ) : (
+              <input
+                style={inputStyle}
+                placeholder="/media/movies"
+                value={p === "__custom__" ? "" : p}
+                onChange={(e) => updatePath(i, e.target.value)}
+                autoFocus={p === "__custom__"}
+              />
+            )}
             {paths.length > 1 && (
               <Button type="button" variant="danger" onClick={() => removePath(i)}>
                 Remove
@@ -107,6 +126,7 @@ export function LibraryForm({ onSuccess }: LibraryFormProps) {
             )}
           </div>
         ))}
+
         <Button type="button" variant="secondary" onClick={addPath} className="self-start">
           + Add Path
         </Button>
@@ -116,7 +136,7 @@ export function LibraryForm({ onSuccess }: LibraryFormProps) {
         <Button
           type="submit"
           loading={createLib.isPending}
-          disabled={!name.trim()}
+          disabled={!name.trim() || paths.every((p) => !p.trim() || p === "__custom__")}
         >
           Create Library
         </Button>
