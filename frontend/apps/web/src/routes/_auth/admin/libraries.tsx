@@ -1,10 +1,11 @@
 import { useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQueryClient, useQuery } from "@tanstack/react-query";
 import {
   useLibraryServiceListLibraries,
   useLibraryServiceDeleteLibrary,
   useLibraryServiceScanLibrary,
+  libraryServiceListMediaItems,
 } from "@evey/api";
 import type { V1Library } from "@evey/api/src/generated/library.schemas";
 import { Spinner } from "@/components/ui/Spinner";
@@ -26,8 +27,18 @@ function libraryTypeLabel(type?: string): string {
   }
 }
 
+function formatDate(iso?: string): string {
+  if (!iso) return "—";
+  try {
+    return new Date(iso).toLocaleString();
+  } catch {
+    return iso;
+  }
+}
+
 function LibraryRow({ library }: { library: V1Library }) {
   const queryClient = useQueryClient();
+  const [scanDone, setScanDone] = useState(false);
 
   const deleteLib = useLibraryServiceDeleteLibrary({
     mutation: {
@@ -36,8 +47,23 @@ function LibraryRow({ library }: { library: V1Library }) {
   });
 
   const scanLib = useLibraryServiceScanLibrary({
-    mutation: {},
+    mutation: {
+      onSuccess: () => {
+        setScanDone(true);
+        queryClient.invalidateQueries({ queryKey: ["/api/v1/libraries"] });
+        queryClient.invalidateQueries({ queryKey: ["/api/v1/media"] });
+      },
+    },
   });
+
+  const { data: mediaData } = useQuery({
+    queryKey: ["/api/v1/media", { libraryId: library.id, pageSize: 1 }],
+    queryFn: ({ signal }) =>
+      libraryServiceListMediaItems({ libraryId: library.id, "pagination.pageSize": 1 }, signal),
+    enabled: !!library.id,
+  });
+
+  const totalItems = mediaData?.pagination?.totalItems;
 
   return (
     <tr style={{ borderBottom: "1px solid var(--border)" }}>
@@ -50,15 +76,30 @@ function LibraryRow({ library }: { library: V1Library }) {
       <td className="px-4 py-3 text-sm" style={{ color: "var(--text-muted)" }}>
         {library.paths?.join(", ") ?? "—"}
       </td>
+      <td className="px-4 py-3 text-sm" style={{ color: "var(--text-muted)" }}>
+        {totalItems != null ? `${totalItems} items` : <span className="opacity-50">—</span>}
+      </td>
+      <td className="px-4 py-3 text-sm" style={{ color: "var(--text-muted)" }}>
+        {formatDate((library as V1Library & { lastScannedAt?: string }).lastScannedAt)}
+      </td>
       <td className="px-4 py-3 whitespace-nowrap">
-        <div className="flex gap-2">
-          <Button
-            variant="secondary"
-            loading={scanLib.isPending}
-            onClick={() => scanLib.mutate({ id: library.id! })}
-          >
-            Scan
-          </Button>
+        <div className="flex items-center gap-2">
+          {scanLib.isPending ? (
+            <div className="flex items-center gap-2 text-sm" style={{ color: "var(--text-muted)" }}>
+              <Spinner size="sm" />
+              <span>Scanning...</span>
+            </div>
+          ) : (
+            <Button
+              variant="secondary"
+              onClick={() => {
+                setScanDone(false);
+                scanLib.mutate({ id: library.id! });
+              }}
+            >
+              {scanDone ? "Scan again" : "Scan"}
+            </Button>
+          )}
           <Button
             variant="danger"
             loading={deleteLib.isPending}
@@ -108,7 +149,7 @@ function LibrariesPage() {
           <table className="w-full text-sm">
             <thead>
               <tr style={{ backgroundColor: "var(--surface)", borderBottom: "1px solid var(--border)" }}>
-                {["Name", "Type", "Paths", "Actions"].map((h) => (
+                {["Name", "Type", "Paths", "Items", "Last Scanned", "Actions"].map((h) => (
                   <th
                     key={h}
                     className="px-4 py-2 text-left font-medium"
@@ -123,7 +164,7 @@ function LibrariesPage() {
               {libraries.length === 0 ? (
                 <tr>
                   <td
-                    colSpan={4}
+                    colSpan={6}
                     className="px-4 py-8 text-center"
                     style={{ color: "var(--text-muted)" }}
                   >

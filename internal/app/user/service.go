@@ -63,6 +63,10 @@ func NewService(
 	}
 }
 
+func (s *Service) CountAdmins(ctx context.Context) (int, error) {
+	return s.users.CountAdmins(ctx)
+}
+
 func (s *Service) Setup(ctx context.Context, username, password, email string) (*user.User, error) {
 	admins, err := s.users.CountAdmins(ctx)
 	if err != nil {

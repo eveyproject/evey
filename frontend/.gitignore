@@ -1,0 +1,11 @@
+node_modules/
+.turbo/
+dist/
+.env.local
+.env.*.local
+
+# orval (régénéré par pnpm generate)
+packages/api/src/generated/
+
+# Vite cache
+**/.vite/

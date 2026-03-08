@@ -50,7 +50,8 @@ func NewService(
 	return s
 }
 
-func (s *Service) handleMediaItemAdded(ctx context.Context, ev shared.Event) {
+func (s *Service) handleMediaItemAdded(_ context.Context, ev shared.Event) {
+	ctx := context.Background()
 	e, ok := ev.(libevent.MediaItemAdded)
 	if !ok {
 		return

@@ -12,9 +12,15 @@ export default defineConfig({
     },
   },
   server: {
+    host: true,
+    hmr: process.env.VITE_HMR_HOST ? {
+      host: process.env.VITE_HMR_HOST,
+      port: process.env.VITE_HMR_PORT ? Number(process.env.VITE_HMR_PORT) : undefined,
+      protocol: process.env.VITE_HMR_PROTOCOL as "ws" | "wss" | undefined,
+    } : true,
     proxy: {
       "/api": {
-        target: "http://localhost:9091",
+        target: process.env.VITE_API_TARGET ?? "http://localhost:9091",
         changeOrigin: true,
       },
     },

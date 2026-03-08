@@ -103,12 +103,16 @@ func (s *Service) ScanLibrary(ctx context.Context, libraryID string) error {
 			}
 			if errors.Is(err, library.ErrNotFound) {
 				item := &library.MediaItem{
-					ID:        uuid.New().String(),
-					LibraryID: libraryID,
-					FilePath:  f.Path,
-					FileSize:  f.Size,
-					AddedAt:   time.Now(),
-					UpdatedAt: time.Now(),
+					ID:          uuid.New().String(),
+					LibraryID:   libraryID,
+					FilePath:    f.Path,
+					FileSize:    f.Size,
+					Title:       f.Title,
+					Type:        string(f.Type),
+					Year:        f.Year,
+					IndexNumber: f.Episode,
+					AddedAt:     time.Now(),
+					UpdatedAt:   time.Now(),
 				}
 				if err := s.mediaItems.Create(ctx, item); err != nil {
 					return fmt.Errorf("create media item: %w", err)

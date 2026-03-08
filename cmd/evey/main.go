@@ -6,12 +6,14 @@ import (
 	"crypto/rsa"
 	"crypto/x509"
 	"database/sql"
+	"encoding/json"
 	"encoding/pem"
 	"fmt"
 	"log/slog"
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 	_ "github.com/lib/pq"
@@ -45,6 +47,11 @@ import (
 	"github.com/gravity-zero/evey/internal/pkg/auth"
 	"github.com/gravity-zero/evey/internal/pkg/eventbus"
 	eveylogger "github.com/gravity-zero/evey/internal/pkg/logger"
+	domainuser "github.com/gravity-zero/evey/internal/domain/user"
+	domainlibrary "github.com/gravity-zero/evey/internal/domain/library"
+	libraryevent "github.com/gravity-zero/evey/internal/domain/library"
+	domainmeta "github.com/gravity-zero/evey/internal/domain/metadata"
+	"github.com/gravity-zero/evey/internal/domain/shared"
 )
 
 const version = "0.1.0"
@@ -141,6 +148,7 @@ func run() error {
 	bus := eventbus.New()
 	hasher := auth.BcryptHasher{}
 	tmdbProvider := metadataadapter.NewTMDBProvider(os.Getenv("EVEY_TMDB_API_KEY"), cfg.Metadata.Language, nil)
+	enricher := metadataadapter.NewEnricher(tmdbProvider, mediaItemRepo, artworkRepo, rootLog)
 	artworkDownloader := metadataadapter.NewTMDBArtworkDownloader(nil)
 	pluginRunner := pluginrunner.NewRunner()
 	manifestParser := pluginrunner.NewManifestParser()
@@ -192,6 +200,28 @@ func run() error {
 		pluginRepo, pluginRuntimeRepo, pluginRunner, manifestParser,
 		bus,
 	)
+
+	// --- Metadata enrichment ---
+	// Enrich existing items missing overview on startup, then listen for new ones.
+	if os.Getenv("EVEY_TMDB_API_KEY") != "" {
+		go func() {
+			ctx := context.Background()
+			items, err := mediaItemRepo.List(ctx, domainlibrary.ListMediaItemsFilter{Limit: 5000})
+			if err == nil {
+				enricher.EnrichAll(ctx, items)
+			}
+		}()
+		bus.Subscribe("media.item.added", func(ctx context.Context, ev shared.Event) {
+			if e, ok := ev.(libraryevent.MediaItemAdded); ok {
+				go func() {
+					item, err := mediaItemRepo.GetByID(context.Background(), e.MediaItemID)
+					if err == nil {
+						enricher.EnrichItem(context.Background(), item)
+					}
+				}()
+			}
+		})
+	}
 
 	webhookLog := eveylogger.NewWith(rootLog, "webhook")
 	webhookSvc := appwebhook.NewService(webhookRepo, webhookDeliveryRepo, webhookLog, bus)
@@ -245,9 +275,17 @@ func run() error {
 	gwMux := registerGateway(grpcAddr)
 	var httpSrv *http.Server
 	if gwMux != nil {
+		mux := http.NewServeMux()
+		mux.HandleFunc("/healthz", func(w http.ResponseWriter, _ *http.Request) {
+			w.Header().Set("Content-Type", "application/json")
+			w.Write([]byte(`{"status":"ok","version":"` + version + `"}`))
+		})
+		mux.HandleFunc("/api/v1/admin/fs/browse", browseDirsHandler(tokenGen))
+		mux.HandleFunc("/api/v1/media/", mediaHandler(tokenGen, librarySvc, artworkRepo))
+		mux.Handle("/", gwMux)
 		httpSrv = &http.Server{
 			Addr:    fmt.Sprintf(":%d", httpPort),
-			Handler: gwMux,
+			Handler: mux,
 		}
 	}
 
@@ -315,6 +353,144 @@ func run() error {
 	}
 	rootLog.Info("shutdown complete")
 	return nil
+}
+
+func mediaHandler(tokens interface {
+	ValidateAccessToken(string) (*domainuser.Claims, error)
+}, libSvc interface {
+	GetMediaItem(ctx context.Context, id string) (*domainlibrary.MediaItem, error)
+}, artworkRepo interface {
+	GetByMediaItem(ctx context.Context, mediaItemID string) ([]*domainmeta.ArtworkRecord, error)
+}) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		// paths: /api/v1/media/{id}/stream  OR  /api/v1/media/{id}/artwork/{type}
+		parts := strings.Split(strings.TrimPrefix(r.URL.Path, "/api/v1/media/"), "/")
+		if len(parts) < 2 {
+			http.NotFound(w, r)
+			return
+		}
+		mediaID := parts[0]
+		action := parts[1] // "stream" or "artwork"
+
+		authHeader := r.Header.Get("Authorization")
+		if len(authHeader) < 8 {
+			if t := r.URL.Query().Get("token"); t != "" {
+				authHeader = "Bearer " + t
+			}
+		}
+		if len(authHeader) < 8 || authHeader[:7] != "Bearer " {
+			http.Error(w, `{"message":"unauthenticated"}`, http.StatusUnauthorized)
+			return
+		}
+		if _, err := tokens.ValidateAccessToken(authHeader[7:]); err != nil {
+			http.Error(w, `{"message":"forbidden"}`, http.StatusForbidden)
+			return
+		}
+
+		switch action {
+		case "stream":
+			item, err := libSvc.GetMediaItem(r.Context(), mediaID)
+			if err != nil {
+				http.Error(w, `{"message":"not found"}`, http.StatusNotFound)
+				return
+			}
+			http.ServeFile(w, r, item.FilePath)
+
+		case "artwork":
+			artworkType := ""
+			if len(parts) >= 3 {
+				switch parts[2] {
+				case "poster":
+					artworkType = "ARTWORK_TYPE_PRIMARY"
+				case "backdrop":
+					artworkType = "ARTWORK_TYPE_BACKDROP"
+				case "thumb":
+					artworkType = "ARTWORK_TYPE_THUMB"
+				default:
+					artworkType = parts[2]
+				}
+			}
+			records, err := artworkRepo.GetByMediaItem(r.Context(), mediaID)
+			if err != nil || len(records) == 0 {
+				http.NotFound(w, r)
+				return
+			}
+			var url string
+			for _, rec := range records {
+				if artworkType == "" || rec.Type == artworkType {
+					if rec.SourceURL != nil {
+						url = *rec.SourceURL
+						break
+					}
+				}
+			}
+			if url == "" {
+				http.NotFound(w, r)
+				return
+			}
+			http.Redirect(w, r, url, http.StatusFound)
+
+		default:
+			http.NotFound(w, r)
+		}
+	}
+}
+
+func browseDirsHandler(tokens interface {
+	ValidateAccessToken(string) (*domainuser.Claims, error)
+}) http.HandlerFunc {
+	type entry struct {
+		Name string `json:"name"`
+		Path string `json:"path"`
+	}
+	return func(w http.ResponseWriter, r *http.Request) {
+		authHeader := r.Header.Get("Authorization")
+		if len(authHeader) < 8 || authHeader[:7] != "Bearer " {
+			http.Error(w, `{"message":"unauthenticated"}`, http.StatusUnauthorized)
+			return
+		}
+		claims, err := tokens.ValidateAccessToken(authHeader[7:])
+		if err != nil || !claims.IsAdmin {
+			http.Error(w, `{"message":"forbidden"}`, http.StatusForbidden)
+			return
+		}
+
+		dir := r.URL.Query().Get("path")
+		if dir == "" {
+			dir = "/"
+		}
+
+		dirEntries, err := os.ReadDir(dir)
+		if err != nil {
+			http.Error(w, `{"message":"cannot read dir"}`, http.StatusBadRequest)
+			return
+		}
+
+		base := dir
+		if len(base) > 1 && base[len(base)-1] == '/' {
+			base = base[:len(base)-1]
+		}
+		skip := map[string]bool{"cdrom": true, "floppy": true, "usb": true, "sr0": true, "proc": true, "sys": true, "dev": true}
+		result := []entry{}
+		for _, e := range dirEntries {
+			if !e.IsDir() || e.Name()[0] == '.' || skip[e.Name()] {
+				continue
+			}
+			result = append(result, entry{Name: e.Name(), Path: base + "/" + e.Name()})
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		jsonEncodeResponse(w, result)
+	}
+}
+
+func jsonEncodeResponse(w http.ResponseWriter, v any) {
+	data, err := json.Marshal(v)
+	if err != nil {
+		http.Error(w, `{"message":"encode error"}`, http.StatusInternalServerError)
+		return
+	}
+	w.Write(data)
 }
 
 func loadOrGenerateRSAKey(path string) (*rsa.PrivateKey, error) {

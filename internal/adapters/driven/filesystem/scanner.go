@@ -57,10 +57,20 @@ func (s *Scanner) Scan(ctx context.Context, root string) ([]library.ScannedFile,
 		if err != nil {
 			return nil
 		}
+		parsed := (&FilenameParser{}).Parse(path)
+		itemType := library.MovieItem
+		if parsed.Type == "series" {
+			itemType = library.Episode
+		}
 		files = append(files, library.ScannedFile{
 			Path:    path,
 			Size:    info.Size(),
 			ModTime: info.ModTime(),
+			Title:   parsed.Title,
+			Type:    itemType,
+			Year:    parsed.Year,
+			Season:  parsed.Season,
+			Episode: parsed.Episode,
 		})
 		return nil
 	})

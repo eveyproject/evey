@@ -11,13 +11,26 @@ go.work
 go.work.sum
 
 .env
-.env.*
+.env.local
+.env.*.local
+
+# Generated RSA key
+jwt.key
+
+
+# Logs
+logs/
+
+# Air hot-reload
+tmp/
 
 testdata/*.mkv
 testdata/*.mp4
 testdata/*.avi
 testdata/*.ts
 
+# Docker — fichiers locaux non versionnés
+docker/docker-compose.media.yml
 docker/postgres-data/
 docker/meili-data/
 docker/caddy-data/
@@ -25,9 +38,8 @@ docker/caddy-config/
 docker/transcode-cache/
 
 vendor/
-tmp/
 
-# Frontend
+# Frontend — dépendances et artefacts
 frontend/node_modules/
 frontend/apps/*/node_modules/
 frontend/packages/*/node_modules/
@@ -36,3 +48,6 @@ frontend/apps/*/dist/
 frontend/packages/api/src/generated/
 frontend/.turbo/
 frontend/**/.turbo/
+frontend/**/.vite/
+frontend/apps/web/.env.local
+frontend/apps/*/env.local

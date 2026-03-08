@@ -37,7 +37,9 @@ const PAGE_SIZE = 48;
 function LibraryPage() {
   const { libraryId } = Route.useParams();
   const [typeFilter, setTypeFilter] = useState<LibraryServiceListMediaItemsType | "">("");
-  const [sortField, setSortField] = useState<LibraryServiceListMediaItemsSortField>("MEDIA_SORT_FIELD_TITLE");
+  const [sortField, setSortField] = useState<LibraryServiceListMediaItemsSortField>(
+    "MEDIA_SORT_FIELD_TITLE"
+  );
   const [page, setPage] = useState(1);
 
   const { data: librariesData } = useLibraryServiceListLibraries();
@@ -112,8 +114,28 @@ function LibraryPage() {
       </MediaGrid>
 
       {!isLoading && items.length === 0 && (
-        <div className="text-center py-16" style={{ color: "var(--text-muted)" }}>
-          No items found.
+        <div
+          className="text-center py-16 rounded-[var(--radius-lg)]"
+          style={{
+            backgroundColor: "var(--surface)",
+            border: "1px solid var(--border)",
+          }}
+        >
+          <p className="text-lg mb-2" style={{ color: "var(--text)" }}>
+            No items found.
+          </p>
+          <p className="mb-4" style={{ color: "var(--text-muted)" }}>
+            {typeFilter
+              ? "Try a different filter, or scan the library to add content."
+              : "This library is empty. Trigger a scan to add content."}
+          </p>
+          <a
+            href="/admin/libraries"
+            className="inline-block px-4 py-2 rounded-[var(--radius-md)] text-sm font-medium"
+            style={{ backgroundColor: "var(--accent)", color: "#fff" }}
+          >
+            Go to Admin → Libraries
+          </a>
         </div>
       )}
 

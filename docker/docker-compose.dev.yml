@@ -1,0 +1,104 @@
+services:
+  evey:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.dev
+    ports:
+      - "${EVEY_GRPC_PORT:-9090}:${EVEY_GRPC_PORT:-9090}"
+      - "${EVEY_HTTP_PORT:-9091}:${EVEY_HTTP_PORT:-9091}"
+    environment:
+      EVEY_SERVER_PORT: "${EVEY_GRPC_PORT:-9090}"
+      EVEY_LOG_DEV_MODE: "true"
+      EVEY_DB_HOST: postgres
+      EVEY_DB_USER: ${POSTGRES_USER:-evey}
+      EVEY_DB_PASSWORD: ${POSTGRES_PASSWORD:-evey}
+      EVEY_DB_NAME: ${POSTGRES_DB:-evey}
+      EVEY_DB_SSLMODE: disable
+      EVEY_MEILI_URL: http://meilisearch:${MEILI_PORT:-7700}
+      EVEY_MEILI_API_KEY: ${MEILI_MASTER_KEY:-changeme}
+      EVEY_JWT_PRIVATE_KEY_PATH: /data/jwt.key
+      EVEY_TRANSCODING_CACHE_DIR: /data/transcode
+      EVEY_TMDB_API_KEY: ${EVEY_TMDB_API_KEY:-}
+    volumes:
+      - ..:/app
+      - evey-data:/data
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:${EVEY_HTTP_PORT:-9091}/healthz"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 60s
+    depends_on:
+      postgres:
+        condition: service_healthy
+      meilisearch:
+        condition: service_healthy
+
+  web:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.web.dev
+    ports:
+      - "${WEB_PORT:-5173}:${WEB_PORT:-5173}"
+    environment:
+      VITE_API_TARGET: "http://evey:${EVEY_HTTP_PORT:-9091}"
+      VITE_HMR_HOST: "evey.test"
+      VITE_HMR_PORT: "443"
+      VITE_HMR_PROTOCOL: "wss"
+    volumes:
+      - ../frontend:/app
+      - /app/node_modules
+      - /app/apps/web/node_modules
+    depends_on:
+      evey:
+        condition: service_healthy
+
+  caddy:
+    image: caddy:2-alpine
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile.dev:/etc/caddy/Caddyfile
+      - caddy-data:/data
+      - caddy-config:/config
+    depends_on:
+      - web
+
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-evey}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-evey}
+      POSTGRES_DB: ${POSTGRES_DB:-evey}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-evey}"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  meilisearch:
+    image: getmeili/meilisearch:v1.6
+    environment:
+      MEILI_MASTER_KEY: ${MEILI_MASTER_KEY:-changeme}
+      MEILI_ENV: development
+    ports:
+      - "${MEILI_PORT:-7700}:7700"
+    volumes:
+      - meili-data:/meili_data
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:7700/health"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+volumes:
+  postgres-data:
+  meili-data:
+  evey-data:
+  caddy-data:
+  caddy-config:

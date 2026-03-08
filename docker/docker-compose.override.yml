@@ -1,0 +1,7 @@
+services:
+  postgres:
+    ports:
+      - "5432:5432"
+  meilisearch:
+    ports:
+      - "7700:7700"

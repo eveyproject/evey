@@ -2,6 +2,7 @@ package grpcapi
 
 import (
 	"context"
+	"errors"
 	"runtime"
 
 	eveyv1 "github.com/gravity-zero/evey/gen/evey/v1"
@@ -24,12 +25,14 @@ type adminHandler struct {
 	version        string
 }
 
-func (h *adminHandler) GetSystemInfo(_ context.Context, _ *eveyv1.GetSystemInfoRequest) (*eveyv1.SystemInfo, error) {
+func (h *adminHandler) GetSystemInfo(ctx context.Context, _ *eveyv1.GetSystemInfoRequest) (*eveyv1.SystemInfo, error) {
+	admins, _ := h.userSvc.CountAdmins(ctx)
 	return &eveyv1.SystemInfo{
-		Version:   h.version,
-		Os:        runtime.GOOS,
-		Arch:      runtime.GOARCH,
-		GoVersion: runtime.Version(),
+		Version:       h.version,
+		Os:            runtime.GOOS,
+		Arch:          runtime.GOARCH,
+		GoVersion:     runtime.Version(),
+		SetupComplete: admins > 0,
 	}, nil
 }
 
@@ -44,6 +47,9 @@ func (h *adminHandler) UpdateServerConfig(_ context.Context, req *eveyv1.UpdateS
 func (h *adminHandler) SetupWizard(ctx context.Context, req *eveyv1.SetupWizardRequest) (*eveyv1.SetupWizardResponse, error) {
 	u, err := h.userSvc.Setup(ctx, req.AdminUsername, req.AdminPassword, req.AdminEmail)
 	if err != nil {
+		if errors.Is(err, appuser.ErrSetupDone) {
+			return nil, status.Errorf(codes.AlreadyExists, "setup already completed")
+		}
 		return nil, status.Errorf(codes.Internal, "setup: %v", err)
 	}
 	access, refresh, err := h.userSvc.Login(ctx, req.AdminUsername, req.AdminPassword)

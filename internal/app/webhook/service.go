@@ -41,8 +41,8 @@ func NewService(
 	return s
 }
 
-func (s *Service) handleAny(ctx context.Context, ev shared.Event) {
-	cfgs, err := s.repo.List(ctx)
+func (s *Service) handleAny(_ context.Context, ev shared.Event) {
+	cfgs, err := s.repo.List(context.Background())
 	if err != nil {
 		s.log.Error("webhook: list configs failed", slog.Any("err", err))
 		return

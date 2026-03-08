@@ -68,6 +68,11 @@ type ScannedFile struct {
 	Path    string
 	Size    int64
 	ModTime time.Time
+	Title   string
+	Type    MediaItemType
+	Year    *int
+	Season  *int
+	Episode *int
 }
 
 type FileScanner interface {

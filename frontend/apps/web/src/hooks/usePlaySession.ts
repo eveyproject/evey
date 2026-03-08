@@ -6,6 +6,7 @@ import {
   usePlaybackServiceGetStreamInfo,
 } from "@evey/api";
 import type { V1StreamInfo, V1WatchProgress } from "@evey/api/src/generated/playback.schemas";
+import { useAuthStore } from "@evey/store";
 
 export interface PlaySessionResult {
   streamInfo: V1StreamInfo | null;
@@ -19,9 +20,19 @@ export function usePlaySession(mediaId: string): PlaySessionResult {
   const [sessionId, setSessionId] = useState<string | null>(null);
   const sessionIdRef = useRef<string | null>(null);
   const stopped = useRef(false);
+  const token = useAuthStore.getState().accessToken;
 
   const { data: progress } = usePlaybackServiceGetWatchProgress(mediaId);
-  const { data: streamInfo } = usePlaybackServiceGetStreamInfo(mediaId);
+  const { data: rawStreamInfo } = usePlaybackServiceGetStreamInfo(mediaId);
+
+  const streamInfo: V1StreamInfo | undefined = rawStreamInfo
+    ? {
+        ...rawStreamInfo,
+        directPlayUrl: token
+          ? `/api/v1/media/${mediaId}/stream?token=${token}`
+          : rawStreamInfo.directPlayUrl,
+      }
+    : undefined;
 
   const stopStream = usePlaybackServiceStopStream();
   const startStream = usePlaybackServiceStartStream({
@@ -67,7 +78,7 @@ export function usePlaySession(mediaId: string): PlaySessionResult {
   return {
     streamInfo: streamInfo ?? null,
     sessionId,
-    isLoading: startStream.isPending || !streamInfo,
+    isLoading: startStream.isPending || !rawStreamInfo,
     progress: progress ?? null,
     stopSession,
   };

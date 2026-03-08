@@ -1,28 +1,34 @@
-import type { V1Artwork } from "@evey/api/src/generated/library.schemas";
-
 interface MediaCardItem {
   id?: string;
   title?: string;
   year?: number;
   type?: string;
-  artwork?: V1Artwork[];
 }
 
 interface MediaCardProps {
   item: MediaCardItem;
   href?: string;
+  /** override poster src — defaults to /api/v1/media/{id}/artwork/poster */
+  posterSrc?: string;
 }
 
-export function MediaCard({ item, href }: MediaCardProps) {
-  const poster = item.artwork?.find((a) => a.type === "ARTWORK_TYPE_PRIMARY")?.url;
+export function MediaCard({ item, href, posterSrc }: MediaCardProps) {
+  const poster = posterSrc ?? (item.id ? `/api/v1/media/${item.id}/artwork/poster` : null);
   const initial = item.title ? item.title[0].toUpperCase() : "?";
   const link = href ?? (item.id ? `/media/${item.id}` : "#");
 
   return (
-    <a href={link} className="group relative block w-36" style={{ aspectRatio: "2/3" }}>
+    <a
+      href={link}
+      className="group relative block flex-shrink-0 w-40"
+      style={{ aspectRatio: "2/3" }}
+    >
       <div
         className="relative w-full h-full overflow-hidden"
-        style={{ borderRadius: "var(--radius-md)", transition: "transform 0.2s ease" }}
+        style={{
+          borderRadius: "var(--radius-md)",
+          transition: "transform 0.2s ease",
+        }}
       >
         {poster ? (
           <img
@@ -53,7 +59,7 @@ export function MediaCard({ item, href }: MediaCardProps) {
             className="absolute top-2 right-2 text-xs font-medium px-1.5 py-0.5"
             style={{
               backgroundColor: "rgba(0,0,0,0.7)",
-              color: "var(--text)",
+              color: "#fff",
               borderRadius: "var(--radius-sm)",
             }}
           >
@@ -69,7 +75,11 @@ export function MediaCard({ item, href }: MediaCardProps) {
             className="w-12 h-12 rounded-full flex items-center justify-center"
             style={{ backgroundColor: "var(--accent)" }}
           >
-            <svg className="w-5 h-5 text-white ml-1" fill="currentColor" viewBox="0 0 20 20">
+            <svg
+              className="w-5 h-5 text-white ml-1"
+              fill="currentColor"
+              viewBox="0 0 20 20"
+            >
               <path d="M6.3 2.8L17 10 6.3 17.2V2.8z" />
             </svg>
           </div>
@@ -77,7 +87,10 @@ export function MediaCard({ item, href }: MediaCardProps) {
       </div>
 
       <div className="mt-2 px-0.5">
-        <p className="text-sm font-medium truncate" style={{ color: "var(--text)" }}>
+        <p
+          className="text-sm font-medium truncate"
+          style={{ color: "var(--text)" }}
+        >
           {item.title}
         </p>
       </div>

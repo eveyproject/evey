@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link, useRouterState } from "@tanstack/react-router";
 import { useAdminServiceGetDashboard, useAdminServiceGetSystemInfo } from "@evey/api";
 import { Spinner } from "@/components/ui/Spinner";
 import { Card } from "@/components/ui/Card";
@@ -14,7 +14,35 @@ const adminNavLinks = [
   { href: "/admin/plugins", label: "Plugins" },
   { href: "/admin/webhooks", label: "Webhooks" },
   { href: "/admin/audit", label: "Audit Log" },
+  { href: "/admin/metadata", label: "Metadata" },
 ];
+
+function AdminNav() {
+  const { location } = useRouterState();
+  const pathname = location.pathname;
+
+  return (
+    <div className="flex flex-wrap gap-2">
+      {adminNavLinks.map(({ href, label }) => {
+        const isActive = pathname === href || (href !== "/admin" && pathname.startsWith(href));
+        return (
+          <Link
+            key={href}
+            to={href}
+            className="px-4 py-2 text-sm font-medium rounded-[var(--radius-md)] transition-colors"
+            style={{
+              backgroundColor: isActive ? "var(--accent)" : "var(--surface)",
+              border: `1px solid ${isActive ? "var(--accent)" : "var(--border)"}`,
+              color: isActive ? "white" : "var(--text)",
+            }}
+          >
+            {label}
+          </Link>
+        );
+      })}
+    </div>
+  );
+}
 
 function AdminDashboard() {
   const { data: dashData, isLoading: dashLoading } = useAdminServiceGetDashboard();
@@ -26,22 +54,7 @@ function AdminDashboard() {
         <h1 className="text-2xl font-bold mb-2" style={{ color: "var(--text)" }}>
           Admin
         </h1>
-        <div className="flex flex-wrap gap-2">
-          {adminNavLinks.map(({ href, label }) => (
-            <a
-              key={href}
-              href={href}
-              className="px-4 py-2 text-sm font-medium rounded-[var(--radius-md)] transition-colors"
-              style={{
-                backgroundColor: "var(--surface)",
-                border: "1px solid var(--border)",
-                color: "var(--text)",
-              }}
-            >
-              {label}
-            </a>
-          ))}
-        </div>
+        <AdminNav />
       </div>
 
       <section>

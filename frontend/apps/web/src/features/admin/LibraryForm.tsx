@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { useLibraryServiceCreateLibrary } from "@evey/api";
+import { useEffect, useState } from "react";
+import { eveyFetch, useLibraryServiceCreateLibrary } from "@evey/api";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import type { V1LibraryType } from "@evey/api/src/generated/library.schemas";
@@ -12,6 +12,16 @@ export function LibraryForm({ onSuccess }: LibraryFormProps) {
   const [name, setName] = useState("");
   const [type, setType] = useState<V1LibraryType>("LIBRARY_TYPE_MOVIES");
   const [paths, setPaths] = useState<string[]>([""]);
+  const [mediaDirs, setMediaDirs] = useState<string[]>([]);
+
+  useEffect(() => {
+    eveyFetch<{ name: string; path: string }[]>({
+      url: "/api/v1/admin/fs/browse?path=/media",
+      method: "GET",
+    })
+      .then((dirs) => setMediaDirs(dirs.map((d) => d.path)))
+      .catch(() => setMediaDirs([]));
+  }, []);
 
   const createLib = useLibraryServiceCreateLibrary({
     mutation: { onSuccess },
@@ -75,12 +85,21 @@ export function LibraryForm({ onSuccess }: LibraryFormProps) {
         </span>
         {paths.map((p, i) => (
           <div key={i} className="flex gap-2">
-            <Input
+            <select
               value={p}
               onChange={(e) => updatePath(i, e.target.value)}
-              placeholder="/media/movies"
-              className="flex-1"
-            />
+              className="flex-1 px-3 py-2 rounded-[var(--radius-md)] text-sm"
+              style={{
+                backgroundColor: "var(--surface-raised)",
+                border: "1px solid var(--border)",
+                color: p ? "var(--text)" : "var(--text-muted)",
+              }}
+            >
+              <option value="">— select a directory —</option>
+              {mediaDirs.map((d) => (
+                <option key={d} value={d}>{d}</option>
+              ))}
+            </select>
             {paths.length > 1 && (
               <Button type="button" variant="danger" onClick={() => removePath(i)}>
                 Remove

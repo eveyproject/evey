@@ -1,11 +1,26 @@
 import { useState } from "react";
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useAdminServiceSetupWizard } from "@evey/api";
+import { createFileRoute, isRedirect, redirect, useNavigate } from "@tanstack/react-router";
+import { eveyFetch, useAdminServiceSetupWizard } from "@evey/api";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Card } from "@/components/ui/Card";
 
+type SystemInfo = { setupComplete?: boolean };
+
 export const Route = createFileRoute("/setup")({
+  beforeLoad: async ({ context }) => {
+    try {
+      const info = await context.queryClient.fetchQuery<SystemInfo>({
+        queryKey: ["system-info"],
+        queryFn: () => eveyFetch<SystemInfo>({ url: "/api/v1/admin/system", method: "GET" }),
+        staleTime: 30_000,
+      });
+      if (info.setupComplete) throw redirect({ to: "/login" });
+    } catch (e) {
+      if (isRedirect(e)) throw e;
+      // backend unreachable — show setup page
+    }
+  },
   component: SetupPage,
 });
 
@@ -31,6 +46,9 @@ function SetupPage() {
     mutation: {
       onSuccess: () => {
         void navigate({ to: "/login" });
+      },
+      onError: (err: Error & { httpStatus?: number }) => {
+        if (err?.httpStatus === 409) void navigate({ to: "/login" });
       },
     },
   });

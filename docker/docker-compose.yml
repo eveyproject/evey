@@ -2,13 +2,14 @@ services:
   # To disable Caddy: comment out the caddy service and change evey's
   # "expose" to "ports" with "8080:8080" and "50051:50051"
   caddy:
-    image: caddy:2-alpine
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.caddy
     restart: unless-stopped
     ports:
       - "80:80"
       - "443:443"
     volumes:
-      - ./Caddyfile:/etc/caddy/Caddyfile
       - caddy-data:/data
       - caddy-config:/config
     depends_on:
@@ -45,10 +46,11 @@ services:
       meilisearch:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8080/healthz"]
+      test: ["CMD", "curl", "-sf", "http://localhost:8081/healthz"]
       interval: 10s
       timeout: 5s
       retries: 3
+      start_period: 10s
 
   postgres:
     image: postgres:16-alpine

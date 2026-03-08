@@ -46,7 +46,16 @@ export async function eveyFetch<T>(request: FetcherRequest): Promise<T> {
   }
 
   if (!response.ok) {
-    throw new Error(`${response.status} ${response.statusText}`);
+    let message = `${response.status} ${response.statusText}`;
+    try {
+      const body = await response.json() as { message?: string; code?: number };
+      if (body.message) message = body.message;
+    } catch {
+      // ignore parse errors
+    }
+    const err = new Error(message) as Error & { httpStatus: number };
+    err.httpStatus = response.status;
+    throw err;
   }
 
   return response.json() as Promise<T>;

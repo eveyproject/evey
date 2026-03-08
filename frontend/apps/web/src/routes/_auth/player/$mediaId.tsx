@@ -1,4 +1,6 @@
 import { createFileRoute, useRouter } from "@tanstack/react-router";
+import { useQuery } from "@tanstack/react-query";
+import { libraryServiceGetMediaItem } from "@evey/api";
 import { usePlaySession } from "@/hooks/usePlaySession";
 import { HLSPlayer } from "@/features/playback/HLSPlayer";
 import { Spinner } from "@/components/ui/Spinner";
@@ -12,6 +14,11 @@ function PlayerPage() {
   const { mediaId } = Route.useParams();
   const router = useRouter();
   const { streamInfo, sessionId, isLoading, progress, stopSession } = usePlaySession(mediaId);
+  const { data: mediaItem } = useQuery({
+    queryKey: [`/api/v1/media/${mediaId}`],
+    queryFn: ({ signal }) => libraryServiceGetMediaItem(mediaId, signal),
+    enabled: !!mediaId,
+  });
 
   function handleClose() {
     stopSession();
@@ -55,6 +62,7 @@ function PlayerPage() {
           startPositionMs={startPositionMs}
           audioStreams={audioStreams}
           subtitleStreams={subtitleStreams}
+          title={mediaItem?.title}
           onClose={handleClose}
           onEnded={handleClose}
         />
