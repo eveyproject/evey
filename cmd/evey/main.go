@@ -13,6 +13,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"strings"
 	"syscall"
 	"time"
@@ -451,29 +452,46 @@ func browseDirsHandler(tokens interface {
 		}
 
 		dir := r.URL.Query().Get("path")
-		if dir == "" {
-			dir = "/media"
-		}
 
-		dirEntries, err := os.ReadDir(dir)
-		if err != nil {
-			// return empty array instead of error so frontend can degrade gracefully
-			w.Header().Set("Content-Type", "application/json")
-			w.Write([]byte("[]"))
-			return
-		}
-
-		base := dir
-		if len(base) > 1 && base[len(base)-1] == '/' {
-			base = base[:len(base)-1]
-		}
 		skip := map[string]bool{"cdrom": true, "floppy": true, "usb": true, "sr0": true, "proc": true, "sys": true, "dev": true}
 		result := []entry{}
-		for _, e := range dirEntries {
-			if !e.IsDir() || e.Name()[0] == '.' || skip[e.Name()] {
-				continue
+
+		if dir == "" {
+			// Aggregate subdirs from all /media* mount points
+			roots, _ := filepath.Glob("/media*")
+			for _, root := range roots {
+				info, err := os.Stat(root)
+				if err != nil || !info.IsDir() {
+					continue
+				}
+				entries, err := os.ReadDir(root)
+				if err != nil {
+					continue
+				}
+				for _, e := range entries {
+					if !e.IsDir() || e.Name()[0] == '.' || skip[e.Name()] {
+						continue
+					}
+					result = append(result, entry{Name: e.Name(), Path: root + "/" + e.Name()})
+				}
 			}
-			result = append(result, entry{Name: e.Name(), Path: base + "/" + e.Name()})
+		} else {
+			base := dir
+			if len(base) > 1 && base[len(base)-1] == '/' {
+				base = base[:len(base)-1]
+			}
+			dirEntries, err := os.ReadDir(dir)
+			if err != nil {
+				w.Header().Set("Content-Type", "application/json")
+				w.Write([]byte("[]"))
+				return
+			}
+			for _, e := range dirEntries {
+				if !e.IsDir() || e.Name()[0] == '.' || skip[e.Name()] {
+					continue
+				}
+				result = append(result, entry{Name: e.Name(), Path: base + "/" + e.Name()})
+			}
 		}
 
 		w.Header().Set("Content-Type", "application/json")
