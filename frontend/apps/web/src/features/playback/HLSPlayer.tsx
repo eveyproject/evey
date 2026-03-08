@@ -72,7 +72,7 @@ export function HLSPlayer({
       hlsInstance.attachMedia(video);
       hlsInstance.on(Hls.Events.MANIFEST_PARSED, () => {
         video.currentTime = startPositionMs / 1000;
-        void video.play();
+        video.play().catch(() => {});
       });
       hlsInstance.on(Hls.Events.AUDIO_TRACKS_UPDATED, (_, data) => {
         if (data.audioTracks.length === 0) setTranscodeMode(true);
@@ -80,7 +80,7 @@ export function HLSPlayer({
     } else if (streamInfo.directPlayUrl) {
       video.src = streamInfo.directPlayUrl;
       video.currentTime = startPositionMs / 1000;
-      void video.play();
+      video.play().catch(() => {});
     }
 
     function handleCanPlay() {
@@ -136,7 +136,7 @@ export function HLSPlayer({
     video.addEventListener("loadedmetadata", onMetadata, { once: true });
     video.addEventListener("ended", handleEnded);
     video.src = url;
-    void video.play();
+    video.play().catch(() => {});
 
     return () => {
       video.removeEventListener("timeupdate", onTimeUpdate);
@@ -144,7 +144,7 @@ export function HLSPlayer({
       video.removeEventListener("loadedmetadata", onMetadata);
       video.src = "";
     };
-  }, [transcodeMode, mediaId, accessToken, startPositionMs, onEnded, currentTrackIndex, currentQuality]);
+  }, [transcodeMode, mediaId, accessToken, onEnded, currentTrackIndex, currentQuality]);
 
   // Subtitle track management — imperatively add/remove <track> element
   useEffect(() => {

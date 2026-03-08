@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { usePlaybackServiceReportProgress } from "@evey/api";
 
 interface ProgressReporterProps {
@@ -8,12 +8,14 @@ interface ProgressReporterProps {
 
 export function ProgressReporter({ sessionId, videoRef }: ProgressReporterProps) {
   const reportProgress = usePlaybackServiceReportProgress();
+  const reportRef = useRef(reportProgress);
+  reportRef.current = reportProgress;
 
   useEffect(() => {
     const id = setInterval(() => {
       const video = videoRef.current;
       if (!video || video.paused) return;
-      reportProgress.mutate({
+      reportRef.current.mutate({
         data: {
           sessionId,
           positionMs: String(Math.floor(video.currentTime * 1000)),
@@ -23,7 +25,7 @@ export function ProgressReporter({ sessionId, videoRef }: ProgressReporterProps)
     }, 10_000);
 
     return () => clearInterval(id);
-  }, [sessionId, videoRef, reportProgress]);
+  }, [sessionId, videoRef]);
 
   return null;
 }

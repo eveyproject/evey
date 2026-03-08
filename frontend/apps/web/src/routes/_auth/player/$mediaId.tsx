@@ -1,5 +1,5 @@
 import { createFileRoute, useRouter } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { libraryServiceGetMediaItem, libraryServiceListMediaItems } from "@evey/api";
 import { usePlaySession } from "@/hooks/usePlaySession";
@@ -21,10 +21,10 @@ function PlayerPage() {
     enabled: !!mediaId,
   });
 
-  function handleClose() {
+  const handleClose = useCallback(() => {
     stopSession();
     router.history.back();
-  }
+  }, [stopSession, router]);
 
   const audioStreams: AudioStream[] =
     streamInfo?.mediaStreams
