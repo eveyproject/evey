@@ -37,7 +37,7 @@ export function usePlaySession(mediaId: string): PlaySessionResult {
       }
     : undefined;
 
-  const stopStream = usePlaybackServiceStopStream();
+  const { mutate: stopStreamMutate } = usePlaybackServiceStopStream();
   const startStream = usePlaybackServiceStartStream({
     mutation: {
       onSuccess: (session) => {
@@ -70,9 +70,9 @@ export function usePlaySession(mediaId: string): PlaySessionResult {
     stopped.current = true;
     const sid = sessionIdRef.current;
     if (sid) {
-      stopStream.mutate({ data: { sessionId: sid } });
+      stopStreamMutate({ data: { sessionId: sid } });
     }
-  }, [stopStream]);
+  }, [stopStreamMutate]);
 
   useEffect(() => {
     return () => stopSession();
