@@ -21,7 +21,6 @@ services:
       EVEY_MEILI_API_KEY: ${MEILI_MASTER_KEY:-changeme}
       EVEY_JWT_PRIVATE_KEY_PATH: /data/jwt.key
       EVEY_TRANSCODING_CACHE_DIR: /data/transcode
-
     volumes:
       - ..:/app
       - evey-data:/data
@@ -79,7 +78,7 @@ services:
     ports:
       - "${POSTGRES_PORT:-5432}:5432"
     volumes:
-      - postgres-data:/var/lib/postgresql/data
+      - ./postgres-data:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-evey}"]
       interval: 5s
