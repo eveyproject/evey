@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-	"fmt"
 	"log/slog"
 
 	eveyv1 "github.com/gravity-zero/evey/gen/evey/v1"
@@ -12,6 +11,7 @@ import (
 	applibrary "github.com/gravity-zero/evey/internal/app/library"
 	appplayback "github.com/gravity-zero/evey/internal/app/playback"
 	"github.com/gravity-zero/evey/internal/domain/playback"
+	"github.com/gravity-zero/evey/internal/pkg/id"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -51,7 +51,7 @@ func (h *playbackHandler) StartStream(ctx context.Context, req *eveyv1.StartStre
 		profileID = claims.ProfileID
 	}
 	session := &playback.PlaySession{
-		ID:          fmt.Sprintf("ps-%d", nowUnixNano()),
+		ID:          id.New("ps-"),
 		ProfileID:   profileID,
 		MediaItemID: req.MediaItemId,
 		PlayMethod:  playMethodFromProto[req.PlayMethod],

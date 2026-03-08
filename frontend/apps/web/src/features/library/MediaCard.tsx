@@ -17,6 +17,12 @@ interface MediaCardProps {
   showType?: boolean;
 }
 
+const typeLabel = (t?: string) => {
+  if (t === "MEDIA_ITEM_TYPE_MOVIE") return "Film";
+  if (t === "MEDIA_ITEM_TYPE_SERIES") return "Serie";
+  return "";
+};
+
 export function MediaCard({
   item,
   href,
@@ -54,6 +60,7 @@ export function MediaCard({
           <img
             src={poster}
             alt={item.title ?? ""}
+            loading="lazy"
             className="w-full h-full object-cover"
             onError={(e) => {
               const t = e.currentTarget;
@@ -125,7 +132,7 @@ export function MediaCard({
         >
           {item.title}
         </p>
-        {showType && item.type && (
+        {showType && typeLabel(item.type) && (
           <span
             className="text-xs px-1.5 py-0.5 rounded"
             style={{
@@ -134,7 +141,7 @@ export function MediaCard({
               borderRadius: "var(--radius-sm)",
             }}
           >
-            {item.type}
+            {typeLabel(item.type)}
           </span>
         )}
       </div>

@@ -50,6 +50,7 @@ function useLibraryStats() {
       const res = await fetch(`/api/v1/admin/library-stats`, {
         headers: token ? { Authorization: `Bearer ${token}` } : {},
       });
+      if (!res.ok) return [];
       const json = await res.json() as { stats: LibraryStat[] };
       return json.stats ?? [];
     },

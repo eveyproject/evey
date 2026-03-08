@@ -8,6 +8,11 @@ import {
 import type { V1StreamInfo, V1WatchProgress } from "@evey/api/src/generated/playback.schemas";
 import { useAuthStore } from "@evey/store";
 
+const canPlayHevc = (() => {
+  const v = document.createElement("video");
+  return !!(v.canPlayType('video/mp4; codecs="hvc1"') || v.canPlayType('video/mp4; codecs="hev1"'));
+})();
+
 export interface PlaySessionResult {
   streamInfo: V1StreamInfo | null;
   sessionId: string | null;
@@ -25,14 +30,11 @@ export function usePlaySession(mediaId: string): PlaySessionResult {
   const { data: progress } = usePlaybackServiceGetWatchProgress(mediaId);
   const { data: rawStreamInfo } = usePlaybackServiceGetStreamInfo(mediaId);
 
-  // Always use the transcode endpoint for direct play: copies video, re-encodes audio to AAC (browser-compatible).
-  // This avoids AC3/DTS/TrueHD codec incompatibility on all browsers.
   const streamInfo: V1StreamInfo | undefined = rawStreamInfo
     ? {
         ...rawStreamInfo,
-        // Keep transcodeUrl (HLS) if available; override directPlayUrl with transcode endpoint.
         directPlayUrl: token
-          ? `/api/v1/media/${mediaId}/transcode?token=${token}`
+          ? `/api/v1/media/${mediaId}/transcode?token=${token}${canPlayHevc ? "&remux=1" : ""}`
           : rawStreamInfo.directPlayUrl,
       }
     : undefined;

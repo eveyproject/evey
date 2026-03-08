@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
+import { AdminNav } from "./index";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   useAdminServiceListPlugins,
@@ -74,10 +75,16 @@ function PluginsPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold" style={{ color: "var(--text)" }}>
-          Plugins
+      <div>
+        <h1 className="text-2xl font-bold mb-2" style={{ color: "var(--text)" }}>
+          Admin
         </h1>
+        <AdminNav />
+      </div>
+      <div className="flex items-center justify-between">
+        <h2 className="text-xl font-semibold" style={{ color: "var(--text)" }}>
+          Plugins
+        </h2>
         <Button onClick={() => setShowModal(true)}>Install Plugin</Button>
       </div>
 

@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
+import { AdminNav } from "./index";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   useUserServiceListUsers,
@@ -240,11 +241,17 @@ function UsersPage() {
 
   return (
     <div className="flex flex-col gap-8">
+      <div>
+        <h1 className="text-2xl font-bold mb-2" style={{ color: "var(--text)" }}>
+          Admin
+        </h1>
+        <AdminNav />
+      </div>
       <section className="flex flex-col gap-4">
         <div className="flex items-center justify-between">
-          <h1 className="text-2xl font-bold" style={{ color: "var(--text)" }}>
+          <h2 className="text-xl font-semibold" style={{ color: "var(--text)" }}>
             Users
-          </h1>
+          </h2>
           <Button onClick={() => setShowUserModal(true)}>Create User</Button>
         </div>
 

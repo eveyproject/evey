@@ -68,7 +68,7 @@ func (q *FeedQuerier) ContinueWatching(ctx context.Context, profileID string, li
 			WHERE mi.type = 'episode'
 			  AND mi.id NOT IN (SELECT media_item_id FROM watch_progress WHERE profile_id = $1 AND completed = TRUE)
 			  AND mi.id NOT IN (SELECT id FROM in_progress)
-			ORDER BY s.parent_id, s.sort_order, mi.sort_order
+			ORDER BY s.parent_id, s.index_number, mi.index_number
 		)
 		SELECT id, parent_id, title, 'episode', position_ms, ''
 		FROM (

@@ -54,7 +54,7 @@ func (s *Service) handleAny(_ context.Context, ev shared.Event) {
 		if !matchesAny(cfg.Events, ev.EventName()) {
 			continue
 		}
-		go s.deliver(cfg, ev.EventName(), ev)
+		go s.deliver(context.Background(), cfg, ev.EventName(), ev)
 	}
 }
 
@@ -67,7 +67,7 @@ func matchesAny(patterns []string, name string) bool {
 	return false
 }
 
-func (s *Service) deliver(cfg *webhook.Config, eventName string, payload interface{}) {
+func (s *Service) deliver(ctx context.Context, cfg *webhook.Config, eventName string, payload interface{}) {
 	body, err := json.Marshal(map[string]interface{}{
 		"event":   eventName,
 		"payload": payload,
@@ -81,10 +81,14 @@ func (s *Service) deliver(cfg *webhook.Config, eventName string, payload interfa
 
 	for attempt := 0; attempt <= len(retryDelays); attempt++ {
 		if attempt > 0 {
-			time.Sleep(retryDelays[attempt-1])
+			select {
+			case <-time.After(retryDelays[attempt-1]):
+			case <-ctx.Done():
+				return
+			}
 		}
 
-		req, err := http.NewRequest(http.MethodPost, cfg.URL, bytes.NewReader(body))
+		req, err := http.NewRequestWithContext(ctx, http.MethodPost, cfg.URL, bytes.NewReader(body))
 		if err != nil {
 			s.log.Error("webhook: bad URL", slog.String("webhook", cfg.ID), slog.Any("err", err))
 			lastErr = err.Error()
@@ -113,7 +117,6 @@ func (s *Service) deliver(cfg *webhook.Config, eventName string, payload interfa
 		s.log.Warn("webhook non-2xx", slog.String("webhook", cfg.ID), slog.Int("status", resp.StatusCode))
 	}
 
-	ctx := context.Background()
 	_ = s.deliveries.Create(ctx, &webhook.Delivery{
 		ID:         uuid.New().String(),
 		WebhookID:  cfg.ID,

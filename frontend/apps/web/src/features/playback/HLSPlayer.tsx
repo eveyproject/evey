@@ -8,6 +8,11 @@ import { PlayerControls } from "./PlayerControls";
 import type { EpisodeNavItem, SeasonNavItem } from "./PlayerControls";
 import { ProgressReporter } from "./ProgressReporter";
 
+const canPlayHevc = (() => {
+  const v = document.createElement("video");
+  return !!(v.canPlayType('video/mp4; codecs="hvc1"') || v.canPlayType('video/mp4; codecs="hev1"'));
+})();
+
 export type { AudioStream, SubtitleStream, EpisodeNavItem, SeasonNavItem };
 
 interface HLSPlayerProps {
@@ -93,12 +98,18 @@ export function HLSPlayer({
       }, 3000);
     }
     function handleEnded() { onEnded?.(); }
+    function handleError() {
+      const e = video!.error;
+      if (e) console.error("Video error:", e.code, e.message);
+    }
     video.addEventListener("ended", handleEnded);
     video.addEventListener("canplay", handleCanPlay);
+    video.addEventListener("error", handleError);
 
     return () => {
       video.removeEventListener("ended", handleEnded);
       video.removeEventListener("canplay", handleCanPlay);
+      video.removeEventListener("error", handleError);
       if (hlsInstance) {
         hlsInstance.destroy();
         hlsRef.current = null;
@@ -125,6 +136,7 @@ export function HLSPlayer({
     if (token) params.set("token", token);
     params.set("audioTrack", String(currentTrackIndex));
     if (currentQuality > 0) params.set("videoScale", String(currentQuality));
+    if (canPlayHevc) params.set("remux", "1");
     const url = `/api/v1/media/${mediaId}/transcode?${params.toString()}`;
 
     function onTimeUpdate() { positionRef.current = video!.currentTime; }
@@ -132,9 +144,14 @@ export function HLSPlayer({
       if (videoRef.current) videoRef.current.currentTime = savedTime;
     }
     function handleEnded() { onEnded?.(); }
+    function handleError() {
+      const e = video!.error;
+      if (e) console.error("Video error:", e.code, e.message);
+    }
     video.addEventListener("timeupdate", onTimeUpdate);
     video.addEventListener("loadedmetadata", onMetadata, { once: true });
     video.addEventListener("ended", handleEnded);
+    video.addEventListener("error", handleError);
     video.src = url;
     video.play().catch(() => {});
 
@@ -142,6 +159,7 @@ export function HLSPlayer({
       video.removeEventListener("timeupdate", onTimeUpdate);
       video.removeEventListener("ended", handleEnded);
       video.removeEventListener("loadedmetadata", onMetadata);
+      video.removeEventListener("error", handleError);
       video.src = "";
     };
   }, [transcodeMode, mediaId, accessToken, onEnded, currentTrackIndex, currentQuality]);
@@ -170,6 +188,51 @@ export function HLSPlayer({
     }, { once: true });
   }, [currentSubtitle, mediaId, accessToken]);
 
+  useEffect(() => {
+    function handleKeyDown(e: KeyboardEvent) {
+      const video = videoRef.current;
+      if (!video) return;
+
+      switch (e.key) {
+        case " ":
+        case "k":
+          e.preventDefault();
+          if (video.paused) video.play().catch(() => {});
+          else video.pause();
+          break;
+        case "ArrowLeft":
+          e.preventDefault();
+          video.currentTime = Math.max(0, video.currentTime - 10);
+          break;
+        case "ArrowRight":
+          e.preventDefault();
+          video.currentTime = Math.min(video.duration || 0, video.currentTime + 10);
+          break;
+        case "ArrowUp":
+          e.preventDefault();
+          video.volume = Math.min(1, video.volume + 0.1);
+          break;
+        case "ArrowDown":
+          e.preventDefault();
+          video.volume = Math.max(0, video.volume - 0.1);
+          break;
+        case "m":
+          video.muted = !video.muted;
+          break;
+        case "f": {
+          const container = video.parentElement;
+          if (!container) break;
+          if (!document.fullscreenElement) void container.requestFullscreen();
+          else void document.exitFullscreen();
+          break;
+        }
+      }
+    }
+
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, []);
+
   function handleAudioChange(index: number) {
     const stream = audioStreams.find((s) => s.index === index);
     setCurrentAudioIndex(index);
@@ -194,7 +257,7 @@ export function HLSPlayer({
 
   return (
     <div className="relative w-full h-full bg-black">
-      <video ref={videoRef} className="w-full h-full" playsInline crossOrigin="anonymous" />
+      <video ref={videoRef} className="w-full h-full" playsInline />
       <ProgressReporter sessionId={sessionId} videoRef={videoRef} />
       <PlayerControls
         videoRef={videoRef}

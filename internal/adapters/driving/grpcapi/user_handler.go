@@ -2,7 +2,6 @@ package grpcapi
 
 import (
 	"context"
-	"fmt"
 	"log/slog"
 
 	eveyv1 "github.com/gravity-zero/evey/gen/evey/v1"
@@ -11,6 +10,7 @@ import (
 	appuser "github.com/gravity-zero/evey/internal/app/user"
 	"github.com/gravity-zero/evey/internal/domain/activity"
 	"github.com/gravity-zero/evey/internal/domain/user"
+	"github.com/gravity-zero/evey/internal/pkg/id"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -98,7 +98,7 @@ func (h *userHandler) CreateUser(ctx context.Context, req *eveyv1.CreateUserRequ
 		return nil, status.Error(codes.Unauthenticated, "not authenticated")
 	}
 	u := &user.User{
-		ID:       fmt.Sprintf("usr-%d", nowUnixNano()),
+		ID:       id.New("usr-"),
 		Username: req.Username,
 		Email:    req.Email,
 		IsAdmin:  req.IsAdmin,
@@ -183,7 +183,7 @@ func (h *userHandler) ListUsers(ctx context.Context, _ *eveyv1.ListUsersRequest)
 
 func (h *userHandler) CreateProfile(ctx context.Context, req *eveyv1.CreateProfileRequest) (*eveyv1.Profile, error) {
 	p := &user.Profile{
-		ID:          fmt.Sprintf("prf-%d", nowUnixNano()),
+		ID:          id.New("prf-"),
 		UserID:      req.UserId,
 		Name:        req.Name,
 		Preferences: req.Preferences,
@@ -249,7 +249,7 @@ func (h *userHandler) CreateInviteLink(ctx context.Context, req *eveyv1.CreateIn
 		return nil, status.Error(codes.Unauthenticated, "not authenticated")
 	}
 	link := &user.InviteLink{
-		ID:        fmt.Sprintf("inv-%d", nowUnixNano()),
+		ID:        id.New("inv-"),
 		CreatedBy: claims.UserID,
 		Token:     secureToken("inv-tok-", 16),
 		MaxUses:   int(req.MaxUses),
@@ -306,7 +306,7 @@ func (h *userHandler) RegisterWithInvite(ctx context.Context, req *eveyv1.Regist
 
 func (h *userHandler) InitiateQuickConnect(ctx context.Context, _ *eveyv1.InitiateQuickConnectRequest) (*eveyv1.QuickConnectResponse, error) {
 	qc := &user.QuickConnectRequest{
-		ID:     fmt.Sprintf("qc-%d", nowUnixNano()),
+		ID:     id.New("qc-"),
 		Code:   secureToken("qc-code-", 16),
 		Secret: secureToken("qc-secret-", 16),
 		Status: string(user.Pending),
@@ -346,7 +346,7 @@ func (h *userHandler) CreateAPIKey(ctx context.Context, req *eveyv1.CreateAPIKey
 		return nil, status.Error(codes.Unauthenticated, "not authenticated")
 	}
 	key := &user.APIKeyModel{
-		ID:     fmt.Sprintf("ak-%d", nowUnixNano()),
+		ID:     id.New("ak-"),
 		UserID: claims.UserID,
 		Name:   req.Name,
 	}

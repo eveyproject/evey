@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"encoding/pem"
 	"fmt"
+	"io"
 	"log/slog"
 	"net/http"
 	"os"
@@ -298,8 +299,11 @@ func run() error {
 		registerAdminRoutes(mux, metadataSvc, tmdbProvider, tokenGen)
 		mux.Handle("/", gwMux)
 		httpSrv = &http.Server{
-			Addr:    fmt.Sprintf(":%d", httpPort),
-			Handler: mux,
+			Addr:              fmt.Sprintf(":%d", httpPort),
+			Handler:           mux,
+			ReadHeaderTimeout: 10 * time.Second,
+			WriteTimeout:      10 * time.Minute,
+			IdleTimeout:       120 * time.Second,
 		}
 	}
 
@@ -524,6 +528,7 @@ func jsonEncodeResponse(w http.ResponseWriter, v any) {
 		http.Error(w, `{"message":"encode error"}`, http.StatusInternalServerError)
 		return
 	}
+	w.Header().Set("Content-Type", "application/json")
 	w.Write(data)
 }
 
@@ -593,7 +598,8 @@ func registerAdminRoutes(mux *http.ServeMux, metaSvc *appmetadata.Service, tmdb 
 				refreshErr = metaSvc.RefreshItemMetadata(r.Context(), mediaItemID, body.TmdbID, body.MediaType)
 			}
 			if refreshErr != nil {
-				http.Error(w, refreshErr.Error(), http.StatusInternalServerError)
+				slog.Error("refresh metadata", slog.Any("err", refreshErr))
+				http.Error(w, "internal error", http.StatusInternalServerError)
 				return
 			}
 			w.WriteHeader(http.StatusNoContent)
@@ -607,7 +613,8 @@ func registerAdminRoutes(mux *http.ServeMux, metaSvc *appmetadata.Service, tmdb 
 			}
 			results, err := tmdb.Search(r.Context(), query, mediaType)
 			if err != nil {
-				http.Error(w, err.Error(), http.StatusInternalServerError)
+				slog.Error("search metadata", slog.Any("err", err))
+				http.Error(w, "internal error", http.StatusInternalServerError)
 				return
 			}
 			type searchResult struct {
@@ -676,6 +683,7 @@ func transcodeHandler(tokenGen interface {
 	ValidateAccessToken(string) (*domainuser.Claims, error)
 }, libSvc interface {
 	GetMediaItem(ctx context.Context, id string) (*domainlibrary.MediaItem, error)
+	GetMediaStreams(ctx context.Context, mediaItemID string) ([]*domainlibrary.MediaStream, error)
 }) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		mediaID := r.PathValue("id")
@@ -709,6 +717,27 @@ func transcodeHandler(tokenGen interface {
 				videoScale = n
 			}
 		}
+		remuxOnly := r.URL.Query().Get("remux") == "1"
+		needsVideoTranscode := false
+		needsAudioTranscode := true
+		if streams, err := libSvc.GetMediaStreams(r.Context(), mediaID); err == nil {
+			for _, s := range streams {
+				slog.Debug("transcode: stream", slog.String("media_id", mediaID), slog.String("type", s.StreamType), slog.String("codec", s.Codec), slog.Bool("default", s.IsDefault))
+				if s.StreamType == "video" && s.Codec != "h264" && !remuxOnly {
+					needsVideoTranscode = true
+				}
+				if s.StreamType == "audio" && s.IsDefault {
+					switch s.Codec {
+					case "aac", "mp3", "opus":
+						needsAudioTranscode = false
+					}
+				}
+			}
+		} else {
+			slog.Error("transcode: GetMediaStreams failed", slog.String("media_id", mediaID), slog.Any("err", err))
+		}
+		slog.Debug("transcode: decision", slog.String("media_id", mediaID), slog.Bool("needsVideoTranscode", needsVideoTranscode), slog.Bool("needsAudioTranscode", needsAudioTranscode), slog.Bool("remuxOnly", remuxOnly))
+
 		ctx, cancel := context.WithCancel(r.Context())
 		defer cancel()
 		args := []string{
@@ -718,22 +747,37 @@ func transcodeHandler(tokenGen interface {
 		}
 		if videoScale > 0 {
 			args = append(args, "-vf", fmt.Sprintf("scale=-2:%d", videoScale), "-c:v", "libx264", "-crf", "23", "-preset", "fast")
+		} else if needsVideoTranscode {
+			args = append(args, "-c:v", "libx264", "-crf", "23", "-preset", "veryfast", "-tune", "zerolatency", "-threads", "0")
 		} else {
 			args = append(args, "-c:v", "copy")
 		}
-		args = append(args, "-c:a", "aac", "-b:a", "192k",
-			"-movflags", "frag_keyframe+empty_moov+default_base_moof",
+		if needsAudioTranscode {
+			args = append(args, "-c:a", "aac", "-ac", "2", "-b:a", "192k")
+		} else {
+			args = append(args, "-c:a", "copy")
+		}
+		args = append(args, "-movflags", "frag_keyframe+empty_moov+default_base_moof",
 			"-f", "mp4", "-")
+		slog.Debug("transcode: ffmpeg", slog.String("media_id", mediaID), slog.String("args", strings.Join(args, " ")))
 		cmd := exec.CommandContext(ctx, "ffmpeg", args...)
-		cmd.Stdout = w
-		w.Header().Set("Content-Type", "video/mp4")
-		w.Header().Set("Cache-Control", "no-cache")
-		w.Header().Set("Access-Control-Allow-Origin", "*")
-		if err := cmd.Start(); err != nil {
-			slog.Error("ffmpeg start", slog.Any("err", err))
+		stdout, err := cmd.StdoutPipe()
+		if err != nil {
+			slog.Error("ffmpeg stdout pipe", slog.Any("err", err))
+			http.Error(w, "transcode failed", http.StatusInternalServerError)
 			return
 		}
+		if err := cmd.Start(); err != nil {
+			slog.Error("ffmpeg start", slog.Any("err", err))
+			http.Error(w, "transcode failed", http.StatusInternalServerError)
+			return
+		}
+		w.Header().Set("Content-Type", "video/mp4")
+		w.Header().Set("Cache-Control", "no-cache")
+		w.Header().Set("Accept-Ranges", "none")
+		w.Header().Set("Access-Control-Allow-Origin", "*")
 		go func() { <-r.Context().Done(); cancel() }()
+		io.Copy(w, stdout)
 		if err := cmd.Wait(); err != nil && ctx.Err() == nil {
 			slog.Warn("ffmpeg transcode", slog.String("media_id", mediaID), slog.Any("err", err))
 		}

@@ -7,6 +7,7 @@ import (
 	eveyv1 "github.com/gravity-zero/evey/gen/evey/v1"
 	apptranscoding "github.com/gravity-zero/evey/internal/app/transcoding"
 	"github.com/gravity-zero/evey/internal/domain/transcoding"
+	"github.com/gravity-zero/evey/internal/pkg/id"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -18,7 +19,7 @@ type transcodingHandler struct {
 
 func (h *transcodingHandler) StartTranscode(req *eveyv1.StartTranscodeRequest, stream eveyv1.TranscodingService_StartTranscodeServer) error {
 	job := &transcoding.TranscodeJob{
-		ID:            fmt.Sprintf("tj-%d", nowUnixNano()),
+		ID:            id.New("tj-"),
 		MediaItemID:   req.MediaItemId,
 		OutputCodec:   req.VideoCodec,
 		HWAccelType:   hwAccelTypeFromProto[req.HwAccel],

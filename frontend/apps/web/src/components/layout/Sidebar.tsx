@@ -7,7 +7,7 @@ const navItems = [
   { to: "/search" as const, label: "Search" },
 ];
 
-export function Sidebar() {
+export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
   const { location } = useRouterState();
   const pathname = location.pathname;
   const isAdmin = useAuthStore((s) => s.isAdmin);
@@ -24,6 +24,7 @@ export function Sidebar() {
             <li key={to}>
               <Link
                 to={to}
+                onClick={onNavigate}
                 className={`flex items-center gap-3 px-3 py-2 rounded-[var(--radius-md)] text-sm transition-colors ${
                   active
                     ? "bg-[var(--accent)] text-white"
@@ -39,6 +40,7 @@ export function Sidebar() {
           <li>
             <Link
               to="/admin"
+              onClick={onNavigate}
               className={`flex items-center gap-3 px-3 py-2 rounded-[var(--radius-md)] text-sm transition-colors ${
                 pathname === "/admin" || pathname.startsWith("/admin/")
                   ? "bg-[var(--accent)] text-white"

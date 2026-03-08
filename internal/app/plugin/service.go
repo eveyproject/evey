@@ -8,6 +8,7 @@ import (
 
 	"github.com/gravity-zero/evey/internal/domain/plugin"
 	"github.com/gravity-zero/evey/internal/domain/shared"
+	"github.com/gravity-zero/evey/internal/pkg/id"
 )
 
 var (
@@ -47,7 +48,7 @@ func (s *Service) InstallPlugin(ctx context.Context, zipPath string) (*plugin.Pl
 	}
 
 	p := &plugin.Plugin{
-		ID:           fmt.Sprintf("plg-%d", time.Now().UnixNano()),
+		ID:           id.New("plg-"),
 		Name:         manifest.Name,
 		Version:      manifest.Version,
 		Description:  manifest.Description,

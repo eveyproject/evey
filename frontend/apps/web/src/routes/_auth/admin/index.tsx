@@ -20,7 +20,7 @@ const adminNavLinks = [
   { href: "/admin/logs", label: "Logs" },
 ];
 
-function AdminNav() {
+export function AdminNav() {
   const { location } = useRouterState();
   const pathname = location.pathname;
 

@@ -390,6 +390,7 @@ export function MediaDetail({ item, onMetadataUpdated }: MediaDetailProps) {
   const [watched, setWatched] = useState(false);
   const [fileInfoOpen, setFileInfoOpen] = useState(false);
   const [editing, setEditing] = useState(false);
+  const goBack = () => window.history.back();
 
   const { data: parentItem } = useLibraryServiceGetMediaItem(
     item.parentId ?? "",
@@ -415,6 +416,10 @@ export function MediaDetail({ item, onMetadataUpdated }: MediaDetailProps) {
 
   return (
     <div>
+      <button onClick={goBack} className="flex items-center gap-1 text-sm text-[var(--text-muted)] hover:text-[var(--text)] transition-colors mb-4">
+        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
+        Back
+      </button>
       {/* Backdrop hero */}
       <div className="relative w-full overflow-hidden -mx-6 -mt-6 mb-0" style={{ height: "420px" }}>
         {backdropUrl ? (

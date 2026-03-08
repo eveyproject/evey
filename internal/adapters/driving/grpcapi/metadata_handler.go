@@ -2,11 +2,11 @@ package grpcapi
 
 import (
 	"context"
-	"fmt"
 
 	eveyv1 "github.com/gravity-zero/evey/gen/evey/v1"
 	appmetadata "github.com/gravity-zero/evey/internal/app/metadata"
 	domainmetadata "github.com/gravity-zero/evey/internal/domain/metadata"
+	"github.com/gravity-zero/evey/internal/pkg/id"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -59,7 +59,7 @@ func (h *metadataHandler) GetArtwork(ctx context.Context, req *eveyv1.GetArtwork
 
 func (h *metadataHandler) SetMetadataOverride(ctx context.Context, req *eveyv1.SetMetadataOverrideRequest) (*eveyv1.MetadataOverride, error) {
 	override := &domainmetadata.MetadataOverride{
-		ID:          fmt.Sprintf("mo-%d", nowUnixNano()),
+		ID:          id.New("mo-"),
 		MediaItemID: req.MediaItemId,
 		FieldName:   req.FieldName,
 		CustomValue: req.CustomValue,

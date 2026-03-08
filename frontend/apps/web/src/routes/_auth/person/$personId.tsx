@@ -4,12 +4,6 @@ export const Route = createFileRoute("/_auth/person/$personId")({
   component: PersonPage,
 });
 
-/**
- * Person page — shows name, photo and a note about the person.
- * No dedicated person API endpoint exists yet; cast data comes from
- * V1MediaItem.people when navigating from the media detail page.
- * The personId is the person's id from V1MediaPerson.
- */
 function PersonPage() {
   const { personId } = Route.useParams();
 
@@ -23,6 +17,13 @@ function PersonPage() {
 
   return (
     <div className="max-w-2xl mx-auto py-10 px-4">
+      <button
+        onClick={() => window.history.back()}
+        className="flex items-center gap-1 text-sm text-[var(--text-muted)] hover:text-[var(--text)] transition-colors mb-6"
+      >
+        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
+        Back
+      </button>
       <div className="flex items-center gap-6 mb-8">
         <div
           className="w-24 h-24 rounded-full overflow-hidden flex-shrink-0 flex items-center justify-center"
@@ -32,6 +33,7 @@ function PersonPage() {
             src={`/api/v1/media/${personId}/artwork/poster`}
             alt=""
             className="w-full h-full object-cover"
+            loading="lazy"
             onError={(e) => {
               const t = e.currentTarget;
               t.style.display = "none";
@@ -50,13 +52,13 @@ function PersonPage() {
           <h1 className="text-2xl font-bold" style={{ color: "var(--text)" }}>
             Person
           </h1>
-          <p className="text-sm mt-1" style={{ color: "var(--text-muted)" }}>
-            ID: {personId}
+          <p className="text-sm mt-1 font-mono" style={{ color: "var(--text-muted)" }}>
+            {personId}
           </p>
         </div>
       </div>
       <p className="text-sm" style={{ color: "var(--text-muted)" }}>
-        Detailed person profiles are not yet available via the API.
+        Detailed person profiles are not yet available.
       </p>
     </div>
   );

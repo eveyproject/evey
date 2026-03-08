@@ -14,6 +14,15 @@ export const Route = createFileRoute("/login")({
   component: LoginPage,
 });
 
+function friendlyLoginError(err: unknown): string {
+  const msg = err instanceof Error ? err.message.toLowerCase() : "";
+  if (msg.includes("invalid credentials") || msg.includes("not found"))
+    return "Invalid username or password";
+  if (msg.includes("password") && (msg.includes("short") || msg.includes("length")))
+    return "Password must be at least 8 characters";
+  return "Login failed. Please try again.";
+}
+
 function LoginPage() {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
@@ -60,7 +69,7 @@ function LoginPage() {
           />
           {login.error && (
             <p className="text-sm text-red-400 text-center">
-              {login.error instanceof Error ? login.error.message : "Login failed"}
+              {friendlyLoginError(login.error)}
             </p>
           )}
           <Button type="submit" loading={login.isPending} className="w-full mt-2">

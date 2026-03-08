@@ -2,12 +2,12 @@ package grpcapi
 
 import (
 	"context"
-	"fmt"
 
 	eveyv1 "github.com/gravity-zero/evey/gen/evey/v1"
 	applibrary "github.com/gravity-zero/evey/internal/app/library"
 	appmetadata "github.com/gravity-zero/evey/internal/app/metadata"
 	"github.com/gravity-zero/evey/internal/domain/library"
+	"github.com/gravity-zero/evey/internal/pkg/id"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -20,7 +20,7 @@ type libraryHandler struct {
 
 func (h *libraryHandler) CreateLibrary(ctx context.Context, req *eveyv1.CreateLibraryRequest) (*eveyv1.Library, error) {
 	lib := &library.Library{
-		ID:                  fmt.Sprintf("lib-%d", nowUnixNano()),
+		ID:                  id.New("lib-"),
 		Name:                req.Name,
 		Type:                libraryTypeFromProto[req.Type],
 		Paths:               req.Paths,

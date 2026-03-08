@@ -10,6 +10,7 @@ import (
 
 	"github.com/gravity-zero/evey/internal/domain/shared"
 	"github.com/gravity-zero/evey/internal/domain/user"
+	"github.com/gravity-zero/evey/internal/pkg/id"
 )
 
 var (
@@ -86,7 +87,7 @@ func (s *Service) Setup(ctx context.Context, username, password, email string) (
 	}
 
 	u := &user.User{
-		ID:           fmt.Sprintf("usr-%d", time.Now().UnixNano()),
+		ID:           id.New("usr-"),
 		Username:     username,
 		Email:        email,
 		PasswordHash: hash,
@@ -101,7 +102,7 @@ func (s *Service) Setup(ctx context.Context, username, password, email string) (
 	s.events.Publish(ctx, user.UserCreated{UserID: u.ID, Username: u.Username, IsAdmin: true, OccurredAt: time.Now()})
 
 	p := &user.Profile{
-		ID:        fmt.Sprintf("prf-%d", time.Now().UnixNano()),
+		ID:        id.New("prf-"),
 		UserID:    u.ID,
 		Name:      u.Username,
 		IsDefault: true,
@@ -164,7 +165,7 @@ func (s *Service) Login(ctx context.Context, username, password string) (accessT
 
 	h := sha256.Sum256([]byte(refreshToken))
 	rt := &user.RefreshToken{
-		ID:        fmt.Sprintf("rt-%d", time.Now().UnixNano()),
+		ID:        id.New("rt-"),
 		UserID:    u.ID,
 		TokenHash: hex.EncodeToString(h[:]),
 		ExpiresAt: time.Now().Add(7 * 24 * time.Hour),
@@ -257,7 +258,10 @@ func (s *Service) DeleteUser(ctx context.Context, id string) error {
 		return err
 	}
 	if u.IsAdmin {
-		count, _ := s.users.CountAdmins(ctx)
+		count, err := s.users.CountAdmins(ctx)
+		if err != nil {
+			return fmt.Errorf("count admins: %w", err)
+		}
 		if count <= 1 {
 			return ErrLastAdmin
 		}
@@ -276,7 +280,10 @@ func (s *Service) DisableUser(ctx context.Context, id string) error {
 		return err
 	}
 	if u.IsAdmin {
-		count, _ := s.users.CountAdmins(ctx)
+		count, err := s.users.CountAdmins(ctx)
+		if err != nil {
+			return fmt.Errorf("count admins: %w", err)
+		}
 		if count <= 1 {
 			return ErrLastAdmin
 		}
@@ -350,7 +357,7 @@ func (s *Service) RegisterWithInvite(ctx context.Context, token, username, passw
 	}
 
 	u := &user.User{
-		ID:           fmt.Sprintf("usr-%d", time.Now().UnixNano()),
+		ID:           id.New("usr-"),
 		Username:     username,
 		Email:        email,
 		PasswordHash: hash,

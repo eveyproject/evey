@@ -9,6 +9,7 @@ import (
 	"github.com/gravity-zero/evey/internal/domain/playback"
 	"github.com/gravity-zero/evey/internal/domain/shared"
 	"github.com/gravity-zero/evey/internal/domain/user"
+	"github.com/gravity-zero/evey/internal/pkg/id"
 )
 
 var (
@@ -96,7 +97,7 @@ func (s *Service) ReportProgressBySession(ctx context.Context, sessionID string,
 
 func (s *Service) ReportProgress(ctx context.Context, profileID, mediaItemID string, positionMs int64, completed bool) error {
 	wp := &playback.WatchProgress{
-		ID:           fmt.Sprintf("wp-%d", time.Now().UnixNano()),
+		ID:           id.New("wp-"),
 		ProfileID:    profileID,
 		MediaItemID:  mediaItemID,
 		PositionMs:   positionMs,
@@ -124,7 +125,7 @@ func (s *Service) GetNextUp(ctx context.Context, profileID string, limit int) ([
 
 func (s *Service) MarkAsWatched(ctx context.Context, profileID, mediaItemID string) error {
 	wp := &playback.WatchProgress{
-		ID:           fmt.Sprintf("wp-%d", time.Now().UnixNano()),
+		ID:           id.New("wp-"),
 		ProfileID:    profileID,
 		MediaItemID:  mediaItemID,
 		Completed:    true,
@@ -144,7 +145,7 @@ func (s *Service) MarkAsWatched(ctx context.Context, profileID, mediaItemID stri
 
 func (s *Service) MarkAsUnwatched(ctx context.Context, profileID, mediaItemID string) error {
 	wp := &playback.WatchProgress{
-		ID:           fmt.Sprintf("wp-%d", time.Now().UnixNano()),
+		ID:           id.New("wp-"),
 		ProfileID:    profileID,
 		MediaItemID:  mediaItemID,
 		Completed:    false,
