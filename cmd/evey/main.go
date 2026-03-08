@@ -283,7 +283,10 @@ func run() error {
 			w.Write([]byte(`{"status":"ok","version":"` + version + `"}`))
 		})
 		mux.HandleFunc("/api/v1/admin/fs/browse", browseDirsHandler(tokenGen))
-		mux.HandleFunc("/api/v1/media/", mediaHandler(tokenGen, librarySvc, artworkRepo))
+		mh := mediaHandler(tokenGen, librarySvc, artworkRepo)
+		mux.HandleFunc("GET /api/v1/media/{id}/stream", mh)
+		mux.HandleFunc("GET /api/v1/media/{id}/artwork/{artType}", mh)
+		mux.HandleFunc("POST /api/v1/media/{id}/stream", mh)
 		registerAdminRoutes(mux, metadataSvc, tmdbProvider, tokenGen)
 		mux.Handle("/", gwMux)
 		httpSrv = &http.Server{
@@ -366,14 +369,16 @@ func mediaHandler(tokens interface {
 	GetByMediaItem(ctx context.Context, mediaItemID string) ([]*domainmeta.ArtworkRecord, error)
 }) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		// paths: /api/v1/media/{id}/stream  OR  /api/v1/media/{id}/artwork/{type}
-		parts := strings.Split(strings.TrimPrefix(r.URL.Path, "/api/v1/media/"), "/")
-		if len(parts) < 2 {
-			http.NotFound(w, r)
-			return
+		// routes: GET /api/v1/media/{id}/stream
+		//         GET /api/v1/media/{id}/artwork/{artType}
+		mediaID := r.PathValue("id")
+		artType := r.PathValue("artType") // empty for /stream route
+		var action string
+		if artType != "" {
+			action = "artwork"
+		} else {
+			action = "stream"
 		}
-		mediaID := parts[0]
-		action := parts[1] // "stream" or "artwork"
 
 		authHeader := r.Header.Get("Authorization")
 		if len(authHeader) < 8 {
@@ -400,18 +405,16 @@ func mediaHandler(tokens interface {
 			http.ServeFile(w, r, item.FilePath)
 
 		case "artwork":
-			artworkType := ""
-			if len(parts) >= 3 {
-				switch parts[2] {
-				case "poster":
-					artworkType = "ARTWORK_TYPE_PRIMARY"
-				case "backdrop":
-					artworkType = "ARTWORK_TYPE_BACKDROP"
-				case "thumb":
-					artworkType = "ARTWORK_TYPE_THUMB"
-				default:
-					artworkType = parts[2]
-				}
+			var artworkType string
+			switch artType {
+			case "poster":
+				artworkType = "ARTWORK_TYPE_PRIMARY"
+			case "backdrop":
+				artworkType = "ARTWORK_TYPE_BACKDROP"
+			case "thumb":
+				artworkType = "ARTWORK_TYPE_THUMB"
+			default:
+				artworkType = artType
 			}
 			records, err := artworkRepo.GetByMediaItem(r.Context(), mediaID)
 			if err != nil || len(records) == 0 {
