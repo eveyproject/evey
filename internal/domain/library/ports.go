@@ -33,7 +33,7 @@ type MediaItemRepository interface {
 	Delete(ctx context.Context, id string) error
 	GetByFilePath(ctx context.Context, path string) (*MediaItem, error)
 	GetByFileFingerprint(ctx context.Context, fingerprint string) (*MediaItem, error)
-	GetByLibraryTypeTitle(ctx context.Context, libraryID, itemType, title string) (*MediaItem, error)
+	GetByLibraryTypeTitle(ctx context.Context, libraryID, itemType, title, parentID string) (*MediaItem, error)
 	Count(ctx context.Context, filter ListMediaItemsFilter) (int, error)
 }
 

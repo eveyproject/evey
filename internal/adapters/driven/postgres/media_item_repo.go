@@ -87,12 +87,12 @@ func (r *MediaItemRepository) GetByFileFingerprint(ctx context.Context, fingerpr
 		 FROM media_items WHERE file_fingerprint = $1`, fingerprint))
 }
 
-func (r *MediaItemRepository) GetByLibraryTypeTitle(ctx context.Context, libraryID, itemType, title string) (*library.MediaItem, error) {
+func (r *MediaItemRepository) GetByLibraryTypeTitle(ctx context.Context, libraryID, itemType, title, parentID string) (*library.MediaItem, error) {
 	return r.scanMediaItem(r.db.QueryRowContext(ctx,
 		`SELECT id, library_id, parent_id, type, title, sort_title, original_title, overview, tagline,
 		 file_path, file_size, file_fingerprint, duration_ms, bitrate, container_format, index_number, community_rating,
 		 official_rating, premiere_date, year, provider_ids, genres, studios, tags, added_at, updated_at
-		 FROM media_items WHERE library_id = $1 AND type = $2 AND title = $3 LIMIT 1`, libraryID, itemType, title))
+		 FROM media_items WHERE library_id = $1 AND type = $2 AND title = $3 AND ($4 = '' OR parent_id = $4) LIMIT 1`, libraryID, itemType, title, parentID))
 }
 
 func (r *MediaItemRepository) buildWhereClause(f library.ListMediaItemsFilter) (string, []interface{}) {

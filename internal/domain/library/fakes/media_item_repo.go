@@ -121,11 +121,12 @@ func (r *FakeMediaItemRepository) Count(_ context.Context, filter library.ListMe
 	return count, nil
 }
 
-func (r *FakeMediaItemRepository) GetByLibraryTypeTitle(_ context.Context, libraryID, itemType, title string) (*library.MediaItem, error) {
+func (r *FakeMediaItemRepository) GetByLibraryTypeTitle(_ context.Context, libraryID, itemType, title, parentID string) (*library.MediaItem, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 	for _, item := range r.items {
-		if item.LibraryID == libraryID && item.Type == itemType && item.Title == title {
+		if item.LibraryID == libraryID && item.Type == itemType && item.Title == title &&
+			(parentID == "" || item.ParentID == parentID) {
 			return item, nil
 		}
 	}

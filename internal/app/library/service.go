@@ -226,7 +226,7 @@ func (s *Service) getOrCreateItem(ctx context.Context, item *library.MediaItem) 
 		return nil, false, err
 	}
 	// Fallback: find by library+type+title to avoid creating duplicates on rescan
-	existing, err = s.mediaItems.GetByLibraryTypeTitle(ctx, item.LibraryID, item.Type, item.Title)
+	existing, err = s.mediaItems.GetByLibraryTypeTitle(ctx, item.LibraryID, item.Type, item.Title, item.ParentID)
 	if err == nil {
 		// Stamp fingerprint so future scans find it directly
 		existing.FileFingerprint = item.FileFingerprint
