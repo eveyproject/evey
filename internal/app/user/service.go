@@ -19,6 +19,7 @@ var (
 	ErrLastAdmin          = errors.New("cannot remove last admin")
 	ErrSetupDone          = errors.New("setup already completed")
 	ErrInviteInvalid      = errors.New("invalid or expired invite")
+	ErrPasswordTooShort   = errors.New("password must be at least 8 characters")
 )
 
 type Service struct {
@@ -68,6 +69,9 @@ func (s *Service) CountAdmins(ctx context.Context) (int, error) {
 }
 
 func (s *Service) Setup(ctx context.Context, username, password, email string) (*user.User, error) {
+	if len(password) < 8 {
+		return nil, ErrPasswordTooShort
+	}
 	admins, err := s.users.CountAdmins(ctx)
 	if err != nil {
 		return nil, err
@@ -102,7 +106,9 @@ func (s *Service) Setup(ctx context.Context, username, password, email string) (
 		Name:      u.Username,
 		IsDefault: true,
 	}
-	_ = s.profiles.Create(ctx, p)
+	if err := s.profiles.Create(ctx, p); err != nil {
+		return nil, fmt.Errorf("create default profile: %w", err)
+	}
 
 	return u, nil
 }
@@ -164,7 +170,9 @@ func (s *Service) Login(ctx context.Context, username, password string) (accessT
 		ExpiresAt: time.Now().Add(7 * 24 * time.Hour),
 		CreatedAt: time.Now(),
 	}
-	s.refreshTkns.Create(ctx, rt)
+	if err := s.refreshTkns.Create(ctx, rt); err != nil {
+		return "", "", fmt.Errorf("store refresh token: %w", err)
+	}
 
 	s.events.Publish(ctx, user.LoginSucceeded{UserID: u.ID, AuthMethod: "local", OccurredAt: time.Now()})
 	return accessToken, refreshToken, nil
@@ -194,10 +202,24 @@ func (s *Service) RefreshToken(ctx context.Context, token string) (string, error
 		perms = append(perms, r.Permissions...)
 	}
 
+	var defaultProfileID string
+	if profs, pErr := s.profiles.GetByUserID(ctx, u.ID); pErr == nil {
+		for _, p := range profs {
+			if p.IsDefault {
+				defaultProfileID = p.ID
+				break
+			}
+		}
+		if defaultProfileID == "" && len(profs) > 0 {
+			defaultProfileID = profs[0].ID
+		}
+	}
+
 	return s.tokens.GenerateAccessToken(user.Claims{
 		UserID:      u.ID,
 		Username:    u.Username,
 		IsAdmin:     u.IsAdmin,
+		ProfileID:   defaultProfileID,
 		Permissions: perms,
 	})
 }
@@ -308,6 +330,9 @@ func (s *Service) RevokeInviteLink(ctx context.Context, id string) error {
 }
 
 func (s *Service) RegisterWithInvite(ctx context.Context, token, username, password, email string) (*user.User, error) {
+	if len(password) < 8 {
+		return nil, ErrPasswordTooShort
+	}
 	invite, err := s.invites.GetByToken(ctx, token)
 	if err != nil {
 		return nil, ErrInviteInvalid

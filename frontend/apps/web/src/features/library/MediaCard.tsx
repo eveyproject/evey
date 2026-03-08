@@ -1,3 +1,5 @@
+import { Link } from "@tanstack/react-router";
+
 interface MediaCardItem {
   id?: string;
   title?: string;
@@ -8,26 +10,44 @@ interface MediaCardItem {
 interface MediaCardProps {
   item: MediaCardItem;
   href?: string;
-  /** override poster src — defaults to /api/v1/media/{id}/artwork/poster */
   posterSrc?: string;
+  showProgress?: boolean;
+  progressPercent?: number;
+  showYear?: boolean;
+  showType?: boolean;
 }
 
-export function MediaCard({ item, href, posterSrc }: MediaCardProps) {
-  const poster = posterSrc ?? (item.id ? `/api/v1/media/${item.id}/artwork/poster` : null);
+export function MediaCard({
+  item,
+  href,
+  posterSrc,
+  showProgress,
+  progressPercent,
+  showYear = true,
+  showType,
+}: MediaCardProps) {
+  const poster =
+    posterSrc ?? (item.id ? `/api/v1/media/${item.id}/artwork/poster` : null);
   const initial = item.title ? item.title[0].toUpperCase() : "?";
-  const link = href ?? (item.id ? `/media/${item.id}` : "#");
+  const pct =
+    progressPercent !== undefined
+      ? Math.min(100, Math.max(0, Math.round(progressPercent)))
+      : undefined;
+
+  const linkTo = href ?? "/media/$mediaId";
+  const linkParams = href ? undefined : { mediaId: item.id ?? "" };
 
   return (
-    <a
-      href={link}
+    <Link
+      to={linkTo}
+      params={linkParams as never}
       className="group block flex-shrink-0 w-40"
     >
       <div
-        className="relative w-full overflow-hidden"
+        className="relative w-full overflow-hidden transition-transform duration-200 ease-in-out group-hover:scale-105"
         style={{
           aspectRatio: "2/3",
           borderRadius: "var(--radius-md)",
-          transition: "transform 0.2s ease",
         }}
       >
         {poster ? (
@@ -54,7 +74,7 @@ export function MediaCard({ item, href, posterSrc }: MediaCardProps) {
           {initial}
         </div>
 
-        {item.year !== undefined && (
+        {showYear && item.year !== undefined && (
           <span
             className="absolute top-2 right-2 text-xs font-medium px-1.5 py-0.5"
             style={{
@@ -84,6 +104,18 @@ export function MediaCard({ item, href, posterSrc }: MediaCardProps) {
             </svg>
           </div>
         </div>
+
+        {showProgress && pct !== undefined && (
+          <div
+            className="absolute bottom-0 left-0 right-0 h-1"
+            style={{ backgroundColor: "var(--border)" }}
+          >
+            <div
+              className="h-full"
+              style={{ backgroundColor: "var(--accent)", width: `${pct}%` }}
+            />
+          </div>
+        )}
       </div>
 
       <div className="mt-2 px-0.5">
@@ -93,11 +125,19 @@ export function MediaCard({ item, href, posterSrc }: MediaCardProps) {
         >
           {item.title}
         </p>
+        {showType && item.type && (
+          <span
+            className="text-xs px-1.5 py-0.5 rounded"
+            style={{
+              backgroundColor: "var(--surface-raised)",
+              color: "var(--text-muted)",
+              borderRadius: "var(--radius-sm)",
+            }}
+          >
+            {item.type}
+          </span>
+        )}
       </div>
-
-      <style>{`
-        .group:hover > div:first-child { transform: scale(1.05); }
-      `}</style>
-    </a>
+    </Link>
   );
 }

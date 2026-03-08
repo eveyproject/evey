@@ -15,6 +15,7 @@ import { Route as AuthRouteImport } from './routes/_auth'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AuthSearchRouteImport } from './routes/_auth/search'
 import { Route as AuthHomeRouteImport } from './routes/_auth/home'
+import { Route as AuthAdminRouteImport } from './routes/_auth/admin'
 import { Route as AuthProfileIndexRouteImport } from './routes/_auth/profile/index'
 import { Route as AuthLibraryIndexRouteImport } from './routes/_auth/library/index'
 import { Route as AuthAdminIndexRouteImport } from './routes/_auth/admin/index'
@@ -64,6 +65,11 @@ const AuthHomeRoute = AuthHomeRouteImport.update({
   path: '/home',
   getParentRoute: () => AuthRoute,
 } as any)
+const AuthAdminRoute = AuthAdminRouteImport.update({
+  id: '/admin',
+  path: '/admin',
+  getParentRoute: () => AuthRoute,
+} as any)
 const AuthProfileIndexRoute = AuthProfileIndexRouteImport.update({
   id: '/profile/',
   path: '/profile/',
@@ -75,9 +81,9 @@ const AuthLibraryIndexRoute = AuthLibraryIndexRouteImport.update({
   getParentRoute: () => AuthRoute,
 } as any)
 const AuthAdminIndexRoute = AuthAdminIndexRouteImport.update({
-  id: '/admin/',
-  path: '/admin/',
-  getParentRoute: () => AuthRoute,
+  id: '/',
+  path: '/',
+  getParentRoute: () => AuthAdminRoute,
 } as any)
 const AuthProfileSettingsRoute = AuthProfileSettingsRouteImport.update({
   id: '/profile/settings',
@@ -116,55 +122,56 @@ const AuthLibraryLibraryIdRoute = AuthLibraryLibraryIdRouteImport.update({
   getParentRoute: () => AuthRoute,
 } as any)
 const AuthAdminWebhooksRoute = AuthAdminWebhooksRouteImport.update({
-  id: '/admin/webhooks',
-  path: '/admin/webhooks',
-  getParentRoute: () => AuthRoute,
+  id: '/webhooks',
+  path: '/webhooks',
+  getParentRoute: () => AuthAdminRoute,
 } as any)
 const AuthAdminUsersRoute = AuthAdminUsersRouteImport.update({
-  id: '/admin/users',
-  path: '/admin/users',
-  getParentRoute: () => AuthRoute,
+  id: '/users',
+  path: '/users',
+  getParentRoute: () => AuthAdminRoute,
 } as any)
 const AuthAdminTasksRoute = AuthAdminTasksRouteImport.update({
-  id: '/admin/tasks',
-  path: '/admin/tasks',
-  getParentRoute: () => AuthRoute,
+  id: '/tasks',
+  path: '/tasks',
+  getParentRoute: () => AuthAdminRoute,
 } as any)
 const AuthAdminPluginsRoute = AuthAdminPluginsRouteImport.update({
-  id: '/admin/plugins',
-  path: '/admin/plugins',
-  getParentRoute: () => AuthRoute,
+  id: '/plugins',
+  path: '/plugins',
+  getParentRoute: () => AuthAdminRoute,
 } as any)
 const AuthAdminMetadataRoute = AuthAdminMetadataRouteImport.update({
-  id: '/admin/metadata',
-  path: '/admin/metadata',
-  getParentRoute: () => AuthRoute,
+  id: '/metadata',
+  path: '/metadata',
+  getParentRoute: () => AuthAdminRoute,
 } as any)
 const AuthAdminLogsRoute = AuthAdminLogsRouteImport.update({
-  id: '/admin/logs',
-  path: '/admin/logs',
-  getParentRoute: () => AuthRoute,
+  id: '/logs',
+  path: '/logs',
+  getParentRoute: () => AuthAdminRoute,
 } as any)
 const AuthAdminLibrariesRoute = AuthAdminLibrariesRouteImport.update({
-  id: '/admin/libraries',
-  path: '/admin/libraries',
-  getParentRoute: () => AuthRoute,
+  id: '/libraries',
+  path: '/libraries',
+  getParentRoute: () => AuthAdminRoute,
 } as any)
 const AuthAdminAuditRoute = AuthAdminAuditRouteImport.update({
-  id: '/admin/audit',
-  path: '/admin/audit',
-  getParentRoute: () => AuthRoute,
+  id: '/audit',
+  path: '/audit',
+  getParentRoute: () => AuthAdminRoute,
 } as any)
 const AuthAdminActivityRoute = AuthAdminActivityRouteImport.update({
-  id: '/admin/activity',
-  path: '/admin/activity',
-  getParentRoute: () => AuthRoute,
+  id: '/activity',
+  path: '/activity',
+  getParentRoute: () => AuthAdminRoute,
 } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/login': typeof LoginRoute
   '/setup': typeof SetupRoute
+  '/admin': typeof AuthAdminRouteWithChildren
   '/home': typeof AuthHomeRoute
   '/search': typeof AuthSearchRoute
   '/admin/activity': typeof AuthAdminActivityRoute
@@ -219,6 +226,7 @@ export interface FileRoutesById {
   '/_auth': typeof AuthRouteWithChildren
   '/login': typeof LoginRoute
   '/setup': typeof SetupRoute
+  '/_auth/admin': typeof AuthAdminRouteWithChildren
   '/_auth/home': typeof AuthHomeRoute
   '/_auth/search': typeof AuthSearchRoute
   '/_auth/admin/activity': typeof AuthAdminActivityRoute
@@ -247,6 +255,7 @@ export interface FileRouteTypes {
     | '/'
     | '/login'
     | '/setup'
+    | '/admin'
     | '/home'
     | '/search'
     | '/admin/activity'
@@ -300,6 +309,7 @@ export interface FileRouteTypes {
     | '/_auth'
     | '/login'
     | '/setup'
+    | '/_auth/admin'
     | '/_auth/home'
     | '/_auth/search'
     | '/_auth/admin/activity'
@@ -374,6 +384,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthHomeRouteImport
       parentRoute: typeof AuthRoute
     }
+    '/_auth/admin': {
+      id: '/_auth/admin'
+      path: '/admin'
+      fullPath: '/admin'
+      preLoaderRoute: typeof AuthAdminRouteImport
+      parentRoute: typeof AuthRoute
+    }
     '/_auth/profile/': {
       id: '/_auth/profile/'
       path: '/profile'
@@ -390,10 +407,10 @@ declare module '@tanstack/react-router' {
     }
     '/_auth/admin/': {
       id: '/_auth/admin/'
-      path: '/admin'
+      path: '/'
       fullPath: '/admin/'
       preLoaderRoute: typeof AuthAdminIndexRouteImport
-      parentRoute: typeof AuthRoute
+      parentRoute: typeof AuthAdminRoute
     }
     '/_auth/profile/settings': {
       id: '/_auth/profile/settings'
@@ -446,73 +463,71 @@ declare module '@tanstack/react-router' {
     }
     '/_auth/admin/webhooks': {
       id: '/_auth/admin/webhooks'
-      path: '/admin/webhooks'
+      path: '/webhooks'
       fullPath: '/admin/webhooks'
       preLoaderRoute: typeof AuthAdminWebhooksRouteImport
-      parentRoute: typeof AuthRoute
+      parentRoute: typeof AuthAdminRoute
     }
     '/_auth/admin/users': {
       id: '/_auth/admin/users'
-      path: '/admin/users'
+      path: '/users'
       fullPath: '/admin/users'
       preLoaderRoute: typeof AuthAdminUsersRouteImport
-      parentRoute: typeof AuthRoute
+      parentRoute: typeof AuthAdminRoute
     }
     '/_auth/admin/tasks': {
       id: '/_auth/admin/tasks'
-      path: '/admin/tasks'
+      path: '/tasks'
       fullPath: '/admin/tasks'
       preLoaderRoute: typeof AuthAdminTasksRouteImport
-      parentRoute: typeof AuthRoute
+      parentRoute: typeof AuthAdminRoute
     }
     '/_auth/admin/plugins': {
       id: '/_auth/admin/plugins'
-      path: '/admin/plugins'
+      path: '/plugins'
       fullPath: '/admin/plugins'
       preLoaderRoute: typeof AuthAdminPluginsRouteImport
-      parentRoute: typeof AuthRoute
+      parentRoute: typeof AuthAdminRoute
     }
     '/_auth/admin/metadata': {
       id: '/_auth/admin/metadata'
-      path: '/admin/metadata'
+      path: '/metadata'
       fullPath: '/admin/metadata'
       preLoaderRoute: typeof AuthAdminMetadataRouteImport
-      parentRoute: typeof AuthRoute
+      parentRoute: typeof AuthAdminRoute
     }
     '/_auth/admin/logs': {
       id: '/_auth/admin/logs'
-      path: '/admin/logs'
+      path: '/logs'
       fullPath: '/admin/logs'
       preLoaderRoute: typeof AuthAdminLogsRouteImport
-      parentRoute: typeof AuthRoute
+      parentRoute: typeof AuthAdminRoute
     }
     '/_auth/admin/libraries': {
       id: '/_auth/admin/libraries'
-      path: '/admin/libraries'
+      path: '/libraries'
       fullPath: '/admin/libraries'
       preLoaderRoute: typeof AuthAdminLibrariesRouteImport
-      parentRoute: typeof AuthRoute
+      parentRoute: typeof AuthAdminRoute
     }
     '/_auth/admin/audit': {
       id: '/_auth/admin/audit'
-      path: '/admin/audit'
+      path: '/audit'
       fullPath: '/admin/audit'
       preLoaderRoute: typeof AuthAdminAuditRouteImport
-      parentRoute: typeof AuthRoute
+      parentRoute: typeof AuthAdminRoute
     }
     '/_auth/admin/activity': {
       id: '/_auth/admin/activity'
-      path: '/admin/activity'
+      path: '/activity'
       fullPath: '/admin/activity'
       preLoaderRoute: typeof AuthAdminActivityRouteImport
-      parentRoute: typeof AuthRoute
+      parentRoute: typeof AuthAdminRoute
     }
   }
 }
 
-interface AuthRouteChildren {
-  AuthHomeRoute: typeof AuthHomeRoute
-  AuthSearchRoute: typeof AuthSearchRoute
+interface AuthAdminRouteChildren {
   AuthAdminActivityRoute: typeof AuthAdminActivityRoute
   AuthAdminAuditRoute: typeof AuthAdminAuditRoute
   AuthAdminLibrariesRoute: typeof AuthAdminLibrariesRoute
@@ -522,21 +537,10 @@ interface AuthRouteChildren {
   AuthAdminTasksRoute: typeof AuthAdminTasksRoute
   AuthAdminUsersRoute: typeof AuthAdminUsersRoute
   AuthAdminWebhooksRoute: typeof AuthAdminWebhooksRoute
-  AuthLibraryLibraryIdRoute: typeof AuthLibraryLibraryIdRoute
-  AuthMediaMediaIdRoute: typeof AuthMediaMediaIdRoute
-  AuthPersonPersonIdRoute: typeof AuthPersonPersonIdRoute
-  AuthPlayerMediaIdRoute: typeof AuthPlayerMediaIdRoute
-  AuthProfileHistoryRoute: typeof AuthProfileHistoryRoute
-  AuthProfileNotificationsRoute: typeof AuthProfileNotificationsRoute
-  AuthProfileSettingsRoute: typeof AuthProfileSettingsRoute
   AuthAdminIndexRoute: typeof AuthAdminIndexRoute
-  AuthLibraryIndexRoute: typeof AuthLibraryIndexRoute
-  AuthProfileIndexRoute: typeof AuthProfileIndexRoute
 }
 
-const AuthRouteChildren: AuthRouteChildren = {
-  AuthHomeRoute: AuthHomeRoute,
-  AuthSearchRoute: AuthSearchRoute,
+const AuthAdminRouteChildren: AuthAdminRouteChildren = {
   AuthAdminActivityRoute: AuthAdminActivityRoute,
   AuthAdminAuditRoute: AuthAdminAuditRoute,
   AuthAdminLibrariesRoute: AuthAdminLibrariesRoute,
@@ -546,6 +550,32 @@ const AuthRouteChildren: AuthRouteChildren = {
   AuthAdminTasksRoute: AuthAdminTasksRoute,
   AuthAdminUsersRoute: AuthAdminUsersRoute,
   AuthAdminWebhooksRoute: AuthAdminWebhooksRoute,
+  AuthAdminIndexRoute: AuthAdminIndexRoute,
+}
+
+const AuthAdminRouteWithChildren = AuthAdminRoute._addFileChildren(
+  AuthAdminRouteChildren,
+)
+
+interface AuthRouteChildren {
+  AuthAdminRoute: typeof AuthAdminRouteWithChildren
+  AuthHomeRoute: typeof AuthHomeRoute
+  AuthSearchRoute: typeof AuthSearchRoute
+  AuthLibraryLibraryIdRoute: typeof AuthLibraryLibraryIdRoute
+  AuthMediaMediaIdRoute: typeof AuthMediaMediaIdRoute
+  AuthPersonPersonIdRoute: typeof AuthPersonPersonIdRoute
+  AuthPlayerMediaIdRoute: typeof AuthPlayerMediaIdRoute
+  AuthProfileHistoryRoute: typeof AuthProfileHistoryRoute
+  AuthProfileNotificationsRoute: typeof AuthProfileNotificationsRoute
+  AuthProfileSettingsRoute: typeof AuthProfileSettingsRoute
+  AuthLibraryIndexRoute: typeof AuthLibraryIndexRoute
+  AuthProfileIndexRoute: typeof AuthProfileIndexRoute
+}
+
+const AuthRouteChildren: AuthRouteChildren = {
+  AuthAdminRoute: AuthAdminRouteWithChildren,
+  AuthHomeRoute: AuthHomeRoute,
+  AuthSearchRoute: AuthSearchRoute,
   AuthLibraryLibraryIdRoute: AuthLibraryLibraryIdRoute,
   AuthMediaMediaIdRoute: AuthMediaMediaIdRoute,
   AuthPersonPersonIdRoute: AuthPersonPersonIdRoute,
@@ -553,7 +583,6 @@ const AuthRouteChildren: AuthRouteChildren = {
   AuthProfileHistoryRoute: AuthProfileHistoryRoute,
   AuthProfileNotificationsRoute: AuthProfileNotificationsRoute,
   AuthProfileSettingsRoute: AuthProfileSettingsRoute,
-  AuthAdminIndexRoute: AuthAdminIndexRoute,
   AuthLibraryIndexRoute: AuthLibraryIndexRoute,
   AuthProfileIndexRoute: AuthProfileIndexRoute,
 }

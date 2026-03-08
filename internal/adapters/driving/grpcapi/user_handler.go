@@ -3,6 +3,7 @@ package grpcapi
 import (
 	"context"
 	"fmt"
+	"log/slog"
 
 	eveyv1 "github.com/gravity-zero/evey/gen/evey/v1"
 	"github.com/gravity-zero/evey/internal/adapters/driving/grpcapi/interceptors"
@@ -73,7 +74,8 @@ func (h *userHandler) Logout(ctx context.Context, _ *eveyv1.LogoutRequest) (*eve
 		return nil, status.Error(codes.Unauthenticated, "not authenticated")
 	}
 	if err := h.svc.Logout(ctx, claims.UserID); err != nil {
-		return nil, status.Errorf(codes.Internal, "%v", err)
+		slog.Error("logout", slog.Any("err", err))
+		return nil, status.Errorf(codes.Internal, "internal error")
 	}
 	return &eveyv1.LogoutResponse{}, nil
 }
@@ -128,14 +130,16 @@ func (h *userHandler) UpdateUser(ctx context.Context, req *eveyv1.UpdateUserRequ
 		u.MaxStreams = &ms
 	}
 	if err := h.svc.UpdateUser(ctx, u); err != nil {
-		return nil, status.Errorf(codes.Internal, "%v", err)
+		slog.Error("update user", slog.Any("err", err))
+		return nil, status.Errorf(codes.Internal, "internal error")
 	}
 	return userToProto(u), nil
 }
 
 func (h *userHandler) DeleteUser(ctx context.Context, req *eveyv1.DeleteUserRequest) (*eveyv1.DeleteUserResponse, error) {
 	if err := h.svc.DeleteUser(ctx, req.Id); err != nil {
-		return nil, status.Errorf(codes.Internal, "%v", err)
+		slog.Error("delete user", slog.Any("err", err))
+		return nil, status.Errorf(codes.Internal, "internal error")
 	}
 	claims := interceptors.ClaimsFromContext(ctx)
 	callerID := req.Id
@@ -148,7 +152,8 @@ func (h *userHandler) DeleteUser(ctx context.Context, req *eveyv1.DeleteUserRequ
 
 func (h *userHandler) DisableUser(ctx context.Context, req *eveyv1.DisableUserRequest) (*eveyv1.User, error) {
 	if err := h.svc.DisableUser(ctx, req.Id); err != nil {
-		return nil, status.Errorf(codes.Internal, "%v", err)
+		slog.Error("disable user", slog.Any("err", err))
+		return nil, status.Errorf(codes.Internal, "internal error")
 	}
 	claims := interceptors.ClaimsFromContext(ctx)
 	callerID := req.Id
@@ -166,7 +171,8 @@ func (h *userHandler) DisableUser(ctx context.Context, req *eveyv1.DisableUserRe
 func (h *userHandler) ListUsers(ctx context.Context, _ *eveyv1.ListUsersRequest) (*eveyv1.ListUsersResponse, error) {
 	users, err := h.svc.ListUsers(ctx)
 	if err != nil {
-		return nil, status.Errorf(codes.Internal, "%v", err)
+		slog.Error("list users", slog.Any("err", err))
+		return nil, status.Errorf(codes.Internal, "internal error")
 	}
 	resp := &eveyv1.ListUsersResponse{}
 	for _, u := range users {
@@ -189,7 +195,8 @@ func (h *userHandler) CreateProfile(ctx context.Context, req *eveyv1.CreateProfi
 		p.MaxRating = &req.MaxRating
 	}
 	if err := h.svc.CreateProfile(ctx, p); err != nil {
-		return nil, status.Errorf(codes.Internal, "%v", err)
+		slog.Error("create profile", slog.Any("err", err))
+		return nil, status.Errorf(codes.Internal, "internal error")
 	}
 	return profileToProto(p), nil
 }
@@ -209,14 +216,16 @@ func (h *userHandler) UpdateProfile(ctx context.Context, req *eveyv1.UpdateProfi
 		p.MaxRating = req.MaxRating
 	}
 	if err := h.svc.UpdateProfile(ctx, p); err != nil {
-		return nil, status.Errorf(codes.Internal, "%v", err)
+		slog.Error("update profile", slog.Any("err", err))
+		return nil, status.Errorf(codes.Internal, "internal error")
 	}
 	return profileToProto(p), nil
 }
 
 func (h *userHandler) DeleteProfile(ctx context.Context, req *eveyv1.DeleteProfileRequest) (*eveyv1.DeleteProfileResponse, error) {
 	if err := h.svc.DeleteProfile(ctx, req.Id); err != nil {
-		return nil, status.Errorf(codes.Internal, "%v", err)
+		slog.Error("delete profile", slog.Any("err", err))
+		return nil, status.Errorf(codes.Internal, "internal error")
 	}
 	return &eveyv1.DeleteProfileResponse{}, nil
 }
@@ -224,7 +233,8 @@ func (h *userHandler) DeleteProfile(ctx context.Context, req *eveyv1.DeleteProfi
 func (h *userHandler) ListProfiles(ctx context.Context, req *eveyv1.ListProfilesRequest) (*eveyv1.ListProfilesResponse, error) {
 	profiles, err := h.svc.ListProfiles(ctx, req.UserId)
 	if err != nil {
-		return nil, status.Errorf(codes.Internal, "%v", err)
+		slog.Error("list profiles", slog.Any("err", err))
+		return nil, status.Errorf(codes.Internal, "internal error")
 	}
 	resp := &eveyv1.ListProfilesResponse{}
 	for _, p := range profiles {
@@ -241,12 +251,13 @@ func (h *userHandler) CreateInviteLink(ctx context.Context, req *eveyv1.CreateIn
 	link := &user.InviteLink{
 		ID:        fmt.Sprintf("inv-%d", nowUnixNano()),
 		CreatedBy: claims.UserID,
-		Token:     fmt.Sprintf("inv-tok-%d", nowUnixNano()),
+		Token:     secureToken("inv-tok-", 16),
 		MaxUses:   int(req.MaxUses),
 		ExpiresAt: fromTimestamppbPtr(req.ExpiresAt),
 	}
 	if err := h.svc.CreateInviteLink(ctx, link); err != nil {
-		return nil, status.Errorf(codes.Internal, "%v", err)
+		slog.Error("create invite link", slog.Any("err", err))
+		return nil, status.Errorf(codes.Internal, "internal error")
 	}
 	return inviteLinkToProto(link), nil
 }
@@ -259,7 +270,8 @@ func (h *userHandler) ListInviteLinks(ctx context.Context, _ *eveyv1.ListInviteL
 	}
 	links, err := h.svc.ListInviteLinks(ctx, creatorID)
 	if err != nil {
-		return nil, status.Errorf(codes.Internal, "%v", err)
+		slog.Error("list invite links", slog.Any("err", err))
+		return nil, status.Errorf(codes.Internal, "internal error")
 	}
 	resp := &eveyv1.ListInviteLinksResponse{}
 	for _, l := range links {
@@ -270,7 +282,8 @@ func (h *userHandler) ListInviteLinks(ctx context.Context, _ *eveyv1.ListInviteL
 
 func (h *userHandler) RevokeInviteLink(ctx context.Context, req *eveyv1.RevokeInviteLinkRequest) (*eveyv1.RevokeInviteLinkResponse, error) {
 	if err := h.svc.RevokeInviteLink(ctx, req.Id); err != nil {
-		return nil, status.Errorf(codes.Internal, "%v", err)
+		slog.Error("revoke invite link", slog.Any("err", err))
+		return nil, status.Errorf(codes.Internal, "internal error")
 	}
 	return &eveyv1.RevokeInviteLinkResponse{}, nil
 }
@@ -294,12 +307,13 @@ func (h *userHandler) RegisterWithInvite(ctx context.Context, req *eveyv1.Regist
 func (h *userHandler) InitiateQuickConnect(ctx context.Context, _ *eveyv1.InitiateQuickConnectRequest) (*eveyv1.QuickConnectResponse, error) {
 	qc := &user.QuickConnectRequest{
 		ID:     fmt.Sprintf("qc-%d", nowUnixNano()),
-		Code:   fmt.Sprintf("qc-code-%d", nowUnixNano()),
-		Secret: fmt.Sprintf("qc-secret-%d", nowUnixNano()),
+		Code:   secureToken("qc-code-", 16),
+		Secret: secureToken("qc-secret-", 16),
 		Status: string(user.Pending),
 	}
 	if err := h.svc.InitiateQuickConnect(ctx, qc); err != nil {
-		return nil, status.Errorf(codes.Internal, "%v", err)
+		slog.Error("initiate quick connect", slog.Any("err", err))
+		return nil, status.Errorf(codes.Internal, "internal error")
 	}
 	return quickConnectToProto(qc), nil
 }
@@ -310,7 +324,8 @@ func (h *userHandler) AuthorizeQuickConnect(ctx context.Context, req *eveyv1.Aut
 		return nil, status.Error(codes.Unauthenticated, "not authenticated")
 	}
 	if err := h.svc.AuthorizeQuickConnect(ctx, req.Code, claims.UserID); err != nil {
-		return nil, status.Errorf(codes.Internal, "%v", err)
+		slog.Error("authorize quick connect", slog.Any("err", err))
+		return nil, status.Errorf(codes.Internal, "internal error")
 	}
 	return &eveyv1.AuthorizeQuickConnectResponse{}, nil
 }
@@ -336,7 +351,8 @@ func (h *userHandler) CreateAPIKey(ctx context.Context, req *eveyv1.CreateAPIKey
 		Name:   req.Name,
 	}
 	if err := h.svc.CreateAPIKey(ctx, key); err != nil {
-		return nil, status.Errorf(codes.Internal, "%v", err)
+		slog.Error("create api key", slog.Any("err", err))
+		return nil, status.Errorf(codes.Internal, "internal error")
 	}
 	return apiKeyToProto(key), nil
 }
@@ -348,7 +364,8 @@ func (h *userHandler) ListAPIKeys(ctx context.Context, _ *eveyv1.ListAPIKeysRequ
 	}
 	keys, err := h.svc.ListAPIKeys(ctx, claims.UserID)
 	if err != nil {
-		return nil, status.Errorf(codes.Internal, "%v", err)
+		slog.Error("list api keys", slog.Any("err", err))
+		return nil, status.Errorf(codes.Internal, "internal error")
 	}
 	resp := &eveyv1.ListAPIKeysResponse{}
 	for _, k := range keys {
@@ -359,7 +376,8 @@ func (h *userHandler) ListAPIKeys(ctx context.Context, _ *eveyv1.ListAPIKeysRequ
 
 func (h *userHandler) RevokeAPIKey(ctx context.Context, req *eveyv1.RevokeAPIKeyRequest) (*eveyv1.RevokeAPIKeyResponse, error) {
 	if err := h.svc.RevokeAPIKey(ctx, req.Id); err != nil {
-		return nil, status.Errorf(codes.Internal, "%v", err)
+		slog.Error("revoke api key", slog.Any("err", err))
+		return nil, status.Errorf(codes.Internal, "internal error")
 	}
 	return &eveyv1.RevokeAPIKeyResponse{}, nil
 }

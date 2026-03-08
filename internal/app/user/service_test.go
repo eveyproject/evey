@@ -36,7 +36,7 @@ func TestSetup(t *testing.T) {
 	assert.Equal(t, "admin", u.Username)
 	assert.True(t, u.IsAdmin)
 
-	_, err = svc.Setup(context.Background(), "admin2", "pass", "a2@evey.local")
+	_, err = svc.Setup(context.Background(), "admin2", "password456", "a2@evey.local")
 	assert.ErrorIs(t, err, appuser.ErrSetupDone)
 }
 

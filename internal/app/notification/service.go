@@ -59,6 +59,11 @@ func (s *Service) handleMediaItemAdded(_ context.Context, ev shared.Event) {
 
 	dedupeKey := fmt.Sprintf("%s:%s", e.Type, e.MediaItemID)
 	s.mu.Lock()
+	for k, t := range s.dedupe {
+		if time.Since(t) >= dedupeWindow {
+			delete(s.dedupe, k)
+		}
+	}
 	if last, exists := s.dedupe[dedupeKey]; exists && time.Since(last) < dedupeWindow {
 		s.mu.Unlock()
 		return

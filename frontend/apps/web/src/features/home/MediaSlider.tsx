@@ -1,9 +1,11 @@
 import { useRef, useState } from "react";
 import type { ReactNode } from "react";
+import { Link } from "@tanstack/react-router";
 
 interface MediaSliderProps {
   title: string;
   seeAllHref?: string;
+  seeAllParams?: Record<string, string>;
   children: ReactNode;
   isLoading?: boolean;
   skeletonCount?: number;
@@ -32,6 +34,7 @@ function SkeletonCard() {
 export function MediaSlider({
   title,
   seeAllHref,
+  seeAllParams,
   children,
   isLoading,
   skeletonCount = 6,
@@ -61,13 +64,14 @@ export function MediaSlider({
           {title}
         </h2>
         {seeAllHref && (
-          <a
-            href={seeAllHref}
+          <Link
+            to={seeAllHref}
+            params={seeAllParams as never}
             className="text-sm transition-colors"
             style={{ color: "var(--accent)" }}
           >
             See all →
-          </a>
+          </Link>
         )}
       </div>
 

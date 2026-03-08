@@ -363,7 +363,9 @@ func run() error {
 
 	grpcSrv.Stop()
 	if httpSrv != nil {
-		httpSrv.Shutdown(context.Background())
+		shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer shutdownCancel()
+		httpSrv.Shutdown(shutdownCtx)
 	}
 	rootLog.Info("shutdown complete")
 	return nil
@@ -409,6 +411,7 @@ func mediaHandler(tokens interface {
 				http.Error(w, `{"message":"not found"}`, http.StatusNotFound)
 				return
 			}
+			w.Header().Set("Access-Control-Allow-Origin", "*")
 			http.ServeFile(w, r, item.FilePath)
 
 		case "artwork":
@@ -430,6 +433,7 @@ func mediaHandler(tokens interface {
 				http.NotFound(w, r)
 				return
 			}
+			w.Header().Set("Access-Control-Allow-Origin", "*")
 			http.Redirect(w, r, url, http.StatusFound)
 
 		default:
@@ -458,6 +462,13 @@ func browseDirsHandler(tokens interface {
 		}
 
 		dir := r.URL.Query().Get("path")
+		if dir != "" {
+			dir = filepath.Clean(dir)
+			if strings.Contains(dir, "..") {
+				http.Error(w, `{"message":"invalid path"}`, http.StatusBadRequest)
+				return
+			}
+		}
 
 		skip := map[string]bool{"cdrom": true, "floppy": true, "usb": true, "sr0": true, "proc": true, "sys": true, "dev": true}
 		result := []entry{}
@@ -529,7 +540,7 @@ func loadOrGenerateRSAKey(path string) (*rsa.PrivateKey, error) {
 	if err != nil {
 		return nil, err
 	}
-	f, err := os.Create(path)
+	f, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0600)
 	if err != nil {
 		slog.Warn("cannot save RSA key, using ephemeral", slog.String("path", path), slog.Any("err", err))
 		return key, nil
@@ -717,6 +728,7 @@ func transcodeHandler(tokenGen interface {
 		cmd.Stdout = w
 		w.Header().Set("Content-Type", "video/mp4")
 		w.Header().Set("Cache-Control", "no-cache")
+		w.Header().Set("Access-Control-Allow-Origin", "*")
 		if err := cmd.Start(); err != nil {
 			slog.Error("ffmpeg start", slog.Any("err", err))
 			return

@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import {
   useFeedServiceContinueWatching,
@@ -8,7 +8,6 @@ import {
 } from "@evey/api";
 import { MediaSlider } from "../../features/home/MediaSlider";
 import { MediaCard } from "../../features/library/MediaCard";
-import { FeedItemCard } from "../../features/home/FeedItemCard";
 
 export const Route = createFileRoute("/_auth/home")({
   component: HomePage,
@@ -20,12 +19,11 @@ function HeroBanner() {
   const { data, isLoading } = useFeedServiceRecentlyAdded();
   const items = data?.items ?? [];
 
-  const hero = useMemo(() => {
-    // pick first item that has a mediaItemId (backdrop fetched via API)
-    const candidates = items.filter((i) => !!i.mediaItemId);
-    if (!candidates.length) return null;
-    return candidates[Math.floor(Math.random() * candidates.length)];
-  }, [items]);
+  const [heroIndex] = useState(() => Math.floor(Math.random() * 1000));
+  const candidates = items.filter((i) => !!i.mediaItemId);
+  const hero = candidates.length
+    ? candidates[heroIndex % candidates.length]
+    : null;
 
   if (isLoading) {
     return (
@@ -39,7 +37,6 @@ function HeroBanner() {
   if (!hero || !hero.mediaItemId) return null;
 
   const backdropUrl = `/api/v1/media/${hero.mediaItemId}/artwork/backdrop`;
-  const playerHref = `/player/${hero.mediaItemId}`;
 
   return (
     <div
@@ -82,8 +79,9 @@ function HeroBanner() {
         </h1>
 
         <div className="flex gap-3 mt-4">
-          <a
-            href={playerHref}
+          <Link
+            to="/player/$mediaId"
+            params={{ mediaId: hero.mediaItemId }}
             className="flex items-center gap-2 px-5 py-2.5 rounded-[var(--radius-md)] font-semibold text-sm transition-opacity hover:opacity-90"
             style={{ backgroundColor: "var(--accent)", color: "#fff" }}
           >
@@ -91,7 +89,7 @@ function HeroBanner() {
               <path d="M6.3 2.8L17 10 6.3 17.2V2.8z" />
             </svg>
             Play
-          </a>
+          </Link>
           <Link
             to="/media/$mediaId"
             params={{ mediaId: hero.mediaItemId }}
@@ -166,7 +164,11 @@ function ContinueWatchingSlider() {
   return (
     <MediaSlider title="Continue Watching" isLoading={isLoading}>
       {items.map((item) => (
-        <FeedItemCard key={item.mediaItemId} item={item} showProgress />
+        <MediaCard
+          key={item.mediaItemId}
+          item={{ id: item.mediaItemId, title: item.title, type: item.type }}
+          showYear={false}
+        />
       ))}
     </MediaSlider>
   );
@@ -179,7 +181,12 @@ function RecentlyAddedSlider() {
   return (
     <MediaSlider title="Recently Added" isLoading={isLoading}>
       {items.map((item) => (
-        <FeedItemCard key={item.mediaItemId} item={item} />
+        <MediaCard
+          key={item.mediaItemId}
+          item={{ id: item.mediaItemId, title: item.title, type: item.type }}
+          showYear={false}
+          showType
+        />
       ))}
     </MediaSlider>
   );

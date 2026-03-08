@@ -3,6 +3,7 @@ import {
   usePlaybackServiceMarkAsUnwatched,
   getPlaybackServiceGetWatchHistoryQueryKey,
 } from "@evey/api";
+import { Link } from "@tanstack/react-router";
 import { useQueryClient } from "@tanstack/react-query";
 import { Badge } from "@/components/ui/Badge";
 
@@ -55,12 +56,13 @@ function HistoryItem({ item }: { item: WatchProgress }) {
   return (
     <div className="flex items-center justify-between gap-4 py-3 border-b border-[var(--border)] last:border-0">
       <div className="flex-1 min-w-0">
-        <a
-          href={`/library/${item.mediaItemId}`}
+        <Link
+          to="/media/$mediaId"
+          params={{ mediaId: item.mediaItemId ?? "" }}
           className="text-sm font-medium text-[var(--text)] hover:text-[var(--accent)] transition-colors truncate block"
         >
-          {item.mediaItemId}
-        </a>
+          Media item{item.playCount && item.playCount > 1 ? ` (${item.playCount} plays)` : ""}
+        </Link>
         <p className="text-xs text-[var(--text-muted)] mt-0.5">{formatDate(item.lastPlayedAt)}</p>
         <div className="mt-1.5 w-32">
           <ProgressBar percent={pct} />

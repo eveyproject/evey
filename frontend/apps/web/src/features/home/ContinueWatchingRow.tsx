@@ -1,6 +1,6 @@
 import { useFeedServiceContinueWatching } from "@evey/api";
 import { FeedSection } from "./FeedSection";
-import { FeedItemCard } from "./FeedItemCard";
+import { MediaCard } from "../library/MediaCard";
 
 export function ContinueWatchingRow() {
   const { data, isLoading } = useFeedServiceContinueWatching();
@@ -11,7 +11,11 @@ export function ContinueWatchingRow() {
   return (
     <FeedSection title="Continue Watching" isLoading={isLoading}>
       {items.map((item) => (
-        <FeedItemCard key={item.mediaItemId} item={item} showProgress />
+        <MediaCard
+          key={item.mediaItemId}
+          item={{ id: item.mediaItemId, title: item.title, type: item.type }}
+          showYear={false}
+        />
       ))}
     </FeedSection>
   );

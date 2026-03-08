@@ -10,6 +10,9 @@ interface AuthLayoutProps {
 export function AuthLayout({ children }: AuthLayoutProps) {
   const { location } = useRouterState();
   const isHome = location.pathname === "/home";
+  const isPlayer = location.pathname.startsWith("/player/");
+
+  if (isPlayer) return <>{children}</>;
 
   return (
     <div className="flex h-screen overflow-hidden">

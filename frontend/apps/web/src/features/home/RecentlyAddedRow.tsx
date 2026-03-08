@@ -1,6 +1,6 @@
 import { useFeedServiceRecentlyAdded } from "@evey/api";
 import { FeedSection } from "./FeedSection";
-import { FeedItemCard } from "./FeedItemCard";
+import { MediaCard } from "../library/MediaCard";
 
 export function RecentlyAddedRow() {
   const { data, isLoading } = useFeedServiceRecentlyAdded();
@@ -11,7 +11,12 @@ export function RecentlyAddedRow() {
   return (
     <FeedSection title="Recently Added" isLoading={isLoading}>
       {items.map((item) => (
-        <FeedItemCard key={item.mediaItemId} item={item} />
+        <MediaCard
+          key={item.mediaItemId}
+          item={{ id: item.mediaItemId, title: item.title, type: item.type }}
+          showYear={false}
+          showType
+        />
       ))}
     </FeedSection>
   );

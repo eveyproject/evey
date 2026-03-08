@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"log/slog"
 
 	eveyv1 "github.com/gravity-zero/evey/gen/evey/v1"
 	"github.com/gravity-zero/evey/internal/adapters/driving/grpcapi/interceptors"
@@ -58,14 +59,16 @@ func (h *playbackHandler) StartStream(ctx context.Context, req *eveyv1.StartStre
 		DeviceType:  req.ClientName,
 	}
 	if err := h.svc.StartStream(ctx, session, claims.UserID); err != nil {
-		return nil, status.Errorf(codes.Internal, "%v", err)
+		slog.Error("start stream", slog.Any("err", err))
+		return nil, status.Errorf(codes.Internal, "internal error")
 	}
 	return playSessionToProto(session), nil
 }
 
 func (h *playbackHandler) StopStream(ctx context.Context, req *eveyv1.StopStreamRequest) (*eveyv1.StopStreamResponse, error) {
 	if err := h.svc.StopStream(ctx, req.SessionId); err != nil {
-		return nil, status.Errorf(codes.Internal, "%v", err)
+		slog.Error("stop stream", slog.Any("err", err))
+		return nil, status.Errorf(codes.Internal, "internal error")
 	}
 	return &eveyv1.StopStreamResponse{}, nil
 }
@@ -76,7 +79,8 @@ func (h *playbackHandler) ReportProgress(ctx context.Context, req *eveyv1.Report
 		return nil, status.Error(codes.Unauthenticated, "not authenticated")
 	}
 	if err := h.svc.ReportProgressBySession(ctx, req.SessionId, req.PositionMs); err != nil {
-		return nil, status.Errorf(codes.Internal, "%v", err)
+		slog.Error("report progress", slog.Any("err", err))
+		return nil, status.Errorf(codes.Internal, "internal error")
 	}
 	return &eveyv1.ReportProgressResponse{}, nil
 }
@@ -93,7 +97,8 @@ func (h *playbackHandler) GetWatchProgress(ctx context.Context, req *eveyv1.GetW
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, status.Error(codes.NotFound, "watch progress not found")
 		}
-		return nil, status.Errorf(codes.Internal, "%v", err)
+		slog.Error("get watch progress", slog.Any("err", err))
+		return nil, status.Errorf(codes.Internal, "internal error")
 	}
 	return watchProgressToProto(wp), nil
 }
@@ -110,7 +115,8 @@ func (h *playbackHandler) GetWatchHistory(ctx context.Context, req *eveyv1.GetWa
 	}
 	items, err := h.svc.GetWatchHistory(ctx, req.ProfileId, limit, offset)
 	if err != nil {
-		return nil, status.Errorf(codes.Internal, "%v", err)
+		slog.Error("get watch history", slog.Any("err", err))
+		return nil, status.Errorf(codes.Internal, "internal error")
 	}
 	resp := &eveyv1.GetWatchHistoryResponse{}
 	for _, wp := range items {
@@ -126,7 +132,8 @@ func (h *playbackHandler) GetResumeItems(ctx context.Context, req *eveyv1.GetRes
 	}
 	items, err := h.svc.GetResumeItems(ctx, req.ProfileId, limit)
 	if err != nil {
-		return nil, status.Errorf(codes.Internal, "%v", err)
+		slog.Error("get resume items", slog.Any("err", err))
+		return nil, status.Errorf(codes.Internal, "internal error")
 	}
 	resp := &eveyv1.GetResumeItemsResponse{}
 	for _, wp := range items {
@@ -142,7 +149,8 @@ func (h *playbackHandler) GetNextUp(ctx context.Context, req *eveyv1.GetNextUpRe
 	}
 	progresses, err := h.svc.GetNextUp(ctx, req.ProfileId, limit)
 	if err != nil {
-		return nil, status.Errorf(codes.Internal, "%v", err)
+		slog.Error("get next up", slog.Any("err", err))
+		return nil, status.Errorf(codes.Internal, "internal error")
 	}
 	resp := &eveyv1.GetNextUpResponse{}
 	for _, wp := range progresses {
@@ -157,14 +165,16 @@ func (h *playbackHandler) GetNextUp(ctx context.Context, req *eveyv1.GetNextUpRe
 
 func (h *playbackHandler) MarkAsWatched(ctx context.Context, req *eveyv1.MarkAsWatchedRequest) (*eveyv1.MarkAsWatchedResponse, error) {
 	if err := h.svc.MarkAsWatched(ctx, req.ProfileId, req.MediaItemId); err != nil {
-		return nil, status.Errorf(codes.Internal, "%v", err)
+		slog.Error("mark as watched", slog.Any("err", err))
+		return nil, status.Errorf(codes.Internal, "internal error")
 	}
 	return &eveyv1.MarkAsWatchedResponse{}, nil
 }
 
 func (h *playbackHandler) MarkAsUnwatched(ctx context.Context, req *eveyv1.MarkAsUnwatchedRequest) (*eveyv1.MarkAsUnwatchedResponse, error) {
 	if err := h.svc.MarkAsUnwatched(ctx, req.ProfileId, req.MediaItemId); err != nil {
-		return nil, status.Errorf(codes.Internal, "%v", err)
+		slog.Error("mark as unwatched", slog.Any("err", err))
+		return nil, status.Errorf(codes.Internal, "internal error")
 	}
 	return &eveyv1.MarkAsUnwatchedResponse{}, nil
 }

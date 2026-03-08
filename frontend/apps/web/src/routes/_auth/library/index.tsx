@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useLibraryServiceListLibraries } from "@evey/api";
 import type { V1Library, V1LibraryType } from "@evey/api/src/generated/library.schemas";
 import { Spinner } from "@/components/ui/Spinner";
@@ -24,8 +24,9 @@ function LibraryCard({ library }: { library: V1Library }) {
   const pathCount = library.paths?.length ?? 0;
 
   return (
-    <a
-      href={`/library/${library.id}`}
+    <Link
+      to="/library/$libraryId"
+      params={{ libraryId: library.id ?? "" }}
       className="block p-5 transition-colors"
       style={{
         backgroundColor: "var(--surface)",
@@ -48,7 +49,7 @@ function LibraryCard({ library }: { library: V1Library }) {
       <p className="text-sm" style={{ color: "var(--text-muted)" }}>
         {pathCount} {pathCount === 1 ? "path" : "paths"}
       </p>
-    </a>
+    </Link>
   );
 }
 
@@ -80,9 +81,9 @@ function LibraryIndex() {
           </p>
           <p style={{ color: "var(--text-muted)" }}>
             Go to{" "}
-            <a href="/admin/libraries" style={{ color: "var(--accent)" }}>
+            <Link to="/admin/libraries" style={{ color: "var(--accent)" }}>
               Admin
-            </a>{" "}
+            </Link>{" "}
             to add one.
           </p>
         </div>

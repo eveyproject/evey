@@ -84,7 +84,12 @@ func (s *Service) deliver(cfg *webhook.Config, eventName string, payload interfa
 			time.Sleep(retryDelays[attempt-1])
 		}
 
-		req, _ := http.NewRequest(http.MethodPost, cfg.URL, bytes.NewReader(body))
+		req, err := http.NewRequest(http.MethodPost, cfg.URL, bytes.NewReader(body))
+		if err != nil {
+			s.log.Error("webhook: bad URL", slog.String("webhook", cfg.ID), slog.Any("err", err))
+			lastErr = err.Error()
+			continue
+		}
 		req.Header.Set("Content-Type", "application/json")
 		req.Header.Set("X-Evey-Signature", sign(cfg.Secret, body))
 		for k, v := range cfg.Headers {
