@@ -5,9 +5,15 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/gravity-zero/evey/internal/domain/library"
 	"github.com/gravity-zero/evey/internal/domain/metadata"
 	"github.com/gravity-zero/evey/internal/domain/shared"
 )
+
+// ItemEnricher persists metadata results (artwork, people) for a media item.
+type ItemEnricher interface {
+	EnrichItem(ctx context.Context, item *library.MediaItem, result *metadata.MetadataResult) error
+}
 
 type Service struct {
 	overrides  metadata.MetadataOverrideRepository
@@ -15,6 +21,8 @@ type Service struct {
 	downloader metadata.ArtworkDownloader
 	events     shared.EventBus
 	providers  []metadata.MetadataProvider
+	mediaItems library.MediaItemRepository
+	enricher   ItemEnricher
 }
 
 func NewService(
@@ -31,6 +39,12 @@ func NewService(
 		events:     events,
 		providers:  providers,
 	}
+}
+
+// WithEnricher sets the enricher and media item repo (optional, used for RefreshItemMetadata).
+func (s *Service) WithEnricher(enricher ItemEnricher, mediaItems library.MediaItemRepository) {
+	s.enricher = enricher
+	s.mediaItems = mediaItems
 }
 
 func (s *Service) SearchMetadata(ctx context.Context, query, mediaType string) ([]metadata.MetadataResult, error) {
@@ -62,6 +76,38 @@ func (s *Service) RefreshMetadata(ctx context.Context, mediaItemID, providerID, 
 		return result, nil
 	}
 	return nil, fmt.Errorf("provider %s not found", providerName)
+}
+
+// RefreshItemMetadata fetches fresh metadata from tmdbID and persists artwork/people.
+func (s *Service) RefreshItemMetadata(ctx context.Context, mediaItemID, tmdbID, mediaType string) error {
+	if s.enricher == nil || s.mediaItems == nil {
+		return fmt.Errorf("enricher not configured")
+	}
+	item, err := s.mediaItems.GetByID(ctx, mediaItemID)
+	if err != nil {
+		return fmt.Errorf("get media item: %w", err)
+	}
+	var result *metadata.MetadataResult
+	for _, p := range s.providers {
+		r, err := p.GetByProviderID(ctx, tmdbID, mediaType)
+		if err != nil {
+			continue
+		}
+		result = r
+		break
+	}
+	if result == nil {
+		return fmt.Errorf("no provider returned metadata for tmdb id %s", tmdbID)
+	}
+	if err := s.enricher.EnrichItem(ctx, item, result); err != nil {
+		return fmt.Errorf("enrich item: %w", err)
+	}
+	s.events.Publish(ctx, metadata.MetadataRefreshed{
+		MediaItemID: mediaItemID,
+		Provider:    "tmdb",
+		OccurredAt:  time.Now(),
+	})
+	return nil
 }
 
 func (s *Service) SetOverride(ctx context.Context, override *metadata.MetadataOverride) error {

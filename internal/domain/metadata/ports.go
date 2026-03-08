@@ -20,6 +20,7 @@ type ArtworkRepository interface {
 	GetByMediaItem(ctx context.Context, mediaItemID string) ([]*ArtworkRecord, error)
 	GetByPerson(ctx context.Context, personID string) ([]*ArtworkRecord, error)
 	Delete(ctx context.Context, id string) error
+	DeleteByMediaItemID(ctx context.Context, mediaItemID string) error
 }
 
 type ArtworkDownloader interface {

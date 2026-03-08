@@ -56,3 +56,14 @@ func (r *FakeArtworkRepository) Delete(_ context.Context, id string) error {
 	delete(r.items, id)
 	return nil
 }
+
+func (r *FakeArtworkRepository) DeleteByMediaItemID(_ context.Context, mediaItemID string) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	for id, a := range r.items {
+		if a.MediaItemID == mediaItemID {
+			delete(r.items, id)
+		}
+	}
+	return nil
+}

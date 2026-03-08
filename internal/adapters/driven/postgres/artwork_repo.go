@@ -51,6 +51,11 @@ func (r *ArtworkRepository) Delete(ctx context.Context, id string) error {
 	return err
 }
 
+func (r *ArtworkRepository) DeleteByMediaItemID(ctx context.Context, mediaItemID string) error {
+	_, err := r.db.ExecContext(ctx, `DELETE FROM artwork WHERE media_item_id = $1`, mediaItemID)
+	return err
+}
+
 func (r *ArtworkRepository) scanArtworkRows(rows *sql.Rows) ([]*metadata.ArtworkRecord, error) {
 	var result []*metadata.ArtworkRecord
 	for rows.Next() {
