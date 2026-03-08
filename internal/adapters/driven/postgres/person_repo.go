@@ -67,6 +67,9 @@ func (r *PersonRepository) scanPerson(row *sql.Row) (*library.Person, error) {
 	person := &library.Person{}
 	var providerJSON []byte
 	err := row.Scan(&person.ID, &person.Name, &providerJSON, &person.ThumbPath)
+	if err == sql.ErrNoRows {
+		return nil, library.ErrNotFound
+	}
 	if err != nil {
 		return nil, err
 	}

@@ -21,7 +21,7 @@ services:
       EVEY_MEILI_API_KEY: ${MEILI_MASTER_KEY:-changeme}
       EVEY_JWT_PRIVATE_KEY_PATH: /data/jwt.key
       EVEY_TRANSCODING_CACHE_DIR: /data/transcode
-      EVEY_TMDB_API_KEY: ${EVEY_TMDB_API_KEY:-}
+
     volumes:
       - ..:/app
       - evey-data:/data
