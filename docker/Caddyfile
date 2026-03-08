@@ -1,6 +1,6 @@
 {$EVEY_DOMAIN:localhost} {
 	handle /api/* {
-		reverse_proxy evey:8081
+		reverse_proxy evey-prod:9091
 	}
 
 	handle {

@@ -11,6 +11,7 @@ go.work
 go.work.sum
 
 .env
+.env.dev
 .env.local
 .env.*.local
 

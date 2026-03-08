@@ -1,9 +1,9 @@
-.PHONY: proto-gen build test lint docker-build docker-up docker-down clean \
-	migrate-up migrate-down setup dev dev-down frontend-typecheck
+.PHONY: proto-gen build test lint clean \
+	migrate-up migrate-down setup dev dev-down dev-logs \
+	docker-build docker-up docker-down frontend-typecheck
 
 BINARY=evey
-DOCKER_COMPOSE=docker compose -f docker/docker-compose.yml
-DOCKER_COMPOSE_DEV=docker compose -f docker/docker-compose.dev.yml
+DC=docker compose --env-file .env.dev
 
 # ── Build ──────────────────────────────────────────────────────────────────────
 
@@ -30,18 +30,7 @@ migrate-up:
 migrate-down:
 	go run ./cmd/migrate down
 
-# ── Production Docker ──────────────────────────────────────────────────────────
-
-docker-build:
-	docker build -f docker/Dockerfile -t evey:latest .
-
-docker-up:
-	$(DOCKER_COMPOSE) up -d
-
-docker-down:
-	$(DOCKER_COMPOSE) down
-
-# ── Dev setup (à lancer une fois) ─────────────────────────────────────────────
+# ── Dev ────────────────────────────────────────────────────────────────────────
 
 setup:
 	@echo "→ Adding evey.test to WSL /etc/hosts..."
@@ -55,17 +44,33 @@ setup:
 	@echo ""
 	@echo "✓ Setup done → lance 'make dev'"
 
-# ── Dev ───────────────────────────────────────────────────────────────────────
-
 dev:
-	@EXTRA=""; [ -f docker/docker-compose.media.yml ] && EXTRA="-f docker/docker-compose.media.yml"; \
-	$(DOCKER_COMPOSE_DEV) $$EXTRA down --remove-orphans 2>/dev/null; \
-	$(DOCKER_COMPOSE_DEV) $$EXTRA up --build
+	$(DC) down --remove-orphans 2>/dev/null; \
+	$(DC) up --build
 
 dev-down:
-	$(DOCKER_COMPOSE_DEV) down
+	$(DC) down
+
+dev-logs:
+	$(DC) logs -f evey
+
+# ── Infra only (run backend/frontend locally) ─────────────────────────────────
+
+infra:
+	$(DC) up postgres meilisearch
+
+# ── Prod ───────────────────────────────────────────────────────────────────────
+
+docker-build:
+	docker build -t evey:latest .
+
+docker-up:
+	$(DC) --profile prod up -d
+
+docker-down:
+	$(DC) --profile prod down
 
 # ── Frontend ───────────────────────────────────────────────────────────────────
 
 frontend-typecheck:
-	$(DOCKER_COMPOSE_DEV) run --rm web pnpm --filter web typecheck
+	$(DC) run --rm web pnpm --filter web typecheck

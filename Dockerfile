@@ -23,8 +23,8 @@ COPY --from=builder /evey /evey
 
 EXPOSE 9090 9091
 
-HEALTHCHECK --interval=30s --timeout=10s --retries=3 --start-period=30s \
-    CMD curl -f http://localhost:9091/api/v1/admin/system || exit 1
+HEALTHCHECK --interval=10s --timeout=5s --retries=3 --start-period=10s \
+    CMD curl -sf http://localhost:9091/healthz || exit 1
 
 USER evey
 

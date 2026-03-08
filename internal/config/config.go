@@ -98,8 +98,8 @@ type PlaybackConfig struct {
 func Load() (*Config, error) {
 	cfg := &Config{
 		Server: ServerConfig{
-			Port:    envInt("EVEY_SERVER_PORT", 8080),
-			BaseURL: envStr("EVEY_SERVER_BASE_URL", "http://localhost:8080"),
+			Port:    envInt("EVEY_SERVER_PORT", 9090),
+			BaseURL: envStr("EVEY_SERVER_BASE_URL", "http://localhost:9091"),
 			Name:    envStr("EVEY_SERVER_NAME", "Evey"),
 		},
 		DB: DBConfig{
@@ -115,14 +115,14 @@ func Load() (*Config, error) {
 			APIKey: envStr("EVEY_MEILI_API_KEY", "changeme"),
 		},
 		JWT: JWTConfig{
-			PrivateKeyPath:  envStr("EVEY_JWT_PRIVATE_KEY_PATH", "jwt.key"),
+			PrivateKeyPath:  envStr("EVEY_JWT_PRIVATE_KEY_PATH", "/data/jwt.key"),
 			AccessTokenTTL:  envDuration("EVEY_JWT_ACCESS_TTL", 15*time.Minute),
 			RefreshTokenTTL: envDuration("EVEY_JWT_REFRESH_TTL", 7*24*time.Hour),
 		},
 		Transcoding: TranscodingConfig{
 			MaxConcurrent:  envInt("EVEY_TRANSCODING_MAX_CONCURRENT", 2),
 			CacheMaxGB:     envInt("EVEY_TRANSCODING_CACHE_MAX_GB", 50),
-			CacheDir:       envStr("EVEY_TRANSCODING_CACHE_DIR", "/tmp/evey/transcode"),
+			CacheDir:       envStr("EVEY_TRANSCODING_CACHE_DIR", "/data/transcode"),
 			HWAccelEnabled: envBool("EVEY_TRANSCODING_HW_ACCEL_ENABLED", false),
 		},
 		OIDC: OIDCConfig{
