@@ -7,6 +7,7 @@ import {
   useLibraryServiceScanLibrary,
   libraryServiceListMediaItems,
 } from "@evey/api";
+import { useAuthStore } from "@evey/store";
 import type { V1Library } from "@evey/api/src/generated/library.schemas";
 import { Spinner } from "@/components/ui/Spinner";
 import { Button } from "@/components/ui/Button";
@@ -36,13 +37,36 @@ function formatDate(iso?: string): string {
   }
 }
 
-function LibraryRow({ library }: { library: V1Library }) {
+interface LibraryStat {
+  id: string;
+  lastScannedAt?: string | null;
+}
+
+function useLibraryStats() {
+  const token = useAuthStore((s) => s.accessToken);
+  return useQuery<LibraryStat[]>({
+    queryKey: ["/api/v1/admin/library-stats"],
+    queryFn: async () => {
+      const res = await fetch(`/api/v1/admin/library-stats`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      const json = await res.json() as { stats: LibraryStat[] };
+      return json.stats ?? [];
+    },
+    staleTime: 30_000,
+  });
+}
+
+function LibraryRow({ library, stats }: { library: V1Library; stats: LibraryStat[] }) {
   const queryClient = useQueryClient();
   const [scanDone, setScanDone] = useState(false);
 
   const deleteLib = useLibraryServiceDeleteLibrary({
     mutation: {
-      onSuccess: () => queryClient.invalidateQueries({ queryKey: ["/api/v1/libraries"] }),
+      onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: ["/api/v1/libraries"] });
+        queryClient.invalidateQueries({ queryKey: ["/api/v1/admin/library-stats"] });
+      },
     },
   });
 
@@ -52,18 +76,23 @@ function LibraryRow({ library }: { library: V1Library }) {
         setScanDone(true);
         queryClient.invalidateQueries({ queryKey: ["/api/v1/libraries"] });
         queryClient.invalidateQueries({ queryKey: ["/api/v1/media"] });
+        queryClient.invalidateQueries({ queryKey: ["/api/v1/admin/library-stats"] });
       },
     },
   });
 
   const { data: mediaData } = useQuery({
-    queryKey: ["/api/v1/media", { libraryId: library.id, pageSize: 1 }],
+    queryKey: ["/api/v1/media", { libraryId: library.id, page: 1, pageSize: 1 }],
     queryFn: ({ signal }) =>
-      libraryServiceListMediaItems({ libraryId: library.id, "pagination.pageSize": 1 }, signal),
+      libraryServiceListMediaItems(
+        { libraryId: library.id, "pagination.page": 1, "pagination.pageSize": 1 },
+        signal,
+      ),
     enabled: !!library.id,
   });
 
   const totalItems = mediaData?.pagination?.totalItems;
+  const libStat = stats.find((s) => s.id === library.id);
 
   return (
     <tr style={{ borderBottom: "1px solid var(--border)" }}>
@@ -80,7 +109,7 @@ function LibraryRow({ library }: { library: V1Library }) {
         {totalItems != null ? `${totalItems} items` : <span className="opacity-50">—</span>}
       </td>
       <td className="px-4 py-3 text-sm" style={{ color: "var(--text-muted)" }}>
-        {formatDate((library as V1Library & { lastScannedAt?: string }).lastScannedAt)}
+        {formatDate(libStat?.lastScannedAt ?? undefined)}
       </td>
       <td className="px-4 py-3 whitespace-nowrap">
         <div className="flex items-center gap-2">
@@ -121,6 +150,7 @@ function LibrariesPage() {
   const [showModal, setShowModal] = useState(false);
   const queryClient = useQueryClient();
   const { data, isLoading } = useLibraryServiceListLibraries();
+  const { data: stats = [] } = useLibraryStats();
   const libraries = data?.libraries ?? [];
 
   function handleCreateSuccess() {
@@ -172,7 +202,7 @@ function LibrariesPage() {
                   </td>
                 </tr>
               ) : (
-                libraries.map((lib) => <LibraryRow key={lib.id} library={lib} />)
+                libraries.map((lib) => <LibraryRow key={lib.id} library={lib} stats={stats} />)
               )}
             </tbody>
           </table>

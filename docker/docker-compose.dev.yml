@@ -25,6 +25,8 @@ services:
     volumes:
       - ..:/app
       - evey-data:/data
+      - /path/to/movies:/media
+      - /path/to/series:/media2
     healthcheck:
       test: ["CMD", "curl", "-sf", "http://localhost:${EVEY_HTTP_PORT:-9091}/healthz"]
       interval: 10s

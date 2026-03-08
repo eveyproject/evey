@@ -63,13 +63,16 @@ func (h *libraryHandler) DeleteLibrary(ctx context.Context, req *eveyv1.DeleteLi
 }
 
 func (h *libraryHandler) ScanLibrary(req *eveyv1.ScanLibraryRequest, stream eveyv1.LibraryService_ScanLibraryServer) error {
-	if err := h.svc.ScanLibrary(stream.Context(), req.Id); err != nil {
+	added, updated, err := h.svc.ScanLibrary(stream.Context(), req.Id)
+	if err != nil {
 		return status.Errorf(codes.Internal, "scan library: %v", err)
 	}
 	return stream.Send(&eveyv1.ScanProgress{
-		LibraryId: req.Id,
-		Phase:     eveyv1.ScanPhase_SCAN_PHASE_COMPLETE,
-		Percent:   100,
+		LibraryId:      req.Id,
+		Phase:          eveyv1.ScanPhase_SCAN_PHASE_COMPLETE,
+		Percent:        100,
+		TotalItems:     int32(added + updated),
+		ProcessedItems: int32(added + updated),
 	})
 }
 
@@ -126,11 +129,21 @@ func (h *libraryHandler) ListMediaItems(ctx context.Context, req *eveyv1.ListMed
 		filter.Offset = int((req.Pagination.Page - 1) * req.Pagination.PageSize)
 	}
 
+	total, err := h.svc.CountMediaItems(ctx, filter)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "count media items: %v", err)
+	}
 	items, err := h.svc.ListMediaItems(ctx, filter)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "list media items: %v", err)
 	}
-	resp := &eveyv1.ListMediaItemsResponse{}
+	resp := &eveyv1.ListMediaItemsResponse{
+		Pagination: &eveyv1.PaginationResponse{
+			TotalItems: int32(total),
+			Page:       req.Pagination.GetPage(),
+			PageSize:   req.Pagination.GetPageSize(),
+		},
+	}
 	for _, item := range items {
 		resp.Items = append(resp.Items, mediaItemToProto(item))
 	}

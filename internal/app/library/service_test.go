@@ -56,7 +56,7 @@ func TestScanLibrary_NewFiles(t *testing.T) {
 		{Path: "/movies/film2.mkv", Size: 2000},
 	}
 
-	err := svc.ScanLibrary(context.Background(), "lib-1")
+	_, _, err := svc.ScanLibrary(context.Background(), "lib-1")
 	require.NoError(t, err)
 
 	items, err := mediaRepo.List(context.Background(), library.ListMediaItemsFilter{})
@@ -98,7 +98,7 @@ func TestScanLibrary_ExistingFile(t *testing.T) {
 		{Path: "/movies/film1.mkv", Size: 1500},
 	}
 
-	err := svc.ScanLibrary(context.Background(), "lib-1")
+	_, _, err := svc.ScanLibrary(context.Background(), "lib-1")
 	require.NoError(t, err)
 
 	// file size updated

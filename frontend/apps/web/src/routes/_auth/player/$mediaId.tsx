@@ -28,8 +28,9 @@ function PlayerPage() {
   const audioStreams: AudioStream[] =
     streamInfo?.mediaStreams
       ?.filter((s) => s.type === "MEDIA_STREAM_TYPE_AUDIO")
-      .map((s) => ({
+      .map((s, i) => ({
         index: s.index ?? 0,
+        trackIndex: i,
         language: s.language,
         title: s.title,
         isDefault: s.isDefault,
@@ -38,8 +39,9 @@ function PlayerPage() {
   const subtitleStreams: SubtitleStream[] =
     streamInfo?.mediaStreams
       ?.filter((s) => s.type === "MEDIA_STREAM_TYPE_SUBTITLE")
-      .map((s) => ({
+      .map((s, i) => ({
         index: s.index ?? 0,
+        trackIndex: i,
         language: s.language,
         title: s.title,
         isDefault: s.isDefault,
@@ -59,6 +61,7 @@ function PlayerPage() {
         <HLSPlayer
           streamInfo={streamInfo}
           sessionId={sessionId}
+          mediaId={mediaId}
           startPositionMs={startPositionMs}
           audioStreams={audioStreams}
           subtitleStreams={subtitleStreams}

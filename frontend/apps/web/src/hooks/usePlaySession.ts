@@ -25,11 +25,14 @@ export function usePlaySession(mediaId: string): PlaySessionResult {
   const { data: progress } = usePlaybackServiceGetWatchProgress(mediaId);
   const { data: rawStreamInfo } = usePlaybackServiceGetStreamInfo(mediaId);
 
+  // Always use the transcode endpoint for direct play: copies video, re-encodes audio to AAC (browser-compatible).
+  // This avoids AC3/DTS/TrueHD codec incompatibility on all browsers.
   const streamInfo: V1StreamInfo | undefined = rawStreamInfo
     ? {
         ...rawStreamInfo,
+        // Keep transcodeUrl (HLS) if available; override directPlayUrl with transcode endpoint.
         directPlayUrl: token
-          ? `/api/v1/media/${mediaId}/stream?token=${token}`
+          ? `/api/v1/media/${mediaId}/transcode?token=${token}`
           : rawStreamInfo.directPlayUrl,
       }
     : undefined;

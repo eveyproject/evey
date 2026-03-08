@@ -15,6 +15,9 @@ const adminNavLinks = [
   { href: "/admin/webhooks", label: "Webhooks" },
   { href: "/admin/audit", label: "Audit Log" },
   { href: "/admin/metadata", label: "Metadata" },
+  { href: "/admin/activity", label: "Activity" },
+  { href: "/admin/tasks", label: "Scheduled Tasks" },
+  { href: "/admin/logs", label: "Logs" },
 ];
 
 function AdminNav() {

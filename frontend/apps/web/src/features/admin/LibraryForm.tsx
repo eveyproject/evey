@@ -18,7 +18,6 @@ export function LibraryForm({ onSuccess }: LibraryFormProps) {
     eveyFetch<{ name: string; path: string }[]>({
       url: "/api/v1/admin/fs/browse",
       method: "GET",
-      params: { path: "/media" },
     })
       .then((dirs) => setMediaDirs(dirs.map((d) => d.path)))
       .catch(() => setMediaDirs([]));

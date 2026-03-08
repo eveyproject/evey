@@ -2,6 +2,7 @@ package filesystem
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -62,15 +63,18 @@ func (s *Scanner) Scan(ctx context.Context, root string) ([]library.ScannedFile,
 		if parsed.Type == "series" {
 			itemType = library.Episode
 		}
+		size := info.Size()
+		modTime := info.ModTime()
 		files = append(files, library.ScannedFile{
-			Path:    path,
-			Size:    info.Size(),
-			ModTime: info.ModTime(),
-			Title:   parsed.Title,
-			Type:    itemType,
-			Year:    parsed.Year,
-			Season:  parsed.Season,
-			Episode: parsed.Episode,
+			Path:        path,
+			Size:        size,
+			ModTime:     modTime,
+			Fingerprint: fmt.Sprintf("%d-%d", size, modTime.UnixNano()),
+			Title:       parsed.Title,
+			Type:        itemType,
+			Year:        parsed.Year,
+			Season:      parsed.Season,
+			Episode:     parsed.Episode,
 		})
 		return nil
 	})

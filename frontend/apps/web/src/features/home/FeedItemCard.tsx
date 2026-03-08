@@ -14,13 +14,12 @@ export function FeedItemCard({ item, showProgress }: FeedItemCardProps) {
 
   return (
     <a
-      href={`/player/${item.mediaItemId}`}
-      className="group relative flex-shrink-0 w-40 block"
-      style={{ aspectRatio: "2/3" }}
+      href={`/media/${item.mediaItemId}`}
+      className="group block flex-shrink-0 w-40"
     >
       <div
-        className="relative w-full h-full overflow-hidden"
-        style={{ borderRadius: "var(--radius-md)" }}
+        className="relative w-full overflow-hidden"
+        style={{ aspectRatio: "2/3", borderRadius: "var(--radius-md)" }}
       >
         {posterUrl ? (
           <img
@@ -36,7 +35,7 @@ export function FeedItemCard({ item, showProgress }: FeedItemCardProps) {
           />
         ) : null}
         <div
-          className="w-full h-full items-center justify-center text-2xl font-bold"
+          className="absolute inset-0 items-center justify-center text-2xl font-bold"
           style={{
             backgroundColor: "var(--surface-raised)",
             color: "var(--text-muted)",

@@ -26,12 +26,18 @@ func (h *playbackHandler) GetStreamInfo(ctx context.Context, req *eveyv1.GetStre
 	if err != nil {
 		return nil, status.Errorf(codes.NotFound, "media item not found: %v", err)
 	}
-	return &eveyv1.StreamInfo{
+	resp := &eveyv1.StreamInfo{
 		MediaItemId:   req.MediaItemId,
 		PlayMethod:    eveyv1.PlayMethod_PLAY_METHOD_DIRECT_PLAY,
 		DirectPlayUrl: "/api/v1/media/" + req.MediaItemId + "/stream",
 		Container:     item.ContainerFormat,
-	}, nil
+	}
+	if streams, err := h.librarySvc.GetMediaStreams(ctx, req.MediaItemId); err == nil {
+		for _, s := range streams {
+			resp.MediaStreams = append(resp.MediaStreams, mediaStreamToProto(s))
+		}
+	}
+	return resp, nil
 }
 
 func (h *playbackHandler) StartStream(ctx context.Context, req *eveyv1.StartStreamRequest) (*eveyv1.PlaySession, error) {

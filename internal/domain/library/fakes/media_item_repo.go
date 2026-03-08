@@ -90,3 +90,44 @@ func (r *FakeMediaItemRepository) GetByFilePath(_ context.Context, path string) 
 	}
 	return nil, ErrNotFound
 }
+
+func (r *FakeMediaItemRepository) GetByFileFingerprint(_ context.Context, fingerprint string) (*library.MediaItem, error) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	for _, item := range r.items {
+		if item.FileFingerprint == fingerprint {
+			return item, nil
+		}
+	}
+	return nil, ErrNotFound
+}
+
+func (r *FakeMediaItemRepository) Count(_ context.Context, filter library.ListMediaItemsFilter) (int, error) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	count := 0
+	for _, item := range r.items {
+		if filter.LibraryID != nil && item.LibraryID != *filter.LibraryID {
+			continue
+		}
+		if filter.Type != nil && item.Type != *filter.Type {
+			continue
+		}
+		if filter.ParentID != nil && item.ParentID != *filter.ParentID {
+			continue
+		}
+		count++
+	}
+	return count, nil
+}
+
+func (r *FakeMediaItemRepository) GetByLibraryTypeTitle(_ context.Context, libraryID, itemType, title string) (*library.MediaItem, error) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	for _, item := range r.items {
+		if item.LibraryID == libraryID && item.Type == itemType && item.Title == title {
+			return item, nil
+		}
+	}
+	return nil, ErrNotFound
+}

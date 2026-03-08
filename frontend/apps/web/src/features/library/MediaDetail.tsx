@@ -6,14 +6,126 @@ import {
   usePlaybackServiceMarkAsUnwatched,
   useFeedServiceSimilarItems,
   useLibraryServiceListMediaItems,
+  useLibraryServiceGetMediaItem,
+  useMetadataServiceSetMetadataOverride,
+  useMetadataServiceRefreshMetadata,
 } from "@evey/api";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
+import { Input } from "@/components/ui/Input";
 import { StreamList } from "./StreamList";
 import { MediaCard } from "./MediaCard";
 
 interface MediaDetailProps {
   item: V1MediaItem;
+  onMetadataUpdated?: () => void;
+}
+
+interface EditForm {
+  title: string;
+  year: string;
+  overview: string;
+  genres: string;
+  communityRating: string;
+  imdbId: string;
+  tmdbId: string;
+}
+
+function MetadataEditPanel({
+  item,
+  onSave,
+  onCancel,
+}: {
+  item: V1MediaItem;
+  onSave: () => void;
+  onCancel: () => void;
+}) {
+  const [form, setForm] = useState<EditForm>({
+    title: item.title ?? "",
+    year: item.year ? String(item.year) : "",
+    overview: item.overview ?? "",
+    genres: item.genres?.join(", ") ?? "",
+    communityRating: item.communityRating ? String(item.communityRating) : "",
+    imdbId: item.providerIds?.imdb ?? "",
+    tmdbId: item.providerIds?.tmdb ?? "",
+  });
+  const [refreshStatus, setRefreshStatus] = useState<"idle" | "running" | "done" | "error">("idle");
+  const setOverride = useMetadataServiceSetMetadataOverride();
+  const refresh = useMetadataServiceRefreshMetadata();
+
+  async function handleSave(e: React.FormEvent) {
+    e.preventDefault();
+    if (!item.id) return;
+    const fields: Array<[string, string]> = [
+      ["title", form.title.trim()],
+      ["year", form.year.trim()],
+      ["overview", form.overview.trim()],
+      ["genres", form.genres.trim()],
+      ["community_rating", form.communityRating.trim()],
+      ["imdb_id", form.imdbId.trim()],
+      ["tmdb_id", form.tmdbId.trim()],
+    ];
+    for (const [fieldName, customValue] of fields) {
+      if (customValue) {
+        await setOverride.mutateAsync({ data: { mediaItemId: item.id, fieldName, customValue } });
+      }
+    }
+    onSave();
+  }
+
+  async function handleRefresh() {
+    if (!item.id) return;
+    setRefreshStatus("running");
+    try {
+      await refresh.mutateAsync({ mediaItemId: item.id });
+      setRefreshStatus("done");
+      setTimeout(() => { setRefreshStatus("idle"); onSave(); }, 1500);
+    } catch {
+      setRefreshStatus("error");
+    }
+  }
+
+  function set(field: keyof EditForm) {
+    return (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
+      setForm((prev) => ({ ...prev, [field]: e.target.value }));
+  }
+
+  return (
+    <form onSubmit={handleSave} className="flex flex-col gap-4 p-4 rounded-[var(--radius-lg)]"
+      style={{ backgroundColor: "var(--surface)", border: "1px solid var(--border)" }}>
+      <Input label="Title" value={form.title} onChange={set("title")} required />
+      <Input label="Year" type="number" value={form.year} onChange={set("year")} placeholder="2024" />
+      <div className="flex flex-col gap-1">
+        <label className="text-sm font-medium" style={{ color: "var(--text-muted)" }}>Overview</label>
+        <textarea
+          value={form.overview}
+          onChange={set("overview")}
+          rows={4}
+          className="px-3 py-2 rounded-[var(--radius-md)] text-sm resize-none focus:outline-none"
+          style={{ backgroundColor: "var(--surface-raised)", border: "1px solid var(--border)", color: "var(--text)" }}
+        />
+      </div>
+      <Input label="Genres (comma-separated)" value={form.genres} onChange={set("genres")} placeholder="Action, Drama" />
+      <Input label="Rating" type="number" step="0.1" min="0" max="10" value={form.communityRating} onChange={set("communityRating")} placeholder="7.5" />
+      <div className="grid grid-cols-2 gap-3">
+        <Input label="IMDB ID" value={form.imdbId} onChange={set("imdbId")} placeholder="tt1234567" />
+        <Input label="TMDB ID" value={form.tmdbId} onChange={set("tmdbId")} placeholder="12345" />
+      </div>
+      <div className="flex gap-2 flex-wrap pt-1">
+        <Button type="submit" loading={setOverride.isPending}>Save overrides</Button>
+        <Button
+          type="button"
+          variant="secondary"
+          loading={refreshStatus === "running"}
+          onClick={handleRefresh}
+        >
+          {refreshStatus === "done" ? "✓ Done" : refreshStatus === "error" ? "Error" : "Refresh metadata"}
+        </Button>
+        <Button type="button" variant="secondary" onClick={onCancel}>Cancel</Button>
+      </div>
+      {setOverride.isError && <p className="text-sm" style={{ color: "#ef4444" }}>Failed to save.</p>}
+    </form>
+  );
 }
 
 function formatDuration(ms?: string): string {
@@ -99,6 +211,113 @@ function CastCard({ person }: { person: V1MediaPerson }) {
   );
 }
 
+function SeasonRow({ seasonId }: { seasonId: string }) {
+  const { data: season } = useLibraryServiceGetMediaItem(seasonId);
+  const { data: episodesData } = useLibraryServiceListMediaItems({
+    parentId: seasonId,
+  });
+  const [open, setOpen] = useState(false);
+  const episodes = [...(episodesData?.items ?? [])].sort((a, b) => (a.indexNumber ?? 0) - (b.indexNumber ?? 0));
+
+  const seasonLabel = season?.indexNumber != null
+    ? `Season ${season.indexNumber}`
+    : (season?.title ?? "Season");
+
+  return (
+    <div className="mb-2" style={{ border: "1px solid var(--border)", borderRadius: "var(--radius-md)" }}>
+      <button
+        onClick={() => setOpen((v) => !v)}
+        className="w-full flex items-center justify-between px-4 py-3 text-left"
+        style={{ backgroundColor: "var(--surface)", borderRadius: "var(--radius-md)" }}
+      >
+        <span className="font-medium" style={{ color: "var(--text)" }}>
+          {seasonLabel}
+        </span>
+        <span className="text-sm" style={{ color: "var(--text-muted)" }}>
+          {episodes.length} ep {open ? "▲" : "▼"}
+        </span>
+      </button>
+      {open && (
+        <div className="divide-y max-h-96 overflow-y-auto" style={{ borderColor: "var(--border)" }}>
+          {episodes.map((ep) => (
+            <Link
+              key={ep.id}
+              to="/player/$mediaId"
+              params={{ mediaId: ep.id ?? "" }}
+              className="flex items-center gap-3 px-4 py-2 hover:opacity-80 transition-opacity"
+              style={{ color: "var(--text)" }}
+            >
+              <span className="text-sm w-10 flex-shrink-0 font-mono font-medium" style={{ color: "var(--accent)" }}>
+                E{ep.indexNumber ?? "?"}
+              </span>
+              <span className="text-sm flex-1 truncate">{ep.title}</span>
+              {ep.durationMs && (
+                <span className="text-xs flex-shrink-0" style={{ color: "var(--text-muted)" }}>
+                  {formatDuration(ep.durationMs)}
+                </span>
+              )}
+            </Link>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function SeriesSection({ item }: { item: V1MediaItem }) {
+  const { data: seasonsData } = useLibraryServiceListMediaItems({
+    parentId: item.id ?? "",
+  });
+  const seasons = [...(seasonsData?.items ?? [])].sort((a, b) => (a.indexNumber ?? 0) - (b.indexNumber ?? 0));
+  if (!seasons.length) return null;
+
+  return (
+    <div className="mt-10">
+      <h2 className="text-lg font-semibold mb-4" style={{ color: "var(--text)" }}>
+        Seasons
+      </h2>
+      {seasons.map((s) => s.id ? <SeasonRow key={s.id} seasonId={s.id} /> : null)}
+    </div>
+  );
+}
+
+function SeasonEpisodesSection({ item }: { item: V1MediaItem }) {
+  const { data: episodesData } = useLibraryServiceListMediaItems({
+    parentId: item.id ?? "",
+  });
+  const episodes = [...(episodesData?.items ?? [])].sort((a, b) => (a.indexNumber ?? 0) - (b.indexNumber ?? 0));
+  if (!episodes.length) return null;
+
+  return (
+    <div className="mt-10">
+      <h2 className="text-lg font-semibold mb-4" style={{ color: "var(--text)" }}>
+        Episodes
+      </h2>
+      <div className="divide-y" style={{ border: "1px solid var(--border)", borderRadius: "var(--radius-md)", borderColor: "var(--border)" }}>
+        {episodes.map((ep) => (
+          <Link
+            key={ep.id}
+            to="/player/$mediaId"
+            params={{ mediaId: ep.id ?? "" }}
+            className="flex items-center gap-3 px-4 py-2 hover:opacity-80 transition-opacity"
+            style={{ color: "var(--text)" }}
+          >
+            <span className="text-sm w-10 flex-shrink-0 font-mono font-medium" style={{ color: "var(--accent)" }}>
+              E{ep.indexNumber ?? "?"}
+            </span>
+            <span className="text-sm flex-1 truncate">{ep.title}</span>
+            {ep.durationMs && (
+              <span className="text-xs flex-shrink-0" style={{ color: "var(--text-muted)" }}>
+                {formatDuration(ep.durationMs)}
+              </span>
+            )}
+          </Link>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function SimilarSection({ item }: { item: V1MediaItem }) {
   const { data: similarData } = useFeedServiceSimilarItems(item.id ?? "");
   const firstGenre = item.genres?.[0];
@@ -141,9 +360,16 @@ function SimilarSection({ item }: { item: V1MediaItem }) {
   );
 }
 
-export function MediaDetail({ item }: MediaDetailProps) {
+export function MediaDetail({ item, onMetadataUpdated }: MediaDetailProps) {
   const [watched, setWatched] = useState(false);
   const [fileInfoOpen, setFileInfoOpen] = useState(false);
+  const [editing, setEditing] = useState(false);
+
+  const { data: parentItem } = useLibraryServiceGetMediaItem(
+    item.parentId ?? "",
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    { query: { enabled: !!item.parentId && item.type === "MEDIA_ITEM_TYPE_SEASON" } } as any,
+  );
 
   const markWatched = usePlaybackServiceMarkAsWatched({
     mutation: { onSuccess: () => setWatched(true) },
@@ -207,14 +433,41 @@ export function MediaDetail({ item }: MediaDetailProps) {
               </span>
             )}
           </div>
-          <h1 className="text-4xl font-bold text-white drop-shadow-lg mb-2">
-            {item.title}
-            {item.year && (
-              <span className="text-2xl font-normal ml-3" style={{ color: "rgba(255,255,255,0.7)" }}>
-                ({item.year})
-              </span>
+          {parentItem && (
+            <div className="mb-1">
+              <Link
+                to="/media/$mediaId"
+                params={{ mediaId: item.parentId! }}
+                className="text-sm font-medium hover:underline"
+                style={{ color: "rgba(255,255,255,0.7)" }}
+              >
+                {parentItem.title}
+              </Link>
+              <span className="text-sm mx-1" style={{ color: "rgba(255,255,255,0.5)" }}>›</span>
+            </div>
+          )}
+          <div className="flex items-center gap-3 mb-2">
+            <h1 className="text-4xl font-bold text-white drop-shadow-lg">
+              {item.title}
+              {item.year && (
+                <span className="text-2xl font-normal ml-3" style={{ color: "rgba(255,255,255,0.7)" }}>
+                  ({item.year})
+                </span>
+              )}
+            </h1>
+            {item.id && (
+              <button
+                onClick={() => setEditing((v) => !v)}
+                title="Edit metadata"
+                className="flex-shrink-0 p-1.5 rounded-full transition-opacity hover:opacity-80"
+                style={{ backgroundColor: "rgba(0,0,0,0.4)", color: "rgba(255,255,255,0.8)" }}
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M15.232 5.232l3.536 3.536M9 11l6.586-6.586a2 2 0 112.828 2.828L11.828 13.828a2 2 0 01-1.414.586H8v-2.414a2 2 0 01.586-1.414z" />
+                </svg>
+              </button>
             )}
-          </h1>
+          </div>
           {item.genres && item.genres.length > 0 && (
             <div className="flex flex-wrap gap-2">
               {item.genres.map((g) => (
@@ -285,7 +538,7 @@ export function MediaDetail({ item }: MediaDetailProps) {
           )}
 
           <div className="flex gap-3 flex-wrap pt-2">
-            {item.id && (
+            {item.id && item.type !== "MEDIA_ITEM_TYPE_SERIES" && item.type !== "MEDIA_ITEM_TYPE_SEASON" && (
               <Link to="/player/$mediaId" params={{ mediaId: item.id }}>
                 <Button variant="primary">
                   <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
@@ -315,6 +568,14 @@ export function MediaDetail({ item }: MediaDetailProps) {
               )
             )}
           </div>
+
+          {editing && item.id && (
+            <MetadataEditPanel
+              item={item}
+              onSave={() => { setEditing(false); onMetadataUpdated?.(); }}
+              onCancel={() => setEditing(false)}
+            />
+          )}
         </div>
       </div>
 
@@ -332,8 +593,14 @@ export function MediaDetail({ item }: MediaDetailProps) {
         </div>
       )}
 
+      {/* Seasons (series detail) */}
+      {item.type === "MEDIA_ITEM_TYPE_SERIES" && <SeriesSection item={item} />}
+
+      {/* Episodes (season detail) */}
+      {item.type === "MEDIA_ITEM_TYPE_SEASON" && <SeasonEpisodesSection item={item} />}
+
       {/* Similar titles */}
-      {item.id && <SimilarSection item={item} />}
+      {item.id && item.type !== "MEDIA_ITEM_TYPE_SEASON" && <SimilarSection item={item} />}
 
       {/* File info collapsible */}
       {(item.filePath || item.fileSize || item.containerFormat || (item.streams && item.streams.length > 0)) && (

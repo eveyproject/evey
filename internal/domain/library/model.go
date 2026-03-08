@@ -71,6 +71,7 @@ type MediaItem struct {
 	Tagline         string
 	FilePath        string
 	FileSize        int64
+	FileFingerprint string
 	DurationMs      int64
 	Bitrate         int64
 	ContainerFormat string

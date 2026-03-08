@@ -20,12 +20,12 @@ export function MediaCard({ item, href, posterSrc }: MediaCardProps) {
   return (
     <a
       href={link}
-      className="group relative block flex-shrink-0 w-40"
-      style={{ aspectRatio: "2/3" }}
+      className="group block flex-shrink-0 w-40"
     >
       <div
-        className="relative w-full h-full overflow-hidden"
+        className="relative w-full overflow-hidden"
         style={{
+          aspectRatio: "2/3",
           borderRadius: "var(--radius-md)",
           transition: "transform 0.2s ease",
         }}
@@ -44,7 +44,7 @@ export function MediaCard({ item, href, posterSrc }: MediaCardProps) {
           />
         ) : null}
         <div
-          className="w-full h-full items-center justify-center text-2xl font-bold"
+          className="absolute inset-0 items-center justify-center text-2xl font-bold"
           style={{
             backgroundColor: "var(--surface-raised)",
             color: "var(--text-muted)",

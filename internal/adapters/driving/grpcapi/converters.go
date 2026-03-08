@@ -623,3 +623,53 @@ func pluginRuntimeToProto(rt *plugin.PluginRuntime) *eveyv1.PluginRuntime {
 		Version:  rt.Version,
 	}
 }
+
+var streamTypeToProto = map[string]eveyv1.MediaStreamType{
+	"video":      eveyv1.MediaStreamType_MEDIA_STREAM_TYPE_VIDEO,
+	"audio":      eveyv1.MediaStreamType_MEDIA_STREAM_TYPE_AUDIO,
+	"subtitle":   eveyv1.MediaStreamType_MEDIA_STREAM_TYPE_SUBTITLE,
+	"attachment": eveyv1.MediaStreamType_MEDIA_STREAM_TYPE_ATTACHMENT,
+}
+
+func mediaStreamToProto(s *library.MediaStream) *eveyv1.MediaStream {
+	pb := &eveyv1.MediaStream{
+		Index:         int32(s.StreamIndex),
+		Type:          streamTypeToProto[s.StreamType],
+		Codec:         s.Codec,
+		CodecLongName: s.CodecLongName,
+		Language:      s.Language,
+		Title:         s.Title,
+		IsDefault:     s.IsDefault,
+		IsForced:      s.IsForced,
+		IsExternal:    s.IsExternal,
+		Profile:       s.Profile,
+	}
+	if s.Width != nil {
+		pb.Width = int32(*s.Width)
+	}
+	if s.Height != nil {
+		pb.Height = int32(*s.Height)
+	}
+	if s.Framerate != nil {
+		pb.FrameRate = *s.Framerate
+	}
+	if s.ColorSpace != nil {
+		pb.ColorSpace = *s.ColorSpace
+	}
+	if s.Channels != nil {
+		pb.Channels = int32(*s.Channels)
+	}
+	if s.SampleRate != nil {
+		pb.SampleRate = int32(*s.SampleRate)
+	}
+	if s.BitDepth != nil {
+		pb.BitDepth = int32(*s.BitDepth)
+	}
+	if s.Bitrate != nil {
+		pb.Bitrate = *s.Bitrate
+	}
+	if s.ExternalPath != nil {
+		pb.ExternalPath = *s.ExternalPath
+	}
+	return pb
+}

@@ -151,13 +151,25 @@ func roleType(role string) string {
 }
 
 // AutoEnrichItem searches TMDB and enriches a single item.
-// Skips items that already have an overview.
+// Skips items that already have an overview, EXCEPT episodes (always re-fetch real episode title).
 func (e *Enricher) AutoEnrichItem(ctx context.Context, item *domaindomain.MediaItem, tmdb *TMDBProvider, log *slog.Logger) {
-	if item.Overview != "" || item.Title == "" {
+	if item.Title == "" {
 		return
 	}
+
+	// Episodes: fetch specific episode data from TMDB using parent chain
+	if item.Type == string(domaindomain.Episode) {
+		e.autoEnrichEpisode(ctx, item, tmdb, log)
+		return
+	}
+
+	// Non-episode: skip if already enriched
+	if item.Overview != "" {
+		return
+	}
+
 	mediaType := "movie"
-	if item.Type == string(domaindomain.Episode) || item.Type == string(domaindomain.Series) {
+	if item.Type == string(domaindomain.Series) {
 		mediaType = "tv"
 	}
 	results, err := tmdb.Search(ctx, item.Title, mediaType)
@@ -183,6 +195,52 @@ func (e *Enricher) AutoEnrichItem(ctx context.Context, item *domaindomain.MediaI
 	}
 	if err := e.EnrichItem(ctx, item, full); err != nil && log != nil {
 		log.Warn("auto-enrich failed", slog.String("title", item.Title), slog.Any("err", err))
+	}
+}
+
+// autoEnrichEpisode fetches the specific episode title/overview from TMDB
+// by walking up the parent chain (episode → season → series → TMDB ID).
+func (e *Enricher) autoEnrichEpisode(ctx context.Context, item *domaindomain.MediaItem, tmdb *TMDBProvider, log *slog.Logger) {
+	if item.ParentID == "" || item.IndexNumber == nil {
+		return
+	}
+	season, err := e.mediaItems.GetByID(ctx, item.ParentID)
+	if err != nil || season.ParentID == "" || season.IndexNumber == nil {
+		return
+	}
+	series, err := e.mediaItems.GetByID(ctx, season.ParentID)
+	if err != nil {
+		return
+	}
+	seriesTMDB, ok := series.ProviderIDs["tmdb"]
+	if !ok || seriesTMDB == "" {
+		// Try to enrich series first so we get its TMDB ID
+		if series.Overview == "" {
+			e.AutoEnrichItem(ctx, series, tmdb, log)
+			// Re-fetch after enrichment
+			series, err = e.mediaItems.GetByID(ctx, season.ParentID)
+			if err != nil {
+				return
+			}
+			seriesTMDB, ok = series.ProviderIDs["tmdb"]
+			if !ok || seriesTMDB == "" {
+				return
+			}
+		} else {
+			return
+		}
+	}
+	result, err := tmdb.GetEpisodeDetails(ctx, seriesTMDB, *season.IndexNumber, *item.IndexNumber)
+	if err != nil {
+		if log != nil {
+			log.Debug("episode tmdb lookup failed", slog.String("series_tmdb", seriesTMDB),
+				slog.Int("season", *season.IndexNumber), slog.Int("ep", *item.IndexNumber), slog.Any("err", err))
+		}
+		return
+	}
+	// Preserve existing genres/studios from series for display context
+	if err := e.EnrichItem(ctx, item, result); err != nil && log != nil {
+		log.Warn("episode enrich failed", slog.String("id", item.ID), slog.Any("err", err))
 	}
 }
 

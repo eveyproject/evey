@@ -1,8 +1,14 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { AudioStream } from "./AudioTrackSelector";
 import type { SubtitleStream } from "./SubtitleSelector";
-import { AudioTrackSelector } from "./AudioTrackSelector";
-import { SubtitleSelector } from "./SubtitleSelector";
+
+const QUALITY_OPTIONS = [
+  { label: "Original", value: 0 },
+  { label: "1080p", value: 1080 },
+  { label: "720p", value: 720 },
+  { label: "480p", value: 480 },
+  { label: "360p", value: 360 },
+];
 
 interface PlayerControlsProps {
   videoRef: React.RefObject<HTMLVideoElement | null>;
@@ -12,6 +18,10 @@ interface PlayerControlsProps {
   onClose?: () => void;
   currentAudioIndex: number;
   onAudioChange: (index: number) => void;
+  currentQuality: number;
+  onQualityChange: (quality: number) => void;
+  currentSubtitleTrackIndex: number | null;
+  onSubtitleChange: (trackIndex: number | null) => void;
 }
 
 function formatTime(seconds: number): string {
@@ -22,6 +32,155 @@ function formatTime(seconds: number): string {
   return `${m}:${String(s).padStart(2, "0")}`;
 }
 
+interface SettingsPanelProps {
+  audioStreams: AudioStream[];
+  subtitleStreams: SubtitleStream[];
+  currentAudioIndex: number;
+  onAudioChange: (index: number) => void;
+  currentQuality: number;
+  onQualityChange: (quality: number) => void;
+  currentSubtitleTrackIndex: number | null;
+  onSubtitleChange: (trackIndex: number | null) => void;
+  onOpenChange: (open: boolean) => void;
+}
+
+function SettingsPanel({
+  audioStreams,
+  subtitleStreams,
+  currentAudioIndex,
+  onAudioChange,
+  currentQuality,
+  onQualityChange,
+  currentSubtitleTrackIndex,
+  onSubtitleChange,
+  onOpenChange,
+}: SettingsPanelProps) {
+  const [open, setOpen] = useState(false);
+
+  function toggle(e: React.MouseEvent) {
+    e.stopPropagation();
+    const next = !open;
+    setOpen(next);
+    onOpenChange(next);
+  }
+
+  function select(fn: () => void) {
+    fn();
+    setOpen(false);
+    onOpenChange(false);
+  }
+
+  return (
+    <div className="relative">
+      <button
+        onClick={toggle}
+        aria-label="Settings"
+        className="text-white hover:text-[var(--accent)] transition-colors"
+      >
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+          <path d="M19.14 12.94c.04-.3.06-.61.06-.94s-.02-.64-.07-.94l2.03-1.58a.49.49 0 0 0 .12-.61l-1.92-3.32a.49.49 0 0 0-.59-.22l-2.39.96a7.01 7.01 0 0 0-1.62-.94l-.36-2.54a.484.484 0 0 0-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96a.48.48 0 0 0-.59.22L2.74 8.87a.47.47 0 0 0 .12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58a.49.49 0 0 0-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32a.47.47 0 0 0-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z" />
+        </svg>
+      </button>
+
+      {open && (
+        <div
+          className="absolute bottom-full mb-2 right-0 w-56 rounded-[var(--radius-md)] shadow-xl overflow-hidden z-20"
+          style={{ backgroundColor: "var(--surface)", border: "1px solid var(--border)" }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          {/* Quality */}
+          <div className="px-3 pt-2 pb-1 text-xs font-semibold uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>
+            Quality
+          </div>
+          {QUALITY_OPTIONS.map((q) => (
+            <button
+              key={q.value}
+              onClick={() => select(() => onQualityChange(q.value))}
+              className="flex items-center justify-between w-full px-4 py-2 text-sm hover:bg-[var(--surface-raised)] transition-colors"
+              style={{ color: q.value === currentQuality ? "var(--accent)" : "var(--text)" }}
+            >
+              <span>{q.label}</span>
+              {q.value === currentQuality && (
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z" />
+                </svg>
+              )}
+            </button>
+          ))}
+
+          {/* Audio */}
+          {audioStreams.length > 0 && (
+            <>
+              <div className="mx-3 my-1" style={{ borderTop: "1px solid var(--border)" }} />
+              <div className="px-3 pb-1 text-xs font-semibold uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>
+                Audio
+              </div>
+              {audioStreams.map((s) => {
+                const label = s.title ?? s.language ?? `Track ${s.index}`;
+                return (
+                  <button
+                    key={s.index}
+                    onClick={() => select(() => onAudioChange(s.index))}
+                    className="flex items-center justify-between w-full px-4 py-2 text-sm hover:bg-[var(--surface-raised)] transition-colors"
+                    style={{ color: s.index === currentAudioIndex ? "var(--accent)" : "var(--text)" }}
+                  >
+                    <span>{label}</span>
+                    {s.index === currentAudioIndex && (
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z" />
+                      </svg>
+                    )}
+                  </button>
+                );
+              })}
+            </>
+          )}
+
+          {/* Subtitle */}
+          {subtitleStreams.length > 0 && (
+            <>
+              <div className="mx-3 my-1" style={{ borderTop: "1px solid var(--border)" }} />
+              <div className="px-3 pb-1 text-xs font-semibold uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>
+                Subtitles
+              </div>
+              <button
+                onClick={() => select(() => onSubtitleChange(null))}
+                className="flex items-center justify-between w-full px-4 py-2 text-sm hover:bg-[var(--surface-raised)] transition-colors"
+                style={{ color: currentSubtitleTrackIndex === null ? "var(--accent)" : "var(--text)" }}
+              >
+                <span>Off</span>
+                {currentSubtitleTrackIndex === null && (
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z" />
+                  </svg>
+                )}
+              </button>
+              {subtitleStreams.map((s) => {
+                const label = s.title ?? s.language ?? `Track ${s.index}`;
+                return (
+                  <button
+                    key={s.index}
+                    onClick={() => select(() => onSubtitleChange(s.trackIndex))}
+                    className="flex items-center justify-between w-full px-4 py-2 text-sm hover:bg-[var(--surface-raised)] transition-colors"
+                    style={{ color: s.trackIndex === currentSubtitleTrackIndex ? "var(--accent)" : "var(--text)" }}
+                  >
+                    <span>{label}</span>
+                    {s.trackIndex === currentSubtitleTrackIndex && (
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z" />
+                      </svg>
+                    )}
+                  </button>
+                );
+              })}
+            </>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function PlayerControls({
   videoRef,
   audioStreams,
@@ -30,6 +189,10 @@ export function PlayerControls({
   onClose,
   currentAudioIndex,
   onAudioChange,
+  currentQuality,
+  onQualityChange,
+  currentSubtitleTrackIndex,
+  onSubtitleChange,
 }: PlayerControlsProps) {
   const [visible, setVisible] = useState(true);
   const [playing, setPlaying] = useState(false);
@@ -37,20 +200,35 @@ export function PlayerControls({
   const [duration, setDuration] = useState(0);
   const [volume, setVolume] = useState(1);
   const [fullscreen, setFullscreen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const hideTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const resetHideTimer = useCallback(() => {
-    setVisible(true);
+  const scheduleHide = useCallback(() => {
     if (hideTimer.current) clearTimeout(hideTimer.current);
     hideTimer.current = setTimeout(() => setVisible(false), 3000);
   }, []);
 
+  const resetHideTimer = useCallback(() => {
+    setVisible(true);
+    if (!settingsOpen) scheduleHide();
+  }, [settingsOpen, scheduleHide]);
+
+  // Keep visible and cancel timer when settings open
   useEffect(() => {
-    resetHideTimer();
+    if (settingsOpen) {
+      if (hideTimer.current) clearTimeout(hideTimer.current);
+      setVisible(true);
+    } else {
+      scheduleHide();
+    }
+  }, [settingsOpen, scheduleHide]);
+
+  useEffect(() => {
+    scheduleHide();
     return () => {
       if (hideTimer.current) clearTimeout(hideTimer.current);
     };
-  }, [resetHideTimer]);
+  }, [scheduleHide]);
 
   useEffect(() => {
     const video = videoRef.current;
@@ -200,12 +378,17 @@ export function PlayerControls({
 
           <div className="flex-1" />
 
-          {/* subtitle/audio selectors */}
-          <SubtitleSelector streams={subtitleStreams} videoRef={videoRef} />
-          <AudioTrackSelector
-            streams={audioStreams}
-            currentIndex={currentAudioIndex}
-            onChange={onAudioChange}
+          {/* Settings gear */}
+          <SettingsPanel
+            audioStreams={audioStreams}
+            subtitleStreams={subtitleStreams}
+            currentAudioIndex={currentAudioIndex}
+            onAudioChange={onAudioChange}
+            currentQuality={currentQuality}
+            onQualityChange={onQualityChange}
+            currentSubtitleTrackIndex={currentSubtitleTrackIndex}
+            onSubtitleChange={onSubtitleChange}
+            onOpenChange={setSettingsOpen}
           />
 
           {/* fullscreen */}

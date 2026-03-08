@@ -99,6 +99,49 @@ func (p *TMDBProvider) Search(ctx context.Context, query string, mediaType strin
 	return allResults, nil
 }
 
+// GetEpisodeDetails fetches title, overview and still image for a specific episode.
+func (p *TMDBProvider) GetEpisodeDetails(ctx context.Context, seriesID string, seasonNum, episodeNum int) (*domain.MetadataResult, error) {
+	u := fmt.Sprintf("%s/tv/%s/season/%d/episode/%d?language=%s&append_to_response=images",
+		p.baseURL, seriesID, seasonNum, episodeNum, p.language)
+	body, err := p.doRequestWithRetry(ctx, u)
+	if err != nil {
+		return nil, fmt.Errorf("tmdb episode request: %w", err)
+	}
+	var ep struct {
+		Name     string  `json:"name"`
+		Overview string  `json:"overview"`
+		StillPath string `json:"still_path"`
+		VoteAverage float64 `json:"vote_average"`
+		AirDate  string  `json:"air_date"`
+	}
+	if err := json.Unmarshal(body, &ep); err != nil {
+		return nil, fmt.Errorf("tmdb episode unmarshal: %w", err)
+	}
+	if ep.Name == "" {
+		return nil, fmt.Errorf("episode not found")
+	}
+	result := &domain.MetadataResult{
+		Title:    ep.Name,
+		Overview: ep.Overview,
+	}
+	if ep.VoteAverage > 0 {
+		r := ep.VoteAverage
+		result.CommunityRating = &r
+	}
+	if ep.StillPath != "" {
+		result.Artwork = []domain.ArtworkResult{{
+			Type: "backdrop",
+			URL:  imageBaseURL + ep.StillPath,
+		}}
+	}
+	if t := parseDate(ep.AirDate); t != nil {
+		result.PremiereDate = t
+		y := t.Year()
+		result.Year = &y
+	}
+	return result, nil
+}
+
 func (p *TMDBProvider) GetByProviderID(ctx context.Context, providerID string, mediaType string) (*domain.MetadataResult, error) {
 	endpoint, err := detailEndpoint(mediaType, providerID)
 	if err != nil {

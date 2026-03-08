@@ -12,8 +12,10 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
+	"os/exec"
 	"os/signal"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -142,6 +144,7 @@ func run() error {
 	// --- Infrastructure ---
 	searchAdapter, _ := meili.NewSearchAdapter(cfg.Meilisearch.URL, cfg.Meilisearch.APIKey)
 	scanner := filesystem.NewScanner()
+	prober := ffmpeg.NewProber("ffprobe")
 	transcoder := ffmpeg.NewTranscoder("ffmpeg", cfg.Transcoding.CacheDir)
 	hwDetector := ffmpeg.NewHWDetector("ffmpeg")
 	ebmlReader := ebml.NewReader()
@@ -149,6 +152,7 @@ func run() error {
 	bus := eventbus.New()
 	hasher := auth.BcryptHasher{}
 	tmdbProvider := metadataadapter.NewTMDBProvider(os.Getenv("EVEY_TMDB_API_KEY"), cfg.Metadata.Language, nil)
+	imdbProvider := metadataadapter.NewIMDBAPIProvider(nil)
 	artworkDownloader := metadataadapter.NewTMDBArtworkDownloader(nil)
 	pluginRunner := pluginrunner.NewRunner()
 	manifestParser := pluginrunner.NewManifestParser()
@@ -164,7 +168,7 @@ func run() error {
 	librarySvc := applibrary.NewService(
 		libraryRepo, mediaItemRepo,
 		mediaStreamRepo, personRepo, mediaPersonRepo,
-		scanner, searchAdapter, bus,
+		scanner, prober, searchAdapter, bus,
 	)
 
 	userSvc := appuser.NewService(
@@ -188,7 +192,7 @@ func run() error {
 
 	metadataSvc := appmetadata.NewService(
 		metadataOverrideRepo, artworkRepo, artworkDownloader,
-		bus, []metadata.MetadataProvider{tmdbProvider},
+		bus, []metadata.MetadataProvider{imdbProvider, tmdbProvider},
 	)
 	enricher := metadataadapter.NewEnricher(artworkRepo, personRepo, mediaPersonRepo, mediaItemRepo)
 	metadataSvc.WithEnricher(enricher, mediaItemRepo)
@@ -288,6 +292,9 @@ func run() error {
 		mux.HandleFunc("GET /api/v1/media/{id}/stream", mh)
 		mux.HandleFunc("GET /api/v1/media/{id}/artwork/{artType}", mh)
 		mux.HandleFunc("POST /api/v1/media/{id}/stream", mh)
+		mux.HandleFunc("GET /api/v1/media/{id}/transcode", transcodeHandler(tokenGen, librarySvc))
+		mux.HandleFunc("GET /api/v1/media/{id}/subtitle/{track}", subtitleHandler(tokenGen, librarySvc))
+		mux.HandleFunc("GET /api/v1/admin/library-stats", libraryStatsHandler(tokenGen, librarySvc))
 		registerAdminRoutes(mux, metadataSvc, tmdbProvider, tokenGen)
 		mux.Handle("/", gwMux)
 		httpSrv = &http.Server{
@@ -381,23 +388,22 @@ func mediaHandler(tokens interface {
 			action = "stream"
 		}
 
-		authHeader := r.Header.Get("Authorization")
-		if len(authHeader) < 8 {
-			if t := r.URL.Query().Get("token"); t != "" {
-				authHeader = "Bearer " + t
-			}
-		}
-		if len(authHeader) < 8 || authHeader[:7] != "Bearer " {
-			http.Error(w, `{"message":"unauthenticated"}`, http.StatusUnauthorized)
-			return
-		}
-		if _, err := tokens.ValidateAccessToken(authHeader[7:]); err != nil {
-			http.Error(w, `{"message":"forbidden"}`, http.StatusForbidden)
-			return
-		}
-
 		switch action {
 		case "stream":
+			authHeader := r.Header.Get("Authorization")
+			if len(authHeader) < 8 {
+				if t := r.URL.Query().Get("token"); t != "" {
+					authHeader = "Bearer " + t
+				}
+			}
+			if len(authHeader) < 8 || authHeader[:7] != "Bearer " {
+				http.Error(w, `{"message":"unauthenticated"}`, http.StatusUnauthorized)
+				return
+			}
+			if _, err := tokens.ValidateAccessToken(authHeader[7:]); err != nil {
+				http.Error(w, `{"message":"forbidden"}`, http.StatusForbidden)
+				return
+			}
 			item, err := libSvc.GetMediaItem(r.Context(), mediaID)
 			if err != nil {
 				http.Error(w, `{"message":"not found"}`, http.StatusNotFound)
@@ -457,13 +463,15 @@ func browseDirsHandler(tokens interface {
 		result := []entry{}
 
 		if dir == "" {
-			// Aggregate subdirs from all /media* mount points
+			// List all /media* roots + their subdirs
 			roots, _ := filepath.Glob("/media*")
 			for _, root := range roots {
 				info, err := os.Stat(root)
 				if err != nil || !info.IsDir() {
 					continue
 				}
+				name := filepath.Base(root)
+				result = append(result, entry{Name: name, Path: root})
 				entries, err := os.ReadDir(root)
 				if err != nil {
 					continue
@@ -472,7 +480,7 @@ func browseDirsHandler(tokens interface {
 					if !e.IsDir() || e.Name()[0] == '.' || skip[e.Name()] {
 						continue
 					}
-					result = append(result, entry{Name: e.Name(), Path: root + "/" + e.Name()})
+					result = append(result, entry{Name: name + "/" + e.Name(), Path: root + "/" + e.Name()})
 				}
 			}
 		} else {
@@ -560,14 +568,21 @@ func registerAdminRoutes(mux *http.ServeMux, metaSvc *appmetadata.Service, tmdb 
 		case action == "refresh-metadata" && r.Method == http.MethodPost:
 			var body struct {
 				TmdbID    string `json:"tmdb_id"`
+				ImdbID    string `json:"imdb_id"`
 				MediaType string `json:"media_type"`
 			}
 			if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 				http.Error(w, "bad request", http.StatusBadRequest)
 				return
 			}
-			if err := metaSvc.RefreshItemMetadata(r.Context(), mediaItemID, body.TmdbID, body.MediaType); err != nil {
-				http.Error(w, err.Error(), http.StatusInternalServerError)
+			var refreshErr error
+			if body.ImdbID != "" {
+				refreshErr = metaSvc.RefreshItemMetadataByIMDB(r.Context(), mediaItemID, body.ImdbID, body.MediaType)
+			} else {
+				refreshErr = metaSvc.RefreshItemMetadata(r.Context(), mediaItemID, body.TmdbID, body.MediaType)
+			}
+			if refreshErr != nil {
+				http.Error(w, refreshErr.Error(), http.StatusInternalServerError)
 				return
 			}
 			w.WriteHeader(http.StatusNoContent)
@@ -644,4 +659,160 @@ func registerGateway(grpcAddr string) http.Handler {
 		}
 	}
 	return mux
+}
+
+func transcodeHandler(tokenGen interface {
+	ValidateAccessToken(string) (*domainuser.Claims, error)
+}, libSvc interface {
+	GetMediaItem(ctx context.Context, id string) (*domainlibrary.MediaItem, error)
+}) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		mediaID := r.PathValue("id")
+		token := r.Header.Get("Authorization")
+		if strings.HasPrefix(token, "Bearer ") {
+			token = token[7:]
+		} else if t := r.URL.Query().Get("token"); t != "" {
+			token = t
+		} else {
+			http.Error(w, `{"message":"unauthenticated"}`, http.StatusUnauthorized)
+			return
+		}
+		if _, err := tokenGen.ValidateAccessToken(token); err != nil {
+			http.Error(w, `{"message":"forbidden"}`, http.StatusForbidden)
+			return
+		}
+		item, err := libSvc.GetMediaItem(r.Context(), mediaID)
+		if err != nil || item.FilePath == "" {
+			http.Error(w, `{"message":"not found"}`, http.StatusNotFound)
+			return
+		}
+		audioTrack := 0
+		if at := r.URL.Query().Get("audioTrack"); at != "" {
+			if n, err2 := strconv.Atoi(at); err2 == nil && n >= 0 {
+				audioTrack = n
+			}
+		}
+		videoScale := 0
+		if vs := r.URL.Query().Get("videoScale"); vs != "" {
+			if n, err2 := strconv.Atoi(vs); err2 == nil && n > 0 {
+				videoScale = n
+			}
+		}
+		ctx, cancel := context.WithCancel(r.Context())
+		defer cancel()
+		args := []string{
+			"-i", item.FilePath,
+			"-map", "0:v:0",
+			"-map", fmt.Sprintf("0:a:%d", audioTrack),
+		}
+		if videoScale > 0 {
+			args = append(args, "-vf", fmt.Sprintf("scale=-2:%d", videoScale), "-c:v", "libx264", "-crf", "23", "-preset", "fast")
+		} else {
+			args = append(args, "-c:v", "copy")
+		}
+		args = append(args, "-c:a", "aac", "-b:a", "192k",
+			"-movflags", "frag_keyframe+empty_moov+default_base_moof",
+			"-f", "mp4", "-")
+		cmd := exec.CommandContext(ctx, "ffmpeg", args...)
+		cmd.Stdout = w
+		w.Header().Set("Content-Type", "video/mp4")
+		w.Header().Set("Cache-Control", "no-cache")
+		if err := cmd.Start(); err != nil {
+			slog.Error("ffmpeg start", slog.Any("err", err))
+			return
+		}
+		go func() { <-r.Context().Done(); cancel() }()
+		if err := cmd.Wait(); err != nil && ctx.Err() == nil {
+			slog.Warn("ffmpeg transcode", slog.String("media_id", mediaID), slog.Any("err", err))
+		}
+	}
+}
+
+func subtitleHandler(tokenGen interface {
+	ValidateAccessToken(string) (*domainuser.Claims, error)
+}, libSvc interface {
+	GetMediaItem(ctx context.Context, id string) (*domainlibrary.MediaItem, error)
+}) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		mediaID := r.PathValue("id")
+		trackStr := r.PathValue("track")
+		token := r.Header.Get("Authorization")
+		if strings.HasPrefix(token, "Bearer ") {
+			token = token[7:]
+		} else if t := r.URL.Query().Get("token"); t != "" {
+			token = t
+		} else {
+			http.Error(w, `{"message":"unauthenticated"}`, http.StatusUnauthorized)
+			return
+		}
+		if _, err := tokenGen.ValidateAccessToken(token); err != nil {
+			http.Error(w, `{"message":"forbidden"}`, http.StatusForbidden)
+			return
+		}
+		trackIndex, _ := strconv.Atoi(trackStr)
+		item, err := libSvc.GetMediaItem(r.Context(), mediaID)
+		if err != nil || item.FilePath == "" {
+			http.Error(w, `{"message":"not found"}`, http.StatusNotFound)
+			return
+		}
+		ctx, cancel := context.WithCancel(r.Context())
+		defer cancel()
+		cmd := exec.CommandContext(ctx, "ffmpeg",
+			"-i", item.FilePath,
+			"-map", fmt.Sprintf("0:s:%d", trackIndex),
+			"-f", "webvtt",
+			"-",
+		)
+		w.Header().Set("Content-Type", "text/vtt; charset=utf-8")
+		w.Header().Set("Cache-Control", "no-cache")
+		w.Header().Set("Access-Control-Allow-Origin", "*")
+		cmd.Stdout = w
+		if err := cmd.Start(); err != nil {
+			slog.Error("ffmpeg subtitle start", slog.Any("err", err))
+			return
+		}
+		go func() { <-r.Context().Done(); cancel() }()
+		if err := cmd.Wait(); err != nil && ctx.Err() == nil {
+			slog.Warn("ffmpeg subtitle", slog.String("media_id", mediaID), slog.Any("err", err))
+		}
+	}
+}
+
+func libraryStatsHandler(tokenGen interface {
+	ValidateAccessToken(string) (*domainuser.Claims, error)
+}, libSvc interface {
+	ListLibraries(ctx context.Context) ([]*domainlibrary.Library, error)
+}) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		token := r.Header.Get("Authorization")
+		if strings.HasPrefix(token, "Bearer ") {
+			token = token[7:]
+		} else if t := r.URL.Query().Get("token"); t != "" {
+			token = t
+		}
+		if _, err := tokenGen.ValidateAccessToken(token); err != nil {
+			http.Error(w, `{"message":"forbidden"}`, http.StatusForbidden)
+			return
+		}
+		libs, err := libSvc.ListLibraries(r.Context())
+		if err != nil {
+			http.Error(w, `{"message":"internal"}`, http.StatusInternalServerError)
+			return
+		}
+		type libStat struct {
+			ID            string  `json:"id"`
+			LastScannedAt *string `json:"lastScannedAt"`
+		}
+		stats := make([]libStat, 0, len(libs))
+		for _, lib := range libs {
+			var ts *string
+			if lib.LastScannedAt != nil {
+				s := lib.LastScannedAt.UTC().Format(time.RFC3339)
+				ts = &s
+			}
+			stats = append(stats, libStat{ID: lib.ID, LastScannedAt: ts})
+		}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]any{"stats": stats})
+	}
 }

@@ -32,6 +32,9 @@ type MediaItemRepository interface {
 	Update(ctx context.Context, item *MediaItem) error
 	Delete(ctx context.Context, id string) error
 	GetByFilePath(ctx context.Context, path string) (*MediaItem, error)
+	GetByFileFingerprint(ctx context.Context, fingerprint string) (*MediaItem, error)
+	GetByLibraryTypeTitle(ctx context.Context, libraryID, itemType, title string) (*MediaItem, error)
+	Count(ctx context.Context, filter ListMediaItemsFilter) (int, error)
 }
 
 type MediaStreamRepository interface {
@@ -65,18 +68,23 @@ type CollectionRepository interface {
 }
 
 type ScannedFile struct {
-	Path    string
-	Size    int64
-	ModTime time.Time
-	Title   string
-	Type    MediaItemType
-	Year    *int
-	Season  *int
-	Episode *int
+	Path        string
+	Size        int64
+	ModTime     time.Time
+	Fingerprint string
+	Title       string
+	Type        MediaItemType
+	Year        *int
+	Season      *int
+	Episode     *int
 }
 
 type FileScanner interface {
 	Scan(ctx context.Context, path string) ([]ScannedFile, error)
+}
+
+type StreamProber interface {
+	ProbeStreams(ctx context.Context, filePath string) ([]*MediaStream, error)
 }
 
 type SearchIndex interface {

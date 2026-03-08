@@ -110,6 +110,65 @@ func (s *Service) RefreshItemMetadata(ctx context.Context, mediaItemID, tmdbID, 
 	return nil
 }
 
+// RefreshItemMetadataByIMDB fetches metadata by IMDB ID, trying providers that
+// support IMDB IDs first, then falling back to the rest. The imdbID must be in
+// tt-prefixed format (e.g. "tt0111161").
+func (s *Service) RefreshItemMetadataByIMDB(ctx context.Context, mediaItemID, imdbID, mediaType string) error {
+	if s.enricher == nil || s.mediaItems == nil {
+		return fmt.Errorf("enricher not configured")
+	}
+	item, err := s.mediaItems.GetByID(ctx, mediaItemID)
+	if err != nil {
+		return fmt.Errorf("get media item: %w", err)
+	}
+
+	// Try "imdbapi" provider first, then others as fallback.
+	var result *metadata.MetadataResult
+	var usedProvider string
+	for _, p := range s.providers {
+		if p.Name() == "imdbapi" {
+			r, err := p.GetByProviderID(ctx, imdbID, mediaType)
+			if err == nil {
+				result = r
+				usedProvider = p.Name()
+				break
+			}
+		}
+	}
+	if result == nil {
+		for _, p := range s.providers {
+			if p.Name() == "imdbapi" {
+				continue
+			}
+			r, err := p.GetByProviderID(ctx, imdbID, mediaType)
+			if err == nil {
+				result = r
+				usedProvider = p.Name()
+				break
+			}
+		}
+	}
+	if result == nil {
+		return fmt.Errorf("no provider returned metadata for imdb id %s", imdbID)
+	}
+
+	// Preserve the imdb ID in provider IDs.
+	if result.ProviderIDs == nil {
+		result.ProviderIDs = make(map[string]string)
+	}
+	result.ProviderIDs["imdb"] = imdbID
+
+	if err := s.enricher.EnrichItem(ctx, item, result); err != nil {
+		return fmt.Errorf("enrich item: %w", err)
+	}
+	s.events.Publish(ctx, metadata.MetadataRefreshed{
+		MediaItemID: mediaItemID,
+		Provider:    usedProvider,
+		OccurredAt:  time.Now(),
+	})
+	return nil
+}
+
 func (s *Service) SetOverride(ctx context.Context, override *metadata.MetadataOverride) error {
 	override.CreatedAt = time.Now()
 	if err := s.overrides.Set(ctx, override); err != nil {

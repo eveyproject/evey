@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import {
   useLibraryServiceListLibraries,
@@ -17,12 +17,14 @@ export const Route = createFileRoute("/_auth/library/$libraryId")({
   component: LibraryPage,
 });
 
-const TYPE_OPTIONS: Array<{ label: string; value: LibraryServiceListMediaItemsType | "" }> = [
-  { label: "All", value: "" },
-  { label: "Movies", value: "MEDIA_ITEM_TYPE_MOVIE" },
+const MOVIE_TYPE_OPTIONS: Array<{ label: string; value: LibraryServiceListMediaItemsType | "" }> = [
+  { label: "All", value: "MEDIA_ITEM_TYPE_MOVIE" },
+];
+
+const SHOW_TYPE_OPTIONS: Array<{ label: string; value: LibraryServiceListMediaItemsType | "" }> = [
   { label: "Series", value: "MEDIA_ITEM_TYPE_SERIES" },
-  { label: "Albums", value: "MEDIA_ITEM_TYPE_ALBUM" },
-  { label: "Tracks", value: "MEDIA_ITEM_TYPE_TRACK" },
+  { label: "Seasons", value: "MEDIA_ITEM_TYPE_SEASON" },
+  { label: "Episodes", value: "MEDIA_ITEM_TYPE_EPISODE" },
 ];
 
 const SORT_OPTIONS: Array<{ label: string; value: LibraryServiceListMediaItemsSortField }> = [
@@ -44,6 +46,19 @@ function LibraryPage() {
 
   const { data: librariesData } = useLibraryServiceListLibraries();
   const library = librariesData?.libraries?.find((l) => l.id === libraryId);
+  const isShowLibrary = library?.type === "LIBRARY_TYPE_SHOWS";
+
+  // Set default type filter based on library type once library data loads
+  useEffect(() => {
+    if (!library) return;
+    if (library.type === "LIBRARY_TYPE_SHOWS") {
+      setTypeFilter("MEDIA_ITEM_TYPE_SERIES");
+    } else if (library.type === "LIBRARY_TYPE_MOVIES") {
+      setTypeFilter("MEDIA_ITEM_TYPE_MOVIE");
+    }
+  }, [library?.type]);
+
+  const typeOptions = isShowLibrary ? SHOW_TYPE_OPTIONS : MOVIE_TYPE_OPTIONS;
 
   const params = {
     libraryId,
@@ -76,20 +91,22 @@ function LibraryPage() {
           {library?.name ?? "Library"}
         </h1>
         <div className="flex items-center gap-3">
-          <select
-            value={typeFilter}
-            onChange={(e) => {
-              setTypeFilter(e.target.value as LibraryServiceListMediaItemsType | "");
-              setPage(1);
-            }}
-            style={selectStyle}
-          >
-            {TYPE_OPTIONS.map((o) => (
-              <option key={o.value} value={o.value}>
-                {o.label}
-              </option>
-            ))}
-          </select>
+          {typeOptions.length > 1 && (
+            <select
+              value={typeFilter}
+              onChange={(e) => {
+                setTypeFilter(e.target.value as LibraryServiceListMediaItemsType | "");
+                setPage(1);
+              }}
+              style={selectStyle}
+            >
+              {typeOptions.map((o) => (
+                <option key={o.value} value={o.value}>
+                  {o.label}
+                </option>
+              ))}
+            </select>
+          )}
           <select
             value={sortField}
             onChange={(e) => {

@@ -13,6 +13,7 @@ export default defineConfig({
   },
   server: {
     host: true,
+    watch: { usePolling: true, interval: 500 },
     hmr: process.env.VITE_HMR_HOST ? {
       host: process.env.VITE_HMR_HOST,
       port: process.env.VITE_HMR_PORT ? Number(process.env.VITE_HMR_PORT) : undefined,
