@@ -125,6 +125,7 @@ export function MediaCard({
       to={linkTo}
       params={linkParams as never}
       className="group block flex-shrink-0 w-32 sm:w-40 relative"
+      data-testid="media-card"
       onMouseEnter={handleMouseEnter}
       onMouseLeave={handleMouseLeave}
     >

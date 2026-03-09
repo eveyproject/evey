@@ -137,12 +137,12 @@ function LibraryPage() {
   const displayCount = searchTerm.trim() ? filteredItems.length : totalItems;
 
   return (
-    <div>
+    <div data-testid="library-page">
       <div className="flex items-center justify-between gap-4 mb-2 flex-wrap">
-        <h1 className="text-2xl font-bold" style={{ color: "var(--text)" }}>
+        <h1 className="text-2xl font-bold" style={{ color: "var(--text)" }} data-testid="library-name">
           {library?.name ?? "Library"}
         </h1>
-        <span className="text-sm" style={{ color: "var(--text-muted)" }}>
+        <span className="text-sm" style={{ color: "var(--text-muted)" }} data-testid="library-item-count">
           {displayCount} {displayCount === 1 ? "item" : "items"}
           {searchTerm.trim() && ` matching "${searchTerm.trim()}"`}
         </span>
@@ -155,6 +155,7 @@ function LibraryPage() {
             placeholder="Filter by name..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
+            data-testid="library-search-input"
           />
         </div>
         {typeOptions.length > 1 && (

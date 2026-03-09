@@ -64,7 +64,7 @@ export function MediaSlider({
   };
 
   return (
-    <section className="mb-8 group/slider">
+    <section className="mb-8 group/slider" data-testid="media-slider">
       <div className="flex items-center justify-between mb-3 px-1">
         <h2 className="text-base sm:text-lg font-semibold" style={{ color: "var(--text)" }}>
           {title}

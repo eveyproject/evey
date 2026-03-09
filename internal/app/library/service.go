@@ -169,7 +169,9 @@ func (s *Service) upsertMediaFile(ctx context.Context, libraryID, parentID strin
 			item.DurationMs = dur
 			_ = s.mediaItems.Update(ctx, item)
 		}
-		s.search.IndexMediaItem(ctx, item)
+		if s.search != nil {
+			s.search.IndexMediaItem(ctx, item, s.castNames(ctx, item.ID))
+		}
 		s.events.Publish(ctx, library.MediaItemAdded{
 			MediaItemID: item.ID,
 			LibraryID:   libraryID,
@@ -188,7 +190,9 @@ func (s *Service) upsertMediaFile(ctx context.Context, libraryID, parentID strin
 		existing.DurationMs = dur
 	}
 	s.mediaItems.Update(ctx, existing)
-	s.search.IndexMediaItem(ctx, existing)
+	if s.search != nil {
+		s.search.IndexMediaItem(ctx, existing, s.castNames(ctx, existing.ID))
+	}
 	// Re-emit so enricher re-fetches metadata for items with no overview (e.g. after overview clear)
 	if existing.Overview == "" {
 		s.events.Publish(ctx, library.MediaItemAdded{
@@ -362,18 +366,64 @@ func (s *Service) GetCast(ctx context.Context, mediaItemID string) ([]*library.M
 	return mediaPersons, persons, nil
 }
 
-func (s *Service) SearchMedia(ctx context.Context, query string, filters map[string]string) ([]*library.MediaItem, error) {
-	ids, err := s.search.Search(ctx, query, filters)
+func (s *Service) castNames(ctx context.Context, mediaItemID string) []string {
+	mps, err := s.mediaPersons.GetByMediaItemID(ctx, mediaItemID)
+	if err != nil {
+		return nil
+	}
+	names := make([]string, 0, len(mps))
+	for _, mp := range mps {
+		p, err := s.persons.GetByID(ctx, mp.PersonID)
+		if err != nil {
+			continue
+		}
+		names = append(names, p.Name)
+	}
+	return names
+}
+
+func (s *Service) SearchMedia(ctx context.Context, query string, filters map[string]string, limit int64) (*library.SearchResult, error) {
+	if s.search == nil {
+		return &library.SearchResult{}, nil
+	}
+	hits, totalHits, err := s.search.Search(ctx, query, filters, limit)
 	if err != nil {
 		return nil, fmt.Errorf("search: %w", err)
 	}
+	return &library.SearchResult{Hits: hits, TotalHits: totalHits}, nil
+}
+
+func (s *Service) SearchMediaFull(ctx context.Context, query string, filters map[string]string, limit int64) ([]*library.MediaItem, int64, error) {
+	if s.search == nil {
+		return nil, 0, nil
+	}
+	hits, totalHits, err := s.search.Search(ctx, query, filters, limit)
+	if err != nil {
+		return nil, 0, fmt.Errorf("search: %w", err)
+	}
 	var items []*library.MediaItem
-	for _, id := range ids {
-		item, err := s.mediaItems.GetByID(ctx, id)
+	for _, h := range hits {
+		item, err := s.mediaItems.GetByID(ctx, h.ID)
 		if err != nil {
 			continue
 		}
 		items = append(items, item)
 	}
-	return items, nil
+	return items, totalHits, nil
+}
+
+func (s *Service) ReindexAll(ctx context.Context) (int, error) {
+	if s.search == nil {
+		return 0, nil
+	}
+	items, err := s.mediaItems.List(ctx, library.ListMediaItemsFilter{})
+	if err != nil {
+		return 0, fmt.Errorf("list items: %w", err)
+	}
+	count := 0
+	for _, item := range items {
+		s.search.IndexMediaItem(ctx, item, s.castNames(ctx, item.ID))
+		count++
+	}
+	return count, nil
 }

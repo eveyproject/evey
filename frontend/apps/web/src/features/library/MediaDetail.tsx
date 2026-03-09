@@ -484,6 +484,8 @@ export function MediaDetail({ item, onMetadataUpdated }: MediaDetailProps) {
   const [watched, setWatched] = useState(false);
   const [fileInfoOpen, setFileInfoOpen] = useState(false);
   const [editing, setEditing] = useState(false);
+  const isSeries = item.type === "MEDIA_ITEM_TYPE_SERIES";
+  const isSeason = item.type === "MEDIA_ITEM_TYPE_SEASON";
 
   const { data: parentItem } = useLibraryServiceGetMediaItem(
     item.parentId ?? "",
@@ -515,12 +517,12 @@ export function MediaDetail({ item, onMetadataUpdated }: MediaDetailProps) {
   const crew = [...directors, ...writers, ...producers];
 
   return (
-    <div>
+    <div data-testid="media-detail">
       <BackButton fallback="/library" className="mb-4" />
       {/* Backdrop hero */}
       <div className="relative w-full overflow-hidden -mx-4 sm:-mx-6 -mt-4 sm:-mt-6 mb-0" style={{ height: "clamp(260px, 50vw, 420px)" }}>
         {backdropUrl ? (
-          <img src={backdropUrl} alt="" className="w-full h-full object-cover" onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }} />
+          <img src={backdropUrl} alt="" className="w-full h-full object-cover" data-testid="media-backdrop" onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }} />
         ) : (
           <div className="w-full h-full" style={{ backgroundColor: "var(--surface)" }} />
         )}
@@ -570,7 +572,7 @@ export function MediaDetail({ item, onMetadataUpdated }: MediaDetailProps) {
             </div>
           )}
           <div className="flex items-center gap-3 mb-2">
-            <h1 className="text-2xl sm:text-4xl font-bold text-white drop-shadow-lg">{item.title}</h1>
+            <h1 className="text-2xl sm:text-4xl font-bold text-white drop-shadow-lg" data-testid="media-title">{item.title}</h1>
             {item.id && (
               <button
                 onClick={() => setEditing((v) => !v)}
@@ -586,7 +588,7 @@ export function MediaDetail({ item, onMetadataUpdated }: MediaDetailProps) {
           </div>
           {/* Genre chips */}
           {item.genres && item.genres.length > 0 && (
-            <div className="flex flex-wrap gap-2">
+            <div className="flex flex-wrap gap-2" data-testid="media-genres">
               {item.genres.map((g) => (
                 <span
                   key={g}
@@ -615,7 +617,7 @@ export function MediaDetail({ item, onMetadataUpdated }: MediaDetailProps) {
             style={{ borderRadius: "var(--radius-md)", aspectRatio: "2/3", backgroundColor: "var(--surface-raised)" }}
           >
             {posterUrl ? (
-              <img src={posterUrl} alt={item.title ?? ""} className="w-full h-full object-cover" onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }} />
+              <img src={posterUrl} alt={item.title ?? ""} className="w-full h-full object-cover" data-testid="media-poster" onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }} />
             ) : (
               <div className="w-full h-full flex items-center justify-center text-3xl font-bold" style={{ color: "var(--text-muted)" }}>
                 {item.title?.[0]?.toUpperCase() ?? "?"}
@@ -630,7 +632,7 @@ export function MediaDetail({ item, onMetadataUpdated }: MediaDetailProps) {
             <p className="text-base italic" style={{ color: "var(--text-muted)" }}>{item.tagline}</p>
           )}
           {item.overview && (
-            <p className="text-sm leading-relaxed" style={{ color: "var(--text-muted)" }}>{item.overview}</p>
+            <p className="text-sm leading-relaxed" style={{ color: "var(--text-muted)" }} data-testid="media-overview">{item.overview}</p>
           )}
 
           {directors.length > 0 && (
@@ -668,12 +670,12 @@ export function MediaDetail({ item, onMetadataUpdated }: MediaDetailProps) {
             </p>
           )}
 
-          <div className="flex gap-3 flex-wrap pt-2">
-            {item.id && item.type === "MEDIA_ITEM_TYPE_SERIES" && (
+          <div className="flex gap-3 flex-wrap pt-2" data-testid="media-actions">
+            {item.id && isSeries && (
               <PlaySeriesButton seriesId={item.id} />
             )}
-            {item.id && item.type !== "MEDIA_ITEM_TYPE_SERIES" && item.type !== "MEDIA_ITEM_TYPE_SEASON" && (
-              <Link to="/player/$mediaId" params={{ mediaId: item.id }}>
+            {item.id && !isSeries && !isSeason && (
+              <Link to="/player/$mediaId" params={{ mediaId: item.id }} data-testid="play-button">
                 <Button variant="primary">
                   <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path d="M6.3 2.8L17 10 6.3 17.2V2.8z" /></svg>
                   Play
@@ -682,14 +684,14 @@ export function MediaDetail({ item, onMetadataUpdated }: MediaDetailProps) {
             )}
             {item.id && (
               watched ? (
-                <Button variant="secondary" loading={markUnwatched.isPending} onClick={() => markUnwatched.mutate({ mediaItemId: item.id! })}>
+                <Button variant="secondary" loading={markUnwatched.isPending} onClick={() => markUnwatched.mutate({ mediaItemId: item.id! })} data-testid="mark-unwatched-btn">
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" d="M3.98 8.223A10.477 10.477 0 001.934 12C3.226 16.338 7.244 19.5 12 19.5c.993 0 1.953-.138 2.863-.395M6.228 6.228A10.45 10.45 0 0112 4.5c4.756 0 8.773 3.162 10.065 7.498a10.523 10.523 0 01-4.293 5.774M6.228 6.228L3 3m3.228 3.228l3.65 3.65m7.894 7.894L21 21m-3.228-3.228l-3.65-3.65m0 0a3 3 0 10-4.243-4.243m4.242 4.242L9.88 9.88" />
                   </svg>
                   Mark Unwatched
                 </Button>
               ) : (
-                <Button variant="secondary" loading={markWatched.isPending} onClick={() => markWatched.mutate({ mediaItemId: item.id! })}>
+                <Button variant="secondary" loading={markWatched.isPending} onClick={() => markWatched.mutate({ mediaItemId: item.id! })} data-testid="mark-watched-btn">
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178z" />
                     <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
@@ -714,17 +716,17 @@ export function MediaDetail({ item, onMetadataUpdated }: MediaDetailProps) {
       </div>
 
       {/* Cast & Crew carousels */}
-      <CastCarousel people={actors} title="Cast" />
+      <div data-testid="cast-section"><CastCarousel people={actors} title="Cast" /></div>
       {crew.length > 0 && <CastCarousel people={crew} title="Crew" />}
 
       {/* Seasons (series detail) */}
-      {item.type === "MEDIA_ITEM_TYPE_SERIES" && <SeriesSection item={item} />}
+      {isSeries && <div data-testid="seasons-section"><SeriesSection item={item} /></div>}
 
       {/* Episodes (season detail) */}
-      {item.type === "MEDIA_ITEM_TYPE_SEASON" && <SeasonEpisodesSection item={item} />}
+      {isSeason && <SeasonEpisodesSection item={item} />}
 
       {/* Similar titles */}
-      {item.id && item.type !== "MEDIA_ITEM_TYPE_SEASON" && <SimilarSection item={item} />}
+      {item.id && !isSeason && <SimilarSection item={item} />}
 
       {/* File info collapsible */}
       {(item.filePath || item.fileSize || item.containerFormat || (item.streams && item.streams.length > 0)) && (

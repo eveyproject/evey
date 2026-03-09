@@ -62,17 +62,15 @@ func TestToDocument(t *testing.T) {
 		AddedAt:       now,
 	}
 
-	doc := ToDocument(item)
+	doc := ToDocument(item, []string{"Brad Pitt", "Edward Norton"})
 
 	assert.Equal(t, "item-1", doc.ID)
 	assert.Equal(t, "lib-1", doc.LibraryID)
 	assert.Equal(t, "movie", doc.Type)
 	assert.Equal(t, "Test Movie", doc.Title)
 	assert.Equal(t, "Test Original", doc.OriginalTitle)
-	assert.Equal(t, "A test movie", doc.Overview)
 	assert.Equal(t, []string{"Action", "Comedy"}, doc.Genres)
-	assert.Equal(t, []string{"Studio A"}, doc.Studios)
-	assert.Equal(t, []string{"tag1"}, doc.Tags)
+	assert.Equal(t, []string{"Brad Pitt", "Edward Norton"}, doc.Cast)
 	assert.Equal(t, &year, doc.Year)
 	assert.Equal(t, now.Unix(), doc.AddedAt)
 }
@@ -83,7 +81,7 @@ func TestToDocument_NilYear(t *testing.T) {
 		Title:   "No Year",
 		AddedAt: time.Now(),
 	}
-	doc := ToDocument(item)
+	doc := ToDocument(item, nil)
 	assert.Nil(t, doc.Year)
 }
 
@@ -117,7 +115,7 @@ func TestIndexMediaItem(t *testing.T) {
 		AddedAt: time.Now(),
 	}
 
-	err := adapter.IndexMediaItem(context.Background(), item)
+	err := adapter.IndexMediaItem(context.Background(), item, []string{"Actor One"})
 	require.NoError(t, err)
 	require.Len(t, fake.addedDocs, 1)
 
@@ -137,20 +135,35 @@ func TestRemoveMediaItem(t *testing.T) {
 }
 
 func TestSearch(t *testing.T) {
-	idRaw, _ := json.Marshal("abc-123")
+	year := 2023
+	yearRaw, _ := json.Marshal(year)
+	hit := ms.Hit{
+		"id":     json.RawMessage(`"abc-123"`),
+		"title":  json.RawMessage(`"Fight Club"`),
+		"year":   json.RawMessage(yearRaw),
+		"type":   json.RawMessage(`"movie"`),
+		"genres": json.RawMessage(`["Action","Drama"]`),
+		"_formatted": json.RawMessage(`{"title":"<mark>Fight</mark> Club"}`),
+	}
 	fake := &fakeIndex{
 		searchResp: &ms.SearchResponse{
-			Hits: ms.Hits{
-				ms.Hit{"id": json.RawMessage(idRaw)},
-			},
+			Hits:               ms.Hits{hit},
+			EstimatedTotalHits: 1,
 		},
 	}
 	adapter := newSearchAdapterWithIndex(fake)
 
-	ids, err := adapter.Search(context.Background(), "test query", map[string]string{"type": "movie"})
+	hits, total, err := adapter.Search(context.Background(), "fight", map[string]string{"type": "movie"}, 20)
 	require.NoError(t, err)
-	assert.Equal(t, []string{"abc-123"}, ids)
-	assert.Equal(t, "test query", fake.searchQuery)
+	require.Len(t, hits, 1)
+	assert.Equal(t, int64(1), total)
+	assert.Equal(t, "abc-123", hits[0].ID)
+	assert.Equal(t, "Fight Club", hits[0].Title)
+	assert.Equal(t, &year, hits[0].Year)
+	assert.Equal(t, "movie", hits[0].Type)
+	assert.Equal(t, []string{"Action", "Drama"}, hits[0].Genres)
+	assert.Equal(t, "<mark>Fight</mark> Club", hits[0].HighlightedTitle)
+	assert.Equal(t, "fight", fake.searchQuery)
 	assert.Contains(t, fake.searchReq.Filter, "type = 'movie'")
 }
 
@@ -162,9 +175,9 @@ func TestSearch_NoFilters(t *testing.T) {
 	}
 	adapter := newSearchAdapterWithIndex(fake)
 
-	ids, err := adapter.Search(context.Background(), "hello", nil)
+	hits, _, err := adapter.Search(context.Background(), "hello", nil, 20)
 	require.NoError(t, err)
-	assert.Empty(t, ids)
+	assert.Empty(t, hits)
 	assert.Nil(t, fake.searchReq.Filter)
 }
 
@@ -174,7 +187,18 @@ func TestSearch_Error(t *testing.T) {
 	}
 	adapter := newSearchAdapterWithIndex(fake)
 
-	ids, err := adapter.Search(context.Background(), "fail", nil)
+	hits, _, err := adapter.Search(context.Background(), "fail", nil, 20)
 	assert.Error(t, err)
-	assert.Nil(t, ids)
+	assert.Nil(t, hits)
+}
+
+func TestSearch_DefaultLimit(t *testing.T) {
+	fake := &fakeIndex{
+		searchResp: &ms.SearchResponse{Hits: ms.Hits{}},
+	}
+	adapter := newSearchAdapterWithIndex(fake)
+
+	_, _, err := adapter.Search(context.Background(), "test", nil, 0)
+	require.NoError(t, err)
+	assert.Equal(t, int64(20), fake.searchReq.Limit)
 }

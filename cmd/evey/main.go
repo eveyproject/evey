@@ -143,7 +143,10 @@ func run() error {
 	feedQuerier := postgres.NewFeedQuerier(db)
 
 	// --- Infrastructure ---
-	searchAdapter, _ := meili.NewSearchAdapter(cfg.Meilisearch.URL, cfg.Meilisearch.APIKey)
+	searchAdapter, err := meili.NewSearchAdapter(cfg.Meilisearch.URL, cfg.Meilisearch.APIKey)
+	if err != nil {
+		slog.Warn("meilisearch unavailable, search disabled", slog.Any("err", err))
+	}
 	scanner := filesystem.NewScanner()
 	prober := ffmpeg.NewProber("ffprobe")
 	transcoder := ffmpeg.NewTranscoder("ffmpeg", cfg.Transcoding.CacheDir)
@@ -198,7 +201,7 @@ func run() error {
 		bus, []metadata.MetadataProvider{tmdbProvider, omdbProvider, tvmazeProvider, imdbProvider},
 	)
 	enricher := metadataadapter.NewEnricher(
-		artworkRepo, personRepo, mediaPersonRepo, mediaItemRepo,
+		artworkRepo, personRepo, mediaPersonRepo, mediaItemRepo, searchAdapter,
 		tmdbProvider,
 		[]metadata.MetadataProvider{omdbProvider, tvmazeProvider, imdbProvider},
 	)
@@ -213,6 +216,36 @@ func run() error {
 		pluginRepo, pluginRuntimeRepo, pluginRunner, manifestParser,
 		bus,
 	)
+
+	// --- Filesystem watcher ---
+	if cfg.Library.WatcherEnabled {
+		fsWatcher, fsWatcherErr := filesystem.NewFSWatcher()
+		if fsWatcherErr != nil {
+			rootLog.Warn("filesystem watcher init failed, realtime monitoring disabled", slog.Any("err", fsWatcherErr))
+		} else {
+			watcherLog := eveylogger.NewWith(rootLog, "watcher")
+			watcherSvc := applibrary.NewWatcherService(fsWatcher, libraryRepo, librarySvc, watcherLog)
+			if err := watcherSvc.Start(context.Background()); err != nil {
+				rootLog.Warn("watcher start failed", slog.Any("err", err))
+			} else {
+				rootLog.Info("filesystem watcher started")
+				bus.Subscribe("library.created", func(_ context.Context, ev shared.Event) {
+					if e, ok := ev.(libraryevent.LibraryCreated); ok {
+						lib, err := libraryRepo.GetByID(context.Background(), e.LibraryID)
+						if err == nil {
+							watcherSvc.AddLibrary(lib)
+						}
+					}
+				})
+				bus.Subscribe("library.deleted", func(_ context.Context, ev shared.Event) {
+					if e, ok := ev.(libraryevent.LibraryDeleted); ok {
+						watcherSvc.RemoveLibraryByID(e.LibraryID)
+					}
+				})
+				defer watcherSvc.Stop()
+			}
+		}
+	}
 
 	// --- Metadata enrichment ---
 	// Enrich existing items missing overview on startup, then listen for new ones.
@@ -983,3 +1016,5 @@ func libraryStatsHandler(tokenGen interface {
 		json.NewEncoder(w).Encode(map[string]any{"stats": stats})
 	}
 }
+
+

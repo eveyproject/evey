@@ -92,8 +92,44 @@ type StreamProber interface {
 	ProbeStreams(ctx context.Context, filePath string) (*ProbeResult, error)
 }
 
+type SearchHit struct {
+	ID               string
+	Title            string
+	Year             *int
+	Type             string
+	Genres           []string
+	HighlightedTitle string
+}
+
+type SearchResult struct {
+	Hits      []SearchHit
+	TotalHits int64
+}
+
 type SearchIndex interface {
-	IndexMediaItem(ctx context.Context, item *MediaItem) error
+	IndexMediaItem(ctx context.Context, item *MediaItem, castNames []string) error
 	RemoveMediaItem(ctx context.Context, id string) error
-	Search(ctx context.Context, query string, filters map[string]string) ([]string, error)
+	Search(ctx context.Context, query string, filters map[string]string, limit int64) ([]SearchHit, int64, error)
+}
+
+type FileEvent struct {
+	Path string
+	Op   FileOp
+}
+
+type FileOp int
+
+const (
+	FileCreated FileOp = iota
+	FileModified
+	FileRemoved
+	FileRenamed
+)
+
+type FileWatcher interface {
+	Watch(path string) error
+	Unwatch(path string) error
+	Events() <-chan FileEvent
+	Errors() <-chan error
+	Close() error
 }

@@ -3,6 +3,7 @@ import { useNavigate, useRouterState } from "@tanstack/react-router";
 import { useAuthStore } from "@evey/store";
 import { useUserServiceGetCurrentUser } from "@evey/api";
 import { NotificationBell } from "@/features/user/NotificationBell";
+import { SearchDropdown } from "@/features/search/SearchDropdown";
 
 function UserMenu({ userInitial }: { userInitial: string }) {
   const navigate = useNavigate();
@@ -78,6 +79,7 @@ function UserMenu({ userInitial }: { userInitial: string }) {
           <div className="border-t border-[var(--border)] my-1" />
           <button
             onClick={handleLogout}
+            data-testid="logout-btn"
             className="w-full flex items-center gap-3 px-3 py-2 text-sm text-red-400 hover:bg-[var(--surface)] transition-colors cursor-pointer"
           >
             <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
@@ -96,14 +98,25 @@ export function TopBar() {
   const { location } = useRouterState();
   const inputRef = useRef<HTMLInputElement>(null);
   const [searchValue, setSearchValue] = useState("");
+  const [dropdownOpen, setDropdownOpen] = useState(false);
+  const [debouncedSearch, setDebouncedSearch] = useState("");
 
   const { data: currentUser } = useUserServiceGetCurrentUser();
   const userInitial = currentUser?.username?.charAt(0).toUpperCase() ?? "U";
 
   const isOnSearch = location.pathname === "/search";
 
+  // Debounce search value for dropdown
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(searchValue.trim());
+    }, 200);
+    return () => clearTimeout(timer);
+  }, [searchValue]);
+
   const navigateToSearch = useCallback((q: string) => {
     const trimmed = q.trim();
+    setDropdownOpen(false);
     void navigate({ to: "/search", search: trimmed ? { q: trimmed } : {} });
   }, [navigate]);
 
@@ -113,7 +126,11 @@ export function TopBar() {
       inputRef.current?.blur();
     }
     if (e.key === "Escape") {
+      setDropdownOpen(false);
       inputRef.current?.blur();
+    }
+    if (e.key === "ArrowDown" && dropdownOpen) {
+      e.preventDefault();
     }
   };
 
@@ -121,22 +138,25 @@ export function TopBar() {
     const handler = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key === "k") {
         e.preventDefault();
-        if (!isOnSearch) {
-          void navigate({ to: "/search" });
-        }
-        setTimeout(() => inputRef.current?.focus(), 50);
+        inputRef.current?.focus();
+        setDropdownOpen(true);
       }
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
-  }, [isOnSearch, navigate]);
+  }, []);
+
+  // Close dropdown when navigating away
+  useEffect(() => {
+    setDropdownOpen(false);
+  }, [location.pathname]);
 
   return (
     <header className="h-14 flex items-center justify-between px-3 sm:px-6 bg-[var(--surface)] border-b border-[var(--border)] shrink-0">
       <div className="flex-1">
-        <div className="relative w-full max-w-64">
+        <div className="relative w-full max-w-80">
           <svg
-            className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--text-muted)] pointer-events-none"
+            className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--text-muted)] pointer-events-none z-10"
             fill="none"
             stroke="currentColor"
             strokeWidth={2}
@@ -148,17 +168,31 @@ export function TopBar() {
           <input
             ref={inputRef}
             type="search"
-            placeholder="Search..."
+            placeholder="Search movies, series..."
             aria-label="Search"
+            data-testid="topbar-search-input"
             value={searchValue}
-            onChange={(e) => setSearchValue(e.target.value)}
+            onChange={(e) => {
+              setSearchValue(e.target.value);
+              if (e.target.value.trim().length > 1) setDropdownOpen(true);
+            }}
+            onFocus={() => {
+              if (searchValue.trim().length > 1) setDropdownOpen(true);
+            }}
             onKeyDown={handleKeyDown}
-            onClick={() => { if (!isOnSearch) navigateToSearch(searchValue); }}
             className="w-full pl-9 pr-14 py-1.5 rounded-[var(--radius-md)] bg-[var(--surface-raised)] border border-[var(--border)] text-sm text-[var(--text)] placeholder:text-[var(--text-muted)] focus:outline-none focus:ring-1 focus:ring-[var(--accent)]"
           />
           <kbd className="absolute right-2.5 top-1/2 -translate-y-1/2 hidden sm:inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-medium text-[var(--text-muted)] bg-[var(--surface)] border border-[var(--border)] pointer-events-none">
             {/Mac|iPhone|iPad/.test(navigator.userAgent) ? <><span className="text-xs">&#8984;</span>K</> : <><span className="text-xs">Ctrl+</span>K</>}
           </kbd>
+
+          <SearchDropdown
+            query={debouncedSearch}
+            visible={dropdownOpen && !isOnSearch}
+            onClose={() => setDropdownOpen(false)}
+            onNavigateToSearch={navigateToSearch}
+            inputRef={inputRef}
+          />
         </div>
       </div>
       <div className="flex items-center gap-3">

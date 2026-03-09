@@ -84,7 +84,7 @@ function HistoryItem({ item }: { item: WatchProgress }) {
   const posterUrl = item.mediaItemId ? `/api/v1/media/${item.mediaItemId}/artwork/poster` : undefined;
 
   return (
-    <div className="flex items-center gap-3 py-3 border-b border-[var(--border)] last:border-0">
+    <div className="flex items-center gap-3 py-3 border-b border-[var(--border)] last:border-0" data-testid="history-item">
       <Link
         to="/media/$mediaId"
         params={{ mediaId: item.mediaItemId ?? "" }}
@@ -171,14 +171,14 @@ export function WatchHistory({ limit, showClearButton = false }: Props) {
   }
 
   if (items.length === 0) {
-    return <EmptyState icon="history" title="No watch history yet" description="Start watching something to see it here." />;
+    return <div data-testid="history-empty"><EmptyState icon="history" title="No watch history yet" description="Start watching something to see it here." /></div>;
   }
 
   return (
-    <div className="flex flex-col gap-4">
+    <div className="flex flex-col gap-4" data-testid="history-list">
       {showClearButton && items.length > 0 && (
         <div className="flex justify-end">
-          <Button variant="danger" onClick={() => setShowClearModal(true)}>
+          <Button variant="danger" onClick={() => setShowClearModal(true)} data-testid="clear-history-btn">
             Clear history
           </Button>
         </div>

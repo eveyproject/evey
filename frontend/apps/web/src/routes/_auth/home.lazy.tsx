@@ -53,6 +53,7 @@ function HeroBanner() {
     <div
       className="relative w-full overflow-hidden"
       style={{ height: "clamp(320px, 56vw, 520px)" }}
+      data-testid="hero-banner"
     >
       <img
         src={backdropUrl}
@@ -252,7 +253,7 @@ function HomePage() {
   const libraries = librariesData?.libraries ?? [];
 
   return (
-    <div className="animate-fade-in">
+    <div className="animate-fade-in" data-testid="home-page">
       <HeroBanner />
 
       <div className="px-4 sm:px-6 pt-6">

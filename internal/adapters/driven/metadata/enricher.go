@@ -19,6 +19,7 @@ type Enricher struct {
 	persons       domaindomain.PersonRepository
 	mediaPersons  domaindomain.MediaPersonRepository
 	mediaItems    domaindomain.MediaItemRepository
+	search        domaindomain.SearchIndex
 	primary       domainmetadata.MetadataProvider
 	supplementary []domainmetadata.MetadataProvider
 }
@@ -28,6 +29,7 @@ func NewEnricher(
 	persons domaindomain.PersonRepository,
 	mediaPersons domaindomain.MediaPersonRepository,
 	mediaItems domaindomain.MediaItemRepository,
+	search domaindomain.SearchIndex,
 	primary domainmetadata.MetadataProvider,
 	supplementary []domainmetadata.MetadataProvider,
 ) *Enricher {
@@ -36,6 +38,7 @@ func NewEnricher(
 		persons:       persons,
 		mediaPersons:  mediaPersons,
 		mediaItems:    mediaItems,
+		search:        search,
 		primary:       primary,
 		supplementary: supplementary,
 	}
@@ -147,6 +150,14 @@ func (e *Enricher) EnrichItem(ctx context.Context, item *domaindomain.MediaItem,
 		if createErr := e.mediaPersons.Create(ctx, mp); createErr != nil {
 			_ = createErr
 		}
+	}
+
+	if e.search != nil {
+		names := make([]string, 0, len(result.People))
+		for _, p := range result.People {
+			names = append(names, p.Name)
+		}
+		e.search.IndexMediaItem(ctx, item, names)
 	}
 
 	return nil

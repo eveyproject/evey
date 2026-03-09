@@ -83,11 +83,11 @@ function LoginPage() {
             required
           />
           {login.error && (
-            <p className="text-sm text-red-400 text-center">
+            <p className="text-sm text-red-400 text-center" data-testid="login-error">
               {friendlyLoginError(login.error)}
             </p>
           )}
-          <Button type="submit" loading={login.isPending} className="w-full mt-2">
+          <Button type="submit" loading={login.isPending} className="w-full mt-2" data-testid="login-submit">
             Sign in
           </Button>
         </form>

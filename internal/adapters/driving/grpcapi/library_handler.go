@@ -155,18 +155,18 @@ func (h *libraryHandler) SearchMedia(ctx context.Context, req *eveyv1.SearchMedi
 	if req.Type != eveyv1.MediaItemType_MEDIA_ITEM_TYPE_UNSPECIFIED {
 		filters["type"] = mediaItemTypeFromProto[req.Type]
 	}
-	items, err := h.svc.SearchMedia(ctx, req.Query, filters)
+	limit := int64(req.Limit)
+	if limit <= 0 {
+		limit = 20
+	}
+	items, totalHits, err := h.svc.SearchMediaFull(ctx, req.Query, filters, limit)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "search media: %v", err)
 	}
 	resp := &eveyv1.SearchMediaResponse{
-		TotalHits: int32(len(items)),
+		TotalHits: int32(totalHits),
 	}
-	limit := int(req.Limit)
-	if limit <= 0 || limit > len(items) {
-		limit = len(items)
-	}
-	for _, item := range items[:limit] {
+	for _, item := range items {
 		resp.Items = append(resp.Items, mediaItemToProto(item))
 	}
 	return resp, nil

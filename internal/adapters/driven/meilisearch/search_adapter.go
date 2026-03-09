@@ -2,6 +2,7 @@ package meilisearch
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"strings"
 
@@ -46,13 +47,28 @@ func newSearchAdapterFromClient(ctx context.Context, client ServiceClient) (*Sea
 
 	idx := client.Index(indexName)
 
-	if _, err := idx.UpdateSettingsWithContext(ctx, &ms.Settings{
-		SearchableAttributes: []string{"title", "original_title", "overview", "genres", "studios", "tags"},
+	idx.UpdateSettingsWithContext(ctx, &ms.Settings{
+		SearchableAttributes: []string{"title", "original_title", "cast"},
 		FilterableAttributes: []string{"type", "library_id", "year", "genres"},
 		SortableAttributes:   []string{"title", "year", "added_at"},
-	}); err != nil {
-		return nil, fmt.Errorf("update settings: %w", err)
-	}
+		RankingRules: []string{
+			"words", "typo", "proximity", "attribute", "sort", "exactness",
+		},
+		TypoTolerance: &ms.TypoTolerance{
+			Enabled: true,
+			MinWordSizeForTypos: ms.MinWordSizeForTypos{
+				OneTypo:  3,
+				TwoTypos: 6,
+			},
+		},
+		Synonyms: map[string][]string{
+			"film":   {"movie", "movies"},
+			"movie":  {"film", "films"},
+			"serie":  {"series", "show", "tv show"},
+			"series": {"serie", "show", "tv show"},
+			"show":   {"serie", "series", "tv show"},
+		},
+	})
 
 	return &SearchAdapter{index: idx}, nil
 }
@@ -65,25 +81,21 @@ type mediaDocument struct {
 	ID            string   `json:"id"`
 	Title         string   `json:"title"`
 	OriginalTitle string   `json:"original_title"`
-	Overview      string   `json:"overview"`
 	Genres        []string `json:"genres"`
-	Studios       []string `json:"studios"`
-	Tags          []string `json:"tags"`
+	Cast          []string `json:"cast"`
 	Year          *int     `json:"year"`
 	Type          string   `json:"type"`
 	LibraryID     string   `json:"library_id"`
 	AddedAt       int64    `json:"added_at"`
 }
 
-func ToDocument(item *library.MediaItem) mediaDocument {
+func ToDocument(item *library.MediaItem, castNames []string) mediaDocument {
 	return mediaDocument{
 		ID:            item.ID,
 		Title:         item.Title,
 		OriginalTitle: item.OriginalTitle,
-		Overview:      item.Overview,
 		Genres:        item.Genres,
-		Studios:       item.Studios,
-		Tags:          item.Tags,
+		Cast:          castNames,
 		Year:          item.Year,
 		Type:          item.Type,
 		LibraryID:     item.LibraryID,
@@ -103,8 +115,8 @@ func BuildFilterString(filters map[string]string) string {
 	return strings.Join(parts, " AND ")
 }
 
-func (a *SearchAdapter) IndexMediaItem(ctx context.Context, item *library.MediaItem) error {
-	doc := ToDocument(item)
+func (a *SearchAdapter) IndexMediaItem(ctx context.Context, item *library.MediaItem, castNames []string) error {
+	doc := ToDocument(item, castNames)
 	_, err := a.index.AddDocumentsWithContext(ctx, []mediaDocument{doc}, nil)
 	if err != nil {
 		return fmt.Errorf("index media item: %w", err)
@@ -120,9 +132,17 @@ func (a *SearchAdapter) RemoveMediaItem(ctx context.Context, id string) error {
 	return nil
 }
 
-func (a *SearchAdapter) Search(ctx context.Context, query string, filters map[string]string) ([]string, error) {
+func (a *SearchAdapter) Search(ctx context.Context, query string, filters map[string]string, limit int64) ([]library.SearchHit, int64, error) {
+	if limit <= 0 {
+		limit = 20
+	}
 	req := &ms.SearchRequest{
-		AttributesToRetrieve: []string{"id"},
+		Limit:                limit,
+		AttributesToRetrieve: []string{"id", "title", "year", "type", "genres"},
+		AttributesToHighlight: []string{"title"},
+		HighlightPreTag:      "<mark>",
+		HighlightPostTag:     "</mark>",
+		MatchingStrategy:     ms.Frequency,
 	}
 	if f := BuildFilterString(filters); f != "" {
 		req.Filter = f
@@ -130,18 +150,39 @@ func (a *SearchAdapter) Search(ctx context.Context, query string, filters map[st
 
 	resp, err := a.index.SearchWithContext(ctx, query, req)
 	if err != nil {
-		return nil, fmt.Errorf("search: %w", err)
+		return nil, 0, fmt.Errorf("search: %w", err)
 	}
 
-	ids := make([]string, 0, len(resp.Hits))
+	hits := make([]library.SearchHit, 0, len(resp.Hits))
 	for _, hit := range resp.Hits {
 		var doc struct {
-			ID string `json:"id"`
+			ID     string   `json:"id"`
+			Title  string   `json:"title"`
+			Year   *int     `json:"year"`
+			Type   string   `json:"type"`
+			Genres []string `json:"genres"`
 		}
 		if err := hit.DecodeInto(&doc); err != nil {
 			continue
 		}
-		ids = append(ids, doc.ID)
+		h := library.SearchHit{
+			ID:     doc.ID,
+			Title:  doc.Title,
+			Year:   doc.Year,
+			Type:   doc.Type,
+			Genres: doc.Genres,
+		}
+		if raw, ok := hit["_formatted"]; ok {
+			var fm map[string]string
+			if json.Unmarshal(raw, &fm) == nil {
+				if ht, ok := fm["title"]; ok {
+					h.HighlightedTitle = ht
+				}
+			}
+		}
+		hits = append(hits, h)
 	}
-	return ids, nil
+
+	totalHits := resp.EstimatedTotalHits
+	return hits, totalHits, nil
 }
