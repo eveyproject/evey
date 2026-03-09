@@ -3,6 +3,7 @@ package fakes
 import (
 	"context"
 	"errors"
+	"fmt"
 	"sync"
 
 	"github.com/gravity-zero/evey/internal/domain/metadata"
@@ -11,17 +12,21 @@ import (
 var ErrNotFound = errors.New("not found")
 
 type FakeMetadataProvider struct {
-	mu            sync.RWMutex
-	ProviderName  string
-	SearchResults map[string][]metadata.MetadataResult
-	ByProviderID  map[string]*metadata.MetadataResult
+	mu              sync.RWMutex
+	ProviderName    string
+	SearchResults   map[string][]metadata.MetadataResult
+	ByProviderID    map[string]*metadata.MetadataResult
+	EpisodeDetails  map[string]*metadata.MetadataResult // key: "seriesID:season:episode"
+	ExternalLookups map[string]*metadata.MetadataResult // key: "provider:id"
 }
 
 func NewFakeMetadataProvider(name string) *FakeMetadataProvider {
 	return &FakeMetadataProvider{
-		ProviderName:  name,
-		SearchResults: make(map[string][]metadata.MetadataResult),
-		ByProviderID:  make(map[string]*metadata.MetadataResult),
+		ProviderName:    name,
+		SearchResults:   make(map[string][]metadata.MetadataResult),
+		ByProviderID:    make(map[string]*metadata.MetadataResult),
+		EpisodeDetails:  make(map[string]*metadata.MetadataResult),
+		ExternalLookups: make(map[string]*metadata.MetadataResult),
 	}
 }
 
@@ -41,4 +46,30 @@ func (p *FakeMetadataProvider) GetByProviderID(_ context.Context, providerID str
 		return nil, ErrNotFound
 	}
 	return r, nil
+}
+
+func (p *FakeMetadataProvider) GetEpisodeDetails(_ context.Context, seriesID string, seasonNum, episodeNum int) (*metadata.MetadataResult, error) {
+	p.mu.RLock()
+	defer p.mu.RUnlock()
+	key := seriesID + ":" + itoa(seasonNum) + ":" + itoa(episodeNum)
+	r, ok := p.EpisodeDetails[key]
+	if !ok {
+		return nil, ErrNotFound
+	}
+	return r, nil
+}
+
+func (p *FakeMetadataProvider) LookupByExternalID(_ context.Context, providerName, externalID string) (*metadata.MetadataResult, error) {
+	p.mu.RLock()
+	defer p.mu.RUnlock()
+	key := providerName + ":" + externalID
+	r, ok := p.ExternalLookups[key]
+	if !ok {
+		return nil, ErrNotFound
+	}
+	return r, nil
+}
+
+func itoa(i int) string {
+	return fmt.Sprintf("%d", i)
 }

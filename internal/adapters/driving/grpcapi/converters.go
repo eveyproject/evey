@@ -137,6 +137,20 @@ func mediaItemToProto(item *library.MediaItem) *eveyv1.MediaItem {
 	if item.Year != nil {
 		pb.Year = int32(*item.Year)
 	}
+
+	maxValues := map[string]float64{"imdb": 10, "tmdb": 10, "rt": 100, "metacritic": 100}
+	for source, value := range item.Ratings {
+		maxVal := maxValues[source]
+		if maxVal == 0 {
+			maxVal = 10
+		}
+		pb.Ratings = append(pb.Ratings, &eveyv1.Rating{
+			Source:   source,
+			Value:    value,
+			MaxValue: maxVal,
+		})
+	}
+
 	return pb
 }
 

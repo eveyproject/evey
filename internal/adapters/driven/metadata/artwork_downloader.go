@@ -10,18 +10,18 @@ import (
 	"time"
 )
 
-type TMDBArtworkDownloader struct {
+type ArtworkHTTPDownloader struct {
 	httpClient *http.Client
 }
 
-func NewTMDBArtworkDownloader(httpClient *http.Client) *TMDBArtworkDownloader {
+func NewArtworkHTTPDownloader(httpClient *http.Client) *ArtworkHTTPDownloader {
 	if httpClient == nil {
 		httpClient = &http.Client{Timeout: 60 * time.Second}
 	}
-	return &TMDBArtworkDownloader{httpClient: httpClient}
+	return &ArtworkHTTPDownloader{httpClient: httpClient}
 }
 
-func (d *TMDBArtworkDownloader) Download(ctx context.Context, url, destPath string) error {
+func (d *ArtworkHTTPDownloader) Download(ctx context.Context, url, destPath string) error {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
 		return fmt.Errorf("create download request: %w", err)

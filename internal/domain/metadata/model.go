@@ -14,6 +14,7 @@ type MetadataResult struct {
 	Genres          []string
 	Studios         []string
 	ProviderIDs     map[string]string
+	Ratings         map[string]float64 // imdb, rt, metacritic, tmdb
 	People          []PersonResult
 	Artwork         []ArtworkResult
 }
@@ -31,6 +32,7 @@ type ArtworkResult struct {
 	Width    int
 	Height   int
 	Language string
+	Provider string
 }
 
 type MetadataOverride struct {

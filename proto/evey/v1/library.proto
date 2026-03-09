@@ -107,6 +107,13 @@ message MediaItem {
   repeated Artwork artwork = 26;
   google.protobuf.Timestamp created_at = 27;
   google.protobuf.Timestamp updated_at = 28;
+  repeated Rating ratings = 29;
+}
+
+message Rating {
+  string source = 1;  // imdb, rt, metacritic, tmdb
+  double value = 2;
+  double max_value = 3;  // 10 for imdb/tmdb, 100 for rt/metacritic
 }
 
 enum MediaItemType {

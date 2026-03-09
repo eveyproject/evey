@@ -13,12 +13,13 @@ import (
 	domainmetadata "github.com/gravity-zero/evey/internal/domain/metadata"
 )
 
-// Enricher stores metadata results (artwork, people) into the DB.
 type Enricher struct {
-	artwork      domainmetadata.ArtworkRepository
-	persons      domaindomain.PersonRepository
-	mediaPersons domaindomain.MediaPersonRepository
-	mediaItems   domaindomain.MediaItemRepository
+	artwork       domainmetadata.ArtworkRepository
+	persons       domaindomain.PersonRepository
+	mediaPersons  domaindomain.MediaPersonRepository
+	mediaItems    domaindomain.MediaItemRepository
+	primary       domainmetadata.MetadataProvider
+	supplementary []domainmetadata.MetadataProvider
 }
 
 func NewEnricher(
@@ -26,12 +27,16 @@ func NewEnricher(
 	persons domaindomain.PersonRepository,
 	mediaPersons domaindomain.MediaPersonRepository,
 	mediaItems domaindomain.MediaItemRepository,
+	primary domainmetadata.MetadataProvider,
+	supplementary []domainmetadata.MetadataProvider,
 ) *Enricher {
 	return &Enricher{
-		artwork:      artwork,
-		persons:      persons,
-		mediaPersons: mediaPersons,
-		mediaItems:   mediaItems,
+		artwork:       artwork,
+		persons:       persons,
+		mediaPersons:  mediaPersons,
+		mediaItems:    mediaItems,
+		primary:       primary,
+		supplementary: supplementary,
 	}
 }
 
@@ -57,6 +62,13 @@ func (e *Enricher) EnrichItem(ctx context.Context, item *domaindomain.MediaItem,
 		item.ProviderIDs[k] = v
 	}
 
+	if item.Ratings == nil {
+		item.Ratings = make(map[string]float64)
+	}
+	for k, v := range result.Ratings {
+		item.Ratings[k] = v
+	}
+
 	if err := e.mediaItems.Update(ctx, item); err != nil {
 		return fmt.Errorf("update media item: %w", err)
 	}
@@ -68,11 +80,15 @@ func (e *Enricher) EnrichItem(ctx context.Context, item *domaindomain.MediaItem,
 		src := art.URL
 		lang := art.Language
 		w, h := art.Width, art.Height
+		provider := art.Provider
+		if provider == "" {
+			provider = "unknown"
+		}
 		rec := &domainmetadata.ArtworkRecord{
 			ID:          uuid.New().String(),
 			MediaItemID: item.ID,
 			Type:        art.Type,
-			Provider:    "tmdb",
+			Provider:    provider,
 			SourceURL:   &src,
 			SortOrder:   i,
 		}
@@ -150,20 +166,18 @@ func roleType(role string) string {
 	}
 }
 
-// AutoEnrichItem searches TMDB and enriches a single item.
-// Skips items that already have an overview, EXCEPT episodes (always re-fetch real episode title).
-func (e *Enricher) AutoEnrichItem(ctx context.Context, item *domaindomain.MediaItem, tmdb *TMDBProvider, log *slog.Logger) {
+// AutoEnrichItem searches providers and enriches a single item.
+// Primary provider first, then supplementary for extra IDs/ratings.
+func (e *Enricher) AutoEnrichItem(ctx context.Context, item *domaindomain.MediaItem, log *slog.Logger) {
 	if item.Title == "" {
 		return
 	}
 
-	// Episodes: fetch specific episode data from TMDB using parent chain
 	if item.Type == string(domaindomain.Episode) {
-		e.autoEnrichEpisode(ctx, item, tmdb, log)
+		e.autoEnrichEpisode(ctx, item, log)
 		return
 	}
 
-	// Non-episode: skip if already enriched
 	if item.Overview != "" {
 		return
 	}
@@ -172,35 +186,140 @@ func (e *Enricher) AutoEnrichItem(ctx context.Context, item *domaindomain.MediaI
 	if item.Type == string(domaindomain.Series) {
 		mediaType = "tv"
 	}
-	results, err := tmdb.Search(ctx, item.Title, mediaType)
-	if err != nil || len(results) == 0 {
+
+	// 1. Try primary provider
+	primary := e.searchAndFetch(ctx, e.primary, item.Title, item.Year, mediaType, log)
+
+	// 2. If primary failed, try supplementary as fallback
+	if primary == nil {
+		for _, sp := range e.supplementary {
+			primary = e.searchAndFetch(ctx, sp, item.Title, item.Year, mediaType, log)
+			if primary != nil {
+				break
+			}
+		}
+	}
+
+	if primary == nil {
 		return
 	}
+
+	// 3. Enrich with primary result first (saves to DB immediately)
+	if err := e.EnrichItem(ctx, item, primary); err != nil && log != nil {
+		log.Warn("auto-enrich failed", slog.String("title", item.Title), slog.Any("err", err))
+		return
+	}
+
+	// 4. Supplement async (extra IDs, ratings) — does not block
+	go e.supplementItem(context.Background(), item, primary, mediaType, log)
+}
+
+// supplementItem calls supplementary providers to merge extra data (IMDB ID, ratings, TheTVDB ID).
+func (e *Enricher) supplementItem(ctx context.Context, item *domaindomain.MediaItem, primary *domainmetadata.MetadataResult, mediaType string, log *slog.Logger) {
+	imdbID := primary.ProviderIDs["imdb"]
+	changed := false
+
+	for _, sp := range e.supplementary {
+		if sp.Name() == e.primary.Name() {
+			continue
+		}
+
+		var supplement *domainmetadata.MetadataResult
+
+		// Try lookup by IMDB ID if available
+		if imdbID != "" {
+			if sp.Name() == "omdb" {
+				s, err := sp.GetByProviderID(ctx, imdbID, mediaType)
+				if err == nil && s != nil {
+					supplement = s
+				}
+			}
+			if lookup, ok := sp.(domainmetadata.ExternalIDLookup); ok {
+				s, err := lookup.LookupByExternalID(ctx, "imdb", imdbID)
+				if err == nil && s != nil {
+					supplement = s
+				}
+			}
+		}
+
+		if supplement == nil {
+			continue
+		}
+
+		// Merge provider IDs
+		for k, v := range supplement.ProviderIDs {
+			if _, exists := item.ProviderIDs[k]; !exists {
+				if item.ProviderIDs == nil {
+					item.ProviderIDs = make(map[string]string)
+				}
+				item.ProviderIDs[k] = v
+				changed = true
+			}
+		}
+
+		// Merge ratings
+		for k, v := range supplement.Ratings {
+			if _, exists := item.Ratings[k]; !exists {
+				if item.Ratings == nil {
+					item.Ratings = make(map[string]float64)
+				}
+				item.Ratings[k] = v
+				changed = true
+			}
+		}
+	}
+
+	if changed {
+		item.UpdatedAt = time.Now()
+		if err := e.mediaItems.Update(ctx, item); err != nil && log != nil {
+			log.Warn("supplement update failed", slog.String("title", item.Title), slog.Any("err", err))
+		}
+	}
+}
+
+// searchAndFetch searches a provider and fetches full details for the best match.
+func (e *Enricher) searchAndFetch(ctx context.Context, provider domainmetadata.MetadataProvider, title string, year *int, mediaType string, log *slog.Logger) *domainmetadata.MetadataResult {
+	results, err := provider.Search(ctx, title, mediaType)
+	if err != nil {
+		if log != nil {
+			log.Debug("provider search failed", slog.String("provider", provider.Name()), slog.String("title", title), slog.Any("err", err))
+		}
+		return nil
+	}
+	if len(results) == 0 {
+		return nil
+	}
+
 	best := results[0]
-	if item.Year != nil {
+	if year != nil {
 		for _, r := range results {
-			if r.Year != nil && *r.Year == *item.Year {
+			if r.Year != nil && *r.Year == *year {
 				best = r
 				break
 			}
 		}
 	}
-	tmdbID, ok := best.ProviderIDs["tmdb"]
-	if !ok {
-		return
+
+	// Get the provider's own ID to fetch full details
+	providerID := best.ProviderIDs[provider.Name()]
+	if providerID == "" {
+		// Try imdb ID for OMDb
+		if provider.Name() == "omdb" {
+			providerID = best.ProviderIDs["imdb"]
+		}
+		if providerID == "" {
+			return &best
+		}
 	}
-	full, err := tmdb.GetByProviderID(ctx, tmdbID, mediaType)
+
+	full, err := provider.GetByProviderID(ctx, providerID, mediaType)
 	if err != nil {
-		full = &best
+		return &best
 	}
-	if err := e.EnrichItem(ctx, item, full); err != nil && log != nil {
-		log.Warn("auto-enrich failed", slog.String("title", item.Title), slog.Any("err", err))
-	}
+	return full
 }
 
-// autoEnrichEpisode fetches the specific episode title/overview from TMDB
-// by walking up the parent chain (episode → season → series → TMDB ID).
-func (e *Enricher) autoEnrichEpisode(ctx context.Context, item *domaindomain.MediaItem, tmdb *TMDBProvider, log *slog.Logger) {
+func (e *Enricher) autoEnrichEpisode(ctx context.Context, item *domaindomain.MediaItem, log *slog.Logger) {
 	if item.ParentID == "" || item.IndexNumber == nil {
 		return
 	}
@@ -212,40 +331,66 @@ func (e *Enricher) autoEnrichEpisode(ctx context.Context, item *domaindomain.Med
 	if err != nil {
 		return
 	}
-	seriesTMDB, ok := series.ProviderIDs["tmdb"]
-	if !ok || seriesTMDB == "" {
-		// Try to enrich series first so we get its TMDB ID
-		if series.Overview == "" {
-			e.AutoEnrichItem(ctx, series, tmdb, log)
-			// Re-fetch after enrichment
-			series, err = e.mediaItems.GetByID(ctx, season.ParentID)
-			if err != nil {
-				return
+
+	// Try each episode-capable provider
+	providers := e.episodeProviders()
+	for _, ep := range providers {
+		seriesID := series.ProviderIDs[ep.provider.Name()]
+		if seriesID == "" {
+			// For primary, try enriching the series first
+			if ep.provider.Name() == e.primary.Name() && series.Overview == "" {
+				e.AutoEnrichItem(ctx, series, log)
+				series, err = e.mediaItems.GetByID(ctx, season.ParentID)
+				if err != nil {
+					continue
+				}
+				seriesID = series.ProviderIDs[ep.provider.Name()]
 			}
-			seriesTMDB, ok = series.ProviderIDs["tmdb"]
-			if !ok || seriesTMDB == "" {
-				return
+			if seriesID == "" {
+				continue
 			}
-		} else {
-			return
 		}
-	}
-	result, err := tmdb.GetEpisodeDetails(ctx, seriesTMDB, *season.IndexNumber, *item.IndexNumber)
-	if err != nil {
-		if log != nil {
-			log.Debug("episode tmdb lookup failed", slog.String("series_tmdb", seriesTMDB),
-				slog.Int("season", *season.IndexNumber), slog.Int("ep", *item.IndexNumber), slog.Any("err", err))
+
+		result, err := ep.detail.GetEpisodeDetails(ctx, seriesID, *season.IndexNumber, *item.IndexNumber)
+		if err != nil {
+			if log != nil {
+				log.Debug("episode lookup failed",
+					slog.String("provider", ep.provider.Name()),
+					slog.String("series_id", seriesID),
+					slog.Int("season", *season.IndexNumber),
+					slog.Int("ep", *item.IndexNumber),
+					slog.Any("err", err))
+			}
+			continue
+		}
+
+		if err := e.EnrichItem(ctx, item, result); err != nil && log != nil {
+			log.Warn("episode enrich failed", slog.String("id", item.ID), slog.Any("err", err))
 		}
 		return
 	}
-	// Preserve existing genres/studios from series for display context
-	if err := e.EnrichItem(ctx, item, result); err != nil && log != nil {
-		log.Warn("episode enrich failed", slog.String("id", item.ID), slog.Any("err", err))
-	}
 }
 
-// AutoEnrichAll enriches all items with no overview concurrently (max 3 at a time).
-func (e *Enricher) AutoEnrichAll(ctx context.Context, items []*domaindomain.MediaItem, tmdb *TMDBProvider, log *slog.Logger) {
+type episodeProvider struct {
+	provider domainmetadata.MetadataProvider
+	detail   domainmetadata.EpisodeDetailProvider
+}
+
+func (e *Enricher) episodeProviders() []episodeProvider {
+	var result []episodeProvider
+	if ep, ok := e.primary.(domainmetadata.EpisodeDetailProvider); ok {
+		result = append(result, episodeProvider{provider: e.primary, detail: ep})
+	}
+	for _, sp := range e.supplementary {
+		if ep, ok := sp.(domainmetadata.EpisodeDetailProvider); ok {
+			result = append(result, episodeProvider{provider: sp, detail: ep})
+		}
+	}
+	return result
+}
+
+// AutoEnrichAll enriches all items concurrently (max 3 at a time).
+func (e *Enricher) AutoEnrichAll(ctx context.Context, items []*domaindomain.MediaItem, log *slog.Logger) {
 	sem := make(chan struct{}, 3)
 	var wg sync.WaitGroup
 	for _, item := range items {
@@ -257,8 +402,54 @@ func (e *Enricher) AutoEnrichAll(ctx context.Context, items []*domaindomain.Medi
 			defer wg.Done()
 			sem <- struct{}{}
 			defer func() { <-sem }()
-			e.AutoEnrichItem(ctx, it, tmdb, log)
+			e.AutoEnrichItem(ctx, it, log)
 		}(item)
 	}
 	wg.Wait()
+}
+
+// MergeResults merges supplementary results into a primary result.
+// Primary fields are kept; supplementary only fills gaps.
+func MergeResults(primary *domainmetadata.MetadataResult, supplements ...*domainmetadata.MetadataResult) *domainmetadata.MetadataResult {
+	if primary.ProviderIDs == nil {
+		primary.ProviderIDs = make(map[string]string)
+	}
+	if primary.Ratings == nil {
+		primary.Ratings = make(map[string]float64)
+	}
+
+	for _, s := range supplements {
+		if s == nil {
+			continue
+		}
+		for k, v := range s.ProviderIDs {
+			if _, exists := primary.ProviderIDs[k]; !exists {
+				primary.ProviderIDs[k] = v
+			}
+		}
+		for k, v := range s.Ratings {
+			if _, exists := primary.Ratings[k]; !exists {
+				primary.Ratings[k] = v
+			}
+		}
+		if primary.Overview == "" {
+			primary.Overview = s.Overview
+		}
+		if len(primary.People) == 0 {
+			primary.People = s.People
+		}
+		if len(primary.Genres) == 0 {
+			primary.Genres = s.Genres
+		}
+		if primary.CommunityRating == nil && s.CommunityRating != nil {
+			primary.CommunityRating = s.CommunityRating
+		}
+		if primary.OfficialRating == "" {
+			primary.OfficialRating = s.OfficialRating
+		}
+		// Append supplementary artwork after primary
+		primary.Artwork = append(primary.Artwork, s.Artwork...)
+	}
+
+	return primary
 }

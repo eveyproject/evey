@@ -154,7 +154,9 @@ func run() error {
 	hasher := auth.BcryptHasher{}
 	tmdbProvider := metadataadapter.NewTMDBProvider(os.Getenv("EVEY_TMDB_API_KEY"), cfg.Metadata.Language, nil)
 	imdbProvider := metadataadapter.NewIMDBAPIProvider(nil)
-	artworkDownloader := metadataadapter.NewTMDBArtworkDownloader(nil)
+	tvmazeProvider := metadataadapter.NewTVMazeProvider(nil)
+	omdbProvider := metadataadapter.NewOMDbProvider(os.Getenv("EVEY_OMDB_API_KEY"), nil)
+	artworkDownloader := metadataadapter.NewArtworkHTTPDownloader(nil)
 	pluginRunner := pluginrunner.NewRunner()
 	manifestParser := pluginrunner.NewManifestParser()
 
@@ -193,9 +195,13 @@ func run() error {
 
 	metadataSvc := appmetadata.NewService(
 		metadataOverrideRepo, artworkRepo, artworkDownloader,
-		bus, []metadata.MetadataProvider{imdbProvider, tmdbProvider},
+		bus, []metadata.MetadataProvider{tmdbProvider, omdbProvider, tvmazeProvider, imdbProvider},
 	)
-	enricher := metadataadapter.NewEnricher(artworkRepo, personRepo, mediaPersonRepo, mediaItemRepo)
+	enricher := metadataadapter.NewEnricher(
+		artworkRepo, personRepo, mediaPersonRepo, mediaItemRepo,
+		tmdbProvider,
+		[]metadata.MetadataProvider{omdbProvider, tvmazeProvider, imdbProvider},
+	)
 	metadataSvc.WithEnricher(enricher, mediaItemRepo)
 
 	activitySvc := appactivity.NewService(
@@ -215,7 +221,7 @@ func run() error {
 			ctx := context.Background()
 			items, err := mediaItemRepo.List(ctx, domainlibrary.ListMediaItemsFilter{Limit: 5000})
 			if err == nil {
-				enricher.AutoEnrichAll(ctx, items, tmdbProvider, rootLog)
+				enricher.AutoEnrichAll(ctx, items, rootLog)
 			}
 		}()
 		bus.Subscribe("media.item.added", func(ctx context.Context, ev shared.Event) {
@@ -223,7 +229,7 @@ func run() error {
 				go func() {
 					item, err := mediaItemRepo.GetByID(context.Background(), e.MediaItemID)
 					if err == nil {
-						enricher.AutoEnrichItem(context.Background(), item, tmdbProvider, rootLog)
+						enricher.AutoEnrichItem(context.Background(), item, rootLog)
 					}
 				}()
 			}
@@ -297,7 +303,7 @@ func run() error {
 		mux.HandleFunc("GET /api/v1/media/{id}/transcode", transcodeHandler(tokenGen, librarySvc))
 		mux.HandleFunc("GET /api/v1/media/{id}/subtitle/{track}", subtitleHandler(tokenGen, librarySvc))
 		mux.HandleFunc("GET /api/v1/admin/library-stats", libraryStatsHandler(tokenGen, librarySvc))
-		registerAdminRoutes(mux, metadataSvc, tmdbProvider, tokenGen)
+		registerAdminRoutes(mux, metadataSvc, tokenGen)
 		mux.Handle("/", gwMux)
 		httpSrv = &http.Server{
 			Addr:              fmt.Sprintf(":%d", httpPort),
@@ -612,7 +618,7 @@ func loadOrGenerateRSAKey(path string) (*rsa.PrivateKey, error) {
 	return key, nil
 }
 
-func registerAdminRoutes(mux *http.ServeMux, metaSvc *appmetadata.Service, tmdb *metadataadapter.TMDBProvider, tokenGen *auth.JWTGenerator) {
+func registerAdminRoutes(mux *http.ServeMux, metaSvc *appmetadata.Service, tokenGen *auth.JWTGenerator) {
 	requireAdmin := func(r *http.Request) bool {
 		h := r.Header.Get("Authorization")
 		if !strings.HasPrefix(h, "Bearer ") {
@@ -668,7 +674,7 @@ func registerAdminRoutes(mux *http.ServeMux, metaSvc *appmetadata.Service, tmdb 
 				http.Error(w, "query and type required", http.StatusBadRequest)
 				return
 			}
-			results, err := tmdb.Search(r.Context(), query, mediaType)
+			results, err := metaSvc.SearchMetadata(r.Context(), query, mediaType)
 			if err != nil {
 				slog.Error("search metadata", slog.Any("err", err))
 				http.Error(w, "internal error", http.StatusInternalServerError)

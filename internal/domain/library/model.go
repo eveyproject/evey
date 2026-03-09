@@ -81,6 +81,7 @@ type MediaItem struct {
 	PremiereDate    *time.Time
 	Year            *int
 	ProviderIDs     map[string]string
+	Ratings         map[string]float64
 	Genres          []string
 	Studios         []string
 	Tags            []string

@@ -149,7 +149,7 @@ func (p *TMDBProvider) GetByProviderID(ctx context.Context, providerID string, m
 	}
 
 	params := url.Values{
-		"append_to_response": {"credits,keywords,images"},
+		"append_to_response": {"credits,keywords,images,external_ids"},
 		"language":           {p.language},
 	}
 	u := fmt.Sprintf("%s%s?%s", p.baseURL, endpoint, params.Encode())
@@ -292,8 +292,18 @@ func mapSearchResult(item tmdbSearchItem, mediaType string, genreMap map[int]str
 func mapDetailResult(d tmdbDetailResponse, mediaType string) domain.MetadataResult {
 	result := domain.MetadataResult{
 		ProviderIDs: map[string]string{"tmdb": strconv.Itoa(d.ID)},
+		Ratings:     map[string]float64{},
 		Tagline:     d.Tagline,
 		Overview:    d.Overview,
+	}
+
+	if d.ExternalIDs != nil {
+		if d.ExternalIDs.IMDBID != "" {
+			result.ProviderIDs["imdb"] = d.ExternalIDs.IMDBID
+		}
+		if d.ExternalIDs.TVDBID > 0 {
+			result.ProviderIDs["thetvdb"] = strconv.Itoa(d.ExternalIDs.TVDBID)
+		}
 	}
 
 	if mediaType == "tv" {
@@ -314,6 +324,7 @@ func mapDetailResult(d tmdbDetailResponse, mediaType string) domain.MetadataResu
 	if d.VoteAverage > 0 {
 		r := d.VoteAverage
 		result.CommunityRating = &r
+		result.Ratings["tmdb"] = d.VoteAverage
 	}
 
 	for _, g := range d.Genres {
@@ -352,6 +363,7 @@ func mapDetailResult(d tmdbDetailResponse, mediaType string) domain.MetadataResu
 				Width:    img.Width,
 				Height:   img.Height,
 				Language: img.ISO639_1,
+				Provider: "tmdb",
 			})
 		}
 		for _, img := range d.Images.Backdrops {
@@ -361,6 +373,7 @@ func mapDetailResult(d tmdbDetailResponse, mediaType string) domain.MetadataResu
 				Width:    img.Width,
 				Height:   img.Height,
 				Language: img.ISO639_1,
+				Provider: "tmdb",
 			})
 		}
 	}
@@ -423,6 +436,12 @@ type tmdbDetailResponse struct {
 	ProductionCompanies []tmdbCompany      `json:"production_companies"`
 	Credits             *tmdbCredits       `json:"credits"`
 	Images              *tmdbImages        `json:"images"`
+	ExternalIDs         *tmdbExternalIDs   `json:"external_ids"`
+}
+
+type tmdbExternalIDs struct {
+	IMDBID  string `json:"imdb_id"`
+	TVDBID  int    `json:"tvdb_id"`
 }
 
 type tmdbGenre struct {
