@@ -293,6 +293,7 @@ func run() error {
 		mux.HandleFunc("GET /api/v1/media/{id}/stream", mh)
 		mux.HandleFunc("GET /api/v1/media/{id}/artwork/{artType}", mh)
 		mux.HandleFunc("POST /api/v1/media/{id}/stream", mh)
+		mux.HandleFunc("GET /api/v1/media/{id}/download", downloadHandler(tokenGen, librarySvc))
 		mux.HandleFunc("GET /api/v1/media/{id}/transcode", transcodeHandler(tokenGen, librarySvc))
 		mux.HandleFunc("GET /api/v1/media/{id}/subtitle/{track}", subtitleHandler(tokenGen, librarySvc))
 		mux.HandleFunc("GET /api/v1/admin/library-stats", libraryStatsHandler(tokenGen, librarySvc))
@@ -446,6 +447,45 @@ func mediaHandler(tokens interface {
 	}
 }
 
+func downloadHandler(tokens interface {
+	ValidateAccessToken(string) (*domainuser.Claims, error)
+}, libSvc interface {
+	GetMediaItem(ctx context.Context, id string) (*domainlibrary.MediaItem, error)
+}) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		mediaID := r.PathValue("id")
+		token := r.Header.Get("Authorization")
+		if strings.HasPrefix(token, "Bearer ") {
+			token = token[7:]
+		} else if t := r.URL.Query().Get("token"); t != "" {
+			token = t
+		} else {
+			http.Error(w, `{"message":"unauthenticated"}`, http.StatusUnauthorized)
+			return
+		}
+		if _, err := tokens.ValidateAccessToken(token); err != nil {
+			http.Error(w, `{"message":"forbidden"}`, http.StatusForbidden)
+			return
+		}
+		item, err := libSvc.GetMediaItem(r.Context(), mediaID)
+		if err != nil || item.FilePath == "" {
+			http.Error(w, `{"message":"not found"}`, http.StatusNotFound)
+			return
+		}
+		fi, err := os.Stat(item.FilePath)
+		if err != nil {
+			http.Error(w, `{"message":"file not found"}`, http.StatusNotFound)
+			return
+		}
+		filename := filepath.Base(item.FilePath)
+		w.Header().Set("Content-Disposition", fmt.Sprintf(`attachment; filename="%s"`, filename))
+		w.Header().Set("Content-Type", "application/octet-stream")
+		w.Header().Set("Content-Length", strconv.FormatInt(fi.Size(), 10))
+		w.Header().Set("Access-Control-Allow-Origin", "*")
+		http.ServeFile(w, r, item.FilePath)
+	}
+}
+
 func browseDirsHandler(tokens interface {
 	ValidateAccessToken(string) (*domainuser.Claims, error)
 }) http.HandlerFunc {
@@ -468,7 +508,7 @@ func browseDirsHandler(tokens interface {
 		dir := r.URL.Query().Get("path")
 		if dir != "" {
 			dir = filepath.Clean(dir)
-			if strings.Contains(dir, "..") {
+			if !filepath.IsAbs(dir) || !strings.HasPrefix(dir, "/media") {
 				http.Error(w, `{"message":"invalid path"}`, http.StatusBadRequest)
 				return
 			}

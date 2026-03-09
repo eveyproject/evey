@@ -1,11 +1,11 @@
-import { Button } from "@/components/ui/Button";
 import type { V1AuditLogEntry } from "@evey/api/src/generated/admin.schemas";
+import { Pagination } from "@/components/ui/Pagination";
+import { EmptyState } from "@/components/ui/EmptyState";
 
 interface AuditLogTableProps {
   entries: V1AuditLogEntry[];
   total?: number;
-  onNextPage: () => void;
-  onPrevPage: () => void;
+  onPageChange: (page: number) => void;
   page: number;
   pageSize: number;
 }
@@ -13,14 +13,11 @@ interface AuditLogTableProps {
 export function AuditLogTable({
   entries,
   total = 0,
-  onNextPage,
-  onPrevPage,
+  onPageChange,
   page,
   pageSize,
 }: AuditLogTableProps) {
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
-  const hasPrev = page > 0;
-  const hasNext = (page + 1) * pageSize < total;
 
   return (
     <div className="flex flex-col gap-4">
@@ -45,12 +42,8 @@ export function AuditLogTable({
           <tbody>
             {entries.length === 0 ? (
               <tr>
-                <td
-                  colSpan={6}
-                  className="px-4 py-8 text-center"
-                  style={{ color: "var(--text-muted)" }}
-                >
-                  No entries found.
+                <td colSpan={6}>
+                  <EmptyState icon="history" title="No entries found" />
                 </td>
               </tr>
             ) : (
@@ -87,16 +80,13 @@ export function AuditLogTable({
 
       <div className="flex items-center justify-between">
         <span className="text-sm" style={{ color: "var(--text-muted)" }}>
-          Page {page + 1} of {totalPages} ({total} entries)
+          {total} entries
         </span>
-        <div className="flex gap-2">
-          <Button variant="secondary" onClick={onPrevPage} disabled={!hasPrev}>
-            Previous
-          </Button>
-          <Button variant="secondary" onClick={onNextPage} disabled={!hasNext}>
-            Next
-          </Button>
-        </div>
+        <Pagination
+          page={page + 1}
+          totalPages={totalPages}
+          onPageChange={(p) => onPageChange(p - 1)}
+        />
       </div>
     </div>
   );

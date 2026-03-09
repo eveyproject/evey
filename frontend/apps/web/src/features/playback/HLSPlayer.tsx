@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import Hls from "hls.js";
 import { useAuthStore } from "@evey/store";
 import type { V1StreamInfo } from "@evey/api/src/generated/playback.schemas";
@@ -7,6 +7,7 @@ import type { SubtitleStream } from "./SubtitleSelector";
 import { PlayerControls } from "./PlayerControls";
 import type { EpisodeNavItem, SeasonNavItem } from "./PlayerControls";
 import { ProgressReporter } from "./ProgressReporter";
+import { NextEpisodeOverlay } from "./NextEpisodeOverlay";
 
 const canPlayHevc = (() => {
   const v = document.createElement("video");
@@ -20,6 +21,7 @@ interface HLSPlayerProps {
   sessionId: string;
   mediaId: string;
   startPositionMs?: number;
+  knownDurationMs?: number;
   onEnded?: () => void;
   audioStreams?: AudioStream[];
   subtitleStreams?: SubtitleStream[];
@@ -38,6 +40,7 @@ export function HLSPlayer({
   sessionId,
   mediaId,
   startPositionMs = 0,
+  knownDurationMs,
   onEnded,
   audioStreams = [],
   subtitleStreams = [],
@@ -54,8 +57,12 @@ export function HLSPlayer({
   const hlsRef = useRef<InstanceType<typeof Hls> | null>(null);
   // Track current playback position across reloads (cleanup resets video.currentTime to 0)
   const positionRef = useRef(startPositionMs / 1000);
+  const knownDurationSecRef = useRef(knownDurationMs ? knownDurationMs / 1000 : 0);
+  knownDurationSecRef.current = knownDurationMs ? knownDurationMs / 1000 : 0;
   // Start in transcode mode when there's no HLS URL (always the case with current backend)
   const [transcodeMode, setTranscodeMode] = useState(!streamInfo.transcodeUrl);
+  const [overlayTime, setOverlayTime] = useState(0);
+  const [overlayDuration, setOverlayDuration] = useState(0);
   const defaultAudio = audioStreams.find((s) => s.isDefault) ?? audioStreams[0];
   const [currentAudioIndex, setCurrentAudioIndex] = useState(defaultAudio?.index ?? 0);
   const [currentTrackIndex, setCurrentTrackIndex] = useState(defaultAudio?.trackIndex ?? 0);
@@ -204,10 +211,12 @@ export function HLSPlayer({
           e.preventDefault();
           video.currentTime = Math.max(0, video.currentTime - 10);
           break;
-        case "ArrowRight":
+        case "ArrowRight": {
           e.preventDefault();
-          video.currentTime = Math.min(video.duration || 0, video.currentTime + 10);
+          const dur = knownDurationSecRef.current > 0 ? knownDurationSecRef.current : (video.duration && isFinite(video.duration)) ? video.duration : 0;
+          video.currentTime = Math.min(dur || 0, video.currentTime + 10);
           break;
+        }
         case "ArrowUp":
           e.preventDefault();
           video.volume = Math.min(1, video.volume + 0.1);
@@ -232,6 +241,33 @@ export function HLSPlayer({
     document.addEventListener("keydown", handleKeyDown);
     return () => document.removeEventListener("keydown", handleKeyDown);
   }, []);
+
+  // Track time for next-episode overlay
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video) return;
+    function onTime() {
+      const v = videoRef.current;
+      if (!v) return;
+      setOverlayTime(v.currentTime);
+      const d = v.duration;
+      if (d && isFinite(d) && d > 0) setOverlayDuration(d);
+      else if (knownDurationSecRef.current > 0) setOverlayDuration(knownDurationSecRef.current);
+    }
+    video.addEventListener("timeupdate", onTime);
+    return () => video.removeEventListener("timeupdate", onTime);
+  }, []);
+
+  const nextEpisode = (() => {
+    if (!episodes || !currentEpisodeId) return null;
+    const idx = episodes.findIndex((e) => e.id === currentEpisodeId);
+    if (idx < 0 || idx >= episodes.length - 1) return null;
+    return episodes[idx + 1];
+  })();
+
+  const handleNextEpisode = useCallback((id: string) => {
+    onEpisodeChange?.(id);
+  }, [onEpisodeChange]);
 
   function handleAudioChange(index: number) {
     const stream = audioStreams.find((s) => s.index === index);
@@ -259,8 +295,18 @@ export function HLSPlayer({
     <div className="relative w-full h-full bg-black">
       <video ref={videoRef} className="w-full h-full" playsInline />
       <ProgressReporter sessionId={sessionId} videoRef={videoRef} />
+      {nextEpisode && (
+        <NextEpisodeOverlay
+          nextEpisode={nextEpisode}
+          currentTime={overlayTime}
+          duration={overlayDuration}
+          onPlayNow={handleNextEpisode}
+          onCancel={() => {}}
+        />
+      )}
       <PlayerControls
         videoRef={videoRef}
+        knownDurationSec={knownDurationMs ? knownDurationMs / 1000 : undefined}
         audioStreams={audioStreams}
         subtitleStreams={subtitleStreams}
         title={title}

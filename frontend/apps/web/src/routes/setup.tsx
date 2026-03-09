@@ -58,10 +58,25 @@ function SetupPage() {
       setForm((prev) => ({ ...prev, [field]: e.target.value }));
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-[var(--bg)]">
-      <Card className="w-full max-w-md">
-        <h1 className="text-2xl font-bold text-[var(--text)] mb-1">Welcome to Evey</h1>
-        <p className="text-[var(--text-muted)] text-sm mb-6">Set up your server to get started</p>
+    <div
+      className="min-h-screen flex items-center justify-center px-4"
+      style={{
+        background: "linear-gradient(135deg, var(--bg) 0%, #1a1a2e 50%, var(--bg) 100%)",
+      }}
+    >
+      <Card className="w-full max-w-md p-8 shadow-2xl">
+        <div className="flex flex-col items-center mb-8">
+          <div
+            className="w-12 h-12 rounded-[var(--radius-md)] flex items-center justify-center mb-4"
+            style={{ backgroundColor: "var(--accent)" }}
+          >
+            <svg className="w-6 h-6 text-white" fill="currentColor" viewBox="0 0 20 20">
+              <path d="M6.3 2.8L17 10 6.3 17.2V2.8z" />
+            </svg>
+          </div>
+          <h1 className="text-2xl font-bold text-[var(--text)]">Welcome to Evey</h1>
+          <p className="text-[var(--text-muted)] text-sm mt-1">Set up your server to get started</p>
+        </div>
         <form
           onSubmit={(e) => {
             e.preventDefault();

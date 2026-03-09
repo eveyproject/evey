@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useRef, useState, useEffect, useCallback } from "react";
 import type { ReactNode } from "react";
 import { Link } from "@tanstack/react-router";
 
@@ -13,7 +13,7 @@ interface MediaSliderProps {
 
 function SkeletonCard() {
   return (
-    <div className="flex-shrink-0 w-40" style={{ aspectRatio: "2/3" }}>
+    <div className="flex-shrink-0 w-32 sm:w-40" style={{ aspectRatio: "2/3" }}>
       <div
         className="w-full h-full animate-pulse"
         style={{
@@ -41,26 +41,32 @@ export function MediaSlider({
 }: MediaSliderProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const [showLeft, setShowLeft] = useState(false);
-  const [showRight, setShowRight] = useState(true);
+  const [showRight, setShowRight] = useState(false);
 
-  const scroll = (dir: "left" | "right") => {
-    const el = scrollRef.current;
-    if (!el) return;
-    const amount = el.clientWidth * 0.8;
-    el.scrollBy({ left: dir === "left" ? -amount : amount, behavior: "smooth" });
-  };
+  const CARD_WIDTH = 160; // w-40
 
-  const handleScroll = () => {
+  const checkOverflow = useCallback(() => {
     const el = scrollRef.current;
     if (!el) return;
     setShowLeft(el.scrollLeft > 0);
     setShowRight(el.scrollLeft + el.clientWidth < el.scrollWidth - 4);
+  }, []);
+
+  useEffect(() => {
+    checkOverflow();
+  }, [isLoading, children, checkOverflow]);
+
+  const scroll = (dir: "left" | "right") => {
+    const el = scrollRef.current;
+    if (!el) return;
+    const amount = el.clientWidth - CARD_WIDTH;
+    el.scrollBy({ left: dir === "left" ? -amount : amount, behavior: "smooth" });
   };
 
   return (
     <section className="mb-8 group/slider">
       <div className="flex items-center justify-between mb-3 px-1">
-        <h2 className="text-lg font-semibold" style={{ color: "var(--text)" }}>
+        <h2 className="text-base sm:text-lg font-semibold" style={{ color: "var(--text)" }}>
           {title}
         </h2>
         {seeAllHref && (
@@ -79,8 +85,8 @@ export function MediaSlider({
         {showLeft && (
           <button
             onClick={() => scroll("left")}
-            className="absolute left-0 top-0 bottom-0 z-10 flex items-center justify-center w-10 opacity-0 group-hover/slider:opacity-100 transition-opacity"
-            style={{ backgroundColor: "rgba(0,0,0,0.5)" }}
+            className="absolute left-0 top-0 bottom-2 z-10 flex items-center justify-center w-10 rounded-r-[var(--radius-md)] opacity-0 group-hover/slider:opacity-100 transition-opacity"
+            style={{ background: "linear-gradient(to right, var(--overlay-gradient), transparent)" }}
             aria-label="Scroll left"
           >
             <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -91,8 +97,8 @@ export function MediaSlider({
 
         <div
           ref={scrollRef}
-          onScroll={handleScroll}
-          className="flex gap-3 overflow-x-auto pb-2"
+          onScroll={checkOverflow}
+          className="flex gap-3 overflow-x-auto pb-2 -mx-1 px-1"
           style={{ scrollbarWidth: "none", scrollSnapType: "x mandatory" }}
         >
           {isLoading
@@ -103,8 +109,8 @@ export function MediaSlider({
         {showRight && (
           <button
             onClick={() => scroll("right")}
-            className="absolute right-0 top-0 bottom-0 z-10 flex items-center justify-center w-10 opacity-0 group-hover/slider:opacity-100 transition-opacity"
-            style={{ backgroundColor: "rgba(0,0,0,0.5)" }}
+            className="absolute right-0 top-0 bottom-2 z-10 flex items-center justify-center w-10 rounded-l-[var(--radius-md)] opacity-0 group-hover/slider:opacity-100 transition-opacity"
+            style={{ background: "linear-gradient(to left, var(--overlay-gradient), transparent)" }}
             aria-label="Scroll right"
           >
             <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">

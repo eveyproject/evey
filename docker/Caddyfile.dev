@@ -5,6 +5,14 @@ evey.test {
 		reverse_proxy evey:{$EVEY_HTTP_PORT:9091}
 	}
 
+	@websockets {
+		header Connection *Upgrade*
+		header Upgrade websocket
+	}
+	handle @websockets {
+		reverse_proxy web:{$WEB_PORT:5173}
+	}
+
 	handle {
 		reverse_proxy web:{$WEB_PORT:5173}
 	}

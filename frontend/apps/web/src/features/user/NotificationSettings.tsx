@@ -3,7 +3,9 @@ import {
   useNotificationServiceGetNotificationSettings,
   useNotificationServiceUpdateNotificationSettings,
 } from "@evey/api";
+import { toast } from "@evey/store";
 import { Button } from "@/components/ui/Button";
+import { Select } from "@/components/ui/Select";
 
 type NotificationLevel =
   | "NOTIFICATION_LEVEL_UNSPECIFIED"
@@ -37,15 +39,12 @@ function LevelSelect({ label, value, onChange }: LevelSelectProps) {
   return (
     <div className="flex items-center justify-between py-3 border-b border-[var(--border)] last:border-0">
       <span className="text-sm text-[var(--text)]">{label}</span>
-      <select
+      <Select
         value={value ?? "NOTIFICATION_LEVEL_UNSPECIFIED"}
-        onChange={(e) => onChange(e.target.value as NotificationLevel)}
-        className="text-sm bg-[var(--surface-raised)] border border-[var(--border)] rounded-[var(--radius-sm)] px-2 py-1 text-[var(--text)] focus:outline-none focus:ring-1 focus:ring-[var(--accent)]"
-      >
-        {LEVELS.map((l) => (
-          <option key={l} value={l}>{LEVEL_LABELS[l]}</option>
-        ))}
-      </select>
+        onChange={(v) => onChange(v as NotificationLevel)}
+        options={LEVELS.map((l) => ({ value: l, label: LEVEL_LABELS[l] }))}
+        className="w-auto"
+      />
     </div>
   );
 }
@@ -66,7 +65,10 @@ export function NotificationSettings() {
   }, [settings]);
 
   const update = useNotificationServiceUpdateNotificationSettings({
-    mutation: { onSuccess: () => {} },
+    mutation: {
+      onSuccess: () => toast.success("Notification settings saved"),
+      onError: (err: Error) => toast.error(err.message || "Failed to save settings"),
+    },
   });
 
   const handleSave = () => {

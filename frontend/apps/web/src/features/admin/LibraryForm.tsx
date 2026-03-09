@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { eveyFetch, useLibraryServiceCreateLibrary } from "@evey/api";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
+import { Select } from "@/components/ui/Select";
 import type { V1LibraryType } from "@evey/api/src/generated/library.schemas";
 
 interface LibraryFormProps {
@@ -50,17 +51,6 @@ export function LibraryForm({ onSuccess }: LibraryFormProps) {
     });
   }
 
-  const inputStyle: React.CSSProperties = {
-    backgroundColor: "var(--surface-raised)",
-    border: "1px solid var(--border)",
-    color: "var(--text)",
-    borderRadius: "var(--radius-md)",
-    padding: "0.5rem 0.75rem",
-    fontSize: "0.875rem",
-    flex: 1,
-    outline: "none",
-  };
-
   return (
     <form onSubmit={handleSubmit} className="flex flex-col gap-4">
       <Input
@@ -70,20 +60,16 @@ export function LibraryForm({ onSuccess }: LibraryFormProps) {
         required
       />
 
-      <div className="flex flex-col gap-1">
-        <label className="text-sm font-medium" style={{ color: "var(--text-muted)" }}>
-          Type
-        </label>
-        <select
-          value={type}
-          onChange={(e) => setType(e.target.value as V1LibraryType)}
-          style={{ ...inputStyle, flex: undefined, width: "100%" }}
-        >
-          <option value="LIBRARY_TYPE_MOVIES">Movies</option>
-          <option value="LIBRARY_TYPE_SHOWS">TV Shows</option>
-          <option value="LIBRARY_TYPE_MUSIC">Music</option>
-        </select>
-      </div>
+      <Select
+        label="Type"
+        value={type}
+        onChange={(v) => setType(v as V1LibraryType)}
+        options={[
+          { value: "LIBRARY_TYPE_MOVIES", label: "Movies" },
+          { value: "LIBRARY_TYPE_SHOWS", label: "TV Shows" },
+          { value: "LIBRARY_TYPE_MUSIC", label: "Music" },
+        ]}
+      />
 
       <div className="flex flex-col gap-2">
         <span className="text-sm font-medium" style={{ color: "var(--text-muted)" }}>
@@ -98,24 +84,23 @@ export function LibraryForm({ onSuccess }: LibraryFormProps) {
         {paths.map((p, i) => (
           <div key={i} className="flex gap-2 items-center">
             {mediaDirs.length > 0 && p !== "__custom__" ? (
-              <select
+              <Select
                 value={p}
-                onChange={(e) => updatePath(i, e.target.value)}
-                style={inputStyle}
-              >
-                <option value="">— select a directory —</option>
-                {mediaDirs.map((d) => (
-                  <option key={d} value={d}>{d}</option>
-                ))}
-                <option value="__custom__">Enter custom path...</option>
-              </select>
+                onChange={(v) => updatePath(i, v)}
+                placeholder="— select a directory —"
+                options={[
+                  ...mediaDirs.map((d) => ({ value: d, label: d })),
+                  { value: "__custom__", label: "Enter custom path..." },
+                ]}
+                className="flex-1"
+              />
             ) : (
-              <input
-                style={inputStyle}
+              <Input
                 placeholder="/media/movies"
                 value={p === "__custom__" ? "" : p}
                 onChange={(e) => updatePath(i, e.target.value)}
                 autoFocus={p === "__custom__"}
+                className="flex-1"
               />
             )}
             {paths.length > 1 && (

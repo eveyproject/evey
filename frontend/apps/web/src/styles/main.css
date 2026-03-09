@@ -24,3 +24,21 @@ body {
   color: var(--text);
   font-family: system-ui, -apple-system, sans-serif;
 }
+
+/* Ken Burns slow zoom on hero backdrop */
+@keyframes ken-burns {
+  0% { transform: scale(1); }
+  100% { transform: scale(1.08); }
+}
+.animate-ken-burns {
+  animation: ken-burns 20s ease-in-out alternate infinite;
+}
+
+/* Route transition fade */
+@keyframes fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+.animate-fade-in {
+  animation: fade-in 0.2s ease-out;
+}

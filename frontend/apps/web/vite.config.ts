@@ -11,6 +11,16 @@ export default defineConfig({
       "@": resolve(__dirname, "./src"),
     },
   },
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          vendor: ["react", "react-dom", "@tanstack/react-query", "@tanstack/react-router"],
+          hls: ["hls.js"],
+        },
+      },
+    },
+  },
   server: {
     host: true,
     watch: { usePolling: true, interval: 500 },

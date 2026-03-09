@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { AudioStream } from "./AudioTrackSelector";
 import type { SubtitleStream } from "./SubtitleSelector";
+import { Select } from "@/components/ui/Select";
 
 export interface EpisodeNavItem { id: string; title?: string; indexNumber?: number }
 export interface SeasonNavItem { id: string; title?: string; indexNumber?: number }
@@ -35,7 +36,7 @@ function EpisodesPanel({ seasons, currentSeasonId, episodes, currentEpisodeId, o
 
   return (
     <div className="relative">
-      <button onClick={toggle} aria-label="Episodes" className="text-white hover:text-[var(--accent)] transition-colors">
+      <button onClick={toggle} aria-label="Episodes" className="text-white hover:text-[var(--accent)] transition-colors p-1">
         <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
           <path d="M3 13h2v-2H3v2zm0 4h2v-2H3v2zm0-8h2V7H3v2zm4 4h14v-2H7v2zm0 4h14v-2H7v2zM7 7v2h14V7H7z" />
         </svg>
@@ -48,18 +49,14 @@ function EpisodesPanel({ seasons, currentSeasonId, episodes, currentEpisodeId, o
         >
           {seasons.length > 1 && (
             <div className="px-3 py-2" style={{ borderBottom: "1px solid var(--border)" }}>
-              <select
+              <Select
                 value={currentSeasonId}
-                onChange={(e) => onSeasonChange(e.target.value)}
-                className="w-full text-sm outline-none"
-                style={{ color: "var(--text)", backgroundColor: "var(--surface-raised)", borderRadius: "var(--radius-sm)", padding: "4px 8px", border: "1px solid var(--border)" }}
-              >
-                {seasons.map((s) => (
-                  <option key={s.id} value={s.id}>
-                    {s.title ?? `Season ${s.indexNumber}`}
-                  </option>
-                ))}
-              </select>
+                onChange={onSeasonChange}
+                options={seasons.map((s) => ({
+                  value: s.id,
+                  label: s.title ?? `Season ${s.indexNumber}`,
+                }))}
+              />
             </div>
           )}
           <div className="max-h-72 overflow-y-auto">
@@ -90,6 +87,7 @@ function EpisodesPanel({ seasons, currentSeasonId, episodes, currentEpisodeId, o
 
 interface PlayerControlsProps {
   videoRef: React.RefObject<HTMLVideoElement | null>;
+  knownDurationSec?: number;
   audioStreams: AudioStream[];
   subtitleStreams: SubtitleStream[];
   title?: string;
@@ -159,7 +157,7 @@ function SettingsPanel({
       <button
         onClick={toggle}
         aria-label="Settings"
-        className="text-white hover:text-[var(--accent)] transition-colors"
+        className="text-white hover:text-[var(--accent)] transition-colors p-1"
       >
         <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
           <path d="M19.14 12.94c.04-.3.06-.61.06-.94s-.02-.64-.07-.94l2.03-1.58a.49.49 0 0 0 .12-.61l-1.92-3.32a.49.49 0 0 0-.59-.22l-2.39.96a7.01 7.01 0 0 0-1.62-.94l-.36-2.54a.484.484 0 0 0-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96a.48.48 0 0 0-.59.22L2.74 8.87a.47.47 0 0 0 .12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58a.49.49 0 0 0-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32a.47.47 0 0 0-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z" />
@@ -267,6 +265,7 @@ function SettingsPanel({
 
 export function PlayerControls({
   videoRef,
+  knownDurationSec,
   audioStreams,
   subtitleStreams,
   title,
@@ -288,11 +287,22 @@ export function PlayerControls({
   const [playing, setPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
+  const [bufferedEnd, setBufferedEnd] = useState(0);
   const [volume, setVolume] = useState(1);
   const [fullscreen, setFullscreen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [episodesOpen, setEpisodesOpen] = useState(false);
+  const [seekHoverPos, setSeekHoverPos] = useState<number | null>(null);
+  const [seekHoverX, setSeekHoverX] = useState(0);
   const hideTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const clickTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const seekBarRef = useRef<HTMLDivElement | null>(null);
+
+  // In fMP4 transcode mode, video.duration reports only buffered amount (e.g. 11s for a 2h movie).
+  // Always prefer knownDurationSec from the DB when available.
+  const effectiveDuration = (knownDurationSec && knownDurationSec > 0)
+    ? knownDurationSec
+    : (duration && isFinite(duration) && duration > 0) ? duration : 0;
 
   const scheduleHide = useCallback(() => {
     if (hideTimer.current) clearTimeout(hideTimer.current);
@@ -328,20 +338,29 @@ export function PlayerControls({
     function onPlay() { setPlaying(true); }
     function onPause() { setPlaying(false); }
     function onTimeUpdate() { setCurrentTime(video!.currentTime); }
-    function onDurationChange() { setDuration(video!.duration || 0); }
+    function onDurationChange() {
+      const d = video!.duration;
+      if (d && isFinite(d) && d > 0) setDuration(d);
+    }
     function onVolumeChange() { setVolume(video!.volume); }
     function onFullscreenChange() { setFullscreen(!!document.fullscreenElement); }
+    function onProgress() {
+      const b = video!.buffered;
+      if (b.length > 0) setBufferedEnd(b.end(b.length - 1));
+    }
 
     video.addEventListener("play", onPlay);
     video.addEventListener("pause", onPause);
     video.addEventListener("timeupdate", onTimeUpdate);
     video.addEventListener("durationchange", onDurationChange);
     video.addEventListener("volumechange", onVolumeChange);
+    video.addEventListener("progress", onProgress);
     document.addEventListener("fullscreenchange", onFullscreenChange);
 
     setPlaying(!video.paused);
     setCurrentTime(video.currentTime);
-    setDuration(video.duration || 0);
+    const d = video.duration;
+    if (d && isFinite(d) && d > 0) setDuration(d);
     setVolume(video.volume);
 
     return () => {
@@ -350,6 +369,7 @@ export function PlayerControls({
       video.removeEventListener("timeupdate", onTimeUpdate);
       video.removeEventListener("durationchange", onDurationChange);
       video.removeEventListener("volumechange", onVolumeChange);
+      video.removeEventListener("progress", onProgress);
       document.removeEventListener("fullscreenchange", onFullscreenChange);
     };
   }, [videoRef]);
@@ -385,17 +405,43 @@ export function PlayerControls({
     }
   }
 
+  function handleOverlayClick(e: React.MouseEvent) {
+    // Ignore clicks on control buttons (bottom bar, top bar)
+    if ((e.target as HTMLElement).closest("button, input, [data-controls]")) return;
+    if (clickTimer.current) {
+      clearTimeout(clickTimer.current);
+      clickTimer.current = null;
+      toggleFullscreen();
+    } else {
+      clickTimer.current = setTimeout(() => {
+        clickTimer.current = null;
+        resetHideTimer();
+      }, 250);
+    }
+  }
+
+  function handleSeekHover(e: React.MouseEvent) {
+    const bar = seekBarRef.current;
+    if (!bar || effectiveDuration <= 0) { setSeekHoverPos(null); return; }
+    const rect = bar.getBoundingClientRect();
+    const x = Math.max(0, Math.min(e.clientX - rect.left, rect.width));
+    const ratio = x / rect.width;
+    setSeekHoverPos(ratio * effectiveDuration);
+    setSeekHoverX(x);
+  }
+
   return (
     <div
       className="absolute inset-0"
       onMouseMove={resetHideTimer}
-      onClick={resetHideTimer}
+      onClick={handleOverlayClick}
       style={{ cursor: visible ? "default" : "none" }}
     >
       {/* top bar */}
       <div
         className={`absolute top-0 left-0 right-0 flex items-center gap-3 px-4 py-3 transition-opacity duration-300 ${visible ? "opacity-100" : "opacity-0 pointer-events-none"}`}
         style={{ background: "linear-gradient(to bottom, rgba(0,0,0,0.7), transparent)" }}
+        data-controls
       >
         <button
           onClick={onClose}
@@ -413,33 +459,66 @@ export function PlayerControls({
       <div
         className={`absolute bottom-0 left-0 right-0 px-4 pb-4 pt-8 flex flex-col gap-2 transition-opacity duration-300 ${visible ? "opacity-100" : "opacity-0 pointer-events-none"}`}
         style={{ background: "linear-gradient(to top, rgba(0,0,0,0.8), transparent)" }}
+        data-controls
       >
         {/* seek bar */}
-        <input
-          type="range"
-          min={0}
-          max={duration || 0}
-          step={0.5}
-          value={currentTime}
-          onChange={handleSeek}
-          className="w-full accent-[var(--accent)] cursor-pointer"
-          aria-label="Seek"
-        />
+        <div
+          ref={seekBarRef}
+          className="relative w-full h-5 flex items-center group cursor-pointer"
+          onMouseMove={handleSeekHover}
+          onMouseLeave={() => setSeekHoverPos(null)}
+          data-controls
+        >
+          {/* hover tooltip */}
+          {seekHoverPos !== null && (
+            <div
+              className="absolute bottom-full mb-2 -translate-x-1/2 px-2 py-1 rounded text-xs text-white pointer-events-none"
+              style={{ left: seekHoverX, backgroundColor: "rgba(0,0,0,0.85)" }}
+            >
+              {formatTime(seekHoverPos)}
+            </div>
+          )}
+          {/* background track */}
+          <div className="absolute left-0 right-0 h-1 rounded bg-white/20 group-hover:h-1.5 transition-all" />
+          {/* buffered track */}
+          <div
+            className="absolute left-0 h-1 rounded bg-white/40 group-hover:h-1.5 transition-all"
+            style={{ width: effectiveDuration > 0 ? `${(bufferedEnd / effectiveDuration) * 100}%` : "0%" }}
+          />
+          {/* progress track */}
+          <div
+            className="absolute left-0 h-1 rounded group-hover:h-1.5 transition-all"
+            style={{
+              width: effectiveDuration > 0 ? `${(currentTime / effectiveDuration) * 100}%` : "0%",
+              backgroundColor: "var(--accent)",
+            }}
+          />
+          <input
+            type="range"
+            min={0}
+            max={effectiveDuration || 0}
+            step={0.5}
+            value={currentTime}
+            onChange={handleSeek}
+            className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+            aria-label="Seek"
+          />
+        </div>
 
-        <div className="flex items-center gap-3">
-          {/* play/pause */}
+        <div className="flex items-center gap-2 sm:gap-3">
+          {/* play/pause - larger touch target on mobile */}
           <button
             onClick={togglePlay}
             aria-label={playing ? "Pause" : "Play"}
-            className="text-white hover:text-[var(--accent)] transition-colors"
+            className="text-white hover:text-[var(--accent)] transition-colors p-1"
           >
             {playing ? (
-              <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="currentColor">
                 <rect x="6" y="4" width="4" height="16" />
                 <rect x="14" y="4" width="4" height="16" />
               </svg>
             ) : (
-              <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="currentColor">
                 <path d="M5 3l14 9-14 9V3z" />
               </svg>
             )}
@@ -447,11 +526,11 @@ export function PlayerControls({
 
           {/* time */}
           <span className="text-white text-xs tabular-nums">
-            {formatTime(currentTime)} / {formatTime(duration)}
+            {formatTime(currentTime)} / {formatTime(effectiveDuration)}
           </span>
 
-          {/* volume */}
-          <div className="flex items-center gap-1">
+          {/* volume - hidden on mobile (hardware volume) */}
+          <div className="hidden sm:flex items-center gap-1">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" className="text-white shrink-0">
               <path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02z" />
             </svg>
@@ -499,7 +578,7 @@ export function PlayerControls({
           <button
             onClick={toggleFullscreen}
             aria-label={fullscreen ? "Exit fullscreen" : "Fullscreen"}
-            className="text-white hover:text-[var(--accent)] transition-colors"
+            className="text-white hover:text-[var(--accent)] transition-colors p-1"
           >
             {fullscreen ? (
               <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">

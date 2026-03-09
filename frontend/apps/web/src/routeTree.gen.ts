@@ -59,12 +59,12 @@ const AuthSearchRoute = AuthSearchRouteImport.update({
   id: '/search',
   path: '/search',
   getParentRoute: () => AuthRoute,
-} as any)
+} as any).lazy(() => import('./routes/_auth/search.lazy').then((d) => d.Route))
 const AuthHomeRoute = AuthHomeRouteImport.update({
   id: '/home',
   path: '/home',
   getParentRoute: () => AuthRoute,
-} as any)
+} as any).lazy(() => import('./routes/_auth/home.lazy').then((d) => d.Route))
 const AuthAdminRoute = AuthAdminRouteImport.update({
   id: '/admin',
   path: '/admin',
@@ -74,98 +74,136 @@ const AuthProfileIndexRoute = AuthProfileIndexRouteImport.update({
   id: '/profile/',
   path: '/profile/',
   getParentRoute: () => AuthRoute,
-} as any)
+} as any).lazy(() =>
+  import('./routes/_auth/profile/index.lazy').then((d) => d.Route),
+)
 const AuthLibraryIndexRoute = AuthLibraryIndexRouteImport.update({
   id: '/library/',
   path: '/library/',
   getParentRoute: () => AuthRoute,
-} as any)
+} as any).lazy(() =>
+  import('./routes/_auth/library/index.lazy').then((d) => d.Route),
+)
 const AuthAdminIndexRoute = AuthAdminIndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => AuthAdminRoute,
-} as any)
+} as any).lazy(() =>
+  import('./routes/_auth/admin/index.lazy').then((d) => d.Route),
+)
 const AuthProfileSettingsRoute = AuthProfileSettingsRouteImport.update({
   id: '/profile/settings',
   path: '/profile/settings',
   getParentRoute: () => AuthRoute,
-} as any)
+} as any).lazy(() =>
+  import('./routes/_auth/profile/settings.lazy').then((d) => d.Route),
+)
 const AuthProfileNotificationsRoute =
   AuthProfileNotificationsRouteImport.update({
     id: '/profile/notifications',
     path: '/profile/notifications',
     getParentRoute: () => AuthRoute,
-  } as any)
+  } as any).lazy(() =>
+    import('./routes/_auth/profile/notifications.lazy').then((d) => d.Route),
+  )
 const AuthProfileHistoryRoute = AuthProfileHistoryRouteImport.update({
   id: '/profile/history',
   path: '/profile/history',
   getParentRoute: () => AuthRoute,
-} as any)
+} as any).lazy(() =>
+  import('./routes/_auth/profile/history.lazy').then((d) => d.Route),
+)
 const AuthPlayerMediaIdRoute = AuthPlayerMediaIdRouteImport.update({
   id: '/player/$mediaId',
   path: '/player/$mediaId',
   getParentRoute: () => AuthRoute,
-} as any)
+} as any).lazy(() =>
+  import('./routes/_auth/player/$mediaId.lazy').then((d) => d.Route),
+)
 const AuthPersonPersonIdRoute = AuthPersonPersonIdRouteImport.update({
   id: '/person/$personId',
   path: '/person/$personId',
   getParentRoute: () => AuthRoute,
-} as any)
+} as any).lazy(() =>
+  import('./routes/_auth/person/$personId.lazy').then((d) => d.Route),
+)
 const AuthMediaMediaIdRoute = AuthMediaMediaIdRouteImport.update({
   id: '/media/$mediaId',
   path: '/media/$mediaId',
   getParentRoute: () => AuthRoute,
-} as any)
+} as any).lazy(() =>
+  import('./routes/_auth/media/$mediaId.lazy').then((d) => d.Route),
+)
 const AuthLibraryLibraryIdRoute = AuthLibraryLibraryIdRouteImport.update({
   id: '/library/$libraryId',
   path: '/library/$libraryId',
   getParentRoute: () => AuthRoute,
-} as any)
+} as any).lazy(() =>
+  import('./routes/_auth/library/$libraryId.lazy').then((d) => d.Route),
+)
 const AuthAdminWebhooksRoute = AuthAdminWebhooksRouteImport.update({
   id: '/webhooks',
   path: '/webhooks',
   getParentRoute: () => AuthAdminRoute,
-} as any)
+} as any).lazy(() =>
+  import('./routes/_auth/admin/webhooks.lazy').then((d) => d.Route),
+)
 const AuthAdminUsersRoute = AuthAdminUsersRouteImport.update({
   id: '/users',
   path: '/users',
   getParentRoute: () => AuthAdminRoute,
-} as any)
+} as any).lazy(() =>
+  import('./routes/_auth/admin/users.lazy').then((d) => d.Route),
+)
 const AuthAdminTasksRoute = AuthAdminTasksRouteImport.update({
   id: '/tasks',
   path: '/tasks',
   getParentRoute: () => AuthAdminRoute,
-} as any)
+} as any).lazy(() =>
+  import('./routes/_auth/admin/tasks.lazy').then((d) => d.Route),
+)
 const AuthAdminPluginsRoute = AuthAdminPluginsRouteImport.update({
   id: '/plugins',
   path: '/plugins',
   getParentRoute: () => AuthAdminRoute,
-} as any)
+} as any).lazy(() =>
+  import('./routes/_auth/admin/plugins.lazy').then((d) => d.Route),
+)
 const AuthAdminMetadataRoute = AuthAdminMetadataRouteImport.update({
   id: '/metadata',
   path: '/metadata',
   getParentRoute: () => AuthAdminRoute,
-} as any)
+} as any).lazy(() =>
+  import('./routes/_auth/admin/metadata.lazy').then((d) => d.Route),
+)
 const AuthAdminLogsRoute = AuthAdminLogsRouteImport.update({
   id: '/logs',
   path: '/logs',
   getParentRoute: () => AuthAdminRoute,
-} as any)
+} as any).lazy(() =>
+  import('./routes/_auth/admin/logs.lazy').then((d) => d.Route),
+)
 const AuthAdminLibrariesRoute = AuthAdminLibrariesRouteImport.update({
   id: '/libraries',
   path: '/libraries',
   getParentRoute: () => AuthAdminRoute,
-} as any)
+} as any).lazy(() =>
+  import('./routes/_auth/admin/libraries.lazy').then((d) => d.Route),
+)
 const AuthAdminAuditRoute = AuthAdminAuditRouteImport.update({
   id: '/audit',
   path: '/audit',
   getParentRoute: () => AuthAdminRoute,
-} as any)
+} as any).lazy(() =>
+  import('./routes/_auth/admin/audit.lazy').then((d) => d.Route),
+)
 const AuthAdminActivityRoute = AuthAdminActivityRouteImport.update({
   id: '/activity',
   path: '/activity',
   getParentRoute: () => AuthAdminRoute,
-} as any)
+} as any).lazy(() =>
+  import('./routes/_auth/admin/activity.lazy').then((d) => d.Route),
+)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute

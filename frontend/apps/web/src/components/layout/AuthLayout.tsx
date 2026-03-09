@@ -2,6 +2,8 @@ import { type ReactNode, useState } from "react";
 import { useRouterState } from "@tanstack/react-router";
 import { Sidebar } from "./Sidebar";
 import { TopBar } from "./TopBar";
+import { useKeyboardShortcuts } from "@/hooks/useKeyboardShortcuts";
+import { KeyboardShortcutsHelp } from "@/components/ui/KeyboardShortcutsHelp";
 
 interface AuthLayoutProps {
   children: ReactNode;
@@ -12,6 +14,7 @@ export function AuthLayout({ children }: AuthLayoutProps) {
   const isHome = location.pathname === "/home";
   const isPlayer = location.pathname.startsWith("/player/");
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const { showHelp, setShowHelp } = useKeyboardShortcuts();
 
   if (isPlayer) return <>{children}</>;
 
@@ -28,6 +31,10 @@ export function AuthLayout({ children }: AuthLayoutProps) {
           <div
             className="absolute inset-0 bg-black/50"
             onClick={() => setSidebarOpen(false)}
+            role="button"
+            aria-label="Close menu"
+            tabIndex={0}
+            onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") setSidebarOpen(false); }}
           />
           <div className="relative z-50 h-full w-56">
             <Sidebar onNavigate={() => setSidebarOpen(false)} />
@@ -51,10 +58,14 @@ export function AuthLayout({ children }: AuthLayoutProps) {
             <TopBar />
           </div>
         </div>
-        <main className={`flex-1 min-h-0 overflow-y-auto${isHome ? "" : " p-6"}`}>
+        <main
+          key={location.pathname}
+          className={`flex-1 min-h-0 overflow-y-auto animate-fade-in${isHome ? "" : " p-4 sm:p-6"}`}
+        >
           {children}
         </main>
       </div>
+      <KeyboardShortcutsHelp open={showHelp} onClose={() => setShowHelp(false)} />
     </div>
   );
 }

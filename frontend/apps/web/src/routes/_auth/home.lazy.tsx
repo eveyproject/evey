@@ -1,0 +1,265 @@
+import { useState } from "react";
+import { createLazyFileRoute, Link } from "@tanstack/react-router";
+import { useQuery } from "@tanstack/react-query";
+import {
+  useFeedServiceContinueWatching,
+  useFeedServiceRecentlyAdded,
+  useLibraryServiceListLibraries,
+  useLibraryServiceListMediaItems,
+  libraryServiceGetMediaItem,
+} from "@evey/api";
+import { MediaSlider } from "../../features/home/MediaSlider";
+import { MediaCard } from "../../features/library/MediaCard";
+
+export const Route = createLazyFileRoute("/_auth/home")({
+  component: HomePage,
+});
+
+function HeroBanner() {
+  const { data, isLoading } = useFeedServiceRecentlyAdded();
+  const items = data?.items ?? [];
+
+  const [heroIndex] = useState(() => Math.floor(Math.random() * 1000));
+  const candidates = items.filter((i) => !!i.mediaItemId);
+  const hero = candidates.length
+    ? candidates[heroIndex % candidates.length]
+    : null;
+
+  const heroId = hero?.mediaItemId ?? "";
+  const { data: heroDetail } = useQuery({
+    queryKey: [`/api/v1/media/${heroId}`],
+    queryFn: ({ signal }) => libraryServiceGetMediaItem(heroId, signal),
+    enabled: !!heroId,
+  });
+
+  if (isLoading) {
+    return (
+      <div
+        className="w-full animate-pulse"
+        style={{ height: "clamp(320px, 56vw, 520px)", backgroundColor: "var(--surface-raised)" }}
+      />
+    );
+  }
+
+  if (!hero || !hero.mediaItemId) return null;
+
+  const backdropUrl = `/api/v1/media/${hero.mediaItemId}/artwork/backdrop`;
+  const overview = heroDetail?.overview;
+  const year = heroDetail?.year;
+  const genres = heroDetail?.genres ?? [];
+  const rating = heroDetail?.communityRating;
+
+  return (
+    <div
+      className="relative w-full overflow-hidden"
+      style={{ height: "clamp(320px, 56vw, 520px)" }}
+    >
+      <img
+        src={backdropUrl}
+        alt={hero.title ?? ""}
+        className="absolute inset-0 w-full h-full object-cover animate-ken-burns"
+        onError={(e) => {
+          (e.currentTarget as HTMLImageElement).style.display = "none";
+        }}
+      />
+      <div
+        className="absolute inset-0"
+        style={{
+          background:
+            "linear-gradient(to right, rgba(0,0,0,0.85) 0%, rgba(0,0,0,0.4) 60%, rgba(0,0,0,0.1) 100%)",
+        }}
+      />
+      <div
+        className="absolute inset-0"
+        style={{
+          background:
+            "linear-gradient(to top, var(--bg) 0%, rgba(0,0,0,0.4) 40%, transparent 100%)",
+        }}
+      />
+
+      <div className="absolute inset-0 flex flex-col justify-end px-6 sm:px-10 pb-8 sm:pb-12 max-w-2xl">
+        <h1
+          className="text-2xl sm:text-4xl font-bold mb-2 leading-tight"
+          style={{
+            color: "#fff",
+            textShadow: "0 2px 8px rgba(0,0,0,0.8)",
+          }}
+        >
+          {hero.title}
+        </h1>
+
+        <div className="flex items-center gap-3 flex-wrap mb-2">
+          {year && (
+            <span className="text-sm font-medium" style={{ color: "rgba(255,255,255,0.8)" }}>
+              {year}
+            </span>
+          )}
+          {rating !== undefined && rating > 0 && (
+            <span className="text-sm" style={{ color: "rgba(255,255,255,0.8)" }}>
+              \u2605 {rating.toFixed(1)}
+            </span>
+          )}
+          {genres.slice(0, 3).map((g) => (
+            <span
+              key={g}
+              className="text-xs px-2 py-0.5 font-medium hidden sm:inline-block"
+              style={{
+                backgroundColor: "rgba(255,255,255,0.15)",
+                color: "rgba(255,255,255,0.9)",
+                borderRadius: "9999px",
+                backdropFilter: "blur(4px)",
+              }}
+            >
+              {g}
+            </span>
+          ))}
+        </div>
+
+        {overview && (
+          <p
+            className="text-sm leading-relaxed mb-4 hidden sm:line-clamp-3"
+            style={{
+              color: "rgba(255,255,255,0.8)",
+              textShadow: "0 1px 4px rgba(0,0,0,0.6)",
+            }}
+          >
+            {overview}
+          </p>
+        )}
+
+        <div className="flex gap-3 mt-2">
+          <Link
+            to="/player/$mediaId"
+            params={{ mediaId: hero.mediaItemId }}
+            className="flex items-center gap-2 px-5 py-2.5 rounded-[var(--radius-md)] font-semibold text-sm transition-opacity hover:opacity-90"
+            style={{ backgroundColor: "var(--accent)", color: "#fff" }}
+          >
+            <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+              <path d="M6.3 2.8L17 10 6.3 17.2V2.8z" />
+            </svg>
+            Play
+          </Link>
+          <Link
+            to="/media/$mediaId"
+            params={{ mediaId: hero.mediaItemId }}
+            className="flex items-center gap-2 px-5 py-2.5 rounded-[var(--radius-md)] font-semibold text-sm transition-opacity hover:opacity-90"
+            style={{ backgroundColor: "rgba(255,255,255,0.2)", color: "#fff", backdropFilter: "blur(4px)" }}
+          >
+            More Info
+          </Link>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function LibrarySlider({ libraryId, name }: { libraryId: string; name: string }) {
+  const { data, isLoading } = useLibraryServiceListMediaItems({
+    libraryId,
+    "pagination.pageSize": 20,
+    sortField: "MEDIA_SORT_FIELD_DATE_ADDED",
+    sortOrder: "SORT_ORDER_DESC",
+  });
+
+  const items = data?.items ?? [];
+  if (!isLoading && items.length === 0) return null;
+
+  return (
+    <MediaSlider title={name} seeAllHref={`/library/${libraryId}`} isLoading={isLoading}>
+      {items.map((item) => (
+        <MediaCard key={item.id} item={item} />
+      ))}
+    </MediaSlider>
+  );
+}
+
+function TypeSlider({
+  title,
+  type,
+}: {
+  title: string;
+  type: "MEDIA_ITEM_TYPE_MOVIE" | "MEDIA_ITEM_TYPE_SERIES";
+}) {
+  const { data, isLoading } = useLibraryServiceListMediaItems({
+    type,
+    "pagination.pageSize": 20,
+    sortField: "MEDIA_SORT_FIELD_DATE_ADDED",
+    sortOrder: "SORT_ORDER_DESC",
+  });
+
+  const items = data?.items ?? [];
+  if (!isLoading && items.length === 0) return null;
+
+  return (
+    <MediaSlider title={title} seeAllHref="/library" isLoading={isLoading}>
+      {items.map((item) => (
+        <MediaCard key={item.id} item={item} />
+      ))}
+    </MediaSlider>
+  );
+}
+
+function ContinueWatchingSlider() {
+  const { data, isLoading } = useFeedServiceContinueWatching();
+  const items = data?.items ?? [];
+  if (!isLoading && items.length === 0) return null;
+
+  return (
+    <MediaSlider title="Continue Watching" isLoading={isLoading}>
+      {items.map((item) => {
+        const posMs = item.positionMs ? Number(item.positionMs) : 0;
+        return (
+          <MediaCard
+            key={item.mediaItemId}
+            item={{ id: item.mediaItemId, title: item.title, type: item.type }}
+            showYear={false}
+            showProgress={posMs > 0}
+            progressPercent={posMs > 0 ? Math.min(95, (posMs / 1000 / 60 / 90) * 100) : undefined}
+          />
+        );
+      })}
+    </MediaSlider>
+  );
+}
+
+function RecentlyAddedSlider() {
+  const { data, isLoading } = useFeedServiceRecentlyAdded();
+  const items = data?.items ?? [];
+  if (!isLoading && items.length === 0) return null;
+
+  return (
+    <MediaSlider title="Recently Added" isLoading={isLoading}>
+      {items.map((item) => (
+        <MediaCard
+          key={item.mediaItemId}
+          item={{ id: item.mediaItemId, title: item.title, type: item.type }}
+          showYear={false}
+          showType
+        />
+      ))}
+    </MediaSlider>
+  );
+}
+
+function HomePage() {
+  const { data: librariesData } = useLibraryServiceListLibraries();
+  const libraries = librariesData?.libraries ?? [];
+
+  return (
+    <div className="animate-fade-in">
+      <HeroBanner />
+
+      <div className="px-4 sm:px-6 pt-6">
+        <ContinueWatchingSlider />
+        <RecentlyAddedSlider />
+        <TypeSlider title="Films" type="MEDIA_ITEM_TYPE_MOVIE" />
+        <TypeSlider title="S\u00E9ries" type="MEDIA_ITEM_TYPE_SERIES" />
+        {libraries.map((lib) =>
+          lib.id ? (
+            <LibrarySlider key={lib.id} libraryId={lib.id} name={lib.name ?? "Library"} />
+          ) : null
+        )}
+      </div>
+    </div>
+  );
+}

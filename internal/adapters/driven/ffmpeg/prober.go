@@ -20,8 +20,13 @@ func NewProber(binary string) *Prober {
 	return &Prober{binary: binary}
 }
 
+type ffprobeFormat struct {
+	Duration string `json:"duration"`
+}
+
 type ffprobeOutput struct {
 	Streams []ffprobeStream `json:"streams"`
+	Format  ffprobeFormat   `json:"format"`
 }
 
 type ffprobeStream struct {
@@ -51,11 +56,12 @@ type ffprobeDisposition struct {
 	Forced   int `json:"forced"`
 }
 
-func (p *Prober) ProbeStreams(ctx context.Context, filePath string) ([]*library.MediaStream, error) {
+func (p *Prober) ProbeStreams(ctx context.Context, filePath string) (*library.ProbeResult, error) {
 	cmd := exec.CommandContext(ctx, p.binary,
 		"-v", "quiet",
 		"-print_format", "json",
 		"-show_streams",
+		"-show_format",
 		filePath,
 	)
 	out, err := cmd.Output()
@@ -116,7 +122,13 @@ func (p *Prober) ProbeStreams(ctx context.Context, filePath string) ([]*library.
 		}
 		streams = append(streams, ms)
 	}
-	return streams, nil
+
+	var durationMs int64
+	if dur, err := strconv.ParseFloat(probe.Format.Duration, 64); err == nil && dur > 0 {
+		durationMs = int64(dur * 1000)
+	}
+
+	return &library.ProbeResult{Streams: streams, DurationMs: durationMs}, nil
 }
 
 func codecTypeToStreamType(t string) string {

@@ -20,6 +20,8 @@ export function ProgressReporter({ sessionId, videoRef }: ProgressReporterProps)
           sessionId,
           positionMs: String(Math.floor(video.currentTime * 1000)),
           isPaused: false,
+          isMuted: video.muted,
+          volumeLevel: Math.round(video.volume * 100),
         },
       });
     }, 10_000);

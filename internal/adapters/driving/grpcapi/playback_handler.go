@@ -95,7 +95,7 @@ func (h *playbackHandler) GetWatchProgress(ctx context.Context, req *eveyv1.GetW
 	wp, err := h.svc.GetWatchProgress(ctx, profileID, req.MediaItemId)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, status.Error(codes.NotFound, "watch progress not found")
+			return &eveyv1.WatchProgress{}, nil
 		}
 		slog.Error("get watch progress", slog.Any("err", err))
 		return nil, status.Errorf(codes.Internal, "internal error")

@@ -83,8 +83,13 @@ type FileScanner interface {
 	Scan(ctx context.Context, path string) ([]ScannedFile, error)
 }
 
+type ProbeResult struct {
+	Streams    []*MediaStream
+	DurationMs int64
+}
+
 type StreamProber interface {
-	ProbeStreams(ctx context.Context, filePath string) ([]*MediaStream, error)
+	ProbeStreams(ctx context.Context, filePath string) (*ProbeResult, error)
 }
 
 type SearchIndex interface {

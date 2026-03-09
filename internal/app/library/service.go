@@ -165,7 +165,10 @@ func (s *Service) upsertMediaFile(ctx context.Context, libraryID, parentID strin
 		if err = s.mediaItems.Create(ctx, item); err != nil {
 			return 0, 0, fmt.Errorf("create media item: %w", err)
 		}
-		s.ProbeAndStoreStreams(ctx, item.ID, f.Path)
+		if dur := s.ProbeAndStoreStreams(ctx, item.ID, f.Path); dur > 0 {
+			item.DurationMs = dur
+			_ = s.mediaItems.Update(ctx, item)
+		}
 		s.search.IndexMediaItem(ctx, item)
 		s.events.Publish(ctx, library.MediaItemAdded{
 			MediaItemID: item.ID,
@@ -181,8 +184,10 @@ func (s *Service) upsertMediaFile(ctx context.Context, libraryID, parentID strin
 	existing.FileSize = f.Size
 	existing.FileFingerprint = f.Fingerprint
 	existing.UpdatedAt = time.Now()
+	if dur := s.ProbeAndStoreStreams(ctx, existing.ID, f.Path); dur > 0 {
+		existing.DurationMs = dur
+	}
 	s.mediaItems.Update(ctx, existing)
-	s.ProbeAndStoreStreams(ctx, existing.ID, f.Path)
 	s.search.IndexMediaItem(ctx, existing)
 	// Re-emit so enricher re-fetches metadata for items with no overview (e.g. after overview clear)
 	if existing.Overview == "" {
@@ -197,19 +202,20 @@ func (s *Service) upsertMediaFile(ctx context.Context, libraryID, parentID strin
 	return 0, 1, nil
 }
 
-func (s *Service) ProbeAndStoreStreams(ctx context.Context, mediaItemID, filePath string) {
+func (s *Service) ProbeAndStoreStreams(ctx context.Context, mediaItemID, filePath string) int64 {
 	if s.prober == nil {
-		return
+		return 0
 	}
-	streams, err := s.prober.ProbeStreams(ctx, filePath)
+	result, err := s.prober.ProbeStreams(ctx, filePath)
 	if err != nil {
-		return
+		return 0
 	}
-	for _, st := range streams {
+	for _, st := range result.Streams {
 		st.MediaItemID = mediaItemID
 	}
 	_ = s.mediaStreams.DeleteByMediaItemID(ctx, mediaItemID)
-	_ = s.mediaStreams.CreateBatch(ctx, streams)
+	_ = s.mediaStreams.CreateBatch(ctx, result.Streams)
+	return result.DurationMs
 }
 
 func (s *Service) GetMediaStreams(ctx context.Context, mediaItemID string) ([]*library.MediaStream, error) {

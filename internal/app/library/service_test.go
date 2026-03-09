@@ -19,9 +19,10 @@ func newLibrarySvc() (*applib.Service, *libfakes.FakeLibraryRepository, *libfake
 	personRepo := libfakes.NewFakePersonRepository()
 	mediaPersonRepo := libfakes.NewFakeMediaPersonRepository()
 	scanner := libfakes.NewFakeFileScanner()
+	prober := libfakes.NewFakeStreamProber()
 	search := libfakes.NewFakeSearchIndex()
 	bus := sharedfakes.NewFakeEventBus()
-	svc := applib.NewService(libRepo, mediaRepo, streamRepo, personRepo, mediaPersonRepo, scanner, search, bus)
+	svc := applib.NewService(libRepo, mediaRepo, streamRepo, personRepo, mediaPersonRepo, scanner, prober, search, bus)
 	return svc, libRepo, mediaRepo, scanner, bus
 }
 
@@ -92,6 +93,7 @@ func TestScanLibrary_ExistingFile(t *testing.T) {
 		LibraryID: "lib-1",
 		FilePath:  "/movies/film1.mkv",
 		FileSize:  500,
+		Overview:  "Already enriched",
 	})
 
 	scanner.Results["/movies"] = []library.ScannedFile{

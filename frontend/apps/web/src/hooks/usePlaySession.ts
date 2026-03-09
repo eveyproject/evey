@@ -27,7 +27,9 @@ export function usePlaySession(mediaId: string): PlaySessionResult {
   const stopped = useRef(false);
   const token = useAuthStore.getState().accessToken;
 
-  const { data: progress } = usePlaybackServiceGetWatchProgress(mediaId);
+  const { data: progress } = usePlaybackServiceGetWatchProgress(mediaId, undefined, {
+    query: { retry: false },
+  });
   const { data: rawStreamInfo } = usePlaybackServiceGetStreamInfo(mediaId);
 
   const streamInfo: V1StreamInfo | undefined = rawStreamInfo
