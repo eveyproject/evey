@@ -113,6 +113,7 @@ function PlayerPage() {
           mediaId={mediaId}
           startPositionMs={startPositionMs}
           knownDurationMs={mediaItem?.durationMs ? Number(mediaItem.durationMs) : undefined}
+          filePath={mediaItem?.filePath}
           audioStreams={audioStreams}
           subtitleStreams={subtitleStreams}
           title={mediaItem?.title}

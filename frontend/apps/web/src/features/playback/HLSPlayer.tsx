@@ -8,6 +8,7 @@ import { PlayerControls } from "./PlayerControls";
 import type { EpisodeNavItem, SeasonNavItem } from "./PlayerControls";
 import { ProgressReporter } from "./ProgressReporter";
 import { NextEpisodeOverlay } from "./NextEpisodeOverlay";
+import { SkipIntroButton } from "./SkipIntroButton";
 
 const canPlayHevc = (() => {
   const v = document.createElement("video");
@@ -22,6 +23,7 @@ interface HLSPlayerProps {
   mediaId: string;
   startPositionMs?: number;
   knownDurationMs?: number;
+  filePath?: string;
   onEnded?: () => void;
   audioStreams?: AudioStream[];
   subtitleStreams?: SubtitleStream[];
@@ -41,6 +43,7 @@ export function HLSPlayer({
   mediaId,
   startPositionMs = 0,
   knownDurationMs,
+  filePath,
   onEnded,
   audioStreams = [],
   subtitleStreams = [],
@@ -295,6 +298,11 @@ export function HLSPlayer({
     <div className="relative w-full h-full bg-black">
       <video ref={videoRef} className="w-full h-full" playsInline />
       <ProgressReporter sessionId={sessionId} videoRef={videoRef} />
+      <SkipIntroButton
+        filePath={filePath}
+        currentTime={overlayTime}
+        onSkip={(t) => { if (videoRef.current) videoRef.current.currentTime = t; }}
+      />
       {nextEpisode && (
         <NextEpisodeOverlay
           nextEpisode={nextEpisode}

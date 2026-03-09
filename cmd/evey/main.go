@@ -576,10 +576,28 @@ func loadOrGenerateRSAKey(path string) (*rsa.PrivateKey, error) {
 	data, err := os.ReadFile(path)
 	if err == nil {
 		block, _ := pem.Decode(data)
-		if block != nil {
-			return x509.ParsePKCS1PrivateKey(block.Bytes)
+		if block == nil {
+			return nil, fmt.Errorf("jwt key at %s is corrupted (invalid PEM)", path)
+		}
+		key, err := x509.ParsePKCS1PrivateKey(block.Bytes)
+		if err != nil {
+			return nil, fmt.Errorf("jwt key at %s: %w", path, err)
+		}
+		if info, err := os.Stat(path); err == nil && info.Mode().Perm()&0077 != 0 {
+			slog.Warn("jwt key has loose permissions, fixing to 0600", slog.String("path", path), slog.String("mode", fmt.Sprintf("%04o", info.Mode().Perm())))
+			if err := os.Chmod(path, 0600); err != nil {
+				return nil, fmt.Errorf("cannot fix jwt key permissions: %w", err)
+			}
+		}
+		return key, nil
+	}
+
+	if dir := filepath.Dir(path); dir != "" {
+		if err := os.MkdirAll(dir, 0700); err != nil {
+			return nil, fmt.Errorf("cannot create jwt key directory %s: %w", dir, err)
 		}
 	}
+
 	slog.Info("generating RSA key", slog.String("path", path))
 	key, err := rsa.GenerateKey(rand.Reader, 2048)
 	if err != nil {
@@ -587,8 +605,7 @@ func loadOrGenerateRSAKey(path string) (*rsa.PrivateKey, error) {
 	}
 	f, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0600)
 	if err != nil {
-		slog.Warn("cannot save RSA key, using ephemeral", slog.String("path", path), slog.Any("err", err))
-		return key, nil
+		return nil, fmt.Errorf("cannot save jwt key to %s: %w", path, err)
 	}
 	defer f.Close()
 	pem.Encode(f, &pem.Block{Type: "RSA PRIVATE KEY", Bytes: x509.MarshalPKCS1PrivateKey(key)})

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { Link } from "@tanstack/react-router";
 
 interface MediaCardItem {
@@ -6,6 +6,9 @@ interface MediaCardItem {
   title?: string;
   year?: number;
   type?: string;
+  overview?: string;
+  communityRating?: number;
+  genres?: string[];
 }
 
 interface MediaCardProps {
@@ -24,6 +27,64 @@ const typeLabel = (t?: string) => {
   return "";
 };
 
+function HoverPreview({ item }: { item: MediaCardItem }) {
+  const hasContent = item.overview || item.communityRating || (item.genres && item.genres.length > 0);
+  if (!hasContent) return null;
+
+  return (
+    <div
+      className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 w-56 rounded-lg p-3 shadow-xl z-50 pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-200 hidden sm:block"
+      style={{
+        backgroundColor: "var(--surface)",
+        border: "1px solid var(--border)",
+      }}
+    >
+      <p className="text-sm font-semibold mb-1 truncate" style={{ color: "var(--text)" }}>
+        {item.title}
+      </p>
+
+      <div className="flex items-center gap-2 mb-1.5 text-xs" style={{ color: "var(--text-muted)" }}>
+        {item.year && <span>{item.year}</span>}
+        {item.communityRating != null && item.communityRating > 0 && (
+          <span className="flex items-center gap-0.5">
+            <svg className="w-3 h-3" viewBox="0 0 20 20" fill="currentColor" style={{ color: "var(--accent)" }}>
+              <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+            </svg>
+            {item.communityRating.toFixed(1)}
+          </span>
+        )}
+        {typeLabel(item.type) && <span>{typeLabel(item.type)}</span>}
+      </div>
+
+      {item.genres && item.genres.length > 0 && (
+        <div className="flex flex-wrap gap-1 mb-1.5">
+          {item.genres.slice(0, 3).map((g) => (
+            <span
+              key={g}
+              className="text-[10px] px-1.5 py-0.5 rounded-full"
+              style={{
+                backgroundColor: "var(--surface-raised)",
+                color: "var(--text-muted)",
+              }}
+            >
+              {g}
+            </span>
+          ))}
+        </div>
+      )}
+
+      {item.overview && (
+        <p
+          className="text-xs leading-relaxed line-clamp-3"
+          style={{ color: "var(--text-secondary)" }}
+        >
+          {item.overview}
+        </p>
+      )}
+    </div>
+  );
+}
+
 export function MediaCard({
   item,
   href,
@@ -34,6 +95,8 @@ export function MediaCard({
   showType,
 }: MediaCardProps) {
   const [imgLoaded, setImgLoaded] = useState(false);
+  const hoverTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [showPreview, setShowPreview] = useState(false);
   const poster =
     posterSrc ?? (item.id ? `/api/v1/media/${item.id}/artwork/poster` : null);
   const initial = item.title ? item.title[0].toUpperCase() : "?";
@@ -45,12 +108,28 @@ export function MediaCard({
   const linkTo = href ?? "/media/$mediaId";
   const linkParams = href ? undefined : { mediaId: item.id ?? "" };
 
+  const hasPreviewData = !!(item.overview || item.communityRating || (item.genres && item.genres.length > 0));
+
+  function handleMouseEnter() {
+    if (!hasPreviewData) return;
+    hoverTimer.current = setTimeout(() => setShowPreview(true), 400);
+  }
+
+  function handleMouseLeave() {
+    if (hoverTimer.current) clearTimeout(hoverTimer.current);
+    setShowPreview(false);
+  }
+
   return (
     <Link
       to={linkTo}
       params={linkParams as never}
-      className="group block flex-shrink-0 w-32 sm:w-40"
+      className="group block flex-shrink-0 w-32 sm:w-40 relative"
+      onMouseEnter={handleMouseEnter}
+      onMouseLeave={handleMouseLeave}
     >
+      {showPreview && <HoverPreview item={item} />}
+
       <div
         className="relative w-full overflow-hidden transition-all duration-200 ease-out group-hover:scale-105 group-hover:shadow-[0_8px_24px_rgba(0,0,0,0.4)]"
         style={{

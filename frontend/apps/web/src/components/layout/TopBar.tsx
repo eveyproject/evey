@@ -1,5 +1,5 @@
 import { useRef, useState, useEffect, useCallback } from "react";
-import { Link, useNavigate, useRouterState } from "@tanstack/react-router";
+import { useNavigate, useRouterState } from "@tanstack/react-router";
 import { useAuthStore } from "@evey/store";
 import { useUserServiceGetCurrentUser } from "@evey/api";
 import { NotificationBell } from "@/features/user/NotificationBell";
