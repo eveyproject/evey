@@ -113,7 +113,14 @@ func (e *Enricher) EnrichItem(ctx context.Context, item *domaindomain.MediaItem,
 	if err := e.mediaPersons.DeleteByMediaItemID(ctx, item.ID); err != nil {
 		return fmt.Errorf("delete old media_people: %w", err)
 	}
-	for i, p := range result.People {
+	seenPersons := make(map[string]bool)
+	sortIdx := 0
+	for _, p := range result.People {
+		if seenPersons[p.Name] {
+			continue
+		}
+		seenPersons[p.Name] = true
+
 		person, err := e.persons.GetByName(ctx, p.Name)
 		if err != nil {
 			if !errors.Is(err, domaindomain.ErrNotFound) {
@@ -145,8 +152,9 @@ func (e *Enricher) EnrichItem(ctx context.Context, item *domaindomain.MediaItem,
 			PersonID:      person.ID,
 			RoleType:      roleType(p.Role),
 			CharacterName: charName,
-			SortOrder:     i,
+			SortOrder:     sortIdx,
 		}
+		sortIdx++
 		if createErr := e.mediaPersons.Create(ctx, mp); createErr != nil {
 			_ = createErr
 		}
