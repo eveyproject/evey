@@ -138,9 +138,9 @@ func run() error {
 	watchHistoryAnalyzer := postgres.NewWatchHistoryAnalyzer(db)
 	webhookRepo := postgres.NewWebhookRepository(db)
 	webhookDeliveryRepo := postgres.NewWebhookDeliveryRepository(db)
-	feedAdminCfgRepo := postgres.NewFeedAdminConfigRepository(db)
-	feedProfileCfgRepo := postgres.NewFeedProfileConfigRepository(db)
 	feedQuerier := postgres.NewFeedQuerier(db)
+	feedCmdRepo := postgres.NewFeedConfigCommandRepo(db)
+	feedQueryRepo := postgres.NewFeedConfigQueryRepo(db)
 
 	// --- Infrastructure ---
 	searchAdapter, err := meili.NewSearchAdapter(cfg.Meilisearch.URL, cfg.Meilisearch.APIKey)
@@ -170,11 +170,18 @@ func run() error {
 	}
 	tokenGen := auth.NewJWTGenerator(privateKey, cfg.JWT.AccessTokenTTL)
 
+	// --- Query adapters ---
+	mediaItemQueryRepo := postgres.NewMediaItemQueryRepoAdapter(db)
+
 	// --- Application services ---
-	librarySvc := applibrary.NewService(
-		libraryRepo, mediaItemRepo,
+	libCmdSvc := applibrary.NewCommandService(
+		libraryRepo, libraryRepo, mediaItemRepo,
 		mediaStreamRepo, personRepo, mediaPersonRepo,
 		scanner, prober, searchAdapter, bus,
+	)
+	libQuerySvc := applibrary.NewQueryService(
+		libraryRepo, mediaItemQueryRepo,
+		mediaStreamRepo, searchAdapter,
 	)
 
 	userSvc := appuser.NewService(
@@ -224,7 +231,7 @@ func run() error {
 			rootLog.Warn("filesystem watcher init failed, realtime monitoring disabled", slog.Any("err", fsWatcherErr))
 		} else {
 			watcherLog := eveylogger.NewWith(rootLog, "watcher")
-			watcherSvc := applibrary.NewWatcherService(fsWatcher, libraryRepo, librarySvc, watcherLog)
+			watcherSvc := applibrary.NewWatcherService(fsWatcher, libraryRepo, libCmdSvc, watcherLog)
 			if err := watcherSvc.Start(context.Background()); err != nil {
 				rootLog.Warn("watcher start failed", slog.Any("err", err))
 			} else {
@@ -289,7 +296,8 @@ func run() error {
 		}
 	}()
 
-	feedSvc := appfeed.NewService(feedAdminCfgRepo, feedProfileCfgRepo, feedQuerier, watchHistoryAnalyzer)
+	feedCmdSvc := appfeed.NewCommandService(feedCmdRepo)
+	feedQuerySvc := appfeed.NewQueryService(feedQueryRepo, feedQuerier, watchHistoryAnalyzer)
 
 	// --- Auth interceptor ---
 	authInterceptor := interceptors.NewAuthInterceptor(tokenGen)
@@ -297,9 +305,11 @@ func run() error {
 
 	// --- gRPC server ---
 	grpcSrv := grpcapi.NewGRPCServer(
-		librarySvc, userSvc, playbackSvc, transcodingSvc,
+		libCmdSvc, libQuerySvc, userSvc,
+		playbackSvc.CommandService(), playbackSvc.QueryService(),
+		transcodingSvc,
 		mkvSvc, pluginSvc, metadataSvc, activitySvc,
-		notifSvc, feedSvc, webhookSvc,
+		notifSvc, feedCmdSvc, feedQuerySvc, webhookSvc,
 		userRepo, version,
 		grpc.ChainUnaryInterceptor(
 			interceptors.ClientInfoUnary(),
@@ -328,15 +338,15 @@ func run() error {
 			w.Write([]byte(`{"status":"ok","version":"` + version + `"}`))
 		})
 		mux.HandleFunc("/api/v1/admin/fs/browse", browseDirsHandler(tokenGen))
-		mh := mediaHandler(tokenGen, librarySvc, artworkRepo)
+		mh := mediaHandler(tokenGen, libQuerySvc, artworkRepo)
 		mux.HandleFunc("GET /api/v1/media/{id}/stream", mh)
 		mux.HandleFunc("GET /api/v1/media/{id}/artwork/{artType}", mh)
 		mux.HandleFunc("POST /api/v1/media/{id}/stream", mh)
 		mux.HandleFunc("POST /api/v1/media/{id}/artwork/{artworkId}/select", selectArtworkHandler(tokenGen, artworkRepo))
-		mux.HandleFunc("GET /api/v1/media/{id}/download", downloadHandler(tokenGen, librarySvc))
-		mux.HandleFunc("GET /api/v1/media/{id}/transcode", transcodeHandler(tokenGen, librarySvc))
-		mux.HandleFunc("GET /api/v1/media/{id}/subtitle/{track}", subtitleHandler(tokenGen, librarySvc))
-		mux.HandleFunc("GET /api/v1/admin/library-stats", libraryStatsHandler(tokenGen, librarySvc))
+		mux.HandleFunc("GET /api/v1/media/{id}/download", downloadHandler(tokenGen, libQuerySvc))
+		mux.HandleFunc("GET /api/v1/media/{id}/transcode", transcodeHandler(tokenGen, libQuerySvc))
+		mux.HandleFunc("GET /api/v1/media/{id}/subtitle/{track}", subtitleHandler(tokenGen, libQuerySvc))
+		mux.HandleFunc("GET /api/v1/admin/library-stats", libraryStatsHandler(tokenGen, libQuerySvc))
 		registerAdminRoutes(mux, metadataSvc, tokenGen)
 		mux.Handle("/", gwMux)
 		httpSrv = &http.Server{

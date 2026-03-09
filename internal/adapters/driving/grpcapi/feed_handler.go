@@ -12,11 +12,12 @@ import (
 
 type feedHandler struct {
 	eveyv1.UnimplementedFeedServiceServer
-	svc *appfeed.Service
+	commands *appfeed.CommandService
+	queries  *appfeed.QueryService
 }
 
 func (h *feedHandler) GetFeedConfig(ctx context.Context, req *eveyv1.GetFeedConfigRequest) (*eveyv1.GetFeedConfigResponse, error) {
-	configs, err := h.svc.GetMergedConfig(ctx, req.ProfileId)
+	configs, err := h.queries.GetMergedConfig(ctx, req.ProfileId)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "get feed config: %v", err)
 	}
@@ -28,7 +29,7 @@ func (h *feedHandler) GetFeedConfig(ctx context.Context, req *eveyv1.GetFeedConf
 }
 
 func (h *feedHandler) ContinueWatching(ctx context.Context, req *eveyv1.ContinueWatchingRequest) (*eveyv1.FeedResponse, error) {
-	items, err := h.svc.ContinueWatching(ctx, req.ProfileId, int(req.Limit))
+	items, err := h.queries.ContinueWatching(ctx, req.ProfileId, int(req.Limit))
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "continue watching: %v", err)
 	}
@@ -36,7 +37,7 @@ func (h *feedHandler) ContinueWatching(ctx context.Context, req *eveyv1.Continue
 }
 
 func (h *feedHandler) RecentlyAdded(ctx context.Context, req *eveyv1.RecentlyAddedRequest) (*eveyv1.FeedResponse, error) {
-	items, err := h.svc.RecentlyAdded(ctx, int(req.DaysWindow), int(req.Limit))
+	items, err := h.queries.RecentlyAdded(ctx, int(req.DaysWindow), int(req.Limit))
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "recently added: %v", err)
 	}
@@ -44,7 +45,7 @@ func (h *feedHandler) RecentlyAdded(ctx context.Context, req *eveyv1.RecentlyAdd
 }
 
 func (h *feedHandler) Recommended(ctx context.Context, req *eveyv1.RecommendedRequest) (*eveyv1.FeedResponse, error) {
-	items, err := h.svc.Recommended(ctx, req.ProfileId, int(req.Limit))
+	items, err := h.queries.Recommended(ctx, req.ProfileId, int(req.Limit))
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "recommended: %v", err)
 	}
@@ -52,7 +53,7 @@ func (h *feedHandler) Recommended(ctx context.Context, req *eveyv1.RecommendedRe
 }
 
 func (h *feedHandler) SimilarItems(ctx context.Context, req *eveyv1.SimilarItemsRequest) (*eveyv1.FeedResponse, error) {
-	items, err := h.svc.SimilarItems(ctx, req.MediaItemId, req.ProfileId, int(req.Limit))
+	items, err := h.queries.SimilarItems(ctx, req.MediaItemId, req.ProfileId, int(req.Limit))
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "similar items: %v", err)
 	}
@@ -60,7 +61,7 @@ func (h *feedHandler) SimilarItems(ctx context.Context, req *eveyv1.SimilarItems
 }
 
 func (h *feedHandler) GetAdminFeedConfigs(ctx context.Context, _ *eveyv1.GetAdminFeedConfigsRequest) (*eveyv1.GetAdminFeedConfigsResponse, error) {
-	configs, err := h.svc.GetAdminConfigs(ctx)
+	configs, err := h.queries.GetAdminConfigs(ctx)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "get admin feed configs: %v", err)
 	}
@@ -78,7 +79,7 @@ func (h *feedHandler) UpdateAdminFeedConfig(ctx context.Context, req *eveyv1.Upd
 		DisplayOrder: int(req.DisplayOrder),
 		MaxItems:     int(req.MaxItems),
 	}
-	if err := h.svc.UpdateAdminConfig(ctx, cfg); err != nil {
+	if err := h.commands.UpdateAdminConfig(ctx, cfg); err != nil {
 		return nil, status.Errorf(codes.Internal, "update admin feed config: %v", err)
 	}
 	return adminConfigToProto(cfg), nil
@@ -100,14 +101,14 @@ func (h *feedHandler) UpdateProfileFeedConfig(ctx context.Context, req *eveyv1.U
 		v := int(*req.MaxItems)
 		cfg.MaxItems = &v
 	}
-	if err := h.svc.UpdateProfileConfig(ctx, cfg); err != nil {
+	if err := h.commands.UpdateProfileConfig(ctx, cfg); err != nil {
 		return nil, status.Errorf(codes.Internal, "update profile feed config: %v", err)
 	}
 	return profileConfigToProto(cfg), nil
 }
 
 func (h *feedHandler) ResetProfileFeedConfig(ctx context.Context, req *eveyv1.ResetProfileFeedConfigRequest) (*eveyv1.ResetProfileFeedConfigResponse, error) {
-	if err := h.svc.ResetProfileConfig(ctx, req.ProfileId, feed.Type(req.FeedType)); err != nil {
+	if err := h.commands.ResetProfileConfig(ctx, req.ProfileId, feed.Type(req.FeedType)); err != nil {
 		return nil, status.Errorf(codes.Internal, "reset profile feed config: %v", err)
 	}
 	return &eveyv1.ResetProfileFeedConfigResponse{}, nil

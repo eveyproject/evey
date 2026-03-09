@@ -21,60 +21,69 @@ import (
 )
 
 type GRPCServer struct {
-	server       *grpc.Server
-	library      *applibrary.Service
-	user         *appuser.Service
-	playback     *appplayback.Service
-	transcoding  *apptranscoding.Service
-	mkv          *appmkv.Service
-	plugin       *appplugin.Service
-	metadata     *appmetadata.Service
-	activity     *appactivity.Service
-	notification *appnotification.Service
-	feed         *appfeed.Service
-	webhook      *appwebhook.Service
-	users        user.UserRepository
-	version      string
+	server        *grpc.Server
+	libCmd        *applibrary.CommandService
+	libQuery      *applibrary.QueryService
+	user          *appuser.Service
+	playbackCmd   *appplayback.CommandService
+	playbackQuery *appplayback.QueryService
+	transcoding   *apptranscoding.Service
+	mkv           *appmkv.Service
+	plugin        *appplugin.Service
+	metadata      *appmetadata.Service
+	activity      *appactivity.Service
+	notification  *appnotification.Service
+	feedCmd       *appfeed.CommandService
+	feedQuery     *appfeed.QueryService
+	webhook       *appwebhook.Service
+	users         user.UserRepository
+	version       string
 }
 
 func NewGRPCServer(
-	library *applibrary.Service,
+	libCmd *applibrary.CommandService,
+	libQuery *applibrary.QueryService,
 	userSvc *appuser.Service,
-	playback *appplayback.Service,
+	playbackCmd *appplayback.CommandService,
+	playbackQuery *appplayback.QueryService,
 	transcoding *apptranscoding.Service,
 	mkv *appmkv.Service,
 	plugin *appplugin.Service,
 	metadata *appmetadata.Service,
 	activity *appactivity.Service,
 	notification *appnotification.Service,
-	feed *appfeed.Service,
+	feedCmd *appfeed.CommandService,
+	feedQuery *appfeed.QueryService,
 	webhook *appwebhook.Service,
 	users user.UserRepository,
 	version string,
 	opts ...grpc.ServerOption,
 ) *GRPCServer {
 	return &GRPCServer{
-		server:       grpc.NewServer(opts...),
-		library:      library,
-		user:         userSvc,
-		playback:     playback,
-		transcoding:  transcoding,
-		mkv:          mkv,
-		plugin:       plugin,
-		metadata:     metadata,
-		activity:     activity,
-		notification: notification,
-		feed:         feed,
-		webhook:      webhook,
-		users:        users,
-		version:      version,
+		server:        grpc.NewServer(opts...),
+		libCmd:        libCmd,
+		libQuery:      libQuery,
+		user:          userSvc,
+		playbackCmd:   playbackCmd,
+		playbackQuery: playbackQuery,
+		transcoding:   transcoding,
+		mkv:           mkv,
+		plugin:        plugin,
+		metadata:      metadata,
+		activity:      activity,
+		notification:  notification,
+		feedCmd:       feedCmd,
+		feedQuery:     feedQuery,
+		webhook:       webhook,
+		users:         users,
+		version:       version,
 	}
 }
 
 func (s *GRPCServer) RegisterServices() {
-	eveyv1.RegisterLibraryServiceServer(s.server, &libraryHandler{svc: s.library, metadataSvc: s.metadata})
+	eveyv1.RegisterLibraryServiceServer(s.server, &libraryHandler{cmd: s.libCmd, query: s.libQuery, metadataSvc: s.metadata})
 	eveyv1.RegisterUserServiceServer(s.server, &userHandler{svc: s.user, users: s.users, activitySvc: s.activity})
-	eveyv1.RegisterPlaybackServiceServer(s.server, &playbackHandler{svc: s.playback, librarySvc: s.library})
+	eveyv1.RegisterPlaybackServiceServer(s.server, &playbackHandler{cmd: s.playbackCmd, query: s.playbackQuery, librarySvc: s.libQuery})
 	eveyv1.RegisterTranscodingServiceServer(s.server, &transcodingHandler{svc: s.transcoding})
 	eveyv1.RegisterMKVServiceServer(s.server, &mkvHandler{svc: s.mkv})
 	eveyv1.RegisterMetadataServiceServer(s.server, &metadataHandler{svc: s.metadata})
@@ -87,7 +96,7 @@ func (s *GRPCServer) RegisterServices() {
 	})
 	eveyv1.RegisterActivityServiceServer(s.server, &activityHandler{svc: s.activity})
 	eveyv1.RegisterNotificationServiceServer(s.server, &notificationHandler{svc: s.notification})
-	eveyv1.RegisterFeedServiceServer(s.server, &feedHandler{svc: s.feed})
+	eveyv1.RegisterFeedServiceServer(s.server, &feedHandler{commands: s.feedCmd, queries: s.feedQuery})
 	eveyv1.RegisterWebhookServiceServer(s.server, &webhookHandler{svc: s.webhook})
 }
 

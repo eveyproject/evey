@@ -14,7 +14,8 @@ import (
 
 type libraryHandler struct {
 	eveyv1.UnimplementedLibraryServiceServer
-	svc         *applibrary.Service
+	cmd         *applibrary.CommandService
+	query       *applibrary.QueryService
 	metadataSvc *appmetadata.Service
 }
 
@@ -29,14 +30,14 @@ func (h *libraryHandler) CreateLibrary(ctx context.Context, req *eveyv1.CreateLi
 		RealtimeMonitoring:  req.RealtimeMonitoring,
 		ScanIntervalMinutes: 360,
 	}
-	if err := h.svc.CreateLibrary(ctx, lib); err != nil {
+	if err := h.cmd.CreateLibrary(ctx, lib); err != nil {
 		return nil, status.Errorf(codes.Internal, "create library: %v", err)
 	}
 	return libraryToProto(lib), nil
 }
 
 func (h *libraryHandler) GetLibrary(ctx context.Context, req *eveyv1.GetLibraryRequest) (*eveyv1.Library, error) {
-	lib, err := h.svc.GetLibrary(ctx, req.Id)
+	lib, err := h.query.GetLibrary(ctx, req.Id)
 	if err != nil {
 		return nil, status.Errorf(codes.NotFound, "library not found: %v", err)
 	}
@@ -44,7 +45,7 @@ func (h *libraryHandler) GetLibrary(ctx context.Context, req *eveyv1.GetLibraryR
 }
 
 func (h *libraryHandler) ListLibraries(ctx context.Context, _ *eveyv1.ListLibrariesRequest) (*eveyv1.ListLibrariesResponse, error) {
-	libs, err := h.svc.ListLibraries(ctx)
+	libs, err := h.query.ListLibraries(ctx)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "list libraries: %v", err)
 	}
@@ -56,14 +57,14 @@ func (h *libraryHandler) ListLibraries(ctx context.Context, _ *eveyv1.ListLibrar
 }
 
 func (h *libraryHandler) DeleteLibrary(ctx context.Context, req *eveyv1.DeleteLibraryRequest) (*eveyv1.DeleteLibraryResponse, error) {
-	if err := h.svc.DeleteLibrary(ctx, req.Id); err != nil {
+	if err := h.cmd.DeleteLibrary(ctx, req.Id); err != nil {
 		return nil, status.Errorf(codes.Internal, "delete library: %v", err)
 	}
 	return &eveyv1.DeleteLibraryResponse{}, nil
 }
 
 func (h *libraryHandler) ScanLibrary(req *eveyv1.ScanLibraryRequest, stream eveyv1.LibraryService_ScanLibraryServer) error {
-	added, updated, err := h.svc.ScanLibrary(stream.Context(), req.Id)
+	added, updated, err := h.cmd.ScanLibrary(stream.Context(), req.Id)
 	if err != nil {
 		return status.Errorf(codes.Internal, "scan library: %v", err)
 	}
@@ -77,7 +78,7 @@ func (h *libraryHandler) ScanLibrary(req *eveyv1.ScanLibraryRequest, stream evey
 }
 
 func (h *libraryHandler) GetMediaItem(ctx context.Context, req *eveyv1.GetMediaItemRequest) (*eveyv1.MediaItem, error) {
-	item, err := h.svc.GetMediaItem(ctx, req.Id)
+	item, err := h.query.GetMediaItem(ctx, req.Id)
 	if err != nil {
 		return nil, status.Errorf(codes.NotFound, "media item not found: %v", err)
 	}
@@ -89,14 +90,9 @@ func (h *libraryHandler) GetMediaItem(ctx context.Context, req *eveyv1.GetMediaI
 			}
 		}
 	}
-	if mediaPersons, persons, err := h.svc.GetCast(ctx, req.Id); err == nil {
-		personByID := make(map[string]*library.Person, len(persons))
-		for _, p := range persons {
-			personByID[p.ID] = p
-		}
-		for _, mp := range mediaPersons {
-			p := personByID[mp.PersonID]
-			pb.People = append(pb.People, mediaPersonToProto(mp, p))
+	if cast, err := h.query.GetCast(ctx, req.Id); err == nil {
+		for _, cm := range cast {
+			pb.People = append(pb.People, castMemberToProto(cm))
 		}
 	}
 	return pb, nil
@@ -129,11 +125,11 @@ func (h *libraryHandler) ListMediaItems(ctx context.Context, req *eveyv1.ListMed
 		filter.Offset = int((req.Pagination.Page - 1) * req.Pagination.PageSize)
 	}
 
-	total, err := h.svc.CountMediaItems(ctx, filter)
+	total, err := h.query.CountMediaItems(ctx, filter)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "count media items: %v", err)
 	}
-	items, err := h.svc.ListMediaItems(ctx, filter)
+	items, err := h.query.ListMediaItems(ctx, filter)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "list media items: %v", err)
 	}
@@ -157,17 +153,25 @@ func (h *libraryHandler) SearchMedia(ctx context.Context, req *eveyv1.SearchMedi
 	}
 	limit := int64(req.Limit)
 	if limit <= 0 {
-		limit = 20
+		limit = 40
 	}
-	items, totalHits, err := h.svc.SearchMediaFull(ctx, req.Query, filters, limit)
+	hits, total, err := h.query.SearchMedia(ctx, req.Query, filters, limit)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "search media: %v", err)
 	}
 	resp := &eveyv1.SearchMediaResponse{
-		TotalHits: int32(totalHits),
+		TotalHits: int32(total),
 	}
-	for _, item := range items {
-		resp.Items = append(resp.Items, mediaItemToProto(item))
+	for _, hit := range hits {
+		mi := &eveyv1.MediaItem{
+			Id:    hit.ID,
+			Title: hit.Title,
+			Type:  mediaItemTypeToProto[hit.Type],
+		}
+		if hit.Year != nil {
+			mi.Year = int32(*hit.Year)
+		}
+		resp.Items = append(resp.Items, mi)
 	}
 	return resp, nil
 }

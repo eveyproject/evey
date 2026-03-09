@@ -18,8 +18,9 @@ import (
 
 type playbackHandler struct {
 	eveyv1.UnimplementedPlaybackServiceServer
-	svc     *appplayback.Service
-	librarySvc *applibrary.Service
+	cmd        *appplayback.CommandService
+	query      *appplayback.QueryService
+	librarySvc *applibrary.QueryService
 }
 
 func (h *playbackHandler) GetStreamInfo(ctx context.Context, req *eveyv1.GetStreamInfoRequest) (*eveyv1.StreamInfo, error) {
@@ -58,7 +59,7 @@ func (h *playbackHandler) StartStream(ctx context.Context, req *eveyv1.StartStre
 		DeviceName:  req.DeviceName,
 		DeviceType:  req.ClientName,
 	}
-	if err := h.svc.StartStream(ctx, session, claims.UserID); err != nil {
+	if err := h.cmd.StartStream(ctx, session, claims.UserID); err != nil {
 		slog.Error("start stream", slog.Any("err", err))
 		return nil, status.Errorf(codes.Internal, "internal error")
 	}
@@ -66,7 +67,7 @@ func (h *playbackHandler) StartStream(ctx context.Context, req *eveyv1.StartStre
 }
 
 func (h *playbackHandler) StopStream(ctx context.Context, req *eveyv1.StopStreamRequest) (*eveyv1.StopStreamResponse, error) {
-	if err := h.svc.StopStream(ctx, req.SessionId); err != nil {
+	if err := h.cmd.StopStream(ctx, req.SessionId); err != nil {
 		slog.Error("stop stream", slog.Any("err", err))
 		return nil, status.Errorf(codes.Internal, "internal error")
 	}
@@ -78,7 +79,7 @@ func (h *playbackHandler) ReportProgress(ctx context.Context, req *eveyv1.Report
 	if claims == nil {
 		return nil, status.Error(codes.Unauthenticated, "not authenticated")
 	}
-	if err := h.svc.ReportProgressBySession(ctx, req.SessionId, req.PositionMs); err != nil {
+	if err := h.cmd.ReportProgressBySession(ctx, req.SessionId, req.PositionMs); err != nil {
 		slog.Error("report progress", slog.Any("err", err))
 		return nil, status.Errorf(codes.Internal, "internal error")
 	}
@@ -92,7 +93,7 @@ func (h *playbackHandler) GetWatchProgress(ctx context.Context, req *eveyv1.GetW
 			profileID = claims.ProfileID
 		}
 	}
-	wp, err := h.svc.GetWatchProgress(ctx, profileID, req.MediaItemId)
+	wp, err := h.query.GetWatchProgress(ctx, profileID, req.MediaItemId)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return &eveyv1.WatchProgress{}, nil
@@ -113,7 +114,7 @@ func (h *playbackHandler) GetWatchHistory(ctx context.Context, req *eveyv1.GetWa
 		offset = int((req.Pagination.Page - 1) * req.Pagination.PageSize)
 		limit = int(req.Pagination.PageSize)
 	}
-	items, err := h.svc.GetWatchHistory(ctx, req.ProfileId, limit, offset)
+	items, err := h.query.GetWatchHistory(ctx, req.ProfileId, limit, offset)
 	if err != nil {
 		slog.Error("get watch history", slog.Any("err", err))
 		return nil, status.Errorf(codes.Internal, "internal error")
@@ -130,7 +131,7 @@ func (h *playbackHandler) GetResumeItems(ctx context.Context, req *eveyv1.GetRes
 	if limit <= 0 {
 		limit = 20
 	}
-	items, err := h.svc.GetResumeItems(ctx, req.ProfileId, limit)
+	items, err := h.query.GetResumeItems(ctx, req.ProfileId, limit)
 	if err != nil {
 		slog.Error("get resume items", slog.Any("err", err))
 		return nil, status.Errorf(codes.Internal, "internal error")
@@ -147,7 +148,7 @@ func (h *playbackHandler) GetNextUp(ctx context.Context, req *eveyv1.GetNextUpRe
 	if limit <= 0 {
 		limit = 20
 	}
-	progresses, err := h.svc.GetNextUp(ctx, req.ProfileId, limit)
+	progresses, err := h.query.GetNextUp(ctx, req.ProfileId, limit)
 	if err != nil {
 		slog.Error("get next up", slog.Any("err", err))
 		return nil, status.Errorf(codes.Internal, "internal error")
@@ -164,7 +165,7 @@ func (h *playbackHandler) GetNextUp(ctx context.Context, req *eveyv1.GetNextUpRe
 }
 
 func (h *playbackHandler) MarkAsWatched(ctx context.Context, req *eveyv1.MarkAsWatchedRequest) (*eveyv1.MarkAsWatchedResponse, error) {
-	if err := h.svc.MarkAsWatched(ctx, req.ProfileId, req.MediaItemId); err != nil {
+	if err := h.cmd.MarkAsWatched(ctx, req.ProfileId, req.MediaItemId); err != nil {
 		slog.Error("mark as watched", slog.Any("err", err))
 		return nil, status.Errorf(codes.Internal, "internal error")
 	}
@@ -172,7 +173,7 @@ func (h *playbackHandler) MarkAsWatched(ctx context.Context, req *eveyv1.MarkAsW
 }
 
 func (h *playbackHandler) MarkAsUnwatched(ctx context.Context, req *eveyv1.MarkAsUnwatchedRequest) (*eveyv1.MarkAsUnwatchedResponse, error) {
-	if err := h.svc.MarkAsUnwatched(ctx, req.ProfileId, req.MediaItemId); err != nil {
+	if err := h.cmd.MarkAsUnwatched(ctx, req.ProfileId, req.MediaItemId); err != nil {
 		slog.Error("mark as unwatched", slog.Any("err", err))
 		return nil, status.Errorf(codes.Internal, "internal error")
 	}

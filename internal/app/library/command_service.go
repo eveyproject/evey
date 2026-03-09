@@ -11,9 +11,10 @@ import (
 	"github.com/gravity-zero/evey/internal/domain/shared"
 )
 
-type Service struct {
-	libraries    library.LibraryRepository
-	mediaItems   library.MediaItemRepository
+type CommandService struct {
+	libraries    library.LibraryCommandRepo
+	libQueries   library.LibraryQueryRepo
+	mediaItems   library.MediaItemCommandRepo
 	mediaStreams  library.MediaStreamRepository
 	persons      library.PersonRepository
 	mediaPersons library.MediaPersonRepository
@@ -23,9 +24,10 @@ type Service struct {
 	events       shared.EventBus
 }
 
-func NewService(
-	libraries library.LibraryRepository,
-	mediaItems library.MediaItemRepository,
+func NewCommandService(
+	libraries library.LibraryCommandRepo,
+	libQueries library.LibraryQueryRepo,
+	mediaItems library.MediaItemCommandRepo,
 	mediaStreams library.MediaStreamRepository,
 	persons library.PersonRepository,
 	mediaPersons library.MediaPersonRepository,
@@ -33,9 +35,10 @@ func NewService(
 	prober library.StreamProber,
 	search library.SearchIndex,
 	events shared.EventBus,
-) *Service {
-	return &Service{
+) *CommandService {
+	return &CommandService{
 		libraries:    libraries,
+		libQueries:   libQueries,
 		mediaItems:   mediaItems,
 		mediaStreams:  mediaStreams,
 		persons:      persons,
@@ -47,7 +50,7 @@ func NewService(
 	}
 }
 
-func (s *Service) CreateLibrary(ctx context.Context, lib *library.Library) error {
+func (s *CommandService) CreateLibrary(ctx context.Context, lib *library.Library) error {
 	now := time.Now()
 	lib.CreatedAt = now
 	lib.UpdatedAt = now
@@ -63,15 +66,7 @@ func (s *Service) CreateLibrary(ctx context.Context, lib *library.Library) error
 	return nil
 }
 
-func (s *Service) GetLibrary(ctx context.Context, id string) (*library.Library, error) {
-	return s.libraries.GetByID(ctx, id)
-}
-
-func (s *Service) ListLibraries(ctx context.Context) ([]*library.Library, error) {
-	return s.libraries.List(ctx)
-}
-
-func (s *Service) DeleteLibrary(ctx context.Context, id string) error {
+func (s *CommandService) DeleteLibrary(ctx context.Context, id string) error {
 	if err := s.libraries.Delete(ctx, id); err != nil {
 		return fmt.Errorf("delete library: %w", err)
 	}
@@ -82,9 +77,9 @@ func (s *Service) DeleteLibrary(ctx context.Context, id string) error {
 	return nil
 }
 
-func (s *Service) ScanLibrary(ctx context.Context, libraryID string) (added, updated int, err error) {
+func (s *CommandService) ScanLibrary(ctx context.Context, libraryID string) (added, updated int, err error) {
 	var lib *library.Library
-	lib, err = s.libraries.GetByID(ctx, libraryID)
+	lib, err = s.libQueries.GetByID(ctx, libraryID)
 	if err != nil {
 		return 0, 0, fmt.Errorf("get library: %w", err)
 	}
@@ -132,8 +127,7 @@ func (s *Service) ScanLibrary(ctx context.Context, libraryID string) (added, upd
 	return added, updated, nil
 }
 
-// upsertMediaFile creates or updates a single media item. parentID may be empty.
-func (s *Service) upsertMediaFile(ctx context.Context, libraryID, parentID string, f library.ScannedFile) (added, updated int, err error) {
+func (s *CommandService) upsertMediaFile(ctx context.Context, libraryID, parentID string, f library.ScannedFile) (added, updated int, err error) {
 	var existing *library.MediaItem
 	var getErr error
 	if f.Fingerprint != "" {
@@ -169,9 +163,7 @@ func (s *Service) upsertMediaFile(ctx context.Context, libraryID, parentID strin
 			item.DurationMs = dur
 			_ = s.mediaItems.Update(ctx, item)
 		}
-		if s.search != nil {
-			s.search.IndexMediaItem(ctx, item, s.castNames(ctx, item.ID))
-		}
+		s.search.IndexMediaItem(ctx, item, nil)
 		s.events.Publish(ctx, library.MediaItemAdded{
 			MediaItemID: item.ID,
 			LibraryID:   libraryID,
@@ -190,10 +182,8 @@ func (s *Service) upsertMediaFile(ctx context.Context, libraryID, parentID strin
 		existing.DurationMs = dur
 	}
 	s.mediaItems.Update(ctx, existing)
-	if s.search != nil {
-		s.search.IndexMediaItem(ctx, existing, s.castNames(ctx, existing.ID))
-	}
-	// Re-emit so enricher re-fetches metadata for items with no overview (e.g. after overview clear)
+	s.search.IndexMediaItem(ctx, existing, nil)
+	// Re-emit so enricher re-fetches metadata for items with no overview
 	if existing.Overview == "" {
 		s.events.Publish(ctx, library.MediaItemAdded{
 			MediaItemID: existing.ID,
@@ -206,7 +196,7 @@ func (s *Service) upsertMediaFile(ctx context.Context, libraryID, parentID strin
 	return 0, 1, nil
 }
 
-func (s *Service) ProbeAndStoreStreams(ctx context.Context, mediaItemID, filePath string) int64 {
+func (s *CommandService) ProbeAndStoreStreams(ctx context.Context, mediaItemID, filePath string) int64 {
 	if s.prober == nil {
 		return 0
 	}
@@ -222,12 +212,7 @@ func (s *Service) ProbeAndStoreStreams(ctx context.Context, mediaItemID, filePat
 	return result.DurationMs
 }
 
-func (s *Service) GetMediaStreams(ctx context.Context, mediaItemID string) ([]*library.MediaStream, error) {
-	return s.mediaStreams.GetByMediaItemID(ctx, mediaItemID)
-}
-
-// getOrCreateItem finds an item by fingerprint, then by library+type+title, or creates it.
-func (s *Service) getOrCreateItem(ctx context.Context, item *library.MediaItem) (*library.MediaItem, bool, error) {
+func (s *CommandService) getOrCreateItem(ctx context.Context, item *library.MediaItem) (*library.MediaItem, bool, error) {
 	existing, err := s.mediaItems.GetByFileFingerprint(ctx, item.FileFingerprint)
 	if err == nil {
 		return existing, false, nil
@@ -235,10 +220,8 @@ func (s *Service) getOrCreateItem(ctx context.Context, item *library.MediaItem) 
 	if !errors.Is(err, library.ErrNotFound) {
 		return nil, false, err
 	}
-	// Fallback: find by library+type+title to avoid creating duplicates on rescan
 	existing, err = s.mediaItems.GetByLibraryTypeTitle(ctx, item.LibraryID, item.Type, item.Title, item.ParentID)
 	if err == nil {
-		// Stamp fingerprint so future scans find it directly
 		existing.FileFingerprint = item.FileFingerprint
 		_ = s.mediaItems.Update(ctx, existing)
 		return existing, false, nil
@@ -249,10 +232,9 @@ func (s *Service) getOrCreateItem(ctx context.Context, item *library.MediaItem) 
 	return item, true, nil
 }
 
-// scanTVShowFiles builds series→season→episode hierarchy for a tvshow library.
-func (s *Service) scanTVShowFiles(ctx context.Context, libraryID string, files []library.ScannedFile) (added, updated int, err error) {
-	seriesIDs := map[string]string{}        // showTitle → series item ID
-	seasonIDs := map[string]string{}        // "showTitle:seasonNum" → season item ID
+func (s *CommandService) scanTVShowFiles(ctx context.Context, libraryID string, files []library.ScannedFile) (added, updated int, err error) {
+	seriesIDs := map[string]string{}
+	seasonIDs := map[string]string{}
 
 	for _, f := range files {
 		showTitle := f.Title
@@ -261,7 +243,6 @@ func (s *Service) scanTVShowFiles(ctx context.Context, libraryID string, files [
 			seasonNum = *f.Season
 		}
 
-		// 1. series item
 		seriesID, ok := seriesIDs[showTitle]
 		if !ok {
 			fp := fmt.Sprintf("series:%s:%s", libraryID, showTitle)
@@ -291,7 +272,6 @@ func (s *Service) scanTVShowFiles(ctx context.Context, libraryID string, files [
 			seriesIDs[showTitle] = seriesID
 		}
 
-		// 2. season item
 		seasonKey := fmt.Sprintf("%s:%d", showTitle, seasonNum)
 		seasonID, ok := seasonIDs[seasonKey]
 		if !ok {
@@ -318,7 +298,6 @@ func (s *Service) scanTVShowFiles(ctx context.Context, libraryID string, files [
 			seasonIDs[seasonKey] = seasonID
 		}
 
-		// 3. episode item — title as S01E05 (real episode name comes from TMDB enrichment)
 		episodeFile := f
 		if f.Episode != nil {
 			s := 0
@@ -335,95 +314,4 @@ func (s *Service) scanTVShowFiles(ctx context.Context, libraryID string, files [
 		updated += u
 	}
 	return added, updated, nil
-}
-
-func (s *Service) GetMediaItem(ctx context.Context, id string) (*library.MediaItem, error) {
-	return s.mediaItems.GetByID(ctx, id)
-}
-
-func (s *Service) ListMediaItems(ctx context.Context, filter library.ListMediaItemsFilter) ([]*library.MediaItem, error) {
-	return s.mediaItems.List(ctx, filter)
-}
-
-func (s *Service) CountMediaItems(ctx context.Context, filter library.ListMediaItemsFilter) (int, error) {
-	return s.mediaItems.Count(ctx, filter)
-}
-
-// GetCast returns the cast for a media item joined with person info.
-func (s *Service) GetCast(ctx context.Context, mediaItemID string) ([]*library.MediaPerson, []*library.Person, error) {
-	mediaPersons, err := s.mediaPersons.GetByMediaItemID(ctx, mediaItemID)
-	if err != nil {
-		return nil, nil, fmt.Errorf("get media people: %w", err)
-	}
-	var persons []*library.Person
-	for _, mp := range mediaPersons {
-		p, err := s.persons.GetByID(ctx, mp.PersonID)
-		if err != nil {
-			continue
-		}
-		persons = append(persons, p)
-	}
-	return mediaPersons, persons, nil
-}
-
-func (s *Service) castNames(ctx context.Context, mediaItemID string) []string {
-	mps, err := s.mediaPersons.GetByMediaItemID(ctx, mediaItemID)
-	if err != nil {
-		return nil
-	}
-	names := make([]string, 0, len(mps))
-	for _, mp := range mps {
-		p, err := s.persons.GetByID(ctx, mp.PersonID)
-		if err != nil {
-			continue
-		}
-		names = append(names, p.Name)
-	}
-	return names
-}
-
-func (s *Service) SearchMedia(ctx context.Context, query string, filters map[string]string, limit int64) (*library.SearchResult, error) {
-	if s.search == nil {
-		return &library.SearchResult{}, nil
-	}
-	hits, totalHits, err := s.search.Search(ctx, query, filters, limit)
-	if err != nil {
-		return nil, fmt.Errorf("search: %w", err)
-	}
-	return &library.SearchResult{Hits: hits, TotalHits: totalHits}, nil
-}
-
-func (s *Service) SearchMediaFull(ctx context.Context, query string, filters map[string]string, limit int64) ([]*library.MediaItem, int64, error) {
-	if s.search == nil {
-		return nil, 0, nil
-	}
-	hits, totalHits, err := s.search.Search(ctx, query, filters, limit)
-	if err != nil {
-		return nil, 0, fmt.Errorf("search: %w", err)
-	}
-	var items []*library.MediaItem
-	for _, h := range hits {
-		item, err := s.mediaItems.GetByID(ctx, h.ID)
-		if err != nil {
-			continue
-		}
-		items = append(items, item)
-	}
-	return items, totalHits, nil
-}
-
-func (s *Service) ReindexAll(ctx context.Context) (int, error) {
-	if s.search == nil {
-		return 0, nil
-	}
-	items, err := s.mediaItems.List(ctx, library.ListMediaItemsFilter{})
-	if err != nil {
-		return 0, fmt.Errorf("list items: %w", err)
-	}
-	count := 0
-	for _, item := range items {
-		s.search.IndexMediaItem(ctx, item, s.castNames(ctx, item.ID))
-		count++
-	}
-	return count, nil
 }

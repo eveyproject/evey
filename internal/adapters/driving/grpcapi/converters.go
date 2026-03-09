@@ -137,20 +137,6 @@ func mediaItemToProto(item *library.MediaItem) *eveyv1.MediaItem {
 	if item.Year != nil {
 		pb.Year = int32(*item.Year)
 	}
-
-	maxValues := map[string]float64{"imdb": 10, "tmdb": 10, "rt": 100, "metacritic": 100}
-	for source, value := range item.Ratings {
-		maxVal := maxValues[source]
-		if maxVal == 0 {
-			maxVal = 10
-		}
-		pb.Ratings = append(pb.Ratings, &eveyv1.Rating{
-			Source:   source,
-			Value:    value,
-			MaxValue: maxVal,
-		})
-	}
-
 	return pb
 }
 
@@ -176,6 +162,23 @@ func mediaPersonToProto(mp *library.MediaPerson, p *library.Person) *eveyv1.Medi
 		if p.ThumbPath != nil {
 			pb.ThumbUrl = *p.ThumbPath
 		}
+	}
+	return pb
+}
+
+func castMemberToProto(cm library.CastMember) *eveyv1.MediaPerson {
+	pb := &eveyv1.MediaPerson{
+		Id:        cm.PersonID,
+		Name:      cm.PersonName,
+		Role:      cm.RoleType,
+		Type:      personRoleToProto[cm.RoleType],
+		SortOrder: int32(cm.SortOrder),
+	}
+	if cm.CharacterName != nil {
+		pb.Role = *cm.CharacterName
+	}
+	if cm.ThumbPath != nil {
+		pb.ThumbUrl = *cm.ThumbPath
 	}
 	return pb
 }

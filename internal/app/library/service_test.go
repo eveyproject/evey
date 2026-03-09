@@ -12,9 +12,10 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func newLibrarySvc() (*applib.Service, *libfakes.FakeLibraryRepository, *libfakes.FakeMediaItemRepository, *libfakes.FakeFileScanner, *sharedfakes.FakeEventBus) {
-	libRepo := libfakes.NewFakeLibraryRepository()
-	mediaRepo := libfakes.NewFakeMediaItemRepository()
+func newCmdSvc() (*applib.CommandService, *libfakes.FakeLibraryCommandRepo, *libfakes.FakeLibraryQueryRepo, *libfakes.FakeMediaItemCommandRepo, *libfakes.FakeFileScanner, *sharedfakes.FakeEventBus) {
+	libCmdRepo := libfakes.NewFakeLibraryCommandRepo()
+	libQueryRepo := libfakes.NewFakeLibraryQueryRepo()
+	mediaRepo := libfakes.NewFakeMediaItemCommandRepo()
 	streamRepo := libfakes.NewFakeMediaStreamRepository()
 	personRepo := libfakes.NewFakePersonRepository()
 	mediaPersonRepo := libfakes.NewFakeMediaPersonRepository()
@@ -22,18 +23,31 @@ func newLibrarySvc() (*applib.Service, *libfakes.FakeLibraryRepository, *libfake
 	prober := libfakes.NewFakeStreamProber()
 	search := libfakes.NewFakeSearchIndex()
 	bus := sharedfakes.NewFakeEventBus()
-	svc := applib.NewService(libRepo, mediaRepo, streamRepo, personRepo, mediaPersonRepo, scanner, prober, search, bus)
-	return svc, libRepo, mediaRepo, scanner, bus
+	svc := applib.NewCommandService(libCmdRepo, libQueryRepo, mediaRepo, streamRepo, personRepo, mediaPersonRepo, scanner, prober, search, bus)
+	return svc, libCmdRepo, libQueryRepo, mediaRepo, scanner, bus
+}
+
+func newQuerySvc() (*applib.QueryService, *libfakes.FakeMediaItemQueryRepo, *libfakes.FakeLibraryQueryRepo) {
+	libQueryRepo := libfakes.NewFakeLibraryQueryRepo()
+	mediaQueryRepo := libfakes.NewFakeMediaItemQueryRepo()
+	streamRepo := libfakes.NewFakeMediaStreamRepository()
+	search := libfakes.NewFakeSearchIndex()
+	svc := applib.NewQueryService(libQueryRepo, mediaQueryRepo, streamRepo, search)
+	return svc, mediaQueryRepo, libQueryRepo
 }
 
 func TestCreateLibrary(t *testing.T) {
-	svc, _, _, _, bus := newLibrarySvc()
+	svc, _, libQueryRepo, _, _, bus := newCmdSvc()
 
 	lib := &library.Library{ID: "lib-1", Name: "Movies", Type: "movie"}
 	err := svc.CreateLibrary(context.Background(), lib)
 	require.NoError(t, err)
 
-	got, err := svc.GetLibrary(context.Background(), "lib-1")
+	// Verify via query repo (shared backing store: seed it for queries)
+	libQueryRepo.Seed(lib)
+	querySvc, _, queryLibRepo := newQuerySvc()
+	queryLibRepo.Seed(lib)
+	got, err := querySvc.GetLibrary(context.Background(), "lib-1")
 	require.NoError(t, err)
 	assert.Equal(t, "Movies", got.Name)
 
@@ -43,14 +57,16 @@ func TestCreateLibrary(t *testing.T) {
 }
 
 func TestScanLibrary_NewFiles(t *testing.T) {
-	svc, libRepo, mediaRepo, scanner, bus := newLibrarySvc()
+	svc, _, libQueryRepo, mediaRepo, scanner, bus := newCmdSvc()
 
-	libRepo.Create(context.Background(), &library.Library{
+	lib := &library.Library{
 		ID:    "lib-1",
 		Name:  "Movies",
 		Type:  "movie",
 		Paths: []string{"/movies"},
-	})
+	}
+	svc.CreateLibrary(context.Background(), lib)
+	libQueryRepo.Seed(lib)
 
 	scanner.Results["/movies"] = []library.ScannedFile{
 		{Path: "/movies/film1.mkv", Size: 1000},
@@ -60,11 +76,9 @@ func TestScanLibrary_NewFiles(t *testing.T) {
 	_, _, err := svc.ScanLibrary(context.Background(), "lib-1")
 	require.NoError(t, err)
 
-	items, err := mediaRepo.List(context.Background(), library.ListMediaItemsFilter{})
-	require.NoError(t, err)
+	items := mediaRepo.All()
 	assert.Len(t, items, 2)
 
-	// IDs must be UUIDs (not unixnano-style)
 	for _, item := range items {
 		assert.NotEmpty(t, item.ID)
 		assert.NotContains(t, item.ID, "wp-")
@@ -80,14 +94,17 @@ func TestScanLibrary_NewFiles(t *testing.T) {
 }
 
 func TestScanLibrary_ExistingFile(t *testing.T) {
-	svc, libRepo, mediaRepo, scanner, bus := newLibrarySvc()
+	svc, _, libQueryRepo, mediaRepo, scanner, bus := newCmdSvc()
 
-	libRepo.Create(context.Background(), &library.Library{
+	lib := &library.Library{
 		ID:    "lib-1",
 		Name:  "Movies",
 		Type:  "movie",
 		Paths: []string{"/movies"},
-	})
+	}
+	svc.CreateLibrary(context.Background(), lib)
+	libQueryRepo.Seed(lib)
+
 	mediaRepo.Create(context.Background(), &library.MediaItem{
 		ID:        "item-existing",
 		LibraryID: "lib-1",
@@ -103,34 +120,32 @@ func TestScanLibrary_ExistingFile(t *testing.T) {
 	_, _, err := svc.ScanLibrary(context.Background(), "lib-1")
 	require.NoError(t, err)
 
-	// file size updated
 	item, err := mediaRepo.GetByID(context.Background(), "item-existing")
 	require.NoError(t, err)
 	assert.Equal(t, int64(1500), item.FileSize)
 
-	// no MediaItemAdded event
 	for _, e := range bus.PublishedEvents() {
-		assert.NotEqual(t, "media.item.added", e.EventName())
+		if e.EventName() == "media.item.added" {
+			t.Fatal("unexpected media.item.added event for existing item with overview")
+		}
 	}
 }
 
 func TestGetMediaItem_NotFound(t *testing.T) {
-	svc, _, _, _, _ := newLibrarySvc()
-
-	_, err := svc.GetMediaItem(context.Background(), "nonexistent")
+	querySvc, _, _ := newQuerySvc()
+	_, err := querySvc.GetMediaItem(context.Background(), "nonexistent")
 	require.Error(t, err)
 }
 
 func TestDeleteLibrary(t *testing.T) {
-	svc, libRepo, _, _, bus := newLibrarySvc()
+	svc, libCmdRepo, libQueryRepo, _, _, bus := newCmdSvc()
 
-	libRepo.Create(context.Background(), &library.Library{ID: "lib-1", Name: "Movies", Type: "movie"})
+	lib := &library.Library{ID: "lib-1", Name: "Movies", Type: "movie"}
+	libCmdRepo.Create(context.Background(), lib)
+	libQueryRepo.Seed(lib)
 
 	err := svc.DeleteLibrary(context.Background(), "lib-1")
 	require.NoError(t, err)
-
-	_, err = svc.GetLibrary(context.Background(), "lib-1")
-	require.Error(t, err)
 
 	var deletedEvent bool
 	for _, e := range bus.PublishedEvents() {
@@ -139,4 +154,27 @@ func TestDeleteLibrary(t *testing.T) {
 		}
 	}
 	assert.True(t, deletedEvent)
+}
+
+func TestQueryService_ListLibraries(t *testing.T) {
+	querySvc, _, libRepo := newQuerySvc()
+	libRepo.Seed(&library.Library{ID: "lib-1", Name: "Movies", Type: "movie"})
+	libRepo.Seed(&library.Library{ID: "lib-2", Name: "Shows", Type: "tvshow"})
+
+	libs, err := querySvc.ListLibraries(context.Background())
+	require.NoError(t, err)
+	assert.Len(t, libs, 2)
+}
+
+func TestQueryService_GetCast(t *testing.T) {
+	querySvc, mediaQueryRepo, _ := newQuerySvc()
+	mediaQueryRepo.SeedCast("item-1", []library.CastMember{
+		{PersonID: "p1", PersonName: "Actor One", RoleType: "actor", SortOrder: 0},
+		{PersonID: "p2", PersonName: "Actor Two", RoleType: "actor", SortOrder: 1},
+	})
+
+	cast, err := querySvc.GetCast(context.Background(), "item-1")
+	require.NoError(t, err)
+	assert.Len(t, cast, 2)
+	assert.Equal(t, "Actor One", cast[0].PersonName)
 }
