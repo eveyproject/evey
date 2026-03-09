@@ -1,8 +1,10 @@
 import { Modal } from "./Modal";
 
+const isMac = /Mac|iPhone|iPad/.test(navigator.userAgent);
+
 const shortcuts = [
   { key: "/", desc: "Focus search" },
-  { key: "Ctrl+K", desc: "Focus search" },
+  { key: isMac ? "⌘K" : "Ctrl+K", desc: "Focus search" },
   { key: "Esc", desc: "Close modal / blur input" },
   { key: "h", desc: "Go to Home" },
   { key: "?", desc: "Toggle this help" },

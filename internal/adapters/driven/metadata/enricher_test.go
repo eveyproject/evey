@@ -88,6 +88,53 @@ func TestMergeResults_ArtworkAppended(t *testing.T) {
 	assert.Equal(t, "omdb", result.Artwork[1].Provider)
 }
 
+func TestPickBestMatch_TitleSimilarity(t *testing.T) {
+	results := []domain.MetadataResult{
+		{Title: "The Rookie : Le Flic de Los Angeles", OriginalTitle: "The Rookie"},
+		{Title: "Le flic de Shanghai", OriginalTitle: "Martial Law"},
+	}
+	best := pickBestMatch(results, "Le flic de shanghai", nil)
+	assert.Equal(t, "Le flic de Shanghai", best.Title)
+}
+
+func TestPickBestMatch_ExactTitle(t *testing.T) {
+	results := []domain.MetadataResult{
+		{Title: "Breaking Bad"},
+		{Title: "Bad Breaking"},
+	}
+	best := pickBestMatch(results, "Breaking Bad", nil)
+	assert.Equal(t, "Breaking Bad", best.Title)
+}
+
+func TestPickBestMatch_YearBonus(t *testing.T) {
+	y2020 := 2020
+	y2005 := 2005
+	results := []domain.MetadataResult{
+		{Title: "The Movie", Year: &y2020},
+		{Title: "The Movie", Year: &y2005},
+	}
+	best := pickBestMatch(results, "The Movie", &y2005)
+	assert.Equal(t, &y2005, best.Year)
+}
+
+func TestPickBestMatch_OriginalTitleUsed(t *testing.T) {
+	results := []domain.MetadataResult{
+		{Title: "La Loi de la Force", OriginalTitle: "Martial Law"},
+		{Title: "La Force de la Loi", OriginalTitle: "Other Show"},
+	}
+	best := pickBestMatch(results, "Martial Law", nil)
+	assert.Equal(t, "Martial Law", best.OriginalTitle)
+}
+
+func TestTitleSimilarity(t *testing.T) {
+	assert.InDelta(t, 1.0, titleSimilarity("breaking bad", "Breaking Bad"), 0.01)
+	assert.Greater(t,
+		titleSimilarity("le flic de shanghai", "Le flic de Shanghai"),
+		titleSimilarity("le flic de shanghai", "The Rookie : Le Flic de Los Angeles"),
+	)
+	assert.Equal(t, 0.0, titleSimilarity("test", ""))
+}
+
 func TestMergeResults_NilSupplement(t *testing.T) {
 	primary := &domain.MetadataResult{
 		ProviderIDs: map[string]string{"tmdb": "1"},

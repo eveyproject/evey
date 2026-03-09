@@ -8,7 +8,7 @@ export default defineConfig({
   retries: 0,
   reporter: [["html", { open: "never" }]],
   use: {
-    baseURL: "https://evey.test",
+    baseURL: process.env.BASE_URL ?? "https://evey.test",
     ignoreHTTPSErrors: true,
     screenshot: "only-on-failure",
     video: "retain-on-failure",

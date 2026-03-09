@@ -9,8 +9,10 @@ import {
   useLibraryServiceGetMediaItem,
   useMetadataServiceSetMetadataOverride,
   useMetadataServiceRefreshMetadata,
+  useMetadataServiceGetArtwork,
 } from "@evey/api";
-import { toast } from "@evey/store";
+import { useQueryClient } from "@tanstack/react-query";
+import { toast, useAuthStore } from "@evey/store";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
 import { Input } from "@/components/ui/Input";
@@ -33,6 +35,87 @@ interface EditForm {
   communityRating: string;
   imdbId: string;
   tmdbId: string;
+}
+
+function ArtworkPicker({ mediaItemId }: { mediaItemId: string }) {
+  const { data } = useMetadataServiceGetArtwork(mediaItemId, undefined);
+  const queryClient = useQueryClient();
+  const [selecting, setSelecting] = useState<string | null>(null);
+  const accessToken = useAuthStore((s) => s.accessToken);
+
+  const allArtwork = data?.artwork ?? [];
+  const posters = allArtwork.filter((a) => a.type === "ARTWORK_TYPE_PRIMARY");
+  const backdrops = allArtwork.filter((a) => a.type === "ARTWORK_TYPE_BACKDROP");
+
+  async function selectArtwork(artworkId: string) {
+    setSelecting(artworkId);
+    try {
+      await fetch(`/api/v1/media/${mediaItemId}/artwork/${artworkId}/select`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${accessToken}` },
+      });
+      queryClient.invalidateQueries({ queryKey: [`/api/v1/metadata/${mediaItemId}/artwork`] });
+      queryClient.invalidateQueries({ queryKey: [`/api/v1/media/${mediaItemId}`] });
+      toast.success("Artwork updated");
+    } catch {
+      toast.error("Failed to update artwork");
+    } finally {
+      setSelecting(null);
+    }
+  }
+
+  if (posters.length <= 1 && backdrops.length <= 1) return null;
+
+  return (
+    <div className="flex flex-col gap-3">
+      {posters.length > 1 && (
+        <div>
+          <p className="text-xs font-medium mb-2" style={{ color: "var(--text-muted)" }}>Poster</p>
+          <div className="flex gap-2 overflow-x-auto pb-1" style={{ scrollbarWidth: "thin" }}>
+            {posters.map((a, i) => (
+              <button
+                key={a.id}
+                onClick={() => a.id && selectArtwork(a.id)}
+                disabled={selecting === a.id}
+                className="flex-shrink-0 rounded overflow-hidden transition-all"
+                style={{
+                  width: 72,
+                  aspectRatio: "2/3",
+                  border: i === 0 ? "2px solid var(--accent)" : "2px solid transparent",
+                  opacity: selecting === a.id ? 0.5 : 1,
+                }}
+              >
+                <img src={a.url} alt="" className="w-full h-full object-cover" loading="lazy" />
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+      {backdrops.length > 1 && (
+        <div>
+          <p className="text-xs font-medium mb-2" style={{ color: "var(--text-muted)" }}>Backdrop</p>
+          <div className="flex gap-2 overflow-x-auto pb-1" style={{ scrollbarWidth: "thin" }}>
+            {backdrops.map((a, i) => (
+              <button
+                key={a.id}
+                onClick={() => a.id && selectArtwork(a.id)}
+                disabled={selecting === a.id}
+                className="flex-shrink-0 rounded overflow-hidden transition-all"
+                style={{
+                  width: 128,
+                  aspectRatio: "16/9",
+                  border: i === 0 ? "2px solid var(--accent)" : "2px solid transparent",
+                  opacity: selecting === a.id ? 0.5 : 1,
+                }}
+              >
+                <img src={a.url} alt="" className="w-full h-full object-cover" loading="lazy" />
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
 }
 
 function MetadataEditPanel({
@@ -106,6 +189,7 @@ function MetadataEditPanel({
         <Input label="IMDB ID" value={form.imdbId} onChange={set("imdbId")} placeholder="tt1234567" />
         <Input label="TMDB ID" value={form.tmdbId} onChange={set("tmdbId")} placeholder="12345" />
       </div>
+      {item.id && <ArtworkPicker mediaItemId={item.id} />}
       <div className="flex gap-2 flex-wrap pt-1">
         <Button type="submit" loading={setOverride.isPending}>Save overrides</Button>
         <Button type="button" variant="secondary" loading={refreshStatus === "running"} onClick={handleRefresh}>

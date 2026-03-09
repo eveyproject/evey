@@ -149,8 +149,9 @@ func (p *TMDBProvider) GetByProviderID(ctx context.Context, providerID string, m
 	}
 
 	params := url.Values{
-		"append_to_response": {"credits,keywords,images,external_ids"},
-		"language":           {p.language},
+		"append_to_response":  {"credits,keywords,images,external_ids"},
+		"language":            {p.language},
+		"include_image_language": {p.language + ",en,null"},
 	}
 	u := fmt.Sprintf("%s%s?%s", p.baseURL, endpoint, params.Encode())
 
@@ -356,7 +357,10 @@ func mapDetailResult(d tmdbDetailResponse, mediaType string) domain.MetadataResu
 	}
 
 	if d.Images != nil {
-		for _, img := range d.Images.Posters {
+		for i, img := range d.Images.Posters {
+			if i >= 5 {
+				break
+			}
 			result.Artwork = append(result.Artwork, domain.ArtworkResult{
 				Type:     "poster",
 				URL:      imageBaseURL + img.FilePath,
@@ -366,7 +370,10 @@ func mapDetailResult(d tmdbDetailResponse, mediaType string) domain.MetadataResu
 				Provider: "tmdb",
 			})
 		}
-		for _, img := range d.Images.Backdrops {
+		for i, img := range d.Images.Backdrops {
+			if i >= 5 {
+				break
+			}
 			result.Artwork = append(result.Artwork, domain.ArtworkResult{
 				Type:     "backdrop",
 				URL:      imageBaseURL + img.FilePath,

@@ -46,6 +46,11 @@ func (r *ArtworkRepository) GetByPerson(ctx context.Context, personID string) ([
 	return r.scanArtworkRows(rows)
 }
 
+func (r *ArtworkRepository) UpdateSortOrder(ctx context.Context, id string, sortOrder int) error {
+	_, err := r.db.ExecContext(ctx, `UPDATE artwork SET sort_order = $1 WHERE id = $2`, sortOrder, id)
+	return err
+}
+
 func (r *ArtworkRepository) Delete(ctx context.Context, id string) error {
 	_, err := r.db.ExecContext(ctx, `DELETE FROM artwork WHERE id = $1`, id)
 	return err

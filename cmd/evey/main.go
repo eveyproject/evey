@@ -299,6 +299,7 @@ func run() error {
 		mux.HandleFunc("GET /api/v1/media/{id}/stream", mh)
 		mux.HandleFunc("GET /api/v1/media/{id}/artwork/{artType}", mh)
 		mux.HandleFunc("POST /api/v1/media/{id}/stream", mh)
+		mux.HandleFunc("POST /api/v1/media/{id}/artwork/{artworkId}/select", selectArtworkHandler(tokenGen, artworkRepo))
 		mux.HandleFunc("GET /api/v1/media/{id}/download", downloadHandler(tokenGen, librarySvc))
 		mux.HandleFunc("GET /api/v1/media/{id}/transcode", transcodeHandler(tokenGen, librarySvc))
 		mux.HandleFunc("GET /api/v1/media/{id}/subtitle/{track}", subtitleHandler(tokenGen, librarySvc))
@@ -450,6 +451,53 @@ func mediaHandler(tokens interface {
 		default:
 			http.NotFound(w, r)
 		}
+	}
+}
+
+func selectArtworkHandler(tokens interface {
+	ValidateAccessToken(string) (*domainuser.Claims, error)
+}, artworkRepo interface {
+	GetByMediaItem(ctx context.Context, mediaItemID string) ([]*domainmeta.ArtworkRecord, error)
+	UpdateSortOrder(ctx context.Context, id string, sortOrder int) error
+}) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		authHeader := r.Header.Get("Authorization")
+		if len(authHeader) < 8 || authHeader[:7] != "Bearer " {
+			http.Error(w, `{"message":"unauthenticated"}`, http.StatusUnauthorized)
+			return
+		}
+		if _, err := tokens.ValidateAccessToken(authHeader[7:]); err != nil {
+			http.Error(w, `{"message":"forbidden"}`, http.StatusForbidden)
+			return
+		}
+		mediaID := r.PathValue("id")
+		artworkID := r.PathValue("artworkId")
+		records, err := artworkRepo.GetByMediaItem(r.Context(), mediaID)
+		if err != nil || len(records) == 0 {
+			http.NotFound(w, r)
+			return
+		}
+		var selected *domainmeta.ArtworkRecord
+		for _, rec := range records {
+			if rec.ID == artworkID {
+				selected = rec
+				break
+			}
+		}
+		if selected == nil {
+			http.NotFound(w, r)
+			return
+		}
+		// Find current first of same type and swap sort orders
+		for _, rec := range records {
+			if rec.Type == selected.Type && rec.ID != selected.ID && rec.SortOrder < selected.SortOrder {
+				_ = artworkRepo.UpdateSortOrder(r.Context(), rec.ID, selected.SortOrder)
+				break
+			}
+		}
+		_ = artworkRepo.UpdateSortOrder(r.Context(), selected.ID, -1)
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(`{"ok":true}`))
 	}
 }
 

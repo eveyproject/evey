@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"strings"
 	"sync"
 	"time"
 
@@ -290,15 +291,7 @@ func (e *Enricher) searchAndFetch(ctx context.Context, provider domainmetadata.M
 		return nil
 	}
 
-	best := results[0]
-	if year != nil {
-		for _, r := range results {
-			if r.Year != nil && *r.Year == *year {
-				best = r
-				break
-			}
-		}
-	}
+	best := pickBestMatch(results, title, year)
 
 	// Get the provider's own ID to fetch full details
 	providerID := best.ProviderIDs[provider.Name()]
@@ -452,4 +445,61 @@ func MergeResults(primary *domainmetadata.MetadataResult, supplements ...*domain
 	}
 
 	return primary
+}
+
+// pickBestMatch selects the result whose title best matches the query.
+// Uses word overlap (Dice coefficient) on both Title and OriginalTitle.
+// Year match gets a bonus.
+func pickBestMatch(results []domainmetadata.MetadataResult, query string, year *int) domainmetadata.MetadataResult {
+	if len(results) == 1 {
+		return results[0]
+	}
+
+	bestIdx := 0
+	bestScore := -1.0
+
+	for i, r := range results {
+		s1 := titleSimilarity(query, r.Title)
+		s2 := titleSimilarity(query, r.OriginalTitle)
+		score := s1
+		if s2 > score {
+			score = s2
+		}
+		if year != nil && r.Year != nil && *r.Year == *year {
+			score += 0.2
+		}
+		if score > bestScore {
+			bestScore = score
+			bestIdx = i
+		}
+	}
+
+	return results[bestIdx]
+}
+
+// titleSimilarity returns a 0..1 score using Dice coefficient on word sets.
+func titleSimilarity(query, candidate string) float64 {
+	if candidate == "" {
+		return 0
+	}
+	qw := wordSet(query)
+	cw := wordSet(candidate)
+	if len(qw) == 0 || len(cw) == 0 {
+		return 0
+	}
+	intersection := 0
+	for w := range qw {
+		if cw[w] {
+			intersection++
+		}
+	}
+	return 2.0 * float64(intersection) / float64(len(qw)+len(cw))
+}
+
+func wordSet(s string) map[string]bool {
+	m := make(map[string]bool)
+	for _, w := range strings.Fields(strings.ToLower(s)) {
+		m[w] = true
+	}
+	return m
 }

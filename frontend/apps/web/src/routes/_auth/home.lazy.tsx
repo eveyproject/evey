@@ -153,9 +153,15 @@ function HeroBanner() {
   );
 }
 
-function LibrarySlider({ libraryId, name }: { libraryId: string; name: string }) {
+function LibrarySlider({ libraryId, name, libraryType }: { libraryId: string; name: string; libraryType?: string }) {
+  const typeFilter = libraryType === "LIBRARY_TYPE_SHOWS"
+    ? "MEDIA_ITEM_TYPE_SERIES"
+    : libraryType === "LIBRARY_TYPE_MOVIES"
+      ? "MEDIA_ITEM_TYPE_MOVIE"
+      : undefined;
   const { data, isLoading } = useLibraryServiceListMediaItems({
     libraryId,
+    ...(typeFilter ? { type: typeFilter as never } : {}),
     "pagination.pageSize": 20,
     sortField: "MEDIA_SORT_FIELD_DATE_ADDED",
     sortOrder: "SORT_ORDER_DESC",
@@ -256,7 +262,7 @@ function HomePage() {
         <TypeSlider title="S\u00E9ries" type="MEDIA_ITEM_TYPE_SERIES" />
         {libraries.map((lib) =>
           lib.id ? (
-            <LibrarySlider key={lib.id} libraryId={lib.id} name={lib.name ?? "Library"} />
+            <LibrarySlider key={lib.id} libraryId={lib.id} name={lib.name ?? "Library"} libraryType={lib.type} />
           ) : null
         )}
       </div>
