@@ -18,7 +18,8 @@ func NewMediaPersonRepository(db *sql.DB) *MediaPersonRepository {
 func (r *MediaPersonRepository) Create(ctx context.Context, mp *library.MediaPerson) error {
 	_, err := r.db.ExecContext(ctx,
 		`INSERT INTO media_people (media_item_id, person_id, role_type, character_name, sort_order)
-		 VALUES ($1,$2,$3,$4,$5)`,
+		 VALUES ($1,$2,$3,$4,$5)
+		 ON CONFLICT (media_item_id, person_id, role_type) DO NOTHING`,
 		mp.MediaItemID, mp.PersonID, mp.RoleType, mp.CharacterName, mp.SortOrder,
 	)
 	return err

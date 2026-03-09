@@ -23,7 +23,8 @@ func (r *PersonRepository) Create(ctx context.Context, person *library.Person) e
 	}
 	_, err = r.db.ExecContext(ctx,
 		`INSERT INTO people (id, name, provider_ids, thumb_path)
-		 VALUES ($1,$2,$3,$4)`,
+		 VALUES ($1,$2,$3,$4)
+		 ON CONFLICT (name) DO NOTHING`,
 		person.ID, person.Name, providerJSON, person.ThumbPath,
 	)
 	return err
