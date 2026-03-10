@@ -19,6 +19,7 @@ type Service struct {
 	mediaPersons library.MediaPersonRepository
 	scanner      library.FileScanner
 	prober       library.StreamProber
+	subScanner   library.ExternalSubtitleScanner
 	search       library.SearchIndex
 	events       shared.EventBus
 }
@@ -45,6 +46,10 @@ func NewService(
 		search:       search,
 		events:       events,
 	}
+}
+
+func (s *Service) WithSubtitleScanner(sc library.ExternalSubtitleScanner) {
+	s.subScanner = sc
 }
 
 func (s *Service) CreateLibrary(ctx context.Context, lib *library.Library) error {
@@ -213,9 +218,53 @@ func (s *Service) ProbeAndStoreStreams(ctx context.Context, mediaItemID, filePat
 	for _, st := range result.Streams {
 		st.MediaItemID = mediaItemID
 	}
+
+	extSubs := s.discoverExternalSubtitles(result.Streams, mediaItemID, filePath)
+	allStreams := append(result.Streams, extSubs...)
+
 	_ = s.mediaStreams.DeleteByMediaItemID(ctx, mediaItemID)
-	_ = s.mediaStreams.CreateBatch(ctx, result.Streams)
+	_ = s.mediaStreams.CreateBatch(ctx, allStreams)
 	return result.DurationMs
+}
+
+func (s *Service) discoverExternalSubtitles(existing []*library.MediaStream, mediaItemID, filePath string) []*library.MediaStream {
+	if s.subScanner == nil {
+		return nil
+	}
+	subs, err := s.subScanner.ScanForSubtitles(filePath)
+	if err != nil || len(subs) == 0 {
+		return nil
+	}
+
+	maxIdx := 0
+	for _, st := range existing {
+		if st.StreamIndex >= maxIdx {
+			maxIdx = st.StreamIndex + 1
+		}
+	}
+
+	var streams []*library.MediaStream
+	for _, sub := range subs {
+		path := sub.Path
+		codec := sub.Format
+		if codec == "vtt" {
+			codec = "webvtt"
+		}
+		st := &library.MediaStream{
+			ID:           uuid.New().String(),
+			MediaItemID:  mediaItemID,
+			StreamIndex:  maxIdx,
+			StreamType:   string(library.Subtitle),
+			Codec:        codec,
+			Language:     sub.Language,
+			IsForced:     sub.IsForced,
+			IsExternal:   true,
+			ExternalPath: &path,
+		}
+		streams = append(streams, st)
+		maxIdx++
+	}
+	return streams
 }
 
 func (s *Service) GetMediaStreams(ctx context.Context, mediaItemID string) ([]*library.MediaStream, error) {

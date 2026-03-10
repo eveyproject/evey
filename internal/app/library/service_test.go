@@ -121,6 +121,96 @@ func TestGetMediaItem_NotFound(t *testing.T) {
 	require.Error(t, err)
 }
 
+func newLibrarySvcWithSubScanner() (*applib.Service, *libfakes.FakeLibraryRepository, *libfakes.FakeMediaItemRepository, *libfakes.FakeMediaStreamRepository, *libfakes.FakeFileScanner, *libfakes.FakeStreamProber, *libfakes.FakeSubtitleScanner, *sharedfakes.FakeEventBus) {
+	libRepo := libfakes.NewFakeLibraryRepository()
+	mediaRepo := libfakes.NewFakeMediaItemRepository()
+	streamRepo := libfakes.NewFakeMediaStreamRepository()
+	personRepo := libfakes.NewFakePersonRepository()
+	mediaPersonRepo := libfakes.NewFakeMediaPersonRepository()
+	scanner := libfakes.NewFakeFileScanner()
+	prober := libfakes.NewFakeStreamProber()
+	subScanner := libfakes.NewFakeSubtitleScanner()
+	search := libfakes.NewFakeSearchIndex()
+	bus := sharedfakes.NewFakeEventBus()
+	svc := applib.NewService(libRepo, mediaRepo, streamRepo, personRepo, mediaPersonRepo, scanner, prober, search, bus)
+	svc.WithSubtitleScanner(subScanner)
+	return svc, libRepo, mediaRepo, streamRepo, scanner, prober, subScanner, bus
+}
+
+func TestScanLibrary_ExternalSubtitles(t *testing.T) {
+	svc, libRepo, _, streamRepo, scanner, prober, subScanner, _ := newLibrarySvcWithSubScanner()
+
+	libRepo.Create(context.Background(), &library.Library{
+		ID:    "lib-1",
+		Name:  "Movies",
+		Type:  "movie",
+		Paths: []string{"/movies"},
+	})
+
+	scanner.Results["/movies"] = []library.ScannedFile{
+		{Path: "/movies/film.mkv", Size: 1000, Fingerprint: "1000-123"},
+	}
+
+	prober.Results["/movies/film.mkv"] = &library.ProbeResult{
+		DurationMs: 120000,
+		Streams: []*library.MediaStream{
+			{ID: "v1", StreamIndex: 0, StreamType: "video", Codec: "h264"},
+			{ID: "a1", StreamIndex: 1, StreamType: "audio", Codec: "aac"},
+		},
+	}
+
+	subScanner.Results["/movies/film.mkv"] = []library.ExternalSubtitle{
+		{Path: "/movies/film.en.srt", Language: "en", Format: "srt"},
+		{Path: "/movies/film.fr.forced.ass", Language: "fr", IsForced: true, Format: "ass"},
+	}
+
+	added, _, err := svc.ScanLibrary(context.Background(), "lib-1")
+	require.NoError(t, err)
+	assert.Equal(t, 1, added)
+
+	items, _ := svc.ListMediaItems(context.Background(), library.ListMediaItemsFilter{})
+	require.Len(t, items, 1)
+
+	streams, err := streamRepo.GetByMediaItemID(context.Background(), items[0].ID)
+	require.NoError(t, err)
+	assert.Len(t, streams, 4) // 2 internal + 2 external
+
+	var extSubs []*library.MediaStream
+	for _, s := range streams {
+		if s.IsExternal {
+			extSubs = append(extSubs, s)
+		}
+	}
+	assert.Len(t, extSubs, 2)
+	assert.Equal(t, "en", extSubs[0].Language)
+	assert.Equal(t, "srt", extSubs[0].Codec)
+	assert.False(t, extSubs[0].IsForced)
+	assert.Equal(t, "/movies/film.en.srt", *extSubs[0].ExternalPath)
+
+	assert.Equal(t, "fr", extSubs[1].Language)
+	assert.Equal(t, "ass", extSubs[1].Codec)
+	assert.True(t, extSubs[1].IsForced)
+}
+
+func TestScanLibrary_NoSubtitleScanner(t *testing.T) {
+	svc, libRepo, _, scanner, _ := newLibrarySvc()
+
+	libRepo.Create(context.Background(), &library.Library{
+		ID:    "lib-1",
+		Name:  "Movies",
+		Type:  "movie",
+		Paths: []string{"/movies"},
+	})
+
+	scanner.Results["/movies"] = []library.ScannedFile{
+		{Path: "/movies/film.mkv", Size: 1000, Fingerprint: "1000-456"},
+	}
+
+	added, _, err := svc.ScanLibrary(context.Background(), "lib-1")
+	require.NoError(t, err)
+	assert.Equal(t, 1, added)
+}
+
 func TestDeleteLibrary(t *testing.T) {
 	svc, libRepo, _, _, bus := newLibrarySvc()
 

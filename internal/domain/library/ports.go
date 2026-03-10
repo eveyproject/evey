@@ -92,6 +92,17 @@ type StreamProber interface {
 	ProbeStreams(ctx context.Context, filePath string) (*ProbeResult, error)
 }
 
+type ExternalSubtitle struct {
+	Path     string
+	Language string
+	IsForced bool
+	Format   string // "srt", "ass", "ssa", "vtt"
+}
+
+type ExternalSubtitleScanner interface {
+	ScanForSubtitles(videoPath string) ([]ExternalSubtitle, error)
+}
+
 type SearchIndex interface {
 	IndexMediaItem(ctx context.Context, item *MediaItem) error
 	RemoveMediaItem(ctx context.Context, id string) error
