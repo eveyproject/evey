@@ -2,6 +2,7 @@ package library_test
 
 import (
 	"context"
+	"errors"
 	"testing"
 
 	applib "github.com/gravity-zero/evey/internal/app/library"
@@ -119,6 +120,60 @@ func TestGetMediaItem_NotFound(t *testing.T) {
 
 	_, err := svc.GetMediaItem(context.Background(), "nonexistent")
 	require.Error(t, err)
+}
+
+func TestScanTVShow_TransientDBError_NoDuplicate(t *testing.T) {
+	svc, libRepo, mediaRepo, scanner, _ := newLibrarySvc()
+
+	libRepo.Create(context.Background(), &library.Library{
+		ID:    "lib-1",
+		Name:  "TV Shows",
+		Type:  "tvshow",
+		Paths: []string{"/tv"},
+	})
+
+	s1 := 1
+	e1 := 1
+	scanner.Results["/tv"] = []library.ScannedFile{
+		{Path: "/tv/show/s01e01.mkv", Size: 100, Title: "MyShow", Season: &s1, Episode: &e1, Type: library.Episode},
+	}
+
+	dbErr := errors.New("connection reset by peer")
+	mediaRepo.GetByFileFingerprintErr = dbErr
+
+	_, _, err := svc.ScanLibrary(context.Background(), "lib-1")
+	require.Error(t, err)
+	assert.ErrorContains(t, err, "connection reset by peer")
+
+	items, _ := mediaRepo.List(context.Background(), library.ListMediaItemsFilter{})
+	assert.Empty(t, items, "transient DB error must not create items")
+}
+
+func TestScanTVShow_TitleLookupTransientError_NoDuplicate(t *testing.T) {
+	svc, libRepo, mediaRepo, scanner, _ := newLibrarySvc()
+
+	libRepo.Create(context.Background(), &library.Library{
+		ID:    "lib-1",
+		Name:  "TV Shows",
+		Type:  "tvshow",
+		Paths: []string{"/tv"},
+	})
+
+	s1 := 1
+	e1 := 1
+	scanner.Results["/tv"] = []library.ScannedFile{
+		{Path: "/tv/show/s01e01.mkv", Size: 100, Title: "MyShow", Season: &s1, Episode: &e1, Type: library.Episode},
+	}
+
+	dbErr := errors.New("connection reset by peer")
+	mediaRepo.GetByLibraryTypeTitleErr = dbErr
+
+	_, _, err := svc.ScanLibrary(context.Background(), "lib-1")
+	require.Error(t, err)
+	assert.ErrorContains(t, err, "connection reset by peer")
+
+	items, _ := mediaRepo.List(context.Background(), library.ListMediaItemsFilter{})
+	assert.Empty(t, items, "transient DB error on title lookup must not create items")
 }
 
 func TestDeleteLibrary(t *testing.T) {

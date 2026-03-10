@@ -234,10 +234,12 @@ func (s *Service) getOrCreateItem(ctx context.Context, item *library.MediaItem) 
 	// Fallback: find by library+type+title to avoid creating duplicates on rescan
 	existing, err = s.mediaItems.GetByLibraryTypeTitle(ctx, item.LibraryID, item.Type, item.Title, item.ParentID)
 	if err == nil {
-		// Stamp fingerprint so future scans find it directly
 		existing.FileFingerprint = item.FileFingerprint
 		_ = s.mediaItems.Update(ctx, existing)
 		return existing, false, nil
+	}
+	if !errors.Is(err, library.ErrNotFound) {
+		return nil, false, fmt.Errorf("lookup by title %q: %w", item.Title, err)
 	}
 	if err = s.mediaItems.Create(ctx, item); err != nil {
 		return nil, false, err
