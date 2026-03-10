@@ -10,6 +10,10 @@ import (
 type FakeMediaItemRepository struct {
 	mu    sync.RWMutex
 	items map[string]*library.MediaItem
+	// GetByFileFingerprintErr overrides GetByFileFingerprint when set
+	GetByFileFingerprintErr error
+	// GetByLibraryTypeTitleErr overrides GetByLibraryTypeTitle when set
+	GetByLibraryTypeTitleErr error
 }
 
 func NewFakeMediaItemRepository() *FakeMediaItemRepository {
@@ -94,6 +98,9 @@ func (r *FakeMediaItemRepository) GetByFilePath(_ context.Context, path string) 
 func (r *FakeMediaItemRepository) GetByFileFingerprint(_ context.Context, fingerprint string) (*library.MediaItem, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
+	if r.GetByFileFingerprintErr != nil {
+		return nil, r.GetByFileFingerprintErr
+	}
 	for _, item := range r.items {
 		if item.FileFingerprint == fingerprint {
 			return item, nil
@@ -124,6 +131,9 @@ func (r *FakeMediaItemRepository) Count(_ context.Context, filter library.ListMe
 func (r *FakeMediaItemRepository) GetByLibraryTypeTitle(_ context.Context, libraryID, itemType, title, parentID string) (*library.MediaItem, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
+	if r.GetByLibraryTypeTitleErr != nil {
+		return nil, r.GetByLibraryTypeTitleErr
+	}
 	for _, item := range r.items {
 		if item.LibraryID == libraryID && item.Type == itemType && item.Title == title &&
 			(parentID == "" || item.ParentID == parentID) {

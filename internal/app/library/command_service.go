@@ -226,6 +226,9 @@ func (s *CommandService) getOrCreateItem(ctx context.Context, item *library.Medi
 		_ = s.mediaItems.Update(ctx, existing)
 		return existing, false, nil
 	}
+	if !errors.Is(err, library.ErrNotFound) {
+		return nil, false, fmt.Errorf("lookup by title %q: %w", item.Title, err)
+	}
 	if err = s.mediaItems.Create(ctx, item); err != nil {
 		return nil, false, err
 	}
