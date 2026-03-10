@@ -4,13 +4,11 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"os"
-	"path/filepath"
-	"runtime"
 	"testing"
 	"time"
 
 	_ "github.com/lib/pq"
+	"github.com/gravity-zero/evey/internal/adapters/driven/postgres"
 	"github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/wait"
 )
@@ -51,35 +49,13 @@ func StartPostgres(t *testing.T) (*sql.DB, func()) {
 		t.Fatalf("ping db: %v", err)
 	}
 
-	runMigrations(t, db)
+	if err := postgres.RunMigrations(db); err != nil {
+		t.Fatalf("run migrations: %v", err)
+	}
 
 	cleanup := func() {
 		db.Close()
 		container.Terminate(ctx)
 	}
 	return db, cleanup
-}
-
-func runMigrations(t *testing.T, db *sql.DB) {
-	t.Helper()
-	_, thisFile, _, _ := runtime.Caller(0)
-	migrationsDir := filepath.Join(filepath.Dir(thisFile), "..", "migrations")
-	migrations := []string{
-		filepath.Join(migrationsDir, "000001_init.up.sql"),
-		filepath.Join(migrationsDir, "000002_transcode_profiles.up.sql"),
-		filepath.Join(migrationsDir, "000003_profile_languages.up.sql"),
-		filepath.Join(migrationsDir, "000004_audit_log_enrich.up.sql"),
-		filepath.Join(migrationsDir, "000005_notifications.up.sql"),
-		filepath.Join(migrationsDir, "000006_webhooks.up.sql"),
-		filepath.Join(migrationsDir, "000007_feeds.up.sql"),
-	}
-	for _, path := range migrations {
-		data, err := os.ReadFile(path)
-		if err != nil {
-			t.Fatalf("read migration %s: %v", path, err)
-		}
-		if _, err := db.Exec(string(data)); err != nil {
-			t.Fatalf("run migration %s: %v", path, err)
-		}
-	}
 }
