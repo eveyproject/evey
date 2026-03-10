@@ -1,0 +1,247 @@
+package opensubtitles
+
+import (
+	"bytes"
+	"context"
+	"encoding/json"
+	"fmt"
+	"io"
+	"log/slog"
+	"net/http"
+	"net/url"
+	"os"
+	"path/filepath"
+	"sync"
+	"time"
+
+	"github.com/gravity-zero/evey/internal/domain/subtitle"
+)
+
+const (
+	baseURL        = "https://api.opensubtitles.com/api/v1"
+	userAgent      = "evey-media-server v0.1.0"
+	requestTimeout = 15 * time.Second
+)
+
+type Client struct {
+	apiKey     string
+	username   string
+	password   string
+	httpClient *http.Client
+
+	mu    sync.Mutex
+	token string
+}
+
+func New(apiKey, username, password string) *Client {
+	return &Client{
+		apiKey:   apiKey,
+		username: username,
+		password: password,
+		httpClient: &http.Client{
+			Timeout: requestTimeout,
+		},
+	}
+}
+
+type loginRequest struct {
+	Username string `json:"username"`
+	Password string `json:"password"`
+}
+
+type loginResponse struct {
+	Token string `json:"token"`
+}
+
+func (c *Client) login(ctx context.Context) error {
+	body, _ := json.Marshal(loginRequest{Username: c.username, Password: c.password})
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, baseURL+"/login", bytes.NewReader(body))
+	if err != nil {
+		return err
+	}
+	c.setHeaders(req, false)
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return fmt.Errorf("opensubtitles login: %w", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("opensubtitles login: status %d", resp.StatusCode)
+	}
+	var lr loginResponse
+	if err := json.NewDecoder(resp.Body).Decode(&lr); err != nil {
+		return fmt.Errorf("opensubtitles login decode: %w", err)
+	}
+	c.mu.Lock()
+	c.token = lr.Token
+	c.mu.Unlock()
+	return nil
+}
+
+func (c *Client) ensureAuth(ctx context.Context) error {
+	c.mu.Lock()
+	hasToken := c.token != ""
+	c.mu.Unlock()
+	if hasToken {
+		return nil
+	}
+	return c.login(ctx)
+}
+
+func (c *Client) setHeaders(req *http.Request, withAuth bool) {
+	req.Header.Set("Api-Key", c.apiKey)
+	req.Header.Set("User-Agent", userAgent)
+	if withAuth {
+		c.mu.Lock()
+		tok := c.token
+		c.mu.Unlock()
+		if tok != "" {
+			req.Header.Set("Authorization", "Bearer "+tok)
+		}
+	}
+}
+
+type searchResponse struct {
+	Data []struct {
+		Attributes struct {
+			Language     string  `json:"language"`
+			Rating       float64 `json:"ratings"`
+			Files        []struct {
+				FileID   int    `json:"file_id"`
+				FileName string `json:"file_name"`
+			} `json:"files"`
+			MovieHashMatch bool `json:"moviehash_match"`
+		} `json:"attributes"`
+	} `json:"data"`
+}
+
+func (c *Client) Search(ctx context.Context, hash, title, language string) ([]subtitle.SearchResult, error) {
+	params := url.Values{}
+	if hash != "" {
+		params.Set("moviehash", hash)
+	}
+	if title != "" {
+		params.Set("query", title)
+	}
+	if language != "" {
+		params.Set("languages", language)
+	}
+
+	reqURL := baseURL + "/subtitles?" + params.Encode()
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, reqURL, nil)
+	if err != nil {
+		return nil, err
+	}
+	c.setHeaders(req, false)
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("opensubtitles search: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode == http.StatusTooManyRequests {
+		return nil, fmt.Errorf("opensubtitles: rate limited")
+	}
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("opensubtitles search: status %d", resp.StatusCode)
+	}
+
+	var sr searchResponse
+	if err := json.NewDecoder(resp.Body).Decode(&sr); err != nil {
+		return nil, fmt.Errorf("opensubtitles search decode: %w", err)
+	}
+
+	var results []subtitle.SearchResult
+	for _, d := range sr.Data {
+		for _, f := range d.Attributes.Files {
+			format := "srt"
+			ext := filepath.Ext(f.FileName)
+			if ext != "" {
+				format = ext[1:]
+			}
+			results = append(results, subtitle.SearchResult{
+				FileID:   f.FileID,
+				FileName: f.FileName,
+				Language: d.Attributes.Language,
+				Format:   format,
+				Rating:   d.Attributes.Rating,
+				Hash:     hash,
+			})
+		}
+	}
+	return results, nil
+}
+
+type downloadRequest struct {
+	FileID int `json:"file_id"`
+}
+
+type downloadResponse struct {
+	Link string `json:"link"`
+}
+
+func (c *Client) Download(ctx context.Context, fileID int, destPath string) (string, error) {
+	if err := c.ensureAuth(ctx); err != nil {
+		return "", err
+	}
+
+	body, _ := json.Marshal(downloadRequest{FileID: fileID})
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, baseURL+"/download", bytes.NewReader(body))
+	if err != nil {
+		return "", err
+	}
+	c.setHeaders(req, true)
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return "", fmt.Errorf("opensubtitles download: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode == http.StatusTooManyRequests {
+		return "", fmt.Errorf("opensubtitles: rate limited")
+	}
+	if resp.StatusCode != http.StatusOK {
+		return "", fmt.Errorf("opensubtitles download: status %d", resp.StatusCode)
+	}
+
+	var dr downloadResponse
+	if err := json.NewDecoder(resp.Body).Decode(&dr); err != nil {
+		return "", fmt.Errorf("opensubtitles download decode: %w", err)
+	}
+
+	if err := os.MkdirAll(destPath, 0755); err != nil {
+		return "", fmt.Errorf("create subtitle dir: %w", err)
+	}
+
+	fileName := fmt.Sprintf("%d.srt", fileID)
+	filePath := filepath.Join(destPath, fileName)
+
+	fileReq, err := http.NewRequestWithContext(ctx, http.MethodGet, dr.Link, nil)
+	if err != nil {
+		return "", err
+	}
+	fileResp, err := c.httpClient.Do(fileReq)
+	if err != nil {
+		return "", fmt.Errorf("download subtitle file: %w", err)
+	}
+	defer fileResp.Body.Close()
+
+	f, err := os.Create(filePath)
+	if err != nil {
+		return "", fmt.Errorf("create subtitle file: %w", err)
+	}
+	defer f.Close()
+
+	if _, err := io.Copy(f, fileResp.Body); err != nil {
+		os.Remove(filePath)
+		return "", fmt.Errorf("write subtitle file: %w", err)
+	}
+
+	slog.Info("subtitle downloaded", slog.Int("file_id", fileID), slog.String("path", filePath))
+	return filePath, nil
+}

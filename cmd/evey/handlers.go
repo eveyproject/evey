@@ -15,6 +15,7 @@ import (
 	"strings"
 	"time"
 
+	appsubtitle "github.com/gravity-zero/evey/internal/app/subtitle"
 	domainlibrary "github.com/gravity-zero/evey/internal/domain/library"
 	domainmeta "github.com/gravity-zero/evey/internal/domain/metadata"
 	domainplayback "github.com/gravity-zero/evey/internal/domain/playback"
@@ -746,4 +747,149 @@ func trickplayGenerateHandler(tokenGen interface {
 		w.WriteHeader(http.StatusAccepted)
 		w.Write([]byte(`{"message":"trickplay generation started"}`))
 	}
+}
+
+func registerSubtitleRoutes(mux *http.ServeMux, subtitleSvc *appsubtitle.Service, tokenGen interface {
+	ValidateAccessToken(string) (*domainuser.Claims, error)
+}) {
+	extractToken := func(r *http.Request) string {
+		h := r.Header.Get("Authorization")
+		if strings.HasPrefix(h, "Bearer ") {
+			return h[7:]
+		}
+		if t := r.URL.Query().Get("token"); t != "" {
+			return t
+		}
+		return ""
+	}
+	requireAuth := func(w http.ResponseWriter, r *http.Request) bool {
+		token := extractToken(r)
+		if token == "" {
+			http.Error(w, `{"message":"unauthenticated"}`, http.StatusUnauthorized)
+			return false
+		}
+		if _, err := tokenGen.ValidateAccessToken(token); err != nil {
+			http.Error(w, `{"message":"forbidden"}`, http.StatusForbidden)
+			return false
+		}
+		return true
+	}
+
+	mux.HandleFunc("GET /api/v1/media/{id}/subtitles/search", func(w http.ResponseWriter, r *http.Request) {
+		if !requireAuth(w, r) {
+			return
+		}
+		mediaID := r.PathValue("id")
+		language := r.URL.Query().Get("language")
+		results, err := subtitleSvc.Search(r.Context(), mediaID, language)
+		if err != nil {
+			slog.Error("subtitle search", slog.Any("err", err))
+			http.Error(w, `{"message":"search failed"}`, http.StatusInternalServerError)
+			return
+		}
+		type resultJSON struct {
+			FileID   int     `json:"fileId"`
+			FileName string  `json:"fileName"`
+			Language string  `json:"language"`
+			Format   string  `json:"format"`
+			Rating   float64 `json:"rating"`
+		}
+		out := make([]resultJSON, 0, len(results))
+		for _, r := range results {
+			out = append(out, resultJSON{
+				FileID:   r.FileID,
+				FileName: r.FileName,
+				Language: r.Language,
+				Format:   r.Format,
+				Rating:   r.Rating,
+			})
+		}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]any{"results": out})
+	})
+
+	mux.HandleFunc("POST /api/v1/media/{id}/subtitles/download", func(w http.ResponseWriter, r *http.Request) {
+		if !requireAuth(w, r) {
+			return
+		}
+		mediaID := r.PathValue("id")
+		var body struct {
+			FileID   int    `json:"fileId"`
+			Language string `json:"language"`
+			Format   string `json:"format"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			http.Error(w, `{"message":"bad request"}`, http.StatusBadRequest)
+			return
+		}
+		if body.FileID == 0 {
+			http.Error(w, `{"message":"fileId required"}`, http.StatusBadRequest)
+			return
+		}
+		sub, err := subtitleSvc.Download(r.Context(), mediaID, body.FileID, body.Language, body.Format)
+		if err != nil {
+			slog.Error("subtitle download", slog.Any("err", err))
+			http.Error(w, `{"message":"download failed"}`, http.StatusInternalServerError)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusCreated)
+		json.NewEncoder(w).Encode(map[string]any{
+			"id":           sub.ID,
+			"mediaItemId":  sub.MediaItemID,
+			"language":     sub.Language,
+			"format":       sub.Format,
+			"filePath":     sub.FilePath,
+			"source":       sub.Source,
+			"downloadedAt": sub.DownloadedAt.UTC().Format(time.RFC3339),
+		})
+	})
+
+	mux.HandleFunc("GET /api/v1/media/{id}/subtitles", func(w http.ResponseWriter, r *http.Request) {
+		if !requireAuth(w, r) {
+			return
+		}
+		mediaID := r.PathValue("id")
+		subs, err := subtitleSvc.List(r.Context(), mediaID)
+		if err != nil {
+			slog.Error("subtitle list", slog.Any("err", err))
+			http.Error(w, `{"message":"internal error"}`, http.StatusInternalServerError)
+			return
+		}
+		type subJSON struct {
+			ID           string `json:"id"`
+			MediaItemID  string `json:"mediaItemId"`
+			Language     string `json:"language"`
+			Format       string `json:"format"`
+			FilePath     string `json:"filePath"`
+			Source       string `json:"source"`
+			DownloadedAt string `json:"downloadedAt"`
+		}
+		out := make([]subJSON, 0, len(subs))
+		for _, s := range subs {
+			out = append(out, subJSON{
+				ID:           s.ID,
+				MediaItemID:  s.MediaItemID,
+				Language:     s.Language,
+				Format:       s.Format,
+				FilePath:     s.FilePath,
+				Source:       s.Source,
+				DownloadedAt: s.DownloadedAt.UTC().Format(time.RFC3339),
+			})
+		}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]any{"subtitles": out})
+	})
+
+	mux.HandleFunc("DELETE /api/v1/media/{id}/subtitles/{subtitleId}", func(w http.ResponseWriter, r *http.Request) {
+		if !requireAuth(w, r) {
+			return
+		}
+		subtitleID := r.PathValue("subtitleId")
+		if err := subtitleSvc.Delete(r.Context(), subtitleID); err != nil {
+			http.Error(w, `{"message":"not found"}`, http.StatusNotFound)
+			return
+		}
+		w.WriteHeader(http.StatusNoContent)
+	})
 }

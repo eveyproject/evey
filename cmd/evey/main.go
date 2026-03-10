@@ -27,11 +27,13 @@ import (
 	apptranscoding "github.com/gravity-zero/evey/internal/app/transcoding"
 	appuser "github.com/gravity-zero/evey/internal/app/user"
 	appplaylist "github.com/gravity-zero/evey/internal/app/playlist"
+	appsubtitle "github.com/gravity-zero/evey/internal/app/subtitle"
 	appwebhook "github.com/gravity-zero/evey/internal/app/webhook"
 	"github.com/gravity-zero/evey/internal/adapters/driven/ebml"
 	"github.com/gravity-zero/evey/internal/adapters/driven/ffmpeg"
 	"github.com/gravity-zero/evey/internal/adapters/driven/filesystem"
 	meili "github.com/gravity-zero/evey/internal/adapters/driven/meilisearch"
+	"github.com/gravity-zero/evey/internal/adapters/driven/opensubtitles"
 	metadataadapter "github.com/gravity-zero/evey/internal/adapters/driven/metadata"
 	"github.com/gravity-zero/evey/internal/adapters/driven/pluginrunner"
 	"github.com/gravity-zero/evey/internal/adapters/driven/postgres"
@@ -314,6 +316,18 @@ func run() error {
 	smartQuerier := postgres.NewSmartPlaylistQuerier(db)
 	playlistSvc := appplaylist.NewService(playlistRepo, playlistItemRepo, smartQuerier)
 
+	// --- Subtitle service ---
+	subtitleRepo := postgres.NewSubtitleRepository(db)
+	var subtitleSvc *appsubtitle.Service
+	if osAPIKey := os.Getenv("EVEY_OPENSUBTITLES_API_KEY"); osAPIKey != "" {
+		osUser := os.Getenv("EVEY_OPENSUBTITLES_USERNAME")
+		osPass := os.Getenv("EVEY_OPENSUBTITLES_PASSWORD")
+		osClient := opensubtitles.New(osAPIKey, osUser, osPass)
+		mediaGetter := &libMediaGetter{q: libQuerySvc}
+		subtitleSvc = appsubtitle.NewService(subtitleRepo, osClient, mediaGetter)
+		rootLog.Info("opensubtitles integration enabled")
+	}
+
 	// --- Auth interceptor ---
 	authInterceptor := interceptors.NewAuthInterceptor(tokenGen)
 	grpcLog := eveylogger.NewWith(rootLog, "grpc")
@@ -382,6 +396,9 @@ func run() error {
 		registerScheduleRoutes(mux, libScheduler, tokenGen)
 		registerLibraryAccessRoutes(mux, libraryAccessRepo, libQuerySvc, tokenGen)
 		registerPlaylistRoutes(mux, playlistSvc, tokenGen)
+		if subtitleSvc != nil {
+			registerSubtitleRoutes(mux, subtitleSvc, tokenGen)
+		}
 		mux.HandleFunc("GET /api/v1/admin/sessions/active", activeSessionsHandler(tokenGen, playbackSvc))
 		mux.HandleFunc("DELETE /api/v1/admin/sessions/{id}", killSessionHandler(tokenGen, playbackSvc))
 		mux.Handle("/", ratelimit.Middleware(globalRL)(gwMux))

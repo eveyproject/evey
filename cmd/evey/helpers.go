@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"crypto/rand"
 	"crypto/rsa"
 	"crypto/x509"
@@ -13,6 +14,9 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+
+	applibrary "github.com/gravity-zero/evey/internal/app/library"
+	appsubtitle "github.com/gravity-zero/evey/internal/app/subtitle"
 )
 
 var unsafeFilenameChars = regexp.MustCompile(`[^\w\s.\-()]`)
@@ -77,6 +81,25 @@ func sanitizeFilename(name string) string {
 	}
 	return name
 }
+
+type libMediaGetter struct {
+	q *applibrary.QueryService
+}
+
+func (g *libMediaGetter) GetMediaItem(ctx context.Context, id string) (*appsubtitle.MediaItemInfo, error) {
+	item, err := g.q.GetMediaItem(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	return &appsubtitle.MediaItemInfo{
+		ID:       item.ID,
+		FilePath: item.FilePath,
+		Title:    item.Title,
+	}, nil
+}
+
+// verify interface at compile time
+var _ appsubtitle.MediaItemGetter = (*libMediaGetter)(nil)
 
 func setCORSHeaders(w http.ResponseWriter, r *http.Request, baseURL string) {
 	origin := r.Header.Get("Origin")
