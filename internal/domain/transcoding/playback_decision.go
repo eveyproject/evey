@@ -1,0 +1,37 @@
+package transcoding
+
+type ClientProfile struct {
+	VideoCodecs      []string // e.g. ["h264", "vp9", "av1"]
+	AudioCodecs      []string // e.g. ["aac", "mp3", "opus", "flac"]
+	Containers       []string // e.g. ["mp4", "webm", "mkv"]
+	MaxWidth         int
+	MaxHeight        int
+	MaxBitrate       int64 // kbps, 0 = unlimited
+	SupportsHDR      bool
+	MaxAudioChannels int // 0 = unlimited
+}
+
+type PlaybackDecision struct {
+	PlayMethod       string   `json:"play_method"`
+	VideoDecision    string   `json:"video_decision"`
+	AudioDecision    string   `json:"audio_decision"`
+	SubtitleDecision string   `json:"subtitle_decision"`
+	TranscodeReasons []string `json:"transcode_reasons"`
+	VideoCodec       string   `json:"video_codec,omitempty"`
+	AudioCodec       string   `json:"audio_codec,omitempty"`
+	Container        string   `json:"container,omitempty"`
+	VideoBitrate     int64    `json:"video_bitrate,omitempty"`
+	AudioBitrate     int64    `json:"audio_bitrate,omitempty"`
+	MaxWidth         int      `json:"max_width,omitempty"`
+	MaxHeight        int      `json:"max_height,omitempty"`
+}
+
+var DefaultWebProfile = ClientProfile{
+	VideoCodecs:      []string{"h264", "vp9"},
+	AudioCodecs:      []string{"aac", "mp3", "opus", "flac"},
+	Containers:       []string{"mp4", "webm"},
+	MaxWidth:         3840,
+	MaxHeight:        2160,
+	SupportsHDR:      false,
+	MaxAudioChannels: 8,
+}
