@@ -360,6 +360,8 @@ func run() error {
 	grpcAddr := fmt.Sprintf(":%d", cfg.Server.Port)
 
 	netDetector := network.NewDetector(cfg.RemoteAccess.LANNetworks)
+	hlsManager := apptranscoding.NewHLSManager(cfg.Transcoding.CacheDir+"/hls", cfg.Transcoding.MaxConcurrent)
+	defer hlsManager.CleanupAll()
 
 	// --- gRPC-Gateway HTTP proxy ---
 	httpPort := cfg.Server.Port + 1
@@ -388,6 +390,8 @@ func run() error {
 		mux.HandleFunc("GET /api/v1/media/{id}/trickplay/{image}", trickplayImageHandler(tokenGen, libCmdSvc))
 		mux.HandleFunc("POST /api/v1/admin/media/{id}/trickplay/generate", trickplayGenerateHandler(tokenGen, libCmdSvc, cfg.Transcoding.CacheDir))
 		mux.HandleFunc("GET /api/v1/media/{id}/playback-info", playbackInfoHandler(tokenGen, libQuerySvc))
+		mux.HandleFunc("GET /api/v1/media/{id}/hls/master.m3u8", hlsMasterHandler(tokenGen, libQuerySvc, hlsManager))
+		mux.HandleFunc("GET /api/v1/media/{id}/hls/{file}", hlsSegmentHandler(tokenGen, hlsManager))
 		mux.HandleFunc("GET /api/v1/admin/library-stats", libraryStatsHandler(tokenGen, libQuerySvc))
 		mux.HandleFunc("POST /api/v1/auth/login", ratelimit.MiddlewareFunc(loginRL, func(w http.ResponseWriter, r *http.Request) {
 			r.Body = http.MaxBytesReader(w, r.Body, 1<<20)
