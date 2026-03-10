@@ -225,6 +225,9 @@ func profileToProto(p *user.Profile) *eveyv1.Profile {
 	if len(p.SubtitleLanguages) > 0 {
 		prefs["subtitle_languages"] = strings.Join(p.SubtitleLanguages, ",")
 	}
+	if p.MaxBitrateKbps != nil {
+		prefs["max_bitrate_kbps"] = fmt.Sprintf("%d", *p.MaxBitrateKbps)
+	}
 	pb := &eveyv1.Profile{
 		Id:          p.ID,
 		UserId:      p.UserID,

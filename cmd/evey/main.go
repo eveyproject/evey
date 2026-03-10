@@ -307,7 +307,7 @@ func run() error {
 		transcodingSvc,
 		mkvSvc, pluginSvc, metadataSvc, activitySvc,
 		notifSvc, feedCmdSvc, feedQuerySvc, webhookSvc,
-		userRepo, version,
+		userRepo, profileRepo, version,
 		grpc.ChainUnaryInterceptor(
 			interceptors.ErrorSanitizerUnary(),
 			interceptors.ClientInfoUnary(),

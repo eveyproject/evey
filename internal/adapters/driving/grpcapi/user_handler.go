@@ -3,6 +3,7 @@ package grpcapi
 import (
 	"context"
 	"log/slog"
+	"strconv"
 
 	eveyv1 "github.com/gravity-zero/evey/gen/evey/v1"
 	"github.com/gravity-zero/evey/internal/adapters/driving/grpcapi/interceptors"
@@ -240,6 +241,14 @@ func (h *userHandler) UpdateProfile(ctx context.Context, req *eveyv1.UpdateProfi
 	}
 	if req.MaxRating != nil {
 		p.MaxRating = req.MaxRating
+	}
+	if v, ok := req.Preferences["max_bitrate_kbps"]; ok {
+		delete(p.Preferences, "max_bitrate_kbps")
+		if v == "" || v == "0" {
+			p.MaxBitrateKbps = nil
+		} else if n, err := strconv.Atoi(v); err == nil && n > 0 {
+			p.MaxBitrateKbps = &n
+		}
 	}
 	if err := h.svc.UpdateProfile(ctx, p); err != nil {
 		slog.Error("update profile", slog.Any("err", err))

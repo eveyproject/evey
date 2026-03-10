@@ -261,3 +261,37 @@ func TestRegister_HashedPassword(t *testing.T) {
 	assert.NotEqual(t, "mypassword", stored.PasswordHash)
 	assert.NotEmpty(t, stored.PasswordHash)
 }
+
+func TestUpdateProfile_BitrateLimit(t *testing.T) {
+	svc, _, profileRepo, _, _ := newUserSvc()
+
+	profileRepo.Create(context.Background(), &domainuser.Profile{
+		ID:     "prof-br",
+		UserID: "u-br",
+		Name:   "Main",
+	})
+
+	bitrate := 8000
+	err := svc.UpdateProfile(context.Background(), &domainuser.Profile{
+		ID:             "prof-br",
+		Name:           "Main",
+		MaxBitrateKbps: &bitrate,
+	})
+	require.NoError(t, err)
+
+	updated, err := profileRepo.GetByID(context.Background(), "prof-br")
+	require.NoError(t, err)
+	require.NotNil(t, updated.MaxBitrateKbps)
+	assert.Equal(t, 8000, *updated.MaxBitrateKbps)
+
+	err = svc.UpdateProfile(context.Background(), &domainuser.Profile{
+		ID:             "prof-br",
+		Name:           "Main",
+		MaxBitrateKbps: nil,
+	})
+	require.NoError(t, err)
+
+	updated, err = profileRepo.GetByID(context.Background(), "prof-br")
+	require.NoError(t, err)
+	assert.Nil(t, updated.MaxBitrateKbps)
+}
