@@ -103,6 +103,7 @@ func run() error {
 	mediaStreamRepo := postgres.NewMediaStreamRepository(db)
 	personRepo := postgres.NewPersonRepository(db)
 	mediaPersonRepo := postgres.NewMediaPersonRepository(db)
+	trickplayRepo := postgres.NewTrickplayRepository(db)
 
 	watchProgressRepo := postgres.NewWatchProgressRepository(db)
 	playSessionRepo := postgres.NewPlaySessionRepository(db)
@@ -143,6 +144,7 @@ func run() error {
 	prober := ffmpeg.NewProber("ffprobe")
 	transcoder := ffmpeg.NewTranscoder("ffmpeg", cfg.Transcoding.CacheDir)
 	hwDetector := ffmpeg.NewHWDetector("ffmpeg")
+	trickplayGen := ffmpeg.NewTrickplayGenerator("ffmpeg")
 	ebmlReader := ebml.NewReader()
 	ebmlWriter := ebml.NewWriter("ffmpeg")
 	bus := eventbus.New()
@@ -174,6 +176,7 @@ func run() error {
 	)
 	libCmdSvc.WithChapters(chapterRepo, ebmlReader)
 	libCmdSvc.WithSubtitleScanner(subScanner)
+	libCmdSvc.WithTrickplay(trickplayRepo, trickplayGen)
 	libQuerySvc := applibrary.NewQueryService(
 		libraryRepo, mediaItemQueryRepo,
 		mediaStreamRepo, searchAdapter,
@@ -357,6 +360,9 @@ func run() error {
 		mux.HandleFunc("GET /api/v1/media/{id}/transcode", transcodeHandler(tokenGen, libQuerySvc, cfg.Server.BaseURL))
 		mux.HandleFunc("GET /api/v1/media/{id}/subtitle/{track}", subtitleHandler(tokenGen, libQuerySvc, cfg.Server.BaseURL))
 		mux.HandleFunc("GET /api/v1/media/{id}/chapters", chaptersHandler(tokenGen, libCmdSvc))
+		mux.HandleFunc("GET /api/v1/media/{id}/trickplay", trickplayManifestHandler(tokenGen, libCmdSvc))
+		mux.HandleFunc("GET /api/v1/media/{id}/trickplay/{image}", trickplayImageHandler(tokenGen, libCmdSvc))
+		mux.HandleFunc("POST /api/v1/admin/media/{id}/trickplay/generate", trickplayGenerateHandler(tokenGen, libCmdSvc, cfg.Transcoding.CacheDir))
 		mux.HandleFunc("GET /api/v1/admin/library-stats", libraryStatsHandler(tokenGen, libQuerySvc))
 		mux.HandleFunc("POST /api/v1/auth/login", ratelimit.MiddlewareFunc(loginRL, func(w http.ResponseWriter, r *http.Request) {
 			r.Body = http.MaxBytesReader(w, r.Body, 1<<20)

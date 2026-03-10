@@ -3,6 +3,7 @@ import type { AudioStream } from "./AudioTrackSelector";
 import type { SubtitleStream } from "./SubtitleSelector";
 import { Select } from "@/components/ui/Select";
 import type { Chapter } from "@/hooks/useChapters";
+import { TrickplayPreview } from "./TrickplayPreview";
 
 export interface EpisodeNavItem { id: string; title?: string; indexNumber?: number }
 export interface SeasonNavItem { id: string; title?: string; indexNumber?: number }
@@ -171,6 +172,7 @@ interface PlayerControlsProps {
   onSeasonChange?: (id: string) => void;
   onEpisodeChange?: (id: string) => void;
   chapters?: Chapter[];
+  mediaId?: string;
 }
 
 function formatTime(seconds: number): string {
@@ -350,6 +352,7 @@ export function PlayerControls({
   onSeasonChange,
   onEpisodeChange,
   chapters = [],
+  mediaId,
 }: PlayerControlsProps) {
   const [visible, setVisible] = useState(true);
   const [playing, setPlaying] = useState(false);
@@ -538,7 +541,7 @@ export function PlayerControls({
           onMouseLeave={() => setSeekHoverPos(null)}
           data-controls
         >
-          {/* hover tooltip */}
+          {/* hover tooltip with trickplay preview + chapter */}
           {seekHoverPos !== null && (() => {
             const hoverMs = seekHoverPos * 1000;
             const hoverChapter = chapters.find((ch, i) =>
@@ -546,11 +549,19 @@ export function PlayerControls({
             );
             return (
               <div
-                className="absolute bottom-full mb-2 -translate-x-1/2 px-2 py-1 rounded text-xs text-white pointer-events-none text-center"
-                style={{ left: seekHoverX, backgroundColor: "rgba(0,0,0,0.85)", maxWidth: 200 }}
+                className="absolute bottom-full mb-2 -translate-x-1/2 flex flex-col items-center pointer-events-none"
+                style={{ left: seekHoverX }}
               >
-                {hoverChapter?.title && <div className="truncate">{hoverChapter.title}</div>}
-                <div>{formatTime(seekHoverPos)}</div>
+                {mediaId && (
+                  <TrickplayPreview mediaId={mediaId} hoverTime={seekHoverPos} />
+                )}
+                <div
+                  className="px-2 py-1 rounded text-xs text-white mt-1 text-center"
+                  style={{ backgroundColor: "rgba(0,0,0,0.85)", maxWidth: 200 }}
+                >
+                  {hoverChapter?.title && <div className="truncate">{hoverChapter.title}</div>}
+                  <div>{formatTime(seekHoverPos)}</div>
+                </div>
               </div>
             );
           })()}

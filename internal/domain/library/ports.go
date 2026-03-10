@@ -161,3 +161,18 @@ type FileWatcher interface {
 	Errors() <-chan error
 	Close() error
 }
+
+type TrickplayRepository interface {
+	Create(ctx context.Context, manifest *TrickplayManifest) error
+	GetByMediaItemID(ctx context.Context, mediaItemID string) (*TrickplayManifest, error)
+	Delete(ctx context.Context, mediaItemID string) error
+}
+
+type TrickplayResult struct {
+	ImageDir   string
+	ImageCount int
+}
+
+type TrickplayGenerator interface {
+	Generate(ctx context.Context, filePath string, outputDir string, interval, width, tileWidth, tileHeight int) (*TrickplayResult, error)
+}

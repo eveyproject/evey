@@ -335,6 +335,7 @@ export function HLSPlayer({
         onSeasonChange={onSeasonChange}
         onEpisodeChange={onEpisodeChange}
         chapters={chapters}
+        mediaId={mediaId}
       />
     </div>
   );

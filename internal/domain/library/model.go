@@ -184,3 +184,16 @@ type Collection struct {
 	CreatedAt time.Time
 	UpdatedAt time.Time
 }
+
+type TrickplayManifest struct {
+	ID          string
+	MediaItemID string
+	Interval    int // seconds between frames
+	Width       int
+	Height      int
+	TileWidth   int
+	TileHeight  int
+	ImageCount  int
+	ImagePath   string // directory containing sprite images
+	CreatedAt   time.Time
+}

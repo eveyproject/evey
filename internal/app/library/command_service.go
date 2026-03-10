@@ -27,6 +27,8 @@ type CommandService struct {
 	subScanner   library.ExternalSubtitleScanner
 	search       library.SearchIndex
 	events       shared.EventBus
+	trickplayRepo library.TrickplayRepository
+	trickplayGen  library.TrickplayGenerator
 }
 
 func NewCommandService(
@@ -410,4 +412,60 @@ func (s *CommandService) scanTVShowFiles(ctx context.Context, libraryID string, 
 		updated += u
 	}
 	return added, updated, nil
+}
+
+func (s *CommandService) WithTrickplay(repo library.TrickplayRepository, gen library.TrickplayGenerator) {
+	s.trickplayRepo = repo
+	s.trickplayGen = gen
+}
+
+func (s *CommandService) GenerateTrickplay(ctx context.Context, mediaItemID string, cacheDir string) error {
+	if s.trickplayRepo == nil || s.trickplayGen == nil {
+		return errors.New("trickplay not configured")
+	}
+
+	item, err := s.mediaItems.GetByID(ctx, mediaItemID)
+	if err != nil {
+		return fmt.Errorf("get media item: %w", err)
+	}
+	if item.FilePath == "" {
+		return errors.New("media item has no file path")
+	}
+
+	interval := 10
+	width := 320
+	tileWidth := 10
+	tileHeight := 10
+
+	outputDir := fmt.Sprintf("%s/trickplay/%s", cacheDir, mediaItemID)
+
+	result, err := s.trickplayGen.Generate(ctx, item.FilePath, outputDir, interval, width, tileWidth, tileHeight)
+	if err != nil {
+		return fmt.Errorf("generate trickplay: %w", err)
+	}
+
+	manifest := &library.TrickplayManifest{
+		ID:          uuid.New().String(),
+		MediaItemID: mediaItemID,
+		Interval:    interval,
+		Width:       width,
+		Height:      0,
+		TileWidth:   tileWidth,
+		TileHeight:  tileHeight,
+		ImageCount:  result.ImageCount,
+		ImagePath:   result.ImageDir,
+		CreatedAt:   time.Now(),
+	}
+
+	if err := s.trickplayRepo.Create(ctx, manifest); err != nil {
+		return fmt.Errorf("store trickplay manifest: %w", err)
+	}
+	return nil
+}
+
+func (s *CommandService) GetTrickplayManifest(ctx context.Context, mediaItemID string) (*library.TrickplayManifest, error) {
+	if s.trickplayRepo == nil {
+		return nil, errors.New("trickplay not configured")
+	}
+	return s.trickplayRepo.GetByMediaItemID(ctx, mediaItemID)
 }
