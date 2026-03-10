@@ -49,9 +49,12 @@ type LogConfig struct {
 }
 
 type ServerConfig struct {
-	Port    int
-	BaseURL string
-	Name    string
+	Port           int
+	BaseURL        string
+	Name           string
+	TrustedProxies []string
+	RealIPHeader   string
+	ForwardedProto bool
 }
 
 type DBConfig struct {
@@ -112,9 +115,12 @@ type PlaybackConfig struct {
 func Load() (*Config, error) {
 	cfg := &Config{
 		Server: ServerConfig{
-			Port:    envInt("EVEY_SERVER_PORT", 9090),
-			BaseURL: envStr("EVEY_SERVER_BASE_URL", "http://localhost:9091"),
-			Name:    envStr("EVEY_SERVER_NAME", "Evey"),
+			Port:           envInt("EVEY_SERVER_PORT", 9090),
+			BaseURL:        envStr("EVEY_SERVER_BASE_URL", "http://localhost:9091"),
+			Name:           envStr("EVEY_SERVER_NAME", "Evey"),
+			TrustedProxies: envStrSlice("EVEY_TRUSTED_PROXIES", []string{"127.0.0.1/32", "::1/128"}),
+			RealIPHeader:   envStr("EVEY_REAL_IP_HEADER", "X-Forwarded-For"),
+			ForwardedProto: envBool("EVEY_FORWARDED_PROTO", false),
 		},
 		DB: DBConfig{
 			Host:     envStr("EVEY_DB_HOST", "localhost"),

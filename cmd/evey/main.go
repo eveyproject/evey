@@ -415,9 +415,13 @@ func run() error {
 		mux.HandleFunc("DELETE /api/v1/admin/sessions/{id}", killSessionHandler(tokenGen, playbackSvc))
 		mux.Handle("/", ratelimit.Middleware(globalRL)(gwMux))
 		netMw := networkMiddleware(netDetector, &cfg.RemoteAccess.Enabled)
+		proxyTrust, proxyErr := network.NewProxyTrust(cfg.Server.TrustedProxies, cfg.Server.RealIPHeader, cfg.Server.ForwardedProto)
+		if proxyErr != nil {
+			return fmt.Errorf("proxy trust: %w", proxyErr)
+		}
 		httpSrv = &http.Server{
 			Addr:              fmt.Sprintf(":%d", httpPort),
-			Handler:           netMw(mux),
+			Handler:           proxyTrust.Middleware(netMw(mux)),
 			ReadHeaderTimeout: 10 * time.Second,
 			WriteTimeout:      10 * time.Minute,
 			IdleTimeout:       120 * time.Second,
