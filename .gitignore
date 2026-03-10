@@ -58,3 +58,5 @@ frontend/.pnpm-store/
 # tsc compiled artifacts that shadow .tsx sources
 frontend/apps/web/src/**/*.js
 frontend/apps/web/tsconfig.tsbuildinfo
+.claude/worktrees/
+.claude/scheduled_tasks.lock
