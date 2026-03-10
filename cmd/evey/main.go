@@ -131,6 +131,7 @@ func run() error {
 	feedCmdRepo := postgres.NewFeedConfigCommandRepo(db)
 	feedQueryRepo := postgres.NewFeedConfigQueryRepo(db)
 	chapterRepo := postgres.NewChapterRepository(db)
+	scanScheduleRepo := postgres.NewScanScheduleRepository(db)
 
 	// --- Infrastructure ---
 	searchAdapter, err := meili.NewSearchAdapter(cfg.Meilisearch.URL, cfg.Meilisearch.APIKey)
@@ -176,6 +177,9 @@ func run() error {
 		libraryRepo, mediaItemQueryRepo,
 		mediaStreamRepo, searchAdapter,
 	)
+
+	schedulerLog := eveylogger.NewWith(rootLog, "scheduler")
+	libScheduler := applibrary.NewScheduler(scanScheduleRepo, libCmdSvc, schedulerLog)
 
 	userSvc := appuser.NewService(
 		userRepo,
@@ -362,6 +366,7 @@ func run() error {
 		registerMetadataOverrideRoutes(mux, metadataSvc, tokenGen)
 		registerTranscodeCacheRoutes(mux, transcodingSvc, tokenGen)
 		registerCollectionRoutes(mux, collectionSvc, tokenGen)
+		registerScheduleRoutes(mux, libScheduler, tokenGen)
 		mux.Handle("/", ratelimit.Middleware(globalRL)(gwMux))
 		httpSrv = &http.Server{
 			Addr:              fmt.Sprintf(":%d", httpPort),
@@ -375,6 +380,8 @@ func run() error {
 	// --- Graceful shutdown ---
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
+
+	go libScheduler.Run(ctx)
 
 	go func() {
 		ticker := time.NewTicker(1 * time.Hour)

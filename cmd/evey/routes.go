@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"strconv"
@@ -10,6 +11,7 @@ import (
 	"time"
 
 	appcollection "github.com/gravity-zero/evey/internal/app/collection"
+	applibrary "github.com/gravity-zero/evey/internal/app/library"
 	domainlibrary "github.com/gravity-zero/evey/internal/domain/library"
 	apptranscoding "github.com/gravity-zero/evey/internal/app/transcoding"
 
@@ -589,5 +591,101 @@ func registerCollectionRoutes(mux *http.ServeMux, svc *appcollection.Service, to
 		default:
 			http.Error(w, `{"message":"method not allowed"}`, http.StatusMethodNotAllowed)
 		}
+	})
+}
+
+func registerScheduleRoutes(mux *http.ServeMux, scheduler *applibrary.Scheduler, tokenGen *auth.JWTGenerator) {
+	requireAdmin := func(r *http.Request) bool {
+		h := r.Header.Get("Authorization")
+		if !strings.HasPrefix(h, "Bearer ") {
+			return false
+		}
+		claims, err := tokenGen.ValidateAccessToken(strings.TrimPrefix(h, "Bearer "))
+		return err == nil && claims.IsAdmin
+	}
+
+	mux.HandleFunc("GET /api/v1/libraries/{id}/schedule", func(w http.ResponseWriter, r *http.Request) {
+		if !requireAdmin(r) {
+			http.Error(w, `{"message":"forbidden"}`, http.StatusForbidden)
+			return
+		}
+		sched, err := scheduler.GetSchedule(r.Context(), r.PathValue("id"))
+		if err != nil {
+			w.Header().Set("Content-Type", "application/json")
+			w.Write([]byte(`{"schedule":null}`))
+			return
+		}
+		type resp struct {
+			LibraryID string  `json:"libraryId"`
+			Cron      string  `json:"cron"`
+			Enabled   bool    `json:"enabled"`
+			LastRunAt *string `json:"lastRunAt"`
+			NextRunAt *string `json:"nextRunAt"`
+		}
+		out := resp{
+			LibraryID: sched.LibraryID,
+			Cron:      sched.CronExpression,
+			Enabled:   sched.Enabled,
+		}
+		if sched.LastRunAt != nil {
+			s := sched.LastRunAt.UTC().Format(time.RFC3339)
+			out.LastRunAt = &s
+		}
+		if sched.NextRunAt != nil {
+			s := sched.NextRunAt.UTC().Format(time.RFC3339)
+			out.NextRunAt = &s
+		}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]any{"schedule": out})
+	})
+
+	mux.HandleFunc("PUT /api/v1/libraries/{id}/schedule", func(w http.ResponseWriter, r *http.Request) {
+		if !requireAdmin(r) {
+			http.Error(w, `{"message":"forbidden"}`, http.StatusForbidden)
+			return
+		}
+		var body struct {
+			Cron    string `json:"cron"`
+			Enabled *bool  `json:"enabled"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			http.Error(w, `{"message":"bad request"}`, http.StatusBadRequest)
+			return
+		}
+		if body.Cron == "" {
+			http.Error(w, `{"message":"cron expression required"}`, http.StatusBadRequest)
+			return
+		}
+		enabled := true
+		if body.Enabled != nil {
+			enabled = *body.Enabled
+		}
+		sched, err := scheduler.SetSchedule(r.Context(), r.PathValue("id"), body.Cron, enabled)
+		if err != nil {
+			http.Error(w, fmt.Sprintf(`{"message":%q}`, err.Error()), http.StatusBadRequest)
+			return
+		}
+		type resp struct {
+			LibraryID string  `json:"libraryId"`
+			Cron      string  `json:"cron"`
+			Enabled   bool    `json:"enabled"`
+			NextRunAt *string `json:"nextRunAt"`
+		}
+		out := resp{LibraryID: sched.LibraryID, Cron: sched.CronExpression, Enabled: sched.Enabled}
+		if sched.NextRunAt != nil {
+			s := sched.NextRunAt.UTC().Format(time.RFC3339)
+			out.NextRunAt = &s
+		}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]any{"schedule": out})
+	})
+
+	mux.HandleFunc("DELETE /api/v1/libraries/{id}/schedule", func(w http.ResponseWriter, r *http.Request) {
+		if !requireAdmin(r) {
+			http.Error(w, `{"message":"forbidden"}`, http.StatusForbidden)
+			return
+		}
+		scheduler.DeleteSchedule(r.Context(), r.PathValue("id"))
+		w.WriteHeader(http.StatusNoContent)
 	})
 }
