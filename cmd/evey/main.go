@@ -36,6 +36,7 @@ import (
 	appplugin "github.com/gravity-zero/evey/internal/app/plugin"
 	apptranscoding "github.com/gravity-zero/evey/internal/app/transcoding"
 	appuser "github.com/gravity-zero/evey/internal/app/user"
+	domaintranscoding "github.com/gravity-zero/evey/internal/domain/transcoding"
 	appwebhook "github.com/gravity-zero/evey/internal/app/webhook"
 	"github.com/gravity-zero/evey/internal/adapters/driven/ebml"
 	"github.com/gravity-zero/evey/internal/adapters/driven/ffmpeg"
@@ -296,6 +297,7 @@ func run() error {
 		mux.HandleFunc("GET /api/v1/media/{id}/download", downloadHandler(tokenGen, librarySvc))
 		mux.HandleFunc("GET /api/v1/media/{id}/transcode", transcodeHandler(tokenGen, librarySvc))
 		mux.HandleFunc("GET /api/v1/media/{id}/subtitle/{track}", subtitleHandler(tokenGen, librarySvc))
+		mux.HandleFunc("GET /api/v1/media/{id}/playback-info", playbackInfoHandler(tokenGen, librarySvc))
 		mux.HandleFunc("GET /api/v1/admin/library-stats", libraryStatsHandler(tokenGen, librarySvc))
 		registerAdminRoutes(mux, metadataSvc, tmdbProvider, tokenGen)
 		mux.Handle("/", gwMux)
@@ -927,5 +929,81 @@ func libraryStatsHandler(tokenGen interface {
 		}
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(map[string]any{"stats": stats})
+	}
+}
+
+func playbackInfoHandler(tokenGen interface {
+	ValidateAccessToken(string) (*domainuser.Claims, error)
+}, libSvc interface {
+	GetMediaItem(ctx context.Context, id string) (*domainlibrary.MediaItem, error)
+	GetMediaStreams(ctx context.Context, mediaItemID string) ([]*domainlibrary.MediaStream, error)
+}) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		mediaID := r.PathValue("id")
+		token := r.Header.Get("Authorization")
+		if strings.HasPrefix(token, "Bearer ") {
+			token = token[7:]
+		} else if t := r.URL.Query().Get("token"); t != "" {
+			token = t
+		} else {
+			http.Error(w, `{"message":"unauthenticated"}`, http.StatusUnauthorized)
+			return
+		}
+		if _, err := tokenGen.ValidateAccessToken(token); err != nil {
+			http.Error(w, `{"message":"forbidden"}`, http.StatusForbidden)
+			return
+		}
+
+		item, err := libSvc.GetMediaItem(r.Context(), mediaID)
+		if err != nil || item.FilePath == "" {
+			http.Error(w, `{"message":"not found"}`, http.StatusNotFound)
+			return
+		}
+
+		streams, err := libSvc.GetMediaStreams(r.Context(), mediaID)
+		if err != nil {
+			http.Error(w, `{"message":"internal"}`, http.StatusInternalServerError)
+			return
+		}
+
+		client := domaintranscoding.DefaultWebProfile
+		if v := r.URL.Query().Get("maxWidth"); v != "" {
+			if n, err := strconv.Atoi(v); err == nil && n > 0 {
+				client.MaxWidth = n
+			}
+		}
+		if v := r.URL.Query().Get("maxHeight"); v != "" {
+			if n, err := strconv.Atoi(v); err == nil && n > 0 {
+				client.MaxHeight = n
+			}
+		}
+		if v := r.URL.Query().Get("maxBitrate"); v != "" {
+			if n, err := strconv.ParseInt(v, 10, 64); err == nil && n > 0 {
+				client.MaxBitrate = n
+			}
+		}
+		if v := r.URL.Query().Get("videoCodecs"); v != "" {
+			client.VideoCodecs = strings.Split(v, ",")
+		}
+		if v := r.URL.Query().Get("audioCodecs"); v != "" {
+			client.AudioCodecs = strings.Split(v, ",")
+		}
+		if v := r.URL.Query().Get("containers"); v != "" {
+			client.Containers = strings.Split(v, ",")
+		}
+		if r.URL.Query().Get("hdr") == "true" {
+			client.SupportsHDR = true
+		}
+
+		var userMaxBitrate int
+		if client.MaxBitrate > 0 {
+			userMaxBitrate = int(client.MaxBitrate)
+			client.MaxBitrate = 0 // let MakePlaybackDecision use maxBitrateKbps param
+		}
+
+		decision := apptranscoding.MakePlaybackDecision(streams, item.ContainerFormat, client, userMaxBitrate)
+
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(decision)
 	}
 }
