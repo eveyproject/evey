@@ -92,6 +92,14 @@ type StreamProber interface {
 	ProbeStreams(ctx context.Context, filePath string) (*ProbeResult, error)
 }
 
+type ScanScheduleRepository interface {
+	Upsert(ctx context.Context, s *ScanSchedule) error
+	GetByLibraryID(ctx context.Context, libraryID string) (*ScanSchedule, error)
+	Delete(ctx context.Context, libraryID string) error
+	ListEnabled(ctx context.Context) ([]*ScanSchedule, error)
+	UpdateAfterRun(ctx context.Context, libraryID string, lastRun, nextRun time.Time) error
+}
+
 type SearchIndex interface {
 	IndexMediaItem(ctx context.Context, item *MediaItem) error
 	RemoveMediaItem(ctx context.Context, id string) error

@@ -129,6 +129,16 @@ type MediaPerson struct {
 	SortOrder     int
 }
 
+type ScanSchedule struct {
+	LibraryID      string
+	CronExpression string
+	Enabled        bool
+	LastRunAt      *time.Time
+	NextRunAt      *time.Time
+	CreatedAt      time.Time
+	UpdatedAt      time.Time
+}
+
 type Collection struct {
 	ID          string
 	Name        string

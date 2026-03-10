@@ -1,11 +1,12 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { createLazyFileRoute } from "@tanstack/react-router";
-import { useQueryClient, useQuery } from "@tanstack/react-query";
+import { useQueryClient, useQuery, useMutation } from "@tanstack/react-query";
 import {
   useLibraryServiceListLibraries,
   useLibraryServiceDeleteLibrary,
   useLibraryServiceScanLibrary,
   libraryServiceListMediaItems,
+  eveyFetch,
 } from "@evey/api";
 import { useAuthStore, toast } from "@evey/store";
 import type { V1Library } from "@evey/api/src/generated/library.schemas";
@@ -13,6 +14,8 @@ import { Spinner } from "@/components/ui/Spinner";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
 import { Modal } from "@/components/ui/Modal";
+import { Select } from "@/components/ui/Select";
+import { Input } from "@/components/ui/Input";
 import { LibraryForm } from "@/features/admin/LibraryForm";
 
 export const Route = createLazyFileRoute("/_auth/admin/libraries")({
@@ -29,7 +32,7 @@ function libraryTypeLabel(type?: string): string {
 }
 
 function formatDate(iso?: string): string {
-  if (!iso) return "—";
+  if (!iso) return "\u2014";
   try {
     return new Date(iso).toLocaleString();
   } catch {
@@ -41,6 +44,22 @@ interface LibraryStat {
   id: string;
   lastScannedAt?: string | null;
 }
+
+interface ScanSchedule {
+  libraryId: string;
+  cron: string;
+  enabled: boolean;
+  lastRunAt?: string | null;
+  nextRunAt?: string | null;
+}
+
+const PRESET_SCHEDULES = [
+  { value: "0 */6 * * *", label: "Every 6 hours" },
+  { value: "0 */12 * * *", label: "Every 12 hours" },
+  { value: "0 3 * * *", label: "Daily (3 AM)" },
+  { value: "0 3 * * 0", label: "Weekly (Sunday 3 AM)" },
+  { value: "custom", label: "Custom cron..." },
+];
 
 function useLibraryStats() {
   const token = useAuthStore((s) => s.accessToken);
@@ -58,10 +77,149 @@ function useLibraryStats() {
   });
 }
 
+function useSchedule(libraryId: string) {
+  return useQuery<ScanSchedule | null>({
+    queryKey: ["/api/v1/libraries", libraryId, "schedule"],
+    queryFn: async () => {
+      const data = await eveyFetch<{ schedule: ScanSchedule | null }>({
+        url: `/api/v1/libraries/${libraryId}/schedule`,
+        method: "GET",
+      });
+      return data.schedule;
+    },
+    staleTime: 30_000,
+  });
+}
+
+function ScheduleModal({ library, onClose }: { library: V1Library; onClose: () => void }) {
+  const queryClient = useQueryClient();
+  const { data: schedule, isLoading } = useSchedule(library.id!);
+  const [preset, setPreset] = useState("");
+  const [customCron, setCustomCron] = useState("");
+  const [enabled, setEnabled] = useState(true);
+
+  useEffect(() => {
+    if (schedule) {
+      setEnabled(schedule.enabled);
+      const match = PRESET_SCHEDULES.find((p) => p.value === schedule.cron);
+      if (match) {
+        setPreset(schedule.cron);
+      } else {
+        setPreset("custom");
+        setCustomCron(schedule.cron);
+      }
+    }
+  }, [schedule]);
+
+  const cronValue = preset === "custom" ? customCron : preset;
+
+  const saveMutation = useMutation({
+    mutationFn: async () => {
+      await eveyFetch<{ schedule: ScanSchedule }>({
+        url: `/api/v1/libraries/${library.id}/schedule`,
+        method: "PUT",
+        data: { cron: cronValue, enabled },
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/v1/libraries", library.id, "schedule"] });
+      toast.success("Schedule saved");
+      onClose();
+    },
+    onError: (err: Error) => toast.error(err.message || "Failed to save schedule"),
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: async () => {
+      await eveyFetch<void>({
+        url: `/api/v1/libraries/${library.id}/schedule`,
+        method: "DELETE",
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/v1/libraries", library.id, "schedule"] });
+      toast.success("Schedule removed");
+      onClose();
+    },
+    onError: (err: Error) => toast.error(err.message || "Failed to remove schedule"),
+  });
+
+  if (isLoading) {
+    return <div className="flex justify-center py-8"><Spinner size="md" /></div>;
+  }
+
+  return (
+    <div className="flex flex-col gap-4">
+      <Select
+        label="Scan frequency"
+        value={preset}
+        onChange={(v) => {
+          setPreset(v);
+          if (v !== "custom") setCustomCron("");
+        }}
+        placeholder="-- select frequency --"
+        options={PRESET_SCHEDULES}
+      />
+
+      {preset === "custom" && (
+        <Input
+          label="Cron expression"
+          placeholder="0 */6 * * *"
+          value={customCron}
+          onChange={(e) => setCustomCron(e.target.value)}
+        />
+      )}
+
+      <label className="flex items-center gap-2 text-sm" style={{ color: "var(--text)" }}>
+        <input
+          type="checkbox"
+          checked={enabled}
+          onChange={(e) => setEnabled(e.target.checked)}
+          className="rounded"
+        />
+        Enabled
+      </label>
+
+      {schedule && (
+        <div className="text-xs space-y-1" style={{ color: "var(--text-muted)" }}>
+          {schedule.lastRunAt && <p>Last run: {formatDate(schedule.lastRunAt)}</p>}
+          {schedule.nextRunAt && <p>Next run: {formatDate(schedule.nextRunAt)}</p>}
+        </div>
+      )}
+
+      <div className="flex justify-between pt-2">
+        <div>
+          {schedule && (
+            <Button
+              variant="danger"
+              loading={deleteMutation.isPending}
+              onClick={() => deleteMutation.mutate()}
+            >
+              Remove
+            </Button>
+          )}
+        </div>
+        <div className="flex gap-2">
+          <Button variant="ghost" onClick={onClose}>Cancel</Button>
+          <Button
+            loading={saveMutation.isPending}
+            disabled={!cronValue}
+            onClick={() => saveMutation.mutate()}
+          >
+            Save
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function LibraryRow({ library, stats }: { library: V1Library; stats: LibraryStat[] }) {
   const queryClient = useQueryClient();
   const [scanDone, setScanDone] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [showSchedule, setShowSchedule] = useState(false);
+  const { data: schedule } = useSchedule(library.id!);
 
   const deleteLib = useLibraryServiceDeleteLibrary({
     mutation: {
@@ -109,13 +267,22 @@ function LibraryRow({ library, stats }: { library: V1Library; stats: LibraryStat
         <Badge variant="info">{libraryTypeLabel(library.type)}</Badge>
       </td>
       <td className="px-4 py-3 text-sm" style={{ color: "var(--text-muted)" }}>
-        {library.paths?.join(", ") ?? "—"}
+        {library.paths?.join(", ") ?? "\u2014"}
       </td>
       <td className="px-4 py-3 text-sm" style={{ color: "var(--text-muted)" }}>
-        {totalItems != null ? `${totalItems} items` : <span className="opacity-50">—</span>}
+        {totalItems != null ? `${totalItems} items` : <span className="opacity-50">{"\u2014"}</span>}
       </td>
       <td className="px-4 py-3 text-sm" style={{ color: "var(--text-muted)" }}>
         {formatDate(libStat?.lastScannedAt ?? undefined)}
+      </td>
+      <td className="px-4 py-3 text-sm" style={{ color: "var(--text-muted)" }}>
+        {schedule?.enabled ? (
+          <span title={`Cron: ${schedule.cron}`}>
+            {schedule.nextRunAt ? formatDate(schedule.nextRunAt) : "Enabled"}
+          </span>
+        ) : (
+          <span className="opacity-50">Off</span>
+        )}
       </td>
       <td className="px-4 py-3 whitespace-nowrap">
         <div className="flex items-center gap-2">
@@ -135,6 +302,9 @@ function LibraryRow({ library, stats }: { library: V1Library; stats: LibraryStat
               {scanDone ? "Scan again" : "Scan"}
             </Button>
           )}
+          <Button variant="secondary" onClick={() => setShowSchedule(true)}>
+            Schedule
+          </Button>
           <Button
             variant="danger"
             loading={deleteLib.isPending}
@@ -144,6 +314,9 @@ function LibraryRow({ library, stats }: { library: V1Library; stats: LibraryStat
           </Button>
         </div>
       </td>
+      <Modal open={showSchedule} onClose={() => setShowSchedule(false)} title={`Scan Schedule \u2014 ${library.name}`}>
+        <ScheduleModal library={library} onClose={() => setShowSchedule(false)} />
+      </Modal>
       <Modal open={showDeleteConfirm} onClose={() => setShowDeleteConfirm(false)} title="Delete Library">
         <p className="text-sm text-[var(--text-muted)] mb-4">
           Delete library "{library.name}"? This cannot be undone.
@@ -200,7 +373,7 @@ function LibrariesPage() {
           <table className="w-full text-sm">
             <thead>
               <tr style={{ backgroundColor: "var(--surface)", borderBottom: "1px solid var(--border)" }}>
-                {["Name", "Type", "Paths", "Items", "Last Scanned", "Actions"].map((h) => (
+                {["Name", "Type", "Paths", "Items", "Last Scanned", "Next Scan", "Actions"].map((h) => (
                   <th
                     key={h}
                     className="px-4 py-2 text-left font-medium"
@@ -215,7 +388,7 @@ function LibrariesPage() {
               {libraries.length === 0 ? (
                 <tr>
                   <td
-                    colSpan={6}
+                    colSpan={7}
                     className="px-4 py-8 text-center"
                     style={{ color: "var(--text-muted)" }}
                   >
