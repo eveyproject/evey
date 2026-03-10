@@ -19,6 +19,7 @@ import { Route as AuthFavoritesRouteImport } from './routes/_auth/favorites'
 import { Route as AuthAdminRouteImport } from './routes/_auth/admin'
 import { Route as AuthProfileIndexRouteImport } from './routes/_auth/profile/index'
 import { Route as AuthLibraryIndexRouteImport } from './routes/_auth/library/index'
+import { Route as AuthCollectionsIndexRouteImport } from './routes/_auth/collections/index'
 import { Route as AuthAdminIndexRouteImport } from './routes/_auth/admin/index'
 import { Route as AuthProfileSettingsRouteImport } from './routes/_auth/profile/settings'
 import { Route as AuthProfileNotificationsRouteImport } from './routes/_auth/profile/notifications'
@@ -27,6 +28,7 @@ import { Route as AuthPlayerMediaIdRouteImport } from './routes/_auth/player/$me
 import { Route as AuthPersonPersonIdRouteImport } from './routes/_auth/person/$personId'
 import { Route as AuthMediaMediaIdRouteImport } from './routes/_auth/media/$mediaId'
 import { Route as AuthLibraryLibraryIdRouteImport } from './routes/_auth/library/$libraryId'
+import { Route as AuthCollectionsCollectionIdRouteImport } from './routes/_auth/collections/$collectionId'
 import { Route as AuthAdminWebhooksRouteImport } from './routes/_auth/admin/webhooks'
 import { Route as AuthAdminUsersRouteImport } from './routes/_auth/admin/users'
 import { Route as AuthAdminTranscodeCacheRouteImport } from './routes/_auth/admin/transcode-cache'
@@ -93,6 +95,13 @@ const AuthLibraryIndexRoute = AuthLibraryIndexRouteImport.update({
 } as any).lazy(() =>
   import('./routes/_auth/library/index.lazy').then((d) => d.Route),
 )
+const AuthCollectionsIndexRoute = AuthCollectionsIndexRouteImport.update({
+  id: '/collections/',
+  path: '/collections/',
+  getParentRoute: () => AuthRoute,
+} as any).lazy(() =>
+  import('./routes/_auth/collections/index.lazy').then((d) => d.Route),
+)
 const AuthAdminIndexRoute = AuthAdminIndexRouteImport.update({
   id: '/',
   path: '/',
@@ -150,6 +159,16 @@ const AuthLibraryLibraryIdRoute = AuthLibraryLibraryIdRouteImport.update({
 } as any).lazy(() =>
   import('./routes/_auth/library/$libraryId.lazy').then((d) => d.Route),
 )
+const AuthCollectionsCollectionIdRoute =
+  AuthCollectionsCollectionIdRouteImport.update({
+    id: '/collections/$collectionId',
+    path: '/collections/$collectionId',
+    getParentRoute: () => AuthRoute,
+  } as any).lazy(() =>
+    import('./routes/_auth/collections/$collectionId.lazy').then(
+      (d) => d.Route,
+    ),
+  )
 const AuthAdminWebhooksRoute = AuthAdminWebhooksRouteImport.update({
   id: '/webhooks',
   path: '/webhooks',
@@ -239,6 +258,7 @@ export interface FileRoutesByFullPath {
   '/admin/transcode-cache': typeof AuthAdminTranscodeCacheRoute
   '/admin/users': typeof AuthAdminUsersRoute
   '/admin/webhooks': typeof AuthAdminWebhooksRoute
+  '/collections/$collectionId': typeof AuthCollectionsCollectionIdRoute
   '/library/$libraryId': typeof AuthLibraryLibraryIdRoute
   '/media/$mediaId': typeof AuthMediaMediaIdRoute
   '/person/$personId': typeof AuthPersonPersonIdRoute
@@ -247,6 +267,7 @@ export interface FileRoutesByFullPath {
   '/profile/notifications': typeof AuthProfileNotificationsRoute
   '/profile/settings': typeof AuthProfileSettingsRoute
   '/admin/': typeof AuthAdminIndexRoute
+  '/collections/': typeof AuthCollectionsIndexRoute
   '/library/': typeof AuthLibraryIndexRoute
   '/profile/': typeof AuthProfileIndexRoute
 }
@@ -267,6 +288,7 @@ export interface FileRoutesByTo {
   '/admin/transcode-cache': typeof AuthAdminTranscodeCacheRoute
   '/admin/users': typeof AuthAdminUsersRoute
   '/admin/webhooks': typeof AuthAdminWebhooksRoute
+  '/collections/$collectionId': typeof AuthCollectionsCollectionIdRoute
   '/library/$libraryId': typeof AuthLibraryLibraryIdRoute
   '/media/$mediaId': typeof AuthMediaMediaIdRoute
   '/person/$personId': typeof AuthPersonPersonIdRoute
@@ -275,6 +297,7 @@ export interface FileRoutesByTo {
   '/profile/notifications': typeof AuthProfileNotificationsRoute
   '/profile/settings': typeof AuthProfileSettingsRoute
   '/admin': typeof AuthAdminIndexRoute
+  '/collections': typeof AuthCollectionsIndexRoute
   '/library': typeof AuthLibraryIndexRoute
   '/profile': typeof AuthProfileIndexRoute
 }
@@ -298,6 +321,7 @@ export interface FileRoutesById {
   '/_auth/admin/transcode-cache': typeof AuthAdminTranscodeCacheRoute
   '/_auth/admin/users': typeof AuthAdminUsersRoute
   '/_auth/admin/webhooks': typeof AuthAdminWebhooksRoute
+  '/_auth/collections/$collectionId': typeof AuthCollectionsCollectionIdRoute
   '/_auth/library/$libraryId': typeof AuthLibraryLibraryIdRoute
   '/_auth/media/$mediaId': typeof AuthMediaMediaIdRoute
   '/_auth/person/$personId': typeof AuthPersonPersonIdRoute
@@ -306,6 +330,7 @@ export interface FileRoutesById {
   '/_auth/profile/notifications': typeof AuthProfileNotificationsRoute
   '/_auth/profile/settings': typeof AuthProfileSettingsRoute
   '/_auth/admin/': typeof AuthAdminIndexRoute
+  '/_auth/collections/': typeof AuthCollectionsIndexRoute
   '/_auth/library/': typeof AuthLibraryIndexRoute
   '/_auth/profile/': typeof AuthProfileIndexRoute
 }
@@ -329,6 +354,7 @@ export interface FileRouteTypes {
     | '/admin/transcode-cache'
     | '/admin/users'
     | '/admin/webhooks'
+    | '/collections/$collectionId'
     | '/library/$libraryId'
     | '/media/$mediaId'
     | '/person/$personId'
@@ -337,6 +363,7 @@ export interface FileRouteTypes {
     | '/profile/notifications'
     | '/profile/settings'
     | '/admin/'
+    | '/collections/'
     | '/library/'
     | '/profile/'
   fileRoutesByTo: FileRoutesByTo
@@ -357,6 +384,7 @@ export interface FileRouteTypes {
     | '/admin/transcode-cache'
     | '/admin/users'
     | '/admin/webhooks'
+    | '/collections/$collectionId'
     | '/library/$libraryId'
     | '/media/$mediaId'
     | '/person/$personId'
@@ -365,6 +393,7 @@ export interface FileRouteTypes {
     | '/profile/notifications'
     | '/profile/settings'
     | '/admin'
+    | '/collections'
     | '/library'
     | '/profile'
   id:
@@ -387,6 +416,7 @@ export interface FileRouteTypes {
     | '/_auth/admin/transcode-cache'
     | '/_auth/admin/users'
     | '/_auth/admin/webhooks'
+    | '/_auth/collections/$collectionId'
     | '/_auth/library/$libraryId'
     | '/_auth/media/$mediaId'
     | '/_auth/person/$personId'
@@ -395,6 +425,7 @@ export interface FileRouteTypes {
     | '/_auth/profile/notifications'
     | '/_auth/profile/settings'
     | '/_auth/admin/'
+    | '/_auth/collections/'
     | '/_auth/library/'
     | '/_auth/profile/'
   fileRoutesById: FileRoutesById
@@ -478,6 +509,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthLibraryIndexRouteImport
       parentRoute: typeof AuthRoute
     }
+    '/_auth/collections/': {
+      id: '/_auth/collections/'
+      path: '/collections'
+      fullPath: '/collections/'
+      preLoaderRoute: typeof AuthCollectionsIndexRouteImport
+      parentRoute: typeof AuthRoute
+    }
     '/_auth/admin/': {
       id: '/_auth/admin/'
       path: '/'
@@ -532,6 +570,13 @@ declare module '@tanstack/react-router' {
       path: '/library/$libraryId'
       fullPath: '/library/$libraryId'
       preLoaderRoute: typeof AuthLibraryLibraryIdRouteImport
+      parentRoute: typeof AuthRoute
+    }
+    '/_auth/collections/$collectionId': {
+      id: '/_auth/collections/$collectionId'
+      path: '/collections/$collectionId'
+      fullPath: '/collections/$collectionId'
+      preLoaderRoute: typeof AuthCollectionsCollectionIdRouteImport
       parentRoute: typeof AuthRoute
     }
     '/_auth/admin/webhooks': {
@@ -644,6 +689,7 @@ interface AuthRouteChildren {
   AuthFavoritesRoute: typeof AuthFavoritesRoute
   AuthHomeRoute: typeof AuthHomeRoute
   AuthSearchRoute: typeof AuthSearchRoute
+  AuthCollectionsCollectionIdRoute: typeof AuthCollectionsCollectionIdRoute
   AuthLibraryLibraryIdRoute: typeof AuthLibraryLibraryIdRoute
   AuthMediaMediaIdRoute: typeof AuthMediaMediaIdRoute
   AuthPersonPersonIdRoute: typeof AuthPersonPersonIdRoute
@@ -651,6 +697,7 @@ interface AuthRouteChildren {
   AuthProfileHistoryRoute: typeof AuthProfileHistoryRoute
   AuthProfileNotificationsRoute: typeof AuthProfileNotificationsRoute
   AuthProfileSettingsRoute: typeof AuthProfileSettingsRoute
+  AuthCollectionsIndexRoute: typeof AuthCollectionsIndexRoute
   AuthLibraryIndexRoute: typeof AuthLibraryIndexRoute
   AuthProfileIndexRoute: typeof AuthProfileIndexRoute
 }
@@ -660,6 +707,7 @@ const AuthRouteChildren: AuthRouteChildren = {
   AuthFavoritesRoute: AuthFavoritesRoute,
   AuthHomeRoute: AuthHomeRoute,
   AuthSearchRoute: AuthSearchRoute,
+  AuthCollectionsCollectionIdRoute: AuthCollectionsCollectionIdRoute,
   AuthLibraryLibraryIdRoute: AuthLibraryLibraryIdRoute,
   AuthMediaMediaIdRoute: AuthMediaMediaIdRoute,
   AuthPersonPersonIdRoute: AuthPersonPersonIdRoute,
@@ -667,6 +715,7 @@ const AuthRouteChildren: AuthRouteChildren = {
   AuthProfileHistoryRoute: AuthProfileHistoryRoute,
   AuthProfileNotificationsRoute: AuthProfileNotificationsRoute,
   AuthProfileSettingsRoute: AuthProfileSettingsRoute,
+  AuthCollectionsIndexRoute: AuthCollectionsIndexRoute,
   AuthLibraryIndexRoute: AuthLibraryIndexRoute,
   AuthProfileIndexRoute: AuthProfileIndexRoute,
 }

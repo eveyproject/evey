@@ -15,6 +15,7 @@ import (
 	"google.golang.org/grpc"
 
 	appactivity "github.com/gravity-zero/evey/internal/app/activity"
+	appcollection "github.com/gravity-zero/evey/internal/app/collection"
 	appfavorite "github.com/gravity-zero/evey/internal/app/favorite"
 	appfeed "github.com/gravity-zero/evey/internal/app/feed"
 	applibrary "github.com/gravity-zero/evey/internal/app/library"
@@ -296,6 +297,9 @@ func run() error {
 	favoriteRepo := postgres.NewFavoriteRepository(db)
 	favoriteSvc := appfavorite.NewService(favoriteRepo)
 
+	collectionRepo := postgres.NewCollectionRepository(db)
+	collectionSvc := appcollection.NewService(collectionRepo)
+
 	// --- Auth interceptor ---
 	authInterceptor := interceptors.NewAuthInterceptor(tokenGen)
 	grpcLog := eveylogger.NewWith(rootLog, "grpc")
@@ -357,6 +361,7 @@ func run() error {
 		registerFavoriteRoutes(mux, favoriteSvc, tokenGen)
 		registerMetadataOverrideRoutes(mux, metadataSvc, tokenGen)
 		registerTranscodeCacheRoutes(mux, transcodingSvc, tokenGen)
+		registerCollectionRoutes(mux, collectionSvc, tokenGen)
 		mux.Handle("/", ratelimit.Middleware(globalRL)(gwMux))
 		httpSrv = &http.Server{
 			Addr:              fmt.Sprintf(":%d", httpPort),

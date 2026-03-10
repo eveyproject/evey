@@ -67,9 +67,12 @@ type CollectionRepository interface {
 	List(ctx context.Context) ([]*Collection, error)
 	Update(ctx context.Context, col *Collection) error
 	Delete(ctx context.Context, id string) error
+	GetSmartItems(ctx context.Context, col *Collection, limit, offset int) ([]*MediaItem, error)
+	CountSmartItems(ctx context.Context, col *Collection) (int, error)
 	AddItem(ctx context.Context, collectionID, mediaItemID string) error
 	RemoveItem(ctx context.Context, collectionID, mediaItemID string) error
-	GetItems(ctx context.Context, collectionID string) ([]*MediaItem, error)
+	GetManualItems(ctx context.Context, collectionID string, limit, offset int) ([]*MediaItem, error)
+	CountManualItems(ctx context.Context, collectionID string) (int, error)
 }
 
 type ScannedFile struct {
