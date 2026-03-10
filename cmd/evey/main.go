@@ -50,6 +50,7 @@ import (
 	"github.com/gravity-zero/evey/internal/domain/metadata"
 	"github.com/gravity-zero/evey/internal/pkg/auth"
 	"github.com/gravity-zero/evey/internal/pkg/eventbus"
+	"github.com/gravity-zero/evey/internal/pkg/hdr"
 	eveylogger "github.com/gravity-zero/evey/internal/pkg/logger"
 	domainuser "github.com/gravity-zero/evey/internal/domain/user"
 	domainlibrary "github.com/gravity-zero/evey/internal/domain/library"
@@ -777,7 +778,9 @@ func transcodeHandler(tokenGen interface {
 		remuxOnly := r.URL.Query().Get("remux") == "1"
 		needsVideoTranscode := false
 		needsAudioTranscode := true
-		if streams, err := libSvc.GetMediaStreams(r.Context(), mediaID); err == nil {
+		var streams []*domainlibrary.MediaStream
+		if s, err := libSvc.GetMediaStreams(r.Context(), mediaID); err == nil {
+			streams = s
 			for _, s := range streams {
 				slog.Debug("transcode: stream", slog.String("media_id", mediaID), slog.String("type", s.StreamType), slog.String("codec", s.Codec), slog.Bool("default", s.IsDefault))
 				if s.StreamType == "video" && s.Codec != "h264" && !remuxOnly {
@@ -793,7 +796,15 @@ func transcodeHandler(tokenGen interface {
 		} else {
 			slog.Error("transcode: GetMediaStreams failed", slog.String("media_id", mediaID), slog.Any("err", err))
 		}
-		slog.Debug("transcode: decision", slog.String("media_id", mediaID), slog.Bool("needsVideoTranscode", needsVideoTranscode), slog.Bool("needsAudioTranscode", needsAudioTranscode), slog.Bool("remuxOnly", remuxOnly))
+
+		hdrInfo := hdr.DetectHDR(streams)
+		clientSupportsHDR := r.URL.Query().Get("hdr") == "true"
+		needsToneMap := hdrInfo.IsHDR && !clientSupportsHDR
+		if needsToneMap {
+			needsVideoTranscode = true
+		}
+
+		slog.Debug("transcode: decision", slog.String("media_id", mediaID), slog.Bool("needsVideoTranscode", needsVideoTranscode), slog.Bool("needsAudioTranscode", needsAudioTranscode), slog.Bool("remuxOnly", remuxOnly), slog.Bool("needsToneMap", needsToneMap))
 
 		ctx, cancel := context.WithCancel(r.Context())
 		defer cancel()
@@ -802,7 +813,16 @@ func transcodeHandler(tokenGen interface {
 			"-map", "0:v:0",
 			"-map", fmt.Sprintf("0:a:%d", audioTrack),
 		}
-		if videoScale > 0 {
+
+		if needsToneMap && !remuxOnly {
+			toneMapFilter := hdr.BuildToneMapFilter(hdrInfo, hdr.DefaultToneMapOptions())
+			if videoScale > 0 {
+				args = append(args, "-vf", fmt.Sprintf("scale=-2:%d,%s", videoScale, toneMapFilter))
+			} else {
+				args = append(args, "-vf", toneMapFilter)
+			}
+			args = append(args, "-c:v", "libx264", "-crf", "23", "-preset", "fast")
+		} else if videoScale > 0 {
 			args = append(args, "-vf", fmt.Sprintf("scale=-2:%d", videoScale), "-c:v", "libx264", "-crf", "23", "-preset", "fast")
 		} else if needsVideoTranscode {
 			args = append(args, "-c:v", "libx264", "-crf", "23", "-preset", "veryfast", "-tune", "zerolatency", "-threads", "0")
