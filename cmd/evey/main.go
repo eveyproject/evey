@@ -141,6 +141,7 @@ func run() error {
 	feedAdminCfgRepo := postgres.NewFeedAdminConfigRepository(db)
 	feedProfileCfgRepo := postgres.NewFeedProfileConfigRepository(db)
 	feedQuerier := postgres.NewFeedQuerier(db)
+	libraryAccessRepo := postgres.NewLibraryAccessRepository(db)
 
 	// --- Infrastructure ---
 	searchAdapter, _ := meili.NewSearchAdapter(cfg.Meilisearch.URL, cfg.Meilisearch.APIKey)
@@ -261,7 +262,7 @@ func run() error {
 		librarySvc, userSvc, playbackSvc, transcodingSvc,
 		mkvSvc, pluginSvc, metadataSvc, activitySvc,
 		notifSvc, feedSvc, webhookSvc,
-		userRepo, version,
+		userRepo, libraryAccessRepo, version,
 		grpc.ChainUnaryInterceptor(
 			interceptors.ClientInfoUnary(),
 			interceptors.LoggingUnary(grpcLog),
@@ -298,6 +299,7 @@ func run() error {
 		mux.HandleFunc("GET /api/v1/media/{id}/subtitle/{track}", subtitleHandler(tokenGen, librarySvc))
 		mux.HandleFunc("GET /api/v1/admin/library-stats", libraryStatsHandler(tokenGen, librarySvc))
 		registerAdminRoutes(mux, metadataSvc, tmdbProvider, tokenGen)
+		registerLibraryAccessRoutes(mux, tokenGen, libraryAccessRepo, librarySvc)
 		mux.Handle("/", gwMux)
 		httpSrv = &http.Server{
 			Addr:              fmt.Sprintf(":%d", httpPort),
@@ -705,6 +707,87 @@ func registerAdminRoutes(mux *http.ServeMux, metaSvc *appmetadata.Service, tmdb 
 		default:
 			http.NotFound(w, r)
 		}
+	})
+}
+
+func registerLibraryAccessRoutes(mux *http.ServeMux, tokenGen *auth.JWTGenerator, accessRepo *postgres.LibraryAccessRepository, libSvc *applibrary.Service) {
+	requireAdmin := func(r *http.Request) bool {
+		h := r.Header.Get("Authorization")
+		if !strings.HasPrefix(h, "Bearer ") {
+			return false
+		}
+		claims, err := tokenGen.ValidateAccessToken(strings.TrimPrefix(h, "Bearer "))
+		return err == nil && claims.IsAdmin
+	}
+
+	mux.HandleFunc("GET /api/v1/admin/users/{userId}/library-access", func(w http.ResponseWriter, r *http.Request) {
+		if !requireAdmin(r) {
+			http.Error(w, `{"message":"forbidden"}`, http.StatusForbidden)
+			return
+		}
+		userID := r.PathValue("userId")
+		ids, err := accessRepo.GetByUserID(r.Context(), userID)
+		if err != nil {
+			http.Error(w, `{"message":"internal error"}`, http.StatusInternalServerError)
+			return
+		}
+		libs, _ := libSvc.ListLibraries(r.Context())
+		type libInfo struct {
+			ID   string `json:"id"`
+			Name string `json:"name"`
+		}
+		allLibs := make([]libInfo, 0, len(libs))
+		for _, l := range libs {
+			allLibs = append(allLibs, libInfo{ID: l.ID, Name: l.Name})
+		}
+		if ids == nil {
+			ids = []string{}
+		}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]any{
+			"libraryIds": ids,
+			"libraries":  allLibs,
+		})
+	})
+
+	mux.HandleFunc("PUT /api/v1/admin/users/{userId}/library-access", func(w http.ResponseWriter, r *http.Request) {
+		if !requireAdmin(r) {
+			http.Error(w, `{"message":"forbidden"}`, http.StatusForbidden)
+			return
+		}
+		userID := r.PathValue("userId")
+		var body struct {
+			LibraryIDs []string `json:"libraryIds"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			http.Error(w, `{"message":"bad request"}`, http.StatusBadRequest)
+			return
+		}
+		// Remove all existing, then grant new ones
+		existing, _ := accessRepo.GetByUserID(r.Context(), userID)
+		for _, id := range existing {
+			accessRepo.Revoke(r.Context(), userID, id)
+		}
+		for _, id := range body.LibraryIDs {
+			if err := accessRepo.Grant(r.Context(), userID, id); err != nil {
+				http.Error(w, `{"message":"internal error"}`, http.StatusInternalServerError)
+				return
+			}
+		}
+		w.WriteHeader(http.StatusNoContent)
+	})
+
+	mux.HandleFunc("DELETE /api/v1/admin/users/{userId}/library-access", func(w http.ResponseWriter, r *http.Request) {
+		if !requireAdmin(r) {
+			http.Error(w, `{"message":"forbidden"}`, http.StatusForbidden)
+			return
+		}
+		userID := r.PathValue("userId")
+		existing, _ := accessRepo.GetByUserID(r.Context(), userID)
+		for _, id := range existing {
+			accessRepo.Revoke(r.Context(), userID, id)
+		}
+		w.WriteHeader(http.StatusNoContent)
 	})
 }
 

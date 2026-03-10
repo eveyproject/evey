@@ -104,6 +104,15 @@ func (r *MediaItemRepository) buildWhereClause(f library.ListMediaItemsFilter) (
 		args = append(args, *f.LibraryID)
 		argIdx++
 	}
+	if len(f.LibraryIDs) > 0 {
+		placeholders := make([]string, len(f.LibraryIDs))
+		for i, id := range f.LibraryIDs {
+			placeholders[i] = fmt.Sprintf("$%d", argIdx)
+			args = append(args, id)
+			argIdx++
+		}
+		conditions = append(conditions, "library_id IN ("+strings.Join(placeholders, ",")+")")
+	}
 	if f.Type != nil {
 		conditions = append(conditions, fmt.Sprintf("type = $%d", argIdx))
 		args = append(args, *f.Type)
@@ -148,6 +157,15 @@ func (r *MediaItemRepository) List(ctx context.Context, f library.ListMediaItems
 		conditions = append(conditions, fmt.Sprintf("library_id = $%d", argIdx))
 		args = append(args, *f.LibraryID)
 		argIdx++
+	}
+	if len(f.LibraryIDs) > 0 {
+		placeholders := make([]string, len(f.LibraryIDs))
+		for i, id := range f.LibraryIDs {
+			placeholders[i] = fmt.Sprintf("$%d", argIdx)
+			args = append(args, id)
+			argIdx++
+		}
+		conditions = append(conditions, "library_id IN ("+strings.Join(placeholders, ",")+")")
 	}
 	if f.Type != nil {
 		conditions = append(conditions, fmt.Sprintf("type = $%d", argIdx))

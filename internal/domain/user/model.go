@@ -88,3 +88,9 @@ type Role struct {
 	Permissions []string
 	IsSystem    bool
 }
+
+type LibraryAccess struct {
+	UserID    string
+	LibraryID string
+	GrantedAt time.Time
+}

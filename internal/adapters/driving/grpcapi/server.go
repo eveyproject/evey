@@ -21,20 +21,21 @@ import (
 )
 
 type GRPCServer struct {
-	server       *grpc.Server
-	library      *applibrary.Service
-	user         *appuser.Service
-	playback     *appplayback.Service
-	transcoding  *apptranscoding.Service
-	mkv          *appmkv.Service
-	plugin       *appplugin.Service
-	metadata     *appmetadata.Service
-	activity     *appactivity.Service
-	notification *appnotification.Service
-	feed         *appfeed.Service
-	webhook      *appwebhook.Service
-	users        user.UserRepository
-	version      string
+	server        *grpc.Server
+	library       *applibrary.Service
+	user          *appuser.Service
+	playback      *appplayback.Service
+	transcoding   *apptranscoding.Service
+	mkv           *appmkv.Service
+	plugin        *appplugin.Service
+	metadata      *appmetadata.Service
+	activity      *appactivity.Service
+	notification  *appnotification.Service
+	feed          *appfeed.Service
+	webhook       *appwebhook.Service
+	users         user.UserRepository
+	libraryAccess user.LibraryAccessRepository
+	version       string
 }
 
 func NewGRPCServer(
@@ -50,29 +51,31 @@ func NewGRPCServer(
 	feed *appfeed.Service,
 	webhook *appwebhook.Service,
 	users user.UserRepository,
+	libraryAccess user.LibraryAccessRepository,
 	version string,
 	opts ...grpc.ServerOption,
 ) *GRPCServer {
 	return &GRPCServer{
-		server:       grpc.NewServer(opts...),
-		library:      library,
-		user:         userSvc,
-		playback:     playback,
-		transcoding:  transcoding,
-		mkv:          mkv,
-		plugin:       plugin,
-		metadata:     metadata,
-		activity:     activity,
-		notification: notification,
-		feed:         feed,
-		webhook:      webhook,
-		users:        users,
-		version:      version,
+		server:        grpc.NewServer(opts...),
+		library:       library,
+		user:          userSvc,
+		playback:      playback,
+		transcoding:   transcoding,
+		mkv:           mkv,
+		plugin:        plugin,
+		metadata:      metadata,
+		activity:      activity,
+		notification:  notification,
+		feed:          feed,
+		webhook:       webhook,
+		users:         users,
+		libraryAccess: libraryAccess,
+		version:       version,
 	}
 }
 
 func (s *GRPCServer) RegisterServices() {
-	eveyv1.RegisterLibraryServiceServer(s.server, &libraryHandler{svc: s.library, metadataSvc: s.metadata})
+	eveyv1.RegisterLibraryServiceServer(s.server, &libraryHandler{svc: s.library, metadataSvc: s.metadata, libraryAccess: s.libraryAccess})
 	eveyv1.RegisterUserServiceServer(s.server, &userHandler{svc: s.user, users: s.users, activitySvc: s.activity})
 	eveyv1.RegisterPlaybackServiceServer(s.server, &playbackHandler{svc: s.playback, librarySvc: s.library})
 	eveyv1.RegisterTranscodingServiceServer(s.server, &transcodingHandler{svc: s.transcoding})
