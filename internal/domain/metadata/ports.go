@@ -13,6 +13,7 @@ type MetadataOverrideRepository interface {
 	Get(ctx context.Context, id string) (*MetadataOverride, error)
 	GetByMediaItem(ctx context.Context, mediaItemID string) ([]*MetadataOverride, error)
 	Delete(ctx context.Context, id string) error
+	DeleteByMediaItemID(ctx context.Context, mediaItemID string) error
 }
 
 type ArtworkRepository interface {

@@ -53,6 +53,7 @@ import (
 	"github.com/gravity-zero/evey/internal/domain/metadata"
 	"github.com/gravity-zero/evey/internal/pkg/auth"
 	"github.com/gravity-zero/evey/internal/pkg/eventbus"
+	"github.com/gravity-zero/evey/internal/pkg/id"
 	"github.com/gravity-zero/evey/internal/pkg/ratelimit"
 	eveylogger "github.com/gravity-zero/evey/internal/pkg/logger"
 	domainuser "github.com/gravity-zero/evey/internal/domain/user"
@@ -358,7 +359,6 @@ func run() error {
 		mux.HandleFunc("GET /api/v1/media/{id}/stream", mh)
 		mux.HandleFunc("GET /api/v1/media/{id}/artwork/{artType}", mh)
 		mux.HandleFunc("POST /api/v1/media/{id}/stream", mh)
-<<<<<<< HEAD
 		mux.HandleFunc("POST /api/v1/media/{id}/artwork/{artworkId}/select", selectArtworkHandler(tokenGen, artworkRepo))
 		mux.HandleFunc("GET /api/v1/media/{id}/download", downloadHandler(tokenGen, libQuerySvc, cfg.Server.BaseURL))
 		mux.HandleFunc("GET /api/v1/media/{id}/transcode", transcodeHandler(tokenGen, libQuerySvc, cfg.Server.BaseURL))
@@ -371,6 +371,7 @@ func run() error {
 		}))
 		registerAdminRoutes(mux, metadataSvc, tokenGen)
 		registerFavoriteRoutes(mux, favoriteSvc, tokenGen)
+		registerMetadataOverrideRoutes(mux, metadataSvc, tokenGen)
 		mux.Handle("/", ratelimit.Middleware(globalRL)(gwMux))
 		httpSrv = &http.Server{
 			Addr:              fmt.Sprintf(":%d", httpPort),
@@ -1239,5 +1240,92 @@ func registerFavoriteRoutes(mux *http.ServeMux, favSvc *appfavorite.Service, tok
 		}
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(map[string]any{"isFavorite": isFav})
+	})
+}
+
+func registerMetadataOverrideRoutes(mux *http.ServeMux, metaSvc *appmetadata.Service, tokenGen *auth.JWTGenerator) {
+	requireAdmin := func(r *http.Request) bool {
+		h := r.Header.Get("Authorization")
+		if !strings.HasPrefix(h, "Bearer ") {
+			return false
+		}
+		claims, err := tokenGen.ValidateAccessToken(strings.TrimPrefix(h, "Bearer "))
+		return err == nil && claims.IsAdmin
+	}
+
+	mux.HandleFunc("PUT /api/v1/media/{id}/metadata", func(w http.ResponseWriter, r *http.Request) {
+		if !requireAdmin(r) {
+			http.Error(w, `{"message":"unauthorized"}`, http.StatusUnauthorized)
+			return
+		}
+		mediaItemID := r.PathValue("id")
+		var body map[string]string
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			http.Error(w, `{"message":"bad request"}`, http.StatusBadRequest)
+			return
+		}
+		allowedFields := map[string]bool{
+			"title": true, "overview": true, "genres": true,
+			"year": true, "community_rating": true, "official_rating": true,
+			"imdb_id": true, "tmdb_id": true,
+		}
+		for fieldName, value := range body {
+			if !allowedFields[fieldName] || value == "" {
+				continue
+			}
+			override := &domainmeta.MetadataOverride{
+				ID:          id.New("mo-"),
+				MediaItemID: mediaItemID,
+				FieldName:   fieldName,
+				CustomValue: value,
+			}
+			if err := metaSvc.SetOverride(r.Context(), override); err != nil {
+				slog.Error("set override", slog.Any("err", err))
+				http.Error(w, `{"message":"internal error"}`, http.StatusInternalServerError)
+				return
+			}
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(`{"ok":true}`))
+	})
+
+	mux.HandleFunc("DELETE /api/v1/media/{id}/metadata", func(w http.ResponseWriter, r *http.Request) {
+		if !requireAdmin(r) {
+			http.Error(w, `{"message":"unauthorized"}`, http.StatusUnauthorized)
+			return
+		}
+		if err := metaSvc.ResetOverrides(r.Context(), r.PathValue("id")); err != nil {
+			http.Error(w, `{"message":"internal error"}`, http.StatusInternalServerError)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(`{"ok":true}`))
+	})
+
+	mux.HandleFunc("GET /api/v1/media/{id}/metadata/overrides", func(w http.ResponseWriter, r *http.Request) {
+		if !requireAdmin(r) {
+			http.Error(w, `{"message":"unauthorized"}`, http.StatusUnauthorized)
+			return
+		}
+		overrides, err := metaSvc.ListOverrides(r.Context(), r.PathValue("id"))
+		if err != nil {
+			http.Error(w, `{"message":"internal error"}`, http.StatusInternalServerError)
+			return
+		}
+		type item struct {
+			ID          string `json:"id"`
+			FieldName   string `json:"field_name"`
+			CustomValue any    `json:"custom_value"`
+			CreatedAt   string `json:"created_at"`
+		}
+		result := make([]item, 0, len(overrides))
+		for _, o := range overrides {
+			result = append(result, item{
+				ID: o.ID, FieldName: o.FieldName, CustomValue: o.CustomValue,
+				CreatedAt: o.CreatedAt.UTC().Format(time.RFC3339),
+			})
+		}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]any{"overrides": result})
 	})
 }

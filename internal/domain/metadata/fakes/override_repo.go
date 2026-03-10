@@ -54,3 +54,14 @@ func (r *FakeMetadataOverrideRepository) Delete(_ context.Context, id string) er
 	delete(r.items, id)
 	return nil
 }
+
+func (r *FakeMetadataOverrideRepository) DeleteByMediaItemID(_ context.Context, mediaItemID string) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	for id, o := range r.items {
+		if o.MediaItemID == mediaItemID {
+			delete(r.items, id)
+		}
+	}
+	return nil
+}
