@@ -129,14 +129,38 @@ type MediaPerson struct {
 	SortOrder     int
 }
 
+type CollectionType string
+
+const (
+	CollectionManual CollectionType = "manual"
+	CollectionSmart  CollectionType = "smart"
+)
+
+type RuleOperator string
+
+const (
+	OpEq       RuleOperator = "eq"
+	OpNeq      RuleOperator = "neq"
+	OpGt       RuleOperator = "gt"
+	OpLt       RuleOperator = "lt"
+	OpContains RuleOperator = "contains"
+	OpIn       RuleOperator = "in"
+)
+
+type CollectionRule struct {
+	Field    string       `json:"field"`
+	Operator RuleOperator `json:"operator"`
+	Value    string       `json:"value"`
+}
+
 type Collection struct {
-	ID          string
-	Name        string
-	Overview    string
-	Type        string
-	FilterRules map[string]string
-	SortField   string
-	SortOrder   string
-	PosterPath  *string
-	CreatedAt   time.Time
+	ID        string
+	Name      string
+	Overview  string
+	Type      CollectionType
+	Rules     []CollectionRule
+	SortBy    string
+	SortOrder string
+	CreatedAt time.Time
+	UpdatedAt time.Time
 }

@@ -27,6 +27,7 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 
 	appactivity "github.com/gravity-zero/evey/internal/app/activity"
+	appcollection "github.com/gravity-zero/evey/internal/app/collection"
 	appfeed "github.com/gravity-zero/evey/internal/app/feed"
 	applibrary "github.com/gravity-zero/evey/internal/app/library"
 	appmetadata "github.com/gravity-zero/evey/internal/app/metadata"
@@ -141,6 +142,7 @@ func run() error {
 	feedAdminCfgRepo := postgres.NewFeedAdminConfigRepository(db)
 	feedProfileCfgRepo := postgres.NewFeedProfileConfigRepository(db)
 	feedQuerier := postgres.NewFeedQuerier(db)
+	collectionRepo := postgres.NewCollectionRepository(db)
 
 	// --- Infrastructure ---
 	searchAdapter, _ := meili.NewSearchAdapter(cfg.Meilisearch.URL, cfg.Meilisearch.APIKey)
@@ -252,6 +254,8 @@ func run() error {
 
 	feedSvc := appfeed.NewService(feedAdminCfgRepo, feedProfileCfgRepo, feedQuerier, watchHistoryAnalyzer)
 
+	collectionSvc := appcollection.NewService(collectionRepo)
+
 	// --- Auth interceptor ---
 	authInterceptor := interceptors.NewAuthInterceptor(tokenGen)
 	grpcLog := eveylogger.NewWith(rootLog, "grpc")
@@ -298,6 +302,7 @@ func run() error {
 		mux.HandleFunc("GET /api/v1/media/{id}/subtitle/{track}", subtitleHandler(tokenGen, librarySvc))
 		mux.HandleFunc("GET /api/v1/admin/library-stats", libraryStatsHandler(tokenGen, librarySvc))
 		registerAdminRoutes(mux, metadataSvc, tmdbProvider, tokenGen)
+		registerCollectionRoutes(mux, collectionSvc, tokenGen)
 		mux.Handle("/", gwMux)
 		httpSrv = &http.Server{
 			Addr:              fmt.Sprintf(":%d", httpPort),
@@ -928,4 +933,207 @@ func libraryStatsHandler(tokenGen interface {
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(map[string]any{"stats": stats})
 	}
+}
+
+func registerCollectionRoutes(mux *http.ServeMux, svc *appcollection.Service, tokenGen *auth.JWTGenerator) {
+	requireAuth := func(r *http.Request) bool {
+		h := r.Header.Get("Authorization")
+		if !strings.HasPrefix(h, "Bearer ") {
+			return false
+		}
+		_, err := tokenGen.ValidateAccessToken(strings.TrimPrefix(h, "Bearer "))
+		return err == nil
+	}
+
+	mux.HandleFunc("GET /api/v1/collections", func(w http.ResponseWriter, r *http.Request) {
+		if !requireAuth(r) {
+			http.Error(w, `{"message":"unauthenticated"}`, http.StatusUnauthorized)
+			return
+		}
+		cols, err := svc.List(r.Context())
+		if err != nil {
+			http.Error(w, `{"message":"internal"}`, http.StatusInternalServerError)
+			return
+		}
+		type colResp struct {
+			ID        string                       `json:"id"`
+			Name      string                       `json:"name"`
+			Overview  string                       `json:"overview,omitempty"`
+			Type      string                       `json:"type"`
+			Rules     []domainlibrary.CollectionRule `json:"rules"`
+			SortBy    string                       `json:"sortBy"`
+			SortOrder string                       `json:"sortOrder"`
+			CreatedAt string                       `json:"createdAt"`
+			UpdatedAt string                       `json:"updatedAt"`
+		}
+		out := make([]colResp, 0, len(cols))
+		for _, c := range cols {
+			rules := c.Rules
+			if rules == nil {
+				rules = []domainlibrary.CollectionRule{}
+			}
+			out = append(out, colResp{
+				ID: c.ID, Name: c.Name, Overview: c.Overview,
+				Type: string(c.Type), Rules: rules,
+				SortBy: c.SortBy, SortOrder: c.SortOrder,
+				CreatedAt: c.CreatedAt.Format(time.RFC3339),
+				UpdatedAt: c.UpdatedAt.Format(time.RFC3339),
+			})
+		}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]any{"collections": out})
+	})
+
+	mux.HandleFunc("POST /api/v1/collections", func(w http.ResponseWriter, r *http.Request) {
+		if !requireAuth(r) {
+			http.Error(w, `{"message":"unauthenticated"}`, http.StatusUnauthorized)
+			return
+		}
+		var body struct {
+			Name      string                         `json:"name"`
+			Overview  string                         `json:"overview"`
+			Type      string                         `json:"type"`
+			Rules     []domainlibrary.CollectionRule  `json:"rules"`
+			SortBy    string                         `json:"sortBy"`
+			SortOrder string                         `json:"sortOrder"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			http.Error(w, `{"message":"bad request"}`, http.StatusBadRequest)
+			return
+		}
+		if body.Name == "" {
+			http.Error(w, `{"message":"name required"}`, http.StatusBadRequest)
+			return
+		}
+		col := &domainlibrary.Collection{
+			Name:      body.Name,
+			Overview:  body.Overview,
+			Type:      domainlibrary.CollectionType(body.Type),
+			Rules:     body.Rules,
+			SortBy:    body.SortBy,
+			SortOrder: body.SortOrder,
+		}
+		if col.Type == "" {
+			col.Type = domainlibrary.CollectionSmart
+		}
+		if err := svc.Create(r.Context(), col); err != nil {
+			http.Error(w, `{"message":"internal"}`, http.StatusInternalServerError)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusCreated)
+		json.NewEncoder(w).Encode(map[string]any{"id": col.ID})
+	})
+
+	mux.HandleFunc("/api/v1/collections/", func(w http.ResponseWriter, r *http.Request) {
+		if !requireAuth(r) {
+			http.Error(w, `{"message":"unauthenticated"}`, http.StatusUnauthorized)
+			return
+		}
+		id := strings.TrimPrefix(r.URL.Path, "/api/v1/collections/")
+		if id == "" {
+			http.NotFound(w, r)
+			return
+		}
+		// strip sub-paths like /items
+		parts := strings.SplitN(id, "/", 2)
+		id = parts[0]
+
+		switch r.Method {
+		case http.MethodGet:
+			col, err := svc.GetByID(r.Context(), id)
+			if err != nil {
+				http.Error(w, `{"message":"not found"}`, http.StatusNotFound)
+				return
+			}
+			limit := 50
+			offset := 0
+			if l := r.URL.Query().Get("limit"); l != "" {
+				if n, e := strconv.Atoi(l); e == nil && n > 0 {
+					limit = n
+				}
+			}
+			if o := r.URL.Query().Get("offset"); o != "" {
+				if n, e := strconv.Atoi(o); e == nil && n >= 0 {
+					offset = n
+				}
+			}
+			items, total, err := svc.GetItems(r.Context(), id, limit, offset)
+			if err != nil {
+				http.Error(w, `{"message":"internal"}`, http.StatusInternalServerError)
+				return
+			}
+			rules := col.Rules
+			if rules == nil {
+				rules = []domainlibrary.CollectionRule{}
+			}
+			type itemResp struct {
+				ID              string   `json:"id"`
+				Title           string   `json:"title"`
+				Type            string   `json:"type"`
+				Year            *int     `json:"year,omitempty"`
+				Overview        string   `json:"overview,omitempty"`
+				CommunityRating *float64 `json:"communityRating,omitempty"`
+				Genres          []string `json:"genres,omitempty"`
+			}
+			mediaItems := make([]itemResp, 0, len(items))
+			for _, m := range items {
+				mediaItems = append(mediaItems, itemResp{
+					ID: m.ID, Title: m.Title, Type: m.Type,
+					Year: m.Year, Overview: m.Overview,
+					CommunityRating: m.CommunityRating, Genres: m.Genres,
+				})
+			}
+			w.Header().Set("Content-Type", "application/json")
+			json.NewEncoder(w).Encode(map[string]any{
+				"collection": map[string]any{
+					"id": col.ID, "name": col.Name, "overview": col.Overview,
+					"type": string(col.Type), "rules": rules,
+					"sortBy": col.SortBy, "sortOrder": col.SortOrder,
+					"createdAt": col.CreatedAt.Format(time.RFC3339),
+					"updatedAt": col.UpdatedAt.Format(time.RFC3339),
+				},
+				"items": mediaItems,
+				"total": total,
+			})
+
+		case http.MethodPut:
+			var body struct {
+				Name      string                         `json:"name"`
+				Overview  string                         `json:"overview"`
+				Type      string                         `json:"type"`
+				Rules     []domainlibrary.CollectionRule  `json:"rules"`
+				SortBy    string                         `json:"sortBy"`
+				SortOrder string                         `json:"sortOrder"`
+			}
+			if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+				http.Error(w, `{"message":"bad request"}`, http.StatusBadRequest)
+				return
+			}
+			col := &domainlibrary.Collection{
+				ID:        id,
+				Name:      body.Name,
+				Overview:  body.Overview,
+				Type:      domainlibrary.CollectionType(body.Type),
+				Rules:     body.Rules,
+				SortBy:    body.SortBy,
+				SortOrder: body.SortOrder,
+			}
+			if err := svc.Update(r.Context(), col); err != nil {
+				http.Error(w, `{"message":"not found"}`, http.StatusNotFound)
+				return
+			}
+			w.WriteHeader(http.StatusNoContent)
+
+		case http.MethodDelete:
+			if err := svc.Delete(r.Context(), id); err != nil {
+				http.Error(w, `{"message":"not found"}`, http.StatusNotFound)
+				return
+			}
+			w.WriteHeader(http.StatusNoContent)
+
+		default:
+			http.Error(w, `{"message":"method not allowed"}`, http.StatusMethodNotAllowed)
+		}
+	})
 }
