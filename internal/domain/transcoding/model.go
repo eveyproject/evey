@@ -68,3 +68,15 @@ type TranscodeProgress struct {
 	CurrentBitrate int64
 	ETAMs          int64
 }
+
+type CacheFileInfo struct {
+	Name         string
+	Size         int64
+	LastModified time.Time
+}
+
+type CacheInfo struct {
+	TotalSize int64
+	FileCount int
+	Files     []CacheFileInfo
+}

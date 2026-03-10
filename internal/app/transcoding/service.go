@@ -13,11 +13,12 @@ import (
 var ErrMaxConcurrent = errors.New("max concurrent transcodes reached")
 
 type Service struct {
-	transcoder   transcoding.Transcoder
-	hwDetector   transcoding.HWDetector
-	jobs         transcoding.TranscodeJobRepository
-	profiles     transcoding.TranscodeProfileRepository
-	events       shared.EventBus
+	transcoder    transcoding.Transcoder
+	hwDetector    transcoding.HWDetector
+	jobs          transcoding.TranscodeJobRepository
+	profiles      transcoding.TranscodeProfileRepository
+	events        shared.EventBus
+	cache         transcoding.CacheStore
 	maxConcurrent int
 }
 
@@ -37,6 +38,10 @@ func NewService(
 		events:        events,
 		maxConcurrent: maxConcurrent,
 	}
+}
+
+func (s *Service) WithCacheStore(cs transcoding.CacheStore) {
+	s.cache = cs
 }
 
 func (s *Service) StartTranscode(ctx context.Context, job *transcoding.TranscodeJob) error {
@@ -108,4 +113,25 @@ func (s *Service) ListProfiles(ctx context.Context) ([]*transcoding.TranscodePro
 
 func (s *Service) DetectHardware(ctx context.Context) ([]transcoding.HWDevice, error) {
 	return s.hwDetector.DetectDevices(ctx)
+}
+
+func (s *Service) GetCacheInfo(ctx context.Context) (*transcoding.CacheInfo, error) {
+	if s.cache == nil {
+		return &transcoding.CacheInfo{}, nil
+	}
+	return s.cache.GetCacheInfo(ctx)
+}
+
+func (s *Service) ClearCache(ctx context.Context) error {
+	if s.cache == nil {
+		return nil
+	}
+	return s.cache.ClearCache(ctx)
+}
+
+func (s *Service) DeleteCacheFile(ctx context.Context, filename string) error {
+	if s.cache == nil {
+		return fmt.Errorf("cache store not configured")
+	}
+	return s.cache.DeleteFile(ctx, filename)
 }

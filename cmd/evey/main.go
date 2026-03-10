@@ -193,6 +193,8 @@ func run() error {
 		transcodeJobRepo, transcodeProfileRepo,
 		bus, cfg.Transcoding.MaxConcurrent,
 	)
+	cacheStore := filesystem.NewCacheStore(cfg.Transcoding.CacheDir)
+	transcodingSvc.WithCacheStore(cacheStore)
 
 	mkvSvc := appmkv.NewService(ebmlReader, ebmlWriter)
 
@@ -354,6 +356,7 @@ func run() error {
 		registerAdminRoutes(mux, metadataSvc, tokenGen)
 		registerFavoriteRoutes(mux, favoriteSvc, tokenGen)
 		registerMetadataOverrideRoutes(mux, metadataSvc, tokenGen)
+		registerTranscodeCacheRoutes(mux, transcodingSvc, tokenGen)
 		mux.Handle("/", ratelimit.Middleware(globalRL)(gwMux))
 		httpSrv = &http.Server{
 			Addr:              fmt.Sprintf(":%d", httpPort),

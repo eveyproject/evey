@@ -9,6 +9,8 @@ import (
 	"strings"
 	"time"
 
+	apptranscoding "github.com/gravity-zero/evey/internal/app/transcoding"
+
 	"github.com/grpc-ecosystem/grpc-gateway/v2/runtime"
 	eveyv1 "github.com/gravity-zero/evey/gen/evey/v1"
 	"google.golang.org/grpc"
@@ -312,5 +314,76 @@ func registerMetadataOverrideRoutes(mux *http.ServeMux, metaSvc *appmetadata.Ser
 		}
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(map[string]any{"overrides": result})
+	})
+}
+
+func registerTranscodeCacheRoutes(mux *http.ServeMux, transcodeSvc *apptranscoding.Service, tokenGen *auth.JWTGenerator) {
+	requireAdmin := func(r *http.Request) bool {
+		h := r.Header.Get("Authorization")
+		if !strings.HasPrefix(h, "Bearer ") {
+			return false
+		}
+		claims, err := tokenGen.ValidateAccessToken(strings.TrimPrefix(h, "Bearer "))
+		return err == nil && claims.IsAdmin
+	}
+
+	mux.HandleFunc("GET /api/v1/admin/transcode-cache", func(w http.ResponseWriter, r *http.Request) {
+		if !requireAdmin(r) {
+			http.Error(w, `{"message":"forbidden"}`, http.StatusForbidden)
+			return
+		}
+		info, err := transcodeSvc.GetCacheInfo(r.Context())
+		if err != nil {
+			http.Error(w, `{"message":"internal error"}`, http.StatusInternalServerError)
+			return
+		}
+		type fileEntry struct {
+			Name         string `json:"name"`
+			Size         int64  `json:"size"`
+			LastModified string `json:"lastModified"`
+		}
+		resp := struct {
+			TotalSize int64       `json:"totalSize"`
+			FileCount int         `json:"fileCount"`
+			Files     []fileEntry `json:"files"`
+		}{TotalSize: info.TotalSize, FileCount: info.FileCount, Files: make([]fileEntry, 0, len(info.Files))}
+		for _, f := range info.Files {
+			resp.Files = append(resp.Files, fileEntry{Name: f.Name, Size: f.Size, LastModified: f.LastModified.UTC().Format(time.RFC3339)})
+		}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(resp)
+	})
+
+	mux.HandleFunc("DELETE /api/v1/admin/transcode-cache", func(w http.ResponseWriter, r *http.Request) {
+		if !requireAdmin(r) {
+			http.Error(w, `{"message":"forbidden"}`, http.StatusForbidden)
+			return
+		}
+		if err := transcodeSvc.ClearCache(r.Context()); err != nil {
+			http.Error(w, `{"message":"internal error"}`, http.StatusInternalServerError)
+			return
+		}
+		w.WriteHeader(http.StatusNoContent)
+	})
+
+	mux.HandleFunc("DELETE /api/v1/admin/transcode-cache/{filename}", func(w http.ResponseWriter, r *http.Request) {
+		if !requireAdmin(r) {
+			http.Error(w, `{"message":"forbidden"}`, http.StatusForbidden)
+			return
+		}
+		filename := r.PathValue("filename")
+		if err := transcodeSvc.DeleteCacheFile(r.Context(), filename); err != nil {
+			if strings.Contains(err.Error(), "not found") {
+				http.Error(w, `{"message":"file not found"}`, http.StatusNotFound)
+				return
+			}
+			if strings.Contains(err.Error(), "invalid") {
+				http.Error(w, `{"message":"invalid filename"}`, http.StatusBadRequest)
+				return
+			}
+			http.Error(w, `{"message":"internal error"}`, http.StatusInternalServerError)
+			return
+		}
+		w.WriteHeader(http.StatusNoContent)
 	})
 }
