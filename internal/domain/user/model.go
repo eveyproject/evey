@@ -24,6 +24,13 @@ type User struct {
 	UpdatedAt    time.Time
 }
 
+type ParentalSettings struct {
+	MaxRating   string
+	BlockedTags []string
+	PINHash     string
+	Enabled     bool
+}
+
 type Profile struct {
 	ID                string
 	UserID            string
@@ -35,6 +42,7 @@ type Profile struct {
 	AudioLanguages    []string // ordered fallback list, e.g. ["fr","en"]
 	SubtitleLanguages []string // ordered fallback list
 	MaxBitrateKbps    *int
+	Parental          *ParentalSettings
 	CreatedAt         time.Time
 }
 

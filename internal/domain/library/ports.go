@@ -126,6 +126,8 @@ type SearchHit struct {
 	Year             *int
 	Type             string
 	Genres           []string
+	Tags             []string
+	OfficialRating   string
 	HighlightedTitle string
 }
 

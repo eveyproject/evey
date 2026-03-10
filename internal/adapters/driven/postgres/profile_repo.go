@@ -30,11 +30,14 @@ func (r *ProfileRepository) Create(ctx context.Context, p *user.Profile) error {
 	if subLangs == nil {
 		subLangs = []string{}
 	}
+	pMaxRating, pBlockedTags, pPINHash, pEnabled := parentalToColumns(p.Parental)
 	_, err = r.db.ExecContext(ctx,
-		`INSERT INTO profiles (id, user_id, name, avatar_path, preferences, max_rating, is_default, audio_languages, subtitle_languages, max_bitrate_kbps, created_at)
-		 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)`,
+		`INSERT INTO profiles (id, user_id, name, avatar_path, preferences, max_rating, is_default, audio_languages, subtitle_languages, max_bitrate_kbps, parental_max_rating, parental_blocked_tags, parental_pin_hash, parental_enabled, created_at)
+		 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)`,
 		p.ID, p.UserID, p.Name, p.AvatarPath, prefsJSON, p.MaxRating, p.IsDefault,
-		pq.Array(audioLangs), pq.Array(subLangs), p.MaxBitrateKbps, p.CreatedAt,
+		pq.Array(audioLangs), pq.Array(subLangs), p.MaxBitrateKbps,
+		pMaxRating, pq.Array(pBlockedTags), pPINHash, pEnabled,
+		p.CreatedAt,
 	)
 	return err
 }
@@ -42,21 +45,27 @@ func (r *ProfileRepository) Create(ctx context.Context, p *user.Profile) error {
 func (r *ProfileRepository) GetByID(ctx context.Context, id string) (*user.Profile, error) {
 	p := &user.Profile{}
 	var prefsJSON []byte
+	var pMaxRating, pPINHash string
+	var pBlockedTags []string
+	var pEnabled bool
 	err := r.db.QueryRowContext(ctx,
-		`SELECT id, user_id, name, avatar_path, preferences, max_rating, is_default, audio_languages, subtitle_languages, max_bitrate_kbps, created_at
+		`SELECT id, user_id, name, avatar_path, preferences, max_rating, is_default, audio_languages, subtitle_languages, max_bitrate_kbps, parental_max_rating, parental_blocked_tags, parental_pin_hash, parental_enabled, created_at
 		 FROM profiles WHERE id = $1`, id,
 	).Scan(&p.ID, &p.UserID, &p.Name, &p.AvatarPath, &prefsJSON, &p.MaxRating, &p.IsDefault,
-		pq.Array(&p.AudioLanguages), pq.Array(&p.SubtitleLanguages), &p.MaxBitrateKbps, &p.CreatedAt)
+		pq.Array(&p.AudioLanguages), pq.Array(&p.SubtitleLanguages), &p.MaxBitrateKbps,
+		&pMaxRating, pq.Array(&pBlockedTags), &pPINHash, &pEnabled,
+		&p.CreatedAt)
 	if err != nil {
 		return nil, err
 	}
 	_ = json.Unmarshal(prefsJSON, &p.Preferences)
+	p.Parental = parentalFromColumns(pMaxRating, pBlockedTags, pPINHash, pEnabled)
 	return p, nil
 }
 
 func (r *ProfileRepository) GetByUserID(ctx context.Context, userID string) ([]*user.Profile, error) {
 	rows, err := r.db.QueryContext(ctx,
-		`SELECT id, user_id, name, avatar_path, preferences, max_rating, is_default, audio_languages, subtitle_languages, max_bitrate_kbps, created_at
+		`SELECT id, user_id, name, avatar_path, preferences, max_rating, is_default, audio_languages, subtitle_languages, max_bitrate_kbps, parental_max_rating, parental_blocked_tags, parental_pin_hash, parental_enabled, created_at
 		 FROM profiles WHERE user_id = $1 ORDER BY is_default DESC, name`, userID)
 	if err != nil {
 		return nil, err
@@ -65,13 +74,10 @@ func (r *ProfileRepository) GetByUserID(ctx context.Context, userID string) ([]*
 
 	var result []*user.Profile
 	for rows.Next() {
-		p := &user.Profile{}
-		var prefsJSON []byte
-		if err := rows.Scan(&p.ID, &p.UserID, &p.Name, &p.AvatarPath, &prefsJSON, &p.MaxRating, &p.IsDefault,
-			pq.Array(&p.AudioLanguages), pq.Array(&p.SubtitleLanguages), &p.MaxBitrateKbps, &p.CreatedAt); err != nil {
+		p, err := scanProfile(rows)
+		if err != nil {
 			return nil, err
 		}
-		_ = json.Unmarshal(prefsJSON, &p.Preferences)
 		result = append(result, p)
 	}
 	return result, rows.Err()
@@ -90,17 +96,20 @@ func (r *ProfileRepository) Update(ctx context.Context, p *user.Profile) error {
 	if subLangs == nil {
 		subLangs = []string{}
 	}
+	pMaxRating, pBlockedTags, pPINHash, pEnabled := parentalToColumns(p.Parental)
 	_, err = r.db.ExecContext(ctx,
-		`UPDATE profiles SET name=$1, avatar_path=$2, preferences=$3, max_rating=$4, is_default=$5, audio_languages=$6, subtitle_languages=$7, max_bitrate_kbps=$8 WHERE id=$9`,
+		`UPDATE profiles SET name=$1, avatar_path=$2, preferences=$3, max_rating=$4, is_default=$5, audio_languages=$6, subtitle_languages=$7, max_bitrate_kbps=$8, parental_max_rating=$9, parental_blocked_tags=$10, parental_pin_hash=$11, parental_enabled=$12 WHERE id=$13`,
 		p.Name, p.AvatarPath, prefsJSON, p.MaxRating, p.IsDefault,
-		pq.Array(audioLangs), pq.Array(subLangs), p.MaxBitrateKbps, p.ID,
+		pq.Array(audioLangs), pq.Array(subLangs), p.MaxBitrateKbps,
+		pMaxRating, pq.Array(pBlockedTags), pPINHash, pEnabled,
+		p.ID,
 	)
 	return err
 }
 
 func (r *ProfileRepository) GetAll(ctx context.Context) ([]*user.Profile, error) {
 	rows, err := r.db.QueryContext(ctx,
-		`SELECT id, user_id, name, avatar_path, preferences, max_rating, is_default, audio_languages, subtitle_languages, max_bitrate_kbps, created_at
+		`SELECT id, user_id, name, avatar_path, preferences, max_rating, is_default, audio_languages, subtitle_languages, max_bitrate_kbps, parental_max_rating, parental_blocked_tags, parental_pin_hash, parental_enabled, created_at
 		 FROM profiles ORDER BY user_id, is_default DESC, name`)
 	if err != nil {
 		return nil, err
@@ -109,13 +118,10 @@ func (r *ProfileRepository) GetAll(ctx context.Context) ([]*user.Profile, error)
 
 	var result []*user.Profile
 	for rows.Next() {
-		p := &user.Profile{}
-		var prefsJSON []byte
-		if err := rows.Scan(&p.ID, &p.UserID, &p.Name, &p.AvatarPath, &prefsJSON, &p.MaxRating, &p.IsDefault,
-			pq.Array(&p.AudioLanguages), pq.Array(&p.SubtitleLanguages), &p.MaxBitrateKbps, &p.CreatedAt); err != nil {
+		p, err := scanProfile(rows)
+		if err != nil {
 			return nil, err
 		}
-		_ = json.Unmarshal(prefsJSON, &p.Preferences)
 		result = append(result, p)
 	}
 	return result, rows.Err()
@@ -124,4 +130,44 @@ func (r *ProfileRepository) GetAll(ctx context.Context) ([]*user.Profile, error)
 func (r *ProfileRepository) Delete(ctx context.Context, id string) error {
 	_, err := r.db.ExecContext(ctx, `DELETE FROM profiles WHERE id = $1`, id)
 	return err
+}
+
+func scanProfile(rows *sql.Rows) (*user.Profile, error) {
+	p := &user.Profile{}
+	var prefsJSON []byte
+	var pMaxRating, pPINHash string
+	var pBlockedTags []string
+	var pEnabled bool
+	if err := rows.Scan(&p.ID, &p.UserID, &p.Name, &p.AvatarPath, &prefsJSON, &p.MaxRating, &p.IsDefault,
+		pq.Array(&p.AudioLanguages), pq.Array(&p.SubtitleLanguages), &p.MaxBitrateKbps,
+		&pMaxRating, pq.Array(&pBlockedTags), &pPINHash, &pEnabled,
+		&p.CreatedAt); err != nil {
+		return nil, err
+	}
+	_ = json.Unmarshal(prefsJSON, &p.Preferences)
+	p.Parental = parentalFromColumns(pMaxRating, pBlockedTags, pPINHash, pEnabled)
+	return p, nil
+}
+
+func parentalToColumns(ps *user.ParentalSettings) (string, []string, string, bool) {
+	if ps == nil {
+		return "", []string{}, "", false
+	}
+	tags := ps.BlockedTags
+	if tags == nil {
+		tags = []string{}
+	}
+	return ps.MaxRating, tags, ps.PINHash, ps.Enabled
+}
+
+func parentalFromColumns(maxRating string, blockedTags []string, pinHash string, enabled bool) *user.ParentalSettings {
+	if !enabled && maxRating == "" && pinHash == "" && len(blockedTags) == 0 {
+		return nil
+	}
+	return &user.ParentalSettings{
+		MaxRating:   maxRating,
+		BlockedTags: blockedTags,
+		PINHash:     pinHash,
+		Enabled:     enabled,
+	}
 }

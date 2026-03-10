@@ -156,21 +156,25 @@ func (a *SearchAdapter) Search(ctx context.Context, query string, filters map[st
 	hits := make([]library.SearchHit, 0, len(resp.Hits))
 	for _, hit := range resp.Hits {
 		var doc struct {
-			ID     string   `json:"id"`
-			Title  string   `json:"title"`
-			Year   *int     `json:"year"`
-			Type   string   `json:"type"`
-			Genres []string `json:"genres"`
+			ID             string   `json:"id"`
+			Title          string   `json:"title"`
+			Year           *int     `json:"year"`
+			Type           string   `json:"type"`
+			Genres         []string `json:"genres"`
+			Tags           []string `json:"tags"`
+			OfficialRating string   `json:"official_rating"`
 		}
 		if err := hit.DecodeInto(&doc); err != nil {
 			continue
 		}
 		h := library.SearchHit{
-			ID:     doc.ID,
-			Title:  doc.Title,
-			Year:   doc.Year,
-			Type:   doc.Type,
-			Genres: doc.Genres,
+			ID:             doc.ID,
+			Title:          doc.Title,
+			Year:           doc.Year,
+			Type:           doc.Type,
+			Genres:         doc.Genres,
+			Tags:           doc.Tags,
+			OfficialRating: doc.OfficialRating,
 		}
 		if raw, ok := hit["_formatted"]; ok {
 			var fm map[string]string
