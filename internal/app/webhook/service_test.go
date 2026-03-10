@@ -2,9 +2,13 @@ package webhook_test
 
 import (
 	"context"
+	"fmt"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -12,8 +16,6 @@ import (
 	"github.com/gravity-zero/evey/internal/domain/shared"
 	"github.com/gravity-zero/evey/internal/domain/shared/fakes"
 	webhookdomain "github.com/gravity-zero/evey/internal/domain/webhook"
-	"log/slog"
-	"os"
 )
 
 // --- fakes ---
@@ -261,5 +263,204 @@ func TestHandleAny_DeliverToMatchingWebhook(t *testing.T) {
 	deliveries.mu.Unlock()
 	if n == 0 {
 		t.Fatal("delivery record not written")
+	}
+}
+
+func TestHandleAny_ConcurrencyBounded(t *testing.T) {
+	var concurrent atomic.Int32
+	var maxSeen atomic.Int32
+	gate := make(chan struct{})
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		cur := concurrent.Add(1)
+		for {
+			old := maxSeen.Load()
+			if cur <= old || maxSeen.CompareAndSwap(old, cur) {
+				break
+			}
+		}
+		<-gate
+		concurrent.Add(-1)
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer srv.Close()
+
+	repo := &fakeWebhookRepo{}
+	deliveries := &fakeDeliveryRepo{}
+	bus := fakes.NewFakeEventBus()
+	_ = newTestService(repo, deliveries, bus)
+
+	ctx := context.Background()
+	// create 15 enabled webhooks (more than maxConcurrentDeliveries=10)
+	for i := 0; i < 15; i++ {
+		repo.mu.Lock()
+		repo.data = append(repo.data, &webhookdomain.Config{
+			ID:      fmt.Sprintf("w%d", i),
+			URL:     srv.URL,
+			Events:  []string{"*"},
+			Enabled: true,
+		})
+		repo.mu.Unlock()
+	}
+
+	_ = bus.Publish(ctx, fakeEvent{"test.event"})
+
+	// let goroutines start
+	time.Sleep(100 * time.Millisecond)
+
+	if maxSeen.Load() > 10 {
+		t.Fatalf("concurrent deliveries exceeded limit: %d > 10", maxSeen.Load())
+	}
+
+	close(gate)
+	time.Sleep(200 * time.Millisecond)
+}
+
+func TestHandleAny_SkipsDisabledWebhook(t *testing.T) {
+	var called atomic.Int32
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		called.Add(1)
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer srv.Close()
+
+	repo := &fakeWebhookRepo{}
+	deliveries := &fakeDeliveryRepo{}
+	bus := fakes.NewFakeEventBus()
+	_ = newTestService(repo, deliveries, bus)
+
+	repo.mu.Lock()
+	repo.data = append(repo.data, &webhookdomain.Config{
+		ID: "disabled", URL: srv.URL, Events: []string{"*"}, Enabled: false,
+	})
+	repo.mu.Unlock()
+
+	_ = bus.Publish(context.Background(), fakeEvent{"test.event"})
+	time.Sleep(100 * time.Millisecond)
+
+	if called.Load() != 0 {
+		t.Fatal("disabled webhook should not be called")
+	}
+}
+
+func TestHandleAny_SkipsNonMatchingEvent(t *testing.T) {
+	var called atomic.Int32
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		called.Add(1)
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer srv.Close()
+
+	repo := &fakeWebhookRepo{}
+	deliveries := &fakeDeliveryRepo{}
+	bus := fakes.NewFakeEventBus()
+	_ = newTestService(repo, deliveries, bus)
+
+	repo.mu.Lock()
+	repo.data = append(repo.data, &webhookdomain.Config{
+		ID: "specific", URL: srv.URL, Events: []string{"media.item.added"}, Enabled: true,
+	})
+	repo.mu.Unlock()
+
+	_ = bus.Publish(context.Background(), fakeEvent{"user.created"})
+	time.Sleep(100 * time.Millisecond)
+
+	if called.Load() != 0 {
+		t.Fatal("non-matching event should not trigger delivery")
+	}
+}
+
+func TestHandleAny_WildcardEventMatch(t *testing.T) {
+	received := make(chan struct{}, 1)
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		received <- struct{}{}
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer srv.Close()
+
+	repo := &fakeWebhookRepo{}
+	deliveries := &fakeDeliveryRepo{}
+	bus := fakes.NewFakeEventBus()
+	_ = newTestService(repo, deliveries, bus)
+
+	repo.mu.Lock()
+	repo.data = append(repo.data, &webhookdomain.Config{
+		ID: "wildcard", URL: srv.URL, Events: []string{"*"}, Enabled: true,
+	})
+	repo.mu.Unlock()
+
+	_ = bus.Publish(context.Background(), fakeEvent{"anything.goes"})
+
+	select {
+	case <-received:
+	case <-time.After(2 * time.Second):
+		t.Fatal("wildcard webhook not delivered")
+	}
+}
+
+func TestUpdate(t *testing.T) {
+	repo := &fakeWebhookRepo{}
+	deliveries := &fakeDeliveryRepo{}
+	bus := fakes.NewFakeEventBus()
+	svc := newTestService(repo, deliveries, bus)
+
+	ctx := context.Background()
+	cfg := &webhookdomain.Config{Name: "orig", URL: "http://orig.com", Events: []string{"*"}, Enabled: true}
+	_ = svc.Create(ctx, cfg)
+
+	cfg.Name = "updated"
+	if err := svc.Update(ctx, cfg); err != nil {
+		t.Fatalf("Update: %v", err)
+	}
+
+	list, _ := svc.List(ctx)
+	if len(list) != 1 || list[0].Name != "updated" {
+		t.Fatalf("expected updated name, got %v", list)
+	}
+}
+
+func TestHandleAny_DeliveryRecordsError(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+	}))
+	defer srv.Close()
+
+	repo := &fakeWebhookRepo{}
+	deliveries := &fakeDeliveryRepo{}
+	bus := fakes.NewFakeEventBus()
+	svc := newTestService(repo, deliveries, bus)
+	svc.SetRetryDelays([]time.Duration{10 * time.Millisecond})
+
+	repo.mu.Lock()
+	repo.data = append(repo.data, &webhookdomain.Config{
+		ID: "fail", URL: srv.URL, Events: []string{"*"}, Enabled: true,
+	})
+	repo.mu.Unlock()
+
+	_ = bus.Publish(context.Background(), fakeEvent{"test.event"})
+
+	deadline := time.After(5 * time.Second)
+	for {
+		deliveries.mu.Lock()
+		n := len(deliveries.data)
+		deliveries.mu.Unlock()
+		if n > 0 {
+			break
+		}
+		select {
+		case <-deadline:
+			t.Fatal("delivery record not written after retries")
+		case <-time.After(50 * time.Millisecond):
+		}
+	}
+
+	deliveries.mu.Lock()
+	d := deliveries.data[0]
+	deliveries.mu.Unlock()
+	if d.Error == "" {
+		t.Fatal("expected error in delivery record")
+	}
+	if d.StatusCode != http.StatusInternalServerError {
+		t.Fatalf("expected status 500, got %d", d.StatusCode)
 	}
 }

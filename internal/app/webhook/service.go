@@ -17,7 +17,12 @@ import (
 	"github.com/gravity-zero/evey/internal/pkg/urlvalidator"
 )
 
-var retryDelays = []time.Duration{1 * time.Second, 5 * time.Second, 30 * time.Second}
+const (
+	maxConcurrentDeliveries = 10
+	deliveryTimeout         = 30 * time.Second
+)
+
+var defaultRetryDelays = []time.Duration{1 * time.Second, 5 * time.Second, 30 * time.Second}
 
 type Service struct {
 	repo        webhook.Repository
@@ -25,6 +30,8 @@ type Service struct {
 	log         *slog.Logger
 	httpClient  *http.Client
 	validateURL func(string) error
+	sem         chan struct{}
+	retryDelays []time.Duration
 }
 
 func NewService(
@@ -39,14 +46,19 @@ func NewService(
 		log:         log,
 		httpClient:  &http.Client{Timeout: 10 * time.Second},
 		validateURL: urlvalidator.ValidateWebhookURL,
+		sem:         make(chan struct{}, maxConcurrentDeliveries),
+		retryDelays: defaultRetryDelays,
 	}
 	events.Subscribe("*", s.handleAny)
 	return s
 }
 
-// SetURLValidator overrides the URL validation function (for tests).
 func (s *Service) SetURLValidator(fn func(string) error) {
 	s.validateURL = fn
+}
+
+func (s *Service) SetRetryDelays(delays []time.Duration) {
+	s.retryDelays = delays
 }
 
 func (s *Service) handleAny(_ context.Context, ev shared.Event) {
@@ -62,7 +74,17 @@ func (s *Service) handleAny(_ context.Context, ev shared.Event) {
 		if !matchesAny(cfg.Events, ev.EventName()) {
 			continue
 		}
-		go s.deliver(context.Background(), cfg, ev.EventName(), ev)
+		select {
+		case s.sem <- struct{}{}:
+			go func(c *webhook.Config) {
+				defer func() { <-s.sem }()
+				ctx, cancel := context.WithTimeout(context.Background(), deliveryTimeout)
+				defer cancel()
+				s.deliver(ctx, c, ev.EventName(), ev)
+			}(cfg)
+		default:
+			s.log.Warn("webhook: delivery queue full, dropping", slog.String("webhook", cfg.ID))
+		}
 	}
 }
 
@@ -89,15 +111,28 @@ func (s *Service) deliver(ctx context.Context, cfg *webhook.Config, eventName st
 		return
 	}
 
+	lastErr, statusCode := s.attemptDeliver(ctx, cfg, body)
+
+	_ = s.deliveries.Create(context.Background(), &webhook.Delivery{
+		ID:         uuid.New().String(),
+		WebhookID:  cfg.ID,
+		Event:      eventName,
+		StatusCode: statusCode,
+		Error:      lastErr,
+		SentAt:     time.Now(),
+	})
+}
+
+func (s *Service) attemptDeliver(ctx context.Context, cfg *webhook.Config, body []byte) (string, int) {
 	var lastErr string
 	var statusCode int
 
-	for attempt := 0; attempt <= len(retryDelays); attempt++ {
+	for attempt := 0; attempt <= len(s.retryDelays); attempt++ {
 		if attempt > 0 {
 			select {
-			case <-time.After(retryDelays[attempt-1]):
+			case <-time.After(s.retryDelays[attempt-1]):
 			case <-ctx.Done():
-				return
+				return ctx.Err().Error(), statusCode
 			}
 		}
 
@@ -123,21 +158,13 @@ func (s *Service) deliver(ctx context.Context, cfg *webhook.Config, eventName st
 		statusCode = resp.StatusCode
 
 		if resp.StatusCode < 300 {
-			lastErr = ""
-			break
+			return "", statusCode
 		}
 		lastErr = fmt.Sprintf("HTTP %d", resp.StatusCode)
 		s.log.Warn("webhook non-2xx", slog.String("webhook", cfg.ID), slog.Int("status", resp.StatusCode))
 	}
 
-	_ = s.deliveries.Create(ctx, &webhook.Delivery{
-		ID:         uuid.New().String(),
-		WebhookID:  cfg.ID,
-		Event:      eventName,
-		StatusCode: statusCode,
-		Error:      lastErr,
-		SentAt:     time.Now(),
-	})
+	return lastErr, statusCode
 }
 
 func sign(secret string, body []byte) string {
