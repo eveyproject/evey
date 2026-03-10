@@ -35,7 +35,7 @@ func NewOMDbProvider(apiKey string, httpClient *http.Client) *OMDbProvider {
 
 func (p *OMDbProvider) Name() string { return "omdb" }
 
-func (p *OMDbProvider) Search(ctx context.Context, query string, mediaType string) ([]domain.MetadataResult, error) {
+func (p *OMDbProvider) Search(ctx context.Context, query string, year *int, mediaType string) ([]domain.MetadataResult, error) {
 	if p.apiKey == "" {
 		return nil, nil
 	}
@@ -49,6 +49,9 @@ func (p *OMDbProvider) Search(ctx context.Context, query string, mediaType strin
 		"apikey": {p.apiKey},
 		"s":      {query},
 		"type":   {omdbType},
+	}
+	if year != nil {
+		params.Set("y", strconv.Itoa(*year))
 	}
 	u := fmt.Sprintf("%s/?%s", p.baseURL, params.Encode())
 

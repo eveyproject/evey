@@ -32,7 +32,7 @@ func NewFakeMetadataProvider(name string) *FakeMetadataProvider {
 
 func (p *FakeMetadataProvider) Name() string { return p.ProviderName }
 
-func (p *FakeMetadataProvider) Search(_ context.Context, query string, _ string) ([]metadata.MetadataResult, error) {
+func (p *FakeMetadataProvider) Search(_ context.Context, query string, _ *int, _ string) ([]metadata.MetadataResult, error) {
 	p.mu.RLock()
 	defer p.mu.RUnlock()
 	return p.SearchResults[query], nil

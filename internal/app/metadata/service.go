@@ -50,7 +50,7 @@ func (s *Service) WithEnricher(enricher ItemEnricher, mediaItems library.MediaIt
 func (s *Service) SearchMetadata(ctx context.Context, query, mediaType string) ([]metadata.MetadataResult, error) {
 	var results []metadata.MetadataResult
 	for _, p := range s.providers {
-		r, err := p.Search(ctx, query, mediaType)
+		r, err := p.Search(ctx, query, nil, mediaType)
 		if err != nil {
 			continue
 		}

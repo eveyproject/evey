@@ -60,12 +60,26 @@ func NewTMDBProvider(apiKey string, language string, httpClient *http.Client) *T
 
 func (p *TMDBProvider) Name() string { return "tmdb" }
 
-func (p *TMDBProvider) Search(ctx context.Context, query string, mediaType string) ([]domain.MetadataResult, error) {
+func (p *TMDBProvider) Search(ctx context.Context, query string, year *int, mediaType string) ([]domain.MetadataResult, error) {
 	endpoint, err := searchEndpoint(mediaType)
 	if err != nil {
 		return nil, err
 	}
 
+	// Try with year filter first, fallback without if no results
+	if year != nil {
+		results, err := p.searchPages(ctx, endpoint, query, year, mediaType)
+		if err != nil {
+			return nil, err
+		}
+		if len(results) > 0 {
+			return results, nil
+		}
+	}
+	return p.searchPages(ctx, endpoint, query, nil, mediaType)
+}
+
+func (p *TMDBProvider) searchPages(ctx context.Context, endpoint, query string, year *int, mediaType string) ([]domain.MetadataResult, error) {
 	var allResults []domain.MetadataResult
 	genreMap := genreMapForType(mediaType)
 
@@ -74,6 +88,14 @@ func (p *TMDBProvider) Search(ctx context.Context, query string, mediaType strin
 			"query":    {query},
 			"page":     {strconv.Itoa(page)},
 			"language": {p.language},
+		}
+		if year != nil {
+			yearStr := strconv.Itoa(*year)
+			if mediaType == "tv" {
+				params.Set("first_air_date_year", yearStr)
+			} else {
+				params.Set("primary_release_year", yearStr)
+			}
 		}
 		u := fmt.Sprintf("%s%s?%s", p.baseURL, endpoint, params.Encode())
 

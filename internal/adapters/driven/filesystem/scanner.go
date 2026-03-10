@@ -59,6 +59,13 @@ func (s *Scanner) Scan(ctx context.Context, root string) ([]library.ScannedFile,
 			return nil
 		}
 		parsed := (&FilenameParser{}).Parse(path)
+		// If no year from filename, try parent directory (e.g. "Show Name (2025)/")
+		if parsed.Year == nil {
+			dirParsed := (&FilenameParser{}).Parse(filepath.Dir(path) + ".mkv")
+			if dirParsed.Year != nil {
+				parsed.Year = dirParsed.Year
+			}
+		}
 		itemType := library.MovieItem
 		if parsed.Type == "series" {
 			itemType = library.Episode

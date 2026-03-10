@@ -4,7 +4,7 @@ import "context"
 
 type MetadataProvider interface {
 	Name() string
-	Search(ctx context.Context, query string, mediaType string) ([]MetadataResult, error)
+	Search(ctx context.Context, query string, year *int, mediaType string) ([]MetadataResult, error)
 	GetByProviderID(ctx context.Context, providerID string, mediaType string) (*MetadataResult, error)
 }
 

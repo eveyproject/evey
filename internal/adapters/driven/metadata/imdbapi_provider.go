@@ -32,7 +32,7 @@ func NewIMDBAPIProvider(httpClient *http.Client) *IMDBAPIProvider {
 func (p *IMDBAPIProvider) Name() string { return "imdbapi" }
 
 // Search queries imdbapi.dev /search/titles.
-func (p *IMDBAPIProvider) Search(ctx context.Context, query string, mediaType string) ([]domain.MetadataResult, error) {
+func (p *IMDBAPIProvider) Search(ctx context.Context, query string, _ *int, mediaType string) ([]domain.MetadataResult, error) {
 	params := url.Values{"query": {query}, "limit": {"10"}}
 	u := fmt.Sprintf("%s/search/titles?%s", p.baseURL, params.Encode())
 

@@ -117,6 +117,40 @@ func TestPickBestMatch_YearBonus(t *testing.T) {
 	assert.Equal(t, &y2005, best.Year)
 }
 
+func TestPickBestMatch_RebootPenalty(t *testing.T) {
+	y1990 := 1990
+	y2017 := 2017
+	y2025 := 2025
+	// "Robin Hood" reboot: same title, different year → year-close match wins
+	results := []domain.MetadataResult{
+		{Title: "Robin Hood", Year: &y1990},
+		{Title: "Robin Hood", Year: &y2017},
+	}
+	best := pickBestMatch(results, "Robin Hood", &y2017)
+	assert.Equal(t, &y2017, best.Year)
+
+	// Old version gets penalty when query year is far away
+	best = pickBestMatch(results, "Robin Hood", &y2025)
+	assert.Equal(t, &y2017, best.Year) // 2017 closer to 2025 than 1990
+
+	// Without year hint, no penalty — first high-score wins
+	best = pickBestMatch(results, "Robin Hood", nil)
+	assert.Equal(t, "Robin Hood", best.Title)
+}
+
+func TestPickBestMatch_CloseYearBonus(t *testing.T) {
+	y2024 := 2024
+	y2025 := 2025
+	y2010 := 2010
+	results := []domain.MetadataResult{
+		{Title: "Show", Year: &y2010},
+		{Title: "Show", Year: &y2024},
+	}
+	// ±2 year should get small bonus, not full bonus
+	best := pickBestMatch(results, "Show", &y2025)
+	assert.Equal(t, &y2024, best.Year) // 2024 within ±2 of 2025
+}
+
 func TestPickBestMatch_OriginalTitleUsed(t *testing.T) {
 	results := []domain.MetadataResult{
 		{Title: "La Loi de la Force", OriginalTitle: "Martial Law"},

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"strings"
 	"testing"
 
@@ -50,7 +51,7 @@ func TestSearch_MovieResponseMapping(t *testing.T) {
 	})
 	defer srv.Close()
 
-	results, err := p.Search(context.Background(), "fight club", "movie")
+	results, err := p.Search(context.Background(), "fight club", nil, "movie")
 	require.NoError(t, err)
 	require.Len(t, results, 1)
 
@@ -88,7 +89,7 @@ func TestSearch_TVResponseMapping(t *testing.T) {
 	})
 	defer srv.Close()
 
-	results, err := p.Search(context.Background(), "breaking bad", "tv")
+	results, err := p.Search(context.Background(), "breaking bad", nil, "tv")
 	require.NoError(t, err)
 	require.Len(t, results, 1)
 
@@ -101,7 +102,7 @@ func TestSearch_TVResponseMapping(t *testing.T) {
 
 func TestSearch_UnsupportedMediaType(t *testing.T) {
 	p := NewTMDBProvider("key", "en", nil)
-	_, err := p.Search(context.Background(), "query", "book")
+	_, err := p.Search(context.Background(), "query", nil, "book")
 	assert.ErrorContains(t, err, "unsupported media type")
 }
 
@@ -114,12 +115,12 @@ func TestSearch_URLBuilding(t *testing.T) {
 	})
 	defer srv.Close()
 
-	_, _ = p.Search(context.Background(), "test", "movie")
+	_, _ = p.Search(context.Background(), "test", nil, "movie")
 	require.Len(t, capturedPaths, 1)
 	assert.Equal(t, "/search/movie", capturedPaths[0])
 
 	capturedPaths = nil
-	_, _ = p.Search(context.Background(), "test", "tv")
+	_, _ = p.Search(context.Background(), "test", nil, "tv")
 	require.Len(t, capturedPaths, 1)
 	assert.Equal(t, "/search/tv", capturedPaths[0])
 }
@@ -140,7 +141,7 @@ func TestSearch_Pagination(t *testing.T) {
 	})
 	defer srv.Close()
 
-	results, err := p.Search(context.Background(), "test", "movie")
+	results, err := p.Search(context.Background(), "test", nil, "movie")
 	require.NoError(t, err)
 	assert.Len(t, results, 3)
 	assert.Equal(t, 3, pageCount)
@@ -163,7 +164,7 @@ func TestSearch_RateLimitRetry(t *testing.T) {
 	})
 	defer srv.Close()
 
-	results, err := p.Search(context.Background(), "test", "movie")
+	results, err := p.Search(context.Background(), "test", nil, "movie")
 	require.NoError(t, err)
 	require.Len(t, results, 1)
 	assert.Equal(t, "Found", results[0].Title)
@@ -176,7 +177,7 @@ func TestSearch_RateLimitExhausted(t *testing.T) {
 	})
 	defer srv.Close()
 
-	_, err := p.Search(context.Background(), "test", "movie")
+	_, err := p.Search(context.Background(), "test", nil, "movie")
 	assert.ErrorContains(t, err, "rate limited")
 }
 
@@ -309,7 +310,7 @@ func TestBearerAuth(t *testing.T) {
 	defer srv.Close()
 
 	p.apiKey = "my-secret-key"
-	_, err := p.Search(context.Background(), "test", "movie")
+	_, err := p.Search(context.Background(), "test", nil, "movie")
 	require.NoError(t, err)
 }
 
@@ -320,7 +321,7 @@ func TestSearch_EmptyResults(t *testing.T) {
 	})
 	defer srv.Close()
 
-	results, err := p.Search(context.Background(), "nonexistent", "movie")
+	results, err := p.Search(context.Background(), "nonexistent", nil, "movie")
 	require.NoError(t, err)
 	assert.Empty(t, results)
 }
@@ -328,6 +329,58 @@ func TestSearch_EmptyResults(t *testing.T) {
 func TestProfileURL(t *testing.T) {
 	assert.Equal(t, imageBaseURL+"/abc.jpg", profileURL("/abc.jpg"))
 	assert.Equal(t, "", profileURL(""))
+}
+
+func TestSearch_YearParamSentToAPI(t *testing.T) {
+	var capturedParams []url.Values
+	srv, p := newTestServer(func(w http.ResponseWriter, r *http.Request) {
+		capturedParams = append(capturedParams, r.URL.Query())
+		w.Header().Set("Content-Type", "application/json")
+		resp := tmdbSearchResponse{Page: 1, TotalPages: 1,
+			Results: []tmdbSearchItem{{ID: 1, Title: "Robin Hood", ReleaseDate: "2018-11-21"}},
+		}
+		json.NewEncoder(w).Encode(resp)
+	})
+	defer srv.Close()
+
+	y := 2018
+	results, err := p.Search(context.Background(), "Robin Hood", &y, "movie")
+	require.NoError(t, err)
+	require.Len(t, results, 1)
+	// First call should have primary_release_year
+	require.GreaterOrEqual(t, len(capturedParams), 1)
+	assert.Equal(t, "2018", capturedParams[0].Get("primary_release_year"))
+
+	capturedParams = nil
+	results, err = p.Search(context.Background(), "Robin Hood", &y, "tv")
+	require.NoError(t, err)
+	require.GreaterOrEqual(t, len(capturedParams), 1)
+	assert.Equal(t, "2018", capturedParams[0].Get("first_air_date_year"))
+}
+
+func TestSearch_YearFallbackWithoutYear(t *testing.T) {
+	calls := 0
+	srv, p := newTestServer(func(w http.ResponseWriter, r *http.Request) {
+		calls++
+		w.Header().Set("Content-Type", "application/json")
+		if r.URL.Query().Get("primary_release_year") != "" {
+			// Year-filtered: return empty
+			json.NewEncoder(w).Encode(tmdbSearchResponse{Page: 1, TotalPages: 1})
+		} else {
+			// Without year: return result
+			json.NewEncoder(w).Encode(tmdbSearchResponse{Page: 1, TotalPages: 1,
+				Results: []tmdbSearchItem{{ID: 1, Title: "Fallback Movie"}},
+			})
+		}
+	})
+	defer srv.Close()
+
+	y := 9999
+	results, err := p.Search(context.Background(), "test", &y, "movie")
+	require.NoError(t, err)
+	require.Len(t, results, 1)
+	assert.Equal(t, "Fallback Movie", results[0].Title)
+	assert.Equal(t, 2, calls) // first with year (empty), second without
 }
 
 func TestMapSearchResult_NoDateNoRating(t *testing.T) {

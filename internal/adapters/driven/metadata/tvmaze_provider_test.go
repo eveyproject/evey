@@ -25,7 +25,7 @@ func TestTVMaze_Name(t *testing.T) {
 
 func TestTVMaze_Search_SkipsMovies(t *testing.T) {
 	p := NewTVMazeProvider(nil)
-	results, err := p.Search(context.Background(), "Inception", "movie")
+	results, err := p.Search(context.Background(), "Inception", nil, "movie")
 	assert.NoError(t, err)
 	assert.Nil(t, results)
 }
@@ -51,7 +51,7 @@ func TestTVMaze_Search(t *testing.T) {
 	})
 	defer srv.Close()
 
-	results, err := p.Search(context.Background(), "Dexter", "tv")
+	results, err := p.Search(context.Background(), "Dexter", nil, "tv")
 	require.NoError(t, err)
 	require.Len(t, results, 1)
 

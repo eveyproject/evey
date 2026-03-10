@@ -38,7 +38,7 @@ func TestOMDb_Search(t *testing.T) {
 	})
 	defer srv.Close()
 
-	results, err := p.Search(context.Background(), "Inception", "movie")
+	results, err := p.Search(context.Background(), "Inception", nil, "movie")
 	require.NoError(t, err)
 	require.Len(t, results, 1)
 	assert.Equal(t, "Inception", results[0].Title)
@@ -55,7 +55,7 @@ func TestOMDb_Search_TVMapsToSeries(t *testing.T) {
 	})
 	defer srv.Close()
 
-	results, err := p.Search(context.Background(), "Dexter", "tv")
+	results, err := p.Search(context.Background(), "Dexter", nil, "tv")
 	require.NoError(t, err)
 	assert.Empty(t, results)
 }
@@ -110,7 +110,7 @@ func TestOMDb_GetByProviderID_Ratings(t *testing.T) {
 
 func TestOMDb_NoAPIKey(t *testing.T) {
 	p := NewOMDbProvider("", nil)
-	results, err := p.Search(context.Background(), "test", "movie")
+	results, err := p.Search(context.Background(), "test", nil, "movie")
 	assert.NoError(t, err)
 	assert.Nil(t, results)
 

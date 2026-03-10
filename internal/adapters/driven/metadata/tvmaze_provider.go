@@ -38,7 +38,7 @@ func NewTVMazeProvider(httpClient *http.Client) *TVMazeProvider {
 
 func (p *TVMazeProvider) Name() string { return "tvmaze" }
 
-func (p *TVMazeProvider) Search(ctx context.Context, query string, mediaType string) ([]domain.MetadataResult, error) {
+func (p *TVMazeProvider) Search(ctx context.Context, query string, _ *int, mediaType string) ([]domain.MetadataResult, error) {
 	if mediaType == "movie" {
 		return nil, nil
 	}

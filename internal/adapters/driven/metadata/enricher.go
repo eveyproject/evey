@@ -299,7 +299,7 @@ func (e *Enricher) supplementItem(ctx context.Context, item *domaindomain.MediaI
 
 // searchAndFetch searches a provider and fetches full details for the best match.
 func (e *Enricher) searchAndFetch(ctx context.Context, provider domainmetadata.MetadataProvider, title string, year *int, mediaType string, log *slog.Logger) *domainmetadata.MetadataResult {
-	results, err := provider.Search(ctx, title, mediaType)
+	results, err := provider.Search(ctx, title, year, mediaType)
 	if err != nil {
 		if log != nil {
 			log.Debug("provider search failed", slog.String("provider", provider.Name()), slog.String("title", title), slog.Any("err", err))
@@ -468,7 +468,8 @@ func MergeResults(primary *domainmetadata.MetadataResult, supplements ...*domain
 
 // pickBestMatch selects the result whose title best matches the query.
 // Uses word overlap (Dice coefficient) on both Title and OriginalTitle.
-// Year match gets a bonus.
+// Year matching: exact match gets +0.3 bonus, close match (±2y) gets +0.1,
+// large gap (>5y) gets -0.15 penalty to avoid reboots/remakes confusion.
 func pickBestMatch(results []domainmetadata.MetadataResult, query string, year *int) domainmetadata.MetadataResult {
 	if len(results) == 1 {
 		return results[0]
@@ -484,8 +485,24 @@ func pickBestMatch(results []domainmetadata.MetadataResult, query string, year *
 		if s2 > score {
 			score = s2
 		}
-		if year != nil && r.Year != nil && *r.Year == *year {
-			score += 0.2
+		if year != nil && r.Year != nil {
+			diff := *r.Year - *year
+			if diff < 0 {
+				diff = -diff
+			}
+			switch {
+			case diff == 0:
+				score += 0.3
+			case diff <= 2:
+				score += 0.1
+			default:
+				// Proportional penalty: farther years get more penalty
+				penalty := 0.03 * float64(diff)
+				if penalty > 0.4 {
+					penalty = 0.4
+				}
+				score -= penalty
+			}
 		}
 		if score > bestScore {
 			bestScore = score
