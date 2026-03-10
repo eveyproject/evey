@@ -16,6 +16,7 @@ type CommandService struct {
 	sessions       playback.SessionCommandRepo
 	sessionQueries playback.SessionQueryRepo
 	users          user.UserRepository
+	profiles       user.ProfileRepository
 	events         shared.EventBus
 }
 
@@ -24,6 +25,7 @@ func NewCommandService(
 	sessions playback.SessionCommandRepo,
 	sessionQueries playback.SessionQueryRepo,
 	users user.UserRepository,
+	profiles user.ProfileRepository,
 	events shared.EventBus,
 ) *CommandService {
 	return &CommandService{
@@ -31,11 +33,22 @@ func NewCommandService(
 		sessions:       sessions,
 		sessionQueries: sessionQueries,
 		users:          users,
+		profiles:       profiles,
 		events:         events,
 	}
 }
 
+func (s *CommandService) validateProfile(ctx context.Context, profileID string) error {
+	if _, err := s.profiles.GetByID(ctx, profileID); err != nil {
+		return ErrProfileNotFound
+	}
+	return nil
+}
+
 func (s *CommandService) StartStream(ctx context.Context, session *playback.PlaySession, userID string) error {
+	if err := s.validateProfile(ctx, session.ProfileID); err != nil {
+		return err
+	}
 	u, err := s.users.GetByID(ctx, userID)
 	if err != nil {
 		return fmt.Errorf("get user: %w", err)
@@ -93,6 +106,9 @@ func (s *CommandService) ReportProgressBySession(ctx context.Context, sessionID 
 }
 
 func (s *CommandService) ReportProgress(ctx context.Context, profileID, mediaItemID string, positionMs int64, completed bool) error {
+	if err := s.validateProfile(ctx, profileID); err != nil {
+		return err
+	}
 	wp := &playback.WatchProgress{
 		ID:           id.New("wp-"),
 		ProfileID:    profileID,
@@ -105,6 +121,9 @@ func (s *CommandService) ReportProgress(ctx context.Context, profileID, mediaIte
 }
 
 func (s *CommandService) MarkAsWatched(ctx context.Context, profileID, mediaItemID string) error {
+	if err := s.validateProfile(ctx, profileID); err != nil {
+		return err
+	}
 	wp := &playback.WatchProgress{
 		ID:           id.New("wp-"),
 		ProfileID:    profileID,
@@ -125,6 +144,9 @@ func (s *CommandService) MarkAsWatched(ctx context.Context, profileID, mediaItem
 }
 
 func (s *CommandService) MarkAsUnwatched(ctx context.Context, profileID, mediaItemID string) error {
+	if err := s.validateProfile(ctx, profileID); err != nil {
+		return err
+	}
 	wp := &playback.WatchProgress{
 		ID:           id.New("wp-"),
 		ProfileID:    profileID,
