@@ -360,6 +360,8 @@ func run() error {
 	grpcAddr := fmt.Sprintf(":%d", cfg.Server.Port)
 
 	netDetector := network.NewDetector(cfg.RemoteAccess.LANNetworks)
+	hlsManager := apptranscoding.NewHLSManager(cfg.Transcoding.CacheDir+"/hls", cfg.Transcoding.MaxConcurrent)
+	defer hlsManager.CleanupAll()
 
 	// --- gRPC-Gateway HTTP proxy ---
 	httpPort := cfg.Server.Port + 1
@@ -387,6 +389,9 @@ func run() error {
 		mux.HandleFunc("GET /api/v1/media/{id}/trickplay", trickplayManifestHandler(tokenGen, libCmdSvc))
 		mux.HandleFunc("GET /api/v1/media/{id}/trickplay/{image}", trickplayImageHandler(tokenGen, libCmdSvc))
 		mux.HandleFunc("POST /api/v1/admin/media/{id}/trickplay/generate", trickplayGenerateHandler(tokenGen, libCmdSvc, cfg.Transcoding.CacheDir))
+		mux.HandleFunc("GET /api/v1/media/{id}/playback-info", playbackInfoHandler(tokenGen, libQuerySvc))
+		mux.HandleFunc("GET /api/v1/media/{id}/hls/master.m3u8", hlsMasterHandler(tokenGen, libQuerySvc, hlsManager))
+		mux.HandleFunc("GET /api/v1/media/{id}/hls/{file}", hlsSegmentHandler(tokenGen, hlsManager))
 		mux.HandleFunc("GET /api/v1/admin/library-stats", libraryStatsHandler(tokenGen, libQuerySvc))
 		mux.HandleFunc("POST /api/v1/auth/login", ratelimit.MiddlewareFunc(loginRL, func(w http.ResponseWriter, r *http.Request) {
 			r.Body = http.MaxBytesReader(w, r.Body, 1<<20)
@@ -414,9 +419,13 @@ func run() error {
 		mux.HandleFunc("DELETE /api/v1/admin/sessions/{id}", killSessionHandler(tokenGen, playbackSvc))
 		mux.Handle("/", ratelimit.Middleware(globalRL)(gwMux))
 		netMw := networkMiddleware(netDetector, &cfg.RemoteAccess.Enabled)
+		proxyTrust, proxyErr := network.NewProxyTrust(cfg.Server.TrustedProxies, cfg.Server.RealIPHeader, cfg.Server.ForwardedProto)
+		if proxyErr != nil {
+			return fmt.Errorf("proxy trust: %w", proxyErr)
+		}
 		httpSrv = &http.Server{
 			Addr:              fmt.Sprintf(":%d", httpPort),
-			Handler:           netMw(mux),
+			Handler:           proxyTrust.Middleware(netMw(mux)),
 			ReadHeaderTimeout: 10 * time.Second,
 			WriteTimeout:      10 * time.Minute,
 			IdleTimeout:       120 * time.Second,
