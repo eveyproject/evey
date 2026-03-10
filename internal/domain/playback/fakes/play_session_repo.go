@@ -3,6 +3,7 @@ package fakes
 import (
 	"context"
 	"sync"
+	"time"
 
 	"github.com/gravity-zero/evey/internal/domain/playback"
 )
@@ -116,6 +117,21 @@ func (r *FakePlaySessionRepository) GetHistory(_ context.Context, filter playbac
 		result = result[:filter.Limit]
 	}
 	return result, nil
+}
+
+func (r *FakePlaySessionRepository) CloseStale(_ context.Context, olderThan time.Duration) (int, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	cutoff := time.Now().Add(-olderThan)
+	closed := 0
+	for _, s := range r.items {
+		if s.EndedAt == nil && s.StartedAt.Before(cutoff) {
+			now := time.Now()
+			s.EndedAt = &now
+			closed++
+		}
+	}
+	return closed, nil
 }
 
 func (r *FakePlaySessionRepository) CountActiveByUser(_ context.Context, userID string) (int, error) {

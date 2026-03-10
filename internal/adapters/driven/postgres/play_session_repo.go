@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/gravity-zero/evey/internal/domain/playback"
 )
@@ -150,6 +151,18 @@ func (r *PlaySessionRepository) GetHistory(ctx context.Context, f playback.PlayS
 	}
 	defer rows.Close()
 	return r.scanPlaySessionRows(rows)
+}
+
+func (r *PlaySessionRepository) CloseStale(ctx context.Context, olderThan time.Duration) (int, error) {
+	cutoff := time.Now().Add(-olderThan)
+	res, err := r.db.ExecContext(ctx,
+		`UPDATE play_sessions SET ended_at = NOW()
+		 WHERE ended_at IS NULL AND started_at < $1`, cutoff)
+	if err != nil {
+		return 0, err
+	}
+	n, _ := res.RowsAffected()
+	return int(n), nil
 }
 
 func (r *PlaySessionRepository) CountActiveByUser(ctx context.Context, userID string) (int, error) {

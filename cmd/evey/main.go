@@ -468,6 +468,30 @@ func run() error {
 		}
 	}()
 
+	// Stale session cleanup: close sessions with no activity for 2h
+	go func() {
+		// Run immediately on startup to clean existing stale sessions
+		if n, err := playbackSvc.CommandService().CleanupStaleSessions(context.Background(), 2*time.Hour); err != nil {
+			rootLog.Warn("stale session cleanup", slog.Any("err", err))
+		} else if n > 0 {
+			rootLog.Info("cleaned stale sessions", slog.Int("count", n))
+		}
+		ticker := time.NewTicker(30 * time.Minute)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				if n, err := playbackSvc.CommandService().CleanupStaleSessions(context.Background(), 2*time.Hour); err != nil {
+					rootLog.Warn("stale session cleanup", slog.Any("err", err))
+				} else if n > 0 {
+					rootLog.Info("cleaned stale sessions", slog.Int("count", n))
+				}
+			}
+		}
+	}()
+
 	errCh := make(chan error, 2)
 
 	go func() {

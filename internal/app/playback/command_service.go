@@ -143,6 +143,10 @@ func (s *CommandService) MarkAsWatched(ctx context.Context, profileID, mediaItem
 	return nil
 }
 
+func (s *CommandService) CleanupStaleSessions(ctx context.Context, maxAge time.Duration) (int, error) {
+	return s.sessions.CloseStale(ctx, maxAge)
+}
+
 func (s *CommandService) MarkAsUnwatched(ctx context.Context, profileID, mediaItemID string) error {
 	if err := s.validateProfile(ctx, profileID); err != nil {
 		return err
