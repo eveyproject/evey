@@ -2,6 +2,7 @@ package user_test
 
 import (
 	"context"
+	"sync"
 	"testing"
 
 	appuser "github.com/gravity-zero/evey/internal/app/user"
@@ -116,6 +117,129 @@ func TestCreateProfile(t *testing.T) {
 		}
 	}
 	assert.True(t, profileCreated)
+}
+
+type collidingTokenGen struct {
+	mu            sync.Mutex
+	inner         *userfakes.FakeTokenGenerator
+	fixedToken    string
+	collideCount  int
+	callCount     int
+}
+
+func (g *collidingTokenGen) GenerateAccessToken(c domainuser.Claims) (string, error) {
+	return g.inner.GenerateAccessToken(c)
+}
+
+func (g *collidingTokenGen) GenerateRefreshToken() (string, error) {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	g.callCount++
+	if g.callCount <= g.collideCount {
+		return g.fixedToken, nil
+	}
+	return g.inner.GenerateRefreshToken()
+}
+
+func (g *collidingTokenGen) ValidateAccessToken(t string) (*domainuser.Claims, error) {
+	return g.inner.ValidateAccessToken(t)
+}
+
+func TestLogin_DuplicateRefreshTokenRetries(t *testing.T) {
+	userRepo := userfakes.NewFakeUserRepository()
+	profileRepo := userfakes.NewFakeProfileRepository()
+	rtRepo := userfakes.NewFakeRefreshTokenRepository()
+	apiKeyRepo := userfakes.NewFakeAPIKeyRepository()
+	inviteRepo := userfakes.NewFakeInviteLinkRepository()
+	qcRepo := userfakes.NewFakeQuickConnectRepository()
+	roleRepo := userfakes.NewFakeRoleRepository()
+	userRoleRepo := userfakes.NewFakeUserRoleRepository(roleRepo)
+	hasher := userfakes.NewFakePasswordHasher()
+	bus := sharedfakes.NewFakeEventBus()
+
+	tokenGen := &collidingTokenGen{
+		inner:        userfakes.NewFakeTokenGenerator(),
+		fixedToken:   "same-token-every-time",
+		collideCount: 1,
+	}
+
+	svc := appuser.NewService(userRepo, profileRepo, rtRepo, apiKeyRepo, inviteRepo, qcRepo, roleRepo, userRoleRepo, hasher, tokenGen, bus)
+
+	hash, _ := hasher.Hash("pass")
+	userRepo.Create(context.Background(), &domainuser.User{
+		ID: "u-dup1", Username: "dup1", PasswordHash: hash, Enabled: true,
+	})
+	userRepo.Create(context.Background(), &domainuser.User{
+		ID: "u-dup2", Username: "dup2", PasswordHash: hash, Enabled: true,
+	})
+
+	_, _, err := svc.Login(context.Background(), "dup1", "pass")
+	require.NoError(t, err)
+
+	// second login collides once on same fixedToken, retries with unique
+	_, refresh, err := svc.Login(context.Background(), "dup2", "pass")
+	require.NoError(t, err)
+	assert.NotEmpty(t, refresh)
+}
+
+func TestLogin_DuplicateRefreshTokenExhausted(t *testing.T) {
+	userRepo := userfakes.NewFakeUserRepository()
+	profileRepo := userfakes.NewFakeProfileRepository()
+	rtRepo := userfakes.NewFakeRefreshTokenRepository()
+	apiKeyRepo := userfakes.NewFakeAPIKeyRepository()
+	inviteRepo := userfakes.NewFakeInviteLinkRepository()
+	qcRepo := userfakes.NewFakeQuickConnectRepository()
+	roleRepo := userfakes.NewFakeRoleRepository()
+	userRoleRepo := userfakes.NewFakeUserRoleRepository(roleRepo)
+	hasher := userfakes.NewFakePasswordHasher()
+	bus := sharedfakes.NewFakeEventBus()
+
+	tokenGen := &collidingTokenGen{
+		inner:        userfakes.NewFakeTokenGenerator(),
+		fixedToken:   "always-same",
+		collideCount: 100,
+	}
+
+	svc := appuser.NewService(userRepo, profileRepo, rtRepo, apiKeyRepo, inviteRepo, qcRepo, roleRepo, userRoleRepo, hasher, tokenGen, bus)
+
+	hash, _ := hasher.Hash("pass")
+	userRepo.Create(context.Background(), &domainuser.User{
+		ID: "u-ex1", Username: "ex1", PasswordHash: hash, Enabled: true,
+	})
+	userRepo.Create(context.Background(), &domainuser.User{
+		ID: "u-ex2", Username: "ex2", PasswordHash: hash, Enabled: true,
+	})
+
+	_, _, err := svc.Login(context.Background(), "ex1", "pass")
+	require.NoError(t, err)
+
+	_, _, err = svc.Login(context.Background(), "ex2", "pass")
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "duplicate hash after retries")
+}
+
+func TestLogin_ConcurrentSameUser(t *testing.T) {
+	svc, userRepo, _, hasher, _ := newUserSvc()
+
+	hash, _ := hasher.Hash("pass")
+	userRepo.Create(context.Background(), &domainuser.User{
+		ID: "u-conc", Username: "concurrent", PasswordHash: hash, Enabled: true,
+	})
+
+	var wg sync.WaitGroup
+	errs := make([]error, 10)
+	for i := 0; i < 10; i++ {
+		wg.Add(1)
+		go func(idx int) {
+			defer wg.Done()
+			_, _, errs[idx] = svc.Login(context.Background(), "concurrent", "pass")
+		}(i)
+	}
+	wg.Wait()
+
+	for i, err := range errs {
+		assert.NoError(t, err, "login %d failed", i)
+	}
 }
 
 func TestRegister_HashedPassword(t *testing.T) {

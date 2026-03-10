@@ -7,6 +7,7 @@ import (
 
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/gravity-zero/evey/internal/domain/user"
+	"github.com/gravity-zero/evey/internal/pkg/id"
 )
 
 type JWTGenerator struct {
@@ -38,10 +39,12 @@ func (g *JWTGenerator) GenerateAccessToken(claims user.Claims) (string, error) {
 }
 
 func (g *JWTGenerator) GenerateRefreshToken() (string, error) {
+	now := time.Now()
 	token := jwt.NewWithClaims(jwt.SigningMethodRS256, jwt.MapClaims{
 		"type": "refresh",
-		"iat":  time.Now().Unix(),
-		"exp":  time.Now().Add(7 * 24 * time.Hour).Unix(),
+		"jti":  id.New(""),
+		"iat":  now.Unix(),
+		"exp":  now.Add(7 * 24 * time.Hour).Unix(),
 	})
 	return token.SignedString(g.privateKey)
 }
