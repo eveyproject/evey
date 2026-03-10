@@ -261,7 +261,7 @@ func run() error {
 		librarySvc, userSvc, playbackSvc, transcodingSvc,
 		mkvSvc, pluginSvc, metadataSvc, activitySvc,
 		notifSvc, feedSvc, webhookSvc,
-		userRepo, version,
+		userRepo, profileRepo, version,
 		grpc.ChainUnaryInterceptor(
 			interceptors.ClientInfoUnary(),
 			interceptors.LoggingUnary(grpcLog),
@@ -294,7 +294,7 @@ func run() error {
 		mux.HandleFunc("GET /api/v1/media/{id}/artwork/{artType}", mh)
 		mux.HandleFunc("POST /api/v1/media/{id}/stream", mh)
 		mux.HandleFunc("GET /api/v1/media/{id}/download", downloadHandler(tokenGen, librarySvc))
-		mux.HandleFunc("GET /api/v1/media/{id}/transcode", transcodeHandler(tokenGen, librarySvc))
+		mux.HandleFunc("GET /api/v1/media/{id}/transcode", transcodeHandler(tokenGen, librarySvc, profileRepo))
 		mux.HandleFunc("GET /api/v1/media/{id}/subtitle/{track}", subtitleHandler(tokenGen, librarySvc))
 		mux.HandleFunc("GET /api/v1/admin/library-stats", libraryStatsHandler(tokenGen, librarySvc))
 		registerAdminRoutes(mux, metadataSvc, tmdbProvider, tokenGen)
@@ -741,7 +741,7 @@ func transcodeHandler(tokenGen interface {
 }, libSvc interface {
 	GetMediaItem(ctx context.Context, id string) (*domainlibrary.MediaItem, error)
 	GetMediaStreams(ctx context.Context, mediaItemID string) ([]*domainlibrary.MediaStream, error)
-}) http.HandlerFunc {
+}, profileRepo domainuser.ProfileRepository) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		mediaID := r.PathValue("id")
 		token := r.Header.Get("Authorization")
@@ -753,9 +753,17 @@ func transcodeHandler(tokenGen interface {
 			http.Error(w, `{"message":"unauthenticated"}`, http.StatusUnauthorized)
 			return
 		}
-		if _, err := tokenGen.ValidateAccessToken(token); err != nil {
+		claims, err := tokenGen.ValidateAccessToken(token)
+		if err != nil {
 			http.Error(w, `{"message":"forbidden"}`, http.StatusForbidden)
 			return
+		}
+
+		var maxBitrateKbps int
+		if claims.ProfileID != "" {
+			if prof, err := profileRepo.GetByID(r.Context(), claims.ProfileID); err == nil && prof.MaxBitrateKbps != nil {
+				maxBitrateKbps = *prof.MaxBitrateKbps
+			}
 		}
 		item, err := libSvc.GetMediaItem(r.Context(), mediaID)
 		if err != nil || item.FilePath == "" {
@@ -808,6 +816,9 @@ func transcodeHandler(tokenGen interface {
 			args = append(args, "-c:v", "libx264", "-crf", "23", "-preset", "veryfast", "-tune", "zerolatency", "-threads", "0")
 		} else {
 			args = append(args, "-c:v", "copy")
+		}
+		if maxBitrateKbps > 0 {
+			args = append(args, "-maxrate", fmt.Sprintf("%dk", maxBitrateKbps), "-bufsize", fmt.Sprintf("%dk", maxBitrateKbps*2))
 		}
 		if needsAudioTranscode {
 			args = append(args, "-c:a", "aac", "-ac", "2", "-b:a", "192k")

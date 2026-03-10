@@ -1,0 +1,2 @@
+ALTER TABLE profiles
+    ADD COLUMN IF NOT EXISTS max_bitrate_kbps INT DEFAULT NULL;

@@ -31,10 +31,10 @@ func (r *ProfileRepository) Create(ctx context.Context, p *user.Profile) error {
 		subLangs = []string{}
 	}
 	_, err = r.db.ExecContext(ctx,
-		`INSERT INTO profiles (id, user_id, name, avatar_path, preferences, max_rating, is_default, audio_languages, subtitle_languages, created_at)
-		 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
+		`INSERT INTO profiles (id, user_id, name, avatar_path, preferences, max_rating, is_default, audio_languages, subtitle_languages, max_bitrate_kbps, created_at)
+		 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)`,
 		p.ID, p.UserID, p.Name, p.AvatarPath, prefsJSON, p.MaxRating, p.IsDefault,
-		pq.Array(audioLangs), pq.Array(subLangs), p.CreatedAt,
+		pq.Array(audioLangs), pq.Array(subLangs), p.MaxBitrateKbps, p.CreatedAt,
 	)
 	return err
 }
@@ -43,10 +43,10 @@ func (r *ProfileRepository) GetByID(ctx context.Context, id string) (*user.Profi
 	p := &user.Profile{}
 	var prefsJSON []byte
 	err := r.db.QueryRowContext(ctx,
-		`SELECT id, user_id, name, avatar_path, preferences, max_rating, is_default, audio_languages, subtitle_languages, created_at
+		`SELECT id, user_id, name, avatar_path, preferences, max_rating, is_default, audio_languages, subtitle_languages, max_bitrate_kbps, created_at
 		 FROM profiles WHERE id = $1`, id,
 	).Scan(&p.ID, &p.UserID, &p.Name, &p.AvatarPath, &prefsJSON, &p.MaxRating, &p.IsDefault,
-		pq.Array(&p.AudioLanguages), pq.Array(&p.SubtitleLanguages), &p.CreatedAt)
+		pq.Array(&p.AudioLanguages), pq.Array(&p.SubtitleLanguages), &p.MaxBitrateKbps, &p.CreatedAt)
 	if err != nil {
 		return nil, err
 	}
@@ -56,7 +56,7 @@ func (r *ProfileRepository) GetByID(ctx context.Context, id string) (*user.Profi
 
 func (r *ProfileRepository) GetByUserID(ctx context.Context, userID string) ([]*user.Profile, error) {
 	rows, err := r.db.QueryContext(ctx,
-		`SELECT id, user_id, name, avatar_path, preferences, max_rating, is_default, audio_languages, subtitle_languages, created_at
+		`SELECT id, user_id, name, avatar_path, preferences, max_rating, is_default, audio_languages, subtitle_languages, max_bitrate_kbps, created_at
 		 FROM profiles WHERE user_id = $1 ORDER BY is_default DESC, name`, userID)
 	if err != nil {
 		return nil, err
@@ -68,7 +68,7 @@ func (r *ProfileRepository) GetByUserID(ctx context.Context, userID string) ([]*
 		p := &user.Profile{}
 		var prefsJSON []byte
 		if err := rows.Scan(&p.ID, &p.UserID, &p.Name, &p.AvatarPath, &prefsJSON, &p.MaxRating, &p.IsDefault,
-			pq.Array(&p.AudioLanguages), pq.Array(&p.SubtitleLanguages), &p.CreatedAt); err != nil {
+			pq.Array(&p.AudioLanguages), pq.Array(&p.SubtitleLanguages), &p.MaxBitrateKbps, &p.CreatedAt); err != nil {
 			return nil, err
 		}
 		_ = json.Unmarshal(prefsJSON, &p.Preferences)
@@ -91,16 +91,16 @@ func (r *ProfileRepository) Update(ctx context.Context, p *user.Profile) error {
 		subLangs = []string{}
 	}
 	_, err = r.db.ExecContext(ctx,
-		`UPDATE profiles SET name=$1, avatar_path=$2, preferences=$3, max_rating=$4, is_default=$5, audio_languages=$6, subtitle_languages=$7 WHERE id=$8`,
+		`UPDATE profiles SET name=$1, avatar_path=$2, preferences=$3, max_rating=$4, is_default=$5, audio_languages=$6, subtitle_languages=$7, max_bitrate_kbps=$8 WHERE id=$9`,
 		p.Name, p.AvatarPath, prefsJSON, p.MaxRating, p.IsDefault,
-		pq.Array(audioLangs), pq.Array(subLangs), p.ID,
+		pq.Array(audioLangs), pq.Array(subLangs), p.MaxBitrateKbps, p.ID,
 	)
 	return err
 }
 
 func (r *ProfileRepository) GetAll(ctx context.Context) ([]*user.Profile, error) {
 	rows, err := r.db.QueryContext(ctx,
-		`SELECT id, user_id, name, avatar_path, preferences, max_rating, is_default, audio_languages, subtitle_languages, created_at
+		`SELECT id, user_id, name, avatar_path, preferences, max_rating, is_default, audio_languages, subtitle_languages, max_bitrate_kbps, created_at
 		 FROM profiles ORDER BY user_id, is_default DESC, name`)
 	if err != nil {
 		return nil, err
@@ -112,7 +112,7 @@ func (r *ProfileRepository) GetAll(ctx context.Context) ([]*user.Profile, error)
 		p := &user.Profile{}
 		var prefsJSON []byte
 		if err := rows.Scan(&p.ID, &p.UserID, &p.Name, &p.AvatarPath, &prefsJSON, &p.MaxRating, &p.IsDefault,
-			pq.Array(&p.AudioLanguages), pq.Array(&p.SubtitleLanguages), &p.CreatedAt); err != nil {
+			pq.Array(&p.AudioLanguages), pq.Array(&p.SubtitleLanguages), &p.MaxBitrateKbps, &p.CreatedAt); err != nil {
 			return nil, err
 		}
 		_ = json.Unmarshal(prefsJSON, &p.Preferences)

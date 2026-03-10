@@ -179,6 +179,7 @@ message Profile {
   bool is_default = 7;
   google.protobuf.Timestamp created_at = 8;
   google.protobuf.Timestamp updated_at = 9;
+  optional int32 max_bitrate_kbps = 10;
 }
 
 message AuthResponse {
@@ -276,6 +277,7 @@ message UpdateProfileRequest {
   optional string avatar_path = 3;
   map<string, string> preferences = 4;
   optional string max_rating = 5;
+  optional int32 max_bitrate_kbps = 6;
 }
 
 message DeleteProfileRequest {

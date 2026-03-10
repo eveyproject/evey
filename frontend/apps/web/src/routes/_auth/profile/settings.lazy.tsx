@@ -1,12 +1,14 @@
 import { createLazyFileRoute } from "@tanstack/react-router";
-import { useState } from "react";
-import { useUserServiceGetCurrentUser, useUserServiceUpdateUser } from "@evey/api";
-import { getUserServiceGetCurrentUserQueryKey } from "@evey/api";
-import { useQueryClient } from "@tanstack/react-query";
+import { useState, useEffect } from "react";
+import { useUserServiceGetCurrentUser, useUserServiceUpdateUser, useUserServiceListProfiles } from "@evey/api";
+import { getUserServiceGetCurrentUserQueryKey, getUserServiceListProfilesQueryKey } from "@evey/api";
+import { eveyFetch } from "@evey/api";
+import { useQueryClient, useMutation } from "@tanstack/react-query";
 import { toast } from "@evey/store";
 import { Card } from "@/components/ui/Card";
 import { Input } from "@/components/ui/Input";
 import { Button } from "@/components/ui/Button";
+import { Select } from "@/components/ui/Select";
 import { ThemeSettings } from "@/features/user/ThemeSettings";
 import { NotificationSettings } from "@/features/user/NotificationSettings";
 
@@ -14,13 +16,18 @@ export const Route = createLazyFileRoute("/_auth/profile/settings")({
   component: SettingsPage,
 });
 
-type Tab = "appearance" | "notifications" | "account";
+type Tab = "appearance" | "playback" | "notifications" | "account";
 
 const TABS: { key: Tab; label: string; icon: string }[] = [
   {
     key: "appearance",
     label: "Appearance",
     icon: "M4.098 19.902a3.75 3.75 0 005.304 0l6.401-6.402M6.75 21A3.75 3.75 0 013 17.25V4.125C3 3.504 3.504 3 4.125 3h5.25c.621 0 1.125.504 1.125 1.125v4.072M6.75 21a3.75 3.75 0 003.75-3.75V8.197M6.75 21h13.125c.621 0 1.125-.504 1.125-1.125v-5.25c0-.621-.504-1.125-1.125-1.125h-4.072M10.5 8.197l2.88-2.88c.438-.439 1.15-.439 1.59 0l3.712 3.713c.44.44.44 1.152 0 1.59l-2.879 2.88M6.75 17.25h.008v.008H6.75v-.008z",
+  },
+  {
+    key: "playback",
+    label: "Playback",
+    icon: "M5.25 5.653c0-.856.917-1.398 1.667-.986l11.54 6.347a1.125 1.125 0 010 1.972l-11.54 6.347a1.125 1.125 0 01-1.667-.986V5.653z",
   },
   {
     key: "notifications",
@@ -63,10 +70,86 @@ function SettingsPage() {
       <Card>
         <div className="p-6">
           {tab === "appearance" && <ThemeSettings />}
+          {tab === "playback" && <PlaybackSection />}
           {tab === "notifications" && <NotificationSettings />}
           {tab === "account" && <AccountSection />}
         </div>
       </Card>
+    </div>
+  );
+}
+
+const BITRATE_OPTIONS = [
+  { value: "0", label: "Unlimited" },
+  { value: "2000", label: "2 Mbps" },
+  { value: "4000", label: "4 Mbps" },
+  { value: "8000", label: "8 Mbps" },
+  { value: "10000", label: "10 Mbps" },
+  { value: "15000", label: "15 Mbps" },
+  { value: "20000", label: "20 Mbps" },
+  { value: "40000", label: "40 Mbps" },
+];
+
+function PlaybackSection() {
+  const qc = useQueryClient();
+  const { data: user } = useUserServiceGetCurrentUser();
+  const { data: profilesResp } = useUserServiceListProfiles(user?.id ?? "", {
+    query: { enabled: !!user?.id },
+  });
+
+  const profiles = profilesResp?.profiles;
+  const defaultProfile = profiles?.find((p) => p.isDefault) ?? profiles?.[0];
+
+  const [bitrate, setBitrate] = useState("0");
+
+  useEffect(() => {
+    if (defaultProfile?.preferences?.max_bitrate_kbps) {
+      setBitrate(defaultProfile.preferences.max_bitrate_kbps);
+    }
+  }, [defaultProfile]);
+
+  const updateProfile = useMutation({
+    mutationFn: (bitrateKbps: string) =>
+      eveyFetch({
+        url: `/api/v1/profiles/${defaultProfile?.id}`,
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        data: {
+          preferences: {
+            ...defaultProfile?.preferences,
+            max_bitrate_kbps: bitrateKbps,
+          },
+        },
+      }),
+    onSuccess: () => {
+      if (user?.id) {
+        void qc.invalidateQueries({ queryKey: getUserServiceListProfilesQueryKey(user.id) });
+      }
+      toast.success("Bitrate limit updated");
+    },
+    onError: (err: Error) => toast.error(err.message || "Failed to update bitrate limit"),
+  });
+
+  const handleChange = (value: string) => {
+    setBitrate(value);
+    updateProfile.mutate(value);
+  };
+
+  return (
+    <div className="flex flex-col gap-6">
+      <div>
+        <h3 className="text-sm font-semibold text-[var(--text)]">Streaming Bitrate Limit</h3>
+        <p className="text-xs text-[var(--text-muted)] mt-1">
+          Maximum bitrate for transcoded streams. Does not affect direct play.
+        </p>
+      </div>
+      <Select
+        label="Max bitrate"
+        options={BITRATE_OPTIONS}
+        value={bitrate}
+        onChange={handleChange}
+        disabled={!defaultProfile}
+      />
     </div>
   );
 }

@@ -5,8 +5,10 @@ import (
 	"fmt"
 
 	eveyv1 "github.com/gravity-zero/evey/gen/evey/v1"
+	"github.com/gravity-zero/evey/internal/adapters/driving/grpcapi/interceptors"
 	apptranscoding "github.com/gravity-zero/evey/internal/app/transcoding"
 	"github.com/gravity-zero/evey/internal/domain/transcoding"
+	"github.com/gravity-zero/evey/internal/domain/user"
 	"github.com/gravity-zero/evey/internal/pkg/id"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -14,16 +16,28 @@ import (
 
 type transcodingHandler struct {
 	eveyv1.UnimplementedTranscodingServiceServer
-	svc *apptranscoding.Service
+	svc      *apptranscoding.Service
+	profiles user.ProfileRepository
 }
 
 func (h *transcodingHandler) StartTranscode(req *eveyv1.StartTranscodeRequest, stream eveyv1.TranscodingService_StartTranscodeServer) error {
+	bitrateOut := req.Bitrate
+	if h.profiles != nil {
+		if claims := interceptors.ClaimsFromContext(stream.Context()); claims != nil && claims.ProfileID != "" {
+			if prof, err := h.profiles.GetByID(stream.Context(), claims.ProfileID); err == nil && prof.MaxBitrateKbps != nil {
+				capKbps := int64(*prof.MaxBitrateKbps) * 1000
+				if bitrateOut == 0 || bitrateOut > capKbps {
+					bitrateOut = capKbps
+				}
+			}
+		}
+	}
 	job := &transcoding.TranscodeJob{
 		ID:            id.New("tj-"),
 		MediaItemID:   req.MediaItemId,
 		OutputCodec:   req.VideoCodec,
 		HWAccelType:   hwAccelTypeFromProto[req.HwAccel],
-		BitrateOut:    req.Bitrate,
+		BitrateOut:    bitrateOut,
 		ResolutionOut: fmt.Sprintf("%dx%d", req.Width, req.Height),
 	}
 	if err := h.svc.StartTranscode(stream.Context(), job); err != nil {
