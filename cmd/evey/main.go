@@ -36,6 +36,7 @@ import (
 	appplugin "github.com/gravity-zero/evey/internal/app/plugin"
 	apptranscoding "github.com/gravity-zero/evey/internal/app/transcoding"
 	appuser "github.com/gravity-zero/evey/internal/app/user"
+	appfavorite "github.com/gravity-zero/evey/internal/app/favorite"
 	appwebhook "github.com/gravity-zero/evey/internal/app/webhook"
 	"github.com/gravity-zero/evey/internal/adapters/driven/ebml"
 	"github.com/gravity-zero/evey/internal/adapters/driven/ffmpeg"
@@ -250,6 +251,9 @@ func run() error {
 		}
 	}()
 
+	favoriteRepo := postgres.NewFavoriteRepository(db)
+	favoriteSvc := appfavorite.NewService(favoriteRepo)
+
 	feedSvc := appfeed.NewService(feedAdminCfgRepo, feedProfileCfgRepo, feedQuerier, watchHistoryAnalyzer)
 
 	// --- Auth interceptor ---
@@ -298,6 +302,7 @@ func run() error {
 		mux.HandleFunc("GET /api/v1/media/{id}/subtitle/{track}", subtitleHandler(tokenGen, librarySvc))
 		mux.HandleFunc("GET /api/v1/admin/library-stats", libraryStatsHandler(tokenGen, librarySvc))
 		registerAdminRoutes(mux, metadataSvc, tmdbProvider, tokenGen)
+		registerFavoriteRoutes(mux, favoriteSvc, tokenGen)
 		mux.Handle("/", gwMux)
 		httpSrv = &http.Server{
 			Addr:              fmt.Sprintf(":%d", httpPort),
@@ -928,4 +933,95 @@ func libraryStatsHandler(tokenGen interface {
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(map[string]any{"stats": stats})
 	}
+}
+
+func registerFavoriteRoutes(mux *http.ServeMux, favSvc *appfavorite.Service, tokenGen *auth.JWTGenerator) {
+	extractClaims := func(r *http.Request) (*domainuser.Claims, bool) {
+		h := r.Header.Get("Authorization")
+		if !strings.HasPrefix(h, "Bearer ") {
+			return nil, false
+		}
+		claims, err := tokenGen.ValidateAccessToken(h[7:])
+		if err != nil {
+			return nil, false
+		}
+		return claims, true
+	}
+
+	// POST /api/v1/favorites/{media_id} — toggle
+	mux.HandleFunc("POST /api/v1/favorites/{media_id}", func(w http.ResponseWriter, r *http.Request) {
+		claims, ok := extractClaims(r)
+		if !ok {
+			http.Error(w, `{"message":"unauthenticated"}`, http.StatusUnauthorized)
+			return
+		}
+		mediaID := r.PathValue("media_id")
+		if mediaID == "" {
+			http.Error(w, `{"message":"media_id required"}`, http.StatusBadRequest)
+			return
+		}
+		isFav, err := favSvc.Toggle(r.Context(), claims.ProfileID, mediaID)
+		if err != nil {
+			http.Error(w, `{"message":"internal error"}`, http.StatusInternalServerError)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]any{"isFavorite": isFav})
+	})
+
+	// GET /api/v1/favorites — list
+	mux.HandleFunc("GET /api/v1/favorites", func(w http.ResponseWriter, r *http.Request) {
+		claims, ok := extractClaims(r)
+		if !ok {
+			http.Error(w, `{"message":"unauthenticated"}`, http.StatusUnauthorized)
+			return
+		}
+		limit := 50
+		offset := 0
+		if l := r.URL.Query().Get("limit"); l != "" {
+			if n, err := strconv.Atoi(l); err == nil && n > 0 {
+				limit = n
+			}
+		}
+		if o := r.URL.Query().Get("offset"); o != "" {
+			if n, err := strconv.Atoi(o); err == nil && n >= 0 {
+				offset = n
+			}
+		}
+		favs, err := favSvc.List(r.Context(), claims.ProfileID, limit, offset)
+		if err != nil {
+			http.Error(w, `{"message":"internal error"}`, http.StatusInternalServerError)
+			return
+		}
+		type favItem struct {
+			MediaItemID string `json:"mediaItemId"`
+			CreatedAt   string `json:"createdAt"`
+		}
+		items := make([]favItem, 0, len(favs))
+		for _, f := range favs {
+			items = append(items, favItem{
+				MediaItemID: f.MediaItemID,
+				CreatedAt:   f.CreatedAt.UTC().Format(time.RFC3339),
+			})
+		}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]any{"items": items})
+	})
+
+	// GET /api/v1/favorites/{media_id} — check
+	mux.HandleFunc("GET /api/v1/favorites/{media_id}", func(w http.ResponseWriter, r *http.Request) {
+		claims, ok := extractClaims(r)
+		if !ok {
+			http.Error(w, `{"message":"unauthenticated"}`, http.StatusUnauthorized)
+			return
+		}
+		mediaID := r.PathValue("media_id")
+		isFav, err := favSvc.IsFavorite(r.Context(), claims.ProfileID, mediaID)
+		if err != nil {
+			http.Error(w, `{"message":"internal error"}`, http.StatusInternalServerError)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]any{"isFavorite": isFav})
+	})
 }
