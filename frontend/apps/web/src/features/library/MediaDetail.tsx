@@ -19,6 +19,7 @@ import { BackButton } from "@/components/ui/BackButton";
 import { StreamList } from "./StreamList";
 import { MediaCard } from "./MediaCard";
 import { DownloadButton } from "../playback/DownloadButton";
+import { AddToPlaylistModal } from "../playlist/AddToPlaylistModal";
 
 interface MediaDetailProps {
   item: V1MediaItem;
@@ -400,6 +401,7 @@ export function MediaDetail({ item, onMetadataUpdated }: MediaDetailProps) {
   const [watched, setWatched] = useState(false);
   const [fileInfoOpen, setFileInfoOpen] = useState(false);
   const [editing, setEditing] = useState(false);
+  const [playlistModalOpen, setPlaylistModalOpen] = useState(false);
 
   const { data: parentItem } = useLibraryServiceGetMediaItem(
     item.parentId ?? "",
@@ -617,7 +619,22 @@ export function MediaDetail({ item, onMetadataUpdated }: MediaDetailProps) {
             {item.id && item.filePath && (
               <DownloadButton mediaId={item.id} title={item.title} />
             )}
+            {item.id && (
+              <Button variant="secondary" onClick={() => setPlaylistModalOpen(true)}>
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+                </svg>
+                Add to Playlist
+              </Button>
+            )}
           </div>
+          {item.id && (
+            <AddToPlaylistModal
+              open={playlistModalOpen}
+              onClose={() => setPlaylistModalOpen(false)}
+              mediaItemId={item.id}
+            />
+          )}
 
           {editing && item.id && (
             <MetadataEditPanel

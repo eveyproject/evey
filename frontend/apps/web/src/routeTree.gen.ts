@@ -35,6 +35,8 @@ import { Route as AuthAdminLogsRouteImport } from './routes/_auth/admin/logs'
 import { Route as AuthAdminLibrariesRouteImport } from './routes/_auth/admin/libraries'
 import { Route as AuthAdminAuditRouteImport } from './routes/_auth/admin/audit'
 import { Route as AuthAdminActivityRouteImport } from './routes/_auth/admin/activity'
+import { Route as AuthPlaylistsIndexRouteImport } from './routes/_auth/playlists/index'
+import { Route as AuthPlaylistsPlaylistIdRouteImport } from './routes/_auth/playlists/$playlistId'
 
 const SetupRoute = SetupRouteImport.update({
   id: '/setup',
@@ -204,6 +206,20 @@ const AuthAdminActivityRoute = AuthAdminActivityRouteImport.update({
 } as any).lazy(() =>
   import('./routes/_auth/admin/activity.lazy').then((d) => d.Route),
 )
+const AuthPlaylistsIndexRoute = AuthPlaylistsIndexRouteImport.update({
+  id: '/playlists/',
+  path: '/playlists/',
+  getParentRoute: () => AuthRoute,
+} as any).lazy(() =>
+  import('./routes/_auth/playlists/index.lazy').then((d) => d.Route),
+)
+const AuthPlaylistsPlaylistIdRoute = AuthPlaylistsPlaylistIdRouteImport.update({
+  id: '/playlists/$playlistId',
+  path: '/playlists/$playlistId',
+  getParentRoute: () => AuthRoute,
+} as any).lazy(() =>
+  import('./routes/_auth/playlists/$playlistId.lazy').then((d) => d.Route),
+)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -230,6 +246,8 @@ export interface FileRoutesByFullPath {
   '/profile/settings': typeof AuthProfileSettingsRoute
   '/admin/': typeof AuthAdminIndexRoute
   '/library/': typeof AuthLibraryIndexRoute
+  '/playlists/': typeof AuthPlaylistsIndexRoute
+  '/playlists/$playlistId': typeof AuthPlaylistsPlaylistIdRoute
   '/profile/': typeof AuthProfileIndexRoute
 }
 export interface FileRoutesByTo {
@@ -256,6 +274,8 @@ export interface FileRoutesByTo {
   '/profile/settings': typeof AuthProfileSettingsRoute
   '/admin': typeof AuthAdminIndexRoute
   '/library': typeof AuthLibraryIndexRoute
+  '/playlists': typeof AuthPlaylistsIndexRoute
+  '/playlists/$playlistId': typeof AuthPlaylistsPlaylistIdRoute
   '/profile': typeof AuthProfileIndexRoute
 }
 export interface FileRoutesById {
@@ -285,6 +305,8 @@ export interface FileRoutesById {
   '/_auth/profile/settings': typeof AuthProfileSettingsRoute
   '/_auth/admin/': typeof AuthAdminIndexRoute
   '/_auth/library/': typeof AuthLibraryIndexRoute
+  '/_auth/playlists/': typeof AuthPlaylistsIndexRoute
+  '/_auth/playlists/$playlistId': typeof AuthPlaylistsPlaylistIdRoute
   '/_auth/profile/': typeof AuthProfileIndexRoute
 }
 export interface FileRouteTypes {
@@ -314,6 +336,8 @@ export interface FileRouteTypes {
     | '/profile/settings'
     | '/admin/'
     | '/library/'
+    | '/playlists/'
+    | '/playlists/$playlistId'
     | '/profile/'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -340,6 +364,8 @@ export interface FileRouteTypes {
     | '/profile/settings'
     | '/admin'
     | '/library'
+    | '/playlists'
+    | '/playlists/$playlistId'
     | '/profile'
   id:
     | '__root__'
@@ -368,6 +394,8 @@ export interface FileRouteTypes {
     | '/_auth/profile/settings'
     | '/_auth/admin/'
     | '/_auth/library/'
+    | '/_auth/playlists/'
+    | '/_auth/playlists/$playlistId'
     | '/_auth/profile/'
   fileRoutesById: FileRoutesById
 }
@@ -562,6 +590,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthAdminActivityRouteImport
       parentRoute: typeof AuthAdminRoute
     }
+    '/_auth/playlists/': {
+      id: '/_auth/playlists/'
+      path: '/playlists'
+      fullPath: '/playlists/'
+      preLoaderRoute: typeof AuthPlaylistsIndexRouteImport
+      parentRoute: typeof AuthRoute
+    }
+    '/_auth/playlists/$playlistId': {
+      id: '/_auth/playlists/$playlistId'
+      path: '/playlists/$playlistId'
+      fullPath: '/playlists/$playlistId'
+      preLoaderRoute: typeof AuthPlaylistsPlaylistIdRouteImport
+      parentRoute: typeof AuthRoute
+    }
   }
 }
 
@@ -607,6 +649,8 @@ interface AuthRouteChildren {
   AuthProfileNotificationsRoute: typeof AuthProfileNotificationsRoute
   AuthProfileSettingsRoute: typeof AuthProfileSettingsRoute
   AuthLibraryIndexRoute: typeof AuthLibraryIndexRoute
+  AuthPlaylistsIndexRoute: typeof AuthPlaylistsIndexRoute
+  AuthPlaylistsPlaylistIdRoute: typeof AuthPlaylistsPlaylistIdRoute
   AuthProfileIndexRoute: typeof AuthProfileIndexRoute
 }
 
@@ -622,6 +666,8 @@ const AuthRouteChildren: AuthRouteChildren = {
   AuthProfileNotificationsRoute: AuthProfileNotificationsRoute,
   AuthProfileSettingsRoute: AuthProfileSettingsRoute,
   AuthLibraryIndexRoute: AuthLibraryIndexRoute,
+  AuthPlaylistsIndexRoute: AuthPlaylistsIndexRoute,
+  AuthPlaylistsPlaylistIdRoute: AuthPlaylistsPlaylistIdRoute,
   AuthProfileIndexRoute: AuthProfileIndexRoute,
 }
 

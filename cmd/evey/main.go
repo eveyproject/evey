@@ -36,6 +36,7 @@ import (
 	appplugin "github.com/gravity-zero/evey/internal/app/plugin"
 	apptranscoding "github.com/gravity-zero/evey/internal/app/transcoding"
 	appuser "github.com/gravity-zero/evey/internal/app/user"
+	appplaylist "github.com/gravity-zero/evey/internal/app/playlist"
 	appwebhook "github.com/gravity-zero/evey/internal/app/webhook"
 	"github.com/gravity-zero/evey/internal/adapters/driven/ebml"
 	"github.com/gravity-zero/evey/internal/adapters/driven/ffmpeg"
@@ -250,6 +251,11 @@ func run() error {
 		}
 	}()
 
+	playlistRepo := postgres.NewPlaylistRepository(db)
+	playlistItemRepo := postgres.NewPlaylistItemRepository(db)
+	smartQuerier := postgres.NewSmartPlaylistQuerier(db)
+	playlistSvc := appplaylist.NewService(playlistRepo, playlistItemRepo, smartQuerier)
+
 	feedSvc := appfeed.NewService(feedAdminCfgRepo, feedProfileCfgRepo, feedQuerier, watchHistoryAnalyzer)
 
 	// --- Auth interceptor ---
@@ -298,6 +304,7 @@ func run() error {
 		mux.HandleFunc("GET /api/v1/media/{id}/subtitle/{track}", subtitleHandler(tokenGen, librarySvc))
 		mux.HandleFunc("GET /api/v1/admin/library-stats", libraryStatsHandler(tokenGen, librarySvc))
 		registerAdminRoutes(mux, metadataSvc, tmdbProvider, tokenGen)
+		registerPlaylistRoutes(mux, playlistSvc, tokenGen)
 		mux.Handle("/", gwMux)
 		httpSrv = &http.Server{
 			Addr:              fmt.Sprintf(":%d", httpPort),

@@ -4,6 +4,7 @@ import { useAuthStore } from "@evey/store";
 const navItems = [
   { to: "/home" as const, label: "Home" },
   { to: "/library" as const, label: "Libraries" },
+  { to: "/playlists" as const, label: "Playlists" },
   { to: "/search" as const, label: "Search" },
 ];
 
