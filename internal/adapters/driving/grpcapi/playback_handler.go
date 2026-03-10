@@ -59,6 +59,9 @@ func (h *playbackHandler) StartStream(ctx context.Context, req *eveyv1.StartStre
 		DeviceType:  req.ClientName,
 	}
 	if err := h.cmd.StartStream(ctx, session, claims.UserID); err != nil {
+		if errors.Is(err, appplayback.ErrProfileNotFound) {
+			return nil, status.Errorf(codes.NotFound, "profile not found")
+		}
 		slog.Error("start stream", slog.Any("err", err))
 		return nil, status.Errorf(codes.Internal, "internal error")
 	}
@@ -78,6 +81,9 @@ func (h *playbackHandler) ReportProgress(ctx context.Context, req *eveyv1.Report
 		return nil, err
 	}
 	if err := h.cmd.ReportProgressBySession(ctx, req.SessionId, req.PositionMs); err != nil {
+		if errors.Is(err, appplayback.ErrProfileNotFound) {
+			return nil, status.Errorf(codes.NotFound, "profile not found")
+		}
 		slog.Error("report progress", slog.Any("err", err))
 		return nil, status.Errorf(codes.Internal, "internal error")
 	}
@@ -198,6 +204,9 @@ func (h *playbackHandler) MarkAsWatched(ctx context.Context, req *eveyv1.MarkAsW
 		return nil, err
 	}
 	if err := h.cmd.MarkAsWatched(ctx, profileID, req.MediaItemId); err != nil {
+		if errors.Is(err, appplayback.ErrProfileNotFound) {
+			return nil, status.Errorf(codes.NotFound, "profile not found")
+		}
 		slog.Error("mark as watched", slog.Any("err", err))
 		return nil, status.Errorf(codes.Internal, "internal error")
 	}
@@ -214,6 +223,9 @@ func (h *playbackHandler) MarkAsUnwatched(ctx context.Context, req *eveyv1.MarkA
 		return nil, err
 	}
 	if err := h.cmd.MarkAsUnwatched(ctx, profileID, req.MediaItemId); err != nil {
+		if errors.Is(err, appplayback.ErrProfileNotFound) {
+			return nil, status.Errorf(codes.NotFound, "profile not found")
+		}
 		slog.Error("mark as unwatched", slog.Any("err", err))
 		return nil, status.Errorf(codes.Internal, "internal error")
 	}

@@ -10,8 +10,9 @@ import (
 )
 
 var (
-	ErrMaxStreams      = errors.New("max concurrent streams reached")
-	ErrSessionNotFound = errors.New("session not found")
+	ErrMaxStreams       = errors.New("max concurrent streams reached")
+	ErrSessionNotFound  = errors.New("session not found")
+	ErrProfileNotFound  = errors.New("profile not found")
 )
 
 // Service wraps CommandService + QueryService for backward compatibility.
@@ -24,9 +25,10 @@ func NewService(
 	progress playback.WatchProgressRepository,
 	sessions playback.PlaySessionRepository,
 	users user.UserRepository,
+	profiles user.ProfileRepository,
 	events shared.EventBus,
 ) *Service {
-	cmd := NewCommandService(progress, sessions, sessions, users, events)
+	cmd := NewCommandService(progress, sessions, sessions, users, profiles, events)
 	q := NewQueryService(progress)
 	return &Service{cmd: cmd, query: q}
 }

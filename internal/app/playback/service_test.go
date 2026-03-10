@@ -14,27 +14,28 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func newPlaybackSvc() (*appplayback.Service, *pbfakes.FakeWatchProgressRepository, *pbfakes.FakePlaySessionRepository, *userfakes.FakeUserRepository, *sharedfakes.FakeEventBus) {
+func newPlaybackSvc() (*appplayback.Service, *pbfakes.FakeWatchProgressRepository, *pbfakes.FakePlaySessionRepository, *userfakes.FakeUserRepository, *userfakes.FakeProfileRepository, *sharedfakes.FakeEventBus) {
 	progressRepo := pbfakes.NewFakeWatchProgressRepository()
 	sessionRepo := pbfakes.NewFakePlaySessionRepository()
 	userRepo := userfakes.NewFakeUserRepository()
+	profileRepo := userfakes.NewFakeProfileRepository()
 	bus := sharedfakes.NewFakeEventBus()
-	svc := appplayback.NewService(progressRepo, sessionRepo, userRepo, bus)
-	return svc, progressRepo, sessionRepo, userRepo, bus
+	svc := appplayback.NewService(progressRepo, sessionRepo, userRepo, profileRepo, bus)
+	return svc, progressRepo, sessionRepo, userRepo, profileRepo, bus
 }
 
 func TestStartStream_MaxStreams(t *testing.T) {
-	svc, _, _, userRepo, _ := newPlaybackSvc()
+	svc, _, _, userRepo, profileRepo, _ := newPlaybackSvc()
+	ctx := context.Background()
 
 	maxStreams := 1
-	userRepo.Create(context.Background(), &user.User{
+	userRepo.Create(ctx, &user.User{
 		ID:         "u1",
 		Username:   "test",
 		Enabled:    true,
 		MaxStreams: &maxStreams,
 	})
-
-	ctx := context.Background()
+	profileRepo.Create(ctx, &user.Profile{ID: "p1", UserID: "u1"})
 
 	err := svc.StartStream(ctx, &playback.PlaySession{ID: "s1", ProfileID: "p1", MediaItemID: "m1"}, "u1")
 	require.NoError(t, err)
@@ -44,11 +45,12 @@ func TestStartStream_MaxStreams(t *testing.T) {
 }
 
 func TestUpdateProgress(t *testing.T) {
-	svc, progressRepo, _, userRepo, _ := newPlaybackSvc()
-
-	userRepo.Create(context.Background(), &user.User{ID: "u1", Username: "alice", Enabled: true})
-
+	svc, progressRepo, _, userRepo, profileRepo, _ := newPlaybackSvc()
 	ctx := context.Background()
+
+	userRepo.Create(ctx, &user.User{ID: "u1", Username: "alice", Enabled: true})
+	profileRepo.Create(ctx, &user.Profile{ID: "prof-1", UserID: "u1"})
+
 	err := svc.ReportProgress(ctx, "prof-1", "item-1", 30000, false)
 	require.NoError(t, err)
 
@@ -68,11 +70,12 @@ func TestUpdateProgress(t *testing.T) {
 }
 
 func TestStartSession(t *testing.T) {
-	svc, _, sessionRepo, userRepo, bus := newPlaybackSvc()
-
-	userRepo.Create(context.Background(), &user.User{ID: "u1", Username: "alice", Enabled: true})
-
+	svc, _, sessionRepo, userRepo, profileRepo, bus := newPlaybackSvc()
 	ctx := context.Background()
+
+	userRepo.Create(ctx, &user.User{ID: "u1", Username: "alice", Enabled: true})
+	profileRepo.Create(ctx, &user.Profile{ID: "prof-1", UserID: "u1"})
+
 	session := &playback.PlaySession{
 		ID:          "sess-1",
 		ProfileID:   "prof-1",
@@ -97,11 +100,12 @@ func TestStartSession(t *testing.T) {
 }
 
 func TestStopSession(t *testing.T) {
-	svc, _, sessionRepo, userRepo, bus := newPlaybackSvc()
-
-	userRepo.Create(context.Background(), &user.User{ID: "u1", Username: "alice", Enabled: true})
-
+	svc, _, sessionRepo, userRepo, profileRepo, bus := newPlaybackSvc()
 	ctx := context.Background()
+
+	userRepo.Create(ctx, &user.User{ID: "u1", Username: "alice", Enabled: true})
+	profileRepo.Create(ctx, &user.Profile{ID: "prof-1", UserID: "u1"})
+
 	session := &playback.PlaySession{
 		ID:          "sess-1",
 		ProfileID:   "prof-1",

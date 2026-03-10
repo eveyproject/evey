@@ -196,7 +196,7 @@ func run() error {
 	userSvc.InitSetupState(context.Background())
 
 	playbackSvc := appplayback.NewService(
-		watchProgressRepo, playSessionRepo, userRepo, bus,
+		watchProgressRepo, playSessionRepo, userRepo, profileRepo, bus,
 	)
 
 	transcodingSvc := apptranscoding.NewService(

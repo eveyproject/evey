@@ -20,21 +20,24 @@ func newCQRSServices() (
 	*pbfakes.FakeWatchProgressRepository,
 	*pbfakes.FakePlaySessionRepository,
 	*userfakes.FakeUserRepository,
+	*userfakes.FakeProfileRepository,
 	*sharedfakes.FakeEventBus,
 ) {
 	progressRepo := pbfakes.NewFakeWatchProgressRepository()
 	sessionRepo := pbfakes.NewFakePlaySessionRepository()
 	userRepo := userfakes.NewFakeUserRepository()
+	profileRepo := userfakes.NewFakeProfileRepository()
 	bus := sharedfakes.NewFakeEventBus()
-	cmd := appplayback.NewCommandService(progressRepo, sessionRepo, sessionRepo, userRepo, bus)
+	cmd := appplayback.NewCommandService(progressRepo, sessionRepo, sessionRepo, userRepo, profileRepo, bus)
 	q := appplayback.NewQueryService(progressRepo)
-	return cmd, q, progressRepo, sessionRepo, userRepo, bus
+	return cmd, q, progressRepo, sessionRepo, userRepo, profileRepo, bus
 }
 
 func TestCommandService_ReportProgress_QueryService_Get(t *testing.T) {
-	cmd, q, _, _, _, _ := newCQRSServices()
+	cmd, q, _, _, _, profileRepo, _ := newCQRSServices()
 	ctx := context.Background()
 
+	profileRepo.Create(ctx, &user.Profile{ID: "p1", UserID: "u1"})
 	require.NoError(t, cmd.ReportProgress(ctx, "p1", "m1", 45000, false))
 
 	wp, err := q.GetWatchProgress(ctx, "p1", "m1")
@@ -44,9 +47,10 @@ func TestCommandService_ReportProgress_QueryService_Get(t *testing.T) {
 }
 
 func TestCommandService_MarkAsWatched_QueryService_History(t *testing.T) {
-	cmd, q, _, _, _, bus := newCQRSServices()
+	cmd, q, _, _, _, profileRepo, bus := newCQRSServices()
 	ctx := context.Background()
 
+	profileRepo.Create(ctx, &user.Profile{ID: "p1", UserID: "u1"})
 	require.NoError(t, cmd.MarkAsWatched(ctx, "p1", "m1"))
 
 	items, err := q.GetWatchHistory(ctx, "p1", 10, 0)
@@ -64,9 +68,10 @@ func TestCommandService_MarkAsWatched_QueryService_History(t *testing.T) {
 }
 
 func TestCommandService_MarkAsUnwatched(t *testing.T) {
-	cmd, q, _, _, _, _ := newCQRSServices()
+	cmd, q, _, _, _, profileRepo, _ := newCQRSServices()
 	ctx := context.Background()
 
+	profileRepo.Create(ctx, &user.Profile{ID: "p1", UserID: "u1"})
 	require.NoError(t, cmd.MarkAsWatched(ctx, "p1", "m1"))
 	require.NoError(t, cmd.MarkAsUnwatched(ctx, "p1", "m1"))
 
@@ -77,11 +82,12 @@ func TestCommandService_MarkAsUnwatched(t *testing.T) {
 }
 
 func TestCommandService_StartStream_MaxStreams(t *testing.T) {
-	cmd, _, _, _, userRepo, _ := newCQRSServices()
+	cmd, _, _, _, userRepo, profileRepo, _ := newCQRSServices()
 	ctx := context.Background()
 
 	maxStreams := 1
 	userRepo.Create(ctx, &user.User{ID: "u1", Username: "test", Enabled: true, MaxStreams: &maxStreams})
+	profileRepo.Create(ctx, &user.Profile{ID: "p1", UserID: "u1"})
 
 	err := cmd.StartStream(ctx, &playback.PlaySession{ID: "s1", ProfileID: "p1", MediaItemID: "m1"}, "u1")
 	require.NoError(t, err)
@@ -91,10 +97,11 @@ func TestCommandService_StartStream_MaxStreams(t *testing.T) {
 }
 
 func TestCommandService_StopStream(t *testing.T) {
-	cmd, _, _, sessionRepo, userRepo, bus := newCQRSServices()
+	cmd, _, _, sessionRepo, userRepo, profileRepo, bus := newCQRSServices()
 	ctx := context.Background()
 
 	userRepo.Create(ctx, &user.User{ID: "u1", Username: "test", Enabled: true})
+	profileRepo.Create(ctx, &user.Profile{ID: "p1", UserID: "u1"})
 
 	session := &playback.PlaySession{ID: "s1", ProfileID: "p1", MediaItemID: "m1"}
 	require.NoError(t, cmd.StartStream(ctx, session, "u1"))
@@ -115,10 +122,11 @@ func TestCommandService_StopStream(t *testing.T) {
 }
 
 func TestCommandService_ReportProgressBySession(t *testing.T) {
-	cmd, q, _, _, userRepo, _ := newCQRSServices()
+	cmd, q, _, _, userRepo, profileRepo, _ := newCQRSServices()
 	ctx := context.Background()
 
 	userRepo.Create(ctx, &user.User{ID: "u1", Username: "test", Enabled: true})
+	profileRepo.Create(ctx, &user.Profile{ID: "p1", UserID: "u1"})
 
 	session := &playback.PlaySession{ID: "s1", ProfileID: "p1", MediaItemID: "m1"}
 	require.NoError(t, cmd.StartStream(ctx, session, "u1"))
@@ -130,9 +138,10 @@ func TestCommandService_ReportProgressBySession(t *testing.T) {
 }
 
 func TestQueryService_GetResumeItems(t *testing.T) {
-	cmd, q, _, _, _, _ := newCQRSServices()
+	cmd, q, _, _, _, profileRepo, _ := newCQRSServices()
 	ctx := context.Background()
 
+	profileRepo.Create(ctx, &user.Profile{ID: "p1", UserID: "u1"})
 	require.NoError(t, cmd.ReportProgress(ctx, "p1", "m1", 30000, false))
 	require.NoError(t, cmd.ReportProgress(ctx, "p1", "m2", 0, false))
 
@@ -143,9 +152,10 @@ func TestQueryService_GetResumeItems(t *testing.T) {
 }
 
 func TestServiceWrapper_DelegatesToCQRS(t *testing.T) {
-	svc, _, _, _, _ := newPlaybackSvc()
+	svc, _, _, _, profileRepo, _ := newPlaybackSvc()
 	ctx := context.Background()
 
+	profileRepo.Create(ctx, &user.Profile{ID: "p1", UserID: "u1"})
 	require.NoError(t, svc.ReportProgress(ctx, "p1", "m1", 12000, false))
 
 	wp, err := svc.GetWatchProgress(ctx, "p1", "m1")
@@ -154,4 +164,38 @@ func TestServiceWrapper_DelegatesToCQRS(t *testing.T) {
 
 	assert.NotNil(t, svc.CommandService())
 	assert.NotNil(t, svc.QueryService())
+}
+
+func TestCommandService_MarkAsWatched_ProfileNotFound(t *testing.T) {
+	cmd, _, _, _, _, _, _ := newCQRSServices()
+	ctx := context.Background()
+
+	err := cmd.MarkAsWatched(ctx, "nonexistent", "m1")
+	assert.ErrorIs(t, err, appplayback.ErrProfileNotFound)
+}
+
+func TestCommandService_MarkAsUnwatched_ProfileNotFound(t *testing.T) {
+	cmd, _, _, _, _, _, _ := newCQRSServices()
+	ctx := context.Background()
+
+	err := cmd.MarkAsUnwatched(ctx, "nonexistent", "m1")
+	assert.ErrorIs(t, err, appplayback.ErrProfileNotFound)
+}
+
+func TestCommandService_ReportProgress_ProfileNotFound(t *testing.T) {
+	cmd, _, _, _, _, _, _ := newCQRSServices()
+	ctx := context.Background()
+
+	err := cmd.ReportProgress(ctx, "nonexistent", "m1", 5000, false)
+	assert.ErrorIs(t, err, appplayback.ErrProfileNotFound)
+}
+
+func TestCommandService_StartStream_ProfileNotFound(t *testing.T) {
+	cmd, _, _, _, userRepo, _, _ := newCQRSServices()
+	ctx := context.Background()
+
+	userRepo.Create(ctx, &user.User{ID: "u1", Username: "test", Enabled: true})
+
+	err := cmd.StartStream(ctx, &playback.PlaySession{ID: "s1", ProfileID: "nonexistent", MediaItemID: "m1"}, "u1")
+	assert.ErrorIs(t, err, appplayback.ErrProfileNotFound)
 }
