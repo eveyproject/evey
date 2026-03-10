@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { AudioStream } from "./AudioTrackSelector";
 import type { SubtitleStream } from "./SubtitleSelector";
 import { Select } from "@/components/ui/Select";
+import { TrickplayPreview } from "./TrickplayPreview";
 
 export interface EpisodeNavItem { id: string; title?: string; indexNumber?: number }
 export interface SeasonNavItem { id: string; title?: string; indexNumber?: number }
@@ -104,6 +105,7 @@ interface PlayerControlsProps {
   currentEpisodeId?: string;
   onSeasonChange?: (id: string) => void;
   onEpisodeChange?: (id: string) => void;
+  mediaId?: string;
 }
 
 function formatTime(seconds: number): string {
@@ -282,6 +284,7 @@ export function PlayerControls({
   currentEpisodeId = "",
   onSeasonChange,
   onEpisodeChange,
+  mediaId,
 }: PlayerControlsProps) {
   const [visible, setVisible] = useState(true);
   const [playing, setPlaying] = useState(false);
@@ -469,13 +472,21 @@ export function PlayerControls({
           onMouseLeave={() => setSeekHoverPos(null)}
           data-controls
         >
-          {/* hover tooltip */}
+          {/* hover tooltip with trickplay preview */}
           {seekHoverPos !== null && (
             <div
-              className="absolute bottom-full mb-2 -translate-x-1/2 px-2 py-1 rounded text-xs text-white pointer-events-none"
-              style={{ left: seekHoverX, backgroundColor: "rgba(0,0,0,0.85)" }}
+              className="absolute bottom-full mb-2 -translate-x-1/2 flex flex-col items-center pointer-events-none"
+              style={{ left: seekHoverX }}
             >
-              {formatTime(seekHoverPos)}
+              {mediaId && (
+                <TrickplayPreview mediaId={mediaId} hoverTime={seekHoverPos} />
+              )}
+              <div
+                className="px-2 py-1 rounded text-xs text-white mt-1"
+                style={{ backgroundColor: "rgba(0,0,0,0.85)" }}
+              >
+                {formatTime(seekHoverPos)}
+              </div>
             </div>
           )}
           {/* background track */}

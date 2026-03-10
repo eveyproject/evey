@@ -97,3 +97,18 @@ type SearchIndex interface {
 	RemoveMediaItem(ctx context.Context, id string) error
 	Search(ctx context.Context, query string, filters map[string]string) ([]string, error)
 }
+
+type TrickplayRepository interface {
+	Create(ctx context.Context, manifest *TrickplayManifest) error
+	GetByMediaItemID(ctx context.Context, mediaItemID string) (*TrickplayManifest, error)
+	Delete(ctx context.Context, mediaItemID string) error
+}
+
+type TrickplayResult struct {
+	ImageDir   string
+	ImageCount int
+}
+
+type TrickplayGenerator interface {
+	Generate(ctx context.Context, filePath string, outputDir string, interval, width, tileWidth, tileHeight int) (*TrickplayResult, error)
+}

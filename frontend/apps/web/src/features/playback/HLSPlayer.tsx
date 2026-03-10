@@ -331,6 +331,7 @@ export function HLSPlayer({
         currentEpisodeId={currentEpisodeId}
         onSeasonChange={onSeasonChange}
         onEpisodeChange={onEpisodeChange}
+        mediaId={mediaId}
       />
     </div>
   );

@@ -114,6 +114,7 @@ func run() error {
 	mediaStreamRepo := postgres.NewMediaStreamRepository(db)
 	personRepo := postgres.NewPersonRepository(db)
 	mediaPersonRepo := postgres.NewMediaPersonRepository(db)
+	trickplayRepo := postgres.NewTrickplayRepository(db)
 
 	watchProgressRepo := postgres.NewWatchProgressRepository(db)
 	playSessionRepo := postgres.NewPlaySessionRepository(db)
@@ -148,6 +149,7 @@ func run() error {
 	prober := ffmpeg.NewProber("ffprobe")
 	transcoder := ffmpeg.NewTranscoder("ffmpeg", cfg.Transcoding.CacheDir)
 	hwDetector := ffmpeg.NewHWDetector("ffmpeg")
+	trickplayGen := ffmpeg.NewTrickplayGenerator("ffmpeg")
 	ebmlReader := ebml.NewReader()
 	ebmlWriter := ebml.NewWriter("ffmpeg")
 	bus := eventbus.New()
@@ -171,6 +173,7 @@ func run() error {
 		mediaStreamRepo, personRepo, mediaPersonRepo,
 		scanner, prober, searchAdapter, bus,
 	)
+	librarySvc.WithTrickplay(trickplayRepo, trickplayGen)
 
 	userSvc := appuser.NewService(
 		userRepo,
@@ -296,6 +299,9 @@ func run() error {
 		mux.HandleFunc("GET /api/v1/media/{id}/download", downloadHandler(tokenGen, librarySvc))
 		mux.HandleFunc("GET /api/v1/media/{id}/transcode", transcodeHandler(tokenGen, librarySvc))
 		mux.HandleFunc("GET /api/v1/media/{id}/subtitle/{track}", subtitleHandler(tokenGen, librarySvc))
+		mux.HandleFunc("GET /api/v1/media/{id}/trickplay", trickplayManifestHandler(tokenGen, librarySvc))
+		mux.HandleFunc("GET /api/v1/media/{id}/trickplay/{image}", trickplayImageHandler(tokenGen, librarySvc))
+		mux.HandleFunc("POST /api/v1/admin/media/{id}/trickplay/generate", trickplayGenerateHandler(tokenGen, librarySvc, cfg.Transcoding.CacheDir))
 		mux.HandleFunc("GET /api/v1/admin/library-stats", libraryStatsHandler(tokenGen, librarySvc))
 		registerAdminRoutes(mux, metadataSvc, tmdbProvider, tokenGen)
 		mux.Handle("/", gwMux)
@@ -927,5 +933,138 @@ func libraryStatsHandler(tokenGen interface {
 		}
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(map[string]any{"stats": stats})
+	}
+}
+
+func trickplayManifestHandler(tokenGen interface {
+	ValidateAccessToken(string) (*domainuser.Claims, error)
+}, libSvc interface {
+	GetTrickplayManifest(ctx context.Context, mediaItemID string) (*domainlibrary.TrickplayManifest, error)
+}) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		mediaID := r.PathValue("id")
+		token := r.Header.Get("Authorization")
+		if strings.HasPrefix(token, "Bearer ") {
+			token = token[7:]
+		} else if t := r.URL.Query().Get("token"); t != "" {
+			token = t
+		}
+		if _, err := tokenGen.ValidateAccessToken(token); err != nil {
+			http.Error(w, `{"message":"forbidden"}`, http.StatusForbidden)
+			return
+		}
+		manifest, err := libSvc.GetTrickplayManifest(r.Context(), mediaID)
+		if err != nil {
+			http.Error(w, `{"message":"not found"}`, http.StatusNotFound)
+			return
+		}
+
+		// Generate WebVTT
+		tilesPerImage := manifest.TileWidth * manifest.TileHeight
+		totalFrames := manifest.ImageCount * tilesPerImage
+
+		w.Header().Set("Content-Type", "text/vtt")
+		w.Header().Set("Access-Control-Allow-Origin", "*")
+		w.Header().Set("Cache-Control", "public, max-age=86400")
+		fmt.Fprint(w, "WEBVTT\n\n")
+
+		for i := 0; i < totalFrames; i++ {
+			startSec := i * manifest.Interval
+			endSec := (i + 1) * manifest.Interval
+
+			imageIdx := i / tilesPerImage
+			tileIdx := i % tilesPerImage
+			col := tileIdx % manifest.TileWidth
+			row := tileIdx / manifest.TileWidth
+
+			xywh := fmt.Sprintf("%d,%d,%d,%d",
+				col*manifest.Width, row*manifest.Width*9/16,
+				manifest.Width, manifest.Width*9/16,
+			)
+			imageFile := fmt.Sprintf("trickplay_%03d.jpg", imageIdx+1)
+			imageURL := fmt.Sprintf("/api/v1/media/%s/trickplay/%s", mediaID, imageFile)
+
+			fmt.Fprintf(w, "%s --> %s\n%s#xywh=%s\n\n",
+				formatVTTTime(startSec), formatVTTTime(endSec),
+				imageURL, xywh,
+			)
+		}
+	}
+}
+
+func formatVTTTime(totalSeconds int) string {
+	h := totalSeconds / 3600
+	m := (totalSeconds % 3600) / 60
+	s := totalSeconds % 60
+	return fmt.Sprintf("%02d:%02d:%02d.000", h, m, s)
+}
+
+func trickplayImageHandler(tokenGen interface {
+	ValidateAccessToken(string) (*domainuser.Claims, error)
+}, libSvc interface {
+	GetTrickplayManifest(ctx context.Context, mediaItemID string) (*domainlibrary.TrickplayManifest, error)
+}) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		mediaID := r.PathValue("id")
+		imageName := r.PathValue("image")
+		token := r.Header.Get("Authorization")
+		if strings.HasPrefix(token, "Bearer ") {
+			token = token[7:]
+		} else if t := r.URL.Query().Get("token"); t != "" {
+			token = t
+		}
+		if _, err := tokenGen.ValidateAccessToken(token); err != nil {
+			http.Error(w, `{"message":"forbidden"}`, http.StatusForbidden)
+			return
+		}
+		manifest, err := libSvc.GetTrickplayManifest(r.Context(), mediaID)
+		if err != nil {
+			http.Error(w, `{"message":"not found"}`, http.StatusNotFound)
+			return
+		}
+
+		imagePath := filepath.Join(manifest.ImagePath, filepath.Base(imageName))
+		if _, err := os.Stat(imagePath); err != nil {
+			http.Error(w, `{"message":"image not found"}`, http.StatusNotFound)
+			return
+		}
+		w.Header().Set("Content-Type", "image/jpeg")
+		w.Header().Set("Access-Control-Allow-Origin", "*")
+		w.Header().Set("Cache-Control", "public, max-age=86400")
+		http.ServeFile(w, r, imagePath)
+	}
+}
+
+func trickplayGenerateHandler(tokenGen interface {
+	ValidateAccessToken(string) (*domainuser.Claims, error)
+}, libSvc interface {
+	GenerateTrickplay(ctx context.Context, mediaItemID string, cacheDir string) error
+}, cacheDir string) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		mediaID := r.PathValue("id")
+		token := r.Header.Get("Authorization")
+		if strings.HasPrefix(token, "Bearer ") {
+			token = token[7:]
+		} else if t := r.URL.Query().Get("token"); t != "" {
+			token = t
+		}
+		claims, err := tokenGen.ValidateAccessToken(token)
+		if err != nil || !claims.IsAdmin {
+			http.Error(w, `{"message":"forbidden"}`, http.StatusForbidden)
+			return
+		}
+
+		go func() {
+			ctx := context.Background()
+			if err := libSvc.GenerateTrickplay(ctx, mediaID, cacheDir); err != nil {
+				slog.Error("trickplay generation failed", slog.String("media_id", mediaID), slog.Any("err", err))
+			} else {
+				slog.Info("trickplay generated", slog.String("media_id", mediaID))
+			}
+		}()
+
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusAccepted)
+		w.Write([]byte(`{"message":"trickplay generation started"}`))
 	}
 }
