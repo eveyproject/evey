@@ -130,6 +130,15 @@ type MediaPerson struct {
 	SortOrder     int
 }
 
+type Chapter struct {
+	ID          string
+	MediaItemID string
+	Title       string
+	StartTimeMs int64
+	EndTimeMs   int64
+	SortOrder   int
+}
+
 type Collection struct {
 	ID          string
 	Name        string

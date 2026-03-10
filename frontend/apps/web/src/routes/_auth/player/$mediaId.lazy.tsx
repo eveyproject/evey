@@ -3,6 +3,7 @@ import { useCallback, useMemo, useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { libraryServiceGetMediaItem, libraryServiceListMediaItems } from "@evey/api";
 import { usePlaySession } from "@/hooks/usePlaySession";
+import { useChapters } from "@/hooks/useChapters";
 import { HLSPlayer } from "@/features/playback/HLSPlayer";
 import { Spinner } from "@/components/ui/Spinner";
 import type { AudioStream, SubtitleStream } from "@/features/playback/HLSPlayer";
@@ -50,6 +51,7 @@ function PlayerPage() {
         externalPath: s.externalPath,
       })) ?? [];
 
+  const { data: chapters } = useChapters(mediaId);
   const startPositionMs = progress?.positionMs ? Number(progress.positionMs) : 0;
 
   const isEpisode = mediaItem?.type === "MEDIA_ITEM_TYPE_EPISODE";
@@ -125,6 +127,7 @@ function PlayerPage() {
           currentEpisodeId={mediaId}
           onSeasonChange={setSelectedSeasonId}
           onEpisodeChange={handleEpisodeChange}
+          chapters={chapters}
         />
       )}
     </div>

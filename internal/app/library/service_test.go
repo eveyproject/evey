@@ -8,6 +8,8 @@ import (
 	applib "github.com/gravity-zero/evey/internal/app/library"
 	"github.com/gravity-zero/evey/internal/domain/library"
 	libfakes "github.com/gravity-zero/evey/internal/domain/library/fakes"
+	"github.com/gravity-zero/evey/internal/domain/mkv"
+	mkvfakes "github.com/gravity-zero/evey/internal/domain/mkv/fakes"
 	sharedfakes "github.com/gravity-zero/evey/internal/domain/shared/fakes"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -230,4 +232,43 @@ func TestQueryService_GetCast(t *testing.T) {
 	require.NoError(t, err)
 	assert.Len(t, cast, 2)
 	assert.Equal(t, "Actor One", cast[0].PersonName)
+}
+
+func TestScanLibrary_ExtractsChapters(t *testing.T) {
+	svc, _, libQueryRepo, _, scanner, _ := newCmdSvc()
+
+	chapterRepo := libfakes.NewFakeChapterRepository()
+	reader := mkvfakes.NewFakeContainerReader()
+	reader.Containers["/movies/film.mkv"] = &mkv.Container{
+		Path: "/movies/film.mkv",
+		Chapters: []mkv.Chapter{
+			{ID: 1, Title: "Opening", StartMs: 0, EndMs: 90000},
+			{ID: 2, Title: "Act 1", StartMs: 90000, EndMs: 3600000},
+		},
+	}
+	svc.WithChapters(chapterRepo, reader)
+
+	libQueryRepo.Seed(&library.Library{
+		ID: "lib-1", Name: "Movies", Type: "movie", Paths: []string{"/movies"},
+	})
+	scanner.Results["/movies"] = []library.ScannedFile{
+		{Path: "/movies/film.mkv", Size: 5000},
+	}
+
+	_, _, err := svc.ScanLibrary(context.Background(), "lib-1")
+	require.NoError(t, err)
+
+	allChapters := chapterRepo.All()
+	require.Len(t, allChapters, 2)
+	assert.Equal(t, "Opening", allChapters[0].Title)
+	assert.Equal(t, int64(0), allChapters[0].StartTimeMs)
+	assert.Equal(t, int64(90000), allChapters[0].EndTimeMs)
+	assert.Equal(t, "Act 1", allChapters[1].Title)
+}
+
+func TestGetChapters_NilRepo(t *testing.T) {
+	svc, _, _, _, _, _ := newCmdSvc()
+	chapters, err := svc.GetChapters(context.Background(), "any-id")
+	require.NoError(t, err)
+	assert.Nil(t, chapters)
 }

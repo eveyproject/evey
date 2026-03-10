@@ -9,6 +9,7 @@ import type { EpisodeNavItem, SeasonNavItem } from "./PlayerControls";
 import { ProgressReporter } from "./ProgressReporter";
 import { NextEpisodeOverlay } from "./NextEpisodeOverlay";
 import { SkipIntroButton } from "./SkipIntroButton";
+import type { Chapter } from "@/hooks/useChapters";
 
 const canPlayHevc = (() => {
   const v = document.createElement("video");
@@ -35,6 +36,7 @@ interface HLSPlayerProps {
   currentEpisodeId?: string;
   onSeasonChange?: (id: string) => void;
   onEpisodeChange?: (id: string) => void;
+  chapters?: Chapter[];
 }
 
 export function HLSPlayer({
@@ -55,6 +57,7 @@ export function HLSPlayer({
   currentEpisodeId,
   onSeasonChange,
   onEpisodeChange,
+  chapters = [],
 }: HLSPlayerProps) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const hlsRef = useRef<InstanceType<typeof Hls> | null>(null);
@@ -331,6 +334,7 @@ export function HLSPlayer({
         currentEpisodeId={currentEpisodeId}
         onSeasonChange={onSeasonChange}
         onEpisodeChange={onEpisodeChange}
+        chapters={chapters}
       />
     </div>
   );

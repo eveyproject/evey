@@ -43,6 +43,11 @@ type MediaStreamRepository interface {
 	DeleteByMediaItemID(ctx context.Context, mediaItemID string) error
 }
 
+type ChapterRepository interface {
+	ReplaceBatch(ctx context.Context, mediaItemID string, chapters []*Chapter) error
+	GetByMediaItemID(ctx context.Context, mediaItemID string) ([]*Chapter, error)
+}
+
 type PersonRepository interface {
 	Create(ctx context.Context, person *Person) error
 	GetByID(ctx context.Context, id string) (*Person, error)

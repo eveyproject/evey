@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { AudioStream } from "./AudioTrackSelector";
 import type { SubtitleStream } from "./SubtitleSelector";
 import { Select } from "@/components/ui/Select";
+import type { Chapter } from "@/hooks/useChapters";
 
 export interface EpisodeNavItem { id: string; title?: string; indexNumber?: number }
 export interface SeasonNavItem { id: string; title?: string; indexNumber?: number }
@@ -85,6 +86,71 @@ function EpisodesPanel({ seasons, currentSeasonId, episodes, currentEpisodeId, o
   );
 }
 
+interface ChaptersPanelProps {
+  chapters: Chapter[];
+  currentTimeSec: number;
+  onSeek: (timeSec: number) => void;
+  onOpenChange: (open: boolean) => void;
+}
+
+function ChaptersPanel({ chapters, currentTimeSec, onSeek, onOpenChange }: ChaptersPanelProps) {
+  const [open, setOpen] = useState(false);
+
+  function toggle(e: React.MouseEvent) {
+    e.stopPropagation();
+    const next = !open;
+    setOpen(next);
+    onOpenChange(next);
+  }
+
+  const currentMs = currentTimeSec * 1000;
+
+  return (
+    <div className="relative">
+      <button onClick={toggle} aria-label="Chapters" className="text-white hover:text-[var(--accent)] transition-colors p-1">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+          <path d="M4 6H2v14c0 1.1.9 2 2 2h14v-2H4V6zm16-4H8c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H8V4h12v12zM10 9h8v2h-8V9zm0 3h4v2h-4v-2zm0-6h8v2h-8V6z" />
+        </svg>
+      </button>
+      {open && (
+        <div
+          className="absolute bottom-full mb-2 right-0 w-72 rounded-[var(--radius-md)] shadow-xl overflow-hidden z-20"
+          style={{ backgroundColor: "var(--surface)", border: "1px solid var(--border)" }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div className="px-3 pt-2 pb-1 text-xs font-semibold uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>
+            Chapters
+          </div>
+          <div className="max-h-72 overflow-y-auto">
+            {chapters.map((ch, i) => {
+              const startSec = ch.startTimeMs / 1000;
+              const isActive = currentMs >= ch.startTimeMs && (i === chapters.length - 1 || currentMs < chapters[i + 1].startTimeMs);
+              return (
+                <button
+                  key={i}
+                  onClick={() => { onSeek(startSec); setOpen(false); onOpenChange(false); }}
+                  className="flex items-center gap-2 w-full px-4 py-2 text-sm hover:bg-[var(--surface-raised)] transition-colors text-left"
+                  style={{ color: isActive ? "var(--accent)" : "var(--text)" }}
+                >
+                  <span className="w-12 flex-shrink-0 font-mono text-xs" style={{ color: "var(--text-muted)" }}>
+                    {formatTime(startSec)}
+                  </span>
+                  <span className="flex-1 truncate">{ch.title || `Chapter ${i + 1}`}</span>
+                  {isActive && (
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" className="flex-shrink-0">
+                      <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z" />
+                    </svg>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 interface PlayerControlsProps {
   videoRef: React.RefObject<HTMLVideoElement | null>;
   knownDurationSec?: number;
@@ -104,6 +170,7 @@ interface PlayerControlsProps {
   currentEpisodeId?: string;
   onSeasonChange?: (id: string) => void;
   onEpisodeChange?: (id: string) => void;
+  chapters?: Chapter[];
 }
 
 function formatTime(seconds: number): string {
@@ -282,6 +349,7 @@ export function PlayerControls({
   currentEpisodeId = "",
   onSeasonChange,
   onEpisodeChange,
+  chapters = [],
 }: PlayerControlsProps) {
   const [visible, setVisible] = useState(true);
   const [playing, setPlaying] = useState(false);
@@ -292,6 +360,7 @@ export function PlayerControls({
   const [fullscreen, setFullscreen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [episodesOpen, setEpisodesOpen] = useState(false);
+  const [chaptersOpen, setChaptersOpen] = useState(false);
   const [seekHoverPos, setSeekHoverPos] = useState<number | null>(null);
   const [seekHoverX, setSeekHoverX] = useState(0);
   const hideTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -314,15 +383,15 @@ export function PlayerControls({
     if (!settingsOpen) scheduleHide();
   }, [settingsOpen, scheduleHide]);
 
-  // Keep visible and cancel timer when settings or episodes panel open
+  // Keep visible and cancel timer when settings, episodes, or chapters panel open
   useEffect(() => {
-    if (settingsOpen || episodesOpen) {
+    if (settingsOpen || episodesOpen || chaptersOpen) {
       if (hideTimer.current) clearTimeout(hideTimer.current);
       setVisible(true);
     } else {
       scheduleHide();
     }
-  }, [settingsOpen, episodesOpen, scheduleHide]);
+  }, [settingsOpen, episodesOpen, chaptersOpen, scheduleHide]);
 
   useEffect(() => {
     scheduleHide();
@@ -470,14 +539,21 @@ export function PlayerControls({
           data-controls
         >
           {/* hover tooltip */}
-          {seekHoverPos !== null && (
-            <div
-              className="absolute bottom-full mb-2 -translate-x-1/2 px-2 py-1 rounded text-xs text-white pointer-events-none"
-              style={{ left: seekHoverX, backgroundColor: "rgba(0,0,0,0.85)" }}
-            >
-              {formatTime(seekHoverPos)}
-            </div>
-          )}
+          {seekHoverPos !== null && (() => {
+            const hoverMs = seekHoverPos * 1000;
+            const hoverChapter = chapters.find((ch, i) =>
+              hoverMs >= ch.startTimeMs && (i === chapters.length - 1 || hoverMs < chapters[i + 1].startTimeMs)
+            );
+            return (
+              <div
+                className="absolute bottom-full mb-2 -translate-x-1/2 px-2 py-1 rounded text-xs text-white pointer-events-none text-center"
+                style={{ left: seekHoverX, backgroundColor: "rgba(0,0,0,0.85)", maxWidth: 200 }}
+              >
+                {hoverChapter?.title && <div className="truncate">{hoverChapter.title}</div>}
+                <div>{formatTime(seekHoverPos)}</div>
+              </div>
+            );
+          })()}
           {/* background track */}
           <div className="absolute left-0 right-0 h-1 rounded bg-white/20 group-hover:h-1.5 transition-all" />
           {/* buffered track */}
@@ -493,6 +569,18 @@ export function PlayerControls({
               backgroundColor: "var(--accent)",
             }}
           />
+          {/* chapter markers */}
+          {effectiveDuration > 0 && chapters.map((ch, i) => {
+            const pct = (ch.startTimeMs / 1000 / effectiveDuration) * 100;
+            if (pct <= 0) return null;
+            return (
+              <div
+                key={i}
+                className="absolute top-1/2 -translate-y-1/2 w-0.5 h-3 bg-white/70 pointer-events-none z-10"
+                style={{ left: `${pct}%` }}
+              />
+            );
+          })}
           <input
             type="range"
             min={0}
@@ -547,6 +635,16 @@ export function PlayerControls({
           </div>
 
           <div className="flex-1" />
+
+          {/* Chapters panel */}
+          {chapters.length > 0 && (
+            <ChaptersPanel
+              chapters={chapters}
+              currentTimeSec={currentTime}
+              onSeek={(t) => { if (videoRef.current) videoRef.current.currentTime = t; }}
+              onOpenChange={setChaptersOpen}
+            />
+          )}
 
           {/* Episodes panel (only for TV episodes) */}
           {episodes.length > 0 && onEpisodeChange && (

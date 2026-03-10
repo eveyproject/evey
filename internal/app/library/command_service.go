@@ -4,10 +4,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/gravity-zero/evey/internal/domain/library"
+	"github.com/gravity-zero/evey/internal/domain/mkv"
 	"github.com/gravity-zero/evey/internal/domain/shared"
 )
 
@@ -18,6 +20,8 @@ type CommandService struct {
 	mediaStreams  library.MediaStreamRepository
 	persons      library.PersonRepository
 	mediaPersons library.MediaPersonRepository
+	chapters     library.ChapterRepository
+	mkvReader    mkv.ContainerReader
 	scanner      library.FileScanner
 	prober       library.StreamProber
 	search       library.SearchIndex
@@ -48,6 +52,40 @@ func NewCommandService(
 		search:       search,
 		events:       events,
 	}
+}
+
+func (s *CommandService) WithChapters(chapters library.ChapterRepository, reader mkv.ContainerReader) {
+	s.chapters = chapters
+	s.mkvReader = reader
+}
+
+func (s *CommandService) GetChapters(ctx context.Context, mediaItemID string) ([]*library.Chapter, error) {
+	if s.chapters == nil {
+		return nil, nil
+	}
+	return s.chapters.GetByMediaItemID(ctx, mediaItemID)
+}
+
+func (s *CommandService) extractAndStoreChapters(ctx context.Context, mediaItemID, filePath string) {
+	if s.chapters == nil || s.mkvReader == nil || !strings.HasSuffix(strings.ToLower(filePath), ".mkv") {
+		return
+	}
+	mkvChapters, err := s.mkvReader.ReadChapters(ctx, filePath)
+	if err != nil || len(mkvChapters) == 0 {
+		return
+	}
+	chapters := make([]*library.Chapter, len(mkvChapters))
+	for i, ch := range mkvChapters {
+		chapters[i] = &library.Chapter{
+			ID:          uuid.New().String(),
+			MediaItemID: mediaItemID,
+			Title:       ch.Title,
+			StartTimeMs: ch.StartMs,
+			EndTimeMs:   ch.EndMs,
+			SortOrder:   i,
+		}
+	}
+	_ = s.chapters.ReplaceBatch(ctx, mediaItemID, chapters)
 }
 
 func (s *CommandService) CreateLibrary(ctx context.Context, lib *library.Library) error {
@@ -163,6 +201,7 @@ func (s *CommandService) upsertMediaFile(ctx context.Context, libraryID, parentI
 			item.DurationMs = dur
 			_ = s.mediaItems.Update(ctx, item)
 		}
+		s.extractAndStoreChapters(ctx, item.ID, f.Path)
 		s.search.IndexMediaItem(ctx, item, nil)
 		s.events.Publish(ctx, library.MediaItemAdded{
 			MediaItemID: item.ID,
@@ -181,6 +220,7 @@ func (s *CommandService) upsertMediaFile(ctx context.Context, libraryID, parentI
 	if dur := s.ProbeAndStoreStreams(ctx, existing.ID, f.Path); dur > 0 {
 		existing.DurationMs = dur
 	}
+	s.extractAndStoreChapters(ctx, existing.ID, f.Path)
 	s.mediaItems.Update(ctx, existing)
 	s.search.IndexMediaItem(ctx, existing, nil)
 	// Re-emit so enricher re-fetches metadata for items with no overview
