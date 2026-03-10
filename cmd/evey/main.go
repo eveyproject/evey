@@ -26,6 +26,7 @@ import (
 	appplugin "github.com/gravity-zero/evey/internal/app/plugin"
 	apptranscoding "github.com/gravity-zero/evey/internal/app/transcoding"
 	appuser "github.com/gravity-zero/evey/internal/app/user"
+	appplaylist "github.com/gravity-zero/evey/internal/app/playlist"
 	appwebhook "github.com/gravity-zero/evey/internal/app/webhook"
 	"github.com/gravity-zero/evey/internal/adapters/driven/ebml"
 	"github.com/gravity-zero/evey/internal/adapters/driven/ffmpeg"
@@ -308,6 +309,11 @@ func run() error {
 	collectionRepo := postgres.NewCollectionRepository(db)
 	collectionSvc := appcollection.NewService(collectionRepo)
 
+	playlistRepo := postgres.NewPlaylistRepository(db)
+	playlistItemRepo := postgres.NewPlaylistItemRepository(db)
+	smartQuerier := postgres.NewSmartPlaylistQuerier(db)
+	playlistSvc := appplaylist.NewService(playlistRepo, playlistItemRepo, smartQuerier)
+
 	// --- Auth interceptor ---
 	authInterceptor := interceptors.NewAuthInterceptor(tokenGen)
 	grpcLog := eveylogger.NewWith(rootLog, "grpc")
@@ -375,6 +381,7 @@ func run() error {
 		registerCollectionRoutes(mux, collectionSvc, tokenGen)
 		registerScheduleRoutes(mux, libScheduler, tokenGen)
 		registerLibraryAccessRoutes(mux, libraryAccessRepo, libQuerySvc, tokenGen)
+		registerPlaylistRoutes(mux, playlistSvc, tokenGen)
 		mux.HandleFunc("GET /api/v1/admin/sessions/active", activeSessionsHandler(tokenGen, playbackSvc))
 		mux.HandleFunc("DELETE /api/v1/admin/sessions/{id}", killSessionHandler(tokenGen, playbackSvc))
 		mux.Handle("/", ratelimit.Middleware(globalRL)(gwMux))

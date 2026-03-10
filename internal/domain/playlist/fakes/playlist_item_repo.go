@@ -1,0 +1,74 @@
+package fakes
+
+import (
+	"context"
+	"sort"
+	"sync"
+
+	"github.com/gravity-zero/evey/internal/domain/playlist"
+)
+
+type FakePlaylistItemRepository struct {
+	mu    sync.RWMutex
+	items map[string][]*playlist.PlaylistItem // playlistID -> items
+}
+
+func NewFakePlaylistItemRepository() *FakePlaylistItemRepository {
+	return &FakePlaylistItemRepository{items: make(map[string][]*playlist.PlaylistItem)}
+}
+
+func (r *FakePlaylistItemRepository) Add(_ context.Context, item *playlist.PlaylistItem) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	for _, existing := range r.items[item.PlaylistID] {
+		if existing.MediaItemID == item.MediaItemID {
+			return nil
+		}
+	}
+	r.items[item.PlaylistID] = append(r.items[item.PlaylistID], item)
+	return nil
+}
+
+func (r *FakePlaylistItemRepository) Remove(_ context.Context, playlistID, mediaItemID string) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	items := r.items[playlistID]
+	for i, it := range items {
+		if it.MediaItemID == mediaItemID {
+			r.items[playlistID] = append(items[:i], items[i+1:]...)
+			return nil
+		}
+	}
+	return playlist.ErrNotFound
+}
+
+func (r *FakePlaylistItemRepository) GetByPlaylistID(_ context.Context, playlistID string) ([]*playlist.PlaylistItem, error) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	items := r.items[playlistID]
+	result := make([]*playlist.PlaylistItem, len(items))
+	copy(result, items)
+	sort.Slice(result, func(i, j int) bool {
+		return result[i].SortOrder < result[j].SortOrder
+	})
+	return result, nil
+}
+
+func (r *FakePlaylistItemRepository) Reorder(_ context.Context, playlistID string, mediaItemIDs []string) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	items := r.items[playlistID]
+	byID := make(map[string]*playlist.PlaylistItem, len(items))
+	for _, it := range items {
+		byID[it.MediaItemID] = it
+	}
+	reordered := make([]*playlist.PlaylistItem, 0, len(mediaItemIDs))
+	for i, mid := range mediaItemIDs {
+		if it, ok := byID[mid]; ok {
+			it.SortOrder = i
+			reordered = append(reordered, it)
+		}
+	}
+	r.items[playlistID] = reordered
+	return nil
+}

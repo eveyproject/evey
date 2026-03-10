@@ -18,12 +18,14 @@ import { Route as AuthHomeRouteImport } from './routes/_auth/home'
 import { Route as AuthFavoritesRouteImport } from './routes/_auth/favorites'
 import { Route as AuthAdminRouteImport } from './routes/_auth/admin'
 import { Route as AuthProfileIndexRouteImport } from './routes/_auth/profile/index'
+import { Route as AuthPlaylistsIndexRouteImport } from './routes/_auth/playlists/index'
 import { Route as AuthLibraryIndexRouteImport } from './routes/_auth/library/index'
 import { Route as AuthCollectionsIndexRouteImport } from './routes/_auth/collections/index'
 import { Route as AuthAdminIndexRouteImport } from './routes/_auth/admin/index'
 import { Route as AuthProfileSettingsRouteImport } from './routes/_auth/profile/settings'
 import { Route as AuthProfileNotificationsRouteImport } from './routes/_auth/profile/notifications'
 import { Route as AuthProfileHistoryRouteImport } from './routes/_auth/profile/history'
+import { Route as AuthPlaylistsPlaylistIdRouteImport } from './routes/_auth/playlists/$playlistId'
 import { Route as AuthPlayerMediaIdRouteImport } from './routes/_auth/player/$mediaId'
 import { Route as AuthPersonPersonIdRouteImport } from './routes/_auth/person/$personId'
 import { Route as AuthMediaMediaIdRouteImport } from './routes/_auth/media/$mediaId'
@@ -89,6 +91,13 @@ const AuthProfileIndexRoute = AuthProfileIndexRouteImport.update({
 } as any).lazy(() =>
   import('./routes/_auth/profile/index.lazy').then((d) => d.Route),
 )
+const AuthPlaylistsIndexRoute = AuthPlaylistsIndexRouteImport.update({
+  id: '/playlists/',
+  path: '/playlists/',
+  getParentRoute: () => AuthRoute,
+} as any).lazy(() =>
+  import('./routes/_auth/playlists/index.lazy').then((d) => d.Route),
+)
 const AuthLibraryIndexRoute = AuthLibraryIndexRouteImport.update({
   id: '/library/',
   path: '/library/',
@@ -131,6 +140,13 @@ const AuthProfileHistoryRoute = AuthProfileHistoryRouteImport.update({
   getParentRoute: () => AuthRoute,
 } as any).lazy(() =>
   import('./routes/_auth/profile/history.lazy').then((d) => d.Route),
+)
+const AuthPlaylistsPlaylistIdRoute = AuthPlaylistsPlaylistIdRouteImport.update({
+  id: '/playlists/$playlistId',
+  path: '/playlists/$playlistId',
+  getParentRoute: () => AuthRoute,
+} as any).lazy(() =>
+  import('./routes/_auth/playlists/$playlistId.lazy').then((d) => d.Route),
 )
 const AuthPlayerMediaIdRoute = AuthPlayerMediaIdRouteImport.update({
   id: '/player/$mediaId',
@@ -272,12 +288,14 @@ export interface FileRoutesByFullPath {
   '/media/$mediaId': typeof AuthMediaMediaIdRoute
   '/person/$personId': typeof AuthPersonPersonIdRoute
   '/player/$mediaId': typeof AuthPlayerMediaIdRoute
+  '/playlists/$playlistId': typeof AuthPlaylistsPlaylistIdRoute
   '/profile/history': typeof AuthProfileHistoryRoute
   '/profile/notifications': typeof AuthProfileNotificationsRoute
   '/profile/settings': typeof AuthProfileSettingsRoute
   '/admin/': typeof AuthAdminIndexRoute
   '/collections/': typeof AuthCollectionsIndexRoute
   '/library/': typeof AuthLibraryIndexRoute
+  '/playlists/': typeof AuthPlaylistsIndexRoute
   '/profile/': typeof AuthProfileIndexRoute
 }
 export interface FileRoutesByTo {
@@ -303,12 +321,14 @@ export interface FileRoutesByTo {
   '/media/$mediaId': typeof AuthMediaMediaIdRoute
   '/person/$personId': typeof AuthPersonPersonIdRoute
   '/player/$mediaId': typeof AuthPlayerMediaIdRoute
+  '/playlists/$playlistId': typeof AuthPlaylistsPlaylistIdRoute
   '/profile/history': typeof AuthProfileHistoryRoute
   '/profile/notifications': typeof AuthProfileNotificationsRoute
   '/profile/settings': typeof AuthProfileSettingsRoute
   '/admin': typeof AuthAdminIndexRoute
   '/collections': typeof AuthCollectionsIndexRoute
   '/library': typeof AuthLibraryIndexRoute
+  '/playlists': typeof AuthPlaylistsIndexRoute
   '/profile': typeof AuthProfileIndexRoute
 }
 export interface FileRoutesById {
@@ -337,12 +357,14 @@ export interface FileRoutesById {
   '/_auth/media/$mediaId': typeof AuthMediaMediaIdRoute
   '/_auth/person/$personId': typeof AuthPersonPersonIdRoute
   '/_auth/player/$mediaId': typeof AuthPlayerMediaIdRoute
+  '/_auth/playlists/$playlistId': typeof AuthPlaylistsPlaylistIdRoute
   '/_auth/profile/history': typeof AuthProfileHistoryRoute
   '/_auth/profile/notifications': typeof AuthProfileNotificationsRoute
   '/_auth/profile/settings': typeof AuthProfileSettingsRoute
   '/_auth/admin/': typeof AuthAdminIndexRoute
   '/_auth/collections/': typeof AuthCollectionsIndexRoute
   '/_auth/library/': typeof AuthLibraryIndexRoute
+  '/_auth/playlists/': typeof AuthPlaylistsIndexRoute
   '/_auth/profile/': typeof AuthProfileIndexRoute
 }
 export interface FileRouteTypes {
@@ -371,12 +393,14 @@ export interface FileRouteTypes {
     | '/media/$mediaId'
     | '/person/$personId'
     | '/player/$mediaId'
+    | '/playlists/$playlistId'
     | '/profile/history'
     | '/profile/notifications'
     | '/profile/settings'
     | '/admin/'
     | '/collections/'
     | '/library/'
+    | '/playlists/'
     | '/profile/'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -402,12 +426,14 @@ export interface FileRouteTypes {
     | '/media/$mediaId'
     | '/person/$personId'
     | '/player/$mediaId'
+    | '/playlists/$playlistId'
     | '/profile/history'
     | '/profile/notifications'
     | '/profile/settings'
     | '/admin'
     | '/collections'
     | '/library'
+    | '/playlists'
     | '/profile'
   id:
     | '__root__'
@@ -435,12 +461,14 @@ export interface FileRouteTypes {
     | '/_auth/media/$mediaId'
     | '/_auth/person/$personId'
     | '/_auth/player/$mediaId'
+    | '/_auth/playlists/$playlistId'
     | '/_auth/profile/history'
     | '/_auth/profile/notifications'
     | '/_auth/profile/settings'
     | '/_auth/admin/'
     | '/_auth/collections/'
     | '/_auth/library/'
+    | '/_auth/playlists/'
     | '/_auth/profile/'
   fileRoutesById: FileRoutesById
 }
@@ -516,6 +544,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthProfileIndexRouteImport
       parentRoute: typeof AuthRoute
     }
+    '/_auth/playlists/': {
+      id: '/_auth/playlists/'
+      path: '/playlists'
+      fullPath: '/playlists/'
+      preLoaderRoute: typeof AuthPlaylistsIndexRouteImport
+      parentRoute: typeof AuthRoute
+    }
     '/_auth/library/': {
       id: '/_auth/library/'
       path: '/library'
@@ -556,6 +591,13 @@ declare module '@tanstack/react-router' {
       path: '/profile/history'
       fullPath: '/profile/history'
       preLoaderRoute: typeof AuthProfileHistoryRouteImport
+      parentRoute: typeof AuthRoute
+    }
+    '/_auth/playlists/$playlistId': {
+      id: '/_auth/playlists/$playlistId'
+      path: '/playlists/$playlistId'
+      fullPath: '/playlists/$playlistId'
+      preLoaderRoute: typeof AuthPlaylistsPlaylistIdRouteImport
       parentRoute: typeof AuthRoute
     }
     '/_auth/player/$mediaId': {
@@ -717,11 +759,13 @@ interface AuthRouteChildren {
   AuthMediaMediaIdRoute: typeof AuthMediaMediaIdRoute
   AuthPersonPersonIdRoute: typeof AuthPersonPersonIdRoute
   AuthPlayerMediaIdRoute: typeof AuthPlayerMediaIdRoute
+  AuthPlaylistsPlaylistIdRoute: typeof AuthPlaylistsPlaylistIdRoute
   AuthProfileHistoryRoute: typeof AuthProfileHistoryRoute
   AuthProfileNotificationsRoute: typeof AuthProfileNotificationsRoute
   AuthProfileSettingsRoute: typeof AuthProfileSettingsRoute
   AuthCollectionsIndexRoute: typeof AuthCollectionsIndexRoute
   AuthLibraryIndexRoute: typeof AuthLibraryIndexRoute
+  AuthPlaylistsIndexRoute: typeof AuthPlaylistsIndexRoute
   AuthProfileIndexRoute: typeof AuthProfileIndexRoute
 }
 
@@ -735,11 +779,13 @@ const AuthRouteChildren: AuthRouteChildren = {
   AuthMediaMediaIdRoute: AuthMediaMediaIdRoute,
   AuthPersonPersonIdRoute: AuthPersonPersonIdRoute,
   AuthPlayerMediaIdRoute: AuthPlayerMediaIdRoute,
+  AuthPlaylistsPlaylistIdRoute: AuthPlaylistsPlaylistIdRoute,
   AuthProfileHistoryRoute: AuthProfileHistoryRoute,
   AuthProfileNotificationsRoute: AuthProfileNotificationsRoute,
   AuthProfileSettingsRoute: AuthProfileSettingsRoute,
   AuthCollectionsIndexRoute: AuthCollectionsIndexRoute,
   AuthLibraryIndexRoute: AuthLibraryIndexRoute,
+  AuthPlaylistsIndexRoute: AuthPlaylistsIndexRoute,
   AuthProfileIndexRoute: AuthProfileIndexRoute,
 }
 
