@@ -1,5 +1,6 @@
 import { useRef, useState } from "react";
 import { Link } from "@tanstack/react-router";
+import { FavoriteButton } from "./FavoriteButton";
 
 interface MediaCardItem {
   id?: string;
@@ -177,6 +178,13 @@ export function MediaCard({
           >
             {item.year}
           </span>
+        )}
+
+        {/* Favorite button — top-left on hover */}
+        {item.id && (
+          <div className="absolute top-2 left-2 z-20 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+            <FavoriteButton mediaId={item.id} size="sm" />
+          </div>
         )}
 
         {/* Hover overlay: play button + title */}

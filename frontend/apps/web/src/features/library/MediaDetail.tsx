@@ -21,6 +21,7 @@ import { BackButton } from "@/components/ui/BackButton";
 import { StreamList } from "./StreamList";
 import { MediaCard } from "./MediaCard";
 import { DownloadButton } from "../playback/DownloadButton";
+import { FavoriteButton } from "./FavoriteButton";
 
 interface MediaDetailProps {
   item: V1MediaItem;
@@ -703,6 +704,7 @@ export function MediaDetail({ item, onMetadataUpdated }: MediaDetailProps) {
             {item.id && item.filePath && (
               <DownloadButton mediaId={item.id} title={item.title} />
             )}
+            {item.id && <FavoriteButton mediaId={item.id} size="md" />}
           </div>
 
           {editing && item.id && (

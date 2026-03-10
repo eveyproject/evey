@@ -15,6 +15,7 @@ import { Route as AuthRouteImport } from './routes/_auth'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AuthSearchRouteImport } from './routes/_auth/search'
 import { Route as AuthHomeRouteImport } from './routes/_auth/home'
+import { Route as AuthFavoritesRouteImport } from './routes/_auth/favorites'
 import { Route as AuthAdminRouteImport } from './routes/_auth/admin'
 import { Route as AuthProfileIndexRouteImport } from './routes/_auth/profile/index'
 import { Route as AuthLibraryIndexRouteImport } from './routes/_auth/library/index'
@@ -65,6 +66,13 @@ const AuthHomeRoute = AuthHomeRouteImport.update({
   path: '/home',
   getParentRoute: () => AuthRoute,
 } as any).lazy(() => import('./routes/_auth/home.lazy').then((d) => d.Route))
+const AuthFavoritesRoute = AuthFavoritesRouteImport.update({
+  id: '/favorites',
+  path: '/favorites',
+  getParentRoute: () => AuthRoute,
+} as any).lazy(() =>
+  import('./routes/_auth/favorites.lazy').then((d) => d.Route),
+)
 const AuthAdminRoute = AuthAdminRouteImport.update({
   id: '/admin',
   path: '/admin',
@@ -210,6 +218,7 @@ export interface FileRoutesByFullPath {
   '/login': typeof LoginRoute
   '/setup': typeof SetupRoute
   '/admin': typeof AuthAdminRouteWithChildren
+  '/favorites': typeof AuthFavoritesRoute
   '/home': typeof AuthHomeRoute
   '/search': typeof AuthSearchRoute
   '/admin/activity': typeof AuthAdminActivityRoute
@@ -236,6 +245,7 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/login': typeof LoginRoute
   '/setup': typeof SetupRoute
+  '/favorites': typeof AuthFavoritesRoute
   '/home': typeof AuthHomeRoute
   '/search': typeof AuthSearchRoute
   '/admin/activity': typeof AuthAdminActivityRoute
@@ -265,6 +275,7 @@ export interface FileRoutesById {
   '/login': typeof LoginRoute
   '/setup': typeof SetupRoute
   '/_auth/admin': typeof AuthAdminRouteWithChildren
+  '/_auth/favorites': typeof AuthFavoritesRoute
   '/_auth/home': typeof AuthHomeRoute
   '/_auth/search': typeof AuthSearchRoute
   '/_auth/admin/activity': typeof AuthAdminActivityRoute
@@ -294,6 +305,7 @@ export interface FileRouteTypes {
     | '/login'
     | '/setup'
     | '/admin'
+    | '/favorites'
     | '/home'
     | '/search'
     | '/admin/activity'
@@ -320,6 +332,7 @@ export interface FileRouteTypes {
     | '/'
     | '/login'
     | '/setup'
+    | '/favorites'
     | '/home'
     | '/search'
     | '/admin/activity'
@@ -348,6 +361,7 @@ export interface FileRouteTypes {
     | '/login'
     | '/setup'
     | '/_auth/admin'
+    | '/_auth/favorites'
     | '/_auth/home'
     | '/_auth/search'
     | '/_auth/admin/activity'
@@ -420,6 +434,13 @@ declare module '@tanstack/react-router' {
       path: '/home'
       fullPath: '/home'
       preLoaderRoute: typeof AuthHomeRouteImport
+      parentRoute: typeof AuthRoute
+    }
+    '/_auth/favorites': {
+      id: '/_auth/favorites'
+      path: '/favorites'
+      fullPath: '/favorites'
+      preLoaderRoute: typeof AuthFavoritesRouteImport
       parentRoute: typeof AuthRoute
     }
     '/_auth/admin': {
@@ -597,6 +618,7 @@ const AuthAdminRouteWithChildren = AuthAdminRoute._addFileChildren(
 
 interface AuthRouteChildren {
   AuthAdminRoute: typeof AuthAdminRouteWithChildren
+  AuthFavoritesRoute: typeof AuthFavoritesRoute
   AuthHomeRoute: typeof AuthHomeRoute
   AuthSearchRoute: typeof AuthSearchRoute
   AuthLibraryLibraryIdRoute: typeof AuthLibraryLibraryIdRoute
@@ -612,6 +634,7 @@ interface AuthRouteChildren {
 
 const AuthRouteChildren: AuthRouteChildren = {
   AuthAdminRoute: AuthAdminRouteWithChildren,
+  AuthFavoritesRoute: AuthFavoritesRoute,
   AuthHomeRoute: AuthHomeRoute,
   AuthSearchRoute: AuthSearchRoute,
   AuthLibraryLibraryIdRoute: AuthLibraryLibraryIdRoute,
