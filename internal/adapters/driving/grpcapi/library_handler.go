@@ -10,6 +10,7 @@ import (
 	"github.com/gravity-zero/evey/internal/domain/library"
 	"github.com/gravity-zero/evey/internal/domain/user"
 	"github.com/gravity-zero/evey/internal/pkg/id"
+	"github.com/gravity-zero/evey/internal/pkg/ratings"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -20,6 +21,7 @@ type libraryHandler struct {
 	query         *applibrary.QueryService
 	metadataSvc   *appmetadata.Service
 	libraryAccess user.LibraryAccessRepository
+	profiles      user.ProfileRepository
 }
 
 func (h *libraryHandler) CreateLibrary(ctx context.Context, req *eveyv1.CreateLibraryRequest) (*eveyv1.Library, error) {
@@ -92,6 +94,9 @@ func (h *libraryHandler) GetMediaItem(ctx context.Context, req *eveyv1.GetMediaI
 	if ok, _ := h.checkLibraryAccess(ctx, item.LibraryID); !ok {
 		return nil, status.Errorf(codes.NotFound, "media item not found")
 	}
+	if blocked, _ := h.isBlockedByParental(ctx, item); blocked {
+		return nil, status.Errorf(codes.PermissionDenied, "content restricted by parental controls")
+	}
 	pb := mediaItemToProto(item)
 	if h.metadataSvc != nil {
 		if artworks, err := h.metadataSvc.GetArtwork(ctx, req.Id); err == nil {
@@ -152,6 +157,7 @@ func (h *libraryHandler) ListMediaItems(ctx context.Context, req *eveyv1.ListMed
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "list media items: %v", err)
 	}
+	ps := h.getParentalSettings(ctx)
 	resp := &eveyv1.ListMediaItemsResponse{
 		Pagination: &eveyv1.PaginationResponse{
 			TotalItems: int32(total),
@@ -160,6 +166,14 @@ func (h *libraryHandler) ListMediaItems(ctx context.Context, req *eveyv1.ListMed
 		},
 	}
 	for _, item := range items {
+		if ps != nil && ps.Enabled {
+			if !ratings.IsAllowed(item.OfficialRating, ps.MaxRating) {
+				continue
+			}
+			if ratings.HasBlockedTag(item.Tags, ps.BlockedTags) {
+				continue
+			}
+		}
 		resp.Items = append(resp.Items, mediaItemToProto(item))
 	}
 	return resp, nil
@@ -178,10 +192,19 @@ func (h *libraryHandler) SearchMedia(ctx context.Context, req *eveyv1.SearchMedi
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "search media: %v", err)
 	}
+	ps := h.getParentalSettings(ctx)
 	resp := &eveyv1.SearchMediaResponse{
 		TotalHits: int32(total),
 	}
 	for _, hit := range hits {
+		if ps != nil && ps.Enabled {
+			if !ratings.IsAllowed(hit.OfficialRating, ps.MaxRating) {
+				continue
+			}
+			if ratings.HasBlockedTag(hit.Tags, ps.BlockedTags) {
+				continue
+			}
+		}
 		mi := &eveyv1.MediaItem{
 			Id:    hit.ID,
 			Title: hit.Title,
@@ -193,6 +216,35 @@ func (h *libraryHandler) SearchMedia(ctx context.Context, req *eveyv1.SearchMedi
 		resp.Items = append(resp.Items, mi)
 	}
 	return resp, nil
+}
+
+func (h *libraryHandler) getParentalSettings(ctx context.Context) *user.ParentalSettings {
+	if h.profiles == nil {
+		return nil
+	}
+	claims := interceptors.ClaimsFromContext(ctx)
+	if claims == nil || claims.ProfileID == "" {
+		return nil
+	}
+	profile, err := h.profiles.GetByID(ctx, claims.ProfileID)
+	if err != nil {
+		return nil
+	}
+	return profile.Parental
+}
+
+func (h *libraryHandler) isBlockedByParental(ctx context.Context, item *library.MediaItem) (bool, error) {
+	ps := h.getParentalSettings(ctx)
+	if ps == nil || !ps.Enabled {
+		return false, nil
+	}
+	if !ratings.IsAllowed(item.OfficialRating, ps.MaxRating) {
+		return true, nil
+	}
+	if ratings.HasBlockedTag(item.Tags, ps.BlockedTags) {
+		return true, nil
+	}
+	return false, nil
 }
 
 func (h *libraryHandler) filterLibrariesByAccess(ctx context.Context, libs []*library.Library) ([]*library.Library, error) {
