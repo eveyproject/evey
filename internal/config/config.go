@@ -4,21 +4,30 @@ import (
 	"fmt"
 	"os"
 	"strconv"
+	"strings"
 	"time"
 )
 
 type Config struct {
-	Server      ServerConfig
-	DB          DBConfig
-	Meilisearch MeilisearchConfig
-	JWT         JWTConfig
-	Transcoding TranscodingConfig
-	OIDC        OIDCConfig
-	Metrics     MetricsConfig
-	Library     LibraryConfig
-	Playback    PlaybackConfig
-	Metadata    MetadataConfig
-	Log         LogConfig
+	Server       ServerConfig
+	DB           DBConfig
+	Meilisearch  MeilisearchConfig
+	JWT          JWTConfig
+	Transcoding  TranscodingConfig
+	OIDC         OIDCConfig
+	Metrics      MetricsConfig
+	Library      LibraryConfig
+	Playback     PlaybackConfig
+	Metadata     MetadataConfig
+	Log          LogConfig
+	RemoteAccess RemoteAccessConfig
+}
+
+type RemoteAccessConfig struct {
+	Enabled              bool
+	ExternalURL          string
+	LANNetworks          []string
+	MaxRemoteBitrateKbps int
 }
 
 type MetadataConfig struct {
@@ -153,6 +162,12 @@ func Load() (*Config, error) {
 			DevMode:       envBool("EVEY_LOG_DEV_MODE", false),
 			PluginDebug:   envBool("EVEY_PLUGIN_DEBUG", false),
 		},
+		RemoteAccess: RemoteAccessConfig{
+			Enabled:              envBool("EVEY_REMOTE_ACCESS_ENABLED", false),
+			ExternalURL:          envStr("EVEY_REMOTE_ACCESS_EXTERNAL_URL", ""),
+			LANNetworks:          envStrSlice("EVEY_REMOTE_ACCESS_LAN_NETWORKS", []string{"10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16"}),
+			MaxRemoteBitrateKbps: envInt("EVEY_REMOTE_ACCESS_MAX_BITRATE_KBPS", 0),
+		},
 	}
 	return cfg, nil
 }
@@ -178,6 +193,20 @@ func envBool(key string, fallback bool) bool {
 		if b, err := strconv.ParseBool(v); err == nil {
 			return b
 		}
+	}
+	return fallback
+}
+
+func envStrSlice(key string, fallback []string) []string {
+	if v := os.Getenv(key); v != "" {
+		parts := strings.Split(v, ",")
+		result := make([]string, 0, len(parts))
+		for _, p := range parts {
+			if s := strings.TrimSpace(p); s != "" {
+				result = append(result, s)
+			}
+		}
+		return result
 	}
 	return fallback
 }
