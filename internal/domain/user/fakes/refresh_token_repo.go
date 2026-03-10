@@ -2,10 +2,13 @@ package fakes
 
 import (
 	"context"
+	"errors"
 	"sync"
 
 	"github.com/gravity-zero/evey/internal/domain/user"
 )
+
+var ErrDuplicateTokenHash = errors.New("duplicate key value violates unique constraint")
 
 type FakeRefreshTokenRepository struct {
 	mu    sync.RWMutex
@@ -19,6 +22,11 @@ func NewFakeRefreshTokenRepository() *FakeRefreshTokenRepository {
 func (r *FakeRefreshTokenRepository) Create(_ context.Context, t *user.RefreshToken) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
+	for _, existing := range r.items {
+		if existing.TokenHash == t.TokenHash {
+			return ErrDuplicateTokenHash
+		}
+	}
 	r.items[t.ID] = t
 	return nil
 }

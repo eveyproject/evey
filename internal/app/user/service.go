@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/gravity-zero/evey/internal/domain/shared"
@@ -158,21 +159,9 @@ func (s *Service) Login(ctx context.Context, username, password string) (accessT
 		return "", "", fmt.Errorf("generate access token: %w", err)
 	}
 
-	refreshToken, err = s.tokens.GenerateRefreshToken()
+	refreshToken, err = s.generateAndStoreRefreshToken(ctx, u.ID)
 	if err != nil {
-		return "", "", fmt.Errorf("generate refresh token: %w", err)
-	}
-
-	h := sha256.Sum256([]byte(refreshToken))
-	rt := &user.RefreshToken{
-		ID:        id.New("rt-"),
-		UserID:    u.ID,
-		TokenHash: hex.EncodeToString(h[:]),
-		ExpiresAt: time.Now().Add(7 * 24 * time.Hour),
-		CreatedAt: time.Now(),
-	}
-	if err := s.refreshTkns.Create(ctx, rt); err != nil {
-		return "", "", fmt.Errorf("store refresh token: %w", err)
+		return "", "", err
 	}
 
 	s.events.Publish(ctx, user.LoginSucceeded{UserID: u.ID, AuthMethod: "local", OccurredAt: time.Now()})
@@ -402,4 +391,32 @@ func (s *Service) ListAPIKeys(ctx context.Context, userID string) ([]*user.APIKe
 
 func (s *Service) RevokeAPIKey(ctx context.Context, id string) error {
 	return s.apiKeys.Delete(ctx, id)
+}
+
+const maxRefreshTokenRetries = 3
+
+func (s *Service) generateAndStoreRefreshToken(ctx context.Context, userID string) (string, error) {
+	for i := 0; i < maxRefreshTokenRetries; i++ {
+		token, err := s.tokens.GenerateRefreshToken()
+		if err != nil {
+			return "", fmt.Errorf("generate refresh token: %w", err)
+		}
+
+		h := sha256.Sum256([]byte(token))
+		rt := &user.RefreshToken{
+			ID:        id.New("rt-"),
+			UserID:    userID,
+			TokenHash: hex.EncodeToString(h[:]),
+			ExpiresAt: time.Now().Add(7 * 24 * time.Hour),
+			CreatedAt: time.Now(),
+		}
+		err = s.refreshTkns.Create(ctx, rt)
+		if err == nil {
+			return token, nil
+		}
+		if !strings.Contains(err.Error(), "duplicate") {
+			return "", fmt.Errorf("store refresh token: %w", err)
+		}
+	}
+	return "", errors.New("store refresh token: duplicate hash after retries")
 }
