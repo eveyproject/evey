@@ -132,6 +132,7 @@ func run() error {
 	feedQueryRepo := postgres.NewFeedConfigQueryRepo(db)
 	chapterRepo := postgres.NewChapterRepository(db)
 	scanScheduleRepo := postgres.NewScanScheduleRepository(db)
+	libraryAccessRepo := postgres.NewLibraryAccessRepository(db)
 
 	// --- Infrastructure ---
 	searchAdapter, err := meili.NewSearchAdapter(cfg.Meilisearch.URL, cfg.Meilisearch.APIKey)
@@ -315,7 +316,7 @@ func run() error {
 		transcodingSvc,
 		mkvSvc, pluginSvc, metadataSvc, activitySvc,
 		notifSvc, feedCmdSvc, feedQuerySvc, webhookSvc,
-		userRepo, profileRepo, version,
+		userRepo, profileRepo, libraryAccessRepo, version,
 		grpc.ChainUnaryInterceptor(
 			interceptors.ErrorSanitizerUnary(),
 			interceptors.ClientInfoUnary(),
@@ -367,6 +368,7 @@ func run() error {
 		registerTranscodeCacheRoutes(mux, transcodingSvc, tokenGen)
 		registerCollectionRoutes(mux, collectionSvc, tokenGen)
 		registerScheduleRoutes(mux, libScheduler, tokenGen)
+		registerLibraryAccessRoutes(mux, libraryAccessRepo, libQuerySvc, tokenGen)
 		mux.HandleFunc("GET /api/v1/admin/sessions/active", activeSessionsHandler(tokenGen, playbackSvc))
 		mux.HandleFunc("DELETE /api/v1/admin/sessions/{id}", killSessionHandler(tokenGen, playbackSvc))
 		mux.Handle("/", ratelimit.Middleware(globalRL)(gwMux))

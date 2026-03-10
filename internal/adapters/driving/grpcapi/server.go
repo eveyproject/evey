@@ -38,6 +38,7 @@ type GRPCServer struct {
 	webhook       *appwebhook.Service
 	users         user.UserRepository
 	profiles      user.ProfileRepository
+	libraryAccess user.LibraryAccessRepository
 	version       string
 }
 
@@ -58,6 +59,7 @@ func NewGRPCServer(
 	webhook *appwebhook.Service,
 	users user.UserRepository,
 	profiles user.ProfileRepository,
+	libraryAccess user.LibraryAccessRepository,
 	version string,
 	opts ...grpc.ServerOption,
 ) *GRPCServer {
@@ -79,12 +81,13 @@ func NewGRPCServer(
 		webhook:       webhook,
 		users:         users,
 		profiles:      profiles,
+		libraryAccess: libraryAccess,
 		version:       version,
 	}
 }
 
 func (s *GRPCServer) RegisterServices() {
-	eveyv1.RegisterLibraryServiceServer(s.server, &libraryHandler{cmd: s.libCmd, query: s.libQuery, metadataSvc: s.metadata})
+	eveyv1.RegisterLibraryServiceServer(s.server, &libraryHandler{cmd: s.libCmd, query: s.libQuery, metadataSvc: s.metadata, libraryAccess: s.libraryAccess})
 	eveyv1.RegisterUserServiceServer(s.server, &userHandler{svc: s.user, users: s.users, activitySvc: s.activity})
 	eveyv1.RegisterPlaybackServiceServer(s.server, &playbackHandler{cmd: s.playbackCmd, query: s.playbackQuery, librarySvc: s.libQuery})
 	eveyv1.RegisterTranscodingServiceServer(s.server, &transcodingHandler{svc: s.transcoding, profiles: s.profiles})

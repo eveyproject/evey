@@ -1,7 +1,7 @@
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { createLazyFileRoute } from "@tanstack/react-router";
 import { AdminNav } from "@/features/admin/AdminNav";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQueryClient, useQuery } from "@tanstack/react-query";
 import {
   useUserServiceListUsers,
   useUserServiceCreateUser,
@@ -11,7 +11,7 @@ import {
   useUserServiceCreateInviteLink,
   useUserServiceRevokeInviteLink,
 } from "@evey/api";
-import { toast } from "@evey/store";
+import { useAuthStore, toast } from "@evey/store";
 import type { V1User } from "@evey/api/src/generated/user.schemas";
 import type { V1InviteLink } from "@evey/api/src/generated/user.schemas";
 import { Spinner } from "@/components/ui/Spinner";
@@ -79,9 +79,154 @@ function CreateUserForm({ onSuccess }: { onSuccess: () => void }) {
   );
 }
 
+interface LibraryInfo {
+  id: string;
+  name: string;
+}
+
+interface LibraryAccessData {
+  libraryIds: string[];
+  libraries: LibraryInfo[];
+}
+
+function LibraryAccessModal({
+  user,
+  open,
+  onClose,
+}: {
+  user: V1User;
+  open: boolean;
+  onClose: () => void;
+}) {
+  const token = useAuthStore((s) => s.accessToken);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [saving, setSaving] = useState(false);
+
+  const { data, isLoading } = useQuery<LibraryAccessData>({
+    queryKey: ["/api/v1/admin/users", user.id, "library-access"],
+    queryFn: async () => {
+      const res = await fetch(`/api/v1/admin/users/${user.id}/library-access`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      if (!res.ok) throw new Error("Failed to load library access");
+      return res.json() as Promise<LibraryAccessData>;
+    },
+    enabled: open,
+  });
+
+  useEffect(() => {
+    if (data) {
+      setSelected(new Set(data.libraryIds));
+    }
+  }, [data]);
+
+  const isUnrestricted = selected.size === 0;
+  const libraries = data?.libraries ?? [];
+
+  const handleToggle = useCallback((libId: string) => {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(libId)) {
+        next.delete(libId);
+      } else {
+        next.add(libId);
+      }
+      return next;
+    });
+  }, []);
+
+  async function handleSave() {
+    setSaving(true);
+    try {
+      if (selected.size === 0) {
+        await fetch(`/api/v1/admin/users/${user.id}/library-access`, {
+          method: "DELETE",
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+        });
+      } else {
+        await fetch(`/api/v1/admin/users/${user.id}/library-access`, {
+          method: "PUT",
+          headers: {
+            "Content-Type": "application/json",
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          },
+          body: JSON.stringify({ libraryIds: Array.from(selected) }),
+        });
+      }
+      toast.success("Library access updated");
+      onClose();
+    } catch {
+      toast.error("Failed to update library access");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <Modal open={open} onClose={onClose} title={`Library Access — ${user.username}`}>
+      {isLoading ? (
+        <div className="flex justify-center py-8">
+          <Spinner size="md" />
+        </div>
+      ) : (
+        <div className="flex flex-col gap-4">
+          <p className="text-sm" style={{ color: "var(--text-muted)" }}>
+            {isUnrestricted
+              ? "This user can access all libraries (unrestricted)."
+              : `This user can only access ${selected.size} selected ${selected.size === 1 ? "library" : "libraries"}.`}
+          </p>
+
+          {isUnrestricted && (
+            <Badge variant="success">Unrestricted</Badge>
+          )}
+
+          <div className="flex flex-col gap-2">
+            {libraries.map((lib) => (
+              <label
+                key={lib.id}
+                className="flex items-center gap-3 px-3 py-2 rounded-[var(--radius)] cursor-pointer hover:opacity-80"
+                style={{ backgroundColor: "var(--surface)" }}
+              >
+                <input
+                  type="checkbox"
+                  checked={selected.has(lib.id)}
+                  onChange={() => handleToggle(lib.id)}
+                  className="accent-[var(--primary)]"
+                />
+                <span className="text-sm" style={{ color: "var(--text)" }}>
+                  {lib.name}
+                </span>
+              </label>
+            ))}
+          </div>
+
+          {selected.size > 0 && (
+            <Button
+              variant="ghost"
+              onClick={() => setSelected(new Set())}
+            >
+              Clear all (unrestricted)
+            </Button>
+          )}
+
+          <div className="flex justify-end gap-2 pt-2">
+            <Button variant="ghost" onClick={onClose}>
+              Cancel
+            </Button>
+            <Button onClick={handleSave} loading={saving}>
+              Save
+            </Button>
+          </div>
+        </div>
+      )}
+    </Modal>
+  );
+}
+
 function UserRow({ user }: { user: V1User }) {
   const queryClient = useQueryClient();
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [showLibraryAccess, setShowLibraryAccess] = useState(false);
 
   const deleteUser = useUserServiceDeleteUser({
     mutation: {
@@ -123,6 +268,14 @@ function UserRow({ user }: { user: V1User }) {
       </td>
       <td className="px-4 py-3 whitespace-nowrap">
         <div className="flex gap-2">
+          {!user.isAdmin && (
+            <Button
+              variant="secondary"
+              onClick={() => setShowLibraryAccess(true)}
+            >
+              Libraries
+            </Button>
+          )}
           <Button
             variant="secondary"
             loading={disableUser.isPending}
@@ -158,6 +311,13 @@ function UserRow({ user }: { user: V1User }) {
             </Button>
           </div>
         </Modal>
+        {!user.isAdmin && (
+          <LibraryAccessModal
+            user={user}
+            open={showLibraryAccess}
+            onClose={() => setShowLibraryAccess(false)}
+          />
+        )}
       </td>
     </tr>
   );

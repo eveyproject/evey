@@ -70,6 +70,14 @@ type UserRoleRepository interface {
 	GetRolesByUserID(ctx context.Context, userID string) ([]*Role, error)
 }
 
+type LibraryAccessRepository interface {
+	Grant(ctx context.Context, userID, libraryID string) error
+	Revoke(ctx context.Context, userID, libraryID string) error
+	GetByUserID(ctx context.Context, userID string) ([]string, error)
+	HasAccess(ctx context.Context, userID, libraryID string) (bool, error)
+	ListUsersWithRestrictions(ctx context.Context) (map[string][]string, error)
+}
+
 type PasswordHasher interface {
 	Hash(password string) (string, error)
 	Verify(password, hash string) (bool, error)

@@ -15,6 +15,7 @@ type LibraryRepository interface {
 
 type ListMediaItemsFilter struct {
 	LibraryID   *string
+	LibraryIDs  []string // filter to these library IDs (nil = no filter)
 	ParentID    *string
 	Type        *string
 	Genres      []string
