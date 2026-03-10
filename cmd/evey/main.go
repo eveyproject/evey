@@ -367,6 +367,8 @@ func run() error {
 		registerTranscodeCacheRoutes(mux, transcodingSvc, tokenGen)
 		registerCollectionRoutes(mux, collectionSvc, tokenGen)
 		registerScheduleRoutes(mux, libScheduler, tokenGen)
+		mux.HandleFunc("GET /api/v1/admin/sessions/active", activeSessionsHandler(tokenGen, playbackSvc))
+		mux.HandleFunc("DELETE /api/v1/admin/sessions/{id}", killSessionHandler(tokenGen, playbackSvc))
 		mux.Handle("/", ratelimit.Middleware(globalRL)(gwMux))
 		httpSrv = &http.Server{
 			Addr:              fmt.Sprintf(":%d", httpPort),

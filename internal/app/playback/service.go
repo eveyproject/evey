@@ -29,7 +29,7 @@ func NewService(
 	events shared.EventBus,
 ) *Service {
 	cmd := NewCommandService(progress, sessions, sessions, users, profiles, events)
-	q := NewQueryService(progress)
+	q := NewQueryService(progress, sessions)
 	return &Service{cmd: cmd, query: q}
 }
 
@@ -42,6 +42,10 @@ func (s *Service) StartStream(ctx context.Context, session *playback.PlaySession
 
 func (s *Service) StopStream(ctx context.Context, sessionID string) error {
 	return s.cmd.StopStream(ctx, sessionID)
+}
+
+func (s *Service) GetActiveSessions(ctx context.Context) ([]*playback.ActiveSessionInfo, error) {
+	return s.query.GetActiveSessions(ctx)
 }
 
 func (s *Service) ReportProgressBySession(ctx context.Context, sessionID string, positionMs int64) error {

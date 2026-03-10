@@ -43,6 +43,42 @@ func (r *FakePlaySessionRepository) GetByID(_ context.Context, id string) (*play
 	return s, nil
 }
 
+func (r *FakePlaySessionRepository) ListActiveSessions(_ context.Context) ([]*playback.ActiveSessionInfo, error) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	var result []*playback.ActiveSessionInfo
+	for _, s := range r.items {
+		if s.EndedAt == nil {
+			info := &playback.ActiveSessionInfo{
+				SessionID:    s.ID,
+				ProfileID:    s.ProfileID,
+				ProfileName:  "profile-" + s.ProfileID,
+				MediaItemID:  s.MediaItemID,
+				MediaTitle:   "media-" + s.MediaItemID,
+				MediaType:    "movie",
+				StartedAt:    s.StartedAt,
+				DeviceName:   s.DeviceName,
+				DeviceType:   s.DeviceType,
+				ClientIP:     s.ClientIP,
+				PlayMethod:   s.PlayMethod,
+				VideoCodec:   s.VideoCodec,
+				AudioCodec:   s.AudioCodec,
+				Resolution:   s.Resolution,
+				BandwidthBps: s.BandwidthBps,
+			}
+			if s.PositionMs != nil {
+				info.PositionMs = *s.PositionMs
+			}
+			if s.PlayMethod == string(playback.Transcode) {
+				t := s.VideoCodec + " -> h264"
+				info.TranscodeInfo = &t
+			}
+			result = append(result, info)
+		}
+	}
+	return result, nil
+}
+
 func (r *FakePlaySessionRepository) GetActiveByProfile(_ context.Context, profileID string) ([]*playback.PlaySession, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()

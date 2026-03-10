@@ -33,6 +33,7 @@ import { Route as AuthAdminWebhooksRouteImport } from './routes/_auth/admin/webh
 import { Route as AuthAdminUsersRouteImport } from './routes/_auth/admin/users'
 import { Route as AuthAdminTranscodeCacheRouteImport } from './routes/_auth/admin/transcode-cache'
 import { Route as AuthAdminTasksRouteImport } from './routes/_auth/admin/tasks'
+import { Route as AuthAdminSessionsRouteImport } from './routes/_auth/admin/sessions'
 import { Route as AuthAdminPluginsRouteImport } from './routes/_auth/admin/plugins'
 import { Route as AuthAdminMetadataRouteImport } from './routes/_auth/admin/metadata'
 import { Route as AuthAdminLogsRouteImport } from './routes/_auth/admin/logs'
@@ -197,6 +198,13 @@ const AuthAdminTasksRoute = AuthAdminTasksRouteImport.update({
 } as any).lazy(() =>
   import('./routes/_auth/admin/tasks.lazy').then((d) => d.Route),
 )
+const AuthAdminSessionsRoute = AuthAdminSessionsRouteImport.update({
+  id: '/sessions',
+  path: '/sessions',
+  getParentRoute: () => AuthAdminRoute,
+} as any).lazy(() =>
+  import('./routes/_auth/admin/sessions.lazy').then((d) => d.Route),
+)
 const AuthAdminPluginsRoute = AuthAdminPluginsRouteImport.update({
   id: '/plugins',
   path: '/plugins',
@@ -254,6 +262,7 @@ export interface FileRoutesByFullPath {
   '/admin/logs': typeof AuthAdminLogsRoute
   '/admin/metadata': typeof AuthAdminMetadataRoute
   '/admin/plugins': typeof AuthAdminPluginsRoute
+  '/admin/sessions': typeof AuthAdminSessionsRoute
   '/admin/tasks': typeof AuthAdminTasksRoute
   '/admin/transcode-cache': typeof AuthAdminTranscodeCacheRoute
   '/admin/users': typeof AuthAdminUsersRoute
@@ -284,6 +293,7 @@ export interface FileRoutesByTo {
   '/admin/logs': typeof AuthAdminLogsRoute
   '/admin/metadata': typeof AuthAdminMetadataRoute
   '/admin/plugins': typeof AuthAdminPluginsRoute
+  '/admin/sessions': typeof AuthAdminSessionsRoute
   '/admin/tasks': typeof AuthAdminTasksRoute
   '/admin/transcode-cache': typeof AuthAdminTranscodeCacheRoute
   '/admin/users': typeof AuthAdminUsersRoute
@@ -317,6 +327,7 @@ export interface FileRoutesById {
   '/_auth/admin/logs': typeof AuthAdminLogsRoute
   '/_auth/admin/metadata': typeof AuthAdminMetadataRoute
   '/_auth/admin/plugins': typeof AuthAdminPluginsRoute
+  '/_auth/admin/sessions': typeof AuthAdminSessionsRoute
   '/_auth/admin/tasks': typeof AuthAdminTasksRoute
   '/_auth/admin/transcode-cache': typeof AuthAdminTranscodeCacheRoute
   '/_auth/admin/users': typeof AuthAdminUsersRoute
@@ -350,6 +361,7 @@ export interface FileRouteTypes {
     | '/admin/logs'
     | '/admin/metadata'
     | '/admin/plugins'
+    | '/admin/sessions'
     | '/admin/tasks'
     | '/admin/transcode-cache'
     | '/admin/users'
@@ -380,6 +392,7 @@ export interface FileRouteTypes {
     | '/admin/logs'
     | '/admin/metadata'
     | '/admin/plugins'
+    | '/admin/sessions'
     | '/admin/tasks'
     | '/admin/transcode-cache'
     | '/admin/users'
@@ -412,6 +425,7 @@ export interface FileRouteTypes {
     | '/_auth/admin/logs'
     | '/_auth/admin/metadata'
     | '/_auth/admin/plugins'
+    | '/_auth/admin/sessions'
     | '/_auth/admin/tasks'
     | '/_auth/admin/transcode-cache'
     | '/_auth/admin/users'
@@ -607,6 +621,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthAdminTasksRouteImport
       parentRoute: typeof AuthAdminRoute
     }
+    '/_auth/admin/sessions': {
+      id: '/_auth/admin/sessions'
+      path: '/sessions'
+      fullPath: '/admin/sessions'
+      preLoaderRoute: typeof AuthAdminSessionsRouteImport
+      parentRoute: typeof AuthAdminRoute
+    }
     '/_auth/admin/plugins': {
       id: '/_auth/admin/plugins'
       path: '/plugins'
@@ -659,6 +680,7 @@ interface AuthAdminRouteChildren {
   AuthAdminLogsRoute: typeof AuthAdminLogsRoute
   AuthAdminMetadataRoute: typeof AuthAdminMetadataRoute
   AuthAdminPluginsRoute: typeof AuthAdminPluginsRoute
+  AuthAdminSessionsRoute: typeof AuthAdminSessionsRoute
   AuthAdminTasksRoute: typeof AuthAdminTasksRoute
   AuthAdminTranscodeCacheRoute: typeof AuthAdminTranscodeCacheRoute
   AuthAdminUsersRoute: typeof AuthAdminUsersRoute
@@ -673,6 +695,7 @@ const AuthAdminRouteChildren: AuthAdminRouteChildren = {
   AuthAdminLogsRoute: AuthAdminLogsRoute,
   AuthAdminMetadataRoute: AuthAdminMetadataRoute,
   AuthAdminPluginsRoute: AuthAdminPluginsRoute,
+  AuthAdminSessionsRoute: AuthAdminSessionsRoute,
   AuthAdminTasksRoute: AuthAdminTasksRoute,
   AuthAdminTranscodeCacheRoute: AuthAdminTranscodeCacheRoute,
   AuthAdminUsersRoute: AuthAdminUsersRoute,

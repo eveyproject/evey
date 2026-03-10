@@ -56,6 +56,43 @@ func (r *PlaySessionRepository) GetByID(ctx context.Context, id string) (*playba
 	return s, nil
 }
 
+func (r *PlaySessionRepository) ListActiveSessions(ctx context.Context) ([]*playback.ActiveSessionInfo, error) {
+	rows, err := r.db.QueryContext(ctx,
+		`SELECT ps.id, ps.profile_id, p.name, ps.media_item_id, mi.title, mi.type,
+		        COALESCE(mi.duration_ms, 0), COALESCE(ps.position_ms, 0),
+		        ps.started_at, ps.device_name, ps.device_type, ps.client_ip,
+		        ps.play_method, ps.video_codec, ps.audio_codec, ps.resolution, ps.bandwidth_bps
+		 FROM play_sessions ps
+		 INNER JOIN profiles p ON p.id = ps.profile_id
+		 INNER JOIN media_items mi ON mi.id = ps.media_item_id
+		 WHERE ps.ended_at IS NULL
+		 ORDER BY ps.started_at DESC`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var result []*playback.ActiveSessionInfo
+	for rows.Next() {
+		s := &playback.ActiveSessionInfo{}
+		if err := rows.Scan(
+			&s.SessionID, &s.ProfileID, &s.ProfileName,
+			&s.MediaItemID, &s.MediaTitle, &s.MediaType,
+			&s.DurationMs, &s.PositionMs,
+			&s.StartedAt, &s.DeviceName, &s.DeviceType, &s.ClientIP,
+			&s.PlayMethod, &s.VideoCodec, &s.AudioCodec, &s.Resolution, &s.BandwidthBps,
+		); err != nil {
+			return nil, err
+		}
+		if s.PlayMethod == string(playback.Transcode) {
+			info := fmt.Sprintf("%s -> %s", s.VideoCodec, "h264")
+			s.TranscodeInfo = &info
+		}
+		result = append(result, s)
+	}
+	return result, rows.Err()
+}
+
 func (r *PlaySessionRepository) GetActiveByProfile(ctx context.Context, profileID string) ([]*playback.PlaySession, error) {
 	rows, err := r.db.QueryContext(ctx,
 		`SELECT id, profile_id, media_item_id, device_name, device_type, client_ip, play_method,
