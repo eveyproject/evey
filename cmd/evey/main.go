@@ -141,6 +141,7 @@ func run() error {
 	feedAdminCfgRepo := postgres.NewFeedAdminConfigRepository(db)
 	feedProfileCfgRepo := postgres.NewFeedProfileConfigRepository(db)
 	feedQuerier := postgres.NewFeedQuerier(db)
+	chapterRepo := postgres.NewChapterRepository(db)
 
 	// --- Infrastructure ---
 	searchAdapter, _ := meili.NewSearchAdapter(cfg.Meilisearch.URL, cfg.Meilisearch.APIKey)
@@ -171,6 +172,7 @@ func run() error {
 		mediaStreamRepo, personRepo, mediaPersonRepo,
 		scanner, prober, searchAdapter, bus,
 	)
+	librarySvc.WithChapters(chapterRepo, ebmlReader)
 
 	userSvc := appuser.NewService(
 		userRepo,
@@ -296,6 +298,7 @@ func run() error {
 		mux.HandleFunc("GET /api/v1/media/{id}/download", downloadHandler(tokenGen, librarySvc))
 		mux.HandleFunc("GET /api/v1/media/{id}/transcode", transcodeHandler(tokenGen, librarySvc))
 		mux.HandleFunc("GET /api/v1/media/{id}/subtitle/{track}", subtitleHandler(tokenGen, librarySvc))
+		mux.HandleFunc("GET /api/v1/media/{id}/chapters", chaptersHandler(tokenGen, librarySvc))
 		mux.HandleFunc("GET /api/v1/admin/library-stats", libraryStatsHandler(tokenGen, librarySvc))
 		registerAdminRoutes(mux, metadataSvc, tmdbProvider, tokenGen)
 		mux.Handle("/", gwMux)
@@ -888,6 +891,50 @@ func subtitleHandler(tokenGen interface {
 		if err := cmd.Wait(); err != nil && ctx.Err() == nil {
 			slog.Warn("ffmpeg subtitle", slog.String("media_id", mediaID), slog.Any("err", err))
 		}
+	}
+}
+
+func chaptersHandler(tokenGen interface {
+	ValidateAccessToken(string) (*domainuser.Claims, error)
+}, libSvc interface {
+	GetChapters(ctx context.Context, mediaItemID string) ([]*domainlibrary.Chapter, error)
+}) http.HandlerFunc {
+	type chapterJSON struct {
+		Title       string `json:"title"`
+		StartTimeMs int64  `json:"startTimeMs"`
+		EndTimeMs   int64  `json:"endTimeMs"`
+	}
+	return func(w http.ResponseWriter, r *http.Request) {
+		mediaID := r.PathValue("id")
+		token := r.Header.Get("Authorization")
+		if strings.HasPrefix(token, "Bearer ") {
+			token = token[7:]
+		} else if t := r.URL.Query().Get("token"); t != "" {
+			token = t
+		} else {
+			http.Error(w, `{"message":"unauthenticated"}`, http.StatusUnauthorized)
+			return
+		}
+		if _, err := tokenGen.ValidateAccessToken(token); err != nil {
+			http.Error(w, `{"message":"forbidden"}`, http.StatusForbidden)
+			return
+		}
+		chapters, err := libSvc.GetChapters(r.Context(), mediaID)
+		if err != nil {
+			http.Error(w, `{"message":"internal"}`, http.StatusInternalServerError)
+			return
+		}
+		out := make([]chapterJSON, 0, len(chapters))
+		for _, ch := range chapters {
+			out = append(out, chapterJSON{
+				Title:       ch.Title,
+				StartTimeMs: ch.StartTimeMs,
+				EndTimeMs:   ch.EndTimeMs,
+			})
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.Header().Set("Access-Control-Allow-Origin", "*")
+		json.NewEncoder(w).Encode(map[string]any{"chapters": out})
 	}
 }
 
