@@ -139,9 +139,9 @@ func TestGetMediaItem_NotFound(t *testing.T) {
 }
 
 func TestScanTVShow_TransientDBError_NoDuplicate(t *testing.T) {
-	svc, libRepo, mediaRepo, scanner, _ := newLibrarySvc()
+	svc, _, libQueryRepo, mediaRepo, scanner, _ := newCmdSvc()
 
-	libRepo.Create(context.Background(), &library.Library{
+	libQueryRepo.Seed(&library.Library{
 		ID:    "lib-1",
 		Name:  "TV Shows",
 		Type:  "tvshow",
@@ -161,14 +161,13 @@ func TestScanTVShow_TransientDBError_NoDuplicate(t *testing.T) {
 	require.Error(t, err)
 	assert.ErrorContains(t, err, "connection reset by peer")
 
-	items, _ := mediaRepo.List(context.Background(), library.ListMediaItemsFilter{})
-	assert.Empty(t, items, "transient DB error must not create items")
+	assert.Empty(t, mediaRepo.All(), "transient DB error must not create items")
 }
 
 func TestScanTVShow_TitleLookupTransientError_NoDuplicate(t *testing.T) {
-	svc, libRepo, mediaRepo, scanner, _ := newLibrarySvc()
+	svc, _, libQueryRepo, mediaRepo, scanner, _ := newCmdSvc()
 
-	libRepo.Create(context.Background(), &library.Library{
+	libQueryRepo.Seed(&library.Library{
 		ID:    "lib-1",
 		Name:  "TV Shows",
 		Type:  "tvshow",
@@ -188,8 +187,7 @@ func TestScanTVShow_TitleLookupTransientError_NoDuplicate(t *testing.T) {
 	require.Error(t, err)
 	assert.ErrorContains(t, err, "connection reset by peer")
 
-	items, _ := mediaRepo.List(context.Background(), library.ListMediaItemsFilter{})
-	assert.Empty(t, items, "transient DB error on title lookup must not create items")
+	assert.Empty(t, mediaRepo.All(), "transient DB error on title lookup must not create items")
 }
 
 func TestDeleteLibrary(t *testing.T) {

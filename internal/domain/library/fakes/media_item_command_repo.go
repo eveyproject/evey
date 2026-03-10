@@ -10,6 +10,8 @@ import (
 type FakeMediaItemCommandRepo struct {
 	mu    sync.RWMutex
 	items map[string]*library.MediaItem
+	GetByFileFingerprintErr  error
+	GetByLibraryTypeTitleErr error
 }
 
 func NewFakeMediaItemCommandRepo() *FakeMediaItemCommandRepo {
@@ -57,6 +59,9 @@ func (r *FakeMediaItemCommandRepo) GetByFilePath(_ context.Context, path string)
 func (r *FakeMediaItemCommandRepo) GetByFileFingerprint(_ context.Context, fingerprint string) (*library.MediaItem, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
+	if r.GetByFileFingerprintErr != nil {
+		return nil, r.GetByFileFingerprintErr
+	}
 	for _, item := range r.items {
 		if item.FileFingerprint == fingerprint {
 			return item, nil
@@ -68,6 +73,9 @@ func (r *FakeMediaItemCommandRepo) GetByFileFingerprint(_ context.Context, finge
 func (r *FakeMediaItemCommandRepo) GetByLibraryTypeTitle(_ context.Context, libraryID, itemType, title, parentID string) (*library.MediaItem, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
+	if r.GetByLibraryTypeTitleErr != nil {
+		return nil, r.GetByLibraryTypeTitleErr
+	}
 	for _, item := range r.items {
 		if item.LibraryID == libraryID && item.Type == itemType && item.Title == title &&
 			(parentID == "" || item.ParentID == parentID) {
