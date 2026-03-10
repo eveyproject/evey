@@ -15,6 +15,7 @@ import (
 	"google.golang.org/grpc"
 
 	appactivity "github.com/gravity-zero/evey/internal/app/activity"
+	appbackup "github.com/gravity-zero/evey/internal/app/backup"
 	appcollection "github.com/gravity-zero/evey/internal/app/collection"
 	appfavorite "github.com/gravity-zero/evey/internal/app/favorite"
 	appfeed "github.com/gravity-zero/evey/internal/app/feed"
@@ -382,6 +383,11 @@ func run() error {
 		registerScheduleRoutes(mux, libScheduler, tokenGen)
 		registerLibraryAccessRoutes(mux, libraryAccessRepo, libQuerySvc, tokenGen)
 		registerPlaylistRoutes(mux, playlistSvc, tokenGen)
+
+		backupStore := filesystem.NewBackupStore(cfg.Backup.Dir)
+		dbDumper := postgres.NewDatabaseDumper(cfg.DB.Host, cfg.DB.Port, cfg.DB.User, cfg.DB.Password, cfg.DB.DBName, cfg.DB.SSLMode)
+		backupSvc := appbackup.NewService(backupStore, dbDumper, version)
+		registerBackupRoutes(mux, backupSvc, tokenGen)
 		mux.HandleFunc("GET /api/v1/admin/sessions/active", activeSessionsHandler(tokenGen, playbackSvc))
 		mux.HandleFunc("DELETE /api/v1/admin/sessions/{id}", killSessionHandler(tokenGen, playbackSvc))
 		mux.Handle("/", ratelimit.Middleware(globalRL)(gwMux))

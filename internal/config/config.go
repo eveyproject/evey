@@ -19,6 +19,11 @@ type Config struct {
 	Playback    PlaybackConfig
 	Metadata    MetadataConfig
 	Log         LogConfig
+	Backup      BackupConfig
+}
+
+type BackupConfig struct {
+	Dir string
 }
 
 type MetadataConfig struct {
@@ -144,6 +149,9 @@ func Load() (*Config, error) {
 		},
 		Metadata: MetadataConfig{
 			Language: envStr("EVEY_METADATA_LANGUAGE", "en"),
+		},
+		Backup: BackupConfig{
+			Dir: envStr("EVEY_BACKUP_DIR", "/data/backups"),
 		},
 		Log: LogConfig{
 			Level:         envStr("EVEY_LOG_LEVEL", "info"),
