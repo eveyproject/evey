@@ -28,8 +28,10 @@ import (
 	appmetadata "github.com/gravity-zero/evey/internal/app/metadata"
 	domainmeta "github.com/gravity-zero/evey/internal/domain/metadata"
 	domainuser "github.com/gravity-zero/evey/internal/domain/user"
+	"github.com/gravity-zero/evey/internal/config"
 	"github.com/gravity-zero/evey/internal/pkg/auth"
 	"github.com/gravity-zero/evey/internal/pkg/id"
+	"github.com/gravity-zero/evey/internal/pkg/network"
 )
 
 func registerAdminRoutes(mux *http.ServeMux, metaSvc *appmetadata.Service, tokenGen *auth.JWTGenerator) {
@@ -1131,5 +1133,95 @@ func registerBackupRoutes(mux *http.ServeMux, svc *appbackup.Service, tokenGen *
 			return
 		}
 		w.WriteHeader(http.StatusNoContent)
+	})
+}
+
+func networkMiddleware(detector *network.Detector, remoteEnabled *bool) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			nt := detector.Detect(r)
+			if nt == network.WAN && !*remoteEnabled {
+				http.Error(w, `{"message":"remote access disabled"}`, http.StatusForbidden)
+				return
+			}
+			w.Header().Set("X-Evey-Network", string(nt))
+			ctx := network.WithNetworkType(r.Context(), nt)
+			next.ServeHTTP(w, r.WithContext(ctx))
+		})
+	}
+}
+
+func registerRemoteAccessRoutes(mux *http.ServeMux, cfg *config.Config, tokenGen *auth.JWTGenerator) {
+	requireAdmin := func(r *http.Request) bool {
+		h := r.Header.Get("Authorization")
+		if !strings.HasPrefix(h, "Bearer ") {
+			return false
+		}
+		claims, err := tokenGen.ValidateAccessToken(strings.TrimPrefix(h, "Bearer "))
+		return err == nil && claims.IsAdmin
+	}
+
+	mux.HandleFunc("GET /api/v1/admin/remote-access", func(w http.ResponseWriter, r *http.Request) {
+		if !requireAdmin(r) {
+			http.Error(w, `{"message":"forbidden"}`, http.StatusForbidden)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]any{
+			"enabled":              cfg.RemoteAccess.Enabled,
+			"externalUrl":          cfg.RemoteAccess.ExternalURL,
+			"lanNetworks":          cfg.RemoteAccess.LANNetworks,
+			"maxRemoteBitrateKbps": cfg.RemoteAccess.MaxRemoteBitrateKbps,
+		})
+	})
+
+	mux.HandleFunc("PUT /api/v1/admin/remote-access", func(w http.ResponseWriter, r *http.Request) {
+		if !requireAdmin(r) {
+			http.Error(w, `{"message":"forbidden"}`, http.StatusForbidden)
+			return
+		}
+		var body struct {
+			Enabled              *bool    `json:"enabled"`
+			ExternalURL          *string  `json:"externalUrl"`
+			LANNetworks          []string `json:"lanNetworks"`
+			MaxRemoteBitrateKbps *int     `json:"maxRemoteBitrateKbps"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			http.Error(w, `{"message":"bad request"}`, http.StatusBadRequest)
+			return
+		}
+		if body.Enabled != nil {
+			cfg.RemoteAccess.Enabled = *body.Enabled
+		}
+		if body.ExternalURL != nil {
+			cfg.RemoteAccess.ExternalURL = *body.ExternalURL
+		}
+		if body.LANNetworks != nil {
+			cfg.RemoteAccess.LANNetworks = body.LANNetworks
+		}
+		if body.MaxRemoteBitrateKbps != nil {
+			cfg.RemoteAccess.MaxRemoteBitrateKbps = *body.MaxRemoteBitrateKbps
+		}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]any{
+			"enabled":              cfg.RemoteAccess.Enabled,
+			"externalUrl":          cfg.RemoteAccess.ExternalURL,
+			"lanNetworks":          cfg.RemoteAccess.LANNetworks,
+			"maxRemoteBitrateKbps": cfg.RemoteAccess.MaxRemoteBitrateKbps,
+		})
+	})
+
+	mux.HandleFunc("GET /api/v1/admin/network-info", func(w http.ResponseWriter, r *http.Request) {
+		if !requireAdmin(r) {
+			http.Error(w, `{"message":"forbidden"}`, http.StatusForbidden)
+			return
+		}
+		ifaces, err := network.NetworkInterfaces()
+		if err != nil {
+			http.Error(w, `{"message":"internal error"}`, http.StatusInternalServerError)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]any{"interfaces": ifaces})
 	})
 }

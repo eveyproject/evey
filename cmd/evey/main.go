@@ -43,6 +43,7 @@ import (
 	"github.com/gravity-zero/evey/internal/pkg/auth"
 	"github.com/gravity-zero/evey/internal/pkg/eventbus"
 	eveylogger "github.com/gravity-zero/evey/internal/pkg/logger"
+	"github.com/gravity-zero/evey/internal/pkg/network"
 	"github.com/gravity-zero/evey/internal/pkg/ratelimit"
 	domainlibrary "github.com/gravity-zero/evey/internal/domain/library"
 	libraryevent "github.com/gravity-zero/evey/internal/domain/library"
@@ -344,6 +345,8 @@ func run() error {
 
 	grpcAddr := fmt.Sprintf(":%d", cfg.Server.Port)
 
+	netDetector := network.NewDetector(cfg.RemoteAccess.LANNetworks)
+
 	// --- gRPC-Gateway HTTP proxy ---
 	httpPort := cfg.Server.Port + 1
 	gwMux := registerGateway(grpcAddr)
@@ -388,12 +391,14 @@ func run() error {
 		dbDumper := postgres.NewDatabaseDumper(cfg.DB.Host, cfg.DB.Port, cfg.DB.User, cfg.DB.Password, cfg.DB.DBName, cfg.DB.SSLMode)
 		backupSvc := appbackup.NewService(backupStore, dbDumper, version)
 		registerBackupRoutes(mux, backupSvc, tokenGen)
+		registerRemoteAccessRoutes(mux, cfg, tokenGen)
 		mux.HandleFunc("GET /api/v1/admin/sessions/active", activeSessionsHandler(tokenGen, playbackSvc))
 		mux.HandleFunc("DELETE /api/v1/admin/sessions/{id}", killSessionHandler(tokenGen, playbackSvc))
 		mux.Handle("/", ratelimit.Middleware(globalRL)(gwMux))
+		netMw := networkMiddleware(netDetector, &cfg.RemoteAccess.Enabled)
 		httpSrv = &http.Server{
 			Addr:              fmt.Sprintf(":%d", httpPort),
-			Handler:           mux,
+			Handler:           netMw(mux),
 			ReadHeaderTimeout: 10 * time.Second,
 			WriteTimeout:      10 * time.Minute,
 			IdleTimeout:       120 * time.Second,

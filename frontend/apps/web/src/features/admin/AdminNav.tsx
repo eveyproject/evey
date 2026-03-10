@@ -11,6 +11,7 @@ const adminNavLinks = [
   { href: "/admin/activity", label: "Activity" },
   { href: "/admin/tasks", label: "Scheduled Tasks" },
   { href: "/admin/transcode-cache", label: "Transcode Cache" },
+  { href: "/admin/remote-access", label: "Remote Access" },
   { href: "/admin/logs", label: "Logs" },
 ];
 
