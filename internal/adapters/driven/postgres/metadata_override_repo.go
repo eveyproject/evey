@@ -73,3 +73,8 @@ func (r *MetadataOverrideRepository) Delete(ctx context.Context, id string) erro
 	_, err := r.db.ExecContext(ctx, `DELETE FROM metadata_overrides WHERE id = $1`, id)
 	return err
 }
+
+func (r *MetadataOverrideRepository) DeleteByMediaItemID(ctx context.Context, mediaItemID string) error {
+	_, err := r.db.ExecContext(ctx, `DELETE FROM metadata_overrides WHERE media_item_id = $1`, mediaItemID)
+	return err
+}

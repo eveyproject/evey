@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { Link } from "@tanstack/react-router";
 import type { V1MediaItem, V1MediaPerson } from "@evey/api/src/generated/library.schemas";
 import {
@@ -7,10 +7,9 @@ import {
   useFeedServiceSimilarItems,
   useLibraryServiceListMediaItems,
   useLibraryServiceGetMediaItem,
-  useMetadataServiceSetMetadataOverride,
-  useMetadataServiceRefreshMetadata,
+  eveyFetch,
 } from "@evey/api";
-import { toast } from "@evey/store";
+import { toast, useAuthStore } from "@evey/store";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
 import { Input } from "@/components/ui/Input";
@@ -31,8 +30,16 @@ interface EditForm {
   overview: string;
   genres: string;
   communityRating: string;
+  officialRating: string;
   imdbId: string;
   tmdbId: string;
+}
+
+interface OverrideEntry {
+  id: string;
+  field_name: string;
+  custom_value: unknown;
+  created_at: string;
 }
 
 function MetadataEditPanel({
@@ -50,38 +57,93 @@ function MetadataEditPanel({
     overview: item.overview ?? "",
     genres: item.genres?.join(", ") ?? "",
     communityRating: item.communityRating ? String(item.communityRating) : "",
+    officialRating: item.officialRating ?? "",
     imdbId: item.providerIds?.imdb ?? "",
     tmdbId: item.providerIds?.tmdb ?? "",
   });
+  const [overrides, setOverrides] = useState<OverrideEntry[]>([]);
   const [refreshStatus, setRefreshStatus] = useState<"idle" | "running" | "done" | "error">("idle");
-  const setOverride = useMetadataServiceSetMetadataOverride();
-  const refresh = useMetadataServiceRefreshMetadata();
+  const [resetting, setResetting] = useState(false);
+  const [saving, setSaving] = useState(false);
+
+  const loadOverrides = useCallback(async () => {
+    if (!item.id) return;
+    try {
+      const data = await eveyFetch<{ overrides: OverrideEntry[] }>({
+        url: `/api/v1/media/${item.id}/metadata/overrides`,
+        method: "GET",
+      });
+      setOverrides(data.overrides ?? []);
+    } catch {
+      // ignore
+    }
+  }, [item.id]);
+
+  useEffect(() => { loadOverrides(); }, [loadOverrides]);
+
+  const overriddenFields = new Set(overrides.map((o) => o.field_name));
 
   async function handleSave(e: React.FormEvent) {
     e.preventDefault();
     if (!item.id) return;
-    const fields: Array<[string, string]> = [
-      ["title", form.title.trim()],
-      ["year", form.year.trim()],
-      ["overview", form.overview.trim()],
-      ["genres", form.genres.trim()],
-      ["community_rating", form.communityRating.trim()],
-      ["imdb_id", form.imdbId.trim()],
-      ["tmdb_id", form.tmdbId.trim()],
-    ];
-    for (const [fieldName, customValue] of fields) {
-      if (customValue) {
-        await setOverride.mutateAsync({ data: { mediaItemId: item.id, fieldName, customValue } });
+    setSaving(true);
+    try {
+      const body: Record<string, string> = {};
+      const fields: Array<[string, string]> = [
+        ["title", form.title.trim()],
+        ["year", form.year.trim()],
+        ["overview", form.overview.trim()],
+        ["genres", form.genres.trim()],
+        ["community_rating", form.communityRating.trim()],
+        ["official_rating", form.officialRating.trim()],
+        ["imdb_id", form.imdbId.trim()],
+        ["tmdb_id", form.tmdbId.trim()],
+      ];
+      for (const [fieldName, value] of fields) {
+        if (value) body[fieldName] = value;
       }
+      await eveyFetch<void>({
+        url: `/api/v1/media/${item.id}/metadata`,
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        data: body,
+      });
+      toast.success("Metadata overrides saved");
+      onSave();
+    } catch {
+      toast.error("Failed to save overrides");
+    } finally {
+      setSaving(false);
     }
-    onSave();
+  }
+
+  async function handleReset() {
+    if (!item.id) return;
+    setResetting(true);
+    try {
+      await eveyFetch<void>({
+        url: `/api/v1/media/${item.id}/metadata`,
+        method: "DELETE",
+      });
+      toast.success("Overrides reset to provider metadata");
+      onSave();
+    } catch {
+      toast.error("Failed to reset overrides");
+    } finally {
+      setResetting(false);
+    }
   }
 
   async function handleRefresh() {
     if (!item.id) return;
     setRefreshStatus("running");
     try {
-      await refresh.mutateAsync({ mediaItemId: item.id });
+      await eveyFetch<void>({
+        url: `/api/v1/metadata/${item.id}/refresh`,
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        data: {},
+      });
       setRefreshStatus("done");
       setTimeout(() => { setRefreshStatus("idle"); onSave(); }, 1500);
     } catch {
@@ -94,26 +156,44 @@ function MetadataEditPanel({
       setForm((prev) => ({ ...prev, [field]: e.target.value }));
   }
 
+  function fieldLabel(label: string, fieldName: string) {
+    if (overriddenFields.has(fieldName)) return `${label} (overridden)`;
+    return label;
+  }
+
   return (
     <form onSubmit={handleSave} className="flex flex-col gap-4 p-4 rounded-[var(--radius-lg)]"
       style={{ backgroundColor: "var(--surface)", border: "1px solid var(--border)" }}>
-      <Input label="Title" value={form.title} onChange={set("title")} required />
-      <Input label="Year" type="number" value={form.year} onChange={set("year")} placeholder="2024" />
-      <Textarea label="Overview" value={form.overview} onChange={set("overview")} rows={4} />
-      <Input label="Genres (comma-separated)" value={form.genres} onChange={set("genres")} placeholder="Action, Drama" />
-      <Input label="Rating" type="number" step="0.1" min="0" max="10" value={form.communityRating} onChange={set("communityRating")} placeholder="7.5" />
+      {overrides.length > 0 && (
+        <div className="flex items-center gap-2 text-xs" style={{ color: "var(--text-muted)" }}>
+          <Badge variant="warning">{overrides.length} override{overrides.length !== 1 ? "s" : ""}</Badge>
+          <span>active on this item</span>
+        </div>
+      )}
+      <Input label={fieldLabel("Title", "title")} value={form.title} onChange={set("title")} required />
+      <Input label={fieldLabel("Year", "year")} type="number" value={form.year} onChange={set("year")} placeholder="2024" />
+      <Textarea label={fieldLabel("Overview", "overview")} value={form.overview} onChange={set("overview")} rows={4} />
+      <Input label={fieldLabel("Genres (comma-separated)", "genres")} value={form.genres} onChange={set("genres")} placeholder="Action, Drama" />
       <div className="grid grid-cols-2 gap-3">
-        <Input label="IMDB ID" value={form.imdbId} onChange={set("imdbId")} placeholder="tt1234567" />
-        <Input label="TMDB ID" value={form.tmdbId} onChange={set("tmdbId")} placeholder="12345" />
+        <Input label={fieldLabel("Rating", "community_rating")} type="number" step="0.1" min="0" max="10" value={form.communityRating} onChange={set("communityRating")} placeholder="7.5" />
+        <Input label={fieldLabel("Content Rating", "official_rating")} value={form.officialRating} onChange={set("officialRating")} placeholder="PG-13" />
+      </div>
+      <div className="grid grid-cols-2 gap-3">
+        <Input label={fieldLabel("IMDB ID", "imdb_id")} value={form.imdbId} onChange={set("imdbId")} placeholder="tt1234567" />
+        <Input label={fieldLabel("TMDB ID", "tmdb_id")} value={form.tmdbId} onChange={set("tmdbId")} placeholder="12345" />
       </div>
       <div className="flex gap-2 flex-wrap pt-1">
-        <Button type="submit" loading={setOverride.isPending}>Save overrides</Button>
+        <Button type="submit" loading={saving}>Save overrides</Button>
+        {overrides.length > 0 && (
+          <Button type="button" variant="secondary" loading={resetting} onClick={handleReset}>
+            Reset to provider
+          </Button>
+        )}
         <Button type="button" variant="secondary" loading={refreshStatus === "running"} onClick={handleRefresh}>
           {refreshStatus === "done" ? "Done" : refreshStatus === "error" ? "Error" : "Refresh metadata"}
         </Button>
         <Button type="button" variant="secondary" onClick={onCancel}>Cancel</Button>
       </div>
-      {setOverride.isError && <p className="text-sm" style={{ color: "#ef4444" }}>Failed to save.</p>}
     </form>
   );
 }
@@ -400,6 +480,7 @@ export function MediaDetail({ item, onMetadataUpdated }: MediaDetailProps) {
   const [watched, setWatched] = useState(false);
   const [fileInfoOpen, setFileInfoOpen] = useState(false);
   const [editing, setEditing] = useState(false);
+  const isAdmin = useAuthStore((s) => s.isAdmin);
 
   const { data: parentItem } = useLibraryServiceGetMediaItem(
     item.parentId ?? "",
@@ -487,7 +568,7 @@ export function MediaDetail({ item, onMetadataUpdated }: MediaDetailProps) {
           )}
           <div className="flex items-center gap-3 mb-2">
             <h1 className="text-2xl sm:text-4xl font-bold text-white drop-shadow-lg">{item.title}</h1>
-            {item.id && (
+            {item.id && isAdmin && (
               <button
                 onClick={() => setEditing((v) => !v)}
                 title="Edit metadata"

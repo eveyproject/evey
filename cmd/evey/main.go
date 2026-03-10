@@ -50,6 +50,7 @@ import (
 	"github.com/gravity-zero/evey/internal/domain/metadata"
 	"github.com/gravity-zero/evey/internal/pkg/auth"
 	"github.com/gravity-zero/evey/internal/pkg/eventbus"
+	"github.com/gravity-zero/evey/internal/pkg/id"
 	eveylogger "github.com/gravity-zero/evey/internal/pkg/logger"
 	domainuser "github.com/gravity-zero/evey/internal/domain/user"
 	domainlibrary "github.com/gravity-zero/evey/internal/domain/library"
@@ -298,6 +299,7 @@ func run() error {
 		mux.HandleFunc("GET /api/v1/media/{id}/subtitle/{track}", subtitleHandler(tokenGen, librarySvc))
 		mux.HandleFunc("GET /api/v1/admin/library-stats", libraryStatsHandler(tokenGen, librarySvc))
 		registerAdminRoutes(mux, metadataSvc, tmdbProvider, tokenGen)
+		registerMetadataOverrideRoutes(mux, metadataSvc, tokenGen)
 		mux.Handle("/", gwMux)
 		httpSrv = &http.Server{
 			Addr:              fmt.Sprintf(":%d", httpPort),
@@ -889,6 +891,102 @@ func subtitleHandler(tokenGen interface {
 			slog.Warn("ffmpeg subtitle", slog.String("media_id", mediaID), slog.Any("err", err))
 		}
 	}
+}
+
+func registerMetadataOverrideRoutes(mux *http.ServeMux, metaSvc *appmetadata.Service, tokenGen *auth.JWTGenerator) {
+	requireAdmin := func(r *http.Request) bool {
+		h := r.Header.Get("Authorization")
+		if !strings.HasPrefix(h, "Bearer ") {
+			return false
+		}
+		claims, err := tokenGen.ValidateAccessToken(strings.TrimPrefix(h, "Bearer "))
+		return err == nil && claims.IsAdmin
+	}
+
+	// PUT /api/v1/media/{id}/metadata — bulk set overrides
+	mux.HandleFunc("PUT /api/v1/media/{id}/metadata", func(w http.ResponseWriter, r *http.Request) {
+		if !requireAdmin(r) {
+			http.Error(w, `{"message":"unauthorized"}`, http.StatusUnauthorized)
+			return
+		}
+		mediaItemID := r.PathValue("id")
+		var body map[string]string
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			http.Error(w, `{"message":"bad request"}`, http.StatusBadRequest)
+			return
+		}
+		allowedFields := map[string]bool{
+			"title": true, "overview": true, "genres": true,
+			"year": true, "community_rating": true, "official_rating": true,
+			"imdb_id": true, "tmdb_id": true,
+		}
+		for fieldName, value := range body {
+			if !allowedFields[fieldName] || value == "" {
+				continue
+			}
+			override := &domainmeta.MetadataOverride{
+				ID:          id.New("mo-"),
+				MediaItemID: mediaItemID,
+				FieldName:   fieldName,
+				CustomValue: value,
+			}
+			if err := metaSvc.SetOverride(r.Context(), override); err != nil {
+				slog.Error("set override", slog.Any("err", err))
+				http.Error(w, `{"message":"internal error"}`, http.StatusInternalServerError)
+				return
+			}
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(`{"ok":true}`))
+	})
+
+	// DELETE /api/v1/media/{id}/metadata — reset all overrides
+	mux.HandleFunc("DELETE /api/v1/media/{id}/metadata", func(w http.ResponseWriter, r *http.Request) {
+		if !requireAdmin(r) {
+			http.Error(w, `{"message":"unauthorized"}`, http.StatusUnauthorized)
+			return
+		}
+		mediaItemID := r.PathValue("id")
+		if err := metaSvc.ResetOverrides(r.Context(), mediaItemID); err != nil {
+			slog.Error("reset overrides", slog.Any("err", err))
+			http.Error(w, `{"message":"internal error"}`, http.StatusInternalServerError)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(`{"ok":true}`))
+	})
+
+	// GET /api/v1/media/{id}/metadata/overrides — list overrides
+	mux.HandleFunc("GET /api/v1/media/{id}/metadata/overrides", func(w http.ResponseWriter, r *http.Request) {
+		if !requireAdmin(r) {
+			http.Error(w, `{"message":"unauthorized"}`, http.StatusUnauthorized)
+			return
+		}
+		mediaItemID := r.PathValue("id")
+		overrides, err := metaSvc.ListOverrides(r.Context(), mediaItemID)
+		if err != nil {
+			slog.Error("list overrides", slog.Any("err", err))
+			http.Error(w, `{"message":"internal error"}`, http.StatusInternalServerError)
+			return
+		}
+		type overrideResponse struct {
+			ID          string `json:"id"`
+			FieldName   string `json:"field_name"`
+			CustomValue any    `json:"custom_value"`
+			CreatedAt   string `json:"created_at"`
+		}
+		result := make([]overrideResponse, 0, len(overrides))
+		for _, o := range overrides {
+			result = append(result, overrideResponse{
+				ID:          o.ID,
+				FieldName:   o.FieldName,
+				CustomValue: o.CustomValue,
+				CreatedAt:   o.CreatedAt.UTC().Format(time.RFC3339),
+			})
+		}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]any{"overrides": result})
+	})
 }
 
 func libraryStatsHandler(tokenGen interface {

@@ -187,6 +187,18 @@ func (s *Service) RemoveOverride(ctx context.Context, id string) error {
 	return s.overrides.Delete(ctx, id)
 }
 
+func (s *Service) ResetOverrides(ctx context.Context, mediaItemID string) error {
+	if err := s.overrides.DeleteByMediaItemID(ctx, mediaItemID); err != nil {
+		return err
+	}
+	s.events.Publish(ctx, metadata.MetadataOverrideRemoved{
+		MediaItemID: mediaItemID,
+		FieldName:   "*",
+		OccurredAt:  time.Now(),
+	})
+	return nil
+}
+
 func (s *Service) ListOverrides(ctx context.Context, mediaItemID string) ([]*metadata.MetadataOverride, error) {
 	return s.overrides.GetByMediaItem(ctx, mediaItemID)
 }
