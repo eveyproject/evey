@@ -7,7 +7,6 @@ import (
 	"log/slog"
 
 	eveyv1 "github.com/gravity-zero/evey/gen/evey/v1"
-	"github.com/gravity-zero/evey/internal/adapters/driving/grpcapi/interceptors"
 	applibrary "github.com/gravity-zero/evey/internal/app/library"
 	appplayback "github.com/gravity-zero/evey/internal/app/playback"
 	"github.com/gravity-zero/evey/internal/domain/playback"
@@ -43,13 +42,13 @@ func (h *playbackHandler) GetStreamInfo(ctx context.Context, req *eveyv1.GetStre
 }
 
 func (h *playbackHandler) StartStream(ctx context.Context, req *eveyv1.StartStreamRequest) (*eveyv1.PlaySession, error) {
-	claims := interceptors.ClaimsFromContext(ctx)
-	if claims == nil {
-		return nil, status.Error(codes.Unauthenticated, "not authenticated")
+	claims, err := requireClaims(ctx)
+	if err != nil {
+		return nil, err
 	}
-	profileID := req.ProfileId
-	if profileID == "" {
-		profileID = claims.ProfileID
+	profileID, err := resolveProfileID(claims, req.ProfileId)
+	if err != nil {
+		return nil, err
 	}
 	session := &playback.PlaySession{
 		ID:          id.New("ps-"),
@@ -75,9 +74,8 @@ func (h *playbackHandler) StopStream(ctx context.Context, req *eveyv1.StopStream
 }
 
 func (h *playbackHandler) ReportProgress(ctx context.Context, req *eveyv1.ReportProgressRequest) (*eveyv1.ReportProgressResponse, error) {
-	claims := interceptors.ClaimsFromContext(ctx)
-	if claims == nil {
-		return nil, status.Error(codes.Unauthenticated, "not authenticated")
+	if _, err := requireClaims(ctx); err != nil {
+		return nil, err
 	}
 	if err := h.cmd.ReportProgressBySession(ctx, req.SessionId, req.PositionMs); err != nil {
 		slog.Error("report progress", slog.Any("err", err))
@@ -87,11 +85,13 @@ func (h *playbackHandler) ReportProgress(ctx context.Context, req *eveyv1.Report
 }
 
 func (h *playbackHandler) GetWatchProgress(ctx context.Context, req *eveyv1.GetWatchProgressRequest) (*eveyv1.WatchProgress, error) {
-	profileID := req.ProfileId
-	if profileID == "" {
-		if claims := interceptors.ClaimsFromContext(ctx); claims != nil {
-			profileID = claims.ProfileID
-		}
+	claims, err := requireClaims(ctx)
+	if err != nil {
+		return nil, err
+	}
+	profileID, err := resolveProfileID(claims, req.ProfileId)
+	if err != nil {
+		return nil, err
 	}
 	wp, err := h.query.GetWatchProgress(ctx, profileID, req.MediaItemId)
 	if err != nil {
@@ -105,6 +105,14 @@ func (h *playbackHandler) GetWatchProgress(ctx context.Context, req *eveyv1.GetW
 }
 
 func (h *playbackHandler) GetWatchHistory(ctx context.Context, req *eveyv1.GetWatchHistoryRequest) (*eveyv1.GetWatchHistoryResponse, error) {
+	claims, err := requireClaims(ctx)
+	if err != nil {
+		return nil, err
+	}
+	profileID, err := resolveProfileID(claims, req.ProfileId)
+	if err != nil {
+		return nil, err
+	}
 	limit := int(req.Limit)
 	if limit <= 0 {
 		limit = 50
@@ -114,7 +122,7 @@ func (h *playbackHandler) GetWatchHistory(ctx context.Context, req *eveyv1.GetWa
 		offset = int((req.Pagination.Page - 1) * req.Pagination.PageSize)
 		limit = int(req.Pagination.PageSize)
 	}
-	items, err := h.query.GetWatchHistory(ctx, req.ProfileId, limit, offset)
+	items, err := h.query.GetWatchHistory(ctx, profileID, limit, offset)
 	if err != nil {
 		slog.Error("get watch history", slog.Any("err", err))
 		return nil, status.Errorf(codes.Internal, "internal error")
@@ -127,11 +135,19 @@ func (h *playbackHandler) GetWatchHistory(ctx context.Context, req *eveyv1.GetWa
 }
 
 func (h *playbackHandler) GetResumeItems(ctx context.Context, req *eveyv1.GetResumeItemsRequest) (*eveyv1.GetResumeItemsResponse, error) {
+	claims, err := requireClaims(ctx)
+	if err != nil {
+		return nil, err
+	}
+	profileID, err := resolveProfileID(claims, req.ProfileId)
+	if err != nil {
+		return nil, err
+	}
 	limit := int(req.Limit)
 	if limit <= 0 {
 		limit = 20
 	}
-	items, err := h.query.GetResumeItems(ctx, req.ProfileId, limit)
+	items, err := h.query.GetResumeItems(ctx, profileID, limit)
 	if err != nil {
 		slog.Error("get resume items", slog.Any("err", err))
 		return nil, status.Errorf(codes.Internal, "internal error")
@@ -144,11 +160,19 @@ func (h *playbackHandler) GetResumeItems(ctx context.Context, req *eveyv1.GetRes
 }
 
 func (h *playbackHandler) GetNextUp(ctx context.Context, req *eveyv1.GetNextUpRequest) (*eveyv1.GetNextUpResponse, error) {
+	claims, err := requireClaims(ctx)
+	if err != nil {
+		return nil, err
+	}
+	profileID, err := resolveProfileID(claims, req.ProfileId)
+	if err != nil {
+		return nil, err
+	}
 	limit := int(req.Limit)
 	if limit <= 0 {
 		limit = 20
 	}
-	progresses, err := h.query.GetNextUp(ctx, req.ProfileId, limit)
+	progresses, err := h.query.GetNextUp(ctx, profileID, limit)
 	if err != nil {
 		slog.Error("get next up", slog.Any("err", err))
 		return nil, status.Errorf(codes.Internal, "internal error")
@@ -165,7 +189,15 @@ func (h *playbackHandler) GetNextUp(ctx context.Context, req *eveyv1.GetNextUpRe
 }
 
 func (h *playbackHandler) MarkAsWatched(ctx context.Context, req *eveyv1.MarkAsWatchedRequest) (*eveyv1.MarkAsWatchedResponse, error) {
-	if err := h.cmd.MarkAsWatched(ctx, req.ProfileId, req.MediaItemId); err != nil {
+	claims, err := requireClaims(ctx)
+	if err != nil {
+		return nil, err
+	}
+	profileID, err := resolveProfileID(claims, req.ProfileId)
+	if err != nil {
+		return nil, err
+	}
+	if err := h.cmd.MarkAsWatched(ctx, profileID, req.MediaItemId); err != nil {
 		slog.Error("mark as watched", slog.Any("err", err))
 		return nil, status.Errorf(codes.Internal, "internal error")
 	}
@@ -173,7 +205,15 @@ func (h *playbackHandler) MarkAsWatched(ctx context.Context, req *eveyv1.MarkAsW
 }
 
 func (h *playbackHandler) MarkAsUnwatched(ctx context.Context, req *eveyv1.MarkAsUnwatchedRequest) (*eveyv1.MarkAsUnwatchedResponse, error) {
-	if err := h.cmd.MarkAsUnwatched(ctx, req.ProfileId, req.MediaItemId); err != nil {
+	claims, err := requireClaims(ctx)
+	if err != nil {
+		return nil, err
+	}
+	profileID, err := resolveProfileID(claims, req.ProfileId)
+	if err != nil {
+		return nil, err
+	}
+	if err := h.cmd.MarkAsUnwatched(ctx, profileID, req.MediaItemId); err != nil {
 		slog.Error("mark as unwatched", slog.Any("err", err))
 		return nil, status.Errorf(codes.Internal, "internal error")
 	}

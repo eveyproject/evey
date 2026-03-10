@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"sync"
 	"time"
 
 	"github.com/gravity-zero/evey/internal/domain/shared"
@@ -35,6 +36,8 @@ type Service struct {
 	hasher       user.PasswordHasher
 	tokens       user.TokenGenerator
 	events       shared.EventBus
+	setupMu      sync.Mutex
+	setupDone    bool
 }
 
 func NewService(
@@ -65,11 +68,23 @@ func NewService(
 	}
 }
 
+func (s *Service) InitSetupState(ctx context.Context) {
+	count, err := s.users.CountAdmins(ctx)
+	if err == nil && count > 0 {
+		s.setupDone = true
+	}
+}
+
 func (s *Service) CountAdmins(ctx context.Context) (int, error) {
 	return s.users.CountAdmins(ctx)
 }
 
 func (s *Service) Setup(ctx context.Context, username, password, email string) (*user.User, error) {
+	s.setupMu.Lock()
+	defer s.setupMu.Unlock()
+	if s.setupDone {
+		return nil, ErrSetupDone
+	}
 	if len(password) < 8 {
 		return nil, ErrPasswordTooShort
 	}
@@ -78,6 +93,7 @@ func (s *Service) Setup(ctx context.Context, username, password, email string) (
 		return nil, err
 	}
 	if admins > 0 {
+		s.setupDone = true
 		return nil, ErrSetupDone
 	}
 
@@ -111,6 +127,7 @@ func (s *Service) Setup(ctx context.Context, username, password, email string) (
 		return nil, fmt.Errorf("create default profile: %w", err)
 	}
 
+	s.setupDone = true
 	return u, nil
 }
 
@@ -179,22 +196,30 @@ func (s *Service) Login(ctx context.Context, username, password string) (accessT
 	return accessToken, refreshToken, nil
 }
 
-func (s *Service) RefreshToken(ctx context.Context, token string) (string, error) {
+func (s *Service) RefreshToken(ctx context.Context, token string) (string, string, error) {
 	h := sha256.Sum256([]byte(token))
 	hash := hex.EncodeToString(h[:])
 
 	rt, err := s.refreshTkns.GetByTokenHash(ctx, hash)
 	if err != nil {
-		return "", ErrInvalidCredentials
+		return "", "", ErrInvalidCredentials
 	}
+
+	if rt.Used {
+		s.refreshTkns.DeleteByUserID(ctx, rt.UserID)
+		return "", "", ErrInvalidCredentials
+	}
+
 	if time.Now().After(rt.ExpiresAt) {
 		s.refreshTkns.DeleteByID(ctx, rt.ID)
-		return "", ErrInvalidCredentials
+		return "", "", ErrInvalidCredentials
 	}
+
+	s.refreshTkns.MarkUsed(ctx, rt.ID)
 
 	u, err := s.users.GetByID(ctx, rt.UserID)
 	if err != nil {
-		return "", err
+		return "", "", err
 	}
 
 	roles, _ := s.userRoles.GetRolesByUserID(ctx, u.ID)
@@ -216,13 +241,34 @@ func (s *Service) RefreshToken(ctx context.Context, token string) (string, error
 		}
 	}
 
-	return s.tokens.GenerateAccessToken(user.Claims{
+	accessToken, err := s.tokens.GenerateAccessToken(user.Claims{
 		UserID:      u.ID,
 		Username:    u.Username,
 		IsAdmin:     u.IsAdmin,
 		ProfileID:   defaultProfileID,
 		Permissions: perms,
 	})
+	if err != nil {
+		return "", "", err
+	}
+
+	newRefresh, err := s.tokens.GenerateRefreshToken()
+	if err != nil {
+		return "", "", err
+	}
+	nh := sha256.Sum256([]byte(newRefresh))
+	newRT := &user.RefreshToken{
+		ID:        id.New("rt-"),
+		UserID:    u.ID,
+		TokenHash: hex.EncodeToString(nh[:]),
+		ExpiresAt: time.Now().Add(7 * 24 * time.Hour),
+		CreatedAt: time.Now(),
+	}
+	if err := s.refreshTkns.Create(ctx, newRT); err != nil {
+		return "", "", err
+	}
+
+	return accessToken, newRefresh, nil
 }
 
 func (s *Service) Logout(ctx context.Context, userID string) error {

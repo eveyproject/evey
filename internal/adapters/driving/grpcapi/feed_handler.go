@@ -17,7 +17,15 @@ type feedHandler struct {
 }
 
 func (h *feedHandler) GetFeedConfig(ctx context.Context, req *eveyv1.GetFeedConfigRequest) (*eveyv1.GetFeedConfigResponse, error) {
-	configs, err := h.queries.GetMergedConfig(ctx, req.ProfileId)
+	claims, err := requireClaims(ctx)
+	if err != nil {
+		return nil, err
+	}
+	profileID, err := resolveProfileID(claims, req.ProfileId)
+	if err != nil {
+		return nil, err
+	}
+	configs, err := h.queries.GetMergedConfig(ctx, profileID)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "get feed config: %v", err)
 	}
@@ -29,7 +37,15 @@ func (h *feedHandler) GetFeedConfig(ctx context.Context, req *eveyv1.GetFeedConf
 }
 
 func (h *feedHandler) ContinueWatching(ctx context.Context, req *eveyv1.ContinueWatchingRequest) (*eveyv1.FeedResponse, error) {
-	items, err := h.queries.ContinueWatching(ctx, req.ProfileId, int(req.Limit))
+	claims, err := requireClaims(ctx)
+	if err != nil {
+		return nil, err
+	}
+	profileID, err := resolveProfileID(claims, req.ProfileId)
+	if err != nil {
+		return nil, err
+	}
+	items, err := h.queries.ContinueWatching(ctx, profileID, int(req.Limit))
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "continue watching: %v", err)
 	}
@@ -45,7 +61,15 @@ func (h *feedHandler) RecentlyAdded(ctx context.Context, req *eveyv1.RecentlyAdd
 }
 
 func (h *feedHandler) Recommended(ctx context.Context, req *eveyv1.RecommendedRequest) (*eveyv1.FeedResponse, error) {
-	items, err := h.queries.Recommended(ctx, req.ProfileId, int(req.Limit))
+	claims, err := requireClaims(ctx)
+	if err != nil {
+		return nil, err
+	}
+	profileID, err := resolveProfileID(claims, req.ProfileId)
+	if err != nil {
+		return nil, err
+	}
+	items, err := h.queries.Recommended(ctx, profileID, int(req.Limit))
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "recommended: %v", err)
 	}
@@ -53,7 +77,15 @@ func (h *feedHandler) Recommended(ctx context.Context, req *eveyv1.RecommendedRe
 }
 
 func (h *feedHandler) SimilarItems(ctx context.Context, req *eveyv1.SimilarItemsRequest) (*eveyv1.FeedResponse, error) {
-	items, err := h.queries.SimilarItems(ctx, req.MediaItemId, req.ProfileId, int(req.Limit))
+	claims, err := requireClaims(ctx)
+	if err != nil {
+		return nil, err
+	}
+	profileID, err := resolveProfileID(claims, req.ProfileId)
+	if err != nil {
+		return nil, err
+	}
+	items, err := h.queries.SimilarItems(ctx, req.MediaItemId, profileID, int(req.Limit))
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "similar items: %v", err)
 	}
@@ -86,8 +118,16 @@ func (h *feedHandler) UpdateAdminFeedConfig(ctx context.Context, req *eveyv1.Upd
 }
 
 func (h *feedHandler) UpdateProfileFeedConfig(ctx context.Context, req *eveyv1.UpdateProfileFeedConfigRequest) (*eveyv1.ProfileFeedConfig, error) {
+	claims, err := requireClaims(ctx)
+	if err != nil {
+		return nil, err
+	}
+	profileID, err := resolveProfileID(claims, req.ProfileId)
+	if err != nil {
+		return nil, err
+	}
 	cfg := &feed.ProfileConfig{
-		ProfileID:    req.ProfileId,
+		ProfileID:    profileID,
 		FeedType:     feed.Type(req.FeedType),
 		Enabled:      req.Enabled,
 		DisplayOrder: (*int)(nil),
@@ -108,7 +148,15 @@ func (h *feedHandler) UpdateProfileFeedConfig(ctx context.Context, req *eveyv1.U
 }
 
 func (h *feedHandler) ResetProfileFeedConfig(ctx context.Context, req *eveyv1.ResetProfileFeedConfigRequest) (*eveyv1.ResetProfileFeedConfigResponse, error) {
-	if err := h.commands.ResetProfileConfig(ctx, req.ProfileId, feed.Type(req.FeedType)); err != nil {
+	claims, err := requireClaims(ctx)
+	if err != nil {
+		return nil, err
+	}
+	profileID, err := resolveProfileID(claims, req.ProfileId)
+	if err != nil {
+		return nil, err
+	}
+	if err := h.commands.ResetProfileConfig(ctx, profileID, feed.Type(req.FeedType)); err != nil {
 		return nil, status.Errorf(codes.Internal, "reset profile feed config: %v", err)
 	}
 	return &eveyv1.ResetProfileFeedConfigResponse{}, nil

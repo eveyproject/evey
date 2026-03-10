@@ -46,7 +46,7 @@ func (h *userHandler) audit(ctx context.Context, userID, action, resourceType st
 func (h *userHandler) Login(ctx context.Context, req *eveyv1.LoginRequest) (*eveyv1.AuthResponse, error) {
 	access, refresh, err := h.svc.Login(ctx, req.Username, req.Password)
 	if err != nil {
-		return nil, status.Errorf(codes.Unauthenticated, "%v", err)
+		return nil, status.Error(codes.Unauthenticated, "invalid credentials")
 	}
 	u, _ := h.users.GetByUsername(ctx, req.Username)
 	resp := &eveyv1.AuthResponse{
@@ -61,11 +61,11 @@ func (h *userHandler) Login(ctx context.Context, req *eveyv1.LoginRequest) (*eve
 }
 
 func (h *userHandler) RefreshToken(ctx context.Context, req *eveyv1.RefreshTokenRequest) (*eveyv1.AuthResponse, error) {
-	access, err := h.svc.RefreshToken(ctx, req.RefreshToken)
+	access, newRefresh, err := h.svc.RefreshToken(ctx, req.RefreshToken)
 	if err != nil {
-		return nil, status.Errorf(codes.Unauthenticated, "%v", err)
+		return nil, status.Error(codes.Unauthenticated, "invalid credentials")
 	}
-	return &eveyv1.AuthResponse{AccessToken: access}, nil
+	return &eveyv1.AuthResponse{AccessToken: access, RefreshToken: newRefresh}, nil
 }
 
 func (h *userHandler) Logout(ctx context.Context, _ *eveyv1.LogoutRequest) (*eveyv1.LogoutResponse, error) {
@@ -112,6 +112,18 @@ func (h *userHandler) CreateUser(ctx context.Context, req *eveyv1.CreateUserRequ
 }
 
 func (h *userHandler) UpdateUser(ctx context.Context, req *eveyv1.UpdateUserRequest) (*eveyv1.User, error) {
+	claims, err := requireClaims(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if !claims.IsAdmin {
+		if req.Id != claims.UserID {
+			return nil, status.Error(codes.PermissionDenied, "cannot update another user")
+		}
+		if req.IsAdmin != nil && *req.IsAdmin {
+			return nil, status.Error(codes.PermissionDenied, "cannot escalate to admin")
+		}
+	}
 	u, err := h.users.GetByID(ctx, req.Id)
 	if err != nil {
 		return nil, status.Errorf(codes.NotFound, "%v", err)
@@ -182,6 +194,13 @@ func (h *userHandler) ListUsers(ctx context.Context, _ *eveyv1.ListUsersRequest)
 }
 
 func (h *userHandler) CreateProfile(ctx context.Context, req *eveyv1.CreateProfileRequest) (*eveyv1.Profile, error) {
+	claims, err := requireClaims(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if !claims.IsAdmin && req.UserId != claims.UserID {
+		return nil, status.Error(codes.PermissionDenied, "cannot create profile for another user")
+	}
 	p := &user.Profile{
 		ID:          id.New("prf-"),
 		UserID:      req.UserId,
@@ -202,6 +221,13 @@ func (h *userHandler) CreateProfile(ctx context.Context, req *eveyv1.CreateProfi
 }
 
 func (h *userHandler) UpdateProfile(ctx context.Context, req *eveyv1.UpdateProfileRequest) (*eveyv1.Profile, error) {
+	claims, err := requireClaims(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if !claims.IsAdmin && req.Id != claims.ProfileID {
+		return nil, status.Error(codes.PermissionDenied, "cannot update another user's profile")
+	}
 	p := &user.Profile{
 		ID:          req.Id,
 		Preferences: req.Preferences,
@@ -223,6 +249,13 @@ func (h *userHandler) UpdateProfile(ctx context.Context, req *eveyv1.UpdateProfi
 }
 
 func (h *userHandler) DeleteProfile(ctx context.Context, req *eveyv1.DeleteProfileRequest) (*eveyv1.DeleteProfileResponse, error) {
+	claims, err := requireClaims(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if !claims.IsAdmin && req.Id != claims.ProfileID {
+		return nil, status.Error(codes.PermissionDenied, "cannot delete another user's profile")
+	}
 	if err := h.svc.DeleteProfile(ctx, req.Id); err != nil {
 		slog.Error("delete profile", slog.Any("err", err))
 		return nil, status.Errorf(codes.Internal, "internal error")
@@ -231,7 +264,15 @@ func (h *userHandler) DeleteProfile(ctx context.Context, req *eveyv1.DeleteProfi
 }
 
 func (h *userHandler) ListProfiles(ctx context.Context, req *eveyv1.ListProfilesRequest) (*eveyv1.ListProfilesResponse, error) {
-	profiles, err := h.svc.ListProfiles(ctx, req.UserId)
+	claims, err := requireClaims(ctx)
+	if err != nil {
+		return nil, err
+	}
+	userID := req.UserId
+	if !claims.IsAdmin && userID != claims.UserID {
+		userID = claims.UserID
+	}
+	profiles, err := h.svc.ListProfiles(ctx, userID)
 	if err != nil {
 		slog.Error("list profiles", slog.Any("err", err))
 		return nil, status.Errorf(codes.Internal, "internal error")
@@ -291,7 +332,7 @@ func (h *userHandler) RevokeInviteLink(ctx context.Context, req *eveyv1.RevokeIn
 func (h *userHandler) RegisterWithInvite(ctx context.Context, req *eveyv1.RegisterWithInviteRequest) (*eveyv1.AuthResponse, error) {
 	u, err := h.svc.RegisterWithInvite(ctx, req.InviteCode, req.Username, req.Password, req.Email)
 	if err != nil {
-		return nil, status.Errorf(codes.InvalidArgument, "%v", err)
+		return nil, status.Error(codes.InvalidArgument, "invalid invite or registration data")
 	}
 	access, refresh, loginErr := h.svc.Login(ctx, req.Username, req.Password)
 	if loginErr != nil {
@@ -333,7 +374,7 @@ func (h *userHandler) AuthorizeQuickConnect(ctx context.Context, req *eveyv1.Aut
 func (h *userHandler) CheckQuickConnect(ctx context.Context, req *eveyv1.CheckQuickConnectRequest) (*eveyv1.CheckQuickConnectResponse, error) {
 	qc, err := h.svc.CheckQuickConnect(ctx, req.Code)
 	if err != nil {
-		return nil, status.Errorf(codes.NotFound, "%v", err)
+		return nil, status.Error(codes.NotFound, "invalid or expired code")
 	}
 	return &eveyv1.CheckQuickConnectResponse{
 		Authorized: qc.Status == string(user.Authorized),

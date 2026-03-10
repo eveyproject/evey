@@ -14,15 +14,17 @@ import (
 	"github.com/google/uuid"
 	"github.com/gravity-zero/evey/internal/domain/shared"
 	"github.com/gravity-zero/evey/internal/domain/webhook"
+	"github.com/gravity-zero/evey/internal/pkg/urlvalidator"
 )
 
 var retryDelays = []time.Duration{1 * time.Second, 5 * time.Second, 30 * time.Second}
 
 type Service struct {
-	repo      webhook.Repository
-	deliveries webhook.DeliveryRepository
-	log       *slog.Logger
-	httpClient *http.Client
+	repo        webhook.Repository
+	deliveries  webhook.DeliveryRepository
+	log         *slog.Logger
+	httpClient  *http.Client
+	validateURL func(string) error
 }
 
 func NewService(
@@ -32,13 +34,19 @@ func NewService(
 	events shared.EventBus,
 ) *Service {
 	s := &Service{
-		repo:       repo,
-		deliveries: deliveries,
-		log:        log,
-		httpClient: &http.Client{Timeout: 10 * time.Second},
+		repo:        repo,
+		deliveries:  deliveries,
+		log:         log,
+		httpClient:  &http.Client{Timeout: 10 * time.Second},
+		validateURL: urlvalidator.ValidateWebhookURL,
 	}
 	events.Subscribe("*", s.handleAny)
 	return s
+}
+
+// SetURLValidator overrides the URL validation function (for tests).
+func (s *Service) SetURLValidator(fn func(string) error) {
+	s.validateURL = fn
 }
 
 func (s *Service) handleAny(_ context.Context, ev shared.Event) {
@@ -68,6 +76,11 @@ func matchesAny(patterns []string, name string) bool {
 }
 
 func (s *Service) deliver(ctx context.Context, cfg *webhook.Config, eventName string, payload interface{}) {
+	if err := s.validateURL(cfg.URL); err != nil {
+		s.log.Warn("webhook URL blocked", slog.String("webhook", cfg.ID), slog.Any("err", err))
+		return
+	}
+
 	body, err := json.Marshal(map[string]interface{}{
 		"event":   eventName,
 		"payload": payload,
@@ -134,6 +147,9 @@ func sign(secret string, body []byte) string {
 }
 
 func (s *Service) Create(ctx context.Context, cfg *webhook.Config) error {
+	if err := s.validateURL(cfg.URL); err != nil {
+		return fmt.Errorf("invalid webhook URL: %w", err)
+	}
 	cfg.ID = uuid.New().String()
 	cfg.CreatedAt = time.Now()
 	return s.repo.Create(ctx, cfg)
@@ -144,6 +160,9 @@ func (s *Service) List(ctx context.Context) ([]*webhook.Config, error) {
 }
 
 func (s *Service) Update(ctx context.Context, cfg *webhook.Config) error {
+	if err := s.validateURL(cfg.URL); err != nil {
+		return fmt.Errorf("invalid webhook URL: %w", err)
+	}
 	return s.repo.Update(ctx, cfg)
 }
 

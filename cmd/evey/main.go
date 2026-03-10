@@ -11,11 +11,13 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"mime"
 	"net/http"
 	"os"
 	"os/exec"
 	"os/signal"
 	"path/filepath"
+	"regexp"
 	"strconv"
 	"strings"
 	"syscall"
@@ -50,6 +52,7 @@ import (
 	"github.com/gravity-zero/evey/internal/domain/metadata"
 	"github.com/gravity-zero/evey/internal/pkg/auth"
 	"github.com/gravity-zero/evey/internal/pkg/eventbus"
+	"github.com/gravity-zero/evey/internal/pkg/ratelimit"
 	eveylogger "github.com/gravity-zero/evey/internal/pkg/logger"
 	domainuser "github.com/gravity-zero/evey/internal/domain/user"
 	domainlibrary "github.com/gravity-zero/evey/internal/domain/library"
@@ -190,6 +193,7 @@ func run() error {
 		inviteLinkRepo, quickConnectRepo, roleRepo, userRoleRepo,
 		hasher, tokenGen, bus,
 	)
+	userSvc.InitSetupState(context.Background())
 
 	playbackSvc := appplayback.NewService(
 		watchProgressRepo, playSessionRepo, userRepo, bus,
@@ -312,11 +316,13 @@ func run() error {
 		notifSvc, feedCmdSvc, feedQuerySvc, webhookSvc,
 		userRepo, version,
 		grpc.ChainUnaryInterceptor(
+			interceptors.ErrorSanitizerUnary(),
 			interceptors.ClientInfoUnary(),
 			interceptors.LoggingUnary(grpcLog),
 			authInterceptor.Unary(),
 		),
 		grpc.ChainStreamInterceptor(
+			interceptors.ErrorSanitizerStream(),
 			interceptors.ClientInfoStream(),
 			interceptors.LoggingStream(grpcLog),
 			authInterceptor.Stream(),
@@ -332,23 +338,29 @@ func run() error {
 	var httpSrv *http.Server
 	if gwMux != nil {
 		mux := http.NewServeMux()
+		loginRL := ratelimit.New(10)
+		globalRL := ratelimit.New(100)
 
 		mux.HandleFunc("/healthz", func(w http.ResponseWriter, _ *http.Request) {
 			w.Header().Set("Content-Type", "application/json")
 			w.Write([]byte(`{"status":"ok","version":"` + version + `"}`))
 		})
 		mux.HandleFunc("/api/v1/admin/fs/browse", browseDirsHandler(tokenGen))
-		mh := mediaHandler(tokenGen, libQuerySvc, artworkRepo)
+		mh := mediaHandler(tokenGen, libQuerySvc, artworkRepo, cfg.Server.BaseURL)
 		mux.HandleFunc("GET /api/v1/media/{id}/stream", mh)
 		mux.HandleFunc("GET /api/v1/media/{id}/artwork/{artType}", mh)
 		mux.HandleFunc("POST /api/v1/media/{id}/stream", mh)
 		mux.HandleFunc("POST /api/v1/media/{id}/artwork/{artworkId}/select", selectArtworkHandler(tokenGen, artworkRepo))
-		mux.HandleFunc("GET /api/v1/media/{id}/download", downloadHandler(tokenGen, libQuerySvc))
-		mux.HandleFunc("GET /api/v1/media/{id}/transcode", transcodeHandler(tokenGen, libQuerySvc))
-		mux.HandleFunc("GET /api/v1/media/{id}/subtitle/{track}", subtitleHandler(tokenGen, libQuerySvc))
+		mux.HandleFunc("GET /api/v1/media/{id}/download", downloadHandler(tokenGen, libQuerySvc, cfg.Server.BaseURL))
+		mux.HandleFunc("GET /api/v1/media/{id}/transcode", transcodeHandler(tokenGen, libQuerySvc, cfg.Server.BaseURL))
+		mux.HandleFunc("GET /api/v1/media/{id}/subtitle/{track}", subtitleHandler(tokenGen, libQuerySvc, cfg.Server.BaseURL))
 		mux.HandleFunc("GET /api/v1/admin/library-stats", libraryStatsHandler(tokenGen, libQuerySvc))
+		mux.HandleFunc("POST /api/v1/auth/login", ratelimit.MiddlewareFunc(loginRL, func(w http.ResponseWriter, r *http.Request) {
+			r.Body = http.MaxBytesReader(w, r.Body, 1<<20)
+			gwMux.ServeHTTP(w, r)
+		}))
 		registerAdminRoutes(mux, metadataSvc, tokenGen)
-		mux.Handle("/", gwMux)
+		mux.Handle("/", ratelimit.Middleware(globalRL)(gwMux))
 		httpSrv = &http.Server{
 			Addr:              fmt.Sprintf(":%d", httpPort),
 			Handler:           mux,
@@ -432,7 +444,7 @@ func mediaHandler(tokens interface {
 	GetMediaItem(ctx context.Context, id string) (*domainlibrary.MediaItem, error)
 }, artworkRepo interface {
 	GetByMediaItem(ctx context.Context, mediaItemID string) ([]*domainmeta.ArtworkRecord, error)
-}) http.HandlerFunc {
+}, baseURL string) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		// routes: GET /api/v1/media/{id}/stream
 		//         GET /api/v1/media/{id}/artwork/{artType}
@@ -466,7 +478,7 @@ func mediaHandler(tokens interface {
 				http.Error(w, `{"message":"not found"}`, http.StatusNotFound)
 				return
 			}
-			w.Header().Set("Access-Control-Allow-Origin", "*")
+			setCORSHeaders(w, r, baseURL)
 			http.ServeFile(w, r, item.FilePath)
 
 		case "artwork":
@@ -488,7 +500,6 @@ func mediaHandler(tokens interface {
 				http.NotFound(w, r)
 				return
 			}
-			w.Header().Set("Access-Control-Allow-Origin", "*")
 			http.Redirect(w, r, url, http.StatusFound)
 
 		default:
@@ -548,7 +559,7 @@ func downloadHandler(tokens interface {
 	ValidateAccessToken(string) (*domainuser.Claims, error)
 }, libSvc interface {
 	GetMediaItem(ctx context.Context, id string) (*domainlibrary.MediaItem, error)
-}) http.HandlerFunc {
+}, baseURL string) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		mediaID := r.PathValue("id")
 		token := r.Header.Get("Authorization")
@@ -574,11 +585,11 @@ func downloadHandler(tokens interface {
 			http.Error(w, `{"message":"file not found"}`, http.StatusNotFound)
 			return
 		}
-		filename := filepath.Base(item.FilePath)
-		w.Header().Set("Content-Disposition", fmt.Sprintf(`attachment; filename="%s"`, filename))
+		filename := sanitizeFilename(filepath.Base(item.FilePath))
+		w.Header().Set("Content-Disposition", mime.FormatMediaType("attachment", map[string]string{"filename": filename}))
 		w.Header().Set("Content-Type", "application/octet-stream")
 		w.Header().Set("Content-Length", strconv.FormatInt(fi.Size(), 10))
-		w.Header().Set("Access-Control-Allow-Origin", "*")
+		setCORSHeaders(w, r, baseURL)
 		http.ServeFile(w, r, item.FilePath)
 	}
 }
@@ -838,7 +849,7 @@ func transcodeHandler(tokenGen interface {
 }, libSvc interface {
 	GetMediaItem(ctx context.Context, id string) (*domainlibrary.MediaItem, error)
 	GetMediaStreams(ctx context.Context, mediaItemID string) ([]*domainlibrary.MediaStream, error)
-}) http.HandlerFunc {
+}, baseURL string) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		mediaID := r.PathValue("id")
 		token := r.Header.Get("Authorization")
@@ -929,7 +940,7 @@ func transcodeHandler(tokenGen interface {
 		w.Header().Set("Content-Type", "video/mp4")
 		w.Header().Set("Cache-Control", "no-cache")
 		w.Header().Set("Accept-Ranges", "none")
-		w.Header().Set("Access-Control-Allow-Origin", "*")
+		setCORSHeaders(w, r, baseURL)
 		go func() { <-r.Context().Done(); cancel() }()
 		io.Copy(w, stdout)
 		if err := cmd.Wait(); err != nil && ctx.Err() == nil {
@@ -942,7 +953,7 @@ func subtitleHandler(tokenGen interface {
 	ValidateAccessToken(string) (*domainuser.Claims, error)
 }, libSvc interface {
 	GetMediaItem(ctx context.Context, id string) (*domainlibrary.MediaItem, error)
-}) http.HandlerFunc {
+}, baseURL string) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		mediaID := r.PathValue("id")
 		trackStr := r.PathValue("track")
@@ -975,7 +986,7 @@ func subtitleHandler(tokenGen interface {
 		)
 		w.Header().Set("Content-Type", "text/vtt; charset=utf-8")
 		w.Header().Set("Cache-Control", "no-cache")
-		w.Header().Set("Access-Control-Allow-Origin", "*")
+		setCORSHeaders(w, r, baseURL)
 		cmd.Stdout = w
 		if err := cmd.Start(); err != nil {
 			slog.Error("ffmpeg subtitle start", slog.Any("err", err))
@@ -1027,4 +1038,27 @@ func libraryStatsHandler(tokenGen interface {
 	}
 }
 
+var unsafeFilenameChars = regexp.MustCompile(`[^\w\s.\-()]`)
 
+func sanitizeFilename(name string) string {
+	name = strings.ReplaceAll(name, "/", "_")
+	name = strings.ReplaceAll(name, "\\", "_")
+	name = strings.ReplaceAll(name, "\"", "")
+	name = unsafeFilenameChars.ReplaceAllString(name, "_")
+	if name == "" {
+		name = "download"
+	}
+	return name
+}
+
+func setCORSHeaders(w http.ResponseWriter, r *http.Request, baseURL string) {
+	origin := r.Header.Get("Origin")
+	if origin == "" {
+		return
+	}
+	allowed := strings.TrimRight(baseURL, "/")
+	if strings.TrimRight(origin, "/") == allowed {
+		w.Header().Set("Access-Control-Allow-Origin", origin)
+		w.Header().Set("Access-Control-Allow-Credentials", "true")
+	}
+}

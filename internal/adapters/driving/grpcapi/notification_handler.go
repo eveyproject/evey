@@ -16,7 +16,15 @@ type notificationHandler struct {
 }
 
 func (h *notificationHandler) ListNotifications(ctx context.Context, req *eveyv1.ListNotificationsRequest) (*eveyv1.ListNotificationsResponse, error) {
-	items, err := h.svc.List(ctx, req.ProfileId, req.UnreadOnly, int(req.Limit), int(req.Offset))
+	claims, err := requireClaims(ctx)
+	if err != nil {
+		return nil, err
+	}
+	profileID, err := resolveProfileID(claims, req.ProfileId)
+	if err != nil {
+		return nil, err
+	}
+	items, err := h.svc.List(ctx, profileID, req.UnreadOnly, int(req.Limit), int(req.Offset))
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "list notifications: %v", err)
 	}
@@ -28,6 +36,9 @@ func (h *notificationHandler) ListNotifications(ctx context.Context, req *eveyv1
 }
 
 func (h *notificationHandler) MarkRead(ctx context.Context, req *eveyv1.MarkReadRequest) (*eveyv1.MarkReadResponse, error) {
+	if _, err := requireClaims(ctx); err != nil {
+		return nil, err
+	}
 	if err := h.svc.MarkRead(ctx, req.Id); err != nil {
 		return nil, status.Errorf(codes.Internal, "mark read: %v", err)
 	}
@@ -35,14 +46,30 @@ func (h *notificationHandler) MarkRead(ctx context.Context, req *eveyv1.MarkRead
 }
 
 func (h *notificationHandler) MarkAllRead(ctx context.Context, req *eveyv1.MarkAllReadRequest) (*eveyv1.MarkAllReadResponse, error) {
-	if err := h.svc.MarkAllRead(ctx, req.ProfileId); err != nil {
+	claims, err := requireClaims(ctx)
+	if err != nil {
+		return nil, err
+	}
+	profileID, err := resolveProfileID(claims, req.ProfileId)
+	if err != nil {
+		return nil, err
+	}
+	if err := h.svc.MarkAllRead(ctx, profileID); err != nil {
 		return nil, status.Errorf(codes.Internal, "mark all read: %v", err)
 	}
 	return &eveyv1.MarkAllReadResponse{}, nil
 }
 
 func (h *notificationHandler) GetUnreadCount(ctx context.Context, req *eveyv1.GetUnreadCountRequest) (*eveyv1.GetUnreadCountResponse, error) {
-	count, err := h.svc.UnreadCount(ctx, req.ProfileId)
+	claims, err := requireClaims(ctx)
+	if err != nil {
+		return nil, err
+	}
+	profileID, err := resolveProfileID(claims, req.ProfileId)
+	if err != nil {
+		return nil, err
+	}
+	count, err := h.svc.UnreadCount(ctx, profileID)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "unread count: %v", err)
 	}
@@ -50,14 +77,30 @@ func (h *notificationHandler) GetUnreadCount(ctx context.Context, req *eveyv1.Ge
 }
 
 func (h *notificationHandler) DeleteAllNotifications(ctx context.Context, req *eveyv1.DeleteAllNotificationsRequest) (*eveyv1.DeleteAllNotificationsResponse, error) {
-	if err := h.svc.DeleteAll(ctx, req.ProfileId); err != nil {
+	claims, err := requireClaims(ctx)
+	if err != nil {
+		return nil, err
+	}
+	profileID, err := resolveProfileID(claims, req.ProfileId)
+	if err != nil {
+		return nil, err
+	}
+	if err := h.svc.DeleteAll(ctx, profileID); err != nil {
 		return nil, status.Errorf(codes.Internal, "delete all: %v", err)
 	}
 	return &eveyv1.DeleteAllNotificationsResponse{}, nil
 }
 
 func (h *notificationHandler) GetNotificationSettings(ctx context.Context, req *eveyv1.GetNotificationSettingsRequest) (*eveyv1.NotificationSettings, error) {
-	s, err := h.svc.GetSettings(ctx, req.ProfileId)
+	claims, err := requireClaims(ctx)
+	if err != nil {
+		return nil, err
+	}
+	profileID, err := resolveProfileID(claims, req.ProfileId)
+	if err != nil {
+		return nil, err
+	}
+	s, err := h.svc.GetSettings(ctx, profileID)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "get settings: %v", err)
 	}
@@ -65,8 +108,16 @@ func (h *notificationHandler) GetNotificationSettings(ctx context.Context, req *
 }
 
 func (h *notificationHandler) UpdateNotificationSettings(ctx context.Context, req *eveyv1.UpdateNotificationSettingsRequest) (*eveyv1.NotificationSettings, error) {
+	claims, err := requireClaims(ctx)
+	if err != nil {
+		return nil, err
+	}
+	profileID, err := resolveProfileID(claims, req.ProfileId)
+	if err != nil {
+		return nil, err
+	}
 	s := &notification.Settings{
-		ProfileID:   req.ProfileId,
+		ProfileID:   profileID,
 		MovieLevel:  levelFromProto(req.MovieLevel),
 		SeriesLevel: levelFromProto(req.SeriesLevel),
 		MusicLevel:  levelFromProto(req.MusicLevel),

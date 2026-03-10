@@ -98,9 +98,11 @@ func (r *PlaySessionRepository) GetHistory(ctx context.Context, f playback.PlayS
 	}
 	query += " ORDER BY started_at DESC"
 
-	if f.Limit > 0 {
-		query += fmt.Sprintf(" LIMIT %d", f.Limit)
+	limit := f.Limit
+	if limit <= 0 || limit > 500 {
+		limit = 500
 	}
+	query += fmt.Sprintf(" LIMIT %d", limit)
 	if f.Offset > 0 {
 		query += fmt.Sprintf(" OFFSET %d", f.Offset)
 	}

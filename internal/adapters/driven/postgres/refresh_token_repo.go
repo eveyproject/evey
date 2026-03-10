@@ -27,13 +27,18 @@ func (r *RefreshTokenRepository) Create(ctx context.Context, t *user.RefreshToke
 func (r *RefreshTokenRepository) GetByTokenHash(ctx context.Context, hash string) (*user.RefreshToken, error) {
 	t := &user.RefreshToken{}
 	err := r.db.QueryRowContext(ctx,
-		`SELECT id, user_id, token_hash, device_name, client_ip, expires_at, created_at
+		`SELECT id, user_id, token_hash, device_name, client_ip, used, expires_at, created_at
 		 FROM refresh_tokens WHERE token_hash = $1`, hash,
-	).Scan(&t.ID, &t.UserID, &t.TokenHash, &t.DeviceName, &t.ClientIP, &t.ExpiresAt, &t.CreatedAt)
+	).Scan(&t.ID, &t.UserID, &t.TokenHash, &t.DeviceName, &t.ClientIP, &t.Used, &t.ExpiresAt, &t.CreatedAt)
 	if err != nil {
 		return nil, err
 	}
 	return t, nil
+}
+
+func (r *RefreshTokenRepository) MarkUsed(ctx context.Context, id string) error {
+	_, err := r.db.ExecContext(ctx, `UPDATE refresh_tokens SET used = TRUE WHERE id = $1`, id)
+	return err
 }
 
 func (r *RefreshTokenRepository) DeleteByID(ctx context.Context, id string) error {

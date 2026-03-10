@@ -34,6 +34,15 @@ func (r *FakeRefreshTokenRepository) GetByTokenHash(_ context.Context, hash stri
 	return nil, ErrNotFound
 }
 
+func (r *FakeRefreshTokenRepository) MarkUsed(_ context.Context, id string) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if t, ok := r.items[id]; ok {
+		t.Used = true
+	}
+	return nil
+}
+
 func (r *FakeRefreshTokenRepository) DeleteByID(_ context.Context, id string) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()

@@ -17,8 +17,16 @@ type activityHandler struct {
 }
 
 func (h *activityHandler) GetPlayHistory(ctx context.Context, req *eveyv1.GetPlayHistoryRequest) (*eveyv1.GetPlayHistoryResponse, error) {
+	claims, err := requireClaims(ctx)
+	if err != nil {
+		return nil, err
+	}
+	profileID, err := resolveProfileID(claims, req.ProfileId)
+	if err != nil {
+		return nil, err
+	}
 	filter := activity.PlayHistoryFilter{
-		ProfileID:   req.ProfileId,
+		ProfileID:   profileID,
 		MediaItemID: req.MediaItemId,
 		From:        fromTimestamppbPtr(req.From),
 		To:          fromTimestamppbPtr(req.To),
@@ -39,7 +47,15 @@ func (h *activityHandler) GetPlayHistory(ctx context.Context, req *eveyv1.GetPla
 }
 
 func (h *activityHandler) GetUserStats(ctx context.Context, req *eveyv1.GetUserStatsRequest) (*eveyv1.UserStats, error) {
-	stats, err := h.svc.GetUserStats(ctx, req.ProfileId)
+	claims, err := requireClaims(ctx)
+	if err != nil {
+		return nil, err
+	}
+	profileID, err := resolveProfileID(claims, req.ProfileId)
+	if err != nil {
+		return nil, err
+	}
+	stats, err := h.svc.GetUserStats(ctx, profileID)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "get user stats: %v", err)
 	}
@@ -76,13 +92,24 @@ func (h *activityHandler) GetServerStats(ctx context.Context, _ *eveyv1.GetServe
 }
 
 func (h *activityHandler) GetLoginHistory(ctx context.Context, req *eveyv1.GetLoginHistoryRequest) (*eveyv1.GetLoginHistoryResponse, error) {
+	claims, err := requireClaims(ctx)
+	if err != nil {
+		return nil, err
+	}
+	// Non-admin can only view their own login history
+	userID := req.UserId
+	if userID == "" {
+		userID = claims.UserID
+	} else if userID != claims.UserID && !claims.IsAdmin {
+		return nil, status.Error(codes.PermissionDenied, "cannot access another user's login history")
+	}
 	limit := 50
 	offset := 0
 	if req.Pagination != nil {
 		limit = int(req.Pagination.PageSize)
 		offset = int((req.Pagination.Page - 1) * req.Pagination.PageSize)
 	}
-	entries, err := h.svc.GetLoginHistory(ctx, req.UserId, limit, offset)
+	entries, err := h.svc.GetLoginHistory(ctx, userID, limit, offset)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "get login history: %v", err)
 	}

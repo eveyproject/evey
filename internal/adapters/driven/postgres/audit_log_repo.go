@@ -58,9 +58,11 @@ func (r *AuditLogRepository) List(ctx context.Context, f activity.AuditLogFilter
 	}
 	query += " ORDER BY created_at DESC"
 
-	if f.Limit > 0 {
-		query += fmt.Sprintf(" LIMIT %d", f.Limit)
+	limit := f.Limit
+	if limit <= 0 || limit > 500 {
+		limit = 500
 	}
+	query += fmt.Sprintf(" LIMIT %d", limit)
 	if f.Offset > 0 {
 		query += fmt.Sprintf(" OFFSET %d", f.Offset)
 	}

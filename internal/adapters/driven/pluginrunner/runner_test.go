@@ -42,9 +42,10 @@ func main() {
 
 func TestRunnerStartStop(t *testing.T) {
 	bin := buildTestBinary(t)
+	dir := filepath.Dir(bin)
 	ctx := context.Background()
 
-	r := NewRunner()
+	r := NewRunner(dir)
 
 	p := &plugin.Plugin{
 		ID:   "plg-test-1",
@@ -87,8 +88,9 @@ func TestRunnerHealthNotRunning(t *testing.T) {
 
 func TestRunnerStartCreatesSocketDir(t *testing.T) {
 	bin := buildTestBinary(t)
+	dir := filepath.Dir(bin)
 	ctx := context.Background()
-	r := NewRunner()
+	r := NewRunner(dir)
 
 	p := &plugin.Plugin{
 		ID:   "plg-sockdir-test",
@@ -103,4 +105,33 @@ func TestRunnerStartCreatesSocketDir(t *testing.T) {
 
 	_, err = os.Stat(sockDir)
 	assert.NoError(t, err)
+}
+
+func TestRunnerRejectsEntrypointOutsidePluginDir(t *testing.T) {
+	r := NewRunner("/data/plugins")
+	ctx := context.Background()
+
+	p := &plugin.Plugin{
+		ID:         "plg-bad",
+		Entrypoint: "/usr/bin/ls",
+	}
+
+	err := r.Start(ctx, p)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "outside allowed plugin directories")
+}
+
+func TestRunnerRejectsPathTraversal(t *testing.T) {
+	r := NewRunner("/data/plugins")
+	ctx := context.Background()
+
+	p := &plugin.Plugin{
+		ID:         "plg-traversal",
+		Entrypoint: "../../../etc/passwd",
+		InstallDir: "/data/plugins/evil",
+	}
+
+	err := r.Start(ctx, p)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "must not contain '..'")
 }

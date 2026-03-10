@@ -55,11 +55,13 @@ func (r *PlayHistoryRepository) List(ctx context.Context, filter activity.PlayHi
 
 	query += " ORDER BY ps.started_at DESC"
 
-	if filter.Limit > 0 {
-		query += fmt.Sprintf(" LIMIT $%d", i)
-		args = append(args, filter.Limit)
-		i++
+	limit := filter.Limit
+	if limit <= 0 || limit > 500 {
+		limit = 500
 	}
+	query += fmt.Sprintf(" LIMIT $%d", i)
+	args = append(args, limit)
+	i++
 	if filter.Offset > 0 {
 		query += fmt.Sprintf(" OFFSET $%d", i)
 		args = append(args, filter.Offset)

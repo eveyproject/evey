@@ -43,6 +43,7 @@ type RefreshToken struct {
 	TokenHash  string
 	DeviceName string
 	ClientIP   *string
+	Used       bool
 	ExpiresAt  time.Time
 	CreatedAt  time.Time
 }

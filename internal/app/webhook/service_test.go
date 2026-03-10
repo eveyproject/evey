@@ -106,7 +106,10 @@ func (e fakeEvent) EventName() string { return e.name }
 
 func newTestService(repo webhookdomain.Repository, deliveries webhookdomain.DeliveryRepository, bus shared.EventBus) *webhook.Service {
 	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
-	return webhook.NewService(repo, deliveries, log, bus)
+	svc := webhook.NewService(repo, deliveries, log, bus)
+	// Bypass SSRF protection in tests (test server runs on localhost)
+	svc.SetURLValidator(func(string) error { return nil })
+	return svc
 }
 
 // --- tests ---
@@ -195,6 +198,25 @@ func TestListDeliveries(t *testing.T) {
 	}
 	if list[0].ID != "d1" {
 		t.Fatalf("unexpected delivery ID: %s", list[0].ID)
+	}
+}
+
+func TestCreate_BlocksPrivateURL(t *testing.T) {
+	repo := &fakeWebhookRepo{}
+	deliveries := &fakeDeliveryRepo{}
+	bus := fakes.NewFakeEventBus()
+	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
+	svc := webhook.NewService(repo, deliveries, log, bus)
+
+	cfg := &webhookdomain.Config{
+		Name:    "ssrf-test",
+		URL:     "http://169.254.169.254/latest/meta-data/",
+		Events:  []string{"*"},
+		Enabled: true,
+	}
+	err := svc.Create(context.Background(), cfg)
+	if err == nil {
+		t.Fatal("expected error for private IP URL")
 	}
 }
 

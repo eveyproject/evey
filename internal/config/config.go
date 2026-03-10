@@ -108,7 +108,7 @@ func Load() (*Config, error) {
 			User:     envStr("EVEY_DB_USER", "evey"),
 			Password: envStr("EVEY_DB_PASSWORD", "evey"),
 			DBName:   envStr("EVEY_DB_NAME", "evey"),
-			SSLMode:  envStr("EVEY_DB_SSLMODE", "disable"),
+			SSLMode:  envStr("EVEY_DB_SSLMODE", "prefer"),
 		},
 		Meilisearch: MeilisearchConfig{
 			URL:    envStr("EVEY_MEILI_URL", "http://localhost:7700"),
