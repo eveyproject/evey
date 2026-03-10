@@ -178,12 +178,14 @@ func run() error {
 	mediaItemQueryRepo := postgres.NewMediaItemQueryRepoAdapter(db)
 
 	// --- Application services ---
+	subScanner := filesystem.NewSubtitleScanner()
 	libCmdSvc := applibrary.NewCommandService(
 		libraryRepo, libraryRepo, mediaItemRepo,
 		mediaStreamRepo, personRepo, mediaPersonRepo,
 		scanner, prober, searchAdapter, bus,
 	)
 	libCmdSvc.WithChapters(chapterRepo, ebmlReader)
+	libCmdSvc.WithSubtitleScanner(subScanner)
 	libQuerySvc := applibrary.NewQueryService(
 		libraryRepo, mediaItemQueryRepo,
 		mediaStreamRepo, searchAdapter,
@@ -957,6 +959,7 @@ func subtitleHandler(tokenGen interface {
 	ValidateAccessToken(string) (*domainuser.Claims, error)
 }, libSvc interface {
 	GetMediaItem(ctx context.Context, id string) (*domainlibrary.MediaItem, error)
+	GetMediaStreams(ctx context.Context, mediaItemID string) ([]*domainlibrary.MediaStream, error)
 }, baseURL string) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		mediaID := r.PathValue("id")
@@ -980,6 +983,21 @@ func subtitleHandler(tokenGen interface {
 			http.Error(w, `{"message":"not found"}`, http.StatusNotFound)
 			return
 		}
+
+		if streams, serr := libSvc.GetMediaStreams(r.Context(), mediaID); serr == nil {
+			subIdx := 0
+			for _, s := range streams {
+				if s.StreamType != "subtitle" {
+					continue
+				}
+				if subIdx == trackIndex && s.IsExternal && s.ExternalPath != nil {
+					serveExternalSubtitle(w, r, *s.ExternalPath, baseURL)
+					return
+				}
+				subIdx++
+			}
+		}
+
 		ctx, cancel := context.WithCancel(r.Context())
 		defer cancel()
 		cmd := exec.CommandContext(ctx, "ffmpeg",
@@ -1044,6 +1062,30 @@ func chaptersHandler(tokenGen interface {
 		w.Header().Set("Content-Type", "application/json")
 		w.Header().Set("Access-Control-Allow-Origin", "*")
 		json.NewEncoder(w).Encode(map[string]any{"chapters": out})
+	}
+}
+
+func serveExternalSubtitle(w http.ResponseWriter, r *http.Request, path, baseURL string) {
+	ext := strings.ToLower(filepath.Ext(path))
+	setCORSHeaders(w, r, baseURL)
+	w.Header().Set("Cache-Control", "no-cache")
+	if ext == ".vtt" {
+		w.Header().Set("Content-Type", "text/vtt; charset=utf-8")
+		http.ServeFile(w, r, path)
+		return
+	}
+	ctx, cancel := context.WithCancel(r.Context())
+	defer cancel()
+	cmd := exec.CommandContext(ctx, "ffmpeg", "-i", path, "-f", "webvtt", "-")
+	w.Header().Set("Content-Type", "text/vtt; charset=utf-8")
+	cmd.Stdout = w
+	if err := cmd.Start(); err != nil {
+		slog.Error("ffmpeg external subtitle", slog.Any("err", err))
+		return
+	}
+	go func() { <-r.Context().Done(); cancel() }()
+	if err := cmd.Wait(); err != nil && ctx.Err() == nil {
+		slog.Warn("ffmpeg external subtitle convert", slog.String("path", path), slog.Any("err", err))
 	}
 }
 

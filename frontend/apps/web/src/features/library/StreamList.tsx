@@ -28,6 +28,7 @@ function StreamRow({ stream }: { stream: V1MediaStream }) {
       )}
       {stream.isDefault && <Badge variant="info">Default</Badge>}
       {stream.isForced && <Badge variant="warning">Forced</Badge>}
+      {stream.isExternal && <Badge variant="info">External</Badge>}
     </div>
   );
 }
