@@ -87,6 +87,10 @@ func (s *Service) StopStream(ctx context.Context, sessionID string) error {
 	return nil
 }
 
+func (s *Service) GetActiveSessions(ctx context.Context) ([]*playback.ActiveSessionInfo, error) {
+	return s.sessions.ListActiveSessions(ctx)
+}
+
 func (s *Service) ReportProgressBySession(ctx context.Context, sessionID string, positionMs int64) error {
 	session, err := s.sessions.GetByID(ctx, sessionID)
 	if err != nil {

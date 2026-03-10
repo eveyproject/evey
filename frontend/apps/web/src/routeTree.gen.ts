@@ -34,6 +34,7 @@ import { Route as AuthAdminMetadataRouteImport } from './routes/_auth/admin/meta
 import { Route as AuthAdminLogsRouteImport } from './routes/_auth/admin/logs'
 import { Route as AuthAdminLibrariesRouteImport } from './routes/_auth/admin/libraries'
 import { Route as AuthAdminAuditRouteImport } from './routes/_auth/admin/audit'
+import { Route as AuthAdminSessionsRouteImport } from './routes/_auth/admin/sessions'
 import { Route as AuthAdminActivityRouteImport } from './routes/_auth/admin/activity'
 
 const SetupRoute = SetupRouteImport.update({
@@ -197,6 +198,13 @@ const AuthAdminAuditRoute = AuthAdminAuditRouteImport.update({
 } as any).lazy(() =>
   import('./routes/_auth/admin/audit.lazy').then((d) => d.Route),
 )
+const AuthAdminSessionsRoute = AuthAdminSessionsRouteImport.update({
+  id: '/sessions',
+  path: '/sessions',
+  getParentRoute: () => AuthAdminRoute,
+} as any).lazy(() =>
+  import('./routes/_auth/admin/sessions.lazy').then((d) => d.Route),
+)
 const AuthAdminActivityRoute = AuthAdminActivityRouteImport.update({
   id: '/activity',
   path: '/activity',
@@ -218,6 +226,7 @@ export interface FileRoutesByFullPath {
   '/admin/logs': typeof AuthAdminLogsRoute
   '/admin/metadata': typeof AuthAdminMetadataRoute
   '/admin/plugins': typeof AuthAdminPluginsRoute
+  '/admin/sessions': typeof AuthAdminSessionsRoute
   '/admin/tasks': typeof AuthAdminTasksRoute
   '/admin/users': typeof AuthAdminUsersRoute
   '/admin/webhooks': typeof AuthAdminWebhooksRoute
@@ -244,6 +253,7 @@ export interface FileRoutesByTo {
   '/admin/logs': typeof AuthAdminLogsRoute
   '/admin/metadata': typeof AuthAdminMetadataRoute
   '/admin/plugins': typeof AuthAdminPluginsRoute
+  '/admin/sessions': typeof AuthAdminSessionsRoute
   '/admin/tasks': typeof AuthAdminTasksRoute
   '/admin/users': typeof AuthAdminUsersRoute
   '/admin/webhooks': typeof AuthAdminWebhooksRoute
@@ -273,6 +283,7 @@ export interface FileRoutesById {
   '/_auth/admin/logs': typeof AuthAdminLogsRoute
   '/_auth/admin/metadata': typeof AuthAdminMetadataRoute
   '/_auth/admin/plugins': typeof AuthAdminPluginsRoute
+  '/_auth/admin/sessions': typeof AuthAdminSessionsRoute
   '/_auth/admin/tasks': typeof AuthAdminTasksRoute
   '/_auth/admin/users': typeof AuthAdminUsersRoute
   '/_auth/admin/webhooks': typeof AuthAdminWebhooksRoute
@@ -302,6 +313,7 @@ export interface FileRouteTypes {
     | '/admin/logs'
     | '/admin/metadata'
     | '/admin/plugins'
+    | '/admin/sessions'
     | '/admin/tasks'
     | '/admin/users'
     | '/admin/webhooks'
@@ -328,6 +340,7 @@ export interface FileRouteTypes {
     | '/admin/logs'
     | '/admin/metadata'
     | '/admin/plugins'
+    | '/admin/sessions'
     | '/admin/tasks'
     | '/admin/users'
     | '/admin/webhooks'
@@ -356,6 +369,7 @@ export interface FileRouteTypes {
     | '/_auth/admin/logs'
     | '/_auth/admin/metadata'
     | '/_auth/admin/plugins'
+    | '/_auth/admin/sessions'
     | '/_auth/admin/tasks'
     | '/_auth/admin/users'
     | '/_auth/admin/webhooks'
@@ -555,6 +569,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthAdminAuditRouteImport
       parentRoute: typeof AuthAdminRoute
     }
+    '/_auth/admin/sessions': {
+      id: '/_auth/admin/sessions'
+      path: '/sessions'
+      fullPath: '/admin/sessions'
+      preLoaderRoute: typeof AuthAdminSessionsRouteImport
+      parentRoute: typeof AuthAdminRoute
+    }
     '/_auth/admin/activity': {
       id: '/_auth/admin/activity'
       path: '/activity'
@@ -572,6 +593,7 @@ interface AuthAdminRouteChildren {
   AuthAdminLogsRoute: typeof AuthAdminLogsRoute
   AuthAdminMetadataRoute: typeof AuthAdminMetadataRoute
   AuthAdminPluginsRoute: typeof AuthAdminPluginsRoute
+  AuthAdminSessionsRoute: typeof AuthAdminSessionsRoute
   AuthAdminTasksRoute: typeof AuthAdminTasksRoute
   AuthAdminUsersRoute: typeof AuthAdminUsersRoute
   AuthAdminWebhooksRoute: typeof AuthAdminWebhooksRoute
@@ -585,6 +607,7 @@ const AuthAdminRouteChildren: AuthAdminRouteChildren = {
   AuthAdminLogsRoute: AuthAdminLogsRoute,
   AuthAdminMetadataRoute: AuthAdminMetadataRoute,
   AuthAdminPluginsRoute: AuthAdminPluginsRoute,
+  AuthAdminSessionsRoute: AuthAdminSessionsRoute,
   AuthAdminTasksRoute: AuthAdminTasksRoute,
   AuthAdminUsersRoute: AuthAdminUsersRoute,
   AuthAdminWebhooksRoute: AuthAdminWebhooksRoute,

@@ -1,6 +1,7 @@
 import { Link, useRouterState } from "@tanstack/react-router";
 
 const adminNavLinks = [
+  { href: "/admin/sessions", label: "Now Playing" },
   { href: "/admin/libraries", label: "Libraries" },
   { href: "/admin/users", label: "Users" },
   { href: "/admin/plugins", label: "Plugins" },

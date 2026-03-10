@@ -125,3 +125,96 @@ func TestStopSession(t *testing.T) {
 	}
 	assert.True(t, stopped)
 }
+
+func TestGetActiveSessions_Empty(t *testing.T) {
+	svc, _, _, _, _ := newPlaybackSvc()
+	ctx := context.Background()
+
+	sessions, err := svc.GetActiveSessions(ctx)
+	require.NoError(t, err)
+	assert.Empty(t, sessions)
+}
+
+func TestGetActiveSessions_ReturnsActive(t *testing.T) {
+	svc, _, _, userRepo, _ := newPlaybackSvc()
+	userRepo.Create(context.Background(), &user.User{ID: "u1", Username: "alice", Enabled: true})
+
+	ctx := context.Background()
+	err := svc.StartStream(ctx, &playback.PlaySession{
+		ID: "s1", ProfileID: "p1", MediaItemID: "m1",
+		PlayMethod: string(playback.DirectPlay),
+		DeviceName: "Chrome", DeviceType: "browser",
+	}, "u1")
+	require.NoError(t, err)
+
+	err = svc.StartStream(ctx, &playback.PlaySession{
+		ID: "s2", ProfileID: "p1", MediaItemID: "m2",
+		PlayMethod: string(playback.Transcode),
+		VideoCodec: "hevc",
+	}, "u1")
+	require.NoError(t, err)
+
+	sessions, err := svc.GetActiveSessions(ctx)
+	require.NoError(t, err)
+	assert.Len(t, sessions, 2)
+}
+
+func TestGetActiveSessions_ExcludesStopped(t *testing.T) {
+	svc, _, _, userRepo, _ := newPlaybackSvc()
+	userRepo.Create(context.Background(), &user.User{ID: "u1", Username: "bob", Enabled: true})
+
+	ctx := context.Background()
+	err := svc.StartStream(ctx, &playback.PlaySession{
+		ID: "s1", ProfileID: "p1", MediaItemID: "m1",
+	}, "u1")
+	require.NoError(t, err)
+
+	err = svc.StartStream(ctx, &playback.PlaySession{
+		ID: "s2", ProfileID: "p1", MediaItemID: "m2",
+	}, "u1")
+	require.NoError(t, err)
+
+	err = svc.StopStream(ctx, "s1")
+	require.NoError(t, err)
+
+	sessions, err := svc.GetActiveSessions(ctx)
+	require.NoError(t, err)
+	assert.Len(t, sessions, 1)
+	assert.Equal(t, "s2", sessions[0].SessionID)
+}
+
+func TestGetActiveSessions_TranscodeInfo(t *testing.T) {
+	svc, _, _, userRepo, _ := newPlaybackSvc()
+	userRepo.Create(context.Background(), &user.User{ID: "u1", Username: "alice", Enabled: true})
+
+	ctx := context.Background()
+	err := svc.StartStream(ctx, &playback.PlaySession{
+		ID: "s1", ProfileID: "p1", MediaItemID: "m1",
+		PlayMethod: string(playback.Transcode),
+		VideoCodec: "hevc",
+	}, "u1")
+	require.NoError(t, err)
+
+	err = svc.StartStream(ctx, &playback.PlaySession{
+		ID: "s2", ProfileID: "p1", MediaItemID: "m2",
+		PlayMethod: string(playback.DirectPlay),
+	}, "u1")
+	require.NoError(t, err)
+
+	sessions, err := svc.GetActiveSessions(ctx)
+	require.NoError(t, err)
+	assert.Len(t, sessions, 2)
+
+	var transcoding, direct *playback.ActiveSessionInfo
+	for _, s := range sessions {
+		if s.SessionID == "s1" {
+			transcoding = s
+		} else {
+			direct = s
+		}
+	}
+	require.NotNil(t, transcoding)
+	require.NotNil(t, direct)
+	assert.NotNil(t, transcoding.TranscodeInfo)
+	assert.Nil(t, direct.TranscodeInfo)
+}

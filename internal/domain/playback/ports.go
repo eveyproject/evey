@@ -26,6 +26,7 @@ type PlaySessionRepository interface {
 	Update(ctx context.Context, session *PlaySession) error
 	GetByID(ctx context.Context, id string) (*PlaySession, error)
 	GetActiveByProfile(ctx context.Context, profileID string) ([]*PlaySession, error)
+	ListActiveSessions(ctx context.Context) ([]*ActiveSessionInfo, error)
 	GetHistory(ctx context.Context, filter PlaySessionFilter) ([]*PlaySession, error)
 	CountActiveByUser(ctx context.Context, userID string) (int, error)
 }

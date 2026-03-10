@@ -52,6 +52,7 @@ import (
 	"github.com/gravity-zero/evey/internal/pkg/eventbus"
 	eveylogger "github.com/gravity-zero/evey/internal/pkg/logger"
 	domainuser "github.com/gravity-zero/evey/internal/domain/user"
+	domainplayback "github.com/gravity-zero/evey/internal/domain/playback"
 	domainlibrary "github.com/gravity-zero/evey/internal/domain/library"
 	libraryevent "github.com/gravity-zero/evey/internal/domain/library"
 	domainmeta "github.com/gravity-zero/evey/internal/domain/metadata"
@@ -298,6 +299,8 @@ func run() error {
 		mux.HandleFunc("GET /api/v1/media/{id}/subtitle/{track}", subtitleHandler(tokenGen, librarySvc))
 		mux.HandleFunc("GET /api/v1/admin/library-stats", libraryStatsHandler(tokenGen, librarySvc))
 		registerAdminRoutes(mux, metadataSvc, tmdbProvider, tokenGen)
+		mux.HandleFunc("GET /api/v1/admin/sessions/active", activeSessionsHandler(tokenGen, playbackSvc))
+		mux.HandleFunc("DELETE /api/v1/admin/sessions/{id}", killSessionHandler(tokenGen, playbackSvc))
 		mux.Handle("/", gwMux)
 		httpSrv = &http.Server{
 			Addr:              fmt.Sprintf(":%d", httpPort),
@@ -927,5 +930,103 @@ func libraryStatsHandler(tokenGen interface {
 		}
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(map[string]any{"stats": stats})
+	}
+}
+
+func activeSessionsHandler(tokenGen interface {
+	ValidateAccessToken(string) (*domainuser.Claims, error)
+}, pbSvc interface {
+	GetActiveSessions(ctx context.Context) ([]*domainplayback.ActiveSessionInfo, error)
+}) http.HandlerFunc {
+	type sessionJSON struct {
+		SessionID     string  `json:"sessionId"`
+		ProfileName   string  `json:"profileName"`
+		MediaTitle    string  `json:"mediaTitle"`
+		MediaType     string  `json:"mediaType"`
+		MediaItemID   string  `json:"mediaItemId"`
+		Progress      float64 `json:"progress"`
+		DurationMs    int64   `json:"durationMs"`
+		PositionMs    int64   `json:"positionMs"`
+		StartedAt     string  `json:"startedAt"`
+		DeviceName    string  `json:"deviceName"`
+		DeviceType    string  `json:"deviceType"`
+		ClientIP      string  `json:"clientIp"`
+		PlayMethod    string  `json:"playMethod"`
+		VideoCodec    string  `json:"videoCodec"`
+		AudioCodec    string  `json:"audioCodec"`
+		Resolution    string  `json:"resolution"`
+		BandwidthBps  int64   `json:"bandwidthBps"`
+		TranscodeInfo *string `json:"transcodeInfo,omitempty"`
+	}
+	return func(w http.ResponseWriter, r *http.Request) {
+		token := r.Header.Get("Authorization")
+		if strings.HasPrefix(token, "Bearer ") {
+			token = token[7:]
+		}
+		claims, err := tokenGen.ValidateAccessToken(token)
+		if err != nil || !claims.IsAdmin {
+			http.Error(w, `{"message":"forbidden"}`, http.StatusForbidden)
+			return
+		}
+		sessions, err := pbSvc.GetActiveSessions(r.Context())
+		if err != nil {
+			slog.Error("active sessions", slog.Any("err", err))
+			http.Error(w, `{"message":"internal error"}`, http.StatusInternalServerError)
+			return
+		}
+		out := make([]sessionJSON, 0, len(sessions))
+		for _, s := range sessions {
+			out = append(out, sessionJSON{
+				SessionID:     s.SessionID,
+				ProfileName:   s.ProfileName,
+				MediaTitle:    s.MediaTitle,
+				MediaType:     s.MediaType,
+				MediaItemID:   s.MediaItemID,
+				Progress:      s.ProgressPercent(),
+				DurationMs:    s.DurationMs,
+				PositionMs:    s.PositionMs,
+				StartedAt:     s.StartedAt.UTC().Format(time.RFC3339),
+				DeviceName:    s.DeviceName,
+				DeviceType:    s.DeviceType,
+				ClientIP:      s.ClientIP,
+				PlayMethod:    s.PlayMethod,
+				VideoCodec:    s.VideoCodec,
+				AudioCodec:    s.AudioCodec,
+				Resolution:    s.Resolution,
+				BandwidthBps:  s.BandwidthBps,
+				TranscodeInfo: s.TranscodeInfo,
+			})
+		}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]any{"sessions": out})
+	}
+}
+
+func killSessionHandler(tokenGen interface {
+	ValidateAccessToken(string) (*domainuser.Claims, error)
+}, pbSvc interface {
+	StopStream(ctx context.Context, sessionID string) error
+}) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		token := r.Header.Get("Authorization")
+		if strings.HasPrefix(token, "Bearer ") {
+			token = token[7:]
+		}
+		claims, err := tokenGen.ValidateAccessToken(token)
+		if err != nil || !claims.IsAdmin {
+			http.Error(w, `{"message":"forbidden"}`, http.StatusForbidden)
+			return
+		}
+		sessionID := r.PathValue("id")
+		if sessionID == "" {
+			http.Error(w, `{"message":"session id required"}`, http.StatusBadRequest)
+			return
+		}
+		if err := pbSvc.StopStream(r.Context(), sessionID); err != nil {
+			slog.Error("kill session", slog.Any("err", err))
+			http.Error(w, `{"message":"session not found"}`, http.StatusNotFound)
+			return
+		}
+		w.WriteHeader(http.StatusNoContent)
 	}
 }
