@@ -9,6 +9,7 @@ const adminNavLinks = [
   { href: "/admin/metadata", label: "Metadata" },
   { href: "/admin/activity", label: "Activity" },
   { href: "/admin/tasks", label: "Scheduled Tasks" },
+  { href: "/admin/transcode-cache", label: "Transcode Cache" },
   { href: "/admin/logs", label: "Logs" },
 ];
 

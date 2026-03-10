@@ -27,3 +27,9 @@ type TranscodeProfileRepository interface {
 	Create(ctx context.Context, profile *TranscodeProfile) error
 	Delete(ctx context.Context, id string) error
 }
+
+type CacheStore interface {
+	GetCacheInfo(ctx context.Context) (*CacheInfo, error)
+	ClearCache(ctx context.Context) error
+	DeleteFile(ctx context.Context, filename string) error
+}
