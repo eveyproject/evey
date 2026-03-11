@@ -7,8 +7,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func intPtr(v int) *int { return &v }
-
 // --- SplitFilename ---
 
 func TestSplitFilename_DotSeparated(t *testing.T) {

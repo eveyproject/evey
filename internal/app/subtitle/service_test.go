@@ -130,7 +130,7 @@ func TestDelete(t *testing.T) {
 	require.NoError(t, err)
 
 	subs, _ := repo.GetByMediaItem(context.Background(), "m1")
-	assert.Len(t, subs, 0)
+	assert.Empty(t, subs)
 }
 
 func TestDelete_NotFound(t *testing.T) {
@@ -141,10 +141,10 @@ func TestDelete_NotFound(t *testing.T) {
 
 func TestComputeOpenSubtitlesHash_EmptyPath(t *testing.T) {
 	h := computeOpenSubtitlesHash("")
-	assert.Equal(t, "", h)
+	assert.Empty(t, h)
 }
 
 func TestComputeOpenSubtitlesHash_NonExistent(t *testing.T) {
 	h := computeOpenSubtitlesHash("/nonexistent/file.mkv")
-	assert.Equal(t, "", h)
+	assert.Empty(t, h)
 }

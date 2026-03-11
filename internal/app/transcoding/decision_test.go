@@ -11,7 +11,6 @@ import (
 
 func intPtr(v int) *int       { return &v }
 func int64Ptr(v int64) *int64 { return &v }
-func strPtr(v string) *string { return &v }
 
 func TestDirectPlay_H264_AAC_MP4(t *testing.T) {
 	streams := []*library.MediaStream{

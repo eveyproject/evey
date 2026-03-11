@@ -86,8 +86,8 @@ func TestToDocument_NilYear(t *testing.T) {
 }
 
 func TestBuildFilterString_Empty(t *testing.T) {
-	assert.Equal(t, "", BuildFilterString(nil))
-	assert.Equal(t, "", BuildFilterString(map[string]string{}))
+	assert.Empty(t, BuildFilterString(nil))
+	assert.Empty(t, BuildFilterString(map[string]string{}))
 }
 
 func TestBuildFilterString_Single(t *testing.T) {

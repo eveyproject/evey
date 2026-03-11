@@ -35,7 +35,7 @@ func (q *FeedQuerier) ContinueWatching(ctx context.Context, profileID string, li
 		return nil, err
 	}
 	movies, err := scanFeedItems(rows)
-	rows.Close()
+	rows.Close() //nolint:sqlclosecheck // rows is reused below; explicit close before reassignment
 	if err != nil {
 		return nil, err
 	}
@@ -83,7 +83,7 @@ func (q *FeedQuerier) ContinueWatching(ctx context.Context, profileID string, li
 		return nil, err
 	}
 	episodes, err := scanFeedItems(rows)
-	rows.Close()
+	rows.Close() //nolint:sqlclosecheck // explicit close; function returns immediately after
 	if err != nil {
 		return nil, err
 	}

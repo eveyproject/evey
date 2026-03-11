@@ -43,7 +43,7 @@ func loadOrGenerateRSAKey(path string) (*rsa.PrivateKey, error) {
 		if err != nil {
 			return nil, fmt.Errorf("jwt key at %s: %w", path, err)
 		}
-		if info, err := os.Stat(path); err == nil && info.Mode().Perm()&0077 != 0 {
+		if info, statErr := os.Stat(path); statErr == nil && info.Mode().Perm()&0077 != 0 {
 			slog.Warn("jwt key has loose permissions, fixing to 0600", slog.String("path", path), slog.String("mode", fmt.Sprintf("%04o", info.Mode().Perm())))
 			if err := os.Chmod(path, 0600); err != nil {
 				return nil, fmt.Errorf("cannot fix jwt key permissions: %w", err)
