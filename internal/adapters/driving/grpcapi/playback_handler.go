@@ -69,6 +69,19 @@ func (h *playbackHandler) StartStream(ctx context.Context, req *eveyv1.StartStre
 }
 
 func (h *playbackHandler) StopStream(ctx context.Context, req *eveyv1.StopStreamRequest) (*eveyv1.StopStreamResponse, error) {
+	claims, err := requireClaims(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if !claims.IsAdmin {
+		session, err := h.cmd.GetSession(ctx, req.SessionId)
+		if err != nil {
+			return nil, status.Errorf(codes.NotFound, "session not found")
+		}
+		if session.ProfileID != claims.ProfileID {
+			return nil, status.Error(codes.PermissionDenied, "cannot stop another user's session")
+		}
+	}
 	if err := h.cmd.StopStream(ctx, req.SessionId); err != nil {
 		slog.Error("stop stream", slog.Any("err", err))
 		return nil, status.Errorf(codes.Internal, "internal error")
@@ -77,8 +90,18 @@ func (h *playbackHandler) StopStream(ctx context.Context, req *eveyv1.StopStream
 }
 
 func (h *playbackHandler) ReportProgress(ctx context.Context, req *eveyv1.ReportProgressRequest) (*eveyv1.ReportProgressResponse, error) {
-	if _, err := requireClaims(ctx); err != nil {
+	claims, err := requireClaims(ctx)
+	if err != nil {
 		return nil, err
+	}
+	if !claims.IsAdmin {
+		session, err := h.cmd.GetSession(ctx, req.SessionId)
+		if err != nil {
+			return nil, status.Errorf(codes.NotFound, "session not found")
+		}
+		if session.ProfileID != claims.ProfileID {
+			return nil, status.Error(codes.PermissionDenied, "cannot report progress for another user's session")
+		}
 	}
 	if err := h.cmd.ReportProgressBySession(ctx, req.SessionId, req.PositionMs); err != nil {
 		if errors.Is(err, appplayback.ErrProfileNotFound) {

@@ -343,6 +343,26 @@ func (h *userHandler) ListInviteLinks(ctx context.Context, _ *eveyv1.ListInviteL
 }
 
 func (h *userHandler) RevokeInviteLink(ctx context.Context, req *eveyv1.RevokeInviteLinkRequest) (*eveyv1.RevokeInviteLinkResponse, error) {
+	claims, err := requireClaims(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if !claims.IsAdmin {
+		links, err := h.svc.ListInviteLinks(ctx, claims.UserID)
+		if err != nil {
+			return nil, status.Errorf(codes.Internal, "internal error")
+		}
+		owned := false
+		for _, l := range links {
+			if l.ID == req.Id {
+				owned = true
+				break
+			}
+		}
+		if !owned {
+			return nil, status.Error(codes.PermissionDenied, "cannot revoke another user's invite link")
+		}
+	}
 	if err := h.svc.RevokeInviteLink(ctx, req.Id); err != nil {
 		slog.Error("revoke invite link", slog.Any("err", err))
 		return nil, status.Errorf(codes.Internal, "internal error")
@@ -451,6 +471,26 @@ func (h *userHandler) ListAPIKeys(ctx context.Context, _ *eveyv1.ListAPIKeysRequ
 }
 
 func (h *userHandler) RevokeAPIKey(ctx context.Context, req *eveyv1.RevokeAPIKeyRequest) (*eveyv1.RevokeAPIKeyResponse, error) {
+	claims, err := requireClaims(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if !claims.IsAdmin {
+		keys, err := h.svc.ListAPIKeys(ctx, claims.UserID)
+		if err != nil {
+			return nil, status.Errorf(codes.Internal, "internal error")
+		}
+		owned := false
+		for _, k := range keys {
+			if k.ID == req.Id {
+				owned = true
+				break
+			}
+		}
+		if !owned {
+			return nil, status.Error(codes.PermissionDenied, "cannot revoke another user's API key")
+		}
+	}
 	if err := h.svc.RevokeAPIKey(ctx, req.Id); err != nil {
 		slog.Error("revoke api key", slog.Any("err", err))
 		return nil, status.Errorf(codes.Internal, "internal error")

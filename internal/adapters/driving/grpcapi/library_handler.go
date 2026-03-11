@@ -280,8 +280,8 @@ func (h *libraryHandler) getAllowedLibraryIDs(ctx context.Context) ([]string, er
 	if err != nil {
 		return nil, err
 	}
-	if len(ids) == 0 {
-		return nil, nil
+	if ids == nil {
+		ids = []string{}
 	}
 	return ids, nil
 }

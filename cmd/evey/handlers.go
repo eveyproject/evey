@@ -919,7 +919,24 @@ func registerSubtitleRoutes(mux *http.ServeMux, subtitleSvc *appsubtitle.Service
 		if !requireAuth(w, r) {
 			return
 		}
+		mediaID := r.PathValue("id")
 		subtitleID := r.PathValue("subtitleId")
+		subs, err := subtitleSvc.List(r.Context(), mediaID)
+		if err != nil {
+			http.Error(w, `{"message":"internal error"}`, http.StatusInternalServerError)
+			return
+		}
+		found := false
+		for _, s := range subs {
+			if s.ID == subtitleID {
+				found = true
+				break
+			}
+		}
+		if !found {
+			http.Error(w, `{"message":"not found"}`, http.StatusNotFound)
+			return
+		}
 		if err := subtitleSvc.Delete(r.Context(), subtitleID); err != nil {
 			http.Error(w, `{"message":"not found"}`, http.StatusNotFound)
 			return

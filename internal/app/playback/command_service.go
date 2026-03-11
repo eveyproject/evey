@@ -3,7 +3,6 @@ package playback
 import (
 	"context"
 	"fmt"
-	"log/slog"
 	"time"
 
 	"github.com/gravity-zero/evey/internal/domain/playback"
@@ -69,10 +68,13 @@ func (s *CommandService) StartStream(ctx context.Context, session *playback.Play
 	if err := s.sessions.Create(ctx, session); err != nil {
 		return fmt.Errorf("create session: %w", err)
 	}
-	evtStarted := playback.PlaybackStarted{SessionID: session.ID, ProfileID: session.ProfileID, MediaItemID: session.MediaItemID, PlayMethod: session.PlayMethod, OccurredAt: time.Now()}
-	if err := s.events.Publish(ctx, evtStarted); err != nil {
-		slog.Warn("publish event", slog.String("event", evtStarted.EventName()), slog.Any("err", err))
-	}
+	s.events.Publish(ctx, playback.PlaybackStarted{
+		SessionID:   session.ID,
+		ProfileID:   session.ProfileID,
+		MediaItemID: session.MediaItemID,
+		PlayMethod:  session.PlayMethod,
+		OccurredAt:  time.Now(),
+	})
 	return nil
 }
 
@@ -86,10 +88,12 @@ func (s *CommandService) StopStream(ctx context.Context, sessionID string) error
 	if err := s.sessions.Update(ctx, session); err != nil {
 		return err
 	}
-	evtStopped := playback.PlaybackStopped{SessionID: sessionID, ProfileID: session.ProfileID, MediaItemID: session.MediaItemID, OccurredAt: now}
-	if err := s.events.Publish(ctx, evtStopped); err != nil {
-		slog.Warn("publish event", slog.String("event", evtStopped.EventName()), slog.Any("err", err))
-	}
+	s.events.Publish(ctx, playback.PlaybackStopped{
+		SessionID:   sessionID,
+		ProfileID:   session.ProfileID,
+		MediaItemID: session.MediaItemID,
+		OccurredAt:  now,
+	})
 	return nil
 }
 
@@ -135,11 +139,16 @@ func (s *CommandService) MarkAsWatched(ctx context.Context, profileID, mediaItem
 	if err := s.progress.Upsert(ctx, wp); err != nil {
 		return err
 	}
-	evtWatched := playback.MediaMarkedWatched{ProfileID: profileID, MediaItemID: mediaItemID, OccurredAt: time.Now()}
-	if err := s.events.Publish(ctx, evtWatched); err != nil {
-		slog.Warn("publish event", slog.String("event", evtWatched.EventName()), slog.Any("err", err))
-	}
+	s.events.Publish(ctx, playback.MediaMarkedWatched{
+		ProfileID:   profileID,
+		MediaItemID: mediaItemID,
+		OccurredAt:  time.Now(),
+	})
 	return nil
+}
+
+func (s *CommandService) GetSession(ctx context.Context, sessionID string) (*playback.PlaySession, error) {
+	return s.sessionQueries.GetByID(ctx, sessionID)
 }
 
 func (s *CommandService) CleanupStaleSessions(ctx context.Context, maxAge time.Duration) (int, error) {
