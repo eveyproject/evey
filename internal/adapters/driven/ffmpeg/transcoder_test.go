@@ -124,14 +124,14 @@ func TestParseProgress(t *testing.T) {
 	assert.InDelta(t, 1.5, p.Speed, 0.1)
 	assert.Equal(t, int64(524300), p.CurrentBitrate)
 	assert.InDelta(t, 40.0, p.Percent, 1.0)
-	assert.Positive(t, p.ETAMs)
+	assert.True(t, p.ETAMs > 0)
 }
 
 func TestParseProgress_NilDuration(t *testing.T) {
 	line := "frame=  120 fps= 24.0 q=28.0 size=    256kB time=00:01:30.50 bitrate= 524.3kbits/s speed= 2.0x"
 	p, ok := ParseProgress(line, "j2", nil)
 	require.True(t, ok)
-	assert.Equal(t, float64(0), p.Percent)
+	assert.InDelta(t, float64(0), p.Percent, 0.001)
 	assert.Equal(t, int64(0), p.ETAMs)
 }
 

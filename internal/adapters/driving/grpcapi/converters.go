@@ -3,6 +3,7 @@ package grpcapi
 import (
 	"encoding/json"
 	"fmt"
+	"maps"
 	"strings"
 	"time"
 
@@ -148,7 +149,6 @@ var personRoleToProto = map[string]eveyv1.PersonType{
 	"producer": eveyv1.PersonType_PERSON_TYPE_PRODUCER,
 }
 
-
 func castMemberToProto(cm library.CastMember) *eveyv1.MediaPerson {
 	pb := &eveyv1.MediaPerson{
 		Id:        cm.PersonID,
@@ -199,9 +199,7 @@ func userToProto(u *user.User) *eveyv1.User {
 
 func profileToProto(p *user.Profile) *eveyv1.Profile {
 	prefs := make(map[string]string)
-	for k, v := range p.Preferences {
-		prefs[k] = v
-	}
+	maps.Copy(prefs, p.Preferences)
 	if len(p.AudioLanguages) > 0 {
 		prefs["audio_languages"] = strings.Join(p.AudioLanguages, ",")
 	}
@@ -274,12 +272,12 @@ var playMethodFromProto = map[eveyv1.PlayMethod]string{
 
 func watchProgressToProto(wp *playback.WatchProgress) *eveyv1.WatchProgress {
 	return &eveyv1.WatchProgress{
-		Id:          wp.ID,
-		ProfileId:   wp.ProfileID,
-		MediaItemId: wp.MediaItemID,
-		PositionMs:  wp.PositionMs,
-		Played:      wp.Completed,
-		PlayCount:   int32(wp.PlayCount),
+		Id:           wp.ID,
+		ProfileId:    wp.ProfileID,
+		MediaItemId:  wp.MediaItemID,
+		PositionMs:   wp.PositionMs,
+		Played:       wp.Completed,
+		PlayCount:    int32(wp.PlayCount),
 		LastPlayedAt: toTimestamppb(wp.LastPlayedAt),
 	}
 }
@@ -342,7 +340,6 @@ func transcodeJobToProto(j *transcoding.TranscodeJob) *eveyv1.TranscodeJob {
 	return pb
 }
 
-
 func transcodeProfileToProto(p *transcoding.TranscodeProfile) *eveyv1.TranscodeProfile {
 	return &eveyv1.TranscodeProfile{
 		Id:         p.ID,
@@ -371,7 +368,6 @@ var mkvTrackTypeToProto = map[mkv.TrackType]eveyv1.TrackType{
 	mkv.AudioTrack:    eveyv1.TrackType_TRACK_TYPE_AUDIO,
 	mkv.SubtitleTrack: eveyv1.TrackType_TRACK_TYPE_SUBTITLE,
 }
-
 
 func mkvContainerToProto(c *mkv.Container) *eveyv1.Container {
 	pb := &eveyv1.Container{
@@ -540,7 +536,7 @@ func serverMetricToProto(m *activity.ServerMetric) *eveyv1.ServerMetric {
 		CpuPercent:       m.CPUPercent,
 		MemoryPercent:    memPercent,
 		MemoryUsedBytes:  m.MemoryUsedBytes,
-		ActiveStreams:     int32(m.ActiveStreams),
+		ActiveStreams:    int32(m.ActiveStreams),
 		ActiveTranscodes: int32(m.ActiveTranscodes),
 	}
 }

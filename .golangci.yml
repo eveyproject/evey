@@ -31,6 +31,18 @@ linters:
     errcheck:
       check-type-assertions: true
       check-blank: true
+      # Non-actionable error returns
+      exclude-functions:
+        - (net/http.ResponseWriter).Write
+        - (*encoding/json.Encoder).Encode
+        - fmt.Fprint
+        - fmt.Fprintf
+        - fmt.Fprintln
+        # defer close — error logged by DB/OS layer already
+        - (*database/sql.Rows).Close
+        - (*os.File).Close
+        - (io.Closer).Close
+        - (net/http.Response.Body).Close
     govet:
       enable:
         - shadow

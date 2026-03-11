@@ -135,10 +135,10 @@ func TestRefreshTokenRepo_DeleteByUserID(t *testing.T) {
 	require.NoError(t, repo.DeleteByUserID(ctx, "rt-user-4"))
 
 	_, err := repo.GetByTokenHash(ctx, "hash_u4_a")
-	assert.ErrorIs(t, err, sql.ErrNoRows, "first token of user-4 should be deleted")
+	require.ErrorIs(t, err, sql.ErrNoRows, "first token of user-4 should be deleted")
 
 	_, err = repo.GetByTokenHash(ctx, "hash_u4_b")
-	assert.ErrorIs(t, err, sql.ErrNoRows, "second token of user-4 should be deleted")
+	require.ErrorIs(t, err, sql.ErrNoRows, "second token of user-4 should be deleted")
 
 	got, err := repo.GetByTokenHash(ctx, "hash_u4b_a")
 	require.NoError(t, err, "token of different user should survive")
@@ -164,7 +164,7 @@ func TestRefreshTokenRepo_DeleteExpired(t *testing.T) {
 	require.NoError(t, repo.DeleteExpired(ctx))
 
 	_, err := repo.GetByTokenHash(ctx, "hash_expired")
-	assert.ErrorIs(t, err, sql.ErrNoRows, "expired token should be deleted")
+	require.ErrorIs(t, err, sql.ErrNoRows, "expired token should be deleted")
 
 	got, err := repo.GetByTokenHash(ctx, "hash_valid")
 	require.NoError(t, err, "valid token should survive")

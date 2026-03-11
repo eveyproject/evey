@@ -6,9 +6,9 @@ import (
 	"testing"
 
 	appuser "github.com/gravity-zero/evey/internal/app/user"
-	sharedfakes "github.com/gravity-zero/evey/internal/domain/shared/fakes"
 	domainuser "github.com/gravity-zero/evey/internal/domain/user"
 	userfakes "github.com/gravity-zero/evey/internal/domain/user/fakes"
+	sharedfakes "github.com/gravity-zero/evey/internal/domain/shared/fakes"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -120,11 +120,11 @@ func TestCreateProfile(t *testing.T) {
 }
 
 type collidingTokenGen struct {
-	mu           sync.Mutex
-	inner        *userfakes.FakeTokenGenerator
-	fixedToken   string
-	collideCount int
-	callCount    int
+	mu            sync.Mutex
+	inner         *userfakes.FakeTokenGenerator
+	fixedToken    string
+	collideCount  int
+	callCount     int
 }
 
 func (g *collidingTokenGen) GenerateAccessToken(c domainuser.Claims) (string, error) {
@@ -214,7 +214,7 @@ func TestLogin_DuplicateRefreshTokenExhausted(t *testing.T) {
 	require.NoError(t, err)
 
 	_, _, err = svc.Login(context.Background(), "ex2", "pass")
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "duplicate hash after retries")
 }
 
@@ -228,7 +228,7 @@ func TestLogin_ConcurrentSameUser(t *testing.T) {
 
 	var wg sync.WaitGroup
 	errs := make([]error, 10)
-	for i := range 10 {
+	for i := 0; i < 10; i++ {
 		wg.Add(1)
 		go func(idx int) {
 			defer wg.Done()

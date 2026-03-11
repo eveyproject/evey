@@ -111,7 +111,7 @@ func (r *PlaySessionRepository) GetActiveByProfile(ctx context.Context, profileI
 
 func (r *PlaySessionRepository) GetHistory(ctx context.Context, f playback.PlaySessionFilter) ([]*playback.PlaySession, error) {
 	var conditions []string
-	var args []interface{}
+	var args []any
 	argIdx := 1
 
 	if f.ProfileID != nil {

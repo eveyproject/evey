@@ -166,7 +166,7 @@ func TestTitleSimilarity(t *testing.T) {
 		titleSimilarity("le flic de shanghai", "Le flic de Shanghai"),
 		titleSimilarity("le flic de shanghai", "The Rookie : Le Flic de Los Angeles"),
 	)
-	assert.Equal(t, 0.0, titleSimilarity("test", ""))
+	assert.InDelta(t, 0.0, titleSimilarity("test", ""), 0.001)
 }
 
 func TestMergeResults_NilSupplement(t *testing.T) {

@@ -42,21 +42,21 @@ func (s *BackupStore) Create(_ context.Context, m *backup.BackupManifest, data i
 	}
 	// write manifest length prefix + manifest + dump data
 	header := fmt.Sprintf("%d\n", len(manifestBytes))
-	if _, err := gw.Write([]byte(header)); err != nil {
-		return err
+	if _, err2 := gw.Write([]byte(header)); err2 != nil {
+		return err2
 	}
-	if _, err := gw.Write(manifestBytes); err != nil {
-		return err
+	if _, err2 := gw.Write(manifestBytes); err2 != nil {
+		return err2
 	}
 	written, err := io.Copy(gw, data)
 	if err != nil {
 		return fmt.Errorf("write data: %w", err)
 	}
-	if err := gw.Close(); err != nil {
-		return err
+	if err2 := gw.Close(); err2 != nil {
+		return err2
 	}
-	if err := f.Close(); err != nil {
-		return err
+	if err2 := f.Close(); err2 != nil {
+		return err2
 	}
 
 	fi, err := os.Stat(archivePath)
@@ -114,7 +114,7 @@ func (s *BackupStore) Get(_ context.Context, id string) (*backup.BackupManifest,
 		return nil, nil, fmt.Errorf("backup not found")
 	}
 	var m backup.BackupManifest
-	if err := json.Unmarshal(data, &m); err != nil {
+	if err2 := json.Unmarshal(data, &m); err2 != nil {
 		return nil, nil, fmt.Errorf("corrupt manifest")
 	}
 	archivePath := filepath.Join(s.dir, id+".gz")
@@ -122,7 +122,7 @@ func (s *BackupStore) Get(_ context.Context, id string) (*backup.BackupManifest,
 	if err != nil {
 		return nil, nil, fmt.Errorf("backup archive not found")
 	}
-	if fi, err := os.Stat(archivePath); err == nil {
+	if fi, err2 := os.Stat(archivePath); err2 == nil {
 		m.Size = fi.Size()
 	}
 	return &m, f, nil

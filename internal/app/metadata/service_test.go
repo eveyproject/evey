@@ -9,6 +9,7 @@ import (
 	metafakes "github.com/gravity-zero/evey/internal/domain/metadata/fakes"
 	sharedfakes "github.com/gravity-zero/evey/internal/domain/shared/fakes"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func newTestService() (*appmetadata.Service, *metafakes.FakeMetadataOverrideRepository, *sharedfakes.FakeEventBus) {
@@ -38,7 +39,7 @@ func TestSearchMetadata(t *testing.T) {
 	)
 
 	results, err := svc.SearchMetadata(context.Background(), "matrix", "movie")
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Len(t, results, 1)
 	assert.Equal(t, "The Matrix", results[0].Title)
 }
@@ -54,11 +55,11 @@ func TestSetOverride(t *testing.T) {
 		CustomValue: "Custom Title",
 	}
 	err := svc.SetOverride(ctx, override)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.NotZero(t, override.CreatedAt)
 
 	overrides, err := svc.ListOverrides(ctx, "item-1")
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Len(t, overrides, 1)
 	assert.Equal(t, "title", overrides[0].FieldName)
 
@@ -69,7 +70,7 @@ func TestSetOverride(t *testing.T) {
 func TestListOverrides_Empty(t *testing.T) {
 	svc, _, _ := newTestService()
 	overrides, err := svc.ListOverrides(context.Background(), "nonexistent")
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Empty(t, overrides)
 }
 
@@ -86,10 +87,10 @@ func TestRemoveOverride(t *testing.T) {
 	_ = svc.SetOverride(ctx, override)
 
 	err := svc.RemoveOverride(ctx, "mo-1")
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	overrides, err := svc.ListOverrides(ctx, "item-1")
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Empty(t, overrides)
 }
 
@@ -109,7 +110,7 @@ func TestResetOverrides(t *testing.T) {
 
 	countBefore := len(bus.PublishedEvents())
 	err := svc.ResetOverrides(ctx, "item-1")
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	overrides, _ := svc.ListOverrides(ctx, "item-1")
 	assert.Empty(t, overrides)

@@ -210,12 +210,12 @@ func (c *Client) Download(ctx context.Context, fileID int, destPath string) (str
 	}
 
 	var dr downloadResponse
-	if err := json.NewDecoder(resp.Body).Decode(&dr); err != nil {
-		return "", fmt.Errorf("opensubtitles download decode: %w", err)
+	if err2 := json.NewDecoder(resp.Body).Decode(&dr); err2 != nil {
+		return "", fmt.Errorf("opensubtitles download decode: %w", err2)
 	}
 
-	if err := os.MkdirAll(destPath, 0755); err != nil {
-		return "", fmt.Errorf("create subtitle dir: %w", err)
+	if err2 := os.MkdirAll(destPath, 0755); err2 != nil {
+		return "", fmt.Errorf("create subtitle dir: %w", err2)
 	}
 
 	fileName := fmt.Sprintf("%d.srt", fileID)

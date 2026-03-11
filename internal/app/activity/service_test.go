@@ -9,6 +9,7 @@ import (
 	actfakes "github.com/gravity-zero/evey/internal/domain/activity/fakes"
 	sharedfakes "github.com/gravity-zero/evey/internal/domain/shared/fakes"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestRecordLogin(t *testing.T) {
@@ -28,9 +29,9 @@ func TestRecordLogin(t *testing.T) {
 		AuthMethod: "local",
 		Success:    true,
 	})
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	history, err := svc.GetLoginHistory(context.Background(), "u1", 10, 0)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Len(t, history, 1)
 }

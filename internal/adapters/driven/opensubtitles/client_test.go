@@ -93,7 +93,7 @@ func TestSearchSubtitles_Success(t *testing.T) {
 	assert.Equal(t, "The.Matrix.1999.srt", results[0].FileName)
 	assert.Equal(t, "en", results[0].Language)
 	assert.Equal(t, "srt", results[0].Format)
-	assert.Equal(t, 8.5, results[0].Rating)
+	assert.InEpsilon(t, 8.5, results[0].Rating, 1e-6)
 
 	assert.Equal(t, 101, results[1].FileID)
 	assert.Equal(t, "sub", results[1].Format)

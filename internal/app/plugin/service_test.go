@@ -9,6 +9,7 @@ import (
 	plgfakes "github.com/gravity-zero/evey/internal/domain/plugin/fakes"
 	sharedfakes "github.com/gravity-zero/evey/internal/domain/shared/fakes"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestInstallPlugin(t *testing.T) {
@@ -28,7 +29,7 @@ func TestInstallPlugin(t *testing.T) {
 
 	svc := appplugin.NewService(pluginRepo, runtimeRepo, runner, parser, bus)
 	p, err := svc.InstallPlugin(context.Background(), "/tmp/plugin.zip")
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, "test-plugin", p.Name)
 	assert.Equal(t, string(plugindomain.Running), p.Status)
 }

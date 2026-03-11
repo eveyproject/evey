@@ -111,11 +111,11 @@ func TestOMDb_GetByProviderID_Ratings(t *testing.T) {
 func TestOMDb_NoAPIKey(t *testing.T) {
 	p := NewOMDbProvider("", nil)
 	results, err := p.Search(context.Background(), "test", nil, "movie")
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Nil(t, results)
 
 	result, err := p.GetByProviderID(context.Background(), "tt123", "movie")
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Nil(t, result)
 }
 

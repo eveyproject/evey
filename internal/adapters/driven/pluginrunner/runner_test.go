@@ -117,7 +117,7 @@ func TestRunnerRejectsEntrypointOutsidePluginDir(t *testing.T) {
 	}
 
 	err := r.Start(ctx, p)
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "outside allowed plugin directories")
 }
 
@@ -132,6 +132,6 @@ func TestRunnerRejectsPathTraversal(t *testing.T) {
 	}
 
 	err := r.Start(ctx, p)
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "must not contain '..'")
 }

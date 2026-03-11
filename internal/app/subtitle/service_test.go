@@ -48,7 +48,7 @@ func TestSearch(t *testing.T) {
 func TestSearch_MediaNotFound(t *testing.T) {
 	svc, _, _, _ := newTestService()
 	_, err := svc.Search(context.Background(), "nonexistent", "en")
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "get media item")
 }
 
@@ -81,7 +81,7 @@ func TestDownload(t *testing.T) {
 func TestDownload_MediaNotFound(t *testing.T) {
 	svc, _, _, _ := newTestService()
 	_, err := svc.Download(context.Background(), "nonexistent", 100, "en", "srt")
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "get media item")
 }
 
@@ -90,7 +90,7 @@ func TestDownload_ProviderError(t *testing.T) {
 	provider.Err = fmt.Errorf("download failed")
 
 	_, err := svc.Download(context.Background(), "m1", 100, "en", "srt")
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "download subtitle")
 }
 
@@ -130,7 +130,7 @@ func TestDelete(t *testing.T) {
 	require.NoError(t, err)
 
 	subs, _ := repo.GetByMediaItem(context.Background(), "m1")
-	assert.Empty(t, subs)
+	assert.Len(t, subs, 0)
 }
 
 func TestDelete_NotFound(t *testing.T) {
@@ -141,10 +141,10 @@ func TestDelete_NotFound(t *testing.T) {
 
 func TestComputeOpenSubtitlesHash_EmptyPath(t *testing.T) {
 	h := computeOpenSubtitlesHash("")
-	assert.Empty(t, h)
+	assert.Equal(t, "", h)
 }
 
 func TestComputeOpenSubtitlesHash_NonExistent(t *testing.T) {
 	h := computeOpenSubtitlesHash("/nonexistent/file.mkv")
-	assert.Empty(t, h)
+	assert.Equal(t, "", h)
 }

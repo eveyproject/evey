@@ -46,13 +46,13 @@ func (r *PlaySessionStatsReader) GetUserStats(ctx context.Context, profileID str
 	for genreRows.Next() {
 		var genre string
 		var totalMs int64
-		if err := genreRows.Scan(&genre, &totalMs); err != nil {
-			return nil, err
+		if err2 := genreRows.Scan(&genre, &totalMs); err2 != nil {
+			return nil, err2
 		}
 		stats.GenreBreakdown[genre] = totalMs
 	}
-	if err := genreRows.Err(); err != nil {
-		return nil, err
+	if err2 := genreRows.Err(); err2 != nil {
+		return nil, err2
 	}
 
 	mostPlayed, err := r.db.QueryContext(ctx,
@@ -69,13 +69,13 @@ func (r *PlaySessionStatsReader) GetUserStats(ctx context.Context, profileID str
 	defer mostPlayed.Close()
 	for mostPlayed.Next() {
 		var mpc activity.MediaPlayCount
-		if err := mostPlayed.Scan(&mpc.MediaItemID, &mpc.Title, &mpc.PlayCount); err != nil {
-			return nil, err
+		if err2 := mostPlayed.Scan(&mpc.MediaItemID, &mpc.Title, &mpc.PlayCount); err2 != nil {
+			return nil, err2
 		}
 		stats.MostPlayedItems = append(stats.MostPlayedItems, mpc)
 	}
-	if err := mostPlayed.Err(); err != nil {
-		return nil, err
+	if err2 := mostPlayed.Err(); err2 != nil {
+		return nil, err2
 	}
 
 	monthRows, err := r.db.QueryContext(ctx,

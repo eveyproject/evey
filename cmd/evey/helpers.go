@@ -38,7 +38,8 @@ func loadOrGenerateRSAKey(path string) (*rsa.PrivateKey, error) {
 		if block == nil {
 			return nil, fmt.Errorf("jwt key at %s is corrupted (invalid PEM)", path)
 		}
-		key, err := x509.ParsePKCS1PrivateKey(block.Bytes)
+		var key *rsa.PrivateKey
+		key, err = x509.ParsePKCS1PrivateKey(block.Bytes)
 		if err != nil {
 			return nil, fmt.Errorf("jwt key at %s: %w", path, err)
 		}
@@ -52,8 +53,8 @@ func loadOrGenerateRSAKey(path string) (*rsa.PrivateKey, error) {
 	}
 
 	if dir := filepath.Dir(path); dir != "" {
-		if err := os.MkdirAll(dir, 0700); err != nil {
-			return nil, fmt.Errorf("cannot create jwt key directory %s: %w", dir, err)
+		if err2 := os.MkdirAll(dir, 0700); err2 != nil {
+			return nil, fmt.Errorf("cannot create jwt key directory %s: %w", dir, err2)
 		}
 	}
 

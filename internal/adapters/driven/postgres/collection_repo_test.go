@@ -125,7 +125,7 @@ func TestCollectionRepo_Delete(t *testing.T) {
 	require.NoError(t, repo.Delete(ctx, col.ID))
 
 	_, err := repo.GetByID(ctx, col.ID)
-	assert.ErrorIs(t, err, library.ErrNotFound)
+	require.ErrorIs(t, err, library.ErrNotFound)
 
 	err = repo.Delete(ctx, "nonexistent")
 	assert.ErrorIs(t, err, library.ErrNotFound)

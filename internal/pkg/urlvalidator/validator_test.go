@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestValidateWebhookURL_BlocksPrivateIPs(t *testing.T) {
@@ -30,20 +31,20 @@ func TestValidateWebhookURL_BlocksNonHTTP(t *testing.T) {
 	}
 	for _, u := range cases {
 		err := ValidateWebhookURL(u)
-		assert.Error(t, err, "expected blocked: %s", u)
+		require.Error(t, err, "expected blocked: %s", u)
 		assert.Contains(t, err.Error(), "not allowed")
 	}
 }
 
 func TestValidateWebhookURL_BlocksLocalhost(t *testing.T) {
 	err := ValidateWebhookURL("http://localhost/hook")
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "blocked")
 }
 
 func TestValidateWebhookURL_BlocksMetadataEndpoint(t *testing.T) {
 	err := ValidateWebhookURL("http://metadata.google.internal/computeMetadata/v1/")
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "blocked")
 }
 

@@ -24,7 +24,7 @@ func TestScan_FindsVideoFiles(t *testing.T) {
 	s := NewScanner()
 	found, err := s.Scan(context.Background(), dir)
 	require.NoError(t, err)
-	assert.Len(t, found, 3)
+	assert.Equal(t, 3, len(found))
 
 	names := make(map[string]bool)
 	for _, f := range found {
@@ -45,7 +45,7 @@ func TestScan_SkipsHiddenDirs(t *testing.T) {
 	s := NewScanner()
 	found, err := s.Scan(context.Background(), dir)
 	require.NoError(t, err)
-	assert.Len(t, found, 1)
+	assert.Equal(t, 1, len(found))
 	assert.Equal(t, "visible.mkv", filepath.Base(found[0].Path))
 }
 
@@ -58,7 +58,7 @@ func TestScan_SkipsHiddenFiles(t *testing.T) {
 	s := NewScanner()
 	found, err := s.Scan(context.Background(), dir)
 	require.NoError(t, err)
-	assert.Len(t, found, 1)
+	assert.Equal(t, 1, len(found))
 	assert.Equal(t, "normal.mkv", filepath.Base(found[0].Path))
 }
 
@@ -74,7 +74,7 @@ func TestScan_RecursiveSubdirs(t *testing.T) {
 	s := NewScanner()
 	found, err := s.Scan(context.Background(), dir)
 	require.NoError(t, err)
-	assert.Len(t, found, 3)
+	assert.Equal(t, 3, len(found))
 }
 
 func TestScan_EmptyDir(t *testing.T) {
@@ -97,7 +97,7 @@ func TestScan_AllVideoExtensions(t *testing.T) {
 	s := NewScanner()
 	found, err := s.Scan(context.Background(), dir)
 	require.NoError(t, err)
-	assert.Len(t, found, len(exts))
+	assert.Equal(t, len(exts), len(found))
 }
 
 func TestScan_CaseInsensitiveExtension(t *testing.T) {
@@ -109,13 +109,13 @@ func TestScan_CaseInsensitiveExtension(t *testing.T) {
 	s := NewScanner()
 	found, err := s.Scan(context.Background(), dir)
 	require.NoError(t, err)
-	assert.Len(t, found, 2)
+	assert.Equal(t, 2, len(found))
 }
 
 func TestScan_NonexistentDir(t *testing.T) {
 	s := NewScanner()
 	found, err := s.Scan(context.Background(), "/nonexistent/path/12345")
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Empty(t, found)
 }
 
@@ -140,6 +140,6 @@ func TestScan_FileSize(t *testing.T) {
 	s := NewScanner()
 	found, err := s.Scan(context.Background(), dir)
 	require.NoError(t, err)
-	require.Len(t, found, 1)
+	require.Equal(t, 1, len(found))
 	assert.Equal(t, int64(1024), found[0].Size)
 }

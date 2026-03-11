@@ -33,7 +33,7 @@ func (r *AuditLogRepository) Create(ctx context.Context, e *activity.AuditLogEnt
 
 func (r *AuditLogRepository) List(ctx context.Context, f activity.AuditLogFilter) ([]*activity.AuditLogEntry, error) {
 	var conditions []string
-	var args []interface{}
+	var args []any
 	argIdx := 1
 
 	if f.UserID != nil {

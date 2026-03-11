@@ -12,17 +12,17 @@ import (
 )
 
 var (
-	ErrPluginNotFound  = errors.New("plugin not found")
-	ErrAlreadyRunning  = errors.New("plugin already running")
-	ErrNotRunning      = errors.New("plugin not running")
+	ErrPluginNotFound = errors.New("plugin not found")
+	ErrAlreadyRunning = errors.New("plugin already running")
+	ErrNotRunning     = errors.New("plugin not running")
 )
 
 type Service struct {
-	plugins   plugin.PluginRepository
-	runtimes  plugin.PluginRuntimeRepository
-	runner    plugin.PluginRunner
-	parser    plugin.ManifestParser
-	events    shared.EventBus
+	plugins  plugin.PluginRepository
+	runtimes plugin.PluginRuntimeRepository
+	runner   plugin.PluginRunner
+	parser   plugin.ManifestParser
+	events   shared.EventBus
 }
 
 func NewService(
@@ -57,7 +57,7 @@ func (s *Service) InstallPlugin(ctx context.Context, zipPath string) (*plugin.Pl
 		Capabilities: manifest.Capabilities,
 		Permissions:  manifest.Permissions,
 		ConfigSchema: manifest.ConfigSchema,
-		Config:       make(map[string]interface{}),
+		Config:       make(map[string]any),
 		Enabled:      true,
 		Status:       string(plugin.Stopped),
 		InstalledAt:  time.Now(),
@@ -124,7 +124,7 @@ func (s *Service) ListPlugins(ctx context.Context) ([]*plugin.Plugin, error) {
 	return s.plugins.List(ctx)
 }
 
-func (s *Service) GetPluginConfig(ctx context.Context, id string) (map[string]interface{}, error) {
+func (s *Service) GetPluginConfig(ctx context.Context, id string) (map[string]any, error) {
 	p, err := s.plugins.GetByID(ctx, id)
 	if err != nil {
 		return nil, ErrPluginNotFound
@@ -132,7 +132,7 @@ func (s *Service) GetPluginConfig(ctx context.Context, id string) (map[string]in
 	return p.Config, nil
 }
 
-func (s *Service) UpdatePluginConfig(ctx context.Context, id string, config map[string]interface{}) error {
+func (s *Service) UpdatePluginConfig(ctx context.Context, id string, config map[string]any) error {
 	p, err := s.plugins.GetByID(ctx, id)
 	if err != nil {
 		return ErrPluginNotFound

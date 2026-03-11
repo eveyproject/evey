@@ -26,7 +26,7 @@ func TestTVMaze_Name(t *testing.T) {
 func TestTVMaze_Search_SkipsMovies(t *testing.T) {
 	p := NewTVMazeProvider(nil)
 	results, err := p.Search(context.Background(), "Inception", nil, "movie")
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Nil(t, results)
 }
 
@@ -108,6 +108,6 @@ func TestTVMaze_GetEpisodeDetails(t *testing.T) {
 
 func TestStripHTML(t *testing.T) {
 	assert.Equal(t, "Hello world.", stripHTML("<p>Hello <b>world</b>.</p>"))
-	assert.Empty(t, stripHTML(""))
+	assert.Equal(t, "", stripHTML(""))
 	assert.Equal(t, "plain text", stripHTML("plain text"))
 }

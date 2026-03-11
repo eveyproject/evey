@@ -162,7 +162,7 @@ func TestIMDBAPIProvider_GetByProviderID_NotFound(t *testing.T) {
 	defer srv.Close()
 
 	result, err := p.GetByProviderID(context.Background(), "tt9999999", "movie")
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Nil(t, result)
 	assert.Contains(t, err.Error(), "404")
 }
@@ -175,7 +175,7 @@ func TestIMDBAPIProvider_Search_ServerError(t *testing.T) {
 	defer srv.Close()
 
 	results, err := p.Search(context.Background(), "Inception", nil, "movie")
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Nil(t, results)
 	assert.Contains(t, err.Error(), "500")
 }

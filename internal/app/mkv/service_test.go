@@ -8,6 +8,7 @@ import (
 	"github.com/gravity-zero/evey/internal/domain/mkv"
 	mkvfakes "github.com/gravity-zero/evey/internal/domain/mkv/fakes"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestGetContainerInfo(t *testing.T) {
@@ -25,7 +26,7 @@ func TestGetContainerInfo(t *testing.T) {
 
 	svc := appmkv.NewService(reader, writer)
 	info, err := svc.GetContainerInfo(context.Background(), "/media/test.mkv")
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, int64(120000), info.DurationMs)
 	assert.Len(t, info.Tracks, 2)
 }

@@ -129,7 +129,7 @@ func TestCacheStore_DeleteFile_NotFound(t *testing.T) {
 	dir := t.TempDir()
 	store := filesystem.NewCacheStore(dir)
 	err := store.DeleteFile(context.Background(), "missing.ts")
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "not found")
 }
 
@@ -137,7 +137,7 @@ func TestCacheStore_DeleteFile_InvalidPath(t *testing.T) {
 	dir := t.TempDir()
 	store := filesystem.NewCacheStore(dir)
 
-	assert.Error(t, store.DeleteFile(context.Background(), "../etc/passwd"))
-	assert.Error(t, store.DeleteFile(context.Background(), "foo/bar"))
-	assert.Error(t, store.DeleteFile(context.Background(), "foo\\bar"))
+	require.Error(t, store.DeleteFile(context.Background(), "../etc/passwd"))
+	require.Error(t, store.DeleteFile(context.Background(), "foo/bar"))
+	require.Error(t, store.DeleteFile(context.Background(), "foo\\bar"))
 }

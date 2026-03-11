@@ -191,9 +191,9 @@ func TestPlaylistRepo_Delete(t *testing.T) {
 	require.NoError(t, plRepo.Delete(ctx, pl.ID))
 
 	_, err := plRepo.GetByID(ctx, pl.ID)
-	assert.ErrorIs(t, err, playlist.ErrNotFound)
+	require.ErrorIs(t, err, playlist.ErrNotFound)
 
 	items, err := plItemRepo.GetByPlaylistID(ctx, pl.ID)
 	require.NoError(t, err)
-	assert.Empty(t, items)
+	assert.Len(t, items, 0)
 }

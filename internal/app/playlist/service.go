@@ -158,7 +158,8 @@ func (s *Service) GetItems(ctx context.Context, playlistID, userID string) ([]*l
 		return nil, nil, ErrNotOwner
 	}
 	if pl.Type == playlist.Smart {
-		items, err := s.smartQuerier.QueryByRules(ctx, pl.Rules, pl.SortBy, pl.SortOrder, maxItems)
+		var items []*library.MediaItem
+		items, err = s.smartQuerier.QueryByRules(ctx, pl.Rules, pl.SortBy, pl.SortOrder, maxItems)
 		return items, nil, err
 	}
 	plItems, err := s.items.GetByPlaylistID(ctx, playlistID)

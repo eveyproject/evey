@@ -78,7 +78,7 @@ func TestGetOrCreate_MaxConcurrent(t *testing.T) {
 	require.NoError(t, err)
 
 	_, err = m.GetOrCreate("media2", "/nonexistent/b.mkv", 1920, 1080)
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "max concurrent")
 }
 

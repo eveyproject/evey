@@ -83,13 +83,13 @@ func run() error {
 		return fmt.Errorf("open db: %w", err)
 	}
 	defer db.Close()
-	if err := db.Ping(); err != nil {
-		return fmt.Errorf("ping db: %w", err)
+	if err2 := db.Ping(); err2 != nil {
+		return fmt.Errorf("ping db: %w", err2)
 	}
 	rootLog.Info("connected to postgres")
 
-	if err := postgres.RunMigrations(db); err != nil {
-		return fmt.Errorf("migrations: %w", err)
+	if err2 := postgres.RunMigrations(db); err2 != nil {
+		return fmt.Errorf("migrations: %w", err2)
 	}
 
 	// --- Repositories ---

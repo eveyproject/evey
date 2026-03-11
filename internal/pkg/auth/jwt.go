@@ -51,7 +51,7 @@ func (g *JWTGenerator) GenerateRefreshToken() (string, error) {
 }
 
 func (g *JWTGenerator) ValidateAccessToken(tokenStr string) (*user.Claims, error) {
-	token, err := jwt.Parse(tokenStr, func(t *jwt.Token) (interface{}, error) {
+	token, err := jwt.Parse(tokenStr, func(t *jwt.Token) (any, error) {
 		if t.Method.Alg() != jwt.SigningMethodRS256.Alg() {
 			return nil, fmt.Errorf("unexpected signing algorithm: %s", t.Method.Alg())
 		}
@@ -77,7 +77,7 @@ func (g *JWTGenerator) ValidateAccessToken(tokenStr string) (*user.Claims, error
 	if pid, ok := mapClaims["profile_id"].(string); ok {
 		claims.ProfileID = pid
 	}
-	if perms, ok := mapClaims["permissions"].([]interface{}); ok {
+	if perms, ok := mapClaims["permissions"].([]any); ok {
 		for _, p := range perms {
 			if s, ok := p.(string); ok {
 				claims.Permissions = append(claims.Permissions, s)

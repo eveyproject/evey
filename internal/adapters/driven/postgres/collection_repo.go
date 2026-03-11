@@ -200,9 +200,9 @@ func (r *CollectionRepository) CountSmartItems(ctx context.Context, col *library
 	return count, err
 }
 
-func buildRulesWhere(rules []library.CollectionRule) (string, []interface{}) {
+func buildRulesWhere(rules []library.CollectionRule) (string, []any) {
 	var conditions []string
-	var args []interface{}
+	var args []any
 	argIdx := 1
 
 	for _, rule := range rules {
@@ -219,7 +219,7 @@ func buildRulesWhere(rules []library.CollectionRule) (string, []interface{}) {
 	return " WHERE " + strings.Join(conditions, " AND "), args
 }
 
-func ruleToSQL(rule library.CollectionRule, argIdx *int) (string, []interface{}) {
+func ruleToSQL(rule library.CollectionRule, argIdx *int) (string, []any) {
 	switch rule.Field {
 	case "genre":
 		switch rule.Operator {
@@ -227,12 +227,12 @@ func ruleToSQL(rule library.CollectionRule, argIdx *int) (string, []interface{})
 			g, _ := json.Marshal([]string{rule.Value})
 			cond := fmt.Sprintf("genres @> $%d::jsonb", *argIdx)
 			*argIdx++
-			return cond, []interface{}{string(g)}
+			return cond, []any{string(g)}
 		case library.OpEq:
 			g, _ := json.Marshal([]string{rule.Value})
 			cond := fmt.Sprintf("genres @> $%d::jsonb", *argIdx)
 			*argIdx++
-			return cond, []interface{}{string(g)}
+			return cond, []any{string(g)}
 		}
 	case "year":
 		v, err := strconv.Atoi(rule.Value)
@@ -254,21 +254,21 @@ func ruleToSQL(rule library.CollectionRule, argIdx *int) (string, []interface{})
 		}
 		cond := fmt.Sprintf("year %s $%d", op, *argIdx)
 		*argIdx++
-		return cond, []interface{}{v}
+		return cond, []any{v}
 	case "type":
 		switch rule.Operator {
 		case library.OpEq:
 			cond := fmt.Sprintf("type = $%d", *argIdx)
 			*argIdx++
-			return cond, []interface{}{rule.Value}
+			return cond, []any{rule.Value}
 		case library.OpNeq:
 			cond := fmt.Sprintf("type != $%d", *argIdx)
 			*argIdx++
-			return cond, []interface{}{rule.Value}
+			return cond, []any{rule.Value}
 		case library.OpIn:
 			vals := strings.Split(rule.Value, ",")
 			placeholders := make([]string, len(vals))
-			var ruleArgs []interface{}
+			var ruleArgs []any
 			for i, v := range vals {
 				placeholders[i] = fmt.Sprintf("$%d", *argIdx)
 				ruleArgs = append(ruleArgs, strings.TrimSpace(v))
@@ -294,7 +294,7 @@ func ruleToSQL(rule library.CollectionRule, argIdx *int) (string, []interface{})
 		}
 		cond := fmt.Sprintf("community_rating %s $%d", op, *argIdx)
 		*argIdx++
-		return cond, []interface{}{v}
+		return cond, []any{v}
 	case "resolution":
 		switch rule.Operator {
 		case library.OpEq:
@@ -304,7 +304,7 @@ func ruleToSQL(rule library.CollectionRule, argIdx *int) (string, []interface{})
 			}
 			cond := fmt.Sprintf(`id IN (SELECT media_item_id FROM media_streams WHERE stream_type='video' AND height >= $%d)`, *argIdx)
 			*argIdx++
-			return cond, []interface{}{h}
+			return cond, []any{h}
 		}
 	case "added_date":
 		days, err := strconv.Atoi(rule.Value)
@@ -315,7 +315,7 @@ func ruleToSQL(rule library.CollectionRule, argIdx *int) (string, []interface{})
 		case library.OpLt:
 			cond := fmt.Sprintf("added_at >= $%d", *argIdx)
 			*argIdx++
-			return cond, []interface{}{time.Now().AddDate(0, 0, -days)}
+			return cond, []any{time.Now().AddDate(0, 0, -days)}
 		}
 	}
 	return "", nil
@@ -335,7 +335,7 @@ func resolutionToHeight(res string) int {
 	return 0
 }
 
-func (r *CollectionRepository) queryMediaItems(ctx context.Context, query string, args ...interface{}) ([]*library.MediaItem, error) {
+func (r *CollectionRepository) queryMediaItems(ctx context.Context, query string, args ...any) ([]*library.MediaItem, error) {
 	rows, err := r.db.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, err

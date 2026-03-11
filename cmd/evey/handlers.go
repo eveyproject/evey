@@ -16,12 +16,12 @@ import (
 	"time"
 
 	appsubtitle "github.com/gravity-zero/evey/internal/app/subtitle"
+	apptranscoding "github.com/gravity-zero/evey/internal/app/transcoding"
 	domainlibrary "github.com/gravity-zero/evey/internal/domain/library"
 	domainmeta "github.com/gravity-zero/evey/internal/domain/metadata"
 	domainplayback "github.com/gravity-zero/evey/internal/domain/playback"
-	domainuser "github.com/gravity-zero/evey/internal/domain/user"
-	apptranscoding "github.com/gravity-zero/evey/internal/app/transcoding"
 	domaintranscoding "github.com/gravity-zero/evey/internal/domain/transcoding"
+	domainuser "github.com/gravity-zero/evey/internal/domain/user"
 	"github.com/gravity-zero/evey/internal/pkg/hdr"
 )
 
@@ -295,7 +295,7 @@ func transcodeHandler(tokenGen interface {
 		needsVideoTranscode := false
 		needsAudioTranscode := true
 		var streams []*domainlibrary.MediaStream
-		if s, err := libSvc.GetMediaStreams(r.Context(), mediaID); err == nil {
+		if s, err2 := libSvc.GetMediaStreams(r.Context(), mediaID); err2 == nil {
 			streams = s
 			for _, s := range streams {
 				slog.Debug("transcode: stream", slog.String("media_id", mediaID), slog.String("type", s.StreamType), slog.String("codec", s.Codec), slog.Bool("default", s.IsDefault))
@@ -310,7 +310,7 @@ func transcodeHandler(tokenGen interface {
 				}
 			}
 		} else {
-			slog.Error("transcode: GetMediaStreams failed", slog.String("media_id", mediaID), slog.Any("err", err))
+			slog.Error("transcode: GetMediaStreams failed", slog.String("media_id", mediaID), slog.Any("err", err2))
 		}
 
 		hdrInfo := hdr.DetectHDR(streams)
@@ -684,7 +684,7 @@ func trickplayManifestHandler(tokenGen interface {
 		setCORSHeaders(w, r, baseURL)
 		w.Header().Set("Cache-Control", "public, max-age=86400")
 		fmt.Fprint(w, "WEBVTT\n\n")
-		for i := 0; i < totalFrames; i++ {
+		for i := range totalFrames {
 			startSec := i * manifest.Interval
 			endSec := (i + 1) * manifest.Interval
 			imageIdx := i / tilesPerImage
@@ -956,7 +956,7 @@ func hlsMasterHandler(tokenGen interface {
 		}
 
 		sourceWidth, sourceHeight := 1920, 1080
-		if streams, err := libSvc.GetMediaStreams(r.Context(), mediaID); err == nil {
+		if streams, err2 := libSvc.GetMediaStreams(r.Context(), mediaID); err2 == nil {
 			for _, s := range streams {
 				if s.StreamType == "video" && s.Width != nil && s.Height != nil {
 					sourceWidth = *s.Width

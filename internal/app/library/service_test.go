@@ -161,7 +161,7 @@ func TestScanTVShow_TransientDBError_NoDuplicate(t *testing.T) {
 
 	_, _, err := svc.ScanLibrary(context.Background(), "lib-1")
 	require.Error(t, err)
-	assert.ErrorContains(t, err, "connection reset by peer")
+	require.ErrorContains(t, err, "connection reset by peer")
 
 	assert.Empty(t, mediaRepo.All(), "transient DB error must not create items")
 }
@@ -187,7 +187,7 @@ func TestScanTVShow_TitleLookupTransientError_NoDuplicate(t *testing.T) {
 
 	_, _, err := svc.ScanLibrary(context.Background(), "lib-1")
 	require.Error(t, err)
-	assert.ErrorContains(t, err, "connection reset by peer")
+	require.ErrorContains(t, err, "connection reset by peer")
 
 	assert.Empty(t, mediaRepo.All(), "transient DB error on title lookup must not create items")
 }

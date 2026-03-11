@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"strings"
 
 	"github.com/gravity-zero/evey/internal/domain/library"
@@ -313,10 +314,18 @@ func (r *MediaItemRepository) scanMediaItem(row *sql.Row) (*library.MediaItem, e
 	if fingerprint != nil {
 		item.FileFingerprint = *fingerprint
 	}
-	_ = json.Unmarshal(providerJSON, &item.ProviderIDs)
-	_ = json.Unmarshal(genresJSON, &item.Genres)
-	_ = json.Unmarshal(studiosJSON, &item.Studios)
-	_ = json.Unmarshal(tagsJSON, &item.Tags)
+	if err := json.Unmarshal(providerJSON, &item.ProviderIDs); err != nil {
+		slog.Warn("json unmarshal", slog.String("field", "provider_ids"), slog.Any("err", err))
+	}
+	if err := json.Unmarshal(genresJSON, &item.Genres); err != nil {
+		slog.Warn("json unmarshal", slog.String("field", "genres"), slog.Any("err", err))
+	}
+	if err := json.Unmarshal(studiosJSON, &item.Studios); err != nil {
+		slog.Warn("json unmarshal", slog.String("field", "studios"), slog.Any("err", err))
+	}
+	if err := json.Unmarshal(tagsJSON, &item.Tags); err != nil {
+		slog.Warn("json unmarshal", slog.String("field", "tags"), slog.Any("err", err))
+	}
 	return item, nil
 }
 
@@ -344,9 +353,17 @@ func (r *MediaItemRepository) scanMediaItemFromRows(rows *sql.Rows) (*library.Me
 	if fingerprint != nil {
 		item.FileFingerprint = *fingerprint
 	}
-	_ = json.Unmarshal(providerJSON, &item.ProviderIDs)
-	_ = json.Unmarshal(genresJSON, &item.Genres)
-	_ = json.Unmarshal(studiosJSON, &item.Studios)
-	_ = json.Unmarshal(tagsJSON, &item.Tags)
+	if err := json.Unmarshal(providerJSON, &item.ProviderIDs); err != nil {
+		slog.Warn("json unmarshal", slog.String("field", "provider_ids"), slog.Any("err", err))
+	}
+	if err := json.Unmarshal(genresJSON, &item.Genres); err != nil {
+		slog.Warn("json unmarshal", slog.String("field", "genres"), slog.Any("err", err))
+	}
+	if err := json.Unmarshal(studiosJSON, &item.Studios); err != nil {
+		slog.Warn("json unmarshal", slog.String("field", "studios"), slog.Any("err", err))
+	}
+	if err := json.Unmarshal(tagsJSON, &item.Tags); err != nil {
+		slog.Warn("json unmarshal", slog.String("field", "tags"), slog.Any("err", err))
+	}
 	return item, nil
 }

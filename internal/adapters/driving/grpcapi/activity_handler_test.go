@@ -71,7 +71,7 @@ func TestActivityHandler_GetPlayHistory_WithPagination(t *testing.T) {
 	h, _, _, playHistory, _ := newActivityHandler()
 
 	now := time.Now()
-	for i := range 5 {
+	for i := 0; i < 5; i++ {
 		playHistory.Add(&activity.PlayHistoryEntry{
 			ID: "ph" + string(rune('0'+i)), ProfileID: "profile-1",
 			MediaItemID: "m1", MediaTitle: "Movie", MediaType: "movie",
@@ -198,7 +198,7 @@ func TestActivityHandler_ListServerMetrics_Success(t *testing.T) {
 
 	require.NoError(t, err)
 	require.Len(t, resp.Metrics, 1)
-	assert.Equal(t, 45.5, resp.Metrics[0].CpuPercent)
+	assert.InEpsilon(t, 45.5, resp.Metrics[0].CpuPercent, 1e-6)
 	assert.Equal(t, int32(3), resp.Metrics[0].ActiveStreams)
 	assert.Equal(t, int32(1), resp.Metrics[0].ActiveTranscodes)
 	assert.InDelta(t, 50.0, resp.Metrics[0].MemoryPercent, 0.1)

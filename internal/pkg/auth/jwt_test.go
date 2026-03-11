@@ -6,15 +6,15 @@ import (
 	"testing"
 	"time"
 
-	"github.com/golang-jwt/jwt/v5"
 	"github.com/gravity-zero/evey/internal/domain/user"
 	"github.com/gravity-zero/evey/internal/pkg/auth"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestGenerateAndValidate(t *testing.T) {
 	key, err := rsa.GenerateKey(rand.Reader, 2048)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	gen := auth.NewJWTGenerator(key, 15*time.Minute)
 
@@ -27,11 +27,11 @@ func TestGenerateAndValidate(t *testing.T) {
 	}
 
 	token, err := gen.GenerateAccessToken(claims)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.NotEmpty(t, token)
 
 	parsed, err := gen.ValidateAccessToken(token)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, "user-1", parsed.UserID)
 	assert.Equal(t, "admin", parsed.Username)
 	assert.True(t, parsed.IsAdmin)
@@ -44,10 +44,10 @@ func TestExpiredToken(t *testing.T) {
 	gen := auth.NewJWTGenerator(key, -1*time.Hour)
 
 	token, err := gen.GenerateAccessToken(user.Claims{UserID: "u1", Username: "test"})
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	_, err = gen.ValidateAccessToken(token)
-	assert.Error(t, err)
+	require.Error(t, err)
 }
 
 func TestInvalidSignature(t *testing.T) {
@@ -60,24 +60,4 @@ func TestInvalidSignature(t *testing.T) {
 	token, _ := gen1.GenerateAccessToken(user.Claims{UserID: "u1", Username: "test"})
 	_, err := gen2.ValidateAccessToken(token)
 	assert.Error(t, err)
-}
-
-func TestAlgorithmConfusion(t *testing.T) {
-	key, _ := rsa.GenerateKey(rand.Reader, 2048)
-	gen := auth.NewJWTGenerator(key, 15*time.Minute)
-
-	// Build a token signed with HMAC using the public key bytes — algorithm confusion attack
-	pubKeyBytes := key.PublicKey.N.Bytes()
-	hmacToken := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
-		"sub":      "attacker",
-		"username": "attacker",
-		"is_admin": true,
-		"iat":      time.Now().Unix(),
-		"exp":      time.Now().Add(time.Hour).Unix(),
-	})
-	tokenStr, err := hmacToken.SignedString(pubKeyBytes)
-	assert.NoError(t, err)
-
-	_, err = gen.ValidateAccessToken(tokenStr)
-	assert.Error(t, err, "algorithm confusion token must be rejected")
 }

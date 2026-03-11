@@ -443,7 +443,7 @@ func (s *Service) RevokeAPIKey(ctx context.Context, id string) error {
 const maxRefreshTokenRetries = 3
 
 func (s *Service) generateAndStoreRefreshToken(ctx context.Context, userID string) (string, error) {
-	for i := 0; i < maxRefreshTokenRetries; i++ {
+	for range maxRefreshTokenRetries {
 		token, err := s.tokens.GenerateRefreshToken()
 		if err != nil {
 			return "", fmt.Errorf("generate refresh token: %w", err)

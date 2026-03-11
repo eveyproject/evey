@@ -73,11 +73,13 @@ func (s *Service) GetItems(ctx context.Context, id string, limit, offset int) ([
 	}
 
 	if col.Type == library.CollectionSmart {
-		items, err := s.collections.GetSmartItems(ctx, col, limit, offset)
+		var items []*library.MediaItem
+		items, err = s.collections.GetSmartItems(ctx, col, limit, offset)
 		if err != nil {
 			return nil, 0, err
 		}
-		total, err := s.collections.CountSmartItems(ctx, col)
+		var total int
+		total, err = s.collections.CountSmartItems(ctx, col)
 		if err != nil {
 			return nil, 0, err
 		}

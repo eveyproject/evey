@@ -30,7 +30,7 @@ func TestStartTranscode(t *testing.T) {
 	}
 
 	err := svc.StartTranscode(context.Background(), job)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, string(transcoding.Running), job.Status)
 	assert.Len(t, bus.PublishedEvents(), 1)
 }

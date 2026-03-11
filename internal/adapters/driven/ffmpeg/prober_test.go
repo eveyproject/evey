@@ -43,7 +43,7 @@ func TestParseFrameRate_Invalid(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.input, func(t *testing.T) {
 			got := parseFrameRate(tc.input)
-			assert.Equal(t, 0.0, got)
+			assert.InDelta(t, 0.0, got, 0.001)
 		})
 	}
 }
