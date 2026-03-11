@@ -1,0 +1,160 @@
+package interceptors_test
+
+import (
+	"context"
+	"testing"
+
+	"github.com/gravity-zero/evey/internal/adapters/driving/grpcapi/interceptors"
+	"github.com/gravity-zero/evey/internal/domain/user"
+	"github.com/gravity-zero/evey/internal/domain/user/fakes"
+	"github.com/gravity-zero/evey/internal/pkg/auth"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/metadata"
+	"google.golang.org/grpc/status"
+)
+
+func setupInterceptor() (*interceptors.AuthInterceptor, *fakes.FakeTokenGenerator) {
+	tokenGen := fakes.NewFakeTokenGenerator()
+	return interceptors.NewAuthInterceptor(tokenGen), tokenGen
+}
+
+func ctxWithToken(token string) context.Context {
+	md := metadata.Pairs("authorization", "Bearer "+token)
+	return metadata.NewIncomingContext(context.Background(), md)
+}
+
+var nopHandler = func(ctx context.Context, req interface{}) (interface{}, error) {
+	return ctx, nil
+}
+
+func TestAuthInterceptor_PublicMethod(t *testing.T) {
+	ai, _ := setupInterceptor()
+	interceptor := ai.Unary()
+
+	info := &grpc.UnaryServerInfo{FullMethod: "/evey.v1.UserService/Login"}
+	resp, err := interceptor(context.Background(), nil, info, nopHandler)
+
+	require.NoError(t, err)
+	assert.NotNil(t, resp)
+}
+
+func TestAuthInterceptor_RequiresToken(t *testing.T) {
+	ai, _ := setupInterceptor()
+	interceptor := ai.Unary()
+
+	tests := []struct {
+		name string
+		ctx  context.Context
+	}{
+		{"no metadata", context.Background()},
+		{"empty authorization", metadata.NewIncomingContext(
+			context.Background(), metadata.Pairs("other", "val"),
+		)},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			info := &grpc.UnaryServerInfo{FullMethod: "/evey.v1.LibraryService/ListLibraries"}
+			_, err := interceptor(tt.ctx, nil, info, nopHandler)
+
+			require.Error(t, err)
+			assert.Equal(t, codes.Unauthenticated, status.Code(err))
+		})
+	}
+}
+
+func TestAuthInterceptor_ExpiredToken(t *testing.T) {
+	ai, _ := setupInterceptor()
+	interceptor := ai.Unary()
+
+	ctx := ctxWithToken("invalid-token-that-doesnt-exist")
+	info := &grpc.UnaryServerInfo{FullMethod: "/evey.v1.LibraryService/ListLibraries"}
+
+	_, err := interceptor(ctx, nil, info, nopHandler)
+	require.Error(t, err)
+	assert.Equal(t, codes.Unauthenticated, status.Code(err))
+}
+
+func TestAuthInterceptor_AdminOnly_NonAdmin(t *testing.T) {
+	ai, tokenGen := setupInterceptor()
+	interceptor := ai.Unary()
+
+	token, _ := tokenGen.GenerateAccessToken(user.Claims{
+		UserID:      "user-1",
+		Username:    "viewer",
+		IsAdmin:     false,
+		Permissions: []string{auth.PermMediaRead},
+	})
+
+	adminHandler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		claims := interceptors.ClaimsFromContext(ctx)
+		if claims == nil || !auth.CheckPermission(claims.Permissions, auth.PermServerAdmin) {
+			return nil, status.Error(codes.PermissionDenied, "admin only")
+		}
+		return "ok", nil
+	}
+
+	info := &grpc.UnaryServerInfo{FullMethod: "/evey.v1.AdminService/GetAuditLog"}
+	_, err := interceptor(ctxWithToken(token), nil, info, adminHandler)
+
+	require.Error(t, err)
+	assert.Equal(t, codes.PermissionDenied, status.Code(err))
+}
+
+func TestAuthInterceptor_AdminOnly_Admin(t *testing.T) {
+	ai, tokenGen := setupInterceptor()
+	interceptor := ai.Unary()
+
+	token, _ := tokenGen.GenerateAccessToken(user.Claims{
+		UserID:      "admin-1",
+		Username:    "admin",
+		IsAdmin:     true,
+		Permissions: []string{auth.PermServerAdmin},
+	})
+
+	adminHandler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		claims := interceptors.ClaimsFromContext(ctx)
+		if claims == nil || !auth.CheckPermission(claims.Permissions, auth.PermServerAdmin) {
+			return nil, status.Error(codes.PermissionDenied, "admin only")
+		}
+		return "ok", nil
+	}
+
+	info := &grpc.UnaryServerInfo{FullMethod: "/evey.v1.AdminService/GetAuditLog"}
+	resp, err := interceptor(ctxWithToken(token), nil, info, adminHandler)
+
+	require.NoError(t, err)
+	assert.Equal(t, "ok", resp)
+}
+
+func TestEnforceRBAC_ContextClaims(t *testing.T) {
+	ai, tokenGen := setupInterceptor()
+	interceptor := ai.Unary()
+
+	claims := user.Claims{
+		UserID:      "user-42",
+		Username:    "testuser",
+		IsAdmin:     true,
+		ProfileID:   "profile-7",
+		Permissions: []string{auth.PermLibraryRead, auth.PermMediaRead},
+	}
+	token, _ := tokenGen.GenerateAccessToken(claims)
+
+	extractHandler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return interceptors.ClaimsFromContext(ctx), nil
+	}
+
+	info := &grpc.UnaryServerInfo{FullMethod: "/evey.v1.LibraryService/ListLibraries"}
+	resp, err := interceptor(ctxWithToken(token), nil, info, extractHandler)
+
+	require.NoError(t, err)
+	got := resp.(*user.Claims)
+	assert.Equal(t, "user-42", got.UserID)
+	assert.Equal(t, "testuser", got.Username)
+	assert.True(t, got.IsAdmin)
+	assert.Equal(t, "profile-7", got.ProfileID)
+	assert.ElementsMatch(t, []string{auth.PermLibraryRead, auth.PermMediaRead}, got.Permissions)
+}
