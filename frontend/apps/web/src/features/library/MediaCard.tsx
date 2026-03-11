@@ -43,7 +43,7 @@ function HoverPreview({ item }: { item: MediaCardItem }) {
 
   return (
     <div
-      className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 w-56 rounded-lg p-3 shadow-xl z-50 pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-200 hidden sm:block"
+      className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 w-56 rounded-lg p-3 shadow-xl z-50 pointer-events-none transition-opacity duration-200 hidden sm:block"
       style={{
         backgroundColor: "var(--surface)",
         border: "1px solid var(--border)",
@@ -233,6 +233,16 @@ export function MediaCard({
     setShowPreview(false);
   }
 
+  function handleFocus() {
+    if (!hasPreviewData) return;
+    hoverTimer.current = setTimeout(() => setShowPreview(true), 400);
+  }
+
+  function handleBlur() {
+    if (hoverTimer.current) clearTimeout(hoverTimer.current);
+    setShowPreview(false);
+  }
+
   function handleContextMenu(e: React.MouseEvent) {
     if (!item.id) return;
     e.preventDefault();
@@ -258,12 +268,14 @@ export function MediaCard({
       data-testid="media-card"
       onMouseEnter={handleMouseEnter}
       onMouseLeave={handleMouseLeave}
+      onFocus={handleFocus}
+      onBlur={handleBlur}
       onContextMenu={handleContextMenu}
     >
       {showPreview && <HoverPreview item={item} />}
 
       <div
-        className="relative w-full overflow-hidden transition-all duration-200 ease-out group-hover:scale-105 group-hover:shadow-[0_8px_24px_rgba(0,0,0,0.4)]"
+        className="relative w-full overflow-hidden transition-all duration-200 ease-out group-hover:scale-105 group-hover:shadow-[0_8px_24px_rgba(0,0,0,0.4)] group-focus-within:scale-105 group-focus-within:shadow-[0_8px_24px_rgba(0,0,0,0.4)]"
         style={{
           aspectRatio: "2/3",
           borderRadius: "var(--radius-md)",
@@ -367,18 +379,18 @@ export function MediaCard({
 
         {/* Favorite button — top-left on hover */}
         {item.id && (
-          <div className="absolute top-2 left-2 z-20 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+          <div className="absolute top-2 left-2 z-20 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity duration-200">
             <FavoriteButton mediaId={item.id} size="sm" />
           </div>
         )}
 
         {/* Hover overlay: play button + title */}
         <div
-          className="absolute inset-0 flex flex-col items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-200"
+          className="absolute inset-0 flex flex-col items-center justify-center opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity duration-200"
           style={{ background: "linear-gradient(to top, rgba(0,0,0,0.8) 0%, rgba(0,0,0,0.3) 50%, rgba(0,0,0,0.1) 100%)" }}
         >
           <div
-            className="w-12 h-12 rounded-full flex items-center justify-center backdrop-blur-sm transition-transform duration-200 group-hover:scale-110"
+            className="w-12 h-12 rounded-full flex items-center justify-center backdrop-blur-sm transition-transform duration-200 group-hover:scale-110 group-focus-within:scale-110"
             style={{ backgroundColor: "rgba(255,255,255,0.2)", border: "2px solid rgba(255,255,255,0.6)" }}
           >
             <svg

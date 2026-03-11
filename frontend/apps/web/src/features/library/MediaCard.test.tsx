@@ -1,6 +1,6 @@
 import React from "react";
-import { render, screen } from "@testing-library/react";
-import { describe, it, expect, vi } from "vitest";
+import { render, screen, fireEvent, act } from "@testing-library/react";
+import { describe, it, expect, vi, beforeEach } from "vitest";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MediaCard } from "./MediaCard";
 
@@ -18,7 +18,16 @@ vi.mock("@tanstack/react-router", () => ({
   }) => {
     const href = params?.mediaId ? to.replace("$mediaId", params.mediaId) : to;
     return (
-      <a href={href} data-testid={rest["data-testid"] as string}>
+      <a
+        href={href}
+        data-testid={rest["data-testid"] as string}
+        className={rest["className"] as string}
+        onMouseEnter={rest["onMouseEnter"] as React.MouseEventHandler}
+        onMouseLeave={rest["onMouseLeave"] as React.MouseEventHandler}
+        onFocus={rest["onFocus"] as React.FocusEventHandler}
+        onBlur={rest["onBlur"] as React.FocusEventHandler}
+        onContextMenu={rest["onContextMenu"] as React.MouseEventHandler}
+      >
         {children}
       </a>
     );
@@ -36,7 +45,7 @@ vi.mock("@evey/store", () => ({
   useAuthStore: () => null,
 }));
 
-const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+let queryClient: QueryClient;
 function Wrapper({ children }: { children: React.ReactNode }) {
   return <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>;
 }
@@ -48,7 +57,23 @@ const baseItem = {
   type: "MEDIA_ITEM_TYPE_MOVIE" as const,
 };
 
+const itemWithPreview = {
+  ...baseItem,
+  overview: "A mind-bending thriller",
+  communityRating: 8.8,
+  genres: ["Sci-Fi", "Action"],
+};
+
 describe("MediaCard", () => {
+  beforeEach(() => {
+    queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    vi.useFakeTimers();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
   it("renders title", () => {
     render(<MediaCard item={baseItem} />, { wrapper: Wrapper });
     const titles = screen.getAllByText("Inception");
@@ -101,5 +126,94 @@ describe("MediaCard", () => {
   it("renders fallback initial when no poster", () => {
     render(<MediaCard item={{ id: undefined, title: "Arrival" }} />, { wrapper: Wrapper });
     expect(screen.getByText("A")).toBeInTheDocument();
+  });
+
+  // Badge tests
+  it("shows watched badge when isWatched=true", () => {
+    render(<MediaCard item={baseItem} isWatched />, { wrapper: Wrapper });
+    expect(screen.getByTestId("watched-badge")).toBeInTheDocument();
+  });
+
+  it("shows watched badge when progressPercent >= 95", () => {
+    render(<MediaCard item={baseItem} showProgress progressPercent={96} />, { wrapper: Wrapper });
+    expect(screen.getByTestId("watched-badge")).toBeInTheDocument();
+  });
+
+  it("does not show watched badge when progressPercent < 95", () => {
+    render(<MediaCard item={baseItem} showProgress progressPercent={80} />, { wrapper: Wrapper });
+    expect(screen.queryByTestId("watched-badge")).not.toBeInTheDocument();
+  });
+
+  it("shows resolution badge", () => {
+    render(<MediaCard item={baseItem} resolution="1080p" />, { wrapper: Wrapper });
+    expect(screen.getByTestId("resolution-badge")).toHaveTextContent("1080p");
+  });
+
+  it("formats 2160p as 4K", () => {
+    render(<MediaCard item={baseItem} resolution="2160p" />, { wrapper: Wrapper });
+    expect(screen.getByTestId("resolution-badge")).toHaveTextContent("4K");
+  });
+
+  it("shows HDR badge", () => {
+    render(<MediaCard item={baseItem} isHdr />, { wrapper: Wrapper });
+    expect(screen.getByTestId("hdr-badge")).toHaveTextContent("HDR");
+  });
+
+  it("shows both resolution and HDR badges together", () => {
+    render(<MediaCard item={baseItem} resolution="2160p" isHdr />, { wrapper: Wrapper });
+    expect(screen.getByTestId("resolution-badge")).toHaveTextContent("4K");
+    expect(screen.getByTestId("hdr-badge")).toHaveTextContent("HDR");
+  });
+
+  it("does not show resolution/HDR badges when not provided", () => {
+    render(<MediaCard item={baseItem} />, { wrapper: Wrapper });
+    expect(screen.queryByTestId("resolution-badge")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("hdr-badge")).not.toBeInTheDocument();
+  });
+
+  // Keyboard accessibility
+  it("shows preview on focus (keyboard navigation)", () => {
+    render(<MediaCard item={itemWithPreview} />, { wrapper: Wrapper });
+    const card = screen.getByTestId("media-card");
+
+    expect(screen.queryByText("A mind-bending thriller")).not.toBeInTheDocument();
+
+    act(() => { fireEvent.focus(card); });
+    act(() => { vi.advanceTimersByTime(500); });
+
+    expect(screen.getByText("A mind-bending thriller")).toBeInTheDocument();
+  });
+
+  it("hides preview on blur", () => {
+    render(<MediaCard item={itemWithPreview} />, { wrapper: Wrapper });
+    const card = screen.getByTestId("media-card");
+
+    act(() => { fireEvent.focus(card); });
+    act(() => { vi.advanceTimersByTime(500); });
+    expect(screen.getByText("A mind-bending thriller")).toBeInTheDocument();
+
+    act(() => { fireEvent.blur(card); });
+    expect(screen.queryByText("A mind-bending thriller")).not.toBeInTheDocument();
+  });
+
+  it("shows preview on mouse hover", () => {
+    render(<MediaCard item={itemWithPreview} />, { wrapper: Wrapper });
+    const card = screen.getByTestId("media-card");
+
+    act(() => { fireEvent.mouseEnter(card); });
+    act(() => { vi.advanceTimersByTime(500); });
+
+    expect(screen.getByText("A mind-bending thriller")).toBeInTheDocument();
+  });
+
+  it("does not show preview for items without preview data", () => {
+    render(<MediaCard item={baseItem} />, { wrapper: Wrapper });
+    const card = screen.getByTestId("media-card");
+
+    act(() => { fireEvent.focus(card); });
+    act(() => { vi.advanceTimersByTime(500); });
+
+    // overview text shouldn't appear since baseItem has no overview/genres
+    expect(screen.queryByText("A mind-bending thriller")).not.toBeInTheDocument();
   });
 });
