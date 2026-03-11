@@ -11,6 +11,7 @@ import { NextEpisodeOverlay } from "./NextEpisodeOverlay";
 import { SkipIntroButton } from "./SkipIntroButton";
 import { KeyboardShortcutsOverlay } from "./KeyboardShortcutsOverlay";
 import type { Chapter } from "@/hooks/useChapters";
+import { usePlaybackSettings } from "@/hooks/usePlaybackSettings";
 import { canPlayHevc } from "@/utils/codec";
 
 const SPEED_OPTIONS = [0.5, 0.75, 1, 1.25, 1.5, 2];
@@ -83,6 +84,13 @@ export function HLSPlayer({
   const currentSubtitleRef = useRef(currentSubtitle);
   currentSubtitleRef.current = currentSubtitle;
   const accessToken = useAuthStore((s) => s.accessToken);
+  const { data: playbackSettings } = usePlaybackSettings();
+  const skipFwd = playbackSettings?.skipForwardSeconds ?? 10;
+  const skipBwd = playbackSettings?.skipBackwardSeconds ?? 10;
+  const skipFwdRef = useRef(skipFwd);
+  skipFwdRef.current = skipFwd;
+  const skipBwdRef = useRef(skipBwd);
+  skipBwdRef.current = skipBwd;
   // Offset applied when we restart transcode from a non-zero position
   const transcodeOffsetRef = useRef(0);
 
@@ -237,13 +245,13 @@ export function HLSPlayer({
         case "ArrowLeft":
         case "j":
           e.preventDefault();
-          seekRef.current(Math.max(0, positionRef.current - 10));
+          seekRef.current(Math.max(0, positionRef.current - skipBwdRef.current));
           break;
         case "ArrowRight":
         case "l": {
           e.preventDefault();
           const dur = knownDurationSecRef.current > 0 ? knownDurationSecRef.current : (video.duration && isFinite(video.duration)) ? video.duration : 0;
-          seekRef.current(Math.min(dur || video.currentTime + 10, positionRef.current + 10));
+          seekRef.current(Math.min(dur || video.currentTime + skipFwdRef.current, positionRef.current + skipFwdRef.current));
           break;
         }
         case "ArrowUp":
@@ -499,8 +507,10 @@ export function HLSPlayer({
         mediaId={mediaId}
         onSeekRequest={handleSeekRequest}
         transcodeOffset={transcodeOffsetRef.current}
+        skipForwardSeconds={skipFwd}
+        skipBackwardSeconds={skipBwd}
       />
-      {showShortcuts && <KeyboardShortcutsOverlay onClose={() => setShowShortcuts(false)} />}
+      {showShortcuts && <KeyboardShortcutsOverlay onClose={() => setShowShortcuts(false)} skipForwardSeconds={skipFwd} skipBackwardSeconds={skipBwd} />}
     </div>
   );
 }

@@ -182,6 +182,8 @@ interface PlayerControlsProps {
   autoQuality?: boolean;
   onAutoQualityToggle?: (auto: boolean) => void;
   autoQualityLabel?: string;
+  skipForwardSeconds?: number;
+  skipBackwardSeconds?: number;
 }
 
 function formatTime(seconds: number): string {
@@ -418,6 +420,8 @@ export function PlayerControls({
   autoQuality = false,
   onAutoQualityToggle,
   autoQualityLabel,
+  skipForwardSeconds = 10,
+  skipBackwardSeconds = 10,
 }: PlayerControlsProps) {
   const [visible, setVisible] = useState(true);
   const [playing, setPlaying] = useState(false);
@@ -518,8 +522,6 @@ export function PlayerControls({
     else video.pause();
   }
 
-  const SKIP_SECONDS = 10;
-
   const absoluteTime = transcodeOffset + currentTime;
 
   function handleSeek(e: React.ChangeEvent<HTMLInputElement>) {
@@ -533,15 +535,15 @@ export function PlayerControls({
   }
 
   function skipForward() {
-    const target = Math.min(effectiveDuration, absoluteTime + SKIP_SECONDS);
+    const target = Math.min(effectiveDuration, absoluteTime + skipForwardSeconds);
     if (onSeekRequest) onSeekRequest(target);
-    else if (videoRef.current) videoRef.current.currentTime += SKIP_SECONDS;
+    else if (videoRef.current) videoRef.current.currentTime += skipForwardSeconds;
   }
 
   function skipBackward() {
-    const target = Math.max(0, absoluteTime - SKIP_SECONDS);
+    const target = Math.max(0, absoluteTime - skipBackwardSeconds);
     if (onSeekRequest) onSeekRequest(target);
-    else if (videoRef.current) videoRef.current.currentTime -= SKIP_SECONDS;
+    else if (videoRef.current) videoRef.current.currentTime -= skipBackwardSeconds;
   }
 
   const prevEpisode = (() => {
@@ -714,12 +716,12 @@ export function PlayerControls({
           {/* skip backward */}
           <button
             onClick={skipBackward}
-            aria-label={`Rewind ${SKIP_SECONDS}s`}
+            aria-label={`Rewind ${skipBackwardSeconds}s`}
             className="text-white hover:text-[var(--accent)] transition-colors p-1"
           >
             <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor">
               <path d="M11.99 5V1l-5 5 5 5V7c3.31 0 6 2.69 6 6s-2.69 6-6 6-6-2.69-6-6h-2c0 4.42 3.58 8 8 8s8-3.58 8-8-3.58-8-8-8z" />
-              <text x="12" y="15.5" textAnchor="middle" fontSize="7" fontWeight="bold" fill="currentColor">{SKIP_SECONDS}</text>
+              <text x="12" y="15.5" textAnchor="middle" fontSize="7" fontWeight="bold" fill="currentColor">{skipBackwardSeconds}</text>
             </svg>
           </button>
 
@@ -744,12 +746,12 @@ export function PlayerControls({
           {/* skip forward */}
           <button
             onClick={skipForward}
-            aria-label={`Forward ${SKIP_SECONDS}s`}
+            aria-label={`Forward ${skipForwardSeconds}s`}
             className="text-white hover:text-[var(--accent)] transition-colors p-1"
           >
             <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor">
               <path d="M12.01 5V1l5 5-5 5V7c-3.31 0-6 2.69-6 6s2.69 6 6 6 6-2.69 6-6h2c0 4.42-3.58 8-8 8s-8-3.58-8-8 3.58-8 8-8z" />
-              <text x="12" y="15.5" textAnchor="middle" fontSize="7" fontWeight="bold" fill="currentColor">{SKIP_SECONDS}</text>
+              <text x="12" y="15.5" textAnchor="middle" fontSize="7" fontWeight="bold" fill="currentColor">{skipForwardSeconds}</text>
             </svg>
           </button>
 
