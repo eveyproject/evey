@@ -90,10 +90,10 @@ func (h *adminHandler) GetDashboard(ctx context.Context, _ *eveyv1.GetDashboardR
 	resp := &eveyv1.DashboardInfo{
 		ActiveStreams:    int32(stats.ActiveStreams),
 		ActiveTranscodes: activeTranscodes,
-		TotalMediaItems: int32(stats.TotalItems),
-		TotalUsers:      int32(stats.TotalUsers),
-		CpuPercent:      sys.CPUPercent,
-		MemoryPercent:   sys.MemoryPercent,
+		TotalMediaItems:  int32(stats.TotalItems),
+		TotalUsers:       int32(stats.TotalUsers),
+		CpuPercent:       sys.CPUPercent,
+		MemoryPercent:    sys.MemoryPercent,
 	}
 
 	if h.libLister != nil {
@@ -242,7 +242,7 @@ func (h *adminHandler) GetPluginConfig(ctx context.Context, req *eveyv1.GetPlugi
 }
 
 func (h *adminHandler) UpdatePluginConfig(ctx context.Context, req *eveyv1.UpdatePluginConfigRequest) (*eveyv1.PluginConfig, error) {
-	cfg := make(map[string]interface{})
+	cfg := make(map[string]any)
 	for k, v := range req.Values {
 		cfg[k] = v
 	}
@@ -260,7 +260,7 @@ func (h *adminHandler) GetPluginLogs(_ context.Context, req *eveyv1.GetPluginLog
 	return &eveyv1.GetPluginLogsResponse{}, nil
 }
 
-func stringFromInterface(v interface{}) string {
+func stringFromInterface(v any) string {
 	if v == nil {
 		return ""
 	}

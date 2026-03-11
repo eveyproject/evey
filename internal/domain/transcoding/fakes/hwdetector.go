@@ -2,6 +2,7 @@ package fakes
 
 import (
 	"context"
+	"slices"
 
 	"github.com/gravity-zero/evey/internal/domain/transcoding"
 )
@@ -25,10 +26,8 @@ func (d *FakeHWDetector) DetectDevices(_ context.Context) ([]transcoding.HWDevic
 func (d *FakeHWDetector) SupportsCodec(_ context.Context, deviceType, codec string) (bool, error) {
 	for _, dev := range d.Devices {
 		if dev.Type == deviceType {
-			for _, c := range dev.SupportedCodecs {
-				if c == codec {
-					return true, nil
-				}
+			if slices.Contains(dev.SupportedCodecs, codec) {
+				return true, nil
 			}
 		}
 	}

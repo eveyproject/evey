@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"maps"
 	"strings"
 	"sync"
 	"time"
@@ -62,16 +63,12 @@ func (e *Enricher) EnrichItem(ctx context.Context, item *domaindomain.MediaItem,
 	if item.ProviderIDs == nil {
 		item.ProviderIDs = make(map[string]string)
 	}
-	for k, v := range result.ProviderIDs {
-		item.ProviderIDs[k] = v
-	}
+	maps.Copy(item.ProviderIDs, result.ProviderIDs)
 
 	if item.Ratings == nil {
 		item.Ratings = make(map[string]float64)
 	}
-	for k, v := range result.Ratings {
-		item.Ratings[k] = v
-	}
+	maps.Copy(item.Ratings, result.Ratings)
 
 	if err := e.mediaItems.Update(ctx, item); err != nil {
 		return fmt.Errorf("update media item: %w", err)
@@ -534,7 +531,7 @@ func titleSimilarity(query, candidate string) float64 {
 
 func wordSet(s string) map[string]bool {
 	m := make(map[string]bool)
-	for _, w := range strings.Fields(strings.ToLower(s)) {
+	for w := range strings.FieldsSeq(strings.ToLower(s)) {
 		m[w] = true
 	}
 	return m

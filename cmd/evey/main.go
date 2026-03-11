@@ -48,7 +48,6 @@ import (
 	"github.com/gravity-zero/evey/internal/pkg/network"
 	"github.com/gravity-zero/evey/internal/pkg/ratelimit"
 	domainlibrary "github.com/gravity-zero/evey/internal/domain/library"
-	libraryevent "github.com/gravity-zero/evey/internal/domain/library"
 	"github.com/gravity-zero/evey/internal/domain/shared"
 )
 
@@ -246,7 +245,7 @@ func run() error {
 			} else {
 				rootLog.Info("filesystem watcher started")
 				bus.Subscribe("library.created", func(_ context.Context, ev shared.Event) {
-					if e, ok := ev.(libraryevent.LibraryCreated); ok {
+					if e, ok := ev.(domainlibrary.LibraryCreated); ok {
 						lib, err := libraryRepo.GetByID(context.Background(), e.LibraryID)
 						if err == nil {
 							watcherSvc.AddLibrary(lib)
@@ -254,7 +253,7 @@ func run() error {
 					}
 				})
 				bus.Subscribe("library.deleted", func(_ context.Context, ev shared.Event) {
-					if e, ok := ev.(libraryevent.LibraryDeleted); ok {
+					if e, ok := ev.(domainlibrary.LibraryDeleted); ok {
 						watcherSvc.RemoveLibraryByID(e.LibraryID)
 					}
 				})
@@ -273,7 +272,7 @@ func run() error {
 			}
 		}()
 		bus.Subscribe("media.item.added", func(ctx context.Context, ev shared.Event) {
-			if e, ok := ev.(libraryevent.MediaItemAdded); ok {
+			if e, ok := ev.(domainlibrary.MediaItemAdded); ok {
 				go func() {
 					item, err := mediaItemRepo.GetByID(context.Background(), e.MediaItemID)
 					if err == nil {
@@ -386,9 +385,9 @@ func run() error {
 		mux.HandleFunc("GET /api/v1/media/{id}/download", downloadHandler(tokenGen, libQuerySvc, cfg.Server.BaseURL))
 		mux.HandleFunc("GET /api/v1/media/{id}/transcode", transcodeHandler(tokenGen, libQuerySvc, cfg.Server.BaseURL))
 		mux.HandleFunc("GET /api/v1/media/{id}/subtitle/{track}", subtitleHandler(tokenGen, libQuerySvc, cfg.Server.BaseURL))
-		mux.HandleFunc("GET /api/v1/media/{id}/chapters", chaptersHandler(tokenGen, libCmdSvc))
-		mux.HandleFunc("GET /api/v1/media/{id}/trickplay", trickplayManifestHandler(tokenGen, libCmdSvc))
-		mux.HandleFunc("GET /api/v1/media/{id}/trickplay/{image}", trickplayImageHandler(tokenGen, libCmdSvc))
+		mux.HandleFunc("GET /api/v1/media/{id}/chapters", chaptersHandler(tokenGen, libCmdSvc, cfg.Server.BaseURL))
+		mux.HandleFunc("GET /api/v1/media/{id}/trickplay", trickplayManifestHandler(tokenGen, libCmdSvc, cfg.Server.BaseURL))
+		mux.HandleFunc("GET /api/v1/media/{id}/trickplay/{image}", trickplayImageHandler(tokenGen, libCmdSvc, cfg.Server.BaseURL))
 		mux.HandleFunc("POST /api/v1/admin/media/{id}/trickplay/generate", trickplayGenerateHandler(tokenGen, libCmdSvc, cfg.Transcoding.CacheDir))
 		mux.HandleFunc("GET /api/v1/media/{id}/playback-info", playbackInfoHandler(tokenGen, libQuerySvc))
 		mux.HandleFunc("GET /api/v1/media/{id}/hls/master.m3u8", hlsMasterHandler(tokenGen, libQuerySvc, hlsManager))

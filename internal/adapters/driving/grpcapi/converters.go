@@ -148,24 +148,6 @@ var personRoleToProto = map[string]eveyv1.PersonType{
 	"producer": eveyv1.PersonType_PERSON_TYPE_PRODUCER,
 }
 
-func mediaPersonToProto(mp *library.MediaPerson, p *library.Person) *eveyv1.MediaPerson {
-	pb := &eveyv1.MediaPerson{
-		Id:        mp.PersonID,
-		Role:      mp.RoleType,
-		Type:      personRoleToProto[mp.RoleType],
-		SortOrder: int32(mp.SortOrder),
-	}
-	if mp.CharacterName != nil {
-		pb.Role = *mp.CharacterName
-	}
-	if p != nil {
-		pb.Name = p.Name
-		if p.ThumbPath != nil {
-			pb.ThumbUrl = *p.ThumbPath
-		}
-	}
-	return pb
-}
 
 func castMemberToProto(cm library.CastMember) *eveyv1.MediaPerson {
 	pb := &eveyv1.MediaPerson{
@@ -360,16 +342,6 @@ func transcodeJobToProto(j *transcoding.TranscodeJob) *eveyv1.TranscodeJob {
 	return pb
 }
 
-func transcodeProgressToProto(p *transcoding.TranscodeProgress) *eveyv1.TranscodeProgress {
-	return &eveyv1.TranscodeProgress{
-		JobId:   p.JobID,
-		Percent: p.Percent,
-		Fps:     p.FPS,
-		Speed:   p.Speed,
-		Bitrate: p.CurrentBitrate,
-		EtaMs:   p.ETAMs,
-	}
-}
 
 func transcodeProfileToProto(p *transcoding.TranscodeProfile) *eveyv1.TranscodeProfile {
 	return &eveyv1.TranscodeProfile{
@@ -400,11 +372,6 @@ var mkvTrackTypeToProto = map[mkv.TrackType]eveyv1.TrackType{
 	mkv.SubtitleTrack: eveyv1.TrackType_TRACK_TYPE_SUBTITLE,
 }
 
-var mkvTrackTypeFromProto = map[eveyv1.TrackType]mkv.TrackType{
-	eveyv1.TrackType_TRACK_TYPE_VIDEO:    mkv.VideoTrack,
-	eveyv1.TrackType_TRACK_TYPE_AUDIO:    mkv.AudioTrack,
-	eveyv1.TrackType_TRACK_TYPE_SUBTITLE: mkv.SubtitleTrack,
-}
 
 func mkvContainerToProto(c *mkv.Container) *eveyv1.Container {
 	pb := &eveyv1.Container{

@@ -2,22 +2,6 @@ package ratings
 
 import "strings"
 
-var mpaaOrder = map[string]int{
-	"G":     0,
-	"PG":    1,
-	"PG-13": 2,
-	"R":     3,
-	"NC-17": 4,
-}
-
-var tvOrder = map[string]int{
-	"TV-Y":  0,
-	"TV-Y7": 1,
-	"TV-G":  2,
-	"TV-PG": 3,
-	"TV-14": 4,
-	"TV-MA": 5,
-}
 
 // crossMap maps TV ratings to equivalent MPAA severity for cross-system comparison
 var crossMap = map[string]int{

@@ -72,7 +72,7 @@ func (s *Service) InstallPlugin(ctx context.Context, zipPath string) (*plugin.Pl
 		p.Status = string(plugin.Error)
 		p.ErrorMessage = err.Error()
 		s.plugins.Update(ctx, p)
-		return p, nil
+		return p, nil //nolint:nilerr
 	}
 	p.Status = string(plugin.Running)
 	s.plugins.Update(ctx, p)

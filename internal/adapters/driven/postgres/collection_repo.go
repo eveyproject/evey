@@ -147,11 +147,30 @@ func (r *CollectionRepository) CountManualItems(ctx context.Context, collectionI
 	return count, err
 }
 
+var allowedSortFields = map[string]bool{
+	"title": true, "sort_title": true, "added_at": true,
+	"year": true, "premiere_date": true, "community_rating": true,
+}
+
+// ValidateSortParams returns ErrInvalidSortParam if sortBy or sortOrder are not in the allowlist.
+func ValidateSortParams(sortBy, sortOrder string) error {
+	if sortBy != "" && !allowedSortFields[sortBy] {
+		return fmt.Errorf("%w: sortBy %q", library.ErrInvalidSortParam, sortBy)
+	}
+	upper := strings.ToUpper(sortOrder)
+	if upper != "ASC" && upper != "DESC" {
+		return fmt.Errorf("%w: sortOrder %q", library.ErrInvalidSortParam, sortOrder)
+	}
+	return nil
+}
+
 func (r *CollectionRepository) GetSmartItems(ctx context.Context, col *library.Collection, limit, offset int) ([]*library.MediaItem, error) {
+	if err := ValidateSortParams(col.SortBy, col.SortOrder); err != nil {
+		return nil, err
+	}
 	where, args := buildRulesWhere(col.Rules)
 	sortField := "sort_title"
-	allowed := map[string]bool{"title": true, "sort_title": true, "added_at": true, "year": true, "premiere_date": true, "community_rating": true}
-	if allowed[col.SortBy] {
+	if col.SortBy != "" {
 		sortField = col.SortBy
 	}
 	sortOrder := "ASC"

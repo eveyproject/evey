@@ -97,13 +97,13 @@ func matchesAny(patterns []string, name string) bool {
 	return false
 }
 
-func (s *Service) deliver(ctx context.Context, cfg *webhook.Config, eventName string, payload interface{}) {
+func (s *Service) deliver(ctx context.Context, cfg *webhook.Config, eventName string, payload any) {
 	if err := s.validateURL(cfg.URL); err != nil {
 		s.log.Warn("webhook URL blocked", slog.String("webhook", cfg.ID), slog.Any("err", err))
 		return
 	}
 
-	body, err := json.Marshal(map[string]interface{}{
+	body, err := json.Marshal(map[string]any{
 		"event":   eventName,
 		"payload": payload,
 	})

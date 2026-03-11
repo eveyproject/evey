@@ -21,7 +21,7 @@ func TestRateLimit_AllowsUpToLimit(t *testing.T) {
 	l := newTestLimiter(5)
 	ip := "10.0.0.1"
 
-	for i := 0; i < 5; i++ {
+	for i := range 5 {
 		assert.True(t, l.Allow(ip), "request %d should be allowed", i+1)
 	}
 }
@@ -30,7 +30,7 @@ func TestRateLimit_BlocksOverLimit(t *testing.T) {
 	l := newTestLimiter(3)
 	ip := "10.0.0.2"
 
-	for i := 0; i < 3; i++ {
+	for range 3 {
 		l.Allow(ip)
 	}
 	assert.False(t, l.Allow(ip), "request over limit should be blocked")
@@ -41,7 +41,7 @@ func TestRateLimit_Refills(t *testing.T) {
 	l := newTestLimiter(60) // 1 token/sec
 	ip := "10.0.0.3"
 
-	for i := 0; i < 60; i++ {
+	for range 60 {
 		l.Allow(ip)
 	}
 	assert.False(t, l.Allow(ip), "should be exhausted")
@@ -60,7 +60,7 @@ func TestMiddleware_ExemptPrefixes(t *testing.T) {
 	handler := Middleware(l, "/api/v1/playback/progress", "/api/v1/playback/start")(ok)
 
 	// exhaust the limiter
-	for i := 0; i < 2; i++ {
+	for range 2 {
 		rr := httptest.NewRecorder()
 		handler.ServeHTTP(rr, httptest.NewRequest("GET", "/other", nil))
 		assert.Equal(t, 200, rr.Code)

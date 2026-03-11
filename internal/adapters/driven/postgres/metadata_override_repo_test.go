@@ -13,7 +13,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func newTestOverride(id, mediaItemID, fieldName string, value interface{}) *metadata.MetadataOverride {
+func newTestOverride(id, mediaItemID, fieldName string, value any) *metadata.MetadataOverride {
 	return &metadata.MetadataOverride{
 		ID:          id,
 		MediaItemID: mediaItemID,
@@ -150,5 +150,5 @@ func TestMetadataOverrideRepo_DeleteByMediaItemID(t *testing.T) {
 
 	list, err := overrideRepo.GetByMediaItem(ctx, item.ID)
 	require.NoError(t, err)
-	assert.Len(t, list, 0)
+	assert.Empty(t, list)
 }

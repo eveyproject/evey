@@ -27,16 +27,16 @@ func (r *MediaStreamRepository) CreateBatch(ctx context.Context, streams []*libr
 		profile, language, title, is_default, is_forced, width, height, framerate, bit_depth, color_space,
 		hdr_type, channels, channel_layout, sample_rate, bitrate, is_external, external_path) VALUES `)
 
-	args := make([]interface{}, 0, len(streams)*23)
+	args := make([]any, 0, len(streams)*23)
 	for i, s := range streams {
 		if i > 0 {
 			b.WriteString(",")
 		}
 		base := i * 23
-		b.WriteString(fmt.Sprintf("($%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d)",
+		fmt.Fprintf(&b, "($%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d)",
 			base+1, base+2, base+3, base+4, base+5, base+6, base+7, base+8, base+9, base+10,
 			base+11, base+12, base+13, base+14, base+15, base+16, base+17, base+18, base+19,
-			base+20, base+21, base+22, base+23))
+			base+20, base+21, base+22, base+23)
 		args = append(args,
 			s.ID, s.MediaItemID, s.StreamIndex, s.StreamType, s.Codec, s.CodecLongName,
 			s.Profile, s.Language, s.Title, s.IsDefault, s.IsForced, s.Width, s.Height,

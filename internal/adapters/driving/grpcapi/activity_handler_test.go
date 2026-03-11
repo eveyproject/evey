@@ -71,7 +71,7 @@ func TestActivityHandler_GetPlayHistory_WithPagination(t *testing.T) {
 	h, _, _, playHistory, _ := newActivityHandler()
 
 	now := time.Now()
-	for i := 0; i < 5; i++ {
+	for i := range 5 {
 		playHistory.Add(&activity.PlayHistoryEntry{
 			ID: "ph" + string(rune('0'+i)), ProfileID: "profile-1",
 			MediaItemID: "m1", MediaTitle: "Movie", MediaType: "movie",

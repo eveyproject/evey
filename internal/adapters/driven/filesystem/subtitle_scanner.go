@@ -60,8 +60,8 @@ func (s *SubtitleScanner) ScanForSubtitles(videoPath string) ([]library.External
 		remainder := strings.TrimPrefix(strings.ToLower(base), prefix)
 		remainder = strings.TrimPrefix(remainder, ".")
 		if remainder != "" {
-			parts := strings.Split(remainder, ".")
-			for _, p := range parts {
+			parts := strings.SplitSeq(remainder, ".")
+			for p := range parts {
 				if p == "forced" || p == "sdh" || p == "cc" {
 					if p == "forced" {
 						sub.IsForced = true

@@ -120,7 +120,7 @@ func (q *FeedQuerier) Recommended(ctx context.Context, profileID string, genres 
 
 	// Build genre match score using JSONB operators
 	scoreParts := make([]string, len(genres))
-	args := []interface{}{profileID}
+	args := []any{profileID}
 	for i, g := range genres {
 		args = append(args, g)
 		scoreParts[i] = fmt.Sprintf("CASE WHEN mi.genres ? $%d THEN 1 ELSE 0 END", i+2)

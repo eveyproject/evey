@@ -40,7 +40,7 @@ type MetadataOverride struct {
 	ID          string
 	MediaItemID string
 	FieldName   string
-	CustomValue interface{}
+	CustomValue any
 	EditedBy    string
 	CreatedAt   time.Time
 }

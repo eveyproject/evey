@@ -27,7 +27,7 @@ func ctxWithClaims(userID, profileID string, isAdmin bool) context.Context {
 
 	info := &grpc.UnaryServerInfo{FullMethod: "/evey.v1.TestService/Test"}
 	var resultCtx context.Context
-	_, _ = interceptor(inCtx, nil, info, func(ctx context.Context, req interface{}) (interface{}, error) {
+	_, _ = interceptor(inCtx, nil, info, func(ctx context.Context, req any) (any, error) {
 		resultCtx = ctx
 		return nil, nil
 	})

@@ -11,10 +11,10 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func intPtr(v int) *int          { return &v }
-func int64Ptr(v int64) *int64    { return &v }
+func intPtr(v int) *int             { return &v }
+func int64Ptr(v int64) *int64       { return &v }
 func float64Ptr(v float64) *float64 { return &v }
-func stringPtr(v string) *string { return &v }
+func stringPtr(v string) *string    { return &v }
 
 func TestMediaStreamRepo_CreateBatch_GetByMediaItemID(t *testing.T) {
 	db, cleanup := testhelpers.StartPostgres(t)
@@ -92,5 +92,5 @@ func TestMediaStreamRepo_DeleteByMediaItemID(t *testing.T) {
 
 	got, err := streamRepo.GetByMediaItemID(ctx, item.ID)
 	require.NoError(t, err)
-	assert.Len(t, got, 0)
+	assert.Empty(t, got)
 }

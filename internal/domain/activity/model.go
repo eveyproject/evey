@@ -43,7 +43,7 @@ type ServerMetric struct {
 	CPUPercent        float64
 	MemoryUsedBytes   int64
 	MemoryTotalBytes  int64
-	ActiveStreams      int
+	ActiveStreams     int
 	ActiveTranscodes  int
 	BandwidthBps      int64
 	StorageUsedBytes  int64
@@ -72,7 +72,7 @@ type AuditLogEntry struct {
 	Action       string
 	ResourceType string
 	ResourceID   *string
-	Details      map[string]interface{}
+	Details      map[string]any
 	ClientIP     *string
 	UserAgent    *string
 	DeviceName   *string
@@ -80,7 +80,7 @@ type AuditLogEntry struct {
 }
 
 type ServerStatsResult struct {
-	ActiveStreams     int
+	ActiveStreams    int
 	ActiveTranscodes int
 	TotalUsers       int
 	TotalItems       int

@@ -3,6 +3,7 @@ package auth
 import (
 	"crypto/rsa"
 	"errors"
+	"fmt"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
@@ -50,7 +51,10 @@ func (g *JWTGenerator) GenerateRefreshToken() (string, error) {
 }
 
 func (g *JWTGenerator) ValidateAccessToken(tokenStr string) (*user.Claims, error) {
-	token, err := jwt.Parse(tokenStr, func(_ *jwt.Token) (interface{}, error) {
+	token, err := jwt.Parse(tokenStr, func(t *jwt.Token) (interface{}, error) {
+		if t.Method.Alg() != jwt.SigningMethodRS256.Alg() {
+			return nil, fmt.Errorf("unexpected signing algorithm: %s", t.Method.Alg())
+		}
 		return g.publicKey, nil
 	})
 	if err != nil {

@@ -14,7 +14,7 @@ import (
 const indexName = "media_items"
 
 type IndexClient interface {
-	AddDocumentsWithContext(ctx context.Context, documentsPtr interface{}, opts *ms.DocumentOptions) (*ms.TaskInfo, error)
+	AddDocumentsWithContext(ctx context.Context, documentsPtr any, opts *ms.DocumentOptions) (*ms.TaskInfo, error)
 	DeleteDocumentWithContext(ctx context.Context, identifier string, opts *ms.DocumentOptions) (*ms.TaskInfo, error)
 	SearchWithContext(ctx context.Context, query string, request *ms.SearchRequest) (*ms.SearchResponse, error)
 	UpdateSettingsWithContext(ctx context.Context, request *ms.Settings) (*ms.TaskInfo, error)
@@ -137,12 +137,12 @@ func (a *SearchAdapter) Search(ctx context.Context, query string, filters map[st
 		limit = 20
 	}
 	req := &ms.SearchRequest{
-		Limit:                limit,
-		AttributesToRetrieve: []string{"id", "title", "year", "type", "genres"},
+		Limit:                 limit,
+		AttributesToRetrieve:  []string{"id", "title", "year", "type", "genres"},
 		AttributesToHighlight: []string{"title"},
-		HighlightPreTag:      "<mark>",
-		HighlightPostTag:     "</mark>",
-		MatchingStrategy:     ms.Frequency,
+		HighlightPreTag:       "<mark>",
+		HighlightPostTag:      "</mark>",
+		MatchingStrategy:      ms.Frequency,
 	}
 	if f := BuildFilterString(filters); f != "" {
 		req.Filter = f

@@ -103,7 +103,7 @@ func TestSubtitleRepo_Delete(t *testing.T) {
 
 	got, err := subRepo.GetByMediaItem(ctx, item.ID)
 	require.NoError(t, err)
-	assert.Len(t, got, 0)
+	assert.Empty(t, got)
 }
 
 func TestSubtitleRepo_Delete_NotFound(t *testing.T) {

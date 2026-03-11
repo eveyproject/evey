@@ -76,7 +76,7 @@ func TestList_DefaultLimit(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if items != nil && len(items) != 0 {
+	if len(items) != 0 {
 		t.Fatal("expected empty")
 	}
 }

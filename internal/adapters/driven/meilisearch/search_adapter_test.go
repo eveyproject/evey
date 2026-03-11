@@ -14,7 +14,7 @@ import (
 )
 
 type fakeIndex struct {
-	addedDocs   []interface{}
+	addedDocs   []any
 	deletedIDs  []string
 	searchResp  *ms.SearchResponse
 	searchErr   error
@@ -22,7 +22,7 @@ type fakeIndex struct {
 	searchReq   *ms.SearchRequest
 }
 
-func (f *fakeIndex) AddDocumentsWithContext(_ context.Context, docs interface{}, _ *ms.DocumentOptions) (*ms.TaskInfo, error) {
+func (f *fakeIndex) AddDocumentsWithContext(_ context.Context, docs any, _ *ms.DocumentOptions) (*ms.TaskInfo, error) {
 	f.addedDocs = append(f.addedDocs, docs)
 	return &ms.TaskInfo{TaskUID: 1}, nil
 }
@@ -86,8 +86,8 @@ func TestToDocument_NilYear(t *testing.T) {
 }
 
 func TestBuildFilterString_Empty(t *testing.T) {
-	assert.Equal(t, "", BuildFilterString(nil))
-	assert.Equal(t, "", BuildFilterString(map[string]string{}))
+	assert.Empty(t, BuildFilterString(nil))
+	assert.Empty(t, BuildFilterString(map[string]string{}))
 }
 
 func TestBuildFilterString_Single(t *testing.T) {
@@ -138,11 +138,11 @@ func TestSearch(t *testing.T) {
 	year := 2023
 	yearRaw, _ := json.Marshal(year)
 	hit := ms.Hit{
-		"id":     json.RawMessage(`"abc-123"`),
-		"title":  json.RawMessage(`"Fight Club"`),
-		"year":   json.RawMessage(yearRaw),
-		"type":   json.RawMessage(`"movie"`),
-		"genres": json.RawMessage(`["Action","Drama"]`),
+		"id":         json.RawMessage(`"abc-123"`),
+		"title":      json.RawMessage(`"Fight Club"`),
+		"year":       json.RawMessage(yearRaw),
+		"type":       json.RawMessage(`"movie"`),
+		"genres":     json.RawMessage(`["Action","Drama"]`),
 		"_formatted": json.RawMessage(`{"title":"<mark>Fight</mark> Club"}`),
 	}
 	fake := &fakeIndex{

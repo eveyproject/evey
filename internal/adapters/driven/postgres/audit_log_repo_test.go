@@ -28,7 +28,7 @@ func TestAuditLogRepo_CreateAndList(t *testing.T) {
 		UserID:       "user-1",
 		Action:       "login",
 		ResourceType: "session",
-		Details:      map[string]interface{}{"method": "local"},
+		Details:      map[string]any{"method": "local"},
 		ClientIP:     ptrStr("192.168.1.1"),
 		UserAgent:    &ua,
 		DeviceName:   &dn,

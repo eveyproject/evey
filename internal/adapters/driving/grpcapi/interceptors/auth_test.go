@@ -26,7 +26,7 @@ func ctxWithToken(token string) context.Context {
 	return metadata.NewIncomingContext(context.Background(), md)
 }
 
-var nopHandler = func(ctx context.Context, req interface{}) (interface{}, error) {
+var nopHandler = func(ctx context.Context, req any) (any, error) {
 	return ctx, nil
 }
 
@@ -89,7 +89,7 @@ func TestAuthInterceptor_AdminOnly_NonAdmin(t *testing.T) {
 		Permissions: []string{auth.PermMediaRead},
 	})
 
-	adminHandler := func(ctx context.Context, req interface{}) (interface{}, error) {
+	adminHandler := func(ctx context.Context, req any) (any, error) {
 		claims := interceptors.ClaimsFromContext(ctx)
 		if claims == nil || !auth.CheckPermission(claims.Permissions, auth.PermServerAdmin) {
 			return nil, status.Error(codes.PermissionDenied, "admin only")
@@ -115,7 +115,7 @@ func TestAuthInterceptor_AdminOnly_Admin(t *testing.T) {
 		Permissions: []string{auth.PermServerAdmin},
 	})
 
-	adminHandler := func(ctx context.Context, req interface{}) (interface{}, error) {
+	adminHandler := func(ctx context.Context, req any) (any, error) {
 		claims := interceptors.ClaimsFromContext(ctx)
 		if claims == nil || !auth.CheckPermission(claims.Permissions, auth.PermServerAdmin) {
 			return nil, status.Error(codes.PermissionDenied, "admin only")
@@ -143,7 +143,7 @@ func TestEnforceRBAC_ContextClaims(t *testing.T) {
 	}
 	token, _ := tokenGen.GenerateAccessToken(claims)
 
-	extractHandler := func(ctx context.Context, req interface{}) (interface{}, error) {
+	extractHandler := func(ctx context.Context, req any) (any, error) {
 		return interceptors.ClaimsFromContext(ctx), nil
 	}
 

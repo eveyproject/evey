@@ -134,7 +134,7 @@ func TestArtworkRepo_Delete(t *testing.T) {
 
 	got, err := artRepo.GetByMediaItem(ctx, item.ID)
 	require.NoError(t, err)
-	assert.Len(t, got, 0)
+	assert.Empty(t, got)
 }
 
 func TestArtworkRepo_DeleteByMediaItemID(t *testing.T) {
@@ -158,5 +158,5 @@ func TestArtworkRepo_DeleteByMediaItemID(t *testing.T) {
 
 	got, err := artRepo.GetByMediaItem(ctx, item.ID)
 	require.NoError(t, err)
-	assert.Len(t, got, 0)
+	assert.Empty(t, got)
 }

@@ -6,6 +6,7 @@ import (
 )
 
 var ErrNotFound = errors.New("not found")
+var ErrInvalidSortParam = errors.New("invalid sort parameter")
 
 type LibraryType string
 

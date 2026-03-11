@@ -1,6 +1,7 @@
 package transcoding
 
 import (
+	"slices"
 	"strings"
 
 	"github.com/gravity-zero/evey/internal/domain/library"
@@ -159,12 +160,7 @@ func contains(list []string, val string) bool {
 }
 
 func containsReason(reasons []string, reason string) bool {
-	for _, r := range reasons {
-		if r == reason {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(reasons, reason)
 }
 
 func onlyContainerIssue(reasons []string) bool {

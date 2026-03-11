@@ -14,7 +14,7 @@ type AdminConfig struct {
 	Enabled      bool
 	DisplayOrder int
 	MaxItems     int
-	Params       map[string]interface{}
+	Params       map[string]any
 }
 
 // ProfileConfig is an optional per-profile override.
@@ -25,7 +25,7 @@ type ProfileConfig struct {
 	Enabled      *bool
 	DisplayOrder *int
 	MaxItems     *int
-	Params       map[string]interface{}
+	Params       map[string]any
 }
 
 // MergedConfig is the resolved config for a given profile+feed.
@@ -34,13 +34,13 @@ type MergedConfig struct {
 	Enabled      bool
 	DisplayOrder int
 	MaxItems     int
-	Params       map[string]interface{}
+	Params       map[string]any
 }
 
 // FeedItem is a generic item returned by any feed.
 type FeedItem struct {
 	MediaItemID string
-	ParentID    string  // for episodes: series ID
+	ParentID    string // for episodes: series ID
 	Title       string
 	Type        string
 	PositionMs  int64

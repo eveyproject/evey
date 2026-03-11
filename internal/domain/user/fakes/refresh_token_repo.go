@@ -2,13 +2,15 @@ package fakes
 
 import (
 	"context"
-	"errors"
 	"sync"
+
+	"github.com/lib/pq"
 
 	"github.com/gravity-zero/evey/internal/domain/user"
 )
 
-var ErrDuplicateTokenHash = errors.New("duplicate key value violates unique constraint")
+// ErrDuplicateTokenHash is a *pq.Error with code 23505 (unique_violation), matching real postgres behaviour.
+var ErrDuplicateTokenHash = &pq.Error{Code: "23505", Message: "duplicate key value violates unique constraint"}
 
 type FakeRefreshTokenRepository struct {
 	mu    sync.RWMutex

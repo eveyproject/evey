@@ -27,7 +27,7 @@ type LibraryPort interface {
 }
 
 type MetadataPort interface {
-	SetOverride(ctx context.Context, override interface{}) error
+	SetOverride(ctx context.Context, override any) error
 }
 
 type UserPort interface {
@@ -35,8 +35,8 @@ type UserPort interface {
 }
 
 type PluginConfigPort interface {
-	GetPluginConfig(ctx context.Context, id string) (map[string]interface{}, error)
-	UpdatePluginConfig(ctx context.Context, id string, config map[string]interface{}) error
+	GetPluginConfig(ctx context.Context, id string) (map[string]any, error)
+	UpdatePluginConfig(ctx context.Context, id string, config map[string]any) error
 }
 
 type PluginAPIServer struct {
@@ -171,7 +171,7 @@ func (s *PluginAPIServer) UpdateMetadata(ctx context.Context, req *pluginv1.Upda
 	if !pluginrunner.CheckCapability(p, "media.write") || !pluginrunner.CheckPermission(p, "media.write") {
 		return nil, status.Errorf(codes.PermissionDenied, "plugin %s lacks media.write", pluginID)
 	}
-	override := map[string]interface{}{
+	override := map[string]any{
 		"media_item_id": req.MediaItemId,
 		"fields":        req.Fields,
 		"provider_ids":  req.ProviderIds,
@@ -241,7 +241,7 @@ func (s *PluginAPIServer) SetConfig(ctx context.Context, req *pluginv1.SetConfig
 		return nil, status.Errorf(codes.Internal, "%v", err)
 	}
 	if config == nil {
-		config = make(map[string]interface{})
+		config = make(map[string]any)
 	}
 	config[req.Key] = req.Value
 	if err := s.pluginConfig.UpdatePluginConfig(ctx, pluginID, config); err != nil {

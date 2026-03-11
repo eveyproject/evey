@@ -100,5 +100,5 @@ func TestChapterRepo_ReplaceBatch_EmptyClears(t *testing.T) {
 
 	got, err := chRepo.GetByMediaItemID(ctx, item.ID)
 	require.NoError(t, err)
-	assert.Len(t, got, 0)
+	assert.Empty(t, got)
 }

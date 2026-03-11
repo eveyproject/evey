@@ -51,7 +51,9 @@ func (h *userHandler) audit(ctx context.Context, userID, action, resourceType st
 	if ip != "" {
 		e.ClientIP = &ip
 	}
-	_ = h.activitySvc.CreateAuditEntry(ctx, e)
+	if err := h.activitySvc.CreateAuditEntry(ctx, e); err != nil {
+		slog.Warn("audit log failed", slog.String("action", action), slog.Any("err", err))
+	}
 }
 
 func (h *userHandler) Login(ctx context.Context, req *eveyv1.LoginRequest) (*eveyv1.AuthResponse, error) {
@@ -186,7 +188,7 @@ func (h *userHandler) DisableUser(ctx context.Context, req *eveyv1.DisableUserRe
 	h.audit(ctx, callerID, "disable_user", "user", &req.Id, map[string]interface{}{"target_user_id": req.Id})
 	u, err := h.users.GetByID(ctx, req.Id)
 	if err != nil {
-		return &eveyv1.User{Id: req.Id, Enabled: false}, nil
+		return &eveyv1.User{Id: req.Id, Enabled: false}, nil //nolint:nilerr
 	}
 	return userToProto(u), nil
 }
@@ -355,7 +357,7 @@ func (h *userHandler) RegisterWithInvite(ctx context.Context, req *eveyv1.Regist
 	}
 	access, refresh, loginErr := h.svc.Login(ctx, req.Username, req.Password)
 	if loginErr != nil {
-		return &eveyv1.AuthResponse{User: userToProto(u)}, nil
+		return &eveyv1.AuthResponse{User: userToProto(u)}, nil //nolint:nilerr
 	}
 	return &eveyv1.AuthResponse{
 		AccessToken:  access,

@@ -101,6 +101,12 @@ func (g *libMediaGetter) GetMediaItem(ctx context.Context, id string) (*appsubti
 // verify interface at compile time
 var _ appsubtitle.MediaItemGetter = (*libMediaGetter)(nil)
 
+// isWithinDir reports whether path is strictly inside dir (both cleaned).
+func isWithinDir(dir, path string) bool {
+	cleanDir := filepath.Clean(dir) + string(filepath.Separator)
+	return strings.HasPrefix(filepath.Clean(path), cleanDir)
+}
+
 func setCORSHeaders(w http.ResponseWriter, r *http.Request, baseURL string) {
 	origin := r.Header.Get("Origin")
 	if origin == "" {

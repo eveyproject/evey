@@ -95,9 +95,9 @@ func (r *MediaItemRepository) GetByLibraryTypeTitle(ctx context.Context, library
 		 FROM media_items WHERE library_id = $1 AND type = $2 AND title = $3 AND ($4 = '' OR parent_id = $4) LIMIT 1`, libraryID, itemType, title, parentID))
 }
 
-func (r *MediaItemRepository) buildWhereClause(f library.ListMediaItemsFilter) (string, []interface{}) {
+func (r *MediaItemRepository) buildWhereClause(f library.ListMediaItemsFilter) (string, []any) {
 	var conditions []string
-	var args []interface{}
+	var args []any
 	argIdx := 1
 	if f.LibraryID != nil {
 		conditions = append(conditions, fmt.Sprintf("library_id = $%d", argIdx))
@@ -150,7 +150,7 @@ func (r *MediaItemRepository) Count(ctx context.Context, f library.ListMediaItem
 
 func (r *MediaItemRepository) List(ctx context.Context, f library.ListMediaItemsFilter) ([]*library.MediaItem, error) {
 	var conditions []string
-	var args []interface{}
+	var args []any
 	argIdx := 1
 
 	if f.LibraryID != nil {

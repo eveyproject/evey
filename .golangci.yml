@@ -1,0 +1,69 @@
+version: "2"
+
+run:
+  go: "1.25"
+  timeout: 5m
+
+linters:
+  enable:
+    # Core (+ defaults: errcheck, govet, ineffassign, staticcheck, unused)
+    - errorlint
+    - wastedassign
+    - nilerr
+    - recvcheck
+    # Code quality
+    - misspell
+    - unconvert
+    - revive
+    - gocritic
+    - modernize
+    - intrange
+    # HTTP / SQL safety
+    - bodyclose
+    - rowserrcheck
+    - sqlclosecheck
+    # Test quality
+    - testifylint
+    # nolint hygiene
+    - nolintlint
+
+  settings:
+    errcheck:
+      check-type-assertions: true
+      check-blank: true
+    govet:
+      enable:
+        - shadow
+    revive:
+      rules:
+        - name: exported
+          disabled: true  # project style: sparse comments
+        - name: package-comments
+          disabled: true
+    gocritic:
+      disabled-checks:
+        - commentedOutCode
+        - hugeParam
+
+issues:
+  max-issues-per-linter: 0
+  max-same-issues: 0
+  exclude-rules:
+    - path: _test\.go
+      linters:
+        - errcheck
+        - bodyclose
+        - gocritic
+    - path: gen/
+      linters:
+        - errcheck
+        - unused
+        - staticcheck
+        - revive
+        - gocritic
+        - modernize
+        - intrange
+    - path: fakes/
+      linters:
+        - unused
+        - revive

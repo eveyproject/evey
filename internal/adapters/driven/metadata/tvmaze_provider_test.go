@@ -108,6 +108,6 @@ func TestTVMaze_GetEpisodeDetails(t *testing.T) {
 
 func TestStripHTML(t *testing.T) {
 	assert.Equal(t, "Hello world.", stripHTML("<p>Hello <b>world</b>.</p>"))
-	assert.Equal(t, "", stripHTML(""))
+	assert.Empty(t, stripHTML(""))
 	assert.Equal(t, "plain text", stripHTML("plain text"))
 }

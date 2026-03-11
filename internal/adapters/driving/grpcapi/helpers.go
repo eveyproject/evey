@@ -39,10 +39,3 @@ func resolveProfileID(claims *user.Claims, reqProfileID string) (string, error) 
 	return reqProfileID, nil
 }
 
-// requireAdmin returns PermissionDenied if the caller is not admin.
-func requireAdmin(claims *user.Claims) error {
-	if !claims.IsAdmin {
-		return status.Error(codes.PermissionDenied, "admin access required")
-	}
-	return nil
-}

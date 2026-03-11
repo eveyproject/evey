@@ -124,7 +124,7 @@ func TestParseProgress(t *testing.T) {
 	assert.InDelta(t, 1.5, p.Speed, 0.1)
 	assert.Equal(t, int64(524300), p.CurrentBitrate)
 	assert.InDelta(t, 40.0, p.Percent, 1.0)
-	assert.True(t, p.ETAMs > 0)
+	assert.Positive(t, p.ETAMs)
 }
 
 func TestParseProgress_NilDuration(t *testing.T) {

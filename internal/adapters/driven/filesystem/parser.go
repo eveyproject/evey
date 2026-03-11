@@ -64,7 +64,6 @@ var knownQualities = map[string]bool{
 
 var (
 	reSeriesPart = regexp.MustCompile(`(?i)^[sS](\d{1,2})[eE](\d{1,3})$`)
-	reSeriesFlex = regexp.MustCompile(`(?i)\b[sS]\s*(\d{1,2})\s*[-._]*\s*[eE]\s*(\d{1,3})\b`)
 	reSeasonX    = regexp.MustCompile(`(?i)^(\d{1,2})[xX](\d{1,3})$`)
 	reYear       = regexp.MustCompile(`^((?:19|20)\d{2})$`)
 	reCodec      = regexp.MustCompile(`(?i)\b(x264|x265|h\.?264|h\.?265|hevc|avc|av1|vp9|mpeg[24]|xvid|divx)\b`)

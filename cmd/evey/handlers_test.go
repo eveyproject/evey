@@ -513,7 +513,7 @@ func TestTranscodeHandler_NotFound(t *testing.T) {
 }
 
 func TestChaptersHandler_Unauthenticated(t *testing.T) {
-	handler := chaptersHandler(invalidTokenValidator(), newFakeLibService())
+	handler := chaptersHandler(invalidTokenValidator(), newFakeLibService(), "")
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /api/v1/media/{id}/chapters", handler)
@@ -533,7 +533,7 @@ func TestChaptersHandler_ReturnsJSON(t *testing.T) {
 		{ID: "ch1", MediaItemID: "m1", Title: "Intro", StartTimeMs: 0, EndTimeMs: 30000},
 		{ID: "ch2", MediaItemID: "m1", Title: "Act 1", StartTimeMs: 30000, EndTimeMs: 120000},
 	}
-	handler := chaptersHandler(validTokenValidator(false), libSvc)
+	handler := chaptersHandler(validTokenValidator(false), libSvc, "")
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /api/v1/media/{id}/chapters", handler)
@@ -572,7 +572,7 @@ func TestChaptersHandler_ReturnsJSON(t *testing.T) {
 }
 
 func TestChaptersHandler_Empty(t *testing.T) {
-	handler := chaptersHandler(validTokenValidator(false), newFakeLibService())
+	handler := chaptersHandler(validTokenValidator(false), newFakeLibService(), "")
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /api/v1/media/{id}/chapters", handler)
@@ -1078,7 +1078,7 @@ func TestPlaybackSettingsHandler_Put_NonAdmin(t *testing.T) {
 }
 
 func TestTrickplayManifestHandler_Forbidden(t *testing.T) {
-	handler := trickplayManifestHandler(invalidTokenValidator(), newFakeTrickplayService())
+	handler := trickplayManifestHandler(invalidTokenValidator(), newFakeTrickplayService(), "")
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /api/v1/media/{id}/trickplay/manifest", handler)
@@ -1093,7 +1093,7 @@ func TestTrickplayManifestHandler_Forbidden(t *testing.T) {
 }
 
 func TestTrickplayManifestHandler_NotFound(t *testing.T) {
-	handler := trickplayManifestHandler(validTokenValidator(false), newFakeTrickplayService())
+	handler := trickplayManifestHandler(validTokenValidator(false), newFakeTrickplayService(), "")
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /api/v1/media/{id}/trickplay/manifest", handler)
@@ -1120,7 +1120,7 @@ func TestTrickplayManifestHandler_ReturnsVTT(t *testing.T) {
 		ImageCount:  1,
 		ImagePath:   "/cache/trickplay/m1",
 	}
-	handler := trickplayManifestHandler(validTokenValidator(false), svc)
+	handler := trickplayManifestHandler(validTokenValidator(false), svc, "")
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /api/v1/media/{id}/trickplay/manifest", handler)
@@ -1280,5 +1280,75 @@ func TestPlaybackInfoHandler_ReturnsDecision(t *testing.T) {
 	}
 	if _, ok := resp["play_method"]; !ok {
 		t.Error("response should contain play_method")
+	}
+}
+
+func TestIsWithinDir(t *testing.T) {
+	cases := []struct {
+		dir  string
+		path string
+		want bool
+	}{
+		{"/cache/trickplay/m1", "/cache/trickplay/m1/trickplay_001.jpg", true},
+		{"/cache/trickplay/m1", "/cache/trickplay/m1/sub/deep.jpg", true},
+		{"/cache/trickplay/m1", "/cache/trickplay/m2/evil.jpg", false},
+		{"/cache/trickplay/m1", "/cache/trickplay/m1", false},
+		{"/cache/hls/session1", "/cache/hls/session1/segment.ts", true},
+		{"/cache/hls/session1", "/cache/hls/session1/../other/evil.ts", false},
+		{"/cache/hls/session1", "/etc/passwd", false},
+	}
+	for _, tc := range cases {
+		got := isWithinDir(tc.dir, tc.path)
+		if got != tc.want {
+			t.Errorf("isWithinDir(%q, %q) = %v, want %v", tc.dir, tc.path, got, tc.want)
+		}
+	}
+}
+
+func TestChaptersHandler_CORS_UsesOriginNotStar(t *testing.T) {
+	libSvc := newFakeLibService()
+	handler := chaptersHandler(validTokenValidator(false), libSvc, "https://evey.test")
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("GET /api/v1/media/{id}/chapters", handler)
+
+	req := httptest.NewRequest("GET", "/api/v1/media/m1/chapters", nil)
+	req.Header.Set("Authorization", "Bearer valid-token")
+	req.Header.Set("Origin", "https://evey.test")
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", w.Code)
+	}
+	corsHeader := w.Header().Get("Access-Control-Allow-Origin")
+	if corsHeader == "*" {
+		t.Error("CORS header must not be wildcard *")
+	}
+	if corsHeader != "https://evey.test" {
+		t.Errorf("CORS header = %q, want https://evey.test", corsHeader)
+	}
+}
+
+func TestTrickplayImageHandler_PathTraversal(t *testing.T) {
+	dir := t.TempDir()
+	svc := newFakeTrickplayService()
+	svc.manifests["m1"] = &domainlibrary.TrickplayManifest{
+		ID:          "tp1",
+		MediaItemID: "m1",
+		ImagePath:   dir,
+	}
+	handler := trickplayImageHandler(validTokenValidator(false), svc, "")
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("GET /api/v1/media/{id}/trickplay/{image}", handler)
+
+	req := httptest.NewRequest("GET", "/api/v1/media/m1/trickplay/..%2Fevil.jpg", nil)
+	req.Header.Set("Authorization", "Bearer valid-token")
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+
+	if w.Code == http.StatusOK {
+		t.Error("path traversal attempt should not return 200")
 	}
 }

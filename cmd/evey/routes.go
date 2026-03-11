@@ -924,21 +924,17 @@ func registerPlaylistRoutes(mux *http.ServeMux, svc *appplaylist.Service, tokenG
 			}
 			var items []itemResp
 			var media []mediaResp
-			if plItems != nil {
-				for _, it := range plItems {
-					items = append(items, itemResp{
-						MediaItemID: it.MediaItemID,
-						SortOrder:   it.SortOrder,
-						AddedAt:     it.AddedAt.Format(time.RFC3339),
-					})
-				}
+			for _, it := range plItems {
+				items = append(items, itemResp{
+					MediaItemID: it.MediaItemID,
+					SortOrder:   it.SortOrder,
+					AddedAt:     it.AddedAt.Format(time.RFC3339),
+				})
 			}
-			if mediaItems != nil {
-				for _, m := range mediaItems {
-					media = append(media, mediaResp{
-						ID: m.ID, Title: m.Title, Type: m.Type, Year: m.Year,
-					})
-				}
+			for _, m := range mediaItems {
+				media = append(media, mediaResp{
+					ID: m.ID, Title: m.Title, Type: m.Type, Year: m.Year,
+				})
 			}
 			w.Header().Set("Content-Type", "application/json")
 			json.NewEncoder(w).Encode(map[string]any{

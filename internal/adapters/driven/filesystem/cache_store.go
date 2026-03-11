@@ -65,11 +65,11 @@ func dirStats(root string) (int64, time.Time) {
 	var latest time.Time
 	filepath.WalkDir(root, func(_ string, d fs.DirEntry, err error) error {
 		if err != nil || d.IsDir() {
-			return nil
+			return nil //nolint:nilerr
 		}
 		fi, err := d.Info()
 		if err != nil {
-			return nil
+			return nil //nolint:nilerr
 		}
 		total += fi.Size()
 		if fi.ModTime().After(latest) {

@@ -40,6 +40,6 @@ func (r *FakePluginRunner) Health(_ context.Context, pluginID string) (bool, err
 	return r.running[pluginID], nil
 }
 
-func (r *FakePluginRunner) SendEvent(_ context.Context, _ string, _ interface{}) error {
+func (r *FakePluginRunner) SendEvent(_ context.Context, _ string, _ any) error {
 	return nil
 }

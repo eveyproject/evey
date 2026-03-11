@@ -2,6 +2,7 @@ package playlist
 
 import (
 	"context"
+	"errors"
 	"testing"
 
 	"github.com/gravity-zero/evey/internal/domain/library"
@@ -41,7 +42,7 @@ func TestGetPlaylistOwnershipCheck(t *testing.T) {
 	svc.Create(context.Background(), pl)
 
 	_, err := svc.GetByID(context.Background(), pl.ID, "user-2")
-	if err != ErrNotOwner {
+	if !errors.Is(err, ErrNotOwner) {
 		t.Fatalf("expected ErrNotOwner, got %v", err)
 	}
 
@@ -112,7 +113,7 @@ func TestCannotAddItemsToSmartPlaylist(t *testing.T) {
 	svc.Create(context.Background(), pl)
 
 	err := svc.AddItem(context.Background(), pl.ID, "media-1", "user-1")
-	if err != ErrSmartItems {
+	if !errors.Is(err, ErrSmartItems) {
 		t.Fatalf("expected ErrSmartItems, got %v", err)
 	}
 }
@@ -166,7 +167,7 @@ func TestDeletePlaylistOwnership(t *testing.T) {
 	pl := &playlist.Playlist{Name: "Mine", UserID: "user-1", Type: playlist.Manual}
 	svc.Create(context.Background(), pl)
 
-	if err := svc.Delete(context.Background(), pl.ID, "user-2"); err != ErrNotOwner {
+	if err := svc.Delete(context.Background(), pl.ID, "user-2"); !errors.Is(err, ErrNotOwner) {
 		t.Fatalf("expected ErrNotOwner, got %v", err)
 	}
 	if err := svc.Delete(context.Background(), pl.ID, "user-1"); err != nil {
@@ -183,14 +184,14 @@ func TestMaxItemsLimit(t *testing.T) {
 	pl := &playlist.Playlist{Name: "Big", UserID: "user-1", Type: playlist.Manual}
 	svc.Create(context.Background(), pl)
 
-	for i := 0; i < maxItems; i++ {
+	for i := range maxItems {
 		if err := svc.AddItem(context.Background(), pl.ID, "media-"+string(rune(i+'A')), "user-1"); err != nil {
 			t.Fatalf("add item %d: %v", i, err)
 		}
 	}
 
 	err := svc.AddItem(context.Background(), pl.ID, "media-overflow", "user-1")
-	if err != ErrMaxItems {
+	if !errors.Is(err, ErrMaxItems) {
 		t.Fatalf("expected ErrMaxItems, got %v", err)
 	}
 }

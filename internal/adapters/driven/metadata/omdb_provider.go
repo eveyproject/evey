@@ -161,7 +161,7 @@ func mapOMDbDetail(d omdbDetail) *domain.MetadataResult {
 	result.OfficialRating = naToEmpty(d.Rated)
 
 	if d.Genre != "" && d.Genre != "N/A" {
-		for _, g := range strings.Split(d.Genre, ", ") {
+		for g := range strings.SplitSeq(d.Genre, ", ") {
 			result.Genres = append(result.Genres, strings.TrimSpace(g))
 		}
 	}
@@ -222,7 +222,7 @@ func splitNames(s string) []string {
 		return nil
 	}
 	var names []string
-	for _, n := range strings.Split(s, ", ") {
+	for n := range strings.SplitSeq(s, ", ") {
 		n = strings.TrimSpace(n)
 		if n != "" {
 			names = append(names, n)
@@ -271,23 +271,23 @@ type omdbSearchItem struct {
 }
 
 type omdbDetail struct {
-	Title    string       `json:"Title"`
-	Year     string       `json:"Year"`
-	Rated    string       `json:"Rated"`
-	Released string       `json:"Released"`
-	Runtime  string       `json:"Runtime"`
-	Genre    string       `json:"Genre"`
-	Director string       `json:"Director"`
-	Writer   string       `json:"Writer"`
-	Actors   string       `json:"Actors"`
-	Plot     string       `json:"Plot"`
-	Awards   string       `json:"Awards"`
-	Poster   string       `json:"Poster"`
-	Ratings  []omdbRating `json:"Ratings"`
-	ImdbID   string       `json:"imdbID"`
-	BoxOffice string     `json:"BoxOffice"`
-	Response string       `json:"Response"`
-	Error    string       `json:"Error"`
+	Title     string       `json:"Title"`
+	Year      string       `json:"Year"`
+	Rated     string       `json:"Rated"`
+	Released  string       `json:"Released"`
+	Runtime   string       `json:"Runtime"`
+	Genre     string       `json:"Genre"`
+	Director  string       `json:"Director"`
+	Writer    string       `json:"Writer"`
+	Actors    string       `json:"Actors"`
+	Plot      string       `json:"Plot"`
+	Awards    string       `json:"Awards"`
+	Poster    string       `json:"Poster"`
+	Ratings   []omdbRating `json:"Ratings"`
+	ImdbID    string       `json:"imdbID"`
+	BoxOffice string       `json:"BoxOffice"`
+	Response  string       `json:"Response"`
+	Error     string       `json:"Error"`
 }
 
 type omdbRating struct {

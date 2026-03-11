@@ -197,7 +197,7 @@ func (r *Runner) Health(_ context.Context, pluginID string) (bool, error) {
 	return true, nil
 }
 
-func (r *Runner) SendEvent(_ context.Context, pluginID string, event interface{}) error {
+func (r *Runner) SendEvent(_ context.Context, pluginID string, event any) error {
 	r.mu.RLock()
 	_, ok := r.processes[pluginID]
 	r.mu.RUnlock()

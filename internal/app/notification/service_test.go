@@ -10,8 +10,8 @@ import (
 	notifdom "github.com/gravity-zero/evey/internal/domain/notification"
 	notiffakes "github.com/gravity-zero/evey/internal/domain/notification/fakes"
 	sharedfakes "github.com/gravity-zero/evey/internal/domain/shared/fakes"
-	userfakes "github.com/gravity-zero/evey/internal/domain/user/fakes"
 	"github.com/gravity-zero/evey/internal/domain/user"
+	userfakes "github.com/gravity-zero/evey/internal/domain/user/fakes"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -105,7 +105,7 @@ func TestNotificationService_LevelDisabled_SkipsProfile(t *testing.T) {
 
 	notifs, err := repo.ListByProfile(ctx, "p1", false, 0, 0)
 	require.NoError(t, err)
-	assert.Len(t, notifs, 0, "disabled level should skip")
+	assert.Empty(t, notifs, "disabled level should skip")
 }
 
 func TestNotificationService_MarkRead_UnreadCount(t *testing.T) {

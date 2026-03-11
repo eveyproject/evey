@@ -56,7 +56,7 @@ func (s *Scanner) Scan(ctx context.Context, root string) ([]library.ScannedFile,
 
 		info, err := d.Info()
 		if err != nil {
-			return nil
+			return nil //nolint:nilerr
 		}
 		parsed := (&FilenameParser{}).Parse(path)
 		// If no year from filename, try parent directory (e.g. "Show Name (2025)/")

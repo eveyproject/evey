@@ -15,7 +15,7 @@ type HDRInfo struct {
 }
 
 type ToneMapOptions struct {
-	Algorithm string  // "hable", "reinhard", "mobius"
+	Algorithm string // "hable", "reinhard", "mobius"
 	Desat     float64
 	Peak      float64
 }
@@ -89,14 +89,14 @@ func BuildToneMapFilter(info *HDRInfo, opts ToneMapOptions) string {
 
 func normalizeHDRType(raw string) string {
 	lower := strings.ToLower(strings.TrimSpace(raw))
-	switch {
-	case lower == "dolby vision" || lower == "dolbyvision" || lower == "dovi":
+	switch lower {
+	case "dolby vision", "dolbyvision", "dovi":
 		return "dolby_vision"
-	case lower == "hdr10+" || lower == "hdr10plus":
+	case "hdr10+", "hdr10plus":
 		return "hdr10+"
-	case lower == "hdr10" || lower == "hdr":
+	case "hdr10", "hdr":
 		return "hdr10"
-	case lower == "hlg":
+	case "hlg":
 		return "hlg"
 	default:
 		return lower

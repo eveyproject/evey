@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"strings"
 	"time"
 
@@ -92,7 +93,9 @@ func (s *CommandService) extractAndStoreChapters(ctx context.Context, mediaItemI
 			SortOrder:   i,
 		}
 	}
-	_ = s.chapters.ReplaceBatch(ctx, mediaItemID, chapters)
+	if err := s.chapters.ReplaceBatch(ctx, mediaItemID, chapters); err != nil {
+		slog.Warn("store chapters failed", slog.String("mediaItemID", mediaItemID), slog.Any("err", err))
+	}
 }
 
 func (s *CommandService) CreateLibrary(ctx context.Context, lib *library.Library) error {
@@ -258,8 +261,12 @@ func (s *CommandService) ProbeAndStoreStreams(ctx context.Context, mediaItemID, 
 	extSubs := s.discoverExternalSubtitles(result.Streams, mediaItemID, filePath)
 	allStreams := append(result.Streams, extSubs...)
 
-	_ = s.mediaStreams.DeleteByMediaItemID(ctx, mediaItemID)
-	_ = s.mediaStreams.CreateBatch(ctx, allStreams)
+	if err := s.mediaStreams.DeleteByMediaItemID(ctx, mediaItemID); err != nil {
+		slog.Warn("delete media streams failed", slog.String("mediaItemID", mediaItemID), slog.Any("err", err))
+	}
+	if err := s.mediaStreams.CreateBatch(ctx, allStreams); err != nil {
+		slog.Warn("create media streams failed", slog.String("mediaItemID", mediaItemID), slog.Any("err", err))
+	}
 	return result.DurationMs
 }
 

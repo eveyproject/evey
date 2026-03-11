@@ -24,7 +24,7 @@ func TestScan_FindsVideoFiles(t *testing.T) {
 	s := NewScanner()
 	found, err := s.Scan(context.Background(), dir)
 	require.NoError(t, err)
-	assert.Equal(t, 3, len(found))
+	assert.Len(t, found, 3)
 
 	names := make(map[string]bool)
 	for _, f := range found {
@@ -45,7 +45,7 @@ func TestScan_SkipsHiddenDirs(t *testing.T) {
 	s := NewScanner()
 	found, err := s.Scan(context.Background(), dir)
 	require.NoError(t, err)
-	assert.Equal(t, 1, len(found))
+	assert.Len(t, found, 1)
 	assert.Equal(t, "visible.mkv", filepath.Base(found[0].Path))
 }
 
@@ -58,7 +58,7 @@ func TestScan_SkipsHiddenFiles(t *testing.T) {
 	s := NewScanner()
 	found, err := s.Scan(context.Background(), dir)
 	require.NoError(t, err)
-	assert.Equal(t, 1, len(found))
+	assert.Len(t, found, 1)
 	assert.Equal(t, "normal.mkv", filepath.Base(found[0].Path))
 }
 
@@ -74,7 +74,7 @@ func TestScan_RecursiveSubdirs(t *testing.T) {
 	s := NewScanner()
 	found, err := s.Scan(context.Background(), dir)
 	require.NoError(t, err)
-	assert.Equal(t, 3, len(found))
+	assert.Len(t, found, 3)
 }
 
 func TestScan_EmptyDir(t *testing.T) {
@@ -97,7 +97,7 @@ func TestScan_AllVideoExtensions(t *testing.T) {
 	s := NewScanner()
 	found, err := s.Scan(context.Background(), dir)
 	require.NoError(t, err)
-	assert.Equal(t, len(exts), len(found))
+	assert.Len(t, found, len(exts))
 }
 
 func TestScan_CaseInsensitiveExtension(t *testing.T) {
@@ -109,7 +109,7 @@ func TestScan_CaseInsensitiveExtension(t *testing.T) {
 	s := NewScanner()
 	found, err := s.Scan(context.Background(), dir)
 	require.NoError(t, err)
-	assert.Equal(t, 2, len(found))
+	assert.Len(t, found, 2)
 }
 
 func TestScan_NonexistentDir(t *testing.T) {
@@ -140,6 +140,6 @@ func TestScan_FileSize(t *testing.T) {
 	s := NewScanner()
 	found, err := s.Scan(context.Background(), dir)
 	require.NoError(t, err)
-	require.Equal(t, 1, len(found))
+	require.Len(t, found, 1)
 	assert.Equal(t, int64(1024), found[0].Size)
 }

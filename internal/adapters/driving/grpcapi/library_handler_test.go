@@ -5,8 +5,8 @@ import (
 	"testing"
 
 	eveyv1 "github.com/gravity-zero/evey/gen/evey/v1"
-	applibrary "github.com/gravity-zero/evey/internal/app/library"
 	"github.com/gravity-zero/evey/internal/adapters/driving/grpcapi/interceptors"
+	applibrary "github.com/gravity-zero/evey/internal/app/library"
 	"github.com/gravity-zero/evey/internal/domain/library"
 	libfakes "github.com/gravity-zero/evey/internal/domain/library/fakes"
 	sharedfakes "github.com/gravity-zero/evey/internal/domain/shared/fakes"
@@ -191,7 +191,7 @@ func TestLibraryHandler_ListMediaItems_WithPagination(t *testing.T) {
 	h, _, mediaQuery, _, _, _ := newTestLibraryHandler()
 	ctx := adminCtx()
 
-	for i := 0; i < 5; i++ {
+	for i := range 5 {
 		mediaQuery.Seed(&library.MediaItem{
 			ID:        "mi-" + string(rune('a'+i)),
 			LibraryID: "lib-1",
@@ -237,7 +237,7 @@ func TestLibraryHandler_SearchMedia(t *testing.T) {
 	})
 
 	require.NoError(t, err)
-	assert.Equal(t, 2, len(resp.Items))
+	assert.Len(t, resp.Items, 2)
 	for _, item := range resp.Items {
 		assert.Contains(t, item.Title, "Matrix")
 	}

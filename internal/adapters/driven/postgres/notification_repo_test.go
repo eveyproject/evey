@@ -52,11 +52,11 @@ func TestNotificationRepo_CRUD(t *testing.T) {
 	// unread only filter
 	unread, err := repo.ListByProfile(ctx, "profile-a", true, 10, 0)
 	require.NoError(t, err)
-	assert.Len(t, unread, 0)
+	assert.Empty(t, unread)
 
 	require.NoError(t, repo.DeleteAll(ctx, "profile-a"))
 	list, _ = repo.ListByProfile(ctx, "profile-a", false, 10, 0)
-	assert.Len(t, list, 0)
+	assert.Empty(t, list)
 }
 
 func TestNotificationRepo_MarkAllRead(t *testing.T) {

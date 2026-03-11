@@ -127,7 +127,6 @@ func (r *PlaySessionRepository) GetHistory(ctx context.Context, f playback.PlayS
 	if f.StartTo != nil {
 		conditions = append(conditions, fmt.Sprintf("started_at <= $%d", argIdx))
 		args = append(args, *f.StartTo)
-		argIdx++
 	}
 
 	query := `SELECT id, profile_id, media_item_id, device_name, device_type, client_ip, play_method,

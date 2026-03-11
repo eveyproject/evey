@@ -54,10 +54,10 @@ func TestFeedProfileConfigRepo(t *testing.T) {
 	maxItems := 10
 	enabled := false
 	cfg := &feed.ProfileConfig{
-		ProfileID:    "prof-1",
-		FeedType:     feed.TypeContinueWatching,
-		Enabled:      &enabled,
-		MaxItems:     &maxItems,
+		ProfileID: "prof-1",
+		FeedType:  feed.TypeContinueWatching,
+		Enabled:   &enabled,
+		MaxItems:  &maxItems,
 	}
 
 	require.NoError(t, repo.Upsert(ctx, cfg))
@@ -69,5 +69,5 @@ func TestFeedProfileConfigRepo(t *testing.T) {
 
 	require.NoError(t, repo.Delete(ctx, "prof-1", feed.TypeContinueWatching))
 	results, _ = repo.GetByProfile(ctx, "prof-1")
-	assert.Len(t, results, 0)
+	assert.Empty(t, results)
 }

@@ -6,9 +6,10 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
-	"strings"
 	"sync"
 	"time"
+
+	"github.com/lib/pq"
 
 	"github.com/gravity-zero/evey/internal/domain/shared"
 	"github.com/gravity-zero/evey/internal/domain/user"
@@ -460,7 +461,8 @@ func (s *Service) generateAndStoreRefreshToken(ctx context.Context, userID strin
 		if err == nil {
 			return token, nil
 		}
-		if !strings.Contains(err.Error(), "duplicate") {
+		var pqErr *pq.Error
+		if !errors.As(err, &pqErr) || pqErr.Code != "23505" {
 			return "", fmt.Errorf("store refresh token: %w", err)
 		}
 	}

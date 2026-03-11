@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/golang-jwt/jwt/v5"
 	"github.com/gravity-zero/evey/internal/domain/user"
 	"github.com/gravity-zero/evey/internal/pkg/auth"
 	"github.com/stretchr/testify/assert"
@@ -59,4 +60,24 @@ func TestInvalidSignature(t *testing.T) {
 	token, _ := gen1.GenerateAccessToken(user.Claims{UserID: "u1", Username: "test"})
 	_, err := gen2.ValidateAccessToken(token)
 	assert.Error(t, err)
+}
+
+func TestAlgorithmConfusion(t *testing.T) {
+	key, _ := rsa.GenerateKey(rand.Reader, 2048)
+	gen := auth.NewJWTGenerator(key, 15*time.Minute)
+
+	// Build a token signed with HMAC using the public key bytes — algorithm confusion attack
+	pubKeyBytes := key.PublicKey.N.Bytes()
+	hmacToken := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
+		"sub":      "attacker",
+		"username": "attacker",
+		"is_admin": true,
+		"iat":      time.Now().Unix(),
+		"exp":      time.Now().Add(time.Hour).Unix(),
+	})
+	tokenStr, err := hmacToken.SignedString(pubKeyBytes)
+	assert.NoError(t, err)
+
+	_, err = gen.ValidateAccessToken(tokenStr)
+	assert.Error(t, err, "algorithm confusion token must be rejected")
 }

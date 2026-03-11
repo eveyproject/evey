@@ -42,7 +42,7 @@ func TestMultipleSubscribers(t *testing.T) {
 	var mu sync.Mutex
 	count := 0
 
-	for i := 0; i < 3; i++ {
+	for range 3 {
 		bus.Subscribe("test.event", func(_ context.Context, _ shared.Event) {
 			mu.Lock()
 			count++

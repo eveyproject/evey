@@ -157,8 +157,8 @@ func NextCronTime(expr string, from time.Time) (time.Time, error) {
 
 func parseCronField(field string, min, max int) (map[int]bool, error) {
 	result := make(map[int]bool)
-	parts := strings.Split(field, ",")
-	for _, part := range parts {
+	parts := strings.SplitSeq(field, ",")
+	for part := range parts {
 		part = strings.TrimSpace(part)
 		if part == "*" {
 			for i := min; i <= max; i++ {

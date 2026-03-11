@@ -22,51 +22,51 @@ var publicMethods = map[string]bool{
 }
 
 var adminOnlyMethods = map[string]bool{
-	"/evey.v1.AdminService/GetServerConfig":              true,
-	"/evey.v1.AdminService/UpdateServerConfig":           true,
-	"/evey.v1.AdminService/GetDashboard":                 true,
-	"/evey.v1.AdminService/ListScheduledTasks":           true,
-	"/evey.v1.AdminService/UpdateScheduledTask":          true,
-	"/evey.v1.AdminService/RunScheduledTask":             true,
-	"/evey.v1.AdminService/GetAuditLog":                  true,
-	"/evey.v1.AdminService/ListPluginRuntimes":           true,
-	"/evey.v1.AdminService/AddPluginRuntime":             true,
-	"/evey.v1.AdminService/RemovePluginRuntime":          true,
-	"/evey.v1.AdminService/InstallPlugin":                true,
-	"/evey.v1.AdminService/UninstallPlugin":              true,
-	"/evey.v1.AdminService/EnablePlugin":                 true,
-	"/evey.v1.AdminService/DisablePlugin":                true,
-	"/evey.v1.AdminService/ListPlugins":                  true,
-	"/evey.v1.AdminService/GetPluginConfig":              true,
-	"/evey.v1.AdminService/UpdatePluginConfig":           true,
-	"/evey.v1.AdminService/GetPluginLogs":                true,
-	"/evey.v1.WebhookService/CreateWebhook":              true,
-	"/evey.v1.WebhookService/ListWebhooks":               true,
-	"/evey.v1.WebhookService/UpdateWebhook":              true,
-	"/evey.v1.WebhookService/DeleteWebhook":              true,
-	"/evey.v1.WebhookService/ListWebhookDeliveries":      true,
-	"/evey.v1.UserService/CreateUser":                    true,
-	"/evey.v1.UserService/DeleteUser":                    true,
-	"/evey.v1.UserService/DisableUser":                   true,
-	"/evey.v1.UserService/ListUsers":                     true,
-	"/evey.v1.LibraryService/CreateLibrary":              true,
-	"/evey.v1.LibraryService/DeleteLibrary":              true,
-	"/evey.v1.LibraryService/ScanLibrary":                true,
-	"/evey.v1.FeedService/GetAdminFeedConfigs":           true,
-	"/evey.v1.FeedService/UpdateAdminFeedConfig":         true,
+	"/evey.v1.AdminService/GetServerConfig":                         true,
+	"/evey.v1.AdminService/UpdateServerConfig":                      true,
+	"/evey.v1.AdminService/GetDashboard":                            true,
+	"/evey.v1.AdminService/ListScheduledTasks":                      true,
+	"/evey.v1.AdminService/UpdateScheduledTask":                     true,
+	"/evey.v1.AdminService/RunScheduledTask":                        true,
+	"/evey.v1.AdminService/GetAuditLog":                             true,
+	"/evey.v1.AdminService/ListPluginRuntimes":                      true,
+	"/evey.v1.AdminService/AddPluginRuntime":                        true,
+	"/evey.v1.AdminService/RemovePluginRuntime":                     true,
+	"/evey.v1.AdminService/InstallPlugin":                           true,
+	"/evey.v1.AdminService/UninstallPlugin":                         true,
+	"/evey.v1.AdminService/EnablePlugin":                            true,
+	"/evey.v1.AdminService/DisablePlugin":                           true,
+	"/evey.v1.AdminService/ListPlugins":                             true,
+	"/evey.v1.AdminService/GetPluginConfig":                         true,
+	"/evey.v1.AdminService/UpdatePluginConfig":                      true,
+	"/evey.v1.AdminService/GetPluginLogs":                           true,
+	"/evey.v1.WebhookService/CreateWebhook":                         true,
+	"/evey.v1.WebhookService/ListWebhooks":                          true,
+	"/evey.v1.WebhookService/UpdateWebhook":                         true,
+	"/evey.v1.WebhookService/DeleteWebhook":                         true,
+	"/evey.v1.WebhookService/ListWebhookDeliveries":                 true,
+	"/evey.v1.UserService/CreateUser":                               true,
+	"/evey.v1.UserService/DeleteUser":                               true,
+	"/evey.v1.UserService/DisableUser":                              true,
+	"/evey.v1.UserService/ListUsers":                                true,
+	"/evey.v1.LibraryService/CreateLibrary":                         true,
+	"/evey.v1.LibraryService/DeleteLibrary":                         true,
+	"/evey.v1.LibraryService/ScanLibrary":                           true,
+	"/evey.v1.FeedService/GetAdminFeedConfigs":                      true,
+	"/evey.v1.FeedService/UpdateAdminFeedConfig":                    true,
 	"/evey.v1.NotificationService/GetGlobalNotificationSettings":    true,
 	"/evey.v1.NotificationService/UpdateGlobalNotificationSettings": true,
-	"/evey.v1.ActivityService/GetServerStats":             true,
-	"/evey.v1.ActivityService/ListServerMetrics":          true,
-	"/evey.v1.MetadataService/RefreshMetadata":            true,
-	"/evey.v1.MetadataService/SetMetadataOverride":        true,
-	"/evey.v1.MetadataService/RemoveMetadataOverride":     true,
-	"/evey.v1.MKVService/MuxContainer":                   true,
-	"/evey.v1.MKVService/DemuxContainer":                 true,
-	"/evey.v1.MKVService/AddTrack":                       true,
-	"/evey.v1.MKVService/RemoveTrack":                    true,
-	"/evey.v1.TranscodingService/StopTranscode":           true,
-	"/evey.v1.TranscodingService/ListActiveTranscodes":    true,
+	"/evey.v1.ActivityService/GetServerStats":                       true,
+	"/evey.v1.ActivityService/ListServerMetrics":                    true,
+	"/evey.v1.MetadataService/RefreshMetadata":                      true,
+	"/evey.v1.MetadataService/SetMetadataOverride":                  true,
+	"/evey.v1.MetadataService/RemoveMetadataOverride":               true,
+	"/evey.v1.MKVService/MuxContainer":                              true,
+	"/evey.v1.MKVService/DemuxContainer":                            true,
+	"/evey.v1.MKVService/AddTrack":                                  true,
+	"/evey.v1.MKVService/RemoveTrack":                               true,
+	"/evey.v1.TranscodingService/StopTranscode":                     true,
+	"/evey.v1.TranscodingService/ListActiveTranscodes":              true,
 }
 
 type AuthInterceptor struct {
@@ -78,7 +78,7 @@ func NewAuthInterceptor(tokenGen user.TokenGenerator) *AuthInterceptor {
 }
 
 func (i *AuthInterceptor) Unary() grpc.UnaryServerInterceptor {
-	return func(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (interface{}, error) {
+	return func(ctx context.Context, req any, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (any, error) {
 		if publicMethods[info.FullMethod] {
 			return handler(ctx, req)
 		}
@@ -94,7 +94,7 @@ func (i *AuthInterceptor) Unary() grpc.UnaryServerInterceptor {
 }
 
 func (i *AuthInterceptor) Stream() grpc.StreamServerInterceptor {
-	return func(srv interface{}, ss grpc.ServerStream, info *grpc.StreamServerInfo, handler grpc.StreamHandler) error {
+	return func(srv any, ss grpc.ServerStream, info *grpc.StreamServerInfo, handler grpc.StreamHandler) error {
 		if publicMethods[info.FullMethod] {
 			return handler(srv, ss)
 		}

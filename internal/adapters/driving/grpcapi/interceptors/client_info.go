@@ -16,14 +16,14 @@ type clientIPKey struct{}
 
 // ClientInfoUnary extracts user-agent, x-device-name, and client IP from gRPC metadata into context.
 func ClientInfoUnary() grpc.UnaryServerInterceptor {
-	return func(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (interface{}, error) {
+	return func(ctx context.Context, req any, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (any, error) {
 		ctx = enrichClientInfo(ctx)
 		return handler(ctx, req)
 	}
 }
 
 func ClientInfoStream() grpc.StreamServerInterceptor {
-	return func(srv interface{}, ss grpc.ServerStream, info *grpc.StreamServerInfo, handler grpc.StreamHandler) error {
+	return func(srv any, ss grpc.ServerStream, info *grpc.StreamServerInfo, handler grpc.StreamHandler) error {
 		ctx := enrichClientInfo(ss.Context())
 		return handler(srv, &wrappedStream{ServerStream: ss, ctx: ctx})
 	}

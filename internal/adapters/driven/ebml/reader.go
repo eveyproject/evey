@@ -3,6 +3,7 @@ package ebml
 import (
 	"context"
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"io"
 	"math"
@@ -247,7 +248,7 @@ func (p *parser) parseSegment(ctx context.Context, c *mkv.Container) error {
 
 		eh, _, err := p.readHeader()
 		if err != nil {
-			if err == io.EOF {
+			if errors.Is(err, io.EOF) {
 				break
 			}
 			return err

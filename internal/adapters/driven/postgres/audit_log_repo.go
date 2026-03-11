@@ -49,7 +49,6 @@ func (r *AuditLogRepository) List(ctx context.Context, f activity.AuditLogFilter
 	if f.ResourceType != nil {
 		conditions = append(conditions, fmt.Sprintf("resource_type = $%d", argIdx))
 		args = append(args, *f.ResourceType)
-		argIdx++
 	}
 
 	query := `SELECT id, user_id, action, resource_type, resource_id, details, client_ip, user_agent, device_name, created_at FROM audit_log`

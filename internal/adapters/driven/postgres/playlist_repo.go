@@ -180,7 +180,7 @@ func (q *SmartPlaylistQuerier) QueryByRules(ctx context.Context, rules []playlis
 		FROM media_items`
 
 	var conditions []string
-	var args []interface{}
+	var args []any
 	argIdx := 1
 
 	for _, rule := range rules {
@@ -224,48 +224,48 @@ func (q *SmartPlaylistQuerier) QueryByRules(ctx context.Context, rules []playlis
 	return scanMediaItems(rows)
 }
 
-func buildRuleCondition(rule playlist.Rule, argIdx *int) (string, []interface{}) {
+func buildRuleCondition(rule playlist.Rule, argIdx *int) (string, []any) {
 	switch rule.Field {
 	case "genre":
 		cond := fmt.Sprintf("genres @> $%d::jsonb", *argIdx)
 		val, _ := json.Marshal([]string{rule.Value})
 		*argIdx++
-		return cond, []interface{}{string(val)}
+		return cond, []any{string(val)}
 	case "type":
 		cond := fmt.Sprintf("type = $%d", *argIdx)
 		*argIdx++
-		return cond, []interface{}{rule.Value}
+		return cond, []any{rule.Value}
 	case "year":
 		switch rule.Operator {
 		case "gt":
 			cond := fmt.Sprintf("year > $%d", *argIdx)
 			*argIdx++
-			return cond, []interface{}{rule.Value}
+			return cond, []any{rule.Value}
 		case "lt":
 			cond := fmt.Sprintf("year < $%d", *argIdx)
 			*argIdx++
-			return cond, []interface{}{rule.Value}
+			return cond, []any{rule.Value}
 		case "gte":
 			cond := fmt.Sprintf("year >= $%d", *argIdx)
 			*argIdx++
-			return cond, []interface{}{rule.Value}
+			return cond, []any{rule.Value}
 		case "lte":
 			cond := fmt.Sprintf("year <= $%d", *argIdx)
 			*argIdx++
-			return cond, []interface{}{rule.Value}
+			return cond, []any{rule.Value}
 		default:
 			cond := fmt.Sprintf("year = $%d", *argIdx)
 			*argIdx++
-			return cond, []interface{}{rule.Value}
+			return cond, []any{rule.Value}
 		}
 	case "library_id":
 		cond := fmt.Sprintf("library_id = $%d", *argIdx)
 		*argIdx++
-		return cond, []interface{}{rule.Value}
+		return cond, []any{rule.Value}
 	case "rating_gte":
 		cond := fmt.Sprintf("community_rating >= $%d::double precision", *argIdx)
 		*argIdx++
-		return cond, []interface{}{rule.Value}
+		return cond, []any{rule.Value}
 	default:
 		return "", nil
 	}

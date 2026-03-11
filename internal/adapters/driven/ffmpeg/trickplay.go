@@ -49,5 +49,5 @@ func (g *TrickplayGenerator) Generate(ctx context.Context, filePath, outputDir s
 	return &library.TrickplayResult{
 		ImageDir:   outputDir,
 		ImageCount: imageCount,
-	}, nil
+	}, nil //nolint:nilerr
 }

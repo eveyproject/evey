@@ -1,6 +1,10 @@
 package auth
 
-import "golang.org/x/crypto/bcrypt"
+import (
+	"errors"
+
+	"golang.org/x/crypto/bcrypt"
+)
 
 const bcryptCost = 12
 
@@ -16,7 +20,7 @@ func (BcryptHasher) Hash(password string) (string, error) {
 
 func (BcryptHasher) Verify(password, hash string) (bool, error) {
 	err := bcrypt.CompareHashAndPassword([]byte(hash), []byte(password))
-	if err == bcrypt.ErrMismatchedHashAndPassword {
+	if errors.Is(err, bcrypt.ErrMismatchedHashAndPassword) {
 		return false, nil
 	}
 	if err != nil {

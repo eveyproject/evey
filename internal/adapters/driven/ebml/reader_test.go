@@ -119,7 +119,7 @@ func TestOpenRealMKV(t *testing.T) {
 
 	assert.Equal(t, testFile, c.Path)
 	assert.NotEmpty(t, c.Info.MuxingApp)
-	assert.True(t, len(c.Tracks) >= 1, "expected at least 1 track, got %d", len(c.Tracks))
+	assert.GreaterOrEqual(t, len(c.Tracks), 1, "expected at least 1 track, got %d", len(c.Tracks))
 
 	hasVideo := false
 	for _, tr := range c.Tracks {
@@ -144,5 +144,5 @@ func TestReadTracksRealMKV(t *testing.T) {
 	reader := NewReader()
 	tracks, err := reader.ReadTracks(context.Background(), testFile)
 	require.NoError(t, err)
-	assert.True(t, len(tracks) >= 1)
+	assert.GreaterOrEqual(t, len(tracks), 1)
 }

@@ -1,5 +1,7 @@
 package pluginrunner
 
+import "slices"
+
 import "github.com/gravity-zero/evey/internal/domain/plugin"
 
 var KnownCapabilities = map[string]bool{
@@ -22,19 +24,9 @@ var KnownPermissions = map[string]bool{
 }
 
 func CheckCapability(p *plugin.Plugin, requiredCap string) bool {
-	for _, c := range p.Capabilities {
-		if c == requiredCap {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(p.Capabilities, requiredCap)
 }
 
 func CheckPermission(p *plugin.Plugin, requiredPerm string) bool {
-	for _, perm := range p.Permissions {
-		if perm == requiredPerm {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(p.Permissions, requiredPerm)
 }

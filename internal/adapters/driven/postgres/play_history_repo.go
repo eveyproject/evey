@@ -29,7 +29,7 @@ func (r *PlayHistoryRepository) List(ctx context.Context, filter activity.PlayHi
 		LEFT JOIN watch_progress wp ON wp.profile_id = ps.profile_id AND wp.media_item_id = ps.media_item_id
 		WHERE 1=1`
 
-	args := []interface{}{}
+	args := []any{}
 	i := 1
 
 	if filter.ProfileID != "" {

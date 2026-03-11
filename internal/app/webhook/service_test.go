@@ -292,7 +292,7 @@ func TestHandleAny_ConcurrencyBounded(t *testing.T) {
 
 	ctx := context.Background()
 	// create 15 enabled webhooks (more than maxConcurrentDeliveries=10)
-	for i := 0; i < 15; i++ {
+	for i := range 15 {
 		repo.mu.Lock()
 		repo.data = append(repo.data, &webhookdomain.Config{
 			ID:      fmt.Sprintf("w%d", i),

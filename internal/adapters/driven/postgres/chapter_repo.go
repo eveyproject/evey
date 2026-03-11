@@ -34,13 +34,13 @@ func (r *ChapterRepository) ReplaceBatch(ctx context.Context, mediaItemID string
 
 	var b strings.Builder
 	b.WriteString(`INSERT INTO chapters (id, media_item_id, title, start_time_ms, end_time_ms, sort_order) VALUES `)
-	args := make([]interface{}, 0, len(chapters)*6)
+	args := make([]any, 0, len(chapters)*6)
 	for i, ch := range chapters {
 		if i > 0 {
 			b.WriteString(",")
 		}
 		base := i * 6
-		b.WriteString(fmt.Sprintf("($%d,$%d,$%d,$%d,$%d,$%d)", base+1, base+2, base+3, base+4, base+5, base+6))
+		fmt.Fprintf(&b, "($%d,$%d,$%d,$%d,$%d,$%d)", base+1, base+2, base+3, base+4, base+5, base+6)
 		args = append(args, ch.ID, ch.MediaItemID, ch.Title, ch.StartTimeMs, ch.EndTimeMs, ch.SortOrder)
 	}
 

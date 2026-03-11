@@ -13,7 +13,7 @@ import (
 )
 
 func LoggingUnary(log *slog.Logger) grpc.UnaryServerInterceptor {
-	return func(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (interface{}, error) {
+	return func(ctx context.Context, req any, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (any, error) {
 		ctx = eveylogger.WithRequestID(ctx, newRequestID())
 		start := time.Now()
 		resp, err := handler(ctx, req)
@@ -33,7 +33,7 @@ func LoggingUnary(log *slog.Logger) grpc.UnaryServerInterceptor {
 }
 
 func LoggingStream(log *slog.Logger) grpc.StreamServerInterceptor {
-	return func(srv interface{}, ss grpc.ServerStream, info *grpc.StreamServerInfo, handler grpc.StreamHandler) error {
+	return func(srv any, ss grpc.ServerStream, info *grpc.StreamServerInfo, handler grpc.StreamHandler) error {
 		ctx := eveylogger.WithRequestID(ss.Context(), newRequestID())
 		wrapped := &wrappedStream{ServerStream: ss, ctx: ctx}
 		start := time.Now()

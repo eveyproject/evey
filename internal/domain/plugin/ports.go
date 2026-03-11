@@ -23,7 +23,7 @@ type PluginRunner interface {
 	Start(ctx context.Context, p *Plugin) error
 	Stop(ctx context.Context, pluginID string) error
 	Health(ctx context.Context, pluginID string) (bool, error)
-	SendEvent(ctx context.Context, pluginID string, event interface{}) error
+	SendEvent(ctx context.Context, pluginID string, event any) error
 }
 
 type ManifestParser interface {

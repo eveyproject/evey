@@ -29,8 +29,8 @@ type Plugin struct {
 	InstallDir   string
 	Capabilities []string
 	Permissions  []string
-	ConfigSchema map[string]interface{}
-	Config       map[string]interface{}
+	ConfigSchema map[string]any
+	Config       map[string]any
 	Enabled      bool
 	Status       string
 	ErrorMessage string
@@ -39,16 +39,16 @@ type Plugin struct {
 }
 
 type PluginManifest struct {
-	Name           string                 `yaml:"name"`
-	Version        string                 `yaml:"version"`
-	Description    string                 `yaml:"description"`
-	Author         string                 `yaml:"author"`
-	Language       string                 `yaml:"language"`
-	Entrypoint     string                 `yaml:"entrypoint"`
-	Capabilities   []string               `yaml:"capabilities"`
-	Permissions    []string               `yaml:"permissions"`
-	MinEveyVersion string                 `yaml:"min_evey_version"`
-	ConfigSchema   map[string]interface{} `yaml:"config_schema"`
+	Name           string         `yaml:"name"`
+	Version        string         `yaml:"version"`
+	Description    string         `yaml:"description"`
+	Author         string         `yaml:"author"`
+	Language       string         `yaml:"language"`
+	Entrypoint     string         `yaml:"entrypoint"`
+	Capabilities   []string       `yaml:"capabilities"`
+	Permissions    []string       `yaml:"permissions"`
+	MinEveyVersion string         `yaml:"min_evey_version"`
+	ConfigSchema   map[string]any `yaml:"config_schema"`
 }
 
 type PluginRuntime struct {

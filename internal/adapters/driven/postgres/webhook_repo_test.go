@@ -53,7 +53,7 @@ func TestWebhookRepo_CRUD(t *testing.T) {
 
 	require.NoError(t, repo.Delete(ctx, cfg.ID))
 	list, _ = repo.List(ctx)
-	assert.Len(t, list, 0)
+	assert.Empty(t, list)
 }
 
 func TestWebhookDeliveryRepo(t *testing.T) {

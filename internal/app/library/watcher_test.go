@@ -102,7 +102,7 @@ func TestWatcherService_Debounce_MultipleFastEvents(t *testing.T) {
 	defer ws.Stop()
 
 	// rapid-fire events should debounce into a single scan
-	for i := 0; i < 10; i++ {
+	for range 10 {
 		watcher.SendEvent(library.FileEvent{
 			Path: "/media/movies/film.mkv",
 			Op:   library.FileModified,
@@ -116,7 +116,7 @@ func TestWatcherService_Debounce_MultipleFastEvents(t *testing.T) {
 
 	// wait a bit more to ensure no extra scans
 	time.Sleep(500 * time.Millisecond)
-	assert.Equal(t, 1, len(scanner.scanned), "should debounce into single scan")
+	assert.Len(t, scanner.scanned, 1, "should debounce into single scan")
 }
 
 func TestWatcherService_AddRemoveLibrary(t *testing.T) {

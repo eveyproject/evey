@@ -459,7 +459,7 @@ func chaptersHandler(tokenGen interface {
 	ValidateAccessToken(string) (*domainuser.Claims, error)
 }, libSvc interface {
 	GetChapters(ctx context.Context, mediaItemID string) ([]*domainlibrary.Chapter, error)
-}) http.HandlerFunc {
+}, baseURL string) http.HandlerFunc {
 	type chapterJSON struct {
 		Title       string `json:"title"`
 		StartTimeMs int64  `json:"startTimeMs"`
@@ -494,7 +494,7 @@ func chaptersHandler(tokenGen interface {
 			})
 		}
 		w.Header().Set("Content-Type", "application/json")
-		w.Header().Set("Access-Control-Allow-Origin", "*")
+		setCORSHeaders(w, r, baseURL)
 		json.NewEncoder(w).Encode(map[string]any{"chapters": out})
 	}
 }
@@ -589,9 +589,7 @@ func activeSessionsHandler(tokenGen interface {
 	}
 	return func(w http.ResponseWriter, r *http.Request) {
 		token := r.Header.Get("Authorization")
-		if strings.HasPrefix(token, "Bearer ") {
-			token = token[7:]
-		}
+		token = strings.TrimPrefix(token, "Bearer ")
 		claims, err := tokenGen.ValidateAccessToken(token)
 		if err != nil || !claims.IsAdmin {
 			http.Error(w, `{"message":"forbidden"}`, http.StatusForbidden)
@@ -638,9 +636,7 @@ func killSessionHandler(tokenGen interface {
 }) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		token := r.Header.Get("Authorization")
-		if strings.HasPrefix(token, "Bearer ") {
-			token = token[7:]
-		}
+		token = strings.TrimPrefix(token, "Bearer ")
 		claims, err := tokenGen.ValidateAccessToken(token)
 		if err != nil || !claims.IsAdmin {
 			http.Error(w, `{"message":"forbidden"}`, http.StatusForbidden)
@@ -664,7 +660,7 @@ func trickplayManifestHandler(tokenGen interface {
 	ValidateAccessToken(string) (*domainuser.Claims, error)
 }, libSvc interface {
 	GetTrickplayManifest(ctx context.Context, mediaItemID string) (*domainlibrary.TrickplayManifest, error)
-}) http.HandlerFunc {
+}, baseURL string) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		mediaID := r.PathValue("id")
 		token := r.Header.Get("Authorization")
@@ -685,7 +681,7 @@ func trickplayManifestHandler(tokenGen interface {
 		tilesPerImage := manifest.TileWidth * manifest.TileHeight
 		totalFrames := manifest.ImageCount * tilesPerImage
 		w.Header().Set("Content-Type", "text/vtt")
-		w.Header().Set("Access-Control-Allow-Origin", "*")
+		setCORSHeaders(w, r, baseURL)
 		w.Header().Set("Cache-Control", "public, max-age=86400")
 		fmt.Fprint(w, "WEBVTT\n\n")
 		for i := 0; i < totalFrames; i++ {
@@ -720,7 +716,7 @@ func trickplayImageHandler(tokenGen interface {
 	ValidateAccessToken(string) (*domainuser.Claims, error)
 }, libSvc interface {
 	GetTrickplayManifest(ctx context.Context, mediaItemID string) (*domainlibrary.TrickplayManifest, error)
-}) http.HandlerFunc {
+}, baseURL string) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		mediaID := r.PathValue("id")
 		imageName := r.PathValue("image")
@@ -740,12 +736,16 @@ func trickplayImageHandler(tokenGen interface {
 			return
 		}
 		imagePath := filepath.Join(manifest.ImagePath, filepath.Base(imageName))
+		if !isWithinDir(manifest.ImagePath, imagePath) {
+			http.Error(w, `{"message":"bad request"}`, http.StatusBadRequest)
+			return
+		}
 		if _, err := os.Stat(imagePath); err != nil {
 			http.Error(w, `{"message":"image not found"}`, http.StatusNotFound)
 			return
 		}
 		w.Header().Set("Content-Type", "image/jpeg")
-		w.Header().Set("Access-Control-Allow-Origin", "*")
+		setCORSHeaders(w, r, baseURL)
 		w.Header().Set("Cache-Control", "public, max-age=86400")
 		http.ServeFile(w, r, imagePath)
 	}
@@ -1013,6 +1013,10 @@ func hlsSegmentHandler(tokenGen interface {
 
 		file = filepath.Base(file)
 		filePath := filepath.Join(session.OutputDir, file)
+		if !isWithinDir(session.OutputDir, filePath) {
+			http.Error(w, `{"message":"bad request"}`, http.StatusBadRequest)
+			return
+		}
 		if _, err := os.Stat(filePath); err != nil {
 			http.Error(w, `{"message":"segment not found"}`, http.StatusNotFound)
 			return

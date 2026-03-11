@@ -55,7 +55,7 @@ func (r *NotificationSettingsRepository) GetGlobalDefaults(ctx context.Context) 
 		`SELECT movie_level, series_level, music_level FROM notification_settings_global WHERE id = 1`,
 	).Scan(&ml, &sl, &msl)
 	if err != nil {
-		return &notification.Settings{MovieLevel: notification.LevelAll, SeriesLevel: notification.LevelAll, MusicLevel: notification.LevelAll}, nil
+		return &notification.Settings{MovieLevel: notification.LevelAll, SeriesLevel: notification.LevelAll, MusicLevel: notification.LevelAll}, nil //nolint:nilerr
 	}
 	s.MovieLevel = notification.Level(ml)
 	s.SeriesLevel = notification.Level(sl)

@@ -183,14 +183,14 @@ func TestSearch_RateLimitExhausted(t *testing.T) {
 
 func TestGetByProviderID_MovieDetail(t *testing.T) {
 	detail := tmdbDetailResponse{
-		ID:            550,
-		Title:         "Fight Club",
-		OriginalTitle: "Fight Club",
-		Overview:      "An insomniac office worker...",
-		Tagline:       "Mischief. Mayhem. Soap.",
-		ReleaseDate:   "1999-10-15",
-		VoteAverage:   8.4,
-		Genres:        []tmdbGenre{{ID: 18, Name: "Drama"}, {ID: 53, Name: "Thriller"}},
+		ID:                  550,
+		Title:               "Fight Club",
+		OriginalTitle:       "Fight Club",
+		Overview:            "An insomniac office worker...",
+		Tagline:             "Mischief. Mayhem. Soap.",
+		ReleaseDate:         "1999-10-15",
+		VoteAverage:         8.4,
+		Genres:              []tmdbGenre{{ID: 18, Name: "Drama"}, {ID: 53, Name: "Thriller"}},
 		ProductionCompanies: []tmdbCompany{{ID: 508, Name: "Regency Enterprises"}},
 		Credits: &tmdbCredits{
 			Cast: []tmdbCastMember{
@@ -328,7 +328,7 @@ func TestSearch_EmptyResults(t *testing.T) {
 
 func TestProfileURL(t *testing.T) {
 	assert.Equal(t, imageBaseURL+"/abc.jpg", profileURL("/abc.jpg"))
-	assert.Equal(t, "", profileURL(""))
+	assert.Empty(t, profileURL(""))
 }
 
 func TestSearch_YearParamSentToAPI(t *testing.T) {

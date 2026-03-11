@@ -15,7 +15,7 @@ import (
 func TestErrorSanitizer_StripInternalDetails(t *testing.T) {
 	interceptor := interceptors.ErrorSanitizerUnary()
 
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+	handler := func(ctx context.Context, req any) (any, error) {
 		return nil, status.Error(codes.Internal, "pq: connection refused at 10.0.0.5:5432")
 	}
 
@@ -45,7 +45,7 @@ func TestErrorSanitizer_PassThroughOtherCodes(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+			handler := func(ctx context.Context, req any) (any, error) {
 				return nil, status.Error(tt.code, tt.msg)
 			}
 
@@ -64,7 +64,7 @@ func TestErrorSanitizer_PassThroughOtherCodes(t *testing.T) {
 func TestErrorSanitizer_NilError(t *testing.T) {
 	interceptor := interceptors.ErrorSanitizerUnary()
 
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+	handler := func(ctx context.Context, req any) (any, error) {
 		return "ok", nil
 	}
 

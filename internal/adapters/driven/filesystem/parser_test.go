@@ -189,8 +189,8 @@ func TestParse_Language_VOSTES(t *testing.T) {
 func TestParse_Language_None(t *testing.T) {
 	p := NewFilenameParser()
 	info := p.Parse("avatar.2009.1080p.bluray.x264.mkv")
-	assert.Equal(t, "", info.Language)
-	assert.Equal(t, "", info.LanguageTag)
+	assert.Empty(t, info.Language)
+	assert.Empty(t, info.LanguageTag)
 }
 
 // --- Edge cases (from normalize_video) ---
