@@ -61,3 +61,8 @@ frontend/apps/web/src/**/*.js
 frontend/apps/web/tsconfig.tsbuildinfo
 .claude/worktrees/
 .claude/scheduled_tasks.lock
+
+# E2E test artifacts
+tests/e2e/.e2e-start-time
+tests/e2e/.token-cache.json
+tests/e2e/test-results/

@@ -33,7 +33,8 @@ func (r *PlaySessionRepository) Create(ctx context.Context, s *playback.PlaySess
 func (r *PlaySessionRepository) Update(ctx context.Context, s *playback.PlaySession) error {
 	_, err := r.db.ExecContext(ctx,
 		`UPDATE play_sessions SET device_name=$1, device_type=$2, client_ip=$3, play_method=$4,
-		 video_codec=$5, audio_codec=$6, resolution=$7, bandwidth_bps=$8, ended_at=$9, duration_ms=$10, position_ms=$11
+		 video_codec=$5, audio_codec=$6, resolution=$7, bandwidth_bps=$8, ended_at=$9, duration_ms=$10, position_ms=$11,
+		 updated_at=NOW()
 		 WHERE id=$12`,
 		s.DeviceName, s.DeviceType, s.ClientIP, s.PlayMethod,
 		s.VideoCodec, s.AudioCodec, s.Resolution, s.BandwidthBps,
@@ -67,7 +68,7 @@ func (r *PlaySessionRepository) ListActiveSessions(ctx context.Context) ([]*play
 		 INNER JOIN profiles p ON p.id = ps.profile_id
 		 INNER JOIN media_items mi ON mi.id = ps.media_item_id
 		 WHERE ps.ended_at IS NULL
-		   AND ps.started_at > NOW() - INTERVAL '2 hours'
+		   AND ps.updated_at > NOW() - INTERVAL '2 hours'
 		 ORDER BY ps.started_at DESC`)
 	if err != nil {
 		return nil, err
@@ -158,7 +159,7 @@ func (r *PlaySessionRepository) CloseStale(ctx context.Context, olderThan time.D
 	cutoff := time.Now().Add(-olderThan)
 	res, err := r.db.ExecContext(ctx,
 		`UPDATE play_sessions SET ended_at = NOW()
-		 WHERE ended_at IS NULL AND started_at < $1`, cutoff)
+		 WHERE ended_at IS NULL AND updated_at < $1`, cutoff)
 	if err != nil {
 		return 0, err
 	}

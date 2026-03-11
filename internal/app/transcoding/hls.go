@@ -265,6 +265,12 @@ func (m *HLSManager) GetSession(mediaItemID string) (*HLSSession, bool) {
 	return s, ok
 }
 
+func (m *HLSManager) ActiveSessionCount() int {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return len(m.sessions)
+}
+
 func waitForFile(ctx context.Context, path string, timeout, interval time.Duration) error {
 	deadline := time.After(timeout)
 	ticker := time.NewTicker(interval)

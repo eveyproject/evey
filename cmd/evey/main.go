@@ -355,13 +355,14 @@ func run() error {
 			authInterceptor.Stream(),
 		),
 	)
+	hlsManager := apptranscoding.NewHLSManager(cfg.Transcoding.CacheDir+"/hls", cfg.Transcoding.MaxConcurrent)
+	defer hlsManager.CleanupAll()
+	grpcSrv.SetHLSManager(hlsManager)
 	grpcSrv.RegisterServices()
 
 	grpcAddr := fmt.Sprintf(":%d", cfg.Server.Port)
 
 	netDetector := network.NewDetector(cfg.RemoteAccess.LANNetworks)
-	hlsManager := apptranscoding.NewHLSManager(cfg.Transcoding.CacheDir+"/hls", cfg.Transcoding.MaxConcurrent)
-	defer hlsManager.CleanupAll()
 
 	// --- gRPC-Gateway HTTP proxy ---
 	httpPort := cfg.Server.Port + 1
@@ -473,21 +474,22 @@ func run() error {
 		}
 	}()
 
-	// Stale session cleanup: close sessions with no activity for 15min
+	// Stale session cleanup: close sessions with no activity for 2h
 	go func() {
-		if n, err := playbackSvc.CommandService().CleanupStaleSessions(context.Background(), 15*time.Minute); err != nil {
+		// Run immediately on startup to clean existing stale sessions
+		if n, err := playbackSvc.CommandService().CleanupStaleSessions(context.Background(), 2*time.Hour); err != nil {
 			rootLog.Warn("stale session cleanup", slog.Any("err", err))
 		} else if n > 0 {
 			rootLog.Info("cleaned stale sessions", slog.Int("count", n))
 		}
-		ticker := time.NewTicker(5 * time.Minute)
+		ticker := time.NewTicker(30 * time.Minute)
 		defer ticker.Stop()
 		for {
 			select {
 			case <-ctx.Done():
 				return
 			case <-ticker.C:
-				if n, err := playbackSvc.CommandService().CleanupStaleSessions(context.Background(), 15*time.Minute); err != nil {
+				if n, err := playbackSvc.CommandService().CleanupStaleSessions(context.Background(), 2*time.Hour); err != nil {
 					rootLog.Warn("stale session cleanup", slog.Any("err", err))
 				} else if n > 0 {
 					rootLog.Info("cleaned stale sessions", slog.Int("count", n))

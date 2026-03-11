@@ -18,6 +18,7 @@ import (
 	apptranscoding "github.com/gravity-zero/evey/internal/app/transcoding"
 
 	"github.com/grpc-ecosystem/grpc-gateway/v2/runtime"
+	"google.golang.org/protobuf/encoding/protojson"
 	eveyv1 "github.com/gravity-zero/evey/gen/evey/v1"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
@@ -135,7 +136,11 @@ func registerGateway(grpcAddr string) http.Handler {
 		return nil
 	}
 	ctx := context.Background()
-	mux := runtime.NewServeMux()
+	mux := runtime.NewServeMux(
+		runtime.WithMarshalerOption(runtime.MIMEWildcard, &runtime.JSONPb{
+			MarshalOptions: protojson.MarshalOptions{EmitUnpopulated: true},
+		}),
+	)
 	for _, fn := range []func(context.Context, *runtime.ServeMux, *grpc.ClientConn) error{
 		eveyv1.RegisterLibraryServiceHandler,
 		eveyv1.RegisterUserServiceHandler,

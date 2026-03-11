@@ -7,6 +7,7 @@ import (
 	eveyv1 "github.com/gravity-zero/evey/gen/evey/v1"
 	appactivity "github.com/gravity-zero/evey/internal/app/activity"
 	appplugin "github.com/gravity-zero/evey/internal/app/plugin"
+	apptranscoding "github.com/gravity-zero/evey/internal/app/transcoding"
 	appuser "github.com/gravity-zero/evey/internal/app/user"
 	activityfakes "github.com/gravity-zero/evey/internal/domain/activity/fakes"
 	pluginfakes "github.com/gravity-zero/evey/internal/domain/plugin/fakes"
@@ -64,6 +65,28 @@ func TestAdminGetDashboard(t *testing.T) {
 	}
 	if resp.TotalUsers != 0 {
 		t.Errorf("expected 0 users, got %d", resp.TotalUsers)
+	}
+	if resp.CpuPercent < 0 || resp.CpuPercent > 100 {
+		t.Errorf("CPU%% out of range: %.2f", resp.CpuPercent)
+	}
+	if resp.MemoryPercent < 0 || resp.MemoryPercent > 100 {
+		t.Errorf("Memory%% out of range: %.2f", resp.MemoryPercent)
+	}
+}
+
+func TestAdminGetDashboard_WithHLSManager(t *testing.T) {
+	h := newTestAdminHandler()
+	tmpDir := t.TempDir()
+	hls := apptranscoding.NewHLSManager(tmpDir, 5)
+	defer hls.CleanupAll()
+	h.hlsManager = hls
+
+	resp, err := h.GetDashboard(context.Background(), &eveyv1.GetDashboardRequest{})
+	if err != nil {
+		t.Fatalf("GetDashboard: %v", err)
+	}
+	if resp.ActiveTranscodes != 0 {
+		t.Errorf("expected 0 active transcodes, got %d", resp.ActiveTranscodes)
 	}
 }
 

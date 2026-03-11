@@ -54,7 +54,9 @@ function SystemInfoCard() {
 }
 
 function AdminDashboard() {
-  const { data: dashData, isLoading: dashLoading } = useAdminServiceGetDashboard();
+  const { data: dashData, isLoading: dashLoading } = useAdminServiceGetDashboard({
+    query: { refetchInterval: 1_000 },
+  });
 
   return (
     <div className="flex flex-col gap-8">

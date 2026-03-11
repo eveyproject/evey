@@ -11,10 +11,16 @@ import (
 	apptranscoding "github.com/gravity-zero/evey/internal/app/transcoding"
 	appuser "github.com/gravity-zero/evey/internal/app/user"
 	"github.com/gravity-zero/evey/internal/domain/activity"
+	domainlibrary "github.com/gravity-zero/evey/internal/domain/library"
 	"github.com/gravity-zero/evey/internal/domain/plugin"
+	"github.com/gravity-zero/evey/internal/pkg/sysinfo"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
+
+type adminLibraryLister interface {
+	ListLibraries(ctx context.Context) ([]*domainlibrary.Library, error)
+}
 
 type adminHandler struct {
 	eveyv1.UnimplementedAdminServiceServer
@@ -22,6 +28,8 @@ type adminHandler struct {
 	transcodingSvc *apptranscoding.Service
 	activitySvc    *appactivity.Service
 	pluginSvc      *appplugin.Service
+	hlsManager     *apptranscoding.HLSManager
+	libLister      adminLibraryLister
 	version        string
 }
 
@@ -68,12 +76,45 @@ func (h *adminHandler) GetDashboard(ctx context.Context, _ *eveyv1.GetDashboardR
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "get server stats: %v", err)
 	}
-	return &eveyv1.DashboardInfo{
+
+	sys := sysinfo.Collect()
+
+	activeTranscodes := int32(stats.ActiveTranscodes)
+	if h.hlsManager != nil {
+		hlsCount := h.hlsManager.ActiveSessionCount()
+		if int32(hlsCount) > activeTranscodes {
+			activeTranscodes = int32(hlsCount)
+		}
+	}
+
+	resp := &eveyv1.DashboardInfo{
 		ActiveStreams:    int32(stats.ActiveStreams),
-		ActiveTranscodes: int32(stats.ActiveTranscodes),
+		ActiveTranscodes: activeTranscodes,
 		TotalMediaItems: int32(stats.TotalItems),
 		TotalUsers:      int32(stats.TotalUsers),
-	}, nil
+		CpuPercent:      sys.CPUPercent,
+		MemoryPercent:   sys.MemoryPercent,
+	}
+
+	if h.libLister != nil {
+		libs, err := h.libLister.ListLibraries(ctx)
+		if err == nil {
+			var paths []string
+			for _, lib := range libs {
+				paths = append(paths, lib.Paths...)
+			}
+			for _, st := range sysinfo.GetStorageStats(paths) {
+				resp.Storage = append(resp.Storage, &eveyv1.StorageInfo{
+					Path:       st.Path,
+					TotalBytes: st.TotalBytes,
+					UsedBytes:  st.UsedBytes,
+					FreeBytes:  st.FreeBytes,
+				})
+			}
+		}
+	}
+
+	return resp, nil
 }
 
 func (h *adminHandler) ListScheduledTasks(_ context.Context, _ *eveyv1.ListScheduledTasksRequest) (*eveyv1.ListScheduledTasksResponse, error) {

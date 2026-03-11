@@ -39,7 +39,12 @@ type GRPCServer struct {
 	users         user.UserRepository
 	profiles      user.ProfileRepository
 	libraryAccess user.LibraryAccessRepository
+	hlsManager    *apptranscoding.HLSManager
 	version       string
+}
+
+func (s *GRPCServer) SetHLSManager(m *apptranscoding.HLSManager) {
+	s.hlsManager = m
 }
 
 func NewGRPCServer(
@@ -98,6 +103,8 @@ func (s *GRPCServer) RegisterServices() {
 		transcodingSvc: s.transcoding,
 		activitySvc:    s.activity,
 		pluginSvc:      s.plugin,
+		hlsManager:     s.hlsManager,
+		libLister:      s.libQuery,
 		version:        s.version,
 	})
 	eveyv1.RegisterActivityServiceServer(s.server, &activityHandler{svc: s.activity})
