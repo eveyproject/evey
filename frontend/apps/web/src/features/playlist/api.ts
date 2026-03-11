@@ -50,10 +50,47 @@ export function usePlaylistList() {
   });
 }
 
+interface PlaylistDetailResponse {
+  playlist: {
+    id: string; name: string; description: string; type: string;
+    rules?: PlaylistRule[]; sortBy: string; sortOrder: string;
+    createdAt: string; updatedAt: string;
+  };
+  items?: { mediaItemId: string; sortOrder: number; addedAt: string }[];
+  media?: { id: string; title: string; type: string; year?: number }[];
+}
+
 export function usePlaylistDetail(id: string) {
   return useQuery({
     queryKey: ["playlists", id],
-    queryFn: () => apiFetch<Playlist & { items?: PlaylistItem[] }>(`/api/v1/playlists/${id}`),
+    queryFn: async (): Promise<Playlist & { items?: PlaylistItem[] }> => {
+      const raw = await apiFetch<PlaylistDetailResponse>(`/api/v1/playlists/${id}`);
+      const pl = raw.playlist;
+      const mediaMap = new Map((raw.media ?? []).map((m) => [m.id, m]));
+      const items: PlaylistItem[] = (raw.items ?? []).map((it) => {
+        const m = mediaMap.get(it.mediaItemId);
+        return {
+          media_item_id: it.mediaItemId,
+          sort_order: it.sortOrder,
+          added_at: it.addedAt,
+          title: m?.title,
+          type: m?.type,
+          year: m?.year,
+        };
+      });
+      return {
+        id: pl.id,
+        name: pl.name,
+        description: pl.description,
+        type: pl.type as "manual" | "smart",
+        rules: pl.rules,
+        sort_by: pl.sortBy,
+        sort_order: pl.sortOrder,
+        created_at: pl.createdAt,
+        updated_at: pl.updatedAt,
+        items,
+      };
+    },
     enabled: !!id,
   });
 }
@@ -88,7 +125,7 @@ export function useAddToPlaylist() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: ({ playlistId, mediaItemId }: { playlistId: string; mediaItemId: string }) =>
-      apiFetch<void>(`/api/v1/playlists/${playlistId}/items`, { method: "POST", body: JSON.stringify({ media_item_id: mediaItemId }) }),
+      apiFetch<void>(`/api/v1/playlists/${playlistId}/items`, { method: "POST", body: JSON.stringify({ mediaItemId }) }),
     onSuccess: (_, vars) => qc.invalidateQueries({ queryKey: ["playlists", vars.playlistId] }),
   });
 }

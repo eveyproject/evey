@@ -46,7 +46,7 @@ setup:
 
 dev:
 	$(DC) down --remove-orphans 2>/dev/null; \
-	$(DC) up --build
+	$(DC) up --build -d
 
 dev-down:
 	$(DC) down
