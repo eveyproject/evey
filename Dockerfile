@@ -12,7 +12,7 @@ RUN CGO_ENABLED=0 go build -ldflags="-s -w" -o /evey ./cmd/evey
 
 FROM alpine:3.21
 
-RUN apk add --no-cache ffmpeg ca-certificates unzip curl
+RUN apk add --no-cache ffmpeg ca-certificates unzip curl postgresql-client
 
 RUN adduser -D -u 1000 evey
 

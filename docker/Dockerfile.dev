@@ -1,6 +1,6 @@
 FROM golang:1.25-alpine
 
-RUN apk add --no-cache ffmpeg curl && \
+RUN apk add --no-cache ffmpeg curl postgresql-client && \
     go install github.com/air-verse/air@latest
 
 WORKDIR /app
