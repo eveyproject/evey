@@ -2,6 +2,11 @@ package grpcapi
 
 import (
 	"context"
+	"crypto/rand"
+	"crypto/sha256"
+	"encoding/base64"
+	"encoding/hex"
+	"fmt"
 	"log/slog"
 	"strconv"
 
@@ -395,16 +400,30 @@ func (h *userHandler) CreateAPIKey(ctx context.Context, req *eveyv1.CreateAPIKey
 	if claims == nil {
 		return nil, status.Error(codes.Unauthenticated, "not authenticated")
 	}
+
+	rawBytes := make([]byte, 32)
+	if _, err := rand.Read(rawBytes); err != nil {
+		return nil, status.Errorf(codes.Internal, "internal error")
+	}
+	rawKey := fmt.Sprintf("evey_%s", base64.RawURLEncoding.EncodeToString(rawBytes))
+
+	hash := sha256.Sum256([]byte(rawKey))
+	keyHash := hex.EncodeToString(hash[:])
+
 	key := &user.APIKeyModel{
-		ID:     id.New("ak-"),
-		UserID: claims.UserID,
-		Name:   req.Name,
+		ID:      id.New("ak-"),
+		UserID:  claims.UserID,
+		Name:    req.Name,
+		KeyHash: keyHash,
 	}
 	if err := h.svc.CreateAPIKey(ctx, key); err != nil {
 		slog.Error("create api key", slog.Any("err", err))
 		return nil, status.Errorf(codes.Internal, "internal error")
 	}
-	return apiKeyToProto(key), nil
+
+	resp := apiKeyToProto(key)
+	resp.Key = rawKey
+	return resp, nil
 }
 
 func (h *userHandler) ListAPIKeys(ctx context.Context, _ *eveyv1.ListAPIKeysRequest) (*eveyv1.ListAPIKeysResponse, error) {

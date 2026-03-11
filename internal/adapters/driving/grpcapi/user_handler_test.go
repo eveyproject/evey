@@ -2,6 +2,7 @@ package grpcapi
 
 import (
 	"context"
+	"strings"
 	"testing"
 
 	eveyv1 "github.com/gravity-zero/evey/gen/evey/v1"
@@ -280,6 +281,9 @@ func TestCreateAPIKey_Success(t *testing.T) {
 	if resp.UserId != "usr-1" {
 		t.Fatalf("got userId %q, want usr-1", resp.UserId)
 	}
+	if resp.Key == "" || !strings.HasPrefix(resp.Key, "evey_") {
+		t.Fatalf("expected raw key with evey_ prefix, got %q", resp.Key)
+	}
 }
 
 func TestListAPIKeys_Success(t *testing.T) {
@@ -295,6 +299,11 @@ func TestListAPIKeys_Success(t *testing.T) {
 	}
 	if len(resp.ApiKeys) != 2 {
 		t.Fatalf("got %d keys, want 2", len(resp.ApiKeys))
+	}
+	for _, k := range resp.ApiKeys {
+		if k.Key != "" {
+			t.Fatalf("ListAPIKeys should not return raw key, got %q", k.Key)
+		}
 	}
 }
 
