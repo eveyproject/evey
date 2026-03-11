@@ -143,6 +143,10 @@ func ClaimsFromContext(ctx context.Context) *user.Claims {
 	return v
 }
 
+func ContextWithClaims(ctx context.Context, claims *user.Claims) context.Context {
+	return context.WithValue(ctx, claimsKey{}, claims)
+}
+
 type wrappedStream struct {
 	grpc.ServerStream
 	ctx context.Context

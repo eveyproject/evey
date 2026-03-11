@@ -1,0 +1,190 @@
+package grpcapi
+
+import (
+	"context"
+	"log/slog"
+	"testing"
+
+	eveyv1 "github.com/gravity-zero/evey/gen/evey/v1"
+	appwebhook "github.com/gravity-zero/evey/internal/app/webhook"
+	sharedfakes "github.com/gravity-zero/evey/internal/domain/shared/fakes"
+	"github.com/gravity-zero/evey/internal/domain/webhook"
+)
+
+type fakeWebhookRepo struct {
+	items map[string]*webhook.Config
+}
+
+func newFakeWebhookRepo() *fakeWebhookRepo {
+	return &fakeWebhookRepo{items: make(map[string]*webhook.Config)}
+}
+
+func (r *fakeWebhookRepo) Create(_ context.Context, cfg *webhook.Config) error {
+	r.items[cfg.ID] = cfg
+	return nil
+}
+
+func (r *fakeWebhookRepo) GetByID(_ context.Context, id string) (*webhook.Config, error) {
+	c, ok := r.items[id]
+	if !ok {
+		return nil, context.DeadlineExceeded
+	}
+	return c, nil
+}
+
+func (r *fakeWebhookRepo) List(_ context.Context) ([]*webhook.Config, error) {
+	out := make([]*webhook.Config, 0, len(r.items))
+	for _, c := range r.items {
+		out = append(out, c)
+	}
+	return out, nil
+}
+
+func (r *fakeWebhookRepo) Update(_ context.Context, cfg *webhook.Config) error {
+	r.items[cfg.ID] = cfg
+	return nil
+}
+
+func (r *fakeWebhookRepo) Delete(_ context.Context, id string) error {
+	delete(r.items, id)
+	return nil
+}
+
+type fakeDeliveryRepo struct {
+	items []*webhook.Delivery
+}
+
+func newFakeDeliveryRepo() *fakeDeliveryRepo {
+	return &fakeDeliveryRepo{}
+}
+
+func (r *fakeDeliveryRepo) Create(_ context.Context, d *webhook.Delivery) error {
+	r.items = append(r.items, d)
+	return nil
+}
+
+func (r *fakeDeliveryRepo) ListByWebhook(_ context.Context, webhookID string, limit int) ([]*webhook.Delivery, error) {
+	var out []*webhook.Delivery
+	for _, d := range r.items {
+		if d.WebhookID == webhookID {
+			out = append(out, d)
+		}
+	}
+	if limit > 0 && limit < len(out) {
+		out = out[:limit]
+	}
+	return out, nil
+}
+
+func setupWebhookHandler() (*webhookHandler, *fakeDeliveryRepo) {
+	repo := newFakeWebhookRepo()
+	deliveries := newFakeDeliveryRepo()
+	events := sharedfakes.NewFakeEventBus()
+	svc := appwebhook.NewService(repo, deliveries, slog.Default(), events)
+	svc.SetURLValidator(func(string) error { return nil })
+
+	return &webhookHandler{svc: svc}, deliveries
+}
+
+func TestCreateWebhook_Success(t *testing.T) {
+	h, _ := setupWebhookHandler()
+	resp, err := h.CreateWebhook(context.Background(), &eveyv1.CreateWebhookRequest{
+		Name:    "test-hook",
+		Url:     "https://example.com/hook",
+		Events:  []string{"*"},
+		Enabled: true,
+	})
+	if err != nil {
+		t.Fatalf("CreateWebhook: %v", err)
+	}
+	if resp.Name != "test-hook" {
+		t.Fatalf("got name %q, want test-hook", resp.Name)
+	}
+	if resp.Id == "" {
+		t.Fatal("expected non-empty ID")
+	}
+}
+
+func TestListWebhooks_ReturnsItems(t *testing.T) {
+	h, _ := setupWebhookHandler()
+	_, _ = h.CreateWebhook(context.Background(), &eveyv1.CreateWebhookRequest{
+		Name: "hook1", Url: "https://a.com", Events: []string{"*"}, Enabled: true,
+	})
+	_, _ = h.CreateWebhook(context.Background(), &eveyv1.CreateWebhookRequest{
+		Name: "hook2", Url: "https://b.com", Events: []string{"*"}, Enabled: true,
+	})
+
+	resp, err := h.ListWebhooks(context.Background(), &eveyv1.ListWebhooksRequest{})
+	if err != nil {
+		t.Fatalf("ListWebhooks: %v", err)
+	}
+	if len(resp.Webhooks) != 2 {
+		t.Fatalf("got %d webhooks, want 2", len(resp.Webhooks))
+	}
+}
+
+func TestUpdateWebhook_Success(t *testing.T) {
+	h, _ := setupWebhookHandler()
+	created, _ := h.CreateWebhook(context.Background(), &eveyv1.CreateWebhookRequest{
+		Name: "original", Url: "https://a.com", Events: []string{"*"}, Enabled: true,
+	})
+
+	resp, err := h.UpdateWebhook(context.Background(), &eveyv1.UpdateWebhookRequest{
+		Id:      created.Id,
+		Name:    "updated",
+		Url:     "https://b.com",
+		Events:  []string{"library.scanned"},
+		Enabled: false,
+	})
+	if err != nil {
+		t.Fatalf("UpdateWebhook: %v", err)
+	}
+	if resp.Name != "updated" {
+		t.Fatalf("got name %q, want updated", resp.Name)
+	}
+	if resp.Enabled {
+		t.Fatal("expected disabled after update")
+	}
+}
+
+func TestDeleteWebhook_Success(t *testing.T) {
+	h, _ := setupWebhookHandler()
+	created, _ := h.CreateWebhook(context.Background(), &eveyv1.CreateWebhookRequest{
+		Name: "todelete", Url: "https://a.com", Events: []string{"*"}, Enabled: true,
+	})
+
+	_, err := h.DeleteWebhook(context.Background(), &eveyv1.DeleteWebhookRequest{Id: created.Id})
+	if err != nil {
+		t.Fatalf("DeleteWebhook: %v", err)
+	}
+
+	resp, _ := h.ListWebhooks(context.Background(), &eveyv1.ListWebhooksRequest{})
+	if len(resp.Webhooks) != 0 {
+		t.Fatalf("expected 0 webhooks after delete, got %d", len(resp.Webhooks))
+	}
+}
+
+func TestListWebhookDeliveries_Success(t *testing.T) {
+	h, deliveryRepo := setupWebhookHandler()
+	created, _ := h.CreateWebhook(context.Background(), &eveyv1.CreateWebhookRequest{
+		Name: "hook", Url: "https://a.com", Events: []string{"*"}, Enabled: true,
+	})
+
+	deliveryRepo.items = append(deliveryRepo.items, &webhook.Delivery{
+		ID: "del-1", WebhookID: created.Id, Event: "library.scanned", StatusCode: 200,
+	})
+
+	resp, err := h.ListWebhookDeliveries(context.Background(), &eveyv1.ListWebhookDeliveriesRequest{
+		WebhookId: created.Id,
+		Limit:     10,
+	})
+	if err != nil {
+		t.Fatalf("ListWebhookDeliveries: %v", err)
+	}
+	if len(resp.Deliveries) != 1 {
+		t.Fatalf("got %d deliveries, want 1", len(resp.Deliveries))
+	}
+	if resp.Deliveries[0].Event != "library.scanned" {
+		t.Fatalf("got event %q, want library.scanned", resp.Deliveries[0].Event)
+	}
+}
