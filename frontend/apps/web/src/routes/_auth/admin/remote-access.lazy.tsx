@@ -3,7 +3,6 @@ import { createLazyFileRoute } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAuthStore } from "@evey/store";
 import { toast } from "@evey/store";
-import { AdminNav } from "@/features/admin/AdminNav";
 import { Spinner } from "@/components/ui/Spinner";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
@@ -114,13 +113,6 @@ function RemoteAccessPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <div>
-        <h1 className="text-2xl font-bold mb-2" style={{ color: "var(--text)" }}>
-          Admin
-        </h1>
-        <AdminNav />
-      </div>
-
       <div className="flex items-center justify-between">
         <h2 className="text-xl font-semibold" style={{ color: "var(--text)" }}>
           Remote Access

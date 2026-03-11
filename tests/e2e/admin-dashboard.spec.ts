@@ -5,11 +5,12 @@ test.describe("Admin dashboard", () => {
     await page.goto("/admin", { waitUntil: "networkidle" });
 
     await expect(
-      page.locator("h1", { hasText: "Admin" }),
+      page.locator("h1", { hasText: "Dashboard" }),
     ).toBeVisible({ timeout: 10_000 });
 
-    const nav = page.locator("a", { hasText: "Libraries" });
-    await expect(nav).toBeVisible();
+    await expect(
+      page.locator('a[href="/admin/libraries"]').first(),
+    ).toBeVisible();
   });
 
   test("shows system info card", async ({ page }) => {
@@ -25,7 +26,7 @@ test.describe("Admin dashboard", () => {
 
     const labels = [
       "Libraries", "Users", "Plugins", "Webhooks",
-      "Audit Log", "Metadata", "Activity", "Scheduled Tasks", "Logs",
+      "Audit Log", "Metadata", "Activity", "Tasks", "Logs",
     ];
 
     for (const label of labels) {

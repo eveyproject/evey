@@ -17,6 +17,7 @@ type MetadataResult struct {
 	Ratings         map[string]float64 // imdb, rt, metacritic, tmdb
 	People          []PersonResult
 	Artwork         []ArtworkResult
+	Popularity      float64 // TMDB popularity score, used as tiebreaker
 }
 
 type PersonResult struct {

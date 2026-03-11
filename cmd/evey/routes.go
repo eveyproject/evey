@@ -1225,3 +1225,60 @@ func registerRemoteAccessRoutes(mux *http.ServeMux, cfg *config.Config, tokenGen
 		json.NewEncoder(w).Encode(map[string]any{"interfaces": ifaces})
 	})
 }
+
+func registerPlaybackSettingsRoutes(mux *http.ServeMux, cfg *config.Config, tokenGen *auth.JWTGenerator) {
+	requireAuth := func(r *http.Request) bool {
+		h := r.Header.Get("Authorization")
+		if !strings.HasPrefix(h, "Bearer ") {
+			return false
+		}
+		_, err := tokenGen.ValidateAccessToken(strings.TrimPrefix(h, "Bearer "))
+		return err == nil
+	}
+	requireAdmin := func(r *http.Request) bool {
+		h := r.Header.Get("Authorization")
+		if !strings.HasPrefix(h, "Bearer ") {
+			return false
+		}
+		claims, err := tokenGen.ValidateAccessToken(strings.TrimPrefix(h, "Bearer "))
+		return err == nil && claims.IsAdmin
+	}
+
+	mux.HandleFunc("GET /api/v1/playback-settings", func(w http.ResponseWriter, r *http.Request) {
+		if !requireAuth(r) {
+			http.Error(w, `{"message":"unauthenticated"}`, http.StatusUnauthorized)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]any{
+			"skipForwardSeconds":  cfg.Playback.SkipForwardSeconds,
+			"skipBackwardSeconds": cfg.Playback.SkipBackwardSeconds,
+		})
+	})
+
+	mux.HandleFunc("PUT /api/v1/admin/playback-settings", func(w http.ResponseWriter, r *http.Request) {
+		if !requireAdmin(r) {
+			http.Error(w, `{"message":"forbidden"}`, http.StatusForbidden)
+			return
+		}
+		var body struct {
+			SkipForwardSeconds  *int `json:"skipForwardSeconds"`
+			SkipBackwardSeconds *int `json:"skipBackwardSeconds"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			http.Error(w, `{"message":"bad request"}`, http.StatusBadRequest)
+			return
+		}
+		if body.SkipForwardSeconds != nil && *body.SkipForwardSeconds > 0 {
+			cfg.Playback.SkipForwardSeconds = *body.SkipForwardSeconds
+		}
+		if body.SkipBackwardSeconds != nil && *body.SkipBackwardSeconds > 0 {
+			cfg.Playback.SkipBackwardSeconds = *body.SkipBackwardSeconds
+		}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]any{
+			"skipForwardSeconds":  cfg.Playback.SkipForwardSeconds,
+			"skipBackwardSeconds": cfg.Playback.SkipBackwardSeconds,
+		})
+	})
+}

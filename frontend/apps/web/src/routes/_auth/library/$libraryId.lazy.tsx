@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
-import { createLazyFileRoute } from "@tanstack/react-router";
+import { createLazyFileRoute, Link } from "@tanstack/react-router";
 import {
   useLibraryServiceListLibraries,
   useLibraryServiceListMediaItems,
@@ -15,7 +15,7 @@ import { Input } from "@/components/ui/Input";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { MediaGridSkeleton } from "@/components/ui/Skeleton";
 import { MediaGrid } from "@/features/library/MediaGrid";
-import { MediaCard } from "@/features/library/MediaCard";
+import { MediaCard, typeLabel } from "@/features/library/MediaCard";
 
 export const Route = createLazyFileRoute("/_auth/library/$libraryId")({
   component: LibraryPage,
@@ -39,6 +39,14 @@ const SORT_OPTIONS: Array<{ label: string; value: LibraryServiceListMediaItemsSo
 ];
 
 const PAGE_SIZE = 48;
+
+function formatDuration(ms: string): string {
+  const totalMin = Math.round(parseInt(ms, 10) / 60000);
+  if (totalMin < 60) return `${totalMin}m`;
+  const h = Math.floor(totalMin / 60);
+  const m = totalMin % 60;
+  return m > 0 ? `${h}h ${m}m` : `${h}h`;
+}
 
 function SortOrderButton({
   order,
@@ -66,6 +74,90 @@ function SortOrderButton({
   );
 }
 
+function ViewToggleButton({
+  mode,
+  onChange,
+}: {
+  mode: "grid" | "list";
+  onChange: (m: "grid" | "list") => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={() => onChange(mode === "grid" ? "list" : "grid")}
+      className="p-2 rounded-[var(--radius-md)] bg-[var(--surface-raised)] border border-[var(--border)] text-[var(--text-muted)] hover:text-[var(--text)] hover:border-[var(--accent)] transition-colors"
+      title={mode === "grid" ? "Switch to list view" : "Switch to grid view"}
+      data-testid="view-toggle"
+    >
+      {mode === "grid" ? (
+        <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 5.25h16.5M3.75 9.75h16.5M3.75 14.25h16.5M3.75 18.75h16.5" />
+        </svg>
+      ) : (
+        <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6A2.25 2.25 0 016 3.75h2.25A2.25 2.25 0 0110.5 6v2.25a2.25 2.25 0 01-2.25 2.25H6a2.25 2.25 0 01-2.25-2.25V6zM3.75 15.75A2.25 2.25 0 016 13.5h2.25a2.25 2.25 0 012.25 2.25V18a2.25 2.25 0 01-2.25 2.25H6A2.25 2.25 0 013.75 18v-2.25zM13.5 6a2.25 2.25 0 012.25-2.25H18A2.25 2.25 0 0120.25 6v2.25A2.25 2.25 0 0118 10.5h-2.25a2.25 2.25 0 01-2.25-2.25V6zM13.5 15.75a2.25 2.25 0 012.25-2.25H18a2.25 2.25 0 012.25 2.25V18A2.25 2.25 0 0118 20.25h-2.25A2.25 2.25 0 0113.5 18v-2.25z" />
+        </svg>
+      )}
+    </button>
+  );
+}
+
+function ListRow({ item }: { item: Record<string, unknown> }) {
+  const title = (item.title as string) ?? "";
+  const year = item.year as number | undefined;
+  const rating = item.communityRating as number | undefined;
+  const type = item.type as string | undefined;
+  const id = item.id as string | undefined;
+  const durationMs = item.durationMs as string | undefined;
+  const poster = id ? `/api/v1/media/${id}/artwork/poster` : null;
+
+  return (
+    <Link
+      to="/media/$mediaId"
+      params={{ mediaId: id ?? "" }}
+      className="flex items-center gap-4 px-3 py-2 rounded-[var(--radius-md)] transition-colors hover:bg-[var(--surface-raised)]"
+      style={{ borderBottom: "1px solid var(--border)" }}
+      data-testid="list-row"
+    >
+      <div
+        className="flex-shrink-0 w-7 h-10 rounded overflow-hidden"
+        style={{ backgroundColor: "var(--surface-raised)" }}
+      >
+        {poster && (
+          <img src={poster} alt={title} className="w-full h-full object-cover" loading="lazy" />
+        )}
+      </div>
+      <span className="flex-1 min-w-0 text-sm font-medium truncate" style={{ color: "var(--text)" }}>
+        {title}
+      </span>
+      <span className="hidden sm:block w-16 text-xs text-right flex-shrink-0" style={{ color: "var(--text-muted)" }}>
+        {year ?? "—"}
+      </span>
+      <span className="hidden md:flex items-center gap-1 w-16 text-xs flex-shrink-0 justify-end" style={{ color: "var(--text-muted)" }}>
+        {rating != null && rating > 0 ? (
+          <>
+            <svg className="w-3 h-3" viewBox="0 0 20 20" fill="currentColor" style={{ color: "var(--accent)" }}>
+              <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+            </svg>
+            {rating.toFixed(1)}
+          </>
+        ) : "—"}
+      </span>
+      {typeLabel(type) && (
+        <span
+          className="hidden lg:block text-xs px-1.5 py-0.5 flex-shrink-0"
+          style={{ backgroundColor: "var(--surface-raised)", color: "var(--text-muted)", borderRadius: "var(--radius-sm)" }}
+        >
+          {typeLabel(type)}
+        </span>
+      )}
+      <span className="hidden lg:block w-16 text-xs text-right flex-shrink-0" style={{ color: "var(--text-muted)" }}>
+        {durationMs ? formatDuration(durationMs) : "—"}
+      </span>
+    </Link>
+  );
+}
+
 function LibraryPage() {
   const { libraryId } = Route.useParams();
   const [typeFilter, setTypeFilter] = useState<LibraryServiceListMediaItemsType | "">("");
@@ -76,6 +168,7 @@ function LibraryPage() {
   const [sortOrder, setSortOrder] = useState<LibraryServiceListMediaItemsSortOrder>("SORT_ORDER_ASC");
   const [page, setPage] = useState(1);
   const [searchTerm, setSearchTerm] = useState("");
+  const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
 
   const { data: librariesData } = useLibraryServiceListLibraries();
   const library = librariesData?.libraries?.find((l) => l.id === libraryId);
@@ -194,16 +287,37 @@ function LibraryPage() {
           className="w-auto"
         />
         <SortOrderButton order={sortOrder} onChange={(o) => { setSortOrder(o); resetPage(); }} />
+        <ViewToggleButton mode={viewMode} onChange={setViewMode} />
       </div>
 
       {isLoading && items.length === 0 ? (
         <MediaGridSkeleton />
-      ) : (
+      ) : viewMode === "grid" ? (
         <MediaGrid>
           {displayItems.map((item) => (
             <MediaCard key={item.id} item={item} />
           ))}
         </MediaGrid>
+      ) : (
+        <div
+          className="rounded-[var(--radius-md)] overflow-hidden"
+          style={{ backgroundColor: "var(--surface)", border: "1px solid var(--border)" }}
+        >
+          <div
+            className="flex items-center gap-4 px-3 py-2 text-xs font-semibold"
+            style={{ color: "var(--text-muted)", borderBottom: "1px solid var(--border)" }}
+          >
+            <span className="w-7 flex-shrink-0" />
+            <span className="flex-1 min-w-0">Title</span>
+            <span className="hidden sm:block w-16 text-right flex-shrink-0">Year</span>
+            <span className="hidden md:block w-16 text-right flex-shrink-0">Rating</span>
+            <span className="hidden lg:block w-12 flex-shrink-0">Type</span>
+            <span className="hidden lg:block w-16 text-right flex-shrink-0">Duration</span>
+          </div>
+          {displayItems.map((item) => (
+            <ListRow key={item.id} item={item as unknown as Record<string, unknown>} />
+          ))}
+        </div>
       )}
 
       {!isLoading && displayItems.length === 0 && (

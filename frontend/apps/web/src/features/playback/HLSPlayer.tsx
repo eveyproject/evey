@@ -9,12 +9,11 @@ import type { EpisodeNavItem, SeasonNavItem } from "./PlayerControls";
 import { ProgressReporter } from "./ProgressReporter";
 import { NextEpisodeOverlay } from "./NextEpisodeOverlay";
 import { SkipIntroButton } from "./SkipIntroButton";
+import { KeyboardShortcutsOverlay } from "./KeyboardShortcutsOverlay";
 import type { Chapter } from "@/hooks/useChapters";
+import { canPlayHevc } from "@/utils/codec";
 
-const canPlayHevc = (() => {
-  const v = document.createElement("video");
-  return !!(v.canPlayType('video/mp4; codecs="hvc1"') || v.canPlayType('video/mp4; codecs="hev1"'));
-})();
+const SPEED_OPTIONS = [0.5, 0.75, 1, 1.25, 1.5, 2];
 
 export type { AudioStream, SubtitleStream, EpisodeNavItem, SeasonNavItem };
 
@@ -73,8 +72,19 @@ export function HLSPlayer({
   const [currentAudioIndex, setCurrentAudioIndex] = useState(defaultAudio?.index ?? 0);
   const [currentTrackIndex, setCurrentTrackIndex] = useState(defaultAudio?.trackIndex ?? 0);
   const [currentQuality, setCurrentQuality] = useState(0); // 0 = original
+  const [autoQuality, setAutoQuality] = useState(true);
   const [currentSubtitle, setCurrentSubtitle] = useState<number | null>(null);
+  const [playbackSpeed, setPlaybackSpeed] = useState(1);
+  const [showShortcuts, setShowShortcuts] = useState(false);
+  const playbackSpeedRef = useRef(playbackSpeed);
+  playbackSpeedRef.current = playbackSpeed;
+  const subtitleStreamsRef = useRef(subtitleStreams);
+  subtitleStreamsRef.current = subtitleStreams;
+  const currentSubtitleRef = useRef(currentSubtitle);
+  currentSubtitleRef.current = currentSubtitle;
   const accessToken = useAuthStore((s) => s.accessToken);
+  // Offset applied when we restart transcode from a non-zero position
+  const transcodeOffsetRef = useRef(0);
 
   // HLS path — only used when transcodeUrl is available
   useEffect(() => {
@@ -130,7 +140,9 @@ export function HLSPlayer({
     };
   }, [streamInfo, startPositionMs, onEnded, transcodeMode]);
 
-  // Transcode path — reload video with current audio track and quality whenever they change
+  // Transcode path — reload video with current audio track, quality and startTime
+  const [transcodeStartTime, setTranscodeStartTime] = useState(startPositionMs / 1000);
+
   useEffect(() => {
     if (!transcodeMode) return;
     const video = videoRef.current;
@@ -141,8 +153,8 @@ export function HLSPlayer({
       hlsRef.current = null;
     }
 
-    // positionRef is updated by timeupdate — survives cleanup resetting video.currentTime to 0
-    const savedTime = positionRef.current;
+    const offset = transcodeStartTime;
+    transcodeOffsetRef.current = offset;
 
     const token = accessToken ?? "";
     const params = new URLSearchParams();
@@ -150,11 +162,11 @@ export function HLSPlayer({
     params.set("audioTrack", String(currentTrackIndex));
     if (currentQuality > 0) params.set("videoScale", String(currentQuality));
     if (canPlayHevc) params.set("remux", "1");
+    if (offset > 0) params.set("startTime", String(offset));
     const url = `/api/v1/media/${mediaId}/transcode?${params.toString()}`;
 
-    function onTimeUpdate() { positionRef.current = video!.currentTime; }
-    function onMetadata() {
-      if (videoRef.current) videoRef.current.currentTime = savedTime;
+    function onTimeUpdate() {
+      positionRef.current = transcodeOffsetRef.current + video!.currentTime;
     }
     function handleEnded() { onEnded?.(); }
     function handleError() {
@@ -162,7 +174,6 @@ export function HLSPlayer({
       if (e) console.error("Video error:", e.code, e.message);
     }
     video.addEventListener("timeupdate", onTimeUpdate);
-    video.addEventListener("loadedmetadata", onMetadata, { once: true });
     video.addEventListener("ended", handleEnded);
     video.addEventListener("error", handleError);
     video.src = url;
@@ -171,11 +182,10 @@ export function HLSPlayer({
     return () => {
       video.removeEventListener("timeupdate", onTimeUpdate);
       video.removeEventListener("ended", handleEnded);
-      video.removeEventListener("loadedmetadata", onMetadata);
       video.removeEventListener("error", handleError);
       video.src = "";
     };
-  }, [transcodeMode, mediaId, accessToken, onEnded, currentTrackIndex, currentQuality]);
+  }, [transcodeMode, mediaId, accessToken, onEnded, currentTrackIndex, currentQuality, transcodeStartTime]);
 
   // Subtitle track management — imperatively add/remove <track> element
   useEffect(() => {
@@ -190,16 +200,27 @@ export function HLSPlayer({
     const track = document.createElement("track");
     track.setAttribute("data-dynamic", "1");
     track.kind = "subtitles";
+    track.label = "Selected";
     track.src = `/api/v1/media/${mediaId}/subtitle/${currentSubtitle}?token=${accessToken}`;
     track.default = true;
     video.appendChild(track);
 
-    track.addEventListener("load", () => {
-      for (let i = 0; i < video.textTracks.length; i++) {
-        video.textTracks[i].mode = video.textTracks[i] === (track as HTMLTrackElement).track ? "showing" : "hidden";
+    // Force browser to load the track (dynamically added tracks aren't auto-loaded)
+    if (track.track) track.track.mode = "showing";
+
+    // Ensure all other text tracks are hidden
+    for (let i = 0; i < video.textTracks.length; i++) {
+      if (video.textTracks[i] !== track.track) {
+        video.textTracks[i].mode = "hidden";
       }
-    }, { once: true });
-  }, [currentSubtitle, mediaId, accessToken]);
+    }
+  }, [currentSubtitle, mediaId, accessToken, transcodeStartTime, currentTrackIndex, currentQuality]);
+
+  // Sync playbackRate with playbackSpeed state
+  useEffect(() => {
+    const video = videoRef.current;
+    if (video) video.playbackRate = playbackSpeed;
+  }, [playbackSpeed]);
 
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
@@ -214,13 +235,15 @@ export function HLSPlayer({
           else video.pause();
           break;
         case "ArrowLeft":
+        case "j":
           e.preventDefault();
-          video.currentTime = Math.max(0, video.currentTime - 10);
+          seekRef.current(Math.max(0, positionRef.current - 10));
           break;
-        case "ArrowRight": {
+        case "ArrowRight":
+        case "l": {
           e.preventDefault();
           const dur = knownDurationSecRef.current > 0 ? knownDurationSecRef.current : (video.duration && isFinite(video.duration)) ? video.duration : 0;
-          video.currentTime = Math.min(dur || 0, video.currentTime + 10);
+          seekRef.current(Math.min(dur || video.currentTime + 10, positionRef.current + 10));
           break;
         }
         case "ArrowUp":
@@ -241,6 +264,41 @@ export function HLSPlayer({
           else void document.exitFullscreen();
           break;
         }
+        case "c": {
+          const subs = subtitleStreamsRef.current;
+          const cur = currentSubtitleRef.current;
+          if (subs.length === 0) break;
+          if (cur === null) setCurrentSubtitle(subs[0].trackIndex);
+          else setCurrentSubtitle(null);
+          break;
+        }
+        case "?":
+          e.preventDefault();
+          setShowShortcuts((p) => !p);
+          break;
+        case "<":
+        case ",": {
+          e.preventDefault();
+          const curSpeed = playbackSpeedRef.current;
+          const idx = SPEED_OPTIONS.indexOf(curSpeed);
+          if (idx > 0) setPlaybackSpeed(SPEED_OPTIONS[idx - 1]);
+          break;
+        }
+        case ">":
+        case ".": {
+          e.preventDefault();
+          const curSpeed = playbackSpeedRef.current;
+          const idx = SPEED_OPTIONS.indexOf(curSpeed);
+          if (idx < SPEED_OPTIONS.length - 1) setPlaybackSpeed(SPEED_OPTIONS[idx + 1]);
+          break;
+        }
+        case "0": case "1": case "2": case "3": case "4":
+        case "5": case "6": case "7": case "8": case "9": {
+          e.preventDefault();
+          const dur = knownDurationSecRef.current > 0 ? knownDurationSecRef.current : (video.duration && isFinite(video.duration)) ? video.duration : 0;
+          if (dur > 0) seekRef.current(dur * (Number(e.key) / 10));
+          break;
+        }
       }
     }
 
@@ -248,21 +306,88 @@ export function HLSPlayer({
     return () => document.removeEventListener("keydown", handleKeyDown);
   }, []);
 
-  // Track time for next-episode overlay
+  // Track time for next-episode overlay (absolute position)
   useEffect(() => {
     const video = videoRef.current;
     if (!video) return;
     function onTime() {
       const v = videoRef.current;
       if (!v) return;
-      setOverlayTime(v.currentTime);
-      const d = v.duration;
-      if (d && isFinite(d) && d > 0) setOverlayDuration(d);
-      else if (knownDurationSecRef.current > 0) setOverlayDuration(knownDurationSecRef.current);
+      const absTime = transcodeOffsetRef.current + v.currentTime;
+      setOverlayTime(absTime);
+      const d = knownDurationSecRef.current;
+      if (d > 0) setOverlayDuration(d);
+      else {
+        const vd = v.duration;
+        if (vd && isFinite(vd) && vd > 0) setOverlayDuration(transcodeOffsetRef.current + vd);
+      }
     }
     video.addEventListener("timeupdate", onTime);
     return () => video.removeEventListener("timeupdate", onTime);
   }, []);
+
+  // Adaptive quality: measure buffer fill rate and adjust quality dynamically
+  const QUALITY_LEVELS = [0, 1080, 720, 480, 360];
+  const slowCountRef = useRef(0);
+  const lastBufferCheckRef = useRef({ time: 0, buffered: 0 });
+  const qualityStableRef = useRef(0);
+
+  useEffect(() => {
+    if (!transcodeMode || !autoQuality) {
+      slowCountRef.current = 0;
+      lastBufferCheckRef.current = { time: 0, buffered: 0 };
+      qualityStableRef.current = 0;
+      return;
+    }
+    const video = videoRef.current;
+    if (!video) return;
+
+    lastBufferCheckRef.current = { time: Date.now(), buffered: 0 };
+    qualityStableRef.current = Date.now();
+
+    const interval = setInterval(() => {
+      const v = videoRef.current;
+      if (!v || v.paused) return;
+      const b = v.buffered;
+      if (b.length === 0) return;
+
+      const now = Date.now();
+      const currentBuffered = b.end(b.length - 1);
+      const prev = lastBufferCheckRef.current;
+      const elapsed = (now - prev.time) / 1000;
+      lastBufferCheckRef.current = { time: now, buffered: currentBuffered };
+
+      if (elapsed < 3) return;
+      const fillRate = (currentBuffered - prev.buffered) / elapsed;
+
+      const curIdx = QUALITY_LEVELS.indexOf(currentQuality);
+
+      if (fillRate < 0.8) {
+        slowCountRef.current++;
+        if (slowCountRef.current >= 2 && curIdx < QUALITY_LEVELS.length - 1) {
+          const pos = positionRef.current;
+          setCurrentQuality(QUALITY_LEVELS[curIdx + 1]);
+          setTranscodeStartTime(pos);
+          slowCountRef.current = 0;
+          qualityStableRef.current = Date.now();
+        }
+      } else {
+        slowCountRef.current = 0;
+        if (fillRate > 2.5 && curIdx > 0 && (now - qualityStableRef.current) > 30000) {
+          const pos = positionRef.current;
+          setCurrentQuality(QUALITY_LEVELS[curIdx - 1]);
+          setTranscodeStartTime(pos);
+          qualityStableRef.current = Date.now();
+        }
+      }
+    }, 5000);
+
+    return () => clearInterval(interval);
+  }, [transcodeMode, autoQuality, currentQuality]);
+
+  const autoQualityLabel = autoQuality
+    ? (currentQuality === 0 ? "Original" : `${currentQuality}p`)
+    : undefined;
 
   const nextEpisode = (() => {
     if (!episodes || !currentEpisodeId) return null;
@@ -274,6 +399,36 @@ export function HLSPlayer({
   const handleNextEpisode = useCallback((id: string) => {
     onEpisodeChange?.(id);
   }, [onEpisodeChange]);
+
+  const handleSeekRequest = useCallback((absoluteTimeSec: number) => {
+    const video = videoRef.current;
+    if (!video || !transcodeMode) {
+      if (video) video.currentTime = absoluteTimeSec;
+      return;
+    }
+    const offset = transcodeOffsetRef.current;
+    const relativeTime = absoluteTimeSec - offset;
+    const buffered = video.buffered;
+    const isBuffered = buffered.length > 0 && relativeTime >= 0 && relativeTime <= buffered.end(buffered.length - 1) + 2;
+    if (isBuffered) {
+      video.currentTime = relativeTime;
+    } else {
+      setTranscodeStartTime(absoluteTimeSec);
+    }
+  }, [transcodeMode]);
+
+  const seekRef = useRef(handleSeekRequest);
+  seekRef.current = handleSeekRequest;
+
+  function handleQualityChange(quality: number) {
+    setAutoQuality(false);
+    setCurrentQuality(quality);
+    if (transcodeMode) setTranscodeStartTime(positionRef.current);
+  }
+
+  function handleAutoQualityToggle(auto: boolean) {
+    setAutoQuality(auto);
+  }
 
   function handleAudioChange(index: number) {
     const stream = audioStreams.find((s) => s.index === index);
@@ -293,8 +448,9 @@ export function HLSPlayer({
       for (let i = 0; i < tracks.length; i++) {
         tracks[i].enabled = tracks[i].id === String(index);
       }
+    } else {
+      setTranscodeStartTime(positionRef.current);
     }
-    // In transcodeMode, currentTrackIndex state change triggers the effect above
   }
 
   return (
@@ -304,7 +460,7 @@ export function HLSPlayer({
       <SkipIntroButton
         filePath={filePath}
         currentTime={overlayTime}
-        onSkip={(t) => { if (videoRef.current) videoRef.current.currentTime = t; }}
+        onSkip={(t) => handleSeekRequest(t)}
       />
       {nextEpisode && (
         <NextEpisodeOverlay
@@ -325,9 +481,14 @@ export function HLSPlayer({
         currentAudioIndex={currentAudioIndex}
         onAudioChange={handleAudioChange}
         currentQuality={currentQuality}
-        onQualityChange={setCurrentQuality}
+        onQualityChange={handleQualityChange}
+        autoQuality={autoQuality}
+        onAutoQualityToggle={handleAutoQualityToggle}
+        autoQualityLabel={autoQualityLabel}
         currentSubtitleTrackIndex={currentSubtitle}
         onSubtitleChange={setCurrentSubtitle}
+        playbackSpeed={playbackSpeed}
+        onSpeedChange={setPlaybackSpeed}
         seasons={seasons}
         currentSeasonId={currentSeasonId}
         episodes={episodes}
@@ -336,7 +497,10 @@ export function HLSPlayer({
         onEpisodeChange={onEpisodeChange}
         chapters={chapters}
         mediaId={mediaId}
+        onSeekRequest={handleSeekRequest}
+        transcodeOffset={transcodeOffsetRef.current}
       />
+      {showShortcuts && <KeyboardShortcutsOverlay onClose={() => setShowShortcuts(false)} />}
     </div>
   );
 }

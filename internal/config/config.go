@@ -109,7 +109,9 @@ type LibraryConfig struct {
 }
 
 type PlaybackConfig struct {
-	DefaultMaxStreams int
+	DefaultMaxStreams   int
+	SkipForwardSeconds  int
+	SkipBackwardSeconds int
 }
 
 func Load() (*Config, error) {
@@ -160,7 +162,9 @@ func Load() (*Config, error) {
 			WatcherEnabled:      envBool("EVEY_LIBRARY_WATCHER_ENABLED", true),
 		},
 		Playback: PlaybackConfig{
-			DefaultMaxStreams: envInt("EVEY_PLAYBACK_MAX_STREAMS", 0),
+			DefaultMaxStreams:   envInt("EVEY_PLAYBACK_MAX_STREAMS", 0),
+			SkipForwardSeconds:  envInt("EVEY_PLAYBACK_SKIP_FORWARD", 10),
+			SkipBackwardSeconds: envInt("EVEY_PLAYBACK_SKIP_BACKWARD", 10),
 		},
 		Metadata: MetadataConfig{
 			Language: envStr("EVEY_METADATA_LANGUAGE", "en"),

@@ -322,13 +322,24 @@ func transcodeHandler(tokenGen interface {
 
 		slog.Debug("transcode: decision", slog.String("media_id", mediaID), slog.Bool("needsVideoTranscode", needsVideoTranscode), slog.Bool("needsAudioTranscode", needsAudioTranscode), slog.Bool("remuxOnly", remuxOnly), slog.Bool("needsToneMap", needsToneMap))
 
+		startTimeSec := 0.0
+		if st := r.URL.Query().Get("startTime"); st != "" {
+			if f, err2 := strconv.ParseFloat(st, 64); err2 == nil && f > 0 {
+				startTimeSec = f
+			}
+		}
+
 		ctx, cancel := context.WithCancel(r.Context())
 		defer cancel()
-		args := []string{
+		var args []string
+		if startTimeSec > 0 {
+			args = append(args, "-ss", fmt.Sprintf("%.3f", startTimeSec))
+		}
+		args = append(args,
 			"-i", item.FilePath,
 			"-map", "0:v:0",
 			"-map", fmt.Sprintf("0:a:%d", audioTrack),
-		}
+		)
 
 		if needsToneMap && !remuxOnly {
 			toneMapFilter := hdr.BuildToneMapFilter(hdrInfo, hdr.DefaultToneMapOptions())
@@ -351,6 +362,7 @@ func transcodeHandler(tokenGen interface {
 			args = append(args, "-c:a", "copy")
 		}
 		args = append(args, "-movflags", "frag_keyframe+empty_moov+default_base_moof",
+			"-frag_duration", "2000000",
 			"-f", "mp4", "-")
 		slog.Debug("transcode: ffmpeg", slog.String("media_id", mediaID), slog.String("args", strings.Join(args, " ")))
 		cmd := exec.CommandContext(ctx, "ffmpeg", args...)

@@ -27,6 +27,7 @@ import { AddToPlaylistModal } from "../playlist/AddToPlaylistModal";
 interface MediaDetailProps {
   item: V1MediaItem;
   onMetadataUpdated?: () => void;
+  initialEdit?: boolean;
 }
 
 interface EditForm {
@@ -59,7 +60,8 @@ function ArtworkPicker({ mediaItemId }: { mediaItemId: string }) {
       queryClient.invalidateQueries({ queryKey: [`/api/v1/metadata/${mediaItemId}/artwork`] });
       queryClient.invalidateQueries({ queryKey: [`/api/v1/media/${mediaItemId}`] });
       toast.success("Artwork updated");
-    } catch {
+    } catch (err) {
+      console.error("ArtworkPicker: failed to select artwork", err);
       toast.error("Failed to update artwork");
     } finally {
       setSelecting(null);
@@ -129,37 +131,73 @@ function MetadataEditPanel({
   onSave: () => void;
   onCancel: () => void;
 }) {
+  const origImdbId = item.providerIds?.imdb ?? "";
+  const origTmdbId = item.providerIds?.tmdb ?? "";
   const [form, setForm] = useState<EditForm>({
     title: item.title ?? "",
     year: item.year ? String(item.year) : "",
     overview: item.overview ?? "",
     genres: item.genres?.join(", ") ?? "",
     communityRating: item.communityRating ? String(item.communityRating) : "",
-    imdbId: item.providerIds?.imdb ?? "",
-    tmdbId: item.providerIds?.tmdb ?? "",
+    imdbId: origImdbId,
+    tmdbId: origTmdbId,
   });
+  const [saving, setSaving] = useState(false);
   const [refreshStatus, setRefreshStatus] = useState<"idle" | "running" | "done" | "error">("idle");
   const setOverride = useMetadataServiceSetMetadataOverride();
   const refresh = useMetadataServiceRefreshMetadata();
+  const accessToken = useAuthStore((s) => s.accessToken);
+  const queryClient = useQueryClient();
+
+  const mediaType = item.type === "MEDIA_ITEM_TYPE_SERIES" || item.type === "MEDIA_ITEM_TYPE_SEASON" || item.type === "MEDIA_ITEM_TYPE_EPISODE" ? "tv" : "movie";
 
   async function handleSave(e: React.FormEvent) {
     e.preventDefault();
     if (!item.id) return;
-    const fields: Array<[string, string]> = [
-      ["title", form.title.trim()],
-      ["year", form.year.trim()],
-      ["overview", form.overview.trim()],
-      ["genres", form.genres.trim()],
-      ["community_rating", form.communityRating.trim()],
-      ["imdb_id", form.imdbId.trim()],
-      ["tmdb_id", form.tmdbId.trim()],
-    ];
-    for (const [fieldName, customValue] of fields) {
-      if (customValue) {
-        await setOverride.mutateAsync({ data: { mediaItemId: item.id, fieldName, customValue } });
+    setSaving(true);
+
+    const newTmdbId = form.tmdbId.trim();
+    const newImdbId = form.imdbId.trim();
+    const tmdbChanged = newTmdbId !== origTmdbId && newTmdbId !== "";
+    const imdbChanged = newImdbId !== origImdbId && newImdbId !== "";
+
+    try {
+      if (tmdbChanged || imdbChanged) {
+        await fetch(`/api/v1/admin/media/${item.id}/refresh-metadata`, {
+          method: "POST",
+          headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
+          body: JSON.stringify({
+            tmdb_id: tmdbChanged ? newTmdbId : "",
+            imdb_id: imdbChanged ? newImdbId : "",
+            media_type: mediaType,
+          }),
+        });
+        queryClient.invalidateQueries({ queryKey: [`/api/v1/media/${item.id}`] });
+        toast.success("Re-enriched with new ID");
       }
+
+      const fields: Array<[string, string]> = [
+        ["title", form.title.trim()],
+        ["year", form.year.trim()],
+        ["overview", form.overview.trim()],
+        ["genres", form.genres.trim()],
+        ["community_rating", form.communityRating.trim()],
+      ];
+      const hasOverrides = fields.some(([, v]) => v !== "");
+      if (hasOverrides) {
+        for (const [fieldName, customValue] of fields) {
+          if (customValue) {
+            await setOverride.mutateAsync({ data: { mediaItemId: item.id, fieldName, customValue } });
+          }
+        }
+      }
+      onSave();
+    } catch (err) {
+      console.error("MetadataEditPanel: failed to save metadata", err);
+      toast.error("Failed to save");
+    } finally {
+      setSaving(false);
     }
-    onSave();
   }
 
   async function handleRefresh() {
@@ -169,7 +207,8 @@ function MetadataEditPanel({
       await refresh.mutateAsync({ mediaItemId: item.id });
       setRefreshStatus("done");
       setTimeout(() => { setRefreshStatus("idle"); onSave(); }, 1500);
-    } catch {
+    } catch (err) {
+      console.error("MetadataEditPanel: failed to refresh metadata", err);
       setRefreshStatus("error");
     }
   }
@@ -178,6 +217,13 @@ function MetadataEditPanel({
     return (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
       setForm((prev) => ({ ...prev, [field]: e.target.value }));
   }
+
+  const tmdbLink = form.tmdbId.trim()
+    ? `https://www.themoviedb.org/${mediaType}/${form.tmdbId.trim()}`
+    : null;
+  const imdbLink = form.imdbId.trim()
+    ? `https://www.imdb.com/title/${form.imdbId.trim()}/`
+    : null;
 
   return (
     <form onSubmit={handleSave} className="flex flex-col gap-4 p-4 rounded-[var(--radius-lg)]"
@@ -188,12 +234,34 @@ function MetadataEditPanel({
       <Input label="Genres (comma-separated)" value={form.genres} onChange={set("genres")} placeholder="Action, Drama" />
       <Input label="Rating" type="number" step="0.1" min="0" max="10" value={form.communityRating} onChange={set("communityRating")} placeholder="7.5" />
       <div className="grid grid-cols-2 gap-3">
-        <Input label="IMDB ID" value={form.imdbId} onChange={set("imdbId")} placeholder="tt1234567" />
-        <Input label="TMDB ID" value={form.tmdbId} onChange={set("tmdbId")} placeholder="12345" />
+        <div className="flex flex-col gap-1">
+          <Input label="IMDB ID" value={form.imdbId} onChange={set("imdbId")} placeholder="tt1234567" />
+          {imdbLink && (
+            <a href={imdbLink} target="_blank" rel="noopener noreferrer"
+              className="text-xs underline" style={{ color: "var(--accent)" }}>
+              View on IMDB
+            </a>
+          )}
+        </div>
+        <div className="flex flex-col gap-1">
+          <Input label="TMDB ID" value={form.tmdbId} onChange={set("tmdbId")} placeholder="12345" />
+          {tmdbLink && (
+            <a href={tmdbLink} target="_blank" rel="noopener noreferrer"
+              className="text-xs underline" style={{ color: "var(--accent)" }}>
+              View on TMDB
+            </a>
+          )}
+        </div>
       </div>
+      {(form.tmdbId.trim() !== origTmdbId || form.imdbId.trim() !== origImdbId) &&
+        (form.tmdbId.trim() !== "" || form.imdbId.trim() !== "") && (
+        <p className="text-xs" style={{ color: "var(--warning, #f59e0b)" }}>
+          ID changed — saving will re-fetch metadata from the provider
+        </p>
+      )}
       {item.id && <ArtworkPicker mediaItemId={item.id} />}
       <div className="flex gap-2 flex-wrap pt-1">
-        <Button type="submit" loading={setOverride.isPending}>Save overrides</Button>
+        <Button type="submit" loading={saving}>Save</Button>
         <Button type="button" variant="secondary" loading={refreshStatus === "running"} onClick={handleRefresh}>
           {refreshStatus === "done" ? "Done" : refreshStatus === "error" ? "Error" : "Refresh metadata"}
         </Button>
@@ -482,10 +550,10 @@ function SimilarSection({ item }: { item: V1MediaItem }) {
   );
 }
 
-export function MediaDetail({ item, onMetadataUpdated }: MediaDetailProps) {
+export function MediaDetail({ item, onMetadataUpdated, initialEdit }: MediaDetailProps) {
   const [watched, setWatched] = useState(false);
   const [fileInfoOpen, setFileInfoOpen] = useState(false);
-  const [editing, setEditing] = useState(false);
+  const [editing, setEditing] = useState(initialEdit ?? false);
   const isSeries = item.type === "MEDIA_ITEM_TYPE_SERIES";
   const isSeason = item.type === "MEDIA_ITEM_TYPE_SEASON";
   const [playlistModalOpen, setPlaylistModalOpen] = useState(false);

@@ -3,7 +3,6 @@ import { createLazyFileRoute } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { eveyFetch } from "@evey/api/src/fetcher";
 import { toast } from "@evey/store";
-import { AdminNav } from "@/features/admin/AdminNav";
 import { Spinner } from "@/components/ui/Spinner";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
@@ -261,12 +260,9 @@ function SessionsPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <div>
-        <h1 className="text-2xl font-bold mb-2" style={{ color: "var(--text)" }}>
-          Now Playing
-        </h1>
-        <AdminNav />
-      </div>
+      <h1 className="text-2xl font-bold" style={{ color: "var(--text)" }}>
+        Now Playing
+      </h1>
 
       {isLoading ? (
         <div className="flex justify-center py-16">

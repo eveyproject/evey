@@ -16,6 +16,8 @@ const QUALITY_OPTIONS = [
   { label: "360p", value: 360 },
 ];
 
+const SPEED_OPTIONS = [0.5, 0.75, 1, 1.25, 1.5, 2];
+
 interface EpisodesPanelProps {
   seasons: SeasonNavItem[];
   currentSeasonId: string;
@@ -165,6 +167,8 @@ interface PlayerControlsProps {
   onQualityChange: (quality: number) => void;
   currentSubtitleTrackIndex: number | null;
   onSubtitleChange: (trackIndex: number | null) => void;
+  playbackSpeed?: number;
+  onSpeedChange?: (speed: number) => void;
   seasons?: SeasonNavItem[];
   currentSeasonId?: string;
   episodes?: EpisodeNavItem[];
@@ -173,6 +177,11 @@ interface PlayerControlsProps {
   onEpisodeChange?: (id: string) => void;
   chapters?: Chapter[];
   mediaId?: string;
+  onSeekRequest?: (absoluteTimeSec: number) => void;
+  transcodeOffset?: number;
+  autoQuality?: boolean;
+  onAutoQualityToggle?: (auto: boolean) => void;
+  autoQualityLabel?: string;
 }
 
 function formatTime(seconds: number): string {
@@ -192,7 +201,12 @@ interface SettingsPanelProps {
   onQualityChange: (quality: number) => void;
   currentSubtitleTrackIndex: number | null;
   onSubtitleChange: (trackIndex: number | null) => void;
+  playbackSpeed?: number;
+  onSpeedChange?: (speed: number) => void;
   onOpenChange: (open: boolean) => void;
+  autoQuality?: boolean;
+  onAutoQualityToggle?: (auto: boolean) => void;
+  autoQualityLabel?: string;
 }
 
 function SettingsPanel({
@@ -204,7 +218,12 @@ function SettingsPanel({
   onQualityChange,
   currentSubtitleTrackIndex,
   onSubtitleChange,
+  playbackSpeed = 1,
+  onSpeedChange,
   onOpenChange,
+  autoQuality,
+  onAutoQualityToggle,
+  autoQualityLabel,
 }: SettingsPanelProps) {
   const [open, setOpen] = useState(false);
 
@@ -243,15 +262,29 @@ function SettingsPanel({
           <div className="px-3 pt-2 pb-1 text-xs font-semibold uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>
             Quality
           </div>
+          {onAutoQualityToggle && (
+            <button
+              onClick={() => select(() => onAutoQualityToggle(true))}
+              className="flex items-center justify-between w-full px-4 py-2 text-sm hover:bg-[var(--surface-raised)] transition-colors"
+              style={{ color: autoQuality ? "var(--accent)" : "var(--text)" }}
+            >
+              <span>Auto{autoQuality && autoQualityLabel ? ` (${autoQualityLabel})` : ""}</span>
+              {autoQuality && (
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z" />
+                </svg>
+              )}
+            </button>
+          )}
           {QUALITY_OPTIONS.map((q) => (
             <button
               key={q.value}
-              onClick={() => select(() => onQualityChange(q.value))}
+              onClick={() => select(() => { onAutoQualityToggle?.(false); onQualityChange(q.value); })}
               className="flex items-center justify-between w-full px-4 py-2 text-sm hover:bg-[var(--surface-raised)] transition-colors"
-              style={{ color: q.value === currentQuality ? "var(--accent)" : "var(--text)" }}
+              style={{ color: !autoQuality && q.value === currentQuality ? "var(--accent)" : "var(--text)" }}
             >
               <span>{q.label}</span>
-              {q.value === currentQuality && (
+              {!autoQuality && q.value === currentQuality && (
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
                   <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z" />
                 </svg>
@@ -326,6 +359,31 @@ function SettingsPanel({
               })}
             </>
           )}
+
+          {/* Speed */}
+          {onSpeedChange && (
+            <>
+              <div className="mx-3 my-1" style={{ borderTop: "1px solid var(--border)" }} />
+              <div className="px-3 pb-1 text-xs font-semibold uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>
+                Speed
+              </div>
+              {SPEED_OPTIONS.map((s) => (
+                <button
+                  key={s}
+                  onClick={() => select(() => onSpeedChange(s))}
+                  className="flex items-center justify-between w-full px-4 py-2 text-sm hover:bg-[var(--surface-raised)] transition-colors"
+                  style={{ color: s === playbackSpeed ? "var(--accent)" : "var(--text)" }}
+                >
+                  <span>{s === 1 ? "Normal" : `${s}x`}</span>
+                  {s === playbackSpeed && (
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+                      <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z" />
+                    </svg>
+                  )}
+                </button>
+              ))}
+            </>
+          )}
         </div>
       )}
     </div>
@@ -345,6 +403,8 @@ export function PlayerControls({
   onQualityChange,
   currentSubtitleTrackIndex,
   onSubtitleChange,
+  playbackSpeed = 1,
+  onSpeedChange,
   seasons = [],
   currentSeasonId = "",
   episodes = [],
@@ -353,6 +413,11 @@ export function PlayerControls({
   onEpisodeChange,
   chapters = [],
   mediaId,
+  onSeekRequest,
+  transcodeOffset = 0,
+  autoQuality = false,
+  onAutoQualityToggle,
+  autoQualityLabel,
 }: PlayerControlsProps) {
   const [visible, setVisible] = useState(true);
   const [playing, setPlaying] = useState(false);
@@ -453,11 +518,38 @@ export function PlayerControls({
     else video.pause();
   }
 
+  const SKIP_SECONDS = 10;
+
+  const absoluteTime = transcodeOffset + currentTime;
+
   function handleSeek(e: React.ChangeEvent<HTMLInputElement>) {
-    const video = videoRef.current;
-    if (!video) return;
-    video.currentTime = Number(e.target.value);
+    const targetAbsolute = Number(e.target.value);
+    if (onSeekRequest) {
+      onSeekRequest(targetAbsolute);
+    } else {
+      const video = videoRef.current;
+      if (video) video.currentTime = targetAbsolute;
+    }
   }
+
+  function skipForward() {
+    const target = Math.min(effectiveDuration, absoluteTime + SKIP_SECONDS);
+    if (onSeekRequest) onSeekRequest(target);
+    else if (videoRef.current) videoRef.current.currentTime += SKIP_SECONDS;
+  }
+
+  function skipBackward() {
+    const target = Math.max(0, absoluteTime - SKIP_SECONDS);
+    if (onSeekRequest) onSeekRequest(target);
+    else if (videoRef.current) videoRef.current.currentTime -= SKIP_SECONDS;
+  }
+
+  const prevEpisode = (() => {
+    if (!episodes || !currentEpisodeId) return null;
+    const idx = episodes.findIndex((e) => e.id === currentEpisodeId);
+    if (idx <= 0) return null;
+    return episodes[idx - 1];
+  })();
 
   function handleVolume(e: React.ChangeEvent<HTMLInputElement>) {
     const video = videoRef.current;
@@ -570,13 +662,13 @@ export function PlayerControls({
           {/* buffered track */}
           <div
             className="absolute left-0 h-1 rounded bg-white/40 group-hover:h-1.5 transition-all"
-            style={{ width: effectiveDuration > 0 ? `${(bufferedEnd / effectiveDuration) * 100}%` : "0%" }}
+            style={{ width: effectiveDuration > 0 ? `${((transcodeOffset + bufferedEnd) / effectiveDuration) * 100}%` : "0%" }}
           />
           {/* progress track */}
           <div
             className="absolute left-0 h-1 rounded group-hover:h-1.5 transition-all"
             style={{
-              width: effectiveDuration > 0 ? `${(currentTime / effectiveDuration) * 100}%` : "0%",
+              width: effectiveDuration > 0 ? `${(absoluteTime / effectiveDuration) * 100}%` : "0%",
               backgroundColor: "var(--accent)",
             }}
           />
@@ -597,7 +689,7 @@ export function PlayerControls({
             min={0}
             max={effectiveDuration || 0}
             step={0.5}
-            value={currentTime}
+            value={absoluteTime}
             onChange={handleSeek}
             className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
             aria-label="Seek"
@@ -605,7 +697,33 @@ export function PlayerControls({
         </div>
 
         <div className="flex items-center gap-2 sm:gap-3">
-          {/* play/pause - larger touch target on mobile */}
+          {/* previous episode */}
+          {prevEpisode && onEpisodeChange && (
+            <button
+              onClick={() => onEpisodeChange(prevEpisode.id)}
+              aria-label="Previous episode"
+              className="text-white hover:text-[var(--accent)] transition-colors p-1"
+              title={prevEpisode.title ? `E${prevEpisode.indexNumber} - ${prevEpisode.title}` : undefined}
+            >
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M6 6h2v12H6zm3.5 6l8.5 6V6z" />
+              </svg>
+            </button>
+          )}
+
+          {/* skip backward */}
+          <button
+            onClick={skipBackward}
+            aria-label={`Rewind ${SKIP_SECONDS}s`}
+            className="text-white hover:text-[var(--accent)] transition-colors p-1"
+          >
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M11.99 5V1l-5 5 5 5V7c3.31 0 6 2.69 6 6s-2.69 6-6 6-6-2.69-6-6h-2c0 4.42 3.58 8 8 8s8-3.58 8-8-3.58-8-8-8z" />
+              <text x="12" y="15.5" textAnchor="middle" fontSize="7" fontWeight="bold" fill="currentColor">{SKIP_SECONDS}</text>
+            </svg>
+          </button>
+
+          {/* play/pause */}
           <button
             onClick={togglePlay}
             aria-label={playing ? "Pause" : "Play"}
@@ -623,9 +741,40 @@ export function PlayerControls({
             )}
           </button>
 
+          {/* skip forward */}
+          <button
+            onClick={skipForward}
+            aria-label={`Forward ${SKIP_SECONDS}s`}
+            className="text-white hover:text-[var(--accent)] transition-colors p-1"
+          >
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M12.01 5V1l5 5-5 5V7c-3.31 0-6 2.69-6 6s2.69 6 6 6 6-2.69 6-6h2c0 4.42-3.58 8-8 8s-8-3.58-8-8 3.58-8 8-8z" />
+              <text x="12" y="15.5" textAnchor="middle" fontSize="7" fontWeight="bold" fill="currentColor">{SKIP_SECONDS}</text>
+            </svg>
+          </button>
+
+          {/* next episode */}
+          {episodes && episodes.length > 0 && onEpisodeChange && (() => {
+            const idx = episodes.findIndex((e) => e.id === currentEpisodeId);
+            const next = idx >= 0 && idx < episodes.length - 1 ? episodes[idx + 1] : null;
+            if (!next) return null;
+            return (
+              <button
+                onClick={() => onEpisodeChange(next.id)}
+                aria-label="Next episode"
+                className="text-white hover:text-[var(--accent)] transition-colors p-1"
+                title={next.title ? `E${next.indexNumber} - ${next.title}` : undefined}
+              >
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M6 18l8.5-6L6 6v12zM16 6v12h2V6h-2z" />
+                </svg>
+              </button>
+            );
+          })()}
+
           {/* time */}
           <span className="text-white text-xs tabular-nums">
-            {formatTime(currentTime)} / {formatTime(effectiveDuration)}
+            {formatTime(absoluteTime)} / {formatTime(effectiveDuration)}
           </span>
 
           {/* volume - hidden on mobile (hardware volume) */}
@@ -651,8 +800,8 @@ export function PlayerControls({
           {chapters.length > 0 && (
             <ChaptersPanel
               chapters={chapters}
-              currentTimeSec={currentTime}
-              onSeek={(t) => { if (videoRef.current) videoRef.current.currentTime = t; }}
+              currentTimeSec={absoluteTime}
+              onSeek={(t) => onSeekRequest ? onSeekRequest(t) : (videoRef.current && (videoRef.current.currentTime = t))}
               onOpenChange={setChaptersOpen}
             />
           )}
@@ -680,7 +829,12 @@ export function PlayerControls({
             onQualityChange={onQualityChange}
             currentSubtitleTrackIndex={currentSubtitleTrackIndex}
             onSubtitleChange={onSubtitleChange}
+            playbackSpeed={playbackSpeed}
+            onSpeedChange={onSpeedChange}
             onOpenChange={setSettingsOpen}
+            autoQuality={autoQuality}
+            onAutoQualityToggle={onAutoQualityToggle}
+            autoQualityLabel={autoQualityLabel}
           />
 
           {/* fullscreen */}

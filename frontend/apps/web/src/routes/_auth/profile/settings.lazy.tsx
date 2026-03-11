@@ -199,6 +199,7 @@ function AccountSection() {
         <Input
           label="New password"
           type="password"
+          autoComplete="new-password"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
           error={error}
@@ -206,6 +207,7 @@ function AccountSection() {
         <Input
           label="Confirm password"
           type="password"
+          autoComplete="new-password"
           value={confirm}
           onChange={(e) => setConfirm(e.target.value)}
         />

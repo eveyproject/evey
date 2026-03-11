@@ -1,6 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
 import { createLazyFileRoute } from "@tanstack/react-router";
-import { AdminNav } from "@/features/admin/AdminNav";
 import { useQueryClient, useQuery } from "@tanstack/react-query";
 import {
   useUserServiceListUsers,
@@ -456,12 +455,6 @@ function UsersPage() {
 
   return (
     <div className="flex flex-col gap-8">
-      <div>
-        <h1 className="text-2xl font-bold mb-2" style={{ color: "var(--text)" }}>
-          Admin
-        </h1>
-        <AdminNav />
-      </div>
       <section className="flex flex-col gap-4">
         <div className="flex items-center justify-between">
           <h2 className="text-xl font-semibold" style={{ color: "var(--text)" }}>

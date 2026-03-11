@@ -279,6 +279,7 @@ func genreMapForType(mediaType string) map[int]string {
 func mapSearchResult(item tmdbSearchItem, mediaType string, genreMap map[int]string) domain.MetadataResult {
 	result := domain.MetadataResult{
 		ProviderIDs: map[string]string{"tmdb": strconv.Itoa(item.ID)},
+		Popularity:  item.Popularity,
 	}
 
 	if mediaType == "tv" {
@@ -447,6 +448,8 @@ type tmdbSearchItem struct {
 	ReleaseDate   string  `json:"release_date"`
 	FirstAirDate  string  `json:"first_air_date"`
 	VoteAverage   float64 `json:"vote_average"`
+	VoteCount     int     `json:"vote_count"`
+	Popularity    float64 `json:"popularity"`
 	GenreIDs      []int   `json:"genre_ids"`
 }
 

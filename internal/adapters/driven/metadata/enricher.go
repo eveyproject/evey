@@ -504,7 +504,7 @@ func pickBestMatch(results []domainmetadata.MetadataResult, query string, year *
 				score -= penalty
 			}
 		}
-		if score > bestScore {
+		if score > bestScore || (score == bestScore && r.Popularity > results[bestIdx].Popularity) {
 			bestScore = score
 			bestIdx = i
 		}

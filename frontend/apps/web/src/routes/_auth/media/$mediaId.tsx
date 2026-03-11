@@ -1,3 +1,9 @@
 import { createFileRoute } from "@tanstack/react-router";
 
-export const Route = createFileRoute("/_auth/media/$mediaId")({});
+type MediaSearch = { edit?: boolean };
+
+export const Route = createFileRoute("/_auth/media/$mediaId")({
+  validateSearch: (search: Record<string, unknown>): MediaSearch => ({
+    edit: search.edit === true || search.edit === "true",
+  }),
+});

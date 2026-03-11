@@ -1,17 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   usePlaybackServiceGetWatchProgress,
-  usePlaybackServiceStartStream,
   usePlaybackServiceStopStream,
   usePlaybackServiceGetStreamInfo,
+  playbackServiceStartStream,
 } from "@evey/api";
 import type { V1StreamInfo, V1WatchProgress } from "@evey/api/src/generated/playback.schemas";
 import { useAuthStore } from "@evey/store";
-
-const canPlayHevc = (() => {
-  const v = document.createElement("video");
-  return !!(v.canPlayType('video/mp4; codecs="hvc1"') || v.canPlayType('video/mp4; codecs="hev1"'));
-})();
+import { canPlayHevc } from "@/utils/codec";
 
 export interface PlaySessionResult {
   streamInfo: V1StreamInfo | null;
@@ -25,6 +21,8 @@ export function usePlaySession(mediaId: string): PlaySessionResult {
   const [sessionId, setSessionId] = useState<string | null>(null);
   const sessionIdRef = useRef<string | null>(null);
   const stopped = useRef(false);
+  const startedRef = useRef(false);
+  const [starting, setStarting] = useState(false);
   const token = useAuthStore.getState().accessToken;
 
   const { data: progress } = usePlaybackServiceGetWatchProgress(mediaId, undefined, {
@@ -42,29 +40,29 @@ export function usePlaySession(mediaId: string): PlaySessionResult {
     : undefined;
 
   const { mutate: stopStreamMutate } = usePlaybackServiceStopStream();
-  const startStream = usePlaybackServiceStartStream({
-    mutation: {
-      onSuccess: (session) => {
-        if (session.id) {
-          sessionIdRef.current = session.id;
-          setSessionId(session.id);
-        }
-      },
-    },
-  });
 
   useEffect(() => {
-    if (!mediaId) return;
     stopped.current = false;
-    startStream.mutate({
-      data: {
-        mediaItemId: mediaId,
-        playMethod: "PLAY_METHOD_TRANSCODE",
-        deviceId: "web-browser",
-        deviceName: "Web Browser",
-        clientName: "Evey Web",
-        startPositionMs: "0",
-      },
+    if (!mediaId || startedRef.current) return;
+    startedRef.current = true;
+    setStarting(true);
+
+    playbackServiceStartStream({
+      mediaItemId: mediaId,
+      playMethod: "PLAY_METHOD_TRANSCODE",
+      deviceId: "web-browser",
+      deviceName: "Web Browser",
+      clientName: "Evey Web",
+      startPositionMs: "0",
+    }).then((session) => {
+      if (session.id) {
+        sessionIdRef.current = session.id;
+        setSessionId(session.id);
+      }
+    }).catch((err) => {
+      console.error("Failed to start stream:", err);
+    }).finally(() => {
+      setStarting(false);
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mediaId]);
@@ -85,7 +83,7 @@ export function usePlaySession(mediaId: string): PlaySessionResult {
   return {
     streamInfo: streamInfo ?? null,
     sessionId,
-    isLoading: startStream.isPending || !rawStreamInfo,
+    isLoading: starting || !rawStreamInfo,
     progress: progress ?? null,
     stopSession,
   };

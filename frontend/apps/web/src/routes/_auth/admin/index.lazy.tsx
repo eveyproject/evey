@@ -2,7 +2,6 @@ import { createLazyFileRoute } from "@tanstack/react-router";
 import { useAdminServiceGetDashboard, useAdminServiceGetSystemInfo } from "@evey/api";
 import { Spinner } from "@/components/ui/Spinner";
 import { DashboardStats } from "@/features/admin/DashboardStats";
-import { AdminNav } from "@/features/admin/AdminNav";
 
 export const Route = createLazyFileRoute("/_auth/admin/")({
   component: AdminDashboard,
@@ -59,13 +58,9 @@ function AdminDashboard() {
 
   return (
     <div className="flex flex-col gap-8">
-      <div>
-        <h1 className="text-2xl font-bold mb-2" style={{ color: "var(--text)" }}>
-          Admin
-        </h1>
-        <AdminNav />
-      </div>
-
+      <h1 className="text-2xl font-bold" style={{ color: "var(--text)" }}>
+        Dashboard
+      </h1>
       {dashLoading ? (
         <div className="flex justify-center py-8">
           <Spinner size="lg" />

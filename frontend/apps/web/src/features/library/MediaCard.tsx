@@ -1,8 +1,11 @@
-import { useRef, useState } from "react";
-import { Link } from "@tanstack/react-router";
+import { useRef, useState, useEffect } from "react";
+import { Link, useNavigate } from "@tanstack/react-router";
+import { useQueryClient } from "@tanstack/react-query";
+import { usePlaybackServiceMarkAsWatched, usePlaybackServiceMarkAsUnwatched } from "@evey/api";
+import { toast, useAuthStore } from "@evey/store";
 import { FavoriteButton } from "./FavoriteButton";
 
-interface MediaCardItem {
+export interface MediaCardItem {
   id?: string;
   title?: string;
   year?: number;
@@ -10,9 +13,10 @@ interface MediaCardItem {
   overview?: string;
   communityRating?: number;
   genres?: string[];
+  durationMs?: string;
 }
 
-interface MediaCardProps {
+export interface MediaCardProps {
   item: MediaCardItem;
   href?: string;
   posterSrc?: string;
@@ -20,13 +24,18 @@ interface MediaCardProps {
   progressPercent?: number;
   showYear?: boolean;
   showType?: boolean;
+  isWatched?: boolean;
+  resolution?: string;
+  isHdr?: boolean;
 }
 
-const typeLabel = (t?: string) => {
+export const typeLabel = (t?: string) => {
   if (t === "MEDIA_ITEM_TYPE_MOVIE") return "Film";
   if (t === "MEDIA_ITEM_TYPE_SERIES") return "Serie";
   return "";
 };
+
+const formatResolution = (r: string) => (r === "2160p" ? "4K" : r);
 
 function HoverPreview({ item }: { item: MediaCardItem }) {
   const hasContent = item.overview || item.communityRating || (item.genres && item.genres.length > 0);
@@ -86,6 +95,103 @@ function HoverPreview({ item }: { item: MediaCardItem }) {
   );
 }
 
+function CardContextMenu({
+  mediaId,
+  onClose,
+  position,
+}: {
+  mediaId: string;
+  onClose: () => void;
+  position: { x: number; y: number };
+}) {
+  const ref = useRef<HTMLDivElement>(null);
+  const navigate = useNavigate();
+  const queryClient = useQueryClient();
+  const profileId = useAuthStore((s) => s.profileId);
+  const markWatched = usePlaybackServiceMarkAsWatched({
+    mutation: {
+      onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: [`/api/v1/media/${mediaId}`] });
+        toast.success("Marked as watched");
+        onClose();
+      },
+      onError: () => {
+        toast.error("Failed to mark as watched");
+        onClose();
+      },
+    },
+  });
+  const markUnwatched = usePlaybackServiceMarkAsUnwatched({
+    mutation: {
+      onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: [`/api/v1/media/${mediaId}`] });
+        toast.success("Marked as unwatched");
+        onClose();
+      },
+      onError: () => {
+        toast.error("Failed to mark as unwatched");
+        onClose();
+      },
+    },
+  });
+
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) onClose();
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [onClose]);
+
+  const items = [
+    {
+      label: "Edit metadata",
+      onClick: () => {
+        navigate({ to: "/media/$mediaId", params: { mediaId }, search: { edit: true } as never });
+        onClose();
+      },
+    },
+    {
+      label: "Mark as watched",
+      onClick: () => {
+        if (!profileId) { toast.error("No profile selected"); onClose(); return; }
+        markWatched.mutate({ mediaItemId: mediaId, params: { profileId } });
+      },
+    },
+    {
+      label: "Mark as unwatched",
+      onClick: () => {
+        if (!profileId) { toast.error("No profile selected"); onClose(); return; }
+        markUnwatched.mutate({ mediaItemId: mediaId, params: { profileId } });
+      },
+    },
+  ];
+
+  return (
+    <div
+      ref={ref}
+      className="fixed z-[100] min-w-[160px] py-1 rounded-[var(--radius-md)] shadow-xl"
+      style={{
+        left: position.x,
+        top: position.y,
+        backgroundColor: "var(--surface)",
+        border: "1px solid var(--border)",
+      }}
+    >
+      {items.map((it) => (
+        <button
+          key={it.label}
+          onClick={it.onClick}
+          className="w-full text-left px-3 py-2 text-sm hover:bg-[var(--surface-raised)] transition-colors"
+          style={{ color: "var(--text)" }}
+        >
+          {it.label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
 export function MediaCard({
   item,
   href,
@@ -94,6 +200,9 @@ export function MediaCard({
   progressPercent,
   showYear = true,
   showType,
+  isWatched,
+  resolution,
+  isHdr,
 }: MediaCardProps) {
   const [imgLoaded, setImgLoaded] = useState(false);
   const hoverTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -106,9 +215,12 @@ export function MediaCard({
       ? Math.min(100, Math.max(0, Math.round(progressPercent)))
       : undefined;
 
+  const watched = isWatched || (pct !== undefined && pct >= 95);
+
   const linkTo = href ?? "/media/$mediaId";
   const linkParams = href ? undefined : { mediaId: item.id ?? "" };
 
+  const [ctxMenu, setCtxMenu] = useState<{ x: number; y: number } | null>(null);
   const hasPreviewData = !!(item.overview || item.communityRating || (item.genres && item.genres.length > 0));
 
   function handleMouseEnter() {
@@ -121,7 +233,24 @@ export function MediaCard({
     setShowPreview(false);
   }
 
+  function handleContextMenu(e: React.MouseEvent) {
+    if (!item.id) return;
+    e.preventDefault();
+    setShowPreview(false);
+    setCtxMenu({ x: e.clientX, y: e.clientY });
+  }
+
+  const hasProgressBar = showProgress && pct !== undefined;
+
   return (
+    <>
+    {ctxMenu && item.id && (
+      <CardContextMenu
+        mediaId={item.id}
+        position={ctxMenu}
+        onClose={() => setCtxMenu(null)}
+      />
+    )}
     <Link
       to={linkTo}
       params={linkParams as never}
@@ -129,6 +258,7 @@ export function MediaCard({
       data-testid="media-card"
       onMouseEnter={handleMouseEnter}
       onMouseLeave={handleMouseLeave}
+      onContextMenu={handleContextMenu}
     >
       {showPreview && <HoverPreview item={item} />}
 
@@ -180,6 +310,61 @@ export function MediaCard({
           </span>
         )}
 
+        {/* Watched checkmark */}
+        {watched && (
+          <span
+            className="absolute z-20 flex items-center justify-center"
+            style={{
+              top: "0.5rem",
+              right: showYear && item.year !== undefined ? "3.5rem" : "0.5rem",
+              width: "20px",
+              height: "20px",
+              borderRadius: "50%",
+              backgroundColor: "#22c55e",
+            }}
+            data-testid="watched-badge"
+          >
+            <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" strokeWidth={3} viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+            </svg>
+          </span>
+        )}
+
+        {/* Resolution & HDR badges */}
+        {(resolution || isHdr) && (
+          <div
+            className="absolute z-20 flex items-center gap-1"
+            style={{ bottom: hasProgressBar ? "0.75rem" : "0.5rem", left: "0.5rem" }}
+          >
+            {resolution && (
+              <span
+                className="text-[10px] font-bold px-1.5 py-0.5 leading-none"
+                style={{
+                  backgroundColor: "rgba(0,0,0,0.7)",
+                  color: "#fff",
+                  borderRadius: "var(--radius-sm)",
+                }}
+                data-testid="resolution-badge"
+              >
+                {formatResolution(resolution)}
+              </span>
+            )}
+            {isHdr && (
+              <span
+                className="text-[10px] font-bold px-1.5 py-0.5 leading-none"
+                style={{
+                  backgroundColor: "#f59e0b",
+                  color: "#000",
+                  borderRadius: "var(--radius-sm)",
+                }}
+                data-testid="hdr-badge"
+              >
+                HDR
+              </span>
+            )}
+          </div>
+        )}
+
         {/* Favorite button — top-left on hover */}
         {item.id && (
           <div className="absolute top-2 left-2 z-20 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
@@ -209,7 +394,7 @@ export function MediaCard({
           </p>
         </div>
 
-        {showProgress && pct !== undefined && (
+        {hasProgressBar && (
           <div
             className="absolute bottom-0 left-0 right-0 h-1.5 z-10"
             style={{ backgroundColor: "rgba(0,0,0,0.5)" }}
@@ -247,5 +432,6 @@ export function MediaCard({
         )}
       </div>
     </Link>
+    </>
   );
 }

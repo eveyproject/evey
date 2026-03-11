@@ -10,6 +10,7 @@ export const Route = createLazyFileRoute("/_auth/media/$mediaId")({
 
 function MediaPage() {
   const { mediaId } = Route.useParams();
+  const { edit } = Route.useSearch();
 
   const { data: item, isLoading, isError } = useQuery({
     queryKey: [`/api/v1/media/${mediaId}`],
@@ -29,5 +30,5 @@ function MediaPage() {
     );
   }
 
-  return <MediaDetail item={item} />;
+  return <MediaDetail item={item} initialEdit={edit} />;
 }

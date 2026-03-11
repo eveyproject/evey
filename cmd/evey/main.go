@@ -411,6 +411,7 @@ func run() error {
 		backupSvc := appbackup.NewService(backupStore, dbDumper, version)
 		registerBackupRoutes(mux, backupSvc, tokenGen)
 		registerRemoteAccessRoutes(mux, cfg, tokenGen)
+		registerPlaybackSettingsRoutes(mux, cfg, tokenGen)
 		registerParentalRoutes(mux, profileRepo, hasher, tokenGen)
 		if subtitleSvc != nil {
 			registerSubtitleRoutes(mux, subtitleSvc, tokenGen)

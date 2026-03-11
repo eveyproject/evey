@@ -58,5 +58,9 @@ export async function eveyFetch<T>(request: FetcherRequest): Promise<T> {
     throw err;
   }
 
+  if (response.status === 204 || response.headers.get("content-length") === "0") {
+    return undefined as T;
+  }
+
   return response.json() as Promise<T>;
 }

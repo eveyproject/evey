@@ -28,7 +28,7 @@ test.describe("Player", () => {
     });
 
     await page.waitForSelector(
-      "video, [class*='spinner'], [class*='Spinner']",
+      "video, .animate-spin",
       { timeout: 15_000 },
     );
 

@@ -1,8 +1,10 @@
 import { useState, useRef, useEffect } from "react";
 import { Link } from "@tanstack/react-router";
+import { useQueryClient } from "@tanstack/react-query";
 import {
   useNotificationServiceGetUnreadCount,
   useNotificationServiceListNotifications,
+  useNotificationServiceMarkAllRead,
 } from "@evey/api";
 
 function relativeTime(iso: string | undefined): string {
@@ -27,6 +29,15 @@ export function NotificationBell() {
 
   const { data: listData } = useNotificationServiceListNotifications({ limit: 5 });
   const notifications = listData?.notifications ?? [];
+  const queryClient = useQueryClient();
+  const markAllRead = useNotificationServiceMarkAllRead({
+    mutation: {
+      onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: ["/api/v1/notifications"] });
+        queryClient.invalidateQueries({ queryKey: ["/api/v1/notifications/unread-count"] });
+      },
+    },
+  });
 
   useEffect(() => {
     if (!open) return;
@@ -59,7 +70,12 @@ export function NotificationBell() {
           <div className="px-4 py-3 border-b border-[var(--border)] flex items-center justify-between">
             <span className="text-sm font-semibold text-[var(--text)]">Notifications</span>
             {count > 0 && (
-              <span className="text-xs text-[var(--accent)] font-medium">{count} unread</span>
+              <button
+                onClick={() => markAllRead.mutate({ data: {} })}
+                className="text-xs text-[var(--accent)] font-medium hover:underline"
+              >
+                Mark all read
+              </button>
             )}
           </div>
 
