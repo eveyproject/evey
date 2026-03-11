@@ -25,8 +25,6 @@ vi.mock("lucide-react", () => {
     Webhook: Icon,
     BarChart3: Icon,
     FileText: Icon,
-    ListChecks: Icon,
-    ScrollText: Icon,
     ChevronDown: Icon,
   };
 });
@@ -57,6 +55,19 @@ describe("AdminNav", () => {
     expect(screen.getByTestId("link-/admin/sessions")).toHaveAttribute("href", "/admin/sessions");
     expect(screen.getByTestId("link-/admin/users")).toHaveAttribute("href", "/admin/users");
     expect(screen.getByTestId("link-/admin/webhooks")).toHaveAttribute("href", "/admin/webhooks");
-    expect(screen.getByTestId("link-/admin/logs")).toHaveAttribute("href", "/admin/logs");
+  });
+
+  it("does not render removed pages (logs, tasks)", () => {
+    mockPathname = "/admin";
+    render(<AdminNav />);
+    expect(screen.queryByText("Logs")).not.toBeInTheDocument();
+    expect(screen.queryByText("Tasks")).not.toBeInTheDocument();
+  });
+
+  it("hides labels when collapsed", () => {
+    mockPathname = "/admin";
+    render(<AdminNav collapsed />);
+    expect(screen.queryByText("Dashboard")).not.toBeInTheDocument();
+    expect(screen.queryByText("Dashboard & System")).not.toBeInTheDocument();
   });
 });
