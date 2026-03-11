@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"strings"
 
 	"github.com/gravity-zero/evey/internal/domain/activity"
@@ -79,7 +80,9 @@ func (r *AuditLogRepository) List(ctx context.Context, f activity.AuditLogFilter
 		if err := rows.Scan(&e.ID, &e.UserID, &e.Action, &e.ResourceType, &e.ResourceID, &detailsJSON, &e.ClientIP, &e.UserAgent, &e.DeviceName, &e.CreatedAt); err != nil {
 			return nil, err
 		}
-		_ = json.Unmarshal(detailsJSON, &e.Details)
+		if err := json.Unmarshal(detailsJSON, &e.Details); err != nil {
+			slog.Warn("json unmarshal", slog.String("field", "details"), slog.Any("err", err))
+		}
 		result = append(result, e)
 	}
 	return result, rows.Err()

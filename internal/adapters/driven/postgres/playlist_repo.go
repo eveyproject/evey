@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"strings"
 
 	"github.com/gravity-zero/evey/internal/domain/library"
@@ -45,7 +46,9 @@ func (r *PlaylistRepository) GetByID(ctx context.Context, id string) (*playlist.
 	if err != nil {
 		return nil, err
 	}
-	_ = json.Unmarshal(rulesJSON, &pl.Rules)
+	if err := json.Unmarshal(rulesJSON, &pl.Rules); err != nil {
+		slog.Warn("json unmarshal", slog.String("field", "rules"), slog.Any("err", err))
+	}
 	return pl, nil
 }
 
@@ -66,7 +69,9 @@ func (r *PlaylistRepository) List(ctx context.Context, userID string) ([]*playli
 		if err := rows.Scan(&pl.ID, &pl.Name, &pl.Description, &pl.UserID, &pl.Type, &rulesJSON, &pl.SortBy, &pl.SortOrder, &pl.CreatedAt, &pl.UpdatedAt); err != nil {
 			return nil, err
 		}
-		_ = json.Unmarshal(rulesJSON, &pl.Rules)
+		if err := json.Unmarshal(rulesJSON, &pl.Rules); err != nil {
+			slog.Warn("json unmarshal", slog.String("field", "rules"), slog.Any("err", err))
+		}
 		result = append(result, pl)
 	}
 	return result, rows.Err()
@@ -291,10 +296,18 @@ func scanMediaItems(rows *sql.Rows) ([]*library.MediaItem, error) {
 		if filePath.Valid {
 			item.FilePath = filePath.String
 		}
-		_ = json.Unmarshal(providerIDsJSON, &item.ProviderIDs)
-		_ = json.Unmarshal(genresJSON, &item.Genres)
-		_ = json.Unmarshal(studiosJSON, &item.Studios)
-		_ = json.Unmarshal(tagsJSON, &item.Tags)
+		if err := json.Unmarshal(providerIDsJSON, &item.ProviderIDs); err != nil {
+			slog.Warn("json unmarshal", slog.String("field", "provider_ids"), slog.Any("err", err))
+		}
+		if err := json.Unmarshal(genresJSON, &item.Genres); err != nil {
+			slog.Warn("json unmarshal", slog.String("field", "genres"), slog.Any("err", err))
+		}
+		if err := json.Unmarshal(studiosJSON, &item.Studios); err != nil {
+			slog.Warn("json unmarshal", slog.String("field", "studios"), slog.Any("err", err))
+		}
+		if err := json.Unmarshal(tagsJSON, &item.Tags); err != nil {
+			slog.Warn("json unmarshal", slog.String("field", "tags"), slog.Any("err", err))
+		}
 		result = append(result, item)
 	}
 	return result, rows.Err()

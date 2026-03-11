@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"log/slog"
 
 	"github.com/gravity-zero/evey/internal/domain/user"
 	"github.com/lib/pq"
@@ -58,7 +59,9 @@ func (r *ProfileRepository) GetByID(ctx context.Context, id string) (*user.Profi
 	if err != nil {
 		return nil, err
 	}
-	_ = json.Unmarshal(prefsJSON, &p.Preferences)
+	if err := json.Unmarshal(prefsJSON, &p.Preferences); err != nil {
+		slog.Warn("json unmarshal", slog.String("field", "preferences"), slog.Any("err", err))
+	}
 	p.Parental = parentalFromColumns(pMaxRating, pBlockedTags, pPINHash, pEnabled)
 	return p, nil
 }
@@ -144,7 +147,9 @@ func scanProfile(rows *sql.Rows) (*user.Profile, error) {
 		&p.CreatedAt); err != nil {
 		return nil, err
 	}
-	_ = json.Unmarshal(prefsJSON, &p.Preferences)
+	if err := json.Unmarshal(prefsJSON, &p.Preferences); err != nil {
+		slog.Warn("json unmarshal", slog.String("field", "preferences"), slog.Any("err", err))
+	}
 	p.Parental = parentalFromColumns(pMaxRating, pBlockedTags, pPINHash, pEnabled)
 	return p, nil
 }

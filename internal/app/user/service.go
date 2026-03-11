@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"log/slog"
 	"sync"
 	"time"
 
@@ -117,7 +118,10 @@ func (s *Service) Setup(ctx context.Context, username, password, email string) (
 	if err := s.users.Create(ctx, u); err != nil {
 		return nil, err
 	}
-	s.events.Publish(ctx, user.UserCreated{UserID: u.ID, Username: u.Username, IsAdmin: true, OccurredAt: time.Now()})
+	evtSetupCreated := user.UserCreated{UserID: u.ID, Username: u.Username, IsAdmin: true, OccurredAt: time.Now()}
+	if err := s.events.Publish(ctx, evtSetupCreated); err != nil {
+		slog.Warn("publish event", slog.String("event", evtSetupCreated.EventName()), slog.Any("err", err))
+	}
 
 	p := &user.Profile{
 		ID:        id.New("prf-"),
@@ -182,7 +186,10 @@ func (s *Service) Login(ctx context.Context, username, password string) (accessT
 		return "", "", err
 	}
 
-	s.events.Publish(ctx, user.LoginSucceeded{UserID: u.ID, AuthMethod: "local", OccurredAt: time.Now()})
+	evtLogin := user.LoginSucceeded{UserID: u.ID, AuthMethod: "local", OccurredAt: time.Now()}
+	if err := s.events.Publish(ctx, evtLogin); err != nil {
+		slog.Warn("publish event", slog.String("event", evtLogin.EventName()), slog.Any("err", err))
+	}
 	return accessToken, refreshToken, nil
 }
 
@@ -279,7 +286,10 @@ func (s *Service) CreateUser(ctx context.Context, callerIsAdmin bool, u *user.Us
 	if err := s.users.Create(ctx, u); err != nil {
 		return err
 	}
-	s.events.Publish(ctx, user.UserCreated{UserID: u.ID, Username: u.Username, IsAdmin: u.IsAdmin, OccurredAt: time.Now()})
+	evtUserCreated := user.UserCreated{UserID: u.ID, Username: u.Username, IsAdmin: u.IsAdmin, OccurredAt: time.Now()}
+	if err := s.events.Publish(ctx, evtUserCreated); err != nil {
+		slog.Warn("publish event", slog.String("event", evtUserCreated.EventName()), slog.Any("err", err))
+	}
 	return nil
 }
 
@@ -306,7 +316,10 @@ func (s *Service) DeleteUser(ctx context.Context, id string) error {
 		return err
 	}
 	s.refreshTkns.DeleteByUserID(ctx, id)
-	s.events.Publish(ctx, user.UserDeleted{UserID: id, OccurredAt: time.Now()})
+	evtDeleted := user.UserDeleted{UserID: id, OccurredAt: time.Now()}
+	if err := s.events.Publish(ctx, evtDeleted); err != nil {
+		slog.Warn("publish event", slog.String("event", evtDeleted.EventName()), slog.Any("err", err))
+	}
 	return nil
 }
 
@@ -330,7 +343,10 @@ func (s *Service) DisableUser(ctx context.Context, id string) error {
 		return err
 	}
 	s.refreshTkns.DeleteByUserID(ctx, id)
-	s.events.Publish(ctx, user.UserDisabled{UserID: id, OccurredAt: time.Now()})
+	evtDisabled := user.UserDisabled{UserID: id, OccurredAt: time.Now()}
+	if err := s.events.Publish(ctx, evtDisabled); err != nil {
+		slog.Warn("publish event", slog.String("event", evtDisabled.EventName()), slog.Any("err", err))
+	}
 	return nil
 }
 
@@ -343,7 +359,10 @@ func (s *Service) CreateProfile(ctx context.Context, p *user.Profile) error {
 	if err := s.profiles.Create(ctx, p); err != nil {
 		return err
 	}
-	s.events.Publish(ctx, user.ProfileCreated{ProfileID: p.ID, UserID: p.UserID, Name: p.Name, OccurredAt: time.Now()})
+	evtProfileCreated := user.ProfileCreated{ProfileID: p.ID, UserID: p.UserID, Name: p.Name, OccurredAt: time.Now()}
+	if err := s.events.Publish(ctx, evtProfileCreated); err != nil {
+		slog.Warn("publish event", slog.String("event", evtProfileCreated.EventName()), slog.Any("err", err))
+	}
 	return nil
 }
 
@@ -406,7 +425,10 @@ func (s *Service) RegisterWithInvite(ctx context.Context, token, username, passw
 		return nil, err
 	}
 	s.invites.IncrementUsedCount(ctx, invite.ID)
-	s.events.Publish(ctx, user.UserCreated{UserID: u.ID, Username: u.Username, OccurredAt: time.Now()})
+	evtInviteCreated := user.UserCreated{UserID: u.ID, Username: u.Username, OccurredAt: time.Now()}
+	if err := s.events.Publish(ctx, evtInviteCreated); err != nil {
+		slog.Warn("publish event", slog.String("event", evtInviteCreated.EventName()), slog.Any("err", err))
+	}
 	return u, nil
 }
 

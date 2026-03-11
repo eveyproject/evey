@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"time"
 
 	"github.com/gravity-zero/evey/internal/domain/shared"
@@ -75,11 +76,17 @@ func (s *Service) StartTranscode(ctx context.Context, job *transcoding.Transcode
 		job.Status = string(transcoding.Failed)
 		job.ErrorMessage = err.Error()
 		s.jobs.Update(ctx, job)
-		s.events.Publish(ctx, transcoding.TranscodeFailed{JobID: job.ID, MediaItemID: job.MediaItemID, ErrorMessage: err.Error(), OccurredAt: time.Now()})
+		evtFailed := transcoding.TranscodeFailed{JobID: job.ID, MediaItemID: job.MediaItemID, ErrorMessage: err.Error(), OccurredAt: time.Now()}
+		if pubErr := s.events.Publish(ctx, evtFailed); pubErr != nil {
+			slog.Warn("publish event", slog.String("event", evtFailed.EventName()), slog.Any("err", pubErr))
+		}
 		return fmt.Errorf("start transcode: %w", err)
 	}
 
-	s.events.Publish(ctx, transcoding.TranscodeStarted{JobID: job.ID, MediaItemID: job.MediaItemID, OutputCodec: job.OutputCodec, OccurredAt: time.Now()})
+	evtStarted := transcoding.TranscodeStarted{JobID: job.ID, MediaItemID: job.MediaItemID, OutputCodec: job.OutputCodec, OccurredAt: time.Now()}
+	if err := s.events.Publish(ctx, evtStarted); err != nil {
+		slog.Warn("publish event", slog.String("event", evtStarted.EventName()), slog.Any("err", err))
+	}
 	return nil
 }
 
@@ -95,7 +102,10 @@ func (s *Service) StopTranscode(ctx context.Context, jobID string) error {
 	now := time.Now()
 	job.EndedAt = &now
 	s.jobs.Update(ctx, job)
-	s.events.Publish(ctx, transcoding.TranscodeCancelled{JobID: jobID, MediaItemID: job.MediaItemID, OccurredAt: now})
+	evtCancelled := transcoding.TranscodeCancelled{JobID: jobID, MediaItemID: job.MediaItemID, OccurredAt: now}
+	if err := s.events.Publish(ctx, evtCancelled); err != nil {
+		slog.Warn("publish event", slog.String("event", evtCancelled.EventName()), slog.Any("err", err))
+	}
 	return nil
 }
 

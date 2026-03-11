@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"time"
 
 	"github.com/gravity-zero/evey/internal/domain/plugin"
@@ -77,7 +78,10 @@ func (s *Service) InstallPlugin(ctx context.Context, zipPath string) (*plugin.Pl
 	p.Status = string(plugin.Running)
 	s.plugins.Update(ctx, p)
 
-	s.events.Publish(ctx, plugin.PluginInstalled{PluginID: p.ID, Name: p.Name, OccurredAt: time.Now()})
+	evtInstalled := plugin.PluginInstalled{PluginID: p.ID, Name: p.Name, OccurredAt: time.Now()}
+	if err := s.events.Publish(ctx, evtInstalled); err != nil {
+		slog.Warn("publish event", slog.String("event", evtInstalled.EventName()), slog.Any("err", err))
+	}
 	return p, nil
 }
 
@@ -92,7 +96,10 @@ func (s *Service) UninstallPlugin(ctx context.Context, id string) error {
 	if err := s.plugins.Delete(ctx, id); err != nil {
 		return err
 	}
-	s.events.Publish(ctx, plugin.PluginUninstalled{PluginID: id, OccurredAt: time.Now()})
+	evtUninstalled := plugin.PluginUninstalled{PluginID: id, OccurredAt: time.Now()}
+	if err := s.events.Publish(ctx, evtUninstalled); err != nil {
+		slog.Warn("publish event", slog.String("event", evtUninstalled.EventName()), slog.Any("err", err))
+	}
 	return nil
 }
 
@@ -159,7 +166,10 @@ func (s *Service) StartPlugin(ctx context.Context, id string) error {
 	p.Status = string(plugin.Running)
 	p.ErrorMessage = ""
 	s.plugins.Update(ctx, p)
-	s.events.Publish(ctx, plugin.PluginStarted{PluginID: id, OccurredAt: time.Now()})
+	evtStarted := plugin.PluginStarted{PluginID: id, OccurredAt: time.Now()}
+	if err := s.events.Publish(ctx, evtStarted); err != nil {
+		slog.Warn("publish event", slog.String("event", evtStarted.EventName()), slog.Any("err", err))
+	}
 	return nil
 }
 
@@ -176,7 +186,10 @@ func (s *Service) StopPlugin(ctx context.Context, id string) error {
 	}
 	p.Status = string(plugin.Stopped)
 	s.plugins.Update(ctx, p)
-	s.events.Publish(ctx, plugin.PluginStopped{PluginID: id, OccurredAt: time.Now()})
+	evtStopped := plugin.PluginStopped{PluginID: id, OccurredAt: time.Now()}
+	if err := s.events.Publish(ctx, evtStopped); err != nil {
+		slog.Warn("publish event", slog.String("event", evtStopped.EventName()), slog.Any("err", err))
+	}
 	return nil
 }
 

@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"strconv"
 	"strings"
 	"time"
@@ -50,7 +51,9 @@ func (r *CollectionRepository) GetByID(ctx context.Context, id string) (*library
 		return nil, err
 	}
 	col.Type = library.CollectionType(colType)
-	_ = json.Unmarshal(rulesJSON, &col.Rules)
+	if err := json.Unmarshal(rulesJSON, &col.Rules); err != nil {
+		slog.Warn("json unmarshal", slog.String("field", "rules"), slog.Any("err", err))
+	}
 	return col, nil
 }
 
@@ -73,7 +76,9 @@ func (r *CollectionRepository) List(ctx context.Context) ([]*library.Collection,
 			return nil, err
 		}
 		col.Type = library.CollectionType(colType)
-		_ = json.Unmarshal(rulesJSON, &col.Rules)
+		if err := json.Unmarshal(rulesJSON, &col.Rules); err != nil {
+			slog.Warn("json unmarshal", slog.String("field", "rules"), slog.Any("err", err))
+		}
 		result = append(result, col)
 	}
 	return result, rows.Err()
@@ -365,10 +370,18 @@ func (r *CollectionRepository) queryMediaItems(ctx context.Context, query string
 		if fingerprint != nil {
 			item.FileFingerprint = *fingerprint
 		}
-		_ = json.Unmarshal(providerJSON, &item.ProviderIDs)
-		_ = json.Unmarshal(genresJSON, &item.Genres)
-		_ = json.Unmarshal(studiosJSON, &item.Studios)
-		_ = json.Unmarshal(tagsJSON, &item.Tags)
+		if err := json.Unmarshal(providerJSON, &item.ProviderIDs); err != nil {
+			slog.Warn("json unmarshal", slog.String("field", "provider_ids"), slog.Any("err", err))
+		}
+		if err := json.Unmarshal(genresJSON, &item.Genres); err != nil {
+			slog.Warn("json unmarshal", slog.String("field", "genres"), slog.Any("err", err))
+		}
+		if err := json.Unmarshal(studiosJSON, &item.Studios); err != nil {
+			slog.Warn("json unmarshal", slog.String("field", "studios"), slog.Any("err", err))
+		}
+		if err := json.Unmarshal(tagsJSON, &item.Tags); err != nil {
+			slog.Warn("json unmarshal", slog.String("field", "tags"), slog.Any("err", err))
+		}
 		result = append(result, item)
 	}
 	return result, rows.Err()

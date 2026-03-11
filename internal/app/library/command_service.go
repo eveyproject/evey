@@ -105,12 +105,15 @@ func (s *CommandService) CreateLibrary(ctx context.Context, lib *library.Library
 	if err := s.libraries.Create(ctx, lib); err != nil {
 		return fmt.Errorf("create library: %w", err)
 	}
-	s.events.Publish(ctx, library.LibraryCreated{
+	evtCreated := library.LibraryCreated{
 		LibraryID:  lib.ID,
 		Name:       lib.Name,
 		Type:       lib.Type,
 		OccurredAt: now,
-	})
+	}
+	if err := s.events.Publish(ctx, evtCreated); err != nil {
+		slog.Warn("publish event", slog.String("event", evtCreated.EventName()), slog.Any("err", err))
+	}
 	return nil
 }
 
@@ -118,10 +121,13 @@ func (s *CommandService) DeleteLibrary(ctx context.Context, id string) error {
 	if err := s.libraries.Delete(ctx, id); err != nil {
 		return fmt.Errorf("delete library: %w", err)
 	}
-	s.events.Publish(ctx, library.LibraryDeleted{
+	evtDeleted := library.LibraryDeleted{
 		LibraryID:  id,
 		OccurredAt: time.Now(),
-	})
+	}
+	if err := s.events.Publish(ctx, evtDeleted); err != nil {
+		slog.Warn("publish event", slog.String("event", evtDeleted.EventName()), slog.Any("err", err))
+	}
 	return nil
 }
 
@@ -132,10 +138,13 @@ func (s *CommandService) ScanLibrary(ctx context.Context, libraryID string) (add
 		return 0, 0, fmt.Errorf("get library: %w", err)
 	}
 
-	s.events.Publish(ctx, library.LibraryScanStarted{
+	evtScanStarted := library.LibraryScanStarted{
 		LibraryID:  libraryID,
 		OccurredAt: time.Now(),
-	})
+	}
+	if publishErr := s.events.Publish(ctx, evtScanStarted); publishErr != nil {
+		slog.Warn("publish event", slog.String("event", evtScanStarted.EventName()), slog.Any("err", publishErr))
+	}
 
 	for _, path := range lib.Paths {
 		var files []library.ScannedFile
@@ -166,12 +175,15 @@ func (s *CommandService) ScanLibrary(ctx context.Context, libraryID string) (add
 	lib.LastScannedAt = &now
 	s.libraries.Update(ctx, lib)
 
-	s.events.Publish(ctx, library.LibraryScanCompleted{
+	evtScanCompleted := library.LibraryScanCompleted{
 		LibraryID:    libraryID,
 		ItemsAdded:   added,
 		ItemsUpdated: updated,
 		OccurredAt:   now,
-	})
+	}
+	if publishErr := s.events.Publish(ctx, evtScanCompleted); publishErr != nil {
+		slog.Warn("publish event", slog.String("event", evtScanCompleted.EventName()), slog.Any("err", publishErr))
+	}
 	return added, updated, nil
 }
 
@@ -213,13 +225,16 @@ func (s *CommandService) upsertMediaFile(ctx context.Context, libraryID, parentI
 		}
 		s.extractAndStoreChapters(ctx, item.ID, f.Path)
 		s.search.IndexMediaItem(ctx, item, nil)
-		s.events.Publish(ctx, library.MediaItemAdded{
+		evtAdded := library.MediaItemAdded{
 			MediaItemID: item.ID,
 			LibraryID:   libraryID,
 			Title:       item.Title,
 			Type:        item.Type,
 			OccurredAt:  time.Now(),
-		})
+		}
+		if err := s.events.Publish(ctx, evtAdded); err != nil {
+			slog.Warn("publish event", slog.String("event", evtAdded.EventName()), slog.Any("err", err))
+		}
 		return 1, 0, nil
 	}
 	existing.ParentID = parentID
@@ -235,13 +250,16 @@ func (s *CommandService) upsertMediaFile(ctx context.Context, libraryID, parentI
 	s.search.IndexMediaItem(ctx, existing, nil)
 	// Re-emit so enricher re-fetches metadata for items with no overview
 	if existing.Overview == "" {
-		s.events.Publish(ctx, library.MediaItemAdded{
+		evtReAdded := library.MediaItemAdded{
 			MediaItemID: existing.ID,
 			LibraryID:   existing.LibraryID,
 			Title:       existing.Title,
 			Type:        existing.Type,
 			OccurredAt:  time.Now(),
-		})
+		}
+		if err := s.events.Publish(ctx, evtReAdded); err != nil {
+			slog.Warn("publish event", slog.String("event", evtReAdded.EventName()), slog.Any("err", err))
+		}
 	}
 	return 0, 1, nil
 }
@@ -364,13 +382,16 @@ func (s *CommandService) scanTVShowFiles(ctx context.Context, libraryID string, 
 				return 0, 0, fmt.Errorf("create series %q: %w", showTitle, createErr)
 			}
 			if created {
-				s.events.Publish(ctx, library.MediaItemAdded{
+				evtSeriesAdded := library.MediaItemAdded{
 					MediaItemID: seriesItem.ID,
 					LibraryID:   libraryID,
 					Title:       seriesItem.Title,
 					Type:        seriesItem.Type,
 					OccurredAt:  time.Now(),
-				})
+				}
+				if err := s.events.Publish(ctx, evtSeriesAdded); err != nil {
+					slog.Warn("publish event", slog.String("event", evtSeriesAdded.EventName()), slog.Any("err", err))
+				}
 				added++
 			}
 			seriesID = seriesItem.ID

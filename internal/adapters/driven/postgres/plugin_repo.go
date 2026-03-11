@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"log/slog"
 
 	"github.com/gravity-zero/evey/internal/domain/plugin"
 )
@@ -77,10 +78,18 @@ func (r *PluginRepository) List(ctx context.Context) ([]*plugin.Plugin, error) {
 			&p.Enabled, &p.Status, &p.ErrorMessage, &p.InstalledAt, &p.UpdatedAt); err != nil {
 			return nil, err
 		}
-		_ = json.Unmarshal(capJSON, &p.Capabilities)
-		_ = json.Unmarshal(permJSON, &p.Permissions)
-		_ = json.Unmarshal(schemaJSON, &p.ConfigSchema)
-		_ = json.Unmarshal(configJSON, &p.Config)
+		if err := json.Unmarshal(capJSON, &p.Capabilities); err != nil {
+			slog.Warn("json unmarshal", slog.String("field", "capabilities"), slog.Any("err", err))
+		}
+		if err := json.Unmarshal(permJSON, &p.Permissions); err != nil {
+			slog.Warn("json unmarshal", slog.String("field", "permissions"), slog.Any("err", err))
+		}
+		if err := json.Unmarshal(schemaJSON, &p.ConfigSchema); err != nil {
+			slog.Warn("json unmarshal", slog.String("field", "config_schema"), slog.Any("err", err))
+		}
+		if err := json.Unmarshal(configJSON, &p.Config); err != nil {
+			slog.Warn("json unmarshal", slog.String("field", "config"), slog.Any("err", err))
+		}
 		result = append(result, p)
 	}
 	return result, rows.Err()
@@ -128,9 +137,17 @@ func (r *PluginRepository) scanPlugin(row *sql.Row) (*plugin.Plugin, error) {
 	if err != nil {
 		return nil, err
 	}
-	_ = json.Unmarshal(capJSON, &p.Capabilities)
-	_ = json.Unmarshal(permJSON, &p.Permissions)
-	_ = json.Unmarshal(schemaJSON, &p.ConfigSchema)
-	_ = json.Unmarshal(configJSON, &p.Config)
+	if err := json.Unmarshal(capJSON, &p.Capabilities); err != nil {
+		slog.Warn("json unmarshal", slog.String("field", "capabilities"), slog.Any("err", err))
+	}
+	if err := json.Unmarshal(permJSON, &p.Permissions); err != nil {
+		slog.Warn("json unmarshal", slog.String("field", "permissions"), slog.Any("err", err))
+	}
+	if err := json.Unmarshal(schemaJSON, &p.ConfigSchema); err != nil {
+		slog.Warn("json unmarshal", slog.String("field", "config_schema"), slog.Any("err", err))
+	}
+	if err := json.Unmarshal(configJSON, &p.Config); err != nil {
+		slog.Warn("json unmarshal", slog.String("field", "config"), slog.Any("err", err))
+	}
 	return p, nil
 }

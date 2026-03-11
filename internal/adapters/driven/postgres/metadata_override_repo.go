@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"log/slog"
 
 	"github.com/gravity-zero/evey/internal/domain/metadata"
 )
@@ -43,7 +44,9 @@ func (r *MetadataOverrideRepository) Get(ctx context.Context, id string) (*metad
 	if err != nil {
 		return nil, err
 	}
-	_ = json.Unmarshal(valueJSON, &o.CustomValue)
+	if err := json.Unmarshal(valueJSON, &o.CustomValue); err != nil {
+		slog.Warn("json unmarshal", slog.String("field", "custom_value"), slog.Any("err", err))
+	}
 	return o, nil
 }
 
@@ -63,7 +66,9 @@ func (r *MetadataOverrideRepository) GetByMediaItem(ctx context.Context, mediaIt
 		if err := rows.Scan(&o.ID, &o.MediaItemID, &o.FieldName, &valueJSON, &o.EditedBy, &o.CreatedAt); err != nil {
 			return nil, err
 		}
-		_ = json.Unmarshal(valueJSON, &o.CustomValue)
+		if err := json.Unmarshal(valueJSON, &o.CustomValue); err != nil {
+			slog.Warn("json unmarshal", slog.String("field", "custom_value"), slog.Any("err", err))
+		}
 		result = append(result, o)
 	}
 	return result, rows.Err()

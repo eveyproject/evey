@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"log/slog"
 
 	"github.com/gravity-zero/evey/internal/domain/library"
 )
@@ -58,7 +59,9 @@ func (r *PersonRepository) List(ctx context.Context) ([]*library.Person, error) 
 		if err := rows.Scan(&person.ID, &person.Name, &providerJSON, &person.ThumbPath); err != nil {
 			return nil, err
 		}
-		_ = json.Unmarshal(providerJSON, &person.ProviderIDs)
+		if err := json.Unmarshal(providerJSON, &person.ProviderIDs); err != nil {
+			slog.Warn("json unmarshal", slog.String("field", "provider_ids"), slog.Any("err", err))
+		}
 		result = append(result, person)
 	}
 	return result, rows.Err()
@@ -74,6 +77,8 @@ func (r *PersonRepository) scanPerson(row *sql.Row) (*library.Person, error) {
 	if err != nil {
 		return nil, err
 	}
-	_ = json.Unmarshal(providerJSON, &person.ProviderIDs)
+	if err := json.Unmarshal(providerJSON, &person.ProviderIDs); err != nil {
+		slog.Warn("json unmarshal", slog.String("field", "provider_ids"), slog.Any("err", err))
+	}
 	return person, nil
 }

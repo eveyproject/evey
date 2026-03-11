@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"log/slog"
 
 	"github.com/gravity-zero/evey/internal/domain/user"
 )
@@ -57,7 +58,9 @@ func (r *RoleRepository) List(ctx context.Context) ([]*user.Role, error) {
 		if err := rows.Scan(&role.ID, &role.Name, &role.Description, &permJSON, &role.IsSystem); err != nil {
 			return nil, err
 		}
-		_ = json.Unmarshal(permJSON, &role.Permissions)
+		if err := json.Unmarshal(permJSON, &role.Permissions); err != nil {
+			slog.Warn("json unmarshal", slog.String("field", "permissions"), slog.Any("err", err))
+		}
 		result = append(result, role)
 	}
 	return result, rows.Err()
@@ -70,6 +73,8 @@ func (r *RoleRepository) scanRole(row *sql.Row) (*user.Role, error) {
 	if err != nil {
 		return nil, err
 	}
-	_ = json.Unmarshal(permJSON, &role.Permissions)
+	if err := json.Unmarshal(permJSON, &role.Permissions); err != nil {
+		slog.Warn("json unmarshal", slog.String("field", "permissions"), slog.Any("err", err))
+	}
 	return role, nil
 }

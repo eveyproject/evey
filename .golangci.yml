@@ -43,6 +43,15 @@ linters:
         - (*os.File).Close
         - (io.Closer).Close
         - (net/http.Response.Body).Close
+        - (*database/sql.DB).Close
+        - (*database/sql.Tx).Rollback
+        # intentional zero-fallback conversions
+        - strconv.Atoi
+        - strconv.ParseFloat
+        - strconv.ParseUint
+        - strconv.ParseInt
+        # EBML binary reader — seek errors are non-actionable mid-parse
+        - (*bufio.Reader).Seek
     govet:
       enable:
         - shadow

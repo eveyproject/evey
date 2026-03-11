@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"log/slog"
 	"time"
 
 	"github.com/gravity-zero/evey/internal/domain/user"
@@ -40,7 +41,9 @@ func (r *APIKeyRepository) GetByKeyHash(ctx context.Context, hash string) (*user
 	if err != nil {
 		return nil, err
 	}
-	_ = json.Unmarshal(permJSON, &key.Permissions)
+	if err := json.Unmarshal(permJSON, &key.Permissions); err != nil {
+		slog.Warn("json unmarshal", slog.String("field", "permissions"), slog.Any("err", err))
+	}
 	return key, nil
 }
 
@@ -60,7 +63,9 @@ func (r *APIKeyRepository) ListByUserID(ctx context.Context, userID string) ([]*
 		if err := rows.Scan(&key.ID, &key.UserID, &key.KeyHash, &key.Name, &permJSON, &key.LastUsedAt, &key.ExpiresAt, &key.CreatedAt); err != nil {
 			return nil, err
 		}
-		_ = json.Unmarshal(permJSON, &key.Permissions)
+		if err := json.Unmarshal(permJSON, &key.Permissions); err != nil {
+			slog.Warn("json unmarshal", slog.String("field", "permissions"), slog.Any("err", err))
+		}
 		result = append(result, key)
 	}
 	return result, rows.Err()

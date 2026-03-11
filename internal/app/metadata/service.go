@@ -3,6 +3,7 @@ package metadata
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"time"
 
 	"github.com/gravity-zero/evey/internal/domain/library"
@@ -68,11 +69,10 @@ func (s *Service) RefreshMetadata(ctx context.Context, mediaItemID, providerID, 
 		if err != nil {
 			return nil, fmt.Errorf("get metadata from %s: %w", providerName, err)
 		}
-		s.events.Publish(ctx, metadata.MetadataRefreshed{
-			MediaItemID: mediaItemID,
-			Provider:    providerName,
-			OccurredAt:  time.Now(),
-		})
+		evt := metadata.MetadataRefreshed{MediaItemID: mediaItemID, Provider: providerName, OccurredAt: time.Now()}
+		if err := s.events.Publish(ctx, evt); err != nil {
+			slog.Warn("publish event", slog.String("event", evt.EventName()), slog.Any("err", err))
+		}
 		return result, nil
 	}
 	return nil, fmt.Errorf("provider %s not found", providerName)
@@ -102,11 +102,10 @@ func (s *Service) RefreshItemMetadata(ctx context.Context, mediaItemID, tmdbID, 
 	if err := s.enricher.EnrichItem(ctx, item, result); err != nil {
 		return fmt.Errorf("enrich item: %w", err)
 	}
-	s.events.Publish(ctx, metadata.MetadataRefreshed{
-		MediaItemID: mediaItemID,
-		Provider:    "tmdb",
-		OccurredAt:  time.Now(),
-	})
+	evtTmdb := metadata.MetadataRefreshed{MediaItemID: mediaItemID, Provider: "tmdb", OccurredAt: time.Now()}
+	if err := s.events.Publish(ctx, evtTmdb); err != nil {
+		slog.Warn("publish event", slog.String("event", evtTmdb.EventName()), slog.Any("err", err))
+	}
 	return nil
 }
 
@@ -161,11 +160,10 @@ func (s *Service) RefreshItemMetadataByIMDB(ctx context.Context, mediaItemID, im
 	if err := s.enricher.EnrichItem(ctx, item, result); err != nil {
 		return fmt.Errorf("enrich item: %w", err)
 	}
-	s.events.Publish(ctx, metadata.MetadataRefreshed{
-		MediaItemID: mediaItemID,
-		Provider:    usedProvider,
-		OccurredAt:  time.Now(),
-	})
+	evtImdb := metadata.MetadataRefreshed{MediaItemID: mediaItemID, Provider: usedProvider, OccurredAt: time.Now()}
+	if err := s.events.Publish(ctx, evtImdb); err != nil {
+		slog.Warn("publish event", slog.String("event", evtImdb.EventName()), slog.Any("err", err))
+	}
 	return nil
 }
 
@@ -174,12 +172,10 @@ func (s *Service) SetOverride(ctx context.Context, override *metadata.MetadataOv
 	if err := s.overrides.Set(ctx, override); err != nil {
 		return err
 	}
-	s.events.Publish(ctx, metadata.MetadataOverrideSet{
-		MediaItemID: override.MediaItemID,
-		FieldName:   override.FieldName,
-		EditedBy:    override.EditedBy,
-		OccurredAt:  time.Now(),
-	})
+	evtOverride := metadata.MetadataOverrideSet{MediaItemID: override.MediaItemID, FieldName: override.FieldName, EditedBy: override.EditedBy, OccurredAt: time.Now()}
+	if err := s.events.Publish(ctx, evtOverride); err != nil {
+		slog.Warn("publish event", slog.String("event", evtOverride.EventName()), slog.Any("err", err))
+	}
 	return nil
 }
 
@@ -191,11 +187,10 @@ func (s *Service) ResetOverrides(ctx context.Context, mediaItemID string) error 
 	if err := s.overrides.DeleteByMediaItemID(ctx, mediaItemID); err != nil {
 		return err
 	}
-	s.events.Publish(ctx, metadata.MetadataOverrideRemoved{
-		MediaItemID: mediaItemID,
-		FieldName:   "*",
-		OccurredAt:  time.Now(),
-	})
+	evtRemoved := metadata.MetadataOverrideRemoved{MediaItemID: mediaItemID, FieldName: "*", OccurredAt: time.Now()}
+	if err := s.events.Publish(ctx, evtRemoved); err != nil {
+		slog.Warn("publish event", slog.String("event", evtRemoved.EventName()), slog.Any("err", err))
+	}
 	return nil
 }
 
@@ -223,11 +218,9 @@ func (s *Service) DownloadArtwork(ctx context.Context, record *metadata.ArtworkR
 		return fmt.Errorf("download artwork: %w", err)
 	}
 	record.LocalPath = &destPath
-	s.events.Publish(ctx, metadata.ArtworkDownloaded{
-		MediaItemID: record.MediaItemID,
-		Type:        record.Type,
-		LocalPath:   destPath,
-		OccurredAt:  time.Now(),
-	})
+	evtArtwork := metadata.ArtworkDownloaded{MediaItemID: record.MediaItemID, Type: record.Type, LocalPath: destPath, OccurredAt: time.Now()}
+	if err := s.events.Publish(ctx, evtArtwork); err != nil {
+		slog.Warn("publish event", slog.String("event", evtArtwork.EventName()), slog.Any("err", err))
+	}
 	return nil
 }

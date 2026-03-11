@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"log/slog"
 
 	"github.com/gravity-zero/evey/internal/domain/feed"
 )
@@ -33,7 +34,9 @@ func (r *FeedAdminConfigRepository) GetAll(ctx context.Context) ([]*feed.AdminCo
 			return nil, err
 		}
 		cfg.FeedType = feed.Type(ft)
-		_ = json.Unmarshal(paramsJSON, &cfg.Params)
+		if err := json.Unmarshal(paramsJSON, &cfg.Params); err != nil {
+			slog.Warn("json unmarshal", slog.String("field", "params"), slog.Any("err", err))
+		}
 		result = append(result, cfg)
 	}
 	return result, rows.Err()
@@ -82,7 +85,9 @@ func (r *FeedProfileConfigRepository) GetByProfile(ctx context.Context, profileI
 			return nil, err
 		}
 		cfg.FeedType = feed.Type(ft)
-		_ = json.Unmarshal(paramsJSON, &cfg.Params)
+		if err := json.Unmarshal(paramsJSON, &cfg.Params); err != nil {
+			slog.Warn("json unmarshal", slog.String("field", "params"), slog.Any("err", err))
+		}
 		result = append(result, cfg)
 	}
 	return result, rows.Err()

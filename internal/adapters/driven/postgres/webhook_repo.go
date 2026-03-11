@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"log/slog"
 
 	"github.com/gravity-zero/evey/internal/domain/webhook"
 	"github.com/lib/pq"
@@ -43,7 +44,9 @@ func (r *WebhookRepository) GetByID(ctx context.Context, id string) (*webhook.Co
 	if err != nil {
 		return nil, err
 	}
-	_ = json.Unmarshal(headersJSON, &cfg.Headers)
+	if err := json.Unmarshal(headersJSON, &cfg.Headers); err != nil {
+		slog.Warn("json unmarshal", slog.String("field", "headers"), slog.Any("err", err))
+	}
 	return cfg, nil
 }
 
@@ -62,7 +65,9 @@ func (r *WebhookRepository) List(ctx context.Context) ([]*webhook.Config, error)
 		if err := rows.Scan(&cfg.ID, &cfg.Name, &cfg.URL, pq.Array(&cfg.Events), &cfg.Secret, &headersJSON, &cfg.Enabled, &cfg.CreatedAt); err != nil {
 			return nil, err
 		}
-		_ = json.Unmarshal(headersJSON, &cfg.Headers)
+		if err := json.Unmarshal(headersJSON, &cfg.Headers); err != nil {
+			slog.Warn("json unmarshal", slog.String("field", "headers"), slog.Any("err", err))
+		}
 		result = append(result, cfg)
 	}
 	return result, rows.Err()
