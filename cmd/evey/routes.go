@@ -1139,6 +1139,10 @@ func registerBackupRoutes(mux *http.ServeMux, svc *appbackup.Service, tokenGen *
 func networkMiddleware(detector *network.Detector, remoteEnabled *bool) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if r.URL.Path == "/healthz" {
+				next.ServeHTTP(w, r)
+				return
+			}
 			nt := detector.Detect(r)
 			if nt == network.WAN && !*remoteEnabled {
 				http.Error(w, `{"message":"remote access disabled"}`, http.StatusForbidden)
