@@ -3,9 +3,11 @@ package filesystem
 import (
 	"context"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/gravity-zero/evey/internal/domain/transcoding"
 )
@@ -29,6 +31,17 @@ func (s *CacheStore) GetCacheInfo(_ context.Context) (*transcoding.CacheInfo, er
 	}
 	for _, e := range entries {
 		if e.IsDir() {
+			size, latest := dirStats(filepath.Join(s.dir, e.Name()))
+			if size == 0 {
+				continue
+			}
+			info.Files = append(info.Files, transcoding.CacheFileInfo{
+				Name:         e.Name(),
+				Size:         size,
+				LastModified: latest,
+			})
+			info.TotalSize += size
+			info.FileCount++
 			continue
 		}
 		fi, err := e.Info()
@@ -46,6 +59,27 @@ func (s *CacheStore) GetCacheInfo(_ context.Context) (*transcoding.CacheInfo, er
 	return info, nil
 }
 
+// dirStats walks a directory recursively and returns total size + latest mod time.
+func dirStats(root string) (int64, time.Time) {
+	var total int64
+	var latest time.Time
+	filepath.WalkDir(root, func(_ string, d fs.DirEntry, err error) error {
+		if err != nil || d.IsDir() {
+			return nil
+		}
+		fi, err := d.Info()
+		if err != nil {
+			return nil
+		}
+		total += fi.Size()
+		if fi.ModTime().After(latest) {
+			latest = fi.ModTime()
+		}
+		return nil
+	})
+	return total, latest
+}
+
 func (s *CacheStore) ClearCache(_ context.Context) error {
 	entries, err := os.ReadDir(s.dir)
 	if err != nil {
@@ -55,10 +89,7 @@ func (s *CacheStore) ClearCache(_ context.Context) error {
 		return fmt.Errorf("read cache dir: %w", err)
 	}
 	for _, e := range entries {
-		if e.IsDir() {
-			continue
-		}
-		os.Remove(filepath.Join(s.dir, e.Name()))
+		os.RemoveAll(filepath.Join(s.dir, e.Name()))
 	}
 	return nil
 }
@@ -72,10 +103,20 @@ func (s *CacheStore) DeleteFile(_ context.Context, filename string) error {
 	if !strings.HasPrefix(clean, filepath.Clean(s.dir)+string(os.PathSeparator)) {
 		return fmt.Errorf("invalid filename")
 	}
-	if err := os.Remove(clean); err != nil {
+	fi, err := os.Stat(clean)
+	if err != nil {
 		if os.IsNotExist(err) {
 			return fmt.Errorf("file not found")
 		}
+		return fmt.Errorf("stat file: %w", err)
+	}
+	if fi.IsDir() {
+		if err := os.RemoveAll(clean); err != nil {
+			return fmt.Errorf("delete dir: %w", err)
+		}
+		return nil
+	}
+	if err := os.Remove(clean); err != nil {
 		return fmt.Errorf("delete file: %w", err)
 	}
 	return nil
