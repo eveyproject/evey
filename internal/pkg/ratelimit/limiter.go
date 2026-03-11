@@ -3,6 +3,7 @@ package ratelimit
 import (
 	"net"
 	"net/http"
+	"strings"
 	"sync"
 	"time"
 )
@@ -78,9 +79,15 @@ func clientIP(r *http.Request) string {
 	return host
 }
 
-func Middleware(limiter *Limiter) func(http.Handler) http.Handler {
+func Middleware(limiter *Limiter, exemptPrefixes ...string) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			for _, p := range exemptPrefixes {
+				if strings.HasPrefix(r.URL.Path, p) {
+					next.ServeHTTP(w, r)
+					return
+				}
+			}
 			if !limiter.Allow(clientIP(r)) {
 				http.Error(w, `{"message":"too many requests"}`, http.StatusTooManyRequests)
 				return

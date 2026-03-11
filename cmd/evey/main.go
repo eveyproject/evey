@@ -418,7 +418,11 @@ func run() error {
 		}
 		mux.HandleFunc("GET /api/v1/admin/sessions/active", activeSessionsHandler(tokenGen, playbackSvc))
 		mux.HandleFunc("DELETE /api/v1/admin/sessions/{id}", killSessionHandler(tokenGen, playbackSvc))
-		mux.Handle("/", ratelimit.Middleware(globalRL)(gwMux))
+		mux.Handle("/", ratelimit.Middleware(globalRL,
+			"/api/v1/playback/progress",
+			"/api/v1/playback/start",
+			"/api/v1/playback/stop",
+		)(gwMux))
 		netMw := networkMiddleware(netDetector, &cfg.RemoteAccess.Enabled)
 		proxyTrust, proxyErr := network.NewProxyTrust(cfg.Server.TrustedProxies, cfg.Server.RealIPHeader, cfg.Server.ForwardedProto)
 		if proxyErr != nil {

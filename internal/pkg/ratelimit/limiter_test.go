@@ -1,6 +1,8 @@
 package ratelimit
 
 import (
+	"net/http"
+	"net/http/httptest"
 	"testing"
 	"time"
 
@@ -50,4 +52,29 @@ func TestRateLimit_Refills(t *testing.T) {
 	l.mu.Unlock()
 
 	assert.True(t, l.Allow(ip), "should have refilled after elapsed time")
+}
+
+func TestMiddleware_ExemptPrefixes(t *testing.T) {
+	l := newTestLimiter(2)
+	ok := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(200) })
+	handler := Middleware(l, "/api/v1/playback/progress", "/api/v1/playback/start")(ok)
+
+	// exhaust the limiter
+	for i := 0; i < 2; i++ {
+		rr := httptest.NewRecorder()
+		handler.ServeHTTP(rr, httptest.NewRequest("GET", "/other", nil))
+		assert.Equal(t, 200, rr.Code)
+	}
+
+	// non-exempt path blocked
+	rr := httptest.NewRecorder()
+	handler.ServeHTTP(rr, httptest.NewRequest("GET", "/other", nil))
+	assert.Equal(t, 429, rr.Code)
+
+	// exempt paths still allowed
+	for _, path := range []string{"/api/v1/playback/progress", "/api/v1/playback/start"} {
+		rr = httptest.NewRecorder()
+		handler.ServeHTTP(rr, httptest.NewRequest("POST", path, nil))
+		assert.Equal(t, 200, rr.Code, "exempt path %s should bypass limiter", path)
+	}
 }
