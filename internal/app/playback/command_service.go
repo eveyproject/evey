@@ -102,6 +102,10 @@ func (s *CommandService) ReportProgressBySession(ctx context.Context, sessionID 
 	if err != nil {
 		return ErrSessionNotFound
 	}
+	session.PositionMs = &positionMs
+	if err := s.sessions.Update(ctx, session); err != nil {
+		return fmt.Errorf("update session position: %w", err)
+	}
 	return s.ReportProgress(ctx, session.ProfileID, session.MediaItemID, positionMs, false)
 }
 

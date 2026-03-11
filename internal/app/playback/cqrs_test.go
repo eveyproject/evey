@@ -122,7 +122,7 @@ func TestCommandService_StopStream(t *testing.T) {
 }
 
 func TestCommandService_ReportProgressBySession(t *testing.T) {
-	cmd, q, _, _, userRepo, profileRepo, _ := newCQRSServices()
+	cmd, q, _, sessionRepo, userRepo, profileRepo, _ := newCQRSServices()
 	ctx := context.Background()
 
 	userRepo.Create(ctx, &user.User{ID: "u1", Username: "test", Enabled: true})
@@ -135,6 +135,11 @@ func TestCommandService_ReportProgressBySession(t *testing.T) {
 	wp, err := q.GetWatchProgress(ctx, "p1", "m1")
 	require.NoError(t, err)
 	assert.Equal(t, int64(55000), wp.PositionMs)
+
+	stored, err := sessionRepo.GetByID(ctx, "s1")
+	require.NoError(t, err)
+	require.NotNil(t, stored.PositionMs)
+	assert.Equal(t, int64(55000), *stored.PositionMs)
 }
 
 func TestQueryService_GetResumeItems(t *testing.T) {

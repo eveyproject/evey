@@ -67,6 +67,7 @@ func (r *PlaySessionRepository) ListActiveSessions(ctx context.Context) ([]*play
 		 INNER JOIN profiles p ON p.id = ps.profile_id
 		 INNER JOIN media_items mi ON mi.id = ps.media_item_id
 		 WHERE ps.ended_at IS NULL
+		   AND ps.started_at > NOW() - INTERVAL '2 hours'
 		 ORDER BY ps.started_at DESC`)
 	if err != nil {
 		return nil, err

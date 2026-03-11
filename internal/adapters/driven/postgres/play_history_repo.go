@@ -20,7 +20,7 @@ func (r *PlayHistoryRepository) List(ctx context.Context, filter activity.PlayHi
 	query := `
 		SELECT ps.id, ps.profile_id, ps.media_item_id,
 		       mi.title, mi.type,
-		       COALESCE(ps.duration_ms, 0), COALESCE(ps.position_ms, 0),
+		       COALESCE(mi.duration_ms, 0), COALESCE(ps.position_ms, 0),
 		       COALESCE(wp.completed, false),
 		       ps.device_name, ps.device_type, ps.play_method,
 		       ps.started_at, ps.ended_at
