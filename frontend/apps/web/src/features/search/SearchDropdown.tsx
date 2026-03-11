@@ -30,7 +30,7 @@ export function SearchDropdown({
 
   const trimmed = query.trim();
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError } = useQuery({
     queryKey: ["/api/v1/media/search/quick", trimmed],
     queryFn: ({ signal }) =>
       libraryServiceSearchMedia({ query: trimmed, limit: 6 }, signal),
@@ -112,7 +112,15 @@ export function SearchDropdown({
         </div>
       )}
 
-      {!isLoading && items.length === 0 && (
+      {!isLoading && isError && (
+        <div className="px-4 py-3" data-testid="search-dropdown-error">
+          <span className="text-sm" style={{ color: "#ef4444" }}>
+            Search failed
+          </span>
+        </div>
+      )}
+
+      {!isLoading && !isError && items.length === 0 && (
         <div className="px-4 py-3" data-testid="search-dropdown-empty">
           <span className="text-sm" style={{ color: "var(--text-muted)" }}>
             No results for &ldquo;{trimmed}&rdquo;

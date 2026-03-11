@@ -89,7 +89,7 @@ export function ToastContainer() {
         .toast-enter { animation: toast-slide-in 0.3s ease-out; }
         .toast-exit { animation: toast-fade-out 0.3s ease-out forwards; }
       `}</style>
-      <div className="fixed bottom-4 right-4 z-50 flex flex-col gap-2 max-w-sm w-full pointer-events-none">
+      <div className="fixed bottom-4 right-4 z-50 flex flex-col gap-2 max-w-sm w-full pointer-events-none" aria-live="polite" aria-atomic="true">
         {toasts.map((t) => (
           <div key={t.id} className="pointer-events-auto">
             <ToastItem toast={t} />

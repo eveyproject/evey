@@ -210,6 +210,7 @@ function MetadataEditPanel({
     } catch (err) {
       console.error("MetadataEditPanel: failed to refresh metadata", err);
       setRefreshStatus("error");
+      toast.error("Failed to refresh metadata");
     }
   }
 
@@ -521,8 +522,7 @@ function SimilarSection({ item }: { item: V1MediaItem }) {
   const hasSimilar = (similarData?.items?.length ?? 0) > 0;
   const { data: byGenreData } = useLibraryServiceListMediaItems(
     { genre: firstGenre, type: item.type as never },
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    { query: { enabled: !hasSimilar && !!firstGenre } as any }
+    { query: { enabled: !hasSimilar && !!firstGenre } } as never
   );
 
   const fromFeed: Array<{ id: string; title?: string }> =
@@ -560,8 +560,7 @@ export function MediaDetail({ item, onMetadataUpdated, initialEdit }: MediaDetai
 
   const { data: parentItem } = useLibraryServiceGetMediaItem(
     item.parentId ?? "",
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    { query: { enabled: !!item.parentId && item.type === "MEDIA_ITEM_TYPE_SEASON" } } as any,
+    { query: { enabled: !!item.parentId && item.type === "MEDIA_ITEM_TYPE_SEASON" } } as never,
   );
 
   const markWatched = usePlaybackServiceMarkAsWatched({
@@ -593,7 +592,7 @@ export function MediaDetail({ item, onMetadataUpdated, initialEdit }: MediaDetai
       {/* Backdrop hero */}
       <div className="relative w-full overflow-hidden -mx-4 sm:-mx-6 -mt-4 sm:-mt-6 mb-0" style={{ height: "clamp(260px, 50vw, 420px)" }}>
         {backdropUrl ? (
-          <img src={backdropUrl} alt="" className="w-full h-full object-cover" data-testid="media-backdrop" onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }} />
+          <img src={backdropUrl} alt={item.title ?? ""} className="w-full h-full object-cover" data-testid="media-backdrop" onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }} />
         ) : (
           <div className="w-full h-full" style={{ backgroundColor: "var(--surface)" }} />
         )}

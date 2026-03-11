@@ -14,6 +14,20 @@ import type { Chapter } from "@/hooks/useChapters";
 import { usePlaybackSettings } from "@/hooks/usePlaybackSettings";
 import { canPlayHevc } from "@/utils/codec";
 
+interface AudioTrack {
+  id: string;
+  enabled: boolean;
+}
+
+interface AudioTrackList {
+  length: number;
+  [index: number]: AudioTrack;
+}
+
+interface HTMLVideoElementWithAudioTracks extends HTMLVideoElement {
+  audioTracks?: AudioTrackList;
+}
+
 const SPEED_OPTIONS = [0.5, 0.75, 1, 1.25, 1.5, 2];
 
 export type { AudioStream, SubtitleStream, EpisodeNavItem, SeasonNavItem };
@@ -121,10 +135,9 @@ export function HLSPlayer({
 
     function handleCanPlay() {
       setTimeout(() => {
-        const v = videoRef.current;
+        const v = videoRef.current as HTMLVideoElementWithAudioTracks | null;
         if (!v || transcodeMode) return;
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const tracks = (v as any).audioTracks as { length: number } | undefined;
+        const tracks = v.audioTracks;
         if (tracks && tracks.length === 0) setTranscodeMode(true);
       }, 3000);
     }
@@ -448,10 +461,9 @@ export function HLSPlayer({
         hlsRef.current.audioTrack = stream?.trackIndex ?? 0;
         return;
       }
-      const video = videoRef.current;
+      const video = videoRef.current as HTMLVideoElementWithAudioTracks | null;
       if (!video) return;
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const tracks = (video as any).audioTracks as { length: number; [i: number]: { id: string; enabled: boolean } } | undefined;
+      const tracks = video.audioTracks;
       if (!tracks) return;
       for (let i = 0; i < tracks.length; i++) {
         tracks[i].enabled = tracks[i].id === String(index);

@@ -54,6 +54,7 @@ frontend/**/.vite/
 frontend/apps/web/.env.local
 frontend/apps/*/env.local
 frontend/.pnpm-store/
+frontend/test-results/
 
 # tsc compiled artifacts that shadow .tsx sources
 frontend/apps/web/src/**/*.js
