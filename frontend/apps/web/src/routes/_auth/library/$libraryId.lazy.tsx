@@ -16,6 +16,7 @@ import { EmptyState } from "@/components/ui/EmptyState";
 import { MediaGridSkeleton } from "@/components/ui/Skeleton";
 import { MediaGrid } from "@/features/library/MediaGrid";
 import { MediaCard, typeLabel } from "@/features/library/MediaCard";
+import { slugify } from "@/utils/slugify";
 
 export const Route = createLazyFileRoute("/_auth/library/$libraryId")({
   component: LibraryPage,
@@ -159,7 +160,7 @@ function ListRow({ item }: { item: Record<string, unknown> }) {
 }
 
 function LibraryPage() {
-  const { libraryId } = Route.useParams();
+  const { libraryId: slug } = Route.useParams();
   const [typeFilter, setTypeFilter] = useState<LibraryServiceListMediaItemsType | "">("");
   const [genreFilter, setGenreFilter] = useState("");
   const [sortField, setSortField] = useState<LibraryServiceListMediaItemsSortField>(
@@ -171,7 +172,10 @@ function LibraryPage() {
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
 
   const { data: librariesData } = useLibraryServiceListLibraries();
-  const library = librariesData?.libraries?.find((l) => l.id === libraryId);
+  const library = librariesData?.libraries?.find(
+    (l) => slugify(l.name ?? "") === slug
+  );
+  const libraryId = library?.id ?? "";
   const isShowLibrary = library?.type === "LIBRARY_TYPE_SHOWS";
 
   useEffect(() => {

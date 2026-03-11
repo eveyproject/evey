@@ -10,6 +10,7 @@ import {
 } from "@evey/api";
 import { MediaSlider } from "../../features/home/MediaSlider";
 import { MediaCard } from "../../features/library/MediaCard";
+import { slugify } from "@/utils/slugify";
 
 export const Route = createLazyFileRoute("/_auth/home")({
   component: HomePage,
@@ -172,7 +173,7 @@ function LibrarySlider({ libraryId, name, libraryType }: { libraryId: string; na
   if (!isLoading && items.length === 0) return null;
 
   return (
-    <MediaSlider title={name} seeAllHref={`/library/${libraryId}`} isLoading={isLoading}>
+    <MediaSlider title={name} seeAllHref={`/library/${slugify(name)}`} isLoading={isLoading}>
       {items.map((item) => (
         <MediaCard key={item.id} item={item} />
       ))}

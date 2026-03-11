@@ -4,6 +4,7 @@ import type { V1Library, V1LibraryType } from "@evey/api/src/generated/library.s
 import { Badge } from "@/components/ui/Badge";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Skeleton } from "@/components/ui/Skeleton";
+import { slugify } from "@/utils/slugify";
 
 export const Route = createLazyFileRoute("/_auth/library/")({
   component: LibraryIndex,
@@ -93,7 +94,7 @@ function LibraryCard({ library }: { library: V1Library }) {
   return (
     <Link
       to="/library/$libraryId"
-      params={{ libraryId: library.id ?? "" }}
+      params={{ libraryId: slugify(library.name ?? "") }}
       className="group block p-6 transition-all duration-200"
       style={{
         backgroundColor: "var(--surface)",
