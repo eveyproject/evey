@@ -1,6 +1,7 @@
 package grpcapi
 
 import (
+	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
@@ -609,6 +610,11 @@ func auditLogEntryToProto(e *activity.AuditLogEntry) *eveyv1.AuditLogEntry {
 	}
 	if e.ClientIP != nil {
 		pb.IpAddress = *e.ClientIP
+	}
+	if len(e.Details) > 0 {
+		if b, err := json.Marshal(e.Details); err == nil {
+			pb.Details = string(b)
+		}
 	}
 	return pb
 }

@@ -29,6 +29,12 @@
   --toast-info-border: #93c5fd;
   --toast-warning-bg: #fef9c3;
   --toast-warning-border: #fde047;
+  --toast-success-icon: #15803d;
+  --toast-error-icon: #b91c1c;
+  --toast-warning-icon: #a16207;
+
+  --danger-bg: #dc2626;
+  --danger-hover: #b91c1c;
 
   --overlay-gradient: rgba(0,0,0,0.4);
 }

@@ -12,12 +12,12 @@ const typeStyles: Record<Toast["type"], { bg: string; border: string; icon: stri
   success: {
     bg: "bg-[var(--toast-success-bg)]",
     border: "border-[var(--toast-success-border)]",
-    icon: "bg-green-600 text-white",
+    icon: "bg-[var(--toast-success-icon)] text-white",
   },
   error: {
     bg: "bg-[var(--toast-error-bg)]",
     border: "border-[var(--toast-error-border)]",
-    icon: "bg-red-600 text-white",
+    icon: "bg-[var(--toast-error-icon)] text-white",
   },
   info: {
     bg: "bg-[var(--toast-info-bg)]",
@@ -27,7 +27,7 @@ const typeStyles: Record<Toast["type"], { bg: string; border: string; icon: stri
   warning: {
     bg: "bg-[var(--toast-warning-bg)]",
     border: "border-[var(--toast-warning-border)]",
-    icon: "bg-yellow-600 text-white",
+    icon: "bg-[var(--toast-warning-icon)] text-white",
   },
 };
 

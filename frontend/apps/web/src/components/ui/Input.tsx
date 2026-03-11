@@ -17,9 +17,9 @@ export function Input({ label, error, className = "", id, ...props }: InputProps
       <input
         id={inputId}
         {...props}
-        className={`px-3 py-2 rounded-[var(--radius-md)] bg-[var(--surface-raised)] border border-[var(--border)] text-[var(--text)] placeholder:text-[var(--text-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)] focus:border-transparent transition-shadow duration-200 ${error ? "border-red-500" : ""} ${className}`}
+        className={`px-3 py-2 rounded-[var(--radius-md)] bg-[var(--surface-raised)] border border-[var(--border)] text-[var(--text)] placeholder:text-[var(--text-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)] focus:border-transparent transition-shadow duration-200 ${error ? "border-[var(--danger-bg)]" : ""} ${className}`}
       />
-      {error && <span className="text-xs text-red-400">{error}</span>}
+      {error && <span className="text-xs" style={{ color: "var(--danger-bg)" }}>{error}</span>}
     </div>
   );
 }

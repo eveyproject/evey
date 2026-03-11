@@ -39,10 +39,10 @@ describe("Button", () => {
 
   it("applies variant classes", () => {
     const { rerender } = render(<Button variant="danger">Delete</Button>);
-    expect(screen.getByRole("button")).toHaveClass("bg-red-600");
+    expect(screen.getByRole("button")).toHaveClass("bg-[var(--danger-bg)]");
 
     rerender(<Button variant="secondary">Cancel</Button>);
-    expect(screen.getByRole("button")).not.toHaveClass("bg-red-600");
+    expect(screen.getByRole("button")).not.toHaveClass("bg-[var(--danger-bg)]");
   });
 
   it("forwards extra className", () => {

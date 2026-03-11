@@ -2,15 +2,19 @@ package interceptors
 
 import (
 	"context"
+	"net"
+	"strings"
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/metadata"
+	"google.golang.org/grpc/peer"
 )
 
 type userAgentKey struct{}
 type deviceNameKey struct{}
+type clientIPKey struct{}
 
-// ClientInfoUnary extracts user-agent and x-device-name from gRPC metadata into context.
+// ClientInfoUnary extracts user-agent, x-device-name, and client IP from gRPC metadata into context.
 func ClientInfoUnary() grpc.UnaryServerInterceptor {
 	return func(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (interface{}, error) {
 		ctx = enrichClientInfo(ctx)
@@ -36,7 +40,26 @@ func enrichClientInfo(ctx context.Context) context.Context {
 	if vals := md.Get("x-device-name"); len(vals) > 0 {
 		ctx = context.WithValue(ctx, deviceNameKey{}, vals[0])
 	}
+	ctx = context.WithValue(ctx, clientIPKey{}, resolveClientIP(ctx, md))
 	return ctx
+}
+
+func resolveClientIP(ctx context.Context, md metadata.MD) string {
+	if vals := md.Get("x-forwarded-for"); len(vals) > 0 {
+		parts := strings.Split(vals[0], ",")
+		ip := strings.TrimSpace(parts[0])
+		if ip != "" {
+			return ip
+		}
+	}
+	if p, ok := peer.FromContext(ctx); ok && p.Addr != nil {
+		host, _, err := net.SplitHostPort(p.Addr.String())
+		if err == nil {
+			return host
+		}
+		return p.Addr.String()
+	}
+	return ""
 }
 
 func UserAgentFromCtx(ctx context.Context) string {
@@ -46,5 +69,10 @@ func UserAgentFromCtx(ctx context.Context) string {
 
 func DeviceNameFromCtx(ctx context.Context) string {
 	v, _ := ctx.Value(deviceNameKey{}).(string)
+	return v
+}
+
+func ClientIPFromCtx(ctx context.Context) string {
+	v, _ := ctx.Value(clientIPKey{}).(string)
 	return v
 }

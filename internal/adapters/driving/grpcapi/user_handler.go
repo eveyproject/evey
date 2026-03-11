@@ -28,23 +28,28 @@ type userHandler struct {
 	activitySvc *appactivity.Service
 }
 
-func (h *userHandler) audit(ctx context.Context, userID, action, resourceType string, resourceID *string) {
+func (h *userHandler) audit(ctx context.Context, userID, action, resourceType string, resourceID *string, details map[string]interface{}) {
 	if h.activitySvc == nil {
 		return
 	}
 	ua := interceptors.UserAgentFromCtx(ctx)
 	dn := interceptors.DeviceNameFromCtx(ctx)
+	ip := interceptors.ClientIPFromCtx(ctx)
 	e := &activity.AuditLogEntry{
 		UserID:       userID,
 		Action:       action,
 		ResourceType: resourceType,
 		ResourceID:   resourceID,
+		Details:      details,
 	}
 	if ua != "" {
 		e.UserAgent = &ua
 	}
 	if dn != "" {
 		e.DeviceName = &dn
+	}
+	if ip != "" {
+		e.ClientIP = &ip
 	}
 	_ = h.activitySvc.CreateAuditEntry(ctx, e)
 }
@@ -61,7 +66,7 @@ func (h *userHandler) Login(ctx context.Context, req *eveyv1.LoginRequest) (*eve
 	}
 	if u != nil {
 		resp.User = userToProto(u)
-		h.audit(ctx, u.ID, "login", "user", &u.ID)
+		h.audit(ctx, u.ID, "login", "user", &u.ID, map[string]interface{}{"username": u.Username})
 	}
 	return resp, nil
 }
@@ -113,7 +118,7 @@ func (h *userHandler) CreateUser(ctx context.Context, req *eveyv1.CreateUserRequ
 	if err := h.svc.CreateUser(ctx, claims.IsAdmin, u, req.Password); err != nil {
 		return nil, status.Errorf(codes.PermissionDenied, "%v", err)
 	}
-	h.audit(ctx, claims.UserID, "create_user", "user", &u.ID)
+	h.audit(ctx, claims.UserID, "create_user", "user", &u.ID, map[string]interface{}{"username": u.Username, "is_admin": u.IsAdmin})
 	return userToProto(u), nil
 }
 
@@ -164,7 +169,7 @@ func (h *userHandler) DeleteUser(ctx context.Context, req *eveyv1.DeleteUserRequ
 	if claims != nil {
 		callerID = claims.UserID
 	}
-	h.audit(ctx, callerID, "delete_user", "user", &req.Id)
+	h.audit(ctx, callerID, "delete_user", "user", &req.Id, map[string]interface{}{"target_user_id": req.Id})
 	return &eveyv1.DeleteUserResponse{}, nil
 }
 
@@ -178,7 +183,7 @@ func (h *userHandler) DisableUser(ctx context.Context, req *eveyv1.DisableUserRe
 	if claims != nil {
 		callerID = claims.UserID
 	}
-	h.audit(ctx, callerID, "disable_user", "user", &req.Id)
+	h.audit(ctx, callerID, "disable_user", "user", &req.Id, map[string]interface{}{"target_user_id": req.Id})
 	u, err := h.users.GetByID(ctx, req.Id)
 	if err != nil {
 		return &eveyv1.User{Id: req.Id, Enabled: false}, nil
