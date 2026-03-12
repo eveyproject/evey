@@ -6,6 +6,10 @@ evey.test {
 	}
 
 	handle {
-		reverse_proxy web:{$WEB_PORT:5173}
+		reverse_proxy web:{$WEB_PORT:5173} {
+			transport http {
+				versions 1.1
+			}
+		}
 	}
 }
