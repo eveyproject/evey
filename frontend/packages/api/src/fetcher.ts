@@ -2,10 +2,12 @@
 // Injects Authorization header from the auth store automatically
 
 let getToken: (() => string | null) | null = null;
+let getRefreshToken: (() => string | null) | null = null;
+let updateTokens: ((access: string, refresh: string) => void) | null = null;
 
-export function setTokenProvider(fn: () => string | null) {
-  getToken = fn;
-}
+export function setTokenProvider(fn: () => string | null) { getToken = fn; }
+export function setRefreshTokenProvider(fn: () => string | null) { getRefreshToken = fn; }
+export function setTokensUpdater(fn: (access: string, refresh: string) => void) { updateTokens = fn; }
 
 export interface FetcherRequest {
   url: string;
@@ -16,13 +18,34 @@ export interface FetcherRequest {
   signal?: AbortSignal;
 }
 
+let refreshPromise: Promise<string> | null = null;
+
+/** Reset module state — for tests only */
+export function _resetFetcherState() { refreshPromise = null; }
+
+async function attemptRefresh(): Promise<string> {
+  if (!refreshPromise) {
+    refreshPromise = (async () => {
+      const rt = getRefreshToken?.();
+      if (!rt) throw Object.assign(new Error("no refresh token"), { httpStatus: 401 });
+      const res = await fetch("/api/v1/auth/refresh", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ refreshToken: rt }),
+      });
+      if (!res.ok) throw Object.assign(new Error("refresh failed"), { httpStatus: res.status });
+      const data = await res.json() as { accessToken: string; refreshToken: string };
+      updateTokens?.(data.accessToken, data.refreshToken);
+      return data.accessToken;
+    })().finally(() => { refreshPromise = null; });
+  }
+  return refreshPromise;
+}
+
 export async function eveyFetch<T>(request: FetcherRequest): Promise<T> {
   const token = getToken?.();
   const headers: Record<string, string> = { ...(request.headers ?? {}) };
-
-  if (token) {
-    headers["Authorization"] = `Bearer ${token}`;
-  }
+  if (token) headers["Authorization"] = `Bearer ${token}`;
 
   let url = request.url;
   if (request.params) {
@@ -34,12 +57,25 @@ export async function eveyFetch<T>(request: FetcherRequest): Promise<T> {
     if (qs) url = `${url}?${qs}`;
   }
 
-  const response = await fetch(url, {
-    method: request.method,
-    headers,
-    body: request.data !== undefined ? JSON.stringify(request.data) : undefined,
-    signal: request.signal,
-  });
+  const doFetch = (authToken: string | undefined) =>
+    fetch(url, {
+      method: request.method,
+      headers: authToken ? { ...headers, Authorization: `Bearer ${authToken}` } : headers,
+      body: request.data !== undefined ? JSON.stringify(request.data) : undefined,
+      signal: request.signal,
+    });
+
+  let response = await doFetch(token ?? undefined);
+
+  if (response.status === 401 && !url.includes("/auth/refresh")) {
+    try {
+      const newToken = await attemptRefresh();
+      response = await doFetch(newToken);
+    } catch {
+      window.dispatchEvent(new Event("evey:unauthorized"));
+      throw Object.assign(new Error("Unauthorized"), { httpStatus: 401 });
+    }
+  }
 
   if (response.status === 401) {
     window.dispatchEvent(new Event("evey:unauthorized"));
@@ -53,8 +89,7 @@ export async function eveyFetch<T>(request: FetcherRequest): Promise<T> {
     } catch {
       // ignore parse errors
     }
-    const err = new Error(message) as Error & { httpStatus: number };
-    err.httpStatus = response.status;
+    const err = Object.assign(new Error(message), { httpStatus: response.status });
     throw err;
   }
 

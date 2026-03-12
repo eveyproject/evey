@@ -4,11 +4,13 @@ import { RouterProvider, createRouter } from "@tanstack/react-router";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { routeTree } from "./routeTree.gen";
 import { useAuthStore } from "@evey/store";
-import { setTokenProvider } from "@evey/api";
+import { setTokenProvider, setRefreshTokenProvider, setTokensUpdater } from "@evey/api";
 import "./styles/main.css";
 
 // Wire auth token into the API fetcher
 setTokenProvider(() => useAuthStore.getState().accessToken);
+setRefreshTokenProvider(() => useAuthStore.getState().refreshToken);
+setTokensUpdater((access, refresh) => useAuthStore.getState().setTokens(access, refresh));
 
 // Logout on 401
 window.addEventListener("evey:unauthorized", () => useAuthStore.getState().logout());
