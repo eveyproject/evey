@@ -13,6 +13,7 @@ export interface PlaySessionResult {
   streamInfo: V1StreamInfo | null;
   sessionId: string | null;
   isLoading: boolean;
+  isError: boolean;
   progress: V1WatchProgress | null;
   stopSession: () => void;
 }
@@ -23,6 +24,7 @@ export function usePlaySession(mediaId: string): PlaySessionResult {
   const stopped = useRef(false);
   const startedRef = useRef(false);
   const [starting, setStarting] = useState(false);
+  const [startError, setStartError] = useState(false);
   const token = useAuthStore.getState().accessToken;
 
   const { data: progress } = usePlaybackServiceGetWatchProgress(mediaId, undefined, {
@@ -61,6 +63,7 @@ export function usePlaySession(mediaId: string): PlaySessionResult {
       }
     }).catch((err) => {
       console.error("Failed to start stream:", err);
+      setStartError(true);
     }).finally(() => {
       setStarting(false);
     });
@@ -83,7 +86,8 @@ export function usePlaySession(mediaId: string): PlaySessionResult {
   return {
     streamInfo: streamInfo ?? null,
     sessionId,
-    isLoading: starting || !rawStreamInfo,
+    isLoading: starting || (!rawStreamInfo && !startError),
+    isError: startError,
     progress: progress ?? null,
     stopSession,
   };

@@ -39,6 +39,7 @@ import { Route as AuthAdminRemoteAccessRouteImport } from './routes/_auth/admin/
 import { Route as AuthAdminPluginsRouteImport } from './routes/_auth/admin/plugins'
 import { Route as AuthAdminMetadataRouteImport } from './routes/_auth/admin/metadata'
 import { Route as AuthAdminLibrariesRouteImport } from './routes/_auth/admin/libraries'
+import { Route as AuthAdminBackupRouteImport } from './routes/_auth/admin/backup'
 import { Route as AuthAdminAuditRouteImport } from './routes/_auth/admin/audit'
 import { Route as AuthAdminActivityRouteImport } from './routes/_auth/admin/activity'
 
@@ -241,6 +242,13 @@ const AuthAdminLibrariesRoute = AuthAdminLibrariesRouteImport.update({
 } as any).lazy(() =>
   import('./routes/_auth/admin/libraries.lazy').then((d) => d.Route),
 )
+const AuthAdminBackupRoute = AuthAdminBackupRouteImport.update({
+  id: '/backup',
+  path: '/backup',
+  getParentRoute: () => AuthAdminRoute,
+} as any).lazy(() =>
+  import('./routes/_auth/admin/backup.lazy').then((d) => d.Route),
+)
 const AuthAdminAuditRoute = AuthAdminAuditRouteImport.update({
   id: '/audit',
   path: '/audit',
@@ -266,6 +274,7 @@ export interface FileRoutesByFullPath {
   '/search': typeof AuthSearchRoute
   '/admin/activity': typeof AuthAdminActivityRoute
   '/admin/audit': typeof AuthAdminAuditRoute
+  '/admin/backup': typeof AuthAdminBackupRoute
   '/admin/libraries': typeof AuthAdminLibrariesRoute
   '/admin/metadata': typeof AuthAdminMetadataRoute
   '/admin/plugins': typeof AuthAdminPluginsRoute
@@ -298,6 +307,7 @@ export interface FileRoutesByTo {
   '/search': typeof AuthSearchRoute
   '/admin/activity': typeof AuthAdminActivityRoute
   '/admin/audit': typeof AuthAdminAuditRoute
+  '/admin/backup': typeof AuthAdminBackupRoute
   '/admin/libraries': typeof AuthAdminLibrariesRoute
   '/admin/metadata': typeof AuthAdminMetadataRoute
   '/admin/plugins': typeof AuthAdminPluginsRoute
@@ -333,6 +343,7 @@ export interface FileRoutesById {
   '/_auth/search': typeof AuthSearchRoute
   '/_auth/admin/activity': typeof AuthAdminActivityRoute
   '/_auth/admin/audit': typeof AuthAdminAuditRoute
+  '/_auth/admin/backup': typeof AuthAdminBackupRoute
   '/_auth/admin/libraries': typeof AuthAdminLibrariesRoute
   '/_auth/admin/metadata': typeof AuthAdminMetadataRoute
   '/_auth/admin/plugins': typeof AuthAdminPluginsRoute
@@ -368,6 +379,7 @@ export interface FileRouteTypes {
     | '/search'
     | '/admin/activity'
     | '/admin/audit'
+    | '/admin/backup'
     | '/admin/libraries'
     | '/admin/metadata'
     | '/admin/plugins'
@@ -400,6 +412,7 @@ export interface FileRouteTypes {
     | '/search'
     | '/admin/activity'
     | '/admin/audit'
+    | '/admin/backup'
     | '/admin/libraries'
     | '/admin/metadata'
     | '/admin/plugins'
@@ -434,6 +447,7 @@ export interface FileRouteTypes {
     | '/_auth/search'
     | '/_auth/admin/activity'
     | '/_auth/admin/audit'
+    | '/_auth/admin/backup'
     | '/_auth/admin/libraries'
     | '/_auth/admin/metadata'
     | '/_auth/admin/plugins'
@@ -677,6 +691,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthAdminLibrariesRouteImport
       parentRoute: typeof AuthAdminRoute
     }
+    '/_auth/admin/backup': {
+      id: '/_auth/admin/backup'
+      path: '/backup'
+      fullPath: '/admin/backup'
+      preLoaderRoute: typeof AuthAdminBackupRouteImport
+      parentRoute: typeof AuthAdminRoute
+    }
     '/_auth/admin/audit': {
       id: '/_auth/admin/audit'
       path: '/audit'
@@ -697,6 +718,7 @@ declare module '@tanstack/react-router' {
 interface AuthAdminRouteChildren {
   AuthAdminActivityRoute: typeof AuthAdminActivityRoute
   AuthAdminAuditRoute: typeof AuthAdminAuditRoute
+  AuthAdminBackupRoute: typeof AuthAdminBackupRoute
   AuthAdminLibrariesRoute: typeof AuthAdminLibrariesRoute
   AuthAdminMetadataRoute: typeof AuthAdminMetadataRoute
   AuthAdminPluginsRoute: typeof AuthAdminPluginsRoute
@@ -711,6 +733,7 @@ interface AuthAdminRouteChildren {
 const AuthAdminRouteChildren: AuthAdminRouteChildren = {
   AuthAdminActivityRoute: AuthAdminActivityRoute,
   AuthAdminAuditRoute: AuthAdminAuditRoute,
+  AuthAdminBackupRoute: AuthAdminBackupRoute,
   AuthAdminLibrariesRoute: AuthAdminLibrariesRoute,
   AuthAdminMetadataRoute: AuthAdminMetadataRoute,
   AuthAdminPluginsRoute: AuthAdminPluginsRoute,

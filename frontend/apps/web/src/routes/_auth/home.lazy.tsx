@@ -119,10 +119,9 @@ function HeroBanner() {
 
         {overview && (
           <p
-            className="text-sm leading-relaxed mb-4 hidden sm:line-clamp-3"
+            className="text-sm leading-relaxed mb-4 hidden sm:line-clamp-3 text-white/90"
             style={{
-              color: "rgba(255,255,255,0.8)",
-              textShadow: "0 1px 4px rgba(0,0,0,0.6)",
+              textShadow: "0 1px 6px rgba(0,0,0,0.9)",
             }}
           >
             {overview}
@@ -216,13 +215,15 @@ function ContinueWatchingSlider() {
     <MediaSlider title="Continue Watching" isLoading={isLoading}>
       {items.map((item) => {
         const posMs = item.positionMs ? Number(item.positionMs) : 0;
+        const durMs = item.durationMs ? Number(item.durationMs) : 0;
+        const progressPercent = posMs > 0 && durMs > 0 ? Math.min(95, (posMs / durMs) * 100) : undefined;
         return (
           <MediaCard
             key={item.mediaItemId}
-            item={{ id: item.mediaItemId, title: item.title, type: item.type }}
+            item={{ id: item.mediaItemId, title: item.title, type: item.type, durationMs: item.durationMs }}
             showYear={false}
-            showProgress={posMs > 0}
-            progressPercent={posMs > 0 ? Math.min(95, (posMs / 1000 / 60 / 90) * 100) : undefined}
+            showProgress={progressPercent !== undefined}
+            progressPercent={progressPercent}
           />
         );
       })}

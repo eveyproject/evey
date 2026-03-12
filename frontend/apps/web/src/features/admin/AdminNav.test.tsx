@@ -25,6 +25,7 @@ vi.mock("lucide-react", () => {
     Webhook: Icon,
     BarChart3: Icon,
     FileText: Icon,
+    Database: Icon,
     ChevronDown: Icon,
   };
 });
@@ -38,6 +39,7 @@ describe("AdminNav", () => {
     expect(screen.getByText("Users & Access")).toBeInTheDocument();
     expect(screen.getByText("Integrations")).toBeInTheDocument();
     expect(screen.getByText("Monitoring")).toBeInTheDocument();
+    expect(screen.getByText("Maintenance")).toBeInTheDocument();
   });
 
   it("highlights active section", () => {

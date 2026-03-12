@@ -12,6 +12,7 @@ import {
   Webhook,
   BarChart3,
   FileText,
+  Database,
   ChevronDown,
   type LucideIcon,
 } from "lucide-react";
@@ -62,6 +63,12 @@ const sections: NavSection[] = [
     links: [
       { href: "/admin/activity", label: "Activity", icon: BarChart3 },
       { href: "/admin/audit", label: "Audit Log", icon: FileText },
+    ],
+  },
+  {
+    title: "Maintenance",
+    links: [
+      { href: "/admin/backup", label: "Backup & Restore", icon: Database },
     ],
   },
 ];
