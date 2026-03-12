@@ -23,6 +23,7 @@ export default defineConfig({
   },
   server: {
     host: true,
+    allowedHosts: process.env.VITE_ALLOWED_HOSTS ? process.env.VITE_ALLOWED_HOSTS.split(",") : true,
     watch: { usePolling: true, interval: 500 },
     hmr: process.env.VITE_HMR_HOST ? {
       host: process.env.VITE_HMR_HOST,
