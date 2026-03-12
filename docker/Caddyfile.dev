@@ -9,6 +9,7 @@ evey.test {
 		reverse_proxy web:{$WEB_PORT:5173} {
 			transport http {
 				versions 1.1
+				keepalive off
 			}
 		}
 	}
