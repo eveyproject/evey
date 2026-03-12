@@ -204,7 +204,7 @@ type fakeGenerateTrickplayService struct {
 	err error
 }
 
-func (f *fakeGenerateTrickplayService) GenerateTrickplay(_ context.Context, _ string, _ string) error {
+func (f *fakeGenerateTrickplayService) GenerateTrickplay(_ context.Context, _ string) error {
 	return f.err
 }
 
@@ -1146,7 +1146,7 @@ func TestTrickplayManifestHandler_ReturnsVTT(t *testing.T) {
 }
 
 func TestTrickplayGenerateHandler_NonAdmin(t *testing.T) {
-	handler := trickplayGenerateHandler(validTokenValidator(false), &fakeGenerateTrickplayService{}, "/tmp")
+	handler := trickplayGenerateHandler(validTokenValidator(false), &fakeGenerateTrickplayService{})
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("POST /api/v1/media/{id}/trickplay/generate", handler)
@@ -1162,7 +1162,7 @@ func TestTrickplayGenerateHandler_NonAdmin(t *testing.T) {
 }
 
 func TestTrickplayGenerateHandler_Admin(t *testing.T) {
-	handler := trickplayGenerateHandler(validTokenValidator(true), &fakeGenerateTrickplayService{}, "/tmp")
+	handler := trickplayGenerateHandler(validTokenValidator(true), &fakeGenerateTrickplayService{})
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("POST /api/v1/media/{id}/trickplay/generate", handler)
