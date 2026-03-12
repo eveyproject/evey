@@ -4,6 +4,7 @@ import (
 	"context"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/gravity-zero/evey/internal/domain/activity"
 	"github.com/gravity-zero/evey/internal/domain/shared"
 )
@@ -58,6 +59,9 @@ func (s *Service) PurgeOldMetrics(ctx context.Context, before time.Time) error {
 }
 
 func (s *Service) CreateAuditEntry(ctx context.Context, entry *activity.AuditLogEntry) error {
+	if entry.ID == "" {
+		entry.ID = uuid.New().String()
+	}
 	entry.CreatedAt = time.Now()
 	return s.auditLog.Create(ctx, entry)
 }

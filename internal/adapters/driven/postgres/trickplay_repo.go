@@ -49,3 +49,23 @@ func (r *TrickplayRepository) Delete(ctx context.Context, mediaItemID string) er
 	_, err := r.db.ExecContext(ctx, `DELETE FROM trickplay_manifests WHERE media_item_id = $1`, mediaItemID)
 	return err
 }
+
+func (r *TrickplayRepository) ListMissingMediaItemIDs(ctx context.Context) ([]string, error) {
+	rows, err := r.db.QueryContext(ctx,
+		`SELECT id FROM media_items
+		 WHERE file_path != ''
+		   AND id NOT IN (SELECT media_item_id FROM trickplay_manifests)`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var ids []string
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		ids = append(ids, id)
+	}
+	return ids, rows.Err()
+}

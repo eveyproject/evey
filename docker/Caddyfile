@@ -8,7 +8,9 @@
 	}
 
 	handle /api/* {
-		reverse_proxy evey-prod:9091
+		reverse_proxy evey-prod:9091 {
+			flush_interval -1
+		}
 	}
 
 	handle {

@@ -148,7 +148,7 @@ func run() error {
 	prober := ffmpeg.NewProber("ffprobe")
 	transcoder := ffmpeg.NewTranscoder("ffmpeg", cfg.Transcoding.CacheDir)
 	hwDetector := ffmpeg.NewHWDetector("ffmpeg")
-	trickplayGen := ffmpeg.NewTrickplayGenerator("ffmpeg")
+	trickplayGen := ffmpeg.NewTrickplayGenerator("ffmpeg", "ffprobe")
 	ebmlReader := ebml.NewReader()
 	ebmlWriter := ebml.NewWriter("ffmpeg")
 	bus := eventbus.New()
@@ -383,7 +383,7 @@ func run() error {
 	var httpSrv *http.Server
 	if gwMux != nil {
 		mux := http.NewServeMux()
-		loginRL := ratelimit.New(10)
+		loginRL := ratelimit.New(cfg.Server.LoginRateLimitMax)
 		globalRL := ratelimit.New(100)
 
 		mux.HandleFunc("/healthz", func(w http.ResponseWriter, _ *http.Request) {
@@ -403,6 +403,7 @@ func run() error {
 		mux.HandleFunc("GET /api/v1/media/{id}/trickplay", trickplayManifestHandler(tokenGen, libCmdSvc, cfg.Server.BaseURL))
 		mux.HandleFunc("GET /api/v1/media/{id}/trickplay/{image}", trickplayImageHandler(tokenGen, libCmdSvc, cfg.Server.BaseURL))
 		mux.HandleFunc("POST /api/v1/admin/media/{id}/trickplay/generate", trickplayGenerateHandler(tokenGen, libCmdSvc))
+		mux.HandleFunc("POST /api/v1/admin/trickplay/generate-all", trickplayGenerateAllHandler(tokenGen, libCmdSvc))
 		mux.HandleFunc("GET /api/v1/media/{id}/playback-info", playbackInfoHandler(tokenGen, libQuerySvc))
 		mux.HandleFunc("GET /api/v1/media/{id}/hls/master.m3u8", hlsMasterHandler(tokenGen, libQuerySvc, hlsManager))
 		mux.HandleFunc("GET /api/v1/media/{id}/hls/{file}", hlsSegmentHandler(tokenGen, hlsManager))

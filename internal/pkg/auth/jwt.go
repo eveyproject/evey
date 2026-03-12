@@ -52,8 +52,8 @@ func (g *JWTGenerator) GenerateRefreshToken() (string, error) {
 
 func (g *JWTGenerator) ValidateAccessToken(tokenStr string) (*user.Claims, error) {
 	token, err := jwt.Parse(tokenStr, func(t *jwt.Token) (any, error) {
-		if t.Method.Alg() != jwt.SigningMethodRS256.Alg() {
-			return nil, fmt.Errorf("unexpected signing algorithm: %s", t.Method.Alg())
+		if _, ok := t.Method.(*jwt.SigningMethodRSA); !ok {
+			return nil, fmt.Errorf("unexpected signing method: %v", t.Header["alg"])
 		}
 		return g.publicKey, nil
 	})

@@ -68,15 +68,46 @@ func (l *Limiter) cleanup() {
 	}
 }
 
-func clientIP(r *http.Request) string {
-	if fwd := r.Header.Get("X-Forwarded-For"); fwd != "" {
-		return fwd
+var trustedProxyNets = func() []*net.IPNet {
+	cidrs := []string{"127.0.0.0/8", "::1/128", "10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16", "fc00::/7"}
+	nets := make([]*net.IPNet, 0, len(cidrs))
+	for _, c := range cidrs {
+		_, n, _ := net.ParseCIDR(c)
+		nets = append(nets, n)
 	}
+	return nets
+}()
+
+func isTrustedProxy(ip net.IP) bool {
+	for _, n := range trustedProxyNets {
+		if n.Contains(ip) {
+			return true
+		}
+	}
+	return false
+}
+
+func clientIP(r *http.Request) string {
 	host, _, err := net.SplitHostPort(r.RemoteAddr)
 	if err != nil {
-		return r.RemoteAddr
+		host = r.RemoteAddr
 	}
-	return host
+	peer := net.ParseIP(host)
+	if peer != nil && isTrustedProxy(peer) {
+		if fwd := r.Header.Get("X-Forwarded-For"); fwd != "" {
+			// take leftmost (client) IP from XFF
+			if idx := strings.Index(fwd, ","); idx != -1 {
+				fwd = fwd[:idx]
+			}
+			if ip := strings.TrimSpace(fwd); net.ParseIP(ip) != nil {
+				return ip
+			}
+		}
+	}
+	if host != "" {
+		return host
+	}
+	return r.RemoteAddr
 }
 
 func Middleware(limiter *Limiter, exemptPrefixes ...string) func(http.Handler) http.Handler {

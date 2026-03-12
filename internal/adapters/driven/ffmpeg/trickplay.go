@@ -2,20 +2,49 @@ package ffmpeg
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
+	"sync"
 
 	"github.com/gravity-zero/evey/internal/domain/library"
 )
 
 type TrickplayGenerator struct {
-	binary string
+	binary      string
+	probeBinary string
 }
 
-func NewTrickplayGenerator(binary string) *TrickplayGenerator {
-	return &TrickplayGenerator{binary: binary}
+func NewTrickplayGenerator(binary, probeBinary string) *TrickplayGenerator {
+	return &TrickplayGenerator{binary: binary, probeBinary: probeBinary}
+}
+
+func (g *TrickplayGenerator) probeDuration(ctx context.Context, filePath string) (float64, error) {
+	out, err := exec.CommandContext(ctx, g.probeBinary,
+		"-v", "quiet",
+		"-print_format", "json",
+		"-show_format",
+		filePath,
+	).Output()
+	if err != nil {
+		return 0, fmt.Errorf("ffprobe: %w", err)
+	}
+	var result struct {
+		Format struct {
+			Duration string `json:"duration"`
+		} `json:"format"`
+	}
+	if err := json.Unmarshal(out, &result); err != nil {
+		return 0, fmt.Errorf("ffprobe parse: %w", err)
+	}
+	d, err := strconv.ParseFloat(result.Format.Duration, 64)
+	if err != nil {
+		return 0, fmt.Errorf("ffprobe duration %q: %w", result.Format.Duration, err)
+	}
+	return d, nil
 }
 
 func (g *TrickplayGenerator) Generate(ctx context.Context, filePath, outputDir string, interval, width, tileWidth, tileHeight int) (*library.TrickplayResult, error) {
@@ -23,20 +52,83 @@ func (g *TrickplayGenerator) Generate(ctx context.Context, filePath, outputDir s
 		return nil, fmt.Errorf("create trickplay dir: %w", err)
 	}
 
-	outputPattern := filepath.Join(outputDir, "trickplay_%03d.jpg")
-	vf := fmt.Sprintf("fps=1/%d,scale=%d:-1,tile=%dx%d", interval, width, tileWidth, tileHeight)
+	duration, err := g.probeDuration(ctx, filePath)
+	if err != nil {
+		return nil, err
+	}
 
-	cmd := exec.CommandContext(ctx, g.binary,
-		"-skip_frame", "noref",
-		"-i", filePath,
-		"-vf", vf,
-		"-vsync", "vfr",
+	var timestamps []float64
+	for t := 0.0; t < duration; t += float64(interval) {
+		timestamps = append(timestamps, t)
+	}
+	if len(timestamps) == 0 {
+		timestamps = []float64{0}
+	}
+
+	thumbDir, err := os.MkdirTemp(outputDir, "thumbs-")
+	if err != nil {
+		return nil, fmt.Errorf("create thumb dir: %w", err)
+	}
+	defer os.RemoveAll(thumbDir)
+
+	// Extract one frame per timestamp in parallel (max 16 goroutines).
+	sem := make(chan struct{}, 14)
+	errs := make([]error, len(timestamps))
+	var wg sync.WaitGroup
+	for i, ts := range timestamps {
+		wg.Add(1)
+		sem <- struct{}{}
+		go func(idx int, t float64) {
+			defer wg.Done()
+			defer func() { <-sem }()
+			out := filepath.Join(thumbDir, fmt.Sprintf("thumb_%05d.jpg", idx))
+			cmd := exec.CommandContext(ctx, g.binary,
+				"-ss", fmt.Sprintf("%.3f", t),
+				"-i", filePath,
+				"-frames:v", "1",
+				"-vf", fmt.Sprintf("scale=%d:-1", width),
+				"-q:v", "5",
+				"-y", out,
+			)
+			if b, runErr := cmd.CombinedOutput(); runErr != nil {
+				errs[idx] = fmt.Errorf("thumb %d at %.3fs: %w\n%s", idx, t, runErr, b)
+			}
+		}(i, ts)
+	}
+	wg.Wait()
+
+	// Build concat list from successfully extracted thumbs.
+	concatPath := filepath.Join(thumbDir, "concat.txt")
+	cf, err := os.Create(concatPath)
+	if err != nil {
+		return nil, fmt.Errorf("create concat: %w", err)
+	}
+	existing := 0
+	for i := range timestamps {
+		p := filepath.Join(thumbDir, fmt.Sprintf("thumb_%05d.jpg", i))
+		if _, statErr := os.Stat(p); statErr == nil {
+			fmt.Fprintf(cf, "file '%s'\nduration 1\n", p)
+			existing++
+		}
+	}
+	cf.Close()
+
+	if existing == 0 {
+		return nil, fmt.Errorf("no thumbnails extracted")
+	}
+
+	// Tile thumbnails into sprite sheets.
+	outputPattern := filepath.Join(outputDir, "trickplay_%03d.jpg")
+	tileCmd := exec.CommandContext(ctx, g.binary,
+		"-f", "concat",
+		"-safe", "0",
+		"-i", concatPath,
+		"-vf", fmt.Sprintf("tile=%dx%d", tileWidth, tileHeight),
 		"-q:v", "5",
-		"-an",
-		outputPattern,
+		"-y", outputPattern,
 	)
-	if out, err := cmd.CombinedOutput(); err != nil {
-		return nil, fmt.Errorf("ffmpeg trickplay: %w\n%s", err, string(out))
+	if out, runErr := tileCmd.CombinedOutput(); runErr != nil {
+		return nil, fmt.Errorf("ffmpeg tile: %w\n%s", runErr, string(out))
 	}
 
 	imageCount := 0
@@ -48,7 +140,7 @@ func (g *TrickplayGenerator) Generate(ctx context.Context, filePath, outputDir s
 		imageCount++
 	}
 
-	return &library.TrickplayResult{ //nolint:nilerr // os.Stat error means file not found; returning nil is correct
+	return &library.TrickplayResult{
 		ImageDir:   outputDir,
 		ImageCount: imageCount,
 	}, nil

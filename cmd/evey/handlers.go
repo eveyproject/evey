@@ -790,6 +790,32 @@ func trickplayGenerateHandler(tokenGen interface {
 	}
 }
 
+func trickplayGenerateAllHandler(tokenGen interface {
+	ValidateAccessToken(string) (*domainuser.Claims, error)
+}, libSvc interface {
+	GenerateAllMissingTrickplays(ctx context.Context) (int, error)
+}) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		token := r.Header.Get("Authorization")
+		if strings.HasPrefix(token, "Bearer ") {
+			token = token[7:]
+		}
+		claims, err := tokenGen.ValidateAccessToken(token)
+		if err != nil || !claims.IsAdmin {
+			http.Error(w, `{"message":"forbidden"}`, http.StatusForbidden)
+			return
+		}
+		count, err := libSvc.GenerateAllMissingTrickplays(r.Context())
+		if err != nil {
+			http.Error(w, `{"message":"internal error"}`, http.StatusInternalServerError)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusAccepted)
+		fmt.Fprintf(w, `{"message":"trickplay generation started","count":%d}`, count)
+	}
+}
+
 func registerSubtitleRoutes(mux *http.ServeMux, subtitleSvc *appsubtitle.Service, tokenGen interface {
 	ValidateAccessToken(string) (*domainuser.Claims, error)
 }) {

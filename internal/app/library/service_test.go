@@ -297,7 +297,7 @@ func TestGenerateTrickplay_Success(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "media-1", manifest.MediaItemID)
 	assert.Equal(t, 10, manifest.Interval)
-	assert.Equal(t, 320, manifest.Width)
+	assert.Equal(t, 160, manifest.Width)
 	assert.Equal(t, 10, manifest.TileWidth)
 	assert.Equal(t, 10, manifest.TileHeight)
 	assert.Equal(t, 3, manifest.ImageCount)

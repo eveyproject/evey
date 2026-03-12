@@ -2,6 +2,7 @@ package interceptors
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 
 	"google.golang.org/grpc"
@@ -32,8 +33,14 @@ func ErrorSanitizerStream() grpc.StreamServerInterceptor {
 }
 
 func sanitizeError(err error, method string) error {
+	if errors.Is(err, context.Canceled) {
+		return status.Error(codes.Canceled, "request canceled")
+	}
 	st, ok := status.FromError(err)
 	if !ok {
+		return err
+	}
+	if st.Code() == codes.Canceled {
 		return err
 	}
 	if st.Code() == codes.Internal {

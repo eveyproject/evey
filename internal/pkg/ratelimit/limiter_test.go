@@ -54,6 +54,43 @@ func TestRateLimit_Refills(t *testing.T) {
 	assert.True(t, l.Allow(ip), "should have refilled after elapsed time")
 }
 
+func TestClientIP_XFFUntrustedProxy(t *testing.T) {
+	// XFF from untrusted peer must be ignored
+	req := httptest.NewRequest("GET", "/", nil)
+	req.RemoteAddr = "1.2.3.4:9999" // public IP — not a trusted proxy
+	req.Header.Set("X-Forwarded-For", "9.9.9.9")
+	assert.Equal(t, "1.2.3.4", clientIP(req), "XFF from untrusted peer must be ignored")
+}
+
+func TestClientIP_XFFTrustedProxy(t *testing.T) {
+	// XFF from trusted proxy (loopback/private) must be honoured
+	req := httptest.NewRequest("GET", "/", nil)
+	req.RemoteAddr = "127.0.0.1:9999"
+	req.Header.Set("X-Forwarded-For", "9.9.9.9, 172.20.0.1")
+	assert.Equal(t, "9.9.9.9", clientIP(req), "leftmost IP from XFF must be used when proxy is trusted")
+}
+
+func TestClientIP_XFFSpoofPrevented(t *testing.T) {
+	// attacker from public net cannot bypass rate limit by forging XFF
+	l := newTestLimiter(2)
+	handler := Middleware(l)(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(200) }))
+
+	for range 2 {
+		r := httptest.NewRequest("GET", "/login", nil)
+		r.RemoteAddr = "5.5.5.5:1234"
+		r.Header.Set("X-Forwarded-For", "1.1.1.1") // attacker rotates IP in XFF
+		rr := httptest.NewRecorder()
+		handler.ServeHTTP(rr, r)
+	}
+
+	r := httptest.NewRequest("GET", "/login", nil)
+	r.RemoteAddr = "5.5.5.5:1234"
+	r.Header.Set("X-Forwarded-For", "2.2.2.2") // different forged IP
+	rr := httptest.NewRecorder()
+	handler.ServeHTTP(rr, r)
+	assert.Equal(t, 429, rr.Code, "attacker should be rate-limited regardless of XFF header")
+}
+
 func TestMiddleware_ExemptPrefixes(t *testing.T) {
 	l := newTestLimiter(2)
 	ok := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(200) })

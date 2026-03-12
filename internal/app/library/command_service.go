@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/google/uuid"
@@ -28,9 +29,12 @@ type CommandService struct {
 	subScanner   library.ExternalSubtitleScanner
 	search       library.SearchIndex
 	events       shared.EventBus
-	trickplayRepo    library.TrickplayRepository
-	trickplayGen     library.TrickplayGenerator
+	trickplayRepo     library.TrickplayRepository
+	trickplayGen      library.TrickplayGenerator
 	trickplayCacheDir string
+
+	scanMu   sync.Mutex
+	scanning map[string]bool
 }
 
 func NewCommandService(
@@ -56,6 +60,7 @@ func NewCommandService(
 		prober:       prober,
 		search:       search,
 		events:       events,
+		scanning:     make(map[string]bool),
 	}
 }
 
@@ -133,6 +138,19 @@ func (s *CommandService) DeleteLibrary(ctx context.Context, id string) error {
 }
 
 func (s *CommandService) ScanLibrary(ctx context.Context, libraryID string) (added, updated int, err error) {
+	s.scanMu.Lock()
+	if s.scanning[libraryID] {
+		s.scanMu.Unlock()
+		return 0, 0, fmt.Errorf("scan already in progress for library %s", libraryID)
+	}
+	s.scanning[libraryID] = true
+	s.scanMu.Unlock()
+	defer func() {
+		s.scanMu.Lock()
+		delete(s.scanning, libraryID)
+		s.scanMu.Unlock()
+	}()
+
 	var lib *library.Library
 	lib, err = s.libQueries.GetByID(ctx, libraryID)
 	if err != nil {
@@ -511,4 +529,24 @@ func (s *CommandService) GetTrickplayManifest(ctx context.Context, mediaItemID s
 		return nil, errors.New("trickplay not configured")
 	}
 	return s.trickplayRepo.GetByMediaItemID(ctx, mediaItemID)
+}
+
+func (s *CommandService) GenerateAllMissingTrickplays(ctx context.Context) (int, error) {
+	if s.trickplayRepo == nil || s.trickplayGen == nil {
+		return 0, errors.New("trickplay not configured")
+	}
+	ids, err := s.trickplayRepo.ListMissingMediaItemIDs(ctx)
+	if err != nil {
+		return 0, fmt.Errorf("list missing trickplays: %w", err)
+	}
+	go func() {
+		for _, id := range ids {
+			if err := s.GenerateTrickplay(context.Background(), id); err != nil {
+				slog.Warn("trickplay generation failed", slog.String("media_id", id), slog.Any("err", err))
+			} else {
+				slog.Info("trickplay generated", slog.String("media_id", id))
+			}
+		}
+	}()
+	return len(ids), nil
 }

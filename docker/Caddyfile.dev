@@ -1,8 +1,37 @@
 evey.test {
 	tls internal
 
+	# Long-running: scan + transcode need no timeout + immediate flush
+	@streaming {
+		path /api/v1/*/scan /api/v1/*/transcode
+	}
+	handle @streaming {
+		reverse_proxy evey:{$EVEY_HTTP_PORT:9091} {
+			transport http {
+				read_timeout 0
+				write_timeout 0
+			}
+			flush_interval -1
+		}
+	}
+
 	handle /api/* {
-		reverse_proxy evey:{$EVEY_HTTP_PORT:9091}
+		reverse_proxy evey:{$EVEY_HTTP_PORT:9091} {
+			flush_interval -1
+		}
+	}
+
+	# WebSocket (Vite HMR): persistent, no keepalive restrictions
+	@websocket {
+		header Connection *Upgrade*
+		header Upgrade websocket
+	}
+	handle @websocket {
+		reverse_proxy web:{$WEB_PORT:5173} {
+			transport http {
+				versions 1.1
+			}
+		}
 	}
 
 	handle {

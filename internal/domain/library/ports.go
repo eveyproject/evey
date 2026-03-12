@@ -168,6 +168,7 @@ type TrickplayRepository interface {
 	Create(ctx context.Context, manifest *TrickplayManifest) error
 	GetByMediaItemID(ctx context.Context, mediaItemID string) (*TrickplayManifest, error)
 	Delete(ctx context.Context, mediaItemID string) error
+	ListMissingMediaItemIDs(ctx context.Context) ([]string, error)
 }
 
 type TrickplayResult struct {

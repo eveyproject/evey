@@ -108,6 +108,7 @@ func (s *Service) deliver(ctx context.Context, cfg *webhook.Config, eventName st
 		"payload": payload,
 	})
 	if err != nil {
+		s.log.Warn("webhook: marshal payload failed", slog.String("webhookID", cfg.ID), slog.Any("err", err))
 		return
 	}
 

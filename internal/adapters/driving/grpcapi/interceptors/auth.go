@@ -15,6 +15,7 @@ type claimsKey struct{}
 
 var publicMethods = map[string]bool{
 	"/evey.v1.UserService/Login":              true,
+	"/evey.v1.UserService/RefreshToken":       true,
 	"/evey.v1.UserService/RegisterWithInvite": true,
 	"/evey.v1.AdminService/SetupWizard":       true,
 	"/evey.v1.AdminService/GetSystemInfo":     true,

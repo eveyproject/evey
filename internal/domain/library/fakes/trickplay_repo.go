@@ -39,3 +39,7 @@ func (r *FakeTrickplayRepository) Delete(_ context.Context, mediaItemID string) 
 	delete(r.items, mediaItemID)
 	return nil
 }
+
+func (r *FakeTrickplayRepository) ListMissingMediaItemIDs(_ context.Context) ([]string, error) {
+	return nil, nil
+}

@@ -5,6 +5,7 @@ import { fileURLToPath } from "url";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const MARKER = path.join(__dirname, ".e2e-start-time");
+const STORAGE_STATE = path.join(__dirname, ".auth-state.json");
 
 const PG_CONTAINER = process.env.PG_CONTAINER ?? "evey-postgres";
 const PG_USER = process.env.PG_USER ?? "evey";
@@ -25,6 +26,7 @@ export default function globalTeardown() {
   } catch {
     return;
   }
+  try { fs.unlinkSync(STORAGE_STATE); } catch { /* already gone */ }
   try {
     sql(`DELETE FROM audit_log WHERE created_at >= '${since}'`);
     sql(`DELETE FROM play_sessions WHERE started_at >= '${since}'`);

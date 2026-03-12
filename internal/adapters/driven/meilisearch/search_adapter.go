@@ -55,13 +55,6 @@ func newSearchAdapterFromClient(ctx context.Context, client ServiceClient) (*Sea
 		RankingRules: []string{
 			"words", "typo", "proximity", "attribute", "sort", "exactness",
 		},
-		TypoTolerance: &ms.TypoTolerance{
-			Enabled: true,
-			MinWordSizeForTypos: ms.MinWordSizeForTypos{
-				OneTypo:  3,
-				TwoTypos: 6,
-			},
-		},
 		Synonyms: map[string][]string{
 			"film":   {"movie", "movies"},
 			"movie":  {"film", "films"},
