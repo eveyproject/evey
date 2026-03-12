@@ -51,11 +51,13 @@ services:
       EVEY_MEILI_URL: http://meilisearch:7700
       EVEY_JWT_PRIVATE_KEY_PATH: /data/jwt.key
       EVEY_TRANSCODING_CACHE_DIR: /data/transcode
+      EVEY_TRICKPLAY_CACHE_DIR: /cache/trickplay
       EVEY_LOG_DEV_MODE: "true"
       EVEY_LOG_LEVEL: debug
     volumes:
       - .:/app
       - evey-data:/data
+      - evey-cache:/cache
       - /path/to/movies:/media
       - /path/to/series:/media2
     healthcheck:
@@ -121,8 +123,10 @@ services:
       EVEY_MEILI_URL: http://meilisearch:7700
       EVEY_JWT_PRIVATE_KEY_PATH: /data/jwt.key
       EVEY_TRANSCODING_CACHE_DIR: /data/transcode
+      EVEY_TRICKPLAY_CACHE_DIR: /cache/trickplay
     volumes:
       - evey-data:/data
+      - evey-cache:/cache
       - ${MEDIA_DIR:-/media}:/media:ro
     healthcheck:
       test: ["CMD", "curl", "-sf", "http://localhost:${EVEY_HTTP_PORT:-9091}/healthz"]
@@ -159,5 +163,6 @@ services:
 volumes:
   meili-data:
   evey-data:
+  evey-cache:
   caddy-data:
   caddy-config:

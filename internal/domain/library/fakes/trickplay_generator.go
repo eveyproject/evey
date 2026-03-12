@@ -7,8 +7,9 @@ import (
 )
 
 type FakeTrickplayGenerator struct {
-	Results map[string]*library.TrickplayResult
-	Err     error
+	Results       map[string]*library.TrickplayResult
+	Err           error
+	LastOutputDir string
 }
 
 func NewFakeTrickplayGenerator() *FakeTrickplayGenerator {
@@ -16,6 +17,7 @@ func NewFakeTrickplayGenerator() *FakeTrickplayGenerator {
 }
 
 func (g *FakeTrickplayGenerator) Generate(_ context.Context, filePath, outputDir string, interval, width, tileWidth, tileHeight int) (*library.TrickplayResult, error) {
+	g.LastOutputDir = outputDir
 	if g.Err != nil {
 		return nil, g.Err
 	}

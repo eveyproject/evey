@@ -761,8 +761,8 @@ func trickplayImageHandler(tokenGen interface {
 func trickplayGenerateHandler(tokenGen interface {
 	ValidateAccessToken(string) (*domainuser.Claims, error)
 }, libSvc interface {
-	GenerateTrickplay(ctx context.Context, mediaItemID string, cacheDir string) error
-}, cacheDir string) http.HandlerFunc {
+	GenerateTrickplay(ctx context.Context, mediaItemID string) error
+}) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		mediaID := r.PathValue("id")
 		token := r.Header.Get("Authorization")
@@ -778,7 +778,7 @@ func trickplayGenerateHandler(tokenGen interface {
 		}
 		go func() {
 			ctx := context.Background()
-			if err := libSvc.GenerateTrickplay(ctx, mediaID, cacheDir); err != nil {
+			if err := libSvc.GenerateTrickplay(ctx, mediaID); err != nil {
 				slog.Error("trickplay generation failed", slog.String("media_id", mediaID), slog.Any("err", err))
 			} else {
 				slog.Info("trickplay generated", slog.String("media_id", mediaID))

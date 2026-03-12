@@ -277,7 +277,7 @@ func TestGenerateTrickplay_Success(t *testing.T) {
 	svc, _, _, mediaRepo, _, _ := newCmdSvc()
 	trickplayRepo := libfakes.NewFakeTrickplayRepository()
 	trickplayGen := libfakes.NewFakeTrickplayGenerator()
-	svc.WithTrickplay(trickplayRepo, trickplayGen)
+	svc.WithTrickplay(trickplayRepo, trickplayGen, "/cache/trickplay")
 
 	mediaRepo.Create(context.Background(), &library.MediaItem{
 		ID:       "media-1",
@@ -286,11 +286,11 @@ func TestGenerateTrickplay_Success(t *testing.T) {
 	})
 
 	trickplayGen.Results["/movies/test.mkv"] = &library.TrickplayResult{
-		ImageDir:   "/tmp/trickplay/media-1",
+		ImageDir:   "/cache/trickplay/media-1",
 		ImageCount: 3,
 	}
 
-	err := svc.GenerateTrickplay(context.Background(), "media-1", "/tmp")
+	err := svc.GenerateTrickplay(context.Background(), "media-1")
 	require.NoError(t, err)
 
 	manifest, err := svc.GetTrickplayManifest(context.Background(), "media-1")
@@ -303,13 +303,30 @@ func TestGenerateTrickplay_Success(t *testing.T) {
 	assert.Equal(t, 3, manifest.ImageCount)
 }
 
+func TestGenerateTrickplay_UsesCacheDir(t *testing.T) {
+	svc, _, _, mediaRepo, _, _ := newCmdSvc()
+	trickplayRepo := libfakes.NewFakeTrickplayRepository()
+	trickplayGen := libfakes.NewFakeTrickplayGenerator()
+	svc.WithTrickplay(trickplayRepo, trickplayGen, "/my/custom/cache")
+
+	mediaRepo.Create(context.Background(), &library.MediaItem{
+		ID:       "media-2",
+		FilePath: "/movies/film.mkv",
+		Title:    "Film",
+	})
+
+	err := svc.GenerateTrickplay(context.Background(), "media-2")
+	require.NoError(t, err)
+	assert.Equal(t, "/my/custom/cache/media-2", trickplayGen.LastOutputDir)
+}
+
 func TestGenerateTrickplay_MediaNotFound(t *testing.T) {
 	svc, _, _, _, _, _ := newCmdSvc()
 	trickplayRepo := libfakes.NewFakeTrickplayRepository()
 	trickplayGen := libfakes.NewFakeTrickplayGenerator()
-	svc.WithTrickplay(trickplayRepo, trickplayGen)
+	svc.WithTrickplay(trickplayRepo, trickplayGen, "/cache/trickplay")
 
-	err := svc.GenerateTrickplay(context.Background(), "nonexistent", "/tmp")
+	err := svc.GenerateTrickplay(context.Background(), "nonexistent")
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "get media item")
 }
@@ -318,7 +335,7 @@ func TestGenerateTrickplay_NoFilePath(t *testing.T) {
 	svc, _, _, mediaRepo, _, _ := newCmdSvc()
 	trickplayRepo := libfakes.NewFakeTrickplayRepository()
 	trickplayGen := libfakes.NewFakeTrickplayGenerator()
-	svc.WithTrickplay(trickplayRepo, trickplayGen)
+	svc.WithTrickplay(trickplayRepo, trickplayGen, "/cache/trickplay")
 
 	mediaRepo.Create(context.Background(), &library.MediaItem{
 		ID:       "media-1",
@@ -326,7 +343,7 @@ func TestGenerateTrickplay_NoFilePath(t *testing.T) {
 		Title:    "No File",
 	})
 
-	err := svc.GenerateTrickplay(context.Background(), "media-1", "/tmp")
+	err := svc.GenerateTrickplay(context.Background(), "media-1")
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "no file path")
 }
@@ -334,7 +351,7 @@ func TestGenerateTrickplay_NoFilePath(t *testing.T) {
 func TestGenerateTrickplay_NotConfigured(t *testing.T) {
 	svc, _, _, _, _, _ := newCmdSvc()
 
-	err := svc.GenerateTrickplay(context.Background(), "media-1", "/tmp")
+	err := svc.GenerateTrickplay(context.Background(), "media-1")
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "not configured")
 }
@@ -343,7 +360,7 @@ func TestGetTrickplayManifest_NotFound(t *testing.T) {
 	svc, _, _, _, _, _ := newCmdSvc()
 	trickplayRepo := libfakes.NewFakeTrickplayRepository()
 	trickplayGen := libfakes.NewFakeTrickplayGenerator()
-	svc.WithTrickplay(trickplayRepo, trickplayGen)
+	svc.WithTrickplay(trickplayRepo, trickplayGen, "/cache/trickplay")
 
 	_, err := svc.GetTrickplayManifest(context.Background(), "nonexistent")
 	require.Error(t, err)

@@ -180,7 +180,7 @@ func run() error {
 	)
 	libCmdSvc.WithChapters(chapterRepo, ebmlReader)
 	libCmdSvc.WithSubtitleScanner(subScanner)
-	libCmdSvc.WithTrickplay(trickplayRepo, trickplayGen)
+	libCmdSvc.WithTrickplay(trickplayRepo, trickplayGen, cfg.Transcoding.TrickplayCacheDir)
 	libQuerySvc := applibrary.NewQueryService(
 		libraryRepo, mediaItemQueryRepo,
 		mediaStreamRepo, searchAdapter,
@@ -282,6 +282,20 @@ func run() error {
 			}
 		})
 	}
+
+	bus.Subscribe("media.item.added", func(ctx context.Context, ev shared.Event) {
+		if e, ok := ev.(domainlibrary.MediaItemAdded); ok {
+			go func() {
+				bgCtx := context.Background()
+				if _, err := libCmdSvc.GetTrickplayManifest(bgCtx, e.MediaItemID); err == nil {
+					return // already generated
+				}
+				if err := libCmdSvc.GenerateTrickplay(bgCtx, e.MediaItemID); err != nil {
+					slog.Warn("trickplay generation failed", slog.String("media_id", e.MediaItemID), slog.Any("err", err))
+				}
+			}()
+		}
+	})
 
 	webhookLog := eveylogger.NewWith(rootLog, "webhook")
 	webhookSvc := appwebhook.NewService(webhookRepo, webhookDeliveryRepo, webhookLog, bus)
@@ -388,7 +402,7 @@ func run() error {
 		mux.HandleFunc("GET /api/v1/media/{id}/chapters", chaptersHandler(tokenGen, libCmdSvc, cfg.Server.BaseURL))
 		mux.HandleFunc("GET /api/v1/media/{id}/trickplay", trickplayManifestHandler(tokenGen, libCmdSvc, cfg.Server.BaseURL))
 		mux.HandleFunc("GET /api/v1/media/{id}/trickplay/{image}", trickplayImageHandler(tokenGen, libCmdSvc, cfg.Server.BaseURL))
-		mux.HandleFunc("POST /api/v1/admin/media/{id}/trickplay/generate", trickplayGenerateHandler(tokenGen, libCmdSvc, cfg.Transcoding.CacheDir))
+		mux.HandleFunc("POST /api/v1/admin/media/{id}/trickplay/generate", trickplayGenerateHandler(tokenGen, libCmdSvc))
 		mux.HandleFunc("GET /api/v1/media/{id}/playback-info", playbackInfoHandler(tokenGen, libQuerySvc))
 		mux.HandleFunc("GET /api/v1/media/{id}/hls/master.m3u8", hlsMasterHandler(tokenGen, libQuerySvc, hlsManager))
 		mux.HandleFunc("GET /api/v1/media/{id}/hls/{file}", hlsSegmentHandler(tokenGen, hlsManager))

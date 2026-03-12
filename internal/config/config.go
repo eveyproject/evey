@@ -85,10 +85,11 @@ type JWTConfig struct {
 }
 
 type TranscodingConfig struct {
-	MaxConcurrent  int
-	CacheMaxGB     int
-	CacheDir       string
-	HWAccelEnabled bool
+	MaxConcurrent   int
+	CacheMaxGB      int
+	CacheDir        string
+	HWAccelEnabled  bool
+	TrickplayCacheDir string
 }
 
 type OIDCConfig struct {
@@ -142,10 +143,11 @@ func Load() (*Config, error) {
 			RefreshTokenTTL: envDuration("EVEY_JWT_REFRESH_TTL", 7*24*time.Hour),
 		},
 		Transcoding: TranscodingConfig{
-			MaxConcurrent:  envInt("EVEY_TRANSCODING_MAX_CONCURRENT", 2),
-			CacheMaxGB:     envInt("EVEY_TRANSCODING_CACHE_MAX_GB", 50),
-			CacheDir:       envStr("EVEY_TRANSCODING_CACHE_DIR", "/data/transcode"),
-			HWAccelEnabled: envBool("EVEY_TRANSCODING_HW_ACCEL_ENABLED", false),
+			MaxConcurrent:     envInt("EVEY_TRANSCODING_MAX_CONCURRENT", 2),
+			CacheMaxGB:        envInt("EVEY_TRANSCODING_CACHE_MAX_GB", 50),
+			CacheDir:          envStr("EVEY_TRANSCODING_CACHE_DIR", "/data/transcode"),
+			HWAccelEnabled:    envBool("EVEY_TRANSCODING_HW_ACCEL_ENABLED", false),
+			TrickplayCacheDir: envStr("EVEY_TRICKPLAY_CACHE_DIR", "/cache/trickplay"),
 		},
 		OIDC: OIDCConfig{
 			Enabled:      envBool("EVEY_OIDC_ENABLED", false),

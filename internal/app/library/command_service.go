@@ -28,8 +28,9 @@ type CommandService struct {
 	subScanner   library.ExternalSubtitleScanner
 	search       library.SearchIndex
 	events       shared.EventBus
-	trickplayRepo library.TrickplayRepository
-	trickplayGen  library.TrickplayGenerator
+	trickplayRepo    library.TrickplayRepository
+	trickplayGen     library.TrickplayGenerator
+	trickplayCacheDir string
 }
 
 func NewCommandService(
@@ -455,12 +456,13 @@ func (s *CommandService) scanTVShowFiles(ctx context.Context, libraryID string, 
 	return added, updated, nil
 }
 
-func (s *CommandService) WithTrickplay(repo library.TrickplayRepository, gen library.TrickplayGenerator) {
+func (s *CommandService) WithTrickplay(repo library.TrickplayRepository, gen library.TrickplayGenerator, cacheDir string) {
 	s.trickplayRepo = repo
 	s.trickplayGen = gen
+	s.trickplayCacheDir = cacheDir
 }
 
-func (s *CommandService) GenerateTrickplay(ctx context.Context, mediaItemID string, cacheDir string) error {
+func (s *CommandService) GenerateTrickplay(ctx context.Context, mediaItemID string) error {
 	if s.trickplayRepo == nil || s.trickplayGen == nil {
 		return errors.New("trickplay not configured")
 	}
@@ -478,7 +480,7 @@ func (s *CommandService) GenerateTrickplay(ctx context.Context, mediaItemID stri
 	tileWidth := 10
 	tileHeight := 10
 
-	outputDir := fmt.Sprintf("%s/trickplay/%s", cacheDir, mediaItemID)
+	outputDir := fmt.Sprintf("%s/%s", s.trickplayCacheDir, mediaItemID)
 
 	result, err := s.trickplayGen.Generate(ctx, item.FilePath, outputDir, interval, width, tileWidth, tileHeight)
 	if err != nil {
