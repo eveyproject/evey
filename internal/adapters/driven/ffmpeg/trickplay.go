@@ -27,8 +27,10 @@ func (g *TrickplayGenerator) Generate(ctx context.Context, filePath, outputDir s
 	vf := fmt.Sprintf("fps=1/%d,scale=%d:-1,tile=%dx%d", interval, width, tileWidth, tileHeight)
 
 	cmd := exec.CommandContext(ctx, g.binary,
+		"-skip_frame", "noref",
 		"-i", filePath,
 		"-vf", vf,
+		"-vsync", "vfr",
 		"-q:v", "5",
 		"-an",
 		outputPattern,

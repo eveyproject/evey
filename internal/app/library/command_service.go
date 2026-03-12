@@ -476,7 +476,7 @@ func (s *CommandService) GenerateTrickplay(ctx context.Context, mediaItemID stri
 	}
 
 	interval := 10
-	width := 320
+	width := 160
 	tileWidth := 10
 	tileHeight := 10
 
