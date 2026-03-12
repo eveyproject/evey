@@ -129,11 +129,15 @@ func selectArtworkHandler(tokens interface {
 		}
 		for _, rec := range records {
 			if rec.Type == selected.Type && rec.ID != selected.ID && rec.SortOrder < selected.SortOrder {
-				_ = artworkRepo.UpdateSortOrder(r.Context(), rec.ID, selected.SortOrder)
+				if err := artworkRepo.UpdateSortOrder(r.Context(), rec.ID, selected.SortOrder); err != nil {
+					slog.Warn("artwork sort update", slog.Any("err", err))
+				}
 				break
 			}
 		}
-		_ = artworkRepo.UpdateSortOrder(r.Context(), selected.ID, -1)
+		if err := artworkRepo.UpdateSortOrder(r.Context(), selected.ID, -1); err != nil {
+			slog.Warn("artwork sort update", slog.Any("err", err))
+		}
 		w.Header().Set("Content-Type", "application/json")
 		w.Write([]byte(`{"ok":true}`))
 	}
@@ -210,7 +214,7 @@ func browseDirsHandler(tokens interface {
 		result := []entry{}
 
 		if dir == "" {
-			roots, _ := filepath.Glob("/media*")
+			roots, _ := filepath.Glob("/media*") //nolint:errcheck // best-effort directory discovery
 			for _, root := range roots {
 				info, err := os.Stat(root)
 				if err != nil || !info.IsDir() {
@@ -341,7 +345,8 @@ func transcodeHandler(tokenGen interface {
 			"-map", fmt.Sprintf("0:a:%d", audioTrack),
 		)
 
-		if needsToneMap && !remuxOnly {
+		switch {
+		case needsToneMap && !remuxOnly:
 			toneMapFilter := hdr.BuildToneMapFilter(hdrInfo, hdr.DefaultToneMapOptions())
 			if videoScale > 0 {
 				args = append(args, "-vf", fmt.Sprintf("scale=-2:%d,%s", videoScale, toneMapFilter))
@@ -349,11 +354,11 @@ func transcodeHandler(tokenGen interface {
 				args = append(args, "-vf", toneMapFilter)
 			}
 			args = append(args, "-c:v", "libx264", "-crf", "23", "-preset", "fast")
-		} else if videoScale > 0 {
+		case videoScale > 0:
 			args = append(args, "-vf", fmt.Sprintf("scale=-2:%d", videoScale), "-c:v", "libx264", "-crf", "23", "-preset", "fast")
-		} else if needsVideoTranscode {
+		case needsVideoTranscode:
 			args = append(args, "-c:v", "libx264", "-crf", "23", "-preset", "veryfast", "-tune", "zerolatency", "-threads", "0")
-		} else {
+		default:
 			args = append(args, "-c:v", "copy")
 		}
 		if needsAudioTranscode {
@@ -382,7 +387,9 @@ func transcodeHandler(tokenGen interface {
 		w.Header().Set("Accept-Ranges", "none")
 		setCORSHeaders(w, r, baseURL)
 		go func() { <-r.Context().Done(); cancel() }()
-		io.Copy(w, stdout)
+		if _, err := io.Copy(w, stdout); err != nil && ctx.Err() == nil {
+			slog.Warn("transcode copy", slog.Any("err", err))
+		}
 		if err := cmd.Wait(); err != nil && ctx.Err() == nil {
 			slog.Warn("ffmpeg transcode", slog.String("media_id", mediaID), slog.Any("err", err))
 		}
@@ -1026,7 +1033,10 @@ func hlsSegmentHandler(tokenGen interface {
 			http.Error(w, `{"message":"no active session"}`, http.StatusNotFound)
 			return
 		}
-		session.WaitReady(r.Context())
+		if err := session.WaitReady(r.Context()); err != nil {
+			http.Error(w, `{"message":"session not ready"}`, http.StatusServiceUnavailable)
+			return
+		}
 
 		file = filepath.Base(file)
 		filePath := filepath.Join(session.OutputDir, file)

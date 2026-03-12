@@ -2,6 +2,7 @@ package grpcapi
 
 import (
 	"context"
+	"log/slog"
 
 	eveyv1 "github.com/gravity-zero/evey/gen/evey/v1"
 	applibrary "github.com/gravity-zero/evey/internal/app/library"
@@ -91,10 +92,16 @@ func (h *libraryHandler) GetMediaItem(ctx context.Context, req *eveyv1.GetMediaI
 	if err != nil {
 		return nil, status.Errorf(codes.NotFound, "media item not found: %v", err)
 	}
-	if ok, _ := h.checkLibraryAccess(ctx, item.LibraryID); !ok {
+	if ok, accessErr := h.checkLibraryAccess(ctx, item.LibraryID); !ok {
+		if accessErr != nil {
+			slog.Warn("check library access", slog.Any("err", accessErr))
+		}
 		return nil, status.Errorf(codes.NotFound, "media item not found")
 	}
-	if blocked, _ := h.isBlockedByParental(ctx, item); blocked {
+	if blocked, parentalErr := h.isBlockedByParental(ctx, item); blocked {
+		if parentalErr != nil {
+			slog.Warn("parental check", slog.Any("err", parentalErr))
+		}
 		return nil, status.Errorf(codes.PermissionDenied, "content restricted by parental controls")
 	}
 	pb := mediaItemToProto(item)
@@ -136,7 +143,10 @@ func (h *libraryHandler) ListMediaItems(ctx context.Context, req *eveyv1.ListMed
 		filter.ParentID = &req.ParentId
 	}
 	if req.LibraryId != "" {
-		if ok, _ := h.checkLibraryAccess(ctx, req.LibraryId); !ok {
+		if ok, accessErr := h.checkLibraryAccess(ctx, req.LibraryId); !ok {
+			if accessErr != nil {
+				slog.Warn("check library access", slog.Any("err", accessErr))
+			}
 			return &eveyv1.ListMediaItemsResponse{Pagination: &eveyv1.PaginationResponse{}}, nil
 		}
 	} else {

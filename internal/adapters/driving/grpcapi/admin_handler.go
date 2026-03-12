@@ -3,6 +3,7 @@ package grpcapi
 import (
 	"context"
 	"errors"
+	"log/slog"
 	"runtime"
 
 	eveyv1 "github.com/gravity-zero/evey/gen/evey/v1"
@@ -34,7 +35,10 @@ type adminHandler struct {
 }
 
 func (h *adminHandler) GetSystemInfo(ctx context.Context, _ *eveyv1.GetSystemInfoRequest) (*eveyv1.SystemInfo, error) {
-	admins, _ := h.userSvc.CountAdmins(ctx)
+	admins, adminErr := h.userSvc.CountAdmins(ctx)
+	if adminErr != nil {
+		slog.Warn("count admins", slog.Any("err", adminErr))
+	}
 	return &eveyv1.SystemInfo{
 		Version:       h.version,
 		Os:            runtime.GOOS,

@@ -352,7 +352,7 @@ func TestSearch_YearParamSentToAPI(t *testing.T) {
 	assert.Equal(t, "2018", capturedParams[0].Get("primary_release_year"))
 
 	capturedParams = nil
-	results, err = p.Search(context.Background(), "Robin Hood", &y, "tv")
+	_, err = p.Search(context.Background(), "Robin Hood", &y, "tv")
 	require.NoError(t, err)
 	require.GreaterOrEqual(t, len(capturedParams), 1)
 	assert.Equal(t, "2018", capturedParams[0].Get("first_air_date_year"))

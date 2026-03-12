@@ -14,7 +14,7 @@ import (
 )
 
 type fakeIndex struct {
-	addedDocs   []interface{}
+	addedDocs   []any
 	deletedIDs  []string
 	searchResp  *ms.SearchResponse
 	searchErr   error
@@ -22,7 +22,7 @@ type fakeIndex struct {
 	searchReq   *ms.SearchRequest
 }
 
-func (f *fakeIndex) AddDocumentsWithContext(_ context.Context, docs interface{}, _ *ms.DocumentOptions) (*ms.TaskInfo, error) {
+func (f *fakeIndex) AddDocumentsWithContext(_ context.Context, docs any, _ *ms.DocumentOptions) (*ms.TaskInfo, error) {
 	f.addedDocs = append(f.addedDocs, docs)
 	return &ms.TaskInfo{TaskUID: 1}, nil
 }

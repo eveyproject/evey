@@ -90,8 +90,8 @@ func TestAddAndRemoveItem(t *testing.T) {
 		t.Fatalf("expected 2 items, got %d", len(items))
 	}
 
-	if err := svc.RemoveItem(context.Background(), pl.ID, "media-1", "user-1"); err != nil {
-		t.Fatalf("remove: %v", err)
+	if removeErr := svc.RemoveItem(context.Background(), pl.ID, "media-1", "user-1"); removeErr != nil {
+		t.Fatalf("remove: %v", removeErr)
 	}
 	_, items, err = svc.GetItems(context.Background(), pl.ID, "user-1")
 	if err != nil {

@@ -3,6 +3,7 @@ package postgres
 import (
 	"context"
 	"database/sql"
+	"log/slog"
 
 	"github.com/gravity-zero/evey/internal/domain/subtitle"
 )
@@ -57,7 +58,10 @@ func (r *SubtitleRepository) Delete(ctx context.Context, id string) error {
 	if err != nil {
 		return err
 	}
-	n, _ := res.RowsAffected()
+	n, err := res.RowsAffected()
+	if err != nil {
+		slog.Warn("rows affected", slog.Any("err", err))
+	}
 	if n == 0 {
 		return subtitle.ErrNotFound
 	}

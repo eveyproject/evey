@@ -162,7 +162,9 @@ func (e *Enricher) EnrichItem(ctx context.Context, item *domaindomain.MediaItem,
 		for _, p := range result.People {
 			names = append(names, p.Name)
 		}
-		e.search.IndexMediaItem(ctx, item, names)
+		if err := e.search.IndexMediaItem(ctx, item, names); err != nil {
+			slog.Warn("index media item", slog.Any("err", err))
+		}
 	}
 
 	return nil

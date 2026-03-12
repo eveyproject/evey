@@ -93,14 +93,8 @@ func MakePlaybackDecision(
 		case "subtitle":
 			if bitmapSubCodecs[strings.ToLower(s.Codec)] {
 				d.SubtitleDecision = "burn"
-			} else if s.IsExternal {
-				if d.SubtitleDecision == "" {
-					d.SubtitleDecision = "external"
-				}
-			} else {
-				if d.SubtitleDecision == "" {
-					d.SubtitleDecision = "external"
-				}
+			} else if d.SubtitleDecision == "" {
+				d.SubtitleDecision = "external"
 			}
 		}
 	}

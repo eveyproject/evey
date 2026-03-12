@@ -110,7 +110,7 @@ func (m *multiHandler) Enabled(ctx context.Context, level slog.Level) bool {
 func (m *multiHandler) Handle(ctx context.Context, r slog.Record) error {
 	for _, h := range m.handlers {
 		if h.Enabled(ctx, r.Level) {
-			_ = h.Handle(ctx, r)
+			_ = h.Handle(ctx, r) //nolint:errcheck
 		}
 	}
 	return nil

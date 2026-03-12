@@ -75,7 +75,9 @@ func (s *Service) StartTranscode(ctx context.Context, job *transcoding.Transcode
 	if _, err := s.transcoder.Start(ctx, job); err != nil {
 		job.Status = string(transcoding.Failed)
 		job.ErrorMessage = err.Error()
-		s.jobs.Update(ctx, job)
+		if updateErr := s.jobs.Update(ctx, job); updateErr != nil {
+			slog.Warn("update transcode job failed", slog.String("jobID", job.ID), slog.Any("err", updateErr))
+		}
 		evtFailed := transcoding.TranscodeFailed{JobID: job.ID, MediaItemID: job.MediaItemID, ErrorMessage: err.Error(), OccurredAt: time.Now()}
 		if pubErr := s.events.Publish(ctx, evtFailed); pubErr != nil {
 			slog.Warn("publish event", slog.String("event", evtFailed.EventName()), slog.Any("err", pubErr))
@@ -101,7 +103,9 @@ func (s *Service) StopTranscode(ctx context.Context, jobID string) error {
 	job.Status = string(transcoding.Cancelled)
 	now := time.Now()
 	job.EndedAt = &now
-	s.jobs.Update(ctx, job)
+	if err := s.jobs.Update(ctx, job); err != nil {
+		slog.Warn("update transcode job failed", slog.String("jobID", jobID), slog.Any("err", err))
+	}
 	evtCancelled := transcoding.TranscodeCancelled{JobID: jobID, MediaItemID: job.MediaItemID, OccurredAt: now}
 	if err := s.events.Publish(ctx, evtCancelled); err != nil {
 		slog.Warn("publish event", slog.String("event", evtCancelled.EventName()), slog.Any("err", err))

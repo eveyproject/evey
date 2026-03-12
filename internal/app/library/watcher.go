@@ -88,7 +88,9 @@ func (ws *WatcherService) RemoveLibrary(lib *library.Library) {
 	ws.mu.Lock()
 	defer ws.mu.Unlock()
 	for _, p := range lib.Paths {
-		_ = ws.watcher.Unwatch(p)
+		if err := ws.watcher.Unwatch(p); err != nil {
+			ws.log.Warn("watcher: unwatch failed", slog.String("path", p), slog.Any("err", err))
+		}
 		delete(ws.pathToLib, p)
 	}
 }
@@ -99,7 +101,9 @@ func (ws *WatcherService) RemoveLibraryByID(libraryID string) {
 	defer ws.mu.Unlock()
 	for p, id := range ws.pathToLib {
 		if id == libraryID {
-			_ = ws.watcher.Unwatch(p)
+			if err := ws.watcher.Unwatch(p); err != nil {
+				ws.log.Warn("watcher: unwatch failed", slog.String("path", p), slog.Any("err", err))
+			}
 			delete(ws.pathToLib, p)
 		}
 	}
@@ -109,7 +113,9 @@ func (ws *WatcherService) Stop() {
 	if ws.cancel != nil {
 		ws.cancel()
 	}
-	ws.watcher.Close()
+	if err := ws.watcher.Close(); err != nil {
+		ws.log.Warn("watcher: close failed", slog.Any("err", err))
+	}
 }
 
 // processEvents debounces FS events per library and triggers a scan.

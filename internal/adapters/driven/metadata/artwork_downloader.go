@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"os"
 	"strings"
@@ -49,7 +50,9 @@ func (d *ArtworkHTTPDownloader) Download(ctx context.Context, url, destPath stri
 
 	if _, err := io.Copy(f, resp.Body); err != nil {
 		f.Close()
-		os.Remove(destPath)
+		if removeErr := os.Remove(destPath); removeErr != nil {
+			slog.Warn("remove partial artwork", slog.Any("err", removeErr))
+		}
 		return fmt.Errorf("write file: %w", err)
 	}
 

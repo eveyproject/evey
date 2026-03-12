@@ -88,7 +88,8 @@ func (q *FeedQuerier) ContinueWatching(ctx context.Context, profileID string, li
 		return nil, err
 	}
 
-	result := append(movies, episodes...)
+	movies = append(movies, episodes...)
+	result := movies
 	if limit > 0 && len(result) > limit {
 		result = result[:limit]
 	}

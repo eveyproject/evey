@@ -151,7 +151,10 @@ func (s *Service) Login(ctx context.Context, username, password string) (accessT
 		return "", "", ErrInvalidCredentials
 	}
 
-	roles, _ := s.userRoles.GetRolesByUserID(ctx, u.ID)
+	roles, err := s.userRoles.GetRolesByUserID(ctx, u.ID)
+	if err != nil {
+		slog.Warn("get roles by user failed", slog.String("userID", u.ID), slog.Any("err", err))
+	}
 	var perms []string
 	for _, r := range roles {
 		perms = append(perms, r.Permissions...)
@@ -203,23 +206,32 @@ func (s *Service) RefreshToken(ctx context.Context, token string) (string, strin
 	}
 
 	if rt.Used {
-		s.refreshTkns.DeleteByUserID(ctx, rt.UserID)
+		if delErr := s.refreshTkns.DeleteByUserID(ctx, rt.UserID); delErr != nil {
+			slog.Warn("delete refresh tokens by user failed", slog.String("userID", rt.UserID), slog.Any("err", delErr))
+		}
 		return "", "", ErrInvalidCredentials
 	}
 
 	if time.Now().After(rt.ExpiresAt) {
-		s.refreshTkns.DeleteByID(ctx, rt.ID)
+		if delErr := s.refreshTkns.DeleteByID(ctx, rt.ID); delErr != nil {
+			slog.Warn("delete refresh token failed", slog.String("tokenID", rt.ID), slog.Any("err", delErr))
+		}
 		return "", "", ErrInvalidCredentials
 	}
 
-	s.refreshTkns.MarkUsed(ctx, rt.ID)
+	if markErr := s.refreshTkns.MarkUsed(ctx, rt.ID); markErr != nil {
+		slog.Warn("mark refresh token used failed", slog.String("tokenID", rt.ID), slog.Any("err", markErr))
+	}
 
 	u, err := s.users.GetByID(ctx, rt.UserID)
 	if err != nil {
 		return "", "", err
 	}
 
-	roles, _ := s.userRoles.GetRolesByUserID(ctx, u.ID)
+	roles, err := s.userRoles.GetRolesByUserID(ctx, u.ID)
+	if err != nil {
+		slog.Warn("get roles by user failed", slog.String("userID", u.ID), slog.Any("err", err))
+	}
 	var perms []string
 	for _, r := range roles {
 		perms = append(perms, r.Permissions...)
@@ -315,7 +327,9 @@ func (s *Service) DeleteUser(ctx context.Context, id string) error {
 	if err := s.users.Delete(ctx, id); err != nil {
 		return err
 	}
-	s.refreshTkns.DeleteByUserID(ctx, id)
+	if err := s.refreshTkns.DeleteByUserID(ctx, id); err != nil {
+		slog.Warn("delete refresh tokens for deleted user failed", slog.String("userID", id), slog.Any("err", err))
+	}
 	evtDeleted := user.UserDeleted{UserID: id, OccurredAt: time.Now()}
 	if err := s.events.Publish(ctx, evtDeleted); err != nil {
 		slog.Warn("publish event", slog.String("event", evtDeleted.EventName()), slog.Any("err", err))
@@ -342,7 +356,9 @@ func (s *Service) DisableUser(ctx context.Context, id string) error {
 	if err := s.users.Update(ctx, u); err != nil {
 		return err
 	}
-	s.refreshTkns.DeleteByUserID(ctx, id)
+	if err := s.refreshTkns.DeleteByUserID(ctx, id); err != nil {
+		slog.Warn("delete refresh tokens for disabled user failed", slog.String("userID", id), slog.Any("err", err))
+	}
 	evtDisabled := user.UserDisabled{UserID: id, OccurredAt: time.Now()}
 	if err := s.events.Publish(ctx, evtDisabled); err != nil {
 		slog.Warn("publish event", slog.String("event", evtDisabled.EventName()), slog.Any("err", err))
@@ -424,7 +440,9 @@ func (s *Service) RegisterWithInvite(ctx context.Context, token, username, passw
 	if err := s.users.Create(ctx, u); err != nil {
 		return nil, err
 	}
-	s.invites.IncrementUsedCount(ctx, invite.ID)
+	if err := s.invites.IncrementUsedCount(ctx, invite.ID); err != nil {
+		slog.Warn("increment invite used count failed", slog.String("inviteID", invite.ID), slog.Any("err", err))
+	}
 	evtInviteCreated := user.UserCreated{UserID: u.ID, Username: u.Username, OccurredAt: time.Now()}
 	if err := s.events.Publish(ctx, evtInviteCreated); err != nil {
 		slog.Warn("publish event", slog.String("event", evtInviteCreated.EventName()), slog.Any("err", err))

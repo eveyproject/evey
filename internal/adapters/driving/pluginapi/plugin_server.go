@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"log/slog"
 	"net"
 	"os"
 	"path/filepath"
@@ -212,7 +213,9 @@ func (s *PluginAPIServer) EmitEvent(ctx context.Context, req *pluginv1.EmitEvent
 	if !pluginrunner.CheckCapability(p, "notification.sender") {
 		return nil, status.Errorf(codes.PermissionDenied, "plugin %s lacks notification.sender capability", pluginID)
 	}
-	_ = s.events.Publish(ctx, pluginEvent{eventType: req.EventType})
+	if err := s.events.Publish(ctx, pluginEvent{eventType: req.EventType}); err != nil {
+		slog.Warn("plugin emit event", slog.Any("err", err))
+	}
 	return &pluginv1.EmitEventResponse{}, nil
 }
 
@@ -251,7 +254,9 @@ func (s *PluginAPIServer) SetConfig(ctx context.Context, req *pluginv1.SetConfig
 }
 
 func (s *PluginAPIServer) Start() error {
-	os.Remove(s.sockPath)
+	if err := os.Remove(s.sockPath); err != nil && !os.IsNotExist(err) {
+		slog.Warn("remove plugin socket", slog.Any("err", err))
+	}
 	lis, err := net.Listen("unix", s.sockPath)
 	if err != nil {
 		return err
@@ -260,7 +265,11 @@ func (s *PluginAPIServer) Start() error {
 	s.grpcServer = grpc.NewServer()
 	pluginv1.RegisterHostServiceServer(s.grpcServer, s)
 	log.Printf("plugin host service listening on %s", s.sockPath)
-	go s.grpcServer.Serve(lis)
+	go func() {
+		if err := s.grpcServer.Serve(lis); err != nil {
+			slog.Warn("plugin server stopped", slog.Any("err", err))
+		}
+	}()
 	return nil
 }
 
@@ -268,7 +277,9 @@ func (s *PluginAPIServer) Stop() {
 	if s.grpcServer != nil {
 		s.grpcServer.GracefulStop()
 	}
-	os.Remove(s.sockPath)
+	if err := os.Remove(s.sockPath); err != nil && !os.IsNotExist(err) {
+		slog.Warn("remove plugin socket", slog.Any("err", err))
+	}
 }
 
 type pluginEvent struct{ eventType string }

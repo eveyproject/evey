@@ -103,7 +103,10 @@ func (r *CollectionRepository) Delete(ctx context.Context, id string) error {
 	if err != nil {
 		return err
 	}
-	n, _ := res.RowsAffected()
+	n, err := res.RowsAffected()
+	if err != nil {
+		slog.Warn("rows affected", slog.Any("err", err))
+	}
 	if n == 0 {
 		return library.ErrNotFound
 	}
@@ -229,12 +232,20 @@ func ruleToSQL(rule library.CollectionRule, argIdx *int) (string, []any) {
 	case "genre":
 		switch rule.Operator {
 		case library.OpContains:
-			g, _ := json.Marshal([]string{rule.Value})
+			g, err := json.Marshal([]string{rule.Value})
+			if err != nil {
+				slog.Warn("marshal genre rule", slog.Any("err", err))
+				return "", nil
+			}
 			cond := fmt.Sprintf("genres @> $%d::jsonb", *argIdx)
 			*argIdx++
 			return cond, []any{string(g)}
 		case library.OpEq:
-			g, _ := json.Marshal([]string{rule.Value})
+			g, err := json.Marshal([]string{rule.Value})
+			if err != nil {
+				slog.Warn("marshal genre rule", slog.Any("err", err))
+				return "", nil
+			}
 			cond := fmt.Sprintf("genres @> $%d::jsonb", *argIdx)
 			*argIdx++
 			return cond, []any{string(g)}
@@ -301,8 +312,7 @@ func ruleToSQL(rule library.CollectionRule, argIdx *int) (string, []any) {
 		*argIdx++
 		return cond, []any{v}
 	case "resolution":
-		switch rule.Operator {
-		case library.OpEq:
+		if rule.Operator == library.OpEq {
 			h := resolutionToHeight(rule.Value)
 			if h == 0 {
 				return "", nil
@@ -316,8 +326,7 @@ func ruleToSQL(rule library.CollectionRule, argIdx *int) (string, []any) {
 		if err != nil {
 			return "", nil
 		}
-		switch rule.Operator {
-		case library.OpLt:
+		if rule.Operator == library.OpLt {
 			cond := fmt.Sprintf("added_at >= $%d", *argIdx)
 			*argIdx++
 			return cond, []any{time.Now().AddDate(0, 0, -days)}

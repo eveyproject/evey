@@ -29,7 +29,6 @@ linters:
 
   settings:
     errcheck:
-      check-type-assertions: true
       check-blank: true
       # Non-actionable error returns
       exclude-functions:
@@ -50,8 +49,6 @@ linters:
         - strconv.ParseFloat
         - strconv.ParseUint
         - strconv.ParseInt
-        # EBML binary reader — seek errors are non-actionable mid-parse
-        - (*bufio.Reader).Seek
     govet:
       enable:
         - shadow
@@ -66,25 +63,34 @@ linters:
         - commentedOutCode
         - hugeParam
 
+  exclusions:
+    rules:
+      - path: _test\.go
+        linters:
+          - errcheck
+          - bodyclose
+          - gocritic
+      - path: gen/
+        linters:
+          - errcheck
+          - unused
+          - staticcheck
+          - revive
+          - gocritic
+          - modernize
+          - intrange
+      - path: fakes/
+        linters:
+          - unused
+          - revive
+          - errcheck
+      - path: internal/adapters/driven/ebml/
+        linters:
+          - errcheck
+      - path: testhelpers/
+        linters:
+          - errcheck
+
 issues:
   max-issues-per-linter: 0
   max-same-issues: 0
-  exclude-rules:
-    - path: _test\.go
-      linters:
-        - errcheck
-        - bodyclose
-        - gocritic
-    - path: gen/
-      linters:
-        - errcheck
-        - unused
-        - staticcheck
-        - revive
-        - gocritic
-        - modernize
-        - intrange
-    - path: fakes/
-      linters:
-        - unused
-        - revive

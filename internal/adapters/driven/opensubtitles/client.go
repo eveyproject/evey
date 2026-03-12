@@ -54,7 +54,10 @@ type loginResponse struct {
 }
 
 func (c *Client) login(ctx context.Context) error {
-	body, _ := json.Marshal(loginRequest{Username: c.username, Password: c.password})
+	body, err := json.Marshal(loginRequest{Username: c.username, Password: c.password})
+	if err != nil {
+		return fmt.Errorf("marshal login request: %w", err)
+	}
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, baseURL+"/login", bytes.NewReader(body))
 	if err != nil {
 		return err
@@ -188,7 +191,10 @@ func (c *Client) Download(ctx context.Context, fileID int, destPath string) (str
 		return "", err
 	}
 
-	body, _ := json.Marshal(downloadRequest{FileID: fileID})
+	body, err := json.Marshal(downloadRequest{FileID: fileID})
+	if err != nil {
+		return "", fmt.Errorf("marshal download request: %w", err)
+	}
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, baseURL+"/download", bytes.NewReader(body))
 	if err != nil {
 		return "", err
@@ -238,7 +244,9 @@ func (c *Client) Download(ctx context.Context, fileID int, destPath string) (str
 	defer f.Close()
 
 	if _, err := io.Copy(f, fileResp.Body); err != nil {
-		os.Remove(filePath)
+		if removeErr := os.Remove(filePath); removeErr != nil {
+			slog.Warn("remove partial subtitle", slog.Any("err", removeErr))
+		}
 		return "", fmt.Errorf("write subtitle file: %w", err)
 	}
 

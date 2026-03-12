@@ -72,11 +72,15 @@ func (s *Service) InstallPlugin(ctx context.Context, zipPath string) (*plugin.Pl
 	if err := s.runner.Start(ctx, p); err != nil {
 		p.Status = string(plugin.Error)
 		p.ErrorMessage = err.Error()
-		s.plugins.Update(ctx, p)
-		return p, nil //nolint:nilerr
+		if updateErr := s.plugins.Update(ctx, p); updateErr != nil {
+			slog.Warn("update plugin status failed", slog.String("pluginID", p.ID), slog.Any("err", updateErr))
+		}
+		return p, nil
 	}
 	p.Status = string(plugin.Running)
-	s.plugins.Update(ctx, p)
+	if err := s.plugins.Update(ctx, p); err != nil {
+		slog.Warn("update plugin status failed", slog.String("pluginID", p.ID), slog.Any("err", err))
+	}
 
 	evtInstalled := plugin.PluginInstalled{PluginID: p.ID, Name: p.Name, OccurredAt: time.Now()}
 	if err := s.events.Publish(ctx, evtInstalled); err != nil {
@@ -91,7 +95,9 @@ func (s *Service) UninstallPlugin(ctx context.Context, id string) error {
 		return ErrPluginNotFound
 	}
 	if p.Status == string(plugin.Running) {
-		s.runner.Stop(ctx, id)
+		if err := s.runner.Stop(ctx, id); err != nil {
+			slog.Warn("stop plugin runner failed", slog.String("pluginID", id), slog.Any("err", err))
+		}
 	}
 	if err := s.plugins.Delete(ctx, id); err != nil {
 		return err
@@ -119,7 +125,9 @@ func (s *Service) DisablePlugin(ctx context.Context, id string) error {
 		return ErrPluginNotFound
 	}
 	if p.Status == string(plugin.Running) {
-		s.runner.Stop(ctx, id)
+		if err := s.runner.Stop(ctx, id); err != nil {
+			slog.Warn("stop plugin runner failed", slog.String("pluginID", id), slog.Any("err", err))
+		}
 		p.Status = string(plugin.Stopped)
 	}
 	p.Enabled = false
@@ -160,12 +168,16 @@ func (s *Service) StartPlugin(ctx context.Context, id string) error {
 	if err := s.runner.Start(ctx, p); err != nil {
 		p.Status = string(plugin.Error)
 		p.ErrorMessage = err.Error()
-		s.plugins.Update(ctx, p)
+		if updateErr := s.plugins.Update(ctx, p); updateErr != nil {
+			slog.Warn("update plugin status failed", slog.String("pluginID", p.ID), slog.Any("err", updateErr))
+		}
 		return err
 	}
 	p.Status = string(plugin.Running)
 	p.ErrorMessage = ""
-	s.plugins.Update(ctx, p)
+	if err := s.plugins.Update(ctx, p); err != nil {
+		slog.Warn("update plugin status failed", slog.String("pluginID", p.ID), slog.Any("err", err))
+	}
 	evtStarted := plugin.PluginStarted{PluginID: id, OccurredAt: time.Now()}
 	if err := s.events.Publish(ctx, evtStarted); err != nil {
 		slog.Warn("publish event", slog.String("event", evtStarted.EventName()), slog.Any("err", err))
@@ -185,7 +197,9 @@ func (s *Service) StopPlugin(ctx context.Context, id string) error {
 		return err
 	}
 	p.Status = string(plugin.Stopped)
-	s.plugins.Update(ctx, p)
+	if err := s.plugins.Update(ctx, p); err != nil {
+		slog.Warn("update plugin status failed", slog.String("pluginID", p.ID), slog.Any("err", err))
+	}
 	evtStopped := plugin.PluginStopped{PluginID: id, OccurredAt: time.Now()}
 	if err := s.events.Publish(ctx, evtStopped); err != nil {
 		slog.Warn("publish event", slog.String("event", evtStopped.EventName()), slog.Any("err", err))

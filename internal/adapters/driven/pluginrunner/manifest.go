@@ -20,7 +20,7 @@ func (p *YAMLManifestParser) Parse(zipPath string) (*plugin.PluginManifest, erro
 	if err != nil {
 		return nil, fmt.Errorf("open zip: %w", err)
 	}
-	defer r.Close()
+	defer r.Close() //nolint:errcheck
 
 	var manifestFile *zip.File
 	for _, f := range r.File {

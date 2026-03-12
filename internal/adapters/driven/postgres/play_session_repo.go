@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"log/slog"
 	"strings"
 	"time"
 
@@ -162,7 +163,10 @@ func (r *PlaySessionRepository) CloseStale(ctx context.Context, olderThan time.D
 	if err != nil {
 		return 0, err
 	}
-	n, _ := res.RowsAffected()
+	n, err := res.RowsAffected()
+	if err != nil {
+		slog.Warn("rows affected", slog.Any("err", err))
+	}
 	return int(n), nil
 }
 

@@ -3,6 +3,7 @@ package notification
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"sync"
 	"time"
 
@@ -112,7 +113,9 @@ func (s *Service) handleMediaItemAdded(_ context.Context, ev shared.Event) {
 			CreatedAt:   time.Now(),
 			ExpiresAt:   &expires,
 		}
-		_ = s.repo.Create(ctx, n)
+		if err := s.repo.Create(ctx, n); err != nil {
+			slog.Warn("create notification failed", slog.String("profileID", p.ID), slog.Any("err", err))
+		}
 	}
 }
 

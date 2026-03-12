@@ -113,14 +113,16 @@ func (s *Service) deliver(ctx context.Context, cfg *webhook.Config, eventName st
 
 	lastErr, statusCode := s.attemptDeliver(ctx, cfg, body)
 
-	_ = s.deliveries.Create(context.Background(), &webhook.Delivery{
+	if err := s.deliveries.Create(context.Background(), &webhook.Delivery{
 		ID:         uuid.New().String(),
 		WebhookID:  cfg.ID,
 		Event:      eventName,
 		StatusCode: statusCode,
 		Error:      lastErr,
 		SentAt:     time.Now(),
-	})
+	}); err != nil {
+		s.log.Warn("store webhook delivery failed", slog.String("webhookID", cfg.ID), slog.Any("err", err))
+	}
 }
 
 func (s *Service) attemptDeliver(ctx context.Context, cfg *webhook.Config, body []byte) (string, int) {

@@ -525,7 +525,9 @@ func run() error {
 	if httpSrv != nil {
 		shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer shutdownCancel()
-		httpSrv.Shutdown(shutdownCtx)
+		if err := httpSrv.Shutdown(shutdownCtx); err != nil {
+			slog.Warn("http shutdown", slog.Any("err", err))
+		}
 	}
 	rootLog.Info("shutdown complete")
 	return nil

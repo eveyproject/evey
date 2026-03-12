@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"sort"
@@ -34,7 +35,11 @@ func (s *BackupStore) Create(_ context.Context, m *backup.BackupManifest, data i
 	defer f.Close()
 
 	gw := gzip.NewWriter(f)
-	defer gw.Close()
+	defer func() {
+		if closeErr := gw.Close(); closeErr != nil {
+			slog.Warn("close gzip writer", slog.Any("err", closeErr))
+		}
+	}()
 
 	manifestBytes, err := json.Marshal(m)
 	if err != nil {
@@ -137,7 +142,11 @@ func (s *BackupStore) Delete(_ context.Context, id string) error {
 	if _, err := os.Stat(archivePath); os.IsNotExist(err) {
 		return fmt.Errorf("backup not found")
 	}
-	os.Remove(archivePath)
-	os.Remove(manifestPath)
+	if err := os.Remove(archivePath); err != nil {
+		slog.Warn("remove backup archive", slog.Any("err", err))
+	}
+	if err := os.Remove(manifestPath); err != nil {
+		slog.Warn("remove backup manifest", slog.Any("err", err))
+	}
 	return nil
 }

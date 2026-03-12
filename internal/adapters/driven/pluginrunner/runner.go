@@ -3,6 +3,7 @@ package pluginrunner
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -94,7 +95,9 @@ func (r *Runner) Start(_ context.Context, p *plugin.Plugin) error {
 	}
 
 	sock := filepath.Join(sockDir, p.ID+".sock")
-	os.Remove(sock)
+	if err := os.Remove(sock); err != nil && !os.IsNotExist(err) {
+		slog.Warn("remove old plugin sock", slog.Any("err", err))
+	}
 
 	entrypoint := p.Entrypoint
 	if entrypoint == "" {
@@ -158,11 +161,15 @@ func (r *Runner) Stop(_ context.Context, pluginID string) error {
 	defer entry.cancel()
 
 	if entry.cmd.Process == nil {
-		os.Remove(entry.sockPath)
+		if err := os.Remove(entry.sockPath); err != nil {
+			slog.Warn("remove plugin sock", slog.Any("err", err))
+		}
 		return nil
 	}
 
-	entry.cmd.Process.Signal(syscall.SIGTERM)
+	if err := entry.cmd.Process.Signal(syscall.SIGTERM); err != nil {
+		slog.Warn("send SIGTERM to plugin", slog.Any("err", err))
+	}
 
 	done := make(chan error, 1)
 	go func() { done <- entry.cmd.Wait() }()
@@ -170,14 +177,18 @@ func (r *Runner) Stop(_ context.Context, pluginID string) error {
 	select {
 	case <-done:
 	case <-time.After(shutdownTimeout):
-		entry.cmd.Process.Signal(syscall.SIGKILL)
+		if err := entry.cmd.Process.Signal(syscall.SIGKILL); err != nil {
+			slog.Warn("send SIGKILL to plugin", slog.Any("err", err))
+		}
 		select {
 		case <-done:
 		case <-time.After(killTimeout):
 		}
 	}
 
-	os.Remove(entry.sockPath)
+	if err := os.Remove(entry.sockPath); err != nil {
+		slog.Warn("remove plugin sock", slog.Any("err", err))
+	}
 	return nil
 }
 

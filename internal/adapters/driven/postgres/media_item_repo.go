@@ -131,7 +131,11 @@ func (r *MediaItemRepository) buildWhereClause(f library.ListMediaItemsFilter) (
 	}
 	for _, g := range f.Genres {
 		conditions = append(conditions, fmt.Sprintf("genres @> $%d::jsonb", argIdx))
-		gJSON, _ := json.Marshal([]string{g})
+		gJSON, err := json.Marshal([]string{g})
+		if err != nil {
+			slog.Warn("marshal genre filter", slog.Any("err", err))
+			continue
+		}
 		args = append(args, string(gJSON))
 		argIdx++
 	}
@@ -185,7 +189,11 @@ func (r *MediaItemRepository) List(ctx context.Context, f library.ListMediaItems
 	}
 	for _, g := range f.Genres {
 		conditions = append(conditions, fmt.Sprintf("genres @> $%d::jsonb", argIdx))
-		gJSON, _ := json.Marshal([]string{g})
+		gJSON, err := json.Marshal([]string{g})
+		if err != nil {
+			slog.Warn("marshal genre filter", slog.Any("err", err))
+			continue
+		}
 		args = append(args, string(gJSON))
 		argIdx++
 	}

@@ -59,8 +59,8 @@ func GetStorageStats(paths []string) []StorageStats {
 		if err := syscall.Statfs(p, &stat); err != nil {
 			continue
 		}
-		total := int64(stat.Blocks) * int64(stat.Bsize)
-		free := int64(stat.Bavail) * int64(stat.Bsize)
+		total := int64(stat.Blocks) * stat.Bsize
+		free := int64(stat.Bavail) * stat.Bsize
 		result = append(result, StorageStats{
 			Path:       p,
 			TotalBytes: total,

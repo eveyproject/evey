@@ -696,7 +696,9 @@ func registerScheduleRoutes(mux *http.ServeMux, scheduler *applibrary.Scheduler,
 			http.Error(w, `{"message":"forbidden"}`, http.StatusForbidden)
 			return
 		}
-		scheduler.DeleteSchedule(r.Context(), r.PathValue("id"))
+		if err := scheduler.DeleteSchedule(r.Context(), r.PathValue("id")); err != nil {
+			slog.Warn("delete schedule", slog.Any("err", err))
+		}
 		w.WriteHeader(http.StatusNoContent)
 	})
 }
@@ -722,7 +724,10 @@ func registerLibraryAccessRoutes(mux *http.ServeMux, accessRepo domainuser.Libra
 			http.Error(w, `{"message":"internal error"}`, http.StatusInternalServerError)
 			return
 		}
-		libs, _ := libQuery.ListLibraries(r.Context())
+		libs, libErr := libQuery.ListLibraries(r.Context())
+		if libErr != nil {
+			slog.Warn("list libraries for access", slog.Any("err", libErr))
+		}
 		type libInfo struct {
 			ID   string `json:"id"`
 			Name string `json:"name"`
@@ -754,9 +759,11 @@ func registerLibraryAccessRoutes(mux *http.ServeMux, accessRepo domainuser.Libra
 			http.Error(w, `{"message":"bad request"}`, http.StatusBadRequest)
 			return
 		}
-		existing, _ := accessRepo.GetByUserID(r.Context(), userID)
+		existing, _ := accessRepo.GetByUserID(r.Context(), userID) //nolint:errcheck
 		for _, id := range existing {
-			accessRepo.Revoke(r.Context(), userID, id)
+			if rErr := accessRepo.Revoke(r.Context(), userID, id); rErr != nil {
+				slog.Warn("revoke library access", slog.Any("err", rErr))
+			}
 		}
 		for _, id := range body.LibraryIDs {
 			if err := accessRepo.Grant(r.Context(), userID, id); err != nil {
@@ -773,9 +780,11 @@ func registerLibraryAccessRoutes(mux *http.ServeMux, accessRepo domainuser.Libra
 			return
 		}
 		userID := r.PathValue("userId")
-		existing, _ := accessRepo.GetByUserID(r.Context(), userID)
+		existing, _ := accessRepo.GetByUserID(r.Context(), userID) //nolint:errcheck
 		for _, id := range existing {
-			accessRepo.Revoke(r.Context(), userID, id)
+			if rErr := accessRepo.Revoke(r.Context(), userID, id); rErr != nil {
+				slog.Warn("revoke library access", slog.Any("err", rErr))
+			}
 		}
 		w.WriteHeader(http.StatusNoContent)
 	})
@@ -1099,7 +1108,9 @@ func registerBackupRoutes(mux *http.ServeMux, svc *appbackup.Service, tokenGen *
 		defer rc.Close()
 		w.Header().Set("Content-Type", "application/gzip")
 		w.Header().Set("Content-Disposition", fmt.Sprintf(`attachment; filename="%s.gz"`, m.ID))
-		io.Copy(w, rc)
+		if _, err := io.Copy(w, rc); err != nil {
+			slog.Warn("backup download copy", slog.Any("err", err))
+		}
 	})
 
 	mux.HandleFunc("POST /api/v1/admin/backups/restore", func(w http.ResponseWriter, r *http.Request) {

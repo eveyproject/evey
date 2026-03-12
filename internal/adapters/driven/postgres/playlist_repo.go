@@ -121,7 +121,10 @@ func (r *PlaylistItemRepository) Remove(ctx context.Context, playlistID, mediaIt
 	if err != nil {
 		return err
 	}
-	n, _ := res.RowsAffected()
+	n, err := res.RowsAffected()
+	if err != nil {
+		slog.Warn("rows affected", slog.Any("err", err))
+	}
 	if n == 0 {
 		return playlist.ErrNotFound
 	}
@@ -232,8 +235,12 @@ func (q *SmartPlaylistQuerier) QueryByRules(ctx context.Context, rules []playlis
 func buildRuleCondition(rule playlist.Rule, argIdx *int) (string, []any) {
 	switch rule.Field {
 	case "genre":
+		val, err := json.Marshal([]string{rule.Value})
+		if err != nil {
+			slog.Warn("marshal genre rule", slog.Any("err", err))
+			return "", nil
+		}
 		cond := fmt.Sprintf("genres @> $%d::jsonb", *argIdx)
-		val, _ := json.Marshal([]string{rule.Value})
 		*argIdx++
 		return cond, []any{string(val)}
 	case "type":

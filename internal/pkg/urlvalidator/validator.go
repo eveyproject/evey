@@ -24,7 +24,7 @@ func init() {
 		"fe80::/10",
 	}
 	for _, cidr := range cidrs {
-		_, ipNet, _ := net.ParseCIDR(cidr)
+		_, ipNet, _ := net.ParseCIDR(cidr) //nolint:errcheck // hardcoded valid CIDRs
 		if ipNet != nil {
 			privateRanges = append(privateRanges, ipNet)
 		}

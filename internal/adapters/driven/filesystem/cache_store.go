@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io/fs"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
@@ -63,7 +64,7 @@ func (s *CacheStore) GetCacheInfo(_ context.Context) (*transcoding.CacheInfo, er
 func dirStats(root string) (int64, time.Time) {
 	var total int64
 	var latest time.Time
-	filepath.WalkDir(root, func(_ string, d fs.DirEntry, err error) error {
+	if err := filepath.WalkDir(root, func(_ string, d fs.DirEntry, err error) error {
 		if err != nil || d.IsDir() {
 			return nil //nolint:nilerr
 		}
@@ -76,7 +77,9 @@ func dirStats(root string) (int64, time.Time) {
 			latest = fi.ModTime()
 		}
 		return nil
-	})
+	}); err != nil {
+		slog.Warn("dirStats walk", slog.Any("err", err))
+	}
 	return total, latest
 }
 
@@ -89,7 +92,9 @@ func (s *CacheStore) ClearCache(_ context.Context) error {
 		return fmt.Errorf("read cache dir: %w", err)
 	}
 	for _, e := range entries {
-		os.RemoveAll(filepath.Join(s.dir, e.Name()))
+		if err := os.RemoveAll(filepath.Join(s.dir, e.Name())); err != nil {
+			slog.Warn("clear cache entry", slog.Any("err", err))
+		}
 	}
 	return nil
 }

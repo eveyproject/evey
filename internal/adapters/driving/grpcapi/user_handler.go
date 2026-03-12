@@ -61,7 +61,10 @@ func (h *userHandler) Login(ctx context.Context, req *eveyv1.LoginRequest) (*eve
 	if err != nil {
 		return nil, status.Error(codes.Unauthenticated, "invalid credentials")
 	}
-	u, _ := h.users.GetByUsername(ctx, req.Username)
+	u, userErr := h.users.GetByUsername(ctx, req.Username)
+	if userErr != nil {
+		slog.Warn("get user by username after login", slog.Any("err", userErr))
+	}
 	resp := &eveyv1.AuthResponse{
 		AccessToken:  access,
 		RefreshToken: refresh,

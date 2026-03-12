@@ -141,7 +141,9 @@ func (s *HLSSession) start(filePath string) {
 	if err := waitForFile(ctx, masterPath, 30*time.Second, 500*time.Millisecond); err != nil {
 		s.err = fmt.Errorf("waiting for master.m3u8: %w", err)
 		cancel()
-		cmd.Wait()
+		if waitErr := cmd.Wait(); waitErr != nil {
+			slog.Warn("hls: ffmpeg wait failed", slog.String("media_id", s.MediaItemID), slog.Any("err", waitErr))
+		}
 		close(s.ready)
 		return
 	}
@@ -215,7 +217,9 @@ func (s *HLSSession) stop() {
 	if cancel != nil {
 		cancel()
 	}
-	os.RemoveAll(s.OutputDir)
+	if err := os.RemoveAll(s.OutputDir); err != nil {
+		slog.Warn("hls: remove output dir failed", slog.String("dir", s.OutputDir), slog.Any("err", err))
+	}
 }
 
 func (m *HLSManager) cleanupLoop() {

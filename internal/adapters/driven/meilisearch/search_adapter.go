@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"strings"
 
 	ms "github.com/meilisearch/meilisearch-go"
@@ -47,7 +48,7 @@ func newSearchAdapterFromClient(ctx context.Context, client ServiceClient) (*Sea
 
 	idx := client.Index(indexName)
 
-	idx.UpdateSettingsWithContext(ctx, &ms.Settings{
+	if _, err := idx.UpdateSettingsWithContext(ctx, &ms.Settings{
 		SearchableAttributes: []string{"title", "original_title", "cast"},
 		FilterableAttributes: []string{"type", "library_id", "year", "genres"},
 		SortableAttributes:   []string{"title", "year", "added_at"},
@@ -68,7 +69,9 @@ func newSearchAdapterFromClient(ctx context.Context, client ServiceClient) (*Sea
 			"series": {"serie", "show", "tv show"},
 			"show":   {"serie", "series", "tv show"},
 		},
-	})
+	}); err != nil {
+		slog.Warn("update meilisearch settings", slog.Any("err", err))
+	}
 
 	return &SearchAdapter{index: idx}, nil
 }

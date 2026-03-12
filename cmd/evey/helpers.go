@@ -45,8 +45,8 @@ func loadOrGenerateRSAKey(path string) (*rsa.PrivateKey, error) {
 		}
 		if info, statErr := os.Stat(path); statErr == nil && info.Mode().Perm()&0077 != 0 {
 			slog.Warn("jwt key has loose permissions, fixing to 0600", slog.String("path", path), slog.String("mode", fmt.Sprintf("%04o", info.Mode().Perm())))
-			if err := os.Chmod(path, 0600); err != nil {
-				return nil, fmt.Errorf("cannot fix jwt key permissions: %w", err)
+			if err2 := os.Chmod(path, 0600); err2 != nil {
+				return nil, fmt.Errorf("cannot fix jwt key permissions: %w", err2)
 			}
 		}
 		return key, nil
@@ -68,7 +68,9 @@ func loadOrGenerateRSAKey(path string) (*rsa.PrivateKey, error) {
 		return nil, fmt.Errorf("cannot save jwt key to %s: %w", path, err)
 	}
 	defer f.Close()
-	pem.Encode(f, &pem.Block{Type: "RSA PRIVATE KEY", Bytes: x509.MarshalPKCS1PrivateKey(key)})
+	if err := pem.Encode(f, &pem.Block{Type: "RSA PRIVATE KEY", Bytes: x509.MarshalPKCS1PrivateKey(key)}); err != nil {
+		return nil, fmt.Errorf("encode jwt key: %w", err)
+	}
 	return key, nil
 }
 

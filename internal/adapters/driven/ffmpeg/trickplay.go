@@ -40,13 +40,13 @@ func (g *TrickplayGenerator) Generate(ctx context.Context, filePath, outputDir s
 	imageCount := 0
 	for i := 1; ; i++ {
 		p := filepath.Join(outputDir, fmt.Sprintf("trickplay_%03d.jpg", i))
-		if _, err := os.Stat(p); err != nil {
+		if _, statErr := os.Stat(p); statErr != nil {
 			break
 		}
 		imageCount++
 	}
 
-	return &library.TrickplayResult{
+	return &library.TrickplayResult{ //nolint:nilerr // os.Stat error means file not found; returning nil is correct
 		ImageDir:   outputDir,
 		ImageCount: imageCount,
 	}, nil

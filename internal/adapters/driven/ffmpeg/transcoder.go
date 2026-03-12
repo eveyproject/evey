@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"context"
 	"fmt"
+	"log/slog"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -73,7 +74,9 @@ func (t *Transcoder) Start(ctx context.Context, job *transcoding.TranscodeJob) (
 				rj.mu.Unlock()
 			}
 		}
-		_ = cmd.Wait()
+		if err := cmd.Wait(); err != nil {
+			slog.Warn("transcoder wait", slog.String("jobID", job.ID), slog.Any("err", err))
+		}
 	}()
 
 	return job.ID, nil

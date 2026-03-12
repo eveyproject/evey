@@ -173,7 +173,9 @@ func (s *CommandService) ScanLibrary(ctx context.Context, libraryID string) (add
 
 	now := time.Now()
 	lib.LastScannedAt = &now
-	s.libraries.Update(ctx, lib)
+	if err := s.libraries.Update(ctx, lib); err != nil {
+		slog.Warn("update library last scanned failed", slog.String("libraryID", libraryID), slog.Any("err", err))
+	}
 
 	evtScanCompleted := library.LibraryScanCompleted{
 		LibraryID:    libraryID,
@@ -221,10 +223,14 @@ func (s *CommandService) upsertMediaFile(ctx context.Context, libraryID, parentI
 		}
 		if dur := s.ProbeAndStoreStreams(ctx, item.ID, f.Path); dur > 0 {
 			item.DurationMs = dur
-			_ = s.mediaItems.Update(ctx, item)
+			if err := s.mediaItems.Update(ctx, item); err != nil {
+				slog.Warn("update media item duration failed", slog.String("mediaItemID", item.ID), slog.Any("err", err))
+			}
 		}
 		s.extractAndStoreChapters(ctx, item.ID, f.Path)
-		s.search.IndexMediaItem(ctx, item, nil)
+		if err := s.search.IndexMediaItem(ctx, item, nil); err != nil {
+			slog.Warn("index media item failed", slog.String("mediaItemID", item.ID), slog.Any("err", err))
+		}
 		evtAdded := library.MediaItemAdded{
 			MediaItemID: item.ID,
 			LibraryID:   libraryID,
@@ -246,8 +252,12 @@ func (s *CommandService) upsertMediaFile(ctx context.Context, libraryID, parentI
 		existing.DurationMs = dur
 	}
 	s.extractAndStoreChapters(ctx, existing.ID, f.Path)
-	s.mediaItems.Update(ctx, existing)
-	s.search.IndexMediaItem(ctx, existing, nil)
+	if err := s.mediaItems.Update(ctx, existing); err != nil {
+		slog.Warn("update media item failed", slog.String("mediaItemID", existing.ID), slog.Any("err", err))
+	}
+	if err := s.search.IndexMediaItem(ctx, existing, nil); err != nil {
+		slog.Warn("index media item failed", slog.String("mediaItemID", existing.ID), slog.Any("err", err))
+	}
 	// Re-emit so enricher re-fetches metadata for items with no overview
 	if existing.Overview == "" {
 		evtReAdded := library.MediaItemAdded{
@@ -277,7 +287,8 @@ func (s *CommandService) ProbeAndStoreStreams(ctx context.Context, mediaItemID, 
 	}
 
 	extSubs := s.discoverExternalSubtitles(result.Streams, mediaItemID, filePath)
-	allStreams := append(result.Streams, extSubs...)
+	result.Streams = append(result.Streams, extSubs...)
+	allStreams := result.Streams
 
 	if err := s.mediaStreams.DeleteByMediaItemID(ctx, mediaItemID); err != nil {
 		slog.Warn("delete media streams failed", slog.String("mediaItemID", mediaItemID), slog.Any("err", err))
@@ -343,7 +354,9 @@ func (s *CommandService) getOrCreateItem(ctx context.Context, item *library.Medi
 	existing, err = s.mediaItems.GetByLibraryTypeTitle(ctx, item.LibraryID, item.Type, item.Title, item.ParentID)
 	if err == nil {
 		existing.FileFingerprint = item.FileFingerprint
-		_ = s.mediaItems.Update(ctx, existing)
+		if updateErr := s.mediaItems.Update(ctx, existing); updateErr != nil {
+			slog.Warn("update media item fingerprint failed", slog.String("mediaItemID", existing.ID), slog.Any("err", updateErr))
+		}
 		return existing, false, nil
 	}
 	if !errors.Is(err, library.ErrNotFound) {

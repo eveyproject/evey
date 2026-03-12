@@ -94,7 +94,10 @@ func (s *Scheduler) runScan(sched *library.ScanSchedule) {
 	} else {
 		s.logger.Info("scheduler: scan done", slog.String("library_id", sched.LibraryID), slog.Int("added", added), slog.Int("updated", updated))
 	}
-	nextRun, _ := NextCronTime(sched.CronExpression, now)
+	nextRun, err := NextCronTime(sched.CronExpression, now)
+	if err != nil {
+		s.logger.Warn("scheduler: invalid cron expression", slog.String("library_id", sched.LibraryID), slog.Any("err", err))
+	}
 	if updateErr := s.schedules.UpdateAfterRun(ctx, sched.LibraryID, now, nextRun); updateErr != nil {
 		s.logger.Error("scheduler: update after run", slog.Any("err", updateErr))
 	}
