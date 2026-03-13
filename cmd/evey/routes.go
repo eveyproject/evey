@@ -7,6 +7,7 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
 	"sync"
@@ -1252,6 +1253,12 @@ func registerRemoteAccessRoutes(mux *http.ServeMux, cfg *config.Config, tokenGen
 			cfg.RemoteAccess.Enabled = *body.Enabled
 		}
 		if body.ExternalURL != nil {
+			u, err := url.Parse(*body.ExternalURL)
+			if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" {
+				mu.Unlock()
+				http.Error(w, `{"message":"invalid externalUrl: must be http/https URL"}`, http.StatusBadRequest)
+				return
+			}
 			cfg.RemoteAccess.ExternalURL = *body.ExternalURL
 		}
 		if body.LANNetworks != nil {

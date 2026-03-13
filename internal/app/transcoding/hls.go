@@ -52,6 +52,7 @@ func (s *HLSSession) MarkAccess() {
 type HLSManager struct {
 	mu            sync.Mutex
 	sessions      map[string]*HLSSession
+	userSessions  map[string]int // userID → active session count (O(1) lookup)
 	cacheDir      string
 	maxConcurrent int
 	stopCleanup   chan struct{}
@@ -61,6 +62,7 @@ type HLSManager struct {
 func NewHLSManager(cacheDir string, maxConcurrent int) *HLSManager {
 	m := &HLSManager{
 		sessions:      make(map[string]*HLSSession),
+		userSessions:  make(map[string]int),
 		cacheDir:      cacheDir,
 		maxConcurrent: maxConcurrent,
 		stopCleanup:   make(chan struct{}),
@@ -82,16 +84,10 @@ func FilterProfiles(profiles []HLSProfile, sourceWidth, sourceHeight int) []HLSP
 	return filtered
 }
 
-// countByUser returns the number of active sessions belonging to the given user.
+// countByUser returns the number of active sessions for the given user (O(1)).
 // Must be called with m.mu held.
 func (m *HLSManager) countByUser(userID string) int {
-	count := 0
-	for _, s := range m.sessions {
-		if s.UserID == userID {
-			count++
-		}
-	}
-	return count
+	return m.userSessions[userID]
 }
 
 func (m *HLSManager) GetOrCreate(userID, mediaItemID, filePath string, sourceWidth, sourceHeight, maxUserStreams int) (*HLSSession, error) {
@@ -130,6 +126,7 @@ func (m *HLSManager) GetOrCreate(userID, mediaItemID, filePath string, sourceWid
 		done:        make(chan struct{}),
 	}
 	m.sessions[mediaItemID] = session
+	m.userSessions[userID]++
 
 	go session.start(filePath)
 	return session, nil
@@ -276,6 +273,10 @@ func (m *HLSManager) cleanupStale(maxIdle time.Duration) {
 			slog.Info("hls: cleaning stale session", slog.String("media_id", id))
 			toStop = append(toStop, session)
 			delete(m.sessions, id)
+			m.userSessions[session.UserID]--
+			if m.userSessions[session.UserID] <= 0 {
+				delete(m.userSessions, session.UserID)
+			}
 		}
 	}
 	m.mu.Unlock()
@@ -291,6 +292,10 @@ func (m *HLSManager) CleanupAll() {
 	for id, session := range m.sessions {
 		toStop = append(toStop, session)
 		delete(m.sessions, id)
+		m.userSessions[session.UserID]--
+		if m.userSessions[session.UserID] <= 0 {
+			delete(m.userSessions, session.UserID)
+		}
 	}
 	m.mu.Unlock()
 	for _, s := range toStop {
