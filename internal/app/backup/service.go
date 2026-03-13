@@ -1,11 +1,14 @@
 package backup
 
 import (
+	"bytes"
 	"context"
+	"fmt"
 	"io"
 	"time"
 
 	"github.com/gravity-zero/evey/internal/domain/backup"
+	"github.com/gravity-zero/evey/internal/pkg/backupcrypto"
 	"github.com/gravity-zero/evey/internal/pkg/id"
 )
 
@@ -37,13 +40,20 @@ var BackupTables = []string{
 }
 
 type Service struct {
-	store   backup.BackupStore
-	dumper  backup.DatabaseDumper
-	version string
+	store         backup.BackupStore
+	dumper        backup.DatabaseDumper
+	version       string
+	encryptionKey []byte // nil = no encryption
 }
 
 func NewService(store backup.BackupStore, dumper backup.DatabaseDumper, version string) *Service {
 	return &Service{store: store, dumper: dumper, version: version}
+}
+
+// WithEncryptionKey sets a 32-byte AES-256-GCM key for backup encryption.
+// Generate via: openssl rand -base64 32  (set EVEY_BACKUP_ENCRYPTION_KEY)
+func (s *Service) WithEncryptionKey(key []byte) {
+	s.encryptionKey = key
 }
 
 func (s *Service) CreateBackup(ctx context.Context) (*backup.BackupManifest, error) {
@@ -56,8 +66,23 @@ func (s *Service) CreateBackup(ctx context.Context) (*backup.BackupManifest, err
 		CreatedAt: time.Now().UTC(),
 		Version:   s.version,
 		Tables:    BackupTables,
+		Encrypted: len(s.encryptionKey) > 0,
 	}
-	if err := s.store.Create(ctx, m, data); err != nil {
+
+	var reader io.Reader = data
+	if len(s.encryptionKey) > 0 {
+		raw, readErr := io.ReadAll(data)
+		if readErr != nil {
+			return nil, readErr
+		}
+		enc, encErr := backupcrypto.Encrypt(raw, s.encryptionKey)
+		if encErr != nil {
+			return nil, encErr
+		}
+		reader = bytes.NewReader(enc)
+	}
+
+	if err := s.store.Create(ctx, m, reader); err != nil {
 		return nil, err
 	}
 	return m, nil
@@ -72,7 +97,20 @@ func (s *Service) GetBackup(ctx context.Context, backupID string) (*backup.Backu
 }
 
 func (s *Service) RestoreBackup(ctx context.Context, data io.Reader) error {
-	return s.dumper.RestoreTables(ctx, data)
+	raw, err := io.ReadAll(data)
+	if err != nil {
+		return err
+	}
+	if backupcrypto.IsEncrypted(raw) {
+		if len(s.encryptionKey) == 0 {
+			return fmt.Errorf("backup is encrypted but no EVEY_BACKUP_ENCRYPTION_KEY is set")
+		}
+		raw, err = backupcrypto.Decrypt(raw, s.encryptionKey)
+		if err != nil {
+			return fmt.Errorf("decrypt backup: %w", err)
+		}
+	}
+	return s.dumper.RestoreTables(ctx, bytes.NewReader(raw))
 }
 
 func (s *Service) DeleteBackup(ctx context.Context, backupID string) error {

@@ -25,7 +25,8 @@ type Config struct {
 }
 
 type BackupConfig struct {
-	Dir string
+	Dir           string
+	EncryptionKey string // base64-encoded 32-byte key for AES-256-GCM; empty = no encryption
 }
 
 type RemoteAccessConfig struct {
@@ -174,7 +175,8 @@ func Load() (*Config, error) {
 			Language: envStr("EVEY_METADATA_LANGUAGE", "en"),
 		},
 		Backup: BackupConfig{
-			Dir: envStr("EVEY_BACKUP_DIR", "/data/backups"),
+			Dir:           envStr("EVEY_BACKUP_DIR", "/data/backups"),
+			EncryptionKey: envStr("EVEY_BACKUP_ENCRYPTION_KEY", ""),
 		},
 		Log: LogConfig{
 			Level:         envStr("EVEY_LOG_LEVEL", "info"),

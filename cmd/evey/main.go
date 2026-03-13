@@ -44,6 +44,7 @@ import (
 	"github.com/gravity-zero/evey/internal/config"
 	"github.com/gravity-zero/evey/internal/domain/metadata"
 	"github.com/gravity-zero/evey/internal/pkg/auth"
+	"github.com/gravity-zero/evey/internal/pkg/backupcrypto"
 	"github.com/gravity-zero/evey/internal/pkg/eventbus"
 	eveylogger "github.com/gravity-zero/evey/internal/pkg/logger"
 	"github.com/gravity-zero/evey/internal/pkg/network"
@@ -437,6 +438,14 @@ func run() error {
 		backupStore := filesystem.NewBackupStore(cfg.Backup.Dir)
 		dbDumper := postgres.NewDatabaseDumper(cfg.DB.Host, cfg.DB.Port, cfg.DB.User, cfg.DB.Password, cfg.DB.DBName, cfg.DB.SSLMode)
 		backupSvc := appbackup.NewService(backupStore, dbDumper, version)
+		if cfg.Backup.EncryptionKey != "" {
+			bkey, bkeyErr := backupcrypto.KeyFromBase64(cfg.Backup.EncryptionKey)
+			if bkeyErr != nil {
+				return fmt.Errorf("backup encryption key: %w", bkeyErr)
+			}
+			backupSvc.WithEncryptionKey(bkey)
+			rootLog.Info("backup encryption enabled")
+		}
 		registerBackupRoutes(mux, backupSvc, tokenGen, adminHeavyRL)
 		cfgStore := &serverConfigStore{repo: serverCfgRepo}
 		// load RemoteAccess persisted settings from DB (overrides env-based config)

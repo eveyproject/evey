@@ -8,4 +8,5 @@ type BackupManifest struct {
 	Version   string    `json:"version"`
 	Tables    []string  `json:"tables"`
 	Size      int64     `json:"size"`
+	Encrypted bool      `json:"encrypted"`
 }

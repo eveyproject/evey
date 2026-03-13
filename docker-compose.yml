@@ -42,6 +42,11 @@ services:
     build:
       context: .
       dockerfile: docker/Dockerfile.dev
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "100m"
+        max-file: "10"
     ports:
       - "${EVEY_SERVER_PORT:-9090}:${EVEY_SERVER_PORT:-9090}"
       - "${EVEY_HTTP_PORT:-9091}:${EVEY_HTTP_PORT:-9091}"
@@ -125,6 +130,11 @@ services:
     container_name: evey-server-prod
     profiles: [prod]
     build: .
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "100m"
+        max-file: "10"
     env_file:
       - path: .env
         required: false
