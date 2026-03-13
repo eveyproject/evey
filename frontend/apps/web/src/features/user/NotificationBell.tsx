@@ -24,10 +24,10 @@ export function NotificationBell() {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
-  const { data: countData } = useNotificationServiceGetUnreadCount();
+  const { data: countData, isError: countError } = useNotificationServiceGetUnreadCount();
   const count = countData?.count ?? 0;
 
-  const { data: listData } = useNotificationServiceListNotifications({ limit: 5 });
+  const { data: listData, isError: listError } = useNotificationServiceListNotifications({ limit: 5 });
   const notifications = listData?.notifications ?? [];
   const queryClient = useQueryClient();
   const markAllRead = useNotificationServiceMarkAllRead({
@@ -79,7 +79,9 @@ export function NotificationBell() {
             )}
           </div>
 
-          {notifications.length === 0 ? (
+          {countError || listError ? (
+            <div className="px-4 py-8 text-center text-sm text-[var(--text-muted)]">Unable to load notifications</div>
+          ) : notifications.length === 0 ? (
             <div className="px-4 py-8 text-center text-sm text-[var(--text-muted)]">
               No notifications
             </div>
