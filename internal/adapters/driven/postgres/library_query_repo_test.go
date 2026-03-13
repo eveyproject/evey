@@ -118,3 +118,46 @@ func TestMediaItemQueryRepoAdapter_List_Count(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, 3, count)
 }
+
+func TestMediaItemRepo_List_AllowedRatings(t *testing.T) {
+	db, cleanup := testhelpers.StartPostgres(t)
+	defer cleanup()
+
+	ctx := context.Background()
+	libRepo := NewLibraryRepository(db)
+	itemRepo := NewMediaItemRepository(db)
+
+	lib := newTestLibrary("cq-lib4")
+	require.NoError(t, libRepo.Create(ctx, lib))
+
+	pg := newTestMediaItem("cq-mi-pg", lib.ID)
+	pg.OfficialRating = "PG"
+	require.NoError(t, itemRepo.Create(ctx, pg))
+
+	r := newTestMediaItem("cq-mi-r", lib.ID)
+	r.OfficialRating = "R"
+	require.NoError(t, itemRepo.Create(ctx, r))
+
+	noRating := newTestMediaItem("cq-mi-norating", lib.ID)
+	noRating.OfficialRating = ""
+	require.NoError(t, itemRepo.Create(ctx, noRating))
+
+	libID := lib.ID
+	filter := library.ListMediaItemsFilter{
+		LibraryID:      &libID,
+		AllowedRatings: []string{"G", "TV-Y", "TV-Y7", "TV-G", "PG", "TV-PG", "PG-13", "TV-14"},
+		Limit:          10,
+	}
+
+	list, err := itemRepo.List(ctx, filter)
+	require.NoError(t, err)
+	assert.Len(t, list, 2, "PG and empty-rating items should be returned; R should be excluded")
+
+	ids := make(map[string]bool)
+	for _, item := range list {
+		ids[item.ID] = true
+	}
+	assert.True(t, ids["cq-mi-pg"])
+	assert.True(t, ids["cq-mi-norating"])
+	assert.False(t, ids["cq-mi-r"])
+}
