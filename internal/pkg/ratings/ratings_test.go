@@ -45,6 +45,43 @@ func TestIsAllowed(t *testing.T) {
 	}
 }
 
+func TestAllowedRatingsFor(t *testing.T) {
+	tests := []struct {
+		max         string
+		mustInclude []string
+		mustExclude []string
+	}{
+		{"PG", []string{"G", "PG", "TV-G", "TV-PG", "TV-Y"}, []string{"PG-13", "R", "NC-17", "TV-14", "TV-MA"}},
+		{"PG-13", []string{"G", "PG", "PG-13", "TV-14"}, []string{"R", "NC-17", "TV-MA"}},
+		{"R", []string{"G", "PG", "PG-13", "R", "TV-MA"}, []string{"NC-17"}},
+		{"", nil, nil},
+		{"UNKNOWN", nil, nil},
+	}
+	for _, tt := range tests {
+		got := AllowedRatingsFor(tt.max)
+		if tt.mustInclude == nil {
+			if got != nil {
+				t.Errorf("AllowedRatingsFor(%q) = %v, want nil", tt.max, got)
+			}
+			continue
+		}
+		gotSet := make(map[string]bool, len(got))
+		for _, r := range got {
+			gotSet[r] = true
+		}
+		for _, r := range tt.mustInclude {
+			if !gotSet[r] {
+				t.Errorf("AllowedRatingsFor(%q) missing %q, got %v", tt.max, r, got)
+			}
+		}
+		for _, r := range tt.mustExclude {
+			if gotSet[r] {
+				t.Errorf("AllowedRatingsFor(%q) should not contain %q, got %v", tt.max, r, got)
+			}
+		}
+	}
+}
+
 func TestHasBlockedTag(t *testing.T) {
 	tests := []struct {
 		tags    []string

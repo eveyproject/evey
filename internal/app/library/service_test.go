@@ -11,6 +11,7 @@ import (
 	"github.com/gravity-zero/evey/internal/domain/mkv"
 	mkvfakes "github.com/gravity-zero/evey/internal/domain/mkv/fakes"
 	sharedfakes "github.com/gravity-zero/evey/internal/domain/shared/fakes"
+	"github.com/gravity-zero/evey/internal/pkg/ratings"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -364,4 +365,66 @@ func TestGetTrickplayManifest_NotFound(t *testing.T) {
 
 	_, err := svc.GetTrickplayManifest(context.Background(), "nonexistent")
 	require.Error(t, err)
+}
+
+func TestListMediaItems_ParentalFilter_ExcludesRatedR(t *testing.T) {
+	querySvc, mediaQueryRepo, _ := newQuerySvc()
+
+	mediaQueryRepo.Seed(&library.MediaItem{ID: "g-movie", Title: "G Movie", OfficialRating: "G"})
+	mediaQueryRepo.Seed(&library.MediaItem{ID: "pg-movie", Title: "PG Movie", OfficialRating: "PG"})
+	mediaQueryRepo.Seed(&library.MediaItem{ID: "r-movie", Title: "R Movie", OfficialRating: "R"})
+	mediaQueryRepo.Seed(&library.MediaItem{ID: "nc17-movie", Title: "NC-17 Movie", OfficialRating: "NC-17"})
+
+	items, err := querySvc.ListMediaItems(context.Background(), library.ListMediaItemsFilter{
+		AllowedRatings: ratings.AllowedRatingsFor("PG"),
+	})
+	require.NoError(t, err)
+
+	ids := make([]string, 0, len(items))
+	for _, item := range items {
+		ids = append(ids, item.ID)
+	}
+	assert.Contains(t, ids, "g-movie")
+	assert.Contains(t, ids, "pg-movie")
+	assert.NotContains(t, ids, "r-movie")
+	assert.NotContains(t, ids, "nc17-movie")
+}
+
+func TestListMediaItems_ParentalFilter_NoRating(t *testing.T) {
+	querySvc, mediaQueryRepo, _ := newQuerySvc()
+
+	mediaQueryRepo.Seed(&library.MediaItem{ID: "g-movie", Title: "G Movie", OfficialRating: "G"})
+	mediaQueryRepo.Seed(&library.MediaItem{ID: "r-movie", Title: "R Movie", OfficialRating: "R"})
+	mediaQueryRepo.Seed(&library.MediaItem{ID: "unrated", Title: "Unrated Movie", OfficialRating: ""})
+
+	// no AllowedRatings = no parental filter
+	items, err := querySvc.ListMediaItems(context.Background(), library.ListMediaItemsFilter{})
+	require.NoError(t, err)
+
+	ids := make([]string, 0, len(items))
+	for _, item := range items {
+		ids = append(ids, item.ID)
+	}
+	assert.Contains(t, ids, "g-movie")
+	assert.Contains(t, ids, "r-movie")
+	assert.Contains(t, ids, "unrated")
+}
+
+func TestListMediaItems_ParentalFilter_UnratedItemVisible(t *testing.T) {
+	querySvc, mediaQueryRepo, _ := newQuerySvc()
+
+	mediaQueryRepo.Seed(&library.MediaItem{ID: "unrated", Title: "Unrated Movie", OfficialRating: ""})
+	mediaQueryRepo.Seed(&library.MediaItem{ID: "r-movie", Title: "R Movie", OfficialRating: "R"})
+
+	items, err := querySvc.ListMediaItems(context.Background(), library.ListMediaItemsFilter{
+		AllowedRatings: ratings.AllowedRatingsFor("PG"),
+	})
+	require.NoError(t, err)
+
+	ids := make([]string, 0, len(items))
+	for _, item := range items {
+		ids = append(ids, item.ID)
+	}
+	assert.Contains(t, ids, "unrated", "unrated items should pass through parental filter")
+	assert.NotContains(t, ids, "r-movie")
 }

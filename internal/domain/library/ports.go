@@ -14,16 +14,17 @@ type LibraryRepository interface {
 }
 
 type ListMediaItemsFilter struct {
-	LibraryID   *string
-	LibraryIDs  []string // filter to these library IDs (nil = no filter)
-	ParentID    *string
-	Type        *string
-	Genres      []string
-	Year        *int
-	SortField   string
-	SortOrder   string
-	Limit       int
-	Offset      int
+	LibraryID      *string
+	LibraryIDs     []string // filter to these library IDs (nil = no filter)
+	ParentID       *string
+	Type           *string
+	Genres         []string
+	Year           *int
+	SortField      string
+	SortOrder      string
+	Limit          int
+	Offset         int
+	AllowedRatings []string // parental control: if set, only items with official_rating in this list (or empty rating) are returned
 }
 
 type MediaItemRepository interface {

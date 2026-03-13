@@ -2,6 +2,7 @@ package fakes
 
 import (
 	"context"
+	"strings"
 	"sync"
 
 	"github.com/gravity-zero/evey/internal/domain/library"
@@ -30,9 +31,21 @@ func (r *FakeMediaItemQueryRepo) GetByID(_ context.Context, id string) (*library
 	return item, nil
 }
 
+func allowedRatingsSet(allowed []string) map[string]bool {
+	if len(allowed) == 0 {
+		return nil
+	}
+	m := make(map[string]bool, len(allowed))
+	for _, r := range allowed {
+		m[strings.ToUpper(strings.TrimSpace(r))] = true
+	}
+	return m
+}
+
 func (r *FakeMediaItemQueryRepo) List(_ context.Context, filter library.ListMediaItemsFilter) ([]*library.MediaItem, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
+	allowedSet := allowedRatingsSet(filter.AllowedRatings)
 	var result []*library.MediaItem
 	for _, item := range r.items {
 		if filter.LibraryID != nil && item.LibraryID != *filter.LibraryID {
@@ -43,6 +56,12 @@ func (r *FakeMediaItemQueryRepo) List(_ context.Context, filter library.ListMedi
 		}
 		if filter.Type != nil && item.Type != *filter.Type {
 			continue
+		}
+		if allowedSet != nil {
+			rating := strings.ToUpper(strings.TrimSpace(item.OfficialRating))
+			if rating != "" && !allowedSet[rating] {
+				continue
+			}
 		}
 		result = append(result, item)
 	}
@@ -60,6 +79,7 @@ func (r *FakeMediaItemQueryRepo) List(_ context.Context, filter library.ListMedi
 func (r *FakeMediaItemQueryRepo) Count(_ context.Context, filter library.ListMediaItemsFilter) (int, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
+	allowedSet := allowedRatingsSet(filter.AllowedRatings)
 	count := 0
 	for _, item := range r.items {
 		if filter.LibraryID != nil && item.LibraryID != *filter.LibraryID {
@@ -70,6 +90,12 @@ func (r *FakeMediaItemQueryRepo) Count(_ context.Context, filter library.ListMed
 		}
 		if filter.ParentID != nil && item.ParentID != *filter.ParentID {
 			continue
+		}
+		if allowedSet != nil {
+			rating := strings.ToUpper(strings.TrimSpace(item.OfficialRating))
+			if rating != "" && !allowedSet[rating] {
+				continue
+			}
 		}
 		count++
 	}

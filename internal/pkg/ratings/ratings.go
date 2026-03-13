@@ -2,7 +2,6 @@ package ratings
 
 import "strings"
 
-
 // crossMap maps TV ratings to equivalent MPAA severity for cross-system comparison
 var crossMap = map[string]int{
 	"G": 0, "TV-Y": 0, "TV-Y7": 0, "TV-G": 0,
@@ -31,6 +30,26 @@ func IsAllowed(contentRating, maxRating string) bool {
 		return true
 	}
 	return contentLevel <= maxLevel
+}
+
+// AllowedRatingsFor returns all known ratings with severity <= maxRating.
+// Returns nil if maxRating is empty or unknown (no filter should be applied).
+func AllowedRatingsFor(maxRating string) []string {
+	if maxRating == "" {
+		return nil
+	}
+	max := normalize(maxRating)
+	maxLevel, ok := crossMap[max]
+	if !ok {
+		return nil
+	}
+	var allowed []string
+	for r, level := range crossMap {
+		if level <= maxLevel {
+			allowed = append(allowed, r)
+		}
+	}
+	return allowed
 }
 
 // HasBlockedTag returns true if any of the item's tags match blocked tags (case-insensitive).

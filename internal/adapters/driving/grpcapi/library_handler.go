@@ -158,6 +158,8 @@ func (h *libraryHandler) ListMediaItems(ctx context.Context, req *eveyv1.ListMed
 		filter.Limit = int(req.Pagination.PageSize)
 		filter.Offset = int((req.Pagination.Page - 1) * req.Pagination.PageSize)
 	}
+	pf := h.resolveParentalFilter(ctx)
+	filter.AllowedRatings = pf.allowedRatings
 
 	total, err := h.query.CountMediaItems(ctx, filter)
 	if err != nil {
@@ -167,7 +169,6 @@ func (h *libraryHandler) ListMediaItems(ctx context.Context, req *eveyv1.ListMed
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "list media items: %v", err)
 	}
-	ps := h.getParentalSettings(ctx)
 	resp := &eveyv1.ListMediaItemsResponse{
 		Pagination: &eveyv1.PaginationResponse{
 			TotalItems: int32(total),
@@ -176,13 +177,8 @@ func (h *libraryHandler) ListMediaItems(ctx context.Context, req *eveyv1.ListMed
 		},
 	}
 	for _, item := range items {
-		if ps != nil && ps.Enabled {
-			if !ratings.IsAllowed(item.OfficialRating, ps.MaxRating) {
-				continue
-			}
-			if ratings.HasBlockedTag(item.Tags, ps.BlockedTags) {
-				continue
-			}
+		if len(pf.blockedTags) > 0 && ratings.HasBlockedTag(item.Tags, pf.blockedTags) {
+			continue
 		}
 		resp.Items = append(resp.Items, mediaItemToProto(item))
 	}
@@ -202,18 +198,16 @@ func (h *libraryHandler) SearchMedia(ctx context.Context, req *eveyv1.SearchMedi
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "search media: %v", err)
 	}
-	ps := h.getParentalSettings(ctx)
+	pf := h.resolveParentalFilter(ctx)
 	resp := &eveyv1.SearchMediaResponse{
 		TotalHits: int32(total),
 	}
 	for _, hit := range hits {
-		if ps != nil && ps.Enabled {
-			if !ratings.IsAllowed(hit.OfficialRating, ps.MaxRating) {
-				continue
-			}
-			if ratings.HasBlockedTag(hit.Tags, ps.BlockedTags) {
-				continue
-			}
+		if pf.maxRating != "" && !ratings.IsAllowed(hit.OfficialRating, pf.maxRating) {
+			continue
+		}
+		if len(pf.blockedTags) > 0 && ratings.HasBlockedTag(hit.Tags, pf.blockedTags) {
+			continue
 		}
 		mi := &eveyv1.MediaItem{
 			Id:    hit.ID,
@@ -228,30 +222,41 @@ func (h *libraryHandler) SearchMedia(ctx context.Context, req *eveyv1.SearchMedi
 	return resp, nil
 }
 
-func (h *libraryHandler) getParentalSettings(ctx context.Context) *user.ParentalSettings {
+type parentalFilter struct {
+	allowedRatings []string // for SQL filter (list endpoint)
+	maxRating      string   // for in-memory filter (search endpoint)
+	blockedTags    []string
+}
+
+func (h *libraryHandler) resolveParentalFilter(ctx context.Context) parentalFilter {
 	if h.profiles == nil {
-		return nil
+		return parentalFilter{}
 	}
 	claims := interceptors.ClaimsFromContext(ctx)
 	if claims == nil || claims.ProfileID == "" {
-		return nil
+		return parentalFilter{}
 	}
 	profile, err := h.profiles.GetByID(ctx, claims.ProfileID)
-	if err != nil {
-		return nil
+	if err != nil || profile.Parental == nil || !profile.Parental.Enabled {
+		return parentalFilter{}
 	}
-	return profile.Parental
+	ps := profile.Parental
+	return parentalFilter{
+		allowedRatings: ratings.AllowedRatingsFor(ps.MaxRating),
+		maxRating:      ps.MaxRating,
+		blockedTags:    ps.BlockedTags,
+	}
 }
 
 func (h *libraryHandler) isBlockedByParental(ctx context.Context, item *library.MediaItem) (bool, error) {
-	ps := h.getParentalSettings(ctx)
-	if ps == nil || !ps.Enabled {
+	pf := h.resolveParentalFilter(ctx)
+	if pf.maxRating == "" && len(pf.blockedTags) == 0 {
 		return false, nil
 	}
-	if !ratings.IsAllowed(item.OfficialRating, ps.MaxRating) {
+	if pf.maxRating != "" && !ratings.IsAllowed(item.OfficialRating, pf.maxRating) {
 		return true, nil
 	}
-	if ratings.HasBlockedTag(item.Tags, ps.BlockedTags) {
+	if ratings.HasBlockedTag(item.Tags, pf.blockedTags) {
 		return true, nil
 	}
 	return false, nil
@@ -306,3 +311,4 @@ func (h *libraryHandler) checkLibraryAccess(ctx context.Context, libraryID strin
 	}
 	return h.libraryAccess.HasAccess(ctx, claims.UserID, libraryID)
 }
+

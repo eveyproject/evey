@@ -139,6 +139,15 @@ func (r *MediaItemRepository) buildWhereClause(f library.ListMediaItemsFilter) (
 		args = append(args, string(gJSON))
 		argIdx++
 	}
+	if len(f.AllowedRatings) > 0 {
+		placeholders := make([]string, len(f.AllowedRatings))
+		for i, r := range f.AllowedRatings {
+			placeholders[i] = fmt.Sprintf("$%d", argIdx)
+			args = append(args, r)
+			argIdx++
+		}
+		conditions = append(conditions, "(official_rating = '' OR official_rating IS NULL OR official_rating = ANY(ARRAY["+strings.Join(placeholders, ",")+"]))")
+	}
 	where := ""
 	if len(conditions) > 0 {
 		where = " WHERE " + strings.Join(conditions, " AND ")
@@ -154,57 +163,11 @@ func (r *MediaItemRepository) Count(ctx context.Context, f library.ListMediaItem
 }
 
 func (r *MediaItemRepository) List(ctx context.Context, f library.ListMediaItemsFilter) ([]*library.MediaItem, error) {
-	var conditions []string
-	var args []any
-	argIdx := 1
-
-	if f.LibraryID != nil {
-		conditions = append(conditions, fmt.Sprintf("library_id = $%d", argIdx))
-		args = append(args, *f.LibraryID)
-		argIdx++
-	}
-	if len(f.LibraryIDs) > 0 {
-		placeholders := make([]string, len(f.LibraryIDs))
-		for i, id := range f.LibraryIDs {
-			placeholders[i] = fmt.Sprintf("$%d", argIdx)
-			args = append(args, id)
-			argIdx++
-		}
-		conditions = append(conditions, "library_id IN ("+strings.Join(placeholders, ",")+")")
-	}
-	if f.Type != nil {
-		conditions = append(conditions, fmt.Sprintf("type = $%d", argIdx))
-		args = append(args, *f.Type)
-		argIdx++
-	}
-	if f.ParentID != nil {
-		conditions = append(conditions, fmt.Sprintf("parent_id = $%d", argIdx))
-		args = append(args, *f.ParentID)
-		argIdx++
-	}
-	if f.Year != nil {
-		conditions = append(conditions, fmt.Sprintf("year = $%d", argIdx))
-		args = append(args, *f.Year)
-		argIdx++
-	}
-	for _, g := range f.Genres {
-		conditions = append(conditions, fmt.Sprintf("genres @> $%d::jsonb", argIdx))
-		gJSON, err := json.Marshal([]string{g})
-		if err != nil {
-			slog.Warn("marshal genre filter", slog.Any("err", err))
-			continue
-		}
-		args = append(args, string(gJSON))
-		argIdx++
-	}
-
+	where, args := r.buildWhereClause(f)
 	query := `SELECT id, library_id, parent_id, type, title, sort_title, original_title, overview, tagline,
 		 file_path, file_size, file_fingerprint, duration_ms, bitrate, container_format, index_number, community_rating,
 		 official_rating, premiere_date, year, provider_ids, genres, studios, tags, added_at, updated_at
-		 FROM media_items`
-	if len(conditions) > 0 {
-		query += " WHERE " + strings.Join(conditions, " AND ")
-	}
+		 FROM media_items` + where
 
 	sortField := "sort_title"
 	if f.SortField != "" {
