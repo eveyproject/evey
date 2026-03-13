@@ -87,7 +87,10 @@ func (t *Transcoder) Stop(_ context.Context, jobID string) error {
 	if !ok {
 		return fmt.Errorf("job %s not found", jobID)
 	}
-	rj := v.(*runningJob)
+	rj, ok2 := v.(*runningJob)
+	if !ok2 {
+		return fmt.Errorf("job %s: invalid type", jobID)
+	}
 	rj.cancel()
 	t.jobs.Delete(jobID)
 	return nil
@@ -98,7 +101,10 @@ func (t *Transcoder) Progress(_ context.Context, jobID string) (*transcoding.Tra
 	if !ok {
 		return nil, fmt.Errorf("job %s not found", jobID)
 	}
-	rj := v.(*runningJob)
+	rj, ok2 := v.(*runningJob)
+	if !ok2 {
+		return nil, fmt.Errorf("job %s: invalid type", jobID)
+	}
 	rj.mu.Lock()
 	defer rj.mu.Unlock()
 	p := *rj.progress
