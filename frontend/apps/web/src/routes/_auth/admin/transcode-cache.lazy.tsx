@@ -1,8 +1,8 @@
 import { useState } from "react";
 import { createLazyFileRoute } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useAuthStore } from "@evey/store";
 import { toast } from "@evey/store";
+import { eveyFetch } from "@evey/api/src/fetcher";
 import { Spinner } from "@/components/ui/Spinner";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
@@ -40,42 +40,23 @@ function formatDate(d: string): string {
 }
 
 function useCacheInfo() {
-  const token = useAuthStore((s) => s.accessToken);
   return useQuery<CacheInfo>({
     queryKey: CACHE_QUERY_KEY,
-    queryFn: async () => {
-      const h: Record<string, string> = token
-        ? { Authorization: `Bearer ${token}` }
-        : {};
-      const res = await fetch("/api/v1/admin/transcode-cache", {
-        headers: h,
-      });
-      if (!res.ok) throw new Error("Failed to fetch cache info");
-      return res.json();
-    },
+    queryFn: () => eveyFetch<CacheInfo>({ url: "/api/v1/admin/transcode-cache", method: "GET" }),
   });
 }
 
 function TranscodeCachePage() {
   const { data, isLoading } = useCacheInfo();
   const queryClient = useQueryClient();
-  const token = useAuthStore((s) => s.accessToken);
   const [showClearConfirm, setShowClearConfirm] = useState(false);
   const [clearing, setClearing] = useState(false);
   const [deletingFile, setDeletingFile] = useState<string | null>(null);
 
-  const headers: Record<string, string> = token
-    ? { Authorization: `Bearer ${token}` }
-    : {};
-
   async function handleClearAll() {
     setClearing(true);
     try {
-      const res = await fetch("/api/v1/admin/transcode-cache", {
-        method: "DELETE",
-        headers,
-      });
-      if (!res.ok) throw new Error("Failed to clear cache");
+      await eveyFetch<void>({ url: "/api/v1/admin/transcode-cache", method: "DELETE" });
       toast.success("Cache cleared");
       queryClient.invalidateQueries({ queryKey: CACHE_QUERY_KEY });
     } catch (err) {
@@ -89,11 +70,7 @@ function TranscodeCachePage() {
   async function handleDeleteFile(filename: string) {
     setDeletingFile(filename);
     try {
-      const res = await fetch(
-        `/api/v1/admin/transcode-cache/${encodeURIComponent(filename)}`,
-        { method: "DELETE", headers },
-      );
-      if (!res.ok) throw new Error("Failed to delete file");
+      await eveyFetch<void>({ url: `/api/v1/admin/transcode-cache/${encodeURIComponent(filename)}`, method: "DELETE" });
       toast.success(`Deleted ${filename}`);
       queryClient.invalidateQueries({ queryKey: CACHE_QUERY_KEY });
     } catch (err) {

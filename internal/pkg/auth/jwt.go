@@ -69,10 +69,16 @@ func (g *JWTGenerator) ValidateAccessToken(tokenStr string) (*user.Claims, error
 		return nil, errors.New("invalid claims")
 	}
 
+	userID, ok1 := mapClaims["sub"].(string)
+	username, ok2 := mapClaims["username"].(string)
+	isAdmin, ok3 := mapClaims["is_admin"].(bool)
+	if !ok1 || !ok2 || !ok3 {
+		return nil, errors.New("invalid token claims")
+	}
 	claims := &user.Claims{
-		UserID:   mapClaims["sub"].(string),
-		Username: mapClaims["username"].(string),
-		IsAdmin:  mapClaims["is_admin"].(bool),
+		UserID:   userID,
+		Username: username,
+		IsAdmin:  isAdmin,
 	}
 	if pid, ok := mapClaims["profile_id"].(string); ok {
 		claims.ProfileID = pid

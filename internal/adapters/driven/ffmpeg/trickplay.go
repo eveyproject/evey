@@ -103,6 +103,7 @@ func (g *TrickplayGenerator) Generate(ctx context.Context, filePath, outputDir s
 	if err != nil {
 		return nil, fmt.Errorf("create concat: %w", err)
 	}
+	defer cf.Close()
 	existing := 0
 	for i := range timestamps {
 		p := filepath.Join(thumbDir, fmt.Sprintf("thumb_%05d.jpg", i))
@@ -111,7 +112,6 @@ func (g *TrickplayGenerator) Generate(ctx context.Context, filePath, outputDir s
 			existing++
 		}
 	}
-	cf.Close()
 
 	if existing == 0 {
 		return nil, fmt.Errorf("no thumbnails extracted")

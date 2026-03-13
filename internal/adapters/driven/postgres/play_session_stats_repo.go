@@ -3,7 +3,6 @@ package postgres
 import (
 	"context"
 	"database/sql"
-	"encoding/json"
 
 	"github.com/gravity-zero/evey/internal/domain/activity"
 )
@@ -167,5 +166,3 @@ func (r *PlaySessionStatsReader) GetMostPopular(ctx context.Context, limit int) 
 	return result, rows.Err()
 }
 
-// ensure json import is used
-var _ = json.Marshal

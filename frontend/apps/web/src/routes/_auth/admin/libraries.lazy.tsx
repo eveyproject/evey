@@ -8,7 +8,7 @@ import {
   libraryServiceListMediaItems,
   eveyFetch,
 } from "@evey/api";
-import { useAuthStore, toast } from "@evey/store";
+import { toast } from "@evey/store";
 import type { V1Library } from "@evey/api/src/generated/library.schemas";
 import { Spinner } from "@/components/ui/Spinner";
 import { Button } from "@/components/ui/Button";
@@ -62,15 +62,10 @@ const PRESET_SCHEDULES = [
 ];
 
 function useLibraryStats() {
-  const token = useAuthStore((s) => s.accessToken);
   return useQuery<LibraryStat[]>({
     queryKey: ["/api/v1/admin/library-stats"],
     queryFn: async () => {
-      const res = await fetch(`/api/v1/admin/library-stats`, {
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
-      });
-      if (!res.ok) return [];
-      const json = await res.json() as { stats: LibraryStat[] };
+      const json = await eveyFetch<{ stats: LibraryStat[] }>({ url: "/api/v1/admin/library-stats", method: "GET" });
       return json.stats ?? [];
     },
     staleTime: 30_000,

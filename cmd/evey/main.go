@@ -262,35 +262,38 @@ func run() error {
 		}
 	}
 
+	// --- Graceful shutdown context (created early so goroutines can respect it) ---
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+	libCmdSvc.WithShutdownCtx(ctx)
+
 	// --- Metadata enrichment ---
 	if os.Getenv("EVEY_TMDB_API_KEY") != "" {
 		go func() {
-			ctx := context.Background()
 			items, err := mediaItemRepo.List(ctx, domainlibrary.ListMediaItemsFilter{Limit: 5000})
 			if err == nil {
 				enricher.AutoEnrichAll(ctx, items, rootLog)
 			}
 		}()
-		bus.Subscribe("media.item.added", func(ctx context.Context, ev shared.Event) {
+		bus.Subscribe("media.item.added", func(_ context.Context, ev shared.Event) {
 			if e, ok := ev.(domainlibrary.MediaItemAdded); ok {
 				go func() {
-					item, err := mediaItemRepo.GetByID(context.Background(), e.MediaItemID)
+					item, err := mediaItemRepo.GetByID(ctx, e.MediaItemID)
 					if err == nil {
-						enricher.AutoEnrichItem(context.Background(), item, rootLog)
+						enricher.AutoEnrichItem(ctx, item, rootLog)
 					}
 				}()
 			}
 		})
 	}
 
-	bus.Subscribe("media.item.added", func(ctx context.Context, ev shared.Event) {
+	bus.Subscribe("media.item.added", func(_ context.Context, ev shared.Event) {
 		if e, ok := ev.(domainlibrary.MediaItemAdded); ok {
 			go func() {
-				bgCtx := context.Background()
-				if _, err := libCmdSvc.GetTrickplayManifest(bgCtx, e.MediaItemID); err == nil {
+				if _, err := libCmdSvc.GetTrickplayManifest(ctx, e.MediaItemID); err == nil {
 					return // already generated
 				}
-				if err := libCmdSvc.GenerateTrickplay(bgCtx, e.MediaItemID); err != nil {
+				if err := libCmdSvc.GenerateTrickplay(ctx, e.MediaItemID); err != nil {
 					slog.Warn("trickplay generation failed", slog.String("media_id", e.MediaItemID), slog.Any("err", err))
 				}
 			}()
@@ -442,9 +445,6 @@ func run() error {
 	}
 
 	// --- Graceful shutdown ---
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-	defer stop()
-
 	go libScheduler.Run(ctx)
 
 	go func() {

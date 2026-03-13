@@ -126,7 +126,12 @@ func selectArtworkHandler(tokens interface {
 			http.Error(w, `{"message":"unauthenticated"}`, http.StatusUnauthorized)
 			return
 		}
-		if _, err := tokens.ValidateAccessToken(authHeader[7:]); err != nil {
+		claims, err := tokens.ValidateAccessToken(authHeader[7:])
+		if err != nil {
+			http.Error(w, `{"message":"forbidden"}`, http.StatusForbidden)
+			return
+		}
+		if !claims.IsAdmin {
 			http.Error(w, `{"message":"forbidden"}`, http.StatusForbidden)
 			return
 		}
@@ -320,7 +325,7 @@ func transcodeHandler(tokenGen interface {
 		}
 		videoScale := 0
 		if vs := r.URL.Query().Get("videoScale"); vs != "" {
-			if n, err2 := strconv.Atoi(vs); err2 == nil && n > 0 {
+			if n, err2 := strconv.Atoi(vs); err2 == nil && n > 0 && n <= 4320 {
 				videoScale = n
 			}
 		}

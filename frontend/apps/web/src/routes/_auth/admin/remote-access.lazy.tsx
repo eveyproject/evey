@@ -1,8 +1,8 @@
 import { useState, useEffect } from "react";
 import { createLazyFileRoute } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useAuthStore } from "@evey/store";
 import { toast } from "@evey/store";
+import { eveyFetch } from "@evey/api/src/fetcher";
 import { Spinner } from "@/components/ui/Spinner";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
@@ -29,30 +29,16 @@ const CONFIG_KEY = ["/api/v1/admin/remote-access"];
 const NETWORK_KEY = ["/api/v1/admin/network-info"];
 
 function useRemoteAccessConfig() {
-  const token = useAuthStore((s) => s.accessToken);
   return useQuery<RemoteAccessConfig>({
     queryKey: CONFIG_KEY,
-    queryFn: async () => {
-      const res = await fetch("/api/v1/admin/remote-access", {
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
-      });
-      if (!res.ok) throw new Error("Failed to fetch remote access config");
-      return res.json();
-    },
+    queryFn: () => eveyFetch<RemoteAccessConfig>({ url: "/api/v1/admin/remote-access", method: "GET" }),
   });
 }
 
 function useNetworkInfo() {
-  const token = useAuthStore((s) => s.accessToken);
   return useQuery<{ interfaces: NetworkInterface[] }>({
     queryKey: NETWORK_KEY,
-    queryFn: async () => {
-      const res = await fetch("/api/v1/admin/network-info", {
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
-      });
-      if (!res.ok) throw new Error("Failed to fetch network info");
-      return res.json();
-    },
+    queryFn: () => eveyFetch<{ interfaces: NetworkInterface[] }>({ url: "/api/v1/admin/network-info", method: "GET" }),
   });
 }
 
@@ -60,7 +46,6 @@ function RemoteAccessPage() {
   const { data, isLoading } = useRemoteAccessConfig();
   const { data: netInfo } = useNetworkInfo();
   const queryClient = useQueryClient();
-  const token = useAuthStore((s) => s.accessToken);
 
   const [enabled, setEnabled] = useState(false);
   const [externalUrl, setExternalUrl] = useState("");
@@ -78,18 +63,8 @@ function RemoteAccessPage() {
   }, [data]);
 
   const saveMutation = useMutation({
-    mutationFn: async (body: Partial<RemoteAccessConfig>) => {
-      const res = await fetch("/api/v1/admin/remote-access", {
-        method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
-        body: JSON.stringify(body),
-      });
-      if (!res.ok) throw new Error("Failed to save");
-      return res.json();
-    },
+    mutationFn: (body: Partial<RemoteAccessConfig>) =>
+      eveyFetch<RemoteAccessConfig>({ url: "/api/v1/admin/remote-access", method: "PUT", data: body }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: CONFIG_KEY });
       toast.success("Remote access settings saved");

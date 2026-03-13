@@ -10,7 +10,8 @@ import {
   useUserServiceCreateInviteLink,
   useUserServiceRevokeInviteLink,
 } from "@evey/api";
-import { useAuthStore, toast } from "@evey/store";
+import { toast } from "@evey/store";
+import { eveyFetch } from "@evey/api/src/fetcher";
 import type { V1User } from "@evey/api/src/generated/user.schemas";
 import type { V1InviteLink } from "@evey/api/src/generated/user.schemas";
 import { Spinner } from "@/components/ui/Spinner";
@@ -97,19 +98,12 @@ function LibraryAccessModal({
   open: boolean;
   onClose: () => void;
 }) {
-  const token = useAuthStore((s) => s.accessToken);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [saving, setSaving] = useState(false);
 
   const { data, isLoading } = useQuery<LibraryAccessData>({
     queryKey: ["/api/v1/admin/users", user.id, "library-access"],
-    queryFn: async () => {
-      const res = await fetch(`/api/v1/admin/users/${user.id}/library-access`, {
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
-      });
-      if (!res.ok) throw new Error("Failed to load library access");
-      return res.json() as Promise<LibraryAccessData>;
-    },
+    queryFn: () => eveyFetch<LibraryAccessData>({ url: `/api/v1/admin/users/${user.id}/library-access`, method: "GET" }),
     enabled: open,
   });
 
@@ -138,18 +132,12 @@ function LibraryAccessModal({
     setSaving(true);
     try {
       if (selected.size === 0) {
-        await fetch(`/api/v1/admin/users/${user.id}/library-access`, {
-          method: "DELETE",
-          headers: token ? { Authorization: `Bearer ${token}` } : {},
-        });
+        await eveyFetch<void>({ url: `/api/v1/admin/users/${user.id}/library-access`, method: "DELETE" });
       } else {
-        await fetch(`/api/v1/admin/users/${user.id}/library-access`, {
+        await eveyFetch<void>({
+          url: `/api/v1/admin/users/${user.id}/library-access`,
           method: "PUT",
-          headers: {
-            "Content-Type": "application/json",
-            ...(token ? { Authorization: `Bearer ${token}` } : {}),
-          },
-          body: JSON.stringify({ libraryIds: Array.from(selected) }),
+          data: { libraryIds: Array.from(selected) },
         });
       }
       toast.success("Library access updated");

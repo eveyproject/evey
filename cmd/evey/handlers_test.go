@@ -626,8 +626,24 @@ func TestSelectArtworkHandler_Unauthenticated(t *testing.T) {
 	}
 }
 
-func TestSelectArtworkHandler_NotFound(t *testing.T) {
+func TestSelectArtworkHandler_NonAdmin(t *testing.T) {
 	handler := selectArtworkHandler(validTokenValidator(false), newFakeArtworkRepo())
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("POST /api/v1/media/{id}/artwork/{artworkId}/select", handler)
+
+	req := httptest.NewRequest("POST", "/api/v1/media/m1/artwork/art1/select", nil)
+	req.Header.Set("Authorization", "Bearer valid-token")
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+
+	if w.Code != http.StatusForbidden {
+		t.Fatalf("expected 403, got %d", w.Code)
+	}
+}
+
+func TestSelectArtworkHandler_NotFound(t *testing.T) {
+	handler := selectArtworkHandler(validTokenValidator(true), newFakeArtworkRepo())
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("POST /api/v1/media/{id}/artwork/{artworkId}/select", handler)
@@ -649,7 +665,7 @@ func TestSelectArtworkHandler_Success(t *testing.T) {
 		{ID: "art1", MediaItemID: "m1", Type: "poster", SourceURL: &url, SortOrder: 0},
 		{ID: "art2", MediaItemID: "m1", Type: "poster", SourceURL: &url, SortOrder: 1},
 	}
-	handler := selectArtworkHandler(validTokenValidator(false), artRepo)
+	handler := selectArtworkHandler(validTokenValidator(true), artRepo)
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("POST /api/v1/media/{id}/artwork/{artworkId}/select", handler)

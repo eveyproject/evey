@@ -3,7 +3,6 @@ package pluginapi
 import (
 	"context"
 	"fmt"
-	"log"
 	"log/slog"
 	"net"
 	"os"
@@ -220,7 +219,7 @@ func (s *PluginAPIServer) EmitEvent(ctx context.Context, req *pluginv1.EmitEvent
 }
 
 func (s *PluginAPIServer) Log(_ context.Context, req *pluginv1.LogRequest) (*pluginv1.LogResponse, error) {
-	log.Printf("[plugin] [%s] %s %v", req.Level, req.Message, req.Fields)
+	slog.Info("plugin log", slog.Int("level", int(req.Level)), slog.String("msg", req.Message), slog.Any("fields", req.Fields))
 	return &pluginv1.LogResponse{}, nil
 }
 
@@ -264,7 +263,7 @@ func (s *PluginAPIServer) Start() error {
 	s.listener = lis
 	s.grpcServer = grpc.NewServer()
 	pluginv1.RegisterHostServiceServer(s.grpcServer, s)
-	log.Printf("plugin host service listening on %s", s.sockPath)
+	slog.Info("plugin host service listening", slog.String("sock", s.sockPath))
 	go func() {
 		if err := s.grpcServer.Serve(lis); err != nil {
 			slog.Warn("plugin server stopped", slog.Any("err", err))

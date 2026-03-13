@@ -32,6 +32,7 @@ type CommandService struct {
 	trickplayRepo     library.TrickplayRepository
 	trickplayGen      library.TrickplayGenerator
 	trickplayCacheDir string
+	shutdownCtx  context.Context
 
 	scanMu   sync.Mutex
 	scanning map[string]bool
@@ -480,6 +481,10 @@ func (s *CommandService) WithTrickplay(repo library.TrickplayRepository, gen lib
 	s.trickplayCacheDir = cacheDir
 }
 
+func (s *CommandService) WithShutdownCtx(ctx context.Context) {
+	s.shutdownCtx = ctx
+}
+
 func (s *CommandService) GenerateTrickplay(ctx context.Context, mediaItemID string) error {
 	if s.trickplayRepo == nil || s.trickplayGen == nil {
 		return errors.New("trickplay not configured")
@@ -539,9 +544,16 @@ func (s *CommandService) GenerateAllMissingTrickplays(ctx context.Context) (int,
 	if err != nil {
 		return 0, fmt.Errorf("list missing trickplays: %w", err)
 	}
+	bgCtx := s.shutdownCtx
+	if bgCtx == nil {
+		bgCtx = context.Background()
+	}
 	go func() {
 		for _, id := range ids {
-			if err := s.GenerateTrickplay(context.Background(), id); err != nil {
+			if bgCtx.Err() != nil {
+				return
+			}
+			if err := s.GenerateTrickplay(bgCtx, id); err != nil {
 				slog.Warn("trickplay generation failed", slog.String("media_id", id), slog.Any("err", err))
 			} else {
 				slog.Info("trickplay generated", slog.String("media_id", id))

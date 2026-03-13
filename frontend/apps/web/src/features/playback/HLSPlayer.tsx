@@ -14,6 +14,8 @@ import type { Chapter } from "@/hooks/useChapters";
 import { usePlaybackSettings } from "@/hooks/usePlaybackSettings";
 import { canPlayHevc } from "@/utils/codec";
 
+const QUALITY_LEVELS = [0, 1080, 720, 480, 360];
+
 interface AudioTrack {
   id: string;
   enabled: boolean;
@@ -133,8 +135,9 @@ export function HLSPlayer({
       video.play().catch(() => {});
     }
 
+    let canPlayTimer: ReturnType<typeof setTimeout> | null = null;
     function handleCanPlay() {
-      setTimeout(() => {
+      canPlayTimer = setTimeout(() => {
         const v = videoRef.current as HTMLVideoElementWithAudioTracks | null;
         if (!v || transcodeMode) return;
         const tracks = v.audioTracks;
@@ -151,6 +154,7 @@ export function HLSPlayer({
     video.addEventListener("error", handleError);
 
     return () => {
+      if (canPlayTimer !== null) clearTimeout(canPlayTimer);
       video.removeEventListener("ended", handleEnded);
       video.removeEventListener("canplay", handleCanPlay);
       video.removeEventListener("error", handleError);
@@ -295,6 +299,7 @@ export function HLSPlayer({
         }
         case "?":
           e.preventDefault();
+          e.stopPropagation();
           setShowShortcuts((p) => !p);
           break;
         case "<":
@@ -348,7 +353,6 @@ export function HLSPlayer({
   }, []);
 
   // Adaptive quality: measure buffer fill rate and adjust quality dynamically
-  const QUALITY_LEVELS = [0, 1080, 720, 480, 360];
   const slowCountRef = useRef(0);
   const lastBufferCheckRef = useRef({ time: 0, buffered: 0 });
   const qualityStableRef = useRef(0);

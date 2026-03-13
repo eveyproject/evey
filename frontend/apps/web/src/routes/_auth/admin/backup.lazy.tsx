@@ -2,6 +2,7 @@ import { useRef, useState } from "react";
 import { createLazyFileRoute } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAuthStore, toast } from "@evey/store";
+import { eveyFetch } from "@evey/api/src/fetcher";
 import { Spinner } from "@/components/ui/Spinner";
 import { Button } from "@/components/ui/Button";
 import { EmptyState } from "@/components/ui/EmptyState";
@@ -28,32 +29,19 @@ function formatSize(bytes: number): string {
 }
 
 function useBackups() {
-  const token = useAuthStore((s) => s.accessToken);
   return useQuery<Backup[]>({
     queryKey: BACKUPS_QUERY_KEY,
     queryFn: async () => {
-      const res = await fetch("/api/v1/admin/backups", {
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
-      });
-      if (!res.ok) throw new Error("Failed to fetch backups");
-      const data = await res.json() as { backups: Backup[] };
+      const data = await eveyFetch<{ backups: Backup[] }>({ url: "/api/v1/admin/backups", method: "GET" });
       return data.backups ?? [];
     },
   });
 }
 
 function useCreateBackup() {
-  const token = useAuthStore((s) => s.accessToken);
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async () => {
-      const res = await fetch("/api/v1/admin/backups", {
-        method: "POST",
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
-      });
-      if (!res.ok) throw new Error("Failed to create backup");
-      return res.json() as Promise<Backup>;
-    },
+    mutationFn: () => eveyFetch<Backup>({ url: "/api/v1/admin/backups", method: "POST" }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: BACKUPS_QUERY_KEY });
       toast.success("Backup created");
@@ -63,16 +51,9 @@ function useCreateBackup() {
 }
 
 function useDeleteBackup() {
-  const token = useAuthStore((s) => s.accessToken);
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async (id: string) => {
-      const res = await fetch(`/api/v1/admin/backups/${id}`, {
-        method: "DELETE",
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
-      });
-      if (!res.ok) throw new Error("Failed to delete backup");
-    },
+    mutationFn: (id: string) => eveyFetch<void>({ url: `/api/v1/admin/backups/${id}`, method: "DELETE" }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: BACKUPS_QUERY_KEY });
       toast.success("Backup deleted");
@@ -101,6 +82,7 @@ function BackupRow({ backup }: { backup: Backup }) {
   async function handleRestore() {
     setRestoring(true);
     try {
+      // Fetch backup file — use raw fetch with token since response is a blob
       const fileRes = await fetch(`/api/v1/admin/backups/${backup.id}`, {
         headers: token ? { Authorization: `Bearer ${token}` } : {},
       });
@@ -108,6 +90,7 @@ function BackupRow({ backup }: { backup: Backup }) {
       const blob = await fileRes.blob();
       const formData = new FormData();
       formData.append("backup", blob, `${backup.id}.gz`);
+      // Use raw fetch for multipart upload (eveyFetch only supports JSON body)
       const res = await fetch("/api/v1/admin/backups/restore", {
         method: "POST",
         headers: token ? { Authorization: `Bearer ${token}` } : {},
@@ -208,6 +191,7 @@ function RestoreUploadModal({
     try {
       const formData = new FormData();
       formData.append("backup", file);
+      // Use raw fetch for multipart upload (eveyFetch only supports JSON body)
       const res = await fetch("/api/v1/admin/backups/restore", {
         method: "POST",
         headers: token ? { Authorization: `Bearer ${token}` } : {},

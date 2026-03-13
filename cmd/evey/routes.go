@@ -412,6 +412,14 @@ func registerCollectionRoutes(mux *http.ServeMux, svc *appcollection.Service, to
 		_, err := tokenGen.ValidateAccessToken(strings.TrimPrefix(h, "Bearer "))
 		return err == nil
 	}
+	requireAdmin := func(r *http.Request) bool {
+		h := r.Header.Get("Authorization")
+		if !strings.HasPrefix(h, "Bearer ") {
+			return false
+		}
+		claims, err := tokenGen.ValidateAccessToken(strings.TrimPrefix(h, "Bearer "))
+		return err == nil && claims.IsAdmin
+	}
 
 	mux.HandleFunc("GET /api/v1/collections", func(w http.ResponseWriter, r *http.Request) {
 		if !requireAuth(r) {
@@ -453,8 +461,8 @@ func registerCollectionRoutes(mux *http.ServeMux, svc *appcollection.Service, to
 	})
 
 	mux.HandleFunc("POST /api/v1/collections", func(w http.ResponseWriter, r *http.Request) {
-		if !requireAuth(r) {
-			http.Error(w, `{"message":"unauthenticated"}`, http.StatusUnauthorized)
+		if !requireAdmin(r) {
+			http.Error(w, `{"message":"forbidden"}`, http.StatusForbidden)
 			return
 		}
 		var body struct {
@@ -516,7 +524,7 @@ func registerCollectionRoutes(mux *http.ServeMux, svc *appcollection.Service, to
 			limit := 50
 			offset := 0
 			if l := r.URL.Query().Get("limit"); l != "" {
-				if n, e := strconv.Atoi(l); e == nil && n > 0 {
+				if n, e := strconv.Atoi(l); e == nil && n > 0 && n <= 500 {
 					limit = n
 				}
 			}
@@ -565,6 +573,10 @@ func registerCollectionRoutes(mux *http.ServeMux, svc *appcollection.Service, to
 			})
 
 		case http.MethodPut:
+			if !requireAdmin(r) {
+				http.Error(w, `{"message":"forbidden"}`, http.StatusForbidden)
+				return
+			}
 			var body struct {
 				Name      string                        `json:"name"`
 				Overview  string                        `json:"overview"`
@@ -593,6 +605,10 @@ func registerCollectionRoutes(mux *http.ServeMux, svc *appcollection.Service, to
 			w.WriteHeader(http.StatusNoContent)
 
 		case http.MethodDelete:
+			if !requireAdmin(r) {
+				http.Error(w, `{"message":"forbidden"}`, http.StatusForbidden)
+				return
+			}
 			if err := svc.Delete(r.Context(), id); err != nil {
 				http.Error(w, `{"message":"not found"}`, http.StatusNotFound)
 				return
