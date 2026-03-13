@@ -25,13 +25,30 @@ import (
 	"github.com/gravity-zero/evey/internal/pkg/hdr"
 )
 
+// LibraryAccessChecker checks whether a user has access to a library.
+type LibraryAccessChecker interface {
+	HasAccess(ctx context.Context, userID, libraryID string) (bool, error)
+}
+
+func checkLibraryAccess(ctx context.Context, w http.ResponseWriter, claims *domainuser.Claims, libraryID string, checker LibraryAccessChecker) bool {
+	if claims.IsAdmin || checker == nil {
+		return true
+	}
+	ok, err := checker.HasAccess(ctx, claims.UserID, libraryID)
+	if err != nil || !ok {
+		http.Error(w, `{"message":"forbidden"}`, http.StatusForbidden)
+		return false
+	}
+	return true
+}
+
 func mediaHandler(tokens interface {
 	ValidateAccessToken(string) (*domainuser.Claims, error)
 }, libSvc interface {
 	GetMediaItem(ctx context.Context, id string) (*domainlibrary.MediaItem, error)
 }, artworkRepo interface {
 	GetByMediaItem(ctx context.Context, mediaItemID string) ([]*domainmeta.ArtworkRecord, error)
-}, baseURL string) http.HandlerFunc {
+}, baseURL string, libraryAccess LibraryAccessChecker) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		mediaID := r.PathValue("id")
 		artType := r.PathValue("artType")
@@ -54,13 +71,17 @@ func mediaHandler(tokens interface {
 				http.Error(w, `{"message":"unauthenticated"}`, http.StatusUnauthorized)
 				return
 			}
-			if _, err := tokens.ValidateAccessToken(authHeader[7:]); err != nil {
+			claims, err := tokens.ValidateAccessToken(authHeader[7:])
+			if err != nil {
 				http.Error(w, `{"message":"forbidden"}`, http.StatusForbidden)
 				return
 			}
 			item, err := libSvc.GetMediaItem(r.Context(), mediaID)
 			if err != nil {
 				http.Error(w, `{"message":"not found"}`, http.StatusNotFound)
+				return
+			}
+			if !checkLibraryAccess(r.Context(), w, claims, item.LibraryID, libraryAccess) {
 				return
 			}
 			setCORSHeaders(w, r, baseURL)
@@ -147,7 +168,7 @@ func downloadHandler(tokens interface {
 	ValidateAccessToken(string) (*domainuser.Claims, error)
 }, libSvc interface {
 	GetMediaItem(ctx context.Context, id string) (*domainlibrary.MediaItem, error)
-}, baseURL string) http.HandlerFunc {
+}, baseURL string, libraryAccess LibraryAccessChecker) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		mediaID := r.PathValue("id")
 		token := r.Header.Get("Authorization")
@@ -159,13 +180,17 @@ func downloadHandler(tokens interface {
 			http.Error(w, `{"message":"unauthenticated"}`, http.StatusUnauthorized)
 			return
 		}
-		if _, err := tokens.ValidateAccessToken(token); err != nil {
+		claims, err := tokens.ValidateAccessToken(token)
+		if err != nil {
 			http.Error(w, `{"message":"forbidden"}`, http.StatusForbidden)
 			return
 		}
 		item, err := libSvc.GetMediaItem(r.Context(), mediaID)
 		if err != nil || item.FilePath == "" {
 			http.Error(w, `{"message":"not found"}`, http.StatusNotFound)
+			return
+		}
+		if !checkLibraryAccess(r.Context(), w, claims, item.LibraryID, libraryAccess) {
 			return
 		}
 		fi, err := os.Stat(item.FilePath)
@@ -262,7 +287,7 @@ func transcodeHandler(tokenGen interface {
 }, libSvc interface {
 	GetMediaItem(ctx context.Context, id string) (*domainlibrary.MediaItem, error)
 	GetMediaStreams(ctx context.Context, mediaItemID string) ([]*domainlibrary.MediaStream, error)
-}, baseURL string) http.HandlerFunc {
+}, baseURL string, libraryAccess LibraryAccessChecker) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		mediaID := r.PathValue("id")
 		token := r.Header.Get("Authorization")
@@ -274,13 +299,17 @@ func transcodeHandler(tokenGen interface {
 			http.Error(w, `{"message":"unauthenticated"}`, http.StatusUnauthorized)
 			return
 		}
-		if _, err := tokenGen.ValidateAccessToken(token); err != nil {
+		claims, err := tokenGen.ValidateAccessToken(token)
+		if err != nil {
 			http.Error(w, `{"message":"forbidden"}`, http.StatusForbidden)
 			return
 		}
 		item, err := libSvc.GetMediaItem(r.Context(), mediaID)
 		if err != nil || item.FilePath == "" {
 			http.Error(w, `{"message":"not found"}`, http.StatusNotFound)
+			return
+		}
+		if !checkLibraryAccess(r.Context(), w, claims, item.LibraryID, libraryAccess) {
 			return
 		}
 		audioTrack := 0
@@ -401,7 +430,7 @@ func subtitleHandler(tokenGen interface {
 }, libSvc interface {
 	GetMediaItem(ctx context.Context, id string) (*domainlibrary.MediaItem, error)
 	GetMediaStreams(ctx context.Context, mediaItemID string) ([]*domainlibrary.MediaStream, error)
-}, baseURL string) http.HandlerFunc {
+}, baseURL string, libraryAccess LibraryAccessChecker) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		mediaID := r.PathValue("id")
 		trackStr := r.PathValue("track")
@@ -414,7 +443,8 @@ func subtitleHandler(tokenGen interface {
 			http.Error(w, `{"message":"unauthenticated"}`, http.StatusUnauthorized)
 			return
 		}
-		if _, err := tokenGen.ValidateAccessToken(token); err != nil {
+		claims, err := tokenGen.ValidateAccessToken(token)
+		if err != nil {
 			http.Error(w, `{"message":"forbidden"}`, http.StatusForbidden)
 			return
 		}
@@ -422,6 +452,9 @@ func subtitleHandler(tokenGen interface {
 		item, err := libSvc.GetMediaItem(r.Context(), mediaID)
 		if err != nil || item.FilePath == "" {
 			http.Error(w, `{"message":"not found"}`, http.StatusNotFound)
+			return
+		}
+		if !checkLibraryAccess(r.Context(), w, claims, item.LibraryID, libraryAccess) {
 			return
 		}
 
@@ -466,7 +499,9 @@ func chaptersHandler(tokenGen interface {
 	ValidateAccessToken(string) (*domainuser.Claims, error)
 }, libSvc interface {
 	GetChapters(ctx context.Context, mediaItemID string) ([]*domainlibrary.Chapter, error)
-}, baseURL string) http.HandlerFunc {
+}, baseURL string, libraryAccess LibraryAccessChecker, mediaGetter interface {
+	GetMediaItem(ctx context.Context, id string) (*domainlibrary.MediaItem, error)
+}) http.HandlerFunc {
 	type chapterJSON struct {
 		Title       string `json:"title"`
 		StartTimeMs int64  `json:"startTimeMs"`
@@ -483,8 +518,17 @@ func chaptersHandler(tokenGen interface {
 			http.Error(w, `{"message":"unauthenticated"}`, http.StatusUnauthorized)
 			return
 		}
-		if _, err := tokenGen.ValidateAccessToken(token); err != nil {
+		claims, err := tokenGen.ValidateAccessToken(token)
+		if err != nil {
 			http.Error(w, `{"message":"forbidden"}`, http.StatusForbidden)
+			return
+		}
+		item, err := mediaGetter.GetMediaItem(r.Context(), mediaID)
+		if err != nil {
+			http.Error(w, `{"message":"not found"}`, http.StatusNotFound)
+			return
+		}
+		if !checkLibraryAccess(r.Context(), w, claims, item.LibraryID, libraryAccess) {
 			return
 		}
 		chapters, err := libSvc.GetChapters(r.Context(), mediaID)
@@ -672,7 +716,9 @@ func trickplayManifestHandler(tokenGen interface {
 	ValidateAccessToken(string) (*domainuser.Claims, error)
 }, libSvc interface {
 	GetTrickplayManifest(ctx context.Context, mediaItemID string) (*domainlibrary.TrickplayManifest, error)
-}, baseURL string) http.HandlerFunc {
+}, baseURL string, libraryAccess LibraryAccessChecker, mediaGetter interface {
+	GetMediaItem(ctx context.Context, id string) (*domainlibrary.MediaItem, error)
+}) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		mediaID := r.PathValue("id")
 		token := r.Header.Get("Authorization")
@@ -681,8 +727,17 @@ func trickplayManifestHandler(tokenGen interface {
 		} else if t := r.URL.Query().Get("token"); t != "" {
 			token = t
 		}
-		if _, err := tokenGen.ValidateAccessToken(token); err != nil {
+		claims, err := tokenGen.ValidateAccessToken(token)
+		if err != nil {
 			http.Error(w, `{"message":"forbidden"}`, http.StatusForbidden)
+			return
+		}
+		item, err := mediaGetter.GetMediaItem(r.Context(), mediaID)
+		if err != nil {
+			http.Error(w, `{"message":"not found"}`, http.StatusNotFound)
+			return
+		}
+		if !checkLibraryAccess(r.Context(), w, claims, item.LibraryID, libraryAccess) {
 			return
 		}
 		manifest, err := libSvc.GetTrickplayManifest(r.Context(), mediaID)
@@ -985,7 +1040,7 @@ func hlsMasterHandler(tokenGen interface {
 }, libSvc interface {
 	GetMediaItem(ctx context.Context, id string) (*domainlibrary.MediaItem, error)
 	GetMediaStreams(ctx context.Context, mediaItemID string) ([]*domainlibrary.MediaStream, error)
-}, hlsManager *apptranscoding.HLSManager) http.HandlerFunc {
+}, hlsManager *apptranscoding.HLSManager, libraryAccess LibraryAccessChecker) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		mediaID := r.PathValue("id")
 		token := r.Header.Get("Authorization")
@@ -997,13 +1052,17 @@ func hlsMasterHandler(tokenGen interface {
 			http.Error(w, `{"message":"unauthenticated"}`, http.StatusUnauthorized)
 			return
 		}
-		if _, err := tokenGen.ValidateAccessToken(token); err != nil {
+		claims, err := tokenGen.ValidateAccessToken(token)
+		if err != nil {
 			http.Error(w, `{"message":"forbidden"}`, http.StatusForbidden)
 			return
 		}
 		item, err := libSvc.GetMediaItem(r.Context(), mediaID)
 		if err != nil || item.FilePath == "" {
 			http.Error(w, `{"message":"not found"}`, http.StatusNotFound)
+			return
+		}
+		if !checkLibraryAccess(r.Context(), w, claims, item.LibraryID, libraryAccess) {
 			return
 		}
 

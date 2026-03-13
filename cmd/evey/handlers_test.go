@@ -208,6 +208,20 @@ func (f *fakeGenerateTrickplayService) GenerateTrickplay(_ context.Context, _ st
 	return f.err
 }
 
+// --- Fake library access checker ---
+
+type fakeLibraryAccessChecker struct {
+	allowed bool
+	err     error
+}
+
+func (f *fakeLibraryAccessChecker) HasAccess(_ context.Context, _, _ string) (bool, error) {
+	return f.allowed, f.err
+}
+
+func allowAllLibraries() *fakeLibraryAccessChecker  { return &fakeLibraryAccessChecker{allowed: true} }
+func denyAllLibraries() *fakeLibraryAccessChecker   { return &fakeLibraryAccessChecker{allowed: false} }
+
 // --- Helper ---
 
 func writeTestFile(path, content string) error {
@@ -244,7 +258,7 @@ func TestHealthzHandler(t *testing.T) {
 }
 
 func TestStreamHandler_Unauthenticated(t *testing.T) {
-	handler := mediaHandler(invalidTokenValidator(), newFakeLibService(), newFakeArtworkRepo(), "http://localhost")
+	handler := mediaHandler(invalidTokenValidator(), newFakeLibService(), newFakeArtworkRepo(), "http://localhost", allowAllLibraries())
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /api/v1/media/{id}/stream", handler)
@@ -259,7 +273,7 @@ func TestStreamHandler_Unauthenticated(t *testing.T) {
 }
 
 func TestStreamHandler_InvalidToken(t *testing.T) {
-	handler := mediaHandler(invalidTokenValidator(), newFakeLibService(), newFakeArtworkRepo(), "http://localhost")
+	handler := mediaHandler(invalidTokenValidator(), newFakeLibService(), newFakeArtworkRepo(), "http://localhost", allowAllLibraries())
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /api/v1/media/{id}/stream", handler)
@@ -275,7 +289,7 @@ func TestStreamHandler_InvalidToken(t *testing.T) {
 }
 
 func TestStreamHandler_ValidToken_NotFound(t *testing.T) {
-	handler := mediaHandler(validTokenValidator(false), newFakeLibService(), newFakeArtworkRepo(), "http://localhost")
+	handler := mediaHandler(validTokenValidator(false), newFakeLibService(), newFakeArtworkRepo(), "http://localhost", allowAllLibraries())
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /api/v1/media/{id}/stream", handler)
@@ -297,7 +311,7 @@ func TestStreamHandler_ValidToken_ServesFile(t *testing.T) {
 		t.Fatal(err)
 	}
 	libSvc.items["m1"] = &domainlibrary.MediaItem{ID: "m1", FilePath: tmpFile}
-	handler := mediaHandler(validTokenValidator(false), libSvc, newFakeArtworkRepo(), "http://localhost")
+	handler := mediaHandler(validTokenValidator(false), libSvc, newFakeArtworkRepo(), "http://localhost", allowAllLibraries())
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /api/v1/media/{id}/stream", handler)
@@ -320,7 +334,7 @@ func TestStreamHandler_TokenInQueryParam(t *testing.T) {
 	tmpFile := t.TempDir() + "/test.mp4"
 	writeTestFile(tmpFile, "ok")
 	libSvc.items["m1"] = &domainlibrary.MediaItem{ID: "m1", FilePath: tmpFile}
-	handler := mediaHandler(validTokenValidator(false), libSvc, newFakeArtworkRepo(), "http://localhost")
+	handler := mediaHandler(validTokenValidator(false), libSvc, newFakeArtworkRepo(), "http://localhost", allowAllLibraries())
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /api/v1/media/{id}/stream", handler)
@@ -335,7 +349,7 @@ func TestStreamHandler_TokenInQueryParam(t *testing.T) {
 }
 
 func TestArtworkHandler_NotFound(t *testing.T) {
-	handler := mediaHandler(validTokenValidator(false), newFakeLibService(), newFakeArtworkRepo(), "http://localhost")
+	handler := mediaHandler(validTokenValidator(false), newFakeLibService(), newFakeArtworkRepo(), "http://localhost", allowAllLibraries())
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /api/v1/media/{id}/artwork/{artType}", handler)
@@ -355,7 +369,7 @@ func TestArtworkHandler_Redirect(t *testing.T) {
 	artRepo.records["m1"] = []*domainmeta.ArtworkRecord{
 		{ID: "art1", MediaItemID: "m1", Type: "poster", SourceURL: &url, SortOrder: 0},
 	}
-	handler := mediaHandler(validTokenValidator(false), newFakeLibService(), artRepo, "http://localhost")
+	handler := mediaHandler(validTokenValidator(false), newFakeLibService(), artRepo, "http://localhost", allowAllLibraries())
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /api/v1/media/{id}/artwork/{artType}", handler)
@@ -377,7 +391,7 @@ func TestArtworkHandler_NoSourceURL(t *testing.T) {
 	artRepo.records["m1"] = []*domainmeta.ArtworkRecord{
 		{ID: "art1", MediaItemID: "m1", Type: "poster"},
 	}
-	handler := mediaHandler(validTokenValidator(false), newFakeLibService(), artRepo, "http://localhost")
+	handler := mediaHandler(validTokenValidator(false), newFakeLibService(), artRepo, "http://localhost", allowAllLibraries())
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /api/v1/media/{id}/artwork/{artType}", handler)
@@ -392,7 +406,7 @@ func TestArtworkHandler_NoSourceURL(t *testing.T) {
 }
 
 func TestDownloadHandler_Unauthenticated(t *testing.T) {
-	handler := downloadHandler(invalidTokenValidator(), newFakeLibService(), "http://localhost")
+	handler := downloadHandler(invalidTokenValidator(), newFakeLibService(), "http://localhost", allowAllLibraries())
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /api/v1/media/{id}/download", handler)
@@ -407,7 +421,7 @@ func TestDownloadHandler_Unauthenticated(t *testing.T) {
 }
 
 func TestDownloadHandler_InvalidToken(t *testing.T) {
-	handler := downloadHandler(invalidTokenValidator(), newFakeLibService(), "http://localhost")
+	handler := downloadHandler(invalidTokenValidator(), newFakeLibService(), "http://localhost", allowAllLibraries())
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /api/v1/media/{id}/download", handler)
@@ -423,7 +437,7 @@ func TestDownloadHandler_InvalidToken(t *testing.T) {
 }
 
 func TestDownloadHandler_NotFound(t *testing.T) {
-	handler := downloadHandler(validTokenValidator(false), newFakeLibService(), "http://localhost")
+	handler := downloadHandler(validTokenValidator(false), newFakeLibService(), "http://localhost", allowAllLibraries())
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /api/v1/media/{id}/download", handler)
@@ -444,7 +458,7 @@ func TestDownloadHandler_ServesFile(t *testing.T) {
 	writeTestFile(tmpFile, "file data")
 	libSvc.items["m1"] = &domainlibrary.MediaItem{ID: "m1", FilePath: tmpFile}
 
-	handler := downloadHandler(validTokenValidator(false), libSvc, "http://localhost")
+	handler := downloadHandler(validTokenValidator(false), libSvc, "http://localhost", allowAllLibraries())
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /api/v1/media/{id}/download", handler)
@@ -466,7 +480,7 @@ func TestDownloadHandler_ServesFile(t *testing.T) {
 }
 
 func TestTranscodeHandler_MissingToken(t *testing.T) {
-	handler := transcodeHandler(invalidTokenValidator(), newFakeLibService(), "http://localhost")
+	handler := transcodeHandler(invalidTokenValidator(), newFakeLibService(), "http://localhost", allowAllLibraries())
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /api/v1/media/{id}/transcode", handler)
@@ -481,7 +495,7 @@ func TestTranscodeHandler_MissingToken(t *testing.T) {
 }
 
 func TestTranscodeHandler_InvalidToken(t *testing.T) {
-	handler := transcodeHandler(invalidTokenValidator(), newFakeLibService(), "http://localhost")
+	handler := transcodeHandler(invalidTokenValidator(), newFakeLibService(), "http://localhost", allowAllLibraries())
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /api/v1/media/{id}/transcode", handler)
@@ -497,7 +511,7 @@ func TestTranscodeHandler_InvalidToken(t *testing.T) {
 }
 
 func TestTranscodeHandler_NotFound(t *testing.T) {
-	handler := transcodeHandler(validTokenValidator(false), newFakeLibService(), "http://localhost")
+	handler := transcodeHandler(validTokenValidator(false), newFakeLibService(), "http://localhost", allowAllLibraries())
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /api/v1/media/{id}/transcode", handler)
@@ -513,7 +527,7 @@ func TestTranscodeHandler_NotFound(t *testing.T) {
 }
 
 func TestChaptersHandler_Unauthenticated(t *testing.T) {
-	handler := chaptersHandler(invalidTokenValidator(), newFakeLibService(), "")
+	handler := chaptersHandler(invalidTokenValidator(), newFakeLibService(), "", allowAllLibraries(), newFakeLibService())
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /api/v1/media/{id}/chapters", handler)
@@ -529,11 +543,12 @@ func TestChaptersHandler_Unauthenticated(t *testing.T) {
 
 func TestChaptersHandler_ReturnsJSON(t *testing.T) {
 	libSvc := newFakeLibService()
+	libSvc.items["m1"] = &domainlibrary.MediaItem{ID: "m1", LibraryID: "lib-1"}
 	libSvc.chapters["m1"] = []*domainlibrary.Chapter{
 		{ID: "ch1", MediaItemID: "m1", Title: "Intro", StartTimeMs: 0, EndTimeMs: 30000},
 		{ID: "ch2", MediaItemID: "m1", Title: "Act 1", StartTimeMs: 30000, EndTimeMs: 120000},
 	}
-	handler := chaptersHandler(validTokenValidator(false), libSvc, "")
+	handler := chaptersHandler(validTokenValidator(false), libSvc, "", allowAllLibraries(), libSvc)
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /api/v1/media/{id}/chapters", handler)
@@ -572,7 +587,9 @@ func TestChaptersHandler_ReturnsJSON(t *testing.T) {
 }
 
 func TestChaptersHandler_Empty(t *testing.T) {
-	handler := chaptersHandler(validTokenValidator(false), newFakeLibService(), "")
+	libSvc := newFakeLibService()
+	libSvc.items["m1"] = &domainlibrary.MediaItem{ID: "m1", LibraryID: "lib-1"}
+	handler := chaptersHandler(validTokenValidator(false), libSvc, "", allowAllLibraries(), libSvc)
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /api/v1/media/{id}/chapters", handler)
@@ -851,7 +868,7 @@ func TestLibraryStatsHandler_Success(t *testing.T) {
 }
 
 func TestSubtitleHandler_Unauthenticated(t *testing.T) {
-	handler := subtitleHandler(invalidTokenValidator(), newFakeLibService(), "http://localhost")
+	handler := subtitleHandler(invalidTokenValidator(), newFakeLibService(), "http://localhost", allowAllLibraries())
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /api/v1/media/{id}/subtitle/{track}", handler)
@@ -866,7 +883,7 @@ func TestSubtitleHandler_Unauthenticated(t *testing.T) {
 }
 
 func TestSubtitleHandler_NotFound(t *testing.T) {
-	handler := subtitleHandler(validTokenValidator(false), newFakeLibService(), "http://localhost")
+	handler := subtitleHandler(validTokenValidator(false), newFakeLibService(), "http://localhost", allowAllLibraries())
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /api/v1/media/{id}/subtitle/{track}", handler)
@@ -1078,7 +1095,7 @@ func TestPlaybackSettingsHandler_Put_NonAdmin(t *testing.T) {
 }
 
 func TestTrickplayManifestHandler_Forbidden(t *testing.T) {
-	handler := trickplayManifestHandler(invalidTokenValidator(), newFakeTrickplayService(), "")
+	handler := trickplayManifestHandler(invalidTokenValidator(), newFakeTrickplayService(), "", allowAllLibraries(), newFakeLibService())
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /api/v1/media/{id}/trickplay/manifest", handler)
@@ -1093,7 +1110,7 @@ func TestTrickplayManifestHandler_Forbidden(t *testing.T) {
 }
 
 func TestTrickplayManifestHandler_NotFound(t *testing.T) {
-	handler := trickplayManifestHandler(validTokenValidator(false), newFakeTrickplayService(), "")
+	handler := trickplayManifestHandler(validTokenValidator(false), newFakeTrickplayService(), "", allowAllLibraries(), newFakeLibService())
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /api/v1/media/{id}/trickplay/manifest", handler)
@@ -1120,7 +1137,9 @@ func TestTrickplayManifestHandler_ReturnsVTT(t *testing.T) {
 		ImageCount:  1,
 		ImagePath:   "/cache/trickplay/m1",
 	}
-	handler := trickplayManifestHandler(validTokenValidator(false), svc, "")
+	libSvc := newFakeLibService()
+	libSvc.items["m1"] = &domainlibrary.MediaItem{ID: "m1", LibraryID: "lib-1"}
+	handler := trickplayManifestHandler(validTokenValidator(false), svc, "", allowAllLibraries(), libSvc)
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /api/v1/media/{id}/trickplay/manifest", handler)
@@ -1307,7 +1326,8 @@ func TestIsWithinDir(t *testing.T) {
 
 func TestChaptersHandler_CORS_UsesOriginNotStar(t *testing.T) {
 	libSvc := newFakeLibService()
-	handler := chaptersHandler(validTokenValidator(false), libSvc, "https://evey.test")
+	libSvc.items["m1"] = &domainlibrary.MediaItem{ID: "m1", LibraryID: "lib-1"}
+	handler := chaptersHandler(validTokenValidator(false), libSvc, "https://evey.test", allowAllLibraries(), libSvc)
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /api/v1/media/{id}/chapters", handler)
@@ -1428,5 +1448,141 @@ func TestRequireAdmin_TokenViaQueryParam(t *testing.T) {
 
 	if w.Code != http.StatusOK {
 		t.Errorf("expected 200, got %d", w.Code)
+	}
+}
+
+// --- Library access checks ---
+
+func TestStreamHandler_LibraryAccessDenied(t *testing.T) {
+	libSvc := newFakeLibService()
+	tmpFile := t.TempDir() + "/test.mp4"
+	writeTestFile(tmpFile, "fake video content")
+	libSvc.items["m1"] = &domainlibrary.MediaItem{ID: "m1", FilePath: tmpFile, LibraryID: "lib-restricted"}
+
+	handler := mediaHandler(validTokenValidator(false), libSvc, newFakeArtworkRepo(), "http://localhost", denyAllLibraries())
+	mux := http.NewServeMux()
+	mux.HandleFunc("GET /api/v1/media/{id}/stream", handler)
+
+	req := httptest.NewRequest("GET", "/api/v1/media/m1/stream", nil)
+	req.Header.Set("Authorization", "Bearer valid-token")
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+
+	if w.Code != http.StatusForbidden {
+		t.Fatalf("expected 403, got %d: %s", w.Code, w.Body.String())
+	}
+}
+
+func TestStreamHandler_AdminBypassesLibraryAccess(t *testing.T) {
+	libSvc := newFakeLibService()
+	tmpFile := t.TempDir() + "/test.mp4"
+	writeTestFile(tmpFile, "fake video content")
+	libSvc.items["m1"] = &domainlibrary.MediaItem{ID: "m1", FilePath: tmpFile, LibraryID: "lib-restricted"}
+
+	handler := mediaHandler(validTokenValidator(true), libSvc, newFakeArtworkRepo(), "http://localhost", denyAllLibraries())
+	mux := http.NewServeMux()
+	mux.HandleFunc("GET /api/v1/media/{id}/stream", handler)
+
+	req := httptest.NewRequest("GET", "/api/v1/media/m1/stream", nil)
+	req.Header.Set("Authorization", "Bearer valid-token")
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("admin should bypass library access, got %d: %s", w.Code, w.Body.String())
+	}
+}
+
+func TestDownloadHandler_LibraryAccessDenied(t *testing.T) {
+	libSvc := newFakeLibService()
+	tmpFile := t.TempDir() + "/movie.mkv"
+	writeTestFile(tmpFile, "file data")
+	libSvc.items["m1"] = &domainlibrary.MediaItem{ID: "m1", FilePath: tmpFile, LibraryID: "lib-restricted"}
+
+	handler := downloadHandler(validTokenValidator(false), libSvc, "http://localhost", denyAllLibraries())
+	mux := http.NewServeMux()
+	mux.HandleFunc("GET /api/v1/media/{id}/download", handler)
+
+	req := httptest.NewRequest("GET", "/api/v1/media/m1/download", nil)
+	req.Header.Set("Authorization", "Bearer valid-token")
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+
+	if w.Code != http.StatusForbidden {
+		t.Fatalf("expected 403, got %d: %s", w.Code, w.Body.String())
+	}
+}
+
+func TestTranscodeHandler_LibraryAccessDenied(t *testing.T) {
+	libSvc := newFakeLibService()
+	libSvc.items["m1"] = &domainlibrary.MediaItem{ID: "m1", FilePath: "/some/file.mkv", LibraryID: "lib-restricted"}
+
+	handler := transcodeHandler(validTokenValidator(false), libSvc, "http://localhost", denyAllLibraries())
+	mux := http.NewServeMux()
+	mux.HandleFunc("GET /api/v1/media/{id}/transcode", handler)
+
+	req := httptest.NewRequest("GET", "/api/v1/media/m1/transcode", nil)
+	req.Header.Set("Authorization", "Bearer valid-token")
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+
+	if w.Code != http.StatusForbidden {
+		t.Fatalf("expected 403, got %d: %s", w.Code, w.Body.String())
+	}
+}
+
+func TestSubtitleHandler_LibraryAccessDenied(t *testing.T) {
+	libSvc := newFakeLibService()
+	libSvc.items["m1"] = &domainlibrary.MediaItem{ID: "m1", FilePath: "/some/file.mkv", LibraryID: "lib-restricted"}
+
+	handler := subtitleHandler(validTokenValidator(false), libSvc, "http://localhost", denyAllLibraries())
+	mux := http.NewServeMux()
+	mux.HandleFunc("GET /api/v1/media/{id}/subtitle/{track}", handler)
+
+	req := httptest.NewRequest("GET", "/api/v1/media/m1/subtitle/0", nil)
+	req.Header.Set("Authorization", "Bearer valid-token")
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+
+	if w.Code != http.StatusForbidden {
+		t.Fatalf("expected 403, got %d: %s", w.Code, w.Body.String())
+	}
+}
+
+func TestChaptersHandler_LibraryAccessDenied(t *testing.T) {
+	libSvc := newFakeLibService()
+	libSvc.items["m1"] = &domainlibrary.MediaItem{ID: "m1", LibraryID: "lib-restricted"}
+
+	handler := chaptersHandler(validTokenValidator(false), libSvc, "", denyAllLibraries(), libSvc)
+	mux := http.NewServeMux()
+	mux.HandleFunc("GET /api/v1/media/{id}/chapters", handler)
+
+	req := httptest.NewRequest("GET", "/api/v1/media/m1/chapters", nil)
+	req.Header.Set("Authorization", "Bearer valid-token")
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+
+	if w.Code != http.StatusForbidden {
+		t.Fatalf("expected 403, got %d: %s", w.Code, w.Body.String())
+	}
+}
+
+func TestTrickplayManifestHandler_LibraryAccessDenied(t *testing.T) {
+	svc := newFakeTrickplayService()
+	svc.manifests["m1"] = &domainlibrary.TrickplayManifest{ID: "tp1", MediaItemID: "m1"}
+	libSvc := newFakeLibService()
+	libSvc.items["m1"] = &domainlibrary.MediaItem{ID: "m1", LibraryID: "lib-restricted"}
+
+	handler := trickplayManifestHandler(validTokenValidator(false), svc, "", denyAllLibraries(), libSvc)
+	mux := http.NewServeMux()
+	mux.HandleFunc("GET /api/v1/media/{id}/trickplay", handler)
+
+	req := httptest.NewRequest("GET", "/api/v1/media/m1/trickplay", nil)
+	req.Header.Set("Authorization", "Bearer valid-token")
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+
+	if w.Code != http.StatusForbidden {
+		t.Fatalf("expected 403, got %d: %s", w.Code, w.Body.String())
 	}
 }
