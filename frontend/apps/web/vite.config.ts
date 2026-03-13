@@ -27,7 +27,7 @@ export default defineConfig({
     watch: { usePolling: true, interval: 500 },
     hmr: process.env.VITE_HMR_HOST ? {
       host: process.env.VITE_HMR_HOST,
-      port: process.env.VITE_HMR_PORT ? Number(process.env.VITE_HMR_PORT) : undefined,
+      clientPort: process.env.VITE_HMR_PORT ? Number(process.env.VITE_HMR_PORT) : undefined,
       protocol: process.env.VITE_HMR_PROTOCOL as "ws" | "wss" | undefined,
     } : true,
     proxy: {
