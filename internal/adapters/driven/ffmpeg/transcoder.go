@@ -64,6 +64,14 @@ func (t *Transcoder) Start(ctx context.Context, job *transcoding.TranscodeJob) (
 	t.jobs.Store(job.ID, rj)
 
 	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				slog.Error("transcoder: panic in stderr reader", slog.Any("panic", r), slog.String("jobID", job.ID))
+			}
+			if err := cmd.Wait(); err != nil {
+				slog.Warn("transcoder wait", slog.String("jobID", job.ID), slog.Any("err", err))
+			}
+		}()
 		scanner := bufio.NewScanner(stderr)
 		scanner.Split(scanFFmpegLines)
 		for scanner.Scan() {
@@ -73,9 +81,6 @@ func (t *Transcoder) Start(ctx context.Context, job *transcoding.TranscodeJob) (
 				rj.progress = p
 				rj.mu.Unlock()
 			}
-		}
-		if err := cmd.Wait(); err != nil {
-			slog.Warn("transcoder wait", slog.String("jobID", job.ID), slog.Any("err", err))
 		}
 	}()
 

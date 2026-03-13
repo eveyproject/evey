@@ -3,6 +3,7 @@ package eventbus
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"sync"
 	"sync/atomic"
 
@@ -33,10 +34,30 @@ func (b *InMemoryEventBus) Publish(ctx context.Context, event shared.Event) erro
 	b.mu.RUnlock()
 
 	for _, s := range specific {
-		go s.handler(ctx, event)
+		go func(sub subscription) {
+			defer func() {
+				if r := recover(); r != nil {
+					slog.Error("eventbus: handler panic",
+						slog.String("event", event.EventName()),
+						slog.String("sub", sub.id),
+						slog.Any("panic", r))
+				}
+			}()
+			sub.handler(ctx, event)
+		}(s)
 	}
 	for _, s := range wildcards {
-		go s.handler(ctx, event)
+		go func(sub subscription) {
+			defer func() {
+				if r := recover(); r != nil {
+					slog.Error("eventbus: handler panic",
+						slog.String("event", event.EventName()),
+						slog.String("sub", sub.id),
+						slog.Any("panic", r))
+				}
+			}()
+			sub.handler(ctx, event)
+		}(s)
 	}
 	return nil
 }

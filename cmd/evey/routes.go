@@ -1135,7 +1135,7 @@ func registerBackupRoutes(mux *http.ServeMux, svc *appbackup.Service, tokenGen *
 			http.Error(w, `{"message":"forbidden"}`, http.StatusForbidden)
 			return
 		}
-		r.Body = http.MaxBytesReader(w, r.Body, 500<<20) // 500MB max
+		r.Body = http.MaxBytesReader(w, r.Body, 2<<30) // 2GB max
 		file, _, err := r.FormFile("backup")
 		if err != nil {
 			http.Error(w, `{"message":"backup file required"}`, http.StatusBadRequest)

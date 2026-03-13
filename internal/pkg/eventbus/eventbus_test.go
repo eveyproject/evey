@@ -77,3 +77,27 @@ func TestUnsubscribe(t *testing.T) {
 	defer mu.Unlock()
 	assert.Equal(t, 0, count)
 }
+
+func TestPanickingHandlerDoesNotCrash(t *testing.T) {
+	bus := eventbus.New()
+	var mu sync.Mutex
+	normalCalled := false
+
+	bus.Subscribe("test.event", func(_ context.Context, _ shared.Event) {
+		panic("deliberate panic")
+	})
+	bus.Subscribe("test.event", func(_ context.Context, _ shared.Event) {
+		mu.Lock()
+		normalCalled = true
+		mu.Unlock()
+	})
+
+	assert.NotPanics(t, func() {
+		bus.Publish(context.Background(), testEvent{msg: "panic test"})
+	})
+	time.Sleep(50 * time.Millisecond)
+
+	mu.Lock()
+	defer mu.Unlock()
+	assert.True(t, normalCalled)
+}

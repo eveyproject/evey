@@ -7,8 +7,14 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"regexp"
 	"strconv"
 	"strings"
+)
+
+var (
+	pgDumpHeader      = []byte("-- PostgreSQL database dump")
+	copyToProgramRe   = regexp.MustCompile(`(?i)COPY\s+.*\s+TO\s+PROGRAM`)
 )
 
 type DatabaseDumper struct {
@@ -62,6 +68,26 @@ func (d *DatabaseDumper) DumpTables(ctx context.Context, tables []string) (io.Re
 }
 
 func (d *DatabaseDumper) RestoreTables(ctx context.Context, data io.Reader) error {
+	header := make([]byte, 128)
+	n, err := io.ReadFull(data, header)
+	if err != nil && err != io.ErrUnexpectedEOF {
+		return fmt.Errorf("restore: read header: %w", err)
+	}
+	header = header[:n]
+	if !bytes.HasPrefix(header, pgDumpHeader) {
+		return fmt.Errorf("restore: invalid file: missing pg_dump header")
+	}
+
+	peek := make([]byte, 8192)
+	pn, _ := io.ReadFull(data, peek)
+	peek = peek[:pn]
+	combined := append(header, peek...)
+	if copyToProgramRe.Match(combined) {
+		return fmt.Errorf("restore: rejected: dangerous COPY TO PROGRAM statement")
+	}
+
+	safe := io.MultiReader(bytes.NewReader(combined), data)
+
 	cmd := exec.CommandContext(ctx, "psql",
 		"-h", d.host,
 		"-p", strconv.Itoa(d.port),
@@ -70,7 +96,7 @@ func (d *DatabaseDumper) RestoreTables(ctx context.Context, data io.Reader) erro
 		"--single-transaction",
 	)
 	cmd.Env = d.pgEnv()
-	cmd.Stdin = data
+	cmd.Stdin = safe
 	var stderr bytes.Buffer
 	cmd.Stderr = &stderr
 
