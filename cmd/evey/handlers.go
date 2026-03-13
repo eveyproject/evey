@@ -23,6 +23,7 @@ import (
 	domaintranscoding "github.com/gravity-zero/evey/internal/domain/transcoding"
 	domainuser "github.com/gravity-zero/evey/internal/domain/user"
 	"github.com/gravity-zero/evey/internal/pkg/hdr"
+	"github.com/gravity-zero/evey/internal/pkg/urlvalidator"
 )
 
 // LibraryAccessChecker checks whether a user has access to a library.
@@ -93,6 +94,29 @@ func mediaHandler(tokens interface {
 			http.ServeFile(w, r, item.FilePath)
 
 		case "artwork":
+			artAuthHeader := r.Header.Get("Authorization")
+			if len(artAuthHeader) < 8 {
+				if t := r.URL.Query().Get("token"); t != "" {
+					artAuthHeader = "Bearer " + t
+				}
+			}
+			if len(artAuthHeader) < 8 || artAuthHeader[:7] != "Bearer " {
+				http.Error(w, `{"message":"unauthenticated"}`, http.StatusUnauthorized)
+				return
+			}
+			artClaims, err := tokens.ValidateAccessToken(artAuthHeader[7:])
+			if err != nil {
+				http.Error(w, `{"message":"forbidden"}`, http.StatusForbidden)
+				return
+			}
+			artItem, err := libSvc.GetMediaItem(r.Context(), mediaID)
+			if err != nil {
+				http.NotFound(w, r)
+				return
+			}
+			if !checkLibraryAccess(r.Context(), w, artClaims, artItem.LibraryID, libraryAccess) {
+				return
+			}
 			records, err := artworkRepo.GetByMediaItem(r.Context(), mediaID)
 			if err != nil || len(records) == 0 {
 				http.NotFound(w, r)
@@ -109,6 +133,10 @@ func mediaHandler(tokens interface {
 			}
 			if url == "" {
 				http.NotFound(w, r)
+				return
+			}
+			if err := urlvalidator.ValidateRedirectURL(url); err != nil {
+				http.Error(w, `{"message":"forbidden"}`, http.StatusForbidden)
 				return
 			}
 			http.Redirect(w, r, url, http.StatusFound)
@@ -886,7 +914,8 @@ func trickplayGenerateHandler(tokenGen interface {
 			return
 		}
 		go func() {
-			ctx := context.Background()
+			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+			defer cancel()
 			if err := libSvc.GenerateTrickplay(ctx, mediaID); err != nil {
 				slog.Error("trickplay generation failed", slog.String("media_id", mediaID), slog.Any("err", err))
 			} else {
@@ -924,7 +953,9 @@ func trickplayGenerateAllHandler(tokenGen interface {
 
 func registerSubtitleRoutes(mux *http.ServeMux, subtitleSvc *appsubtitle.Service, tokenGen interface {
 	ValidateAccessToken(string) (*domainuser.Claims, error)
-}) {
+}, mediaGetter interface {
+	GetMediaItem(ctx context.Context, id string) (*domainlibrary.MediaItem, error)
+}, libraryAccess LibraryAccessChecker) {
 	extractToken := func(r *http.Request) string {
 		h := r.Header.Get("Authorization")
 		if strings.HasPrefix(h, "Bearer ") {
@@ -935,24 +966,40 @@ func registerSubtitleRoutes(mux *http.ServeMux, subtitleSvc *appsubtitle.Service
 		}
 		return ""
 	}
-	requireAuth := func(w http.ResponseWriter, r *http.Request) bool {
+	requireAuth := func(w http.ResponseWriter, r *http.Request) (*domainuser.Claims, bool) {
 		token := extractToken(r)
 		if token == "" {
 			http.Error(w, `{"message":"unauthenticated"}`, http.StatusUnauthorized)
-			return false
+			return nil, false
 		}
-		if _, err := tokenGen.ValidateAccessToken(token); err != nil {
+		claims, err := tokenGen.ValidateAccessToken(token)
+		if err != nil {
 			http.Error(w, `{"message":"forbidden"}`, http.StatusForbidden)
-			return false
+			return nil, false
 		}
-		return true
+		return claims, true
+	}
+	requireMediaAccess := func(w http.ResponseWriter, r *http.Request, mediaID string) (*domainuser.Claims, bool) {
+		claims, ok := requireAuth(w, r)
+		if !ok {
+			return nil, false
+		}
+		item, err := mediaGetter.GetMediaItem(r.Context(), mediaID)
+		if err != nil {
+			http.Error(w, `{"message":"not found"}`, http.StatusNotFound)
+			return nil, false
+		}
+		if !checkLibraryAccess(r.Context(), w, claims, item.LibraryID, libraryAccess) {
+			return nil, false
+		}
+		return claims, true
 	}
 
 	mux.HandleFunc("GET /api/v1/media/{id}/subtitles/search", func(w http.ResponseWriter, r *http.Request) {
-		if !requireAuth(w, r) {
+		mediaID := r.PathValue("id")
+		if _, ok := requireMediaAccess(w, r, mediaID); !ok {
 			return
 		}
-		mediaID := r.PathValue("id")
 		language := r.URL.Query().Get("language")
 		results, err := subtitleSvc.Search(r.Context(), mediaID, language)
 		if err != nil {
@@ -982,10 +1029,10 @@ func registerSubtitleRoutes(mux *http.ServeMux, subtitleSvc *appsubtitle.Service
 	})
 
 	mux.HandleFunc("POST /api/v1/media/{id}/subtitles/download", func(w http.ResponseWriter, r *http.Request) {
-		if !requireAuth(w, r) {
+		mediaID := r.PathValue("id")
+		if _, ok := requireMediaAccess(w, r, mediaID); !ok {
 			return
 		}
-		mediaID := r.PathValue("id")
 		var body struct {
 			FileID   int    `json:"fileId"`
 			Language string `json:"language"`
@@ -1019,10 +1066,10 @@ func registerSubtitleRoutes(mux *http.ServeMux, subtitleSvc *appsubtitle.Service
 	})
 
 	mux.HandleFunc("GET /api/v1/media/{id}/subtitles", func(w http.ResponseWriter, r *http.Request) {
-		if !requireAuth(w, r) {
+		mediaID := r.PathValue("id")
+		if _, ok := requireMediaAccess(w, r, mediaID); !ok {
 			return
 		}
-		mediaID := r.PathValue("id")
 		subs, err := subtitleSvc.List(r.Context(), mediaID)
 		if err != nil {
 			slog.Error("subtitle list", slog.Any("err", err))
@@ -1055,11 +1102,11 @@ func registerSubtitleRoutes(mux *http.ServeMux, subtitleSvc *appsubtitle.Service
 	})
 
 	mux.HandleFunc("DELETE /api/v1/media/{id}/subtitles/{subtitleId}", func(w http.ResponseWriter, r *http.Request) {
-		if !requireAuth(w, r) {
-			return
-		}
 		mediaID := r.PathValue("id")
 		subtitleID := r.PathValue("subtitleId")
+		if _, ok := requireMediaAccess(w, r, mediaID); !ok {
+			return
+		}
 		subs, err := subtitleSvc.List(r.Context(), mediaID)
 		if err != nil {
 			http.Error(w, `{"message":"internal error"}`, http.StatusInternalServerError)
@@ -1212,7 +1259,7 @@ func playbackInfoHandler(tokenGen interface {
 }, libSvc interface {
 	GetMediaItem(ctx context.Context, id string) (*domainlibrary.MediaItem, error)
 	GetMediaStreams(ctx context.Context, mediaItemID string) ([]*domainlibrary.MediaStream, error)
-}) http.HandlerFunc {
+}, libraryAccess LibraryAccessChecker) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		mediaID := r.PathValue("id")
 		token := r.Header.Get("Authorization")
@@ -1224,7 +1271,8 @@ func playbackInfoHandler(tokenGen interface {
 			http.Error(w, `{"message":"unauthenticated"}`, http.StatusUnauthorized)
 			return
 		}
-		if _, err := tokenGen.ValidateAccessToken(token); err != nil {
+		claims, err := tokenGen.ValidateAccessToken(token)
+		if err != nil {
 			http.Error(w, `{"message":"forbidden"}`, http.StatusForbidden)
 			return
 		}
@@ -1232,6 +1280,9 @@ func playbackInfoHandler(tokenGen interface {
 		item, err := libSvc.GetMediaItem(r.Context(), mediaID)
 		if err != nil || item.FilePath == "" {
 			http.Error(w, `{"message":"not found"}`, http.StatusNotFound)
+			return
+		}
+		if !checkLibraryAccess(r.Context(), w, claims, item.LibraryID, libraryAccess) {
 			return
 		}
 

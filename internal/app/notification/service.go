@@ -51,8 +51,9 @@ func NewService(
 	return s
 }
 
-func (s *Service) handleMediaItemAdded(_ context.Context, ev shared.Event) {
-	ctx := context.Background()
+func (s *Service) handleMediaItemAdded(parentCtx context.Context, ev shared.Event) {
+	ctx, cancel := context.WithTimeout(parentCtx, 30*time.Second)
+	defer cancel()
 	e, ok := ev.(libevent.MediaItemAdded)
 	if !ok {
 		return

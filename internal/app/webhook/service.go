@@ -114,7 +114,7 @@ func (s *Service) deliver(ctx context.Context, cfg *webhook.Config, eventName st
 
 	lastErr, statusCode := s.attemptDeliver(ctx, cfg, body)
 
-	if err := s.deliveries.Create(context.Background(), &webhook.Delivery{
+	if err := s.deliveries.Create(ctx, &webhook.Delivery{
 		ID:         uuid.New().String(),
 		WebhookID:  cfg.ID,
 		Event:      eventName,

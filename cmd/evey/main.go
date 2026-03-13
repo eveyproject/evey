@@ -400,7 +400,7 @@ func run() error {
 		mux.HandleFunc("GET /api/v1/media/{id}/trickplay/{image}", trickplayImageHandler(tokenGen, libCmdSvc, cfg.Server.BaseURL, libraryAccessRepo, libQuerySvc))
 		mux.HandleFunc("POST /api/v1/admin/media/{id}/trickplay/generate", requireAdmin(tokenGen, trickplayGenerateHandler(tokenGen, libCmdSvc)))
 		mux.HandleFunc("POST /api/v1/admin/trickplay/generate-all", requireAdmin(tokenGen, trickplayGenerateAllHandler(tokenGen, libCmdSvc)))
-		mux.HandleFunc("GET /api/v1/media/{id}/playback-info", playbackInfoHandler(tokenGen, libQuerySvc))
+		mux.HandleFunc("GET /api/v1/media/{id}/playback-info", playbackInfoHandler(tokenGen, libQuerySvc, libraryAccessRepo))
 		mux.HandleFunc("GET /api/v1/media/{id}/hls/master.m3u8", hlsMasterHandler(tokenGen, libQuerySvc, hlsManager, libraryAccessRepo, userMaxStreams))
 		mux.HandleFunc("GET /api/v1/media/{id}/hls/{file}", hlsSegmentHandler(tokenGen, hlsManager))
 		mux.HandleFunc("GET /api/v1/admin/library-stats", requireAdmin(tokenGen, libraryStatsHandler(tokenGen, libQuerySvc)))
@@ -430,7 +430,7 @@ func run() error {
 		registerPlaybackSettingsRoutes(mux, cfg, tokenGen)
 		registerParentalRoutes(mux, profileRepo, hasher, tokenGen)
 		if subtitleSvc != nil {
-			registerSubtitleRoutes(mux, subtitleSvc, tokenGen)
+			registerSubtitleRoutes(mux, subtitleSvc, tokenGen, libQuerySvc, libraryAccessRepo)
 		}
 		mux.HandleFunc("GET /api/v1/admin/sessions/active", requireAdmin(tokenGen, activeSessionsHandler(tokenGen, playbackSvc)))
 		mux.HandleFunc("DELETE /api/v1/admin/sessions/{id}", requireAdmin(tokenGen, killSessionHandler(tokenGen, playbackSvc)))

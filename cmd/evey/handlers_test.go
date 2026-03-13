@@ -356,6 +356,7 @@ func TestArtworkHandler_NotFound(t *testing.T) {
 	mux.HandleFunc("GET /api/v1/media/{id}/artwork/{artType}", handler)
 
 	req := httptest.NewRequest("GET", "/api/v1/media/m1/artwork/poster", nil)
+	req.Header.Set("Authorization", "Bearer valid-token")
 	w := httptest.NewRecorder()
 	mux.ServeHTTP(w, req)
 
@@ -370,12 +371,15 @@ func TestArtworkHandler_Redirect(t *testing.T) {
 	artRepo.records["m1"] = []*domainmeta.ArtworkRecord{
 		{ID: "art1", MediaItemID: "m1", Type: "poster", SourceURL: &url, SortOrder: 0},
 	}
-	handler := mediaHandler(validTokenValidator(false), newFakeLibService(), artRepo, "http://localhost", allowAllLibraries())
+	libSvc := newFakeLibService()
+	libSvc.items["m1"] = &domainlibrary.MediaItem{ID: "m1", FilePath: "/movies/movie.mkv"}
+	handler := mediaHandler(validTokenValidator(false), libSvc, artRepo, "http://localhost", allowAllLibraries())
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /api/v1/media/{id}/artwork/{artType}", handler)
 
 	req := httptest.NewRequest("GET", "/api/v1/media/m1/artwork/poster", nil)
+	req.Header.Set("Authorization", "Bearer valid-token")
 	w := httptest.NewRecorder()
 	mux.ServeHTTP(w, req)
 
@@ -392,8 +396,25 @@ func TestArtworkHandler_NoSourceURL(t *testing.T) {
 	artRepo.records["m1"] = []*domainmeta.ArtworkRecord{
 		{ID: "art1", MediaItemID: "m1", Type: "poster"},
 	}
-	handler := mediaHandler(validTokenValidator(false), newFakeLibService(), artRepo, "http://localhost", allowAllLibraries())
+	libSvc := newFakeLibService()
+	libSvc.items["m1"] = &domainlibrary.MediaItem{ID: "m1", FilePath: "/movies/movie.mkv"}
+	handler := mediaHandler(validTokenValidator(false), libSvc, artRepo, "http://localhost", allowAllLibraries())
 
+	mux := http.NewServeMux()
+	mux.HandleFunc("GET /api/v1/media/{id}/artwork/{artType}", handler)
+
+	req := httptest.NewRequest("GET", "/api/v1/media/m1/artwork/poster", nil)
+	req.Header.Set("Authorization", "Bearer valid-token")
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+
+	if w.Code != http.StatusNotFound {
+		t.Fatalf("expected 404, got %d", w.Code)
+	}
+}
+
+func TestArtworkHandler_Unauthenticated(t *testing.T) {
+	handler := mediaHandler(validTokenValidator(false), newFakeLibService(), newFakeArtworkRepo(), "http://localhost", allowAllLibraries())
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /api/v1/media/{id}/artwork/{artType}", handler)
 
@@ -401,8 +422,30 @@ func TestArtworkHandler_NoSourceURL(t *testing.T) {
 	w := httptest.NewRecorder()
 	mux.ServeHTTP(w, req)
 
-	if w.Code != http.StatusNotFound {
-		t.Fatalf("expected 404, got %d", w.Code)
+	if w.Code != http.StatusUnauthorized {
+		t.Fatalf("expected 401, got %d", w.Code)
+	}
+}
+
+func TestArtworkHandler_LibraryAccessDenied(t *testing.T) {
+	artRepo := newFakeArtworkRepo()
+	url := "https://image.tmdb.org/poster.jpg"
+	artRepo.records["m1"] = []*domainmeta.ArtworkRecord{
+		{ID: "art1", MediaItemID: "m1", Type: "poster", SourceURL: &url, SortOrder: 0},
+	}
+	libSvc := newFakeLibService()
+	libSvc.items["m1"] = &domainlibrary.MediaItem{ID: "m1", FilePath: "/movies/movie.mkv", LibraryID: "lib-restricted"}
+	handler := mediaHandler(validTokenValidator(false), libSvc, artRepo, "http://localhost", denyAllLibraries())
+	mux := http.NewServeMux()
+	mux.HandleFunc("GET /api/v1/media/{id}/artwork/{artType}", handler)
+
+	req := httptest.NewRequest("GET", "/api/v1/media/m1/artwork/poster", nil)
+	req.Header.Set("Authorization", "Bearer valid-token")
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+
+	if w.Code != http.StatusForbidden {
+		t.Fatalf("expected 403, got %d", w.Code)
 	}
 }
 
@@ -933,8 +976,10 @@ func TestSubtitleRoutes_List(t *testing.T) {
 	tokenGen := auth.NewJWTGenerator(key, time.Hour)
 	token := createTestToken(t, tokenGen, "prof-1", false)
 
+	libSvc := newFakeLibService()
+	libSvc.items["m1"] = &domainlibrary.MediaItem{ID: "m1", FilePath: "/movies/movie.mkv"}
 	mux := http.NewServeMux()
-	registerSubtitleRoutes(mux, subtitleSvc, tokenGen)
+	registerSubtitleRoutes(mux, subtitleSvc, tokenGen, libSvc, allowAllLibraries())
 
 	req := httptest.NewRequest("GET", "/api/v1/media/m1/subtitles", nil)
 	req.Header.Set("Authorization", "Bearer "+token)
@@ -970,7 +1015,7 @@ func TestSubtitleRoutes_Unauthenticated(t *testing.T) {
 	tokenGen := auth.NewJWTGenerator(key, time.Hour)
 
 	mux := http.NewServeMux()
-	registerSubtitleRoutes(mux, subtitleSvc, tokenGen)
+	registerSubtitleRoutes(mux, subtitleSvc, tokenGen, newFakeLibService(), allowAllLibraries())
 
 	req := httptest.NewRequest("GET", "/api/v1/media/m1/subtitles", nil)
 	w := httptest.NewRecorder()
@@ -995,8 +1040,10 @@ func TestSubtitleRoutes_Delete(t *testing.T) {
 	tokenGen := auth.NewJWTGenerator(key, time.Hour)
 	token := createTestToken(t, tokenGen, "prof-1", false)
 
+	libSvc := newFakeLibService()
+	libSvc.items["m1"] = &domainlibrary.MediaItem{ID: "m1", FilePath: "/movies/movie.mkv"}
 	mux := http.NewServeMux()
-	registerSubtitleRoutes(mux, subtitleSvc, tokenGen)
+	registerSubtitleRoutes(mux, subtitleSvc, tokenGen, libSvc, allowAllLibraries())
 
 	req := httptest.NewRequest("DELETE", "/api/v1/media/m1/subtitles/sub-1", nil)
 	req.Header.Set("Authorization", "Bearer "+token)
@@ -1255,7 +1302,7 @@ func TestSanitizeFilename(t *testing.T) {
 }
 
 func TestPlaybackInfoHandler_Unauthenticated(t *testing.T) {
-	handler := playbackInfoHandler(invalidTokenValidator(), newFakeLibService())
+	handler := playbackInfoHandler(invalidTokenValidator(), newFakeLibService(), allowAllLibraries())
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /api/v1/media/{id}/playback-info", handler)
@@ -1270,7 +1317,7 @@ func TestPlaybackInfoHandler_Unauthenticated(t *testing.T) {
 }
 
 func TestPlaybackInfoHandler_NotFound(t *testing.T) {
-	handler := playbackInfoHandler(validTokenValidator(false), newFakeLibService())
+	handler := playbackInfoHandler(validTokenValidator(false), newFakeLibService(), allowAllLibraries())
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /api/v1/media/{id}/playback-info", handler)
@@ -1294,7 +1341,7 @@ func TestPlaybackInfoHandler_ReturnsDecision(t *testing.T) {
 		{ID: "a1", MediaItemID: "m1", StreamType: "audio", Codec: "aac", IsDefault: true},
 	}
 
-	handler := playbackInfoHandler(validTokenValidator(false), libSvc)
+	handler := playbackInfoHandler(validTokenValidator(false), libSvc, allowAllLibraries())
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /api/v1/media/{id}/playback-info", handler)
