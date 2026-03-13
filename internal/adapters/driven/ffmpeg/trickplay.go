@@ -23,7 +23,7 @@ func NewTrickplayGenerator(binary, probeBinary string) *TrickplayGenerator {
 }
 
 func (g *TrickplayGenerator) probeDuration(ctx context.Context, filePath string) (float64, error) {
-	out, err := exec.CommandContext(ctx, g.probeBinary,
+	out, err := exec.CommandContext(ctx, "nice", "-n", "15", g.probeBinary,
 		"-v", "quiet",
 		"-print_format", "json",
 		"-show_format",
@@ -82,7 +82,7 @@ func (g *TrickplayGenerator) Generate(ctx context.Context, filePath, outputDir s
 			defer wg.Done()
 			defer func() { <-sem }()
 			out := filepath.Join(thumbDir, fmt.Sprintf("thumb_%05d.jpg", idx))
-			cmd := exec.CommandContext(ctx, g.binary,
+			cmd := exec.CommandContext(ctx, "nice", "-n", "15", g.binary,
 				"-ss", fmt.Sprintf("%.3f", t),
 				"-i", filePath,
 				"-frames:v", "1",
@@ -119,7 +119,7 @@ func (g *TrickplayGenerator) Generate(ctx context.Context, filePath, outputDir s
 
 	// Tile thumbnails into sprite sheets.
 	outputPattern := filepath.Join(outputDir, "trickplay_%03d.jpg")
-	tileCmd := exec.CommandContext(ctx, g.binary,
+	tileCmd := exec.CommandContext(ctx, "nice", "-n", "15", g.binary,
 		"-f", "concat",
 		"-safe", "0",
 		"-i", concatPath,
