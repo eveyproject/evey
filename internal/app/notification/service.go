@@ -79,6 +79,7 @@ func (s *Service) handleMediaItemAdded(_ context.Context, ev shared.Event) {
 
 	profiles, err := s.profiles.GetAll(ctx)
 	if err != nil {
+		slog.Warn("notification: list profiles failed", slog.Any("err", err))
 		return
 	}
 
@@ -86,6 +87,7 @@ func (s *Service) handleMediaItemAdded(_ context.Context, ev shared.Event) {
 	for _, p := range profiles {
 		cfg, err := s.settings.GetByProfile(ctx, p.ID)
 		if err != nil {
+			slog.Warn("notification: get settings failed", slog.String("profileID", p.ID), slog.Any("err", err))
 			continue
 		}
 		lvl := levelForType(cfg, notifType)

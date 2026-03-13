@@ -2,6 +2,7 @@ package notification_test
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -15,6 +16,12 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+type errProfileLister struct{ err error }
+
+func (e *errProfileLister) GetAll(_ context.Context) ([]*user.Profile, error) {
+	return nil, e.err
+}
 
 func TestNotificationService_MediaItemAdded_CreatesNotificationsForAllProfiles(t *testing.T) {
 	repo := notiffakes.NewFakeNotificationRepository()
@@ -132,4 +139,27 @@ func TestNotificationService_MarkRead_UnreadCount(t *testing.T) {
 	require.NoError(t, svc.MarkAllRead(ctx, "p1"))
 	count, _ = svc.UnreadCount(ctx, "p1")
 	assert.Equal(t, 0, count)
+}
+
+func TestNotificationService_GetAllProfilesError_NoNotifications(t *testing.T) {
+	repo := notiffakes.NewFakeNotificationRepository()
+	settings := notiffakes.NewFakeSettingsRepository()
+	analyzer := notiffakes.NewFakeWatchHistoryAnalyzer()
+	bus := sharedfakes.NewFakeEventBus()
+
+	lister := &errProfileLister{err: errors.New("db down")}
+	_ = appnotification.NewService(repo, settings, analyzer, lister, bus)
+
+	ctx := context.Background()
+	bus.Publish(ctx, libevent.MediaItemAdded{
+		MediaItemID: "m1",
+		LibraryID:   "lib1",
+		Title:       "Inception",
+		Type:        "movie",
+		OccurredAt:  time.Now(),
+	})
+
+	notifs, err := repo.ListByProfile(ctx, "p1", false, 0, 0)
+	require.NoError(t, err)
+	assert.Empty(t, notifs, "no notifications should be created when profile list fails")
 }
