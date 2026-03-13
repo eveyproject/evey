@@ -392,8 +392,10 @@ func run() error {
 		mux := http.NewServeMux()
 		loginRL := ratelimit.New(cfg.Server.LoginRateLimitMax)
 		globalRL := ratelimit.New(100)
+		adminHeavyRL := ratelimit.NewWithBurst(3, 6.0)
 		defer loginRL.Stop()
 		defer globalRL.Stop()
+		defer adminHeavyRL.Stop()
 
 		mux.HandleFunc("/healthz", func(w http.ResponseWriter, _ *http.Request) {
 			w.Header().Set("Content-Type", "application/json")
@@ -413,8 +415,8 @@ func run() error {
 		mux.HandleFunc("GET /api/v1/media/{id}/chapters", chaptersHandler(tokenGen, libCmdSvc, cfg.Server.BaseURL, libraryAccessRepo, libQuerySvc))
 		mux.HandleFunc("GET /api/v1/media/{id}/trickplay", trickplayManifestHandler(tokenGen, libCmdSvc, cfg.Server.BaseURL, libraryAccessRepo, libQuerySvc))
 		mux.HandleFunc("GET /api/v1/media/{id}/trickplay/{image}", trickplayImageHandler(tokenGen, libCmdSvc, cfg.Server.BaseURL, libraryAccessRepo, libQuerySvc))
-		mux.HandleFunc("POST /api/v1/admin/media/{id}/trickplay/generate", requireAdmin(tokenGen, trickplayGenerateHandler(tokenGen, libCmdSvc)))
-		mux.HandleFunc("POST /api/v1/admin/trickplay/generate-all", requireAdmin(tokenGen, trickplayGenerateAllHandler(tokenGen, libCmdSvc)))
+		mux.HandleFunc("POST /api/v1/admin/media/{id}/trickplay/generate", requireAdmin(tokenGen, ratelimit.MiddlewareFunc(adminHeavyRL, trickplayGenerateHandler(tokenGen, libCmdSvc))))
+		mux.HandleFunc("POST /api/v1/admin/trickplay/generate-all", requireAdmin(tokenGen, ratelimit.MiddlewareFunc(adminHeavyRL, trickplayGenerateAllHandler(tokenGen, libCmdSvc))))
 		mux.HandleFunc("GET /api/v1/media/{id}/playback-info", playbackInfoHandler(tokenGen, libQuerySvc, libraryAccessRepo))
 		mux.HandleFunc("GET /api/v1/media/{id}/hls/master.m3u8", hlsMasterHandler(tokenGen, libQuerySvc, hlsManager, libraryAccessRepo, userMaxStreams))
 		mux.HandleFunc("GET /api/v1/media/{id}/hls/{file}", hlsSegmentHandler(tokenGen, libQuerySvc, hlsManager, libraryAccessRepo))
@@ -423,7 +425,7 @@ func run() error {
 			r.Body = http.MaxBytesReader(w, r.Body, 1<<20)
 			gwMux.ServeHTTP(w, r)
 		}))
-		registerAdminRoutes(mux, metadataSvc, tokenGen)
+		registerAdminRoutes(mux, metadataSvc, tokenGen, adminHeavyRL)
 		registerFavoriteRoutes(mux, favoriteSvc, tokenGen)
 		registerMetadataOverrideRoutes(mux, metadataSvc, tokenGen)
 		registerTranscodeCacheRoutes(mux, transcodingSvc, tokenGen)
@@ -435,7 +437,7 @@ func run() error {
 		backupStore := filesystem.NewBackupStore(cfg.Backup.Dir)
 		dbDumper := postgres.NewDatabaseDumper(cfg.DB.Host, cfg.DB.Port, cfg.DB.User, cfg.DB.Password, cfg.DB.DBName, cfg.DB.SSLMode)
 		backupSvc := appbackup.NewService(backupStore, dbDumper, version)
-		registerBackupRoutes(mux, backupSvc, tokenGen)
+		registerBackupRoutes(mux, backupSvc, tokenGen, adminHeavyRL)
 		cfgStore := &serverConfigStore{repo: serverCfgRepo}
 		// load RemoteAccess persisted settings from DB (overrides env-based config)
 		if raw, err2 := cfgStore.Get(context.Background(), remoteAccessConfigKey); err2 == nil && raw != "" {

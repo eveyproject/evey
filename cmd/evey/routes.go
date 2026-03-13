@@ -34,9 +34,10 @@ import (
 	"github.com/gravity-zero/evey/internal/pkg/auth"
 	"github.com/gravity-zero/evey/internal/pkg/id"
 	"github.com/gravity-zero/evey/internal/pkg/network"
+	"github.com/gravity-zero/evey/internal/pkg/ratelimit"
 )
 
-func registerAdminRoutes(mux *http.ServeMux, metaSvc *appmetadata.Service, tokenGen *auth.JWTGenerator) {
+func registerAdminRoutes(mux *http.ServeMux, metaSvc *appmetadata.Service, tokenGen *auth.JWTGenerator, heavyRL *ratelimit.Limiter) {
 	requireAdmin := func(r *http.Request) bool {
 		h := r.Header.Get("Authorization")
 		if !strings.HasPrefix(h, "Bearer ") {
@@ -61,6 +62,10 @@ func registerAdminRoutes(mux *http.ServeMux, metaSvc *appmetadata.Service, token
 
 		switch {
 		case action == "refresh-metadata" && r.Method == http.MethodPost:
+			if !heavyRL.Allow(ratelimit.ClientIP(r)) {
+				http.Error(w, `{"message":"too many requests"}`, http.StatusTooManyRequests)
+				return
+			}
 			var body struct {
 				TmdbID    string `json:"tmdb_id"`
 				ImdbID    string `json:"imdb_id"`
@@ -1050,7 +1055,7 @@ func registerPlaylistRoutes(mux *http.ServeMux, svc *appplaylist.Service, tokenG
 	})
 }
 
-func registerBackupRoutes(mux *http.ServeMux, svc *appbackup.Service, tokenGen *auth.JWTGenerator) {
+func registerBackupRoutes(mux *http.ServeMux, svc *appbackup.Service, tokenGen *auth.JWTGenerator, heavyRL *ratelimit.Limiter) {
 	requireAdmin := func(r *http.Request) bool {
 		h := r.Header.Get("Authorization")
 		if !strings.HasPrefix(h, "Bearer ") {
@@ -1133,6 +1138,10 @@ func registerBackupRoutes(mux *http.ServeMux, svc *appbackup.Service, tokenGen *
 	mux.HandleFunc("POST /api/v1/admin/backups/restore", func(w http.ResponseWriter, r *http.Request) {
 		if !requireAdmin(r) {
 			http.Error(w, `{"message":"forbidden"}`, http.StatusForbidden)
+			return
+		}
+		if !heavyRL.Allow(ratelimit.ClientIP(r)) {
+			http.Error(w, `{"message":"too many requests"}`, http.StatusTooManyRequests)
 			return
 		}
 		r.Body = http.MaxBytesReader(w, r.Body, 2<<30) // 2GB max

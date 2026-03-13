@@ -112,6 +112,8 @@ func isTrustedProxy(ip net.IP) bool {
 	return false
 }
 
+func ClientIP(r *http.Request) string { return clientIP(r) }
+
 func clientIP(r *http.Request) string {
 	host, _, err := net.SplitHostPort(r.RemoteAddr)
 	if err != nil {
