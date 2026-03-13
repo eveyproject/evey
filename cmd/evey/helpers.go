@@ -112,6 +112,22 @@ func isWithinDir(dir, path string) bool {
 	return strings.HasPrefix(filepath.Clean(path), cleanDir)
 }
 
+// tokenRedactMiddleware moves ?token= from URL query to Authorization header.
+// This prevents tokens from appearing in access logs while keeping handler compat.
+func tokenRedactMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if t := r.URL.Query().Get("token"); t != "" {
+			q := r.URL.Query()
+			q.Del("token")
+			r.URL.RawQuery = q.Encode()
+			if r.Header.Get("Authorization") == "" {
+				r.Header.Set("Authorization", "Bearer "+t)
+			}
+		}
+		next.ServeHTTP(w, r)
+	})
+}
+
 func securityHeadersMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("X-Content-Type-Options", "nosniff")

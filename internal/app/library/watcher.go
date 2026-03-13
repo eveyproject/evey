@@ -150,7 +150,7 @@ func (ws *WatcherService) processEvents(ctx context.Context) {
 				t.Reset(debounceDelay)
 			} else {
 				pending[libID] = time.AfterFunc(debounceDelay, func() {
-					ws.triggerScan(libID)
+					ws.triggerScan(ctx, libID)
 					mu.Lock()
 					delete(pending, libID)
 					mu.Unlock()
@@ -186,12 +186,8 @@ func (ws *WatcherService) resolveLibrary(filePath string) string {
 	return ""
 }
 
-func (ws *WatcherService) triggerScan(libraryID string) {
+func (ws *WatcherService) triggerScan(ctx context.Context, libraryID string) {
 	ws.log.Info("watcher: triggering scan", slog.String("library_id", libraryID))
-	ctx := ws.ctx
-	if ctx == nil {
-		ctx = context.Background()
-	}
 	added, updated, err := ws.scanner.ScanLibrary(ctx, libraryID)
 	if err != nil {
 		ws.log.Error("watcher: scan failed", slog.String("library_id", libraryID), slog.Any("err", err))

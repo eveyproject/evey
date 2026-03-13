@@ -463,7 +463,7 @@ func run() error {
 		}
 		httpSrv = &http.Server{
 			Addr:              fmt.Sprintf(":%d", httpPort),
-			Handler:           securityHeadersMiddleware(proxyTrust.Middleware(netMw(mux))),
+			Handler:           tokenRedactMiddleware(securityHeadersMiddleware(proxyTrust.Middleware(netMw(mux)))),
 			ReadHeaderTimeout: 10 * time.Second,
 			WriteTimeout:      10 * time.Minute,
 			IdleTimeout:       120 * time.Second,
