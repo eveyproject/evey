@@ -304,18 +304,7 @@ func run() error {
 		notificationRepo, notificationSettingsRepo, watchHistoryAnalyzer,
 		profileRepo, bus,
 	)
-	go func() {
-		if err := notifSvc.CleanupExpired(context.Background()); err != nil {
-			rootLog.Warn("notification cleanup", slog.Any("err", err))
-		}
-		ticker := time.NewTicker(24 * time.Hour)
-		defer ticker.Stop()
-		for range ticker.C {
-			if err := notifSvc.CleanupExpired(context.Background()); err != nil {
-				rootLog.Warn("notification cleanup", slog.Any("err", err))
-			}
-		}
-	}()
+	// notification cleanup goroutine started after ctx is available (see below)
 
 	feedCmdSvc := appfeed.NewCommandService(feedCmdRepo)
 	feedQuerySvc := appfeed.NewQueryService(feedQueryRepo, feedQuerier, watchHistoryAnalyzer)
@@ -457,6 +446,24 @@ func run() error {
 	defer stop()
 
 	go libScheduler.Run(ctx)
+
+	go func() {
+		if err := notifSvc.CleanupExpired(context.Background()); err != nil {
+			rootLog.Warn("notification cleanup", slog.Any("err", err))
+		}
+		ticker := time.NewTicker(24 * time.Hour)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				if err := notifSvc.CleanupExpired(context.Background()); err != nil {
+					rootLog.Warn("notification cleanup", slog.Any("err", err))
+				}
+			}
+		}
+	}()
 
 	go func() {
 		ticker := time.NewTicker(1 * time.Hour)
