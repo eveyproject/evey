@@ -1,0 +1,43 @@
+name: PR Checks
+
+on:
+  pull_request:
+    branches: [master, main]
+
+jobs:
+  go-vet:
+    name: Go vet
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - run: go vet ./...
+
+  tsc:
+    name: TypeScript check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: enable corepack
+        run: corepack enable
+
+      - name: install pnpm
+        run: corepack prepare pnpm@10.6.5 --activate
+
+      - name: install deps
+        working-directory: frontend
+        run: pnpm install --frozen-lockfile
+
+      - name: typecheck
+        working-directory: frontend
+        run: pnpm run typecheck

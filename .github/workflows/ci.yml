@@ -1,0 +1,59 @@
+name: CI
+
+on:
+  push:
+    branches: [master, main]
+  pull_request:
+    branches: [master, main]
+
+jobs:
+  backend-test:
+    name: Backend — test & build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: vet
+        run: go vet ./...
+
+      - name: build
+        run: go build ./...
+
+      - name: test (non-postgres)
+        run: |
+          go test \
+            $(go list ./... | grep -v "adapters/driven/postgres") \
+            -count=1 -timeout=120s -race
+
+  frontend-lint-build:
+    name: Frontend — typecheck & build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: enable corepack
+        run: corepack enable
+
+      - name: install pnpm
+        run: corepack prepare pnpm@10.6.5 --activate
+
+      - name: install deps
+        working-directory: frontend
+        run: pnpm install --frozen-lockfile
+
+      - name: typecheck
+        working-directory: frontend
+        run: pnpm run typecheck
+
+      - name: build
+        working-directory: frontend
+        run: pnpm run build
