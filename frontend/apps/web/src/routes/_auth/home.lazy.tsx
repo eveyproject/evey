@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { createLazyFileRoute, Link } from "@tanstack/react-router";
+import { createLazyFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import {
   useFeedServiceContinueWatching,
@@ -10,6 +10,7 @@ import {
 } from "@evey/api";
 import { MediaSlider } from "../../features/home/MediaSlider";
 import { MediaCard } from "../../features/library/MediaCard";
+import { EmptyState } from "@/components/ui/EmptyState";
 import { slugify } from "@/utils/slugify";
 
 export const Route = createLazyFileRoute("/_auth/home")({
@@ -251,22 +252,37 @@ function RecentlyAddedSlider() {
 }
 
 function HomePage() {
-  const { data: librariesData } = useLibraryServiceListLibraries();
+  const navigate = useNavigate();
+  const { data: librariesData, isLoading: librariesLoading } = useLibraryServiceListLibraries();
   const libraries = librariesData?.libraries ?? [];
+  const { data: recentlyAdded, isLoading: recentLoading } = useFeedServiceRecentlyAdded();
+  const hasContent = (recentlyAdded?.items ?? []).length > 0 || libraries.length > 0;
+  const isLoading = librariesLoading || recentLoading;
 
   return (
     <div className="animate-fade-in" data-testid="home-page">
       <HeroBanner />
 
       <div className="px-4 sm:px-6 pt-6">
-        <ContinueWatchingSlider />
-        <RecentlyAddedSlider />
-        <TypeSlider title="Films" type="MEDIA_ITEM_TYPE_MOVIE" />
-        <TypeSlider title="S\u00E9ries" type="MEDIA_ITEM_TYPE_SERIES" />
-        {libraries.map((lib) =>
-          lib.id ? (
-            <LibrarySlider key={lib.id} libraryId={lib.id} name={lib.name ?? "Library"} libraryType={lib.type} />
-          ) : null
+        {!isLoading && !hasContent ? (
+          <EmptyState
+            icon="library"
+            title="Your library is empty"
+            description="Go to Admin \u2192 Libraries to add a media folder."
+            action={{ label: "Go to Libraries", onClick: () => navigate({ to: "/admin/libraries" }) }}
+          />
+        ) : (
+          <>
+            <ContinueWatchingSlider />
+            <RecentlyAddedSlider />
+            <TypeSlider title="Films" type="MEDIA_ITEM_TYPE_MOVIE" />
+            <TypeSlider title="S\u00E9ries" type="MEDIA_ITEM_TYPE_SERIES" />
+            {libraries.map((lib) =>
+              lib.id ? (
+                <LibrarySlider key={lib.id} libraryId={lib.id} name={lib.name ?? "Library"} libraryType={lib.type} />
+              ) : null
+            )}
+          </>
         )}
       </div>
     </div>
