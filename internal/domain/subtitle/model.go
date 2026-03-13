@@ -1,11 +1,12 @@
 package subtitle
 
 import (
-	"errors"
 	"time"
+
+	"github.com/gravity-zero/evey/internal/domain/shared"
 )
 
-var ErrNotFound = errors.New("subtitle not found")
+var ErrNotFound = shared.ErrNotFound
 
 type SubtitleDownload struct {
 	ID           string

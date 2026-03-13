@@ -10,11 +10,12 @@ import (
 )
 
 type Service struct {
-	collections library.CollectionRepository
+	commands library.CollectionCommandRepo
+	queries  library.CollectionQueryRepo
 }
 
-func NewService(collections library.CollectionRepository) *Service {
-	return &Service{collections: collections}
+func NewService(commands library.CollectionCommandRepo, queries library.CollectionQueryRepo) *Service {
+	return &Service{commands: commands, queries: queries}
 }
 
 func (s *Service) Create(ctx context.Context, col *library.Collection) error {
@@ -30,19 +31,19 @@ func (s *Service) Create(ctx context.Context, col *library.Collection) error {
 	if col.SortOrder == "" {
 		col.SortOrder = "asc"
 	}
-	return s.collections.Create(ctx, col)
+	return s.commands.Create(ctx, col)
 }
 
 func (s *Service) GetByID(ctx context.Context, id string) (*library.Collection, error) {
-	return s.collections.GetByID(ctx, id)
+	return s.queries.GetByID(ctx, id)
 }
 
 func (s *Service) List(ctx context.Context) ([]*library.Collection, error) {
-	return s.collections.List(ctx)
+	return s.queries.List(ctx)
 }
 
 func (s *Service) Update(ctx context.Context, col *library.Collection) error {
-	existing, err := s.collections.GetByID(ctx, col.ID)
+	existing, err := s.queries.GetByID(ctx, col.ID)
 	if err != nil {
 		return fmt.Errorf("get collection: %w", err)
 	}
@@ -53,15 +54,15 @@ func (s *Service) Update(ctx context.Context, col *library.Collection) error {
 	existing.SortBy = col.SortBy
 	existing.SortOrder = col.SortOrder
 	existing.UpdatedAt = time.Now()
-	return s.collections.Update(ctx, existing)
+	return s.commands.Update(ctx, existing)
 }
 
 func (s *Service) Delete(ctx context.Context, id string) error {
-	return s.collections.Delete(ctx, id)
+	return s.commands.Delete(ctx, id)
 }
 
 func (s *Service) GetItems(ctx context.Context, id string, limit, offset int) ([]*library.MediaItem, int, error) {
-	col, err := s.collections.GetByID(ctx, id)
+	col, err := s.queries.GetByID(ctx, id)
 	if err != nil {
 		return nil, 0, fmt.Errorf("get collection: %w", err)
 	}
@@ -74,23 +75,23 @@ func (s *Service) GetItems(ctx context.Context, id string, limit, offset int) ([
 
 	if col.Type == library.CollectionSmart {
 		var items []*library.MediaItem
-		items, err = s.collections.GetSmartItems(ctx, col, limit, offset)
+		items, err = s.queries.GetSmartItems(ctx, col, limit, offset)
 		if err != nil {
 			return nil, 0, err
 		}
 		var total int
-		total, err = s.collections.CountSmartItems(ctx, col)
+		total, err = s.queries.CountSmartItems(ctx, col)
 		if err != nil {
 			return nil, 0, err
 		}
 		return items, total, nil
 	}
 
-	items, err := s.collections.GetManualItems(ctx, col.ID, limit, offset)
+	items, err := s.queries.GetManualItems(ctx, col.ID, limit, offset)
 	if err != nil {
 		return nil, 0, err
 	}
-	total, err := s.collections.CountManualItems(ctx, col.ID)
+	total, err := s.queries.CountManualItems(ctx, col.ID)
 	if err != nil {
 		return nil, 0, err
 	}
@@ -98,9 +99,9 @@ func (s *Service) GetItems(ctx context.Context, id string, limit, offset int) ([
 }
 
 func (s *Service) AddItem(ctx context.Context, collectionID, mediaItemID string) error {
-	return s.collections.AddItem(ctx, collectionID, mediaItemID)
+	return s.commands.AddItem(ctx, collectionID, mediaItemID)
 }
 
 func (s *Service) RemoveItem(ctx context.Context, collectionID, mediaItemID string) error {
-	return s.collections.RemoveItem(ctx, collectionID, mediaItemID)
+	return s.commands.RemoveItem(ctx, collectionID, mediaItemID)
 }

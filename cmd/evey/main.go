@@ -203,7 +203,7 @@ func run() error {
 	userSvc.InitSetupState(context.Background())
 
 	playbackSvc := appplayback.NewService(
-		watchProgressRepo, playSessionRepo, userRepo, profileRepo, bus,
+		watchProgressRepo, watchProgressRepo, playSessionRepo, userRepo, profileRepo, bus,
 	)
 
 	transcodingSvc := apptranscoding.NewService(
@@ -331,7 +331,7 @@ func run() error {
 	favoriteSvc := appfavorite.NewService(favoriteRepo)
 
 	collectionRepo := postgres.NewCollectionRepository(db)
-	collectionSvc := appcollection.NewService(collectionRepo)
+	collectionSvc := appcollection.NewService(collectionRepo, collectionRepo)
 
 	playlistRepo := postgres.NewPlaylistRepository(db)
 	playlistItemRepo := postgres.NewPlaylistItemRepository(db)

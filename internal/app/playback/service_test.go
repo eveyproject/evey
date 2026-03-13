@@ -20,7 +20,7 @@ func newPlaybackSvc() (*appplayback.Service, *pbfakes.FakeWatchProgressRepositor
 	userRepo := userfakes.NewFakeUserRepository()
 	profileRepo := userfakes.NewFakeProfileRepository()
 	bus := sharedfakes.NewFakeEventBus()
-	svc := appplayback.NewService(progressRepo, sessionRepo, userRepo, profileRepo, bus)
+	svc := appplayback.NewService(progressRepo, progressRepo, sessionRepo, userRepo, profileRepo, bus)
 	return svc, progressRepo, sessionRepo, userRepo, profileRepo, bus
 }
 

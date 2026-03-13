@@ -3,7 +3,9 @@ package postgres
 import (
 	"context"
 	"database/sql"
+	"errors"
 
+	"github.com/gravity-zero/evey/internal/domain/shared"
 	"github.com/gravity-zero/evey/internal/domain/user"
 )
 
@@ -89,6 +91,9 @@ func (r *UserRepository) scanUser(row *sql.Row) (*user.User, error) {
 	u := &user.User{}
 	err := row.Scan(&u.ID, &u.Username, &u.Email, &u.PasswordHash, &u.IsAdmin, &u.Enabled,
 		&u.OIDCSubject, &u.OIDCIssuer, &u.MaxStreams, &u.CreatedAt, &u.UpdatedAt)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, shared.ErrNotFound
+	}
 	if err != nil {
 		return nil, err
 	}

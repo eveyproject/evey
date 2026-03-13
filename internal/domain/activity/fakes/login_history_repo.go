@@ -2,14 +2,14 @@ package fakes
 
 import (
 	"context"
-	"errors"
 	"sync"
 	"time"
 
 	"github.com/gravity-zero/evey/internal/domain/activity"
+	"github.com/gravity-zero/evey/internal/domain/shared"
 )
 
-var ErrNotFound = errors.New("not found")
+var ErrNotFound = shared.ErrNotFound
 
 type FakeLoginHistoryRepository struct {
 	mu    sync.RWMutex

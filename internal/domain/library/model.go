@@ -3,9 +3,11 @@ package library
 import (
 	"errors"
 	"time"
+
+	"github.com/gravity-zero/evey/internal/domain/shared"
 )
 
-var ErrNotFound = errors.New("not found")
+var ErrNotFound = shared.ErrNotFound
 var ErrInvalidSortParam = errors.New("invalid sort parameter")
 
 type LibraryType string

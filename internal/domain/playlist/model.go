@@ -1,11 +1,12 @@
 package playlist
 
 import (
-	"errors"
 	"time"
+
+	"github.com/gravity-zero/evey/internal/domain/shared"
 )
 
-var ErrNotFound = errors.New("not found")
+var ErrNotFound = shared.ErrNotFound
 
 type PlaylistType string
 

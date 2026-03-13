@@ -22,14 +22,15 @@ type Service struct {
 }
 
 func NewService(
-	progress playback.WatchProgressRepository,
+	progressCmd playback.ProgressCommandRepo,
+	progressQuery playback.ProgressQueryRepo,
 	sessions playback.PlaySessionRepository,
 	users user.UserRepository,
 	profiles user.ProfileRepository,
 	events shared.EventBus,
 ) *Service {
-	cmd := NewCommandService(progress, sessions, sessions, users, profiles, events)
-	q := NewQueryService(progress, sessions)
+	cmd := NewCommandService(progressCmd, sessions, sessions, users, profiles, events)
+	q := NewQueryService(progressQuery, sessions)
 	return &Service{cmd: cmd, query: q}
 }
 

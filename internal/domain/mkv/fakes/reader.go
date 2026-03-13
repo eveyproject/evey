@@ -2,12 +2,12 @@ package fakes
 
 import (
 	"context"
-	"errors"
 
 	"github.com/gravity-zero/evey/internal/domain/mkv"
+	"github.com/gravity-zero/evey/internal/domain/shared"
 )
 
-var ErrNotFound = errors.New("not found")
+var ErrNotFound = shared.ErrNotFound
 
 type FakeContainerReader struct {
 	Containers map[string]*mkv.Container

@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 	"strconv"
@@ -44,7 +45,7 @@ func (r *CollectionRepository) GetByID(ctx context.Context, id string) (*library
 		 FROM collections WHERE id = $1`, id,
 	).Scan(&col.ID, &col.Name, &col.Overview, &colType, &rulesJSON,
 		&col.SortBy, &col.SortOrder, &col.CreatedAt, &col.UpdatedAt)
-	if err == sql.ErrNoRows {
+	if errors.Is(err, sql.ErrNoRows) {
 		return nil, library.ErrNotFound
 	}
 	if err != nil {

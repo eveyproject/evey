@@ -5,12 +5,6 @@ import (
 	"time"
 )
 
-// WatchProgressRepository composes command+query for backward compatibility.
-type WatchProgressRepository interface {
-	ProgressCommandRepo
-	ProgressQueryRepo
-}
-
 type PlaySessionFilter struct {
 	ProfileID *string
 	StartFrom *time.Time

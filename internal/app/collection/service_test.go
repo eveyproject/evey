@@ -14,7 +14,7 @@ import (
 func newSvc() (*appcol.Service, *libfakes.FakeCollectionRepository, *libfakes.FakeMediaItemRepository) {
 	mediaRepo := libfakes.NewFakeMediaItemRepository()
 	colRepo := libfakes.NewFakeCollectionRepository(mediaRepo)
-	svc := appcol.NewService(colRepo)
+	svc := appcol.NewService(colRepo.CommandRepo(), colRepo.QueryRepo())
 	return svc, colRepo, mediaRepo
 }
 

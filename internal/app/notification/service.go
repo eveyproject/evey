@@ -30,6 +30,7 @@ type Service struct {
 
 	mu     sync.Mutex
 	dedupe map[string]time.Time // key: "type:parentID" → last sent
+	done   chan struct{}
 }
 
 func NewService(
@@ -46,9 +47,37 @@ func NewService(
 		profiles: profiles,
 		events:   events,
 		dedupe:   make(map[string]time.Time),
+		done:     make(chan struct{}),
 	}
 	events.Subscribe("media.item.added", s.handleMediaItemAdded)
 	return s
+}
+
+func (s *Service) Start(ctx context.Context) {
+	go func() {
+		ticker := time.NewTicker(dedupeWindow)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-s.done:
+				return
+			case <-ticker.C:
+				s.mu.Lock()
+				for k, t := range s.dedupe {
+					if time.Since(t) >= dedupeWindow {
+						delete(s.dedupe, k)
+					}
+				}
+				s.mu.Unlock()
+			}
+		}
+	}()
+}
+
+func (s *Service) Stop() {
+	close(s.done)
 }
 
 func (s *Service) handleMediaItemAdded(parentCtx context.Context, ev shared.Event) {
@@ -61,11 +90,6 @@ func (s *Service) handleMediaItemAdded(parentCtx context.Context, ev shared.Even
 
 	dedupeKey := fmt.Sprintf("%s:%s", e.Type, e.MediaItemID)
 	s.mu.Lock()
-	for k, t := range s.dedupe {
-		if time.Since(t) >= dedupeWindow {
-			delete(s.dedupe, k)
-		}
-	}
 	if last, exists := s.dedupe[dedupeKey]; exists && time.Since(last) < dedupeWindow {
 		s.mu.Unlock()
 		return

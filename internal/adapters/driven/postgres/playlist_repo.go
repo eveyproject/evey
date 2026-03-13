@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 	"strings"
@@ -40,7 +41,7 @@ func (r *PlaylistRepository) GetByID(ctx context.Context, id string) (*playlist.
 		`SELECT id, name, description, user_id, type, rules, sort_by, sort_order, created_at, updated_at
 		 FROM playlists WHERE id = $1`, id,
 	).Scan(&pl.ID, &pl.Name, &pl.Description, &pl.UserID, &pl.Type, &rulesJSON, &pl.SortBy, &pl.SortOrder, &pl.CreatedAt, &pl.UpdatedAt)
-	if err == sql.ErrNoRows {
+	if errors.Is(err, sql.ErrNoRows) {
 		return nil, playlist.ErrNotFound
 	}
 	if err != nil {

@@ -3,6 +3,7 @@ package postgres
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"time"
 
 	"github.com/gravity-zero/evey/internal/domain/library"
@@ -36,7 +37,7 @@ func (r *ScanScheduleRepository) GetByLibraryID(ctx context.Context, libraryID s
 		`SELECT library_id, cron_expression, enabled, last_run_at, next_run_at, created_at, updated_at
 		 FROM scan_schedules WHERE library_id = $1`, libraryID,
 	).Scan(&s.LibraryID, &s.CronExpression, &s.Enabled, &s.LastRunAt, &s.NextRunAt, &s.CreatedAt, &s.UpdatedAt)
-	if err == sql.ErrNoRows {
+	if errors.Is(err, sql.ErrNoRows) {
 		return nil, library.ErrNotFound
 	}
 	return s, err
