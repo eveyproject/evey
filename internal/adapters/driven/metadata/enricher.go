@@ -153,7 +153,7 @@ func (e *Enricher) EnrichItem(ctx context.Context, item *domaindomain.MediaItem,
 		}
 		sortIdx++
 		if createErr := e.mediaPersons.Create(ctx, mp); createErr != nil {
-			_ = createErr
+			slog.Warn("create media person failed", slog.String("personID", person.ID), slog.String("mediaItemID", item.ID), slog.Any("err", createErr))
 		}
 	}
 
