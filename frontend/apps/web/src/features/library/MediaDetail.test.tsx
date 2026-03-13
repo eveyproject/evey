@@ -34,6 +34,7 @@ vi.mock("@evey/api", () => ({
   useFeedServiceSimilarItems: () => ({ data: undefined }),
   useLibraryServiceListMediaItems: () => ({ data: undefined }),
   useLibraryServiceGetMediaItem: () => ({ data: undefined }),
+  useLibraryServiceListLibraries: () => ({ data: { libraries: [] } }),
   useMetadataServiceSetMetadataOverride: () => ({ mutateAsync: vi.fn(), isError: false }),
   useMetadataServiceRefreshMetadata: () => ({ mutateAsync: vi.fn() }),
   useMetadataServiceGetArtwork: () => ({ data: undefined }),
@@ -47,6 +48,10 @@ vi.mock("@evey/store", () => ({
 
 vi.mock("@/components/ui/BackButton", () => ({
   BackButton: () => <button>Back</button>,
+}));
+
+vi.mock("@/components/ui/Breadcrumbs", () => ({
+  Breadcrumbs: () => null,
 }));
 
 vi.mock("../playback/DownloadButton", () => ({

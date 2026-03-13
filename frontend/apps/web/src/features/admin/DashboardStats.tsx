@@ -14,6 +14,12 @@ import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
 import { Spinner } from "@/components/ui/Spinner";
 
+function getUsageColor(pct: number): string {
+  if (pct > 85) return "text-red-400";
+  if (pct > 70) return "text-orange-400";
+  return "text-green-400";
+}
+
 function formatBytes(bytes: string | undefined) {
   const n = parseInt(bytes ?? "0");
   if (n > 1e9) return `${(n / 1e9).toFixed(1)} GB`;
@@ -81,9 +87,10 @@ interface StatCardProps {
   icon: React.ReactNode;
   label: string;
   value: string | number;
+  valueClassName?: string;
 }
 
-function StatCard({ icon, label, value }: StatCardProps) {
+function StatCard({ icon, label, value, valueClassName }: StatCardProps) {
   return (
     <div
       className="flex items-center gap-3 p-4 rounded-[var(--radius-lg)]"
@@ -96,7 +103,7 @@ function StatCard({ icon, label, value }: StatCardProps) {
         {icon}
       </div>
       <div className="flex flex-col min-w-0">
-        <span className="text-2xl font-bold leading-tight" style={{ color: "var(--text)" }}>
+        <span className={`text-2xl font-bold leading-tight ${valueClassName ?? ""}`} style={valueClassName ? undefined : { color: "var(--text)" }}>
           {value}
         </span>
         <span className="text-xs font-medium uppercase tracking-wide" style={{ color: "var(--text-muted)" }}>
@@ -310,8 +317,8 @@ export function DashboardStats({ info }: DashboardStatsProps) {
         <StatCard icon={<SeriesIcon />} label="Series" value={seriesCount} />
         <StatCard icon={<UsersIcon />} label="Users" value={info.totalUsers ?? 0} />
         <StatCard icon={<StreamIcon />} label="Active Streams" value={info.activeStreams ?? 0} />
-        <StatCard icon={<CpuIcon />} label="CPU" value={`${(info.cpuPercent ?? 0).toFixed(1)}%`} />
-        <StatCard icon={<MemoryIcon />} label="Memory" value={`${(info.memoryPercent ?? 0).toFixed(1)}%`} />
+        <StatCard icon={<CpuIcon />} label="CPU" value={`${(info.cpuPercent ?? 0).toFixed(1)}%`} valueClassName={getUsageColor(info.cpuPercent ?? 0)} />
+        <StatCard icon={<MemoryIcon />} label="Memory" value={`${(info.memoryPercent ?? 0).toFixed(1)}%`} valueClassName={getUsageColor(info.memoryPercent ?? 0)} />
         <StatCard
           icon={<StreamIcon />}
           label="Transcodes"
@@ -343,7 +350,7 @@ export function DashboardStats({ info }: DashboardStatsProps) {
                 >
                   <div className="flex justify-between text-sm mb-2">
                     <span style={{ color: "var(--text)" }} className="truncate">{s.path ?? "--"}</span>
-                    <span style={{ color: "var(--text-muted)" }}>
+                    <span className={getUsageColor(pct)}>
                       {formatBytes(s.usedBytes)} / {formatBytes(s.totalBytes)} ({pct}%)
                     </span>
                   </div>
@@ -352,7 +359,7 @@ export function DashboardStats({ info }: DashboardStatsProps) {
                       className="h-2 rounded-full transition-all"
                       style={{
                         width: `${pct}%`,
-                        backgroundColor: pct > 90 ? "#ef4444" : pct > 70 ? "#f59e0b" : "var(--accent)",
+                        backgroundColor: pct > 85 ? "#ef4444" : pct > 70 ? "#f97316" : "var(--accent)",
                       }}
                     />
                   </div>

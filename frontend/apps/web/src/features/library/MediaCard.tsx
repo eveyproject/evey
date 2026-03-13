@@ -221,6 +221,7 @@ export function MediaCard({
   const linkParams = href ? undefined : { mediaId: item.id ?? "" };
 
   const [ctxMenu, setCtxMenu] = useState<{ x: number; y: number } | null>(null);
+  const menuBtnRef = useRef<HTMLButtonElement>(null);
   const hasPreviewData = !!(item.overview || item.communityRating || (item.genres && item.genres.length > 0));
 
   function handleMouseEnter() {
@@ -382,6 +383,35 @@ export function MediaCard({
           <div className="absolute top-2 left-2 z-20 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity duration-200">
             <FavoriteButton mediaId={item.id} size="sm" />
           </div>
+        )}
+
+        {/* Options button — top-right, visible on hover/focus, keyboard accessible */}
+        {item.id && (
+          <button
+            ref={menuBtnRef}
+            aria-label="Options"
+            aria-haspopup="true"
+            aria-expanded={ctxMenu !== null}
+            className="absolute top-2 right-2 z-20 opacity-0 group-hover:opacity-100 focus:opacity-100 p-1 rounded bg-black/60 text-white"
+            style={{ lineHeight: 1 }}
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              const rect = menuBtnRef.current?.getBoundingClientRect();
+              setCtxMenu(rect ? { x: rect.left, y: rect.bottom + 4 } : { x: e.clientX, y: e.clientY });
+            }}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                e.stopPropagation();
+                const rect = menuBtnRef.current?.getBoundingClientRect();
+                setCtxMenu(rect ? { x: rect.left, y: rect.bottom + 4 } : { x: 0, y: 0 });
+              }
+            }}
+            data-testid="media-card-options-btn"
+          >
+            &#8942;
+          </button>
         )}
 
         {/* Hover overlay: play button + title */}
