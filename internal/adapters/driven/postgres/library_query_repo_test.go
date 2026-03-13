@@ -124,8 +124,8 @@ func TestMediaItemRepo_List_AllowedRatings(t *testing.T) {
 	defer cleanup()
 
 	ctx := context.Background()
-	libRepo := NewLibraryRepository(db)
-	itemRepo := NewMediaItemRepository(db)
+	libRepo := postgres.NewLibraryRepository(db)
+	itemRepo := postgres.NewMediaItemRepository(db)
 
 	lib := newTestLibrary("cq-lib4")
 	require.NoError(t, libRepo.Create(ctx, lib))
