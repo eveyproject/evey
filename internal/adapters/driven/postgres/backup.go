@@ -5,7 +5,9 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"os"
 	"os/exec"
+	"strconv"
 	"strings"
 )
 
@@ -26,26 +28,28 @@ func NewDatabaseDumper(host string, port int, user, password, dbName, sslMode st
 	}
 }
 
-func (d *DatabaseDumper) connURI() string {
-	return fmt.Sprintf(
-		"postgresql://%s:%s@%s:%d/%s?sslmode=%s",
-		d.user, d.password, d.host, d.port, d.dbName, d.sslMode,
+// pgEnv returns env with PGPASSWORD set so the password never appears in /proc/PID/cmdline.
+func (d *DatabaseDumper) pgEnv() []string {
+	return append(os.Environ(),
+		"PGPASSWORD="+d.password,
+		"PGSSLMODE="+d.sslMode,
 	)
 }
 
 func (d *DatabaseDumper) DumpTables(ctx context.Context, tables []string) (io.Reader, error) {
 	args := []string{
-		"--dbname", d.connURI(),
-		"--data-only",
-		"--no-owner",
-		"--no-privileges",
-		"--disable-triggers",
+		"-h", d.host,
+		"-p", strconv.Itoa(d.port),
+		"-U", d.user,
+		"-d", d.dbName,
+		"--data-only", "--no-owner", "--no-privileges", "--disable-triggers",
 	}
 	for _, t := range tables {
 		args = append(args, "--table", t)
 	}
 
 	cmd := exec.CommandContext(ctx, "pg_dump", args...)
+	cmd.Env = d.pgEnv()
 	var out bytes.Buffer
 	var stderr bytes.Buffer
 	cmd.Stdout = &out
@@ -58,7 +62,14 @@ func (d *DatabaseDumper) DumpTables(ctx context.Context, tables []string) (io.Re
 }
 
 func (d *DatabaseDumper) RestoreTables(ctx context.Context, data io.Reader) error {
-	cmd := exec.CommandContext(ctx, "psql", "--dbname", d.connURI(), "--single-transaction")
+	cmd := exec.CommandContext(ctx, "psql",
+		"-h", d.host,
+		"-p", strconv.Itoa(d.port),
+		"-U", d.user,
+		"-d", d.dbName,
+		"--single-transaction",
+	)
+	cmd.Env = d.pgEnv()
 	cmd.Stdin = data
 	var stderr bytes.Buffer
 	cmd.Stderr = &stderr
