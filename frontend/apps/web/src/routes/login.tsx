@@ -32,8 +32,8 @@ function LoginPage() {
   const login = useUserServiceLogin({
     mutation: {
       onSuccess: (data) => {
-        if (data.accessToken && data.refreshToken) {
-          setTokens(data.accessToken, data.refreshToken);
+        if (data.accessToken) {
+          setTokens(data.accessToken);
           void navigate({ to: "/home" });
         }
       },

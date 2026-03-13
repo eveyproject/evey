@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { eveyFetch, setTokenProvider, setRefreshTokenProvider, setTokensUpdater, _resetFetcherState } from "./fetcher";
+import { eveyFetch, setTokenProvider, setTokensUpdater, _resetFetcherState } from "./fetcher";
 
 const fetchMock = vi.fn();
 
@@ -8,8 +8,7 @@ beforeEach(() => {
   vi.stubGlobal("fetch", fetchMock);
   vi.stubGlobal("window", { dispatchEvent: vi.fn() });
   setTokenProvider(null as unknown as () => string | null);
-  setRefreshTokenProvider(null as unknown as () => string | null);
-  setTokensUpdater(null as unknown as (a: string, r: string) => void);
+  setTokensUpdater(null as unknown as (a: string) => void);
   _resetFetcherState();
 });
 
@@ -50,28 +49,26 @@ describe("eveyFetch", () => {
     expect(result).toBeUndefined();
   });
 
-  it("401 → refresh → retry succeeds", async () => {
+  it("401 → refresh via cookie → retry succeeds", async () => {
     setTokenProvider(() => "expired-token");
-    setRefreshTokenProvider(() => "valid-refresh-token");
     const updater = vi.fn();
     setTokensUpdater(updater);
 
     fetchMock
       .mockResolvedValueOnce(mockResponse(401, { message: "token expired" }))
-      .mockResolvedValueOnce(mockResponse(200, { accessToken: "new-access", refreshToken: "new-refresh" }))
+      .mockResolvedValueOnce(mockResponse(200, { accessToken: "new-access" }))
       .mockResolvedValueOnce(mockResponse(200, { data: "ok" }));
 
     const result = await eveyFetch<{ data: string }>({ url: "/api/test", method: "GET" });
 
     expect(result).toEqual({ data: "ok" });
-    expect(updater).toHaveBeenCalledWith("new-access", "new-refresh");
+    expect(updater).toHaveBeenCalledWith("new-access");
     expect(window.dispatchEvent).not.toHaveBeenCalled();
     expect(fetchMock).toHaveBeenCalledTimes(3);
   });
 
   it("401 → refresh fails → dispatches evey:unauthorized and throws", async () => {
     setTokenProvider(() => "expired-token");
-    setRefreshTokenProvider(() => "bad-refresh-token");
 
     fetchMock
       .mockResolvedValueOnce(mockResponse(401, { message: "token expired" }))
@@ -81,20 +78,8 @@ describe("eveyFetch", () => {
     expect(window.dispatchEvent).toHaveBeenCalledWith(expect.any(Event));
   });
 
-  it("401 → no refresh token → dispatches evey:unauthorized and throws", async () => {
-    setTokenProvider(() => "expired-token");
-    setRefreshTokenProvider(() => null);
-
-    fetchMock.mockResolvedValueOnce(mockResponse(401, { message: "token expired" }));
-
-    await expect(eveyFetch({ url: "/api/test", method: "GET" })).rejects.toThrow("Unauthorized");
-    expect(window.dispatchEvent).toHaveBeenCalledWith(expect.any(Event));
-  });
-
   it("401 on /auth/refresh → dispatches evey:unauthorized (no retry loop)", async () => {
     setTokenProvider(() => "some-token");
-    // no refresh provider so attemptRefresh will throw immediately without extra fetch
-    setRefreshTokenProvider(() => null);
 
     fetchMock.mockResolvedValue(mockResponse(401, { message: "Unauthorized" }));
 
@@ -106,14 +91,13 @@ describe("eveyFetch", () => {
 
   it("concurrent 401s deduplicate refresh call", async () => {
     setTokenProvider(() => "expired-token");
-    setRefreshTokenProvider(() => "valid-refresh-token");
     const updater = vi.fn();
     setTokensUpdater(updater);
 
     fetchMock
       .mockResolvedValueOnce(mockResponse(401, { message: "expired" }))
       .mockResolvedValueOnce(mockResponse(401, { message: "expired" }))
-      .mockResolvedValueOnce(mockResponse(200, { accessToken: "new-access", refreshToken: "new-refresh" }))
+      .mockResolvedValueOnce(mockResponse(200, { accessToken: "new-access" }))
       .mockResolvedValueOnce(mockResponse(200, { data: "first" }))
       .mockResolvedValueOnce(mockResponse(200, { data: "second" }));
 

@@ -38,6 +38,13 @@ function UserMenu({ userInitial }: { userInitial: string }) {
   const handleLogout = () => {
     setOpen(false);
     logout();
+    // Clear httpOnly refresh cookie server-side (best-effort)
+    void fetch("/api/v1/auth/logout", {
+      method: "POST",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({}),
+    }).catch(() => undefined);
     void navigate({ to: "/login" });
   };
 

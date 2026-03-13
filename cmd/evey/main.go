@@ -422,10 +422,19 @@ func run() error {
 		mux.HandleFunc("GET /api/v1/media/{id}/hls/master.m3u8", hlsMasterHandler(tokenGen, libQuerySvc, hlsManager, libraryAccessRepo, userMaxStreams))
 		mux.HandleFunc("GET /api/v1/media/{id}/hls/{file}", hlsSegmentHandler(tokenGen, libQuerySvc, hlsManager, libraryAccessRepo))
 		mux.HandleFunc("GET /api/v1/admin/library-stats", requireAdmin(tokenGen, libraryStatsHandler(tokenGen, libQuerySvc)))
+		httpsOnly := cfg.Server.ForwardedProto
 		mux.HandleFunc("POST /api/v1/auth/login", ratelimit.MiddlewareFunc(loginRL, func(w http.ResponseWriter, r *http.Request) {
 			r.Body = http.MaxBytesReader(w, r.Body, 1<<20)
-			gwMux.ServeHTTP(w, r)
+			authCookieMiddleware(gwMux, httpsOnly).ServeHTTP(w, r)
 		}))
+		mux.HandleFunc("POST /api/v1/auth/refresh", func(w http.ResponseWriter, r *http.Request) {
+			r = injectRefreshTokenFromCookie(r)
+			authCookieMiddleware(gwMux, httpsOnly).ServeHTTP(w, r)
+		})
+		mux.HandleFunc("POST /api/v1/auth/logout", func(w http.ResponseWriter, r *http.Request) {
+			clearRefreshCookie(w, httpsOnly)
+			gwMux.ServeHTTP(w, r)
+		})
 		registerAdminRoutes(mux, metadataSvc, tokenGen, adminHeavyRL)
 		registerFavoriteRoutes(mux, favoriteSvc, tokenGen)
 		registerMetadataOverrideRoutes(mux, metadataSvc, tokenGen)

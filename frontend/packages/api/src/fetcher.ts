@@ -2,12 +2,10 @@
 // Injects Authorization header from the auth store automatically
 
 let getToken: (() => string | null) | null = null;
-let getRefreshToken: (() => string | null) | null = null;
-let updateTokens: ((access: string, refresh: string) => void) | null = null;
+let updateTokens: ((access: string) => void) | null = null;
 
 export function setTokenProvider(fn: () => string | null) { getToken = fn; }
-export function setRefreshTokenProvider(fn: () => string | null) { getRefreshToken = fn; }
-export function setTokensUpdater(fn: (access: string, refresh: string) => void) { updateTokens = fn; }
+export function setTokensUpdater(fn: (access: string) => void) { updateTokens = fn; }
 
 export interface FetcherRequest {
   url: string;
@@ -26,16 +24,15 @@ export function _resetFetcherState() { refreshPromise = null; }
 async function attemptRefresh(): Promise<string> {
   if (!refreshPromise) {
     refreshPromise = (async () => {
-      const rt = getRefreshToken?.();
-      if (!rt) throw Object.assign(new Error("no refresh token"), { httpStatus: 401 });
       const res = await fetch("/api/v1/auth/refresh", {
         method: "POST",
+        credentials: "include",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ refreshToken: rt }),
+        body: JSON.stringify({}),
       });
       if (!res.ok) throw Object.assign(new Error("refresh failed"), { httpStatus: res.status });
-      const data = await res.json() as { accessToken: string; refreshToken: string };
-      updateTokens?.(data.accessToken, data.refreshToken);
+      const data = await res.json() as { accessToken: string };
+      updateTokens?.(data.accessToken);
       return data.accessToken;
     })().finally(() => { refreshPromise = null; });
   }

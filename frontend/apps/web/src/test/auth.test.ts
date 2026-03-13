@@ -13,12 +13,9 @@ const USER_TOKEN =
   btoa(JSON.stringify({ sub: "user2", is_admin: false })) +
   ".sig";
 
-const REFRESH = "refresh-token-xyz";
-
 function resetStore() {
   useAuthStore.setState({
     accessToken: null,
-    refreshToken: null,
     profileId: null,
     isAdmin: false,
   });
@@ -30,20 +27,18 @@ describe("useAuthStore", () => {
   it("starts unauthenticated", () => {
     const s = useAuthStore.getState();
     expect(s.accessToken).toBeNull();
-    expect(s.refreshToken).toBeNull();
     expect(s.isAdmin).toBe(false);
   });
 
-  it("setTokens stores tokens and extracts isAdmin=true", () => {
-    useAuthStore.getState().setTokens(ADMIN_TOKEN, REFRESH);
+  it("setTokens stores access token and extracts isAdmin=true", () => {
+    useAuthStore.getState().setTokens(ADMIN_TOKEN);
     const s = useAuthStore.getState();
     expect(s.accessToken).toBe(ADMIN_TOKEN);
-    expect(s.refreshToken).toBe(REFRESH);
     expect(s.isAdmin).toBe(true);
   });
 
   it("setTokens extracts isAdmin=false for non-admin", () => {
-    useAuthStore.getState().setTokens(USER_TOKEN, REFRESH);
+    useAuthStore.getState().setTokens(USER_TOKEN);
     expect(useAuthStore.getState().isAdmin).toBe(false);
   });
 
@@ -53,13 +48,12 @@ describe("useAuthStore", () => {
   });
 
   it("logout clears everything", () => {
-    useAuthStore.getState().setTokens(ADMIN_TOKEN, REFRESH);
+    useAuthStore.getState().setTokens(ADMIN_TOKEN);
     useAuthStore.getState().setProfile("p1");
     useAuthStore.getState().logout();
 
     const s = useAuthStore.getState();
     expect(s.accessToken).toBeNull();
-    expect(s.refreshToken).toBeNull();
     expect(s.profileId).toBeNull();
     expect(s.isAdmin).toBe(false);
   });
