@@ -1,26 +1,12 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useAuthStore } from "@evey/store";
+import { eveyFetch } from "@evey/api";
 
 const favBaseUrl = "/api/v1/favorites";
-
-function authHeaders(): Record<string, string> {
-  const token = useAuthStore.getState().accessToken;
-  return token ? { Authorization: `Bearer ${token}` } : {};
-}
-
-async function fetchJson<T>(url: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(url, {
-    ...init,
-    headers: { ...authHeaders(), ...(init?.headers ?? {}) },
-  });
-  if (!res.ok) throw new Error(`${res.status}`);
-  return res.json() as Promise<T>;
-}
 
 export function useIsFavorite(mediaId: string | undefined) {
   return useQuery({
     queryKey: ["favorite", mediaId],
-    queryFn: () => fetchJson<{ isFavorite: boolean }>(`${favBaseUrl}/${mediaId}`),
+    queryFn: () => eveyFetch<{ isFavorite: boolean }>({ url: `${favBaseUrl}/${mediaId}`, method: "GET" }),
     enabled: !!mediaId,
     select: (d) => d.isFavorite,
     staleTime: 30_000,
@@ -30,7 +16,7 @@ export function useIsFavorite(mediaId: string | undefined) {
 export function useToggleFavorite(mediaId: string | undefined) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: () => fetchJson<{ isFavorite: boolean }>(`${favBaseUrl}/${mediaId}`, { method: "POST" }),
+    mutationFn: () => eveyFetch<{ isFavorite: boolean }>({ url: `${favBaseUrl}/${mediaId}`, method: "POST" }),
     onMutate: async () => {
       await qc.cancelQueries({ queryKey: ["favorite", mediaId] });
       const prev = qc.getQueryData<{ isFavorite: boolean }>(["favorite", mediaId]);
@@ -55,7 +41,7 @@ export interface FavoriteItem {
 export function useFavoritesList(limit = 50, offset = 0) {
   return useQuery({
     queryKey: ["favorites", limit, offset],
-    queryFn: () => fetchJson<{ items: FavoriteItem[] }>(`${favBaseUrl}?limit=${limit}&offset=${offset}`),
+    queryFn: () => eveyFetch<{ items: FavoriteItem[] }>({ url: `${favBaseUrl}?limit=${limit}&offset=${offset}`, method: "GET" }),
     select: (d) => d.items ?? [],
     staleTime: 30_000,
   });

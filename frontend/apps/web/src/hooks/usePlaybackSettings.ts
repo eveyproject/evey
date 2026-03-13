@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { useAuthStore } from "@evey/store";
+import { eveyFetch } from "@evey/api";
 
 export interface PlaybackSettings {
   skipForwardSeconds: number;
@@ -9,15 +9,14 @@ export interface PlaybackSettings {
 const DEFAULTS: PlaybackSettings = { skipForwardSeconds: 10, skipBackwardSeconds: 10 };
 
 export function usePlaybackSettings() {
-  const token = useAuthStore((s) => s.accessToken);
   return useQuery<PlaybackSettings>({
     queryKey: ["playback-settings"],
     queryFn: async () => {
-      const res = await fetch("/api/v1/playback-settings", {
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
-      });
-      if (!res.ok) return DEFAULTS;
-      return res.json() as Promise<PlaybackSettings>;
+      try {
+        return await eveyFetch<PlaybackSettings>({ url: "/api/v1/playback-settings", method: "GET" });
+      } catch {
+        return DEFAULTS;
+      }
     },
     staleTime: 5 * 60 * 1000,
     select: (d) => ({

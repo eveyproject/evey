@@ -11,6 +11,7 @@ import {
   useMetadataServiceSetMetadataOverride,
   useMetadataServiceRefreshMetadata,
   useMetadataServiceGetArtwork,
+  eveyFetch,
 } from "@evey/api";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast, useAuthStore } from "@evey/store";
@@ -50,7 +51,6 @@ function ArtworkPicker({ mediaItemId }: { mediaItemId: string }) {
   const { data } = useMetadataServiceGetArtwork(mediaItemId, undefined);
   const queryClient = useQueryClient();
   const [selecting, setSelecting] = useState<string | null>(null);
-  const accessToken = useAuthStore((s) => s.accessToken);
 
   const allArtwork = data?.artwork ?? [];
   const posters = allArtwork.filter((a) => a.type === "ARTWORK_TYPE_PRIMARY");
@@ -59,10 +59,7 @@ function ArtworkPicker({ mediaItemId }: { mediaItemId: string }) {
   async function selectArtwork(artworkId: string) {
     setSelecting(artworkId);
     try {
-      await fetch(`/api/v1/media/${mediaItemId}/artwork/${artworkId}/select`, {
-        method: "POST",
-        headers: { Authorization: `Bearer ${accessToken}` },
-      });
+      await eveyFetch<void>({ url: `/api/v1/media/${mediaItemId}/artwork/${artworkId}/select`, method: "POST" });
       queryClient.invalidateQueries({ queryKey: [`/api/v1/metadata/${mediaItemId}/artwork`] });
       queryClient.invalidateQueries({ queryKey: [`/api/v1/media/${mediaItemId}`] });
       toast.success("Artwork updated");
@@ -153,7 +150,6 @@ function MetadataEditPanel({
   const [refreshStatus, setRefreshStatus] = useState<"idle" | "running" | "done" | "error">("idle");
   const setOverride = useMetadataServiceSetMetadataOverride();
   const refresh = useMetadataServiceRefreshMetadata();
-  const accessToken = useAuthStore((s) => s.accessToken);
   const queryClient = useQueryClient();
 
   const mediaType = item.type === "MEDIA_ITEM_TYPE_SERIES" || item.type === "MEDIA_ITEM_TYPE_SEASON" || item.type === "MEDIA_ITEM_TYPE_EPISODE" ? "tv" : "movie";
@@ -170,14 +166,14 @@ function MetadataEditPanel({
 
     try {
       if (tmdbChanged || imdbChanged) {
-        await fetch(`/api/v1/admin/media/${item.id}/refresh-metadata`, {
+        await eveyFetch<void>({
+          url: `/api/v1/admin/media/${item.id}/refresh-metadata`,
           method: "POST",
-          headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
-          body: JSON.stringify({
+          data: {
             tmdb_id: tmdbChanged ? newTmdbId : "",
             imdb_id: imdbChanged ? newImdbId : "",
             media_type: mediaType,
-          }),
+          },
         });
         queryClient.invalidateQueries({ queryKey: [`/api/v1/media/${item.id}`] });
         toast.success("Re-enriched with new ID");

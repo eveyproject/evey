@@ -1,4 +1,4 @@
-import { useAuthStore } from "@evey/store";
+import { eveyFetch } from "@evey/api";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 export interface PlaylistRule {
@@ -28,25 +28,10 @@ export interface PlaylistItem {
   year?: number;
 }
 
-function authHeaders(): Record<string, string> {
-  const token = useAuthStore.getState().accessToken;
-  return token ? { Authorization: `Bearer ${token}`, "Content-Type": "application/json" } : { "Content-Type": "application/json" };
-}
-
-async function apiFetch<T>(url: string, opts?: RequestInit): Promise<T> {
-  const res = await fetch(url, { ...opts, headers: { ...authHeaders(), ...(opts?.headers ?? {}) } });
-  if (!res.ok) {
-    const body = await res.json().catch(() => ({})) as { message?: string };
-    throw new Error(body.message ?? `${res.status}`);
-  }
-  if (res.status === 204) return undefined as T;
-  return res.json() as Promise<T>;
-}
-
 export function usePlaylistList() {
   return useQuery({
     queryKey: ["playlists"],
-    queryFn: () => apiFetch<{ playlists: Playlist[] }>("/api/v1/playlists").then((r) => r.playlists ?? []),
+    queryFn: () => eveyFetch<{ playlists: Playlist[] }>({ url: "/api/v1/playlists", method: "GET" }).then((r) => r.playlists ?? []),
   });
 }
 
@@ -64,7 +49,7 @@ export function usePlaylistDetail(id: string) {
   return useQuery({
     queryKey: ["playlists", id],
     queryFn: async (): Promise<Playlist & { items?: PlaylistItem[] }> => {
-      const raw = await apiFetch<PlaylistDetailResponse>(`/api/v1/playlists/${id}`);
+      const raw = await eveyFetch<PlaylistDetailResponse>({ url: `/api/v1/playlists/${id}`, method: "GET" });
       const pl = raw.playlist;
       const mediaMap = new Map((raw.media ?? []).map((m) => [m.id, m]));
       const items: PlaylistItem[] = (raw.items ?? []).map((it) => {
@@ -99,7 +84,7 @@ export function useCreatePlaylist() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (data: { name: string; description?: string; type: "manual" | "smart"; rules?: PlaylistRule[]; sort_by?: string; sort_order?: string }) =>
-      apiFetch<Playlist>("/api/v1/playlists", { method: "POST", body: JSON.stringify(data) }),
+      eveyFetch<Playlist>({ url: "/api/v1/playlists", method: "POST", data }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["playlists"] }),
   });
 }
@@ -108,7 +93,7 @@ export function useUpdatePlaylist() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: ({ id, ...data }: { id: string; name?: string; description?: string; rules?: PlaylistRule[]; sort_by?: string; sort_order?: string }) =>
-      apiFetch<void>(`/api/v1/playlists/${id}`, { method: "PUT", body: JSON.stringify(data) }),
+      eveyFetch<void>({ url: `/api/v1/playlists/${id}`, method: "PUT", data }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["playlists"] }),
   });
 }
@@ -116,7 +101,7 @@ export function useUpdatePlaylist() {
 export function useDeletePlaylist() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (id: string) => apiFetch<void>(`/api/v1/playlists/${id}`, { method: "DELETE" }),
+    mutationFn: (id: string) => eveyFetch<void>({ url: `/api/v1/playlists/${id}`, method: "DELETE" }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["playlists"] }),
   });
 }
@@ -125,7 +110,7 @@ export function useAddToPlaylist() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: ({ playlistId, mediaItemId }: { playlistId: string; mediaItemId: string }) =>
-      apiFetch<void>(`/api/v1/playlists/${playlistId}/items`, { method: "POST", body: JSON.stringify({ mediaItemId }) }),
+      eveyFetch<void>({ url: `/api/v1/playlists/${playlistId}/items`, method: "POST", data: { mediaItemId } }),
     onSuccess: (_, vars) => qc.invalidateQueries({ queryKey: ["playlists", vars.playlistId] }),
   });
 }
@@ -134,7 +119,7 @@ export function useRemoveFromPlaylist() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: ({ playlistId, mediaItemId }: { playlistId: string; mediaItemId: string }) =>
-      apiFetch<void>(`/api/v1/playlists/${playlistId}/items/${mediaItemId}`, { method: "DELETE" }),
+      eveyFetch<void>({ url: `/api/v1/playlists/${playlistId}/items/${mediaItemId}`, method: "DELETE" }),
     onSuccess: (_, vars) => qc.invalidateQueries({ queryKey: ["playlists", vars.playlistId] }),
   });
 }

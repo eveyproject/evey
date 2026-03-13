@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { useAuthStore } from "@evey/store";
+import { eveyFetch } from "@evey/api";
 
 export interface Chapter {
   title: string;
@@ -8,16 +8,15 @@ export interface Chapter {
 }
 
 export function useChapters(mediaId: string | undefined) {
-  const token = useAuthStore((s) => s.accessToken);
   return useQuery<Chapter[]>({
     queryKey: ["/api/v1/media/chapters", mediaId],
     queryFn: async () => {
-      const res = await fetch(`/api/v1/media/${mediaId}/chapters`, {
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
-      });
-      if (!res.ok) return [];
-      const data = await res.json();
-      return data.chapters ?? [];
+      try {
+        const data = await eveyFetch<{ chapters: Chapter[] }>({ url: `/api/v1/media/${mediaId}/chapters`, method: "GET" });
+        return data.chapters ?? [];
+      } catch {
+        return [];
+      }
     },
     enabled: !!mediaId,
     staleTime: Infinity,

@@ -15,6 +15,7 @@ export function ProgressReporter({ sessionId, videoRef }: ProgressReporterProps)
     const id = setInterval(() => {
       const video = videoRef.current;
       if (!video || video.paused) return;
+      if (reportRef.current.isPending) return;
       reportRef.current.mutate({
         data: {
           sessionId,

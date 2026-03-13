@@ -147,7 +147,7 @@ export function HLSPlayer({
     function handleEnded() { onEnded?.(); }
     function handleError() {
       const e = video!.error;
-      if (e) console.error("Video error:", e.code, e.message);
+      if (e) console.warn("Video error:", e.code, e.message);
     }
     video.addEventListener("ended", handleEnded);
     video.addEventListener("canplay", handleCanPlay);
@@ -196,7 +196,7 @@ export function HLSPlayer({
     function handleEnded() { onEnded?.(); }
     function handleError() {
       const e = video!.error;
-      if (e) console.error("Video error:", e.code, e.message);
+      if (e) console.warn("Video error:", e.code, e.message);
     }
     video.addEventListener("timeupdate", onTimeUpdate);
     video.addEventListener("ended", handleEnded);
