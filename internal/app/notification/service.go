@@ -28,9 +28,10 @@ type Service struct {
 	profiles ProfileLister
 	events   shared.EventBus
 
-	mu     sync.Mutex
-	dedupe map[string]time.Time // key: "type:parentID" → last sent
-	done   chan struct{}
+	mu       sync.Mutex
+	dedupe   map[string]time.Time // key: "type:parentID" → last sent
+	done     chan struct{}
+	stopOnce sync.Once
 }
 
 func NewService(
@@ -77,7 +78,7 @@ func (s *Service) Start(ctx context.Context) {
 }
 
 func (s *Service) Stop() {
-	close(s.done)
+	s.stopOnce.Do(func() { close(s.done) })
 }
 
 func (s *Service) handleMediaItemAdded(parentCtx context.Context, ev shared.Event) {
