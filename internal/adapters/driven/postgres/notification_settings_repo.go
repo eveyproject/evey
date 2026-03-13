@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 
+	"github.com/lib/pq"
 	"github.com/gravity-zero/evey/internal/domain/notification"
 )
 
@@ -33,6 +34,49 @@ func (r *NotificationSettingsRepository) GetByProfile(ctx context.Context, profi
 	s.MusicLevel = notification.Level(msl)
 	s.ProfileID = profileID
 	return s, nil
+}
+
+func (r *NotificationSettingsRepository) GetByProfiles(ctx context.Context, profileIDs []string) (map[string]*notification.Settings, error) {
+	result := make(map[string]*notification.Settings, len(profileIDs))
+	if len(profileIDs) == 0 {
+		return result, nil
+	}
+	rows, err := r.db.QueryContext(ctx,
+		`SELECT profile_id, movie_level, series_level, music_level FROM notification_settings WHERE profile_id = ANY($1)`,
+		pq.Array(profileIDs),
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var pid, ml, sl, msl string
+		if err := rows.Scan(&pid, &ml, &sl, &msl); err != nil {
+			return nil, err
+		}
+		result[pid] = &notification.Settings{
+			ProfileID:   pid,
+			MovieLevel:  notification.Level(ml),
+			SeriesLevel: notification.Level(sl),
+			MusicLevel:  notification.Level(msl),
+		}
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	// fill missing profiles with global defaults
+	defaults, err := r.GetGlobalDefaults(ctx)
+	if err != nil {
+		defaults = &notification.Settings{MovieLevel: notification.LevelAll, SeriesLevel: notification.LevelAll, MusicLevel: notification.LevelAll}
+	}
+	for _, pid := range profileIDs {
+		if _, ok := result[pid]; !ok {
+			cp := *defaults
+			cp.ProfileID = pid
+			result[pid] = &cp
+		}
+	}
+	return result, nil
 }
 
 func (r *NotificationSettingsRepository) Upsert(ctx context.Context, s *notification.Settings) error {

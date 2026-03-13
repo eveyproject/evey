@@ -256,7 +256,7 @@ function SessionCard({ session }: { session: ActiveSession }) {
 }
 
 function SessionsPage() {
-  const { data: sessions, isLoading } = useActiveSessions();
+  const { data: sessions, isLoading, isError } = useActiveSessions();
 
   return (
     <div className="flex flex-col gap-6">
@@ -268,6 +268,12 @@ function SessionsPage() {
         <div className="flex justify-center py-16">
           <Spinner size="lg" />
         </div>
+      ) : isError ? (
+        <EmptyState
+          icon="media"
+          title="Failed to load sessions"
+          description="Could not fetch active sessions. Check your connection and try again."
+        />
       ) : !sessions || sessions.length === 0 ? (
         <EmptyState
           icon="media"

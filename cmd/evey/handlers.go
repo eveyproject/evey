@@ -30,6 +30,11 @@ type LibraryAccessChecker interface {
 	HasAccess(ctx context.Context, userID, libraryID string) (bool, error)
 }
 
+// UserMaxStreamsGetter returns the MaxStreams limit for a given user ID (nil = unlimited).
+type UserMaxStreamsGetter interface {
+	GetMaxStreams(ctx context.Context, userID string) *int
+}
+
 func checkLibraryAccess(ctx context.Context, w http.ResponseWriter, claims *domainuser.Claims, libraryID string, checker LibraryAccessChecker) bool {
 	if claims.IsAdmin || checker == nil {
 		return true
@@ -238,6 +243,12 @@ func browseDirsHandler(tokens interface {
 				http.Error(w, `{"message":"invalid path"}`, http.StatusBadRequest)
 				return
 			}
+			resolved, err := filepath.EvalSymlinks(dir)
+			if err != nil || !strings.HasPrefix(resolved, "/media") {
+				http.Error(w, `{"message":"invalid path"}`, http.StatusBadRequest)
+				return
+			}
+			dir = resolved
 		}
 
 		skip := map[string]bool{"cdrom": true, "floppy": true, "usb": true, "sr0": true, "proc": true, "sys": true, "dev": true}
@@ -292,7 +303,7 @@ func transcodeHandler(tokenGen interface {
 }, libSvc interface {
 	GetMediaItem(ctx context.Context, id string) (*domainlibrary.MediaItem, error)
 	GetMediaStreams(ctx context.Context, mediaItemID string) ([]*domainlibrary.MediaStream, error)
-}, baseURL string, libraryAccess LibraryAccessChecker) http.HandlerFunc {
+}, baseURL string, libraryAccess LibraryAccessChecker, throttle *apptranscoding.TranscodeThrottle, userMaxStreams UserMaxStreamsGetter) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		mediaID := r.PathValue("id")
 		token := r.Header.Get("Authorization")
@@ -317,6 +328,17 @@ func transcodeHandler(tokenGen interface {
 		if !checkLibraryAccess(r.Context(), w, claims, item.LibraryID, libraryAccess) {
 			return
 		}
+		maxStreams := 0
+		if userMaxStreams != nil {
+			if ms := userMaxStreams.GetMaxStreams(r.Context(), claims.UserID); ms != nil {
+				maxStreams = *ms
+			}
+		}
+		if !throttle.Acquire(claims.UserID, maxStreams) {
+			http.Error(w, `{"message":"max concurrent streams reached"}`, http.StatusTooManyRequests)
+			return
+		}
+		defer throttle.Release(claims.UserID)
 		audioTrack := 0
 		if at := r.URL.Query().Get("audioTrack"); at != "" {
 			if n, err2 := strconv.Atoi(at); err2 == nil && n >= 0 {
@@ -596,6 +618,10 @@ func libraryStatsHandler(tokenGen interface {
 		} else if t := r.URL.Query().Get("token"); t != "" {
 			token = t
 		}
+		if token == "" {
+			http.Error(w, `{"message":"unauthenticated"}`, http.StatusUnauthorized)
+			return
+		}
 		if _, err := tokenGen.ValidateAccessToken(token); err != nil {
 			http.Error(w, `{"message":"forbidden"}`, http.StatusForbidden)
 			return
@@ -732,6 +758,10 @@ func trickplayManifestHandler(tokenGen interface {
 		} else if t := r.URL.Query().Get("token"); t != "" {
 			token = t
 		}
+		if token == "" {
+			http.Error(w, `{"message":"unauthenticated"}`, http.StatusUnauthorized)
+			return
+		}
 		claims, err := tokenGen.ValidateAccessToken(token)
 		if err != nil {
 			http.Error(w, `{"message":"forbidden"}`, http.StatusForbidden)
@@ -788,7 +818,9 @@ func trickplayImageHandler(tokenGen interface {
 	ValidateAccessToken(string) (*domainuser.Claims, error)
 }, libSvc interface {
 	GetTrickplayManifest(ctx context.Context, mediaItemID string) (*domainlibrary.TrickplayManifest, error)
-}, baseURL string) http.HandlerFunc {
+}, baseURL string, libraryAccess LibraryAccessChecker, mediaGetter interface {
+	GetMediaItem(ctx context.Context, id string) (*domainlibrary.MediaItem, error)
+}) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		mediaID := r.PathValue("id")
 		imageName := r.PathValue("image")
@@ -797,9 +829,21 @@ func trickplayImageHandler(tokenGen interface {
 			token = token[7:]
 		} else if t := r.URL.Query().Get("token"); t != "" {
 			token = t
+		} else {
+			http.Error(w, `{"message":"unauthenticated"}`, http.StatusUnauthorized)
+			return
 		}
-		if _, err := tokenGen.ValidateAccessToken(token); err != nil {
+		claims, err := tokenGen.ValidateAccessToken(token)
+		if err != nil {
 			http.Error(w, `{"message":"forbidden"}`, http.StatusForbidden)
+			return
+		}
+		item, err := mediaGetter.GetMediaItem(r.Context(), mediaID)
+		if err != nil {
+			http.Error(w, `{"message":"not found"}`, http.StatusNotFound)
+			return
+		}
+		if !checkLibraryAccess(r.Context(), w, claims, item.LibraryID, libraryAccess) {
 			return
 		}
 		manifest, err := libSvc.GetTrickplayManifest(r.Context(), mediaID)
@@ -1045,7 +1089,7 @@ func hlsMasterHandler(tokenGen interface {
 }, libSvc interface {
 	GetMediaItem(ctx context.Context, id string) (*domainlibrary.MediaItem, error)
 	GetMediaStreams(ctx context.Context, mediaItemID string) ([]*domainlibrary.MediaStream, error)
-}, hlsManager *apptranscoding.HLSManager, libraryAccess LibraryAccessChecker) http.HandlerFunc {
+}, hlsManager *apptranscoding.HLSManager, libraryAccess LibraryAccessChecker, userMaxStreams UserMaxStreamsGetter) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		mediaID := r.PathValue("id")
 		token := r.Header.Get("Authorization")
@@ -1071,6 +1115,13 @@ func hlsMasterHandler(tokenGen interface {
 			return
 		}
 
+		maxStreams := 0
+		if userMaxStreams != nil {
+			if ms := userMaxStreams.GetMaxStreams(r.Context(), claims.UserID); ms != nil {
+				maxStreams = *ms
+			}
+		}
+
 		sourceWidth, sourceHeight := 1920, 1080
 		if streams, err2 := libSvc.GetMediaStreams(r.Context(), mediaID); err2 == nil {
 			for _, s := range streams {
@@ -1082,7 +1133,7 @@ func hlsMasterHandler(tokenGen interface {
 			}
 		}
 
-		session, err := hlsManager.GetOrCreate(mediaID, item.FilePath, sourceWidth, sourceHeight)
+		session, err := hlsManager.GetOrCreate(claims.UserID, mediaID, item.FilePath, sourceWidth, sourceHeight, maxStreams)
 		if err != nil {
 			slog.Error("hls: get or create session", slog.Any("err", err))
 			http.Error(w, `{"message":"transcode busy"}`, http.StatusServiceUnavailable)
@@ -1115,7 +1166,8 @@ func hlsSegmentHandler(tokenGen interface {
 			http.Error(w, `{"message":"unauthenticated"}`, http.StatusUnauthorized)
 			return
 		}
-		if _, err := tokenGen.ValidateAccessToken(token); err != nil {
+		claims, err := tokenGen.ValidateAccessToken(token)
+		if err != nil {
 			http.Error(w, `{"message":"forbidden"}`, http.StatusForbidden)
 			return
 		}
@@ -1123,6 +1175,10 @@ func hlsSegmentHandler(tokenGen interface {
 		session, ok := hlsManager.GetSession(mediaID)
 		if !ok {
 			http.Error(w, `{"message":"no active session"}`, http.StatusNotFound)
+			return
+		}
+		if !claims.IsAdmin && session.UserID != claims.UserID {
+			http.Error(w, `{"message":"forbidden"}`, http.StatusForbidden)
 			return
 		}
 		if err := session.WaitReady(r.Context()); err != nil {

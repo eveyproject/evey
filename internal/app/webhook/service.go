@@ -61,8 +61,8 @@ func (s *Service) SetRetryDelays(delays []time.Duration) {
 	s.retryDelays = delays
 }
 
-func (s *Service) handleAny(_ context.Context, ev shared.Event) {
-	cfgs, err := s.repo.List(context.Background())
+func (s *Service) handleAny(ctx context.Context, ev shared.Event) {
+	cfgs, err := s.repo.List(ctx)
 	if err != nil {
 		s.log.Error("webhook: list configs failed", slog.Any("err", err))
 		return
@@ -78,9 +78,9 @@ func (s *Service) handleAny(_ context.Context, ev shared.Event) {
 		case s.sem <- struct{}{}:
 			go func(c *webhook.Config) {
 				defer func() { <-s.sem }()
-				ctx, cancel := context.WithTimeout(context.Background(), deliveryTimeout)
+				dCtx, cancel := context.WithTimeout(context.Background(), deliveryTimeout)
 				defer cancel()
-				s.deliver(ctx, c, ev.EventName(), ev)
+				s.deliver(dCtx, c, ev.EventName(), ev)
 			}(cfg)
 		default:
 			s.log.Warn("webhook: delivery queue full, dropping", slog.String("webhook", cfg.ID))

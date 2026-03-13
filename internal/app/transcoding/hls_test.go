@@ -54,7 +54,7 @@ func TestSessionCleanup(t *testing.T) {
 	defer m.CleanupAll()
 
 	// GetOrCreate will fail to start ffmpeg (no real file) but the session is created
-	sess, err := m.GetOrCreate("test-media", "/nonexistent/file.mkv", 1920, 1080)
+	sess, err := m.GetOrCreate("user1", "test-media", "/nonexistent/file.mkv", 1920, 1080, 0)
 	require.NoError(t, err)
 	require.NotNil(t, sess)
 
@@ -74,10 +74,10 @@ func TestGetOrCreate_MaxConcurrent(t *testing.T) {
 	m := apptranscode.NewHLSManager(dir, 1)
 	defer m.CleanupAll()
 
-	_, err := m.GetOrCreate("media1", "/nonexistent/a.mkv", 1920, 1080)
+	_, err := m.GetOrCreate("user1", "media1", "/nonexistent/a.mkv", 1920, 1080, 0)
 	require.NoError(t, err)
 
-	_, err = m.GetOrCreate("media2", "/nonexistent/b.mkv", 1920, 1080)
+	_, err = m.GetOrCreate("user1", "media2", "/nonexistent/b.mkv", 1920, 1080, 0)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "max concurrent")
 }
@@ -87,10 +87,10 @@ func TestGetOrCreate_ReturnsSameSession(t *testing.T) {
 	m := apptranscode.NewHLSManager(dir, 5)
 	defer m.CleanupAll()
 
-	s1, err := m.GetOrCreate("media1", "/nonexistent/a.mkv", 1920, 1080)
+	s1, err := m.GetOrCreate("user1", "media1", "/nonexistent/a.mkv", 1920, 1080, 0)
 	require.NoError(t, err)
 
-	s2, err := m.GetOrCreate("media1", "/nonexistent/a.mkv", 1920, 1080)
+	s2, err := m.GetOrCreate("user1", "media1", "/nonexistent/a.mkv", 1920, 1080, 0)
 	require.NoError(t, err)
 	assert.Equal(t, s1, s2)
 }
@@ -100,7 +100,7 @@ func TestSessionOutputDir(t *testing.T) {
 	m := apptranscode.NewHLSManager(dir, 5)
 	defer m.CleanupAll()
 
-	sess, err := m.GetOrCreate("my-media-id", "/nonexistent/a.mkv", 1920, 1080)
+	sess, err := m.GetOrCreate("user1", "my-media-id", "/nonexistent/a.mkv", 1920, 1080, 0)
 	require.NoError(t, err)
 	assert.Equal(t, filepath.Join(dir, "my-media-id"), sess.OutputDir)
 }
@@ -115,7 +115,7 @@ func TestSessionMarkAccess(t *testing.T) {
 	m := apptranscode.NewHLSManager(dir, 5)
 	defer m.CleanupAll()
 
-	sess, err := m.GetOrCreate("media-access", "/nonexistent/a.mkv", 1920, 1080)
+	sess, err := m.GetOrCreate("user1", "media-access", "/nonexistent/a.mkv", 1920, 1080, 0)
 	require.NoError(t, err)
 
 	before := sess.LastAccess
@@ -129,7 +129,7 @@ func TestWaitReady_FailsOnBadFile(t *testing.T) {
 	m := apptranscode.NewHLSManager(dir, 5)
 	defer m.CleanupAll()
 
-	sess, err := m.GetOrCreate("bad-file", "/nonexistent/file.mkv", 1920, 1080)
+	sess, err := m.GetOrCreate("user1", "bad-file", "/nonexistent/file.mkv", 1920, 1080, 0)
 	require.NoError(t, err)
 
 	// ffmpeg will fail since the file doesn't exist; WaitReady returns error
@@ -141,7 +141,7 @@ func TestCleanupAll_RemovesOutputDirs(t *testing.T) {
 	dir := t.TempDir()
 	m := apptranscode.NewHLSManager(dir, 5)
 
-	sess, err := m.GetOrCreate("cleanup-test", "/nonexistent/a.mkv", 1920, 1080)
+	sess, err := m.GetOrCreate("user1", "cleanup-test", "/nonexistent/a.mkv", 1920, 1080, 0)
 	require.NoError(t, err)
 
 	outputDir := sess.OutputDir

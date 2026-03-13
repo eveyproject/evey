@@ -12,6 +12,7 @@ import (
 	"time"
 
 	appsubtitle "github.com/gravity-zero/evey/internal/app/subtitle"
+	apptranscoding "github.com/gravity-zero/evey/internal/app/transcoding"
 	"github.com/gravity-zero/evey/internal/config"
 	domainlibrary "github.com/gravity-zero/evey/internal/domain/library"
 	domainmeta "github.com/gravity-zero/evey/internal/domain/metadata"
@@ -480,7 +481,7 @@ func TestDownloadHandler_ServesFile(t *testing.T) {
 }
 
 func TestTranscodeHandler_MissingToken(t *testing.T) {
-	handler := transcodeHandler(invalidTokenValidator(), newFakeLibService(), "http://localhost", allowAllLibraries())
+	handler := transcodeHandler(invalidTokenValidator(), newFakeLibService(), "http://localhost", allowAllLibraries(), apptranscoding.NewTranscodeThrottle(), nil)
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /api/v1/media/{id}/transcode", handler)
@@ -495,7 +496,7 @@ func TestTranscodeHandler_MissingToken(t *testing.T) {
 }
 
 func TestTranscodeHandler_InvalidToken(t *testing.T) {
-	handler := transcodeHandler(invalidTokenValidator(), newFakeLibService(), "http://localhost", allowAllLibraries())
+	handler := transcodeHandler(invalidTokenValidator(), newFakeLibService(), "http://localhost", allowAllLibraries(), apptranscoding.NewTranscodeThrottle(), nil)
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /api/v1/media/{id}/transcode", handler)
@@ -511,7 +512,7 @@ func TestTranscodeHandler_InvalidToken(t *testing.T) {
 }
 
 func TestTranscodeHandler_NotFound(t *testing.T) {
-	handler := transcodeHandler(validTokenValidator(false), newFakeLibService(), "http://localhost", allowAllLibraries())
+	handler := transcodeHandler(validTokenValidator(false), newFakeLibService(), "http://localhost", allowAllLibraries(), apptranscoding.NewTranscodeThrottle(), nil)
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /api/v1/media/{id}/transcode", handler)
@@ -855,8 +856,8 @@ func TestLibraryStatsHandler_Forbidden(t *testing.T) {
 	w := httptest.NewRecorder()
 	mux.ServeHTTP(w, req)
 
-	if w.Code != http.StatusForbidden {
-		t.Fatalf("expected 403, got %d", w.Code)
+	if w.Code != http.StatusUnauthorized {
+		t.Fatalf("expected 401, got %d", w.Code)
 	}
 }
 
@@ -1120,8 +1121,8 @@ func TestTrickplayManifestHandler_Forbidden(t *testing.T) {
 	w := httptest.NewRecorder()
 	mux.ServeHTTP(w, req)
 
-	if w.Code != http.StatusForbidden {
-		t.Fatalf("expected 403, got %d", w.Code)
+	if w.Code != http.StatusUnauthorized {
+		t.Fatalf("expected 401, got %d", w.Code)
 	}
 }
 
@@ -1374,7 +1375,7 @@ func TestTrickplayImageHandler_PathTraversal(t *testing.T) {
 		MediaItemID: "m1",
 		ImagePath:   dir,
 	}
-	handler := trickplayImageHandler(validTokenValidator(false), svc, "")
+	handler := trickplayImageHandler(validTokenValidator(false), svc, "", nil, newFakeLibService())
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /api/v1/media/{id}/trickplay/{image}", handler)
@@ -1533,7 +1534,7 @@ func TestTranscodeHandler_LibraryAccessDenied(t *testing.T) {
 	libSvc := newFakeLibService()
 	libSvc.items["m1"] = &domainlibrary.MediaItem{ID: "m1", FilePath: "/some/file.mkv", LibraryID: "lib-restricted"}
 
-	handler := transcodeHandler(validTokenValidator(false), libSvc, "http://localhost", denyAllLibraries())
+	handler := transcodeHandler(validTokenValidator(false), libSvc, "http://localhost", denyAllLibraries(), apptranscoding.NewTranscodeThrottle(), nil)
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /api/v1/media/{id}/transcode", handler)
 

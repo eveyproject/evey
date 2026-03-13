@@ -81,12 +81,11 @@ func (s *Scheduler) tick(ctx context.Context) {
 			continue
 		}
 		s.logger.Info("scheduler: triggering scan", slog.String("library_id", sched.LibraryID))
-		go s.runScan(sched)
+		go s.runScan(ctx, sched)
 	}
 }
 
-func (s *Scheduler) runScan(sched *library.ScanSchedule) {
-	ctx := context.Background()
+func (s *Scheduler) runScan(ctx context.Context, sched *library.ScanSchedule) {
 	now := s.nowFunc()
 	added, updated, err := s.scanner.ScanLibrary(ctx, sched.LibraryID)
 	if err != nil {

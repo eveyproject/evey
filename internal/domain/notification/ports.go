@@ -14,6 +14,7 @@ type Repository interface {
 
 type SettingsRepository interface {
 	GetByProfile(ctx context.Context, profileID string) (*Settings, error)
+	GetByProfiles(ctx context.Context, profileIDs []string) (map[string]*Settings, error)
 	Upsert(ctx context.Context, s *Settings) error
 	GetGlobalDefaults(ctx context.Context) (*Settings, error)
 	UpsertGlobalDefaults(ctx context.Context, s *Settings) error

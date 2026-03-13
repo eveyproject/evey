@@ -83,11 +83,20 @@ func (s *Service) handleMediaItemAdded(_ context.Context, ev shared.Event) {
 		return
 	}
 
+	profileIDs := make([]string, len(profiles))
+	for i, p := range profiles {
+		profileIDs[i] = p.ID
+	}
+	allSettings, err := s.settings.GetByProfiles(ctx, profileIDs)
+	if err != nil {
+		slog.Warn("notification: get settings batch failed", slog.Any("err", err))
+		return
+	}
+
 	expires := time.Now().AddDate(0, 0, defaultRetentionDays)
 	for _, p := range profiles {
-		cfg, err := s.settings.GetByProfile(ctx, p.ID)
-		if err != nil {
-			slog.Warn("notification: get settings failed", slog.String("profileID", p.ID), slog.Any("err", err))
+		cfg := allSettings[p.ID]
+		if cfg == nil {
 			continue
 		}
 		lvl := levelForType(cfg, notifType)

@@ -17,6 +17,7 @@ import (
 
 	applibrary "github.com/gravity-zero/evey/internal/app/library"
 	appsubtitle "github.com/gravity-zero/evey/internal/app/subtitle"
+	domainshared "github.com/gravity-zero/evey/internal/domain/shared"
 	domainuser "github.com/gravity-zero/evey/internal/domain/user"
 )
 
@@ -159,6 +160,38 @@ func requireAdmin(tokenGen interface {
 		}
 		next(w, r)
 	}
+}
+
+// userMaxStreamsAdapter implements UserMaxStreamsGetter using the user repository.
+type userMaxStreamsAdapter struct {
+	repo interface {
+		GetByID(ctx context.Context, id string) (*domainuser.User, error)
+	}
+}
+
+func (a *userMaxStreamsAdapter) GetMaxStreams(ctx context.Context, userID string) *int {
+	u, err := a.repo.GetByID(ctx, userID)
+	if err != nil {
+		return nil
+	}
+	return u.MaxStreams
+}
+
+// serverConfigStore wraps ServerConfigRepository to implement remoteAccessPersister.
+type serverConfigStore struct {
+	repo domainshared.ServerConfigRepository
+}
+
+func (s *serverConfigStore) Get(ctx context.Context, key string) (string, error) {
+	e, err := s.repo.Get(ctx, key)
+	if err != nil {
+		return "", err
+	}
+	return e.Value, nil
+}
+
+func (s *serverConfigStore) Set(ctx context.Context, key, value string) error {
+	return s.repo.Set(ctx, key, value)
 }
 
 func setCORSHeaders(w http.ResponseWriter, r *http.Request, baseURL string) {

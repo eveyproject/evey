@@ -30,6 +30,18 @@ func New(requestsPerMinute int) *Limiter {
 	return l
 }
 
+// NewWithBurst creates a limiter with a custom burst size and refill rate.
+// burstSize: max allowed at once; refilledPerMinute: how fast tokens refill.
+func NewWithBurst(burstSize int, refilledPerMinute float64) *Limiter {
+	l := &Limiter{
+		visitors: make(map[string]*entry),
+		rate:     refilledPerMinute / 60.0,
+		burst:    burstSize,
+	}
+	go l.cleanup()
+	return l
+}
+
 func (l *Limiter) Allow(ip string) bool {
 	l.mu.Lock()
 	defer l.mu.Unlock()

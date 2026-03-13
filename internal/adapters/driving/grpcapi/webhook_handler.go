@@ -77,13 +77,25 @@ func (h *webhookHandler) ListWebhookDeliveries(ctx context.Context, req *eveyv1.
 	return resp, nil
 }
 
+// maskSecret returns "****" for an empty secret, or the first 4 chars followed by "****".
+// The raw secret is never returned to callers.
+func maskSecret(s string) string {
+	if s == "" {
+		return ""
+	}
+	if len(s) <= 4 {
+		return "****"
+	}
+	return s[:4] + "****"
+}
+
 func webhookConfigToProto(c *webhook.Config) *eveyv1.WebhookConfig {
 	return &eveyv1.WebhookConfig{
 		Id:        c.ID,
 		Name:      c.Name,
 		Url:       c.URL,
 		Events:    c.Events,
-		Secret:    c.Secret,
+		Secret:    maskSecret(c.Secret),
 		Headers:   c.Headers,
 		Enabled:   c.Enabled,
 		CreatedAt: toTimestamppb(c.CreatedAt),

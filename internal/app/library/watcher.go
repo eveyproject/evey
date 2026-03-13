@@ -23,9 +23,10 @@ type WatcherService struct {
 	scanner   LibraryScanner
 	log       *slog.Logger
 
-	mu       sync.Mutex
+	mu        sync.Mutex
 	pathToLib map[string]string // watched path → library ID
-	cancel   context.CancelFunc
+	cancel    context.CancelFunc
+	ctx       context.Context
 }
 
 func NewWatcherService(
@@ -46,6 +47,7 @@ func NewWatcherService(
 // Start watches all libraries with RealtimeMonitoring=true and processes FS events.
 func (ws *WatcherService) Start(ctx context.Context) error {
 	ctx, ws.cancel = context.WithCancel(ctx)
+	ws.ctx = ctx
 
 	libs, err := ws.libraries.List(ctx)
 	if err != nil {
@@ -186,7 +188,10 @@ func (ws *WatcherService) resolveLibrary(filePath string) string {
 
 func (ws *WatcherService) triggerScan(libraryID string) {
 	ws.log.Info("watcher: triggering scan", slog.String("library_id", libraryID))
-	ctx := context.Background()
+	ctx := ws.ctx
+	if ctx == nil {
+		ctx = context.Background()
+	}
 	added, updated, err := ws.scanner.ScanLibrary(ctx, libraryID)
 	if err != nil {
 		ws.log.Error("watcher: scan failed", slog.String("library_id", libraryID), slog.Any("err", err))

@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -93,6 +94,7 @@ func run() error {
 	}
 
 	// --- Repositories ---
+	serverCfgRepo := postgres.NewServerConfigRepository(db)
 	userRepo := postgres.NewUserRepository(db)
 	profileRepo := postgres.NewProfileRepository(db)
 	refreshTokenRepo := postgres.NewRefreshTokenRepository(db)
@@ -389,15 +391,17 @@ func run() error {
 		mux.HandleFunc("POST /api/v1/media/{id}/stream", mh)
 		mux.HandleFunc("POST /api/v1/media/{id}/artwork/{artworkId}/select", selectArtworkHandler(tokenGen, artworkRepo))
 		mux.HandleFunc("GET /api/v1/media/{id}/download", downloadHandler(tokenGen, libQuerySvc, cfg.Server.BaseURL, libraryAccessRepo))
-		mux.HandleFunc("GET /api/v1/media/{id}/transcode", transcodeHandler(tokenGen, libQuerySvc, cfg.Server.BaseURL, libraryAccessRepo))
+		transcodeThrottle := apptranscoding.NewTranscodeThrottle()
+		userMaxStreams := &userMaxStreamsAdapter{repo: userRepo}
+		mux.HandleFunc("GET /api/v1/media/{id}/transcode", transcodeHandler(tokenGen, libQuerySvc, cfg.Server.BaseURL, libraryAccessRepo, transcodeThrottle, userMaxStreams))
 		mux.HandleFunc("GET /api/v1/media/{id}/subtitle/{track}", subtitleHandler(tokenGen, libQuerySvc, cfg.Server.BaseURL, libraryAccessRepo))
 		mux.HandleFunc("GET /api/v1/media/{id}/chapters", chaptersHandler(tokenGen, libCmdSvc, cfg.Server.BaseURL, libraryAccessRepo, libQuerySvc))
 		mux.HandleFunc("GET /api/v1/media/{id}/trickplay", trickplayManifestHandler(tokenGen, libCmdSvc, cfg.Server.BaseURL, libraryAccessRepo, libQuerySvc))
-		mux.HandleFunc("GET /api/v1/media/{id}/trickplay/{image}", trickplayImageHandler(tokenGen, libCmdSvc, cfg.Server.BaseURL))
+		mux.HandleFunc("GET /api/v1/media/{id}/trickplay/{image}", trickplayImageHandler(tokenGen, libCmdSvc, cfg.Server.BaseURL, libraryAccessRepo, libQuerySvc))
 		mux.HandleFunc("POST /api/v1/admin/media/{id}/trickplay/generate", requireAdmin(tokenGen, trickplayGenerateHandler(tokenGen, libCmdSvc)))
 		mux.HandleFunc("POST /api/v1/admin/trickplay/generate-all", requireAdmin(tokenGen, trickplayGenerateAllHandler(tokenGen, libCmdSvc)))
 		mux.HandleFunc("GET /api/v1/media/{id}/playback-info", playbackInfoHandler(tokenGen, libQuerySvc))
-		mux.HandleFunc("GET /api/v1/media/{id}/hls/master.m3u8", hlsMasterHandler(tokenGen, libQuerySvc, hlsManager, libraryAccessRepo))
+		mux.HandleFunc("GET /api/v1/media/{id}/hls/master.m3u8", hlsMasterHandler(tokenGen, libQuerySvc, hlsManager, libraryAccessRepo, userMaxStreams))
 		mux.HandleFunc("GET /api/v1/media/{id}/hls/{file}", hlsSegmentHandler(tokenGen, hlsManager))
 		mux.HandleFunc("GET /api/v1/admin/library-stats", requireAdmin(tokenGen, libraryStatsHandler(tokenGen, libQuerySvc)))
 		mux.HandleFunc("POST /api/v1/auth/login", ratelimit.MiddlewareFunc(loginRL, func(w http.ResponseWriter, r *http.Request) {
@@ -417,7 +421,12 @@ func run() error {
 		dbDumper := postgres.NewDatabaseDumper(cfg.DB.Host, cfg.DB.Port, cfg.DB.User, cfg.DB.Password, cfg.DB.DBName, cfg.DB.SSLMode)
 		backupSvc := appbackup.NewService(backupStore, dbDumper, version)
 		registerBackupRoutes(mux, backupSvc, tokenGen)
-		registerRemoteAccessRoutes(mux, cfg, tokenGen)
+		cfgStore := &serverConfigStore{repo: serverCfgRepo}
+		// load RemoteAccess persisted settings from DB (overrides env-based config)
+		if raw, err2 := cfgStore.Get(context.Background(), remoteAccessConfigKey); err2 == nil && raw != "" {
+			_ = json.Unmarshal([]byte(raw), &cfg.RemoteAccess)
+		}
+		registerRemoteAccessRoutes(mux, cfg, tokenGen, cfgStore)
 		registerPlaybackSettingsRoutes(mux, cfg, tokenGen)
 		registerParentalRoutes(mux, profileRepo, hasher, tokenGen)
 		if subtitleSvc != nil {

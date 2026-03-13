@@ -18,11 +18,11 @@ var publicMethods = map[string]bool{
 	"/evey.v1.UserService/RefreshToken":       true,
 	"/evey.v1.UserService/RegisterWithInvite": true,
 	"/evey.v1.AdminService/SetupWizard":       true,
-	"/evey.v1.AdminService/GetSystemInfo":     true,
 	"/evey.v1.UserService/CheckQuickConnect":  true,
 }
 
 var adminOnlyMethods = map[string]bool{
+	"/evey.v1.AdminService/GetSystemInfo":                           true,
 	"/evey.v1.AdminService/GetServerConfig":                         true,
 	"/evey.v1.AdminService/UpdateServerConfig":                      true,
 	"/evey.v1.AdminService/GetDashboard":                            true,

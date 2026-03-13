@@ -6,6 +6,7 @@ import (
 
 	domainuser "github.com/gravity-zero/evey/internal/domain/user"
 	"github.com/gravity-zero/evey/internal/pkg/auth"
+	"github.com/gravity-zero/evey/internal/pkg/ratelimit"
 )
 
 func registerParentalRoutes(
@@ -14,6 +15,9 @@ func registerParentalRoutes(
 	hasher domainuser.PasswordHasher,
 	tokenGen *auth.JWTGenerator,
 ) {
+	// 5 attempts per profile per 15 minutes (brute-force protection on 4-6 digit PINs)
+	pinRL := ratelimit.NewWithBurst(5, 5.0/15.0)
+
 	extractClaims := func(r *http.Request) (*domainuser.Claims, bool) {
 		h := r.Header.Get("Authorization")
 		if len(h) < 8 || h[:7] != "Bearer " {
@@ -143,6 +147,10 @@ func registerParentalRoutes(
 		profileID := r.PathValue("id")
 		if profileID != claims.ProfileID && !claims.IsAdmin {
 			http.Error(w, `{"message":"forbidden"}`, http.StatusForbidden)
+			return
+		}
+		if !pinRL.Allow(profileID) {
+			http.Error(w, `{"message":"too many attempts"}`, http.StatusTooManyRequests)
 			return
 		}
 		var body struct {

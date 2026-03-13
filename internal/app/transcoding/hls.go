@@ -30,6 +30,7 @@ var DefaultProfiles = []HLSProfile{
 type HLSSession struct {
 	ID          string
 	MediaItemID string
+	UserID      string
 	OutputDir   string
 	Profiles    []HLSProfile
 	StartedAt   time.Time
@@ -38,6 +39,7 @@ type HLSSession struct {
 	cmd         *exec.Cmd
 	cancel      context.CancelFunc
 	ready       chan struct{}
+	done        chan struct{} // closed when start() goroutine exits (process reaped)
 	err         error
 }
 
@@ -80,7 +82,19 @@ func FilterProfiles(profiles []HLSProfile, sourceWidth, sourceHeight int) []HLSP
 	return filtered
 }
 
-func (m *HLSManager) GetOrCreate(mediaItemID, filePath string, sourceWidth, sourceHeight int) (*HLSSession, error) {
+// countByUser returns the number of active sessions belonging to the given user.
+// Must be called with m.mu held.
+func (m *HLSManager) countByUser(userID string) int {
+	count := 0
+	for _, s := range m.sessions {
+		if s.UserID == userID {
+			count++
+		}
+	}
+	return count
+}
+
+func (m *HLSManager) GetOrCreate(userID, mediaItemID, filePath string, sourceWidth, sourceHeight, maxUserStreams int) (*HLSSession, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -93,6 +107,9 @@ func (m *HLSManager) GetOrCreate(mediaItemID, filePath string, sourceWidth, sour
 	if m.maxConcurrent > 0 && active >= m.maxConcurrent {
 		return nil, fmt.Errorf("max concurrent HLS sessions reached (%d)", m.maxConcurrent)
 	}
+	if maxUserStreams > 0 && m.countByUser(userID) >= maxUserStreams {
+		return nil, fmt.Errorf("max streams per user reached (%d)", maxUserStreams)
+	}
 
 	profiles := FilterProfiles(DefaultProfiles, sourceWidth, sourceHeight)
 	outputDir := filepath.Join(m.cacheDir, mediaItemID)
@@ -104,11 +121,13 @@ func (m *HLSManager) GetOrCreate(mediaItemID, filePath string, sourceWidth, sour
 	session := &HLSSession{
 		ID:          mediaItemID,
 		MediaItemID: mediaItemID,
+		UserID:      userID,
 		OutputDir:   outputDir,
 		Profiles:    profiles,
 		StartedAt:   now,
 		LastAccess:  now,
 		ready:       make(chan struct{}),
+		done:        make(chan struct{}),
 	}
 	m.sessions[mediaItemID] = session
 
@@ -117,17 +136,15 @@ func (m *HLSManager) GetOrCreate(mediaItemID, filePath string, sourceWidth, sour
 }
 
 func (s *HLSSession) start(filePath string) {
+	defer close(s.done)
 	ctx, cancel := context.WithCancel(context.Background())
-	s.mu.Lock()
-	s.cancel = cancel
-	s.mu.Unlock()
-
 	args := s.buildFFmpegArgs(filePath)
 	slog.Debug("hls: ffmpeg", slog.String("media_id", s.MediaItemID), slog.String("args", strings.Join(args, " ")))
-
 	cmd := exec.CommandContext(ctx, "ffmpeg", args...)
 	cmd.Stderr = nil
+
 	s.mu.Lock()
+	s.cancel = cancel
 	s.cmd = cmd
 	s.mu.Unlock()
 
@@ -217,6 +234,13 @@ func (s *HLSSession) stop() {
 	if cancel != nil {
 		cancel()
 	}
+	// Wait for start() goroutine to call cmd.Wait() and reap the ffmpeg process.
+	// Use a timeout so a stuck process doesn't block shutdown indefinitely.
+	select {
+	case <-s.done:
+	case <-time.After(5 * time.Second):
+		slog.Warn("hls: timed out waiting for ffmpeg to exit", slog.String("media_id", s.MediaItemID))
+	}
 	if err := os.RemoveAll(s.OutputDir); err != nil {
 		slog.Warn("hls: remove output dir failed", slog.String("dir", s.OutputDir), slog.Any("err", err))
 	}
@@ -237,8 +261,7 @@ func (m *HLSManager) cleanupLoop() {
 
 func (m *HLSManager) cleanupStale(maxIdle time.Duration) {
 	m.mu.Lock()
-	defer m.mu.Unlock()
-
+	var toStop []*HLSSession
 	now := time.Now()
 	for id, session := range m.sessions {
 		session.mu.Lock()
@@ -246,19 +269,27 @@ func (m *HLSManager) cleanupStale(maxIdle time.Duration) {
 		session.mu.Unlock()
 		if idle > maxIdle {
 			slog.Info("hls: cleaning stale session", slog.String("media_id", id))
-			session.stop()
+			toStop = append(toStop, session)
 			delete(m.sessions, id)
 		}
+	}
+	m.mu.Unlock()
+	for _, s := range toStop {
+		s.stop()
 	}
 }
 
 func (m *HLSManager) CleanupAll() {
 	m.cleanupOnce.Do(func() { close(m.stopCleanup) })
 	m.mu.Lock()
-	defer m.mu.Unlock()
+	var toStop []*HLSSession
 	for id, session := range m.sessions {
-		session.stop()
+		toStop = append(toStop, session)
 		delete(m.sessions, id)
+	}
+	m.mu.Unlock()
+	for _, s := range toStop {
+		s.stop()
 	}
 }
 

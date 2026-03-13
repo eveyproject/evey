@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	appbackup "github.com/gravity-zero/evey/internal/app/backup"
@@ -1183,7 +1184,16 @@ func networkMiddleware(detector *network.Detector, remoteEnabled *bool) func(htt
 	}
 }
 
-func registerRemoteAccessRoutes(mux *http.ServeMux, cfg *config.Config, tokenGen *auth.JWTGenerator) {
+const remoteAccessConfigKey = "remote_access"
+
+type remoteAccessPersister interface {
+	Get(ctx context.Context, key string) (string, error)
+	Set(ctx context.Context, key, value string) error
+}
+
+func registerRemoteAccessRoutes(mux *http.ServeMux, cfg *config.Config, tokenGen *auth.JWTGenerator, store remoteAccessPersister) {
+	var mu sync.RWMutex
+
 	requireAdmin := func(r *http.Request) bool {
 		h := r.Header.Get("Authorization")
 		if !strings.HasPrefix(h, "Bearer ") {
@@ -1193,11 +1203,9 @@ func registerRemoteAccessRoutes(mux *http.ServeMux, cfg *config.Config, tokenGen
 		return err == nil && claims.IsAdmin
 	}
 
-	mux.HandleFunc("GET /api/v1/admin/remote-access", func(w http.ResponseWriter, r *http.Request) {
-		if !requireAdmin(r) {
-			http.Error(w, `{"message":"forbidden"}`, http.StatusForbidden)
-			return
-		}
+	encodeRA := func(w http.ResponseWriter) {
+		mu.RLock()
+		defer mu.RUnlock()
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(map[string]any{
 			"enabled":              cfg.RemoteAccess.Enabled,
@@ -1205,6 +1213,14 @@ func registerRemoteAccessRoutes(mux *http.ServeMux, cfg *config.Config, tokenGen
 			"lanNetworks":          cfg.RemoteAccess.LANNetworks,
 			"maxRemoteBitrateKbps": cfg.RemoteAccess.MaxRemoteBitrateKbps,
 		})
+	}
+
+	mux.HandleFunc("GET /api/v1/admin/remote-access", func(w http.ResponseWriter, r *http.Request) {
+		if !requireAdmin(r) {
+			http.Error(w, `{"message":"forbidden"}`, http.StatusForbidden)
+			return
+		}
+		encodeRA(w)
 	})
 
 	mux.HandleFunc("PUT /api/v1/admin/remote-access", func(w http.ResponseWriter, r *http.Request) {
@@ -1222,6 +1238,7 @@ func registerRemoteAccessRoutes(mux *http.ServeMux, cfg *config.Config, tokenGen
 			http.Error(w, `{"message":"bad request"}`, http.StatusBadRequest)
 			return
 		}
+		mu.Lock()
 		if body.Enabled != nil {
 			cfg.RemoteAccess.Enabled = *body.Enabled
 		}
@@ -1234,13 +1251,17 @@ func registerRemoteAccessRoutes(mux *http.ServeMux, cfg *config.Config, tokenGen
 		if body.MaxRemoteBitrateKbps != nil {
 			cfg.RemoteAccess.MaxRemoteBitrateKbps = *body.MaxRemoteBitrateKbps
 		}
-		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]any{
-			"enabled":              cfg.RemoteAccess.Enabled,
-			"externalUrl":          cfg.RemoteAccess.ExternalURL,
-			"lanNetworks":          cfg.RemoteAccess.LANNetworks,
-			"maxRemoteBitrateKbps": cfg.RemoteAccess.MaxRemoteBitrateKbps,
-		})
+		snapshot := cfg.RemoteAccess
+		mu.Unlock()
+
+		if store != nil {
+			if data, err := json.Marshal(snapshot); err == nil {
+				if err2 := store.Set(r.Context(), remoteAccessConfigKey, string(data)); err2 != nil {
+					slog.Warn("remote-access: persist config failed", slog.Any("err", err2))
+				}
+			}
+		}
+		encodeRA(w)
 	})
 
 	mux.HandleFunc("GET /api/v1/admin/network-info", func(w http.ResponseWriter, r *http.Request) {

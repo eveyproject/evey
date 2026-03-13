@@ -31,6 +31,18 @@ func (r *FakeSettingsRepository) GetByProfile(_ context.Context, profileID strin
 	return &notification.Settings{ProfileID: profileID, MovieLevel: notification.LevelAll, SeriesLevel: notification.LevelAll, MusicLevel: notification.LevelAll}, nil
 }
 
+func (r *FakeSettingsRepository) GetByProfiles(ctx context.Context, profileIDs []string) (map[string]*notification.Settings, error) {
+	result := make(map[string]*notification.Settings, len(profileIDs))
+	for _, id := range profileIDs {
+		s, err := r.GetByProfile(ctx, id)
+		if err != nil {
+			return nil, err
+		}
+		result[id] = s
+	}
+	return result, nil
+}
+
 func (r *FakeSettingsRepository) Upsert(_ context.Context, s *notification.Settings) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
