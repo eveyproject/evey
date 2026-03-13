@@ -1740,3 +1740,44 @@ func TestHLSSegmentHandler_LibraryAccessDenied(t *testing.T) {
 		t.Fatalf("expected 403, got %d: %s", w.Code, w.Body.String())
 	}
 }
+
+func TestHLSMasterHandler_LibraryAccessDenied(t *testing.T) {
+	t.Parallel()
+	libSvc := newFakeLibService()
+	libSvc.items["m1"] = &domainlibrary.MediaItem{ID: "m1", FilePath: "/some/file.mkv", LibraryID: "lib-restricted"}
+
+	hlsManager := apptranscoding.NewHLSManager(t.TempDir(), 5)
+	handler := hlsMasterHandler(validTokenValidator(false), libSvc, hlsManager, denyAllLibraries(), nil)
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("GET /api/v1/media/{id}/hls/master.m3u8", handler)
+
+	req := httptest.NewRequest("GET", "/api/v1/media/m1/hls/master.m3u8", nil)
+	req.Header.Set("Authorization", "Bearer valid-token")
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+
+	if w.Code != http.StatusForbidden {
+		t.Fatalf("expected 403, got %d: %s", w.Code, w.Body.String())
+	}
+}
+
+func TestPlaybackInfoHandler_LibraryAccessDenied(t *testing.T) {
+	t.Parallel()
+	libSvc := newFakeLibService()
+	libSvc.items["m1"] = &domainlibrary.MediaItem{ID: "m1", FilePath: "/some/file.mkv", LibraryID: "lib-restricted"}
+
+	handler := playbackInfoHandler(validTokenValidator(false), libSvc, denyAllLibraries())
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("GET /api/v1/media/{id}/playback-info", handler)
+
+	req := httptest.NewRequest("GET", "/api/v1/media/m1/playback-info", nil)
+	req.Header.Set("Authorization", "Bearer valid-token")
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+
+	if w.Code != http.StatusForbidden {
+		t.Fatalf("expected 403, got %d: %s", w.Code, w.Body.String())
+	}
+}
