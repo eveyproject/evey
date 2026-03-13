@@ -17,6 +17,7 @@ import (
 
 	applibrary "github.com/gravity-zero/evey/internal/app/library"
 	appsubtitle "github.com/gravity-zero/evey/internal/app/subtitle"
+	domainuser "github.com/gravity-zero/evey/internal/domain/user"
 )
 
 var unsafeFilenameChars = regexp.MustCompile(`[^\w\s.\-()]`)
@@ -126,6 +127,38 @@ func safeJoin(base, rel string) (string, error) {
 		return "", fmt.Errorf("path traversal detected")
 	}
 	return abs, nil
+}
+
+// extractBearerToken reads the Bearer token from Authorization header or ?token query param.
+func extractBearerToken(r *http.Request) string {
+	h := r.Header.Get("Authorization")
+	if strings.HasPrefix(h, "Bearer ") {
+		return h[7:]
+	}
+	return r.URL.Query().Get("token")
+}
+
+// requireAdmin is a middleware that enforces authenticated admin access.
+func requireAdmin(tokenGen interface {
+	ValidateAccessToken(string) (*domainuser.Claims, error)
+}, next http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		token := extractBearerToken(r)
+		if token == "" {
+			http.Error(w, "unauthorized", http.StatusUnauthorized)
+			return
+		}
+		claims, err := tokenGen.ValidateAccessToken(token)
+		if err != nil {
+			http.Error(w, "unauthorized", http.StatusUnauthorized)
+			return
+		}
+		if !claims.IsAdmin {
+			http.Error(w, "forbidden", http.StatusForbidden)
+			return
+		}
+		next(w, r)
+	}
 }
 
 func setCORSHeaders(w http.ResponseWriter, r *http.Request, baseURL string) {

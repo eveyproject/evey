@@ -155,36 +155,35 @@ func (r *CollectionRepository) CountManualItems(ctx context.Context, collectionI
 	return count, err
 }
 
-var allowedSortFields = map[string]bool{
-	"title": true, "sort_title": true, "added_at": true,
-	"year": true, "premiere_date": true, "community_rating": true,
+var validSortCols = map[string]string{
+	"title": "title", "sort_title": "sort_title", "added_at": "added_at",
+	"year": "year", "premiere_date": "premiere_date", "community_rating": "community_rating",
 }
 
-// ValidateSortParams returns ErrInvalidSortParam if sortBy or sortOrder are not in the allowlist.
-func ValidateSortParams(sortBy, sortOrder string) error {
-	if sortBy != "" && !allowedSortFields[sortBy] {
-		return fmt.Errorf("%w: sortBy %q", library.ErrInvalidSortParam, sortBy)
+var validSortDirs = map[string]string{
+	"asc": "ASC", "desc": "DESC",
+}
+
+// SafeSortCol returns a safe column name from the allowlist (default: sort_title).
+func SafeSortCol(col string) string {
+	if v, ok := validSortCols[strings.ToLower(col)]; ok {
+		return v
 	}
-	upper := strings.ToUpper(sortOrder)
-	if upper != "ASC" && upper != "DESC" {
-		return fmt.Errorf("%w: sortOrder %q", library.ErrInvalidSortParam, sortOrder)
+	return "sort_title"
+}
+
+// SafeSortDir returns "ASC" or "DESC" (default: ASC).
+func SafeSortDir(dir string) string {
+	if v, ok := validSortDirs[strings.ToLower(dir)]; ok {
+		return v
 	}
-	return nil
+	return "ASC"
 }
 
 func (r *CollectionRepository) GetSmartItems(ctx context.Context, col *library.Collection, limit, offset int) ([]*library.MediaItem, error) {
-	if err := ValidateSortParams(col.SortBy, col.SortOrder); err != nil {
-		return nil, err
-	}
 	where, args := buildRulesWhere(col.Rules)
-	sortField := "sort_title"
-	if col.SortBy != "" {
-		sortField = col.SortBy
-	}
-	sortOrder := "ASC"
-	if strings.EqualFold(col.SortOrder, "desc") {
-		sortOrder = "DESC"
-	}
+	sortField := SafeSortCol(col.SortBy)
+	sortOrder := SafeSortDir(col.SortOrder)
 	query := fmt.Sprintf(`SELECT id, library_id, parent_id, type, title, sort_title, original_title,
 		 overview, tagline, file_path, file_size, file_fingerprint, duration_ms, bitrate,
 		 container_format, index_number, community_rating, official_rating,

@@ -1352,3 +1352,81 @@ func TestTrickplayImageHandler_PathTraversal(t *testing.T) {
 		t.Error("path traversal attempt should not return 200")
 	}
 }
+
+func TestRequireAdmin_NoToken(t *testing.T) {
+	inner := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	})
+	handler := requireAdmin(invalidTokenValidator(), inner)
+
+	req := httptest.NewRequest("GET", "/admin/test", nil)
+	w := httptest.NewRecorder()
+	handler.ServeHTTP(w, req)
+
+	if w.Code != http.StatusUnauthorized {
+		t.Errorf("expected 401, got %d", w.Code)
+	}
+}
+
+func TestRequireAdmin_InvalidToken(t *testing.T) {
+	inner := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	})
+	handler := requireAdmin(invalidTokenValidator(), inner)
+
+	req := httptest.NewRequest("GET", "/admin/test", nil)
+	req.Header.Set("Authorization", "Bearer bad-token")
+	w := httptest.NewRecorder()
+	handler.ServeHTTP(w, req)
+
+	if w.Code != http.StatusUnauthorized {
+		t.Errorf("expected 401, got %d", w.Code)
+	}
+}
+
+func TestRequireAdmin_NonAdmin(t *testing.T) {
+	inner := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	})
+	handler := requireAdmin(validTokenValidator(false), inner)
+
+	req := httptest.NewRequest("GET", "/admin/test", nil)
+	req.Header.Set("Authorization", "Bearer valid-token")
+	w := httptest.NewRecorder()
+	handler.ServeHTTP(w, req)
+
+	if w.Code != http.StatusForbidden {
+		t.Errorf("expected 403, got %d", w.Code)
+	}
+}
+
+func TestRequireAdmin_AdminAllowed(t *testing.T) {
+	inner := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	})
+	handler := requireAdmin(validTokenValidator(true), inner)
+
+	req := httptest.NewRequest("GET", "/admin/test", nil)
+	req.Header.Set("Authorization", "Bearer valid-token")
+	w := httptest.NewRecorder()
+	handler.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("expected 200, got %d", w.Code)
+	}
+}
+
+func TestRequireAdmin_TokenViaQueryParam(t *testing.T) {
+	inner := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	})
+	handler := requireAdmin(validTokenValidator(true), inner)
+
+	req := httptest.NewRequest("GET", "/admin/test?token=valid-token", nil)
+	w := httptest.NewRecorder()
+	handler.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("expected 200, got %d", w.Code)
+	}
+}
