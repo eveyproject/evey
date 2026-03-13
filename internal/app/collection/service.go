@@ -3,11 +3,24 @@ package collection
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/gravity-zero/evey/internal/domain/library"
 )
+
+var validSortOrders = map[string]bool{"asc": true, "desc": true}
+
+func validateSortOrder(sortOrder string) error {
+	if sortOrder == "" {
+		return nil
+	}
+	if !validSortOrders[strings.ToLower(sortOrder)] {
+		return fmt.Errorf("invalid sort order %q: must be asc or desc", sortOrder)
+	}
+	return nil
+}
 
 type Service struct {
 	commands library.CollectionCommandRepo
@@ -31,6 +44,9 @@ func (s *Service) Create(ctx context.Context, col *library.Collection) error {
 	if col.SortOrder == "" {
 		col.SortOrder = "asc"
 	}
+	if err := validateSortOrder(col.SortOrder); err != nil {
+		return err
+	}
 	return s.commands.Create(ctx, col)
 }
 
@@ -43,6 +59,9 @@ func (s *Service) List(ctx context.Context) ([]*library.Collection, error) {
 }
 
 func (s *Service) Update(ctx context.Context, col *library.Collection) error {
+	if err := validateSortOrder(col.SortOrder); err != nil {
+		return err
+	}
 	existing, err := s.queries.GetByID(ctx, col.ID)
 	if err != nil {
 		return fmt.Errorf("get collection: %w", err)
