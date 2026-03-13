@@ -26,6 +26,7 @@ import { DownloadButton } from "../playback/DownloadButton";
 import { FavoriteButton } from "./FavoriteButton";
 import { AddToPlaylistModal } from "../playlist/AddToPlaylistModal";
 import { MetadataOverrideModal } from "../media/MetadataOverrideModal";
+import { Modal } from "@/components/ui/Modal";
 import { slugify } from "@/utils/slugify";
 
 interface MediaDetailProps {
@@ -36,6 +37,7 @@ interface MediaDetailProps {
 
 interface EditForm {
   title: string;
+  originalTitle: string;
   year: string;
   overview: string;
   genres: string;
@@ -139,6 +141,7 @@ function MetadataEditPanel({
   const origTmdbId = item.providerIds?.tmdb ?? "";
   const [form, setForm] = useState<EditForm>({
     title: item.title ?? "",
+    originalTitle: item.originalTitle ?? "",
     year: item.year ? String(item.year) : "",
     overview: item.overview ?? "",
     genres: item.genres?.join(", ") ?? "",
@@ -182,6 +185,7 @@ function MetadataEditPanel({
 
       const fields: Array<[string, string]> = [
         ["title", form.title.trim()],
+        ["original_title", form.originalTitle.trim()],
         ["year", form.year.trim()],
         ["overview", form.overview.trim()],
         ["genres", form.genres.trim()],
@@ -194,6 +198,8 @@ function MetadataEditPanel({
             await setOverride.mutateAsync({ data: { mediaItemId: item.id, fieldName, customValue } });
           }
         }
+        queryClient.invalidateQueries({ queryKey: [`/api/v1/media/${item.id}`] });
+        toast.success("Metadata saved");
       }
       onSave();
     } catch (err) {
@@ -231,9 +237,9 @@ function MetadataEditPanel({
     : null;
 
   return (
-    <form onSubmit={handleSave} className="flex flex-col gap-4 p-4 rounded-[var(--radius-lg)]"
-      style={{ backgroundColor: "var(--surface)", border: "1px solid var(--border)" }}>
+    <form onSubmit={handleSave} className="flex flex-col gap-4">
       <Input label="Title" value={form.title} onChange={set("title")} required />
+      <Input label="Original Title" value={form.originalTitle} onChange={set("originalTitle")} placeholder="Original title" />
       <Input label="Year" type="number" value={form.year} onChange={set("year")} placeholder="2024" />
       <Textarea label="Overview" value={form.overview} onChange={set("overview")} rows={4} />
       <Input label="Genres (comma-separated)" value={form.genres} onChange={set("genres")} placeholder="Action, Drama" />
@@ -847,12 +853,16 @@ export function MediaDetail({ item, onMetadataUpdated, initialEdit }: MediaDetai
             />
           )}
 
-          {editing && item.id && (
-            <MetadataEditPanel
-              item={item}
-              onSave={() => { setEditing(false); onMetadataUpdated?.(); }}
-              onCancel={() => setEditing(false)}
-            />
+          {item.id && (
+            <Modal open={editing} onClose={() => setEditing(false)} title="Edit Metadata">
+              <div className="overflow-y-auto" style={{ maxHeight: "70vh" }}>
+                <MetadataEditPanel
+                  item={item}
+                  onSave={() => { setEditing(false); onMetadataUpdated?.(); }}
+                  onCancel={() => setEditing(false)}
+                />
+              </div>
+            </Modal>
           )}
         </div>
       </div>
