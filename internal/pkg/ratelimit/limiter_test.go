@@ -18,6 +18,7 @@ func newTestLimiter(rpm int) *Limiter {
 }
 
 func TestRateLimit_AllowsUpToLimit(t *testing.T) {
+	t.Parallel()
 	l := newTestLimiter(5)
 	ip := "10.0.0.1"
 
@@ -27,6 +28,7 @@ func TestRateLimit_AllowsUpToLimit(t *testing.T) {
 }
 
 func TestRateLimit_BlocksOverLimit(t *testing.T) {
+	t.Parallel()
 	l := newTestLimiter(3)
 	ip := "10.0.0.2"
 
@@ -38,6 +40,7 @@ func TestRateLimit_BlocksOverLimit(t *testing.T) {
 }
 
 func TestRateLimit_Refills(t *testing.T) {
+	t.Parallel()
 	l := newTestLimiter(60) // 1 token/sec
 	ip := "10.0.0.3"
 
@@ -55,6 +58,7 @@ func TestRateLimit_Refills(t *testing.T) {
 }
 
 func TestClientIP_XFFUntrustedProxy(t *testing.T) {
+	t.Parallel()
 	// XFF from untrusted peer must be ignored
 	req := httptest.NewRequest("GET", "/", nil)
 	req.RemoteAddr = "1.2.3.4:9999" // public IP — not a trusted proxy
@@ -63,6 +67,7 @@ func TestClientIP_XFFUntrustedProxy(t *testing.T) {
 }
 
 func TestClientIP_XFFTrustedProxy(t *testing.T) {
+	t.Parallel()
 	// XFF from trusted proxy (loopback/private) must be honoured
 	req := httptest.NewRequest("GET", "/", nil)
 	req.RemoteAddr = "127.0.0.1:9999"
@@ -71,6 +76,7 @@ func TestClientIP_XFFTrustedProxy(t *testing.T) {
 }
 
 func TestClientIP_XFFSpoofPrevented(t *testing.T) {
+	t.Parallel()
 	// attacker from public net cannot bypass rate limit by forging XFF
 	l := newTestLimiter(2)
 	handler := Middleware(l)(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(200) }))
@@ -92,6 +98,7 @@ func TestClientIP_XFFSpoofPrevented(t *testing.T) {
 }
 
 func TestMiddleware_ExemptPrefixes(t *testing.T) {
+	t.Parallel()
 	l := newTestLimiter(2)
 	ok := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(200) })
 	handler := Middleware(l, "/api/v1/playback/progress", "/api/v1/playback/start")(ok)

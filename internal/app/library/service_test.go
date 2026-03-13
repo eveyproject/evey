@@ -41,6 +41,7 @@ func newQuerySvc() (*applib.QueryService, *libfakes.FakeMediaItemQueryRepo, *lib
 }
 
 func TestCreateLibrary(t *testing.T) {
+	t.Parallel()
 	svc, _, libQueryRepo, _, _, bus := newCmdSvc()
 
 	lib := &library.Library{ID: "lib-1", Name: "Movies", Type: "movie"}
@@ -61,6 +62,7 @@ func TestCreateLibrary(t *testing.T) {
 }
 
 func TestScanLibrary_NewFiles(t *testing.T) {
+	t.Parallel()
 	svc, _, libQueryRepo, mediaRepo, scanner, bus := newCmdSvc()
 
 	lib := &library.Library{
@@ -98,6 +100,7 @@ func TestScanLibrary_NewFiles(t *testing.T) {
 }
 
 func TestScanLibrary_ExistingFile(t *testing.T) {
+	t.Parallel()
 	svc, _, libQueryRepo, mediaRepo, scanner, bus := newCmdSvc()
 
 	lib := &library.Library{
@@ -136,12 +139,14 @@ func TestScanLibrary_ExistingFile(t *testing.T) {
 }
 
 func TestGetMediaItem_NotFound(t *testing.T) {
+	t.Parallel()
 	querySvc, _, _ := newQuerySvc()
 	_, err := querySvc.GetMediaItem(context.Background(), "nonexistent")
 	require.Error(t, err)
 }
 
 func TestScanTVShow_TransientDBError_NoDuplicate(t *testing.T) {
+	t.Parallel()
 	svc, _, libQueryRepo, mediaRepo, scanner, _ := newCmdSvc()
 
 	libQueryRepo.Seed(&library.Library{
@@ -168,6 +173,7 @@ func TestScanTVShow_TransientDBError_NoDuplicate(t *testing.T) {
 }
 
 func TestScanTVShow_TitleLookupTransientError_NoDuplicate(t *testing.T) {
+	t.Parallel()
 	svc, _, libQueryRepo, mediaRepo, scanner, _ := newCmdSvc()
 
 	libQueryRepo.Seed(&library.Library{
@@ -194,6 +200,7 @@ func TestScanTVShow_TitleLookupTransientError_NoDuplicate(t *testing.T) {
 }
 
 func TestDeleteLibrary(t *testing.T) {
+	t.Parallel()
 	svc, libCmdRepo, libQueryRepo, _, _, bus := newCmdSvc()
 
 	lib := &library.Library{ID: "lib-1", Name: "Movies", Type: "movie"}
@@ -213,6 +220,7 @@ func TestDeleteLibrary(t *testing.T) {
 }
 
 func TestQueryService_ListLibraries(t *testing.T) {
+	t.Parallel()
 	querySvc, _, libRepo := newQuerySvc()
 	libRepo.Seed(&library.Library{ID: "lib-1", Name: "Movies", Type: "movie"})
 	libRepo.Seed(&library.Library{ID: "lib-2", Name: "Shows", Type: "tvshow"})
@@ -223,6 +231,7 @@ func TestQueryService_ListLibraries(t *testing.T) {
 }
 
 func TestQueryService_GetCast(t *testing.T) {
+	t.Parallel()
 	querySvc, mediaQueryRepo, _ := newQuerySvc()
 	mediaQueryRepo.SeedCast("item-1", []library.CastMember{
 		{PersonID: "p1", PersonName: "Actor One", RoleType: "actor", SortOrder: 0},
@@ -236,6 +245,7 @@ func TestQueryService_GetCast(t *testing.T) {
 }
 
 func TestScanLibrary_ExtractsChapters(t *testing.T) {
+	t.Parallel()
 	svc, _, libQueryRepo, _, scanner, _ := newCmdSvc()
 
 	chapterRepo := libfakes.NewFakeChapterRepository()
@@ -268,6 +278,7 @@ func TestScanLibrary_ExtractsChapters(t *testing.T) {
 }
 
 func TestGetChapters_NilRepo(t *testing.T) {
+	t.Parallel()
 	svc, _, _, _, _, _ := newCmdSvc()
 	chapters, err := svc.GetChapters(context.Background(), "any-id")
 	require.NoError(t, err)
@@ -275,6 +286,7 @@ func TestGetChapters_NilRepo(t *testing.T) {
 }
 
 func TestGenerateTrickplay_Success(t *testing.T) {
+	t.Parallel()
 	svc, _, _, mediaRepo, _, _ := newCmdSvc()
 	trickplayRepo := libfakes.NewFakeTrickplayRepository()
 	trickplayGen := libfakes.NewFakeTrickplayGenerator()
@@ -305,6 +317,7 @@ func TestGenerateTrickplay_Success(t *testing.T) {
 }
 
 func TestGenerateTrickplay_UsesCacheDir(t *testing.T) {
+	t.Parallel()
 	svc, _, _, mediaRepo, _, _ := newCmdSvc()
 	trickplayRepo := libfakes.NewFakeTrickplayRepository()
 	trickplayGen := libfakes.NewFakeTrickplayGenerator()
@@ -322,6 +335,7 @@ func TestGenerateTrickplay_UsesCacheDir(t *testing.T) {
 }
 
 func TestGenerateTrickplay_MediaNotFound(t *testing.T) {
+	t.Parallel()
 	svc, _, _, _, _, _ := newCmdSvc()
 	trickplayRepo := libfakes.NewFakeTrickplayRepository()
 	trickplayGen := libfakes.NewFakeTrickplayGenerator()
@@ -333,6 +347,7 @@ func TestGenerateTrickplay_MediaNotFound(t *testing.T) {
 }
 
 func TestGenerateTrickplay_NoFilePath(t *testing.T) {
+	t.Parallel()
 	svc, _, _, mediaRepo, _, _ := newCmdSvc()
 	trickplayRepo := libfakes.NewFakeTrickplayRepository()
 	trickplayGen := libfakes.NewFakeTrickplayGenerator()
@@ -350,6 +365,7 @@ func TestGenerateTrickplay_NoFilePath(t *testing.T) {
 }
 
 func TestGenerateTrickplay_NotConfigured(t *testing.T) {
+	t.Parallel()
 	svc, _, _, _, _, _ := newCmdSvc()
 
 	err := svc.GenerateTrickplay(context.Background(), "media-1")
@@ -358,6 +374,7 @@ func TestGenerateTrickplay_NotConfigured(t *testing.T) {
 }
 
 func TestGetTrickplayManifest_NotFound(t *testing.T) {
+	t.Parallel()
 	svc, _, _, _, _, _ := newCmdSvc()
 	trickplayRepo := libfakes.NewFakeTrickplayRepository()
 	trickplayGen := libfakes.NewFakeTrickplayGenerator()
@@ -368,6 +385,7 @@ func TestGetTrickplayManifest_NotFound(t *testing.T) {
 }
 
 func TestListMediaItems_ParentalFilter_ExcludesRatedR(t *testing.T) {
+	t.Parallel()
 	querySvc, mediaQueryRepo, _ := newQuerySvc()
 
 	mediaQueryRepo.Seed(&library.MediaItem{ID: "g-movie", Title: "G Movie", OfficialRating: "G"})
@@ -391,6 +409,7 @@ func TestListMediaItems_ParentalFilter_ExcludesRatedR(t *testing.T) {
 }
 
 func TestListMediaItems_ParentalFilter_NoRating(t *testing.T) {
+	t.Parallel()
 	querySvc, mediaQueryRepo, _ := newQuerySvc()
 
 	mediaQueryRepo.Seed(&library.MediaItem{ID: "g-movie", Title: "G Movie", OfficialRating: "G"})
@@ -411,6 +430,7 @@ func TestListMediaItems_ParentalFilter_NoRating(t *testing.T) {
 }
 
 func TestListMediaItems_ParentalFilter_UnratedItemVisible(t *testing.T) {
+	t.Parallel()
 	querySvc, mediaQueryRepo, _ := newQuerySvc()
 
 	mediaQueryRepo.Seed(&library.MediaItem{ID: "unrated", Title: "Unrated Movie", OfficialRating: ""})

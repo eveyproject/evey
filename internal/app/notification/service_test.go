@@ -24,6 +24,7 @@ func (e *errProfileLister) GetAll(_ context.Context) ([]*user.Profile, error) {
 }
 
 func TestNotificationService_MediaItemAdded_CreatesNotificationsForAllProfiles(t *testing.T) {
+	t.Parallel()
 	repo := notiffakes.NewFakeNotificationRepository()
 	settings := notiffakes.NewFakeSettingsRepository()
 	analyzer := notiffakes.NewFakeWatchHistoryAnalyzer()
@@ -56,6 +57,7 @@ func TestNotificationService_MediaItemAdded_CreatesNotificationsForAllProfiles(t
 }
 
 func TestNotificationService_Deduplication(t *testing.T) {
+	t.Parallel()
 	repo := notiffakes.NewFakeNotificationRepository()
 	settings := notiffakes.NewFakeSettingsRepository()
 	analyzer := notiffakes.NewFakeWatchHistoryAnalyzer()
@@ -84,6 +86,7 @@ func TestNotificationService_Deduplication(t *testing.T) {
 }
 
 func TestNotificationService_LevelDisabled_SkipsProfile(t *testing.T) {
+	t.Parallel()
 	repo := notiffakes.NewFakeNotificationRepository()
 	settings := notiffakes.NewFakeSettingsRepository()
 	analyzer := notiffakes.NewFakeWatchHistoryAnalyzer()
@@ -116,6 +119,7 @@ func TestNotificationService_LevelDisabled_SkipsProfile(t *testing.T) {
 }
 
 func TestNotificationService_MarkRead_UnreadCount(t *testing.T) {
+	t.Parallel()
 	repo := notiffakes.NewFakeNotificationRepository()
 	settings := notiffakes.NewFakeSettingsRepository()
 	analyzer := notiffakes.NewFakeWatchHistoryAnalyzer()
@@ -142,6 +146,7 @@ func TestNotificationService_MarkRead_UnreadCount(t *testing.T) {
 }
 
 func TestNotificationService_GetAllProfilesError_NoNotifications(t *testing.T) {
+	t.Parallel()
 	repo := notiffakes.NewFakeNotificationRepository()
 	settings := notiffakes.NewFakeSettingsRepository()
 	analyzer := notiffakes.NewFakeWatchHistoryAnalyzer()

@@ -59,6 +59,7 @@ exit 0
 }
 
 func TestTrickplayGenerator_Generate_Success(t *testing.T) {
+	t.Parallel()
 	probe := makeFakeProbeScript(t, 25.0) // 25s → timestamps 0,10,20 → 3 thumbs
 	ffmpeg := makeFakeFfmpegScript(t)
 	outputDir := t.TempDir()
@@ -73,6 +74,7 @@ func TestTrickplayGenerator_Generate_Success(t *testing.T) {
 }
 
 func TestTrickplayGenerator_Generate_InvalidBinary(t *testing.T) {
+	t.Parallel()
 	probe := makeFakeProbeScript(t, 10.0)
 	g := NewTrickplayGenerator("/nonexistent/ffmpeg-trickplay", probe)
 	outputDir := t.TempDir()
@@ -83,6 +85,7 @@ func TestTrickplayGenerator_Generate_InvalidBinary(t *testing.T) {
 }
 
 func TestTrickplayGenerator_Generate_InvalidProbe(t *testing.T) {
+	t.Parallel()
 	g := NewTrickplayGenerator("/nonexistent/ffmpeg", "/nonexistent/ffprobe")
 	outputDir := t.TempDir()
 
@@ -92,6 +95,7 @@ func TestTrickplayGenerator_Generate_InvalidProbe(t *testing.T) {
 }
 
 func TestTrickplayGenerator_Generate_CreatesOutputDir(t *testing.T) {
+	t.Parallel()
 	probe := makeFakeProbeScript(t, 10.0)
 	ffmpeg := makeFakeFfmpegScript(t)
 	base := t.TempDir()

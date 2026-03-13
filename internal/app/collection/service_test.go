@@ -19,6 +19,7 @@ func newSvc() (*appcol.Service, *libfakes.FakeCollectionRepository, *libfakes.Fa
 }
 
 func TestCreateCollection(t *testing.T) {
+	t.Parallel()
 	svc, _, _ := newSvc()
 	col := &library.Collection{Name: "Action Movies", Type: library.CollectionSmart}
 	err := svc.Create(context.Background(), col)
@@ -32,6 +33,7 @@ func TestCreateCollection(t *testing.T) {
 }
 
 func TestListCollections(t *testing.T) {
+	t.Parallel()
 	svc, _, _ := newSvc()
 	svc.Create(context.Background(), &library.Collection{Name: "C1", Type: library.CollectionManual})
 	svc.Create(context.Background(), &library.Collection{Name: "C2", Type: library.CollectionSmart})
@@ -42,6 +44,7 @@ func TestListCollections(t *testing.T) {
 }
 
 func TestUpdateCollection(t *testing.T) {
+	t.Parallel()
 	svc, _, _ := newSvc()
 	col := &library.Collection{Name: "Old", Type: library.CollectionSmart}
 	svc.Create(context.Background(), col)
@@ -62,6 +65,7 @@ func TestUpdateCollection(t *testing.T) {
 }
 
 func TestDeleteCollection(t *testing.T) {
+	t.Parallel()
 	svc, _, _ := newSvc()
 	col := &library.Collection{Name: "Del", Type: library.CollectionManual}
 	svc.Create(context.Background(), col)
@@ -74,6 +78,7 @@ func TestDeleteCollection(t *testing.T) {
 }
 
 func TestSmartCollectionItems(t *testing.T) {
+	t.Parallel()
 	svc, _, mediaRepo := newSvc()
 	ctx := context.Background()
 
@@ -112,6 +117,7 @@ func TestSmartCollectionItems(t *testing.T) {
 }
 
 func TestSmartCollectionYearFilter(t *testing.T) {
+	t.Parallel()
 	svc, _, mediaRepo := newSvc()
 	ctx := context.Background()
 
@@ -136,6 +142,7 @@ func TestSmartCollectionYearFilter(t *testing.T) {
 }
 
 func TestManualCollectionItems(t *testing.T) {
+	t.Parallel()
 	svc, colRepo, mediaRepo := newSvc()
 	ctx := context.Background()
 
@@ -155,12 +162,14 @@ func TestManualCollectionItems(t *testing.T) {
 }
 
 func TestUpdateCollection_NotFound(t *testing.T) {
+	t.Parallel()
 	svc, _, _ := newSvc()
 	err := svc.Update(context.Background(), &library.Collection{ID: "nonexistent", Name: "X"})
 	require.Error(t, err)
 }
 
 func TestGetItems_LimitCap(t *testing.T) {
+	t.Parallel()
 	svc, _, _ := newSvc()
 	col := &library.Collection{Name: "Empty", Type: library.CollectionSmart}
 	svc.Create(context.Background(), col)
@@ -172,6 +181,7 @@ func TestGetItems_LimitCap(t *testing.T) {
 }
 
 func TestSmartCollectionTypeFilter(t *testing.T) {
+	t.Parallel()
 	svc, _, mediaRepo := newSvc()
 	ctx := context.Background()
 

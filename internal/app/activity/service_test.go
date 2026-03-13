@@ -13,6 +13,7 @@ import (
 )
 
 func TestRecordLogin(t *testing.T) {
+	t.Parallel()
 	loginRepo := actfakes.NewFakeLoginHistoryRepository()
 	metricRepo := actfakes.NewFakeServerMetricRepository()
 	auditRepo := actfakes.NewFakeAuditLogRepository()

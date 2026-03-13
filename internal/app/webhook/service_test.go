@@ -117,6 +117,7 @@ func newTestService(repo webhookdomain.Repository, deliveries webhookdomain.Deli
 // --- tests ---
 
 func TestCreate(t *testing.T) {
+	t.Parallel()
 	repo := &fakeWebhookRepo{}
 	deliveries := &fakeDeliveryRepo{}
 	bus := fakes.NewFakeEventBus()
@@ -140,6 +141,7 @@ func TestCreate(t *testing.T) {
 }
 
 func TestList(t *testing.T) {
+	t.Parallel()
 	repo := &fakeWebhookRepo{}
 	deliveries := &fakeDeliveryRepo{}
 	bus := fakes.NewFakeEventBus()
@@ -159,6 +161,7 @@ func TestList(t *testing.T) {
 }
 
 func TestDelete(t *testing.T) {
+	t.Parallel()
 	repo := &fakeWebhookRepo{}
 	deliveries := &fakeDeliveryRepo{}
 	bus := fakes.NewFakeEventBus()
@@ -178,6 +181,7 @@ func TestDelete(t *testing.T) {
 }
 
 func TestListDeliveries(t *testing.T) {
+	t.Parallel()
 	repo := &fakeWebhookRepo{}
 	deliveries := &fakeDeliveryRepo{}
 	bus := fakes.NewFakeEventBus()
@@ -204,6 +208,7 @@ func TestListDeliveries(t *testing.T) {
 }
 
 func TestCreate_BlocksPrivateURL(t *testing.T) {
+	t.Parallel()
 	repo := &fakeWebhookRepo{}
 	deliveries := &fakeDeliveryRepo{}
 	bus := fakes.NewFakeEventBus()
@@ -223,6 +228,7 @@ func TestCreate_BlocksPrivateURL(t *testing.T) {
 }
 
 func TestHandleAny_DeliverToMatchingWebhook(t *testing.T) {
+	t.Parallel()
 	received := make(chan struct{}, 1)
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		received <- struct{}{}
@@ -267,6 +273,7 @@ func TestHandleAny_DeliverToMatchingWebhook(t *testing.T) {
 }
 
 func TestHandleAny_ConcurrencyBounded(t *testing.T) {
+	t.Parallel()
 	var concurrent atomic.Int32
 	var maxSeen atomic.Int32
 	gate := make(chan struct{})
@@ -317,6 +324,7 @@ func TestHandleAny_ConcurrencyBounded(t *testing.T) {
 }
 
 func TestHandleAny_SkipsDisabledWebhook(t *testing.T) {
+	t.Parallel()
 	var called atomic.Int32
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		called.Add(1)
@@ -344,6 +352,7 @@ func TestHandleAny_SkipsDisabledWebhook(t *testing.T) {
 }
 
 func TestHandleAny_SkipsNonMatchingEvent(t *testing.T) {
+	t.Parallel()
 	var called atomic.Int32
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		called.Add(1)
@@ -371,6 +380,7 @@ func TestHandleAny_SkipsNonMatchingEvent(t *testing.T) {
 }
 
 func TestHandleAny_WildcardEventMatch(t *testing.T) {
+	t.Parallel()
 	received := make(chan struct{}, 1)
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		received <- struct{}{}
@@ -399,6 +409,7 @@ func TestHandleAny_WildcardEventMatch(t *testing.T) {
 }
 
 func TestUpdate(t *testing.T) {
+	t.Parallel()
 	repo := &fakeWebhookRepo{}
 	deliveries := &fakeDeliveryRepo{}
 	bus := fakes.NewFakeEventBus()
@@ -420,6 +431,7 @@ func TestUpdate(t *testing.T) {
 }
 
 func TestHandleAny_DeliveryRecordsError(t *testing.T) {
+	t.Parallel()
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusInternalServerError)
 	}))

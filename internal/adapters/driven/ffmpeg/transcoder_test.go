@@ -13,6 +13,7 @@ func newTestTranscoder() *Transcoder {
 }
 
 func TestBuildTranscodeArgs_Basic(t *testing.T) {
+	t.Parallel()
 	tr := newTestTranscoder()
 	job := &transcoding.TranscodeJob{
 		ID:          "job-1",
@@ -41,6 +42,7 @@ func TestBuildTranscodeArgs_Basic(t *testing.T) {
 }
 
 func TestBuildTranscodeArgs_VAAPI(t *testing.T) {
+	t.Parallel()
 	tr := newTestTranscoder()
 	job := &transcoding.TranscodeJob{
 		ID:          "job-2",
@@ -56,6 +58,7 @@ func TestBuildTranscodeArgs_VAAPI(t *testing.T) {
 }
 
 func TestBuildTranscodeArgs_NVENC(t *testing.T) {
+	t.Parallel()
 	tr := newTestTranscoder()
 	job := &transcoding.TranscodeJob{
 		ID:          "job-3",
@@ -71,6 +74,7 @@ func TestBuildTranscodeArgs_NVENC(t *testing.T) {
 }
 
 func TestBuildTranscodeArgs_QSV(t *testing.T) {
+	t.Parallel()
 	tr := newTestTranscoder()
 	job := &transcoding.TranscodeJob{
 		ID:          "job-4",
@@ -86,6 +90,7 @@ func TestBuildTranscodeArgs_QSV(t *testing.T) {
 }
 
 func TestBuildTranscodeArgs_Resolution(t *testing.T) {
+	t.Parallel()
 	tr := newTestTranscoder()
 	job := &transcoding.TranscodeJob{
 		ID:            "job-5",
@@ -101,6 +106,7 @@ func TestBuildTranscodeArgs_Resolution(t *testing.T) {
 }
 
 func TestBuildTranscodeArgs_HLSOutput(t *testing.T) {
+	t.Parallel()
 	tr := newTestTranscoder()
 	job := &transcoding.TranscodeJob{
 		ID:          "job-hls",
@@ -115,6 +121,7 @@ func TestBuildTranscodeArgs_HLSOutput(t *testing.T) {
 }
 
 func TestParseProgress(t *testing.T) {
+	t.Parallel()
 	line := "frame=  120 fps= 30.0 q=28.0 size=    256kB time=00:00:04.00 bitrate= 524.3kbits/s speed= 1.5x"
 	dur := int64(10000)
 	p, ok := ParseProgress(line, "j1", &dur)
@@ -128,6 +135,7 @@ func TestParseProgress(t *testing.T) {
 }
 
 func TestParseProgress_NilDuration(t *testing.T) {
+	t.Parallel()
 	line := "frame=  120 fps= 24.0 q=28.0 size=    256kB time=00:01:30.50 bitrate= 524.3kbits/s speed= 2.0x"
 	p, ok := ParseProgress(line, "j2", nil)
 	require.True(t, ok)
@@ -136,11 +144,13 @@ func TestParseProgress_NilDuration(t *testing.T) {
 }
 
 func TestParseProgress_NoMatch(t *testing.T) {
+	t.Parallel()
 	_, ok := ParseProgress("some random log line", "j3", nil)
 	assert.False(t, ok)
 }
 
 func TestMapVideoEncoder(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		codec  string
 		hw     string
@@ -161,6 +171,7 @@ func TestMapVideoEncoder(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.codec+"_"+tt.hw, func(t *testing.T) {
+			t.Parallel()
 			got := mapVideoEncoder(tt.codec, tt.hw)
 			assert.Equal(t, tt.expect, got)
 		})

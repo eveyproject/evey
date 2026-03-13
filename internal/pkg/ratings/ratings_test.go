@@ -3,6 +3,7 @@ package ratings
 import "testing"
 
 func TestIsAllowed(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		content, max string
 		want         bool
@@ -46,6 +47,7 @@ func TestIsAllowed(t *testing.T) {
 }
 
 func TestAllowedRatingsFor(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		max         string
 		mustInclude []string
@@ -83,6 +85,7 @@ func TestAllowedRatingsFor(t *testing.T) {
 }
 
 func TestHasBlockedTag(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		tags    []string
 		blocked []string

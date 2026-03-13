@@ -232,6 +232,7 @@ func writeTestFile(path, content string) error {
 // --- Tests ---
 
 func TestHealthzHandler(t *testing.T) {
+	t.Parallel()
 	mux := http.NewServeMux()
 	mux.HandleFunc("/healthz", func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
@@ -259,6 +260,7 @@ func TestHealthzHandler(t *testing.T) {
 }
 
 func TestStreamHandler_Unauthenticated(t *testing.T) {
+	t.Parallel()
 	handler := mediaHandler(invalidTokenValidator(), newFakeLibService(), newFakeArtworkRepo(), "http://localhost", allowAllLibraries())
 
 	mux := http.NewServeMux()
@@ -274,6 +276,7 @@ func TestStreamHandler_Unauthenticated(t *testing.T) {
 }
 
 func TestStreamHandler_InvalidToken(t *testing.T) {
+	t.Parallel()
 	handler := mediaHandler(invalidTokenValidator(), newFakeLibService(), newFakeArtworkRepo(), "http://localhost", allowAllLibraries())
 
 	mux := http.NewServeMux()
@@ -290,6 +293,7 @@ func TestStreamHandler_InvalidToken(t *testing.T) {
 }
 
 func TestStreamHandler_ValidToken_NotFound(t *testing.T) {
+	t.Parallel()
 	handler := mediaHandler(validTokenValidator(false), newFakeLibService(), newFakeArtworkRepo(), "http://localhost", allowAllLibraries())
 
 	mux := http.NewServeMux()
@@ -306,6 +310,7 @@ func TestStreamHandler_ValidToken_NotFound(t *testing.T) {
 }
 
 func TestStreamHandler_ValidToken_ServesFile(t *testing.T) {
+	t.Parallel()
 	libSvc := newFakeLibService()
 	tmpFile := t.TempDir() + "/test.mp4"
 	if err := writeTestFile(tmpFile, "fake video content"); err != nil {
@@ -331,6 +336,7 @@ func TestStreamHandler_ValidToken_ServesFile(t *testing.T) {
 }
 
 func TestStreamHandler_TokenInQueryParam(t *testing.T) {
+	t.Parallel()
 	libSvc := newFakeLibService()
 	tmpFile := t.TempDir() + "/test.mp4"
 	writeTestFile(tmpFile, "ok")
@@ -350,6 +356,7 @@ func TestStreamHandler_TokenInQueryParam(t *testing.T) {
 }
 
 func TestArtworkHandler_NotFound(t *testing.T) {
+	t.Parallel()
 	handler := mediaHandler(validTokenValidator(false), newFakeLibService(), newFakeArtworkRepo(), "http://localhost", allowAllLibraries())
 
 	mux := http.NewServeMux()
@@ -366,6 +373,7 @@ func TestArtworkHandler_NotFound(t *testing.T) {
 }
 
 func TestArtworkHandler_Redirect(t *testing.T) {
+	t.Parallel()
 	artRepo := newFakeArtworkRepo()
 	url := "https://image.tmdb.org/poster.jpg"
 	artRepo.records["m1"] = []*domainmeta.ArtworkRecord{
@@ -392,6 +400,7 @@ func TestArtworkHandler_Redirect(t *testing.T) {
 }
 
 func TestArtworkHandler_NoSourceURL(t *testing.T) {
+	t.Parallel()
 	artRepo := newFakeArtworkRepo()
 	artRepo.records["m1"] = []*domainmeta.ArtworkRecord{
 		{ID: "art1", MediaItemID: "m1", Type: "poster"},
@@ -414,6 +423,7 @@ func TestArtworkHandler_NoSourceURL(t *testing.T) {
 }
 
 func TestArtworkHandler_Unauthenticated(t *testing.T) {
+	t.Parallel()
 	handler := mediaHandler(validTokenValidator(false), newFakeLibService(), newFakeArtworkRepo(), "http://localhost", allowAllLibraries())
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /api/v1/media/{id}/artwork/{artType}", handler)
@@ -428,6 +438,7 @@ func TestArtworkHandler_Unauthenticated(t *testing.T) {
 }
 
 func TestArtworkHandler_LibraryAccessDenied(t *testing.T) {
+	t.Parallel()
 	artRepo := newFakeArtworkRepo()
 	url := "https://image.tmdb.org/poster.jpg"
 	artRepo.records["m1"] = []*domainmeta.ArtworkRecord{
@@ -450,6 +461,7 @@ func TestArtworkHandler_LibraryAccessDenied(t *testing.T) {
 }
 
 func TestDownloadHandler_Unauthenticated(t *testing.T) {
+	t.Parallel()
 	handler := downloadHandler(invalidTokenValidator(), newFakeLibService(), "http://localhost", allowAllLibraries())
 
 	mux := http.NewServeMux()
@@ -465,6 +477,7 @@ func TestDownloadHandler_Unauthenticated(t *testing.T) {
 }
 
 func TestDownloadHandler_InvalidToken(t *testing.T) {
+	t.Parallel()
 	handler := downloadHandler(invalidTokenValidator(), newFakeLibService(), "http://localhost", allowAllLibraries())
 
 	mux := http.NewServeMux()
@@ -481,6 +494,7 @@ func TestDownloadHandler_InvalidToken(t *testing.T) {
 }
 
 func TestDownloadHandler_NotFound(t *testing.T) {
+	t.Parallel()
 	handler := downloadHandler(validTokenValidator(false), newFakeLibService(), "http://localhost", allowAllLibraries())
 
 	mux := http.NewServeMux()
@@ -497,6 +511,7 @@ func TestDownloadHandler_NotFound(t *testing.T) {
 }
 
 func TestDownloadHandler_ServesFile(t *testing.T) {
+	t.Parallel()
 	libSvc := newFakeLibService()
 	tmpFile := t.TempDir() + "/movie.mkv"
 	writeTestFile(tmpFile, "file data")
@@ -524,6 +539,7 @@ func TestDownloadHandler_ServesFile(t *testing.T) {
 }
 
 func TestTranscodeHandler_MissingToken(t *testing.T) {
+	t.Parallel()
 	handler := transcodeHandler(invalidTokenValidator(), newFakeLibService(), "http://localhost", allowAllLibraries(), apptranscoding.NewTranscodeThrottle(), nil)
 
 	mux := http.NewServeMux()
@@ -539,6 +555,7 @@ func TestTranscodeHandler_MissingToken(t *testing.T) {
 }
 
 func TestTranscodeHandler_InvalidToken(t *testing.T) {
+	t.Parallel()
 	handler := transcodeHandler(invalidTokenValidator(), newFakeLibService(), "http://localhost", allowAllLibraries(), apptranscoding.NewTranscodeThrottle(), nil)
 
 	mux := http.NewServeMux()
@@ -555,6 +572,7 @@ func TestTranscodeHandler_InvalidToken(t *testing.T) {
 }
 
 func TestTranscodeHandler_NotFound(t *testing.T) {
+	t.Parallel()
 	handler := transcodeHandler(validTokenValidator(false), newFakeLibService(), "http://localhost", allowAllLibraries(), apptranscoding.NewTranscodeThrottle(), nil)
 
 	mux := http.NewServeMux()
@@ -571,6 +589,7 @@ func TestTranscodeHandler_NotFound(t *testing.T) {
 }
 
 func TestChaptersHandler_Unauthenticated(t *testing.T) {
+	t.Parallel()
 	handler := chaptersHandler(invalidTokenValidator(), newFakeLibService(), "", allowAllLibraries(), newFakeLibService())
 
 	mux := http.NewServeMux()
@@ -586,6 +605,7 @@ func TestChaptersHandler_Unauthenticated(t *testing.T) {
 }
 
 func TestChaptersHandler_ReturnsJSON(t *testing.T) {
+	t.Parallel()
 	libSvc := newFakeLibService()
 	libSvc.items["m1"] = &domainlibrary.MediaItem{ID: "m1", LibraryID: "lib-1"}
 	libSvc.chapters["m1"] = []*domainlibrary.Chapter{
@@ -631,6 +651,7 @@ func TestChaptersHandler_ReturnsJSON(t *testing.T) {
 }
 
 func TestChaptersHandler_Empty(t *testing.T) {
+	t.Parallel()
 	libSvc := newFakeLibService()
 	libSvc.items["m1"] = &domainlibrary.MediaItem{ID: "m1", LibraryID: "lib-1"}
 	handler := chaptersHandler(validTokenValidator(false), libSvc, "", allowAllLibraries(), libSvc)
@@ -656,6 +677,7 @@ func TestChaptersHandler_Empty(t *testing.T) {
 }
 
 func TestSelectArtworkHandler_Unauthenticated(t *testing.T) {
+	t.Parallel()
 	handler := selectArtworkHandler(invalidTokenValidator(), newFakeArtworkRepo())
 
 	mux := http.NewServeMux()
@@ -671,6 +693,7 @@ func TestSelectArtworkHandler_Unauthenticated(t *testing.T) {
 }
 
 func TestSelectArtworkHandler_NonAdmin(t *testing.T) {
+	t.Parallel()
 	handler := selectArtworkHandler(validTokenValidator(false), newFakeArtworkRepo())
 
 	mux := http.NewServeMux()
@@ -687,6 +710,7 @@ func TestSelectArtworkHandler_NonAdmin(t *testing.T) {
 }
 
 func TestSelectArtworkHandler_NotFound(t *testing.T) {
+	t.Parallel()
 	handler := selectArtworkHandler(validTokenValidator(true), newFakeArtworkRepo())
 
 	mux := http.NewServeMux()
@@ -703,6 +727,7 @@ func TestSelectArtworkHandler_NotFound(t *testing.T) {
 }
 
 func TestSelectArtworkHandler_Success(t *testing.T) {
+	t.Parallel()
 	artRepo := newFakeArtworkRepo()
 	url := "https://img.example.com/poster.jpg"
 	artRepo.records["m1"] = []*domainmeta.ArtworkRecord{
@@ -730,6 +755,7 @@ func TestSelectArtworkHandler_Success(t *testing.T) {
 }
 
 func TestBrowseDirsHandler_Unauthenticated(t *testing.T) {
+	t.Parallel()
 	handler := browseDirsHandler(invalidTokenValidator())
 
 	mux := http.NewServeMux()
@@ -745,6 +771,7 @@ func TestBrowseDirsHandler_Unauthenticated(t *testing.T) {
 }
 
 func TestBrowseDirsHandler_NonAdmin(t *testing.T) {
+	t.Parallel()
 	handler := browseDirsHandler(validTokenValidator(false))
 
 	mux := http.NewServeMux()
@@ -761,6 +788,7 @@ func TestBrowseDirsHandler_NonAdmin(t *testing.T) {
 }
 
 func TestBrowseDirsHandler_InvalidPath(t *testing.T) {
+	t.Parallel()
 	handler := browseDirsHandler(validTokenValidator(true))
 
 	mux := http.NewServeMux()
@@ -777,6 +805,7 @@ func TestBrowseDirsHandler_InvalidPath(t *testing.T) {
 }
 
 func TestActiveSessionsHandler_NonAdmin(t *testing.T) {
+	t.Parallel()
 	handler := activeSessionsHandler(validTokenValidator(false), &fakePlaybackService{})
 
 	mux := http.NewServeMux()
@@ -793,6 +822,7 @@ func TestActiveSessionsHandler_NonAdmin(t *testing.T) {
 }
 
 func TestActiveSessionsHandler_Admin(t *testing.T) {
+	t.Parallel()
 	now := time.Now()
 	pbSvc := &fakePlaybackService{
 		sessions: []*domainplayback.ActiveSessionInfo{
@@ -842,6 +872,7 @@ func TestActiveSessionsHandler_Admin(t *testing.T) {
 }
 
 func TestKillSessionHandler_NonAdmin(t *testing.T) {
+	t.Parallel()
 	handler := killSessionHandler(validTokenValidator(false), &fakePlaybackService{})
 
 	mux := http.NewServeMux()
@@ -858,6 +889,7 @@ func TestKillSessionHandler_NonAdmin(t *testing.T) {
 }
 
 func TestKillSessionHandler_Success(t *testing.T) {
+	t.Parallel()
 	handler := killSessionHandler(validTokenValidator(true), &fakePlaybackService{})
 
 	mux := http.NewServeMux()
@@ -874,6 +906,7 @@ func TestKillSessionHandler_Success(t *testing.T) {
 }
 
 func TestKillSessionHandler_NotFound(t *testing.T) {
+	t.Parallel()
 	handler := killSessionHandler(validTokenValidator(true), &fakePlaybackService{stopErr: errors.New("not found")})
 
 	mux := http.NewServeMux()
@@ -890,6 +923,7 @@ func TestKillSessionHandler_NotFound(t *testing.T) {
 }
 
 func TestLibraryStatsHandler_Forbidden(t *testing.T) {
+	t.Parallel()
 	handler := libraryStatsHandler(invalidTokenValidator(), newFakeLibService())
 
 	mux := http.NewServeMux()
@@ -905,6 +939,7 @@ func TestLibraryStatsHandler_Forbidden(t *testing.T) {
 }
 
 func TestLibraryStatsHandler_Success(t *testing.T) {
+	t.Parallel()
 	handler := libraryStatsHandler(validTokenValidator(false), newFakeLibService())
 
 	mux := http.NewServeMux()
@@ -928,6 +963,7 @@ func TestLibraryStatsHandler_Success(t *testing.T) {
 }
 
 func TestSubtitleHandler_Unauthenticated(t *testing.T) {
+	t.Parallel()
 	handler := subtitleHandler(invalidTokenValidator(), newFakeLibService(), "http://localhost", allowAllLibraries())
 
 	mux := http.NewServeMux()
@@ -943,6 +979,7 @@ func TestSubtitleHandler_Unauthenticated(t *testing.T) {
 }
 
 func TestSubtitleHandler_NotFound(t *testing.T) {
+	t.Parallel()
 	handler := subtitleHandler(validTokenValidator(false), newFakeLibService(), "http://localhost", allowAllLibraries())
 
 	mux := http.NewServeMux()
@@ -959,6 +996,7 @@ func TestSubtitleHandler_NotFound(t *testing.T) {
 }
 
 func TestSubtitleRoutes_List(t *testing.T) {
+	t.Parallel()
 	subRepo := newFakeSubtitleRepo()
 	now := time.Now()
 	subRepo.subs["m1"] = []*domainsubtitle.SubtitleDownload{
@@ -1006,6 +1044,7 @@ func TestSubtitleRoutes_List(t *testing.T) {
 }
 
 func TestSubtitleRoutes_Unauthenticated(t *testing.T) {
+	t.Parallel()
 	subRepo := newFakeSubtitleRepo()
 	provider := &fakeSubtitleProvider{}
 	mediaGetter := &fakeMediaItemGetter{items: map[string]*appsubtitle.MediaItemInfo{}}
@@ -1027,6 +1066,7 @@ func TestSubtitleRoutes_Unauthenticated(t *testing.T) {
 }
 
 func TestSubtitleRoutes_Delete(t *testing.T) {
+	t.Parallel()
 	subRepo := newFakeSubtitleRepo()
 	now := time.Now()
 	subRepo.subs["m1"] = []*domainsubtitle.SubtitleDownload{
@@ -1056,6 +1096,7 @@ func TestSubtitleRoutes_Delete(t *testing.T) {
 }
 
 func TestPlaybackSettingsHandler_Get(t *testing.T) {
+	t.Parallel()
 	cfg := &config.Config{
 		Playback: config.PlaybackConfig{
 			SkipForwardSeconds:  10,
@@ -1091,6 +1132,7 @@ func TestPlaybackSettingsHandler_Get(t *testing.T) {
 }
 
 func TestPlaybackSettingsHandler_Get_Unauthenticated(t *testing.T) {
+	t.Parallel()
 	cfg := &config.Config{}
 	key, _ := generateTestKey()
 	tokenGen := auth.NewJWTGenerator(key, time.Hour)
@@ -1108,6 +1150,7 @@ func TestPlaybackSettingsHandler_Get_Unauthenticated(t *testing.T) {
 }
 
 func TestPlaybackSettingsHandler_Put_Admin(t *testing.T) {
+	t.Parallel()
 	cfg := &config.Config{
 		Playback: config.PlaybackConfig{
 			SkipForwardSeconds:  10,
@@ -1139,6 +1182,7 @@ func TestPlaybackSettingsHandler_Put_Admin(t *testing.T) {
 }
 
 func TestPlaybackSettingsHandler_Put_NonAdmin(t *testing.T) {
+	t.Parallel()
 	cfg := &config.Config{}
 	key, _ := generateTestKey()
 	tokenGen := auth.NewJWTGenerator(key, time.Hour)
@@ -1159,6 +1203,7 @@ func TestPlaybackSettingsHandler_Put_NonAdmin(t *testing.T) {
 }
 
 func TestTrickplayManifestHandler_Forbidden(t *testing.T) {
+	t.Parallel()
 	handler := trickplayManifestHandler(invalidTokenValidator(), newFakeTrickplayService(), "", allowAllLibraries(), newFakeLibService())
 
 	mux := http.NewServeMux()
@@ -1174,6 +1219,7 @@ func TestTrickplayManifestHandler_Forbidden(t *testing.T) {
 }
 
 func TestTrickplayManifestHandler_NotFound(t *testing.T) {
+	t.Parallel()
 	handler := trickplayManifestHandler(validTokenValidator(false), newFakeTrickplayService(), "", allowAllLibraries(), newFakeLibService())
 
 	mux := http.NewServeMux()
@@ -1190,6 +1236,7 @@ func TestTrickplayManifestHandler_NotFound(t *testing.T) {
 }
 
 func TestTrickplayManifestHandler_ReturnsVTT(t *testing.T) {
+	t.Parallel()
 	svc := newFakeTrickplayService()
 	svc.manifests["m1"] = &domainlibrary.TrickplayManifest{
 		ID:          "tp1",
@@ -1229,6 +1276,7 @@ func TestTrickplayManifestHandler_ReturnsVTT(t *testing.T) {
 }
 
 func TestTrickplayGenerateHandler_NonAdmin(t *testing.T) {
+	t.Parallel()
 	handler := trickplayGenerateHandler(validTokenValidator(false), &fakeGenerateTrickplayService{})
 
 	mux := http.NewServeMux()
@@ -1245,6 +1293,7 @@ func TestTrickplayGenerateHandler_NonAdmin(t *testing.T) {
 }
 
 func TestTrickplayGenerateHandler_Admin(t *testing.T) {
+	t.Parallel()
 	handler := trickplayGenerateHandler(validTokenValidator(true), &fakeGenerateTrickplayService{})
 
 	mux := http.NewServeMux()
@@ -1266,6 +1315,7 @@ func TestTrickplayGenerateHandler_Admin(t *testing.T) {
 }
 
 func TestFormatVTTTime(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		input int
 		want  string
@@ -1284,6 +1334,7 @@ func TestFormatVTTTime(t *testing.T) {
 }
 
 func TestSanitizeFilename(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		input string
 		want  string
@@ -1302,6 +1353,7 @@ func TestSanitizeFilename(t *testing.T) {
 }
 
 func TestPlaybackInfoHandler_Unauthenticated(t *testing.T) {
+	t.Parallel()
 	handler := playbackInfoHandler(invalidTokenValidator(), newFakeLibService(), allowAllLibraries())
 
 	mux := http.NewServeMux()
@@ -1317,6 +1369,7 @@ func TestPlaybackInfoHandler_Unauthenticated(t *testing.T) {
 }
 
 func TestPlaybackInfoHandler_NotFound(t *testing.T) {
+	t.Parallel()
 	handler := playbackInfoHandler(validTokenValidator(false), newFakeLibService(), allowAllLibraries())
 
 	mux := http.NewServeMux()
@@ -1333,6 +1386,7 @@ func TestPlaybackInfoHandler_NotFound(t *testing.T) {
 }
 
 func TestPlaybackInfoHandler_ReturnsDecision(t *testing.T) {
+	t.Parallel()
 	libSvc := newFakeLibService()
 	w1, h1 := 1920, 1080
 	libSvc.items["m1"] = &domainlibrary.MediaItem{ID: "m1", FilePath: "/movies/movie.mkv", ContainerFormat: "mkv"}
@@ -1367,6 +1421,7 @@ func TestPlaybackInfoHandler_ReturnsDecision(t *testing.T) {
 }
 
 func TestIsWithinDir(t *testing.T) {
+	t.Parallel()
 	cases := []struct {
 		dir  string
 		path string
@@ -1389,6 +1444,7 @@ func TestIsWithinDir(t *testing.T) {
 }
 
 func TestChaptersHandler_CORS_UsesOriginNotStar(t *testing.T) {
+	t.Parallel()
 	libSvc := newFakeLibService()
 	libSvc.items["m1"] = &domainlibrary.MediaItem{ID: "m1", LibraryID: "lib-1"}
 	handler := chaptersHandler(validTokenValidator(false), libSvc, "https://evey.test", allowAllLibraries(), libSvc)
@@ -1415,6 +1471,7 @@ func TestChaptersHandler_CORS_UsesOriginNotStar(t *testing.T) {
 }
 
 func TestTrickplayImageHandler_PathTraversal(t *testing.T) {
+	t.Parallel()
 	dir := t.TempDir()
 	svc := newFakeTrickplayService()
 	svc.manifests["m1"] = &domainlibrary.TrickplayManifest{
@@ -1438,6 +1495,7 @@ func TestTrickplayImageHandler_PathTraversal(t *testing.T) {
 }
 
 func TestRequireAdmin_NoToken(t *testing.T) {
+	t.Parallel()
 	inner := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	})
@@ -1453,6 +1511,7 @@ func TestRequireAdmin_NoToken(t *testing.T) {
 }
 
 func TestRequireAdmin_InvalidToken(t *testing.T) {
+	t.Parallel()
 	inner := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	})
@@ -1469,6 +1528,7 @@ func TestRequireAdmin_InvalidToken(t *testing.T) {
 }
 
 func TestRequireAdmin_NonAdmin(t *testing.T) {
+	t.Parallel()
 	inner := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	})
@@ -1485,6 +1545,7 @@ func TestRequireAdmin_NonAdmin(t *testing.T) {
 }
 
 func TestRequireAdmin_AdminAllowed(t *testing.T) {
+	t.Parallel()
 	inner := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	})
@@ -1501,6 +1562,7 @@ func TestRequireAdmin_AdminAllowed(t *testing.T) {
 }
 
 func TestRequireAdmin_TokenViaQueryParam(t *testing.T) {
+	t.Parallel()
 	inner := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	})
@@ -1518,6 +1580,7 @@ func TestRequireAdmin_TokenViaQueryParam(t *testing.T) {
 // --- Library access checks ---
 
 func TestStreamHandler_LibraryAccessDenied(t *testing.T) {
+	t.Parallel()
 	libSvc := newFakeLibService()
 	tmpFile := t.TempDir() + "/test.mp4"
 	writeTestFile(tmpFile, "fake video content")
@@ -1538,6 +1601,7 @@ func TestStreamHandler_LibraryAccessDenied(t *testing.T) {
 }
 
 func TestStreamHandler_AdminBypassesLibraryAccess(t *testing.T) {
+	t.Parallel()
 	libSvc := newFakeLibService()
 	tmpFile := t.TempDir() + "/test.mp4"
 	writeTestFile(tmpFile, "fake video content")
@@ -1558,6 +1622,7 @@ func TestStreamHandler_AdminBypassesLibraryAccess(t *testing.T) {
 }
 
 func TestDownloadHandler_LibraryAccessDenied(t *testing.T) {
+	t.Parallel()
 	libSvc := newFakeLibService()
 	tmpFile := t.TempDir() + "/movie.mkv"
 	writeTestFile(tmpFile, "file data")
@@ -1578,6 +1643,7 @@ func TestDownloadHandler_LibraryAccessDenied(t *testing.T) {
 }
 
 func TestTranscodeHandler_LibraryAccessDenied(t *testing.T) {
+	t.Parallel()
 	libSvc := newFakeLibService()
 	libSvc.items["m1"] = &domainlibrary.MediaItem{ID: "m1", FilePath: "/some/file.mkv", LibraryID: "lib-restricted"}
 
@@ -1596,6 +1662,7 @@ func TestTranscodeHandler_LibraryAccessDenied(t *testing.T) {
 }
 
 func TestSubtitleHandler_LibraryAccessDenied(t *testing.T) {
+	t.Parallel()
 	libSvc := newFakeLibService()
 	libSvc.items["m1"] = &domainlibrary.MediaItem{ID: "m1", FilePath: "/some/file.mkv", LibraryID: "lib-restricted"}
 
@@ -1614,6 +1681,7 @@ func TestSubtitleHandler_LibraryAccessDenied(t *testing.T) {
 }
 
 func TestChaptersHandler_LibraryAccessDenied(t *testing.T) {
+	t.Parallel()
 	libSvc := newFakeLibService()
 	libSvc.items["m1"] = &domainlibrary.MediaItem{ID: "m1", LibraryID: "lib-restricted"}
 
@@ -1632,6 +1700,7 @@ func TestChaptersHandler_LibraryAccessDenied(t *testing.T) {
 }
 
 func TestTrickplayManifestHandler_LibraryAccessDenied(t *testing.T) {
+	t.Parallel()
 	svc := newFakeTrickplayService()
 	svc.manifests["m1"] = &domainlibrary.TrickplayManifest{ID: "tp1", MediaItemID: "m1"}
 	libSvc := newFakeLibService()
@@ -1652,6 +1721,7 @@ func TestTrickplayManifestHandler_LibraryAccessDenied(t *testing.T) {
 }
 
 func TestHLSSegmentHandler_LibraryAccessDenied(t *testing.T) {
+	t.Parallel()
 	libSvc := newFakeLibService()
 	libSvc.items["m1"] = &domainlibrary.MediaItem{ID: "m1", LibraryID: "lib-restricted"}
 

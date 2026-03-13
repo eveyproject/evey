@@ -25,6 +25,7 @@ func newPlaybackSvc() (*appplayback.Service, *pbfakes.FakeWatchProgressRepositor
 }
 
 func TestStartStream_MaxStreams(t *testing.T) {
+	t.Parallel()
 	svc, _, _, userRepo, profileRepo, _ := newPlaybackSvc()
 	ctx := context.Background()
 
@@ -45,6 +46,7 @@ func TestStartStream_MaxStreams(t *testing.T) {
 }
 
 func TestUpdateProgress(t *testing.T) {
+	t.Parallel()
 	svc, progressRepo, _, userRepo, profileRepo, _ := newPlaybackSvc()
 	ctx := context.Background()
 
@@ -70,6 +72,7 @@ func TestUpdateProgress(t *testing.T) {
 }
 
 func TestStartSession(t *testing.T) {
+	t.Parallel()
 	svc, _, sessionRepo, userRepo, profileRepo, bus := newPlaybackSvc()
 	ctx := context.Background()
 
@@ -100,6 +103,7 @@ func TestStartSession(t *testing.T) {
 }
 
 func TestStopSession(t *testing.T) {
+	t.Parallel()
 	svc, _, sessionRepo, userRepo, profileRepo, bus := newPlaybackSvc()
 	ctx := context.Background()
 
@@ -131,6 +135,7 @@ func TestStopSession(t *testing.T) {
 }
 
 func TestGetActiveSessions_Empty(t *testing.T) {
+	t.Parallel()
 	svc, _, _, _, _, _ := newPlaybackSvc()
 	ctx := context.Background()
 
@@ -140,6 +145,7 @@ func TestGetActiveSessions_Empty(t *testing.T) {
 }
 
 func TestGetActiveSessions_ReturnsActive(t *testing.T) {
+	t.Parallel()
 	svc, _, _, userRepo, profileRepo, _ := newPlaybackSvc()
 	userRepo.Create(context.Background(), &user.User{ID: "u1", Username: "alice", Enabled: true})
 	profileRepo.Create(context.Background(), &user.Profile{ID: "p1", UserID: "u1", Name: "default"})
@@ -165,6 +171,7 @@ func TestGetActiveSessions_ReturnsActive(t *testing.T) {
 }
 
 func TestGetActiveSessions_ExcludesStopped(t *testing.T) {
+	t.Parallel()
 	svc, _, _, userRepo, profileRepo, _ := newPlaybackSvc()
 	userRepo.Create(context.Background(), &user.User{ID: "u1", Username: "bob", Enabled: true})
 	profileRepo.Create(context.Background(), &user.Profile{ID: "p1", UserID: "u1", Name: "default"})
@@ -190,6 +197,7 @@ func TestGetActiveSessions_ExcludesStopped(t *testing.T) {
 }
 
 func TestGetActiveSessions_TranscodeInfo(t *testing.T) {
+	t.Parallel()
 	svc, _, _, userRepo, profileRepo, _ := newPlaybackSvc()
 	userRepo.Create(context.Background(), &user.User{ID: "u1", Username: "alice", Enabled: true})
 	profileRepo.Create(context.Background(), &user.Profile{ID: "p1", UserID: "u1", Name: "default"})

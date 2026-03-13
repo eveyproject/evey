@@ -18,6 +18,7 @@ type testEvent struct {
 func (e testEvent) EventName() string { return "test.event" }
 
 func TestPublishSubscribe(t *testing.T) {
+	t.Parallel()
 	bus := eventbus.New()
 	var mu sync.Mutex
 	var received []shared.Event
@@ -38,6 +39,7 @@ func TestPublishSubscribe(t *testing.T) {
 }
 
 func TestMultipleSubscribers(t *testing.T) {
+	t.Parallel()
 	bus := eventbus.New()
 	var mu sync.Mutex
 	count := 0
@@ -59,6 +61,7 @@ func TestMultipleSubscribers(t *testing.T) {
 }
 
 func TestUnsubscribe(t *testing.T) {
+	t.Parallel()
 	bus := eventbus.New()
 	var mu sync.Mutex
 	count := 0
@@ -79,6 +82,7 @@ func TestUnsubscribe(t *testing.T) {
 }
 
 func TestPanickingHandlerDoesNotCrash(t *testing.T) {
+	t.Parallel()
 	bus := eventbus.New()
 	var mu sync.Mutex
 	normalCalled := false

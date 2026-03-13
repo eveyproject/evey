@@ -14,6 +14,7 @@ import (
 )
 
 func TestGenerateAndValidate(t *testing.T) {
+	t.Parallel()
 	key, err := rsa.GenerateKey(rand.Reader, 2048)
 	require.NoError(t, err)
 
@@ -41,6 +42,7 @@ func TestGenerateAndValidate(t *testing.T) {
 }
 
 func TestExpiredToken(t *testing.T) {
+	t.Parallel()
 	key, _ := rsa.GenerateKey(rand.Reader, 2048)
 	gen := auth.NewJWTGenerator(key, -1*time.Hour)
 
@@ -52,6 +54,7 @@ func TestExpiredToken(t *testing.T) {
 }
 
 func TestInvalidSignature(t *testing.T) {
+	t.Parallel()
 	key1, _ := rsa.GenerateKey(rand.Reader, 2048)
 	key2, _ := rsa.GenerateKey(rand.Reader, 2048)
 
@@ -64,6 +67,7 @@ func TestInvalidSignature(t *testing.T) {
 }
 
 func TestAlgorithmConfusionRejected(t *testing.T) {
+	t.Parallel()
 	key, _ := rsa.GenerateKey(rand.Reader, 2048)
 	gen := auth.NewJWTGenerator(key, 15*time.Minute)
 

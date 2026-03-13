@@ -8,6 +8,7 @@ import (
 )
 
 func TestValidateWebhookURL_BlocksPrivateIPs(t *testing.T) {
+	t.Parallel()
 	cases := []string{
 		"http://127.0.0.1/hook",
 		"http://10.0.0.1/hook",
@@ -24,6 +25,7 @@ func TestValidateWebhookURL_BlocksPrivateIPs(t *testing.T) {
 }
 
 func TestValidateWebhookURL_BlocksNonHTTP(t *testing.T) {
+	t.Parallel()
 	cases := []string{
 		"ftp://example.com/hook",
 		"file:///etc/passwd",
@@ -37,28 +39,33 @@ func TestValidateWebhookURL_BlocksNonHTTP(t *testing.T) {
 }
 
 func TestValidateWebhookURL_BlocksLocalhost(t *testing.T) {
+	t.Parallel()
 	err := ValidateWebhookURL("http://localhost/hook")
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "blocked")
 }
 
 func TestValidateWebhookURL_BlocksMetadataEndpoint(t *testing.T) {
+	t.Parallel()
 	err := ValidateWebhookURL("http://metadata.google.internal/computeMetadata/v1/")
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "blocked")
 }
 
 func TestValidateWebhookURL_AllowsPublicURL(t *testing.T) {
+	t.Parallel()
 	err := ValidateWebhookURL("https://example.com/webhook")
 	assert.NoError(t, err)
 }
 
 func TestValidateWebhookURL_EmptyHost(t *testing.T) {
+	t.Parallel()
 	err := ValidateWebhookURL("http:///hook")
 	assert.Error(t, err)
 }
 
 func TestValidateWebhookURL_InvalidURL(t *testing.T) {
+	t.Parallel()
 	err := ValidateWebhookURL("://bad")
 	assert.Error(t, err)
 }
