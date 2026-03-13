@@ -21,4 +21,6 @@ type MediaItemQueryRepo interface {
 	List(ctx context.Context, filter ListMediaItemsFilter) ([]*MediaItem, error)
 	Count(ctx context.Context, filter ListMediaItemsFilter) (int, error)
 	GetCastByMediaItem(ctx context.Context, mediaItemID string) ([]CastMember, error)
+	// GetCastForItems fetches cast for multiple media items in one query (batch to avoid N+1).
+	GetCastForItems(ctx context.Context, mediaItemIDs []string) (map[string][]CastMember, error)
 }

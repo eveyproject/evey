@@ -108,6 +108,18 @@ func (r *FakeMediaItemQueryRepo) GetCastByMediaItem(_ context.Context, mediaItem
 	return r.cast[mediaItemID], nil
 }
 
+func (r *FakeMediaItemQueryRepo) GetCastForItems(_ context.Context, mediaItemIDs []string) (map[string][]library.CastMember, error) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	result := make(map[string][]library.CastMember)
+	for _, id := range mediaItemIDs {
+		if cast, ok := r.cast[id]; ok {
+			result[id] = cast
+		}
+	}
+	return result, nil
+}
+
 // Seed adds items for testing.
 func (r *FakeMediaItemQueryRepo) Seed(item *library.MediaItem) {
 	r.mu.Lock()

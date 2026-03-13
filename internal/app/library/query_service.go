@@ -51,6 +51,10 @@ func (s *QueryService) GetCast(ctx context.Context, mediaItemID string) ([]libra
 	return s.mediaItems.GetCastByMediaItem(ctx, mediaItemID)
 }
 
+func (s *QueryService) GetCastForItems(ctx context.Context, mediaItemIDs []string) (map[string][]library.CastMember, error) {
+	return s.mediaItems.GetCastForItems(ctx, mediaItemIDs)
+}
+
 func (s *QueryService) GetMediaStreams(ctx context.Context, mediaItemID string) ([]*library.MediaStream, error) {
 	return s.streams.GetByMediaItemID(ctx, mediaItemID)
 }
