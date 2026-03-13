@@ -1650,3 +1650,23 @@ func TestTrickplayManifestHandler_LibraryAccessDenied(t *testing.T) {
 		t.Fatalf("expected 403, got %d: %s", w.Code, w.Body.String())
 	}
 }
+
+func TestHLSSegmentHandler_LibraryAccessDenied(t *testing.T) {
+	libSvc := newFakeLibService()
+	libSvc.items["m1"] = &domainlibrary.MediaItem{ID: "m1", LibraryID: "lib-restricted"}
+
+	hlsManager := apptranscoding.NewHLSManager(t.TempDir(), 5)
+	handler := hlsSegmentHandler(validTokenValidator(false), libSvc, hlsManager, denyAllLibraries())
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("GET /api/v1/media/{id}/hls/{file}", handler)
+
+	req := httptest.NewRequest("GET", "/api/v1/media/m1/hls/stream_0_001.ts", nil)
+	req.Header.Set("Authorization", "Bearer valid-token")
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+
+	if w.Code != http.StatusForbidden {
+		t.Fatalf("expected 403, got %d: %s", w.Code, w.Body.String())
+	}
+}

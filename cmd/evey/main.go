@@ -87,6 +87,9 @@ func run() error {
 	if err2 := db.Ping(); err2 != nil {
 		return fmt.Errorf("ping db: %w", err2)
 	}
+	db.SetMaxOpenConns(25)
+	db.SetMaxIdleConns(5)
+	db.SetConnMaxLifetime(5 * time.Minute)
 	rootLog.Info("connected to postgres")
 
 	if err2 := postgres.RunMigrations(db); err2 != nil {
@@ -277,14 +280,24 @@ func run() error {
 				enricher.AutoEnrichAll(ctx, items, rootLog)
 			}
 		}()
-		bus.Subscribe("media.item.added", func(_ context.Context, ev shared.Event) {
-			if e, ok := ev.(domainlibrary.MediaItemAdded); ok {
-				go func() {
+		enrichQueue := make(chan domainlibrary.MediaItemAdded, 100)
+		for i := 0; i < 4; i++ {
+			go func() {
+				for e := range enrichQueue {
 					item, err := mediaItemRepo.GetByID(ctx, e.MediaItemID)
 					if err == nil {
 						enricher.AutoEnrichItem(ctx, item, rootLog)
 					}
-				}()
+				}
+			}()
+		}
+		bus.Subscribe("media.item.added", func(_ context.Context, ev shared.Event) {
+			if e, ok := ev.(domainlibrary.MediaItemAdded); ok {
+				select {
+				case enrichQueue <- e:
+				default:
+					slog.Warn("enrich queue full, dropping event", slog.String("media_id", e.MediaItemID))
+				}
 			}
 		})
 	}
@@ -379,6 +392,8 @@ func run() error {
 		mux := http.NewServeMux()
 		loginRL := ratelimit.New(cfg.Server.LoginRateLimitMax)
 		globalRL := ratelimit.New(100)
+		defer loginRL.Stop()
+		defer globalRL.Stop()
 
 		mux.HandleFunc("/healthz", func(w http.ResponseWriter, _ *http.Request) {
 			w.Header().Set("Content-Type", "application/json")
@@ -402,7 +417,7 @@ func run() error {
 		mux.HandleFunc("POST /api/v1/admin/trickplay/generate-all", requireAdmin(tokenGen, trickplayGenerateAllHandler(tokenGen, libCmdSvc)))
 		mux.HandleFunc("GET /api/v1/media/{id}/playback-info", playbackInfoHandler(tokenGen, libQuerySvc, libraryAccessRepo))
 		mux.HandleFunc("GET /api/v1/media/{id}/hls/master.m3u8", hlsMasterHandler(tokenGen, libQuerySvc, hlsManager, libraryAccessRepo, userMaxStreams))
-		mux.HandleFunc("GET /api/v1/media/{id}/hls/{file}", hlsSegmentHandler(tokenGen, hlsManager))
+		mux.HandleFunc("GET /api/v1/media/{id}/hls/{file}", hlsSegmentHandler(tokenGen, libQuerySvc, hlsManager, libraryAccessRepo))
 		mux.HandleFunc("GET /api/v1/admin/library-stats", requireAdmin(tokenGen, libraryStatsHandler(tokenGen, libQuerySvc)))
 		mux.HandleFunc("POST /api/v1/auth/login", ratelimit.MiddlewareFunc(loginRL, func(w http.ResponseWriter, r *http.Request) {
 			r.Body = http.MaxBytesReader(w, r.Body, 1<<20)
@@ -446,7 +461,7 @@ func run() error {
 		}
 		httpSrv = &http.Server{
 			Addr:              fmt.Sprintf(":%d", httpPort),
-			Handler:           proxyTrust.Middleware(netMw(mux)),
+			Handler:           securityHeadersMiddleware(proxyTrust.Middleware(netMw(mux))),
 			ReadHeaderTimeout: 10 * time.Second,
 			WriteTimeout:      10 * time.Minute,
 			IdleTimeout:       120 * time.Second,

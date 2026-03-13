@@ -86,7 +86,7 @@ func ValidateWebhookURL(rawURL string) error {
 		return fmt.Errorf("empty host")
 	}
 
-	blockedHosts := []string{"localhost", "metadata.google.internal"}
+	blockedHosts := []string{"localhost", "metadata.google.internal", "100.100.100.200"}
 	for _, b := range blockedHosts {
 		if strings.EqualFold(host, b) {
 			return fmt.Errorf("host %q is blocked", host)

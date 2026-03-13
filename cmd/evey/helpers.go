@@ -112,6 +112,15 @@ func isWithinDir(dir, path string) bool {
 	return strings.HasPrefix(filepath.Clean(path), cleanDir)
 }
 
+func securityHeadersMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("X-Content-Type-Options", "nosniff")
+		w.Header().Set("X-Frame-Options", "DENY")
+		w.Header().Set("Referrer-Policy", "strict-origin-when-cross-origin")
+		next.ServeHTTP(w, r)
+	})
+}
+
 // safeJoin joins base and rel, then verifies the result is strictly inside base.
 // Uses filepath.Abs to resolve any .. components before comparison.
 func safeJoin(base, rel string) (string, error) {

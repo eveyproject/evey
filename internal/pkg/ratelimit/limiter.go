@@ -18,6 +18,7 @@ type Limiter struct {
 	visitors map[string]*entry
 	rate     float64 // tokens per second
 	burst    int
+	done     chan struct{}
 }
 
 func New(requestsPerMinute int) *Limiter {
@@ -25,6 +26,7 @@ func New(requestsPerMinute int) *Limiter {
 		visitors: make(map[string]*entry),
 		rate:     float64(requestsPerMinute) / 60.0,
 		burst:    requestsPerMinute,
+		done:     make(chan struct{}),
 	}
 	go l.cleanup()
 	return l
@@ -37,9 +39,14 @@ func NewWithBurst(burstSize int, refilledPerMinute float64) *Limiter {
 		visitors: make(map[string]*entry),
 		rate:     refilledPerMinute / 60.0,
 		burst:    burstSize,
+		done:     make(chan struct{}),
 	}
 	go l.cleanup()
 	return l
+}
+
+func (l *Limiter) Stop() {
+	close(l.done)
 }
 
 func (l *Limiter) Allow(ip string) bool {
@@ -68,15 +75,21 @@ func (l *Limiter) Allow(ip string) bool {
 }
 
 func (l *Limiter) cleanup() {
+	ticker := time.NewTicker(5 * time.Minute)
+	defer ticker.Stop()
 	for {
-		time.Sleep(5 * time.Minute)
-		l.mu.Lock()
-		for ip, e := range l.visitors {
-			if time.Since(e.lastCheck) > 10*time.Minute {
-				delete(l.visitors, ip)
+		select {
+		case <-l.done:
+			return
+		case <-ticker.C:
+			l.mu.Lock()
+			for ip, e := range l.visitors {
+				if time.Since(e.lastCheck) > 10*time.Minute {
+					delete(l.visitors, ip)
+				}
 			}
+			l.mu.Unlock()
 		}
-		l.mu.Unlock()
 	}
 }
 

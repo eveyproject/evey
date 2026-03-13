@@ -239,7 +239,12 @@ func (s *HLSSession) stop() {
 	select {
 	case <-s.done:
 	case <-time.After(5 * time.Second):
-		slog.Warn("hls: timed out waiting for ffmpeg to exit", slog.String("media_id", s.MediaItemID))
+		slog.Warn("hls: timed out waiting for ffmpeg to exit, killing process", slog.String("media_id", s.MediaItemID))
+		s.mu.Lock()
+		if s.cmd != nil && s.cmd.Process != nil {
+			_ = s.cmd.Process.Kill()
+		}
+		s.mu.Unlock()
 	}
 	if err := os.RemoveAll(s.OutputDir); err != nil {
 		slog.Warn("hls: remove output dir failed", slog.String("dir", s.OutputDir), slog.Any("err", err))

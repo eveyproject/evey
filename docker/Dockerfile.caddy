@@ -3,6 +3,6 @@ WORKDIR /app
 COPY frontend/ .
 RUN npm install -g pnpm@10.6.5 && pnpm install && pnpm --filter web build
 
-FROM caddy:2-alpine
+FROM caddy:2.9-alpine
 COPY --from=frontend /app/apps/web/dist /srv
 COPY docker/Caddyfile /etc/caddy/Caddyfile

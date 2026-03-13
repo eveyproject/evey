@@ -1,10 +1,13 @@
 {$EVEY_DOMAIN:localhost} {
+	encode gzip
+
 	header {
 		X-Content-Type-Options nosniff
 		X-Frame-Options DENY
 		Referrer-Policy strict-origin-when-cross-origin
 		X-XSS-Protection "1; mode=block"
 		Content-Security-Policy "default-src 'self'; img-src 'self' https://image.tmdb.org data:; media-src 'self' blob:; style-src 'self' 'unsafe-inline'; script-src 'self'; connect-src 'self'"
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
 	}
 
 	handle /api/* {

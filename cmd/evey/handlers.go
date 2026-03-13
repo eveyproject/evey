@@ -1200,7 +1200,9 @@ func hlsMasterHandler(tokenGen interface {
 
 func hlsSegmentHandler(tokenGen interface {
 	ValidateAccessToken(string) (*domainuser.Claims, error)
-}, hlsManager *apptranscoding.HLSManager) http.HandlerFunc {
+}, libSvc interface {
+	GetMediaItem(ctx context.Context, id string) (*domainlibrary.MediaItem, error)
+}, hlsManager *apptranscoding.HLSManager, libraryAccess LibraryAccessChecker) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		mediaID := r.PathValue("id")
 		file := r.PathValue("file")
@@ -1216,6 +1218,15 @@ func hlsSegmentHandler(tokenGen interface {
 		claims, err := tokenGen.ValidateAccessToken(token)
 		if err != nil {
 			http.Error(w, `{"message":"forbidden"}`, http.StatusForbidden)
+			return
+		}
+
+		item, err := libSvc.GetMediaItem(r.Context(), mediaID)
+		if err != nil {
+			http.Error(w, `{"message":"not found"}`, http.StatusNotFound)
+			return
+		}
+		if !checkLibraryAccess(r.Context(), w, claims, item.LibraryID, libraryAccess) {
 			return
 		}
 

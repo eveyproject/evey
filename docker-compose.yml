@@ -90,6 +90,12 @@ services:
       - ./frontend:/app
       - /app/node_modules
       - /app/apps/web/node_modules
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:${WEB_PORT:-5173}"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 30s
     depends_on:
       evey:
         condition: service_healthy
@@ -97,7 +103,7 @@ services:
   caddy:
     container_name: evey-caddy
     profiles: [dev]
-    image: caddy:2-alpine
+    image: caddy:2.9-alpine
     ports:
       - "80:80"
       - "443:443"
@@ -105,6 +111,12 @@ services:
       - ./docker/Caddyfile.dev:/etc/caddy/Caddyfile
       - caddy-data:/data
       - caddy-config:/config
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+      start_period: 20s
     depends_on:
       - web
 
