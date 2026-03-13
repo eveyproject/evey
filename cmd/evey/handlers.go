@@ -432,7 +432,7 @@ func subtitleHandler(tokenGen interface {
 					continue
 				}
 				if subIdx == trackIndex && s.IsExternal && s.ExternalPath != nil {
-					serveExternalSubtitle(w, r, *s.ExternalPath, baseURL)
+					serveExternalSubtitle(w, r, *s.ExternalPath, filepath.Dir(item.FilePath), baseURL)
 					return
 				}
 				subIdx++
@@ -506,18 +506,23 @@ func chaptersHandler(tokenGen interface {
 	}
 }
 
-func serveExternalSubtitle(w http.ResponseWriter, r *http.Request, path, baseURL string) {
-	ext := strings.ToLower(filepath.Ext(path))
+func serveExternalSubtitle(w http.ResponseWriter, r *http.Request, path, baseDir, baseURL string) {
+	safePath, err := safeJoin(baseDir, filepath.Base(path))
+	if err != nil {
+		http.Error(w, `{"message":"not found"}`, http.StatusNotFound)
+		return
+	}
+	ext := strings.ToLower(filepath.Ext(safePath))
 	setCORSHeaders(w, r, baseURL)
 	w.Header().Set("Cache-Control", "no-cache")
 	if ext == ".vtt" {
 		w.Header().Set("Content-Type", "text/vtt; charset=utf-8")
-		http.ServeFile(w, r, path)
+		http.ServeFile(w, r, safePath)
 		return
 	}
 	ctx, cancel := context.WithCancel(r.Context())
 	defer cancel()
-	cmd := exec.CommandContext(ctx, "ffmpeg", "-i", path, "-f", "webvtt", "-")
+	cmd := exec.CommandContext(ctx, "ffmpeg", "-i", safePath, "-f", "webvtt", "-")
 	w.Header().Set("Content-Type", "text/vtt; charset=utf-8")
 	cmd.Stdout = w
 	if err := cmd.Start(); err != nil {
@@ -526,7 +531,7 @@ func serveExternalSubtitle(w http.ResponseWriter, r *http.Request, path, baseURL
 	}
 	go func() { <-r.Context().Done(); cancel() }()
 	if err := cmd.Wait(); err != nil && ctx.Err() == nil {
-		slog.Warn("ffmpeg external subtitle convert", slog.String("path", path), slog.Any("err", err))
+		slog.Warn("ffmpeg external subtitle convert", slog.String("path", safePath), slog.Any("err", err))
 	}
 }
 
@@ -742,9 +747,9 @@ func trickplayImageHandler(tokenGen interface {
 			http.Error(w, `{"message":"not found"}`, http.StatusNotFound)
 			return
 		}
-		imagePath := filepath.Join(manifest.ImagePath, filepath.Base(imageName))
-		if !isWithinDir(manifest.ImagePath, imagePath) {
-			http.Error(w, `{"message":"bad request"}`, http.StatusBadRequest)
+		imagePath, err := safeJoin(manifest.ImagePath, filepath.Base(imageName))
+		if err != nil {
+			http.Error(w, `{"message":"not found"}`, http.StatusNotFound)
 			return
 		}
 		if _, err := os.Stat(imagePath); err != nil {
@@ -796,10 +801,7 @@ func trickplayGenerateAllHandler(tokenGen interface {
 	GenerateAllMissingTrickplays(ctx context.Context) (int, error)
 }) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		token := r.Header.Get("Authorization")
-		if strings.HasPrefix(token, "Bearer ") {
-			token = token[7:]
-		}
+		token := strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer ")
 		claims, err := tokenGen.ValidateAccessToken(token)
 		if err != nil || !claims.IsAdmin {
 			http.Error(w, `{"message":"forbidden"}`, http.StatusForbidden)
@@ -1064,10 +1066,9 @@ func hlsSegmentHandler(tokenGen interface {
 			return
 		}
 
-		file = filepath.Base(file)
-		filePath := filepath.Join(session.OutputDir, file)
-		if !isWithinDir(session.OutputDir, filePath) {
-			http.Error(w, `{"message":"bad request"}`, http.StatusBadRequest)
+		filePath, err := safeJoin(session.OutputDir, filepath.Base(file))
+		if err != nil {
+			http.Error(w, `{"message":"not found"}`, http.StatusNotFound)
 			return
 		}
 		if _, err := os.Stat(filePath); err != nil {

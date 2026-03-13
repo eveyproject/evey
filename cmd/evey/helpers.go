@@ -110,6 +110,24 @@ func isWithinDir(dir, path string) bool {
 	return strings.HasPrefix(filepath.Clean(path), cleanDir)
 }
 
+// safeJoin joins base and rel, then verifies the result is strictly inside base.
+// Uses filepath.Abs to resolve any .. components before comparison.
+func safeJoin(base, rel string) (string, error) {
+	joined := filepath.Join(base, rel)
+	abs, err := filepath.Abs(joined)
+	if err != nil {
+		return "", err
+	}
+	baseAbs, err := filepath.Abs(base)
+	if err != nil {
+		return "", err
+	}
+	if abs != baseAbs && !strings.HasPrefix(abs, baseAbs+string(filepath.Separator)) {
+		return "", fmt.Errorf("path traversal detected")
+	}
+	return abs, nil
+}
+
 func setCORSHeaders(w http.ResponseWriter, r *http.Request, baseURL string) {
 	origin := r.Header.Get("Origin")
 	if origin == "" {
@@ -121,3 +139,4 @@ func setCORSHeaders(w http.ResponseWriter, r *http.Request, baseURL string) {
 		w.Header().Set("Access-Control-Allow-Credentials", "true")
 	}
 }
+
