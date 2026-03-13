@@ -390,6 +390,8 @@ export function MediaCard({
           style={{ background: "linear-gradient(to top, rgba(0,0,0,0.8) 0%, rgba(0,0,0,0.3) 50%, rgba(0,0,0,0.1) 100%)" }}
         >
           <div
+            role="img"
+            aria-label="Play"
             className="w-12 h-12 rounded-full flex items-center justify-center backdrop-blur-sm transition-transform duration-200 group-hover:scale-110 group-focus-within:scale-110"
             style={{ backgroundColor: "rgba(255,255,255,0.2)", border: "2px solid rgba(255,255,255,0.6)" }}
           >
@@ -397,6 +399,7 @@ export function MediaCard({
               className="w-5 h-5 text-white ml-0.5"
               fill="currentColor"
               viewBox="0 0 20 20"
+              aria-hidden="true"
             >
               <path d="M6.3 2.8L17 10 6.3 17.2V2.8z" />
             </svg>

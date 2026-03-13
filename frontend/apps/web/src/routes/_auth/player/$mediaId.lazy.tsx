@@ -106,19 +106,38 @@ function PlayerPage() {
     <div
       className="fixed inset-0 bg-black z-50 flex items-center justify-center"
     >
+      <button
+        aria-label="Exit player"
+        onClick={handleClose}
+        className="absolute top-4 left-4 z-[60] flex items-center justify-center w-9 h-9 rounded-full text-white transition-opacity hover:opacity-80"
+        style={{ backgroundColor: "rgba(0,0,0,0.5)", border: "1px solid rgba(255,255,255,0.2)" }}
+      >
+        <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+        </svg>
+      </button>
       {isError ? (
         <div className="flex flex-col items-center gap-4 text-white">
           <svg className="w-12 h-12 text-red-400" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
           </svg>
           <p className="text-lg font-medium">Failed to start playback</p>
-          <button
-            onClick={handleClose}
-            className="px-4 py-2 rounded text-sm font-medium"
-            style={{ backgroundColor: "rgba(255,255,255,0.15)" }}
-          >
-            Go back
-          </button>
+          <div className="flex gap-3">
+            <button
+              onClick={() => window.location.reload()}
+              className="px-4 py-2 rounded text-sm font-medium"
+              style={{ backgroundColor: "rgba(255,255,255,0.25)" }}
+            >
+              Retry
+            </button>
+            <button
+              onClick={handleClose}
+              className="px-4 py-2 rounded text-sm font-medium"
+              style={{ backgroundColor: "rgba(255,255,255,0.15)" }}
+            >
+              Go back
+            </button>
+          </div>
         </div>
       ) : isLoading || !streamInfo || !sessionId ? (
         <Spinner />
