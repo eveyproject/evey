@@ -154,8 +154,7 @@ func mediaHandler(tokens interface {
 			for _, rec := range records {
 				if artType == "" || rec.Type == artType {
 					if rec.LocalPath != nil && *rec.LocalPath != "" {
-						w.Header().Set("Cache-Control", "public, max-age=86400")
-						http.ServeFile(w, r, *rec.LocalPath)
+						serveFileWithCache(w, r, *rec.LocalPath)
 						return
 					}
 				}
@@ -177,6 +176,7 @@ func mediaHandler(tokens interface {
 				http.Error(w, `{"message":"forbidden"}`, http.StatusForbidden)
 				return
 			}
+			w.Header().Set("Cache-Control", "public, max-age=86400")
 			http.Redirect(w, r, url, http.StatusFound)
 
 		default:
@@ -936,10 +936,8 @@ func trickplayImageHandler(tokenGen interface {
 			http.Error(w, `{"message":"image not found"}`, http.StatusNotFound)
 			return
 		}
-		w.Header().Set("Content-Type", "image/jpeg")
 		setCORSHeaders(w, r, baseURL)
-		w.Header().Set("Cache-Control", "public, max-age=86400")
-		http.ServeFile(w, r, imagePath)
+		serveFileWithCache(w, r, imagePath)
 	}
 }
 
@@ -1265,6 +1263,7 @@ func hlsMasterHandler(tokenGen interface {
 
 		setCORSHeaders(w, r, "")
 		w.Header().Set("Content-Type", "application/vnd.apple.mpegurl")
+		w.Header().Set("Cache-Control", "no-cache")
 		http.ServeFile(w, r, filepath.Join(session.OutputDir, "master.m3u8"))
 	}
 }
