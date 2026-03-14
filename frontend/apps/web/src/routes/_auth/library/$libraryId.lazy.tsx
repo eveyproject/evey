@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useCallback } from "react";
-import { createLazyFileRoute, Link } from "@tanstack/react-router";
+import { createLazyFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import {
   useLibraryServiceListLibraries,
   useLibraryServiceListMediaItems,
@@ -18,6 +18,13 @@ import { EmptyState } from "@/components/ui/EmptyState";
 import { MediaGridSkeleton } from "@/components/ui/Skeleton";
 import { MediaGrid } from "@/features/library/MediaGrid";
 import { MediaCard, typeLabel } from "@/features/library/MediaCard";
+import {
+  LibraryFilterToggle,
+  LibraryFiltersPanel,
+  collectFilterOptions,
+  applyLocalFilters,
+} from "@/features/library/LibraryFilters";
+import type { LibrarySearch } from "@/routes/_auth/library/$libraryId";
 import { slugify } from "@/utils/slugify";
 import { toast, useAuthStore } from "@evey/store";
 import { useQueryClient } from "@tanstack/react-query";
@@ -25,10 +32,6 @@ import { useQueryClient } from "@tanstack/react-query";
 export const Route = createLazyFileRoute("/_auth/library/$libraryId")({
   component: LibraryPage,
 });
-
-const MOVIE_TYPE_OPTIONS: Array<{ label: string; value: LibraryServiceListMediaItemsType | "" }> = [
-  { label: "All", value: "MEDIA_ITEM_TYPE_MOVIE" },
-];
 
 const SHOW_TYPE_OPTIONS: Array<{ label: string; value: LibraryServiceListMediaItemsType | "" }> = [
   { label: "Series", value: "MEDIA_ITEM_TYPE_SERIES" },
@@ -165,19 +168,35 @@ function ListRow({ item }: { item: Record<string, unknown> }) {
 
 function LibraryPage() {
   const { libraryId: slug } = Route.useParams();
-  const [typeFilter, setTypeFilter] = useState<LibraryServiceListMediaItemsType | "">("");
-  const [genreFilter, setGenreFilter] = useState("");
-  const [sortField, setSortField] = useState<LibraryServiceListMediaItemsSortField>(
-    "MEDIA_SORT_FIELD_TITLE"
-  );
-  const [sortOrder, setSortOrder] = useState<LibraryServiceListMediaItemsSortOrder>("SORT_ORDER_ASC");
+  const search = Route.useSearch();
+  const navigate = useNavigate();
+
   const [page, setPage] = useState(1);
-  const [searchTerm, setSearchTerm] = useState("");
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
   const [bulkMode, setBulkMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [filtersOpen, setFiltersOpen] = useState(false);
   const profileId = useAuthStore((s) => s.profileId);
   const queryClient = useQueryClient();
+
+  const updateSearch = useCallback(
+    (patch: Partial<LibrarySearch>) => {
+      void navigate({
+        to: "/library/$libraryId",
+        params: { libraryId: slug },
+        search: { ...search, ...patch },
+        replace: true,
+      });
+      setPage(1);
+    },
+    [navigate, search, slug],
+  );
+
+  const typeFilter = search.type;
+  const genreFilter = search.genre ?? "";
+  const sortField = search.sortField ?? "MEDIA_SORT_FIELD_TITLE";
+  const sortOrder = search.sortOrder ?? "SORT_ORDER_ASC";
+  const searchTerm = search.q ?? "";
 
   const handleSelect = useCallback((id: string, sel: boolean) => {
     setSelectedIds((prev) => {
@@ -209,18 +228,18 @@ function LibraryPage() {
   const libraryId = library?.id ?? "";
   const isShowLibrary = library?.type === "LIBRARY_TYPE_SHOWS";
 
+  // Set default type filter based on library type (only on first load when no URL param)
   useEffect(() => {
-    if (!library) return;
+    if (!library || typeFilter !== undefined) return;
     if (library.type === "LIBRARY_TYPE_SHOWS") {
-      setTypeFilter("MEDIA_ITEM_TYPE_SERIES");
+      void navigate({ to: "/library/$libraryId", params: { libraryId: slug }, search: { ...search, type: "MEDIA_ITEM_TYPE_SERIES" as LibraryServiceListMediaItemsType }, replace: true });
     } else if (library.type === "LIBRARY_TYPE_MOVIES") {
-      setTypeFilter("MEDIA_ITEM_TYPE_MOVIE");
+      void navigate({ to: "/library/$libraryId", params: { libraryId: slug }, search: { ...search, type: "MEDIA_ITEM_TYPE_MOVIE" as LibraryServiceListMediaItemsType }, replace: true });
     }
-  }, [library?.type]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [library?.type, typeFilter, navigate]);
 
-  const resetPage = () => setPage(1);
-
-  const typeOptions = isShowLibrary ? SHOW_TYPE_OPTIONS : MOVIE_TYPE_OPTIONS;
+  const typeOptions = isShowLibrary ? SHOW_TYPE_OPTIONS : [];
 
   const params = {
     libraryId,
@@ -234,35 +253,56 @@ function LibraryPage() {
 
   const { data, isLoading } = useLibraryServiceListMediaItems(params);
 
-  const { data: genreData } = useLibraryServiceListMediaItems({
+  // Fetch a broader set for deriving genres + filter options (without pagination limit)
+  const { data: metaData } = useLibraryServiceListMediaItems({
     libraryId,
     ...(typeFilter ? { type: typeFilter } : {}),
     "pagination.page": 1,
-    "pagination.pageSize": PAGE_SIZE * 2,
+    "pagination.pageSize": PAGE_SIZE * 4,
   });
 
   const genres = useMemo(() => {
     const allGenres = new Set<string>();
-    for (const item of genreData?.items ?? []) {
-      for (const g of item.genres ?? []) {
-        allGenres.add(g);
-      }
+    for (const item of metaData?.items ?? []) {
+      for (const g of item.genres ?? []) allGenres.add(g);
     }
     return Array.from(allGenres).sort();
-  }, [genreData?.items]);
+  }, [metaData?.items]);
+
+  const availableOptions = useMemo(
+    () => collectFilterOptions(metaData?.items ?? []),
+    [metaData?.items],
+  );
 
   const items = data?.items ?? [];
   const totalItems = data?.pagination?.totalItems ?? 0;
   const hasMore = items.length < totalItems;
 
-  const filteredItems = useMemo(() => {
-    if (!searchTerm.trim()) return items;
-    const lower = searchTerm.toLowerCase();
-    return items.filter((item) => item.title?.toLowerCase().includes(lower));
-  }, [items, searchTerm]);
+  // Client-side: text search + stream-level filters
+  const localFiltered = useMemo(() => {
+    let result = items;
+    if (searchTerm.trim()) {
+      const lower = searchTerm.toLowerCase();
+      result = result.filter((item) => item.title?.toLowerCase().includes(lower));
+    }
+    result = applyLocalFilters(result, {
+      resolutions: search.resolutions,
+      codecs: search.codecs,
+      audioLangs: search.audioLangs,
+      subLangs: search.subLangs,
+    });
+    return result;
+  }, [items, searchTerm, search.resolutions, search.codecs, search.audioLangs, search.subLangs]);
 
-  const displayItems = searchTerm.trim() ? filteredItems : items;
-  const displayCount = searchTerm.trim() ? filteredItems.length : totalItems;
+  const hasLocalFilters = Boolean(
+    searchTerm.trim() ||
+    search.resolutions?.length ||
+    search.codecs?.length ||
+    search.audioLangs?.length ||
+    search.subLangs?.length,
+  );
+  const displayItems = hasLocalFilters ? localFiltered : items;
+  const displayCount = hasLocalFilters ? localFiltered.length : totalItems;
 
   return (
     <div data-testid="library-page">
@@ -283,7 +323,7 @@ function LibraryPage() {
         </h1>
         <span className="text-sm" style={{ color: "var(--text-muted)" }} data-testid="library-item-count">
           {displayCount} {displayCount === 1 ? "item" : "items"}
-          {searchTerm.trim() && ` matching "${searchTerm.trim()}"`}
+          {hasLocalFilters && " (filtered)"}
         </span>
       </div>
 
@@ -293,46 +333,29 @@ function LibraryPage() {
             type="search"
             placeholder="Filter by name..."
             value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
+            onChange={(e) => updateSearch({ q: e.target.value || undefined })}
             data-testid="library-search-input"
           />
         </div>
-        {typeOptions.length > 1 && (
+        {typeOptions.length > 0 && (
           <Select
-            value={typeFilter}
-            onChange={(v) => {
-              setTypeFilter(v as LibraryServiceListMediaItemsType | "");
-              setGenreFilter("");
-              resetPage();
-            }}
+            value={typeFilter ?? ""}
+            onChange={(v) => updateSearch({ type: (v as LibraryServiceListMediaItemsType) || undefined })}
             options={typeOptions.map((o) => ({ value: o.value, label: o.label }))}
-            className="w-auto"
-          />
-        )}
-        {genres.length > 0 && (
-          <Select
-            value={genreFilter}
-            onChange={(v) => {
-              setGenreFilter(v);
-              resetPage();
-            }}
-            options={[
-              { value: "", label: "All genres" },
-              ...genres.map((g) => ({ value: g, label: g })),
-            ]}
             className="w-auto"
           />
         )}
         <Select
           value={sortField}
-          onChange={(v) => {
-            setSortField(v as LibraryServiceListMediaItemsSortField);
-            resetPage();
-          }}
+          onChange={(v) => updateSearch({ sortField: v as LibraryServiceListMediaItemsSortField })}
           options={SORT_OPTIONS.map((o) => ({ value: o.value, label: o.label }))}
           className="w-auto"
         />
-        <SortOrderButton order={sortOrder} onChange={(o) => { setSortOrder(o); resetPage(); }} />
+        <SortOrderButton
+          order={sortOrder}
+          onChange={(o) => updateSearch({ sortOrder: o })}
+        />
+        <LibraryFilterToggle search={search} onClick={() => setFiltersOpen((v) => !v)} />
         <ViewToggleButton mode={viewMode} onChange={setViewMode} />
         <button
           type="button"
@@ -383,74 +406,93 @@ function LibraryPage() {
         </div>
       )}
 
-      {isLoading && items.length === 0 ? (
-        <MediaGridSkeleton />
-      ) : viewMode === "grid" ? (
-        <MediaGrid>
-          {displayItems.map((item) => (
-            <MediaCard
-              key={item.id}
-              item={item}
-              selected={selectedIds.has(item.id ?? "")}
-              onSelect={bulkMode ? handleSelect : undefined}
+      <div className={`flex gap-4 ${filtersOpen ? "items-start" : ""}`}>
+        {filtersOpen && (
+          <div className="flex-shrink-0 w-52">
+            <LibraryFiltersPanel
+              search={search}
+              genres={genres}
+              availableOptions={availableOptions}
+              onUpdate={(patch) => updateSearch(patch)}
             />
-          ))}
-        </MediaGrid>
-      ) : (
-        <div
-          className="rounded-[var(--radius-md)] overflow-hidden"
-          style={{ backgroundColor: "var(--surface)", border: "1px solid var(--border)" }}
-        >
-          <div
-            className="flex items-center gap-4 px-3 py-2 text-xs font-semibold"
-            style={{ color: "var(--text-muted)", borderBottom: "1px solid var(--border)" }}
-          >
-            <span className="w-7 flex-shrink-0" />
-            <span className="flex-1 min-w-0">Title</span>
-            <span className="hidden sm:block w-16 text-right flex-shrink-0">Year</span>
-            <span className="hidden md:block w-16 text-right flex-shrink-0">Rating</span>
-            <span className="hidden lg:block w-12 flex-shrink-0">Type</span>
-            <span className="hidden lg:block w-16 text-right flex-shrink-0">Duration</span>
           </div>
-          {displayItems.map((item) => (
-            <ListRow key={item.id} item={item as unknown as Record<string, unknown>} />
-          ))}
-        </div>
-      )}
+        )}
 
-      {!isLoading && displayItems.length === 0 && (
-        <div
-          className="rounded-[var(--radius-lg)]"
-          style={{ backgroundColor: "var(--surface)", border: "1px solid var(--border)" }}
-        >
-          <EmptyState
-            icon="library"
-            title="No items found"
-            description={
-              genreFilter || searchTerm.trim()
-                ? "Try adjusting your filters or search term."
-                : typeFilter
-                  ? "Try a different filter, or scan the library to add content."
-                  : "This library is empty. Trigger a scan to add content."
-            }
-            action={!searchTerm.trim() && !genreFilter ? { label: "Go to Admin", onClick: () => { window.location.href = "/admin/libraries"; } } : undefined}
-          />
-        </div>
-      )}
+        <div className="flex-1 min-w-0">
+          {isLoading && items.length === 0 ? (
+            <MediaGridSkeleton />
+          ) : viewMode === "grid" ? (
+            <MediaGrid>
+              {displayItems.map((item) => (
+                <MediaCard
+                  key={item.id}
+                  item={item}
+                  selected={selectedIds.has(item.id ?? "")}
+                  onSelect={bulkMode ? handleSelect : undefined}
+                />
+              ))}
+            </MediaGrid>
+          ) : (
+            <div
+              className="rounded-[var(--radius-md)] overflow-hidden"
+              style={{ backgroundColor: "var(--surface)", border: "1px solid var(--border)" }}
+            >
+              <div
+                className="flex items-center gap-4 px-3 py-2 text-xs font-semibold"
+                style={{ color: "var(--text-muted)", borderBottom: "1px solid var(--border)" }}
+              >
+                <span className="w-7 flex-shrink-0" />
+                <span className="flex-1 min-w-0">Title</span>
+                <span className="hidden sm:block w-16 text-right flex-shrink-0">Year</span>
+                <span className="hidden md:block w-16 text-right flex-shrink-0">Rating</span>
+                <span className="hidden lg:block w-12 flex-shrink-0">Type</span>
+                <span className="hidden lg:block w-16 text-right flex-shrink-0">Duration</span>
+              </div>
+              {displayItems.map((item) => (
+                <ListRow key={item.id} item={item as unknown as Record<string, unknown>} />
+              ))}
+            </div>
+          )}
 
-      {hasMore && !isLoading && !searchTerm.trim() && (
-        <div className="flex justify-center mt-8">
-          <Button variant="secondary" onClick={() => setPage((p) => p + 1)}>
-            Load more ({items.length} of {totalItems})
-          </Button>
-        </div>
-      )}
+          {!isLoading && displayItems.length === 0 && (
+            <div
+              className="rounded-[var(--radius-lg)]"
+              style={{ backgroundColor: "var(--surface)", border: "1px solid var(--border)" }}
+            >
+              <EmptyState
+                icon="library"
+                title="No items found"
+                description={
+                  hasLocalFilters
+                    ? "Try adjusting your filters or search term."
+                    : typeFilter
+                      ? "Try a different filter, or scan the library to add content."
+                      : "This library is empty. Trigger a scan to add content."
+                }
+                action={
+                  !hasLocalFilters
+                    ? { label: "Go to Admin", onClick: () => { window.location.href = "/admin/libraries"; } }
+                    : undefined
+                }
+              />
+            </div>
+          )}
 
-      {isLoading && items.length > 0 && (
-        <div className="mt-8">
-          <MediaGridSkeleton count={6} />
+          {hasMore && !isLoading && !hasLocalFilters && (
+            <div className="flex justify-center mt-8">
+              <Button variant="secondary" onClick={() => setPage((p) => p + 1)}>
+                Load more ({items.length} of {totalItems})
+              </Button>
+            </div>
+          )}
+
+          {isLoading && items.length > 0 && (
+            <div className="mt-8">
+              <MediaGridSkeleton count={6} />
+            </div>
+          )}
         </div>
-      )}
+      </div>
     </div>
   );
 }
