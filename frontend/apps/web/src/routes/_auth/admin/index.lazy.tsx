@@ -54,15 +54,22 @@ function SystemInfoCard() {
 }
 
 function AdminDashboard() {
-  const { data: dashData, isLoading: dashLoading } = useAdminServiceGetDashboard({
-    query: { refetchInterval: 1_000 },
+  const { data: dashData, isLoading: dashLoading, dataUpdatedAt } = useAdminServiceGetDashboard({
+    query: { refetchInterval: 10_000 },
   });
 
   return (
     <div className="flex flex-col gap-8">
-      <h1 className="text-2xl font-bold" style={{ color: "var(--text)" }}>
-        Dashboard
-      </h1>
+      <div className="flex items-center justify-between gap-4 flex-wrap">
+        <h1 className="text-2xl font-bold" style={{ color: "var(--text)" }}>
+          Dashboard
+        </h1>
+        {dataUpdatedAt > 0 && (
+          <p className="text-xs" style={{ color: "var(--text-muted)" }}>
+            Updated {new Date(dataUpdatedAt).toLocaleTimeString()} · auto-refreshes every 10s
+          </p>
+        )}
+      </div>
       {dashLoading ? (
         <div className="flex justify-center py-8">
           <Spinner size="lg" />

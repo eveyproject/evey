@@ -22,6 +22,7 @@ function getUsageColor(pct: number): string {
 
 function formatBytes(bytes: string | undefined) {
   const n = parseInt(bytes ?? "0");
+  if (n > 1e12) return `${(n / 1e12).toFixed(2)} TB`;
   if (n > 1e9) return `${(n / 1e9).toFixed(1)} GB`;
   if (n > 1e6) return `${(n / 1e6).toFixed(1)} MB`;
   return `${n} B`;
