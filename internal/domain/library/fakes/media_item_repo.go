@@ -10,9 +10,13 @@ import (
 type FakeMediaItemRepository struct {
 	mu    sync.RWMutex
 	items map[string]*library.MediaItem
-	// GetByFileFingerprintErr overrides GetByFileFingerprint when set
-	GetByFileFingerprintErr error
-	// GetByLibraryTypeTitleErr overrides GetByLibraryTypeTitle when set
+	// Per-method error injection; zero value = no error (backward compatible)
+	ErrCreate                error
+	ErrGetByID               error
+	ErrList                  error
+	ErrUpdate                error
+	ErrDelete                error
+	GetByFileFingerprintErr  error
 	GetByLibraryTypeTitleErr error
 }
 
@@ -21,6 +25,9 @@ func NewFakeMediaItemRepository() *FakeMediaItemRepository {
 }
 
 func (r *FakeMediaItemRepository) Create(_ context.Context, item *library.MediaItem) error {
+	if r.ErrCreate != nil {
+		return r.ErrCreate
+	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.items[item.ID] = item
@@ -28,6 +35,9 @@ func (r *FakeMediaItemRepository) Create(_ context.Context, item *library.MediaI
 }
 
 func (r *FakeMediaItemRepository) GetByID(_ context.Context, id string) (*library.MediaItem, error) {
+	if r.ErrGetByID != nil {
+		return nil, r.ErrGetByID
+	}
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 	item, ok := r.items[id]
@@ -38,6 +48,9 @@ func (r *FakeMediaItemRepository) GetByID(_ context.Context, id string) (*librar
 }
 
 func (r *FakeMediaItemRepository) List(_ context.Context, filter library.ListMediaItemsFilter) ([]*library.MediaItem, error) {
+	if r.ErrList != nil {
+		return nil, r.ErrList
+	}
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 	var result []*library.MediaItem
@@ -65,6 +78,9 @@ func (r *FakeMediaItemRepository) List(_ context.Context, filter library.ListMed
 }
 
 func (r *FakeMediaItemRepository) Update(_ context.Context, item *library.MediaItem) error {
+	if r.ErrUpdate != nil {
+		return r.ErrUpdate
+	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	if _, ok := r.items[item.ID]; !ok {
@@ -75,6 +91,9 @@ func (r *FakeMediaItemRepository) Update(_ context.Context, item *library.MediaI
 }
 
 func (r *FakeMediaItemRepository) Delete(_ context.Context, id string) error {
+	if r.ErrDelete != nil {
+		return r.ErrDelete
+	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	if _, ok := r.items[id]; !ok {

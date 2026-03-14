@@ -10,6 +10,10 @@ import (
 type FakeMediaItemCommandRepo struct {
 	mu    sync.RWMutex
 	items map[string]*library.MediaItem
+	// Per-method error injection; zero value = no error (backward compatible)
+	ErrCreate                error
+	ErrUpdate                error
+	ErrDelete                error
 	GetByFileFingerprintErr  error
 	GetByLibraryTypeTitleErr error
 }
@@ -19,6 +23,9 @@ func NewFakeMediaItemCommandRepo() *FakeMediaItemCommandRepo {
 }
 
 func (r *FakeMediaItemCommandRepo) Create(_ context.Context, item *library.MediaItem) error {
+	if r.ErrCreate != nil {
+		return r.ErrCreate
+	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.items[item.ID] = item
@@ -26,6 +33,9 @@ func (r *FakeMediaItemCommandRepo) Create(_ context.Context, item *library.Media
 }
 
 func (r *FakeMediaItemCommandRepo) Update(_ context.Context, item *library.MediaItem) error {
+	if r.ErrUpdate != nil {
+		return r.ErrUpdate
+	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	if _, ok := r.items[item.ID]; !ok {
@@ -36,6 +46,9 @@ func (r *FakeMediaItemCommandRepo) Update(_ context.Context, item *library.Media
 }
 
 func (r *FakeMediaItemCommandRepo) Delete(_ context.Context, id string) error {
+	if r.ErrDelete != nil {
+		return r.ErrDelete
+	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	if _, ok := r.items[id]; !ok {
