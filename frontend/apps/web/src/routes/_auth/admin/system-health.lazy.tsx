@@ -30,15 +30,15 @@ function formatBytes(bytes: string | undefined): string {
 }
 
 function getUsageColor(pct: number): string {
-  if (pct > 85) return "#ef4444";
-  if (pct > 70) return "#f97316";
+  if (pct > 85) return "var(--color-danger)";
+  if (pct > 70) return "var(--color-warning)";
   return "var(--accent)";
 }
 
 function getUsageTextColor(pct: number): string {
-  if (pct > 85) return "text-red-400";
-  if (pct > 70) return "text-orange-400";
-  return "text-green-400";
+  if (pct > 85) return "text-[var(--color-danger)]";
+  if (pct > 70) return "text-[var(--color-warning)]";
+  return "text-[var(--color-success)]";
 }
 
 // Inline SVG sparkline — no external lib

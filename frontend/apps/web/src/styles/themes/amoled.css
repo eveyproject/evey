@@ -7,7 +7,7 @@
   --accent-hover:  #9c5fd6;
   --text:          #e1e1e1;
   --text-secondary:#c4c4c4;
-  --text-muted:    #9ca3af;
+  --text-muted:    #a5acb9;
   --border:        #1f1f1f;
   --radius-sm:     4px;
   --radius-md:     8px;
@@ -33,6 +33,10 @@
   --toast-success-icon: #16a34a;
   --toast-error-icon: #dc2626;
   --toast-warning-icon: #ca8a04;
+
+  --color-success: #22c55e;
+  --color-warning: #f97316;
+  --color-danger:  #ef4444;
 
   --danger-bg: #dc2626;
   --danger-hover: #b91c1c;

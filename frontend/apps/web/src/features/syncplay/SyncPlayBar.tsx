@@ -33,7 +33,7 @@ export function SyncPlayBar({ roomId, members, connected, onLeave }: SyncPlayBar
     >
       <span
         className="w-2 h-2 rounded-full flex-shrink-0"
-        style={{ background: connected ? "#22c55e" : "#ef4444" }}
+        style={{ background: connected ? "var(--color-success)" : "var(--color-danger)" }}
         title={connected ? "Connected" : "Connecting..."}
       />
       <span className="flex-1 truncate">{watchingWith}</span>
@@ -47,7 +47,7 @@ export function SyncPlayBar({ roomId, members, connected, onLeave }: SyncPlayBar
       <button
         onClick={onLeave}
         className="px-3 py-1 rounded text-xs font-medium hover:opacity-80 transition-opacity flex-shrink-0"
-        style={{ background: "rgba(239,68,68,0.3)" }}
+        style={{ background: "color-mix(in srgb, var(--color-danger) 30%, transparent)" }}
       >
         Leave
       </button>

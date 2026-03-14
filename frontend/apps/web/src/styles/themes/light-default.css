@@ -34,6 +34,10 @@
   --toast-error-icon: #b91c1c;
   --toast-warning-icon: #a16207;
 
+  --color-success: #16a34a;
+  --color-warning: #ea580c;
+  --color-danger:  #dc2626;
+
   --danger-bg: #dc2626;
   --danger-hover: #b91c1c;
 

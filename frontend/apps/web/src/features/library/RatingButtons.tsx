@@ -32,7 +32,7 @@ export function RatingButtons({ mediaId }: RatingButtonsProps) {
       <button
         type="button"
         onClick={() => handleClick(1)}
-        style={btnStyle(rating === 1, "#22c55e")}
+        style={btnStyle(rating === 1, "var(--color-success)")}
         title={rating === 1 ? "Remove like" : "Like"}
       >
         <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
@@ -42,7 +42,7 @@ export function RatingButtons({ mediaId }: RatingButtonsProps) {
       <button
         type="button"
         onClick={() => handleClick(-1)}
-        style={btnStyle(rating === -1, "#ef4444")}
+        style={btnStyle(rating === -1, "var(--color-danger)")}
         title={rating === -1 ? "Remove dislike" : "Dislike"}
       >
         <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24" style={{ transform: "rotate(180deg)" }}>
