@@ -1,0 +1,11 @@
+// To add to GRPCServer struct fields:
+backup *appbackup.Service
+
+// To add to NewGRPCServer params and body:
+backup *appbackup.Service  → s.backup = backup
+
+// To add to RegisterServices():
+eveyv1.RegisterBackupServiceServer(s.server, &backupHandler{svc: s.backup})
+
+// To add to main.go (after backupSvc creation):
+grpcServer.backup = backupSvc  // or pass as constructor arg

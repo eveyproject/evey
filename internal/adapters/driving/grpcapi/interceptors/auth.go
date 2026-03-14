@@ -75,6 +75,9 @@ var adminOnlyMethods = map[string]bool{
 	"/evey.v1.TranscodeCacheService/GetTranscodeCache":              true,
 	"/evey.v1.TranscodeCacheService/ClearTranscodeCache":            true,
 	"/evey.v1.TranscodeCacheService/DeleteTranscodeCacheFile":       true,
+	"/evey.v1.BackupService/CreateBackup":                           true,
+	"/evey.v1.BackupService/ListBackups":                            true,
+	"/evey.v1.BackupService/DeleteBackup":                           true,
 }
 
 type AuthInterceptor struct {
