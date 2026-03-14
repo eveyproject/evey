@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as SetupRouteImport } from './routes/setup'
 import { Route as RegisterRouteImport } from './routes/register'
+import { Route as OidcCallbackRouteImport } from './routes/oidc-callback'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as AuthRouteImport } from './routes/_auth'
 import { Route as IndexRouteImport } from './routes/index'
@@ -20,6 +21,8 @@ import { Route as AuthFavoritesRouteImport } from './routes/_auth/favorites'
 import { Route as AuthAdminRouteImport } from './routes/_auth/admin'
 import { Route as AuthProfileIndexRouteImport } from './routes/_auth/profile/index'
 import { Route as AuthPlaylistsIndexRouteImport } from './routes/_auth/playlists/index'
+import { Route as AuthPhotosIndexRouteImport } from './routes/_auth/photos/index'
+import { Route as AuthMusicIndexRouteImport } from './routes/_auth/music/index'
 import { Route as AuthLibraryIndexRouteImport } from './routes/_auth/library/index'
 import { Route as AuthCollectionsIndexRouteImport } from './routes/_auth/collections/index'
 import { Route as AuthAdminIndexRouteImport } from './routes/_auth/admin/index'
@@ -32,11 +35,10 @@ import { Route as AuthPersonPersonIdRouteImport } from './routes/_auth/person/$p
 import { Route as AuthMediaMediaIdRouteImport } from './routes/_auth/media/$mediaId'
 import { Route as AuthLibraryLibraryIdRouteImport } from './routes/_auth/library/$libraryId'
 import { Route as AuthCollectionsCollectionIdRouteImport } from './routes/_auth/collections/$collectionId'
-import { Route as AuthCollectionsSmartFilterIdRouteImport } from './routes/_auth/collections/smart/$filterId'
 import { Route as AuthAdminWebhooksRouteImport } from './routes/_auth/admin/webhooks'
 import { Route as AuthAdminUsersRouteImport } from './routes/_auth/admin/users'
-import { Route as AuthAdminTranscodeCacheRouteImport } from './routes/_auth/admin/transcode-cache'
 import { Route as AuthAdminTranscodingProfilesRouteImport } from './routes/_auth/admin/transcoding-profiles'
+import { Route as AuthAdminTranscodeCacheRouteImport } from './routes/_auth/admin/transcode-cache'
 import { Route as AuthAdminSystemHealthRouteImport } from './routes/_auth/admin/system-health'
 import { Route as AuthAdminSessionsRouteImport } from './routes/_auth/admin/sessions'
 import { Route as AuthAdminServerConfigRouteImport } from './routes/_auth/admin/server-config'
@@ -48,6 +50,7 @@ import { Route as AuthAdminLibrariesRouteImport } from './routes/_auth/admin/lib
 import { Route as AuthAdminBackupRouteImport } from './routes/_auth/admin/backup'
 import { Route as AuthAdminAuditRouteImport } from './routes/_auth/admin/audit'
 import { Route as AuthAdminActivityRouteImport } from './routes/_auth/admin/activity'
+import { Route as AuthCollectionsSmartFilterIdRouteImport } from './routes/_auth/collections/smart/$filterId'
 
 const SetupRoute = SetupRouteImport.update({
   id: '/setup',
@@ -57,6 +60,11 @@ const SetupRoute = SetupRouteImport.update({
 const RegisterRoute = RegisterRouteImport.update({
   id: '/register',
   path: '/register',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const OidcCallbackRoute = OidcCallbackRouteImport.update({
+  id: '/oidc-callback',
+  path: '/oidc-callback',
   getParentRoute: () => rootRouteImport,
 } as any)
 const LoginRoute = LoginRouteImport.update({
@@ -108,6 +116,20 @@ const AuthPlaylistsIndexRoute = AuthPlaylistsIndexRouteImport.update({
   getParentRoute: () => AuthRoute,
 } as any).lazy(() =>
   import('./routes/_auth/playlists/index.lazy').then((d) => d.Route),
+)
+const AuthPhotosIndexRoute = AuthPhotosIndexRouteImport.update({
+  id: '/photos/',
+  path: '/photos/',
+  getParentRoute: () => AuthRoute,
+} as any).lazy(() =>
+  import('./routes/_auth/photos/index.lazy').then((d) => d.Route),
+)
+const AuthMusicIndexRoute = AuthMusicIndexRouteImport.update({
+  id: '/music/',
+  path: '/music/',
+  getParentRoute: () => AuthRoute,
+} as any).lazy(() =>
+  import('./routes/_auth/music/index.lazy').then((d) => d.Route),
 )
 const AuthLibraryIndexRoute = AuthLibraryIndexRouteImport.update({
   id: '/library/',
@@ -197,16 +219,6 @@ const AuthCollectionsCollectionIdRoute =
       (d) => d.Route,
     ),
   )
-const AuthCollectionsSmartFilterIdRoute =
-  AuthCollectionsSmartFilterIdRouteImport.update({
-    id: '/collections/smart/$filterId',
-    path: '/collections/smart/$filterId',
-    getParentRoute: () => AuthRoute,
-  } as any).lazy(() =>
-    import('./routes/_auth/collections/smart/$filterId.lazy').then(
-      (d) => d.Route,
-    ),
-  )
 const AuthAdminWebhooksRoute = AuthAdminWebhooksRouteImport.update({
   id: '/webhooks',
   path: '/webhooks',
@@ -221,19 +233,22 @@ const AuthAdminUsersRoute = AuthAdminUsersRouteImport.update({
 } as any).lazy(() =>
   import('./routes/_auth/admin/users.lazy').then((d) => d.Route),
 )
+const AuthAdminTranscodingProfilesRoute =
+  AuthAdminTranscodingProfilesRouteImport.update({
+    id: '/transcoding-profiles',
+    path: '/transcoding-profiles',
+    getParentRoute: () => AuthAdminRoute,
+  } as any).lazy(() =>
+    import('./routes/_auth/admin/transcoding-profiles.lazy').then(
+      (d) => d.Route,
+    ),
+  )
 const AuthAdminTranscodeCacheRoute = AuthAdminTranscodeCacheRouteImport.update({
   id: '/transcode-cache',
   path: '/transcode-cache',
   getParentRoute: () => AuthAdminRoute,
 } as any).lazy(() =>
   import('./routes/_auth/admin/transcode-cache.lazy').then((d) => d.Route),
-)
-const AuthAdminTranscodingProfilesRoute = AuthAdminTranscodingProfilesRouteImport.update({
-  id: '/transcoding-profiles',
-  path: '/transcoding-profiles',
-  getParentRoute: () => AuthAdminRoute,
-} as any).lazy(() =>
-  import('./routes/_auth/admin/transcoding-profiles.lazy').then((d) => d.Route),
 )
 const AuthAdminSystemHealthRoute = AuthAdminSystemHealthRouteImport.update({
   id: '/system-health',
@@ -312,10 +327,21 @@ const AuthAdminActivityRoute = AuthAdminActivityRouteImport.update({
 } as any).lazy(() =>
   import('./routes/_auth/admin/activity.lazy').then((d) => d.Route),
 )
+const AuthCollectionsSmartFilterIdRoute =
+  AuthCollectionsSmartFilterIdRouteImport.update({
+    id: '/collections/smart/$filterId',
+    path: '/collections/smart/$filterId',
+    getParentRoute: () => AuthRoute,
+  } as any).lazy(() =>
+    import('./routes/_auth/collections/smart/$filterId.lazy').then(
+      (d) => d.Route,
+    ),
+  )
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/login': typeof LoginRoute
+  '/oidc-callback': typeof OidcCallbackRoute
   '/register': typeof RegisterRoute
   '/setup': typeof SetupRoute
   '/admin': typeof AuthAdminRouteWithChildren
@@ -338,7 +364,6 @@ export interface FileRoutesByFullPath {
   '/admin/users': typeof AuthAdminUsersRoute
   '/admin/webhooks': typeof AuthAdminWebhooksRoute
   '/collections/$collectionId': typeof AuthCollectionsCollectionIdRoute
-  '/collections/smart/$filterId': typeof AuthCollectionsSmartFilterIdRoute
   '/library/$libraryId': typeof AuthLibraryLibraryIdRoute
   '/media/$mediaId': typeof AuthMediaMediaIdRoute
   '/person/$personId': typeof AuthPersonPersonIdRoute
@@ -350,12 +375,16 @@ export interface FileRoutesByFullPath {
   '/admin/': typeof AuthAdminIndexRoute
   '/collections/': typeof AuthCollectionsIndexRoute
   '/library/': typeof AuthLibraryIndexRoute
+  '/music/': typeof AuthMusicIndexRoute
+  '/photos/': typeof AuthPhotosIndexRoute
   '/playlists/': typeof AuthPlaylistsIndexRoute
   '/profile/': typeof AuthProfileIndexRoute
+  '/collections/smart/$filterId': typeof AuthCollectionsSmartFilterIdRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/login': typeof LoginRoute
+  '/oidc-callback': typeof OidcCallbackRoute
   '/register': typeof RegisterRoute
   '/setup': typeof SetupRoute
   '/favorites': typeof AuthFavoritesRoute
@@ -377,7 +406,6 @@ export interface FileRoutesByTo {
   '/admin/users': typeof AuthAdminUsersRoute
   '/admin/webhooks': typeof AuthAdminWebhooksRoute
   '/collections/$collectionId': typeof AuthCollectionsCollectionIdRoute
-  '/collections/smart/$filterId': typeof AuthCollectionsSmartFilterIdRoute
   '/library/$libraryId': typeof AuthLibraryLibraryIdRoute
   '/media/$mediaId': typeof AuthMediaMediaIdRoute
   '/person/$personId': typeof AuthPersonPersonIdRoute
@@ -389,14 +417,18 @@ export interface FileRoutesByTo {
   '/admin': typeof AuthAdminIndexRoute
   '/collections': typeof AuthCollectionsIndexRoute
   '/library': typeof AuthLibraryIndexRoute
+  '/music': typeof AuthMusicIndexRoute
+  '/photos': typeof AuthPhotosIndexRoute
   '/playlists': typeof AuthPlaylistsIndexRoute
   '/profile': typeof AuthProfileIndexRoute
+  '/collections/smart/$filterId': typeof AuthCollectionsSmartFilterIdRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/_auth': typeof AuthRouteWithChildren
   '/login': typeof LoginRoute
+  '/oidc-callback': typeof OidcCallbackRoute
   '/register': typeof RegisterRoute
   '/setup': typeof SetupRoute
   '/_auth/admin': typeof AuthAdminRouteWithChildren
@@ -419,7 +451,6 @@ export interface FileRoutesById {
   '/_auth/admin/users': typeof AuthAdminUsersRoute
   '/_auth/admin/webhooks': typeof AuthAdminWebhooksRoute
   '/_auth/collections/$collectionId': typeof AuthCollectionsCollectionIdRoute
-  '/_auth/collections/smart/$filterId': typeof AuthCollectionsSmartFilterIdRoute
   '/_auth/library/$libraryId': typeof AuthLibraryLibraryIdRoute
   '/_auth/media/$mediaId': typeof AuthMediaMediaIdRoute
   '/_auth/person/$personId': typeof AuthPersonPersonIdRoute
@@ -431,14 +462,18 @@ export interface FileRoutesById {
   '/_auth/admin/': typeof AuthAdminIndexRoute
   '/_auth/collections/': typeof AuthCollectionsIndexRoute
   '/_auth/library/': typeof AuthLibraryIndexRoute
+  '/_auth/music/': typeof AuthMusicIndexRoute
+  '/_auth/photos/': typeof AuthPhotosIndexRoute
   '/_auth/playlists/': typeof AuthPlaylistsIndexRoute
   '/_auth/profile/': typeof AuthProfileIndexRoute
+  '/_auth/collections/smart/$filterId': typeof AuthCollectionsSmartFilterIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
     | '/login'
+    | '/oidc-callback'
     | '/register'
     | '/setup'
     | '/admin'
@@ -461,7 +496,6 @@ export interface FileRouteTypes {
     | '/admin/users'
     | '/admin/webhooks'
     | '/collections/$collectionId'
-    | '/collections/smart/$filterId'
     | '/library/$libraryId'
     | '/media/$mediaId'
     | '/person/$personId'
@@ -473,12 +507,16 @@ export interface FileRouteTypes {
     | '/admin/'
     | '/collections/'
     | '/library/'
+    | '/music/'
+    | '/photos/'
     | '/playlists/'
     | '/profile/'
+    | '/collections/smart/$filterId'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
     | '/login'
+    | '/oidc-callback'
     | '/register'
     | '/setup'
     | '/favorites'
@@ -500,7 +538,6 @@ export interface FileRouteTypes {
     | '/admin/users'
     | '/admin/webhooks'
     | '/collections/$collectionId'
-    | '/collections/smart/$filterId'
     | '/library/$libraryId'
     | '/media/$mediaId'
     | '/person/$personId'
@@ -512,13 +549,17 @@ export interface FileRouteTypes {
     | '/admin'
     | '/collections'
     | '/library'
+    | '/music'
+    | '/photos'
     | '/playlists'
     | '/profile'
+    | '/collections/smart/$filterId'
   id:
     | '__root__'
     | '/'
     | '/_auth'
     | '/login'
+    | '/oidc-callback'
     | '/register'
     | '/setup'
     | '/_auth/admin'
@@ -541,7 +582,6 @@ export interface FileRouteTypes {
     | '/_auth/admin/users'
     | '/_auth/admin/webhooks'
     | '/_auth/collections/$collectionId'
-    | '/_auth/collections/smart/$filterId'
     | '/_auth/library/$libraryId'
     | '/_auth/media/$mediaId'
     | '/_auth/person/$personId'
@@ -553,14 +593,18 @@ export interface FileRouteTypes {
     | '/_auth/admin/'
     | '/_auth/collections/'
     | '/_auth/library/'
+    | '/_auth/music/'
+    | '/_auth/photos/'
     | '/_auth/playlists/'
     | '/_auth/profile/'
+    | '/_auth/collections/smart/$filterId'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AuthRoute: typeof AuthRouteWithChildren
   LoginRoute: typeof LoginRoute
+  OidcCallbackRoute: typeof OidcCallbackRoute
   RegisterRoute: typeof RegisterRoute
   SetupRoute: typeof SetupRoute
 }
@@ -579,6 +623,13 @@ declare module '@tanstack/react-router' {
       path: '/register'
       fullPath: '/register'
       preLoaderRoute: typeof RegisterRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/oidc-callback': {
+      id: '/oidc-callback'
+      path: '/oidc-callback'
+      fullPath: '/oidc-callback'
+      preLoaderRoute: typeof OidcCallbackRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/login': {
@@ -642,6 +693,20 @@ declare module '@tanstack/react-router' {
       path: '/playlists'
       fullPath: '/playlists/'
       preLoaderRoute: typeof AuthPlaylistsIndexRouteImport
+      parentRoute: typeof AuthRoute
+    }
+    '/_auth/photos/': {
+      id: '/_auth/photos/'
+      path: '/photos'
+      fullPath: '/photos/'
+      preLoaderRoute: typeof AuthPhotosIndexRouteImport
+      parentRoute: typeof AuthRoute
+    }
+    '/_auth/music/': {
+      id: '/_auth/music/'
+      path: '/music'
+      fullPath: '/music/'
+      preLoaderRoute: typeof AuthMusicIndexRouteImport
       parentRoute: typeof AuthRoute
     }
     '/_auth/library/': {
@@ -728,13 +793,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthCollectionsCollectionIdRouteImport
       parentRoute: typeof AuthRoute
     }
-    '/_auth/collections/smart/$filterId': {
-      id: '/_auth/collections/smart/$filterId'
-      path: '/collections/smart/$filterId'
-      fullPath: '/collections/smart/$filterId'
-      preLoaderRoute: typeof AuthCollectionsSmartFilterIdRouteImport
-      parentRoute: typeof AuthRoute
-    }
     '/_auth/admin/webhooks': {
       id: '/_auth/admin/webhooks'
       path: '/webhooks'
@@ -749,18 +807,18 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthAdminUsersRouteImport
       parentRoute: typeof AuthAdminRoute
     }
-    '/_auth/admin/transcode-cache': {
-      id: '/_auth/admin/transcode-cache'
-      path: '/transcode-cache'
-      fullPath: '/admin/transcode-cache'
-      preLoaderRoute: typeof AuthAdminTranscodeCacheRouteImport
-      parentRoute: typeof AuthAdminRoute
-    }
     '/_auth/admin/transcoding-profiles': {
       id: '/_auth/admin/transcoding-profiles'
       path: '/transcoding-profiles'
       fullPath: '/admin/transcoding-profiles'
       preLoaderRoute: typeof AuthAdminTranscodingProfilesRouteImport
+      parentRoute: typeof AuthAdminRoute
+    }
+    '/_auth/admin/transcode-cache': {
+      id: '/_auth/admin/transcode-cache'
+      path: '/transcode-cache'
+      fullPath: '/admin/transcode-cache'
+      preLoaderRoute: typeof AuthAdminTranscodeCacheRouteImport
       parentRoute: typeof AuthAdminRoute
     }
     '/_auth/admin/system-health': {
@@ -840,6 +898,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthAdminActivityRouteImport
       parentRoute: typeof AuthAdminRoute
     }
+    '/_auth/collections/smart/$filterId': {
+      id: '/_auth/collections/smart/$filterId'
+      path: '/collections/smart/$filterId'
+      fullPath: '/collections/smart/$filterId'
+      preLoaderRoute: typeof AuthCollectionsSmartFilterIdRouteImport
+      parentRoute: typeof AuthRoute
+    }
   }
 }
 
@@ -891,7 +956,6 @@ interface AuthRouteChildren {
   AuthHomeRoute: typeof AuthHomeRoute
   AuthSearchRoute: typeof AuthSearchRoute
   AuthCollectionsCollectionIdRoute: typeof AuthCollectionsCollectionIdRoute
-  AuthCollectionsSmartFilterIdRoute: typeof AuthCollectionsSmartFilterIdRoute
   AuthLibraryLibraryIdRoute: typeof AuthLibraryLibraryIdRoute
   AuthMediaMediaIdRoute: typeof AuthMediaMediaIdRoute
   AuthPersonPersonIdRoute: typeof AuthPersonPersonIdRoute
@@ -902,8 +966,11 @@ interface AuthRouteChildren {
   AuthProfileSettingsRoute: typeof AuthProfileSettingsRoute
   AuthCollectionsIndexRoute: typeof AuthCollectionsIndexRoute
   AuthLibraryIndexRoute: typeof AuthLibraryIndexRoute
+  AuthMusicIndexRoute: typeof AuthMusicIndexRoute
+  AuthPhotosIndexRoute: typeof AuthPhotosIndexRoute
   AuthPlaylistsIndexRoute: typeof AuthPlaylistsIndexRoute
   AuthProfileIndexRoute: typeof AuthProfileIndexRoute
+  AuthCollectionsSmartFilterIdRoute: typeof AuthCollectionsSmartFilterIdRoute
 }
 
 const AuthRouteChildren: AuthRouteChildren = {
@@ -912,7 +979,6 @@ const AuthRouteChildren: AuthRouteChildren = {
   AuthHomeRoute: AuthHomeRoute,
   AuthSearchRoute: AuthSearchRoute,
   AuthCollectionsCollectionIdRoute: AuthCollectionsCollectionIdRoute,
-  AuthCollectionsSmartFilterIdRoute: AuthCollectionsSmartFilterIdRoute,
   AuthLibraryLibraryIdRoute: AuthLibraryLibraryIdRoute,
   AuthMediaMediaIdRoute: AuthMediaMediaIdRoute,
   AuthPersonPersonIdRoute: AuthPersonPersonIdRoute,
@@ -923,8 +989,11 @@ const AuthRouteChildren: AuthRouteChildren = {
   AuthProfileSettingsRoute: AuthProfileSettingsRoute,
   AuthCollectionsIndexRoute: AuthCollectionsIndexRoute,
   AuthLibraryIndexRoute: AuthLibraryIndexRoute,
+  AuthMusicIndexRoute: AuthMusicIndexRoute,
+  AuthPhotosIndexRoute: AuthPhotosIndexRoute,
   AuthPlaylistsIndexRoute: AuthPlaylistsIndexRoute,
   AuthProfileIndexRoute: AuthProfileIndexRoute,
+  AuthCollectionsSmartFilterIdRoute: AuthCollectionsSmartFilterIdRoute,
 }
 
 const AuthRouteWithChildren = AuthRoute._addFileChildren(AuthRouteChildren)
@@ -933,6 +1002,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AuthRoute: AuthRouteWithChildren,
   LoginRoute: LoginRoute,
+  OidcCallbackRoute: OidcCallbackRoute,
   RegisterRoute: RegisterRoute,
   SetupRoute: SetupRoute,
 }
