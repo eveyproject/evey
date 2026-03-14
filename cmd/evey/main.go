@@ -28,6 +28,7 @@ import (
 	appplugin "github.com/gravity-zero/evey/internal/app/plugin"
 	apptranscoding "github.com/gravity-zero/evey/internal/app/transcoding"
 	appuser "github.com/gravity-zero/evey/internal/app/user"
+	appmusic "github.com/gravity-zero/evey/internal/app/music"
 	appplaylist "github.com/gravity-zero/evey/internal/app/playlist"
 	appsyncplay "github.com/gravity-zero/evey/internal/app/syncplay"
 	appsubtitle "github.com/gravity-zero/evey/internal/app/subtitle"
@@ -356,6 +357,9 @@ func run() error {
 
 	userRatingRepo := postgres.NewUserRatingRepository(db)
 
+	musicTrackRepo := postgres.NewMusicTrackRepository(db)
+	musicSvc := appmusic.NewService(musicTrackRepo)
+
 	playlistRepo := postgres.NewPlaylistRepository(db)
 	playlistItemRepo := postgres.NewPlaylistItemRepository(db)
 	smartQuerier := postgres.NewSmartPlaylistQuerier(db)
@@ -591,6 +595,7 @@ func run() error {
 		registerSystemStatsRoute(mux, startTime, tokenGen)
 		registerServerConfigRoutes(mux, serverCfgRepo, tokenGen)
 		registerLogsRoute(mux, logCfg.Dir, tokenGen)
+		registerMusicRoutes(mux, musicSvc, tokenGen)
 		if subtitleSvc != nil {
 			registerSubtitleRoutes(mux, subtitleSvc, tokenGen, libQuerySvc, libraryAccessRepo)
 		}
