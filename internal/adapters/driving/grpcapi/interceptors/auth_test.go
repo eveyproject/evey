@@ -2,7 +2,10 @@ package interceptors_test
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"testing"
+	"time"
 
 	"github.com/gravity-zero/evey/internal/adapters/driving/grpcapi/interceptors"
 	"github.com/gravity-zero/evey/internal/domain/user"
@@ -19,6 +22,16 @@ import (
 func setupInterceptor() (*interceptors.AuthInterceptor, *fakes.FakeTokenGenerator) {
 	tokenGen := fakes.NewFakeTokenGenerator()
 	return interceptors.NewAuthInterceptor(tokenGen), tokenGen
+}
+
+func apiKeyHash(raw string) string {
+	h := sha256.Sum256([]byte(raw))
+	return hex.EncodeToString(h[:])
+}
+
+func ctxWithAPIKey(key string) context.Context {
+	md := metadata.Pairs("authorization", key)
+	return metadata.NewIncomingContext(context.Background(), md)
 }
 
 func ctxWithToken(token string) context.Context {
@@ -128,6 +141,84 @@ func TestAuthInterceptor_AdminOnly_Admin(t *testing.T) {
 
 	require.NoError(t, err)
 	assert.Equal(t, "ok", resp)
+}
+
+func TestAuthInterceptor_APIKey_Success(t *testing.T) {
+	tokenGen := fakes.NewFakeTokenGenerator()
+	apiKeyRepo := fakes.NewFakeAPIKeyRepository()
+	userRepo := fakes.NewFakeUserRepository()
+
+	rawKey := "evey_testkey123"
+	apiKeyRepo.Create(context.Background(), &user.APIKeyModel{
+		ID:      "ak-1",
+		UserID:  "usr-1",
+		KeyHash: apiKeyHash(rawKey),
+		Name:    "test",
+	})
+	userRepo.Create(context.Background(), &user.User{
+		ID:       "usr-1",
+		Username: "alice",
+		IsAdmin:  false,
+		Enabled:  true,
+	})
+
+	ai := interceptors.NewAuthInterceptor(tokenGen).WithAPIKeys(apiKeyRepo, userRepo)
+	interceptor := ai.Unary()
+
+	extractHandler := func(ctx context.Context, req any) (any, error) {
+		return interceptors.ClaimsFromContext(ctx), nil
+	}
+	info := &grpc.UnaryServerInfo{FullMethod: "/evey.v1.LibraryService/ListLibraries"}
+	resp, err := interceptor(ctxWithAPIKey(rawKey), nil, info, extractHandler)
+
+	require.NoError(t, err)
+	claims := resp.(*user.Claims)
+	assert.Equal(t, "usr-1", claims.UserID)
+	assert.Equal(t, "alice", claims.Username)
+}
+
+func TestAuthInterceptor_APIKey_Invalid(t *testing.T) {
+	tokenGen := fakes.NewFakeTokenGenerator()
+	apiKeyRepo := fakes.NewFakeAPIKeyRepository()
+	userRepo := fakes.NewFakeUserRepository()
+
+	ai := interceptors.NewAuthInterceptor(tokenGen).WithAPIKeys(apiKeyRepo, userRepo)
+	interceptor := ai.Unary()
+
+	info := &grpc.UnaryServerInfo{FullMethod: "/evey.v1.LibraryService/ListLibraries"}
+	_, err := interceptor(ctxWithAPIKey("evey_nonexistent"), nil, info, nopHandler)
+
+	require.Error(t, err)
+	assert.Equal(t, codes.Unauthenticated, status.Code(err))
+}
+
+func TestAuthInterceptor_APIKey_Expired(t *testing.T) {
+	tokenGen := fakes.NewFakeTokenGenerator()
+	apiKeyRepo := fakes.NewFakeAPIKeyRepository()
+	userRepo := fakes.NewFakeUserRepository()
+
+	rawKey := "evey_expiredkey"
+	past := time.Now().Add(-time.Hour)
+	apiKeyRepo.Create(context.Background(), &user.APIKeyModel{
+		ID:        "ak-exp",
+		UserID:    "usr-1",
+		KeyHash:   apiKeyHash(rawKey),
+		Name:      "expired",
+		ExpiresAt: &past,
+	})
+	userRepo.Create(context.Background(), &user.User{
+		ID:      "usr-1",
+		Enabled: true,
+	})
+
+	ai := interceptors.NewAuthInterceptor(tokenGen).WithAPIKeys(apiKeyRepo, userRepo)
+	interceptor := ai.Unary()
+
+	info := &grpc.UnaryServerInfo{FullMethod: "/evey.v1.LibraryService/ListLibraries"}
+	_, err := interceptor(ctxWithAPIKey(rawKey), nil, info, nopHandler)
+
+	require.Error(t, err)
+	assert.Equal(t, codes.Unauthenticated, status.Code(err))
 }
 
 func TestEnforceRBAC_ContextClaims(t *testing.T) {

@@ -2,7 +2,11 @@ package interceptors
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
+	"log/slog"
 	"strings"
+	"time"
 
 	"github.com/gravity-zero/evey/internal/domain/user"
 	"google.golang.org/grpc"
@@ -72,10 +76,18 @@ var adminOnlyMethods = map[string]bool{
 
 type AuthInterceptor struct {
 	tokenGen user.TokenGenerator
+	apiKeys  user.APIKeyRepository
+	users    user.UserRepository
 }
 
 func NewAuthInterceptor(tokenGen user.TokenGenerator) *AuthInterceptor {
 	return &AuthInterceptor{tokenGen: tokenGen}
+}
+
+func (i *AuthInterceptor) WithAPIKeys(apiKeys user.APIKeyRepository, users user.UserRepository) *AuthInterceptor {
+	i.apiKeys = apiKeys
+	i.users = users
+	return i
 }
 
 func (i *AuthInterceptor) Unary() grpc.UnaryServerInterceptor {
@@ -131,11 +143,47 @@ func (i *AuthInterceptor) authenticate(ctx context.Context) (context.Context, er
 	if len(vals) == 0 {
 		return nil, status.Error(codes.Unauthenticated, "missing authorization")
 	}
-	token := strings.TrimPrefix(vals[0], "Bearer ")
-	claims, err := i.tokenGen.ValidateAccessToken(token)
+	raw := vals[0]
+	// API key auth: "evey_..." (without "Bearer " prefix)
+	trimmed := strings.TrimPrefix(raw, "Bearer ")
+	if strings.HasPrefix(trimmed, "evey_") && i.apiKeys != nil && i.users != nil {
+		return i.authenticateAPIKey(ctx, trimmed)
+	}
+	claims, err := i.tokenGen.ValidateAccessToken(trimmed)
 	if err != nil {
 		return nil, status.Error(codes.Unauthenticated, "invalid token")
 	}
+	return context.WithValue(ctx, claimsKey{}, claims), nil
+}
+
+func (i *AuthInterceptor) authenticateAPIKey(ctx context.Context, rawKey string) (context.Context, error) {
+	h := sha256.Sum256([]byte(rawKey))
+	hash := hex.EncodeToString(h[:])
+	key, err := i.apiKeys.GetByKeyHash(ctx, hash)
+	if err != nil {
+		return nil, status.Error(codes.Unauthenticated, "invalid api key")
+	}
+	if key.ExpiresAt != nil && time.Now().After(*key.ExpiresAt) {
+		return nil, status.Error(codes.Unauthenticated, "api key expired")
+	}
+	u, err := i.users.GetByID(ctx, key.UserID)
+	if err != nil {
+		return nil, status.Error(codes.Unauthenticated, "invalid api key")
+	}
+	if !u.Enabled {
+		return nil, status.Error(codes.Unauthenticated, "user disabled")
+	}
+	claims := &user.Claims{
+		UserID:      u.ID,
+		Username:    u.Username,
+		IsAdmin:     u.IsAdmin,
+		Permissions: key.Permissions,
+	}
+	go func() {
+		if upErr := i.apiKeys.UpdateLastUsed(context.Background(), key.ID, time.Now()); upErr != nil {
+			slog.Warn("update api key last used", slog.String("keyID", key.ID), slog.Any("err", upErr))
+		}
+	}()
 	return context.WithValue(ctx, claimsKey{}, claims), nil
 }
 

@@ -356,7 +356,7 @@ func run() error {
 	}
 
 	// --- Auth interceptor ---
-	authInterceptor := interceptors.NewAuthInterceptor(tokenGen)
+	authInterceptor := interceptors.NewAuthInterceptor(tokenGen).WithAPIKeys(apiKeyRepo, userRepo)
 	grpcLog := eveylogger.NewWith(rootLog, "grpc")
 
 	// --- gRPC server ---
