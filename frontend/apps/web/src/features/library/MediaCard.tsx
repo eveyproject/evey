@@ -5,6 +5,7 @@ import { usePlaybackServiceMarkAsWatched, usePlaybackServiceMarkAsUnwatched } fr
 import type { V1Artwork } from "@evey/api/src/generated/library.schemas";
 import { toast, useAuthStore } from "@evey/store";
 import { FavoriteButton } from "./FavoriteButton";
+import { StarRatingBadge } from "./StarRating";
 import { useIsFavorite, useToggleFavorite } from "@/hooks/useFavorite";
 import { AddToPlaylistModal } from "../playlist/AddToPlaylistModal";
 
@@ -464,6 +465,9 @@ export function MediaCard({
             <FavoriteButton mediaId={item.id} size="sm" />
           </div>
         ) : null}
+
+        {/* User star rating badge */}
+        {item.id && <StarRatingBadge mediaId={item.id} />}
 
         {/* Options button — top-right, visible on hover/focus, keyboard accessible */}
         {item.id && (
