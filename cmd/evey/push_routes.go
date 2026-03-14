@@ -52,7 +52,7 @@ func registerPushRoutes(mux *http.ServeMux, tokens notification.DeviceTokenRepos
 	})
 
 	mux.HandleFunc("DELETE /api/v1/push/unregister", func(w http.ResponseWriter, r *http.Request) {
-		_, ok := extractClaims(r)
+		claims, ok := extractClaims(r)
 		if !ok {
 			http.Error(w, `{"message":"unauthenticated"}`, http.StatusUnauthorized)
 			return
@@ -64,7 +64,7 @@ func registerPushRoutes(mux *http.ServeMux, tokens notification.DeviceTokenRepos
 			http.Error(w, `{"message":"invalid body"}`, http.StatusBadRequest)
 			return
 		}
-		if err := tokens.Delete(r.Context(), body.Token); err != nil {
+		if err := tokens.Delete(r.Context(), claims.UserID, body.Token); err != nil {
 			slog.Warn("push unregister: delete failed", slog.Any("err", err))
 			http.Error(w, `{"message":"internal error"}`, http.StatusInternalServerError)
 			return
