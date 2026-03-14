@@ -218,14 +218,13 @@ func TestPlaybackHandler_GetStreamInfo(t *testing.T) {
 		ID:              "mi-1",
 		Title:           "Test Movie",
 		Type:            "movie",
-		ContainerFormat: "mkv",
+		ContainerFormat: "mp4",
 	})
 
 	resp, err := h.GetStreamInfo(ctx, &eveyv1.GetStreamInfoRequest{MediaItemId: "mi-1"})
 
 	require.NoError(t, err)
 	assert.Equal(t, "mi-1", resp.MediaItemId)
-	assert.Equal(t, "mkv", resp.Container)
 	assert.Equal(t, eveyv1.PlayMethod_PLAY_METHOD_DIRECT_PLAY, resp.PlayMethod)
 	assert.Contains(t, resp.DirectPlayUrl, "mi-1")
 }

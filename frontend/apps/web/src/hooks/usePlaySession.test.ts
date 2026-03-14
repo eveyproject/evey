@@ -10,7 +10,7 @@ vi.mock("@evey/api", () => ({
   usePlaybackServiceGetStreamInfo: () => ({
     data: { directPlayUrl: "/original-url", videoCodec: "h264" },
   }),
-  playbackServiceStartStream: (...args: unknown[]) => startStreamFn(...args),
+  playbackServiceStartStream: startStreamFn,
   usePlaybackServiceStopStream: () => ({ mutate: stopMutateFn }),
 }));
 
