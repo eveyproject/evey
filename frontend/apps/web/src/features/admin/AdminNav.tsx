@@ -17,6 +17,7 @@ import {
   SlidersHorizontal,
   ScrollText,
   ChevronDown,
+  Sliders,
   type LucideIcon,
 } from "lucide-react";
 
@@ -48,6 +49,7 @@ const sections: NavSection[] = [
       { href: "/admin/libraries", label: "Libraries", icon: Library },
       { href: "/admin/metadata", label: "Metadata", icon: Tags },
       { href: "/admin/transcode-cache", label: "Transcode Cache", icon: HardDrive },
+      { href: "/admin/transcoding-profiles", label: "Transcoding Profiles", icon: Sliders },
     ],
   },
   {
