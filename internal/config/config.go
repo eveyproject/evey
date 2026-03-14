@@ -23,6 +23,13 @@ type Config struct {
 	Backup       BackupConfig
 	RemoteAccess RemoteAccessConfig
 	SMTP         SMTPConfig
+	FCM          FCMConfig
+}
+
+type FCMConfig struct {
+	Enabled            bool   // FCM_ENABLED
+	ServiceAccountJSON string // FCM_SERVICE_ACCOUNT_JSON — path to service account JSON file
+	ProjectID          string // FCM_PROJECT_ID
 }
 
 type SMTPConfig struct {
@@ -215,6 +222,11 @@ func Load() (*Config, error) {
 			Password: envStr("EVEY_SMTP_PASSWORD", ""),
 			From:     envStr("EVEY_SMTP_FROM", ""),
 			TLS:      envStr("EVEY_SMTP_TLS", "starttls"),
+		},
+		FCM: FCMConfig{
+			Enabled:            envBool("FCM_ENABLED", false),
+			ServiceAccountJSON: envStr("FCM_SERVICE_ACCOUNT_JSON", ""),
+			ProjectID:          envStr("FCM_PROJECT_ID", ""),
 		},
 	}
 	return cfg, nil

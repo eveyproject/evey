@@ -36,6 +36,7 @@ import (
 	appwebhook "github.com/gravity-zero/evey/internal/app/webhook"
 	"github.com/gravity-zero/evey/internal/adapters/driven/ebml"
 	"github.com/gravity-zero/evey/internal/adapters/driven/email"
+	fcmadapter "github.com/gravity-zero/evey/internal/adapters/driven/fcm"
 	"github.com/gravity-zero/evey/internal/adapters/driven/ffmpeg"
 	"github.com/gravity-zero/evey/internal/adapters/driven/filesystem"
 	meili "github.com/gravity-zero/evey/internal/adapters/driven/meilisearch"
@@ -142,6 +143,7 @@ func run() error {
 
 	notificationRepo := postgres.NewNotificationRepository(db)
 	notificationSettingsRepo := postgres.NewNotificationSettingsRepository(db)
+	fcmTokenRepo := postgres.NewFCMDeviceTokenRepository(db)
 	watchHistoryAnalyzer := postgres.NewWatchHistoryAnalyzer(db)
 	webhookRepo := postgres.NewWebhookRepository(db)
 	webhookDeliveryRepo := postgres.NewWebhookDeliveryRepository(db)
@@ -356,6 +358,16 @@ func run() error {
 	)
 	notifQuerySvc := appnotification.NewQueryService(notificationRepo, notificationSettingsRepo)
 	// notification cleanup goroutine started after ctx is available (see below)
+
+	if cfg.FCM.Enabled && cfg.FCM.ServiceAccountJSON != "" {
+		fcmSender, fcmErr := fcmadapter.NewSender(ctx, cfg.FCM.ServiceAccountJSON)
+		if fcmErr != nil {
+			rootLog.Warn("FCM init failed, push notifications disabled", slog.Any("err", fcmErr))
+		} else {
+			notifCmdSvc.WithPush(fcmSender, fcmTokenRepo)
+			rootLog.Info("FCM push notifications enabled", slog.String("project", cfg.FCM.ProjectID))
+		}
+	}
 
 	if cfg.SMTP.Host != "" {
 		smtpSender := email.NewSMTPSender(cfg.SMTP.Host, cfg.SMTP.Port, cfg.SMTP.Username, cfg.SMTP.Password, cfg.SMTP.From, cfg.SMTP.TLS)
@@ -617,6 +629,7 @@ func run() error {
 		registerServerConfigRoutes(mux, serverCfgRepo, tokenGen)
 		registerLogsRoute(mux, logCfg.Dir, tokenGen)
 		registerMusicRoutes(mux, musicSvc, tokenGen)
+		registerPushRoutes(mux, fcmTokenRepo, tokenGen)
 		if subtitleSvc != nil {
 			registerSubtitleRoutes(mux, subtitleSvc, tokenGen, libQuerySvc, libraryAccessRepo)
 		}

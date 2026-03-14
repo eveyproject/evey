@@ -3,9 +3,16 @@ import {
   useNotificationServiceGetNotificationSettings,
   useNotificationServiceUpdateNotificationSettings,
 } from "@evey/api";
+import { eveyFetch } from "@evey/api";
 import { toast } from "@evey/store";
 import { Button } from "@/components/ui/Button";
 import { Select } from "@/components/ui/Select";
+import {
+  isFCMConfigured,
+  requestPushToken,
+  revokePushToken,
+  getStoredPushToken,
+} from "@/lib/fcm";
 
 type NotificationLevel =
   | "NOTIFICATION_LEVEL_UNSPECIFIED"
@@ -29,6 +36,8 @@ const LEVEL_LABELS: Record<NotificationLevel, string> = {
   NOTIFICATION_LEVEL_HIGHLY_RELEVANT: "Important only",
 };
 
+const VAPID_KEY = import.meta.env.VITE_FIREBASE_VAPID_KEY;
+
 interface LevelSelectProps {
   label: string;
   value: NotificationLevel | undefined;
@@ -45,6 +54,79 @@ function LevelSelect({ label, value, onChange }: LevelSelectProps) {
         options={LEVELS.map((l) => ({ value: l, label: LEVEL_LABELS[l] }))}
         className="w-auto"
       />
+    </div>
+  );
+}
+
+function PushNotificationSection() {
+  const [enabled, setEnabled] = useState(false);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    setEnabled(!!getStoredPushToken());
+  }, []);
+
+  if (!isFCMConfigured()) {
+    return (
+      <p className="text-xs text-[var(--text-muted)]">
+        Push notifications not configured on this server.
+      </p>
+    );
+  }
+
+  const handleToggle = async () => {
+    setLoading(true);
+    try {
+      if (!enabled) {
+        const token = await requestPushToken(VAPID_KEY ?? "");
+        if (!token) {
+          toast.error("Permission denied or push unavailable");
+          return;
+        }
+        await eveyFetch({
+          url: "/api/v1/push/register",
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          data: { token, platform: "web" },
+        });
+        setEnabled(true);
+        toast.success("Push notifications enabled");
+      } else {
+        const token = getStoredPushToken();
+        await revokePushToken();
+        if (token) {
+          await eveyFetch({
+            url: "/api/v1/push/unregister",
+            method: "DELETE",
+            headers: { "Content-Type": "application/json" },
+            data: { token },
+          });
+        }
+        setEnabled(false);
+        toast.success("Push notifications disabled");
+      }
+    } catch (err) {
+      toast.error((err as Error).message || "Failed to update push settings");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="flex items-center justify-between py-3">
+      <div>
+        <p className="text-sm text-[var(--text)]">Push notifications</p>
+        <p className="text-xs text-[var(--text-muted)] mt-0.5">
+          Receive browser push notifications for new content
+        </p>
+      </div>
+      <Button
+        variant={enabled ? "secondary" : "primary"}
+        loading={loading}
+        onClick={handleToggle}
+      >
+        {enabled ? "Disable" : "Enable"}
+      </Button>
     </div>
   );
 }
@@ -82,7 +164,7 @@ export function NotificationSettings() {
   }
 
   return (
-    <div className="flex flex-col gap-4">
+    <div className="flex flex-col gap-6">
       <div className="bg-[var(--surface-raised)] rounded-[var(--radius-md)] px-4">
         <LevelSelect label="Movies" value={movieLevel} onChange={setMovieLevel} />
         <LevelSelect label="Series" value={seriesLevel} onChange={setSeriesLevel} />
@@ -96,6 +178,9 @@ export function NotificationSettings() {
         >
           Save
         </Button>
+      </div>
+      <div className="bg-[var(--surface-raised)] rounded-[var(--radius-md)] px-4">
+        <PushNotificationSection />
       </div>
     </div>
   );
