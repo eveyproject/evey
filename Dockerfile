@@ -1,14 +1,15 @@
+FROM bufbuild/buf:1.47.2 AS buf
+
 FROM golang:1.25.7-alpine AS builder
 
-RUN apk add --no-cache gcc musl-dev curl
+RUN apk add --no-cache gcc musl-dev
+
+COPY --from=buf /usr/local/bin/buf /usr/local/bin/buf
 
 WORKDIR /src
 
 COPY go.mod go.sum ./
 RUN go mod download
-
-# install buf for proto generation
-RUN curl -sSL "https://github.com/bufbuild/buf/releases/download/v1.47.2/buf-Linux-x86_64" -o /usr/local/bin/buf && chmod +x /usr/local/bin/buf
 
 COPY . .
 RUN buf generate
