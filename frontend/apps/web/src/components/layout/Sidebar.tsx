@@ -5,6 +5,7 @@ import {
   Home,
   Library,
   Heart,
+  Music2,
   Settings,
   PanelLeftClose,
   PanelLeft,
@@ -18,6 +19,7 @@ const navItems = [
   { to: "/home" as const, label: "Home", icon: Home },
   { to: "/library" as const, label: "Libraries", icon: Library },
   { to: "/favorites" as const, label: "Favorites", icon: Heart },
+  { to: "/music" as const, label: "Music", icon: Music2 },
 ];
 
 export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
