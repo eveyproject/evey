@@ -8,7 +8,7 @@ on:
 
 jobs:
   backend:
-    name: Backend — vet, build, test
+    name: Backend — test & build
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -18,8 +18,16 @@ jobs:
           go-version-file: go.mod
           cache: true
 
+      - name: install buf
+        uses: bufbuild/buf-setup-action@v1
+        with:
+          version: "1.47.2"
+
+      - name: generate proto
+        run: buf generate
+
       - name: vet
-        run: go vet ./...
+        run: go vet $(go list ./... | grep -v /gen/)
 
       - name: build
         run: go build ./...
@@ -27,7 +35,7 @@ jobs:
       - name: test (unit)
         run: |
           go test \
-            $(go list ./... | grep -v "adapters/driven/postgres") \
+            $(go list ./... | grep -v "adapters/driven/postgres" | grep -v /gen/) \
             -count=1 -timeout=120s -race
 
       - name: test (postgres — testcontainers)
