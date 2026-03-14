@@ -5,6 +5,7 @@ import { useAuthStore, toast } from "@evey/store";
 import { eveyFetch } from "@evey/api";
 import { Spinner } from "@/components/ui/Spinner";
 import { Button } from "@/components/ui/Button";
+import { Badge } from "@/components/ui/Badge";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Modal } from "@/components/ui/Modal";
 
@@ -66,6 +67,7 @@ function BackupRow({ backup }: { backup: Backup }) {
   const token = useAuthStore((s) => s.accessToken);
   const deleteBackup = useDeleteBackup();
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [confirmRestore, setConfirmRestore] = useState(false);
   const [restoring, setRestoring] = useState(false);
 
   function handleDownload() {
@@ -121,6 +123,9 @@ function BackupRow({ backup }: { backup: Backup }) {
         {formatSize(backup.size)}
       </td>
       <td className="px-4 py-3">
+        <Badge variant="success">Ready</Badge>
+      </td>
+      <td className="px-4 py-3">
         <div className="flex gap-2">
           <Button variant="secondary" onClick={handleDownload} className="text-xs">
             Download
@@ -128,7 +133,7 @@ function BackupRow({ backup }: { backup: Backup }) {
           <Button
             variant="secondary"
             loading={restoring}
-            onClick={handleRestore}
+            onClick={() => setConfirmRestore(true)}
             className="text-xs"
           >
             Restore
@@ -142,6 +147,29 @@ function BackupRow({ backup }: { backup: Backup }) {
             Delete
           </Button>
         </div>
+        <Modal
+          open={confirmRestore}
+          onClose={() => setConfirmRestore(false)}
+          title="Restore Backup"
+        >
+          <p className="text-sm mb-4" style={{ color: "var(--text-muted)" }}>
+            Restore backup from {new Date(backup.createdAt).toLocaleString()}? This will overwrite current data and cannot be undone.
+          </p>
+          <div className="flex justify-end gap-2">
+            <Button variant="ghost" onClick={() => setConfirmRestore(false)}>
+              Cancel
+            </Button>
+            <Button
+              loading={restoring}
+              onClick={() => {
+                setConfirmRestore(false);
+                handleRestore();
+              }}
+            >
+              Restore
+            </Button>
+          </div>
+        </Modal>
         <Modal
           open={confirmDelete}
           onClose={() => setConfirmDelete(false)}
@@ -283,7 +311,7 @@ function BackupPage() {
                   borderBottom: "1px solid var(--border)",
                 }}
               >
-                {["ID", "Date", "Version", "Size", "Actions"].map((h) => (
+                {["ID", "Date", "Version", "Size", "Status", "Actions"].map((h) => (
                   <th
                     key={h}
                     className="px-4 py-2 text-left font-medium"
