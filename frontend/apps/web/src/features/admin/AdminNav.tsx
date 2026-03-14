@@ -15,6 +15,7 @@ import {
   Database,
   Cpu,
   SlidersHorizontal,
+  ScrollText,
   ChevronDown,
   type LucideIcon,
 } from "lucide-react";
@@ -67,6 +68,7 @@ const sections: NavSection[] = [
     links: [
       { href: "/admin/activity", label: "Activity", icon: BarChart3 },
       { href: "/admin/audit", label: "Audit Log", icon: FileText },
+      { href: "/admin/logs", label: "Live Logs", icon: ScrollText },
     ],
   },
   {

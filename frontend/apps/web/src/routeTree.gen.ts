@@ -40,6 +40,7 @@ import { Route as AuthAdminServerConfigRouteImport } from './routes/_auth/admin/
 import { Route as AuthAdminRemoteAccessRouteImport } from './routes/_auth/admin/remote-access'
 import { Route as AuthAdminPluginsRouteImport } from './routes/_auth/admin/plugins'
 import { Route as AuthAdminMetadataRouteImport } from './routes/_auth/admin/metadata'
+import { Route as AuthAdminLogsRouteImport } from './routes/_auth/admin/logs'
 import { Route as AuthAdminLibrariesRouteImport } from './routes/_auth/admin/libraries'
 import { Route as AuthAdminBackupRouteImport } from './routes/_auth/admin/backup'
 import { Route as AuthAdminAuditRouteImport } from './routes/_auth/admin/audit'
@@ -251,6 +252,13 @@ const AuthAdminMetadataRoute = AuthAdminMetadataRouteImport.update({
 } as any).lazy(() =>
   import('./routes/_auth/admin/metadata.lazy').then((d) => d.Route),
 )
+const AuthAdminLogsRoute = AuthAdminLogsRouteImport.update({
+  id: '/logs',
+  path: '/logs',
+  getParentRoute: () => AuthAdminRoute,
+} as any).lazy(() =>
+  import('./routes/_auth/admin/logs.lazy').then((d) => d.Route),
+)
 const AuthAdminLibrariesRoute = AuthAdminLibrariesRouteImport.update({
   id: '/libraries',
   path: '/libraries',
@@ -292,6 +300,7 @@ export interface FileRoutesByFullPath {
   '/admin/audit': typeof AuthAdminAuditRoute
   '/admin/backup': typeof AuthAdminBackupRoute
   '/admin/libraries': typeof AuthAdminLibrariesRoute
+  '/admin/logs': typeof AuthAdminLogsRoute
   '/admin/metadata': typeof AuthAdminMetadataRoute
   '/admin/plugins': typeof AuthAdminPluginsRoute
   '/admin/remote-access': typeof AuthAdminRemoteAccessRoute
@@ -327,6 +336,7 @@ export interface FileRoutesByTo {
   '/admin/audit': typeof AuthAdminAuditRoute
   '/admin/backup': typeof AuthAdminBackupRoute
   '/admin/libraries': typeof AuthAdminLibrariesRoute
+  '/admin/logs': typeof AuthAdminLogsRoute
   '/admin/metadata': typeof AuthAdminMetadataRoute
   '/admin/plugins': typeof AuthAdminPluginsRoute
   '/admin/remote-access': typeof AuthAdminRemoteAccessRoute
@@ -365,6 +375,7 @@ export interface FileRoutesById {
   '/_auth/admin/audit': typeof AuthAdminAuditRoute
   '/_auth/admin/backup': typeof AuthAdminBackupRoute
   '/_auth/admin/libraries': typeof AuthAdminLibrariesRoute
+  '/_auth/admin/logs': typeof AuthAdminLogsRoute
   '/_auth/admin/metadata': typeof AuthAdminMetadataRoute
   '/_auth/admin/plugins': typeof AuthAdminPluginsRoute
   '/_auth/admin/remote-access': typeof AuthAdminRemoteAccessRoute
@@ -403,6 +414,7 @@ export interface FileRouteTypes {
     | '/admin/audit'
     | '/admin/backup'
     | '/admin/libraries'
+    | '/admin/logs'
     | '/admin/metadata'
     | '/admin/plugins'
     | '/admin/remote-access'
@@ -438,6 +450,7 @@ export interface FileRouteTypes {
     | '/admin/audit'
     | '/admin/backup'
     | '/admin/libraries'
+    | '/admin/logs'
     | '/admin/metadata'
     | '/admin/plugins'
     | '/admin/remote-access'
@@ -475,6 +488,7 @@ export interface FileRouteTypes {
     | '/_auth/admin/audit'
     | '/_auth/admin/backup'
     | '/_auth/admin/libraries'
+    | '/_auth/admin/logs'
     | '/_auth/admin/metadata'
     | '/_auth/admin/plugins'
     | '/_auth/admin/remote-access'
@@ -726,6 +740,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthAdminMetadataRouteImport
       parentRoute: typeof AuthAdminRoute
     }
+    '/_auth/admin/logs': {
+      id: '/_auth/admin/logs'
+      path: '/logs'
+      fullPath: '/admin/logs'
+      preLoaderRoute: typeof AuthAdminLogsRouteImport
+      parentRoute: typeof AuthAdminRoute
+    }
     '/_auth/admin/libraries': {
       id: '/_auth/admin/libraries'
       path: '/libraries'
@@ -762,6 +783,7 @@ interface AuthAdminRouteChildren {
   AuthAdminAuditRoute: typeof AuthAdminAuditRoute
   AuthAdminBackupRoute: typeof AuthAdminBackupRoute
   AuthAdminLibrariesRoute: typeof AuthAdminLibrariesRoute
+  AuthAdminLogsRoute: typeof AuthAdminLogsRoute
   AuthAdminMetadataRoute: typeof AuthAdminMetadataRoute
   AuthAdminPluginsRoute: typeof AuthAdminPluginsRoute
   AuthAdminRemoteAccessRoute: typeof AuthAdminRemoteAccessRoute
@@ -779,6 +801,7 @@ const AuthAdminRouteChildren: AuthAdminRouteChildren = {
   AuthAdminAuditRoute: AuthAdminAuditRoute,
   AuthAdminBackupRoute: AuthAdminBackupRoute,
   AuthAdminLibrariesRoute: AuthAdminLibrariesRoute,
+  AuthAdminLogsRoute: AuthAdminLogsRoute,
   AuthAdminMetadataRoute: AuthAdminMetadataRoute,
   AuthAdminPluginsRoute: AuthAdminPluginsRoute,
   AuthAdminRemoteAccessRoute: AuthAdminRemoteAccessRoute,

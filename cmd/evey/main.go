@@ -523,6 +523,7 @@ func run() error {
 		registerPopularRoute(mux, activityQuerySvc, libQuerySvc, tokenGen)
 		registerSystemStatsRoute(mux, startTime, tokenGen)
 		registerServerConfigRoutes(mux, serverCfgRepo, tokenGen)
+		registerLogsRoute(mux, logCfg.Dir, tokenGen)
 		if subtitleSvc != nil {
 			registerSubtitleRoutes(mux, subtitleSvc, tokenGen, libQuerySvc, libraryAccessRepo)
 		}

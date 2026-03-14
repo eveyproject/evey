@@ -10,6 +10,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/url"
+	"os"
 	goruntime "runtime"
 	"strconv"
 	"strings"
@@ -1788,4 +1789,75 @@ func registerServerConfigRoutes(mux *http.ServeMux, cfgRepo domainshared.ServerC
 		}
 		w.WriteHeader(http.StatusNoContent)
 	})
+}
+
+func registerLogsRoute(mux *http.ServeMux, logDir string, tokenGen *auth.JWTGenerator) {
+	mux.HandleFunc("GET /api/v1/admin/logs", func(w http.ResponseWriter, r *http.Request) {
+		h := r.Header.Get("Authorization")
+		if !strings.HasPrefix(h, "Bearer ") {
+			http.Error(w, `{"message":"unauthenticated"}`, http.StatusUnauthorized)
+			return
+		}
+		claims, err := tokenGen.ValidateAccessToken(strings.TrimPrefix(h, "Bearer "))
+		if err != nil || !claims.IsAdmin {
+			http.Error(w, `{"message":"forbidden"}`, http.StatusForbidden)
+			return
+		}
+
+		lines := 200
+		if v := r.URL.Query().Get("lines"); v != "" {
+			if n, err2 := strconv.Atoi(v); err2 == nil && n > 0 && n <= 2000 {
+				lines = n
+			}
+		}
+
+		logPath := logDir + "/evey.log"
+		data, err := tailFile(logPath, lines)
+		if err != nil {
+			http.Error(w, `{"message":"log file not found"}`, http.StatusNotFound)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]any{"lines": data})
+	})
+}
+
+// tailFile reads the last n lines from a file efficiently.
+func tailFile(path string, n int) ([]string, error) {
+	f, err := os.Open(path)
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+
+	stat, err := f.Stat()
+	if err != nil {
+		return nil, err
+	}
+
+	size := stat.Size()
+	if size == 0 {
+		return nil, nil
+	}
+
+	// Read up to 512KB from the end for efficiency
+	readSize := int64(512 * 1024)
+	if readSize > size {
+		readSize = size
+	}
+	offset := size - readSize
+	buf := make([]byte, readSize)
+	if _, err := f.ReadAt(buf, offset); err != nil {
+		return nil, err
+	}
+
+	rawLines := strings.Split(string(buf), "\n")
+	// Remove trailing empty
+	for len(rawLines) > 0 && rawLines[len(rawLines)-1] == "" {
+		rawLines = rawLines[:len(rawLines)-1]
+	}
+	if len(rawLines) > n {
+		rawLines = rawLines[len(rawLines)-n:]
+	}
+	return rawLines, nil
 }
