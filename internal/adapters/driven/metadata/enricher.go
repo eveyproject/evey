@@ -15,9 +15,9 @@ import (
 	domainmetadata "github.com/gravity-zero/evey/internal/domain/metadata"
 )
 
-// CollectionLinker upserts TMDB-driven collections and links media items.
+// CollectionLinker upserts provider-sourced collections and links media items.
 type CollectionLinker interface {
-	UpsertFromTMDB(ctx context.Context, tmdbID int, name, overview, posterURL, backdropURL string) (*domaindomain.Collection, error)
+	Upsert(ctx context.Context, tmdbID int, name, overview, posterURL, backdropURL string) (*domaindomain.Collection, error)
 	LinkMediaItem(ctx context.Context, collectionID, mediaItemID string, sortOrder int) error
 }
 
@@ -178,7 +178,7 @@ func (e *Enricher) EnrichItem(ctx context.Context, item *domaindomain.MediaItem,
 
 	if e.collections != nil && result.Collection != nil {
 		ref := result.Collection
-		col, err := e.collections.UpsertFromTMDB(ctx, ref.TmdbID, ref.Name, "", ref.PosterURL, ref.BackdropURL)
+		col, err := e.collections.Upsert(ctx, ref.TmdbID, ref.Name, "", ref.PosterURL, ref.BackdropURL)
 		if err != nil {
 			slog.Warn("upsert collection", slog.Int("tmdb_id", ref.TmdbID), slog.Any("err", err))
 		} else if col != nil {

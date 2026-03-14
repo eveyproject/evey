@@ -2,7 +2,7 @@ package metadata
 
 import "time"
 
-type TmdbCollectionRef struct {
+type CollectionRef struct {
 	TmdbID      int
 	Name        string
 	PosterURL   string
@@ -25,7 +25,7 @@ type MetadataResult struct {
 	People          []PersonResult
 	Artwork         []ArtworkResult
 	Popularity      float64 // TMDB popularity score, used as tiebreaker
-	Collection      *TmdbCollectionRef
+	Collection      *CollectionRef
 }
 
 type PersonResult struct {

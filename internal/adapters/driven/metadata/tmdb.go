@@ -409,7 +409,7 @@ func mapDetailResult(d tmdbDetailResponse, mediaType string) domain.MetadataResu
 	}
 
 	if d.BelongsToCollection != nil {
-		ref := &domain.TmdbCollectionRef{
+		ref := &domain.CollectionRef{
 			TmdbID: d.BelongsToCollection.ID,
 			Name:   d.BelongsToCollection.Name,
 		}

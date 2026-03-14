@@ -31,7 +31,7 @@ func NewService(cmd CollectionCommandRepo, query CollectionQueryRepo) *Service {
 	return &Service{cmd: cmd, query: query}
 }
 
-func (s *Service) UpsertFromTMDB(ctx context.Context, tmdbID int, name, overview, posterURL, backdropURL string) (*library.Collection, error) {
+func (s *Service) Upsert(ctx context.Context, tmdbID int, name, overview, posterURL, backdropURL string) (*library.Collection, error) {
 	now := time.Now()
 	col := &library.Collection{
 		ID:          uuid.New().String(),
