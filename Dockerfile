@@ -1,13 +1,17 @@
 FROM golang:1.25.7-alpine AS builder
 
-RUN apk add --no-cache gcc musl-dev
+RUN apk add --no-cache gcc musl-dev curl
 
 WORKDIR /src
 
 COPY go.mod go.sum ./
 RUN go mod download
 
+# install buf for proto generation
+RUN curl -sSL "https://github.com/bufbuild/buf/releases/download/v1.47.2/buf-Linux-x86_64" -o /usr/local/bin/buf && chmod +x /usr/local/bin/buf
+
 COPY . .
+RUN buf generate
 RUN CGO_ENABLED=0 go build -ldflags="-s -w" -o /evey ./cmd/evey
 
 FROM alpine:3.21.3
