@@ -3,16 +3,14 @@ import { renderHook, waitFor, act } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
-const mockFetch = vi.fn();
-vi.stubGlobal("fetch", mockFetch);
-
-vi.mock("@evey/store", () => ({
-  useAuthStore: Object.assign(
-    (selector: (s: { accessToken: string }) => unknown) =>
-      selector({ accessToken: "test-token" }),
-    { getState: () => ({ accessToken: "test-token" }) },
-  ),
+vi.mock("@evey/api", () => ({
+  eveyFetch: vi.fn(),
 }));
+
+async function getEveyFetch() {
+  const { eveyFetch } = await import("@evey/api");
+  return vi.mocked(eveyFetch);
+}
 
 function createWrapper() {
   const qc = new QueryClient({
@@ -24,14 +22,12 @@ function createWrapper() {
 
 describe("useIsFavorite", () => {
   beforeEach(() => {
-    mockFetch.mockReset();
+    vi.clearAllMocks();
   });
 
   it("returns true when API says favorited", async () => {
-    mockFetch.mockResolvedValueOnce({
-      ok: true,
-      json: async () => ({ isFavorite: true }),
-    });
+    const fetch = await getEveyFetch();
+    fetch.mockResolvedValueOnce({ isFavorite: true });
 
     const { useIsFavorite } = await import("./useFavorite");
     const { result } = renderHook(() => useIsFavorite("media-1"), {
@@ -40,35 +36,32 @@ describe("useIsFavorite", () => {
 
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
     expect(result.current.data).toBe(true);
-    expect(mockFetch).toHaveBeenCalledWith(
-      "/api/v1/favorites/media-1",
-      expect.objectContaining({
-        headers: expect.objectContaining({ Authorization: "Bearer test-token" }),
-      }),
+    expect(fetch).toHaveBeenCalledWith(
+      expect.objectContaining({ url: "/api/v1/favorites/media-1", method: "GET" }),
     );
   });
 
   it("is disabled when mediaId undefined", async () => {
+    const fetch = await getEveyFetch();
+
     const { useIsFavorite } = await import("./useFavorite");
     const { result } = renderHook(() => useIsFavorite(undefined), {
       wrapper: createWrapper(),
     });
 
     expect(result.current.fetchStatus).toBe("idle");
-    expect(mockFetch).not.toHaveBeenCalled();
+    expect(fetch).not.toHaveBeenCalled();
   });
 });
 
 describe("useToggleFavorite", () => {
   beforeEach(() => {
-    mockFetch.mockReset();
+    vi.clearAllMocks();
   });
 
   it("calls POST on mutate", async () => {
-    mockFetch.mockResolvedValueOnce({
-      ok: true,
-      json: async () => ({ isFavorite: true }),
-    });
+    const fetch = await getEveyFetch();
+    fetch.mockResolvedValueOnce({ isFavorite: true });
 
     const { useToggleFavorite } = await import("./useFavorite");
     const { result } = renderHook(() => useToggleFavorite("media-2"), {
@@ -80,14 +73,14 @@ describe("useToggleFavorite", () => {
     });
 
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
-    expect(mockFetch).toHaveBeenCalledWith(
-      "/api/v1/favorites/media-2",
-      expect.objectContaining({ method: "POST" }),
+    expect(fetch).toHaveBeenCalledWith(
+      expect.objectContaining({ url: "/api/v1/favorites/media-2", method: "POST" }),
     );
   });
 
   it("rolls back on error", async () => {
-    mockFetch.mockResolvedValueOnce({ ok: false, status: 500 });
+    const fetch = await getEveyFetch();
+    fetch.mockRejectedValueOnce(new Error("server error"));
 
     const { useToggleFavorite } = await import("./useFavorite");
     const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });

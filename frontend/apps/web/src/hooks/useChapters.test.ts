@@ -3,16 +3,14 @@ import { renderHook, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
-const mockFetch = vi.fn();
-vi.stubGlobal("fetch", mockFetch);
-
-vi.mock("@evey/store", () => ({
-  useAuthStore: Object.assign(
-    (selector: (s: { accessToken: string }) => unknown) =>
-      selector({ accessToken: "test-token" }),
-    { getState: () => ({ accessToken: "test-token" }) },
-  ),
+vi.mock("@evey/api", () => ({
+  eveyFetch: vi.fn(),
 }));
+
+async function getEveyFetch() {
+  const { eveyFetch } = await import("@evey/api");
+  return vi.mocked(eveyFetch);
+}
 
 function createWrapper() {
   const qc = new QueryClient({
@@ -24,7 +22,7 @@ function createWrapper() {
 
 describe("useChapters", () => {
   beforeEach(() => {
-    mockFetch.mockReset();
+    vi.clearAllMocks();
   });
 
   it("returns chapters from API", async () => {
@@ -32,10 +30,8 @@ describe("useChapters", () => {
       { title: "Intro", startTimeMs: 0, endTimeMs: 90000 },
       { title: "Act 1", startTimeMs: 90000, endTimeMs: 600000 },
     ];
-    mockFetch.mockResolvedValueOnce({
-      ok: true,
-      json: async () => ({ chapters }),
-    });
+    const fetch = await getEveyFetch();
+    fetch.mockResolvedValueOnce({ chapters });
 
     const { useChapters } = await import("./useChapters");
     const { result } = renderHook(() => useChapters("media-1"), {
@@ -44,16 +40,14 @@ describe("useChapters", () => {
 
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
     expect(result.current.data).toEqual(chapters);
-    expect(mockFetch).toHaveBeenCalledWith(
-      "/api/v1/media/media-1/chapters",
-      expect.objectContaining({
-        headers: expect.objectContaining({ Authorization: "Bearer test-token" }),
-      }),
+    expect(fetch).toHaveBeenCalledWith(
+      expect.objectContaining({ url: "/api/v1/media/media-1/chapters", method: "GET" }),
     );
   });
 
-  it("returns empty array on error response", async () => {
-    mockFetch.mockResolvedValueOnce({ ok: false, status: 404 });
+  it("returns empty array on error", async () => {
+    const fetch = await getEveyFetch();
+    fetch.mockRejectedValueOnce(new Error("not found"));
 
     const { useChapters } = await import("./useChapters");
     const { result } = renderHook(() => useChapters("media-2"), {
@@ -65,10 +59,8 @@ describe("useChapters", () => {
   });
 
   it("returns empty array when chapters field absent", async () => {
-    mockFetch.mockResolvedValueOnce({
-      ok: true,
-      json: async () => ({}),
-    });
+    const fetch = await getEveyFetch();
+    fetch.mockResolvedValueOnce({});
 
     const { useChapters } = await import("./useChapters");
     const { result } = renderHook(() => useChapters("media-3"), {
@@ -80,12 +72,14 @@ describe("useChapters", () => {
   });
 
   it("is disabled when mediaId undefined", async () => {
+    const fetch = await getEveyFetch();
+
     const { useChapters } = await import("./useChapters");
     const { result } = renderHook(() => useChapters(undefined), {
       wrapper: createWrapper(),
     });
 
     expect(result.current.fetchStatus).toBe("idle");
-    expect(mockFetch).not.toHaveBeenCalled();
+    expect(fetch).not.toHaveBeenCalled();
   });
 });
