@@ -176,6 +176,20 @@ type TrickplayRepository interface {
 	ListMissingMediaItemIDs(ctx context.Context) ([]string, error)
 }
 
+// UserRating values: -1=dislike, 0=neutral/removed, 1=like
+type UserRating struct {
+	ProfileID   string
+	MediaItemID string
+	Value       int // -1, 0, 1
+}
+
+type UserRatingRepository interface {
+	Upsert(ctx context.Context, r *UserRating) error
+	Get(ctx context.Context, profileID, mediaItemID string) (*UserRating, error)
+	// GetForItems returns ratings for multiple media items for a given profile.
+	GetForItems(ctx context.Context, profileID string, mediaItemIDs []string) (map[string]*UserRating, error)
+}
+
 type TrickplayResult struct {
 	ImageDir   string
 	ImageCount int

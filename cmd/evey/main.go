@@ -338,6 +338,8 @@ func run() error {
 	collectionRepo := postgres.NewCollectionRepository(db)
 	collectionSvc := appcollection.NewService(collectionRepo, collectionRepo)
 
+	userRatingRepo := postgres.NewUserRatingRepository(db)
+
 	playlistRepo := postgres.NewPlaylistRepository(db)
 	playlistItemRepo := postgres.NewPlaylistItemRepository(db)
 	smartQuerier := postgres.NewSmartPlaylistQuerier(db)
@@ -484,6 +486,7 @@ func run() error {
 		registerRemoteAccessRoutes(mux, cfg, tokenGen, cfgStore)
 		registerPlaybackSettingsRoutes(mux, cfg, tokenGen)
 		registerParentalRoutes(mux, profileRepo, hasher, tokenGen)
+		registerRatingRoutes(mux, userRatingRepo, tokenGen)
 		if subtitleSvc != nil {
 			registerSubtitleRoutes(mux, subtitleSvc, tokenGen, libQuerySvc, libraryAccessRepo)
 		}
