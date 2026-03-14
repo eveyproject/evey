@@ -124,7 +124,7 @@ func (q *FeedQuerier) Recommended(ctx context.Context, profileID string, genres 
 	args := []any{profileID}
 	for i, g := range genres {
 		args = append(args, g)
-		scoreParts[i] = fmt.Sprintf("CASE WHEN mi.genres ? $%d THEN 1 ELSE 0 END", i+2)
+		scoreParts[i] = fmt.Sprintf("CASE WHEN jsonb_typeof(mi.genres) = 'array' AND mi.genres ? $%d THEN 1 ELSE 0 END", i+2)
 	}
 	scoreExpr := strings.Join(scoreParts, " + ")
 	args = append(args, limit)
@@ -154,19 +154,22 @@ func (q *FeedQuerier) Recommended(ctx context.Context, profileID string, genres 
 func (q *FeedQuerier) SimilarItems(ctx context.Context, mediaItemID, profileID string, limit int) ([]*feed.FeedItem, error) {
 	rows, err := q.db.QueryContext(ctx, `
 		WITH target AS (
-			SELECT genres FROM media_items WHERE id = $1
+			SELECT CASE WHEN jsonb_typeof(genres) = 'array' THEN genres ELSE '[]'::jsonb END AS genres
+			FROM media_items WHERE id = $1
 		)
 		SELECT mi.id, COALESCE(mi.parent_id,''), mi.title, mi.type, 0, '',
-		       (SELECT COUNT(*) FROM jsonb_array_elements_text(mi.genres) g
-		        WHERE g IN (SELECT jsonb_array_elements_text(genres) FROM target)) AS score
+		       (SELECT COUNT(*) FROM jsonb_array_elements_text(
+		            CASE WHEN jsonb_typeof(mi.genres) = 'array' THEN mi.genres ELSE '[]'::jsonb END
+		        ) g WHERE g IN (SELECT jsonb_array_elements_text(genres) FROM target)) AS score
 		FROM media_items mi, target
 		WHERE mi.id != $1
 		  AND mi.type IN ('movie', 'series')
 		  AND mi.id NOT IN (
 		      SELECT media_item_id FROM watch_progress WHERE profile_id = $2 AND completed = TRUE
 		  )
-		  AND (SELECT COUNT(*) FROM jsonb_array_elements_text(mi.genres) g
-		       WHERE g IN (SELECT jsonb_array_elements_text(genres) FROM target)) >= 1
+		  AND (SELECT COUNT(*) FROM jsonb_array_elements_text(
+		            CASE WHEN jsonb_typeof(mi.genres) = 'array' THEN mi.genres ELSE '[]'::jsonb END
+		        ) g WHERE g IN (SELECT jsonb_array_elements_text(genres) FROM target)) >= 1
 		ORDER BY score DESC, mi.community_rating DESC NULLS LAST
 		LIMIT $3
 	`, mediaItemID, profileID, limit)

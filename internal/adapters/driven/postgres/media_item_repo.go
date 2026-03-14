@@ -25,7 +25,11 @@ func (r *MediaItemRepository) Create(ctx context.Context, item *library.MediaIte
 	if err != nil {
 		return err
 	}
-	genresJSON, err := json.Marshal(item.Genres)
+	genres := item.Genres
+	if genres == nil {
+		genres = []string{}
+	}
+	genresJSON, err := json.Marshal(genres)
 	if err != nil {
 		return err
 	}
@@ -214,7 +218,11 @@ func (r *MediaItemRepository) Update(ctx context.Context, item *library.MediaIte
 	if err != nil {
 		return err
 	}
-	genresJSON, err := json.Marshal(item.Genres)
+	genres := item.Genres
+	if genres == nil {
+		genres = []string{}
+	}
+	genresJSON, err := json.Marshal(genres)
 	if err != nil {
 		return err
 	}

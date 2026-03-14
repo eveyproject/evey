@@ -20,7 +20,9 @@ func (a *WatchHistoryAnalyzer) GetFavoriteGenres(ctx context.Context, profileID 
 		SELECT genre, COUNT(*) AS cnt
 		FROM play_sessions ps
 		INNER JOIN media_items mi ON mi.id = ps.media_item_id
-		CROSS JOIN jsonb_array_elements_text(mi.genres) AS genre
+		CROSS JOIN jsonb_array_elements_text(
+			CASE WHEN jsonb_typeof(mi.genres) = 'array' THEN mi.genres ELSE '[]'::jsonb END
+		) AS genre
 		WHERE ps.profile_id = $1
 		GROUP BY genre
 		HAVING COUNT(*) >= $2
