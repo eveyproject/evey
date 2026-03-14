@@ -123,6 +123,10 @@ func (s *Service) Search(ctx context.Context, query string, limit int) ([]music.
 	return s.tracks.Search(ctx, query, limit)
 }
 
+func (s *Service) GetTrack(ctx context.Context, trackID string) (*music.Track, error) {
+	return s.tracks.GetByID(ctx, trackID)
+}
+
 func (s *Service) StreamTrack(ctx context.Context, trackID string) (filePath string, mimeType string, err error) {
 	t, err := s.tracks.GetByID(ctx, trackID)
 	if err != nil {

@@ -35,6 +35,7 @@ import (
 
 	appfavorite "github.com/gravity-zero/evey/internal/app/favorite"
 	appphoto "github.com/gravity-zero/evey/internal/app/photo"
+	domainphoto "github.com/gravity-zero/evey/internal/domain/photo"
 	appplaylist "github.com/gravity-zero/evey/internal/app/playlist"
 	apprating "github.com/gravity-zero/evey/internal/app/rating"
 	appsyncplay "github.com/gravity-zero/evey/internal/app/syncplay"
@@ -1589,7 +1590,12 @@ func (r *responseRecorder) flush(w http.ResponseWriter) {
 	w.Write(r.buf.Bytes())
 }
 
-func registerRatingRoutes(mux *http.ServeMux, ratingRepo domainlibrary.UserRatingRepository, tokenGen *auth.JWTGenerator) {
+// mediaLibraryGetter fetches a media item to retrieve its LibraryID.
+type mediaLibraryGetter interface {
+	GetMediaItem(ctx context.Context, id string) (*domainlibrary.MediaItem, error)
+}
+
+func registerRatingRoutes(mux *http.ServeMux, ratingRepo domainlibrary.UserRatingRepository, tokenGen *auth.JWTGenerator, mediaGetter mediaLibraryGetter, libChecker LibraryAccessChecker) {
 	extractClaims := func(r *http.Request) (*domainuser.Claims, bool) {
 		h := r.Header.Get("Authorization")
 		if !strings.HasPrefix(h, "Bearer ") {
@@ -1600,6 +1606,15 @@ func registerRatingRoutes(mux *http.ServeMux, ratingRepo domainlibrary.UserRatin
 			return nil, false
 		}
 		return claims, true
+	}
+
+	checkMediaAccess := func(ctx context.Context, w http.ResponseWriter, claims *domainuser.Claims, mediaID string) bool {
+		item, err := mediaGetter.GetMediaItem(ctx, mediaID)
+		if err != nil || item == nil {
+			http.Error(w, `{"message":"not found"}`, http.StatusNotFound)
+			return false
+		}
+		return checkLibraryAccess(ctx, w, claims, item.LibraryID, libChecker)
 	}
 
 	// PUT /api/v1/media/{id}/rate — upsert rating; value: -1 dislike, 0 remove, 1 like
@@ -1621,6 +1636,9 @@ func registerRatingRoutes(mux *http.ServeMux, ratingRepo domainlibrary.UserRatin
 			return
 		}
 		mediaID := r.PathValue("id")
+		if !checkMediaAccess(r.Context(), w, claims, mediaID) {
+			return
+		}
 		rating := &domainlibrary.UserRating{
 			ProfileID:   claims.ProfileID,
 			MediaItemID: mediaID,
@@ -1642,6 +1660,9 @@ func registerRatingRoutes(mux *http.ServeMux, ratingRepo domainlibrary.UserRatin
 			return
 		}
 		mediaID := r.PathValue("id")
+		if !checkMediaAccess(r.Context(), w, claims, mediaID) {
+			return
+		}
 		rating, err := ratingRepo.Get(r.Context(), claims.ProfileID, mediaID)
 		if err != nil {
 			// no rating yet → return neutral
@@ -1654,7 +1675,7 @@ func registerRatingRoutes(mux *http.ServeMux, ratingRepo domainlibrary.UserRatin
 	})
 }
 
-func registerStarRatingRoutes(mux *http.ServeMux, svc *apprating.Service, tokenGen *auth.JWTGenerator) {
+func registerStarRatingRoutes(mux *http.ServeMux, svc *apprating.Service, tokenGen *auth.JWTGenerator, mediaGetter mediaLibraryGetter, libChecker LibraryAccessChecker) {
 	extractClaims := func(r *http.Request) (*domainuser.Claims, bool) {
 		h := r.Header.Get("Authorization")
 		if !strings.HasPrefix(h, "Bearer ") {
@@ -1667,11 +1688,24 @@ func registerStarRatingRoutes(mux *http.ServeMux, svc *apprating.Service, tokenG
 		return claims, true
 	}
 
+	checkMediaAccess := func(ctx context.Context, w http.ResponseWriter, claims *domainuser.Claims, mediaID string) bool {
+		item, err := mediaGetter.GetMediaItem(ctx, mediaID)
+		if err != nil || item == nil {
+			http.Error(w, `{"message":"not found"}`, http.StatusNotFound)
+			return false
+		}
+		return checkLibraryAccess(ctx, w, claims, item.LibraryID, libChecker)
+	}
+
 	// POST /api/v1/media/{id}/rating — upsert 1-5 star rating
 	mux.HandleFunc("POST /api/v1/media/{id}/rating", func(w http.ResponseWriter, r *http.Request) {
 		claims, ok := extractClaims(r)
 		if !ok {
 			http.Error(w, `{"message":"unauthenticated"}`, http.StatusUnauthorized)
+			return
+		}
+		mediaID := r.PathValue("id")
+		if !checkMediaAccess(r.Context(), w, claims, mediaID) {
 			return
 		}
 		var body struct {
@@ -1681,8 +1715,9 @@ func registerStarRatingRoutes(mux *http.ServeMux, svc *apprating.Service, tokenG
 			http.Error(w, `{"message":"bad request"}`, http.StatusBadRequest)
 			return
 		}
-		if err := svc.Rate(r.Context(), r.PathValue("id"), claims.ProfileID, body.Value); err != nil {
-			http.Error(w, `{"message":"`+err.Error()+`"}`, http.StatusBadRequest)
+		if err := svc.Rate(r.Context(), mediaID, claims.ProfileID, body.Value); err != nil {
+			slog.Error("star rating", slog.Any("err", err))
+			http.Error(w, `{"message":"bad request"}`, http.StatusBadRequest)
 			return
 		}
 		w.Header().Set("Content-Type", "application/json")
@@ -1696,7 +1731,11 @@ func registerStarRatingRoutes(mux *http.ServeMux, svc *apprating.Service, tokenG
 			http.Error(w, `{"message":"unauthenticated"}`, http.StatusUnauthorized)
 			return
 		}
-		rt, err := svc.GetRating(r.Context(), r.PathValue("id"), claims.ProfileID)
+		mediaID := r.PathValue("id")
+		if !checkMediaAccess(r.Context(), w, claims, mediaID) {
+			return
+		}
+		rt, err := svc.GetRating(r.Context(), mediaID, claims.ProfileID)
 		if err != nil {
 			slog.Error("get star rating", slog.Any("err", err))
 			http.Error(w, `{"message":"internal error"}`, http.StatusInternalServerError)
@@ -1717,7 +1756,11 @@ func registerStarRatingRoutes(mux *http.ServeMux, svc *apprating.Service, tokenG
 			http.Error(w, `{"message":"unauthenticated"}`, http.StatusUnauthorized)
 			return
 		}
-		if err := svc.DeleteRating(r.Context(), r.PathValue("id"), claims.ProfileID); err != nil {
+		mediaID := r.PathValue("id")
+		if !checkMediaAccess(r.Context(), w, claims, mediaID) {
+			return
+		}
+		if err := svc.DeleteRating(r.Context(), mediaID, claims.ProfileID); err != nil {
 			slog.Error("delete star rating", slog.Any("err", err))
 			http.Error(w, `{"message":"internal error"}`, http.StatusInternalServerError)
 			return
@@ -2122,7 +2165,42 @@ func registerTranscodeProfileRoutes(mux *http.ServeMux, transcodeSvc *apptransco
 	})
 }
 
-func registerPhotoRoutes(mux *http.ServeMux, photoSvc *appphoto.Service, tokenGen *auth.JWTGenerator) {
+// photoResponse is the API DTO for a photo, omitting GPS coordinates.
+type photoResponse struct {
+	ID          string     `json:"ID"`
+	LibraryID   string     `json:"LibraryID"`
+	Title       string     `json:"Title"`
+	FilePath    string     `json:"FilePath"`
+	FileSize    int64      `json:"FileSize"`
+	MimeType    string     `json:"MimeType"`
+	Width       int        `json:"Width"`
+	Height      int        `json:"Height"`
+	TakenAt     *time.Time `json:"TakenAt"`
+	CameraModel string     `json:"CameraModel"`
+	Album       string     `json:"Album"`
+	CreatedAt   time.Time  `json:"CreatedAt"`
+	UpdatedAt   time.Time  `json:"UpdatedAt"`
+}
+
+func toPhotoResponse(p domainphoto.Photo) photoResponse {
+	return photoResponse{
+		ID:          p.ID,
+		LibraryID:   p.LibraryID,
+		Title:       p.Title,
+		FilePath:    p.FilePath,
+		FileSize:    p.FileSize,
+		MimeType:    p.MimeType,
+		Width:       p.Width,
+		Height:      p.Height,
+		TakenAt:     p.TakenAt,
+		CameraModel: p.CameraModel,
+		Album:       p.Album,
+		CreatedAt:   p.CreatedAt,
+		UpdatedAt:   p.UpdatedAt,
+	}
+}
+
+func registerPhotoRoutes(mux *http.ServeMux, photoSvc *appphoto.Service, tokenGen *auth.JWTGenerator, libChecker LibraryAccessChecker, serverCtx context.Context) {
 	extractClaims := func(r *http.Request) (*domainuser.Claims, bool) {
 		h := r.Header.Get("Authorization")
 		if !strings.HasPrefix(h, "Bearer ") {
@@ -2140,13 +2218,17 @@ func registerPhotoRoutes(mux *http.ServeMux, photoSvc *appphoto.Service, tokenGe
 	}
 
 	mux.HandleFunc("GET /api/v1/photos/albums", func(w http.ResponseWriter, r *http.Request) {
-		if _, ok := extractClaims(r); !ok {
+		claims, ok := extractClaims(r)
+		if !ok {
 			http.Error(w, `{"message":"unauthenticated"}`, http.StatusUnauthorized)
 			return
 		}
 		libraryID := r.URL.Query().Get("library_id")
 		if libraryID == "" {
 			http.Error(w, `{"message":"library_id required"}`, http.StatusBadRequest)
+			return
+		}
+		if !checkLibraryAccess(r.Context(), w, claims, libraryID, libChecker) {
 			return
 		}
 		albums, err := photoSvc.GetAlbums(r.Context(), libraryID)
@@ -2156,11 +2238,14 @@ func registerPhotoRoutes(mux *http.ServeMux, photoSvc *appphoto.Service, tokenGe
 			return
 		}
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]any{"albums": albums})
+		if err := json.NewEncoder(w).Encode(map[string]any{"albums": albums}); err != nil {
+			slog.Error("encode photo albums", slog.Any("err", err))
+		}
 	})
 
 	mux.HandleFunc("GET /api/v1/photos/search", func(w http.ResponseWriter, r *http.Request) {
-		if _, ok := extractClaims(r); !ok {
+		claims, ok := extractClaims(r)
+		if !ok {
 			http.Error(w, `{"message":"unauthenticated"}`, http.StatusUnauthorized)
 			return
 		}
@@ -2168,6 +2253,9 @@ func registerPhotoRoutes(mux *http.ServeMux, photoSvc *appphoto.Service, tokenGe
 		q := r.URL.Query().Get("q")
 		if libraryID == "" || q == "" {
 			http.Error(w, `{"message":"library_id and q required"}`, http.StatusBadRequest)
+			return
+		}
+		if !checkLibraryAccess(r.Context(), w, claims, libraryID, libChecker) {
 			return
 		}
 		limit := 50
@@ -2182,27 +2270,37 @@ func registerPhotoRoutes(mux *http.ServeMux, photoSvc *appphoto.Service, tokenGe
 			http.Error(w, `{"message":"internal error"}`, http.StatusInternalServerError)
 			return
 		}
+		dtos := make([]photoResponse, len(photos))
+		for i, p := range photos {
+			dtos[i] = toPhotoResponse(p)
+		}
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]any{"photos": photos})
+		if err := json.NewEncoder(w).Encode(map[string]any{"photos": dtos}); err != nil {
+			slog.Error("encode photo search", slog.Any("err", err))
+		}
 	})
 
 	mux.HandleFunc("GET /api/v1/photos/{id}/serve", func(w http.ResponseWriter, r *http.Request) {
-		if _, ok := extractClaims(r); !ok {
+		claims, ok := extractClaims(r)
+		if !ok {
 			http.Error(w, `{"message":"unauthenticated"}`, http.StatusUnauthorized)
 			return
 		}
 		photoID := r.PathValue("id")
-		filePath, mimeType, err := photoSvc.ServePhoto(r.Context(), photoID)
+		p, err := photoSvc.GetPhoto(r.Context(), photoID)
 		if err != nil {
-			slog.Error("serve photo", slog.Any("err", err))
+			slog.Error("serve photo get", slog.Any("err", err))
 			http.Error(w, `{"message":"internal error"}`, http.StatusInternalServerError)
 			return
 		}
-		if filePath == "" {
+		if p == nil {
 			http.NotFound(w, r)
 			return
 		}
-		f, err := os.Open(filePath)
+		if !checkLibraryAccess(r.Context(), w, claims, p.LibraryID, libChecker) {
+			return
+		}
+		f, err := os.Open(p.FilePath)
 		if err != nil {
 			http.Error(w, `{"message":"file not found"}`, http.StatusNotFound)
 			return
@@ -2213,12 +2311,13 @@ func registerPhotoRoutes(mux *http.ServeMux, photoSvc *appphoto.Service, tokenGe
 			http.Error(w, `{"message":"internal error"}`, http.StatusInternalServerError)
 			return
 		}
-		w.Header().Set("Content-Type", mimeType)
+		w.Header().Set("Content-Type", p.MimeType)
 		http.ServeContent(w, r, stat.Name(), stat.ModTime(), f)
 	})
 
 	mux.HandleFunc("GET /api/v1/photos/{id}", func(w http.ResponseWriter, r *http.Request) {
-		if _, ok := extractClaims(r); !ok {
+		claims, ok := extractClaims(r)
+		if !ok {
 			http.Error(w, `{"message":"unauthenticated"}`, http.StatusUnauthorized)
 			return
 		}
@@ -2232,18 +2331,27 @@ func registerPhotoRoutes(mux *http.ServeMux, photoSvc *appphoto.Service, tokenGe
 			http.NotFound(w, r)
 			return
 		}
+		if !checkLibraryAccess(r.Context(), w, claims, p.LibraryID, libChecker) {
+			return
+		}
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(p)
+		if err := json.NewEncoder(w).Encode(toPhotoResponse(*p)); err != nil {
+			slog.Error("encode photo", slog.Any("err", err))
+		}
 	})
 
 	mux.HandleFunc("GET /api/v1/photos", func(w http.ResponseWriter, r *http.Request) {
-		if _, ok := extractClaims(r); !ok {
+		claims, ok := extractClaims(r)
+		if !ok {
 			http.Error(w, `{"message":"unauthenticated"}`, http.StatusUnauthorized)
 			return
 		}
 		libraryID := r.URL.Query().Get("library_id")
 		if libraryID == "" {
 			http.Error(w, `{"message":"library_id required"}`, http.StatusBadRequest)
+			return
+		}
+		if !checkLibraryAccess(r.Context(), w, claims, libraryID, libChecker) {
 			return
 		}
 		limit, offset := 50, 0
@@ -2263,8 +2371,14 @@ func registerPhotoRoutes(mux *http.ServeMux, photoSvc *appphoto.Service, tokenGe
 			http.Error(w, `{"message":"internal error"}`, http.StatusInternalServerError)
 			return
 		}
+		dtos := make([]photoResponse, len(photos))
+		for i, p := range photos {
+			dtos[i] = toPhotoResponse(p)
+		}
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]any{"photos": photos, "total": total})
+		if err := json.NewEncoder(w).Encode(map[string]any{"photos": dtos, "total": total}); err != nil {
+			slog.Error("encode photo list", slog.Any("err", err))
+		}
 	})
 
 	mux.HandleFunc("POST /api/v1/photos/scan", func(w http.ResponseWriter, r *http.Request) {
@@ -2281,7 +2395,7 @@ func registerPhotoRoutes(mux *http.ServeMux, photoSvc *appphoto.Service, tokenGe
 			return
 		}
 		go func() {
-			n, err := photoSvc.ScanDirectory(context.Background(), body.LibraryID, body.Dir)
+			n, err := photoSvc.ScanDirectory(serverCtx, body.LibraryID, body.Dir)
 			if err != nil {
 				slog.Error("photo scan", slog.Any("err", err))
 			} else {
@@ -2290,7 +2404,9 @@ func registerPhotoRoutes(mux *http.ServeMux, photoSvc *appphoto.Service, tokenGe
 		}()
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusAccepted)
-		json.NewEncoder(w).Encode(map[string]string{"message": "scan started"})
+		if err := json.NewEncoder(w).Encode(map[string]string{"message": "scan started"}); err != nil {
+			slog.Error("encode photo scan", slog.Any("err", err))
+		}
 	})
 }
 
