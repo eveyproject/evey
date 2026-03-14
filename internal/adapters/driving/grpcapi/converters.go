@@ -142,6 +142,9 @@ func mediaItemToProto(item *library.MediaItem) *eveyv1.MediaItem {
 	for _, t := range item.Trailers {
 		pb.Trailers = append(pb.Trailers, trailerToProto(t))
 	}
+	for source, value := range item.Ratings {
+		pb.Ratings = append(pb.Ratings, ratingToProto(source, value))
+	}
 	return pb
 }
 
@@ -154,6 +157,26 @@ func trailerToProto(t library.Trailer) *eveyv1.Trailer {
 		Type:             t.Type,
 		UseSubtitles:     t.UseSubtitles,
 		SubtitleLanguage: t.SubtitleLanguage,
+	}
+}
+
+// ratingMaxValues maps known sources to their scale max.
+var ratingMaxValues = map[string]float64{
+	"imdb":       10,
+	"tmdb":       10,
+	"rt":         100,
+	"metacritic": 100,
+}
+
+func ratingToProto(source string, value float64) *eveyv1.Rating {
+	maxValue := ratingMaxValues[source]
+	if maxValue == 0 {
+		maxValue = 10
+	}
+	return &eveyv1.Rating{
+		Source:   source,
+		Value:    value,
+		MaxValue: maxValue,
 	}
 }
 
