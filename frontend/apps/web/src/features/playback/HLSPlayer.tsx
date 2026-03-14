@@ -13,6 +13,12 @@ import { KeyboardShortcutsOverlay } from "./KeyboardShortcutsOverlay";
 import type { Chapter } from "@/hooks/useChapters";
 import { usePlaybackSettings } from "@/hooks/usePlaybackSettings";
 import { canPlayHevc } from "@/utils/codec";
+import {
+  getPreferredAudioLang,
+  setPreferredAudioLang,
+  getPreferredSubtitleLang,
+  setPreferredSubtitleLang,
+} from "@/hooks/usePlaybackPrefs";
 
 const QUALITY_LEVELS = [0, 1080, 720, 480, 360];
 
@@ -85,13 +91,27 @@ export function HLSPlayer({
   const [transcodeMode, setTranscodeMode] = useState(!streamInfo.transcodeUrl);
   const [overlayTime, setOverlayTime] = useState(0);
   const [overlayDuration, setOverlayDuration] = useState(0);
-  const defaultAudio = audioStreams.find((s) => s.isDefault) ?? audioStreams[0];
+  const defaultAudio = (() => {
+    const prefLang = getPreferredAudioLang();
+    if (prefLang) {
+      const match = audioStreams.find((s) => (s.language ?? s.title ?? "").toLowerCase() === prefLang.toLowerCase());
+      if (match) return match;
+    }
+    return audioStreams.find((s) => s.isDefault) ?? audioStreams[0];
+  })();
   const [currentAudioIndex, setCurrentAudioIndex] = useState(defaultAudio?.index ?? 0);
   const [currentTrackIndex, setCurrentTrackIndex] = useState(defaultAudio?.trackIndex ?? 0);
   const [currentQuality, setCurrentQuality] = useState(0); // 0 = original
   const [autoQuality, setAutoQuality] = useState(true);
-  const [currentSubtitle, setCurrentSubtitle] = useState<number | null>(null);
+  const [currentSubtitle, setCurrentSubtitle] = useState<number | null>(() => {
+    const prefLang = getPreferredSubtitleLang();
+    if (!prefLang) return null;
+    const match = subtitleStreams.find((s) => (s.language ?? s.title ?? "").toLowerCase() === prefLang.toLowerCase());
+    return match?.trackIndex ?? null;
+  });
   const [playbackSpeed, setPlaybackSpeed] = useState(1);
+  const [externalSubUrl, setExternalSubUrl] = useState<{ url: string; label: string } | null>(null);
+  const externalSubUrlRef = useRef<string | null>(null);
   const [showShortcuts, setShowShortcuts] = useState(false);
   const [isBuffering, setIsBuffering] = useState(false);
   const playbackSpeedRef = useRef(playbackSpeed);
@@ -229,13 +249,27 @@ export function HLSPlayer({
     const existing = video.querySelector("track[data-dynamic]");
     if (existing) existing.remove();
 
-    if (currentSubtitle === null || !accessToken) return;
+    // Revoke previous blob URL if replaced
+    if (externalSubUrlRef.current && externalSubUrlRef.current !== externalSubUrl?.url) {
+      URL.revokeObjectURL(externalSubUrlRef.current);
+      externalSubUrlRef.current = null;
+    }
+
+    const src = externalSubUrl
+      ? externalSubUrl.url
+      : currentSubtitle !== null && accessToken
+        ? `/api/v1/media/${mediaId}/subtitle/${currentSubtitle}?token=${accessToken}`
+        : null;
+
+    if (!src) return;
+
+    if (externalSubUrl) externalSubUrlRef.current = externalSubUrl.url;
 
     const track = document.createElement("track");
     track.setAttribute("data-dynamic", "1");
     track.kind = "subtitles";
-    track.label = "Selected";
-    track.src = `/api/v1/media/${mediaId}/subtitle/${currentSubtitle}?token=${accessToken}`;
+    track.label = externalSubUrl ? externalSubUrl.label : "Selected";
+    track.src = src;
     track.default = true;
     video.appendChild(track);
 
@@ -248,7 +282,7 @@ export function HLSPlayer({
         video.textTracks[i].mode = "hidden";
       }
     }
-  }, [currentSubtitle, mediaId, accessToken, transcodeStartTime, currentTrackIndex, currentQuality]);
+  }, [currentSubtitle, externalSubUrl, mediaId, accessToken, transcodeStartTime, currentTrackIndex, currentQuality]);
 
   // Sync playbackRate with playbackSpeed state
   useEffect(() => {
@@ -306,6 +340,12 @@ export function HLSPlayer({
           else setCurrentSubtitle(null);
           break;
         }
+        case "p":
+          if (document.pictureInPictureEnabled) {
+            if (document.pictureInPictureElement) void document.exitPictureInPicture();
+            else void video.requestPictureInPicture();
+          }
+          break;
         case "?":
           e.preventDefault();
           e.stopPropagation();
@@ -467,7 +507,10 @@ export function HLSPlayer({
   function handleAudioChange(index: number) {
     const stream = audioStreams.find((s) => s.index === index);
     setCurrentAudioIndex(index);
-    if (stream) setCurrentTrackIndex(stream.trackIndex);
+    if (stream) {
+      setCurrentTrackIndex(stream.trackIndex);
+      setPreferredAudioLang(stream.language ?? stream.title ?? null);
+    }
 
     if (!transcodeMode) {
       if (hlsRef.current) {
@@ -530,7 +573,15 @@ export function HLSPlayer({
         onAutoQualityToggle={handleAutoQualityToggle}
         autoQualityLabel={autoQualityLabel}
         currentSubtitleTrackIndex={currentSubtitle}
-        onSubtitleChange={setCurrentSubtitle}
+        onSubtitleChange={(trackIndex) => {
+          setCurrentSubtitle(trackIndex);
+          if (trackIndex === null) {
+            setPreferredSubtitleLang(null);
+          } else {
+            const s = subtitleStreams.find((st) => st.trackIndex === trackIndex);
+            setPreferredSubtitleLang(s?.language ?? s?.title ?? null);
+          }
+        }}
         playbackSpeed={playbackSpeed}
         onSpeedChange={setPlaybackSpeed}
         seasons={seasons}
@@ -545,6 +596,10 @@ export function HLSPlayer({
         transcodeOffset={transcodeOffsetRef.current}
         skipForwardSeconds={skipFwd}
         skipBackwardSeconds={skipBwd}
+        onExternalSubtitle={(blobUrl, label) => {
+          setCurrentSubtitle(null);
+          setExternalSubUrl({ url: blobUrl, label });
+        }}
       />
       {showShortcuts && <KeyboardShortcutsOverlay onClose={() => setShowShortcuts(false)} skipForwardSeconds={skipFwd} skipBackwardSeconds={skipBwd} />}
     </div>

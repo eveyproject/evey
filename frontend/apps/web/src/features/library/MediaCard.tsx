@@ -5,6 +5,7 @@ import { usePlaybackServiceMarkAsWatched, usePlaybackServiceMarkAsUnwatched } fr
 import { toast, useAuthStore } from "@evey/store";
 import { FavoriteButton } from "./FavoriteButton";
 import { AddToPlaylistModal } from "../playlist/AddToPlaylistModal";
+import { AddToCollectionModal } from "../collection/AddToCollectionModal";
 
 export interface MediaCardItem {
   id?: string;
@@ -101,11 +102,13 @@ function CardContextMenu({
   onClose,
   position,
   onAddToPlaylist,
+  onAddToCollection,
 }: {
   mediaId: string;
   onClose: () => void;
   position: { x: number; y: number };
   onAddToPlaylist: () => void;
+  onAddToCollection: () => void;
 }) {
   const ref = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
@@ -159,6 +162,13 @@ function CardContextMenu({
       onClick: () => {
         onClose();
         onAddToPlaylist();
+      },
+    },
+    {
+      label: "Add to Collection",
+      onClick: () => {
+        onClose();
+        onAddToCollection();
       },
     },
     {
@@ -239,6 +249,7 @@ export function MediaCard({
 
   const [ctxMenu, setCtxMenu] = useState<{ x: number; y: number } | null>(null);
   const [playlistModalOpen, setPlaylistModalOpen] = useState(false);
+  const [collectionModalOpen, setCollectionModalOpen] = useState(false);
   const menuBtnRef = useRef<HTMLButtonElement>(null);
   const hasPreviewData = !!(item.overview || item.communityRating || (item.genres && item.genres.length > 0));
 
@@ -276,12 +287,16 @@ export function MediaCard({
     {item.id && playlistModalOpen && (
       <AddToPlaylistModal open={playlistModalOpen} onClose={() => setPlaylistModalOpen(false)} mediaItemId={item.id} />
     )}
+    {item.id && collectionModalOpen && (
+      <AddToCollectionModal open={collectionModalOpen} onClose={() => setCollectionModalOpen(false)} mediaItemId={item.id} />
+    )}
     {ctxMenu && item.id && (
       <CardContextMenu
         mediaId={item.id}
         position={ctxMenu}
         onClose={() => setCtxMenu(null)}
         onAddToPlaylist={() => setPlaylistModalOpen(true)}
+        onAddToCollection={() => setCollectionModalOpen(true)}
       />
     )}
     <Link

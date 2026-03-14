@@ -184,6 +184,7 @@ interface PlayerControlsProps {
   autoQualityLabel?: string;
   skipForwardSeconds?: number;
   skipBackwardSeconds?: number;
+  onExternalSubtitle?: (blobUrl: string, label: string) => void;
 }
 
 function formatTime(seconds: number): string {
@@ -209,6 +210,7 @@ interface SettingsPanelProps {
   autoQuality?: boolean;
   onAutoQualityToggle?: (auto: boolean) => void;
   autoQualityLabel?: string;
+  onExternalSubtitle?: (blobUrl: string, label: string) => void;
 }
 
 function SettingsPanel({
@@ -226,7 +228,9 @@ function SettingsPanel({
   autoQuality,
   onAutoQualityToggle,
   autoQualityLabel,
+  onExternalSubtitle,
 }: SettingsPanelProps) {
+  const extSubInputRef = useRef<HTMLInputElement>(null);
   const [open, setOpen] = useState(false);
 
   function toggle(e: React.MouseEvent) {
@@ -362,6 +366,38 @@ function SettingsPanel({
             </>
           )}
 
+          {/* External subtitle upload */}
+          {onExternalSubtitle && (
+            <>
+              <div className="mx-3 my-1" style={{ borderTop: "1px solid var(--border)" }} />
+              <input
+                ref={extSubInputRef}
+                type="file"
+                accept=".srt,.vtt,.ass,.ssa"
+                className="hidden"
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (!file) return;
+                  const url = URL.createObjectURL(file);
+                  onExternalSubtitle(url, file.name);
+                  setOpen(false);
+                  onOpenChange(false);
+                  e.target.value = "";
+                }}
+              />
+              <button
+                onClick={() => extSubInputRef.current?.click()}
+                className="flex items-center gap-2 w-full px-4 py-2 text-sm hover:bg-[var(--surface-raised)] transition-colors"
+                style={{ color: "var(--text)" }}
+              >
+                <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5" />
+                </svg>
+                Upload subtitle…
+              </button>
+            </>
+          )}
+
           {/* Speed */}
           {onSpeedChange && (
             <>
@@ -422,6 +458,7 @@ export function PlayerControls({
   autoQualityLabel,
   skipForwardSeconds = 10,
   skipBackwardSeconds = 10,
+  onExternalSubtitle,
 }: PlayerControlsProps) {
   const [visible, setVisible] = useState(true);
   const [playing, setPlaying] = useState(false);
@@ -433,6 +470,7 @@ export function PlayerControls({
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [episodesOpen, setEpisodesOpen] = useState(false);
   const [chaptersOpen, setChaptersOpen] = useState(false);
+  const [isPip, setIsPip] = useState(false);
   const [seekHoverPos, setSeekHoverPos] = useState<number | null>(null);
   const [seekHoverX, setSeekHoverX] = useState(0);
   const hideTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -485,6 +523,8 @@ export function PlayerControls({
     }
     function onVolumeChange() { setVolume(video!.volume); }
     function onFullscreenChange() { setFullscreen(!!document.fullscreenElement); }
+    function onEnterPip() { setIsPip(true); }
+    function onLeavePip() { setIsPip(false); }
     function onProgress() {
       const b = video!.buffered;
       if (b.length > 0) setBufferedEnd(b.end(b.length - 1));
@@ -496,6 +536,8 @@ export function PlayerControls({
     video.addEventListener("durationchange", onDurationChange);
     video.addEventListener("volumechange", onVolumeChange);
     video.addEventListener("progress", onProgress);
+    video.addEventListener("enterpictureinpicture", onEnterPip);
+    video.addEventListener("leavepictureinpicture", onLeavePip);
     document.addEventListener("fullscreenchange", onFullscreenChange);
 
     setPlaying(!video.paused);
@@ -511,6 +553,8 @@ export function PlayerControls({
       video.removeEventListener("durationchange", onDurationChange);
       video.removeEventListener("volumechange", onVolumeChange);
       video.removeEventListener("progress", onProgress);
+      video.removeEventListener("enterpictureinpicture", onEnterPip);
+      video.removeEventListener("leavepictureinpicture", onLeavePip);
       document.removeEventListener("fullscreenchange", onFullscreenChange);
     };
   }, [videoRef]);
@@ -557,6 +601,16 @@ export function PlayerControls({
     const video = videoRef.current;
     if (!video) return;
     video.volume = Number(e.target.value);
+  }
+
+  function togglePip() {
+    const video = videoRef.current;
+    if (!video || !document.pictureInPictureEnabled) return;
+    if (document.pictureInPictureElement) {
+      void document.exitPictureInPicture();
+    } else {
+      void video.requestPictureInPicture();
+    }
   }
 
   function toggleFullscreen() {
@@ -837,7 +891,28 @@ export function PlayerControls({
             autoQuality={autoQuality}
             onAutoQualityToggle={onAutoQualityToggle}
             autoQualityLabel={autoQualityLabel}
+            onExternalSubtitle={onExternalSubtitle}
           />
+
+          {/* Picture-in-Picture */}
+          {typeof document !== "undefined" && document.pictureInPictureEnabled && (
+            <button
+              onClick={togglePip}
+              aria-label={isPip ? "Exit Picture-in-Picture" : "Picture-in-Picture"}
+              className="text-white hover:text-[var(--accent)] transition-colors p-1"
+            >
+              {isPip ? (
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M19 7h-8v6h8V7zm2-4H3c-1.1 0-2 .9-2 2v14c0 1.1.9 1.98 2 1.98h18c1.1 0 2-.88 2-1.98V5c0-1.1-.9-2-2-2zm0 16.01H3V4.98h18v14.03z"/>
+                  <path d="M10 11h4v2h-4z"/>
+                </svg>
+              ) : (
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M19 7h-8v6h8V7zm2-4H3c-1.1 0-2 .9-2 2v14c0 1.1.9 1.98 2 1.98h18c1.1 0 2-.88 2-1.98V5c0-1.1-.9-2-2-2zm0 16.01H3V4.98h18v14.03z"/>
+                </svg>
+              )}
+            </button>
+          )}
 
           {/* fullscreen */}
           <button

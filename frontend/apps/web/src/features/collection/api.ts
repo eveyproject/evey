@@ -96,3 +96,14 @@ export function useDeleteCollection() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ["collections"] }),
   });
 }
+
+export function useAddToCollection() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ collectionId, mediaItemId }: { collectionId: string; mediaItemId: string }) =>
+      eveyFetch<void>({ url: `/api/v1/collections/${collectionId}/items`, method: "POST", data: { mediaItemId } }),
+    onSuccess: (_data, { collectionId }) => {
+      qc.invalidateQueries({ queryKey: ["collection", collectionId] });
+    },
+  });
+}

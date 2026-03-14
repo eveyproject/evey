@@ -42,6 +42,7 @@ export function MediaSlider({
   const scrollRef = useRef<HTMLDivElement>(null);
   const [showLeft, setShowLeft] = useState(false);
   const [showRight, setShowRight] = useState(false);
+  const touchStartX = useRef<number | null>(null);
 
   const CARD_WIDTH = 160; // w-40
 
@@ -98,6 +99,14 @@ export function MediaSlider({
         <div
           ref={scrollRef}
           onScroll={checkOverflow}
+          onTouchStart={(e) => { touchStartX.current = e.touches[0].clientX; }}
+          onTouchEnd={(e) => {
+            if (touchStartX.current === null) return;
+            const dx = e.changedTouches[0].clientX - touchStartX.current;
+            touchStartX.current = null;
+            if (Math.abs(dx) < 30) return;
+            scroll(dx < 0 ? "right" : "left");
+          }}
           className="flex gap-3 overflow-x-auto pb-2 -mx-1 px-1"
           style={{ scrollbarWidth: "none", scrollSnapType: "x mandatory" }}
         >

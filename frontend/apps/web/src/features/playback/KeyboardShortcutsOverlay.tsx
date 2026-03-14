@@ -19,6 +19,7 @@ export function KeyboardShortcutsOverlay({ onClose, skipBackwardSeconds = 10, sk
     ["C", "Toggle captions"],
     ["< (,)", "Decrease speed"],
     ["> (.)", "Increase speed"],
+    ["P", "Picture-in-Picture"],
     ["?", "Show shortcuts"],
   ], [skipBackwardSeconds, skipForwardSeconds]);
   useEffect(() => {

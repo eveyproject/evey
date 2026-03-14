@@ -651,6 +651,39 @@ func registerCollectionRoutes(mux *http.ServeMux, svc *appcollection.Service, to
 			http.Error(w, `{"message":"method not allowed"}`, http.StatusMethodNotAllowed)
 		}
 	})
+
+	// POST /api/v1/collections/{id}/items  — add item to manual collection
+	mux.HandleFunc("POST /api/v1/collections/{id}/items", func(w http.ResponseWriter, r *http.Request) {
+		if !requireAuth(r) {
+			http.Error(w, `{"message":"unauthenticated"}`, http.StatusUnauthorized)
+			return
+		}
+		var body struct {
+			MediaItemID string `json:"mediaItemId"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil || body.MediaItemID == "" {
+			http.Error(w, `{"message":"mediaItemId required"}`, http.StatusBadRequest)
+			return
+		}
+		if err := svc.AddItem(r.Context(), r.PathValue("id"), body.MediaItemID); err != nil {
+			http.Error(w, `{"message":"internal error"}`, http.StatusInternalServerError)
+			return
+		}
+		w.WriteHeader(http.StatusNoContent)
+	})
+
+	// DELETE /api/v1/collections/{id}/items/{mediaId}  — remove item
+	mux.HandleFunc("DELETE /api/v1/collections/{id}/items/{mediaId}", func(w http.ResponseWriter, r *http.Request) {
+		if !requireAuth(r) {
+			http.Error(w, `{"message":"unauthenticated"}`, http.StatusUnauthorized)
+			return
+		}
+		if err := svc.RemoveItem(r.Context(), r.PathValue("id"), r.PathValue("mediaId")); err != nil {
+			http.Error(w, `{"message":"not found"}`, http.StatusNotFound)
+			return
+		}
+		w.WriteHeader(http.StatusNoContent)
+	})
 }
 
 func registerScheduleRoutes(mux *http.ServeMux, scheduler *applibrary.Scheduler, tokenGen *auth.JWTGenerator) {
