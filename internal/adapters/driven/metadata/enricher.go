@@ -479,16 +479,8 @@ func MergeResults(primary *domainmetadata.MetadataResult, supplements ...*domain
 		if primary.OfficialRating == "" {
 			primary.OfficialRating = s.OfficialRating
 		}
-		// Append supplementary artwork only for types not already covered by primary
-		primaryTypes := make(map[string]bool, len(primary.Artwork))
-		for _, a := range primary.Artwork {
-			primaryTypes[a.Type] = true
-		}
-		for _, a := range s.Artwork {
-			if !primaryTypes[a.Type] {
-				primary.Artwork = append(primary.Artwork, a)
-			}
-		}
+		// Append supplementary artwork (different providers = different images)
+		primary.Artwork = append(primary.Artwork, s.Artwork...)
 	}
 
 	return primary
