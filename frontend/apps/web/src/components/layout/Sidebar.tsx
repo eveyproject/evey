@@ -6,6 +6,7 @@ import {
   Library,
   Heart,
   Music2,
+  Images,
   Settings,
   PanelLeftClose,
   PanelLeft,
@@ -18,6 +19,7 @@ const COLLAPSED_KEY = "evey-sidebar-collapsed";
 const navItems = [
   { to: "/home" as const, label: "Home", icon: Home },
   { to: "/library" as const, label: "Libraries", icon: Library },
+  { to: "/photos" as const, label: "Photos", icon: Images },
   { to: "/favorites" as const, label: "Favorites", icon: Heart },
   { to: "/music" as const, label: "Music", icon: Music2 },
 ];

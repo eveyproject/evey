@@ -19,6 +19,7 @@ import (
 	appbackup "github.com/gravity-zero/evey/internal/app/backup"
 	appcollection "github.com/gravity-zero/evey/internal/app/collection"
 	appfavorite "github.com/gravity-zero/evey/internal/app/favorite"
+	appphoto "github.com/gravity-zero/evey/internal/app/photo"
 	apprating "github.com/gravity-zero/evey/internal/app/rating"
 	appfeed "github.com/gravity-zero/evey/internal/app/feed"
 	applibrary "github.com/gravity-zero/evey/internal/app/library"
@@ -370,6 +371,9 @@ func run() error {
 	favoriteRepo := postgres.NewFavoriteRepository(db)
 	favoriteSvc := appfavorite.NewService(favoriteRepo)
 
+	photoRepo := postgres.NewPhotoRepository(db)
+	photoSvc := appphoto.NewService(photoRepo)
+
 	userRatingRepo := postgres.NewUserRatingRepository(db)
 
 	starRatingRepo := postgres.NewRatingRepository(db)
@@ -564,6 +568,7 @@ func run() error {
 		registerAdminRoutes(mux, metadataCmdSvc, metadataQuerySvc, tokenGen, adminHeavyRL)
 		registerUserAdminRoutes(mux, userCmdSvc, userQuerySvc, tokenGen)
 		registerFavoriteRoutes(mux, favoriteSvc, libQuerySvc, tokenGen)
+		registerPhotoRoutes(mux, photoSvc, tokenGen)
 		registerMetadataOverrideRoutes(mux, metadataCmdSvc, metadataQuerySvc, tokenGen)
 		registerTranscodeCacheRoutes(mux, transcodingSvc, tokenGen)
 		registerTranscodeProfileRoutes(mux, transcodingSvc, tokenGen)

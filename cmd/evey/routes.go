@@ -34,6 +34,7 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 
 	appfavorite "github.com/gravity-zero/evey/internal/app/favorite"
+	appphoto "github.com/gravity-zero/evey/internal/app/photo"
 	appplaylist "github.com/gravity-zero/evey/internal/app/playlist"
 	apprating "github.com/gravity-zero/evey/internal/app/rating"
 	appsyncplay "github.com/gravity-zero/evey/internal/app/syncplay"
@@ -2118,6 +2119,178 @@ func registerTranscodeProfileRoutes(mux *http.ServeMux, transcodeSvc *apptransco
 			return
 		}
 		w.WriteHeader(http.StatusNoContent)
+	})
+}
+
+func registerPhotoRoutes(mux *http.ServeMux, photoSvc *appphoto.Service, tokenGen *auth.JWTGenerator) {
+	extractClaims := func(r *http.Request) (*domainuser.Claims, bool) {
+		h := r.Header.Get("Authorization")
+		if !strings.HasPrefix(h, "Bearer ") {
+			return nil, false
+		}
+		claims, err := tokenGen.ValidateAccessToken(h[7:])
+		if err != nil {
+			return nil, false
+		}
+		return claims, true
+	}
+	requireAdmin := func(r *http.Request) bool {
+		claims, ok := extractClaims(r)
+		return ok && claims.IsAdmin
+	}
+
+	mux.HandleFunc("GET /api/v1/photos/albums", func(w http.ResponseWriter, r *http.Request) {
+		if _, ok := extractClaims(r); !ok {
+			http.Error(w, `{"message":"unauthenticated"}`, http.StatusUnauthorized)
+			return
+		}
+		libraryID := r.URL.Query().Get("library_id")
+		if libraryID == "" {
+			http.Error(w, `{"message":"library_id required"}`, http.StatusBadRequest)
+			return
+		}
+		albums, err := photoSvc.GetAlbums(r.Context(), libraryID)
+		if err != nil {
+			slog.Error("get albums", slog.Any("err", err))
+			http.Error(w, `{"message":"internal error"}`, http.StatusInternalServerError)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]any{"albums": albums})
+	})
+
+	mux.HandleFunc("GET /api/v1/photos/search", func(w http.ResponseWriter, r *http.Request) {
+		if _, ok := extractClaims(r); !ok {
+			http.Error(w, `{"message":"unauthenticated"}`, http.StatusUnauthorized)
+			return
+		}
+		libraryID := r.URL.Query().Get("library_id")
+		q := r.URL.Query().Get("q")
+		if libraryID == "" || q == "" {
+			http.Error(w, `{"message":"library_id and q required"}`, http.StatusBadRequest)
+			return
+		}
+		limit := 50
+		if l := r.URL.Query().Get("limit"); l != "" {
+			if n, err := strconv.Atoi(l); err == nil && n > 0 {
+				limit = n
+			}
+		}
+		photos, err := photoSvc.Search(r.Context(), libraryID, q, limit)
+		if err != nil {
+			slog.Error("search photos", slog.Any("err", err))
+			http.Error(w, `{"message":"internal error"}`, http.StatusInternalServerError)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]any{"photos": photos})
+	})
+
+	mux.HandleFunc("GET /api/v1/photos/{id}/serve", func(w http.ResponseWriter, r *http.Request) {
+		if _, ok := extractClaims(r); !ok {
+			http.Error(w, `{"message":"unauthenticated"}`, http.StatusUnauthorized)
+			return
+		}
+		photoID := r.PathValue("id")
+		filePath, mimeType, err := photoSvc.ServePhoto(r.Context(), photoID)
+		if err != nil {
+			slog.Error("serve photo", slog.Any("err", err))
+			http.Error(w, `{"message":"internal error"}`, http.StatusInternalServerError)
+			return
+		}
+		if filePath == "" {
+			http.NotFound(w, r)
+			return
+		}
+		f, err := os.Open(filePath)
+		if err != nil {
+			http.Error(w, `{"message":"file not found"}`, http.StatusNotFound)
+			return
+		}
+		defer f.Close()
+		stat, err := f.Stat()
+		if err != nil {
+			http.Error(w, `{"message":"internal error"}`, http.StatusInternalServerError)
+			return
+		}
+		w.Header().Set("Content-Type", mimeType)
+		http.ServeContent(w, r, stat.Name(), stat.ModTime(), f)
+	})
+
+	mux.HandleFunc("GET /api/v1/photos/{id}", func(w http.ResponseWriter, r *http.Request) {
+		if _, ok := extractClaims(r); !ok {
+			http.Error(w, `{"message":"unauthenticated"}`, http.StatusUnauthorized)
+			return
+		}
+		p, err := photoSvc.GetPhoto(r.Context(), r.PathValue("id"))
+		if err != nil {
+			slog.Error("get photo", slog.Any("err", err))
+			http.Error(w, `{"message":"internal error"}`, http.StatusInternalServerError)
+			return
+		}
+		if p == nil {
+			http.NotFound(w, r)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(p)
+	})
+
+	mux.HandleFunc("GET /api/v1/photos", func(w http.ResponseWriter, r *http.Request) {
+		if _, ok := extractClaims(r); !ok {
+			http.Error(w, `{"message":"unauthenticated"}`, http.StatusUnauthorized)
+			return
+		}
+		libraryID := r.URL.Query().Get("library_id")
+		if libraryID == "" {
+			http.Error(w, `{"message":"library_id required"}`, http.StatusBadRequest)
+			return
+		}
+		limit, offset := 50, 0
+		if l := r.URL.Query().Get("limit"); l != "" {
+			if n, err := strconv.Atoi(l); err == nil && n > 0 {
+				limit = n
+			}
+		}
+		if o := r.URL.Query().Get("offset"); o != "" {
+			if n, err := strconv.Atoi(o); err == nil && n >= 0 {
+				offset = n
+			}
+		}
+		photos, total, err := photoSvc.ListPhotos(r.Context(), libraryID, limit, offset)
+		if err != nil {
+			slog.Error("list photos", slog.Any("err", err))
+			http.Error(w, `{"message":"internal error"}`, http.StatusInternalServerError)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]any{"photos": photos, "total": total})
+	})
+
+	mux.HandleFunc("POST /api/v1/photos/scan", func(w http.ResponseWriter, r *http.Request) {
+		if !requireAdmin(r) {
+			http.Error(w, `{"message":"forbidden"}`, http.StatusForbidden)
+			return
+		}
+		var body struct {
+			LibraryID string `json:"library_id"`
+			Dir       string `json:"dir"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil || body.LibraryID == "" || body.Dir == "" {
+			http.Error(w, `{"message":"library_id and dir required"}`, http.StatusBadRequest)
+			return
+		}
+		go func() {
+			n, err := photoSvc.ScanDirectory(context.Background(), body.LibraryID, body.Dir)
+			if err != nil {
+				slog.Error("photo scan", slog.Any("err", err))
+			} else {
+				slog.Info("photo scan complete", slog.Int("count", n), slog.String("dir", body.Dir))
+			}
+		}()
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusAccepted)
+		json.NewEncoder(w).Encode(map[string]string{"message": "scan started"})
 	})
 }
 
