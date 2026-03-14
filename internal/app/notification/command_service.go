@@ -143,6 +143,18 @@ func (s *CommandService) handleMediaItemAdded(parentCtx context.Context, ev shar
 		}
 		if err := s.repo.Create(ctx, n); err != nil {
 			slog.Warn("create notification failed", slog.String("profileID", p.ID), slog.Any("err", err))
+			continue
+		}
+		evt := notification.NotificationCreated{
+			NotificationID: n.ID,
+			ProfileID:      n.ProfileID,
+			Type:           n.Type,
+			Title:          n.Title,
+			MediaItemID:    n.MediaItemID,
+			OccurredAt:     n.CreatedAt,
+		}
+		if err := s.events.Publish(ctx, evt); err != nil {
+			slog.Warn("publish notification.created", slog.Any("err", err))
 		}
 	}
 }
