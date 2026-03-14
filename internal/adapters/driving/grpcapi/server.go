@@ -3,6 +3,7 @@ package grpcapi
 import (
 	"log/slog"
 	"net"
+	"time"
 
 	eveyv1 "github.com/gravity-zero/evey/gen/evey/v1"
 	appactivity "github.com/gravity-zero/evey/internal/app/activity"
@@ -55,6 +56,8 @@ type GRPCServer struct {
 	scheduler     *applibrary.Scheduler
 	logDir        string
 	version       string
+	startTime     time.Time
+	ffmpegPath    string
 	backup          *appbackup.Service
 	cfg             *config.Config
 	cfgStore        remoteAccessConfigStore
@@ -138,6 +141,8 @@ func NewGRPCServer(
 		cfg:           cfg,
 		cfgStore:      cfgStore,
 		version:       version,
+		startTime:     time.Now(),
+		ffmpegPath:    "ffmpeg",
 	}
 }
 
@@ -162,6 +167,8 @@ func (s *GRPCServer) RegisterServices() {
 		metadataCmd:      s.metadataCmd,
 		logDir:           s.logDir,
 		version:          s.version,
+		startTime:        s.startTime,
+		ffmpegPath:       s.ffmpegPath,
 		heavyOpSemaphore: make(chan struct{}, 1),
 	})
 	eveyv1.RegisterActivityServiceServer(s.server, &activityHandler{svc: s.activityQuery})

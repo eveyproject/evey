@@ -1,67 +1,236 @@
+import { useEffect, useRef, useState } from "react";
 import { createLazyFileRoute } from "@tanstack/react-router";
-import { useQuery } from "@tanstack/react-query";
-import { eveyFetch } from "@evey/api/src/fetcher";
+import { useAdminServiceGetDashboard, useAdminServiceGetSystemInfo } from "@evey/api";
 import { Spinner } from "@/components/ui/Spinner";
+import type { V1DashboardInfo, V1SystemInfo } from "@evey/api/src/generated/admin.schemas";
 
 export const Route = createLazyFileRoute("/_auth/admin/system-health")({
   component: SystemHealthPage,
 });
 
-interface SystemStats {
-  goroutines: number;
-  memAllocBytes: number;
-  memSysBytes: number;
-  numGC: number;
-  uptimeSeconds: number;
-  goVersion: string;
-  os: string;
-  arch: string;
-  numCPU: number;
-}
+const MAX_HISTORY = 30;
 
-function formatBytes(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-  if (bytes < 1024 * 1024 * 1024) return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
-  return `${(bytes / 1024 / 1024 / 1024).toFixed(2)} GB`;
-}
-
-function formatUptime(seconds: number): string {
-  const d = Math.floor(seconds / 86400);
-  const h = Math.floor((seconds % 86400) / 3600);
-  const m = Math.floor((seconds % 3600) / 60);
-  const s = seconds % 60;
+function formatUptime(seconds: string | undefined): string {
+  const s = parseInt(seconds ?? "0");
+  const d = Math.floor(s / 86400);
+  const h = Math.floor((s % 86400) / 3600);
+  const m = Math.floor((s % 3600) / 60);
   if (d > 0) return `${d}d ${h}h ${m}m`;
-  if (h > 0) return `${h}h ${m}m ${s}s`;
-  if (m > 0) return `${m}m ${s}s`;
+  if (h > 0) return `${h}h ${m}m`;
+  if (m > 0) return `${m}m ${s % 60}s`;
   return `${s}s`;
 }
 
-function StatCard({ label, value, sub }: { label: string; value: string; sub?: string }) {
+function formatBytes(bytes: string | undefined): string {
+  const n = parseInt(bytes ?? "0");
+  if (n > 1e12) return `${(n / 1e12).toFixed(2)} TB`;
+  if (n > 1e9) return `${(n / 1e9).toFixed(1)} GB`;
+  if (n > 1e6) return `${(n / 1e6).toFixed(1)} MB`;
+  return `${n} B`;
+}
+
+function getUsageColor(pct: number): string {
+  if (pct > 85) return "#ef4444";
+  if (pct > 70) return "#f97316";
+  return "var(--accent)";
+}
+
+function getUsageTextColor(pct: number): string {
+  if (pct > 85) return "text-red-400";
+  if (pct > 70) return "text-orange-400";
+  return "text-green-400";
+}
+
+// Inline SVG sparkline — no external lib
+function Sparkline({ values, color }: { values: number[]; color: string }) {
+  if (values.length < 2) return null;
+  const w = 120;
+  const h = 32;
+  const max = Math.max(...values, 1);
+  const pts = values.map((v, i) => {
+    const x = (i / (values.length - 1)) * w;
+    const y = h - (v / max) * h;
+    return `${x},${y}`;
+  });
+  return (
+    <svg width={w} height={h} viewBox={`0 0 ${w} ${h}`} className="opacity-80">
+      <polyline
+        points={pts.join(" ")}
+        fill="none"
+        stroke={color}
+        strokeWidth={1.5}
+        strokeLinejoin="round"
+        strokeLinecap="round"
+      />
+    </svg>
+  );
+}
+
+interface MetricCardProps {
+  label: string;
+  value: number;
+  history: number[];
+}
+
+function MetricCard({ label, value, history }: MetricCardProps) {
+  const pct = Math.min(100, Math.max(0, value));
+  const color = getUsageColor(pct);
+  const textClass = getUsageTextColor(pct);
+  return (
+    <div
+      className="p-4 rounded-[var(--radius-lg)] flex flex-col gap-3"
+      style={{ backgroundColor: "var(--surface)", border: "1px solid var(--border)" }}
+    >
+      <div className="flex items-center justify-between">
+        <span className="text-xs font-semibold uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>
+          {label}
+        </span>
+        <span className={`text-xl font-bold ${textClass}`}>{pct.toFixed(1)}%</span>
+      </div>
+      <div className="h-2 rounded-full" style={{ backgroundColor: "var(--border)" }}>
+        <div
+          className="h-2 rounded-full transition-all duration-500"
+          style={{ width: `${pct}%`, backgroundColor: color }}
+        />
+      </div>
+      <div className="flex justify-end">
+        <Sparkline values={history} color={color} />
+      </div>
+    </div>
+  );
+}
+
+interface StorageCardProps {
+  path: string;
+  usedBytes: string | undefined;
+  totalBytes: string | undefined;
+  freeBytes: string | undefined;
+}
+
+function StorageCard({ path, usedBytes, totalBytes, freeBytes }: StorageCardProps) {
+  const used = parseInt(usedBytes ?? "0");
+  const total = parseInt(totalBytes ?? "1");
+  const pct = total > 0 ? Math.round((used / total) * 100) : 0;
+  const color = getUsageColor(pct);
+  const textClass = getUsageTextColor(pct);
   return (
     <div
       className="p-4 rounded-[var(--radius-lg)]"
       style={{ backgroundColor: "var(--surface)", border: "1px solid var(--border)" }}
     >
-      <p className="text-xs font-semibold uppercase tracking-wider mb-1" style={{ color: "var(--text-muted)" }}>
-        {label}
-      </p>
-      <p className="text-2xl font-bold" style={{ color: "var(--text)" }}>{value}</p>
-      {sub && <p className="text-xs mt-0.5" style={{ color: "var(--text-muted)" }}>{sub}</p>}
+      <div className="flex justify-between items-start mb-2 gap-2">
+        <span className="text-sm font-mono truncate" style={{ color: "var(--text)" }}>{path}</span>
+        <span className={`text-sm font-bold whitespace-nowrap ${textClass}`}>{pct}%</span>
+      </div>
+      <div className="h-2 rounded-full mb-2" style={{ backgroundColor: "var(--border)" }}>
+        <div
+          className="h-2 rounded-full transition-all"
+          style={{ width: `${pct}%`, backgroundColor: color }}
+        />
+      </div>
+      <div className="flex justify-between text-xs" style={{ color: "var(--text-muted)" }}>
+        <span>Used: {formatBytes(usedBytes)}</span>
+        <span>Free: {formatBytes(freeBytes)}</span>
+        <span>Total: {formatBytes(totalBytes)}</span>
+      </div>
+    </div>
+  );
+}
+
+function InfoRow({ label, value }: { label: string; value: string | undefined }) {
+  if (!value) return null;
+  return (
+    <div>
+      <dt className="text-xs font-medium uppercase tracking-wide mb-0.5" style={{ color: "var(--text-muted)" }}>{label}</dt>
+      <dd className="text-sm font-mono" style={{ color: "var(--text)" }}>{value}</dd>
+    </div>
+  );
+}
+
+function ServerInfoPanel({ info }: { info: V1SystemInfo }) {
+  const devices = info.hwDevices ?? [];
+  return (
+    <div
+      className="p-4 rounded-[var(--radius-lg)]"
+      style={{ backgroundColor: "var(--surface)", border: "1px solid var(--border)" }}
+    >
+      <h3 className="text-sm font-semibold mb-4" style={{ color: "var(--text)" }}>Server Info</h3>
+      <dl className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-x-6 gap-y-4">
+        <InfoRow label="Version" value={info.version} />
+        <InfoRow label="OS" value={info.os && info.arch ? `${info.os}/${info.arch}` : info.os} />
+        <InfoRow label="Go" value={info.goVersion} />
+        <InfoRow label="FFmpeg" value={info.ffmpegVersion} />
+        <InfoRow label="Uptime" value={formatUptime(info.uptimeSeconds)} />
+        <InfoRow label="Server ID" value={info.serverId} />
+      </dl>
+      {devices.length > 0 && (
+        <div className="mt-4">
+          <p className="text-xs font-semibold uppercase tracking-wide mb-2" style={{ color: "var(--text-muted)" }}>
+            HW Acceleration
+          </p>
+          <div className="flex flex-wrap gap-2">
+            {devices.map((d, i) => (
+              <span
+                key={i}
+                className="inline-flex items-center gap-1 px-2 py-1 rounded text-xs font-medium"
+                style={{ backgroundColor: "var(--surface-raised)", color: "var(--accent)" }}
+              >
+                {d.type?.replace("HW_ACCEL_TYPE_", "") ?? "?"} — {d.name ?? "unknown"}
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function StatBadge({ label, value }: { label: string; value: number | undefined }) {
+  return (
+    <div
+      className="flex flex-col items-center justify-center p-4 rounded-[var(--radius-lg)] gap-1"
+      style={{ backgroundColor: "var(--surface)", border: "1px solid var(--border)" }}
+    >
+      <span className="text-2xl font-bold" style={{ color: "var(--text)" }}>{value ?? 0}</span>
+      <span className="text-xs font-semibold uppercase tracking-wide" style={{ color: "var(--text-muted)" }}>{label}</span>
+    </div>
+  );
+}
+
+function DashboardPanel({ info }: { info: V1DashboardInfo; }) {
+  return (
+    <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+      <StatBadge label="Active Streams" value={info.activeStreams} />
+      <StatBadge label="Active Transcodes" value={info.activeTranscodes} />
+      <StatBadge label="Total Media" value={info.totalMediaItems} />
+      <StatBadge label="Total Users" value={info.totalUsers} />
     </div>
   );
 }
 
 function SystemHealthPage() {
-  const { data, isLoading, dataUpdatedAt } = useQuery<SystemStats>({
-    queryKey: ["/api/v1/admin/system/stats"],
-    queryFn: () => eveyFetch<SystemStats>({ url: "/api/v1/admin/system/stats", method: "GET" }),
-    refetchInterval: 5_000,
+  const { data: dashData, isLoading: dashLoading, dataUpdatedAt } = useAdminServiceGetDashboard({
+    query: { refetchInterval: 5_000 },
   });
+  const { data: sysData, isLoading: sysLoading } = useAdminServiceGetSystemInfo();
+
+  const cpuHistory = useRef<number[]>([]);
+  const memHistory = useRef<number[]>([]);
+  const [, forceRender] = useState(0);
+
+  useEffect(() => {
+    if (dashData) {
+      cpuHistory.current = [...cpuHistory.current, dashData.cpuPercent ?? 0].slice(-MAX_HISTORY);
+      memHistory.current = [...memHistory.current, dashData.memoryPercent ?? 0].slice(-MAX_HISTORY);
+      forceRender((n) => n + 1);
+    }
+  }, [dashData]);
+
+  const isLoading = dashLoading || sysLoading;
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between flex-wrap gap-2">
         <div>
           <h1 className="text-2xl font-bold" style={{ color: "var(--text)" }}>System Health</h1>
           {dataUpdatedAt > 0 && (
@@ -74,19 +243,65 @@ function SystemHealthPage() {
 
       {isLoading ? (
         <div className="flex justify-center py-16"><Spinner size="lg" /></div>
-      ) : data ? (
+      ) : (
         <>
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
-            <StatCard label="Uptime" value={formatUptime(data.uptimeSeconds)} />
-            <StatCard label="Goroutines" value={String(data.goroutines)} />
-            <StatCard label="Heap Alloc" value={formatBytes(data.memAllocBytes)} sub={`sys: ${formatBytes(data.memSysBytes)}`} />
-            <StatCard label="GC Cycles" value={String(data.numGC)} />
-            <StatCard label="CPUs" value={String(data.numCPU)} />
-            <StatCard label="Go Version" value={data.goVersion} />
-            <StatCard label="OS / Arch" value={`${data.os}/${data.arch}`} />
-          </div>
+          {/* Real-time metrics */}
+          {dashData && (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <MetricCard
+                label="CPU Usage"
+                value={dashData.cpuPercent ?? 0}
+                history={cpuHistory.current}
+              />
+              <MetricCard
+                label="Memory Usage"
+                value={dashData.memoryPercent ?? 0}
+                history={memHistory.current}
+              />
+            </div>
+          )}
+
+          {/* Storage */}
+          {dashData?.storage && dashData.storage.length > 0 && (
+            <div>
+              <h2 className="text-sm font-semibold uppercase tracking-wide mb-3" style={{ color: "var(--text-muted)" }}>
+                Storage
+              </h2>
+              <div className="flex flex-col gap-3">
+                {dashData.storage.map((s, i) => (
+                  <StorageCard
+                    key={i}
+                    path={s.path ?? ""}
+                    usedBytes={s.usedBytes}
+                    totalBytes={s.totalBytes}
+                    freeBytes={s.freeBytes}
+                  />
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Stream stats */}
+          {dashData && (
+            <div>
+              <h2 className="text-sm font-semibold uppercase tracking-wide mb-3" style={{ color: "var(--text-muted)" }}>
+                Activity
+              </h2>
+              <DashboardPanel info={dashData} />
+            </div>
+          )}
+
+          {/* Server info */}
+          {sysData && (
+            <div>
+              <h2 className="text-sm font-semibold uppercase tracking-wide mb-3" style={{ color: "var(--text-muted)" }}>
+                Server
+              </h2>
+              <ServerInfoPanel info={sysData} />
+            </div>
+          )}
         </>
-      ) : null}
+      )}
     </div>
   );
 }

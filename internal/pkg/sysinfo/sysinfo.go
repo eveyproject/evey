@@ -3,6 +3,7 @@ package sysinfo
 import (
 	"bufio"
 	"os"
+	"os/exec"
 	"runtime"
 	"strconv"
 	"strings"
@@ -121,6 +122,26 @@ func sampleCPU() float64 {
 		return 0
 	}
 	return float64(dTotal-dIdle) / float64(dTotal) * 100
+}
+
+// FFmpegVersion runs `ffmpeg -version` and returns the version string (e.g. "6.1.1").
+func FFmpegVersion(ffmpegPath string) string {
+	if ffmpegPath == "" {
+		ffmpegPath = "ffmpeg"
+	}
+	out, err := exec.Command(ffmpegPath, "-version").Output() //nolint:gosec
+	if err != nil {
+		return ""
+	}
+	// first line: "ffmpeg version 6.1.1 ..."
+	line := strings.SplitN(string(out), "\n", 2)[0]
+	fields := strings.Fields(line)
+	for i, f := range fields {
+		if f == "version" && i+1 < len(fields) {
+			return fields[i+1]
+		}
+	}
+	return ""
 }
 
 func readCPUStat() (cpuSample, bool) {

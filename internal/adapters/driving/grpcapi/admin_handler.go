@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"log/slog"
+	"math"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -56,6 +57,8 @@ type adminHandler struct {
 	metadataCmd      *appmetadata.CommandService
 	logDir           string
 	version          string
+	startTime        time.Time
+	ffmpegPath       string
 	heavyOpSemaphore chan struct{} // capacity 1; non-blocking acquire guards heavy ops
 }
 
@@ -64,13 +67,34 @@ func (h *adminHandler) GetSystemInfo(ctx context.Context, _ *eveyv1.GetSystemInf
 	if adminErr != nil {
 		slog.Warn("count admins", slog.Any("err", adminErr))
 	}
-	return &eveyv1.SystemInfo{
-		Version:       h.version,
-		Os:            runtime.GOOS,
-		Arch:          runtime.GOARCH,
-		GoVersion:     runtime.Version(),
-		SetupComplete: admins > 0,
-	}, nil
+
+	var uptimeSecs int64
+	if !h.startTime.IsZero() {
+		uptimeSecs = int64(math.Round(time.Since(h.startTime).Seconds()))
+	}
+
+	info := &eveyv1.SystemInfo{
+		Version:        h.version,
+		Os:             runtime.GOOS,
+		Arch:           runtime.GOARCH,
+		GoVersion:      runtime.Version(),
+		SetupComplete:  admins > 0,
+		UptimeSeconds:  uptimeSecs,
+		FfmpegVersion:  sysinfo.FFmpegVersion(h.ffmpegPath),
+	}
+
+	if h.transcodingSvc != nil {
+		devices, err := h.transcodingSvc.DetectHardware(ctx)
+		if err != nil {
+			slog.Warn("detect hardware", slog.Any("err", err))
+		} else {
+			for _, d := range devices {
+				info.HwDevices = append(info.HwDevices, hwDeviceToProto(d))
+			}
+		}
+	}
+
+	return info, nil
 }
 
 func (h *adminHandler) GetServerConfig(_ context.Context, _ *eveyv1.GetServerConfigRequest) (*eveyv1.ServerConfig, error) {
