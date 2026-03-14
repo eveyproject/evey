@@ -191,6 +191,8 @@ interface PlayerControlsProps {
   onSubtitleColorChange?: (color: string) => void;
   subtitleFontFamily?: string;
   onSubtitleFontFamilyChange?: (font: string) => void;
+  theaterMode?: boolean;
+  onTheaterModeToggle?: () => void;
 }
 
 function formatTime(seconds: number): string {
@@ -572,6 +574,8 @@ export function PlayerControls({
   onSubtitleColorChange,
   subtitleFontFamily = "",
   onSubtitleFontFamilyChange,
+  theaterMode = false,
+  onTheaterModeToggle,
 }: PlayerControlsProps) {
   const [visible, setVisible] = useState(true);
   const [playing, setPlaying] = useState(false);
@@ -1023,6 +1027,25 @@ export function PlayerControls({
             subtitleFontFamily={subtitleFontFamily}
             onSubtitleFontFamilyChange={onSubtitleFontFamilyChange}
           />
+
+          {/* Theater mode */}
+          {onTheaterModeToggle && (
+            <button
+              onClick={(e) => { e.stopPropagation(); onTheaterModeToggle(); }}
+              aria-label={theaterMode ? "Exit theater mode" : "Theater mode"}
+              className="text-white hover:text-[var(--accent)] transition-colors p-1"
+            >
+              {theaterMode ? (
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M22 19V5c0-1.1-.9-2-2-2H4c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2zm-10-4H4V5h8v10zm10 4H14V5h8v14z"/>
+                </svg>
+              ) : (
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M19 6H5c-1.1 0-2 .9-2 2v8c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2zm0 10H5V8h14v8z"/>
+                </svg>
+              )}
+            </button>
+          )}
 
           {/* Picture-in-Picture */}
           {typeof document !== "undefined" && document.pictureInPictureEnabled && (

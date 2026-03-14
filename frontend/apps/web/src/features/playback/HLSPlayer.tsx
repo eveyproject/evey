@@ -18,6 +18,8 @@ import {
   setPreferredAudioLang,
   getPreferredSubtitleLang,
   setPreferredSubtitleLang,
+  getSeriesTrackPrefs,
+  setSeriesTrackPrefs,
 } from "@/hooks/usePlaybackPrefs";
 
 const QUALITY_LEVELS = [0, 1080, 720, 480, 360];
@@ -59,6 +61,8 @@ interface HLSPlayerProps {
   onSeasonChange?: (id: string) => void;
   onEpisodeChange?: (id: string) => void;
   chapters?: Chapter[];
+  seriesId?: string;
+  onTheaterModeChange?: (active: boolean) => void;
 }
 
 export function HLSPlayer({
@@ -80,6 +84,8 @@ export function HLSPlayer({
   onSeasonChange,
   onEpisodeChange,
   chapters = [],
+  seriesId,
+  onTheaterModeChange,
 }: HLSPlayerProps) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const hlsRef = useRef<InstanceType<typeof Hls> | null>(null);
@@ -92,7 +98,8 @@ export function HLSPlayer({
   const [overlayTime, setOverlayTime] = useState(0);
   const [overlayDuration, setOverlayDuration] = useState(0);
   const defaultAudio = (() => {
-    const prefLang = getPreferredAudioLang();
+    const seriesPrefs = seriesId ? getSeriesTrackPrefs(seriesId) : null;
+    const prefLang = seriesPrefs?.audioLang ?? getPreferredAudioLang();
     if (prefLang) {
       const match = audioStreams.find((s) => (s.language ?? s.title ?? "").toLowerCase() === prefLang.toLowerCase());
       if (match) return match;
@@ -104,11 +111,18 @@ export function HLSPlayer({
   const [currentQuality, setCurrentQuality] = useState(0); // 0 = original
   const [autoQuality, setAutoQuality] = useState(true);
   const [currentSubtitle, setCurrentSubtitle] = useState<number | null>(() => {
+    const seriesPrefs = seriesId ? getSeriesTrackPrefs(seriesId) : null;
+    if (seriesPrefs && "subtitleLang" in seriesPrefs) {
+      if (seriesPrefs.subtitleLang === null || seriesPrefs.subtitleLang === undefined) return null;
+      const match = subtitleStreams.find((s) => (s.language ?? s.title ?? "").toLowerCase() === seriesPrefs.subtitleLang!.toLowerCase());
+      if (match) return match.trackIndex;
+    }
     const prefLang = getPreferredSubtitleLang();
     if (!prefLang) return null;
     const match = subtitleStreams.find((s) => (s.language ?? s.title ?? "").toLowerCase() === prefLang.toLowerCase());
     return match?.trackIndex ?? null;
   });
+  const [theaterMode, setTheaterMode] = useState(false);
   const [playbackSpeed, setPlaybackSpeed] = useState(1);
   const [externalSubUrl, setExternalSubUrl] = useState<{ url: string; label: string } | null>(null);
   const externalSubUrlRef = useRef<string | null>(null);
@@ -527,7 +541,12 @@ export function HLSPlayer({
     setCurrentAudioIndex(index);
     if (stream) {
       setCurrentTrackIndex(stream.trackIndex);
-      setPreferredAudioLang(stream.language ?? stream.title ?? null);
+      const lang = stream.language ?? stream.title ?? null;
+      setPreferredAudioLang(lang);
+      if (seriesId && lang) {
+        const cur = getSeriesTrackPrefs(seriesId) ?? {};
+        setSeriesTrackPrefs(seriesId, { ...cur, audioLang: lang });
+      }
     }
 
     if (!transcodeMode) {
@@ -677,9 +696,18 @@ export function HLSPlayer({
           setCurrentSubtitle(trackIndex);
           if (trackIndex === null) {
             setPreferredSubtitleLang(null);
+            if (seriesId) {
+              const cur = getSeriesTrackPrefs(seriesId) ?? {};
+              setSeriesTrackPrefs(seriesId, { ...cur, subtitleLang: null });
+            }
           } else {
             const s = subtitleStreams.find((st) => st.trackIndex === trackIndex);
-            setPreferredSubtitleLang(s?.language ?? s?.title ?? null);
+            const lang = s?.language ?? s?.title ?? null;
+            setPreferredSubtitleLang(lang);
+            if (seriesId) {
+              const cur = getSeriesTrackPrefs(seriesId) ?? {};
+              setSeriesTrackPrefs(seriesId, { ...cur, subtitleLang: lang });
+            }
           }
         }}
         playbackSpeed={playbackSpeed}
@@ -705,6 +733,12 @@ export function HLSPlayer({
         onExternalSubtitle={(blobUrl, label) => {
           setCurrentSubtitle(null);
           setExternalSubUrl({ url: blobUrl, label });
+        }}
+        theaterMode={theaterMode}
+        onTheaterModeToggle={() => {
+          const next = !theaterMode;
+          setTheaterMode(next);
+          onTheaterModeChange?.(next);
         }}
       />
       {showShortcuts && <KeyboardShortcutsOverlay onClose={() => setShowShortcuts(false)} skipForwardSeconds={skipFwd} skipBackwardSeconds={skipBwd} />}

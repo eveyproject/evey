@@ -15,6 +15,7 @@ export const Route = createLazyFileRoute("/_auth/player/$mediaId")({
 function PlayerPage() {
   const { mediaId } = Route.useParams();
   const router = useRouter();
+  const [theaterMode, setTheaterMode] = useState(false);
   const { streamInfo, sessionId, isLoading, isError, progress, stopSession } = usePlaySession(mediaId);
   const { data: mediaItem } = useQuery({
     queryKey: [`/api/v1/media/${mediaId}`],
@@ -104,7 +105,8 @@ function PlayerPage() {
 
   return (
     <div
-      className="fixed inset-0 bg-black z-50 flex items-center justify-center"
+      className={`fixed inset-0 bg-black z-50 flex items-center justify-center${theaterMode ? " theater-mode" : ""}`}
+      style={theaterMode ? { padding: 0 } : undefined}
     >
       <button
         aria-label="Exit player"
@@ -161,6 +163,8 @@ function PlayerPage() {
           onSeasonChange={setSelectedSeasonId}
           onEpisodeChange={handleEpisodeChange}
           chapters={chapters}
+          seriesId={isEpisode ? seriesId : undefined}
+          onTheaterModeChange={setTheaterMode}
         />
       )}
     </div>
