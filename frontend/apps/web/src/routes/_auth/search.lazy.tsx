@@ -6,6 +6,7 @@ import { EmptyState } from "@/components/ui/EmptyState";
 import { MediaGridSkeleton } from "@/components/ui/Skeleton";
 import { MediaGrid } from "@/features/library/MediaGrid";
 import { MediaCard } from "@/features/library/MediaCard";
+import { useRecentSearches } from "@/hooks/useRecentSearches";
 
 export const Route = createLazyFileRoute("/_auth/search")({
   component: SearchPage,
@@ -27,6 +28,7 @@ function SearchPage() {
   const [inputValue, setInputValue] = useState(q ?? "");
   const [debouncedQuery, setDebouncedQuery] = useState(q?.trim() ?? "");
   const [typeFilter, setTypeFilter] = useState<MediaTypeFilter | undefined>(undefined);
+  const { recents, push: pushRecent, remove: removeRecent, clear: clearRecents } = useRecentSearches();
 
   useEffect(() => {
     if (q !== undefined && q !== inputValue) {
@@ -40,6 +42,7 @@ function SearchPage() {
     const timer = setTimeout(() => {
       const trimmed = inputValue.trim();
       setDebouncedQuery(trimmed);
+      if (trimmed.length > 1) pushRecent(trimmed);
       void navigate({
         to: "/search",
         search: trimmed ? { q: trimmed } : {},
@@ -47,7 +50,7 @@ function SearchPage() {
       });
     }, 300);
     return () => clearTimeout(timer);
-  }, [inputValue, navigate]);
+  }, [inputValue, navigate, pushRecent]);
 
   // Focus input on mount
   useEffect(() => {
@@ -163,7 +166,48 @@ function SearchPage() {
         </div>
       )}
 
-      {!hasQuery && !isLoading && (
+      {!hasQuery && !isLoading && recents.length > 0 && (
+        <div className="mb-6">
+          <div className="flex items-center justify-between mb-3">
+            <span className="text-sm font-semibold" style={{ color: "var(--text-muted)" }}>Recent searches</span>
+            <button
+              onClick={clearRecents}
+              className="text-xs hover:underline cursor-pointer"
+              style={{ color: "var(--text-muted)" }}
+            >
+              Clear all
+            </button>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {recents.map((r) => (
+              <div
+                key={r}
+                className="flex items-center gap-1 px-3 py-1.5 rounded-full text-sm"
+                style={{ backgroundColor: "var(--surface)", border: "1px solid var(--border)", color: "var(--text)" }}
+              >
+                <button
+                  className="hover:text-[var(--accent)] cursor-pointer transition-colors"
+                  onClick={() => setInputValue(r)}
+                >
+                  {r}
+                </button>
+                <button
+                  onClick={() => removeRecent(r)}
+                  className="ml-1 hover:text-red-400 cursor-pointer transition-colors"
+                  style={{ color: "var(--text-muted)" }}
+                  aria-label={`Remove ${r}`}
+                >
+                  <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                    <path strokeLinecap="round" d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {!hasQuery && !isLoading && recents.length === 0 && (
         <div
           className="rounded-[var(--radius-lg)]"
           style={{
