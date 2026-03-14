@@ -196,13 +196,16 @@ func run() error {
 	schedulerLog := eveylogger.NewWith(rootLog, "scheduler")
 	libScheduler := applibrary.NewScheduler(scanScheduleRepo, libCmdSvc, schedulerLog)
 
-	userSvc := appuser.NewService(
+	userCmdSvc := appuser.NewCommandService(
 		userRepo,
 		profileRepo, refreshTokenRepo, apiKeyRepo,
 		inviteLinkRepo, quickConnectRepo, roleRepo, userRoleRepo,
 		hasher, tokenGen, bus,
 	)
-	userSvc.InitSetupState(context.Background())
+	userCmdSvc.InitSetupState(context.Background())
+	userQuerySvc := appuser.NewQueryService(
+		userRepo, profileRepo, apiKeyRepo, inviteLinkRepo, quickConnectRepo,
+	)
 
 	playbackSvc := appplayback.NewService(
 		watchProgressRepo, watchProgressRepo, playSessionRepo, userRepo, profileRepo, bus,
@@ -358,7 +361,7 @@ func run() error {
 
 	// --- gRPC server ---
 	grpcSrv := grpcapi.NewGRPCServer(
-		libCmdSvc, libQuerySvc, userSvc,
+		libCmdSvc, libQuerySvc, userCmdSvc, userQuerySvc,
 		playbackSvc.CommandService(), playbackSvc.QueryService(),
 		transcodingSvc,
 		mkvSvc, pluginSvc, metadataCmdSvc, metadataQuerySvc, activityCmdSvc, activityQuerySvc,

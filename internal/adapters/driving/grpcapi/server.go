@@ -24,7 +24,8 @@ type GRPCServer struct {
 	server          *grpc.Server
 	libCmd          *applibrary.CommandService
 	libQuery        *applibrary.QueryService
-	user            *appuser.Service
+	userCmd         *appuser.CommandService
+	userQuery       *appuser.QueryService
 	playbackCmd     *appplayback.CommandService
 	playbackQuery   *appplayback.QueryService
 	transcoding     *apptranscoding.Service
@@ -53,7 +54,8 @@ func (s *GRPCServer) SetHLSManager(m *apptranscoding.HLSManager) {
 func NewGRPCServer(
 	libCmd *applibrary.CommandService,
 	libQuery *applibrary.QueryService,
-	userSvc *appuser.Service,
+	userCmd *appuser.CommandService,
+	userQuery *appuser.QueryService,
 	playbackCmd *appplayback.CommandService,
 	playbackQuery *appplayback.QueryService,
 	transcoding *apptranscoding.Service,
@@ -78,7 +80,8 @@ func NewGRPCServer(
 		server:        grpc.NewServer(opts...),
 		libCmd:        libCmd,
 		libQuery:      libQuery,
-		user:          userSvc,
+		userCmd:       userCmd,
+		userQuery:     userQuery,
 		playbackCmd:   playbackCmd,
 		playbackQuery: playbackQuery,
 		transcoding:   transcoding,
@@ -102,13 +105,14 @@ func NewGRPCServer(
 
 func (s *GRPCServer) RegisterServices() {
 	eveyv1.RegisterLibraryServiceServer(s.server, &libraryHandler{cmd: s.libCmd, query: s.libQuery, metadataSvc: s.metadataQuery, libraryAccess: s.libraryAccess, profiles: s.profiles})
-	eveyv1.RegisterUserServiceServer(s.server, &userHandler{svc: s.user, users: s.users, activitySvc: s.activityCmd})
+	eveyv1.RegisterUserServiceServer(s.server, &userHandler{cmd: s.userCmd, query: s.userQuery, users: s.users, activitySvc: s.activityCmd})
 	eveyv1.RegisterPlaybackServiceServer(s.server, &playbackHandler{cmd: s.playbackCmd, query: s.playbackQuery, librarySvc: s.libQuery})
 	eveyv1.RegisterTranscodingServiceServer(s.server, &transcodingHandler{svc: s.transcoding, profiles: s.profiles})
 	eveyv1.RegisterMKVServiceServer(s.server, &mkvHandler{svc: s.mkv})
 	eveyv1.RegisterMetadataServiceServer(s.server, &metadataHandler{cmd: s.metadataCmd, query: s.metadataQuery})
 	eveyv1.RegisterAdminServiceServer(s.server, &adminHandler{
-		userSvc:        s.user,
+		userCmd:        s.userCmd,
+		userQuery:      s.userQuery,
 		transcodingSvc: s.transcoding,
 		activitySvc:    s.activityQuery,
 		pluginSvc:      s.plugin,

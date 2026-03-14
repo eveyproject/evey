@@ -17,13 +17,14 @@ import (
 )
 
 type testUserEnv struct {
-	handler      *userHandler
-	userRepo     *userfakes.FakeUserRepository
-	profileRepo  *userfakes.FakeProfileRepository
-	svc          *appuser.Service
-	events       *sharedfakes.FakeEventBus
-	tokenGen     *userfakes.FakeTokenGenerator
-	hasher       *userfakes.FakePasswordHasher
+	handler     *userHandler
+	userRepo    *userfakes.FakeUserRepository
+	profileRepo *userfakes.FakeProfileRepository
+	cmd         *appuser.CommandService
+	query       *appuser.QueryService
+	events      *sharedfakes.FakeEventBus
+	tokenGen    *userfakes.FakeTokenGenerator
+	hasher      *userfakes.FakePasswordHasher
 }
 
 func setupUserHandler() *testUserEnv {
@@ -39,11 +40,12 @@ func setupUserHandler() *testUserEnv {
 	tokenGen := userfakes.NewFakeTokenGenerator()
 	events := sharedfakes.NewFakeEventBus()
 
-	svc := appuser.NewService(
+	cmd := appuser.NewCommandService(
 		userRepo, profileRepo, refreshRepo, apiKeyRepo,
 		inviteRepo, qcRepo, roleRepo, userRoleRepo,
 		hasher, tokenGen, events,
 	)
+	query := appuser.NewQueryService(userRepo, profileRepo, apiKeyRepo, inviteRepo, qcRepo)
 
 	actSvc := appactivity.NewCommandService(
 		activityfakes.NewFakeLoginHistoryRepository(),
@@ -53,7 +55,8 @@ func setupUserHandler() *testUserEnv {
 	)
 
 	h := &userHandler{
-		svc:         svc,
+		cmd:         cmd,
+		query:       query,
 		users:       userRepo,
 		activitySvc: actSvc,
 	}
@@ -62,7 +65,8 @@ func setupUserHandler() *testUserEnv {
 		handler:     h,
 		userRepo:    userRepo,
 		profileRepo: profileRepo,
-		svc:         svc,
+		cmd:         cmd,
+		query:       query,
 		events:      events,
 		tokenGen:    tokenGen,
 		hasher:      hasher,

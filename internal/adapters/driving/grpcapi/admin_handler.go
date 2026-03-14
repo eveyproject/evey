@@ -25,7 +25,8 @@ type adminLibraryLister interface {
 
 type adminHandler struct {
 	eveyv1.UnimplementedAdminServiceServer
-	userSvc        *appuser.Service
+	userCmd        *appuser.CommandService
+	userQuery      *appuser.QueryService
 	transcodingSvc *apptranscoding.Service
 	activitySvc    *appactivity.QueryService
 	pluginSvc      *appplugin.Service
@@ -35,7 +36,7 @@ type adminHandler struct {
 }
 
 func (h *adminHandler) GetSystemInfo(ctx context.Context, _ *eveyv1.GetSystemInfoRequest) (*eveyv1.SystemInfo, error) {
-	admins, adminErr := h.userSvc.CountAdmins(ctx)
+	admins, adminErr := h.userQuery.CountAdmins(ctx)
 	if adminErr != nil {
 		slog.Warn("count admins", slog.Any("err", adminErr))
 	}
@@ -57,14 +58,14 @@ func (h *adminHandler) UpdateServerConfig(_ context.Context, req *eveyv1.UpdateS
 }
 
 func (h *adminHandler) SetupWizard(ctx context.Context, req *eveyv1.SetupWizardRequest) (*eveyv1.SetupWizardResponse, error) {
-	u, err := h.userSvc.Setup(ctx, req.AdminUsername, req.AdminPassword, req.AdminEmail)
+	u, err := h.userCmd.Setup(ctx, req.AdminUsername, req.AdminPassword, req.AdminEmail)
 	if err != nil {
 		if errors.Is(err, appuser.ErrSetupDone) {
 			return nil, status.Errorf(codes.AlreadyExists, "setup already completed")
 		}
 		return nil, status.Errorf(codes.Internal, "setup: %v", err)
 	}
-	access, refresh, err := h.userSvc.Login(ctx, req.AdminUsername, req.AdminPassword)
+	access, refresh, err := h.userCmd.Login(ctx, req.AdminUsername, req.AdminPassword)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "login after setup: %v", err)
 	}

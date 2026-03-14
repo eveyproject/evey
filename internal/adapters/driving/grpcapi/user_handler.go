@@ -23,7 +23,8 @@ import (
 
 type userHandler struct {
 	eveyv1.UnimplementedUserServiceServer
-	svc         *appuser.Service
+	cmd         *appuser.CommandService
+	query       *appuser.QueryService
 	users       user.UserRepository
 	activitySvc *appactivity.CommandService
 }
@@ -57,7 +58,7 @@ func (h *userHandler) audit(ctx context.Context, userID, action, resourceType st
 }
 
 func (h *userHandler) Login(ctx context.Context, req *eveyv1.LoginRequest) (*eveyv1.AuthResponse, error) {
-	access, refresh, err := h.svc.Login(ctx, req.Username, req.Password)
+	access, refresh, err := h.cmd.Login(ctx, req.Username, req.Password)
 	if err != nil {
 		return nil, status.Error(codes.Unauthenticated, "invalid credentials")
 	}
@@ -77,7 +78,7 @@ func (h *userHandler) Login(ctx context.Context, req *eveyv1.LoginRequest) (*eve
 }
 
 func (h *userHandler) RefreshToken(ctx context.Context, req *eveyv1.RefreshTokenRequest) (*eveyv1.AuthResponse, error) {
-	access, newRefresh, err := h.svc.RefreshToken(ctx, req.RefreshToken)
+	access, newRefresh, err := h.cmd.RefreshToken(ctx, req.RefreshToken)
 	if err != nil {
 		return nil, status.Error(codes.Unauthenticated, "invalid credentials")
 	}
@@ -89,7 +90,7 @@ func (h *userHandler) Logout(ctx context.Context, _ *eveyv1.LogoutRequest) (*eve
 	if claims == nil {
 		return nil, status.Error(codes.Unauthenticated, "not authenticated")
 	}
-	if err := h.svc.Logout(ctx, claims.UserID); err != nil {
+	if err := h.cmd.Logout(ctx, claims.UserID); err != nil {
 		slog.Error("logout", slog.Any("err", err))
 		return nil, status.Errorf(codes.Internal, "internal error")
 	}
@@ -120,7 +121,7 @@ func (h *userHandler) CreateUser(ctx context.Context, req *eveyv1.CreateUserRequ
 		IsAdmin:  req.IsAdmin,
 		Enabled:  true,
 	}
-	if err := h.svc.CreateUser(ctx, claims.IsAdmin, u, req.Password); err != nil {
+	if err := h.cmd.CreateUser(ctx, claims.IsAdmin, u, req.Password); err != nil {
 		return nil, status.Errorf(codes.PermissionDenied, "%v", err)
 	}
 	h.audit(ctx, claims.UserID, "create_user", "user", &u.ID, map[string]any{"username": u.Username, "is_admin": u.IsAdmin})
@@ -157,7 +158,7 @@ func (h *userHandler) UpdateUser(ctx context.Context, req *eveyv1.UpdateUserRequ
 		ms := int(*req.MaxStreams)
 		u.MaxStreams = &ms
 	}
-	if err := h.svc.UpdateUser(ctx, u); err != nil {
+	if err := h.cmd.UpdateUser(ctx, u); err != nil {
 		slog.Error("update user", slog.Any("err", err))
 		return nil, status.Errorf(codes.Internal, "internal error")
 	}
@@ -165,7 +166,7 @@ func (h *userHandler) UpdateUser(ctx context.Context, req *eveyv1.UpdateUserRequ
 }
 
 func (h *userHandler) DeleteUser(ctx context.Context, req *eveyv1.DeleteUserRequest) (*eveyv1.DeleteUserResponse, error) {
-	if err := h.svc.DeleteUser(ctx, req.Id); err != nil {
+	if err := h.cmd.DeleteUser(ctx, req.Id); err != nil {
 		slog.Error("delete user", slog.Any("err", err))
 		return nil, status.Errorf(codes.Internal, "internal error")
 	}
@@ -179,7 +180,7 @@ func (h *userHandler) DeleteUser(ctx context.Context, req *eveyv1.DeleteUserRequ
 }
 
 func (h *userHandler) DisableUser(ctx context.Context, req *eveyv1.DisableUserRequest) (*eveyv1.User, error) {
-	if err := h.svc.DisableUser(ctx, req.Id); err != nil {
+	if err := h.cmd.DisableUser(ctx, req.Id); err != nil {
 		slog.Error("disable user", slog.Any("err", err))
 		return nil, status.Errorf(codes.Internal, "internal error")
 	}
@@ -197,7 +198,7 @@ func (h *userHandler) DisableUser(ctx context.Context, req *eveyv1.DisableUserRe
 }
 
 func (h *userHandler) ListUsers(ctx context.Context, _ *eveyv1.ListUsersRequest) (*eveyv1.ListUsersResponse, error) {
-	users, err := h.svc.ListUsers(ctx)
+	users, err := h.query.ListUsers(ctx)
 	if err != nil {
 		slog.Error("list users", slog.Any("err", err))
 		return nil, status.Errorf(codes.Internal, "internal error")
@@ -229,7 +230,7 @@ func (h *userHandler) CreateProfile(ctx context.Context, req *eveyv1.CreateProfi
 	if req.MaxRating != "" {
 		p.MaxRating = &req.MaxRating
 	}
-	if err := h.svc.CreateProfile(ctx, p); err != nil {
+	if err := h.cmd.CreateProfile(ctx, p); err != nil {
 		slog.Error("create profile", slog.Any("err", err))
 		return nil, status.Errorf(codes.Internal, "internal error")
 	}
@@ -265,7 +266,7 @@ func (h *userHandler) UpdateProfile(ctx context.Context, req *eveyv1.UpdateProfi
 			p.MaxBitrateKbps = &n
 		}
 	}
-	if err := h.svc.UpdateProfile(ctx, p); err != nil {
+	if err := h.cmd.UpdateProfile(ctx, p); err != nil {
 		slog.Error("update profile", slog.Any("err", err))
 		return nil, status.Errorf(codes.Internal, "internal error")
 	}
@@ -280,7 +281,7 @@ func (h *userHandler) DeleteProfile(ctx context.Context, req *eveyv1.DeleteProfi
 	if !claims.IsAdmin && req.Id != claims.ProfileID {
 		return nil, status.Error(codes.PermissionDenied, "cannot delete another user's profile")
 	}
-	if err := h.svc.DeleteProfile(ctx, req.Id); err != nil {
+	if err := h.cmd.DeleteProfile(ctx, req.Id); err != nil {
 		slog.Error("delete profile", slog.Any("err", err))
 		return nil, status.Errorf(codes.Internal, "internal error")
 	}
@@ -296,7 +297,7 @@ func (h *userHandler) ListProfiles(ctx context.Context, req *eveyv1.ListProfiles
 	if !claims.IsAdmin && userID != claims.UserID {
 		userID = claims.UserID
 	}
-	profiles, err := h.svc.ListProfiles(ctx, userID)
+	profiles, err := h.query.ListProfiles(ctx, userID)
 	if err != nil {
 		slog.Error("list profiles", slog.Any("err", err))
 		return nil, status.Errorf(codes.Internal, "internal error")
@@ -320,7 +321,7 @@ func (h *userHandler) CreateInviteLink(ctx context.Context, req *eveyv1.CreateIn
 		MaxUses:   int(req.MaxUses),
 		ExpiresAt: fromTimestamppbPtr(req.ExpiresAt),
 	}
-	if err := h.svc.CreateInviteLink(ctx, link); err != nil {
+	if err := h.cmd.CreateInviteLink(ctx, link); err != nil {
 		slog.Error("create invite link", slog.Any("err", err))
 		return nil, status.Errorf(codes.Internal, "internal error")
 	}
@@ -333,7 +334,7 @@ func (h *userHandler) ListInviteLinks(ctx context.Context, _ *eveyv1.ListInviteL
 	if claims != nil {
 		creatorID = claims.UserID
 	}
-	links, err := h.svc.ListInviteLinks(ctx, creatorID)
+	links, err := h.query.ListInviteLinks(ctx, creatorID)
 	if err != nil {
 		slog.Error("list invite links", slog.Any("err", err))
 		return nil, status.Errorf(codes.Internal, "internal error")
@@ -351,7 +352,7 @@ func (h *userHandler) RevokeInviteLink(ctx context.Context, req *eveyv1.RevokeIn
 		return nil, err
 	}
 	if !claims.IsAdmin {
-		links, err := h.svc.ListInviteLinks(ctx, claims.UserID)
+		links, err := h.query.ListInviteLinks(ctx, claims.UserID)
 		if err != nil {
 			return nil, status.Errorf(codes.Internal, "internal error")
 		}
@@ -366,7 +367,7 @@ func (h *userHandler) RevokeInviteLink(ctx context.Context, req *eveyv1.RevokeIn
 			return nil, status.Error(codes.PermissionDenied, "cannot revoke another user's invite link")
 		}
 	}
-	if err := h.svc.RevokeInviteLink(ctx, req.Id); err != nil {
+	if err := h.cmd.RevokeInviteLink(ctx, req.Id); err != nil {
 		slog.Error("revoke invite link", slog.Any("err", err))
 		return nil, status.Errorf(codes.Internal, "internal error")
 	}
@@ -374,11 +375,11 @@ func (h *userHandler) RevokeInviteLink(ctx context.Context, req *eveyv1.RevokeIn
 }
 
 func (h *userHandler) RegisterWithInvite(ctx context.Context, req *eveyv1.RegisterWithInviteRequest) (*eveyv1.AuthResponse, error) {
-	u, err := h.svc.RegisterWithInvite(ctx, req.InviteCode, req.Username, req.Password, req.Email)
+	u, err := h.cmd.RegisterWithInvite(ctx, req.InviteCode, req.Username, req.Password, req.Email)
 	if err != nil {
 		return nil, status.Error(codes.InvalidArgument, "invalid invite or registration data")
 	}
-	access, refresh, loginErr := h.svc.Login(ctx, req.Username, req.Password)
+	access, refresh, loginErr := h.cmd.Login(ctx, req.Username, req.Password)
 	if loginErr != nil {
 		return &eveyv1.AuthResponse{User: userToProto(u)}, nil //nolint:nilerr
 	}
@@ -396,7 +397,7 @@ func (h *userHandler) InitiateQuickConnect(ctx context.Context, _ *eveyv1.Initia
 		Secret: secureToken("qc-secret-", 16),
 		Status: string(user.Pending),
 	}
-	if err := h.svc.InitiateQuickConnect(ctx, qc); err != nil {
+	if err := h.cmd.InitiateQuickConnect(ctx, qc); err != nil {
 		slog.Error("initiate quick connect", slog.Any("err", err))
 		return nil, status.Errorf(codes.Internal, "internal error")
 	}
@@ -408,7 +409,7 @@ func (h *userHandler) AuthorizeQuickConnect(ctx context.Context, req *eveyv1.Aut
 	if claims == nil {
 		return nil, status.Error(codes.Unauthenticated, "not authenticated")
 	}
-	if err := h.svc.AuthorizeQuickConnect(ctx, req.Code, claims.UserID); err != nil {
+	if err := h.cmd.AuthorizeQuickConnect(ctx, req.Code, claims.UserID); err != nil {
 		slog.Error("authorize quick connect", slog.Any("err", err))
 		return nil, status.Errorf(codes.Internal, "internal error")
 	}
@@ -416,7 +417,7 @@ func (h *userHandler) AuthorizeQuickConnect(ctx context.Context, req *eveyv1.Aut
 }
 
 func (h *userHandler) CheckQuickConnect(ctx context.Context, req *eveyv1.CheckQuickConnectRequest) (*eveyv1.CheckQuickConnectResponse, error) {
-	qc, err := h.svc.CheckQuickConnect(ctx, req.Code)
+	qc, err := h.query.CheckQuickConnect(ctx, req.Code)
 	if err != nil {
 		return nil, status.Error(codes.NotFound, "invalid or expired code")
 	}
@@ -446,7 +447,7 @@ func (h *userHandler) CreateAPIKey(ctx context.Context, req *eveyv1.CreateAPIKey
 		Name:    req.Name,
 		KeyHash: keyHash,
 	}
-	if err := h.svc.CreateAPIKey(ctx, key); err != nil {
+	if err := h.cmd.CreateAPIKey(ctx, key); err != nil {
 		slog.Error("create api key", slog.Any("err", err))
 		return nil, status.Errorf(codes.Internal, "internal error")
 	}
@@ -461,7 +462,7 @@ func (h *userHandler) ListAPIKeys(ctx context.Context, _ *eveyv1.ListAPIKeysRequ
 	if claims == nil {
 		return nil, status.Error(codes.Unauthenticated, "not authenticated")
 	}
-	keys, err := h.svc.ListAPIKeys(ctx, claims.UserID)
+	keys, err := h.query.ListAPIKeys(ctx, claims.UserID)
 	if err != nil {
 		slog.Error("list api keys", slog.Any("err", err))
 		return nil, status.Errorf(codes.Internal, "internal error")
@@ -479,7 +480,7 @@ func (h *userHandler) RevokeAPIKey(ctx context.Context, req *eveyv1.RevokeAPIKey
 		return nil, err
 	}
 	if !claims.IsAdmin {
-		keys, err := h.svc.ListAPIKeys(ctx, claims.UserID)
+		keys, err := h.query.ListAPIKeys(ctx, claims.UserID)
 		if err != nil {
 			return nil, status.Errorf(codes.Internal, "internal error")
 		}
@@ -494,7 +495,7 @@ func (h *userHandler) RevokeAPIKey(ctx context.Context, req *eveyv1.RevokeAPIKey
 			return nil, status.Error(codes.PermissionDenied, "cannot revoke another user's API key")
 		}
 	}
-	if err := h.svc.RevokeAPIKey(ctx, req.Id); err != nil {
+	if err := h.cmd.RevokeAPIKey(ctx, req.Id); err != nil {
 		slog.Error("revoke api key", slog.Any("err", err))
 		return nil, status.Errorf(codes.Internal, "internal error")
 	}

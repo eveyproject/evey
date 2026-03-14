@@ -18,19 +18,25 @@ import (
 func newTestAdminHandler() *adminHandler {
 	events := sharedfakes.NewFakeEventBus()
 	roles := userfakes.NewFakeRoleRepository()
-	userSvc := appuser.NewService(
-		userfakes.NewFakeUserRepository(),
-		userfakes.NewFakeProfileRepository(),
+	userRepo := userfakes.NewFakeUserRepository()
+	profileRepo := userfakes.NewFakeProfileRepository()
+	apiKeyRepo := userfakes.NewFakeAPIKeyRepository()
+	inviteRepo := userfakes.NewFakeInviteLinkRepository()
+	qcRepo := userfakes.NewFakeQuickConnectRepository()
+	userCmd := appuser.NewCommandService(
+		userRepo,
+		profileRepo,
 		userfakes.NewFakeRefreshTokenRepository(),
-		userfakes.NewFakeAPIKeyRepository(),
-		userfakes.NewFakeInviteLinkRepository(),
-		userfakes.NewFakeQuickConnectRepository(),
+		apiKeyRepo,
+		inviteRepo,
+		qcRepo,
 		roles,
 		userfakes.NewFakeUserRoleRepository(roles),
 		userfakes.NewFakePasswordHasher(),
 		userfakes.NewFakeTokenGenerator(),
 		events,
 	)
+	userQuery := appuser.NewQueryService(userRepo, profileRepo, apiKeyRepo, inviteRepo, qcRepo)
 	activitySvc := appactivity.NewQueryService(
 		activityfakes.NewFakeLoginHistoryRepository(),
 		activityfakes.NewFakeServerMetricRepository(),
@@ -46,7 +52,8 @@ func newTestAdminHandler() *adminHandler {
 		events,
 	)
 	return &adminHandler{
-		userSvc:     userSvc,
+		userCmd:     userCmd,
+		userQuery:   userQuery,
 		activitySvc: activitySvc,
 		pluginSvc:   pluginSvc,
 		version:     "1.0.0-test",
