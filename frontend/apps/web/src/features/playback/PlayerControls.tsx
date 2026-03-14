@@ -4,6 +4,7 @@ import type { SubtitleStream } from "./SubtitleSelector";
 import { Select } from "@/components/ui/Select";
 import type { Chapter } from "@/hooks/useChapters";
 import { TrickplayPreview } from "./TrickplayPreview";
+import type { SubtitleStyle } from "@/hooks/usePlaybackPrefs";
 
 export interface EpisodeNavItem { id: string; title?: string; indexNumber?: number }
 export interface SeasonNavItem { id: string; title?: string; indexNumber?: number }
@@ -185,12 +186,8 @@ interface PlayerControlsProps {
   skipForwardSeconds?: number;
   skipBackwardSeconds?: number;
   onExternalSubtitle?: (blobUrl: string, label: string) => void;
-  subtitleFontSize?: number;
-  onSubtitleFontSizeChange?: (size: number) => void;
-  subtitleColor?: string;
-  onSubtitleColorChange?: (color: string) => void;
-  subtitleFontFamily?: string;
-  onSubtitleFontFamilyChange?: (font: string) => void;
+  subtitleStyle?: SubtitleStyle;
+  onSubtitleStyleChange?: (patch: Partial<SubtitleStyle>) => void;
   theaterMode?: boolean;
   onTheaterModeToggle?: () => void;
 }
@@ -219,12 +216,8 @@ interface SettingsPanelProps {
   onAutoQualityToggle?: (auto: boolean) => void;
   autoQualityLabel?: string;
   onExternalSubtitle?: (blobUrl: string, label: string) => void;
-  subtitleFontSize?: number;
-  onSubtitleFontSizeChange?: (size: number) => void;
-  subtitleColor?: string;
-  onSubtitleColorChange?: (color: string) => void;
-  subtitleFontFamily?: string;
-  onSubtitleFontFamilyChange?: (font: string) => void;
+  subtitleStyle?: SubtitleStyle;
+  onSubtitleStyleChange?: (patch: Partial<SubtitleStyle>) => void;
 }
 
 const SUBTITLE_COLORS = [
@@ -235,11 +228,19 @@ const SUBTITLE_COLORS = [
   { label: "Orange", value: "#fb923c" },
 ];
 
+const SUBTITLE_BG_COLORS = [
+  { label: "Black", value: "#000000" },
+  { label: "Dark grey", value: "#1a1a1a" },
+  { label: "Navy", value: "#1e3a5f" },
+  { label: "None", value: "#000000", opacity: 0 },
+];
+
 const SUBTITLE_FONTS = [
   { label: "Default", value: "" },
   { label: "Sans-serif", value: "Arial, sans-serif" },
   { label: "Serif", value: "Georgia, serif" },
   { label: "Monospace", value: "'Courier New', monospace" },
+  { label: "Comic Sans", value: "'Comic Sans MS', cursive" },
 ];
 
 function srtToVtt(srt: string): string {
@@ -278,13 +279,16 @@ function SettingsPanel({
   onAutoQualityToggle,
   autoQualityLabel,
   onExternalSubtitle,
-  subtitleFontSize = 100,
-  onSubtitleFontSizeChange,
-  subtitleColor = "#ffffff",
-  onSubtitleColorChange,
-  subtitleFontFamily = "",
-  onSubtitleFontFamilyChange,
+  subtitleStyle,
+  onSubtitleStyleChange,
 }: SettingsPanelProps) {
+  const subtitleFontSize = subtitleStyle?.fontSize ?? 100;
+  const subtitleColor = subtitleStyle?.color ?? "#ffffff";
+  const subtitleFontFamily = subtitleStyle?.fontFamily ?? "";
+  const subtitleBgColor = subtitleStyle?.bgColor ?? "#000000";
+  const subtitleBgOpacity = subtitleStyle?.bgOpacity ?? 75;
+  const subtitlePosition = subtitleStyle?.position ?? "bottom";
+  const subtitleShadow = subtitleStyle?.shadow ?? false;
   const extSubInputRef = useRef<HTMLInputElement>(null);
   const [open, setOpen] = useState(false);
 
@@ -426,10 +430,11 @@ function SettingsPanel({
             </>
           )}
 
-          {/* Subtitle font size */}
-          {onSubtitleFontSizeChange && (
+          {/* Subtitle styling */}
+          {onSubtitleStyleChange && (
             <>
               <div className="mx-3 my-1" style={{ borderTop: "1px solid var(--border)" }} />
+              {/* Size */}
               <div className="px-4 py-2">
                 <div className="flex items-center justify-between mb-1">
                   <span className="text-xs font-semibold uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>
@@ -443,28 +448,22 @@ function SettingsPanel({
                   max={200}
                   step={10}
                   value={subtitleFontSize}
-                  onChange={(e) => onSubtitleFontSizeChange(Number(e.target.value))}
+                  onChange={(e) => onSubtitleStyleChange({ fontSize: Number(e.target.value) })}
                   className="w-full accent-[var(--accent)]"
                   aria-label="Subtitle font size"
                 />
               </div>
-            </>
-          )}
-
-          {/* Subtitle color */}
-          {onSubtitleColorChange && (
-            <>
-              <div className="mx-3 my-1" style={{ borderTop: "1px solid var(--border)" }} />
+              {/* Text color */}
               <div className="px-4 py-2">
                 <span className="text-xs font-semibold uppercase tracking-wider block mb-2" style={{ color: "var(--text-muted)" }}>
-                  Subtitle Color
+                  Text Color
                 </span>
                 <div className="flex gap-2">
                   {SUBTITLE_COLORS.map((c) => (
                     <button
                       key={c.value}
                       title={c.label}
-                      onClick={() => onSubtitleColorChange(c.value)}
+                      onClick={() => onSubtitleStyleChange({ color: c.value })}
                       className="w-5 h-5 rounded-full transition-transform hover:scale-110"
                       style={{
                         backgroundColor: c.value,
@@ -475,20 +474,48 @@ function SettingsPanel({
                   ))}
                 </div>
               </div>
-            </>
-          )}
-
-          {/* Subtitle font */}
-          {onSubtitleFontFamilyChange && (
-            <>
-              <div className="mx-3 my-1" style={{ borderTop: "1px solid var(--border)" }} />
+              {/* Background */}
+              <div className="px-4 py-2">
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-xs font-semibold uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>
+                    Background
+                  </span>
+                  <span className="text-xs" style={{ color: "var(--text-muted)" }}>{subtitleBgOpacity}%</span>
+                </div>
+                <div className="flex gap-2 mb-2">
+                  {SUBTITLE_BG_COLORS.map((c) => (
+                    <button
+                      key={c.label}
+                      title={c.label}
+                      onClick={() => onSubtitleStyleChange({ bgColor: c.value, bgOpacity: c.opacity !== undefined ? c.opacity : subtitleBgOpacity })}
+                      className="w-5 h-5 rounded transition-transform hover:scale-110 border border-[var(--border)]"
+                      style={{
+                        backgroundColor: c.value,
+                        outline: subtitleBgColor === c.value ? "2px solid var(--accent)" : "2px solid transparent",
+                        outlineOffset: "2px",
+                      }}
+                    />
+                  ))}
+                </div>
+                <input
+                  type="range"
+                  min={0}
+                  max={100}
+                  step={5}
+                  value={subtitleBgOpacity}
+                  onChange={(e) => onSubtitleStyleChange({ bgOpacity: Number(e.target.value) })}
+                  className="w-full accent-[var(--accent)]"
+                  aria-label="Background opacity"
+                />
+              </div>
+              {/* Font */}
               <div className="px-4 py-2">
                 <span className="text-xs font-semibold uppercase tracking-wider block mb-2" style={{ color: "var(--text-muted)" }}>
-                  Subtitle Font
+                  Font
                 </span>
                 <select
                   value={subtitleFontFamily}
-                  onChange={(e) => onSubtitleFontFamilyChange(e.target.value)}
+                  onChange={(e) => onSubtitleStyleChange({ fontFamily: e.target.value })}
                   className="w-full text-sm px-2 py-1 rounded"
                   style={{ backgroundColor: "var(--surface-raised)", color: "var(--text)", border: "1px solid var(--border)" }}
                 >
@@ -496,6 +523,51 @@ function SettingsPanel({
                     <option key={f.value} value={f.value}>{f.label}</option>
                   ))}
                 </select>
+              </div>
+              {/* Position */}
+              <div className="px-4 py-2">
+                <span className="text-xs font-semibold uppercase tracking-wider block mb-2" style={{ color: "var(--text-muted)" }}>
+                  Position
+                </span>
+                <div className="flex gap-2">
+                  {(["bottom", "top"] as const).map((pos) => (
+                    <button
+                      key={pos}
+                      onClick={() => onSubtitleStyleChange({ position: pos })}
+                      className="flex-1 text-xs py-1 rounded transition-colors"
+                      style={{
+                        backgroundColor: subtitlePosition === pos ? "var(--accent)" : "var(--surface-raised)",
+                        color: subtitlePosition === pos ? "#fff" : "var(--text)",
+                        border: "1px solid var(--border)",
+                      }}
+                    >
+                      {pos.charAt(0).toUpperCase() + pos.slice(1)}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              {/* Text shadow */}
+              <div className="px-4 py-2">
+                <button
+                  onClick={() => onSubtitleStyleChange({ shadow: !subtitleShadow })}
+                  className="flex items-center gap-2 text-xs w-full"
+                  style={{ color: "var(--text)" }}
+                >
+                  <span
+                    className="w-4 h-4 rounded border flex items-center justify-center flex-shrink-0"
+                    style={{
+                      backgroundColor: subtitleShadow ? "var(--accent)" : "transparent",
+                      borderColor: subtitleShadow ? "var(--accent)" : "var(--border)",
+                    }}
+                  >
+                    {subtitleShadow && (
+                      <svg width="10" height="10" viewBox="0 0 24 24" fill="white">
+                        <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z" />
+                      </svg>
+                    )}
+                  </span>
+                  <span className="font-semibold uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>Text shadow</span>
+                </button>
               </div>
             </>
           )}
@@ -595,12 +667,8 @@ export function PlayerControls({
   skipForwardSeconds = 10,
   skipBackwardSeconds = 10,
   onExternalSubtitle,
-  subtitleFontSize = 100,
-  onSubtitleFontSizeChange,
-  subtitleColor = "#ffffff",
-  onSubtitleColorChange,
-  subtitleFontFamily = "",
-  onSubtitleFontFamilyChange,
+  subtitleStyle,
+  onSubtitleStyleChange,
   theaterMode = false,
   onTheaterModeToggle,
 }: PlayerControlsProps) {
@@ -1047,12 +1115,8 @@ export function PlayerControls({
             onAutoQualityToggle={onAutoQualityToggle}
             autoQualityLabel={autoQualityLabel}
             onExternalSubtitle={onExternalSubtitle}
-            subtitleFontSize={subtitleFontSize}
-            onSubtitleFontSizeChange={onSubtitleFontSizeChange}
-            subtitleColor={subtitleColor}
-            onSubtitleColorChange={onSubtitleColorChange}
-            subtitleFontFamily={subtitleFontFamily}
-            onSubtitleFontFamilyChange={onSubtitleFontFamilyChange}
+            subtitleStyle={subtitleStyle}
+            onSubtitleStyleChange={onSubtitleStyleChange}
           />
 
           {/* Theater mode */}

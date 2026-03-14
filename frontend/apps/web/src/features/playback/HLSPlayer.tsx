@@ -20,6 +20,9 @@ import {
   setPreferredSubtitleLang,
   getSeriesTrackPrefs,
   setSeriesTrackPrefs,
+  getSubtitleStyle,
+  setSubtitleStyle,
+  type SubtitleStyle,
 } from "@/hooks/usePlaybackPrefs";
 
 const QUALITY_LEVELS = [0, 1080, 720, 480, 360];
@@ -63,6 +66,7 @@ interface HLSPlayerProps {
   chapters?: Chapter[];
   seriesId?: string;
   onTheaterModeChange?: (active: boolean) => void;
+  onVideoRef?: (el: HTMLVideoElement | null) => void;
 }
 
 export function HLSPlayer({
@@ -86,6 +90,7 @@ export function HLSPlayer({
   chapters = [],
   seriesId,
   onTheaterModeChange,
+  onVideoRef,
 }: HLSPlayerProps) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const hlsRef = useRef<InstanceType<typeof Hls> | null>(null);
@@ -126,10 +131,16 @@ export function HLSPlayer({
   const [playbackSpeed, setPlaybackSpeed] = useState(1);
   const [externalSubUrl, setExternalSubUrl] = useState<{ url: string; label: string } | null>(null);
   const externalSubUrlRef = useRef<string | null>(null);
-  const [subtitleFontSize, setSubtitleFontSize] = useState(100);
-  const [subtitleColor, setSubtitleColor] = useState("#ffffff");
-  const [subtitleFontFamily, setSubtitleFontFamily] = useState("");
+  const [subtitleStyle, setSubtitleStyleState] = useState<SubtitleStyle>(() => getSubtitleStyle());
   const styleElRef = useRef<HTMLStyleElement | null>(null);
+
+  function updateSubtitleStyle(patch: Partial<SubtitleStyle>) {
+    setSubtitleStyleState((prev) => {
+      const next = { ...prev, ...patch };
+      setSubtitleStyle(next);
+      return next;
+    });
+  }
   const [showShortcuts, setShowShortcuts] = useState(false);
   const [isBuffering, setIsBuffering] = useState(false);
   const playbackSpeedRef = useRef(playbackSpeed);
@@ -302,19 +313,46 @@ export function HLSPlayer({
     }
   }, [currentSubtitle, externalSubUrl, mediaId, accessToken, transcodeStartTime, currentTrackIndex, currentQuality]);
 
+  // Apply subtitle position (top/bottom) via cue line setting
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video) return;
+    const line = subtitleStyle.position === "top" ? 5 : 100;
+    for (let i = 0; i < video.textTracks.length; i++) {
+      const tt = video.textTracks[i];
+      if (tt.mode !== "showing") continue;
+      const cues = tt.cues;
+      if (!cues) continue;
+      for (let j = 0; j < cues.length; j++) {
+        const cue = cues[j] as VTTCue;
+        if (typeof cue.line !== "undefined") {
+          cue.line = line;
+          cue.snapToLines = true;
+        }
+      }
+    }
+  }, [subtitleStyle.position]);
+
   // Inject ::cue style for subtitle appearance
   useEffect(() => {
     if (!styleElRef.current) {
       styleElRef.current = document.createElement("style");
       document.head.appendChild(styleElRef.current);
     }
-    const fontFamilyRule = subtitleFontFamily ? `font-family: ${subtitleFontFamily};` : "";
-    styleElRef.current.textContent = `::cue { font-size: ${subtitleFontSize}%; color: ${subtitleColor}; ${fontFamilyRule} }`;
+    const { fontSize, color, fontFamily, bgColor, bgOpacity, shadow } = subtitleStyle;
+    const fontFamilyRule = fontFamily ? `font-family: ${fontFamily};` : "";
+    const opacity = bgOpacity / 100;
+    const r = parseInt(bgColor.slice(1, 3), 16);
+    const g = parseInt(bgColor.slice(3, 5), 16);
+    const b = parseInt(bgColor.slice(5, 7), 16);
+    const bgRule = `background: rgba(${r},${g},${b},${opacity});`;
+    const shadowRule = shadow ? "text-shadow: 0 1px 2px rgba(0,0,0,0.8);" : "text-shadow: none;";
+    styleElRef.current.textContent = `::cue { font-size: ${fontSize}%; color: ${color}; ${fontFamilyRule} ${bgRule} ${shadowRule} }`;
     return () => {
       styleElRef.current?.remove();
       styleElRef.current = null;
     };
-  }, [subtitleFontSize, subtitleColor, subtitleFontFamily]);
+  }, [subtitleStyle]);
 
   // Sync playbackRate with playbackSpeed state
   useEffect(() => {
@@ -631,7 +669,7 @@ export function HLSPlayer({
       onTouchStart={handleTouchStart}
       onTouchEnd={handleTouchEnd}
     >
-      <video ref={videoRef} className="w-full h-full" playsInline />
+      <video ref={(el) => { videoRef.current = el; onVideoRef?.(el); }} className="w-full h-full" playsInline />
       {/* Touch seek flash indicators */}
       {seekFlash === "left" && (
         <div className="absolute left-0 top-0 bottom-0 w-1/2 flex items-center justify-center pointer-events-none" style={{ zIndex: 6 }}>
@@ -724,12 +762,8 @@ export function HLSPlayer({
         transcodeOffset={transcodeOffsetRef.current}
         skipForwardSeconds={skipFwd}
         skipBackwardSeconds={skipBwd}
-        subtitleFontSize={subtitleFontSize}
-        onSubtitleFontSizeChange={setSubtitleFontSize}
-        subtitleColor={subtitleColor}
-        onSubtitleColorChange={setSubtitleColor}
-        subtitleFontFamily={subtitleFontFamily}
-        onSubtitleFontFamilyChange={setSubtitleFontFamily}
+        subtitleStyle={subtitleStyle}
+        onSubtitleStyleChange={updateSubtitleStyle}
         onExternalSubtitle={(blobUrl, label) => {
           setCurrentSubtitle(null);
           setExternalSubUrl({ url: blobUrl, label });

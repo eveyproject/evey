@@ -1,6 +1,7 @@
 const AUDIO_KEY = "evey-pref-audio-lang";
 const SUBTITLE_KEY = "evey-pref-subtitle-lang";
 const SERIES_PREFS_PREFIX = "evey:prefs:";
+const SUBTITLE_STYLE_KEY = "evey:subtitle-style";
 
 function get(key: string): string | null {
   try { return localStorage.getItem(key); } catch { return null; }
@@ -42,4 +43,35 @@ export function getSeriesTrackPrefs(seriesId: string): SeriesTrackPrefs | null {
 
 export function setSeriesTrackPrefs(seriesId: string, prefs: SeriesTrackPrefs) {
   set(SERIES_PREFS_PREFIX + seriesId, JSON.stringify(prefs));
+}
+
+export interface SubtitleStyle {
+  fontSize: number;
+  color: string;
+  fontFamily: string;
+  bgColor: string;
+  bgOpacity: number;
+  position: "bottom" | "top";
+  shadow: boolean;
+}
+
+export const DEFAULT_SUBTITLE_STYLE: SubtitleStyle = {
+  fontSize: 100,
+  color: "#ffffff",
+  fontFamily: "",
+  bgColor: "#000000",
+  bgOpacity: 75,
+  position: "bottom",
+  shadow: false,
+};
+
+export function getSubtitleStyle(): SubtitleStyle {
+  const raw = get(SUBTITLE_STYLE_KEY);
+  if (!raw) return { ...DEFAULT_SUBTITLE_STYLE };
+  try { return { ...DEFAULT_SUBTITLE_STYLE, ...(JSON.parse(raw) as Partial<SubtitleStyle>) }; }
+  catch { return { ...DEFAULT_SUBTITLE_STYLE }; }
+}
+
+export function setSubtitleStyle(style: SubtitleStyle) {
+  set(SUBTITLE_STYLE_KEY, JSON.stringify(style));
 }
