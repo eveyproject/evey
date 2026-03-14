@@ -5,6 +5,7 @@ import { useAuthStore } from "@evey/store";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Card } from "@/components/ui/Card";
+import { QuickConnect } from "@/components/QuickConnect";
 
 export const Route = createFileRoute("/login")({
   beforeLoad: () => {
@@ -91,6 +92,7 @@ function LoginPage() {
             Sign in
           </Button>
         </form>
+        <QuickConnect />
       </Card>
     </div>
   );
