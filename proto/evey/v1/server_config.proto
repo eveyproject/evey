@@ -1,0 +1,64 @@
+syntax = "proto3";
+
+package evey.v1;
+
+import "google/api/annotations.proto";
+
+option go_package = "github.com/gravity/evey/gen/evey/v1;eveyv1";
+
+service ServerConfigService {
+  rpc GetServerConfigEntry(GetServerConfigEntryRequest) returns (ServerConfigEntryResponse) {
+    option (google.api.http) = {
+      get: "/api/v1/admin/server-config/{key}"
+    };
+  }
+  rpc SetServerConfigEntry(SetServerConfigEntryRequest) returns (SetServerConfigEntryResponse) {
+    option (google.api.http) = {
+      put: "/api/v1/admin/server-config/{key}"
+      body: "*"
+    };
+  }
+  rpc ListServerConfigEntries(ListServerConfigEntriesRequest) returns (ListServerConfigEntriesResponse) {
+    option (google.api.http) = {
+      get: "/api/v1/admin/server-config"
+    };
+  }
+  rpc DeleteServerConfigEntry(DeleteServerConfigEntryRequest) returns (DeleteServerConfigEntryResponse) {
+    option (google.api.http) = {
+      delete: "/api/v1/admin/server-config/{key}"
+    };
+  }
+}
+
+message ServerConfigEntry {
+  string key = 1;
+  string value = 2;
+}
+
+message GetServerConfigEntryRequest {
+  string key = 1;
+}
+
+message ServerConfigEntryResponse {
+  string key = 1;
+  string value = 2;
+}
+
+message SetServerConfigEntryRequest {
+  string key = 1;
+  string value = 2;
+}
+
+message SetServerConfigEntryResponse {}
+
+message ListServerConfigEntriesRequest {}
+
+message ListServerConfigEntriesResponse {
+  repeated ServerConfigEntry entries = 1;
+}
+
+message DeleteServerConfigEntryRequest {
+  string key = 1;
+}
+
+message DeleteServerConfigEntryResponse {}

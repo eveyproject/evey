@@ -630,10 +630,13 @@ export function MediaDetail({ item, onMetadataUpdated, initialEdit }: MediaDetai
 
   return (
     <div data-testid="media-detail">
-      <BackButton fallback="/library" className="mb-2" />
-      <Breadcrumbs items={breadcrumbItems} />
       {/* Backdrop hero */}
       <div className="relative w-full overflow-hidden -mx-4 sm:-mx-6 -mt-4 sm:-mt-6 mb-0" style={{ height: "clamp(260px, 50vw, 420px)" }}>
+        {/* Breadcrumbs + back button pinned to top */}
+        <div className="absolute top-0 left-0 right-0 z-10 px-4 sm:px-6 pt-4 sm:pt-5 text-white/90" style={{ background: "linear-gradient(to bottom, rgba(0,0,0,0.55) 0%, transparent 100%)" }}>
+          <BackButton fallback="/library" className="mb-1 !text-white/80 hover:!text-white" />
+          <Breadcrumbs items={breadcrumbItems} />
+        </div>
         {backdropUrl ? (
           <img src={backdropUrl} alt={item.title ?? ""} className="w-full h-full object-cover" data-testid="media-backdrop" onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }} />
         ) : (

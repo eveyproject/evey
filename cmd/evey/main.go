@@ -362,6 +362,26 @@ func run() error {
 		rootLog.Info("opensubtitles integration enabled")
 	}
 
+	// --- Backup service ---
+	backupStore := filesystem.NewBackupStore(cfg.Backup.Dir)
+	dbDumper := postgres.NewDatabaseDumper(cfg.DB.Host, cfg.DB.Port, cfg.DB.User, cfg.DB.Password, cfg.DB.DBName, cfg.DB.SSLMode)
+	backupSvc := appbackup.NewService(backupStore, dbDumper, version)
+	if cfg.Backup.EncryptionKey != "" {
+		bkey, bkeyErr := backupcrypto.KeyFromBase64(cfg.Backup.EncryptionKey)
+		if bkeyErr != nil {
+			return fmt.Errorf("backup encryption key: %w", bkeyErr)
+		}
+		backupSvc.WithEncryptionKey(bkey)
+		rootLog.Info("backup encryption enabled")
+	}
+
+	// --- Config store (remote access, playback settings) ---
+	cfgStore := &serverConfigStore{repo: serverCfgRepo}
+	// load RemoteAccess persisted settings from DB (overrides env-based config)
+	if raw, err2 := cfgStore.Get(context.Background(), remoteAccessConfigKey); err2 == nil && raw != "" {
+		_ = json.Unmarshal([]byte(raw), &cfg.RemoteAccess)
+	}
+
 	// --- Auth interceptor ---
 	authInterceptor := interceptors.NewAuthInterceptor(tokenGen).WithAPIKeys(apiKeyRepo, userRepo)
 	grpcLog := eveylogger.NewWith(rootLog, "grpc")
@@ -374,7 +394,9 @@ func run() error {
 		mkvSvc, pluginSvc, metadataCmdSvc, metadataQuerySvc, activityCmdSvc, activityQuerySvc,
 		notifCmdSvc, notifQuerySvc, feedCmdSvc, feedQuerySvc, webhookSvc,
 		collectionSvc, playlistSvc, favoriteSvc,
-		userRepo, profileRepo, libraryAccessRepo, version,
+		userRepo, profileRepo, libraryAccessRepo,
+		backupSvc, cfg, cfgStore,
+		version,
 		grpc.ChainUnaryInterceptor(
 			interceptors.ErrorSanitizerUnary(),
 			interceptors.ClientInfoUnary(),
@@ -415,7 +437,6 @@ func run() error {
 	httpPort := cfg.Server.Port + 1
 	gwMux := registerGateway(grpcAddr)
 	var httpSrv *http.Server
-	var backupSvc *appbackup.Service
 	if gwMux != nil {
 		mux := http.NewServeMux()
 		loginRL := ratelimit.New(cfg.Server.LoginRateLimitMax)
@@ -472,17 +493,6 @@ func run() error {
 		registerLibraryAccessRoutes(mux, libraryAccessRepo, libQuerySvc, tokenGen)
 		registerPlaylistRoutes(mux, playlistSvc, tokenGen)
 
-		backupStore := filesystem.NewBackupStore(cfg.Backup.Dir)
-		dbDumper := postgres.NewDatabaseDumper(cfg.DB.Host, cfg.DB.Port, cfg.DB.User, cfg.DB.Password, cfg.DB.DBName, cfg.DB.SSLMode)
-		backupSvc = appbackup.NewService(backupStore, dbDumper, version)
-		if cfg.Backup.EncryptionKey != "" {
-			bkey, bkeyErr := backupcrypto.KeyFromBase64(cfg.Backup.EncryptionKey)
-			if bkeyErr != nil {
-				return fmt.Errorf("backup encryption key: %w", bkeyErr)
-			}
-			backupSvc.WithEncryptionKey(bkey)
-			rootLog.Info("backup encryption enabled")
-		}
 		registerBackupRoutes(mux, backupSvc, tokenGen, adminHeavyRL)
 
 		// OPS-3: backup retention cleanup on startup
@@ -515,11 +525,6 @@ func run() error {
 			}()
 		}
 
-		cfgStore := &serverConfigStore{repo: serverCfgRepo}
-		// load RemoteAccess persisted settings from DB (overrides env-based config)
-		if raw, err2 := cfgStore.Get(context.Background(), remoteAccessConfigKey); err2 == nil && raw != "" {
-			_ = json.Unmarshal([]byte(raw), &cfg.RemoteAccess)
-		}
 		registerRemoteAccessRoutes(mux, cfg, tokenGen, cfgStore)
 		registerPlaybackSettingsRoutes(mux, cfg, tokenGen)
 		registerParentalRoutes(mux, profileRepo, hasher, tokenGen)

@@ -6,6 +6,7 @@ import (
 
 	eveyv1 "github.com/gravity-zero/evey/gen/evey/v1"
 	appactivity "github.com/gravity-zero/evey/internal/app/activity"
+	appbackup "github.com/gravity-zero/evey/internal/app/backup"
 	appcollection "github.com/gravity-zero/evey/internal/app/collection"
 	appfavorite "github.com/gravity-zero/evey/internal/app/favorite"
 	appfeed "github.com/gravity-zero/evey/internal/app/feed"
@@ -19,6 +20,7 @@ import (
 	apptranscoding "github.com/gravity-zero/evey/internal/app/transcoding"
 	appuser "github.com/gravity-zero/evey/internal/app/user"
 	appwebhook "github.com/gravity-zero/evey/internal/app/webhook"
+	"github.com/gravity-zero/evey/internal/config"
 	"github.com/gravity-zero/evey/internal/domain/user"
 	"google.golang.org/grpc"
 )
@@ -53,6 +55,9 @@ type GRPCServer struct {
 	scheduler     *applibrary.Scheduler
 	logDir        string
 	version       string
+	backup        *appbackup.Service
+	cfg           *config.Config
+	cfgStore      remoteAccessConfigStore
 }
 
 func (s *GRPCServer) SetHLSManager(m *apptranscoding.HLSManager) {
@@ -92,6 +97,9 @@ func NewGRPCServer(
 	users user.UserRepository,
 	profiles user.ProfileRepository,
 	libraryAccess user.LibraryAccessRepository,
+	backup *appbackup.Service,
+	cfg *config.Config,
+	cfgStore remoteAccessConfigStore,
 	version string,
 	opts ...grpc.ServerOption,
 ) *GRPCServer {
@@ -121,6 +129,9 @@ func NewGRPCServer(
 		users:         users,
 		profiles:      profiles,
 		libraryAccess: libraryAccess,
+		backup:        backup,
+		cfg:           cfg,
+		cfgStore:      cfgStore,
 		version:       version,
 	}
 }
@@ -153,6 +164,10 @@ func (s *GRPCServer) RegisterServices() {
 	eveyv1.RegisterPlaylistServiceServer(s.server, &playlistHandler{svc: s.playlist})
 	eveyv1.RegisterFavoriteServiceServer(s.server, &favoriteHandler{svc: s.favorite})
 	eveyv1.RegisterTranscodeCacheServiceServer(s.server, &transcodeCacheHandler{svc: s.transcoding})
+	eveyv1.RegisterBackupServiceServer(s.server, &backupHandler{svc: s.backup})
+	eveyv1.RegisterRemoteAccessServiceServer(s.server, &remoteAccessHandler{cfg: s.cfg, store: s.cfgStore})
+	eveyv1.RegisterPlaybackSettingsServiceServer(s.server, &playbackSettingsHandler{cfg: s.cfg})
+	eveyv1.RegisterLibraryAccessServiceServer(s.server, &libraryAccessHandler{accessRepo: s.libraryAccess, libQuery: s.libQuery})
 }
 
 func (s *GRPCServer) Start(addr string) error {
