@@ -161,6 +161,9 @@ func registerGateway(grpcAddr string) http.Handler {
 		eveyv1.RegisterNotificationServiceHandler,
 		eveyv1.RegisterFeedServiceHandler,
 		eveyv1.RegisterWebhookServiceHandler,
+		eveyv1.RegisterCollectionServiceHandler,
+		eveyv1.RegisterPlaylistServiceHandler,
+		eveyv1.RegisterFavoriteServiceHandler,
 	} {
 		if err := fn(ctx, mux, conn); err != nil {
 			slog.Error("gateway register failed", slog.Any("err", err))

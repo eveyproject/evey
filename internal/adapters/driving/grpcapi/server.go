@@ -6,12 +6,15 @@ import (
 
 	eveyv1 "github.com/gravity-zero/evey/gen/evey/v1"
 	appactivity "github.com/gravity-zero/evey/internal/app/activity"
+	appcollection "github.com/gravity-zero/evey/internal/app/collection"
+	appfavorite "github.com/gravity-zero/evey/internal/app/favorite"
 	appfeed "github.com/gravity-zero/evey/internal/app/feed"
 	applibrary "github.com/gravity-zero/evey/internal/app/library"
 	appmetadata "github.com/gravity-zero/evey/internal/app/metadata"
 	appmkv "github.com/gravity-zero/evey/internal/app/mkv"
 	appnotification "github.com/gravity-zero/evey/internal/app/notification"
 	appplayback "github.com/gravity-zero/evey/internal/app/playback"
+	appplaylist "github.com/gravity-zero/evey/internal/app/playlist"
 	appplugin "github.com/gravity-zero/evey/internal/app/plugin"
 	apptranscoding "github.com/gravity-zero/evey/internal/app/transcoding"
 	appuser "github.com/gravity-zero/evey/internal/app/user"
@@ -36,6 +39,9 @@ type GRPCServer struct {
 	feedCmd       *appfeed.CommandService
 	feedQuery     *appfeed.QueryService
 	webhook       *appwebhook.Service
+	collection    *appcollection.Service
+	playlist      *appplaylist.Service
+	favorite      *appfavorite.Service
 	users         user.UserRepository
 	profiles      user.ProfileRepository
 	libraryAccess user.LibraryAccessRepository
@@ -62,6 +68,9 @@ func NewGRPCServer(
 	feedCmd *appfeed.CommandService,
 	feedQuery *appfeed.QueryService,
 	webhook *appwebhook.Service,
+	collection *appcollection.Service,
+	playlist *appplaylist.Service,
+	favorite *appfavorite.Service,
 	users user.UserRepository,
 	profiles user.ProfileRepository,
 	libraryAccess user.LibraryAccessRepository,
@@ -84,6 +93,9 @@ func NewGRPCServer(
 		feedCmd:       feedCmd,
 		feedQuery:     feedQuery,
 		webhook:       webhook,
+		collection:    collection,
+		playlist:      playlist,
+		favorite:      favorite,
 		users:         users,
 		profiles:      profiles,
 		libraryAccess: libraryAccess,
@@ -111,6 +123,9 @@ func (s *GRPCServer) RegisterServices() {
 	eveyv1.RegisterNotificationServiceServer(s.server, &notificationHandler{svc: s.notification})
 	eveyv1.RegisterFeedServiceServer(s.server, &feedHandler{commands: s.feedCmd, queries: s.feedQuery})
 	eveyv1.RegisterWebhookServiceServer(s.server, &webhookHandler{svc: s.webhook})
+	eveyv1.RegisterCollectionServiceServer(s.server, &collectionHandler{svc: s.collection})
+	eveyv1.RegisterPlaylistServiceServer(s.server, &playlistHandler{svc: s.playlist})
+	eveyv1.RegisterFavoriteServiceServer(s.server, &favoriteHandler{svc: s.favorite})
 }
 
 func (s *GRPCServer) Start(addr string) error {
