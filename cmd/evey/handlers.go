@@ -117,8 +117,36 @@ func mediaHandler(tokens interface {
 			if !checkLibraryAccess(r.Context(), w, artClaims, artItem.LibraryID, libraryAccess) {
 				return
 			}
-			records, err := artworkRepo.GetByMediaItem(r.Context(), mediaID)
-			if err != nil || len(records) == 0 {
+			// Walk up the parent chain (episode→season→series) to find artwork
+			var records []*domainmeta.ArtworkRecord
+			hasMatchingType := func(recs []*domainmeta.ArtworkRecord) bool {
+				for _, rec := range recs {
+					if artType == "" || rec.Type == artType {
+						return true
+					}
+				}
+				return false
+			}
+			lookupID := mediaID
+			nextParentID := artItem.ParentID
+			for {
+				var err2 error
+				records, err2 = artworkRepo.GetByMediaItem(r.Context(), lookupID)
+				if err2 != nil {
+					http.NotFound(w, r)
+					return
+				}
+				if hasMatchingType(records) || nextParentID == "" {
+					break
+				}
+				lookupID = nextParentID
+				parent, err3 := libSvc.GetMediaItem(r.Context(), lookupID)
+				if err3 != nil {
+					break
+				}
+				nextParentID = parent.ParentID
+			}
+			if !hasMatchingType(records) {
 				http.NotFound(w, r)
 				return
 			}

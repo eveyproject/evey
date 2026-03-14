@@ -19,6 +19,7 @@ type MetadataOverrideRepository interface {
 type ArtworkRepository interface {
 	Create(ctx context.Context, a *ArtworkRecord) error
 	GetByMediaItem(ctx context.Context, mediaItemID string) ([]*ArtworkRecord, error)
+	GetByMediaItems(ctx context.Context, mediaItemIDs []string) (map[string][]*ArtworkRecord, error)
 	GetByPerson(ctx context.Context, personID string) ([]*ArtworkRecord, error)
 	Delete(ctx context.Context, id string) error
 	DeleteByMediaItemID(ctx context.Context, mediaItemID string) error

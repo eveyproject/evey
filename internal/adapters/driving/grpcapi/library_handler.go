@@ -176,11 +176,21 @@ func (h *libraryHandler) ListMediaItems(ctx context.Context, req *eveyv1.ListMed
 			PageSize:   req.Pagination.GetPageSize(),
 		},
 	}
+	ids := make([]string, 0, len(items))
+	for _, item := range items {
+		ids = append(ids, item.ID)
+	}
+	artworkMap, _ := h.metadataSvc.BatchGetArtwork(ctx, ids)
+
 	for _, item := range items {
 		if len(pf.blockedTags) > 0 && ratings.HasBlockedTag(item.Tags, pf.blockedTags) {
 			continue
 		}
-		resp.Items = append(resp.Items, mediaItemToProto(item))
+		pb := mediaItemToProto(item)
+		for _, a := range artworkMap[item.ID] {
+			pb.Artwork = append(pb.Artwork, artworkRecordToProto(a))
+		}
+		resp.Items = append(resp.Items, pb)
 	}
 	return resp, nil
 }

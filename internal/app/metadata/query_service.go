@@ -40,6 +40,10 @@ func (s *QueryService) GetArtwork(ctx context.Context, mediaItemID string) ([]*m
 	return s.artwork.GetByMediaItem(ctx, mediaItemID)
 }
 
+func (s *QueryService) BatchGetArtwork(ctx context.Context, mediaItemIDs []string) (map[string][]*metadata.ArtworkRecord, error) {
+	return s.artwork.GetByMediaItems(ctx, mediaItemIDs)
+}
+
 func (s *QueryService) ListProviders() []string {
 	names := make([]string, 0, len(s.providers))
 	for _, p := range s.providers {

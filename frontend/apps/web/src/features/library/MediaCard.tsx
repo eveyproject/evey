@@ -2,6 +2,7 @@ import { useRef, useState, useEffect } from "react";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { useQueryClient } from "@tanstack/react-query";
 import { usePlaybackServiceMarkAsWatched, usePlaybackServiceMarkAsUnwatched } from "@evey/api";
+import type { V1Artwork } from "@evey/api/src/generated/library.schemas";
 import { toast, useAuthStore } from "@evey/store";
 import { FavoriteButton } from "./FavoriteButton";
 import { AddToPlaylistModal } from "../playlist/AddToPlaylistModal";
@@ -16,6 +17,7 @@ export interface MediaCardItem {
   communityRating?: number;
   genres?: string[];
   durationMs?: string;
+  artwork?: V1Artwork[];
 }
 
 export interface MediaCardProps {
@@ -239,8 +241,11 @@ export function MediaCard({
   const hoverTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [showPreview, setShowPreview] = useState(false);
   const accessToken = useAuthStore((s) => s.accessToken);
+  const artworkPosterUrl = item.artwork?.find((a) => a.type === "ARTWORK_TYPE_PRIMARY")?.url ?? null;
   const poster =
-    posterSrc ?? (item.id && accessToken
+    posterSrc
+    ?? artworkPosterUrl
+    ?? (item.id && accessToken
       ? `/api/v1/media/${item.id}/artwork/poster?token=${encodeURIComponent(accessToken)}`
       : null);
   const initial = item.title ? item.title[0].toUpperCase() : "?";

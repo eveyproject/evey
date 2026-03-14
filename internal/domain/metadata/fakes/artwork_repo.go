@@ -48,6 +48,25 @@ func (r *FakeArtworkRepository) GetByMediaItem(_ context.Context, mediaItemID st
 	return result, nil
 }
 
+func (r *FakeArtworkRepository) GetByMediaItems(_ context.Context, mediaItemIDs []string) (map[string][]*metadata.ArtworkRecord, error) {
+	if r.Err != nil {
+		return nil, r.Err
+	}
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	idSet := make(map[string]bool, len(mediaItemIDs))
+	for _, id := range mediaItemIDs {
+		idSet[id] = true
+	}
+	result := make(map[string][]*metadata.ArtworkRecord)
+	for _, a := range r.items {
+		if idSet[a.MediaItemID] {
+			result[a.MediaItemID] = append(result[a.MediaItemID], a)
+		}
+	}
+	return result, nil
+}
+
 func (r *FakeArtworkRepository) GetByPerson(_ context.Context, personID string) ([]*metadata.ArtworkRecord, error) {
 	if r.Err != nil {
 		return nil, r.Err

@@ -3,6 +3,8 @@ package postgres
 import (
 	"context"
 	"database/sql"
+	"fmt"
+	"strings"
 
 	"github.com/gravity-zero/evey/internal/domain/metadata"
 )
@@ -33,6 +35,34 @@ func (r *ArtworkRepository) GetByMediaItem(ctx context.Context, mediaItemID stri
 	}
 	defer rows.Close()
 	return r.scanArtworkRows(rows)
+}
+
+func (r *ArtworkRepository) GetByMediaItems(ctx context.Context, mediaItemIDs []string) (map[string][]*metadata.ArtworkRecord, error) {
+	if len(mediaItemIDs) == 0 {
+		return map[string][]*metadata.ArtworkRecord{}, nil
+	}
+	placeholders := make([]string, len(mediaItemIDs))
+	args := make([]any, len(mediaItemIDs))
+	for i, id := range mediaItemIDs {
+		placeholders[i] = fmt.Sprintf("$%d", i+1)
+		args[i] = id
+	}
+	rows, err := r.db.QueryContext(ctx,
+		`SELECT id, media_item_id, person_id, type, provider, source_url, local_path, width, height, language, sort_order
+		 FROM artwork WHERE media_item_id IN (`+strings.Join(placeholders, ",")+`) ORDER BY media_item_id, sort_order`, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	records, err := r.scanArtworkRows(rows)
+	if err != nil {
+		return nil, err
+	}
+	result := make(map[string][]*metadata.ArtworkRecord, len(mediaItemIDs))
+	for _, a := range records {
+		result[a.MediaItemID] = append(result[a.MediaItemID], a)
+	}
+	return result, nil
 }
 
 func (r *ArtworkRepository) GetByPerson(ctx context.Context, personID string) ([]*metadata.ArtworkRecord, error) {
