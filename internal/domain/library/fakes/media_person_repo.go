@@ -10,6 +10,7 @@ import (
 type FakeMediaPersonRepository struct {
 	mu    sync.RWMutex
 	items map[string][]*library.MediaPerson
+	Err   error
 }
 
 func NewFakeMediaPersonRepository() *FakeMediaPersonRepository {
@@ -19,6 +20,9 @@ func NewFakeMediaPersonRepository() *FakeMediaPersonRepository {
 func (r *FakeMediaPersonRepository) Create(_ context.Context, mp *library.MediaPerson) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
+	if r.Err != nil {
+		return r.Err
+	}
 	r.items[mp.MediaItemID] = append(r.items[mp.MediaItemID], mp)
 	return nil
 }
@@ -26,6 +30,9 @@ func (r *FakeMediaPersonRepository) Create(_ context.Context, mp *library.MediaP
 func (r *FakeMediaPersonRepository) DeleteByMediaItemID(_ context.Context, mediaItemID string) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
+	if r.Err != nil {
+		return r.Err
+	}
 	delete(r.items, mediaItemID)
 	return nil
 }
@@ -33,5 +40,8 @@ func (r *FakeMediaPersonRepository) DeleteByMediaItemID(_ context.Context, media
 func (r *FakeMediaPersonRepository) GetByMediaItemID(_ context.Context, mediaItemID string) ([]*library.MediaPerson, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
+	if r.Err != nil {
+		return nil, r.Err
+	}
 	return r.items[mediaItemID], nil
 }

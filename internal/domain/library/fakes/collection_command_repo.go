@@ -11,6 +11,7 @@ type FakeCollectionCommandRepo struct {
 	mu          sync.RWMutex
 	collections map[string]*library.Collection
 	items       map[string][]string
+	Err         error
 }
 
 func NewFakeCollectionCommandRepo() *FakeCollectionCommandRepo {
@@ -23,6 +24,9 @@ func NewFakeCollectionCommandRepo() *FakeCollectionCommandRepo {
 func (r *FakeCollectionCommandRepo) Create(_ context.Context, col *library.Collection) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
+	if r.Err != nil {
+		return r.Err
+	}
 	r.collections[col.ID] = col
 	return nil
 }
@@ -30,6 +34,9 @@ func (r *FakeCollectionCommandRepo) Create(_ context.Context, col *library.Colle
 func (r *FakeCollectionCommandRepo) Update(_ context.Context, col *library.Collection) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
+	if r.Err != nil {
+		return r.Err
+	}
 	if _, ok := r.collections[col.ID]; !ok {
 		return ErrNotFound
 	}
@@ -40,6 +47,9 @@ func (r *FakeCollectionCommandRepo) Update(_ context.Context, col *library.Colle
 func (r *FakeCollectionCommandRepo) Delete(_ context.Context, id string) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
+	if r.Err != nil {
+		return r.Err
+	}
 	if _, ok := r.collections[id]; !ok {
 		return ErrNotFound
 	}
@@ -51,6 +61,9 @@ func (r *FakeCollectionCommandRepo) Delete(_ context.Context, id string) error {
 func (r *FakeCollectionCommandRepo) AddItem(_ context.Context, collectionID, mediaItemID string) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
+	if r.Err != nil {
+		return r.Err
+	}
 	r.items[collectionID] = append(r.items[collectionID], mediaItemID)
 	return nil
 }
@@ -58,6 +71,9 @@ func (r *FakeCollectionCommandRepo) AddItem(_ context.Context, collectionID, med
 func (r *FakeCollectionCommandRepo) RemoveItem(_ context.Context, collectionID, mediaItemID string) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
+	if r.Err != nil {
+		return r.Err
+	}
 	ids := r.items[collectionID]
 	for i, id := range ids {
 		if id == mediaItemID {

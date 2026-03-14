@@ -15,6 +15,7 @@ type FakeCollectionQueryRepo struct {
 	collections map[string]*library.Collection
 	items       map[string][]string
 	mediaItems  *FakeMediaItemRepository
+	Err         error
 }
 
 func NewFakeCollectionQueryRepo(cmdRepo *FakeCollectionCommandRepo, mediaItems *FakeMediaItemRepository) *FakeCollectionQueryRepo {
@@ -28,6 +29,9 @@ func NewFakeCollectionQueryRepo(cmdRepo *FakeCollectionCommandRepo, mediaItems *
 func (r *FakeCollectionQueryRepo) GetByID(_ context.Context, id string) (*library.Collection, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
+	if r.Err != nil {
+		return nil, r.Err
+	}
 	col, ok := r.collections[id]
 	if !ok {
 		return nil, ErrNotFound
@@ -38,6 +42,9 @@ func (r *FakeCollectionQueryRepo) GetByID(_ context.Context, id string) (*librar
 func (r *FakeCollectionQueryRepo) List(_ context.Context) ([]*library.Collection, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
+	if r.Err != nil {
+		return nil, r.Err
+	}
 	result := make([]*library.Collection, 0, len(r.collections))
 	for _, col := range r.collections {
 		result = append(result, col)
@@ -48,6 +55,9 @@ func (r *FakeCollectionQueryRepo) List(_ context.Context) ([]*library.Collection
 func (r *FakeCollectionQueryRepo) GetManualItems(_ context.Context, collectionID string, limit, offset int) ([]*library.MediaItem, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
+	if r.Err != nil {
+		return nil, r.Err
+	}
 	ids := r.items[collectionID]
 	var result []*library.MediaItem
 	for _, id := range ids {
@@ -69,12 +79,18 @@ func (r *FakeCollectionQueryRepo) GetManualItems(_ context.Context, collectionID
 func (r *FakeCollectionQueryRepo) CountManualItems(_ context.Context, collectionID string) (int, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
+	if r.Err != nil {
+		return 0, r.Err
+	}
 	return len(r.items[collectionID]), nil
 }
 
 func (r *FakeCollectionQueryRepo) GetSmartItems(_ context.Context, col *library.Collection, limit, offset int) ([]*library.MediaItem, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
+	if r.Err != nil {
+		return nil, r.Err
+	}
 	var result []*library.MediaItem
 	for _, item := range r.mediaItems.items {
 		if matchesRules(item, col.Rules) {
@@ -95,6 +111,9 @@ func (r *FakeCollectionQueryRepo) GetSmartItems(_ context.Context, col *library.
 func (r *FakeCollectionQueryRepo) CountSmartItems(_ context.Context, col *library.Collection) (int, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
+	if r.Err != nil {
+		return 0, r.Err
+	}
 	count := 0
 	for _, item := range r.mediaItems.items {
 		if matchesRules(item, col.Rules) {

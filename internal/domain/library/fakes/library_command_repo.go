@@ -10,6 +10,7 @@ import (
 type FakeLibraryCommandRepo struct {
 	mu    sync.RWMutex
 	items map[string]*library.Library
+	Err   error
 }
 
 func NewFakeLibraryCommandRepo() *FakeLibraryCommandRepo {
@@ -19,6 +20,9 @@ func NewFakeLibraryCommandRepo() *FakeLibraryCommandRepo {
 func (r *FakeLibraryCommandRepo) Create(_ context.Context, lib *library.Library) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
+	if r.Err != nil {
+		return r.Err
+	}
 	r.items[lib.ID] = lib
 	return nil
 }
@@ -26,6 +30,9 @@ func (r *FakeLibraryCommandRepo) Create(_ context.Context, lib *library.Library)
 func (r *FakeLibraryCommandRepo) Update(_ context.Context, lib *library.Library) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
+	if r.Err != nil {
+		return r.Err
+	}
 	if _, ok := r.items[lib.ID]; !ok {
 		return ErrNotFound
 	}
@@ -36,6 +43,9 @@ func (r *FakeLibraryCommandRepo) Update(_ context.Context, lib *library.Library)
 func (r *FakeLibraryCommandRepo) Delete(_ context.Context, id string) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
+	if r.Err != nil {
+		return r.Err
+	}
 	if _, ok := r.items[id]; !ok {
 		return ErrNotFound
 	}

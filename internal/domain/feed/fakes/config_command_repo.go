@@ -11,6 +11,7 @@ type FakeConfigCommandRepo struct {
 	mu             sync.Mutex
 	AdminConfigs   map[feed.Type]*feed.AdminConfig
 	ProfileConfigs map[string]map[feed.Type]*feed.ProfileConfig
+	Err            error
 }
 
 func NewFakeConfigCommandRepo() *FakeConfigCommandRepo {
@@ -23,6 +24,9 @@ func NewFakeConfigCommandRepo() *FakeConfigCommandRepo {
 func (r *FakeConfigCommandRepo) UpsertAdminConfig(_ context.Context, cfg *feed.AdminConfig) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
+	if r.Err != nil {
+		return r.Err
+	}
 	r.AdminConfigs[cfg.FeedType] = cfg
 	return nil
 }
@@ -30,6 +34,9 @@ func (r *FakeConfigCommandRepo) UpsertAdminConfig(_ context.Context, cfg *feed.A
 func (r *FakeConfigCommandRepo) UpsertProfileConfig(_ context.Context, cfg *feed.ProfileConfig) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
+	if r.Err != nil {
+		return r.Err
+	}
 	if r.ProfileConfigs[cfg.ProfileID] == nil {
 		r.ProfileConfigs[cfg.ProfileID] = make(map[feed.Type]*feed.ProfileConfig)
 	}
@@ -40,6 +47,9 @@ func (r *FakeConfigCommandRepo) UpsertProfileConfig(_ context.Context, cfg *feed
 func (r *FakeConfigCommandRepo) DeleteProfileConfig(_ context.Context, profileID string, feedType feed.Type) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
+	if r.Err != nil {
+		return r.Err
+	}
 	if m, ok := r.ProfileConfigs[profileID]; ok {
 		delete(m, feedType)
 	}

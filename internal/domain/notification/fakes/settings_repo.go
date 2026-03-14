@@ -8,9 +8,10 @@ import (
 )
 
 type FakeSettingsRepository struct {
-	mu       sync.Mutex
+	mu        sync.Mutex
 	byProfile map[string]*notification.Settings
 	defaults  *notification.Settings
+	Err       error
 }
 
 func NewFakeSettingsRepository() *FakeSettingsRepository {
@@ -20,6 +21,9 @@ func NewFakeSettingsRepository() *FakeSettingsRepository {
 func (r *FakeSettingsRepository) GetByProfile(_ context.Context, profileID string) (*notification.Settings, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
+	if r.Err != nil {
+		return nil, r.Err
+	}
 	if s, ok := r.byProfile[profileID]; ok {
 		return s, nil
 	}
@@ -46,6 +50,9 @@ func (r *FakeSettingsRepository) GetByProfiles(ctx context.Context, profileIDs [
 func (r *FakeSettingsRepository) Upsert(_ context.Context, s *notification.Settings) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
+	if r.Err != nil {
+		return r.Err
+	}
 	r.byProfile[s.ProfileID] = s
 	return nil
 }
@@ -53,6 +60,9 @@ func (r *FakeSettingsRepository) Upsert(_ context.Context, s *notification.Setti
 func (r *FakeSettingsRepository) GetGlobalDefaults(_ context.Context) (*notification.Settings, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
+	if r.Err != nil {
+		return nil, r.Err
+	}
 	if r.defaults == nil {
 		return &notification.Settings{MovieLevel: notification.LevelAll, SeriesLevel: notification.LevelAll, MusicLevel: notification.LevelAll}, nil
 	}
@@ -62,6 +72,9 @@ func (r *FakeSettingsRepository) GetGlobalDefaults(_ context.Context) (*notifica
 func (r *FakeSettingsRepository) UpsertGlobalDefaults(_ context.Context, s *notification.Settings) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
+	if r.Err != nil {
+		return r.Err
+	}
 	r.defaults = s
 	return nil
 }

@@ -13,6 +13,7 @@ var ErrNotFound = shared.ErrNotFound
 type FakeWatchProgressRepository struct {
 	mu    sync.RWMutex
 	items map[string]*playback.WatchProgress
+	Err   error
 }
 
 func NewFakeWatchProgressRepository() *FakeWatchProgressRepository {
@@ -26,6 +27,9 @@ func key(profileID, mediaItemID string) string {
 func (r *FakeWatchProgressRepository) Upsert(_ context.Context, wp *playback.WatchProgress) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
+	if r.Err != nil {
+		return r.Err
+	}
 	r.items[key(wp.ProfileID, wp.MediaItemID)] = wp
 	return nil
 }
@@ -33,6 +37,9 @@ func (r *FakeWatchProgressRepository) Upsert(_ context.Context, wp *playback.Wat
 func (r *FakeWatchProgressRepository) GetByProfileAndMedia(_ context.Context, profileID, mediaItemID string) (*playback.WatchProgress, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
+	if r.Err != nil {
+		return nil, r.Err
+	}
 	wp, ok := r.items[key(profileID, mediaItemID)]
 	if !ok {
 		return nil, ErrNotFound
@@ -43,6 +50,9 @@ func (r *FakeWatchProgressRepository) GetByProfileAndMedia(_ context.Context, pr
 func (r *FakeWatchProgressRepository) GetByProfile(_ context.Context, profileID string, limit, offset int) ([]*playback.WatchProgress, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
+	if r.Err != nil {
+		return nil, r.Err
+	}
 	var result []*playback.WatchProgress
 	for _, wp := range r.items {
 		if wp.ProfileID == profileID {
@@ -63,6 +73,9 @@ func (r *FakeWatchProgressRepository) GetByProfile(_ context.Context, profileID 
 func (r *FakeWatchProgressRepository) GetResumeItems(_ context.Context, profileID string, limit int) ([]*playback.WatchProgress, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
+	if r.Err != nil {
+		return nil, r.Err
+	}
 	var result []*playback.WatchProgress
 	for _, wp := range r.items {
 		if wp.ProfileID == profileID && !wp.Completed && wp.PositionMs > 0 {
@@ -78,6 +91,9 @@ func (r *FakeWatchProgressRepository) GetResumeItems(_ context.Context, profileI
 func (r *FakeWatchProgressRepository) GetNextUp(_ context.Context, profileID string, limit int) ([]*playback.WatchProgress, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
+	if r.Err != nil {
+		return nil, r.Err
+	}
 	var result []*playback.WatchProgress
 	for _, wp := range r.items {
 		if wp.ProfileID == profileID && wp.Completed {

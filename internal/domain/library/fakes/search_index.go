@@ -11,6 +11,7 @@ import (
 type FakeSearchIndex struct {
 	mu    sync.RWMutex
 	items map[string]*library.MediaItem
+	Err   error
 }
 
 func NewFakeSearchIndex() *FakeSearchIndex {
@@ -20,6 +21,9 @@ func NewFakeSearchIndex() *FakeSearchIndex {
 func (s *FakeSearchIndex) IndexMediaItem(_ context.Context, item *library.MediaItem, _ []string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	if s.Err != nil {
+		return s.Err
+	}
 	s.items[item.ID] = item
 	return nil
 }
@@ -27,6 +31,9 @@ func (s *FakeSearchIndex) IndexMediaItem(_ context.Context, item *library.MediaI
 func (s *FakeSearchIndex) RemoveMediaItem(_ context.Context, id string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	if s.Err != nil {
+		return s.Err
+	}
 	delete(s.items, id)
 	return nil
 }
@@ -34,6 +41,9 @@ func (s *FakeSearchIndex) RemoveMediaItem(_ context.Context, id string) error {
 func (s *FakeSearchIndex) Search(_ context.Context, query string, _ map[string]string, limit int64) ([]library.SearchHit, int64, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
+	if s.Err != nil {
+		return nil, 0, s.Err
+	}
 	var hits []library.SearchHit
 	q := strings.ToLower(query)
 	for _, item := range s.items {

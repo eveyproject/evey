@@ -10,6 +10,7 @@ import (
 type FakeInviteLinkRepository struct {
 	mu    sync.RWMutex
 	items map[string]*user.InviteLink
+	Err   error
 }
 
 func NewFakeInviteLinkRepository() *FakeInviteLinkRepository {
@@ -19,6 +20,9 @@ func NewFakeInviteLinkRepository() *FakeInviteLinkRepository {
 func (r *FakeInviteLinkRepository) Create(_ context.Context, link *user.InviteLink) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
+	if r.Err != nil {
+		return r.Err
+	}
 	r.items[link.ID] = link
 	return nil
 }
@@ -26,6 +30,9 @@ func (r *FakeInviteLinkRepository) Create(_ context.Context, link *user.InviteLi
 func (r *FakeInviteLinkRepository) GetByToken(_ context.Context, token string) (*user.InviteLink, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
+	if r.Err != nil {
+		return nil, r.Err
+	}
 	for _, l := range r.items {
 		if l.Token == token {
 			return l, nil
@@ -37,6 +44,9 @@ func (r *FakeInviteLinkRepository) GetByToken(_ context.Context, token string) (
 func (r *FakeInviteLinkRepository) ListByCreator(_ context.Context, creatorID string) ([]*user.InviteLink, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
+	if r.Err != nil {
+		return nil, r.Err
+	}
 	var result []*user.InviteLink
 	for _, l := range r.items {
 		if l.CreatedBy == creatorID {
@@ -49,6 +59,9 @@ func (r *FakeInviteLinkRepository) ListByCreator(_ context.Context, creatorID st
 func (r *FakeInviteLinkRepository) IncrementUsedCount(_ context.Context, id string) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
+	if r.Err != nil {
+		return r.Err
+	}
 	if l, ok := r.items[id]; ok {
 		l.UsedCount++
 	}
@@ -58,6 +71,9 @@ func (r *FakeInviteLinkRepository) IncrementUsedCount(_ context.Context, id stri
 func (r *FakeInviteLinkRepository) Delete(_ context.Context, id string) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
+	if r.Err != nil {
+		return r.Err
+	}
 	delete(r.items, id)
 	return nil
 }

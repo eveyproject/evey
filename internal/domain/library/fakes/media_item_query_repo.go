@@ -12,6 +12,7 @@ type FakeMediaItemQueryRepo struct {
 	mu    sync.RWMutex
 	items map[string]*library.MediaItem
 	cast  map[string][]library.CastMember
+	Err   error
 }
 
 func NewFakeMediaItemQueryRepo() *FakeMediaItemQueryRepo {
@@ -24,6 +25,9 @@ func NewFakeMediaItemQueryRepo() *FakeMediaItemQueryRepo {
 func (r *FakeMediaItemQueryRepo) GetByID(_ context.Context, id string) (*library.MediaItem, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
+	if r.Err != nil {
+		return nil, r.Err
+	}
 	item, ok := r.items[id]
 	if !ok {
 		return nil, ErrNotFound
@@ -45,6 +49,9 @@ func allowedRatingsSet(allowed []string) map[string]bool {
 func (r *FakeMediaItemQueryRepo) List(_ context.Context, filter library.ListMediaItemsFilter) ([]*library.MediaItem, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
+	if r.Err != nil {
+		return nil, r.Err
+	}
 	allowedSet := allowedRatingsSet(filter.AllowedRatings)
 	var result []*library.MediaItem
 	for _, item := range r.items {
@@ -79,6 +86,9 @@ func (r *FakeMediaItemQueryRepo) List(_ context.Context, filter library.ListMedi
 func (r *FakeMediaItemQueryRepo) Count(_ context.Context, filter library.ListMediaItemsFilter) (int, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
+	if r.Err != nil {
+		return 0, r.Err
+	}
 	allowedSet := allowedRatingsSet(filter.AllowedRatings)
 	count := 0
 	for _, item := range r.items {
@@ -105,12 +115,18 @@ func (r *FakeMediaItemQueryRepo) Count(_ context.Context, filter library.ListMed
 func (r *FakeMediaItemQueryRepo) GetCastByMediaItem(_ context.Context, mediaItemID string) ([]library.CastMember, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
+	if r.Err != nil {
+		return nil, r.Err
+	}
 	return r.cast[mediaItemID], nil
 }
 
 func (r *FakeMediaItemQueryRepo) GetCastForItems(_ context.Context, mediaItemIDs []string) (map[string][]library.CastMember, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
+	if r.Err != nil {
+		return nil, r.Err
+	}
 	result := make(map[string][]library.CastMember)
 	for _, id := range mediaItemIDs {
 		if cast, ok := r.cast[id]; ok {

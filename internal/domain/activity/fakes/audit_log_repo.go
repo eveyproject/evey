@@ -10,6 +10,7 @@ import (
 type FakeAuditLogRepository struct {
 	mu    sync.RWMutex
 	items []*activity.AuditLogEntry
+	Err   error
 }
 
 func NewFakeAuditLogRepository() *FakeAuditLogRepository {
@@ -19,6 +20,9 @@ func NewFakeAuditLogRepository() *FakeAuditLogRepository {
 func (r *FakeAuditLogRepository) Create(_ context.Context, entry *activity.AuditLogEntry) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
+	if r.Err != nil {
+		return r.Err
+	}
 	r.items = append(r.items, entry)
 	return nil
 }
@@ -26,6 +30,9 @@ func (r *FakeAuditLogRepository) Create(_ context.Context, entry *activity.Audit
 func (r *FakeAuditLogRepository) List(_ context.Context, filter activity.AuditLogFilter) ([]*activity.AuditLogEntry, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
+	if r.Err != nil {
+		return nil, r.Err
+	}
 	var result []*activity.AuditLogEntry
 	for _, e := range r.items {
 		if filter.UserID != nil && e.UserID != *filter.UserID {

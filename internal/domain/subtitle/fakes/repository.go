@@ -10,6 +10,7 @@ import (
 type FakeRepository struct {
 	mu    sync.RWMutex
 	items map[string]*subtitle.SubtitleDownload
+	Err   error
 }
 
 func NewFakeRepository() *FakeRepository {
@@ -19,6 +20,9 @@ func NewFakeRepository() *FakeRepository {
 func (r *FakeRepository) Save(_ context.Context, sub *subtitle.SubtitleDownload) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
+	if r.Err != nil {
+		return r.Err
+	}
 	r.items[sub.ID] = sub
 	return nil
 }
@@ -26,6 +30,9 @@ func (r *FakeRepository) Save(_ context.Context, sub *subtitle.SubtitleDownload)
 func (r *FakeRepository) GetByMediaItem(_ context.Context, mediaItemID string) ([]*subtitle.SubtitleDownload, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
+	if r.Err != nil {
+		return nil, r.Err
+	}
 	var result []*subtitle.SubtitleDownload
 	for _, s := range r.items {
 		if s.MediaItemID == mediaItemID {
@@ -38,6 +45,9 @@ func (r *FakeRepository) GetByMediaItem(_ context.Context, mediaItemID string) (
 func (r *FakeRepository) Delete(_ context.Context, id string) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
+	if r.Err != nil {
+		return r.Err
+	}
 	if _, ok := r.items[id]; !ok {
 		return subtitle.ErrNotFound
 	}

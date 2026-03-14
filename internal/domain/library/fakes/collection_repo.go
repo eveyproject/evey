@@ -9,9 +9,9 @@ import (
 
 // FakeCollectionRepository combines command and query behaviour for tests that need both.
 type FakeCollectionRepository struct {
-	cmd    *FakeCollectionCommandRepo
-	query  *FakeCollectionQueryRepo
-	mu     sync.RWMutex
+	cmd   *FakeCollectionCommandRepo
+	query *FakeCollectionQueryRepo
+	mu    sync.RWMutex
 }
 
 func NewFakeCollectionRepository(mediaItems *FakeMediaItemRepository) *FakeCollectionRepository {

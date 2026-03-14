@@ -11,6 +11,7 @@ import (
 type FakePlaySessionRepository struct {
 	mu    sync.RWMutex
 	items map[string]*playback.PlaySession
+	Err   error
 }
 
 func NewFakePlaySessionRepository() *FakePlaySessionRepository {
@@ -20,6 +21,9 @@ func NewFakePlaySessionRepository() *FakePlaySessionRepository {
 func (r *FakePlaySessionRepository) Create(_ context.Context, session *playback.PlaySession) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
+	if r.Err != nil {
+		return r.Err
+	}
 	r.items[session.ID] = session
 	return nil
 }
@@ -27,6 +31,9 @@ func (r *FakePlaySessionRepository) Create(_ context.Context, session *playback.
 func (r *FakePlaySessionRepository) Update(_ context.Context, session *playback.PlaySession) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
+	if r.Err != nil {
+		return r.Err
+	}
 	if _, ok := r.items[session.ID]; !ok {
 		return ErrNotFound
 	}
@@ -37,6 +44,9 @@ func (r *FakePlaySessionRepository) Update(_ context.Context, session *playback.
 func (r *FakePlaySessionRepository) GetByID(_ context.Context, id string) (*playback.PlaySession, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
+	if r.Err != nil {
+		return nil, r.Err
+	}
 	s, ok := r.items[id]
 	if !ok {
 		return nil, ErrNotFound
@@ -47,6 +57,9 @@ func (r *FakePlaySessionRepository) GetByID(_ context.Context, id string) (*play
 func (r *FakePlaySessionRepository) ListActiveSessions(_ context.Context) ([]*playback.ActiveSessionInfo, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
+	if r.Err != nil {
+		return nil, r.Err
+	}
 	var result []*playback.ActiveSessionInfo
 	for _, s := range r.items {
 		if s.EndedAt == nil {
@@ -83,6 +96,9 @@ func (r *FakePlaySessionRepository) ListActiveSessions(_ context.Context) ([]*pl
 func (r *FakePlaySessionRepository) GetActiveByProfile(_ context.Context, profileID string) ([]*playback.PlaySession, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
+	if r.Err != nil {
+		return nil, r.Err
+	}
 	var result []*playback.PlaySession
 	for _, s := range r.items {
 		if s.ProfileID == profileID && s.EndedAt == nil {
@@ -95,6 +111,9 @@ func (r *FakePlaySessionRepository) GetActiveByProfile(_ context.Context, profil
 func (r *FakePlaySessionRepository) GetHistory(_ context.Context, filter playback.PlaySessionFilter) ([]*playback.PlaySession, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
+	if r.Err != nil {
+		return nil, r.Err
+	}
 	var result []*playback.PlaySession
 	for _, s := range r.items {
 		if filter.ProfileID != nil && s.ProfileID != *filter.ProfileID {
@@ -122,6 +141,9 @@ func (r *FakePlaySessionRepository) GetHistory(_ context.Context, filter playbac
 func (r *FakePlaySessionRepository) CloseStale(_ context.Context, olderThan time.Duration) (int, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
+	if r.Err != nil {
+		return 0, r.Err
+	}
 	cutoff := time.Now().Add(-olderThan)
 	closed := 0
 	for _, s := range r.items {
@@ -137,6 +159,9 @@ func (r *FakePlaySessionRepository) CloseStale(_ context.Context, olderThan time
 func (r *FakePlaySessionRepository) CountActiveByUser(_ context.Context, userID string) (int, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
+	if r.Err != nil {
+		return 0, r.Err
+	}
 	count := 0
 	for _, s := range r.items {
 		if s.EndedAt == nil {

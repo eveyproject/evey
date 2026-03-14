@@ -14,6 +14,7 @@ type FakeBackupStore struct {
 	mu        sync.RWMutex
 	manifests map[string]*backup.BackupManifest
 	data      map[string][]byte
+	Err       error
 }
 
 func NewFakeBackupStore() *FakeBackupStore {
@@ -26,6 +27,9 @@ func NewFakeBackupStore() *FakeBackupStore {
 func (s *FakeBackupStore) Create(_ context.Context, m *backup.BackupManifest, data io.Reader) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	if s.Err != nil {
+		return s.Err
+	}
 	b, err := io.ReadAll(data)
 	if err != nil {
 		return err
@@ -39,6 +43,9 @@ func (s *FakeBackupStore) Create(_ context.Context, m *backup.BackupManifest, da
 func (s *FakeBackupStore) List(_ context.Context) ([]*backup.BackupManifest, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
+	if s.Err != nil {
+		return nil, s.Err
+	}
 	var result []*backup.BackupManifest
 	for _, m := range s.manifests {
 		result = append(result, m)
@@ -49,6 +56,9 @@ func (s *FakeBackupStore) List(_ context.Context) ([]*backup.BackupManifest, err
 func (s *FakeBackupStore) Get(_ context.Context, id string) (*backup.BackupManifest, io.ReadCloser, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
+	if s.Err != nil {
+		return nil, nil, s.Err
+	}
 	m, ok := s.manifests[id]
 	if !ok {
 		return nil, nil, fmt.Errorf("backup not found")
@@ -59,6 +69,9 @@ func (s *FakeBackupStore) Get(_ context.Context, id string) (*backup.BackupManif
 func (s *FakeBackupStore) Delete(_ context.Context, id string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	if s.Err != nil {
+		return s.Err
+	}
 	if _, ok := s.manifests[id]; !ok {
 		return fmt.Errorf("backup not found")
 	}

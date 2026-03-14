@@ -11,6 +11,7 @@ import (
 type FakeNotificationRepository struct {
 	mu    sync.Mutex
 	items []*notification.Notification
+	Err   error
 }
 
 func NewFakeNotificationRepository() *FakeNotificationRepository {
@@ -20,6 +21,9 @@ func NewFakeNotificationRepository() *FakeNotificationRepository {
 func (r *FakeNotificationRepository) Create(_ context.Context, n *notification.Notification) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
+	if r.Err != nil {
+		return r.Err
+	}
 	r.items = append(r.items, n)
 	return nil
 }
@@ -27,6 +31,9 @@ func (r *FakeNotificationRepository) Create(_ context.Context, n *notification.N
 func (r *FakeNotificationRepository) ListByProfile(_ context.Context, profileID string, unreadOnly bool, limit, offset int) ([]*notification.Notification, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
+	if r.Err != nil {
+		return nil, r.Err
+	}
 	var out []*notification.Notification
 	for _, n := range r.items {
 		if n.ProfileID != profileID {
@@ -50,6 +57,9 @@ func (r *FakeNotificationRepository) ListByProfile(_ context.Context, profileID 
 func (r *FakeNotificationRepository) MarkRead(_ context.Context, id string) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
+	if r.Err != nil {
+		return r.Err
+	}
 	now := time.Now()
 	for _, n := range r.items {
 		if n.ID == id {
@@ -63,6 +73,9 @@ func (r *FakeNotificationRepository) MarkRead(_ context.Context, id string) erro
 func (r *FakeNotificationRepository) MarkAllRead(_ context.Context, profileID string) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
+	if r.Err != nil {
+		return r.Err
+	}
 	now := time.Now()
 	for _, n := range r.items {
 		if n.ProfileID == profileID && n.ReadAt == nil {
@@ -75,6 +88,9 @@ func (r *FakeNotificationRepository) MarkAllRead(_ context.Context, profileID st
 func (r *FakeNotificationRepository) UnreadCount(_ context.Context, profileID string) (int, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
+	if r.Err != nil {
+		return 0, r.Err
+	}
 	count := 0
 	for _, n := range r.items {
 		if n.ProfileID == profileID && n.ReadAt == nil {
@@ -87,6 +103,9 @@ func (r *FakeNotificationRepository) UnreadCount(_ context.Context, profileID st
 func (r *FakeNotificationRepository) DeleteAll(_ context.Context, profileID string) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
+	if r.Err != nil {
+		return r.Err
+	}
 	var out []*notification.Notification
 	for _, n := range r.items {
 		if n.ProfileID != profileID {
@@ -100,6 +119,9 @@ func (r *FakeNotificationRepository) DeleteAll(_ context.Context, profileID stri
 func (r *FakeNotificationRepository) CleanupExpired(_ context.Context) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
+	if r.Err != nil {
+		return r.Err
+	}
 	now := time.Now()
 	var out []*notification.Notification
 	for _, n := range r.items {

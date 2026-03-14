@@ -11,6 +11,7 @@ import (
 type FakeServerMetricRepository struct {
 	mu    sync.RWMutex
 	items []*activity.ServerMetric
+	Err   error
 }
 
 func NewFakeServerMetricRepository() *FakeServerMetricRepository {
@@ -20,6 +21,9 @@ func NewFakeServerMetricRepository() *FakeServerMetricRepository {
 func (r *FakeServerMetricRepository) Create(_ context.Context, metric *activity.ServerMetric) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
+	if r.Err != nil {
+		return r.Err
+	}
 	r.items = append(r.items, metric)
 	return nil
 }
@@ -27,6 +31,9 @@ func (r *FakeServerMetricRepository) Create(_ context.Context, metric *activity.
 func (r *FakeServerMetricRepository) GetByTimeRange(_ context.Context, from, to time.Time) ([]*activity.ServerMetric, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
+	if r.Err != nil {
+		return nil, r.Err
+	}
 	var result []*activity.ServerMetric
 	for _, m := range r.items {
 		if (m.RecordedAt.Equal(from) || m.RecordedAt.After(from)) && (m.RecordedAt.Equal(to) || m.RecordedAt.Before(to)) {
@@ -39,6 +46,9 @@ func (r *FakeServerMetricRepository) GetByTimeRange(_ context.Context, from, to 
 func (r *FakeServerMetricRepository) Purge(_ context.Context, before time.Time) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
+	if r.Err != nil {
+		return r.Err
+	}
 	var kept []*activity.ServerMetric
 	for _, m := range r.items {
 		if m.RecordedAt.After(before) || m.RecordedAt.Equal(before) {

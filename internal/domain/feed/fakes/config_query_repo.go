@@ -11,6 +11,7 @@ type FakeConfigQueryRepo struct {
 	mu             sync.Mutex
 	AdminConfigs   []*feed.AdminConfig
 	ProfileConfigs map[string][]*feed.ProfileConfig
+	Err            error
 }
 
 func NewFakeConfigQueryRepo() *FakeConfigQueryRepo {
@@ -22,11 +23,17 @@ func NewFakeConfigQueryRepo() *FakeConfigQueryRepo {
 func (r *FakeConfigQueryRepo) GetAdminConfig(_ context.Context) ([]*feed.AdminConfig, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
+	if r.Err != nil {
+		return nil, r.Err
+	}
 	return r.AdminConfigs, nil
 }
 
 func (r *FakeConfigQueryRepo) GetProfileConfig(_ context.Context, profileID string) ([]*feed.ProfileConfig, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
+	if r.Err != nil {
+		return nil, r.Err
+	}
 	return r.ProfileConfigs[profileID], nil
 }
