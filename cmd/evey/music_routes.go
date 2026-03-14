@@ -5,6 +5,7 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
+	"path/filepath"
 	"strconv"
 	"time"
 
@@ -12,7 +13,7 @@ import (
 	"github.com/gravity-zero/evey/internal/pkg/auth"
 )
 
-func registerMusicRoutes(mux *http.ServeMux, svc *appmusic.Service, tokenGen *auth.JWTGenerator, libChecker LibraryAccessChecker) {
+func registerMusicRoutes(mux *http.ServeMux, svc *appmusic.Service, tokenGen *auth.JWTGenerator, libChecker LibraryAccessChecker, libGetter libraryPathsGetter) {
 	mux.HandleFunc("GET /api/v1/music/tracks", func(w http.ResponseWriter, r *http.Request) {
 		token := extractBearerToken(r)
 		if token == "" {
@@ -202,6 +203,22 @@ func registerMusicRoutes(mux *http.ServeMux, svc *appmusic.Service, tokenGen *au
 		}
 		if body.LibraryID == "" || body.Dir == "" {
 			http.Error(w, `{"message":"library_id and dir required"}`, http.StatusBadRequest)
+			return
+		}
+		lib, err := libGetter.GetLibrary(r.Context(), body.LibraryID)
+		if err != nil || lib == nil {
+			http.Error(w, `{"message":"library not found"}`, http.StatusNotFound)
+			return
+		}
+		allowed := false
+		for _, p := range lib.Paths {
+			if isWithinDir(p, body.Dir) || filepath.Clean(body.Dir) == filepath.Clean(p) {
+				allowed = true
+				break
+			}
+		}
+		if !allowed {
+			http.Error(w, `{"message":"dir not within library paths"}`, http.StatusBadRequest)
 			return
 		}
 		count, err := svc.ScanDirectory(r.Context(), body.LibraryID, body.Dir)

@@ -580,7 +580,7 @@ func run() error {
 		registerAdminRoutes(mux, metadataCmdSvc, metadataQuerySvc, tokenGen, adminHeavyRL)
 		registerUserAdminRoutes(mux, userCmdSvc, userQuerySvc, tokenGen)
 		registerFavoriteRoutes(mux, favoriteSvc, libQuerySvc, tokenGen)
-		registerPhotoRoutes(mux, photoSvc, tokenGen, libraryAccessRepo, ctx)
+		registerPhotoRoutes(mux, photoSvc, tokenGen, libraryAccessRepo, libQuerySvc, ctx)
 		registerMetadataOverrideRoutes(mux, metadataCmdSvc, metadataQuerySvc, tokenGen)
 		registerTranscodeCacheRoutes(mux, transcodingSvc, tokenGen)
 		registerTranscodeProfileRoutes(mux, transcodingSvc, tokenGen)
@@ -590,7 +590,7 @@ func run() error {
 		registerPlaylistRoutes(mux, playlistSvc, tokenGen)
 
 		syncPlayHub := appsyncplay.NewHub(memory.NewSyncPlayRoomRepo())
-		registerSyncPlayRoutes(mux, syncPlayHub, tokenGen)
+		registerSyncPlayRoutes(mux, syncPlayHub, tokenGen, libQuerySvc, libraryAccessRepo)
 
 		registerBackupRoutes(mux, backupSvc, tokenGen, adminHeavyRL)
 
@@ -633,7 +633,7 @@ func run() error {
 		registerSystemStatsRoute(mux, startTime, tokenGen)
 		registerServerConfigRoutes(mux, serverCfgRepo, tokenGen)
 		registerLogsRoute(mux, logCfg.Dir, tokenGen)
-		registerMusicRoutes(mux, musicSvc, tokenGen, libraryAccessRepo)
+		registerMusicRoutes(mux, musicSvc, tokenGen, libraryAccessRepo, libQuerySvc)
 		registerPushRoutes(mux, fcmTokenRepo, tokenGen)
 		if subtitleSvc != nil {
 			registerSubtitleRoutes(mux, subtitleSvc, tokenGen, libQuerySvc, libraryAccessRepo)
