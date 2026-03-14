@@ -22,19 +22,21 @@ import (
 )
 
 var ErrOIDCDisabled = errors.New("OIDC not enabled")
+var ErrEmailDomainNotAllowed = errors.New("email domain not allowed")
 
 type OIDCService struct {
-	provider   *gooidc.Provider
-	oauth2Cfg  oauth2.Config
-	verifier   *gooidc.IDTokenVerifier
-	userRepo   domainuser.UserRepository
-	profiles   domainuser.ProfileRepository
-	refreshTkns domainuser.RefreshTokenRepository
-	userRoles  domainuser.UserRoleRepository
-	tokens     domainuser.TokenGenerator
-	events     shared.EventBus
-	stateSecret []byte
-	issuer     string
+	provider            *gooidc.Provider
+	oauth2Cfg           oauth2.Config
+	verifier            *gooidc.IDTokenVerifier
+	userRepo            domainuser.UserRepository
+	profiles            domainuser.ProfileRepository
+	refreshTkns         domainuser.RefreshTokenRepository
+	userRoles           domainuser.UserRoleRepository
+	tokens              domainuser.TokenGenerator
+	events              shared.EventBus
+	stateSecret         []byte
+	issuer              string
+	allowedEmailDomains []string
 }
 
 func NewOIDCService(
@@ -69,17 +71,18 @@ func NewOIDCService(
 	h := sha256.Sum256([]byte(cfg.OIDC.ClientSecret + "oidc-state"))
 
 	return &OIDCService{
-		provider:    provider,
-		oauth2Cfg:   oauth2Cfg,
-		verifier:    verifier,
-		userRepo:    userRepo,
-		profiles:    profiles,
-		refreshTkns: refreshTkns,
-		userRoles:   userRoles,
-		tokens:      tokens,
-		events:      events,
-		stateSecret: h[:],
-		issuer:      cfg.OIDC.Issuer,
+		provider:            provider,
+		oauth2Cfg:           oauth2Cfg,
+		verifier:            verifier,
+		userRepo:            userRepo,
+		profiles:            profiles,
+		refreshTkns:         refreshTkns,
+		userRoles:           userRoles,
+		tokens:              tokens,
+		events:              events,
+		stateSecret:         h[:],
+		issuer:              cfg.OIDC.Issuer,
+		allowedEmailDomains: cfg.OIDC.AllowedEmailDomains,
 	}, nil
 }
 
@@ -199,7 +202,21 @@ func (s *OIDCService) findOrCreateUser(ctx context.Context, sub, email, preferre
 		return u, nil
 	}
 
-	// first OIDC login — create user
+	// first OIDC login — enforce email domain allowlist before creating user
+	if len(s.allowedEmailDomains) > 0 {
+		allowed := false
+		for _, domain := range s.allowedEmailDomains {
+			if strings.HasSuffix(email, "@"+domain) {
+				allowed = true
+				break
+			}
+		}
+		if !allowed {
+			slog.Warn("oidc: email domain not allowed", slog.String("email", email))
+			return nil, ErrEmailDomainNotAllowed
+		}
+	}
+
 	username := preferredUsername
 	if username == "" && email != "" {
 		at := strings.Index(email, "@")

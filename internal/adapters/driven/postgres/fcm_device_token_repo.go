@@ -26,8 +26,8 @@ func (r *FCMDeviceTokenRepository) Upsert(ctx context.Context, userID, profileID
 	return err
 }
 
-func (r *FCMDeviceTokenRepository) Delete(ctx context.Context, token string) error {
-	_, err := r.db.ExecContext(ctx, `DELETE FROM fcm_device_tokens WHERE token = $1`, token)
+func (r *FCMDeviceTokenRepository) Delete(ctx context.Context, userID, token string) error {
+	_, err := r.db.ExecContext(ctx, `DELETE FROM fcm_device_tokens WHERE token = $1 AND user_id = $2`, token, userID)
 	return err
 }
 

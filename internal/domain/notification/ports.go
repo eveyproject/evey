@@ -4,7 +4,7 @@ import "context"
 
 type DeviceTokenRepository interface {
 	Upsert(ctx context.Context, userID, profileID, token, platform string) error
-	Delete(ctx context.Context, token string) error
+	Delete(ctx context.Context, userID, token string) error
 	GetByProfile(ctx context.Context, profileID string) ([]string, error)
 	GetByUser(ctx context.Context, userID string) ([]string, error)
 }

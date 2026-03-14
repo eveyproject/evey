@@ -38,7 +38,7 @@ func (r *FakeDeviceTokenRepository) Upsert(_ context.Context, userID, profileID,
 	return nil
 }
 
-func (r *FakeDeviceTokenRepository) Delete(_ context.Context, token string) error {
+func (r *FakeDeviceTokenRepository) Delete(_ context.Context, userID, token string) error {
 	if r.Err != nil {
 		return r.Err
 	}
@@ -46,7 +46,7 @@ func (r *FakeDeviceTokenRepository) Delete(_ context.Context, token string) erro
 	defer r.mu.Unlock()
 	out := r.entries[:0]
 	for _, e := range r.entries {
-		if e.token != token {
+		if e.token != token || e.userID != userID {
 			out = append(out, e)
 		}
 	}
