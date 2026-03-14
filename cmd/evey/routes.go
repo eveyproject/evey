@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"path/filepath"
 	goruntime "runtime"
 	"strconv"
 	"strings"
@@ -1165,7 +1166,7 @@ func registerBackupRoutes(mux *http.ServeMux, svc *appbackup.Service, tokenGen *
 	})
 }
 
-func registerSyncPlayRoutes(mux *http.ServeMux, hub *appsyncplay.Hub, tokenGen *auth.JWTGenerator) {
+func registerSyncPlayRoutes(mux *http.ServeMux, hub *appsyncplay.Hub, tokenGen *auth.JWTGenerator, mediaGetter mediaLibraryGetter, libChecker LibraryAccessChecker) {
 	extractClaims := func(r *http.Request) (*domainuser.Claims, bool) {
 		h := r.Header.Get("Authorization")
 		if !strings.HasPrefix(h, "Bearer ") {
@@ -1192,6 +1193,14 @@ func registerSyncPlayRoutes(mux *http.ServeMux, hub *appsyncplay.Hub, tokenGen *
 			http.Error(w, `{"message":"mediaId required"}`, http.StatusBadRequest)
 			return
 		}
+		item, err := mediaGetter.GetMediaItem(r.Context(), body.MediaID)
+		if err != nil || item == nil {
+			http.Error(w, `{"message":"not found"}`, http.StatusNotFound)
+			return
+		}
+		if !checkLibraryAccess(r.Context(), w, claims, item.LibraryID, libChecker) {
+			return
+		}
 		if body.Name == "" {
 			body.Name = "Watch Together"
 		}
@@ -1212,7 +1221,7 @@ func registerSyncPlayRoutes(mux *http.ServeMux, hub *appsyncplay.Hub, tokenGen *
 	})
 
 	mux.HandleFunc("GET /api/v1/syncplay/rooms/{id}", func(w http.ResponseWriter, r *http.Request) {
-		_, ok := extractClaims(r)
+		claims, ok := extractClaims(r)
 		if !ok {
 			http.Error(w, `{"message":"unauthenticated"}`, http.StatusUnauthorized)
 			return
@@ -1220,6 +1229,18 @@ func registerSyncPlayRoutes(mux *http.ServeMux, hub *appsyncplay.Hub, tokenGen *
 		room, err := hub.GetRoom(r.Context(), r.PathValue("id"))
 		if err != nil {
 			http.Error(w, `{"message":"room not found"}`, http.StatusNotFound)
+			return
+		}
+		// only host or current members may inspect the room
+		isMember := room.HostID == claims.UserID
+		for _, m := range room.Members {
+			if m.UserID == claims.UserID {
+				isMember = true
+				break
+			}
+		}
+		if !isMember && !claims.IsAdmin {
+			http.Error(w, `{"message":"forbidden"}`, http.StatusForbidden)
 			return
 		}
 		type memberResp struct {
@@ -1841,6 +1862,11 @@ func registerPopularRoute(mux *http.ServeMux, activityQuery *appactivity.QuerySe
 }
 
 func registerSystemStatsRoute(mux *http.ServeMux, startTime time.Time, tokenGen *auth.JWTGenerator) {
+	var (
+		statsMu      sync.Mutex
+		cachedMS     goruntime.MemStats
+		cacheExpires time.Time
+	)
 	mux.HandleFunc("GET /api/v1/admin/system/stats", func(w http.ResponseWriter, r *http.Request) {
 		h := r.Header.Get("Authorization")
 		if !strings.HasPrefix(h, "Bearer ") {
@@ -1853,8 +1879,13 @@ func registerSystemStatsRoute(mux *http.ServeMux, startTime time.Time, tokenGen 
 			return
 		}
 
-		var ms goruntime.MemStats
-		goruntime.ReadMemStats(&ms)
+		statsMu.Lock()
+		if time.Now().After(cacheExpires) {
+			goruntime.ReadMemStats(&cachedMS)
+			cacheExpires = time.Now().Add(5 * time.Second)
+		}
+		ms := cachedMS
+		statsMu.Unlock()
 
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(map[string]any{
@@ -2200,7 +2231,11 @@ func toPhotoResponse(p domainphoto.Photo) photoResponse {
 	}
 }
 
-func registerPhotoRoutes(mux *http.ServeMux, photoSvc *appphoto.Service, tokenGen *auth.JWTGenerator, libChecker LibraryAccessChecker, serverCtx context.Context) {
+type libraryPathsGetter interface {
+	GetLibrary(ctx context.Context, id string) (*domainlibrary.Library, error)
+}
+
+func registerPhotoRoutes(mux *http.ServeMux, photoSvc *appphoto.Service, tokenGen *auth.JWTGenerator, libChecker LibraryAccessChecker, libGetter libraryPathsGetter, serverCtx context.Context) {
 	extractClaims := func(r *http.Request) (*domainuser.Claims, bool) {
 		h := r.Header.Get("Authorization")
 		if !strings.HasPrefix(h, "Bearer ") {
@@ -2392,6 +2427,22 @@ func registerPhotoRoutes(mux *http.ServeMux, photoSvc *appphoto.Service, tokenGe
 		}
 		if err := json.NewDecoder(r.Body).Decode(&body); err != nil || body.LibraryID == "" || body.Dir == "" {
 			http.Error(w, `{"message":"library_id and dir required"}`, http.StatusBadRequest)
+			return
+		}
+		lib, err := libGetter.GetLibrary(r.Context(), body.LibraryID)
+		if err != nil || lib == nil {
+			http.Error(w, `{"message":"library not found"}`, http.StatusNotFound)
+			return
+		}
+		allowed := false
+		for _, p := range lib.Paths {
+			if isWithinDir(p, body.Dir) || filepath.Clean(body.Dir) == filepath.Clean(p) {
+				allowed = true
+				break
+			}
+		}
+		if !allowed {
+			http.Error(w, `{"message":"dir not within library paths"}`, http.StatusBadRequest)
 			return
 		}
 		go func() {
