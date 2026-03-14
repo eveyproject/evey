@@ -55,9 +55,14 @@ type GRPCServer struct {
 	scheduler     *applibrary.Scheduler
 	logDir        string
 	version       string
-	backup        *appbackup.Service
-	cfg           *config.Config
-	cfgStore      remoteAccessConfigStore
+	backup          *appbackup.Service
+	cfg             *config.Config
+	cfgStore        remoteAccessConfigStore
+	serverCfgHndlr  *serverConfigHandler
+}
+
+func (s *GRPCServer) SetServerConfigHandler(h *serverConfigHandler) {
+	s.serverCfgHndlr = h
 }
 
 func (s *GRPCServer) SetHLSManager(m *apptranscoding.HLSManager) {
@@ -168,6 +173,9 @@ func (s *GRPCServer) RegisterServices() {
 	eveyv1.RegisterRemoteAccessServiceServer(s.server, &remoteAccessHandler{cfg: s.cfg, store: s.cfgStore})
 	eveyv1.RegisterPlaybackSettingsServiceServer(s.server, &playbackSettingsHandler{cfg: s.cfg})
 	eveyv1.RegisterLibraryAccessServiceServer(s.server, &libraryAccessHandler{accessRepo: s.libraryAccess, libQuery: s.libQuery})
+	if s.serverCfgHndlr != nil {
+		eveyv1.RegisterServerConfigServiceServer(s.server, s.serverCfgHndlr)
+	}
 }
 
 func (s *GRPCServer) Start(addr string) error {

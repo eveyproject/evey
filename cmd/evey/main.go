@@ -415,6 +415,7 @@ func run() error {
 	grpcSrv.SetHLSManager(hlsManager)
 	grpcSrv.SetScheduler(libScheduler)
 	grpcSrv.SetLogDir(logCfg.Dir)
+	grpcSrv.SetServerConfigHandler(grpcapi.NewServerConfigHandler(serverCfgRepo))
 	go func() {
 		ticker := time.NewTicker(30 * time.Second)
 		defer ticker.Stop()
