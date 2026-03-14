@@ -84,12 +84,13 @@ function Lightbox({ photos, index, onClose, onPrev, onNext }: LightboxProps) {
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
-      if (e.key === "ArrowLeft") onPrev();
+      if (e.key === "Escape") onClose();
+      else if (e.key === "ArrowLeft") onPrev();
       else if (e.key === "ArrowRight") onNext();
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
-  }, [onPrev, onNext]);
+  }, [onClose, onPrev, onNext]);
 
   if (!photo) return null;
 
