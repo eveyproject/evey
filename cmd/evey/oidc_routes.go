@@ -15,7 +15,9 @@ func registerOIDCRoutes(mux *http.ServeMux, oidcSvc *appuser.OIDCService) {
 	// GET /api/v1/auth/oidc/config — frontend polls this to show/hide SSO button
 	mux.HandleFunc("GET /api/v1/auth/oidc/config", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]any{"enabled": true})
+		if err := json.NewEncoder(w).Encode(map[string]any{"enabled": true}); err != nil {
+			slog.Warn("json encode failed", slog.Any("err", err))
+		}
 	})
 
 	// GET /api/v1/auth/oidc/login — redirect to provider

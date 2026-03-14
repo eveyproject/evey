@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"log/slog"
 	"net/http"
 
 	domainuser "github.com/gravity-zero/evey/internal/domain/user"
@@ -63,7 +64,9 @@ func registerParentalRoutes(
 			out.Enabled = profile.Parental.Enabled
 		}
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(out)
+		if err := json.NewEncoder(w).Encode(out); err != nil {
+			slog.Warn("json encode failed", slog.Any("err", err))
+		}
 	})
 
 	// PUT update parental settings (requires current PIN if one is set)
@@ -167,7 +170,9 @@ func registerParentalRoutes(
 		}
 		if profile.Parental == nil || profile.Parental.PINHash == "" {
 			w.Header().Set("Content-Type", "application/json")
-			json.NewEncoder(w).Encode(map[string]any{"valid": true})
+			if err := json.NewEncoder(w).Encode(map[string]any{"valid": true}); err != nil {
+				slog.Warn("json encode failed", slog.Any("err", err))
+			}
 			return
 		}
 		valid, err := hasher.Verify(body.PIN, profile.Parental.PINHash)
@@ -176,6 +181,8 @@ func registerParentalRoutes(
 			return
 		}
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]any{"valid": valid})
+		if err := json.NewEncoder(w).Encode(map[string]any{"valid": valid}); err != nil {
+			slog.Warn("json encode failed", slog.Any("err", err))
+		}
 	})
 }
