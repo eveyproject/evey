@@ -117,10 +117,11 @@ func mapIMDBTitle(t imdbTitle) domain.MetadataResult {
 
 	if t.PrimaryImage != nil && t.PrimaryImage.URL != "" {
 		result.Artwork = append(result.Artwork, domain.ArtworkResult{
-			Type:   "poster",
-			URL:    t.PrimaryImage.URL,
-			Width:  t.PrimaryImage.Width,
-			Height: t.PrimaryImage.Height,
+			Type:     "poster",
+			URL:      t.PrimaryImage.URL,
+			Width:    t.PrimaryImage.Width,
+			Height:   t.PrimaryImage.Height,
+			Provider: "imdb",
 		})
 	}
 

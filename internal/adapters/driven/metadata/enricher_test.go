@@ -74,18 +74,23 @@ func TestMergeResults_PrimaryPeopleKept(t *testing.T) {
 	assert.Equal(t, "Primary Actor", result.People[0].Name)
 }
 
-func TestMergeResults_ArtworkAppended(t *testing.T) {
+func TestMergeResults_ArtworkDeduplicatedByType(t *testing.T) {
 	primary := &domain.MetadataResult{
 		Artwork: []domain.ArtworkResult{{Type: "poster", Provider: "tmdb", URL: "http://tmdb.com/1.jpg"}},
 	}
-	supplement := &domain.MetadataResult{
+	// same type as primary — should be skipped
+	dupSupplement := &domain.MetadataResult{
 		Artwork: []domain.ArtworkResult{{Type: "poster", Provider: "omdb", URL: "http://omdb.com/1.jpg"}},
 	}
+	// different type — should be added
+	newSupplement := &domain.MetadataResult{
+		Artwork: []domain.ArtworkResult{{Type: "backdrop", Provider: "tvmaze", URL: "http://tvmaze.com/1.jpg"}},
+	}
 
-	result := MergeResults(primary, supplement)
+	result := MergeResults(primary, dupSupplement, newSupplement)
 	assert.Len(t, result.Artwork, 2)
 	assert.Equal(t, "tmdb", result.Artwork[0].Provider)
-	assert.Equal(t, "omdb", result.Artwork[1].Provider)
+	assert.Equal(t, "tvmaze", result.Artwork[1].Provider)
 }
 
 func TestPickBestMatch_TitleSimilarity(t *testing.T) {

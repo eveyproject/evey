@@ -152,8 +152,9 @@ func (p *TMDBProvider) GetEpisodeDetails(ctx context.Context, seriesID string, s
 	}
 	if ep.StillPath != "" {
 		result.Artwork = []domain.ArtworkResult{{
-			Type: "backdrop",
-			URL:  imageBaseURL + ep.StillPath,
+			Type:     "backdrop",
+			URL:      imageBaseURL + ep.StillPath,
+			Provider: "tmdb",
 		}}
 	}
 	if t := parseDate(ep.AirDate); t != nil {
