@@ -146,7 +146,7 @@ func (s *CommandService) handleMediaItemAdded(parentCtx context.Context, ev shar
 			ProfileID:   p.ID,
 			Type:        notifType,
 			Title:       title,
-			Message:     notifMessage(e.Title, e.SeriesTitle),
+			Message:     "",
 			MediaItemID: e.MediaItemID,
 			Level:       lvl,
 			CreatedAt:   time.Now(),

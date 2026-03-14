@@ -144,7 +144,7 @@ func (s *Service) handleMediaItemAdded(parentCtx context.Context, ev shared.Even
 			ProfileID:   p.ID,
 			Type:        notifType,
 			Title:       title,
-			Message:     notifMessage(e.Title, e.SeriesTitle),
+			Message:     "",
 			MediaItemID: e.MediaItemID,
 			Level:       lvl,
 			CreatedAt:   time.Now(),
@@ -178,13 +178,6 @@ func typeAndTitle(mediaType, title, seriesTitle string) (notification.Type, stri
 		return notification.TypeNewAlbum, "New Album: " + title
 	}
 	return "", ""
-}
-
-func notifMessage(title, seriesTitle string) string {
-	if seriesTitle != "" {
-		return seriesTitle + " — " + title + " added to your library"
-	}
-	return title + " added to your library"
 }
 
 func levelForType(cfg *notification.Settings, t notification.Type) notification.Level {
