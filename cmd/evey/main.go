@@ -19,6 +19,7 @@ import (
 	appbackup "github.com/gravity-zero/evey/internal/app/backup"
 	appcollection "github.com/gravity-zero/evey/internal/app/collection"
 	appfavorite "github.com/gravity-zero/evey/internal/app/favorite"
+	apprating "github.com/gravity-zero/evey/internal/app/rating"
 	appfeed "github.com/gravity-zero/evey/internal/app/feed"
 	applibrary "github.com/gravity-zero/evey/internal/app/library"
 	appmetadata "github.com/gravity-zero/evey/internal/app/metadata"
@@ -356,6 +357,9 @@ func run() error {
 
 	userRatingRepo := postgres.NewUserRatingRepository(db)
 
+	starRatingRepo := postgres.NewRatingRepository(db)
+	starRatingSvc := apprating.NewService(starRatingRepo)
+
 	playlistRepo := postgres.NewPlaylistRepository(db)
 	playlistItemRepo := postgres.NewPlaylistItemRepository(db)
 	smartQuerier := postgres.NewSmartPlaylistQuerier(db)
@@ -587,6 +591,7 @@ func run() error {
 		registerPlaybackSettingsRoutes(mux, cfg, tokenGen)
 		registerParentalRoutes(mux, profileRepo, hasher, tokenGen)
 		registerRatingRoutes(mux, userRatingRepo, tokenGen)
+		registerStarRatingRoutes(mux, starRatingSvc, tokenGen)
 		registerPopularRoute(mux, activityQuerySvc, libQuerySvc, tokenGen)
 		registerSystemStatsRoute(mux, startTime, tokenGen)
 		registerServerConfigRoutes(mux, serverCfgRepo, tokenGen)
