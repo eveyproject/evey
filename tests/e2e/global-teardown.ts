@@ -31,6 +31,8 @@ export default function globalTeardown() {
     sql(`DELETE FROM audit_log WHERE created_at >= '${since}'`);
     sql(`DELETE FROM play_sessions WHERE started_at >= '${since}'`);
     sql(`DELETE FROM login_history WHERE created_at >= '${since}'`);
+    sql(`DELETE FROM collections WHERE created_at >= '${since}'`);
+    sql(`DELETE FROM playlists WHERE created_at >= '${since}'`);
     sql(`DELETE FROM profiles WHERE user_id IN (SELECT id FROM users WHERE username LIKE 'e2e_%')`);
     sql(`DELETE FROM users WHERE username LIKE 'e2e_%'`);
     console.log("E2E teardown: cleaned test data since " + since);

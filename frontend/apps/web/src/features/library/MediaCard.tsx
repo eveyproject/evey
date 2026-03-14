@@ -238,8 +238,11 @@ export function MediaCard({
   const [imgLoaded, setImgLoaded] = useState(false);
   const hoverTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [showPreview, setShowPreview] = useState(false);
+  const accessToken = useAuthStore((s) => s.accessToken);
   const poster =
-    posterSrc ?? (item.id ? `/api/v1/media/${item.id}/artwork/poster` : null);
+    posterSrc ?? (item.id && accessToken
+      ? `/api/v1/media/${item.id}/artwork/poster?token=${encodeURIComponent(accessToken)}`
+      : null);
   const initial = item.title ? item.title[0].toUpperCase() : "?";
   const pct =
     progressPercent !== undefined

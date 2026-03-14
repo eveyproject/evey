@@ -184,32 +184,6 @@ function LibrarySlider({ libraryId, name, libraryType }: { libraryId: string; na
   );
 }
 
-function TypeSlider({
-  title,
-  type,
-}: {
-  title: string;
-  type: "MEDIA_ITEM_TYPE_MOVIE" | "MEDIA_ITEM_TYPE_SERIES";
-}) {
-  const { data, isLoading } = useLibraryServiceListMediaItems({
-    type,
-    "pagination.pageSize": 20,
-    sortField: "MEDIA_SORT_FIELD_DATE_ADDED",
-    sortOrder: "SORT_ORDER_DESC",
-  });
-
-  const items = data?.items ?? [];
-  if (!isLoading && items.length === 0) return null;
-
-  return (
-    <MediaSlider title={title} seeAllHref="/library" isLoading={isLoading}>
-      {items.map((item) => (
-        <MediaCard key={item.id} item={item} />
-      ))}
-    </MediaSlider>
-  );
-}
-
 function ContinueWatchingSlider() {
   const { data, isLoading } = useFeedServiceContinueWatching();
   const items = data?.items ?? [];
@@ -360,8 +334,6 @@ function HomePage() {
             <RecentlyAddedSlider />
             <RecommendedSlider />
             <MostPopularSlider />
-            <TypeSlider title="Films" type="MEDIA_ITEM_TYPE_MOVIE" />
-            <TypeSlider title="S\u00E9ries" type="MEDIA_ITEM_TYPE_SERIES" />
             {libraries.map((lib) =>
               lib.id ? (
                 <LibrarySlider key={lib.id} libraryId={lib.id} name={lib.name ?? "Library"} libraryType={lib.type} />
