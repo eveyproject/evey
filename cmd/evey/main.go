@@ -400,6 +400,7 @@ func run() error {
 	httpPort := cfg.Server.Port + 1
 	gwMux := registerGateway(grpcAddr)
 	var httpSrv *http.Server
+	var backupSvc *appbackup.Service
 	if gwMux != nil {
 		mux := http.NewServeMux()
 		loginRL := ratelimit.New(cfg.Server.LoginRateLimitMax)
@@ -458,7 +459,7 @@ func run() error {
 
 		backupStore := filesystem.NewBackupStore(cfg.Backup.Dir)
 		dbDumper := postgres.NewDatabaseDumper(cfg.DB.Host, cfg.DB.Port, cfg.DB.User, cfg.DB.Password, cfg.DB.DBName, cfg.DB.SSLMode)
-		backupSvc := appbackup.NewService(backupStore, dbDumper, version)
+		backupSvc = appbackup.NewService(backupStore, dbDumper, version)
 		if cfg.Backup.EncryptionKey != "" {
 			bkey, bkeyErr := backupcrypto.KeyFromBase64(cfg.Backup.EncryptionKey)
 			if bkeyErr != nil {
@@ -574,6 +575,30 @@ func run() error {
 			}
 		}
 	}()
+
+	if cfg.Backup.IntervalHours > 0 {
+		go func() {
+			ticker := time.NewTicker(time.Duration(cfg.Backup.IntervalHours) * time.Hour)
+			defer ticker.Stop()
+			for {
+				select {
+				case <-ctx.Done():
+					return
+				case <-ticker.C:
+					if _, err := backupSvc.CreateBackup(context.Background()); err != nil {
+						rootLog.Error("scheduled backup failed", slog.Any("err", err))
+					} else {
+						rootLog.Info("scheduled backup created")
+					}
+					if cfg.Backup.RetentionDays > 0 {
+						if err := backupSvc.CleanupOldBackups(context.Background(), cfg.Backup.RetentionDays); err != nil {
+							rootLog.Warn("backup cleanup failed", slog.Any("err", err))
+						}
+					}
+				}
+			}
+		}()
+	}
 
 	errCh := make(chan error, 2)
 

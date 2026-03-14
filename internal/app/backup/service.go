@@ -116,3 +116,22 @@ func (s *Service) RestoreBackup(ctx context.Context, data io.Reader) error {
 func (s *Service) DeleteBackup(ctx context.Context, backupID string) error {
 	return s.store.Delete(ctx, backupID)
 }
+
+func (s *Service) CleanupOldBackups(ctx context.Context, retentionDays int) error {
+	if retentionDays <= 0 {
+		return nil
+	}
+	list, err := s.store.List(ctx)
+	if err != nil {
+		return err
+	}
+	cutoff := time.Now().UTC().AddDate(0, 0, -retentionDays)
+	for _, m := range list {
+		if m.CreatedAt.Before(cutoff) {
+			if delErr := s.store.Delete(ctx, m.ID); delErr != nil {
+				return fmt.Errorf("delete backup %s: %w", m.ID, delErr)
+			}
+		}
+	}
+	return nil
+}
