@@ -43,19 +43,20 @@ type adminLibraryScanner interface {
 
 type adminHandler struct {
 	eveyv1.UnimplementedAdminServiceServer
-	userCmd        *appuser.CommandService
-	userQuery      *appuser.QueryService
-	transcodingSvc *apptranscoding.Service
-	activitySvc    *appactivity.QueryService
-	pluginSvc      *appplugin.Service
-	hlsManager     *apptranscoding.HLSManager
-	libLister      adminLibraryLister
-	scheduler      adminScheduler
-	libScanner     adminLibraryScanner
-	libCmd         *applibrary.CommandService
-	metadataCmd    *appmetadata.CommandService
-	logDir         string
-	version        string
+	userCmd          *appuser.CommandService
+	userQuery        *appuser.QueryService
+	transcodingSvc   *apptranscoding.Service
+	activitySvc      *appactivity.QueryService
+	pluginSvc        *appplugin.Service
+	hlsManager       *apptranscoding.HLSManager
+	libLister        adminLibraryLister
+	scheduler        adminScheduler
+	libScanner       adminLibraryScanner
+	libCmd           *applibrary.CommandService
+	metadataCmd      *appmetadata.CommandService
+	logDir           string
+	version          string
+	heavyOpSemaphore chan struct{} // capacity 1; non-blocking acquire guards heavy ops
 }
 
 func (h *adminHandler) GetSystemInfo(ctx context.Context, _ *eveyv1.GetSystemInfoRequest) (*eveyv1.SystemInfo, error) {
@@ -441,10 +442,32 @@ func stringFromInterface(v any) string {
 	return ""
 }
 
+func (h *adminHandler) acquireHeavyOp() bool {
+	if h.heavyOpSemaphore == nil {
+		return true
+	}
+	select {
+	case h.heavyOpSemaphore <- struct{}{}:
+		return true
+	default:
+		return false
+	}
+}
+
+func (h *adminHandler) releaseHeavyOp() {
+	if h.heavyOpSemaphore != nil {
+		<-h.heavyOpSemaphore
+	}
+}
+
 func (h *adminHandler) RefreshAllMetadata(ctx context.Context, _ *eveyv1.RefreshAllMetadataRequest) (*eveyv1.RefreshAllMetadataResponse, error) {
 	if h.metadataCmd == nil {
 		return nil, status.Error(codes.Unimplemented, "metadata command service not configured")
 	}
+	if !h.acquireHeavyOp() {
+		return nil, status.Error(codes.ResourceExhausted, "a heavy operation is already running")
+	}
+	defer h.releaseHeavyOp()
 	if err := h.metadataCmd.AutoRefreshAllItems(ctx); err != nil {
 		return nil, status.Errorf(codes.Internal, "refresh all metadata: %v", err)
 	}
@@ -455,6 +478,10 @@ func (h *adminHandler) GenerateAllTrickplays(ctx context.Context, _ *eveyv1.Gene
 	if h.libCmd == nil {
 		return nil, status.Error(codes.Unimplemented, "library command service not configured")
 	}
+	if !h.acquireHeavyOp() {
+		return nil, status.Error(codes.ResourceExhausted, "a heavy operation is already running")
+	}
+	defer h.releaseHeavyOp()
 	n, err := h.libCmd.GenerateAllMissingTrickplays(ctx)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "generate all trickplays: %v", err)
