@@ -149,19 +149,20 @@ func (s *GRPCServer) RegisterServices() {
 	eveyv1.RegisterMKVServiceServer(s.server, &mkvHandler{svc: s.mkv})
 	eveyv1.RegisterMetadataServiceServer(s.server, &metadataHandler{cmd: s.metadataCmd, query: s.metadataQuery})
 	eveyv1.RegisterAdminServiceServer(s.server, &adminHandler{
-		userCmd:        s.userCmd,
-		userQuery:      s.userQuery,
-		transcodingSvc: s.transcoding,
-		activitySvc:    s.activityQuery,
-		pluginSvc:      s.plugin,
-		hlsManager:     s.hlsManager,
-		libLister:      s.libQuery,
-		scheduler:      s.scheduler,
-		libScanner:     s.libCmd,
-		libCmd:         s.libCmd,
-		metadataCmd:    s.metadataCmd,
-		logDir:         s.logDir,
-		version:        s.version,
+		userCmd:          s.userCmd,
+		userQuery:        s.userQuery,
+		transcodingSvc:   s.transcoding,
+		activitySvc:      s.activityQuery,
+		pluginSvc:        s.plugin,
+		hlsManager:       s.hlsManager,
+		libLister:        s.libQuery,
+		scheduler:        s.scheduler,
+		libScanner:       s.libCmd,
+		libCmd:           s.libCmd,
+		metadataCmd:      s.metadataCmd,
+		logDir:           s.logDir,
+		version:          s.version,
+		heavyOpSemaphore: make(chan struct{}, 1),
 	})
 	eveyv1.RegisterActivityServiceServer(s.server, &activityHandler{svc: s.activityQuery})
 	eveyv1.RegisterNotificationServiceServer(s.server, &notificationHandler{cmd: s.notifCmd, query: s.notifQuery})
