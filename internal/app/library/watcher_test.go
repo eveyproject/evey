@@ -4,6 +4,7 @@ import (
 	"context"
 	"log/slog"
 	"os"
+	"sync"
 	"testing"
 	"time"
 
@@ -15,12 +16,23 @@ import (
 )
 
 type fakeLibraryScanner struct {
+	mu      sync.Mutex
 	scanned []string
 }
 
 func (f *fakeLibraryScanner) ScanLibrary(_ context.Context, libraryID string) (int, int, error) {
+	f.mu.Lock()
 	f.scanned = append(f.scanned, libraryID)
+	f.mu.Unlock()
 	return 1, 0, nil
+}
+
+func (f *fakeLibraryScanner) Scanned() []string {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	out := make([]string, len(f.scanned))
+	copy(out, f.scanned)
+	return out
 }
 
 func TestWatcherService_Start_WatchesEnabledLibraries(t *testing.T) {
@@ -78,10 +90,10 @@ func TestWatcherService_FileEvent_TriggersScan(t *testing.T) {
 
 	// wait for debounce (2s) + processing
 	require.Eventually(t, func() bool {
-		return len(scanner.scanned) > 0
+		return len(scanner.Scanned()) > 0
 	}, 5*time.Second, 100*time.Millisecond)
 
-	assert.Equal(t, "lib-1", scanner.scanned[0])
+	assert.Equal(t, "lib-1", scanner.Scanned()[0])
 }
 
 func TestWatcherService_Debounce_MultipleFastEvents(t *testing.T) {
@@ -111,12 +123,12 @@ func TestWatcherService_Debounce_MultipleFastEvents(t *testing.T) {
 
 	// wait for debounce + processing
 	require.Eventually(t, func() bool {
-		return len(scanner.scanned) > 0
+		return len(scanner.Scanned()) > 0
 	}, 5*time.Second, 100*time.Millisecond)
 
 	// wait a bit more to ensure no extra scans
 	time.Sleep(500 * time.Millisecond)
-	assert.Len(t, scanner.scanned, 1, "should debounce into single scan")
+	assert.Len(t, scanner.Scanned(), 1, "should debounce into single scan")
 }
 
 func TestWatcherService_AddRemoveLibrary(t *testing.T) {
@@ -185,5 +197,5 @@ func TestWatcherService_UnrelatedPath_NoScan(t *testing.T) {
 	})
 
 	time.Sleep(3 * time.Second)
-	assert.Empty(t, scanner.scanned, "unrelated path should not trigger scan")
+	assert.Empty(t, scanner.Scanned(), "unrelated path should not trigger scan")
 }
