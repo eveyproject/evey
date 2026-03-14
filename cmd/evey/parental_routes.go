@@ -145,10 +145,6 @@ func registerParentalRoutes(
 			return
 		}
 		profileID := r.PathValue("id")
-		if profileID != claims.ProfileID && !claims.IsAdmin {
-			http.Error(w, `{"message":"forbidden"}`, http.StatusForbidden)
-			return
-		}
 		if !pinRL.Allow(profileID) {
 			http.Error(w, `{"message":"too many attempts"}`, http.StatusTooManyRequests)
 			return
@@ -163,6 +159,10 @@ func registerParentalRoutes(
 		profile, err := profileRepo.GetByID(r.Context(), profileID)
 		if err != nil {
 			http.Error(w, `{"message":"profile not found"}`, http.StatusNotFound)
+			return
+		}
+		if !claims.IsAdmin && profile.UserID != claims.UserID {
+			http.Error(w, `{"message":"forbidden"}`, http.StatusForbidden)
 			return
 		}
 		if profile.Parental == nil || profile.Parental.PINHash == "" {
