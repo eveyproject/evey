@@ -161,6 +161,10 @@ func run() error {
 	ebmlWriter := ebml.NewWriter("ffmpeg")
 	bus := eventbus.New()
 	hasher := auth.BcryptHasher{}
+	// DB value takes precedence over env var for metadata language
+	if langEntry, err2 := serverCfgRepo.Get(context.Background(), "metadata.language"); err2 == nil && langEntry.Value != "" {
+		cfg.Metadata.Language = langEntry.Value
+	}
 	tmdbProvider := metadataadapter.NewTMDBProvider(os.Getenv("EVEY_TMDB_API_KEY"), cfg.Metadata.Language, nil)
 	imdbProvider := metadataadapter.NewIMDBAPIProvider(nil)
 	tvmazeProvider := metadataadapter.NewTVMazeProvider(nil)

@@ -2,7 +2,7 @@ import { useState } from "react";
 import { createLazyFileRoute } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { eveyFetch } from "@evey/api/src/fetcher";
-import { toast } from "@evey/store";
+import { toast, useLocaleStore } from "@evey/store";
 import { Spinner } from "@/components/ui/Spinner";
 import { Button } from "@/components/ui/Button";
 import { EmptyState } from "@/components/ui/EmptyState";
@@ -114,6 +114,77 @@ function ConfigRow({ entry }: { entry: ConfigEntry }) {
   );
 }
 
+const LOCALE_OPTIONS = [
+  { label: "English (US)", value: "en-US" },
+  { label: "Français (FR)", value: "fr-FR" },
+  { label: "Deutsch (DE)", value: "de-DE" },
+  { label: "Español (ES)", value: "es-ES" },
+  { label: "Italiano (IT)", value: "it-IT" },
+  { label: "Português (BR)", value: "pt-BR" },
+  { label: "日本語 (JP)", value: "ja-JP" },
+  { label: "한국어 (KR)", value: "ko-KR" },
+  { label: "中文 (CN)", value: "zh-CN" },
+];
+
+const METADATA_LANG_KEY = "metadata.language";
+
+function LocaleSettingsCard({ entries }: { entries: ConfigEntry[] | undefined }) {
+  const setEntry = useSetConfigEntry();
+  const setLocale = useLocaleStore((s) => s.setLocale);
+
+  const current = entries?.find((e) => e.key === METADATA_LANG_KEY)?.value ?? "";
+
+  function handleChange(value: string) {
+    setEntry.mutate(
+      { key: METADATA_LANG_KEY, value },
+      {
+        onSuccess: () => {
+          setLocale(value);
+          toast.success("Language updated — restart server to apply to metadata fetching");
+        },
+      }
+    );
+  }
+
+  return (
+    <div
+      className="rounded-[var(--radius-lg)] p-5"
+      style={{ border: "1px solid var(--border)", backgroundColor: "var(--surface)" }}
+    >
+      <h2 className="text-base font-semibold mb-1" style={{ color: "var(--text)" }}>
+        Language &amp; Region
+      </h2>
+      <p className="text-sm mb-4" style={{ color: "var(--text-muted)" }}>
+        Metadata language used when fetching from TMDB and other providers. Takes effect after server restart.
+      </p>
+      <div className="flex items-center gap-3">
+        <label className="text-sm font-medium" style={{ color: "var(--text)" }} htmlFor="metadata-lang">
+          Metadata language
+        </label>
+        <select
+          id="metadata-lang"
+          value={current}
+          onChange={(e) => handleChange(e.target.value)}
+          className="px-3 py-1.5 rounded text-sm"
+          style={{
+            backgroundColor: "var(--surface-raised)",
+            border: "1px solid var(--border)",
+            color: "var(--text)",
+          }}
+        >
+          <option value="">— env default —</option>
+          {LOCALE_OPTIONS.map((opt) => (
+            <option key={opt.value} value={opt.value}>
+              {opt.label}
+            </option>
+          ))}
+        </select>
+        {setEntry.isPending && <Spinner size="sm" />}
+      </div>
+    </div>
+  );
+}
+
 function AddEntryRow() {
   const [key, setKey] = useState("");
   const [value, setValue] = useState("");
@@ -166,6 +237,8 @@ function ServerConfigPage() {
           Key-value configuration entries persisted in the database.
         </p>
       </div>
+
+      <LocaleSettingsCard entries={entries} />
 
       {isLoading ? (
         <div className="flex justify-center py-16"><Spinner size="lg" /></div>
