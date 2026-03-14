@@ -1,0 +1,134 @@
+syntax = "proto3";
+
+package evey.v1;
+
+import "google/api/annotations.proto";
+import "google/protobuf/timestamp.proto";
+
+option go_package = "github.com/gravity/evey/gen/evey/v1;eveyv1";
+
+service PlaylistService {
+  rpc ListPlaylists(ListPlaylistsRequest) returns (ListPlaylistsResponse) {
+    option (google.api.http) = {
+      get: "/api/v1/playlists"
+    };
+  }
+
+  rpc GetPlaylist(GetPlaylistRequest) returns (Playlist) {
+    option (google.api.http) = {
+      get: "/api/v1/playlists/{id}"
+    };
+  }
+
+  rpc CreatePlaylist(CreatePlaylistRequest) returns (CreatePlaylistResponse) {
+    option (google.api.http) = {
+      post: "/api/v1/playlists"
+      body: "*"
+    };
+  }
+
+  rpc UpdatePlaylist(UpdatePlaylistRequest) returns (Playlist) {
+    option (google.api.http) = {
+      put: "/api/v1/playlists/{id}"
+      body: "*"
+    };
+  }
+
+  rpc DeletePlaylist(DeletePlaylistRequest) returns (DeletePlaylistResponse) {
+    option (google.api.http) = {
+      delete: "/api/v1/playlists/{id}"
+    };
+  }
+
+  rpc AddPlaylistItem(AddPlaylistItemRequest) returns (AddPlaylistItemResponse) {
+    option (google.api.http) = {
+      post: "/api/v1/playlists/{id}/items"
+      body: "*"
+    };
+  }
+
+  rpc RemovePlaylistItem(RemovePlaylistItemRequest) returns (RemovePlaylistItemResponse) {
+    option (google.api.http) = {
+      delete: "/api/v1/playlists/{id}/items/{media_item_id}"
+    };
+  }
+}
+
+enum PlaylistType {
+  PLAYLIST_TYPE_UNSPECIFIED = 0;
+  PLAYLIST_TYPE_MANUAL = 1;
+  PLAYLIST_TYPE_SMART = 2;
+}
+
+message PlaylistRule {
+  string field = 1;
+  string operator = 2;
+  string value = 3;
+}
+
+message Playlist {
+  string id = 1;
+  string name = 2;
+  string description = 3;
+  PlaylistType type = 4;
+  repeated PlaylistRule rules = 5;
+  string sort_by = 6;
+  string sort_order = 7;
+  google.protobuf.Timestamp created_at = 8;
+  google.protobuf.Timestamp updated_at = 9;
+}
+
+message ListPlaylistsRequest {}
+
+message ListPlaylistsResponse {
+  repeated Playlist playlists = 1;
+}
+
+message GetPlaylistRequest {
+  string id = 1;
+  int32 limit = 2;
+  int32 offset = 3;
+}
+
+message CreatePlaylistRequest {
+  string name = 1;
+  string description = 2;
+  PlaylistType type = 3;
+  repeated PlaylistRule rules = 4;
+  string sort_by = 5;
+  string sort_order = 6;
+}
+
+message CreatePlaylistResponse {
+  string id = 1;
+}
+
+message UpdatePlaylistRequest {
+  string id = 1;
+  string name = 2;
+  string description = 3;
+  PlaylistType type = 4;
+  repeated PlaylistRule rules = 5;
+  string sort_by = 6;
+  string sort_order = 7;
+}
+
+message DeletePlaylistRequest {
+  string id = 1;
+}
+
+message DeletePlaylistResponse {}
+
+message AddPlaylistItemRequest {
+  string id = 1;
+  string media_item_id = 2;
+}
+
+message AddPlaylistItemResponse {}
+
+message RemovePlaylistItemRequest {
+  string id = 1;
+  string media_item_id = 2;
+}
+
+message RemovePlaylistItemResponse {}
