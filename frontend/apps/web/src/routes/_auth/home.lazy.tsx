@@ -7,8 +7,10 @@ import {
   useFeedServiceRecommended,
   useLibraryServiceListLibraries,
   useLibraryServiceListMediaItems,
+  usePlaybackServiceGetNextUp,
   libraryServiceGetMediaItem,
 } from "@evey/api";
+import { useAuthStore } from "@evey/store";
 import { MediaSlider } from "../../features/home/MediaSlider";
 import { MediaCard } from "../../features/library/MediaCard";
 import { EmptyState } from "@/components/ui/EmptyState";
@@ -203,6 +205,38 @@ function ContinueWatchingSlider() {
   );
 }
 
+function UpNextSlider() {
+  const profileId = useAuthStore((s) => s.profileId);
+  const { data, isLoading } = usePlaybackServiceGetNextUp(
+    { profileId: profileId ?? undefined, limit: 15 },
+    { query: { enabled: !!profileId } },
+  );
+  const items = data?.items ?? [];
+  if (!isLoading && items.length === 0) return null;
+
+  return (
+    <MediaSlider title="Up Next" isLoading={isLoading}>
+      {items.map((item) => (
+        <MediaCard
+          key={item.id}
+          item={{
+            id: item.id,
+            title: item.title,
+            type: item.type,
+            year: item.year,
+            communityRating: item.communityRating,
+            overview: item.overview,
+            genres: item.genres,
+            artwork: item.artwork,
+          }}
+          showYear={false}
+          showType
+        />
+      ))}
+    </MediaSlider>
+  );
+}
+
 function RecentlyAddedSlider() {
   const { data, isLoading } = useFeedServiceRecentlyAdded();
   const items = data?.items ?? [];
@@ -340,6 +374,7 @@ function HomePage() {
         ) : (
           <>
             <ContinueWatchingSlider />
+            <UpNextSlider />
             <CollectionsSection />
             <RecentlyAddedSlider />
             <RecommendedSlider />
