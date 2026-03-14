@@ -113,6 +113,8 @@ export function HLSPlayer({
   const [externalSubUrl, setExternalSubUrl] = useState<{ url: string; label: string } | null>(null);
   const externalSubUrlRef = useRef<string | null>(null);
   const [subtitleFontSize, setSubtitleFontSize] = useState(100);
+  const [subtitleColor, setSubtitleColor] = useState("#ffffff");
+  const [subtitleFontFamily, setSubtitleFontFamily] = useState("");
   const styleElRef = useRef<HTMLStyleElement | null>(null);
   const [showShortcuts, setShowShortcuts] = useState(false);
   const [isBuffering, setIsBuffering] = useState(false);
@@ -286,18 +288,19 @@ export function HLSPlayer({
     }
   }, [currentSubtitle, externalSubUrl, mediaId, accessToken, transcodeStartTime, currentTrackIndex, currentQuality]);
 
-  // Inject ::cue style for subtitle font size
+  // Inject ::cue style for subtitle appearance
   useEffect(() => {
     if (!styleElRef.current) {
       styleElRef.current = document.createElement("style");
       document.head.appendChild(styleElRef.current);
     }
-    styleElRef.current.textContent = `::cue { font-size: ${subtitleFontSize}%; }`;
+    const fontFamilyRule = subtitleFontFamily ? `font-family: ${subtitleFontFamily};` : "";
+    styleElRef.current.textContent = `::cue { font-size: ${subtitleFontSize}%; color: ${subtitleColor}; ${fontFamilyRule} }`;
     return () => {
       styleElRef.current?.remove();
       styleElRef.current = null;
     };
-  }, [subtitleFontSize]);
+  }, [subtitleFontSize, subtitleColor, subtitleFontFamily]);
 
   // Sync playbackRate with playbackSpeed state
   useEffect(() => {
@@ -695,6 +698,10 @@ export function HLSPlayer({
         skipBackwardSeconds={skipBwd}
         subtitleFontSize={subtitleFontSize}
         onSubtitleFontSizeChange={setSubtitleFontSize}
+        subtitleColor={subtitleColor}
+        onSubtitleColorChange={setSubtitleColor}
+        subtitleFontFamily={subtitleFontFamily}
+        onSubtitleFontFamilyChange={setSubtitleFontFamily}
         onExternalSubtitle={(blobUrl, label) => {
           setCurrentSubtitle(null);
           setExternalSubUrl({ url: blobUrl, label });

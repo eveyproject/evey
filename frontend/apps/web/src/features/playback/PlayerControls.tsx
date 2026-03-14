@@ -187,6 +187,10 @@ interface PlayerControlsProps {
   onExternalSubtitle?: (blobUrl: string, label: string) => void;
   subtitleFontSize?: number;
   onSubtitleFontSizeChange?: (size: number) => void;
+  subtitleColor?: string;
+  onSubtitleColorChange?: (color: string) => void;
+  subtitleFontFamily?: string;
+  onSubtitleFontFamilyChange?: (font: string) => void;
 }
 
 function formatTime(seconds: number): string {
@@ -215,7 +219,26 @@ interface SettingsPanelProps {
   onExternalSubtitle?: (blobUrl: string, label: string) => void;
   subtitleFontSize?: number;
   onSubtitleFontSizeChange?: (size: number) => void;
+  subtitleColor?: string;
+  onSubtitleColorChange?: (color: string) => void;
+  subtitleFontFamily?: string;
+  onSubtitleFontFamilyChange?: (font: string) => void;
 }
+
+const SUBTITLE_COLORS = [
+  { label: "White", value: "#ffffff" },
+  { label: "Yellow", value: "#fde047" },
+  { label: "Green", value: "#4ade80" },
+  { label: "Cyan", value: "#22d3ee" },
+  { label: "Orange", value: "#fb923c" },
+];
+
+const SUBTITLE_FONTS = [
+  { label: "Default", value: "" },
+  { label: "Sans-serif", value: "Arial, sans-serif" },
+  { label: "Serif", value: "Georgia, serif" },
+  { label: "Monospace", value: "'Courier New', monospace" },
+];
 
 function SettingsPanel({
   audioStreams,
@@ -235,6 +258,10 @@ function SettingsPanel({
   onExternalSubtitle,
   subtitleFontSize = 100,
   onSubtitleFontSizeChange,
+  subtitleColor = "#ffffff",
+  onSubtitleColorChange,
+  subtitleFontFamily = "",
+  onSubtitleFontFamilyChange,
 }: SettingsPanelProps) {
   const extSubInputRef = useRef<HTMLInputElement>(null);
   const [open, setOpen] = useState(false);
@@ -397,6 +424,55 @@ function SettingsPanel({
             </>
           )}
 
+          {/* Subtitle color */}
+          {onSubtitleColorChange && (
+            <>
+              <div className="mx-3 my-1" style={{ borderTop: "1px solid var(--border)" }} />
+              <div className="px-4 py-2">
+                <span className="text-xs font-semibold uppercase tracking-wider block mb-2" style={{ color: "var(--text-muted)" }}>
+                  Subtitle Color
+                </span>
+                <div className="flex gap-2">
+                  {SUBTITLE_COLORS.map((c) => (
+                    <button
+                      key={c.value}
+                      title={c.label}
+                      onClick={() => onSubtitleColorChange(c.value)}
+                      className="w-5 h-5 rounded-full transition-transform hover:scale-110"
+                      style={{
+                        backgroundColor: c.value,
+                        outline: subtitleColor === c.value ? "2px solid var(--accent)" : "2px solid transparent",
+                        outlineOffset: "2px",
+                      }}
+                    />
+                  ))}
+                </div>
+              </div>
+            </>
+          )}
+
+          {/* Subtitle font */}
+          {onSubtitleFontFamilyChange && (
+            <>
+              <div className="mx-3 my-1" style={{ borderTop: "1px solid var(--border)" }} />
+              <div className="px-4 py-2">
+                <span className="text-xs font-semibold uppercase tracking-wider block mb-2" style={{ color: "var(--text-muted)" }}>
+                  Subtitle Font
+                </span>
+                <select
+                  value={subtitleFontFamily}
+                  onChange={(e) => onSubtitleFontFamilyChange(e.target.value)}
+                  className="w-full text-sm px-2 py-1 rounded"
+                  style={{ backgroundColor: "var(--surface-raised)", color: "var(--text)", border: "1px solid var(--border)" }}
+                >
+                  {SUBTITLE_FONTS.map((f) => (
+                    <option key={f.value} value={f.value}>{f.label}</option>
+                  ))}
+                </select>
+              </div>
+            </>
+          )}
+
           {/* External subtitle upload */}
           {onExternalSubtitle && (
             <>
@@ -492,6 +568,10 @@ export function PlayerControls({
   onExternalSubtitle,
   subtitleFontSize = 100,
   onSubtitleFontSizeChange,
+  subtitleColor = "#ffffff",
+  onSubtitleColorChange,
+  subtitleFontFamily = "",
+  onSubtitleFontFamilyChange,
 }: PlayerControlsProps) {
   const [visible, setVisible] = useState(true);
   const [playing, setPlaying] = useState(false);
@@ -927,6 +1007,10 @@ export function PlayerControls({
             onExternalSubtitle={onExternalSubtitle}
             subtitleFontSize={subtitleFontSize}
             onSubtitleFontSizeChange={onSubtitleFontSizeChange}
+            subtitleColor={subtitleColor}
+            onSubtitleColorChange={onSubtitleColorChange}
+            subtitleFontFamily={subtitleFontFamily}
+            onSubtitleFontFamilyChange={onSubtitleFontFamilyChange}
           />
 
           {/* Picture-in-Picture */}
