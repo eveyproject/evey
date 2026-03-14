@@ -11,6 +11,7 @@ import (
 type FakeCacheStore struct {
 	mu    sync.RWMutex
 	files map[string]transcoding.CacheFileInfo
+	Err   error
 }
 
 func NewFakeCacheStore() *FakeCacheStore {
@@ -24,6 +25,9 @@ func (s *FakeCacheStore) AddFile(f transcoding.CacheFileInfo) {
 }
 
 func (s *FakeCacheStore) GetCacheInfo(_ context.Context) (*transcoding.CacheInfo, error) {
+	if s.Err != nil {
+		return nil, s.Err
+	}
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	info := &transcoding.CacheInfo{}
@@ -36,6 +40,9 @@ func (s *FakeCacheStore) GetCacheInfo(_ context.Context) (*transcoding.CacheInfo
 }
 
 func (s *FakeCacheStore) ClearCache(_ context.Context) error {
+	if s.Err != nil {
+		return s.Err
+	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.files = make(map[string]transcoding.CacheFileInfo)
@@ -43,6 +50,9 @@ func (s *FakeCacheStore) ClearCache(_ context.Context) error {
 }
 
 func (s *FakeCacheStore) DeleteFile(_ context.Context, filename string) error {
+	if s.Err != nil {
+		return s.Err
+	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if _, ok := s.files[filename]; !ok {

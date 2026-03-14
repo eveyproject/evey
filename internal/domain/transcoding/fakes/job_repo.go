@@ -10,6 +10,7 @@ import (
 type FakeTranscodeJobRepository struct {
 	mu    sync.RWMutex
 	items map[string]*transcoding.TranscodeJob
+	Err   error
 }
 
 func NewFakeTranscodeJobRepository() *FakeTranscodeJobRepository {
@@ -17,6 +18,9 @@ func NewFakeTranscodeJobRepository() *FakeTranscodeJobRepository {
 }
 
 func (r *FakeTranscodeJobRepository) Create(_ context.Context, job *transcoding.TranscodeJob) error {
+	if r.Err != nil {
+		return r.Err
+	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.items[job.ID] = job
@@ -24,6 +28,9 @@ func (r *FakeTranscodeJobRepository) Create(_ context.Context, job *transcoding.
 }
 
 func (r *FakeTranscodeJobRepository) GetByID(_ context.Context, id string) (*transcoding.TranscodeJob, error) {
+	if r.Err != nil {
+		return nil, r.Err
+	}
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 	j, ok := r.items[id]
@@ -34,6 +41,9 @@ func (r *FakeTranscodeJobRepository) GetByID(_ context.Context, id string) (*tra
 }
 
 func (r *FakeTranscodeJobRepository) Update(_ context.Context, job *transcoding.TranscodeJob) error {
+	if r.Err != nil {
+		return r.Err
+	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	if _, ok := r.items[job.ID]; !ok {
@@ -44,6 +54,9 @@ func (r *FakeTranscodeJobRepository) Update(_ context.Context, job *transcoding.
 }
 
 func (r *FakeTranscodeJobRepository) ListActive(_ context.Context) ([]*transcoding.TranscodeJob, error) {
+	if r.Err != nil {
+		return nil, r.Err
+	}
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 	var result []*transcoding.TranscodeJob
@@ -56,6 +69,9 @@ func (r *FakeTranscodeJobRepository) ListActive(_ context.Context) ([]*transcodi
 }
 
 func (r *FakeTranscodeJobRepository) ListByMediaItem(_ context.Context, mediaItemID string) ([]*transcoding.TranscodeJob, error) {
+	if r.Err != nil {
+		return nil, r.Err
+	}
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 	var result []*transcoding.TranscodeJob

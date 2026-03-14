@@ -10,6 +10,7 @@ import (
 type FakeArtworkRepository struct {
 	mu    sync.RWMutex
 	items map[string]*metadata.ArtworkRecord
+	Err   error
 }
 
 func NewFakeArtworkRepository() *FakeArtworkRepository {
@@ -17,6 +18,9 @@ func NewFakeArtworkRepository() *FakeArtworkRepository {
 }
 
 func (r *FakeArtworkRepository) Create(_ context.Context, a *metadata.ArtworkRecord) error {
+	if r.Err != nil {
+		return r.Err
+	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.items[a.ID] = a
@@ -24,6 +28,9 @@ func (r *FakeArtworkRepository) Create(_ context.Context, a *metadata.ArtworkRec
 }
 
 func (r *FakeArtworkRepository) GetByMediaItem(_ context.Context, mediaItemID string) ([]*metadata.ArtworkRecord, error) {
+	if r.Err != nil {
+		return nil, r.Err
+	}
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 	var result []*metadata.ArtworkRecord
@@ -36,6 +43,9 @@ func (r *FakeArtworkRepository) GetByMediaItem(_ context.Context, mediaItemID st
 }
 
 func (r *FakeArtworkRepository) GetByPerson(_ context.Context, personID string) ([]*metadata.ArtworkRecord, error) {
+	if r.Err != nil {
+		return nil, r.Err
+	}
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 	var result []*metadata.ArtworkRecord
@@ -48,6 +58,9 @@ func (r *FakeArtworkRepository) GetByPerson(_ context.Context, personID string) 
 }
 
 func (r *FakeArtworkRepository) Delete(_ context.Context, id string) error {
+	if r.Err != nil {
+		return r.Err
+	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	if _, ok := r.items[id]; !ok {
@@ -58,6 +71,9 @@ func (r *FakeArtworkRepository) Delete(_ context.Context, id string) error {
 }
 
 func (r *FakeArtworkRepository) DeleteByMediaItemID(_ context.Context, mediaItemID string) error {
+	if r.Err != nil {
+		return r.Err
+	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	for id, a := range r.items {

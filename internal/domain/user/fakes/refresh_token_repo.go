@@ -15,6 +15,7 @@ var ErrDuplicateTokenHash = &pq.Error{Code: "23505", Message: "duplicate key val
 type FakeRefreshTokenRepository struct {
 	mu    sync.RWMutex
 	items map[string]*user.RefreshToken
+	Err   error
 }
 
 func NewFakeRefreshTokenRepository() *FakeRefreshTokenRepository {
@@ -22,6 +23,9 @@ func NewFakeRefreshTokenRepository() *FakeRefreshTokenRepository {
 }
 
 func (r *FakeRefreshTokenRepository) Create(_ context.Context, t *user.RefreshToken) error {
+	if r.Err != nil {
+		return r.Err
+	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	for _, existing := range r.items {
@@ -34,6 +38,9 @@ func (r *FakeRefreshTokenRepository) Create(_ context.Context, t *user.RefreshTo
 }
 
 func (r *FakeRefreshTokenRepository) GetByTokenHash(_ context.Context, hash string) (*user.RefreshToken, error) {
+	if r.Err != nil {
+		return nil, r.Err
+	}
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 	for _, t := range r.items {
@@ -45,6 +52,9 @@ func (r *FakeRefreshTokenRepository) GetByTokenHash(_ context.Context, hash stri
 }
 
 func (r *FakeRefreshTokenRepository) MarkUsed(_ context.Context, id string) error {
+	if r.Err != nil {
+		return r.Err
+	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	if t, ok := r.items[id]; ok {
@@ -54,6 +64,9 @@ func (r *FakeRefreshTokenRepository) MarkUsed(_ context.Context, id string) erro
 }
 
 func (r *FakeRefreshTokenRepository) DeleteByID(_ context.Context, id string) error {
+	if r.Err != nil {
+		return r.Err
+	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	delete(r.items, id)
@@ -61,6 +74,9 @@ func (r *FakeRefreshTokenRepository) DeleteByID(_ context.Context, id string) er
 }
 
 func (r *FakeRefreshTokenRepository) DeleteByUserID(_ context.Context, userID string) error {
+	if r.Err != nil {
+		return r.Err
+	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	for id, t := range r.items {
@@ -72,5 +88,8 @@ func (r *FakeRefreshTokenRepository) DeleteByUserID(_ context.Context, userID st
 }
 
 func (r *FakeRefreshTokenRepository) DeleteExpired(_ context.Context) error {
+	if r.Err != nil {
+		return r.Err
+	}
 	return nil
 }

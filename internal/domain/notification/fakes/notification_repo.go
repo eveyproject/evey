@@ -11,6 +11,7 @@ import (
 type FakeNotificationRepository struct {
 	mu    sync.Mutex
 	items []*notification.Notification
+	Err   error
 }
 
 func NewFakeNotificationRepository() *FakeNotificationRepository {
@@ -18,6 +19,9 @@ func NewFakeNotificationRepository() *FakeNotificationRepository {
 }
 
 func (r *FakeNotificationRepository) Create(_ context.Context, n *notification.Notification) error {
+	if r.Err != nil {
+		return r.Err
+	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.items = append(r.items, n)
@@ -25,6 +29,9 @@ func (r *FakeNotificationRepository) Create(_ context.Context, n *notification.N
 }
 
 func (r *FakeNotificationRepository) ListByProfile(_ context.Context, profileID string, unreadOnly bool, limit, offset int) ([]*notification.Notification, error) {
+	if r.Err != nil {
+		return nil, r.Err
+	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	var out []*notification.Notification
@@ -48,6 +55,9 @@ func (r *FakeNotificationRepository) ListByProfile(_ context.Context, profileID 
 }
 
 func (r *FakeNotificationRepository) MarkRead(_ context.Context, id string) error {
+	if r.Err != nil {
+		return r.Err
+	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	now := time.Now()
@@ -61,6 +71,9 @@ func (r *FakeNotificationRepository) MarkRead(_ context.Context, id string) erro
 }
 
 func (r *FakeNotificationRepository) MarkAllRead(_ context.Context, profileID string) error {
+	if r.Err != nil {
+		return r.Err
+	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	now := time.Now()
@@ -73,6 +86,9 @@ func (r *FakeNotificationRepository) MarkAllRead(_ context.Context, profileID st
 }
 
 func (r *FakeNotificationRepository) UnreadCount(_ context.Context, profileID string) (int, error) {
+	if r.Err != nil {
+		return 0, r.Err
+	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	count := 0
@@ -85,6 +101,9 @@ func (r *FakeNotificationRepository) UnreadCount(_ context.Context, profileID st
 }
 
 func (r *FakeNotificationRepository) DeleteAll(_ context.Context, profileID string) error {
+	if r.Err != nil {
+		return r.Err
+	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	var out []*notification.Notification
@@ -98,6 +117,9 @@ func (r *FakeNotificationRepository) DeleteAll(_ context.Context, profileID stri
 }
 
 func (r *FakeNotificationRepository) CleanupExpired(_ context.Context) error {
+	if r.Err != nil {
+		return r.Err
+	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	now := time.Now()

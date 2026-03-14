@@ -10,8 +10,9 @@ import (
 var ErrNotFound = library.ErrNotFound
 
 type FakeLibraryRepository struct {
-	mu      sync.RWMutex
-	items   map[string]*library.Library
+	mu    sync.RWMutex
+	items map[string]*library.Library
+	Err   error
 }
 
 func NewFakeLibraryRepository() *FakeLibraryRepository {
@@ -19,6 +20,9 @@ func NewFakeLibraryRepository() *FakeLibraryRepository {
 }
 
 func (r *FakeLibraryRepository) Create(_ context.Context, lib *library.Library) error {
+	if r.Err != nil {
+		return r.Err
+	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.items[lib.ID] = lib
@@ -26,6 +30,9 @@ func (r *FakeLibraryRepository) Create(_ context.Context, lib *library.Library) 
 }
 
 func (r *FakeLibraryRepository) GetByID(_ context.Context, id string) (*library.Library, error) {
+	if r.Err != nil {
+		return nil, r.Err
+	}
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 	lib, ok := r.items[id]
@@ -36,6 +43,9 @@ func (r *FakeLibraryRepository) GetByID(_ context.Context, id string) (*library.
 }
 
 func (r *FakeLibraryRepository) List(_ context.Context) ([]*library.Library, error) {
+	if r.Err != nil {
+		return nil, r.Err
+	}
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 	result := make([]*library.Library, 0, len(r.items))
@@ -46,6 +56,9 @@ func (r *FakeLibraryRepository) List(_ context.Context) ([]*library.Library, err
 }
 
 func (r *FakeLibraryRepository) Update(_ context.Context, lib *library.Library) error {
+	if r.Err != nil {
+		return r.Err
+	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	if _, ok := r.items[lib.ID]; !ok {
@@ -56,6 +69,9 @@ func (r *FakeLibraryRepository) Update(_ context.Context, lib *library.Library) 
 }
 
 func (r *FakeLibraryRepository) Delete(_ context.Context, id string) error {
+	if r.Err != nil {
+		return r.Err
+	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	if _, ok := r.items[id]; !ok {

@@ -11,6 +11,7 @@ import (
 type FakeAPIKeyRepository struct {
 	mu    sync.RWMutex
 	items map[string]*user.APIKeyModel
+	Err   error
 }
 
 func NewFakeAPIKeyRepository() *FakeAPIKeyRepository {
@@ -18,6 +19,9 @@ func NewFakeAPIKeyRepository() *FakeAPIKeyRepository {
 }
 
 func (r *FakeAPIKeyRepository) Create(_ context.Context, key *user.APIKeyModel) error {
+	if r.Err != nil {
+		return r.Err
+	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.items[key.ID] = key
@@ -25,6 +29,9 @@ func (r *FakeAPIKeyRepository) Create(_ context.Context, key *user.APIKeyModel) 
 }
 
 func (r *FakeAPIKeyRepository) GetByKeyHash(_ context.Context, hash string) (*user.APIKeyModel, error) {
+	if r.Err != nil {
+		return nil, r.Err
+	}
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 	for _, k := range r.items {
@@ -36,6 +43,9 @@ func (r *FakeAPIKeyRepository) GetByKeyHash(_ context.Context, hash string) (*us
 }
 
 func (r *FakeAPIKeyRepository) ListByUserID(_ context.Context, userID string) ([]*user.APIKeyModel, error) {
+	if r.Err != nil {
+		return nil, r.Err
+	}
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 	var result []*user.APIKeyModel
@@ -48,6 +58,9 @@ func (r *FakeAPIKeyRepository) ListByUserID(_ context.Context, userID string) ([
 }
 
 func (r *FakeAPIKeyRepository) Delete(_ context.Context, id string) error {
+	if r.Err != nil {
+		return r.Err
+	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	delete(r.items, id)
@@ -55,6 +68,9 @@ func (r *FakeAPIKeyRepository) Delete(_ context.Context, id string) error {
 }
 
 func (r *FakeAPIKeyRepository) UpdateLastUsed(_ context.Context, id string, t time.Time) error {
+	if r.Err != nil {
+		return r.Err
+	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	if k, ok := r.items[id]; ok {

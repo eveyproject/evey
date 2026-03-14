@@ -10,6 +10,7 @@ import (
 type FakeProfileRepository struct {
 	mu    sync.RWMutex
 	items map[string]*user.Profile
+	Err   error
 }
 
 func NewFakeProfileRepository() *FakeProfileRepository {
@@ -17,6 +18,9 @@ func NewFakeProfileRepository() *FakeProfileRepository {
 }
 
 func (r *FakeProfileRepository) Create(_ context.Context, p *user.Profile) error {
+	if r.Err != nil {
+		return r.Err
+	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.items[p.ID] = p
@@ -24,6 +28,9 @@ func (r *FakeProfileRepository) Create(_ context.Context, p *user.Profile) error
 }
 
 func (r *FakeProfileRepository) GetByID(_ context.Context, id string) (*user.Profile, error) {
+	if r.Err != nil {
+		return nil, r.Err
+	}
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 	p, ok := r.items[id]
@@ -34,6 +41,9 @@ func (r *FakeProfileRepository) GetByID(_ context.Context, id string) (*user.Pro
 }
 
 func (r *FakeProfileRepository) GetByUserID(_ context.Context, userID string) ([]*user.Profile, error) {
+	if r.Err != nil {
+		return nil, r.Err
+	}
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 	var result []*user.Profile
@@ -46,6 +56,9 @@ func (r *FakeProfileRepository) GetByUserID(_ context.Context, userID string) ([
 }
 
 func (r *FakeProfileRepository) Update(_ context.Context, p *user.Profile) error {
+	if r.Err != nil {
+		return r.Err
+	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	if _, ok := r.items[p.ID]; !ok {
@@ -56,6 +69,9 @@ func (r *FakeProfileRepository) Update(_ context.Context, p *user.Profile) error
 }
 
 func (r *FakeProfileRepository) GetAll(_ context.Context) ([]*user.Profile, error) {
+	if r.Err != nil {
+		return nil, r.Err
+	}
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 	out := make([]*user.Profile, 0, len(r.items))
@@ -66,6 +82,9 @@ func (r *FakeProfileRepository) GetAll(_ context.Context) ([]*user.Profile, erro
 }
 
 func (r *FakeProfileRepository) Delete(_ context.Context, id string) error {
+	if r.Err != nil {
+		return r.Err
+	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	if _, ok := r.items[id]; !ok {

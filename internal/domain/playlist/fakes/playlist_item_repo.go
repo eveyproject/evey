@@ -11,6 +11,7 @@ import (
 type FakePlaylistItemRepository struct {
 	mu    sync.RWMutex
 	items map[string][]*playlist.PlaylistItem // playlistID -> items
+	Err   error
 }
 
 func NewFakePlaylistItemRepository() *FakePlaylistItemRepository {
@@ -18,6 +19,9 @@ func NewFakePlaylistItemRepository() *FakePlaylistItemRepository {
 }
 
 func (r *FakePlaylistItemRepository) Add(_ context.Context, item *playlist.PlaylistItem) error {
+	if r.Err != nil {
+		return r.Err
+	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	for _, existing := range r.items[item.PlaylistID] {
@@ -30,6 +34,9 @@ func (r *FakePlaylistItemRepository) Add(_ context.Context, item *playlist.Playl
 }
 
 func (r *FakePlaylistItemRepository) Remove(_ context.Context, playlistID, mediaItemID string) error {
+	if r.Err != nil {
+		return r.Err
+	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	items := r.items[playlistID]
@@ -43,6 +50,9 @@ func (r *FakePlaylistItemRepository) Remove(_ context.Context, playlistID, media
 }
 
 func (r *FakePlaylistItemRepository) GetByPlaylistID(_ context.Context, playlistID string) ([]*playlist.PlaylistItem, error) {
+	if r.Err != nil {
+		return nil, r.Err
+	}
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 	items := r.items[playlistID]
@@ -55,6 +65,9 @@ func (r *FakePlaylistItemRepository) GetByPlaylistID(_ context.Context, playlist
 }
 
 func (r *FakePlaylistItemRepository) Reorder(_ context.Context, playlistID string, mediaItemIDs []string) error {
+	if r.Err != nil {
+		return r.Err
+	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	items := r.items[playlistID]

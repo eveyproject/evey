@@ -132,6 +132,10 @@ func (s *Service) Setup(ctx context.Context, username, password, email string) (
 	if err := s.profiles.Create(ctx, p); err != nil {
 		return nil, fmt.Errorf("create default profile: %w", err)
 	}
+	evtProfileCreated := user.ProfileCreated{ProfileID: p.ID, UserID: p.UserID, Name: p.Name, OccurredAt: time.Now()}
+	if err := s.events.Publish(ctx, evtProfileCreated); err != nil {
+		slog.Warn("publish event", slog.String("event", evtProfileCreated.EventName()), slog.Any("err", err))
+	}
 
 	s.setupDone = true
 	return u, nil
@@ -308,6 +312,30 @@ func (s *Service) CreateUser(ctx context.Context, callerIsAdmin bool, u *user.Us
 func (s *Service) UpdateUser(ctx context.Context, u *user.User) error {
 	u.UpdatedAt = time.Now()
 	return s.users.Update(ctx, u)
+}
+
+func (s *Service) ChangePassword(ctx context.Context, userID, newPassword string) error {
+	if len(newPassword) < 8 {
+		return ErrPasswordTooShort
+	}
+	u, err := s.users.GetByID(ctx, userID)
+	if err != nil {
+		return err
+	}
+	hash, err := s.hasher.Hash(newPassword)
+	if err != nil {
+		return fmt.Errorf("hash password: %w", err)
+	}
+	u.PasswordHash = hash
+	u.UpdatedAt = time.Now()
+	if err := s.users.Update(ctx, u); err != nil {
+		return err
+	}
+	evt := user.PasswordChanged{UserID: userID, OccurredAt: time.Now()}
+	if err := s.events.Publish(ctx, evt); err != nil {
+		slog.Warn("publish event", slog.String("event", evt.EventName()), slog.Any("err", err))
+	}
+	return nil
 }
 
 func (s *Service) DeleteUser(ctx context.Context, id string) error {

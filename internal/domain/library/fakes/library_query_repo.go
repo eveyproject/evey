@@ -10,6 +10,7 @@ import (
 type FakeLibraryQueryRepo struct {
 	mu    sync.RWMutex
 	items map[string]*library.Library
+	Err   error
 }
 
 func NewFakeLibraryQueryRepo() *FakeLibraryQueryRepo {
@@ -17,6 +18,9 @@ func NewFakeLibraryQueryRepo() *FakeLibraryQueryRepo {
 }
 
 func (r *FakeLibraryQueryRepo) GetByID(_ context.Context, id string) (*library.Library, error) {
+	if r.Err != nil {
+		return nil, r.Err
+	}
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 	lib, ok := r.items[id]
@@ -27,6 +31,9 @@ func (r *FakeLibraryQueryRepo) GetByID(_ context.Context, id string) (*library.L
 }
 
 func (r *FakeLibraryQueryRepo) List(_ context.Context) ([]*library.Library, error) {
+	if r.Err != nil {
+		return nil, r.Err
+	}
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 	result := make([]*library.Library, 0, len(r.items))

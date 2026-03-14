@@ -2,18 +2,19 @@ package fakes
 
 import (
 	"context"
+	"errors"
 	"sync"
 	"time"
 
 	"github.com/gravity-zero/evey/internal/domain/activity"
-	"github.com/gravity-zero/evey/internal/domain/shared"
 )
 
-var ErrNotFound = shared.ErrNotFound
+var ErrNotFound = errors.New("not found")
 
 type FakeLoginHistoryRepository struct {
 	mu    sync.RWMutex
 	items []*activity.LoginEntry
+	Err   error
 }
 
 func NewFakeLoginHistoryRepository() *FakeLoginHistoryRepository {
@@ -21,6 +22,9 @@ func NewFakeLoginHistoryRepository() *FakeLoginHistoryRepository {
 }
 
 func (r *FakeLoginHistoryRepository) Create(_ context.Context, entry *activity.LoginEntry) error {
+	if r.Err != nil {
+		return r.Err
+	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.items = append(r.items, entry)
@@ -28,6 +32,9 @@ func (r *FakeLoginHistoryRepository) Create(_ context.Context, entry *activity.L
 }
 
 func (r *FakeLoginHistoryRepository) GetByUserID(_ context.Context, userID string, limit, offset int) ([]*activity.LoginEntry, error) {
+	if r.Err != nil {
+		return nil, r.Err
+	}
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 	var result []*activity.LoginEntry
@@ -48,6 +55,9 @@ func (r *FakeLoginHistoryRepository) GetByUserID(_ context.Context, userID strin
 }
 
 func (r *FakeLoginHistoryRepository) CountFailedSince(_ context.Context, userID string, since time.Time) (int, error) {
+	if r.Err != nil {
+		return 0, r.Err
+	}
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 	count := 0

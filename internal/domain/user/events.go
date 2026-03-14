@@ -51,3 +51,10 @@ type LoginFailed struct {
 }
 
 func (e LoginFailed) EventName() string { return "user.login.failed" }
+
+type PasswordChanged struct {
+	UserID     string
+	OccurredAt time.Time
+}
+
+func (e PasswordChanged) EventName() string { return "user.password.changed" }

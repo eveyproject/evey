@@ -11,6 +11,7 @@ import (
 type FakeScanScheduleRepository struct {
 	mu    sync.RWMutex
 	items map[string]*library.ScanSchedule
+	Err   error
 }
 
 func NewFakeScanScheduleRepository() *FakeScanScheduleRepository {
@@ -18,6 +19,9 @@ func NewFakeScanScheduleRepository() *FakeScanScheduleRepository {
 }
 
 func (r *FakeScanScheduleRepository) Upsert(_ context.Context, s *library.ScanSchedule) error {
+	if r.Err != nil {
+		return r.Err
+	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.items[s.LibraryID] = s
@@ -25,6 +29,9 @@ func (r *FakeScanScheduleRepository) Upsert(_ context.Context, s *library.ScanSc
 }
 
 func (r *FakeScanScheduleRepository) GetByLibraryID(_ context.Context, libraryID string) (*library.ScanSchedule, error) {
+	if r.Err != nil {
+		return nil, r.Err
+	}
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 	s, ok := r.items[libraryID]
@@ -35,6 +42,9 @@ func (r *FakeScanScheduleRepository) GetByLibraryID(_ context.Context, libraryID
 }
 
 func (r *FakeScanScheduleRepository) Delete(_ context.Context, libraryID string) error {
+	if r.Err != nil {
+		return r.Err
+	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	delete(r.items, libraryID)
@@ -42,6 +52,9 @@ func (r *FakeScanScheduleRepository) Delete(_ context.Context, libraryID string)
 }
 
 func (r *FakeScanScheduleRepository) ListEnabled(_ context.Context) ([]*library.ScanSchedule, error) {
+	if r.Err != nil {
+		return nil, r.Err
+	}
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 	var result []*library.ScanSchedule
@@ -54,6 +67,9 @@ func (r *FakeScanScheduleRepository) ListEnabled(_ context.Context) ([]*library.
 }
 
 func (r *FakeScanScheduleRepository) UpdateAfterRun(_ context.Context, libraryID string, lastRun, nextRun time.Time) error {
+	if r.Err != nil {
+		return r.Err
+	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	s, ok := r.items[libraryID]

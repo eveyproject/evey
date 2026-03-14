@@ -10,6 +10,7 @@ import (
 type FakeMediaStreamRepository struct {
 	mu    sync.RWMutex
 	items map[string][]*library.MediaStream
+	Err   error
 }
 
 func NewFakeMediaStreamRepository() *FakeMediaStreamRepository {
@@ -17,6 +18,9 @@ func NewFakeMediaStreamRepository() *FakeMediaStreamRepository {
 }
 
 func (r *FakeMediaStreamRepository) CreateBatch(_ context.Context, streams []*library.MediaStream) error {
+	if r.Err != nil {
+		return r.Err
+	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	for _, s := range streams {
@@ -26,12 +30,18 @@ func (r *FakeMediaStreamRepository) CreateBatch(_ context.Context, streams []*li
 }
 
 func (r *FakeMediaStreamRepository) GetByMediaItemID(_ context.Context, mediaItemID string) ([]*library.MediaStream, error) {
+	if r.Err != nil {
+		return nil, r.Err
+	}
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 	return r.items[mediaItemID], nil
 }
 
 func (r *FakeMediaStreamRepository) DeleteByMediaItemID(_ context.Context, mediaItemID string) error {
+	if r.Err != nil {
+		return r.Err
+	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	delete(r.items, mediaItemID)

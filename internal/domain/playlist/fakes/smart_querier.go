@@ -11,6 +11,7 @@ import (
 
 type FakeSmartPlaylistQuerier struct {
 	Items []*library.MediaItem
+	Err   error
 }
 
 func NewFakeSmartPlaylistQuerier() *FakeSmartPlaylistQuerier {
@@ -18,6 +19,9 @@ func NewFakeSmartPlaylistQuerier() *FakeSmartPlaylistQuerier {
 }
 
 func (q *FakeSmartPlaylistQuerier) QueryByRules(_ context.Context, rules []playlist.Rule, sortBy, sortOrder string, limit int) ([]*library.MediaItem, error) {
+	if q.Err != nil {
+		return nil, q.Err
+	}
 	var result []*library.MediaItem
 	for _, item := range q.Items {
 		if matchesRules(item, rules) {

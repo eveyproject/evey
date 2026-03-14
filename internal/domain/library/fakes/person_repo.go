@@ -10,6 +10,7 @@ import (
 type FakePersonRepository struct {
 	mu    sync.RWMutex
 	items map[string]*library.Person
+	Err   error
 }
 
 func NewFakePersonRepository() *FakePersonRepository {
@@ -17,6 +18,9 @@ func NewFakePersonRepository() *FakePersonRepository {
 }
 
 func (r *FakePersonRepository) Create(_ context.Context, person *library.Person) error {
+	if r.Err != nil {
+		return r.Err
+	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.items[person.ID] = person
@@ -24,6 +28,9 @@ func (r *FakePersonRepository) Create(_ context.Context, person *library.Person)
 }
 
 func (r *FakePersonRepository) GetByID(_ context.Context, id string) (*library.Person, error) {
+	if r.Err != nil {
+		return nil, r.Err
+	}
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 	p, ok := r.items[id]
@@ -34,6 +41,9 @@ func (r *FakePersonRepository) GetByID(_ context.Context, id string) (*library.P
 }
 
 func (r *FakePersonRepository) GetByName(_ context.Context, name string) (*library.Person, error) {
+	if r.Err != nil {
+		return nil, r.Err
+	}
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 	for _, p := range r.items {
@@ -45,6 +55,9 @@ func (r *FakePersonRepository) GetByName(_ context.Context, name string) (*libra
 }
 
 func (r *FakePersonRepository) List(_ context.Context) ([]*library.Person, error) {
+	if r.Err != nil {
+		return nil, r.Err
+	}
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 	result := make([]*library.Person, 0, len(r.items))

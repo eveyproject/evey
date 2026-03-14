@@ -10,6 +10,7 @@ import (
 type FakeTrickplayRepository struct {
 	mu    sync.RWMutex
 	items map[string]*library.TrickplayManifest
+	Err   error
 }
 
 func NewFakeTrickplayRepository() *FakeTrickplayRepository {
@@ -17,6 +18,9 @@ func NewFakeTrickplayRepository() *FakeTrickplayRepository {
 }
 
 func (r *FakeTrickplayRepository) Create(_ context.Context, m *library.TrickplayManifest) error {
+	if r.Err != nil {
+		return r.Err
+	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.items[m.MediaItemID] = m
@@ -24,6 +28,9 @@ func (r *FakeTrickplayRepository) Create(_ context.Context, m *library.Trickplay
 }
 
 func (r *FakeTrickplayRepository) GetByMediaItemID(_ context.Context, mediaItemID string) (*library.TrickplayManifest, error) {
+	if r.Err != nil {
+		return nil, r.Err
+	}
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 	m, ok := r.items[mediaItemID]
@@ -34,6 +41,9 @@ func (r *FakeTrickplayRepository) GetByMediaItemID(_ context.Context, mediaItemI
 }
 
 func (r *FakeTrickplayRepository) Delete(_ context.Context, mediaItemID string) error {
+	if r.Err != nil {
+		return r.Err
+	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	delete(r.items, mediaItemID)
@@ -41,5 +51,8 @@ func (r *FakeTrickplayRepository) Delete(_ context.Context, mediaItemID string) 
 }
 
 func (r *FakeTrickplayRepository) ListMissingMediaItemIDs(_ context.Context) ([]string, error) {
+	if r.Err != nil {
+		return nil, r.Err
+	}
 	return nil, nil
 }

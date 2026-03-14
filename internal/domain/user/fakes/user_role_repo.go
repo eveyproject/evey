@@ -11,6 +11,7 @@ type FakeUserRoleRepository struct {
 	mu       sync.RWMutex
 	assigned map[string][]string
 	roles    *FakeRoleRepository
+	Err      error
 }
 
 func NewFakeUserRoleRepository(roles *FakeRoleRepository) *FakeUserRoleRepository {
@@ -21,6 +22,9 @@ func NewFakeUserRoleRepository(roles *FakeRoleRepository) *FakeUserRoleRepositor
 }
 
 func (r *FakeUserRoleRepository) AssignRole(_ context.Context, userID, roleID string) error {
+	if r.Err != nil {
+		return r.Err
+	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.assigned[userID] = append(r.assigned[userID], roleID)
@@ -28,6 +32,9 @@ func (r *FakeUserRoleRepository) AssignRole(_ context.Context, userID, roleID st
 }
 
 func (r *FakeUserRoleRepository) RemoveRole(_ context.Context, userID, roleID string) error {
+	if r.Err != nil {
+		return r.Err
+	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	ids := r.assigned[userID]
@@ -41,6 +48,9 @@ func (r *FakeUserRoleRepository) RemoveRole(_ context.Context, userID, roleID st
 }
 
 func (r *FakeUserRoleRepository) GetRolesByUserID(ctx context.Context, userID string) ([]*user.Role, error) {
+	if r.Err != nil {
+		return nil, r.Err
+	}
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 	var result []*user.Role

@@ -11,6 +11,7 @@ type FakeFeedQuerier struct {
 	RecentlyAddedItems    []*feed.FeedItem
 	RecommendedItems      []*feed.FeedItem
 	SimilarItemsResult    []*feed.FeedItem
+	Err                   error
 }
 
 func NewFakeFeedQuerier() *FakeFeedQuerier {
@@ -18,17 +19,29 @@ func NewFakeFeedQuerier() *FakeFeedQuerier {
 }
 
 func (q *FakeFeedQuerier) ContinueWatching(_ context.Context, _ string, _ int) ([]*feed.FeedItem, error) {
+	if q.Err != nil {
+		return nil, q.Err
+	}
 	return q.ContinueWatchingItems, nil
 }
 
 func (q *FakeFeedQuerier) RecentlyAdded(_ context.Context, _, _ int) ([]*feed.FeedItem, error) {
+	if q.Err != nil {
+		return nil, q.Err
+	}
 	return q.RecentlyAddedItems, nil
 }
 
 func (q *FakeFeedQuerier) Recommended(_ context.Context, _ string, _ []string, _ int) ([]*feed.FeedItem, error) {
+	if q.Err != nil {
+		return nil, q.Err
+	}
 	return q.RecommendedItems, nil
 }
 
 func (q *FakeFeedQuerier) SimilarItems(_ context.Context, _, _ string, _ int) ([]*feed.FeedItem, error) {
+	if q.Err != nil {
+		return nil, q.Err
+	}
 	return q.SimilarItemsResult, nil
 }

@@ -2,17 +2,18 @@ package fakes
 
 import (
 	"context"
+	"errors"
 	"sync"
 
-	"github.com/gravity-zero/evey/internal/domain/shared"
 	"github.com/gravity-zero/evey/internal/domain/user"
 )
 
-var ErrNotFound = shared.ErrNotFound
+var ErrNotFound = errors.New("not found")
 
 type FakeUserRepository struct {
 	mu    sync.RWMutex
 	items map[string]*user.User
+	Err   error
 }
 
 func NewFakeUserRepository() *FakeUserRepository {
@@ -20,6 +21,9 @@ func NewFakeUserRepository() *FakeUserRepository {
 }
 
 func (r *FakeUserRepository) Create(_ context.Context, u *user.User) error {
+	if r.Err != nil {
+		return r.Err
+	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.items[u.ID] = u
@@ -27,6 +31,9 @@ func (r *FakeUserRepository) Create(_ context.Context, u *user.User) error {
 }
 
 func (r *FakeUserRepository) GetByID(_ context.Context, id string) (*user.User, error) {
+	if r.Err != nil {
+		return nil, r.Err
+	}
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 	u, ok := r.items[id]
@@ -37,6 +44,9 @@ func (r *FakeUserRepository) GetByID(_ context.Context, id string) (*user.User, 
 }
 
 func (r *FakeUserRepository) GetByUsername(_ context.Context, username string) (*user.User, error) {
+	if r.Err != nil {
+		return nil, r.Err
+	}
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 	for _, u := range r.items {
@@ -48,6 +58,9 @@ func (r *FakeUserRepository) GetByUsername(_ context.Context, username string) (
 }
 
 func (r *FakeUserRepository) GetByOIDCSubject(_ context.Context, issuer, subject string) (*user.User, error) {
+	if r.Err != nil {
+		return nil, r.Err
+	}
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 	for _, u := range r.items {
@@ -59,6 +72,9 @@ func (r *FakeUserRepository) GetByOIDCSubject(_ context.Context, issuer, subject
 }
 
 func (r *FakeUserRepository) List(_ context.Context) ([]*user.User, error) {
+	if r.Err != nil {
+		return nil, r.Err
+	}
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 	result := make([]*user.User, 0, len(r.items))
@@ -69,6 +85,9 @@ func (r *FakeUserRepository) List(_ context.Context) ([]*user.User, error) {
 }
 
 func (r *FakeUserRepository) Update(_ context.Context, u *user.User) error {
+	if r.Err != nil {
+		return r.Err
+	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	if _, ok := r.items[u.ID]; !ok {
@@ -79,6 +98,9 @@ func (r *FakeUserRepository) Update(_ context.Context, u *user.User) error {
 }
 
 func (r *FakeUserRepository) Delete(_ context.Context, id string) error {
+	if r.Err != nil {
+		return r.Err
+	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	if _, ok := r.items[id]; !ok {
@@ -89,6 +111,9 @@ func (r *FakeUserRepository) Delete(_ context.Context, id string) error {
 }
 
 func (r *FakeUserRepository) CountAdmins(_ context.Context) (int, error) {
+	if r.Err != nil {
+		return 0, r.Err
+	}
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 	count := 0

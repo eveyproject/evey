@@ -10,6 +10,7 @@ import (
 type FakeQuickConnectRepository struct {
 	mu    sync.RWMutex
 	items map[string]*user.QuickConnectRequest
+	Err   error
 }
 
 func NewFakeQuickConnectRepository() *FakeQuickConnectRepository {
@@ -17,6 +18,9 @@ func NewFakeQuickConnectRepository() *FakeQuickConnectRepository {
 }
 
 func (r *FakeQuickConnectRepository) Create(_ context.Context, req *user.QuickConnectRequest) error {
+	if r.Err != nil {
+		return r.Err
+	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.items[req.Code] = req
@@ -24,6 +28,9 @@ func (r *FakeQuickConnectRepository) Create(_ context.Context, req *user.QuickCo
 }
 
 func (r *FakeQuickConnectRepository) GetByCode(_ context.Context, code string) (*user.QuickConnectRequest, error) {
+	if r.Err != nil {
+		return nil, r.Err
+	}
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 	req, ok := r.items[code]
@@ -34,6 +41,9 @@ func (r *FakeQuickConnectRepository) GetByCode(_ context.Context, code string) (
 }
 
 func (r *FakeQuickConnectRepository) UpdateStatus(_ context.Context, id, status string, userID *string) error {
+	if r.Err != nil {
+		return r.Err
+	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	for _, req := range r.items {
@@ -47,5 +57,8 @@ func (r *FakeQuickConnectRepository) UpdateStatus(_ context.Context, id, status 
 }
 
 func (r *FakeQuickConnectRepository) DeleteExpired(_ context.Context) error {
+	if r.Err != nil {
+		return r.Err
+	}
 	return nil
 }

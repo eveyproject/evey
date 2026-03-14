@@ -11,6 +11,7 @@ type FakeDatabaseDumper struct {
 	mu       sync.Mutex
 	DumpData []byte
 	Restored []byte
+	Err      error
 }
 
 func NewFakeDatabaseDumper() *FakeDatabaseDumper {
@@ -18,12 +19,18 @@ func NewFakeDatabaseDumper() *FakeDatabaseDumper {
 }
 
 func (d *FakeDatabaseDumper) DumpTables(_ context.Context, _ []string) (io.Reader, error) {
+	if d.Err != nil {
+		return nil, d.Err
+	}
 	d.mu.Lock()
 	defer d.mu.Unlock()
 	return bytes.NewReader(d.DumpData), nil
 }
 
 func (d *FakeDatabaseDumper) RestoreTables(_ context.Context, data io.Reader) error {
+	if d.Err != nil {
+		return d.Err
+	}
 	d.mu.Lock()
 	defer d.mu.Unlock()
 	b, err := io.ReadAll(data)

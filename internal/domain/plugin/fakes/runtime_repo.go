@@ -10,6 +10,7 @@ import (
 type FakePluginRuntimeRepository struct {
 	mu    sync.RWMutex
 	items map[string]*plugin.PluginRuntime
+	Err   error
 }
 
 func NewFakePluginRuntimeRepository() *FakePluginRuntimeRepository {
@@ -17,6 +18,9 @@ func NewFakePluginRuntimeRepository() *FakePluginRuntimeRepository {
 }
 
 func (r *FakePluginRuntimeRepository) Create(_ context.Context, rt *plugin.PluginRuntime) error {
+	if r.Err != nil {
+		return r.Err
+	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.items[rt.ID] = rt
@@ -24,6 +28,9 @@ func (r *FakePluginRuntimeRepository) Create(_ context.Context, rt *plugin.Plugi
 }
 
 func (r *FakePluginRuntimeRepository) GetByLanguageAndVersion(_ context.Context, language, version string) (*plugin.PluginRuntime, error) {
+	if r.Err != nil {
+		return nil, r.Err
+	}
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 	for _, rt := range r.items {
@@ -35,6 +42,9 @@ func (r *FakePluginRuntimeRepository) GetByLanguageAndVersion(_ context.Context,
 }
 
 func (r *FakePluginRuntimeRepository) ListByLanguage(_ context.Context, language string) ([]*plugin.PluginRuntime, error) {
+	if r.Err != nil {
+		return nil, r.Err
+	}
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 	var result []*plugin.PluginRuntime
@@ -47,6 +57,9 @@ func (r *FakePluginRuntimeRepository) ListByLanguage(_ context.Context, language
 }
 
 func (r *FakePluginRuntimeRepository) List(_ context.Context) ([]*plugin.PluginRuntime, error) {
+	if r.Err != nil {
+		return nil, r.Err
+	}
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 	result := make([]*plugin.PluginRuntime, 0, len(r.items))
@@ -57,6 +70,9 @@ func (r *FakePluginRuntimeRepository) List(_ context.Context) ([]*plugin.PluginR
 }
 
 func (r *FakePluginRuntimeRepository) Delete(_ context.Context, id string) error {
+	if r.Err != nil {
+		return r.Err
+	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	if _, ok := r.items[id]; !ok {

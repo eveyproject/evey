@@ -9,6 +9,7 @@ import (
 type FakeLibraryAccessRepository struct {
 	mu    sync.RWMutex
 	items map[string]map[string]time.Time // userID -> libraryID -> grantedAt
+	Err   error
 }
 
 func NewFakeLibraryAccessRepository() *FakeLibraryAccessRepository {
@@ -16,6 +17,9 @@ func NewFakeLibraryAccessRepository() *FakeLibraryAccessRepository {
 }
 
 func (r *FakeLibraryAccessRepository) Grant(_ context.Context, userID, libraryID string) error {
+	if r.Err != nil {
+		return r.Err
+	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	if r.items[userID] == nil {
@@ -26,6 +30,9 @@ func (r *FakeLibraryAccessRepository) Grant(_ context.Context, userID, libraryID
 }
 
 func (r *FakeLibraryAccessRepository) Revoke(_ context.Context, userID, libraryID string) error {
+	if r.Err != nil {
+		return r.Err
+	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	if libs, ok := r.items[userID]; ok {
@@ -38,6 +45,9 @@ func (r *FakeLibraryAccessRepository) Revoke(_ context.Context, userID, libraryI
 }
 
 func (r *FakeLibraryAccessRepository) GetByUserID(_ context.Context, userID string) ([]string, error) {
+	if r.Err != nil {
+		return nil, r.Err
+	}
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 	libs := r.items[userID]
@@ -52,6 +62,9 @@ func (r *FakeLibraryAccessRepository) GetByUserID(_ context.Context, userID stri
 }
 
 func (r *FakeLibraryAccessRepository) HasAccess(_ context.Context, userID, libraryID string) (bool, error) {
+	if r.Err != nil {
+		return false, r.Err
+	}
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 	libs := r.items[userID]
@@ -63,6 +76,9 @@ func (r *FakeLibraryAccessRepository) HasAccess(_ context.Context, userID, libra
 }
 
 func (r *FakeLibraryAccessRepository) ListUsersWithRestrictions(_ context.Context) (map[string][]string, error) {
+	if r.Err != nil {
+		return nil, r.Err
+	}
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 	result := make(map[string][]string, len(r.items))
@@ -77,6 +93,9 @@ func (r *FakeLibraryAccessRepository) ListUsersWithRestrictions(_ context.Contex
 }
 
 func (r *FakeLibraryAccessRepository) DeleteByUserID(_ context.Context, userID string) error {
+	if r.Err != nil {
+		return r.Err
+	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	delete(r.items, userID)

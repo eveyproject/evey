@@ -2,17 +2,18 @@ package fakes
 
 import (
 	"context"
+	"errors"
 	"sync"
 
 	"github.com/gravity-zero/evey/internal/domain/plugin"
-	"github.com/gravity-zero/evey/internal/domain/shared"
 )
 
-var ErrNotFound = shared.ErrNotFound
+var ErrNotFound = errors.New("not found")
 
 type FakePluginRepository struct {
 	mu    sync.RWMutex
 	items map[string]*plugin.Plugin
+	Err   error
 }
 
 func NewFakePluginRepository() *FakePluginRepository {
@@ -20,6 +21,9 @@ func NewFakePluginRepository() *FakePluginRepository {
 }
 
 func (r *FakePluginRepository) Create(_ context.Context, p *plugin.Plugin) error {
+	if r.Err != nil {
+		return r.Err
+	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.items[p.ID] = p
@@ -27,6 +31,9 @@ func (r *FakePluginRepository) Create(_ context.Context, p *plugin.Plugin) error
 }
 
 func (r *FakePluginRepository) GetByID(_ context.Context, id string) (*plugin.Plugin, error) {
+	if r.Err != nil {
+		return nil, r.Err
+	}
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 	p, ok := r.items[id]
@@ -37,6 +44,9 @@ func (r *FakePluginRepository) GetByID(_ context.Context, id string) (*plugin.Pl
 }
 
 func (r *FakePluginRepository) GetByName(_ context.Context, name string) (*plugin.Plugin, error) {
+	if r.Err != nil {
+		return nil, r.Err
+	}
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 	for _, p := range r.items {
@@ -48,6 +58,9 @@ func (r *FakePluginRepository) GetByName(_ context.Context, name string) (*plugi
 }
 
 func (r *FakePluginRepository) List(_ context.Context) ([]*plugin.Plugin, error) {
+	if r.Err != nil {
+		return nil, r.Err
+	}
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 	result := make([]*plugin.Plugin, 0, len(r.items))
@@ -58,6 +71,9 @@ func (r *FakePluginRepository) List(_ context.Context) ([]*plugin.Plugin, error)
 }
 
 func (r *FakePluginRepository) Update(_ context.Context, p *plugin.Plugin) error {
+	if r.Err != nil {
+		return r.Err
+	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	if _, ok := r.items[p.ID]; !ok {
@@ -68,6 +84,9 @@ func (r *FakePluginRepository) Update(_ context.Context, p *plugin.Plugin) error
 }
 
 func (r *FakePluginRepository) Delete(_ context.Context, id string) error {
+	if r.Err != nil {
+		return r.Err
+	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	if _, ok := r.items[id]; !ok {

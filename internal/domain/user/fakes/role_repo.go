@@ -10,6 +10,7 @@ import (
 type FakeRoleRepository struct {
 	mu    sync.RWMutex
 	items map[string]*user.Role
+	Err   error
 }
 
 func NewFakeRoleRepository() *FakeRoleRepository {
@@ -17,6 +18,9 @@ func NewFakeRoleRepository() *FakeRoleRepository {
 }
 
 func (r *FakeRoleRepository) Create(_ context.Context, role *user.Role) error {
+	if r.Err != nil {
+		return r.Err
+	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.items[role.ID] = role
@@ -24,6 +28,9 @@ func (r *FakeRoleRepository) Create(_ context.Context, role *user.Role) error {
 }
 
 func (r *FakeRoleRepository) GetByID(_ context.Context, id string) (*user.Role, error) {
+	if r.Err != nil {
+		return nil, r.Err
+	}
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 	role, ok := r.items[id]
@@ -34,6 +41,9 @@ func (r *FakeRoleRepository) GetByID(_ context.Context, id string) (*user.Role, 
 }
 
 func (r *FakeRoleRepository) GetByName(_ context.Context, name string) (*user.Role, error) {
+	if r.Err != nil {
+		return nil, r.Err
+	}
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 	for _, role := range r.items {
@@ -45,6 +55,9 @@ func (r *FakeRoleRepository) GetByName(_ context.Context, name string) (*user.Ro
 }
 
 func (r *FakeRoleRepository) List(_ context.Context) ([]*user.Role, error) {
+	if r.Err != nil {
+		return nil, r.Err
+	}
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 	result := make([]*user.Role, 0, len(r.items))

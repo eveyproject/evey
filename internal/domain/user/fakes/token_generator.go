@@ -12,6 +12,7 @@ import (
 type FakeTokenGenerator struct {
 	mu     sync.Mutex
 	tokens map[string]*user.Claims
+	Err    error
 }
 
 func NewFakeTokenGenerator() *FakeTokenGenerator {
@@ -19,6 +20,9 @@ func NewFakeTokenGenerator() *FakeTokenGenerator {
 }
 
 func (g *FakeTokenGenerator) GenerateAccessToken(claims user.Claims) (string, error) {
+	if g.Err != nil {
+		return "", g.Err
+	}
 	g.mu.Lock()
 	defer g.mu.Unlock()
 	token := randomHex(32)
@@ -27,10 +31,16 @@ func (g *FakeTokenGenerator) GenerateAccessToken(claims user.Claims) (string, er
 }
 
 func (g *FakeTokenGenerator) GenerateRefreshToken() (string, error) {
+	if g.Err != nil {
+		return "", g.Err
+	}
 	return randomHex(32), nil
 }
 
 func (g *FakeTokenGenerator) ValidateAccessToken(token string) (*user.Claims, error) {
+	if g.Err != nil {
+		return nil, g.Err
+	}
 	g.mu.Lock()
 	defer g.mu.Unlock()
 	claims, ok := g.tokens[token]

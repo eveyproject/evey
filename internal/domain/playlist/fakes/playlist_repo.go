@@ -10,6 +10,7 @@ import (
 type FakePlaylistRepository struct {
 	mu    sync.RWMutex
 	items map[string]*playlist.Playlist
+	Err   error
 }
 
 func NewFakePlaylistRepository() *FakePlaylistRepository {
@@ -17,6 +18,9 @@ func NewFakePlaylistRepository() *FakePlaylistRepository {
 }
 
 func (r *FakePlaylistRepository) Create(_ context.Context, pl *playlist.Playlist) error {
+	if r.Err != nil {
+		return r.Err
+	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.items[pl.ID] = pl
@@ -24,6 +28,9 @@ func (r *FakePlaylistRepository) Create(_ context.Context, pl *playlist.Playlist
 }
 
 func (r *FakePlaylistRepository) GetByID(_ context.Context, id string) (*playlist.Playlist, error) {
+	if r.Err != nil {
+		return nil, r.Err
+	}
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 	pl, ok := r.items[id]
@@ -34,6 +41,9 @@ func (r *FakePlaylistRepository) GetByID(_ context.Context, id string) (*playlis
 }
 
 func (r *FakePlaylistRepository) List(_ context.Context, userID string) ([]*playlist.Playlist, error) {
+	if r.Err != nil {
+		return nil, r.Err
+	}
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 	var result []*playlist.Playlist
@@ -46,6 +56,9 @@ func (r *FakePlaylistRepository) List(_ context.Context, userID string) ([]*play
 }
 
 func (r *FakePlaylistRepository) Update(_ context.Context, pl *playlist.Playlist) error {
+	if r.Err != nil {
+		return r.Err
+	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	if _, ok := r.items[pl.ID]; !ok {
@@ -56,6 +69,9 @@ func (r *FakePlaylistRepository) Update(_ context.Context, pl *playlist.Playlist
 }
 
 func (r *FakePlaylistRepository) Delete(_ context.Context, id string) error {
+	if r.Err != nil {
+		return r.Err
+	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	if _, ok := r.items[id]; !ok {

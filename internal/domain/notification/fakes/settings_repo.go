@@ -8,16 +8,41 @@ import (
 )
 
 type FakeSettingsRepository struct {
-	mu       sync.Mutex
+	mu        sync.Mutex
 	byProfile map[string]*notification.Settings
 	defaults  *notification.Settings
+	Err       error
 }
 
 func NewFakeSettingsRepository() *FakeSettingsRepository {
 	return &FakeSettingsRepository{byProfile: make(map[string]*notification.Settings)}
 }
 
+func (r *FakeSettingsRepository) GetByProfiles(_ context.Context, profileIDs []string) (map[string]*notification.Settings, error) {
+	if r.Err != nil {
+		return nil, r.Err
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	result := make(map[string]*notification.Settings, len(profileIDs))
+	for _, id := range profileIDs {
+		if s, ok := r.byProfile[id]; ok {
+			result[id] = s
+		} else if r.defaults != nil {
+			cp := *r.defaults
+			cp.ProfileID = id
+			result[id] = &cp
+		} else {
+			result[id] = &notification.Settings{ProfileID: id, MovieLevel: notification.LevelAll, SeriesLevel: notification.LevelAll, MusicLevel: notification.LevelAll}
+		}
+	}
+	return result, nil
+}
+
 func (r *FakeSettingsRepository) GetByProfile(_ context.Context, profileID string) (*notification.Settings, error) {
+	if r.Err != nil {
+		return nil, r.Err
+	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	if s, ok := r.byProfile[profileID]; ok {
@@ -31,19 +56,10 @@ func (r *FakeSettingsRepository) GetByProfile(_ context.Context, profileID strin
 	return &notification.Settings{ProfileID: profileID, MovieLevel: notification.LevelAll, SeriesLevel: notification.LevelAll, MusicLevel: notification.LevelAll}, nil
 }
 
-func (r *FakeSettingsRepository) GetByProfiles(ctx context.Context, profileIDs []string) (map[string]*notification.Settings, error) {
-	result := make(map[string]*notification.Settings, len(profileIDs))
-	for _, id := range profileIDs {
-		s, err := r.GetByProfile(ctx, id)
-		if err != nil {
-			return nil, err
-		}
-		result[id] = s
-	}
-	return result, nil
-}
-
 func (r *FakeSettingsRepository) Upsert(_ context.Context, s *notification.Settings) error {
+	if r.Err != nil {
+		return r.Err
+	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.byProfile[s.ProfileID] = s
@@ -51,6 +67,9 @@ func (r *FakeSettingsRepository) Upsert(_ context.Context, s *notification.Setti
 }
 
 func (r *FakeSettingsRepository) GetGlobalDefaults(_ context.Context) (*notification.Settings, error) {
+	if r.Err != nil {
+		return nil, r.Err
+	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	if r.defaults == nil {
@@ -60,6 +79,9 @@ func (r *FakeSettingsRepository) GetGlobalDefaults(_ context.Context) (*notifica
 }
 
 func (r *FakeSettingsRepository) UpsertGlobalDefaults(_ context.Context, s *notification.Settings) error {
+	if r.Err != nil {
+		return r.Err
+	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.defaults = s

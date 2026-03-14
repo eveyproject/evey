@@ -10,6 +10,7 @@ import (
 type FakePlayHistoryRepository struct {
 	mu    sync.RWMutex
 	items []*activity.PlayHistoryEntry
+	Err   error
 }
 
 func NewFakePlayHistoryRepository() *FakePlayHistoryRepository {
@@ -23,6 +24,9 @@ func (r *FakePlayHistoryRepository) Add(entries ...*activity.PlayHistoryEntry) {
 }
 
 func (r *FakePlayHistoryRepository) List(_ context.Context, filter activity.PlayHistoryFilter) ([]*activity.PlayHistoryEntry, error) {
+	if r.Err != nil {
+		return nil, r.Err
+	}
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 	var result []*activity.PlayHistoryEntry

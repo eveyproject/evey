@@ -11,6 +11,7 @@ import (
 type FakeServerMetricRepository struct {
 	mu    sync.RWMutex
 	items []*activity.ServerMetric
+	Err   error
 }
 
 func NewFakeServerMetricRepository() *FakeServerMetricRepository {
@@ -18,6 +19,9 @@ func NewFakeServerMetricRepository() *FakeServerMetricRepository {
 }
 
 func (r *FakeServerMetricRepository) Create(_ context.Context, metric *activity.ServerMetric) error {
+	if r.Err != nil {
+		return r.Err
+	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.items = append(r.items, metric)
@@ -25,6 +29,9 @@ func (r *FakeServerMetricRepository) Create(_ context.Context, metric *activity.
 }
 
 func (r *FakeServerMetricRepository) GetByTimeRange(_ context.Context, from, to time.Time) ([]*activity.ServerMetric, error) {
+	if r.Err != nil {
+		return nil, r.Err
+	}
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 	var result []*activity.ServerMetric
@@ -37,6 +44,9 @@ func (r *FakeServerMetricRepository) GetByTimeRange(_ context.Context, from, to 
 }
 
 func (r *FakeServerMetricRepository) Purge(_ context.Context, before time.Time) error {
+	if r.Err != nil {
+		return r.Err
+	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	var kept []*activity.ServerMetric

@@ -2,17 +2,18 @@ package fakes
 
 import (
 	"context"
+	"errors"
 	"sync"
 
 	"github.com/gravity-zero/evey/internal/domain/playback"
-	"github.com/gravity-zero/evey/internal/domain/shared"
 )
 
-var ErrNotFound = shared.ErrNotFound
+var ErrNotFound = errors.New("not found")
 
 type FakeWatchProgressRepository struct {
 	mu    sync.RWMutex
 	items map[string]*playback.WatchProgress
+	Err   error
 }
 
 func NewFakeWatchProgressRepository() *FakeWatchProgressRepository {
@@ -24,6 +25,9 @@ func key(profileID, mediaItemID string) string {
 }
 
 func (r *FakeWatchProgressRepository) Upsert(_ context.Context, wp *playback.WatchProgress) error {
+	if r.Err != nil {
+		return r.Err
+	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.items[key(wp.ProfileID, wp.MediaItemID)] = wp
@@ -31,6 +35,9 @@ func (r *FakeWatchProgressRepository) Upsert(_ context.Context, wp *playback.Wat
 }
 
 func (r *FakeWatchProgressRepository) GetByProfileAndMedia(_ context.Context, profileID, mediaItemID string) (*playback.WatchProgress, error) {
+	if r.Err != nil {
+		return nil, r.Err
+	}
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 	wp, ok := r.items[key(profileID, mediaItemID)]
@@ -41,6 +48,9 @@ func (r *FakeWatchProgressRepository) GetByProfileAndMedia(_ context.Context, pr
 }
 
 func (r *FakeWatchProgressRepository) GetByProfile(_ context.Context, profileID string, limit, offset int) ([]*playback.WatchProgress, error) {
+	if r.Err != nil {
+		return nil, r.Err
+	}
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 	var result []*playback.WatchProgress
@@ -61,6 +71,9 @@ func (r *FakeWatchProgressRepository) GetByProfile(_ context.Context, profileID 
 }
 
 func (r *FakeWatchProgressRepository) GetResumeItems(_ context.Context, profileID string, limit int) ([]*playback.WatchProgress, error) {
+	if r.Err != nil {
+		return nil, r.Err
+	}
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 	var result []*playback.WatchProgress
@@ -76,6 +89,9 @@ func (r *FakeWatchProgressRepository) GetResumeItems(_ context.Context, profileI
 }
 
 func (r *FakeWatchProgressRepository) GetNextUp(_ context.Context, profileID string, limit int) ([]*playback.WatchProgress, error) {
+	if r.Err != nil {
+		return nil, r.Err
+	}
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 	var result []*playback.WatchProgress

@@ -10,6 +10,7 @@ import (
 type FakeTranscodeProfileRepository struct {
 	mu    sync.RWMutex
 	items map[string]*transcoding.TranscodeProfile
+	Err   error
 }
 
 func NewFakeTranscodeProfileRepository() *FakeTranscodeProfileRepository {
@@ -17,6 +18,9 @@ func NewFakeTranscodeProfileRepository() *FakeTranscodeProfileRepository {
 }
 
 func (r *FakeTranscodeProfileRepository) GetByID(_ context.Context, id string) (*transcoding.TranscodeProfile, error) {
+	if r.Err != nil {
+		return nil, r.Err
+	}
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 	p, ok := r.items[id]
@@ -27,6 +31,9 @@ func (r *FakeTranscodeProfileRepository) GetByID(_ context.Context, id string) (
 }
 
 func (r *FakeTranscodeProfileRepository) List(_ context.Context) ([]*transcoding.TranscodeProfile, error) {
+	if r.Err != nil {
+		return nil, r.Err
+	}
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 	result := make([]*transcoding.TranscodeProfile, 0, len(r.items))
@@ -37,6 +44,9 @@ func (r *FakeTranscodeProfileRepository) List(_ context.Context) ([]*transcoding
 }
 
 func (r *FakeTranscodeProfileRepository) Create(_ context.Context, profile *transcoding.TranscodeProfile) error {
+	if r.Err != nil {
+		return r.Err
+	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.items[profile.ID] = profile
@@ -44,6 +54,9 @@ func (r *FakeTranscodeProfileRepository) Create(_ context.Context, profile *tran
 }
 
 func (r *FakeTranscodeProfileRepository) Delete(_ context.Context, id string) error {
+	if r.Err != nil {
+		return r.Err
+	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	if _, ok := r.items[id]; !ok {
