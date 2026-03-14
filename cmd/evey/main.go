@@ -516,7 +516,11 @@ func run() error {
 		mux.HandleFunc("POST /api/v1/admin/media/{id}/trickplay/generate", requireAdmin(tokenGen, ratelimit.MiddlewareFunc(adminHeavyRL, trickplayGenerateHandler(tokenGen, libCmdSvc))))
 		mux.HandleFunc("POST /api/v1/admin/trickplay/generate-all", requireAdmin(tokenGen, ratelimit.MiddlewareFunc(adminHeavyRL, trickplayGenerateAllHandler(tokenGen, libCmdSvc))))
 		mux.HandleFunc("GET /api/v1/media/{id}/playback-info", playbackInfoHandler(tokenGen, libQuerySvc, libraryAccessRepo))
-		mux.HandleFunc("GET /api/v1/media/{id}/hls/master.m3u8", hlsMasterHandler(tokenGen, libQuerySvc, hlsManager, libraryAccessRepo, userMaxStreams))
+		audioNormalizeGetter := func(ctx context.Context) bool {
+			entry, err := serverCfgRepo.Get(ctx, "transcode.audio_normalize")
+			return err == nil && entry.Value == "true"
+		}
+		mux.HandleFunc("GET /api/v1/media/{id}/hls/master.m3u8", hlsMasterHandler(tokenGen, libQuerySvc, hlsManager, libraryAccessRepo, userMaxStreams, audioNormalizeGetter))
 		mux.HandleFunc("GET /api/v1/media/{id}/hls/{file}", hlsSegmentHandler(tokenGen, libQuerySvc, hlsManager, libraryAccessRepo))
 		mux.HandleFunc("GET /api/v1/admin/library-stats", requireAdmin(tokenGen, libraryStatsHandler(tokenGen, libQuerySvc)))
 		httpsOnly := cfg.Server.ForwardedProto
