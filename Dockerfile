@@ -1,15 +1,13 @@
-FROM bufbuild/buf:1.47.2 AS buf
-
 FROM golang:1.25.7-alpine AS builder
 
 RUN apk add --no-cache gcc musl-dev
-
-COPY --from=buf /usr/local/bin/buf /usr/local/bin/buf
 
 WORKDIR /src
 
 COPY go.mod go.sum ./
 RUN go mod download
+
+RUN go install github.com/bufbuild/buf/cmd/buf@v1.47.2
 
 COPY . .
 RUN buf generate
