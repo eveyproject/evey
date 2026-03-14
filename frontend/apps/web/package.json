@@ -16,6 +16,7 @@
     "@evey/theme": "workspace:*",
     "@tanstack/react-query": "5.90.21",
     "@tanstack/react-router": "1.120.4",
+    "@tanstack/react-virtual": "3.13.22",
     "@tanstack/router-devtools": "1.120.4",
     "hls.js": "1.5.18",
     "lucide-react": "0.577.0",

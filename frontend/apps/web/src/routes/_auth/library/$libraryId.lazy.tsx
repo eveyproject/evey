@@ -6,6 +6,8 @@ import {
   usePlaybackServiceMarkAsWatched,
   usePlaybackServiceMarkAsUnwatched,
 } from "@evey/api";
+import { usePlaylistList, useAddToPlaylist } from "@/features/playlist/api";
+import { Modal } from "@/components/ui/Modal";
 import type {
   LibraryServiceListMediaItemsType,
   LibraryServiceListMediaItemsSortField,
@@ -28,6 +30,7 @@ import type { LibrarySearch } from "@/routes/_auth/library/$libraryId";
 import { slugify } from "@/utils/slugify";
 import { toast, useAuthStore } from "@evey/store";
 import { useQueryClient } from "@tanstack/react-query";
+import { eveyFetch } from "@evey/api";
 
 export const Route = createLazyFileRoute("/_auth/library/$libraryId")({
   component: LibraryPage,
@@ -166,6 +169,56 @@ function ListRow({ item }: { item: Record<string, unknown> }) {
   );
 }
 
+function BulkPlaylistModal({
+  open,
+  mediaIds,
+  onClose,
+}: {
+  open: boolean;
+  mediaIds: string[];
+  onClose: () => void;
+}) {
+  const { data: playlists, isLoading } = usePlaylistList();
+  const addTo = useAddToPlaylist();
+  const manualPlaylists = (playlists ?? []).filter((p) => p.type === "manual");
+
+  async function handleAdd(playlistId: string, playlistName: string) {
+    try {
+      await Promise.all(mediaIds.map((id) => addTo.mutateAsync({ playlistId, mediaItemId: id })));
+      toast.success(`${mediaIds.length} item${mediaIds.length > 1 ? "s" : ""} added to "${playlistName}"`);
+      onClose();
+    } catch {
+      toast.error("Failed to add to playlist");
+    }
+  }
+
+  return (
+    <Modal open={open} onClose={onClose} title="Add to Playlist">
+      {isLoading ? (
+        <div className="flex justify-center py-8">
+          <div className="w-6 h-6 border-2 rounded-full animate-spin" style={{ borderColor: "var(--border)", borderTopColor: "var(--accent)" }} />
+        </div>
+      ) : manualPlaylists.length === 0 ? (
+        <p className="text-sm text-center py-6" style={{ color: "var(--text-muted)" }}>No playlists yet.</p>
+      ) : (
+        <div className="space-y-1">
+          {manualPlaylists.map((pl) => (
+            <button
+              key={pl.id}
+              onClick={() => void handleAdd(pl.id, pl.name)}
+              disabled={addTo.isPending}
+              className="w-full flex items-center gap-3 px-4 py-3 rounded-[var(--radius-md)] text-left transition-colors hover:bg-[var(--surface-raised)]"
+              style={{ color: "var(--text)" }}
+            >
+              <span className="text-sm font-medium truncate">{pl.name}</span>
+            </button>
+          ))}
+        </div>
+      )}
+    </Modal>
+  );
+}
+
 function LibraryPage() {
   const { libraryId: slug } = Route.useParams();
   const search = Route.useSearch();
@@ -176,6 +229,8 @@ function LibraryPage() {
   const [bulkMode, setBulkMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [filtersOpen, setFiltersOpen] = useState(false);
+  const [bulkPlaylistOpen, setBulkPlaylistOpen] = useState(false);
+  const [bulkFavPending, setBulkFavPending] = useState(false);
   const profileId = useAuthStore((s) => s.profileId);
   const queryClient = useQueryClient();
 
@@ -207,6 +262,17 @@ function LibraryPage() {
     });
   }, []);
 
+  useEffect(() => {
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.key === "Escape" && bulkMode) {
+        setBulkMode(false);
+        setSelectedIds(new Set());
+      }
+    }
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
+  }, [bulkMode]);
+
   const markWatched = usePlaybackServiceMarkAsWatched();
   const markUnwatched = usePlaybackServiceMarkAsUnwatched();
 
@@ -219,6 +285,23 @@ function LibraryPage() {
     toast.success(`${ids.length} item${ids.length > 1 ? "s" : ""} marked as ${watched ? "watched" : "unwatched"}`);
     setSelectedIds(new Set());
     setBulkMode(false);
+  }
+
+  async function bulkAddFavorites() {
+    if (selectedIds.size === 0) return;
+    setBulkFavPending(true);
+    const ids = Array.from(selectedIds);
+    try {
+      await Promise.all(ids.map((id) => eveyFetch<unknown>({ url: `/api/v1/favorites/${id}`, method: "POST" })));
+      queryClient.invalidateQueries({ queryKey: ["favorites"] });
+      toast.success(`${ids.length} item${ids.length > 1 ? "s" : ""} added to favorites`);
+      setSelectedIds(new Set());
+      setBulkMode(false);
+    } catch {
+      toast.error("Failed to add some items to favorites");
+    } finally {
+      setBulkFavPending(false);
+    }
   }
 
   const { data: librariesData } = useLibraryServiceListLibraries();
@@ -372,37 +455,88 @@ function LibraryPage() {
         </button>
       </div>
 
+      {bulkPlaylistOpen && (
+        <BulkPlaylistModal
+          open={bulkPlaylistOpen}
+          mediaIds={Array.from(selectedIds)}
+          onClose={() => {
+            setBulkPlaylistOpen(false);
+            setSelectedIds(new Set());
+            setBulkMode(false);
+          }}
+        />
+      )}
+
       {/* Bulk action bar */}
-      {bulkMode && selectedIds.size > 0 && (
+      {bulkMode && (
         <div
-          className="sticky top-0 z-10 flex items-center gap-3 px-4 py-2 mb-4 rounded-[var(--radius-md)]"
+          className="sticky top-0 z-10 flex items-center gap-2 px-4 py-2 mb-4 rounded-[var(--radius-md)] flex-wrap"
           style={{ backgroundColor: "var(--surface)", border: "1px solid var(--accent)" }}
         >
-          <span className="text-sm font-medium flex-1" style={{ color: "var(--text)" }}>
-            {selectedIds.size} selected
+          <span
+            className="text-sm font-semibold px-2 py-0.5 rounded-full mr-1"
+            style={{ backgroundColor: "var(--accent)", color: "#fff" }}
+          >
+            {selectedIds.size}
           </span>
-          <Button
-            variant="secondary"
-            onClick={() => bulkMarkWatched(true)}
-            loading={markWatched.isPending}
-          >
-            Mark watched
-          </Button>
-          <Button
-            variant="secondary"
-            onClick={() => bulkMarkWatched(false)}
-            loading={markUnwatched.isPending}
-          >
-            Mark unwatched
-          </Button>
-          <button
-            type="button"
-            onClick={() => setSelectedIds(new Set())}
-            className="text-sm hover:underline"
-            style={{ color: "var(--text-muted)" }}
-          >
-            Clear
-          </button>
+          <span className="text-sm mr-2" style={{ color: "var(--text-muted)" }}>selected</span>
+          {selectedIds.size > 0 && (
+            <>
+              <Button
+                variant="secondary"
+                onClick={() => bulkMarkWatched(true)}
+                loading={markWatched.isPending}
+              >
+                Mark watched
+              </Button>
+              <Button
+                variant="secondary"
+                onClick={() => bulkMarkWatched(false)}
+                loading={markUnwatched.isPending}
+              >
+                Mark unwatched
+              </Button>
+              <Button
+                variant="secondary"
+                loading={bulkFavPending}
+                onClick={() => void bulkAddFavorites()}
+              >
+                Add to favorites
+              </Button>
+              <Button
+                variant="secondary"
+                onClick={() => setBulkPlaylistOpen(true)}
+              >
+                Add to playlist
+              </Button>
+            </>
+          )}
+          <div className="flex items-center gap-2 ml-auto">
+            <button
+              type="button"
+              onClick={() => setSelectedIds(new Set(displayItems.map((i) => i.id ?? "").filter(Boolean)))}
+              className="text-xs hover:underline"
+              style={{ color: "var(--accent)" }}
+            >
+              Select all
+            </button>
+            <button
+              type="button"
+              onClick={() => setSelectedIds(new Set())}
+              className="text-xs hover:underline"
+              style={{ color: "var(--text-muted)" }}
+            >
+              Deselect all
+            </button>
+            <button
+              type="button"
+              onClick={() => { setBulkMode(false); setSelectedIds(new Set()); }}
+              className="text-xs hover:underline"
+              style={{ color: "var(--text-muted)" }}
+            >
+              Exit
+            </button>
+          </div>
         </div>
       )}
 
