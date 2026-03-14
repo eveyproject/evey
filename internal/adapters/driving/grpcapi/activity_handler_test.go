@@ -9,7 +9,6 @@ import (
 	appactivity "github.com/gravity-zero/evey/internal/app/activity"
 	"github.com/gravity-zero/evey/internal/domain/activity"
 	actfakes "github.com/gravity-zero/evey/internal/domain/activity/fakes"
-	sharedfakes "github.com/gravity-zero/evey/internal/domain/shared/fakes"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc/codes"
@@ -23,9 +22,8 @@ func newActivityHandler() (*activityHandler, *actfakes.FakeLoginHistoryRepositor
 	auditLog := actfakes.NewFakeAuditLogRepository()
 	statsReader := actfakes.NewFakePlaySessionStatsReader()
 	playHistory := actfakes.NewFakePlayHistoryRepository()
-	events := sharedfakes.NewFakeEventBus()
 
-	svc := appactivity.NewService(loginHistory, metrics, auditLog, statsReader, playHistory, events)
+	svc := appactivity.NewQueryService(loginHistory, metrics, auditLog, statsReader, playHistory)
 	h := &activityHandler{svc: svc}
 	return h, loginHistory, statsReader, playHistory, metrics
 }

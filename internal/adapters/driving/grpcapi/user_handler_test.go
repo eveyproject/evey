@@ -45,12 +45,10 @@ func setupUserHandler() *testUserEnv {
 		hasher, tokenGen, events,
 	)
 
-	actSvc := appactivity.NewService(
+	actSvc := appactivity.NewCommandService(
 		activityfakes.NewFakeLoginHistoryRepository(),
 		activityfakes.NewFakeServerMetricRepository(),
 		activityfakes.NewFakeAuditLogRepository(),
-		activityfakes.NewFakePlaySessionStatsReader(),
-		activityfakes.NewFakePlayHistoryRepository(),
 		events,
 	)
 

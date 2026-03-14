@@ -31,13 +31,12 @@ func newTestAdminHandler() *adminHandler {
 		userfakes.NewFakeTokenGenerator(),
 		events,
 	)
-	activitySvc := appactivity.NewService(
+	activitySvc := appactivity.NewQueryService(
 		activityfakes.NewFakeLoginHistoryRepository(),
 		activityfakes.NewFakeServerMetricRepository(),
 		activityfakes.NewFakeAuditLogRepository(),
 		activityfakes.NewFakePlaySessionStatsReader(),
 		activityfakes.NewFakePlayHistoryRepository(),
-		events,
 	)
 	pluginSvc := appplugin.NewService(
 		pluginfakes.NewFakePluginRepository(),
