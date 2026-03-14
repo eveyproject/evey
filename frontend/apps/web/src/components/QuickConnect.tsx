@@ -1,20 +1,28 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import QRCode from "react-qr-code";
 import { useUserServiceInitiateQuickConnect, useUserServiceCheckQuickConnect } from "@evey/api";
 import { useAuthStore } from "@evey/store";
 import { useNavigate } from "@tanstack/react-router";
 import { Spinner } from "@/components/ui/Spinner";
 
+const REFRESH_INTERVAL_S = 30;
+
 export function QuickConnect() {
   const [code, setCode] = useState<string | null>(null);
   const [enabled, setEnabled] = useState(true);
+  const [secondsLeft, setSecondsLeft] = useState(REFRESH_INTERVAL_S);
+  const codeSetAt = useRef<number>(0);
   const { setTokens } = useAuthStore();
   const navigate = useNavigate();
 
   const initiate = useUserServiceInitiateQuickConnect({
     mutation: {
       onSuccess: (data) => {
-        if (data.code) setCode(data.code);
+        if (data.code) {
+          setCode(data.code);
+          codeSetAt.current = Date.now();
+          setSecondsLeft(REFRESH_INTERVAL_S);
+        }
       },
     },
   });
@@ -36,9 +44,18 @@ export function QuickConnect() {
     const id = setInterval(() => {
       setCode(null);
       initiate.mutate();
-    }, 30_000);
+    }, REFRESH_INTERVAL_S * 1000);
     return () => clearInterval(id);
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Countdown ticker
+  useEffect(() => {
+    const id = setInterval(() => {
+      const elapsed = Math.floor((Date.now() - codeSetAt.current) / 1000);
+      setSecondsLeft(Math.max(0, REFRESH_INTERVAL_S - elapsed));
+    }, 1000);
+    return () => clearInterval(id);
   }, []);
 
   useEffect(() => {
@@ -72,6 +89,11 @@ export function QuickConnect() {
       <p className="text-[var(--text-muted)] text-xs text-center max-w-[200px]">
         Scan with a logged-in device to sign in
       </p>
+      {code && (
+        <p className="text-[var(--text-muted)] text-xs">
+          Expires in {secondsLeft}s
+        </p>
+      )}
     </div>
   );
 }
