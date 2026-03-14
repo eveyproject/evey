@@ -7,9 +7,12 @@ import (
 	"log/slog"
 
 	eveyv1 "github.com/gravity-zero/evey/gen/evey/v1"
+	appactivity "github.com/gravity-zero/evey/internal/app/activity"
 	applibrary "github.com/gravity-zero/evey/internal/app/library"
 	appplayback "github.com/gravity-zero/evey/internal/app/playback"
 	apptranscoding "github.com/gravity-zero/evey/internal/app/transcoding"
+	"github.com/gravity-zero/evey/internal/adapters/driving/grpcapi/interceptors"
+	"github.com/gravity-zero/evey/internal/domain/activity"
 	"github.com/gravity-zero/evey/internal/domain/playback"
 	"github.com/gravity-zero/evey/internal/domain/transcoding"
 	"github.com/gravity-zero/evey/internal/pkg/id"
@@ -19,9 +22,35 @@ import (
 
 type playbackHandler struct {
 	eveyv1.UnimplementedPlaybackServiceServer
-	cmd        *appplayback.CommandService
-	query      *appplayback.QueryService
-	librarySvc *applibrary.QueryService
+	cmd         *appplayback.CommandService
+	query       *appplayback.QueryService
+	librarySvc  *applibrary.QueryService
+	activitySvc *appactivity.CommandService
+}
+
+func (h *playbackHandler) audit(ctx context.Context, userID, action, resourceType string, resourceID *string, details map[string]any) {
+	if h.activitySvc == nil {
+		return
+	}
+	e := &activity.AuditLogEntry{
+		UserID:       userID,
+		Action:       action,
+		ResourceType: resourceType,
+		ResourceID:   resourceID,
+		Details:      details,
+	}
+	if ip := interceptors.ClientIPFromCtx(ctx); ip != "" {
+		e.ClientIP = &ip
+	}
+	if ua := interceptors.UserAgentFromCtx(ctx); ua != "" {
+		e.UserAgent = &ua
+	}
+	if dn := interceptors.DeviceNameFromCtx(ctx); dn != "" {
+		e.DeviceName = &dn
+	}
+	if err := h.activitySvc.CreateAuditEntry(ctx, e); err != nil {
+		slog.Warn("audit log failed", slog.String("action", action), slog.Any("err", err))
+	}
 }
 
 func (h *playbackHandler) GetStreamInfo(ctx context.Context, req *eveyv1.GetStreamInfoRequest) (*eveyv1.StreamInfo, error) {
@@ -97,6 +126,11 @@ func (h *playbackHandler) StartStream(ctx context.Context, req *eveyv1.StartStre
 		slog.Error("start stream", slog.Any("err", err))
 		return nil, status.Errorf(codes.Internal, "internal error")
 	}
+	details := map[string]any{"media_id": req.MediaItemId, "method": req.PlayMethod.String()}
+	if item, err := h.librarySvc.GetMediaItem(ctx, req.MediaItemId); err == nil {
+		details["title"] = item.Title
+	}
+	h.audit(ctx, claims.UserID, "start_stream", "media", &req.MediaItemId, details)
 	return playSessionToProto(session), nil
 }
 
@@ -118,6 +152,8 @@ func (h *playbackHandler) StopStream(ctx context.Context, req *eveyv1.StopStream
 		slog.Error("stop stream", slog.Any("err", err))
 		return nil, status.Errorf(codes.Internal, "internal error")
 	}
+	sid := req.SessionId
+	h.audit(ctx, claims.UserID, "stop_stream", "session", &sid, nil)
 	return &eveyv1.StopStreamResponse{}, nil
 }
 

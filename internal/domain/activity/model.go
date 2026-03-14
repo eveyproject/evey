@@ -69,6 +69,7 @@ type MediaPlayCount struct {
 type AuditLogEntry struct {
 	ID           string
 	UserID       string
+	Username     string // populated by JOIN, not persisted
 	Action       string
 	ResourceType string
 	ResourceID   *string

@@ -602,6 +602,7 @@ func auditLogEntryToProto(e *activity.AuditLogEntry) *eveyv1.AuditLogEntry {
 	pb := &eveyv1.AuditLogEntry{
 		Id:           e.ID,
 		UserId:       e.UserID,
+		Username:     e.Username,
 		Action:       e.Action,
 		ResourceType: e.ResourceType,
 		CreatedAt:    toTimestamppb(e.CreatedAt),

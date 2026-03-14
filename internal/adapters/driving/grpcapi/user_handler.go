@@ -94,6 +94,7 @@ func (h *userHandler) Logout(ctx context.Context, _ *eveyv1.LogoutRequest) (*eve
 		slog.Error("logout", slog.Any("err", err))
 		return nil, status.Errorf(codes.Internal, "internal error")
 	}
+	h.audit(ctx, claims.UserID, "logout", "user", &claims.UserID, nil)
 	return &eveyv1.LogoutResponse{}, nil
 }
 

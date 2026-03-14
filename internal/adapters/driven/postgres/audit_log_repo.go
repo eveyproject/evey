@@ -38,25 +38,26 @@ func (r *AuditLogRepository) List(ctx context.Context, f activity.AuditLogFilter
 	argIdx := 1
 
 	if f.UserID != nil {
-		conditions = append(conditions, fmt.Sprintf("user_id = $%d", argIdx))
+		conditions = append(conditions, fmt.Sprintf("a.user_id = $%d", argIdx))
 		args = append(args, *f.UserID)
 		argIdx++
 	}
 	if f.Action != nil {
-		conditions = append(conditions, fmt.Sprintf("action = $%d", argIdx))
+		conditions = append(conditions, fmt.Sprintf("a.action = $%d", argIdx))
 		args = append(args, *f.Action)
 		argIdx++
 	}
 	if f.ResourceType != nil {
-		conditions = append(conditions, fmt.Sprintf("resource_type = $%d", argIdx))
+		conditions = append(conditions, fmt.Sprintf("a.resource_type = $%d", argIdx))
 		args = append(args, *f.ResourceType)
 	}
 
-	query := `SELECT id, user_id, action, resource_type, resource_id, details, client_ip, user_agent, device_name, created_at FROM audit_log`
+	query := `SELECT a.id, a.user_id, COALESCE(u.username,'') AS username, a.action, a.resource_type, a.resource_id, a.details, a.client_ip, a.user_agent, a.device_name, a.created_at
+	           FROM audit_log a LEFT JOIN users u ON u.id = a.user_id`
 	if len(conditions) > 0 {
 		query += " WHERE " + strings.Join(conditions, " AND ")
 	}
-	query += " ORDER BY created_at DESC"
+	query += " ORDER BY a.created_at DESC"
 
 	limit := f.Limit
 	if limit <= 0 || limit > 500 {
@@ -77,7 +78,7 @@ func (r *AuditLogRepository) List(ctx context.Context, f activity.AuditLogFilter
 	for rows.Next() {
 		e := &activity.AuditLogEntry{}
 		var detailsJSON []byte
-		if err := rows.Scan(&e.ID, &e.UserID, &e.Action, &e.ResourceType, &e.ResourceID, &detailsJSON, &e.ClientIP, &e.UserAgent, &e.DeviceName, &e.CreatedAt); err != nil {
+		if err := rows.Scan(&e.ID, &e.UserID, &e.Username, &e.Action, &e.ResourceType, &e.ResourceID, &detailsJSON, &e.ClientIP, &e.UserAgent, &e.DeviceName, &e.CreatedAt); err != nil {
 			return nil, err
 		}
 		if err := json.Unmarshal(detailsJSON, &e.Details); err != nil {
