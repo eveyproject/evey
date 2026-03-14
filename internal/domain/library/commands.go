@@ -16,4 +16,6 @@ type MediaItemCommandRepo interface {
 	GetByFilePath(ctx context.Context, path string) (*MediaItem, error)
 	GetByFileFingerprint(ctx context.Context, fingerprint string) (*MediaItem, error)
 	GetByLibraryTypeTitle(ctx context.Context, libraryID, itemType, title, parentID string) (*MediaItem, error)
+	// ListFilePaths returns id→filePath for all items in a library (for orphan detection).
+	ListFilePaths(ctx context.Context, libraryID string) (map[string]string, error)
 }

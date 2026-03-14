@@ -299,6 +299,26 @@ func (r *MediaItemRepository) Delete(ctx context.Context, id string) error {
 	return err
 }
 
+func (r *MediaItemRepository) ListFilePaths(ctx context.Context, libraryID string) (map[string]string, error) {
+	rows, err := r.db.QueryContext(ctx,
+		`SELECT id, file_path FROM media_items WHERE library_id = $1 AND file_path IS NOT NULL AND file_path <> ''`,
+		libraryID,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	result := make(map[string]string)
+	for rows.Next() {
+		var id, path string
+		if err := rows.Scan(&id, &path); err != nil {
+			return nil, err
+		}
+		result[id] = path
+	}
+	return result, rows.Err()
+}
+
 func (r *MediaItemRepository) scanMediaItem(row *sql.Row) (*library.MediaItem, error) {
 	item := &library.MediaItem{}
 	var parentID, filePath, fingerprint *string

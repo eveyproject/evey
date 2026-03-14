@@ -170,11 +170,16 @@ func (s *CommandService) ScanLibrary(ctx context.Context, libraryID string) (add
 		slog.Warn("publish event", slog.String("event", evtScanStarted.EventName()), slog.Any("err", publishErr))
 	}
 
+	seenPaths := make(map[string]struct{})
+
 	for _, path := range lib.Paths {
 		var files []library.ScannedFile
 		files, err = s.scanner.Scan(ctx, path)
 		if err != nil {
 			return 0, 0, fmt.Errorf("scan path %s: %w", path, err)
+		}
+		for _, f := range files {
+			seenPaths[f.Path] = struct{}{}
 		}
 		if lib.Type == "tvshow" {
 			a, u, e := s.scanTVShowFiles(ctx, libraryID, files)
@@ -195,6 +200,11 @@ func (s *CommandService) ScanLibrary(ctx context.Context, libraryID string) (add
 		}
 	}
 
+	removed, removeErr := s.removeOrphanedItems(ctx, libraryID, seenPaths)
+	if removeErr != nil {
+		slog.Warn("orphan cleanup failed", slog.String("libraryID", libraryID), slog.Any("err", removeErr))
+	}
+
 	now := time.Now()
 	lib.LastScannedAt = &now
 	if err := s.libraries.Update(ctx, lib); err != nil {
@@ -205,12 +215,43 @@ func (s *CommandService) ScanLibrary(ctx context.Context, libraryID string) (add
 		LibraryID:    libraryID,
 		ItemsAdded:   added,
 		ItemsUpdated: updated,
+		ItemsRemoved: removed,
 		OccurredAt:   now,
 	}
 	if publishErr := s.events.Publish(ctx, evtScanCompleted); publishErr != nil {
 		slog.Warn("publish event", slog.String("event", evtScanCompleted.EventName()), slog.Any("err", publishErr))
 	}
 	return added, updated, nil
+}
+
+func (s *CommandService) removeOrphanedItems(ctx context.Context, libraryID string, seenPaths map[string]struct{}) (int, error) {
+	dbPaths, err := s.mediaItems.ListFilePaths(ctx, libraryID)
+	if err != nil {
+		return 0, fmt.Errorf("list file paths: %w", err)
+	}
+	removed := 0
+	for id, path := range dbPaths {
+		if _, seen := seenPaths[path]; seen {
+			continue
+		}
+		if delErr := s.mediaItems.Delete(ctx, id); delErr != nil {
+			slog.Warn("delete orphaned media item failed", slog.String("id", id), slog.String("path", path), slog.Any("err", delErr))
+			continue
+		}
+		if idxErr := s.search.RemoveMediaItem(ctx, id); idxErr != nil {
+			slog.Warn("remove orphan from search index failed", slog.String("id", id), slog.Any("err", idxErr))
+		}
+		evt := library.MediaItemRemoved{
+			MediaItemID: id,
+			LibraryID:   libraryID,
+			OccurredAt:  time.Now(),
+		}
+		if pubErr := s.events.Publish(ctx, evt); pubErr != nil {
+			slog.Warn("publish event", slog.String("event", evt.EventName()), slog.Any("err", pubErr))
+		}
+		removed++
+	}
+	return removed, nil
 }
 
 func (s *CommandService) upsertMediaFile(ctx context.Context, libraryID, parentID string, f library.ScannedFile, seriesTitle ...string) (added, updated int, err error) {
