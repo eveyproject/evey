@@ -13,6 +13,7 @@ import { MediaSlider } from "../../features/home/MediaSlider";
 import { MediaCard } from "../../features/library/MediaCard";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { slugify } from "@/utils/slugify";
+import { useCollections } from "../../features/collection/api";
 
 export const Route = createLazyFileRoute("/_auth/home")({
   component: HomePage,
@@ -264,6 +265,55 @@ function RecommendedSlider() {
   );
 }
 
+function CollectionsSection() {
+  const { data, isLoading } = useCollections();
+  const collections = data?.collections ?? [];
+  if (!isLoading && collections.length === 0) return null;
+
+  return (
+    <div className="mb-8">
+      <div className="flex items-center justify-between mb-3">
+        <h2 className="text-lg font-semibold" style={{ color: "var(--text)" }}>Collections</h2>
+        <Link to="/collections" className="text-sm hover:underline" style={{ color: "var(--accent)" }}>
+          See all
+        </Link>
+      </div>
+      <div className="flex gap-3 overflow-x-auto pb-2" style={{ scrollbarWidth: "none" }}>
+        {isLoading
+          ? Array.from({ length: 4 }).map((_, i) => (
+              <div
+                key={i}
+                className="flex-shrink-0 animate-pulse rounded-[var(--radius-md)]"
+                style={{ width: 160, height: 80, backgroundColor: "var(--surface-raised)" }}
+              />
+            ))
+          : collections.slice(0, 10).map((col) => (
+              <Link
+                key={col.id}
+                to="/collections/$collectionId"
+                params={{ collectionId: col.id }}
+                className="flex-shrink-0 flex items-center justify-center px-4 py-3 rounded-[var(--radius-md)] font-medium text-sm transition-opacity hover:opacity-80"
+                style={{
+                  minWidth: 140,
+                  backgroundColor: "var(--surface-raised)",
+                  color: "var(--text)",
+                  border: "1px solid var(--border)",
+                  textAlign: "center",
+                }}
+              >
+                <div>
+                  <div className="font-semibold truncate max-w-[120px]">{col.name}</div>
+                  <div className="text-xs mt-0.5" style={{ color: "var(--text-muted)" }}>
+                    {col.type === "smart" ? "Smart" : "Manual"}
+                  </div>
+                </div>
+              </Link>
+            ))}
+      </div>
+    </div>
+  );
+}
+
 function HomePage() {
   const navigate = useNavigate();
   const { data: librariesData, isLoading: librariesLoading } = useLibraryServiceListLibraries();
@@ -287,6 +337,7 @@ function HomePage() {
         ) : (
           <>
             <ContinueWatchingSlider />
+            <CollectionsSection />
             <RecentlyAddedSlider />
             <RecommendedSlider />
             <TypeSlider title="Films" type="MEDIA_ITEM_TYPE_MOVIE" />
