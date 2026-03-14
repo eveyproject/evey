@@ -4,6 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import {
   useFeedServiceContinueWatching,
   useFeedServiceRecentlyAdded,
+  useFeedServiceRecommended,
   useLibraryServiceListLibraries,
   useLibraryServiceListMediaItems,
   libraryServiceGetMediaItem,
@@ -214,20 +215,14 @@ function ContinueWatchingSlider() {
 
   return (
     <MediaSlider title="Continue Watching" isLoading={isLoading}>
-      {items.map((item) => {
-        const posMs = item.positionMs ? Number(item.positionMs) : 0;
-        const durMs = item.durationMs ? Number(item.durationMs) : 0;
-        const progressPercent = posMs > 0 && durMs > 0 ? Math.min(95, (posMs / durMs) * 100) : undefined;
-        return (
-          <MediaCard
-            key={item.mediaItemId}
-            item={{ id: item.mediaItemId, title: item.title, type: item.type, durationMs: item.durationMs }}
-            showYear={false}
-            showProgress={progressPercent !== undefined}
-            progressPercent={progressPercent}
-          />
-        );
-      })}
+      {items.map((item) => (
+        <MediaCard
+          key={item.mediaItemId}
+          item={{ id: item.mediaItemId, title: item.title, type: item.type }}
+          showYear={false}
+          showProgress={!!item.positionMs}
+        />
+      ))}
     </MediaSlider>
   );
 }
@@ -244,6 +239,24 @@ function RecentlyAddedSlider() {
           key={item.mediaItemId}
           item={{ id: item.mediaItemId, title: item.title, type: item.type }}
           showYear={false}
+          showType
+        />
+      ))}
+    </MediaSlider>
+  );
+}
+
+function RecommendedSlider() {
+  const { data, isLoading } = useFeedServiceRecommended({ limit: 20 });
+  const items = data?.items ?? [];
+  if (!isLoading && items.length === 0) return null;
+
+  return (
+    <MediaSlider title="Recommended For You" isLoading={isLoading}>
+      {items.map((item) => (
+        <MediaCard
+          key={item.mediaItemId}
+          item={{ id: item.mediaItemId, title: item.title, type: item.type }}
           showType
         />
       ))}
@@ -275,6 +288,7 @@ function HomePage() {
           <>
             <ContinueWatchingSlider />
             <RecentlyAddedSlider />
+            <RecommendedSlider />
             <TypeSlider title="Films" type="MEDIA_ITEM_TYPE_MOVIE" />
             <TypeSlider title="S\u00E9ries" type="MEDIA_ITEM_TYPE_SERIES" />
             {libraries.map((lib) =>
