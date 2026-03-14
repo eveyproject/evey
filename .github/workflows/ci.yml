@@ -60,9 +60,21 @@ jobs:
       - name: install pnpm
         run: corepack prepare pnpm@10.6.5 --activate
 
+      - name: install buf
+        uses: bufbuild/buf-setup-action@v1
+        with:
+          version: "1.47.2"
+
+      - name: generate proto (swagger)
+        run: buf generate
+
       - name: install deps
         working-directory: frontend
         run: pnpm install --frozen-lockfile
+
+      - name: generate api client
+        working-directory: frontend
+        run: pnpm --filter @evey/api run generate
 
       - name: typecheck
         working-directory: frontend
