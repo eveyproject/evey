@@ -11,6 +11,7 @@ import {
   useMetadataServiceSetMetadataOverride,
   useMetadataServiceRefreshMetadata,
   useMetadataServiceGetArtwork,
+  useMetadataServiceListMetadataOverrides,
   eveyFetch,
 } from "@evey/api";
 import { useQueryClient } from "@tanstack/react-query";
@@ -654,6 +655,11 @@ export function MediaDetail({ item, onMetadataUpdated, initialEdit }: MediaDetai
   const profileId = useAuthStore((s) => s.profileId);
   const isAdmin = useAuthStore((s) => s.isAdmin);
 
+  const { data: overridesData } = useMetadataServiceListMetadataOverrides(item.id ?? "", {
+    query: { enabled: isAdmin && !!item.id },
+  });
+  const hasOverrides = isAdmin && (overridesData?.overrides?.length ?? 0) > 0;
+
   const { data: parentItem } = useLibraryServiceGetMediaItem(
     item.parentId ?? "",
     { query: { enabled: !!item.parentId && (item.type === "MEDIA_ITEM_TYPE_SEASON" || isEpisode) } } as never,
@@ -948,6 +954,14 @@ export function MediaDetail({ item, onMetadataUpdated, initialEdit }: MediaDetai
                   <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
                 </svg>
                 Metadata Overrides
+                {hasOverrides && (
+                  <span
+                    className="text-xs px-1.5 py-0.5 rounded-full ml-1"
+                    style={{ backgroundColor: "var(--accent)", color: "#fff", fontSize: "10px" }}
+                  >
+                    active
+                  </span>
+                )}
               </Button>
             )}
           </div>
