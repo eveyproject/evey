@@ -415,7 +415,18 @@ func (s *Service) UpdateProfile(ctx context.Context, p *user.Profile) error {
 }
 
 func (s *Service) DeleteProfile(ctx context.Context, id string) error {
-	return s.profiles.Delete(ctx, id)
+	p, err := s.profiles.GetByID(ctx, id)
+	if err != nil {
+		return err
+	}
+	if err := s.profiles.Delete(ctx, id); err != nil {
+		return err
+	}
+	evt := user.ProfileDeleted{ProfileID: id, UserID: p.UserID, OccurredAt: time.Now()}
+	if err := s.events.Publish(ctx, evt); err != nil {
+		slog.Warn("publish event", slog.String("event", evt.EventName()), slog.Any("err", err))
+	}
+	return nil
 }
 
 func (s *Service) ListProfiles(ctx context.Context, userID string) ([]*user.Profile, error) {
@@ -497,7 +508,14 @@ func (s *Service) CheckQuickConnect(ctx context.Context, code string) (*user.Qui
 
 func (s *Service) CreateAPIKey(ctx context.Context, key *user.APIKeyModel) error {
 	key.CreatedAt = time.Now()
-	return s.apiKeys.Create(ctx, key)
+	if err := s.apiKeys.Create(ctx, key); err != nil {
+		return err
+	}
+	evt := user.APIKeyCreated{KeyID: key.ID, UserID: key.UserID, Name: key.Name, OccurredAt: time.Now()}
+	if err := s.events.Publish(ctx, evt); err != nil {
+		slog.Warn("publish event", slog.String("event", evt.EventName()), slog.Any("err", err))
+	}
+	return nil
 }
 
 func (s *Service) ListAPIKeys(ctx context.Context, userID string) ([]*user.APIKeyModel, error) {
@@ -505,7 +523,14 @@ func (s *Service) ListAPIKeys(ctx context.Context, userID string) ([]*user.APIKe
 }
 
 func (s *Service) RevokeAPIKey(ctx context.Context, id string) error {
-	return s.apiKeys.Delete(ctx, id)
+	if err := s.apiKeys.Delete(ctx, id); err != nil {
+		return err
+	}
+	evt := user.APIKeyRevoked{KeyID: id, OccurredAt: time.Now()}
+	if err := s.events.Publish(ctx, evt); err != nil {
+		slog.Warn("publish event", slog.String("event", evt.EventName()), slog.Any("err", err))
+	}
+	return nil
 }
 
 const maxRefreshTokenRetries = 3

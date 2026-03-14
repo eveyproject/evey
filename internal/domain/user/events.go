@@ -58,3 +58,27 @@ type PasswordChanged struct {
 }
 
 func (e PasswordChanged) EventName() string { return "user.password.changed" }
+
+type ProfileDeleted struct {
+	ProfileID  string
+	UserID     string
+	OccurredAt time.Time
+}
+
+func (e ProfileDeleted) EventName() string { return "user.profile.deleted" }
+
+type APIKeyCreated struct {
+	KeyID      string
+	UserID     string
+	Name       string
+	OccurredAt time.Time
+}
+
+func (e APIKeyCreated) EventName() string { return "user.apikey.created" }
+
+type APIKeyRevoked struct {
+	KeyID      string
+	OccurredAt time.Time
+}
+
+func (e APIKeyRevoked) EventName() string { return "user.apikey.revoked" }
