@@ -10,7 +10,7 @@ export const Route = createLazyFileRoute("/_auth/favorites")({
   component: FavoritesPage,
 });
 
-type SortKey = "dateAdded" | "titleAZ" | "yearNewest" | "rating";
+type SortKey = "dateAdded" | "titleAZ" | "titleZA" | "yearNewest" | "rating";
 type TypeFilter = "all" | "MEDIA_ITEM_TYPE_MOVIE" | "MEDIA_ITEM_TYPE_SERIES";
 
 const selectStyle: React.CSSProperties = {
@@ -23,17 +23,37 @@ const selectStyle: React.CSSProperties = {
   cursor: "pointer",
 };
 
+const searchInputStyle: React.CSSProperties = {
+  padding: "4px 8px",
+  borderRadius: "var(--radius-sm)",
+  border: "1px solid var(--border)",
+  backgroundColor: "var(--surface-raised)",
+  color: "var(--text)",
+  fontSize: "0.8rem",
+  outline: "none",
+  width: "160px",
+};
+
 function FavoritesPage() {
   const { data: favorites, isLoading } = useFavoritesList(200);
   const [sort, setSort] = useState<SortKey>("dateAdded");
   const [typeFilter, setTypeFilter] = useState<TypeFilter>("all");
+  const [search, setSearch] = useState("");
 
   const filtered = useMemo(() => {
     if (!favorites) return [];
-    let list = typeFilter === "all" ? favorites : favorites.filter((f) => f.type === typeFilter);
+    const query = search.trim().toLowerCase();
+    let list = favorites.filter((f) => {
+      if (typeFilter !== "all" && f.type !== typeFilter) return false;
+      if (query && !(f.title ?? "").toLowerCase().includes(query)) return false;
+      return true;
+    });
     switch (sort) {
       case "titleAZ":
         list = [...list].sort((a, b) => (a.title ?? "").localeCompare(b.title ?? ""));
+        break;
+      case "titleZA":
+        list = [...list].sort((a, b) => (b.title ?? "").localeCompare(a.title ?? ""));
         break;
       case "yearNewest":
         list = [...list].sort((a, b) => (b.year ?? 0) - (a.year ?? 0));
@@ -46,7 +66,7 @@ function FavoritesPage() {
         break;
     }
     return list;
-  }, [favorites, sort, typeFilter]);
+  }, [favorites, sort, typeFilter, search]);
 
   return (
     <div>
@@ -59,14 +79,23 @@ function FavoritesPage() {
             <span className="text-sm" style={{ color: "var(--text-muted)" }}>
               {filtered.length} {filtered.length === 1 ? "item" : "items"}
             </span>
+            <input
+              type="search"
+              placeholder="Search…"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              style={searchInputStyle}
+              aria-label="Search favorites"
+            />
             <select style={selectStyle} value={typeFilter} onChange={(e) => setTypeFilter(e.target.value as TypeFilter)}>
               <option value="all">All</option>
               <option value="MEDIA_ITEM_TYPE_MOVIE">Movies</option>
               <option value="MEDIA_ITEM_TYPE_SERIES">Series</option>
             </select>
             <select style={selectStyle} value={sort} onChange={(e) => setSort(e.target.value as SortKey)}>
-              <option value="dateAdded">Date Added</option>
+              <option value="dateAdded">Recently Added</option>
               <option value="titleAZ">Title A–Z</option>
+              <option value="titleZA">Title Z–A</option>
               <option value="yearNewest">Year (newest)</option>
               <option value="rating">Rating</option>
             </select>
