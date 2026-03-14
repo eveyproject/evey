@@ -12,7 +12,8 @@ import (
 
 type notificationHandler struct {
 	eveyv1.UnimplementedNotificationServiceServer
-	svc *appnotification.Service
+	cmd   *appnotification.CommandService
+	query *appnotification.QueryService
 }
 
 func (h *notificationHandler) ListNotifications(ctx context.Context, req *eveyv1.ListNotificationsRequest) (*eveyv1.ListNotificationsResponse, error) {
@@ -24,7 +25,7 @@ func (h *notificationHandler) ListNotifications(ctx context.Context, req *eveyv1
 	if err != nil {
 		return nil, err
 	}
-	items, err := h.svc.List(ctx, profileID, req.UnreadOnly, int(req.Limit), int(req.Offset))
+	items, err := h.query.List(ctx, profileID, req.UnreadOnly, int(req.Limit), int(req.Offset))
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "list notifications: %v", err)
 	}
@@ -39,7 +40,7 @@ func (h *notificationHandler) MarkRead(ctx context.Context, req *eveyv1.MarkRead
 	if _, err := requireClaims(ctx); err != nil {
 		return nil, err
 	}
-	if err := h.svc.MarkRead(ctx, req.Id); err != nil {
+	if err := h.cmd.MarkRead(ctx, req.Id); err != nil {
 		return nil, status.Errorf(codes.Internal, "mark read: %v", err)
 	}
 	return &eveyv1.MarkReadResponse{}, nil
@@ -54,7 +55,7 @@ func (h *notificationHandler) MarkAllRead(ctx context.Context, req *eveyv1.MarkA
 	if err != nil {
 		return nil, err
 	}
-	if err := h.svc.MarkAllRead(ctx, profileID); err != nil {
+	if err := h.cmd.MarkAllRead(ctx, profileID); err != nil {
 		return nil, status.Errorf(codes.Internal, "mark all read: %v", err)
 	}
 	return &eveyv1.MarkAllReadResponse{}, nil
@@ -69,7 +70,7 @@ func (h *notificationHandler) GetUnreadCount(ctx context.Context, req *eveyv1.Ge
 	if err != nil {
 		return nil, err
 	}
-	count, err := h.svc.UnreadCount(ctx, profileID)
+	count, err := h.query.UnreadCount(ctx, profileID)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "unread count: %v", err)
 	}
@@ -85,7 +86,7 @@ func (h *notificationHandler) DeleteAllNotifications(ctx context.Context, req *e
 	if err != nil {
 		return nil, err
 	}
-	if err := h.svc.DeleteAll(ctx, profileID); err != nil {
+	if err := h.cmd.DeleteAll(ctx, profileID); err != nil {
 		return nil, status.Errorf(codes.Internal, "delete all: %v", err)
 	}
 	return &eveyv1.DeleteAllNotificationsResponse{}, nil
@@ -100,7 +101,7 @@ func (h *notificationHandler) GetNotificationSettings(ctx context.Context, req *
 	if err != nil {
 		return nil, err
 	}
-	s, err := h.svc.GetSettings(ctx, profileID)
+	s, err := h.query.GetSettings(ctx, profileID)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "get settings: %v", err)
 	}
@@ -122,14 +123,14 @@ func (h *notificationHandler) UpdateNotificationSettings(ctx context.Context, re
 		SeriesLevel: levelFromProto(req.SeriesLevel),
 		MusicLevel:  levelFromProto(req.MusicLevel),
 	}
-	if err := h.svc.UpdateSettings(ctx, s); err != nil {
+	if err := h.cmd.UpdateSettings(ctx, s); err != nil {
 		return nil, status.Errorf(codes.Internal, "update settings: %v", err)
 	}
 	return settingsToProto(s), nil
 }
 
 func (h *notificationHandler) GetGlobalNotificationSettings(ctx context.Context, _ *eveyv1.GetGlobalNotificationSettingsRequest) (*eveyv1.NotificationSettings, error) {
-	s, err := h.svc.GetGlobalSettings(ctx)
+	s, err := h.query.GetGlobalSettings(ctx)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "get global settings: %v", err)
 	}
@@ -143,7 +144,7 @@ func (h *notificationHandler) UpdateGlobalNotificationSettings(ctx context.Conte
 		SeriesLevel: levelFromProto(req.SeriesLevel),
 		MusicLevel:  levelFromProto(req.MusicLevel),
 	}
-	if err := h.svc.UpdateGlobalSettings(ctx, s); err != nil {
+	if err := h.cmd.UpdateGlobalSettings(ctx, s); err != nil {
 		return nil, status.Errorf(codes.Internal, "update global settings: %v", err)
 	}
 	return settingsToProto(s), nil

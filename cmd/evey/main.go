@@ -318,10 +318,11 @@ func run() error {
 	webhookLog := eveylogger.NewWith(rootLog, "webhook")
 	webhookSvc := appwebhook.NewService(webhookRepo, webhookDeliveryRepo, webhookLog, bus)
 
-	notifSvc := appnotification.NewService(
+	notifCmdSvc := appnotification.NewCommandService(
 		notificationRepo, notificationSettingsRepo, watchHistoryAnalyzer,
 		profileRepo, bus,
 	)
+	notifQuerySvc := appnotification.NewQueryService(notificationRepo, notificationSettingsRepo)
 	// notification cleanup goroutine started after ctx is available (see below)
 
 	feedCmdSvc := appfeed.NewCommandService(feedCmdRepo)
@@ -360,7 +361,7 @@ func run() error {
 		playbackSvc.CommandService(), playbackSvc.QueryService(),
 		transcodingSvc,
 		mkvSvc, pluginSvc, metadataSvc, activityCmdSvc, activityQuerySvc,
-		notifSvc, feedCmdSvc, feedQuerySvc, webhookSvc,
+		notifCmdSvc, notifQuerySvc, feedCmdSvc, feedQuerySvc, webhookSvc,
 		userRepo, profileRepo, libraryAccessRepo, version,
 		grpc.ChainUnaryInterceptor(
 			interceptors.ErrorSanitizerUnary(),
@@ -502,10 +503,11 @@ func run() error {
 	}
 
 	// --- Graceful shutdown ---
+	notifCmdSvc.Start(ctx)
 	go libScheduler.Run(ctx)
 
 	go func() {
-		if err := notifSvc.CleanupExpired(context.Background()); err != nil {
+		if err := notifCmdSvc.CleanupExpired(context.Background()); err != nil {
 			rootLog.Warn("notification cleanup", slog.Any("err", err))
 		}
 		ticker := time.NewTicker(24 * time.Hour)
@@ -515,7 +517,7 @@ func run() error {
 			case <-ctx.Done():
 				return
 			case <-ticker.C:
-				if err := notifSvc.CleanupExpired(context.Background()); err != nil {
+				if err := notifCmdSvc.CleanupExpired(context.Background()); err != nil {
 					rootLog.Warn("notification cleanup", slog.Any("err", err))
 				}
 			}

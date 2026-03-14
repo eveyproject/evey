@@ -33,7 +33,8 @@ type GRPCServer struct {
 	metadata        *appmetadata.Service
 	activityCmd     *appactivity.CommandService
 	activityQuery   *appactivity.QueryService
-	notification    *appnotification.Service
+	notifCmd        *appnotification.CommandService
+	notifQuery      *appnotification.QueryService
 	feedCmd         *appfeed.CommandService
 	feedQuery       *appfeed.QueryService
 	webhook         *appwebhook.Service
@@ -60,7 +61,8 @@ func NewGRPCServer(
 	metadata *appmetadata.Service,
 	activityCmd *appactivity.CommandService,
 	activityQuery *appactivity.QueryService,
-	notification *appnotification.Service,
+	notifCmd *appnotification.CommandService,
+	notifQuery *appnotification.QueryService,
 	feedCmd *appfeed.CommandService,
 	feedQuery *appfeed.QueryService,
 	webhook *appwebhook.Service,
@@ -83,7 +85,8 @@ func NewGRPCServer(
 		metadata:      metadata,
 		activityCmd:   activityCmd,
 		activityQuery: activityQuery,
-		notification:  notification,
+		notifCmd:      notifCmd,
+		notifQuery:    notifQuery,
 		feedCmd:       feedCmd,
 		feedQuery:     feedQuery,
 		webhook:       webhook,
@@ -111,7 +114,7 @@ func (s *GRPCServer) RegisterServices() {
 		version:        s.version,
 	})
 	eveyv1.RegisterActivityServiceServer(s.server, &activityHandler{svc: s.activityQuery})
-	eveyv1.RegisterNotificationServiceServer(s.server, &notificationHandler{svc: s.notification})
+	eveyv1.RegisterNotificationServiceServer(s.server, &notificationHandler{cmd: s.notifCmd, query: s.notifQuery})
 	eveyv1.RegisterFeedServiceServer(s.server, &feedHandler{commands: s.feedCmd, queries: s.feedQuery})
 	eveyv1.RegisterWebhookServiceServer(s.server, &webhookHandler{svc: s.webhook})
 }

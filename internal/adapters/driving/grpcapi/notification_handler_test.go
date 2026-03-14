@@ -24,8 +24,9 @@ func newNotificationHandler() (*notificationHandler, *notiffakes.FakeNotificatio
 	profiles := userfakes.NewFakeProfileRepository()
 	events := sharedfakes.NewFakeEventBus()
 
-	svc := appnotification.NewService(repo, settings, analyzer, profiles, events)
-	h := &notificationHandler{svc: svc}
+	cmd := appnotification.NewCommandService(repo, settings, analyzer, profiles, events)
+	query := appnotification.NewQueryService(repo, settings)
+	h := &notificationHandler{cmd: cmd, query: query}
 	return h, repo, settings
 }
 
