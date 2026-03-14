@@ -1,0 +1,7 @@
+// To add to GRPCServer struct:
+playbackSettingsHandler *playbackSettingsHandler
+
+// To add to RegisterServices() (needs cfg *config.Config available):
+eveyv1.RegisterPlaybackSettingsServiceServer(s.server, &playbackSettingsHandler{cfg: cfg})
+
+// Note: cfg needs to be added as a field to GRPCServer or passed at construction time

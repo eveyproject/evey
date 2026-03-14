@@ -1,0 +1,34 @@
+syntax = "proto3";
+
+package evey.v1;
+
+import "google/api/annotations.proto";
+
+option go_package = "github.com/gravity/evey/gen/evey/v1;eveyv1";
+
+service PlaybackSettingsService {
+  rpc GetPlaybackSettings(GetPlaybackSettingsRequest) returns (PlaybackSettings) {
+    option (google.api.http) = {
+      get: "/api/v1/playback-settings"
+    };
+  }
+
+  rpc UpdatePlaybackSettings(UpdatePlaybackSettingsRequest) returns (PlaybackSettings) {
+    option (google.api.http) = {
+      put: "/api/v1/admin/playback-settings"
+      body: "*"
+    };
+  }
+}
+
+message PlaybackSettings {
+  int32 skip_forward_seconds = 1;
+  int32 skip_backward_seconds = 2;
+}
+
+message GetPlaybackSettingsRequest {}
+
+message UpdatePlaybackSettingsRequest {
+  optional int32 skip_forward_seconds = 1;
+  optional int32 skip_backward_seconds = 2;
+}

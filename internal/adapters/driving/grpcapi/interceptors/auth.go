@@ -81,6 +81,7 @@ var adminOnlyMethods = map[string]bool{
 	"/evey.v1.RemoteAccessService/GetRemoteAccess":                  true,
 	"/evey.v1.RemoteAccessService/UpdateRemoteAccess":               true,
 	"/evey.v1.RemoteAccessService/GetNetworkInfo":                   true,
+	"/evey.v1.PlaybackSettingsService/UpdatePlaybackSettings":        true,
 }
 
 type AuthInterceptor struct {
