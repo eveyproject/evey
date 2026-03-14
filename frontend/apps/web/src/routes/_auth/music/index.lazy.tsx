@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { createLazyFileRoute } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { eveyFetch } from "@evey/api";
@@ -221,6 +221,8 @@ function MusicPage() {
   );
 }
 
+const TRACKS_PAGE_SIZE = 50;
+
 function TracksTab({
   tracks,
   loading,
@@ -230,39 +232,85 @@ function TracksTab({
   loading: boolean;
   onPlay: (t: Track) => void;
 }) {
+  const [page, setPage] = useState(0);
+  const totalPages = Math.ceil(tracks.length / TRACKS_PAGE_SIZE);
+  const pageTrack = useMemo(
+    () => tracks.slice(page * TRACKS_PAGE_SIZE, (page + 1) * TRACKS_PAGE_SIZE),
+    [tracks, page],
+  );
+
   if (loading) return <p style={{ color: "var(--text-muted)" }}>Loading…</p>;
   if (!tracks.length) return <p style={{ color: "var(--text-muted)" }}>No tracks found.</p>;
 
   return (
-    <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.875rem" }}>
-      <thead>
-        <tr style={{ color: "var(--text-muted)", textAlign: "left", borderBottom: "1px solid var(--border)" }}>
-          <th style={{ padding: "8px 12px" }}>#</th>
-          <th style={{ padding: "8px 12px" }}>Title</th>
-          <th style={{ padding: "8px 12px" }}>Artist</th>
-          <th style={{ padding: "8px 12px" }}>Album</th>
-          <th style={{ padding: "8px 12px", textAlign: "right" }}>Duration</th>
-        </tr>
-      </thead>
-      <tbody>
-        {tracks.map((t, i) => (
-          <tr
-            key={t.ID}
-            onClick={() => onPlay(t)}
-            style={{ cursor: "pointer", borderBottom: "1px solid var(--border)" }}
-            className="hover:bg-[var(--surface-raised)]"
-          >
-            <td style={{ padding: "8px 12px", color: "var(--text-muted)" }}>{i + 1}</td>
-            <td style={{ padding: "8px 12px", color: "var(--text)", fontWeight: 500 }}>{t.Title || "—"}</td>
-            <td style={{ padding: "8px 12px", color: "var(--text-secondary)" }}>{t.Artist || "—"}</td>
-            <td style={{ padding: "8px 12px", color: "var(--text-secondary)" }}>{t.Album || "—"}</td>
-            <td style={{ padding: "8px 12px", color: "var(--text-muted)", textAlign: "right" }}>
-              {t.Duration > 0 ? formatDuration(t.Duration) : "—"}
-            </td>
+    <div>
+      <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.875rem" }}>
+        <thead>
+          <tr style={{ color: "var(--text-muted)", textAlign: "left", borderBottom: "1px solid var(--border)" }}>
+            <th style={{ padding: "8px 12px" }}>#</th>
+            <th style={{ padding: "8px 12px" }}>Title</th>
+            <th style={{ padding: "8px 12px" }}>Artist</th>
+            <th style={{ padding: "8px 12px" }}>Album</th>
+            <th style={{ padding: "8px 12px", textAlign: "right" }}>Duration</th>
           </tr>
-        ))}
-      </tbody>
-    </table>
+        </thead>
+        <tbody>
+          {pageTrack.map((t, i) => (
+            <tr
+              key={t.ID}
+              onClick={() => onPlay(t)}
+              style={{ cursor: "pointer", borderBottom: "1px solid var(--border)" }}
+              className="hover:bg-[var(--surface-raised)]"
+            >
+              <td style={{ padding: "8px 12px", color: "var(--text-muted)" }}>{page * TRACKS_PAGE_SIZE + i + 1}</td>
+              <td style={{ padding: "8px 12px", color: "var(--text)", fontWeight: 500 }}>{t.Title || "—"}</td>
+              <td style={{ padding: "8px 12px", color: "var(--text-secondary)" }}>{t.Artist || "—"}</td>
+              <td style={{ padding: "8px 12px", color: "var(--text-secondary)" }}>{t.Album || "—"}</td>
+              <td style={{ padding: "8px 12px", color: "var(--text-muted)", textAlign: "right" }}>
+                {t.Duration > 0 ? formatDuration(t.Duration) : "—"}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      {totalPages > 1 && (
+        <div className="flex items-center justify-between mt-4" style={{ color: "var(--text-muted)", fontSize: "0.875rem" }}>
+          <button
+            onClick={() => setPage((p) => Math.max(0, p - 1))}
+            disabled={page === 0}
+            style={{
+              padding: "6px 16px",
+              borderRadius: "var(--radius-sm)",
+              border: "1px solid var(--border)",
+              backgroundColor: "var(--surface-raised)",
+              color: page === 0 ? "var(--text-muted)" : "var(--text)",
+              cursor: page === 0 ? "default" : "pointer",
+              opacity: page === 0 ? 0.5 : 1,
+            }}
+          >
+            Previous
+          </button>
+          <span>
+            {page + 1} / {totalPages} · {tracks.length} tracks
+          </span>
+          <button
+            onClick={() => setPage((p) => Math.min(totalPages - 1, p + 1))}
+            disabled={page === totalPages - 1}
+            style={{
+              padding: "6px 16px",
+              borderRadius: "var(--radius-sm)",
+              border: "1px solid var(--border)",
+              backgroundColor: "var(--surface-raised)",
+              color: page === totalPages - 1 ? "var(--text-muted)" : "var(--text)",
+              cursor: page === totalPages - 1 ? "default" : "pointer",
+              opacity: page === totalPages - 1 ? 0.5 : 1,
+            }}
+          >
+            Next
+          </button>
+        </div>
+      )}
+    </div>
   );
 }
 
