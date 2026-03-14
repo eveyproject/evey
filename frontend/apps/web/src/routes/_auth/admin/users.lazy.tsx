@@ -9,11 +9,14 @@ import {
   useUserServiceListInviteLinks,
   useUserServiceCreateInviteLink,
   useUserServiceRevokeInviteLink,
+  useUserServiceListProfiles,
+  useUserServiceUpdateProfile,
 } from "@evey/api";
 import { toast } from "@evey/store";
 import { eveyFetch } from "@evey/api/src/fetcher";
 import type { V1User } from "@evey/api/src/generated/user.schemas";
 import type { V1InviteLink } from "@evey/api/src/generated/user.schemas";
+import { Select } from "@/components/ui/Select";
 import { Spinner } from "@/components/ui/Spinner";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
@@ -210,10 +213,97 @@ function LibraryAccessModal({
   );
 }
 
+const BITRATE_OPTIONS = [
+  { label: "Unlimited", value: 0 },
+  { label: "1 Mbps", value: 1000 },
+  { label: "2 Mbps", value: 2000 },
+  { label: "4 Mbps", value: 4000 },
+  { label: "8 Mbps", value: 8000 },
+  { label: "20 Mbps", value: 20000 },
+  { label: "40 Mbps", value: 40000 },
+];
+
+function BitrateModal({
+  user,
+  open,
+  onClose,
+}: {
+  user: V1User;
+  open: boolean;
+  onClose: () => void;
+}) {
+  const [selectedBitrate, setSelectedBitrate] = useState<number>(0);
+
+  const { data: profilesData, isLoading } = useUserServiceListProfiles(
+    user.id ?? "",
+    { query: { enabled: open && !!user.id } }
+  );
+
+  const defaultProfile = profilesData?.profiles?.find((p) => p.isDefault) ?? profilesData?.profiles?.[0];
+
+  useEffect(() => {
+    if (defaultProfile) {
+      setSelectedBitrate(defaultProfile.maxBitrateKbps ?? 0);
+    }
+  }, [defaultProfile]);
+
+  const updateProfile = useUserServiceUpdateProfile({
+    mutation: {
+      onSuccess: () => {
+        toast.success("Bitrate limit updated");
+        onClose();
+      },
+      onError: () => toast.error("Failed to update bitrate limit"),
+    },
+  });
+
+  function handleSave() {
+    if (!defaultProfile?.id) {
+      toast.error("No profile found for this user");
+      return;
+    }
+    updateProfile.mutate({
+      id: defaultProfile.id,
+      data: { maxBitrateKbps: selectedBitrate === 0 ? undefined : selectedBitrate },
+    });
+  }
+
+  return (
+    <Modal open={open} onClose={onClose} title={`Max Bitrate — ${user.username}`}>
+      {isLoading ? (
+        <div className="flex justify-center py-8">
+          <Spinner size="md" />
+        </div>
+      ) : !defaultProfile ? (
+        <p className="text-sm" style={{ color: "var(--text-muted)" }}>
+          No profile found for this user.
+        </p>
+      ) : (
+        <div className="flex flex-col gap-4">
+          <p className="text-sm" style={{ color: "var(--text-muted)" }}>
+            Limit the maximum streaming bitrate for all profiles of this user.
+          </p>
+          <Select
+            label="Max Bitrate"
+            value={String(selectedBitrate)}
+            onChange={(v) => setSelectedBitrate(Number(v))}
+            options={BITRATE_OPTIONS.map((o) => ({ label: o.label, value: String(o.value) }))}
+          />
+          <div className="flex justify-end gap-2 pt-2">
+            <Button variant="ghost" onClick={onClose}>Cancel</Button>
+            <Button onClick={handleSave} loading={updateProfile.isPending}>Save</Button>
+          </div>
+        </div>
+      )}
+    </Modal>
+  );
+}
+
 function UserRow({ user }: { user: V1User }) {
   const queryClient = useQueryClient();
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [showLibraryAccess, setShowLibraryAccess] = useState(false);
+  const [showBitrate, setShowBitrate] = useState(false);
 
   const deleteUser = useUserServiceDeleteUser({
     mutation: {
@@ -254,7 +344,7 @@ function UserRow({ user }: { user: V1User }) {
         )}
       </td>
       <td className="px-4 py-3 whitespace-nowrap">
-        <div className="flex gap-2">
+        <div className="flex gap-2 flex-wrap">
           {!user.isAdmin && (
             <Button
               variant="secondary"
@@ -263,6 +353,12 @@ function UserRow({ user }: { user: V1User }) {
               Libraries
             </Button>
           )}
+          <Button
+            variant="secondary"
+            onClick={() => setShowBitrate(true)}
+          >
+            Bitrate
+          </Button>
           <Button
             variant="secondary"
             loading={disableUser.isPending}
@@ -305,6 +401,11 @@ function UserRow({ user }: { user: V1User }) {
             onClose={() => setShowLibraryAccess(false)}
           />
         )}
+        <BitrateModal
+          user={user}
+          open={showBitrate}
+          onClose={() => setShowBitrate(false)}
+        />
       </td>
     </tr>
   );
