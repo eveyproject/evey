@@ -9,7 +9,9 @@ import (
 	eveyv1 "github.com/gravity-zero/evey/gen/evey/v1"
 	applibrary "github.com/gravity-zero/evey/internal/app/library"
 	appplayback "github.com/gravity-zero/evey/internal/app/playback"
+	apptranscoding "github.com/gravity-zero/evey/internal/app/transcoding"
 	"github.com/gravity-zero/evey/internal/domain/playback"
+	"github.com/gravity-zero/evey/internal/domain/transcoding"
 	"github.com/gravity-zero/evey/internal/pkg/id"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -28,16 +30,46 @@ func (h *playbackHandler) GetStreamInfo(ctx context.Context, req *eveyv1.GetStre
 		return nil, status.Errorf(codes.NotFound, "media item not found: %v", err)
 	}
 	resp := &eveyv1.StreamInfo{
-		MediaItemId:   req.MediaItemId,
-		PlayMethod:    eveyv1.PlayMethod_PLAY_METHOD_DIRECT_PLAY,
-		DirectPlayUrl: "/api/v1/media/" + req.MediaItemId + "/stream",
-		Container:     item.ContainerFormat,
+		MediaItemId: req.MediaItemId,
+		Container:   item.ContainerFormat,
 	}
-	if streams, err := h.librarySvc.GetMediaStreams(ctx, req.MediaItemId); err == nil {
-		for _, s := range streams {
-			resp.MediaStreams = append(resp.MediaStreams, mediaStreamToProto(s))
-		}
+	streams, _ := h.librarySvc.GetMediaStreams(ctx, req.MediaItemId)
+	for _, s := range streams {
+		resp.MediaStreams = append(resp.MediaStreams, mediaStreamToProto(s))
 	}
+
+	client := transcoding.DefaultWebProfile
+	if len(req.SupportedCodecs) > 0 {
+		client.VideoCodecs = req.SupportedCodecs
+	}
+	if len(req.SupportedContainers) > 0 {
+		client.Containers = req.SupportedContainers
+	}
+	if req.MaxWidth > 0 {
+		client.MaxWidth = int(req.MaxWidth)
+	}
+	if req.MaxHeight > 0 {
+		client.MaxHeight = int(req.MaxHeight)
+	}
+
+	var maxBitrateKbps int
+	if req.MaxBitrate > 0 {
+		maxBitrateKbps = int(req.MaxBitrate / 1000)
+	}
+
+	decision := apptranscoding.MakePlaybackDecision(streams, item.ContainerFormat, client, maxBitrateKbps)
+	switch decision.PlayMethod {
+	case "direct_play":
+		resp.PlayMethod = eveyv1.PlayMethod_PLAY_METHOD_DIRECT_PLAY
+		resp.DirectPlayUrl = "/api/v1/media/" + req.MediaItemId + "/stream"
+	case "direct_stream":
+		resp.PlayMethod = eveyv1.PlayMethod_PLAY_METHOD_DIRECT_STREAM
+		resp.DirectPlayUrl = "/api/v1/media/" + req.MediaItemId + "/stream"
+	default:
+		resp.PlayMethod = eveyv1.PlayMethod_PLAY_METHOD_TRANSCODE
+		resp.TranscodeUrl = "/api/v1/media/" + req.MediaItemId + "/transcode"
+	}
+
 	return resp, nil
 }
 

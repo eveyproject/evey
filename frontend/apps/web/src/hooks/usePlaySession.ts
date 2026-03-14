@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   usePlaybackServiceGetWatchProgress,
   usePlaybackServiceStopStream,
@@ -7,7 +7,7 @@ import {
 } from "@evey/api";
 import type { V1StreamInfo, V1WatchProgress } from "@evey/api/src/generated/playback.schemas";
 import { useAuthStore } from "@evey/store";
-import { canPlayHevc } from "@/utils/codec";
+import { getBrowserCapabilities } from "@/utils/codec";
 
 export interface PlaySessionResult {
   streamInfo: V1StreamInfo | null;
@@ -27,18 +27,33 @@ export function usePlaySession(mediaId: string): PlaySessionResult {
   const [startError, setStartError] = useState(false);
   const token = useAuthStore.getState().accessToken;
 
+  const caps = useMemo(() => getBrowserCapabilities(), []);
+  const streamInfoParams = useMemo(() => ({
+    supportedCodecs: caps.videoCodecs,
+    supportedContainers: caps.containers,
+    maxWidth: window.screen.width,
+    maxHeight: window.screen.height,
+  }), [caps]);
+
   const { data: progress } = usePlaybackServiceGetWatchProgress(mediaId, undefined, {
     query: { retry: false },
   });
-  const { data: rawStreamInfo } = usePlaybackServiceGetStreamInfo(mediaId);
+  const { data: rawStreamInfo } = usePlaybackServiceGetStreamInfo(mediaId, streamInfoParams);
 
   const streamInfo: V1StreamInfo | undefined = rawStreamInfo
-    ? {
-        ...rawStreamInfo,
-        directPlayUrl: token
-          ? `/api/v1/media/${mediaId}/transcode?token=${token}${canPlayHevc ? "&remux=1" : ""}`
-          : rawStreamInfo.directPlayUrl,
-      }
+    ? (() => {
+        const isDirectPlay =
+          rawStreamInfo.playMethod === "PLAY_METHOD_DIRECT_PLAY" ||
+          rawStreamInfo.playMethod === "PLAY_METHOD_DIRECT_STREAM";
+        const url = isDirectPlay
+          ? (token
+              ? `${rawStreamInfo.directPlayUrl ?? `/api/v1/media/${mediaId}/stream`}?token=${token}`
+              : rawStreamInfo.directPlayUrl)
+          : (token
+              ? `/api/v1/media/${mediaId}/transcode?token=${token}`
+              : rawStreamInfo.transcodeUrl);
+        return { ...rawStreamInfo, directPlayUrl: url };
+      })()
     : undefined;
 
   const { mutate: stopStreamMutate } = usePlaybackServiceStopStream();
@@ -49,9 +64,15 @@ export function usePlaySession(mediaId: string): PlaySessionResult {
     startedRef.current = true;
     setStarting(true);
 
+    const playMethod = rawStreamInfo?.playMethod === "PLAY_METHOD_DIRECT_PLAY"
+      ? "PLAY_METHOD_DIRECT_PLAY"
+      : rawStreamInfo?.playMethod === "PLAY_METHOD_DIRECT_STREAM"
+        ? "PLAY_METHOD_DIRECT_STREAM"
+        : "PLAY_METHOD_TRANSCODE";
+
     playbackServiceStartStream({
       mediaItemId: mediaId,
-      playMethod: "PLAY_METHOD_TRANSCODE",
+      playMethod,
       deviceId: "web-browser",
       deviceName: "Web Browser",
       clientName: "Evey Web",
