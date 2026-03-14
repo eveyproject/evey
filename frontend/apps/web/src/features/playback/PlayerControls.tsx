@@ -242,6 +242,26 @@ const SUBTITLE_FONTS = [
   { label: "Monospace", value: "'Courier New', monospace" },
 ];
 
+function srtToVtt(srt: string): string {
+  const vtt = srt
+    .replace(/\r\n/g, "\n")
+    .replace(/\r/g, "\n")
+    // SRT timestamps use comma for ms, VTT uses period
+    .replace(/(\d{2}:\d{2}:\d{2}),(\d{3})/g, "$1.$2");
+  return `WEBVTT\n\n${vtt.trim()}\n`;
+}
+
+async function loadSubtitleFile(file: File): Promise<string> {
+  const text = await file.text();
+  const ext = file.name.split(".").pop()?.toLowerCase() ?? "";
+  if (ext === "srt" || ext === "ass" || ext === "ssa") {
+    const vtt = srtToVtt(text);
+    const blob = new Blob([vtt], { type: "text/vtt" });
+    return URL.createObjectURL(blob);
+  }
+  return URL.createObjectURL(file);
+}
+
 function SettingsPanel({
   audioStreams,
   subtitleStreams,
@@ -487,10 +507,12 @@ function SettingsPanel({
                 onChange={(e) => {
                   const file = e.target.files?.[0];
                   if (!file) return;
-                  const url = URL.createObjectURL(file);
-                  onExternalSubtitle(url, file.name);
-                  setOpen(false);
-                  onOpenChange(false);
+                  const name = file.name;
+                  void loadSubtitleFile(file).then((url) => {
+                    onExternalSubtitle(url, name);
+                    setOpen(false);
+                    onOpenChange(false);
+                  });
                   e.target.value = "";
                 }}
               />
