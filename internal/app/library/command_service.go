@@ -267,6 +267,19 @@ func (s *CommandService) upsertMediaFile(ctx context.Context, libraryID, parentI
 		}
 		return 1, 0, nil
 	}
+	unchanged := existing.FileSize == f.Size && (f.Fingerprint == "" || existing.FileFingerprint == f.Fingerprint)
+	if unchanged {
+		// Only update path/parentID if they actually moved.
+		if existing.FilePath != f.Path || existing.ParentID != parentID {
+			existing.FilePath = f.Path
+			existing.ParentID = parentID
+			existing.UpdatedAt = time.Now()
+			if err := s.mediaItems.Update(ctx, existing); err != nil {
+				slog.Warn("update media item failed", slog.String("mediaItemID", existing.ID), slog.Any("err", err))
+			}
+		}
+		return 0, 1, nil
+	}
 	existing.ParentID = parentID
 	existing.FilePath = f.Path
 	existing.FileSize = f.Size
