@@ -229,10 +229,8 @@ func run() error {
 	)
 	metadataSvc.WithEnricher(enricher, mediaItemRepo)
 
-	activitySvc := appactivity.NewService(
-		loginHistoryRepo, serverMetricRepo, auditLogRepo, playSessionStatsRepo, playHistoryRepo,
-		bus,
-	)
+	activityCmdSvc := appactivity.NewCommandService(loginHistoryRepo, serverMetricRepo, auditLogRepo, bus)
+	activityQuerySvc := appactivity.NewQueryService(loginHistoryRepo, serverMetricRepo, auditLogRepo, playSessionStatsRepo, playHistoryRepo)
 
 	pluginSvc := appplugin.NewService(
 		pluginRepo, pluginRuntimeRepo, pluginRunner, manifestParser,
@@ -361,7 +359,7 @@ func run() error {
 		libCmdSvc, libQuerySvc, userSvc,
 		playbackSvc.CommandService(), playbackSvc.QueryService(),
 		transcodingSvc,
-		mkvSvc, pluginSvc, metadataSvc, activitySvc,
+		mkvSvc, pluginSvc, metadataSvc, activityCmdSvc, activityQuerySvc,
 		notifSvc, feedCmdSvc, feedQuerySvc, webhookSvc,
 		userRepo, profileRepo, libraryAccessRepo, version,
 		grpc.ChainUnaryInterceptor(

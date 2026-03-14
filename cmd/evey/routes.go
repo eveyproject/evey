@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -697,7 +698,12 @@ func registerScheduleRoutes(mux *http.ServeMux, scheduler *applibrary.Scheduler,
 		}
 		sched, err := scheduler.SetSchedule(r.Context(), r.PathValue("id"), body.Cron, enabled)
 		if err != nil {
-			http.Error(w, fmt.Sprintf(`{"message":%q}`, err.Error()), http.StatusBadRequest)
+			if strings.HasPrefix(err.Error(), "invalid cron") {
+				http.Error(w, `{"message":"invalid cron expression"}`, http.StatusBadRequest)
+			} else {
+				slog.Error("set schedule failed", slog.Any("err", err))
+				http.Error(w, `{"message":"internal error"}`, http.StatusInternalServerError)
+			}
 			return
 		}
 		type resp struct {
@@ -1024,7 +1030,17 @@ func registerPlaylistRoutes(mux *http.ServeMux, svc *appplaylist.Service, tokenG
 				return
 			}
 			if err := svc.AddItem(r.Context(), plID, body.MediaItemID, claims.UserID); err != nil {
-				http.Error(w, `{"message":"` + err.Error() + `"}`, http.StatusBadRequest)
+				switch {
+				case errors.Is(err, appplaylist.ErrNotOwner):
+					http.Error(w, `{"message":"not playlist owner"}`, http.StatusForbidden)
+				case errors.Is(err, appplaylist.ErrSmartItems):
+					http.Error(w, `{"message":"cannot manually add items to smart playlist"}`, http.StatusBadRequest)
+				case errors.Is(err, appplaylist.ErrMaxItems):
+					http.Error(w, `{"message":"playlist item limit reached"}`, http.StatusBadRequest)
+				default:
+					slog.Error("add playlist item failed", slog.Any("err", err))
+					http.Error(w, `{"message":"internal error"}`, http.StatusInternalServerError)
+				}
 				return
 			}
 			w.WriteHeader(http.StatusNoContent)

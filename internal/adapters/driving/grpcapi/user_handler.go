@@ -25,7 +25,7 @@ type userHandler struct {
 	eveyv1.UnimplementedUserServiceServer
 	svc         *appuser.Service
 	users       user.UserRepository
-	activitySvc *appactivity.Service
+	activitySvc *appactivity.CommandService
 }
 
 func (h *userHandler) audit(ctx context.Context, userID, action, resourceType string, resourceID *string, details map[string]any) {

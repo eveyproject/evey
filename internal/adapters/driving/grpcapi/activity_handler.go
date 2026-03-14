@@ -13,7 +13,7 @@ import (
 
 type activityHandler struct {
 	eveyv1.UnimplementedActivityServiceServer
-	svc *appactivity.Service
+	svc *appactivity.QueryService
 }
 
 func (h *activityHandler) GetPlayHistory(ctx context.Context, req *eveyv1.GetPlayHistoryRequest) (*eveyv1.GetPlayHistoryResponse, error) {

@@ -27,7 +27,7 @@ type adminHandler struct {
 	eveyv1.UnimplementedAdminServiceServer
 	userSvc        *appuser.Service
 	transcodingSvc *apptranscoding.Service
-	activitySvc    *appactivity.Service
+	activitySvc    *appactivity.QueryService
 	pluginSvc      *appplugin.Service
 	hlsManager     *apptranscoding.HLSManager
 	libLister      adminLibraryLister

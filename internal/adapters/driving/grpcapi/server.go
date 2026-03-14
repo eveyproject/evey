@@ -21,26 +21,27 @@ import (
 )
 
 type GRPCServer struct {
-	server        *grpc.Server
-	libCmd        *applibrary.CommandService
-	libQuery      *applibrary.QueryService
-	user          *appuser.Service
-	playbackCmd   *appplayback.CommandService
-	playbackQuery *appplayback.QueryService
-	transcoding   *apptranscoding.Service
-	mkv           *appmkv.Service
-	plugin        *appplugin.Service
-	metadata      *appmetadata.Service
-	activity      *appactivity.Service
-	notification  *appnotification.Service
-	feedCmd       *appfeed.CommandService
-	feedQuery     *appfeed.QueryService
-	webhook       *appwebhook.Service
-	users         user.UserRepository
-	profiles      user.ProfileRepository
-	libraryAccess user.LibraryAccessRepository
-	hlsManager    *apptranscoding.HLSManager
-	version       string
+	server          *grpc.Server
+	libCmd          *applibrary.CommandService
+	libQuery        *applibrary.QueryService
+	user            *appuser.Service
+	playbackCmd     *appplayback.CommandService
+	playbackQuery   *appplayback.QueryService
+	transcoding     *apptranscoding.Service
+	mkv             *appmkv.Service
+	plugin          *appplugin.Service
+	metadata        *appmetadata.Service
+	activityCmd     *appactivity.CommandService
+	activityQuery   *appactivity.QueryService
+	notification    *appnotification.Service
+	feedCmd         *appfeed.CommandService
+	feedQuery       *appfeed.QueryService
+	webhook         *appwebhook.Service
+	users           user.UserRepository
+	profiles        user.ProfileRepository
+	libraryAccess   user.LibraryAccessRepository
+	hlsManager      *apptranscoding.HLSManager
+	version         string
 }
 
 func (s *GRPCServer) SetHLSManager(m *apptranscoding.HLSManager) {
@@ -57,7 +58,8 @@ func NewGRPCServer(
 	mkv *appmkv.Service,
 	plugin *appplugin.Service,
 	metadata *appmetadata.Service,
-	activity *appactivity.Service,
+	activityCmd *appactivity.CommandService,
+	activityQuery *appactivity.QueryService,
 	notification *appnotification.Service,
 	feedCmd *appfeed.CommandService,
 	feedQuery *appfeed.QueryService,
@@ -79,7 +81,8 @@ func NewGRPCServer(
 		mkv:           mkv,
 		plugin:        plugin,
 		metadata:      metadata,
-		activity:      activity,
+		activityCmd:   activityCmd,
+		activityQuery: activityQuery,
 		notification:  notification,
 		feedCmd:       feedCmd,
 		feedQuery:     feedQuery,
@@ -93,7 +96,7 @@ func NewGRPCServer(
 
 func (s *GRPCServer) RegisterServices() {
 	eveyv1.RegisterLibraryServiceServer(s.server, &libraryHandler{cmd: s.libCmd, query: s.libQuery, metadataSvc: s.metadata, libraryAccess: s.libraryAccess, profiles: s.profiles})
-	eveyv1.RegisterUserServiceServer(s.server, &userHandler{svc: s.user, users: s.users, activitySvc: s.activity})
+	eveyv1.RegisterUserServiceServer(s.server, &userHandler{svc: s.user, users: s.users, activitySvc: s.activityCmd})
 	eveyv1.RegisterPlaybackServiceServer(s.server, &playbackHandler{cmd: s.playbackCmd, query: s.playbackQuery, librarySvc: s.libQuery})
 	eveyv1.RegisterTranscodingServiceServer(s.server, &transcodingHandler{svc: s.transcoding, profiles: s.profiles})
 	eveyv1.RegisterMKVServiceServer(s.server, &mkvHandler{svc: s.mkv})
@@ -101,13 +104,13 @@ func (s *GRPCServer) RegisterServices() {
 	eveyv1.RegisterAdminServiceServer(s.server, &adminHandler{
 		userSvc:        s.user,
 		transcodingSvc: s.transcoding,
-		activitySvc:    s.activity,
+		activitySvc:    s.activityQuery,
 		pluginSvc:      s.plugin,
 		hlsManager:     s.hlsManager,
 		libLister:      s.libQuery,
 		version:        s.version,
 	})
-	eveyv1.RegisterActivityServiceServer(s.server, &activityHandler{svc: s.activity})
+	eveyv1.RegisterActivityServiceServer(s.server, &activityHandler{svc: s.activityQuery})
 	eveyv1.RegisterNotificationServiceServer(s.server, &notificationHandler{svc: s.notification})
 	eveyv1.RegisterFeedServiceServer(s.server, &feedHandler{commands: s.feedCmd, queries: s.feedQuery})
 	eveyv1.RegisterWebhookServiceServer(s.server, &webhookHandler{svc: s.webhook})
