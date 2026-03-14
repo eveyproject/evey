@@ -1,3 +1,9 @@
 import { createFileRoute } from "@tanstack/react-router";
 
-export const Route = createFileRoute("/_auth/player/$mediaId")({});
+type PlayerSearch = { room?: string };
+
+export const Route = createFileRoute("/_auth/player/$mediaId")({
+  validateSearch: (search: Record<string, unknown>): PlayerSearch => ({
+    room: typeof search.room === "string" ? search.room : undefined,
+  }),
+});

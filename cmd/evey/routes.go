@@ -34,6 +34,7 @@ import (
 
 	appfavorite "github.com/gravity-zero/evey/internal/app/favorite"
 	appplaylist "github.com/gravity-zero/evey/internal/app/playlist"
+	appsyncplay "github.com/gravity-zero/evey/internal/app/syncplay"
 	domainplaylist "github.com/gravity-zero/evey/internal/domain/playlist"
 	appmetadata "github.com/gravity-zero/evey/internal/app/metadata"
 	domainmeta "github.com/gravity-zero/evey/internal/domain/metadata"
@@ -1160,6 +1161,123 @@ func registerBackupRoutes(mux *http.ServeMux, svc *appbackup.Service, tokenGen *
 	})
 }
 
+func registerSyncPlayRoutes(mux *http.ServeMux, hub *appsyncplay.Hub, tokenGen *auth.JWTGenerator) {
+	extractClaims := func(r *http.Request) (*domainuser.Claims, bool) {
+		h := r.Header.Get("Authorization")
+		if !strings.HasPrefix(h, "Bearer ") {
+			return nil, false
+		}
+		claims, err := tokenGen.ValidateAccessToken(h[7:])
+		if err != nil {
+			return nil, false
+		}
+		return claims, true
+	}
+
+	mux.HandleFunc("POST /api/v1/syncplay/rooms", func(w http.ResponseWriter, r *http.Request) {
+		claims, ok := extractClaims(r)
+		if !ok {
+			http.Error(w, `{"message":"unauthenticated"}`, http.StatusUnauthorized)
+			return
+		}
+		var body struct {
+			MediaID string `json:"mediaId"`
+			Name    string `json:"name"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil || body.MediaID == "" {
+			http.Error(w, `{"message":"mediaId required"}`, http.StatusBadRequest)
+			return
+		}
+		if body.Name == "" {
+			body.Name = "Watch Together"
+		}
+		room, err := hub.CreateRoom(r.Context(), claims.UserID, body.MediaID, body.Name)
+		if err != nil {
+			slog.Error("syncplay create room", slog.Any("err", err))
+			http.Error(w, `{"message":"internal error"}`, http.StatusInternalServerError)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusCreated)
+		json.NewEncoder(w).Encode(map[string]any{
+			"id":      room.ID,
+			"name":    room.Name,
+			"mediaId": room.MediaID,
+			"hostId":  room.HostID,
+		})
+	})
+
+	mux.HandleFunc("GET /api/v1/syncplay/rooms/{id}", func(w http.ResponseWriter, r *http.Request) {
+		_, ok := extractClaims(r)
+		if !ok {
+			http.Error(w, `{"message":"unauthenticated"}`, http.StatusUnauthorized)
+			return
+		}
+		room, err := hub.GetRoom(r.Context(), r.PathValue("id"))
+		if err != nil {
+			http.Error(w, `{"message":"room not found"}`, http.StatusNotFound)
+			return
+		}
+		type memberResp struct {
+			UserID   string `json:"userId"`
+			Username string `json:"username"`
+		}
+		members := make([]memberResp, 0, len(room.Members))
+		for _, m := range room.Members {
+			members = append(members, memberResp{UserID: m.UserID, Username: m.Username})
+		}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]any{
+			"id":      room.ID,
+			"name":    room.Name,
+			"mediaId": room.MediaID,
+			"hostId":  room.HostID,
+			"members": members,
+			"state": map[string]any{
+				"playing":    room.State.Playing,
+				"positionMs": room.State.PositionMs,
+			},
+		})
+	})
+
+	mux.HandleFunc("POST /api/v1/syncplay/rooms/{id}/join", func(w http.ResponseWriter, r *http.Request) {
+		claims, ok := extractClaims(r)
+		if !ok {
+			http.Error(w, `{"message":"unauthenticated"}`, http.StatusUnauthorized)
+			return
+		}
+		roomID := r.PathValue("id")
+		if err := hub.JoinRoom(r.Context(), roomID, claims.UserID, claims.Username); err != nil {
+			http.Error(w, `{"message":"room not found"}`, http.StatusNotFound)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]any{
+			"roomId": roomID,
+			"wsUrl":  "/api/v1/syncplay/rooms/" + roomID + "/ws",
+		})
+	})
+
+	mux.HandleFunc("DELETE /api/v1/syncplay/rooms/{id}/leave", func(w http.ResponseWriter, r *http.Request) {
+		claims, ok := extractClaims(r)
+		if !ok {
+			http.Error(w, `{"message":"unauthenticated"}`, http.StatusUnauthorized)
+			return
+		}
+		_ = hub.LeaveRoom(r.Context(), r.PathValue("id"), claims.UserID)
+		w.WriteHeader(http.StatusNoContent)
+	})
+
+	tokenValidator := func(token string) (userID, username string, err error) {
+		claims, vErr := tokenGen.ValidateAccessToken(token)
+		if vErr != nil {
+			return "", "", vErr
+		}
+		return claims.UserID, claims.Username, nil
+	}
+	mux.Handle("/api/v1/syncplay/rooms/{id}/ws", hub.WSHandler(tokenValidator))
+}
+
 func networkMiddleware(detector *network.Detector, remoteEnabled *bool) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -1682,14 +1800,21 @@ func registerServerConfigRoutes(mux *http.ServeMux, cfgRepo domainshared.ServerC
 }
 
 func registerLogsRoute(mux *http.ServeMux, logDir string, tokenGen *auth.JWTGenerator) {
-	mux.HandleFunc("GET /api/v1/admin/logs", func(w http.ResponseWriter, r *http.Request) {
-		h := r.Header.Get("Authorization")
-		if !strings.HasPrefix(h, "Bearer ") {
-			http.Error(w, `{"message":"unauthenticated"}`, http.StatusUnauthorized)
-			return
+	adminCheck := func(r *http.Request) bool {
+		// Support token in Authorization header or ?token= query param (for SSE/EventSource)
+		tok := strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer ")
+		if tok == "" {
+			tok = r.URL.Query().Get("token")
 		}
-		claims, err := tokenGen.ValidateAccessToken(strings.TrimPrefix(h, "Bearer "))
-		if err != nil || !claims.IsAdmin {
+		if tok == "" {
+			return false
+		}
+		claims, err := tokenGen.ValidateAccessToken(tok)
+		return err == nil && claims.IsAdmin
+	}
+
+	mux.HandleFunc("GET /api/v1/admin/logs", func(w http.ResponseWriter, r *http.Request) {
+		if !adminCheck(r) {
 			http.Error(w, `{"message":"forbidden"}`, http.StatusForbidden)
 			return
 		}
@@ -1709,6 +1834,90 @@ func registerLogsRoute(mux *http.ServeMux, logDir string, tokenGen *auth.JWTGene
 		}
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(map[string]any{"lines": data})
+	})
+
+	mux.HandleFunc("GET /api/v1/admin/logs/stream", func(w http.ResponseWriter, r *http.Request) {
+		if !adminCheck(r) {
+			http.Error(w, `{"message":"forbidden"}`, http.StatusForbidden)
+			return
+		}
+
+		flusher, ok := w.(http.Flusher)
+		if !ok {
+			http.Error(w, `{"message":"streaming unsupported"}`, http.StatusInternalServerError)
+			return
+		}
+
+		w.Header().Set("Content-Type", "text/event-stream")
+		w.Header().Set("Cache-Control", "no-cache")
+		w.Header().Set("X-Accel-Buffering", "no")
+		w.Header().Set("Connection", "keep-alive")
+
+		lines := 200
+		if v := r.URL.Query().Get("lines"); v != "" {
+			if n, err2 := strconv.Atoi(v); err2 == nil && n > 0 && n <= 2000 {
+				lines = n
+			}
+		}
+
+		logPath := logDir + "/evey.log"
+
+		// Send initial backlog
+		initial, _ := tailFile(logPath, lines)
+		for _, l := range initial {
+			if l != "" {
+				fmt.Fprintf(w, "data: %s\n\n", l)
+			}
+		}
+		flusher.Flush()
+
+		// Track file size to detect new lines
+		var lastSize int64
+		if info, err := os.Stat(logPath); err == nil {
+			lastSize = info.Size()
+		}
+
+		ticker := time.NewTicker(time.Second)
+		defer ticker.Stop()
+
+		for {
+			select {
+			case <-r.Context().Done():
+				return
+			case <-ticker.C:
+				info, err := os.Stat(logPath)
+				if err != nil {
+					continue
+				}
+				newSize := info.Size()
+				if newSize <= lastSize {
+					// Send a keepalive comment so the connection stays alive
+					fmt.Fprintf(w, ": ping\n\n")
+					flusher.Flush()
+					continue
+				}
+
+				f, err := os.Open(logPath)
+				if err != nil {
+					continue
+				}
+				_, _ = f.Seek(lastSize, 0)
+				newData, err := io.ReadAll(f)
+				f.Close()
+				if err != nil {
+					continue
+				}
+				lastSize = newSize
+
+				newLines := strings.Split(string(newData), "\n")
+				for _, l := range newLines {
+					if l != "" {
+						fmt.Fprintf(w, "data: %s\n\n", l)
+					}
+				}
+				flusher.Flush()
+			}
+		}
 	})
 }
 

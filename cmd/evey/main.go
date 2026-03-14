@@ -29,6 +29,7 @@ import (
 	apptranscoding "github.com/gravity-zero/evey/internal/app/transcoding"
 	appuser "github.com/gravity-zero/evey/internal/app/user"
 	appplaylist "github.com/gravity-zero/evey/internal/app/playlist"
+	appsyncplay "github.com/gravity-zero/evey/internal/app/syncplay"
 	appsubtitle "github.com/gravity-zero/evey/internal/app/subtitle"
 	appwebhook "github.com/gravity-zero/evey/internal/app/webhook"
 	"github.com/gravity-zero/evey/internal/adapters/driven/ebml"
@@ -40,6 +41,7 @@ import (
 	metadataadapter "github.com/gravity-zero/evey/internal/adapters/driven/metadata"
 	"github.com/gravity-zero/evey/internal/adapters/driven/pluginrunner"
 	"github.com/gravity-zero/evey/internal/adapters/driven/postgres"
+	"github.com/gravity-zero/evey/internal/adapters/driven/memory"
 	"github.com/gravity-zero/evey/internal/adapters/driving/grpcapi"
 	"github.com/gravity-zero/evey/internal/adapters/driving/grpcapi/interceptors"
 	"github.com/gravity-zero/evey/internal/config"
@@ -545,6 +547,9 @@ func run() error {
 		registerScheduleRoutes(mux, libScheduler, tokenGen)
 		registerLibraryAccessRoutes(mux, libraryAccessRepo, libQuerySvc, tokenGen)
 		registerPlaylistRoutes(mux, playlistSvc, tokenGen)
+
+		syncPlayHub := appsyncplay.NewHub(memory.NewSyncPlayRoomRepo())
+		registerSyncPlayRoutes(mux, syncPlayHub, tokenGen)
 
 		registerBackupRoutes(mux, backupSvc, tokenGen, adminHeavyRL)
 
