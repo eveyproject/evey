@@ -230,7 +230,10 @@ func (s *serverConfigStore) Set(ctx context.Context, key, value string) error {
 	return s.repo.Set(ctx, key, value)
 }
 
-// apiCacheMiddleware adds Cache-Control headers for specific API routes.
+// apiCacheMiddleware adds Cache-Control headers for API routes.
+// Default is no-store; specific routes may override with a more permissive value.
+// Static file handlers (artwork, trickplay, HLS) set their own Cache-Control before writing,
+// which overrides this default because headers are set before any write.
 func apiCacheMiddleware(next http.Handler) http.Handler {
 	type rule struct {
 		path     string
@@ -242,6 +245,9 @@ func apiCacheMiddleware(next http.Handler) http.Handler {
 		{"/api/v1/libraries", "private, max-age=300"},
 	}
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.HasPrefix(r.URL.Path, "/api/") {
+			w.Header().Set("Cache-Control", "no-store")
+		}
 		if r.Method == http.MethodGet {
 			for _, rule := range rules {
 				if r.URL.Path == rule.path {
@@ -252,6 +258,25 @@ func apiCacheMiddleware(next http.Handler) http.Handler {
 		}
 		next.ServeHTTP(w, r)
 	})
+}
+
+// serveFileWithCache serves a file with ETag and long-lived cache headers.
+// It computes the ETag from the file's modification time and size, and returns
+// 304 Not Modified when the client's If-None-Match matches.
+func serveFileWithCache(w http.ResponseWriter, r *http.Request, filePath string) {
+	fi, err := os.Stat(filePath)
+	if err != nil {
+		http.NotFound(w, r)
+		return
+	}
+	etag := fmt.Sprintf(`"%x-%x"`, fi.ModTime().Unix(), fi.Size())
+	w.Header().Set("ETag", etag)
+	w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
+	if r.Header.Get("If-None-Match") == etag {
+		w.WriteHeader(http.StatusNotModified)
+		return
+	}
+	http.ServeFile(w, r, filePath)
 }
 
 func setCORSHeaders(w http.ResponseWriter, r *http.Request, baseURL string) {
