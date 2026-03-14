@@ -458,7 +458,7 @@ func run() error {
 			gwMux.ServeHTTP(w, r)
 		})
 		registerAdminRoutes(mux, metadataCmdSvc, metadataQuerySvc, tokenGen, adminHeavyRL)
-		registerFavoriteRoutes(mux, favoriteSvc, tokenGen)
+		registerFavoriteRoutes(mux, favoriteSvc, libQuerySvc, tokenGen)
 		registerMetadataOverrideRoutes(mux, metadataCmdSvc, metadataQuerySvc, tokenGen)
 		registerTranscodeCacheRoutes(mux, transcodingSvc, tokenGen)
 		registerCollectionRoutes(mux, collectionSvc, tokenGen)

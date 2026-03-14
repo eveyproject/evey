@@ -170,7 +170,7 @@ func registerGateway(grpcAddr string) http.Handler {
 	return mux
 }
 
-func registerFavoriteRoutes(mux *http.ServeMux, favSvc *appfavorite.Service, tokenGen *auth.JWTGenerator) {
+func registerFavoriteRoutes(mux *http.ServeMux, favSvc *appfavorite.Service, libQuery *applibrary.QueryService, tokenGen *auth.JWTGenerator) {
 	extractClaims := func(r *http.Request) (*domainuser.Claims, bool) {
 		h := r.Header.Get("Authorization")
 		if !strings.HasPrefix(h, "Bearer ") {
@@ -223,16 +223,35 @@ func registerFavoriteRoutes(mux *http.ServeMux, favSvc *appfavorite.Service, tok
 			return
 		}
 		type favItem struct {
-			MediaItemID string `json:"mediaItemId"`
-			CreatedAt   string `json:"createdAt"`
+			MediaItemID     string   `json:"mediaItemId"`
+			CreatedAt       string   `json:"createdAt"`
+			Title           string   `json:"title,omitempty"`
+			Type            string   `json:"type,omitempty"`
+			Year            *int     `json:"year,omitempty"`
+			CommunityRating *float64 `json:"communityRating,omitempty"`
 		}
-		items := make([]favItem, 0, len(favs))
-		for _, f := range favs {
-			items = append(items, favItem{
-				MediaItemID: f.MediaItemID,
-				CreatedAt:   f.CreatedAt.UTC().Format(time.RFC3339),
-			})
+		items := make([]favItem, len(favs))
+		for i, f := range favs {
+			items[i] = favItem{MediaItemID: f.MediaItemID, CreatedAt: f.CreatedAt.UTC().Format(time.RFC3339)}
 		}
+		// batch-fetch media item details in parallel
+		var wg sync.WaitGroup
+		ctx := r.Context()
+		for i, f := range favs {
+			wg.Add(1)
+			go func(idx int, mediaID string) {
+				defer wg.Done()
+				mi, ferr := libQuery.GetMediaItem(ctx, mediaID)
+				if ferr != nil || mi == nil {
+					return
+				}
+				items[idx].Title = mi.Title
+				items[idx].Type = mi.Type
+				items[idx].Year = mi.Year
+				items[idx].CommunityRating = mi.CommunityRating
+			}(i, f.MediaItemID)
+		}
+		wg.Wait()
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(map[string]any{"items": items})
 	})

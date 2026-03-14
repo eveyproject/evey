@@ -36,6 +36,10 @@ export function useToggleFavorite(mediaId: string | undefined) {
 export interface FavoriteItem {
   mediaItemId: string;
   createdAt: string;
+  title?: string;
+  type?: string;
+  year?: number;
+  communityRating?: number;
 }
 
 export function useFavoritesList(limit = 50, offset = 0) {

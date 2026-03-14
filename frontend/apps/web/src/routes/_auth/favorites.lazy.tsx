@@ -1,6 +1,4 @@
 import { createLazyFileRoute } from "@tanstack/react-router";
-import { useQuery } from "@tanstack/react-query";
-import { libraryServiceGetMediaItem } from "@evey/api";
 import { useFavoritesList } from "@/hooks/useFavorite";
 import { MediaGrid } from "@/features/library/MediaGrid";
 import { MediaCard } from "@/features/library/MediaCard";
@@ -10,18 +8,6 @@ import { MediaGridSkeleton } from "@/components/ui/Skeleton";
 export const Route = createLazyFileRoute("/_auth/favorites")({
   component: FavoritesPage,
 });
-
-function FavoriteMediaCard({ mediaItemId }: { mediaItemId: string }) {
-  const { data: item } = useQuery({
-    queryKey: [`/api/v1/media/${mediaItemId}`],
-    queryFn: ({ signal }) => libraryServiceGetMediaItem(mediaItemId, signal),
-    staleTime: 60_000,
-  });
-
-  if (!item) return null;
-
-  return <MediaCard item={item} />;
-}
 
 function FavoritesPage() {
   const { data: favorites, isLoading } = useFavoritesList(200);
@@ -55,7 +41,10 @@ function FavoritesPage() {
       ) : (
         <MediaGrid>
           {favorites.map((fav) => (
-            <FavoriteMediaCard key={fav.mediaItemId} mediaItemId={fav.mediaItemId} />
+            <MediaCard
+              key={fav.mediaItemId}
+              item={{ id: fav.mediaItemId, title: fav.title, type: fav.type }}
+            />
           ))}
         </MediaGrid>
       )}
