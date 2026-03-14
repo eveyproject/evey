@@ -16,6 +16,7 @@ import { MediaCard } from "../../features/library/MediaCard";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { slugify } from "@/utils/slugify";
 import { useCollections } from "../../features/collection/api";
+import { CollectionCard } from "../../features/collection/CollectionCard";
 import { useMostPopular } from "@/hooks/usePopular";
 
 export const Route = createLazyFileRoute("/_auth/home")({
@@ -298,56 +299,11 @@ function CollectionsSection() {
   if (!isLoading && collections.length === 0) return null;
 
   return (
-    <div className="mb-8">
-      <div className="flex items-center justify-between mb-3">
-        <h2 className="text-lg font-semibold" style={{ color: "var(--text)" }}>Collections</h2>
-        <Link to="/collections" className="text-sm hover:underline" style={{ color: "var(--accent)" }}>
-          View all collections →
-        </Link>
-      </div>
-      <div className="flex gap-3 overflow-x-auto pb-2" style={{ scrollbarWidth: "none" }}>
-        {isLoading
-          ? Array.from({ length: 4 }).map((_, i) => (
-              <div
-                key={i}
-                className="flex-shrink-0 animate-pulse rounded-[var(--radius-md)]"
-                style={{ width: 100, aspectRatio: "2/3", backgroundColor: "var(--surface-raised)" }}
-              />
-            ))
-          : collections.slice(0, 8).map((col) => (
-              <Link
-                key={col.id}
-                to="/collections/$collectionId"
-                params={{ collectionId: col.id }}
-                className="flex-shrink-0 relative overflow-hidden transition-opacity hover:opacity-80"
-                style={{ width: 100, aspectRatio: "2/3", borderRadius: "var(--radius-md)" }}
-              >
-                {col.posterUrl ? (
-                  <img
-                    src={col.posterUrl}
-                    alt={col.name}
-                    loading="lazy"
-                    className="w-full h-full object-cover"
-                  />
-                ) : (
-                  <div
-                    className="w-full h-full flex items-center justify-center text-xl font-bold"
-                    style={{ backgroundColor: "var(--surface-raised)", color: "var(--text-muted)" }}
-                  >
-                    {col.name[0]?.toUpperCase() ?? "?"}
-                  </div>
-                )}
-                <div
-                  className="absolute inset-0"
-                  style={{ background: "linear-gradient(to top, rgba(0,0,0,0.65) 0%, transparent 50%)" }}
-                />
-                <p className="absolute bottom-1.5 left-1.5 right-1.5 text-[10px] font-semibold text-white leading-tight line-clamp-2">
-                  {col.name}
-                </p>
-              </Link>
-            ))}
-      </div>
-    </div>
+    <MediaSlider title="Collections" seeAllHref="/collections" isLoading={isLoading} skeletonCount={6}>
+      {collections.map((col) => (
+        <CollectionCard key={col.id} collection={col} />
+      ))}
+    </MediaSlider>
   );
 }
 
