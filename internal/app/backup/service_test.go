@@ -5,6 +5,7 @@ import (
 	"context"
 	"io"
 	"testing"
+	"time"
 
 	"github.com/gravity-zero/evey/internal/domain/backup/fakes"
 )
@@ -109,6 +110,46 @@ func TestDeleteBackupNotFound(t *testing.T) {
 	err := svc.DeleteBackup(ctx, "nonexistent")
 	if err == nil {
 		t.Fatal("expected error for nonexistent backup")
+	}
+}
+
+func TestCleanupOldBackups_DeletesOld(t *testing.T) {
+	svc, store, _ := setup()
+	ctx := context.Background()
+
+	old, _ := svc.CreateBackup(ctx)
+	recent, _ := svc.CreateBackup(ctx)
+
+	// backdate old backup beyond retention window
+	store.SetCreatedAt(old.ID, time.Now().UTC().AddDate(0, 0, -31))
+
+	if err := svc.CleanupOldBackups(ctx, 30); err != nil {
+		t.Fatalf("CleanupOldBackups: %v", err)
+	}
+
+	list, _ := svc.ListBackups(ctx)
+	if len(list) != 1 {
+		t.Fatalf("expected 1 backup after cleanup, got %d", len(list))
+	}
+	if list[0].ID != recent.ID {
+		t.Errorf("expected recent backup %s to survive, got %s", recent.ID, list[0].ID)
+	}
+}
+
+func TestCleanupOldBackups_KeepsAll_WhenRetentionZero(t *testing.T) {
+	svc, store, _ := setup()
+	ctx := context.Background()
+
+	m, _ := svc.CreateBackup(ctx)
+	store.SetCreatedAt(m.ID, time.Now().UTC().AddDate(0, 0, -100))
+
+	if err := svc.CleanupOldBackups(ctx, 0); err != nil {
+		t.Fatalf("CleanupOldBackups(0): %v", err)
+	}
+
+	list, _ := svc.ListBackups(ctx)
+	if len(list) != 1 {
+		t.Fatalf("expected 1 backup (retention=0 keeps all), got %d", len(list))
 	}
 }
 

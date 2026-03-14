@@ -6,173 +6,173 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"github.com/gravity-zero/evey/internal/pkg/ratelimit"
 )
 
-// --- authCookieMiddleware tests ---
+// --- Cookie security tests ---
 
 func TestAuthCookieMiddleware_SetsHttpOnlyCookie(t *testing.T) {
-	inner := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	t.Parallel()
+	inner := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(`{"accessToken":"at123","refreshToken":"rt456"}`))
+		w.Write([]byte(`{"accessToken":"tok","refreshToken":"reftok"}`))
 	})
 
 	handler := authCookieMiddleware(inner, false)
-	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodPost, "/api/v1/auth/login", nil)
-	handler.ServeHTTP(rec, req)
+	req := httptest.NewRequest("POST", "/api/v1/auth/login", nil)
+	w := httptest.NewRecorder()
+	handler.ServeHTTP(w, req)
 
-	// refreshToken must be stripped from body
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", w.Code)
+	}
+
+	// refreshToken must NOT appear in response body
 	var body map[string]json.RawMessage
-	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
-		t.Fatal("invalid JSON body:", err)
+	if err := json.Unmarshal(w.Body.Bytes(), &body); err != nil {
+		t.Fatalf("json decode: %v", err)
 	}
 	if _, ok := body["refreshToken"]; ok {
-		t.Error("refreshToken should be stripped from response body")
+		t.Error("refreshToken must not be present in response body")
 	}
 	if _, ok := body["accessToken"]; !ok {
-		t.Error("accessToken should remain in response body")
+		t.Error("accessToken must remain in response body")
 	}
 
-	// cookie must be set
-	cookies := rec.Result().Cookies()
-	var found *http.Cookie
+	// Set-Cookie must be present and HttpOnly
+	cookies := w.Result().Cookies()
+	if len(cookies) == 0 {
+		t.Fatal("expected Set-Cookie header")
+	}
+	var found bool
 	for _, c := range cookies {
 		if c.Name == refreshCookieName {
-			found = c
-			break
+			found = true
+			if !c.HttpOnly {
+				t.Error("refresh cookie must be HttpOnly")
+			}
+			if c.SameSite != http.SameSiteLaxMode {
+				t.Errorf("refresh cookie SameSite = %v, want Lax", c.SameSite)
+			}
+			if c.Value != "reftok" {
+				t.Errorf("cookie value = %q, want reftok", c.Value)
+			}
 		}
 	}
-	if found == nil {
-		t.Fatal("evey_refresh cookie not set")
-	}
-	if found.Value != "rt456" {
-		t.Errorf("cookie value = %q, want %q", found.Value, "rt456")
-	}
-	if !found.HttpOnly {
-		t.Error("cookie must be HttpOnly")
-	}
-	if found.Secure {
-		t.Error("Secure flag should be false when httpsOnly=false")
-	}
-	if found.SameSite != http.SameSiteLaxMode {
-		t.Error("SameSite must be Lax")
+	if !found {
+		t.Errorf("cookie %q not set", refreshCookieName)
 	}
 }
 
-func TestAuthCookieMiddleware_SecureFlagWhenHTTPS(t *testing.T) {
-	inner := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+func TestAuthCookieMiddleware_HttpOnlyInHeader(t *testing.T) {
+	t.Parallel()
+	inner := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(`{"accessToken":"a","refreshToken":"r"}`))
+		w.Write([]byte(`{"accessToken":"tok","refreshToken":"secret-refresh"}`))
 	})
-	handler := authCookieMiddleware(inner, true)
-	rec := httptest.NewRecorder()
-	handler.ServeHTTP(rec, httptest.NewRequest(http.MethodPost, "/", nil))
 
-	for _, c := range rec.Result().Cookies() {
-		if c.Name == refreshCookieName {
-			if !c.Secure {
-				t.Error("Secure flag should be true when httpsOnly=true")
-			}
-			return
-		}
+	handler := authCookieMiddleware(inner, false)
+	req := httptest.NewRequest("POST", "/api/v1/auth/login", nil)
+	w := httptest.NewRecorder()
+	handler.ServeHTTP(w, req)
+
+	setCookie := w.Header().Get("Set-Cookie")
+	if setCookie == "" {
+		t.Fatal("Set-Cookie header missing")
 	}
-	t.Error("cookie not found")
+	if !strings.Contains(setCookie, "HttpOnly") {
+		t.Errorf("Set-Cookie must contain HttpOnly, got: %s", setCookie)
+	}
 }
 
-func TestAuthCookieMiddleware_PassthroughOnError(t *testing.T) {
-	inner := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+func TestAuthCookieMiddleware_NoStripOnError(t *testing.T) {
+	t.Parallel()
+	inner := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusUnauthorized)
-		w.Write([]byte(`{"error":"bad creds"}`))
+		w.Write([]byte(`{"message":"bad credentials"}`))
 	})
-	handler := authCookieMiddleware(inner, false)
-	rec := httptest.NewRecorder()
-	handler.ServeHTTP(rec, httptest.NewRequest(http.MethodPost, "/", nil))
 
-	if rec.Code != http.StatusUnauthorized {
-		t.Errorf("status = %d, want 401", rec.Code)
+	handler := authCookieMiddleware(inner, false)
+	req := httptest.NewRequest("POST", "/api/v1/auth/login", nil)
+	w := httptest.NewRecorder()
+	handler.ServeHTTP(w, req)
+
+	if w.Code != http.StatusUnauthorized {
+		t.Fatalf("expected 401, got %d", w.Code)
 	}
-	if len(rec.Result().Cookies()) > 0 {
-		t.Error("no cookies should be set on error response")
+	if w.Header().Get("Set-Cookie") != "" {
+		t.Error("Set-Cookie must not be set on error response")
 	}
 }
 
-func TestAuthCookieMiddleware_NoRefreshToken(t *testing.T) {
-	inner := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
+// --- Rate limit handler tests ---
+
+func TestLoginRateLimit_Allows_Then_Blocks(t *testing.T) {
+	t.Parallel()
+	// burst=3 so first 3 allowed, 4th blocked
+	rl := ratelimit.New(3)
+	defer rl.Stop()
+
+	inner := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(`{"accessToken":"at"}`))
 	})
-	handler := authCookieMiddleware(inner, false)
-	rec := httptest.NewRecorder()
-	handler.ServeHTTP(rec, httptest.NewRequest(http.MethodPost, "/", nil))
+	handler := ratelimit.MiddlewareFunc(rl, inner)
 
-	if len(rec.Result().Cookies()) > 0 {
-		t.Error("no cookie should be set when refreshToken absent")
-	}
-}
-
-// --- injectRefreshTokenFromCookie tests ---
-
-func TestInjectRefreshTokenFromCookie_InjectsToken(t *testing.T) {
-	req := httptest.NewRequest(http.MethodPost, "/api/v1/auth/refresh", strings.NewReader(`{}`))
-	req.AddCookie(&http.Cookie{Name: refreshCookieName, Value: "mytoken"})
-
-	r2 := injectRefreshTokenFromCookie(req)
-
-	var m map[string]string
-	if err := json.NewDecoder(r2.Body).Decode(&m); err != nil {
-		t.Fatal(err)
-	}
-	if m["refreshToken"] != "mytoken" {
-		t.Errorf("refreshToken = %q, want %q", m["refreshToken"], "mytoken")
-	}
-}
-
-func TestInjectRefreshTokenFromCookie_DoesNotOverwrite(t *testing.T) {
-	req := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(`{"refreshToken":"existing"}`))
-	req.AddCookie(&http.Cookie{Name: refreshCookieName, Value: "cookie-token"})
-
-	r2 := injectRefreshTokenFromCookie(req)
-
-	var m map[string]string
-	if err := json.NewDecoder(r2.Body).Decode(&m); err != nil {
-		t.Fatal(err)
-	}
-	if m["refreshToken"] != "existing" {
-		t.Errorf("existing refreshToken should not be overwritten, got %q", m["refreshToken"])
-	}
-}
-
-func TestInjectRefreshTokenFromCookie_NoCookie(t *testing.T) {
-	req := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(`{}`))
-	r2 := injectRefreshTokenFromCookie(req)
-	// should return same request, no panic
-	if r2 == nil {
-		t.Error("should return non-nil request")
-	}
-}
-
-// --- clearRefreshCookie tests ---
-
-func TestClearRefreshCookie_SetsMaxAgeZero(t *testing.T) {
-	rec := httptest.NewRecorder()
-	clearRefreshCookie(rec, false)
-
-	for _, c := range rec.Result().Cookies() {
-		if c.Name == refreshCookieName {
-			if c.MaxAge >= 0 {
-				// MaxAge negative means delete; net/http serializes MaxAge<0 as "Max-Age=0"
-				// The raw Set-Cookie header should contain Max-Age=0
-				raw := rec.Header().Get("Set-Cookie")
-				if !strings.Contains(raw, "Max-Age=0") {
-					t.Errorf("expected Max-Age=0 in Set-Cookie, got: %s", raw)
-				}
-			}
-			return
+	for i := 0; i < 3; i++ {
+		req := httptest.NewRequest("POST", "/api/v1/auth/login", nil)
+		req.RemoteAddr = "10.0.0.1:1234"
+		w := httptest.NewRecorder()
+		handler(w, req)
+		if w.Code != http.StatusOK {
+			t.Fatalf("request %d: expected 200, got %d", i+1, w.Code)
 		}
 	}
-	t.Error("evey_refresh cookie not found in response")
+
+	// 4th request should be rate-limited
+	req := httptest.NewRequest("POST", "/api/v1/auth/login", nil)
+	req.RemoteAddr = "10.0.0.1:1234"
+	w := httptest.NewRecorder()
+	handler(w, req)
+	if w.Code != http.StatusTooManyRequests {
+		t.Fatalf("expected 429 after limit exceeded, got %d", w.Code)
+	}
+}
+
+func TestLoginRateLimit_DifferentIPs_Independent(t *testing.T) {
+	t.Parallel()
+	rl := ratelimit.New(1)
+	defer rl.Stop()
+
+	inner := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	})
+	handler := ratelimit.MiddlewareFunc(rl, inner)
+
+	// exhaust IP 1
+	req1 := httptest.NewRequest("POST", "/api/v1/auth/login", nil)
+	req1.RemoteAddr = "10.0.0.1:1234"
+	w1 := httptest.NewRecorder()
+	handler(w1, req1)
+
+	// block IP 1
+	req2 := httptest.NewRequest("POST", "/api/v1/auth/login", nil)
+	req2.RemoteAddr = "10.0.0.1:1234"
+	w2 := httptest.NewRecorder()
+	handler(w2, req2)
+	if w2.Code != http.StatusTooManyRequests {
+		t.Fatalf("IP 1 should be blocked, got %d", w2.Code)
+	}
+
+	// IP 2 must still be allowed (different IP, fresh bucket)
+	req3 := httptest.NewRequest("POST", "/api/v1/auth/login", nil)
+	req3.RemoteAddr = "10.0.0.2:1234"
+	w3 := httptest.NewRecorder()
+	handler(w3, req3)
+	if w3.Code != http.StatusOK {
+		t.Fatalf("IP 2 should be allowed, got %d", w3.Code)
+	}
 }

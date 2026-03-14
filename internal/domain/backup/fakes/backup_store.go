@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"sync"
+	"time"
 
 	"github.com/gravity-zero/evey/internal/domain/backup"
 )
@@ -90,4 +91,13 @@ func (s *FakeBackupStore) Delete(_ context.Context, id string) error {
 	delete(s.manifests, id)
 	delete(s.data, id)
 	return nil
+}
+
+// SetCreatedAt backdates a manifest for testing retention logic.
+func (s *FakeBackupStore) SetCreatedAt(id string, t time.Time) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if m, ok := s.manifests[id]; ok {
+		m.CreatedAt = t
+	}
 }

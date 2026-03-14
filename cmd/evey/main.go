@@ -479,6 +479,37 @@ func run() error {
 			rootLog.Info("backup encryption enabled")
 		}
 		registerBackupRoutes(mux, backupSvc, tokenGen, adminHeavyRL)
+
+		// OPS-3: backup retention cleanup on startup
+		go func() {
+			if err := backupSvc.CleanupOldBackups(context.Background(), cfg.Backup.RetentionDays); err != nil {
+				rootLog.Warn("backup retention cleanup", slog.Any("err", err))
+			}
+		}()
+
+		// OPS-3: periodic backup schedule
+		if cfg.Backup.IntervalHours > 0 {
+			go func() {
+				ticker := time.NewTicker(time.Duration(cfg.Backup.IntervalHours) * time.Hour)
+				defer ticker.Stop()
+				for {
+					select {
+					case <-ctx.Done():
+						return
+					case <-ticker.C:
+						if _, err := backupSvc.CreateBackup(context.Background()); err != nil {
+							rootLog.Warn("scheduled backup failed", slog.Any("err", err))
+						} else {
+							rootLog.Info("scheduled backup created")
+						}
+						if err := backupSvc.CleanupOldBackups(context.Background(), cfg.Backup.RetentionDays); err != nil {
+							rootLog.Warn("backup retention cleanup", slog.Any("err", err))
+						}
+					}
+				}
+			}()
+		}
+
 		cfgStore := &serverConfigStore{repo: serverCfgRepo}
 		// load RemoteAccess persisted settings from DB (overrides env-based config)
 		if raw, err2 := cfgStore.Get(context.Background(), remoteAccessConfigKey); err2 == nil && raw != "" {
