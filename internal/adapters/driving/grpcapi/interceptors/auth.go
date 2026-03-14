@@ -72,6 +72,9 @@ var adminOnlyMethods = map[string]bool{
 	"/evey.v1.MKVService/RemoveTrack":                               true,
 	"/evey.v1.TranscodingService/StopTranscode":                     true,
 	"/evey.v1.TranscodingService/ListActiveTranscodes":              true,
+	"/evey.v1.TranscodeCacheService/GetTranscodeCache":              true,
+	"/evey.v1.TranscodeCacheService/ClearTranscodeCache":            true,
+	"/evey.v1.TranscodeCacheService/DeleteTranscodeCacheFile":       true,
 }
 
 type AuthInterceptor struct {

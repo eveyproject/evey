@@ -152,6 +152,7 @@ func (s *GRPCServer) RegisterServices() {
 	eveyv1.RegisterCollectionServiceServer(s.server, &collectionHandler{svc: s.collection})
 	eveyv1.RegisterPlaylistServiceServer(s.server, &playlistHandler{svc: s.playlist})
 	eveyv1.RegisterFavoriteServiceServer(s.server, &favoriteHandler{svc: s.favorite})
+	eveyv1.RegisterTranscodeCacheServiceServer(s.server, &transcodeCacheHandler{svc: s.transcoding})
 }
 
 func (s *GRPCServer) Start(addr string) error {

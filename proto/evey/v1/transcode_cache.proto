@@ -1,0 +1,42 @@
+syntax = "proto3";
+
+package evey.v1;
+
+import "google/api/annotations.proto";
+import "google/protobuf/timestamp.proto";
+
+option go_package = "github.com/gravity/evey/gen/evey/v1;eveyv1";
+
+service TranscodeCacheService {
+  rpc GetTranscodeCache(GetTranscodeCacheRequest) returns (TranscodeCacheInfo) {
+    option (google.api.http) = { get: "/api/v1/admin/transcode-cache" };
+  }
+  rpc ClearTranscodeCache(ClearTranscodeCacheRequest) returns (ClearTranscodeCacheResponse) {
+    option (google.api.http) = { delete: "/api/v1/admin/transcode-cache" };
+  }
+  rpc DeleteTranscodeCacheFile(DeleteTranscodeCacheFileRequest) returns (DeleteTranscodeCacheFileResponse) {
+    option (google.api.http) = { delete: "/api/v1/admin/transcode-cache/{filename}" };
+  }
+}
+
+message CacheFileEntry {
+  string name = 1;
+  int64 size = 2;
+  google.protobuf.Timestamp last_modified = 3;
+}
+
+message TranscodeCacheInfo {
+  int64 total_size = 1;
+  int32 file_count = 2;
+  repeated CacheFileEntry files = 3;
+}
+
+message GetTranscodeCacheRequest {}
+message ClearTranscodeCacheRequest {}
+message ClearTranscodeCacheResponse {}
+
+message DeleteTranscodeCacheFileRequest {
+  string filename = 1;
+}
+
+message DeleteTranscodeCacheFileResponse {}
