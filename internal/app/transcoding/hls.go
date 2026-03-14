@@ -10,6 +10,9 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/gravity-zero/evey/internal/domain/library"
+	"github.com/gravity-zero/evey/internal/pkg/hdr"
 )
 
 func IsImageSubtitle(codec string) bool {
@@ -43,6 +46,9 @@ type HLSSession struct {
 	Profiles            []HLSProfile
 	SubtitleTrackIndex  int    // -1 = no subtitle
 	SubtitleCodec       string // codec name of the selected subtitle stream
+	HDRSupported        bool
+	AudioNormalize      bool // apply EBU R128 loudnorm filter
+	streams             []*library.MediaStream
 	StartedAt           time.Time
 	LastAccess          time.Time
 	mu                  sync.Mutex
@@ -100,7 +106,7 @@ func (m *HLSManager) countByUser(userID string) int {
 	return m.userSessions[userID]
 }
 
-func (m *HLSManager) GetOrCreate(userID, mediaItemID, filePath string, sourceWidth, sourceHeight, maxUserStreams, subtitleTrackIndex int, subtitleCodec string) (*HLSSession, error) {
+func (m *HLSManager) GetOrCreate(userID, mediaItemID, filePath string, sourceWidth, sourceHeight, maxUserStreams, subtitleTrackIndex int, subtitleCodec string, streams []*library.MediaStream, hdrSupported, audioNormalize bool) (*HLSSession, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -132,6 +138,9 @@ func (m *HLSManager) GetOrCreate(userID, mediaItemID, filePath string, sourceWid
 		Profiles:           profiles,
 		SubtitleTrackIndex: subtitleTrackIndex,
 		SubtitleCodec:      subtitleCodec,
+		HDRSupported:       hdrSupported,
+		AudioNormalize:     audioNormalize,
+		streams:            streams,
 		StartedAt:          now,
 		LastAccess:         now,
 		ready:              make(chan struct{}),
@@ -189,6 +198,15 @@ func (s *HLSSession) buildFFmpegArgs(filePath string) []string {
 	n := len(s.Profiles)
 	burnIn := s.SubtitleTrackIndex >= 0 && IsImageSubtitle(s.SubtitleCodec)
 
+	// HDR→SDR tone mapping when source is HDR and client doesn't support HDR
+	toneMap := ""
+	if !s.HDRSupported {
+		hdrInfo := hdr.DetectHDR(s.streams)
+		if hdrInfo.IsHDR {
+			toneMap = hdr.BuildToneMapFilter(hdrInfo, hdr.DefaultToneMapOptions())
+		}
+	}
+
 	args := []string{"-i", filePath}
 
 	// Build filter_complex
@@ -199,15 +217,30 @@ func (s *HLSSession) buildFFmpegArgs(filePath string) []string {
 	}
 
 	if burnIn {
-		// overlay subtitle stream onto video before splitting
-		filterParts = append(filterParts,
-			fmt.Sprintf("[0:v][0:s:%d]overlay[vb]", s.SubtitleTrackIndex),
-			fmt.Sprintf("[vb]split=%d%s", n, strings.Join(splitOutputs, "")),
-		)
+		if toneMap != "" {
+			filterParts = append(filterParts,
+				fmt.Sprintf("[0:v]%s[vt]", toneMap),
+				fmt.Sprintf("[vt][0:s:%d]overlay[vb]", s.SubtitleTrackIndex),
+				fmt.Sprintf("[vb]split=%d%s", n, strings.Join(splitOutputs, "")),
+			)
+		} else {
+			// overlay subtitle stream onto video before splitting
+			filterParts = append(filterParts,
+				fmt.Sprintf("[0:v][0:s:%d]overlay[vb]", s.SubtitleTrackIndex),
+				fmt.Sprintf("[vb]split=%d%s", n, strings.Join(splitOutputs, "")),
+			)
+		}
 	} else {
-		filterParts = append(filterParts,
-			fmt.Sprintf("[0:v]split=%d%s", n, strings.Join(splitOutputs, "")),
-		)
+		if toneMap != "" {
+			filterParts = append(filterParts,
+				fmt.Sprintf("[0:v]%s[vt]", toneMap),
+				fmt.Sprintf("[vt]split=%d%s", n, strings.Join(splitOutputs, "")),
+			)
+		} else {
+			filterParts = append(filterParts,
+				fmt.Sprintf("[0:v]split=%d%s", n, strings.Join(splitOutputs, "")),
+			)
+		}
 	}
 
 	for i, p := range s.Profiles {
@@ -225,6 +258,9 @@ func (s *HLSSession) buildFFmpegArgs(filePath string) []string {
 			fmt.Sprintf("-c:a:%d", i), "aac",
 			fmt.Sprintf("-b:a:%d", i), fmt.Sprintf("%dk", p.AudioBitrate),
 		)
+		if s.AudioNormalize {
+			args = append(args, fmt.Sprintf("-filter:a:%d", i), "loudnorm=I=-16:TP=-1.5:LRA=11:linear=true")
+		}
 	}
 
 	// var_stream_map

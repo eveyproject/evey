@@ -8,6 +8,7 @@ import (
 	"time"
 
 	apptranscode "github.com/gravity-zero/evey/internal/app/transcoding"
+	"github.com/gravity-zero/evey/internal/domain/library"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -28,7 +29,7 @@ func TestBuildFFmpegArgs_NoBurnIn(t *testing.T) {
 	m := apptranscode.NewHLSManager(dir, 5)
 	defer m.CleanupAll()
 
-	sess, err := m.GetOrCreate("u", "m", "/f.mkv", 1920, 1080, 0, -1, "")
+	sess, err := m.GetOrCreate("u", "m", "/f.mkv", 1920, 1080, 0, -1, "", nil, false, false)
 	require.NoError(t, err)
 
 	args := sess.BuildFFmpegArgs("/f.mkv")
@@ -42,7 +43,7 @@ func TestBuildFFmpegArgs_BurnIn(t *testing.T) {
 	m := apptranscode.NewHLSManager(dir, 5)
 	defer m.CleanupAll()
 
-	sess, err := m.GetOrCreate("u", "m2", "/f.mkv", 1920, 1080, 0, 2, "hdmv_pgs_subtitle")
+	sess, err := m.GetOrCreate("u", "m2", "/f.mkv", 1920, 1080, 0, 2, "hdmv_pgs_subtitle", nil, false, false)
 	require.NoError(t, err)
 
 	args := sess.BuildFFmpegArgs("/f.mkv")
@@ -95,7 +96,7 @@ func TestSessionCleanup(t *testing.T) {
 	defer m.CleanupAll()
 
 	// GetOrCreate will fail to start ffmpeg (no real file) but the session is created
-	sess, err := m.GetOrCreate("user1", "test-media", "/nonexistent/file.mkv", 1920, 1080, 0, -1, "")
+	sess, err := m.GetOrCreate("user1", "test-media", "/nonexistent/file.mkv", 1920, 1080, 0, -1, "", nil, false, false)
 	require.NoError(t, err)
 	require.NotNil(t, sess)
 
@@ -115,10 +116,10 @@ func TestGetOrCreate_MaxConcurrent(t *testing.T) {
 	m := apptranscode.NewHLSManager(dir, 1)
 	defer m.CleanupAll()
 
-	_, err := m.GetOrCreate("user1", "media1", "/nonexistent/a.mkv", 1920, 1080, 0, -1, "")
+	_, err := m.GetOrCreate("user1", "media1", "/nonexistent/a.mkv", 1920, 1080, 0, -1, "", nil, false, false)
 	require.NoError(t, err)
 
-	_, err = m.GetOrCreate("user1", "media2", "/nonexistent/b.mkv", 1920, 1080, 0, -1, "")
+	_, err = m.GetOrCreate("user1", "media2", "/nonexistent/b.mkv", 1920, 1080, 0, -1, "", nil, false, false)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "max concurrent")
 }
@@ -128,10 +129,10 @@ func TestGetOrCreate_ReturnsSameSession(t *testing.T) {
 	m := apptranscode.NewHLSManager(dir, 5)
 	defer m.CleanupAll()
 
-	s1, err := m.GetOrCreate("user1", "media1", "/nonexistent/a.mkv", 1920, 1080, 0, -1, "")
+	s1, err := m.GetOrCreate("user1", "media1", "/nonexistent/a.mkv", 1920, 1080, 0, -1, "", nil, false, false)
 	require.NoError(t, err)
 
-	s2, err := m.GetOrCreate("user1", "media1", "/nonexistent/a.mkv", 1920, 1080, 0, -1, "")
+	s2, err := m.GetOrCreate("user1", "media1", "/nonexistent/a.mkv", 1920, 1080, 0, -1, "", nil, false, false)
 	require.NoError(t, err)
 	assert.Equal(t, s1, s2)
 }
@@ -141,7 +142,7 @@ func TestSessionOutputDir(t *testing.T) {
 	m := apptranscode.NewHLSManager(dir, 5)
 	defer m.CleanupAll()
 
-	sess, err := m.GetOrCreate("user1", "my-media-id", "/nonexistent/a.mkv", 1920, 1080, 0, -1, "")
+	sess, err := m.GetOrCreate("user1", "my-media-id", "/nonexistent/a.mkv", 1920, 1080, 0, -1, "", nil, false, false)
 	require.NoError(t, err)
 	assert.Equal(t, filepath.Join(dir, "my-media-id"), sess.OutputDir)
 }
@@ -156,7 +157,7 @@ func TestSessionMarkAccess(t *testing.T) {
 	m := apptranscode.NewHLSManager(dir, 5)
 	defer m.CleanupAll()
 
-	sess, err := m.GetOrCreate("user1", "media-access", "/nonexistent/a.mkv", 1920, 1080, 0, -1, "")
+	sess, err := m.GetOrCreate("user1", "media-access", "/nonexistent/a.mkv", 1920, 1080, 0, -1, "", nil, false, false)
 	require.NoError(t, err)
 
 	before := sess.LastAccess
@@ -170,7 +171,7 @@ func TestWaitReady_FailsOnBadFile(t *testing.T) {
 	m := apptranscode.NewHLSManager(dir, 5)
 	defer m.CleanupAll()
 
-	sess, err := m.GetOrCreate("user1", "bad-file", "/nonexistent/file.mkv", 1920, 1080, 0, -1, "")
+	sess, err := m.GetOrCreate("user1", "bad-file", "/nonexistent/file.mkv", 1920, 1080, 0, -1, "", nil, false, false)
 	require.NoError(t, err)
 
 	// ffmpeg will fail since the file doesn't exist; WaitReady returns error
@@ -183,15 +184,15 @@ func TestGetOrCreate_MaxUserStreams(t *testing.T) {
 	m := apptranscode.NewHLSManager(dir, 10)
 	defer m.CleanupAll()
 
-	_, err := m.GetOrCreate("user1", "media-u1a", "/nonexistent/a.mkv", 1920, 1080, 1, -1, "")
+	_, err := m.GetOrCreate("user1", "media-u1a", "/nonexistent/a.mkv", 1920, 1080, 1, -1, "", nil, false, false)
 	require.NoError(t, err)
 
-	_, err = m.GetOrCreate("user1", "media-u1b", "/nonexistent/b.mkv", 1920, 1080, 1, -1, "")
+	_, err = m.GetOrCreate("user1", "media-u1b", "/nonexistent/b.mkv", 1920, 1080, 1, -1, "", nil, false, false)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "max streams per user")
 
 	// different user must succeed
-	_, err = m.GetOrCreate("user2", "media-u2a", "/nonexistent/c.mkv", 1920, 1080, 1, -1, "")
+	_, err = m.GetOrCreate("user2", "media-u2a", "/nonexistent/c.mkv", 1920, 1080, 1, -1, "", nil, false, false)
 	require.NoError(t, err)
 }
 
@@ -199,7 +200,7 @@ func TestCleanupAll_RemovesOutputDirs(t *testing.T) {
 	dir := t.TempDir()
 	m := apptranscode.NewHLSManager(dir, 5)
 
-	sess, err := m.GetOrCreate("user1", "cleanup-test", "/nonexistent/a.mkv", 1920, 1080, 0, -1, "")
+	sess, err := m.GetOrCreate("user1", "cleanup-test", "/nonexistent/a.mkv", 1920, 1080, 0, -1, "", nil, false, false)
 	require.NoError(t, err)
 
 	outputDir := sess.OutputDir
@@ -209,4 +210,75 @@ func TestCleanupAll_RemovesOutputDirs(t *testing.T) {
 	m.CleanupAll()
 	_, err = os.Stat(outputDir)
 	assert.True(t, os.IsNotExist(err))
+}
+
+func TestBuildFFmpegArgs_HDRToneMapping(t *testing.T) {
+	hdrType := "HDR10"
+	w, h := 3840, 2160
+	streams := []*library.MediaStream{
+		{StreamType: "video", HDRType: &hdrType, Width: &w, Height: &h},
+	}
+
+	dir := t.TempDir()
+	m := apptranscode.NewHLSManager(dir, 5)
+	defer m.CleanupAll()
+
+	// HDR source, client does NOT support HDR → tone mapping must be injected
+	sess, err := m.GetOrCreate("u", "hdr-media", "/f.mkv", w, h, 0, -1, "", streams, false, false)
+	require.NoError(t, err)
+
+	args := sess.BuildFFmpegArgs("/f.mkv")
+	joined := strings.Join(args, " ")
+	assert.Contains(t, joined, "zscale", "tone mapping filter expected")
+	assert.Contains(t, joined, "tonemap=hable", "hable algorithm expected")
+	assert.NotContains(t, joined, "[0:v]split=", "should not split directly from input when tone-mapping")
+}
+
+func TestBuildFFmpegArgs_HDRToneMapping_HDRClientSkips(t *testing.T) {
+	hdrType := "HDR10"
+	w, h := 3840, 2160
+	streams := []*library.MediaStream{
+		{StreamType: "video", HDRType: &hdrType, Width: &w, Height: &h},
+	}
+
+	dir := t.TempDir()
+	m := apptranscode.NewHLSManager(dir, 5)
+	defer m.CleanupAll()
+
+	// HDR source, client supports HDR → no tone mapping
+	sess, err := m.GetOrCreate("u", "hdr-media-hdr-client", "/f.mkv", w, h, 0, -1, "", streams, true, false)
+	require.NoError(t, err)
+
+	args := sess.BuildFFmpegArgs("/f.mkv")
+	joined := strings.Join(args, " ")
+	assert.NotContains(t, joined, "zscale", "no tone mapping when client supports HDR")
+	assert.Contains(t, joined, "[0:v]split=")
+}
+
+func TestBuildFFmpegArgs_SDRNoToneMapping(t *testing.T) {
+	dir := t.TempDir()
+	m := apptranscode.NewHLSManager(dir, 5)
+	defer m.CleanupAll()
+
+	// SDR source → no tone mapping regardless of hdrSupported
+	sess, err := m.GetOrCreate("u", "sdr-media", "/f.mkv", 1920, 1080, 0, -1, "", nil, false, false)
+	require.NoError(t, err)
+
+	args := sess.BuildFFmpegArgs("/f.mkv")
+	joined := strings.Join(args, " ")
+	assert.NotContains(t, joined, "zscale")
+	assert.Contains(t, joined, "[0:v]split=")
+}
+
+func TestBuildFFmpegArgs_AudioNormalize(t *testing.T) {
+	dir := t.TempDir()
+	m := apptranscode.NewHLSManager(dir, 5)
+	defer m.CleanupAll()
+
+	sess, err := m.GetOrCreate("u", "audio-norm", "/f.mkv", 1920, 1080, 0, -1, "", nil, false, true)
+	require.NoError(t, err)
+
+	args := sess.BuildFFmpegArgs("/f.mkv")
+	joined := strings.Join(args, " ")
+	assert.Contains(t, joined, "loudnorm=I=-16:TP=-1.5:LRA=11:linear=true")
 }

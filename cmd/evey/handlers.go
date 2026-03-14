@@ -1184,7 +1184,7 @@ func hlsMasterHandler(tokenGen interface {
 }, libSvc interface {
 	GetMediaItem(ctx context.Context, id string) (*domainlibrary.MediaItem, error)
 	GetMediaStreams(ctx context.Context, mediaItemID string) ([]*domainlibrary.MediaStream, error)
-}, hlsManager *apptranscoding.HLSManager, libraryAccess LibraryAccessChecker, userMaxStreams UserMaxStreamsGetter) http.HandlerFunc {
+}, hlsManager *apptranscoding.HLSManager, libraryAccess LibraryAccessChecker, userMaxStreams UserMaxStreamsGetter, audioNormalizeGetter func(ctx context.Context) bool) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		mediaID := r.PathValue("id")
 		token := r.Header.Get("Authorization")
@@ -1220,7 +1220,9 @@ func hlsMasterHandler(tokenGen interface {
 		sourceWidth, sourceHeight := 1920, 1080
 		subtitleTrackIndex := -1
 		subtitleCodec := ""
+		var mediaStreams []*domainlibrary.MediaStream
 		if streams, err2 := libSvc.GetMediaStreams(r.Context(), mediaID); err2 == nil {
+			mediaStreams = streams
 			for _, s := range streams {
 				if s.StreamType == "video" && s.Width != nil && s.Height != nil {
 					sourceWidth = *s.Width
@@ -1246,7 +1248,10 @@ func hlsMasterHandler(tokenGen interface {
 			}
 		}
 
-		session, err := hlsManager.GetOrCreate(claims.UserID, mediaID, item.FilePath, sourceWidth, sourceHeight, maxStreams, subtitleTrackIndex, subtitleCodec)
+		// browsers don't support HDR; could be made client-configurable via query param
+		hdrSupported := r.URL.Query().Get("hdr") == "1"
+		audioNormalize := audioNormalizeGetter != nil && audioNormalizeGetter(r.Context())
+		session, err := hlsManager.GetOrCreate(claims.UserID, mediaID, item.FilePath, sourceWidth, sourceHeight, maxStreams, subtitleTrackIndex, subtitleCodec, mediaStreams, hdrSupported, audioNormalize)
 		if err != nil {
 			slog.Error("hls: get or create session", slog.Any("err", err))
 			http.Error(w, `{"message":"transcode busy"}`, http.StatusServiceUnavailable)

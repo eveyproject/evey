@@ -1767,7 +1767,7 @@ func TestHLSMasterHandler_LibraryAccessDenied(t *testing.T) {
 	libSvc.items["m1"] = &domainlibrary.MediaItem{ID: "m1", FilePath: "/some/file.mkv", LibraryID: "lib-restricted"}
 
 	hlsManager := apptranscoding.NewHLSManager(t.TempDir(), 5)
-	handler := hlsMasterHandler(validTokenValidator(false), libSvc, hlsManager, denyAllLibraries(), nil)
+	handler := hlsMasterHandler(validTokenValidator(false), libSvc, hlsManager, denyAllLibraries(), nil, nil)
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /api/v1/media/{id}/hls/master.m3u8", handler)
