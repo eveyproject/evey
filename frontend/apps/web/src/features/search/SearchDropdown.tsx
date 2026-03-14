@@ -15,6 +15,9 @@ interface SearchDropdownProps {
   onClose: () => void;
   onNavigateToSearch: (q: string) => void;
   inputRef: React.RefObject<HTMLInputElement | null>;
+  recents?: string[];
+  onRemoveRecent?: (q: string) => void;
+  onClearRecents?: () => void;
 }
 
 export function SearchDropdown({
@@ -23,6 +26,9 @@ export function SearchDropdown({
   onClose,
   onNavigateToSearch,
   inputRef,
+  recents = [],
+  onRemoveRecent,
+  onClearRecents,
 }: SearchDropdownProps) {
   const navigate = useNavigate();
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -91,7 +97,69 @@ export function SearchDropdown({
     return () => document.removeEventListener("keydown", handler);
   }, [visible]);
 
-  if (!visible || trimmed.length <= 1) return null;
+  const showRecents = visible && trimmed.length === 0 && recents.length > 0;
+
+  if (!visible || (trimmed.length <= 1 && !showRecents)) return null;
+
+  if (showRecents) {
+    return (
+      <div
+        ref={dropdownRef}
+        data-testid="search-dropdown-recents"
+        className="absolute left-0 right-0 top-full mt-1 rounded-[var(--radius-md)] border border-[var(--border)] shadow-xl z-50 overflow-hidden animate-fade-in"
+        style={{ backgroundColor: "var(--surface-raised)" }}
+      >
+        <div className="flex items-center justify-between px-3 pt-2.5 pb-1">
+          <div className="flex items-center gap-1.5 text-xs font-semibold" style={{ color: "var(--text-muted)" }}>
+            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+              <circle cx="12" cy="12" r="10" />
+              <path strokeLinecap="round" d="M12 6v6l4 2" />
+            </svg>
+            Recent searches
+          </div>
+          {onClearRecents && (
+            <button
+              onClick={onClearRecents}
+              className="text-xs hover:underline cursor-pointer"
+              style={{ color: "var(--text-muted)" }}
+            >
+              Clear all
+            </button>
+          )}
+        </div>
+        <ul className="py-1">
+          {recents.map((r) => (
+            <li key={r} className="flex items-center gap-1 px-2">
+              <button
+                data-search-item
+                onClick={() => { onNavigateToSearch(r); onClose(); }}
+                className="flex-1 flex items-center gap-2 px-2 py-2 text-left hover:bg-[var(--surface)] focus:bg-[var(--surface)] focus:outline-none transition-colors cursor-pointer rounded"
+                style={{ color: "var(--text)" }}
+              >
+                <svg className="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24" style={{ color: "var(--text-muted)" }}>
+                  <circle cx="12" cy="12" r="10" />
+                  <path strokeLinecap="round" d="M12 6v6l4 2" />
+                </svg>
+                <span className="text-sm truncate">{r}</span>
+              </button>
+              {onRemoveRecent && (
+                <button
+                  onClick={() => onRemoveRecent(r)}
+                  className="p-1 rounded hover:bg-[var(--surface)] transition-colors cursor-pointer"
+                  style={{ color: "var(--text-muted)" }}
+                  aria-label={`Remove ${r}`}
+                >
+                  <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                    <path strokeLinecap="round" d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              )}
+            </li>
+          ))}
+        </ul>
+      </div>
+    );
+  }
 
   return (
     <div

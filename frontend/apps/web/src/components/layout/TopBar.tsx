@@ -4,6 +4,7 @@ import { useAuthStore } from "@evey/store";
 import { useUserServiceGetCurrentUser, eveyFetch } from "@evey/api";
 import { NotificationBell } from "@/features/user/NotificationBell";
 import { SearchDropdown } from "@/features/search/SearchDropdown";
+import { useRecentSearches } from "@/hooks/useRecentSearches";
 
 function UserMenu({ userInitial }: { userInitial: string }) {
   const navigate = useNavigate();
@@ -105,6 +106,7 @@ export function TopBar() {
 
   const { data: currentUser } = useUserServiceGetCurrentUser();
   const userInitial = currentUser?.username?.charAt(0).toUpperCase() ?? "U";
+  const { recents, push: pushRecent, remove: removeRecent, clear: clearRecents } = useRecentSearches();
 
   const isOnSearch = location.pathname === "/search";
 
@@ -118,9 +120,10 @@ export function TopBar() {
 
   const navigateToSearch = useCallback((q: string) => {
     const trimmed = q.trim();
+    if (trimmed) pushRecent(trimmed);
     setDropdownOpen(false);
     void navigate({ to: "/search", search: trimmed ? { q: trimmed } : {} });
-  }, [navigate]);
+  }, [navigate, pushRecent]);
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === "Enter") {
@@ -179,7 +182,7 @@ export function TopBar() {
               if (e.target.value.trim().length > 1) setDropdownOpen(true);
             }}
             onFocus={() => {
-              if (searchValue.trim().length > 1) setDropdownOpen(true);
+              if (searchValue.trim().length > 1 || recents.length > 0) setDropdownOpen(true);
             }}
             onKeyDown={handleKeyDown}
             className="w-full pl-9 pr-14 py-1.5 rounded-[var(--radius-md)] bg-[var(--surface-raised)] border border-[var(--border)] text-sm text-[var(--text)] placeholder:text-[var(--text-muted)] focus:outline-none focus:ring-1 focus:ring-[var(--accent)]"
@@ -194,6 +197,9 @@ export function TopBar() {
             onClose={() => setDropdownOpen(false)}
             onNavigateToSearch={navigateToSearch}
             inputRef={inputRef}
+            recents={recents}
+            onRemoveRecent={removeRecent}
+            onClearRecents={clearRecents}
           />
         </div>
       </div>
