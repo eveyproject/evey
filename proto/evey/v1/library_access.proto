@@ -1,0 +1,50 @@
+syntax = "proto3";
+
+package evey.v1;
+
+import "google/api/annotations.proto";
+
+option go_package = "github.com/gravity/evey/gen/evey/v1;eveyv1";
+
+service LibraryAccessService {
+  rpc GetUserLibraryAccess(GetUserLibraryAccessRequest) returns (UserLibraryAccess) {
+    option (google.api.http) = {get: "/api/v1/admin/users/{user_id}/library-access"};
+  }
+  rpc SetUserLibraryAccess(SetUserLibraryAccessRequest) returns (SetUserLibraryAccessResponse) {
+    option (google.api.http) = {
+      put: "/api/v1/admin/users/{user_id}/library-access"
+      body: "*"
+    };
+  }
+  rpc RevokeAllUserLibraryAccess(RevokeAllUserLibraryAccessRequest) returns (RevokeAllUserLibraryAccessResponse) {
+    option (google.api.http) = {delete: "/api/v1/admin/users/{user_id}/library-access"};
+  }
+}
+
+message LibraryRef {
+  string id = 1;
+  string name = 2;
+}
+
+message UserLibraryAccess {
+  string user_id = 1;
+  repeated string library_ids = 2;
+  repeated LibraryRef libraries = 3;
+}
+
+message GetUserLibraryAccessRequest {
+  string user_id = 1;
+}
+
+message SetUserLibraryAccessRequest {
+  string user_id = 1;
+  repeated string library_ids = 2;
+}
+
+message SetUserLibraryAccessResponse {}
+
+message RevokeAllUserLibraryAccessRequest {
+  string user_id = 1;
+}
+
+message RevokeAllUserLibraryAccessResponse {}
