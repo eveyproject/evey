@@ -51,6 +51,19 @@ func (r *FakeScanScheduleRepository) Delete(_ context.Context, libraryID string)
 	return nil
 }
 
+func (r *FakeScanScheduleRepository) List(_ context.Context) ([]*library.ScanSchedule, error) {
+	if r.Err != nil {
+		return nil, r.Err
+	}
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	var result []*library.ScanSchedule
+	for _, s := range r.items {
+		result = append(result, s)
+	}
+	return result, nil
+}
+
 func (r *FakeScanScheduleRepository) ListEnabled(_ context.Context) ([]*library.ScanSchedule, error) {
 	if r.Err != nil {
 		return nil, r.Err

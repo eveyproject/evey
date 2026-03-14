@@ -56,6 +56,10 @@ func (s *Scheduler) DeleteSchedule(ctx context.Context, libraryID string) error 
 	return s.schedules.Delete(ctx, libraryID)
 }
 
+func (s *Scheduler) ListSchedules(ctx context.Context) ([]*library.ScanSchedule, error) {
+	return s.schedules.List(ctx)
+}
+
 func (s *Scheduler) Run(ctx context.Context) {
 	ticker := time.NewTicker(1 * time.Minute)
 	defer ticker.Stop()

@@ -120,6 +120,7 @@ type ScanScheduleRepository interface {
 	Upsert(ctx context.Context, s *ScanSchedule) error
 	GetByLibraryID(ctx context.Context, libraryID string) (*ScanSchedule, error)
 	Delete(ctx context.Context, libraryID string) error
+	List(ctx context.Context) ([]*ScanSchedule, error)
 	ListEnabled(ctx context.Context) ([]*ScanSchedule, error)
 	UpdateAfterRun(ctx context.Context, libraryID string, lastRun, nextRun time.Time) error
 }

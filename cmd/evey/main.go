@@ -383,6 +383,7 @@ func run() error {
 	hlsManager := apptranscoding.NewHLSManager(cfg.Transcoding.CacheDir+"/hls", cfg.Transcoding.MaxConcurrent)
 	defer hlsManager.CleanupAll()
 	grpcSrv.SetHLSManager(hlsManager)
+	grpcSrv.SetScheduler(libScheduler)
 	go func() {
 		ticker := time.NewTicker(30 * time.Second)
 		defer ticker.Stop()

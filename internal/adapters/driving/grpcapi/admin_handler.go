@@ -17,10 +17,20 @@ import (
 	"github.com/gravity-zero/evey/internal/pkg/sysinfo"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 type adminLibraryLister interface {
 	ListLibraries(ctx context.Context) ([]*domainlibrary.Library, error)
+}
+
+type adminScheduler interface {
+	ListSchedules(ctx context.Context) ([]*domainlibrary.ScanSchedule, error)
+	SetSchedule(ctx context.Context, libraryID, cronExpr string, enabled bool) (*domainlibrary.ScanSchedule, error)
+}
+
+type adminLibraryScanner interface {
+	ScanLibrary(ctx context.Context, libraryID string) (added, updated int, err error)
 }
 
 type adminHandler struct {
@@ -32,6 +42,8 @@ type adminHandler struct {
 	pluginSvc      *appplugin.Service
 	hlsManager     *apptranscoding.HLSManager
 	libLister      adminLibraryLister
+	scheduler      adminScheduler
+	libScanner     adminLibraryScanner
 	version        string
 }
 
@@ -122,15 +134,89 @@ func (h *adminHandler) GetDashboard(ctx context.Context, _ *eveyv1.GetDashboardR
 	return resp, nil
 }
 
-func (h *adminHandler) ListScheduledTasks(_ context.Context, _ *eveyv1.ListScheduledTasksRequest) (*eveyv1.ListScheduledTasksResponse, error) {
-	return &eveyv1.ListScheduledTasksResponse{}, nil
+func (h *adminHandler) ListScheduledTasks(ctx context.Context, _ *eveyv1.ListScheduledTasksRequest) (*eveyv1.ListScheduledTasksResponse, error) {
+	if h.scheduler == nil {
+		return &eveyv1.ListScheduledTasksResponse{}, nil
+	}
+	schedules, err := h.scheduler.ListSchedules(ctx)
+	if err != nil {
+		slog.Error("list scheduled tasks", slog.Any("err", err))
+		return nil, status.Errorf(codes.Internal, "internal error")
+	}
+	resp := &eveyv1.ListScheduledTasksResponse{}
+	for _, s := range schedules {
+		task := &eveyv1.ScheduledTask{
+			Id:             s.LibraryID,
+			Name:           "Library scan: " + s.LibraryID,
+			CronExpression: s.CronExpression,
+			Enabled:        s.Enabled,
+		}
+		if s.LastRunAt != nil {
+			task.LastRunAt = timestamppb.New(*s.LastRunAt)
+		}
+		if s.NextRunAt != nil {
+			task.NextRunAt = timestamppb.New(*s.NextRunAt)
+		}
+		resp.Tasks = append(resp.Tasks, task)
+	}
+	return resp, nil
 }
 
-func (h *adminHandler) UpdateScheduledTask(_ context.Context, req *eveyv1.UpdateScheduledTaskRequest) (*eveyv1.ScheduledTask, error) {
-	return &eveyv1.ScheduledTask{Id: req.Id}, nil
+func (h *adminHandler) UpdateScheduledTask(ctx context.Context, req *eveyv1.UpdateScheduledTaskRequest) (*eveyv1.ScheduledTask, error) {
+	if h.scheduler == nil {
+		return nil, status.Errorf(codes.Unimplemented, "scheduler not available")
+	}
+	existing, err := h.scheduler.ListSchedules(ctx)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "internal error")
+	}
+	var current *domainlibrary.ScanSchedule
+	for _, s := range existing {
+		if s.LibraryID == req.Id {
+			current = s
+			break
+		}
+	}
+	if current == nil {
+		return nil, status.Errorf(codes.NotFound, "scheduled task not found")
+	}
+	cron := current.CronExpression
+	if req.CronExpression != nil {
+		cron = *req.CronExpression
+	}
+	enabled := current.Enabled
+	if req.Enabled != nil {
+		enabled = *req.Enabled
+	}
+	updated, err := h.scheduler.SetSchedule(ctx, req.Id, cron, enabled)
+	if err != nil {
+		slog.Error("update scheduled task", slog.Any("err", err))
+		return nil, status.Errorf(codes.Internal, "internal error")
+	}
+	task := &eveyv1.ScheduledTask{
+		Id:             updated.LibraryID,
+		Name:           "Library scan: " + updated.LibraryID,
+		CronExpression: updated.CronExpression,
+		Enabled:        updated.Enabled,
+	}
+	if updated.NextRunAt != nil {
+		task.NextRunAt = timestamppb.New(*updated.NextRunAt)
+	}
+	return task, nil
 }
 
-func (h *adminHandler) RunScheduledTask(_ context.Context, _ *eveyv1.RunScheduledTaskRequest) (*eveyv1.RunScheduledTaskResponse, error) {
+func (h *adminHandler) RunScheduledTask(ctx context.Context, req *eveyv1.RunScheduledTaskRequest) (*eveyv1.RunScheduledTaskResponse, error) {
+	if h.libScanner == nil {
+		return nil, status.Errorf(codes.Unimplemented, "scanner not available")
+	}
+	go func() {
+		added, updated, err := h.libScanner.ScanLibrary(context.Background(), req.Id)
+		if err != nil {
+			slog.Error("manual scan failed", slog.String("libraryID", req.Id), slog.Any("err", err))
+		} else {
+			slog.Info("manual scan done", slog.String("libraryID", req.Id), slog.Int("added", added), slog.Int("updated", updated))
+		}
+	}()
 	return &eveyv1.RunScheduledTaskResponse{}, nil
 }
 

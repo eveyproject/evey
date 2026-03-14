@@ -48,6 +48,25 @@ func (r *ScanScheduleRepository) Delete(ctx context.Context, libraryID string) e
 	return err
 }
 
+func (r *ScanScheduleRepository) List(ctx context.Context) ([]*library.ScanSchedule, error) {
+	rows, err := r.db.QueryContext(ctx,
+		`SELECT library_id, cron_expression, enabled, last_run_at, next_run_at, created_at, updated_at
+		 FROM scan_schedules ORDER BY library_id`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var result []*library.ScanSchedule
+	for rows.Next() {
+		s := &library.ScanSchedule{}
+		if err := rows.Scan(&s.LibraryID, &s.CronExpression, &s.Enabled, &s.LastRunAt, &s.NextRunAt, &s.CreatedAt, &s.UpdatedAt); err != nil {
+			return nil, err
+		}
+		result = append(result, s)
+	}
+	return result, rows.Err()
+}
+
 func (r *ScanScheduleRepository) ListEnabled(ctx context.Context) ([]*library.ScanSchedule, error) {
 	rows, err := r.db.QueryContext(ctx,
 		`SELECT library_id, cron_expression, enabled, last_run_at, next_run_at, created_at, updated_at

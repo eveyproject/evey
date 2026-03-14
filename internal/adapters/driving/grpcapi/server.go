@@ -44,11 +44,16 @@ type GRPCServer struct {
 	profiles        user.ProfileRepository
 	libraryAccess   user.LibraryAccessRepository
 	hlsManager      *apptranscoding.HLSManager
+	scheduler       *applibrary.Scheduler
 	version         string
 }
 
 func (s *GRPCServer) SetHLSManager(m *apptranscoding.HLSManager) {
 	s.hlsManager = m
+}
+
+func (s *GRPCServer) SetScheduler(sc *applibrary.Scheduler) {
+	s.scheduler = sc
 }
 
 func NewGRPCServer(
@@ -118,6 +123,8 @@ func (s *GRPCServer) RegisterServices() {
 		pluginSvc:      s.plugin,
 		hlsManager:     s.hlsManager,
 		libLister:      s.libQuery,
+		scheduler:      s.scheduler,
+		libScanner:     s.libCmd,
 		version:        s.version,
 	})
 	eveyv1.RegisterActivityServiceServer(s.server, &activityHandler{svc: s.activityQuery})
