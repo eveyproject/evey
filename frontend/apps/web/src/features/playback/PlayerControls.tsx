@@ -185,6 +185,8 @@ interface PlayerControlsProps {
   skipForwardSeconds?: number;
   skipBackwardSeconds?: number;
   onExternalSubtitle?: (blobUrl: string, label: string) => void;
+  subtitleFontSize?: number;
+  onSubtitleFontSizeChange?: (size: number) => void;
 }
 
 function formatTime(seconds: number): string {
@@ -211,6 +213,8 @@ interface SettingsPanelProps {
   onAutoQualityToggle?: (auto: boolean) => void;
   autoQualityLabel?: string;
   onExternalSubtitle?: (blobUrl: string, label: string) => void;
+  subtitleFontSize?: number;
+  onSubtitleFontSizeChange?: (size: number) => void;
 }
 
 function SettingsPanel({
@@ -229,6 +233,8 @@ function SettingsPanel({
   onAutoQualityToggle,
   autoQualityLabel,
   onExternalSubtitle,
+  subtitleFontSize = 100,
+  onSubtitleFontSizeChange,
 }: SettingsPanelProps) {
   const extSubInputRef = useRef<HTMLInputElement>(null);
   const [open, setOpen] = useState(false);
@@ -366,6 +372,31 @@ function SettingsPanel({
             </>
           )}
 
+          {/* Subtitle font size */}
+          {onSubtitleFontSizeChange && (
+            <>
+              <div className="mx-3 my-1" style={{ borderTop: "1px solid var(--border)" }} />
+              <div className="px-4 py-2">
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-xs font-semibold uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>
+                    Subtitle Size
+                  </span>
+                  <span className="text-xs" style={{ color: "var(--text-muted)" }}>{subtitleFontSize}%</span>
+                </div>
+                <input
+                  type="range"
+                  min={50}
+                  max={200}
+                  step={10}
+                  value={subtitleFontSize}
+                  onChange={(e) => onSubtitleFontSizeChange(Number(e.target.value))}
+                  className="w-full accent-[var(--accent)]"
+                  aria-label="Subtitle font size"
+                />
+              </div>
+            </>
+          )}
+
           {/* External subtitle upload */}
           {onExternalSubtitle && (
             <>
@@ -459,6 +490,8 @@ export function PlayerControls({
   skipForwardSeconds = 10,
   skipBackwardSeconds = 10,
   onExternalSubtitle,
+  subtitleFontSize = 100,
+  onSubtitleFontSizeChange,
 }: PlayerControlsProps) {
   const [visible, setVisible] = useState(true);
   const [playing, setPlaying] = useState(false);
@@ -892,6 +925,8 @@ export function PlayerControls({
             onAutoQualityToggle={onAutoQualityToggle}
             autoQualityLabel={autoQualityLabel}
             onExternalSubtitle={onExternalSubtitle}
+            subtitleFontSize={subtitleFontSize}
+            onSubtitleFontSizeChange={onSubtitleFontSizeChange}
           />
 
           {/* Picture-in-Picture */}

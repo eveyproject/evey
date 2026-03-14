@@ -112,6 +112,8 @@ export function HLSPlayer({
   const [playbackSpeed, setPlaybackSpeed] = useState(1);
   const [externalSubUrl, setExternalSubUrl] = useState<{ url: string; label: string } | null>(null);
   const externalSubUrlRef = useRef<string | null>(null);
+  const [subtitleFontSize, setSubtitleFontSize] = useState(100);
+  const styleElRef = useRef<HTMLStyleElement | null>(null);
   const [showShortcuts, setShowShortcuts] = useState(false);
   const [isBuffering, setIsBuffering] = useState(false);
   const playbackSpeedRef = useRef(playbackSpeed);
@@ -283,6 +285,19 @@ export function HLSPlayer({
       }
     }
   }, [currentSubtitle, externalSubUrl, mediaId, accessToken, transcodeStartTime, currentTrackIndex, currentQuality]);
+
+  // Inject ::cue style for subtitle font size
+  useEffect(() => {
+    if (!styleElRef.current) {
+      styleElRef.current = document.createElement("style");
+      document.head.appendChild(styleElRef.current);
+    }
+    styleElRef.current.textContent = `::cue { font-size: ${subtitleFontSize}%; }`;
+    return () => {
+      styleElRef.current?.remove();
+      styleElRef.current = null;
+    };
+  }, [subtitleFontSize]);
 
   // Sync playbackRate with playbackSpeed state
   useEffect(() => {
@@ -529,9 +544,91 @@ export function HLSPlayer({
     }
   }
 
+  // Touch gesture state: double-tap to seek, swipe volume
+  const touchStartRef = useRef<{ x: number; y: number; time: number } | null>(null);
+  const lastTapRef = useRef<{ x: number; time: number } | null>(null);
+  const [seekFlash, setSeekFlash] = useState<"left" | "right" | null>(null);
+
+  function handleTouchStart(e: React.TouchEvent) {
+    const t = e.touches[0];
+    touchStartRef.current = { x: t.clientX, y: t.clientY, time: Date.now() };
+  }
+
+  function handleTouchEnd(e: React.TouchEvent) {
+    const start = touchStartRef.current;
+    if (!start) return;
+    touchStartRef.current = null;
+    const t = e.changedTouches[0];
+    const dx = t.clientX - start.x;
+    const dy = t.clientY - start.y;
+    const dt = Date.now() - start.time;
+
+    // Swipe up/down on right side → volume
+    const el = e.currentTarget as HTMLElement;
+    const rect = el.getBoundingClientRect();
+    const isRightSide = t.clientX > rect.width * 0.6;
+    if (Math.abs(dy) > 30 && Math.abs(dy) > Math.abs(dx) && dt < 500) {
+      if (isRightSide) {
+        const video = videoRef.current;
+        if (video) {
+          video.volume = Math.max(0, Math.min(1, video.volume + (dy < 0 ? 0.1 : -0.1)));
+        }
+        return;
+      }
+    }
+
+    // Double-tap to seek ±10s
+    const isSmallMove = Math.abs(dx) < 20 && Math.abs(dy) < 20;
+    if (!isSmallMove || dt > 300) {
+      lastTapRef.current = null;
+      return;
+    }
+    const now = Date.now();
+    const last = lastTapRef.current;
+    if (last && now - last.time < 400) {
+      // Double tap detected
+      const isLeft = t.clientX < rect.width / 2;
+      lastTapRef.current = null;
+      const pos = positionRef.current;
+      const video = videoRef.current;
+      if (!video) return;
+      const target = isLeft
+        ? Math.max(0, pos - skipBwdRef.current)
+        : Math.min(pos + skipFwdRef.current, pos + skipFwdRef.current);
+      seekRef.current(target);
+      setSeekFlash(isLeft ? "left" : "right");
+      setTimeout(() => setSeekFlash(null), 600);
+    } else {
+      lastTapRef.current = { x: t.clientX, time: now };
+    }
+  }
+
   return (
-    <div className="relative w-full h-full bg-black">
+    <div
+      className="relative w-full h-full bg-black"
+      onTouchStart={handleTouchStart}
+      onTouchEnd={handleTouchEnd}
+    >
       <video ref={videoRef} className="w-full h-full" playsInline />
+      {/* Touch seek flash indicators */}
+      {seekFlash === "left" && (
+        <div className="absolute left-0 top-0 bottom-0 w-1/2 flex items-center justify-center pointer-events-none" style={{ zIndex: 6 }}>
+          <div className="rounded-full bg-white/20 w-16 h-16 flex items-center justify-center">
+            <svg className="w-8 h-8 text-white" fill="currentColor" viewBox="0 0 24 24">
+              <path d="M11.99 5V1l-5 5 5 5V7c3.31 0 6 2.69 6 6s-2.69 6-6 6-6-2.69-6-6h-2c0 4.42 3.58 8 8 8s8-3.58 8-8-3.58-8-8-8z"/>
+            </svg>
+          </div>
+        </div>
+      )}
+      {seekFlash === "right" && (
+        <div className="absolute right-0 top-0 bottom-0 w-1/2 flex items-center justify-center pointer-events-none" style={{ zIndex: 6 }}>
+          <div className="rounded-full bg-white/20 w-16 h-16 flex items-center justify-center">
+            <svg className="w-8 h-8 text-white" fill="currentColor" viewBox="0 0 24 24">
+              <path d="M12.01 5V1l5 5-5 5V7c-3.31 0-6 2.69-6 6s2.69 6 6 6 6-2.69 6-6h2c0 4.42-3.58 8-8 8s-8-3.58-8-8 3.58-8 8-8z"/>
+            </svg>
+          </div>
+        </div>
+      )}
       {isBuffering && (
         <div className="absolute inset-0 flex items-center justify-center pointer-events-none" style={{ zIndex: 5 }}>
           <div className="flex flex-col items-center gap-2">
@@ -596,6 +693,8 @@ export function HLSPlayer({
         transcodeOffset={transcodeOffsetRef.current}
         skipForwardSeconds={skipFwd}
         skipBackwardSeconds={skipBwd}
+        subtitleFontSize={subtitleFontSize}
+        onSubtitleFontSizeChange={setSubtitleFontSize}
         onExternalSubtitle={(blobUrl, label) => {
           setCurrentSubtitle(null);
           setExternalSubUrl({ url: blobUrl, label });
