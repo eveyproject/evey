@@ -675,6 +675,30 @@ export function MediaDetail({ item, onMetadataUpdated, initialEdit }: MediaDetai
                 <span className="text-sm" style={{ color: "rgba(255,255,255,0.8)" }}>{item.communityRating.toFixed(1)}</span>
               </span>
             )}
+            {item.providerIds?.imdb && (
+              <a
+                href={`https://www.imdb.com/title/${item.providerIds.imdb}/`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-xs font-bold px-1.5 py-0.5 rounded"
+                style={{ backgroundColor: "#f5c518", color: "#000", textDecoration: "none" }}
+                onClick={(e) => e.stopPropagation()}
+              >
+                IMDb
+              </a>
+            )}
+            {item.providerIds?.tmdb && (
+              <a
+                href={`https://www.themoviedb.org/${item.type === "MEDIA_ITEM_TYPE_MOVIE" ? "movie" : "tv"}/${item.providerIds.tmdb}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-xs font-bold px-1.5 py-0.5 rounded"
+                style={{ backgroundColor: "#01b4e4", color: "#fff", textDecoration: "none" }}
+                onClick={(e) => e.stopPropagation()}
+              >
+                TMDB
+              </a>
+            )}
           </div>
           {parentItem && (
             <div className="mb-1">
