@@ -6,4 +6,6 @@ export type SubtitleStream = {
   isDefault?: boolean;
   isExternal?: boolean;
   externalPath?: string;
+  codec?: string;
+  burnIn?: boolean; // true when track requires server-side burn-in (PGS/VobSub)
 };

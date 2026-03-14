@@ -409,7 +409,12 @@ function SettingsPanel({
                     className="flex items-center justify-between w-full px-4 py-2 text-sm hover:bg-[var(--surface-raised)] transition-colors"
                     style={{ color: s.trackIndex === currentSubtitleTrackIndex ? "var(--accent)" : "var(--text)" }}
                   >
-                    <span>{label}</span>
+                    <span>
+                      {label}
+                      {s.burnIn && (
+                        <span className="ml-1 text-xs opacity-60">(burn-in)</span>
+                      )}
+                    </span>
                     {s.trackIndex === currentSubtitleTrackIndex && (
                       <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
                         <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z" />

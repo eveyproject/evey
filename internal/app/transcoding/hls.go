@@ -12,6 +12,14 @@ import (
 	"time"
 )
 
+func IsImageSubtitle(codec string) bool {
+	switch strings.ToLower(codec) {
+	case "pgssub", "hdmv_pgs_subtitle", "dvd_subtitle", "dvbsub", "xsub":
+		return true
+	}
+	return false
+}
+
 type HLSProfile struct {
 	Name         string
 	Width        int
@@ -28,19 +36,21 @@ var DefaultProfiles = []HLSProfile{
 }
 
 type HLSSession struct {
-	ID          string
-	MediaItemID string
-	UserID      string
-	OutputDir   string
-	Profiles    []HLSProfile
-	StartedAt   time.Time
-	LastAccess  time.Time
-	mu          sync.Mutex
-	cmd         *exec.Cmd
-	cancel      context.CancelFunc
-	ready       chan struct{}
-	done        chan struct{} // closed when start() goroutine exits (process reaped)
-	err         error
+	ID                  string
+	MediaItemID         string
+	UserID              string
+	OutputDir           string
+	Profiles            []HLSProfile
+	SubtitleTrackIndex  int    // -1 = no subtitle
+	SubtitleCodec       string // codec name of the selected subtitle stream
+	StartedAt           time.Time
+	LastAccess          time.Time
+	mu                  sync.Mutex
+	cmd                 *exec.Cmd
+	cancel              context.CancelFunc
+	ready               chan struct{}
+	done                chan struct{} // closed when start() goroutine exits (process reaped)
+	err                 error
 }
 
 func (s *HLSSession) MarkAccess() {
@@ -90,7 +100,7 @@ func (m *HLSManager) countByUser(userID string) int {
 	return m.userSessions[userID]
 }
 
-func (m *HLSManager) GetOrCreate(userID, mediaItemID, filePath string, sourceWidth, sourceHeight, maxUserStreams int) (*HLSSession, error) {
+func (m *HLSManager) GetOrCreate(userID, mediaItemID, filePath string, sourceWidth, sourceHeight, maxUserStreams, subtitleTrackIndex int, subtitleCodec string) (*HLSSession, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -115,15 +125,17 @@ func (m *HLSManager) GetOrCreate(userID, mediaItemID, filePath string, sourceWid
 
 	now := time.Now()
 	session := &HLSSession{
-		ID:          mediaItemID,
-		MediaItemID: mediaItemID,
-		UserID:      userID,
-		OutputDir:   outputDir,
-		Profiles:    profiles,
-		StartedAt:   now,
-		LastAccess:  now,
-		ready:       make(chan struct{}),
-		done:        make(chan struct{}),
+		ID:                 mediaItemID,
+		MediaItemID:        mediaItemID,
+		UserID:             userID,
+		OutputDir:          outputDir,
+		Profiles:           profiles,
+		SubtitleTrackIndex: subtitleTrackIndex,
+		SubtitleCodec:      subtitleCodec,
+		StartedAt:          now,
+		LastAccess:         now,
+		ready:              make(chan struct{}),
+		done:               make(chan struct{}),
 	}
 	m.sessions[mediaItemID] = session
 	m.userSessions[userID]++
@@ -169,17 +181,35 @@ func (s *HLSSession) start(filePath string) {
 	}
 }
 
+func (s *HLSSession) BuildFFmpegArgs(filePath string) []string {
+	return s.buildFFmpegArgs(filePath)
+}
+
 func (s *HLSSession) buildFFmpegArgs(filePath string) []string {
 	n := len(s.Profiles)
+	burnIn := s.SubtitleTrackIndex >= 0 && IsImageSubtitle(s.SubtitleCodec)
+
 	args := []string{"-i", filePath}
 
-	// Build filter_complex: split video and scale for each profile
+	// Build filter_complex
 	var filterParts []string
 	splitOutputs := make([]string, n)
 	for i := range n {
 		splitOutputs[i] = fmt.Sprintf("[v%d]", i)
 	}
-	filterParts = append(filterParts, fmt.Sprintf("[0:v]split=%d%s", n, strings.Join(splitOutputs, "")))
+
+	if burnIn {
+		// overlay subtitle stream onto video before splitting
+		filterParts = append(filterParts,
+			fmt.Sprintf("[0:v][0:s:%d]overlay[vb]", s.SubtitleTrackIndex),
+			fmt.Sprintf("[vb]split=%d%s", n, strings.Join(splitOutputs, "")),
+		)
+	} else {
+		filterParts = append(filterParts,
+			fmt.Sprintf("[0:v]split=%d%s", n, strings.Join(splitOutputs, "")),
+		)
+	}
+
 	for i, p := range s.Profiles {
 		filterParts = append(filterParts, fmt.Sprintf("[v%d]scale=%d:%d[o%d]", i, p.Width, p.Height, i))
 	}

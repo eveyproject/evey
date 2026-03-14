@@ -39,18 +39,28 @@ function PlayerPage() {
         isDefault: s.isDefault,
       })) ?? [];
 
+  const IMAGE_SUBTITLE_CODECS = new Set([
+    "pgssub", "hdmv_pgs_subtitle", "dvd_subtitle", "dvbsub", "xsub",
+  ]);
+
   const subtitleStreams: SubtitleStream[] =
     streamInfo?.mediaStreams
       ?.filter((s) => s.type === "MEDIA_STREAM_TYPE_SUBTITLE")
-      .map((s, i) => ({
-        index: s.index ?? 0,
-        trackIndex: i,
-        language: s.language,
-        title: s.title,
-        isDefault: s.isDefault,
-        isExternal: s.isExternal,
-        externalPath: s.externalPath,
-      })) ?? [];
+      .map((s, i) => {
+        const codec = s.codec?.toLowerCase() ?? "";
+        const burnIn = IMAGE_SUBTITLE_CODECS.has(codec);
+        return {
+          index: s.index ?? 0,
+          trackIndex: i,
+          language: s.language,
+          title: s.title,
+          isDefault: s.isDefault,
+          isExternal: s.isExternal,
+          externalPath: s.externalPath,
+          codec: s.codec,
+          burnIn,
+        };
+      }) ?? [];
 
   const { data: chapters } = useChapters(mediaId);
   const startPositionMs = progress?.positionMs ? Number(progress.positionMs) : 0;

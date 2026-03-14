@@ -1,6 +1,16 @@
+import { useState } from "react";
+import { Link } from "@tanstack/react-router";
+import { useQueryClient } from "@tanstack/react-query";
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
+import { Input } from "@/components/ui/Input";
+import { Spinner } from "@/components/ui/Spinner";
+import {
+  useAdminServiceGetPluginConfig,
+  useAdminServiceUpdatePluginConfig,
+} from "@evey/api";
+import { toast } from "@evey/store";
 import type { V1Plugin, V1PluginState } from "@evey/api/src/generated/admin.schemas";
 
 type BadgeVariant = "default" | "success" | "warning" | "error" | "info";
@@ -25,6 +35,77 @@ function stateLabel(state?: V1PluginState): string {
   }
 }
 
+interface PluginConfigPanelProps {
+  pluginId: string;
+}
+
+function PluginConfigPanel({ pluginId }: PluginConfigPanelProps) {
+  const queryClient = useQueryClient();
+  const { data, isLoading } = useAdminServiceGetPluginConfig(pluginId);
+  const [edits, setEdits] = useState<Record<string, string>>({});
+
+  const updateConfig = useAdminServiceUpdatePluginConfig({
+    mutation: {
+      onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: ["/api/v1/admin/plugins", pluginId, "config"] });
+        setEdits({});
+        toast.success("Config saved");
+      },
+      onError: (err: Error) => toast.error(err.message || "Failed to save config"),
+    },
+  });
+
+  if (isLoading) {
+    return (
+      <div className="flex justify-center py-4">
+        <Spinner size="sm" />
+      </div>
+    );
+  }
+
+  const values = data?.values ?? {};
+  const keys = Object.keys(values);
+
+  if (keys.length === 0) {
+    return (
+      <p className="text-xs py-2" style={{ color: "var(--text-muted)" }}>
+        No config keys defined.
+      </p>
+    );
+  }
+
+  const current = { ...values, ...edits };
+  const isDirty = Object.keys(edits).length > 0;
+
+  function handleSave() {
+    updateConfig.mutate({ pluginId, data: { values: current } });
+  }
+
+  return (
+    <div className="flex flex-col gap-3">
+      {keys.map((key) => (
+        <Input
+          key={key}
+          label={key}
+          value={current[key] ?? ""}
+          onChange={(e) => setEdits((prev) => ({ ...prev, [key]: e.target.value }))}
+        />
+      ))}
+      {isDirty && (
+        <div className="flex justify-end">
+          <Button
+            variant="primary"
+            onClick={handleSave}
+            loading={updateConfig.isPending}
+          >
+            Save
+          </Button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 interface PluginCardProps {
   plugin: V1Plugin;
   onEnable: () => void;
@@ -33,6 +114,8 @@ interface PluginCardProps {
 }
 
 export function PluginCard({ plugin, onEnable, onDisable, onUninstall }: PluginCardProps) {
+  const [showConfig, setShowConfig] = useState(false);
+
   return (
     <Card className="flex flex-col gap-3">
       <div className="flex items-start justify-between gap-2">
@@ -60,14 +143,35 @@ export function PluginCard({ plugin, onEnable, onDisable, onUninstall }: PluginC
         </p>
       )}
 
-      <div className="flex gap-2 pt-1">
+      <div className="flex gap-2 pt-1 flex-wrap">
         {plugin.enabled ? (
           <Button variant="secondary" onClick={onDisable}>Disable</Button>
         ) : (
           <Button variant="primary" onClick={onEnable}>Enable</Button>
         )}
+        <Button variant="ghost" onClick={() => setShowConfig((v) => !v)}>
+          {showConfig ? "Hide Config" : "Config"}
+        </Button>
+        <Link
+          to="/admin/logs"
+          className="inline-flex items-center px-3 py-2 rounded-[var(--radius-md)] text-sm font-medium transition-colors bg-transparent hover:bg-[var(--surface-raised)] text-[var(--text-muted)]"
+        >
+          Logs
+        </Link>
         <Button variant="danger" onClick={onUninstall}>Uninstall</Button>
       </div>
+
+      {showConfig && plugin.id && (
+        <div
+          className="border-t pt-3 mt-1"
+          style={{ borderColor: "var(--border)" }}
+        >
+          <p className="text-xs font-semibold mb-2" style={{ color: "var(--text-muted)" }}>
+            Configuration
+          </p>
+          <PluginConfigPanel pluginId={plugin.id} />
+        </div>
+      )}
     </Card>
   );
 }
