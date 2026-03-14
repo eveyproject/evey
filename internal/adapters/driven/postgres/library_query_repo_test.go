@@ -91,6 +91,63 @@ func TestMediaItemQueryRepoAdapter_GetCastByMediaItem_Empty(t *testing.T) {
 	assert.Empty(t, cast)
 }
 
+func TestMediaItemQueryRepoAdapter_GetCastForItems(t *testing.T) {
+	db, cleanup := testhelpers.StartPostgres(t)
+	defer cleanup()
+
+	ctx := context.Background()
+	libRepo := postgres.NewLibraryRepository(db)
+	itemRepo := postgres.NewMediaItemRepository(db)
+	personRepo := postgres.NewPersonRepository(db)
+	mpRepo := postgres.NewMediaPersonRepository(db)
+	queryRepo := postgres.NewMediaItemQueryRepoAdapter(db)
+
+	lib := newTestLibrary("cq-blib1")
+	require.NoError(t, libRepo.Create(ctx, lib))
+
+	item1 := newTestMediaItem("cq-bmi1", lib.ID)
+	item2 := newTestMediaItem("cq-bmi2", lib.ID)
+	item3 := newTestMediaItem("cq-bmi3", lib.ID)
+	require.NoError(t, itemRepo.Create(ctx, item1))
+	require.NoError(t, itemRepo.Create(ctx, item2))
+	require.NoError(t, itemRepo.Create(ctx, item3))
+
+	thumb := "/thumbs/p.jpg"
+	p1 := &library.Person{ID: "cq-bp1", Name: "Actor One", ProviderIDs: map[string]string{}, ThumbPath: &thumb}
+	p2 := &library.Person{ID: "cq-bp2", Name: "Actor Two", ProviderIDs: map[string]string{}, ThumbPath: nil}
+	require.NoError(t, personRepo.Create(ctx, p1))
+	require.NoError(t, personRepo.Create(ctx, p2))
+
+	char := "Hero"
+	require.NoError(t, mpRepo.Create(ctx, &library.MediaPerson{MediaItemID: item1.ID, PersonID: p1.ID, RoleType: "actor", CharacterName: &char, SortOrder: 0}))
+	require.NoError(t, mpRepo.Create(ctx, &library.MediaPerson{MediaItemID: item2.ID, PersonID: p2.ID, RoleType: "director", CharacterName: nil, SortOrder: 0}))
+	// item3 has no cast
+
+	result, err := queryRepo.GetCastForItems(ctx, []string{item1.ID, item2.ID, item3.ID})
+	require.NoError(t, err)
+
+	require.Len(t, result[item1.ID], 1)
+	assert.Equal(t, p1.ID, result[item1.ID][0].PersonID)
+	assert.Equal(t, "actor", result[item1.ID][0].RoleType)
+
+	require.Len(t, result[item2.ID], 1)
+	assert.Equal(t, p2.ID, result[item2.ID][0].PersonID)
+	assert.Equal(t, "director", result[item2.ID][0].RoleType)
+
+	assert.Empty(t, result[item3.ID])
+}
+
+func TestMediaItemQueryRepoAdapter_GetCastForItems_Empty(t *testing.T) {
+	db, cleanup := testhelpers.StartPostgres(t)
+	defer cleanup()
+
+	queryRepo := postgres.NewMediaItemQueryRepoAdapter(db)
+	result, err := queryRepo.GetCastForItems(context.Background(), []string{})
+	require.NoError(t, err)
+	assert.NotNil(t, result)
+	assert.Empty(t, result)
+}
+
 func TestMediaItemQueryRepoAdapter_List_Count(t *testing.T) {
 	db, cleanup := testhelpers.StartPostgres(t)
 	defer cleanup()

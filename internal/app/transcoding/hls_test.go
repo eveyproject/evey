@@ -137,6 +137,23 @@ func TestWaitReady_FailsOnBadFile(t *testing.T) {
 	assert.Error(t, err)
 }
 
+func TestGetOrCreate_MaxUserStreams(t *testing.T) {
+	dir := t.TempDir()
+	m := apptranscode.NewHLSManager(dir, 10)
+	defer m.CleanupAll()
+
+	_, err := m.GetOrCreate("user1", "media-u1a", "/nonexistent/a.mkv", 1920, 1080, 1)
+	require.NoError(t, err)
+
+	_, err = m.GetOrCreate("user1", "media-u1b", "/nonexistent/b.mkv", 1920, 1080, 1)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "max streams per user")
+
+	// different user must succeed
+	_, err = m.GetOrCreate("user2", "media-u2a", "/nonexistent/c.mkv", 1920, 1080, 1)
+	require.NoError(t, err)
+}
+
 func TestCleanupAll_RemovesOutputDirs(t *testing.T) {
 	dir := t.TempDir()
 	m := apptranscode.NewHLSManager(dir, 5)
