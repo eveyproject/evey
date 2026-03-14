@@ -1,13 +1,21 @@
 import { useState } from "react";
 import { createFileRoute, redirect, useNavigate } from "@tanstack/react-router";
-import { useUserServiceLogin } from "@evey/api";
+import { useQuery } from "@tanstack/react-query";
+import { useUserServiceLogin, eveyFetch } from "@evey/api";
 import { useAuthStore } from "@evey/store";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Card } from "@/components/ui/Card";
 import { QuickConnect } from "@/components/QuickConnect";
 
+type LoginSearch = {
+  oidc_error?: string;
+};
+
 export const Route = createFileRoute("/login")({
+  validateSearch: (search: Record<string, unknown>): LoginSearch => ({
+    oidc_error: typeof search.oidc_error === "string" ? search.oidc_error : undefined,
+  }),
   beforeLoad: () => {
     const { accessToken } = useAuthStore.getState();
     if (accessToken) throw redirect({ to: "/home" });
@@ -29,6 +37,13 @@ function LoginPage() {
   const [password, setPassword] = useState("");
   const { setTokens } = useAuthStore();
   const navigate = useNavigate();
+  const { oidc_error } = Route.useSearch();
+
+  const oidcConfig = useQuery<{ enabled: boolean }>({
+    queryKey: ["oidc-config"],
+    queryFn: () => eveyFetch<{ enabled: boolean }>({ url: "/api/v1/auth/oidc/config", method: "GET" }),
+    staleTime: 60 * 1000,
+  });
 
   const login = useUserServiceLogin({
     mutation: {
@@ -61,6 +76,9 @@ function LoginPage() {
           <h1 className="text-2xl font-bold text-[var(--text)]">Evey</h1>
           <p className="text-[var(--text-muted)] text-sm mt-1">Sign in to your account</p>
         </div>
+        {oidc_error && (
+          <p className="text-sm text-red-400 text-center mb-4">SSO sign-in failed. Please try again.</p>
+        )}
         <form
           onSubmit={(e) => {
             e.preventDefault();
@@ -92,6 +110,23 @@ function LoginPage() {
             Sign in
           </Button>
         </form>
+        {oidcConfig.data?.enabled && (
+          <>
+            <div className="flex items-center gap-2 my-4">
+              <div className="flex-1 h-px bg-[var(--border)]" />
+              <span className="text-xs text-[var(--text-muted)]">or</span>
+              <div className="flex-1 h-px bg-[var(--border)]" />
+            </div>
+            <Button
+              type="button"
+              variant="secondary"
+              className="w-full"
+              onClick={() => { window.location.href = "/api/v1/auth/oidc/login"; }}
+            >
+              Sign in with SSO
+            </Button>
+          </>
+        )}
         <QuickConnect />
       </Card>
     </div>

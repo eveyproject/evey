@@ -111,6 +111,7 @@ type OIDCConfig struct {
 	Issuer       string
 	ClientID     string
 	ClientSecret string
+	RedirectURL  string
 }
 
 type MetricsConfig struct {
@@ -169,6 +170,7 @@ func Load() (*Config, error) {
 			Issuer:       envStr("EVEY_OIDC_ISSUER", ""),
 			ClientID:     envStr("EVEY_OIDC_CLIENT_ID", ""),
 			ClientSecret: envStr("EVEY_OIDC_CLIENT_SECRET", ""),
+			RedirectURL:  envStr("EVEY_OIDC_REDIRECT_URL", ""),
 		},
 		Metrics: MetricsConfig{
 			RetentionDays:     envInt("EVEY_METRICS_RETENTION_DAYS", 90),
