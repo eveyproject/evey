@@ -21,6 +21,7 @@ import (
 	appbackup "github.com/gravity-zero/evey/internal/app/backup"
 	appcollection "github.com/gravity-zero/evey/internal/app/collection"
 	applibrary "github.com/gravity-zero/evey/internal/app/library"
+	appuser "github.com/gravity-zero/evey/internal/app/user"
 	domainlibrary "github.com/gravity-zero/evey/internal/domain/library"
 	domainshared "github.com/gravity-zero/evey/internal/domain/shared"
 	apptranscoding "github.com/gravity-zero/evey/internal/app/transcoding"
@@ -2062,4 +2063,57 @@ func tailFile(path string, n int) ([]string, error) {
 		rawLines = rawLines[len(rawLines)-n:]
 	}
 	return rawLines, nil
+}
+
+func registerUserAdminRoutes(mux *http.ServeMux, userCmd *appuser.CommandService, userQuery *appuser.QueryService, tokenGen *auth.JWTGenerator) {
+	requireAdmin := func(r *http.Request) bool {
+		h := r.Header.Get("Authorization")
+		if !strings.HasPrefix(h, "Bearer ") {
+			return false
+		}
+		claims, err := tokenGen.ValidateAccessToken(strings.TrimPrefix(h, "Bearer "))
+		return err == nil && claims.IsAdmin
+	}
+
+	mux.HandleFunc("GET /api/v1/admin/users/{id}/bitrate-limit", func(w http.ResponseWriter, r *http.Request) {
+		if !requireAdmin(r) {
+			http.Error(w, `{"message":"forbidden"}`, http.StatusForbidden)
+			return
+		}
+		userID := r.PathValue("id")
+		limit, err := userQuery.GetUserBitrateLimit(r.Context(), userID)
+		if err != nil {
+			slog.Error("get user bitrate limit", slog.String("userID", userID), slog.Any("err", err))
+			http.Error(w, `{"message":"internal error"}`, http.StatusInternalServerError)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]any{"max_bitrate_kbps": limit})
+	})
+
+	mux.HandleFunc("PATCH /api/v1/admin/users/{id}/bitrate-limit", func(w http.ResponseWriter, r *http.Request) {
+		if !requireAdmin(r) {
+			http.Error(w, `{"message":"forbidden"}`, http.StatusForbidden)
+			return
+		}
+		userID := r.PathValue("id")
+		var body struct {
+			MaxBitrateKbps int `json:"max_bitrate_kbps"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			http.Error(w, `{"message":"bad request"}`, http.StatusBadRequest)
+			return
+		}
+		if body.MaxBitrateKbps < 0 {
+			http.Error(w, `{"message":"max_bitrate_kbps must be >= 0"}`, http.StatusBadRequest)
+			return
+		}
+		if err := userCmd.SetUserBitrateLimit(r.Context(), userID, body.MaxBitrateKbps); err != nil {
+			slog.Error("set user bitrate limit", slog.String("userID", userID), slog.Any("err", err))
+			http.Error(w, `{"message":"internal error"}`, http.StatusInternalServerError)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]any{"max_bitrate_kbps": body.MaxBitrateKbps})
+	})
 }

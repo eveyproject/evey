@@ -300,6 +300,16 @@ func (s *CommandService) UpdateUser(ctx context.Context, u *user.User) error {
 	return s.users.Update(ctx, u)
 }
 
+func (s *CommandService) SetUserBitrateLimit(ctx context.Context, userID string, maxBitrateKbps int) error {
+	u, err := s.users.GetByID(ctx, userID)
+	if err != nil {
+		return err
+	}
+	u.MaxBitrateKbps = maxBitrateKbps
+	u.UpdatedAt = time.Now()
+	return s.users.Update(ctx, u)
+}
+
 func (s *CommandService) ChangePassword(ctx context.Context, userID, newPassword string) error {
 	if len(newPassword) < 8 {
 		return ErrPasswordTooShort

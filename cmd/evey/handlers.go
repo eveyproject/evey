@@ -36,6 +36,72 @@ type UserMaxStreamsGetter interface {
 	GetMaxStreams(ctx context.Context, userID string) *int
 }
 
+// UserBitrateGetter returns the max streaming bitrate (kbps) for a user. 0 = unlimited.
+type UserBitrateGetter interface {
+	GetUserBitrateLimit(ctx context.Context, userID string) (int, error)
+}
+
+// filterMasterPlaylist removes #EXT-X-STREAM-INF variants exceeding maxBps (bps).
+// If all variants exceed the limit, keeps the one with the lowest BANDWIDTH.
+func filterMasterPlaylist(content string, maxBps int64) string {
+	if maxBps <= 0 {
+		return content
+	}
+	lines := strings.Split(content, "\n")
+	type variant struct {
+		inf string
+		uri string
+		bw  int64
+	}
+	var header []string
+	var variants []variant
+	i := 0
+	for i < len(lines) {
+		line := lines[i]
+		if strings.HasPrefix(line, "#EXT-X-STREAM-INF:") {
+			// Extract BANDWIDTH= using simple prefix search (value is always an integer, no quoting needed)
+			bw := int64(0)
+			attrs := strings.TrimPrefix(line, "#EXT-X-STREAM-INF:")
+			if idx := strings.Index(attrs, "BANDWIDTH="); idx >= 0 {
+				fmt.Sscanf(attrs[idx+len("BANDWIDTH="):], "%d", &bw)
+			}
+			uri := ""
+			if i+1 < len(lines) {
+				uri = lines[i+1]
+				i++
+			}
+			variants = append(variants, variant{inf: line, uri: uri, bw: bw})
+		} else {
+			header = append(header, line)
+		}
+		i++
+	}
+
+	var allowed []variant
+	for _, v := range variants {
+		if v.bw <= maxBps {
+			allowed = append(allowed, v)
+		}
+	}
+	if len(allowed) == 0 && len(variants) > 0 {
+		// keep the lowest bandwidth variant
+		lowest := variants[0]
+		for _, v := range variants[1:] {
+			if v.bw < lowest.bw {
+				lowest = v
+			}
+		}
+		allowed = []variant{lowest}
+	}
+
+	var out []string
+	out = append(out, header...)
+	for _, v := range allowed {
+		out = append(out, v.inf, v.uri)
+	}
+	return strings.Join(out, "\n")
+}
+
 func checkLibraryAccess(ctx context.Context, w http.ResponseWriter, claims *domainuser.Claims, libraryID string, checker LibraryAccessChecker) bool {
 	if claims.IsAdmin || checker == nil {
 		return true
@@ -1184,7 +1250,7 @@ func hlsMasterHandler(tokenGen interface {
 }, libSvc interface {
 	GetMediaItem(ctx context.Context, id string) (*domainlibrary.MediaItem, error)
 	GetMediaStreams(ctx context.Context, mediaItemID string) ([]*domainlibrary.MediaStream, error)
-}, hlsManager *apptranscoding.HLSManager, libraryAccess LibraryAccessChecker, userMaxStreams UserMaxStreamsGetter, audioNormalizeGetter func(ctx context.Context) bool) http.HandlerFunc {
+}, hlsManager *apptranscoding.HLSManager, libraryAccess LibraryAccessChecker, userMaxStreams UserMaxStreamsGetter, audioNormalizeGetter func(ctx context.Context) bool, bitrateGetter UserBitrateGetter) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		mediaID := r.PathValue("id")
 		token := r.Header.Get("Authorization")
@@ -1265,7 +1331,26 @@ func hlsMasterHandler(tokenGen interface {
 
 		setCORSHeaders(w, r, "")
 		w.Header().Set("Content-Type", "application/vnd.apple.mpegurl")
-		http.ServeFile(w, r, filepath.Join(session.OutputDir, "master.m3u8"))
+
+		masterPath := filepath.Join(session.OutputDir, "master.m3u8")
+		var maxBps int64
+		if bitrateGetter != nil {
+			if limitKbps, bitrateErr := bitrateGetter.GetUserBitrateLimit(r.Context(), claims.UserID); bitrateErr == nil && limitKbps > 0 {
+				maxBps = int64(limitKbps) * 1000
+			}
+		}
+		if maxBps <= 0 {
+			http.ServeFile(w, r, masterPath)
+			return
+		}
+		data, readErr := os.ReadFile(masterPath)
+		if readErr != nil {
+			slog.Error("hls: read master playlist", slog.Any("err", readErr))
+			http.Error(w, `{"message":"internal error"}`, http.StatusInternalServerError)
+			return
+		}
+		filtered := filterMasterPlaylist(string(data), maxBps)
+		w.Write([]byte(filtered)) //nolint:errcheck
 	}
 }
 

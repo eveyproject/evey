@@ -11,17 +11,18 @@ const (
 )
 
 type User struct {
-	ID           string
-	Username     string
-	Email        string
-	PasswordHash string
-	IsAdmin      bool
-	Enabled      bool
-	OIDCSubject  *string
-	OIDCIssuer   *string
-	MaxStreams   *int
-	CreatedAt    time.Time
-	UpdatedAt    time.Time
+	ID               string
+	Username         string
+	Email            string
+	PasswordHash     string
+	IsAdmin          bool
+	Enabled          bool
+	OIDCSubject      *string
+	OIDCIssuer       *string
+	MaxStreams        *int
+	MaxBitrateKbps   int
+	CreatedAt        time.Time
+	UpdatedAt        time.Time
 }
 
 type ParentalSettings struct {
