@@ -78,6 +78,9 @@ var adminOnlyMethods = map[string]bool{
 	"/evey.v1.BackupService/CreateBackup":                           true,
 	"/evey.v1.BackupService/ListBackups":                            true,
 	"/evey.v1.BackupService/DeleteBackup":                           true,
+	"/evey.v1.RemoteAccessService/GetRemoteAccess":                  true,
+	"/evey.v1.RemoteAccessService/UpdateRemoteAccess":               true,
+	"/evey.v1.RemoteAccessService/GetNetworkInfo":                   true,
 }
 
 type AuthInterceptor struct {

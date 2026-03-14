@@ -1,0 +1,53 @@
+syntax = "proto3";
+
+package evey.v1;
+
+import "google/api/annotations.proto";
+
+option go_package = "github.com/gravity/evey/gen/evey/v1;eveyv1";
+
+service RemoteAccessService {
+  rpc GetRemoteAccess(GetRemoteAccessRequest) returns (RemoteAccessConfig) {
+    option (google.api.http) = {
+      get: "/api/v1/admin/remote-access"
+    };
+  }
+  rpc UpdateRemoteAccess(UpdateRemoteAccessRequest) returns (RemoteAccessConfig) {
+    option (google.api.http) = {
+      put: "/api/v1/admin/remote-access"
+      body: "*"
+    };
+  }
+  rpc GetNetworkInfo(GetNetworkInfoRequest) returns (NetworkInfo) {
+    option (google.api.http) = {
+      get: "/api/v1/admin/network-info"
+    };
+  }
+}
+
+message RemoteAccessConfig {
+  bool enabled = 1;
+  string external_url = 2;
+  repeated string lan_networks = 3;
+  int32 max_remote_bitrate_kbps = 4;
+}
+
+message UpdateRemoteAccessRequest {
+  optional bool enabled = 1;
+  optional string external_url = 2;
+  repeated string lan_networks = 3;
+  optional int32 max_remote_bitrate_kbps = 4;
+}
+
+message GetRemoteAccessRequest {}
+
+message NetworkInterface {
+  string name = 1;
+  string address = 2;
+}
+
+message NetworkInfo {
+  repeated NetworkInterface interfaces = 1;
+}
+
+message GetNetworkInfoRequest {}
