@@ -37,6 +37,9 @@ var BackupTables = []string{
 	"library_access",
 	"audit_log",
 	"login_history",
+	"music_tracks",
+	"photos",
+	"fcm_device_tokens",
 }
 
 type Service struct {
