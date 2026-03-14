@@ -31,6 +31,7 @@ import { Route as AuthPersonPersonIdRouteImport } from './routes/_auth/person/$p
 import { Route as AuthMediaMediaIdRouteImport } from './routes/_auth/media/$mediaId'
 import { Route as AuthLibraryLibraryIdRouteImport } from './routes/_auth/library/$libraryId'
 import { Route as AuthCollectionsCollectionIdRouteImport } from './routes/_auth/collections/$collectionId'
+import { Route as AuthCollectionsSmartFilterIdRouteImport } from './routes/_auth/collections/smart/$filterId'
 import { Route as AuthAdminWebhooksRouteImport } from './routes/_auth/admin/webhooks'
 import { Route as AuthAdminUsersRouteImport } from './routes/_auth/admin/users'
 import { Route as AuthAdminTranscodeCacheRouteImport } from './routes/_auth/admin/transcode-cache'
@@ -189,6 +190,16 @@ const AuthCollectionsCollectionIdRoute =
       (d) => d.Route,
     ),
   )
+const AuthCollectionsSmartFilterIdRoute =
+  AuthCollectionsSmartFilterIdRouteImport.update({
+    id: '/collections/smart/$filterId',
+    path: '/collections/smart/$filterId',
+    getParentRoute: () => AuthRoute,
+  } as any).lazy(() =>
+    import('./routes/_auth/collections/smart/$filterId.lazy').then(
+      (d) => d.Route,
+    ),
+  )
 const AuthAdminWebhooksRoute = AuthAdminWebhooksRouteImport.update({
   id: '/webhooks',
   path: '/webhooks',
@@ -311,6 +322,7 @@ export interface FileRoutesByFullPath {
   '/admin/users': typeof AuthAdminUsersRoute
   '/admin/webhooks': typeof AuthAdminWebhooksRoute
   '/collections/$collectionId': typeof AuthCollectionsCollectionIdRoute
+  '/collections/smart/$filterId': typeof AuthCollectionsSmartFilterIdRoute
   '/library/$libraryId': typeof AuthLibraryLibraryIdRoute
   '/media/$mediaId': typeof AuthMediaMediaIdRoute
   '/person/$personId': typeof AuthPersonPersonIdRoute
@@ -347,6 +359,7 @@ export interface FileRoutesByTo {
   '/admin/users': typeof AuthAdminUsersRoute
   '/admin/webhooks': typeof AuthAdminWebhooksRoute
   '/collections/$collectionId': typeof AuthCollectionsCollectionIdRoute
+  '/collections/smart/$filterId': typeof AuthCollectionsSmartFilterIdRoute
   '/library/$libraryId': typeof AuthLibraryLibraryIdRoute
   '/media/$mediaId': typeof AuthMediaMediaIdRoute
   '/person/$personId': typeof AuthPersonPersonIdRoute
@@ -386,6 +399,7 @@ export interface FileRoutesById {
   '/_auth/admin/users': typeof AuthAdminUsersRoute
   '/_auth/admin/webhooks': typeof AuthAdminWebhooksRoute
   '/_auth/collections/$collectionId': typeof AuthCollectionsCollectionIdRoute
+  '/_auth/collections/smart/$filterId': typeof AuthCollectionsSmartFilterIdRoute
   '/_auth/library/$libraryId': typeof AuthLibraryLibraryIdRoute
   '/_auth/media/$mediaId': typeof AuthMediaMediaIdRoute
   '/_auth/person/$personId': typeof AuthPersonPersonIdRoute
@@ -425,6 +439,7 @@ export interface FileRouteTypes {
     | '/admin/users'
     | '/admin/webhooks'
     | '/collections/$collectionId'
+    | '/collections/smart/$filterId'
     | '/library/$libraryId'
     | '/media/$mediaId'
     | '/person/$personId'
@@ -461,6 +476,7 @@ export interface FileRouteTypes {
     | '/admin/users'
     | '/admin/webhooks'
     | '/collections/$collectionId'
+    | '/collections/smart/$filterId'
     | '/library/$libraryId'
     | '/media/$mediaId'
     | '/person/$personId'
@@ -499,6 +515,7 @@ export interface FileRouteTypes {
     | '/_auth/admin/users'
     | '/_auth/admin/webhooks'
     | '/_auth/collections/$collectionId'
+    | '/_auth/collections/smart/$filterId'
     | '/_auth/library/$libraryId'
     | '/_auth/media/$mediaId'
     | '/_auth/person/$personId'
@@ -677,6 +694,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthCollectionsCollectionIdRouteImport
       parentRoute: typeof AuthRoute
     }
+    '/_auth/collections/smart/$filterId': {
+      id: '/_auth/collections/smart/$filterId'
+      path: '/collections/smart/$filterId'
+      fullPath: '/collections/smart/$filterId'
+      preLoaderRoute: typeof AuthCollectionsSmartFilterIdRouteImport
+      parentRoute: typeof AuthRoute
+    }
     '/_auth/admin/webhooks': {
       id: '/_auth/admin/webhooks'
       path: '/webhooks'
@@ -824,6 +848,7 @@ interface AuthRouteChildren {
   AuthHomeRoute: typeof AuthHomeRoute
   AuthSearchRoute: typeof AuthSearchRoute
   AuthCollectionsCollectionIdRoute: typeof AuthCollectionsCollectionIdRoute
+  AuthCollectionsSmartFilterIdRoute: typeof AuthCollectionsSmartFilterIdRoute
   AuthLibraryLibraryIdRoute: typeof AuthLibraryLibraryIdRoute
   AuthMediaMediaIdRoute: typeof AuthMediaMediaIdRoute
   AuthPersonPersonIdRoute: typeof AuthPersonPersonIdRoute
@@ -844,6 +869,7 @@ const AuthRouteChildren: AuthRouteChildren = {
   AuthHomeRoute: AuthHomeRoute,
   AuthSearchRoute: AuthSearchRoute,
   AuthCollectionsCollectionIdRoute: AuthCollectionsCollectionIdRoute,
+  AuthCollectionsSmartFilterIdRoute: AuthCollectionsSmartFilterIdRoute,
   AuthLibraryLibraryIdRoute: AuthLibraryLibraryIdRoute,
   AuthMediaMediaIdRoute: AuthMediaMediaIdRoute,
   AuthPersonPersonIdRoute: AuthPersonPersonIdRoute,
