@@ -22,6 +22,16 @@ type Config struct {
 	Log          LogConfig
 	Backup       BackupConfig
 	RemoteAccess RemoteAccessConfig
+	SMTP         SMTPConfig
+}
+
+type SMTPConfig struct {
+	Host     string // EVEY_SMTP_HOST
+	Port     int    // EVEY_SMTP_PORT, default 587
+	Username string // EVEY_SMTP_USERNAME
+	Password string // EVEY_SMTP_PASSWORD
+	From     string // EVEY_SMTP_FROM
+	TLS      string // EVEY_SMTP_TLS: none, starttls, ssl
 }
 
 type BackupConfig struct {
@@ -195,6 +205,14 @@ func Load() (*Config, error) {
 			ExternalURL:          envStr("EVEY_REMOTE_ACCESS_EXTERNAL_URL", ""),
 			LANNetworks:          envStrSlice("EVEY_REMOTE_ACCESS_LAN_NETWORKS", []string{"10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16"}),
 			MaxRemoteBitrateKbps: envInt("EVEY_REMOTE_ACCESS_MAX_BITRATE_KBPS", 0),
+		},
+		SMTP: SMTPConfig{
+			Host:     envStr("EVEY_SMTP_HOST", ""),
+			Port:     envInt("EVEY_SMTP_PORT", 587),
+			Username: envStr("EVEY_SMTP_USERNAME", ""),
+			Password: envStr("EVEY_SMTP_PASSWORD", ""),
+			From:     envStr("EVEY_SMTP_FROM", ""),
+			TLS:      envStr("EVEY_SMTP_TLS", "starttls"),
 		},
 	}
 	return cfg, nil

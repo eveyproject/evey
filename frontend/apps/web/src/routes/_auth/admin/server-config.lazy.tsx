@@ -7,6 +7,15 @@ import { Spinner } from "@/components/ui/Spinner";
 import { Button } from "@/components/ui/Button";
 import { EmptyState } from "@/components/ui/EmptyState";
 
+const SMTP_KEYS = ["smtp.host", "smtp.port", "smtp.username", "smtp.password", "smtp.from", "smtp.tls"] as const;
+type SmtpKey = (typeof SMTP_KEYS)[number];
+
+const TLS_OPTIONS: { label: string; value: string }[] = [
+  { label: "None", value: "none" },
+  { label: "STARTTLS", value: "starttls" },
+  { label: "SSL/TLS", value: "ssl" },
+];
+
 export const Route = createLazyFileRoute("/_auth/admin/server-config")({
   component: ServerConfigPage,
 });
@@ -226,6 +235,160 @@ function AddEntryRow() {
   );
 }
 
+const inputStyle = {
+  backgroundColor: "var(--surface-raised)",
+  border: "1px solid var(--border)",
+  color: "var(--text)",
+} as const;
+
+function SmtpSettingsCard({ entries }: { entries: ConfigEntry[] | undefined }) {
+  const setEntry = useSetConfigEntry();
+
+  function val(key: SmtpKey) {
+    return entries?.find((e) => e.key === key)?.value ?? "";
+  }
+
+  const [host, setHost] = useState(() => val("smtp.host"));
+  const [port, setPort] = useState(() => val("smtp.port") || "587");
+  const [username, setUsername] = useState(() => val("smtp.username"));
+  const [password, setPassword] = useState(() => val("smtp.password"));
+  const [from, setFrom] = useState(() => val("smtp.from"));
+  const [tls, setTls] = useState(() => val("smtp.tls") || "starttls");
+  const [showPassword, setShowPassword] = useState(false);
+
+  function handleSave() {
+    const pairs: { key: SmtpKey; value: string }[] = [
+      { key: "smtp.host", value: host },
+      { key: "smtp.port", value: port },
+      { key: "smtp.username", value: username },
+      { key: "smtp.password", value: password },
+      { key: "smtp.from", value: from },
+      { key: "smtp.tls", value: tls },
+    ];
+    let remaining = pairs.length;
+    let hasError = false;
+    for (const { key, value } of pairs) {
+      setEntry.mutate(
+        { key, value },
+        {
+          onSuccess: () => {
+            remaining -= 1;
+            if (remaining === 0 && !hasError) toast.success("SMTP settings saved");
+          },
+          onError: () => {
+            hasError = true;
+            toast.error(`Failed to save ${key}`);
+          },
+        }
+      );
+    }
+  }
+
+  const labelClass = "text-sm font-medium" as const;
+  const fieldStyle = { color: "var(--text)" } as const;
+
+  return (
+    <div
+      className="rounded-[var(--radius-lg)] p-5"
+      style={{ border: "1px solid var(--border)", backgroundColor: "var(--surface)" }}
+    >
+      <h2 className="text-base font-semibold mb-1" style={{ color: "var(--text)" }}>
+        Email / SMTP
+      </h2>
+      <p className="text-sm mb-4" style={{ color: "var(--text-muted)" }}>
+        Configure outgoing email for notifications and invitations.
+      </p>
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
+        <div className="flex flex-col gap-1">
+          <label className={labelClass} style={fieldStyle}>SMTP Host</label>
+          <input
+            className="px-3 py-1.5 rounded text-sm w-full"
+            style={inputStyle}
+            placeholder="smtp.example.com"
+            value={host}
+            onChange={(e) => setHost(e.target.value)}
+          />
+        </div>
+
+        <div className="flex flex-col gap-1">
+          <label className={labelClass} style={fieldStyle}>Port</label>
+          <input
+            className="px-3 py-1.5 rounded text-sm w-full"
+            style={inputStyle}
+            type="number"
+            placeholder="587"
+            value={port}
+            onChange={(e) => setPort(e.target.value)}
+          />
+        </div>
+
+        <div className="flex flex-col gap-1">
+          <label className={labelClass} style={fieldStyle}>Username</label>
+          <input
+            className="px-3 py-1.5 rounded text-sm w-full"
+            style={inputStyle}
+            placeholder="user@example.com"
+            value={username}
+            onChange={(e) => setUsername(e.target.value)}
+          />
+        </div>
+
+        <div className="flex flex-col gap-1">
+          <label className={labelClass} style={fieldStyle}>Password</label>
+          <div className="flex gap-2">
+            <input
+              className="px-3 py-1.5 rounded text-sm flex-1"
+              style={inputStyle}
+              type={showPassword ? "text" : "password"}
+              placeholder="••••••••"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+            />
+            <button
+              type="button"
+              onClick={() => setShowPassword((v) => !v)}
+              className="px-2 rounded text-xs"
+              style={{ border: "1px solid var(--border)", backgroundColor: "var(--surface-raised)", color: "var(--text-muted)" }}
+            >
+              {showPassword ? "Hide" : "Show"}
+            </button>
+          </div>
+        </div>
+
+        <div className="flex flex-col gap-1">
+          <label className={labelClass} style={fieldStyle}>From Address</label>
+          <input
+            className="px-3 py-1.5 rounded text-sm w-full"
+            style={inputStyle}
+            placeholder="Evey <noreply@example.com>"
+            value={from}
+            onChange={(e) => setFrom(e.target.value)}
+          />
+        </div>
+
+        <div className="flex flex-col gap-1">
+          <label className={labelClass} style={fieldStyle}>TLS Mode</label>
+          <select
+            className="px-3 py-1.5 rounded text-sm w-full"
+            style={inputStyle}
+            value={tls}
+            onChange={(e) => setTls(e.target.value)}
+          >
+            {TLS_OPTIONS.map((opt) => (
+              <option key={opt.value} value={opt.value}>{opt.label}</option>
+            ))}
+          </select>
+        </div>
+      </div>
+
+      <Button onClick={handleSave} loading={setEntry.isPending}>
+        Save SMTP Settings
+      </Button>
+    </div>
+  );
+}
+
 function ServerConfigPage() {
   const { data: entries, isLoading } = useServerConfig();
 
@@ -239,6 +402,8 @@ function ServerConfigPage() {
       </div>
 
       <LocaleSettingsCard entries={entries} />
+
+      <SmtpSettingsCard entries={entries} />
 
       {isLoading ? (
         <div className="flex justify-center py-16"><Spinner size="lg" /></div>
