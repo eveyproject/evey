@@ -66,13 +66,10 @@ func (r *PhotoRepository) Delete(ctx context.Context, id string) error {
 }
 
 func (r *PhotoRepository) ListByLibrary(ctx context.Context, libraryID string, limit, offset int) ([]photo.Photo, int, error) {
-	var total int
-	if err := r.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM photos WHERE library_id = $1`, libraryID).Scan(&total); err != nil {
-		return nil, 0, err
-	}
 	rows, err := r.db.QueryContext(ctx, `
 		SELECT id, library_id, title, file_path, file_size, mime_type, width, height,
-		       taken_at, latitude, longitude, camera_model, album, created_at, updated_at
+		       taken_at, latitude, longitude, camera_model, album, created_at, updated_at,
+		       COUNT(*) OVER() AS total
 		FROM photos WHERE library_id = $1
 		ORDER BY taken_at DESC NULLS LAST, created_at DESC
 		LIMIT $2 OFFSET $3`, libraryID, limit, offset,
@@ -81,18 +78,14 @@ func (r *PhotoRepository) ListByLibrary(ctx context.Context, libraryID string, l
 		return nil, 0, err
 	}
 	defer rows.Close()
-	photos, err := scanPhotos(rows)
-	return photos, total, err
+	return scanPhotosWithTotal(rows)
 }
 
 func (r *PhotoRepository) ListByAlbum(ctx context.Context, libraryID, album string, limit, offset int) ([]photo.Photo, int, error) {
-	var total int
-	if err := r.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM photos WHERE library_id = $1 AND album = $2`, libraryID, album).Scan(&total); err != nil {
-		return nil, 0, err
-	}
 	rows, err := r.db.QueryContext(ctx, `
 		SELECT id, library_id, title, file_path, file_size, mime_type, width, height,
-		       taken_at, latitude, longitude, camera_model, album, created_at, updated_at
+		       taken_at, latitude, longitude, camera_model, album, created_at, updated_at,
+		       COUNT(*) OVER() AS total
 		FROM photos WHERE library_id = $1 AND album = $2
 		ORDER BY taken_at DESC NULLS LAST, created_at DESC
 		LIMIT $3 OFFSET $4`, libraryID, album, limit, offset,
@@ -101,8 +94,7 @@ func (r *PhotoRepository) ListByAlbum(ctx context.Context, libraryID, album stri
 		return nil, 0, err
 	}
 	defer rows.Close()
-	photos, err := scanPhotos(rows)
-	return photos, total, err
+	return scanPhotosWithTotal(rows)
 }
 
 func (r *PhotoRepository) GetAlbums(ctx context.Context, libraryID string) ([]photo.Album, error) {
@@ -131,7 +123,7 @@ func (r *PhotoRepository) Search(ctx context.Context, libraryID, query string, l
 	rows, err := r.db.QueryContext(ctx, `
 		SELECT id, library_id, title, file_path, file_size, mime_type, width, height,
 		       taken_at, latitude, longitude, camera_model, album, created_at, updated_at
-		FROM photos WHERE library_id = $1 AND (title ILIKE $2 OR album ILIKE $2)
+		FROM photos WHERE library_id = $1 AND (lower(title) LIKE lower($2) OR lower(album) LIKE lower($2))
 		ORDER BY taken_at DESC NULLS LAST
 		LIMIT $3`, libraryID, pattern, limit,
 	)
@@ -162,4 +154,22 @@ func scanPhotos(rows *sql.Rows) ([]photo.Photo, error) {
 		photos = append(photos, p)
 	}
 	return photos, rows.Err()
+}
+
+func scanPhotosWithTotal(rows *sql.Rows) ([]photo.Photo, int, error) {
+	var photos []photo.Photo
+	var total int
+	for rows.Next() {
+		var p photo.Photo
+		if err := rows.Scan(
+			&p.ID, &p.LibraryID, &p.Title, &p.FilePath, &p.FileSize, &p.MimeType,
+			&p.Width, &p.Height, &p.TakenAt, &p.Latitude, &p.Longitude,
+			&p.CameraModel, &p.Album, &p.CreatedAt, &p.UpdatedAt,
+			&total,
+		); err != nil {
+			return nil, 0, err
+		}
+		photos = append(photos, p)
+	}
+	return photos, total, rows.Err()
 }
