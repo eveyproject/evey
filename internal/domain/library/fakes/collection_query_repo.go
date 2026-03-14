@@ -15,6 +15,7 @@ type FakeCollectionQueryRepo struct {
 	collections map[string]*library.Collection
 	items       map[string][]string
 	mediaItems  *FakeMediaItemRepository
+	Err         error
 }
 
 func NewFakeCollectionQueryRepo(cmdRepo *FakeCollectionCommandRepo, mediaItems *FakeMediaItemRepository) *FakeCollectionQueryRepo {
@@ -26,6 +27,9 @@ func NewFakeCollectionQueryRepo(cmdRepo *FakeCollectionCommandRepo, mediaItems *
 }
 
 func (r *FakeCollectionQueryRepo) GetByID(_ context.Context, id string) (*library.Collection, error) {
+	if r.Err != nil {
+		return nil, r.Err
+	}
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 	col, ok := r.collections[id]
@@ -36,6 +40,9 @@ func (r *FakeCollectionQueryRepo) GetByID(_ context.Context, id string) (*librar
 }
 
 func (r *FakeCollectionQueryRepo) List(_ context.Context) ([]*library.Collection, error) {
+	if r.Err != nil {
+		return nil, r.Err
+	}
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 	result := make([]*library.Collection, 0, len(r.collections))
@@ -46,6 +53,9 @@ func (r *FakeCollectionQueryRepo) List(_ context.Context) ([]*library.Collection
 }
 
 func (r *FakeCollectionQueryRepo) GetManualItems(_ context.Context, collectionID string, limit, offset int) ([]*library.MediaItem, error) {
+	if r.Err != nil {
+		return nil, r.Err
+	}
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 	ids := r.items[collectionID]
@@ -67,12 +77,18 @@ func (r *FakeCollectionQueryRepo) GetManualItems(_ context.Context, collectionID
 }
 
 func (r *FakeCollectionQueryRepo) CountManualItems(_ context.Context, collectionID string) (int, error) {
+	if r.Err != nil {
+		return 0, r.Err
+	}
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 	return len(r.items[collectionID]), nil
 }
 
 func (r *FakeCollectionQueryRepo) GetSmartItems(_ context.Context, col *library.Collection, limit, offset int) ([]*library.MediaItem, error) {
+	if r.Err != nil {
+		return nil, r.Err
+	}
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 	var result []*library.MediaItem
@@ -93,6 +109,9 @@ func (r *FakeCollectionQueryRepo) GetSmartItems(_ context.Context, col *library.
 }
 
 func (r *FakeCollectionQueryRepo) CountSmartItems(_ context.Context, col *library.Collection) (int, error) {
+	if r.Err != nil {
+		return 0, r.Err
+	}
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 	count := 0

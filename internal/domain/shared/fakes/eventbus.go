@@ -9,10 +9,11 @@ import (
 )
 
 type FakeEventBus struct {
-	mu       sync.RWMutex
-	events   []shared.Event
-	handlers map[string][]subEntry
-	nextID   int
+	mu         sync.RWMutex
+	events     []shared.Event
+	handlers   map[string][]subEntry
+	nextID     int
+	PublishErr error
 }
 
 type subEntry struct {
@@ -27,6 +28,9 @@ func NewFakeEventBus() *FakeEventBus {
 }
 
 func (b *FakeEventBus) Publish(ctx context.Context, event shared.Event) error {
+	if b.PublishErr != nil {
+		return b.PublishErr
+	}
 	b.mu.Lock()
 	b.events = append(b.events, event)
 	var entries []subEntry

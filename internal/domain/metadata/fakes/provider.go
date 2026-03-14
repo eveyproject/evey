@@ -18,6 +18,7 @@ type FakeMetadataProvider struct {
 	ByProviderID    map[string]*metadata.MetadataResult
 	EpisodeDetails  map[string]*metadata.MetadataResult // key: "seriesID:season:episode"
 	ExternalLookups map[string]*metadata.MetadataResult // key: "provider:id"
+	Err             error
 }
 
 func NewFakeMetadataProvider(name string) *FakeMetadataProvider {
@@ -33,12 +34,18 @@ func NewFakeMetadataProvider(name string) *FakeMetadataProvider {
 func (p *FakeMetadataProvider) Name() string { return p.ProviderName }
 
 func (p *FakeMetadataProvider) Search(_ context.Context, query string, _ *int, _ string) ([]metadata.MetadataResult, error) {
+	if p.Err != nil {
+		return nil, p.Err
+	}
 	p.mu.RLock()
 	defer p.mu.RUnlock()
 	return p.SearchResults[query], nil
 }
 
 func (p *FakeMetadataProvider) GetByProviderID(_ context.Context, providerID string, _ string) (*metadata.MetadataResult, error) {
+	if p.Err != nil {
+		return nil, p.Err
+	}
 	p.mu.RLock()
 	defer p.mu.RUnlock()
 	r, ok := p.ByProviderID[providerID]
@@ -49,6 +56,9 @@ func (p *FakeMetadataProvider) GetByProviderID(_ context.Context, providerID str
 }
 
 func (p *FakeMetadataProvider) GetEpisodeDetails(_ context.Context, seriesID string, seasonNum, episodeNum int) (*metadata.MetadataResult, error) {
+	if p.Err != nil {
+		return nil, p.Err
+	}
 	p.mu.RLock()
 	defer p.mu.RUnlock()
 	key := seriesID + ":" + itoa(seasonNum) + ":" + itoa(episodeNum)
@@ -60,6 +70,9 @@ func (p *FakeMetadataProvider) GetEpisodeDetails(_ context.Context, seriesID str
 }
 
 func (p *FakeMetadataProvider) LookupByExternalID(_ context.Context, providerName, externalID string) (*metadata.MetadataResult, error) {
+	if p.Err != nil {
+		return nil, p.Err
+	}
 	p.mu.RLock()
 	defer p.mu.RUnlock()
 	key := providerName + ":" + externalID

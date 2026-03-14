@@ -12,6 +12,7 @@ type FakeFileWatcher struct {
 	events   chan library.FileEvent
 	errors   chan error
 	closed   bool
+	WatchErr error
 }
 
 func NewFakeFileWatcher() *FakeFileWatcher {
@@ -23,6 +24,9 @@ func NewFakeFileWatcher() *FakeFileWatcher {
 }
 
 func (w *FakeFileWatcher) Watch(path string) error {
+	if w.WatchErr != nil {
+		return w.WatchErr
+	}
 	w.mu.Lock()
 	defer w.mu.Unlock()
 	w.watched[path] = true
