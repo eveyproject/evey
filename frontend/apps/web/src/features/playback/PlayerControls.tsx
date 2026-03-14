@@ -26,17 +26,14 @@ interface EpisodesPanelProps {
   currentEpisodeId: string;
   onSeasonChange: (id: string) => void;
   onEpisodeChange: (id: string) => void;
-  onOpenChange: (open: boolean) => void;
+  open: boolean;
+  onToggle: () => void;
 }
 
-function EpisodesPanel({ seasons, currentSeasonId, episodes, currentEpisodeId, onSeasonChange, onEpisodeChange, onOpenChange }: EpisodesPanelProps) {
-  const [open, setOpen] = useState(false);
-
+function EpisodesPanel({ seasons, currentSeasonId, episodes, currentEpisodeId, onSeasonChange, onEpisodeChange, open, onToggle }: EpisodesPanelProps) {
   function toggle(e: React.MouseEvent) {
     e.stopPropagation();
-    const next = !open;
-    setOpen(next);
-    onOpenChange(next);
+    onToggle();
   }
 
   return (
@@ -68,7 +65,7 @@ function EpisodesPanel({ seasons, currentSeasonId, episodes, currentEpisodeId, o
             {episodes.map((ep) => (
               <button
                 key={ep.id}
-                onClick={() => { onEpisodeChange(ep.id); setOpen(false); onOpenChange(false); }}
+                onClick={() => { onEpisodeChange(ep.id); onToggle(); }}
                 className="flex items-center gap-2 w-full px-4 py-2 text-sm hover:bg-[var(--surface-raised)] transition-colors text-left"
                 style={{ color: ep.id === currentEpisodeId ? "var(--accent)" : "var(--text)" }}
               >
@@ -94,17 +91,14 @@ interface ChaptersPanelProps {
   chapters: Chapter[];
   currentTimeSec: number;
   onSeek: (timeSec: number) => void;
-  onOpenChange: (open: boolean) => void;
+  open: boolean;
+  onToggle: () => void;
 }
 
-function ChaptersPanel({ chapters, currentTimeSec, onSeek, onOpenChange }: ChaptersPanelProps) {
-  const [open, setOpen] = useState(false);
-
+function ChaptersPanel({ chapters, currentTimeSec, onSeek, open, onToggle }: ChaptersPanelProps) {
   function toggle(e: React.MouseEvent) {
     e.stopPropagation();
-    const next = !open;
-    setOpen(next);
-    onOpenChange(next);
+    onToggle();
   }
 
   const currentMs = currentTimeSec * 1000;
@@ -132,7 +126,7 @@ function ChaptersPanel({ chapters, currentTimeSec, onSeek, onOpenChange }: Chapt
               return (
                 <button
                   key={i}
-                  onClick={() => { onSeek(startSec); setOpen(false); onOpenChange(false); }}
+                  onClick={() => { onSeek(startSec); onToggle(); }}
                   className="flex items-center gap-2 w-full px-4 py-2 text-sm hover:bg-[var(--surface-raised)] transition-colors text-left"
                   style={{ color: isActive ? "var(--accent)" : "var(--text)" }}
                 >
@@ -190,6 +184,8 @@ interface PlayerControlsProps {
   onSubtitleStyleChange?: (patch: Partial<SubtitleStyle>) => void;
   theaterMode?: boolean;
   onTheaterModeToggle?: () => void;
+  onPanelOpenChange?: (anyOpen: boolean) => void;
+  closePanelRef?: React.MutableRefObject<(() => void) | null>;
 }
 
 function formatTime(seconds: number): string {
@@ -211,7 +207,8 @@ interface SettingsPanelProps {
   onSubtitleChange: (trackIndex: number | null) => void;
   playbackSpeed?: number;
   onSpeedChange?: (speed: number) => void;
-  onOpenChange: (open: boolean) => void;
+  open: boolean;
+  onToggle: () => void;
   autoQuality?: boolean;
   onAutoQualityToggle?: (auto: boolean) => void;
   autoQualityLabel?: string;
@@ -274,7 +271,8 @@ function SettingsPanel({
   onSubtitleChange,
   playbackSpeed = 1,
   onSpeedChange,
-  onOpenChange,
+  open,
+  onToggle,
   autoQuality,
   onAutoQualityToggle,
   autoQualityLabel,
@@ -290,19 +288,15 @@ function SettingsPanel({
   const subtitlePosition = subtitleStyle?.position ?? "bottom";
   const subtitleShadow = subtitleStyle?.shadow ?? false;
   const extSubInputRef = useRef<HTMLInputElement>(null);
-  const [open, setOpen] = useState(false);
 
   function toggle(e: React.MouseEvent) {
     e.stopPropagation();
-    const next = !open;
-    setOpen(next);
-    onOpenChange(next);
+    onToggle();
   }
 
   function select(fn: () => void) {
     fn();
-    setOpen(false);
-    onOpenChange(false);
+    if (open) onToggle();
   }
 
   return (
@@ -319,7 +313,7 @@ function SettingsPanel({
 
       {open && (
         <div
-          className="absolute bottom-full mb-2 right-0 w-56 rounded-[var(--radius-md)] shadow-xl overflow-hidden z-20"
+          className="absolute bottom-full mb-2 right-0 w-56 rounded-[var(--radius-md)] shadow-xl overflow-y-auto z-20 max-h-[80vh]"
           style={{ backgroundColor: "var(--surface)", border: "1px solid var(--border)" }}
           onClick={(e) => e.stopPropagation()}
         >
@@ -587,8 +581,7 @@ function SettingsPanel({
                   const name = file.name;
                   void loadSubtitleFile(file).then((url) => {
                     onExternalSubtitle(url, name);
-                    setOpen(false);
-                    onOpenChange(false);
+                    if (open) onToggle();
                   });
                   e.target.value = "";
                 }}
@@ -671,6 +664,8 @@ export function PlayerControls({
   onSubtitleStyleChange,
   theaterMode = false,
   onTheaterModeToggle,
+  onPanelOpenChange,
+  closePanelRef,
 }: PlayerControlsProps) {
   const [visible, setVisible] = useState(true);
   const [playing, setPlaying] = useState(false);
@@ -679,9 +674,19 @@ export function PlayerControls({
   const [bufferedEnd, setBufferedEnd] = useState(0);
   const [volume, setVolume] = useState(1);
   const [fullscreen, setFullscreen] = useState(false);
-  const [settingsOpen, setSettingsOpen] = useState(false);
-  const [episodesOpen, setEpisodesOpen] = useState(false);
-  const [chaptersOpen, setChaptersOpen] = useState(false);
+  const [openPanel, setOpenPanel] = useState<"settings" | "episodes" | "chapters" | null>(null);
+  const settingsOpen = openPanel === "settings";
+  const episodesOpen = openPanel === "episodes";
+  const chaptersOpen = openPanel === "chapters";
+
+  useEffect(() => {
+    onPanelOpenChange?.(openPanel !== null);
+  }, [openPanel, onPanelOpenChange]);
+
+  useEffect(() => {
+    if (closePanelRef) closePanelRef.current = () => setOpenPanel(null);
+    return () => { if (closePanelRef) closePanelRef.current = null; };
+  }, [closePanelRef]);
   const [isPip, setIsPip] = useState(false);
   const [seekHoverPos, setSeekHoverPos] = useState<number | null>(null);
   const [seekHoverX, setSeekHoverX] = useState(0);
@@ -1081,7 +1086,8 @@ export function PlayerControls({
               chapters={chapters}
               currentTimeSec={absoluteTime}
               onSeek={(t) => onSeekRequest ? onSeekRequest(t) : (videoRef.current && (videoRef.current.currentTime = t))}
-              onOpenChange={setChaptersOpen}
+              open={chaptersOpen}
+              onToggle={() => setOpenPanel(chaptersOpen ? null : "chapters")}
             />
           )}
 
@@ -1094,7 +1100,8 @@ export function PlayerControls({
               currentEpisodeId={currentEpisodeId}
               onSeasonChange={onSeasonChange ?? (() => {})}
               onEpisodeChange={onEpisodeChange}
-              onOpenChange={setEpisodesOpen}
+              open={episodesOpen}
+              onToggle={() => setOpenPanel(episodesOpen ? null : "episodes")}
             />
           )}
 
@@ -1110,7 +1117,8 @@ export function PlayerControls({
             onSubtitleChange={onSubtitleChange}
             playbackSpeed={playbackSpeed}
             onSpeedChange={onSpeedChange}
-            onOpenChange={setSettingsOpen}
+            open={settingsOpen}
+            onToggle={() => setOpenPanel(settingsOpen ? null : "settings")}
             autoQuality={autoQuality}
             onAutoQualityToggle={onAutoQualityToggle}
             autoQualityLabel={autoQualityLabel}
