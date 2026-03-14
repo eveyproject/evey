@@ -62,7 +62,7 @@ test.describe("Person Page", () => {
     }
 
     // Wait for filmography data to load
-    await page.waitForTimeout(3_000);
+    await page.waitForLoadState("networkidle");
 
     // "N title(s)" text
     const titleCount = page.locator("text=/\\d+ titles?/");
@@ -76,7 +76,7 @@ test.describe("Person Page", () => {
       return;
     }
 
-    await page.waitForTimeout(3_000);
+    await page.waitForLoadState("networkidle");
 
     // Either filmography sections, "No filmography found", or spinner
     const sections = page.locator("section");
@@ -94,7 +94,7 @@ test.describe("Person Page", () => {
       return;
     }
 
-    await page.waitForTimeout(3_000);
+    await page.waitForLoadState("networkidle");
 
     const sections = page.locator("section");
     const sectionCount = await sections.count();

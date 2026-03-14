@@ -39,7 +39,7 @@ test.describe("Smoke tests", () => {
     page.on("pageerror", (err) => errors.push(err.message));
 
     await page.goto("/home", { waitUntil: "networkidle" });
-    await page.waitForTimeout(2_000);
+    await page.locator('[data-testid="home-page"]').waitFor({ timeout: 10_000 }).catch(() => {});
 
     expect(errors).toHaveLength(0);
   });

@@ -65,7 +65,10 @@ test.describe("Settings / Profile", () => {
     // Click "Light" theme
     const lightBtn = page.getByRole("button", { name: "Light", exact: true });
     await lightBtn.click();
-    await page.waitForTimeout(500);
+    // Wait for theme CSS var to update
+    await page.waitForFunction(
+      () => getComputedStyle(document.documentElement).getPropertyValue("--bg").trim() !== "",
+    ).catch(() => {});
 
     const bgAfter = await page.evaluate(() =>
       getComputedStyle(document.documentElement).getPropertyValue("--bg").trim(),

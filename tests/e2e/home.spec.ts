@@ -15,7 +15,7 @@ test.describe("Home page", () => {
     const visible = await hero.isVisible().catch(() => false);
     if (!visible) {
       // hero may not render if no recently added items with mediaItemId
-      await page.waitForTimeout(3_000);
+      await hero.waitFor({ state: "visible", timeout: 5_000 }).catch(() => {});
       const stillVisible = await hero.isVisible().catch(() => false);
       test.skip(!stillVisible, "no hero banner content available");
     }
@@ -72,7 +72,7 @@ test.describe("Home page", () => {
 
   test("hero banner has Play and More Info buttons", async ({ page }) => {
     const hero = page.locator('[data-testid="hero-banner"]');
-    await page.waitForTimeout(3_000);
+    await hero.waitFor({ state: "visible", timeout: 10_000 }).catch(() => {});
     const visible = await hero.isVisible().catch(() => false);
     test.skip(!visible, "no hero banner content");
 

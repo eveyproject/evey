@@ -123,8 +123,8 @@ test.describe("Favorites", () => {
       page.locator("h1", { hasText: "Favorites" }),
     ).toBeVisible({ timeout: 10_000 });
 
-    // Wait for content to settle
-    await page.waitForTimeout(2_000);
+    // Wait for content to load
+    await page.locator("text=No favorites yet").or(page.locator('[data-testid="media-card"]').first()).waitFor({ timeout: 10_000 }).catch(() => {});
 
     // Either "No favorites yet" empty state or no card linking to our movie
     const emptyState = page.locator("text=No favorites yet");

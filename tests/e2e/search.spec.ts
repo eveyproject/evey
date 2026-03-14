@@ -121,7 +121,7 @@ test.describe("Search page", () => {
     await expect(seriesBtn).toBeVisible();
 
     await moviesBtn.click();
-    await page.waitForTimeout(500);
+    await page.waitForResponse((res) => res.url().includes("/api/v1/media") && res.status() === 200).catch(() => {});
     // Filter should be active (styled differently)
     const moviesBg = await moviesBtn.evaluate(
       (el) => getComputedStyle(el).backgroundColor,

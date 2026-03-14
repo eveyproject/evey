@@ -46,7 +46,6 @@ test.describe("Notifications", () => {
 
     // Click on page body (outside dropdown)
     await page.locator("header").click({ position: { x: 10, y: 10 } });
-    await page.waitForTimeout(500);
 
     // Dropdown should be gone — "View all notifications" link is inside
     const viewAll = page.getByText("View all notifications");

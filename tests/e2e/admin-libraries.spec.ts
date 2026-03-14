@@ -41,8 +41,6 @@ test.describe("Admin libraries", () => {
       page.locator('[data-testid="libraries-page"]'),
     ).toBeVisible({ timeout: 10_000 });
 
-    await page.waitForTimeout(2_000);
-
     const scanBtn = page.locator("button", { hasText: /^Scan$/ }).first();
     await expect(scanBtn).toBeVisible({ timeout: 10_000 });
 
@@ -125,7 +123,7 @@ test.describe("Library access restriction", () => {
     ).toBeVisible({ timeout: 10_000 });
 
     // Wait for the modal content to load (checkboxes)
-    await page.waitForTimeout(3_000);
+    await page.locator('input[type="checkbox"]').first().waitFor({ timeout: 10_000 }).catch(() => {});
 
     // The modal has library checkboxes — look inside the modal dialog
     const checkboxes = page.locator('input[type="checkbox"]');
@@ -145,10 +143,10 @@ test.describe("Library access restriction", () => {
     await expect(page.locator("text=Library access updated")).toBeVisible({ timeout: 10_000 });
 
     // Re-open modal and verify restriction persisted
-    await page.waitForTimeout(1_000);
+    await page.waitForResponse((res) => res.url().includes("/api/v1/library-access") && res.status() === 200).catch(() => {});
     await libBtn.click();
     await expect(page.locator("text=Library Access")).toBeVisible({ timeout: 10_000 });
-    await page.waitForTimeout(2_000);
+    await page.locator('input[type="checkbox"]').first().waitFor({ timeout: 10_000 }).catch(() => {});
 
     await expect(
       page.locator("text=/can only access \\d+ selected/"),
@@ -168,7 +166,7 @@ test.describe("Library access restriction", () => {
     await libBtn.click();
 
     await expect(page.locator("text=Library Access")).toBeVisible({ timeout: 10_000 });
-    await page.waitForTimeout(2_000);
+    await page.locator('input[type="checkbox"]').first().waitFor({ timeout: 10_000 }).catch(() => {});
 
     // Clear all
     const clearBtn = page.locator("button", { hasText: "Clear all" });

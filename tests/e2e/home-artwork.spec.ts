@@ -3,7 +3,7 @@ import { test, expect } from "./fixtures/auth";
 test.describe("Home page & artwork", () => {
   test("library sliders only show series and movies, not episodes", async ({ page }) => {
     await page.goto("/home", { waitUntil: "networkidle" });
-    await page.waitForTimeout(2_000);
+    await page.locator('[data-testid="media-slider"]').first().waitFor({ timeout: 10_000 }).catch(() => {});
 
     // All media cards should link to /media/{id}, not show episode-style titles
     // Check that no card links to an episode (episodes would be under a season)
@@ -19,7 +19,7 @@ test.describe("Home page & artwork", () => {
 
   test("hero banner has backdrop image", async ({ page }) => {
     await page.goto("/home", { waitUntil: "networkidle" });
-    await page.waitForTimeout(2_000);
+    await page.locator('[data-testid="hero-banner"]').waitFor({ timeout: 10_000 }).catch(() => {});
 
     // Hero banner should have a visible backdrop image
     const hero = page.locator(".animate-ken-burns");
@@ -32,13 +32,13 @@ test.describe("Home page & artwork", () => {
 
   test("media detail edit mode shows artwork picker", async ({ page }) => {
     await page.goto("/home", { waitUntil: "networkidle" });
-    await page.waitForTimeout(1_000);
+    await page.locator('a[href^="/media/"]').first().waitFor({ timeout: 10_000 });
 
     // Click first media card to go to detail
     const firstCard = page.locator('a[href^="/media/"]').first();
     await firstCard.click();
     await page.waitForURL(/\/media\//, { timeout: 10_000 });
-    await page.waitForTimeout(1_000);
+    await page.waitForLoadState("networkidle");
 
     // Click edit button
     const editBtn = page.locator('button[title="Edit metadata"]');
