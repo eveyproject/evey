@@ -8,7 +8,6 @@ import (
 type LoginHistoryRepository interface {
 	Create(ctx context.Context, entry *LoginEntry) error
 	GetByUserID(ctx context.Context, userID string, limit, offset int) ([]*LoginEntry, error)
-	CountFailedSince(ctx context.Context, userID string, since time.Time) (int, error)
 }
 
 type ServerMetricRepository interface {

@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"sync"
-	"time"
 
 	"github.com/gravity-zero/evey/internal/domain/activity"
 )
@@ -60,20 +59,3 @@ func (r *FakeLoginHistoryRepository) GetByUserID(_ context.Context, userID strin
 	return result, nil
 }
 
-func (r *FakeLoginHistoryRepository) CountFailedSince(_ context.Context, userID string, since time.Time) (int, error) {
-	if r.Err != nil {
-		return 0, r.Err
-	}
-	r.mu.RLock()
-	defer r.mu.RUnlock()
-	if r.Err != nil {
-		return 0, r.Err
-	}
-	count := 0
-	for _, e := range r.items {
-		if e.UserID == userID && !e.Success && e.CreatedAt.After(since) {
-			count++
-		}
-	}
-	return count, nil
-}

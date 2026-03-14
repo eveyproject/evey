@@ -66,23 +66,6 @@ func (r *FakeUserRepository) GetByUsername(_ context.Context, username string) (
 	return nil, ErrNotFound
 }
 
-func (r *FakeUserRepository) GetByOIDCSubject(_ context.Context, issuer, subject string) (*user.User, error) {
-	if r.Err != nil {
-		return nil, r.Err
-	}
-	r.mu.RLock()
-	defer r.mu.RUnlock()
-	if r.Err != nil {
-		return nil, r.Err
-	}
-	for _, u := range r.items {
-		if u.OIDCSubject != nil && *u.OIDCSubject == subject && u.OIDCIssuer != nil && *u.OIDCIssuer == issuer {
-			return u, nil
-		}
-	}
-	return nil, ErrNotFound
-}
-
 func (r *FakeUserRepository) List(_ context.Context) ([]*user.User, error) {
 	if r.Err != nil {
 		return nil, r.Err
