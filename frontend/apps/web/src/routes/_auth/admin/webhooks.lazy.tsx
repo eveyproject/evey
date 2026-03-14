@@ -4,6 +4,8 @@ import { useQueryClient } from "@tanstack/react-query";
 import {
   useWebhookServiceListWebhooks,
   useWebhookServiceDeleteWebhook,
+  useWebhookServiceUpdateWebhook,
+  eveyFetch,
 } from "@evey/api";
 import { toast } from "@evey/store";
 import type { V1WebhookConfig } from "@evey/api/src/generated/webhook.schemas";
@@ -19,9 +21,16 @@ export const Route = createLazyFileRoute("/_auth/admin/webhooks")({
 
 const WEBHOOKS_QUERY_KEY = ["/api/v1/admin/webhooks"];
 
-function WebhookRow({ webhook }: { webhook: V1WebhookConfig }) {
+function WebhookRow({
+  webhook,
+  onEdit,
+}: {
+  webhook: V1WebhookConfig;
+  onEdit: (wh: V1WebhookConfig) => void;
+}) {
   const queryClient = useQueryClient();
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [testing, setTesting] = useState(false);
 
   const deleteWebhook = useWebhookServiceDeleteWebhook({
     mutation: {
@@ -33,38 +42,114 @@ function WebhookRow({ webhook }: { webhook: V1WebhookConfig }) {
     },
   });
 
+  const toggleEnabled = useWebhookServiceUpdateWebhook({
+    mutation: {
+      onSuccess: () => queryClient.invalidateQueries({ queryKey: WEBHOOKS_QUERY_KEY }),
+      onError: () => toast.error("Failed to update webhook"),
+    },
+  });
+
+  async function handleTest() {
+    if (!webhook.id) return;
+    setTesting(true);
+    try {
+      await eveyFetch<void>({
+        url: `/api/v1/admin/webhooks/${webhook.id}/test`,
+        method: "POST",
+      });
+      toast.success("Test ping sent");
+    } catch {
+      toast.error("Test ping failed");
+    } finally {
+      setTesting(false);
+    }
+  }
+
+  function handleToggleEnabled() {
+    if (!webhook.id) return;
+    toggleEnabled.mutate({
+      id: webhook.id,
+      data: {
+        name: webhook.name,
+        url: webhook.url,
+        events: webhook.events,
+        secret: webhook.secret,
+        enabled: !webhook.enabled,
+      },
+    });
+  }
+
+  const eventTags = webhook.events ?? [];
+
   return (
     <tr style={{ borderBottom: "1px solid var(--border)" }}>
-      <td className="px-4 py-3 max-w-xs truncate" style={{ color: "var(--text)" }}>
-        {webhook.url}
-      </td>
-      <td className="px-4 py-3 text-sm" style={{ color: "var(--text-muted)" }}>
-        {webhook.events?.join(", ") ?? "—"}
+      <td className="px-4 py-3 max-w-xs">
+        <div className="font-medium text-sm truncate" style={{ color: "var(--text)" }}>
+          {webhook.name || "—"}
+        </div>
+        <div className="text-xs truncate mt-0.5" style={{ color: "var(--text-muted)" }}>
+          {webhook.url}
+        </div>
       </td>
       <td className="px-4 py-3">
-        {webhook.enabled ? (
-          <Badge variant="success">Enabled</Badge>
-        ) : (
-          <Badge variant="error">Disabled</Badge>
-        )}
+        <div className="flex flex-wrap gap-1">
+          {eventTags.map((evt) => (
+            <span
+              key={evt}
+              className="text-xs px-1.5 py-0.5 rounded font-mono"
+              style={{ backgroundColor: "var(--surface-raised)", color: "var(--text-muted)" }}
+            >
+              {evt}
+            </span>
+          ))}
+        </div>
       </td>
-      <td className="px-4 py-3 whitespace-nowrap" style={{ color: "var(--text-muted)" }}>
+      <td className="px-4 py-3">
+        <button
+          type="button"
+          onClick={handleToggleEnabled}
+          disabled={toggleEnabled.isPending}
+          title={webhook.enabled ? "Click to disable" : "Click to enable"}
+          className="cursor-pointer"
+        >
+          {webhook.enabled ? (
+            <Badge variant="success">Enabled</Badge>
+          ) : (
+            <Badge variant="error">Disabled</Badge>
+          )}
+        </button>
+      </td>
+      <td className="px-4 py-3 whitespace-nowrap text-sm" style={{ color: "var(--text-muted)" }}>
         {webhook.createdAt ? new Date(webhook.createdAt).toLocaleString() : "—"}
       </td>
       <td className="px-4 py-3">
-        <Button
-          variant="danger"
-          loading={deleteWebhook.isPending}
-          onClick={() => setShowDeleteConfirm(true)}
+        <div className="flex gap-2 flex-wrap">
+          <Button variant="secondary" loading={testing} onClick={handleTest}>
+            Test
+          </Button>
+          <Button variant="secondary" onClick={() => onEdit(webhook)}>
+            Edit
+          </Button>
+          <Button
+            variant="danger"
+            loading={deleteWebhook.isPending}
+            onClick={() => setShowDeleteConfirm(true)}
+          >
+            Delete
+          </Button>
+        </div>
+        <Modal
+          open={showDeleteConfirm}
+          onClose={() => setShowDeleteConfirm(false)}
+          title="Delete Webhook"
         >
-          Delete
-        </Button>
-        <Modal open={showDeleteConfirm} onClose={() => setShowDeleteConfirm(false)} title="Delete Webhook">
-          <p className="text-sm text-[var(--text-muted)] mb-4">
-            Delete this webhook? This cannot be undone.
+          <p className="text-sm mb-4" style={{ color: "var(--text-muted)" }}>
+            Delete <strong style={{ color: "var(--text)" }}>{webhook.name || webhook.url}</strong>? This cannot be undone.
           </p>
           <div className="flex justify-end gap-2">
-            <Button variant="ghost" onClick={() => setShowDeleteConfirm(false)}>Cancel</Button>
+            <Button variant="ghost" onClick={() => setShowDeleteConfirm(false)}>
+              Cancel
+            </Button>
             <Button
               variant="danger"
               loading={deleteWebhook.isPending}
@@ -83,15 +168,17 @@ function WebhookRow({ webhook }: { webhook: V1WebhookConfig }) {
 }
 
 function WebhooksPage() {
-  const [showModal, setShowModal] = useState(false);
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [editTarget, setEditTarget] = useState<V1WebhookConfig | null>(null);
   const queryClient = useQueryClient();
   const { data, isLoading } = useWebhookServiceListWebhooks();
   const webhooks = data?.webhooks ?? [];
 
-  function handleCreateSuccess() {
+  function handleMutationSuccess() {
     queryClient.invalidateQueries({ queryKey: WEBHOOKS_QUERY_KEY });
-    setShowModal(false);
-    toast.success("Webhook created");
+    setShowCreateModal(false);
+    setEditTarget(null);
+    toast.success(editTarget ? "Webhook updated" : "Webhook created");
   }
 
   return (
@@ -100,7 +187,7 @@ function WebhooksPage() {
         <h2 className="text-xl font-semibold" style={{ color: "var(--text)" }}>
           Webhooks
         </h2>
-        <Button onClick={() => setShowModal(true)}>Create Webhook</Button>
+        <Button onClick={() => setShowCreateModal(true)}>Create Webhook</Button>
       </div>
 
       {isLoading ? (
@@ -114,8 +201,13 @@ function WebhooksPage() {
         >
           <table className="w-full text-sm">
             <thead>
-              <tr style={{ backgroundColor: "var(--surface)", borderBottom: "1px solid var(--border)" }}>
-                {["URL", "Events", "Status", "Created", "Actions"].map((h) => (
+              <tr
+                style={{
+                  backgroundColor: "var(--surface)",
+                  borderBottom: "1px solid var(--border)",
+                }}
+              >
+                {["Name / URL", "Events", "Status", "Created", "Actions"].map((h) => (
                   <th
                     key={h}
                     className="px-4 py-2 text-left font-medium"
@@ -138,15 +230,31 @@ function WebhooksPage() {
                   </td>
                 </tr>
               ) : (
-                webhooks.map((wh) => <WebhookRow key={wh.id} webhook={wh} />)
+                webhooks.map((wh) => (
+                  <WebhookRow key={wh.id} webhook={wh} onEdit={setEditTarget} />
+                ))
               )}
             </tbody>
           </table>
         </div>
       )}
 
-      <Modal open={showModal} onClose={() => setShowModal(false)} title="Create Webhook">
-        <WebhookForm onSuccess={handleCreateSuccess} />
+      <Modal
+        open={showCreateModal}
+        onClose={() => setShowCreateModal(false)}
+        title="Create Webhook"
+      >
+        <WebhookForm onSuccess={handleMutationSuccess} />
+      </Modal>
+
+      <Modal
+        open={!!editTarget}
+        onClose={() => setEditTarget(null)}
+        title="Edit Webhook"
+      >
+        {editTarget && (
+          <WebhookForm existing={editTarget} onSuccess={handleMutationSuccess} />
+        )}
       </Modal>
     </div>
   );

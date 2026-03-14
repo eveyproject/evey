@@ -16,6 +16,11 @@ var (
 		Help: "Current number of active HLS transcode sessions.",
 	})
 
+	TranscodesActive = prometheus.NewGauge(prometheus.GaugeOpts{
+		Name: "evey_transcodes_active",
+		Help: "Current number of active background transcode jobs.",
+	})
+
 	HTTPRequestsTotal = prometheus.NewCounterVec(prometheus.CounterOpts{
 		Name: "evey_http_requests_total",
 		Help: "Total number of HTTP requests.",
@@ -26,10 +31,35 @@ var (
 		Help:    "HTTP request duration in seconds.",
 		Buckets: prometheus.DefBuckets,
 	}, []string{"method", "path"})
+
+	DBConnectionsOpen = prometheus.NewGauge(prometheus.GaugeOpts{
+		Name: "evey_db_connections_open",
+		Help: "Number of open DB connections.",
+	})
+
+	DBConnectionsIdle = prometheus.NewGauge(prometheus.GaugeOpts{
+		Name: "evey_db_connections_idle",
+		Help: "Number of idle DB connections.",
+	})
+
+	DBConnectionsInUse = prometheus.NewGauge(prometheus.GaugeOpts{
+		Name: "evey_db_connections_in_use",
+		Help: "Number of DB connections currently in use.",
+	})
+
+	MediaItemsTotal = prometheus.NewGaugeVec(prometheus.GaugeOpts{
+		Name: "evey_media_items_total",
+		Help: "Total number of media items by type.",
+	}, []string{"type"})
 )
 
 func init() {
-	prometheus.MustRegister(HLSSessionsGauge, HTTPRequestsTotal, HTTPRequestDuration)
+	prometheus.MustRegister(
+		HLSSessionsGauge, TranscodesActive,
+		HTTPRequestsTotal, HTTPRequestDuration,
+		DBConnectionsOpen, DBConnectionsIdle, DBConnectionsInUse,
+		MediaItemsTotal,
+	)
 }
 
 // Handler returns the /metrics HTTP handler, restricted to loopback callers.

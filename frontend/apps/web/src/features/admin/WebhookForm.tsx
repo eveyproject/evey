@@ -1,32 +1,74 @@
 import { useState } from "react";
-import { useWebhookServiceCreateWebhook } from "@evey/api";
+import { useWebhookServiceCreateWebhook, useWebhookServiceUpdateWebhook } from "@evey/api";
+import type { V1WebhookConfig } from "@evey/api/src/generated/webhook.schemas";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 
+const EVENT_TYPES = [
+  "media.added",
+  "media.updated",
+  "media.deleted",
+  "playback.started",
+  "playback.finished",
+  "playback.paused",
+  "user.created",
+  "user.deleted",
+  "library.scanned",
+  "library.added",
+] as const;
+
 interface WebhookFormProps {
   onSuccess: () => void;
+  existing?: V1WebhookConfig;
 }
 
-export function WebhookForm({ onSuccess }: WebhookFormProps) {
-  const [url, setUrl] = useState("");
-  const [events, setEvents] = useState("*");
+export function WebhookForm({ onSuccess, existing }: WebhookFormProps) {
+  const [name, setName] = useState(existing?.name ?? "");
+  const [url, setUrl] = useState(existing?.url ?? "");
+  const [secret, setSecret] = useState(existing?.secret ?? "");
+  const [enabled, setEnabled] = useState(existing?.enabled ?? true);
+  const [selectedEvents, setSelectedEvents] = useState<Set<string>>(
+    new Set(existing?.events ?? ["*"]),
+  );
+  const [allEvents, setAllEvents] = useState(
+    !existing || (existing.events?.length === 1 && existing.events[0] === "*"),
+  );
 
-  const createWebhook = useWebhookServiceCreateWebhook({
-    mutation: { onSuccess },
-  });
+  const createWebhook = useWebhookServiceCreateWebhook({ mutation: { onSuccess } });
+  const updateWebhook = useWebhookServiceUpdateWebhook({ mutation: { onSuccess } });
+
+  const isPending = createWebhook.isPending || updateWebhook.isPending;
+
+  function toggleEvent(evt: string) {
+    setSelectedEvents((prev) => {
+      const next = new Set(prev);
+      if (next.has(evt)) next.delete(evt);
+      else next.add(evt);
+      return next;
+    });
+  }
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    const eventList = events.trim() === "*"
-      ? ["*"]
-      : events.split(",").map((s) => s.trim()).filter(Boolean);
-    createWebhook.mutate({
-      data: { url, events: eventList, enabled: true },
-    });
+    const events = allEvents ? ["*"] : Array.from(selectedEvents);
+    const payload = { name, url, events, secret: secret || undefined, enabled };
+
+    if (existing?.id) {
+      updateWebhook.mutate({ id: existing.id, data: payload });
+    } else {
+      createWebhook.mutate({ data: payload });
+    }
   }
 
   return (
     <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+      <Input
+        label="Name"
+        value={name}
+        onChange={(e) => setName(e.target.value)}
+        placeholder="My Webhook"
+        required
+      />
       <Input
         label="URL"
         type="url"
@@ -35,17 +77,54 @@ export function WebhookForm({ onSuccess }: WebhookFormProps) {
         placeholder="https://example.com/webhook"
         required
       />
-
       <Input
-        label='Events ("*" for all, or comma-separated)'
-        value={events}
-        onChange={(e) => setEvents(e.target.value)}
-        placeholder="* or media.created,library.scanned"
+        label="Secret (optional, for HMAC signing)"
+        value={secret}
+        onChange={(e) => setSecret(e.target.value)}
+        placeholder="mysecret"
       />
 
+      <div>
+        <p className="text-xs font-medium mb-2" style={{ color: "var(--text)" }}>Events</p>
+        <label className="flex items-center gap-2 mb-2 cursor-pointer select-none">
+          <input
+            type="checkbox"
+            checked={allEvents}
+            onChange={(e) => setAllEvents(e.target.checked)}
+            className="accent-[var(--accent)]"
+          />
+          <span className="text-sm" style={{ color: "var(--text)" }}>All events</span>
+        </label>
+        {!allEvents && (
+          <div className="grid grid-cols-2 gap-1.5 pl-2">
+            {EVENT_TYPES.map((evt) => (
+              <label key={evt} className="flex items-center gap-2 cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={selectedEvents.has(evt)}
+                  onChange={() => toggleEvent(evt)}
+                  className="accent-[var(--accent)]"
+                />
+                <span className="text-xs font-mono" style={{ color: "var(--text-muted)" }}>{evt}</span>
+              </label>
+            ))}
+          </div>
+        )}
+      </div>
+
+      <label className="flex items-center gap-2 cursor-pointer select-none">
+        <input
+          type="checkbox"
+          checked={enabled}
+          onChange={(e) => setEnabled(e.target.checked)}
+          className="accent-[var(--accent)]"
+        />
+        <span className="text-sm" style={{ color: "var(--text)" }}>Enabled</span>
+      </label>
+
       <div className="flex justify-end pt-2">
-        <Button type="submit" loading={createWebhook.isPending} disabled={!url.trim()}>
-          Create Webhook
+        <Button type="submit" loading={isPending} disabled={!url.trim() || !name.trim()}>
+          {existing ? "Save" : "Create Webhook"}
         </Button>
       </div>
     </form>
