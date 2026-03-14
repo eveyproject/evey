@@ -190,7 +190,9 @@ func selectArtworkHandler(tokens interface {
 }, artworkRepo interface {
 	GetByMediaItem(ctx context.Context, mediaItemID string) ([]*domainmeta.ArtworkRecord, error)
 	UpdateSortOrder(ctx context.Context, id string, sortOrder int) error
-}) http.HandlerFunc {
+}, libSvc interface {
+	GetMediaItem(ctx context.Context, id string) (*domainlibrary.MediaItem, error)
+}, libraryAccess LibraryAccessChecker) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		authHeader := r.Header.Get("Authorization")
 		if len(authHeader) < 8 || authHeader[:7] != "Bearer " {
@@ -208,6 +210,14 @@ func selectArtworkHandler(tokens interface {
 		}
 		mediaID := r.PathValue("id")
 		artworkID := r.PathValue("artworkId")
+		item, err := libSvc.GetMediaItem(r.Context(), mediaID)
+		if err != nil {
+			http.NotFound(w, r)
+			return
+		}
+		if !checkLibraryAccess(r.Context(), w, claims, item.LibraryID, libraryAccess) {
+			return
+		}
 		records, err := artworkRepo.GetByMediaItem(r.Context(), mediaID)
 		if err != nil || len(records) == 0 {
 			http.NotFound(w, r)

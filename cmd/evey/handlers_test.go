@@ -678,7 +678,7 @@ func TestChaptersHandler_Empty(t *testing.T) {
 
 func TestSelectArtworkHandler_Unauthenticated(t *testing.T) {
 	t.Parallel()
-	handler := selectArtworkHandler(invalidTokenValidator(), newFakeArtworkRepo())
+	handler := selectArtworkHandler(invalidTokenValidator(), newFakeArtworkRepo(), newFakeLibService(), allowAllLibraries())
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("POST /api/v1/media/{id}/artwork/{artworkId}/select", handler)
@@ -694,7 +694,7 @@ func TestSelectArtworkHandler_Unauthenticated(t *testing.T) {
 
 func TestSelectArtworkHandler_NonAdmin(t *testing.T) {
 	t.Parallel()
-	handler := selectArtworkHandler(validTokenValidator(false), newFakeArtworkRepo())
+	handler := selectArtworkHandler(validTokenValidator(false), newFakeArtworkRepo(), newFakeLibService(), allowAllLibraries())
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("POST /api/v1/media/{id}/artwork/{artworkId}/select", handler)
@@ -711,7 +711,7 @@ func TestSelectArtworkHandler_NonAdmin(t *testing.T) {
 
 func TestSelectArtworkHandler_NotFound(t *testing.T) {
 	t.Parallel()
-	handler := selectArtworkHandler(validTokenValidator(true), newFakeArtworkRepo())
+	handler := selectArtworkHandler(validTokenValidator(true), newFakeArtworkRepo(), newFakeLibService(), allowAllLibraries())
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("POST /api/v1/media/{id}/artwork/{artworkId}/select", handler)
@@ -726,15 +726,35 @@ func TestSelectArtworkHandler_NotFound(t *testing.T) {
 	}
 }
 
+func TestSelectArtworkHandler_MediaNotFound(t *testing.T) {
+	t.Parallel()
+	// media item missing from libSvc → 404 before artwork lookup
+	handler := selectArtworkHandler(validTokenValidator(true), newFakeArtworkRepo(), newFakeLibService(), allowAllLibraries())
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("POST /api/v1/media/{id}/artwork/{artworkId}/select", handler)
+
+	req := httptest.NewRequest("POST", "/api/v1/media/missing/artwork/art1/select", nil)
+	req.Header.Set("Authorization", "Bearer valid-token")
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+
+	if w.Code != http.StatusNotFound {
+		t.Fatalf("expected 404, got %d", w.Code)
+	}
+}
+
 func TestSelectArtworkHandler_Success(t *testing.T) {
 	t.Parallel()
+	libSvc := newFakeLibService()
+	libSvc.items["m1"] = &domainlibrary.MediaItem{ID: "m1", LibraryID: "lib-1"}
 	artRepo := newFakeArtworkRepo()
 	url := "https://img.example.com/poster.jpg"
 	artRepo.records["m1"] = []*domainmeta.ArtworkRecord{
 		{ID: "art1", MediaItemID: "m1", Type: "poster", SourceURL: &url, SortOrder: 0},
 		{ID: "art2", MediaItemID: "m1", Type: "poster", SourceURL: &url, SortOrder: 1},
 	}
-	handler := selectArtworkHandler(validTokenValidator(true), artRepo)
+	handler := selectArtworkHandler(validTokenValidator(true), artRepo, libSvc, allowAllLibraries())
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("POST /api/v1/media/{id}/artwork/{artworkId}/select", handler)

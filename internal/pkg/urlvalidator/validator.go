@@ -43,6 +43,33 @@ func isPrivateIP(ip net.IP) bool {
 	return false
 }
 
+// ValidateExternalURL checks that a URL is a valid public HTTPS URL.
+// Used for ExternalURL in remote access config: must be https, non-empty host,
+// non-private IP (no localhost, RFC1918, link-local, etc.).
+func ValidateExternalURL(rawURL string) error {
+	u, err := url.Parse(rawURL)
+	if err != nil {
+		return fmt.Errorf("invalid URL: %w", err)
+	}
+	if strings.ToLower(u.Scheme) != "https" {
+		return fmt.Errorf("scheme %q not allowed, must be https", u.Scheme)
+	}
+	host := u.Hostname()
+	if host == "" {
+		return fmt.Errorf("empty host")
+	}
+	blockedHosts := []string{"localhost", "metadata.google.internal", "100.100.100.200"}
+	for _, b := range blockedHosts {
+		if strings.EqualFold(host, b) {
+			return fmt.Errorf("host %q is blocked", host)
+		}
+	}
+	if ip := net.ParseIP(host); ip != nil && isPrivateIP(ip) {
+		return fmt.Errorf("IP %s is private/internal", ip)
+	}
+	return nil
+}
+
 // ValidateRedirectURL checks that a URL is safe for open-redirect responses.
 // Unlike ValidateWebhookURL, it does not resolve DNS because the browser makes
 // the request — no server-side SSRF risk. It still blocks non-http(s) schemes

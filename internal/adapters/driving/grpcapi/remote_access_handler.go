@@ -8,6 +8,7 @@ import (
 	eveyv1 "github.com/gravity-zero/evey/gen/evey/v1"
 	"github.com/gravity-zero/evey/internal/config"
 	"github.com/gravity-zero/evey/internal/pkg/network"
+	"github.com/gravity-zero/evey/internal/pkg/urlvalidator"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -33,6 +34,11 @@ func (h *remoteAccessHandler) GetRemoteAccess(_ context.Context, _ *eveyv1.GetRe
 }
 
 func (h *remoteAccessHandler) UpdateRemoteAccess(ctx context.Context, req *eveyv1.UpdateRemoteAccessRequest) (*eveyv1.RemoteAccessConfig, error) {
+	if req.ExternalUrl != nil {
+		if err := urlvalidator.ValidateExternalURL(*req.ExternalUrl); err != nil {
+			return nil, status.Errorf(codes.InvalidArgument, "invalid ExternalURL: %v", err)
+		}
+	}
 	h.mu.Lock()
 	if req.Enabled != nil {
 		h.cfg.RemoteAccess.Enabled = *req.Enabled
