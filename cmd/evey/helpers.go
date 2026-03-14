@@ -202,6 +202,17 @@ func (a *userMaxStreamsAdapter) GetMaxStreams(ctx context.Context, userID string
 	return u.MaxStreams
 }
 
+// userBitrateAdapter implements UserBitrateGetter using the user query service.
+type userBitrateAdapter struct {
+	svc interface {
+		GetUserBitrateLimit(ctx context.Context, userID string) (int, error)
+	}
+}
+
+func (a *userBitrateAdapter) GetUserBitrateLimit(ctx context.Context, userID string) (int, error) {
+	return a.svc.GetUserBitrateLimit(ctx, userID)
+}
+
 // serverConfigStore wraps ServerConfigRepository to implement remoteAccessPersister.
 type serverConfigStore struct {
 	repo domainshared.ServerConfigRepository

@@ -530,7 +530,8 @@ func run() error {
 			entry, err := serverCfgRepo.Get(ctx, "transcode.audio_normalize")
 			return err == nil && entry.Value == "true"
 		}
-		mux.HandleFunc("GET /api/v1/media/{id}/hls/master.m3u8", hlsMasterHandler(tokenGen, libQuerySvc, hlsManager, libraryAccessRepo, userMaxStreams, audioNormalizeGetter))
+		userBitrate := &userBitrateAdapter{svc: userQuerySvc}
+		mux.HandleFunc("GET /api/v1/media/{id}/hls/master.m3u8", hlsMasterHandler(tokenGen, libQuerySvc, hlsManager, libraryAccessRepo, userMaxStreams, audioNormalizeGetter, userBitrate))
 		mux.HandleFunc("GET /api/v1/media/{id}/hls/{file}", hlsSegmentHandler(tokenGen, libQuerySvc, hlsManager, libraryAccessRepo))
 		mux.HandleFunc("GET /api/v1/admin/library-stats", requireAdmin(tokenGen, libraryStatsHandler(tokenGen, libQuerySvc)))
 		httpsOnly := cfg.Server.ForwardedProto
@@ -547,6 +548,7 @@ func run() error {
 			gwMux.ServeHTTP(w, r)
 		})
 		registerAdminRoutes(mux, metadataCmdSvc, metadataQuerySvc, tokenGen, adminHeavyRL)
+		registerUserAdminRoutes(mux, userCmdSvc, userQuerySvc, tokenGen)
 		registerFavoriteRoutes(mux, favoriteSvc, libQuerySvc, tokenGen)
 		registerMetadataOverrideRoutes(mux, metadataCmdSvc, metadataQuerySvc, tokenGen)
 		registerTranscodeCacheRoutes(mux, transcodingSvc, tokenGen)

@@ -9,8 +9,6 @@ import {
   useUserServiceListInviteLinks,
   useUserServiceCreateInviteLink,
   useUserServiceRevokeInviteLink,
-  useUserServiceListProfiles,
-  useUserServiceUpdateProfile,
 } from "@evey/api";
 import { toast } from "@evey/store";
 import { eveyFetch } from "@evey/api/src/fetcher";
@@ -233,39 +231,39 @@ function BitrateModal({
   onClose: () => void;
 }) {
   const [selectedBitrate, setSelectedBitrate] = useState<number>(0);
+  const [saving, setSaving] = useState(false);
 
-  const { data: profilesData, isLoading } = useUserServiceListProfiles(
-    user.id ?? "",
-    { query: { enabled: open && !!user.id } }
-  );
-
-  const defaultProfile = profilesData?.profiles?.find((p) => p.isDefault) ?? profilesData?.profiles?.[0];
-
-  useEffect(() => {
-    if (defaultProfile) {
-      setSelectedBitrate(defaultProfile.maxBitrateKbps ?? 0);
-    }
-  }, [defaultProfile]);
-
-  const updateProfile = useUserServiceUpdateProfile({
-    mutation: {
-      onSuccess: () => {
-        toast.success("Bitrate limit updated");
-        onClose();
-      },
-      onError: () => toast.error("Failed to update bitrate limit"),
-    },
+  const { data: currentLimit, isLoading } = useQuery<{ max_bitrate_kbps: number }>({
+    queryKey: ["/api/v1/admin/users", user.id, "bitrate-limit"],
+    queryFn: () =>
+      eveyFetch<{ max_bitrate_kbps: number }>({
+        url: `/api/v1/admin/users/${user.id}/bitrate-limit`,
+        method: "GET",
+      }),
+    enabled: open && !!user.id,
   });
 
-  function handleSave() {
-    if (!defaultProfile?.id) {
-      toast.error("No profile found for this user");
-      return;
+  useEffect(() => {
+    if (currentLimit !== undefined) {
+      setSelectedBitrate(currentLimit.max_bitrate_kbps ?? 0);
     }
-    updateProfile.mutate({
-      id: defaultProfile.id,
-      data: { maxBitrateKbps: selectedBitrate === 0 ? undefined : selectedBitrate },
-    });
+  }, [currentLimit]);
+
+  async function handleSave() {
+    setSaving(true);
+    try {
+      await eveyFetch<void>({
+        url: `/api/v1/admin/users/${user.id}/bitrate-limit`,
+        method: "PATCH",
+        data: { max_bitrate_kbps: selectedBitrate },
+      });
+      toast.success("Bitrate limit updated");
+      onClose();
+    } catch {
+      toast.error("Failed to update bitrate limit");
+    } finally {
+      setSaving(false);
+    }
   }
 
   return (
@@ -274,14 +272,10 @@ function BitrateModal({
         <div className="flex justify-center py-8">
           <Spinner size="md" />
         </div>
-      ) : !defaultProfile ? (
-        <p className="text-sm" style={{ color: "var(--text-muted)" }}>
-          No profile found for this user.
-        </p>
       ) : (
         <div className="flex flex-col gap-4">
           <p className="text-sm" style={{ color: "var(--text-muted)" }}>
-            Limit the maximum streaming bitrate for all profiles of this user.
+            Limit the maximum streaming bitrate for this user. 0 = unlimited.
           </p>
           <Select
             label="Max Bitrate"
@@ -291,7 +285,7 @@ function BitrateModal({
           />
           <div className="flex justify-end gap-2 pt-2">
             <Button variant="ghost" onClick={onClose}>Cancel</Button>
-            <Button onClick={handleSave} loading={updateProfile.isPending}>Save</Button>
+            <Button onClick={handleSave} loading={saving}>Save</Button>
           </div>
         </div>
       )}

@@ -53,3 +53,11 @@ func (s *QueryService) CheckQuickConnect(ctx context.Context, code string) (*use
 func (s *QueryService) ListAPIKeys(ctx context.Context, userID string) ([]*user.APIKeyModel, error) {
 	return s.apiKeys.ListByUserID(ctx, userID)
 }
+
+func (s *QueryService) GetUserBitrateLimit(ctx context.Context, userID string) (int, error) {
+	u, err := s.users.GetByID(ctx, userID)
+	if err != nil {
+		return 0, err
+	}
+	return u.MaxBitrateKbps, nil
+}
