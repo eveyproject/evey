@@ -70,10 +70,6 @@ func (r *MusicTrackRepository) Delete(ctx context.Context, id string) error {
 }
 
 func (r *MusicTrackRepository) ListByLibrary(ctx context.Context, libraryID string, limit, offset int) ([]music.Track, int, error) {
-	var total int
-	if err := r.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM music_tracks WHERE library_id=$1`, libraryID).Scan(&total); err != nil {
-		return nil, 0, err
-	}
 	if limit <= 0 {
 		limit = 50
 	}
@@ -81,7 +77,8 @@ func (r *MusicTrackRepository) ListByLibrary(ctx context.Context, libraryID stri
 		SELECT id, library_id, title, artist, album, album_artist,
 		       year, track_number, disk_number, duration, file_path,
 		       file_size, mime_type, bitrate, sample_rate, channels,
-		       genre, cover_art_url, created_at, updated_at
+		       genre, cover_art_url, created_at, updated_at,
+		       COUNT(*) OVER() AS total
 		FROM music_tracks WHERE library_id=$1
 		ORDER BY album_artist, album, disk_number, track_number
 		LIMIT $2 OFFSET $3`, libraryID, limit, offset)
@@ -89,8 +86,7 @@ func (r *MusicTrackRepository) ListByLibrary(ctx context.Context, libraryID stri
 		return nil, 0, err
 	}
 	defer rows.Close()
-	tracks, err := scanTracks(rows)
-	return tracks, total, err
+	return scanTracksWithTotal(rows)
 }
 
 func (r *MusicTrackRepository) ListByAlbum(ctx context.Context, album, artist string) ([]music.Track, error) {
@@ -109,11 +105,6 @@ func (r *MusicTrackRepository) ListByAlbum(ctx context.Context, album, artist st
 }
 
 func (r *MusicTrackRepository) ListByArtist(ctx context.Context, artist string, limit, offset int) ([]music.Track, int, error) {
-	var total int
-	if err := r.db.QueryRowContext(ctx,
-		`SELECT COUNT(*) FROM music_tracks WHERE album_artist=$1 OR artist=$1`, artist).Scan(&total); err != nil {
-		return nil, 0, err
-	}
 	if limit <= 0 {
 		limit = 50
 	}
@@ -121,7 +112,8 @@ func (r *MusicTrackRepository) ListByArtist(ctx context.Context, artist string, 
 		SELECT id, library_id, title, artist, album, album_artist,
 		       year, track_number, disk_number, duration, file_path,
 		       file_size, mime_type, bitrate, sample_rate, channels,
-		       genre, cover_art_url, created_at, updated_at
+		       genre, cover_art_url, created_at, updated_at,
+		       COUNT(*) OVER() AS total
 		FROM music_tracks WHERE album_artist=$1 OR artist=$1
 		ORDER BY album, disk_number, track_number
 		LIMIT $2 OFFSET $3`, artist, limit, offset)
@@ -129,8 +121,7 @@ func (r *MusicTrackRepository) ListByArtist(ctx context.Context, artist string, 
 		return nil, 0, err
 	}
 	defer rows.Close()
-	tracks, err := scanTracks(rows)
-	return tracks, total, err
+	return scanTracksWithTotal(rows)
 }
 
 func (r *MusicTrackRepository) Search(ctx context.Context, query string, limit int) ([]music.Track, error) {
@@ -201,6 +192,25 @@ func (r *MusicTrackRepository) CountByLibrary(ctx context.Context, libraryID str
 	var n int
 	err := r.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM music_tracks WHERE library_id=$1`, libraryID).Scan(&n)
 	return n, err
+}
+
+func scanTracksWithTotal(rows *sql.Rows) ([]music.Track, int, error) {
+	var tracks []music.Track
+	var total int
+	for rows.Next() {
+		var t music.Track
+		if err := rows.Scan(
+			&t.ID, &t.LibraryID, &t.Title, &t.Artist, &t.Album, &t.AlbumArtist,
+			&t.Year, &t.TrackNumber, &t.DiskNumber, &t.Duration, &t.FilePath,
+			&t.FileSize, &t.MimeType, &t.Bitrate, &t.SampleRate, &t.Channels,
+			&t.Genre, &t.CoverArtURL, &t.CreatedAt, &t.UpdatedAt,
+			&total,
+		); err != nil {
+			return nil, 0, err
+		}
+		tracks = append(tracks, t)
+	}
+	return tracks, total, rows.Err()
 }
 
 func scanTracks(rows *sql.Rows) ([]music.Track, error) {
