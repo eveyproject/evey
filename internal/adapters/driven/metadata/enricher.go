@@ -67,6 +67,18 @@ func (e *Enricher) EnrichItem(ctx context.Context, item *domaindomain.MediaItem,
 	item.Year = result.Year
 	item.CommunityRating = result.CommunityRating
 	item.OfficialRating = result.OfficialRating
+	item.Trailers = make([]domaindomain.Trailer, 0, len(result.Trailers))
+	for _, t := range result.Trailers {
+		item.Trailers = append(item.Trailers, domaindomain.Trailer{
+			Site:             t.Site,
+			Key:              t.Key,
+			Language:         t.Language,
+			Official:         t.Official,
+			Type:             t.Type,
+			UseSubtitles:     t.UseSubtitles,
+			SubtitleLanguage: t.SubtitleLanguage,
+		})
+	}
 	item.UpdatedAt = time.Now()
 
 	if item.ProviderIDs == nil {

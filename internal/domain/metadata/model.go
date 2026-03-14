@@ -2,6 +2,14 @@ package metadata
 
 import "time"
 
+const (
+	ArtworkTypePoster   = "poster"
+	ArtworkTypeBackdrop = "backdrop"
+	ArtworkTypeLogo     = "logo"
+	ArtworkTypeStill    = "still"
+	ArtworkTypeThumb    = "thumb"
+)
+
 type CollectionRef struct {
 	TmdbID      int
 	Name        string
@@ -24,8 +32,19 @@ type MetadataResult struct {
 	Ratings         map[string]float64 // imdb, rt, metacritic, tmdb
 	People          []PersonResult
 	Artwork         []ArtworkResult
+	Trailers        []TrailerResult
 	Popularity      float64 // TMDB popularity score, used as tiebreaker
 	Collection      *CollectionRef
+}
+
+type TrailerResult struct {
+	Site             string // "YouTube", "Vimeo", "Dailymotion", etc.
+	Key              string // platform video ID
+	Language         string // ISO 639-1 — trailer audio language
+	Official         bool
+	Type             string // "Trailer", "Teaser", "Clip", etc.
+	UseSubtitles     bool   // true when trailer is not in server language
+	SubtitleLanguage string // ISO 639-1 — language for CC (= server lang when UseSubtitles=true)
 }
 
 type PersonResult struct {

@@ -86,8 +86,19 @@ type MediaItem struct {
 	Genres          []string
 	Studios         []string
 	Tags            []string
+	Trailers        []Trailer
 	AddedAt         time.Time
 	UpdatedAt       time.Time
+}
+
+type Trailer struct {
+	Site             string
+	Key              string
+	Language         string
+	Official         bool
+	Type             string
+	UseSubtitles     bool
+	SubtitleLanguage string
 }
 
 type MediaStream struct {

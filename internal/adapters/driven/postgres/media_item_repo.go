@@ -41,6 +41,14 @@ func (r *MediaItemRepository) Create(ctx context.Context, item *library.MediaIte
 	if err != nil {
 		return err
 	}
+	trailers := item.Trailers
+	if trailers == nil {
+		trailers = []library.Trailer{}
+	}
+	trailersJSON, err := json.Marshal(trailers)
+	if err != nil {
+		return err
+	}
 
 	var parentID *string
 	if item.ParentID != "" {
@@ -58,12 +66,12 @@ func (r *MediaItemRepository) Create(ctx context.Context, item *library.MediaIte
 	_, err = r.db.ExecContext(ctx,
 		`INSERT INTO media_items (id, library_id, parent_id, type, title, sort_title, original_title, overview, tagline,
 		 file_path, file_size, file_fingerprint, duration_ms, bitrate, container_format, index_number, community_rating, official_rating,
-		 premiere_date, year, provider_ids, genres, studios, tags, added_at, updated_at)
-		 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26)`,
+		 premiere_date, year, provider_ids, genres, studios, tags, trailers, added_at, updated_at)
+		 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27)`,
 		item.ID, item.LibraryID, parentID, item.Type, item.Title, item.SortTitle, item.OriginalTitle,
 		item.Overview, item.Tagline, filePath, item.FileSize, fingerprint, item.DurationMs, item.Bitrate,
 		item.ContainerFormat, item.IndexNumber, item.CommunityRating, item.OfficialRating,
-		item.PremiereDate, item.Year, providerJSON, genresJSON, studiosJSON, tagsJSON,
+		item.PremiereDate, item.Year, providerJSON, genresJSON, studiosJSON, tagsJSON, trailersJSON,
 		item.AddedAt, item.UpdatedAt,
 	)
 	return err
@@ -73,7 +81,7 @@ func (r *MediaItemRepository) GetByID(ctx context.Context, id string) (*library.
 	return r.scanMediaItem(r.db.QueryRowContext(ctx,
 		`SELECT id, library_id, parent_id, type, title, sort_title, original_title, overview, tagline,
 		 file_path, file_size, file_fingerprint, duration_ms, bitrate, container_format, index_number, community_rating,
-		 official_rating, premiere_date, year, provider_ids, genres, studios, tags, added_at, updated_at
+		 official_rating, premiere_date, year, provider_ids, genres, studios, tags, trailers, added_at, updated_at
 		 FROM media_items WHERE id = $1`, id))
 }
 
@@ -81,7 +89,7 @@ func (r *MediaItemRepository) GetByFilePath(ctx context.Context, path string) (*
 	return r.scanMediaItem(r.db.QueryRowContext(ctx,
 		`SELECT id, library_id, parent_id, type, title, sort_title, original_title, overview, tagline,
 		 file_path, file_size, file_fingerprint, duration_ms, bitrate, container_format, index_number, community_rating,
-		 official_rating, premiere_date, year, provider_ids, genres, studios, tags, added_at, updated_at
+		 official_rating, premiere_date, year, provider_ids, genres, studios, tags, trailers, added_at, updated_at
 		 FROM media_items WHERE file_path = $1`, path))
 }
 
@@ -89,7 +97,7 @@ func (r *MediaItemRepository) GetByFileFingerprint(ctx context.Context, fingerpr
 	return r.scanMediaItem(r.db.QueryRowContext(ctx,
 		`SELECT id, library_id, parent_id, type, title, sort_title, original_title, overview, tagline,
 		 file_path, file_size, file_fingerprint, duration_ms, bitrate, container_format, index_number, community_rating,
-		 official_rating, premiere_date, year, provider_ids, genres, studios, tags, added_at, updated_at
+		 official_rating, premiere_date, year, provider_ids, genres, studios, tags, trailers, added_at, updated_at
 		 FROM media_items WHERE file_fingerprint = $1`, fingerprint))
 }
 
@@ -97,7 +105,7 @@ func (r *MediaItemRepository) GetByLibraryTypeTitle(ctx context.Context, library
 	return r.scanMediaItem(r.db.QueryRowContext(ctx,
 		`SELECT id, library_id, parent_id, type, title, sort_title, original_title, overview, tagline,
 		 file_path, file_size, file_fingerprint, duration_ms, bitrate, container_format, index_number, community_rating,
-		 official_rating, premiere_date, year, provider_ids, genres, studios, tags, added_at, updated_at
+		 official_rating, premiere_date, year, provider_ids, genres, studios, tags, trailers, added_at, updated_at
 		 FROM media_items WHERE library_id = $1 AND type = $2 AND title = $3 AND ($4 = '' OR parent_id = $4) LIMIT 1`, libraryID, itemType, title, parentID))
 }
 
@@ -171,7 +179,7 @@ func (r *MediaItemRepository) List(ctx context.Context, f library.ListMediaItems
 	where, args := r.buildWhereClause(f)
 	query := `SELECT id, library_id, parent_id, type, title, sort_title, original_title, overview, tagline,
 		 file_path, file_size, file_fingerprint, duration_ms, bitrate, container_format, index_number, community_rating,
-		 official_rating, premiere_date, year, provider_ids, genres, studios, tags, added_at, updated_at
+		 official_rating, premiere_date, year, provider_ids, genres, studios, tags, trailers, added_at, updated_at
 		 FROM media_items` + where
 
 	sortField := "sort_title"
@@ -234,6 +242,14 @@ func (r *MediaItemRepository) Update(ctx context.Context, item *library.MediaIte
 	if err != nil {
 		return err
 	}
+	trailers := item.Trailers
+	if trailers == nil {
+		trailers = []library.Trailer{}
+	}
+	trailersJSON, err := json.Marshal(trailers)
+	if err != nil {
+		return err
+	}
 
 	var parentID *string
 	if item.ParentID != "" {
@@ -252,11 +268,11 @@ func (r *MediaItemRepository) Update(ctx context.Context, item *library.MediaIte
 		`UPDATE media_items SET library_id=$1, parent_id=$2, type=$3, title=$4, sort_title=$5, original_title=$6,
 		 overview=$7, tagline=$8, file_path=$9, file_size=$10, file_fingerprint=$11, duration_ms=$12, bitrate=$13, container_format=$14,
 		 index_number=$15, community_rating=$16, official_rating=$17, premiere_date=$18, year=$19,
-		 provider_ids=$20, genres=$21, studios=$22, tags=$23, updated_at=$24 WHERE id=$25`,
+		 provider_ids=$20, genres=$21, studios=$22, tags=$23, trailers=$24, updated_at=$25 WHERE id=$26`,
 		item.LibraryID, parentID, item.Type, item.Title, item.SortTitle, item.OriginalTitle,
 		item.Overview, item.Tagline, filePath, item.FileSize, fingerprint, item.DurationMs, item.Bitrate,
 		item.ContainerFormat, item.IndexNumber, item.CommunityRating, item.OfficialRating,
-		item.PremiereDate, item.Year, providerJSON, genresJSON, studiosJSON, tagsJSON,
+		item.PremiereDate, item.Year, providerJSON, genresJSON, studiosJSON, tagsJSON, trailersJSON,
 		item.UpdatedAt, item.ID,
 	)
 	return err
@@ -270,13 +286,13 @@ func (r *MediaItemRepository) Delete(ctx context.Context, id string) error {
 func (r *MediaItemRepository) scanMediaItem(row *sql.Row) (*library.MediaItem, error) {
 	item := &library.MediaItem{}
 	var parentID, filePath, fingerprint *string
-	var providerJSON, genresJSON, studiosJSON, tagsJSON []byte
+	var providerJSON, genresJSON, studiosJSON, tagsJSON, trailersJSON []byte
 
 	err := row.Scan(
 		&item.ID, &item.LibraryID, &parentID, &item.Type, &item.Title, &item.SortTitle, &item.OriginalTitle,
 		&item.Overview, &item.Tagline, &filePath, &item.FileSize, &fingerprint, &item.DurationMs, &item.Bitrate,
 		&item.ContainerFormat, &item.IndexNumber, &item.CommunityRating, &item.OfficialRating,
-		&item.PremiereDate, &item.Year, &providerJSON, &genresJSON, &studiosJSON, &tagsJSON,
+		&item.PremiereDate, &item.Year, &providerJSON, &genresJSON, &studiosJSON, &tagsJSON, &trailersJSON,
 		&item.AddedAt, &item.UpdatedAt,
 	)
 	if errors.Is(err, sql.ErrNoRows) {
@@ -306,19 +322,22 @@ func (r *MediaItemRepository) scanMediaItem(row *sql.Row) (*library.MediaItem, e
 	if err := json.Unmarshal(tagsJSON, &item.Tags); err != nil {
 		slog.Warn("json unmarshal", slog.String("field", "tags"), slog.Any("err", err))
 	}
+	if err := json.Unmarshal(trailersJSON, &item.Trailers); err != nil {
+		slog.Warn("json unmarshal", slog.String("field", "trailers"), slog.Any("err", err))
+	}
 	return item, nil
 }
 
 func (r *MediaItemRepository) scanMediaItemFromRows(rows *sql.Rows) (*library.MediaItem, error) {
 	item := &library.MediaItem{}
 	var parentID, filePath, fingerprint *string
-	var providerJSON, genresJSON, studiosJSON, tagsJSON []byte
+	var providerJSON, genresJSON, studiosJSON, tagsJSON, trailersJSON []byte
 
 	err := rows.Scan(
 		&item.ID, &item.LibraryID, &parentID, &item.Type, &item.Title, &item.SortTitle, &item.OriginalTitle,
 		&item.Overview, &item.Tagline, &filePath, &item.FileSize, &fingerprint, &item.DurationMs, &item.Bitrate,
 		&item.ContainerFormat, &item.IndexNumber, &item.CommunityRating, &item.OfficialRating,
-		&item.PremiereDate, &item.Year, &providerJSON, &genresJSON, &studiosJSON, &tagsJSON,
+		&item.PremiereDate, &item.Year, &providerJSON, &genresJSON, &studiosJSON, &tagsJSON, &trailersJSON,
 		&item.AddedAt, &item.UpdatedAt,
 	)
 	if err != nil {
@@ -344,6 +363,9 @@ func (r *MediaItemRepository) scanMediaItemFromRows(rows *sql.Rows) (*library.Me
 	}
 	if err := json.Unmarshal(tagsJSON, &item.Tags); err != nil {
 		slog.Warn("json unmarshal", slog.String("field", "tags"), slog.Any("err", err))
+	}
+	if err := json.Unmarshal(trailersJSON, &item.Trailers); err != nil {
+		slog.Warn("json unmarshal", slog.String("field", "trailers"), slog.Any("err", err))
 	}
 	return item, nil
 }

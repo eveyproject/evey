@@ -172,9 +172,9 @@ func (p *TMDBProvider) GetByProviderID(ctx context.Context, providerID string, m
 	}
 
 	params := url.Values{
-		"append_to_response":  {"credits,keywords,images,external_ids"},
-		"language":            {p.language},
-		"include_image_language": {p.language + ",en,null"},
+		"append_to_response":      {"credits,keywords,images,external_ids,videos"},
+		"language":                {p.language},
+		"include_image_language":  {p.language + ",en,null"},
 	}
 	u := fmt.Sprintf("%s%s?%s", p.baseURL, endpoint, params.Encode())
 
@@ -188,7 +188,7 @@ func (p *TMDBProvider) GetByProviderID(ctx context.Context, providerID string, m
 		return nil, fmt.Errorf("tmdb detail unmarshal: %w", err)
 	}
 
-	result := mapDetailResult(detail, mediaType)
+	result := mapDetailResult(detail, mediaType, p.language)
 	return &result, nil
 }
 
@@ -314,7 +314,7 @@ func mapSearchResult(item tmdbSearchItem, mediaType string, genreMap map[int]str
 	return result
 }
 
-func mapDetailResult(d tmdbDetailResponse, mediaType string) domain.MetadataResult {
+func mapDetailResult(d tmdbDetailResponse, mediaType string, serverLang string) domain.MetadataResult {
 	result := domain.MetadataResult{
 		ProviderIDs: map[string]string{"tmdb": strconv.Itoa(d.ID)},
 		Ratings:     map[string]float64{},
@@ -386,7 +386,7 @@ func mapDetailResult(d tmdbDetailResponse, mediaType string) domain.MetadataResu
 				break
 			}
 			result.Artwork = append(result.Artwork, domain.ArtworkResult{
-				Type:     "poster",
+				Type:     domain.ArtworkTypePoster,
 				URL:      imageBaseURL + img.FilePath,
 				Width:    img.Width,
 				Height:   img.Height,
@@ -399,7 +399,7 @@ func mapDetailResult(d tmdbDetailResponse, mediaType string) domain.MetadataResu
 				break
 			}
 			result.Artwork = append(result.Artwork, domain.ArtworkResult{
-				Type:     "backdrop",
+				Type:     domain.ArtworkTypeBackdrop,
 				URL:      imageBaseURL + img.FilePath,
 				Width:    img.Width,
 				Height:   img.Height,
@@ -407,6 +407,23 @@ func mapDetailResult(d tmdbDetailResponse, mediaType string) domain.MetadataResu
 				Provider: "tmdb",
 			})
 		}
+		for i, img := range d.Images.Logos {
+			if i >= 3 {
+				break
+			}
+			result.Artwork = append(result.Artwork, domain.ArtworkResult{
+				Type:     domain.ArtworkTypeLogo,
+				URL:      imageBaseURL + img.FilePath,
+				Width:    img.Width,
+				Height:   img.Height,
+				Language: img.ISO639_1,
+				Provider: "tmdb",
+			})
+		}
+	}
+
+	if d.Videos != nil {
+		result.Trailers = selectTrailers(d.Videos.Results, serverLang)
 	}
 
 	if d.BelongsToCollection != nil {
@@ -424,6 +441,73 @@ func mapDetailResult(d tmdbDetailResponse, mediaType string) domain.MetadataResu
 	}
 
 	return result
+}
+
+// selectTrailers filters videos to trailers only, sorts server language first
+// (official first within each group), marks VO trailers with UseSubtitles=true.
+func selectTrailers(videos []tmdbVideo, serverLang string) []domain.TrailerResult {
+	var serverLangTrailers, otherTrailers []tmdbVideo
+	for _, v := range videos {
+		if v.Type != "Trailer" || v.Key == "" {
+			continue
+		}
+		if v.Language == serverLang {
+			serverLangTrailers = append(serverLangTrailers, v)
+		} else {
+			otherTrailers = append(otherTrailers, v)
+		}
+	}
+
+	// official first within each group
+	sortByOfficial := func(a, b tmdbVideo) int {
+		if a.Official && !b.Official {
+			return -1
+		}
+		if !a.Official && b.Official {
+			return 1
+		}
+		return 0
+	}
+	sortVideos(serverLangTrailers, sortByOfficial)
+	sortVideos(otherTrailers, sortByOfficial)
+
+	var result []domain.TrailerResult
+	for _, v := range serverLangTrailers {
+		result = append(result, domain.TrailerResult{
+			Site:         v.Site,
+			Key:          v.Key,
+			Language:     v.Language,
+			Official:     v.Official,
+			Type:         v.Type,
+			UseSubtitles: false,
+		})
+		if len(result) >= 3 {
+			return result
+		}
+	}
+	for _, v := range otherTrailers {
+		result = append(result, domain.TrailerResult{
+			Site:             v.Site,
+			Key:              v.Key,
+			Language:         v.Language,
+			Official:         v.Official,
+			Type:             v.Type,
+			UseSubtitles:     true,
+			SubtitleLanguage: serverLang,
+		})
+		if len(result) >= 3 {
+			return result
+		}
+	}
+	return result
+}
+
+func sortVideos(vs []tmdbVideo, less func(a, b tmdbVideo) int) {
+	for i := 1; i < len(vs); i++ {
+		for j := i; j > 0 && less(vs[j], vs[j-1]) < 0; j-- {
+			vs[j], vs[j-1] = vs[j-1], vs[j]
+		}
+	}
 }
 
 func profileURL(path string) string {
@@ -488,10 +572,11 @@ type tmdbDetailResponse struct {
 	VoteAverage          float64          `json:"vote_average"`
 	Genres               []tmdbGenre      `json:"genres"`
 	ProductionCompanies  []tmdbCompany    `json:"production_companies"`
-	Credits              *tmdbCredits     `json:"credits"`
-	Images               *tmdbImages      `json:"images"`
-	ExternalIDs          *tmdbExternalIDs `json:"external_ids"`
-	BelongsToCollection  *tmdbCollection  `json:"belongs_to_collection"`
+	Credits             *tmdbCredits     `json:"credits"`
+	Images              *tmdbImages      `json:"images"`
+	Videos              *tmdbVideos      `json:"videos"`
+	ExternalIDs         *tmdbExternalIDs `json:"external_ids"`
+	BelongsToCollection *tmdbCollection  `json:"belongs_to_collection"`
 }
 
 type tmdbExternalIDs struct {
@@ -529,11 +614,24 @@ type tmdbCrewMember struct {
 type tmdbImages struct {
 	Posters   []tmdbImage `json:"posters"`
 	Backdrops []tmdbImage `json:"backdrops"`
+	Logos     []tmdbImage `json:"logos"`
 }
 
 type tmdbImage struct {
-	FilePath  string `json:"file_path"`
-	Width     int    `json:"width"`
-	Height    int    `json:"height"`
-	ISO639_1  string `json:"iso_639_1"`
+	FilePath string `json:"file_path"`
+	Width    int    `json:"width"`
+	Height   int    `json:"height"`
+	ISO639_1 string `json:"iso_639_1"`
+}
+
+type tmdbVideos struct {
+	Results []tmdbVideo `json:"results"`
+}
+
+type tmdbVideo struct {
+	Key      string `json:"key"`
+	Site     string `json:"site"`
+	Type     string `json:"type"`
+	Language string `json:"iso_639_1"`
+	Official bool   `json:"official"`
 }

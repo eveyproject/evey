@@ -139,7 +139,22 @@ func mediaItemToProto(item *library.MediaItem) *eveyv1.MediaItem {
 	if item.Year != nil {
 		pb.Year = int32(*item.Year)
 	}
+	for _, t := range item.Trailers {
+		pb.Trailers = append(pb.Trailers, trailerToProto(t))
+	}
 	return pb
+}
+
+func trailerToProto(t library.Trailer) *eveyv1.Trailer {
+	return &eveyv1.Trailer{
+		Site:             t.Site,
+		Key:              t.Key,
+		Language:         t.Language,
+		Official:         t.Official,
+		Type:             t.Type,
+		UseSubtitles:     t.UseSubtitles,
+		SubtitleLanguage: t.SubtitleLanguage,
+	}
 }
 
 var personRoleToProto = map[string]eveyv1.PersonType{
