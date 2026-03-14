@@ -40,13 +40,28 @@ type Artist = {
   AlbumCount: number;
 };
 
+interface LibraryItem {
+  id: string;
+  name: string;
+  type: string;
+}
+
 function formatDuration(seconds: number): string {
   const m = Math.floor(seconds / 60);
   const s = Math.floor(seconds % 60);
   return `${m}:${String(s).padStart(2, "0")}`;
 }
 
-function useMusicTracks(libraryID: string) {
+function useMusicLibraries() {
+  return useQuery({
+    queryKey: ["libraries", "music"],
+    queryFn: () => eveyFetch<{ libraries: LibraryItem[] }>({ url: "/api/v1/libraries", method: "GET" }),
+    select: (d) => (d.libraries ?? []).filter((l) => l.type === "LIBRARY_TYPE_MUSIC"),
+    staleTime: 60_000,
+  });
+}
+
+function useMusicTracks(libraryID: string | undefined) {
   return useQuery({
     queryKey: ["music", "tracks", libraryID],
     queryFn: () =>
@@ -54,12 +69,13 @@ function useMusicTracks(libraryID: string) {
         url: `/api/v1/music/tracks?library_id=${libraryID}&limit=200`,
         method: "GET",
       }),
+    enabled: !!libraryID,
     select: (d) => d.tracks ?? [],
     staleTime: 60_000,
   });
 }
 
-function useMusicAlbums(libraryID: string) {
+function useMusicAlbums(libraryID: string | undefined) {
   return useQuery({
     queryKey: ["music", "albums", libraryID],
     queryFn: () =>
@@ -67,12 +83,13 @@ function useMusicAlbums(libraryID: string) {
         url: `/api/v1/music/albums?library_id=${libraryID}`,
         method: "GET",
       }),
+    enabled: !!libraryID,
     select: (d) => d.albums ?? [],
     staleTime: 60_000,
   });
 }
 
-function useMusicArtists(libraryID: string) {
+function useMusicArtists(libraryID: string | undefined) {
   return useQuery({
     queryKey: ["music", "artists", libraryID],
     queryFn: () =>
@@ -80,6 +97,7 @@ function useMusicArtists(libraryID: string) {
         url: `/api/v1/music/artists?library_id=${libraryID}`,
         method: "GET",
       }),
+    enabled: !!libraryID,
     select: (d) => d.artists ?? [],
     staleTime: 60_000,
   });
@@ -89,12 +107,17 @@ type Tab = "tracks" | "albums" | "artists";
 
 function MusicPage() {
   const [tab, setTab] = useState<Tab>("tracks");
-  const [libraryID] = useState("");
+  const [selectedLibraryID, setSelectedLibraryID] = useState<string | undefined>(undefined);
   const [playing, setPlaying] = useState<Track | null>(null);
 
-  const { data: tracks, isLoading: tracksLoading } = useMusicTracks(libraryID);
-  const { data: albums, isLoading: albumsLoading } = useMusicAlbums(libraryID);
-  const { data: artists, isLoading: artistsLoading } = useMusicArtists(libraryID);
+  const { data: libraries, isLoading: libLoading } = useMusicLibraries();
+
+  const firstLib = libraries?.[0];
+  const activeLibraryID = selectedLibraryID ?? firstLib?.id;
+
+  const { data: tracks, isLoading: tracksLoading } = useMusicTracks(activeLibraryID);
+  const { data: albums, isLoading: albumsLoading } = useMusicAlbums(activeLibraryID);
+  const { data: artists, isLoading: artistsLoading } = useMusicArtists(activeLibraryID);
 
   const tabStyle = (active: boolean): React.CSSProperties => ({
     padding: "6px 16px",
@@ -107,11 +130,41 @@ function MusicPage() {
     color: active ? "#fff" : "var(--text-secondary)",
   });
 
+  if (libLoading) {
+    return (
+      <div className="flex-1 p-6">
+        <div className="animate-pulse h-8 w-48 rounded mb-6" style={{ backgroundColor: "var(--surface-raised)" }} />
+      </div>
+    );
+  }
+
+  if (!libraries || libraries.length === 0) {
+    return (
+      <div className="flex-1 p-6">
+        <p style={{ color: "var(--text-muted)" }}>No music libraries found. Add one in the Admin panel.</p>
+      </div>
+    );
+  }
+
   return (
-    <div>
-      <h1 className="text-2xl font-bold mb-4" style={{ color: "var(--text)" }}>
-        Music
-      </h1>
+    <div className="flex-1 p-6">
+      <div className="flex flex-col sm:flex-row sm:items-center gap-4 mb-4">
+        <h1 className="text-2xl font-bold" style={{ color: "var(--text)" }}>
+          Music
+        </h1>
+
+        {libraries.length > 1 && (
+          <select
+            value={activeLibraryID ?? ""}
+            onChange={(e) => setSelectedLibraryID(e.target.value)}
+            className="text-sm px-3 py-1.5 rounded-[var(--radius-sm)] border border-[var(--border)] bg-[var(--surface-raised)] text-[var(--text)] cursor-pointer"
+          >
+            {libraries.map((lib) => (
+              <option key={lib.id} value={lib.id}>{lib.name}</option>
+            ))}
+          </select>
+        )}
+      </div>
 
       <div className="flex gap-2 mb-6">
         {(["tracks", "albums", "artists"] as Tab[]).map((t) => (
