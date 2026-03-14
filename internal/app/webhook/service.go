@@ -78,7 +78,7 @@ func (s *Service) handleAny(ctx context.Context, ev shared.Event) {
 		case s.sem <- struct{}{}:
 			go func(c *webhook.Config) {
 				defer func() { <-s.sem }()
-				dCtx, cancel := context.WithTimeout(context.Background(), deliveryTimeout)
+				dCtx, cancel := context.WithTimeout(ctx, deliveryTimeout)
 				defer cancel()
 				s.deliver(dCtx, c, ev.EventName(), ev)
 			}(cfg)
