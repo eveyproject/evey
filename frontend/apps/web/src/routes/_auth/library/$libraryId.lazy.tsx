@@ -31,6 +31,8 @@ import { slugify } from "@/utils/slugify";
 import { toast, useAuthStore } from "@evey/store";
 import { useQueryClient } from "@tanstack/react-query";
 import { eveyFetch } from "@evey/api";
+import { BulkActionBar } from "@/components/BulkActionBar";
+import { AddToCollectionModal } from "@/features/collection/AddToCollectionModal";
 
 export const Route = createLazyFileRoute("/_auth/library/$libraryId")({
   component: LibraryPage,
@@ -230,6 +232,7 @@ function LibraryPage() {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [bulkPlaylistOpen, setBulkPlaylistOpen] = useState(false);
+  const [bulkCollectionOpen, setBulkCollectionOpen] = useState(false);
   const [bulkFavPending, setBulkFavPending] = useState(false);
   const profileId = useAuthStore((s) => s.profileId);
   const queryClient = useQueryClient();
@@ -467,77 +470,81 @@ function LibraryPage() {
         />
       )}
 
-      {/* Bulk action bar */}
+      {bulkCollectionOpen && (
+        <AddToCollectionModal
+          open={bulkCollectionOpen}
+          mediaItemIds={Array.from(selectedIds)}
+          onClose={() => {
+            setBulkCollectionOpen(false);
+            setSelectedIds(new Set());
+            setBulkMode(false);
+          }}
+        />
+      )}
+
+      {/* Bulk action bar (fixed bottom) */}
       {bulkMode && (
-        <div
-          className="sticky top-0 z-10 flex items-center gap-2 px-4 py-2 mb-4 rounded-[var(--radius-md)] flex-wrap"
-          style={{ backgroundColor: "var(--surface)", border: "1px solid var(--accent)" }}
-        >
-          <span
-            className="text-sm font-semibold px-2 py-0.5 rounded-full mr-1"
-            style={{ backgroundColor: "var(--accent)", color: "#fff" }}
+        <>
+          <div
+            className="sticky top-0 z-10 flex items-center gap-2 px-4 py-2 mb-4 rounded-[var(--radius-md)] flex-wrap"
+            style={{ backgroundColor: "var(--surface)", border: "1px solid var(--accent)" }}
           >
-            {selectedIds.size}
-          </span>
-          <span className="text-sm mr-2" style={{ color: "var(--text-muted)" }}>selected</span>
-          {selectedIds.size > 0 && (
-            <>
-              <Button
-                variant="secondary"
-                onClick={() => bulkMarkWatched(true)}
-                loading={markWatched.isPending}
-              >
-                Mark watched
-              </Button>
-              <Button
-                variant="secondary"
-                onClick={() => bulkMarkWatched(false)}
-                loading={markUnwatched.isPending}
-              >
-                Mark unwatched
-              </Button>
-              <Button
-                variant="secondary"
-                loading={bulkFavPending}
-                onClick={() => void bulkAddFavorites()}
-              >
-                Add to favorites
-              </Button>
-              <Button
-                variant="secondary"
-                onClick={() => setBulkPlaylistOpen(true)}
-              >
-                Add to playlist
-              </Button>
-            </>
-          )}
-          <div className="flex items-center gap-2 ml-auto">
-            <button
-              type="button"
-              onClick={() => setSelectedIds(new Set(displayItems.map((i) => i.id ?? "").filter(Boolean)))}
-              className="text-xs hover:underline"
-              style={{ color: "var(--accent)" }}
+            <span
+              className="text-sm font-semibold px-2 py-0.5 rounded-full mr-1"
+              style={{ backgroundColor: "var(--accent)", color: "#fff" }}
             >
-              Select all
-            </button>
-            <button
-              type="button"
-              onClick={() => setSelectedIds(new Set())}
-              className="text-xs hover:underline"
-              style={{ color: "var(--text-muted)" }}
-            >
-              Deselect all
-            </button>
-            <button
-              type="button"
-              onClick={() => { setBulkMode(false); setSelectedIds(new Set()); }}
-              className="text-xs hover:underline"
-              style={{ color: "var(--text-muted)" }}
-            >
-              Exit
-            </button>
+              {selectedIds.size}
+            </span>
+            <span className="text-sm mr-2" style={{ color: "var(--text-muted)" }}>selected</span>
+            {selectedIds.size > 0 && (
+              <>
+                <Button
+                  variant="secondary"
+                  loading={bulkFavPending}
+                  onClick={() => void bulkAddFavorites()}
+                >
+                  Add to favorites
+                </Button>
+              </>
+            )}
+            <div className="flex items-center gap-2 ml-auto">
+              <button
+                type="button"
+                onClick={() => setSelectedIds(new Set(displayItems.map((i) => i.id ?? "").filter(Boolean)))}
+                className="text-xs hover:underline"
+                style={{ color: "var(--accent)" }}
+              >
+                Select all
+              </button>
+              <button
+                type="button"
+                onClick={() => setSelectedIds(new Set())}
+                className="text-xs hover:underline"
+                style={{ color: "var(--text-muted)" }}
+              >
+                Deselect all
+              </button>
+              <button
+                type="button"
+                onClick={() => { setBulkMode(false); setSelectedIds(new Set()); }}
+                className="text-xs hover:underline"
+                style={{ color: "var(--text-muted)" }}
+              >
+                Exit
+              </button>
+            </div>
           </div>
-        </div>
+          <BulkActionBar
+            count={selectedIds.size}
+            onClear={() => { setSelectedIds(new Set()); setBulkMode(false); }}
+            onMarkWatched={() => void bulkMarkWatched(true)}
+            onMarkUnwatched={() => void bulkMarkWatched(false)}
+            onAddToPlaylist={() => setBulkPlaylistOpen(true)}
+            onAddToCollection={() => setBulkCollectionOpen(true)}
+            markWatchedPending={markWatched.isPending}
+            markUnwatchedPending={markUnwatched.isPending}
+          />
+        </>
       )}
 
       <div className={`flex gap-4 ${filtersOpen ? "items-start" : ""}`}>
@@ -562,6 +569,7 @@ function LibraryPage() {
                   key={item.id}
                   item={item}
                   selected={selectedIds.has(item.id ?? "")}
+                  selectionMode={bulkMode}
                   onSelect={bulkMode ? handleSelect : undefined}
                 />
               ))}

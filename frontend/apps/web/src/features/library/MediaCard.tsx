@@ -8,6 +8,7 @@ import { FavoriteButton } from "./FavoriteButton";
 import { StarRatingBadge } from "./StarRating";
 import { useIsFavorite, useToggleFavorite } from "@/hooks/useFavorite";
 import { AddToPlaylistModal } from "../playlist/AddToPlaylistModal";
+import { AddToCollectionModal } from "../collection/AddToCollectionModal";
 
 export interface MediaCardItem {
   id?: string;
@@ -33,6 +34,7 @@ export interface MediaCardProps {
   resolution?: string;
   isHdr?: boolean;
   selected?: boolean;
+  selectionMode?: boolean;
   onSelect?: (id: string, selected: boolean) => void;
 }
 
@@ -107,11 +109,13 @@ function CardContextMenu({
   onClose,
   position,
   onAddToPlaylist,
+  onAddToCollection,
 }: {
   mediaId: string;
   onClose: () => void;
   position: { x: number; y: number };
   onAddToPlaylist: () => void;
+  onAddToCollection: () => void;
 }) {
   const ref = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
@@ -167,6 +171,13 @@ function CardContextMenu({
       onClick: () => {
         onClose();
         onAddToPlaylist();
+      },
+    },
+    {
+      label: "Add to Collection",
+      onClick: () => {
+        onClose();
+        onAddToCollection();
       },
     },
     {
@@ -236,6 +247,7 @@ export function MediaCard({
   resolution,
   isHdr,
   selected = false,
+  selectionMode = false,
   onSelect,
 }: MediaCardProps) {
   const [imgLoaded, setImgLoaded] = useState(false);
@@ -262,6 +274,7 @@ export function MediaCard({
 
   const [ctxMenu, setCtxMenu] = useState<{ x: number; y: number } | null>(null);
   const [playlistModalOpen, setPlaylistModalOpen] = useState(false);
+  const [collectionModalOpen, setCollectionModalOpen] = useState(false);
   const menuBtnRef = useRef<HTMLButtonElement>(null);
   const hasPreviewData = !!(item.overview || item.communityRating || (item.genres && item.genres.length > 0));
 
@@ -299,12 +312,16 @@ export function MediaCard({
     {item.id && playlistModalOpen && (
       <AddToPlaylistModal open={playlistModalOpen} onClose={() => setPlaylistModalOpen(false)} mediaItemId={item.id} />
     )}
+    {item.id && collectionModalOpen && (
+      <AddToCollectionModal open={collectionModalOpen} onClose={() => setCollectionModalOpen(false)} mediaItemIds={[item.id]} />
+    )}
     {ctxMenu && item.id && (
       <CardContextMenu
         mediaId={item.id}
         position={ctxMenu}
         onClose={() => setCtxMenu(null)}
         onAddToPlaylist={() => setPlaylistModalOpen(true)}
+        onAddToCollection={() => setCollectionModalOpen(true)}
       />
     )}
     <Link
@@ -317,7 +334,7 @@ export function MediaCard({
       onFocus={handleFocus}
       onBlur={handleBlur}
       onContextMenu={handleContextMenu}
-      onClick={onSelect ? (e) => { e.preventDefault(); onSelect(item.id!, !selected); } : undefined}
+      onClick={(onSelect && selectionMode) ? (e) => { e.preventDefault(); onSelect(item.id!, !selected); } : undefined}
     >
       {showPreview && <HoverPreview item={item} />}
 
@@ -444,11 +461,11 @@ export function MediaCard({
         )}
 
         {/* Selection checkbox (bulk mode) or Favorite button */}
-        {item.id && onSelect ? (
+        {item.id && (onSelect || selectionMode) ? (
           <button
             aria-label={selected ? "Deselect" : "Select"}
-            onClick={(e) => { e.preventDefault(); e.stopPropagation(); onSelect(item.id!, !selected); }}
-            className="absolute top-2 left-2 z-20 flex items-center justify-center w-5 h-5 rounded transition-colors"
+            onClick={(e) => { e.preventDefault(); e.stopPropagation(); onSelect?.(item.id!, !selected); }}
+            className={`absolute top-2 left-2 z-20 flex items-center justify-center w-5 h-5 rounded transition-colors${selectionMode && !selected ? " opacity-0 group-hover:opacity-100 group-focus-within:opacity-100" : ""}`}
             style={{
               backgroundColor: selected ? "var(--accent)" : "rgba(0,0,0,0.6)",
               border: `2px solid ${selected ? "var(--accent)" : "rgba(255,255,255,0.7)"}`,
