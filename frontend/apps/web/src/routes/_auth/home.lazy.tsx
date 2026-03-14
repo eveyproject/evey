@@ -14,6 +14,7 @@ import { MediaCard } from "../../features/library/MediaCard";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { slugify } from "@/utils/slugify";
 import { useCollections } from "../../features/collection/api";
+import { useMostPopular } from "@/hooks/usePopular";
 
 export const Route = createLazyFileRoute("/_auth/home")({
   component: HomePage,
@@ -247,6 +248,24 @@ function RecentlyAddedSlider() {
   );
 }
 
+function MostPopularSlider() {
+  const { data, isLoading } = useMostPopular(20);
+  const items = data ?? [];
+  if (!isLoading && items.length === 0) return null;
+
+  return (
+    <MediaSlider title="Most Popular" isLoading={isLoading}>
+      {items.map((item) => (
+        <MediaCard
+          key={item.mediaItemId}
+          item={{ id: item.mediaItemId, title: item.title, type: item.type }}
+          showType
+        />
+      ))}
+    </MediaSlider>
+  );
+}
+
 function RecommendedSlider() {
   const { data, isLoading } = useFeedServiceRecommended({ limit: 20 });
   const items = data?.items ?? [];
@@ -340,6 +359,7 @@ function HomePage() {
             <CollectionsSection />
             <RecentlyAddedSlider />
             <RecommendedSlider />
+            <MostPopularSlider />
             <TypeSlider title="Films" type="MEDIA_ITEM_TYPE_MOVIE" />
             <TypeSlider title="S\u00E9ries" type="MEDIA_ITEM_TYPE_SERIES" />
             {libraries.map((lib) =>

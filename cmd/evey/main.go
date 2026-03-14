@@ -519,6 +519,7 @@ func run() error {
 		registerPlaybackSettingsRoutes(mux, cfg, tokenGen)
 		registerParentalRoutes(mux, profileRepo, hasher, tokenGen)
 		registerRatingRoutes(mux, userRatingRepo, tokenGen)
+		registerPopularRoute(mux, activityQuerySvc, libQuerySvc, tokenGen)
 		if subtitleSvc != nil {
 			registerSubtitleRoutes(mux, subtitleSvc, tokenGen, libQuerySvc, libraryAccessRepo)
 		}
