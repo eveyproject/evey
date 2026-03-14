@@ -5,6 +5,7 @@ import { usePlaybackServiceMarkAsWatched, usePlaybackServiceMarkAsUnwatched } fr
 import type { V1Artwork } from "@evey/api/src/generated/library.schemas";
 import { toast, useAuthStore } from "@evey/store";
 import { FavoriteButton } from "./FavoriteButton";
+import { useIsFavorite, useToggleFavorite } from "@/hooks/useFavorite";
 import { AddToPlaylistModal } from "../playlist/AddToPlaylistModal";
 
 export interface MediaCardItem {
@@ -115,6 +116,8 @@ function CardContextMenu({
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const profileId = useAuthStore((s) => s.profileId);
+  const { data: isFav } = useIsFavorite(mediaId);
+  const toggleFav = useToggleFavorite(mediaId);
   const markWatched = usePlaybackServiceMarkAsWatched({
     mutation: {
       onSuccess: () => {
@@ -163,6 +166,13 @@ function CardContextMenu({
       onClick: () => {
         onClose();
         onAddToPlaylist();
+      },
+    },
+    {
+      label: isFav ? "Remove from Favorites" : "Add to Favorites",
+      onClick: () => {
+        toggleFav.mutate();
+        onClose();
       },
     },
     {
@@ -375,6 +385,25 @@ export function MediaCard({
             <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" strokeWidth={3} viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
             </svg>
+          </span>
+        )}
+
+        {/* Community rating badge */}
+        {item.communityRating != null && item.communityRating > 0 && (
+          <span
+            className="absolute z-20 flex items-center gap-0.5 text-[10px] font-bold px-1 py-0.5 leading-none"
+            style={{
+              bottom: hasProgressBar ? "0.75rem" : "0.5rem",
+              right: "0.5rem",
+              backgroundColor: "rgba(0,0,0,0.72)",
+              color: "#f5c518",
+              borderRadius: "var(--radius-sm)",
+            }}
+          >
+            <svg className="w-2.5 h-2.5" viewBox="0 0 20 20" fill="currentColor">
+              <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+            </svg>
+            {item.communityRating.toFixed(1)}
           </span>
         )}
 
