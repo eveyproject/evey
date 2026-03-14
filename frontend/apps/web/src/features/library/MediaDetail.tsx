@@ -65,7 +65,6 @@ function ArtworkPicker({ mediaItemId }: { mediaItemId: string }) {
       queryClient.invalidateQueries({ queryKey: [`/api/v1/media/${mediaItemId}`] });
       toast.success("Artwork updated");
     } catch (err) {
-      console.error("ArtworkPicker: failed to select artwork", err);
       toast.error("Failed to update artwork");
     } finally {
       setSelecting(null);
@@ -200,7 +199,6 @@ function MetadataEditPanel({
       }
       onSave();
     } catch (err) {
-      console.error("MetadataEditPanel: failed to save metadata", err);
       toast.error("Failed to save");
     } finally {
       setSaving(false);
@@ -214,8 +212,7 @@ function MetadataEditPanel({
       await refresh.mutateAsync({ mediaItemId: item.id });
       setRefreshStatus("done");
       setTimeout(() => { setRefreshStatus("idle"); onSave(); }, 1500);
-    } catch (err) {
-      console.error("MetadataEditPanel: failed to refresh metadata", err);
+    } catch (_err) {
       setRefreshStatus("error");
       toast.error("Failed to refresh metadata");
     }

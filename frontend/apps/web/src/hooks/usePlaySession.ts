@@ -61,8 +61,7 @@ export function usePlaySession(mediaId: string): PlaySessionResult {
         sessionIdRef.current = session.id;
         setSessionId(session.id);
       }
-    }).catch((err) => {
-      console.error("Failed to start stream:", err);
+    }).catch(() => {
       setStartError(true);
     }).finally(() => {
       setStarting(false);
