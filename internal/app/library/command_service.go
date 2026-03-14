@@ -213,7 +213,7 @@ func (s *CommandService) ScanLibrary(ctx context.Context, libraryID string) (add
 	return added, updated, nil
 }
 
-func (s *CommandService) upsertMediaFile(ctx context.Context, libraryID, parentID string, f library.ScannedFile) (added, updated int, err error) {
+func (s *CommandService) upsertMediaFile(ctx context.Context, libraryID, parentID string, f library.ScannedFile, seriesTitle ...string) (added, updated int, err error) {
 	var existing *library.MediaItem
 	var getErr error
 	if f.Fingerprint != "" {
@@ -255,10 +255,15 @@ func (s *CommandService) upsertMediaFile(ctx context.Context, libraryID, parentI
 		if err := s.search.IndexMediaItem(ctx, item, nil); err != nil {
 			slog.Warn("index media item failed", slog.String("mediaItemID", item.ID), slog.Any("err", err))
 		}
+		showTitle := ""
+		if len(seriesTitle) > 0 {
+			showTitle = seriesTitle[0]
+		}
 		evtAdded := library.MediaItemAdded{
 			MediaItemID: item.ID,
 			LibraryID:   libraryID,
 			Title:       item.Title,
+			SeriesTitle: showTitle,
 			Type:        item.Type,
 			OccurredAt:  time.Now(),
 		}
@@ -297,10 +302,15 @@ func (s *CommandService) upsertMediaFile(ctx context.Context, libraryID, parentI
 	}
 	// Re-emit so enricher re-fetches metadata for items with no overview
 	if existing.Overview == "" {
+		showTitle := ""
+		if len(seriesTitle) > 0 {
+			showTitle = seriesTitle[0]
+		}
 		evtReAdded := library.MediaItemAdded{
 			MediaItemID: existing.ID,
 			LibraryID:   existing.LibraryID,
 			Title:       existing.Title,
+			SeriesTitle: showTitle,
 			Type:        existing.Type,
 			OccurredAt:  time.Now(),
 		}
@@ -482,7 +492,7 @@ func (s *CommandService) scanTVShowFiles(ctx context.Context, libraryID string, 
 			}
 			episodeFile.Title = fmt.Sprintf("S%02dE%02d", s, *f.Episode)
 		}
-		a, u, episodeErr := s.upsertMediaFile(ctx, libraryID, seasonID, episodeFile)
+		a, u, episodeErr := s.upsertMediaFile(ctx, libraryID, seasonID, episodeFile, showTitle)
 		if episodeErr != nil {
 			return 0, 0, episodeErr
 		}

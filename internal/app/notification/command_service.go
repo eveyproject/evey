@@ -99,7 +99,7 @@ func (s *CommandService) handleMediaItemAdded(parentCtx context.Context, ev shar
 	s.dedupe[dedupeKey] = time.Now()
 	s.mu.Unlock()
 
-	notifType, title := typeAndTitle(e.Type, e.Title)
+	notifType, title := typeAndTitle(e.Type, e.Title, e.SeriesTitle)
 	if notifType == "" {
 		return
 	}
@@ -146,7 +146,7 @@ func (s *CommandService) handleMediaItemAdded(parentCtx context.Context, ev shar
 			ProfileID:   p.ID,
 			Type:        notifType,
 			Title:       title,
-			Message:     fmt.Sprintf("%s added to your library", e.Title),
+			Message:     notifMessage(e.Title, e.SeriesTitle),
 			MediaItemID: e.MediaItemID,
 			Level:       lvl,
 			CreatedAt:   time.Now(),

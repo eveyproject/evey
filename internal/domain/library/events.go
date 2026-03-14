@@ -40,6 +40,7 @@ type MediaItemAdded struct {
 	MediaItemID string
 	LibraryID   string
 	Title       string
+	SeriesTitle string // non-empty for episodes/seasons
 	Type        string
 	Genres      []string
 	OccurredAt  time.Time

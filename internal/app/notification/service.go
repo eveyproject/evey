@@ -98,7 +98,7 @@ func (s *Service) handleMediaItemAdded(parentCtx context.Context, ev shared.Even
 	s.dedupe[dedupeKey] = time.Now()
 	s.mu.Unlock()
 
-	notifType, title := typeAndTitle(e.Type, e.Title)
+	notifType, title := typeAndTitle(e.Type, e.Title, e.SeriesTitle)
 	if notifType == "" {
 		return
 	}
@@ -144,7 +144,7 @@ func (s *Service) handleMediaItemAdded(parentCtx context.Context, ev shared.Even
 			ProfileID:   p.ID,
 			Type:        notifType,
 			Title:       title,
-			Message:     fmt.Sprintf("%s added to your library", e.Title),
+			Message:     notifMessage(e.Title, e.SeriesTitle),
 			MediaItemID: e.MediaItemID,
 			Level:       lvl,
 			CreatedAt:   time.Now(),
@@ -156,20 +156,35 @@ func (s *Service) handleMediaItemAdded(parentCtx context.Context, ev shared.Even
 	}
 }
 
-func typeAndTitle(mediaType, title string) (notification.Type, string) {
+func typeAndTitle(mediaType, title, seriesTitle string) (notification.Type, string) {
 	switch mediaType {
 	case "movie":
 		return notification.TypeNewMovie, "New Movie: " + title
 	case "episode":
-		return notification.TypeNewEpisode, "New Episode: " + title
+		label := title
+		if seriesTitle != "" {
+			label = seriesTitle + " — " + title
+		}
+		return notification.TypeNewEpisode, "New Episode: " + label
 	case "season":
-		return notification.TypeNewSeason, "New Season: " + title
+		label := title
+		if seriesTitle != "" {
+			label = seriesTitle + " — " + title
+		}
+		return notification.TypeNewSeason, "New Season: " + label
 	case "series":
 		return notification.TypeNewSeries, "New Series: " + title
 	case "album":
 		return notification.TypeNewAlbum, "New Album: " + title
 	}
 	return "", ""
+}
+
+func notifMessage(title, seriesTitle string) string {
+	if seriesTitle != "" {
+		return seriesTitle + " — " + title + " added to your library"
+	}
+	return title + " added to your library"
 }
 
 func levelForType(cfg *notification.Settings, t notification.Type) notification.Level {
