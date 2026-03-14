@@ -3,6 +3,8 @@ package grpcapi
 import (
 	"context"
 	"log/slog"
+	"os"
+	"path/filepath"
 	"testing"
 
 	eveyv1 "github.com/gravity-zero/evey/gen/evey/v1"
@@ -234,6 +236,107 @@ func TestAdminRunScheduledTask(t *testing.T) {
 	}
 	if resp == nil {
 		t.Error("expected non-nil response")
+	}
+}
+
+func TestAdminGetPluginLogs_NoLogDir(t *testing.T) {
+	h := newTestAdminHandler()
+	resp, err := h.GetPluginLogs(context.Background(), &eveyv1.GetPluginLogsRequest{PluginId: "p1"})
+	if err != nil {
+		t.Fatalf("GetPluginLogs: %v", err)
+	}
+	if len(resp.Entries) != 0 {
+		t.Errorf("expected 0 entries, got %d", len(resp.Entries))
+	}
+}
+
+func TestAdminGetPluginLogs_WithFile(t *testing.T) {
+	tmpDir := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(tmpDir, "plugins"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	logLines := `{"time":"2026-03-14T10:00:00Z","level":"INFO","msg":"plugin started","plugin_id":"p1"}` + "\n" +
+		`{"time":"2026-03-14T10:01:00Z","level":"WARN","msg":"low memory","plugin_id":"p1","threshold":"512"}` + "\n" +
+		`{"time":"2026-03-14T10:02:00Z","level":"ERROR","msg":"crash","plugin_id":"p1"}` + "\n"
+	if err := os.WriteFile(filepath.Join(tmpDir, "plugins", "p1.log"), []byte(logLines), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	h := newTestAdminHandler()
+	h.logDir = tmpDir
+
+	resp, err := h.GetPluginLogs(context.Background(), &eveyv1.GetPluginLogsRequest{PluginId: "p1"})
+	if err != nil {
+		t.Fatalf("GetPluginLogs: %v", err)
+	}
+	if len(resp.Entries) != 3 {
+		t.Errorf("expected 3 entries, got %d", len(resp.Entries))
+	}
+	if resp.Total != 3 {
+		t.Errorf("expected total=3, got %d", resp.Total)
+	}
+	if resp.Entries[0].Level != "INFO" {
+		t.Errorf("expected INFO, got %s", resp.Entries[0].Level)
+	}
+	if resp.Entries[1].Message != "low memory" {
+		t.Errorf("unexpected message: %s", resp.Entries[1].Message)
+	}
+	if resp.Entries[1].Fields["threshold"] != "512" {
+		t.Errorf("expected threshold field '512', got %q", resp.Entries[1].Fields["threshold"])
+	}
+}
+
+func TestAdminGetPluginLogs_LevelFilter(t *testing.T) {
+	tmpDir := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(tmpDir, "plugins"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	logLines := `{"time":"2026-03-14T10:00:00Z","level":"INFO","msg":"ok"}` + "\n" +
+		`{"time":"2026-03-14T10:01:00Z","level":"ERROR","msg":"fail"}` + "\n"
+	if err := os.WriteFile(filepath.Join(tmpDir, "plugins", "p2.log"), []byte(logLines), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	h := newTestAdminHandler()
+	h.logDir = tmpDir
+
+	resp, err := h.GetPluginLogs(context.Background(), &eveyv1.GetPluginLogsRequest{PluginId: "p2", Level: "ERROR"})
+	if err != nil {
+		t.Fatalf("GetPluginLogs: %v", err)
+	}
+	if len(resp.Entries) != 1 {
+		t.Errorf("expected 1 entry after level filter, got %d", len(resp.Entries))
+	}
+	if resp.Entries[0].Message != "fail" {
+		t.Errorf("unexpected message: %s", resp.Entries[0].Message)
+	}
+}
+
+func TestAdminGetPluginLogs_Pagination(t *testing.T) {
+	tmpDir := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(tmpDir, "plugins"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	var lines string
+	for i := 0; i < 5; i++ {
+		lines += `{"time":"2026-03-14T10:00:00Z","level":"INFO","msg":"line"}` + "\n"
+	}
+	if err := os.WriteFile(filepath.Join(tmpDir, "plugins", "p3.log"), []byte(lines), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	h := newTestAdminHandler()
+	h.logDir = tmpDir
+
+	resp, err := h.GetPluginLogs(context.Background(), &eveyv1.GetPluginLogsRequest{PluginId: "p3", Offset: 2, Limit: 2})
+	if err != nil {
+		t.Fatalf("GetPluginLogs: %v", err)
+	}
+	if len(resp.Entries) != 2 {
+		t.Errorf("expected 2 entries (paginated), got %d", len(resp.Entries))
+	}
+	if resp.Total != 5 {
+		t.Errorf("expected total=5, got %d", resp.Total)
 	}
 }
 

@@ -1,10 +1,16 @@
 package grpcapi
 
 import (
+	"bufio"
 	"context"
+	"encoding/json"
 	"errors"
 	"log/slog"
+	"os"
+	"path/filepath"
 	"runtime"
+	"strings"
+	"time"
 
 	eveyv1 "github.com/gravity-zero/evey/gen/evey/v1"
 	appactivity "github.com/gravity-zero/evey/internal/app/activity"
@@ -44,6 +50,7 @@ type adminHandler struct {
 	libLister      adminLibraryLister
 	scheduler      adminScheduler
 	libScanner     adminLibraryScanner
+	logDir         string
 	version        string
 }
 
@@ -347,8 +354,77 @@ func (h *adminHandler) UpdatePluginConfig(ctx context.Context, req *eveyv1.Updat
 }
 
 func (h *adminHandler) GetPluginLogs(_ context.Context, req *eveyv1.GetPluginLogsRequest) (*eveyv1.GetPluginLogsResponse, error) {
-	_ = req.PluginId
-	return &eveyv1.GetPluginLogsResponse{}, nil
+	if h.logDir == "" || req.PluginId == "" {
+		return &eveyv1.GetPluginLogsResponse{}, nil
+	}
+	logPath := filepath.Join(h.logDir, "plugins", req.PluginId+".log")
+	f, err := os.Open(logPath) //nolint:gosec
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return &eveyv1.GetPluginLogsResponse{}, nil
+		}
+		return nil, status.Errorf(codes.Internal, "open log: %v", err)
+	}
+	defer f.Close()
+
+	filterLevel := strings.ToUpper(req.Level)
+	var all []*eveyv1.PluginLogEntry
+	sc := bufio.NewScanner(f)
+	for sc.Scan() {
+		line := sc.Bytes()
+		var raw map[string]json.RawMessage
+		if err := json.Unmarshal(line, &raw); err != nil {
+			continue
+		}
+		var level, msg string
+		var ts time.Time
+		if v, ok := raw["level"]; ok {
+			json.Unmarshal(v, &level) //nolint:errcheck
+		}
+		if v, ok := raw["msg"]; ok {
+			json.Unmarshal(v, &msg) //nolint:errcheck
+		}
+		if v, ok := raw["time"]; ok {
+			var t string
+			if json.Unmarshal(v, &t) == nil {
+				ts, _ = time.Parse(time.RFC3339Nano, t)
+			}
+		}
+		if filterLevel != "" && !strings.EqualFold(level, filterLevel) {
+			continue
+		}
+		fields := make(map[string]string)
+		for k, v := range raw {
+			if k == "level" || k == "msg" || k == "time" || k == "plugin_id" {
+				continue
+			}
+			var s string
+			if json.Unmarshal(v, &s) == nil {
+				fields[k] = s
+			}
+		}
+		entry := &eveyv1.PluginLogEntry{
+			Level:   level,
+			Message: msg,
+			Fields:  fields,
+		}
+		if !ts.IsZero() {
+			entry.Timestamp = timestamppb.New(ts)
+		}
+		all = append(all, entry)
+	}
+
+	total := int32(len(all))
+	offset := int(req.Offset)
+	limit := int(req.Limit)
+	if offset >= len(all) {
+		return &eveyv1.GetPluginLogsResponse{Total: total}, nil
+	}
+	all = all[offset:]
+	if limit > 0 && limit < len(all) {
+		all = all[:limit]
+	}
+	return &eveyv1.GetPluginLogsResponse{Entries: all, Total: total}, nil
 }
 
 func stringFromInterface(v any) string {

@@ -384,6 +384,7 @@ func run() error {
 	defer hlsManager.CleanupAll()
 	grpcSrv.SetHLSManager(hlsManager)
 	grpcSrv.SetScheduler(libScheduler)
+	grpcSrv.SetLogDir(logCfg.Dir)
 	go func() {
 		ticker := time.NewTicker(30 * time.Second)
 		defer ticker.Stop()
