@@ -19,6 +19,8 @@ type CommandService struct {
 	analyzer notification.WatchHistoryAnalyzer
 	profiles ProfileLister
 	events   shared.EventBus
+	push     notification.PushSender
+	tokens   notification.DeviceTokenRepository
 
 	mu       sync.Mutex
 	dedupe   map[string]time.Time
@@ -43,6 +45,12 @@ func NewCommandService(
 		done:     make(chan struct{}),
 	}
 	events.Subscribe("media.item.added", s.handleMediaItemAdded)
+	return s
+}
+
+func (s *CommandService) WithPush(push notification.PushSender, tokens notification.DeviceTokenRepository) *CommandService {
+	s.push = push
+	s.tokens = tokens
 	return s
 }
 
@@ -144,6 +152,16 @@ func (s *CommandService) handleMediaItemAdded(parentCtx context.Context, ev shar
 		if err := s.repo.Create(ctx, n); err != nil {
 			slog.Warn("create notification failed", slog.String("profileID", p.ID), slog.Any("err", err))
 			continue
+		}
+		if s.push != nil && s.tokens != nil {
+			toks, err := s.tokens.GetByProfile(ctx, n.ProfileID)
+			if err != nil {
+				slog.Warn("fcm: get tokens failed", slog.String("profileID", n.ProfileID), slog.Any("err", err))
+			} else if len(toks) > 0 {
+				if err := s.push.SendToTokens(ctx, toks, n.Title, n.Message, nil); err != nil {
+					slog.Warn("fcm: send failed", slog.String("profileID", n.ProfileID), slog.Any("err", err))
+				}
+			}
 		}
 		evt := notification.NotificationCreated{
 			NotificationID: n.ID,

@@ -2,6 +2,17 @@ package notification
 
 import "context"
 
+type DeviceTokenRepository interface {
+	Upsert(ctx context.Context, userID, profileID, token, platform string) error
+	Delete(ctx context.Context, token string) error
+	GetByProfile(ctx context.Context, profileID string) ([]string, error)
+	GetByUser(ctx context.Context, userID string) ([]string, error)
+}
+
+type PushSender interface {
+	SendToTokens(ctx context.Context, tokens []string, title, body string, data map[string]string) error
+}
+
 type Repository interface {
 	Create(ctx context.Context, n *Notification) error
 	ListByProfile(ctx context.Context, profileID string, unreadOnly bool, limit, offset int) ([]*Notification, error)
