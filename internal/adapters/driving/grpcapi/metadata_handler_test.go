@@ -16,14 +16,10 @@ func newTestMetadataHandler() (*metadataHandler, *metafakes.FakeMetadataProvider
 	artworkRepo := metafakes.NewFakeArtworkRepository()
 	overrideRepo := metafakes.NewFakeMetadataOverrideRepository()
 	events := sharedfakes.NewFakeEventBus()
-	svc := appmetadata.NewService(
-		overrideRepo,
-		artworkRepo,
-		metafakes.NewFakeArtworkDownloader(),
-		events,
-		[]metadata.MetadataProvider{provider},
-	)
-	return &metadataHandler{svc: svc}, provider, artworkRepo, overrideRepo
+	providers := []metadata.MetadataProvider{provider}
+	cmd := appmetadata.NewCommandService(overrideRepo, artworkRepo, metafakes.NewFakeArtworkDownloader(), events, providers)
+	query := appmetadata.NewQueryService(overrideRepo, artworkRepo, providers)
+	return &metadataHandler{cmd: cmd, query: query}, provider, artworkRepo, overrideRepo
 }
 
 func TestMetadataGetArtwork(t *testing.T) {

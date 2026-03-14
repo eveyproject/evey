@@ -40,7 +40,7 @@ import (
 	"github.com/gravity-zero/evey/internal/pkg/ratelimit"
 )
 
-func registerAdminRoutes(mux *http.ServeMux, metaSvc *appmetadata.Service, tokenGen *auth.JWTGenerator, heavyRL *ratelimit.Limiter) {
+func registerAdminRoutes(mux *http.ServeMux, metaCmd *appmetadata.CommandService, metaQuery *appmetadata.QueryService, tokenGen *auth.JWTGenerator, heavyRL *ratelimit.Limiter) {
 	requireAdmin := func(r *http.Request) bool {
 		h := r.Header.Get("Authorization")
 		if !strings.HasPrefix(h, "Bearer ") {
@@ -80,9 +80,9 @@ func registerAdminRoutes(mux *http.ServeMux, metaSvc *appmetadata.Service, token
 			}
 			var refreshErr error
 			if body.ImdbID != "" {
-				refreshErr = metaSvc.RefreshItemMetadataByIMDB(r.Context(), mediaItemID, body.ImdbID, body.MediaType)
+				refreshErr = metaCmd.RefreshItemMetadataByIMDB(r.Context(), mediaItemID, body.ImdbID, body.MediaType)
 			} else {
-				refreshErr = metaSvc.RefreshItemMetadata(r.Context(), mediaItemID, body.TmdbID, body.MediaType)
+				refreshErr = metaCmd.RefreshItemMetadata(r.Context(), mediaItemID, body.TmdbID, body.MediaType)
 			}
 			if refreshErr != nil {
 				slog.Error("refresh metadata", slog.Any("err", refreshErr))
@@ -98,7 +98,7 @@ func registerAdminRoutes(mux *http.ServeMux, metaSvc *appmetadata.Service, token
 				http.Error(w, "query and type required", http.StatusBadRequest)
 				return
 			}
-			results, err := metaSvc.SearchMetadata(r.Context(), query, mediaType)
+			results, err := metaQuery.SearchMetadata(r.Context(), query, mediaType)
 			if err != nil {
 				slog.Error("search metadata", slog.Any("err", err))
 				http.Error(w, "internal error", http.StatusInternalServerError)
@@ -254,7 +254,7 @@ func registerFavoriteRoutes(mux *http.ServeMux, favSvc *appfavorite.Service, tok
 	})
 }
 
-func registerMetadataOverrideRoutes(mux *http.ServeMux, metaSvc *appmetadata.Service, tokenGen *auth.JWTGenerator) {
+func registerMetadataOverrideRoutes(mux *http.ServeMux, metaCmd *appmetadata.CommandService, metaQuery *appmetadata.QueryService, tokenGen *auth.JWTGenerator) {
 	requireAdmin := func(r *http.Request) bool {
 		h := r.Header.Get("Authorization")
 		if !strings.HasPrefix(h, "Bearer ") {
@@ -290,7 +290,7 @@ func registerMetadataOverrideRoutes(mux *http.ServeMux, metaSvc *appmetadata.Ser
 				FieldName:   fieldName,
 				CustomValue: value,
 			}
-			if err := metaSvc.SetOverride(r.Context(), override); err != nil {
+			if err := metaCmd.SetOverride(r.Context(), override); err != nil {
 				slog.Error("set override", slog.Any("err", err))
 				http.Error(w, `{"message":"internal error"}`, http.StatusInternalServerError)
 				return
@@ -305,7 +305,7 @@ func registerMetadataOverrideRoutes(mux *http.ServeMux, metaSvc *appmetadata.Ser
 			http.Error(w, `{"message":"unauthorized"}`, http.StatusUnauthorized)
 			return
 		}
-		if err := metaSvc.ResetOverrides(r.Context(), r.PathValue("id")); err != nil {
+		if err := metaCmd.ResetOverrides(r.Context(), r.PathValue("id")); err != nil {
 			http.Error(w, `{"message":"internal error"}`, http.StatusInternalServerError)
 			return
 		}
@@ -318,7 +318,7 @@ func registerMetadataOverrideRoutes(mux *http.ServeMux, metaSvc *appmetadata.Ser
 			http.Error(w, `{"message":"unauthorized"}`, http.StatusUnauthorized)
 			return
 		}
-		overrides, err := metaSvc.ListOverrides(r.Context(), r.PathValue("id"))
+		overrides, err := metaQuery.ListOverrides(r.Context(), r.PathValue("id"))
 		if err != nil {
 			http.Error(w, `{"message":"internal error"}`, http.StatusInternalServerError)
 			return

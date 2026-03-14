@@ -20,7 +20,7 @@ type libraryHandler struct {
 	eveyv1.UnimplementedLibraryServiceServer
 	cmd           *applibrary.CommandService
 	query         *applibrary.QueryService
-	metadataSvc   *appmetadata.Service
+	metadataSvc   *appmetadata.QueryService
 	libraryAccess user.LibraryAccessRepository
 	profiles      user.ProfileRepository
 }

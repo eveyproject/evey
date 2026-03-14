@@ -218,16 +218,17 @@ func run() error {
 
 	mkvSvc := appmkv.NewService(ebmlReader, ebmlWriter)
 
-	metadataSvc := appmetadata.NewService(
-		metadataOverrideRepo, artworkRepo, artworkDownloader,
-		bus, []metadata.MetadataProvider{tmdbProvider, omdbProvider, tvmazeProvider, imdbProvider},
+	metaProviders := []metadata.MetadataProvider{tmdbProvider, omdbProvider, tvmazeProvider, imdbProvider}
+	metadataCmdSvc := appmetadata.NewCommandService(
+		metadataOverrideRepo, artworkRepo, artworkDownloader, bus, metaProviders,
 	)
+	metadataQuerySvc := appmetadata.NewQueryService(metadataOverrideRepo, artworkRepo, metaProviders)
 	enricher := metadataadapter.NewEnricher(
 		artworkRepo, personRepo, mediaPersonRepo, mediaItemRepo, searchAdapter,
 		tmdbProvider,
 		[]metadata.MetadataProvider{omdbProvider, tvmazeProvider, imdbProvider},
 	)
-	metadataSvc.WithEnricher(enricher, mediaItemRepo)
+	metadataCmdSvc.WithEnricher(enricher, mediaItemRepo)
 
 	activityCmdSvc := appactivity.NewCommandService(loginHistoryRepo, serverMetricRepo, auditLogRepo, bus)
 	activityQuerySvc := appactivity.NewQueryService(loginHistoryRepo, serverMetricRepo, auditLogRepo, playSessionStatsRepo, playHistoryRepo)
@@ -360,7 +361,7 @@ func run() error {
 		libCmdSvc, libQuerySvc, userSvc,
 		playbackSvc.CommandService(), playbackSvc.QueryService(),
 		transcodingSvc,
-		mkvSvc, pluginSvc, metadataSvc, activityCmdSvc, activityQuerySvc,
+		mkvSvc, pluginSvc, metadataCmdSvc, metadataQuerySvc, activityCmdSvc, activityQuerySvc,
 		notifCmdSvc, notifQuerySvc, feedCmdSvc, feedQuerySvc, webhookSvc,
 		userRepo, profileRepo, libraryAccessRepo, version,
 		grpc.ChainUnaryInterceptor(
@@ -449,9 +450,9 @@ func run() error {
 			clearRefreshCookie(w, httpsOnly)
 			gwMux.ServeHTTP(w, r)
 		})
-		registerAdminRoutes(mux, metadataSvc, tokenGen, adminHeavyRL)
+		registerAdminRoutes(mux, metadataCmdSvc, metadataQuerySvc, tokenGen, adminHeavyRL)
 		registerFavoriteRoutes(mux, favoriteSvc, tokenGen)
-		registerMetadataOverrideRoutes(mux, metadataSvc, tokenGen)
+		registerMetadataOverrideRoutes(mux, metadataCmdSvc, metadataQuerySvc, tokenGen)
 		registerTranscodeCacheRoutes(mux, transcodingSvc, tokenGen)
 		registerCollectionRoutes(mux, collectionSvc, tokenGen)
 		registerScheduleRoutes(mux, libScheduler, tokenGen)
