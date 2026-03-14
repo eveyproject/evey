@@ -34,6 +34,7 @@ import (
 
 	appfavorite "github.com/gravity-zero/evey/internal/app/favorite"
 	appplaylist "github.com/gravity-zero/evey/internal/app/playlist"
+	apprating "github.com/gravity-zero/evey/internal/app/rating"
 	appsyncplay "github.com/gravity-zero/evey/internal/app/syncplay"
 	domainplaylist "github.com/gravity-zero/evey/internal/domain/playlist"
 	appmetadata "github.com/gravity-zero/evey/internal/app/metadata"
@@ -1648,6 +1649,101 @@ func registerRatingRoutes(mux *http.ServeMux, ratingRepo domainlibrary.UserRatin
 		}
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(map[string]any{"value": rating.Value})
+	})
+}
+
+func registerStarRatingRoutes(mux *http.ServeMux, svc *apprating.Service, tokenGen *auth.JWTGenerator) {
+	extractClaims := func(r *http.Request) (*domainuser.Claims, bool) {
+		h := r.Header.Get("Authorization")
+		if !strings.HasPrefix(h, "Bearer ") {
+			return nil, false
+		}
+		claims, err := tokenGen.ValidateAccessToken(h[7:])
+		if err != nil {
+			return nil, false
+		}
+		return claims, true
+	}
+
+	// POST /api/v1/media/{id}/rating — upsert 1-5 star rating
+	mux.HandleFunc("POST /api/v1/media/{id}/rating", func(w http.ResponseWriter, r *http.Request) {
+		claims, ok := extractClaims(r)
+		if !ok {
+			http.Error(w, `{"message":"unauthenticated"}`, http.StatusUnauthorized)
+			return
+		}
+		var body struct {
+			Value int `json:"value"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			http.Error(w, `{"message":"bad request"}`, http.StatusBadRequest)
+			return
+		}
+		if err := svc.Rate(r.Context(), r.PathValue("id"), claims.ProfileID, body.Value); err != nil {
+			http.Error(w, `{"message":"`+err.Error()+`"}`, http.StatusBadRequest)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]any{"value": body.Value})
+	})
+
+	// GET /api/v1/media/{id}/rating — get current profile's rating
+	mux.HandleFunc("GET /api/v1/media/{id}/rating", func(w http.ResponseWriter, r *http.Request) {
+		claims, ok := extractClaims(r)
+		if !ok {
+			http.Error(w, `{"message":"unauthenticated"}`, http.StatusUnauthorized)
+			return
+		}
+		rt, err := svc.GetRating(r.Context(), r.PathValue("id"), claims.ProfileID)
+		if err != nil {
+			slog.Error("get star rating", slog.Any("err", err))
+			http.Error(w, `{"message":"internal error"}`, http.StatusInternalServerError)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		if rt == nil {
+			json.NewEncoder(w).Encode(map[string]any{"value": 0})
+			return
+		}
+		json.NewEncoder(w).Encode(map[string]any{"value": rt.Value})
+	})
+
+	// DELETE /api/v1/media/{id}/rating — remove rating
+	mux.HandleFunc("DELETE /api/v1/media/{id}/rating", func(w http.ResponseWriter, r *http.Request) {
+		claims, ok := extractClaims(r)
+		if !ok {
+			http.Error(w, `{"message":"unauthenticated"}`, http.StatusUnauthorized)
+			return
+		}
+		if err := svc.DeleteRating(r.Context(), r.PathValue("id"), claims.ProfileID); err != nil {
+			slog.Error("delete star rating", slog.Any("err", err))
+			http.Error(w, `{"message":"internal error"}`, http.StatusInternalServerError)
+			return
+		}
+		w.WriteHeader(http.StatusNoContent)
+	})
+
+	// GET /api/v1/media/{id}/rating/aggregate — avg + count
+	mux.HandleFunc("GET /api/v1/media/{id}/rating/aggregate", func(w http.ResponseWriter, r *http.Request) {
+		h := r.Header.Get("Authorization")
+		if !strings.HasPrefix(h, "Bearer ") {
+			http.Error(w, `{"message":"unauthenticated"}`, http.StatusUnauthorized)
+			return
+		}
+		if _, err := tokenGen.ValidateAccessToken(h[7:]); err != nil {
+			http.Error(w, `{"message":"unauthenticated"}`, http.StatusUnauthorized)
+			return
+		}
+		mediaID := r.PathValue("id")
+		aggs, err := svc.GetAggregates(r.Context(), []string{mediaID})
+		if err != nil {
+			slog.Error("get rating aggregate", slog.Any("err", err))
+			http.Error(w, `{"message":"internal error"}`, http.StatusInternalServerError)
+			return
+		}
+		agg := aggs[mediaID]
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]any{"average": agg.Average, "count": agg.Count})
 	})
 }
 

@@ -1,39 +1,66 @@
-import { useState, useCallback } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { eveyFetch } from "@evey/api";
 
-// TODO: replace localStorage with server persistence when backend supports 1-5 star ratings
-const KEY_PREFIX = "evey:star-rating:";
-
-function load(mediaId: string): number {
-  try {
-    const v = localStorage.getItem(KEY_PREFIX + mediaId);
-    if (v === null) return 0;
-    const n = parseInt(v, 10);
-    return n >= 1 && n <= 5 ? n : 0;
-  } catch {
-    return 0;
-  }
-}
-
-function save(mediaId: string, value: number) {
-  try {
-    if (value === 0) localStorage.removeItem(KEY_PREFIX + mediaId);
-    else localStorage.setItem(KEY_PREFIX + mediaId, String(value));
-  } catch {}
-}
+const qKey = (mediaId: string | undefined) => ["star-rating", mediaId];
 
 export function useStarRating(mediaId: string | undefined) {
-  const [rating, setRatingState] = useState<number>(() => (mediaId ? load(mediaId) : 0));
+  const qc = useQueryClient();
 
-  const setRating = useCallback(
-    (value: number) => {
-      if (!mediaId) return;
-      // clicking current rating removes it
-      const next = rating === value ? 0 : value;
-      save(mediaId, next);
-      setRatingState(next);
+  const { data } = useQuery({
+    queryKey: qKey(mediaId),
+    queryFn: () =>
+      eveyFetch<{ value: number }>({ url: `/api/v1/media/${mediaId}/rating`, method: "GET" }),
+    enabled: !!mediaId,
+    staleTime: 60_000,
+    select: (d) => d.value,
+  });
+
+  const rating = data ?? 0;
+
+  const mutation = useMutation({
+    mutationFn: async (value: number) => {
+      if (value === 0) {
+        await eveyFetch({ url: `/api/v1/media/${mediaId}/rating`, method: "DELETE" });
+        return { value: 0 };
+      }
+      return eveyFetch<{ value: number }>({
+        url: `/api/v1/media/${mediaId}/rating`,
+        method: "POST",
+        data: { value },
+      });
     },
-    [mediaId, rating],
-  );
+    onMutate: async (value) => {
+      await qc.cancelQueries({ queryKey: qKey(mediaId) });
+      const prev = qc.getQueryData(qKey(mediaId));
+      qc.setQueryData(qKey(mediaId), { value });
+      return { prev };
+    },
+    onError: (_err, _vars, ctx) => {
+      if (ctx?.prev !== undefined) qc.setQueryData(qKey(mediaId), ctx.prev);
+    },
+    onSettled: () => {
+      qc.invalidateQueries({ queryKey: qKey(mediaId) });
+      qc.invalidateQueries({ queryKey: ["star-rating-agg", mediaId] });
+    },
+  });
+
+  const setRating = (value: number) => {
+    // clicking current star removes the rating
+    mutation.mutate(rating === value ? 0 : value);
+  };
 
   return { rating, setRating };
+}
+
+export function useRatingAggregate(mediaId: string | undefined) {
+  return useQuery({
+    queryKey: ["star-rating-agg", mediaId],
+    queryFn: () =>
+      eveyFetch<{ average: number; count: number }>({
+        url: `/api/v1/media/${mediaId}/rating/aggregate`,
+        method: "GET",
+      }),
+    enabled: !!mediaId,
+    staleTime: 60_000,
+  });
 }
