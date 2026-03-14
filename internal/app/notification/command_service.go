@@ -2,6 +2,7 @@ package notification
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"sync"
@@ -105,7 +106,9 @@ func (s *CommandService) handleMediaItemAdded(parentCtx context.Context, ev shar
 
 	profiles, err := s.profiles.GetAll(ctx)
 	if err != nil {
-		slog.Warn("notification: list profiles failed", slog.Any("err", err))
+		if !errors.Is(err, context.Canceled) {
+			slog.Warn("notification: list profiles failed", slog.Any("err", err))
+		}
 		return
 	}
 

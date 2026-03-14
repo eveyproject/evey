@@ -94,5 +94,10 @@ export async function eveyFetch<T>(request: FetcherRequest): Promise<T> {
     return undefined as T;
   }
 
-  return response.json() as Promise<T>;
+  // grpc-gateway server-streaming responses are NDJSON (one JSON object per line).
+  // Parse the last non-empty line to handle both regular and streaming responses.
+  const text = await response.text();
+  const lines = text.split("\n").filter((l) => l.trim());
+  if (lines.length === 0) return undefined as T;
+  return JSON.parse(lines[lines.length - 1]) as T;
 }

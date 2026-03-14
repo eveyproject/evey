@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"log/slog"
+	"strings"
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -44,6 +45,9 @@ func sanitizeError(err error, method string) error {
 		return err
 	}
 	if st.Code() == codes.Internal {
+		if strings.Contains(st.Message(), "context canceled") {
+			return status.Error(codes.Canceled, "request canceled")
+		}
 		slog.Warn("sanitized internal error", slog.String("method", method), slog.String("original", st.Message()))
 		return status.Error(codes.Internal, "internal error")
 	}

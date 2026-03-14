@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"crypto/hmac"
+	"errors"
 	"crypto/sha256"
 	"encoding/json"
 	"fmt"
@@ -64,7 +65,9 @@ func (s *Service) SetRetryDelays(delays []time.Duration) {
 func (s *Service) handleAny(ctx context.Context, ev shared.Event) {
 	cfgs, err := s.repo.List(ctx)
 	if err != nil {
-		s.log.Error("webhook: list configs failed", slog.Any("err", err))
+		if !errors.Is(err, context.Canceled) {
+			s.log.Error("webhook: list configs failed", slog.Any("err", err))
+		}
 		return
 	}
 	for _, cfg := range cfgs {
