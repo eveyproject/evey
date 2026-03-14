@@ -114,11 +114,12 @@ type TranscodingConfig struct {
 }
 
 type OIDCConfig struct {
-	Enabled      bool
-	Issuer       string
-	ClientID     string
-	ClientSecret string
-	RedirectURL  string
+	Enabled             bool
+	Issuer              string
+	ClientID            string
+	ClientSecret        string
+	RedirectURL         string
+	AllowedEmailDomains []string // EVEY_OIDC_ALLOWED_EMAIL_DOMAINS — comma-separated; empty = allow all
 }
 
 type MetricsConfig struct {
@@ -173,11 +174,12 @@ func Load() (*Config, error) {
 			TrickplayCacheDir: envStr("EVEY_TRICKPLAY_CACHE_DIR", "/cache/trickplay"),
 		},
 		OIDC: OIDCConfig{
-			Enabled:      envBool("EVEY_OIDC_ENABLED", false),
-			Issuer:       envStr("EVEY_OIDC_ISSUER", ""),
-			ClientID:     envStr("EVEY_OIDC_CLIENT_ID", ""),
-			ClientSecret: envStr("EVEY_OIDC_CLIENT_SECRET", ""),
-			RedirectURL:  envStr("EVEY_OIDC_REDIRECT_URL", ""),
+			Enabled:             envBool("EVEY_OIDC_ENABLED", false),
+			Issuer:              envStr("EVEY_OIDC_ISSUER", ""),
+			ClientID:            envStr("EVEY_OIDC_CLIENT_ID", ""),
+			ClientSecret:        envStr("EVEY_OIDC_CLIENT_SECRET", ""),
+			RedirectURL:         envStr("EVEY_OIDC_REDIRECT_URL", ""),
+			AllowedEmailDomains: envStrSlice("EVEY_OIDC_ALLOWED_EMAIL_DOMAINS", nil),
 		},
 		Metrics: MetricsConfig{
 			RetentionDays:     envInt("EVEY_METRICS_RETENTION_DAYS", 90),

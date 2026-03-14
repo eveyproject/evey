@@ -4,6 +4,7 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"log/slog"
 	"net/http"
 	"net/url"
@@ -49,6 +50,10 @@ func registerOIDCRoutes(mux *http.ServeMux, oidcSvc *appuser.OIDCService) {
 
 		accessToken, refreshToken, err := oidcSvc.HandleCallback(r.Context(), code)
 		if err != nil {
+			if errors.Is(err, appuser.ErrEmailDomainNotAllowed) {
+				http.Error(w, "access denied: email domain not allowed", http.StatusForbidden)
+				return
+			}
 			slog.Error("oidc callback: handle failed", slog.Any("err", err))
 			redirectURL := "/login?oidc_error=1"
 			http.Redirect(w, r, redirectURL, http.StatusFound)
