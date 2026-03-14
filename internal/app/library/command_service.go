@@ -621,7 +621,10 @@ func (s *CommandService) GenerateAllMissingTrickplays(ctx context.Context) (int,
 			if bgCtx.Err() != nil {
 				return
 			}
-			if err := s.GenerateTrickplay(bgCtx, id); err != nil {
+			itemCtx, cancel := context.WithTimeout(bgCtx, 30*time.Minute)
+			err := s.GenerateTrickplay(itemCtx, id)
+			cancel()
+			if err != nil {
 				slog.Warn("trickplay generation failed", slog.String("media_id", id), slog.Any("err", err))
 			} else {
 				slog.Info("trickplay generated", slog.String("media_id", id))
