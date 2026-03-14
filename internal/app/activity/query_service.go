@@ -54,3 +54,7 @@ func (s *QueryService) GetServerStats(ctx context.Context) (*activity.ServerStat
 func (s *QueryService) GetPlayHistory(ctx context.Context, filter activity.PlayHistoryFilter) ([]*activity.PlayHistoryEntry, error) {
 	return s.playHistory.List(ctx, filter)
 }
+
+func (s *QueryService) GetMostPopular(ctx context.Context, limit int) ([]activity.MediaPlayCount, error) {
+	return s.statsReader.GetMostPopular(ctx, limit)
+}

@@ -29,6 +29,9 @@ func (r *FakePlayHistoryRepository) List(_ context.Context, filter activity.Play
 	}
 	r.mu.RLock()
 	defer r.mu.RUnlock()
+	if r.Err != nil {
+		return nil, r.Err
+	}
 	var result []*activity.PlayHistoryEntry
 	for _, e := range r.items {
 		if filter.ProfileID != "" && e.ProfileID != filter.ProfileID {

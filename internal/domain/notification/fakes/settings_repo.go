@@ -45,6 +45,9 @@ func (r *FakeSettingsRepository) GetByProfile(_ context.Context, profileID strin
 	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
+	if r.Err != nil {
+		return nil, r.Err
+	}
 	if s, ok := r.byProfile[profileID]; ok {
 		return s, nil
 	}
@@ -62,6 +65,9 @@ func (r *FakeSettingsRepository) Upsert(_ context.Context, s *notification.Setti
 	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
+	if r.Err != nil {
+		return r.Err
+	}
 	r.byProfile[s.ProfileID] = s
 	return nil
 }
@@ -72,6 +78,9 @@ func (r *FakeSettingsRepository) GetGlobalDefaults(_ context.Context) (*notifica
 	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
+	if r.Err != nil {
+		return nil, r.Err
+	}
 	if r.defaults == nil {
 		return &notification.Settings{MovieLevel: notification.LevelAll, SeriesLevel: notification.LevelAll, MusicLevel: notification.LevelAll}, nil
 	}
@@ -84,6 +93,9 @@ func (r *FakeSettingsRepository) UpsertGlobalDefaults(_ context.Context, s *noti
 	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
+	if r.Err != nil {
+		return r.Err
+	}
 	r.defaults = s
 	return nil
 }

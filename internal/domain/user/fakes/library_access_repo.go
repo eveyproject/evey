@@ -22,6 +22,9 @@ func (r *FakeLibraryAccessRepository) Grant(_ context.Context, userID, libraryID
 	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
+	if r.Err != nil {
+		return r.Err
+	}
 	if r.items[userID] == nil {
 		r.items[userID] = make(map[string]time.Time)
 	}
@@ -35,6 +38,9 @@ func (r *FakeLibraryAccessRepository) Revoke(_ context.Context, userID, libraryI
 	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
+	if r.Err != nil {
+		return r.Err
+	}
 	if libs, ok := r.items[userID]; ok {
 		delete(libs, libraryID)
 		if len(libs) == 0 {
@@ -50,6 +56,9 @@ func (r *FakeLibraryAccessRepository) GetByUserID(_ context.Context, userID stri
 	}
 	r.mu.RLock()
 	defer r.mu.RUnlock()
+	if r.Err != nil {
+		return nil, r.Err
+	}
 	libs := r.items[userID]
 	if len(libs) == 0 {
 		return nil, nil
@@ -67,6 +76,9 @@ func (r *FakeLibraryAccessRepository) HasAccess(_ context.Context, userID, libra
 	}
 	r.mu.RLock()
 	defer r.mu.RUnlock()
+	if r.Err != nil {
+		return false, r.Err
+	}
 	libs := r.items[userID]
 	if len(libs) == 0 {
 		return true, nil // no restrictions = full access
@@ -81,6 +93,9 @@ func (r *FakeLibraryAccessRepository) ListUsersWithRestrictions(_ context.Contex
 	}
 	r.mu.RLock()
 	defer r.mu.RUnlock()
+	if r.Err != nil {
+		return nil, r.Err
+	}
 	result := make(map[string][]string, len(r.items))
 	for userID, libs := range r.items {
 		ids := make([]string, 0, len(libs))
@@ -98,6 +113,9 @@ func (r *FakeLibraryAccessRepository) DeleteByUserID(_ context.Context, userID s
 	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
+	if r.Err != nil {
+		return r.Err
+	}
 	delete(r.items, userID)
 	return nil
 }

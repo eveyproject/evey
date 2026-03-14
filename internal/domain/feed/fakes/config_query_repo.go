@@ -26,6 +26,9 @@ func (r *FakeConfigQueryRepo) GetAdminConfig(_ context.Context) ([]*feed.AdminCo
 	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
+	if r.Err != nil {
+		return nil, r.Err
+	}
 	return r.AdminConfigs, nil
 }
 
@@ -35,5 +38,8 @@ func (r *FakeConfigQueryRepo) GetProfileConfig(_ context.Context, profileID stri
 	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
+	if r.Err != nil {
+		return nil, r.Err
+	}
 	return r.ProfileConfigs[profileID], nil
 }

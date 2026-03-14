@@ -32,6 +32,9 @@ func (r *FakeCollectionQueryRepo) GetByID(_ context.Context, id string) (*librar
 	}
 	r.mu.RLock()
 	defer r.mu.RUnlock()
+	if r.Err != nil {
+		return nil, r.Err
+	}
 	col, ok := r.collections[id]
 	if !ok {
 		return nil, ErrNotFound
@@ -45,6 +48,9 @@ func (r *FakeCollectionQueryRepo) List(_ context.Context) ([]*library.Collection
 	}
 	r.mu.RLock()
 	defer r.mu.RUnlock()
+	if r.Err != nil {
+		return nil, r.Err
+	}
 	result := make([]*library.Collection, 0, len(r.collections))
 	for _, col := range r.collections {
 		result = append(result, col)
@@ -58,6 +64,9 @@ func (r *FakeCollectionQueryRepo) GetManualItems(_ context.Context, collectionID
 	}
 	r.mu.RLock()
 	defer r.mu.RUnlock()
+	if r.Err != nil {
+		return nil, r.Err
+	}
 	ids := r.items[collectionID]
 	var result []*library.MediaItem
 	for _, id := range ids {
@@ -82,6 +91,9 @@ func (r *FakeCollectionQueryRepo) CountManualItems(_ context.Context, collection
 	}
 	r.mu.RLock()
 	defer r.mu.RUnlock()
+	if r.Err != nil {
+		return 0, r.Err
+	}
 	return len(r.items[collectionID]), nil
 }
 
@@ -91,6 +103,9 @@ func (r *FakeCollectionQueryRepo) GetSmartItems(_ context.Context, col *library.
 	}
 	r.mu.RLock()
 	defer r.mu.RUnlock()
+	if r.Err != nil {
+		return nil, r.Err
+	}
 	var result []*library.MediaItem
 	for _, item := range r.mediaItems.items {
 		if matchesRules(item, col.Rules) {
@@ -114,6 +129,9 @@ func (r *FakeCollectionQueryRepo) CountSmartItems(_ context.Context, col *librar
 	}
 	r.mu.RLock()
 	defer r.mu.RUnlock()
+	if r.Err != nil {
+		return 0, r.Err
+	}
 	count := 0
 	for _, item := range r.mediaItems.items {
 		if matchesRules(item, col.Rules) {

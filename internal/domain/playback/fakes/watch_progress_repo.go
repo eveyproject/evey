@@ -30,6 +30,9 @@ func (r *FakeWatchProgressRepository) Upsert(_ context.Context, wp *playback.Wat
 	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
+	if r.Err != nil {
+		return r.Err
+	}
 	r.items[key(wp.ProfileID, wp.MediaItemID)] = wp
 	return nil
 }
@@ -40,6 +43,9 @@ func (r *FakeWatchProgressRepository) GetByProfileAndMedia(_ context.Context, pr
 	}
 	r.mu.RLock()
 	defer r.mu.RUnlock()
+	if r.Err != nil {
+		return nil, r.Err
+	}
 	wp, ok := r.items[key(profileID, mediaItemID)]
 	if !ok {
 		return nil, ErrNotFound
@@ -53,6 +59,9 @@ func (r *FakeWatchProgressRepository) GetByProfile(_ context.Context, profileID 
 	}
 	r.mu.RLock()
 	defer r.mu.RUnlock()
+	if r.Err != nil {
+		return nil, r.Err
+	}
 	var result []*playback.WatchProgress
 	for _, wp := range r.items {
 		if wp.ProfileID == profileID {
@@ -76,6 +85,9 @@ func (r *FakeWatchProgressRepository) GetResumeItems(_ context.Context, profileI
 	}
 	r.mu.RLock()
 	defer r.mu.RUnlock()
+	if r.Err != nil {
+		return nil, r.Err
+	}
 	var result []*playback.WatchProgress
 	for _, wp := range r.items {
 		if wp.ProfileID == profileID && !wp.Completed && wp.PositionMs > 0 {
@@ -94,6 +106,9 @@ func (r *FakeWatchProgressRepository) GetNextUp(_ context.Context, profileID str
 	}
 	r.mu.RLock()
 	defer r.mu.RUnlock()
+	if r.Err != nil {
+		return nil, r.Err
+	}
 	var result []*playback.WatchProgress
 	for _, wp := range r.items {
 		if wp.ProfileID == profileID && wp.Completed {

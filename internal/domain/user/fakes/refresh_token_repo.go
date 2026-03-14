@@ -28,6 +28,9 @@ func (r *FakeRefreshTokenRepository) Create(_ context.Context, t *user.RefreshTo
 	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
+	if r.Err != nil {
+		return r.Err
+	}
 	for _, existing := range r.items {
 		if existing.TokenHash == t.TokenHash {
 			return ErrDuplicateTokenHash
@@ -43,6 +46,9 @@ func (r *FakeRefreshTokenRepository) GetByTokenHash(_ context.Context, hash stri
 	}
 	r.mu.RLock()
 	defer r.mu.RUnlock()
+	if r.Err != nil {
+		return nil, r.Err
+	}
 	for _, t := range r.items {
 		if t.TokenHash == hash {
 			return t, nil
@@ -57,6 +63,9 @@ func (r *FakeRefreshTokenRepository) MarkUsed(_ context.Context, id string) erro
 	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
+	if r.Err != nil {
+		return r.Err
+	}
 	if t, ok := r.items[id]; ok {
 		t.Used = true
 	}
@@ -69,6 +78,9 @@ func (r *FakeRefreshTokenRepository) DeleteByID(_ context.Context, id string) er
 	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
+	if r.Err != nil {
+		return r.Err
+	}
 	delete(r.items, id)
 	return nil
 }
@@ -79,6 +91,9 @@ func (r *FakeRefreshTokenRepository) DeleteByUserID(_ context.Context, userID st
 	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
+	if r.Err != nil {
+		return r.Err
+	}
 	for id, t := range r.items {
 		if t.UserID == userID {
 			delete(r.items, id)

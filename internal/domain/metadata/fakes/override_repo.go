@@ -23,6 +23,9 @@ func (r *FakeMetadataOverrideRepository) Set(_ context.Context, o *metadata.Meta
 	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
+	if r.Err != nil {
+		return r.Err
+	}
 	r.items[o.ID] = o
 	return nil
 }
@@ -33,6 +36,9 @@ func (r *FakeMetadataOverrideRepository) Get(_ context.Context, id string) (*met
 	}
 	r.mu.RLock()
 	defer r.mu.RUnlock()
+	if r.Err != nil {
+		return nil, r.Err
+	}
 	o, ok := r.items[id]
 	if !ok {
 		return nil, ErrNotFound
@@ -46,6 +52,9 @@ func (r *FakeMetadataOverrideRepository) GetByMediaItem(_ context.Context, media
 	}
 	r.mu.RLock()
 	defer r.mu.RUnlock()
+	if r.Err != nil {
+		return nil, r.Err
+	}
 	var result []*metadata.MetadataOverride
 	for _, o := range r.items {
 		if o.MediaItemID == mediaItemID {
@@ -61,6 +70,9 @@ func (r *FakeMetadataOverrideRepository) Delete(_ context.Context, id string) er
 	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
+	if r.Err != nil {
+		return r.Err
+	}
 	if _, ok := r.items[id]; !ok {
 		return ErrNotFound
 	}
@@ -74,6 +86,9 @@ func (r *FakeMetadataOverrideRepository) DeleteByMediaItemID(_ context.Context, 
 	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
+	if r.Err != nil {
+		return r.Err
+	}
 	for id, o := range r.items {
 		if o.MediaItemID == mediaItemID {
 			delete(r.items, id)

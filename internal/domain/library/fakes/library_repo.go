@@ -25,6 +25,9 @@ func (r *FakeLibraryRepository) Create(_ context.Context, lib *library.Library) 
 	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
+	if r.Err != nil {
+		return r.Err
+	}
 	r.items[lib.ID] = lib
 	return nil
 }
@@ -35,6 +38,9 @@ func (r *FakeLibraryRepository) GetByID(_ context.Context, id string) (*library.
 	}
 	r.mu.RLock()
 	defer r.mu.RUnlock()
+	if r.Err != nil {
+		return nil, r.Err
+	}
 	lib, ok := r.items[id]
 	if !ok {
 		return nil, ErrNotFound
@@ -48,6 +54,9 @@ func (r *FakeLibraryRepository) List(_ context.Context) ([]*library.Library, err
 	}
 	r.mu.RLock()
 	defer r.mu.RUnlock()
+	if r.Err != nil {
+		return nil, r.Err
+	}
 	result := make([]*library.Library, 0, len(r.items))
 	for _, lib := range r.items {
 		result = append(result, lib)
@@ -61,6 +70,9 @@ func (r *FakeLibraryRepository) Update(_ context.Context, lib *library.Library) 
 	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
+	if r.Err != nil {
+		return r.Err
+	}
 	if _, ok := r.items[lib.ID]; !ok {
 		return ErrNotFound
 	}
@@ -74,6 +86,9 @@ func (r *FakeLibraryRepository) Delete(_ context.Context, id string) error {
 	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
+	if r.Err != nil {
+		return r.Err
+	}
 	if _, ok := r.items[id]; !ok {
 		return ErrNotFound
 	}

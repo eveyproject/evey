@@ -23,6 +23,9 @@ func (r *FakeLibraryQueryRepo) GetByID(_ context.Context, id string) (*library.L
 	}
 	r.mu.RLock()
 	defer r.mu.RUnlock()
+	if r.Err != nil {
+		return nil, r.Err
+	}
 	lib, ok := r.items[id]
 	if !ok {
 		return nil, ErrNotFound
@@ -36,6 +39,9 @@ func (r *FakeLibraryQueryRepo) List(_ context.Context) ([]*library.Library, erro
 	}
 	r.mu.RLock()
 	defer r.mu.RUnlock()
+	if r.Err != nil {
+		return nil, r.Err
+	}
 	result := make([]*library.Library, 0, len(r.items))
 	for _, lib := range r.items {
 		result = append(result, lib)

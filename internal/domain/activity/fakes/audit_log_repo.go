@@ -23,6 +23,9 @@ func (r *FakeAuditLogRepository) Create(_ context.Context, entry *activity.Audit
 	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
+	if r.Err != nil {
+		return r.Err
+	}
 	r.items = append(r.items, entry)
 	return nil
 }
@@ -33,6 +36,9 @@ func (r *FakeAuditLogRepository) List(_ context.Context, filter activity.AuditLo
 	}
 	r.mu.RLock()
 	defer r.mu.RUnlock()
+	if r.Err != nil {
+		return nil, r.Err
+	}
 	var result []*activity.AuditLogEntry
 	for _, e := range r.items {
 		if filter.UserID != nil && e.UserID != *filter.UserID {

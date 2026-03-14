@@ -23,6 +23,9 @@ func (r *FakePersonRepository) Create(_ context.Context, person *library.Person)
 	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
+	if r.Err != nil {
+		return r.Err
+	}
 	r.items[person.ID] = person
 	return nil
 }
@@ -33,6 +36,9 @@ func (r *FakePersonRepository) GetByID(_ context.Context, id string) (*library.P
 	}
 	r.mu.RLock()
 	defer r.mu.RUnlock()
+	if r.Err != nil {
+		return nil, r.Err
+	}
 	p, ok := r.items[id]
 	if !ok {
 		return nil, ErrNotFound
@@ -46,6 +52,9 @@ func (r *FakePersonRepository) GetByName(_ context.Context, name string) (*libra
 	}
 	r.mu.RLock()
 	defer r.mu.RUnlock()
+	if r.Err != nil {
+		return nil, r.Err
+	}
 	for _, p := range r.items {
 		if p.Name == name {
 			return p, nil
@@ -60,6 +69,9 @@ func (r *FakePersonRepository) List(_ context.Context) ([]*library.Person, error
 	}
 	r.mu.RLock()
 	defer r.mu.RUnlock()
+	if r.Err != nil {
+		return nil, r.Err
+	}
 	result := make([]*library.Person, 0, len(r.items))
 	for _, p := range r.items {
 		result = append(result, p)

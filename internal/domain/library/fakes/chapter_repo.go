@@ -23,6 +23,9 @@ func (r *FakeChapterRepository) ReplaceBatch(_ context.Context, mediaItemID stri
 	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
+	if r.Err != nil {
+		return r.Err
+	}
 	if len(chapters) == 0 {
 		delete(r.items, mediaItemID)
 		return nil
@@ -37,6 +40,9 @@ func (r *FakeChapterRepository) GetByMediaItemID(_ context.Context, mediaItemID 
 	}
 	r.mu.RLock()
 	defer r.mu.RUnlock()
+	if r.Err != nil {
+		return nil, r.Err
+	}
 	return r.items[mediaItemID], nil
 }
 

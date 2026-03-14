@@ -27,6 +27,9 @@ func (r *FakeUserRoleRepository) AssignRole(_ context.Context, userID, roleID st
 	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
+	if r.Err != nil {
+		return r.Err
+	}
 	r.assigned[userID] = append(r.assigned[userID], roleID)
 	return nil
 }
@@ -37,6 +40,9 @@ func (r *FakeUserRoleRepository) RemoveRole(_ context.Context, userID, roleID st
 	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
+	if r.Err != nil {
+		return r.Err
+	}
 	ids := r.assigned[userID]
 	for i, id := range ids {
 		if id == roleID {
@@ -53,6 +59,9 @@ func (r *FakeUserRoleRepository) GetRolesByUserID(ctx context.Context, userID st
 	}
 	r.mu.RLock()
 	defer r.mu.RUnlock()
+	if r.Err != nil {
+		return nil, r.Err
+	}
 	var result []*user.Role
 	for _, roleID := range r.assigned[userID] {
 		role, err := r.roles.GetByID(ctx, roleID)

@@ -25,6 +25,9 @@ func (r *FakeRepository) Add(_ context.Context, fav *favorite.Favorite) error {
 	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
+	if r.Err != nil {
+		return r.Err
+	}
 	r.items[key(fav.ProfileID, fav.MediaItemID)] = fav
 	return nil
 }
@@ -35,6 +38,9 @@ func (r *FakeRepository) Remove(_ context.Context, profileID, mediaItemID string
 	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
+	if r.Err != nil {
+		return r.Err
+	}
 	delete(r.items, key(profileID, mediaItemID))
 	return nil
 }
@@ -45,6 +51,9 @@ func (r *FakeRepository) List(_ context.Context, profileID string, limit, offset
 	}
 	r.mu.RLock()
 	defer r.mu.RUnlock()
+	if r.Err != nil {
+		return nil, r.Err
+	}
 	var result []*favorite.Favorite
 	for _, f := range r.items {
 		if f.ProfileID == profileID {
@@ -68,6 +77,9 @@ func (r *FakeRepository) IsFavorite(_ context.Context, profileID, mediaItemID st
 	}
 	r.mu.RLock()
 	defer r.mu.RUnlock()
+	if r.Err != nil {
+		return false, r.Err
+	}
 	_, ok := r.items[key(profileID, mediaItemID)]
 	return ok, nil
 }

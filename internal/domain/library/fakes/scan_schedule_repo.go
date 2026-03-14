@@ -24,6 +24,9 @@ func (r *FakeScanScheduleRepository) Upsert(_ context.Context, s *library.ScanSc
 	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
+	if r.Err != nil {
+		return r.Err
+	}
 	r.items[s.LibraryID] = s
 	return nil
 }
@@ -34,6 +37,9 @@ func (r *FakeScanScheduleRepository) GetByLibraryID(_ context.Context, libraryID
 	}
 	r.mu.RLock()
 	defer r.mu.RUnlock()
+	if r.Err != nil {
+		return nil, r.Err
+	}
 	s, ok := r.items[libraryID]
 	if !ok {
 		return nil, library.ErrNotFound
@@ -47,6 +53,9 @@ func (r *FakeScanScheduleRepository) Delete(_ context.Context, libraryID string)
 	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
+	if r.Err != nil {
+		return r.Err
+	}
 	delete(r.items, libraryID)
 	return nil
 }
@@ -70,6 +79,9 @@ func (r *FakeScanScheduleRepository) ListEnabled(_ context.Context) ([]*library.
 	}
 	r.mu.RLock()
 	defer r.mu.RUnlock()
+	if r.Err != nil {
+		return nil, r.Err
+	}
 	var result []*library.ScanSchedule
 	for _, s := range r.items {
 		if s.Enabled {
@@ -85,6 +97,9 @@ func (r *FakeScanScheduleRepository) UpdateAfterRun(_ context.Context, libraryID
 	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
+	if r.Err != nil {
+		return r.Err
+	}
 	s, ok := r.items[libraryID]
 	if !ok {
 		return library.ErrNotFound

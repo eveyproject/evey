@@ -11,10 +11,7 @@ type QueryService struct {
 	settings notification.SettingsRepository
 }
 
-func NewQueryService(
-	repo notification.Repository,
-	settings notification.SettingsRepository,
-) *QueryService {
+func NewQueryService(repo notification.Repository, settings notification.SettingsRepository) *QueryService {
 	return &QueryService{repo: repo, settings: settings}
 }
 

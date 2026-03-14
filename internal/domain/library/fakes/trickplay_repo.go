@@ -23,6 +23,9 @@ func (r *FakeTrickplayRepository) Create(_ context.Context, m *library.Trickplay
 	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
+	if r.Err != nil {
+		return r.Err
+	}
 	r.items[m.MediaItemID] = m
 	return nil
 }
@@ -33,6 +36,9 @@ func (r *FakeTrickplayRepository) GetByMediaItemID(_ context.Context, mediaItemI
 	}
 	r.mu.RLock()
 	defer r.mu.RUnlock()
+	if r.Err != nil {
+		return nil, r.Err
+	}
 	m, ok := r.items[mediaItemID]
 	if !ok {
 		return nil, library.ErrNotFound
@@ -46,6 +52,9 @@ func (r *FakeTrickplayRepository) Delete(_ context.Context, mediaItemID string) 
 	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
+	if r.Err != nil {
+		return r.Err
+	}
 	delete(r.items, mediaItemID)
 	return nil
 }

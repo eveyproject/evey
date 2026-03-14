@@ -23,6 +23,9 @@ func (r *FakeArtworkRepository) Create(_ context.Context, a *metadata.ArtworkRec
 	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
+	if r.Err != nil {
+		return r.Err
+	}
 	r.items[a.ID] = a
 	return nil
 }
@@ -33,6 +36,9 @@ func (r *FakeArtworkRepository) GetByMediaItem(_ context.Context, mediaItemID st
 	}
 	r.mu.RLock()
 	defer r.mu.RUnlock()
+	if r.Err != nil {
+		return nil, r.Err
+	}
 	var result []*metadata.ArtworkRecord
 	for _, a := range r.items {
 		if a.MediaItemID == mediaItemID {
@@ -48,6 +54,9 @@ func (r *FakeArtworkRepository) GetByPerson(_ context.Context, personID string) 
 	}
 	r.mu.RLock()
 	defer r.mu.RUnlock()
+	if r.Err != nil {
+		return nil, r.Err
+	}
 	var result []*metadata.ArtworkRecord
 	for _, a := range r.items {
 		if a.PersonID != nil && *a.PersonID == personID {
@@ -63,6 +72,9 @@ func (r *FakeArtworkRepository) Delete(_ context.Context, id string) error {
 	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
+	if r.Err != nil {
+		return r.Err
+	}
 	if _, ok := r.items[id]; !ok {
 		return ErrNotFound
 	}
@@ -76,6 +88,9 @@ func (r *FakeArtworkRepository) DeleteByMediaItemID(_ context.Context, mediaItem
 	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
+	if r.Err != nil {
+		return r.Err
+	}
 	for id, a := range r.items {
 		if a.MediaItemID == mediaItemID {
 			delete(r.items, id)

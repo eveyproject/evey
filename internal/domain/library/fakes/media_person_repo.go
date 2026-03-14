@@ -23,6 +23,9 @@ func (r *FakeMediaPersonRepository) Create(_ context.Context, mp *library.MediaP
 	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
+	if r.Err != nil {
+		return r.Err
+	}
 	r.items[mp.MediaItemID] = append(r.items[mp.MediaItemID], mp)
 	return nil
 }
@@ -33,6 +36,9 @@ func (r *FakeMediaPersonRepository) DeleteByMediaItemID(_ context.Context, media
 	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
+	if r.Err != nil {
+		return r.Err
+	}
 	delete(r.items, mediaItemID)
 	return nil
 }
@@ -43,5 +49,8 @@ func (r *FakeMediaPersonRepository) GetByMediaItemID(_ context.Context, mediaIte
 	}
 	r.mu.RLock()
 	defer r.mu.RUnlock()
+	if r.Err != nil {
+		return nil, r.Err
+	}
 	return r.items[mediaItemID], nil
 }

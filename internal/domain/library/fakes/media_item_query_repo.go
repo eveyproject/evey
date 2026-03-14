@@ -28,6 +28,9 @@ func (r *FakeMediaItemQueryRepo) GetByID(_ context.Context, id string) (*library
 	}
 	r.mu.RLock()
 	defer r.mu.RUnlock()
+	if r.Err != nil {
+		return nil, r.Err
+	}
 	item, ok := r.items[id]
 	if !ok {
 		return nil, ErrNotFound
@@ -52,6 +55,9 @@ func (r *FakeMediaItemQueryRepo) List(_ context.Context, filter library.ListMedi
 	}
 	r.mu.RLock()
 	defer r.mu.RUnlock()
+	if r.Err != nil {
+		return nil, r.Err
+	}
 	allowedSet := allowedRatingsSet(filter.AllowedRatings)
 	var result []*library.MediaItem
 	for _, item := range r.items {
@@ -89,6 +95,9 @@ func (r *FakeMediaItemQueryRepo) Count(_ context.Context, filter library.ListMed
 	}
 	r.mu.RLock()
 	defer r.mu.RUnlock()
+	if r.Err != nil {
+		return 0, r.Err
+	}
 	allowedSet := allowedRatingsSet(filter.AllowedRatings)
 	count := 0
 	for _, item := range r.items {
@@ -118,6 +127,9 @@ func (r *FakeMediaItemQueryRepo) GetCastByMediaItem(_ context.Context, mediaItem
 	}
 	r.mu.RLock()
 	defer r.mu.RUnlock()
+	if r.Err != nil {
+		return nil, r.Err
+	}
 	return r.cast[mediaItemID], nil
 }
 
@@ -127,6 +139,9 @@ func (r *FakeMediaItemQueryRepo) GetCastForItems(_ context.Context, mediaItemIDs
 	}
 	r.mu.RLock()
 	defer r.mu.RUnlock()
+	if r.Err != nil {
+		return nil, r.Err
+	}
 	result := make(map[string][]library.CastMember)
 	for _, id := range mediaItemIDs {
 		if cast, ok := r.cast[id]; ok {

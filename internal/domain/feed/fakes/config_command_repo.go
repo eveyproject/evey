@@ -27,6 +27,9 @@ func (r *FakeConfigCommandRepo) UpsertAdminConfig(_ context.Context, cfg *feed.A
 	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
+	if r.Err != nil {
+		return r.Err
+	}
 	r.AdminConfigs[cfg.FeedType] = cfg
 	return nil
 }
@@ -37,6 +40,9 @@ func (r *FakeConfigCommandRepo) UpsertProfileConfig(_ context.Context, cfg *feed
 	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
+	if r.Err != nil {
+		return r.Err
+	}
 	if r.ProfileConfigs[cfg.ProfileID] == nil {
 		r.ProfileConfigs[cfg.ProfileID] = make(map[feed.Type]*feed.ProfileConfig)
 	}
@@ -50,6 +56,9 @@ func (r *FakeConfigCommandRepo) DeleteProfileConfig(_ context.Context, profileID
 	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
+	if r.Err != nil {
+		return r.Err
+	}
 	if m, ok := r.ProfileConfigs[profileID]; ok {
 		delete(m, feedType)
 	}

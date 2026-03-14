@@ -24,6 +24,9 @@ func (r *FakePlaySessionRepository) Create(_ context.Context, session *playback.
 	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
+	if r.Err != nil {
+		return r.Err
+	}
 	r.items[session.ID] = session
 	return nil
 }
@@ -34,6 +37,9 @@ func (r *FakePlaySessionRepository) Update(_ context.Context, session *playback.
 	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
+	if r.Err != nil {
+		return r.Err
+	}
 	if _, ok := r.items[session.ID]; !ok {
 		return ErrNotFound
 	}
@@ -47,6 +53,9 @@ func (r *FakePlaySessionRepository) GetByID(_ context.Context, id string) (*play
 	}
 	r.mu.RLock()
 	defer r.mu.RUnlock()
+	if r.Err != nil {
+		return nil, r.Err
+	}
 	s, ok := r.items[id]
 	if !ok {
 		return nil, ErrNotFound
@@ -60,6 +69,9 @@ func (r *FakePlaySessionRepository) ListActiveSessions(_ context.Context) ([]*pl
 	}
 	r.mu.RLock()
 	defer r.mu.RUnlock()
+	if r.Err != nil {
+		return nil, r.Err
+	}
 	var result []*playback.ActiveSessionInfo
 	for _, s := range r.items {
 		if s.EndedAt == nil {
@@ -99,6 +111,9 @@ func (r *FakePlaySessionRepository) GetActiveByProfile(_ context.Context, profil
 	}
 	r.mu.RLock()
 	defer r.mu.RUnlock()
+	if r.Err != nil {
+		return nil, r.Err
+	}
 	var result []*playback.PlaySession
 	for _, s := range r.items {
 		if s.ProfileID == profileID && s.EndedAt == nil {
@@ -114,6 +129,9 @@ func (r *FakePlaySessionRepository) GetHistory(_ context.Context, filter playbac
 	}
 	r.mu.RLock()
 	defer r.mu.RUnlock()
+	if r.Err != nil {
+		return nil, r.Err
+	}
 	var result []*playback.PlaySession
 	for _, s := range r.items {
 		if filter.ProfileID != nil && s.ProfileID != *filter.ProfileID {
@@ -144,6 +162,9 @@ func (r *FakePlaySessionRepository) CloseStale(_ context.Context, olderThan time
 	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
+	if r.Err != nil {
+		return 0, r.Err
+	}
 	cutoff := time.Now().Add(-olderThan)
 	closed := 0
 	for _, s := range r.items {
@@ -162,6 +183,9 @@ func (r *FakePlaySessionRepository) CountActiveByUser(_ context.Context, userID 
 	}
 	r.mu.RLock()
 	defer r.mu.RUnlock()
+	if r.Err != nil {
+		return 0, r.Err
+	}
 	count := 0
 	for _, s := range r.items {
 		if s.EndedAt == nil {

@@ -24,6 +24,9 @@ func (s *FakeSearchIndex) IndexMediaItem(_ context.Context, item *library.MediaI
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	if s.Err != nil {
+		return s.Err
+	}
 	s.items[item.ID] = item
 	return nil
 }
@@ -34,6 +37,9 @@ func (s *FakeSearchIndex) RemoveMediaItem(_ context.Context, id string) error {
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	if s.Err != nil {
+		return s.Err
+	}
 	delete(s.items, id)
 	return nil
 }
@@ -44,6 +50,9 @@ func (s *FakeSearchIndex) Search(_ context.Context, query string, _ map[string]s
 	}
 	s.mu.RLock()
 	defer s.mu.RUnlock()
+	if s.Err != nil {
+		return nil, 0, s.Err
+	}
 	var hits []library.SearchHit
 	q := strings.ToLower(query)
 	for _, item := range s.items {
