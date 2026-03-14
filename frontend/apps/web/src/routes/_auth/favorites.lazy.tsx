@@ -1,3 +1,4 @@
+import { useState, useMemo } from "react";
 import { createLazyFileRoute } from "@tanstack/react-router";
 import { useFavoritesList } from "@/hooks/useFavorite";
 import { MediaGrid } from "@/features/library/MediaGrid";
@@ -9,19 +10,67 @@ export const Route = createLazyFileRoute("/_auth/favorites")({
   component: FavoritesPage,
 });
 
+type SortKey = "dateAdded" | "titleAZ" | "yearNewest" | "rating";
+type TypeFilter = "all" | "MEDIA_ITEM_TYPE_MOVIE" | "MEDIA_ITEM_TYPE_SERIES";
+
+const selectStyle: React.CSSProperties = {
+  padding: "4px 8px",
+  borderRadius: "var(--radius-sm)",
+  border: "1px solid var(--border)",
+  backgroundColor: "var(--surface-raised)",
+  color: "var(--text)",
+  fontSize: "0.8rem",
+  cursor: "pointer",
+};
+
 function FavoritesPage() {
   const { data: favorites, isLoading } = useFavoritesList(200);
+  const [sort, setSort] = useState<SortKey>("dateAdded");
+  const [typeFilter, setTypeFilter] = useState<TypeFilter>("all");
+
+  const filtered = useMemo(() => {
+    if (!favorites) return [];
+    let list = typeFilter === "all" ? favorites : favorites.filter((f) => f.type === typeFilter);
+    switch (sort) {
+      case "titleAZ":
+        list = [...list].sort((a, b) => (a.title ?? "").localeCompare(b.title ?? ""));
+        break;
+      case "yearNewest":
+        list = [...list].sort((a, b) => (b.year ?? 0) - (a.year ?? 0));
+        break;
+      case "rating":
+        list = [...list].sort((a, b) => (b.communityRating ?? 0) - (a.communityRating ?? 0));
+        break;
+      default:
+        // dateAdded — server order preserved
+        break;
+    }
+    return list;
+  }, [favorites, sort, typeFilter]);
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex items-center justify-between mb-4 gap-3 flex-wrap">
         <h1 className="text-2xl font-bold" style={{ color: "var(--text)" }}>
           Favorites
         </h1>
         {!isLoading && favorites && favorites.length > 0 && (
-          <span className="text-sm" style={{ color: "var(--text-muted)" }}>
-            {favorites.length} {favorites.length === 1 ? "item" : "items"}
-          </span>
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="text-sm" style={{ color: "var(--text-muted)" }}>
+              {filtered.length} {filtered.length === 1 ? "item" : "items"}
+            </span>
+            <select style={selectStyle} value={typeFilter} onChange={(e) => setTypeFilter(e.target.value as TypeFilter)}>
+              <option value="all">All</option>
+              <option value="MEDIA_ITEM_TYPE_MOVIE">Movies</option>
+              <option value="MEDIA_ITEM_TYPE_SERIES">Series</option>
+            </select>
+            <select style={selectStyle} value={sort} onChange={(e) => setSort(e.target.value as SortKey)}>
+              <option value="dateAdded">Date Added</option>
+              <option value="titleAZ">Title A–Z</option>
+              <option value="yearNewest">Year (newest)</option>
+              <option value="rating">Rating</option>
+            </select>
+          </div>
         )}
       </div>
 
@@ -38,9 +87,11 @@ function FavoritesPage() {
             description="Click the heart icon on any media item to add it to your favorites."
           />
         </div>
+      ) : filtered.length === 0 ? (
+        <p className="text-sm" style={{ color: "var(--text-muted)" }}>No items match the current filter.</p>
       ) : (
         <MediaGrid>
-          {favorites.map((fav) => (
+          {filtered.map((fav) => (
             <MediaCard
               key={fav.mediaItemId}
               item={{ id: fav.mediaItemId, title: fav.title, type: fav.type }}
