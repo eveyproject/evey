@@ -1,0 +1,263 @@
+package metadata_test
+
+import (
+	"testing"
+	"time"
+
+	"github.com/gravity-zero/evey/internal/domain/metadata"
+)
+
+func TestArtworkTypeConstants(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name string
+		got  string
+		want string
+	}{
+		{"poster", metadata.ArtworkTypePoster, "poster"},
+		{"backdrop", metadata.ArtworkTypeBackdrop, "backdrop"},
+		{"logo", metadata.ArtworkTypeLogo, "logo"},
+		{"still", metadata.ArtworkTypeStill, "still"},
+		{"thumb", metadata.ArtworkTypeThumb, "thumb"},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			t.Parallel()
+			if c.got != c.want {
+				t.Errorf("ArtworkType%s = %q, want %q", c.name, c.got, c.want)
+			}
+		})
+	}
+}
+
+func TestArtworkResult_ProviderField(t *testing.T) {
+	t.Parallel()
+
+	// Provider must be set — it prevents deduplication across providers
+	cases := []struct {
+		provider string
+		artType  string
+	}{
+		{"tmdb", metadata.ArtworkTypePoster},
+		{"fanart", metadata.ArtworkTypeBackdrop},
+		{"imdb", metadata.ArtworkTypeStill},
+	}
+	for _, c := range cases {
+		t.Run(c.provider+"/"+c.artType, func(t *testing.T) {
+			t.Parallel()
+			a := metadata.ArtworkResult{
+				Type:     c.artType,
+				URL:      "https://example.com/img.jpg",
+				Width:    1920,
+				Height:   1080,
+				Language: "en",
+				Provider: c.provider,
+			}
+			if a.Provider == "" {
+				t.Error("Provider must not be empty")
+			}
+			if a.Provider != c.provider {
+				t.Errorf("Provider = %q, want %q", a.Provider, c.provider)
+			}
+		})
+	}
+}
+
+func TestTrailerResult_UseSubtitles(t *testing.T) {
+	t.Parallel()
+
+	// trailer in server language: no subtitles needed
+	t.Run("native language", func(t *testing.T) {
+		t.Parallel()
+		tr := metadata.TrailerResult{
+			Site:             "YouTube",
+			Key:              "abc",
+			Language:         "en",
+			Official:         true,
+			Type:             "Trailer",
+			UseSubtitles:     false,
+			SubtitleLanguage: "",
+		}
+		if tr.UseSubtitles {
+			t.Error("native language trailer should not need subtitles")
+		}
+	})
+
+	// trailer in foreign language: subtitles required, SubtitleLanguage = server lang
+	t.Run("foreign language requires subtitles", func(t *testing.T) {
+		t.Parallel()
+		tr := metadata.TrailerResult{
+			Site:             "YouTube",
+			Key:              "xyz",
+			Language:         "ja",
+			Official:         true,
+			Type:             "Trailer",
+			UseSubtitles:     true,
+			SubtitleLanguage: "en",
+		}
+		if !tr.UseSubtitles {
+			t.Error("foreign language trailer should require subtitles")
+		}
+		if tr.SubtitleLanguage == "" {
+			t.Error("SubtitleLanguage must be set when UseSubtitles=true")
+		}
+	})
+
+	// teaser with no official status
+	t.Run("unofficial teaser", func(t *testing.T) {
+		t.Parallel()
+		tr := metadata.TrailerResult{
+			Site:     "YouTube",
+			Key:      "teaser1",
+			Language: "en",
+			Official: false,
+			Type:     "Teaser",
+		}
+		if tr.Official {
+			t.Error("teaser should not be official")
+		}
+	})
+}
+
+func TestMetadataResult_Fields(t *testing.T) {
+	t.Parallel()
+
+	year := 2023
+	rating := 8.5
+	result := &metadata.MetadataResult{
+		Title:           "Inception",
+		OriginalTitle:   "Inception",
+		Overview:        "A thief who steals corporate secrets",
+		Tagline:         "Your mind is the scene of the crime",
+		Year:            &year,
+		CommunityRating: &rating,
+		OfficialRating:  "PG-13",
+		Genres:          []string{"Action", "Sci-Fi", "Thriller"},
+		Studios:         []string{"Warner Bros."},
+		ProviderIDs:     map[string]string{"tmdb": "27205", "imdb": "tt1375666"},
+		Ratings:         map[string]float64{"imdb": 8.8, "tmdb": 8.4},
+		Popularity:      83.5,
+	}
+
+	if *result.Year != 2023 {
+		t.Errorf("Year = %d, want 2023", *result.Year)
+	}
+	if *result.CommunityRating != 8.5 {
+		t.Errorf("CommunityRating = %v, want 8.5", *result.CommunityRating)
+	}
+	if result.ProviderIDs["tmdb"] != "27205" {
+		t.Errorf("ProviderID[tmdb] = %q, want %q", result.ProviderIDs["tmdb"], "27205")
+	}
+	if result.Ratings["imdb"] != 8.8 {
+		t.Errorf("Ratings[imdb] = %v, want 8.8", result.Ratings["imdb"])
+	}
+}
+
+func TestMetadataResult_CollectionRef(t *testing.T) {
+	t.Parallel()
+
+	t.Run("no collection", func(t *testing.T) {
+		t.Parallel()
+		r := &metadata.MetadataResult{Title: "Standalone"}
+		if r.Collection != nil {
+			t.Error("Collection should be nil for standalone items")
+		}
+	})
+
+	t.Run("with collection", func(t *testing.T) {
+		t.Parallel()
+		r := &metadata.MetadataResult{
+			Title: "The Dark Knight",
+			Collection: &metadata.CollectionRef{
+				TmdbID:      263,
+				Name:        "The Dark Knight Collection",
+				PosterURL:   "https://example.com/poster.jpg",
+				BackdropURL: "https://example.com/backdrop.jpg",
+			},
+		}
+		if r.Collection == nil {
+			t.Fatal("Collection should not be nil")
+		}
+		if r.Collection.TmdbID != 263 {
+			t.Errorf("Collection.TmdbID = %d, want 263", r.Collection.TmdbID)
+		}
+		if r.Collection.Name == "" {
+			t.Error("Collection.Name must not be empty")
+		}
+	})
+}
+
+func TestMetadataResult_PeopleAndArtwork(t *testing.T) {
+	t.Parallel()
+
+	now := time.Now()
+	premiere := now.AddDate(-3, 0, 0)
+
+	r := &metadata.MetadataResult{
+		Title:        "Movie",
+		PremiereDate: &premiere,
+		People: []metadata.PersonResult{
+			{Name: "Christopher Nolan", Role: "director"},
+			{Name: "Leonardo DiCaprio", Role: "actor", Character: "Dom Cobb"},
+		},
+		Artwork: []metadata.ArtworkResult{
+			{Type: metadata.ArtworkTypePoster, URL: "https://example.com/p.jpg", Provider: "tmdb"},
+			{Type: metadata.ArtworkTypeBackdrop, URL: "https://example.com/b.jpg", Provider: "fanart"},
+		},
+		Trailers: []metadata.TrailerResult{
+			{Site: "YouTube", Key: "abc", Language: "en", Official: true, Type: "Trailer"},
+		},
+	}
+
+	if r.PremiereDate == nil {
+		t.Error("PremiereDate should be set")
+	}
+	if len(r.People) != 2 {
+		t.Errorf("People len = %d, want 2", len(r.People))
+	}
+	if r.People[0].Role != "director" {
+		t.Errorf("People[0].Role = %q, want %q", r.People[0].Role, "director")
+	}
+	if len(r.Artwork) != 2 {
+		t.Errorf("Artwork len = %d, want 2", len(r.Artwork))
+	}
+	// different providers on different artwork — both kept
+	if r.Artwork[0].Provider == r.Artwork[1].Provider {
+		t.Error("artwork from different providers must not share provider field")
+	}
+	if len(r.Trailers) != 1 {
+		t.Errorf("Trailers len = %d, want 1", len(r.Trailers))
+	}
+}
+
+func TestArtworkRecord_OptionalFields(t *testing.T) {
+	t.Parallel()
+
+	// minimum valid record — no optional dimensions/language
+	rec := &metadata.ArtworkRecord{
+		ID:          "ar1",
+		MediaItemID: "m1",
+		Type:        metadata.ArtworkTypePoster,
+		Provider:    "tmdb",
+		SortOrder:   0,
+	}
+	if rec.Width != nil {
+		t.Error("Width should be nil when not known")
+	}
+	if rec.Height != nil {
+		t.Error("Height should be nil when not known")
+	}
+	if rec.Language != nil {
+		t.Error("Language should be nil when not language-specific")
+	}
+	if rec.PersonID != nil {
+		t.Error("PersonID should be nil for non-person artwork")
+	}
+	if rec.SourceURL != nil {
+		t.Error("SourceURL should be nil before download")
+	}
+	if rec.LocalPath != nil {
+		t.Error("LocalPath should be nil before download")
+	}
+}
