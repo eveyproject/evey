@@ -1218,6 +1218,8 @@ func hlsMasterHandler(tokenGen interface {
 		}
 
 		sourceWidth, sourceHeight := 1920, 1080
+		subtitleTrackIndex := -1
+		subtitleCodec := ""
 		if streams, err2 := libSvc.GetMediaStreams(r.Context(), mediaID); err2 == nil {
 			for _, s := range streams {
 				if s.StreamType == "video" && s.Width != nil && s.Height != nil {
@@ -1226,9 +1228,25 @@ func hlsMasterHandler(tokenGen interface {
 					break
 				}
 			}
+			if st := r.URL.Query().Get("subtitleTrack"); st != "" {
+				if n, err3 := strconv.Atoi(st); err3 == nil && n >= 0 {
+					subIdx := 0
+					for _, s := range streams {
+						if s.StreamType != "subtitle" {
+							continue
+						}
+						if subIdx == n {
+							subtitleTrackIndex = n
+							subtitleCodec = s.Codec
+							break
+						}
+						subIdx++
+					}
+				}
+			}
 		}
 
-		session, err := hlsManager.GetOrCreate(claims.UserID, mediaID, item.FilePath, sourceWidth, sourceHeight, maxStreams)
+		session, err := hlsManager.GetOrCreate(claims.UserID, mediaID, item.FilePath, sourceWidth, sourceHeight, maxStreams, subtitleTrackIndex, subtitleCodec)
 		if err != nil {
 			slog.Error("hls: get or create session", slog.Any("err", err))
 			http.Error(w, `{"message":"transcode busy"}`, http.StatusServiceUnavailable)
@@ -1305,8 +1323,10 @@ func hlsSegmentHandler(tokenGen interface {
 		switch {
 		case strings.HasSuffix(file, ".m3u8"):
 			w.Header().Set("Content-Type", "application/vnd.apple.mpegurl")
+			w.Header().Set("Cache-Control", "no-cache")
 		case strings.HasSuffix(file, ".ts"):
 			w.Header().Set("Content-Type", "video/mp2t")
+			w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
 		}
 		session.MarkAccess()
 		http.ServeFile(w, r, filePath)

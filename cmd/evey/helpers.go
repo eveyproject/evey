@@ -219,6 +219,30 @@ func (s *serverConfigStore) Set(ctx context.Context, key, value string) error {
 	return s.repo.Set(ctx, key, value)
 }
 
+// apiCacheMiddleware adds Cache-Control headers for specific API routes.
+func apiCacheMiddleware(next http.Handler) http.Handler {
+	type rule struct {
+		path     string
+		ccHeader string
+	}
+	rules := []rule{
+		{"/api/v1/admin/system", "private, max-age=60"},
+		{"/api/v1/admin/dashboard", "private, max-age=10"},
+		{"/api/v1/libraries", "private, max-age=300"},
+	}
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodGet {
+			for _, rule := range rules {
+				if r.URL.Path == rule.path {
+					w.Header().Set("Cache-Control", rule.ccHeader)
+					break
+				}
+			}
+		}
+		next.ServeHTTP(w, r)
+	})
+}
+
 func setCORSHeaders(w http.ResponseWriter, r *http.Request, baseURL string) {
 	origin := r.Header.Get("Origin")
 	if origin == "" {

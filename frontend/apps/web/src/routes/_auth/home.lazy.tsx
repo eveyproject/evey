@@ -302,7 +302,7 @@ function CollectionsSection() {
       <div className="flex items-center justify-between mb-3">
         <h2 className="text-lg font-semibold" style={{ color: "var(--text)" }}>Collections</h2>
         <Link to="/collections" className="text-sm hover:underline" style={{ color: "var(--accent)" }}>
-          See all
+          View all collections →
         </Link>
       </div>
       <div className="flex gap-3 overflow-x-auto pb-2" style={{ scrollbarWidth: "none" }}>
@@ -314,7 +314,7 @@ function CollectionsSection() {
                 style={{ width: 100, aspectRatio: "2/3", backgroundColor: "var(--surface-raised)" }}
               />
             ))
-          : collections.slice(0, 10).map((col) => (
+          : collections.slice(0, 8).map((col) => (
               <Link
                 key={col.id}
                 to="/collections/$collectionId"

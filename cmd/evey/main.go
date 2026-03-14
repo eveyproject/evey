@@ -544,7 +544,7 @@ func run() error {
 			"/api/v1/playback/progress",
 			"/api/v1/playback/start",
 			"/api/v1/playback/stop",
-		)(gwMux))
+		)(apiCacheMiddleware(gwMux)))
 		netMw := networkMiddleware(netDetector, &cfg.RemoteAccess.Enabled)
 		proxyTrust, proxyErr := network.NewProxyTrust(cfg.Server.TrustedProxies, cfg.Server.RealIPHeader, cfg.Server.ForwardedProto)
 		if proxyErr != nil {
