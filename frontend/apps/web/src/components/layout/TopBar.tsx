@@ -1,7 +1,7 @@
 import { useRef, useState, useEffect, useCallback } from "react";
 import { useNavigate, useRouterState } from "@tanstack/react-router";
 import { useAuthStore } from "@evey/store";
-import { useUserServiceGetCurrentUser } from "@evey/api";
+import { useUserServiceGetCurrentUser, eveyFetch } from "@evey/api";
 import { NotificationBell } from "@/features/user/NotificationBell";
 import { SearchDropdown } from "@/features/search/SearchDropdown";
 
@@ -39,12 +39,7 @@ function UserMenu({ userInitial }: { userInitial: string }) {
     setOpen(false);
     logout();
     // Clear httpOnly refresh cookie server-side (best-effort)
-    void fetch("/api/v1/auth/logout", {
-      method: "POST",
-      credentials: "include",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({}),
-    }).catch(() => undefined);
+    void eveyFetch<void>({ url: "/api/v1/auth/logout", method: "POST", data: {} }).catch(() => undefined);
     void navigate({ to: "/login" });
   };
 

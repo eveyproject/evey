@@ -73,6 +73,7 @@ export function TrickplayPreview({ mediaId, hoverTime }: TrickplayPreviewProps) 
       headers: { Authorization: `Bearer ${accessToken}` },
     })
       .then((res) => {
+        if (res.status === 401) window.dispatchEvent(new Event("evey:unauthorized"));
         if (!res.ok) throw new Error("no trickplay");
         return res.text();
       })

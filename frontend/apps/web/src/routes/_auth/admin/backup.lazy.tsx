@@ -2,7 +2,7 @@ import { useRef, useState } from "react";
 import { createLazyFileRoute } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAuthStore, toast } from "@evey/store";
-import { eveyFetch } from "@evey/api/src/fetcher";
+import { eveyFetch } from "@evey/api";
 import { Spinner } from "@/components/ui/Spinner";
 import { Button } from "@/components/ui/Button";
 import { EmptyState } from "@/components/ui/EmptyState";
@@ -82,20 +82,21 @@ function BackupRow({ backup }: { backup: Backup }) {
   async function handleRestore() {
     setRestoring(true);
     try {
-      // Fetch backup file — use raw fetch with token since response is a blob
+      // Raw fetch required: blob download then multipart upload (eveyFetch is JSON-only)
       const fileRes = await fetch(`/api/v1/admin/backups/${backup.id}`, {
         headers: token ? { Authorization: `Bearer ${token}` } : {},
       });
+      if (fileRes.status === 401) window.dispatchEvent(new Event("evey:unauthorized"));
       if (!fileRes.ok) throw new Error("Failed to fetch backup file");
       const blob = await fileRes.blob();
       const formData = new FormData();
       formData.append("backup", blob, `${backup.id}.gz`);
-      // Use raw fetch for multipart upload (eveyFetch only supports JSON body)
       const res = await fetch("/api/v1/admin/backups/restore", {
         method: "POST",
         headers: token ? { Authorization: `Bearer ${token}` } : {},
         body: formData,
       });
+      if (res.status === 401) window.dispatchEvent(new Event("evey:unauthorized"));
       if (!res.ok) throw new Error("Restore failed");
       toast.success("Restore completed");
     } catch (err) {
@@ -191,12 +192,13 @@ function RestoreUploadModal({
     try {
       const formData = new FormData();
       formData.append("backup", file);
-      // Use raw fetch for multipart upload (eveyFetch only supports JSON body)
+      // Raw fetch required: multipart upload (eveyFetch is JSON-only)
       const res = await fetch("/api/v1/admin/backups/restore", {
         method: "POST",
         headers: token ? { Authorization: `Bearer ${token}` } : {},
         body: formData,
       });
+      if (res.status === 401) window.dispatchEvent(new Event("evey:unauthorized"));
       if (!res.ok) throw new Error("Restore failed");
       toast.success("Restore completed");
       onClose();
