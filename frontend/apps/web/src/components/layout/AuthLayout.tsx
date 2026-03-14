@@ -14,7 +14,7 @@ export function AuthLayout({ children }: AuthLayoutProps) {
   const isHome = location.pathname === "/home";
   const isPlayer = location.pathname.startsWith("/player/");
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const { showHelp, setShowHelp } = useKeyboardShortcuts();
+  const { showHelp, setShowHelp } = useKeyboardShortcuts(!isPlayer);
 
   if (isPlayer) return <>{children}</>;
 

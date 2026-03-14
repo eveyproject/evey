@@ -8,7 +8,7 @@ function isInputFocused(): boolean {
   return tag === "input" || tag === "textarea" || tag === "select" || (el as HTMLElement).isContentEditable;
 }
 
-export function useKeyboardShortcuts() {
+export function useKeyboardShortcuts(enabled = true) {
   const navigate = useNavigate();
   const [showHelp, setShowHelp] = useState(false);
 
@@ -54,9 +54,10 @@ export function useKeyboardShortcuts() {
   );
 
   useEffect(() => {
+    if (!enabled) return;
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [handleKeyDown]);
+  }, [handleKeyDown, enabled]);
 
   return { showHelp, setShowHelp };
 }
