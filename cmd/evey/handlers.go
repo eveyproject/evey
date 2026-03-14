@@ -122,6 +122,16 @@ func mediaHandler(tokens interface {
 				http.NotFound(w, r)
 				return
 			}
+			// prefer local file (avoids external request, enables ETag caching)
+			for _, rec := range records {
+				if artType == "" || rec.Type == artType {
+					if rec.LocalPath != nil && *rec.LocalPath != "" {
+						w.Header().Set("Cache-Control", "public, max-age=86400")
+						http.ServeFile(w, r, *rec.LocalPath)
+						return
+					}
+				}
+			}
 			var url string
 			for _, rec := range records {
 				if artType == "" || rec.Type == artType {
