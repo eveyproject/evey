@@ -141,7 +141,9 @@ func registerAdminRoutes(mux *http.ServeMux, metaCmd *appmetadata.CommandService
 				out = append(out, sr)
 			}
 			w.Header().Set("Content-Type", "application/json")
-			json.NewEncoder(w).Encode(out)
+			if err := json.NewEncoder(w).Encode(out); err != nil {
+				slog.Warn("json encode failed", slog.Any("err", err))
+			}
 
 		default:
 			http.NotFound(w, r)
@@ -164,7 +166,9 @@ func registerAdminRoutes(mux *http.ServeMux, metaCmd *appmetadata.CommandService
 		}()
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusAccepted)
-		json.NewEncoder(w).Encode(map[string]string{"message": "refresh started"})
+		if err := json.NewEncoder(w).Encode(map[string]string{"message": "refresh started"}); err != nil {
+			slog.Warn("json encode failed", slog.Any("err", err))
+		}
 	})
 }
 
@@ -235,7 +239,9 @@ func registerFavoriteRoutes(mux *http.ServeMux, favSvc *appfavorite.Service, lib
 			return
 		}
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]any{"isFavorite": isFav})
+		if err := json.NewEncoder(w).Encode(map[string]any{"isFavorite": isFav}); err != nil {
+			slog.Warn("json encode failed", slog.Any("err", err))
+		}
 	})
 
 	mux.HandleFunc("GET /api/v1/favorites", func(w http.ResponseWriter, r *http.Request) {
@@ -292,7 +298,9 @@ func registerFavoriteRoutes(mux *http.ServeMux, favSvc *appfavorite.Service, lib
 		}
 		wg.Wait()
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]any{"items": items})
+		if err := json.NewEncoder(w).Encode(map[string]any{"items": items}); err != nil {
+			slog.Warn("json encode failed", slog.Any("err", err))
+		}
 	})
 
 	mux.HandleFunc("GET /api/v1/favorites/{media_id}", func(w http.ResponseWriter, r *http.Request) {
@@ -308,7 +316,9 @@ func registerFavoriteRoutes(mux *http.ServeMux, favSvc *appfavorite.Service, lib
 			return
 		}
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]any{"isFavorite": isFav})
+		if err := json.NewEncoder(w).Encode(map[string]any{"isFavorite": isFav}); err != nil {
+			slog.Warn("json encode failed", slog.Any("err", err))
+		}
 	})
 }
 
@@ -395,7 +405,9 @@ func registerMetadataOverrideRoutes(mux *http.ServeMux, metaCmd *appmetadata.Com
 			})
 		}
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]any{"overrides": result})
+		if err := json.NewEncoder(w).Encode(map[string]any{"overrides": result}); err != nil {
+			slog.Warn("json encode failed", slog.Any("err", err))
+		}
 	})
 }
 
@@ -433,7 +445,9 @@ func registerTranscodeCacheRoutes(mux *http.ServeMux, transcodeSvc *apptranscodi
 			resp.Files = append(resp.Files, fileEntry{Name: f.Name, Size: f.Size, LastModified: f.LastModified.UTC().Format(time.RFC3339)})
 		}
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(resp)
+		if err := json.NewEncoder(w).Encode(resp); err != nil {
+			slog.Warn("json encode failed", slog.Any("err", err))
+		}
 	})
 
 	mux.HandleFunc("DELETE /api/v1/admin/transcode-cache", func(w http.ResponseWriter, r *http.Request) {
@@ -518,7 +532,9 @@ func registerCollectionRoutes(mux *http.ServeMux, svc *appcollection.Service, to
 			})
 		}
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]any{"collections": out})
+		if err := json.NewEncoder(w).Encode(map[string]any{"collections": out}); err != nil {
+			slog.Warn("json encode failed", slog.Any("err", err))
+		}
 	})
 
 	mux.HandleFunc("/api/v1/collections/", func(w http.ResponseWriter, r *http.Request) {
@@ -576,7 +592,7 @@ func registerCollectionRoutes(mux *http.ServeMux, svc *appcollection.Service, to
 				})
 			}
 			w.Header().Set("Content-Type", "application/json")
-			json.NewEncoder(w).Encode(map[string]any{
+			if err := json.NewEncoder(w).Encode(map[string]any{
 				"collection": map[string]any{
 					"id": col.ID, "name": col.Name, "overview": col.Overview,
 					"tmdbId": col.TmdbID, "posterUrl": col.PosterURL, "backdropUrl": col.BackdropURL,
@@ -585,7 +601,9 @@ func registerCollectionRoutes(mux *http.ServeMux, svc *appcollection.Service, to
 				},
 				"items": mediaItems,
 				"total": total,
-			})
+			}); err != nil {
+				slog.Warn("json encode failed", slog.Any("err", err))
+			}
 
 		case http.MethodDelete:
 			if !requireAdmin(r) {
@@ -646,7 +664,9 @@ func registerScheduleRoutes(mux *http.ServeMux, scheduler *applibrary.Scheduler,
 			out.NextRunAt = &s
 		}
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]any{"schedule": out})
+		if err := json.NewEncoder(w).Encode(map[string]any{"schedule": out}); err != nil {
+			slog.Warn("json encode failed", slog.Any("err", err))
+		}
 	})
 
 	mux.HandleFunc("PUT /api/v1/libraries/{id}/schedule", func(w http.ResponseWriter, r *http.Request) {
@@ -692,7 +712,9 @@ func registerScheduleRoutes(mux *http.ServeMux, scheduler *applibrary.Scheduler,
 			out.NextRunAt = &s
 		}
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]any{"schedule": out})
+		if err := json.NewEncoder(w).Encode(map[string]any{"schedule": out}); err != nil {
+			slog.Warn("json encode failed", slog.Any("err", err))
+		}
 	})
 
 	mux.HandleFunc("DELETE /api/v1/libraries/{id}/schedule", func(w http.ResponseWriter, r *http.Request) {
@@ -744,10 +766,12 @@ func registerLibraryAccessRoutes(mux *http.ServeMux, accessRepo domainuser.Libra
 			ids = []string{}
 		}
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]any{
+		if err := json.NewEncoder(w).Encode(map[string]any{
 			"libraryIds": ids,
 			"libraries":  allLibs,
-		})
+		}); err != nil {
+			slog.Warn("json encode failed", slog.Any("err", err))
+		}
 	})
 
 	mux.HandleFunc("PUT /api/v1/admin/users/{userId}/library-access", func(w http.ResponseWriter, r *http.Request) {
@@ -844,7 +868,9 @@ func registerPlaylistRoutes(mux *http.ServeMux, svc *appplaylist.Service, tokenG
 			})
 		}
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]any{"playlists": out})
+		if err := json.NewEncoder(w).Encode(map[string]any{"playlists": out}); err != nil {
+			slog.Warn("json encode failed", slog.Any("err", err))
+		}
 	})
 
 	mux.HandleFunc("POST /api/v1/playlists", func(w http.ResponseWriter, r *http.Request) {
@@ -887,7 +913,9 @@ func registerPlaylistRoutes(mux *http.ServeMux, svc *appplaylist.Service, tokenG
 		}
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusCreated)
-		json.NewEncoder(w).Encode(map[string]any{"id": pl.ID})
+		if err := json.NewEncoder(w).Encode(map[string]any{"id": pl.ID}); err != nil {
+			slog.Warn("json encode failed", slog.Any("err", err))
+		}
 	})
 
 	mux.HandleFunc("/api/v1/playlists/", func(w http.ResponseWriter, r *http.Request) {
@@ -950,7 +978,7 @@ func registerPlaylistRoutes(mux *http.ServeMux, svc *appplaylist.Service, tokenG
 				})
 			}
 			w.Header().Set("Content-Type", "application/json")
-			json.NewEncoder(w).Encode(map[string]any{
+			if err := json.NewEncoder(w).Encode(map[string]any{
 				"playlist": map[string]any{
 					"id": pl.ID, "name": pl.Name, "description": pl.Description,
 					"type": string(pl.Type), "rules": rules,
@@ -960,7 +988,9 @@ func registerPlaylistRoutes(mux *http.ServeMux, svc *appplaylist.Service, tokenG
 				},
 				"items": items,
 				"media": media,
-			})
+			}); err != nil {
+				slog.Warn("json encode failed", slog.Any("err", err))
+			}
 
 		case action == "" && r.Method == http.MethodPut:
 			var body struct {
@@ -1070,13 +1100,15 @@ func registerBackupRoutes(mux *http.ServeMux, svc *appbackup.Service, tokenGen *
 		}
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusCreated)
-		json.NewEncoder(w).Encode(map[string]any{
+		if err := json.NewEncoder(w).Encode(map[string]any{
 			"id":        m.ID,
 			"createdAt": m.CreatedAt.Format(time.RFC3339),
 			"version":   m.Version,
 			"tables":    m.Tables,
 			"size":      m.Size,
-		})
+		}); err != nil {
+			slog.Warn("json encode failed", slog.Any("err", err))
+		}
 	})
 
 	mux.HandleFunc("GET /api/v1/admin/backups", func(w http.ResponseWriter, r *http.Request) {
@@ -1105,7 +1137,9 @@ func registerBackupRoutes(mux *http.ServeMux, svc *appbackup.Service, tokenGen *
 			})
 		}
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]any{"backups": items})
+		if err := json.NewEncoder(w).Encode(map[string]any{"backups": items}); err != nil {
+			slog.Warn("json encode failed", slog.Any("err", err))
+		}
 	})
 
 	mux.HandleFunc("GET /api/v1/admin/backups/{id}", func(w http.ResponseWriter, r *http.Request) {
@@ -1212,12 +1246,14 @@ func registerSyncPlayRoutes(mux *http.ServeMux, hub *appsyncplay.Hub, tokenGen *
 		}
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusCreated)
-		json.NewEncoder(w).Encode(map[string]any{
+		if err := json.NewEncoder(w).Encode(map[string]any{
 			"id":      room.ID,
 			"name":    room.Name,
 			"mediaId": room.MediaID,
 			"hostId":  room.HostID,
-		})
+		}); err != nil {
+			slog.Warn("json encode failed", slog.Any("err", err))
+		}
 	})
 
 	mux.HandleFunc("GET /api/v1/syncplay/rooms/{id}", func(w http.ResponseWriter, r *http.Request) {
@@ -1252,7 +1288,7 @@ func registerSyncPlayRoutes(mux *http.ServeMux, hub *appsyncplay.Hub, tokenGen *
 			members = append(members, memberResp{UserID: m.UserID, Username: m.Username})
 		}
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]any{
+		if err := json.NewEncoder(w).Encode(map[string]any{
 			"id":      room.ID,
 			"name":    room.Name,
 			"mediaId": room.MediaID,
@@ -1262,7 +1298,9 @@ func registerSyncPlayRoutes(mux *http.ServeMux, hub *appsyncplay.Hub, tokenGen *
 				"playing":    room.State.Playing,
 				"positionMs": room.State.PositionMs,
 			},
-		})
+		}); err != nil {
+			slog.Warn("json encode failed", slog.Any("err", err))
+		}
 	})
 
 	mux.HandleFunc("POST /api/v1/syncplay/rooms/{id}/join", func(w http.ResponseWriter, r *http.Request) {
@@ -1277,10 +1315,12 @@ func registerSyncPlayRoutes(mux *http.ServeMux, hub *appsyncplay.Hub, tokenGen *
 			return
 		}
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]any{
+		if err := json.NewEncoder(w).Encode(map[string]any{
 			"roomId": roomID,
 			"wsUrl":  "/api/v1/syncplay/rooms/" + roomID + "/ws",
-		})
+		}); err != nil {
+			slog.Warn("json encode failed", slog.Any("err", err))
+		}
 	})
 
 	mux.HandleFunc("DELETE /api/v1/syncplay/rooms/{id}/leave", func(w http.ResponseWriter, r *http.Request) {
@@ -1345,12 +1385,14 @@ func registerRemoteAccessRoutes(mux *http.ServeMux, cfg *config.Config, tokenGen
 		mu.RLock()
 		defer mu.RUnlock()
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]any{
+		if err := json.NewEncoder(w).Encode(map[string]any{
 			"enabled":              cfg.RemoteAccess.Enabled,
 			"externalUrl":          cfg.RemoteAccess.ExternalURL,
 			"lanNetworks":          cfg.RemoteAccess.LANNetworks,
 			"maxRemoteBitrateKbps": cfg.RemoteAccess.MaxRemoteBitrateKbps,
-		})
+		}); err != nil {
+			slog.Warn("json encode failed", slog.Any("err", err))
+		}
 	}
 
 	mux.HandleFunc("GET /api/v1/admin/remote-access", func(w http.ResponseWriter, r *http.Request) {
@@ -1419,7 +1461,9 @@ func registerRemoteAccessRoutes(mux *http.ServeMux, cfg *config.Config, tokenGen
 			return
 		}
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]any{"interfaces": ifaces})
+		if err := json.NewEncoder(w).Encode(map[string]any{"interfaces": ifaces}); err != nil {
+			slog.Warn("json encode failed", slog.Any("err", err))
+		}
 	})
 }
 
@@ -1447,10 +1491,12 @@ func registerPlaybackSettingsRoutes(mux *http.ServeMux, cfg *config.Config, toke
 			return
 		}
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]any{
+		if err := json.NewEncoder(w).Encode(map[string]any{
 			"skipForwardSeconds":  cfg.Playback.SkipForwardSeconds,
 			"skipBackwardSeconds": cfg.Playback.SkipBackwardSeconds,
-		})
+		}); err != nil {
+			slog.Warn("json encode failed", slog.Any("err", err))
+		}
 	})
 
 	mux.HandleFunc("PUT /api/v1/admin/playback-settings", func(w http.ResponseWriter, r *http.Request) {
@@ -1473,10 +1519,12 @@ func registerPlaybackSettingsRoutes(mux *http.ServeMux, cfg *config.Config, toke
 			cfg.Playback.SkipBackwardSeconds = *body.SkipBackwardSeconds
 		}
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]any{
+		if err := json.NewEncoder(w).Encode(map[string]any{
 			"skipForwardSeconds":  cfg.Playback.SkipForwardSeconds,
 			"skipBackwardSeconds": cfg.Playback.SkipBackwardSeconds,
-		})
+		}); err != nil {
+			slog.Warn("json encode failed", slog.Any("err", err))
+		}
 	})
 }
 
@@ -1670,7 +1718,9 @@ func registerRatingRoutes(mux *http.ServeMux, ratingRepo domainlibrary.UserRatin
 			return
 		}
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]any{"value": body.Value})
+		if err := json.NewEncoder(w).Encode(map[string]any{"value": body.Value}); err != nil {
+			slog.Warn("json encode failed", slog.Any("err", err))
+		}
 	})
 
 	// GET /api/v1/media/{id}/my-rating — get current user's rating
@@ -1688,11 +1738,15 @@ func registerRatingRoutes(mux *http.ServeMux, ratingRepo domainlibrary.UserRatin
 		if err != nil {
 			// no rating yet → return neutral
 			w.Header().Set("Content-Type", "application/json")
-			json.NewEncoder(w).Encode(map[string]any{"value": 0})
+			if err := json.NewEncoder(w).Encode(map[string]any{"value": 0}); err != nil {
+				slog.Warn("json encode failed", slog.Any("err", err))
+			}
 			return
 		}
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]any{"value": rating.Value})
+		if err := json.NewEncoder(w).Encode(map[string]any{"value": rating.Value}); err != nil {
+			slog.Warn("json encode failed", slog.Any("err", err))
+		}
 	})
 }
 
@@ -1742,7 +1796,9 @@ func registerStarRatingRoutes(mux *http.ServeMux, svc *apprating.Service, tokenG
 			return
 		}
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]any{"value": body.Value})
+		if err := json.NewEncoder(w).Encode(map[string]any{"value": body.Value}); err != nil {
+			slog.Warn("json encode failed", slog.Any("err", err))
+		}
 	})
 
 	// GET /api/v1/media/{id}/rating — get current profile's rating
@@ -1764,10 +1820,14 @@ func registerStarRatingRoutes(mux *http.ServeMux, svc *apprating.Service, tokenG
 		}
 		w.Header().Set("Content-Type", "application/json")
 		if rt == nil {
-			json.NewEncoder(w).Encode(map[string]any{"value": 0})
+			if err := json.NewEncoder(w).Encode(map[string]any{"value": 0}); err != nil {
+				slog.Warn("json encode failed", slog.Any("err", err))
+			}
 			return
 		}
-		json.NewEncoder(w).Encode(map[string]any{"value": rt.Value})
+		if err := json.NewEncoder(w).Encode(map[string]any{"value": rt.Value}); err != nil {
+			slog.Warn("json encode failed", slog.Any("err", err))
+		}
 	})
 
 	// DELETE /api/v1/media/{id}/rating — remove rating
@@ -1809,7 +1869,9 @@ func registerStarRatingRoutes(mux *http.ServeMux, svc *apprating.Service, tokenG
 		}
 		agg := aggs[mediaID]
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]any{"average": agg.Average, "count": agg.Count})
+		if err := json.NewEncoder(w).Encode(map[string]any{"average": agg.Average, "count": agg.Count}); err != nil {
+			slog.Warn("json encode failed", slog.Any("err", err))
+		}
 	})
 }
 
@@ -1857,7 +1919,9 @@ func registerPopularRoute(mux *http.ServeMux, activityQuery *appactivity.QuerySe
 		wg.Wait()
 		items = append(items, results...)
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]any{"items": items})
+		if err := json.NewEncoder(w).Encode(map[string]any{"items": items}); err != nil {
+			slog.Warn("json encode failed", slog.Any("err", err))
+		}
 	})
 }
 
@@ -1888,7 +1952,7 @@ func registerSystemStatsRoute(mux *http.ServeMux, startTime time.Time, tokenGen 
 		statsMu.Unlock()
 
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]any{
+		if err := json.NewEncoder(w).Encode(map[string]any{
 			"goroutines":    goruntime.NumGoroutine(),
 			"memAllocBytes": ms.Alloc,
 			"memSysBytes":   ms.Sys,
@@ -1898,7 +1962,9 @@ func registerSystemStatsRoute(mux *http.ServeMux, startTime time.Time, tokenGen 
 			"os":            goruntime.GOOS,
 			"arch":          goruntime.GOARCH,
 			"numCPU":        goruntime.NumCPU(),
-		})
+		}); err != nil {
+			slog.Warn("json encode failed", slog.Any("err", err))
+		}
 	})
 }
 
@@ -1936,7 +2002,9 @@ func registerServerConfigRoutes(mux *http.ServeMux, cfgRepo domainshared.ServerC
 			items = append(items, entry{Key: e.Key, Value: e.Value, UpdatedAt: e.UpdatedAt})
 		}
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]any{"entries": items})
+		if err := json.NewEncoder(w).Encode(map[string]any{"entries": items}); err != nil {
+			slog.Warn("json encode failed", slog.Any("err", err))
+		}
 	})
 
 	mux.HandleFunc("PUT /api/v1/admin/server-config/{key}", func(w http.ResponseWriter, r *http.Request) {
@@ -2005,7 +2073,9 @@ func registerLogsRoute(mux *http.ServeMux, logDir string, tokenGen *auth.JWTGene
 			return
 		}
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]any{"lines": data})
+		if err := json.NewEncoder(w).Encode(map[string]any{"lines": data}); err != nil {
+			slog.Warn("json encode failed", slog.Any("err", err))
+		}
 	})
 
 	mux.HandleFunc("GET /api/v1/admin/logs/stream", func(w http.ResponseWriter, r *http.Request) {
@@ -2147,7 +2217,9 @@ func registerTranscodeProfileRoutes(mux *http.ServeMux, transcodeSvc *apptransco
 		}
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusCreated)
-		json.NewEncoder(w).Encode(p)
+		if err := json.NewEncoder(w).Encode(p); err != nil {
+			slog.Warn("json encode failed", slog.Any("err", err))
+		}
 	})
 
 	mux.HandleFunc("PUT /api/v1/admin/transcoding/profiles/{id}", func(w http.ResponseWriter, r *http.Request) {
@@ -2179,7 +2251,9 @@ func registerTranscodeProfileRoutes(mux *http.ServeMux, transcodeSvc *apptransco
 			return
 		}
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(p)
+		if err := json.NewEncoder(w).Encode(p); err != nil {
+			slog.Warn("json encode failed", slog.Any("err", err))
+		}
 	})
 
 	mux.HandleFunc("DELETE /api/v1/admin/transcoding/profiles/{id}", func(w http.ResponseWriter, r *http.Request) {
@@ -2524,7 +2598,9 @@ func registerUserAdminRoutes(mux *http.ServeMux, userCmd *appuser.CommandService
 			return
 		}
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]any{"max_bitrate_kbps": limit})
+		if err := json.NewEncoder(w).Encode(map[string]any{"max_bitrate_kbps": limit}); err != nil {
+			slog.Warn("json encode failed", slog.Any("err", err))
+		}
 	})
 
 	mux.HandleFunc("PATCH /api/v1/admin/users/{id}/bitrate-limit", func(w http.ResponseWriter, r *http.Request) {
@@ -2550,6 +2626,8 @@ func registerUserAdminRoutes(mux *http.ServeMux, userCmd *appuser.CommandService
 			return
 		}
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]any{"max_bitrate_kbps": body.MaxBitrateKbps})
+		if err := json.NewEncoder(w).Encode(map[string]any{"max_bitrate_kbps": body.MaxBitrateKbps}); err != nil {
+			slog.Warn("json encode failed", slog.Any("err", err))
+		}
 	})
 }

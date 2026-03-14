@@ -715,7 +715,9 @@ func chaptersHandler(tokenGen interface {
 		}
 		w.Header().Set("Content-Type", "application/json")
 		setCORSHeaders(w, r, baseURL)
-		json.NewEncoder(w).Encode(map[string]any{"chapters": out})
+		if err := json.NewEncoder(w).Encode(map[string]any{"chapters": out}); err != nil {
+			slog.Warn("json encode failed", slog.Any("err", err))
+		}
 	}
 }
 
@@ -787,7 +789,9 @@ func libraryStatsHandler(tokenGen interface {
 			stats = append(stats, libStat{ID: lib.ID, LastScannedAt: ts})
 		}
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]any{"stats": stats})
+		if err := json.NewEncoder(w).Encode(map[string]any{"stats": stats}); err != nil {
+			slog.Warn("json encode failed", slog.Any("err", err))
+		}
 	}
 }
 
@@ -854,7 +858,9 @@ func activeSessionsHandler(tokenGen interface {
 			})
 		}
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]any{"sessions": out})
+		if err := json.NewEncoder(w).Encode(map[string]any{"sessions": out}); err != nil {
+			slog.Warn("json encode failed", slog.Any("err", err))
+		}
 	}
 }
 
@@ -1137,7 +1143,9 @@ func registerSubtitleRoutes(mux *http.ServeMux, subtitleSvc *appsubtitle.Service
 			})
 		}
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]any{"results": out})
+		if err := json.NewEncoder(w).Encode(map[string]any{"results": out}); err != nil {
+			slog.Warn("json encode failed", slog.Any("err", err))
+		}
 	})
 
 	mux.HandleFunc("POST /api/v1/media/{id}/subtitles/download", func(w http.ResponseWriter, r *http.Request) {
@@ -1166,7 +1174,7 @@ func registerSubtitleRoutes(mux *http.ServeMux, subtitleSvc *appsubtitle.Service
 		}
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusCreated)
-		json.NewEncoder(w).Encode(map[string]any{
+		if err := json.NewEncoder(w).Encode(map[string]any{
 			"id":           sub.ID,
 			"mediaItemId":  sub.MediaItemID,
 			"language":     sub.Language,
@@ -1174,7 +1182,9 @@ func registerSubtitleRoutes(mux *http.ServeMux, subtitleSvc *appsubtitle.Service
 			"filePath":     sub.FilePath,
 			"source":       sub.Source,
 			"downloadedAt": sub.DownloadedAt.UTC().Format(time.RFC3339),
-		})
+		}); err != nil {
+			slog.Warn("json encode failed", slog.Any("err", err))
+		}
 	})
 
 	mux.HandleFunc("GET /api/v1/media/{id}/subtitles", func(w http.ResponseWriter, r *http.Request) {
@@ -1210,7 +1220,9 @@ func registerSubtitleRoutes(mux *http.ServeMux, subtitleSvc *appsubtitle.Service
 			})
 		}
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]any{"subtitles": out})
+		if err := json.NewEncoder(w).Encode(map[string]any{"subtitles": out}); err != nil {
+			slog.Warn("json encode failed", slog.Any("err", err))
+		}
 	})
 
 	mux.HandleFunc("DELETE /api/v1/media/{id}/subtitles/{subtitleId}", func(w http.ResponseWriter, r *http.Request) {
@@ -1498,6 +1510,8 @@ func playbackInfoHandler(tokenGen interface {
 		decision := apptranscoding.MakePlaybackDecision(streams, item.ContainerFormat, client, userMaxBitrate)
 
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(decision)
+		if err := json.NewEncoder(w).Encode(decision); err != nil {
+			slog.Warn("json encode failed", slog.Any("err", err))
+		}
 	}
 }
