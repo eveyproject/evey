@@ -1,6 +1,6 @@
 import { createLazyFileRoute } from "@tanstack/react-router";
 import { useState, useEffect } from "react";
-import { useUserServiceGetCurrentUser, useUserServiceUpdateUser, useUserServiceListProfiles } from "@evey/api";
+import { useUserServiceGetCurrentUser, useUserServiceUpdateUser, useUserServiceListProfiles, useUserServiceUpdateProfile } from "@evey/api";
 import { getUserServiceGetCurrentUserQueryKey, getUserServiceListProfilesQueryKey } from "@evey/api";
 import { eveyFetch } from "@evey/api";
 import { useQueryClient, useMutation } from "@tanstack/react-query";
@@ -11,12 +11,13 @@ import { Button } from "@/components/ui/Button";
 import { Select } from "@/components/ui/Select";
 import { ThemeSettings } from "@/features/user/ThemeSettings";
 import { NotificationSettings } from "@/features/user/NotificationSettings";
+import { APIKeySettings } from "@/features/user/APIKeySettings";
 
 export const Route = createLazyFileRoute("/_auth/profile/settings")({
   component: SettingsPage,
 });
 
-type Tab = "appearance" | "playback" | "notifications" | "account";
+type Tab = "appearance" | "playback" | "notifications" | "account" | "parental" | "api-keys";
 
 const TABS: { key: Tab; label: string; icon: string }[] = [
   {
@@ -38,6 +39,16 @@ const TABS: { key: Tab; label: string; icon: string }[] = [
     key: "account",
     label: "Account",
     icon: "M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z",
+  },
+  {
+    key: "parental",
+    label: "Parental",
+    icon: "M9 12.75L11.25 15 15 9.75m-3-7.036A11.959 11.959 0 013.598 6 11.99 11.99 0 003 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285z",
+  },
+  {
+    key: "api-keys",
+    label: "API Keys",
+    icon: "M15.75 5.25a3 3 0 013 3m3 0a6 6 0 01-7.029 5.912c-.563-.097-1.159.026-1.563.43L10.5 17.25H8.25v2.25H6v2.25H2.25v-2.818c0-.597.237-1.17.659-1.591l6.499-6.499c.404-.404.527-1 .43-1.563A6 6 0 1121.75 8.25z",
   },
 ];
 
@@ -73,6 +84,8 @@ function SettingsPage() {
           {tab === "playback" && <PlaybackSection />}
           {tab === "notifications" && <NotificationSettings />}
           {tab === "account" && <AccountSection />}
+          {tab === "parental" && <ParentalSection />}
+          {tab === "api-keys" && <APIKeySettings />}
         </div>
       </Card>
     </div>
@@ -218,6 +231,201 @@ function AccountSection() {
             onClick={handleSubmit}
           >
             Update password
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+const RATING_OPTIONS = [
+  { value: "", label: "No restriction" },
+  { value: "G", label: "G — General Audiences" },
+  { value: "PG", label: "PG — Parental Guidance" },
+  { value: "PG-13", label: "PG-13 — Parents Strongly Cautioned" },
+  { value: "R", label: "R — Restricted" },
+  { value: "NC-17", label: "NC-17 — Adults Only" },
+];
+
+function PinInput({
+  label,
+  value,
+  onChange,
+}: {
+  label: string;
+  value: string;
+  onChange: (v: string) => void;
+}) {
+  return (
+    <Input
+      label={label}
+      type="password"
+      inputMode="numeric"
+      maxLength={4}
+      pattern="\d{4}"
+      placeholder="••••"
+      value={value}
+      onChange={(e) => {
+        const v = e.target.value.replace(/\D/g, "").slice(0, 4);
+        onChange(v);
+      }}
+      autoComplete="off"
+    />
+  );
+}
+
+function ParentalSection() {
+  const qc = useQueryClient();
+  const { data: user } = useUserServiceGetCurrentUser();
+  const { data: profilesResp } = useUserServiceListProfiles(user?.id ?? "", {
+    query: { enabled: !!user?.id },
+  });
+
+  const profiles = profilesResp?.profiles;
+  const defaultProfile = profiles?.find((p) => p.isDefault) ?? profiles?.[0];
+
+  const enabled = defaultProfile?.preferences?.parental_enabled === "true";
+  const [maxRating, setMaxRating] = useState(defaultProfile?.maxRating ?? "");
+  const [pin, setPin] = useState("");
+  const [confirmPin, setConfirmPin] = useState("");
+  const [pinError, setPinError] = useState("");
+
+  useEffect(() => {
+    setMaxRating(defaultProfile?.maxRating ?? "");
+  }, [defaultProfile]);
+
+  const updateProfile = useUserServiceUpdateProfile({
+    mutation: {
+      onSuccess: () => {
+        if (user?.id) {
+          void qc.invalidateQueries({ queryKey: getUserServiceListProfilesQueryKey(user.id) });
+        }
+        toast.success("Parental controls updated");
+      },
+      onError: (err: Error) => toast.error(err.message || "Failed to update"),
+    },
+  });
+
+  function handleToggleEnabled() {
+    if (!defaultProfile?.id) return;
+    updateProfile.mutate({
+      id: defaultProfile.id,
+      data: {
+        preferences: {
+          ...defaultProfile.preferences,
+          parental_enabled: enabled ? "false" : "true",
+        },
+        maxRating: enabled ? undefined : (maxRating || undefined),
+      },
+    });
+  }
+
+  function handleSaveRating() {
+    if (!defaultProfile?.id) return;
+    updateProfile.mutate({
+      id: defaultProfile.id,
+      data: { maxRating: maxRating || undefined },
+    });
+  }
+
+  function handleSavePin() {
+    setPinError("");
+    if (pin.length !== 4) {
+      setPinError("PIN must be 4 digits");
+      return;
+    }
+    if (pin !== confirmPin) {
+      setPinError("PINs do not match");
+      return;
+    }
+    if (!defaultProfile?.id) return;
+    updateProfile.mutate({
+      id: defaultProfile.id,
+      data: {
+        preferences: {
+          ...defaultProfile.preferences,
+          parental_pin: pin,
+        },
+      },
+    });
+    setPin("");
+    setConfirmPin("");
+  }
+
+  if (!defaultProfile) {
+    return (
+      <p className="text-sm text-[var(--text-muted)]">No profile found.</p>
+    );
+  }
+
+  return (
+    <div className="flex flex-col gap-6">
+      <div>
+        <h3 className="text-sm font-semibold text-[var(--text)]">Parental Controls</h3>
+        <p className="text-xs text-[var(--text-muted)] mt-1">
+          Restrict content by rating for this profile.
+        </p>
+      </div>
+
+      <div className="flex items-center justify-between">
+        <div>
+          <p className="text-sm font-medium text-[var(--text)]">Enable parental controls</p>
+          <p className="text-xs text-[var(--text-muted)]">Filter content by rating</p>
+        </div>
+        <button
+          type="button"
+          role="switch"
+          aria-checked={enabled}
+          onClick={handleToggleEnabled}
+          disabled={updateProfile.isPending}
+          className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-[var(--accent)] focus:ring-offset-2 disabled:opacity-50 ${
+            enabled ? "bg-[var(--accent)]" : "bg-[var(--border)]"
+          }`}
+        >
+          <span
+            className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${
+              enabled ? "translate-x-6" : "translate-x-1"
+            }`}
+          />
+        </button>
+      </div>
+
+      <div className="flex flex-col gap-3">
+        <Select
+          label="Max content rating"
+          options={RATING_OPTIONS}
+          value={maxRating}
+          onChange={setMaxRating}
+          disabled={!enabled}
+        />
+        <div>
+          <Button
+            variant="primary"
+            loading={updateProfile.isPending}
+            disabled={!enabled || maxRating === (defaultProfile.maxRating ?? "")}
+            onClick={handleSaveRating}
+          >
+            Save rating
+          </Button>
+        </div>
+      </div>
+
+      <div className="border-t border-[var(--border)] pt-4 flex flex-col gap-3">
+        <div>
+          <h4 className="text-sm font-semibold text-[var(--text)]">Set PIN</h4>
+          <p className="text-xs text-[var(--text-muted)] mt-1">4-digit PIN to unlock restricted content.</p>
+        </div>
+        <PinInput label="New PIN" value={pin} onChange={setPin} />
+        <PinInput label="Confirm PIN" value={confirmPin} onChange={setConfirmPin} />
+        {pinError && <p className="text-xs text-red-400">{pinError}</p>}
+        <div>
+          <Button
+            variant="primary"
+            loading={updateProfile.isPending}
+            disabled={!enabled || pin.length < 4}
+            onClick={handleSavePin}
+          >
+            Save PIN
           </Button>
         </div>
       </div>
