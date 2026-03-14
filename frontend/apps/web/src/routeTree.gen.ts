@@ -34,7 +34,9 @@ import { Route as AuthCollectionsCollectionIdRouteImport } from './routes/_auth/
 import { Route as AuthAdminWebhooksRouteImport } from './routes/_auth/admin/webhooks'
 import { Route as AuthAdminUsersRouteImport } from './routes/_auth/admin/users'
 import { Route as AuthAdminTranscodeCacheRouteImport } from './routes/_auth/admin/transcode-cache'
+import { Route as AuthAdminSystemHealthRouteImport } from './routes/_auth/admin/system-health'
 import { Route as AuthAdminSessionsRouteImport } from './routes/_auth/admin/sessions'
+import { Route as AuthAdminServerConfigRouteImport } from './routes/_auth/admin/server-config'
 import { Route as AuthAdminRemoteAccessRouteImport } from './routes/_auth/admin/remote-access'
 import { Route as AuthAdminPluginsRouteImport } from './routes/_auth/admin/plugins'
 import { Route as AuthAdminMetadataRouteImport } from './routes/_auth/admin/metadata'
@@ -207,12 +209,26 @@ const AuthAdminTranscodeCacheRoute = AuthAdminTranscodeCacheRouteImport.update({
 } as any).lazy(() =>
   import('./routes/_auth/admin/transcode-cache.lazy').then((d) => d.Route),
 )
+const AuthAdminSystemHealthRoute = AuthAdminSystemHealthRouteImport.update({
+  id: '/system-health',
+  path: '/system-health',
+  getParentRoute: () => AuthAdminRoute,
+} as any).lazy(() =>
+  import('./routes/_auth/admin/system-health.lazy').then((d) => d.Route),
+)
 const AuthAdminSessionsRoute = AuthAdminSessionsRouteImport.update({
   id: '/sessions',
   path: '/sessions',
   getParentRoute: () => AuthAdminRoute,
 } as any).lazy(() =>
   import('./routes/_auth/admin/sessions.lazy').then((d) => d.Route),
+)
+const AuthAdminServerConfigRoute = AuthAdminServerConfigRouteImport.update({
+  id: '/server-config',
+  path: '/server-config',
+  getParentRoute: () => AuthAdminRoute,
+} as any).lazy(() =>
+  import('./routes/_auth/admin/server-config.lazy').then((d) => d.Route),
 )
 const AuthAdminRemoteAccessRoute = AuthAdminRemoteAccessRouteImport.update({
   id: '/remote-access',
@@ -279,7 +295,9 @@ export interface FileRoutesByFullPath {
   '/admin/metadata': typeof AuthAdminMetadataRoute
   '/admin/plugins': typeof AuthAdminPluginsRoute
   '/admin/remote-access': typeof AuthAdminRemoteAccessRoute
+  '/admin/server-config': typeof AuthAdminServerConfigRoute
   '/admin/sessions': typeof AuthAdminSessionsRoute
+  '/admin/system-health': typeof AuthAdminSystemHealthRoute
   '/admin/transcode-cache': typeof AuthAdminTranscodeCacheRoute
   '/admin/users': typeof AuthAdminUsersRoute
   '/admin/webhooks': typeof AuthAdminWebhooksRoute
@@ -312,7 +330,9 @@ export interface FileRoutesByTo {
   '/admin/metadata': typeof AuthAdminMetadataRoute
   '/admin/plugins': typeof AuthAdminPluginsRoute
   '/admin/remote-access': typeof AuthAdminRemoteAccessRoute
+  '/admin/server-config': typeof AuthAdminServerConfigRoute
   '/admin/sessions': typeof AuthAdminSessionsRoute
+  '/admin/system-health': typeof AuthAdminSystemHealthRoute
   '/admin/transcode-cache': typeof AuthAdminTranscodeCacheRoute
   '/admin/users': typeof AuthAdminUsersRoute
   '/admin/webhooks': typeof AuthAdminWebhooksRoute
@@ -348,7 +368,9 @@ export interface FileRoutesById {
   '/_auth/admin/metadata': typeof AuthAdminMetadataRoute
   '/_auth/admin/plugins': typeof AuthAdminPluginsRoute
   '/_auth/admin/remote-access': typeof AuthAdminRemoteAccessRoute
+  '/_auth/admin/server-config': typeof AuthAdminServerConfigRoute
   '/_auth/admin/sessions': typeof AuthAdminSessionsRoute
+  '/_auth/admin/system-health': typeof AuthAdminSystemHealthRoute
   '/_auth/admin/transcode-cache': typeof AuthAdminTranscodeCacheRoute
   '/_auth/admin/users': typeof AuthAdminUsersRoute
   '/_auth/admin/webhooks': typeof AuthAdminWebhooksRoute
@@ -384,7 +406,9 @@ export interface FileRouteTypes {
     | '/admin/metadata'
     | '/admin/plugins'
     | '/admin/remote-access'
+    | '/admin/server-config'
     | '/admin/sessions'
+    | '/admin/system-health'
     | '/admin/transcode-cache'
     | '/admin/users'
     | '/admin/webhooks'
@@ -417,7 +441,9 @@ export interface FileRouteTypes {
     | '/admin/metadata'
     | '/admin/plugins'
     | '/admin/remote-access'
+    | '/admin/server-config'
     | '/admin/sessions'
+    | '/admin/system-health'
     | '/admin/transcode-cache'
     | '/admin/users'
     | '/admin/webhooks'
@@ -452,7 +478,9 @@ export interface FileRouteTypes {
     | '/_auth/admin/metadata'
     | '/_auth/admin/plugins'
     | '/_auth/admin/remote-access'
+    | '/_auth/admin/server-config'
     | '/_auth/admin/sessions'
+    | '/_auth/admin/system-health'
     | '/_auth/admin/transcode-cache'
     | '/_auth/admin/users'
     | '/_auth/admin/webhooks'
@@ -656,11 +684,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthAdminTranscodeCacheRouteImport
       parentRoute: typeof AuthAdminRoute
     }
+    '/_auth/admin/system-health': {
+      id: '/_auth/admin/system-health'
+      path: '/system-health'
+      fullPath: '/admin/system-health'
+      preLoaderRoute: typeof AuthAdminSystemHealthRouteImport
+      parentRoute: typeof AuthAdminRoute
+    }
     '/_auth/admin/sessions': {
       id: '/_auth/admin/sessions'
       path: '/sessions'
       fullPath: '/admin/sessions'
       preLoaderRoute: typeof AuthAdminSessionsRouteImport
+      parentRoute: typeof AuthAdminRoute
+    }
+    '/_auth/admin/server-config': {
+      id: '/_auth/admin/server-config'
+      path: '/server-config'
+      fullPath: '/admin/server-config'
+      preLoaderRoute: typeof AuthAdminServerConfigRouteImport
       parentRoute: typeof AuthAdminRoute
     }
     '/_auth/admin/remote-access': {
@@ -723,7 +765,9 @@ interface AuthAdminRouteChildren {
   AuthAdminMetadataRoute: typeof AuthAdminMetadataRoute
   AuthAdminPluginsRoute: typeof AuthAdminPluginsRoute
   AuthAdminRemoteAccessRoute: typeof AuthAdminRemoteAccessRoute
+  AuthAdminServerConfigRoute: typeof AuthAdminServerConfigRoute
   AuthAdminSessionsRoute: typeof AuthAdminSessionsRoute
+  AuthAdminSystemHealthRoute: typeof AuthAdminSystemHealthRoute
   AuthAdminTranscodeCacheRoute: typeof AuthAdminTranscodeCacheRoute
   AuthAdminUsersRoute: typeof AuthAdminUsersRoute
   AuthAdminWebhooksRoute: typeof AuthAdminWebhooksRoute
@@ -738,7 +782,9 @@ const AuthAdminRouteChildren: AuthAdminRouteChildren = {
   AuthAdminMetadataRoute: AuthAdminMetadataRoute,
   AuthAdminPluginsRoute: AuthAdminPluginsRoute,
   AuthAdminRemoteAccessRoute: AuthAdminRemoteAccessRoute,
+  AuthAdminServerConfigRoute: AuthAdminServerConfigRoute,
   AuthAdminSessionsRoute: AuthAdminSessionsRoute,
+  AuthAdminSystemHealthRoute: AuthAdminSystemHealthRoute,
   AuthAdminTranscodeCacheRoute: AuthAdminTranscodeCacheRoute,
   AuthAdminUsersRoute: AuthAdminUsersRoute,
   AuthAdminWebhooksRoute: AuthAdminWebhooksRoute,

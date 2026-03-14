@@ -64,6 +64,7 @@ func main() {
 }
 
 func run() error {
+	startTime := time.Now()
 	cfg, err := config.Load()
 	if err != nil {
 		return fmt.Errorf("load config: %w", err)
@@ -520,6 +521,8 @@ func run() error {
 		registerParentalRoutes(mux, profileRepo, hasher, tokenGen)
 		registerRatingRoutes(mux, userRatingRepo, tokenGen)
 		registerPopularRoute(mux, activityQuerySvc, libQuerySvc, tokenGen)
+		registerSystemStatsRoute(mux, startTime, tokenGen)
+		registerServerConfigRoutes(mux, serverCfgRepo, tokenGen)
 		if subtitleSvc != nil {
 			registerSubtitleRoutes(mux, subtitleSvc, tokenGen, libQuerySvc, libraryAccessRepo)
 		}

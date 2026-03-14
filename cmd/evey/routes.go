@@ -10,6 +10,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/url"
+	goruntime "runtime"
 	"strconv"
 	"strings"
 	"sync"
@@ -20,6 +21,7 @@ import (
 	appcollection "github.com/gravity-zero/evey/internal/app/collection"
 	applibrary "github.com/gravity-zero/evey/internal/app/library"
 	domainlibrary "github.com/gravity-zero/evey/internal/domain/library"
+	domainshared "github.com/gravity-zero/evey/internal/domain/shared"
 	apptranscoding "github.com/gravity-zero/evey/internal/app/transcoding"
 
 	"github.com/grpc-ecosystem/grpc-gateway/v2/runtime"
@@ -1666,5 +1668,105 @@ func registerPopularRoute(mux *http.ServeMux, activityQuery *appactivity.QuerySe
 		items = append(items, results...)
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(map[string]any{"items": items})
+	})
+}
+
+func registerSystemStatsRoute(mux *http.ServeMux, startTime time.Time, tokenGen *auth.JWTGenerator) {
+	mux.HandleFunc("GET /api/v1/admin/system/stats", func(w http.ResponseWriter, r *http.Request) {
+		h := r.Header.Get("Authorization")
+		if !strings.HasPrefix(h, "Bearer ") {
+			http.Error(w, `{"message":"unauthenticated"}`, http.StatusUnauthorized)
+			return
+		}
+		claims, err := tokenGen.ValidateAccessToken(strings.TrimPrefix(h, "Bearer "))
+		if err != nil || !claims.IsAdmin {
+			http.Error(w, `{"message":"forbidden"}`, http.StatusForbidden)
+			return
+		}
+
+		var ms goruntime.MemStats
+		goruntime.ReadMemStats(&ms)
+
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]any{
+			"goroutines":    goruntime.NumGoroutine(),
+			"memAllocBytes": ms.Alloc,
+			"memSysBytes":   ms.Sys,
+			"numGC":         ms.NumGC,
+			"uptimeSeconds": int64(time.Since(startTime).Seconds()),
+			"goVersion":     goruntime.Version(),
+			"os":            goruntime.GOOS,
+			"arch":          goruntime.GOARCH,
+			"numCPU":        goruntime.NumCPU(),
+		})
+	})
+}
+
+func registerServerConfigRoutes(mux *http.ServeMux, cfgRepo domainshared.ServerConfigRepository, tokenGen *auth.JWTGenerator) {
+	requireAdmin := func(w http.ResponseWriter, r *http.Request) bool {
+		h := r.Header.Get("Authorization")
+		if !strings.HasPrefix(h, "Bearer ") {
+			http.Error(w, `{"message":"unauthenticated"}`, http.StatusUnauthorized)
+			return false
+		}
+		claims, err := tokenGen.ValidateAccessToken(strings.TrimPrefix(h, "Bearer "))
+		if err != nil || !claims.IsAdmin {
+			http.Error(w, `{"message":"forbidden"}`, http.StatusForbidden)
+			return false
+		}
+		return true
+	}
+
+	mux.HandleFunc("GET /api/v1/admin/server-config", func(w http.ResponseWriter, r *http.Request) {
+		if !requireAdmin(w, r) {
+			return
+		}
+		entries, err := cfgRepo.List(r.Context())
+		if err != nil {
+			http.Error(w, `{"message":"internal error"}`, http.StatusInternalServerError)
+			return
+		}
+		type entry struct {
+			Key       string    `json:"key"`
+			Value     string    `json:"value"`
+			UpdatedAt time.Time `json:"updatedAt"`
+		}
+		items := make([]entry, 0, len(entries))
+		for _, e := range entries {
+			items = append(items, entry{Key: e.Key, Value: e.Value, UpdatedAt: e.UpdatedAt})
+		}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]any{"entries": items})
+	})
+
+	mux.HandleFunc("PUT /api/v1/admin/server-config/{key}", func(w http.ResponseWriter, r *http.Request) {
+		if !requireAdmin(w, r) {
+			return
+		}
+		key := r.PathValue("key")
+		var body struct {
+			Value string `json:"value"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			http.Error(w, `{"message":"invalid body"}`, http.StatusBadRequest)
+			return
+		}
+		if err := cfgRepo.Set(r.Context(), key, body.Value); err != nil {
+			http.Error(w, `{"message":"internal error"}`, http.StatusInternalServerError)
+			return
+		}
+		w.WriteHeader(http.StatusNoContent)
+	})
+
+	mux.HandleFunc("DELETE /api/v1/admin/server-config/{key}", func(w http.ResponseWriter, r *http.Request) {
+		if !requireAdmin(w, r) {
+			return
+		}
+		key := r.PathValue("key")
+		if err := cfgRepo.Delete(r.Context(), key); err != nil {
+			http.Error(w, `{"message":"not found"}`, http.StatusNotFound)
+			return
+		}
+		w.WriteHeader(http.StatusNoContent)
 	})
 }

@@ -13,6 +13,8 @@ import {
   BarChart3,
   FileText,
   Database,
+  Cpu,
+  SlidersHorizontal,
   ChevronDown,
   type LucideIcon,
 } from "lucide-react";
@@ -35,6 +37,8 @@ const sections: NavSection[] = [
       { href: "/admin", label: "Dashboard", icon: LayoutDashboard },
       { href: "/admin/sessions", label: "Now Playing", icon: PlayCircle },
       { href: "/admin/remote-access", label: "Remote Access", icon: Globe },
+      { href: "/admin/server-config", label: "Server Config", icon: SlidersHorizontal },
+      { href: "/admin/system-health", label: "System Health", icon: Cpu },
     ],
   },
   {
