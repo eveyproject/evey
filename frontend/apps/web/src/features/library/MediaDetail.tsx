@@ -25,6 +25,7 @@ import { StreamList } from "./StreamList";
 import { MediaCard } from "./MediaCard";
 import { DownloadButton } from "../playback/DownloadButton";
 import { FavoriteButton } from "./FavoriteButton";
+import { RatingButtons } from "./RatingButtons";
 import { AddToPlaylistModal } from "../playlist/AddToPlaylistModal";
 import { MetadataOverrideModal } from "../media/MetadataOverrideModal";
 import { Modal } from "@/components/ui/Modal";
@@ -816,6 +817,7 @@ export function MediaDetail({ item, onMetadataUpdated, initialEdit }: MediaDetai
               <DownloadButton mediaId={item.id} title={item.title} />
             )}
             {item.id && <FavoriteButton mediaId={item.id} size="md" />}
+            {item.id && <RatingButtons mediaId={item.id} />}
             {item.id && (
               <Button variant="secondary" onClick={() => setPlaylistModalOpen(true)}>
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
