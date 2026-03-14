@@ -51,8 +51,9 @@ export function useSyncPlay(opts: UseSyncPlayOptions = {}): [SyncPlayState, Sync
       wsRef.current = null;
     }
     const proto = window.location.protocol === "https:" ? "wss:" : "ws:";
-    const url = `${proto}//${window.location.host}/api/v1/syncplay/rooms/${roomId}/ws?token=${accessToken ?? ""}`;
-    const ws = new WebSocket(url);
+    const url = `${proto}//${window.location.host}/api/v1/syncplay/rooms/${roomId}/ws`;
+    // Pass token as subprotocol — browsers cannot set custom headers on WebSocket connections.
+    const ws = new WebSocket(url, [`Bearer.${accessToken ?? ""}`]);
     wsRef.current = ws;
 
     ws.onopen = () => {
