@@ -14,6 +14,8 @@ import (
 
 	eveyv1 "github.com/gravity-zero/evey/gen/evey/v1"
 	appactivity "github.com/gravity-zero/evey/internal/app/activity"
+	applibrary "github.com/gravity-zero/evey/internal/app/library"
+	appmetadata "github.com/gravity-zero/evey/internal/app/metadata"
 	appplugin "github.com/gravity-zero/evey/internal/app/plugin"
 	apptranscoding "github.com/gravity-zero/evey/internal/app/transcoding"
 	appuser "github.com/gravity-zero/evey/internal/app/user"
@@ -50,6 +52,8 @@ type adminHandler struct {
 	libLister      adminLibraryLister
 	scheduler      adminScheduler
 	libScanner     adminLibraryScanner
+	libCmd         *applibrary.CommandService
+	metadataCmd    *appmetadata.CommandService
 	logDir         string
 	version        string
 }
@@ -435,4 +439,35 @@ func stringFromInterface(v any) string {
 		return s
 	}
 	return ""
+}
+
+func (h *adminHandler) RefreshAllMetadata(ctx context.Context, _ *eveyv1.RefreshAllMetadataRequest) (*eveyv1.RefreshAllMetadataResponse, error) {
+	if h.metadataCmd == nil {
+		return nil, status.Error(codes.Unimplemented, "metadata command service not configured")
+	}
+	if err := h.metadataCmd.AutoRefreshAllItems(ctx); err != nil {
+		return nil, status.Errorf(codes.Internal, "refresh all metadata: %v", err)
+	}
+	return &eveyv1.RefreshAllMetadataResponse{}, nil
+}
+
+func (h *adminHandler) GenerateAllTrickplays(ctx context.Context, _ *eveyv1.GenerateAllTrickplaysRequest) (*eveyv1.GenerateAllTrickplaysResponse, error) {
+	if h.libCmd == nil {
+		return nil, status.Error(codes.Unimplemented, "library command service not configured")
+	}
+	n, err := h.libCmd.GenerateAllMissingTrickplays(ctx)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "generate all trickplays: %v", err)
+	}
+	return &eveyv1.GenerateAllTrickplaysResponse{Generated: int32(n)}, nil
+}
+
+func (h *adminHandler) DeleteMediaItem(ctx context.Context, req *eveyv1.DeleteMediaItemRequest) (*eveyv1.DeleteMediaItemResponse, error) {
+	if h.libCmd == nil {
+		return nil, status.Error(codes.Unimplemented, "library command service not configured")
+	}
+	if err := h.libCmd.DeleteMediaItem(ctx, req.Id); err != nil {
+		return nil, status.Errorf(codes.Internal, "delete media item: %v", err)
+	}
+	return &eveyv1.DeleteMediaItemResponse{}, nil
 }

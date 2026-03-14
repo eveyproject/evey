@@ -158,6 +158,8 @@ func (s *GRPCServer) RegisterServices() {
 		libLister:      s.libQuery,
 		scheduler:      s.scheduler,
 		libScanner:     s.libCmd,
+		libCmd:         s.libCmd,
+		metadataCmd:    s.metadataCmd,
 		logDir:         s.logDir,
 		version:        s.version,
 	})

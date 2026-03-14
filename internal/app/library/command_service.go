@@ -138,6 +138,10 @@ func (s *CommandService) DeleteLibrary(ctx context.Context, id string) error {
 	return nil
 }
 
+func (s *CommandService) DeleteMediaItem(ctx context.Context, id string) error {
+	return s.mediaItems.Delete(ctx, id)
+}
+
 func (s *CommandService) ScanLibrary(ctx context.Context, libraryID string) (added, updated int, err error) {
 	s.scanMu.Lock()
 	if s.scanning[libraryID] {

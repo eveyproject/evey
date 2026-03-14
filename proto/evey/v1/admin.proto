@@ -61,6 +61,24 @@ service AdminService {
     };
   }
 
+  rpc RefreshAllMetadata(RefreshAllMetadataRequest) returns (RefreshAllMetadataResponse) {
+    option (google.api.http) = {
+      post: "/api/v1/admin/media/refresh-metadata"
+    };
+  }
+
+  rpc GenerateAllTrickplays(GenerateAllTrickplaysRequest) returns (GenerateAllTrickplaysResponse) {
+    option (google.api.http) = {
+      post: "/api/v1/admin/trickplay/generate-all"
+    };
+  }
+
+  rpc DeleteMediaItem(DeleteMediaItemRequest) returns (DeleteMediaItemResponse) {
+    option (google.api.http) = {
+      delete: "/api/v1/admin/media/{id}"
+    };
+  }
+
   rpc GetAuditLog(GetAuditLogRequest) returns (GetAuditLogResponse) {
     option (google.api.http) = {
       get: "/api/v1/admin/audit-log"
@@ -286,6 +304,24 @@ message RunScheduledTaskRequest {
 }
 
 message RunScheduledTaskResponse {}
+
+message RefreshAllMetadataRequest {}
+
+message RefreshAllMetadataResponse {
+  int32 refreshed = 1;
+}
+
+message GenerateAllTrickplaysRequest {}
+
+message GenerateAllTrickplaysResponse {
+  int32 generated = 1;
+}
+
+message DeleteMediaItemRequest {
+  string id = 1;
+}
+
+message DeleteMediaItemResponse {}
 
 message GetAuditLogRequest {
   string user_id = 1;
