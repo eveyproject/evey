@@ -1,5 +1,7 @@
 import { type ReactNode, useState } from "react";
-import { useRouterState } from "@tanstack/react-router";
+import { Link, useRouterState } from "@tanstack/react-router";
+import { Home, Library, Heart, Settings, Search } from "lucide-react";
+import { useAuthStore } from "@evey/store";
 import { Sidebar } from "./Sidebar";
 import { TopBar } from "./TopBar";
 import { useKeyboardShortcuts } from "@/hooks/useKeyboardShortcuts";
@@ -9,11 +11,19 @@ interface AuthLayoutProps {
   children: ReactNode;
 }
 
+const bottomNavItems = [
+  { to: "/home" as const, label: "Home", icon: Home },
+  { to: "/library" as const, label: "Libraries", icon: Library },
+  { to: "/search" as const, label: "Search", icon: Search },
+  { to: "/favorites" as const, label: "Favorites", icon: Heart },
+];
+
 export function AuthLayout({ children }: AuthLayoutProps) {
   const { location } = useRouterState();
   const isHome = location.pathname === "/home";
   const isPlayer = location.pathname.startsWith("/player/");
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const isAdmin = useAuthStore((s) => s.isAdmin);
   const { showHelp, setShowHelp } = useKeyboardShortcuts(!isPlayer);
 
   if (isPlayer) return <>{children}</>;
@@ -60,11 +70,48 @@ export function AuthLayout({ children }: AuthLayoutProps) {
         </div>
         <main
           key={location.pathname}
-          className={`flex-1 min-h-0 overflow-y-auto animate-fade-in${isHome ? "" : " p-4 sm:p-6"}`}
+          className={`flex-1 min-h-0 overflow-y-auto animate-fade-in${isHome ? " pb-16 md:pb-0" : " p-4 sm:p-6 pb-20 md:pb-6"}`}
         >
           {children}
         </main>
       </div>
+
+      {/* Bottom navigation — mobile only */}
+      <nav
+        aria-label="Bottom navigation"
+        className="md:hidden fixed bottom-0 left-0 right-0 z-50 flex items-center justify-around bg-[var(--surface)] border-t border-[var(--border)] h-16"
+      >
+        {bottomNavItems.map(({ to, label, icon: Icon }) => {
+          const active = location.pathname === to || location.pathname.startsWith(to + "/")
+            || (to === "/library" && location.pathname.startsWith("/media/"));
+          return (
+            <Link
+              key={to}
+              to={to}
+              className={`flex flex-col items-center gap-0.5 px-3 py-1 min-w-0 text-[11px] font-medium transition-colors ${
+                active ? "text-[var(--accent)]" : "text-[var(--text-muted)]"
+              }`}
+            >
+              <Icon size={22} />
+              <span>{label}</span>
+            </Link>
+          );
+        })}
+        {isAdmin && (
+          <Link
+            to="/admin"
+            className={`flex flex-col items-center gap-0.5 px-3 py-1 min-w-0 text-[11px] font-medium transition-colors ${
+              location.pathname === "/admin" || location.pathname.startsWith("/admin/")
+                ? "text-[var(--accent)]"
+                : "text-[var(--text-muted)]"
+            }`}
+          >
+            <Settings size={22} />
+            <span>Admin</span>
+          </Link>
+        )}
+      </nav>
+
       <KeyboardShortcutsHelp open={showHelp} onClose={() => setShowHelp(false)} />
     </div>
   );
