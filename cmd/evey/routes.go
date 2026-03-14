@@ -1853,28 +1853,31 @@ func registerLogsRoute(mux *http.ServeMux, logDir string, tokenGen *auth.JWTGene
 		w.Header().Set("X-Accel-Buffering", "no")
 		w.Header().Set("Connection", "keep-alive")
 
+		// lines=0 → skip initial backlog (caller already loaded via REST)
 		lines := 200
 		if v := r.URL.Query().Get("lines"); v != "" {
-			if n, err2 := strconv.Atoi(v); err2 == nil && n > 0 && n <= 2000 {
+			if n, err2 := strconv.Atoi(v); err2 == nil && n >= 0 && n <= 2000 {
 				lines = n
 			}
 		}
 
 		logPath := logDir + "/evey.log"
 
-		// Send initial backlog
-		initial, _ := tailFile(logPath, lines)
-		for _, l := range initial {
-			if l != "" {
-				fmt.Fprintf(w, "data: %s\n\n", l)
-			}
-		}
-		flusher.Flush()
-
-		// Track file size to detect new lines
+		// Track file size: start at end to avoid resending already-seen lines
 		var lastSize int64
 		if info, err := os.Stat(logPath); err == nil {
 			lastSize = info.Size()
+		}
+
+		// Send initial backlog (skip when lines=0)
+		if lines > 0 {
+			initial, _ := tailFile(logPath, lines)
+			for _, l := range initial {
+				if l != "" {
+					fmt.Fprintf(w, "data: %s\n\n", l)
+				}
+			}
+			flusher.Flush()
 		}
 
 		ticker := time.NewTicker(time.Second)

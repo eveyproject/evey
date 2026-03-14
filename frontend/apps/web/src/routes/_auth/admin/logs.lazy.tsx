@@ -1,8 +1,8 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 import { createLazyFileRoute } from "@tanstack/react-router";
-import { useQuery } from "@tanstack/react-query";
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { eveyFetch } from "@evey/api/src/fetcher";
+import { eveyFetch } from "@evey/api";
+import { useAuthStore } from "@evey/store";
 import { Spinner } from "@/components/ui/Spinner";
 
 export const Route = createLazyFileRoute("/_auth/admin/logs")({
@@ -12,19 +12,28 @@ export const Route = createLazyFileRoute("/_auth/admin/logs")({
 const LEVELS = ["all", "debug", "info", "warn", "error"] as const;
 type Level = (typeof LEVELS)[number];
 
+const MAX_LINES = 500;
+
 interface ParsedLine {
   raw: string;
   level?: string;
   time?: string;
   msg?: string;
+  component?: string;
 }
 
 function parseLine(raw: string): ParsedLine {
   try {
     const obj = JSON.parse(raw) as Record<string, string>;
-    return { raw, level: obj.level, time: obj.time, msg: obj.msg ?? raw };
+    return {
+      raw,
+      level: obj.level,
+      time: obj.time,
+      msg: obj.msg ?? raw,
+      component: obj.component,
+    };
   } catch {
-    return { raw };
+    return { raw, msg: raw };
   }
 }
 
@@ -48,8 +57,9 @@ function levelBg(level?: string): string {
 
 const LOG_LINE_HEIGHT = 22;
 
-function VirtualLogList({ lines }: { lines: ParsedLine[] }) {
+function VirtualLogList({ lines, live }: { lines: ParsedLine[]; live: boolean }) {
   const parentRef = useRef<HTMLDivElement>(null);
+  const prevLengthRef = useRef(0);
 
   const virtualizer = useVirtualizer({
     count: lines.length,
@@ -59,11 +69,12 @@ function VirtualLogList({ lines }: { lines: ParsedLine[] }) {
   });
 
   useEffect(() => {
-    if (lines.length > 0) {
+    if (live && lines.length > prevLengthRef.current && lines.length > 0) {
       virtualizer.scrollToIndex(lines.length - 1, { behavior: "smooth" });
     }
+    prevLengthRef.current = lines.length;
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [lines.length]);
+  }, [lines.length, live]);
 
   return (
     <div
@@ -101,6 +112,11 @@ function VirtualLogList({ lines }: { lines: ParsedLine[] }) {
                   {line.level.substring(0, 4)}
                 </span>
               )}
+              {line.component && (
+                <span className="flex-shrink-0 text-[10px] px-1 rounded" style={{ color: "#8b949e", backgroundColor: "#161b22" }}>
+                  {line.component}
+                </span>
+              )}
               <span className="truncate" style={{ color: "#e6edf3" }}>
                 {line.msg ?? line.raw}
               </span>
@@ -116,22 +132,61 @@ function VirtualLogList({ lines }: { lines: ParsedLine[] }) {
 }
 
 function LogsPage() {
-  const [fetchLines, setFetchLines] = useState(200);
+  const accessToken = useAuthStore((s) => s.accessToken);
   const [filterLevel, setFilterLevel] = useState<Level>("all");
   const [search, setSearch] = useState("");
+  const [componentFilter, setComponentFilter] = useState("");
   const [live, setLive] = useState(true);
-  const [cleared, setCleared] = useState<number>(0);
+  const [lines, setLines] = useState<ParsedLine[]>([]);
+  const [loading, setLoading] = useState(true);
+  const esRef = useRef<EventSource | null>(null);
 
-  const { data, isLoading } = useQuery<{ lines: string[] }>({
-    queryKey: ["/api/v1/admin/logs", fetchLines, cleared],
-    queryFn: () => eveyFetch<{ lines: string[] }>({ url: `/api/v1/admin/logs?lines=${fetchLines}`, method: "GET" }),
-    refetchInterval: live ? 2_000 : false,
-  });
+  const addLines = useCallback((newLines: ParsedLine[]) => {
+    setLines((prev) => {
+      const combined = [...prev, ...newLines];
+      return combined.length > MAX_LINES ? combined.slice(combined.length - MAX_LINES) : combined;
+    });
+  }, []);
 
-  const rawLines = data?.lines ?? [];
-  const parsed = rawLines.map(parseLine);
-  const filtered = parsed.filter((l) => {
-    if (filterLevel !== "all" && l.level?.toLowerCase() !== filterLevel) return false;
+  // Initial load
+  useEffect(() => {
+    setLoading(true);
+    eveyFetch<{ lines: string[] }>({ url: "/api/v1/admin/logs?lines=200", method: "GET" })
+      .then((data) => {
+        const parsed = (data.lines ?? []).map(parseLine);
+        setLines(parsed);
+      })
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, []);
+
+  // SSE stream — lines=0 skips initial backlog (already loaded via REST)
+  useEffect(() => {
+    if (!live) {
+      esRef.current?.close();
+      esRef.current = null;
+      return;
+    }
+
+    const tok = accessToken ?? "";
+    const url = `/api/v1/admin/logs/stream?lines=0&token=${encodeURIComponent(tok)}`;
+    const es = new EventSource(url);
+    esRef.current = es;
+
+    es.onmessage = (e) => {
+      if (!e.data || e.data.trim() === "") return;
+      addLines([parseLine(e.data)]);
+    };
+
+    return () => {
+      es.close();
+      esRef.current = null;
+    };
+  }, [live, accessToken, addLines]);
+
+  const filtered = lines.filter((l) => {
+    if (filterLevel !== "all" && (l.level ?? "").toLowerCase() !== filterLevel) return false;
+    if (componentFilter && !(l.component ?? "").toLowerCase().includes(componentFilter.toLowerCase())) return false;
     if (search && !l.raw.toLowerCase().includes(search.toLowerCase())) return false;
     return true;
   });
@@ -152,23 +207,12 @@ function LogsPage() {
           Live
         </label>
 
-        <select
-          value={fetchLines}
-          onChange={(e) => setFetchLines(Number(e.target.value))}
-          className="text-sm px-2 py-1 rounded"
-          style={{ backgroundColor: "var(--surface-raised)", color: "var(--text)", border: "1px solid var(--border)" }}
-        >
-          {[50, 100, 200, 500, 1000].map((n) => (
-            <option key={n} value={n}>{n} lines</option>
-          ))}
-        </select>
-
         <button
-          onClick={() => setCleared(Date.now())}
+          onClick={() => setLines([])}
           className="text-sm px-3 py-1 rounded transition-colors hover:opacity-80"
           style={{ backgroundColor: "var(--surface-raised)", color: "var(--text-muted)", border: "1px solid var(--border)" }}
         >
-          Clear display
+          Clear
         </button>
       </div>
 
@@ -178,7 +222,14 @@ function LogsPage() {
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           className="px-3 py-1.5 text-sm rounded-[var(--radius-md)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)]"
-          style={{ backgroundColor: "var(--surface-raised)", border: "1px solid var(--border)", color: "var(--text)", minWidth: 200 }}
+          style={{ backgroundColor: "var(--surface-raised)", border: "1px solid var(--border)", color: "var(--text)", minWidth: 180 }}
+        />
+        <input
+          placeholder="Component…"
+          value={componentFilter}
+          onChange={(e) => setComponentFilter(e.target.value)}
+          className="px-3 py-1.5 text-sm rounded-[var(--radius-md)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)]"
+          style={{ backgroundColor: "var(--surface-raised)", border: "1px solid var(--border)", color: "var(--text)", minWidth: 130 }}
         />
         <div className="flex gap-1">
           {LEVELS.map((l) => (
@@ -198,10 +249,10 @@ function LogsPage() {
         </div>
       </div>
 
-      {isLoading ? (
+      {loading ? (
         <div className="flex justify-center py-16"><Spinner size="lg" /></div>
       ) : (
-        <VirtualLogList lines={filtered} />
+        <VirtualLogList lines={filtered} live={live} />
       )}
     </div>
   );
