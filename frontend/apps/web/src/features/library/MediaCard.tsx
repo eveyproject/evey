@@ -29,6 +29,8 @@ export interface MediaCardProps {
   isWatched?: boolean;
   resolution?: string;
   isHdr?: boolean;
+  selected?: boolean;
+  onSelect?: (id: string, selected: boolean) => void;
 }
 
 export const typeLabel = (t?: string) => {
@@ -230,6 +232,8 @@ export function MediaCard({
   isWatched,
   resolution,
   isHdr,
+  selected = false,
+  onSelect,
 }: MediaCardProps) {
   const [imgLoaded, setImgLoaded] = useState(false);
   const hoverTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -302,13 +306,14 @@ export function MediaCard({
     <Link
       to={linkTo}
       params={linkParams as never}
-      className="group block flex-shrink-0 w-32 sm:w-40 relative"
+      className={`group block flex-shrink-0 w-32 sm:w-40 relative${selected ? " ring-2 ring-[var(--accent)] rounded-[var(--radius-md)]" : ""}`}
       data-testid="media-card"
       onMouseEnter={handleMouseEnter}
       onMouseLeave={handleMouseLeave}
       onFocus={handleFocus}
       onBlur={handleBlur}
       onContextMenu={handleContextMenu}
+      onClick={onSelect ? (e) => { e.preventDefault(); onSelect(item.id!, !selected); } : undefined}
     >
       {showPreview && <HoverPreview item={item} />}
 
@@ -415,12 +420,28 @@ export function MediaCard({
           </div>
         )}
 
-        {/* Favorite button — top-left on hover */}
-        {item.id && (
+        {/* Selection checkbox (bulk mode) or Favorite button */}
+        {item.id && onSelect ? (
+          <button
+            aria-label={selected ? "Deselect" : "Select"}
+            onClick={(e) => { e.preventDefault(); e.stopPropagation(); onSelect(item.id!, !selected); }}
+            className="absolute top-2 left-2 z-20 flex items-center justify-center w-5 h-5 rounded transition-colors"
+            style={{
+              backgroundColor: selected ? "var(--accent)" : "rgba(0,0,0,0.6)",
+              border: `2px solid ${selected ? "var(--accent)" : "rgba(255,255,255,0.7)"}`,
+            }}
+          >
+            {selected && (
+              <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" strokeWidth={3} viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+              </svg>
+            )}
+          </button>
+        ) : item.id ? (
           <div className="absolute top-2 left-2 z-20 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity duration-200">
             <FavoriteButton mediaId={item.id} size="sm" />
           </div>
-        )}
+        ) : null}
 
         {/* Options button — top-right, visible on hover/focus, keyboard accessible */}
         {item.id && (

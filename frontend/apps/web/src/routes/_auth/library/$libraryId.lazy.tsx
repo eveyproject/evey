@@ -1,8 +1,10 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import { createLazyFileRoute, Link } from "@tanstack/react-router";
 import {
   useLibraryServiceListLibraries,
   useLibraryServiceListMediaItems,
+  usePlaybackServiceMarkAsWatched,
+  usePlaybackServiceMarkAsUnwatched,
 } from "@evey/api";
 import type {
   LibraryServiceListMediaItemsType,
@@ -17,6 +19,8 @@ import { MediaGridSkeleton } from "@/components/ui/Skeleton";
 import { MediaGrid } from "@/features/library/MediaGrid";
 import { MediaCard, typeLabel } from "@/features/library/MediaCard";
 import { slugify } from "@/utils/slugify";
+import { toast, useAuthStore } from "@evey/store";
+import { useQueryClient } from "@tanstack/react-query";
 
 export const Route = createLazyFileRoute("/_auth/library/$libraryId")({
   component: LibraryPage,
@@ -170,6 +174,33 @@ function LibraryPage() {
   const [page, setPage] = useState(1);
   const [searchTerm, setSearchTerm] = useState("");
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
+  const [bulkMode, setBulkMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const profileId = useAuthStore((s) => s.profileId);
+  const queryClient = useQueryClient();
+
+  const handleSelect = useCallback((id: string, sel: boolean) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (sel) next.add(id);
+      else next.delete(id);
+      return next;
+    });
+  }, []);
+
+  const markWatched = usePlaybackServiceMarkAsWatched();
+  const markUnwatched = usePlaybackServiceMarkAsUnwatched();
+
+  async function bulkMarkWatched(watched: boolean) {
+    if (!profileId || selectedIds.size === 0) return;
+    const ids = Array.from(selectedIds);
+    const fn = watched ? markWatched.mutateAsync : markUnwatched.mutateAsync;
+    await Promise.all(ids.map((mediaItemId) => fn({ mediaItemId, params: { profileId } })));
+    ids.forEach((id) => queryClient.invalidateQueries({ queryKey: [`/api/v1/media/${id}`] }));
+    toast.success(`${ids.length} item${ids.length > 1 ? "s" : ""} marked as ${watched ? "watched" : "unwatched"}`);
+    setSelectedIds(new Set());
+    setBulkMode(false);
+  }
 
   const { data: librariesData } = useLibraryServiceListLibraries();
   const library = librariesData?.libraries?.find(
@@ -303,14 +334,66 @@ function LibraryPage() {
         />
         <SortOrderButton order={sortOrder} onChange={(o) => { setSortOrder(o); resetPage(); }} />
         <ViewToggleButton mode={viewMode} onChange={setViewMode} />
+        <button
+          type="button"
+          onClick={() => { setBulkMode((v) => !v); setSelectedIds(new Set()); }}
+          className="p-2 rounded-[var(--radius-md)] border transition-colors text-sm"
+          style={{
+            backgroundColor: bulkMode ? "var(--accent)" : "var(--surface-raised)",
+            color: bulkMode ? "#fff" : "var(--text-muted)",
+            borderColor: bulkMode ? "var(--accent)" : "var(--border)",
+          }}
+          title={bulkMode ? "Exit selection" : "Select items"}
+        >
+          Select
+        </button>
       </div>
+
+      {/* Bulk action bar */}
+      {bulkMode && selectedIds.size > 0 && (
+        <div
+          className="sticky top-0 z-10 flex items-center gap-3 px-4 py-2 mb-4 rounded-[var(--radius-md)]"
+          style={{ backgroundColor: "var(--surface)", border: "1px solid var(--accent)" }}
+        >
+          <span className="text-sm font-medium flex-1" style={{ color: "var(--text)" }}>
+            {selectedIds.size} selected
+          </span>
+          <Button
+            variant="secondary"
+            onClick={() => bulkMarkWatched(true)}
+            loading={markWatched.isPending}
+          >
+            Mark watched
+          </Button>
+          <Button
+            variant="secondary"
+            onClick={() => bulkMarkWatched(false)}
+            loading={markUnwatched.isPending}
+          >
+            Mark unwatched
+          </Button>
+          <button
+            type="button"
+            onClick={() => setSelectedIds(new Set())}
+            className="text-sm hover:underline"
+            style={{ color: "var(--text-muted)" }}
+          >
+            Clear
+          </button>
+        </div>
+      )}
 
       {isLoading && items.length === 0 ? (
         <MediaGridSkeleton />
       ) : viewMode === "grid" ? (
         <MediaGrid>
           {displayItems.map((item) => (
-            <MediaCard key={item.id} item={item} />
+            <MediaCard
+              key={item.id}
+              item={item}
+              selected={selectedIds.has(item.id ?? "")}
+              onSelect={bulkMode ? handleSelect : undefined}
+            />
           ))}
         </MediaGrid>
       ) : (
