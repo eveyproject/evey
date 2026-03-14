@@ -277,7 +277,7 @@ function CollectionsSection() {
               <div
                 key={i}
                 className="flex-shrink-0 animate-pulse rounded-[var(--radius-md)]"
-                style={{ width: 160, height: 80, backgroundColor: "var(--surface-raised)" }}
+                style={{ width: 100, aspectRatio: "2/3", backgroundColor: "var(--surface-raised)" }}
               />
             ))
           : collections.slice(0, 10).map((col) => (
@@ -285,21 +285,31 @@ function CollectionsSection() {
                 key={col.id}
                 to="/collections/$collectionId"
                 params={{ collectionId: col.id }}
-                className="flex-shrink-0 flex items-center justify-center px-4 py-3 rounded-[var(--radius-md)] font-medium text-sm transition-opacity hover:opacity-80"
-                style={{
-                  minWidth: 140,
-                  backgroundColor: "var(--surface-raised)",
-                  color: "var(--text)",
-                  border: "1px solid var(--border)",
-                  textAlign: "center",
-                }}
+                className="flex-shrink-0 relative overflow-hidden transition-opacity hover:opacity-80"
+                style={{ width: 100, aspectRatio: "2/3", borderRadius: "var(--radius-md)" }}
               >
-                <div>
-                  <div className="font-semibold truncate max-w-[120px]">{col.name}</div>
-                  <div className="text-xs mt-0.5" style={{ color: "var(--text-muted)" }}>
-                    {col.type === "smart" ? "Smart" : "Manual"}
+                {col.posterUrl ? (
+                  <img
+                    src={col.posterUrl}
+                    alt={col.name}
+                    loading="lazy"
+                    className="w-full h-full object-cover"
+                  />
+                ) : (
+                  <div
+                    className="w-full h-full flex items-center justify-center text-xl font-bold"
+                    style={{ backgroundColor: "var(--surface-raised)", color: "var(--text-muted)" }}
+                  >
+                    {col.name[0]?.toUpperCase() ?? "?"}
                   </div>
-                </div>
+                )}
+                <div
+                  className="absolute inset-0"
+                  style={{ background: "linear-gradient(to top, rgba(0,0,0,0.65) 0%, transparent 50%)" }}
+                />
+                <p className="absolute bottom-1.5 left-1.5 right-1.5 text-[10px] font-semibold text-white leading-tight line-clamp-2">
+                  {col.name}
+                </p>
               </Link>
             ))}
       </div>

@@ -226,6 +226,9 @@ func run() error {
 
 	mkvSvc := appmkv.NewService(ebmlReader, ebmlWriter)
 
+	collectionRepo := postgres.NewCollectionRepository(db)
+	collectionSvc := appcollection.NewService(collectionRepo, collectionRepo)
+
 	metaProviders := []metadata.MetadataProvider{tmdbProvider, omdbProvider, tvmazeProvider, imdbProvider}
 	metadataCmdSvc := appmetadata.NewCommandService(
 		metadataOverrideRepo, artworkRepo, artworkDownloader, bus, metaProviders,
@@ -235,6 +238,7 @@ func run() error {
 		artworkRepo, personRepo, mediaPersonRepo, mediaItemRepo, searchAdapter,
 		tmdbProvider,
 		[]metadata.MetadataProvider{omdbProvider, tvmazeProvider, imdbProvider},
+		collectionSvc,
 	)
 	metadataCmdSvc.WithEnricher(enricher, mediaItemRepo)
 
@@ -339,9 +343,6 @@ func run() error {
 
 	favoriteRepo := postgres.NewFavoriteRepository(db)
 	favoriteSvc := appfavorite.NewService(favoriteRepo)
-
-	collectionRepo := postgres.NewCollectionRepository(db)
-	collectionSvc := appcollection.NewService(collectionRepo, collectionRepo)
 
 	userRatingRepo := postgres.NewUserRatingRepository(db)
 

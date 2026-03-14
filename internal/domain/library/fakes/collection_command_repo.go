@@ -10,14 +10,19 @@ import (
 type FakeCollectionCommandRepo struct {
 	mu          sync.RWMutex
 	collections map[string]*library.Collection
-	items       map[string][]string
+	items       map[string][]collectionItem
 	Err         error
+}
+
+type collectionItem struct {
+	mediaItemID string
+	sortOrder   int
 }
 
 func NewFakeCollectionCommandRepo() *FakeCollectionCommandRepo {
 	return &FakeCollectionCommandRepo{
 		collections: make(map[string]*library.Collection),
-		items:       make(map[string][]string),
+		items:       make(map[string][]collectionItem),
 	}
 }
 
@@ -27,24 +32,28 @@ func (r *FakeCollectionCommandRepo) Create(_ context.Context, col *library.Colle
 	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	if r.Err != nil {
-		return r.Err
-	}
 	r.collections[col.ID] = col
 	return nil
 }
 
-func (r *FakeCollectionCommandRepo) Update(_ context.Context, col *library.Collection) error {
+func (r *FakeCollectionCommandRepo) Upsert(_ context.Context, col *library.Collection) error {
 	if r.Err != nil {
 		return r.Err
 	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	if r.Err != nil {
-		return r.Err
-	}
-	if _, ok := r.collections[col.ID]; !ok {
-		return ErrNotFound
+	if col.TmdbID != nil {
+		for _, existing := range r.collections {
+			if existing.TmdbID != nil && *existing.TmdbID == *col.TmdbID {
+				existing.Name = col.Name
+				existing.Overview = col.Overview
+				existing.PosterURL = col.PosterURL
+				existing.BackdropURL = col.BackdropURL
+				existing.UpdatedAt = col.UpdatedAt
+				*col = *existing
+				return nil
+			}
+		}
 	}
 	r.collections[col.ID] = col
 	return nil
@@ -56,9 +65,6 @@ func (r *FakeCollectionCommandRepo) Delete(_ context.Context, id string) error {
 	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	if r.Err != nil {
-		return r.Err
-	}
 	if _, ok := r.collections[id]; !ok {
 		return ErrNotFound
 	}
@@ -67,34 +73,17 @@ func (r *FakeCollectionCommandRepo) Delete(_ context.Context, id string) error {
 	return nil
 }
 
-func (r *FakeCollectionCommandRepo) AddItem(_ context.Context, collectionID, mediaItemID string) error {
+func (r *FakeCollectionCommandRepo) LinkItem(_ context.Context, collectionID, mediaItemID string, sortOrder int) error {
 	if r.Err != nil {
 		return r.Err
 	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	if r.Err != nil {
-		return r.Err
-	}
-	r.items[collectionID] = append(r.items[collectionID], mediaItemID)
-	return nil
-}
-
-func (r *FakeCollectionCommandRepo) RemoveItem(_ context.Context, collectionID, mediaItemID string) error {
-	if r.Err != nil {
-		return r.Err
-	}
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	if r.Err != nil {
-		return r.Err
-	}
-	ids := r.items[collectionID]
-	for i, id := range ids {
-		if id == mediaItemID {
-			r.items[collectionID] = append(ids[:i], ids[i+1:]...)
-			break
+	for _, it := range r.items[collectionID] {
+		if it.mediaItemID == mediaItemID {
+			return nil
 		}
 	}
+	r.items[collectionID] = append(r.items[collectionID], collectionItem{mediaItemID: mediaItemID, sortOrder: sortOrder})
 	return nil
 }

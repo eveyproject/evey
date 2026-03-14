@@ -7,9 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
-	"strconv"
 	"strings"
-	"time"
 
 	"github.com/gravity-zero/evey/internal/domain/library"
 )
@@ -23,44 +21,66 @@ func NewCollectionRepository(db *sql.DB) *CollectionRepository {
 }
 
 func (r *CollectionRepository) Create(ctx context.Context, col *library.Collection) error {
-	rulesJSON, err := json.Marshal(col.Rules)
-	if err != nil {
-		return err
-	}
-	_, err = r.db.ExecContext(ctx,
-		`INSERT INTO collections (id, name, overview, type, rules, sort_by, sort_order, created_at, updated_at)
-		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
-		col.ID, col.Name, col.Overview, string(col.Type), rulesJSON,
-		col.SortBy, col.SortOrder, col.CreatedAt, col.UpdatedAt,
+	_, err := r.db.ExecContext(ctx,
+		`INSERT INTO collections (id, name, overview, tmdb_id, poster_url, backdrop_url, created_at, updated_at)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+		col.ID, col.Name, col.Overview, col.TmdbID, col.PosterURL, col.BackdropURL,
+		col.CreatedAt, col.UpdatedAt,
+	)
+	return err
+}
+
+func (r *CollectionRepository) Upsert(ctx context.Context, col *library.Collection) error {
+	_, err := r.db.ExecContext(ctx,
+		`INSERT INTO collections (id, name, overview, tmdb_id, poster_url, backdrop_url, created_at, updated_at)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+		 ON CONFLICT (tmdb_id) WHERE tmdb_id IS NOT NULL DO UPDATE SET
+		   name = EXCLUDED.name,
+		   overview = EXCLUDED.overview,
+		   poster_url = EXCLUDED.poster_url,
+		   backdrop_url = EXCLUDED.backdrop_url,
+		   updated_at = EXCLUDED.updated_at`,
+		col.ID, col.Name, col.Overview, col.TmdbID, col.PosterURL, col.BackdropURL,
+		col.CreatedAt, col.UpdatedAt,
 	)
 	return err
 }
 
 func (r *CollectionRepository) GetByID(ctx context.Context, id string) (*library.Collection, error) {
 	col := &library.Collection{}
-	var rulesJSON []byte
-	var colType string
 	err := r.db.QueryRowContext(ctx,
-		`SELECT id, name, overview, type, rules, sort_by, sort_order, created_at, updated_at
+		`SELECT id, name, overview, tmdb_id, poster_url, backdrop_url, created_at, updated_at
 		 FROM collections WHERE id = $1`, id,
-	).Scan(&col.ID, &col.Name, &col.Overview, &colType, &rulesJSON,
-		&col.SortBy, &col.SortOrder, &col.CreatedAt, &col.UpdatedAt)
+	).Scan(&col.ID, &col.Name, &col.Overview, &col.TmdbID, &col.PosterURL, &col.BackdropURL,
+		&col.CreatedAt, &col.UpdatedAt)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, library.ErrNotFound
 	}
 	if err != nil {
 		return nil, err
 	}
-	col.Type = library.CollectionType(colType)
-	if err := json.Unmarshal(rulesJSON, &col.Rules); err != nil {
-		slog.Warn("json unmarshal", slog.String("field", "rules"), slog.Any("err", err))
+	return col, nil
+}
+
+func (r *CollectionRepository) GetByTmdbID(ctx context.Context, tmdbID int) (*library.Collection, error) {
+	col := &library.Collection{}
+	err := r.db.QueryRowContext(ctx,
+		`SELECT id, name, overview, tmdb_id, poster_url, backdrop_url, created_at, updated_at
+		 FROM collections WHERE tmdb_id = $1`, tmdbID,
+	).Scan(&col.ID, &col.Name, &col.Overview, &col.TmdbID, &col.PosterURL, &col.BackdropURL,
+		&col.CreatedAt, &col.UpdatedAt)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, library.ErrNotFound
+	}
+	if err != nil {
+		return nil, err
 	}
 	return col, nil
 }
 
 func (r *CollectionRepository) List(ctx context.Context) ([]*library.Collection, error) {
 	rows, err := r.db.QueryContext(ctx,
-		`SELECT id, name, overview, type, rules, sort_by, sort_order, created_at, updated_at
+		`SELECT id, name, overview, tmdb_id, poster_url, backdrop_url, created_at, updated_at
 		 FROM collections ORDER BY name`)
 	if err != nil {
 		return nil, err
@@ -70,33 +90,13 @@ func (r *CollectionRepository) List(ctx context.Context) ([]*library.Collection,
 	var result []*library.Collection
 	for rows.Next() {
 		col := &library.Collection{}
-		var rulesJSON []byte
-		var colType string
-		if err := rows.Scan(&col.ID, &col.Name, &col.Overview, &colType, &rulesJSON,
-			&col.SortBy, &col.SortOrder, &col.CreatedAt, &col.UpdatedAt); err != nil {
+		if err := rows.Scan(&col.ID, &col.Name, &col.Overview, &col.TmdbID, &col.PosterURL, &col.BackdropURL,
+			&col.CreatedAt, &col.UpdatedAt); err != nil {
 			return nil, err
-		}
-		col.Type = library.CollectionType(colType)
-		if err := json.Unmarshal(rulesJSON, &col.Rules); err != nil {
-			slog.Warn("json unmarshal", slog.String("field", "rules"), slog.Any("err", err))
 		}
 		result = append(result, col)
 	}
 	return result, rows.Err()
-}
-
-func (r *CollectionRepository) Update(ctx context.Context, col *library.Collection) error {
-	rulesJSON, err := json.Marshal(col.Rules)
-	if err != nil {
-		return err
-	}
-	_, err = r.db.ExecContext(ctx,
-		`UPDATE collections SET name=$1, overview=$2, type=$3, rules=$4, sort_by=$5, sort_order=$6, updated_at=$7
-		 WHERE id=$8`,
-		col.Name, col.Overview, string(col.Type), rulesJSON,
-		col.SortBy, col.SortOrder, col.UpdatedAt, col.ID,
-	)
-	return err
 }
 
 func (r *CollectionRepository) Delete(ctx context.Context, id string) error {
@@ -114,31 +114,23 @@ func (r *CollectionRepository) Delete(ctx context.Context, id string) error {
 	return nil
 }
 
-func (r *CollectionRepository) AddItem(ctx context.Context, collectionID, mediaItemID string) error {
+func (r *CollectionRepository) LinkItem(ctx context.Context, collectionID, mediaItemID string, sortOrder int) error {
 	_, err := r.db.ExecContext(ctx,
 		`INSERT INTO collection_items (collection_id, media_item_id, sort_order)
-		 VALUES ($1, $2, COALESCE((SELECT MAX(sort_order)+1 FROM collection_items WHERE collection_id=$1), 0))
+		 VALUES ($1, $2, $3)
 		 ON CONFLICT DO NOTHING`,
-		collectionID, mediaItemID,
+		collectionID, mediaItemID, sortOrder,
 	)
 	return err
 }
 
-func (r *CollectionRepository) RemoveItem(ctx context.Context, collectionID, mediaItemID string) error {
-	_, err := r.db.ExecContext(ctx,
-		`DELETE FROM collection_items WHERE collection_id = $1 AND media_item_id = $2`,
-		collectionID, mediaItemID,
-	)
-	return err
-}
-
-func (r *CollectionRepository) GetManualItems(ctx context.Context, collectionID string, limit, offset int) ([]*library.MediaItem, error) {
+func (r *CollectionRepository) GetItems(ctx context.Context, collectionID string, limit, offset int) ([]*library.MediaItem, error) {
 	query := `SELECT m.id, m.library_id, m.parent_id, m.type, m.title, m.sort_title, m.original_title,
 		 m.overview, m.tagline, m.file_path, m.file_size, m.file_fingerprint, m.duration_ms, m.bitrate,
 		 m.container_format, m.index_number, m.community_rating, m.official_rating,
 		 m.premiere_date, m.year, m.provider_ids, m.genres, m.studios, m.tags, m.added_at, m.updated_at
 		 FROM media_items m JOIN collection_items ci ON m.id = ci.media_item_id
-		 WHERE ci.collection_id = $1 ORDER BY ci.sort_order`
+		 WHERE ci.collection_id = $1 ORDER BY m.premiere_date ASC`
 	if limit > 0 {
 		query += fmt.Sprintf(" LIMIT %d", limit)
 	}
@@ -148,7 +140,7 @@ func (r *CollectionRepository) GetManualItems(ctx context.Context, collectionID 
 	return r.queryMediaItems(ctx, query, collectionID)
 }
 
-func (r *CollectionRepository) CountManualItems(ctx context.Context, collectionID string) (int, error) {
+func (r *CollectionRepository) CountItems(ctx context.Context, collectionID string) (int, error) {
 	var count int
 	err := r.db.QueryRowContext(ctx,
 		`SELECT COUNT(*) FROM collection_items WHERE collection_id = $1`, collectionID,
@@ -179,174 +171,6 @@ func SafeSortDir(dir string) string {
 		return v
 	}
 	return "ASC"
-}
-
-func (r *CollectionRepository) GetSmartItems(ctx context.Context, col *library.Collection, limit, offset int) ([]*library.MediaItem, error) {
-	where, args := buildRulesWhere(col.Rules)
-	sortField := SafeSortCol(col.SortBy)
-	sortOrder := SafeSortDir(col.SortOrder)
-	query := fmt.Sprintf(`SELECT id, library_id, parent_id, type, title, sort_title, original_title,
-		 overview, tagline, file_path, file_size, file_fingerprint, duration_ms, bitrate,
-		 container_format, index_number, community_rating, official_rating,
-		 premiere_date, year, provider_ids, genres, studios, tags, added_at, updated_at
-		 FROM media_items%s ORDER BY %s %s`, where, sortField, sortOrder)
-	if limit > 0 {
-		query += fmt.Sprintf(" LIMIT %d", limit)
-	}
-	if offset > 0 {
-		query += fmt.Sprintf(" OFFSET %d", offset)
-	}
-	return r.queryMediaItems(ctx, query, args...)
-}
-
-func (r *CollectionRepository) CountSmartItems(ctx context.Context, col *library.Collection) (int, error) {
-	where, args := buildRulesWhere(col.Rules)
-	var count int
-	err := r.db.QueryRowContext(ctx,
-		"SELECT COUNT(*) FROM media_items"+where, args...,
-	).Scan(&count)
-	return count, err
-}
-
-func buildRulesWhere(rules []library.CollectionRule) (string, []any) {
-	var conditions []string
-	var args []any
-	argIdx := 1
-
-	for _, rule := range rules {
-		cond, ruleArgs := ruleToSQL(rule, &argIdx)
-		if cond != "" {
-			conditions = append(conditions, cond)
-			args = append(args, ruleArgs...)
-		}
-	}
-
-	if len(conditions) == 0 {
-		return "", nil
-	}
-	return " WHERE " + strings.Join(conditions, " AND "), args
-}
-
-func ruleToSQL(rule library.CollectionRule, argIdx *int) (string, []any) {
-	switch rule.Field {
-	case "genre":
-		switch rule.Operator {
-		case library.OpContains:
-			g, err := json.Marshal([]string{rule.Value})
-			if err != nil {
-				slog.Warn("marshal genre rule", slog.Any("err", err))
-				return "", nil
-			}
-			cond := fmt.Sprintf("genres @> $%d::jsonb", *argIdx)
-			*argIdx++
-			return cond, []any{string(g)}
-		case library.OpEq:
-			g, err := json.Marshal([]string{rule.Value})
-			if err != nil {
-				slog.Warn("marshal genre rule", slog.Any("err", err))
-				return "", nil
-			}
-			cond := fmt.Sprintf("genres @> $%d::jsonb", *argIdx)
-			*argIdx++
-			return cond, []any{string(g)}
-		}
-	case "year":
-		v, err := strconv.Atoi(rule.Value)
-		if err != nil {
-			return "", nil
-		}
-		var op string
-		switch rule.Operator {
-		case library.OpEq:
-			op = "="
-		case library.OpGt:
-			op = ">"
-		case library.OpLt:
-			op = "<"
-		case library.OpNeq:
-			op = "!="
-		default:
-			return "", nil
-		}
-		cond := fmt.Sprintf("year %s $%d", op, *argIdx)
-		*argIdx++
-		return cond, []any{v}
-	case "type":
-		switch rule.Operator {
-		case library.OpEq:
-			cond := fmt.Sprintf("type = $%d", *argIdx)
-			*argIdx++
-			return cond, []any{rule.Value}
-		case library.OpNeq:
-			cond := fmt.Sprintf("type != $%d", *argIdx)
-			*argIdx++
-			return cond, []any{rule.Value}
-		case library.OpIn:
-			vals := strings.Split(rule.Value, ",")
-			placeholders := make([]string, len(vals))
-			var ruleArgs []any
-			for i, v := range vals {
-				placeholders[i] = fmt.Sprintf("$%d", *argIdx)
-				ruleArgs = append(ruleArgs, strings.TrimSpace(v))
-				*argIdx++
-			}
-			return fmt.Sprintf("type IN (%s)", strings.Join(placeholders, ",")), ruleArgs
-		}
-	case "rating":
-		v, err := strconv.ParseFloat(rule.Value, 64)
-		if err != nil {
-			return "", nil
-		}
-		var op string
-		switch rule.Operator {
-		case library.OpGt:
-			op = ">"
-		case library.OpLt:
-			op = "<"
-		case library.OpEq:
-			op = "="
-		default:
-			return "", nil
-		}
-		cond := fmt.Sprintf("community_rating %s $%d", op, *argIdx)
-		*argIdx++
-		return cond, []any{v}
-	case "resolution":
-		if rule.Operator == library.OpEq {
-			h := resolutionToHeight(rule.Value)
-			if h == 0 {
-				return "", nil
-			}
-			cond := fmt.Sprintf(`id IN (SELECT media_item_id FROM media_streams WHERE stream_type='video' AND height >= $%d)`, *argIdx)
-			*argIdx++
-			return cond, []any{h}
-		}
-	case "added_date":
-		days, err := strconv.Atoi(rule.Value)
-		if err != nil {
-			return "", nil
-		}
-		if rule.Operator == library.OpLt {
-			cond := fmt.Sprintf("added_at >= $%d", *argIdx)
-			*argIdx++
-			return cond, []any{time.Now().AddDate(0, 0, -days)}
-		}
-	}
-	return "", nil
-}
-
-func resolutionToHeight(res string) int {
-	switch strings.ToLower(res) {
-	case "4k", "2160p":
-		return 2160
-	case "1080p":
-		return 1080
-	case "720p":
-		return 720
-	case "480p":
-		return 480
-	}
-	return 0
 }
 
 func (r *CollectionRepository) queryMediaItems(ctx context.Context, query string, args ...any) ([]*library.MediaItem, error) {

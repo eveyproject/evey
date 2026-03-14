@@ -26,17 +26,14 @@ func (r *FakeCollectionRepository) QueryRepo() *FakeCollectionQueryRepo     { re
 func (r *FakeCollectionRepository) Create(ctx context.Context, col *library.Collection) error {
 	return r.cmd.Create(ctx, col)
 }
-func (r *FakeCollectionRepository) Update(ctx context.Context, col *library.Collection) error {
-	return r.cmd.Update(ctx, col)
+func (r *FakeCollectionRepository) Upsert(ctx context.Context, col *library.Collection) error {
+	return r.cmd.Upsert(ctx, col)
 }
 func (r *FakeCollectionRepository) Delete(ctx context.Context, id string) error {
 	return r.cmd.Delete(ctx, id)
 }
-func (r *FakeCollectionRepository) AddItem(ctx context.Context, collectionID, mediaItemID string) error {
-	return r.cmd.AddItem(ctx, collectionID, mediaItemID)
-}
-func (r *FakeCollectionRepository) RemoveItem(ctx context.Context, collectionID, mediaItemID string) error {
-	return r.cmd.RemoveItem(ctx, collectionID, mediaItemID)
+func (r *FakeCollectionRepository) LinkItem(ctx context.Context, collectionID, mediaItemID string, sortOrder int) error {
+	return r.cmd.LinkItem(ctx, collectionID, mediaItemID, sortOrder)
 }
 func (r *FakeCollectionRepository) GetByID(ctx context.Context, id string) (*library.Collection, error) {
 	return r.query.GetByID(ctx, id)
@@ -44,15 +41,9 @@ func (r *FakeCollectionRepository) GetByID(ctx context.Context, id string) (*lib
 func (r *FakeCollectionRepository) List(ctx context.Context) ([]*library.Collection, error) {
 	return r.query.List(ctx)
 }
-func (r *FakeCollectionRepository) GetSmartItems(ctx context.Context, col *library.Collection, limit, offset int) ([]*library.MediaItem, error) {
-	return r.query.GetSmartItems(ctx, col, limit, offset)
+func (r *FakeCollectionRepository) GetItems(ctx context.Context, collectionID string, limit, offset int) ([]*library.MediaItem, error) {
+	return r.query.GetItems(ctx, collectionID, limit, offset)
 }
-func (r *FakeCollectionRepository) CountSmartItems(ctx context.Context, col *library.Collection) (int, error) {
-	return r.query.CountSmartItems(ctx, col)
-}
-func (r *FakeCollectionRepository) GetManualItems(ctx context.Context, collectionID string, limit, offset int) ([]*library.MediaItem, error) {
-	return r.query.GetManualItems(ctx, collectionID, limit, offset)
-}
-func (r *FakeCollectionRepository) CountManualItems(ctx context.Context, collectionID string) (int, error) {
-	return r.query.CountManualItems(ctx, collectionID)
+func (r *FakeCollectionRepository) CountItems(ctx context.Context, collectionID string) (int, error) {
+	return r.query.CountItems(ctx, collectionID)
 }

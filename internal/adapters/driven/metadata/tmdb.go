@@ -408,6 +408,20 @@ func mapDetailResult(d tmdbDetailResponse, mediaType string) domain.MetadataResu
 		}
 	}
 
+	if d.BelongsToCollection != nil {
+		ref := &domain.TmdbCollectionRef{
+			TmdbID: d.BelongsToCollection.ID,
+			Name:   d.BelongsToCollection.Name,
+		}
+		if d.BelongsToCollection.PosterPath != "" {
+			ref.PosterURL = "https://image.tmdb.org/t/p/w500" + d.BelongsToCollection.PosterPath
+		}
+		if d.BelongsToCollection.BackdropPath != "" {
+			ref.BackdropURL = imageBaseURL + d.BelongsToCollection.BackdropPath
+		}
+		result.Collection = ref
+	}
+
 	return result
 }
 
@@ -453,22 +467,30 @@ type tmdbSearchItem struct {
 	GenreIDs      []int   `json:"genre_ids"`
 }
 
+type tmdbCollection struct {
+	ID           int    `json:"id"`
+	Name         string `json:"name"`
+	PosterPath   string `json:"poster_path"`
+	BackdropPath string `json:"backdrop_path"`
+}
+
 type tmdbDetailResponse struct {
-	ID                  int                `json:"id"`
-	Title               string             `json:"title"`
-	OriginalTitle       string             `json:"original_title"`
-	Name                string             `json:"name"`
-	OriginalName        string             `json:"original_name"`
-	Overview            string             `json:"overview"`
-	Tagline             string             `json:"tagline"`
-	ReleaseDate         string             `json:"release_date"`
-	FirstAirDate        string             `json:"first_air_date"`
-	VoteAverage         float64            `json:"vote_average"`
-	Genres              []tmdbGenre        `json:"genres"`
-	ProductionCompanies []tmdbCompany      `json:"production_companies"`
-	Credits             *tmdbCredits       `json:"credits"`
-	Images              *tmdbImages        `json:"images"`
-	ExternalIDs         *tmdbExternalIDs   `json:"external_ids"`
+	ID                   int              `json:"id"`
+	Title                string           `json:"title"`
+	OriginalTitle        string           `json:"original_title"`
+	Name                 string           `json:"name"`
+	OriginalName         string           `json:"original_name"`
+	Overview             string           `json:"overview"`
+	Tagline              string           `json:"tagline"`
+	ReleaseDate          string           `json:"release_date"`
+	FirstAirDate         string           `json:"first_air_date"`
+	VoteAverage          float64          `json:"vote_average"`
+	Genres               []tmdbGenre      `json:"genres"`
+	ProductionCompanies  []tmdbCompany    `json:"production_companies"`
+	Credits              *tmdbCredits     `json:"credits"`
+	Images               *tmdbImages      `json:"images"`
+	ExternalIDs          *tmdbExternalIDs `json:"external_ids"`
+	BelongsToCollection  *tmdbCollection  `json:"belongs_to_collection"`
 }
 
 type tmdbExternalIDs struct {

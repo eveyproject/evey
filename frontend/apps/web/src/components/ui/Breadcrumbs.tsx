@@ -5,9 +5,9 @@ interface BreadcrumbItem {
   to?: string;
 }
 
-export function Breadcrumbs({ items }: { items: BreadcrumbItem[] }) {
+export function Breadcrumbs({ items, className = "" }: { items: BreadcrumbItem[]; className?: string }) {
   return (
-    <nav aria-label="breadcrumb" className="flex items-center gap-2 text-sm text-gray-400 mb-4">
+    <nav aria-label="breadcrumb" className={`flex items-center gap-2 text-sm mb-4 text-white/90 ${className}`}>
       {items.map((item, i) => (
         <span key={i} className="flex items-center gap-2">
           {i > 0 && <span aria-hidden="true">›</span>}

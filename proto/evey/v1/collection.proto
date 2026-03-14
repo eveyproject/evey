@@ -14,23 +14,9 @@ service CollectionService {
     };
   }
 
-  rpc GetCollection(GetCollectionRequest) returns (CollectionProto) {
+  rpc GetCollection(GetCollectionRequest) returns (GetCollectionResponse) {
     option (google.api.http) = {
       get: "/api/v1/collections/{id}"
-    };
-  }
-
-  rpc CreateCollection(CreateCollectionRequest) returns (CollectionProto) {
-    option (google.api.http) = {
-      post: "/api/v1/collections"
-      body: "*"
-    };
-  }
-
-  rpc UpdateCollection(UpdateCollectionRequest) returns (CollectionProto) {
-    option (google.api.http) = {
-      patch: "/api/v1/collections/{id}"
-      body: "*"
     };
   }
 
@@ -45,43 +31,17 @@ service CollectionService {
       get: "/api/v1/collections/{id}/items"
     };
   }
-
-  rpc AddCollectionItem(AddCollectionItemRequest) returns (AddCollectionItemResponse) {
-    option (google.api.http) = {
-      post: "/api/v1/collections/{id}/items"
-      body: "*"
-    };
-  }
-
-  rpc RemoveCollectionItem(RemoveCollectionItemRequest) returns (RemoveCollectionItemResponse) {
-    option (google.api.http) = {
-      delete: "/api/v1/collections/{id}/items/{media_item_id}"
-    };
-  }
-}
-
-enum CollectionType {
-  COLLECTION_TYPE_UNSPECIFIED = 0;
-  COLLECTION_TYPE_MANUAL = 1;
-  COLLECTION_TYPE_SMART = 2;
-}
-
-message CollectionRule {
-  string field = 1;
-  string operator = 2;
-  string value = 3;
 }
 
 message CollectionProto {
   string id = 1;
   string name = 2;
   string overview = 3;
-  CollectionType type = 4;
-  repeated CollectionRule rules = 5;
-  string sort_by = 6;
-  string sort_order = 7;
-  google.protobuf.Timestamp created_at = 8;
-  google.protobuf.Timestamp updated_at = 9;
+  optional int32 tmdb_id = 4;
+  string poster_url = 5;
+  string backdrop_url = 6;
+  google.protobuf.Timestamp created_at = 7;
+  google.protobuf.Timestamp updated_at = 8;
 }
 
 message ListCollectionsRequest {}
@@ -94,22 +54,8 @@ message GetCollectionRequest {
   string id = 1;
 }
 
-message CreateCollectionRequest {
-  string name = 1;
-  string overview = 2;
-  CollectionType type = 3;
-  repeated CollectionRule rules = 4;
-  string sort_by = 5;
-  string sort_order = 6;
-}
-
-message UpdateCollectionRequest {
-  string id = 1;
-  string name = 2;
-  string overview = 3;
-  repeated CollectionRule rules = 4;
-  string sort_by = 5;
-  string sort_order = 6;
+message GetCollectionResponse {
+  CollectionProto collection = 1;
 }
 
 message DeleteCollectionRequest {
@@ -128,17 +74,3 @@ message GetCollectionItemsResponse {
   repeated string media_item_ids = 1;
   int32 total = 2;
 }
-
-message AddCollectionItemRequest {
-  string id = 1;
-  string media_item_id = 2;
-}
-
-message AddCollectionItemResponse {}
-
-message RemoveCollectionItemRequest {
-  string id = 1;
-  string media_item_id = 2;
-}
-
-message RemoveCollectionItemResponse {}

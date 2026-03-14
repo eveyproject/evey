@@ -9,6 +9,7 @@ import (
 	appmetadata "github.com/gravity-zero/evey/internal/app/metadata"
 	"github.com/gravity-zero/evey/internal/adapters/driving/grpcapi/interceptors"
 	"github.com/gravity-zero/evey/internal/domain/library"
+	domainmetadata "github.com/gravity-zero/evey/internal/domain/metadata"
 	"github.com/gravity-zero/evey/internal/domain/user"
 	"github.com/gravity-zero/evey/internal/pkg/id"
 	"github.com/gravity-zero/evey/internal/pkg/ratings"
@@ -180,7 +181,10 @@ func (h *libraryHandler) ListMediaItems(ctx context.Context, req *eveyv1.ListMed
 	for _, item := range items {
 		ids = append(ids, item.ID)
 	}
-	artworkMap, _ := h.metadataSvc.BatchGetArtwork(ctx, ids)
+	var artworkMap map[string][]*domainmetadata.ArtworkRecord
+	if h.metadataSvc != nil {
+		artworkMap, _ = h.metadataSvc.BatchGetArtwork(ctx, ids)
+	}
 
 	for _, item := range items {
 		if len(pf.blockedTags) > 0 && ratings.HasBlockedTag(item.Tags, pf.blockedTags) {

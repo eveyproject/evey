@@ -1,14 +1,12 @@
 package library
 
 import (
-	"errors"
 	"time"
 
 	"github.com/gravity-zero/evey/internal/domain/shared"
 )
 
 var ErrNotFound = shared.ErrNotFound
-var ErrInvalidSortParam = errors.New("invalid sort parameter")
 
 type LibraryType string
 
@@ -152,40 +150,15 @@ type ScanSchedule struct {
 	UpdatedAt      time.Time
 }
 
-type CollectionType string
-
-const (
-	CollectionManual CollectionType = "manual"
-	CollectionSmart  CollectionType = "smart"
-)
-
-type RuleOperator string
-
-const (
-	OpEq       RuleOperator = "eq"
-	OpNeq      RuleOperator = "neq"
-	OpGt       RuleOperator = "gt"
-	OpLt       RuleOperator = "lt"
-	OpContains RuleOperator = "contains"
-	OpIn       RuleOperator = "in"
-)
-
-type CollectionRule struct {
-	Field    string       `json:"field"`
-	Operator RuleOperator `json:"operator"`
-	Value    string       `json:"value"`
-}
-
 type Collection struct {
-	ID        string
-	Name      string
-	Overview  string
-	Type      CollectionType
-	Rules     []CollectionRule
-	SortBy    string
-	SortOrder string
-	CreatedAt time.Time
-	UpdatedAt time.Time
+	ID          string
+	TmdbID      *int
+	Name        string
+	Overview    string
+	PosterURL   string
+	BackdropURL string
+	CreatedAt   time.Time
+	UpdatedAt   time.Time
 }
 
 type TrickplayManifest struct {

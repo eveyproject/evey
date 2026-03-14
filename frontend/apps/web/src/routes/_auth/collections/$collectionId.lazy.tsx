@@ -1,11 +1,9 @@
 import { useState } from "react";
 import { createLazyFileRoute } from "@tanstack/react-router";
-import { useCollection, useUpdateCollection, useDeleteCollection } from "@/features/collection/api";
-import { CollectionModal } from "@/features/collection/CollectionModal";
+import { useCollection, useDeleteCollection } from "@/features/collection/api";
 import { MediaGrid } from "@/features/library/MediaGrid";
 import { MediaCard } from "@/features/library/MediaCard";
 import { Button } from "@/components/ui/Button";
-import { Badge } from "@/components/ui/Badge";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Pagination } from "@/components/ui/Pagination";
 import { BackButton } from "@/components/ui/BackButton";
@@ -18,9 +16,7 @@ function CollectionDetailPage() {
   const { collectionId } = Route.useParams();
   const [page, setPage] = useState(1);
   const pageSize = 50;
-  const [editOpen, setEditOpen] = useState(false);
   const { data, isLoading } = useCollection(collectionId, pageSize, (page - 1) * pageSize);
-  const updateMut = useUpdateCollection();
   const deleteMut = useDeleteCollection();
   const navigate = Route.useNavigate();
 
@@ -34,48 +30,61 @@ function CollectionDetailPage() {
       <BackButton fallback="/collections" />
 
       {col && (
-        <div className="flex items-start justify-between mb-6 mt-4">
-          <div>
-            <div className="flex items-center gap-3 mb-1">
-              <h1 className="text-2xl font-bold" style={{ color: "var(--text)" }}>
-                {col.name}
-              </h1>
-              <Badge variant={col.type === "smart" ? "info" : "default"}>
-                {col.type}
-              </Badge>
-            </div>
-            {col.overview && (
-              <p className="text-sm" style={{ color: "var(--text-muted)" }}>
-                {col.overview}
-              </p>
-            )}
-            <p className="text-xs mt-1" style={{ color: "var(--text-muted)" }}>
-              {total} {total === 1 ? "item" : "items"}
-              {col.type === "smart" && col.rules.length > 0 && (
-                <span>
-                  {" "} &mdash; {col.rules.map((r) => `${r.field} ${r.operator} ${r.value}`).join(", ")}
-                </span>
-              )}
-            </p>
-          </div>
-          <div className="flex gap-2">
-            <Button variant="secondary" onClick={() => setEditOpen(true)}>
-              Edit
-            </Button>
-            <Button
-              variant="danger"
-              onClick={() => {
-                if (confirm("Delete this collection?")) {
-                  deleteMut.mutate(collectionId, {
-                    onSuccess: () => navigate({ to: "/collections" }),
-                  });
-                }
-              }}
+        <>
+          {col.backdropUrl && (
+            <div
+              className="relative w-full overflow-hidden mb-6 mt-4 rounded-[var(--radius-lg)]"
+              style={{ height: "clamp(180px, 30vw, 320px)" }}
             >
-              Delete
-            </Button>
-          </div>
-        </div>
+              <img
+                src={col.backdropUrl}
+                alt={col.name}
+                className="w-full h-full object-cover"
+              />
+              <div
+                className="absolute inset-0"
+                style={{ background: "linear-gradient(to top, rgba(0,0,0,0.7) 0%, transparent 60%)" }}
+              />
+              <div className="absolute bottom-4 left-4 right-4">
+                <h1 className="text-3xl font-bold text-white">{col.name}</h1>
+                {col.overview && (
+                  <p className="text-sm text-white/80 mt-1 line-clamp-2">{col.overview}</p>
+                )}
+              </div>
+            </div>
+          )}
+
+          {!col.backdropUrl && (
+            <div className="flex items-start justify-between mb-6 mt-4">
+              <div>
+                <h1 className="text-2xl font-bold mb-1" style={{ color: "var(--text)" }}>
+                  {col.name}
+                </h1>
+                {col.overview && (
+                  <p className="text-sm" style={{ color: "var(--text-muted)" }}>
+                    {col.overview}
+                  </p>
+                )}
+              </div>
+              <Button
+                variant="danger"
+                onClick={() => {
+                  if (confirm("Delete this collection?")) {
+                    deleteMut.mutate(collectionId, {
+                      onSuccess: () => navigate({ to: "/collections" }),
+                    });
+                  }
+                }}
+              >
+                Delete
+              </Button>
+            </div>
+          )}
+
+          <p className="text-xs mb-4" style={{ color: "var(--text-muted)" }}>
+            {total} {total === 1 ? "item" : "items"}
+          </p>
+        </>
       )}
 
       {isLoading ? (
@@ -87,12 +96,8 @@ function CollectionDetailPage() {
         >
           <EmptyState
             icon="library"
-            title="No matching items"
-            description={
-              col?.type === "smart"
-                ? "No media items match your rules. Try adjusting the filters."
-                : "Add items to this collection."
-            }
+            title="No items"
+            description="This collection has no media items yet."
           />
         </div>
       ) : (
@@ -112,15 +117,6 @@ function CollectionDetailPage() {
             </div>
           )}
         </>
-      )}
-
-      {col && (
-        <CollectionModal
-          open={editOpen}
-          onClose={() => setEditOpen(false)}
-          initial={col}
-          onSubmit={(data) => updateMut.mutate({ id: collectionId, ...data })}
-        />
       )}
     </div>
   );

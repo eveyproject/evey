@@ -15,6 +15,12 @@ import (
 	domainmetadata "github.com/gravity-zero/evey/internal/domain/metadata"
 )
 
+// CollectionLinker upserts TMDB-driven collections and links media items.
+type CollectionLinker interface {
+	UpsertFromTMDB(ctx context.Context, tmdbID int, name, overview, posterURL, backdropURL string) (*domaindomain.Collection, error)
+	LinkMediaItem(ctx context.Context, collectionID, mediaItemID string, sortOrder int) error
+}
+
 type Enricher struct {
 	artwork       domainmetadata.ArtworkRepository
 	persons       domaindomain.PersonRepository
@@ -23,6 +29,7 @@ type Enricher struct {
 	search        domaindomain.SearchIndex
 	primary       domainmetadata.MetadataProvider
 	supplementary []domainmetadata.MetadataProvider
+	collections   CollectionLinker
 }
 
 func NewEnricher(
@@ -33,6 +40,7 @@ func NewEnricher(
 	search domaindomain.SearchIndex,
 	primary domainmetadata.MetadataProvider,
 	supplementary []domainmetadata.MetadataProvider,
+	collections CollectionLinker,
 ) *Enricher {
 	return &Enricher{
 		artwork:       artwork,
@@ -42,6 +50,7 @@ func NewEnricher(
 		search:        search,
 		primary:       primary,
 		supplementary: supplementary,
+		collections:   collections,
 	}
 }
 
@@ -164,6 +173,18 @@ func (e *Enricher) EnrichItem(ctx context.Context, item *domaindomain.MediaItem,
 		}
 		if err := e.search.IndexMediaItem(ctx, item, names); err != nil {
 			slog.Warn("index media item", slog.Any("err", err))
+		}
+	}
+
+	if e.collections != nil && result.Collection != nil {
+		ref := result.Collection
+		col, err := e.collections.UpsertFromTMDB(ctx, ref.TmdbID, ref.Name, "", ref.PosterURL, ref.BackdropURL)
+		if err != nil {
+			slog.Warn("upsert collection", slog.Int("tmdb_id", ref.TmdbID), slog.Any("err", err))
+		} else if col != nil {
+			if err := e.collections.LinkMediaItem(ctx, col.ID, item.ID, 0); err != nil {
+				slog.Warn("link media item to collection", slog.String("collection_id", col.ID), slog.String("media_item_id", item.ID), slog.Any("err", err))
+			}
 		}
 	}
 

@@ -65,19 +65,16 @@ type MediaPersonRepository interface {
 
 type CollectionCommandRepo interface {
 	Create(ctx context.Context, col *Collection) error
-	Update(ctx context.Context, col *Collection) error
+	Upsert(ctx context.Context, col *Collection) error
 	Delete(ctx context.Context, id string) error
-	AddItem(ctx context.Context, collectionID, mediaItemID string) error
-	RemoveItem(ctx context.Context, collectionID, mediaItemID string) error
+	LinkItem(ctx context.Context, collectionID, mediaItemID string, sortOrder int) error
 }
 
 type CollectionQueryRepo interface {
 	GetByID(ctx context.Context, id string) (*Collection, error)
 	List(ctx context.Context) ([]*Collection, error)
-	GetSmartItems(ctx context.Context, col *Collection, limit, offset int) ([]*MediaItem, error)
-	CountSmartItems(ctx context.Context, col *Collection) (int, error)
-	GetManualItems(ctx context.Context, collectionID string, limit, offset int) ([]*MediaItem, error)
-	CountManualItems(ctx context.Context, collectionID string) (int, error)
+	GetItems(ctx context.Context, collectionID string, limit, offset int) ([]*MediaItem, error)
+	CountItems(ctx context.Context, collectionID string) (int, error)
 }
 
 type ScannedFile struct {

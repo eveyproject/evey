@@ -492,73 +492,26 @@ func registerCollectionRoutes(mux *http.ServeMux, svc *appcollection.Service, to
 			return
 		}
 		type colResp struct {
-			ID        string                        `json:"id"`
-			Name      string                        `json:"name"`
-			Overview  string                        `json:"overview,omitempty"`
-			Type      string                        `json:"type"`
-			Rules     []domainlibrary.CollectionRule `json:"rules"`
-			SortBy    string                        `json:"sortBy"`
-			SortOrder string                        `json:"sortOrder"`
-			CreatedAt string                        `json:"createdAt"`
-			UpdatedAt string                        `json:"updatedAt"`
+			ID          string  `json:"id"`
+			Name        string  `json:"name"`
+			Overview    string  `json:"overview,omitempty"`
+			TmdbID      *int    `json:"tmdbId,omitempty"`
+			PosterURL   string  `json:"posterUrl,omitempty"`
+			BackdropURL string  `json:"backdropUrl,omitempty"`
+			CreatedAt   string  `json:"createdAt"`
+			UpdatedAt   string  `json:"updatedAt"`
 		}
 		out := make([]colResp, 0, len(cols))
 		for _, c := range cols {
-			rules := c.Rules
-			if rules == nil {
-				rules = []domainlibrary.CollectionRule{}
-			}
 			out = append(out, colResp{
 				ID: c.ID, Name: c.Name, Overview: c.Overview,
-				Type: string(c.Type), Rules: rules,
-				SortBy: c.SortBy, SortOrder: c.SortOrder,
+				TmdbID: c.TmdbID, PosterURL: c.PosterURL, BackdropURL: c.BackdropURL,
 				CreatedAt: c.CreatedAt.Format(time.RFC3339),
 				UpdatedAt: c.UpdatedAt.Format(time.RFC3339),
 			})
 		}
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(map[string]any{"collections": out})
-	})
-
-	mux.HandleFunc("POST /api/v1/collections", func(w http.ResponseWriter, r *http.Request) {
-		if !requireAdmin(r) {
-			http.Error(w, `{"message":"forbidden"}`, http.StatusForbidden)
-			return
-		}
-		var body struct {
-			Name      string                        `json:"name"`
-			Overview  string                        `json:"overview"`
-			Type      string                        `json:"type"`
-			Rules     []domainlibrary.CollectionRule `json:"rules"`
-			SortBy    string                        `json:"sortBy"`
-			SortOrder string                        `json:"sortOrder"`
-		}
-		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-			http.Error(w, `{"message":"bad request"}`, http.StatusBadRequest)
-			return
-		}
-		if body.Name == "" {
-			http.Error(w, `{"message":"name required"}`, http.StatusBadRequest)
-			return
-		}
-		col := &domainlibrary.Collection{
-			Name:      body.Name,
-			Overview:  body.Overview,
-			Type:      domainlibrary.CollectionType(body.Type),
-			Rules:     body.Rules,
-			SortBy:    body.SortBy,
-			SortOrder: body.SortOrder,
-		}
-		if col.Type == "" {
-			col.Type = domainlibrary.CollectionSmart
-		}
-		if err := svc.Create(r.Context(), col); err != nil {
-			http.Error(w, `{"message":"internal"}`, http.StatusInternalServerError)
-			return
-		}
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusCreated)
-		json.NewEncoder(w).Encode(map[string]any{"id": col.ID})
 	})
 
 	mux.HandleFunc("/api/v1/collections/", func(w http.ResponseWriter, r *http.Request) {
@@ -598,10 +551,6 @@ func registerCollectionRoutes(mux *http.ServeMux, svc *appcollection.Service, to
 				http.Error(w, `{"message":"internal"}`, http.StatusInternalServerError)
 				return
 			}
-			rules := col.Rules
-			if rules == nil {
-				rules = []domainlibrary.CollectionRule{}
-			}
 			type itemResp struct {
 				ID              string   `json:"id"`
 				Title           string   `json:"title"`
@@ -623,46 +572,13 @@ func registerCollectionRoutes(mux *http.ServeMux, svc *appcollection.Service, to
 			json.NewEncoder(w).Encode(map[string]any{
 				"collection": map[string]any{
 					"id": col.ID, "name": col.Name, "overview": col.Overview,
-					"type": string(col.Type), "rules": rules,
-					"sortBy": col.SortBy, "sortOrder": col.SortOrder,
+					"tmdbId": col.TmdbID, "posterUrl": col.PosterURL, "backdropUrl": col.BackdropURL,
 					"createdAt": col.CreatedAt.Format(time.RFC3339),
 					"updatedAt": col.UpdatedAt.Format(time.RFC3339),
 				},
 				"items": mediaItems,
 				"total": total,
 			})
-
-		case http.MethodPut:
-			if !requireAdmin(r) {
-				http.Error(w, `{"message":"forbidden"}`, http.StatusForbidden)
-				return
-			}
-			var body struct {
-				Name      string                        `json:"name"`
-				Overview  string                        `json:"overview"`
-				Type      string                        `json:"type"`
-				Rules     []domainlibrary.CollectionRule `json:"rules"`
-				SortBy    string                        `json:"sortBy"`
-				SortOrder string                        `json:"sortOrder"`
-			}
-			if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-				http.Error(w, `{"message":"bad request"}`, http.StatusBadRequest)
-				return
-			}
-			col := &domainlibrary.Collection{
-				ID:        id,
-				Name:      body.Name,
-				Overview:  body.Overview,
-				Type:      domainlibrary.CollectionType(body.Type),
-				Rules:     body.Rules,
-				SortBy:    body.SortBy,
-				SortOrder: body.SortOrder,
-			}
-			if err := svc.Update(r.Context(), col); err != nil {
-				http.Error(w, `{"message":"not found"}`, http.StatusNotFound)
-				return
-			}
-			w.WriteHeader(http.StatusNoContent)
 
 		case http.MethodDelete:
 			if !requireAdmin(r) {
@@ -678,39 +594,6 @@ func registerCollectionRoutes(mux *http.ServeMux, svc *appcollection.Service, to
 		default:
 			http.Error(w, `{"message":"method not allowed"}`, http.StatusMethodNotAllowed)
 		}
-	})
-
-	// POST /api/v1/collections/{id}/items  — add item to manual collection
-	mux.HandleFunc("POST /api/v1/collections/{id}/items", func(w http.ResponseWriter, r *http.Request) {
-		if !requireAuth(r) {
-			http.Error(w, `{"message":"unauthenticated"}`, http.StatusUnauthorized)
-			return
-		}
-		var body struct {
-			MediaItemID string `json:"mediaItemId"`
-		}
-		if err := json.NewDecoder(r.Body).Decode(&body); err != nil || body.MediaItemID == "" {
-			http.Error(w, `{"message":"mediaItemId required"}`, http.StatusBadRequest)
-			return
-		}
-		if err := svc.AddItem(r.Context(), r.PathValue("id"), body.MediaItemID); err != nil {
-			http.Error(w, `{"message":"internal error"}`, http.StatusInternalServerError)
-			return
-		}
-		w.WriteHeader(http.StatusNoContent)
-	})
-
-	// DELETE /api/v1/collections/{id}/items/{mediaId}  — remove item
-	mux.HandleFunc("DELETE /api/v1/collections/{id}/items/{mediaId}", func(w http.ResponseWriter, r *http.Request) {
-		if !requireAuth(r) {
-			http.Error(w, `{"message":"unauthenticated"}`, http.StatusUnauthorized)
-			return
-		}
-		if err := svc.RemoveItem(r.Context(), r.PathValue("id"), r.PathValue("mediaId")); err != nil {
-			http.Error(w, `{"message":"not found"}`, http.StatusNotFound)
-			return
-		}
-		w.WriteHeader(http.StatusNoContent)
 	})
 }
 

@@ -12,18 +12,18 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func newTestCollection(id string, colType library.CollectionType) *library.Collection {
+func newTestCollection(id string) *library.Collection {
 	now := time.Now().UTC().Truncate(time.Millisecond)
+	tmdbID := 12345
 	return &library.Collection{
-		ID:        id,
-		Name:      "Collection " + id,
-		Overview:  "Overview for " + id,
-		Type:      colType,
-		Rules:     []library.CollectionRule{},
-		SortBy:    "sort_title",
-		SortOrder: "asc",
-		CreatedAt: now,
-		UpdatedAt: now,
+		ID:          id,
+		Name:        "Collection " + id,
+		Overview:    "Overview for " + id,
+		TmdbID:      &tmdbID,
+		PosterURL:   "https://image.tmdb.org/t/p/w500/poster.jpg",
+		BackdropURL: "https://image.tmdb.org/t/p/original/backdrop.jpg",
+		CreatedAt:   now,
+		UpdatedAt:   now,
 	}
 }
 
@@ -34,16 +34,36 @@ func TestCollectionRepo_Create(t *testing.T) {
 	repo := postgres.NewCollectionRepository(db)
 	ctx := context.Background()
 
-	col := newTestCollection("col1", library.CollectionManual)
+	col := newTestCollection("col1")
+	col.TmdbID = nil // allow nil tmdb_id
 	require.NoError(t, repo.Create(ctx, col))
 
 	got, err := repo.GetByID(ctx, col.ID)
 	require.NoError(t, err)
 	assert.Equal(t, col.Name, got.Name)
 	assert.Equal(t, col.Overview, got.Overview)
-	assert.Equal(t, library.CollectionManual, got.Type)
-	assert.Equal(t, "sort_title", got.SortBy)
-	assert.Equal(t, "asc", got.SortOrder)
+}
+
+func TestCollectionRepo_Upsert(t *testing.T) {
+	db, cleanup := testhelpers.StartPostgres(t)
+	defer cleanup()
+
+	repo := postgres.NewCollectionRepository(db)
+	ctx := context.Background()
+
+	col := newTestCollection("col_upsert")
+	require.NoError(t, repo.Upsert(ctx, col))
+
+	// upsert same tmdb_id with updated name
+	col2 := newTestCollection("col_upsert_2")
+	col2.TmdbID = col.TmdbID
+	col2.Name = "Updated Name"
+	require.NoError(t, repo.Upsert(ctx, col2))
+
+	list, err := repo.List(ctx)
+	require.NoError(t, err)
+	assert.Len(t, list, 1)
+	assert.Equal(t, "Updated Name", list[0].Name)
 }
 
 func TestCollectionRepo_List(t *testing.T) {
@@ -53,8 +73,12 @@ func TestCollectionRepo_List(t *testing.T) {
 	repo := postgres.NewCollectionRepository(db)
 	ctx := context.Background()
 
-	require.NoError(t, repo.Create(ctx, newTestCollection("col2a", library.CollectionManual)))
-	require.NoError(t, repo.Create(ctx, newTestCollection("col2b", library.CollectionSmart)))
+	c1 := newTestCollection("col2a")
+	c1.TmdbID = nil
+	c2 := newTestCollection("col2b")
+	c2.TmdbID = nil
+	require.NoError(t, repo.Create(ctx, c1))
+	require.NoError(t, repo.Create(ctx, c2))
 
 	list, err := repo.List(ctx)
 	require.NoError(t, err)
@@ -68,49 +92,18 @@ func TestCollectionRepo_GetByID(t *testing.T) {
 	repo := postgres.NewCollectionRepository(db)
 	ctx := context.Background()
 
-	col := newTestCollection("col3", library.CollectionSmart)
-	col.Rules = []library.CollectionRule{
-		{Field: "genre", Operator: library.OpContains, Value: "Action"},
-		{Field: "year", Operator: library.OpGt, Value: "2000"},
-	}
+	col := newTestCollection("col3")
 	require.NoError(t, repo.Create(ctx, col))
 
 	got, err := repo.GetByID(ctx, "col3")
 	require.NoError(t, err)
 	assert.Equal(t, col.Name, got.Name)
 	assert.Equal(t, col.Overview, got.Overview)
-	assert.Equal(t, library.CollectionSmart, got.Type)
-	assert.Len(t, got.Rules, 2)
-	assert.Equal(t, "genre", got.Rules[0].Field)
-	assert.Equal(t, library.OpContains, got.Rules[0].Operator)
+	assert.NotNil(t, got.TmdbID)
+	assert.Equal(t, *col.TmdbID, *got.TmdbID)
 
 	_, err = repo.GetByID(ctx, "nonexistent")
 	assert.ErrorIs(t, err, library.ErrNotFound)
-}
-
-func TestCollectionRepo_Update(t *testing.T) {
-	db, cleanup := testhelpers.StartPostgres(t)
-	defer cleanup()
-
-	repo := postgres.NewCollectionRepository(db)
-	ctx := context.Background()
-
-	col := newTestCollection("col4", library.CollectionManual)
-	require.NoError(t, repo.Create(ctx, col))
-
-	col.Name = "Updated Collection"
-	col.Overview = "Updated Overview"
-	col.SortBy = "year"
-	col.SortOrder = "desc"
-	col.UpdatedAt = time.Now().UTC().Truncate(time.Millisecond)
-	require.NoError(t, repo.Update(ctx, col))
-
-	got, err := repo.GetByID(ctx, col.ID)
-	require.NoError(t, err)
-	assert.Equal(t, "Updated Collection", got.Name)
-	assert.Equal(t, "Updated Overview", got.Overview)
-	assert.Equal(t, "year", got.SortBy)
-	assert.Equal(t, "desc", got.SortOrder)
 }
 
 func TestCollectionRepo_Delete(t *testing.T) {
@@ -120,7 +113,7 @@ func TestCollectionRepo_Delete(t *testing.T) {
 	repo := postgres.NewCollectionRepository(db)
 	ctx := context.Background()
 
-	col := newTestCollection("col5", library.CollectionManual)
+	col := newTestCollection("col5")
 	require.NoError(t, repo.Create(ctx, col))
 	require.NoError(t, repo.Delete(ctx, col.ID))
 
@@ -131,7 +124,7 @@ func TestCollectionRepo_Delete(t *testing.T) {
 	assert.ErrorIs(t, err, library.ErrNotFound)
 }
 
-func TestCollectionRepo_GetItems_Smart(t *testing.T) {
+func TestCollectionRepo_GetItems(t *testing.T) {
 	db, cleanup := testhelpers.StartPostgres(t)
 	defer cleanup()
 
@@ -143,48 +136,23 @@ func TestCollectionRepo_GetItems_Smart(t *testing.T) {
 	lib := newTestLibrary("collib1")
 	require.NoError(t, libRepo.Create(ctx, lib))
 
-	year2020 := 2020
-	year2015 := 2015
 	item1 := newTestMediaItem("colmi1", lib.ID)
-	item1.Genres = []string{"Action", "Sci-Fi"}
-	item1.Year = &year2020
-	require.NoError(t, itemRepo.Create(ctx, item1))
-
 	item2 := newTestMediaItem("colmi2", lib.ID)
-	item2.Genres = []string{"Drama"}
-	item2.Year = &year2015
+	require.NoError(t, itemRepo.Create(ctx, item1))
 	require.NoError(t, itemRepo.Create(ctx, item2))
 
-	item3 := newTestMediaItem("colmi3", lib.ID)
-	item3.Genres = []string{"Action", "Comedy"}
-	item3.Year = &year2020
-	require.NoError(t, itemRepo.Create(ctx, item3))
-
-	col := newTestCollection("colsmart1", library.CollectionSmart)
-	col.Rules = []library.CollectionRule{
-		{Field: "genre", Operator: library.OpContains, Value: "Action"},
-	}
+	col := newTestCollection("colsaga1")
+	col.TmdbID = nil
 	require.NoError(t, colRepo.Create(ctx, col))
 
-	items, err := colRepo.GetSmartItems(ctx, col, 100, 0)
+	require.NoError(t, colRepo.LinkItem(ctx, col.ID, item1.ID, 0))
+	require.NoError(t, colRepo.LinkItem(ctx, col.ID, item2.ID, 1))
+
+	items, err := colRepo.GetItems(ctx, col.ID, 100, 0)
 	require.NoError(t, err)
 	assert.Len(t, items, 2)
 
-	count, err := colRepo.CountSmartItems(ctx, col)
+	count, err := colRepo.CountItems(ctx, col.ID)
 	require.NoError(t, err)
 	assert.Equal(t, 2, count)
-
-	col2 := newTestCollection("colsmart2", library.CollectionSmart)
-	col2.Rules = []library.CollectionRule{
-		{Field: "year", Operator: library.OpGt, Value: "2018"},
-	}
-	require.NoError(t, colRepo.Create(ctx, col2))
-
-	items2, err := colRepo.GetSmartItems(ctx, col2, 100, 0)
-	require.NoError(t, err)
-	assert.Len(t, items2, 2)
-	for _, it := range items2 {
-		assert.NotNil(t, it.Year)
-		assert.Greater(t, *it.Year, 2018)
-	}
 }
