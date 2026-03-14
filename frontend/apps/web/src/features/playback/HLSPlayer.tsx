@@ -129,6 +129,10 @@ export function HLSPlayer({
   });
   const [theaterMode, setTheaterMode] = useState(false);
   const [playbackSpeed, setPlaybackSpeed] = useState(1);
+  const anyPanelOpenRef = useRef(false);
+  const closePanelRef = useRef<(() => void) | null>(null);
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
   const [externalSubUrl, setExternalSubUrl] = useState<{ url: string; label: string } | null>(null);
   const externalSubUrlRef = useRef<string | null>(null);
   const [subtitleStyle, setSubtitleStyleState] = useState<SubtitleStyle>(() => getSubtitleStyle());
@@ -366,6 +370,14 @@ export function HLSPlayer({
       if (!video) return;
 
       switch (e.key) {
+        case "Escape":
+          e.preventDefault();
+          if (anyPanelOpenRef.current) {
+            closePanelRef.current?.();
+          } else {
+            onCloseRef.current?.();
+          }
+          break;
         case " ":
         case "k":
           e.preventDefault();
@@ -774,6 +786,8 @@ export function HLSPlayer({
           setTheaterMode(next);
           onTheaterModeChange?.(next);
         }}
+        onPanelOpenChange={(anyOpen) => { anyPanelOpenRef.current = anyOpen; }}
+        closePanelRef={closePanelRef}
       />
       {showShortcuts && <KeyboardShortcutsOverlay onClose={() => setShowShortcuts(false)} skipForwardSeconds={skipFwd} skipBackwardSeconds={skipBwd} />}
     </div>
