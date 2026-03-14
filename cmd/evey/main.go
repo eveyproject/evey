@@ -641,7 +641,7 @@ func run() error {
 		mux.HandleFunc("GET /api/v1/admin/sessions/active", requireAdmin(tokenGen, activeSessionsHandler(tokenGen, playbackSvc)))
 		mux.HandleFunc("DELETE /api/v1/admin/sessions/{id}", requireAdmin(tokenGen, killSessionHandler(tokenGen, playbackSvc)))
 		if oidcSvc != nil {
-			registerOIDCRoutes(mux, oidcSvc)
+			registerOIDCRoutes(mux, oidcSvc, httpsOnly)
 		} else {
 			// disabled — return enabled:false so frontend knows
 			mux.HandleFunc("GET /api/v1/auth/oidc/config", func(w http.ResponseWriter, _ *http.Request) {

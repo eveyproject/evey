@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"log/slog"
 	"net/http"
+	"strings"
 	"sync"
 	"time"
 
@@ -75,13 +76,30 @@ func (h *Hub) LeaveRoom(ctx context.Context, roomID, userID string) error {
 	return nil
 }
 
+// extractWSToken reads the bearer token from the WebSocket upgrade request.
+// Priority: Authorization header → Sec-WebSocket-Protocol subprotocol → query param (deprecated).
+func extractWSToken(r *http.Request) string {
+	if h := r.Header.Get("Authorization"); strings.HasPrefix(h, "Bearer ") {
+		return strings.TrimPrefix(h, "Bearer ")
+	}
+	// Browser WebSocket API cannot set custom headers; token may be sent as a subprotocol.
+	for _, p := range strings.Split(r.Header.Get("Sec-WebSocket-Protocol"), ",") {
+		p = strings.TrimSpace(p)
+		if strings.HasPrefix(p, "Bearer.") {
+			return strings.TrimPrefix(p, "Bearer.")
+		}
+	}
+	// Fallback: query param (deprecated — exposes token in logs/history).
+	return r.URL.Query().Get("token")
+}
+
 // WSHandler returns an http.Handler for WebSocket connections at /api/v1/syncplay/rooms/{id}/ws
 func (h *Hub) WSHandler(tokenValidator func(token string) (userID, username string, err error)) http.Handler {
 	return websocket.Handler(func(ws *websocket.Conn) {
 		r := ws.Request()
 		roomID := r.PathValue("id")
 
-		token := r.URL.Query().Get("token")
+		token := extractWSToken(r)
 		userID, username, err := tokenValidator(token)
 		if err != nil {
 			slog.Warn("syncplay ws: invalid token", slog.String("room", roomID))
