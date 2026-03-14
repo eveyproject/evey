@@ -6,6 +6,7 @@ import {
   libraryServiceGetMediaItem,
   eveyFetch,
 } from "@evey/api";
+import { toast } from "@evey/store";
 import type { V1MediaItem } from "@evey/api/src/generated/library.schemas";
 import { Spinner } from "@/components/ui/Spinner";
 import { Button } from "@/components/ui/Button";
@@ -332,10 +333,27 @@ function MediaThumb({ item, onClick }: { item: V1MediaItem; onClick: () => void 
   );
 }
 
+function useRefreshAll() {
+  const [loading, setLoading] = useState(false);
+  async function refreshAll() {
+    setLoading(true);
+    try {
+      await eveyFetch({ url: "/api/v1/admin/metadata/refresh-all", method: "POST" });
+      toast.success("Bulk metadata refresh started");
+    } catch {
+      toast.error("Failed to start refresh");
+    } finally {
+      setLoading(false);
+    }
+  }
+  return { refreshAll, loading };
+}
+
 function MetadataPage() {
   const [query, setQuery] = useState("");
   const [debouncedQuery, setDebouncedQuery] = useState("");
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const { refreshAll, loading: refreshing } = useRefreshAll();
 
   useEffect(() => {
     const t = setTimeout(() => setDebouncedQuery(query), 400);
@@ -354,9 +372,12 @@ function MetadataPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <h1 className="text-2xl font-bold" style={{ color: "var(--text)" }}>
-        Metadata
-      </h1>
+      <div className="flex items-center justify-between">
+        <h1 className="text-2xl font-bold" style={{ color: "var(--text)" }}>Metadata</h1>
+        <Button variant="secondary" loading={refreshing} onClick={refreshAll}>
+          Refresh All
+        </Button>
+      </div>
 
       <input
         className="w-full px-4 py-2.5 rounded-[var(--radius-md)] bg-[var(--surface-raised)] border border-[var(--border)] text-[var(--text)] placeholder:text-[var(--text-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)]"

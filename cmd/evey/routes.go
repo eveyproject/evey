@@ -139,6 +139,25 @@ func registerAdminRoutes(mux *http.ServeMux, metaCmd *appmetadata.CommandService
 			http.NotFound(w, r)
 		}
 	})
+
+	mux.HandleFunc("POST /api/v1/admin/metadata/refresh-all", func(w http.ResponseWriter, r *http.Request) {
+		if !requireAdmin(r) {
+			http.Error(w, `{"message":"forbidden"}`, http.StatusForbidden)
+			return
+		}
+		if !heavyRL.Allow(ratelimit.ClientIP(r)) {
+			http.Error(w, `{"message":"too many requests"}`, http.StatusTooManyRequests)
+			return
+		}
+		go func() {
+			if err := metaCmd.AutoRefreshAllItems(context.Background()); err != nil {
+				slog.Error("bulk metadata refresh", slog.Any("err", err))
+			}
+		}()
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusAccepted)
+		json.NewEncoder(w).Encode(map[string]string{"message": "refresh started"})
+	})
 }
 
 func registerGateway(grpcAddr string) http.Handler {

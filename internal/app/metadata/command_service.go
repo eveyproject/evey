@@ -184,3 +184,23 @@ func (s *CommandService) DownloadArtwork(ctx context.Context, record *metadata.A
 	}
 	return nil
 }
+
+// BulkItemEnricher is an optional extension of ItemEnricher for batch auto-enrichment.
+type BulkItemEnricher interface {
+	AutoEnrichAll(ctx context.Context, items []*library.MediaItem, log *slog.Logger)
+}
+
+// AutoRefreshAllItems auto-searches and enriches all media items using the enricher.
+// Returns immediately if the enricher does not support bulk enrichment.
+func (s *CommandService) AutoRefreshAllItems(ctx context.Context) error {
+	be, ok := s.enricher.(BulkItemEnricher)
+	if !ok {
+		return fmt.Errorf("enricher does not support bulk refresh")
+	}
+	items, err := s.mediaItems.List(ctx, library.ListMediaItemsFilter{Limit: 1000})
+	if err != nil {
+		return fmt.Errorf("list items: %w", err)
+	}
+	be.AutoEnrichAll(ctx, items, slog.Default())
+	return nil
+}
