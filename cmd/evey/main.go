@@ -97,9 +97,9 @@ func run() error {
 	if err2 := db.Ping(); err2 != nil {
 		return fmt.Errorf("ping db: %w", err2)
 	}
-	db.SetMaxOpenConns(25)
-	db.SetMaxIdleConns(5)
-	db.SetConnMaxLifetime(5 * time.Minute)
+	db.SetMaxOpenConns(50)
+	db.SetMaxIdleConns(10)
+	db.SetConnMaxLifetime(30 * time.Minute)
 	rootLog.Info("connected to postgres")
 
 	if err2 := postgres.RunMigrations(db); err2 != nil {
@@ -494,7 +494,7 @@ func run() error {
 		updateMedia := func() {
 			for _, t := range []string{"movie", "series", "episode"} {
 				typ := t
-				n, err := mediaItemRepo.Count(context.Background(), domainlibrary.ListMediaItemsFilter{Type: &typ})
+				n, err := mediaItemRepo.Count(ctx, domainlibrary.ListMediaItemsFilter{Type: &typ})
 				if err == nil {
 					eveymetrics.MediaItemsTotal.WithLabelValues(t).Set(float64(n))
 				}
@@ -596,7 +596,7 @@ func run() error {
 
 		// OPS-3: backup retention cleanup on startup
 		go func() {
-			if err := backupSvc.CleanupOldBackups(context.Background(), cfg.Backup.RetentionDays); err != nil {
+			if err := backupSvc.CleanupOldBackups(ctx, cfg.Backup.RetentionDays); err != nil {
 				rootLog.Warn("backup retention cleanup", slog.Any("err", err))
 			}
 		}()
@@ -611,12 +611,12 @@ func run() error {
 					case <-ctx.Done():
 						return
 					case <-ticker.C:
-						if _, err := backupSvc.CreateBackup(context.Background()); err != nil {
+						if _, err := backupSvc.CreateBackup(ctx); err != nil {
 							rootLog.Warn("scheduled backup failed", slog.Any("err", err))
 						} else {
 							rootLog.Info("scheduled backup created")
 						}
-						if err := backupSvc.CleanupOldBackups(context.Background(), cfg.Backup.RetentionDays); err != nil {
+						if err := backupSvc.CleanupOldBackups(ctx, cfg.Backup.RetentionDays); err != nil {
 							rootLog.Warn("backup retention cleanup", slog.Any("err", err))
 						}
 					}
@@ -663,7 +663,7 @@ func run() error {
 			Addr:              fmt.Sprintf(":%d", httpPort),
 			Handler:           tokenRedactMiddleware(eveymetrics.InstrumentHandler(securityHeadersMiddleware(proxyTrust.Middleware(netMw(mux))))),
 			ReadHeaderTimeout: 10 * time.Second,
-			WriteTimeout:      10 * time.Minute,
+			WriteTimeout:      30 * time.Second,
 			IdleTimeout:       120 * time.Second,
 		}
 	}
@@ -673,7 +673,7 @@ func run() error {
 	go libScheduler.Run(ctx)
 
 	go func() {
-		if err := notifCmdSvc.CleanupExpired(context.Background()); err != nil {
+		if err := notifCmdSvc.CleanupExpired(ctx); err != nil {
 			rootLog.Warn("notification cleanup", slog.Any("err", err))
 		}
 		ticker := time.NewTicker(24 * time.Hour)
@@ -683,7 +683,7 @@ func run() error {
 			case <-ctx.Done():
 				return
 			case <-ticker.C:
-				if err := notifCmdSvc.CleanupExpired(context.Background()); err != nil {
+				if err := notifCmdSvc.CleanupExpired(ctx); err != nil {
 					rootLog.Warn("notification cleanup", slog.Any("err", err))
 				}
 			}
@@ -698,7 +698,7 @@ func run() error {
 			case <-ctx.Done():
 				return
 			case <-ticker.C:
-				if err := refreshTokenRepo.DeleteExpired(context.Background()); err != nil {
+				if err := refreshTokenRepo.DeleteExpired(ctx); err != nil {
 					rootLog.Warn("refresh token cleanup", slog.Any("err", err))
 				}
 			}
@@ -713,7 +713,7 @@ func run() error {
 			case <-ctx.Done():
 				return
 			case <-ticker.C:
-				if err := quickConnectRepo.DeleteExpired(context.Background()); err != nil {
+				if err := quickConnectRepo.DeleteExpired(ctx); err != nil {
 					rootLog.Warn("quick connect cleanup", slog.Any("err", err))
 				}
 			}
@@ -723,7 +723,7 @@ func run() error {
 	// Stale session cleanup: close sessions with no activity for 2h
 	go func() {
 		// Run immediately on startup to clean existing stale sessions
-		if n, err := playbackSvc.CommandService().CleanupStaleSessions(context.Background(), 2*time.Hour); err != nil {
+		if n, err := playbackSvc.CommandService().CleanupStaleSessions(ctx, 2*time.Hour); err != nil {
 			rootLog.Warn("stale session cleanup", slog.Any("err", err))
 		} else if n > 0 {
 			rootLog.Info("cleaned stale sessions", slog.Int("count", n))
@@ -735,7 +735,7 @@ func run() error {
 			case <-ctx.Done():
 				return
 			case <-ticker.C:
-				if n, err := playbackSvc.CommandService().CleanupStaleSessions(context.Background(), 2*time.Hour); err != nil {
+				if n, err := playbackSvc.CommandService().CleanupStaleSessions(ctx, 2*time.Hour); err != nil {
 					rootLog.Warn("stale session cleanup", slog.Any("err", err))
 				} else if n > 0 {
 					rootLog.Info("cleaned stale sessions", slog.Int("count", n))
@@ -753,13 +753,13 @@ func run() error {
 				case <-ctx.Done():
 					return
 				case <-ticker.C:
-					if _, err := backupSvc.CreateBackup(context.Background()); err != nil {
+					if _, err := backupSvc.CreateBackup(ctx); err != nil {
 						rootLog.Error("scheduled backup failed", slog.Any("err", err))
 					} else {
 						rootLog.Info("scheduled backup created")
 					}
 					if cfg.Backup.RetentionDays > 0 {
-						if err := backupSvc.CleanupOldBackups(context.Background(), cfg.Backup.RetentionDays); err != nil {
+						if err := backupSvc.CleanupOldBackups(ctx, cfg.Backup.RetentionDays); err != nil {
 							rootLog.Warn("backup cleanup failed", slog.Any("err", err))
 						}
 					}
