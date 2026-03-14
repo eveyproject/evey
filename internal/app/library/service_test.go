@@ -448,3 +448,142 @@ func TestListMediaItems_ParentalFilter_UnratedItemVisible(t *testing.T) {
 	assert.Contains(t, ids, "unrated", "unrated items should pass through parental filter")
 	assert.NotContains(t, ids, "r-movie")
 }
+
+func TestScanLibrary_RemovesOrphanedItems(t *testing.T) {
+	t.Parallel()
+	svc, _, libQueryRepo, mediaRepo, scanner, bus := newCmdSvc()
+
+	lib := &library.Library{
+		ID:    "lib-1",
+		Name:  "Movies",
+		Type:  "movie",
+		Paths: []string{"/movies"},
+	}
+	svc.CreateLibrary(context.Background(), lib)
+	libQueryRepo.Seed(lib)
+
+	// Pre-existing item whose file no longer exists on disk
+	mediaRepo.Create(context.Background(), &library.MediaItem{
+		ID:        "item-deleted",
+		LibraryID: "lib-1",
+		FilePath:  "/movies/deleted.mkv",
+		FileSize:  1000,
+	})
+	// Pre-existing item whose file still exists
+	mediaRepo.Create(context.Background(), &library.MediaItem{
+		ID:        "item-keep",
+		LibraryID: "lib-1",
+		FilePath:  "/movies/keep.mkv",
+		FileSize:  2000,
+	})
+
+	// Scanner only returns the surviving file
+	scanner.Results["/movies"] = []library.ScannedFile{
+		{Path: "/movies/keep.mkv", Size: 2000},
+	}
+
+	_, _, err := svc.ScanLibrary(context.Background(), "lib-1")
+	require.NoError(t, err)
+
+	items := mediaRepo.All()
+	ids := make([]string, 0, len(items))
+	for _, item := range items {
+		ids = append(ids, item.ID)
+	}
+	assert.Contains(t, ids, "item-keep", "surviving file must remain in DB")
+	assert.NotContains(t, ids, "item-deleted", "deleted file must be removed from DB")
+
+	var removedEvents []string
+	for _, e := range bus.PublishedEvents() {
+		if e.EventName() == "media.item.removed" {
+			removedEvents = append(removedEvents, e.EventName())
+		}
+	}
+	assert.Len(t, removedEvents, 1, "one media.item.removed event expected")
+}
+
+func TestScanLibrary_OrphanCleanup_TVShow_RemovesDeletedEpisode(t *testing.T) {
+	t.Parallel()
+	svc, _, libQueryRepo, mediaRepo, scanner, bus := newCmdSvc()
+
+	lib := &library.Library{
+		ID:    "lib-tv",
+		Name:  "TV",
+		Type:  "tvshow",
+		Paths: []string{"/tv"},
+	}
+	svc.CreateLibrary(context.Background(), lib)
+	libQueryRepo.Seed(lib)
+
+	// Pre-seed: series, season, and two episodes (one will be "deleted")
+	mediaRepo.Create(context.Background(), &library.MediaItem{
+		ID:        "ep-keep",
+		LibraryID: "lib-tv",
+		FilePath:  "/tv/show/s01e01.mkv",
+		FileSize:  100,
+	})
+	mediaRepo.Create(context.Background(), &library.MediaItem{
+		ID:        "ep-gone",
+		LibraryID: "lib-tv",
+		FilePath:  "/tv/show/s01e02.mkv",
+		FileSize:  100,
+	})
+
+	s1, e1 := 1, 1
+	scanner.Results["/tv"] = []library.ScannedFile{
+		{Path: "/tv/show/s01e01.mkv", Size: 100, Title: "MyShow", Season: &s1, Episode: &e1, Type: library.Episode},
+	}
+
+	_, _, err := svc.ScanLibrary(context.Background(), "lib-tv")
+	require.NoError(t, err)
+
+	_, err = mediaRepo.GetByID(context.Background(), "ep-gone")
+	assert.ErrorIs(t, err, library.ErrNotFound, "deleted episode must be removed from DB")
+
+	_, err = mediaRepo.GetByID(context.Background(), "ep-keep")
+	assert.NoError(t, err, "surviving episode must remain in DB")
+
+	var removedEvents int
+	for _, e := range bus.PublishedEvents() {
+		if e.EventName() == "media.item.removed" {
+			removedEvents++
+		}
+	}
+	assert.Equal(t, 1, removedEvents)
+}
+
+func TestScanLibrary_ItemsRemovedCountInEvent(t *testing.T) {
+	t.Parallel()
+	svc, _, libQueryRepo, mediaRepo, scanner, bus := newCmdSvc()
+
+	lib := &library.Library{
+		ID:    "lib-1",
+		Name:  "Movies",
+		Type:  "movie",
+		Paths: []string{"/movies"},
+	}
+	svc.CreateLibrary(context.Background(), lib)
+	libQueryRepo.Seed(lib)
+
+	mediaRepo.Create(context.Background(), &library.MediaItem{
+		ID: "gone-1", LibraryID: "lib-1", FilePath: "/movies/gone1.mkv",
+	})
+	mediaRepo.Create(context.Background(), &library.MediaItem{
+		ID: "gone-2", LibraryID: "lib-1", FilePath: "/movies/gone2.mkv",
+	})
+
+	scanner.Results["/movies"] = []library.ScannedFile{}
+
+	_, _, err := svc.ScanLibrary(context.Background(), "lib-1")
+	require.NoError(t, err)
+
+	var scanCompleted *library.LibraryScanCompleted
+	for _, e := range bus.PublishedEvents() {
+		if sc, ok := e.(library.LibraryScanCompleted); ok {
+			sc := sc
+			scanCompleted = &sc
+		}
+	}
+	require.NotNil(t, scanCompleted)
+	assert.Equal(t, 2, scanCompleted.ItemsRemoved)
+}
