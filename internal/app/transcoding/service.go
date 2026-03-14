@@ -125,6 +125,18 @@ func (s *Service) ListProfiles(ctx context.Context) ([]*transcoding.TranscodePro
 	return s.profiles.List(ctx)
 }
 
+func (s *Service) CreateProfile(ctx context.Context, p *transcoding.TranscodeProfile) error {
+	return s.profiles.Create(ctx, p)
+}
+
+func (s *Service) UpdateProfile(ctx context.Context, p *transcoding.TranscodeProfile) error {
+	return s.profiles.Update(ctx, p)
+}
+
+func (s *Service) DeleteProfile(ctx context.Context, id string) error {
+	return s.profiles.Delete(ctx, id)
+}
+
 func (s *Service) DetectHardware(ctx context.Context) ([]transcoding.HWDevice, error) {
 	return s.hwDetector.DetectDevices(ctx)
 }

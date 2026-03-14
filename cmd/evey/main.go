@@ -32,6 +32,7 @@ import (
 	appsubtitle "github.com/gravity-zero/evey/internal/app/subtitle"
 	appwebhook "github.com/gravity-zero/evey/internal/app/webhook"
 	"github.com/gravity-zero/evey/internal/adapters/driven/ebml"
+	"github.com/gravity-zero/evey/internal/adapters/driven/email"
 	"github.com/gravity-zero/evey/internal/adapters/driven/ffmpeg"
 	"github.com/gravity-zero/evey/internal/adapters/driven/filesystem"
 	meili "github.com/gravity-zero/evey/internal/adapters/driven/meilisearch"
@@ -338,6 +339,13 @@ func run() error {
 	notifQuerySvc := appnotification.NewQueryService(notificationRepo, notificationSettingsRepo)
 	// notification cleanup goroutine started after ctx is available (see below)
 
+	if cfg.SMTP.Host != "" {
+		smtpSender := email.NewSMTPSender(cfg.SMTP.Host, cfg.SMTP.Port, cfg.SMTP.Username, cfg.SMTP.Password, cfg.SMTP.From, cfg.SMTP.TLS)
+		emailer := email.NewNotificationEmailer(smtpSender, profileRepo, userRepo)
+		emailer.Register(bus)
+		rootLog.Info("SMTP email notifications enabled", slog.String("host", cfg.SMTP.Host))
+	}
+
 	feedCmdSvc := appfeed.NewCommandService(feedCmdRepo)
 	feedQuerySvc := appfeed.NewQueryService(feedQueryRepo, feedQuerier, watchHistoryAnalyzer)
 
@@ -429,6 +437,44 @@ func run() error {
 			}
 		}
 	}()
+
+	// DB pool stats + media item counts
+	go func() {
+		dbTicker := time.NewTicker(30 * time.Second)
+		mediaTicker := time.NewTicker(5 * time.Minute)
+		defer dbTicker.Stop()
+		defer mediaTicker.Stop()
+
+		updateDB := func() {
+			s := db.Stats()
+			eveymetrics.DBConnectionsOpen.Set(float64(s.OpenConnections))
+			eveymetrics.DBConnectionsIdle.Set(float64(s.Idle))
+			eveymetrics.DBConnectionsInUse.Set(float64(s.InUse))
+		}
+		updateMedia := func() {
+			for _, t := range []string{"movie", "series", "episode"} {
+				typ := t
+				n, err := mediaItemRepo.Count(context.Background(), domainlibrary.ListMediaItemsFilter{Type: &typ})
+				if err == nil {
+					eveymetrics.MediaItemsTotal.WithLabelValues(t).Set(float64(n))
+				}
+			}
+		}
+
+		updateDB()
+		updateMedia()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-dbTicker.C:
+				updateDB()
+			case <-mediaTicker.C:
+				updateMedia()
+			}
+		}
+	}()
+
 	grpcSrv.RegisterServices()
 
 	grpcAddr := fmt.Sprintf(":%d", cfg.Server.Port)
@@ -490,6 +536,7 @@ func run() error {
 		registerFavoriteRoutes(mux, favoriteSvc, libQuerySvc, tokenGen)
 		registerMetadataOverrideRoutes(mux, metadataCmdSvc, metadataQuerySvc, tokenGen)
 		registerTranscodeCacheRoutes(mux, transcodingSvc, tokenGen)
+		registerTranscodeProfileRoutes(mux, transcodingSvc, tokenGen)
 		registerCollectionRoutes(mux, collectionSvc, tokenGen)
 		registerScheduleRoutes(mux, libScheduler, tokenGen)
 		registerLibraryAccessRoutes(mux, libraryAccessRepo, libQuerySvc, tokenGen)

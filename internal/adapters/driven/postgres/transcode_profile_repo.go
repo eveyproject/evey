@@ -52,6 +52,15 @@ func (r *TranscodeProfileRepository) Create(ctx context.Context, profile *transc
 	return err
 }
 
+func (r *TranscodeProfileRepository) Update(ctx context.Context, profile *transcoding.TranscodeProfile) error {
+	_, err := r.db.ExecContext(ctx,
+		`UPDATE transcode_profiles SET name=$2, video_codec=$3, audio_codec=$4, container=$5, max_width=$6, max_height=$7, video_bitrate=$8, audio_bitrate=$9, preset=$10 WHERE id=$1`,
+		profile.ID, profile.Name, profile.VideoCodec, profile.AudioCodec, profile.Container,
+		profile.MaxWidth, profile.MaxHeight, profile.VideoBitrate, profile.AudioBitrate, profile.Preset,
+	)
+	return err
+}
+
 func (r *TranscodeProfileRepository) Delete(ctx context.Context, id string) error {
 	_, err := r.db.ExecContext(ctx, `DELETE FROM transcode_profiles WHERE id = $1`, id)
 	return err

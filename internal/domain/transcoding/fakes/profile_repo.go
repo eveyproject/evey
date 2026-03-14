@@ -53,6 +53,19 @@ func (r *FakeTranscodeProfileRepository) Create(_ context.Context, profile *tran
 	return nil
 }
 
+func (r *FakeTranscodeProfileRepository) Update(_ context.Context, profile *transcoding.TranscodeProfile) error {
+	if r.Err != nil {
+		return r.Err
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if _, ok := r.items[profile.ID]; !ok {
+		return ErrNotFound
+	}
+	r.items[profile.ID] = profile
+	return nil
+}
+
 func (r *FakeTranscodeProfileRepository) Delete(_ context.Context, id string) error {
 	if r.Err != nil {
 		return r.Err

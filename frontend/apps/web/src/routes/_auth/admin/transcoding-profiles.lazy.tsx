@@ -1,12 +1,14 @@
 import { useState } from "react";
 import { createLazyFileRoute } from "@tanstack/react-router";
-import { useTranscodingServiceListTranscodeProfiles } from "@evey/api";
+import { useTranscodingServiceListTranscodeProfiles, getTranscodingServiceListTranscodeProfilesQueryKey } from "@evey/api";
 import type {
   V1TranscodeProfile,
   V1HWAccelType,
 } from "@evey/api/src/generated/transcoding.schemas";
 import { V1HWAccelType as HWAccelType } from "@evey/api/src/generated/transcoding.schemas";
 import { toast } from "@evey/store";
+import { useQueryClient } from "@tanstack/react-query";
+import { eveyFetch } from "@evey/api/src/fetcher";
 import { Spinner } from "@/components/ui/Spinner";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
@@ -25,6 +27,17 @@ const RESOLUTION_OPTIONS = [
 
 const VIDEO_CODEC_OPTIONS = ["H.264", "H.265", "AV1"] as const;
 const AUDIO_CODEC_OPTIONS = ["AAC", "AC3", "Opus"] as const;
+
+const VIDEO_CODEC_MAP: Record<string, string> = {
+  "H.264": "h264",
+  "H.265": "hevc",
+  "AV1": "av1",
+};
+const AUDIO_CODEC_MAP: Record<string, string> = {
+  "AAC": "aac",
+  "AC3": "ac3",
+  "Opus": "opus",
+};
 
 const HW_ACCEL_OPTIONS: { label: string; value: V1HWAccelType }[] = [
   { label: "None", value: HWAccelType.HW_ACCEL_TYPE_NONE },
@@ -73,6 +86,7 @@ interface ProfileDialogProps {
 
 function ProfileDialog({ open, profile, onClose }: ProfileDialogProps) {
   const isEdit = profile !== null;
+  const queryClient = useQueryClient();
 
   const [form, setForm] = useState<ProfileFormState>(() => {
     if (!profile) return DEFAULT_FORM;
@@ -86,19 +100,43 @@ function ProfileDialog({ open, profile, onClose }: ProfileDialogProps) {
       isDefault: profile.isDefault ?? false,
     };
   });
+  const [saving, setSaving] = useState(false);
 
   function handleClose() {
     setForm(DEFAULT_FORM);
     onClose();
   }
 
-  function handleSubmit(e: React.FormEvent) {
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    // NOTE: The backend API (transcoding.proto) only exposes ListTranscodeProfiles.
-    // Create/Update/Delete RPCs are not yet implemented. This form is a UI shell
-    // ready to wire up once those endpoints are added to the proto and generated client.
-    toast.info("Profile management API not yet available on the backend.");
-    handleClose();
+    const res = RESOLUTION_OPTIONS.find((r) => r.label === form.resolution) ?? RESOLUTION_OPTIONS[2];
+    const body = {
+      name: form.name,
+      videoCodec: VIDEO_CODEC_MAP[form.videoCodec] ?? form.videoCodec.toLowerCase(),
+      audioCodec: AUDIO_CODEC_MAP[form.audioCodec] ?? form.audioCodec.toLowerCase(),
+      container: "hls",
+      maxWidth: res.maxWidth,
+      maxHeight: res.maxHeight,
+      videoBitrate: parseInt(form.maxBitrate) * 1000,
+      audioBitrate: 192000,
+      preset: "medium",
+    };
+    setSaving(true);
+    try {
+      if (isEdit && profile.id) {
+        await eveyFetch({ url: `/api/v1/admin/transcoding/profiles/${profile.id}`, method: "PUT", data: body });
+        toast.success("Profile updated");
+      } else {
+        await eveyFetch({ url: `/api/v1/admin/transcoding/profiles`, method: "POST", data: body });
+        toast.success("Profile created");
+      }
+      queryClient.invalidateQueries({ queryKey: getTranscodingServiceListTranscodeProfilesQueryKey() });
+      handleClose();
+    } catch {
+      toast.error("Failed to save profile");
+    } finally {
+      setSaving(false);
+    }
   }
 
   return (
@@ -108,13 +146,6 @@ function ProfileDialog({ open, profile, onClose }: ProfileDialogProps) {
       title={isEdit ? "Edit Profile" : "Create Profile"}
     >
       <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-        <div
-          className="text-xs px-3 py-2 rounded-[var(--radius-sm)]"
-          style={{ backgroundColor: "var(--surface-raised)", color: "var(--text-muted)" }}
-        >
-          Note: Create/Edit/Delete are pending backend implementation (proto RPCs missing).
-        </div>
-
         <div className="flex flex-col gap-1">
           <label className="text-sm font-medium" style={{ color: "var(--text)" }}>
             Name
@@ -261,7 +292,7 @@ function ProfileDialog({ open, profile, onClose }: ProfileDialogProps) {
           <Button type="button" variant="secondary" onClick={handleClose}>
             Cancel
           </Button>
-          <Button type="submit">
+          <Button type="submit" loading={saving}>
             {isEdit ? "Save" : "Create"}
           </Button>
         </div>
@@ -277,10 +308,22 @@ interface DeleteDialogProps {
 }
 
 function DeleteDialog({ open, profile, onClose }: DeleteDialogProps) {
-  function handleConfirm() {
-    // NOTE: Delete RPC not yet in proto — pending backend implementation.
-    toast.info("Profile management API not yet available on the backend.");
-    onClose();
+  const queryClient = useQueryClient();
+  const [deleting, setDeleting] = useState(false);
+
+  async function handleConfirm() {
+    if (!profile?.id) return;
+    setDeleting(true);
+    try {
+      await eveyFetch({ url: `/api/v1/admin/transcoding/profiles/${profile.id}`, method: "DELETE" });
+      toast.success("Profile deleted");
+      queryClient.invalidateQueries({ queryKey: getTranscodingServiceListTranscodeProfilesQueryKey() });
+      onClose();
+    } catch {
+      toast.error("Failed to delete profile");
+    } finally {
+      setDeleting(false);
+    }
   }
 
   return (
@@ -293,7 +336,7 @@ function DeleteDialog({ open, profile, onClose }: DeleteDialogProps) {
         <Button variant="secondary" onClick={onClose}>
           Cancel
         </Button>
-        <Button variant="danger" onClick={handleConfirm}>
+        <Button variant="danger" loading={deleting} onClick={handleConfirm}>
           Delete
         </Button>
       </div>

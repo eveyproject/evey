@@ -24,6 +24,7 @@ import (
 	domainlibrary "github.com/gravity-zero/evey/internal/domain/library"
 	domainshared "github.com/gravity-zero/evey/internal/domain/shared"
 	apptranscoding "github.com/gravity-zero/evey/internal/app/transcoding"
+	domaintranscoding "github.com/gravity-zero/evey/internal/domain/transcoding"
 
 	"github.com/grpc-ecosystem/grpc-gateway/v2/runtime"
 	"google.golang.org/protobuf/encoding/protojson"
@@ -1708,6 +1709,106 @@ func registerLogsRoute(mux *http.ServeMux, logDir string, tokenGen *auth.JWTGene
 		}
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(map[string]any{"lines": data})
+	})
+}
+
+func registerTranscodeProfileRoutes(mux *http.ServeMux, transcodeSvc *apptranscoding.Service, tokenGen *auth.JWTGenerator) {
+	requireAdmin := func(r *http.Request) bool {
+		h := r.Header.Get("Authorization")
+		if !strings.HasPrefix(h, "Bearer ") {
+			return false
+		}
+		claims, err := tokenGen.ValidateAccessToken(strings.TrimPrefix(h, "Bearer "))
+		return err == nil && claims.IsAdmin
+	}
+
+	type profileBody struct {
+		Name         string `json:"name"`
+		VideoCodec   string `json:"videoCodec"`
+		AudioCodec   string `json:"audioCodec"`
+		Container    string `json:"container"`
+		MaxWidth     int    `json:"maxWidth"`
+		MaxHeight    int    `json:"maxHeight"`
+		VideoBitrate int64  `json:"videoBitrate"`
+		AudioBitrate int64  `json:"audioBitrate"`
+		Preset       string `json:"preset"`
+	}
+
+	mux.HandleFunc("POST /api/v1/admin/transcoding/profiles", func(w http.ResponseWriter, r *http.Request) {
+		if !requireAdmin(r) {
+			http.Error(w, `{"message":"forbidden"}`, http.StatusForbidden)
+			return
+		}
+		var body profileBody
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			http.Error(w, `{"message":"bad request"}`, http.StatusBadRequest)
+			return
+		}
+		p := &domaintranscoding.TranscodeProfile{
+			ID:           id.New("tp-"),
+			Name:         body.Name,
+			VideoCodec:   body.VideoCodec,
+			AudioCodec:   body.AudioCodec,
+			Container:    body.Container,
+			MaxWidth:     body.MaxWidth,
+			MaxHeight:    body.MaxHeight,
+			VideoBitrate: body.VideoBitrate,
+			AudioBitrate: body.AudioBitrate,
+			Preset:       body.Preset,
+		}
+		if err := transcodeSvc.CreateProfile(r.Context(), p); err != nil {
+			slog.Error("create transcode profile", slog.Any("err", err))
+			http.Error(w, `{"message":"internal error"}`, http.StatusInternalServerError)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusCreated)
+		json.NewEncoder(w).Encode(p)
+	})
+
+	mux.HandleFunc("PUT /api/v1/admin/transcoding/profiles/{id}", func(w http.ResponseWriter, r *http.Request) {
+		if !requireAdmin(r) {
+			http.Error(w, `{"message":"forbidden"}`, http.StatusForbidden)
+			return
+		}
+		profileID := r.PathValue("id")
+		var body profileBody
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			http.Error(w, `{"message":"bad request"}`, http.StatusBadRequest)
+			return
+		}
+		p := &domaintranscoding.TranscodeProfile{
+			ID:           profileID,
+			Name:         body.Name,
+			VideoCodec:   body.VideoCodec,
+			AudioCodec:   body.AudioCodec,
+			Container:    body.Container,
+			MaxWidth:     body.MaxWidth,
+			MaxHeight:    body.MaxHeight,
+			VideoBitrate: body.VideoBitrate,
+			AudioBitrate: body.AudioBitrate,
+			Preset:       body.Preset,
+		}
+		if err := transcodeSvc.UpdateProfile(r.Context(), p); err != nil {
+			slog.Error("update transcode profile", slog.Any("err", err))
+			http.Error(w, `{"message":"internal error"}`, http.StatusInternalServerError)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(p)
+	})
+
+	mux.HandleFunc("DELETE /api/v1/admin/transcoding/profiles/{id}", func(w http.ResponseWriter, r *http.Request) {
+		if !requireAdmin(r) {
+			http.Error(w, `{"message":"forbidden"}`, http.StatusForbidden)
+			return
+		}
+		if err := transcodeSvc.DeleteProfile(r.Context(), r.PathValue("id")); err != nil {
+			slog.Error("delete transcode profile", slog.Any("err", err))
+			http.Error(w, `{"message":"internal error"}`, http.StatusInternalServerError)
+			return
+		}
+		w.WriteHeader(http.StatusNoContent)
 	})
 }
 

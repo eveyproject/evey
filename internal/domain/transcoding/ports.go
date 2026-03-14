@@ -25,6 +25,7 @@ type TranscodeProfileRepository interface {
 	GetByID(ctx context.Context, id string) (*TranscodeProfile, error)
 	List(ctx context.Context) ([]*TranscodeProfile, error)
 	Create(ctx context.Context, profile *TranscodeProfile) error
+	Update(ctx context.Context, profile *TranscodeProfile) error
 	Delete(ctx context.Context, id string) error
 }
 
