@@ -4,6 +4,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { usePlaybackServiceMarkAsWatched, usePlaybackServiceMarkAsUnwatched } from "@evey/api";
 import { toast, useAuthStore } from "@evey/store";
 import { FavoriteButton } from "./FavoriteButton";
+import { AddToPlaylistModal } from "../playlist/AddToPlaylistModal";
 
 export interface MediaCardItem {
   id?: string;
@@ -99,10 +100,12 @@ function CardContextMenu({
   mediaId,
   onClose,
   position,
+  onAddToPlaylist,
 }: {
   mediaId: string;
   onClose: () => void;
   position: { x: number; y: number };
+  onAddToPlaylist: () => void;
 }) {
   const ref = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
@@ -148,6 +151,20 @@ function CardContextMenu({
       label: "Edit metadata",
       onClick: () => {
         navigate({ to: "/media/$mediaId", params: { mediaId }, search: { edit: true } as never });
+        onClose();
+      },
+    },
+    {
+      label: "Add to Playlist",
+      onClick: () => {
+        onClose();
+        onAddToPlaylist();
+      },
+    },
+    {
+      label: "Download",
+      onClick: () => {
+        window.open(`/api/v1/media/${mediaId}/download`, "_blank");
         onClose();
       },
     },
@@ -221,6 +238,7 @@ export function MediaCard({
   const linkParams = href ? undefined : { mediaId: item.id ?? "" };
 
   const [ctxMenu, setCtxMenu] = useState<{ x: number; y: number } | null>(null);
+  const [playlistModalOpen, setPlaylistModalOpen] = useState(false);
   const menuBtnRef = useRef<HTMLButtonElement>(null);
   const hasPreviewData = !!(item.overview || item.communityRating || (item.genres && item.genres.length > 0));
 
@@ -255,11 +273,15 @@ export function MediaCard({
 
   return (
     <>
+    {item.id && playlistModalOpen && (
+      <AddToPlaylistModal open={playlistModalOpen} onClose={() => setPlaylistModalOpen(false)} mediaItemId={item.id} />
+    )}
     {ctxMenu && item.id && (
       <CardContextMenu
         mediaId={item.id}
         position={ctxMenu}
         onClose={() => setCtxMenu(null)}
+        onAddToPlaylist={() => setPlaylistModalOpen(true)}
       />
     )}
     <Link
