@@ -215,6 +215,20 @@ func run() error {
 		userRepo, profileRepo, apiKeyRepo, inviteLinkRepo, quickConnectRepo,
 	)
 
+	var oidcSvc *appuser.OIDCService
+	if cfg.OIDC.Enabled {
+		var oidcErr error
+		oidcSvc, oidcErr = appuser.NewOIDCService(
+			context.Background(), cfg,
+			userRepo, profileRepo, refreshTokenRepo, userRoleRepo,
+			tokenGen, bus,
+		)
+		if oidcErr != nil {
+			return fmt.Errorf("oidc init: %w", oidcErr)
+		}
+		rootLog.Info("OIDC SSO enabled", slog.String("issuer", cfg.OIDC.Issuer))
+	}
+
 	playbackSvc := appplayback.NewService(
 		watchProgressRepo, watchProgressRepo, playSessionRepo, userRepo, profileRepo, bus,
 	)
@@ -596,6 +610,15 @@ func run() error {
 		}
 		mux.HandleFunc("GET /api/v1/admin/sessions/active", requireAdmin(tokenGen, activeSessionsHandler(tokenGen, playbackSvc)))
 		mux.HandleFunc("DELETE /api/v1/admin/sessions/{id}", requireAdmin(tokenGen, killSessionHandler(tokenGen, playbackSvc)))
+		if oidcSvc != nil {
+			registerOIDCRoutes(mux, oidcSvc)
+		} else {
+			// disabled — return enabled:false so frontend knows
+			mux.HandleFunc("GET /api/v1/auth/oidc/config", func(w http.ResponseWriter, _ *http.Request) {
+				w.Header().Set("Content-Type", "application/json")
+				w.Write([]byte(`{"enabled":false}`))
+			})
+		}
 		mux.Handle("/", ratelimit.Middleware(globalRL,
 			"/api/v1/playback/progress",
 			"/api/v1/playback/start",

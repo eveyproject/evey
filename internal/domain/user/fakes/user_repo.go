@@ -114,6 +114,20 @@ func (r *FakeUserRepository) Delete(_ context.Context, id string) error {
 	return nil
 }
 
+func (r *FakeUserRepository) GetByOIDCSubject(_ context.Context, issuer, subject string) (*user.User, error) {
+	if r.Err != nil {
+		return nil, r.Err
+	}
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	for _, u := range r.items {
+		if u.OIDCIssuer != nil && *u.OIDCIssuer == issuer && u.OIDCSubject != nil && *u.OIDCSubject == subject {
+			return u, nil
+		}
+	}
+	return nil, ErrNotFound
+}
+
 func (r *FakeUserRepository) CountAdmins(_ context.Context) (int, error) {
 	if r.Err != nil {
 		return 0, r.Err
