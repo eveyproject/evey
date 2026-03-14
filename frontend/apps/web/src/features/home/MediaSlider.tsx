@@ -42,7 +42,17 @@ export function MediaSlider({
   const scrollRef = useRef<HTMLDivElement>(null);
   const [showLeft, setShowLeft] = useState(false);
   const [showRight, setShowRight] = useState(false);
+
+  // Touch state
   const touchStartX = useRef<number | null>(null);
+  const touchStartY = useRef<number | null>(null);
+  const touchStartTime = useRef<number>(0);
+  const touchLocked = useRef<"horizontal" | "vertical" | null>(null);
+
+  // Mouse drag state
+  const isDragging = useRef(false);
+  const dragStartX = useRef(0);
+  const dragScrollLeft = useRef(0);
 
   const CARD_WIDTH = 160; // w-40
 
@@ -63,6 +73,95 @@ export function MediaSlider({
     const amount = el.clientWidth - CARD_WIDTH;
     el.scrollBy({ left: dir === "left" ? -amount : amount, behavior: "smooth" });
   };
+
+  // --- Touch handlers ---
+
+  function handleTouchStart(e: React.TouchEvent) {
+    touchStartX.current = e.touches[0].clientX;
+    touchStartY.current = e.touches[0].clientY;
+    touchStartTime.current = Date.now();
+    touchLocked.current = null;
+  }
+
+  function handleTouchMove(e: React.TouchEvent) {
+    if (touchStartX.current === null || touchStartY.current === null) return;
+    const dx = e.touches[0].clientX - touchStartX.current;
+    const dy = e.touches[0].clientY - touchStartY.current;
+
+    if (touchLocked.current === null) {
+      if (Math.abs(dx) > Math.abs(dy)) {
+        touchLocked.current = "horizontal";
+      } else {
+        touchLocked.current = "vertical";
+      }
+    }
+
+    if (touchLocked.current === "horizontal") {
+      e.preventDefault();
+      const el = scrollRef.current;
+      if (el) {
+        // Live tracking while dragging
+        el.scrollLeft -= dx * 0.05; // small incremental nudge (full tracking via touchEnd)
+      }
+    }
+  }
+
+  function handleTouchEnd(e: React.TouchEvent) {
+    if (touchStartX.current === null || touchLocked.current !== "horizontal") {
+      touchStartX.current = null;
+      touchStartY.current = null;
+      touchLocked.current = null;
+      return;
+    }
+
+    const dx = e.changedTouches[0].clientX - touchStartX.current;
+    const dt = Date.now() - touchStartTime.current;
+    const velocity = Math.abs(dx) / dt; // px/ms
+
+    touchStartX.current = null;
+    touchStartY.current = null;
+    touchLocked.current = null;
+
+    if (Math.abs(dx) < 30) return;
+
+    // Momentum: high velocity → scroll more cards
+    const cards = velocity > 0.8 ? 3 : velocity > 0.4 ? 2 : 1;
+    const el = scrollRef.current;
+    if (!el) return;
+    el.scrollBy({
+      left: dx < 0 ? CARD_WIDTH * cards : -(CARD_WIDTH * cards),
+      behavior: "smooth",
+    });
+  }
+
+  // --- Mouse drag handlers ---
+
+  function handleMouseDown(e: React.MouseEvent) {
+    const el = scrollRef.current;
+    if (!el) return;
+    isDragging.current = true;
+    dragStartX.current = e.clientX;
+    dragScrollLeft.current = el.scrollLeft;
+    el.style.cursor = "grabbing";
+    el.style.userSelect = "none";
+  }
+
+  function handleMouseMove(e: React.MouseEvent) {
+    if (!isDragging.current) return;
+    const el = scrollRef.current;
+    if (!el) return;
+    const dx = e.clientX - dragStartX.current;
+    el.scrollLeft = dragScrollLeft.current - dx;
+  }
+
+  function stopDrag() {
+    if (!isDragging.current) return;
+    isDragging.current = false;
+    const el = scrollRef.current;
+    if (!el) return;
+    el.style.cursor = "grab";
+    el.style.userSelect = "";
+  }
 
   return (
     <section className="mb-8 group/slider" data-testid="media-slider">
@@ -99,16 +198,15 @@ export function MediaSlider({
         <div
           ref={scrollRef}
           onScroll={checkOverflow}
-          onTouchStart={(e) => { touchStartX.current = e.touches[0].clientX; }}
-          onTouchEnd={(e) => {
-            if (touchStartX.current === null) return;
-            const dx = e.changedTouches[0].clientX - touchStartX.current;
-            touchStartX.current = null;
-            if (Math.abs(dx) < 30) return;
-            scroll(dx < 0 ? "right" : "left");
-          }}
+          onTouchStart={handleTouchStart}
+          onTouchMove={handleTouchMove}
+          onTouchEnd={handleTouchEnd}
+          onMouseDown={handleMouseDown}
+          onMouseMove={handleMouseMove}
+          onMouseUp={stopDrag}
+          onMouseLeave={stopDrag}
           className="flex gap-3 overflow-x-auto pb-2 -mx-1 px-1"
-          style={{ scrollbarWidth: "none", scrollSnapType: "x mandatory" }}
+          style={{ scrollbarWidth: "none", scrollSnapType: "x mandatory", cursor: "grab" }}
         >
           {isLoading
             ? Array.from({ length: skeletonCount }).map((_, i) => <SkeletonCard key={i} />)
