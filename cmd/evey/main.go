@@ -45,6 +45,7 @@ import (
 	"github.com/gravity-zero/evey/internal/domain/metadata"
 	"github.com/gravity-zero/evey/internal/pkg/auth"
 	"github.com/gravity-zero/evey/internal/pkg/backupcrypto"
+	eveymetrics "github.com/gravity-zero/evey/internal/pkg/metrics"
 	"github.com/gravity-zero/evey/internal/pkg/eventbus"
 	eveylogger "github.com/gravity-zero/evey/internal/pkg/logger"
 	"github.com/gravity-zero/evey/internal/pkg/network"
@@ -379,6 +380,18 @@ func run() error {
 	hlsManager := apptranscoding.NewHLSManager(cfg.Transcoding.CacheDir+"/hls", cfg.Transcoding.MaxConcurrent)
 	defer hlsManager.CleanupAll()
 	grpcSrv.SetHLSManager(hlsManager)
+	go func() {
+		ticker := time.NewTicker(30 * time.Second)
+		defer ticker.Stop()
+		for {
+			eveymetrics.HLSSessionsGauge.Set(float64(hlsManager.ActiveSessionCount()))
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+			}
+		}
+	}()
 	grpcSrv.RegisterServices()
 
 	grpcAddr := fmt.Sprintf(":%d", cfg.Server.Port)
@@ -398,6 +411,7 @@ func run() error {
 		defer globalRL.Stop()
 		defer adminHeavyRL.Stop()
 
+		mux.Handle("GET /metrics", eveymetrics.Handler())
 		mux.HandleFunc("/healthz", func(w http.ResponseWriter, _ *http.Request) {
 			w.Header().Set("Content-Type", "application/json")
 			w.Write([]byte(`{"status":"ok","version":"` + version + `"}`))
@@ -481,7 +495,7 @@ func run() error {
 		}
 		httpSrv = &http.Server{
 			Addr:              fmt.Sprintf(":%d", httpPort),
-			Handler:           tokenRedactMiddleware(securityHeadersMiddleware(proxyTrust.Middleware(netMw(mux)))),
+			Handler:           eveymetrics.InstrumentHandler(tokenRedactMiddleware(securityHeadersMiddleware(proxyTrust.Middleware(netMw(mux))))),
 			ReadHeaderTimeout: 10 * time.Second,
 			WriteTimeout:      10 * time.Minute,
 			IdleTimeout:       120 * time.Second,
