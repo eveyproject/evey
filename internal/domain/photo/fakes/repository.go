@@ -4,6 +4,7 @@ import (
 	"context"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/gravity-zero/evey/internal/domain/photo"
 )
@@ -147,6 +148,35 @@ func (r *FakeRepository) Search(_ context.Context, libraryID, query string, limi
 		}
 	}
 	return result, nil
+}
+
+func (r *FakeRepository) ListAllByLibrary(_ context.Context, libraryID string) ([]photo.Photo, error) {
+	if r.Err != nil {
+		return nil, r.Err
+	}
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	var result []photo.Photo
+	for _, p := range r.photos {
+		if p.LibraryID == libraryID {
+			result = append(result, p)
+		}
+	}
+	return result, nil
+}
+
+func (r *FakeRepository) UpdateFilePath(_ context.Context, id, newPath string, modTime time.Time) error {
+	if r.Err != nil {
+		return r.Err
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if p, ok := r.photos[id]; ok {
+		p.FilePath = newPath
+		p.ModTime = modTime
+		r.photos[id] = p
+	}
+	return nil
 }
 
 func (r *FakeRepository) CountByLibrary(_ context.Context, libraryID string) (int, error) {

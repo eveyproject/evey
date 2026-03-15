@@ -8,6 +8,8 @@ type Photo struct {
 	Title       string
 	FilePath    string
 	FileSize    int64
+	FileHash    string
+	ModTime     time.Time
 	MimeType    string
 	Width       int
 	Height      int

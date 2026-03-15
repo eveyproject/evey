@@ -1,0 +1,7 @@
+ALTER TABLE photos DROP COLUMN IF EXISTS file_hash;
+ALTER TABLE photos DROP COLUMN IF EXISTS mod_time;
+
+ALTER TABLE music_tracks DROP COLUMN IF EXISTS file_hash;
+ALTER TABLE music_tracks DROP COLUMN IF EXISTS mod_time;
+
+ALTER TABLE media_items DROP COLUMN IF EXISTS mod_time;

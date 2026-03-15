@@ -73,6 +73,7 @@ type MediaItem struct {
 	FilePath        string
 	FileSize        int64
 	FileFingerprint string
+	ModTime         time.Time
 	DurationMs      int64
 	Bitrate         int64
 	ContainerFormat string

@@ -121,6 +121,18 @@ func (r *FakeMediaItemCommandRepo) ListFilePaths(_ context.Context, libraryID st
 	return result, nil
 }
 
+func (r *FakeMediaItemCommandRepo) ListByLibraryID(_ context.Context, libraryID string) ([]*library.MediaItem, error) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	var result []*library.MediaItem
+	for _, item := range r.items {
+		if item.LibraryID == libraryID && item.FilePath != "" {
+			result = append(result, item)
+		}
+	}
+	return result, nil
+}
+
 // All returns all items for test assertions.
 func (r *FakeMediaItemCommandRepo) All() []*library.MediaItem {
 	r.mu.RLock()
