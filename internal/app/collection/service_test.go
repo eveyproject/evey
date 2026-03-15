@@ -2,6 +2,7 @@ package collection_test
 
 import (
 	"context"
+	"fmt"
 	"testing"
 
 	appcol "github.com/gravity-zero/evey/internal/app/collection"
@@ -220,6 +221,209 @@ func TestListCollections_Empty(t *testing.T) {
 	cols, err := svc.List(context.Background())
 	require.NoError(t, err)
 	assert.Empty(t, cols)
+}
+
+func TestGetItems_NegativeLimit_DefaultsTo50(t *testing.T) {
+	t.Parallel()
+	svc, colRepo, mediaRepo := newSvc()
+	ctx := context.Background()
+
+	// create 3 items and link them
+	for i := 0; i < 3; i++ {
+		id := fmt.Sprintf("m%d", i)
+		mediaRepo.Create(ctx, &library.MediaItem{ID: id, Title: id})
+	}
+	col, err := svc.Upsert(ctx, 80, "Saga", "", "", "")
+	require.NoError(t, err)
+	for i := 0; i < 3; i++ {
+		colRepo.LinkItem(ctx, col.ID, fmt.Sprintf("m%d", i), i)
+	}
+
+	// limit=-1 should be clamped to default 50, returning all 3 items
+	items, total, err := svc.GetItems(ctx, col.ID, -1, 0)
+	require.NoError(t, err)
+	assert.Equal(t, 3, total)
+	assert.Len(t, items, 3)
+}
+
+func TestGetItems_Limit500_NotCapped(t *testing.T) {
+	t.Parallel()
+	svc, colRepo, mediaRepo := newSvc()
+	ctx := context.Background()
+
+	mediaRepo.Create(ctx, &library.MediaItem{ID: "m1", Title: "A"})
+	col, err := svc.Upsert(ctx, 81, "Saga", "", "", "")
+	require.NoError(t, err)
+	colRepo.LinkItem(ctx, col.ID, "m1", 0)
+
+	// limit=500 is exactly the boundary — should NOT be capped further
+	items, total, err := svc.GetItems(ctx, col.ID, 500, 0)
+	require.NoError(t, err)
+	assert.Equal(t, 1, total)
+	assert.Len(t, items, 1)
+}
+
+func TestGetItems_Limit501_CappedTo500(t *testing.T) {
+	t.Parallel()
+	svc, colRepo, mediaRepo := newSvc()
+	ctx := context.Background()
+
+	mediaRepo.Create(ctx, &library.MediaItem{ID: "m1", Title: "A"})
+	col, err := svc.Upsert(ctx, 82, "Saga", "", "", "")
+	require.NoError(t, err)
+	colRepo.LinkItem(ctx, col.ID, "m1", 0)
+
+	// limit=501 should be capped to 500
+	items, total, err := svc.GetItems(ctx, col.ID, 501, 0)
+	require.NoError(t, err)
+	assert.Equal(t, 1, total)
+	assert.Len(t, items, 1)
+}
+
+func TestGetItems_SmartCollection_DefaultSortBy(t *testing.T) {
+	t.Parallel()
+	mediaRepo := libfakes.NewFakeMediaItemRepository()
+	colRepo := libfakes.NewFakeCollectionRepository(mediaRepo)
+	smartQ := libfakes.NewFakeCollectionSmartQuerier()
+	ctx := context.Background()
+
+	smartQ.Items = []*library.MediaItem{{ID: "m1", Title: "A", Genres: []string{"Action"}}}
+	svc := appcol.NewService(colRepo.CommandRepo(), colRepo.QueryRepo(), smartQ, mediaRepo)
+
+	col, err := svc.Upsert(ctx, 90, "Smart", "", "", "")
+	require.NoError(t, err)
+	col.Rules = []library.CollectionRule{{Field: "genre", Operator: "eq", Value: "Action"}}
+	col.SortBy = "" // empty → default "added_at"
+	colRepo.CommandRepo().Upsert(ctx, col)
+
+	_, _, err = svc.GetItems(ctx, col.ID, 50, 0)
+	require.NoError(t, err)
+	assert.Equal(t, "added_at", smartQ.LastSortBy)
+}
+
+func TestGetItems_SmartCollection_CustomSortBy(t *testing.T) {
+	t.Parallel()
+	mediaRepo := libfakes.NewFakeMediaItemRepository()
+	colRepo := libfakes.NewFakeCollectionRepository(mediaRepo)
+	smartQ := libfakes.NewFakeCollectionSmartQuerier()
+	ctx := context.Background()
+
+	smartQ.Items = []*library.MediaItem{{ID: "m1", Title: "A", Genres: []string{"Action"}}}
+	svc := appcol.NewService(colRepo.CommandRepo(), colRepo.QueryRepo(), smartQ, mediaRepo)
+
+	col, err := svc.Upsert(ctx, 91, "Smart", "", "", "")
+	require.NoError(t, err)
+	col.Rules = []library.CollectionRule{{Field: "genre", Operator: "eq", Value: "Action"}}
+	col.SortBy = "release_date"
+	colRepo.CommandRepo().Upsert(ctx, col)
+
+	_, _, err = svc.GetItems(ctx, col.ID, 50, 0)
+	require.NoError(t, err)
+	assert.Equal(t, "release_date", smartQ.LastSortBy)
+}
+
+func TestGetItems_SmartCollection_OffsetEqualsTotal_ReturnsEmpty(t *testing.T) {
+	t.Parallel()
+	mediaRepo := libfakes.NewFakeMediaItemRepository()
+	colRepo := libfakes.NewFakeCollectionRepository(mediaRepo)
+	smartQ := libfakes.NewFakeCollectionSmartQuerier()
+	ctx := context.Background()
+
+	smartQ.Items = []*library.MediaItem{
+		{ID: "m1", Title: "A", Genres: []string{"Action"}},
+		{ID: "m2", Title: "B", Genres: []string{"Action"}},
+	}
+	svc := appcol.NewService(colRepo.CommandRepo(), colRepo.QueryRepo(), smartQ, mediaRepo)
+
+	col, err := svc.Upsert(ctx, 92, "Smart", "", "", "")
+	require.NoError(t, err)
+	col.Rules = []library.CollectionRule{{Field: "genre", Operator: "eq", Value: "Action"}}
+	colRepo.CommandRepo().Upsert(ctx, col)
+
+	// offset == total(2) → empty result, total still reported
+	items, total, err := svc.GetItems(ctx, col.ID, 50, 2)
+	require.NoError(t, err)
+	assert.Equal(t, 2, total)
+	assert.Empty(t, items)
+}
+
+func TestGetItems_SmartCollection_OffsetLessThanTotal(t *testing.T) {
+	t.Parallel()
+	mediaRepo := libfakes.NewFakeMediaItemRepository()
+	colRepo := libfakes.NewFakeCollectionRepository(mediaRepo)
+	smartQ := libfakes.NewFakeCollectionSmartQuerier()
+	ctx := context.Background()
+
+	smartQ.Items = []*library.MediaItem{
+		{ID: "m1", Title: "A", Genres: []string{"Action"}},
+		{ID: "m2", Title: "B", Genres: []string{"Action"}},
+		{ID: "m3", Title: "C", Genres: []string{"Action"}},
+	}
+	svc := appcol.NewService(colRepo.CommandRepo(), colRepo.QueryRepo(), smartQ, mediaRepo)
+
+	col, err := svc.Upsert(ctx, 93, "Smart", "", "", "")
+	require.NoError(t, err)
+	col.Rules = []library.CollectionRule{{Field: "genre", Operator: "eq", Value: "Action"}}
+	colRepo.CommandRepo().Upsert(ctx, col)
+
+	// offset=1 < total(3) → returns 2 items
+	items, total, err := svc.GetItems(ctx, col.ID, 50, 1)
+	require.NoError(t, err)
+	assert.Equal(t, 3, total)
+	assert.Len(t, items, 2)
+}
+
+func TestGetItems_SmartCollection_LimitTruncatesResults(t *testing.T) {
+	t.Parallel()
+	mediaRepo := libfakes.NewFakeMediaItemRepository()
+	colRepo := libfakes.NewFakeCollectionRepository(mediaRepo)
+	smartQ := libfakes.NewFakeCollectionSmartQuerier()
+	ctx := context.Background()
+
+	smartQ.Items = []*library.MediaItem{
+		{ID: "m1", Title: "A", Genres: []string{"Action"}},
+		{ID: "m2", Title: "B", Genres: []string{"Action"}},
+		{ID: "m3", Title: "C", Genres: []string{"Action"}},
+	}
+	svc := appcol.NewService(colRepo.CommandRepo(), colRepo.QueryRepo(), smartQ, mediaRepo)
+
+	col, err := svc.Upsert(ctx, 94, "Smart", "", "", "")
+	require.NoError(t, err)
+	col.Rules = []library.CollectionRule{{Field: "genre", Operator: "eq", Value: "Action"}}
+	colRepo.CommandRepo().Upsert(ctx, col)
+
+	// limit=2 < len(3) → truncated to 2
+	items, total, err := svc.GetItems(ctx, col.ID, 2, 0)
+	require.NoError(t, err)
+	assert.Equal(t, 3, total)
+	assert.Len(t, items, 2)
+	assert.Equal(t, "m1", items[0].ID)
+	assert.Equal(t, "m2", items[1].ID)
+}
+
+func TestGetItems_SmartCollection_LimitEqualLen_NoTruncation(t *testing.T) {
+	t.Parallel()
+	mediaRepo := libfakes.NewFakeMediaItemRepository()
+	colRepo := libfakes.NewFakeCollectionRepository(mediaRepo)
+	smartQ := libfakes.NewFakeCollectionSmartQuerier()
+	ctx := context.Background()
+
+	smartQ.Items = []*library.MediaItem{
+		{ID: "m1", Title: "A", Genres: []string{"Action"}},
+		{ID: "m2", Title: "B", Genres: []string{"Action"}},
+	}
+	svc := appcol.NewService(colRepo.CommandRepo(), colRepo.QueryRepo(), smartQ, mediaRepo)
+
+	col, err := svc.Upsert(ctx, 95, "Smart", "", "", "")
+	require.NoError(t, err)
+	col.Rules = []library.CollectionRule{{Field: "genre", Operator: "eq", Value: "Action"}}
+	colRepo.CommandRepo().Upsert(ctx, col)
+
+	// limit=2 == len(2) → no truncation, all returned
+	items, total, err := svc.GetItems(ctx, col.ID, 2, 0)
+	require.NoError(t, err)
+	assert.Equal(t, 2, total)
+	assert.Len(t, items, 2)
 }
 
 func TestGetItems_SmartCollection_RulesEvaluated(t *testing.T) {

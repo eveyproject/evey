@@ -8,15 +8,17 @@ import (
 )
 
 type FakeCollectionSmartQuerier struct {
-	Items []*library.MediaItem
-	Err   error
+	Items      []*library.MediaItem
+	Err        error
+	LastSortBy string
 }
 
 func NewFakeCollectionSmartQuerier() *FakeCollectionSmartQuerier {
 	return &FakeCollectionSmartQuerier{}
 }
 
-func (q *FakeCollectionSmartQuerier) QueryByRules(_ context.Context, rules []library.CollectionRule, _, _ string, limit int) ([]*library.MediaItem, error) {
+func (q *FakeCollectionSmartQuerier) QueryByRules(_ context.Context, rules []library.CollectionRule, sortBy, _ string, limit int) ([]*library.MediaItem, error) {
+	q.LastSortBy = sortBy
 	if q.Err != nil {
 		return nil, q.Err
 	}
