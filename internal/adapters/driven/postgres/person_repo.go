@@ -8,6 +8,7 @@ import (
 	"log/slog"
 
 	"github.com/gravity-zero/evey/internal/domain/library"
+	"github.com/gravity-zero/evey/internal/domain/shared"
 )
 
 type PersonRepository struct {
@@ -73,7 +74,7 @@ func (r *PersonRepository) scanPerson(row *sql.Row) (*library.Person, error) {
 	var providerJSON []byte
 	err := row.Scan(&person.ID, &person.Name, &providerJSON, &person.ThumbPath)
 	if errors.Is(err, sql.ErrNoRows) {
-		return nil, library.ErrNotFound
+		return nil, shared.ErrNotFound
 	}
 	if err != nil {
 		return nil, err

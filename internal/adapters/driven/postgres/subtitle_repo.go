@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"log/slog"
 
+	"github.com/gravity-zero/evey/internal/domain/shared"
 	"github.com/gravity-zero/evey/internal/domain/subtitle"
 )
 
@@ -63,7 +64,7 @@ func (r *SubtitleRepository) Delete(ctx context.Context, id string) error {
 		slog.Warn("rows affected", slog.Any("err", err))
 	}
 	if n == 0 {
-		return subtitle.ErrNotFound
+		return shared.ErrNotFound
 	}
 	return nil
 }

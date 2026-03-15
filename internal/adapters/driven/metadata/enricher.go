@@ -13,6 +13,7 @@ import (
 	"github.com/google/uuid"
 	domaindomain "github.com/gravity-zero/evey/internal/domain/library"
 	domainmetadata "github.com/gravity-zero/evey/internal/domain/metadata"
+	"github.com/gravity-zero/evey/internal/domain/shared"
 )
 
 // CollectionLinker upserts provider-sourced collections and links media items.
@@ -191,7 +192,7 @@ func (e *Enricher) findOrCreatePerson(ctx context.Context, p domainmetadata.Pers
 	if err == nil {
 		return person, nil
 	}
-	if !errors.Is(err, domaindomain.ErrNotFound) {
+	if !errors.Is(err, shared.ErrNotFound) {
 		return nil, fmt.Errorf("get person by name: %w", err)
 	}
 	thumbPath := p.ThumbURL

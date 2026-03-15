@@ -8,6 +8,7 @@ import (
 	applib "github.com/gravity-zero/evey/internal/app/library"
 	"github.com/gravity-zero/evey/internal/domain/library"
 	libfakes "github.com/gravity-zero/evey/internal/domain/library/fakes"
+	"github.com/gravity-zero/evey/internal/domain/shared"
 	"github.com/gravity-zero/evey/internal/domain/mkv"
 	mkvfakes "github.com/gravity-zero/evey/internal/domain/mkv/fakes"
 	sharedfakes "github.com/gravity-zero/evey/internal/domain/shared/fakes"
@@ -538,7 +539,7 @@ func TestScanLibrary_OrphanCleanup_TVShow_RemovesDeletedEpisode(t *testing.T) {
 	require.NoError(t, err)
 
 	_, err = mediaRepo.GetByID(context.Background(), "ep-gone")
-	require.ErrorIs(t, err, library.ErrNotFound, "deleted episode must be removed from DB")
+	require.ErrorIs(t, err, shared.ErrNotFound, "deleted episode must be removed from DB")
 
 	_, err = mediaRepo.GetByID(context.Background(), "ep-keep")
 	require.NoError(t, err, "surviving episode must remain in DB")

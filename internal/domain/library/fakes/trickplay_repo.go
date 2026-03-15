@@ -41,7 +41,7 @@ func (r *FakeTrickplayRepository) GetByMediaItemID(_ context.Context, mediaItemI
 	}
 	m, ok := r.items[mediaItemID]
 	if !ok {
-		return nil, library.ErrNotFound
+		return nil, ErrNotFound
 	}
 	return m, nil
 }

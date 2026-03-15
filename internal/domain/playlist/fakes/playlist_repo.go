@@ -5,6 +5,7 @@ import (
 	"sync"
 
 	"github.com/gravity-zero/evey/internal/domain/playlist"
+	"github.com/gravity-zero/evey/internal/domain/shared"
 )
 
 type FakePlaylistRepository struct {
@@ -35,7 +36,7 @@ func (r *FakePlaylistRepository) GetByID(_ context.Context, id string) (*playlis
 	defer r.mu.RUnlock()
 	pl, ok := r.items[id]
 	if !ok {
-		return nil, playlist.ErrNotFound
+		return nil, shared.ErrNotFound
 	}
 	return pl, nil
 }
@@ -62,7 +63,7 @@ func (r *FakePlaylistRepository) Update(_ context.Context, pl *playlist.Playlist
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	if _, ok := r.items[pl.ID]; !ok {
-		return playlist.ErrNotFound
+		return shared.ErrNotFound
 	}
 	r.items[pl.ID] = pl
 	return nil
@@ -75,7 +76,7 @@ func (r *FakePlaylistRepository) Delete(_ context.Context, id string) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	if _, ok := r.items[id]; !ok {
-		return playlist.ErrNotFound
+		return shared.ErrNotFound
 	}
 	delete(r.items, id)
 	return nil

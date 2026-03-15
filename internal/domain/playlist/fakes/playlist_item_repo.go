@@ -6,6 +6,7 @@ import (
 	"sync"
 
 	"github.com/gravity-zero/evey/internal/domain/playlist"
+	"github.com/gravity-zero/evey/internal/domain/shared"
 )
 
 type FakePlaylistItemRepository struct {
@@ -46,7 +47,7 @@ func (r *FakePlaylistItemRepository) Remove(_ context.Context, playlistID, media
 			return nil
 		}
 	}
-	return playlist.ErrNotFound
+	return shared.ErrNotFound
 }
 
 func (r *FakePlaylistItemRepository) GetByPlaylistID(_ context.Context, playlistID string) ([]*playlist.PlaylistItem, error) {

@@ -8,6 +8,7 @@ import (
 	"github.com/gravity-zero/evey/internal/adapters/driven/postgres"
 	"github.com/gravity-zero/evey/internal/adapters/driven/postgres/testhelpers"
 	domainplaylist "github.com/gravity-zero/evey/internal/domain/playlist"
+	"github.com/gravity-zero/evey/internal/domain/shared"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -242,7 +243,7 @@ func TestPlaylistRepo_Delete(t *testing.T) {
 	require.NoError(t, plRepo.Delete(ctx, pl.ID))
 
 	_, err := plRepo.GetByID(ctx, pl.ID)
-	require.ErrorIs(t, err, domainplaylist.ErrNotFound)
+	require.ErrorIs(t, err, shared.ErrNotFound)
 
 	items, err := plItemRepo.GetByPlaylistID(ctx, pl.ID)
 	require.NoError(t, err)

@@ -2,13 +2,13 @@ package fakes
 
 import (
 	"context"
-	"errors"
 	"sync"
 
 	"github.com/gravity-zero/evey/internal/domain/playback"
+	"github.com/gravity-zero/evey/internal/domain/shared"
 )
 
-var ErrNotFound = errors.New("not found")
+var ErrNotFound = shared.ErrNotFound
 
 type FakeWatchProgressRepository struct {
 	mu    sync.RWMutex

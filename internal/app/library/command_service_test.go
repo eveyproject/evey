@@ -9,6 +9,7 @@ import (
 	applib "github.com/gravity-zero/evey/internal/app/library"
 	"github.com/gravity-zero/evey/internal/domain/library"
 	libfakes "github.com/gravity-zero/evey/internal/domain/library/fakes"
+	"github.com/gravity-zero/evey/internal/domain/shared"
 	"github.com/gravity-zero/evey/internal/domain/mkv"
 	mkvfakes "github.com/gravity-zero/evey/internal/domain/mkv/fakes"
 	sharedfakes "github.com/gravity-zero/evey/internal/domain/shared/fakes"
@@ -153,7 +154,7 @@ func TestDeleteMediaItem_RemovesItem(t *testing.T) {
 	require.NoError(t, err)
 
 	_, err = mediaRepo.GetByID(context.Background(), "item-to-delete")
-	require.ErrorIs(t, err, library.ErrNotFound)
+	require.ErrorIs(t, err, shared.ErrNotFound)
 }
 
 func TestDeleteMediaItem_NotFound(t *testing.T) {

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/gravity-zero/evey/internal/domain/shared"
 	"github.com/gravity-zero/evey/internal/domain/subtitle"
 	"github.com/gravity-zero/evey/internal/domain/subtitle/fakes"
 	"github.com/stretchr/testify/assert"
@@ -136,7 +137,7 @@ func TestDelete(t *testing.T) {
 func TestDelete_NotFound(t *testing.T) {
 	svc, _, _, _ := newTestService()
 	err := svc.Delete(context.Background(), "nonexistent")
-	assert.ErrorIs(t, err, subtitle.ErrNotFound)
+	assert.ErrorIs(t, err, shared.ErrNotFound)
 }
 
 func TestComputeOpenSubtitlesHash_EmptyPath(t *testing.T) {

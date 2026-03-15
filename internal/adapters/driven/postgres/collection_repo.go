@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/gravity-zero/evey/internal/domain/library"
+	"github.com/gravity-zero/evey/internal/domain/shared"
 )
 
 type CollectionRepository struct {
@@ -73,7 +74,7 @@ func (r *CollectionRepository) GetByID(ctx context.Context, id string) (*library
 	).Scan(&col.ID, &col.Name, &col.Overview, &col.TmdbID, &col.PosterURL, &col.BackdropURL,
 		&rulesJSON, &col.SortBy, &col.CreatedAt, &col.UpdatedAt)
 	if errors.Is(err, sql.ErrNoRows) {
-		return nil, library.ErrNotFound
+		return nil, shared.ErrNotFound
 	}
 	if err != nil {
 		return nil, err
@@ -93,7 +94,7 @@ func (r *CollectionRepository) GetByTmdbID(ctx context.Context, tmdbID int) (*li
 	).Scan(&col.ID, &col.Name, &col.Overview, &col.TmdbID, &col.PosterURL, &col.BackdropURL,
 		&rulesJSON, &col.SortBy, &col.CreatedAt, &col.UpdatedAt)
 	if errors.Is(err, sql.ErrNoRows) {
-		return nil, library.ErrNotFound
+		return nil, shared.ErrNotFound
 	}
 	if err != nil {
 		return nil, err
@@ -139,7 +140,7 @@ func (r *CollectionRepository) Delete(ctx context.Context, id string) error {
 		slog.Warn("rows affected", slog.Any("err", err))
 	}
 	if n == 0 {
-		return library.ErrNotFound
+		return shared.ErrNotFound
 	}
 	return nil
 }

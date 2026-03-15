@@ -184,16 +184,16 @@ func (s *ScanService) upsertMediaFile(ctx context.Context, libraryID, parentID s
 	var getErr error
 	if f.Fingerprint != "" {
 		existing, getErr = s.mediaItems.GetByFileFingerprint(ctx, f.Fingerprint)
-		if errors.Is(getErr, library.ErrNotFound) {
+		if errors.Is(getErr, shared.ErrNotFound) {
 			existing, getErr = s.mediaItems.GetByFilePath(ctx, f.Path)
 		}
 	} else {
 		existing, getErr = s.mediaItems.GetByFilePath(ctx, f.Path)
 	}
-	if getErr != nil && !errors.Is(getErr, library.ErrNotFound) {
+	if getErr != nil && !errors.Is(getErr, shared.ErrNotFound) {
 		return 0, 0, fmt.Errorf("check media item %s: %w", f.Path, getErr)
 	}
-	if errors.Is(getErr, library.ErrNotFound) {
+	if errors.Is(getErr, shared.ErrNotFound) {
 		item := &library.MediaItem{
 			ID:              uuid.New().String(),
 			LibraryID:       libraryID,
@@ -325,7 +325,7 @@ func (s *ScanService) getOrCreateItem(ctx context.Context, item *library.MediaIt
 	if err == nil {
 		return existing, false, nil
 	}
-	if !errors.Is(err, library.ErrNotFound) {
+	if !errors.Is(err, shared.ErrNotFound) {
 		return nil, false, err
 	}
 	existing, err = s.mediaItems.GetByLibraryTypeTitle(ctx, item.LibraryID, item.Type, item.Title, item.ParentID)
@@ -336,7 +336,7 @@ func (s *ScanService) getOrCreateItem(ctx context.Context, item *library.MediaIt
 		}
 		return existing, false, nil
 	}
-	if !errors.Is(err, library.ErrNotFound) {
+	if !errors.Is(err, shared.ErrNotFound) {
 		return nil, false, fmt.Errorf("lookup by title %q: %w", item.Title, err)
 	}
 	if err = s.mediaItems.Create(ctx, item); err != nil {

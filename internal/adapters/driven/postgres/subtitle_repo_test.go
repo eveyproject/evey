@@ -7,6 +7,7 @@ import (
 
 	"github.com/gravity-zero/evey/internal/adapters/driven/postgres"
 	"github.com/gravity-zero/evey/internal/adapters/driven/postgres/testhelpers"
+	"github.com/gravity-zero/evey/internal/domain/shared"
 	"github.com/gravity-zero/evey/internal/domain/subtitle"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -112,5 +113,5 @@ func TestSubtitleRepo_Delete_NotFound(t *testing.T) {
 
 	subRepo := postgres.NewSubtitleRepository(db)
 	err := subRepo.Delete(context.Background(), "nonexistent")
-	assert.ErrorIs(t, err, subtitle.ErrNotFound)
+	assert.ErrorIs(t, err, shared.ErrNotFound)
 }

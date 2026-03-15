@@ -2,11 +2,7 @@ package subtitle
 
 import (
 	"time"
-
-	"github.com/gravity-zero/evey/internal/domain/shared"
 )
-
-var ErrNotFound = shared.ErrNotFound
 
 type SubtitleDownload struct {
 	ID           string

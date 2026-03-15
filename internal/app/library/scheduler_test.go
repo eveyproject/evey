@@ -7,8 +7,8 @@ import (
 	"time"
 
 	applib "github.com/gravity-zero/evey/internal/app/library"
-	"github.com/gravity-zero/evey/internal/domain/library"
 	libfakes "github.com/gravity-zero/evey/internal/domain/library/fakes"
+	"github.com/gravity-zero/evey/internal/domain/shared"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -99,7 +99,7 @@ func TestScheduler_DeleteSchedule(t *testing.T) {
 	require.NoError(t, err)
 
 	_, err = sched.GetSchedule(context.Background(), "lib-1")
-	require.ErrorIs(t, err, library.ErrNotFound)
+	require.ErrorIs(t, err, shared.ErrNotFound)
 }
 
 func TestScheduler_GetSchedule_NotFound(t *testing.T) {
@@ -108,7 +108,7 @@ func TestScheduler_GetSchedule_NotFound(t *testing.T) {
 	sched := applib.NewScheduler(repo, scanner, slog.Default())
 
 	_, err := sched.GetSchedule(context.Background(), "nonexistent")
-	require.ErrorIs(t, err, library.ErrNotFound)
+	require.ErrorIs(t, err, shared.ErrNotFound)
 }
 
 func TestScheduler_ListSchedules_Empty(t *testing.T) {

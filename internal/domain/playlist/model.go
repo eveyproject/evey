@@ -2,11 +2,7 @@ package playlist
 
 import (
 	"time"
-
-	"github.com/gravity-zero/evey/internal/domain/shared"
 )
-
-var ErrNotFound = shared.ErrNotFound
 
 type PlaylistType string
 

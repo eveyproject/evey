@@ -8,6 +8,7 @@ import (
 	"github.com/gravity-zero/evey/internal/adapters/driven/postgres"
 	"github.com/gravity-zero/evey/internal/adapters/driven/postgres/testhelpers"
 	"github.com/gravity-zero/evey/internal/domain/library"
+	"github.com/gravity-zero/evey/internal/domain/shared"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -103,7 +104,7 @@ func TestCollectionRepo_GetByID(t *testing.T) {
 	assert.Equal(t, *col.TmdbID, *got.TmdbID)
 
 	_, err = repo.GetByID(ctx, "nonexistent")
-	assert.ErrorIs(t, err, library.ErrNotFound)
+	assert.ErrorIs(t, err, shared.ErrNotFound)
 }
 
 func TestCollectionRepo_Delete(t *testing.T) {
@@ -118,10 +119,10 @@ func TestCollectionRepo_Delete(t *testing.T) {
 	require.NoError(t, repo.Delete(ctx, col.ID))
 
 	_, err := repo.GetByID(ctx, col.ID)
-	require.ErrorIs(t, err, library.ErrNotFound)
+	require.ErrorIs(t, err, shared.ErrNotFound)
 
 	err = repo.Delete(ctx, "nonexistent")
-	assert.ErrorIs(t, err, library.ErrNotFound)
+	assert.ErrorIs(t, err, shared.ErrNotFound)
 }
 
 func TestCollectionRepo_GetItems(t *testing.T) {

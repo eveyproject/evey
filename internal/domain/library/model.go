@@ -2,11 +2,7 @@ package library
 
 import (
 	"time"
-
-	"github.com/gravity-zero/evey/internal/domain/shared"
 )
-
-var ErrNotFound = shared.ErrNotFound
 
 type LibraryType string
 

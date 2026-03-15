@@ -8,6 +8,7 @@ import (
 	"github.com/gravity-zero/evey/internal/adapters/driven/postgres"
 	"github.com/gravity-zero/evey/internal/adapters/driven/postgres/testhelpers"
 	"github.com/gravity-zero/evey/internal/domain/library"
+	"github.com/gravity-zero/evey/internal/domain/shared"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -109,7 +110,7 @@ func TestScanScheduleRepo_Delete(t *testing.T) {
 	require.NoError(t, schedRepo.Delete(ctx, lib.ID))
 
 	_, err := schedRepo.GetByLibraryID(ctx, lib.ID)
-	assert.ErrorIs(t, err, library.ErrNotFound)
+	assert.ErrorIs(t, err, shared.ErrNotFound)
 }
 
 func TestScanScheduleRepo_UpdateAfterRun(t *testing.T) {
@@ -144,5 +145,5 @@ func TestScanScheduleRepo_GetByLibraryID_NotFound(t *testing.T) {
 
 	schedRepo := postgres.NewScanScheduleRepository(db)
 	_, err := schedRepo.GetByLibraryID(context.Background(), "nonexistent")
-	assert.ErrorIs(t, err, library.ErrNotFound)
+	assert.ErrorIs(t, err, shared.ErrNotFound)
 }
