@@ -2,14 +2,19 @@ package photo_test
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
 
 	appphoto "github.com/gravity-zero/evey/internal/app/photo"
+	"github.com/gravity-zero/evey/internal/domain/photo"
 	photofakes "github.com/gravity-zero/evey/internal/domain/photo/fakes"
 	sharedfakes "github.com/gravity-zero/evey/internal/domain/shared/fakes"
 )
+
+var errFake = errors.New("fake error")
 
 // minimalJPEG is a 1x1 white JPEG (no EXIF) valid enough for image.DecodeConfig.
 var minimalJPEG = []byte{
@@ -323,6 +328,391 @@ func TestGetAlbums_Empty(t *testing.T) {
 	}
 	if len(albums) != 0 {
 		t.Fatalf("expected 0 albums, got %d", len(albums))
+	}
+}
+
+func TestGetAlbums_ReturnsAlbumsFromRepo(t *testing.T) {
+	repo := photofakes.NewFakeRepository()
+	bus := sharedfakes.NewFakeEventBus()
+	svc := appphoto.NewService(repo, bus, nil)
+	ctx := context.Background()
+
+	repo.Upsert(ctx, photo.Photo{ID: "p1", LibraryID: "lib1", Title: "a", Album: "vacation"})
+	repo.Upsert(ctx, photo.Photo{ID: "p2", LibraryID: "lib1", Title: "b", Album: "vacation"})
+	repo.Upsert(ctx, photo.Photo{ID: "p3", LibraryID: "lib1", Title: "c", Album: "work"})
+	repo.Upsert(ctx, photo.Photo{ID: "p4", LibraryID: "lib1", Title: "d", Album: ""})
+
+	albums, err := svc.GetAlbums(ctx, "lib1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(albums) != 2 {
+		t.Fatalf("expected 2 albums, got %d", len(albums))
+	}
+	m := map[string]photo.Album{}
+	for _, a := range albums {
+		m[a.Name] = a
+	}
+	if v, ok := m["vacation"]; !ok {
+		t.Error("missing vacation album")
+	} else if v.PhotoCount != 2 {
+		t.Errorf("vacation PhotoCount = %d, want 2", v.PhotoCount)
+	}
+	if v, ok := m["work"]; !ok {
+		t.Error("missing work album")
+	} else if v.PhotoCount != 1 {
+		t.Errorf("work PhotoCount = %d, want 1", v.PhotoCount)
+	}
+}
+
+func TestGetAlbums_DifferentLibrary(t *testing.T) {
+	repo := photofakes.NewFakeRepository()
+	svc := appphoto.NewService(repo, sharedfakes.NewFakeEventBus(), nil)
+	ctx := context.Background()
+
+	repo.Upsert(ctx, photo.Photo{ID: "p1", LibraryID: "lib1", Album: "a1"})
+	repo.Upsert(ctx, photo.Photo{ID: "p2", LibraryID: "lib2", Album: "a2"})
+
+	albums, err := svc.GetAlbums(ctx, "lib1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(albums) != 1 {
+		t.Fatalf("expected 1 album, got %d", len(albums))
+	}
+	if albums[0].Name != "a1" {
+		t.Errorf("album Name = %q, want a1", albums[0].Name)
+	}
+}
+
+func TestGetAlbums_RepoError(t *testing.T) {
+	repo := photofakes.NewFakeRepository()
+	repo.Err = errFake
+	svc := appphoto.NewService(repo, sharedfakes.NewFakeEventBus(), nil)
+
+	_, err := svc.GetAlbums(context.Background(), "lib1")
+	if err == nil {
+		t.Fatal("expected error")
+	}
+}
+
+func TestGetPhoto_Found(t *testing.T) {
+	repo := photofakes.NewFakeRepository()
+	svc := appphoto.NewService(repo, sharedfakes.NewFakeEventBus(), nil)
+	ctx := context.Background()
+
+	repo.Upsert(ctx, photo.Photo{ID: "p1", LibraryID: "lib1", Title: "sunset", Album: "vacation"})
+
+	got, err := svc.GetPhoto(ctx, "p1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got == nil {
+		t.Fatal("expected photo, got nil")
+	}
+	if got.ID != "p1" {
+		t.Errorf("ID = %q, want p1", got.ID)
+	}
+	if got.Title != "sunset" {
+		t.Errorf("Title = %q, want sunset", got.Title)
+	}
+	if got.LibraryID != "lib1" {
+		t.Errorf("LibraryID = %q, want lib1", got.LibraryID)
+	}
+	if got.Album != "vacation" {
+		t.Errorf("Album = %q, want vacation", got.Album)
+	}
+}
+
+func TestGetPhoto_RepoError(t *testing.T) {
+	repo := photofakes.NewFakeRepository()
+	repo.Err = errFake
+	svc := appphoto.NewService(repo, sharedfakes.NewFakeEventBus(), nil)
+
+	got, err := svc.GetPhoto(context.Background(), "p1")
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	if got != nil {
+		t.Error("expected nil photo on error")
+	}
+}
+
+func TestListPhotos_LimitBoundaries(t *testing.T) {
+	repo := photofakes.NewFakeRepository()
+	svc := appphoto.NewService(repo, sharedfakes.NewFakeEventBus(), nil)
+	ctx := context.Background()
+
+	// Seed 60 photos
+	for i := range 60 {
+		repo.Upsert(ctx, photo.Photo{
+			ID:        fmt.Sprintf("p%d", i),
+			LibraryID: "lib1",
+			Title:     fmt.Sprintf("photo%d", i),
+		})
+	}
+
+	tests := []struct {
+		name      string
+		limit     int
+		wantLimit int
+	}{
+		{"zero clamps to 50", 0, 50},
+		{"negative clamps to 50", -1, 50},
+		{"501 clamps to 50", 501, 50},
+		{"500 accepted", 500, 60},
+		{"1 accepted", 1, 1},
+		{"50 accepted", 50, 50},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			photos, total, err := svc.ListPhotos(ctx, "lib1", tc.limit, 0)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if total != 60 {
+				t.Errorf("total = %d, want 60", total)
+			}
+			if len(photos) != tc.wantLimit {
+				t.Errorf("len(photos) = %d, want %d", len(photos), tc.wantLimit)
+			}
+		})
+	}
+}
+
+func TestListPhotos_RepoError(t *testing.T) {
+	repo := photofakes.NewFakeRepository()
+	repo.Err = errFake
+	svc := appphoto.NewService(repo, sharedfakes.NewFakeEventBus(), nil)
+
+	_, _, err := svc.ListPhotos(context.Background(), "lib1", 10, 0)
+	if err == nil {
+		t.Fatal("expected error")
+	}
+}
+
+func TestListPhotos_OffsetBeyondTotal(t *testing.T) {
+	repo := photofakes.NewFakeRepository()
+	svc := appphoto.NewService(repo, sharedfakes.NewFakeEventBus(), nil)
+	ctx := context.Background()
+
+	repo.Upsert(ctx, photo.Photo{ID: "p1", LibraryID: "lib1"})
+
+	photos, total, err := svc.ListPhotos(ctx, "lib1", 10, 100)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if total != 1 {
+		t.Errorf("total = %d, want 1", total)
+	}
+	if len(photos) != 0 {
+		t.Errorf("expected 0 photos at offset beyond total, got %d", len(photos))
+	}
+}
+
+func TestListPhotos_MatchesLibrary(t *testing.T) {
+	repo := photofakes.NewFakeRepository()
+	svc := appphoto.NewService(repo, sharedfakes.NewFakeEventBus(), nil)
+	ctx := context.Background()
+
+	repo.Upsert(ctx, photo.Photo{ID: "p1", LibraryID: "lib1", Title: "a"})
+	repo.Upsert(ctx, photo.Photo{ID: "p2", LibraryID: "lib2", Title: "b"})
+
+	photos, total, err := svc.ListPhotos(ctx, "lib1", 50, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if total != 1 {
+		t.Errorf("total = %d, want 1", total)
+	}
+	if len(photos) != 1 {
+		t.Fatalf("len = %d, want 1", len(photos))
+	}
+	if photos[0].ID != "p1" {
+		t.Errorf("photo ID = %q, want p1", photos[0].ID)
+	}
+}
+
+func TestDeletePhoto_GetByIDError(t *testing.T) {
+	repo := photofakes.NewFakeRepository()
+	repo.Err = errFake
+	bus := sharedfakes.NewFakeEventBus()
+	svc := appphoto.NewService(repo, bus, nil)
+
+	err := svc.DeletePhoto(context.Background(), "p1")
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	if len(bus.PublishedEvents()) != 0 {
+		t.Error("no events should be published on GetByID error")
+	}
+}
+
+func TestDeletePhoto_DeleteRepoError(t *testing.T) {
+	repo := photofakes.NewFakeRepository()
+	bus := sharedfakes.NewFakeEventBus()
+	svc := appphoto.NewService(repo, bus, nil)
+	ctx := context.Background()
+
+	repo.Upsert(ctx, photo.Photo{ID: "p1", LibraryID: "lib1"})
+	repo.Err = errFake
+
+	err := svc.DeletePhoto(ctx, "p1")
+	if err == nil {
+		t.Fatal("expected error from Delete")
+	}
+	if len(bus.PublishedEvents()) != 0 {
+		t.Error("no events on Delete error")
+	}
+}
+
+func TestDeletePhoto_PublishErrorStillReturnsNil(t *testing.T) {
+	repo := photofakes.NewFakeRepository()
+	bus := sharedfakes.NewFakeEventBus()
+	bus.PublishErr = errFake
+	svc := appphoto.NewService(repo, bus, nil)
+	ctx := context.Background()
+
+	repo.Upsert(ctx, photo.Photo{ID: "p1", LibraryID: "lib1"})
+
+	err := svc.DeletePhoto(ctx, "p1")
+	if err != nil {
+		t.Fatalf("publish failure should not cause DeletePhoto error, got %v", err)
+	}
+}
+
+func TestDeletePhoto_NilPhoto_EmptyLibraryID(t *testing.T) {
+	repo := photofakes.NewFakeRepository()
+	bus := sharedfakes.NewFakeEventBus()
+	svc := appphoto.NewService(repo, bus, nil)
+
+	err := svc.DeletePhoto(context.Background(), "nonexistent")
+	if err != nil {
+		t.Fatal(err)
+	}
+	events := bus.PublishedEvents()
+	if len(events) != 1 {
+		t.Fatalf("expected 1 event, got %d", len(events))
+	}
+	evt, ok := events[0].(photo.PhotoDeleted)
+	if !ok {
+		t.Fatalf("expected PhotoDeleted, got %T", events[0])
+	}
+	if evt.LibraryID != "" {
+		t.Errorf("LibraryID = %q, want empty for nil photo", evt.LibraryID)
+	}
+	if evt.PhotoID != "nonexistent" {
+		t.Errorf("PhotoID = %q, want nonexistent", evt.PhotoID)
+	}
+}
+
+func TestDeletePhoto_EventContainsCorrectLibraryID(t *testing.T) {
+	repo := photofakes.NewFakeRepository()
+	bus := sharedfakes.NewFakeEventBus()
+	svc := appphoto.NewService(repo, bus, nil)
+	ctx := context.Background()
+
+	repo.Upsert(ctx, photo.Photo{ID: "p1", LibraryID: "my-lib"})
+
+	if err := svc.DeletePhoto(ctx, "p1"); err != nil {
+		t.Fatal(err)
+	}
+	events := bus.PublishedEvents()
+	if len(events) != 1 {
+		t.Fatalf("expected 1 event, got %d", len(events))
+	}
+	evt := events[0].(photo.PhotoDeleted)
+	if evt.LibraryID != "my-lib" {
+		t.Errorf("event LibraryID = %q, want my-lib", evt.LibraryID)
+	}
+	if evt.PhotoID != "p1" {
+		t.Errorf("event PhotoID = %q, want p1", evt.PhotoID)
+	}
+}
+
+func TestSearch_LimitBoundaries(t *testing.T) {
+	repo := photofakes.NewFakeRepository()
+	svc := appphoto.NewService(repo, sharedfakes.NewFakeEventBus(), nil)
+	ctx := context.Background()
+
+	for i := range 60 {
+		repo.Upsert(ctx, photo.Photo{
+			ID:        fmt.Sprintf("p%d", i),
+			LibraryID: "lib1",
+			Title:     "match",
+		})
+	}
+
+	tests := []struct {
+		name      string
+		limit     int
+		wantMax   int
+	}{
+		{"zero clamps to 50", 0, 50},
+		{"negative clamps to 50", -1, 50},
+		{"201 clamps to 50", 201, 50},
+		{"200 accepted", 200, 60},
+		{"1 accepted", 1, 1},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			results, err := svc.Search(ctx, "lib1", "match", tc.limit)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if len(results) > tc.wantMax {
+				t.Errorf("len(results) = %d, want <= %d", len(results), tc.wantMax)
+			}
+		})
+	}
+}
+
+func TestSearch_MatchesOnlyCorrectLibrary(t *testing.T) {
+	repo := photofakes.NewFakeRepository()
+	svc := appphoto.NewService(repo, sharedfakes.NewFakeEventBus(), nil)
+	ctx := context.Background()
+
+	repo.Upsert(ctx, photo.Photo{ID: "p1", LibraryID: "lib1", Title: "sunset"})
+	repo.Upsert(ctx, photo.Photo{ID: "p2", LibraryID: "lib2", Title: "sunset"})
+
+	results, err := svc.Search(ctx, "lib1", "sunset", 50)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(results) != 1 {
+		t.Fatalf("expected 1 result, got %d", len(results))
+	}
+	if results[0].ID != "p1" {
+		t.Errorf("result ID = %q, want p1", results[0].ID)
+	}
+}
+
+func TestSearch_RepoError(t *testing.T) {
+	repo := photofakes.NewFakeRepository()
+	repo.Err = errFake
+	svc := appphoto.NewService(repo, sharedfakes.NewFakeEventBus(), nil)
+
+	_, err := svc.Search(context.Background(), "lib1", "q", 10)
+	if err == nil {
+		t.Fatal("expected error")
+	}
+}
+
+func TestSearch_MatchesTitleAndAlbum(t *testing.T) {
+	repo := photofakes.NewFakeRepository()
+	svc := appphoto.NewService(repo, sharedfakes.NewFakeEventBus(), nil)
+	ctx := context.Background()
+
+	repo.Upsert(ctx, photo.Photo{ID: "p1", LibraryID: "lib1", Title: "beach", Album: "vacation"})
+	repo.Upsert(ctx, photo.Photo{ID: "p2", LibraryID: "lib1", Title: "vacation photo", Album: "misc"})
+	repo.Upsert(ctx, photo.Photo{ID: "p3", LibraryID: "lib1", Title: "mountain", Album: "trips"})
+
+	results, err := svc.Search(ctx, "lib1", "vacation", 50)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(results) != 2 {
+		t.Errorf("expected 2 matches (title + album), got %d", len(results))
 	}
 }
 
