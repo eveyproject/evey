@@ -8,6 +8,7 @@ import (
 
 	"github.com/gravity-zero/evey/internal/domain/library"
 	"github.com/gravity-zero/evey/internal/domain/playlist"
+	"github.com/gravity-zero/evey/internal/domain/shared"
 	"github.com/gravity-zero/evey/internal/pkg/id"
 )
 
@@ -116,7 +117,7 @@ func (s *Service) AddItem(ctx context.Context, playlistID, mediaItemID, userID s
 	}
 	if s.mediaChecker != nil {
 		_, checkErr := s.mediaChecker.GetByID(ctx, mediaItemID)
-		if errors.Is(checkErr, library.ErrNotFound) {
+		if errors.Is(checkErr, shared.ErrNotFound) {
 			return ErrMediaItemNotFound
 		}
 		if checkErr != nil {

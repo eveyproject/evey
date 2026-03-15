@@ -7,6 +7,7 @@ import (
 	"github.com/gravity-zero/evey/internal/adapters/driven/postgres"
 	"github.com/gravity-zero/evey/internal/adapters/driven/postgres/testhelpers"
 	"github.com/gravity-zero/evey/internal/domain/library"
+	"github.com/gravity-zero/evey/internal/domain/shared"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -75,7 +76,7 @@ func TestPersonRepo_GetByID_NotFound(t *testing.T) {
 
 	repo := postgres.NewPersonRepository(db)
 	_, err := repo.GetByID(context.Background(), "nonexistent")
-	assert.ErrorIs(t, err, library.ErrNotFound)
+	assert.ErrorIs(t, err, shared.ErrNotFound)
 }
 
 func TestPersonRepo_GetByName(t *testing.T) {
@@ -100,7 +101,7 @@ func TestPersonRepo_GetByName_NotFound(t *testing.T) {
 
 	repo := postgres.NewPersonRepository(db)
 	_, err := repo.GetByName(context.Background(), "Nobody Here")
-	assert.ErrorIs(t, err, library.ErrNotFound)
+	assert.ErrorIs(t, err, shared.ErrNotFound)
 }
 
 func TestPersonRepo_List(t *testing.T) {

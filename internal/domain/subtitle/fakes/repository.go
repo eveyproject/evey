@@ -4,6 +4,7 @@ import (
 	"context"
 	"sync"
 
+	"github.com/gravity-zero/evey/internal/domain/shared"
 	"github.com/gravity-zero/evey/internal/domain/subtitle"
 )
 
@@ -58,7 +59,7 @@ func (r *FakeRepository) Delete(_ context.Context, id string) error {
 		return r.Err
 	}
 	if _, ok := r.items[id]; !ok {
-		return subtitle.ErrNotFound
+		return shared.ErrNotFound
 	}
 	delete(r.items, id)
 	return nil

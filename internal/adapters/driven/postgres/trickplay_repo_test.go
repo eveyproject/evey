@@ -8,6 +8,7 @@ import (
 	"github.com/gravity-zero/evey/internal/adapters/driven/postgres"
 	"github.com/gravity-zero/evey/internal/adapters/driven/postgres/testhelpers"
 	"github.com/gravity-zero/evey/internal/domain/library"
+	"github.com/gravity-zero/evey/internal/domain/shared"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -113,7 +114,7 @@ func TestTrickplayRepo_GetByMediaItemID_NotFound(t *testing.T) {
 	ctx := context.Background()
 
 	_, err := tpRepo.GetByMediaItemID(ctx, "nonexistent")
-	assert.Equal(t, library.ErrNotFound, err)
+	assert.Equal(t, shared.ErrNotFound, err)
 }
 
 func TestTrickplayRepo_Delete(t *testing.T) {
@@ -147,5 +148,5 @@ func TestTrickplayRepo_Delete(t *testing.T) {
 	require.NoError(t, tpRepo.Delete(ctx, item.ID))
 
 	_, err := tpRepo.GetByMediaItemID(ctx, item.ID)
-	assert.Equal(t, library.ErrNotFound, err)
+	assert.Equal(t, shared.ErrNotFound, err)
 }

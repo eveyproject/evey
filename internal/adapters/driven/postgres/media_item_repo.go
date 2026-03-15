@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/gravity-zero/evey/internal/domain/library"
+	"github.com/gravity-zero/evey/internal/domain/shared"
 )
 
 type MediaItemRepository struct {
@@ -347,7 +348,7 @@ func (r *MediaItemRepository) scanMediaItem(row *sql.Row) (*library.MediaItem, e
 		&item.AddedAt, &item.UpdatedAt,
 	)
 	if errors.Is(err, sql.ErrNoRows) {
-		return nil, library.ErrNotFound
+		return nil, shared.ErrNotFound
 	}
 	if err != nil {
 		return nil, err

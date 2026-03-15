@@ -5,9 +5,10 @@ import (
 	"sync"
 
 	"github.com/gravity-zero/evey/internal/domain/library"
+	"github.com/gravity-zero/evey/internal/domain/shared"
 )
 
-var ErrNotFound = library.ErrNotFound
+var ErrNotFound = shared.ErrNotFound
 
 type FakeLibraryRepository struct {
 	mu    sync.RWMutex

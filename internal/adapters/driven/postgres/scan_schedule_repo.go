@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/gravity-zero/evey/internal/domain/library"
+	"github.com/gravity-zero/evey/internal/domain/shared"
 )
 
 type ScanScheduleRepository struct {
@@ -38,7 +39,7 @@ func (r *ScanScheduleRepository) GetByLibraryID(ctx context.Context, libraryID s
 		 FROM scan_schedules WHERE library_id = $1`, libraryID,
 	).Scan(&s.LibraryID, &s.CronExpression, &s.Enabled, &s.LastRunAt, &s.NextRunAt, &s.CreatedAt, &s.UpdatedAt)
 	if errors.Is(err, sql.ErrNoRows) {
-		return nil, library.ErrNotFound
+		return nil, shared.ErrNotFound
 	}
 	return s, err
 }

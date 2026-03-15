@@ -6,6 +6,7 @@ import (
 	"errors"
 
 	"github.com/gravity-zero/evey/internal/domain/library"
+	"github.com/gravity-zero/evey/internal/domain/shared"
 )
 
 type TrickplayRepository struct {
@@ -41,7 +42,7 @@ func (r *TrickplayRepository) GetByMediaItemID(ctx context.Context, mediaItemID 
 		 FROM trickplay_manifests WHERE media_item_id = $1`, mediaItemID,
 	).Scan(&m.ID, &m.MediaItemID, &m.Interval, &m.Width, &m.Height, &m.TileWidth, &m.TileHeight, &m.ImageCount, &m.ImagePath, &m.CreatedAt)
 	if errors.Is(err, sql.ErrNoRows) {
-		return nil, library.ErrNotFound
+		return nil, shared.ErrNotFound
 	}
 	return m, err
 }

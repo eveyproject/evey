@@ -42,7 +42,7 @@ func (r *FakeScanScheduleRepository) GetByLibraryID(_ context.Context, libraryID
 	}
 	s, ok := r.items[libraryID]
 	if !ok {
-		return nil, library.ErrNotFound
+		return nil, ErrNotFound
 	}
 	return s, nil
 }
@@ -102,7 +102,7 @@ func (r *FakeScanScheduleRepository) UpdateAfterRun(_ context.Context, libraryID
 	}
 	s, ok := r.items[libraryID]
 	if !ok {
-		return library.ErrNotFound
+		return ErrNotFound
 	}
 	s.LastRunAt = &lastRun
 	s.NextRunAt = &nextRun

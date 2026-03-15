@@ -7,6 +7,7 @@ import (
 
 	"github.com/gravity-zero/evey/internal/domain/library"
 	"github.com/gravity-zero/evey/internal/domain/playlist"
+	"github.com/gravity-zero/evey/internal/domain/shared"
 	"github.com/gravity-zero/evey/internal/domain/playlist/fakes"
 )
 
@@ -204,7 +205,7 @@ func (f *fakeMediaChecker) GetByID(_ context.Context, id string) (*library.Media
 	if item, ok := f.items[id]; ok {
 		return item, nil
 	}
-	return nil, library.ErrNotFound
+	return nil, shared.ErrNotFound
 }
 
 type errorMediaChecker struct {

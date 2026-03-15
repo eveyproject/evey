@@ -11,6 +11,7 @@ import (
 
 	"github.com/gravity-zero/evey/internal/domain/library"
 	"github.com/gravity-zero/evey/internal/domain/playlist"
+	"github.com/gravity-zero/evey/internal/domain/shared"
 )
 
 type PlaylistRepository struct {
@@ -42,7 +43,7 @@ func (r *PlaylistRepository) GetByID(ctx context.Context, id string) (*playlist.
 		 FROM playlists WHERE id = $1`, id,
 	).Scan(&pl.ID, &pl.Name, &pl.Description, &pl.UserID, &pl.Type, &rulesJSON, &pl.SortBy, &pl.SortOrder, &pl.CreatedAt, &pl.UpdatedAt)
 	if errors.Is(err, sql.ErrNoRows) {
-		return nil, playlist.ErrNotFound
+		return nil, shared.ErrNotFound
 	}
 	if err != nil {
 		return nil, err
@@ -127,7 +128,7 @@ func (r *PlaylistItemRepository) Remove(ctx context.Context, playlistID, mediaIt
 		slog.Warn("rows affected", slog.Any("err", err))
 	}
 	if n == 0 {
-		return playlist.ErrNotFound
+		return shared.ErrNotFound
 	}
 	return nil
 }
