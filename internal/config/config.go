@@ -2,6 +2,7 @@ package config
 
 import (
 	"fmt"
+	"log/slog"
 	"os"
 	"strconv"
 	"strings"
@@ -138,6 +139,31 @@ type PlaybackConfig struct {
 	DefaultMaxStreams   int
 	SkipForwardSeconds  int
 	SkipBackwardSeconds int
+}
+
+// WarnValidate logs warnings for insecure or suspicious config values.
+// It never returns an error — the app should still start.
+func (c *Config) WarnValidate() {
+	// OPS-NEW-004: Meilisearch master key
+	k := c.Meilisearch.APIKey
+	if k == "" || k == "changeme" || len(k) < 16 {
+		slog.Warn("meilisearch API key is weak or default — change EVEY_MEILI_API_KEY",
+			slog.String("current", k))
+	}
+
+	// OPS-NEW-001: FCM service account JSON
+	if c.FCM.Enabled && c.FCM.ServiceAccountJSON != "" {
+		if err := ValidateFCMServiceAccount(c.FCM.ServiceAccountJSON); err != nil {
+			slog.Warn("FCM service account validation failed",
+				slog.String("path", c.FCM.ServiceAccountJSON),
+				slog.Any("err", err))
+		}
+	}
+
+	// OPS-NEW-002: OIDC client secret
+	if c.OIDC.Enabled && c.OIDC.Issuer != "" && c.OIDC.ClientSecret == "" {
+		slog.Warn("OIDC enabled but client secret is empty — set EVEY_OIDC_CLIENT_SECRET")
+	}
 }
 
 func Load() (*Config, error) {
