@@ -199,3 +199,163 @@ func TestWatcherService_UnrelatedPath_NoScan(t *testing.T) {
 	time.Sleep(3 * time.Second)
 	assert.Empty(t, scanner.Scanned(), "unrelated path should not trigger scan")
 }
+
+func TestWatcherService_RemoveLibraryByID(t *testing.T) {
+	watcher := libfakes.NewFakeFileWatcher()
+	libRepo := libfakes.NewFakeLibraryRepository()
+	scanner := &fakeLibraryScanner{}
+	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
+
+	ctx := context.Background()
+	ws := applib.NewWatcherService(watcher, libRepo, scanner, log)
+	err := ws.Start(ctx)
+	require.NoError(t, err)
+	defer ws.Stop()
+
+	lib := &library.Library{
+		ID: "lib-rm", Name: "ToRemove", Type: "movie",
+		Paths: []string{"/media/rm1", "/media/rm2"}, Enabled: true, RealtimeMonitoring: true,
+	}
+	ws.AddLibrary(lib)
+	assert.Contains(t, watcher.WatchedPaths(), "/media/rm1")
+	assert.Contains(t, watcher.WatchedPaths(), "/media/rm2")
+
+	ws.RemoveLibraryByID("lib-rm")
+	assert.NotContains(t, watcher.WatchedPaths(), "/media/rm1")
+	assert.NotContains(t, watcher.WatchedPaths(), "/media/rm2")
+}
+
+func TestWatcherService_MultiplePaths_SingleLibrary(t *testing.T) {
+	watcher := libfakes.NewFakeFileWatcher()
+	libRepo := libfakes.NewFakeLibraryRepository()
+	scanner := &fakeLibraryScanner{}
+	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
+
+	ctx := context.Background()
+	_ = libRepo.Create(ctx, &library.Library{
+		ID: "lib-multi", Name: "Multi", Type: "movie",
+		Paths: []string{"/media/dir1", "/media/dir2"}, Enabled: true, RealtimeMonitoring: true,
+	})
+
+	ws := applib.NewWatcherService(watcher, libRepo, scanner, log)
+	err := ws.Start(ctx)
+	require.NoError(t, err)
+	defer ws.Stop()
+
+	watched := watcher.WatchedPaths()
+	assert.Contains(t, watched, "/media/dir1")
+	assert.Contains(t, watched, "/media/dir2")
+}
+
+func TestWatcherService_AddLibrary_NotEnabledIgnored(t *testing.T) {
+	watcher := libfakes.NewFakeFileWatcher()
+	libRepo := libfakes.NewFakeLibraryRepository()
+	scanner := &fakeLibraryScanner{}
+	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
+
+	ctx := context.Background()
+	ws := applib.NewWatcherService(watcher, libRepo, scanner, log)
+	err := ws.Start(ctx)
+	require.NoError(t, err)
+	defer ws.Stop()
+
+	ws.AddLibrary(&library.Library{
+		ID: "lib-off", Name: "Off", Type: "movie",
+		Paths: []string{"/media/off"}, Enabled: false, RealtimeMonitoring: true,
+	})
+	assert.NotContains(t, watcher.WatchedPaths(), "/media/off")
+}
+
+func TestWatcherService_TwoLibraries_EventRoutesToCorrectOne(t *testing.T) {
+	watcher := libfakes.NewFakeFileWatcher()
+	libRepo := libfakes.NewFakeLibraryRepository()
+	scanner := &fakeLibraryScanner{}
+	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
+
+	ctx := context.Background()
+	_ = libRepo.Create(ctx, &library.Library{
+		ID: "lib-movies", Name: "Movies", Type: "movie",
+		Paths: []string{"/media/movies"}, Enabled: true, RealtimeMonitoring: true,
+	})
+	_ = libRepo.Create(ctx, &library.Library{
+		ID: "lib-tv", Name: "TV", Type: "tvshow",
+		Paths: []string{"/media/tv"}, Enabled: true, RealtimeMonitoring: true,
+	})
+
+	ws := applib.NewWatcherService(watcher, libRepo, scanner, log)
+	err := ws.Start(ctx)
+	require.NoError(t, err)
+	defer ws.Stop()
+
+	watcher.SendEvent(library.FileEvent{
+		Path: "/media/tv/show/episode.mkv",
+		Op:   library.FileCreated,
+	})
+
+	require.Eventually(t, func() bool {
+		return len(scanner.Scanned()) > 0
+	}, 5*time.Second, 100*time.Millisecond)
+
+	assert.Equal(t, "lib-tv", scanner.Scanned()[0])
+}
+
+func TestWatcherService_StopIsSafe(t *testing.T) {
+	watcher := libfakes.NewFakeFileWatcher()
+	libRepo := libfakes.NewFakeLibraryRepository()
+	scanner := &fakeLibraryScanner{}
+	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
+
+	ws := applib.NewWatcherService(watcher, libRepo, scanner, log)
+	err := ws.Start(context.Background())
+	require.NoError(t, err)
+	ws.Stop()
+}
+
+func TestWatcherService_RemoveLibraryByID_NoMatchIsNoop(t *testing.T) {
+	watcher := libfakes.NewFakeFileWatcher()
+	libRepo := libfakes.NewFakeLibraryRepository()
+	scanner := &fakeLibraryScanner{}
+	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
+
+	ctx := context.Background()
+	ws := applib.NewWatcherService(watcher, libRepo, scanner, log)
+	err := ws.Start(ctx)
+	require.NoError(t, err)
+	defer ws.Stop()
+
+	ws.AddLibrary(&library.Library{
+		ID: "lib-keep", Name: "Keep", Type: "movie",
+		Paths: []string{"/media/keep"}, Enabled: true, RealtimeMonitoring: true,
+	})
+
+	ws.RemoveLibraryByID("nonexistent")
+	assert.Contains(t, watcher.WatchedPaths(), "/media/keep")
+}
+
+func TestWatcherService_FileRemoved_TriggersScan(t *testing.T) {
+	watcher := libfakes.NewFakeFileWatcher()
+	libRepo := libfakes.NewFakeLibraryRepository()
+	scanner := &fakeLibraryScanner{}
+	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
+
+	ctx := context.Background()
+	_ = libRepo.Create(ctx, &library.Library{
+		ID: "lib-1", Name: "Movies", Type: "movie",
+		Paths: []string{"/media/movies"}, Enabled: true, RealtimeMonitoring: true,
+	})
+
+	ws := applib.NewWatcherService(watcher, libRepo, scanner, log)
+	err := ws.Start(ctx)
+	require.NoError(t, err)
+	defer ws.Stop()
+
+	watcher.SendEvent(library.FileEvent{
+		Path: "/media/movies/old_film.mkv",
+		Op:   library.FileRemoved,
+	})
+
+	require.Eventually(t, func() bool {
+		return len(scanner.Scanned()) > 0
+	}, 5*time.Second, 100*time.Millisecond)
+	assert.Equal(t, "lib-1", scanner.Scanned()[0])
+}
