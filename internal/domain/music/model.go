@@ -15,6 +15,8 @@ type Track struct {
 	Duration    float64
 	FilePath    string
 	FileSize    int64
+	FileHash    string
+	ModTime     time.Time
 	MimeType    string
 	Bitrate     int
 	SampleRate  int

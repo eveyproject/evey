@@ -5,15 +5,17 @@ import (
 	"fmt"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/gravity-zero/evey/internal/domain/music"
 )
 
 type FakeMusicTrackRepository struct {
-	mu     sync.RWMutex
-	tracks map[string]music.Track
-	Err    error
+	mu        sync.RWMutex
+	tracks    map[string]music.Track
+	Err       error
+	UpsertErr error
 }
 
 func NewFakeMusicTrackRepository() *FakeMusicTrackRepository {
@@ -21,6 +23,9 @@ func NewFakeMusicTrackRepository() *FakeMusicTrackRepository {
 }
 
 func (r *FakeMusicTrackRepository) Upsert(_ context.Context, t music.Track) error {
+	if r.UpsertErr != nil {
+		return r.UpsertErr
+	}
 	if r.Err != nil {
 		return r.Err
 	}
@@ -231,6 +236,35 @@ func (r *FakeMusicTrackRepository) GetArtists(_ context.Context, libraryID strin
 		})
 	}
 	return out, nil
+}
+
+func (r *FakeMusicTrackRepository) ListAllByLibrary(_ context.Context, libraryID string) ([]music.Track, error) {
+	if r.Err != nil {
+		return nil, r.Err
+	}
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	var out []music.Track
+	for _, t := range r.tracks {
+		if t.LibraryID == libraryID {
+			out = append(out, t)
+		}
+	}
+	return out, nil
+}
+
+func (r *FakeMusicTrackRepository) UpdateFilePath(_ context.Context, id, newPath string, modTime time.Time) error {
+	if r.Err != nil {
+		return r.Err
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if t, ok := r.tracks[id]; ok {
+		t.FilePath = newPath
+		t.ModTime = modTime
+		r.tracks[id] = t
+	}
+	return nil
 }
 
 func (r *FakeMusicTrackRepository) CountByLibrary(_ context.Context, libraryID string) (int, error) {

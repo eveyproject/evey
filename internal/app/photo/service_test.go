@@ -161,7 +161,7 @@ func TestDeletePhoto(t *testing.T) {
 	}
 }
 
-func TestScanDirectory_UpsertIdempotent(t *testing.T) {
+func TestScanDirectory_SkipsUnchanged(t *testing.T) {
 	dir := t.TempDir()
 	if err := os.WriteFile(filepath.Join(dir, "photo.jpg"), minimalJPEG, 0600); err != nil {
 		t.Fatal(err)
@@ -171,21 +171,20 @@ func TestScanDirectory_UpsertIdempotent(t *testing.T) {
 	svc := appphoto.NewService(repo, sharedfakes.NewFakeEventBus(), nil)
 	ctx := context.Background()
 
-	if _, err := svc.ScanDirectory(ctx, "lib-1", dir); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := svc.ScanDirectory(ctx, "lib-1", dir); err != nil {
-		t.Fatal(err)
-	}
-
-	// photo repo Upsert uses ID (not file_path) so each scan creates a new entry;
-	// but this test verifies the service doesn't error and returns expected count
-	count, err := repo.CountByLibrary(ctx, "lib-1")
+	count1, err := svc.ScanDirectory(ctx, "lib-1", dir)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if count < 1 {
-		t.Fatalf("expected at least 1 photo, got %d", count)
+	if count1 != 1 {
+		t.Fatalf("first scan: expected 1, got %d", count1)
+	}
+
+	count2, err := svc.ScanDirectory(ctx, "lib-1", dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if count2 != 0 {
+		t.Fatalf("second scan: expected 0 (unchanged), got %d", count2)
 	}
 }
 

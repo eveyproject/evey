@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/gravity-zero/evey/internal/domain/music"
@@ -25,21 +26,22 @@ func (r *MusicTrackRepository) Upsert(ctx context.Context, t music.Track) error 
 		INSERT INTO music_tracks (
 			id, library_id, title, artist, album, album_artist,
 			year, track_number, disk_number, duration, file_path,
-			file_size, mime_type, bitrate, sample_rate, channels,
+			file_size, file_hash, mod_time, mime_type, bitrate, sample_rate, channels,
 			genre, cover_art_url, created_at, updated_at
-		) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,NOW(),NOW())
+		) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,NOW(),NOW())
 		ON CONFLICT (file_path) DO UPDATE SET
 			library_id=EXCLUDED.library_id, title=EXCLUDED.title, artist=EXCLUDED.artist,
 			album=EXCLUDED.album, album_artist=EXCLUDED.album_artist, year=EXCLUDED.year,
 			track_number=EXCLUDED.track_number, disk_number=EXCLUDED.disk_number,
 			duration=EXCLUDED.duration, file_size=EXCLUDED.file_size,
+			file_hash=EXCLUDED.file_hash, mod_time=EXCLUDED.mod_time,
 			mime_type=EXCLUDED.mime_type, bitrate=EXCLUDED.bitrate,
 			sample_rate=EXCLUDED.sample_rate, channels=EXCLUDED.channels,
 			genre=EXCLUDED.genre, cover_art_url=EXCLUDED.cover_art_url,
 			updated_at=NOW()`,
 		t.ID, t.LibraryID, t.Title, t.Artist, t.Album, t.AlbumArtist,
 		t.Year, t.TrackNumber, t.DiskNumber, t.Duration, t.FilePath,
-		t.FileSize, t.MimeType, t.Bitrate, t.SampleRate, t.Channels,
+		t.FileSize, t.FileHash, t.ModTime, t.MimeType, t.Bitrate, t.SampleRate, t.Channels,
 		t.Genre, t.CoverArtURL,
 	)
 	return err
@@ -50,12 +52,12 @@ func (r *MusicTrackRepository) GetByID(ctx context.Context, id string) (*music.T
 	err := r.db.QueryRowContext(ctx, `
 		SELECT id, library_id, title, artist, album, album_artist,
 		       year, track_number, disk_number, duration, file_path,
-		       file_size, mime_type, bitrate, sample_rate, channels,
+		       file_size, file_hash, mod_time, mime_type, bitrate, sample_rate, channels,
 		       genre, cover_art_url, created_at, updated_at
 		FROM music_tracks WHERE id=$1`, id).Scan(
 		&t.ID, &t.LibraryID, &t.Title, &t.Artist, &t.Album, &t.AlbumArtist,
 		&t.Year, &t.TrackNumber, &t.DiskNumber, &t.Duration, &t.FilePath,
-		&t.FileSize, &t.MimeType, &t.Bitrate, &t.SampleRate, &t.Channels,
+		&t.FileSize, &t.FileHash, &t.ModTime, &t.MimeType, &t.Bitrate, &t.SampleRate, &t.Channels,
 		&t.Genre, &t.CoverArtURL, &t.CreatedAt, &t.UpdatedAt,
 	)
 	if err == sql.ErrNoRows {
@@ -76,7 +78,7 @@ func (r *MusicTrackRepository) ListByLibrary(ctx context.Context, libraryID stri
 	rows, err := r.db.QueryContext(ctx, `
 		SELECT id, library_id, title, artist, album, album_artist,
 		       year, track_number, disk_number, duration, file_path,
-		       file_size, mime_type, bitrate, sample_rate, channels,
+		       file_size, file_hash, mod_time, mime_type, bitrate, sample_rate, channels,
 		       genre, cover_art_url, created_at, updated_at,
 		       COUNT(*) OVER() AS total
 		FROM music_tracks
@@ -95,7 +97,7 @@ func (r *MusicTrackRepository) ListByAlbum(ctx context.Context, album, artist st
 	rows, err := r.db.QueryContext(ctx, `
 		SELECT id, library_id, title, artist, album, album_artist,
 		       year, track_number, disk_number, duration, file_path,
-		       file_size, mime_type, bitrate, sample_rate, channels,
+		       file_size, file_hash, mod_time, mime_type, bitrate, sample_rate, channels,
 		       genre, cover_art_url, created_at, updated_at
 		FROM music_tracks WHERE album=$1 AND album_artist=$2
 		ORDER BY disk_number, track_number`, album, artist)
@@ -113,7 +115,7 @@ func (r *MusicTrackRepository) ListByArtist(ctx context.Context, artist string, 
 	rows, err := r.db.QueryContext(ctx, `
 		SELECT id, library_id, title, artist, album, album_artist,
 		       year, track_number, disk_number, duration, file_path,
-		       file_size, mime_type, bitrate, sample_rate, channels,
+		       file_size, file_hash, mod_time, mime_type, bitrate, sample_rate, channels,
 		       genre, cover_art_url, created_at, updated_at,
 		       COUNT(*) OVER() AS total
 		FROM music_tracks WHERE album_artist=$1 OR artist=$1
@@ -134,7 +136,7 @@ func (r *MusicTrackRepository) Search(ctx context.Context, query string, limit i
 	rows, err := r.db.QueryContext(ctx, `
 		SELECT id, library_id, title, artist, album, album_artist,
 		       year, track_number, disk_number, duration, file_path,
-		       file_size, mime_type, bitrate, sample_rate, channels,
+		       file_size, file_hash, mod_time, mime_type, bitrate, sample_rate, channels,
 		       genre, cover_art_url, created_at, updated_at
 		FROM music_tracks
 		WHERE title ILIKE $1 OR artist ILIKE $1 OR album ILIKE $1
@@ -190,6 +192,27 @@ func (r *MusicTrackRepository) GetArtists(ctx context.Context, libraryID string)
 	return artists, rows.Err()
 }
 
+func (r *MusicTrackRepository) ListAllByLibrary(ctx context.Context, libraryID string) ([]music.Track, error) {
+	rows, err := r.db.QueryContext(ctx, `
+		SELECT id, library_id, title, artist, album, album_artist,
+		       year, track_number, disk_number, duration, file_path,
+		       file_size, file_hash, mod_time, mime_type, bitrate, sample_rate, channels,
+		       genre, cover_art_url, created_at, updated_at
+		FROM music_tracks WHERE library_id=$1`, libraryID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	return scanTracks(rows)
+}
+
+func (r *MusicTrackRepository) UpdateFilePath(ctx context.Context, id, newPath string, modTime time.Time) error {
+	_, err := r.db.ExecContext(ctx,
+		`UPDATE music_tracks SET file_path = $1, mod_time = $2, updated_at = NOW() WHERE id = $3`,
+		newPath, modTime, id)
+	return err
+}
+
 func (r *MusicTrackRepository) CountByLibrary(ctx context.Context, libraryID string) (int, error) {
 	var n int
 	err := r.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM music_tracks WHERE library_id=$1`, libraryID).Scan(&n)
@@ -204,7 +227,7 @@ func scanTracksWithTotal(rows *sql.Rows) ([]music.Track, int, error) {
 		if err := rows.Scan(
 			&t.ID, &t.LibraryID, &t.Title, &t.Artist, &t.Album, &t.AlbumArtist,
 			&t.Year, &t.TrackNumber, &t.DiskNumber, &t.Duration, &t.FilePath,
-			&t.FileSize, &t.MimeType, &t.Bitrate, &t.SampleRate, &t.Channels,
+			&t.FileSize, &t.FileHash, &t.ModTime, &t.MimeType, &t.Bitrate, &t.SampleRate, &t.Channels,
 			&t.Genre, &t.CoverArtURL, &t.CreatedAt, &t.UpdatedAt,
 			&total,
 		); err != nil {
@@ -222,7 +245,7 @@ func scanTracks(rows *sql.Rows) ([]music.Track, error) {
 		if err := rows.Scan(
 			&t.ID, &t.LibraryID, &t.Title, &t.Artist, &t.Album, &t.AlbumArtist,
 			&t.Year, &t.TrackNumber, &t.DiskNumber, &t.Duration, &t.FilePath,
-			&t.FileSize, &t.MimeType, &t.Bitrate, &t.SampleRate, &t.Channels,
+			&t.FileSize, &t.FileHash, &t.ModTime, &t.MimeType, &t.Bitrate, &t.SampleRate, &t.Channels,
 			&t.Genre, &t.CoverArtURL, &t.CreatedAt, &t.UpdatedAt,
 		); err != nil {
 			return nil, err

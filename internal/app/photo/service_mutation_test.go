@@ -166,7 +166,7 @@ func TestScanDirectory_RepoUpsertError_CountZero(t *testing.T) {
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "img.jpg"), minimalJPEG, 0600))
 
 	repo := photofakes.NewFakeRepository()
-	repo.Err = errors.New("db down")
+	repo.UpsertErr = errors.New("db down")
 	svc := appphoto.NewService(repo, sharedfakes.NewFakeEventBus(), nil)
 
 	count, err := svc.ScanDirectory(context.Background(), "lib-1", dir)

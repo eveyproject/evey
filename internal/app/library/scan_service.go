@@ -5,7 +5,9 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"runtime"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/google/uuid"
@@ -95,7 +97,26 @@ func (s *ScanService) ScanLibrary(ctx context.Context, libraryID string) (added,
 		slog.Warn("publish event", slog.String("event", evtScanStarted.EventName()), slog.Any("err", publishErr))
 	}
 
+	existing, err := s.mediaItems.ListByLibraryID(ctx, libraryID)
+	if err != nil {
+		return 0, 0, fmt.Errorf("list existing items: %w", err)
+	}
+	byPath := make(map[string]*library.MediaItem, len(existing))
+	byFingerprint := make(map[string]*library.MediaItem, len(existing))
+	for _, item := range existing {
+		byPath[item.FilePath] = item
+		if item.FileFingerprint != "" {
+			byFingerprint[item.FileFingerprint] = item
+		}
+	}
+
 	seenPaths := make(map[string]struct{})
+	type scanWork struct {
+		file      library.ScannedFile
+		parentID  string
+		showTitle string
+	}
+	var toProcess []scanWork
 
 	for _, path := range lib.Paths {
 		var files []library.ScannedFile
@@ -103,27 +124,67 @@ func (s *ScanService) ScanLibrary(ctx context.Context, libraryID string) (added,
 		if err != nil {
 			return 0, 0, fmt.Errorf("scan path %s: %w", path, err)
 		}
-		for _, f := range files {
-			seenPaths[f.Path] = struct{}{}
-		}
+
 		if lib.Type == "tvshow" {
+			for _, f := range files {
+				seenPaths[f.Path] = struct{}{}
+			}
 			a, u, e := s.scanTVShowFiles(ctx, libraryID, files)
 			if e != nil {
 				return 0, 0, e
 			}
 			added += a
 			updated += u
-		} else {
-			for _, f := range files {
-				a, u, e := s.upsertMediaFile(ctx, libraryID, "", f)
-				if e != nil {
-					return 0, 0, e
+			continue
+		}
+
+		for _, f := range files {
+			seenPaths[f.Path] = struct{}{}
+
+			if ex := byPath[f.Path]; ex != nil {
+				if ex.FileSize == f.Size && ex.ModTime.Equal(f.ModTime) && ex.FileFingerprint == f.Fingerprint {
+					continue
 				}
-				added += a
-				updated += u
 			}
+
+			if byPath[f.Path] == nil && f.Fingerprint != "" {
+				if moved := byFingerprint[f.Fingerprint]; moved != nil {
+					moved.FilePath = f.Path
+					moved.ModTime = f.ModTime
+					moved.UpdatedAt = time.Now()
+					if updateErr := s.mediaItems.Update(ctx, moved); updateErr != nil {
+						slog.Warn("update moved item path", slog.String("id", moved.ID), slog.Any("err", updateErr))
+					}
+					updated++
+					continue
+				}
+			}
+
+			toProcess = append(toProcess, scanWork{file: f})
 		}
 	}
+
+	var addedAtomic, updatedAtomic atomic.Int64
+	sem := make(chan struct{}, runtime.NumCPU())
+	var wg sync.WaitGroup
+	for _, w := range toProcess {
+		wg.Add(1)
+		sem <- struct{}{}
+		go func(w scanWork) {
+			defer wg.Done()
+			defer func() { <-sem }()
+			a, u, e := s.upsertMediaFile(ctx, libraryID, w.parentID, w.file, w.showTitle)
+			if e != nil {
+				slog.Warn("upsert media file", slog.String("path", w.file.Path), slog.Any("err", e))
+				return
+			}
+			addedAtomic.Add(int64(a))
+			updatedAtomic.Add(int64(u))
+		}(w)
+	}
+	wg.Wait()
+	added += int(addedAtomic.Load())
+	updated += int(updatedAtomic.Load())
 
 	removed, removeErr := s.removeOrphanedItems(ctx, libraryID, seenPaths)
 	if removeErr != nil {

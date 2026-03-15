@@ -270,7 +270,7 @@ func TestScanLibrary_ReturnsExactAddedUpdatedCounts(t *testing.T) {
 	added, updated, err := h.svc.ScanLibrary(context.Background(), "lib-1")
 	require.NoError(t, err)
 	assert.Equal(t, 1, added, "exactly 1 new file")
-	assert.Equal(t, 1, updated, "exactly 1 existing file")
+	assert.Equal(t, 0, updated, "unchanged file skipped by smart scan")
 }
 
 func TestScanLibrary_MultiplePaths(t *testing.T) {
@@ -368,7 +368,7 @@ func TestUpsertMediaFile_ExistingByFingerprint_Unchanged_NoPathChange(t *testing
 	added, updated, err := h.svc.ScanLibrary(context.Background(), "lib-1")
 	require.NoError(t, err)
 	assert.Equal(t, 0, added)
-	assert.Equal(t, 1, updated)
+	assert.Equal(t, 0, updated, "unchanged file skipped by smart scan")
 }
 
 func TestUpsertMediaFile_ExistingByFingerprint_Unchanged_PathMoved(t *testing.T) {
@@ -415,7 +415,7 @@ func TestUpsertMediaFile_ExistingByPath_NoFingerprint(t *testing.T) {
 	added, updated, err := h.svc.ScanLibrary(context.Background(), "lib-1")
 	require.NoError(t, err)
 	assert.Equal(t, 0, added)
-	assert.Equal(t, 1, updated)
+	assert.Equal(t, 0, updated, "unchanged file skipped by smart scan")
 }
 
 func TestUpsertMediaFile_ExistingChanged_UpdatesFields(t *testing.T) {
@@ -525,7 +525,7 @@ func TestUpsertMediaFile_NewItem_PublishesMediaItemAdded(t *testing.T) {
 	assert.Empty(t, evt.SeriesTitle, "non-tvshow should have empty SeriesTitle")
 }
 
-func TestUpsertMediaFile_CreateError_Propagates(t *testing.T) {
+func TestUpsertMediaFile_CreateError_LoggedNotReturned(t *testing.T) {
 	t.Parallel()
 	h := newHarness()
 	lib := &library.Library{ID: "lib-1", Name: "Movies", Type: "movie", Paths: []string{"/movies"}}
@@ -537,12 +537,12 @@ func TestUpsertMediaFile_CreateError_Propagates(t *testing.T) {
 		{Path: "/movies/film.mkv", Size: 100},
 	}
 
-	_, _, err := h.svc.ScanLibrary(context.Background(), "lib-1")
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "create media item")
+	added, _, err := h.svc.ScanLibrary(context.Background(), "lib-1")
+	require.NoError(t, err, "worker pool logs upsert errors")
+	assert.Equal(t, 0, added)
 }
 
-func TestUpsertMediaFile_LookupError_Propagates(t *testing.T) {
+func TestUpsertMediaFile_LookupError_LoggedNotReturned(t *testing.T) {
 	t.Parallel()
 	h := newHarness()
 	lib := &library.Library{ID: "lib-1", Name: "Movies", Type: "movie", Paths: []string{"/movies"}}
@@ -554,9 +554,9 @@ func TestUpsertMediaFile_LookupError_Propagates(t *testing.T) {
 		{Path: "/movies/film.mkv", Size: 100, Fingerprint: "fp-1"},
 	}
 
-	_, _, err := h.svc.ScanLibrary(context.Background(), "lib-1")
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "check media item")
+	added, _, err := h.svc.ScanLibrary(context.Background(), "lib-1")
+	require.NoError(t, err, "worker pool logs upsert errors")
+	assert.Equal(t, 0, added)
 }
 
 func TestUpsertMediaFile_FingerprintNotFound_FallsBackToPath(t *testing.T) {
@@ -1375,7 +1375,7 @@ func TestScanTVShow_UpsertError_Propagates(t *testing.T) {
 
 // --- ScanLibrary: movie upsertMediaFile error ---
 
-func TestScanLibrary_Movie_UpsertError_Propagates(t *testing.T) {
+func TestScanLibrary_Movie_UpsertError_LoggedNotReturned(t *testing.T) {
 	t.Parallel()
 	h := newHarness()
 	lib := &library.Library{ID: "lib-1", Name: "Movies", Type: "movie", Paths: []string{"/movies"}}
@@ -1387,9 +1387,9 @@ func TestScanLibrary_Movie_UpsertError_Propagates(t *testing.T) {
 	}
 	h.mediaItems.ErrCreate = errors.New("disk full")
 
-	_, _, err := h.svc.ScanLibrary(context.Background(), "lib-1")
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "create media item")
+	added, _, err := h.svc.ScanLibrary(context.Background(), "lib-1")
+	require.NoError(t, err, "worker pool logs upsert errors")
+	assert.Equal(t, 0, added)
 }
 
 func TestScanLibrary_NewFile_IndexedInSearch(t *testing.T) {
