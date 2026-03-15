@@ -9,15 +9,6 @@ import (
 	"github.com/gravity-zero/evey/internal/domain/library"
 )
 
-// LibraryQueryRepoAdapter wraps existing repos to implement the query interfaces.
-type LibraryQueryRepoAdapter struct {
-	db *sql.DB
-}
-
-func NewLibraryQueryRepoAdapter(db *sql.DB) *LibraryQueryRepoAdapter {
-	return &LibraryQueryRepoAdapter{db: db}
-}
-
 // MediaItemQueryRepoAdapter wraps the existing MediaItemRepository and adds
 // optimized batch queries for read paths.
 type MediaItemQueryRepoAdapter struct {

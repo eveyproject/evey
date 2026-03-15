@@ -69,7 +69,7 @@ func (r *MusicTrackRepository) Delete(ctx context.Context, id string) error {
 	return err
 }
 
-func (r *MusicTrackRepository) ListByLibrary(ctx context.Context, libraryID string, limit, offset int) ([]music.Track, int, error) {
+func (r *MusicTrackRepository) ListByLibrary(ctx context.Context, libraryID string, limit, offset int, search string) ([]music.Track, int, error) {
 	if limit <= 0 {
 		limit = 50
 	}
@@ -79,9 +79,11 @@ func (r *MusicTrackRepository) ListByLibrary(ctx context.Context, libraryID stri
 		       file_size, mime_type, bitrate, sample_rate, channels,
 		       genre, cover_art_url, created_at, updated_at,
 		       COUNT(*) OVER() AS total
-		FROM music_tracks WHERE library_id=$1
+		FROM music_tracks
+		WHERE library_id=$1
+		  AND ($2 = '' OR (title ILIKE '%' || $2 || '%' OR artist ILIKE '%' || $2 || '%' OR album ILIKE '%' || $2 || '%'))
 		ORDER BY album_artist, album, disk_number, track_number
-		LIMIT $2 OFFSET $3`, libraryID, limit, offset)
+		LIMIT $3 OFFSET $4`, libraryID, search, limit, offset)
 	if err != nil {
 		return nil, 0, err
 	}

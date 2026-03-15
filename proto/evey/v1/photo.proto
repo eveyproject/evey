@@ -1,0 +1,117 @@
+syntax = "proto3";
+
+package evey.v1;
+
+import "google/api/annotations.proto";
+import "google/protobuf/empty.proto";
+import "google/protobuf/timestamp.proto";
+
+option go_package = "github.com/gravity/evey/gen/evey/v1;eveyv1";
+
+service PhotoService {
+  rpc ListPhotos(ListPhotosRequest) returns (ListPhotosResponse) {
+    option (google.api.http) = {
+      get: "/api/v1/photos"
+    };
+  }
+
+  rpc GetPhoto(GetPhotoRequest) returns (Photo) {
+    option (google.api.http) = {
+      get: "/api/v1/photos/{id}"
+    };
+  }
+
+  rpc ListPhotoAlbums(ListPhotoAlbumsRequest) returns (ListPhotoAlbumsResponse) {
+    option (google.api.http) = {
+      get: "/api/v1/photos/albums"
+    };
+  }
+
+  rpc SearchPhotos(SearchPhotosRequest) returns (SearchPhotosResponse) {
+    option (google.api.http) = {
+      get: "/api/v1/photos/search"
+    };
+  }
+
+  rpc ScanPhotoDirectory(ScanPhotoDirectoryRequest) returns (ScanPhotoDirectoryResponse) {
+    option (google.api.http) = {
+      post: "/api/v1/photos/scan"
+      body: "*"
+    };
+  }
+
+  rpc DeletePhoto(DeletePhotoRequest) returns (google.protobuf.Empty) {
+    option (google.api.http) = {
+      delete: "/api/v1/photos/{id}"
+    };
+  }
+}
+
+message Photo {
+  string id = 1;
+  string library_id = 2;
+  string title = 3;
+  string file_path = 4;
+  int64 file_size = 5;
+  string mime_type = 6;
+  int32 width = 7;
+  int32 height = 8;
+  string album = 9;
+  optional google.protobuf.Timestamp taken_at = 10;
+  string camera_model = 11;
+  google.protobuf.Timestamp created_at = 12;
+  google.protobuf.Timestamp updated_at = 13;
+}
+
+message PhotoAlbum {
+  string name = 1;
+  string library_id = 2;
+  int32 photo_count = 3;
+  string cover_photo_id = 4;
+}
+
+message ListPhotosRequest {
+  string library_id = 1;
+  int32 limit = 2;
+  int32 offset = 3;
+}
+
+message ListPhotosResponse {
+  repeated Photo photos = 1;
+  int32 total = 2;
+}
+
+message GetPhotoRequest {
+  string id = 1;
+}
+
+message ListPhotoAlbumsRequest {
+  string library_id = 1;
+}
+
+message ListPhotoAlbumsResponse {
+  repeated PhotoAlbum albums = 1;
+}
+
+message SearchPhotosRequest {
+  string library_id = 1;
+  string query = 2;
+  int32 limit = 3;
+}
+
+message SearchPhotosResponse {
+  repeated Photo photos = 1;
+}
+
+message ScanPhotoDirectoryRequest {
+  string library_id = 1;
+  string directory = 2;
+}
+
+message ScanPhotoDirectoryResponse {
+  int32 count = 1;
+}
+
+message DeletePhotoRequest {
+  string id = 1;
+}

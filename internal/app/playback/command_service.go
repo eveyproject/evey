@@ -165,6 +165,30 @@ func (s *CommandService) CleanupStaleSessions(ctx context.Context, maxAge time.D
 	return s.sessions.CloseStale(ctx, maxAge)
 }
 
+func (s *CommandService) StartCleanup(ctx context.Context) {
+	go func() {
+		if n, err := s.sessions.CloseStale(ctx, 2*time.Hour); err != nil {
+			slog.Warn("stale session cleanup", slog.Any("err", err))
+		} else if n > 0 {
+			slog.Info("cleaned stale sessions", slog.Int("count", n))
+		}
+		ticker := time.NewTicker(30 * time.Minute)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				if n, err := s.sessions.CloseStale(ctx, 2*time.Hour); err != nil {
+					slog.Warn("stale session cleanup", slog.Any("err", err))
+				} else if n > 0 {
+					slog.Info("cleaned stale sessions", slog.Int("count", n))
+				}
+			}
+		}
+	}()
+}
+
 func (s *CommandService) MarkAsUnwatched(ctx context.Context, profileID, mediaItemID string) error {
 	if err := s.validateProfile(ctx, profileID); err != nil {
 		return err

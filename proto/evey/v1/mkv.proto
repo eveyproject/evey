@@ -13,7 +13,7 @@ service MKVService {
     };
   }
 
-  rpc ListTracks(ListTracksRequest) returns (ListTracksResponse) {
+  rpc ListTracks(ListMkvTracksRequest) returns (ListMkvTracksResponse) {
     option (google.api.http) = {
       get: "/api/v1/mkv/tracks"
     };
@@ -84,7 +84,7 @@ enum TrackType {
 message Container {
   string path = 1;
   ContainerInfo info = 2;
-  repeated Track tracks = 3;
+  repeated MkvTrack tracks = 3;
   repeated Chapter chapters = 4;
   repeated Attachment attachments = 5;
   repeated Tag tags = 6;
@@ -102,7 +102,7 @@ message ContainerInfo {
   string date = 8;
 }
 
-message Track {
+message MkvTrack {
   int32 id = 1;
   TrackType type = 2;
   string codec = 3;
@@ -170,12 +170,12 @@ message GetContainerInfoRequest {
   string path = 1;
 }
 
-message ListTracksRequest {
+message ListMkvTracksRequest {
   string path = 1;
 }
 
-message ListTracksResponse {
-  repeated Track tracks = 1;
+message ListMkvTracksResponse {
+  repeated MkvTrack tracks = 1;
 }
 
 message ListChaptersRequest {

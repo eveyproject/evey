@@ -150,6 +150,21 @@ func (r *MediaItemRepository) buildWhereClause(f library.ListMediaItemsFilter) (
 		args = append(args, *f.Year)
 		argIdx++
 	}
+	if f.YearFrom != 0 {
+		conditions = append(conditions, fmt.Sprintf("year >= $%d", argIdx))
+		args = append(args, f.YearFrom)
+		argIdx++
+	}
+	if f.YearTo != 0 {
+		conditions = append(conditions, fmt.Sprintf("year <= $%d", argIdx))
+		args = append(args, f.YearTo)
+		argIdx++
+	}
+	if f.MinRating != 0 {
+		conditions = append(conditions, fmt.Sprintf("community_rating >= $%d", argIdx))
+		args = append(args, f.MinRating)
+		argIdx++
+	}
 	for _, g := range f.Genres {
 		conditions = append(conditions, fmt.Sprintf("genres @> $%d::jsonb", argIdx))
 		gJSON, err := json.Marshal([]string{g})

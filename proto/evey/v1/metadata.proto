@@ -51,6 +51,19 @@ service MetadataService {
       get: "/api/v1/metadata/providers"
     };
   }
+
+  rpc UpdateMetadata(UpdateMetadataRequest) returns (UpdateMetadataResponse) {
+    option (google.api.http) = {
+      put: "/api/v1/metadata/{media_item_id}"
+      body: "*"
+    };
+  }
+
+  rpc DeleteMetadata(DeleteMetadataRequest) returns (DeleteMetadataResponse) {
+    option (google.api.http) = {
+      delete: "/api/v1/metadata/{media_item_id}"
+    };
+  }
 }
 
 message MetadataResult {
@@ -146,3 +159,19 @@ message GetMetadataProvidersRequest {}
 message GetMetadataProvidersResponse {
   repeated MetadataProvider providers = 1;
 }
+
+message UpdateMetadataRequest {
+  string media_item_id = 1;
+  string title = 2;
+  string description = 3;
+  int32 year = 4;
+  repeated string genres = 5;
+}
+
+message UpdateMetadataResponse {}
+
+message DeleteMetadataRequest {
+  string media_item_id = 1;
+}
+
+message DeleteMetadataResponse {}

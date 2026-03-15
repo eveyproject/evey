@@ -3,6 +3,7 @@ package grpcapi
 import (
 	"context"
 	"encoding/json"
+	"log/slog"
 	"sync"
 
 	eveyv1 "github.com/gravity-zero/evey/gen/evey/v1"
@@ -57,7 +58,9 @@ func (h *remoteAccessHandler) UpdateRemoteAccess(ctx context.Context, req *eveyv
 
 	if h.store != nil {
 		if data, err := json.Marshal(snapshot); err == nil {
-			_ = h.store.Set(ctx, remoteAccessCfgKey, string(data))
+			if err := h.store.Set(ctx, remoteAccessCfgKey, string(data)); err != nil {
+				slog.Error("persist remote access config", slog.Any("err", err))
+			}
 		}
 	}
 	return raConfigToProto(&snapshot), nil

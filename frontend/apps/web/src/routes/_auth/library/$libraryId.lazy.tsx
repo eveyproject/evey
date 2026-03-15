@@ -12,6 +12,7 @@ import type {
   LibraryServiceListMediaItemsType,
   LibraryServiceListMediaItemsSortField,
   LibraryServiceListMediaItemsSortOrder,
+  V1MediaItem,
 } from "@evey/api/src/generated/library.schemas";
 import { Button } from "@/components/ui/Button";
 import { Select } from "@/components/ui/Select";
@@ -29,7 +30,7 @@ import {
 import type { LibrarySearch } from "@/routes/_auth/library/$libraryId";
 import { slugify } from "@/utils/slugify";
 import { toast, useAuthStore } from "@evey/store";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { eveyFetch } from "@evey/api";
 import { BulkActionBar } from "@/components/BulkActionBar";
 import { AddToCollectionModal } from "@/features/collection/AddToCollectionModal";
@@ -52,6 +53,44 @@ const SORT_OPTIONS: Array<{ label: string; value: LibraryServiceListMediaItemsSo
 ];
 
 const PAGE_SIZE = 48;
+
+type FilterApiItem = {
+  id: string;
+  title: string;
+  type: string;
+  year?: number;
+  communityRating?: number;
+  libraryId: string;
+};
+
+type FilterApiResponse = {
+  items: FilterApiItem[];
+  total: number;
+};
+
+function toFilterSortField(f: LibraryServiceListMediaItemsSortField): string {
+  switch (f) {
+    case "MEDIA_SORT_FIELD_YEAR": return "year";
+    case "MEDIA_SORT_FIELD_RATING": return "community_rating";
+    case "MEDIA_SORT_FIELD_DATE_ADDED": return "added_at";
+    default: return "sort_title";
+  }
+}
+
+function toFilterSortOrder(o: LibraryServiceListMediaItemsSortOrder): string {
+  return o === "SORT_ORDER_DESC" ? "desc" : "asc";
+}
+
+function filterItemToMediaItem(item: FilterApiItem): V1MediaItem {
+  return {
+    id: item.id,
+    title: item.title,
+    type: item.type as V1MediaItem["type"],
+    year: item.year,
+    communityRating: item.communityRating,
+    libraryId: item.libraryId,
+  };
+}
 
 function formatDuration(ms: string): string {
   const totalMin = Math.round(parseInt(ms, 10) / 60000);
@@ -327,6 +366,12 @@ function LibraryPage() {
 
   const typeOptions = isShowLibrary ? SHOW_TYPE_OPTIONS : [];
 
+  const hasServerFilters = Boolean(
+    search.yearFrom != null ||
+    search.yearTo != null ||
+    (search.minRating != null && search.minRating > 0),
+  );
+
   const params = {
     libraryId,
     ...(typeFilter ? { type: typeFilter } : {}),
@@ -337,7 +382,40 @@ function LibraryPage() {
     "pagination.pageSize": page * PAGE_SIZE,
   };
 
-  const { data, isLoading } = useLibraryServiceListMediaItems(params);
+  const { data: regularData, isLoading: regularLoading } = useLibraryServiceListMediaItems(params, {
+    query: { enabled: !hasServerFilters && !!libraryId },
+  });
+
+  const filterParams = useMemo(() => {
+    if (!hasServerFilters || !libraryId) return null;
+    const p = new URLSearchParams({ library_id: libraryId });
+    if (search.yearFrom != null) p.set("year_from", String(search.yearFrom));
+    if (search.yearTo != null) p.set("year_to", String(search.yearTo));
+    if (search.minRating != null && search.minRating > 0) p.set("min_rating", String(search.minRating));
+    if (typeFilter) p.set("type", typeFilter);
+    if (genreFilter) p.set("genre", genreFilter);
+    p.set("sort_field", toFilterSortField(sortField));
+    p.set("sort_order", toFilterSortOrder(sortOrder));
+    p.set("limit", String(page * PAGE_SIZE));
+    p.set("offset", "0");
+    return p;
+  }, [hasServerFilters, libraryId, search.yearFrom, search.yearTo, search.minRating, typeFilter, genreFilter, sortField, sortOrder, page]);
+
+  const { data: filterData, isLoading: filterLoading } = useQuery<FilterApiResponse>({
+    queryKey: ["media-filter", libraryId, search.yearFrom, search.yearTo, search.minRating, typeFilter, genreFilter, sortField, sortOrder, page],
+    queryFn: () => eveyFetch<FilterApiResponse>({ url: `/api/v1/media/filter?${filterParams!.toString()}`, method: "GET" }),
+    enabled: hasServerFilters && !!libraryId && filterParams !== null,
+  });
+
+  const isLoading = hasServerFilters ? filterLoading : regularLoading;
+
+  const items: V1MediaItem[] = hasServerFilters
+    ? (filterData?.items ?? []).map(filterItemToMediaItem)
+    : (regularData?.items ?? []);
+  const totalItems = hasServerFilters
+    ? (filterData?.total ?? 0)
+    : (regularData?.pagination?.totalItems ?? 0);
+  const hasMore = items.length < totalItems && !hasServerFilters;
 
   // Fetch a broader set for deriving genres + filter options (without pagination limit)
   const { data: metaData } = useLibraryServiceListMediaItems({
@@ -345,7 +423,7 @@ function LibraryPage() {
     ...(typeFilter ? { type: typeFilter } : {}),
     "pagination.page": 1,
     "pagination.pageSize": PAGE_SIZE * 4,
-  });
+  }, { query: { enabled: !!libraryId } });
 
   const genres = useMemo(() => {
     const allGenres = new Set<string>();
@@ -360,11 +438,7 @@ function LibraryPage() {
     [metaData?.items],
   );
 
-  const items = data?.items ?? [];
-  const totalItems = data?.pagination?.totalItems ?? 0;
-  const hasMore = items.length < totalItems;
-
-  // Client-side: text search + stream-level filters
+  // Client-side: text search + stream-level filters (year/rating now handled server-side when active)
   const localFiltered = useMemo(() => {
     let result = items;
     if (searchTerm.trim()) {
@@ -372,21 +446,30 @@ function LibraryPage() {
       result = result.filter((item) => item.title?.toLowerCase().includes(lower));
     }
     result = applyLocalFilters(result, {
+      genres: search.genres,
       resolutions: search.resolutions,
       codecs: search.codecs,
       audioLangs: search.audioLangs,
       subLangs: search.subLangs,
+      yearFrom: hasServerFilters ? undefined : search.yearFrom,
+      yearTo: hasServerFilters ? undefined : search.yearTo,
+      minRating: hasServerFilters ? undefined : search.minRating,
     });
     return result;
-  }, [items, searchTerm, search.resolutions, search.codecs, search.audioLangs, search.subLangs]);
+  }, [items, searchTerm, search.genres, search.resolutions, search.codecs, search.audioLangs, search.subLangs, search.yearFrom, search.yearTo, search.minRating, hasServerFilters]);
 
   const hasLocalFilters = Boolean(
     searchTerm.trim() ||
+    search.genres?.length ||
     search.resolutions?.length ||
     search.codecs?.length ||
     search.audioLangs?.length ||
-    search.subLangs?.length,
+    search.subLangs?.length ||
+    (!hasServerFilters && search.yearFrom != null) ||
+    (!hasServerFilters && search.yearTo != null) ||
+    (!hasServerFilters && search.minRating != null && search.minRating > 0),
   );
+  const hasActiveFilters = hasLocalFilters || hasServerFilters;
   const displayItems = hasLocalFilters ? localFiltered : items;
   const displayCount = hasLocalFilters ? localFiltered.length : totalItems;
 
@@ -409,7 +492,7 @@ function LibraryPage() {
         </h1>
         <span className="text-sm" style={{ color: "var(--text-muted)" }} data-testid="library-item-count">
           {displayCount} {displayCount === 1 ? "item" : "items"}
-          {hasLocalFilters && " (filtered)"}
+          {hasActiveFilters && " (filtered)"}
         </span>
       </div>
 
@@ -441,7 +524,7 @@ function LibraryPage() {
           order={sortOrder}
           onChange={(o) => updateSearch({ sortOrder: o })}
         />
-        <LibraryFilterToggle search={search} onClick={() => setFiltersOpen((v) => !v)} />
+        <LibraryFilterToggle search={search} resultCount={hasLocalFilters || hasServerFilters ? displayCount : undefined} onClick={() => setFiltersOpen((v) => !v)} />
         <ViewToggleButton mode={viewMode} onChange={setViewMode} />
         <button
           type="button"
@@ -552,7 +635,7 @@ function LibraryPage() {
           <div className="flex-shrink-0 w-52">
             <LibraryFiltersPanel
               search={search}
-              genres={genres}
+              availableGenres={genres}
               availableOptions={availableOptions}
               onUpdate={(patch) => updateSearch(patch)}
             />
@@ -605,14 +688,14 @@ function LibraryPage() {
                 icon="library"
                 title="No items found"
                 description={
-                  hasLocalFilters
+                  hasActiveFilters
                     ? "Try adjusting your filters or search term."
                     : typeFilter
                       ? "Try a different filter, or scan the library to add content."
                       : "This library is empty. Trigger a scan to add content."
                 }
                 action={
-                  !hasLocalFilters
+                  !hasActiveFilters
                     ? { label: "Go to Admin", onClick: () => { window.location.href = "/admin/libraries"; } }
                     : undefined
                 }
@@ -620,7 +703,7 @@ function LibraryPage() {
             </div>
           )}
 
-          {hasMore && !isLoading && !hasLocalFilters && (
+          {hasMore && !isLoading && !hasActiveFilters && (
             <div className="flex justify-center mt-8">
               <Button variant="secondary" onClick={() => setPage((p) => p + 1)}>
                 Load more ({items.length} of {totalItems})

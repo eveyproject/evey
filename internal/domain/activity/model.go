@@ -87,3 +87,25 @@ type ServerStatsResult struct {
 	TotalItems       int
 	TotalPlayTimeMs  int64
 }
+
+type TopMediaItem struct {
+	MediaItemID          string
+	Title                string
+	PlayCount            int
+	TotalDurationSeconds int64
+}
+
+type RecentActivityEntry struct {
+	UserID     string
+	Username   string
+	MediaTitle string
+	PlayedAt   time.Time
+}
+
+type AnalyticsData struct {
+	TopMedia            []TopMediaItem
+	RecentActivity      []RecentActivityEntry
+	TotalPlaysToday     int
+	TotalPlaysThisWeek  int
+	ActiveUsersToday    int
+}

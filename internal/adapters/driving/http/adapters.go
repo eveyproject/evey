@@ -1,0 +1,67 @@
+package httpapi
+
+import (
+	"context"
+
+	domainshared "github.com/gravity-zero/evey/internal/domain/shared"
+	domainuser "github.com/gravity-zero/evey/internal/domain/user"
+)
+
+// UserMaxStreamsAdapter adapts a UserRepository to the UserMaxStreamsGetter interface.
+type UserMaxStreamsAdapter struct {
+	repo interface {
+		GetByID(ctx context.Context, id string) (*domainuser.User, error)
+	}
+}
+
+func (a *UserMaxStreamsAdapter) GetMaxStreams(ctx context.Context, userID string) *int {
+	u, err := a.repo.GetByID(ctx, userID)
+	if err != nil {
+		return nil
+	}
+	return u.MaxStreams
+}
+
+func NewUserMaxStreamsAdapter(repo interface {
+	GetByID(ctx context.Context, id string) (*domainuser.User, error)
+}) *UserMaxStreamsAdapter {
+	return &UserMaxStreamsAdapter{repo: repo}
+}
+
+// UserBitrateAdapter adapts a query service to the UserBitrateGetter interface.
+type UserBitrateAdapter struct {
+	svc interface {
+		GetUserBitrateLimit(ctx context.Context, userID string) (int, error)
+	}
+}
+
+func (a *UserBitrateAdapter) GetUserBitrateLimit(ctx context.Context, userID string) (int, error) {
+	return a.svc.GetUserBitrateLimit(ctx, userID)
+}
+
+func NewUserBitrateAdapter(svc interface {
+	GetUserBitrateLimit(ctx context.Context, userID string) (int, error)
+}) *UserBitrateAdapter {
+	return &UserBitrateAdapter{svc: svc}
+}
+
+// ServerConfigStore adapts ServerConfigRepository to the remoteAccessPersister interface.
+type ServerConfigStore struct {
+	repo domainshared.ServerConfigRepository
+}
+
+func (s *ServerConfigStore) Get(ctx context.Context, key string) (string, error) {
+	e, err := s.repo.Get(ctx, key)
+	if err != nil {
+		return "", err
+	}
+	return e.Value, nil
+}
+
+func (s *ServerConfigStore) Set(ctx context.Context, key, value string) error {
+	return s.repo.Set(ctx, key, value)
+}
+
+func NewServerConfigStore(repo domainshared.ServerConfigRepository) *ServerConfigStore {
+	return &ServerConfigStore{repo: repo}
+}

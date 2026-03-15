@@ -1,6 +1,7 @@
 package ratelimit
 
 import (
+	"log/slog"
 	"net"
 	"net/http"
 	"strings"
@@ -97,7 +98,11 @@ var trustedProxyNets = func() []*net.IPNet {
 	cidrs := []string{"127.0.0.0/8", "::1/128", "10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16", "fc00::/7"}
 	nets := make([]*net.IPNet, 0, len(cidrs))
 	for _, c := range cidrs {
-		_, n, _ := net.ParseCIDR(c)
+		_, n, err := net.ParseCIDR(c)
+		if err != nil {
+			slog.Warn("parse trusted proxy CIDR", slog.String("cidr", c), slog.Any("err", err))
+			continue
+		}
 		nets = append(nets, n)
 	}
 	return nets

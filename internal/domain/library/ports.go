@@ -20,6 +20,9 @@ type ListMediaItemsFilter struct {
 	Type           *string
 	Genres         []string
 	Year           *int
+	YearFrom       int     // inclusive lower bound on year (0 = no filter)
+	YearTo         int     // inclusive upper bound on year (0 = no filter)
+	MinRating      float64 // minimum community_rating (0 = no filter)
 	SortField      string
 	SortOrder      string
 	Limit          int

@@ -49,6 +49,7 @@ import { Route as AuthAdminLogsRouteImport } from './routes/_auth/admin/logs'
 import { Route as AuthAdminLibrariesRouteImport } from './routes/_auth/admin/libraries'
 import { Route as AuthAdminBackupRouteImport } from './routes/_auth/admin/backup'
 import { Route as AuthAdminAuditRouteImport } from './routes/_auth/admin/audit'
+import { Route as AuthAdminAnalyticsRouteImport } from './routes/_auth/admin/analytics'
 import { Route as AuthAdminActivityRouteImport } from './routes/_auth/admin/activity'
 import { Route as AuthCollectionsSmartFilterIdRouteImport } from './routes/_auth/collections/smart/$filterId'
 
@@ -320,6 +321,13 @@ const AuthAdminAuditRoute = AuthAdminAuditRouteImport.update({
 } as any).lazy(() =>
   import('./routes/_auth/admin/audit.lazy').then((d) => d.Route),
 )
+const AuthAdminAnalyticsRoute = AuthAdminAnalyticsRouteImport.update({
+  id: '/analytics',
+  path: '/analytics',
+  getParentRoute: () => AuthAdminRoute,
+} as any).lazy(() =>
+  import('./routes/_auth/admin/analytics.lazy').then((d) => d.Route),
+)
 const AuthAdminActivityRoute = AuthAdminActivityRouteImport.update({
   id: '/activity',
   path: '/activity',
@@ -349,6 +357,7 @@ export interface FileRoutesByFullPath {
   '/home': typeof AuthHomeRoute
   '/search': typeof AuthSearchRoute
   '/admin/activity': typeof AuthAdminActivityRoute
+  '/admin/analytics': typeof AuthAdminAnalyticsRoute
   '/admin/audit': typeof AuthAdminAuditRoute
   '/admin/backup': typeof AuthAdminBackupRoute
   '/admin/libraries': typeof AuthAdminLibrariesRoute
@@ -391,6 +400,7 @@ export interface FileRoutesByTo {
   '/home': typeof AuthHomeRoute
   '/search': typeof AuthSearchRoute
   '/admin/activity': typeof AuthAdminActivityRoute
+  '/admin/analytics': typeof AuthAdminAnalyticsRoute
   '/admin/audit': typeof AuthAdminAuditRoute
   '/admin/backup': typeof AuthAdminBackupRoute
   '/admin/libraries': typeof AuthAdminLibrariesRoute
@@ -436,6 +446,7 @@ export interface FileRoutesById {
   '/_auth/home': typeof AuthHomeRoute
   '/_auth/search': typeof AuthSearchRoute
   '/_auth/admin/activity': typeof AuthAdminActivityRoute
+  '/_auth/admin/analytics': typeof AuthAdminAnalyticsRoute
   '/_auth/admin/audit': typeof AuthAdminAuditRoute
   '/_auth/admin/backup': typeof AuthAdminBackupRoute
   '/_auth/admin/libraries': typeof AuthAdminLibrariesRoute
@@ -481,6 +492,7 @@ export interface FileRouteTypes {
     | '/home'
     | '/search'
     | '/admin/activity'
+    | '/admin/analytics'
     | '/admin/audit'
     | '/admin/backup'
     | '/admin/libraries'
@@ -523,6 +535,7 @@ export interface FileRouteTypes {
     | '/home'
     | '/search'
     | '/admin/activity'
+    | '/admin/analytics'
     | '/admin/audit'
     | '/admin/backup'
     | '/admin/libraries'
@@ -567,6 +580,7 @@ export interface FileRouteTypes {
     | '/_auth/home'
     | '/_auth/search'
     | '/_auth/admin/activity'
+    | '/_auth/admin/analytics'
     | '/_auth/admin/audit'
     | '/_auth/admin/backup'
     | '/_auth/admin/libraries'
@@ -891,6 +905,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthAdminAuditRouteImport
       parentRoute: typeof AuthAdminRoute
     }
+    '/_auth/admin/analytics': {
+      id: '/_auth/admin/analytics'
+      path: '/analytics'
+      fullPath: '/admin/analytics'
+      preLoaderRoute: typeof AuthAdminAnalyticsRouteImport
+      parentRoute: typeof AuthAdminRoute
+    }
     '/_auth/admin/activity': {
       id: '/_auth/admin/activity'
       path: '/activity'
@@ -910,6 +931,7 @@ declare module '@tanstack/react-router' {
 
 interface AuthAdminRouteChildren {
   AuthAdminActivityRoute: typeof AuthAdminActivityRoute
+  AuthAdminAnalyticsRoute: typeof AuthAdminAnalyticsRoute
   AuthAdminAuditRoute: typeof AuthAdminAuditRoute
   AuthAdminBackupRoute: typeof AuthAdminBackupRoute
   AuthAdminLibrariesRoute: typeof AuthAdminLibrariesRoute
@@ -929,6 +951,7 @@ interface AuthAdminRouteChildren {
 
 const AuthAdminRouteChildren: AuthAdminRouteChildren = {
   AuthAdminActivityRoute: AuthAdminActivityRoute,
+  AuthAdminAnalyticsRoute: AuthAdminAnalyticsRoute,
   AuthAdminAuditRoute: AuthAdminAuditRoute,
   AuthAdminBackupRoute: AuthAdminBackupRoute,
   AuthAdminLibrariesRoute: AuthAdminLibrariesRoute,

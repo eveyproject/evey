@@ -1,0 +1,138 @@
+syntax = "proto3";
+
+package evey.v1;
+
+import "google/api/annotations.proto";
+import "google/protobuf/empty.proto";
+import "google/protobuf/timestamp.proto";
+
+option go_package = "github.com/gravity/evey/gen/evey/v1;eveyv1";
+
+service MusicService {
+  rpc ListTracks(ListTracksRequest) returns (ListTracksResponse) {
+    option (google.api.http) = {
+      get: "/api/v1/music/tracks"
+    };
+  }
+
+  rpc GetAlbums(GetAlbumsRequest) returns (GetAlbumsResponse) {
+    option (google.api.http) = {
+      get: "/api/v1/music/albums"
+    };
+  }
+
+  rpc GetArtists(GetArtistsRequest) returns (GetArtistsResponse) {
+    option (google.api.http) = {
+      get: "/api/v1/music/artists"
+    };
+  }
+
+  rpc SearchMusic(SearchMusicRequest) returns (SearchMusicResponse) {
+    option (google.api.http) = {
+      get: "/api/v1/music/search"
+    };
+  }
+
+  rpc ScanMusicDirectory(ScanMusicDirectoryRequest) returns (ScanMusicDirectoryResponse) {
+    option (google.api.http) = {
+      post: "/api/v1/music/scan"
+      body: "*"
+    };
+  }
+
+  rpc DeleteTrack(DeleteTrackRequest) returns (google.protobuf.Empty) {
+    option (google.api.http) = {
+      delete: "/api/v1/music/tracks/{id}"
+    };
+  }
+}
+
+message Track {
+  string id = 1;
+  string library_id = 2;
+  string title = 3;
+  string artist = 4;
+  string album = 5;
+  string album_artist = 6;
+  int32 year = 7;
+  int32 track_number = 8;
+  int32 disk_number = 9;
+  double duration = 10;
+  string file_path = 11;
+  int64 file_size = 12;
+  string mime_type = 13;
+  int32 bitrate = 14;
+  int32 sample_rate = 15;
+  int32 channels = 16;
+  string genre = 17;
+  string cover_art_url = 18;
+  google.protobuf.Timestamp created_at = 19;
+  google.protobuf.Timestamp updated_at = 20;
+}
+
+message MusicAlbum {
+  string id = 1;
+  string title = 2;
+  string artist = 3;
+  int32 year = 4;
+  string cover_art_url = 5;
+  int32 track_count = 6;
+  double duration = 7;
+}
+
+message MusicArtist {
+  string id = 1;
+  string name = 2;
+  int32 track_count = 3;
+  int32 album_count = 4;
+}
+
+message ListTracksRequest {
+  string library_id = 1;
+  int32 limit = 2;
+  int32 offset = 3;
+  string search = 4;
+}
+
+message ListTracksResponse {
+  repeated Track tracks = 1;
+  int32 total = 2;
+}
+
+message GetAlbumsRequest {
+  string library_id = 1;
+}
+
+message GetAlbumsResponse {
+  repeated MusicAlbum albums = 1;
+}
+
+message GetArtistsRequest {
+  string library_id = 1;
+}
+
+message GetArtistsResponse {
+  repeated MusicArtist artists = 1;
+}
+
+message SearchMusicRequest {
+  string query = 1;
+  int32 limit = 2;
+}
+
+message SearchMusicResponse {
+  repeated Track tracks = 1;
+}
+
+message ScanMusicDirectoryRequest {
+  string library_id = 1;
+  string directory = 2;
+}
+
+message ScanMusicDirectoryResponse {
+  int32 count = 1;
+}
+
+message DeleteTrackRequest {
+  string id = 1;
+}

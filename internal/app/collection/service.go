@@ -2,6 +2,7 @@ package collection
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"github.com/google/uuid"
@@ -22,13 +23,24 @@ type CollectionQueryRepo interface {
 	CountItems(ctx context.Context, collectionID string) (int, error)
 }
 
-type Service struct {
-	cmd   CollectionCommandRepo
-	query CollectionQueryRepo
+// SmartQuerier evaluates collection rules against media_items.
+type SmartQuerier interface {
+	QueryByRules(ctx context.Context, rules []library.CollectionRule, sortBy, sortOrder string, limit int) ([]*library.MediaItem, error)
 }
 
-func NewService(cmd CollectionCommandRepo, query CollectionQueryRepo) *Service {
-	return &Service{cmd: cmd, query: query}
+type MediaItemGetter interface {
+	GetByID(ctx context.Context, id string) (*library.MediaItem, error)
+}
+
+type Service struct {
+	cmd          CollectionCommandRepo
+	query        CollectionQueryRepo
+	smartQuerier SmartQuerier
+	mediaItems   MediaItemGetter
+}
+
+func NewService(cmd CollectionCommandRepo, query CollectionQueryRepo, smartQuerier SmartQuerier, mediaItems MediaItemGetter) *Service {
+	return &Service{cmd: cmd, query: query, smartQuerier: smartQuerier, mediaItems: mediaItems}
 }
 
 func (s *Service) Upsert(ctx context.Context, tmdbID int, name, overview, posterURL, backdropURL string) (*library.Collection, error) {
@@ -53,6 +65,12 @@ func (s *Service) Upsert(ctx context.Context, tmdbID int, name, overview, poster
 }
 
 func (s *Service) LinkMediaItem(ctx context.Context, collectionID, mediaItemID string, sortOrder int) error {
+	if _, err := s.query.GetByID(ctx, collectionID); err != nil {
+		return fmt.Errorf("collection not found: %w", err)
+	}
+	if _, err := s.mediaItems.GetByID(ctx, mediaItemID); err != nil {
+		return fmt.Errorf("media item not found: %w", err)
+	}
 	return s.cmd.LinkItem(ctx, collectionID, mediaItemID, sortOrder)
 }
 
@@ -71,6 +89,32 @@ func (s *Service) GetItems(ctx context.Context, collectionID string, limit, offs
 	if limit > 500 {
 		limit = 500
 	}
+
+	col, err := s.query.GetByID(ctx, collectionID)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	if len(col.Rules) > 0 && s.smartQuerier != nil {
+		sortBy := col.SortBy
+		if sortBy == "" {
+			sortBy = "added_at"
+		}
+		all, queryErr := s.smartQuerier.QueryByRules(ctx, col.Rules, sortBy, "asc", 0)
+		if queryErr != nil {
+			return nil, 0, queryErr
+		}
+		total := len(all)
+		if offset >= total {
+			return nil, total, nil
+		}
+		all = all[offset:]
+		if limit > 0 && limit < len(all) {
+			all = all[:limit]
+		}
+		return all, total, nil
+	}
+
 	items, err := s.query.GetItems(ctx, collectionID, limit, offset)
 	if err != nil {
 		return nil, 0, err

@@ -3,6 +3,9 @@ package fakes
 import (
 	"context"
 	"sync"
+	"time"
+
+	"github.com/gravity-zero/evey/internal/domain/notification"
 )
 
 type tokenEntry struct {
@@ -82,4 +85,26 @@ func (r *FakeDeviceTokenRepository) GetByUser(_ context.Context, userID string) 
 		}
 	}
 	return tokens, nil
+}
+
+func (r *FakeDeviceTokenRepository) ListByUser(_ context.Context, userID string) ([]notification.DeviceToken, error) {
+	if r.Err != nil {
+		return nil, r.Err
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	var out []notification.DeviceToken
+	for _, e := range r.entries {
+		if e.userID == userID {
+			out = append(out, notification.DeviceToken{
+				UserID:    e.userID,
+				ProfileID: e.profileID,
+				Token:     e.token,
+				Platform:  e.platform,
+				CreatedAt: time.Now(),
+				UpdatedAt: time.Now(),
+			})
+		}
+	}
+	return out, nil
 }

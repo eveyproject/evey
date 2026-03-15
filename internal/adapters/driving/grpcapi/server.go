@@ -197,10 +197,6 @@ func (s *GRPCServer) Start(addr string) error {
 	return s.server.Serve(lis)
 }
 
-func (s *GRPCServer) GRPCServer() *grpc.Server {
-	return s.server
-}
-
 func (s *GRPCServer) Stop() {
 	s.server.GracefulStop()
 }

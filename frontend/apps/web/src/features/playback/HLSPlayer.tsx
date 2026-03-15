@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import Hls from "hls.js";
-import { useAuthStore } from "@evey/store";
+import { useAuthStore, toast } from "@evey/store";
 import type { V1StreamInfo } from "@evey/api/src/generated/playback.schemas";
 import type { AudioStream } from "./AudioTrackSelector";
 import type { SubtitleStream } from "./SubtitleSelector";
@@ -26,6 +26,7 @@ import {
 } from "@/hooks/usePlaybackPrefs";
 
 const QUALITY_LEVELS = [0, 1080, 720, 480, 360];
+const MAX_FALLBACK_ATTEMPTS = 3;
 
 interface AudioTrack {
   id: string;
@@ -147,6 +148,8 @@ export function HLSPlayer({
   }
   const [showShortcuts, setShowShortcuts] = useState(false);
   const [isBuffering, setIsBuffering] = useState(false);
+  const [fatalError, setFatalError] = useState(false);
+  const fallbackCountRef = useRef(0);
   const playbackSpeedRef = useRef(playbackSpeed);
   playbackSpeedRef.current = playbackSpeed;
   const subtitleStreamsRef = useRef(subtitleStreams);
@@ -163,6 +166,10 @@ export function HLSPlayer({
   skipBwdRef.current = skipBwd;
   // Offset applied when we restart transcode from a non-zero position
   const transcodeOffsetRef = useRef(0);
+  const currentQualityRef = useRef(currentQuality);
+  currentQualityRef.current = currentQuality;
+  // initialized below; ref object is stable, .current is updated after function def
+  const attemptQualityFallbackRef = useRef<(q: number) => boolean>(() => false);
 
   // HLS path — only used when transcodeUrl is available
   useEffect(() => {
@@ -182,6 +189,14 @@ export function HLSPlayer({
       });
       hlsInstance.on(Hls.Events.AUDIO_TRACKS_UPDATED, (_, data) => {
         if (data.audioTracks.length === 0) setTranscodeMode(true);
+      });
+      hlsInstance.on(Hls.Events.ERROR, (_, data) => {
+        if (!data.fatal) return;
+        console.warn("[player] HLS fatal error:", data.type, data.details);
+        // Switch to transcode mode and attempt quality fallback
+        setTranscodeMode(true);
+        const didFallback = attemptQualityFallbackRef.current(currentQualityRef.current);
+        if (!didFallback) setFatalError(true);
       });
     } else if (streamInfo.directPlayUrl) {
       video.src = streamInfo.directPlayUrl;
@@ -258,7 +273,11 @@ export function HLSPlayer({
     function handleEnded() { onEnded?.(); }
     function handleError() {
       const e = video!.error;
-      if (e) console.warn("Video error:", e.code, e.message);
+      if (e) {
+        console.warn("[player] transcode error:", e.code, e.message);
+        const didFallback = attemptQualityFallbackRef.current(currentQualityRef.current);
+        if (!didFallback) setFatalError(true);
+      }
     }
     video.addEventListener("timeupdate", onTimeUpdate);
     video.addEventListener("ended", handleEnded);
@@ -576,6 +595,22 @@ export function HLSPlayer({
   const seekRef = useRef(handleSeekRequest);
   seekRef.current = handleSeekRequest;
 
+  function attemptQualityFallback(currentQualityVal: number): boolean {
+    if (fallbackCountRef.current >= MAX_FALLBACK_ATTEMPTS) return false;
+    const curIdx = QUALITY_LEVELS.indexOf(currentQualityVal);
+    if (curIdx < 0 || curIdx >= QUALITY_LEVELS.length - 1) return false;
+    const nextQuality = QUALITY_LEVELS[curIdx + 1];
+    fallbackCountRef.current++;
+    const qualityLabel = nextQuality === 0 ? "Original" : `${nextQuality}p`;
+    console.warn(`[player] fatal error — downgrading to ${qualityLabel} (attempt ${fallbackCountRef.current})`);
+    toast.warning(`Quality reduced to ${qualityLabel} due to a network error`);
+    setCurrentQuality(nextQuality);
+    setAutoQuality(false);
+    setTranscodeStartTime(positionRef.current);
+    return true;
+  }
+  attemptQualityFallbackRef.current = attemptQualityFallback;
+
   function handleQualityChange(quality: number) {
     setAutoQuality(false);
     setCurrentQuality(quality);
@@ -709,6 +744,24 @@ export function HLSPlayer({
               <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" />
             </svg>
             <span className="text-white/80 text-sm font-medium">Buffering…</span>
+          </div>
+        </div>
+      )}
+      {fatalError && (
+        <div className="absolute inset-0 flex items-center justify-center" style={{ zIndex: 10, background: "rgba(0,0,0,0.7)" }}>
+          <div className="flex flex-col items-center gap-4 text-white">
+            <svg className="w-12 h-12" style={{ color: "var(--color-error, #f87171)" }} fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
+            </svg>
+            <p className="text-lg font-medium">Playback failed</p>
+            <p className="text-sm" style={{ color: "var(--text-muted, rgba(255,255,255,0.6))" }}>Unable to play at any quality level</p>
+            <button
+              onClick={() => { setFatalError(false); fallbackCountRef.current = 0; window.location.reload(); }}
+              className="px-4 py-2 rounded text-sm font-medium"
+              style={{ backgroundColor: "rgba(255,255,255,0.25)" }}
+            >
+              Retry
+            </button>
           </div>
         </div>
       )}

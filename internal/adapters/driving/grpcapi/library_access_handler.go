@@ -37,7 +37,10 @@ func (h *libraryAccessHandler) GetUserLibraryAccess(ctx context.Context, req *ev
 }
 
 func (h *libraryAccessHandler) SetUserLibraryAccess(ctx context.Context, req *eveyv1.SetUserLibraryAccessRequest) (*eveyv1.SetUserLibraryAccessResponse, error) {
-	existing, _ := h.accessRepo.GetByUserID(ctx, req.UserId)
+	existing, err := h.accessRepo.GetByUserID(ctx, req.UserId)
+	if err != nil {
+		slog.Warn("get existing library access", slog.String("user_id", req.UserId), slog.Any("err", err))
+	}
 	for _, id := range existing {
 		if err := h.accessRepo.Revoke(ctx, req.UserId, id); err != nil {
 			slog.Warn("revoke library access", slog.Any("err", err))
@@ -52,7 +55,10 @@ func (h *libraryAccessHandler) SetUserLibraryAccess(ctx context.Context, req *ev
 }
 
 func (h *libraryAccessHandler) RevokeAllUserLibraryAccess(ctx context.Context, req *eveyv1.RevokeAllUserLibraryAccessRequest) (*eveyv1.RevokeAllUserLibraryAccessResponse, error) {
-	existing, _ := h.accessRepo.GetByUserID(ctx, req.UserId)
+	existing, err := h.accessRepo.GetByUserID(ctx, req.UserId)
+	if err != nil {
+		slog.Warn("get existing library access for revoke", slog.String("user_id", req.UserId), slog.Any("err", err))
+	}
 	for _, id := range existing {
 		if err := h.accessRepo.Revoke(ctx, req.UserId, id); err != nil {
 			slog.Warn("revoke library access", slog.Any("err", err))

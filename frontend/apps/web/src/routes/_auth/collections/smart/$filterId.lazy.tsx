@@ -1,60 +1,51 @@
-import { createLazyFileRoute } from "@tanstack/react-router";
-import { useQuery } from "@tanstack/react-query";
-import { libraryServiceListMediaItems } from "@evey/api";
-import { MediaGrid } from "@/features/library/MediaGrid";
-import { MediaCard } from "@/features/library/MediaCard";
+import { createLazyFileRoute, Link } from "@tanstack/react-router";
+import { useCollection, useDeleteCollection } from "@/features/collection/api";
+import { Spinner } from "@/components/ui/Spinner";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { BackButton } from "@/components/ui/BackButton";
-import type { SmartFilter, SmartRule } from "@/features/collection/SmartCollectionDialog";
+import { Button } from "@/components/ui/Button";
+import { Badge } from "@/components/ui/Badge";
+import { toast } from "@evey/store";
 
 export const Route = createLazyFileRoute("/_auth/collections/smart/$filterId")({
   component: SmartFilterPage,
 });
 
-function loadFilter(id: string): SmartFilter | null {
-  try {
-    const all = JSON.parse(localStorage.getItem("evey:smart-filters") ?? "[]") as SmartFilter[];
-    return all.find((f) => f.id === id) ?? null;
-  } catch {
-    return null;
-  }
-}
-
-function buildParams(rules: SmartRule[]) {
-  const params: Record<string, string | number> = {};
-  for (const r of rules) {
-    if (r.field === "genre" && r.value) params.genre = r.value;
-    if (r.field === "year" && r.value) {
-      // server only supports exact year filter — use the value regardless of op
-      params.year = Number(r.value);
-    }
-    if (r.field === "type" && r.value) params.type = r.value;
-  }
-  return params;
-}
+const OP_LABELS: Record<string, string> = {
+  eq: "=",
+  gte: ">=",
+  lte: "<=",
+  gt: ">",
+  lt: "<",
+};
 
 function SmartFilterPage() {
   const { filterId } = Route.useParams();
-  const filter = loadFilter(filterId);
+  const navigate = Route.useNavigate();
+  const { data, isLoading } = useCollection(filterId);
+  const deleteMut = useDeleteCollection();
 
-  const params = filter ? buildParams(filter.rules) : {};
-  const hasParams = Object.keys(params).length > 0;
-
-  const { data, isLoading } = useQuery({
-    queryKey: ["smart-filter", filterId, params],
-    queryFn: ({ signal }) =>
-      libraryServiceListMediaItems({ ...params, "pagination.pageSize": 200 }, signal),
-    enabled: !!filter && hasParams,
-  });
-
+  const col = data?.collection;
   const items = data?.items ?? [];
-  const total = data?.pagination?.totalItems ?? items.length;
+  const rules = col?.rules ?? [];
+  const total = data?.total ?? items.length;
 
-  if (!filter) {
+  function handleDelete() {
+    if (!confirm(`Delete "${col?.name}"?`)) return;
+    deleteMut.mutate(filterId, {
+      onSuccess: () => {
+        toast.success("Smart collection deleted");
+        navigate({ to: "/collections" });
+      },
+      onError: () => toast.error("Failed to delete"),
+    });
+  }
+
+  if (!isLoading && !col) {
     return (
       <div>
         <BackButton fallback="/collections" />
-        <EmptyState icon="library" title="Filter not found" description="This smart filter no longer exists." />
+        <EmptyState icon="library" title="Collection not found" description="This smart collection no longer exists." />
       </div>
     );
   }
@@ -63,30 +54,43 @@ function SmartFilterPage() {
     <div>
       <BackButton fallback="/collections" />
 
-      <div className="mt-4 mb-6">
-        <h1 className="text-2xl font-bold" style={{ color: "var(--text)" }}>
-          {filter.name}
-        </h1>
-        {!isLoading && hasParams && (
-          <p className="text-sm mt-1" style={{ color: "var(--text-muted)" }}>
-            {total} {total === 1 ? "item" : "items"}
-          </p>
-        )}
+      <div className="mt-4 mb-6 flex items-start justify-between gap-4">
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 mb-1 flex-wrap">
+            <h1 className="text-2xl font-bold" style={{ color: "var(--text)" }}>
+              {col?.name ?? "…"}
+            </h1>
+            <span
+              className="text-xs font-semibold px-2 py-0.5 rounded-full"
+              style={{ backgroundColor: "var(--accent)", color: "#fff" }}
+            >
+              Smart
+            </span>
+          </div>
+          {rules.length > 0 && (
+            <div className="flex flex-wrap gap-1.5 mt-2">
+              {rules.map((r, i) => (
+                <Badge key={i} variant="default">
+                  {r.field} {OP_LABELS[r.operator] ?? r.operator} {r.value}
+                </Badge>
+              ))}
+            </div>
+          )}
+          {!isLoading && (
+            <p className="text-sm mt-2" style={{ color: "var(--text-muted)" }}>
+              {total} {total === 1 ? "item" : "items"}
+            </p>
+          )}
+        </div>
+        <div className="flex gap-2 flex-shrink-0">
+          <Button variant="danger" onClick={handleDelete} type="button" loading={deleteMut.isPending}>
+            Delete
+          </Button>
+        </div>
       </div>
 
-      {!hasParams ? (
-        <div
-          className="rounded-[var(--radius-lg)]"
-          style={{ backgroundColor: "var(--surface)", border: "1px solid var(--border)" }}
-        >
-          <EmptyState
-            icon="library"
-            title="No rules defined"
-            description="Edit this smart filter to add rules."
-          />
-        </div>
-      ) : isLoading ? (
-        <MediaGrid isLoading>{null}</MediaGrid>
+      {isLoading ? (
+        <div className="flex justify-center py-16"><Spinner /></div>
       ) : items.length === 0 ? (
         <div
           className="rounded-[var(--radius-lg)]"
@@ -95,15 +99,41 @@ function SmartFilterPage() {
           <EmptyState
             icon="library"
             title="No results"
-            description="No items match the current rules."
+            description={rules.length === 0 ? "This collection has no rules configured." : "No items match the current rules."}
           />
         </div>
       ) : (
-        <MediaGrid>
-          {items.map((item) => (
-            <MediaCard key={item.id} item={item} showYear showType />
-          ))}
-        </MediaGrid>
+        <div style={{ border: "1px solid var(--border)", borderRadius: "var(--radius-md)" }}>
+          <div className="divide-y" style={{ borderColor: "var(--border)" }}>
+            {items.map((item, i) => (
+              <Link
+                key={item.id}
+                to="/media/$mediaId"
+                params={{ mediaId: item.id }}
+                className="flex items-center gap-3 px-4 py-3 transition-colors hover:bg-[var(--surface-raised)]"
+                style={{ color: "var(--text)" }}
+              >
+                <span className="text-sm font-mono w-6 flex-shrink-0" style={{ color: "var(--accent)" }}>
+                  {i + 1}
+                </span>
+                <span className="text-sm flex-1 truncate">
+                  {item.title ?? item.id}
+                </span>
+                {item.type && (
+                  <span className="text-xs flex-shrink-0" style={{ color: "var(--text-muted)" }}>
+                    {item.type.replace("MEDIA_ITEM_TYPE_", "").toLowerCase()}
+                  </span>
+                )}
+                {item.year && (
+                  <span className="text-xs flex-shrink-0" style={{ color: "var(--text-muted)" }}>{item.year}</span>
+                )}
+              </Link>
+            ))}
+          </div>
+          <div className="px-4 py-2 text-xs" style={{ color: "var(--text-muted)", borderTop: "1px solid var(--border)" }}>
+            {items.length} item{items.length !== 1 ? "s" : ""}
+          </div>
+        </div>
       )}
     </div>
   );

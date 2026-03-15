@@ -68,7 +68,7 @@ func TestMKVListTracks(t *testing.T) {
 	h, reader, _ := newTestMKVHandler()
 	seedContainer(reader)
 
-	resp, err := h.ListTracks(context.Background(), &eveyv1.ListTracksRequest{Path: "/media/movie.mkv"})
+	resp, err := h.ListTracks(context.Background(), &eveyv1.ListMkvTracksRequest{Path: "/media/movie.mkv"})
 	if err != nil {
 		t.Fatalf("ListTracks: %v", err)
 	}

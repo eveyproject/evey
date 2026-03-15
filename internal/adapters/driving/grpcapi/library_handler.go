@@ -183,7 +183,11 @@ func (h *libraryHandler) ListMediaItems(ctx context.Context, req *eveyv1.ListMed
 	}
 	var artworkMap map[string][]*domainmetadata.ArtworkRecord
 	if h.metadataSvc != nil {
-		artworkMap, _ = h.metadataSvc.BatchGetArtwork(ctx, ids)
+		var artErr error
+		artworkMap, artErr = h.metadataSvc.BatchGetArtwork(ctx, ids)
+		if artErr != nil {
+			slog.Warn("batch get artwork", slog.Any("err", artErr))
+		}
 	}
 
 	for _, item := range items {

@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"net/http"
 	"strings"
 	"time"
 
@@ -52,6 +53,9 @@ func NewOIDCService(
 	if !cfg.OIDC.Enabled {
 		return nil, ErrOIDCDisabled
 	}
+	if cfg.OIDC.ClientSecret == "" {
+		return nil, fmt.Errorf("OIDC: client secret must not be empty")
+	}
 	provider, err := gooidc.NewProvider(ctx, cfg.OIDC.Issuer)
 	if err != nil {
 		return nil, fmt.Errorf("oidc provider discovery: %w", err)
@@ -84,6 +88,41 @@ func NewOIDCService(
 		issuer:              cfg.OIDC.Issuer,
 		allowedEmailDomains: cfg.OIDC.AllowedEmailDomains,
 	}, nil
+}
+
+// EndSessionEndpoint returns the OIDC end_session_endpoint from provider discovery, or "".
+func (s *OIDCService) EndSessionEndpoint() string {
+	var claims struct {
+		EndSessionEndpoint string `json:"end_session_endpoint"`
+	}
+	if err := s.provider.Claims(&claims); err != nil {
+		return ""
+	}
+	return claims.EndSessionEndpoint
+}
+
+// Ping fetches the OIDC discovery document and verifies the issuer matches config.
+// It uses a 10-second timeout regardless of the parent context deadline.
+// Returns an error if the provider is unreachable or the issuer does not match.
+func (s *OIDCService) Ping(ctx context.Context) error {
+	pingCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
+
+	ctx2 := gooidc.ClientContext(pingCtx, &http.Client{Timeout: 10 * time.Second})
+	p, err := gooidc.NewProvider(ctx2, s.issuer)
+	if err != nil {
+		return fmt.Errorf("oidc ping: discovery fetch failed: %w", err)
+	}
+	var claims struct {
+		Issuer string `json:"issuer"`
+	}
+	if err := p.Claims(&claims); err != nil {
+		return fmt.Errorf("oidc ping: parse claims: %w", err)
+	}
+	if claims.Issuer != s.issuer {
+		return fmt.Errorf("oidc ping: issuer mismatch: got %q, want %q", claims.Issuer, s.issuer)
+	}
+	return nil
 }
 
 // AuthURL returns the authorization URL. state is a random nonce from the caller.
@@ -136,8 +175,8 @@ func (s *OIDCService) HandleCallback(ctx context.Context, code string) (accessTo
 		PreferredUsername string `json:"preferred_username"`
 		Name              string `json:"name"`
 	}
-	if err := idToken.Claims(&claims); err != nil {
-		return "", "", fmt.Errorf("parse id_token claims: %w", err)
+	if claimsErr := idToken.Claims(&claims); claimsErr != nil {
+		return "", "", fmt.Errorf("parse id_token claims: %w", claimsErr)
 	}
 
 	u, err := s.findOrCreateUser(ctx, claims.Sub, claims.Email, claims.PreferredUsername)
@@ -198,23 +237,16 @@ func (s *OIDCService) findOrCreateUser(ctx context.Context, sub, email, preferre
 			return nil, ErrUserDisabled
 		}
 		u.UpdatedAt = time.Now()
-		_ = s.userRepo.Update(ctx, u)
+		if updateErr := s.userRepo.Update(ctx, u); updateErr != nil {
+			slog.Warn("oidc: update user timestamp", slog.String("user_id", u.ID), slog.Any("err", updateErr))
+		}
 		return u, nil
 	}
 
 	// first OIDC login — enforce email domain allowlist before creating user
-	if len(s.allowedEmailDomains) > 0 {
-		allowed := false
-		for _, domain := range s.allowedEmailDomains {
-			if strings.HasSuffix(email, "@"+domain) {
-				allowed = true
-				break
-			}
-		}
-		if !allowed {
-			slog.Warn("oidc: email domain not allowed", slog.String("email", email))
-			return nil, ErrEmailDomainNotAllowed
-		}
+	if !IsEmailAllowed(email, s.allowedEmailDomains) {
+		slog.Warn("oidc: email domain not allowed", slog.String("email", email))
+		return nil, ErrEmailDomainNotAllowed
 	}
 
 	username := preferredUsername
@@ -262,6 +294,23 @@ func (s *OIDCService) findOrCreateUser(ctx context.Context, sub, email, preferre
 	}
 
 	return newUser, nil
+}
+
+func IsEmailAllowed(email string, allowedDomains []string) bool {
+	if len(allowedDomains) == 0 {
+		return true
+	}
+	parts := strings.SplitN(email, "@", 2)
+	if len(parts) != 2 {
+		return false
+	}
+	domain := strings.ToLower(parts[1])
+	for _, d := range allowedDomains {
+		if strings.ToLower(d) == domain {
+			return true
+		}
+	}
+	return false
 }
 
 func (s *OIDCService) generateAndStoreRefreshToken(ctx context.Context, userID string) (string, error) {

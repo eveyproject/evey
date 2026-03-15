@@ -44,6 +44,26 @@ service TranscodingService {
       get: "/api/v1/transcoding/hardware"
     };
   }
+
+  rpc CreateTranscodeProfile(CreateTranscodeProfileRequest) returns (TranscodeProfile) {
+    option (google.api.http) = {
+      post: "/api/v1/transcoding/profiles"
+      body: "*"
+    };
+  }
+
+  rpc UpdateTranscodeProfile(UpdateTranscodeProfileRequest) returns (TranscodeProfile) {
+    option (google.api.http) = {
+      put: "/api/v1/transcoding/profiles/{id}"
+      body: "*"
+    };
+  }
+
+  rpc DeleteTranscodeProfile(DeleteTranscodeProfileRequest) returns (DeleteTranscodeProfileResponse) {
+    option (google.api.http) = {
+      delete: "/api/v1/transcoding/profiles/{id}"
+    };
+  }
 }
 
 enum HWAccelType {
@@ -164,3 +184,30 @@ message DetectHardwareRequest {}
 message DetectHardwareResponse {
   repeated HWDevice devices = 1;
 }
+
+message CreateTranscodeProfileRequest {
+  string name = 1;
+  int32 video_bitrate_kbps = 2;
+  int32 audio_bitrate_kbps = 3;
+  int32 max_width = 4;
+  int32 max_height = 5;
+  string video_codec = 6;
+  string audio_codec = 7;
+}
+
+message UpdateTranscodeProfileRequest {
+  string id = 1;
+  string name = 2;
+  int32 video_bitrate_kbps = 3;
+  int32 audio_bitrate_kbps = 4;
+  int32 max_width = 5;
+  int32 max_height = 6;
+  string video_codec = 7;
+  string audio_codec = 8;
+}
+
+message DeleteTranscodeProfileRequest {
+  string id = 1;
+}
+
+message DeleteTranscodeProfileResponse {}

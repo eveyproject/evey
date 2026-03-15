@@ -3,6 +3,7 @@ package email
 import (
 	"crypto/tls"
 	"fmt"
+	"log/slog"
 	"net"
 	"net/smtp"
 	"strings"
@@ -67,7 +68,11 @@ func (s *SMTPSender) sendSSL(addr string, auth smtp.Auth, to []string, msg []byt
 	if err != nil {
 		return fmt.Errorf("smtp ssl client: %w", err)
 	}
-	defer c.Close()
+	defer func() {
+		if err := c.Close(); err != nil {
+			slog.Warn("smtp ssl close", slog.Any("err", err))
+		}
+	}()
 	if auth != nil {
 		if err := c.Auth(auth); err != nil {
 			return fmt.Errorf("smtp ssl auth: %w", err)
@@ -85,7 +90,11 @@ func (s *SMTPSender) sendPlain(addr string, auth smtp.Auth, to []string, msg []b
 	if err != nil {
 		return fmt.Errorf("smtp plain client: %w", err)
 	}
-	defer c.Close()
+	defer func() {
+		if err := c.Close(); err != nil {
+			slog.Warn("smtp plain close", slog.Any("err", err))
+		}
+	}()
 	if auth != nil {
 		if err := c.Auth(auth); err != nil {
 			return fmt.Errorf("smtp plain auth: %w", err)

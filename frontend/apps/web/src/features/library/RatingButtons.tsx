@@ -16,8 +16,8 @@ export function RatingButtons({ mediaId }: RatingButtonsProps) {
   const btnStyle = (active: boolean, activeColor: string) => ({
     padding: "6px",
     borderRadius: "9999px",
-    backgroundColor: active ? activeColor : "rgba(0,0,0,0.5)",
-    color: active ? "#fff" : "rgba(255,255,255,0.8)",
+    backgroundColor: active ? activeColor : "var(--btn-overlay-inactive-bg)",
+    color: active ? "var(--overlay-text)" : "var(--overlay-text-muted)",
     backdropFilter: "blur(4px)",
     border: "none",
     cursor: "pointer",

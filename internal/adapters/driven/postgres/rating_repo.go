@@ -26,7 +26,7 @@ func (r *RatingRepository) Upsert(ctx context.Context, rt rating.Rating) error {
 		VALUES ($1, $2, $3, $4, $4)
 		ON CONFLICT (media_item_id, profile_id)
 		DO UPDATE SET value = EXCLUDED.value, updated_at = EXCLUDED.updated_at
-	`, rt.MediaItemID, rt.ProfileID, rt.Value, now)
+	`, rt.MediaItemID, rt.ProfileID, rt.Value.Int(), now)
 	return err
 }
 

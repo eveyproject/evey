@@ -1,0 +1,173 @@
+import React from "react";
+import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { describe, it, expect, vi, beforeEach } from "vitest";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+
+const mockGetCurrentUser = vi.fn();
+const mockListProfiles = vi.fn();
+const mockUpdateUser = vi.fn();
+const mockUpdateProfile = vi.fn();
+const mockUseMutation = vi.fn();
+const mockInvalidateQueries = vi.fn();
+
+vi.mock("@evey/api", () => ({
+  useUserServiceGetCurrentUser: (...args: unknown[]) => mockGetCurrentUser(...args),
+  useUserServiceListProfiles: (...args: unknown[]) => mockListProfiles(...args),
+  useUserServiceUpdateUser: (...args: unknown[]) => mockUpdateUser(...args),
+  useUserServiceUpdateProfile: (...args: unknown[]) => mockUpdateProfile(...args),
+  getUserServiceGetCurrentUserQueryKey: () => ["/api/v1/users/me"],
+  getUserServiceListProfilesQueryKey: (id: string) => ["/api/v1/users", id, "profiles"],
+  eveyFetch: vi.fn(),
+}));
+
+vi.mock("@tanstack/react-query", async (importActual) => {
+  const actual = await importActual<typeof import("@tanstack/react-query")>();
+  return {
+    ...actual,
+    useMutation: (...args: unknown[]) => mockUseMutation(...args),
+    useQueryClient: () => ({ invalidateQueries: mockInvalidateQueries }),
+  };
+});
+
+vi.mock("@evey/store", () => ({
+  toast: { success: vi.fn(), error: vi.fn() },
+}));
+
+vi.mock("@tanstack/react-router", () => ({
+  createLazyFileRoute: () => (opts: { component: React.ComponentType }) => opts,
+}));
+
+vi.mock("@/features/user/ThemeSettings", () => ({
+  ThemeSettings: () => React.createElement("div", { "data-testid": "theme-settings" }, "Theme Settings"),
+}));
+
+vi.mock("@/features/user/NotificationSettings", () => ({
+  NotificationSettings: () => React.createElement("div", { "data-testid": "notification-settings" }, "Notification Settings"),
+}));
+
+vi.mock("@/features/user/APIKeySettings", () => ({
+  APIKeySettings: () => React.createElement("div", { "data-testid": "api-key-settings" }, "API Key Settings"),
+}));
+
+vi.mock("@/features/user/DeviceSettings", () => ({
+  DeviceSettings: () => React.createElement("div", { "data-testid": "device-settings" }, "Device Settings"),
+}));
+
+function createWrapper() {
+  const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  return ({ children }: { children: React.ReactNode }) =>
+    React.createElement(QueryClientProvider, { client: qc }, children);
+}
+
+async function getSettingsPage() {
+  const mod = await import("./settings.lazy");
+  return (mod.Route as unknown as { component: React.ComponentType }).component;
+}
+
+const mockUser = { id: "u-1", username: "alice", email: "alice@example.com" };
+const mockProfile = {
+  id: "prof-1",
+  isDefault: true,
+  maxRating: "PG",
+  preferences: { max_bitrate_kbps: "4000", parental_enabled: "false" },
+};
+
+describe("SettingsPage", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockGetCurrentUser.mockReturnValue({ data: mockUser });
+    mockListProfiles.mockReturnValue({ data: { profiles: [mockProfile] } });
+    mockUpdateUser.mockReturnValue({ mutate: vi.fn(), isPending: false });
+    mockUpdateProfile.mockReturnValue({ mutate: vi.fn(), isPending: false });
+    mockUseMutation.mockReturnValue({ mutate: vi.fn(), isPending: false });
+  });
+
+  it("renders Settings heading", async () => {
+    const SettingsPage = await getSettingsPage();
+    render(React.createElement(SettingsPage), { wrapper: createWrapper() });
+    expect(screen.getByText("Settings")).toBeInTheDocument();
+  });
+
+  it("renders all tab buttons", async () => {
+    const SettingsPage = await getSettingsPage();
+    render(React.createElement(SettingsPage), { wrapper: createWrapper() });
+    expect(screen.getByRole("button", { name: /Appearance/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Playback/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Notifications/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Account/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Parental/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Devices/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /API Keys/i })).toBeInTheDocument();
+  });
+
+  it("shows Appearance tab content by default", async () => {
+    const SettingsPage = await getSettingsPage();
+    render(React.createElement(SettingsPage), { wrapper: createWrapper() });
+    expect(screen.getByTestId("theme-settings")).toBeInTheDocument();
+  });
+
+  it("switching to Account tab shows Change Password form", async () => {
+    const SettingsPage = await getSettingsPage();
+    render(React.createElement(SettingsPage), { wrapper: createWrapper() });
+    fireEvent.click(screen.getByRole("button", { name: /Account/i }));
+    await waitFor(() => {
+      expect(screen.getByText(/Change Password/i)).toBeInTheDocument();
+    });
+  });
+
+  it("Account tab shows password validation error on mismatch", async () => {
+    const SettingsPage = await getSettingsPage();
+    render(React.createElement(SettingsPage), { wrapper: createWrapper() });
+    fireEvent.click(screen.getByRole("button", { name: /Account/i }));
+    await waitFor(() => expect(screen.getByLabelText(/New password/i)).toBeInTheDocument());
+    fireEvent.change(screen.getByLabelText(/New password/i), { target: { value: "password1" } });
+    fireEvent.change(screen.getByLabelText(/Confirm password/i), { target: { value: "different1" } });
+    fireEvent.click(screen.getByRole("button", { name: /Update password/i }));
+    await waitFor(() => expect(screen.getByText(/Passwords do not match/i)).toBeInTheDocument());
+  });
+
+  it("Account tab shows validation error for short password", async () => {
+    const SettingsPage = await getSettingsPage();
+    render(React.createElement(SettingsPage), { wrapper: createWrapper() });
+    fireEvent.click(screen.getByRole("button", { name: /Account/i }));
+    await waitFor(() => expect(screen.getByLabelText(/New password/i)).toBeInTheDocument());
+    fireEvent.change(screen.getByLabelText(/New password/i), { target: { value: "abc" } });
+    fireEvent.change(screen.getByLabelText(/Confirm password/i), { target: { value: "abc" } });
+    fireEvent.click(screen.getByRole("button", { name: /Update password/i }));
+    await waitFor(() => expect(screen.getByText("Password must be at least 8 characters")).toBeInTheDocument());
+  });
+
+  it("switching to Notifications tab shows notification settings", async () => {
+    const SettingsPage = await getSettingsPage();
+    render(React.createElement(SettingsPage), { wrapper: createWrapper() });
+    fireEvent.click(screen.getByRole("button", { name: /Notifications/i }));
+    await waitFor(() => expect(screen.getByTestId("notification-settings")).toBeInTheDocument());
+  });
+
+  it("switching to API Keys tab shows API key settings", async () => {
+    const SettingsPage = await getSettingsPage();
+    render(React.createElement(SettingsPage), { wrapper: createWrapper() });
+    fireEvent.click(screen.getByRole("button", { name: /API Keys/i }));
+    await waitFor(() => expect(screen.getByTestId("api-key-settings")).toBeInTheDocument());
+  });
+
+  it("switching to Parental tab shows parental controls toggle", async () => {
+    const SettingsPage = await getSettingsPage();
+    render(React.createElement(SettingsPage), { wrapper: createWrapper() });
+    fireEvent.click(screen.getByRole("button", { name: /Parental/i }));
+    await waitFor(() => expect(screen.getByRole("switch")).toBeInTheDocument());
+  });
+
+  it("Parental tab shows PIN error when PINs do not match", async () => {
+    const profile = { ...mockProfile, preferences: { ...mockProfile.preferences, parental_enabled: "true" } };
+    mockListProfiles.mockReturnValue({ data: { profiles: [profile] } });
+    const SettingsPage = await getSettingsPage();
+    render(React.createElement(SettingsPage), { wrapper: createWrapper() });
+    fireEvent.click(screen.getByRole("button", { name: /Parental/i }));
+    await waitFor(() => expect(screen.getByLabelText(/New PIN/i)).toBeInTheDocument());
+    fireEvent.change(screen.getByLabelText(/New PIN/i), { target: { value: "1234" } });
+    fireEvent.change(screen.getByLabelText(/Confirm PIN/i), { target: { value: "5678" } });
+    fireEvent.click(screen.getByRole("button", { name: /Save PIN/i }));
+    await waitFor(() => expect(screen.getByText(/PINs do not match/i)).toBeInTheDocument());
+  });
+});

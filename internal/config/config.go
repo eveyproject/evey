@@ -79,12 +79,14 @@ type ServerConfig struct {
 }
 
 type DBConfig struct {
-	Host     string
-	Port     int
-	User     string
-	Password string
-	DBName   string
-	SSLMode  string
+	Host         string
+	Port         int
+	User         string
+	Password     string
+	DBName       string
+	SSLMode      string
+	MaxOpenConns int
+	MaxIdleConns int
 }
 
 func (c DBConfig) DSN() string {
@@ -150,12 +152,14 @@ func Load() (*Config, error) {
 			LoginRateLimitMax: envInt("EVEY_RATELIMIT_LOGIN_MAX", 10),
 		},
 		DB: DBConfig{
-			Host:     envStr("EVEY_DB_HOST", "localhost"),
-			Port:     envInt("EVEY_DB_PORT", 5432),
-			User:     envStr("EVEY_DB_USER", "evey"),
-			Password: envStr("EVEY_DB_PASSWORD", "evey"),
-			DBName:   envStr("EVEY_DB_NAME", "evey"),
-			SSLMode:  envStr("EVEY_DB_SSLMODE", "prefer"),
+			Host:         envStr("EVEY_DB_HOST", "localhost"),
+			Port:         envInt("EVEY_DB_PORT", 5432),
+			User:         envStr("EVEY_DB_USER", "evey"),
+			Password:     envStr("EVEY_DB_PASSWORD", "evey"),
+			DBName:       envStr("EVEY_DB_NAME", "evey"),
+			SSLMode:      envStr("EVEY_DB_SSLMODE", "prefer"),
+			MaxOpenConns: envInt("EVEY_DB_MAX_OPEN_CONNS", 50),
+			MaxIdleConns: envInt("EVEY_DB_MAX_IDLE_CONNS", 10),
 		},
 		Meilisearch: MeilisearchConfig{
 			URL:    envStr("EVEY_MEILI_URL", "http://localhost:7700"),

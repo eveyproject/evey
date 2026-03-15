@@ -87,11 +87,6 @@ func NewWith(parent *slog.Logger, component string) *slog.Logger {
 	return parent.With(slog.String("component", component))
 }
 
-// NewFileLogger creates a standalone logger writing only to the given file.
-func NewFileLogger(path string, cfg Config) *slog.Logger {
-	return slog.New(newFileHandler(path, cfg))
-}
-
 // --- multi-handler ---
 
 type multiHandler struct {

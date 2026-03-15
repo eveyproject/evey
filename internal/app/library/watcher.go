@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/gravity-zero/evey/internal/domain/library"
+	"github.com/gravity-zero/evey/internal/domain/shared"
 )
 
 const debounceDelay = 2 * time.Second
@@ -22,6 +23,7 @@ type WatcherService struct {
 	libraries library.LibraryRepository
 	scanner   LibraryScanner
 	log       *slog.Logger
+	bus       shared.EventBus
 
 	mu        sync.Mutex
 	pathToLib map[string]string // watched path → library ID
@@ -44,6 +46,11 @@ func NewWatcherService(
 	}
 }
 
+func (ws *WatcherService) WithEventBus(bus shared.EventBus) *WatcherService {
+	ws.bus = bus
+	return ws
+}
+
 // Start watches all libraries with RealtimeMonitoring=true and processes FS events.
 func (ws *WatcherService) Start(ctx context.Context) error {
 	ctx, ws.cancel = context.WithCancel(ctx)
@@ -58,6 +65,22 @@ func (ws *WatcherService) Start(ctx context.Context) error {
 			continue
 		}
 		ws.watchLibrary(lib)
+	}
+
+	if ws.bus != nil {
+		ws.bus.Subscribe("library.created", func(_ context.Context, ev shared.Event) {
+			if e, ok := ev.(library.LibraryCreated); ok {
+				lib, err := ws.libraries.GetByID(context.Background(), e.LibraryID)
+				if err == nil {
+					ws.AddLibrary(lib)
+				}
+			}
+		})
+		ws.bus.Subscribe("library.deleted", func(_ context.Context, ev shared.Event) {
+			if e, ok := ev.(library.LibraryDeleted); ok {
+				ws.RemoveLibraryByID(e.LibraryID)
+			}
+		})
 	}
 
 	go ws.processEvents(ctx)

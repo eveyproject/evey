@@ -2,7 +2,9 @@ package activity_test
 
 import (
 	"context"
+	"errors"
 	"testing"
+	"time"
 
 	appactivity "github.com/gravity-zero/evey/internal/app/activity"
 	"github.com/gravity-zero/evey/internal/domain/activity"
@@ -12,18 +14,31 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestRecordLogin(t *testing.T) {
-	t.Parallel()
+func newTestServices() (
+	*appactivity.CommandService,
+	*appactivity.QueryService,
+	*actfakes.FakeLoginHistoryRepository,
+	*actfakes.FakeServerMetricRepository,
+	*actfakes.FakeAuditLogRepository,
+	*actfakes.FakePlaySessionStatsReader,
+	*actfakes.FakePlayHistoryRepository,
+) {
 	loginRepo := actfakes.NewFakeLoginHistoryRepository()
 	metricRepo := actfakes.NewFakeServerMetricRepository()
 	auditRepo := actfakes.NewFakeAuditLogRepository()
 	statsReader := actfakes.NewFakePlaySessionStatsReader()
-	bus := sharedfakes.NewFakeEventBus()
-
 	playHistoryRepo := actfakes.NewFakePlayHistoryRepository()
-	svc := appactivity.NewService(loginRepo, metricRepo, auditRepo, statsReader, playHistoryRepo, bus)
+	bus := sharedfakes.NewFakeEventBus()
+	cmdSvc := appactivity.NewCommandService(loginRepo, metricRepo, auditRepo, bus)
+	querySvc := appactivity.NewQueryService(loginRepo, metricRepo, auditRepo, statsReader, playHistoryRepo)
+	return cmdSvc, querySvc, loginRepo, metricRepo, auditRepo, statsReader, playHistoryRepo
+}
 
-	err := svc.RecordLogin(context.Background(), &activity.LoginEntry{
+func TestRecordLogin(t *testing.T) {
+	t.Parallel()
+	cmdSvc, querySvc, _, _, _, _, _ := newTestServices()
+
+	err := cmdSvc.RecordLogin(context.Background(), &activity.LoginEntry{
 		ID:         "l1",
 		UserID:     "u1",
 		ClientIP:   "127.0.0.1",
@@ -32,7 +47,221 @@ func TestRecordLogin(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	history, err := svc.GetLoginHistory(context.Background(), "u1", 10, 0)
+	history, err := querySvc.GetLoginHistory(context.Background(), "u1", 10, 0)
 	require.NoError(t, err)
 	assert.Len(t, history, 1)
+}
+
+func TestRecordLogin_SetsCreatedAt(t *testing.T) {
+	t.Parallel()
+	cmdSvc, _, loginRepo, _, _, _, _ := newTestServices()
+
+	before := time.Now()
+	entry := &activity.LoginEntry{ID: "l2", UserID: "u1", AuthMethod: "local", Success: true}
+	require.NoError(t, cmdSvc.RecordLogin(context.Background(), entry))
+	after := time.Now()
+
+	stored, err := loginRepo.GetByUserID(context.Background(), "u1", 10, 0)
+	require.NoError(t, err)
+	require.Len(t, stored, 1)
+	assert.True(t, stored[0].CreatedAt.After(before) || stored[0].CreatedAt.Equal(before))
+	assert.True(t, stored[0].CreatedAt.Before(after) || stored[0].CreatedAt.Equal(after))
+}
+
+func TestRecordLogin_Error(t *testing.T) {
+	t.Parallel()
+	cmdSvc, _, loginRepo, _, _, _, _ := newTestServices()
+	loginRepo.Err = errors.New("db error")
+
+	err := cmdSvc.RecordLogin(context.Background(), &activity.LoginEntry{ID: "l1", UserID: "u1"})
+	require.Error(t, err)
+}
+
+func TestRecordMetric(t *testing.T) {
+	t.Parallel()
+	cmdSvc, querySvc, _, _, _, _, _ := newTestServices()
+
+	now := time.Now()
+	err := cmdSvc.RecordMetric(context.Background(), &activity.ServerMetric{
+		ID:         "m1",
+		CPUPercent: 42.5,
+	})
+	require.NoError(t, err)
+
+	metrics, err := querySvc.GetServerMetrics(context.Background(), now.Add(-time.Second), now.Add(time.Second))
+	require.NoError(t, err)
+	require.Len(t, metrics, 1)
+	assert.InDelta(t, 42.5, metrics[0].CPUPercent, 0.01)
+}
+
+func TestGetServerMetrics_TimeRange(t *testing.T) {
+	t.Parallel()
+	_, querySvc, _, metricRepo, _, _, _ := newTestServices()
+
+	base := time.Now()
+	_ = metricRepo.Create(context.Background(), &activity.ServerMetric{ID: "m1", CPUPercent: 10, RecordedAt: base.Add(-10 * time.Minute)})
+	_ = metricRepo.Create(context.Background(), &activity.ServerMetric{ID: "m2", CPUPercent: 20, RecordedAt: base.Add(-5 * time.Minute)})
+	_ = metricRepo.Create(context.Background(), &activity.ServerMetric{ID: "m3", CPUPercent: 30, RecordedAt: base.Add(5 * time.Minute)})
+
+	metrics, err := querySvc.GetServerMetrics(context.Background(), base.Add(-6*time.Minute), base)
+	require.NoError(t, err)
+	assert.Len(t, metrics, 1)
+	assert.InDelta(t, 20.0, metrics[0].CPUPercent, 0.01)
+}
+
+func TestPurgeOldMetrics(t *testing.T) {
+	t.Parallel()
+	cmdSvc, querySvc, _, metricRepo, _, _, _ := newTestServices()
+
+	base := time.Now()
+	_ = metricRepo.Create(context.Background(), &activity.ServerMetric{ID: "old", CPUPercent: 1, RecordedAt: base.Add(-2 * time.Hour)})
+	_ = metricRepo.Create(context.Background(), &activity.ServerMetric{ID: "new", CPUPercent: 2, RecordedAt: base})
+
+	err := cmdSvc.PurgeOldMetrics(context.Background(), base.Add(-time.Hour))
+	require.NoError(t, err)
+
+	metrics, err := querySvc.GetServerMetrics(context.Background(), base.Add(-3*time.Hour), base.Add(time.Hour))
+	require.NoError(t, err)
+	assert.Len(t, metrics, 1)
+	assert.Equal(t, "new", metrics[0].ID)
+}
+
+func TestCreateAuditEntry_GeneratesID(t *testing.T) {
+	t.Parallel()
+	cmdSvc, _, _, _, _, _, _ := newTestServices()
+
+	entry := &activity.AuditLogEntry{
+		UserID:       "u1",
+		Action:       "login",
+		ResourceType: "auth",
+	}
+	require.NoError(t, cmdSvc.CreateAuditEntry(context.Background(), entry))
+	assert.NotEmpty(t, entry.ID)
+}
+
+func TestCreateAuditEntry_PreservesExistingID(t *testing.T) {
+	t.Parallel()
+	cmdSvc, _, _, _, _, _, _ := newTestServices()
+
+	entry := &activity.AuditLogEntry{
+		ID:     "fixed-id",
+		UserID: "u1",
+		Action: "delete",
+	}
+	require.NoError(t, cmdSvc.CreateAuditEntry(context.Background(), entry))
+	assert.Equal(t, "fixed-id", entry.ID)
+}
+
+func TestGetAuditLog_FilterByUserID(t *testing.T) {
+	t.Parallel()
+	cmdSvc, querySvc, _, _, _, _, _ := newTestServices()
+
+	_ = cmdSvc.CreateAuditEntry(context.Background(), &activity.AuditLogEntry{UserID: "u1", Action: "login"})
+	_ = cmdSvc.CreateAuditEntry(context.Background(), &activity.AuditLogEntry{UserID: "u2", Action: "login"})
+	_ = cmdSvc.CreateAuditEntry(context.Background(), &activity.AuditLogEntry{UserID: "u1", Action: "delete"})
+
+	uid := "u1"
+	entries, err := querySvc.GetAuditLog(context.Background(), activity.AuditLogFilter{UserID: &uid})
+	require.NoError(t, err)
+	assert.Len(t, entries, 2)
+}
+
+func TestGetAuditLog_FilterByAction(t *testing.T) {
+	t.Parallel()
+	cmdSvc, querySvc, _, _, _, _, _ := newTestServices()
+
+	_ = cmdSvc.CreateAuditEntry(context.Background(), &activity.AuditLogEntry{UserID: "u1", Action: "login"})
+	_ = cmdSvc.CreateAuditEntry(context.Background(), &activity.AuditLogEntry{UserID: "u1", Action: "delete"})
+	_ = cmdSvc.CreateAuditEntry(context.Background(), &activity.AuditLogEntry{UserID: "u2", Action: "login"})
+
+	action := "login"
+	entries, err := querySvc.GetAuditLog(context.Background(), activity.AuditLogFilter{Action: &action})
+	require.NoError(t, err)
+	assert.Len(t, entries, 2)
+}
+
+func TestGetUserStats(t *testing.T) {
+	t.Parallel()
+	_, querySvc, _, _, _, statsReader, _ := newTestServices()
+	statsReader.UserStatsResult = &activity.UserStats{
+		ProfileID:        "p1",
+		TotalWatchTimeMs: 3600000,
+		TotalPlayCount:   10,
+	}
+
+	stats, err := querySvc.GetUserStats(context.Background(), "p1")
+	require.NoError(t, err)
+	assert.Equal(t, int64(3600000), stats.TotalWatchTimeMs)
+	assert.Equal(t, 10, stats.TotalPlayCount)
+}
+
+func TestGetUserStats_Error(t *testing.T) {
+	t.Parallel()
+	_, querySvc, _, _, _, statsReader, _ := newTestServices()
+	statsReader.Err = errors.New("stats unavailable")
+
+	_, err := querySvc.GetUserStats(context.Background(), "p1")
+	require.Error(t, err)
+}
+
+func TestGetServerStats(t *testing.T) {
+	t.Parallel()
+	_, querySvc, _, _, _, statsReader, _ := newTestServices()
+	statsReader.ServerStatsResult = &activity.ServerStatsResult{
+		ActiveStreams:    3,
+		ActiveTranscodes: 1,
+		TotalUsers:      5,
+	}
+
+	stats, err := querySvc.GetServerStats(context.Background())
+	require.NoError(t, err)
+	assert.Equal(t, 3, stats.ActiveStreams)
+	assert.Equal(t, 5, stats.TotalUsers)
+}
+
+func TestGetPlayHistory_FilterByProfile(t *testing.T) {
+	t.Parallel()
+	_, querySvc, _, _, _, _, playHistoryRepo := newTestServices()
+
+	playHistoryRepo.Add(
+		&activity.PlayHistoryEntry{ID: "h1", ProfileID: "p1", MediaItemID: "m1"},
+		&activity.PlayHistoryEntry{ID: "h2", ProfileID: "p2", MediaItemID: "m2"},
+		&activity.PlayHistoryEntry{ID: "h3", ProfileID: "p1", MediaItemID: "m3"},
+	)
+
+	entries, err := querySvc.GetPlayHistory(context.Background(), activity.PlayHistoryFilter{ProfileID: "p1"})
+	require.NoError(t, err)
+	assert.Len(t, entries, 2)
+}
+
+func TestGetPlayHistory_FilterByMediaItem(t *testing.T) {
+	t.Parallel()
+	_, querySvc, _, _, _, _, playHistoryRepo := newTestServices()
+
+	playHistoryRepo.Add(
+		&activity.PlayHistoryEntry{ID: "h1", ProfileID: "p1", MediaItemID: "m1"},
+		&activity.PlayHistoryEntry{ID: "h2", ProfileID: "p2", MediaItemID: "m1"},
+		&activity.PlayHistoryEntry{ID: "h3", ProfileID: "p1", MediaItemID: "m2"},
+	)
+
+	entries, err := querySvc.GetPlayHistory(context.Background(), activity.PlayHistoryFilter{MediaItemID: "m1"})
+	require.NoError(t, err)
+	assert.Len(t, entries, 2)
+}
+
+func TestGetLoginHistory_Pagination(t *testing.T) {
+	t.Parallel()
+	cmdSvc, querySvc, _, _, _, _, _ := newTestServices()
+
+	for range 5 {
+		_ = cmdSvc.RecordLogin(context.Background(), &activity.LoginEntry{UserID: "u1", AuthMethod: "local", Success: true})
+	}
+
+	page1, err := querySvc.GetLoginHistory(context.Background(), "u1", 3, 0)
+	require.NoError(t, err)
+	assert.Len(t, page1, 3)
+
+	page2, err := querySvc.GetLoginHistory(context.Background(), "u1", 3, 3)
+	require.NoError(t, err)
+	assert.Len(t, page2, 2)
 }

@@ -10,6 +10,70 @@ import type { AudioStream, SubtitleStream } from "@/features/playback/HLSPlayer"
 import { useSyncPlay } from "@/features/syncplay/useSyncPlay";
 import { SyncPlayBar } from "@/features/syncplay/SyncPlayBar";
 
+const UP_NEXT_COUNTDOWN = 5;
+
+function UpNextOverlay({
+  nextEpisodeId,
+  nextEpisodeLabel,
+  onPlay,
+  onCancel,
+}: {
+  nextEpisodeId: string;
+  nextEpisodeLabel: string;
+  onPlay: (id: string) => void;
+  onCancel: () => void;
+}) {
+  const [countdown, setCountdown] = useState(UP_NEXT_COUNTDOWN);
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setCountdown((n) => n - 1);
+    }, 1000);
+    return () => clearInterval(interval);
+  }, []);
+
+  useEffect(() => {
+    if (countdown <= 0) onPlay(nextEpisodeId);
+  }, [countdown, nextEpisodeId, onPlay]);
+
+  return (
+    <div
+      className="absolute bottom-24 right-4 z-30 rounded-lg p-4 max-w-xs"
+      style={{ backgroundColor: "rgba(0,0,0,0.85)", border: "1px solid var(--border)" }}
+    >
+      <p className="text-xs uppercase tracking-wider mb-1" style={{ color: "var(--text-muted)" }}>
+        Next in {Math.max(countdown, 0)}s
+      </p>
+      <p className="text-sm font-medium text-white mb-3 truncate">{nextEpisodeLabel}</p>
+      <div className="flex gap-2">
+        <button
+          onClick={() => onPlay(nextEpisodeId)}
+          className="px-3 py-1.5 rounded text-sm font-medium text-black transition-colors"
+          style={{ backgroundColor: "var(--accent)" }}
+        >
+          Play Now
+        </button>
+        <button
+          onClick={onCancel}
+          className="px-3 py-1.5 rounded text-sm font-medium text-white transition-colors hover:bg-white/20"
+          style={{ backgroundColor: "rgba(255,255,255,0.1)" }}
+        >
+          Cancel
+        </button>
+      </div>
+      <div className="mt-2 h-0.5 rounded-full overflow-hidden" style={{ backgroundColor: "rgba(255,255,255,0.2)" }}>
+        <div
+          className="h-full rounded-full transition-all duration-1000 ease-linear"
+          style={{
+            backgroundColor: "var(--accent)",
+            width: `${((UP_NEXT_COUNTDOWN - Math.max(countdown, 0)) / UP_NEXT_COUNTDOWN) * 100}%`,
+          }}
+        />
+      </div>
+    </div>
+  );
+}
+
 export const Route = createLazyFileRoute("/_auth/player/$mediaId")({
   component: PlayerPage,
 });
@@ -21,6 +85,7 @@ function PlayerPage() {
   const [theaterMode, setTheaterMode] = useState(false);
   const [showShareDialog, setShowShareDialog] = useState(false);
   const [shareRoomId, setShareRoomId] = useState<string | null>(null);
+  const [showUpNext, setShowUpNext] = useState(false);
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const { streamInfo, sessionId, isLoading, isError, progress, stopSession } = usePlaySession(mediaId);
 
@@ -134,17 +199,25 @@ function PlayerPage() {
 
   function handleEpisodeChange(episodeId: string) {
     stopSession();
-    router.navigate({ to: "/player/$mediaId", params: { mediaId: episodeId } });
+    setShowUpNext(false);
+    void router.navigate({ to: "/player/$mediaId", params: { mediaId: episodeId } });
   }
 
-  const hasNextEpisode = useMemo(() => {
-    if (!isEpisode || episodes.length === 0) return false;
+  const nextEpisode = useMemo(() => {
+    if (!isEpisode || episodes.length === 0) return null;
     const idx = episodes.findIndex((e) => e.id === mediaId);
-    return idx >= 0 && idx < episodes.length - 1;
+    if (idx < 0 || idx >= episodes.length - 1) return null;
+    return episodes[idx + 1];
   }, [isEpisode, episodes, mediaId]);
 
+  const hasNextEpisode = !!nextEpisode;
+
   const handleEnded = useCallback(() => {
-    if (!hasNextEpisode) handleClose();
+    if (hasNextEpisode) {
+      setShowUpNext(true);
+    } else {
+      handleClose();
+    }
   }, [hasNextEpisode, handleClose]);
 
   async function handleWatchTogether() {
@@ -228,6 +301,14 @@ function PlayerPage() {
             seriesId={isEpisode ? seriesId : undefined}
             onTheaterModeChange={setTheaterMode}
             onVideoRef={(el) => { videoRef.current = el; }}
+          />
+        )}
+        {showUpNext && nextEpisode && (
+          <UpNextOverlay
+            nextEpisodeId={nextEpisode.id}
+            nextEpisodeLabel={nextEpisode.indexNumber != null ? `Episode ${nextEpisode.indexNumber}${nextEpisode.title ? ` — ${nextEpisode.title}` : ""}` : (nextEpisode.title ?? "Next Episode")}
+            onPlay={handleEpisodeChange}
+            onCancel={() => setShowUpNext(false)}
           />
         )}
         {showShareDialog && shareRoomId && (

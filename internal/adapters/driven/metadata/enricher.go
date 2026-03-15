@@ -452,52 +452,6 @@ func (e *Enricher) AutoEnrichAll(ctx context.Context, items []*domaindomain.Medi
 	wg.Wait()
 }
 
-// MergeResults merges supplementary results into a primary result.
-// Primary fields are kept; supplementary only fills gaps.
-func MergeResults(primary *domainmetadata.MetadataResult, supplements ...*domainmetadata.MetadataResult) *domainmetadata.MetadataResult {
-	if primary.ProviderIDs == nil {
-		primary.ProviderIDs = make(map[string]string)
-	}
-	if primary.Ratings == nil {
-		primary.Ratings = make(map[string]float64)
-	}
-
-	for _, s := range supplements {
-		if s == nil {
-			continue
-		}
-		for k, v := range s.ProviderIDs {
-			if _, exists := primary.ProviderIDs[k]; !exists {
-				primary.ProviderIDs[k] = v
-			}
-		}
-		for k, v := range s.Ratings {
-			if _, exists := primary.Ratings[k]; !exists {
-				primary.Ratings[k] = v
-			}
-		}
-		if primary.Overview == "" {
-			primary.Overview = s.Overview
-		}
-		if len(primary.People) == 0 {
-			primary.People = s.People
-		}
-		if len(primary.Genres) == 0 {
-			primary.Genres = s.Genres
-		}
-		if primary.CommunityRating == nil && s.CommunityRating != nil {
-			primary.CommunityRating = s.CommunityRating
-		}
-		if primary.OfficialRating == "" {
-			primary.OfficialRating = s.OfficialRating
-		}
-		// Append supplementary artwork (different providers = different images)
-		primary.Artwork = append(primary.Artwork, s.Artwork...)
-	}
-
-	return primary
-}
-
 // pickBestMatch selects the result whose title best matches the query.
 // Uses word overlap (Dice coefficient) on both Title and OriginalTitle.
 // Year matching: exact match gets +0.3 bonus, close match (±2y) gets +0.1,

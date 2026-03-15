@@ -8,6 +8,7 @@ const mutateMock = vi.fn();
 
 vi.mock("@evey/api", () => ({
   useWebhookServiceCreateWebhook: () => ({ mutate: mutateMock, isPending: false }),
+  useWebhookServiceUpdateWebhook: () => ({ mutate: vi.fn(), isPending: false }),
 }));
 
 function createWrapper() {
@@ -32,23 +33,18 @@ describe("WebhookForm", () => {
   it("submits with URL and events on form submit", async () => {
     mutateMock.mockClear();
     render(<WebhookForm onSuccess={vi.fn()} />, { wrapper: createWrapper() });
+    await userEvent.type(screen.getByLabelText("Name"), "My Hook");
     await userEvent.type(screen.getByLabelText("URL"), "https://example.com/hook");
     await userEvent.click(screen.getByRole("button", { name: "Create Webhook" }));
     expect(mutateMock).toHaveBeenCalledWith({
-      data: { url: "https://example.com/hook", events: ["*"], enabled: true },
+      data: { name: "My Hook", url: "https://example.com/hook", events: ["*"], secret: undefined, enabled: true },
     });
   });
 
-  it("parses comma-separated events correctly", async () => {
-    mutateMock.mockClear();
+  it("shows event checkboxes when All events unchecked", async () => {
     render(<WebhookForm onSuccess={vi.fn()} />, { wrapper: createWrapper() });
-    await userEvent.type(screen.getByLabelText("URL"), "https://example.com/hook");
-    const eventsInput = screen.getByDisplayValue("*");
-    await userEvent.clear(eventsInput);
-    await userEvent.type(eventsInput, "media.created, library.scanned");
-    await userEvent.click(screen.getByRole("button", { name: "Create Webhook" }));
-    expect(mutateMock).toHaveBeenCalledWith({
-      data: { url: "https://example.com/hook", events: ["media.created", "library.scanned"], enabled: true },
-    });
+    expect(screen.queryByLabelText("media.added")).not.toBeInTheDocument();
+    await userEvent.click(screen.getByLabelText("All events"));
+    expect(screen.getByLabelText("media.added")).toBeInTheDocument();
   });
 });

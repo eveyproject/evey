@@ -24,9 +24,14 @@ vi.mock("lucide-react", () => {
     Puzzle: Icon,
     Webhook: Icon,
     BarChart3: Icon,
+    TrendingUp: Icon,
     FileText: Icon,
     Database: Icon,
+    Cpu: Icon,
+    SlidersHorizontal: Icon,
+    ScrollText: Icon,
     ChevronDown: Icon,
+    Sliders: Icon,
   };
 });
 

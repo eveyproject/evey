@@ -72,7 +72,7 @@ func TestAlgorithmConfusionRejected(t *testing.T) {
 	gen := auth.NewJWTGenerator(key, 15*time.Minute)
 
 	// Craft a token signed with HMAC using the public key bytes — algorithm confusion attack
-	pubBytes := key.PublicKey.N.Bytes()
+	pubBytes := key.N.Bytes()
 	hmacToken := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
 		"sub":      "attacker",
 		"username": "attacker",

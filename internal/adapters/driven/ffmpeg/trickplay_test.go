@@ -15,7 +15,7 @@ func makeFakeProbeScript(t *testing.T, duration float64) string {
 	t.Helper()
 	f, err := os.CreateTemp("", "fake-ffprobe-*.sh")
 	require.NoError(t, err)
-	_, err = f.WriteString(fmt.Sprintf("#!/bin/sh\nprintf '{\"format\":{\"duration\":\"%g\"}}'\n", duration))
+	_, err = fmt.Fprintf(f, "#!/bin/sh\nprintf '{\"format\":{\"duration\":\"%g\"}}'\n", duration)
 	require.NoError(t, err)
 	require.NoError(t, f.Close())
 	require.NoError(t, os.Chmod(f.Name(), 0755))

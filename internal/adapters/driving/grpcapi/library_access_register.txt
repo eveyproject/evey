@@ -1,6 +1,0 @@
-// Add to GRPCServer.RegisterServices() in server.go:
-eveyv1.RegisterLibraryAccessServiceServer(s.server, &libraryAccessHandler{accessRepo: s.libraryAccess, libQuery: s.libQuery})
-// Also add to interceptors/auth.go adminOnlyMethods:
-"/evey.v1.LibraryAccessService/GetUserLibraryAccess":      true,
-"/evey.v1.LibraryAccessService/SetUserLibraryAccess":      true,
-"/evey.v1.LibraryAccessService/RevokeAllUserLibraryAccess": true,

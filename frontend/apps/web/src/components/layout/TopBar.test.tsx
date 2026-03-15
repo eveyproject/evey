@@ -25,6 +25,7 @@ vi.mock("@evey/store", () => ({
 }));
 
 vi.mock("@evey/api", () => ({
+  eveyFetch: vi.fn().mockResolvedValue(undefined),
   useUserServiceGetCurrentUser: () => ({
     data: { username: "gravity" },
   }),
@@ -81,5 +82,41 @@ describe("TopBar", () => {
     renderTopBar();
     expect(screen.getByRole("button", { name: "User menu" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "User menu" })).toHaveTextContent("G");
+  });
+
+  it("user menu opens on avatar click and shows menu items", async () => {
+    const user = userEvent.setup();
+    renderTopBar();
+    expect(screen.queryByText("Profile")).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "User menu" }));
+    expect(screen.getByText("Profile")).toBeInTheDocument();
+    expect(screen.getByText("Settings")).toBeInTheDocument();
+    expect(screen.getByText("Watch History")).toBeInTheDocument();
+  });
+
+  it("logout button is visible in user menu and calls logout + navigate", async () => {
+    const user = userEvent.setup();
+    renderTopBar();
+    await user.click(screen.getByRole("button", { name: "User menu" }));
+    const signOut = screen.getByTestId("logout-btn");
+    expect(signOut).toBeInTheDocument();
+    await user.click(signOut);
+    expect(mockNavigate).toHaveBeenCalledWith({ to: "/login" });
+  });
+
+  it("user menu closes when Escape is pressed", async () => {
+    const user = userEvent.setup();
+    renderTopBar();
+    await user.click(screen.getByRole("button", { name: "User menu" }));
+    expect(screen.getByText("Profile")).toBeInTheDocument();
+    await user.keyboard("{Escape}");
+    expect(screen.queryByText("Profile")).not.toBeInTheDocument();
+  });
+
+  it("does not show Admin menu item when user is not admin", async () => {
+    const user = userEvent.setup();
+    renderTopBar();
+    await user.click(screen.getByRole("button", { name: "User menu" }));
+    expect(screen.queryByText("Admin")).not.toBeInTheDocument();
   });
 });

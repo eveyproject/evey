@@ -51,8 +51,8 @@ func (r *NotificationSettingsRepository) GetByProfiles(ctx context.Context, prof
 	defer rows.Close()
 	for rows.Next() {
 		var pid, ml, sl, msl string
-		if err := rows.Scan(&pid, &ml, &sl, &msl); err != nil {
-			return nil, err
+		if scanErr := rows.Scan(&pid, &ml, &sl, &msl); scanErr != nil {
+			return nil, scanErr
 		}
 		result[pid] = &notification.Settings{
 			ProfileID:   pid,
@@ -61,8 +61,8 @@ func (r *NotificationSettingsRepository) GetByProfiles(ctx context.Context, prof
 			MusicLevel:  notification.Level(msl),
 		}
 	}
-	if err := rows.Err(); err != nil {
-		return nil, err
+	if rowsErr := rows.Err(); rowsErr != nil {
+		return nil, rowsErr
 	}
 	// fill missing profiles with global defaults
 	defaults, err := r.GetGlobalDefaults(ctx)

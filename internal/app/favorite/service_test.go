@@ -2,9 +2,12 @@ package favorite
 
 import (
 	"context"
+	"errors"
 	"testing"
 
 	"github.com/gravity-zero/evey/internal/domain/favorite/fakes"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func newTestService() *Service {
@@ -16,56 +19,38 @@ func TestToggle_AddAndRemove(t *testing.T) {
 	ctx := context.Background()
 
 	added, err := svc.Toggle(ctx, "p1", "m1")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !added {
-		t.Fatal("expected added=true")
-	}
+	require.NoError(t, err)
+	assert.True(t, added)
 
-	ok, _ := svc.IsFavorite(ctx, "p1", "m1")
-	if !ok {
-		t.Fatal("expected favorite")
-	}
+	ok, err := svc.IsFavorite(ctx, "p1", "m1")
+	require.NoError(t, err)
+	assert.True(t, ok)
 
 	removed, err := svc.Toggle(ctx, "p1", "m1")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if removed {
-		t.Fatal("expected added=false after toggle off")
-	}
+	require.NoError(t, err)
+	assert.False(t, removed)
 
-	ok, _ = svc.IsFavorite(ctx, "p1", "m1")
-	if ok {
-		t.Fatal("expected not favorite")
-	}
+	ok, err = svc.IsFavorite(ctx, "p1", "m1")
+	require.NoError(t, err)
+	assert.False(t, ok)
 }
 
 func TestList(t *testing.T) {
 	svc := newTestService()
 	ctx := context.Background()
 
-	svc.Toggle(ctx, "p1", "m1")
-	svc.Toggle(ctx, "p1", "m2")
-	svc.Toggle(ctx, "p1", "m3")
-	svc.Toggle(ctx, "p2", "m1")
+	_, _ = svc.Toggle(ctx, "p1", "m1")
+	_, _ = svc.Toggle(ctx, "p1", "m2")
+	_, _ = svc.Toggle(ctx, "p1", "m3")
+	_, _ = svc.Toggle(ctx, "p2", "m1")
 
 	items, err := svc.List(ctx, "p1", 50, 0)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(items) != 3 {
-		t.Fatalf("expected 3, got %d", len(items))
-	}
+	require.NoError(t, err)
+	assert.Len(t, items, 3)
 
 	items, err = svc.List(ctx, "p2", 50, 0)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(items) != 1 {
-		t.Fatalf("expected 1, got %d", len(items))
-	}
+	require.NoError(t, err)
+	assert.Len(t, items, 1)
 }
 
 func TestList_DefaultLimit(t *testing.T) {
@@ -73,12 +58,8 @@ func TestList_DefaultLimit(t *testing.T) {
 	ctx := context.Background()
 
 	items, err := svc.List(ctx, "p1", 0, 0)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(items) != 0 {
-		t.Fatal("expected empty")
-	}
+	require.NoError(t, err)
+	assert.Empty(t, items)
 }
 
 func TestIsFavorite_NotFound(t *testing.T) {
@@ -86,10 +67,177 @@ func TestIsFavorite_NotFound(t *testing.T) {
 	ctx := context.Background()
 
 	ok, err := svc.IsFavorite(ctx, "p1", "m999")
+	require.NoError(t, err)
+	assert.False(t, ok)
+}
+
+func TestToggle_RepoError_OnIsFavorite(t *testing.T) {
+	t.Parallel()
+	repo := fakes.NewFakeRepository()
+	svc := NewService(repo)
+
+	repo.Err = errors.New("db error")
+
+	_, err := svc.Toggle(context.Background(), "p1", "m1")
+	require.Error(t, err)
+}
+
+func TestList_LimitCappedAt500(t *testing.T) {
+	t.Parallel()
+	svc := newTestService()
+	ctx := context.Background()
+
+	for i := range 10 {
+		_, _ = svc.Toggle(ctx, "p1", string(rune('a'+i)))
+	}
+
+	// limit > 500 should be capped to 50 (the default cap in service)
+	items, err := svc.List(ctx, "p1", 600, 0)
+	require.NoError(t, err)
+	// only 10 items total, all should be returned regardless of cap
+	assert.Len(t, items, 10)
+}
+
+func TestList_LimitZeroUsesDefault(t *testing.T) {
+	t.Parallel()
+	svc := newTestService()
+	ctx := context.Background()
+
+	for i := range 3 {
+		_, _ = svc.Toggle(ctx, "p1", string(rune('a'+i)))
+	}
+
+	// limit=0 triggers the default (50)
+	items, err := svc.List(ctx, "p1", 0, 0)
+	require.NoError(t, err)
+	assert.Len(t, items, 3)
+}
+
+func TestIsFavorite_DifferentProfiles(t *testing.T) {
+	t.Parallel()
+	svc := newTestService()
+	ctx := context.Background()
+
+	_, _ = svc.Toggle(ctx, "p1", "m1")
+
+	ok1, err := svc.IsFavorite(ctx, "p1", "m1")
+	require.NoError(t, err)
+	assert.True(t, ok1)
+
+	ok2, err := svc.IsFavorite(ctx, "p2", "m1")
+	require.NoError(t, err)
+	assert.False(t, ok2, "different profile should not see p1's favorites")
+}
+
+func TestToggle_MultipleItems_IndependentState(t *testing.T) {
+	t.Parallel()
+	svc := newTestService()
+	ctx := context.Background()
+
+	_, _ = svc.Toggle(ctx, "p1", "m1")
+	_, _ = svc.Toggle(ctx, "p1", "m2")
+
+	// remove m1 but not m2
+	_, _ = svc.Toggle(ctx, "p1", "m1")
+
+	ok1, _ := svc.IsFavorite(ctx, "p1", "m1")
+	ok2, _ := svc.IsFavorite(ctx, "p1", "m2")
+	assert.False(t, ok1)
+	assert.True(t, ok2)
+}
+
+func TestToggle_Idempotent_AddTwice(t *testing.T) {
+	svc := newTestService()
+	ctx := context.Background()
+
+	added1, err := svc.Toggle(ctx, "p1", "m1")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if ok {
-		t.Fatal("expected false")
+	if !added1 {
+		t.Fatal("expected added=true on first toggle")
+	}
+
+	// toggle off then back on
+	removed, err := svc.Toggle(ctx, "p1", "m1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if removed {
+		t.Fatal("expected added=false when toggling off")
+	}
+
+	added2, err := svc.Toggle(ctx, "p1", "m1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !added2 {
+		t.Fatal("expected added=true on re-add")
+	}
+
+	ok, _ := svc.IsFavorite(ctx, "p1", "m1")
+	if !ok {
+		t.Fatal("expected favorite after re-add")
+	}
+}
+
+func TestList_LimitClamped(t *testing.T) {
+	svc := newTestService()
+	ctx := context.Background()
+
+	// zero limit gets clamped to 50, should return all items up to 50
+	for i := range 3 {
+		svc.Toggle(ctx, "p1", "m"+string(rune('a'+i)))
+	}
+
+	items, err := svc.List(ctx, "p1", 0, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(items) != 3 {
+		t.Fatalf("expected 3 items with limit=0 (clamped to 50), got %d", len(items))
+	}
+}
+
+func TestList_LimitOverMax(t *testing.T) {
+	svc := newTestService()
+	ctx := context.Background()
+
+	for i := range 5 {
+		svc.Toggle(ctx, "p1", "item"+string(rune('a'+i)))
+	}
+
+	// limit > 500 gets clamped to 50
+	items, err := svc.List(ctx, "p1", 600, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(items) != 5 {
+		t.Fatalf("expected 5 items, got %d", len(items))
+	}
+}
+
+func TestList_Pagination(t *testing.T) {
+	svc := newTestService()
+	ctx := context.Background()
+
+	for _, id := range []string{"m1", "m2", "m3", "m4"} {
+		svc.Toggle(ctx, "p1", id)
+	}
+
+	page1, err := svc.List(ctx, "p1", 2, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(page1) != 2 {
+		t.Fatalf("expected 2 items on page1, got %d", len(page1))
+	}
+
+	page2, err := svc.List(ctx, "p1", 2, 2)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(page2) != 2 {
+		t.Fatalf("expected 2 items on page2, got %d", len(page2))
 	}
 }

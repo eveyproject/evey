@@ -1,0 +1,234 @@
+package httpapi
+
+import (
+	"context"
+	"net/http"
+	"time"
+
+	appactivity "github.com/gravity-zero/evey/internal/app/activity"
+	appbackup "github.com/gravity-zero/evey/internal/app/backup"
+	appcollection "github.com/gravity-zero/evey/internal/app/collection"
+	appfavorite "github.com/gravity-zero/evey/internal/app/favorite"
+	applibrary "github.com/gravity-zero/evey/internal/app/library"
+	appmetadata "github.com/gravity-zero/evey/internal/app/metadata"
+	appmusic "github.com/gravity-zero/evey/internal/app/music"
+	appphoto "github.com/gravity-zero/evey/internal/app/photo"
+	appplayback "github.com/gravity-zero/evey/internal/app/playback"
+	appplaylist "github.com/gravity-zero/evey/internal/app/playlist"
+	apprating "github.com/gravity-zero/evey/internal/app/rating"
+	appsubtitle "github.com/gravity-zero/evey/internal/app/subtitle"
+	appsyncplay "github.com/gravity-zero/evey/internal/app/syncplay"
+	apptranscoding "github.com/gravity-zero/evey/internal/app/transcoding"
+	appuser "github.com/gravity-zero/evey/internal/app/user"
+	"github.com/gravity-zero/evey/internal/config"
+	domainlibrary "github.com/gravity-zero/evey/internal/domain/library"
+	"github.com/gravity-zero/evey/internal/domain/notification"
+	domainshared "github.com/gravity-zero/evey/internal/domain/shared"
+	domainuser "github.com/gravity-zero/evey/internal/domain/user"
+	"github.com/gravity-zero/evey/internal/pkg/auth"
+	eveymetrics "github.com/gravity-zero/evey/internal/pkg/metrics"
+	"github.com/gravity-zero/evey/internal/pkg/ratelimit"
+)
+
+// DBPinger is satisfied by *pgxpool.Pool and any test double.
+type DBPinger interface {
+	Ping(ctx context.Context) error
+}
+
+// HTTPServer holds shared dependencies for HTTP handlers.
+type HTTPServer struct {
+	BaseURL   string
+	Version   string
+	StartTime time.Time
+	LogDir    string
+	HTTPSOnly bool
+
+	// DB is used for liveness checks; may be nil (check skipped).
+	DB DBPinger
+
+	TokenGen *auth.JWTGenerator
+	Cfg      *config.Config
+
+	// Library
+	LibCmdSvc   *applibrary.CommandService
+	LibQuerySvc *applibrary.QueryService
+	Scheduler   *applibrary.Scheduler
+
+	// User
+	UserCmdSvc   *appuser.CommandService
+	UserQuerySvc *appuser.QueryService
+	OIDCSvc      *appuser.OIDCService
+
+	// Playback
+	PlaybackSvc *appplayback.Service
+
+	// Transcoding
+	TranscodingSvc *apptranscoding.Service
+	HLSManager     *apptranscoding.HLSManager
+
+	// Metadata
+	MetadataCmdSvc   *appmetadata.CommandService
+	MetadataQuerySvc *appmetadata.QueryService
+
+	// Activity
+	ActivityQuerySvc *appactivity.QueryService
+
+	// Collections / Playlists / Favorites
+	CollectionSvc *appcollection.Service
+	PlaylistSvc   *appplaylist.Service
+	FavoriteSvc   *appfavorite.Service
+
+	// Music
+	MusicSvc *appmusic.Service
+
+	// Rating
+	UserRatingRepo domainlibrary.UserRatingRepository
+	StarRatingSvc  *apprating.Service
+
+	// Photo
+	PhotoSvc *appphoto.Service
+
+	// SyncPlay
+	SyncPlayHub *appsyncplay.Hub
+
+	// Subtitle (optional)
+	SubtitleSvc *appsubtitle.Service
+
+	// Backup
+	BackupSvc *appbackup.Service
+
+	// Push
+	FCMTokenRepo notification.DeviceTokenRepository
+
+	// Repos / accessors
+	ArtworkRepo       ArtworkRepo
+	LibraryAccessRepo domainuser.LibraryAccessRepository
+	ServerCfgRepo     domainshared.ServerConfigRepository
+	ProfileRepo       domainuser.ProfileRepository
+	Hasher            domainuser.PasswordHasher
+
+	// Config store for remote access persistence
+	CfgStore remoteAccessPersister
+
+	// Server context (for long-running background ops like photo scan)
+	ServerCtx context.Context
+
+	// Rate limiters passed in from main
+	LoginRL      *ratelimit.Limiter
+	GlobalRL     *ratelimit.Limiter
+	AdminHeavyRL *ratelimit.Limiter
+
+	// audio normalize getter (closure capturing serverCfgRepo)
+	AudioNormalizeGetter func(ctx context.Context) bool
+
+	// User stream/bitrate adapters
+	UserMaxStreams UserMaxStreamsGetter
+	UserBitrate   UserBitrateGetter
+}
+
+// RegisterRoutes wires all HTTP routes onto mux.
+// gwMux is the grpc-gateway handler (may be nil if gateway failed).
+func (s *HTTPServer) RegisterRoutes(mux *http.ServeMux, gwMux http.Handler) {
+	mux.Handle("GET /metrics", eveymetrics.Handler())
+	mux.HandleFunc("/healthz", s.healthzHandler)
+
+	mux.HandleFunc("GET /api/v1/admin/fs/browse", requireAdmin(s.TokenGen, browseDirsHandler(s.TokenGen)))
+
+	mh := mediaHandler(s.TokenGen, s.LibQuerySvc, s.ArtworkRepo, s.BaseURL, s.LibraryAccessRepo)
+	mux.HandleFunc("GET /api/v1/media/{id}/stream", mh)
+	mux.HandleFunc("GET /api/v1/media/{id}/artwork/{artType}", mh)
+	mux.HandleFunc("POST /api/v1/media/{id}/stream", mh)
+	mux.HandleFunc("POST /api/v1/media/{id}/artwork/{artworkId}/select", selectArtworkHandler(s.TokenGen, s.ArtworkRepo, s.LibQuerySvc, s.LibraryAccessRepo))
+	mux.HandleFunc("GET /api/v1/media/{id}/download", downloadHandler(s.TokenGen, s.LibQuerySvc, s.BaseURL, s.LibraryAccessRepo))
+
+	transcodeThrottle := apptranscoding.NewTranscodeThrottle()
+	mux.HandleFunc("GET /api/v1/media/{id}/transcode", transcodeHandler(s.TokenGen, s.LibQuerySvc, s.BaseURL, s.LibraryAccessRepo, transcodeThrottle, s.UserMaxStreams))
+	mux.HandleFunc("GET /api/v1/media/{id}/subtitle/{track}", subtitleHandler(s.TokenGen, s.LibQuerySvc, s.BaseURL, s.LibraryAccessRepo))
+	mux.HandleFunc("GET /api/v1/media/{id}/chapters", chaptersHandler(s.TokenGen, s.LibCmdSvc, s.BaseURL, s.LibraryAccessRepo, s.LibQuerySvc))
+	mux.HandleFunc("GET /api/v1/media/{id}/trickplay", trickplayManifestHandler(s.TokenGen, s.LibCmdSvc, s.BaseURL, s.LibraryAccessRepo, s.LibQuerySvc))
+	mux.HandleFunc("GET /api/v1/media/{id}/trickplay/{image}", trickplayImageHandler(s.TokenGen, s.LibCmdSvc, s.BaseURL, s.LibraryAccessRepo, s.LibQuerySvc))
+	mux.HandleFunc("POST /api/v1/admin/media/{id}/trickplay/generate", requireAdmin(s.TokenGen, ratelimit.MiddlewareFunc(s.AdminHeavyRL, trickplayGenerateHandler(s.TokenGen, s.LibCmdSvc, s.ServerCtx))))
+	mux.HandleFunc("POST /api/v1/admin/trickplay/generate-all", requireAdmin(s.TokenGen, ratelimit.MiddlewareFunc(s.AdminHeavyRL, trickplayGenerateAllHandler(s.TokenGen, s.LibCmdSvc))))
+	mux.HandleFunc("GET /api/v1/media/{id}/playback-info", playbackInfoHandler(s.TokenGen, s.LibQuerySvc, s.LibraryAccessRepo))
+	mux.HandleFunc("GET /api/v1/media/{id}/hls/master.m3u8", hlsMasterHandler(s.TokenGen, s.LibQuerySvc, s.HLSManager, s.LibraryAccessRepo, s.UserMaxStreams, s.AudioNormalizeGetter, s.UserBitrate))
+	mux.HandleFunc("GET /api/v1/media/{id}/hls/{file}", hlsSegmentHandler(s.TokenGen, s.LibQuerySvc, s.HLSManager, s.LibraryAccessRepo))
+	mux.HandleFunc("GET /api/v1/admin/library-stats", requireAdmin(s.TokenGen, libraryStatsHandler(s.TokenGen, s.LibQuerySvc)))
+
+	if gwMux != nil {
+		mux.HandleFunc("POST /api/v1/auth/login", ratelimit.MiddlewareFunc(s.LoginRL, func(w http.ResponseWriter, r *http.Request) {
+			r.Body = http.MaxBytesReader(w, r.Body, 1<<20)
+			authCookieMiddleware(gwMux, s.HTTPSOnly).ServeHTTP(w, r)
+		}))
+		mux.HandleFunc("POST /api/v1/auth/refresh", func(w http.ResponseWriter, r *http.Request) {
+			r = injectRefreshTokenFromCookie(r)
+			authCookieMiddleware(gwMux, s.HTTPSOnly).ServeHTTP(w, r)
+		})
+		mux.HandleFunc("POST /api/v1/auth/logout", func(w http.ResponseWriter, r *http.Request) {
+			clearRefreshCookie(w, s.HTTPSOnly)
+			if s.OIDCSvc != nil {
+				if ep := s.OIDCSvc.EndSessionEndpoint(); ep != "" {
+					// Invalidate local session via gRPC (discard response body), then redirect.
+					rec := &discardResponseWriter{header: make(http.Header)}
+					gwMux.ServeHTTP(rec, r)
+					http.Redirect(w, r, ep+"?post_logout_redirect_uri="+s.BaseURL+"/login", http.StatusFound)
+					return
+				}
+			}
+			gwMux.ServeHTTP(w, r)
+		})
+	}
+
+	registerAdminRoutes(mux, s.MetadataCmdSvc, s.MetadataQuerySvc, s.TokenGen, s.AdminHeavyRL)
+	registerUserAdminRoutes(mux, s.UserCmdSvc, s.UserQuerySvc, s.TokenGen)
+	registerFavoriteRoutes(mux, s.FavoriteSvc, s.LibQuerySvc, s.TokenGen)
+	registerPhotoRoutes(mux, s.PhotoSvc, s.TokenGen, s.LibraryAccessRepo, s.LibQuerySvc, s.ServerCtx)
+	registerMetadataOverrideRoutes(mux, s.MetadataCmdSvc, s.MetadataQuerySvc, s.TokenGen)
+	registerTranscodeCacheRoutes(mux, s.TranscodingSvc, s.TokenGen)
+	registerTranscodeProfileRoutes(mux, s.TranscodingSvc, s.TokenGen)
+	registerCollectionRoutes(mux, s.CollectionSvc, s.TokenGen)
+	registerScheduleRoutes(mux, s.Scheduler, s.TokenGen)
+	registerLibraryAccessRoutes(mux, s.LibraryAccessRepo, s.LibQuerySvc, s.TokenGen)
+	registerPlaylistRoutes(mux, s.PlaylistSvc, s.TokenGen)
+
+	registerSyncPlayRoutes(mux, s.SyncPlayHub, s.TokenGen, s.LibQuerySvc, s.LibraryAccessRepo)
+	registerBackupRoutes(mux, s.BackupSvc, s.TokenGen, s.AdminHeavyRL)
+	registerRemoteAccessRoutes(mux, s.Cfg, s.TokenGen, s.CfgStore)
+	registerPlaybackSettingsRoutes(mux, s.Cfg, s.TokenGen)
+	registerParentalRoutes(mux, s.ProfileRepo, s.Hasher, s.TokenGen)
+	registerRatingRoutes(mux, s.UserRatingRepo, s.TokenGen, s.LibQuerySvc, s.LibraryAccessRepo)
+	registerStarRatingRoutes(mux, s.StarRatingSvc, s.TokenGen, s.LibQuerySvc, s.LibraryAccessRepo)
+	registerPopularRoute(mux, s.ActivityQuerySvc, s.LibQuerySvc, s.TokenGen)
+	registerAnalyticsRoutes(mux, s.ActivityQuerySvc, s.TokenGen)
+	registerFilterRoutes(mux, s.LibQuerySvc, s.TokenGen, s.LibraryAccessRepo)
+	registerSystemStatsRoute(mux, s.StartTime, s.TokenGen)
+	registerServerConfigRoutes(mux, s.ServerCfgRepo, s.TokenGen)
+	registerLogsRoute(mux, s.LogDir, s.TokenGen)
+	registerMusicRoutes(mux, s.MusicSvc, s.TokenGen, s.LibraryAccessRepo, s.LibQuerySvc)
+	registerPushRoutes(mux, s.FCMTokenRepo, s.ProfileRepo, s.TokenGen)
+
+	if s.SubtitleSvc != nil {
+		registerSubtitleRoutes(mux, s.SubtitleSvc, s.TokenGen, s.LibQuerySvc, s.LibraryAccessRepo)
+	}
+
+	mux.HandleFunc("GET /api/v1/admin/sessions/active", requireAdmin(s.TokenGen, activeSessionsHandler(s.TokenGen, s.PlaybackSvc)))
+	mux.HandleFunc("DELETE /api/v1/admin/sessions/{id}", requireAdmin(s.TokenGen, killSessionHandler(s.TokenGen, s.PlaybackSvc)))
+
+	if s.OIDCSvc != nil {
+		registerOIDCRoutes(mux, s.OIDCSvc, s.HTTPSOnly)
+	} else {
+		mux.HandleFunc("GET /api/v1/auth/oidc/config", func(w http.ResponseWriter, _ *http.Request) {
+			w.Header().Set("Content-Type", "application/json")
+			if _, err := w.Write([]byte(`{"enabled":false}`)); err != nil {
+				return
+			}
+		})
+	}
+
+	if gwMux != nil {
+		mux.Handle("/", ratelimit.Middleware(s.GlobalRL,
+			"/api/v1/playback/progress",
+			"/api/v1/playback/start",
+			"/api/v1/playback/stop",
+		)(apiCacheMiddleware(gwMux)))
+	}
+}

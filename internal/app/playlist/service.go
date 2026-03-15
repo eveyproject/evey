@@ -14,15 +14,21 @@ import (
 const maxItems = 500
 
 var (
-	ErrNotOwner   = errors.New("not playlist owner")
-	ErrSmartItems = errors.New("cannot manually add items to smart playlist")
-	ErrMaxItems   = errors.New("playlist item limit reached")
+	ErrNotOwner        = errors.New("not playlist owner")
+	ErrSmartItems      = errors.New("cannot manually add items to smart playlist")
+	ErrMaxItems        = errors.New("playlist item limit reached")
+	ErrMediaItemNotFound = errors.New("media item not found")
 )
+
+type MediaItemExistsChecker interface {
+	GetByID(ctx context.Context, id string) (*library.MediaItem, error)
+}
 
 type Service struct {
 	playlists    playlist.PlaylistRepository
 	items        playlist.PlaylistItemRepository
 	smartQuerier playlist.SmartPlaylistQuerier
+	mediaChecker MediaItemExistsChecker
 }
 
 func NewService(
@@ -35,6 +41,11 @@ func NewService(
 		items:        items,
 		smartQuerier: smartQuerier,
 	}
+}
+
+func (s *Service) WithMediaChecker(checker MediaItemExistsChecker) *Service {
+	s.mediaChecker = checker
+	return s
 }
 
 func (s *Service) Create(ctx context.Context, pl *playlist.Playlist) error {
@@ -102,6 +113,15 @@ func (s *Service) AddItem(ctx context.Context, playlistID, mediaItemID, userID s
 	}
 	if pl.Type == playlist.Smart {
 		return ErrSmartItems
+	}
+	if s.mediaChecker != nil {
+		_, checkErr := s.mediaChecker.GetByID(ctx, mediaItemID)
+		if errors.Is(checkErr, library.ErrNotFound) {
+			return ErrMediaItemNotFound
+		}
+		if checkErr != nil {
+			return fmt.Errorf("check media item: %w", checkErr)
+		}
 	}
 	existing, err := s.items.GetByPlaylistID(ctx, playlistID)
 	if err != nil {

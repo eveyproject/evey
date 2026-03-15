@@ -39,18 +39,18 @@ function parseLine(raw: string): ParsedLine {
 
 function levelColor(level?: string): string {
   switch ((level ?? "").toLowerCase()) {
-    case "error": return "#f87171";
-    case "warn": return "#fbbf24";
-    case "info": return "#60a5fa";
-    case "debug": return "#94a3b8";
+    case "error": return "var(--color-danger)";
+    case "warn": return "var(--color-warning)";
+    case "info": return "var(--accent)";
+    case "debug": return "var(--text-secondary)";
     default: return "var(--text-muted)";
   }
 }
 
 function levelBg(level?: string): string {
   switch ((level ?? "").toLowerCase()) {
-    case "error": return "rgba(248,113,113,0.15)";
-    case "warn": return "rgba(251,191,36,0.08)";
+    case "error": return "color-mix(in srgb, var(--color-danger) 12%, transparent)";
+    case "warn": return "color-mix(in srgb, var(--color-warning) 8%, transparent)";
     default: return "transparent";
   }
 }
@@ -80,7 +80,7 @@ function VirtualLogList({ lines, live }: { lines: ParsedLine[]; live: boolean })
     <div
       ref={parentRef}
       className="flex-1 overflow-y-auto rounded-[var(--radius-lg)] p-3 font-mono text-xs"
-      style={{ backgroundColor: "#0d1117", border: "1px solid var(--border)", minHeight: 400, maxHeight: "60vh" }}
+      style={{ backgroundColor: "var(--surface)", border: "1px solid var(--border)", minHeight: 400, maxHeight: "60vh" }}
     >
       <div style={{ height: virtualizer.getTotalSize(), position: "relative" }}>
         {virtualizer.getVirtualItems().map((vItem) => {
@@ -97,10 +97,10 @@ function VirtualLogList({ lines, live }: { lines: ParsedLine[]; live: boolean })
                 height: LOG_LINE_HEIGHT,
                 backgroundColor: levelBg(line.level),
               }}
-              className="flex gap-2 items-center px-1 rounded hover:bg-white/5 transition-colors"
+              className="flex gap-2 items-center px-1 rounded hover:bg-[var(--log-hover-bg)] transition-colors"
             >
               {line.time && (
-                <span className="flex-shrink-0 text-[11px]" style={{ color: "#6e7681" }}>
+                <span className="flex-shrink-0 text-[11px]" style={{ color: "var(--text-muted)" }}>
                   {line.time.substring(11, 19)}
                 </span>
               )}
@@ -113,11 +113,11 @@ function VirtualLogList({ lines, live }: { lines: ParsedLine[]; live: boolean })
                 </span>
               )}
               {line.component && (
-                <span className="flex-shrink-0 text-[10px] px-1 rounded" style={{ color: "#8b949e", backgroundColor: "#161b22" }}>
+                <span className="flex-shrink-0 text-[10px] px-1 rounded" style={{ color: "var(--text-secondary)", backgroundColor: "var(--surface-raised)" }}>
                   {line.component}
                 </span>
               )}
-              <span className="truncate" style={{ color: "#e6edf3" }}>
+              <span className="truncate" style={{ color: "var(--text)" }}>
                 {line.msg ?? line.raw}
               </span>
             </div>
@@ -239,7 +239,7 @@ function LogsPage() {
               className="px-3 py-1.5 rounded-full text-xs font-medium transition-colors"
               style={{
                 backgroundColor: filterLevel === l ? "var(--accent)" : "var(--surface-raised)",
-                color: filterLevel === l ? "#fff" : "var(--text-muted)",
+                color: filterLevel === l ? "var(--filter-active-text)" : "var(--text-muted)",
                 border: `1px solid ${filterLevel === l ? "var(--accent)" : "var(--border)"}`,
               }}
             >

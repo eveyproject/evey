@@ -290,8 +290,9 @@ func scanMediaItems(rows *sql.Rows) ([]*library.MediaItem, error) {
 		item := &library.MediaItem{}
 		var providerIDsJSON, genresJSON, studiosJSON, tagsJSON []byte
 		var filePath sql.NullString
+		var parentID sql.NullString
 		err := rows.Scan(
-			&item.ID, &item.LibraryID, &item.ParentID, &item.Type,
+			&item.ID, &item.LibraryID, &parentID, &item.Type,
 			&item.Title, &item.SortTitle, &item.OriginalTitle, &item.Overview, &item.Tagline,
 			&filePath, &item.FileSize, &item.DurationMs, &item.Bitrate, &item.ContainerFormat,
 			&item.IndexNumber, &item.CommunityRating, &item.OfficialRating,
@@ -300,6 +301,9 @@ func scanMediaItems(rows *sql.Rows) ([]*library.MediaItem, error) {
 		)
 		if err != nil {
 			return nil, err
+		}
+		if parentID.Valid {
+			item.ParentID = parentID.String
 		}
 		if filePath.Valid {
 			item.FilePath = filePath.String

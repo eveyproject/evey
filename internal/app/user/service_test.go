@@ -13,7 +13,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func newUserSvc() (*appuser.Service, *userfakes.FakeUserRepository, *userfakes.FakeProfileRepository, *userfakes.FakePasswordHasher, *sharedfakes.FakeEventBus) {
+func newUserSvc() (*appuser.CommandService, *userfakes.FakeUserRepository, *userfakes.FakeProfileRepository, *userfakes.FakePasswordHasher, *sharedfakes.FakeEventBus) {
 	userRepo := userfakes.NewFakeUserRepository()
 	profileRepo := userfakes.NewFakeProfileRepository()
 	rtRepo := userfakes.NewFakeRefreshTokenRepository()
@@ -25,7 +25,7 @@ func newUserSvc() (*appuser.Service, *userfakes.FakeUserRepository, *userfakes.F
 	hasher := userfakes.NewFakePasswordHasher()
 	tokenGen := userfakes.NewFakeTokenGenerator()
 	bus := sharedfakes.NewFakeEventBus()
-	svc := appuser.NewService(userRepo, profileRepo, rtRepo, apiKeyRepo, inviteRepo, qcRepo, roleRepo, userRoleRepo, hasher, tokenGen, bus)
+	svc := appuser.NewCommandService(userRepo, profileRepo, rtRepo, apiKeyRepo, inviteRepo, qcRepo, roleRepo, userRoleRepo, hasher, tokenGen, bus)
 	return svc, userRepo, profileRepo, hasher, bus
 }
 
@@ -163,7 +163,7 @@ func TestLogin_DuplicateRefreshTokenRetries(t *testing.T) {
 		collideCount: 1,
 	}
 
-	svc := appuser.NewService(userRepo, profileRepo, rtRepo, apiKeyRepo, inviteRepo, qcRepo, roleRepo, userRoleRepo, hasher, tokenGen, bus)
+	svc := appuser.NewCommandService(userRepo, profileRepo, rtRepo, apiKeyRepo, inviteRepo, qcRepo, roleRepo, userRoleRepo, hasher, tokenGen, bus)
 
 	hash, _ := hasher.Hash("pass")
 	userRepo.Create(context.Background(), &domainuser.User{
@@ -200,7 +200,7 @@ func TestLogin_DuplicateRefreshTokenExhausted(t *testing.T) {
 		collideCount: 100,
 	}
 
-	svc := appuser.NewService(userRepo, profileRepo, rtRepo, apiKeyRepo, inviteRepo, qcRepo, roleRepo, userRoleRepo, hasher, tokenGen, bus)
+	svc := appuser.NewCommandService(userRepo, profileRepo, rtRepo, apiKeyRepo, inviteRepo, qcRepo, roleRepo, userRoleRepo, hasher, tokenGen, bus)
 
 	hash, _ := hasher.Hash("pass")
 	userRepo.Create(context.Background(), &domainuser.User{

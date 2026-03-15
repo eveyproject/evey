@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"log/slog"
 	"time"
 
 	"github.com/gravity-zero/evey/internal/domain/backup"
@@ -72,7 +73,7 @@ func (s *Service) CreateBackup(ctx context.Context) (*backup.BackupManifest, err
 		Encrypted: len(s.encryptionKey) > 0,
 	}
 
-	var reader io.Reader = data
+	var reader = data
 	if len(s.encryptionKey) > 0 {
 		raw, readErr := io.ReadAll(data)
 		if readErr != nil {
@@ -118,6 +119,34 @@ func (s *Service) RestoreBackup(ctx context.Context, data io.Reader) error {
 
 func (s *Service) DeleteBackup(ctx context.Context, backupID string) error {
 	return s.store.Delete(ctx, backupID)
+}
+
+func (s *Service) StartScheduler(ctx context.Context, intervalHours, retentionDays int) {
+	if intervalHours <= 0 {
+		return
+	}
+	go func() {
+		if err := s.CleanupOldBackups(ctx, retentionDays); err != nil {
+			slog.Warn("backup retention cleanup", slog.Any("err", err))
+		}
+		ticker := time.NewTicker(time.Duration(intervalHours) * time.Hour)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				if _, err := s.CreateBackup(ctx); err != nil {
+					slog.Warn("scheduled backup failed", slog.Any("err", err))
+				} else {
+					slog.Info("scheduled backup created")
+				}
+				if err := s.CleanupOldBackups(ctx, retentionDays); err != nil {
+					slog.Warn("backup retention cleanup", slog.Any("err", err))
+				}
+			}
+		}
+	}()
 }
 
 func (s *Service) CleanupOldBackups(ctx context.Context, retentionDays int) error {

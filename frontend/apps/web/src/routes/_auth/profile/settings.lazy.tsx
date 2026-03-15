@@ -1,5 +1,5 @@
 import { createLazyFileRoute } from "@tanstack/react-router";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useUserServiceGetCurrentUser, useUserServiceUpdateUser, useUserServiceListProfiles, useUserServiceUpdateProfile } from "@evey/api";
 import { getUserServiceGetCurrentUserQueryKey, getUserServiceListProfilesQueryKey } from "@evey/api";
 import { eveyFetch } from "@evey/api";
@@ -12,12 +12,13 @@ import { Select } from "@/components/ui/Select";
 import { ThemeSettings } from "@/features/user/ThemeSettings";
 import { NotificationSettings } from "@/features/user/NotificationSettings";
 import { APIKeySettings } from "@/features/user/APIKeySettings";
+import { DeviceSettings } from "@/features/user/DeviceSettings";
 
 export const Route = createLazyFileRoute("/_auth/profile/settings")({
   component: SettingsPage,
 });
 
-type Tab = "appearance" | "playback" | "notifications" | "account" | "parental" | "api-keys";
+type Tab = "appearance" | "playback" | "notifications" | "account" | "parental" | "api-keys" | "devices";
 
 const TABS: { key: Tab; label: string; icon: string }[] = [
   {
@@ -44,6 +45,11 @@ const TABS: { key: Tab; label: string; icon: string }[] = [
     key: "parental",
     label: "Parental",
     icon: "M9 12.75L11.25 15 15 9.75m-3-7.036A11.959 11.959 0 013.598 6 11.99 11.99 0 003 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285z",
+  },
+  {
+    key: "devices",
+    label: "Devices",
+    icon: "M10.5 1.5H8.25A2.25 2.25 0 006 3.75v16.5a2.25 2.25 0 002.25 2.25h7.5A2.25 2.25 0 0018 20.25V3.75a2.25 2.25 0 00-2.25-2.25H13.5m-3 0V3h3V1.5m-3 0h3m-3 8.25h3",
   },
   {
     key: "api-keys",
@@ -85,6 +91,7 @@ function SettingsPage() {
           {tab === "notifications" && <NotificationSettings />}
           {tab === "account" && <AccountSection />}
           {tab === "parental" && <ParentalSection />}
+          {tab === "devices" && <DeviceSettings />}
           {tab === "api-keys" && <APIKeySettings />}
         </div>
       </Card>
@@ -289,6 +296,7 @@ function ParentalSection() {
   const [pin, setPin] = useState("");
   const [confirmPin, setConfirmPin] = useState("");
   const [pinError, setPinError] = useState("");
+  const pendingOpRef = useRef<"pin" | "other">("other");
 
   useEffect(() => {
     setMaxRating(defaultProfile?.maxRating ?? "");
@@ -300,7 +308,14 @@ function ParentalSection() {
         if (user?.id) {
           void qc.invalidateQueries({ queryKey: getUserServiceListProfilesQueryKey(user.id) });
         }
-        toast.success("Parental controls updated");
+        if (pendingOpRef.current === "pin") {
+          toast.success("PIN saved ✓");
+          setPin("");
+          setConfirmPin("");
+        } else {
+          toast.success("Parental controls updated");
+        }
+        pendingOpRef.current = "other";
       },
       onError: (err: Error) => toast.error(err.message || "Failed to update"),
     },
@@ -339,6 +354,7 @@ function ParentalSection() {
       return;
     }
     if (!defaultProfile?.id) return;
+    pendingOpRef.current = "pin";
     updateProfile.mutate({
       id: defaultProfile.id,
       data: {
@@ -348,8 +364,6 @@ function ParentalSection() {
         },
       },
     });
-    setPin("");
-    setConfirmPin("");
   }
 
   if (!defaultProfile) {

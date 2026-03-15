@@ -11,6 +11,7 @@ import {
   Puzzle,
   Webhook,
   BarChart3,
+  TrendingUp,
   FileText,
   Database,
   Cpu,
@@ -68,6 +69,7 @@ const sections: NavSection[] = [
   {
     title: "Monitoring",
     links: [
+      { href: "/admin/analytics", label: "Analytics", icon: TrendingUp },
       { href: "/admin/activity", label: "Activity", icon: BarChart3 },
       { href: "/admin/audit", label: "Audit Log", icon: FileText },
       { href: "/admin/logs", label: "Live Logs", icon: ScrollText },

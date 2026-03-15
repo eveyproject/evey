@@ -1,7 +1,9 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useRef, useEffect } from "react";
 import { createLazyFileRoute } from "@tanstack/react-router";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { eveyFetch } from "@evey/api";
+import { toast, useAuthStore } from "@evey/store";
+import { Music, Play, Pause, SkipBack, SkipForward, X, Volume2, Trash2 } from "lucide-react";
 
 export const Route = createLazyFileRoute("/_auth/music/")({
   component: MusicPage,
@@ -52,6 +54,45 @@ function formatDuration(seconds: number): string {
   return `${m}:${String(s).padStart(2, "0")}`;
 }
 
+function TrackArt({ trackID, size = 36 }: { trackID: string; size?: number }) {
+  const [error, setError] = useState(false);
+  if (error) {
+    return (
+      <div
+        style={{
+          width: size,
+          height: size,
+          minWidth: size,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          backgroundColor: "var(--surface)",
+          borderRadius: "var(--radius-sm)",
+        }}
+      >
+        <Music size={size * 0.5} style={{ color: "var(--text-muted)", opacity: 0.5 }} />
+      </div>
+    );
+  }
+  return (
+    <img
+      src={`/api/v1/music/tracks/${trackID}/art`}
+      alt=""
+      width={size}
+      height={size}
+      style={{
+        width: size,
+        height: size,
+        minWidth: size,
+        objectFit: "cover",
+        borderRadius: "var(--radius-sm)",
+        backgroundColor: "var(--surface)",
+      }}
+      onError={() => setError(true)}
+    />
+  );
+}
+
 function useMusicLibraries() {
   return useQuery({
     queryKey: ["libraries", "music"],
@@ -61,12 +102,12 @@ function useMusicLibraries() {
   });
 }
 
-function useMusicTracks(libraryID: string | undefined) {
+function useMusicTracks(libraryID: string | undefined, search: string) {
   return useQuery({
-    queryKey: ["music", "tracks", libraryID],
+    queryKey: ["music", "tracks", libraryID, search],
     queryFn: () =>
       eveyFetch<{ tracks: Track[]; total: number }>({
-        url: `/api/v1/music/tracks?library_id=${libraryID}&limit=200`,
+        url: `/api/v1/music/tracks?library_id=${libraryID}&limit=200${search ? `&search=${encodeURIComponent(search)}` : ""}`,
         method: "GET",
       }),
     enabled: !!libraryID,
@@ -105,19 +146,219 @@ function useMusicArtists(libraryID: string | undefined) {
 
 type Tab = "tracks" | "albums" | "artists";
 
+function NowPlayingBar({
+  playing,
+  queue,
+  onClose,
+  onSelectTrack,
+}: {
+  playing: Track;
+  queue: Track[];
+  onClose: () => void;
+  onSelectTrack: (t: Track) => void;
+}) {
+  const audioRef = useRef<HTMLAudioElement>(null);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [currentTime, setCurrentTime] = useState(0);
+  const [duration, setDuration] = useState(0);
+  const [volume, setVolume] = useState(1);
+
+  const currentIndex = queue.findIndex((t) => t.ID === playing.ID);
+
+  useEffect(() => {
+    const audio = audioRef.current;
+    if (!audio) return;
+    audio.play().then(() => setIsPlaying(true)).catch(() => setIsPlaying(false));
+  }, [playing.ID]);
+
+  useEffect(() => {
+    if (audioRef.current) audioRef.current.volume = volume;
+  }, [volume]);
+
+  function togglePlay() {
+    const audio = audioRef.current;
+    if (!audio) return;
+    if (isPlaying) {
+      audio.pause();
+      setIsPlaying(false);
+    } else {
+      audio.play().then(() => setIsPlaying(true)).catch(() => {});
+    }
+  }
+
+  function seek(e: React.ChangeEvent<HTMLInputElement>) {
+    const audio = audioRef.current;
+    if (!audio) return;
+    const val = Number(e.target.value);
+    audio.currentTime = val;
+    setCurrentTime(val);
+  }
+
+  function playPrev() {
+    if (currentIndex > 0) onSelectTrack(queue[currentIndex - 1]);
+  }
+
+  function playNext() {
+    if (currentIndex < queue.length - 1) onSelectTrack(queue[currentIndex + 1]);
+  }
+
+  return (
+    <div
+      className="fixed bottom-0 left-0 right-0 flex items-center gap-4 px-6 py-3"
+      style={{
+        backgroundColor: "var(--surface)",
+        borderTop: "1px solid var(--border)",
+        zIndex: 50,
+      }}
+    >
+      <audio
+        ref={audioRef}
+        key={playing.ID}
+        src={`/api/v1/music/tracks/${playing.ID}/stream`}
+        onTimeUpdate={() => setCurrentTime(audioRef.current?.currentTime ?? 0)}
+        onLoadedMetadata={() => setDuration(audioRef.current?.duration ?? 0)}
+        onEnded={playNext}
+        onPlay={() => setIsPlaying(true)}
+        onPause={() => setIsPlaying(false)}
+      />
+
+      {/* Album art + info */}
+      <div className="flex items-center gap-3" style={{ minWidth: 0, width: 200 }}>
+        <TrackArt trackID={playing.ID} size={48} />
+        <div style={{ minWidth: 0 }}>
+          <p className="font-medium truncate text-sm" style={{ color: "var(--text)" }}>{playing.Title || "—"}</p>
+          <p className="text-xs truncate" style={{ color: "var(--text-muted)" }}>{playing.Artist || "—"}</p>
+        </div>
+      </div>
+
+      {/* Controls */}
+      <div className="flex flex-col items-center gap-1 flex-1">
+        <div className="flex items-center gap-4">
+          <button
+            onClick={playPrev}
+            disabled={currentIndex <= 0}
+            style={{ background: "none", border: "none", cursor: currentIndex <= 0 ? "default" : "pointer", opacity: currentIndex <= 0 ? 0.3 : 1, color: "var(--text)" }}
+            aria-label="Previous"
+          >
+            <SkipBack size={18} />
+          </button>
+          <button
+            onClick={togglePlay}
+            style={{
+              background: "var(--accent)",
+              border: "none",
+              cursor: "pointer",
+              color: "#fff",
+              borderRadius: "50%",
+              width: 36,
+              height: 36,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+            }}
+            aria-label={isPlaying ? "Pause" : "Play"}
+          >
+            {isPlaying ? <Pause size={16} /> : <Play size={16} />}
+          </button>
+          <button
+            onClick={playNext}
+            disabled={currentIndex >= queue.length - 1}
+            style={{ background: "none", border: "none", cursor: currentIndex >= queue.length - 1 ? "default" : "pointer", opacity: currentIndex >= queue.length - 1 ? 0.3 : 1, color: "var(--text)" }}
+            aria-label="Next"
+          >
+            <SkipForward size={18} />
+          </button>
+        </div>
+        <div className="flex items-center gap-2 w-full" style={{ maxWidth: 400 }}>
+          <span style={{ fontSize: "0.7rem", color: "var(--text-muted)", minWidth: 32, textAlign: "right" }}>
+            {formatDuration(currentTime)}
+          </span>
+          <input
+            type="range"
+            min={0}
+            max={duration || 0}
+            step={1}
+            value={currentTime}
+            onChange={seek}
+            style={{ flex: 1, accentColor: "var(--accent)" }}
+          />
+          <span style={{ fontSize: "0.7rem", color: "var(--text-muted)", minWidth: 32 }}>
+            {duration > 0 ? formatDuration(duration) : "—"}
+          </span>
+        </div>
+      </div>
+
+      {/* Volume */}
+      <div className="flex items-center gap-2" style={{ minWidth: 100 }}>
+        <Volume2 size={16} style={{ color: "var(--text-muted)" }} />
+        <input
+          type="range"
+          min={0}
+          max={1}
+          step={0.02}
+          value={volume}
+          onChange={(e) => setVolume(Number(e.target.value))}
+          style={{ width: 72, accentColor: "var(--accent)" }}
+        />
+      </div>
+
+      <button
+        onClick={onClose}
+        style={{ color: "var(--text-muted)", background: "none", border: "none", cursor: "pointer" }}
+        aria-label="Close player"
+      >
+        <X size={18} />
+      </button>
+    </div>
+  );
+}
+
+function useDebounce<T>(value: T, delay: number): T {
+  const [debounced, setDebounced] = useState(value);
+  useEffect(() => {
+    const t = setTimeout(() => setDebounced(value), delay);
+    return () => clearTimeout(t);
+  }, [value, delay]);
+  return debounced;
+}
+
 function MusicPage() {
   const [tab, setTab] = useState<Tab>("tracks");
   const [selectedLibraryID, setSelectedLibraryID] = useState<string | undefined>(undefined);
   const [playing, setPlaying] = useState<Track | null>(null);
+  const [queue, setQueue] = useState<Track[]>([]);
+  const [searchInput, setSearchInput] = useState("");
+  const isAdmin = useAuthStore((s) => s.isAdmin);
+  const qc = useQueryClient();
+  const search = useDebounce(searchInput, 300);
 
   const { data: libraries, isLoading: libLoading } = useMusicLibraries();
 
   const firstLib = libraries?.[0];
   const activeLibraryID = selectedLibraryID ?? firstLib?.id;
 
-  const { data: tracks, isLoading: tracksLoading } = useMusicTracks(activeLibraryID);
+  const { data: tracks, isLoading: tracksLoading } = useMusicTracks(activeLibraryID, search);
   const { data: albums, isLoading: albumsLoading } = useMusicAlbums(activeLibraryID);
   const { data: artists, isLoading: artistsLoading } = useMusicArtists(activeLibraryID);
+
+  function handlePlay(t: Track, allTracks: Track[]) {
+    setQueue(allTracks);
+    setPlaying(t);
+  }
+
+  const deleteTrackMutation = useMutation({
+    mutationFn: (id: string) => eveyFetch({ url: `/api/v1/music/tracks/${id}`, method: "DELETE" }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ["music", "tracks"] });
+      toast.success("Track deleted");
+    },
+    onError: (err: Error) => toast.error(err.message || "Failed to delete track"),
+  });
+
+  function handleDeleteTrack(id: string) {
+    if (!window.confirm("Delete this track? This cannot be undone.")) return;
+    deleteTrackMutation.mutate(id);
+  }
 
   const tabStyle = (active: boolean): React.CSSProperties => ({
     padding: "6px 16px",
@@ -147,7 +388,7 @@ function MusicPage() {
   }
 
   return (
-    <div className="flex-1 p-6">
+    <div className="flex-1 p-6" style={{ paddingBottom: playing ? 120 : undefined }}>
       <div className="flex flex-col sm:flex-row sm:items-center gap-4 mb-4">
         <h1 className="text-2xl font-bold" style={{ color: "var(--text)" }}>
           Music
@@ -175,7 +416,16 @@ function MusicPage() {
       </div>
 
       {tab === "tracks" && (
-        <TracksTab tracks={tracks ?? []} loading={tracksLoading} onPlay={setPlaying} />
+        <TracksTab
+          tracks={tracks ?? []}
+          loading={tracksLoading}
+          playing={playing}
+          onPlay={(t) => handlePlay(t, tracks ?? [])}
+          isAdmin={isAdmin}
+          onDelete={handleDeleteTrack}
+          search={searchInput}
+          onSearchChange={setSearchInput}
+        />
       )}
       {tab === "albums" && (
         <AlbumsTab albums={albums ?? []} loading={albumsLoading} />
@@ -185,37 +435,12 @@ function MusicPage() {
       )}
 
       {playing && (
-        <div
-          className="fixed bottom-0 left-0 right-0 flex items-center gap-4 px-6 py-3"
-          style={{
-            backgroundColor: "var(--surface)",
-            borderTop: "1px solid var(--border)",
-            zIndex: 50,
-          }}
-        >
-          <div className="flex flex-col min-w-0 flex-1">
-            <span className="font-medium truncate" style={{ color: "var(--text)" }}>
-              {playing.Title}
-            </span>
-            <span className="text-sm truncate" style={{ color: "var(--text-muted)" }}>
-              {playing.Artist}
-            </span>
-          </div>
-          <audio
-            key={playing.ID}
-            src={`/api/v1/music/tracks/${playing.ID}/stream`}
-            controls
-            autoPlay
-            className="flex-1 max-w-lg"
-          />
-          <button
-            onClick={() => setPlaying(null)}
-            style={{ color: "var(--text-muted)", background: "none", border: "none", cursor: "pointer", fontSize: "1.2rem" }}
-            aria-label="Close player"
-          >
-            ✕
-          </button>
-        </div>
+        <NowPlayingBar
+          playing={playing}
+          queue={queue}
+          onClose={() => setPlaying(null)}
+          onSelectTrack={setPlaying}
+        />
       )}
     </div>
   );
@@ -226,11 +451,21 @@ const TRACKS_PAGE_SIZE = 50;
 function TracksTab({
   tracks,
   loading,
+  playing,
   onPlay,
+  isAdmin,
+  onDelete,
+  search,
+  onSearchChange,
 }: {
   tracks: Track[];
   loading: boolean;
+  playing: Track | null;
   onPlay: (t: Track) => void;
+  isAdmin: boolean;
+  onDelete: (id: string) => void;
+  search: string;
+  onSearchChange: (v: string) => void;
 }) {
   const [page, setPage] = useState(0);
   const totalPages = Math.ceil(tracks.length / TRACKS_PAGE_SIZE);
@@ -239,41 +474,91 @@ function TracksTab({
     [tracks, page],
   );
 
-  if (loading) return <p style={{ color: "var(--text-muted)" }}>Loading…</p>;
-  if (!tracks.length) return <p style={{ color: "var(--text-muted)" }}>No tracks found.</p>;
-
   return (
     <div>
-      <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.875rem" }}>
+      <div style={{ marginBottom: "16px" }}>
+        <input
+          type="search"
+          placeholder="Search tracks, artists, albums…"
+          value={search}
+          onChange={(e) => { onSearchChange(e.target.value); setPage(0); }}
+          style={{
+            width: "100%",
+            maxWidth: "400px",
+            padding: "8px 12px",
+            borderRadius: "var(--radius-sm)",
+            border: "1px solid var(--border)",
+            backgroundColor: "var(--surface-raised)",
+            color: "var(--text)",
+            fontSize: "0.875rem",
+          }}
+        />
+      </div>
+      {loading && <p style={{ color: "var(--text-muted)" }}>Loading…</p>}
+      {!loading && !tracks.length && <p style={{ color: "var(--text-muted)" }}>{search ? "No tracks match your search." : "No tracks found."}</p>}
+      {!loading && tracks.length > 0 && <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.875rem" }}>
         <thead>
           <tr style={{ color: "var(--text-muted)", textAlign: "left", borderBottom: "1px solid var(--border)" }}>
             <th style={{ padding: "8px 12px" }}>#</th>
+            <th style={{ padding: "8px 12px" }}></th>
             <th style={{ padding: "8px 12px" }}>Title</th>
             <th style={{ padding: "8px 12px" }}>Artist</th>
             <th style={{ padding: "8px 12px" }}>Album</th>
             <th style={{ padding: "8px 12px", textAlign: "right" }}>Duration</th>
+            {isAdmin && <th style={{ padding: "8px 12px" }}></th>}
           </tr>
         </thead>
         <tbody>
-          {pageTrack.map((t, i) => (
-            <tr
-              key={t.ID}
-              onClick={() => onPlay(t)}
-              style={{ cursor: "pointer", borderBottom: "1px solid var(--border)" }}
-              className="hover:bg-[var(--surface-raised)]"
-            >
-              <td style={{ padding: "8px 12px", color: "var(--text-muted)" }}>{page * TRACKS_PAGE_SIZE + i + 1}</td>
-              <td style={{ padding: "8px 12px", color: "var(--text)", fontWeight: 500 }}>{t.Title || "—"}</td>
-              <td style={{ padding: "8px 12px", color: "var(--text-secondary)" }}>{t.Artist || "—"}</td>
-              <td style={{ padding: "8px 12px", color: "var(--text-secondary)" }}>{t.Album || "—"}</td>
-              <td style={{ padding: "8px 12px", color: "var(--text-muted)", textAlign: "right" }}>
-                {t.Duration > 0 ? formatDuration(t.Duration) : "—"}
-              </td>
-            </tr>
-          ))}
+          {pageTrack.map((t, i) => {
+            const isActive = playing?.ID === t.ID;
+            return (
+              <tr
+                key={t.ID}
+                onClick={() => onPlay(t)}
+                style={{
+                  cursor: "pointer",
+                  borderBottom: "1px solid var(--border)",
+                  backgroundColor: isActive ? "var(--surface-raised)" : undefined,
+                }}
+                className="hover:bg-[var(--surface-raised)]"
+              >
+                <td style={{ padding: "8px 12px", color: "var(--text-muted)" }}>{page * TRACKS_PAGE_SIZE + i + 1}</td>
+                <td style={{ padding: "8px 4px" }}>
+                  <TrackArt trackID={t.ID} size={36} />
+                </td>
+                <td style={{ padding: "8px 12px", color: isActive ? "var(--accent)" : "var(--text)", fontWeight: 500 }}>{t.Title || "—"}</td>
+                <td style={{ padding: "8px 12px", color: "var(--text-secondary)" }}>{t.Artist || "—"}</td>
+                <td style={{ padding: "8px 12px", color: "var(--text-secondary)" }}>{t.Album || "—"}</td>
+                <td style={{ padding: "8px 12px", color: "var(--text-muted)", textAlign: "right" }}>
+                  {t.Duration > 0 ? formatDuration(t.Duration) : "—"}
+                </td>
+                {isAdmin && (
+                  <td style={{ padding: "8px 12px" }} onClick={(e) => e.stopPropagation()}>
+                    <button
+                      onClick={() => onDelete(t.ID)}
+                      title="Delete track"
+                      style={{
+                        background: "none",
+                        border: "none",
+                        cursor: "pointer",
+                        color: "var(--text-muted)",
+                        padding: "4px",
+                        borderRadius: "var(--radius-sm)",
+                        display: "flex",
+                        alignItems: "center",
+                      }}
+                      className="hover:text-red-500"
+                    >
+                      <Trash2 size={16} />
+                    </button>
+                  </td>
+                )}
+              </tr>
+            );
+          })}
         </tbody>
-      </table>
-      {totalPages > 1 && (
+      </table>}
+      {!loading && tracks.length > 0 && totalPages > 1 && (
         <div className="flex items-center justify-between mt-4" style={{ color: "var(--text-muted)", fontSize: "0.875rem" }}>
           <button
             onClick={() => setPage((p) => Math.max(0, p - 1))}
@@ -340,7 +625,7 @@ function AlbumsTab({ albums, loading }: { albums: Album[]; loading: boolean }) {
             }}
           >
             {!a.CoverArtURL && (
-              <span style={{ fontSize: "2rem", opacity: 0.3 }}>♪</span>
+              <Music size={32} style={{ opacity: 0.3, color: "var(--text-muted)" }} />
             )}
           </div>
           <div className="p-2">

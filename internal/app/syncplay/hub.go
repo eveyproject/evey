@@ -14,6 +14,13 @@ import (
 	"golang.org/x/net/websocket"
 )
 
+type ctxKey string
+
+const (
+	ctxKeyUserID   ctxKey = "userID"
+	ctxKeyUsername ctxKey = "username"
+)
+
 type conn struct {
 	ws     *websocket.Conn
 	userID string
@@ -68,7 +75,7 @@ func (h *Hub) LeaveRoom(ctx context.Context, roomID, userID string) error {
 	}
 	room, err := h.repo.Get(ctx, roomID)
 	if err != nil {
-		return nil
+		return err
 	}
 	if len(room.Members) == 0 {
 		return h.repo.Delete(ctx, roomID)
@@ -83,43 +90,43 @@ func extractWSToken(r *http.Request) string {
 		return strings.TrimPrefix(h, "Bearer ")
 	}
 	// Browser WebSocket API cannot set custom headers; token may be sent as a subprotocol.
-	for _, p := range strings.Split(r.Header.Get("Sec-WebSocket-Protocol"), ",") {
+	for p := range strings.SplitSeq(r.Header.Get("Sec-WebSocket-Protocol"), ",") {
 		p = strings.TrimSpace(p)
-		if strings.HasPrefix(p, "Bearer.") {
-			return strings.TrimPrefix(p, "Bearer.")
+		if token, ok := strings.CutPrefix(p, "Bearer."); ok {
+			return token
 		}
 	}
 	// Fallback: query param (deprecated — exposes token in logs/history).
 	return r.URL.Query().Get("token")
 }
 
-// WSHandler returns an http.Handler for WebSocket connections at /api/v1/syncplay/rooms/{id}/ws
+// WSHandler returns an http.Handler for WebSocket connections at /api/v1/syncplay/rooms/{id}/ws.
+// Auth and membership checks happen before the WebSocket upgrade so HTTP 401/403 can be returned.
 func (h *Hub) WSHandler(tokenValidator func(token string) (userID, username string, err error)) http.Handler {
-	return websocket.Handler(func(ws *websocket.Conn) {
+	wsHandler := websocket.Handler(func(ws *websocket.Conn) {
 		r := ws.Request()
 		roomID := r.PathValue("id")
-
-		token := extractWSToken(r)
-		userID, username, err := tokenValidator(token)
-		if err != nil {
-			slog.Warn("syncplay ws: invalid token", slog.String("room", roomID))
-			ws.Close()
-			return
-		}
+		// Claims injected by the pre-upgrade wrapper via context.
+		userID, _ := r.Context().Value(ctxKeyUserID).(string)
+		username, _ := r.Context().Value(ctxKeyUsername).(string)
 
 		ctx := r.Context()
 		room, err := h.repo.Get(ctx, roomID)
 		if err != nil {
 			slog.Warn("syncplay ws: room not found", slog.String("room", roomID))
-			ws.Close()
+			if err := ws.Close(); err != nil {
+				slog.Warn("syncplay ws close", slog.Any("err", err))
+			}
 			return
 		}
 
-		_ = h.repo.AddMember(ctx, roomID, syncplay.Member{
+		if err := h.repo.AddMember(ctx, roomID, syncplay.Member{
 			UserID:   userID,
 			Username: username,
 			JoinedAt: time.Now().UTC(),
-		})
+		}); err != nil {
+			slog.Error("syncplay: add member", slog.String("room", roomID), slog.Any("err", err))
+		}
 
 		c := &conn{ws: ws, userID: userID, roomID: roomID}
 		h.addConn(roomID, c)
@@ -132,7 +139,9 @@ func (h *Hub) WSHandler(tokenValidator func(token string) (userID, username stri
 			PositionMs: room.State.PositionMs,
 		}
 		if data, err := json.Marshal(stateMsg); err == nil {
-			_ = websocket.Message.Send(ws, string(data))
+			if err := websocket.Message.Send(ws, string(data)); err != nil {
+				slog.Warn("syncplay: send state", slog.String("room", roomID), slog.Any("err", err))
+			}
 		}
 
 		// Notify others
@@ -161,32 +170,70 @@ func (h *Hub) WSHandler(tokenValidator func(token string) (userID, username stri
 			switch cmd.Type {
 			case "play", "pause", "seek":
 				state := syncplay.PlaybackState{
-					Playing:   cmd.Type == "play",
+					Playing:    cmd.Type == "play",
 					PositionMs: cmd.PositionMs,
-					UpdatedAt: time.Now().UTC(),
-					UpdatedBy: userID,
+					UpdatedAt:  time.Now().UTC(),
+					UpdatedBy:  userID,
 				}
-				if cmd.Type == "pause" {
+				switch cmd.Type {
+				case "pause":
 					state.Playing = false
-				} else if cmd.Type == "seek" {
-					// Keep existing playing state
-					if existing, err := h.repo.Get(ctx, roomID); err == nil {
+				case "seek":
+					if existing, getErr := h.repo.Get(ctx, roomID); getErr == nil {
 						state.Playing = existing.State.Playing
 					}
 				}
-				_ = h.repo.UpdateState(ctx, roomID, state)
+				if err := h.repo.UpdateState(ctx, roomID, state); err != nil {
+					slog.Error("syncplay: update state", slog.String("room", roomID), slog.Any("err", err))
+				}
 				h.broadcast(roomID, userID, cmd)
 			}
 		}
 
 		// On disconnect
-		_ = h.repo.RemoveMember(ctx, roomID, userID)
+		if err := h.repo.RemoveMember(ctx, roomID, userID); err != nil {
+			slog.Error("syncplay: remove member", slog.String("room", roomID), slog.Any("err", err))
+		}
 		leaveMsg := syncplay.SyncCommand{
 			Type:   "member_left",
 			UserID: userID,
 			RoomID: roomID,
 		}
 		h.broadcast(roomID, userID, leaveMsg)
+	})
+
+	// Wrap wsHandler: validate token + membership before upgrading.
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		roomID := r.PathValue("id")
+		token := extractWSToken(r)
+		userID, username, err := tokenValidator(token)
+		if err != nil {
+			slog.Warn("syncplay ws: invalid token", slog.String("room", roomID))
+			http.Error(w, `{"message":"unauthenticated"}`, http.StatusUnauthorized)
+			return
+		}
+
+		room, err := h.repo.Get(r.Context(), roomID)
+		if err != nil {
+			http.Error(w, `{"message":"room not found"}`, http.StatusNotFound)
+			return
+		}
+		isMember := room.HostID == userID
+		for _, m := range room.Members {
+			if m.UserID == userID {
+				isMember = true
+				break
+			}
+		}
+		if !isMember {
+			slog.Warn("syncplay ws: non-member attempt", slog.String("user", userID), slog.String("room", roomID))
+			http.Error(w, `{"message":"forbidden"}`, http.StatusForbidden)
+			return
+		}
+
+		ctx := context.WithValue(r.Context(), ctxKeyUserID, userID)
+		ctx = context.WithValue(ctx, ctxKeyUsername, username)
+		wsHandler.ServeHTTP(w, r.WithContext(ctx))
 	})
 }
 
@@ -219,12 +266,23 @@ func (h *Hub) broadcast(roomID, senderUserID string, cmd syncplay.SyncCommand) {
 	copy(list, h.conns[roomID])
 	h.mu.RUnlock()
 
+	const sendTimeout = 5 * time.Second
+	var wg sync.WaitGroup
 	for _, c := range list {
 		if c.userID == senderUserID {
 			continue
 		}
-		if err := websocket.Message.Send(c.ws, string(data)); err != nil {
-			slog.Debug("syncplay broadcast send error", slog.Any("err", err))
-		}
+		wg.Add(1)
+		go func(c *conn) {
+			defer wg.Done()
+			if err := c.ws.SetDeadline(time.Now().Add(sendTimeout)); err != nil {
+				slog.Warn("syncplay: set deadline", slog.String("user", c.userID), slog.Any("err", err))
+			}
+			if err := websocket.Message.Send(c.ws, string(data)); err != nil {
+				slog.Warn("syncplay: broadcast send error, dropping client",
+					slog.String("user", c.userID), slog.Any("err", err))
+			}
+		}(c)
 	}
+	wg.Wait()
 }

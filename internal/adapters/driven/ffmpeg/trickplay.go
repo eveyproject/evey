@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -37,8 +38,8 @@ func (g *TrickplayGenerator) probeDuration(ctx context.Context, filePath string)
 			Duration string `json:"duration"`
 		} `json:"format"`
 	}
-	if err := json.Unmarshal(out, &result); err != nil {
-		return 0, fmt.Errorf("ffprobe parse: %w", err)
+	if unmarshalErr := json.Unmarshal(out, &result); unmarshalErr != nil {
+		return 0, fmt.Errorf("ffprobe parse: %w", unmarshalErr)
 	}
 	d, err := strconv.ParseFloat(result.Format.Duration, 64)
 	if err != nil {
@@ -69,7 +70,11 @@ func (g *TrickplayGenerator) Generate(ctx context.Context, filePath, outputDir s
 	if err != nil {
 		return nil, fmt.Errorf("create thumb dir: %w", err)
 	}
-	defer os.RemoveAll(thumbDir)
+	defer func() {
+		if rmErr := os.RemoveAll(thumbDir); rmErr != nil {
+			slog.Warn("trickplay: remove thumb dir", slog.String("dir", thumbDir), slog.Any("err", rmErr))
+		}
+	}()
 
 	// Extract one frame per timestamp in parallel (max 16 goroutines).
 	sem := make(chan struct{}, 14)

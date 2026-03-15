@@ -537,3 +537,23 @@ func (s *CommandService) generateAndStoreRefreshToken(ctx context.Context, userI
 	}
 	return "", errors.New("store refresh token: duplicate hash after retries")
 }
+
+func (s *CommandService) StartCleanup(ctx context.Context) {
+	go func() {
+		ticker := time.NewTicker(1 * time.Hour)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				if err := s.refreshTkns.DeleteExpired(ctx); err != nil {
+					slog.Warn("refresh token cleanup", slog.Any("err", err))
+				}
+				if err := s.quickConnect.DeleteExpired(ctx); err != nil {
+					slog.Warn("quick connect cleanup", slog.Any("err", err))
+				}
+			}
+		}
+	}()
+}

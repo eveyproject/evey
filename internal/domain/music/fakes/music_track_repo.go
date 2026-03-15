@@ -64,17 +64,25 @@ func (r *FakeMusicTrackRepository) Delete(_ context.Context, id string) error {
 	return nil
 }
 
-func (r *FakeMusicTrackRepository) ListByLibrary(_ context.Context, libraryID string, limit, offset int) ([]music.Track, int, error) {
+func (r *FakeMusicTrackRepository) ListByLibrary(_ context.Context, libraryID string, limit, offset int, search string) ([]music.Track, int, error) {
 	if r.Err != nil {
 		return nil, 0, r.Err
 	}
 	r.mu.RLock()
 	defer r.mu.RUnlock()
+	q := strings.ToLower(search)
 	var out []music.Track
 	for _, t := range r.tracks {
-		if t.LibraryID == libraryID {
-			out = append(out, t)
+		if t.LibraryID != libraryID {
+			continue
 		}
+		if q != "" &&
+			!strings.Contains(strings.ToLower(t.Title), q) &&
+			!strings.Contains(strings.ToLower(t.Artist), q) &&
+			!strings.Contains(strings.ToLower(t.Album), q) {
+			continue
+		}
+		out = append(out, t)
 	}
 	total := len(out)
 	if offset < len(out) {

@@ -64,7 +64,7 @@ func (r *FakeRepository) GetAggregates(_ context.Context, mediaItemIDs []string)
 	sums := make(map[string]sum)
 	for _, rt := range r.ratings {
 		s := sums[rt.MediaItemID]
-		s.total += rt.Value
+		s.total += rt.Value.Int()
 		s.count++
 		sums[rt.MediaItemID] = s
 	}

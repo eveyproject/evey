@@ -1,0 +1,121 @@
+import React from "react";
+import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { describe, it, expect, vi, beforeEach } from "vitest";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+
+vi.mock("@tanstack/react-router", () => ({
+  createLazyFileRoute: () => (def: { component: React.ComponentType }) => def,
+  Link: ({ children, to }: { children: React.ReactNode; to?: string }) =>
+    React.createElement("a", { href: to }, children),
+}));
+
+const mockEnablePlugin = vi.fn();
+const mockDisablePlugin = vi.fn();
+const mockUninstallPlugin = vi.fn();
+const mockInstallPlugin = vi.fn();
+
+vi.mock("@evey/api", () => ({
+  useAdminServiceListPlugins: vi.fn(() => ({ data: undefined, isLoading: true })),
+  useAdminServiceEnablePlugin: vi.fn(() => ({ mutate: mockEnablePlugin, isPending: false })),
+  useAdminServiceDisablePlugin: vi.fn(() => ({ mutate: mockDisablePlugin, isPending: false })),
+  useAdminServiceUninstallPlugin: vi.fn(() => ({ mutate: mockUninstallPlugin, isPending: false })),
+  useAdminServiceInstallPlugin: vi.fn(() => ({ mutate: mockInstallPlugin, isPending: false })),
+  useAdminServiceGetPluginConfig: vi.fn(() => ({ data: { values: {} }, isLoading: false })),
+  useAdminServiceUpdatePluginConfig: vi.fn(() => ({ mutate: vi.fn(), isPending: false })),
+}));
+
+vi.mock("@evey/store", () => ({
+  toast: { success: vi.fn(), error: vi.fn() },
+}));
+
+vi.mock("@tanstack/react-query", async (importActual) => {
+  const actual = await importActual<typeof import("@tanstack/react-query")>();
+  return { ...actual, useQueryClient: () => ({ invalidateQueries: vi.fn() }) };
+});
+
+vi.mock("@/components/ui/Spinner", () => ({
+  Spinner: () => React.createElement("div", { "data-testid": "spinner" }),
+}));
+
+vi.mock("@/components/ui/Modal", () => ({
+  Modal: ({ open, children, title }: { open: boolean; children: React.ReactNode; title?: string }) =>
+    open ? React.createElement("div", { role: "dialog", "aria-label": title }, children) : null,
+}));
+
+vi.mock("@/components/ui/Button", () => ({
+  Button: ({ children, onClick, type, disabled, loading }: { children: React.ReactNode; onClick?: () => void; type?: string; disabled?: boolean; loading?: boolean; variant?: string }) =>
+    React.createElement("button", { onClick, type, disabled: disabled || loading }, children),
+}));
+
+vi.mock("@/components/ui/Input", () => ({
+  Input: ({ label, value, onChange, placeholder }: { label?: string; value: string; onChange: (e: React.ChangeEvent<HTMLInputElement>) => void; placeholder?: string; required?: boolean }) =>
+    React.createElement("input", { "aria-label": label, value, onChange, placeholder }),
+}));
+
+vi.mock("@/components/ui/Card", () => ({
+  Card: ({ children }: { children: React.ReactNode }) => React.createElement("div", { "data-testid": "card" }, children),
+}));
+
+vi.mock("@/components/ui/Badge", () => ({
+  Badge: ({ children }: { children: React.ReactNode }) => React.createElement("span", null, children),
+}));
+
+function createWrapper() {
+  const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  return ({ children }: { children: React.ReactNode }) =>
+    React.createElement(QueryClientProvider, { client: qc }, children);
+}
+
+const mockPlugins = [
+  { id: "p1", name: "Metadata Fetcher", version: "1.0.0", language: "Go", state: "PLUGIN_STATE_RUNNING", enabled: true, description: "Fetches metadata" },
+  { id: "p2", name: "Subtitle Downloader", version: "0.5.0", language: "Python", state: "PLUGIN_STATE_STOPPED", enabled: false },
+];
+
+describe("PluginsPage", () => {
+  beforeEach(() => { vi.clearAllMocks(); });
+
+  it("shows spinner while loading", async () => {
+    const mod = await import("./plugins.lazy");
+    const PluginsPage = (mod.Route as unknown as { component: React.ComponentType }).component;
+    render(React.createElement(PluginsPage), { wrapper: createWrapper() });
+    expect(screen.getByTestId("spinner")).toBeInTheDocument();
+  });
+
+  it("shows empty state when no plugins installed", async () => {
+    const { useAdminServiceListPlugins } = await import("@evey/api");
+    vi.mocked(useAdminServiceListPlugins).mockReturnValue({ data: { plugins: [] }, isLoading: false } as ReturnType<typeof useAdminServiceListPlugins>);
+    const mod = await import("./plugins.lazy");
+    const PluginsPage = (mod.Route as unknown as { component: React.ComponentType }).component;
+    render(React.createElement(PluginsPage), { wrapper: createWrapper() });
+    expect(screen.getByText("No plugins installed.")).toBeInTheDocument();
+  });
+
+  it("renders plugin names", async () => {
+    const { useAdminServiceListPlugins } = await import("@evey/api");
+    vi.mocked(useAdminServiceListPlugins).mockReturnValue({ data: { plugins: mockPlugins as never }, isLoading: false } as ReturnType<typeof useAdminServiceListPlugins>);
+    const mod = await import("./plugins.lazy");
+    const PluginsPage = (mod.Route as unknown as { component: React.ComponentType }).component;
+    render(React.createElement(PluginsPage), { wrapper: createWrapper() });
+    expect(screen.getByText("Metadata Fetcher")).toBeInTheDocument();
+    expect(screen.getByText("Subtitle Downloader")).toBeInTheDocument();
+  });
+
+  it("Install Plugin button opens modal", async () => {
+    const { useAdminServiceListPlugins } = await import("@evey/api");
+    vi.mocked(useAdminServiceListPlugins).mockReturnValue({ data: { plugins: [] }, isLoading: false } as ReturnType<typeof useAdminServiceListPlugins>);
+    const mod = await import("./plugins.lazy");
+    const PluginsPage = (mod.Route as unknown as { component: React.ComponentType }).component;
+    render(React.createElement(PluginsPage), { wrapper: createWrapper() });
+    fireEvent.click(screen.getByRole("button", { name: /Install Plugin/i }));
+    await waitFor(() => expect(screen.getByRole("dialog", { name: /Install Plugin/i })).toBeInTheDocument());
+  });
+
+  it("plugin description is rendered", async () => {
+    const { useAdminServiceListPlugins } = await import("@evey/api");
+    vi.mocked(useAdminServiceListPlugins).mockReturnValue({ data: { plugins: mockPlugins as never }, isLoading: false } as ReturnType<typeof useAdminServiceListPlugins>);
+    const mod = await import("./plugins.lazy");
+    const PluginsPage = (mod.Route as unknown as { component: React.ComponentType }).component;
+    render(React.createElement(PluginsPage), { wrapper: createWrapper() });
+    expect(screen.getByText("Fetches metadata")).toBeInTheDocument();
+  });
+});

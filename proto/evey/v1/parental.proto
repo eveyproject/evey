@@ -1,0 +1,60 @@
+syntax = "proto3";
+
+package evey.v1;
+
+import "google/api/annotations.proto";
+
+option go_package = "github.com/gravity/evey/gen/evey/v1;eveyv1";
+
+service ParentalService {
+  rpc GetParentalSettings(GetParentalSettingsRequest) returns (GetParentalSettingsResponse) {
+    option (google.api.http) = {
+      get: "/api/v1/profiles/{profile_id}/parental"
+    };
+  }
+
+  rpc UpdateParentalSettings(UpdateParentalSettingsRequest) returns (UpdateParentalSettingsResponse) {
+    option (google.api.http) = {
+      put: "/api/v1/profiles/{profile_id}/parental"
+      body: "*"
+    };
+  }
+
+  rpc VerifyPin(VerifyPinRequest) returns (VerifyPinResponse) {
+    option (google.api.http) = {
+      post: "/api/v1/profiles/{profile_id}/parental/verify-pin"
+      body: "*"
+    };
+  }
+}
+
+message GetParentalSettingsRequest {
+  string profile_id = 1;
+}
+
+message GetParentalSettingsResponse {
+  bool enabled = 1;
+  string max_rating = 2;
+  repeated string blocked_tags = 3;
+  bool has_pin = 4;
+}
+
+message UpdateParentalSettingsRequest {
+  string profile_id = 1;
+  optional bool enabled = 2;
+  optional string max_rating = 3;
+  repeated string blocked_tags = 4;
+  optional string current_pin = 5;
+  optional string new_pin = 6;
+}
+
+message UpdateParentalSettingsResponse {}
+
+message VerifyPinRequest {
+  string profile_id = 1;
+  string pin = 2;
+}
+
+message VerifyPinResponse {
+  bool valid = 1;
+}

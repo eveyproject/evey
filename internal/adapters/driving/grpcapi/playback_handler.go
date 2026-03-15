@@ -62,7 +62,10 @@ func (h *playbackHandler) GetStreamInfo(ctx context.Context, req *eveyv1.GetStre
 		MediaItemId: req.MediaItemId,
 		Container:   item.ContainerFormat,
 	}
-	streams, _ := h.librarySvc.GetMediaStreams(ctx, req.MediaItemId)
+	streams, err := h.librarySvc.GetMediaStreams(ctx, req.MediaItemId)
+	if err != nil {
+		slog.Warn("get media streams", slog.String("media_item_id", req.MediaItemId), slog.Any("err", err))
+	}
 	for _, s := range streams {
 		resp.MediaStreams = append(resp.MediaStreams, mediaStreamToProto(s))
 	}

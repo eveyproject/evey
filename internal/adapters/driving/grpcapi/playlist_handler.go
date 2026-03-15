@@ -2,6 +2,7 @@ package grpcapi
 
 import (
 	"context"
+	"errors"
 
 	eveyv1 "github.com/gravity-zero/evey/gen/evey/v1"
 	appplaylist "github.com/gravity-zero/evey/internal/app/playlist"
@@ -92,11 +93,11 @@ func (h *playlistHandler) UpdatePlaylist(ctx context.Context, req *eveyv1.Update
 		SortBy:      req.SortBy,
 		SortOrder:   req.SortOrder,
 	}
-	if err := h.svc.Update(ctx, pl, userID); err != nil {
-		if err == appplaylist.ErrNotOwner {
+	if updateErr := h.svc.Update(ctx, pl, userID); updateErr != nil {
+		if errors.Is(updateErr, appplaylist.ErrNotOwner) {
 			return nil, status.Error(codes.PermissionDenied, "not playlist owner")
 		}
-		return nil, status.Errorf(codes.Internal, "update playlist: %v", err)
+		return nil, status.Errorf(codes.Internal, "update playlist: %v", updateErr)
 	}
 	updated, err := h.svc.GetByID(ctx, req.Id, userID)
 	if err != nil {
@@ -115,7 +116,7 @@ func (h *playlistHandler) DeletePlaylist(ctx context.Context, req *eveyv1.Delete
 		return nil, err
 	}
 	if err := h.svc.Delete(ctx, req.Id, userID); err != nil {
-		if err == appplaylist.ErrNotOwner {
+		if errors.Is(err, appplaylist.ErrNotOwner) {
 			return nil, status.Error(codes.PermissionDenied, "not playlist owner")
 		}
 		return nil, status.Errorf(codes.Internal, "delete playlist: %v", err)
@@ -132,9 +133,9 @@ func (h *playlistHandler) GetPlaylistItems(ctx context.Context, req *eveyv1.GetP
 	if err != nil {
 		return nil, err
 	}
-	_, plItems, err := h.svc.GetItems(ctx, req.Id, userID)
+	mediaItems, plItems, err := h.svc.GetItems(ctx, req.Id, userID)
 	if err != nil {
-		if err == appplaylist.ErrNotOwner {
+		if errors.Is(err, appplaylist.ErrNotOwner) {
 			return nil, status.Error(codes.PermissionDenied, "not playlist owner")
 		}
 		return nil, status.Errorf(codes.Internal, "get playlist items: %v", err)
@@ -146,6 +147,13 @@ func (h *playlistHandler) GetPlaylistItems(ctx context.Context, req *eveyv1.GetP
 			MediaItemId: it.MediaItemID,
 			SortOrder:   int32(it.SortOrder),
 			AddedAt:     toTimestamppb(it.AddedAt),
+		})
+	}
+	for i, item := range mediaItems {
+		resp.Items = append(resp.Items, &eveyv1.PlaylistItemProto{
+			PlaylistId:  req.Id,
+			MediaItemId: item.ID,
+			SortOrder:   int32(i),
 		})
 	}
 	return resp, nil
@@ -161,15 +169,16 @@ func (h *playlistHandler) AddPlaylistItem(ctx context.Context, req *eveyv1.AddPl
 		return nil, err
 	}
 	if err := h.svc.AddItem(ctx, req.Id, req.MediaItemId, userID); err != nil {
-		switch err {
-		case appplaylist.ErrNotOwner:
+		switch {
+		case errors.Is(err, appplaylist.ErrNotOwner):
 			return nil, status.Error(codes.PermissionDenied, "not playlist owner")
-		case appplaylist.ErrSmartItems:
+		case errors.Is(err, appplaylist.ErrSmartItems):
 			return nil, status.Error(codes.FailedPrecondition, "cannot manually add items to smart playlist")
-		case appplaylist.ErrMaxItems:
+		case errors.Is(err, appplaylist.ErrMaxItems):
 			return nil, status.Error(codes.ResourceExhausted, "playlist item limit reached")
+		default:
+			return nil, status.Errorf(codes.Internal, "add playlist item: %v", err)
 		}
-		return nil, status.Errorf(codes.Internal, "add playlist item: %v", err)
 	}
 	return &eveyv1.AddPlaylistItemResponse{}, nil
 }
@@ -184,10 +193,9 @@ func (h *playlistHandler) RemovePlaylistItem(ctx context.Context, req *eveyv1.Re
 		return nil, err
 	}
 	if err := h.svc.RemoveItem(ctx, req.Id, req.MediaItemId, userID); err != nil {
-		switch err {
-		case appplaylist.ErrNotOwner:
+		if errors.Is(err, appplaylist.ErrNotOwner) {
 			return nil, status.Error(codes.PermissionDenied, "not playlist owner")
-		case appplaylist.ErrSmartItems:
+		} else if errors.Is(err, appplaylist.ErrSmartItems) {
 			return nil, status.Error(codes.FailedPrecondition, "cannot remove items from smart playlist")
 		}
 		return nil, status.Errorf(codes.Internal, "remove playlist item: %v", err)

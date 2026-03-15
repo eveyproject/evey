@@ -23,12 +23,12 @@ func (h *mkvHandler) GetContainerInfo(ctx context.Context, req *eveyv1.GetContai
 	return mkvContainerToProto(c), nil
 }
 
-func (h *mkvHandler) ListTracks(ctx context.Context, req *eveyv1.ListTracksRequest) (*eveyv1.ListTracksResponse, error) {
+func (h *mkvHandler) ListTracks(ctx context.Context, req *eveyv1.ListMkvTracksRequest) (*eveyv1.ListMkvTracksResponse, error) {
 	tracks, err := h.svc.ListTracks(ctx, req.Path)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "list tracks: %v", err)
 	}
-	resp := &eveyv1.ListTracksResponse{}
+	resp := &eveyv1.ListMkvTracksResponse{}
 	for _, t := range tracks {
 		resp.Tracks = append(resp.Tracks, mkvTrackToProto(t))
 	}

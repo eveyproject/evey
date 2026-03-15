@@ -76,6 +76,15 @@ func (r *FakeMediaItemQueryRepo) List(_ context.Context, filter library.ListMedi
 				continue
 			}
 		}
+		if filter.YearFrom != 0 && (item.Year == nil || *item.Year < filter.YearFrom) {
+			continue
+		}
+		if filter.YearTo != 0 && (item.Year == nil || *item.Year > filter.YearTo) {
+			continue
+		}
+		if filter.MinRating != 0 && (item.CommunityRating == nil || *item.CommunityRating < filter.MinRating) {
+			continue
+		}
 		result = append(result, item)
 	}
 	if filter.Offset > 0 && filter.Offset < len(result) {
@@ -115,6 +124,15 @@ func (r *FakeMediaItemQueryRepo) Count(_ context.Context, filter library.ListMed
 			if rating != "" && !allowedSet[rating] {
 				continue
 			}
+		}
+		if filter.YearFrom != 0 && (item.Year == nil || *item.Year < filter.YearFrom) {
+			continue
+		}
+		if filter.YearTo != 0 && (item.Year == nil || *item.Year > filter.YearTo) {
+			continue
+		}
+		if filter.MinRating != 0 && (item.CommunityRating == nil || *item.CommunityRating < filter.MinRating) {
+			continue
 		}
 		count++
 	}

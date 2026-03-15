@@ -5,6 +5,7 @@ import { BackButton } from "@/components/ui/BackButton";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { toast } from "@evey/store";
 import { usePlaylistDetail, useRemoveFromPlaylist, type PlaylistItem } from "@/features/playlist/api";
+import { SmartPlaylistRulesEditor } from "@/features/playlist/SmartPlaylistRulesEditor";
 
 export const Route = createLazyFileRoute("/_auth/playlists/$playlistId")({
   component: PlaylistDetail,
@@ -90,14 +91,11 @@ function PlaylistDetail() {
         <p className="text-sm mb-4" style={{ color: "var(--text-muted)" }}>{playlist.description}</p>
       )}
 
-      {playlist.rules && playlist.rules.length > 0 && (
-        <div className="flex flex-wrap gap-2 mb-6">
-          {playlist.rules.map((rule, i) => (
-            <Badge key={i} variant="default">
-              {rule.field} {rule.operator} {rule.value}
-            </Badge>
-          ))}
-        </div>
+      {playlist.type === "smart" && (
+        <SmartPlaylistRulesEditor
+          playlistId={playlistId}
+          initialRules={playlist.rules ?? []}
+        />
       )}
 
       {items.length === 0 ? (

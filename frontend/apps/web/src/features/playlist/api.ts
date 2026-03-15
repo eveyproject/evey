@@ -52,17 +52,27 @@ export function usePlaylistDetail(id: string) {
       const raw = await eveyFetch<PlaylistDetailResponse>({ url: `/api/v1/playlists/${id}`, method: "GET" });
       const pl = raw.playlist;
       const mediaMap = new Map((raw.media ?? []).map((m) => [m.id, m]));
-      const items: PlaylistItem[] = (raw.items ?? []).map((it) => {
-        const m = mediaMap.get(it.mediaItemId);
-        return {
-          media_item_id: it.mediaItemId,
-          sort_order: it.sortOrder,
-          added_at: it.addedAt,
-          title: m?.title,
-          type: m?.type,
-          year: m?.year,
-        };
-      });
+      // For smart playlists, results come in `media` with no corresponding `items`
+      const rawItems = raw.items ?? [];
+      const items: PlaylistItem[] = rawItems.length > 0
+        ? rawItems.map((it) => {
+            const m = mediaMap.get(it.mediaItemId);
+            return {
+              media_item_id: it.mediaItemId,
+              sort_order: it.sortOrder,
+              added_at: it.addedAt,
+              title: m?.title,
+              type: m?.type,
+              year: m?.year,
+            };
+          })
+        : (raw.media ?? []).map((m, i) => ({
+            media_item_id: m.id,
+            sort_order: i,
+            title: m.title,
+            type: m.type,
+            year: m.year,
+          }));
       return {
         id: pl.id,
         name: pl.name,

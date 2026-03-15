@@ -430,8 +430,8 @@ func mkvContainerToProto(c *mkv.Container) *eveyv1.Container {
 	return pb
 }
 
-func mkvTrackToProto(t mkv.Track) *eveyv1.Track {
-	pb := &eveyv1.Track{
+func mkvTrackToProto(t mkv.Track) *eveyv1.MkvTrack {
+	pb := &eveyv1.MkvTrack{
 		Id:        int32(t.ID),
 		Type:      mkvTrackTypeToProto[t.Type],
 		Codec:     t.Codec,

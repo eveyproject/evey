@@ -42,4 +42,13 @@
   --danger-hover: #b91c1c;
 
   --overlay-gradient: rgba(0,0,0,0.4);
+
+  --overlay-bg-strong: rgba(0,0,0,0.65);
+  --overlay-border-subtle: rgba(255,255,255,0.15);
+  --overlay-btn-bg: rgba(255,255,255,0.2);
+  --overlay-text: #ffffff;
+  --overlay-text-muted: rgba(255,255,255,0.85);
+  --btn-overlay-inactive-bg: rgba(0,0,0,0.45);
+  --log-hover-bg: rgba(0,0,0,0.04);
+  --filter-active-text: #ffffff;
 }

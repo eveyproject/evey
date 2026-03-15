@@ -1,0 +1,120 @@
+package httpapi
+
+import (
+	"net/http"
+	"os"
+	"path/filepath"
+	"strings"
+)
+
+type browseHandler struct {
+	tokens TokenVerifier
+	skip   map[string]bool
+}
+
+type browseEntry struct {
+	Name string `json:"name"`
+	Path string `json:"path"`
+}
+
+func browseDirsHandler(tokens TokenVerifier) http.HandlerFunc {
+	h := &browseHandler{
+		tokens: tokens,
+		skip:   map[string]bool{"cdrom": true, "floppy": true, "usb": true, "sr0": true, "proc": true, "sys": true, "dev": true},
+	}
+	return h.ServeHTTP
+}
+
+func (h *browseHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	authHeader := r.Header.Get("Authorization")
+	if len(authHeader) < 8 || authHeader[:7] != "Bearer " {
+		http.Error(w, `{"message":"unauthenticated"}`, http.StatusUnauthorized)
+		return
+	}
+	claims, err := h.tokens.ValidateAccessToken(authHeader[7:])
+	if err != nil || !claims.IsAdmin {
+		http.Error(w, `{"message":"forbidden"}`, http.StatusForbidden)
+		return
+	}
+
+	dir, ok := h.validatePath(w, r)
+	if !ok {
+		return
+	}
+
+	var result []browseEntry
+	if dir == "" {
+		result = h.listRoots()
+	} else {
+		result = h.listDir(w, dir)
+		if result == nil {
+			return
+		}
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	jsonEncodeResponse(w, result)
+}
+
+func (h *browseHandler) validatePath(w http.ResponseWriter, r *http.Request) (string, bool) {
+	dir := r.URL.Query().Get("path")
+	if dir == "" {
+		return "", true
+	}
+	dir = filepath.Clean(dir)
+	if !filepath.IsAbs(dir) || !strings.HasPrefix(dir, "/media") {
+		http.Error(w, `{"message":"invalid path"}`, http.StatusBadRequest)
+		return "", false
+	}
+	resolved, err := filepath.EvalSymlinks(dir)
+	if err != nil || !strings.HasPrefix(resolved, "/media") {
+		http.Error(w, `{"message":"invalid path"}`, http.StatusBadRequest)
+		return "", false
+	}
+	return resolved, true
+}
+
+func (h *browseHandler) listRoots() []browseEntry {
+	result := []browseEntry{}
+	roots, _ := filepath.Glob("/media*") //nolint:errcheck // best-effort directory discovery
+	for _, root := range roots {
+		info, err := os.Stat(root)
+		if err != nil || !info.IsDir() {
+			continue
+		}
+		name := filepath.Base(root)
+		result = append(result, browseEntry{Name: name, Path: root})
+		entries, err := os.ReadDir(root)
+		if err != nil {
+			continue
+		}
+		for _, e := range entries {
+			if !e.IsDir() || e.Name()[0] == '.' || h.skip[e.Name()] {
+				continue
+			}
+			result = append(result, browseEntry{Name: name + "/" + e.Name(), Path: root + "/" + e.Name()})
+		}
+	}
+	return result
+}
+
+func (h *browseHandler) listDir(w http.ResponseWriter, dir string) []browseEntry {
+	base := dir
+	if len(base) > 1 && base[len(base)-1] == '/' {
+		base = base[:len(base)-1]
+	}
+	dirEntries, err := os.ReadDir(dir)
+	if err != nil {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte("[]"))
+		return nil
+	}
+	result := []browseEntry{}
+	for _, e := range dirEntries {
+		if !e.IsDir() || e.Name()[0] == '.' || h.skip[e.Name()] {
+			continue
+		}
+		result = append(result, browseEntry{Name: e.Name(), Path: base + "/" + e.Name()})
+	}
+	return result
+}

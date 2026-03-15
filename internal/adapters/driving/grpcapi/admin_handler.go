@@ -416,7 +416,7 @@ func (h *adminHandler) GetPluginLogs(_ context.Context, req *eveyv1.GetPluginLog
 		if v, ok := raw["time"]; ok {
 			var t string
 			if json.Unmarshal(v, &t) == nil {
-				ts, _ = time.Parse(time.RFC3339Nano, t)
+				ts, _ = time.Parse(time.RFC3339Nano, t) //nolint:errcheck // best-effort parse, zero time is acceptable
 			}
 		}
 		if filterLevel != "" && !strings.EqualFold(level, filterLevel) {

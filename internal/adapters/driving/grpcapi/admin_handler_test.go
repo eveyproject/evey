@@ -5,6 +5,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	eveyv1 "github.com/gravity-zero/evey/gen/evey/v1"
@@ -317,10 +318,11 @@ func TestAdminGetPluginLogs_Pagination(t *testing.T) {
 	if err := os.MkdirAll(filepath.Join(tmpDir, "plugins"), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	var lines string
-	for i := 0; i < 5; i++ {
-		lines += `{"time":"2026-03-14T10:00:00Z","level":"INFO","msg":"line"}` + "\n"
+	var b strings.Builder
+	for range 5 {
+		b.WriteString(`{"time":"2026-03-14T10:00:00Z","level":"INFO","msg":"line"}` + "\n")
 	}
+	lines := b.String()
 	if err := os.WriteFile(filepath.Join(tmpDir, "plugins", "p3.log"), []byte(lines), 0o644); err != nil {
 		t.Fatal(err)
 	}

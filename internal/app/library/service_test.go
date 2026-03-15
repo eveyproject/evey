@@ -538,10 +538,10 @@ func TestScanLibrary_OrphanCleanup_TVShow_RemovesDeletedEpisode(t *testing.T) {
 	require.NoError(t, err)
 
 	_, err = mediaRepo.GetByID(context.Background(), "ep-gone")
-	assert.ErrorIs(t, err, library.ErrNotFound, "deleted episode must be removed from DB")
+	require.ErrorIs(t, err, library.ErrNotFound, "deleted episode must be removed from DB")
 
 	_, err = mediaRepo.GetByID(context.Background(), "ep-keep")
-	assert.NoError(t, err, "surviving episode must remain in DB")
+	require.NoError(t, err, "surviving episode must remain in DB")
 
 	var removedEvents int
 	for _, e := range bus.PublishedEvents() {

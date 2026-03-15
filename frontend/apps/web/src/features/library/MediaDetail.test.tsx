@@ -38,12 +38,16 @@ vi.mock("@evey/api", () => ({
   useMetadataServiceSetMetadataOverride: () => ({ mutateAsync: vi.fn(), isError: false }),
   useMetadataServiceRefreshMetadata: () => ({ mutateAsync: vi.fn() }),
   useMetadataServiceGetArtwork: () => ({ data: undefined }),
+  useMetadataServiceListMetadataOverrides: () => ({ data: undefined }),
+  useMetadataServiceRemoveMetadataOverride: () => ({ mutateAsync: vi.fn() }),
+  getMetadataServiceListMetadataOverridesQueryKey: () => ["overrides"],
+  eveyFetch: vi.fn(),
 }));
 
 vi.mock("@evey/store", () => ({
   toast: { success: vi.fn(), error: vi.fn() },
-  useAuthStore: (sel: (s: { accessToken: string }) => unknown) =>
-    sel({ accessToken: "tok" }),
+  useAuthStore: (sel: (s: { accessToken: string; profileId: string | null; isAdmin: boolean }) => unknown) =>
+    sel({ accessToken: "tok", profileId: null, isAdmin: false }),
 }));
 
 vi.mock("@/components/ui/BackButton", () => ({

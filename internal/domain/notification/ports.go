@@ -7,6 +7,7 @@ type DeviceTokenRepository interface {
 	Delete(ctx context.Context, userID, token string) error
 	GetByProfile(ctx context.Context, profileID string) ([]string, error)
 	GetByUser(ctx context.Context, userID string) ([]string, error)
+	ListByUser(ctx context.Context, userID string) ([]DeviceToken, error)
 }
 
 type PushSender interface {

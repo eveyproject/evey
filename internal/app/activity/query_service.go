@@ -8,11 +8,12 @@ import (
 )
 
 type QueryService struct {
-	loginHistory activity.LoginHistoryRepository
-	metrics      activity.ServerMetricRepository
-	auditLog     activity.AuditLogRepository
-	statsReader  activity.PlaySessionStatsReader
-	playHistory  activity.PlayHistoryRepository
+	loginHistory    activity.LoginHistoryRepository
+	metrics         activity.ServerMetricRepository
+	auditLog        activity.AuditLogRepository
+	statsReader     activity.PlaySessionStatsReader
+	playHistory     activity.PlayHistoryRepository
+	analyticsReader activity.AnalyticsReader
 }
 
 func NewQueryService(
@@ -29,6 +30,11 @@ func NewQueryService(
 		statsReader:  statsReader,
 		playHistory:  playHistory,
 	}
+}
+
+func (s *QueryService) WithAnalyticsReader(r activity.AnalyticsReader) *QueryService {
+	s.analyticsReader = r
+	return s
 }
 
 func (s *QueryService) GetLoginHistory(ctx context.Context, userID string, limit, offset int) ([]*activity.LoginEntry, error) {
@@ -57,4 +63,14 @@ func (s *QueryService) GetPlayHistory(ctx context.Context, filter activity.PlayH
 
 func (s *QueryService) GetMostPopular(ctx context.Context, limit int) ([]activity.MediaPlayCount, error) {
 	return s.statsReader.GetMostPopular(ctx, limit)
+}
+
+func (s *QueryService) GetAnalytics(ctx context.Context) (*activity.AnalyticsData, error) {
+	if s.analyticsReader == nil {
+		return &activity.AnalyticsData{
+			TopMedia:       []activity.TopMediaItem{},
+			RecentActivity: []activity.RecentActivityEntry{},
+		}, nil
+	}
+	return s.analyticsReader.GetAnalytics(ctx)
 }

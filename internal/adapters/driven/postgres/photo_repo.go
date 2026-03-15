@@ -123,7 +123,7 @@ func (r *PhotoRepository) Search(ctx context.Context, libraryID, query string, l
 	rows, err := r.db.QueryContext(ctx, `
 		SELECT id, library_id, title, file_path, file_size, mime_type, width, height,
 		       taken_at, latitude, longitude, camera_model, album, created_at, updated_at
-		FROM photos WHERE library_id = $1 AND (lower(title) LIKE lower($2) OR lower(album) LIKE lower($2))
+		FROM photos WHERE library_id = $1 AND (title ILIKE $2 OR album ILIKE $2)
 		ORDER BY taken_at DESC NULLS LAST
 		LIMIT $3`, libraryID, pattern, limit,
 	)

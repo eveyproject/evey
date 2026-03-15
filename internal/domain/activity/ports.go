@@ -47,3 +47,7 @@ type PlayHistoryFilter struct {
 type PlayHistoryRepository interface {
 	List(ctx context.Context, filter PlayHistoryFilter) ([]*PlayHistoryEntry, error)
 }
+
+type AnalyticsReader interface {
+	GetAnalytics(ctx context.Context) (*AnalyticsData, error)
+}

@@ -39,8 +39,8 @@ func StartShared() func() {
 		panic(fmt.Sprintf("start shared postgres container: %v", err))
 	}
 
-	host, _ := container.Host(ctx)        //nolint:errcheck // panic on nil values handled below
-	port, _ := container.MappedPort(ctx, "5432") //nolint:errcheck
+	host, _ := container.Host(ctx)
+	port, _ := container.MappedPort(ctx, "5432")
 
 	dsn := fmt.Sprintf("host=%s port=%s user=evey_test password=evey_test dbname=evey_test sslmode=disable", host, port.Port())
 	db, err := sql.Open("postgres", dsn)
@@ -91,7 +91,7 @@ func truncateAll(t *testing.T, db *sql.DB) {
 	if err != nil {
 		t.Fatalf("list tables: %v", err)
 	}
-	defer rows.Close() //nolint:errcheck
+	defer rows.Close()
 	var tables []string
 	for rows.Next() {
 		var name string
@@ -99,6 +99,9 @@ func truncateAll(t *testing.T, db *sql.DB) {
 			t.Fatalf("scan table name: %v", scanErr)
 		}
 		tables = append(tables, fmt.Sprintf("%q", name))
+	}
+	if rowsErr := rows.Err(); rowsErr != nil {
+		t.Fatalf("rows iteration: %v", rowsErr)
 	}
 	if len(tables) == 0 {
 		return
@@ -136,8 +139,8 @@ func startDedicated(t *testing.T) (*sql.DB, func()) {
 		t.Fatalf("start postgres container: %v", err)
 	}
 
-	host, _ := container.Host(ctx)        //nolint:errcheck
-	port, _ := container.MappedPort(ctx, "5432") //nolint:errcheck
+	host, _ := container.Host(ctx)
+	port, _ := container.MappedPort(ctx, "5432")
 
 	dsn := fmt.Sprintf("host=%s port=%s user=evey_test password=evey_test dbname=evey_test sslmode=disable", host, port.Port())
 	db, err := sql.Open("postgres", dsn)

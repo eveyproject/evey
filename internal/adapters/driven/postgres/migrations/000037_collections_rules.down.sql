@@ -1,0 +1,3 @@
+ALTER TABLE collections
+  DROP COLUMN IF EXISTS rules,
+  DROP COLUMN IF EXISTS sort_by;

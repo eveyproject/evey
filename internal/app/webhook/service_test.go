@@ -476,3 +476,131 @@ func TestHandleAny_DeliveryRecordsError(t *testing.T) {
 		t.Fatalf("expected status 500, got %d", d.StatusCode)
 	}
 }
+
+func TestHandleAny_RetriesOnFailureThenSucceeds(t *testing.T) {
+	t.Parallel()
+	var attempts atomic.Int32
+	received := make(chan struct{}, 1)
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		n := attempts.Add(1)
+		if n < 2 {
+			w.WriteHeader(http.StatusServiceUnavailable)
+			return
+		}
+		received <- struct{}{}
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer srv.Close()
+
+	repo := &fakeWebhookRepo{}
+	deliveries := &fakeDeliveryRepo{}
+	bus := fakes.NewFakeEventBus()
+	svc := newTestService(repo, deliveries, bus)
+	svc.SetRetryDelays([]time.Duration{10 * time.Millisecond})
+
+	repo.mu.Lock()
+	repo.data = append(repo.data, &webhookdomain.Config{
+		ID: "retry", URL: srv.URL, Events: []string{"*"}, Enabled: true,
+	})
+	repo.mu.Unlock()
+
+	_ = bus.Publish(context.Background(), fakeEvent{"test.event"})
+
+	select {
+	case <-received:
+	case <-time.After(5 * time.Second):
+		t.Fatal("webhook never succeeded after retry")
+	}
+	if attempts.Load() < 2 {
+		t.Fatalf("expected at least 2 attempts, got %d", attempts.Load())
+	}
+}
+
+func TestHandleAny_DeliveryIncludesSignatureHeader(t *testing.T) {
+	t.Parallel()
+	var gotSig string
+	received := make(chan struct{}, 1)
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotSig = r.Header.Get("X-Evey-Signature")
+		received <- struct{}{}
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer srv.Close()
+
+	repo := &fakeWebhookRepo{}
+	deliveries := &fakeDeliveryRepo{}
+	bus := fakes.NewFakeEventBus()
+	_ = newTestService(repo, deliveries, bus)
+
+	repo.mu.Lock()
+	repo.data = append(repo.data, &webhookdomain.Config{
+		ID: "sig", URL: srv.URL, Events: []string{"*"}, Enabled: true, Secret: "mysecret",
+	})
+	repo.mu.Unlock()
+
+	_ = bus.Publish(context.Background(), fakeEvent{"test.event"})
+
+	select {
+	case <-received:
+	case <-time.After(2 * time.Second):
+		t.Fatal("webhook not delivered")
+	}
+	if gotSig == "" {
+		t.Fatal("X-Evey-Signature header not sent")
+	}
+	if len(gotSig) < 7 || gotSig[:7] != "sha256=" {
+		t.Fatalf("unexpected signature format: %q", gotSig)
+	}
+}
+
+func TestUpdate_BlocksPrivateURL(t *testing.T) {
+	t.Parallel()
+	repo := &fakeWebhookRepo{}
+	deliveries := &fakeDeliveryRepo{}
+	bus := fakes.NewFakeEventBus()
+	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
+	svc := webhook.NewService(repo, deliveries, log, bus)
+
+	cfg := &webhookdomain.Config{
+		ID: "w1", Name: "x", URL: "http://169.254.169.254/meta-data/", Events: []string{"*"}, Enabled: true,
+	}
+	err := svc.Update(context.Background(), cfg)
+	if err == nil {
+		t.Fatal("expected error for private IP URL on Update")
+	}
+}
+
+func TestHandleAny_CustomHeaders(t *testing.T) {
+	t.Parallel()
+	var gotHeader string
+	received := make(chan struct{}, 1)
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotHeader = r.Header.Get("X-Custom")
+		received <- struct{}{}
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer srv.Close()
+
+	repo := &fakeWebhookRepo{}
+	deliveries := &fakeDeliveryRepo{}
+	bus := fakes.NewFakeEventBus()
+	_ = newTestService(repo, deliveries, bus)
+
+	repo.mu.Lock()
+	repo.data = append(repo.data, &webhookdomain.Config{
+		ID: "custom", URL: srv.URL, Events: []string{"*"}, Enabled: true,
+		Headers: map[string]string{"X-Custom": "hello"},
+	})
+	repo.mu.Unlock()
+
+	_ = bus.Publish(context.Background(), fakeEvent{"test.event"})
+
+	select {
+	case <-received:
+	case <-time.After(2 * time.Second):
+		t.Fatal("webhook not delivered")
+	}
+	if gotHeader != "hello" {
+		t.Fatalf("expected X-Custom=hello, got %q", gotHeader)
+	}
+}

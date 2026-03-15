@@ -1,7 +1,29 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, it, expect, vi } from "vitest";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { PluginCard } from "./PluginCard";
+
+vi.mock("@tanstack/react-router", () => ({
+  Link: ({ children, to, className }: { children: React.ReactNode; to: string; className?: string }) => (
+    <a href={to} className={className}>{children}</a>
+  ),
+  useRouterState: () => ({ location: { pathname: "/" } }),
+}));
+
+vi.mock("@evey/api", () => ({
+  useAdminServiceGetPluginConfig: () => ({ data: undefined, isLoading: false }),
+  useAdminServiceUpdatePluginConfig: () => ({ mutate: vi.fn(), isPending: false }),
+}));
+
+vi.mock("@evey/store", () => ({
+  toast: { success: vi.fn(), error: vi.fn() },
+}));
+
+function Wrapper({ children }: { children: React.ReactNode }) {
+  const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  return <QueryClientProvider client={qc}>{children}</QueryClientProvider>;
+}
 
 const basePlugin = {
   id: "p1",
@@ -21,7 +43,8 @@ describe("PluginCard", () => {
         onEnable={vi.fn()}
         onDisable={vi.fn()}
         onUninstall={vi.fn()}
-      />
+      />,
+      { wrapper: Wrapper },
     );
     expect(screen.getByText("My Plugin")).toBeInTheDocument();
     expect(screen.getByText("v1.0.0 — go")).toBeInTheDocument();
@@ -34,7 +57,8 @@ describe("PluginCard", () => {
         onEnable={vi.fn()}
         onDisable={vi.fn()}
         onUninstall={vi.fn()}
-      />
+      />,
+      { wrapper: Wrapper },
     );
     expect(screen.getByText("A test plugin")).toBeInTheDocument();
   });
@@ -46,7 +70,8 @@ describe("PluginCard", () => {
         onEnable={vi.fn()}
         onDisable={vi.fn()}
         onUninstall={vi.fn()}
-      />
+      />,
+      { wrapper: Wrapper },
     );
     expect(screen.getByRole("button", { name: "Disable" })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Enable" })).not.toBeInTheDocument();
@@ -59,7 +84,8 @@ describe("PluginCard", () => {
         onEnable={vi.fn()}
         onDisable={vi.fn()}
         onUninstall={vi.fn()}
-      />
+      />,
+      { wrapper: Wrapper },
     );
     expect(screen.getByRole("button", { name: "Enable" })).toBeInTheDocument();
   });
@@ -72,7 +98,8 @@ describe("PluginCard", () => {
         onEnable={vi.fn()}
         onDisable={onDisable}
         onUninstall={vi.fn()}
-      />
+      />,
+      { wrapper: Wrapper },
     );
     await userEvent.click(screen.getByRole("button", { name: "Disable" }));
     expect(onDisable).toHaveBeenCalledOnce();
@@ -86,7 +113,8 @@ describe("PluginCard", () => {
         onEnable={onEnable}
         onDisable={vi.fn()}
         onUninstall={vi.fn()}
-      />
+      />,
+      { wrapper: Wrapper },
     );
     await userEvent.click(screen.getByRole("button", { name: "Enable" }));
     expect(onEnable).toHaveBeenCalledOnce();
@@ -100,7 +128,8 @@ describe("PluginCard", () => {
         onEnable={vi.fn()}
         onDisable={vi.fn()}
         onUninstall={onUninstall}
-      />
+      />,
+      { wrapper: Wrapper },
     );
     await userEvent.click(screen.getByRole("button", { name: "Uninstall" }));
     expect(onUninstall).toHaveBeenCalledOnce();
@@ -113,7 +142,8 @@ describe("PluginCard", () => {
         onEnable={vi.fn()}
         onDisable={vi.fn()}
         onUninstall={vi.fn()}
-      />
+      />,
+      { wrapper: Wrapper },
     );
     expect(screen.getByText("Running")).toBeInTheDocument();
   });
@@ -125,7 +155,8 @@ describe("PluginCard", () => {
         onEnable={vi.fn()}
         onDisable={vi.fn()}
         onUninstall={vi.fn()}
-      />
+      />,
+      { wrapper: Wrapper },
     );
     expect(screen.getByText("Error")).toBeInTheDocument();
   });

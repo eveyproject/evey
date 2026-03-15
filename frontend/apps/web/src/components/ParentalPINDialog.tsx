@@ -1,0 +1,104 @@
+import { useState, useRef, useEffect } from "react";
+import { Modal } from "@/components/ui/Modal";
+import { Button } from "@/components/ui/Button";
+
+interface ParentalPINDialogProps {
+  open: boolean;
+  onClose: () => void;
+  onVerified: () => void;
+  profileId: string;
+}
+
+export function ParentalPINDialog({ open, onClose, onVerified, profileId }: ParentalPINDialogProps) {
+  const [pin, setPin] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (open) {
+      setPin("");
+      setError(null);
+      setTimeout(() => inputRef.current?.focus(), 50);
+    }
+  }, [open]);
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (pin.length < 4) return;
+    setLoading(true);
+    setError(null);
+    try {
+      const { eveyFetch } = await import("@evey/api");
+      const result = await eveyFetch<{ valid: boolean }>({
+        url: `/api/v1/profiles/${profileId}/parental/verify-pin`,
+        method: "POST",
+        data: { pin },
+      });
+      if (result.valid) {
+        onVerified();
+      } else {
+        setError("PIN incorrect");
+        setPin("");
+        inputRef.current?.focus();
+      }
+    } catch {
+      setError("PIN incorrect");
+      setPin("");
+      inputRef.current?.focus();
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <Modal open={open} onClose={onClose} title="Contenu restreint">
+      <p className="text-sm mb-4" style={{ color: "var(--text-muted)" }}>
+        Ce contenu nécessite la vérification du PIN parental.
+      </p>
+      <form onSubmit={(e) => void handleSubmit(e)} className="flex flex-col gap-4">
+        <div className="flex flex-col gap-1">
+          <label className="text-sm font-medium" style={{ color: "var(--text)" }}>
+            PIN (4 chiffres)
+          </label>
+          <input
+            ref={inputRef}
+            type="password"
+            inputMode="numeric"
+            pattern="[0-9]*"
+            maxLength={4}
+            value={pin}
+            onChange={(e) => {
+              const val = e.target.value.replace(/\D/g, "").slice(0, 4);
+              setPin(val);
+              if (error) setError(null);
+            }}
+            className="w-full px-3 py-2 rounded text-center text-2xl tracking-[0.5em] font-mono"
+            style={{
+              backgroundColor: "var(--surface-raised)",
+              border: `1px solid ${error ? "var(--danger-bg, #ef4444)" : "var(--border)"}`,
+              color: "var(--text)",
+              outline: "none",
+            }}
+            placeholder="••••"
+            autoComplete="off"
+            data-testid="pin-input"
+          />
+          {error && (
+            <p className="text-sm" style={{ color: "var(--danger-bg, #ef4444)" }} data-testid="pin-error">
+              {error}
+            </p>
+          )}
+        </div>
+        <div className="flex gap-3">
+          <Button type="submit" variant="primary" loading={loading} disabled={pin.length < 4} data-testid="pin-submit">
+            Valider
+          </Button>
+          <Button type="button" variant="secondary" onClick={onClose} data-testid="pin-cancel">
+            Annuler
+          </Button>
+        </div>
+      </form>
+    </Modal>
+  );
+}

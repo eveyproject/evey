@@ -28,8 +28,8 @@ export function SyncPlayBar({ roomId, members, connected, onLeave }: SyncPlayBar
 
   return (
     <div
-      className="flex items-center gap-3 px-4 py-2 text-sm text-white"
-      style={{ background: "rgba(0,0,0,0.7)", borderTop: "1px solid rgba(255,255,255,0.1)" }}
+      className="flex items-center gap-3 px-4 py-2 text-sm"
+      style={{ background: "var(--overlay-bg-strong)", borderTop: "1px solid var(--overlay-border-subtle)", color: "var(--overlay-text)" }}
     >
       <span
         className="w-2 h-2 rounded-full flex-shrink-0"
@@ -40,7 +40,7 @@ export function SyncPlayBar({ roomId, members, connected, onLeave }: SyncPlayBar
       <button
         onClick={handleCopy}
         className="px-3 py-1 rounded text-xs font-medium hover:opacity-80 transition-opacity flex-shrink-0"
-        style={{ background: "rgba(255,255,255,0.15)" }}
+        style={{ background: "var(--overlay-btn-bg)" }}
       >
         {copied ? "Copied!" : "Share link"}
       </button>

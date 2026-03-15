@@ -190,6 +190,11 @@ type BulkItemEnricher interface {
 	AutoEnrichAll(ctx context.Context, items []*library.MediaItem, log *slog.Logger)
 }
 
+// SingleItemEnricher is an optional extension of ItemEnricher for per-item auto-enrichment.
+type SingleItemEnricher interface {
+	AutoEnrichItem(ctx context.Context, item *library.MediaItem, log *slog.Logger)
+}
+
 // AutoRefreshAllItems auto-searches and enriches all media items using the enricher.
 // Returns immediately if the enricher does not support bulk enrichment.
 func (s *CommandService) AutoRefreshAllItems(ctx context.Context) error {
@@ -203,4 +208,50 @@ func (s *CommandService) AutoRefreshAllItems(ctx context.Context) error {
 	}
 	be.AutoEnrichAll(ctx, items, slog.Default())
 	return nil
+}
+
+func (s *CommandService) StartEnrichmentWorker(ctx context.Context) {
+	be, bulkOK := s.enricher.(BulkItemEnricher)
+	se, singleOK := s.enricher.(SingleItemEnricher)
+	if !bulkOK && !singleOK {
+		return
+	}
+	if bulkOK && s.mediaItems != nil {
+		go func() {
+			items, err := s.mediaItems.List(ctx, library.ListMediaItemsFilter{Limit: 5000})
+			if err == nil {
+				be.AutoEnrichAll(ctx, items, slog.Default())
+			}
+		}()
+	}
+	if singleOK && s.mediaItems != nil {
+		queue := make(chan string, 100)
+		for range 4 {
+			go func() {
+				for {
+					select {
+					case <-ctx.Done():
+						return
+					case mediaID, ok := <-queue:
+						if !ok {
+							return
+						}
+						item, err := s.mediaItems.GetByID(ctx, mediaID)
+						if err == nil {
+							se.AutoEnrichItem(ctx, item, slog.Default())
+						}
+					}
+				}
+			}()
+		}
+		s.events.Subscribe("media.item.added", func(_ context.Context, ev shared.Event) {
+			if e, ok := ev.(library.MediaItemAdded); ok {
+				select {
+				case queue <- e.MediaItemID:
+				default:
+					slog.Warn("enrich queue full, dropping", slog.String("media_id", e.MediaItemID))
+				}
+			}
+		})
+	}
 }

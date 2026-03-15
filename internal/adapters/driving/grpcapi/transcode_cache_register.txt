@@ -1,2 +1,0 @@
-// Add to GRPCServer.RegisterServices() in server.go:
-eveyv1.RegisterTranscodeCacheServiceServer(s.server, &transcodeCacheHandler{svc: s.transcoding})

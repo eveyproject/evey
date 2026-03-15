@@ -156,6 +156,13 @@ service UserService {
       delete: "/api/v1/api-keys/{id}"
     };
   }
+
+  rpc UpdateUserBitrateLimit(UpdateUserBitrateLimitRequest) returns (UpdateUserBitrateLimitResponse) {
+    option (google.api.http) = {
+      put: "/api/v1/users/{user_id}/bitrate-limit"
+      body: "*"
+    };
+  }
 }
 
 message User {
@@ -350,3 +357,10 @@ message RevokeAPIKeyRequest {
 }
 
 message RevokeAPIKeyResponse {}
+
+message UpdateUserBitrateLimitRequest {
+  string user_id = 1;
+  int64 bitrate_limit_kbps = 2; // 0 = unlimited
+}
+
+message UpdateUserBitrateLimitResponse {}

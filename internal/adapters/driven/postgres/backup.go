@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/exec"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 )
@@ -79,9 +80,12 @@ func (d *DatabaseDumper) RestoreTables(ctx context.Context, data io.Reader) erro
 	}
 
 	peek := make([]byte, 8192)
-	pn, _ := io.ReadFull(data, peek)
+	pn, peekErr := io.ReadFull(data, peek)
+	if peekErr != nil && peekErr != io.ErrUnexpectedEOF && peekErr != io.EOF {
+		return fmt.Errorf("restore: read peek: %w", peekErr)
+	}
 	peek = peek[:pn]
-	combined := append(header, peek...)
+	combined := slices.Concat(header, peek)
 	if copyToProgramRe.Match(combined) {
 		return fmt.Errorf("restore: rejected: dangerous COPY TO PROGRAM statement")
 	}

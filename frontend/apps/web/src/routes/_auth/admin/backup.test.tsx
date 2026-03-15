@@ -1,0 +1,129 @@
+import React from "react";
+import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { describe, it, expect, vi, beforeEach } from "vitest";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+
+const mockUseQuery = vi.fn();
+const mockUseMutation = vi.fn();
+const mockInvalidateQueries = vi.fn();
+
+vi.mock("@tanstack/react-query", async (importActual) => {
+  const actual = await importActual<typeof import("@tanstack/react-query")>();
+  return {
+    ...actual,
+    useQuery: (...args: unknown[]) => mockUseQuery(...args),
+    useMutation: (...args: unknown[]) => mockUseMutation(...args),
+    useQueryClient: () => ({ invalidateQueries: mockInvalidateQueries }),
+  };
+});
+
+vi.mock("@evey/api/src/fetcher", () => ({
+  eveyFetch: vi.fn(),
+}));
+
+vi.mock("@evey/store", () => ({
+  toast: { success: vi.fn(), error: vi.fn() },
+  useAuthStore: (fn: (s: { accessToken: string }) => unknown) => fn({ accessToken: "tok" }),
+}));
+
+vi.mock("@tanstack/react-router", () => ({
+  createLazyFileRoute: () => (opts: { component: React.ComponentType }) => opts,
+}));
+
+function createWrapper() {
+  const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  return ({ children }: { children: React.ReactNode }) =>
+    React.createElement(QueryClientProvider, { client: qc }, children);
+}
+
+async function getBackupPage() {
+  const mod = await import("./backup.lazy");
+  return (mod.Route as unknown as { component: React.ComponentType }).component;
+}
+
+const mockBackup = {
+  id: "backup-001",
+  createdAt: "2024-01-15T10:00:00Z",
+  version: "1.0.0",
+  size: 1048576,
+};
+
+describe("BackupPage", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockUseMutation.mockReturnValue({ mutate: vi.fn(), isPending: false });
+  });
+
+  it("renders page heading", async () => {
+    mockUseQuery.mockReturnValue({ data: [], isLoading: false });
+    const BackupPage = await getBackupPage();
+    render(React.createElement(BackupPage), { wrapper: createWrapper() });
+    expect(screen.getByText(/Backup & Restore/i)).toBeInTheDocument();
+  });
+
+  it("shows empty state when no backups", async () => {
+    mockUseQuery.mockReturnValue({ data: [], isLoading: false });
+    const BackupPage = await getBackupPage();
+    render(React.createElement(BackupPage), { wrapper: createWrapper() });
+    expect(screen.getByText(/No backups/i)).toBeInTheDocument();
+  });
+
+  it("shows spinner while loading", async () => {
+    mockUseQuery.mockReturnValue({ data: undefined, isLoading: true });
+    const BackupPage = await getBackupPage();
+    render(React.createElement(BackupPage), { wrapper: createWrapper() });
+    expect(screen.getByText(/Backup & Restore/i)).toBeInTheDocument();
+  });
+
+  it("renders backup row with id and size", async () => {
+    mockUseQuery.mockReturnValue({ data: [mockBackup], isLoading: false });
+    const BackupPage = await getBackupPage();
+    render(React.createElement(BackupPage), { wrapper: createWrapper() });
+    expect(screen.getByText("backup-001")).toBeInTheDocument();
+    expect(screen.getByText("1.0 MB")).toBeInTheDocument();
+  });
+
+  it("shows Ready badge for each backup", async () => {
+    mockUseQuery.mockReturnValue({ data: [mockBackup], isLoading: false });
+    const BackupPage = await getBackupPage();
+    render(React.createElement(BackupPage), { wrapper: createWrapper() });
+    expect(screen.getByText("Ready")).toBeInTheDocument();
+  });
+
+  it("Create Backup button calls mutate", async () => {
+    mockUseQuery.mockReturnValue({ data: [], isLoading: false });
+    const mutate = vi.fn();
+    mockUseMutation.mockReturnValue({ mutate, isPending: false });
+    const BackupPage = await getBackupPage();
+    render(React.createElement(BackupPage), { wrapper: createWrapper() });
+    fireEvent.click(screen.getByRole("button", { name: /Create Backup/i }));
+    expect(mutate).toHaveBeenCalled();
+  });
+
+  it("Restore from File button opens modal", async () => {
+    mockUseQuery.mockReturnValue({ data: [], isLoading: false });
+    const BackupPage = await getBackupPage();
+    render(React.createElement(BackupPage), { wrapper: createWrapper() });
+    fireEvent.click(screen.getByRole("button", { name: /Restore from File/i }));
+    await waitFor(() => expect(screen.getByRole("dialog")).toBeInTheDocument());
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+  });
+
+  it("clicking Delete on backup row shows confirm modal", async () => {
+    mockUseQuery.mockReturnValue({ data: [mockBackup], isLoading: false });
+    const BackupPage = await getBackupPage();
+    render(React.createElement(BackupPage), { wrapper: createWrapper() });
+    fireEvent.click(screen.getByRole("button", { name: /^Delete$/i }));
+    await waitFor(() => expect(screen.getByRole("dialog")).toBeInTheDocument());
+    expect(screen.getAllByText(/Delete Backup/i).length).toBeGreaterThan(0);
+  });
+
+  it("clicking Restore on backup row shows confirm modal", async () => {
+    mockUseQuery.mockReturnValue({ data: [mockBackup], isLoading: false });
+    const BackupPage = await getBackupPage();
+    render(React.createElement(BackupPage), { wrapper: createWrapper() });
+    fireEvent.click(screen.getByRole("button", { name: /^Restore$/i }));
+    await waitFor(() => expect(screen.getByRole("dialog")).toBeInTheDocument());
+    expect(screen.getAllByText(/Restore Backup/i).length).toBeGreaterThan(0);
+  });
+});

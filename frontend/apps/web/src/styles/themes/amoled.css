@@ -7,7 +7,7 @@
   --accent-hover:  #9c5fd6;
   --text:          #e1e1e1;
   --text-secondary:#c4c4c4;
-  --text-muted:    #a5acb9;
+  --text-muted:    #b8bfc9;
   --border:        #1f1f1f;
   --radius-sm:     4px;
   --radius-md:     8px;
@@ -42,4 +42,13 @@
   --danger-hover: #b91c1c;
 
   --overlay-gradient: rgba(0,0,0,0.6);
+
+  --overlay-bg-strong: rgba(0,0,0,0.7);
+  --overlay-border-subtle: rgba(255,255,255,0.1);
+  --overlay-btn-bg: rgba(255,255,255,0.15);
+  --overlay-text: #ffffff;
+  --overlay-text-muted: rgba(255,255,255,0.8);
+  --btn-overlay-inactive-bg: rgba(0,0,0,0.5);
+  --log-hover-bg: rgba(255,255,255,0.05);
+  --filter-active-text: #ffffff;
 }

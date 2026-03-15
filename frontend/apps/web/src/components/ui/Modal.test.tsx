@@ -37,12 +37,13 @@ describe("Modal", () => {
   it("calls onClose on backdrop click", async () => {
     const user = userEvent.setup();
     const onClose = vi.fn();
-    const { container } = render(
+    render(
       <Modal open onClose={onClose} title="X">
         <button>Inside</button>
       </Modal>,
     );
-    const backdrop = container.firstChild as HTMLElement;
+    // Modal renders via portal into document.body; backdrop is the fixed overlay div
+    const backdrop = document.body.querySelector(".fixed.inset-0") as HTMLElement;
     await user.click(backdrop);
     expect(onClose).toHaveBeenCalledOnce();
   });

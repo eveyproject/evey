@@ -305,7 +305,9 @@ func (s *HLSSession) stop() {
 		slog.Warn("hls: timed out waiting for ffmpeg to exit, killing process", slog.String("media_id", s.MediaItemID))
 		s.mu.Lock()
 		if s.cmd != nil && s.cmd.Process != nil {
-			_ = s.cmd.Process.Kill()
+			if err := s.cmd.Process.Kill(); err != nil {
+				slog.Warn("hls: kill ffmpeg failed", slog.String("media_id", s.MediaItemID), slog.Any("err", err))
+			}
 		}
 		s.mu.Unlock()
 	}

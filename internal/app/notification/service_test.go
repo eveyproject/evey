@@ -35,7 +35,7 @@ func TestNotificationService_MediaItemAdded_CreatesNotificationsForAllProfiles(t
 	_ = profileRepo.Create(ctx, &user.Profile{ID: "p1", UserID: "u1", Name: "Alice"})
 	_ = profileRepo.Create(ctx, &user.Profile{ID: "p2", UserID: "u2", Name: "Bob"})
 
-	_ = appnotification.NewService(repo, settings, analyzer, profileRepo, bus)
+	_ = appnotification.NewCommandService(repo, settings, analyzer, profileRepo, bus)
 
 	bus.Publish(ctx, libevent.MediaItemAdded{
 		MediaItemID: "m1",
@@ -45,7 +45,6 @@ func TestNotificationService_MediaItemAdded_CreatesNotificationsForAllProfiles(t
 		OccurredAt:  time.Now(),
 	})
 
-	// give goroutines time to process (event bus is sync in fake)
 	notifs, err := repo.ListByProfile(ctx, "p1", false, 0, 0)
 	require.NoError(t, err)
 	assert.Len(t, notifs, 1)
@@ -67,7 +66,7 @@ func TestNotificationService_Deduplication(t *testing.T) {
 	ctx := context.Background()
 	_ = profileRepo.Create(ctx, &user.Profile{ID: "p1", UserID: "u1", Name: "Alice"})
 
-	_ = appnotification.NewService(repo, settings, analyzer, profileRepo, bus)
+	_ = appnotification.NewCommandService(repo, settings, analyzer, profileRepo, bus)
 
 	ev := libevent.MediaItemAdded{
 		MediaItemID: "m1",
@@ -78,7 +77,7 @@ func TestNotificationService_Deduplication(t *testing.T) {
 	}
 
 	bus.Publish(ctx, ev)
-	bus.Publish(ctx, ev) // duplicate within 5 min window
+	bus.Publish(ctx, ev)
 
 	notifs, err := repo.ListByProfile(ctx, "p1", false, 0, 0)
 	require.NoError(t, err)
@@ -95,7 +94,6 @@ func TestNotificationService_LevelDisabled_SkipsProfile(t *testing.T) {
 
 	ctx := context.Background()
 	_ = profileRepo.Create(ctx, &user.Profile{ID: "p1", UserID: "u1", Name: "Alice"})
-	// disable movie notifications for p1
 	_ = settings.Upsert(ctx, &notifdom.Settings{
 		ProfileID:   "p1",
 		MovieLevel:  notifdom.LevelDisabled,
@@ -103,7 +101,7 @@ func TestNotificationService_LevelDisabled_SkipsProfile(t *testing.T) {
 		MusicLevel:  notifdom.LevelAll,
 	})
 
-	_ = appnotification.NewService(repo, settings, analyzer, profileRepo, bus)
+	_ = appnotification.NewCommandService(repo, settings, analyzer, profileRepo, bus)
 
 	bus.Publish(ctx, libevent.MediaItemAdded{
 		MediaItemID: "m1",
@@ -127,21 +125,22 @@ func TestNotificationService_MarkRead_UnreadCount(t *testing.T) {
 	bus := sharedfakes.NewFakeEventBus()
 
 	ctx := context.Background()
-	svc := appnotification.NewService(repo, settings, analyzer, profileRepo, bus)
+	cmdSvc := appnotification.NewCommandService(repo, settings, analyzer, profileRepo, bus)
+	querySvc := appnotification.NewQueryService(repo, settings)
 
 	_ = repo.Create(ctx, &notifdom.Notification{ID: "n1", ProfileID: "p1", Type: notifdom.TypeNewMovie, Title: "T", Level: notifdom.LevelAll, CreatedAt: time.Now()})
 	_ = repo.Create(ctx, &notifdom.Notification{ID: "n2", ProfileID: "p1", Type: notifdom.TypeNewMovie, Title: "T2", Level: notifdom.LevelAll, CreatedAt: time.Now()})
 
-	count, err := svc.UnreadCount(ctx, "p1")
+	count, err := querySvc.UnreadCount(ctx, "p1")
 	require.NoError(t, err)
 	assert.Equal(t, 2, count)
 
-	require.NoError(t, svc.MarkRead(ctx, "n1"))
-	count, _ = svc.UnreadCount(ctx, "p1")
+	require.NoError(t, cmdSvc.MarkRead(ctx, "n1"))
+	count, _ = querySvc.UnreadCount(ctx, "p1")
 	assert.Equal(t, 1, count)
 
-	require.NoError(t, svc.MarkAllRead(ctx, "p1"))
-	count, _ = svc.UnreadCount(ctx, "p1")
+	require.NoError(t, cmdSvc.MarkAllRead(ctx, "p1"))
+	count, _ = querySvc.UnreadCount(ctx, "p1")
 	assert.Equal(t, 0, count)
 }
 
@@ -153,7 +152,7 @@ func TestNotificationService_GetAllProfilesError_NoNotifications(t *testing.T) {
 	bus := sharedfakes.NewFakeEventBus()
 
 	lister := &errProfileLister{err: errors.New("db down")}
-	_ = appnotification.NewService(repo, settings, analyzer, lister, bus)
+	_ = appnotification.NewCommandService(repo, settings, analyzer, lister, bus)
 
 	ctx := context.Background()
 	bus.Publish(ctx, libevent.MediaItemAdded{
@@ -167,4 +166,197 @@ func TestNotificationService_GetAllProfilesError_NoNotifications(t *testing.T) {
 	notifs, err := repo.ListByProfile(ctx, "p1", false, 0, 0)
 	require.NoError(t, err)
 	assert.Empty(t, notifs, "no notifications should be created when profile list fails")
+}
+
+func TestNotificationService_EpisodeNotification(t *testing.T) {
+	t.Parallel()
+	repo := notiffakes.NewFakeNotificationRepository()
+	settings := notiffakes.NewFakeSettingsRepository()
+	analyzer := notiffakes.NewFakeWatchHistoryAnalyzer()
+	profileRepo := userfakes.NewFakeProfileRepository()
+	bus := sharedfakes.NewFakeEventBus()
+
+	ctx := context.Background()
+	_ = profileRepo.Create(ctx, &user.Profile{ID: "p1", UserID: "u1", Name: "Alice"})
+
+	_ = appnotification.NewCommandService(repo, settings, analyzer, profileRepo, bus)
+
+	bus.Publish(ctx, libevent.MediaItemAdded{
+		MediaItemID: "ep1",
+		LibraryID:   "lib1",
+		Title:       "Pilot",
+		SeriesTitle: "Breaking Bad",
+		Type:        "episode",
+		OccurredAt:  time.Now(),
+	})
+
+	notifs, err := repo.ListByProfile(ctx, "p1", false, 0, 0)
+	require.NoError(t, err)
+	require.Len(t, notifs, 1)
+	assert.Equal(t, notifdom.TypeNewEpisode, notifs[0].Type)
+	assert.Contains(t, notifs[0].Title, "Breaking Bad")
+}
+
+func TestNotificationService_AlbumNotification(t *testing.T) {
+	t.Parallel()
+	repo := notiffakes.NewFakeNotificationRepository()
+	settings := notiffakes.NewFakeSettingsRepository()
+	analyzer := notiffakes.NewFakeWatchHistoryAnalyzer()
+	profileRepo := userfakes.NewFakeProfileRepository()
+	bus := sharedfakes.NewFakeEventBus()
+
+	ctx := context.Background()
+	_ = profileRepo.Create(ctx, &user.Profile{ID: "p1", UserID: "u1", Name: "Alice"})
+
+	_ = appnotification.NewCommandService(repo, settings, analyzer, profileRepo, bus)
+
+	bus.Publish(ctx, libevent.MediaItemAdded{
+		MediaItemID: "alb1",
+		LibraryID:   "lib1",
+		Title:       "Dark Side of the Moon",
+		Type:        "album",
+		OccurredAt:  time.Now(),
+	})
+
+	notifs, err := repo.ListByProfile(ctx, "p1", false, 0, 0)
+	require.NoError(t, err)
+	require.Len(t, notifs, 1)
+	assert.Equal(t, notifdom.TypeNewAlbum, notifs[0].Type)
+}
+
+func TestNotificationService_UnknownMediaType_NoNotification(t *testing.T) {
+	t.Parallel()
+	repo := notiffakes.NewFakeNotificationRepository()
+	settings := notiffakes.NewFakeSettingsRepository()
+	analyzer := notiffakes.NewFakeWatchHistoryAnalyzer()
+	profileRepo := userfakes.NewFakeProfileRepository()
+	bus := sharedfakes.NewFakeEventBus()
+
+	ctx := context.Background()
+	_ = profileRepo.Create(ctx, &user.Profile{ID: "p1", UserID: "u1", Name: "Alice"})
+
+	_ = appnotification.NewCommandService(repo, settings, analyzer, profileRepo, bus)
+
+	bus.Publish(ctx, libevent.MediaItemAdded{
+		MediaItemID: "x1",
+		LibraryID:   "lib1",
+		Title:       "Unknown",
+		Type:        "photo",
+		OccurredAt:  time.Now(),
+	})
+
+	notifs, err := repo.ListByProfile(ctx, "p1", false, 0, 0)
+	require.NoError(t, err)
+	assert.Empty(t, notifs, "unknown media type should not create notifications")
+}
+
+func TestNotificationService_DeleteAll(t *testing.T) {
+	t.Parallel()
+	repo := notiffakes.NewFakeNotificationRepository()
+	settings := notiffakes.NewFakeSettingsRepository()
+	analyzer := notiffakes.NewFakeWatchHistoryAnalyzer()
+	profileRepo := userfakes.NewFakeProfileRepository()
+	bus := sharedfakes.NewFakeEventBus()
+	cmdSvc := appnotification.NewCommandService(repo, settings, analyzer, profileRepo, bus)
+
+	ctx := context.Background()
+	_ = repo.Create(ctx, &notifdom.Notification{ID: "n1", ProfileID: "p1", Title: "T1", CreatedAt: time.Now()})
+	_ = repo.Create(ctx, &notifdom.Notification{ID: "n2", ProfileID: "p1", Title: "T2", CreatedAt: time.Now()})
+	_ = repo.Create(ctx, &notifdom.Notification{ID: "n3", ProfileID: "p2", Title: "T3", CreatedAt: time.Now()})
+
+	require.NoError(t, cmdSvc.DeleteAll(ctx, "p1"))
+
+	notifs, err := repo.ListByProfile(ctx, "p1", false, 0, 0)
+	require.NoError(t, err)
+	assert.Empty(t, notifs)
+
+	notifs2, err := repo.ListByProfile(ctx, "p2", false, 0, 0)
+	require.NoError(t, err)
+	assert.Len(t, notifs2, 1, "p2 notifications should not be affected")
+}
+
+func TestNotificationService_GetSettings(t *testing.T) {
+	t.Parallel()
+	repo := notiffakes.NewFakeNotificationRepository()
+	settings := notiffakes.NewFakeSettingsRepository()
+	querySvc := appnotification.NewQueryService(repo, settings)
+
+	ctx := context.Background()
+	_ = settings.Upsert(ctx, &notifdom.Settings{
+		ProfileID:   "p1",
+		MovieLevel:  notifdom.LevelAll,
+		SeriesLevel: notifdom.LevelDisabled,
+		MusicLevel:  notifdom.LevelAll,
+	})
+
+	s, err := querySvc.GetSettings(ctx, "p1")
+	require.NoError(t, err)
+	assert.Equal(t, notifdom.LevelDisabled, s.SeriesLevel)
+}
+
+func TestNotificationService_UpdateSettings(t *testing.T) {
+	t.Parallel()
+	repo := notiffakes.NewFakeNotificationRepository()
+	settings := notiffakes.NewFakeSettingsRepository()
+	analyzer := notiffakes.NewFakeWatchHistoryAnalyzer()
+	profileRepo := userfakes.NewFakeProfileRepository()
+	bus := sharedfakes.NewFakeEventBus()
+	cmdSvc := appnotification.NewCommandService(repo, settings, analyzer, profileRepo, bus)
+	querySvc := appnotification.NewQueryService(repo, settings)
+
+	ctx := context.Background()
+	newSettings := &notifdom.Settings{
+		ProfileID:   "p1",
+		MovieLevel:  notifdom.LevelDisabled,
+		SeriesLevel: notifdom.LevelAll,
+		MusicLevel:  notifdom.LevelDisabled,
+	}
+	require.NoError(t, cmdSvc.UpdateSettings(ctx, newSettings))
+
+	s, err := querySvc.GetSettings(ctx, "p1")
+	require.NoError(t, err)
+	assert.Equal(t, notifdom.LevelDisabled, s.MovieLevel)
+	assert.Equal(t, notifdom.LevelAll, s.SeriesLevel)
+}
+
+func TestNotificationService_List_UnreadOnly(t *testing.T) {
+	t.Parallel()
+	repo := notiffakes.NewFakeNotificationRepository()
+	settings := notiffakes.NewFakeSettingsRepository()
+	querySvc := appnotification.NewQueryService(repo, settings)
+
+	ctx := context.Background()
+	n1 := &notifdom.Notification{ID: "n1", ProfileID: "p1", Title: "Read", CreatedAt: time.Now()}
+	n2 := &notifdom.Notification{ID: "n2", ProfileID: "p1", Title: "Unread", CreatedAt: time.Now()}
+	_ = repo.Create(ctx, n1)
+	_ = repo.Create(ctx, n2)
+	_ = repo.MarkRead(ctx, "n1")
+
+	notifs, err := querySvc.List(ctx, "p1", true, 0, 0)
+	require.NoError(t, err)
+	assert.Len(t, notifs, 1)
+	assert.Equal(t, "n2", notifs[0].ID)
+}
+
+func TestNotificationService_CleanupExpired(t *testing.T) {
+	t.Parallel()
+	repo := notiffakes.NewFakeNotificationRepository()
+	settings := notiffakes.NewFakeSettingsRepository()
+	analyzer := notiffakes.NewFakeWatchHistoryAnalyzer()
+	profileRepo := userfakes.NewFakeProfileRepository()
+	bus := sharedfakes.NewFakeEventBus()
+	cmdSvc := appnotification.NewCommandService(repo, settings, analyzer, profileRepo, bus)
+
+	ctx := context.Background()
+	past := time.Now().Add(-time.Hour)
+	future := time.Now().Add(time.Hour)
+	_ = repo.Create(ctx, &notifdom.Notification{ID: "expired", ProfileID: "p1", Title: "Old", ExpiresAt: &past, CreatedAt: time.Now()})
+	_ = repo.Create(ctx, &notifdom.Notification{ID: "valid", ProfileID: "p1", Title: "New", ExpiresAt: &future, CreatedAt: time.Now()})
+
+	require.NoError(t, cmdSvc.CleanupExpired(ctx))
+
+	notifs, err := repo.ListByProfile(ctx, "p1", false, 0, 0)
+	require.NoError(t, err)
+	assert.Len(t, notifs, 1)
+	assert.Equal(t, "valid", notifs[0].ID)
 }

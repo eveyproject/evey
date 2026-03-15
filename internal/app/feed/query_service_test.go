@@ -171,3 +171,72 @@ func TestQueryService_SimilarItems(t *testing.T) {
 	require.Len(t, items, 1)
 	assert.Equal(t, "m4", items[0].MediaItemID)
 }
+
+func TestQueryService_ContinueWatching_Empty(t *testing.T) {
+	queryRepo := fakes.NewFakeConfigQueryRepo()
+	querier := fakes.NewFakeFeedQuerier()
+	analyzer := notiffakes.NewFakeWatchHistoryAnalyzer()
+
+	svc := appfeed.NewQueryService(queryRepo, querier, analyzer)
+	items, err := svc.ContinueWatching(context.Background(), "p1", 10)
+	require.NoError(t, err)
+	assert.Empty(t, items)
+}
+
+func TestQueryService_RecentlyAdded_Empty(t *testing.T) {
+	queryRepo := fakes.NewFakeConfigQueryRepo()
+	querier := fakes.NewFakeFeedQuerier()
+	analyzer := notiffakes.NewFakeWatchHistoryAnalyzer()
+
+	svc := appfeed.NewQueryService(queryRepo, querier, analyzer)
+	items, err := svc.RecentlyAdded(context.Background(), 7, 10)
+	require.NoError(t, err)
+	assert.Empty(t, items)
+}
+
+func TestQueryService_Recommended_NoGenres(t *testing.T) {
+	queryRepo := fakes.NewFakeConfigQueryRepo()
+	querier := fakes.NewFakeFeedQuerier()
+	analyzer := notiffakes.NewFakeWatchHistoryAnalyzer()
+
+	querier.RecommendedItems = []*feed.FeedItem{
+		{MediaItemID: "m5", Title: "Popular Film", Type: "movie"},
+	}
+
+	svc := appfeed.NewQueryService(queryRepo, querier, analyzer)
+	items, err := svc.Recommended(context.Background(), "p-new", 5)
+	require.NoError(t, err)
+	require.Len(t, items, 1)
+}
+
+func TestQueryService_GetMergedConfig_Empty(t *testing.T) {
+	queryRepo := fakes.NewFakeConfigQueryRepo()
+	querier := fakes.NewFakeFeedQuerier()
+	analyzer := notiffakes.NewFakeWatchHistoryAnalyzer()
+
+	svc := appfeed.NewQueryService(queryRepo, querier, analyzer)
+	configs, err := svc.GetMergedConfig(context.Background(), "p1")
+	require.NoError(t, err)
+	assert.Empty(t, configs)
+}
+
+func TestQueryService_GetMergedConfig_ProfileOverridesDisplayOrder(t *testing.T) {
+	queryRepo := fakes.NewFakeConfigQueryRepo()
+	querier := fakes.NewFakeFeedQuerier()
+	analyzer := notiffakes.NewFakeWatchHistoryAnalyzer()
+
+	queryRepo.AdminConfigs = []*feed.AdminConfig{
+		{FeedType: feed.TypeContinueWatching, Enabled: true, DisplayOrder: 0, MaxItems: 10},
+	}
+	order := 5
+	queryRepo.ProfileConfigs["p1"] = []*feed.ProfileConfig{
+		{ProfileID: "p1", FeedType: feed.TypeContinueWatching, DisplayOrder: &order},
+	}
+
+	svc := appfeed.NewQueryService(queryRepo, querier, analyzer)
+	configs, err := svc.GetMergedConfig(context.Background(), "p1")
+	require.NoError(t, err)
+	require.Len(t, configs, 1)
+	assert.Equal(t, 5, configs[0].DisplayOrder)
+	assert.True(t, configs[0].Enabled)
+}

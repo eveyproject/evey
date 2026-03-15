@@ -3,6 +3,8 @@ package postgres
 import (
 	"context"
 	"database/sql"
+
+	"github.com/gravity-zero/evey/internal/domain/notification"
 )
 
 type FCMDeviceTokenRepository struct {
@@ -47,6 +49,27 @@ func (r *FCMDeviceTokenRepository) GetByUser(ctx context.Context, userID string)
 	}
 	defer rows.Close()
 	return scanTokens(rows)
+}
+
+func (r *FCMDeviceTokenRepository) ListByUser(ctx context.Context, userID string) ([]notification.DeviceToken, error) {
+	rows, err := r.db.QueryContext(ctx, `
+		SELECT id, user_id, profile_id, token, platform, created_at, updated_at
+		FROM fcm_device_tokens WHERE user_id = $1
+		ORDER BY created_at DESC
+	`, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []notification.DeviceToken
+	for rows.Next() {
+		var d notification.DeviceToken
+		if err := rows.Scan(&d.ID, &d.UserID, &d.ProfileID, &d.Token, &d.Platform, &d.CreatedAt, &d.UpdatedAt); err != nil {
+			return nil, err
+		}
+		out = append(out, d)
+	}
+	return out, rows.Err()
 }
 
 func scanTokens(rows *sql.Rows) ([]string, error) {

@@ -5,6 +5,12 @@ export default defineConfig({
   resolve: {
     alias: {
       "@": resolve(__dirname, "./src"),
+      // generated files don't exist in all worktrees; tests mock @evey/api anyway
+      // more specific path first so it's not shadowed by prefix match
+      "@evey/api/src/fetcher": resolve(__dirname, "../../packages/api/src/fetcher.ts"),
+      "@evey/api/src/generated": resolve(__dirname, "../../packages/api/src/generated"),
+      "@evey/api": resolve(__dirname, "../../packages/api/src/fetcher.ts"),
+      "@evey/store": resolve(__dirname, "../../packages/store/src/index.ts"),
     },
   },
   test: {

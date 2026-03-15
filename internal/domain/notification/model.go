@@ -2,6 +2,16 @@ package notification
 
 import "time"
 
+type DeviceToken struct {
+	ID        string
+	UserID    string
+	ProfileID string
+	Token     string
+	Platform  string
+	CreatedAt time.Time
+	UpdatedAt time.Time
+}
+
 type Type string
 
 const (

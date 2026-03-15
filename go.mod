@@ -1,6 +1,6 @@
 module github.com/gravity-zero/evey
 
-go 1.25.7
+go 1.25.8
 
 require (
 	github.com/coreos/go-oidc/v3 v3.17.0

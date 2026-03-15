@@ -22,7 +22,7 @@ services:
     container_name: evey-meilisearch
     image: getmeili/meilisearch:v1.12
     environment:
-      MEILI_MASTER_KEY: ${MEILI_MASTER_KEY:-changeme}
+      MEILI_MASTER_KEY: ${MEILI_MASTER_KEY:?MEILI_MASTER_KEY must be set in .env}
       MEILI_NO_ANALYTICS: "true"
     ports:
       - "${MEILI_PORT:-7700}:7700"
@@ -125,6 +125,36 @@ services:
     depends_on:
       - web
 
+  prometheus:
+    image: prom/prometheus:v3.1.0
+    container_name: evey-prometheus
+    profiles: [dev]
+    volumes:
+      - ./docker/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    ports:
+      - "9093:9090"
+    depends_on:
+      evey:
+        condition: service_healthy
+    restart: unless-stopped
+
+  grafana:
+    image: grafana/grafana:11.4.0
+    container_name: evey-grafana
+    profiles: [dev]
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=evey
+      - GF_USERS_ALLOW_SIGN_UP=false
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./docker/grafana/provisioning:/etc/grafana/provisioning:ro
+    ports:
+      - "3000:3000"
+    depends_on:
+      - prometheus
+    restart: unless-stopped
+
   # ── Prod ──
   evey-prod:
     container_name: evey-server-prod
@@ -188,3 +218,5 @@ volumes:
   evey-cache:
   caddy-data:
   caddy-config:
+  prometheus_data:
+  grafana_data:

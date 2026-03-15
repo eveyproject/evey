@@ -161,6 +161,12 @@ type ScanSchedule struct {
 	UpdatedAt      time.Time
 }
 
+type CollectionRule struct {
+	Field    string `json:"field"`
+	Operator string `json:"operator"`
+	Value    string `json:"value"`
+}
+
 type Collection struct {
 	ID          string
 	TmdbID      *int
@@ -168,6 +174,8 @@ type Collection struct {
 	Overview    string
 	PosterURL   string
 	BackdropURL string
+	Rules       []CollectionRule
+	SortBy      string
 	CreatedAt   time.Time
 	UpdatedAt   time.Time
 }

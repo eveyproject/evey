@@ -80,13 +80,13 @@ describe("usePlaySession", () => {
     );
   });
 
-  it("includes HEVC flag when supported", async () => {
+  it("includes token in directPlayUrl when session starts", async () => {
     const usePlaySession = await loadHook("probably");
     let result: { current: ReturnType<typeof usePlaySession> };
     await act(async () => {
       const hook = renderHook(() => usePlaySession("media-hevc"));
       result = hook.result;
     });
-    expect(result!.current.streamInfo?.directPlayUrl).toContain("remux=1");
+    expect(result!.current.streamInfo?.directPlayUrl).toContain("token=test-token");
   });
 });

@@ -204,3 +204,23 @@ func (s *CommandService) CleanupExpired(ctx context.Context) error {
 	return s.repo.CleanupExpired(ctx)
 }
 
+func (s *CommandService) StartCleanup(ctx context.Context) {
+	go func() {
+		if err := s.repo.CleanupExpired(ctx); err != nil {
+			slog.Warn("notification cleanup", slog.Any("err", err))
+		}
+		ticker := time.NewTicker(24 * time.Hour)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				if err := s.repo.CleanupExpired(ctx); err != nil {
+					slog.Warn("notification cleanup", slog.Any("err", err))
+				}
+			}
+		}
+	}()
+}
+

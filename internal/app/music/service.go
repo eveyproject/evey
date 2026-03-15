@@ -2,13 +2,17 @@ package music
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"os"
 	"path/filepath"
+	"time"
 
 	"github.com/dhowden/tag"
 	"github.com/google/uuid"
+	"github.com/gravity-zero/evey/internal/domain/library"
 	"github.com/gravity-zero/evey/internal/domain/music"
+	"github.com/gravity-zero/evey/internal/domain/shared"
 )
 
 var audioExts = map[string]string{
@@ -22,30 +26,43 @@ var audioExts = map[string]string{
 }
 
 type Service struct {
-	tracks music.TrackRepository
+	tracks  music.TrackRepository
+	bus     shared.EventBus
+	libRepo library.LibraryQueryRepo
 }
 
-func NewService(tracks music.TrackRepository) *Service {
-	return &Service{tracks: tracks}
+func NewService(tracks music.TrackRepository, bus shared.EventBus, libRepo library.LibraryQueryRepo) *Service {
+	return &Service{tracks: tracks, bus: bus, libRepo: libRepo}
 }
 
 func (s *Service) ScanDirectory(ctx context.Context, libraryID, dir string) (int, error) {
+	if s.libRepo != nil {
+		if _, err := s.libRepo.GetByID(ctx, libraryID); err != nil {
+			return 0, fmt.Errorf("library %s not found: %w", libraryID, err)
+		}
+	}
 	count := 0
-	err := filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
+	err := filepath.WalkDir(dir, func(path string, d os.DirEntry, err error) error {
 		if err != nil {
-			return nil
+			slog.Warn("music scan: walk error", slog.String("path", path), slog.Any("err", err))
+			return nil // skip inaccessible paths
 		}
 		if ctx.Err() != nil {
 			return ctx.Err()
 		}
-		if info.IsDir() {
+		if d.IsDir() {
 			return nil
 		}
 		mimeType, ok := audioExts[filepath.Ext(path)]
 		if !ok {
 			return nil
 		}
-		t, parseErr := parseTrack(path, libraryID, mimeType, info.Size())
+		info, statErr := d.Info()
+		if statErr != nil {
+			slog.Warn("music scan: stat failed", slog.String("path", path), slog.Any("err", statErr))
+			return nil
+		}
+		t, parseErr := parseTrackWithTimeout(ctx, path, libraryID, mimeType, info.Size())
 		if parseErr != nil {
 			slog.Warn("music scan: parse failed", slog.String("path", path), slog.Any("err", parseErr))
 			// still add a minimal track entry
@@ -62,10 +79,35 @@ func (s *Service) ScanDirectory(ctx context.Context, libraryID, dir string) (int
 			slog.Warn("music scan: upsert failed", slog.String("path", path), slog.Any("err", upsertErr))
 			return nil
 		}
+		if pubErr := s.bus.Publish(ctx, music.TrackScanned{LibraryID: libraryID, TrackID: t.ID, Title: t.Title, Path: path, OccurredAt: time.Now()}); pubErr != nil {
+			slog.Warn("music scan: event publish failed", slog.String("path", path), slog.Any("err", pubErr))
+		}
 		count++
 		return nil
 	})
 	return count, err
+}
+
+func parseTrackWithTimeout(ctx context.Context, path, libraryID, mimeType string, fileSize int64) (*music.Track, error) {
+	tCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+
+	type result struct {
+		track *music.Track
+		err   error
+	}
+	ch := make(chan result, 1)
+	go func() {
+		t, err := parseTrack(path, libraryID, mimeType, fileSize)
+		ch <- result{t, err}
+	}()
+	select {
+	case r := <-ch:
+		return r.track, r.err
+	case <-tCtx.Done():
+		slog.WarnContext(ctx, "music tag parsing timeout", slog.String("file", path))
+		return nil, tCtx.Err()
+	}
 }
 
 func parseTrack(path, libraryID, mimeType string, fileSize int64) (*music.Track, error) {
@@ -89,7 +131,7 @@ func parseTrack(path, libraryID, mimeType string, fileSize int64) (*music.Track,
 		albumArtist = artist
 	}
 
-	return &music.Track{
+	t := &music.Track{
 		ID:          uuid.New().String(),
 		LibraryID:   libraryID,
 		Title:       m.Title(),
@@ -104,11 +146,43 @@ func parseTrack(path, libraryID, mimeType string, fileSize int64) (*music.Track,
 		FileSize:    fileSize,
 		MimeType:    mimeType,
 		Genre:       m.Genre(),
-	}, nil
+	}
+	if m.Picture() != nil {
+		t.CoverArtURL = fmt.Sprintf("/api/v1/music/tracks/%s/art", t.ID)
+	}
+	return t, nil
 }
 
-func (s *Service) ListTracks(ctx context.Context, libraryID string, limit, offset int) ([]music.Track, int, error) {
-	return s.tracks.ListByLibrary(ctx, libraryID, limit, offset)
+func (s *Service) GetTrackArt(ctx context.Context, trackID string) (data []byte, mimeType string, err error) {
+	t, err := s.tracks.GetByID(ctx, trackID)
+	if err != nil {
+		return nil, "", err
+	}
+	if t == nil {
+		return nil, "", os.ErrNotExist
+	}
+	f, err := os.Open(t.FilePath)
+	if err != nil {
+		return nil, "", os.ErrNotExist
+	}
+	defer f.Close()
+	m, err := tag.ReadFrom(f)
+	if err != nil {
+		return nil, "", os.ErrNotExist
+	}
+	pic := m.Picture()
+	if pic == nil {
+		return nil, "", os.ErrNotExist
+	}
+	mt := pic.MIMEType
+	if mt == "" {
+		mt = "image/jpeg"
+	}
+	return pic.Data, mt, nil
+}
+
+func (s *Service) ListTracks(ctx context.Context, libraryID string, limit, offset int, search string) ([]music.Track, int, error) {
+	return s.tracks.ListByLibrary(ctx, libraryID, limit, offset, search)
 }
 
 func (s *Service) GetAlbums(ctx context.Context, libraryID string) ([]music.Album, error) {
@@ -125,6 +199,24 @@ func (s *Service) Search(ctx context.Context, query string, limit int) ([]music.
 
 func (s *Service) GetTrack(ctx context.Context, trackID string) (*music.Track, error) {
 	return s.tracks.GetByID(ctx, trackID)
+}
+
+func (s *Service) DeleteTrack(ctx context.Context, trackID string) error {
+	t, err := s.tracks.GetByID(ctx, trackID)
+	if err != nil {
+		return err
+	}
+	libraryID := ""
+	if t != nil {
+		libraryID = t.LibraryID
+	}
+	if err := s.tracks.Delete(ctx, trackID); err != nil {
+		return err
+	}
+	if pubErr := s.bus.Publish(ctx, music.TrackDeleted{TrackID: trackID, LibraryID: libraryID, OccurredAt: time.Now()}); pubErr != nil {
+		slog.Warn("music: TrackDeleted publish failed", slog.String("trackID", trackID), slog.Any("err", pubErr))
+	}
+	return nil
 }
 
 func (s *Service) StreamTrack(ctx context.Context, trackID string) (filePath string, mimeType string, err error) {

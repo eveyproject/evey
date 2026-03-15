@@ -1,18 +1,17 @@
-import { useState, useId, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { Modal } from "@/components/ui/Modal";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
-import { libraryServiceListMediaItems } from "@evey/api";
+import { useCreatePlaylist, useUpdatePlaylist, type PlaylistRule, type Playlist } from "@/features/playlist/api";
+import { toast } from "@evey/store";
 
-// Fields the server supports filtering on
 type RuleField = "genre" | "year" | "type";
-type YearOperator = ">=" | "<=" | "=";
-type StringOperator = "=";
-type TypeOperator = "=";
+type YearOperator = "gte" | "lte" | "gt" | "lt" | "eq";
+type StringOperator = "eq";
 
-interface GenreRule { field: "genre"; op: StringOperator; value: string }
-interface YearRule { field: "year"; op: YearOperator; value: string }
-interface TypeRule { field: "type"; op: TypeOperator; value: string }
+interface GenreRule { field: "genre"; operator: StringOperator; value: string }
+interface YearRule { field: "year"; operator: YearOperator; value: string }
+interface TypeRule { field: "type"; operator: StringOperator; value: string }
 export type SmartRule = GenreRule | YearRule | TypeRule;
 
 export interface SmartFilter {
@@ -20,6 +19,19 @@ export interface SmartFilter {
   name: string;
   rules: SmartRule[];
   createdAt: string;
+}
+
+export function playlistToSmartFilter(pl: Playlist): SmartFilter {
+  return {
+    id: pl.id,
+    name: pl.name,
+    rules: (pl.rules ?? []).filter(isSmartRule),
+    createdAt: pl.created_at,
+  };
+}
+
+function isSmartRule(r: PlaylistRule): r is SmartRule {
+  return r.field === "genre" || r.field === "year" || r.field === "type";
 }
 
 const MEDIA_TYPES = [
@@ -37,20 +49,18 @@ const FIELD_LABELS: Record<RuleField, string> = {
   type: "Type",
 };
 
-function buildParams(rules: SmartRule[]) {
-  const params: Record<string, string | number> = {};
-  for (const r of rules) {
-    if (r.field === "genre" && r.value) params.genre = r.value;
-    if (r.field === "year" && r.value) params.year = Number(r.value);
-    if (r.field === "type" && r.value) params.type = r.value;
-  }
-  return params;
-}
+const YEAR_OPERATORS: { value: YearOperator; label: string }[] = [
+  { value: "gte", label: ">=" },
+  { value: "lte", label: "<=" },
+  { value: "gt", label: ">" },
+  { value: "lt", label: "<" },
+  { value: "eq", label: "=" },
+];
 
 function defaultRule(field: RuleField): SmartRule {
-  if (field === "genre") return { field: "genre", op: "=", value: "" };
-  if (field === "year") return { field: "year", op: ">=", value: "" };
-  return { field: "type", op: "=", value: "MEDIA_ITEM_TYPE_MOVIE" };
+  if (field === "genre") return { field: "genre", operator: "eq", value: "" };
+  if (field === "year") return { field: "year", operator: "gte", value: "" };
+  return { field: "type", operator: "eq", value: "MEDIA_ITEM_TYPE_MOVIE" };
 }
 
 const usedFields = (rules: SmartRule[]): Set<RuleField> =>
@@ -63,11 +73,8 @@ interface RuleRowProps {
 }
 
 function RuleRow({ rule, onChange, onRemove }: RuleRowProps) {
-  const id = useId();
-
   return (
     <div className="flex items-center gap-2">
-      {/* field label */}
       <span
         className="text-sm font-medium w-12 flex-shrink-0"
         style={{ color: "var(--text-muted)" }}
@@ -75,12 +82,10 @@ function RuleRow({ rule, onChange, onRemove }: RuleRowProps) {
         {FIELD_LABELS[rule.field]}
       </span>
 
-      {/* operator */}
       {rule.field === "year" ? (
         <select
-          value={rule.op}
-          onChange={(e) => onChange({ ...rule, op: e.target.value as YearOperator })}
-          id={id}
+          value={rule.operator}
+          onChange={(e) => onChange({ ...rule, operator: e.target.value as YearOperator })}
           className="text-sm px-2 py-1.5 rounded-[var(--radius-md)] w-16 flex-shrink-0"
           style={{
             backgroundColor: "var(--surface-raised)",
@@ -88,9 +93,9 @@ function RuleRow({ rule, onChange, onRemove }: RuleRowProps) {
             color: "var(--text)",
           }}
         >
-          <option value=">=">&ge;</option>
-          <option value="<=">&le;</option>
-          <option value="=">=</option>
+          {YEAR_OPERATORS.map((op) => (
+            <option key={op.value} value={op.value}>{op.label}</option>
+          ))}
         </select>
       ) : (
         <span
@@ -101,7 +106,6 @@ function RuleRow({ rule, onChange, onRemove }: RuleRowProps) {
         </span>
       )}
 
-      {/* value */}
       {rule.field === "type" ? (
         <select
           value={rule.value}
@@ -159,16 +163,15 @@ interface SmartCollectionDialogProps {
 export function SmartCollectionDialog({ open, onClose, onSaved, editing }: SmartCollectionDialogProps) {
   const [name, setName] = useState(editing?.name ?? "");
   const [rules, setRules] = useState<SmartRule[]>(editing?.rules ?? []);
-  const [previewCount, setPreviewCount] = useState<number | null>(null);
-  const [previewLoading, setPreviewLoading] = useState(false);
   const [nameError, setNameError] = useState("");
 
-  // Reset when dialog opens/editing changes
+  const createPlaylist = useCreatePlaylist();
+  const updatePlaylist = useUpdatePlaylist();
+
   useEffect(() => {
     if (open) {
       setName(editing?.name ?? "");
       setRules(editing?.rules ?? []);
-      setPreviewCount(null);
       setNameError("");
     }
   }, [open, editing]);
@@ -187,36 +190,47 @@ export function SmartCollectionDialog({ open, onClose, onSaved, editing }: Smart
 
   function removeRule(i: number) {
     setRules((prev) => prev.filter((_, idx) => idx !== i));
-    setPreviewCount(null);
   }
 
-  async function runPreview() {
-    const params = buildParams(rules);
-    if (Object.keys(params).length === 0) { setPreviewCount(null); return; }
-    setPreviewLoading(true);
+  async function handleSave() {
+    if (!name.trim()) { setNameError("Name is required"); return; }
+
+    const validRules = rules.filter((r) => r.value.trim() !== "");
+    const isPending = createPlaylist.isPending || updatePlaylist.isPending;
+    if (isPending) return;
+
     try {
-      const res = await libraryServiceListMediaItems({ ...params, "pagination.pageSize": 1 });
-      setPreviewCount(res.pagination?.totalItems ?? (res.items?.length ?? 0));
+      if (editing) {
+        await updatePlaylist.mutateAsync({
+          id: editing.id,
+          name: name.trim(),
+          rules: validRules,
+        });
+        const updated: SmartFilter = { ...editing, name: name.trim(), rules: validRules };
+        onSaved(updated);
+        toast.success("Smart filter updated");
+      } else {
+        const result = await createPlaylist.mutateAsync({
+          name: name.trim(),
+          type: "smart",
+          rules: validRules,
+        });
+        const newFilter: SmartFilter = {
+          id: (result as unknown as { id: string }).id ?? crypto.randomUUID(),
+          name: name.trim(),
+          rules: validRules,
+          createdAt: new Date().toISOString(),
+        };
+        onSaved(newFilter);
+        toast.success("Smart filter created");
+      }
+      onClose();
     } catch {
-      setPreviewCount(null);
-    } finally {
-      setPreviewLoading(false);
+      toast.error("Failed to save smart filter");
     }
   }
 
-  function handleSave() {
-    if (!name.trim()) { setNameError("Name is required"); return; }
-    const filter: SmartFilter = {
-      id: editing?.id ?? crypto.randomUUID(),
-      name: name.trim(),
-      rules,
-      createdAt: editing?.createdAt ?? new Date().toISOString(),
-    };
-    onSaved(filter);
-    onClose();
-  }
-
-  const hasRules = rules.length > 0;
+  const isSaving = createPlaylist.isPending || updatePlaylist.isPending;
 
   return (
     <Modal open={open} onClose={onClose} title={editing ? "Edit smart filter" : "New smart filter"}>
@@ -230,7 +244,6 @@ export function SmartCollectionDialog({ open, onClose, onSaved, editing }: Smart
           autoFocus
         />
 
-        {/* Rule list */}
         <div className="flex flex-col gap-2">
           <span className="text-sm font-medium" style={{ color: "var(--text-muted)" }}>
             Rules
@@ -273,26 +286,11 @@ export function SmartCollectionDialog({ open, onClose, onSaved, editing }: Smart
           )}
         </div>
 
-        {/* Live preview */}
-        {hasRules && (
-          <div className="flex items-center gap-3">
-            <Button variant="secondary" onClick={runPreview} loading={previewLoading} type="button">
-              Preview
-            </Button>
-            {previewCount !== null && !previewLoading && (
-              <span className="text-sm" style={{ color: "var(--text-muted)" }}>
-                {previewCount} {previewCount === 1 ? "item" : "items"} match
-              </span>
-            )}
-          </div>
-        )}
-
-        {/* Footer */}
         <div className="flex justify-end gap-2 pt-1">
           <Button variant="secondary" onClick={onClose} type="button">
             Cancel
           </Button>
-          <Button onClick={handleSave} type="button">
+          <Button onClick={handleSave} type="button" loading={isSaving}>
             {editing ? "Save changes" : "Create"}
           </Button>
         </div>

@@ -93,6 +93,122 @@ func TestDeleteCacheFile_NotFound(t *testing.T) {
 	assert.Error(t, err)
 }
 
+func newSvc() *apptranscode.Service {
+	tc := tcfakes.NewFakeTranscoder()
+	hw := tcfakes.NewFakeHWDetector()
+	jobRepo := tcfakes.NewFakeTranscodeJobRepository()
+	profileRepo := tcfakes.NewFakeTranscodeProfileRepository()
+	bus := sharedfakes.NewFakeEventBus()
+	return apptranscode.NewService(tc, hw, jobRepo, profileRepo, bus, 2)
+}
+
+func TestListTranscodeProfiles_Empty(t *testing.T) {
+	svc := newSvc()
+	profiles, err := svc.ListProfiles(context.Background())
+	require.NoError(t, err)
+	assert.Empty(t, profiles)
+}
+
+func TestListTranscodeProfiles_WithItems(t *testing.T) {
+	tc := tcfakes.NewFakeTranscoder()
+	hw := tcfakes.NewFakeHWDetector()
+	jobRepo := tcfakes.NewFakeTranscodeJobRepository()
+	profileRepo := tcfakes.NewFakeTranscodeProfileRepository()
+	bus := sharedfakes.NewFakeEventBus()
+	svc := apptranscode.NewService(tc, hw, jobRepo, profileRepo, bus, 2)
+
+	require.NoError(t, profileRepo.Create(context.Background(), &transcoding.TranscodeProfile{
+		ID: "p1", Name: "720p", VideoCodec: "h264", AudioCodec: "aac", Container: "mp4",
+	}))
+	require.NoError(t, profileRepo.Create(context.Background(), &transcoding.TranscodeProfile{
+		ID: "p2", Name: "1080p", VideoCodec: "hevc", AudioCodec: "aac", Container: "mp4",
+	}))
+
+	profiles, err := svc.ListProfiles(context.Background())
+	require.NoError(t, err)
+	assert.Len(t, profiles, 2)
+}
+
+func TestCreateTranscodeProfile(t *testing.T) {
+	svc := newSvc()
+	p := &transcoding.TranscodeProfile{
+		ID:           "p1",
+		Name:         "480p",
+		VideoCodec:   "h264",
+		AudioCodec:   "aac",
+		Container:    "mp4",
+		MaxWidth:     854,
+		MaxHeight:    480,
+		VideoBitrate: 2000000,
+	}
+	require.NoError(t, svc.CreateProfile(context.Background(), p))
+
+	profiles, err := svc.ListProfiles(context.Background())
+	require.NoError(t, err)
+	require.Len(t, profiles, 1)
+	assert.Equal(t, "480p", profiles[0].Name)
+	assert.Equal(t, "h264", profiles[0].VideoCodec)
+}
+
+func TestUpdateTranscodeProfile(t *testing.T) {
+	svc := newSvc()
+	p := &transcoding.TranscodeProfile{ID: "p1", Name: "720p", VideoCodec: "h264", AudioCodec: "aac", Container: "mp4"}
+	require.NoError(t, svc.CreateProfile(context.Background(), p))
+
+	p.Name = "720p-updated"
+	p.VideoBitrate = 5000000
+	require.NoError(t, svc.UpdateProfile(context.Background(), p))
+
+	profiles, err := svc.ListProfiles(context.Background())
+	require.NoError(t, err)
+	require.Len(t, profiles, 1)
+	assert.Equal(t, "720p-updated", profiles[0].Name)
+	assert.Equal(t, int64(5000000), profiles[0].VideoBitrate)
+}
+
+func TestDeleteTranscodeProfile(t *testing.T) {
+	svc := newSvc()
+	p := &transcoding.TranscodeProfile{ID: "p1", Name: "720p", VideoCodec: "h264", AudioCodec: "aac", Container: "mp4"}
+	require.NoError(t, svc.CreateProfile(context.Background(), p))
+
+	require.NoError(t, svc.DeleteProfile(context.Background(), "p1"))
+
+	profiles, err := svc.ListProfiles(context.Background())
+	require.NoError(t, err)
+	assert.Empty(t, profiles)
+}
+
+func TestGetTranscodeStatus(t *testing.T) {
+	tc := tcfakes.NewFakeTranscoder()
+	hw := tcfakes.NewFakeHWDetector()
+	jobRepo := tcfakes.NewFakeTranscodeJobRepository()
+	profileRepo := tcfakes.NewFakeTranscodeProfileRepository()
+	bus := sharedfakes.NewFakeEventBus()
+	svc := apptranscode.NewService(tc, hw, jobRepo, profileRepo, bus, 2)
+
+	tc.SetProgress("j1", &transcoding.TranscodeProgress{
+		JobID:   "j1",
+		Percent: 75.0,
+		FPS:     24.0,
+		Speed:   2.0,
+	})
+
+	progress, err := svc.GetProgress(context.Background(), "j1")
+	require.NoError(t, err)
+	assert.Equal(t, "j1", progress.JobID)
+	assert.InDelta(t, 75.0, progress.Percent, 0.001)
+	assert.InDelta(t, 24.0, progress.FPS, 0.001)
+	assert.InDelta(t, 2.0, progress.Speed, 0.001)
+}
+
+func TestGetTranscodeStatus_Default(t *testing.T) {
+	svc := newSvc()
+	progress, err := svc.GetProgress(context.Background(), "nonexistent")
+	require.NoError(t, err)
+	assert.Equal(t, "nonexistent", progress.JobID)
+	assert.InDelta(t, 0.0, progress.Percent, 0.001)
+}
+
 func TestGetCacheInfo_NoCacheStore(t *testing.T) {
 	tc := tcfakes.NewFakeTranscoder()
 	hw := tcfakes.NewFakeHWDetector()
@@ -104,4 +220,79 @@ func TestGetCacheInfo_NoCacheStore(t *testing.T) {
 	info, err := svc.GetCacheInfo(context.Background())
 	require.NoError(t, err)
 	assert.Equal(t, int64(0), info.TotalSize)
+}
+
+func newProfileSvc() (*apptranscode.Service, *tcfakes.FakeTranscodeProfileRepository) {
+	tc := tcfakes.NewFakeTranscoder()
+	hw := tcfakes.NewFakeHWDetector()
+	jobRepo := tcfakes.NewFakeTranscodeJobRepository()
+	profileRepo := tcfakes.NewFakeTranscodeProfileRepository()
+	bus := sharedfakes.NewFakeEventBus()
+	svc := apptranscode.NewService(tc, hw, jobRepo, profileRepo, bus, 2)
+	return svc, profileRepo
+}
+
+func TestCreateProfile(t *testing.T) {
+	svc, _ := newProfileSvc()
+	p := &transcoding.TranscodeProfile{
+		ID:           "tp-1",
+		Name:         "1080p",
+		VideoCodec:   "h264",
+		AudioCodec:   "aac",
+		Container:    "mp4",
+		MaxWidth:     1920,
+		MaxHeight:    1080,
+		VideoBitrate: 8000000,
+	}
+	require.NoError(t, svc.CreateProfile(context.Background(), p))
+
+	profiles, err := svc.ListProfiles(context.Background())
+	require.NoError(t, err)
+	assert.Len(t, profiles, 1)
+	assert.Equal(t, "1080p", profiles[0].Name)
+}
+
+func TestListProfiles_Empty(t *testing.T) {
+	svc, _ := newProfileSvc()
+	profiles, err := svc.ListProfiles(context.Background())
+	require.NoError(t, err)
+	assert.Empty(t, profiles)
+}
+
+func TestUpdateProfile(t *testing.T) {
+	svc, _ := newProfileSvc()
+	p := &transcoding.TranscodeProfile{ID: "tp-1", Name: "720p", VideoCodec: "h264"}
+	require.NoError(t, svc.CreateProfile(context.Background(), p))
+
+	p.Name = "720p-updated"
+	require.NoError(t, svc.UpdateProfile(context.Background(), p))
+
+	profiles, err := svc.ListProfiles(context.Background())
+	require.NoError(t, err)
+	require.Len(t, profiles, 1)
+	assert.Equal(t, "720p-updated", profiles[0].Name)
+}
+
+func TestUpdateProfile_NotFound(t *testing.T) {
+	svc, _ := newProfileSvc()
+	err := svc.UpdateProfile(context.Background(), &transcoding.TranscodeProfile{ID: "missing", Name: "x"})
+	assert.Error(t, err)
+}
+
+func TestDeleteProfile(t *testing.T) {
+	svc, _ := newProfileSvc()
+	p := &transcoding.TranscodeProfile{ID: "tp-1", Name: "720p", VideoCodec: "h264"}
+	require.NoError(t, svc.CreateProfile(context.Background(), p))
+
+	require.NoError(t, svc.DeleteProfile(context.Background(), "tp-1"))
+
+	profiles, err := svc.ListProfiles(context.Background())
+	require.NoError(t, err)
+	assert.Empty(t, profiles)
+}
+
+func TestDeleteProfile_NotFound(t *testing.T) {
+	svc, _ := newProfileSvc()
+	err := svc.DeleteProfile(context.Background(), "missing")
+	assert.Error(t, err)
 }

@@ -633,3 +633,33 @@ func (s *CommandService) GenerateAllMissingTrickplays(ctx context.Context) (int,
 	}()
 	return len(ids), nil
 }
+
+func (s *CommandService) StartTrickplayWorker(ctx context.Context) {
+	if s.trickplayRepo == nil || s.trickplayGen == nil {
+		return
+	}
+	sem := make(chan struct{}, 2)
+	s.events.Subscribe("media.item.added", func(_ context.Context, ev shared.Event) {
+		e, ok := ev.(library.MediaItemAdded)
+		if !ok {
+			return
+		}
+		select {
+		case sem <- struct{}{}:
+		default:
+			slog.Warn("trickplay queue full, dropping", slog.String("media_id", e.MediaItemID))
+			return
+		}
+		go func() {
+			defer func() { <-sem }()
+			tctx, cancel := context.WithTimeout(ctx, 2*time.Hour)
+			defer cancel()
+			if _, err := s.GetTrickplayManifest(tctx, e.MediaItemID); err == nil {
+				return
+			}
+			if err := s.GenerateTrickplay(tctx, e.MediaItemID); err != nil {
+				slog.Warn("trickplay generation failed", slog.String("media_id", e.MediaItemID), slog.Any("err", err))
+			}
+		}()
+	})
+}

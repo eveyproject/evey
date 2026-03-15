@@ -1,8 +1,10 @@
 import { useState } from "react";
 import { createFileRoute, isRedirect, redirect, useNavigate } from "@tanstack/react-router";
-import { eveyFetch, useAdminServiceSetupWizard } from "@evey/api";
+import { eveyFetch, useAdminServiceSetupWizard, useLibraryServiceCreateLibrary } from "@evey/api";
+import { useAuthStore } from "@evey/store";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
+import { Select } from "@/components/ui/Select";
 import { Card } from "@/components/ui/Card";
 
 type SystemInfo = { setupComplete?: boolean };
@@ -18,106 +20,283 @@ export const Route = createFileRoute("/setup")({
       if (info.setupComplete) throw redirect({ to: "/login" });
     } catch (e) {
       if (isRedirect(e)) throw e;
-      // backend unreachable — show setup page
     }
   },
   component: SetupPage,
 });
 
-interface SetupForm {
-  adminUsername: string;
-  adminPassword: string;
-  adminEmail: string;
-  serverName: string;
-  baseUrl: string;
+const STEPS = ["Welcome", "Admin account", "First library"] as const;
+
+const LIBRARY_TYPE_OPTIONS = [
+  { value: "LIBRARY_TYPE_MOVIES", label: "Movies" },
+  { value: "LIBRARY_TYPE_SHOWS", label: "Shows" },
+  { value: "LIBRARY_TYPE_MUSIC", label: "Music" },
+  { value: "LIBRARY_TYPE_PHOTOS", label: "Photos" },
+];
+
+interface AdminForm {
+  username: string;
+  password: string;
+  confirmPassword: string;
+}
+
+interface LibraryForm {
+  name: string;
+  type: string;
+}
+
+interface AdminErrors {
+  username?: string;
+  password?: string;
+  confirmPassword?: string;
+}
+
+function validateAdmin(form: AdminForm): AdminErrors {
+  const errors: AdminErrors = {};
+  if (form.username.length < 3) errors.username = "At least 3 characters";
+  if (form.password.length < 8) errors.password = "At least 8 characters";
+  if (form.password !== form.confirmPassword) errors.confirmPassword = "Passwords do not match";
+  return errors;
+}
+
+function StepDots({ current, total }: { current: number; total: number }) {
+  return (
+    <div className="flex items-center justify-center gap-2 mb-6">
+      {Array.from({ length: total }).map((_, i) => (
+        <div
+          key={i}
+          className="rounded-full transition-all duration-300"
+          style={{
+            width: i === current ? "20px" : "8px",
+            height: "8px",
+            backgroundColor: i <= current ? "var(--accent)" : "var(--border)",
+          }}
+        />
+      ))}
+    </div>
+  );
 }
 
 function SetupPage() {
   const navigate = useNavigate();
-  const [form, setForm] = useState<SetupForm>({
-    adminUsername: "",
-    adminPassword: "",
-    adminEmail: "",
-    serverName: "My Evey Server",
-    baseUrl: window.location.origin,
-  });
+  const { setTokens } = useAuthStore();
+  const [step, setStep] = useState(0);
+  const [adminForm, setAdminForm] = useState<AdminForm>({ username: "", password: "", confirmPassword: "" });
+  const [adminErrors, setAdminErrors] = useState<AdminErrors>({});
+  const [libraryForm, setLibraryForm] = useState<LibraryForm>({ name: "", type: "LIBRARY_TYPE_MOVIES" });
+  const [libraryError, setLibraryError] = useState<string | undefined>();
+  const [setupError, setSetupError] = useState<string | undefined>();
 
   const setup = useAdminServiceSetupWizard({
     mutation: {
-      onSuccess: () => {
-        void navigate({ to: "/login" });
+      onSuccess: (data) => {
+        if (data.accessToken) setTokens(data.accessToken);
+        setStep(2);
       },
       onError: (err: Error & { httpStatus?: number }) => {
-        if (err?.httpStatus === 409) void navigate({ to: "/login" });
+        if (err?.httpStatus === 409) {
+          void navigate({ to: "/login" });
+          return;
+        }
+        setSetupError(err instanceof Error ? err.message : "Setup failed");
       },
     },
   });
 
-  const update =
-    (field: keyof SetupForm) => (e: React.ChangeEvent<HTMLInputElement>) =>
-      setForm((prev) => ({ ...prev, [field]: e.target.value }));
+  const createLibrary = useLibraryServiceCreateLibrary({
+    mutation: {
+      onSuccess: () => void navigate({ to: "/home" }),
+      onError: (err) => {
+        setLibraryError(err instanceof Error ? err.message : "Failed to create library");
+      },
+    },
+  });
+
+  const updateAdmin = (field: keyof AdminForm) => (e: React.ChangeEvent<HTMLInputElement>) => {
+    setAdminForm((prev) => ({ ...prev, [field]: e.target.value }));
+    if (adminErrors[field]) setAdminErrors((prev) => ({ ...prev, [field]: undefined }));
+  };
+
+  const handleAdminSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    const errors = validateAdmin(adminForm);
+    if (Object.keys(errors).length > 0) {
+      setAdminErrors(errors);
+      return;
+    }
+    setSetupError(undefined);
+    setup.mutate({
+      data: {
+        adminUsername: adminForm.username,
+        adminPassword: adminForm.password,
+        adminEmail: "",
+        serverName: "Evey",
+        baseUrl: window.location.origin,
+      },
+    });
+  };
+
+  const handleCreateLibrary = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!libraryForm.name.trim()) {
+      setLibraryError("Library name is required");
+      return;
+    }
+    setLibraryError(undefined);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    createLibrary.mutate({ data: { name: libraryForm.name, type: libraryForm.type as any } });
+  };
+
+  const logoIcon = (
+    <div
+      className="w-12 h-12 rounded-[var(--radius-md)] flex items-center justify-center mb-4"
+      style={{ backgroundColor: "var(--accent)" }}
+    >
+      <svg className="w-6 h-6 text-white" fill="currentColor" viewBox="0 0 20 20">
+        <path d="M6.3 2.8L17 10 6.3 17.2V2.8z" />
+      </svg>
+    </div>
+  );
 
   return (
     <div
       className="min-h-screen flex items-center justify-center px-4"
-      style={{
-        background: "linear-gradient(135deg, var(--bg) 0%, #1a1a2e 50%, var(--bg) 100%)",
-      }}
+      style={{ background: "linear-gradient(135deg, var(--bg) 0%, #1a1a2e 50%, var(--bg) 100%)" }}
     >
       <Card className="w-full max-w-md p-8 shadow-2xl">
-        <div className="flex flex-col items-center mb-8">
-          <div
-            className="w-12 h-12 rounded-[var(--radius-md)] flex items-center justify-center mb-4"
-            style={{ backgroundColor: "var(--accent)" }}
-          >
-            <svg className="w-6 h-6 text-white" fill="currentColor" viewBox="0 0 20 20">
-              <path d="M6.3 2.8L17 10 6.3 17.2V2.8z" />
-            </svg>
+        <div className="flex flex-col items-center mb-2">{logoIcon}</div>
+
+        <p className="text-center text-xs text-[var(--text-muted)] mb-1">
+          Step {step + 1} of {STEPS.length} — {STEPS[step]}
+        </p>
+        <StepDots current={step} total={STEPS.length} />
+
+        {/* Step 0: Welcome */}
+        {step === 0 && (
+          <div className="flex flex-col items-center gap-6 text-center">
+            <div>
+              <h1 className="text-2xl font-bold text-[var(--text)]">Welcome to Evey</h1>
+              <p className="text-[var(--text-muted)] text-sm mt-2">
+                Let's set up your media server. It only takes a minute.
+              </p>
+            </div>
+            <Button className="w-full" onClick={() => setStep(1)}>
+              Get Started
+            </Button>
           </div>
-          <h1 className="text-2xl font-bold text-[var(--text)]">Welcome to Evey</h1>
-          <p className="text-[var(--text-muted)] text-sm mt-1">Set up your server to get started</p>
-        </div>
-        <form
-          onSubmit={(e) => {
-            e.preventDefault();
-            setup.mutate({
-              data: {
-                adminUsername: form.adminUsername,
-                adminPassword: form.adminPassword,
-                adminEmail: form.adminEmail,
-                serverName: form.serverName,
-                baseUrl: form.baseUrl,
-              },
-            });
-          }}
-          className="flex flex-col gap-4"
-        >
-          <Input label="Admin username" value={form.adminUsername} onChange={update("adminUsername")} required />
-          <Input
-            label="Admin password"
-            type="password"
-            value={form.adminPassword}
-            onChange={update("adminPassword")}
-            required
-          />
-          <Input
-            label="Admin email"
-            type="email"
-            value={form.adminEmail}
-            onChange={update("adminEmail")}
-            required
-          />
-          <Input label="Server name" value={form.serverName} onChange={update("serverName")} required />
-          <Input label="Base URL" value={form.baseUrl} onChange={update("baseUrl")} required />
-          {setup.error && (
-            <p className="text-sm text-red-400">
-              {setup.error instanceof Error ? setup.error.message : "Setup failed"}
+        )}
+
+        {/* Step 1: Admin account */}
+        {step === 1 && (
+          <form onSubmit={handleAdminSubmit} className="flex flex-col gap-4">
+            <h2 className="text-xl font-bold text-[var(--text)] text-center">Create admin account</h2>
+            <div className="flex flex-col gap-1">
+              <Input
+                label="Username"
+                value={adminForm.username}
+                onChange={updateAdmin("username")}
+                autoComplete="username"
+                autoFocus
+              />
+              {adminErrors.username && (
+                <p className="text-xs" style={{ color: "var(--color-danger)" }}>
+                  {adminErrors.username}
+                </p>
+              )}
+            </div>
+            <div className="flex flex-col gap-1">
+              <Input
+                label="Password"
+                type="password"
+                value={adminForm.password}
+                onChange={updateAdmin("password")}
+                autoComplete="new-password"
+              />
+              {adminErrors.password && (
+                <p className="text-xs" style={{ color: "var(--color-danger)" }}>
+                  {adminErrors.password}
+                </p>
+              )}
+            </div>
+            <div className="flex flex-col gap-1">
+              <Input
+                label="Confirm password"
+                type="password"
+                value={adminForm.confirmPassword}
+                onChange={updateAdmin("confirmPassword")}
+                autoComplete="new-password"
+              />
+              {adminErrors.confirmPassword && (
+                <p className="text-xs" style={{ color: "var(--color-danger)" }}>
+                  {adminErrors.confirmPassword}
+                </p>
+              )}
+            </div>
+            {setupError && (
+              <p className="text-sm text-center" style={{ color: "var(--color-danger)" }}>
+                {setupError}
+              </p>
+            )}
+            <div className="flex gap-2 mt-2">
+              <Button
+                type="button"
+                variant="secondary"
+                className="flex-1"
+                onClick={() => setStep(0)}
+              >
+                Back
+              </Button>
+              <Button type="submit" loading={setup.isPending} className="flex-1">
+                Continue
+              </Button>
+            </div>
+          </form>
+        )}
+
+        {/* Step 2: First library */}
+        {step === 2 && (
+          <form onSubmit={handleCreateLibrary} className="flex flex-col gap-4">
+            <h2 className="text-xl font-bold text-[var(--text)] text-center">Add your first library</h2>
+            <p className="text-sm text-center text-[var(--text-muted)]">
+              You can add more libraries later from the admin panel.
             </p>
-          )}
-          <Button type="submit" loading={setup.isPending} className="w-full mt-2">
-            Complete setup
-          </Button>
-        </form>
+            <div className="flex flex-col gap-1">
+              <Input
+                label="Library name"
+                value={libraryForm.name}
+                onChange={(e) => {
+                  setLibraryForm((prev) => ({ ...prev, name: e.target.value }));
+                  setLibraryError(undefined);
+                }}
+                autoFocus
+              />
+              {libraryError && (
+                <p className="text-xs" style={{ color: "var(--color-danger)" }}>
+                  {libraryError}
+                </p>
+              )}
+            </div>
+            <Select
+              label="Library type"
+              options={LIBRARY_TYPE_OPTIONS}
+              value={libraryForm.type}
+              onChange={(value) => setLibraryForm((prev) => ({ ...prev, type: value }))}
+            />
+            <div className="flex gap-2 mt-2">
+              <Button
+                type="button"
+                variant="secondary"
+                className="flex-1"
+                onClick={() => void navigate({ to: "/home" })}
+              >
+                Skip
+              </Button>
+              <Button type="submit" loading={createLibrary.isPending} className="flex-1">
+                Create
+              </Button>
+            </div>
+          </form>
+        )}
       </Card>
     </div>
   );

@@ -1,6 +1,12 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { eveyFetch } from "@evey/api";
 
+export interface CollectionRule {
+  field: string;
+  operator: string;
+  value: string;
+}
+
 export interface Collection {
   id: string;
   tmdbId?: number;
@@ -8,6 +14,8 @@ export interface Collection {
   overview?: string;
   posterUrl?: string;
   backdropUrl?: string;
+  rules?: CollectionRule[];
+  sortBy?: string;
   createdAt: string;
   updatedAt: string;
 }

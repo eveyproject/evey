@@ -1,0 +1,179 @@
+package httpapi
+
+import (
+	"context"
+	"net/http"
+	"net/http/httptest"
+	"strings"
+	"testing"
+
+	domainlibrary "github.com/gravity-zero/evey/internal/domain/library"
+)
+
+type fakeTrickplayGetter struct {
+	manifest *domainlibrary.TrickplayManifest
+	err      error
+}
+
+func (f *fakeTrickplayGetter) GetTrickplayManifest(_ context.Context, _ string) (*domainlibrary.TrickplayManifest, error) {
+	return f.manifest, f.err
+}
+
+func TestFormatVTTTime(t *testing.T) {
+	cases := []struct {
+		input int
+		want  string
+	}{
+		{0, "00:00:00.000"},
+		{61, "00:01:01.000"},
+		{3661, "01:01:01.000"},
+	}
+	for _, c := range cases {
+		if got := formatVTTTime(c.input); got != c.want {
+			t.Errorf("formatVTTTime(%d) = %q, want %q", c.input, got, c.want)
+		}
+	}
+}
+
+func TestTrickplayManifestHandler_Unauthenticated(t *testing.T) {
+	h := trickplayManifestHandler(
+		&fakeTokenVerifier{err: errTest},
+		&fakeTrickplayGetter{},
+		"http://localhost",
+		&fakeLibraryAccessChecker{allowed: true},
+		&fakeMediaItemGetter{item: testMediaItem("lib1")},
+	)
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/media/m1/trickplay.vtt", nil)
+	req.SetPathValue("id", "m1")
+	// no token provided
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, req)
+	if w.Code != http.StatusUnauthorized {
+		t.Errorf("expected 401, got %d", w.Code)
+	}
+}
+
+func TestTrickplayManifestHandler_IDOR_Forbidden(t *testing.T) {
+	h := trickplayManifestHandler(
+		&fakeTokenVerifier{claims: testClaims(false)},
+		&fakeTrickplayGetter{},
+		"http://localhost",
+		&fakeLibraryAccessChecker{allowed: false},
+		&fakeMediaItemGetter{item: testMediaItem("lib1")},
+	)
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/media/m1/trickplay.vtt", nil)
+	req.SetPathValue("id", "m1")
+	req.Header.Set("Authorization", "Bearer token")
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, req)
+	if w.Code != http.StatusForbidden {
+		t.Errorf("expected 403, got %d", w.Code)
+	}
+}
+
+func TestTrickplayManifestHandler_OK(t *testing.T) {
+	manifest := &domainlibrary.TrickplayManifest{
+		MediaItemID: "m1",
+		Width:       320,
+		Interval:    10,
+		TileWidth:   5,
+		TileHeight:  5,
+		ImageCount:  4,
+		ImagePath:   "/tmp",
+	}
+	h := trickplayManifestHandler(
+		&fakeTokenVerifier{claims: testClaims(false)},
+		&fakeTrickplayGetter{manifest: manifest},
+		"http://localhost",
+		&fakeLibraryAccessChecker{allowed: true},
+		&fakeMediaItemGetter{item: testMediaItem("lib1")},
+	)
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/media/m1/trickplay.vtt", nil)
+	req.SetPathValue("id", "m1")
+	req.Header.Set("Authorization", "Bearer token")
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Errorf("expected 200, got %d", w.Code)
+	}
+	if !strings.Contains(w.Body.String(), "WEBVTT") {
+		t.Error("expected WEBVTT in response")
+	}
+}
+
+func TestTrickplayImageHandler_Unauthenticated(t *testing.T) {
+	h := trickplayImageHandler(
+		&fakeTokenVerifier{err: errTest},
+		&fakeTrickplayGetter{},
+		"http://localhost",
+		&fakeLibraryAccessChecker{allowed: true},
+		&fakeMediaItemGetter{item: testMediaItem("lib1")},
+	)
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/media/m1/trickplay/trickplay_001.jpg", nil)
+	req.SetPathValue("id", "m1")
+	req.SetPathValue("image", "trickplay_001.jpg")
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, req)
+	if w.Code != http.StatusUnauthorized {
+		t.Errorf("expected 401, got %d", w.Code)
+	}
+}
+
+func TestTrickplayImageHandler_IDOR_Forbidden(t *testing.T) {
+	h := trickplayImageHandler(
+		&fakeTokenVerifier{claims: testClaims(false)},
+		&fakeTrickplayGetter{},
+		"http://localhost",
+		&fakeLibraryAccessChecker{allowed: false},
+		&fakeMediaItemGetter{item: testMediaItem("lib1")},
+	)
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/media/m1/trickplay/trickplay_001.jpg", nil)
+	req.SetPathValue("id", "m1")
+	req.SetPathValue("image", "trickplay_001.jpg")
+	req.Header.Set("Authorization", "Bearer token")
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, req)
+	if w.Code != http.StatusForbidden {
+		t.Errorf("expected 403, got %d", w.Code)
+	}
+}
+
+func TestTrickplayGenerateAllHandler_Forbidden(t *testing.T) {
+	h := trickplayGenerateAllHandler(
+		&fakeTokenVerifier{claims: testClaims(false)}, // not admin
+		&fakeTrickplayAllGenerator{count: 5},
+	)
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/trickplay/generate-all", nil)
+	req.Header.Set("Authorization", "Bearer token")
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, req)
+	if w.Code != http.StatusForbidden {
+		t.Errorf("expected 403, got %d", w.Code)
+	}
+}
+
+type fakeTrickplayAllGenerator struct {
+	count int
+	err   error
+}
+
+func (f *fakeTrickplayAllGenerator) GenerateAllMissingTrickplays(_ context.Context) (int, error) {
+	return f.count, f.err
+}
+
+func TestTrickplayGenerateAllHandler_AdminOK(t *testing.T) {
+	h := trickplayGenerateAllHandler(
+		&fakeTokenVerifier{claims: testClaims(true)},
+		&fakeTrickplayAllGenerator{count: 3},
+	)
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/trickplay/generate-all", nil)
+	req.Header.Set("Authorization", "Bearer token")
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, req)
+	if w.Code != http.StatusAccepted {
+		t.Errorf("expected 202, got %d", w.Code)
+	}
+	if !strings.Contains(w.Body.String(), "3") {
+		t.Error("expected count in response body")
+	}
+}

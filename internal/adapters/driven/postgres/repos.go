@@ -1,0 +1,114 @@
+package postgres
+
+import "database/sql"
+
+// Repos groups all postgres repository instances.
+type Repos struct {
+	ServerCfg            *ServerConfigRepository
+	User                 *UserRepository
+	Profile              *ProfileRepository
+	RefreshToken         *RefreshTokenRepository
+	APIKey               *APIKeyRepository
+	InviteLink           *InviteLinkRepository
+	QuickConnect         *QuickConnectRepository
+	Role                 *RoleRepository
+	UserRole             *UserRoleRepository
+	Library              *LibraryRepository
+	MediaItem            *MediaItemRepository
+	MediaItemQuery       *MediaItemQueryRepoAdapter
+	MediaStream          *MediaStreamRepository
+	Person               *PersonRepository
+	MediaPerson          *MediaPersonRepository
+	Trickplay            *TrickplayRepository
+	WatchProgress        *WatchProgressRepository
+	PlaySession          *PlaySessionRepository
+	TranscodeJob         *TranscodeJobRepository
+	TranscodeProfile     *TranscodeProfileRepository
+	Plugin               *PluginRepository
+	PluginRuntime        *PluginRuntimeRepository
+	MetadataOverride     *MetadataOverrideRepository
+	Artwork              *ArtworkRepository
+	LoginHistory         *LoginHistoryRepository
+	ServerMetric         *ServerMetricRepository
+	AuditLog             *AuditLogRepository
+	PlaySessionStats     *PlaySessionStatsReader
+	PlayHistory          *PlayHistoryRepository
+	Notification         *NotificationRepository
+	NotificationSettings *NotificationSettingsRepository
+	FCMToken             *FCMDeviceTokenRepository
+	WatchHistoryAnalyzer *WatchHistoryAnalyzer
+	Webhook              *WebhookRepository
+	WebhookDelivery      *WebhookDeliveryRepository
+	FeedQuerier          *FeedQuerier
+	FeedConfigCmd        *FeedConfigCommandRepo
+	FeedConfigQuery      *FeedConfigQueryRepo
+	Chapter              *ChapterRepository
+	ScanSchedule         *ScanScheduleRepository
+	LibraryAccess        *LibraryAccessRepository
+	Collection           *CollectionRepository
+	Favorite             *FavoriteRepository
+	Photo                *PhotoRepository
+	UserRating           *UserRatingRepository
+	Rating               *RatingRepository
+	MusicTrack           *MusicTrackRepository
+	Playlist             *PlaylistRepository
+	PlaylistItem         *PlaylistItemRepository
+	SmartPlaylist        *SmartPlaylistQuerier
+	Subtitle             *SubtitleRepository
+}
+
+func NewRepos(db *sql.DB) *Repos {
+	return &Repos{
+		ServerCfg:            NewServerConfigRepository(db),
+		User:                 NewUserRepository(db),
+		Profile:              NewProfileRepository(db),
+		RefreshToken:         NewRefreshTokenRepository(db),
+		APIKey:               NewAPIKeyRepository(db),
+		InviteLink:           NewInviteLinkRepository(db),
+		QuickConnect:         NewQuickConnectRepository(db),
+		Role:                 NewRoleRepository(db),
+		UserRole:             NewUserRoleRepository(db),
+		Library:              NewLibraryRepository(db),
+		MediaItem:            NewMediaItemRepository(db),
+		MediaItemQuery:       NewMediaItemQueryRepoAdapter(db),
+		MediaStream:          NewMediaStreamRepository(db),
+		Person:               NewPersonRepository(db),
+		MediaPerson:          NewMediaPersonRepository(db),
+		Trickplay:            NewTrickplayRepository(db),
+		WatchProgress:        NewWatchProgressRepository(db),
+		PlaySession:          NewPlaySessionRepository(db),
+		TranscodeJob:         NewTranscodeJobRepository(db),
+		TranscodeProfile:     NewTranscodeProfileRepository(db),
+		Plugin:               NewPluginRepository(db),
+		PluginRuntime:        NewPluginRuntimeRepository(db),
+		MetadataOverride:     NewMetadataOverrideRepository(db),
+		Artwork:              NewArtworkRepository(db),
+		LoginHistory:         NewLoginHistoryRepository(db),
+		ServerMetric:         NewServerMetricRepository(db),
+		AuditLog:             NewAuditLogRepository(db),
+		PlaySessionStats:     NewPlaySessionStatsReader(db),
+		PlayHistory:          NewPlayHistoryRepository(db),
+		Notification:         NewNotificationRepository(db),
+		NotificationSettings: NewNotificationSettingsRepository(db),
+		FCMToken:             NewFCMDeviceTokenRepository(db),
+		WatchHistoryAnalyzer: NewWatchHistoryAnalyzer(db),
+		Webhook:              NewWebhookRepository(db),
+		WebhookDelivery:      NewWebhookDeliveryRepository(db),
+		FeedQuerier:          NewFeedQuerier(db),
+		FeedConfigCmd:        NewFeedConfigCommandRepo(db),
+		FeedConfigQuery:      NewFeedConfigQueryRepo(db),
+		Chapter:              NewChapterRepository(db),
+		ScanSchedule:         NewScanScheduleRepository(db),
+		LibraryAccess:        NewLibraryAccessRepository(db),
+		Collection:           NewCollectionRepository(db),
+		Favorite:             NewFavoriteRepository(db),
+		Photo:                NewPhotoRepository(db),
+		UserRating:           NewUserRatingRepository(db),
+		Rating:               NewRatingRepository(db),
+		MusicTrack:           NewMusicTrackRepository(db),
+		Playlist:             NewPlaylistRepository(db),
+		PlaylistItem:         NewPlaylistItemRepository(db),
+		SmartPlaylist:        NewSmartPlaylistQuerier(db),
+		Subtitle:             NewSubtitleRepository(db),
+	}
+}

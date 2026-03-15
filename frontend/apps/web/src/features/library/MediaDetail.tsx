@@ -1,5 +1,5 @@
 import { useState, useRef } from "react";
-import { Link } from "@tanstack/react-router";
+import { Link, useNavigate } from "@tanstack/react-router";
 import type { V1MediaItem, V1MediaPerson, V1Trailer } from "@evey/api/src/generated/library.schemas";
 import {
   usePlaybackServiceMarkAsWatched,
@@ -16,6 +16,8 @@ import {
 } from "@evey/api";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast, useAuthStore } from "@evey/store";
+import { ParentalPINDialog } from "@/components/ParentalPINDialog";
+import { useParentalGate, markUnlocked } from "@/hooks/useParentalGate";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
 import { Input } from "@/components/ui/Input";
@@ -448,7 +450,7 @@ function SeasonRow({ seasonId }: { seasonId: string }) {
   );
 }
 
-function PlaySeriesButton({ seriesId }: { seriesId: string }) {
+function PlaySeriesButton({ seriesId, onPlay }: { seriesId: string; onPlay: (episodeId: string) => void }) {
   const { data: seasonsData } = useLibraryServiceListMediaItems({ parentId: seriesId });
   const seasons = [...(seasonsData?.items ?? [])].sort((a, b) => (a.indexNumber ?? 0) - (b.indexNumber ?? 0));
   const firstSeason = seasons[0];
@@ -463,12 +465,10 @@ function PlaySeriesButton({ seriesId }: { seriesId: string }) {
   if (!firstEpisode?.id) return null;
 
   return (
-    <Link to="/player/$mediaId" params={{ mediaId: firstEpisode.id }}>
-      <Button variant="primary">
-        <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path d="M6.3 2.8L17 10 6.3 17.2V2.8z" /></svg>
-        Play
-      </Button>
-    </Link>
+    <Button variant="primary" onClick={() => onPlay(firstEpisode.id!)}>
+      <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path d="M6.3 2.8L17 10 6.3 17.2V2.8z" /></svg>
+      Play
+    </Button>
   );
 }
 
@@ -652,8 +652,12 @@ export function MediaDetail({ item, onMetadataUpdated, initialEdit }: MediaDetai
   const isEpisode = item.type === "MEDIA_ITEM_TYPE_EPISODE";
   const [playlistModalOpen, setPlaylistModalOpen] = useState(false);
   const [overrideModalOpen, setOverrideModalOpen] = useState(false);
+  const [pinDialogOpen, setPinDialogOpen] = useState(false);
+  const [pendingPlayId, setPendingPlayId] = useState<string | null>(null);
   const profileId = useAuthStore((s) => s.profileId);
   const isAdmin = useAuthStore((s) => s.isAdmin);
+  const navigate = useNavigate();
+  const { needsPin } = useParentalGate(item.officialRating);
 
   const { data: overridesData } = useMetadataServiceListMetadataOverrides(item.id ?? "", {
     query: { enabled: isAdmin && !!item.id },
@@ -905,15 +909,34 @@ export function MediaDetail({ item, onMetadataUpdated, initialEdit }: MediaDetai
 
           <div className="flex gap-3 flex-wrap pt-2" data-testid="media-actions">
             {item.id && isSeries && (
-              <PlaySeriesButton seriesId={item.id} />
+              <PlaySeriesButton
+                seriesId={item.id}
+                onPlay={(episodeId) => {
+                  if (needsPin()) {
+                    setPendingPlayId(episodeId);
+                    setPinDialogOpen(true);
+                  } else {
+                    void navigate({ to: "/player/$mediaId", params: { mediaId: episodeId } });
+                  }
+                }}
+              />
             )}
             {item.id && !isSeries && !isSeason && (
-              <Link to="/player/$mediaId" params={{ mediaId: item.id }} data-testid="play-button">
-                <Button variant="primary">
-                  <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path d="M6.3 2.8L17 10 6.3 17.2V2.8z" /></svg>
-                  Play
-                </Button>
-              </Link>
+              <Button
+                variant="primary"
+                data-testid="play-button"
+                onClick={() => {
+                  if (needsPin()) {
+                    setPendingPlayId(item.id!);
+                    setPinDialogOpen(true);
+                  } else {
+                    void navigate({ to: "/player/$mediaId", params: { mediaId: item.id! } });
+                  }
+                }}
+              >
+                <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path d="M6.3 2.8L17 10 6.3 17.2V2.8z" /></svg>
+                Play
+              </Button>
             )}
             {item.id && (
               watched ? (
@@ -970,6 +993,21 @@ export function MediaDetail({ item, onMetadataUpdated, initialEdit }: MediaDetai
               open={playlistModalOpen}
               onClose={() => setPlaylistModalOpen(false)}
               mediaItemId={item.id}
+            />
+          )}
+          {profileId && (
+            <ParentalPINDialog
+              open={pinDialogOpen}
+              onClose={() => { setPinDialogOpen(false); setPendingPlayId(null); }}
+              onVerified={() => {
+                if (profileId) markUnlocked(profileId);
+                setPinDialogOpen(false);
+                if (pendingPlayId) {
+                  void navigate({ to: "/player/$mediaId", params: { mediaId: pendingPlayId } });
+                }
+                setPendingPlayId(null);
+              }}
+              profileId={profileId}
             />
           )}
           {item.id && isAdmin && (
