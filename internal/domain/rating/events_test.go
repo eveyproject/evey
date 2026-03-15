@@ -15,6 +15,8 @@ func TestRatingEventNames(t *testing.T) {
 	}{
 		{rating.MediaRated{}, "rating.media.rated"},
 		{rating.MediaRatingDeleted{}, "rating.media.deleted"},
+		{rating.RatingSet{}, "rating.set"},
+		{rating.RatingDeleted{}, "rating.deleted"},
 	}
 
 	for _, c := range cases {
