@@ -5,8 +5,10 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"runtime"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/google/uuid"
@@ -170,7 +172,26 @@ func (s *CommandService) ScanLibrary(ctx context.Context, libraryID string) (add
 		slog.Warn("publish event", slog.String("event", evtScanStarted.EventName()), slog.Any("err", publishErr))
 	}
 
+	existing, err := s.mediaItems.ListByLibraryID(ctx, libraryID)
+	if err != nil {
+		return 0, 0, fmt.Errorf("list existing items: %w", err)
+	}
+	byPath := make(map[string]*library.MediaItem, len(existing))
+	byFingerprint := make(map[string]*library.MediaItem, len(existing))
+	for _, item := range existing {
+		byPath[item.FilePath] = item
+		if item.FileFingerprint != "" {
+			byFingerprint[item.FileFingerprint] = item
+		}
+	}
+
 	seenPaths := make(map[string]struct{})
+	type scanWork struct {
+		file      library.ScannedFile
+		parentID  string
+		showTitle string
+	}
+	var toProcess []scanWork
 
 	for _, path := range lib.Paths {
 		var files []library.ScannedFile
@@ -178,27 +199,68 @@ func (s *CommandService) ScanLibrary(ctx context.Context, libraryID string) (add
 		if err != nil {
 			return 0, 0, fmt.Errorf("scan path %s: %w", path, err)
 		}
-		for _, f := range files {
-			seenPaths[f.Path] = struct{}{}
-		}
+
 		if lib.Type == "tvshow" {
+			for _, f := range files {
+				seenPaths[f.Path] = struct{}{}
+			}
 			a, u, e := s.scanTVShowFiles(ctx, libraryID, files)
 			if e != nil {
 				return 0, 0, e
 			}
 			added += a
 			updated += u
-		} else {
-			for _, f := range files {
-				a, u, e := s.upsertMediaFile(ctx, libraryID, "", f)
-				if e != nil {
-					return 0, 0, e
+			continue
+		}
+
+		for _, f := range files {
+			seenPaths[f.Path] = struct{}{}
+
+			if ex := byPath[f.Path]; ex != nil {
+				if ex.FileSize == f.Size && ex.ModTime.Equal(f.ModTime) && ex.FileFingerprint == f.Fingerprint {
+					continue
 				}
-				added += a
-				updated += u
 			}
+
+			if byPath[f.Path] == nil && f.Fingerprint != "" {
+				if moved := byFingerprint[f.Fingerprint]; moved != nil {
+					moved.FilePath = f.Path
+					moved.ModTime = f.ModTime
+					moved.UpdatedAt = time.Now()
+					if updateErr := s.mediaItems.Update(ctx, moved); updateErr != nil {
+						slog.Warn("update moved item path", slog.String("id", moved.ID), slog.Any("err", updateErr))
+					}
+					seenPaths[f.Path] = struct{}{}
+					updated++
+					continue
+				}
+			}
+
+			toProcess = append(toProcess, scanWork{file: f})
 		}
 	}
+
+	var addedAtomic, updatedAtomic atomic.Int64
+	sem := make(chan struct{}, runtime.NumCPU())
+	var wg sync.WaitGroup
+	for _, w := range toProcess {
+		wg.Add(1)
+		sem <- struct{}{}
+		go func(w scanWork) {
+			defer wg.Done()
+			defer func() { <-sem }()
+			a, u, e := s.upsertMediaFile(ctx, libraryID, w.parentID, w.file, w.showTitle)
+			if e != nil {
+				slog.Warn("upsert media file", slog.String("path", w.file.Path), slog.Any("err", e))
+				return
+			}
+			addedAtomic.Add(int64(a))
+			updatedAtomic.Add(int64(u))
+		}(w)
+	}
+	wg.Wait()
+	added += int(addedAtomic.Load())
+	updated += int(updatedAtomic.Load())
 
 	removed, removeErr := s.removeOrphanedItems(ctx, libraryID, seenPaths)
 	if removeErr != nil {
@@ -254,7 +316,7 @@ func (s *CommandService) removeOrphanedItems(ctx context.Context, libraryID stri
 	return removed, nil
 }
 
-func (s *CommandService) upsertMediaFile(ctx context.Context, libraryID, parentID string, f library.ScannedFile, seriesTitle ...string) (added, updated int, err error) {
+func (s *CommandService) upsertMediaFile(ctx context.Context, libraryID, parentID string, f library.ScannedFile, seriesTitle ...string) (added, updated int, err error) { //nolint:gocognit
 	var existing *library.MediaItem
 	var getErr error
 	if f.Fingerprint != "" {
@@ -276,6 +338,7 @@ func (s *CommandService) upsertMediaFile(ctx context.Context, libraryID, parentI
 			FilePath:        f.Path,
 			FileSize:        f.Size,
 			FileFingerprint: f.Fingerprint,
+			ModTime:         f.ModTime,
 			Title:           f.Title,
 			Type:            string(f.Type),
 			Year:            f.Year,
@@ -330,6 +393,7 @@ func (s *CommandService) upsertMediaFile(ctx context.Context, libraryID, parentI
 	existing.FilePath = f.Path
 	existing.FileSize = f.Size
 	existing.FileFingerprint = f.Fingerprint
+	existing.ModTime = f.ModTime
 	existing.UpdatedAt = time.Now()
 	if dur := s.ProbeAndStoreStreams(ctx, existing.ID, f.Path); dur > 0 {
 		existing.DurationMs = dur

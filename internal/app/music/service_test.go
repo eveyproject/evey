@@ -58,7 +58,7 @@ func TestScanDirectory_SkipsNonAudio(t *testing.T) {
 	}
 }
 
-func TestScanDirectory_UpdatesExisting(t *testing.T) {
+func TestScanDirectory_SkipsUnchanged(t *testing.T) {
 	dir := t.TempDir()
 	filePath := filepath.Join(dir, "track.mp3")
 	if err := os.WriteFile(filePath, []byte("ID3fake"), 0600); err != nil {
@@ -68,14 +68,20 @@ func TestScanDirectory_UpdatesExisting(t *testing.T) {
 	repo := fakes.NewFakeMusicTrackRepository()
 	svc := appmusic.NewService(repo, sharedfakes.NewFakeEventBus(), nil)
 
-	// first scan
-	if _, err := svc.ScanDirectory(context.Background(), "lib-1", dir); err != nil {
+	count1, err := svc.ScanDirectory(context.Background(), "lib-1", dir)
+	if err != nil {
 		t.Fatal(err)
 	}
+	if count1 != 1 {
+		t.Fatalf("first scan: expected 1, got %d", count1)
+	}
 
-	// second scan — same file, should upsert not duplicate
-	if _, err := svc.ScanDirectory(context.Background(), "lib-1", dir); err != nil {
+	count2, err := svc.ScanDirectory(context.Background(), "lib-1", dir)
+	if err != nil {
 		t.Fatal(err)
+	}
+	if count2 != 0 {
+		t.Fatalf("second scan: expected 0 (unchanged), got %d", count2)
 	}
 
 	_, total, err := repo.ListByLibrary(context.Background(), "lib-1", 50, 0, "")

@@ -12,6 +12,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -20,6 +21,7 @@ import (
 	"github.com/gravity-zero/evey/internal/domain/library"
 	"github.com/gravity-zero/evey/internal/domain/photo"
 	"github.com/gravity-zero/evey/internal/domain/shared"
+	"github.com/gravity-zero/evey/internal/pkg/filehash"
 	"github.com/gravity-zero/evey/internal/pkg/id"
 )
 
@@ -166,60 +168,94 @@ func (s *Service) ScanDirectory(ctx context.Context, libraryID, dir string) (int
 			return 0, fmt.Errorf("library %s not found: %w", libraryID, err)
 		}
 	}
-	jobs := make(chan scanJob, 64)
-	var total atomic.Int64
-	var wg sync.WaitGroup
-	sem := make(chan struct{}, scanWorkers)
 
-	// collect files
-	var walkErr error
-	go func() {
-		defer close(jobs)
-		walkErr = filepath.WalkDir(dir, func(path string, d os.DirEntry, err error) error {
-			if err != nil {
-				slog.Warn("photo walk error", slog.String("path", path), slog.Any("err", err))
-				return nil
-			}
-			if d.IsDir() {
-				return nil
-			}
-			select {
-			case <-ctx.Done():
-				return ctx.Err()
-			default:
-			}
-			ext := strings.ToLower(filepath.Ext(path))
-			mime, ok := imageExts[ext]
-			if !ok {
-				return nil
-			}
-			info, err := d.Info()
-			if err != nil {
-				slog.Warn("photo stat error", slog.String("path", path), slog.Any("err", err))
-				return nil
-			}
-			jobs <- scanJob{path: path, info: info, mime: mime, dir: dir}
+	existing, err := s.repo.ListAllByLibrary(ctx, libraryID)
+	if err != nil {
+		return 0, fmt.Errorf("list existing photos: %w", err)
+	}
+	byPath := make(map[string]*photo.Photo, len(existing))
+	byHash := make(map[string]*photo.Photo, len(existing))
+	for i := range existing {
+		p := &existing[i]
+		byPath[p.FilePath] = p
+		if p.FileHash != "" {
+			byHash[p.FileHash] = p
+		}
+	}
+
+	type photoJob struct {
+		path    string
+		info    os.FileInfo
+		mime    string
+		dir     string
+		hash    string
+		modTime time.Time
+	}
+	var toProcess []photoJob
+
+	walkErr := filepath.WalkDir(dir, func(path string, d os.DirEntry, walkE error) error {
+		if walkE != nil {
+			slog.Warn("photo walk error", slog.String("path", path), slog.Any("err", walkE))
 			return nil
-		})
-	}()
+		}
+		if d.IsDir() {
+			return nil
+		}
+		if ctx.Err() != nil {
+			return ctx.Err()
+		}
+		ext := strings.ToLower(filepath.Ext(path))
+		mime, ok := imageExts[ext]
+		if !ok {
+			return nil
+		}
+		info, infoErr := d.Info()
+		if infoErr != nil {
+			slog.Warn("photo stat error", slog.String("path", path), slog.Any("err", infoErr))
+			return nil
+		}
 
-	for job := range jobs {
+		hash, hashErr := filehash.Compute(path)
+		if hashErr != nil {
+			slog.Warn("photo hash error", slog.String("path", path), slog.Any("err", hashErr))
+		}
+
+		if ex := byPath[path]; ex != nil {
+			if ex.FileSize == info.Size() && ex.ModTime.Equal(info.ModTime()) && ex.FileHash == hash {
+				return nil
+			}
+		}
+
+		if byPath[path] == nil && hash != "" {
+			if moved := byHash[hash]; moved != nil {
+				if updateErr := s.repo.UpdateFilePath(ctx, moved.ID, path, info.ModTime()); updateErr != nil {
+					slog.Warn("photo update path", slog.String("id", moved.ID), slog.Any("err", updateErr))
+				}
+				return nil
+			}
+		}
+
+		toProcess = append(toProcess, photoJob{path: path, info: info, mime: mime, dir: dir, hash: hash, modTime: info.ModTime()})
+		return nil
+	})
+
+	var total atomic.Int64
+	sem := make(chan struct{}, runtime.NumCPU())
+	var wg sync.WaitGroup
+	for _, j := range toProcess {
 		wg.Add(1)
 		sem <- struct{}{}
-		go func(j scanJob) {
+		go func(j photoJob) {
 			defer wg.Done()
 			defer func() { <-sem }()
-
-			select {
-			case <-ctx.Done():
+			if ctx.Err() != nil {
 				return
-			default:
 			}
 
 			var takenAt *time.Time
 			var cameraModel string
-			if (j.mime == "image/jpeg") {
-				if raw, err := os.ReadFile(j.path); err == nil {
+			if j.mime == "image/jpeg" {
+				if raw, readErr := os.ReadFile(j.path); readErr == nil {
 					takenAt, cameraModel = readExifData(raw)
 				}
 			}
@@ -240,6 +276,8 @@ func (s *Service) ScanDirectory(ctx context.Context, libraryID, dir string) (int
 				Title:       title,
 				FilePath:    j.path,
 				FileSize:    j.info.Size(),
+				FileHash:    j.hash,
+				ModTime:     j.modTime,
 				MimeType:    j.mime,
 				Width:       width,
 				Height:      height,
@@ -250,15 +288,15 @@ func (s *Service) ScanDirectory(ctx context.Context, libraryID, dir string) (int
 				UpdatedAt:   now,
 			}
 
-			if err := s.repo.Upsert(ctx, p); err != nil {
-				slog.Warn("photo upsert failed", slog.String("path", j.path), slog.Any("err", err))
+			if upsertErr := s.repo.Upsert(ctx, p); upsertErr != nil {
+				slog.Warn("photo upsert failed", slog.String("path", j.path), slog.Any("err", upsertErr))
 				return
 			}
 			if pubErr := s.bus.Publish(ctx, photo.PhotoImported{LibraryID: libraryID, PhotoID: p.ID, Path: j.path, OccurredAt: time.Now()}); pubErr != nil {
 				slog.Warn("photo scan: event publish failed", slog.String("path", j.path), slog.Any("err", pubErr))
 			}
 			total.Add(1)
-		}(job)
+		}(j)
 	}
 	wg.Wait()
 	return int(total.Load()), walkErr
