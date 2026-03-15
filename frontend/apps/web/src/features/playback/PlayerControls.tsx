@@ -6,7 +6,6 @@ import type { Chapter } from "@/hooks/useChapters";
 import { TrickplayPreview } from "./TrickplayPreview";
 import { ChapterMarkers } from "./ChapterMarkers";
 import type { SubtitleStyle } from "@/hooks/usePlaybackPrefs";
-import { useAuthStore } from "@evey/store";
 
 export interface EpisodeNavItem { id: string; title?: string; indexNumber?: number }
 export interface SeasonNavItem { id: string; title?: string; indexNumber?: number }
@@ -188,7 +187,6 @@ interface PlayerControlsProps {
   onTheaterModeToggle?: () => void;
   onPanelOpenChange?: (anyOpen: boolean) => void;
   closePanelRef?: React.MutableRefObject<(() => void) | null>;
-  onActionFlash?: (action: "play" | "pause") => void;
 }
 
 function formatTime(seconds: number): string {
@@ -669,7 +667,6 @@ export function PlayerControls({
   onTheaterModeToggle,
   onPanelOpenChange,
   closePanelRef,
-  onActionFlash,
 }: PlayerControlsProps) {
   const [visible, setVisible] = useState(true);
   const [playing, setPlaying] = useState(false);
@@ -677,10 +674,8 @@ export function PlayerControls({
   const [duration, setDuration] = useState(0);
   const [bufferedEnd, setBufferedEnd] = useState(0);
   const [volume, setVolume] = useState(1);
-  const [muted, setMuted] = useState(false);
   const [fullscreen, setFullscreen] = useState(false);
   const [openPanel, setOpenPanel] = useState<"settings" | "episodes" | "chapters" | null>(null);
-  const accessToken = useAuthStore((s) => s.accessToken);
   const settingsOpen = openPanel === "settings";
   const episodesOpen = openPanel === "episodes";
   const chaptersOpen = openPanel === "chapters";
@@ -744,7 +739,7 @@ export function PlayerControls({
       const d = video!.duration;
       if (d && isFinite(d) && d > 0) setDuration(d);
     }
-    function onVolumeChange() { setVolume(video!.volume); setMuted(video!.muted); }
+    function onVolumeChange() { setVolume(video!.volume); }
     function onFullscreenChange() { setFullscreen(!!document.fullscreenElement); }
     function onEnterPip() { setIsPip(true); }
     function onLeavePip() { setIsPip(false); }
@@ -768,7 +763,6 @@ export function PlayerControls({
     const d = video.duration;
     if (d && isFinite(d) && d > 0) setDuration(d);
     setVolume(video.volume);
-    setMuted(video.muted);
 
     return () => {
       video.removeEventListener("play", onPlay);
@@ -850,6 +844,7 @@ export function PlayerControls({
   }
 
   function handleOverlayClick(e: React.MouseEvent) {
+    // Ignore clicks on control buttons (bottom bar, top bar)
     if ((e.target as HTMLElement).closest("button, input, [data-controls]")) return;
     if (clickTimer.current) {
       clearTimeout(clickTimer.current);
@@ -858,24 +853,9 @@ export function PlayerControls({
     } else {
       clickTimer.current = setTimeout(() => {
         clickTimer.current = null;
-        const video = videoRef.current;
-        if (video) {
-          if (video.paused) {
-            void video.play();
-            onActionFlash?.("play");
-          } else {
-            video.pause();
-            onActionFlash?.("pause");
-          }
-        }
         resetHideTimer();
-      }, 200);
+      }, 250);
     }
-  }
-
-  function toggleMute() {
-    const video = videoRef.current;
-    if (video) video.muted = !video.muted;
   }
 
   function handleSeekHover(e: React.MouseEvent) {
@@ -1065,35 +1045,19 @@ export function PlayerControls({
             {formatTime(absoluteTime)} / {formatTime(effectiveDuration)}
           </span>
 
-          {/* volume */}
-          <div className="flex items-center gap-1">
-            <button
-              onClick={toggleMute}
-              aria-label={muted || volume === 0 ? "Unmute" : "Mute"}
-              className="text-white hover:text-[var(--accent)] transition-colors p-1"
-            >
-              {muted || volume === 0 ? (
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
-                  <path d="M16.5 12c0-1.77-1.02-3.29-2.5-4.03v2.21l2.45 2.45c.03-.2.05-.41.05-.63zm2.5 0c0 .94-.2 1.82-.54 2.64l1.51 1.51C20.63 14.91 21 13.5 21 12c0-4.28-2.99-7.86-7-8.77v2.06c2.89.86 5 3.54 5 6.71zM4.27 3L3 4.27 7.73 9H3v6h4l5 5v-6.73l4.25 4.25c-.67.52-1.42.93-2.25 1.18v2.06c1.38-.31 2.63-.95 3.69-1.81L19.73 21 21 19.73l-9-9L4.27 3zM12 4L9.91 6.09 12 8.18V4z" />
-                </svg>
-              ) : volume < 0.5 ? (
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
-                  <path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02z" />
-                </svg>
-              ) : (
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
-                  <path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z" />
-                </svg>
-              )}
-            </button>
+          {/* volume - hidden on mobile (hardware volume) */}
+          <div className="hidden sm:flex items-center gap-1">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" className="text-white shrink-0">
+              <path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02z" />
+            </svg>
             <input
               type="range"
               min={0}
               max={1}
               step={0.05}
-              value={muted ? 0 : volume}
+              value={volume}
               onChange={handleVolume}
-              className="w-20 accent-[var(--accent)] cursor-pointer hidden sm:block"
+              className="w-20 accent-[var(--accent)] cursor-pointer"
               aria-label="Volume"
             />
           </div>
@@ -1146,21 +1110,6 @@ export function PlayerControls({
             subtitleStyle={subtitleStyle}
             onSubtitleStyleChange={onSubtitleStyleChange}
           />
-
-          {/* Download */}
-          {mediaId && (
-            <a
-              href={`/api/v1/media/${mediaId}/download${accessToken ? `?token=${encodeURIComponent(accessToken)}` : ""}`}
-              download={title}
-              aria-label="Download"
-              className="text-white hover:text-[var(--accent)] transition-colors p-1 hidden sm:block"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <svg width="20" height="20" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v12m0 0l-4-4m4 4l4-4M4 18h16" />
-              </svg>
-            </a>
-          )}
 
           {/* Theater mode */}
           {onTheaterModeToggle && (

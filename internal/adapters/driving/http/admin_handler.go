@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io"
 	"log/slog"
 	"net/http"
 	"os"
@@ -316,6 +315,8 @@ func (h *adminHandler) handleStreamLogs(w http.ResponseWriter, r *http.Request) 
 	ticker := time.NewTicker(time.Second)
 	defer ticker.Stop()
 
+	const maxBytesPerTick = 64 * 1024
+
 	for {
 		select {
 		case <-r.Context().Done():
@@ -327,11 +328,13 @@ func (h *adminHandler) handleStreamLogs(w http.ResponseWriter, r *http.Request) 
 			}
 			newSize := info.Size()
 			if newSize < lastSize {
-				// log rotated — reset offset
 				lastSize = 0
 			}
 			if newSize == lastSize {
-				fmt.Fprintf(w, ": ping\n\n")
+				if _, writeErr := fmt.Fprintf(w, ": ping\n\n"); writeErr != nil {
+					slog.Debug("sse client gone", slog.Any("err", writeErr))
+					return
+				}
 				flusher.Flush()
 				continue
 			}
@@ -341,21 +344,24 @@ func (h *adminHandler) handleStreamLogs(w http.ResponseWriter, r *http.Request) 
 				continue
 			}
 			if _, seekErr := f.Seek(lastSize, 0); seekErr != nil {
-			f.Close()
-			continue
-		}
-			const maxBytesPerTick = 64 * 1024
-			newData, err := io.ReadAll(io.LimitReader(f, maxBytesPerTick))
-			f.Close()
-			if err != nil {
+				f.Close()
 				continue
 			}
-			lastSize = newSize
+			buf := make([]byte, maxBytesPerTick)
+			n, readErr := f.Read(buf)
+			f.Close()
+			if readErr != nil && n == 0 {
+				continue
+			}
+			lastSize += int64(n)
 
-			newLines := strings.Split(string(newData), "\n")
+			newLines := strings.Split(string(buf[:n]), "\n")
 			for _, l := range newLines {
 				if l != "" {
-					fmt.Fprintf(w, "data: %s\n\n", l)
+					if _, writeErr := fmt.Fprintf(w, "data: %s\n\n", l); writeErr != nil {
+						slog.Debug("sse client gone", slog.Any("err", writeErr))
+						return
+					}
 				}
 			}
 			flusher.Flush()
@@ -380,7 +386,7 @@ func (h *adminHandler) handleSystemStats(w http.ResponseWriter, r *http.Request)
 	h.statsMu.Lock()
 	if time.Now().After(h.cacheExpires) {
 		goruntime.ReadMemStats(&h.cachedMS)
-		h.cacheExpires = time.Now().Add(5 * time.Second)
+		h.cacheExpires = time.Now().Add(30 * time.Second)
 	}
 	ms := h.cachedMS
 	h.statsMu.Unlock()

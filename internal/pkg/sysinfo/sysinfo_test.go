@@ -3,6 +3,7 @@ package sysinfo
 import (
 	"os"
 	"testing"
+	"time"
 )
 
 func TestCollect_ReturnsNonNegative(t *testing.T) {
@@ -64,6 +65,28 @@ func TestReadMeminfo(t *testing.T) {
 	if avail > total {
 		t.Errorf("available (%d) > total (%d)", avail, total)
 	}
+}
+
+func TestCollect_CachesResult(t *testing.T) {
+	// Reset cache
+	collectMu.Lock()
+	cacheExpiresAt = time.Time{}
+	collectMu.Unlock()
+
+	s1 := Collect()
+	s2 := Collect() // should return cached value instantly
+
+	if s1 != s2 {
+		t.Error("second Collect() should return cached result")
+	}
+
+	// Expire cache and verify refresh
+	collectMu.Lock()
+	cacheExpiresAt = time.Now().Add(-time.Second)
+	collectMu.Unlock()
+
+	s3 := Collect()
+	_ = s3 // just ensure no panic on refresh
 }
 
 func TestReadCPUStat(t *testing.T) {

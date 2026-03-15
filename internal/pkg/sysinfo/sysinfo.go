@@ -7,8 +7,17 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
+)
+
+const collectCacheTTL = 30 * time.Second
+
+var (
+	collectMu      sync.Mutex
+	cachedStats    Stats
+	cacheExpiresAt time.Time
 )
 
 type Stats struct {
@@ -31,6 +40,13 @@ type cpuSample struct {
 }
 
 func Collect() Stats {
+	collectMu.Lock()
+	defer collectMu.Unlock()
+
+	if time.Now().Before(cacheExpiresAt) {
+		return cachedStats
+	}
+
 	var s Stats
 
 	memTotal, memAvail := readMeminfo()
@@ -45,6 +61,9 @@ func Collect() Stats {
 	}
 
 	s.CPUPercent = sampleCPU()
+
+	cachedStats = s
+	cacheExpiresAt = time.Now().Add(collectCacheTTL)
 	return s
 }
 
