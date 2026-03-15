@@ -154,6 +154,19 @@ func (s *syncplayHandler) joinRoom(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	roomID := r.PathValue("id")
+	room, err := s.hub.GetRoom(r.Context(), roomID)
+	if err != nil {
+		http.Error(w, `{"message":"room not found"}`, http.StatusNotFound)
+		return
+	}
+	item, err := s.media.GetMediaItem(r.Context(), room.MediaID)
+	if err != nil || item == nil {
+		http.Error(w, `{"message":"not found"}`, http.StatusNotFound)
+		return
+	}
+	if !checkLibraryAccess(r.Context(), w, claims, item.LibraryID, s.libChecker) {
+		return
+	}
 	if err := s.hub.JoinRoom(r.Context(), roomID, claims.UserID, claims.Username); err != nil {
 		http.Error(w, `{"message":"room not found"}`, http.StatusNotFound)
 		return
