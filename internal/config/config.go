@@ -153,8 +153,8 @@ func (c *Config) WarnValidate() {
 
 	// OPS-NEW-001: FCM service account JSON
 	if c.FCM.Enabled && c.FCM.ServiceAccountJSON != "" {
-		if err := ValidateFCMServiceAccount(c.FCM.ServiceAccountJSON); err != nil {
-			slog.Warn("FCM service account validation failed",
+		if _, err := os.Stat(c.FCM.ServiceAccountJSON); err != nil {
+			slog.Warn("FCM service account file not accessible",
 				slog.String("path", c.FCM.ServiceAccountJSON),
 				slog.Any("err", err))
 		}
