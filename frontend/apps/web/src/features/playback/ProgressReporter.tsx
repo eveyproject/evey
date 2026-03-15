@@ -4,9 +4,10 @@ import { usePlaybackServiceReportProgress } from "@evey/api";
 interface ProgressReporterProps {
   sessionId: string;
   videoRef: React.RefObject<HTMLVideoElement | null>;
+  transcodeOffsetRef?: React.RefObject<number>;
 }
 
-export function ProgressReporter({ sessionId, videoRef }: ProgressReporterProps) {
+export function ProgressReporter({ sessionId, videoRef, transcodeOffsetRef }: ProgressReporterProps) {
   const reportProgress = usePlaybackServiceReportProgress();
   const reportRef = useRef(reportProgress);
   reportRef.current = reportProgress;
@@ -28,7 +29,7 @@ export function ProgressReporter({ sessionId, videoRef }: ProgressReporterProps)
       reportRef.current.mutate({
         data: {
           sessionId,
-          positionMs: String(Math.floor(video.currentTime * 1000)),
+          positionMs: String(Math.floor(((transcodeOffsetRef?.current ?? 0) + video.currentTime) * 1000)),
           isPaused: false,
           isMuted: video.muted,
           volumeLevel: Math.round(video.volume * 100),

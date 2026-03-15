@@ -655,6 +655,7 @@ export function HLSPlayer({
   const touchStartRef = useRef<{ x: number; y: number; time: number } | null>(null);
   const lastTapRef = useRef<{ x: number; time: number } | null>(null);
   const [seekFlash, setSeekFlash] = useState<"left" | "right" | null>(null);
+  const seekFlashTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   function handleTouchStart(e: React.TouchEvent) {
     const t = e.touches[0];
@@ -704,7 +705,8 @@ export function HLSPlayer({
         : Math.min(pos + skipFwdRef.current, pos + skipFwdRef.current);
       seekRef.current(target);
       setSeekFlash(isLeft ? "left" : "right");
-      setTimeout(() => setSeekFlash(null), 600);
+      if (seekFlashTimerRef.current) clearTimeout(seekFlashTimerRef.current);
+      seekFlashTimerRef.current = setTimeout(() => setSeekFlash(null), 600);
     } else {
       lastTapRef.current = { x: t.clientX, time: now };
     }
@@ -765,7 +767,7 @@ export function HLSPlayer({
           </div>
         </div>
       )}
-      <ProgressReporter sessionId={sessionId} videoRef={videoRef} />
+      <ProgressReporter sessionId={sessionId} videoRef={videoRef} transcodeOffsetRef={transcodeOffsetRef} />
       <SkipIntroButton
         filePath={filePath}
         currentTime={overlayTime}
