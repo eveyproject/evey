@@ -221,6 +221,51 @@ func TestAuthInterceptor_APIKey_Expired(t *testing.T) {
 	assert.Equal(t, codes.Unauthenticated, status.Code(err))
 }
 
+func TestAuthInterceptor_CustomRBACConfig(t *testing.T) {
+	tokenGen := fakes.NewFakeTokenGenerator()
+	rbac := interceptors.RBACConfig{
+		PublicMethods: map[string]bool{"/test/Public": true},
+		MethodRoles:   map[string]interceptors.Role{"/test/Admin": interceptors.RoleAdmin},
+	}
+	ai := interceptors.NewAuthInterceptorWithRBAC(tokenGen, rbac)
+	unary := ai.Unary()
+
+	t.Run("custom public method skips auth", func(t *testing.T) {
+		info := &grpc.UnaryServerInfo{FullMethod: "/test/Public"}
+		resp, err := unary(context.Background(), nil, info, nopHandler)
+		require.NoError(t, err)
+		assert.NotNil(t, resp)
+	})
+
+	t.Run("custom admin method blocks non-admin", func(t *testing.T) {
+		token, _ := tokenGen.GenerateAccessToken(user.Claims{
+			UserID: "u1", Username: "user", IsAdmin: false,
+		})
+		info := &grpc.UnaryServerInfo{FullMethod: "/test/Admin"}
+		_, err := unary(ctxWithToken(token), nil, info, nopHandler)
+		require.Error(t, err)
+		assert.Equal(t, codes.PermissionDenied, status.Code(err))
+	})
+
+	t.Run("custom admin method allows admin", func(t *testing.T) {
+		token, _ := tokenGen.GenerateAccessToken(user.Claims{
+			UserID: "a1", Username: "admin", IsAdmin: true,
+		})
+		info := &grpc.UnaryServerInfo{FullMethod: "/test/Admin"}
+		_, err := unary(ctxWithToken(token), nil, info, nopHandler)
+		require.NoError(t, err)
+	})
+
+	t.Run("default admin method NOT blocked with custom config", func(t *testing.T) {
+		token, _ := tokenGen.GenerateAccessToken(user.Claims{
+			UserID: "u2", Username: "user", IsAdmin: false,
+		})
+		info := &grpc.UnaryServerInfo{FullMethod: "/evey.v1.AdminService/GetAuditLog"}
+		_, err := unary(ctxWithToken(token), nil, info, nopHandler)
+		require.NoError(t, err)
+	})
+}
+
 func TestEnforceRBAC_ContextClaims(t *testing.T) {
 	ai, tokenGen := setupInterceptor()
 	interceptor := ai.Unary()
