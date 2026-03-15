@@ -2,7 +2,9 @@ package webhook_test
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"io"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
@@ -602,5 +604,199 @@ func TestHandleAny_CustomHeaders(t *testing.T) {
 	}
 	if gotHeader != "hello" {
 		t.Fatalf("expected X-Custom=hello, got %q", gotHeader)
+	}
+}
+
+func TestHandleAny_PayloadContainsEventAndData(t *testing.T) {
+	t.Parallel()
+	var gotBody []byte
+	received := make(chan struct{}, 1)
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotBody, _ = io.ReadAll(r.Body)
+		received <- struct{}{}
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer srv.Close()
+
+	repo := &fakeWebhookRepo{}
+	deliveries := &fakeDeliveryRepo{}
+	bus := fakes.NewFakeEventBus()
+	_ = newTestService(repo, deliveries, bus)
+
+	repo.mu.Lock()
+	repo.data = append(repo.data, &webhookdomain.Config{
+		ID: "payload-check", URL: srv.URL, Events: []string{"*"}, Enabled: true,
+	})
+	repo.mu.Unlock()
+
+	_ = bus.Publish(context.Background(), fakeEvent{"media.item.added"})
+
+	select {
+	case <-received:
+	case <-time.After(2 * time.Second):
+		t.Fatal("webhook not delivered")
+	}
+
+	var payload map[string]any
+	if err := json.Unmarshal(gotBody, &payload); err != nil {
+		t.Fatalf("unmarshal body: %v", err)
+	}
+	ev, ok := payload["event"]
+	if !ok {
+		t.Fatal("payload missing 'event' key")
+	}
+	if ev != "media.item.added" {
+		t.Fatalf("expected event=media.item.added, got %v", ev)
+	}
+	_, ok = payload["payload"]
+	if !ok {
+		t.Fatal("payload missing 'payload' key")
+	}
+}
+
+func TestHandleAny_Status299IsSuccess(t *testing.T) {
+	t.Parallel()
+	var attempts atomic.Int32
+	received := make(chan struct{}, 1)
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		attempts.Add(1)
+		received <- struct{}{}
+		w.WriteHeader(299)
+	}))
+	defer srv.Close()
+
+	repo := &fakeWebhookRepo{}
+	deliveries := &fakeDeliveryRepo{}
+	bus := fakes.NewFakeEventBus()
+	svc := newTestService(repo, deliveries, bus)
+	svc.SetRetryDelays([]time.Duration{10 * time.Millisecond})
+
+	repo.mu.Lock()
+	repo.data = append(repo.data, &webhookdomain.Config{
+		ID: "s299", URL: srv.URL, Events: []string{"*"}, Enabled: true,
+	})
+	repo.mu.Unlock()
+
+	_ = bus.Publish(context.Background(), fakeEvent{"test.event"})
+
+	select {
+	case <-received:
+	case <-time.After(2 * time.Second):
+		t.Fatal("webhook not delivered")
+	}
+	time.Sleep(50 * time.Millisecond)
+
+	if attempts.Load() != 1 {
+		t.Fatalf("status 299 should succeed on first attempt, got %d attempts", attempts.Load())
+	}
+
+	deliveries.mu.Lock()
+	d := deliveries.data[0]
+	deliveries.mu.Unlock()
+	if d.Error != "" {
+		t.Fatalf("expected no error for 299, got %q", d.Error)
+	}
+	if d.StatusCode != 299 {
+		t.Fatalf("expected status 299, got %d", d.StatusCode)
+	}
+}
+
+func TestHandleAny_Status300IsFailure(t *testing.T) {
+	t.Parallel()
+	var attempts atomic.Int32
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		attempts.Add(1)
+		w.WriteHeader(300)
+	}))
+	defer srv.Close()
+
+	repo := &fakeWebhookRepo{}
+	deliveries := &fakeDeliveryRepo{}
+	bus := fakes.NewFakeEventBus()
+	svc := newTestService(repo, deliveries, bus)
+	svc.SetRetryDelays([]time.Duration{10 * time.Millisecond})
+
+	repo.mu.Lock()
+	repo.data = append(repo.data, &webhookdomain.Config{
+		ID: "s300", URL: srv.URL, Events: []string{"*"}, Enabled: true,
+	})
+	repo.mu.Unlock()
+
+	_ = bus.Publish(context.Background(), fakeEvent{"test.event"})
+
+	deadline := time.After(5 * time.Second)
+	for {
+		deliveries.mu.Lock()
+		n := len(deliveries.data)
+		deliveries.mu.Unlock()
+		if n > 0 {
+			break
+		}
+		select {
+		case <-deadline:
+			t.Fatal("delivery record not written")
+		case <-time.After(50 * time.Millisecond):
+		}
+	}
+
+	if attempts.Load() < 2 {
+		t.Fatalf("status 300 should trigger retries, got %d attempts", attempts.Load())
+	}
+
+	deliveries.mu.Lock()
+	d := deliveries.data[0]
+	deliveries.mu.Unlock()
+	if d.Error == "" {
+		t.Fatal("expected error for status 300")
+	}
+	if d.StatusCode != 300 {
+		t.Fatalf("expected status 300, got %d", d.StatusCode)
+	}
+}
+
+func TestHandleAny_HTTPErrorRecordsDelivery(t *testing.T) {
+	t.Parallel()
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+	srv.Close() // close immediately so Do() fails
+
+	repo := &fakeWebhookRepo{}
+	deliveries := &fakeDeliveryRepo{}
+	bus := fakes.NewFakeEventBus()
+	svc := newTestService(repo, deliveries, bus)
+	svc.SetRetryDelays([]time.Duration{10 * time.Millisecond})
+
+	repo.mu.Lock()
+	repo.data = append(repo.data, &webhookdomain.Config{
+		ID: "http-err", URL: srv.URL, Events: []string{"*"}, Enabled: true,
+	})
+	repo.mu.Unlock()
+
+	_ = bus.Publish(context.Background(), fakeEvent{"test.event"})
+
+	deadline := time.After(5 * time.Second)
+	for {
+		deliveries.mu.Lock()
+		n := len(deliveries.data)
+		deliveries.mu.Unlock()
+		if n > 0 {
+			break
+		}
+		select {
+		case <-deadline:
+			t.Fatal("delivery record not written after HTTP error")
+		case <-time.After(50 * time.Millisecond):
+		}
+	}
+
+	deliveries.mu.Lock()
+	d := deliveries.data[0]
+	deliveries.mu.Unlock()
+	if d.Error == "" {
+		t.Fatal("expected error string in delivery record")
+	}
+	if d.StatusCode != 0 {
+		t.Fatalf("expected status 0 (no response), got %d", d.StatusCode)
 	}
 }
