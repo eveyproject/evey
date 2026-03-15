@@ -134,7 +134,6 @@ function PlayerPage() {
 
   function handleEpisodeChange(episodeId: string) {
     stopSession();
-    setShowUpNext(false);
     void router.navigate({ to: "/player/$mediaId", params: { mediaId: episodeId } });
   }
 
@@ -223,14 +222,6 @@ function PlayerPage() {
             seriesId={isEpisode ? seriesId : undefined}
             onTheaterModeChange={setTheaterMode}
             onVideoRef={(el) => { videoRef.current = el; }}
-          />
-        )}
-        {showUpNext && nextEpisode && (
-          <UpNextOverlay
-            nextEpisodeId={nextEpisode.id}
-            nextEpisodeLabel={nextEpisode.indexNumber != null ? `Episode ${nextEpisode.indexNumber}${nextEpisode.title ? ` — ${nextEpisode.title}` : ""}` : (nextEpisode.title ?? "Next Episode")}
-            onPlay={handleEpisodeChange}
-            onCancel={() => setShowUpNext(false)}
           />
         )}
         {showShareDialog && shareRoomId && (

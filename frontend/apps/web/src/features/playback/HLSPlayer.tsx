@@ -383,6 +383,12 @@ export function HLSPlayer({
     if (video) video.playbackRate = playbackSpeed;
   }, [playbackSpeed]);
 
+  function showActionFlash(action: "play" | "pause") {
+    if (actionFlashTimer.current) clearTimeout(actionFlashTimer.current);
+    setActionFlash(action);
+    actionFlashTimer.current = setTimeout(() => setActionFlash(null), 500);
+  }
+
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
       const video = videoRef.current;
@@ -400,8 +406,13 @@ export function HLSPlayer({
         case " ":
         case "k":
           e.preventDefault();
-          if (video.paused) video.play().catch(() => {});
-          else video.pause();
+          if (video.paused) {
+            video.play().catch(() => {});
+            showActionFlash("play");
+          } else {
+            video.pause();
+            showActionFlash("pause");
+          }
           break;
         case "ArrowLeft":
         case "j":
@@ -651,11 +662,14 @@ export function HLSPlayer({
     }
   }
 
-  // Touch gesture state: double-tap to seek, swipe volume
+  // Touch gesture state: single-tap play/pause, double-tap to seek, swipe volume
   const touchStartRef = useRef<{ x: number; y: number; time: number } | null>(null);
   const lastTapRef = useRef<{ x: number; time: number } | null>(null);
+  const singleTapTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [seekFlash, setSeekFlash] = useState<"left" | "right" | null>(null);
   const seekFlashTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [actionFlash, setActionFlash] = useState<"play" | "pause" | null>(null);
+  const actionFlashTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   function handleTouchStart(e: React.TouchEvent) {
     const t = e.touches[0];
@@ -666,6 +680,7 @@ export function HLSPlayer({
     const start = touchStartRef.current;
     if (!start) return;
     touchStartRef.current = null;
+    e.preventDefault();
     const t = e.changedTouches[0];
     const dx = t.clientX - start.x;
     const dy = t.clientY - start.y;
@@ -694,7 +709,7 @@ export function HLSPlayer({
     const now = Date.now();
     const last = lastTapRef.current;
     if (last && now - last.time < 400) {
-      // Double tap detected
+      if (singleTapTimer.current) { clearTimeout(singleTapTimer.current); singleTapTimer.current = null; }
       const isLeft = t.clientX < rect.width / 2;
       lastTapRef.current = null;
       const pos = positionRef.current;
@@ -709,6 +724,15 @@ export function HLSPlayer({
       seekFlashTimerRef.current = setTimeout(() => setSeekFlash(null), 600);
     } else {
       lastTapRef.current = { x: t.clientX, time: now };
+      // Single tap: toggle play/pause after delay (cancelled if double-tap follows)
+      if (singleTapTimer.current) clearTimeout(singleTapTimer.current);
+      singleTapTimer.current = setTimeout(() => {
+        singleTapTimer.current = null;
+        const video = videoRef.current;
+        if (!video) return;
+        if (video.paused) { video.play().catch(() => {}); showActionFlash("play"); }
+        else { video.pause(); showActionFlash("pause"); }
+      }, 300);
     }
   }
 
@@ -735,6 +759,23 @@ export function HLSPlayer({
             <svg className="w-8 h-8 text-white" fill="currentColor" viewBox="0 0 24 24">
               <path d="M12.01 5V1l5 5-5 5V7c-3.31 0-6 2.69-6 6s2.69 6 6 6 6-2.69 6-6h2c0 4.42-3.58 8-8 8s-8-3.58-8-8 3.58-8 8-8z"/>
             </svg>
+          </div>
+        </div>
+      )}
+      {/* Play/pause action flash (YouTube-style) */}
+      {actionFlash && (
+        <div className="absolute inset-0 flex items-center justify-center pointer-events-none" style={{ zIndex: 6 }}>
+          <div className="rounded-full bg-black/40 w-16 h-16 flex items-center justify-center animate-ping-once">
+            {actionFlash === "play" ? (
+              <svg className="w-8 h-8 text-white ml-1" fill="currentColor" viewBox="0 0 24 24">
+                <path d="M5 3l14 9-14 9V3z" />
+              </svg>
+            ) : (
+              <svg className="w-8 h-8 text-white" fill="currentColor" viewBox="0 0 24 24">
+                <rect x="6" y="4" width="4" height="16" />
+                <rect x="14" y="4" width="4" height="16" />
+              </svg>
+            )}
           </div>
         </div>
       )}
@@ -843,6 +884,7 @@ export function HLSPlayer({
         }}
         onPanelOpenChange={(anyOpen) => { anyPanelOpenRef.current = anyOpen; }}
         closePanelRef={closePanelRef}
+        onActionFlash={showActionFlash}
       />
       {showShortcuts && <KeyboardShortcutsOverlay onClose={() => setShowShortcuts(false)} skipForwardSeconds={skipFwd} skipBackwardSeconds={skipBwd} />}
     </div>
