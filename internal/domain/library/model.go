@@ -101,6 +101,14 @@ type Trailer struct {
 	SubtitleLanguage string
 }
 
+func (m *MediaItem) HasFile() bool {
+	return m.FilePath != ""
+}
+
+func (m *MediaItem) IsPlayable() bool {
+	return m.HasFile() && (m.Type == string(MovieItem) || m.Type == string(Episode) || m.Type == string(Track))
+}
+
 type MediaStream struct {
 	ID             string
 	MediaItemID    string

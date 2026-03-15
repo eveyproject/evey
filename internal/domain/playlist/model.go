@@ -40,3 +40,11 @@ type Rule struct {
 	Operator string `json:"operator"`
 	Value    string `json:"value"`
 }
+
+func (p *Playlist) IsOwner(userID string) bool {
+	return p.UserID == userID
+}
+
+func (p *Playlist) IsSmart() bool {
+	return p.Type == Smart
+}

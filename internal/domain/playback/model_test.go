@@ -2,9 +2,44 @@ package playback_test
 
 import (
 	"testing"
+	"time"
 
 	"github.com/gravity-zero/evey/internal/domain/playback"
 )
+
+func TestWatchProgress_IsInProgress(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name string
+		wp   playback.WatchProgress
+		want bool
+	}{
+		{"completed", playback.WatchProgress{Completed: true, PositionMs: 5000}, false},
+		{"position zero", playback.WatchProgress{Completed: false, PositionMs: 0}, false},
+		{"in progress", playback.WatchProgress{Completed: false, PositionMs: 5000}, true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			if got := tt.wp.IsInProgress(); got != tt.want {
+				t.Errorf("IsInProgress() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestPlaySession_IsActive(t *testing.T) {
+	t.Parallel()
+	active := &playback.PlaySession{}
+	if !active.IsActive() {
+		t.Error("session without EndedAt should be active")
+	}
+	now := time.Now()
+	ended := &playback.PlaySession{EndedAt: &now}
+	if ended.IsActive() {
+		t.Error("session with EndedAt should not be active")
+	}
+}
 
 func TestActiveSessionInfo_ProgressPercent(t *testing.T) {
 	t.Parallel()

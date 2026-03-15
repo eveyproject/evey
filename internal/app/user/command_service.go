@@ -132,7 +132,7 @@ func (s *CommandService) Login(ctx context.Context, username, password string) (
 	if err != nil {
 		return "", "", ErrInvalidCredentials
 	}
-	if !u.Enabled {
+	if !u.CanLogin() {
 		return "", "", ErrUserDisabled
 	}
 
@@ -202,7 +202,7 @@ func (s *CommandService) RefreshToken(ctx context.Context, token string) (string
 		return "", "", ErrInvalidCredentials
 	}
 
-	if time.Now().After(rt.ExpiresAt) {
+	if rt.IsExpired() {
 		if delErr := s.refreshTkns.DeleteByID(ctx, rt.ID); delErr != nil {
 			slog.Warn("delete refresh token failed", slog.String("tokenID", rt.ID), slog.Any("err", delErr))
 		}
@@ -438,10 +438,7 @@ func (s *CommandService) RegisterWithInvite(ctx context.Context, token, username
 	if err != nil {
 		return nil, ErrInviteInvalid
 	}
-	if invite.ExpiresAt != nil && time.Now().After(*invite.ExpiresAt) {
-		return nil, ErrInviteInvalid
-	}
-	if invite.MaxUses > 0 && invite.UsedCount >= invite.MaxUses {
+	if !invite.IsUsable() {
 		return nil, ErrInviteInvalid
 	}
 

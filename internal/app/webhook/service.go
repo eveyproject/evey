@@ -74,7 +74,7 @@ func (s *Service) handleAny(ctx context.Context, ev shared.Event) {
 		if !cfg.Enabled {
 			continue
 		}
-		if !matchesAny(cfg.Events, ev.EventName()) {
+		if !cfg.MatchesEvent(ev.EventName()) {
 			continue
 		}
 		select {
@@ -89,15 +89,6 @@ func (s *Service) handleAny(ctx context.Context, ev shared.Event) {
 			s.log.Warn("webhook: delivery queue full, dropping", slog.String("webhook", cfg.ID))
 		}
 	}
-}
-
-func matchesAny(patterns []string, name string) bool {
-	for _, p := range patterns {
-		if p == "*" || p == name {
-			return true
-		}
-	}
-	return false
 }
 
 func (s *Service) deliver(ctx context.Context, cfg *webhook.Config, eventName string, payload any) {

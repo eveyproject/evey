@@ -55,7 +55,7 @@ func (s *CommandService) StartStream(ctx context.Context, session *playback.Play
 		return fmt.Errorf("get user: %w", err)
 	}
 
-	if u.MaxStreams != nil && *u.MaxStreams > 0 {
+	if u.HasStreamsLimit() {
 		count, err := s.sessionQueries.CountActiveByUser(ctx, userID)
 		if err != nil {
 			return fmt.Errorf("count active: %w", err)

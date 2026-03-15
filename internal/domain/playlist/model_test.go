@@ -82,6 +82,29 @@ func TestPlaylist_ManualVsSmart(t *testing.T) {
 	})
 }
 
+func TestPlaylist_IsOwner(t *testing.T) {
+	t.Parallel()
+	p := &playlist.Playlist{UserID: "u1"}
+	if !p.IsOwner("u1") {
+		t.Error("owner should be recognized")
+	}
+	if p.IsOwner("u2") {
+		t.Error("non-owner should not be recognized")
+	}
+}
+
+func TestPlaylist_IsSmart(t *testing.T) {
+	t.Parallel()
+	manual := &playlist.Playlist{Type: playlist.Manual}
+	if manual.IsSmart() {
+		t.Error("manual playlist should not be smart")
+	}
+	smart := &playlist.Playlist{Type: playlist.Smart}
+	if !smart.IsSmart() {
+		t.Error("smart playlist should be smart")
+	}
+}
+
 func TestPlaylistItem_SortOrder(t *testing.T) {
 	t.Parallel()
 

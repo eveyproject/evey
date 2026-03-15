@@ -154,6 +154,75 @@ func TestNotification_Expiry(t *testing.T) {
 	})
 }
 
+func TestNotification_IsRead(t *testing.T) {
+	t.Parallel()
+	n := &notification.Notification{}
+	if n.IsRead() {
+		t.Error("should not be read")
+	}
+	readAt := time.Now()
+	n.ReadAt = &readAt
+	if !n.IsRead() {
+		t.Error("should be read")
+	}
+}
+
+func TestNotification_IsDelivered(t *testing.T) {
+	t.Parallel()
+	n := &notification.Notification{}
+	if n.IsDelivered() {
+		t.Error("should not be delivered")
+	}
+	d := time.Now()
+	n.DeliveredAt = &d
+	if !n.IsDelivered() {
+		t.Error("should be delivered")
+	}
+}
+
+func TestNotification_IsExpired_Method(t *testing.T) {
+	t.Parallel()
+	n := &notification.Notification{}
+	if n.IsExpired() {
+		t.Error("nil ExpiresAt = not expired")
+	}
+	past := time.Now().Add(-time.Minute)
+	n.ExpiresAt = &past
+	if !n.IsExpired() {
+		t.Error("past ExpiresAt = expired")
+	}
+	future := time.Now().Add(time.Hour)
+	n.ExpiresAt = &future
+	if n.IsExpired() {
+		t.Error("future ExpiresAt = not expired")
+	}
+}
+
+func TestSettings_LevelForType(t *testing.T) {
+	t.Parallel()
+	s := &notification.Settings{
+		MovieLevel:  notification.LevelAll,
+		SeriesLevel: notification.LevelRelevant,
+		MusicLevel:  notification.LevelDisabled,
+	}
+	tests := []struct {
+		typ  notification.Type
+		want notification.Level
+	}{
+		{notification.TypeNewMovie, notification.LevelAll},
+		{notification.TypeNewEpisode, notification.LevelRelevant},
+		{notification.TypeNewSeason, notification.LevelRelevant},
+		{notification.TypeNewSeries, notification.LevelRelevant},
+		{notification.TypeNewAlbum, notification.LevelDisabled},
+		{notification.TypeCustom, notification.LevelAll},
+	}
+	for _, tt := range tests {
+		if got := s.LevelForType(tt.typ); got != tt.want {
+			t.Errorf("LevelForType(%q) = %q, want %q", tt.typ, got, tt.want)
+		}
+	}
+}
+
 func TestSettings_Defaults(t *testing.T) {
 	t.Parallel()
 

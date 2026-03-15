@@ -67,7 +67,7 @@ func (s *Service) GetByID(ctx context.Context, id, userID string) (*playlist.Pla
 	if err != nil {
 		return nil, err
 	}
-	if pl.UserID != userID {
+	if !pl.IsOwner(userID) {
 		return nil, ErrNotOwner
 	}
 	return pl, nil
@@ -82,7 +82,7 @@ func (s *Service) Update(ctx context.Context, pl *playlist.Playlist, userID stri
 	if err != nil {
 		return err
 	}
-	if existing.UserID != userID {
+	if !existing.IsOwner(userID) {
 		return ErrNotOwner
 	}
 	pl.UserID = existing.UserID
@@ -97,7 +97,7 @@ func (s *Service) Delete(ctx context.Context, id, userID string) error {
 	if err != nil {
 		return err
 	}
-	if existing.UserID != userID {
+	if !existing.IsOwner(userID) {
 		return ErrNotOwner
 	}
 	return s.playlists.Delete(ctx, id)
@@ -108,10 +108,10 @@ func (s *Service) AddItem(ctx context.Context, playlistID, mediaItemID, userID s
 	if err != nil {
 		return err
 	}
-	if pl.UserID != userID {
+	if !pl.IsOwner(userID) {
 		return ErrNotOwner
 	}
-	if pl.Type == playlist.Smart {
+	if pl.IsSmart() {
 		return ErrSmartItems
 	}
 	if s.mediaChecker != nil {
@@ -149,10 +149,10 @@ func (s *Service) RemoveItem(ctx context.Context, playlistID, mediaItemID, userI
 	if err != nil {
 		return err
 	}
-	if pl.UserID != userID {
+	if !pl.IsOwner(userID) {
 		return ErrNotOwner
 	}
-	if pl.Type == playlist.Smart {
+	if pl.IsSmart() {
 		return ErrSmartItems
 	}
 	return s.items.Remove(ctx, playlistID, mediaItemID)
@@ -163,7 +163,7 @@ func (s *Service) ReorderItems(ctx context.Context, playlistID, userID string, m
 	if err != nil {
 		return err
 	}
-	if pl.UserID != userID {
+	if !pl.IsOwner(userID) {
 		return ErrNotOwner
 	}
 	return s.items.Reorder(ctx, playlistID, mediaItemIDs)
@@ -174,10 +174,10 @@ func (s *Service) GetItems(ctx context.Context, playlistID, userID string) ([]*l
 	if err != nil {
 		return nil, nil, err
 	}
-	if pl.UserID != userID {
+	if !pl.IsOwner(userID) {
 		return nil, nil, ErrNotOwner
 	}
-	if pl.Type == playlist.Smart {
+	if pl.IsSmart() {
 		var items []*library.MediaItem
 		items, err = s.smartQuerier.QueryByRules(ctx, pl.Rules, pl.SortBy, pl.SortOrder, maxItems)
 		return items, nil, err

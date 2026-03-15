@@ -41,6 +41,10 @@ type TranscodeJob struct {
 	DurationMs    *int64
 }
 
+func (j *TranscodeJob) IsTerminal() bool {
+	return j.Status == string(Completed) || j.Status == string(Failed) || j.Status == string(Cancelled)
+}
+
 type TranscodeProfile struct {
 	ID           string
 	Name         string

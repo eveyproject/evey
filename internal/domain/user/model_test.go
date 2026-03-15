@@ -279,6 +279,112 @@ func TestInviteLink_UsageTracking(t *testing.T) {
 	}
 }
 
+func TestUser_CanLogin(t *testing.T) {
+	t.Parallel()
+	if !((&user.User{Enabled: true}).CanLogin()) {
+		t.Error("enabled user should be able to login")
+	}
+	if (&user.User{Enabled: false}).CanLogin() {
+		t.Error("disabled user should not be able to login")
+	}
+}
+
+func TestUser_IsOIDCUser(t *testing.T) {
+	t.Parallel()
+	local := &user.User{ID: "u1"}
+	if local.IsOIDCUser() {
+		t.Error("local user should not be OIDC")
+	}
+	sub, iss := "sub", "iss"
+	oidc := &user.User{OIDCSubject: &sub, OIDCIssuer: &iss}
+	if !oidc.IsOIDCUser() {
+		t.Error("OIDC user should be recognized")
+	}
+}
+
+func TestUser_HasStreamsLimit(t *testing.T) {
+	t.Parallel()
+	u := &user.User{}
+	if u.HasStreamsLimit() {
+		t.Error("nil MaxStreams = no limit")
+	}
+	zero := 0
+	u.MaxStreams = &zero
+	if u.HasStreamsLimit() {
+		t.Error("zero MaxStreams = no limit")
+	}
+	n := 3
+	u.MaxStreams = &n
+	if !u.HasStreamsLimit() {
+		t.Error("positive MaxStreams = has limit")
+	}
+}
+
+func TestRefreshToken_IsValid(t *testing.T) {
+	t.Parallel()
+	valid := &user.RefreshToken{ExpiresAt: time.Now().Add(time.Hour), Used: false}
+	if !valid.IsValid() {
+		t.Error("fresh unexpired token should be valid")
+	}
+	expired := &user.RefreshToken{ExpiresAt: time.Now().Add(-time.Hour), Used: false}
+	if expired.IsValid() {
+		t.Error("expired token should not be valid")
+	}
+	used := &user.RefreshToken{ExpiresAt: time.Now().Add(time.Hour), Used: true}
+	if used.IsValid() {
+		t.Error("used token should not be valid")
+	}
+}
+
+func TestInviteLink_IsUsable(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name string
+		link user.InviteLink
+		want bool
+	}{
+		{"fresh unlimited", user.InviteLink{MaxUses: 0, UsedCount: 0}, true},
+		{"uses remaining", user.InviteLink{MaxUses: 5, UsedCount: 3}, true},
+		{"exhausted", user.InviteLink{MaxUses: 5, UsedCount: 5}, false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			if got := tt.link.IsUsable(); got != tt.want {
+				t.Errorf("IsUsable() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestAPIKeyModel_HasPermission(t *testing.T) {
+	t.Parallel()
+	k := &user.APIKeyModel{Permissions: []string{"library:read", "playback:start"}}
+	if !k.HasPermission("library:read") {
+		t.Error("should have library:read")
+	}
+	if k.HasPermission("admin:delete") {
+		t.Error("should not have admin:delete")
+	}
+	wildcard := &user.APIKeyModel{Permissions: []string{"*"}}
+	if !wildcard.HasPermission("anything") {
+		t.Error("wildcard should match any permission")
+	}
+}
+
+func TestAPIKeyModel_IsExpired(t *testing.T) {
+	t.Parallel()
+	k := &user.APIKeyModel{}
+	if k.IsExpired() {
+		t.Error("nil ExpiresAt = not expired")
+	}
+	past := time.Now().Add(-time.Hour)
+	k.ExpiresAt = &past
+	if !k.IsExpired() {
+		t.Error("past ExpiresAt = expired")
+	}
+}
+
 func TestRole_Permissions(t *testing.T) {
 	t.Parallel()
 

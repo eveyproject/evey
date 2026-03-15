@@ -51,6 +51,29 @@ func TestJobStatusConstants(t *testing.T) {
 	}
 }
 
+func TestTranscodeJob_IsTerminal(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		status string
+		want   bool
+	}{
+		{string(transcoding.Queued), false},
+		{string(transcoding.Running), false},
+		{string(transcoding.Completed), true},
+		{string(transcoding.Failed), true},
+		{string(transcoding.Cancelled), true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.status, func(t *testing.T) {
+			t.Parallel()
+			j := &transcoding.TranscodeJob{Status: tt.status}
+			if got := j.IsTerminal(); got != tt.want {
+				t.Errorf("IsTerminal() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
 func TestTranscodeProgress_PercentRange(t *testing.T) {
 	t.Parallel()
 

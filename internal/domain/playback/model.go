@@ -83,3 +83,11 @@ type StreamDetail struct {
 	Codec       string
 	Language    string
 }
+
+func (wp *WatchProgress) IsInProgress() bool {
+	return !wp.Completed && wp.PositionMs > 0
+}
+
+func (s *PlaySession) IsActive() bool {
+	return s.EndedAt == nil
+}

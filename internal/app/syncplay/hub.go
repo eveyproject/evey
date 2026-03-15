@@ -218,14 +218,7 @@ func (h *Hub) WSHandler(tokenValidator func(token string) (userID, username stri
 			http.Error(w, `{"message":"room not found"}`, http.StatusNotFound)
 			return
 		}
-		isMember := room.HostID == userID
-		for _, m := range room.Members {
-			if m.UserID == userID {
-				isMember = true
-				break
-			}
-		}
-		if !isMember {
+		if !room.IsMember(userID) {
 			slog.Warn("syncplay ws: non-member attempt", slog.String("user", userID), slog.String("room", roomID))
 			http.Error(w, `{"message":"forbidden"}`, http.StatusForbidden)
 			return

@@ -21,3 +21,12 @@ type Delivery struct {
 	Error      string
 	SentAt     time.Time
 }
+
+func (c *Config) MatchesEvent(eventName string) bool {
+	for _, p := range c.Events {
+		if p == "*" || p == eventName {
+			return true
+		}
+	}
+	return false
+}

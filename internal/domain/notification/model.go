@@ -54,3 +54,27 @@ type Settings struct {
 	SeriesLevel Level
 	MusicLevel  Level
 }
+
+func (n *Notification) IsRead() bool {
+	return n.ReadAt != nil
+}
+
+func (n *Notification) IsDelivered() bool {
+	return n.DeliveredAt != nil
+}
+
+func (n *Notification) IsExpired() bool {
+	return n.ExpiresAt != nil && time.Now().After(*n.ExpiresAt)
+}
+
+func (s *Settings) LevelForType(t Type) Level {
+	switch t {
+	case TypeNewMovie:
+		return s.MovieLevel
+	case TypeNewEpisode, TypeNewSeason, TypeNewSeries:
+		return s.SeriesLevel
+	case TypeNewAlbum:
+		return s.MusicLevel
+	}
+	return LevelAll
+}

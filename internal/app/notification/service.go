@@ -40,13 +40,5 @@ func typeAndTitle(mediaType, title, seriesTitle string) (notification.Type, stri
 }
 
 func levelForType(cfg *notification.Settings, t notification.Type) notification.Level {
-	switch t {
-	case notification.TypeNewMovie:
-		return cfg.MovieLevel
-	case notification.TypeNewEpisode, notification.TypeNewSeason, notification.TypeNewSeries:
-		return cfg.SeriesLevel
-	case notification.TypeNewAlbum:
-		return cfg.MusicLevel
-	}
-	return notification.LevelAll
+	return cfg.LevelForType(t)
 }

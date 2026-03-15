@@ -33,3 +33,19 @@ type SyncCommand struct {
 	RoomID     string `json:"roomId,omitempty"`
 	Playing    bool   `json:"playing,omitempty"`
 }
+
+func (r *Room) IsHost(userID string) bool {
+	return r.HostID == userID
+}
+
+func (r *Room) IsMember(userID string) bool {
+	if r.HostID == userID {
+		return true
+	}
+	for _, m := range r.Members {
+		if m.UserID == userID {
+			return true
+		}
+	}
+	return false
+}

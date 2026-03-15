@@ -157,6 +157,44 @@ func TestTrailer_UseSubtitles(t *testing.T) {
 	})
 }
 
+func TestMediaItem_HasFile(t *testing.T) {
+	t.Parallel()
+	noFile := &library.MediaItem{}
+	if noFile.HasFile() {
+		t.Error("empty FilePath = no file")
+	}
+	withFile := &library.MediaItem{FilePath: "/data/movie.mkv"}
+	if !withFile.HasFile() {
+		t.Error("non-empty FilePath = has file")
+	}
+}
+
+func TestMediaItem_IsPlayable(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name     string
+		typ      string
+		filePath string
+		want     bool
+	}{
+		{"movie with file", "movie", "/f.mkv", true},
+		{"episode with file", "episode", "/f.mkv", true},
+		{"track with file", "track", "/f.flac", true},
+		{"series (container)", "series", "", false},
+		{"season (container)", "season", "", false},
+		{"movie without file", "movie", "", false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			m := &library.MediaItem{Type: tt.typ, FilePath: tt.filePath}
+			if got := m.IsPlayable(); got != tt.want {
+				t.Errorf("IsPlayable() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
 func TestMediaItem_NilableFields(t *testing.T) {
 	t.Parallel()
 

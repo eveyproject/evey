@@ -105,3 +105,46 @@ type LibraryAccess struct {
 	LibraryID string
 	GrantedAt time.Time
 }
+
+func (u *User) IsOIDCUser() bool {
+	return u.OIDCSubject != nil && u.OIDCIssuer != nil
+}
+
+func (u *User) HasStreamsLimit() bool {
+	return u.MaxStreams != nil && *u.MaxStreams > 0
+}
+
+func (u *User) CanLogin() bool {
+	return u.Enabled
+}
+
+func (rt *RefreshToken) IsExpired() bool {
+	return time.Now().After(rt.ExpiresAt)
+}
+
+func (rt *RefreshToken) IsValid() bool {
+	return !rt.Used && !rt.IsExpired()
+}
+
+func (inv *InviteLink) IsUsable() bool {
+	if inv.ExpiresAt != nil && time.Now().After(*inv.ExpiresAt) {
+		return false
+	}
+	if inv.MaxUses > 0 && inv.UsedCount >= inv.MaxUses {
+		return false
+	}
+	return true
+}
+
+func (k *APIKeyModel) IsExpired() bool {
+	return k.ExpiresAt != nil && time.Now().After(*k.ExpiresAt)
+}
+
+func (k *APIKeyModel) HasPermission(perm string) bool {
+	for _, p := range k.Permissions {
+		if p == perm || p == "*" {
+			return true
+		}
+	}
+	return false
+}
