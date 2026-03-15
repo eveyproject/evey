@@ -2,11 +2,12 @@ package rating_test
 
 import (
 	"context"
+	"errors"
 	"testing"
 
 	apprating "github.com/gravity-zero/evey/internal/app/rating"
-	sharedfakes "github.com/gravity-zero/evey/internal/domain/shared/fakes"
 	"github.com/gravity-zero/evey/internal/domain/rating/fakes"
+	sharedfakes "github.com/gravity-zero/evey/internal/domain/shared/fakes"
 )
 
 func newSvc(t *testing.T) *apprating.Service {
@@ -18,9 +19,16 @@ func TestRate_ValidValues(t *testing.T) {
 	svc := newSvc(t)
 	ctx := context.Background()
 
-	for _, v := range []int{1, 2, 3, 4, 5} {
+	for _, v := range []int{1, 2, 3, 4, 5, 6, 7, 8, 9, 10} {
 		if err := svc.Rate(ctx, "media-1", "profile-1", v); err != nil {
 			t.Fatalf("Rate(%d): %v", v, err)
+		}
+		rt, err := svc.GetRating(ctx, "media-1", "profile-1")
+		if err != nil {
+			t.Fatalf("GetRating after Rate(%d): %v", v, err)
+		}
+		if rt == nil || rt.Value.Int() != v {
+			t.Fatalf("after Rate(%d), got value %+v", v, rt)
 		}
 	}
 }
@@ -221,5 +229,128 @@ func TestGetAggregates_EmptySlice(t *testing.T) {
 	}
 	if len(aggs) != 0 {
 		t.Fatalf("expected empty map, got %d entries", len(aggs))
+	}
+}
+
+func TestRate_RepoError(t *testing.T) {
+	repo := fakes.NewFakeRepository()
+	bus := sharedfakes.NewFakeEventBus()
+	svc := apprating.NewService(repo, bus)
+	ctx := context.Background()
+
+	repoErr := errors.New("db down")
+	repo.Err = repoErr
+	if err := svc.Rate(ctx, "m", "p", 5); !errors.Is(err, repoErr) {
+		t.Fatalf("expected repo error, got %v", err)
+	}
+	if len(bus.PublishedEvents()) != 0 {
+		t.Fatal("no event should be published on repo error")
+	}
+}
+
+func TestDeleteRating_RepoError(t *testing.T) {
+	repo := fakes.NewFakeRepository()
+	bus := sharedfakes.NewFakeEventBus()
+	svc := apprating.NewService(repo, bus)
+	ctx := context.Background()
+
+	repoErr := errors.New("db down")
+	repo.Err = repoErr
+	if err := svc.DeleteRating(ctx, "m", "p"); !errors.Is(err, repoErr) {
+		t.Fatalf("expected repo error, got %v", err)
+	}
+	if len(bus.PublishedEvents()) != 0 {
+		t.Fatal("no event should be published on repo error")
+	}
+}
+
+func TestGetRating_RepoError(t *testing.T) {
+	repo := fakes.NewFakeRepository()
+	bus := sharedfakes.NewFakeEventBus()
+	svc := apprating.NewService(repo, bus)
+	ctx := context.Background()
+
+	repoErr := errors.New("db down")
+	repo.Err = repoErr
+	_, err := svc.GetRating(ctx, "m", "p")
+	if !errors.Is(err, repoErr) {
+		t.Fatalf("expected repo error, got %v", err)
+	}
+}
+
+func TestGetAggregates_RepoError(t *testing.T) {
+	repo := fakes.NewFakeRepository()
+	bus := sharedfakes.NewFakeEventBus()
+	svc := apprating.NewService(repo, bus)
+	ctx := context.Background()
+
+	repoErr := errors.New("db down")
+	repo.Err = repoErr
+	_, err := svc.GetAggregates(ctx, []string{"m"})
+	if !errors.Is(err, repoErr) {
+		t.Fatalf("expected repo error, got %v", err)
+	}
+}
+
+func TestDeleteRating_NonExisting(t *testing.T) {
+	svc := newSvc(t)
+	ctx := context.Background()
+
+	if err := svc.DeleteRating(ctx, "no-such", "no-profile"); err != nil {
+		t.Fatalf("delete non-existing should not error, got %v", err)
+	}
+}
+
+func TestRate_BoundaryValues(t *testing.T) {
+	svc := newSvc(t)
+	ctx := context.Background()
+
+	if err := svc.Rate(ctx, "m", "p", 0); err == nil {
+		t.Fatal("Rate(0) should fail")
+	}
+	if err := svc.Rate(ctx, "m", "p", 1); err != nil {
+		t.Fatalf("Rate(1) should succeed: %v", err)
+	}
+	if err := svc.Rate(ctx, "m", "p", 10); err != nil {
+		t.Fatalf("Rate(10) should succeed: %v", err)
+	}
+	if err := svc.Rate(ctx, "m", "p", 11); err == nil {
+		t.Fatal("Rate(11) should fail")
+	}
+}
+
+func TestRate_EventContainsCorrectData(t *testing.T) {
+	bus := sharedfakes.NewFakeEventBus()
+	repo := fakes.NewFakeRepository()
+	svc := apprating.NewService(repo, bus)
+	ctx := context.Background()
+
+	if err := svc.Rate(ctx, "media-42", "profile-7", 8); err != nil {
+		t.Fatal(err)
+	}
+	events := bus.PublishedEvents()
+	if len(events) != 1 {
+		t.Fatalf("expected 1 event, got %d", len(events))
+	}
+	e := events[0]
+	if e.EventName() != "rating.media.rated" {
+		t.Fatalf("event name = %q", e.EventName())
+	}
+}
+
+func TestGetAggregates_SingleRating(t *testing.T) {
+	svc := newSvc(t)
+	ctx := context.Background()
+
+	svc.Rate(ctx, "m1", "p1", 7)
+	aggs, err := svc.GetAggregates(ctx, []string{"m1"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if aggs["m1"].Count != 1 {
+		t.Fatalf("count = %d, want 1", aggs["m1"].Count)
+	}
+	if aggs["m1"].Average != 7.0 {
+		t.Fatalf("avg = %f, want 7.0", aggs["m1"].Average)
 	}
 }
