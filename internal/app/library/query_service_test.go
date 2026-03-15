@@ -251,3 +251,168 @@ func TestQueryService_ListMediaItems_FilterByMinRating(t *testing.T) {
 	assert.Len(t, items, 1)
 	assert.Equal(t, "m2", items[0].ID)
 }
+
+func TestQueryService_GetLibrary_Found(t *testing.T) {
+	t.Parallel()
+	f := newQuerySvcFull()
+	f.libraries.Seed(&library.Library{ID: "lib-1", Name: "Movies", Type: "movie"})
+
+	lib, err := f.svc.GetLibrary(context.Background(), "lib-1")
+	require.NoError(t, err)
+	assert.Equal(t, "lib-1", lib.ID)
+	assert.Equal(t, "Movies", lib.Name)
+	assert.Equal(t, "movie", lib.Type)
+}
+
+func TestQueryService_ListLibraries_Empty(t *testing.T) {
+	t.Parallel()
+	f := newQuerySvcFull()
+	libs, err := f.svc.ListLibraries(context.Background())
+	require.NoError(t, err)
+	assert.Empty(t, libs)
+}
+
+func TestQueryService_ListLibraries_Multiple(t *testing.T) {
+	t.Parallel()
+	f := newQuerySvcFull()
+	f.libraries.Seed(&library.Library{ID: "lib-1", Name: "Movies", Type: "movie"})
+	f.libraries.Seed(&library.Library{ID: "lib-2", Name: "TV Shows", Type: "tvshow"})
+
+	libs, err := f.svc.ListLibraries(context.Background())
+	require.NoError(t, err)
+	assert.Len(t, libs, 2)
+	ids := []string{libs[0].ID, libs[1].ID}
+	assert.Contains(t, ids, "lib-1")
+	assert.Contains(t, ids, "lib-2")
+}
+
+func TestQueryService_GetMediaItem_Found(t *testing.T) {
+	t.Parallel()
+	f := newQuerySvcFull()
+	year := 2020
+	rating := 8.5
+	f.media.Seed(&library.MediaItem{
+		ID: "m1", Title: "Inception", Type: "movie",
+		LibraryID: "lib-1", Year: &year, CommunityRating: &rating,
+		Genres: []string{"sci-fi", "thriller"},
+	})
+
+	item, err := f.svc.GetMediaItem(context.Background(), "m1")
+	require.NoError(t, err)
+	assert.Equal(t, "m1", item.ID)
+	assert.Equal(t, "Inception", item.Title)
+	assert.Equal(t, "movie", item.Type)
+	assert.Equal(t, "lib-1", item.LibraryID)
+	assert.Equal(t, 2020, *item.Year)
+	assert.Equal(t, 8.5, *item.CommunityRating)
+	assert.Equal(t, []string{"sci-fi", "thriller"}, item.Genres)
+}
+
+func TestQueryService_GetMediaItem_NotFound(t *testing.T) {
+	t.Parallel()
+	f := newQuerySvcFull()
+	_, err := f.svc.GetMediaItem(context.Background(), "nonexistent")
+	require.Error(t, err)
+}
+
+func TestQueryService_GetCast_SingleItem(t *testing.T) {
+	t.Parallel()
+	f := newQuerySvcFull()
+	charName := "Bruce Wayne"
+	f.media.SeedCast("item-1", []library.CastMember{
+		{PersonID: "p1", PersonName: "Christian Bale", RoleType: "actor", CharacterName: &charName, SortOrder: 0},
+		{PersonID: "p2", PersonName: "Christopher Nolan", RoleType: "director", SortOrder: 1},
+	})
+
+	cast, err := f.svc.GetCast(context.Background(), "item-1")
+	require.NoError(t, err)
+	assert.Len(t, cast, 2)
+	assert.Equal(t, "Christian Bale", cast[0].PersonName)
+	assert.Equal(t, "actor", cast[0].RoleType)
+	assert.Equal(t, "Bruce Wayne", *cast[0].CharacterName)
+	assert.Equal(t, "Christopher Nolan", cast[1].PersonName)
+	assert.Equal(t, "director", cast[1].RoleType)
+}
+
+func TestQueryService_GetCast_NoCast(t *testing.T) {
+	t.Parallel()
+	f := newQuerySvcFull()
+	cast, err := f.svc.GetCast(context.Background(), "no-item")
+	require.NoError(t, err)
+	assert.Empty(t, cast)
+}
+
+func TestQueryService_GetMediaStreams_AssertStreamContent(t *testing.T) {
+	t.Parallel()
+	f := newQuerySvcFull()
+	width, height := 1920, 1080
+	channels := 6
+	f.streams.CreateBatch(context.Background(), []*library.MediaStream{
+		{ID: "s1", MediaItemID: "item-1", StreamType: "video", Codec: "hevc", Width: &width, Height: &height},
+		{ID: "s2", MediaItemID: "item-1", StreamType: "audio", Codec: "aac", Channels: &channels},
+	})
+
+	streams, err := f.svc.GetMediaStreams(context.Background(), "item-1")
+	require.NoError(t, err)
+	require.Len(t, streams, 2)
+	var video, audio *library.MediaStream
+	for _, s := range streams {
+		if s.StreamType == "video" {
+			video = s
+		} else {
+			audio = s
+		}
+	}
+	require.NotNil(t, video)
+	assert.Equal(t, "hevc", video.Codec)
+	assert.Equal(t, 1920, *video.Width)
+	assert.Equal(t, 1080, *video.Height)
+	require.NotNil(t, audio)
+	assert.Equal(t, "aac", audio.Codec)
+	assert.Equal(t, 6, *audio.Channels)
+}
+
+func TestQueryService_SearchMedia_HitContent(t *testing.T) {
+	t.Parallel()
+	f := newQuerySvcFull()
+	year := 2005
+	f.search.IndexMediaItem(context.Background(), &library.MediaItem{
+		ID: "m1", Title: "Batman Begins", Type: "movie",
+		Year: &year, Genres: []string{"action"}, OfficialRating: "PG-13",
+	}, nil)
+
+	hits, total, err := f.svc.SearchMedia(context.Background(), "batman", nil, 10)
+	require.NoError(t, err)
+	assert.Equal(t, int64(1), total)
+	require.Len(t, hits, 1)
+	assert.Equal(t, "m1", hits[0].ID)
+	assert.Equal(t, "Batman Begins", hits[0].Title)
+	assert.Equal(t, "movie", hits[0].Type)
+	assert.Equal(t, 2005, *hits[0].Year)
+	assert.Equal(t, []string{"action"}, hits[0].Genres)
+	assert.Equal(t, "PG-13", hits[0].OfficialRating)
+}
+
+func TestQueryService_ListMediaItems_AllNoFilter(t *testing.T) {
+	t.Parallel()
+	f := newQuerySvcFull()
+	f.media.Seed(&library.MediaItem{ID: "m1", Title: "A"})
+	f.media.Seed(&library.MediaItem{ID: "m2", Title: "B"})
+
+	items, err := f.svc.ListMediaItems(context.Background(), library.ListMediaItemsFilter{})
+	require.NoError(t, err)
+	assert.Len(t, items, 2)
+}
+
+func TestQueryService_CountMediaItems_FilterByParentID(t *testing.T) {
+	t.Parallel()
+	f := newQuerySvcFull()
+	parent := "series-1"
+	f.media.Seed(&library.MediaItem{ID: "ep1", ParentID: parent, Type: "episode"})
+	f.media.Seed(&library.MediaItem{ID: "ep2", ParentID: parent, Type: "episode"})
+	f.media.Seed(&library.MediaItem{ID: "ep3", ParentID: "series-2", Type: "episode"})
+
+	count, err := f.svc.CountMediaItems(context.Background(), library.ListMediaItemsFilter{ParentID: &parent})
+	require.NoError(t, err)
+	assert.Equal(t, 2, count)
+}
