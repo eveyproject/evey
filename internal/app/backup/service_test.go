@@ -3,11 +3,14 @@ package backup
 import (
 	"bytes"
 	"context"
+	"errors"
 	"io"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/gravity-zero/evey/internal/domain/backup/fakes"
+	"github.com/gravity-zero/evey/internal/pkg/backupcrypto"
 )
 
 func setup() (*Service, *fakes.FakeBackupStore, *fakes.FakeDatabaseDumper) {
@@ -164,5 +167,276 @@ func TestRestoreBackup(t *testing.T) {
 	}
 	if !bytes.Equal(dumper.Restored, input) {
 		t.Fatalf("expected restored data to match input")
+	}
+}
+
+func testKey() []byte {
+	k, _ := backupcrypto.KeyFromBase64("AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=")
+	return k
+}
+
+func TestCreateBackup_DumpError(t *testing.T) {
+	svc, _, dumper := setup()
+	dumper.Err = errors.New("db down")
+
+	_, err := svc.CreateBackup(context.Background())
+	if err == nil {
+		t.Fatal("expected error when dump fails")
+	}
+	if !strings.Contains(err.Error(), "db down") {
+		t.Fatalf("expected dump error, got %v", err)
+	}
+}
+
+func TestCreateBackup_StoreError(t *testing.T) {
+	store := fakes.NewFakeBackupStore()
+	dumper := fakes.NewFakeDatabaseDumper()
+	svc := NewService(store, dumper, "1.0.0")
+	store.Err = errors.New("disk full")
+
+	_, err := svc.CreateBackup(context.Background())
+	if err == nil {
+		t.Fatal("expected error when store fails")
+	}
+	if !strings.Contains(err.Error(), "disk full") {
+		t.Fatalf("expected store error, got %v", err)
+	}
+}
+
+func TestCreateBackup_MetadataFields(t *testing.T) {
+	svc, _, _ := setup()
+	before := time.Now().UTC().Add(-time.Second)
+
+	m, err := svc.CreateBackup(context.Background())
+	if err != nil {
+		t.Fatalf("CreateBackup: %v", err)
+	}
+	if !strings.HasPrefix(m.ID, "bk-") {
+		t.Errorf("expected ID prefix bk-, got %s", m.ID)
+	}
+	if m.CreatedAt.Before(before) {
+		t.Errorf("CreatedAt %v is before test start %v", m.CreatedAt, before)
+	}
+	if m.Encrypted {
+		t.Error("expected Encrypted=false without encryption key")
+	}
+	if len(m.Tables) != len(BackupTables) {
+		t.Errorf("expected %d tables, got %d", len(BackupTables), len(m.Tables))
+	}
+	for i, tbl := range m.Tables {
+		if tbl != BackupTables[i] {
+			t.Errorf("table[%d]: expected %s, got %s", i, BackupTables[i], tbl)
+		}
+	}
+}
+
+func TestCreateBackup_Encrypted(t *testing.T) {
+	store := fakes.NewFakeBackupStore()
+	dumper := fakes.NewFakeDatabaseDumper()
+	dumper.DumpData = []byte("plaintext dump")
+	svc := NewService(store, dumper, "1.0.0")
+	svc.WithEncryptionKey(testKey())
+
+	m, err := svc.CreateBackup(context.Background())
+	if err != nil {
+		t.Fatalf("CreateBackup: %v", err)
+	}
+	if !m.Encrypted {
+		t.Error("expected Encrypted=true")
+	}
+
+	_, rc, err := store.Get(context.Background(), m.ID)
+	if err != nil {
+		t.Fatalf("Get: %v", err)
+	}
+	defer rc.Close()
+	stored, _ := io.ReadAll(rc)
+
+	if bytes.Equal(stored, dumper.DumpData) {
+		t.Error("stored data should be encrypted, not plaintext")
+	}
+	if !backupcrypto.IsEncrypted(stored) {
+		t.Error("stored data should have encryption magic header")
+	}
+}
+
+func TestRestoreBackup_Encrypted(t *testing.T) {
+	store := fakes.NewFakeBackupStore()
+	dumper := fakes.NewFakeDatabaseDumper()
+	dumper.DumpData = []byte("secret dump data")
+	svc := NewService(store, dumper, "1.0.0")
+	svc.WithEncryptionKey(testKey())
+
+	m, err := svc.CreateBackup(context.Background())
+	if err != nil {
+		t.Fatalf("CreateBackup: %v", err)
+	}
+
+	_, rc, err := svc.GetBackup(context.Background(), m.ID)
+	if err != nil {
+		t.Fatalf("GetBackup: %v", err)
+	}
+	encData, _ := io.ReadAll(rc)
+	rc.Close()
+
+	dumper.Restored = nil
+	err = svc.RestoreBackup(context.Background(), bytes.NewReader(encData))
+	if err != nil {
+		t.Fatalf("RestoreBackup encrypted: %v", err)
+	}
+	if !bytes.Equal(dumper.Restored, dumper.DumpData) {
+		t.Fatalf("restored data should match original plaintext, got %q", dumper.Restored)
+	}
+}
+
+func TestRestoreBackup_EncryptedNoKey(t *testing.T) {
+	key := testKey()
+	plain := []byte("some data")
+	enc, err := backupcrypto.Encrypt(plain, key)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	svc, _, _ := setup() // no encryption key set
+	err = svc.RestoreBackup(context.Background(), bytes.NewReader(enc))
+	if err == nil {
+		t.Fatal("expected error restoring encrypted backup without key")
+	}
+	if !strings.Contains(err.Error(), "no EVEY_BACKUP_ENCRYPTION_KEY") {
+		t.Fatalf("expected missing key error, got %v", err)
+	}
+}
+
+func TestRestoreBackup_WrongKey(t *testing.T) {
+	key1 := testKey()
+	plain := []byte("secret")
+	enc, _ := backupcrypto.Encrypt(plain, key1)
+
+	key2, _ := backupcrypto.KeyFromBase64("BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB=")
+	svc, _, _ := setup()
+	svc.WithEncryptionKey(key2)
+
+	err := svc.RestoreBackup(context.Background(), bytes.NewReader(enc))
+	if err == nil {
+		t.Fatal("expected error decrypting with wrong key")
+	}
+}
+
+func TestRestoreBackup_DumperError(t *testing.T) {
+	svc, _, dumper := setup()
+	dumper.Err = errors.New("restore failed")
+
+	err := svc.RestoreBackup(context.Background(), bytes.NewReader([]byte("data")))
+	if err == nil {
+		t.Fatal("expected error when dumper fails")
+	}
+}
+
+func TestListBackups_Empty(t *testing.T) {
+	svc, _, _ := setup()
+
+	list, err := svc.ListBackups(context.Background())
+	if err != nil {
+		t.Fatalf("ListBackups: %v", err)
+	}
+	if len(list) != 0 {
+		t.Fatalf("expected 0 backups, got %d", len(list))
+	}
+}
+
+func TestListBackups_StoreError(t *testing.T) {
+	store := fakes.NewFakeBackupStore()
+	dumper := fakes.NewFakeDatabaseDumper()
+	svc := NewService(store, dumper, "1.0.0")
+	store.Err = errors.New("list failed")
+
+	_, err := svc.ListBackups(context.Background())
+	if err == nil {
+		t.Fatal("expected error from store")
+	}
+}
+
+func TestCleanupOldBackups_NegativeRetention(t *testing.T) {
+	svc, store, _ := setup()
+	ctx := context.Background()
+
+	m, _ := svc.CreateBackup(ctx)
+	store.SetCreatedAt(m.ID, time.Now().UTC().AddDate(0, 0, -999))
+
+	err := svc.CleanupOldBackups(ctx, -1)
+	if err != nil {
+		t.Fatalf("CleanupOldBackups(-1): %v", err)
+	}
+	list, _ := svc.ListBackups(ctx)
+	if len(list) != 1 {
+		t.Fatalf("expected negative retention to keep all, got %d", len(list))
+	}
+}
+
+func TestCleanupOldBackups_ListError(t *testing.T) {
+	store := fakes.NewFakeBackupStore()
+	dumper := fakes.NewFakeDatabaseDumper()
+	svc := NewService(store, dumper, "1.0.0")
+	store.Err = errors.New("list broken")
+
+	err := svc.CleanupOldBackups(context.Background(), 7)
+	if err == nil {
+		t.Fatal("expected error from store.List")
+	}
+}
+
+func TestStartScheduler_ZeroInterval(t *testing.T) {
+	svc, _, _ := setup()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	svc.StartScheduler(ctx, 0, 30)
+
+	list, _ := svc.ListBackups(ctx)
+	if len(list) != 0 {
+		t.Fatal("scheduler with interval=0 should not create backups")
+	}
+}
+
+func TestStartScheduler_NegativeInterval(t *testing.T) {
+	svc, _, _ := setup()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	svc.StartScheduler(ctx, -1, 30)
+
+	list, _ := svc.ListBackups(ctx)
+	if len(list) != 0 {
+		t.Fatal("scheduler with negative interval should not create backups")
+	}
+}
+
+func TestGetBackup_DataMatchesDump(t *testing.T) {
+	store := fakes.NewFakeBackupStore()
+	dumper := fakes.NewFakeDatabaseDumper()
+	dumper.DumpData = []byte("exact dump content")
+	svc := NewService(store, dumper, "1.0.0")
+
+	m, _ := svc.CreateBackup(context.Background())
+	_, rc, err := svc.GetBackup(context.Background(), m.ID)
+	if err != nil {
+		t.Fatalf("GetBackup: %v", err)
+	}
+	defer rc.Close()
+	data, _ := io.ReadAll(rc)
+	if !bytes.Equal(data, dumper.DumpData) {
+		t.Fatalf("expected stored data %q, got %q", dumper.DumpData, data)
+	}
+}
+
+func TestDeleteBackup_StoreError(t *testing.T) {
+	store := fakes.NewFakeBackupStore()
+	dumper := fakes.NewFakeDatabaseDumper()
+	svc := NewService(store, dumper, "1.0.0")
+	store.Err = errors.New("delete broken")
+
+	err := svc.DeleteBackup(context.Background(), "any-id")
+	if err == nil {
+		t.Fatal("expected error from store")
 	}
 }
