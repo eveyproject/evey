@@ -2,7 +2,6 @@ package fakes
 
 import (
 	"context"
-	"sync"
 
 	"github.com/gravity-zero/evey/internal/domain/library"
 )
@@ -11,7 +10,6 @@ import (
 type FakeCollectionRepository struct {
 	cmd   *FakeCollectionCommandRepo
 	query *FakeCollectionQueryRepo
-	mu    sync.RWMutex
 }
 
 func NewFakeCollectionRepository(mediaItems *FakeMediaItemRepository) *FakeCollectionRepository {
