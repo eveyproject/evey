@@ -187,6 +187,7 @@ interface PlayerControlsProps {
   onTheaterModeToggle?: () => void;
   onPanelOpenChange?: (anyOpen: boolean) => void;
   closePanelRef?: React.MutableRefObject<(() => void) | null>;
+  onActionFlash?: (action: "play" | "pause") => void;
 }
 
 function formatTime(seconds: number): string {
@@ -667,6 +668,7 @@ export function PlayerControls({
   onTheaterModeToggle,
   onPanelOpenChange,
   closePanelRef,
+  onActionFlash,
 }: PlayerControlsProps) {
   const [visible, setVisible] = useState(true);
   const [playing, setPlaying] = useState(false);
@@ -844,7 +846,6 @@ export function PlayerControls({
   }
 
   function handleOverlayClick(e: React.MouseEvent) {
-    // Ignore clicks on control buttons (bottom bar, top bar)
     if ((e.target as HTMLElement).closest("button, input, [data-controls]")) return;
     if (clickTimer.current) {
       clearTimeout(clickTimer.current);
@@ -853,8 +854,18 @@ export function PlayerControls({
     } else {
       clickTimer.current = setTimeout(() => {
         clickTimer.current = null;
+        const video = videoRef.current;
+        if (video) {
+          if (video.paused) {
+            void video.play();
+            onActionFlash?.("play");
+          } else {
+            video.pause();
+            onActionFlash?.("pause");
+          }
+        }
         resetHideTimer();
-      }, 250);
+      }, 200);
     }
   }
 
