@@ -1,9 +1,6 @@
 package playback
 
-import (
-	"context"
-	"time"
-)
+import "time"
 
 type PlaySessionFilter struct {
 	ProfileID *string
@@ -13,11 +10,8 @@ type PlaySessionFilter struct {
 	Offset    int
 }
 
-// PlaySessionRepository composes command+query + extra methods not split.
+// PlaySessionRepository composes command+query for adapters that implement both.
 type PlaySessionRepository interface {
 	SessionCommandRepo
 	SessionQueryRepo
-	GetActiveByProfile(ctx context.Context, profileID string) ([]*PlaySession, error)
-	ListActiveSessions(ctx context.Context) ([]*ActiveSessionInfo, error)
-	GetHistory(ctx context.Context, filter PlaySessionFilter) ([]*PlaySession, error)
 }

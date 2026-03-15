@@ -8,10 +8,10 @@ import (
 
 type QueryService struct {
 	progress playback.ProgressQueryRepo
-	sessions playback.PlaySessionRepository
+	sessions playback.SessionQueryRepo
 }
 
-func NewQueryService(progress playback.ProgressQueryRepo, sessions ...playback.PlaySessionRepository) *QueryService {
+func NewQueryService(progress playback.ProgressQueryRepo, sessions ...playback.SessionQueryRepo) *QueryService {
 	q := &QueryService{progress: progress}
 	if len(sessions) > 0 {
 		q.sessions = sessions[0]
