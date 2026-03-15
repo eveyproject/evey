@@ -70,13 +70,6 @@ func WithNetworkType(ctx context.Context, nt NetworkType) context.Context {
 	return context.WithValue(ctx, contextKey{}, nt)
 }
 
-func GetNetworkType(ctx context.Context) NetworkType {
-	if nt, ok := ctx.Value(contextKey{}).(NetworkType); ok {
-		return nt
-	}
-	return LAN
-}
-
 func NetworkInterfaces() ([]InterfaceInfo, error) {
 	ifaces, err := net.Interfaces()
 	if err != nil {

@@ -178,31 +178,6 @@ func (r *CollectionRepository) CountItems(ctx context.Context, collectionID stri
 	return count, err
 }
 
-var validSortCols = map[string]string{
-	"title": "title", "sort_title": "sort_title", "added_at": "added_at",
-	"year": "year", "premiere_date": "premiere_date", "community_rating": "community_rating",
-}
-
-var validSortDirs = map[string]string{
-	"asc": "ASC", "desc": "DESC",
-}
-
-// SafeSortCol returns a safe column name from the allowlist (default: sort_title).
-func SafeSortCol(col string) string {
-	if v, ok := validSortCols[strings.ToLower(col)]; ok {
-		return v
-	}
-	return "sort_title"
-}
-
-// SafeSortDir returns "ASC" or "DESC" (default: ASC).
-func SafeSortDir(dir string) string {
-	if v, ok := validSortDirs[strings.ToLower(dir)]; ok {
-		return v
-	}
-	return "ASC"
-}
-
 func (r *CollectionRepository) queryMediaItems(ctx context.Context, query string, args ...any) ([]*library.MediaItem, error) {
 	rows, err := r.db.QueryContext(ctx, query, args...)
 	if err != nil {

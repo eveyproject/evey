@@ -72,14 +72,10 @@ func TestDetector_InvalidCIDR(t *testing.T) {
 	}
 }
 
-func TestContextRoundtrip(t *testing.T) {
-	ctx := context.Background()
-	if got := GetNetworkType(ctx); got != LAN {
-		t.Errorf("default should be LAN, got %s", got)
-	}
-	ctx = WithNetworkType(ctx, WAN)
-	if got := GetNetworkType(ctx); got != WAN {
-		t.Errorf("expected WAN, got %s", got)
+func TestWithNetworkType_Roundtrip(t *testing.T) {
+	ctx := WithNetworkType(context.Background(), WAN)
+	if nt, ok := ctx.Value(contextKey{}).(NetworkType); !ok || nt != WAN {
+		t.Errorf("expected WAN in context, got %v", nt)
 	}
 }
 

@@ -9,7 +9,6 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
-	"net/http"
 	"strings"
 	"time"
 
@@ -99,30 +98,6 @@ func (s *OIDCService) EndSessionEndpoint() string {
 		return ""
 	}
 	return claims.EndSessionEndpoint
-}
-
-// Ping fetches the OIDC discovery document and verifies the issuer matches config.
-// It uses a 10-second timeout regardless of the parent context deadline.
-// Returns an error if the provider is unreachable or the issuer does not match.
-func (s *OIDCService) Ping(ctx context.Context) error {
-	pingCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
-	defer cancel()
-
-	ctx2 := gooidc.ClientContext(pingCtx, &http.Client{Timeout: 10 * time.Second})
-	p, err := gooidc.NewProvider(ctx2, s.issuer)
-	if err != nil {
-		return fmt.Errorf("oidc ping: discovery fetch failed: %w", err)
-	}
-	var claims struct {
-		Issuer string `json:"issuer"`
-	}
-	if err := p.Claims(&claims); err != nil {
-		return fmt.Errorf("oidc ping: parse claims: %w", err)
-	}
-	if claims.Issuer != s.issuer {
-		return fmt.Errorf("oidc ping: issuer mismatch: got %q, want %q", claims.Issuer, s.issuer)
-	}
-	return nil
 }
 
 // AuthURL returns the authorization URL. state is a random nonce from the caller.

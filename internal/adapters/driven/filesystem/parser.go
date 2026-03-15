@@ -89,12 +89,7 @@ type ParsedInfo struct {
 
 type FilenameParser struct{}
 
-func NewFilenameParser() *FilenameParser {
-	return &FilenameParser{}
-}
-
 // SplitFilename splits a video filename into tokens using all common separators.
-// Mirrors normalize_video's SplitFilename: includes hyphen, colon, comma, etc.
 func SplitFilename(filename string) []string {
 	return strings.FieldsFunc(filename, func(r rune) bool {
 		return r == ',' || r == ';' || r == '.' || r == ':' ||
@@ -103,6 +98,10 @@ func SplitFilename(filename string) []string {
 }
 
 func (p *FilenameParser) Parse(filename string) ParsedInfo {
+	return ParseFilename(filename)
+}
+
+func ParseFilename(filename string) ParsedInfo {
 	base := filepath.Base(filename)
 	ext := filepath.Ext(base)
 	name := strings.TrimSuffix(base, ext)

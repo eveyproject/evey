@@ -69,10 +69,6 @@ func newSearchAdapterFromClient(ctx context.Context, client ServiceClient) (*Sea
 	return &SearchAdapter{index: idx}, nil
 }
 
-func newSearchAdapterWithIndex(index IndexClient) *SearchAdapter {
-	return &SearchAdapter{index: index}
-}
-
 type mediaDocument struct {
 	ID            string   `json:"id"`
 	Title         string   `json:"title"`
