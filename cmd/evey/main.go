@@ -64,10 +64,10 @@ func run() error {
 		}
 	}
 
-	startMetricsCollector(ctx, db, deps.hlsManager, deps.mediaItemRepo)
+	startMetricsCollector(ctx, db, deps.media.hlsManager, deps.repos.mediaItemRepo)
 
 	grpcSrv := buildGRPCServer(deps, cfg, rootLog, logCfg.Dir)
-	defer deps.hlsManager.CleanupAll()
+	defer deps.media.hlsManager.CleanupAll()
 
 	grpcAddr := fmt.Sprintf(":%d", cfg.Server.Port)
 	httpPort := cfg.Server.Port + 1
@@ -88,12 +88,12 @@ func run() error {
 		}
 	}
 
-	deps.notifCmdSvc.Start(ctx)
-	deps.notifCmdSvc.StartCleanup(ctx)
-	deps.userCmdSvc.StartCleanup(ctx)
-	deps.playbackSvc.CommandService().StartCleanup(ctx)
+	deps.engagement.notifCmdSvc.Start(ctx)
+	deps.engagement.notifCmdSvc.StartCleanup(ctx)
+	deps.user.cmdSvc.StartCleanup(ctx)
+	deps.media.playbackSvc.CommandService().StartCleanup(ctx)
 	deps.backupSvc.StartScheduler(ctx, cfg.Backup.IntervalHours, cfg.Backup.RetentionDays)
-	go deps.libScheduler.Run(ctx)
+	go deps.library.scheduler.Run(ctx)
 
 	errCh := make(chan error, 2)
 	go func() {

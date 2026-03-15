@@ -46,40 +46,62 @@ import (
 	appsyncplay "github.com/gravity-zero/evey/internal/app/syncplay"
 )
 
-// appDeps holds all application-level services and adapters needed by HTTP/gRPC layers.
-type appDeps struct {
-	libCmdSvc        *applibrary.CommandService
-	libQuerySvc      *applibrary.QueryService
-	libScheduler     *applibrary.Scheduler
-	userCmdSvc       *appuser.CommandService
-	userQuerySvc     *appuser.QueryService
-	oidcSvc          *appuser.OIDCService
-	playbackSvc      *appplayback.Service
-	transcodingSvc   *apptranscoding.Service
-	mkvSvc           *appmkv.Service
-	collectionSvc    *appcollection.Service
+// libraryDeps groups library scanning, querying and scheduling services.
+type libraryDeps struct {
+	cmdSvc    *applibrary.CommandService
+	querySvc  *applibrary.QueryService
+	scheduler *applibrary.Scheduler
+}
+
+// userDeps groups user/auth services.
+type userDeps struct {
+	cmdSvc   *appuser.CommandService
+	querySvc *appuser.QueryService
+	oidcSvc  *appuser.OIDCService
+}
+
+// mediaDeps groups playback, transcoding, and media-format services.
+type mediaDeps struct {
+	playbackSvc    *appplayback.Service
+	transcodingSvc *apptranscoding.Service
+	hlsManager     *apptranscoding.HLSManager
+	mkvSvc         *appmkv.Service
+	musicSvc       *appmusic.Service
+	photoSvc       *appphoto.Service
+	subtitleSvc    *appsubtitle.Service
+	syncPlayHub    *appsyncplay.Hub
+}
+
+// contentDeps groups content-organisation services (metadata, collections, ratings).
+type contentDeps struct {
 	metadataCmdSvc   *appmetadata.CommandService
 	metadataQuerySvc *appmetadata.QueryService
+	collectionSvc    *appcollection.Service
+	favoriteSvc      *appfavorite.Service
+	starRatingSvc    *apprating.Service
+	playlistSvc      *appplaylist.Service
+}
+
+// engagementDeps groups activity, notifications, feeds, webhooks and plugins.
+type engagementDeps struct {
 	activityCmdSvc   *appactivity.CommandService
 	activityQuerySvc *appactivity.QueryService
-	pluginSvc        *appplugin.Service
-	webhookSvc       *appwebhook.Service
 	notifCmdSvc      *appnotification.CommandService
 	notifQuerySvc    *appnotification.QueryService
 	feedCmdSvc       *appfeed.CommandService
 	feedQuerySvc     *appfeed.QueryService
-	favoriteSvc      *appfavorite.Service
-	photoSvc         *appphoto.Service
-	starRatingSvc    *apprating.Service
-	musicSvc         *appmusic.Service
-	playlistSvc      *appplaylist.Service
-	subtitleSvc      *appsubtitle.Service
-	backupSvc        *appbackup.Service
-	syncPlayHub      *appsyncplay.Hub
+	webhookSvc       *appwebhook.Service
+	pluginSvc        *appplugin.Service
+}
 
-	tokenGen          *auth.JWTGenerator
-	cfgStore          *httpapi.ServerConfigStore
-	hlsManager        *apptranscoding.HLSManager
+// authDeps groups authentication infrastructure.
+type authDeps struct {
+	tokenGen *auth.JWTGenerator
+	hasher   auth.BcryptHasher
+}
+
+// repoDeps groups repository adapters used directly by HTTP/gRPC layers.
+type repoDeps struct {
 	artworkRepo       *postgres.ArtworkRepository
 	userRatingRepo    *postgres.UserRatingRepository
 	fcmTokenRepo      *postgres.FCMDeviceTokenRepository
@@ -89,7 +111,19 @@ type appDeps struct {
 	mediaItemRepo     *postgres.MediaItemRepository
 	userRepo          *postgres.UserRepository
 	apiKeyRepo        *postgres.APIKeyRepository
-	hasher            auth.BcryptHasher
+}
+
+// appDeps holds all application-level services and adapters needed by HTTP/gRPC layers.
+type appDeps struct {
+	library    libraryDeps
+	user       userDeps
+	media      mediaDeps
+	content    contentDeps
+	engagement engagementDeps
+	auth       authDeps
+	repos      repoDeps
+	cfgStore   *httpapi.ServerConfigStore
+	backupSvc  *appbackup.Service
 }
 
 // buildServices constructs all repos, infrastructure adapters, and application services.
@@ -264,47 +298,61 @@ func buildServices(ctx context.Context, cfg *config.Config, db *sql.DB, rootLog 
 	syncPlayHub := appsyncplay.NewHub(postgres.NewSyncPlayRoomRepo(db))
 
 	return &appDeps{
-		libCmdSvc:        libCmdSvc,
-		libQuerySvc:      libQuerySvc,
-		libScheduler:     libScheduler,
-		userCmdSvc:       userCmdSvc,
-		userQuerySvc:     userQuerySvc,
-		oidcSvc:          oidcSvc,
-		playbackSvc:      playbackSvc,
-		transcodingSvc:   transcodingSvc,
-		mkvSvc:           mkvSvc,
-		collectionSvc:    collectionSvc,
-		metadataCmdSvc:   metadataCmdSvc,
-		metadataQuerySvc: metadataQuerySvc,
-		activityCmdSvc:   activityCmdSvc,
-		activityQuerySvc: activityQuerySvc,
-		pluginSvc:        pluginSvc,
-		webhookSvc:       webhookSvc,
-		notifCmdSvc:      notifCmdSvc,
-		notifQuerySvc:    notifQuerySvc,
-		feedCmdSvc:       feedCmdSvc,
-		feedQuerySvc:     feedQuerySvc,
-		favoriteSvc:      favoriteSvc,
-		photoSvc:         photoSvc,
-		starRatingSvc:    starRatingSvc,
-		musicSvc:         musicSvc,
-		playlistSvc:      playlistSvc,
-		subtitleSvc:      subtitleSvc,
-		backupSvc:        backupSvc,
-		syncPlayHub:      syncPlayHub,
-		tokenGen:         tokenGen,
-		cfgStore:         httpapi.NewServerConfigStore(r.ServerCfg),
-		hlsManager:       apptranscoding.NewHLSManager(cfg.Transcoding.CacheDir+"/hls", cfg.Transcoding.MaxConcurrent),
-		artworkRepo:       r.Artwork,
-		userRatingRepo:    r.UserRating,
-		fcmTokenRepo:      r.FCMToken,
-		libraryAccessRepo: r.LibraryAccess,
-		profileRepo:       r.Profile,
-		serverCfgRepo:     r.ServerCfg,
-		mediaItemRepo:     r.MediaItem,
-		userRepo:          r.User,
-		apiKeyRepo:        r.APIKey,
-		hasher:            hasher,
+		library: libraryDeps{
+			cmdSvc:    libCmdSvc,
+			querySvc:  libQuerySvc,
+			scheduler: libScheduler,
+		},
+		user: userDeps{
+			cmdSvc:   userCmdSvc,
+			querySvc: userQuerySvc,
+			oidcSvc:  oidcSvc,
+		},
+		media: mediaDeps{
+			playbackSvc:    playbackSvc,
+			transcodingSvc: transcodingSvc,
+			hlsManager:     apptranscoding.NewHLSManager(cfg.Transcoding.CacheDir+"/hls", cfg.Transcoding.MaxConcurrent),
+			mkvSvc:         mkvSvc,
+			musicSvc:       musicSvc,
+			photoSvc:       photoSvc,
+			subtitleSvc:    subtitleSvc,
+			syncPlayHub:    syncPlayHub,
+		},
+		content: contentDeps{
+			metadataCmdSvc:   metadataCmdSvc,
+			metadataQuerySvc: metadataQuerySvc,
+			collectionSvc:    collectionSvc,
+			favoriteSvc:      favoriteSvc,
+			starRatingSvc:    starRatingSvc,
+			playlistSvc:      playlistSvc,
+		},
+		engagement: engagementDeps{
+			activityCmdSvc:   activityCmdSvc,
+			activityQuerySvc: activityQuerySvc,
+			notifCmdSvc:      notifCmdSvc,
+			notifQuerySvc:    notifQuerySvc,
+			feedCmdSvc:       feedCmdSvc,
+			feedQuerySvc:     feedQuerySvc,
+			webhookSvc:       webhookSvc,
+			pluginSvc:        pluginSvc,
+		},
+		auth: authDeps{
+			tokenGen: tokenGen,
+			hasher:   hasher,
+		},
+		repos: repoDeps{
+			artworkRepo:       r.Artwork,
+			userRatingRepo:    r.UserRating,
+			fcmTokenRepo:      r.FCMToken,
+			libraryAccessRepo: r.LibraryAccess,
+			profileRepo:       r.Profile,
+			serverCfgRepo:     r.ServerCfg,
+			mediaItemRepo:     r.MediaItem,
+			userRepo:          r.User,
+			apiKeyRepo:        r.APIKey,
+		},
+		cfgStore:  httpapi.NewServerConfigStore(r.ServerCfg),
+		backupSvc: backupSvc,
 	}, nil
 }
 

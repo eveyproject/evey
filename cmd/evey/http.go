@@ -28,7 +28,7 @@ func buildHTTPHandler(gwMux http.Handler, deps *appDeps, cfg *config.Config, sta
 	}()
 
 	audioNormalizeGetter := func(ctx context.Context) bool {
-		entry, err := deps.serverCfgRepo.Get(ctx, "transcode.audio_normalize")
+		entry, err := deps.repos.serverCfgRepo.Get(ctx, "transcode.audio_normalize")
 		return err == nil && entry.Value == "true"
 	}
 
@@ -39,51 +39,51 @@ func buildHTTPHandler(gwMux http.Handler, deps *appDeps, cfg *config.Config, sta
 		LogDir:    logDir,
 		HTTPSOnly: cfg.Server.ForwardedProto,
 
-		TokenGen: deps.tokenGen,
+		TokenGen: deps.auth.tokenGen,
 		Cfg:      cfg,
 
-		LibCmdSvc:   deps.libCmdSvc,
-		LibQuerySvc: deps.libQuerySvc,
-		Scheduler:   deps.libScheduler,
+		LibCmdSvc:   deps.library.cmdSvc,
+		LibQuerySvc: deps.library.querySvc,
+		Scheduler:   deps.library.scheduler,
 
-		UserCmdSvc:   deps.userCmdSvc,
-		UserQuerySvc: deps.userQuerySvc,
-		OIDCSvc:      deps.oidcSvc,
+		UserCmdSvc:   deps.user.cmdSvc,
+		UserQuerySvc: deps.user.querySvc,
+		OIDCSvc:      deps.user.oidcSvc,
 
-		PlaybackSvc: deps.playbackSvc,
+		PlaybackSvc: deps.media.playbackSvc,
 
-		TranscodingSvc: deps.transcodingSvc,
-		HLSManager:     deps.hlsManager,
+		TranscodingSvc: deps.media.transcodingSvc,
+		HLSManager:     deps.media.hlsManager,
 
-		MetadataCmdSvc:   deps.metadataCmdSvc,
-		MetadataQuerySvc: deps.metadataQuerySvc,
+		MetadataCmdSvc:   deps.content.metadataCmdSvc,
+		MetadataQuerySvc: deps.content.metadataQuerySvc,
 
-		ActivityQuerySvc: deps.activityQuerySvc,
+		ActivityQuerySvc: deps.engagement.activityQuerySvc,
 
-		CollectionSvc: deps.collectionSvc,
-		PlaylistSvc:   deps.playlistSvc,
-		FavoriteSvc:   deps.favoriteSvc,
+		CollectionSvc: deps.content.collectionSvc,
+		PlaylistSvc:   deps.content.playlistSvc,
+		FavoriteSvc:   deps.content.favoriteSvc,
 
-		MusicSvc: deps.musicSvc,
+		MusicSvc: deps.media.musicSvc,
 
-		UserRatingRepo: deps.userRatingRepo,
-		StarRatingSvc:  deps.starRatingSvc,
+		UserRatingRepo: deps.repos.userRatingRepo,
+		StarRatingSvc:  deps.content.starRatingSvc,
 
-		PhotoSvc: deps.photoSvc,
+		PhotoSvc: deps.media.photoSvc,
 
-		SyncPlayHub: deps.syncPlayHub,
+		SyncPlayHub: deps.media.syncPlayHub,
 
-		SubtitleSvc: deps.subtitleSvc,
+		SubtitleSvc: deps.media.subtitleSvc,
 
 		BackupSvc: deps.backupSvc,
 
-		FCMTokenRepo: deps.fcmTokenRepo,
+		FCMTokenRepo: deps.repos.fcmTokenRepo,
 
-		ArtworkRepo:       deps.artworkRepo,
-		LibraryAccessRepo: deps.libraryAccessRepo,
-		ServerCfgRepo:     deps.serverCfgRepo,
-		ProfileRepo:       deps.profileRepo,
-		Hasher:            deps.hasher,
+		ArtworkRepo:       deps.repos.artworkRepo,
+		LibraryAccessRepo: deps.repos.libraryAccessRepo,
+		ServerCfgRepo:     deps.repos.serverCfgRepo,
+		ProfileRepo:       deps.repos.profileRepo,
+		Hasher:            deps.auth.hasher,
 
 		CfgStore:  deps.cfgStore,
 		ServerCtx: ctx,
@@ -93,8 +93,8 @@ func buildHTTPHandler(gwMux http.Handler, deps *appDeps, cfg *config.Config, sta
 		AdminHeavyRL: adminHeavyRL,
 
 		AudioNormalizeGetter: audioNormalizeGetter,
-		UserMaxStreams:        httpapi.NewUserMaxStreamsAdapter(deps.userRepo),
-		UserBitrate:          httpapi.NewUserBitrateAdapter(deps.userQuerySvc),
+		UserMaxStreams:        httpapi.NewUserMaxStreamsAdapter(deps.repos.userRepo),
+		UserBitrate:          httpapi.NewUserBitrateAdapter(deps.user.querySvc),
 	}
 
 	srv.RegisterRoutes(mux, gwMux)

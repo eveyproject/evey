@@ -12,17 +12,17 @@ import (
 )
 
 func buildGRPCServer(deps *appDeps, cfg *config.Config, rootLog *slog.Logger, logDir string) *grpcapi.GRPCServer {
-	authInterceptor := interceptors.NewAuthInterceptor(deps.tokenGen).WithAPIKeys(deps.apiKeyRepo, deps.userRepo)
+	authInterceptor := interceptors.NewAuthInterceptor(deps.auth.tokenGen).WithAPIKeys(deps.repos.apiKeyRepo, deps.repos.userRepo)
 	grpcLog := eveylogger.NewWith(rootLog, "grpc")
 	grpcSrv := grpcapi.NewGRPCServer(
-		deps.libCmdSvc, deps.libQuerySvc, deps.userCmdSvc, deps.userQuerySvc,
-		deps.playbackSvc.CommandService(), deps.playbackSvc.QueryService(),
-		deps.transcodingSvc,
-		deps.mkvSvc, deps.pluginSvc, deps.metadataCmdSvc, deps.metadataQuerySvc,
-		deps.activityCmdSvc, deps.activityQuerySvc,
-		deps.notifCmdSvc, deps.notifQuerySvc, deps.feedCmdSvc, deps.feedQuerySvc, deps.webhookSvc,
-		deps.collectionSvc, deps.playlistSvc, deps.favoriteSvc,
-		deps.userRepo, deps.profileRepo, deps.libraryAccessRepo,
+		deps.library.cmdSvc, deps.library.querySvc, deps.user.cmdSvc, deps.user.querySvc,
+		deps.media.playbackSvc.CommandService(), deps.media.playbackSvc.QueryService(),
+		deps.media.transcodingSvc,
+		deps.media.mkvSvc, deps.engagement.pluginSvc, deps.content.metadataCmdSvc, deps.content.metadataQuerySvc,
+		deps.engagement.activityCmdSvc, deps.engagement.activityQuerySvc,
+		deps.engagement.notifCmdSvc, deps.engagement.notifQuerySvc, deps.engagement.feedCmdSvc, deps.engagement.feedQuerySvc, deps.engagement.webhookSvc,
+		deps.content.collectionSvc, deps.content.playlistSvc, deps.content.favoriteSvc,
+		deps.repos.userRepo, deps.repos.profileRepo, deps.repos.libraryAccessRepo,
 		deps.backupSvc, cfg, deps.cfgStore,
 		version,
 		grpc.ChainUnaryInterceptor(
@@ -38,10 +38,10 @@ func buildGRPCServer(deps *appDeps, cfg *config.Config, rootLog *slog.Logger, lo
 			authInterceptor.Stream(),
 		),
 	)
-	grpcSrv.SetHLSManager(deps.hlsManager)
-	grpcSrv.SetScheduler(deps.libScheduler)
+	grpcSrv.SetHLSManager(deps.media.hlsManager)
+	grpcSrv.SetScheduler(deps.library.scheduler)
 	grpcSrv.SetLogDir(logDir)
-	grpcSrv.SetServerConfigHandler(grpcapi.NewServerConfigHandler(deps.serverCfgRepo))
+	grpcSrv.SetServerConfigHandler(grpcapi.NewServerConfigHandler(deps.repos.serverCfgRepo))
 	grpcSrv.RegisterServices()
 	return grpcSrv
 }
