@@ -17,89 +17,19 @@ import (
 
 type claimsKey struct{}
 
-var publicMethods = map[string]bool{
-	"/evey.v1.UserService/Login":               true,
-	"/evey.v1.UserService/RefreshToken":        true,
-	"/evey.v1.UserService/RegisterWithInvite":  true,
-	"/evey.v1.AdminService/SetupWizard":        true,
-	"/evey.v1.UserService/InitiateQuickConnect": true,
-	"/evey.v1.UserService/CheckQuickConnect":   true,
-}
-
-var adminOnlyMethods = map[string]bool{
-	"/evey.v1.AdminService/GetSystemInfo":                           true,
-	"/evey.v1.AdminService/GetServerConfig":                         true,
-	"/evey.v1.AdminService/UpdateServerConfig":                      true,
-	"/evey.v1.AdminService/GetDashboard":                            true,
-	"/evey.v1.AdminService/ListScheduledTasks":                      true,
-	"/evey.v1.AdminService/UpdateScheduledTask":                     true,
-	"/evey.v1.AdminService/RunScheduledTask":                        true,
-	"/evey.v1.AdminService/GetAuditLog":                             true,
-	"/evey.v1.AdminService/ListPluginRuntimes":                      true,
-	"/evey.v1.AdminService/AddPluginRuntime":                        true,
-	"/evey.v1.AdminService/RemovePluginRuntime":                     true,
-	"/evey.v1.AdminService/InstallPlugin":                           true,
-	"/evey.v1.AdminService/UninstallPlugin":                         true,
-	"/evey.v1.AdminService/EnablePlugin":                            true,
-	"/evey.v1.AdminService/DisablePlugin":                           true,
-	"/evey.v1.AdminService/ListPlugins":                             true,
-	"/evey.v1.AdminService/GetPluginConfig":                         true,
-	"/evey.v1.AdminService/UpdatePluginConfig":                      true,
-	"/evey.v1.AdminService/GetPluginLogs":                           true,
-	"/evey.v1.WebhookService/CreateWebhook":                         true,
-	"/evey.v1.WebhookService/ListWebhooks":                          true,
-	"/evey.v1.WebhookService/UpdateWebhook":                         true,
-	"/evey.v1.WebhookService/DeleteWebhook":                         true,
-	"/evey.v1.WebhookService/ListWebhookDeliveries":                 true,
-	"/evey.v1.UserService/CreateUser":                               true,
-	"/evey.v1.UserService/DeleteUser":                               true,
-	"/evey.v1.UserService/DisableUser":                              true,
-	"/evey.v1.UserService/ListUsers":                                true,
-	"/evey.v1.LibraryService/CreateLibrary":                         true,
-	"/evey.v1.LibraryService/DeleteLibrary":                         true,
-	"/evey.v1.LibraryService/ScanLibrary":                           true,
-	"/evey.v1.FeedService/GetAdminFeedConfigs":                      true,
-	"/evey.v1.FeedService/UpdateAdminFeedConfig":                    true,
-	"/evey.v1.NotificationService/GetGlobalNotificationSettings":    true,
-	"/evey.v1.NotificationService/UpdateGlobalNotificationSettings": true,
-	"/evey.v1.ActivityService/GetServerStats":                       true,
-	"/evey.v1.ActivityService/ListServerMetrics":                    true,
-	"/evey.v1.MetadataService/RefreshMetadata":                      true,
-	"/evey.v1.MetadataService/SetMetadataOverride":                  true,
-	"/evey.v1.MetadataService/RemoveMetadataOverride":               true,
-	"/evey.v1.MKVService/MuxContainer":                              true,
-	"/evey.v1.MKVService/DemuxContainer":                            true,
-	"/evey.v1.MKVService/AddTrack":                                  true,
-	"/evey.v1.MKVService/RemoveTrack":                               true,
-	"/evey.v1.TranscodingService/StopTranscode":                     true,
-	"/evey.v1.TranscodingService/ListActiveTranscodes":              true,
-	"/evey.v1.TranscodeCacheService/GetTranscodeCache":              true,
-	"/evey.v1.TranscodeCacheService/ClearTranscodeCache":            true,
-	"/evey.v1.TranscodeCacheService/DeleteTranscodeCacheFile":       true,
-	"/evey.v1.BackupService/CreateBackup":                           true,
-	"/evey.v1.BackupService/ListBackups":                            true,
-	"/evey.v1.BackupService/DeleteBackup":                           true,
-	"/evey.v1.RemoteAccessService/GetRemoteAccess":                  true,
-	"/evey.v1.RemoteAccessService/UpdateRemoteAccess":               true,
-	"/evey.v1.RemoteAccessService/GetNetworkInfo":                   true,
-	"/evey.v1.PlaybackSettingsService/UpdatePlaybackSettings":       true,
-	"/evey.v1.LibraryAccessService/GetUserLibraryAccess":                true,
-	"/evey.v1.LibraryAccessService/SetUserLibraryAccess":                true,
-	"/evey.v1.LibraryAccessService/RevokeAllUserLibraryAccess":          true,
-	"/evey.v1.ServerConfigService/GetServerConfigEntry":                 true,
-	"/evey.v1.ServerConfigService/SetServerConfigEntry":                 true,
-	"/evey.v1.ServerConfigService/ListServerConfigEntries":              true,
-	"/evey.v1.ServerConfigService/DeleteServerConfigEntry":              true,
-}
-
 type AuthInterceptor struct {
 	tokenGen user.TokenGenerator
 	apiKeys  user.APIKeyRepository
 	users    user.UserRepository
+	rbac     RBACConfig
 }
 
 func NewAuthInterceptor(tokenGen user.TokenGenerator) *AuthInterceptor {
-	return &AuthInterceptor{tokenGen: tokenGen}
+	return &AuthInterceptor{tokenGen: tokenGen, rbac: DefaultRBACConfig()}
+}
+
+func NewAuthInterceptorWithRBAC(tokenGen user.TokenGenerator, rbac RBACConfig) *AuthInterceptor {
+	return &AuthInterceptor{tokenGen: tokenGen, rbac: rbac}
 }
 
 func (i *AuthInterceptor) WithAPIKeys(apiKeys user.APIKeyRepository, users user.UserRepository) *AuthInterceptor {
@@ -110,14 +40,14 @@ func (i *AuthInterceptor) WithAPIKeys(apiKeys user.APIKeyRepository, users user.
 
 func (i *AuthInterceptor) Unary() grpc.UnaryServerInterceptor {
 	return func(ctx context.Context, req any, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (any, error) {
-		if publicMethods[info.FullMethod] {
+		if i.rbac.PublicMethods[info.FullMethod] {
 			return handler(ctx, req)
 		}
 		newCtx, err := i.authenticate(ctx)
 		if err != nil {
 			return nil, err
 		}
-		if err := enforceRBAC(newCtx, info.FullMethod); err != nil {
+		if err := i.enforceRBAC(newCtx, info.FullMethod); err != nil {
 			return nil, err
 		}
 		return handler(newCtx, req)
@@ -126,14 +56,14 @@ func (i *AuthInterceptor) Unary() grpc.UnaryServerInterceptor {
 
 func (i *AuthInterceptor) Stream() grpc.StreamServerInterceptor {
 	return func(srv any, ss grpc.ServerStream, info *grpc.StreamServerInfo, handler grpc.StreamHandler) error {
-		if publicMethods[info.FullMethod] {
+		if i.rbac.PublicMethods[info.FullMethod] {
 			return handler(srv, ss)
 		}
 		newCtx, err := i.authenticate(ss.Context())
 		if err != nil {
 			return err
 		}
-		if err := enforceRBAC(newCtx, info.FullMethod); err != nil {
+		if err := i.enforceRBAC(newCtx, info.FullMethod); err != nil {
 			return err
 		}
 		wrapped := &wrappedStream{ServerStream: ss, ctx: newCtx}
@@ -141,13 +71,16 @@ func (i *AuthInterceptor) Stream() grpc.StreamServerInterceptor {
 	}
 }
 
-func enforceRBAC(ctx context.Context, method string) error {
-	if !adminOnlyMethods[method] {
+func (i *AuthInterceptor) enforceRBAC(ctx context.Context, method string) error {
+	role, exists := i.rbac.MethodRoles[method]
+	if !exists {
 		return nil
 	}
-	claims := ClaimsFromContext(ctx)
-	if claims == nil || !claims.IsAdmin {
-		return status.Error(codes.PermissionDenied, "admin access required")
+	if role == RoleAdmin {
+		claims := ClaimsFromContext(ctx)
+		if claims == nil || !claims.IsAdmin {
+			return status.Error(codes.PermissionDenied, "admin access required")
+		}
 	}
 	return nil
 }
