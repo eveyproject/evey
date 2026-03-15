@@ -30,76 +30,102 @@ func MakePlaybackDecision(
 		TranscodeReasons: []string{},
 	}
 
-	effectiveMaxBitrate := client.MaxBitrate
-	if maxBitrateKbps > 0 && (effectiveMaxBitrate == 0 || int64(maxBitrateKbps) < effectiveMaxBitrate) {
-		effectiveMaxBitrate = int64(maxBitrateKbps)
-	}
-
-	var totalBitrate int64
-	for _, s := range streams {
-		if s.Bitrate != nil {
-			totalBitrate += *s.Bitrate
-		}
-	}
+	effectiveMaxBitrate := resolveMaxBitrate(client.MaxBitrate, maxBitrateKbps)
+	totalBitrate := sumBitrates(streams)
 
 	for _, s := range streams {
 		switch s.StreamType {
 		case "video":
-			if !contains(client.VideoCodecs, strings.ToLower(s.Codec)) {
-				d.TranscodeReasons = append(d.TranscodeReasons, "video_codec_unsupported")
-				d.VideoDecision = "transcode"
-				d.VideoCodec = "h264"
-			}
-
-			if s.Width != nil && client.MaxWidth > 0 && *s.Width > client.MaxWidth {
-				d.TranscodeReasons = append(d.TranscodeReasons, "resolution_exceeded")
-				d.VideoDecision = "transcode"
-				d.MaxWidth = client.MaxWidth
-			}
-			if s.Height != nil && client.MaxHeight > 0 && *s.Height > client.MaxHeight {
-				if !containsReason(d.TranscodeReasons, "resolution_exceeded") {
-					d.TranscodeReasons = append(d.TranscodeReasons, "resolution_exceeded")
-				}
-				d.VideoDecision = "transcode"
-				d.MaxHeight = client.MaxHeight
-			}
-
-			if s.HDRType != nil && *s.HDRType != "" && !client.SupportsHDR {
-				d.TranscodeReasons = append(d.TranscodeReasons, "hdr_tonemapping_needed")
-				d.VideoDecision = "transcode"
-			}
-
-			if d.VideoDecision == "transcode" && d.VideoCodec == "" {
-				d.VideoCodec = "h264"
-			}
-
+			evaluateVideo(d, s, client)
 		case "audio":
-			if !s.IsDefault {
-				continue
-			}
-			if !contains(client.AudioCodecs, strings.ToLower(s.Codec)) {
-				d.TranscodeReasons = append(d.TranscodeReasons, "audio_codec_unsupported")
-				d.AudioDecision = "transcode"
-				d.AudioCodec = "aac"
-			}
-			if s.Channels != nil && client.MaxAudioChannels > 0 && *s.Channels > client.MaxAudioChannels {
-				d.TranscodeReasons = append(d.TranscodeReasons, "audio_channels_exceeded")
-				d.AudioDecision = "transcode"
-				if d.AudioCodec == "" {
-					d.AudioCodec = "aac"
-				}
-			}
-
+			evaluateAudio(d, s, client)
 		case "subtitle":
-			if bitmapSubCodecs[strings.ToLower(s.Codec)] {
-				d.SubtitleDecision = "burn"
-			} else if d.SubtitleDecision == "" {
-				d.SubtitleDecision = "external"
-			}
+			evaluateSubtitle(d, s)
 		}
 	}
 
-	// Bitrate check (uses total file bitrate)
+	checkBitrate(d, totalBitrate, effectiveMaxBitrate)
+	checkContainer(d, containerFormat, client)
+	resolvePlayMethod(d, client)
+	applyDefaultBitrates(d)
+
+	return d
+}
+
+func resolveMaxBitrate(clientMax int64, userCapKbps int) int64 {
+	if userCapKbps > 0 && (clientMax == 0 || int64(userCapKbps) < clientMax) {
+		return int64(userCapKbps)
+	}
+	return clientMax
+}
+
+func sumBitrates(streams []*library.MediaStream) int64 {
+	var total int64
+	for _, s := range streams {
+		if s.Bitrate != nil {
+			total += *s.Bitrate
+		}
+	}
+	return total
+}
+
+func evaluateVideo(d *transcoding.PlaybackDecision, s *library.MediaStream, client transcoding.ClientProfile) {
+	if !contains(client.VideoCodecs, strings.ToLower(s.Codec)) {
+		d.TranscodeReasons = append(d.TranscodeReasons, "video_codec_unsupported")
+		d.VideoDecision = "transcode"
+		d.VideoCodec = "h264"
+	}
+
+	if s.Width != nil && client.MaxWidth > 0 && *s.Width > client.MaxWidth {
+		d.TranscodeReasons = append(d.TranscodeReasons, "resolution_exceeded")
+		d.VideoDecision = "transcode"
+		d.MaxWidth = client.MaxWidth
+	}
+	if s.Height != nil && client.MaxHeight > 0 && *s.Height > client.MaxHeight {
+		if !containsReason(d.TranscodeReasons, "resolution_exceeded") {
+			d.TranscodeReasons = append(d.TranscodeReasons, "resolution_exceeded")
+		}
+		d.VideoDecision = "transcode"
+		d.MaxHeight = client.MaxHeight
+	}
+
+	if s.HDRType != nil && *s.HDRType != "" && !client.SupportsHDR {
+		d.TranscodeReasons = append(d.TranscodeReasons, "hdr_tonemapping_needed")
+		d.VideoDecision = "transcode"
+	}
+
+	if d.VideoDecision == "transcode" && d.VideoCodec == "" {
+		d.VideoCodec = "h264"
+	}
+}
+
+func evaluateAudio(d *transcoding.PlaybackDecision, s *library.MediaStream, client transcoding.ClientProfile) {
+	if !s.IsDefault {
+		return
+	}
+	if !contains(client.AudioCodecs, strings.ToLower(s.Codec)) {
+		d.TranscodeReasons = append(d.TranscodeReasons, "audio_codec_unsupported")
+		d.AudioDecision = "transcode"
+		d.AudioCodec = "aac"
+	}
+	if s.Channels != nil && client.MaxAudioChannels > 0 && *s.Channels > client.MaxAudioChannels {
+		d.TranscodeReasons = append(d.TranscodeReasons, "audio_channels_exceeded")
+		d.AudioDecision = "transcode"
+		if d.AudioCodec == "" {
+			d.AudioCodec = "aac"
+		}
+	}
+}
+
+func evaluateSubtitle(d *transcoding.PlaybackDecision, s *library.MediaStream) {
+	if bitmapSubCodecs[strings.ToLower(s.Codec)] {
+		d.SubtitleDecision = "burn"
+	} else if d.SubtitleDecision == "" {
+		d.SubtitleDecision = "external"
+	}
+}
+
+func checkBitrate(d *transcoding.PlaybackDecision, totalBitrate, effectiveMaxBitrate int64) {
 	totalBitrateKbps := totalBitrate / 1000
 	if effectiveMaxBitrate > 0 && totalBitrateKbps > effectiveMaxBitrate {
 		d.TranscodeReasons = append(d.TranscodeReasons, "bitrate_exceeded")
@@ -109,8 +135,9 @@ func MakePlaybackDecision(
 			d.VideoCodec = "h264"
 		}
 	}
+}
 
-	// Container check
+func checkContainer(d *transcoding.PlaybackDecision, containerFormat string, client transcoding.ClientProfile) {
 	containerLower := strings.ToLower(containerFormat)
 	if containerLower == "matroska" {
 		containerLower = "mkv"
@@ -118,8 +145,9 @@ func MakePlaybackDecision(
 	if !contains(client.Containers, containerLower) {
 		d.TranscodeReasons = append(d.TranscodeReasons, "container_incompatible")
 	}
+}
 
-	// Determine play method
+func resolvePlayMethod(d *transcoding.PlaybackDecision, client transcoding.ClientProfile) {
 	switch {
 	case len(d.TranscodeReasons) == 0:
 		d.PlayMethod = "direct_play"
@@ -132,16 +160,15 @@ func MakePlaybackDecision(
 			d.Container = preferredContainer(client.Containers)
 		}
 	}
+}
 
-	// Default transcode bitrates
+func applyDefaultBitrates(d *transcoding.PlaybackDecision) {
 	if d.VideoDecision == "transcode" && d.VideoBitrate == 0 {
-		d.VideoBitrate = 4000 // 4 Mbps default
+		d.VideoBitrate = 4000
 	}
 	if d.AudioDecision == "transcode" && d.AudioBitrate == 0 {
-		d.AudioBitrate = 192 // 192 kbps default
+		d.AudioBitrate = 192
 	}
-
-	return d
 }
 
 func contains(list []string, val string) bool {
