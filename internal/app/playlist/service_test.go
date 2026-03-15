@@ -207,6 +207,14 @@ func (f *fakeMediaChecker) GetByID(_ context.Context, id string) (*library.Media
 	return nil, library.ErrNotFound
 }
 
+type errorMediaChecker struct {
+	err error
+}
+
+func (f *errorMediaChecker) GetByID(_ context.Context, _ string) (*library.MediaItem, error) {
+	return nil, f.err
+}
+
 func TestAddItem_InvalidMediaID(t *testing.T) {
 	svc, _, _, _ := newTestService()
 	checker := &fakeMediaChecker{items: map[string]*library.MediaItem{}}
@@ -347,6 +355,212 @@ func TestList_MultipleUsers(t *testing.T) {
 	}
 	if len(u3list) != 0 {
 		t.Fatalf("u3: expected 0, got %d", len(u3list))
+	}
+}
+
+func TestCreate_DefaultSortOrder(t *testing.T) {
+	svc, _, _, _ := newTestService()
+	pl := &playlist.Playlist{Name: "x", UserID: "u1", Type: playlist.Manual}
+	svc.Create(context.Background(), pl)
+	if pl.SortOrder != "asc" {
+		t.Fatalf("SortOrder = %q, want asc", pl.SortOrder)
+	}
+}
+
+func TestCreate_PreservesExplicitSortFields(t *testing.T) {
+	svc, _, _, _ := newTestService()
+	pl := &playlist.Playlist{Name: "x", UserID: "u1", SortBy: "title", SortOrder: "desc"}
+	svc.Create(context.Background(), pl)
+	if pl.SortBy != "title" {
+		t.Fatalf("SortBy = %q, want title", pl.SortBy)
+	}
+	if pl.SortOrder != "desc" {
+		t.Fatalf("SortOrder = %q, want desc", pl.SortOrder)
+	}
+}
+
+func TestCreate_SetsTimestamps(t *testing.T) {
+	svc, _, _, _ := newTestService()
+	pl := &playlist.Playlist{Name: "x", UserID: "u1"}
+	svc.Create(context.Background(), pl)
+	if pl.CreatedAt.IsZero() {
+		t.Fatal("CreatedAt not set")
+	}
+	if pl.UpdatedAt.IsZero() {
+		t.Fatal("UpdatedAt not set")
+	}
+}
+
+func TestUpdate_PreservesUserIDAndCreatedAt(t *testing.T) {
+	svc, _, _, _ := newTestService()
+	ctx := context.Background()
+	pl := &playlist.Playlist{Name: "Orig", UserID: "u1", Type: playlist.Smart}
+	svc.Create(ctx, pl)
+	origCreatedAt := pl.CreatedAt
+
+	upd := &playlist.Playlist{ID: pl.ID, Name: "New", UserID: "attacker", Type: playlist.Manual}
+	svc.Update(ctx, upd, "u1")
+
+	if upd.UserID != "u1" {
+		t.Fatalf("UserID = %q, want u1 (immutable)", upd.UserID)
+	}
+	if upd.Type != playlist.Smart {
+		t.Fatalf("Type = %q, want smart (immutable)", upd.Type)
+	}
+	if upd.CreatedAt != origCreatedAt {
+		t.Fatal("CreatedAt was mutated")
+	}
+	if upd.UpdatedAt.IsZero() || !upd.UpdatedAt.After(origCreatedAt) {
+		t.Fatal("UpdatedAt not refreshed")
+	}
+}
+
+func TestAddItem_SortOrderIncrements(t *testing.T) {
+	svc, _, itemRepo, _ := newTestService()
+	ctx := context.Background()
+	pl := &playlist.Playlist{Name: "x", UserID: "u1", Type: playlist.Manual}
+	svc.Create(ctx, pl)
+
+	svc.AddItem(ctx, pl.ID, "m1", "u1")
+	svc.AddItem(ctx, pl.ID, "m2", "u1")
+	svc.AddItem(ctx, pl.ID, "m3", "u1")
+
+	items, _ := itemRepo.GetByPlaylistID(ctx, pl.ID)
+	if len(items) != 3 {
+		t.Fatalf("len=%d, want 3", len(items))
+	}
+	for i, it := range items {
+		if it.SortOrder != i {
+			t.Fatalf("item %d SortOrder=%d, want %d", i, it.SortOrder, i)
+		}
+	}
+}
+
+func TestAddItem_SortOrderAfterGap(t *testing.T) {
+	svc, _, itemRepo, _ := newTestService()
+	ctx := context.Background()
+	pl := &playlist.Playlist{Name: "x", UserID: "u1", Type: playlist.Manual}
+	svc.Create(ctx, pl)
+
+	svc.AddItem(ctx, pl.ID, "m1", "u1")
+	svc.AddItem(ctx, pl.ID, "m2", "u1")
+	svc.RemoveItem(ctx, pl.ID, "m1", "u1")
+	svc.AddItem(ctx, pl.ID, "m3", "u1")
+
+	items, _ := itemRepo.GetByPlaylistID(ctx, pl.ID)
+	if len(items) != 2 {
+		t.Fatalf("len=%d, want 2", len(items))
+	}
+	// m2 has SortOrder=1, m3 should get SortOrder=2 (max+1)
+	if items[1].SortOrder != 2 {
+		t.Fatalf("m3 SortOrder=%d, want 2", items[1].SortOrder)
+	}
+}
+
+func TestAddItem_GetItemsRepoError(t *testing.T) {
+	svc, _, itemRepo, _ := newTestService()
+	ctx := context.Background()
+	pl := &playlist.Playlist{Name: "x", UserID: "u1", Type: playlist.Manual}
+	svc.Create(ctx, pl)
+
+	itemRepo.Err = errors.New("storage fail")
+	err := svc.AddItem(ctx, pl.ID, "m1", "u1")
+	if err == nil {
+		t.Fatal("expected error from item repo")
+	}
+}
+
+func TestAddItem_MediaCheckerNonNotFoundError(t *testing.T) {
+	svc, _, _, _ := newTestService()
+	ctx := context.Background()
+	checker := &errorMediaChecker{err: errors.New("db timeout")}
+	svc.WithMediaChecker(checker)
+
+	pl := &playlist.Playlist{Name: "x", UserID: "u1", Type: playlist.Manual}
+	svc.Create(ctx, pl)
+
+	err := svc.AddItem(ctx, pl.ID, "m1", "u1")
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	if errors.Is(err, ErrMediaItemNotFound) {
+		t.Fatal("should not be ErrMediaItemNotFound for non-NotFound errors")
+	}
+}
+
+func TestRemoveItem_SmartPlaylistRejected(t *testing.T) {
+	svc, _, _, _ := newTestService()
+	ctx := context.Background()
+	pl := &playlist.Playlist{Name: "x", UserID: "u1", Type: playlist.Smart}
+	svc.Create(ctx, pl)
+
+	err := svc.RemoveItem(ctx, pl.ID, "m1", "u1")
+	if !errors.Is(err, ErrSmartItems) {
+		t.Fatalf("got %v, want ErrSmartItems", err)
+	}
+}
+
+func TestGetItems_ManualReturnsNilMediaItems(t *testing.T) {
+	svc, _, _, _ := newTestService()
+	ctx := context.Background()
+	pl := &playlist.Playlist{Name: "x", UserID: "u1", Type: playlist.Manual}
+	svc.Create(ctx, pl)
+	svc.AddItem(ctx, pl.ID, "m1", "u1")
+
+	mediaItems, plItems, err := svc.GetItems(ctx, pl.ID, "u1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if mediaItems != nil {
+		t.Fatal("manual playlist should return nil mediaItems")
+	}
+	if len(plItems) != 1 {
+		t.Fatalf("expected 1 plItem, got %d", len(plItems))
+	}
+}
+
+func TestGetItems_SmartReturnsNilPlaylistItems(t *testing.T) {
+	svc, _, _, querier := newTestService()
+	ctx := context.Background()
+	querier.Items = []*library.MediaItem{{ID: "m1", Title: "A"}}
+	pl := &playlist.Playlist{Name: "x", UserID: "u1", Type: playlist.Smart}
+	svc.Create(ctx, pl)
+
+	mediaItems, plItems, err := svc.GetItems(ctx, pl.ID, "u1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if plItems != nil {
+		t.Fatal("smart playlist should return nil plItems")
+	}
+	if len(mediaItems) != 1 {
+		t.Fatalf("expected 1 mediaItem, got %d", len(mediaItems))
+	}
+}
+
+func TestGetItems_ItemRepoError(t *testing.T) {
+	svc, _, itemRepo, _ := newTestService()
+	ctx := context.Background()
+	pl := &playlist.Playlist{Name: "x", UserID: "u1", Type: playlist.Manual}
+	svc.Create(ctx, pl)
+
+	itemRepo.Err = errors.New("storage fail")
+	_, _, err := svc.GetItems(ctx, pl.ID, "u1")
+	if err == nil {
+		t.Fatal("expected error from item repo")
+	}
+}
+
+func TestGetItems_SmartQuerierError(t *testing.T) {
+	svc, _, _, querier := newTestService()
+	ctx := context.Background()
+	querier.Err = errors.New("query fail")
+	pl := &playlist.Playlist{Name: "x", UserID: "u1", Type: playlist.Smart}
+	svc.Create(ctx, pl)
+
+	_, _, err := svc.GetItems(ctx, pl.ID, "u1")
+	if err == nil {
+		t.Fatal("expected error from smart querier")
 	}
 }
 
