@@ -204,7 +204,7 @@ func buildServices(ctx context.Context, cfg *config.Config, db *sql.DB, rootLog 
 		rootLog.Info("OIDC SSO enabled", slog.String("issuer", cfg.OIDC.Issuer))
 	}
 
-	playbackSvc := appplayback.NewService(r.WatchProgress, r.WatchProgress, r.PlaySession, r.User, r.Profile, bus)
+	playbackSvc := appplayback.NewService(r.WatchProgress, r.WatchProgress, r.PlaySession, r.PlaySession, r.User, r.Profile, bus)
 
 	transcodingSvc := apptranscoding.NewService(
 		transcoder, hwDetector, r.TranscodeJob, r.TranscodeProfile,

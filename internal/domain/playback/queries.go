@@ -12,4 +12,7 @@ type ProgressQueryRepo interface {
 type SessionQueryRepo interface {
 	GetByID(ctx context.Context, id string) (*PlaySession, error)
 	CountActiveByUser(ctx context.Context, userID string) (int, error)
+	GetActiveByProfile(ctx context.Context, profileID string) ([]*PlaySession, error)
+	ListActiveSessions(ctx context.Context) ([]*ActiveSessionInfo, error)
+	GetHistory(ctx context.Context, filter PlaySessionFilter) ([]*PlaySession, error)
 }
