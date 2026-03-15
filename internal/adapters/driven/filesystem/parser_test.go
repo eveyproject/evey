@@ -32,8 +32,7 @@ func TestSplitFilename_MixedSeparators(t *testing.T) {
 // --- Type detection ---
 
 func TestParse_SeriesWithSE(t *testing.T) {
-	p := NewFilenameParser()
-	info := p.Parse("The.Office.S01E05.720p.BluRay.x264-GROUP.mkv")
+	info := ParseFilename("The.Office.S01E05.720p.BluRay.x264-GROUP.mkv")
 
 	assert.Equal(t, "series", info.Type)
 	assert.Equal(t, "The Office", info.Title)
@@ -48,8 +47,7 @@ func TestParse_SeriesWithSE(t *testing.T) {
 }
 
 func TestParse_SeriesWithSeasonX(t *testing.T) {
-	p := NewFilenameParser()
-	info := p.Parse("Breaking.Bad.03x10.1080p.mkv")
+	info := ParseFilename("Breaking.Bad.03x10.1080p.mkv")
 
 	assert.Equal(t, "series", info.Type)
 	assert.Equal(t, "S03E10", info.SE)
@@ -61,8 +59,7 @@ func TestParse_SeriesWithSeasonX(t *testing.T) {
 }
 
 func TestParse_MovieWithYear(t *testing.T) {
-	p := NewFilenameParser()
-	info := p.Parse("Inception.2010.1080p.BluRay.x264.DTS-FGT.mkv")
+	info := ParseFilename("Inception.2010.1080p.BluRay.x264.DTS-FGT.mkv")
 
 	assert.Equal(t, "movie", info.Type)
 	assert.Equal(t, "Inception", info.Title)
@@ -76,8 +73,7 @@ func TestParse_MovieWithYear(t *testing.T) {
 }
 
 func TestParse_MovieWithYearInParens(t *testing.T) {
-	p := NewFilenameParser()
-	info := p.Parse("The Matrix (1999) 1080p.mkv")
+	info := ParseFilename("The Matrix (1999) 1080p.mkv")
 
 	assert.Equal(t, "movie", info.Type)
 	assert.Equal(t, "The Matrix", info.Title)
@@ -86,8 +82,7 @@ func TestParse_MovieWithYearInParens(t *testing.T) {
 }
 
 func TestParse_4K_HEVC(t *testing.T) {
-	p := NewFilenameParser()
-	info := p.Parse("Dune.Part.Two.2024.2160p.x265.mkv")
+	info := ParseFilename("Dune.Part.Two.2024.2160p.x265.mkv")
 
 	assert.Equal(t, "movie", info.Type)
 	assert.Equal(t, "Dune Part Two", info.Title)
@@ -112,10 +107,9 @@ func TestParse_SE_Normalized(t *testing.T) {
 		{"Series.1x05.mkv", "S01E05", 1, 5},
 		{"Series.03x10.mkv", "S03E10", 3, 10},
 	}
-	p := NewFilenameParser()
 	for _, tt := range tests {
 		t.Run(tt.se, func(t *testing.T) {
-			info := p.Parse(tt.filename)
+			info := ParseFilename(tt.filename)
 			assert.Equal(t, "series", info.Type)
 			assert.Equal(t, tt.se, info.SE)
 			require.NotNil(t, info.Season)
@@ -129,64 +123,55 @@ func TestParse_SE_Normalized(t *testing.T) {
 // --- Language: ISO code + original tag ---
 
 func TestParse_Language_VF(t *testing.T) {
-	p := NewFilenameParser()
-	info := p.Parse("Inception.2010.VF.1080p.BluRay.mkv")
+	info := ParseFilename("Inception.2010.VF.1080p.BluRay.mkv")
 	assert.Equal(t, "fr", info.Language)
 	assert.Equal(t, "vf", info.LanguageTag)
 }
 
 func TestParse_Language_VOSTFR(t *testing.T) {
-	p := NewFilenameParser()
-	info := p.Parse("Interstellar.2014.VOSTFR.720p.WEB.mkv")
+	info := ParseFilename("Interstellar.2014.VOSTFR.720p.WEB.mkv")
 	assert.Equal(t, "fr", info.Language)
 	assert.Equal(t, "vostfr", info.LanguageTag)
 }
 
 func TestParse_Language_TrueFrench(t *testing.T) {
-	p := NewFilenameParser()
-	info := p.Parse("The.Matrix.1999.TrueFrench.1080p.BluRay.mkv")
+	info := ParseFilename("The.Matrix.1999.TrueFrench.1080p.BluRay.mkv")
 	assert.Equal(t, "fr", info.Language)
 	assert.Equal(t, "truefrench", info.LanguageTag)
 }
 
 func TestParse_Language_Multi(t *testing.T) {
-	p := NewFilenameParser()
-	info := p.Parse("Dune.2021.MULTI.2160p.UHD.BluRay.mkv")
+	info := ParseFilename("Dune.2021.MULTI.2160p.UHD.BluRay.mkv")
 	assert.Equal(t, "multi", info.Language)
 	assert.Equal(t, "multi", info.LanguageTag)
 }
 
 func TestParse_Language_VO(t *testing.T) {
-	p := NewFilenameParser()
-	info := p.Parse("Everything.Everywhere.2022.VO.1080p.mkv")
+	info := ParseFilename("Everything.Everywhere.2022.VO.1080p.mkv")
 	assert.Equal(t, "en", info.Language)
 	assert.Equal(t, "vo", info.LanguageTag)
 }
 
 func TestParse_Language_ENG(t *testing.T) {
-	p := NewFilenameParser()
-	info := p.Parse("Movie.2020.1080p.BluRay.ENG.mkv")
+	info := ParseFilename("Movie.2020.1080p.BluRay.ENG.mkv")
 	assert.Equal(t, "en", info.Language)
 	assert.Equal(t, "eng", info.LanguageTag)
 }
 
 func TestParse_Language_VOSTDE(t *testing.T) {
-	p := NewFilenameParser()
-	info := p.Parse("Dark.S01E01.VOSTDE.1080p.mkv")
+	info := ParseFilename("Dark.S01E01.VOSTDE.1080p.mkv")
 	assert.Equal(t, "de", info.Language)
 	assert.Equal(t, "vostde", info.LanguageTag)
 }
 
 func TestParse_Language_VOSTES(t *testing.T) {
-	p := NewFilenameParser()
-	info := p.Parse("Money.Heist.S02E04.VOSTES.720p.mkv")
+	info := ParseFilename("Money.Heist.S02E04.VOSTES.720p.mkv")
 	assert.Equal(t, "es", info.Language)
 	assert.Equal(t, "vostes", info.LanguageTag)
 }
 
 func TestParse_Language_None(t *testing.T) {
-	p := NewFilenameParser()
-	info := p.Parse("avatar.2009.1080p.bluray.x264.mkv")
+	info := ParseFilename("avatar.2009.1080p.bluray.x264.mkv")
 	assert.Empty(t, info.Language)
 	assert.Empty(t, info.LanguageTag)
 }
@@ -194,31 +179,27 @@ func TestParse_Language_None(t *testing.T) {
 // --- Edge cases (from normalize_video) ---
 
 func TestParse_TitleIsYear_1917(t *testing.T) {
-	p := NewFilenameParser()
-	info := p.Parse("1917.2019.1080p.bluray.mkv")
+	info := ParseFilename("1917.2019.1080p.bluray.mkv")
 	assert.Equal(t, "movie", info.Type)
 	assert.Equal(t, "1917", info.Title)
 	assert.NotNil(t, info.Year) // 2019 detected as production year
 }
 
 func TestParse_TitleIsYear_2012(t *testing.T) {
-	p := NewFilenameParser()
-	info := p.Parse("2012.2009.1080p.bluray.mkv")
+	info := ParseFilename("2012.2009.1080p.bluray.mkv")
 	assert.Equal(t, "movie", info.Type)
 	assert.Equal(t, "2012", info.Title)
 }
 
 func TestParse_TitleIsYear_Serie1923(t *testing.T) {
-	p := NewFilenameParser()
-	info := p.Parse("1923.s01e01.1080p.mkv")
+	info := ParseFilename("1923.s01e01.1080p.mkv")
 	assert.Equal(t, "series", info.Type)
 	assert.Equal(t, "1923", info.Title)
 	assert.Equal(t, "S01E01", info.SE)
 }
 
 func TestParse_TitleIsYear_Serie1883(t *testing.T) {
-	p := NewFilenameParser()
-	info := p.Parse("1883.s02e05.vf.720p.mkv")
+	info := ParseFilename("1883.s02e05.vf.720p.mkv")
 	assert.Equal(t, "series", info.Type)
 	assert.Equal(t, "1883", info.Title)
 	assert.Equal(t, "S02E05", info.SE)
@@ -240,10 +221,9 @@ func TestParse_AudioFormats(t *testing.T) {
 		{"Movie.2020.1080p.Atmos.mkv", "atmos"},
 		{"Movie.2020.1080p.EAC3.mkv", "eac3"},
 	}
-	p := NewFilenameParser()
 	for _, tt := range tests {
 		t.Run(tt.audio, func(t *testing.T) {
-			assert.Equal(t, tt.audio, p.Parse(tt.filename).Audio)
+			assert.Equal(t, tt.audio, ParseFilename(tt.filename).Audio)
 		})
 	}
 }
@@ -264,10 +244,9 @@ func TestParse_CodecVariations(t *testing.T) {
 		{"Movie.AV1.mkv", "av1"},
 		{"Movie.VP9.mkv", "vp9"},
 	}
-	p := NewFilenameParser()
 	for _, tt := range tests {
 		t.Run(tt.filename, func(t *testing.T) {
-			assert.Equal(t, tt.codec, p.Parse(tt.filename).Codec)
+			assert.Equal(t, tt.codec, ParseFilename(tt.filename).Codec)
 		})
 	}
 }
@@ -290,10 +269,9 @@ func TestParse_Quality(t *testing.T) {
 		{"Movie.REMUX.mkv", "remux"},
 		{"Movie.NoQuality.mkv", ""},
 	}
-	p := NewFilenameParser()
 	for _, tt := range tests {
 		t.Run(tt.quality, func(t *testing.T) {
-			assert.Equal(t, tt.quality, p.Parse(tt.filename).Quality)
+			assert.Equal(t, tt.quality, ParseFilename(tt.filename).Quality)
 		})
 	}
 }
@@ -308,24 +286,21 @@ func TestParse_ReleaseGroup(t *testing.T) {
 		{"Movie.2020.1080p.BluRay-YTS.mkv", "YTS"},
 		{"Movie.2020.1080p.BluRay-RARBG.mkv", "RARBG"},
 	}
-	p := NewFilenameParser()
 	for _, tt := range tests {
 		t.Run(tt.group, func(t *testing.T) {
-			assert.Equal(t, tt.group, p.Parse(tt.filename).ReleaseGroup)
+			assert.Equal(t, tt.group, ParseFilename(tt.filename).ReleaseGroup)
 		})
 	}
 }
 
 func TestParse_CleanTitle(t *testing.T) {
-	p := NewFilenameParser()
-	info := p.Parse("The.Dark.Knight.2008.1080p.BluRay.x264.DTS-FGT.mkv")
+	info := ParseFilename("The.Dark.Knight.2008.1080p.BluRay.x264.DTS-FGT.mkv")
 	assert.Equal(t, "The Dark Knight", info.Title)
 	assert.Equal(t, "the dark knight", info.CleanTitle)
 }
 
 func TestParse_NoMatches(t *testing.T) {
-	p := NewFilenameParser()
-	info := p.Parse("random_file.mkv")
+	info := ParseFilename("random_file.mkv")
 	assert.Equal(t, "movie", info.Type)
 	assert.Nil(t, info.Season)
 	assert.Nil(t, info.Episode)
@@ -337,8 +312,7 @@ func TestParse_NoMatches(t *testing.T) {
 }
 
 func TestParse_FullPath(t *testing.T) {
-	p := NewFilenameParser()
-	info := p.Parse("/media/tv/The.Office.S02E03.720p.mkv")
+	info := ParseFilename("/media/tv/The.Office.S02E03.720p.mkv")
 	assert.Equal(t, "series", info.Type)
 	assert.Equal(t, "The Office", info.Title)
 	assert.Equal(t, "S02E03", info.SE)
@@ -349,8 +323,7 @@ func TestParse_FullPath(t *testing.T) {
 }
 
 func TestParse_UnderscoreSeparators(t *testing.T) {
-	p := NewFilenameParser()
-	info := p.Parse("My_Movie_2020_1080p_BluRay.mkv")
+	info := ParseFilename("My_Movie_2020_1080p_BluRay.mkv")
 	assert.Equal(t, "movie", info.Type)
 	assert.Equal(t, "My Movie", info.Title)
 	require.NotNil(t, info.Year)
@@ -358,8 +331,7 @@ func TestParse_UnderscoreSeparators(t *testing.T) {
 }
 
 func TestParse_ComplexSerie(t *testing.T) {
-	p := NewFilenameParser()
-	info := p.Parse("Game.of.Thrones.S08E06.1080p.x265.mkv")
+	info := ParseFilename("Game.of.Thrones.S08E06.1080p.x265.mkv")
 	assert.Equal(t, "series", info.Type)
 	assert.Equal(t, "Game of Thrones", info.Title)
 	assert.Equal(t, "S08E06", info.SE)
@@ -389,10 +361,9 @@ func TestParse_NormalizeVideoMovies(t *testing.T) {
 		{"parasite.2019.vostfr.1080p.web.mkv", "Parasite", "fr", "vostfr", "1080p"},
 		{"oppenheimer.2023.vf.4k.bluray.mkv", "Oppenheimer", "fr", "vf", "4k"},
 	}
-	p := NewFilenameParser()
 	for _, tt := range tests {
 		t.Run(tt.filename, func(t *testing.T) {
-			info := p.Parse(tt.filename)
+			info := ParseFilename(tt.filename)
 			assert.Equal(t, tt.title, info.Title, "title")
 			assert.Equal(t, tt.lang, info.Language, "language ISO")
 			assert.Equal(t, tt.langTag, info.LanguageTag, "language tag")
@@ -419,10 +390,9 @@ func TestParse_NormalizeVideoSeries(t *testing.T) {
 		{"dark.s01e01.vostde.1080p.mkv", "Dark", "de", "vostde", "S01E01", 1, 1},
 		{"money.heist.s02e04.vostes.720p.mkv", "Money heist", "es", "vostes", "S02E04", 2, 4},
 	}
-	p := NewFilenameParser()
 	for _, tt := range tests {
 		t.Run(tt.filename, func(t *testing.T) {
-			info := p.Parse(tt.filename)
+			info := ParseFilename(tt.filename)
 			assert.Equal(t, "series", info.Type, "type")
 			assert.Equal(t, tt.title, info.Title, "title")
 			assert.Equal(t, tt.lang, info.Language, "language ISO")

@@ -131,7 +131,7 @@ func TestWatcherService_Debounce_MultipleFastEvents(t *testing.T) {
 	assert.Len(t, scanner.Scanned(), 1, "should debounce into single scan")
 }
 
-func TestWatcherService_AddRemoveLibrary(t *testing.T) {
+func TestWatcherService_AddLibrary(t *testing.T) {
 	watcher := libfakes.NewFakeFileWatcher()
 	libRepo := libfakes.NewFakeLibraryRepository()
 	scanner := &fakeLibraryScanner{}
@@ -149,9 +149,6 @@ func TestWatcherService_AddRemoveLibrary(t *testing.T) {
 	}
 	ws.AddLibrary(lib)
 	assert.Contains(t, watcher.WatchedPaths(), "/media/new")
-
-	ws.RemoveLibrary(lib)
-	assert.NotContains(t, watcher.WatchedPaths(), "/media/new")
 }
 
 func TestWatcherService_IgnoresDisabledLibrary(t *testing.T) {

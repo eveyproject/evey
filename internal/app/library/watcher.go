@@ -108,18 +108,6 @@ func (ws *WatcherService) AddLibrary(lib *library.Library) {
 	ws.watchLibrary(lib)
 }
 
-// RemoveLibrary stops watching a library's paths.
-func (ws *WatcherService) RemoveLibrary(lib *library.Library) {
-	ws.mu.Lock()
-	defer ws.mu.Unlock()
-	for _, p := range lib.Paths {
-		if err := ws.watcher.Unwatch(p); err != nil {
-			ws.log.Warn("watcher: unwatch failed", slog.String("path", p), slog.Any("err", err))
-		}
-		delete(ws.pathToLib, p)
-	}
-}
-
 // RemoveLibraryByID stops watching all paths for a library by ID (used when lib is already deleted).
 func (ws *WatcherService) RemoveLibraryByID(libraryID string) {
 	ws.mu.Lock()

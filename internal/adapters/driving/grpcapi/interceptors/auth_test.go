@@ -104,7 +104,7 @@ func TestAuthInterceptor_AdminOnly_NonAdmin(t *testing.T) {
 
 	adminHandler := func(ctx context.Context, req any) (any, error) {
 		claims := interceptors.ClaimsFromContext(ctx)
-		if claims == nil || !auth.CheckPermission(claims.Permissions, auth.PermServerAdmin) {
+		if claims == nil || !claims.IsAdmin {
 			return nil, status.Error(codes.PermissionDenied, "admin only")
 		}
 		return "ok", nil
@@ -130,7 +130,7 @@ func TestAuthInterceptor_AdminOnly_Admin(t *testing.T) {
 
 	adminHandler := func(ctx context.Context, req any) (any, error) {
 		claims := interceptors.ClaimsFromContext(ctx)
-		if claims == nil || !auth.CheckPermission(claims.Permissions, auth.PermServerAdmin) {
+		if claims == nil || !claims.IsAdmin {
 			return nil, status.Error(codes.PermissionDenied, "admin only")
 		}
 		return "ok", nil

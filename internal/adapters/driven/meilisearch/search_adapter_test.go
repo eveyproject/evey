@@ -107,7 +107,7 @@ func TestBuildFilterString_Multiple(t *testing.T) {
 
 func TestIndexMediaItem(t *testing.T) {
 	fake := &fakeIndex{}
-	adapter := newSearchAdapterWithIndex(fake)
+	adapter := &SearchAdapter{index: fake}
 
 	item := &library.MediaItem{
 		ID:      "item-1",
@@ -127,7 +127,7 @@ func TestIndexMediaItem(t *testing.T) {
 
 func TestRemoveMediaItem(t *testing.T) {
 	fake := &fakeIndex{}
-	adapter := newSearchAdapterWithIndex(fake)
+	adapter := &SearchAdapter{index: fake}
 
 	err := adapter.RemoveMediaItem(context.Background(), "item-42")
 	require.NoError(t, err)
@@ -151,7 +151,7 @@ func TestSearch(t *testing.T) {
 			EstimatedTotalHits: 1,
 		},
 	}
-	adapter := newSearchAdapterWithIndex(fake)
+	adapter := &SearchAdapter{index: fake}
 
 	hits, total, err := adapter.Search(context.Background(), "fight", map[string]string{"type": "movie"}, 20)
 	require.NoError(t, err)
@@ -173,7 +173,7 @@ func TestSearch_NoFilters(t *testing.T) {
 			Hits: ms.Hits{},
 		},
 	}
-	adapter := newSearchAdapterWithIndex(fake)
+	adapter := &SearchAdapter{index: fake}
 
 	hits, _, err := adapter.Search(context.Background(), "hello", nil, 20)
 	require.NoError(t, err)
@@ -185,7 +185,7 @@ func TestSearch_Error(t *testing.T) {
 	fake := &fakeIndex{
 		searchErr: assert.AnError,
 	}
-	adapter := newSearchAdapterWithIndex(fake)
+	adapter := &SearchAdapter{index: fake}
 
 	hits, _, err := adapter.Search(context.Background(), "fail", nil, 20)
 	require.Error(t, err)
@@ -196,7 +196,7 @@ func TestSearch_DefaultLimit(t *testing.T) {
 	fake := &fakeIndex{
 		searchResp: &ms.SearchResponse{Hits: ms.Hits{}},
 	}
-	adapter := newSearchAdapterWithIndex(fake)
+	adapter := &SearchAdapter{index: fake}
 
 	_, _, err := adapter.Search(context.Background(), "test", nil, 0)
 	require.NoError(t, err)

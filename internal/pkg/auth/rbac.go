@@ -30,15 +30,6 @@ const (
 	PermServerAdmin    = "server.admin"
 )
 
-func CheckPermission(userPermissions []string, required string) bool {
-	for _, p := range userPermissions {
-		if p == required || p == PermServerAdmin {
-			return true
-		}
-	}
-	return false
-}
-
 // Maps gRPC method full names to required permissions
 var MethodPermissions = map[string]string{
 	"/evey.LibraryService/CreateLibrary":       PermLibraryCreate,
