@@ -445,19 +445,18 @@ func TestExtractWSToken(t *testing.T) {
 			want:     "proto-token",
 		},
 		{
-			name:  "Query param fallback when no header or subprotocol",
-			query: "query-token",
-			want:  "query-token",
-		},
-		{
 			name: "Empty when nothing provided",
 			want: "",
 		},
 		{
 			name:       "Non-Bearer Authorization header ignored",
 			authHeader: "Basic dXNlcjpwYXNz",
-			query:      "query-token",
-			want:       "query-token",
+			want:       "",
+		},
+		{
+			name:  "Query param ignored (removed for security)",
+			query: "query-token",
+			want:  "",
 		},
 	}
 

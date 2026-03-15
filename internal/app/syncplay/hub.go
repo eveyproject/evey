@@ -84,20 +84,19 @@ func (h *Hub) LeaveRoom(ctx context.Context, roomID, userID string) error {
 }
 
 // extractWSToken reads the bearer token from the WebSocket upgrade request.
-// Priority: Authorization header → Sec-WebSocket-Protocol subprotocol → query param (deprecated).
+// Priority: Authorization header → Sec-WebSocket-Protocol subprotocol.
 func extractWSToken(r *http.Request) string {
 	if h := r.Header.Get("Authorization"); strings.HasPrefix(h, "Bearer ") {
 		return strings.TrimPrefix(h, "Bearer ")
 	}
-	// Browser WebSocket API cannot set custom headers; token may be sent as a subprotocol.
+	// Browser WebSocket API cannot set custom headers; token is sent as a subprotocol.
 	for p := range strings.SplitSeq(r.Header.Get("Sec-WebSocket-Protocol"), ",") {
 		p = strings.TrimSpace(p)
 		if token, ok := strings.CutPrefix(p, "Bearer."); ok {
 			return token
 		}
 	}
-	// Fallback: query param (deprecated — exposes token in logs/history).
-	return r.URL.Query().Get("token")
+	return ""
 }
 
 // WSHandler returns an http.Handler for WebSocket connections at /api/v1/syncplay/rooms/{id}/ws.

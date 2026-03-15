@@ -304,6 +304,9 @@ func (s *ScanService) ProbeAndStoreStreams(ctx context.Context, mediaItemID, fil
 	var extSubs []*library.MediaStream
 	if s.metadata != nil {
 		extSubs = s.metadata.discoverExternalSubtitles(result.Streams, mediaItemID, filePath)
+	} else if s.subScanner != nil {
+		m := &MetadataExtractionService{subScanner: s.subScanner}
+		extSubs = m.discoverExternalSubtitles(result.Streams, mediaItemID, filePath)
 	}
 	result.Streams = append(result.Streams, extSubs...)
 	allStreams := result.Streams

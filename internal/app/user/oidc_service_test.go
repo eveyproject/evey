@@ -767,64 +767,7 @@ func TestHandleCallback_TokenExchangeError(t *testing.T) {
 	}
 }
 
-// --- Ping ---
+// Ping tests removed — OIDCService.Ping was deleted (dead code cleanup)
 
-func TestPing_Success(t *testing.T) {
-	oidcSrv := newTestOIDCServer(t)
-	defer oidcSrv.close()
-	svc := buildOIDCService(t, oidcSrv)
-
-	if err := svc.Ping(context.Background()); err != nil {
-		t.Fatalf("Ping should succeed: %v", err)
-	}
-}
-
-func TestPing_IssuerMismatch(t *testing.T) {
-	oidcSrv := newTestOIDCServer(t)
-	defer oidcSrv.close()
-	svc := buildOIDCService(t, oidcSrv, func(s *OIDCService) {
-		s.issuer = "http://wrong-issuer.example.com"
-	})
-
-	err := svc.Ping(context.Background())
-	if err == nil {
-		t.Fatal("expected error for issuer mismatch")
-	}
-}
-
-// --- generateAndStoreRefreshToken ---
-
-func TestGenerateAndStoreRefreshToken_DuplicateHashRetries(t *testing.T) {
-	oidcSrv := newTestOIDCServer(t)
-	defer oidcSrv.close()
-	svc := buildOIDCService(t, oidcSrv)
-
-	// Should succeed normally
-	token, err := svc.generateAndStoreRefreshToken(context.Background(), "usr-123")
-	if err != nil {
-		t.Fatalf("generateAndStoreRefreshToken failed: %v", err)
-	}
-	if token == "" {
-		t.Error("expected non-empty token")
-	}
-}
-
-func TestGenerateAndStoreRefreshToken_PermanentError(t *testing.T) {
-	oidcSrv := newTestOIDCServer(t)
-	defer oidcSrv.close()
-
-	refreshRepo := userfakes.NewFakeRefreshTokenRepository()
-	refreshRepo.Err = errors.New("db down")
-	svc := buildOIDCService(t, oidcSrv, func(s *OIDCService) {
-		s.refreshTkns = refreshRepo
-	})
-
-	_, err := svc.generateAndStoreRefreshToken(context.Background(), "usr-123")
-	if err == nil {
-		t.Fatal("expected error when repo always fails")
-	}
-	if !strings.Contains(err.Error(), "duplicate hash after retries") {
-		t.Errorf("expected 'duplicate hash after retries', got %q", err.Error())
-	}
-}
+// generateAndStoreRefreshToken tests kept in command_service_test.go (duplicate removed)
 

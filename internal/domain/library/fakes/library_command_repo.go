@@ -17,6 +17,12 @@ func NewFakeLibraryCommandRepo() *FakeLibraryCommandRepo {
 	return &FakeLibraryCommandRepo{items: make(map[string]*library.Library)}
 }
 
+func (r *FakeLibraryCommandRepo) Seed(lib *library.Library) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.items[lib.ID] = lib
+}
+
 func (r *FakeLibraryCommandRepo) Create(_ context.Context, lib *library.Library) error {
 	if r.Err != nil {
 		return r.Err

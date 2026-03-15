@@ -200,6 +200,7 @@ func TestScanLibrary_ConcurrentScanRejected(t *testing.T) {
 	h := newHarness()
 	lib := &library.Library{ID: "lib-1", Name: "Movies", Type: "movie", Paths: []string{"/movies"}}
 	h.libQuery.Seed(lib)
+	h.libCmd.Seed(lib)
 
 	started := make(chan struct{})
 	blocked := make(chan struct{})
@@ -240,6 +241,7 @@ func TestScanLibrary_ScannerError_Propagates(t *testing.T) {
 	h := newHarness()
 	lib := &library.Library{ID: "lib-1", Name: "Movies", Type: "movie", Paths: []string{"/movies"}}
 	h.libQuery.Seed(lib)
+	h.libCmd.Seed(lib)
 	h.scanner.Err = errors.New("permission denied")
 
 	_, _, err := h.svc.ScanLibrary(context.Background(), "lib-1")
@@ -253,6 +255,7 @@ func TestScanLibrary_ReturnsExactAddedUpdatedCounts(t *testing.T) {
 	h := newHarness()
 	lib := &library.Library{ID: "lib-1", Name: "Movies", Type: "movie", Paths: []string{"/movies"}}
 	h.libQuery.Seed(lib)
+	h.libCmd.Seed(lib)
 
 	h.mediaItems.Create(context.Background(), &library.MediaItem{
 		ID: "existing-1", LibraryID: "lib-1", FilePath: "/movies/old.mkv", FileSize: 100,
@@ -274,6 +277,7 @@ func TestScanLibrary_MultiplePaths(t *testing.T) {
 	h := newHarness()
 	lib := &library.Library{ID: "lib-1", Name: "Movies", Type: "movie", Paths: []string{"/movies", "/extra"}}
 	h.libQuery.Seed(lib)
+	h.libCmd.Seed(lib)
 
 	h.scanner.Results["/movies"] = []library.ScannedFile{
 		{Path: "/movies/a.mkv", Size: 100, Title: "A"},
@@ -292,6 +296,7 @@ func TestScanLibrary_ScanCompletedEvent_HasCorrectCounts(t *testing.T) {
 	h := newHarness()
 	lib := &library.Library{ID: "lib-1", Name: "Movies", Type: "movie", Paths: []string{"/movies"}}
 	h.libQuery.Seed(lib)
+	h.libCmd.Seed(lib)
 
 	h.mediaItems.Create(context.Background(), &library.MediaItem{
 		ID: "orphan-1", LibraryID: "lib-1", FilePath: "/movies/gone.mkv",
@@ -324,6 +329,7 @@ func TestUpsertMediaFile_NewItem_ByFingerprint_FallbackToPath(t *testing.T) {
 	h := newHarness()
 	lib := &library.Library{ID: "lib-1", Name: "Movies", Type: "movie", Paths: []string{"/movies"}}
 	h.libQuery.Seed(lib)
+	h.libCmd.Seed(lib)
 
 	h.scanner.Results["/movies"] = []library.ScannedFile{
 		{Path: "/movies/film.mkv", Size: 1000, Fingerprint: "fp-123", Title: "Film"},
@@ -347,6 +353,7 @@ func TestUpsertMediaFile_ExistingByFingerprint_Unchanged_NoPathChange(t *testing
 	h := newHarness()
 	lib := &library.Library{ID: "lib-1", Name: "Movies", Type: "movie", Paths: []string{"/movies"}}
 	h.libQuery.Seed(lib)
+	h.libCmd.Seed(lib)
 
 	h.mediaItems.Create(context.Background(), &library.MediaItem{
 		ID: "item-1", LibraryID: "lib-1", FilePath: "/movies/film.mkv",
@@ -368,6 +375,7 @@ func TestUpsertMediaFile_ExistingByFingerprint_Unchanged_PathMoved(t *testing.T)
 	h := newHarness()
 	lib := &library.Library{ID: "lib-1", Name: "Movies", Type: "movie", Paths: []string{"/movies"}}
 	h.libQuery.Seed(lib)
+	h.libCmd.Seed(lib)
 
 	h.mediaItems.Create(context.Background(), &library.MediaItem{
 		ID: "item-1", LibraryID: "lib-1", FilePath: "/movies/old-name.mkv",
@@ -392,6 +400,7 @@ func TestUpsertMediaFile_ExistingByPath_NoFingerprint(t *testing.T) {
 	h := newHarness()
 	lib := &library.Library{ID: "lib-1", Name: "Movies", Type: "movie", Paths: []string{"/movies"}}
 	h.libQuery.Seed(lib)
+	h.libCmd.Seed(lib)
 
 	h.mediaItems.Create(context.Background(), &library.MediaItem{
 		ID: "item-1", LibraryID: "lib-1", FilePath: "/movies/film.mkv",
@@ -413,6 +422,7 @@ func TestUpsertMediaFile_ExistingChanged_UpdatesFields(t *testing.T) {
 	h := newHarness()
 	lib := &library.Library{ID: "lib-1", Name: "Movies", Type: "movie", Paths: []string{"/movies"}}
 	h.libQuery.Seed(lib)
+	h.libCmd.Seed(lib)
 
 	h.mediaItems.Create(context.Background(), &library.MediaItem{
 		ID: "item-1", LibraryID: "lib-1", FilePath: "/movies/film.mkv",
@@ -438,6 +448,7 @@ func TestUpsertMediaFile_Changed_NoOverview_ReEmitsEvent(t *testing.T) {
 	h := newHarness()
 	lib := &library.Library{ID: "lib-1", Name: "Movies", Type: "movie", Paths: []string{"/movies"}}
 	h.libQuery.Seed(lib)
+	h.libCmd.Seed(lib)
 
 	h.mediaItems.Create(context.Background(), &library.MediaItem{
 		ID: "item-1", LibraryID: "lib-1", FilePath: "/movies/film.mkv",
@@ -465,6 +476,7 @@ func TestUpsertMediaFile_Changed_WithOverview_NoReEmit(t *testing.T) {
 	h := newHarness()
 	lib := &library.Library{ID: "lib-1", Name: "Movies", Type: "movie", Paths: []string{"/movies"}}
 	h.libQuery.Seed(lib)
+	h.libCmd.Seed(lib)
 
 	h.mediaItems.Create(context.Background(), &library.MediaItem{
 		ID: "item-1", LibraryID: "lib-1", FilePath: "/movies/film.mkv",
@@ -490,6 +502,7 @@ func TestUpsertMediaFile_NewItem_PublishesMediaItemAdded(t *testing.T) {
 	h := newHarness()
 	lib := &library.Library{ID: "lib-1", Name: "Movies", Type: "movie", Paths: []string{"/movies"}}
 	h.libQuery.Seed(lib)
+	h.libCmd.Seed(lib)
 
 	h.scanner.Results["/movies"] = []library.ScannedFile{
 		{Path: "/movies/batman.mkv", Size: 100, Title: "Batman", Type: library.MovieItem},
@@ -516,6 +529,7 @@ func TestUpsertMediaFile_CreateError_Propagates(t *testing.T) {
 	h := newHarness()
 	lib := &library.Library{ID: "lib-1", Name: "Movies", Type: "movie", Paths: []string{"/movies"}}
 	h.libQuery.Seed(lib)
+	h.libCmd.Seed(lib)
 	h.mediaItems.ErrCreate = errors.New("disk full")
 
 	h.scanner.Results["/movies"] = []library.ScannedFile{
@@ -532,6 +546,7 @@ func TestUpsertMediaFile_LookupError_Propagates(t *testing.T) {
 	h := newHarness()
 	lib := &library.Library{ID: "lib-1", Name: "Movies", Type: "movie", Paths: []string{"/movies"}}
 	h.libQuery.Seed(lib)
+	h.libCmd.Seed(lib)
 	h.mediaItems.GetByFileFingerprintErr = errors.New("db timeout")
 
 	h.scanner.Results["/movies"] = []library.ScannedFile{
@@ -548,6 +563,7 @@ func TestUpsertMediaFile_FingerprintNotFound_FallsBackToPath(t *testing.T) {
 	h := newHarness()
 	lib := &library.Library{ID: "lib-1", Name: "Movies", Type: "movie", Paths: []string{"/movies"}}
 	h.libQuery.Seed(lib)
+	h.libCmd.Seed(lib)
 
 	h.mediaItems.Create(context.Background(), &library.MediaItem{
 		ID: "item-1", LibraryID: "lib-1", FilePath: "/movies/film.mkv",
@@ -569,6 +585,7 @@ func TestUpsertMediaFile_NewItem_WithDuration(t *testing.T) {
 	h := newHarness()
 	lib := &library.Library{ID: "lib-1", Name: "Movies", Type: "movie", Paths: []string{"/movies"}}
 	h.libQuery.Seed(lib)
+	h.libCmd.Seed(lib)
 
 	h.prober.Results["/movies/film.mkv"] = &library.ProbeResult{
 		DurationMs: 120000,
@@ -592,6 +609,7 @@ func TestUpsertMediaFile_NewItem_WithYear(t *testing.T) {
 	h := newHarness()
 	lib := &library.Library{ID: "lib-1", Name: "Movies", Type: "movie", Paths: []string{"/movies"}}
 	h.libQuery.Seed(lib)
+	h.libCmd.Seed(lib)
 
 	yr := 2024
 	h.scanner.Results["/movies"] = []library.ScannedFile{
@@ -612,6 +630,7 @@ func TestUpsertMediaFile_UnchangedSizeEmptyFingerprint_CountsAsUnchanged(t *test
 	h := newHarness()
 	lib := &library.Library{ID: "lib-1", Name: "Movies", Type: "movie", Paths: []string{"/movies"}}
 	h.libQuery.Seed(lib)
+	h.libCmd.Seed(lib)
 
 	h.mediaItems.Create(context.Background(), &library.MediaItem{
 		ID: "item-1", LibraryID: "lib-1", FilePath: "/movies/film.mkv",
@@ -633,6 +652,7 @@ func TestUpsertMediaFile_Changed_DifferentFingerprint(t *testing.T) {
 	h := newHarness()
 	lib := &library.Library{ID: "lib-1", Name: "Movies", Type: "movie", Paths: []string{"/movies"}}
 	h.libQuery.Seed(lib)
+	h.libCmd.Seed(lib)
 
 	h.mediaItems.Create(context.Background(), &library.MediaItem{
 		ID: "item-1", LibraryID: "lib-1", FilePath: "/movies/film.mkv",
@@ -663,6 +683,7 @@ func TestExtractChapters_NonMKV_Skipped(t *testing.T) {
 
 	lib := &library.Library{ID: "lib-1", Name: "Movies", Type: "movie", Paths: []string{"/movies"}}
 	h.libQuery.Seed(lib)
+	h.libCmd.Seed(lib)
 	h.scanner.Results["/movies"] = []library.ScannedFile{
 		{Path: "/movies/film.mp4", Size: 100},
 	}
@@ -685,6 +706,7 @@ func TestExtractChapters_MKV_NoChaptersInFile(t *testing.T) {
 
 	lib := &library.Library{ID: "lib-1", Name: "Movies", Type: "movie", Paths: []string{"/movies"}}
 	h.libQuery.Seed(lib)
+	h.libCmd.Seed(lib)
 	h.scanner.Results["/movies"] = []library.ScannedFile{
 		{Path: "/movies/film.mkv", Size: 100},
 	}
@@ -710,6 +732,7 @@ func TestExtractChapters_MKV_ChaptersStored(t *testing.T) {
 
 	lib := &library.Library{ID: "lib-1", Name: "Movies", Type: "movie", Paths: []string{"/movies"}}
 	h.libQuery.Seed(lib)
+	h.libCmd.Seed(lib)
 	h.scanner.Results["/movies"] = []library.ScannedFile{
 		{Path: "/movies/film.mkv", Size: 100},
 	}
@@ -735,6 +758,7 @@ func TestExtractChapters_ReadError_NonFatal(t *testing.T) {
 
 	lib := &library.Library{ID: "lib-1", Name: "Movies", Type: "movie", Paths: []string{"/movies"}}
 	h.libQuery.Seed(lib)
+	h.libCmd.Seed(lib)
 	h.scanner.Results["/movies"] = []library.ScannedFile{
 		{Path: "/movies/film.mkv", Size: 100},
 	}
@@ -781,6 +805,7 @@ func TestDiscoverExternalSubtitles_VttCodecRenamed(t *testing.T) {
 
 	lib := &library.Library{ID: "lib-1", Name: "Movies", Type: "movie", Paths: []string{"/movies"}}
 	h.libQuery.Seed(lib)
+	h.libCmd.Seed(lib)
 	h.scanner.Results["/movies"] = []library.ScannedFile{
 		{Path: "/movies/film.mkv", Size: 100},
 	}
@@ -820,6 +845,7 @@ func TestDiscoverExternalSubtitles_NonVttCodecKept(t *testing.T) {
 
 	lib := &library.Library{ID: "lib-1", Name: "Movies", Type: "movie", Paths: []string{"/movies"}}
 	h.libQuery.Seed(lib)
+	h.libCmd.Seed(lib)
 	h.scanner.Results["/movies"] = []library.ScannedFile{
 		{Path: "/movies/film.mkv", Size: 100},
 	}
@@ -859,6 +885,7 @@ func TestDiscoverExternalSubtitles_MaxIdxContinuesFromExisting(t *testing.T) {
 
 	lib := &library.Library{ID: "lib-1", Name: "Movies", Type: "movie", Paths: []string{"/movies"}}
 	h.libQuery.Seed(lib)
+	h.libCmd.Seed(lib)
 	h.scanner.Results["/movies"] = []library.ScannedFile{
 		{Path: "/movies/film.mkv", Size: 100},
 	}
@@ -894,6 +921,7 @@ func TestDiscoverExternalSubtitles_ForcedFlag(t *testing.T) {
 
 	lib := &library.Library{ID: "lib-1", Name: "Movies", Type: "movie", Paths: []string{"/movies"}}
 	h.libQuery.Seed(lib)
+	h.libCmd.Seed(lib)
 	h.scanner.Results["/movies"] = []library.ScannedFile{
 		{Path: "/movies/film.mkv", Size: 100},
 	}
@@ -917,6 +945,7 @@ func TestDiscoverExternalSubtitles_NilScanner_NoSubs(t *testing.T) {
 
 	lib := &library.Library{ID: "lib-1", Name: "Movies", Type: "movie", Paths: []string{"/movies"}}
 	h.libQuery.Seed(lib)
+	h.libCmd.Seed(lib)
 	h.scanner.Results["/movies"] = []library.ScannedFile{
 		{Path: "/movies/film.mkv", Size: 100},
 	}
@@ -1005,6 +1034,7 @@ func TestScanTVShow_CreatesSeriesSeasonEpisode(t *testing.T) {
 	s1, e1 := 1, 1
 	lib := &library.Library{ID: "lib-tv", Name: "TV", Type: "tvshow", Paths: []string{"/tv"}}
 	h.libQuery.Seed(lib)
+	h.libCmd.Seed(lib)
 
 	h.scanner.Results["/tv"] = []library.ScannedFile{
 		{Path: "/tv/show/s01e01.mkv", Size: 500, Title: "My Show", Season: &s1, Episode: &e1, Type: library.Episode},
@@ -1029,6 +1059,7 @@ func TestScanTVShow_EpisodeTitleFormat(t *testing.T) {
 	s2, e3 := 2, 3
 	lib := &library.Library{ID: "lib-tv", Name: "TV", Type: "tvshow", Paths: []string{"/tv"}}
 	h.libQuery.Seed(lib)
+	h.libCmd.Seed(lib)
 
 	h.scanner.Results["/tv"] = []library.ScannedFile{
 		{Path: "/tv/show/s02e03.mkv", Size: 500, Title: "My Show", Season: &s2, Episode: &e3, Type: library.Episode},
@@ -1053,6 +1084,7 @@ func TestScanTVShow_NilSeason_DefaultsTo0(t *testing.T) {
 	e1 := 1
 	lib := &library.Library{ID: "lib-tv", Name: "TV", Type: "tvshow", Paths: []string{"/tv"}}
 	h.libQuery.Seed(lib)
+	h.libCmd.Seed(lib)
 
 	h.scanner.Results["/tv"] = []library.ScannedFile{
 		{Path: "/tv/show/special.mkv", Size: 500, Title: "My Show", Season: nil, Episode: &e1, Type: library.Episode},
@@ -1077,6 +1109,7 @@ func TestScanTVShow_NoEpisodeNumber_KeepsOriginalTitle(t *testing.T) {
 	s1 := 1
 	lib := &library.Library{ID: "lib-tv", Name: "TV", Type: "tvshow", Paths: []string{"/tv"}}
 	h.libQuery.Seed(lib)
+	h.libCmd.Seed(lib)
 
 	h.scanner.Results["/tv"] = []library.ScannedFile{
 		{Path: "/tv/show/bonus.mkv", Size: 500, Title: "My Show", Season: &s1, Episode: nil, Type: library.Episode},
@@ -1101,6 +1134,7 @@ func TestScanTVShow_SameShowTwoEpisodes_OneSeriesOneSeason(t *testing.T) {
 	s1, e1, e2 := 1, 1, 2
 	lib := &library.Library{ID: "lib-tv", Name: "TV", Type: "tvshow", Paths: []string{"/tv"}}
 	h.libQuery.Seed(lib)
+	h.libCmd.Seed(lib)
 
 	h.scanner.Results["/tv"] = []library.ScannedFile{
 		{Path: "/tv/show/s01e01.mkv", Size: 500, Title: "My Show", Season: &s1, Episode: &e1, Type: library.Episode},
@@ -1118,6 +1152,7 @@ func TestScanTVShow_TwoSeasons(t *testing.T) {
 	s1, s2, e1 := 1, 2, 1
 	lib := &library.Library{ID: "lib-tv", Name: "TV", Type: "tvshow", Paths: []string{"/tv"}}
 	h.libQuery.Seed(lib)
+	h.libCmd.Seed(lib)
 
 	h.scanner.Results["/tv"] = []library.ScannedFile{
 		{Path: "/tv/show/s01e01.mkv", Size: 500, Title: "My Show", Season: &s1, Episode: &e1, Type: library.Episode},
@@ -1135,6 +1170,7 @@ func TestScanTVShow_SeriesEventHasSeriesTitle(t *testing.T) {
 	s1, e1 := 1, 1
 	lib := &library.Library{ID: "lib-tv", Name: "TV", Type: "tvshow", Paths: []string{"/tv"}}
 	h.libQuery.Seed(lib)
+	h.libCmd.Seed(lib)
 
 	h.scanner.Results["/tv"] = []library.ScannedFile{
 		{Path: "/tv/show/s01e01.mkv", Size: 500, Title: "Breaking Bad", Season: &s1, Episode: &e1, Type: library.Episode},
@@ -1160,6 +1196,7 @@ func TestScanTVShow_GetOrCreateItem_FindsByFingerprint(t *testing.T) {
 	h := newHarness()
 	lib := &library.Library{ID: "lib-tv", Name: "TV", Type: "tvshow", Paths: []string{"/tv"}}
 	h.libQuery.Seed(lib)
+	h.libCmd.Seed(lib)
 
 	h.mediaItems.Create(context.Background(), &library.MediaItem{
 		ID: "existing-series", LibraryID: "lib-tv", Type: "series",
@@ -1252,6 +1289,7 @@ func TestRemoveOrphans_PublishesMediaItemRemoved(t *testing.T) {
 	h := newHarness()
 	lib := &library.Library{ID: "lib-1", Name: "Movies", Type: "movie", Paths: []string{"/movies"}}
 	h.libQuery.Seed(lib)
+	h.libCmd.Seed(lib)
 
 	h.mediaItems.Create(context.Background(), &library.MediaItem{
 		ID: "orphan-1", LibraryID: "lib-1", FilePath: "/movies/gone.mkv",
@@ -1278,6 +1316,7 @@ func TestRemoveOrphans_AlsoRemovesFromSearchIndex(t *testing.T) {
 	h := newHarness()
 	lib := &library.Library{ID: "lib-1", Name: "Movies", Type: "movie", Paths: []string{"/movies"}}
 	h.libQuery.Seed(lib)
+	h.libCmd.Seed(lib)
 
 	h.mediaItems.Create(context.Background(), &library.MediaItem{
 		ID: "orphan-1", LibraryID: "lib-1", FilePath: "/movies/gone.mkv", Title: "Gone Film",
@@ -1321,6 +1360,7 @@ func TestScanTVShow_UpsertError_Propagates(t *testing.T) {
 	h := newHarness()
 	lib := &library.Library{ID: "lib-tv", Name: "TV", Type: "tvshow", Paths: []string{"/tv"}}
 	h.libQuery.Seed(lib)
+	h.libCmd.Seed(lib)
 
 	s1, e1 := 1, 1
 	h.scanner.Results["/tv"] = []library.ScannedFile{
@@ -1339,6 +1379,7 @@ func TestScanLibrary_Movie_UpsertError_Propagates(t *testing.T) {
 	h := newHarness()
 	lib := &library.Library{ID: "lib-1", Name: "Movies", Type: "movie", Paths: []string{"/movies"}}
 	h.libQuery.Seed(lib)
+	h.libCmd.Seed(lib)
 
 	h.scanner.Results["/movies"] = []library.ScannedFile{
 		{Path: "/movies/film.mkv", Size: 100},
@@ -1355,6 +1396,7 @@ func TestScanLibrary_NewFile_IndexedInSearch(t *testing.T) {
 	h := newHarness()
 	lib := &library.Library{ID: "lib-1", Name: "Movies", Type: "movie", Paths: []string{"/movies"}}
 	h.libQuery.Seed(lib)
+	h.libCmd.Seed(lib)
 
 	h.scanner.Results["/movies"] = []library.ScannedFile{
 		{Path: "/movies/batman.mkv", Size: 1000, Title: "Batman"},
@@ -1374,6 +1416,7 @@ func TestScanLibrary_UpdatesLastScannedAt(t *testing.T) {
 	h := newHarness()
 	lib := &library.Library{ID: "lib-1", Name: "Movies", Type: "movie", Paths: []string{"/movies"}}
 	h.libQuery.Seed(lib)
+	h.libCmd.Seed(lib)
 	h.scanner.Results["/movies"] = []library.ScannedFile{}
 
 	before := time.Now().Add(-time.Second)
@@ -1531,6 +1574,7 @@ func TestUpsertMediaFile_Changed_WithDuration_UpdatesDuration(t *testing.T) {
 	h := newHarness()
 	lib := &library.Library{ID: "lib-1", Name: "Movies", Type: "movie", Paths: []string{"/movies"}}
 	h.libQuery.Seed(lib)
+	h.libCmd.Seed(lib)
 
 	h.mediaItems.Create(context.Background(), &library.MediaItem{
 		ID: "item-1", LibraryID: "lib-1", FilePath: "/movies/film.mkv",
@@ -1558,6 +1602,7 @@ func TestUpsertMediaFile_Changed_ZeroDuration_KeepsOldDuration(t *testing.T) {
 	h := newHarness()
 	lib := &library.Library{ID: "lib-1", Name: "Movies", Type: "movie", Paths: []string{"/movies"}}
 	h.libQuery.Seed(lib)
+	h.libCmd.Seed(lib)
 
 	h.mediaItems.Create(context.Background(), &library.MediaItem{
 		ID: "item-1", LibraryID: "lib-1", FilePath: "/movies/film.mkv",
@@ -1582,6 +1627,7 @@ func TestUpsertMediaFile_NewItem_ParentID_Propagated(t *testing.T) {
 	s1, e1 := 1, 1
 	lib := &library.Library{ID: "lib-tv", Name: "TV", Type: "tvshow", Paths: []string{"/tv"}}
 	h.libQuery.Seed(lib)
+	h.libCmd.Seed(lib)
 
 	h.scanner.Results["/tv"] = []library.ScannedFile{
 		{Path: "/tv/show/s01e01.mkv", Size: 500, Title: "My Show", Season: &s1, Episode: &e1, Type: library.Episode},
@@ -1610,6 +1656,7 @@ func TestUpsertMediaFile_ExistingChanged_UpdatesParentID(t *testing.T) {
 	h := newHarness()
 	lib := &library.Library{ID: "lib-1", Name: "Movies", Type: "movie", Paths: []string{"/movies"}}
 	h.libQuery.Seed(lib)
+	h.libCmd.Seed(lib)
 
 	h.mediaItems.Create(context.Background(), &library.MediaItem{
 		ID: "item-1", LibraryID: "lib-1", FilePath: "/movies/film.mkv",
