@@ -322,15 +322,41 @@ func mapDetailResult(d tmdbDetailResponse, mediaType string, serverLang string) 
 		Overview:    d.Overview,
 	}
 
-	if d.ExternalIDs != nil {
-		if d.ExternalIDs.IMDBID != "" {
-			result.ProviderIDs["imdb"] = d.ExternalIDs.IMDBID
-		}
-		if d.ExternalIDs.TVDBID > 0 {
-			result.ProviderIDs["thetvdb"] = strconv.Itoa(d.ExternalIDs.TVDBID)
-		}
+	mapDetailExternalIDs(&result, d.ExternalIDs)
+	mapDetailTitleAndDate(&result, d, mediaType)
+	mapDetailRating(&result, d.VoteAverage)
+
+	for _, g := range d.Genres {
+		result.Genres = append(result.Genres, g.Name)
+	}
+	for _, s := range d.ProductionCompanies {
+		result.Studios = append(result.Studios, s.Name)
 	}
 
+	result.People = mapDetailPeople(d.Credits)
+	result.Artwork = mapDetailArtwork(d.Images)
+
+	if d.Videos != nil {
+		result.Trailers = selectTrailers(d.Videos.Results, serverLang)
+	}
+
+	result.Collection = mapDetailCollection(d.BelongsToCollection)
+	return result
+}
+
+func mapDetailExternalIDs(result *domain.MetadataResult, ext *tmdbExternalIDs) {
+	if ext == nil {
+		return
+	}
+	if ext.IMDBID != "" {
+		result.ProviderIDs["imdb"] = ext.IMDBID
+	}
+	if ext.TVDBID > 0 {
+		result.ProviderIDs["thetvdb"] = strconv.Itoa(ext.TVDBID)
+	}
+}
+
+func mapDetailTitleAndDate(result *domain.MetadataResult, d tmdbDetailResponse, mediaType string) {
 	if mediaType == "tv" {
 		result.Title = d.Name
 		result.OriginalTitle = d.OriginalName
@@ -340,107 +366,89 @@ func mapDetailResult(d tmdbDetailResponse, mediaType string, serverLang string) 
 		result.OriginalTitle = d.OriginalTitle
 		result.PremiereDate = parseDate(d.ReleaseDate)
 	}
-
 	if result.PremiereDate != nil {
 		y := result.PremiereDate.Year()
 		result.Year = &y
 	}
+}
 
-	if d.VoteAverage > 0 {
-		r := d.VoteAverage
-		result.CommunityRating = &r
-		result.Ratings["tmdb"] = d.VoteAverage
+func mapDetailRating(result *domain.MetadataResult, voteAverage float64) {
+	if voteAverage <= 0 {
+		return
 	}
+	r := voteAverage
+	result.CommunityRating = &r
+	result.Ratings["tmdb"] = voteAverage
+}
 
-	for _, g := range d.Genres {
-		result.Genres = append(result.Genres, g.Name)
+func mapDetailPeople(credits *tmdbCredits) []domain.PersonResult {
+	if credits == nil {
+		return nil
 	}
-
-	for _, s := range d.ProductionCompanies {
-		result.Studios = append(result.Studios, s.Name)
+	var people []domain.PersonResult
+	for _, c := range credits.Cast {
+		people = append(people, domain.PersonResult{
+			Name:      c.Name,
+			Role:      "Actor",
+			Character: c.Character,
+			ThumbURL:  profileURL(c.ProfilePath),
+		})
 	}
-
-	if d.Credits != nil {
-		for _, c := range d.Credits.Cast {
-			result.People = append(result.People, domain.PersonResult{
-				Name:      c.Name,
-				Role:      "Actor",
-				Character: c.Character,
-				ThumbURL:  profileURL(c.ProfilePath),
-			})
-		}
-		for _, c := range d.Credits.Crew {
-			if c.Job == "Director" {
-				result.People = append(result.People, domain.PersonResult{
-					Name:     c.Name,
-					Role:     "Director",
-					ThumbURL: profileURL(c.ProfilePath),
-				})
-			}
-		}
-	}
-
-	if d.Images != nil {
-		for i, img := range d.Images.Posters {
-			if i >= 5 {
-				break
-			}
-			result.Artwork = append(result.Artwork, domain.ArtworkResult{
-				Type:     domain.ArtworkTypePoster,
-				URL:      imageBaseURL + img.FilePath,
-				Width:    img.Width,
-				Height:   img.Height,
-				Language: img.ISO639_1,
-				Provider: "tmdb",
-			})
-		}
-		for i, img := range d.Images.Backdrops {
-			if i >= 5 {
-				break
-			}
-			result.Artwork = append(result.Artwork, domain.ArtworkResult{
-				Type:     domain.ArtworkTypeBackdrop,
-				URL:      imageBaseURL + img.FilePath,
-				Width:    img.Width,
-				Height:   img.Height,
-				Language: img.ISO639_1,
-				Provider: "tmdb",
-			})
-		}
-		for i, img := range d.Images.Logos {
-			if i >= 3 {
-				break
-			}
-			result.Artwork = append(result.Artwork, domain.ArtworkResult{
-				Type:     domain.ArtworkTypeLogo,
-				URL:      imageBaseURL + img.FilePath,
-				Width:    img.Width,
-				Height:   img.Height,
-				Language: img.ISO639_1,
-				Provider: "tmdb",
+	for _, c := range credits.Crew {
+		if c.Job == "Director" {
+			people = append(people, domain.PersonResult{
+				Name:     c.Name,
+				Role:     "Director",
+				ThumbURL: profileURL(c.ProfilePath),
 			})
 		}
 	}
+	return people
+}
 
-	if d.Videos != nil {
-		result.Trailers = selectTrailers(d.Videos.Results, serverLang)
+func mapDetailArtwork(images *tmdbImages) []domain.ArtworkResult {
+	if images == nil {
+		return nil
 	}
+	var artwork []domain.ArtworkResult
+	artwork = appendImages(artwork, images.Posters, domain.ArtworkTypePoster, 5)
+	artwork = appendImages(artwork, images.Backdrops, domain.ArtworkTypeBackdrop, 5)
+	artwork = appendImages(artwork, images.Logos, domain.ArtworkTypeLogo, 3)
+	return artwork
+}
 
-	if d.BelongsToCollection != nil {
-		ref := &domain.CollectionRef{
-			TmdbID: d.BelongsToCollection.ID,
-			Name:   d.BelongsToCollection.Name,
+func appendImages(dst []domain.ArtworkResult, imgs []tmdbImage, artType string, limit int) []domain.ArtworkResult {
+	for i, img := range imgs {
+		if i >= limit {
+			break
 		}
-		if d.BelongsToCollection.PosterPath != "" {
-			ref.PosterURL = "https://image.tmdb.org/t/p/w500" + d.BelongsToCollection.PosterPath
-		}
-		if d.BelongsToCollection.BackdropPath != "" {
-			ref.BackdropURL = imageBaseURL + d.BelongsToCollection.BackdropPath
-		}
-		result.Collection = ref
+		dst = append(dst, domain.ArtworkResult{
+			Type:     artType,
+			URL:      imageBaseURL + img.FilePath,
+			Width:    img.Width,
+			Height:   img.Height,
+			Language: img.ISO639_1,
+			Provider: "tmdb",
+		})
 	}
+	return dst
+}
 
-	return result
+func mapDetailCollection(col *tmdbCollection) *domain.CollectionRef {
+	if col == nil {
+		return nil
+	}
+	ref := &domain.CollectionRef{
+		TmdbID: col.ID,
+		Name:   col.Name,
+	}
+	if col.PosterPath != "" {
+		ref.PosterURL = "https://image.tmdb.org/t/p/w500" + col.PosterPath
+	}
+	if col.BackdropPath != "" {
+		ref.BackdropURL = imageBaseURL + col.BackdropPath
+	}
+	return ref
 }
 
 // selectTrailers filters videos to trailers only, sorts server language first

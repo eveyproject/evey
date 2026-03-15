@@ -57,6 +57,23 @@ func NewEnricher(
 // EnrichItem applies a MetadataResult to a media item: updates the item,
 // replaces artwork records, and upserts people/cast.
 func (e *Enricher) EnrichItem(ctx context.Context, item *domaindomain.MediaItem, result *domainmetadata.MetadataResult) error {
+	applyBasicFields(item, result)
+
+	if err := e.mediaItems.Update(ctx, item); err != nil {
+		return fmt.Errorf("update media item: %w", err)
+	}
+	if err := e.replaceArtwork(ctx, item.ID, result.Artwork); err != nil {
+		return err
+	}
+	if err := e.upsertPeople(ctx, item.ID, result.People); err != nil {
+		return err
+	}
+	e.indexSearch(ctx, item, result.People)
+	e.linkCollection(ctx, item.ID, result.Collection)
+	return nil
+}
+
+func applyBasicFields(item *domaindomain.MediaItem, result *domainmetadata.MetadataResult) {
 	item.Title = result.Title
 	item.OriginalTitle = result.OriginalTitle
 	item.Overview = result.Overview
@@ -90,74 +107,63 @@ func (e *Enricher) EnrichItem(ctx context.Context, item *domaindomain.MediaItem,
 		item.Ratings = make(map[string]float64)
 	}
 	maps.Copy(item.Ratings, result.Ratings)
+}
 
-	if err := e.mediaItems.Update(ctx, item); err != nil {
-		return fmt.Errorf("update media item: %w", err)
-	}
-
-	if err := e.artwork.DeleteByMediaItemID(ctx, item.ID); err != nil {
+func (e *Enricher) replaceArtwork(ctx context.Context, mediaItemID string, artwork []domainmetadata.ArtworkResult) error {
+	if err := e.artwork.DeleteByMediaItemID(ctx, mediaItemID); err != nil {
 		return fmt.Errorf("delete old artwork: %w", err)
 	}
-	for i, art := range result.Artwork {
-		src := art.URL
-		lang := art.Language
-		w, h := art.Width, art.Height
-		provider := art.Provider
-		if provider == "" {
-			provider = "unknown"
-		}
-		rec := &domainmetadata.ArtworkRecord{
-			ID:          uuid.New().String(),
-			MediaItemID: item.ID,
-			Type:        art.Type,
-			Provider:    provider,
-			SourceURL:   &src,
-			SortOrder:   i,
-		}
-		if lang != "" {
-			rec.Language = &lang
-		}
-		if w > 0 {
-			rec.Width = &w
-		}
-		if h > 0 {
-			rec.Height = &h
-		}
-		if err := e.artwork.Create(ctx, rec); err != nil {
+	for i, art := range artwork {
+		if err := e.artwork.Create(ctx, buildArtworkRecord(mediaItemID, i, art)); err != nil {
 			return fmt.Errorf("create artwork: %w", err)
 		}
 	}
+	return nil
+}
 
-	if err := e.mediaPersons.DeleteByMediaItemID(ctx, item.ID); err != nil {
+func buildArtworkRecord(mediaItemID string, sortOrder int, art domainmetadata.ArtworkResult) *domainmetadata.ArtworkRecord {
+	src := art.URL
+	lang := art.Language
+	w, h := art.Width, art.Height
+	provider := art.Provider
+	if provider == "" {
+		provider = "unknown"
+	}
+	rec := &domainmetadata.ArtworkRecord{
+		ID:          uuid.New().String(),
+		MediaItemID: mediaItemID,
+		Type:        art.Type,
+		Provider:    provider,
+		SourceURL:   &src,
+		SortOrder:   sortOrder,
+	}
+	if lang != "" {
+		rec.Language = &lang
+	}
+	if w > 0 {
+		rec.Width = &w
+	}
+	if h > 0 {
+		rec.Height = &h
+	}
+	return rec
+}
+
+func (e *Enricher) upsertPeople(ctx context.Context, mediaItemID string, people []domainmetadata.PersonResult) error {
+	if err := e.mediaPersons.DeleteByMediaItemID(ctx, mediaItemID); err != nil {
 		return fmt.Errorf("delete old media_people: %w", err)
 	}
 	seenPersons := make(map[string]bool)
 	sortIdx := 0
-	for _, p := range result.People {
+	for _, p := range people {
 		if seenPersons[p.Name] {
 			continue
 		}
 		seenPersons[p.Name] = true
 
-		person, err := e.persons.GetByName(ctx, p.Name)
+		person, err := e.findOrCreatePerson(ctx, p)
 		if err != nil {
-			if !errors.Is(err, domaindomain.ErrNotFound) {
-				return fmt.Errorf("get person by name: %w", err)
-			}
-			thumbPath := p.ThumbURL
-			var thumbPtr *string
-			if thumbPath != "" {
-				thumbPtr = &thumbPath
-			}
-			person = &domaindomain.Person{
-				ID:          uuid.New().String(),
-				Name:        p.Name,
-				ProviderIDs: map[string]string{},
-				ThumbPath:   thumbPtr,
-			}
-			if err := e.persons.Create(ctx, person); err != nil {
-				return fmt.Errorf("create person: %w", err)
-			}
+			return err
 		}
 
 		var charName *string
@@ -166,7 +172,7 @@ func (e *Enricher) EnrichItem(ctx context.Context, item *domaindomain.MediaItem,
 			charName = &c
 		}
 		mp := &domaindomain.MediaPerson{
-			MediaItemID:   item.ID,
+			MediaItemID:   mediaItemID,
 			PersonID:      person.ID,
 			RoleType:      roleType(p.Role),
 			CharacterName: charName,
@@ -174,33 +180,65 @@ func (e *Enricher) EnrichItem(ctx context.Context, item *domaindomain.MediaItem,
 		}
 		sortIdx++
 		if createErr := e.mediaPersons.Create(ctx, mp); createErr != nil {
-			slog.Warn("create media person failed", slog.String("personID", person.ID), slog.String("mediaItemID", item.ID), slog.Any("err", createErr))
+			slog.Warn("create media person failed", slog.String("personID", person.ID), slog.String("mediaItemID", mediaItemID), slog.Any("err", createErr))
 		}
 	}
-
-	if e.search != nil {
-		names := make([]string, 0, len(result.People))
-		for _, p := range result.People {
-			names = append(names, p.Name)
-		}
-		if err := e.search.IndexMediaItem(ctx, item, names); err != nil {
-			slog.Warn("index media item", slog.Any("err", err))
-		}
-	}
-
-	if e.collections != nil && result.Collection != nil {
-		ref := result.Collection
-		col, err := e.collections.Upsert(ctx, ref.TmdbID, ref.Name, "", ref.PosterURL, ref.BackdropURL)
-		if err != nil {
-			slog.Warn("upsert collection", slog.Int("tmdb_id", ref.TmdbID), slog.Any("err", err))
-		} else if col != nil {
-			if err := e.collections.LinkMediaItem(ctx, col.ID, item.ID, 0); err != nil {
-				slog.Warn("link media item to collection", slog.String("collection_id", col.ID), slog.String("media_item_id", item.ID), slog.Any("err", err))
-			}
-		}
-	}
-
 	return nil
+}
+
+func (e *Enricher) findOrCreatePerson(ctx context.Context, p domainmetadata.PersonResult) (*domaindomain.Person, error) {
+	person, err := e.persons.GetByName(ctx, p.Name)
+	if err == nil {
+		return person, nil
+	}
+	if !errors.Is(err, domaindomain.ErrNotFound) {
+		return nil, fmt.Errorf("get person by name: %w", err)
+	}
+	thumbPath := p.ThumbURL
+	var thumbPtr *string
+	if thumbPath != "" {
+		thumbPtr = &thumbPath
+	}
+	person = &domaindomain.Person{
+		ID:          uuid.New().String(),
+		Name:        p.Name,
+		ProviderIDs: map[string]string{},
+		ThumbPath:   thumbPtr,
+	}
+	if err := e.persons.Create(ctx, person); err != nil {
+		return nil, fmt.Errorf("create person: %w", err)
+	}
+	return person, nil
+}
+
+func (e *Enricher) indexSearch(ctx context.Context, item *domaindomain.MediaItem, people []domainmetadata.PersonResult) {
+	if e.search == nil {
+		return
+	}
+	names := make([]string, 0, len(people))
+	for _, p := range people {
+		names = append(names, p.Name)
+	}
+	if err := e.search.IndexMediaItem(ctx, item, names); err != nil {
+		slog.Warn("index media item", slog.Any("err", err))
+	}
+}
+
+func (e *Enricher) linkCollection(ctx context.Context, mediaItemID string, ref *domainmetadata.CollectionRef) {
+	if e.collections == nil || ref == nil {
+		return
+	}
+	col, err := e.collections.Upsert(ctx, ref.TmdbID, ref.Name, "", ref.PosterURL, ref.BackdropURL)
+	if err != nil {
+		slog.Warn("upsert collection", slog.Int("tmdb_id", ref.TmdbID), slog.Any("err", err))
+		return
+	}
+	if col == nil {
+		return
+	}
+	if err := e.collections.LinkMediaItem(ctx, col.ID, mediaItemID, 0); err != nil {
+		slog.Warn("link media item to collection", slog.String("collection_id", col.ID), slog.String("media_item_id", mediaItemID), slog.Any("err", err))
+	}
 }
 
 func roleType(role string) string {
@@ -275,49 +313,15 @@ func (e *Enricher) supplementItem(ctx context.Context, item *domaindomain.MediaI
 		if sp.Name() == e.primary.Name() {
 			continue
 		}
-
-		var supplement *domainmetadata.MetadataResult
-
-		// Try lookup by IMDB ID if available
-		if imdbID != "" {
-			if sp.Name() == "omdb" {
-				s, err := sp.GetByProviderID(ctx, imdbID, mediaType)
-				if err == nil && s != nil {
-					supplement = s
-				}
-			}
-			if lookup, ok := sp.(domainmetadata.ExternalIDLookup); ok {
-				s, err := lookup.LookupByExternalID(ctx, "imdb", imdbID)
-				if err == nil && s != nil {
-					supplement = s
-				}
-			}
-		}
-
+		supplement := lookupSupplement(ctx, sp, imdbID, mediaType)
 		if supplement == nil {
 			continue
 		}
-
-		// Merge provider IDs
-		for k, v := range supplement.ProviderIDs {
-			if _, exists := item.ProviderIDs[k]; !exists {
-				if item.ProviderIDs == nil {
-					item.ProviderIDs = make(map[string]string)
-				}
-				item.ProviderIDs[k] = v
-				changed = true
-			}
+		if mergeProviderIDs(item, supplement.ProviderIDs) {
+			changed = true
 		}
-
-		// Merge ratings
-		for k, v := range supplement.Ratings {
-			if _, exists := item.Ratings[k]; !exists {
-				if item.Ratings == nil {
-					item.Ratings = make(map[string]float64)
-				}
-				item.Ratings[k] = v
-				changed = true
-			}
+		if mergeRatings(item, supplement.Ratings) {
+			changed = true
 		}
 	}
 
@@ -327,6 +331,53 @@ func (e *Enricher) supplementItem(ctx context.Context, item *domaindomain.MediaI
 			log.Warn("supplement update failed", slog.String("title", item.Title), slog.Any("err", err))
 		}
 	}
+}
+
+func lookupSupplement(ctx context.Context, sp domainmetadata.MetadataProvider, imdbID, mediaType string) *domainmetadata.MetadataResult {
+	if imdbID == "" {
+		return nil
+	}
+	if sp.Name() == "omdb" {
+		s, err := sp.GetByProviderID(ctx, imdbID, mediaType)
+		if err == nil && s != nil {
+			return s
+		}
+	}
+	if lookup, ok := sp.(domainmetadata.ExternalIDLookup); ok {
+		s, err := lookup.LookupByExternalID(ctx, "imdb", imdbID)
+		if err == nil && s != nil {
+			return s
+		}
+	}
+	return nil
+}
+
+func mergeProviderIDs(item *domaindomain.MediaItem, src map[string]string) bool {
+	changed := false
+	for k, v := range src {
+		if _, exists := item.ProviderIDs[k]; !exists {
+			if item.ProviderIDs == nil {
+				item.ProviderIDs = make(map[string]string)
+			}
+			item.ProviderIDs[k] = v
+			changed = true
+		}
+	}
+	return changed
+}
+
+func mergeRatings(item *domaindomain.MediaItem, src map[string]float64) bool {
+	changed := false
+	for k, v := range src {
+		if _, exists := item.Ratings[k]; !exists {
+			if item.Ratings == nil {
+				item.Ratings = make(map[string]float64)
+			}
+			item.Ratings[k] = v
+			changed = true
+		}
+	}
+	return changed
 }
 
 // searchAndFetch searches a provider and fetches full details for the best match.
