@@ -2,6 +2,7 @@ package music_test
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
@@ -523,5 +524,350 @@ func TestDeleteTrack_NotFound(t *testing.T) {
 	err := svc.DeleteTrack(context.Background(), "nonexistent-id")
 	if err != nil {
 		t.Fatalf("expected no error deleting nonexistent track, got: %v", err)
+	}
+}
+
+func TestScanDirectory_NonExistentDir(t *testing.T) {
+	repo := fakes.NewFakeMusicTrackRepository()
+	svc := appmusic.NewService(repo, sharedfakes.NewFakeEventBus(), nil)
+
+	// WalkDir on non-existent dir: callback receives the error and returns nil (skip),
+	// so WalkDir itself returns nil but count stays 0
+	count, err := svc.ScanDirectory(context.Background(), "lib-1", "/tmp/nonexistent-dir-xyz-12345")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if count != 0 {
+		t.Fatalf("expected 0, got %d", count)
+	}
+}
+
+func TestScanDirectory_PublishesTrackScannedEvent(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "song.mp3"), []byte("ID3fake"), 0600); err != nil {
+		t.Fatal(err)
+	}
+
+	repo := fakes.NewFakeMusicTrackRepository()
+	bus := sharedfakes.NewFakeEventBus()
+	svc := appmusic.NewService(repo, bus, nil)
+
+	count, err := svc.ScanDirectory(context.Background(), "lib-1", dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if count != 1 {
+		t.Fatalf("expected 1, got %d", count)
+	}
+
+	events := bus.PublishedEvents()
+	if len(events) != 1 {
+		t.Fatalf("expected 1 TrackScanned event, got %d", len(events))
+	}
+	if events[0].EventName() != "music.track.scanned" {
+		t.Errorf("expected event name music.track.scanned, got %q", events[0].EventName())
+	}
+	scanned, ok := events[0].(music.TrackScanned)
+	if !ok {
+		t.Fatal("event is not TrackScanned")
+	}
+	if scanned.LibraryID != "lib-1" {
+		t.Errorf("expected LibraryID lib-1, got %q", scanned.LibraryID)
+	}
+	if scanned.Title == "" {
+		t.Error("expected non-empty Title in TrackScanned")
+	}
+}
+
+func TestScanDirectory_UpsertError(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "song.mp3"), []byte("ID3fake"), 0600); err != nil {
+		t.Fatal(err)
+	}
+
+	repo := fakes.NewFakeMusicTrackRepository()
+	repo.Err = fmt.Errorf("db down")
+	svc := appmusic.NewService(repo, sharedfakes.NewFakeEventBus(), nil)
+
+	count, err := svc.ScanDirectory(context.Background(), "lib-1", dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// upsert error is logged but skipped, count stays 0
+	if count != 0 {
+		t.Fatalf("expected 0 (upsert failed), got %d", count)
+	}
+}
+
+func TestScanDirectory_TrackFieldsCorrect(t *testing.T) {
+	dir := t.TempDir()
+	songPath := filepath.Join(dir, "mysong.flac")
+	if err := os.WriteFile(songPath, []byte("fLaC"), 0600); err != nil {
+		t.Fatal(err)
+	}
+
+	repo := fakes.NewFakeMusicTrackRepository()
+	svc := appmusic.NewService(repo, sharedfakes.NewFakeEventBus(), nil)
+
+	count, err := svc.ScanDirectory(context.Background(), "lib-42", dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if count != 1 {
+		t.Fatalf("expected 1, got %d", count)
+	}
+
+	tracks, _, _ := repo.ListByLibrary(context.Background(), "lib-42", 50, 0, "")
+	if len(tracks) != 1 {
+		t.Fatalf("expected 1 track, got %d", len(tracks))
+	}
+	tr := tracks[0]
+	if tr.LibraryID != "lib-42" {
+		t.Errorf("LibraryID = %q, want lib-42", tr.LibraryID)
+	}
+	if tr.Title != "mysong.flac" {
+		t.Errorf("Title = %q, want mysong.flac", tr.Title)
+	}
+	if tr.MimeType != "audio/flac" {
+		t.Errorf("MimeType = %q, want audio/flac", tr.MimeType)
+	}
+	if tr.FilePath != songPath {
+		t.Errorf("FilePath = %q, want %q", tr.FilePath, songPath)
+	}
+	if tr.ID == "" {
+		t.Error("expected non-empty track ID")
+	}
+}
+
+func TestGetTrack_ReturnsData(t *testing.T) {
+	repo := fakes.NewFakeMusicTrackRepository()
+	svc := appmusic.NewService(repo, sharedfakes.NewFakeEventBus(), nil)
+	ctx := context.Background()
+
+	want := music.Track{
+		ID: "trk-1", LibraryID: "lib-1", Title: "Test Song",
+		Artist: "Test Artist", Album: "Test Album", MimeType: "audio/mpeg",
+		FilePath: "/a/trk-1.mp3", FileSize: 1024,
+	}
+	if err := repo.Upsert(ctx, want); err != nil {
+		t.Fatal(err)
+	}
+
+	got, err := svc.GetTrack(ctx, "trk-1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got == nil {
+		t.Fatal("expected non-nil track")
+	}
+	if got.ID != want.ID {
+		t.Errorf("ID = %q, want %q", got.ID, want.ID)
+	}
+	if got.Title != want.Title {
+		t.Errorf("Title = %q, want %q", got.Title, want.Title)
+	}
+	if got.Artist != want.Artist {
+		t.Errorf("Artist = %q, want %q", got.Artist, want.Artist)
+	}
+	if got.Album != want.Album {
+		t.Errorf("Album = %q, want %q", got.Album, want.Album)
+	}
+	if got.MimeType != want.MimeType {
+		t.Errorf("MimeType = %q, want %q", got.MimeType, want.MimeType)
+	}
+}
+
+func TestGetTrack_RepoError(t *testing.T) {
+	repo := fakes.NewFakeMusicTrackRepository()
+	repo.Err = fmt.Errorf("db error")
+	svc := appmusic.NewService(repo, sharedfakes.NewFakeEventBus(), nil)
+
+	_, err := svc.GetTrack(context.Background(), "trk-1")
+	if err == nil {
+		t.Fatal("expected error from repo")
+	}
+}
+
+func TestDeleteTrack_RepoError(t *testing.T) {
+	repo := fakes.NewFakeMusicTrackRepository()
+	repo.Err = fmt.Errorf("db error")
+	svc := appmusic.NewService(repo, sharedfakes.NewFakeEventBus(), nil)
+
+	err := svc.DeleteTrack(context.Background(), "trk-1")
+	if err == nil {
+		t.Fatal("expected error from repo")
+	}
+}
+
+func TestDeleteTrack_EventContainsCorrectFields(t *testing.T) {
+	repo := fakes.NewFakeMusicTrackRepository()
+	ctx := context.Background()
+
+	_ = repo.Upsert(ctx, music.Track{
+		ID: "trk-99", LibraryID: "lib-7", Title: "Song",
+		FilePath: "/a/song.mp3",
+	})
+
+	bus := sharedfakes.NewFakeEventBus()
+	svc := appmusic.NewService(repo, bus, nil)
+
+	if err := svc.DeleteTrack(ctx, "trk-99"); err != nil {
+		t.Fatal(err)
+	}
+	events := bus.PublishedEvents()
+	if len(events) != 1 {
+		t.Fatalf("expected 1 event, got %d", len(events))
+	}
+	deleted, ok := events[0].(music.TrackDeleted)
+	if !ok {
+		t.Fatal("event is not TrackDeleted")
+	}
+	if deleted.TrackID != "trk-99" {
+		t.Errorf("TrackID = %q, want trk-99", deleted.TrackID)
+	}
+	if deleted.LibraryID != "lib-7" {
+		t.Errorf("LibraryID = %q, want lib-7", deleted.LibraryID)
+	}
+	if deleted.OccurredAt.IsZero() {
+		t.Error("expected non-zero OccurredAt")
+	}
+}
+
+func TestStreamTrack_ReturnsPathAndMime(t *testing.T) {
+	repo := fakes.NewFakeMusicTrackRepository()
+	ctx := context.Background()
+
+	_ = repo.Upsert(ctx, music.Track{
+		ID: "trk-s1", LibraryID: "lib-1", Title: "Stream Me",
+		FilePath: "/music/stream.flac", MimeType: "audio/flac",
+	})
+
+	svc := appmusic.NewService(repo, sharedfakes.NewFakeEventBus(), nil)
+	path, mime, err := svc.StreamTrack(ctx, "trk-s1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if path != "/music/stream.flac" {
+		t.Errorf("path = %q, want /music/stream.flac", path)
+	}
+	if mime != "audio/flac" {
+		t.Errorf("mime = %q, want audio/flac", mime)
+	}
+}
+
+func TestStreamTrack_NotFound(t *testing.T) {
+	repo := fakes.NewFakeMusicTrackRepository()
+	svc := appmusic.NewService(repo, sharedfakes.NewFakeEventBus(), nil)
+
+	_, _, err := svc.StreamTrack(context.Background(), "nonexistent")
+	if err == nil {
+		t.Fatal("expected error for nonexistent track")
+	}
+	if !os.IsNotExist(err) {
+		t.Errorf("expected os.ErrNotExist, got %v", err)
+	}
+}
+
+func TestStreamTrack_RepoError(t *testing.T) {
+	repo := fakes.NewFakeMusicTrackRepository()
+	repo.Err = fmt.Errorf("db error")
+	svc := appmusic.NewService(repo, sharedfakes.NewFakeEventBus(), nil)
+
+	_, _, err := svc.StreamTrack(context.Background(), "trk-1")
+	if err == nil {
+		t.Fatal("expected error from repo")
+	}
+}
+
+func TestListTracks_RepoError(t *testing.T) {
+	repo := fakes.NewFakeMusicTrackRepository()
+	repo.Err = fmt.Errorf("db error")
+	svc := appmusic.NewService(repo, sharedfakes.NewFakeEventBus(), nil)
+
+	_, _, err := svc.ListTracks(context.Background(), "lib-1", 50, 0, "")
+	if err == nil {
+		t.Fatal("expected error from repo")
+	}
+}
+
+func TestGetAlbums_RepoError(t *testing.T) {
+	repo := fakes.NewFakeMusicTrackRepository()
+	repo.Err = fmt.Errorf("db error")
+	svc := appmusic.NewService(repo, sharedfakes.NewFakeEventBus(), nil)
+
+	_, err := svc.GetAlbums(context.Background(), "lib-1")
+	if err == nil {
+		t.Fatal("expected error from repo")
+	}
+}
+
+func TestGetArtists_RepoError(t *testing.T) {
+	repo := fakes.NewFakeMusicTrackRepository()
+	repo.Err = fmt.Errorf("db error")
+	svc := appmusic.NewService(repo, sharedfakes.NewFakeEventBus(), nil)
+
+	_, err := svc.GetArtists(context.Background(), "lib-1")
+	if err == nil {
+		t.Fatal("expected error from repo")
+	}
+}
+
+func TestSearch_RepoError(t *testing.T) {
+	repo := fakes.NewFakeMusicTrackRepository()
+	repo.Err = fmt.Errorf("db error")
+	svc := appmusic.NewService(repo, sharedfakes.NewFakeEventBus(), nil)
+
+	_, err := svc.Search(context.Background(), "query", 50)
+	if err == nil {
+		t.Fatal("expected error from repo")
+	}
+}
+
+func TestGetArtists_ReturnsData(t *testing.T) {
+	repo := fakes.NewFakeMusicTrackRepository()
+	svc := appmusic.NewService(repo, sharedfakes.NewFakeEventBus(), nil)
+	ctx := context.Background()
+
+	_ = repo.Upsert(ctx, music.Track{ID: "t1", LibraryID: "lib-1", Title: "S1", Artist: "ArtistA", AlbumArtist: "ArtistA", Album: "AlbumX", FilePath: "/a/t1.mp3"})
+	_ = repo.Upsert(ctx, music.Track{ID: "t2", LibraryID: "lib-1", Title: "S2", Artist: "ArtistA", AlbumArtist: "ArtistA", Album: "AlbumY", FilePath: "/a/t2.mp3"})
+	_ = repo.Upsert(ctx, music.Track{ID: "t3", LibraryID: "lib-1", Title: "S3", Artist: "ArtistB", AlbumArtist: "ArtistB", Album: "AlbumZ", FilePath: "/a/t3.mp3"})
+
+	artists, err := svc.GetArtists(ctx, "lib-1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(artists) != 2 {
+		t.Fatalf("expected 2 artists, got %d", len(artists))
+	}
+	for _, a := range artists {
+		if a.Name == "ArtistA" {
+			if a.TrackCount != 2 {
+				t.Errorf("ArtistA TrackCount = %d, want 2", a.TrackCount)
+			}
+			if a.AlbumCount != 2 {
+				t.Errorf("ArtistA AlbumCount = %d, want 2", a.AlbumCount)
+			}
+		}
+	}
+}
+
+func TestScanDirectory_CancelledContext(t *testing.T) {
+	dir := t.TempDir()
+	for i := range 5 {
+		name := filepath.Join(dir, "t"+string(rune('0'+i))+".mp3")
+		if err := os.WriteFile(name, []byte("ID3fake"), 0600); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	repo := fakes.NewFakeMusicTrackRepository()
+	svc := appmusic.NewService(repo, sharedfakes.NewFakeEventBus(), nil)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel() // cancel immediately
+
+	_, err := svc.ScanDirectory(ctx, "lib-1", dir)
+	if err == nil {
+		t.Fatal("expected error with cancelled context")
 	}
 }
