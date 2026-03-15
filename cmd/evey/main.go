@@ -42,6 +42,8 @@ func run() error {
 	rootLog := eveylogger.New(logCfg)
 	slog.SetDefault(rootLog)
 
+	cfg.WarnValidate()
+
 	db, err := openDB(cfg)
 	if err != nil {
 		return err
