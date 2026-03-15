@@ -1,0 +1,105 @@
+package library
+
+import (
+	"context"
+	"log/slog"
+	"strings"
+
+	"github.com/google/uuid"
+	"github.com/gravity-zero/evey/internal/domain/library"
+	"github.com/gravity-zero/evey/internal/domain/mkv"
+)
+
+type MetadataExtractionService struct {
+	mkvReader   mkv.ContainerReader
+	chapters    library.ChapterRepository
+	mediaStreams library.MediaStreamRepository
+	subScanner  library.ExternalSubtitleScanner
+}
+
+func NewMetadataExtractionService(
+	chapters library.ChapterRepository,
+	reader mkv.ContainerReader,
+	mediaStreams library.MediaStreamRepository,
+) *MetadataExtractionService {
+	return &MetadataExtractionService{
+		chapters:    chapters,
+		mkvReader:   reader,
+		mediaStreams: mediaStreams,
+	}
+}
+
+func (s *MetadataExtractionService) WithSubtitleScanner(sc library.ExternalSubtitleScanner) {
+	s.subScanner = sc
+}
+
+func (s *MetadataExtractionService) extractAndStoreChapters(ctx context.Context, mediaItemID, filePath string) {
+	if s.chapters == nil || s.mkvReader == nil || !strings.HasSuffix(strings.ToLower(filePath), ".mkv") {
+		return
+	}
+	mkvChapters, err := s.mkvReader.ReadChapters(ctx, filePath)
+	if err != nil || len(mkvChapters) == 0 {
+		return
+	}
+	chapters := make([]*library.Chapter, len(mkvChapters))
+	for i, ch := range mkvChapters {
+		chapters[i] = &library.Chapter{
+			ID:          uuid.New().String(),
+			MediaItemID: mediaItemID,
+			Title:       ch.Title,
+			StartTimeMs: ch.StartMs,
+			EndTimeMs:   ch.EndMs,
+			SortOrder:   i,
+		}
+	}
+	if err := s.chapters.ReplaceBatch(ctx, mediaItemID, chapters); err != nil {
+		slog.Warn("store chapters failed", slog.String("mediaItemID", mediaItemID), slog.Any("err", err))
+	}
+}
+
+func (s *MetadataExtractionService) discoverExternalSubtitles(existing []*library.MediaStream, mediaItemID, filePath string) []*library.MediaStream {
+	if s.subScanner == nil {
+		return nil
+	}
+	subs, err := s.subScanner.ScanForSubtitles(filePath)
+	if err != nil || len(subs) == 0 {
+		return nil
+	}
+
+	maxIdx := 0
+	for _, st := range existing {
+		if st.StreamIndex >= maxIdx {
+			maxIdx = st.StreamIndex + 1
+		}
+	}
+
+	var streams []*library.MediaStream
+	for _, sub := range subs {
+		path := sub.Path
+		codec := sub.Format
+		if codec == "vtt" {
+			codec = "webvtt"
+		}
+		st := &library.MediaStream{
+			ID:           uuid.New().String(),
+			MediaItemID:  mediaItemID,
+			StreamIndex:  maxIdx,
+			StreamType:   string(library.Subtitle),
+			Codec:        codec,
+			Language:     sub.Language,
+			IsForced:     sub.IsForced,
+			IsExternal:   true,
+			ExternalPath: &path,
+		}
+		streams = append(streams, st)
+		maxIdx++
+	}
+	return streams
+}
+
+func (s *MetadataExtractionService) GetChapters(ctx context.Context, mediaItemID string) ([]*library.Chapter, error) {
+	if s.chapters == nil {
+		return nil, nil
+	}
+	return s.chapters.GetByMediaItemID(ctx, mediaItemID)
+}
