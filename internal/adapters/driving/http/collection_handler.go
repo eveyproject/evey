@@ -9,6 +9,7 @@ import (
 	"time"
 
 	appcollection "github.com/gravity-zero/evey/internal/app/collection"
+	"github.com/gravity-zero/evey/internal/domain/library"
 	"github.com/gravity-zero/evey/internal/pkg/auth"
 )
 
@@ -20,6 +21,7 @@ type collectionHandler struct {
 func registerCollectionRoutes(mux *http.ServeMux, svc *appcollection.Service, tokenGen *auth.JWTGenerator) {
 	h := &collectionHandler{svc: svc, tokenGen: tokenGen}
 	mux.HandleFunc("GET /api/v1/collections", h.list)
+	mux.HandleFunc("POST /api/v1/collections", h.create)
 	mux.HandleFunc("/api/v1/collections/", h.routeByID)
 }
 
@@ -41,6 +43,74 @@ func (h *collectionHandler) requireAdmin(r *http.Request) bool {
 	return err == nil && claims.IsAdmin
 }
 
+func (h *collectionHandler) create(w http.ResponseWriter, r *http.Request) {
+	if !h.requireAuth(r) {
+		http.Error(w, `{"message":"unauthenticated"}`, http.StatusUnauthorized)
+		return
+	}
+	var req struct {
+		Name   string `json:"name"`
+		Rules  []struct {
+			Field    string `json:"field"`
+			Operator string `json:"operator"`
+			Value    string `json:"value"`
+		} `json:"rules"`
+		SortBy string `json:"sortBy"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, `{"message":"bad request"}`, http.StatusBadRequest)
+		return
+	}
+	if req.Name == "" {
+		http.Error(w, `{"message":"name is required"}`, http.StatusBadRequest)
+		return
+	}
+	rules := make([]library.CollectionRule, 0, len(req.Rules))
+	for _, rr := range req.Rules {
+		rules = append(rules, library.CollectionRule{Field: rr.Field, Operator: rr.Operator, Value: rr.Value})
+	}
+	col, err := h.svc.Create(r.Context(), req.Name, rules, req.SortBy)
+	if err != nil {
+		slog.Warn("create collection failed", slog.Any("err", err))
+		http.Error(w, `{"message":"internal"}`, http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusCreated)
+	if err := json.NewEncoder(w).Encode(map[string]string{"id": col.ID}); err != nil {
+		slog.Warn("json encode failed", slog.Any("err", err))
+	}
+}
+
+func (h *collectionHandler) update(w http.ResponseWriter, r *http.Request, id string) {
+	if !h.requireAuth(r) {
+		http.Error(w, `{"message":"unauthenticated"}`, http.StatusUnauthorized)
+		return
+	}
+	var req struct {
+		Name   string `json:"name"`
+		Rules  []struct {
+			Field    string `json:"field"`
+			Operator string `json:"operator"`
+			Value    string `json:"value"`
+		} `json:"rules"`
+		SortBy string `json:"sortBy"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, `{"message":"bad request"}`, http.StatusBadRequest)
+		return
+	}
+	rules := make([]library.CollectionRule, 0, len(req.Rules))
+	for _, rr := range req.Rules {
+		rules = append(rules, library.CollectionRule{Field: rr.Field, Operator: rr.Operator, Value: rr.Value})
+	}
+	if err := h.svc.Update(r.Context(), id, req.Name, rules, req.SortBy); err != nil {
+		http.Error(w, `{"message":"not found"}`, http.StatusNotFound)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
 func (h *collectionHandler) list(w http.ResponseWriter, r *http.Request) {
 	if !h.requireAuth(r) {
 		http.Error(w, `{"message":"unauthenticated"}`, http.StatusUnauthorized)
@@ -51,21 +121,33 @@ func (h *collectionHandler) list(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, `{"message":"internal"}`, http.StatusInternalServerError)
 		return
 	}
+	type ruleResp struct {
+		Field    string `json:"field"`
+		Operator string `json:"operator"`
+		Value    string `json:"value"`
+	}
 	type colResp struct {
-		ID          string `json:"id"`
-		Name        string `json:"name"`
-		Overview    string `json:"overview,omitempty"`
-		TmdbID      *int   `json:"tmdbId,omitempty"`
-		PosterURL   string `json:"posterUrl,omitempty"`
-		BackdropURL string `json:"backdropUrl,omitempty"`
-		CreatedAt   string `json:"createdAt"`
-		UpdatedAt   string `json:"updatedAt"`
+		ID          string     `json:"id"`
+		Name        string     `json:"name"`
+		Overview    string     `json:"overview,omitempty"`
+		TmdbID      *int       `json:"tmdbId,omitempty"`
+		PosterURL   string     `json:"posterUrl,omitempty"`
+		BackdropURL string     `json:"backdropUrl,omitempty"`
+		Rules       []ruleResp `json:"rules,omitempty"`
+		SortBy      string     `json:"sortBy,omitempty"`
+		CreatedAt   string     `json:"createdAt"`
+		UpdatedAt   string     `json:"updatedAt"`
 	}
 	out := make([]colResp, 0, len(cols))
 	for _, c := range cols {
+		var rules []ruleResp
+		for _, r := range c.Rules {
+			rules = append(rules, ruleResp{Field: r.Field, Operator: r.Operator, Value: r.Value})
+		}
 		out = append(out, colResp{
 			ID: c.ID, Name: c.Name, Overview: c.Overview,
 			TmdbID: c.TmdbID, PosterURL: c.PosterURL, BackdropURL: c.BackdropURL,
+			Rules: rules, SortBy: c.SortBy,
 			CreatedAt: c.CreatedAt.Format(time.RFC3339),
 			UpdatedAt: c.UpdatedAt.Format(time.RFC3339),
 		})
@@ -92,6 +174,8 @@ func (h *collectionHandler) routeByID(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case http.MethodGet:
 		h.getByID(w, r, id)
+	case http.MethodPut:
+		h.update(w, r, id)
 	case http.MethodDelete:
 		h.delete(w, r, id)
 	default:

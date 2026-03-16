@@ -5,15 +5,16 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { SmartCollectionDialog } from "./SmartCollectionDialog";
 
-const mockMutateAsync = vi.fn();
+const mockCreateMutateAsync = vi.fn();
+const mockUpdateMutateAsync = vi.fn();
 
-vi.mock("@/features/playlist/api", () => ({
-  useCreatePlaylist: () => ({
-    mutateAsync: mockMutateAsync,
+vi.mock("./api", () => ({
+  useCreateCollection: () => ({
+    mutateAsync: mockCreateMutateAsync,
     isPending: false,
   }),
-  useUpdatePlaylist: () => ({
-    mutateAsync: vi.fn(),
+  useUpdateCollection: () => ({
+    mutateAsync: mockUpdateMutateAsync,
     isPending: false,
   }),
 }));
@@ -73,8 +74,10 @@ function createWrapper() {
 
 describe("SmartCollectionDialog", () => {
   beforeEach(() => {
-    mockMutateAsync.mockReset();
-    mockMutateAsync.mockResolvedValue({ id: "new-id", name: "Test" });
+    mockCreateMutateAsync.mockReset();
+    mockUpdateMutateAsync.mockReset();
+    mockCreateMutateAsync.mockResolvedValue({ id: "new-id" });
+    mockUpdateMutateAsync.mockResolvedValue(undefined);
   });
 
   it("renders dialog with title and name field when open", () => {
@@ -84,7 +87,7 @@ describe("SmartCollectionDialog", () => {
     );
 
     expect(screen.getByRole("dialog")).toBeInTheDocument();
-    expect(screen.getByText("New smart filter")).toBeInTheDocument();
+    expect(screen.getByText("New smart collection")).toBeInTheDocument();
     expect(screen.getByRole("textbox", { name: /Name/i })).toBeInTheDocument();
   });
 
@@ -107,7 +110,7 @@ describe("SmartCollectionDialog", () => {
     await user.click(screen.getByRole("button", { name: "Create" }));
 
     expect(screen.getByRole("alert")).toHaveTextContent("Name is required");
-    expect(mockMutateAsync).not.toHaveBeenCalled();
+    expect(mockCreateMutateAsync).not.toHaveBeenCalled();
   });
 
   it("shows 'No rules yet' when no rules added", () => {
@@ -119,7 +122,7 @@ describe("SmartCollectionDialog", () => {
     expect(screen.getByText(/No rules yet/i)).toBeInTheDocument();
   });
 
-  it("add Genre rule and submit creates playlist with correct rules", async () => {
+  it("add Genre rule and submit creates collection with correct rules", async () => {
     const user = userEvent.setup();
     const onSaved = vi.fn();
     const onClose = vi.fn();
@@ -139,10 +142,9 @@ describe("SmartCollectionDialog", () => {
     await user.click(screen.getByRole("button", { name: "Create" }));
 
     await waitFor(() => {
-      expect(mockMutateAsync).toHaveBeenCalledWith(
+      expect(mockCreateMutateAsync).toHaveBeenCalledWith(
         expect.objectContaining({
           name: "Action Movies",
-          type: "smart",
           rules: [{ field: "genre", operator: "eq", value: "Action" }],
         })
       );
@@ -161,7 +163,6 @@ describe("SmartCollectionDialog", () => {
     fireEvent.click(screen.getByRole("button", { name: /Year/i }));
 
     expect(screen.getByPlaceholderText("e.g. 2020")).toBeInTheDocument();
-    // Operator dropdown with >= option
     expect(screen.getByRole("combobox")).toBeInTheDocument();
   });
 
@@ -178,7 +179,7 @@ describe("SmartCollectionDialog", () => {
       { wrapper: createWrapper() }
     );
 
-    expect(screen.getByText("Edit smart filter")).toBeInTheDocument();
+    expect(screen.getByText("Edit smart collection")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Save changes" })).toBeInTheDocument();
   });
 
@@ -194,5 +195,47 @@ describe("SmartCollectionDialog", () => {
     await user.click(screen.getByRole("button", { name: "Cancel" }));
 
     expect(onClose).toHaveBeenCalled();
+  });
+
+  it("calls updateCollection when editing and saving", async () => {
+    const user = userEvent.setup();
+    const onSaved = vi.fn();
+    const onClose = vi.fn();
+    const editing = {
+      id: "e1",
+      name: "Old Filter",
+      rules: [{ field: "genre" as const, operator: "eq" as const, value: "Comedy" }],
+      createdAt: new Date().toISOString(),
+    };
+
+    render(
+      <SmartCollectionDialog open={true} onClose={onClose} onSaved={onSaved} editing={editing} />,
+      { wrapper: createWrapper() }
+    );
+
+    await user.click(screen.getByRole("button", { name: "Save changes" }));
+
+    await waitFor(() => {
+      expect(mockUpdateMutateAsync).toHaveBeenCalledWith(
+        expect.objectContaining({
+          id: "e1",
+          name: "Old Filter",
+          rules: [{ field: "genre", operator: "eq", value: "Comedy" }],
+        })
+      );
+    });
+
+    expect(onSaved).toHaveBeenCalled();
+    expect(onClose).toHaveBeenCalled();
+  });
+
+  it("shows rating_gte and library_id rule buttons", () => {
+    render(
+      <SmartCollectionDialog open={true} onClose={vi.fn()} onSaved={vi.fn()} />,
+      { wrapper: createWrapper() }
+    );
+
+    expect(screen.getByRole("button", { name: /Rating/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Library/i })).toBeInTheDocument();
   });
 });

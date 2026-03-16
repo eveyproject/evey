@@ -14,10 +14,6 @@ vi.mock("@/features/collection/api", () => ({
   useDeleteCollection: vi.fn(() => ({ mutate: vi.fn(), isPending: false })),
 }));
 
-vi.mock("@/features/collection/useSmartFilters", () => ({
-  useSmartFilters: vi.fn(() => ({ filters: [], save: vi.fn(), remove: vi.fn() })),
-}));
-
 vi.mock("@/components/ui/EmptyState", () => ({
   EmptyState: ({ title }: { title: string }) => React.createElement("div", null, title),
 }));
@@ -94,12 +90,30 @@ describe("CollectionsPage", () => {
     expect(screen.getByRole("heading", { name: /Collections/i })).toBeInTheDocument();
   });
 
-  it("renders New smart filter button", async () => {
+  it("renders New smart collection button", async () => {
     const { useCollections } = await import("@/features/collection/api");
     vi.mocked(useCollections).mockReturnValue({ data: { collections: [] }, isLoading: false } as ReturnType<typeof useCollections>);
     const mod = await import("./index.lazy");
     const CollectionsPage = (mod.Route as unknown as { component: React.ComponentType }).component;
     render(React.createElement(CollectionsPage), { wrapper: createWrapper() });
-    expect(screen.getByRole("button", { name: /New smart filter/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /New smart collection/i })).toBeInTheDocument();
+  });
+
+  it("separates smart collections from TMDB collections", async () => {
+    const { useCollections } = await import("@/features/collection/api");
+    const mixed = [
+      { id: "s1", name: "Action Movies", rules: [{ field: "genre", operator: "eq", value: "Action" }], createdAt: "", updatedAt: "" },
+      { id: "c1", name: "Marvel", posterUrl: null, createdAt: "", updatedAt: "" },
+    ];
+    vi.mocked(useCollections).mockReturnValue({ data: { collections: mixed as never }, isLoading: false } as ReturnType<typeof useCollections>);
+    const mod = await import("./index.lazy");
+    const CollectionsPage = (mod.Route as unknown as { component: React.ComponentType }).component;
+    render(React.createElement(CollectionsPage), { wrapper: createWrapper() });
+    await waitFor(() => {
+      expect(screen.getByText("Action Movies")).toBeInTheDocument();
+      expect(screen.getByText("Marvel")).toBeInTheDocument();
+      expect(screen.getByText("Smart Collections")).toBeInTheDocument();
+      expect(screen.getByText("TMDB Collections")).toBeInTheDocument();
+    });
   });
 });

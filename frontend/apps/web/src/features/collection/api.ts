@@ -56,6 +56,37 @@ export function useCollection(id: string, limit = 50, offset = 0) {
   });
 }
 
+interface CreateCollectionInput {
+  name: string;
+  rules?: CollectionRule[];
+  sortBy?: string;
+}
+
+interface UpdateCollectionInput {
+  id: string;
+  name: string;
+  rules?: CollectionRule[];
+  sortBy?: string;
+}
+
+export function useCreateCollection() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (input: CreateCollectionInput) =>
+      eveyFetch<{ id: string }>({ url: "/api/v1/collections", method: "POST", data: input }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["collections"] }),
+  });
+}
+
+export function useUpdateCollection() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, ...body }: UpdateCollectionInput) =>
+      eveyFetch<void>({ url: `/api/v1/collections/${id}`, method: "PUT", data: body }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["collections"] }),
+  });
+}
+
 export function useDeleteCollection() {
   const qc = useQueryClient();
   return useMutation({

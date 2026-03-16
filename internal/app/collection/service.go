@@ -43,6 +43,34 @@ func NewService(cmd CollectionCommandRepo, query CollectionQueryRepo, smartQueri
 	return &Service{cmd: cmd, query: query, smartQuerier: smartQuerier, mediaItems: mediaItems}
 }
 
+func (s *Service) Create(ctx context.Context, name string, rules []library.CollectionRule, sortBy string) (*library.Collection, error) {
+	now := time.Now()
+	col := &library.Collection{
+		ID:        uuid.New().String(),
+		Name:      name,
+		Rules:     rules,
+		SortBy:    sortBy,
+		CreatedAt: now,
+		UpdatedAt: now,
+	}
+	if err := s.cmd.Create(ctx, col); err != nil {
+		return nil, err
+	}
+	return col, nil
+}
+
+func (s *Service) Update(ctx context.Context, id, name string, rules []library.CollectionRule, sortBy string) error {
+	col, err := s.query.GetByID(ctx, id)
+	if err != nil {
+		return fmt.Errorf("collection not found: %w", err)
+	}
+	col.Name = name
+	col.Rules = rules
+	col.SortBy = sortBy
+	col.UpdatedAt = time.Now()
+	return s.cmd.Upsert(ctx, col)
+}
+
 func (s *Service) Upsert(ctx context.Context, tmdbID int, name, overview, posterURL, backdropURL string) (*library.Collection, error) {
 	now := time.Now()
 	col := &library.Collection{
