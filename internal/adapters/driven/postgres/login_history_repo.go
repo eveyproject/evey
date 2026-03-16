@@ -3,7 +3,6 @@ package postgres
 import (
 	"context"
 	"database/sql"
-	"time"
 
 	"github.com/gravity-zero/evey/internal/domain/activity"
 )
@@ -44,13 +43,4 @@ func (r *LoginHistoryRepository) GetByUserID(ctx context.Context, userID string,
 		result = append(result, e)
 	}
 	return result, rows.Err()
-}
-
-func (r *LoginHistoryRepository) CountFailedSince(ctx context.Context, userID string, since time.Time) (int, error) {
-	var count int
-	err := r.db.QueryRowContext(ctx,
-		`SELECT COUNT(*) FROM login_history WHERE user_id = $1 AND success = FALSE AND created_at >= $2`,
-		userID, since,
-	).Scan(&count)
-	return count, err
 }

@@ -60,7 +60,7 @@ func run() error {
 	}
 
 	// load RemoteAccess persisted settings from DB
-	if raw, err2 := deps.cfgStore.Get(context.Background(), httpapi.RemoteAccessConfigKey); err2 == nil && raw != "" {
+	if raw, err2 := deps.cfgStore.Get(ctx, httpapi.RemoteAccessConfigKey); err2 == nil && raw != "" {
 		if err := json.Unmarshal([]byte(raw), &cfg.RemoteAccess); err != nil {
 			slog.Warn("unmarshal remote access config", slog.Any("err", err))
 		}

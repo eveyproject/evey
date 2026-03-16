@@ -90,34 +90,6 @@ func TestLoginHistoryRepo_GetByUserID_Pagination(t *testing.T) {
 	assert.Equal(t, "lh-p2", page2[1].ID)
 }
 
-func TestLoginHistoryRepo_CountFailedSince(t *testing.T) {
-	db, cleanup := testhelpers.StartPostgres(t)
-	defer cleanup()
-
-	userRepo := postgres.NewUserRepository(db)
-	repo := postgres.NewLoginHistoryRepository(db)
-	ctx := context.Background()
-
-	u := newTestUser("lh-u3")
-	require.NoError(t, userRepo.Create(ctx, u))
-
-	now := time.Now().UTC()
-	before := now.Add(-10 * time.Minute)
-
-	require.NoError(t, repo.Create(ctx, newLoginEntry("lh-f1", u.ID, false, now.Add(-5*time.Minute))))
-	require.NoError(t, repo.Create(ctx, newLoginEntry("lh-f2", u.ID, false, now.Add(-3*time.Minute))))
-	require.NoError(t, repo.Create(ctx, newLoginEntry("lh-f3", u.ID, true, now.Add(-1*time.Minute))))
-
-	count, err := repo.CountFailedSince(ctx, u.ID, before)
-	require.NoError(t, err)
-	assert.Equal(t, 2, count)
-
-	after := now.Add(time.Minute)
-	count, err = repo.CountFailedSince(ctx, u.ID, after)
-	require.NoError(t, err)
-	assert.Equal(t, 0, count)
-}
-
 func TestLoginHistoryRepo_GetByUserID_Empty(t *testing.T) {
 	db, cleanup := testhelpers.StartPostgres(t)
 	defer cleanup()
