@@ -132,12 +132,39 @@ describe("HLSPlayer", () => {
     expect(screen.queryByText("Playback failed")).not.toBeInTheDocument();
   });
 
-  it("starts in transcode mode (HLS path is not used)", () => {
-    renderPlayer();
-    // transcodeMode starts true, so HLS is never initialized
-    // The video element should have a transcode src set
+  it("starts in transcode mode when playMethod is TRANSCODE", () => {
+    renderPlayer({ ...DEFAULT_STREAM_INFO, playMethod: "PLAY_METHOD_TRANSCODE" });
     const video = document.querySelector("video");
     expect(video).toBeTruthy();
     expect(video!.src).toContain("/api/v1/media/media-1/transcode");
+  });
+
+  it("starts in transcode mode when playMethod is undefined", () => {
+    renderPlayer();
+    const video = document.querySelector("video");
+    expect(video).toBeTruthy();
+    expect(video!.src).toContain("/api/v1/media/media-1/transcode");
+  });
+
+  it("starts in direct play mode when playMethod is DIRECT_PLAY", () => {
+    renderPlayer({
+      ...DEFAULT_STREAM_INFO,
+      playMethod: "PLAY_METHOD_DIRECT_PLAY",
+      directPlayUrl: "/api/v1/media/media-1/stream?token=test",
+    });
+    const video = document.querySelector("video");
+    expect(video).toBeTruthy();
+    expect(video!.src).toContain("/api/v1/media/media-1/stream");
+  });
+
+  it("starts in direct play mode when playMethod is DIRECT_STREAM", () => {
+    renderPlayer({
+      ...DEFAULT_STREAM_INFO,
+      playMethod: "PLAY_METHOD_DIRECT_STREAM",
+      directPlayUrl: "/api/v1/media/media-1/transcode?token=test&remux=1",
+    });
+    const video = document.querySelector("video");
+    expect(video).toBeTruthy();
+    expect(video!.src).toContain("remux=1");
   });
 });

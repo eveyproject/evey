@@ -74,6 +74,24 @@ describe("getBrowserCapabilities", () => {
     expect(caps.audioCodecs).toContain("ac3");
   });
 
+  it("includes eac3 when ec-3 supported", () => {
+    vi.spyOn(HTMLVideoElement.prototype, "canPlayType").mockImplementation((type) => {
+      if (type.includes("ec-3")) return "probably";
+      return "";
+    });
+    const caps = getBrowserCapabilities();
+    expect(caps.audioCodecs).toContain("eac3");
+  });
+
+  it("includes flac when audio/flac supported", () => {
+    vi.spyOn(HTMLVideoElement.prototype, "canPlayType").mockImplementation((type) => {
+      if (type === "audio/flac") return "probably";
+      return "";
+    });
+    const caps = getBrowserCapabilities();
+    expect(caps.audioCodecs).toContain("flac");
+  });
+
   it("returns empty videoCodecs and containers when nothing is supported", () => {
     vi.spyOn(HTMLVideoElement.prototype, "canPlayType").mockReturnValue("");
     const caps = getBrowserCapabilities();
