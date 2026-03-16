@@ -180,7 +180,8 @@ export function MetadataOverrideModal({ open, onClose, mediaItemId }: Props) {
                       variant="secondary"
                       loading={isRemovingThis}
                       onClick={() => handleRemove(existing.id!, field.name)}
-                      className="text-red-400 hover:text-red-300"
+                      className="hover:opacity-80"
+                      style={{ color: "var(--color-danger)" }}
                     >
                       Remove override
                     </Button>

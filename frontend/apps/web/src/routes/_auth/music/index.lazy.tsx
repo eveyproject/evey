@@ -248,7 +248,7 @@ function NowPlayingBar({
               background: "var(--accent)",
               border: "none",
               cursor: "pointer",
-              color: "#fff",
+              color: "var(--filter-active-text)",
               borderRadius: "50%",
               width: 36,
               height: 36,
@@ -547,7 +547,8 @@ function TracksTab({
                         display: "flex",
                         alignItems: "center",
                       }}
-                      className="hover:text-red-500"
+                      className="hover:opacity-80"
+                      style={{ color: "var(--color-danger)" }}
                     >
                       <Trash2 size={16} />
                     </button>

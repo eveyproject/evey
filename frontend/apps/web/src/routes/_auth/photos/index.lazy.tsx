@@ -102,7 +102,8 @@ function Lightbox({ photos, index, onClose, onPrev, onNext, onDelete }: Lightbox
         {onDelete && (
           <button
             onClick={(e) => { e.stopPropagation(); onDelete(photo); }}
-            className="text-white/70 hover:text-red-400 transition-colors"
+            className="transition-colors"
+            style={{ color: "var(--overlay-text-muted)" }}
             aria-label="Delete photo"
           >
             <Trash2 size={22} />
@@ -110,7 +111,8 @@ function Lightbox({ photos, index, onClose, onPrev, onNext, onDelete }: Lightbox
         )}
         <button
           onClick={(e) => { e.stopPropagation(); onClose(); }}
-          className="text-white hover:text-gray-300 transition-colors"
+          className="transition-colors"
+          style={{ color: "var(--overlay-text)" }}
           aria-label="Close"
         >
           <X size={28} />
@@ -120,7 +122,8 @@ function Lightbox({ photos, index, onClose, onPrev, onNext, onDelete }: Lightbox
       {index > 0 && (
         <button
           onClick={(e) => { e.stopPropagation(); onPrev(); }}
-          className="absolute left-4 top-1/2 -translate-y-1/2 text-white hover:text-gray-300 transition-colors z-10 p-2 rounded-full bg-black/40 hover:bg-black/60"
+          className="absolute left-4 top-1/2 -translate-y-1/2 transition-colors z-10 p-2 rounded-full bg-black/40 hover:bg-black/60"
+          style={{ color: "var(--overlay-text)" }}
           aria-label="Previous"
         >
           <ChevronLeft size={28} />
@@ -130,7 +133,8 @@ function Lightbox({ photos, index, onClose, onPrev, onNext, onDelete }: Lightbox
       {index < photos.length - 1 && (
         <button
           onClick={(e) => { e.stopPropagation(); onNext(); }}
-          className="absolute right-4 top-1/2 -translate-y-1/2 text-white hover:text-gray-300 transition-colors z-10 p-2 rounded-full bg-black/40 hover:bg-black/60"
+          className="absolute right-4 top-1/2 -translate-y-1/2 transition-colors z-10 p-2 rounded-full bg-black/40 hover:bg-black/60"
+          style={{ color: "var(--overlay-text)" }}
           aria-label="Next"
         >
           <ChevronRight size={28} />
@@ -145,8 +149,8 @@ function Lightbox({ photos, index, onClose, onPrev, onNext, onDelete }: Lightbox
         />
         <div className="text-white text-sm text-center">
           <span className="font-medium">{photo.Title}</span>
-          {photo.Album && <span className="text-gray-400 ml-2">— {photo.Album}</span>}
-          <span className="text-gray-500 ml-2">{index + 1} / {photos.length}</span>
+          {photo.Album && <span className="ml-2" style={{ color: "var(--text-muted)" }}>— {photo.Album}</span>}
+          <span className="ml-2" style={{ color: "var(--text-muted)" }}>{index + 1} / {photos.length}</span>
         </div>
       </div>
     </div>

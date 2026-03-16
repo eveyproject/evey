@@ -77,7 +77,7 @@ function LoginPage() {
           <p className="text-[var(--text-muted)] text-sm mt-1">Sign in to your account</p>
         </div>
         {oidc_error && (
-          <p className="text-sm text-red-400 text-center mb-4">SSO sign-in failed. Please try again.</p>
+          <p className="text-sm text-center mb-4" style={{ color: "var(--color-danger)" }}>SSO sign-in failed. Please try again.</p>
         )}
         <form
           onSubmit={(e) => {
@@ -102,7 +102,7 @@ function LoginPage() {
             required
           />
           {login.error && (
-            <p className="text-sm text-red-400 text-center" data-testid="login-error">
+            <p className="text-sm text-center" style={{ color: "var(--color-danger)" }} data-testid="login-error">
               {friendlyLoginError(login.error)}
             </p>
           )}

@@ -431,7 +431,7 @@ function ParentalSection() {
         </div>
         <PinInput label="New PIN" value={pin} onChange={setPin} />
         <PinInput label="Confirm PIN" value={confirmPin} onChange={setConfirmPin} />
-        {pinError && <p className="text-xs text-red-400">{pinError}</p>}
+        {pinError && <p className="text-xs" style={{ color: "var(--color-danger)" }}>{pinError}</p>}
         <div>
           <Button
             variant="primary"

@@ -90,7 +90,7 @@ function HeroBanner() {
         <h1
           className="text-2xl sm:text-4xl font-bold mb-2 leading-tight"
           style={{
-            color: "#fff",
+            color: "var(--overlay-text)",
             textShadow: "0 2px 8px rgba(0,0,0,0.8)",
           }}
         >
@@ -99,12 +99,12 @@ function HeroBanner() {
 
         <div className="flex items-center gap-3 flex-wrap mb-2">
           {year && (
-            <span className="text-sm font-medium" style={{ color: "rgba(255,255,255,0.8)" }}>
+            <span className="text-sm font-medium" style={{ color: "var(--overlay-text-muted)" }}>
               {year}
             </span>
           )}
           {rating !== undefined && rating > 0 && (
-            <span className="text-sm" style={{ color: "rgba(255,255,255,0.8)" }}>
+            <span className="text-sm" style={{ color: "var(--overlay-text-muted)" }}>
               \u2605 {rating.toFixed(1)}
             </span>
           )}
@@ -140,7 +140,7 @@ function HeroBanner() {
             to="/player/$mediaId"
             params={{ mediaId: hero.mediaItemId }}
             className="flex items-center gap-2 px-5 py-2.5 rounded-[var(--radius-md)] font-semibold text-sm transition-opacity hover:opacity-90"
-            style={{ backgroundColor: "var(--accent)", color: "#fff" }}
+            style={{ backgroundColor: "var(--accent)", color: "var(--filter-active-text)" }}
           >
             <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
               <path d="M6.3 2.8L17 10 6.3 17.2V2.8z" />
@@ -151,7 +151,7 @@ function HeroBanner() {
             to="/media/$mediaId"
             params={{ mediaId: hero.mediaItemId }}
             className="flex items-center gap-2 px-5 py-2.5 rounded-[var(--radius-md)] font-semibold text-sm transition-opacity hover:opacity-90"
-            style={{ backgroundColor: "rgba(255,255,255,0.2)", color: "#fff", backdropFilter: "blur(4px)" }}
+            style={{ backgroundColor: "var(--overlay-btn-bg)", color: "var(--overlay-text)", backdropFilter: "blur(4px)" }}
           >
             More Info
           </Link>

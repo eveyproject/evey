@@ -34,7 +34,7 @@ describe("Textarea", () => {
 
   it("applies error border class", () => {
     render(<Textarea error="bad" placeholder="e" />);
-    expect(screen.getByPlaceholderText("e")).toHaveClass("border-red-500");
+    expect(screen.getByPlaceholderText("e")).toHaveClass("border-[var(--color-danger)]");
   });
 
   it("renders with custom rows", () => {

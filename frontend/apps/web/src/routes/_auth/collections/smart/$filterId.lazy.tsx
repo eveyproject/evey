@@ -62,7 +62,7 @@ function SmartFilterPage() {
             </h1>
             <span
               className="text-xs font-semibold px-2 py-0.5 rounded-full"
-              style={{ backgroundColor: "var(--accent)", color: "#fff" }}
+              style={{ backgroundColor: "var(--accent)", color: "var(--filter-active-text)" }}
             >
               Smart
             </span>

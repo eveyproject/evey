@@ -276,7 +276,7 @@ function MetadataEditPanel({
         </Button>
         <Button type="button" variant="secondary" onClick={onCancel}>Cancel</Button>
       </div>
-      {setOverride.isError && <p className="text-sm" style={{ color: "#ef4444" }}>Failed to save.</p>}
+      {setOverride.isError && <p className="text-sm" style={{ color: "var(--color-danger)" }}>Failed to save.</p>}
     </form>
   );
 }
@@ -980,7 +980,7 @@ export function MediaDetail({ item, onMetadataUpdated, initialEdit }: MediaDetai
                 {hasOverrides && (
                   <span
                     className="text-xs px-1.5 py-0.5 rounded-full ml-1"
-                    style={{ backgroundColor: "var(--accent)", color: "#fff", fontSize: "10px" }}
+                    style={{ backgroundColor: "var(--accent)", color: "var(--filter-active-text)", fontSize: "10px" }}
                   >
                     active
                   </span>

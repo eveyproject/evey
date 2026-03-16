@@ -220,7 +220,7 @@ function PlayerPageInner({ mediaId }: { mediaId: string }) {
         )}
         {isError ? (
           <div className="flex flex-col items-center gap-4 text-white">
-            <svg className="w-12 h-12 text-red-400" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
+            <svg className="w-12 h-12" style={{ color: "var(--color-danger)" }} fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
             </svg>
             <p className="text-lg font-medium">Failed to start playback</p>

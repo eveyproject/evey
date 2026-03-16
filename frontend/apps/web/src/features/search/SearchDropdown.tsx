@@ -182,7 +182,7 @@ export function SearchDropdown({
 
       {!isLoading && isError && (
         <div className="px-4 py-3" data-testid="search-dropdown-error">
-          <span className="text-sm" style={{ color: "#ef4444" }}>
+          <span className="text-sm" style={{ color: "var(--color-danger)" }}>
             Search failed
           </span>
         </div>
