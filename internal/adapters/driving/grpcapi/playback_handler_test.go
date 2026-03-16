@@ -22,7 +22,7 @@ import (
 	"google.golang.org/grpc/status"
 )
 
-func newTestPlaybackHandler() (*playbackHandler, *pbfakes.FakePlaySessionRepository, *pbfakes.FakeWatchProgressRepository, *libfakes.FakeMediaItemQueryRepo, *userfakes.FakeProfileRepository) {
+func newTestPlaybackHandler() (*playbackHandler, *pbfakes.FakePlaySessionRepository, *pbfakes.FakeWatchProgressRepository, *libfakes.FakeMediaItemQueryRepo, *userfakes.FakeProfileRepository, *libfakes.FakeMediaStreamRepository) {
 	progressRepo := pbfakes.NewFakeWatchProgressRepository()
 	sessionRepo := pbfakes.NewFakePlaySessionRepository()
 	userRepo := userfakes.NewFakeUserRepository()
@@ -56,7 +56,7 @@ func newTestPlaybackHandler() (*playbackHandler, *pbfakes.FakePlaySessionReposit
 		librarySvc: libQuerySvc,
 		profiles:   profileRepo,
 	}
-	return h, sessionRepo, progressRepo, mediaQueryRepo, profileRepo
+	return h, sessionRepo, progressRepo, mediaQueryRepo, profileRepo, streamRepo
 }
 
 func pbAdminCtx() context.Context {
@@ -69,7 +69,7 @@ func pbAdminCtx() context.Context {
 }
 
 func TestPlaybackHandler_StartStream(t *testing.T) {
-	h, _, _, _, _ := newTestPlaybackHandler()
+	h, _, _, _, _, _ := newTestPlaybackHandler()
 	ctx := pbAdminCtx()
 
 	resp, err := h.StartStream(ctx, &eveyv1.StartStreamRequest{
@@ -87,7 +87,7 @@ func TestPlaybackHandler_StartStream(t *testing.T) {
 }
 
 func TestPlaybackHandler_StartStream_Unauthenticated(t *testing.T) {
-	h, _, _, _, _ := newTestPlaybackHandler()
+	h, _, _, _, _, _ := newTestPlaybackHandler()
 
 	_, err := h.StartStream(context.Background(), &eveyv1.StartStreamRequest{
 		MediaItemId: "mi-1",
@@ -98,7 +98,7 @@ func TestPlaybackHandler_StartStream_Unauthenticated(t *testing.T) {
 }
 
 func TestPlaybackHandler_StopStream(t *testing.T) {
-	h, _, _, _, _ := newTestPlaybackHandler()
+	h, _, _, _, _, _ := newTestPlaybackHandler()
 	ctx := pbAdminCtx()
 
 	startResp, err := h.StartStream(ctx, &eveyv1.StartStreamRequest{
@@ -113,7 +113,7 @@ func TestPlaybackHandler_StopStream(t *testing.T) {
 }
 
 func TestPlaybackHandler_ReportProgress(t *testing.T) {
-	h, _, _, _, _ := newTestPlaybackHandler()
+	h, _, _, _, _, _ := newTestPlaybackHandler()
 	ctx := pbAdminCtx()
 
 	startResp, err := h.StartStream(ctx, &eveyv1.StartStreamRequest{
@@ -137,7 +137,7 @@ func TestPlaybackHandler_ReportProgress(t *testing.T) {
 }
 
 func TestPlaybackHandler_GetWatchProgress_Exists(t *testing.T) {
-	h, _, progressRepo, _, _ := newTestPlaybackHandler()
+	h, _, progressRepo, _, _, _ := newTestPlaybackHandler()
 	ctx := pbAdminCtx()
 
 	progressRepo.Upsert(context.Background(), &playback.WatchProgress{
@@ -160,7 +160,7 @@ func TestPlaybackHandler_GetWatchProgress_Exists(t *testing.T) {
 }
 
 func TestPlaybackHandler_GetResumeItems(t *testing.T) {
-	h, _, progressRepo, _, _ := newTestPlaybackHandler()
+	h, _, progressRepo, _, _, _ := newTestPlaybackHandler()
 	ctx := pbAdminCtx()
 
 	progressRepo.Upsert(context.Background(), &playback.WatchProgress{
@@ -181,7 +181,7 @@ func TestPlaybackHandler_GetResumeItems(t *testing.T) {
 }
 
 func TestPlaybackHandler_MarkAsWatched(t *testing.T) {
-	h, _, _, _, _ := newTestPlaybackHandler()
+	h, _, _, _, _, _ := newTestPlaybackHandler()
 	ctx := pbAdminCtx()
 
 	_, err := h.MarkAsWatched(ctx, &eveyv1.MarkAsWatchedRequest{
@@ -197,7 +197,7 @@ func TestPlaybackHandler_MarkAsWatched(t *testing.T) {
 }
 
 func TestPlaybackHandler_MarkAsUnwatched(t *testing.T) {
-	h, _, _, _, _ := newTestPlaybackHandler()
+	h, _, _, _, _, _ := newTestPlaybackHandler()
 	ctx := pbAdminCtx()
 
 	_, err := h.MarkAsWatched(ctx, &eveyv1.MarkAsWatchedRequest{MediaItemId: "mi-1"})
@@ -212,7 +212,7 @@ func TestPlaybackHandler_MarkAsUnwatched(t *testing.T) {
 }
 
 func TestPlaybackHandler_GetStreamInfo(t *testing.T) {
-	h, _, _, mediaQuery, _ := newTestPlaybackHandler()
+	h, _, _, mediaQuery, _, _ := newTestPlaybackHandler()
 	ctx := pbAdminCtx()
 
 	mediaQuery.Seed(&library.MediaItem{
@@ -231,7 +231,7 @@ func TestPlaybackHandler_GetStreamInfo(t *testing.T) {
 }
 
 func TestPlaybackHandler_StartStream_ParentalBlocked(t *testing.T) {
-	h, _, _, mediaQuery, profileRepo := newTestPlaybackHandler()
+	h, _, _, mediaQuery, profileRepo, _ := newTestPlaybackHandler()
 
 	profileRepo.Update(context.Background(), &user.Profile{
 		ID:     "profile-1",
@@ -261,7 +261,7 @@ func TestPlaybackHandler_StartStream_ParentalBlocked(t *testing.T) {
 }
 
 func TestPlaybackHandler_StartStream_ParentalAllowed(t *testing.T) {
-	h, _, _, mediaQuery, profileRepo := newTestPlaybackHandler()
+	h, _, _, mediaQuery, profileRepo, _ := newTestPlaybackHandler()
 
 	profileRepo.Update(context.Background(), &user.Profile{
 		ID:     "profile-1",
@@ -290,7 +290,7 @@ func TestPlaybackHandler_StartStream_ParentalAllowed(t *testing.T) {
 }
 
 func TestPlaybackHandler_StartStream_ParentalDisabled(t *testing.T) {
-	h, _, _, mediaQuery, profileRepo := newTestPlaybackHandler()
+	h, _, _, mediaQuery, profileRepo, _ := newTestPlaybackHandler()
 
 	profileRepo.Update(context.Background(), &user.Profile{
 		ID:     "profile-1",
@@ -319,7 +319,7 @@ func TestPlaybackHandler_StartStream_ParentalDisabled(t *testing.T) {
 }
 
 func TestPlaybackHandler_StartStream_ParentalBlockedTag(t *testing.T) {
-	h, _, _, mediaQuery, profileRepo := newTestPlaybackHandler()
+	h, _, _, mediaQuery, profileRepo, _ := newTestPlaybackHandler()
 
 	profileRepo.Update(context.Background(), &user.Profile{
 		ID:     "profile-1",
@@ -346,4 +346,89 @@ func TestPlaybackHandler_StartStream_ParentalBlockedTag(t *testing.T) {
 	require.Error(t, err)
 	assert.Equal(t, codes.PermissionDenied, status.Code(err))
 	assert.Contains(t, status.Convert(err).Message(), "blocked tags")
+}
+
+func intPtr(v int) *int       { return &v }
+func int64Ptr(v int64) *int64 { return &v }
+
+func TestGetStreamInfo_AudioCodecsWired(t *testing.T) {
+	h, _, _, mediaQuery, _, streamRepo := newTestPlaybackHandler()
+	ctx := pbAdminCtx()
+
+	mediaQuery.Seed(&library.MediaItem{
+		ID:              "mi-audio",
+		Title:           "DTS Movie",
+		Type:            "movie",
+		ContainerFormat: "mp4",
+	})
+	streamRepo.CreateBatch(context.Background(), []*library.MediaStream{
+		{MediaItemID: "mi-audio", StreamType: "video", Codec: "h264", Width: intPtr(1920), Height: intPtr(1080), Bitrate: int64Ptr(5000000), IsDefault: true},
+		{MediaItemID: "mi-audio", StreamType: "audio", Codec: "dts", Channels: intPtr(6), IsDefault: true},
+	})
+
+	resp, err := h.GetStreamInfo(ctx, &eveyv1.GetStreamInfoRequest{
+		MediaItemId:          "mi-audio",
+		SupportedAudioCodecs: []string{"aac", "mp3"},
+	})
+
+	require.NoError(t, err)
+	assert.Equal(t, eveyv1.PlayMethod_PLAY_METHOD_TRANSCODE, resp.PlayMethod)
+	assert.Contains(t, resp.TranscodeReasons, "audio_codec_unsupported")
+	assert.Equal(t, "transcode", resp.AudioDecision)
+	assert.Equal(t, "copy", resp.VideoDecision)
+}
+
+func TestGetStreamInfo_AudioCodecsDirectPlay(t *testing.T) {
+	h, _, _, mediaQuery, _, streamRepo := newTestPlaybackHandler()
+	ctx := pbAdminCtx()
+
+	mediaQuery.Seed(&library.MediaItem{
+		ID:              "mi-dp",
+		Title:           "AAC Movie",
+		Type:            "movie",
+		ContainerFormat: "mp4",
+	})
+	streamRepo.CreateBatch(context.Background(), []*library.MediaStream{
+		{MediaItemID: "mi-dp", StreamType: "video", Codec: "h264", Width: intPtr(1920), Height: intPtr(1080), Bitrate: int64Ptr(5000000), IsDefault: true},
+		{MediaItemID: "mi-dp", StreamType: "audio", Codec: "aac", Channels: intPtr(2), IsDefault: true},
+	})
+
+	resp, err := h.GetStreamInfo(ctx, &eveyv1.GetStreamInfoRequest{
+		MediaItemId:          "mi-dp",
+		SupportedAudioCodecs: []string{"aac", "opus"},
+	})
+
+	require.NoError(t, err)
+	assert.Equal(t, eveyv1.PlayMethod_PLAY_METHOD_DIRECT_PLAY, resp.PlayMethod)
+	assert.Empty(t, resp.TranscodeReasons)
+	assert.Equal(t, "copy", resp.AudioDecision)
+	assert.Equal(t, "copy", resp.VideoDecision)
+}
+
+func TestGetStreamInfo_DecisionFieldsPopulated(t *testing.T) {
+	h, _, _, mediaQuery, _, streamRepo := newTestPlaybackHandler()
+	ctx := pbAdminCtx()
+
+	mediaQuery.Seed(&library.MediaItem{
+		ID:              "mi-hevc",
+		Title:           "HEVC Movie",
+		Type:            "movie",
+		ContainerFormat: "matroska",
+	})
+	streamRepo.CreateBatch(context.Background(), []*library.MediaStream{
+		{MediaItemID: "mi-hevc", StreamType: "video", Codec: "hevc", Width: intPtr(3840), Height: intPtr(2160), Bitrate: int64Ptr(20000000), IsDefault: true},
+		{MediaItemID: "mi-hevc", StreamType: "audio", Codec: "dts", Channels: intPtr(6), IsDefault: true},
+	})
+
+	resp, err := h.GetStreamInfo(ctx, &eveyv1.GetStreamInfoRequest{
+		MediaItemId: "mi-hevc",
+	})
+
+	require.NoError(t, err)
+	assert.Equal(t, eveyv1.PlayMethod_PLAY_METHOD_TRANSCODE, resp.PlayMethod)
+	assert.Equal(t, "transcode", resp.VideoDecision)
+	assert.Equal(t, "transcode", resp.AudioDecision)
+	assert.Contains(t, resp.TranscodeReasons, "video_codec_unsupported")
+	assert.Contains(t, resp.TranscodeReasons, "audio_codec_unsupported")
+	assert.Contains(t, resp.TranscodeReasons, "container_incompatible")
 }
