@@ -1015,16 +1015,19 @@ type transcodeServe struct {
 }
 
 type transcodeParams struct {
-	audioTrack   int
-	videoScale   int
-	remuxOnly    bool
-	startTimeSec float64
+	audioTrack    int
+	videoScale    int
+	subtitleTrack int // -1 = no subtitle burn-in
+	remuxOnly     bool
+	startTimeSec  float64
 }
 
 type transcodeAnalysis struct {
 	needsVideoTranscode bool
 	needsAudioTranscode bool
 	needsToneMap        bool
+	burnInSubtitle      bool   // true when subtitle track requires burn-in (PGS/VobSub)
+	subtitleCodec       string // codec of the resolved subtitle stream
 	hdrInfo             *hdr.HDRInfo
 	streams             []*domainlibrary.MediaStream
 }
@@ -1076,7 +1079,7 @@ func (h *transcodeServe) serveHTTP(w http.ResponseWriter, r *http.Request) {
 
 	params := h.parseParams(r)
 	clientSupportsHDR := r.URL.Query().Get("hdr") == "true"
-	analysis := h.analyzeStreams(r.Context(), mediaID, params.remuxOnly, clientSupportsHDR)
+	analysis := h.analyzeStreams(r.Context(), mediaID, params.remuxOnly, clientSupportsHDR, params.subtitleTrack)
 
 	slog.Debug("transcode: decision", slog.String("media_id", mediaID), slog.Bool("needsVideoTranscode", analysis.needsVideoTranscode), slog.Bool("needsAudioTranscode", analysis.needsAudioTranscode), slog.Bool("remuxOnly", params.remuxOnly), slog.Bool("needsToneMap", analysis.needsToneMap))
 
@@ -1115,7 +1118,7 @@ func (h *transcodeServe) serveHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *transcodeServe) parseParams(r *http.Request) transcodeParams {
-	p := transcodeParams{}
+	p := transcodeParams{subtitleTrack: -1}
 	if at := r.URL.Query().Get("audioTrack"); at != "" {
 		if n, err := strconv.Atoi(at); err == nil && n >= 0 {
 			p.audioTrack = n
@@ -1124,6 +1127,11 @@ func (h *transcodeServe) parseParams(r *http.Request) transcodeParams {
 	if vs := r.URL.Query().Get("videoScale"); vs != "" {
 		if n, err := strconv.Atoi(vs); err == nil && n > 0 && n <= 4320 {
 			p.videoScale = n
+		}
+	}
+	if st := r.URL.Query().Get("subtitleTrack"); st != "" {
+		if n, err := strconv.Atoi(st); err == nil && n >= 0 {
+			p.subtitleTrack = n
 		}
 	}
 	p.remuxOnly = r.URL.Query().Get("remux") == "1"
@@ -1135,7 +1143,7 @@ func (h *transcodeServe) parseParams(r *http.Request) transcodeParams {
 	return p
 }
 
-func (h *transcodeServe) analyzeStreams(ctx context.Context, mediaID string, remuxOnly, clientSupportsHDR bool) transcodeAnalysis {
+func (h *transcodeServe) analyzeStreams(ctx context.Context, mediaID string, remuxOnly, clientSupportsHDR bool, subtitleTrack int) transcodeAnalysis {
 	a := transcodeAnalysis{needsAudioTranscode: true}
 
 	streams, err := h.libSvc.GetMediaStreams(ctx, mediaID)
@@ -1157,6 +1165,24 @@ func (h *transcodeServe) analyzeStreams(ctx context.Context, mediaID string, rem
 		}
 	}
 
+	if subtitleTrack >= 0 {
+		subIdx := 0
+		for _, s := range streams {
+			if s.StreamType != "subtitle" {
+				continue
+			}
+			if subIdx == subtitleTrack {
+				a.subtitleCodec = s.Codec
+				if apptranscoding.IsImageSubtitle(s.Codec) {
+					a.burnInSubtitle = true
+					a.needsVideoTranscode = true
+				}
+				break
+			}
+			subIdx++
+		}
+	}
+
 	a.hdrInfo = hdr.DetectHDR(streams)
 	a.needsToneMap = a.hdrInfo.IsHDR && !clientSupportsHDR
 	if a.needsToneMap {
@@ -1170,28 +1196,51 @@ func (h *transcodeServe) buildFFmpegArgs(filePath string, p transcodeParams, a t
 	if p.startTimeSec > 0 {
 		args = append(args, "-ss", fmt.Sprintf("%.3f", p.startTimeSec))
 	}
-	args = append(args,
-		"-i", filePath,
-		"-map", "0:v:0",
-		"-map", fmt.Sprintf("0:a:%d", p.audioTrack),
-	)
+	args = append(args, "-i", filePath)
 
-	switch {
-	case a.needsToneMap && !p.remuxOnly:
-		toneMapFilter := hdr.BuildToneMapFilter(a.hdrInfo, hdr.DefaultToneMapOptions())
-		if p.videoScale > 0 {
-			args = append(args, "-vf", fmt.Sprintf("scale=-2:%d,%s", p.videoScale, toneMapFilter))
-		} else {
-			args = append(args, "-vf", toneMapFilter)
+	if a.burnInSubtitle && p.subtitleTrack >= 0 {
+		// Burn-in uses filter_complex with overlay, output mapped from [vb]
+		var filters []string
+		switch {
+		case a.needsToneMap && !p.remuxOnly:
+			toneMapFilter := hdr.BuildToneMapFilter(a.hdrInfo, hdr.DefaultToneMapOptions())
+			filters = append(filters, fmt.Sprintf("[0:v]%s[vt]", toneMapFilter))
+			if p.videoScale > 0 {
+				filters = append(filters, fmt.Sprintf("[vt][0:s:%d]overlay,scale=-2:%d[vb]", p.subtitleTrack, p.videoScale))
+			} else {
+				filters = append(filters, fmt.Sprintf("[vt][0:s:%d]overlay[vb]", p.subtitleTrack))
+			}
+		case p.videoScale > 0:
+			filters = append(filters, fmt.Sprintf("[0:v][0:s:%d]overlay,scale=-2:%d[vb]", p.subtitleTrack, p.videoScale))
+		default:
+			filters = append(filters, fmt.Sprintf("[0:v][0:s:%d]overlay[vb]", p.subtitleTrack))
 		}
+		args = append(args, "-filter_complex", strings.Join(filters, ";"))
+		args = append(args, "-map", "[vb]")
+		args = append(args, "-map", fmt.Sprintf("0:a:%d", p.audioTrack))
 		args = append(args, "-c:v", "libx264", "-crf", "23", "-preset", "veryfast", "-threads", "2")
-	case p.videoScale > 0:
-		args = append(args, "-vf", fmt.Sprintf("scale=-2:%d", p.videoScale), "-c:v", "libx264", "-crf", "23", "-preset", "veryfast", "-threads", "2")
-	case a.needsVideoTranscode:
-		args = append(args, "-c:v", "libx264", "-crf", "23", "-preset", "veryfast", "-tune", "zerolatency", "-threads", "0")
-	default:
-		args = append(args, "-c:v", "copy")
+	} else {
+		args = append(args, "-map", "0:v:0")
+		args = append(args, "-map", fmt.Sprintf("0:a:%d", p.audioTrack))
+
+		switch {
+		case a.needsToneMap && !p.remuxOnly:
+			toneMapFilter := hdr.BuildToneMapFilter(a.hdrInfo, hdr.DefaultToneMapOptions())
+			if p.videoScale > 0 {
+				args = append(args, "-vf", fmt.Sprintf("scale=-2:%d,%s", p.videoScale, toneMapFilter))
+			} else {
+				args = append(args, "-vf", toneMapFilter)
+			}
+			args = append(args, "-c:v", "libx264", "-crf", "23", "-preset", "veryfast", "-threads", "2")
+		case p.videoScale > 0:
+			args = append(args, "-vf", fmt.Sprintf("scale=-2:%d", p.videoScale), "-c:v", "libx264", "-crf", "23", "-preset", "veryfast", "-threads", "2")
+		case a.needsVideoTranscode:
+			args = append(args, "-c:v", "libx264", "-crf", "23", "-preset", "veryfast", "-tune", "zerolatency", "-threads", "0")
+		default:
+			args = append(args, "-c:v", "copy")
+		}
 	}
+
 	if a.needsAudioTranscode {
 		args = append(args, "-c:a", "aac", "-ac", "2", "-b:a", "192k")
 	} else {
