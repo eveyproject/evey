@@ -33,6 +33,11 @@ func (r *FCMDeviceTokenRepository) Delete(ctx context.Context, userID, token str
 	return err
 }
 
+func (r *FCMDeviceTokenRepository) DeleteByUser(ctx context.Context, userID string) error {
+	_, err := r.db.ExecContext(ctx, `DELETE FROM fcm_device_tokens WHERE user_id = $1`, userID)
+	return err
+}
+
 func (r *FCMDeviceTokenRepository) GetByProfile(ctx context.Context, profileID string) ([]string, error) {
 	rows, err := r.db.QueryContext(ctx, `SELECT token FROM fcm_device_tokens WHERE profile_id = $1`, profileID)
 	if err != nil {

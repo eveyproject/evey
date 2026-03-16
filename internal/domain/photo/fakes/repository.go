@@ -183,17 +183,3 @@ func (r *FakeRepository) UpdateFilePath(_ context.Context, id, newPath string, m
 	return nil
 }
 
-func (r *FakeRepository) CountByLibrary(_ context.Context, libraryID string) (int, error) {
-	if r.Err != nil {
-		return 0, r.Err
-	}
-	r.mu.RLock()
-	defer r.mu.RUnlock()
-	count := 0
-	for _, p := range r.photos {
-		if p.LibraryID == libraryID {
-			count++
-		}
-	}
-	return count, nil
-}

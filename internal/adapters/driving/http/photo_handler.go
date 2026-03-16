@@ -1,6 +1,7 @@
 package httpapi
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"log/slog"
@@ -15,6 +16,7 @@ import (
 	domainphoto "github.com/gravity-zero/evey/internal/domain/photo"
 	domainuser "github.com/gravity-zero/evey/internal/domain/user"
 	"github.com/gravity-zero/evey/internal/pkg/auth"
+	"github.com/gravity-zero/evey/internal/pkg/exifstrip"
 )
 
 // photoResponse is the API DTO for a photo, omitting GPS coordinates.
@@ -155,24 +157,22 @@ func (h *photoHandler) servePhoto(w http.ResponseWriter, r *http.Request) {
 	if !checkLibraryAccess(r.Context(), w, claims, p.LibraryID, h.libChecker) {
 		return
 	}
-	f, err := os.Open(p.FilePath)
+	data, err := os.ReadFile(p.FilePath)
 	if err != nil {
 		http.Error(w, `{"message":"file not found"}`, http.StatusNotFound)
 		return
 	}
-	defer f.Close()
-	stat, err := f.Stat()
-	if err != nil {
-		http.Error(w, `{"message":"internal error"}`, http.StatusInternalServerError)
-		return
+	if p.MimeType == "image/jpeg" {
+		if stripped := exifstrip.StripJPEGAppExif(data); stripped != nil {
+			data = stripped
+		}
 	}
 	w.Header().Set("Content-Type", p.MimeType)
 	w.Header().Set("Cache-Control", "public, max-age=86400")
-	// Disable write deadline for file serving — global WriteTimeout would cut large photos.
 	if err := http.NewResponseController(w).SetWriteDeadline(time.Time{}); err != nil {
 		slog.Warn("set write deadline", slog.Any("err", err))
 	}
-	http.ServeContent(w, r, stat.Name(), stat.ModTime(), f)
+	http.ServeContent(w, r, filepath.Base(p.FilePath), time.Time{}, bytes.NewReader(data))
 }
 
 func (h *photoHandler) getPhoto(w http.ResponseWriter, r *http.Request) {

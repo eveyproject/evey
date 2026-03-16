@@ -327,11 +327,14 @@ func TestDeleteTrack_PublishesEvent(t *testing.T) {
 		t.Fatalf("DeleteTrack failed: %v", err)
 	}
 	events := bus2.PublishedEvents()
-	if len(events) != 1 {
-		t.Fatalf("expected 1 event, got %d", len(events))
+	if len(events) != 2 {
+		t.Fatalf("expected 2 events, got %d", len(events))
 	}
 	if events[0].EventName() != "music.track.deleted" {
 		t.Errorf("unexpected event name %q", events[0].EventName())
+	}
+	if events[1].EventName() != "music.track.removed" {
+		t.Errorf("unexpected event name %q", events[1].EventName())
 	}
 }
 
@@ -567,8 +570,8 @@ func TestScanDirectory_PublishesTrackScannedEvent(t *testing.T) {
 	}
 
 	events := bus.PublishedEvents()
-	if len(events) != 1 {
-		t.Fatalf("expected 1 TrackScanned event, got %d", len(events))
+	if len(events) != 2 {
+		t.Fatalf("expected 2 events (TrackScanned + TrackAdded), got %d", len(events))
 	}
 	if events[0].EventName() != "music.track.scanned" {
 		t.Errorf("expected event name music.track.scanned, got %q", events[0].EventName())
@@ -582,6 +585,13 @@ func TestScanDirectory_PublishesTrackScannedEvent(t *testing.T) {
 	}
 	if scanned.Title == "" {
 		t.Error("expected non-empty Title in TrackScanned")
+	}
+	added, ok := events[1].(music.TrackAdded)
+	if !ok {
+		t.Fatal("event is not TrackAdded")
+	}
+	if added.LibraryID != "lib-1" {
+		t.Errorf("expected LibraryID lib-1, got %q", added.LibraryID)
 	}
 }
 
@@ -721,8 +731,8 @@ func TestDeleteTrack_EventContainsCorrectFields(t *testing.T) {
 		t.Fatal(err)
 	}
 	events := bus.PublishedEvents()
-	if len(events) != 1 {
-		t.Fatalf("expected 1 event, got %d", len(events))
+	if len(events) != 2 {
+		t.Fatalf("expected 2 events, got %d", len(events))
 	}
 	deleted, ok := events[0].(music.TrackDeleted)
 	if !ok {
@@ -736,6 +746,16 @@ func TestDeleteTrack_EventContainsCorrectFields(t *testing.T) {
 	}
 	if deleted.OccurredAt.IsZero() {
 		t.Error("expected non-zero OccurredAt")
+	}
+	removed, ok := events[1].(music.TrackRemoved)
+	if !ok {
+		t.Fatal("event is not TrackRemoved")
+	}
+	if removed.TrackID != "trk-99" {
+		t.Errorf("TrackID = %q, want trk-99", removed.TrackID)
+	}
+	if removed.LibraryID != "lib-7" {
+		t.Errorf("LibraryID = %q, want lib-7", removed.LibraryID)
 	}
 }
 

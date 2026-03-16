@@ -1,6 +1,9 @@
 package user
 
-import "time"
+import (
+	"errors"
+	"time"
+)
 
 type QuickConnectStatus string
 
@@ -21,6 +24,7 @@ type User struct {
 	OIDCIssuer       *string
 	MaxStreams        *int
 	MaxBitrateKbps   int
+	PushConsent      bool
 	CreatedAt        time.Time
 	UpdatedAt        time.Time
 }
@@ -104,6 +108,49 @@ type LibraryAccess struct {
 	UserID    string
 	LibraryID string
 	GrantedAt time.Time
+}
+
+func (u *User) Validate() error {
+	if u.Username == "" {
+		return errors.New("username is required")
+	}
+	return nil
+}
+
+func (p *Profile) Validate() error {
+	if p.UserID == "" {
+		return errors.New("profile user ID is required")
+	}
+	if p.Name == "" {
+		return errors.New("profile name is required")
+	}
+	return nil
+}
+
+func (inv *InviteLink) Validate() error {
+	if inv.CreatedBy == "" {
+		return errors.New("invite link created_by is required")
+	}
+	if inv.Token == "" {
+		return errors.New("invite link token is required")
+	}
+	if inv.MaxUses < 0 {
+		return errors.New("invite link max uses must not be negative")
+	}
+	return nil
+}
+
+func (k *APIKeyModel) Validate() error {
+	if k.UserID == "" {
+		return errors.New("API key user ID is required")
+	}
+	if k.Name == "" {
+		return errors.New("API key name is required")
+	}
+	if k.KeyHash == "" {
+		return errors.New("API key hash is required")
+	}
+	return nil
 }
 
 func (u *User) IsOIDCUser() bool {

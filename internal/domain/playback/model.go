@@ -1,6 +1,9 @@
 package playback
 
-import "time"
+import (
+	"errors"
+	"time"
+)
 
 type PlayMethod string
 
@@ -36,6 +39,16 @@ type PlaySession struct {
 	EndedAt      *time.Time
 	DurationMs   *int64
 	PositionMs   *int64
+}
+
+func (s *PlaySession) Validate() error {
+	if s.ProfileID == "" {
+		return errors.New("play session profile ID is required")
+	}
+	if s.MediaItemID == "" {
+		return errors.New("play session media item ID is required")
+	}
+	return nil
 }
 
 type ActiveSessionInfo struct {

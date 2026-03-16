@@ -193,10 +193,16 @@ func (s *CommandService) DeleteAll(ctx context.Context, profileID string) error 
 }
 
 func (s *CommandService) UpdateSettings(ctx context.Context, settings *notification.Settings) error {
+	if err := settings.Validate(); err != nil {
+		return fmt.Errorf("invalid notification settings: %w", err)
+	}
 	return s.settings.Upsert(ctx, settings)
 }
 
 func (s *CommandService) UpdateGlobalSettings(ctx context.Context, settings *notification.Settings) error {
+	if err := settings.Validate(); err != nil {
+		return fmt.Errorf("invalid notification settings: %w", err)
+	}
 	return s.settings.UpsertGlobalDefaults(ctx, settings)
 }
 

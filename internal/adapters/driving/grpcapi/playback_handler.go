@@ -15,7 +15,9 @@ import (
 	"github.com/gravity-zero/evey/internal/domain/activity"
 	"github.com/gravity-zero/evey/internal/domain/playback"
 	"github.com/gravity-zero/evey/internal/domain/transcoding"
+	"github.com/gravity-zero/evey/internal/domain/user"
 	"github.com/gravity-zero/evey/internal/pkg/id"
+	"github.com/gravity-zero/evey/internal/pkg/ratings"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -26,6 +28,7 @@ type playbackHandler struct {
 	query       *appplayback.QueryService
 	librarySvc  *applibrary.QueryService
 	activitySvc *appactivity.CommandService
+	profiles    user.ProfileRepository
 }
 
 func (h *playbackHandler) audit(ctx context.Context, userID, action, resourceType string, resourceID *string, details map[string]any) {
@@ -114,6 +117,12 @@ func (h *playbackHandler) StartStream(ctx context.Context, req *eveyv1.StartStre
 	if err != nil {
 		return nil, err
 	}
+	if h.profiles != nil {
+		if blocked, reason := h.isBlockedByParental(ctx, profileID, req.MediaItemId); blocked {
+			return nil, status.Errorf(codes.PermissionDenied, "parental control: %s", reason)
+		}
+	}
+
 	session := &playback.PlaySession{
 		ID:          id.New("ps-"),
 		ProfileID:   profileID,
@@ -324,4 +333,23 @@ func (h *playbackHandler) MarkAsUnwatched(ctx context.Context, req *eveyv1.MarkA
 		return nil, status.Errorf(codes.Internal, "internal error")
 	}
 	return &eveyv1.MarkAsUnwatchedResponse{}, nil
+}
+
+func (h *playbackHandler) isBlockedByParental(ctx context.Context, profileID, mediaItemID string) (bool, string) {
+	profile, err := h.profiles.GetByID(ctx, profileID)
+	if err != nil || profile.Parental == nil || !profile.Parental.Enabled {
+		return false, ""
+	}
+	ps := profile.Parental
+	item, err := h.librarySvc.GetMediaItem(ctx, mediaItemID)
+	if err != nil {
+		return false, ""
+	}
+	if ps.MaxRating != "" && !ratings.IsAllowed(item.OfficialRating, ps.MaxRating) {
+		return true, "content rating exceeds profile limit"
+	}
+	if ratings.HasBlockedTag(item.Tags, ps.BlockedTags) {
+		return true, "content contains blocked tags"
+	}
+	return false, ""
 }

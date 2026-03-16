@@ -1,6 +1,7 @@
 package playlist
 
 import (
+	"errors"
 	"time"
 )
 
@@ -35,6 +36,19 @@ type Rule struct {
 	Field    string `json:"field"`
 	Operator string `json:"operator"`
 	Value    string `json:"value"`
+}
+
+func (p *Playlist) Validate() error {
+	if p.Name == "" {
+		return errors.New("playlist name is required")
+	}
+	if p.UserID == "" {
+		return errors.New("playlist user ID is required")
+	}
+	if p.Type != Manual && p.Type != Smart {
+		return errors.New("playlist type must be 'manual' or 'smart'")
+	}
+	return nil
 }
 
 func (p *Playlist) IsOwner(userID string) bool {

@@ -83,6 +83,7 @@ func buildHTTPHandler(gwMux http.Handler, deps *appDeps, cfg *config.Config, sta
 		LibraryAccessRepo: deps.repos.libraryAccessRepo,
 		ServerCfgRepo:     deps.repos.serverCfgRepo,
 		ProfileRepo:       deps.repos.profileRepo,
+		UserRepo:          deps.repos.userRepo,
 		Hasher:            deps.auth.hasher,
 
 		CfgStore:  deps.cfgStore,

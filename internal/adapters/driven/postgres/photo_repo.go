@@ -137,12 +137,6 @@ func (r *PhotoRepository) Search(ctx context.Context, libraryID, query string, l
 	return scanPhotos(rows)
 }
 
-func (r *PhotoRepository) CountByLibrary(ctx context.Context, libraryID string) (int, error) {
-	var count int
-	err := r.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM photos WHERE library_id = $1`, libraryID).Scan(&count)
-	return count, err
-}
-
 func (r *PhotoRepository) ListAllByLibrary(ctx context.Context, libraryID string) ([]photo.Photo, error) {
 	rows, err := r.db.QueryContext(ctx, `
 		SELECT id, library_id, title, file_path, file_size, file_hash, mod_time, mime_type, width, height,

@@ -143,11 +143,11 @@ func (h *Hub) WSHandler(tokenValidator func(token string) (userID, username stri
 			}
 		}
 
-		// Notify others
+		// Notify others (mask username to avoid leaking login names)
 		joinMsg := syncplay.SyncCommand{
 			Type:     "member_joined",
 			UserID:   userID,
-			Username: username,
+			Username: syncplay.MaskUsername(username),
 			RoomID:   roomID,
 		}
 		h.broadcast(roomID, userID, joinMsg)
@@ -163,7 +163,7 @@ func (h *Hub) WSHandler(tokenValidator func(token string) (userID, username stri
 				continue
 			}
 			cmd.UserID = userID
-			cmd.Username = username
+			cmd.Username = syncplay.MaskUsername(username)
 			cmd.RoomID = roomID
 
 			switch cmd.Type {
@@ -267,12 +267,16 @@ func (h *Hub) broadcast(roomID, senderUserID string, cmd syncplay.SyncCommand) {
 		wg.Add(1)
 		go func(c *conn) {
 			defer wg.Done()
-			if err := c.ws.SetDeadline(time.Now().Add(sendTimeout)); err != nil {
-				slog.Warn("syncplay: set deadline", slog.String("user", c.userID), slog.Any("err", err))
+			if err := c.ws.SetWriteDeadline(time.Now().Add(sendTimeout)); err != nil {
+				slog.Warn("syncplay: set write deadline", slog.String("user", c.userID), slog.Any("err", err))
+				return
 			}
 			if err := websocket.Message.Send(c.ws, string(data)); err != nil {
-				slog.Warn("syncplay: broadcast send error, dropping client",
-					slog.String("user", c.userID), slog.Any("err", err))
+				slog.Warn("syncplay: broadcast send failed",
+					slog.String("room", roomID), slog.String("user", c.userID), slog.Any("err", err))
+			}
+			if err := c.ws.SetWriteDeadline(time.Time{}); err != nil {
+				slog.Warn("syncplay: reset write deadline", slog.String("user", c.userID), slog.Any("err", err))
 			}
 		}(c)
 	}

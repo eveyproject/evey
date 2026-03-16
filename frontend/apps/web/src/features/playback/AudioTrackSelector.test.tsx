@@ -39,15 +39,26 @@ const defaultProps = {
 };
 
 describe("AudioTrackSelector", () => {
-  it("renders available audio tracks in settings panel", async () => {
+  it("renders audio submenu entry in settings panel", async () => {
     const user = userEvent.setup();
     render(<PlayerControls {...defaultProps} />);
 
     await user.click(screen.getByRole("button", { name: "Settings" }));
 
     expect(screen.getByText("Audio")).toBeInTheDocument();
-    expect(screen.getByText("English")).toBeInTheDocument();
-    expect(screen.getByText("French")).toBeInTheDocument();
+  });
+
+  it("renders available audio tracks in audio submenu", async () => {
+    const user = userEvent.setup();
+    render(<PlayerControls {...defaultProps} />);
+
+    await user.click(screen.getByRole("button", { name: "Settings" }));
+    await user.click(screen.getByText("Audio"));
+
+    const buttons = screen.getAllByRole("button");
+    const labels = buttons.map((b) => b.textContent);
+    expect(labels).toContain("English");
+    expect(labels).toContain("French");
   });
 
   it("calls onAudioChange with selected track index", async () => {
@@ -56,6 +67,7 @@ describe("AudioTrackSelector", () => {
     render(<PlayerControls {...defaultProps} onAudioChange={onAudioChange} />);
 
     await user.click(screen.getByRole("button", { name: "Settings" }));
+    await user.click(screen.getByText("Audio"));
     await user.click(screen.getByText("French"));
 
     expect(onAudioChange).toHaveBeenCalledWith(1);

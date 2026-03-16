@@ -57,6 +57,22 @@ func (r *FakeDeviceTokenRepository) Delete(_ context.Context, userID, token stri
 	return nil
 }
 
+func (r *FakeDeviceTokenRepository) DeleteByUser(_ context.Context, userID string) error {
+	if r.Err != nil {
+		return r.Err
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	out := r.entries[:0]
+	for _, e := range r.entries {
+		if e.userID != userID {
+			out = append(out, e)
+		}
+	}
+	r.entries = out
+	return nil
+}
+
 func (r *FakeDeviceTokenRepository) GetByProfile(_ context.Context, profileID string) ([]string, error) {
 	if r.Err != nil {
 		return nil, r.Err

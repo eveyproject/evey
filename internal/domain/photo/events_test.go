@@ -15,6 +15,8 @@ func TestPhotoEventNames(t *testing.T) {
 	}{
 		{photo.PhotoImported{}, "photo.imported"},
 		{photo.PhotoDeleted{}, "photo.deleted"},
+		{photo.PhotoAdded{}, "photo.added"},
+		{photo.PhotoRemoved{}, "photo.removed"},
 	}
 
 	for _, c := range cases {

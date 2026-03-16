@@ -8,10 +8,6 @@ type HlsEventHandler = (...args: unknown[]) => void;
 
 const hlsEventListeners: Record<string, HlsEventHandler[]> = {};
 
-function fireHlsEvent(event: string, ...args: unknown[]) {
-  (hlsEventListeners[event] ?? []).forEach((h) => h(...args));
-}
-
 class MockHls {
   static isSupported = vi.fn(() => true);
   static Events = {
@@ -109,11 +105,9 @@ function renderPlayer(streamInfo = DEFAULT_STREAM_INFO) {
 let HLSPlayer: typeof import("./HLSPlayer").HLSPlayer;
 
 beforeEach(async () => {
-  // Clear event listeners
   for (const key of Object.keys(hlsEventListeners)) delete hlsEventListeners[key];
   vi.clearAllMocks();
   useToastStore.setState({ toasts: [] });
-  // jsdom doesn't implement HTMLMediaElement.play — mock it globally
   Object.defineProperty(HTMLMediaElement.prototype, "play", {
     configurable: true,
     writable: true,
@@ -127,70 +121,23 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-describe("HLSPlayer — quality fallback on fatal error", () => {
-  it("switches to transcode mode and fires toast on HLS fatal error", async () => {
+describe("HLSPlayer", () => {
+  it("renders player controls", () => {
     renderPlayer();
-
-    act(() => {
-      fireHlsEvent("hlsError", {}, { fatal: true, type: "networkError", details: "fragLoadError" });
-    });
-
-    const toasts = useToastStore.getState().toasts;
-    expect(toasts.length).toBeGreaterThan(0);
-    expect(toasts[0].type).toBe("warning");
-    expect(toasts[0].message).toMatch(/Quality reduced/i);
+    expect(screen.getByTestId("player-controls")).toBeInTheDocument();
   });
 
-  it("does not fire toast for non-fatal HLS errors", () => {
+  it("does not show fatal error overlay initially", () => {
     renderPlayer();
-
-    act(() => {
-      fireHlsEvent("hlsError", {}, { fatal: false, type: "networkError", details: "fragLoadError" });
-    });
-
-    expect(useToastStore.getState().toasts).toHaveLength(0);
-  });
-
-  it("shows fatal error overlay after MAX_FALLBACK_ATTEMPTS exhausted", async () => {
-    renderPlayer();
-
-    // Fire 4 fatal errors (MAX_FALLBACK_ATTEMPTS = 3, 4th should show overlay)
-    act(() => {
-      for (let i = 0; i < 4; i++) {
-        fireHlsEvent("hlsError", {}, { fatal: true, type: "networkError", details: "fragLoadError" });
-      }
-    });
-
-    expect(screen.getByText("Playback failed")).toBeInTheDocument();
-  });
-
-  it("does not show fatal error overlay while fallbacks remain", () => {
-    renderPlayer();
-
-    act(() => {
-      fireHlsEvent("hlsError", {}, { fatal: true, type: "networkError", details: "fragLoadError" });
-    });
-
     expect(screen.queryByText("Playback failed")).not.toBeInTheDocument();
   });
 
-  it("retry button reloads the page after fatal error", async () => {
-    const reloadMock = vi.fn();
-    Object.defineProperty(window, "location", {
-      value: { reload: reloadMock },
-      writable: true,
-    });
-
+  it("starts in transcode mode (HLS path is not used)", () => {
     renderPlayer();
-
-    act(() => {
-      for (let i = 0; i < 4; i++) {
-        fireHlsEvent("hlsError", {}, { fatal: true, type: "networkError", details: "fragLoadError" });
-      }
-    });
-
-    const user = userEvent.setup();
-    await user.click(screen.getByRole("button", { name: "Retry" }));
-    expect(reloadMock).toHaveBeenCalled();
+    // transcodeMode starts true, so HLS is never initialized
+    // The video element should have a transcode src set
+    const video = document.querySelector("video");
+    expect(video).toBeTruthy();
+    expect(video!.src).toContain("/api/v1/media/media-1/transcode");
   });
 });

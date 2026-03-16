@@ -2,6 +2,7 @@ package feed
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/gravity-zero/evey/internal/domain/feed"
 )
@@ -15,10 +16,16 @@ func NewCommandService(commands feed.ConfigCommandRepo) *CommandService {
 }
 
 func (s *CommandService) UpdateAdminConfig(ctx context.Context, cfg *feed.AdminConfig) error {
+	if err := cfg.Validate(); err != nil {
+		return fmt.Errorf("invalid admin feed config: %w", err)
+	}
 	return s.commands.UpsertAdminConfig(ctx, cfg)
 }
 
 func (s *CommandService) UpdateProfileConfig(ctx context.Context, cfg *feed.ProfileConfig) error {
+	if err := cfg.Validate(); err != nil {
+		return fmt.Errorf("invalid profile feed config: %w", err)
+	}
 	return s.commands.UpsertProfileConfig(ctx, cfg)
 }
 

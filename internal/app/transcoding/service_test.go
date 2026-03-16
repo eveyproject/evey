@@ -25,6 +25,7 @@ func TestStartTranscode(t *testing.T) {
 	job := &transcoding.TranscodeJob{
 		ID:          "j1",
 		MediaItemID: "m1",
+		InputPath:   "/media/movie.mkv",
 		InputCodec:  "h264",
 		OutputCodec: "h265",
 	}
@@ -261,7 +262,7 @@ func TestListProfiles_Empty(t *testing.T) {
 
 func TestUpdateProfile(t *testing.T) {
 	svc, _ := newProfileSvc()
-	p := &transcoding.TranscodeProfile{ID: "tp-1", Name: "720p", VideoCodec: "h264"}
+	p := &transcoding.TranscodeProfile{ID: "tp-1", Name: "720p", VideoCodec: "h264", Container: "mp4"}
 	require.NoError(t, svc.CreateProfile(context.Background(), p))
 
 	p.Name = "720p-updated"
@@ -275,13 +276,13 @@ func TestUpdateProfile(t *testing.T) {
 
 func TestUpdateProfile_NotFound(t *testing.T) {
 	svc, _ := newProfileSvc()
-	err := svc.UpdateProfile(context.Background(), &transcoding.TranscodeProfile{ID: "missing", Name: "x"})
+	err := svc.UpdateProfile(context.Background(), &transcoding.TranscodeProfile{ID: "missing", Name: "x", VideoCodec: "h264", Container: "mp4"})
 	assert.Error(t, err)
 }
 
 func TestDeleteProfile(t *testing.T) {
 	svc, _ := newProfileSvc()
-	p := &transcoding.TranscodeProfile{ID: "tp-1", Name: "720p", VideoCodec: "h264"}
+	p := &transcoding.TranscodeProfile{ID: "tp-1", Name: "720p", VideoCodec: "h264", Container: "mp4"}
 	require.NoError(t, svc.CreateProfile(context.Background(), p))
 
 	require.NoError(t, svc.DeleteProfile(context.Background(), "tp-1"))

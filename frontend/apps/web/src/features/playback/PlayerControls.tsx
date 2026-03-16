@@ -39,7 +39,7 @@ function EpisodesPanel({ seasons, currentSeasonId, episodes, currentEpisodeId, o
 
   return (
     <div className="relative">
-      <button onClick={toggle} aria-label="Episodes" className="text-white hover:text-[var(--accent)] transition-colors p-1">
+      <button onClick={toggle} aria-label="Episodes" title="Episodes" className="text-white hover:text-[var(--accent)] transition-colors p-1">
         <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
           <path d="M3 13h2v-2H3v2zm0 4h2v-2H3v2zm0-8h2V7H3v2zm4 4h14v-2H7v2zm0 4h14v-2H7v2zM7 7v2h14V7H7z" />
         </svg>
@@ -106,7 +106,7 @@ function ChaptersPanel({ chapters, currentTimeSec, onSeek, open, onToggle }: Cha
 
   return (
     <div className="relative">
-      <button onClick={toggle} aria-label="Chapters" className="text-white hover:text-[var(--accent)] transition-colors p-1">
+      <button onClick={toggle} aria-label="Chapters" title="Chapters" className="text-white hover:text-[var(--accent)] transition-colors p-1">
         <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
           <path d="M4 6H2v14c0 1.1.9 2 2 2h14v-2H4V6zm16-4H8c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H8V4h12v12zM10 9h8v2h-8V9zm0 3h4v2h-4v-2zm0-6h8v2h-8V6z" />
         </svg>
@@ -183,10 +183,9 @@ interface PlayerControlsProps {
   onExternalSubtitle?: (blobUrl: string, label: string) => void;
   subtitleStyle?: SubtitleStyle;
   onSubtitleStyleChange?: (patch: Partial<SubtitleStyle>) => void;
-  theaterMode?: boolean;
-  onTheaterModeToggle?: () => void;
   onPanelOpenChange?: (anyOpen: boolean) => void;
   closePanelRef?: React.MutableRefObject<(() => void) | null>;
+  onActionFlash?: (action: "play" | "pause") => void;
 }
 
 function formatTime(seconds: number): string {
@@ -261,6 +260,27 @@ async function loadSubtitleFile(file: File): Promise<string> {
   return URL.createObjectURL(file);
 }
 
+const CheckIcon = () => (
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+    <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z" />
+  </svg>
+);
+
+const ChevronRight = () => (
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" style={{ color: "var(--text-muted)" }}>
+    <path d="M8.59 16.59L13.17 12 8.59 7.41 10 6l6 6-6 6z" />
+  </svg>
+);
+
+function SubMenuHeader({ label, onBack }: { label: string; onBack: () => void }) {
+  return (
+    <button onClick={onBack} className="flex items-center gap-2 w-full px-3 pt-2 pb-1 text-xs font-semibold uppercase tracking-wider hover:bg-[var(--surface-raised)] transition-colors" style={{ color: "var(--text-muted)" }}>
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M15.41 16.59L10.83 12l4.58-4.59L14 6l-6 6 6 6z" /></svg>
+      {label}
+    </button>
+  );
+}
+
 function SettingsPanel({
   audioStreams,
   subtitleStreams,
@@ -289,22 +309,38 @@ function SettingsPanel({
   const subtitlePosition = subtitleStyle?.position ?? "bottom";
   const subtitleShadow = subtitleStyle?.shadow ?? false;
   const extSubInputRef = useRef<HTMLInputElement>(null);
+  const [menu, setMenu] = useState<"main" | "audio" | "subtitles" | "speed" | "subtitle-style">("main");
 
   function toggle(e: React.MouseEvent) {
     e.stopPropagation();
+    setMenu("main");
     onToggle();
   }
 
   function select(fn: () => void) {
     fn();
+    setMenu("main");
     if (open) onToggle();
   }
+
+  const currentAudioLabel = audioStreams.find((s) => s.index === currentAudioIndex)?.title
+    ?? audioStreams.find((s) => s.index === currentAudioIndex)?.language
+    ?? (audioStreams.length > 0 ? `Track ${currentAudioIndex}` : "—");
+
+  const currentSubLabel = currentSubtitleTrackIndex === null
+    ? "Off"
+    : (subtitleStreams.find((s) => s.trackIndex === currentSubtitleTrackIndex)?.title
+      ?? subtitleStreams.find((s) => s.trackIndex === currentSubtitleTrackIndex)?.language
+      ?? `Track ${currentSubtitleTrackIndex}`);
+
+  const currentSpeedLabel = playbackSpeed === 1 ? "Normal" : `${playbackSpeed}x`;
 
   return (
     <div className="relative">
       <button
         onClick={toggle}
         aria-label="Settings"
+        title="Settings"
         className="text-white hover:text-[var(--accent)] transition-colors p-1"
       >
         <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
@@ -318,47 +354,103 @@ function SettingsPanel({
           style={{ backgroundColor: "var(--surface)", border: "1px solid var(--border)" }}
           onClick={(e) => e.stopPropagation()}
         >
-          {/* Quality */}
-          <div className="px-3 pt-2 pb-1 text-xs font-semibold uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>
-            Quality
-          </div>
-          {onAutoQualityToggle && (
-            <button
-              onClick={() => select(() => onAutoQualityToggle(true))}
-              className="flex items-center justify-between w-full px-4 py-2 text-sm hover:bg-[var(--surface-raised)] transition-colors"
-              style={{ color: autoQuality ? "var(--accent)" : "var(--text)" }}
-            >
-              <span>Auto{autoQuality && autoQualityLabel ? ` (${autoQualityLabel})` : ""}</span>
-              {autoQuality && (
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
-                  <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z" />
-                </svg>
-              )}
-            </button>
-          )}
-          {QUALITY_OPTIONS.map((q) => (
-            <button
-              key={q.value}
-              onClick={() => select(() => { onAutoQualityToggle?.(false); onQualityChange(q.value); })}
-              className="flex items-center justify-between w-full px-4 py-2 text-sm hover:bg-[var(--surface-raised)] transition-colors"
-              style={{ color: !autoQuality && q.value === currentQuality ? "var(--accent)" : "var(--text)" }}
-            >
-              <span>{q.label}</span>
-              {!autoQuality && q.value === currentQuality && (
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
-                  <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z" />
-                </svg>
-              )}
-            </button>
-          ))}
-
-          {/* Audio */}
-          {audioStreams.length > 0 && (
+          {menu === "main" && (
             <>
-              <div className="mx-3 my-1" style={{ borderTop: "1px solid var(--border)" }} />
-              <div className="px-3 pb-1 text-xs font-semibold uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>
-                Audio
+              <div className="px-3 pt-2 pb-1 text-xs font-semibold uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>
+                Quality
               </div>
+              {onAutoQualityToggle && (
+                <button
+                  onClick={() => select(() => onAutoQualityToggle(true))}
+                  className="flex items-center justify-between w-full px-4 py-2 text-sm hover:bg-[var(--surface-raised)] transition-colors"
+                  style={{ color: autoQuality ? "var(--accent)" : "var(--text)" }}
+                >
+                  <span>Auto{autoQuality && autoQualityLabel ? ` (${autoQualityLabel})` : ""}</span>
+                  {autoQuality && <CheckIcon />}
+                </button>
+              )}
+              {QUALITY_OPTIONS.map((q) => (
+                <button
+                  key={q.value}
+                  onClick={() => select(() => { onAutoQualityToggle?.(false); onQualityChange(q.value); })}
+                  className="flex items-center justify-between w-full px-4 py-2 text-sm hover:bg-[var(--surface-raised)] transition-colors"
+                  style={{ color: !autoQuality && q.value === currentQuality ? "var(--accent)" : "var(--text)" }}
+                >
+                  <span>{q.label}</span>
+                  {!autoQuality && q.value === currentQuality && <CheckIcon />}
+                </button>
+              ))}
+
+              {audioStreams.length > 0 && (
+                <>
+                  <div className="mx-3 my-1" style={{ borderTop: "1px solid var(--border)" }} />
+                  <button
+                    onClick={() => setMenu("audio")}
+                    className="flex items-center justify-between w-full px-4 py-2 text-sm hover:bg-[var(--surface-raised)] transition-colors"
+                    style={{ color: "var(--text)" }}
+                  >
+                    <span>Audio</span>
+                    <span className="flex items-center gap-1">
+                      <span className="text-xs" style={{ color: "var(--text-muted)" }}>{currentAudioLabel}</span>
+                      <ChevronRight />
+                    </span>
+                  </button>
+                </>
+              )}
+
+              {subtitleStreams.length > 0 && (
+                <>
+                  <div className="mx-3 my-1" style={{ borderTop: "1px solid var(--border)" }} />
+                  <button
+                    onClick={() => setMenu("subtitles")}
+                    className="flex items-center justify-between w-full px-4 py-2 text-sm hover:bg-[var(--surface-raised)] transition-colors"
+                    style={{ color: "var(--text)" }}
+                  >
+                    <span>Subtitles</span>
+                    <span className="flex items-center gap-1">
+                      <span className="text-xs" style={{ color: "var(--text-muted)" }}>{currentSubLabel}</span>
+                      <ChevronRight />
+                    </span>
+                  </button>
+                </>
+              )}
+
+              {onSpeedChange && (
+                <>
+                  <div className="mx-3 my-1" style={{ borderTop: "1px solid var(--border)" }} />
+                  <button
+                    onClick={() => setMenu("speed")}
+                    className="flex items-center justify-between w-full px-4 py-2 text-sm hover:bg-[var(--surface-raised)] transition-colors"
+                    style={{ color: "var(--text)" }}
+                  >
+                    <span>Speed</span>
+                    <span className="flex items-center gap-1">
+                      <span className="text-xs" style={{ color: "var(--text-muted)" }}>{currentSpeedLabel}</span>
+                      <ChevronRight />
+                    </span>
+                  </button>
+                </>
+              )}
+
+              {onSubtitleStyleChange && (
+                <>
+                  <div className="mx-3 my-1" style={{ borderTop: "1px solid var(--border)" }} />
+                  <button
+                    onClick={() => setMenu("subtitle-style")}
+                    className="flex items-center justify-between w-full px-4 py-2 text-sm hover:bg-[var(--surface-raised)] transition-colors"
+                    style={{ color: "var(--text)" }}
+                  >
+                    <span>Subtitle Style</span>
+                    <ChevronRight />
+                  </button>
+                </>
+              )}
+            </>
+          )}
+
+          {menu === "audio" && (
+            <>
+              <SubMenuHeader label="Audio" onBack={() => setMenu("main")} />
               {audioStreams.map((s) => {
                 const label = s.title ?? s.language ?? `Track ${s.index}`;
                 return (
@@ -369,35 +461,23 @@ function SettingsPanel({
                     style={{ color: s.index === currentAudioIndex ? "var(--accent)" : "var(--text)" }}
                   >
                     <span>{label}</span>
-                    {s.index === currentAudioIndex && (
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
-                        <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z" />
-                      </svg>
-                    )}
+                    {s.index === currentAudioIndex && <CheckIcon />}
                   </button>
                 );
               })}
             </>
           )}
 
-          {/* Subtitle */}
-          {subtitleStreams.length > 0 && (
+          {menu === "subtitles" && (
             <>
-              <div className="mx-3 my-1" style={{ borderTop: "1px solid var(--border)" }} />
-              <div className="px-3 pb-1 text-xs font-semibold uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>
-                Subtitles
-              </div>
+              <SubMenuHeader label="Subtitles" onBack={() => setMenu("main")} />
               <button
                 onClick={() => select(() => onSubtitleChange(null))}
                 className="flex items-center justify-between w-full px-4 py-2 text-sm hover:bg-[var(--surface-raised)] transition-colors"
                 style={{ color: currentSubtitleTrackIndex === null ? "var(--accent)" : "var(--text)" }}
               >
                 <span>Off</span>
-                {currentSubtitleTrackIndex === null && (
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
-                    <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z" />
-                  </svg>
-                )}
+                {currentSubtitleTrackIndex === null && <CheckIcon />}
               </button>
               {subtitleStreams.map((s) => {
                 const label = s.title ?? s.language ?? `Track ${s.index}`;
@@ -414,26 +494,69 @@ function SettingsPanel({
                         <span className="ml-1 text-xs opacity-60">(burn-in)</span>
                       )}
                     </span>
-                    {s.trackIndex === currentSubtitleTrackIndex && (
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
-                        <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z" />
-                      </svg>
-                    )}
+                    {s.trackIndex === currentSubtitleTrackIndex && <CheckIcon />}
                   </button>
                 );
               })}
+              {onExternalSubtitle && (
+                <>
+                  <div className="mx-3 my-1" style={{ borderTop: "1px solid var(--border)" }} />
+                  <input
+                    ref={extSubInputRef}
+                    type="file"
+                    accept=".srt,.vtt,.ass,.ssa"
+                    className="hidden"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (!file) return;
+                      const name = file.name;
+                      void loadSubtitleFile(file).then((url) => {
+                        onExternalSubtitle(url, name);
+                        setMenu("main");
+                        if (open) onToggle();
+                      });
+                      e.target.value = "";
+                    }}
+                  />
+                  <button
+                    onClick={() => extSubInputRef.current?.click()}
+                    className="flex items-center gap-2 w-full px-4 py-2 text-sm hover:bg-[var(--surface-raised)] transition-colors"
+                    style={{ color: "var(--text)" }}
+                  >
+                    <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5" />
+                    </svg>
+                    Upload subtitle…
+                  </button>
+                </>
+              )}
             </>
           )}
 
-          {/* Subtitle styling */}
-          {onSubtitleStyleChange && (
+          {menu === "speed" && onSpeedChange && (
             <>
-              <div className="mx-3 my-1" style={{ borderTop: "1px solid var(--border)" }} />
-              {/* Size */}
+              <SubMenuHeader label="Speed" onBack={() => setMenu("main")} />
+              {SPEED_OPTIONS.map((s) => (
+                <button
+                  key={s}
+                  onClick={() => select(() => onSpeedChange(s))}
+                  className="flex items-center justify-between w-full px-4 py-2 text-sm hover:bg-[var(--surface-raised)] transition-colors"
+                  style={{ color: s === playbackSpeed ? "var(--accent)" : "var(--text)" }}
+                >
+                  <span>{s === 1 ? "Normal" : `${s}x`}</span>
+                  {s === playbackSpeed && <CheckIcon />}
+                </button>
+              ))}
+            </>
+          )}
+
+          {menu === "subtitle-style" && onSubtitleStyleChange && (
+            <>
+              <SubMenuHeader label="Subtitle Style" onBack={() => setMenu("main")} />
               <div className="px-4 py-2">
                 <div className="flex items-center justify-between mb-1">
                   <span className="text-xs font-semibold uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>
-                    Subtitle Size
+                    Size
                   </span>
                   <span className="text-xs" style={{ color: "var(--text-muted)" }}>{subtitleFontSize}%</span>
                 </div>
@@ -448,7 +571,6 @@ function SettingsPanel({
                   aria-label="Subtitle font size"
                 />
               </div>
-              {/* Text color */}
               <div className="px-4 py-2">
                 <span className="text-xs font-semibold uppercase tracking-wider block mb-2" style={{ color: "var(--text-muted)" }}>
                   Text Color
@@ -469,7 +591,6 @@ function SettingsPanel({
                   ))}
                 </div>
               </div>
-              {/* Background */}
               <div className="px-4 py-2">
                 <div className="flex items-center justify-between mb-1">
                   <span className="text-xs font-semibold uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>
@@ -503,7 +624,6 @@ function SettingsPanel({
                   aria-label="Background opacity"
                 />
               </div>
-              {/* Font */}
               <div className="px-4 py-2">
                 <span className="text-xs font-semibold uppercase tracking-wider block mb-2" style={{ color: "var(--text-muted)" }}>
                   Font
@@ -519,7 +639,6 @@ function SettingsPanel({
                   ))}
                 </select>
               </div>
-              {/* Position */}
               <div className="px-4 py-2">
                 <span className="text-xs font-semibold uppercase tracking-wider block mb-2" style={{ color: "var(--text-muted)" }}>
                   Position
@@ -541,7 +660,6 @@ function SettingsPanel({
                   ))}
                 </div>
               </div>
-              {/* Text shadow */}
               <div className="px-4 py-2">
                 <button
                   onClick={() => onSubtitleStyleChange({ shadow: !subtitleShadow })}
@@ -564,64 +682,6 @@ function SettingsPanel({
                   <span className="font-semibold uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>Text shadow</span>
                 </button>
               </div>
-            </>
-          )}
-
-          {/* External subtitle upload */}
-          {onExternalSubtitle && (
-            <>
-              <div className="mx-3 my-1" style={{ borderTop: "1px solid var(--border)" }} />
-              <input
-                ref={extSubInputRef}
-                type="file"
-                accept=".srt,.vtt,.ass,.ssa"
-                className="hidden"
-                onChange={(e) => {
-                  const file = e.target.files?.[0];
-                  if (!file) return;
-                  const name = file.name;
-                  void loadSubtitleFile(file).then((url) => {
-                    onExternalSubtitle(url, name);
-                    if (open) onToggle();
-                  });
-                  e.target.value = "";
-                }}
-              />
-              <button
-                onClick={() => extSubInputRef.current?.click()}
-                className="flex items-center gap-2 w-full px-4 py-2 text-sm hover:bg-[var(--surface-raised)] transition-colors"
-                style={{ color: "var(--text)" }}
-              >
-                <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5" />
-                </svg>
-                Upload subtitle…
-              </button>
-            </>
-          )}
-
-          {/* Speed */}
-          {onSpeedChange && (
-            <>
-              <div className="mx-3 my-1" style={{ borderTop: "1px solid var(--border)" }} />
-              <div className="px-3 pb-1 text-xs font-semibold uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>
-                Speed
-              </div>
-              {SPEED_OPTIONS.map((s) => (
-                <button
-                  key={s}
-                  onClick={() => select(() => onSpeedChange(s))}
-                  className="flex items-center justify-between w-full px-4 py-2 text-sm hover:bg-[var(--surface-raised)] transition-colors"
-                  style={{ color: s === playbackSpeed ? "var(--accent)" : "var(--text)" }}
-                >
-                  <span>{s === 1 ? "Normal" : `${s}x`}</span>
-                  {s === playbackSpeed && (
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
-                      <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z" />
-                    </svg>
-                  )}
-                </button>
-              ))}
             </>
           )}
         </div>
@@ -663,10 +723,9 @@ export function PlayerControls({
   onExternalSubtitle,
   subtitleStyle,
   onSubtitleStyleChange,
-  theaterMode = false,
-  onTheaterModeToggle,
   onPanelOpenChange,
   closePanelRef,
+  onActionFlash,
 }: PlayerControlsProps) {
   const [visible, setVisible] = useState(true);
   const [playing, setPlaying] = useState(false);
@@ -674,6 +733,7 @@ export function PlayerControls({
   const [duration, setDuration] = useState(0);
   const [bufferedEnd, setBufferedEnd] = useState(0);
   const [volume, setVolume] = useState(1);
+  const [muted, setMuted] = useState(false);
   const [fullscreen, setFullscreen] = useState(false);
   const [openPanel, setOpenPanel] = useState<"settings" | "episodes" | "chapters" | null>(null);
   const settingsOpen = openPanel === "settings";
@@ -739,7 +799,7 @@ export function PlayerControls({
       const d = video!.duration;
       if (d && isFinite(d) && d > 0) setDuration(d);
     }
-    function onVolumeChange() { setVolume(video!.volume); }
+    function onVolumeChange() { setVolume(video!.volume); setMuted(video!.muted); }
     function onFullscreenChange() { setFullscreen(!!document.fullscreenElement); }
     function onEnterPip() { setIsPip(true); }
     function onLeavePip() { setIsPip(false); }
@@ -831,6 +891,11 @@ export function PlayerControls({
     }
   }
 
+  function toggleMute() {
+    const video = videoRef.current;
+    if (video) video.muted = !video.muted;
+  }
+
   function toggleFullscreen() {
     const video = videoRef.current;
     if (!video) return;
@@ -844,8 +909,11 @@ export function PlayerControls({
   }
 
   function handleOverlayClick(e: React.MouseEvent) {
-    // Ignore clicks on control buttons (bottom bar, top bar)
     if ((e.target as HTMLElement).closest("button, input, [data-controls]")) return;
+    if (openPanel) {
+      setOpenPanel(null);
+      return;
+    }
     if (clickTimer.current) {
       clearTimeout(clickTimer.current);
       clickTimer.current = null;
@@ -853,8 +921,18 @@ export function PlayerControls({
     } else {
       clickTimer.current = setTimeout(() => {
         clickTimer.current = null;
+        const video = videoRef.current;
+        if (video) {
+          if (video.paused) {
+            void video.play();
+            onActionFlash?.("play");
+          } else {
+            video.pause();
+            onActionFlash?.("pause");
+          }
+        }
         resetHideTimer();
-      }, 250);
+      }, 200);
     }
   }
 
@@ -959,7 +1037,7 @@ export function PlayerControls({
             step={0.5}
             value={absoluteTime}
             onChange={handleSeek}
-            className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+            className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
             aria-label="Seek"
           />
         </div>
@@ -983,6 +1061,7 @@ export function PlayerControls({
           <button
             onClick={skipBackward}
             aria-label={`Rewind ${skipBackwardSeconds}s`}
+            title={`Rewind ${skipBackwardSeconds}s (J)`}
             className="text-white hover:text-[var(--accent)] transition-colors p-1"
           >
             <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor">
@@ -995,6 +1074,7 @@ export function PlayerControls({
           <button
             onClick={togglePlay}
             aria-label={playing ? "Pause" : "Play"}
+            title={playing ? "Pause (K)" : "Play (K)"}
             className="text-white hover:text-[var(--accent)] transition-colors p-1"
           >
             {playing ? (
@@ -1013,6 +1093,7 @@ export function PlayerControls({
           <button
             onClick={skipForward}
             aria-label={`Forward ${skipForwardSeconds}s`}
+            title={`Forward ${skipForwardSeconds}s (L)`}
             className="text-white hover:text-[var(--accent)] transition-colors p-1"
           >
             <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor">
@@ -1045,19 +1126,36 @@ export function PlayerControls({
             {formatTime(absoluteTime)} / {formatTime(effectiveDuration)}
           </span>
 
-          {/* volume - hidden on mobile (hardware volume) */}
-          <div className="hidden sm:flex items-center gap-1">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" className="text-white shrink-0">
-              <path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02z" />
-            </svg>
+          {/* volume */}
+          <div className="flex items-center gap-1">
+            <button
+              onClick={toggleMute}
+              aria-label={muted || volume === 0 ? "Unmute" : "Mute"}
+              title={muted || volume === 0 ? "Unmute (M)" : "Mute (M)"}
+              className="text-white hover:text-[var(--accent)] transition-colors p-1"
+            >
+              {muted || volume === 0 ? (
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M16.5 12c0-1.77-1.02-3.29-2.5-4.03v2.21l2.45 2.45c.03-.2.05-.41.05-.63zm2.5 0c0 .94-.2 1.82-.54 2.64l1.51 1.51C20.63 14.91 21 13.5 21 12c0-4.28-2.99-7.86-7-8.77v2.06c2.89.86 5 3.54 5 6.71zM4.27 3L3 4.27 7.73 9H3v6h4l5 5v-6.73l4.25 4.25c-.67.52-1.42.93-2.25 1.18v2.06c1.38-.31 2.63-.95 3.69-1.81L19.73 21 21 19.73l-9-9L4.27 3zM12 4L9.91 6.09 12 8.18V4z" />
+                </svg>
+              ) : volume < 0.5 ? (
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02z" />
+                </svg>
+              ) : (
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z" />
+                </svg>
+              )}
+            </button>
             <input
               type="range"
               min={0}
               max={1}
               step={0.05}
-              value={volume}
+              value={muted ? 0 : volume}
               onChange={handleVolume}
-              className="w-20 accent-[var(--accent)] cursor-pointer"
+              className="w-20 accent-[var(--accent)] cursor-pointer hidden sm:block"
               aria-label="Volume"
             />
           </div>
@@ -1111,30 +1209,12 @@ export function PlayerControls({
             onSubtitleStyleChange={onSubtitleStyleChange}
           />
 
-          {/* Theater mode */}
-          {onTheaterModeToggle && (
-            <button
-              onClick={(e) => { e.stopPropagation(); onTheaterModeToggle(); }}
-              aria-label={theaterMode ? "Exit theater mode" : "Theater mode"}
-              className="text-white hover:text-[var(--accent)] transition-colors p-1"
-            >
-              {theaterMode ? (
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
-                  <path d="M22 19V5c0-1.1-.9-2-2-2H4c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2zm-10-4H4V5h8v10zm10 4H14V5h8v14z"/>
-                </svg>
-              ) : (
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
-                  <path d="M19 6H5c-1.1 0-2 .9-2 2v8c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2zm0 10H5V8h14v8z"/>
-                </svg>
-              )}
-            </button>
-          )}
-
           {/* Picture-in-Picture */}
           {typeof document !== "undefined" && document.pictureInPictureEnabled && (
             <button
               onClick={togglePip}
               aria-label={isPip ? "Exit Picture-in-Picture" : "Picture-in-Picture"}
+              title={isPip ? "Exit Picture-in-Picture (P)" : "Picture-in-Picture (P)"}
               className="text-white hover:text-[var(--accent)] transition-colors p-1"
             >
               {isPip ? (
@@ -1154,6 +1234,7 @@ export function PlayerControls({
           <button
             onClick={toggleFullscreen}
             aria-label={fullscreen ? "Exit fullscreen" : "Fullscreen"}
+            title={fullscreen ? "Exit fullscreen (F)" : "Fullscreen (F)"}
             className="text-white hover:text-[var(--accent)] transition-colors p-1"
           >
             {fullscreen ? (

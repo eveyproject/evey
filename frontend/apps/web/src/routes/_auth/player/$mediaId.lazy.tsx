@@ -9,6 +9,9 @@ import { Spinner } from "@/components/ui/Spinner";
 import type { AudioStream, SubtitleStream } from "@/features/playback/HLSPlayer";
 import { useSyncPlay } from "@/features/syncplay/useSyncPlay";
 import { SyncPlayBar } from "@/features/syncplay/SyncPlayBar";
+import { useParentalGate, markUnlocked } from "@/hooks/useParentalGate";
+import { ParentalPINDialog } from "@/components/ParentalPINDialog";
+import { useAuthStore } from "@evey/store";
 
 const IMAGE_SUBTITLE_CODECS = new Set([
   "pgssub", "hdmv_pgs_subtitle", "dvd_subtitle", "dvbsub", "xsub",
@@ -20,9 +23,51 @@ export const Route = createLazyFileRoute("/_auth/player/$mediaId")({
 
 function PlayerPage() {
   const { mediaId } = Route.useParams();
+  const router = useRouter();
+  const profileId = useAuthStore((s) => s.profileId);
+
+  const { data: gateItem, isLoading: gateLoading } = useQuery({
+    queryKey: [`/api/v1/media/${mediaId}`],
+    queryFn: ({ signal }) => libraryServiceGetMediaItem(mediaId, signal),
+    enabled: !!mediaId,
+  });
+
+  const { needsPin } = useParentalGate(gateItem?.officialRating);
+  const [pinVerified, setPinVerified] = useState(false);
+  const blocked = !gateLoading && needsPin() && !pinVerified;
+
+  if (gateLoading) {
+    return (
+      <div className="fixed inset-0 bg-black z-50 flex items-center justify-center">
+        <Spinner />
+      </div>
+    );
+  }
+
+  if (blocked) {
+    return (
+      <div className="fixed inset-0 bg-black z-50 flex items-center justify-center">
+        {profileId && (
+          <ParentalPINDialog
+            open
+            onClose={() => router.history.back()}
+            onVerified={() => {
+              if (profileId) markUnlocked(profileId);
+              setPinVerified(true);
+            }}
+            profileId={profileId}
+          />
+        )}
+      </div>
+    );
+  }
+
+  return <PlayerPageInner mediaId={mediaId} />;
+}
+
+function PlayerPageInner({ mediaId }: { mediaId: string }) {
   const { room: roomParam } = Route.useSearch();
   const router = useRouter();
-  const [theaterMode, setTheaterMode] = useState(false);
   const [showShareDialog, setShowShareDialog] = useState(false);
   const [shareRoomId, setShareRoomId] = useState<string | null>(null);
   const videoRef = useRef<HTMLVideoElement | null>(null);
@@ -157,8 +202,7 @@ function PlayerPage() {
 
   return (
     <div
-      className={`fixed inset-0 bg-black z-50 flex flex-col${theaterMode ? " theater-mode" : ""}`}
-      style={theaterMode ? { padding: 0 } : undefined}
+      className="fixed inset-0 bg-black z-50 flex flex-col"
     >
       <div className="flex-1 relative flex items-center justify-center">
         {!syncState.roomId && !isLoading && !isError && streamInfo && (
@@ -201,6 +245,7 @@ function PlayerPage() {
           <Spinner />
         ) : (
           <HLSPlayer
+            key={mediaId}
             streamInfo={streamInfo}
             sessionId={sessionId}
             mediaId={mediaId}
@@ -220,7 +265,6 @@ function PlayerPage() {
             onEpisodeChange={handleEpisodeChange}
             chapters={chapters}
             seriesId={isEpisode ? seriesId : undefined}
-            onTheaterModeChange={setTheaterMode}
             onVideoRef={(el) => { videoRef.current = el; }}
           />
         )}

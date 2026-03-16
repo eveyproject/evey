@@ -188,12 +188,15 @@ func TestScanDirectory_PublishesPhotoImportedEvent(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, 1, count)
 	events := bus.PublishedEvents()
-	require.Len(t, events, 1)
+	require.Len(t, events, 2)
 	assert.Equal(t, "photo.imported", events[0].EventName())
 	imported := events[0].(photo.PhotoImported)
 	assert.Equal(t, "lib-ev", imported.LibraryID)
 	assert.NotEmpty(t, imported.PhotoID)
 	assert.Contains(t, imported.Path, "pic.jpg")
+	assert.Equal(t, "photo.added", events[1].EventName())
+	added := events[1].(photo.PhotoAdded)
+	assert.Equal(t, "lib-ev", added.LibraryID)
 }
 
 func TestScanDirectory_EventNotPublished_OnUpsertError(t *testing.T) {
@@ -232,7 +235,7 @@ func TestScanDirectory_PhotoFields(t *testing.T) {
 	assert.Equal(t, "image/jpeg", p.MimeType)
 	assert.Contains(t, p.FilePath, "sunset.jpg")
 	assert.NotEmpty(t, p.ID)
-	assert.True(t, p.FileSize > 0)
+	assert.Positive(t, p.FileSize)
 	assert.False(t, p.CreatedAt.IsZero())
 	assert.False(t, p.UpdatedAt.IsZero())
 }
@@ -370,7 +373,7 @@ func TestScanDirectory_MultipleFilesCount(t *testing.T) {
 	count, err := svc.ScanDirectory(context.Background(), "lib-m", dir)
 	require.NoError(t, err)
 	assert.Equal(t, 5, count)
-	assert.Len(t, bus.PublishedEvents(), 5)
+	assert.Len(t, bus.PublishedEvents(), 10) // 5 PhotoImported + 5 PhotoAdded
 }
 
 // --- EXIF readExifData / parseExifSegment mutation-killing tests ---
@@ -471,13 +474,11 @@ func TestScanDirectory_PngNoExif(t *testing.T) {
 	assert.Equal(t, "image/png", photos[0].MimeType)
 }
 
-func TestScanDirectory_ExifStrippedFromJPEG(t *testing.T) {
+func TestScanDirectory_OriginalFilePreserved(t *testing.T) {
 	dir := t.TempDir()
 	jpeg := buildJPEGWithExif("2024:01:01 12:00:00", "TestCam")
 	fpath := filepath.Join(dir, "strip.jpg")
 	require.NoError(t, os.WriteFile(fpath, jpeg, 0600))
-
-	originalSize := len(jpeg)
 
 	repo := photofakes.NewFakeRepository()
 	svc := appphoto.NewService(repo, sharedfakes.NewFakeEventBus(), nil)
@@ -485,10 +486,9 @@ func TestScanDirectory_ExifStrippedFromJPEG(t *testing.T) {
 	_, err := svc.ScanDirectory(context.Background(), "lib-s", dir)
 	require.NoError(t, err)
 
-	// After scan, EXIF should be stripped from the file
 	after, err := os.ReadFile(fpath)
 	require.NoError(t, err)
-	assert.Less(t, len(after), originalSize, "JPEG should be smaller after EXIF strip")
+	assert.Len(t, after, len(jpeg), "original JPEG should be unchanged after scan")
 }
 
 // --- ListPhotos boundary tests ---
@@ -596,10 +596,13 @@ func TestDeletePhoto_NotFound_ReturnsNilPhoto(t *testing.T) {
 	require.NoError(t, err)
 
 	events := bus.PublishedEvents()
-	require.Len(t, events, 1)
+	require.Len(t, events, 2)
 	deleted := events[0].(photo.PhotoDeleted)
 	assert.Equal(t, "nonexistent", deleted.PhotoID)
 	assert.Empty(t, deleted.LibraryID) // nil photo => empty libraryID
+	removed := events[1].(photo.PhotoRemoved)
+	assert.Equal(t, "nonexistent", removed.PhotoID)
+	assert.Empty(t, removed.LibraryID)
 }
 
 func TestDeletePhoto_SetsLibraryIDFromPhoto(t *testing.T) {
@@ -625,9 +628,11 @@ func TestDeletePhoto_SetsLibraryIDFromPhoto(t *testing.T) {
 	require.NoError(t, err)
 
 	events := bus2.PublishedEvents()
-	require.Len(t, events, 1)
+	require.Len(t, events, 2)
 	deleted := events[0].(photo.PhotoDeleted)
 	assert.Equal(t, "lib-del", deleted.LibraryID)
+	removed := events[1].(photo.PhotoRemoved)
+	assert.Equal(t, "lib-del", removed.LibraryID)
 }
 
 func TestDeletePhoto_BusPublishError_StillReturnsNil(t *testing.T) {

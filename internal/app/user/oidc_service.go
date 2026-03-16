@@ -127,21 +127,21 @@ func (s *OIDCService) signState(nonce string) string {
 }
 
 // HandleCallback exchanges the code, verifies the ID token, finds/creates the user,
-// and returns Evey access + refresh tokens.
-func (s *OIDCService) HandleCallback(ctx context.Context, code string) (accessToken, refreshToken string, err error) {
+// and returns Evey access + refresh tokens plus the raw OIDC id_token for RP-Initiated Logout.
+func (s *OIDCService) HandleCallback(ctx context.Context, code string) (accessToken, refreshToken, rawOIDCIDToken string, err error) {
 	oauth2Token, err := s.oauth2Cfg.Exchange(ctx, code)
 	if err != nil {
-		return "", "", fmt.Errorf("token exchange: %w", err)
+		return "", "", "", fmt.Errorf("token exchange: %w", err)
 	}
 
 	rawIDToken, ok := oauth2Token.Extra("id_token").(string)
 	if !ok {
-		return "", "", errors.New("missing id_token in response")
+		return "", "", "", errors.New("missing id_token in response")
 	}
 
 	idToken, err := s.verifier.Verify(ctx, rawIDToken)
 	if err != nil {
-		return "", "", fmt.Errorf("id_token verification: %w", err)
+		return "", "", "", fmt.Errorf("id_token verification: %w", err)
 	}
 
 	var claims struct {
@@ -151,12 +151,12 @@ func (s *OIDCService) HandleCallback(ctx context.Context, code string) (accessTo
 		Name              string `json:"name"`
 	}
 	if claimsErr := idToken.Claims(&claims); claimsErr != nil {
-		return "", "", fmt.Errorf("parse id_token claims: %w", claimsErr)
+		return "", "", "", fmt.Errorf("parse id_token claims: %w", claimsErr)
 	}
 
 	u, err := s.findOrCreateUser(ctx, claims.Sub, claims.Email, claims.PreferredUsername)
 	if err != nil {
-		return "", "", err
+		return "", "", "", err
 	}
 
 	roles, err := s.userRoles.GetRolesByUserID(ctx, u.ID)
@@ -189,12 +189,12 @@ func (s *OIDCService) HandleCallback(ctx context.Context, code string) (accessTo
 		Permissions: perms,
 	})
 	if err != nil {
-		return "", "", fmt.Errorf("generate access token: %w", err)
+		return "", "", "", fmt.Errorf("generate access token: %w", err)
 	}
 
 	refreshToken, err = s.generateAndStoreRefreshToken(ctx, u.ID)
 	if err != nil {
-		return "", "", err
+		return "", "", "", err
 	}
 
 	evt := domainuser.LoginSucceeded{UserID: u.ID, AuthMethod: "oidc", OccurredAt: time.Now()}
@@ -202,7 +202,7 @@ func (s *OIDCService) HandleCallback(ctx context.Context, code string) (accessTo
 		slog.Warn("oidc: publish event", slog.String("event", evt.EventName()), slog.Any("err", err))
 	}
 
-	return accessToken, refreshToken, nil
+	return accessToken, refreshToken, rawIDToken, nil
 }
 
 func (s *OIDCService) findOrCreateUser(ctx context.Context, sub, email, preferredUsername string) (*domainuser.User, error) {

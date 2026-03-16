@@ -50,6 +50,12 @@ func (s *Service) WithMediaChecker(checker MediaItemExistsChecker) *Service {
 }
 
 func (s *Service) Create(ctx context.Context, pl *playlist.Playlist) error {
+	if pl.Type == "" {
+		pl.Type = playlist.Manual
+	}
+	if err := pl.Validate(); err != nil {
+		return fmt.Errorf("invalid playlist: %w", err)
+	}
 	now := time.Now()
 	pl.ID = id.New("pl-")
 	pl.CreatedAt = now
@@ -79,6 +85,9 @@ func (s *Service) List(ctx context.Context, userID string) ([]*playlist.Playlist
 }
 
 func (s *Service) Update(ctx context.Context, pl *playlist.Playlist, userID string) error {
+	if pl.Name == "" {
+		return fmt.Errorf("invalid playlist: playlist name is required")
+	}
 	existing, err := s.playlists.GetByID(ctx, pl.ID)
 	if err != nil {
 		return err

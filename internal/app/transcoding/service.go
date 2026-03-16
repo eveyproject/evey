@@ -46,6 +46,9 @@ func (s *Service) WithCacheStore(cs transcoding.CacheStore) {
 }
 
 func (s *Service) StartTranscode(ctx context.Context, job *transcoding.TranscodeJob) error {
+	if err := job.Validate(); err != nil {
+		return fmt.Errorf("invalid transcode job: %w", err)
+	}
 	active, err := s.jobs.ListActive(ctx)
 	if err != nil {
 		return fmt.Errorf("list active: %w", err)
@@ -126,10 +129,16 @@ func (s *Service) ListProfiles(ctx context.Context) ([]*transcoding.TranscodePro
 }
 
 func (s *Service) CreateProfile(ctx context.Context, p *transcoding.TranscodeProfile) error {
+	if err := p.Validate(); err != nil {
+		return fmt.Errorf("invalid transcode profile: %w", err)
+	}
 	return s.profiles.Create(ctx, p)
 }
 
 func (s *Service) UpdateProfile(ctx context.Context, p *transcoding.TranscodeProfile) error {
+	if err := p.Validate(); err != nil {
+		return fmt.Errorf("invalid transcode profile: %w", err)
+	}
 	return s.profiles.Update(ctx, p)
 }
 

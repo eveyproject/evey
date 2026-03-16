@@ -20,6 +20,8 @@ const (
 	oidcSessionCookieName = "evey_oidc_session"
 	oidcSessionCookieAge  = 5 * 60 // 5 minutes — one-time exchange
 
+	oidcIDTokenCookieName = "evey_oidc_id_token"
+
 	refreshCookieName   = "evey_refresh"
 	refreshCookieMaxAge = 30 * 24 * 3600 // 30 days
 )
@@ -59,7 +61,7 @@ func registerOIDCRoutes(mux *http.ServeMux, oidcSvc *appuser.OIDCService, httpsO
 			return
 		}
 
-		accessToken, refreshToken, err := oidcSvc.HandleCallback(r.Context(), code)
+		accessToken, refreshToken, rawIDToken, err := oidcSvc.HandleCallback(r.Context(), code)
 		if err != nil {
 			if errors.Is(err, appuser.ErrEmailDomainNotAllowed) {
 				http.Error(w, "access denied: email domain not allowed", http.StatusForbidden)
@@ -89,6 +91,19 @@ func registerOIDCRoutes(mux *http.ServeMux, oidcSvc *appuser.OIDCService, httpsO
 			SameSite: http.SameSiteLaxMode,
 			MaxAge:   refreshCookieMaxAge,
 		})
+
+		// store raw OIDC id_token for RP-Initiated Logout (id_token_hint)
+		if rawIDToken != "" {
+			http.SetCookie(w, &http.Cookie{
+				Name:     oidcIDTokenCookieName,
+				Value:    rawIDToken,
+				Path:     "/api/v1/auth/",
+				HttpOnly: true,
+				Secure:   httpsOnly,
+				SameSite: http.SameSiteLaxMode,
+				MaxAge:   refreshCookieMaxAge,
+			})
+		}
 
 		http.Redirect(w, r, "/oidc-callback", http.StatusFound)
 	})
@@ -121,6 +136,7 @@ var fcmRegisterLimiter = ratelimit.New(10)
 type pushHandler struct {
 	tokens      notification.DeviceTokenRepository
 	profileRepo domainuser.ProfileRepository
+	userRepo    domainuser.UserRepository
 	tokenGen    *auth.JWTGenerator
 }
 
@@ -169,7 +185,20 @@ func (h *pushHandler) register(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	slog.Info("FCM consent granted", slog.String("user_id", claims.UserID))
+	usr, err := h.userRepo.GetByID(r.Context(), claims.UserID)
+	if err != nil {
+		http.Error(w, `{"message":"internal error"}`, http.StatusInternalServerError)
+		return
+	}
+	if !usr.PushConsent {
+		usr.PushConsent = true
+		if err := h.userRepo.Update(r.Context(), usr); err != nil {
+			slog.Warn("push register: persist consent failed", slog.Any("err", err))
+			http.Error(w, `{"message":"internal error"}`, http.StatusInternalServerError)
+			return
+		}
+		slog.Info("push consent persisted", slog.String("user_id", claims.UserID))
+	}
 	platform := body.Platform
 	if platform == "" {
 		platform = "web"
@@ -262,12 +291,71 @@ func (h *pushHandler) deleteDevice(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func registerPushRoutes(mux *http.ServeMux, tokens notification.DeviceTokenRepository, profileRepo domainuser.ProfileRepository, tokenGen *auth.JWTGenerator) {
-	h := &pushHandler{tokens: tokens, profileRepo: profileRepo, tokenGen: tokenGen}
+func (h *pushHandler) getConsent(w http.ResponseWriter, r *http.Request) {
+	claims, ok := h.extractClaims(r)
+	if !ok {
+		http.Error(w, `{"message":"unauthenticated"}`, http.StatusUnauthorized)
+		return
+	}
+	usr, err := h.userRepo.GetByID(r.Context(), claims.UserID)
+	if err != nil {
+		http.Error(w, `{"message":"internal error"}`, http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	if err := json.NewEncoder(w).Encode(map[string]any{"pushConsent": usr.PushConsent}); err != nil {
+		slog.Warn("json encode failed", slog.Any("err", err))
+	}
+}
+
+func (h *pushHandler) updateConsent(w http.ResponseWriter, r *http.Request) {
+	claims, ok := h.extractClaims(r)
+	if !ok {
+		http.Error(w, `{"message":"unauthenticated"}`, http.StatusUnauthorized)
+		return
+	}
+	var body struct {
+		Consent bool `json:"consent"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		http.Error(w, `{"message":"invalid body"}`, http.StatusBadRequest)
+		return
+	}
+	usr, err := h.userRepo.GetByID(r.Context(), claims.UserID)
+	if err != nil {
+		http.Error(w, `{"message":"internal error"}`, http.StatusInternalServerError)
+		return
+	}
+	usr.PushConsent = body.Consent
+	if err := h.userRepo.Update(r.Context(), usr); err != nil {
+		slog.Warn("push consent: update failed", slog.Any("err", err))
+		http.Error(w, `{"message":"internal error"}`, http.StatusInternalServerError)
+		return
+	}
+	if !body.Consent {
+		if err := h.tokens.DeleteByUser(r.Context(), claims.UserID); err != nil {
+			slog.Warn("push consent: delete tokens failed", slog.Any("err", err))
+			http.Error(w, `{"message":"internal error"}`, http.StatusInternalServerError)
+			return
+		}
+		slog.Info("push consent revoked, tokens deleted", slog.String("user_id", claims.UserID))
+	} else {
+		slog.Info("push consent granted", slog.String("user_id", claims.UserID))
+	}
+	w.Header().Set("Content-Type", "application/json")
+	if _, err := w.Write([]byte(`{"ok":true}`)); err != nil {
+		slog.Warn("write failed", slog.Any("err", err))
+	}
+}
+
+func registerPushRoutes(mux *http.ServeMux, tokens notification.DeviceTokenRepository, profileRepo domainuser.ProfileRepository, userRepo domainuser.UserRepository, tokenGen *auth.JWTGenerator) {
+	h := &pushHandler{tokens: tokens, profileRepo: profileRepo, userRepo: userRepo, tokenGen: tokenGen}
 	mux.HandleFunc("POST /api/v1/push/register", h.register)
 	mux.HandleFunc("DELETE /api/v1/push/unregister", h.unregister)
 	mux.HandleFunc("GET /api/v1/push/devices", h.listDevices)
 	mux.HandleFunc("DELETE /api/v1/push/devices/{token}", h.deleteDevice)
+	mux.HandleFunc("GET /api/v1/push/consent", h.getConsent)
+	mux.HandleFunc("PUT /api/v1/push/consent", h.updateConsent)
 }
 
 type parentalHandler struct {

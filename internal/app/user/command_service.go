@@ -74,6 +74,9 @@ func (s *CommandService) Setup(ctx context.Context, username, password, email st
 	if s.setupDone {
 		return nil, ErrSetupDone
 	}
+	if username == "" {
+		return nil, fmt.Errorf("username is required")
+	}
 	if len(password) < 8 {
 		return nil, ErrPasswordTooShort
 	}
@@ -278,6 +281,12 @@ func (s *CommandService) CreateUser(ctx context.Context, callerIsAdmin bool, u *
 	if !callerIsAdmin {
 		return ErrNotAdmin
 	}
+	if err := u.Validate(); err != nil {
+		return fmt.Errorf("invalid user: %w", err)
+	}
+	if len(password) < 8 {
+		return ErrPasswordTooShort
+	}
 	hash, err := s.hasher.Hash(password)
 	if err != nil {
 		return fmt.Errorf("hash password: %w", err)
@@ -391,6 +400,9 @@ func (s *CommandService) DisableUser(ctx context.Context, userID string) error {
 }
 
 func (s *CommandService) CreateProfile(ctx context.Context, p *user.Profile) error {
+	if err := p.Validate(); err != nil {
+		return fmt.Errorf("invalid profile: %w", err)
+	}
 	p.CreatedAt = time.Now()
 	if err := s.profiles.Create(ctx, p); err != nil {
 		return err
@@ -422,6 +434,9 @@ func (s *CommandService) DeleteProfile(ctx context.Context, profileID string) er
 }
 
 func (s *CommandService) CreateInviteLink(ctx context.Context, link *user.InviteLink) error {
+	if err := link.Validate(); err != nil {
+		return fmt.Errorf("invalid invite link: %w", err)
+	}
 	link.CreatedAt = time.Now()
 	return s.invites.Create(ctx, link)
 }
@@ -484,6 +499,9 @@ func (s *CommandService) AuthorizeQuickConnect(ctx context.Context, code string,
 }
 
 func (s *CommandService) CreateAPIKey(ctx context.Context, key *user.APIKeyModel) error {
+	if err := key.Validate(); err != nil {
+		return fmt.Errorf("invalid API key: %w", err)
+	}
 	key.CreatedAt = time.Now()
 	if err := s.apiKeys.Create(ctx, key); err != nil {
 		return err

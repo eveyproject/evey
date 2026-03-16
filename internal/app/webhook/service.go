@@ -171,6 +171,9 @@ func sign(secret string, body []byte) string {
 }
 
 func (s *Service) Create(ctx context.Context, cfg *webhook.Config) error {
+	if err := cfg.Validate(); err != nil {
+		return fmt.Errorf("invalid webhook: %w", err)
+	}
 	if err := s.validateURL(cfg.URL); err != nil {
 		return fmt.Errorf("invalid webhook URL: %w", err)
 	}
@@ -184,6 +187,9 @@ func (s *Service) List(ctx context.Context) ([]*webhook.Config, error) {
 }
 
 func (s *Service) Update(ctx context.Context, cfg *webhook.Config) error {
+	if err := cfg.Validate(); err != nil {
+		return fmt.Errorf("invalid webhook: %w", err)
+	}
 	if err := s.validateURL(cfg.URL); err != nil {
 		return fmt.Errorf("invalid webhook URL: %w", err)
 	}

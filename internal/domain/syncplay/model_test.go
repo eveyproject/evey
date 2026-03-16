@@ -6,6 +6,23 @@ import (
 	"github.com/gravity-zero/evey/internal/domain/syncplay"
 )
 
+func TestMaskUsername(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		input, want string
+	}{
+		{"alice", "a***"},
+		{"Bob", "B***"},
+		{"", "***"},
+		{"x", "x***"},
+	}
+	for _, tt := range tests {
+		if got := syncplay.MaskUsername(tt.input); got != tt.want {
+			t.Errorf("MaskUsername(%q) = %q, want %q", tt.input, got, tt.want)
+		}
+	}
+}
+
 func TestRoom_IsHost(t *testing.T) {
 	t.Parallel()
 	r := &syncplay.Room{HostID: "u1"}

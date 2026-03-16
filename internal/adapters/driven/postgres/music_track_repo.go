@@ -213,12 +213,6 @@ func (r *MusicTrackRepository) UpdateFilePath(ctx context.Context, id, newPath s
 	return err
 }
 
-func (r *MusicTrackRepository) CountByLibrary(ctx context.Context, libraryID string) (int, error) {
-	var n int
-	err := r.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM music_tracks WHERE library_id=$1`, libraryID).Scan(&n)
-	return n, err
-}
-
 func scanTracksWithTotal(rows *sql.Rows) ([]music.Track, int, error) {
 	var tracks []music.Track
 	var total int

@@ -1,7 +1,6 @@
 package photo
 
 import (
-	"bytes"
 	"context"
 	"encoding/binary"
 	"fmt"
@@ -143,8 +142,6 @@ var imageExts = map[string]string{
 	".bmp":  "image/bmp",
 }
 
-const scanWorkers = 8
-
 type Service struct {
 	repo    photo.Repository
 	bus     shared.EventBus
@@ -153,13 +150,6 @@ type Service struct {
 
 func NewService(repo photo.Repository, bus shared.EventBus, libRepo library.LibraryQueryRepo) *Service {
 	return &Service{repo: repo, bus: bus, libRepo: libRepo}
-}
-
-type scanJob struct {
-	path  string
-	info  os.FileInfo
-	mime  string
-	dir   string
 }
 
 func (s *Service) ScanDirectory(ctx context.Context, libraryID, dir string) (int, error) {
@@ -259,7 +249,6 @@ func (s *Service) ScanDirectory(ctx context.Context, libraryID, dir string) (int
 					takenAt, cameraModel = readExifData(raw)
 				}
 			}
-			stripExifIfJPEG(j.path)
 
 			title := strings.TrimSuffix(j.info.Name(), filepath.Ext(j.info.Name()))
 			album := filepath.Base(filepath.Dir(j.path))
@@ -295,6 +284,9 @@ func (s *Service) ScanDirectory(ctx context.Context, libraryID, dir string) (int
 			if pubErr := s.bus.Publish(ctx, photo.PhotoImported{LibraryID: libraryID, PhotoID: p.ID, Path: j.path, OccurredAt: time.Now()}); pubErr != nil {
 				slog.Warn("photo scan: event publish failed", slog.String("path", j.path), slog.Any("err", pubErr))
 			}
+			if pubErr := s.bus.Publish(ctx, photo.PhotoAdded{LibraryID: libraryID, PhotoID: p.ID, Title: title, Album: album, OccurredAt: time.Now()}); pubErr != nil {
+				slog.Warn("photo scan: PhotoAdded publish failed", slog.String("path", j.path), slog.Any("err", pubErr))
+			}
 			total.Add(1)
 		}(j)
 	}
@@ -302,75 +294,6 @@ func (s *Service) ScanDirectory(ctx context.Context, libraryID, dir string) (int
 	return int(total.Load()), walkErr
 }
 
-// stripExifIfJPEG removes EXIF (APP1) segments from JPEG files in-place.
-// Silently skips non-JPEG or files that can't be processed.
-func stripExifIfJPEG(path string) {
-	ext := strings.ToLower(filepath.Ext(path))
-	if ext != ".jpg" && ext != ".jpeg" {
-		return
-	}
-	data, err := os.ReadFile(path)
-	if err != nil || len(data) < 4 {
-		return
-	}
-	// Check JPEG magic bytes
-	if data[0] != 0xFF || data[1] != 0xD8 {
-		return
-	}
-	stripped := stripJPEGApp1(data)
-	if stripped == nil {
-		return
-	}
-	if err := os.WriteFile(path, stripped, 0); err != nil {
-		slog.Warn("exif strip write failed", slog.String("path", path), slog.Any("err", err))
-	}
-}
-
-// stripJPEGApp1 returns JPEG bytes with all APP1 (0xFFE1) segments removed.
-// Returns nil if no APP1 segments were found (no change needed).
-func stripJPEGApp1(data []byte) []byte {
-	if len(data) < 2 || data[0] != 0xFF || data[1] != 0xD8 {
-		return nil
-	}
-	var out bytes.Buffer
-	out.Write(data[:2]) // SOI marker
-	i := 2
-	found := false
-	for i < len(data)-1 {
-		if data[i] != 0xFF {
-			// Not a marker; append rest as-is (image data)
-			out.Write(data[i:])
-			break
-		}
-		marker := data[i+1]
-		// Markers without length: SOI (0xD8), EOI (0xD9), standalone RST (0xD0-0xD7)
-		if marker == 0xD8 || marker == 0xD9 || (marker >= 0xD0 && marker <= 0xD7) {
-			out.Write(data[i : i+2])
-			i += 2
-			continue
-		}
-		if i+3 >= len(data) {
-			out.Write(data[i:])
-			break
-		}
-		segLen := int(binary.BigEndian.Uint16(data[i+2 : i+4]))
-		end := i + 2 + segLen
-		if end > len(data) {
-			out.Write(data[i:])
-			break
-		}
-		if marker == 0xE1 { // APP1 — skip
-			found = true
-		} else {
-			out.Write(data[i:end])
-		}
-		i = end
-	}
-	if !found {
-		return nil
-	}
-	return out.Bytes()
-}
 
 func (s *Service) DeletePhoto(ctx context.Context, photoID string) error {
 	p, err := s.repo.GetByID(ctx, photoID)
@@ -386,6 +309,9 @@ func (s *Service) DeletePhoto(ctx context.Context, photoID string) error {
 	}
 	if pubErr := s.bus.Publish(ctx, photo.PhotoDeleted{PhotoID: photoID, LibraryID: libraryID, OccurredAt: time.Now()}); pubErr != nil {
 		slog.Warn("photo: PhotoDeleted publish failed", slog.String("photoID", photoID), slog.Any("err", pubErr))
+	}
+	if pubErr := s.bus.Publish(ctx, photo.PhotoRemoved{PhotoID: photoID, LibraryID: libraryID, OccurredAt: time.Now()}); pubErr != nil {
+		slog.Warn("photo: PhotoRemoved publish failed", slog.String("photoID", photoID), slog.Any("err", pubErr))
 	}
 	return nil
 }

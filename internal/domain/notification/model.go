@@ -1,6 +1,9 @@
 package notification
 
-import "time"
+import (
+	"errors"
+	"time"
+)
 
 type DeviceToken struct {
 	ID        string
@@ -53,6 +56,26 @@ type Settings struct {
 	MovieLevel  Level
 	SeriesLevel Level
 	MusicLevel  Level
+}
+
+var validLevels = map[Level]bool{
+	LevelDisabled:       true,
+	LevelAll:            true,
+	LevelRelevant:       true,
+	LevelHighlyRelevant: true,
+}
+
+func (s *Settings) Validate() error {
+	if !validLevels[s.MovieLevel] {
+		return errors.New("invalid movie notification level")
+	}
+	if !validLevels[s.SeriesLevel] {
+		return errors.New("invalid series notification level")
+	}
+	if !validLevels[s.MusicLevel] {
+		return errors.New("invalid music notification level")
+	}
+	return nil
 }
 
 func (n *Notification) IsRead() bool {

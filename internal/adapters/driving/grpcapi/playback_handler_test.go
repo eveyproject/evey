@@ -22,7 +22,7 @@ import (
 	"google.golang.org/grpc/status"
 )
 
-func newTestPlaybackHandler() (*playbackHandler, *pbfakes.FakePlaySessionRepository, *pbfakes.FakeWatchProgressRepository, *libfakes.FakeMediaItemQueryRepo) {
+func newTestPlaybackHandler() (*playbackHandler, *pbfakes.FakePlaySessionRepository, *pbfakes.FakeWatchProgressRepository, *libfakes.FakeMediaItemQueryRepo, *userfakes.FakeProfileRepository) {
 	progressRepo := pbfakes.NewFakeWatchProgressRepository()
 	sessionRepo := pbfakes.NewFakePlaySessionRepository()
 	userRepo := userfakes.NewFakeUserRepository()
@@ -54,8 +54,9 @@ func newTestPlaybackHandler() (*playbackHandler, *pbfakes.FakePlaySessionReposit
 		cmd:        cmdSvc,
 		query:      querySvc,
 		librarySvc: libQuerySvc,
+		profiles:   profileRepo,
 	}
-	return h, sessionRepo, progressRepo, mediaQueryRepo
+	return h, sessionRepo, progressRepo, mediaQueryRepo, profileRepo
 }
 
 func pbAdminCtx() context.Context {
@@ -68,7 +69,7 @@ func pbAdminCtx() context.Context {
 }
 
 func TestPlaybackHandler_StartStream(t *testing.T) {
-	h, _, _, _ := newTestPlaybackHandler()
+	h, _, _, _, _ := newTestPlaybackHandler()
 	ctx := pbAdminCtx()
 
 	resp, err := h.StartStream(ctx, &eveyv1.StartStreamRequest{
@@ -86,7 +87,7 @@ func TestPlaybackHandler_StartStream(t *testing.T) {
 }
 
 func TestPlaybackHandler_StartStream_Unauthenticated(t *testing.T) {
-	h, _, _, _ := newTestPlaybackHandler()
+	h, _, _, _, _ := newTestPlaybackHandler()
 
 	_, err := h.StartStream(context.Background(), &eveyv1.StartStreamRequest{
 		MediaItemId: "mi-1",
@@ -97,7 +98,7 @@ func TestPlaybackHandler_StartStream_Unauthenticated(t *testing.T) {
 }
 
 func TestPlaybackHandler_StopStream(t *testing.T) {
-	h, _, _, _ := newTestPlaybackHandler()
+	h, _, _, _, _ := newTestPlaybackHandler()
 	ctx := pbAdminCtx()
 
 	startResp, err := h.StartStream(ctx, &eveyv1.StartStreamRequest{
@@ -112,7 +113,7 @@ func TestPlaybackHandler_StopStream(t *testing.T) {
 }
 
 func TestPlaybackHandler_ReportProgress(t *testing.T) {
-	h, _, _, _ := newTestPlaybackHandler()
+	h, _, _, _, _ := newTestPlaybackHandler()
 	ctx := pbAdminCtx()
 
 	startResp, err := h.StartStream(ctx, &eveyv1.StartStreamRequest{
@@ -136,7 +137,7 @@ func TestPlaybackHandler_ReportProgress(t *testing.T) {
 }
 
 func TestPlaybackHandler_GetWatchProgress_Exists(t *testing.T) {
-	h, _, progressRepo, _ := newTestPlaybackHandler()
+	h, _, progressRepo, _, _ := newTestPlaybackHandler()
 	ctx := pbAdminCtx()
 
 	progressRepo.Upsert(context.Background(), &playback.WatchProgress{
@@ -159,7 +160,7 @@ func TestPlaybackHandler_GetWatchProgress_Exists(t *testing.T) {
 }
 
 func TestPlaybackHandler_GetResumeItems(t *testing.T) {
-	h, _, progressRepo, _ := newTestPlaybackHandler()
+	h, _, progressRepo, _, _ := newTestPlaybackHandler()
 	ctx := pbAdminCtx()
 
 	progressRepo.Upsert(context.Background(), &playback.WatchProgress{
@@ -180,7 +181,7 @@ func TestPlaybackHandler_GetResumeItems(t *testing.T) {
 }
 
 func TestPlaybackHandler_MarkAsWatched(t *testing.T) {
-	h, _, _, _ := newTestPlaybackHandler()
+	h, _, _, _, _ := newTestPlaybackHandler()
 	ctx := pbAdminCtx()
 
 	_, err := h.MarkAsWatched(ctx, &eveyv1.MarkAsWatchedRequest{
@@ -196,7 +197,7 @@ func TestPlaybackHandler_MarkAsWatched(t *testing.T) {
 }
 
 func TestPlaybackHandler_MarkAsUnwatched(t *testing.T) {
-	h, _, _, _ := newTestPlaybackHandler()
+	h, _, _, _, _ := newTestPlaybackHandler()
 	ctx := pbAdminCtx()
 
 	_, err := h.MarkAsWatched(ctx, &eveyv1.MarkAsWatchedRequest{MediaItemId: "mi-1"})
@@ -211,7 +212,7 @@ func TestPlaybackHandler_MarkAsUnwatched(t *testing.T) {
 }
 
 func TestPlaybackHandler_GetStreamInfo(t *testing.T) {
-	h, _, _, mediaQuery := newTestPlaybackHandler()
+	h, _, _, mediaQuery, _ := newTestPlaybackHandler()
 	ctx := pbAdminCtx()
 
 	mediaQuery.Seed(&library.MediaItem{
@@ -227,4 +228,122 @@ func TestPlaybackHandler_GetStreamInfo(t *testing.T) {
 	assert.Equal(t, "mi-1", resp.MediaItemId)
 	assert.Equal(t, eveyv1.PlayMethod_PLAY_METHOD_DIRECT_PLAY, resp.PlayMethod)
 	assert.Contains(t, resp.DirectPlayUrl, "mi-1")
+}
+
+func TestPlaybackHandler_StartStream_ParentalBlocked(t *testing.T) {
+	h, _, _, mediaQuery, profileRepo := newTestPlaybackHandler()
+
+	profileRepo.Update(context.Background(), &user.Profile{
+		ID:     "profile-1",
+		UserID: "user-1",
+		Name:   "Kid",
+		Parental: &user.ParentalSettings{
+			MaxRating: "PG",
+			Enabled:   true,
+		},
+	})
+	mediaQuery.Seed(&library.MediaItem{
+		ID:             "mi-r",
+		Title:          "R-Rated Movie",
+		Type:           "movie",
+		OfficialRating: "R",
+	})
+
+	ctx := pbAdminCtx()
+	_, err := h.StartStream(ctx, &eveyv1.StartStreamRequest{
+		MediaItemId: "mi-r",
+		PlayMethod:  eveyv1.PlayMethod_PLAY_METHOD_DIRECT_PLAY,
+	})
+
+	require.Error(t, err)
+	assert.Equal(t, codes.PermissionDenied, status.Code(err))
+	assert.Contains(t, status.Convert(err).Message(), "parental control")
+}
+
+func TestPlaybackHandler_StartStream_ParentalAllowed(t *testing.T) {
+	h, _, _, mediaQuery, profileRepo := newTestPlaybackHandler()
+
+	profileRepo.Update(context.Background(), &user.Profile{
+		ID:     "profile-1",
+		UserID: "user-1",
+		Name:   "Kid",
+		Parental: &user.ParentalSettings{
+			MaxRating: "PG-13",
+			Enabled:   true,
+		},
+	})
+	mediaQuery.Seed(&library.MediaItem{
+		ID:             "mi-pg",
+		Title:          "PG Movie",
+		Type:           "movie",
+		OfficialRating: "PG",
+	})
+
+	ctx := pbAdminCtx()
+	resp, err := h.StartStream(ctx, &eveyv1.StartStreamRequest{
+		MediaItemId: "mi-pg",
+		PlayMethod:  eveyv1.PlayMethod_PLAY_METHOD_DIRECT_PLAY,
+	})
+
+	require.NoError(t, err)
+	assert.NotEmpty(t, resp.Id)
+}
+
+func TestPlaybackHandler_StartStream_ParentalDisabled(t *testing.T) {
+	h, _, _, mediaQuery, profileRepo := newTestPlaybackHandler()
+
+	profileRepo.Update(context.Background(), &user.Profile{
+		ID:     "profile-1",
+		UserID: "user-1",
+		Name:   "Default",
+		Parental: &user.ParentalSettings{
+			MaxRating: "PG",
+			Enabled:   false,
+		},
+	})
+	mediaQuery.Seed(&library.MediaItem{
+		ID:             "mi-r2",
+		Title:          "R-Rated Movie 2",
+		Type:           "movie",
+		OfficialRating: "R",
+	})
+
+	ctx := pbAdminCtx()
+	resp, err := h.StartStream(ctx, &eveyv1.StartStreamRequest{
+		MediaItemId: "mi-r2",
+		PlayMethod:  eveyv1.PlayMethod_PLAY_METHOD_DIRECT_PLAY,
+	})
+
+	require.NoError(t, err)
+	assert.NotEmpty(t, resp.Id)
+}
+
+func TestPlaybackHandler_StartStream_ParentalBlockedTag(t *testing.T) {
+	h, _, _, mediaQuery, profileRepo := newTestPlaybackHandler()
+
+	profileRepo.Update(context.Background(), &user.Profile{
+		ID:     "profile-1",
+		UserID: "user-1",
+		Name:   "Kid",
+		Parental: &user.ParentalSettings{
+			BlockedTags: []string{"violence"},
+			Enabled:     true,
+		},
+	})
+	mediaQuery.Seed(&library.MediaItem{
+		ID:    "mi-v",
+		Title: "Violent Movie",
+		Type:  "movie",
+		Tags:  []string{"Violence", "Action"},
+	})
+
+	ctx := pbAdminCtx()
+	_, err := h.StartStream(ctx, &eveyv1.StartStreamRequest{
+		MediaItemId: "mi-v",
+		PlayMethod:  eveyv1.PlayMethod_PLAY_METHOD_DIRECT_PLAY,
+	})
+
+	require.Error(t, err)
+	assert.Equal(t, codes.PermissionDenied, status.Code(err))
+	assert.Contains(t, status.Convert(err).Message(), "blocked tags")
 }

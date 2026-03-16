@@ -1375,7 +1375,7 @@ func TestAuthorizeQuickConnect_NotFound(t *testing.T) {
 
 func TestCreateAPIKey_Happy(t *testing.T) {
 	d := newTestDeps()
-	key := &user.APIKeyModel{ID: "k1", UserID: "u1", Name: "test-key"}
+	key := &user.APIKeyModel{ID: "k1", UserID: "u1", Name: "test-key", KeyHash: "fakehash"}
 	err := d.svc.CreateAPIKey(context.Background(), key)
 	if err != nil {
 		t.Fatal(err)
@@ -1393,7 +1393,7 @@ func TestCreateAPIKey_Happy(t *testing.T) {
 func TestCreateAPIKey_RepoError(t *testing.T) {
 	d := newTestDeps()
 	d.apiKeys.Err = errors.New("fail")
-	err := d.svc.CreateAPIKey(context.Background(), &user.APIKeyModel{ID: "k1"})
+	err := d.svc.CreateAPIKey(context.Background(), &user.APIKeyModel{ID: "k1", UserID: "u1", Name: "test", KeyHash: "h"})
 	if err == nil {
 		t.Fatal("expected error")
 	}
@@ -1402,7 +1402,7 @@ func TestCreateAPIKey_RepoError(t *testing.T) {
 func TestCreateAPIKey_EventPublishError_NonFatal(t *testing.T) {
 	d := newTestDeps()
 	d.events.PublishErr = errors.New("bus down")
-	err := d.svc.CreateAPIKey(context.Background(), &user.APIKeyModel{ID: "k1", UserID: "u1", Name: "k"})
+	err := d.svc.CreateAPIKey(context.Background(), &user.APIKeyModel{ID: "k1", UserID: "u1", Name: "k", KeyHash: "fakehash"})
 	if err != nil {
 		t.Fatalf("event error should be non-fatal, got %v", err)
 	}

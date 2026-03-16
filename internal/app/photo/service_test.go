@@ -152,12 +152,12 @@ func TestDeletePhoto(t *testing.T) {
 	if delErr := svc.DeletePhoto(ctx, photoID); delErr != nil {
 		t.Fatalf("DeletePhoto failed: %v", delErr)
 	}
-	count, err := repo.CountByLibrary(ctx, "lib-1")
+	_, total, err := repo.ListByLibrary(ctx, "lib-1", 50, 0)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if count != 0 {
-		t.Errorf("expected 0 photos after delete, got %d", count)
+	if total != 0 {
+		t.Errorf("expected 0 photos after delete, got %d", total)
 	}
 }
 
@@ -255,11 +255,14 @@ func TestDeletePhoto_PublishesEvent(t *testing.T) {
 		t.Fatalf("DeletePhoto failed: %v", err)
 	}
 	events := bus2.PublishedEvents()
-	if len(events) != 1 {
-		t.Fatalf("expected 1 event, got %d", len(events))
+	if len(events) != 2 {
+		t.Fatalf("expected 2 events, got %d", len(events))
 	}
 	if events[0].EventName() != "photo.deleted" {
 		t.Errorf("unexpected event name %q", events[0].EventName())
+	}
+	if events[1].EventName() != "photo.removed" {
+		t.Errorf("unexpected event name %q", events[1].EventName())
 	}
 }
 
@@ -590,8 +593,8 @@ func TestDeletePhoto_NilPhoto_EmptyLibraryID(t *testing.T) {
 		t.Fatal(err)
 	}
 	events := bus.PublishedEvents()
-	if len(events) != 1 {
-		t.Fatalf("expected 1 event, got %d", len(events))
+	if len(events) != 2 {
+		t.Fatalf("expected 2 events, got %d", len(events))
 	}
 	evt, ok := events[0].(photo.PhotoDeleted)
 	if !ok {
@@ -602,6 +605,13 @@ func TestDeletePhoto_NilPhoto_EmptyLibraryID(t *testing.T) {
 	}
 	if evt.PhotoID != "nonexistent" {
 		t.Errorf("PhotoID = %q, want nonexistent", evt.PhotoID)
+	}
+	removed, ok := events[1].(photo.PhotoRemoved)
+	if !ok {
+		t.Fatalf("expected PhotoRemoved, got %T", events[1])
+	}
+	if removed.LibraryID != "" {
+		t.Errorf("LibraryID = %q, want empty for nil photo", removed.LibraryID)
 	}
 }
 
@@ -617,8 +627,8 @@ func TestDeletePhoto_EventContainsCorrectLibraryID(t *testing.T) {
 		t.Fatal(err)
 	}
 	events := bus.PublishedEvents()
-	if len(events) != 1 {
-		t.Fatalf("expected 1 event, got %d", len(events))
+	if len(events) != 2 {
+		t.Fatalf("expected 2 events, got %d", len(events))
 	}
 	evt := events[0].(photo.PhotoDeleted)
 	if evt.LibraryID != "my-lib" {
@@ -626,6 +636,10 @@ func TestDeletePhoto_EventContainsCorrectLibraryID(t *testing.T) {
 	}
 	if evt.PhotoID != "p1" {
 		t.Errorf("event PhotoID = %q, want p1", evt.PhotoID)
+	}
+	removed := events[1].(photo.PhotoRemoved)
+	if removed.LibraryID != "my-lib" {
+		t.Errorf("event LibraryID = %q, want my-lib", removed.LibraryID)
 	}
 }
 

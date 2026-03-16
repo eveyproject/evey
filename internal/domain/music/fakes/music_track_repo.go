@@ -267,17 +267,3 @@ func (r *FakeMusicTrackRepository) UpdateFilePath(_ context.Context, id, newPath
 	return nil
 }
 
-func (r *FakeMusicTrackRepository) CountByLibrary(_ context.Context, libraryID string) (int, error) {
-	if r.Err != nil {
-		return 0, r.Err
-	}
-	r.mu.RLock()
-	defer r.mu.RUnlock()
-	n := 0
-	for _, t := range r.tracks {
-		if t.LibraryID == libraryID {
-			n++
-		}
-	}
-	return n, nil
-}

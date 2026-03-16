@@ -39,16 +39,25 @@ const defaultProps = {
 };
 
 describe("SubtitleSelector", () => {
-  it("renders available subtitle tracks in settings panel", async () => {
+  it("renders subtitle submenu entry in settings panel", async () => {
     const user = userEvent.setup();
     render(<PlayerControls {...defaultProps} />);
 
     await user.click(screen.getByRole("button", { name: "Settings" }));
 
     expect(screen.getByText("Subtitles")).toBeInTheDocument();
+  });
+
+  it("renders available subtitle tracks in subtitles submenu", async () => {
+    const user = userEvent.setup();
+    render(<PlayerControls {...defaultProps} />);
+
+    await user.click(screen.getByRole("button", { name: "Settings" }));
+    await user.click(screen.getByText("Subtitles"));
+
+    expect(screen.getByText("Off")).toBeInTheDocument();
     expect(screen.getByText("English")).toBeInTheDocument();
     expect(screen.getByText("French")).toBeInTheDocument();
-    expect(screen.getByText("Off")).toBeInTheDocument();
   });
 
   it("calls onSubtitleChange with trackIndex when subtitle selected", async () => {
@@ -57,6 +66,7 @@ describe("SubtitleSelector", () => {
     render(<PlayerControls {...defaultProps} onSubtitleChange={onSubtitleChange} />);
 
     await user.click(screen.getByRole("button", { name: "Settings" }));
+    await user.click(screen.getByText("Subtitles"));
     await user.click(screen.getByText("French"));
 
     expect(onSubtitleChange).toHaveBeenCalledWith(1);
@@ -74,6 +84,7 @@ describe("SubtitleSelector", () => {
     );
 
     await user.click(screen.getByRole("button", { name: "Settings" }));
+    await user.click(screen.getByText("Subtitles"));
     await user.click(screen.getByText("Off"));
 
     expect(onSubtitleChange).toHaveBeenCalledWith(null);

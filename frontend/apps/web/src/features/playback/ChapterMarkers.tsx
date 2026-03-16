@@ -25,10 +25,13 @@ export function ChapterMarkers({ chapters, durationSec, onSeek }: ChapterMarkers
               e.stopPropagation();
               onSeek(startSec);
             }}
-            className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-3 h-5 flex items-center justify-center z-20 cursor-pointer"
-            style={{ left: `${pct}%` }}
+            className="absolute top-0 bottom-0 -translate-x-1/2 flex items-center justify-center z-30 cursor-pointer"
+            style={{ left: `${pct}%`, width: 12 }}
           >
-            <span className="w-0.5 h-3 bg-white/70 rounded-full block group-hover:h-4 transition-all" />
+            <span
+              className="rounded-full block transition-all group-hover:scale-y-125"
+              style={{ width: 3, height: "60%", backgroundColor: "rgba(255,255,255,0.85)" }}
+            />
           </button>
         );
       })}

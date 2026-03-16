@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	appsyncplay "github.com/gravity-zero/evey/internal/app/syncplay"
+	domainsyncplay "github.com/gravity-zero/evey/internal/domain/syncplay"
 	domainuser "github.com/gravity-zero/evey/internal/domain/user"
 	"github.com/gravity-zero/evey/internal/pkg/auth"
 )
@@ -121,15 +122,9 @@ func (s *syncplayHandler) getRoom(w http.ResponseWriter, r *http.Request) {
 		UserID   string `json:"userId"`
 		Username string `json:"username"`
 	}
-	maskUsername := func(name string) string {
-		if len(name) == 0 {
-			return "***"
-		}
-		return string([]rune(name)[:1]) + "***"
-	}
 	members := make([]memberResp, 0, len(room.Members))
 	for _, m := range room.Members {
-		members = append(members, memberResp{UserID: m.UserID, Username: maskUsername(m.Username)})
+		members = append(members, memberResp{UserID: m.UserID, Username: domainsyncplay.MaskUsername(m.Username)})
 	}
 	w.Header().Set("Content-Type", "application/json")
 	if err := json.NewEncoder(w).Encode(map[string]any{

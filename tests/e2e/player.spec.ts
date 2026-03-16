@@ -2,8 +2,9 @@ import { test, expect } from "./fixtures/auth";
 
 const MEDIA_ID =
   process.env.MEDIA_ID ?? "327046e8-621e-4289-8915-e5cf02c07a01";
+const USER = process.env.EVEY_USER ?? "gravity";
+const PASS = process.env.EVEY_PASS ?? "REDACTED";
 
-// HEVC demuxer errors are expected in headless Chromium
 const KNOWN_ERRORS = [
   "DEMUXER_ERROR_NO_SUPPORTED_STREAMS",
   "PIPELINE_ERROR_DECODE",
@@ -14,31 +15,48 @@ function isKnownError(text: string) {
 }
 
 async function showControls(page: import("@playwright/test").Page) {
-  // the player has an overlay div intercepting pointer events, use mouse.move on viewport center
   const viewport = page.viewportSize()!;
   await page.mouse.move(viewport.width / 2, viewport.height / 2);
   await page.waitForTimeout(500);
 }
 
-test.describe("Player", () => {
-  test.beforeEach(async ({ page }) => {
+async function ensureLoggedIn(page: import("@playwright/test").Page) {
+  if (page.url().includes("/login")) {
+    await page.fill("#username", USER);
+    await page.fill("#password", PASS);
+    await page.click('button[type="submit"]');
+    await page.waitForURL((url) => !url.pathname.includes("/login"), {
+      timeout: 15_000,
+    });
+  }
+}
+
+async function waitForPlayer(page: import("@playwright/test").Page) {
+  await page.goto(`/player/${MEDIA_ID}`, {
+    waitUntil: "domcontentloaded",
+    timeout: 20_000,
+  });
+
+  await page.waitForTimeout(2_000);
+  await ensureLoggedIn(page);
+  if (!page.url().includes("/player/")) {
     await page.goto(`/player/${MEDIA_ID}`, {
       waitUntil: "domcontentloaded",
       timeout: 20_000,
     });
+  }
 
-    await page.waitForSelector(
-      "video, .animate-spin",
-      { timeout: 15_000 },
-    );
+  await page.waitForSelector("video, .animate-spin", { timeout: 15_000 });
+  const hasVideo = await page.$("video");
+  if (!hasVideo) {
+    await page.waitForSelector("video", { timeout: 30_000 });
+  }
+  await page.waitForTimeout(8_000);
+}
 
-    const hasVideo = await page.$("video");
-    if (!hasVideo) {
-      await page.waitForSelector("video", { timeout: 30_000 });
-    }
-
-    // let stream buffer
-    await page.waitForTimeout(8_000);
+test.describe("Player", () => {
+  test.beforeEach(async ({ page }) => {
+    await waitForPlayer(page);
   });
 
   test("video element loads with source", async ({ page }) => {
@@ -113,10 +131,7 @@ test.describe("Player", () => {
         errors.push(msg.text());
     });
 
-    await page.goto(`/player/${MEDIA_ID}`, {
-      waitUntil: "domcontentloaded",
-    });
-    await page.waitForSelector("video", { timeout: 30_000 });
+    errors.length = 0;
     await page.waitForTimeout(5_000);
 
     expect(errors).toHaveLength(0);
@@ -133,10 +148,7 @@ test.describe("Player", () => {
       }
     });
 
-    await page.goto(`/player/${MEDIA_ID}`, {
-      waitUntil: "domcontentloaded",
-    });
-    await page.waitForSelector("video", { timeout: 30_000 });
+    networkErrors.length = 0;
     await page.waitForTimeout(5_000);
 
     expect(networkErrors).toHaveLength(0);
@@ -154,12 +166,7 @@ test.describe("Player", () => {
 
 test.describe("Player — Quality switching", () => {
   test.beforeEach(async ({ page }) => {
-    await page.goto(`/player/${MEDIA_ID}`, {
-      waitUntil: "domcontentloaded",
-      timeout: 20_000,
-    });
-    await page.waitForSelector("video", { timeout: 30_000 });
-    await page.waitForTimeout(8_000);
+    await waitForPlayer(page);
   });
 
   test("change quality preserves position", async ({ page }) => {
@@ -214,12 +221,7 @@ test.describe("Player — Quality switching", () => {
 
 test.describe("Player — Keyboard shortcuts", () => {
   test.beforeEach(async ({ page }) => {
-    await page.goto(`/player/${MEDIA_ID}`, {
-      waitUntil: "domcontentloaded",
-      timeout: 20_000,
-    });
-    await page.waitForSelector("video", { timeout: 30_000 });
-    await page.waitForTimeout(8_000);
+    await waitForPlayer(page);
   });
 
   test("Space pauses and resumes", async ({ page }) => {
@@ -368,12 +370,7 @@ test.describe("Player — Keyboard shortcuts", () => {
 
 test.describe("Player — Playback speed", () => {
   test.beforeEach(async ({ page }) => {
-    await page.goto(`/player/${MEDIA_ID}`, {
-      waitUntil: "domcontentloaded",
-      timeout: 20_000,
-    });
-    await page.waitForSelector("video", { timeout: 30_000 });
-    await page.waitForTimeout(8_000);
+    await waitForPlayer(page);
   });
 
   test("change speed to 1.5x via settings", async ({ page }) => {
@@ -446,12 +443,7 @@ test.describe("Player — Playback speed", () => {
 
 test.describe("Player — Subtitle selection", () => {
   test.beforeEach(async ({ page }) => {
-    await page.goto(`/player/${MEDIA_ID}`, {
-      waitUntil: "domcontentloaded",
-      timeout: 20_000,
-    });
-    await page.waitForSelector("video", { timeout: 30_000 });
-    await page.waitForTimeout(8_000);
+    await waitForPlayer(page);
   });
 
   test("subtitle section appears in settings if tracks exist", async ({ page }) => {
@@ -542,12 +534,7 @@ test.describe("Player — Subtitle selection", () => {
 
 test.describe("Player — Skip intro", () => {
   test.beforeEach(async ({ page }) => {
-    await page.goto(`/player/${MEDIA_ID}`, {
-      waitUntil: "domcontentloaded",
-      timeout: 20_000,
-    });
-    await page.waitForSelector("video", { timeout: 30_000 });
-    await page.waitForTimeout(8_000);
+    await waitForPlayer(page);
   });
 
   test("skip intro button triggers seek when visible", async ({ page }) => {

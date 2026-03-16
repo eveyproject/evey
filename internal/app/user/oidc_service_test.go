@@ -275,7 +275,7 @@ func TestHandleCallback_MissingIDToken(t *testing.T) {
 	defer oidcSrv.close()
 	svc := buildOIDCService(t, oidcSrv)
 
-	_, _, err := svc.HandleCallback(context.Background(), "auth-code")
+	_, _, _, err := svc.HandleCallback(context.Background(), "auth-code")
 	if err == nil {
 		t.Fatal("expected error when id_token missing")
 	}
@@ -329,7 +329,7 @@ func TestHandleCallback_NewUser(t *testing.T) {
 	userRepo := svc.userRepo.(*userfakes.FakeUserRepository)
 	events := svc.events.(*sharedfakes.FakeEventBus)
 
-	accessTk, refreshTk, err := svc.HandleCallback(context.Background(), "auth-code")
+	accessTk, refreshTk, rawIDTk, err := svc.HandleCallback(context.Background(), "auth-code")
 	if err != nil {
 		t.Fatalf("HandleCallback failed: %v", err)
 	}
@@ -338,6 +338,9 @@ func TestHandleCallback_NewUser(t *testing.T) {
 	}
 	if refreshTk == "" {
 		t.Error("expected non-empty refresh token")
+	}
+	if rawIDTk == "" {
+		t.Error("expected non-empty raw OIDC id_token")
 	}
 
 	// Verify user was created
@@ -424,7 +427,7 @@ func TestHandleCallback_ExistingUser(t *testing.T) {
 		IsDefault: true,
 	})
 
-	accessTk, refreshTk, err := svc.HandleCallback(context.Background(), "auth-code")
+	accessTk, refreshTk, _, err := svc.HandleCallback(context.Background(), "auth-code")
 	if err != nil {
 		t.Fatalf("HandleCallback failed: %v", err)
 	}
@@ -476,7 +479,7 @@ func TestHandleCallback_DisabledUser(t *testing.T) {
 		OIDCIssuer:  &issuer,
 	})
 
-	_, _, err := svc.HandleCallback(context.Background(), "auth-code")
+	_, _, _, err := svc.HandleCallback(context.Background(), "auth-code")
 	if !errors.Is(err, ErrUserDisabled) {
 		t.Errorf("expected ErrUserDisabled, got %v", err)
 	}
@@ -502,7 +505,7 @@ func TestHandleCallback_EmailDomainNotAllowed(t *testing.T) {
 		s.allowedEmailDomains = []string{"example.com"}
 	})
 
-	_, _, err := svc.HandleCallback(context.Background(), "auth-code")
+	_, _, _, err := svc.HandleCallback(context.Background(), "auth-code")
 	if !errors.Is(err, ErrEmailDomainNotAllowed) {
 		t.Errorf("expected ErrEmailDomainNotAllowed, got %v", err)
 	}
@@ -533,7 +536,7 @@ func TestHandleCallback_AccessTokenGenerationError(t *testing.T) {
 	// Instead, use a custom token generator
 	tokenGen.Err = errors.New("token gen boom")
 
-	_, _, err := svc.HandleCallback(context.Background(), "auth-code")
+	_, _, _, err := svc.HandleCallback(context.Background(), "auth-code")
 	if err == nil {
 		t.Fatal("expected error when token generation fails")
 	}
@@ -564,7 +567,7 @@ func TestHandleCallback_UserRepoCreateError(t *testing.T) {
 		s.userRepo = repo
 	})
 
-	_, _, err := svc.HandleCallback(context.Background(), "auth-code")
+	_, _, _, err := svc.HandleCallback(context.Background(), "auth-code")
 	if err == nil {
 		t.Fatal("expected error when user repo fails")
 	}
@@ -588,7 +591,7 @@ func TestHandleCallback_UsernameFromEmail(t *testing.T) {
 	svc := buildOIDCService(t, oidcSrv)
 	userRepo := svc.userRepo.(*userfakes.FakeUserRepository)
 
-	_, _, err := svc.HandleCallback(context.Background(), "auth-code")
+	_, _, _, err := svc.HandleCallback(context.Background(), "auth-code")
 	if err != nil {
 		t.Fatalf("HandleCallback failed: %v", err)
 	}
@@ -619,7 +622,7 @@ func TestHandleCallback_UsernameFallbackHex(t *testing.T) {
 	svc := buildOIDCService(t, oidcSrv)
 	userRepo := svc.userRepo.(*userfakes.FakeUserRepository)
 
-	_, _, err := svc.HandleCallback(context.Background(), "auth-code")
+	_, _, _, err := svc.HandleCallback(context.Background(), "auth-code")
 	if err != nil {
 		t.Fatalf("HandleCallback failed: %v", err)
 	}
@@ -682,7 +685,7 @@ func TestHandleCallback_ProfileWithRoles(t *testing.T) {
 		IsDefault: false,
 	})
 
-	accessTk, _, err := svc.HandleCallback(context.Background(), "auth-code")
+	accessTk, _, _, err := svc.HandleCallback(context.Background(), "auth-code")
 	if err != nil {
 		t.Fatalf("HandleCallback failed: %v", err)
 	}
@@ -718,7 +721,7 @@ func TestHandleCallback_RefreshTokenError(t *testing.T) {
 		refreshTokenErr: errors.New("refresh gen boom"),
 	}
 
-	_, _, err := svc.HandleCallback(context.Background(), "auth-code")
+	_, _, _, err := svc.HandleCallback(context.Background(), "auth-code")
 	if err == nil {
 		t.Fatal("expected error when refresh token generation fails")
 	}
@@ -758,7 +761,7 @@ func TestHandleCallback_TokenExchangeError(t *testing.T) {
 
 	svc := buildOIDCService(t, oidcSrv)
 
-	_, _, err := svc.HandleCallback(context.Background(), "bad-code")
+	_, _, _, err := svc.HandleCallback(context.Background(), "bad-code")
 	if err == nil {
 		t.Fatal("expected error on token exchange failure")
 	}

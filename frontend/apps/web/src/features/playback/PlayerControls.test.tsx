@@ -53,14 +53,14 @@ describe("PlayerControls", () => {
     expect(screen.getByText("Quality")).toBeInTheDocument();
   });
 
-  it("shows playback speed selector in settings", async () => {
+  it("shows playback speed selector in settings submenu", async () => {
     const user = userEvent.setup();
     render(
       <PlayerControls {...defaultProps} playbackSpeed={1} onSpeedChange={vi.fn()} />,
     );
     await user.click(screen.getByRole("button", { name: "Settings" }));
     expect(screen.getByText("Speed")).toBeInTheDocument();
-    expect(screen.getByText("Normal")).toBeInTheDocument();
+    await user.click(screen.getByText("Speed"));
     expect(screen.getByText("0.5x")).toBeInTheDocument();
     expect(screen.getByText("2x")).toBeInTheDocument();
   });

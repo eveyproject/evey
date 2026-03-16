@@ -37,7 +37,20 @@ export function ProgressReporter({ sessionId, videoRef, transcodeOffsetRef }: Pr
       });
     }, 10_000);
 
-    return () => clearInterval(id);
+    return () => {
+      clearInterval(id);
+      const video = videoRef.current;
+      if (!video) return;
+      reportRef.current.mutate({
+        data: {
+          sessionId,
+          positionMs: String(Math.floor(((transcodeOffsetRef?.current ?? 0) + video.currentTime) * 1000)),
+          isPaused: video.paused,
+          isMuted: video.muted,
+          volumeLevel: Math.round(video.volume * 100),
+        },
+      });
+    };
   }, [sessionId, videoRef]);
 
   return null;

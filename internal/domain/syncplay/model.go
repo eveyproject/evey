@@ -34,6 +34,14 @@ type SyncCommand struct {
 	Playing    bool   `json:"playing,omitempty"`
 }
 
+// MaskUsername returns first rune + "***" to avoid leaking login usernames.
+func MaskUsername(name string) string {
+	if len(name) == 0 {
+		return "***"
+	}
+	return string([]rune(name)[:1]) + "***"
+}
+
 func (r *Room) IsHost(userID string) bool {
 	return r.HostID == userID
 }

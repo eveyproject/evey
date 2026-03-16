@@ -47,6 +47,9 @@ func (s *CommandService) validateProfile(ctx context.Context, profileID string) 
 }
 
 func (s *CommandService) StartStream(ctx context.Context, session *playback.PlaySession, userID string) error {
+	if err := session.Validate(); err != nil {
+		return fmt.Errorf("invalid play session: %w", err)
+	}
 	if err := s.validateProfile(ctx, session.ProfileID); err != nil {
 		return err
 	}

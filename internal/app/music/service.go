@@ -151,6 +151,9 @@ func (s *Service) ScanDirectory(ctx context.Context, libraryID, dir string) (int
 			if pubErr := s.bus.Publish(ctx, music.TrackScanned{LibraryID: libraryID, TrackID: t.ID, Title: t.Title, Path: j.path, OccurredAt: time.Now()}); pubErr != nil {
 				slog.Warn("music scan: event publish failed", slog.String("path", j.path), slog.Any("err", pubErr))
 			}
+			if pubErr := s.bus.Publish(ctx, music.TrackAdded{LibraryID: libraryID, TrackID: t.ID, Title: t.Title, Artist: t.Artist, OccurredAt: time.Now()}); pubErr != nil {
+				slog.Warn("music scan: TrackAdded publish failed", slog.String("path", j.path), slog.Any("err", pubErr))
+			}
 			total.Add(1)
 		}(j)
 	}
@@ -285,6 +288,9 @@ func (s *Service) DeleteTrack(ctx context.Context, trackID string) error {
 	}
 	if pubErr := s.bus.Publish(ctx, music.TrackDeleted{TrackID: trackID, LibraryID: libraryID, OccurredAt: time.Now()}); pubErr != nil {
 		slog.Warn("music: TrackDeleted publish failed", slog.String("trackID", trackID), slog.Any("err", pubErr))
+	}
+	if pubErr := s.bus.Publish(ctx, music.TrackRemoved{TrackID: trackID, LibraryID: libraryID, OccurredAt: time.Now()}); pubErr != nil {
+		slog.Warn("music: TrackRemoved publish failed", slog.String("trackID", trackID), slog.Any("err", pubErr))
 	}
 	return nil
 }

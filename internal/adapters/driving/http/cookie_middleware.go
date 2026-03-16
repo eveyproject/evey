@@ -117,6 +117,19 @@ func clearRefreshCookie(w http.ResponseWriter, httpsOnly bool) {
 	})
 }
 
+// clearOIDCIDTokenCookie deletes the OIDC id_token cookie used for RP-Initiated Logout.
+func clearOIDCIDTokenCookie(w http.ResponseWriter, httpsOnly bool) {
+	http.SetCookie(w, &http.Cookie{
+		Name:     oidcIDTokenCookieName,
+		Value:    "",
+		Path:     "/api/v1/auth/",
+		HttpOnly: true,
+		Secure:   httpsOnly,
+		SameSite: http.SameSiteLaxMode,
+		MaxAge:   -1,
+	})
+}
+
 type authResponseRecorder struct {
 	http.ResponseWriter
 	code   int

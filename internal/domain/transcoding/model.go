@@ -1,6 +1,9 @@
 package transcoding
 
-import "time"
+import (
+	"errors"
+	"time"
+)
 
 type HWAccelType string
 
@@ -41,6 +44,19 @@ type TranscodeJob struct {
 	DurationMs    *int64
 }
 
+func (j *TranscodeJob) Validate() error {
+	if j.MediaItemID == "" {
+		return errors.New("transcode job media item ID is required")
+	}
+	if j.InputPath == "" {
+		return errors.New("transcode job input path is required")
+	}
+	if j.OutputCodec == "" {
+		return errors.New("transcode job output codec is required")
+	}
+	return nil
+}
+
 func (j *TranscodeJob) IsTerminal() bool {
 	return j.Status == string(Completed) || j.Status == string(Failed) || j.Status == string(Cancelled)
 }
@@ -56,6 +72,19 @@ type TranscodeProfile struct {
 	VideoBitrate int64
 	AudioBitrate int64
 	Preset       string
+}
+
+func (p *TranscodeProfile) Validate() error {
+	if p.Name == "" {
+		return errors.New("transcode profile name is required")
+	}
+	if p.VideoCodec == "" {
+		return errors.New("transcode profile video codec is required")
+	}
+	if p.Container == "" {
+		return errors.New("transcode profile container is required")
+	}
+	return nil
 }
 
 type HWDevice struct {

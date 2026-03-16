@@ -125,7 +125,7 @@ func TestPushRegister_NoAuth_401(t *testing.T) {
 	tokenGen := newTestJWTGen(t)
 	repo := notifakes.NewFakeDeviceTokenRepository()
 	mux := http.NewServeMux()
-	registerPushRoutes(mux, repo, userfakes.NewFakeProfileRepository(), tokenGen)
+	registerPushRoutes(mux, repo, userfakes.NewFakeProfileRepository(), userfakes.NewFakeUserRepository(), tokenGen)
 
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/push/register", strings.NewReader(`{"token":"tok","platform":"web"}`))
 	req.RemoteAddr = "10.1.1.1:9999"
@@ -140,7 +140,7 @@ func TestPushRegister_InvalidToken_401(t *testing.T) {
 	tokenGen := newTestJWTGen(t)
 	repo := notifakes.NewFakeDeviceTokenRepository()
 	mux := http.NewServeMux()
-	registerPushRoutes(mux, repo, userfakes.NewFakeProfileRepository(), tokenGen)
+	registerPushRoutes(mux, repo, userfakes.NewFakeProfileRepository(), userfakes.NewFakeUserRepository(), tokenGen)
 
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/push/register", strings.NewReader(`{"token":"tok","platform":"web"}`))
 	req.Header.Set("Authorization", "Bearer invalid.token.here")
@@ -156,7 +156,7 @@ func TestPushRegister_RateLimit_429(t *testing.T) {
 	tokenGen := newTestJWTGen(t)
 	repo := notifakes.NewFakeDeviceTokenRepository()
 	mux := http.NewServeMux()
-	registerPushRoutes(mux, repo, userfakes.NewFakeProfileRepository(), tokenGen)
+	registerPushRoutes(mux, repo, userfakes.NewFakeProfileRepository(), userfakes.NewFakeUserRepository(), tokenGen)
 
 	// unique user ID so other tests don't share the same token bucket
 	userID := fmt.Sprintf("rl-user-%d", time.Now().UnixNano())
@@ -182,7 +182,7 @@ func TestPushRegister_ProfileOwnershipMismatch_403(t *testing.T) {
 	profileRepo := userfakes.NewFakeProfileRepository()
 	_ = profileRepo.Create(context.Background(), &domainuser.Profile{ID: "p1", UserID: "u-owner", Name: "Owner"})
 	mux := http.NewServeMux()
-	registerPushRoutes(mux, repo, profileRepo, tokenGen)
+	registerPushRoutes(mux, repo, profileRepo, userfakes.NewFakeUserRepository(), tokenGen)
 
 	token, _ := tokenGen.GenerateAccessToken(domainuser.Claims{UserID: "u-attacker", Username: "attacker", ProfileID: "p1"})
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/push/register",
@@ -201,8 +201,10 @@ func TestPushRegister_ProfileOwnershipValid_200(t *testing.T) {
 	repo := notifakes.NewFakeDeviceTokenRepository()
 	profileRepo := userfakes.NewFakeProfileRepository()
 	_ = profileRepo.Create(context.Background(), &domainuser.Profile{ID: "p-mine", UserID: "u-legit", Name: "Mine"})
+	userRepo := userfakes.NewFakeUserRepository()
+	_ = userRepo.Create(context.Background(), &domainuser.User{ID: "u-legit", Username: "legit", Enabled: true})
 	mux := http.NewServeMux()
-	registerPushRoutes(mux, repo, profileRepo, tokenGen)
+	registerPushRoutes(mux, repo, profileRepo, userRepo, tokenGen)
 
 	token, _ := tokenGen.GenerateAccessToken(domainuser.Claims{UserID: "u-legit", Username: "legit", ProfileID: "p-mine"})
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/push/register",
@@ -367,7 +369,7 @@ func TestPushRegister_NoConsent_400(t *testing.T) {
 	tokenGen := newTestJWTGen(t)
 	repo := notifakes.NewFakeDeviceTokenRepository()
 	mux := http.NewServeMux()
-	registerPushRoutes(mux, repo, userfakes.NewFakeProfileRepository(), tokenGen)
+	registerPushRoutes(mux, repo, userfakes.NewFakeProfileRepository(), userfakes.NewFakeUserRepository(), tokenGen)
 
 	token, _ := tokenGen.GenerateAccessToken(domainuser.Claims{UserID: "u1", Username: "user"})
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/push/register",
@@ -384,8 +386,10 @@ func TestPushRegister_NoConsent_400(t *testing.T) {
 func TestPushRegister_Success_200(t *testing.T) {
 	tokenGen := newTestJWTGen(t)
 	repo := notifakes.NewFakeDeviceTokenRepository()
+	userRepo := userfakes.NewFakeUserRepository()
+	_ = userRepo.Create(context.Background(), &domainuser.User{ID: "u1", Username: "user", Enabled: true})
 	mux := http.NewServeMux()
-	registerPushRoutes(mux, repo, userfakes.NewFakeProfileRepository(), tokenGen)
+	registerPushRoutes(mux, repo, userfakes.NewFakeProfileRepository(), userRepo, tokenGen)
 
 	token, _ := tokenGen.GenerateAccessToken(domainuser.Claims{UserID: "u1", Username: "user"})
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/push/register",
@@ -403,7 +407,7 @@ func TestPushList_NoAuth_401(t *testing.T) {
 	tokenGen := newTestJWTGen(t)
 	repo := notifakes.NewFakeDeviceTokenRepository()
 	mux := http.NewServeMux()
-	registerPushRoutes(mux, repo, userfakes.NewFakeProfileRepository(), tokenGen)
+	registerPushRoutes(mux, repo, userfakes.NewFakeProfileRepository(), userfakes.NewFakeUserRepository(), tokenGen)
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/push/devices", nil)
 	req.RemoteAddr = "10.4.4.1:9999"
@@ -418,7 +422,7 @@ func TestPushDelete_NoAuth_401(t *testing.T) {
 	tokenGen := newTestJWTGen(t)
 	repo := notifakes.NewFakeDeviceTokenRepository()
 	mux := http.NewServeMux()
-	registerPushRoutes(mux, repo, userfakes.NewFakeProfileRepository(), tokenGen)
+	registerPushRoutes(mux, repo, userfakes.NewFakeProfileRepository(), userfakes.NewFakeUserRepository(), tokenGen)
 
 	req := httptest.NewRequest(http.MethodDelete, "/api/v1/push/devices/some-token", nil)
 	req.RemoteAddr = "10.5.5.1:9999"

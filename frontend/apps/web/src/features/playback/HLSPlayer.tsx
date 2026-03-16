@@ -66,7 +66,6 @@ interface HLSPlayerProps {
   onEpisodeChange?: (id: string) => void;
   chapters?: Chapter[];
   seriesId?: string;
-  onTheaterModeChange?: (active: boolean) => void;
   onVideoRef?: (el: HTMLVideoElement | null) => void;
 }
 
@@ -90,7 +89,6 @@ export function HLSPlayer({
   onEpisodeChange,
   chapters = [],
   seriesId,
-  onTheaterModeChange,
   onVideoRef,
 }: HLSPlayerProps) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
@@ -99,8 +97,8 @@ export function HLSPlayer({
   const positionRef = useRef(startPositionMs / 1000);
   const knownDurationSecRef = useRef(knownDurationMs ? knownDurationMs / 1000 : 0);
   knownDurationSecRef.current = knownDurationMs ? knownDurationMs / 1000 : 0;
-  // Start in transcode mode when there's no HLS URL (always the case with current backend)
-  const [transcodeMode, setTranscodeMode] = useState(!streamInfo.transcodeUrl);
+  // Backend serves fMP4 transcode (not HLS manifests), always start in transcode mode
+  const [transcodeMode, setTranscodeMode] = useState(true);
   const [overlayTime, setOverlayTime] = useState(0);
   const [overlayDuration, setOverlayDuration] = useState(0);
   const defaultAudio = (() => {
@@ -128,7 +126,6 @@ export function HLSPlayer({
     const match = subtitleStreams.find((s) => (s.language ?? s.title ?? "").toLowerCase() === prefLang.toLowerCase());
     return match?.trackIndex ?? null;
   });
-  const [theaterMode, setTheaterMode] = useState(false);
   const [playbackSpeed, setPlaybackSpeed] = useState(1);
   const anyPanelOpenRef = useRef(false);
   const closePanelRef = useRef<(() => void) | null>(null);
@@ -150,6 +147,8 @@ export function HLSPlayer({
   const [isBuffering, setIsBuffering] = useState(false);
   const [fatalError, setFatalError] = useState(false);
   const fallbackCountRef = useRef(0);
+  const lastFallbackTimeRef = useRef(0);
+  const wasPausedRef = useRef(false);
   const playbackSpeedRef = useRef(playbackSpeed);
   playbackSpeedRef.current = playbackSpeed;
   const subtitleStreamsRef = useRef(subtitleStreams);
@@ -193,10 +192,8 @@ export function HLSPlayer({
       hlsInstance.on(Hls.Events.ERROR, (_, data) => {
         if (!data.fatal) return;
         console.warn("[player] HLS fatal error:", data.type, data.details);
-        // Switch to transcode mode and attempt quality fallback
+        // HLS failure = switch to transcode mode, NOT a quality issue
         setTranscodeMode(true);
-        const didFallback = attemptQualityFallbackRef.current(currentQualityRef.current);
-        if (!didFallback) setFatalError(true);
       });
     } else if (streamInfo.directPlayUrl) {
       video.src = streamInfo.directPlayUrl;
@@ -267,26 +264,38 @@ export function HLSPlayer({
     if (offset > 0) params.set("startTime", String(offset));
     const url = `/api/v1/media/${mediaId}/transcode?${params.toString()}`;
 
+    let ready = false;
+    const shouldPlay = !wasPausedRef.current;
     function onTimeUpdate() {
       positionRef.current = transcodeOffsetRef.current + video!.currentTime;
     }
+    function handleCanPlay() { ready = true; }
     function handleEnded() { onEnded?.(); }
     function handleError() {
       const e = video!.error;
       if (e) {
+        // Ignore errors before stream has loaded (stale events from previous src)
+        if (!ready) return;
+        // Ignore errors when paused (stream timeout is expected)
+        if (video!.paused) return;
+        // Ignore errors during grace period after a quality fallback
+        if (Date.now() - lastFallbackTimeRef.current < 10000) return;
         console.warn("[player] transcode error:", e.code, e.message);
         const didFallback = attemptQualityFallbackRef.current(currentQualityRef.current);
         if (!didFallback) setFatalError(true);
       }
     }
     video.addEventListener("timeupdate", onTimeUpdate);
+    video.addEventListener("canplay", handleCanPlay);
     video.addEventListener("ended", handleEnded);
     video.addEventListener("error", handleError);
     video.src = url;
-    video.play().catch(() => {});
+    if (shouldPlay) video.play().catch(() => {});
 
     return () => {
+      wasPausedRef.current = video.paused;
       video.removeEventListener("timeupdate", onTimeUpdate);
+      video.removeEventListener("canplay", handleCanPlay);
       video.removeEventListener("ended", handleEnded);
       video.removeEventListener("error", handleError);
       video.src = "";
@@ -544,11 +553,15 @@ export function HLSPlayer({
       lastBufferCheckRef.current = { time: now, buffered: currentBuffered };
 
       if (elapsed < 3) return;
+      // Grace period after quality change — transcode needs startup time
+      if (now - qualityStableRef.current < 15000) return;
       const fillRate = (currentBuffered - prev.buffered) / elapsed;
 
       const curIdx = QUALITY_LEVELS.indexOf(currentQuality);
 
-      if (fillRate < 0.8) {
+      // Don't downgrade if buffer has enough headroom (>2min ahead of playback)
+      const bufferAhead = currentBuffered - v.currentTime;
+      if (fillRate < 0.8 && bufferAhead < 120) {
         slowCountRef.current++;
         if (slowCountRef.current >= 2 && curIdx < QUALITY_LEVELS.length - 1) {
           const pos = positionRef.current;
@@ -612,6 +625,7 @@ export function HLSPlayer({
     if (curIdx < 0 || curIdx >= QUALITY_LEVELS.length - 1) return false;
     const nextQuality = QUALITY_LEVELS[curIdx + 1];
     fallbackCountRef.current++;
+    lastFallbackTimeRef.current = Date.now();
     const qualityLabel = nextQuality === 0 ? "Original" : `${nextQuality}p`;
     console.warn(`[player] fatal error — downgrading to ${qualityLabel} (attempt ${fallbackCountRef.current})`);
     toast.warning(`Quality reduced to ${qualityLabel} due to a network error`);
@@ -715,9 +729,10 @@ export function HLSPlayer({
       const pos = positionRef.current;
       const video = videoRef.current;
       if (!video) return;
+      const dur = knownDurationSecRef.current > 0 ? knownDurationSecRef.current : (video.duration && isFinite(video.duration)) ? video.duration : 0;
       const target = isLeft
         ? Math.max(0, pos - skipBwdRef.current)
-        : Math.min(pos + skipFwdRef.current, pos + skipFwdRef.current);
+        : Math.min(dur || pos + skipFwdRef.current, pos + skipFwdRef.current);
       seekRef.current(target);
       setSeekFlash(isLeft ? "left" : "right");
       if (seekFlashTimerRef.current) clearTimeout(seekFlashTimerRef.current);
@@ -736,9 +751,19 @@ export function HLSPlayer({
     }
   }
 
+  // Cleanup timers on unmount
+  useEffect(() => {
+    return () => {
+      if (seekFlashTimerRef.current) clearTimeout(seekFlashTimerRef.current);
+      if (actionFlashTimer.current) clearTimeout(actionFlashTimer.current);
+      if (singleTapTimer.current) clearTimeout(singleTapTimer.current);
+      if (externalSubUrlRef.current) URL.revokeObjectURL(externalSubUrlRef.current);
+    };
+  }, []);
+
   return (
     <div
-      className="relative w-full h-full bg-black"
+      className="absolute inset-0 bg-black"
       onTouchStart={handleTouchStart}
       onTouchEnd={handleTouchEnd}
     >
@@ -875,12 +900,6 @@ export function HLSPlayer({
         onExternalSubtitle={(blobUrl, label) => {
           setCurrentSubtitle(null);
           setExternalSubUrl({ url: blobUrl, label });
-        }}
-        theaterMode={theaterMode}
-        onTheaterModeToggle={() => {
-          const next = !theaterMode;
-          setTheaterMode(next);
-          onTheaterModeChange?.(next);
         }}
         onPanelOpenChange={(anyOpen) => { anyPanelOpenRef.current = anyOpen; }}
         closePanelRef={closePanelRef}

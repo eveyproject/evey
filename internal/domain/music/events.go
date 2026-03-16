@@ -19,3 +19,21 @@ type TrackDeleted struct {
 }
 
 func (e TrackDeleted) EventName() string { return "music.track.deleted" }
+
+type TrackAdded struct {
+	LibraryID  string
+	TrackID    string
+	Title      string
+	Artist     string
+	OccurredAt time.Time
+}
+
+func (e TrackAdded) EventName() string { return "music.track.added" }
+
+type TrackRemoved struct {
+	LibraryID  string
+	TrackID    string
+	OccurredAt time.Time
+}
+
+func (e TrackRemoved) EventName() string { return "music.track.removed" }

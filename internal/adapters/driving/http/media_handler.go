@@ -1097,6 +1097,10 @@ func (h *transcodeServe) serveHTTP(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "transcode failed", http.StatusInternalServerError)
 		return
 	}
+	// Disable write deadline — transcode streams last minutes/hours, global WriteTimeout would cut them.
+	if err := http.NewResponseController(w).SetWriteDeadline(time.Time{}); err != nil {
+		slog.Debug("set write deadline unsupported", slog.Any("err", err))
+	}
 	w.Header().Set("Content-Type", "video/mp4")
 	w.Header().Set("Cache-Control", "no-cache")
 	w.Header().Set("Accept-Ranges", "none")
@@ -1180,9 +1184,9 @@ func (h *transcodeServe) buildFFmpegArgs(filePath string, p transcodeParams, a t
 		} else {
 			args = append(args, "-vf", toneMapFilter)
 		}
-		args = append(args, "-c:v", "libx264", "-crf", "23", "-preset", "fast")
+		args = append(args, "-c:v", "libx264", "-crf", "23", "-preset", "veryfast", "-threads", "2")
 	case p.videoScale > 0:
-		args = append(args, "-vf", fmt.Sprintf("scale=-2:%d", p.videoScale), "-c:v", "libx264", "-crf", "23", "-preset", "fast")
+		args = append(args, "-vf", fmt.Sprintf("scale=-2:%d", p.videoScale), "-c:v", "libx264", "-crf", "23", "-preset", "veryfast", "-threads", "2")
 	case a.needsVideoTranscode:
 		args = append(args, "-c:v", "libx264", "-crf", "23", "-preset", "veryfast", "-tune", "zerolatency", "-threads", "0")
 	default:

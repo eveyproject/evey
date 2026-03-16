@@ -3,6 +3,7 @@ package httpapi
 import (
 	"context"
 	"net/http"
+	"net/url"
 	"time"
 
 	appactivity "github.com/gravity-zero/evey/internal/app/activity"
@@ -105,6 +106,7 @@ type HTTPServer struct {
 	LibraryAccessRepo domainuser.LibraryAccessRepository
 	ServerCfgRepo     domainshared.ServerConfigRepository
 	ProfileRepo       domainuser.ProfileRepository
+	UserRepo          domainuser.UserRepository
 	Hasher            domainuser.PasswordHasher
 
 	// Config store for remote access persistence
@@ -167,13 +169,21 @@ func (s *HTTPServer) RegisterRoutes(mux *http.ServeMux, gwMux http.Handler) {
 			clearRefreshCookie(w, s.HTTPSOnly)
 			if s.OIDCSvc != nil {
 				if ep := s.OIDCSvc.EndSessionEndpoint(); ep != "" {
-					// Invalidate local session via gRPC (discard response body), then redirect.
 					rec := &discardResponseWriter{header: make(http.Header)}
 					gwMux.ServeHTTP(rec, r)
-					http.Redirect(w, r, ep+"?post_logout_redirect_uri="+s.BaseURL+"/login", http.StatusFound)
+
+					// RP-Initiated Logout: build end_session URL with id_token_hint
+					q := url.Values{}
+					q.Set("post_logout_redirect_uri", s.BaseURL+"/login")
+					if c, err := r.Cookie(oidcIDTokenCookieName); err == nil && c.Value != "" {
+						q.Set("id_token_hint", c.Value)
+					}
+					clearOIDCIDTokenCookie(w, s.HTTPSOnly)
+					http.Redirect(w, r, ep+"?"+q.Encode(), http.StatusFound)
 					return
 				}
 			}
+			clearOIDCIDTokenCookie(w, s.HTTPSOnly)
 			gwMux.ServeHTTP(w, r)
 		})
 	}
@@ -204,7 +214,7 @@ func (s *HTTPServer) RegisterRoutes(mux *http.ServeMux, gwMux http.Handler) {
 	registerServerConfigRoutes(mux, s.ServerCfgRepo, s.TokenGen)
 	registerLogsRoute(mux, s.LogDir, s.TokenGen)
 	registerMusicRoutes(mux, s.MusicSvc, s.TokenGen, s.LibraryAccessRepo, s.LibQuerySvc)
-	registerPushRoutes(mux, s.FCMTokenRepo, s.ProfileRepo, s.TokenGen)
+	registerPushRoutes(mux, s.FCMTokenRepo, s.ProfileRepo, s.UserRepo, s.TokenGen)
 
 	if s.SubtitleSvc != nil {
 		registerSubtitleRoutes(mux, s.SubtitleSvc, s.TokenGen, s.LibQuerySvc, s.LibraryAccessRepo)
