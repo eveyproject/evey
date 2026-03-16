@@ -73,6 +73,72 @@ describe("useCollection", () => {
   });
 });
 
+describe("useCreateCollection", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("calls POST and invalidates collections query", async () => {
+    const fetch = await getEveyFetch();
+    fetch.mockResolvedValueOnce({ id: "new-1" });
+
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const invalidateSpy = vi.spyOn(qc, "invalidateQueries");
+    const wrapper = ({ children }: { children: React.ReactNode }) =>
+      React.createElement(QueryClientProvider, { client: qc }, children);
+
+    const { useCreateCollection } = await import("./api");
+    const { result } = renderHook(() => useCreateCollection(), { wrapper });
+
+    await act(async () => {
+      result.current.mutate({ name: "Action Movies", rules: [{ field: "genre", operator: "eq", value: "Action" }] });
+    });
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(fetch).toHaveBeenCalledWith(
+      expect.objectContaining({
+        url: "/api/v1/collections",
+        method: "POST",
+        body: { name: "Action Movies", rules: [{ field: "genre", operator: "eq", value: "Action" }] },
+      }),
+    );
+    expect(invalidateSpy).toHaveBeenCalledWith(
+      expect.objectContaining({ queryKey: ["collections"] }),
+    );
+  });
+});
+
+describe("useUpdateCollection", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("calls PUT and invalidates collections query", async () => {
+    const fetch = await getEveyFetch();
+    fetch.mockResolvedValueOnce(undefined);
+
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const invalidateSpy = vi.spyOn(qc, "invalidateQueries");
+    const wrapper = ({ children }: { children: React.ReactNode }) =>
+      React.createElement(QueryClientProvider, { client: qc }, children);
+
+    const { useUpdateCollection } = await import("./api");
+    const { result } = renderHook(() => useUpdateCollection(), { wrapper });
+
+    await act(async () => {
+      result.current.mutate({ id: "c-1", name: "Updated", rules: [] });
+    });
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(fetch).toHaveBeenCalledWith(
+      expect.objectContaining({
+        url: "/api/v1/collections/c-1",
+        method: "PUT",
+        body: { name: "Updated", rules: [] },
+      }),
+    );
+    expect(invalidateSpy).toHaveBeenCalledWith(
+      expect.objectContaining({ queryKey: ["collections"] }),
+    );
+  });
+});
+
 describe("useDeleteCollection", () => {
   beforeEach(() => vi.clearAllMocks());
 

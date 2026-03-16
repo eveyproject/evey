@@ -2,36 +2,26 @@ import { useState, useEffect } from "react";
 import { Modal } from "@/components/ui/Modal";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
-import { useCreatePlaylist, useUpdatePlaylist, type PlaylistRule, type Playlist } from "@/features/playlist/api";
+import { useCreateCollection, useUpdateCollection, type CollectionRule } from "./api";
 import { toast } from "@evey/store";
 
-type RuleField = "genre" | "year" | "type";
+type RuleField = "genre" | "year" | "type" | "rating_gte" | "library_id";
 type YearOperator = "gte" | "lte" | "gt" | "lt" | "eq";
 type StringOperator = "eq";
 
 interface GenreRule { field: "genre"; operator: StringOperator; value: string }
 interface YearRule { field: "year"; operator: YearOperator; value: string }
 interface TypeRule { field: "type"; operator: StringOperator; value: string }
-export type SmartRule = GenreRule | YearRule | TypeRule;
+interface RatingGteRule { field: "rating_gte"; operator: "gte"; value: string }
+interface LibraryIdRule { field: "library_id"; operator: StringOperator; value: string }
+export type SmartRule = GenreRule | YearRule | TypeRule | RatingGteRule | LibraryIdRule;
 
-export interface SmartFilter {
+export interface SmartCollection {
   id: string;
   name: string;
   rules: SmartRule[];
+  sortBy?: string;
   createdAt: string;
-}
-
-export function playlistToSmartFilter(pl: Playlist): SmartFilter {
-  return {
-    id: pl.id,
-    name: pl.name,
-    rules: (pl.rules ?? []).filter(isSmartRule),
-    createdAt: pl.created_at,
-  };
-}
-
-function isSmartRule(r: PlaylistRule): r is SmartRule {
-  return r.field === "genre" || r.field === "year" || r.field === "type";
 }
 
 const MEDIA_TYPES = [
@@ -47,6 +37,8 @@ const FIELD_LABELS: Record<RuleField, string> = {
   genre: "Genre",
   year: "Year",
   type: "Type",
+  rating_gte: "Rating >=",
+  library_id: "Library",
 };
 
 const YEAR_OPERATORS: { value: YearOperator; label: string }[] = [
@@ -60,6 +52,8 @@ const YEAR_OPERATORS: { value: YearOperator; label: string }[] = [
 function defaultRule(field: RuleField): SmartRule {
   if (field === "genre") return { field: "genre", operator: "eq", value: "" };
   if (field === "year") return { field: "year", operator: "gte", value: "" };
+  if (field === "rating_gte") return { field: "rating_gte", operator: "gte", value: "" };
+  if (field === "library_id") return { field: "library_id", operator: "eq", value: "" };
   return { field: "type", operator: "eq", value: "MEDIA_ITEM_TYPE_MOVIE" };
 }
 
@@ -76,7 +70,7 @@ function RuleRow({ rule, onChange, onRemove }: RuleRowProps) {
   return (
     <div className="flex items-center gap-2">
       <span
-        className="text-sm font-medium w-12 flex-shrink-0"
+        className="text-sm font-medium w-16 flex-shrink-0"
         style={{ color: "var(--text-muted)" }}
       >
         {FIELD_LABELS[rule.field]}
@@ -102,7 +96,7 @@ function RuleRow({ rule, onChange, onRemove }: RuleRowProps) {
           className="text-sm px-2 py-1.5 w-8 text-center flex-shrink-0"
           style={{ color: "var(--text-muted)" }}
         >
-          =
+          {rule.field === "rating_gte" ? ">=" : "="}
         </span>
       )}
 
@@ -123,11 +117,17 @@ function RuleRow({ rule, onChange, onRemove }: RuleRowProps) {
         </select>
       ) : (
         <input
-          type={rule.field === "year" ? "number" : "text"}
+          type={rule.field === "year" || rule.field === "rating_gte" ? "number" : "text"}
           value={rule.value}
-          min={rule.field === "year" ? 1900 : undefined}
-          max={rule.field === "year" ? new Date().getFullYear() + 2 : undefined}
-          placeholder={rule.field === "genre" ? "e.g. Action" : "e.g. 2020"}
+          min={rule.field === "year" ? 1900 : rule.field === "rating_gte" ? 0 : undefined}
+          max={rule.field === "year" ? new Date().getFullYear() + 2 : rule.field === "rating_gte" ? 10 : undefined}
+          step={rule.field === "rating_gte" ? 0.1 : undefined}
+          placeholder={
+            rule.field === "genre" ? "e.g. Action" :
+            rule.field === "year" ? "e.g. 2020" :
+            rule.field === "rating_gte" ? "e.g. 7.0" :
+            rule.field === "library_id" ? "Library ID" : ""
+          }
           onChange={(e) => onChange({ ...rule, value: e.target.value })}
           className="flex-1 text-sm px-3 py-1.5 rounded-[var(--radius-md)]"
           style={{
@@ -156,8 +156,8 @@ function RuleRow({ rule, onChange, onRemove }: RuleRowProps) {
 interface SmartCollectionDialogProps {
   open: boolean;
   onClose: () => void;
-  onSaved: (filter: SmartFilter) => void;
-  editing?: SmartFilter;
+  onSaved: () => void;
+  editing?: SmartCollection;
 }
 
 export function SmartCollectionDialog({ open, onClose, onSaved, editing }: SmartCollectionDialogProps) {
@@ -165,8 +165,8 @@ export function SmartCollectionDialog({ open, onClose, onSaved, editing }: Smart
   const [rules, setRules] = useState<SmartRule[]>(editing?.rules ?? []);
   const [nameError, setNameError] = useState("");
 
-  const createPlaylist = useCreatePlaylist();
-  const updatePlaylist = useUpdatePlaylist();
+  const createCollection = useCreateCollection();
+  const updateCollection = useUpdateCollection();
 
   useEffect(() => {
     if (open) {
@@ -176,7 +176,8 @@ export function SmartCollectionDialog({ open, onClose, onSaved, editing }: Smart
     }
   }, [open, editing]);
 
-  const available: RuleField[] = (["genre", "year", "type"] as RuleField[]).filter(
+  const ALL_FIELDS: RuleField[] = ["genre", "year", "type", "rating_gte", "library_id"];
+  const available: RuleField[] = ALL_FIELDS.filter(
     (f) => !usedFields(rules).has(f)
   );
 
@@ -195,45 +196,38 @@ export function SmartCollectionDialog({ open, onClose, onSaved, editing }: Smart
   async function handleSave() {
     if (!name.trim()) { setNameError("Name is required"); return; }
 
-    const validRules = rules.filter((r) => r.value.trim() !== "");
-    const isPending = createPlaylist.isPending || updatePlaylist.isPending;
+    const validRules: CollectionRule[] = rules
+      .filter((r) => r.value.trim() !== "")
+      .map((r) => ({ field: r.field, operator: r.operator, value: r.value }));
+    const isPending = createCollection.isPending || updateCollection.isPending;
     if (isPending) return;
 
     try {
       if (editing) {
-        await updatePlaylist.mutateAsync({
+        await updateCollection.mutateAsync({
           id: editing.id,
           name: name.trim(),
           rules: validRules,
         });
-        const updated: SmartFilter = { ...editing, name: name.trim(), rules: validRules };
-        onSaved(updated);
-        toast.success("Smart filter updated");
+        toast.success("Smart collection updated");
       } else {
-        const result = await createPlaylist.mutateAsync({
+        await createCollection.mutateAsync({
           name: name.trim(),
-          type: "smart",
           rules: validRules,
         });
-        const newFilter: SmartFilter = {
-          id: (result as unknown as { id: string }).id ?? crypto.randomUUID(),
-          name: name.trim(),
-          rules: validRules,
-          createdAt: new Date().toISOString(),
-        };
-        onSaved(newFilter);
-        toast.success("Smart filter created");
+        toast.success("Smart collection created");
       }
+      onSaved();
       onClose();
     } catch {
-      toast.error("Failed to save smart filter");
+      toast.error("Failed to save smart collection");
     }
   }
 
-  const isSaving = createPlaylist.isPending || updatePlaylist.isPending;
+  const isSaving = createCollection.isPending || updateCollection.isPending;
 
   return (
-    <Modal open={open} onClose={onClose} title={editing ? "Edit smart filter" : "New smart filter"}>
+    <Modal open={open} onClose={onClose} title={editing ? "Edit smart collection" : "New smart collection"}>
       <div className="flex flex-col gap-5">
         <Input
           label="Name"

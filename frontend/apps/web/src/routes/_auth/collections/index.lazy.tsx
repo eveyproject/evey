@@ -5,8 +5,7 @@ import type { Collection } from "@/features/collection/api";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Button } from "@/components/ui/Button";
 import { SmartCollectionDialog } from "@/features/collection/SmartCollectionDialog";
-import type { SmartFilter } from "@/features/collection/SmartCollectionDialog";
-import { useSmartFilters } from "@/features/collection/useSmartFilters";
+import type { SmartCollection } from "@/features/collection/SmartCollectionDialog";
 
 export const Route = createLazyFileRoute("/_auth/collections/")({
   component: CollectionsPage,
@@ -80,11 +79,23 @@ function CollectionPosterCard({ col }: { col: Collection }) {
   );
 }
 
-function SmartFilterCard({ filter, onEdit, onDelete }: { filter: SmartFilter; onEdit: () => void; onDelete: () => void }) {
-  const rulesLabel = filter.rules
+function collectionToSmartCollection(col: Collection): SmartCollection {
+  return {
+    id: col.id,
+    name: col.name,
+    rules: (col.rules ?? []) as SmartCollection["rules"],
+    sortBy: col.sortBy,
+    createdAt: col.createdAt,
+  };
+}
+
+function SmartFilterCard({ col, onEdit, onDelete }: { col: Collection; onEdit: () => void; onDelete: () => void }) {
+  const rulesLabel = (col.rules ?? [])
     .map((r) => {
       if (r.field === "genre") return `genre = ${r.value}`;
-      if (r.field === "year") return `year ${r.op} ${r.value}`;
+      if (r.field === "year") return `year ${r.operator} ${r.value}`;
+      if (r.field === "rating_gte") return `rating >= ${r.value}`;
+      if (r.field === "library_id") return `library = ${r.value}`;
       const typeLabel = r.value.replace("MEDIA_ITEM_TYPE_", "").toLowerCase();
       return `type = ${typeLabel}`;
     })
@@ -98,7 +109,7 @@ function SmartFilterCard({ filter, onEdit, onDelete }: { filter: SmartFilter; on
       <div className="flex items-start justify-between gap-2">
         <div className="flex-1 min-w-0">
           <p className="font-semibold truncate" style={{ color: "var(--text)" }}>
-            {filter.name}
+            {col.name}
           </p>
           {rulesLabel && (
             <p className="text-xs mt-0.5 truncate" style={{ color: "var(--text-muted)" }}>
@@ -131,7 +142,7 @@ function SmartFilterCard({ filter, onEdit, onDelete }: { filter: SmartFilter; on
       </div>
       <Link
         to="/collections/smart/$filterId"
-        params={{ filterId: filter.id }}
+        params={{ filterId: col.id }}
         className="text-xs font-medium transition-colors"
         style={{ color: "var(--accent)" }}
       >
@@ -143,13 +154,17 @@ function SmartFilterCard({ filter, onEdit, onDelete }: { filter: SmartFilter; on
 
 function CollectionsPage() {
   const { data, isLoading } = useCollections();
-  const collections = data?.collections ?? [];
-  const { filters, save, remove } = useSmartFilters();
+  const deleteMut = useDeleteCollection();
+  const allCollections = data?.collections ?? [];
+
+  const smartCollections = allCollections.filter((c) => (c.rules?.length ?? 0) > 0);
+  const tmdbCollections = allCollections.filter((c) => (c.rules?.length ?? 0) === 0);
+
   const [dialogOpen, setDialogOpen] = useState(false);
-  const [editing, setEditing] = useState<SmartFilter | undefined>(undefined);
+  const [editing, setEditing] = useState<SmartCollection | undefined>(undefined);
 
   function openCreate() { setEditing(undefined); setDialogOpen(true); }
-  function openEdit(f: SmartFilter) { setEditing(f); setDialogOpen(true); }
+  function openEdit(col: Collection) { setEditing(collectionToSmartCollection(col)); setDialogOpen(true); }
 
   return (
     <div>
@@ -161,23 +176,23 @@ function CollectionsPage() {
           <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
           </svg>
-          New smart filter
+          New smart collection
         </Button>
       </div>
 
-      {/* Smart filters section */}
-      {filters.length > 0 && (
+      {/* Smart collections section */}
+      {smartCollections.length > 0 && (
         <div className="mb-8">
           <h2 className="text-sm font-semibold uppercase tracking-wider mb-3" style={{ color: "var(--text-muted)" }}>
-            Smart Filters
+            Smart Collections
           </h2>
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-3">
-            {filters.map((f) => (
+            {smartCollections.map((col) => (
               <SmartFilterCard
-                key={f.id}
-                filter={f}
-                onEdit={() => openEdit(f)}
-                onDelete={() => { if (confirm("Delete this smart filter?")) remove(f.id); }}
+                key={col.id}
+                col={col}
+                onEdit={() => openEdit(col)}
+                onDelete={() => { if (confirm("Delete this smart collection?")) deleteMut.mutate(col.id); }}
               />
             ))}
           </div>
@@ -186,7 +201,7 @@ function CollectionsPage() {
 
       {/* TMDB collections */}
       <div>
-        {filters.length > 0 && (
+        {smartCollections.length > 0 && (
           <h2 className="text-sm font-semibold uppercase tracking-wider mb-3" style={{ color: "var(--text-muted)" }}>
             TMDB Collections
           </h2>
@@ -197,7 +212,7 @@ function CollectionsPage() {
               <CollectionCardSkeleton key={i} />
             ))}
           </div>
-        ) : collections.length === 0 ? (
+        ) : tmdbCollections.length === 0 ? (
           <div
             className="rounded-[var(--radius-lg)]"
             style={{ backgroundColor: "var(--surface)", border: "1px solid var(--border)" }}
@@ -210,7 +225,7 @@ function CollectionsPage() {
           </div>
         ) : (
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-5 gap-4">
-            {collections.map((col) => (
+            {tmdbCollections.map((col) => (
               <CollectionPosterCard key={col.id} col={col} />
             ))}
           </div>
@@ -220,7 +235,7 @@ function CollectionsPage() {
       <SmartCollectionDialog
         open={dialogOpen}
         onClose={() => setDialogOpen(false)}
-        onSaved={save}
+        onSaved={() => {}}
         editing={editing}
       />
     </div>
