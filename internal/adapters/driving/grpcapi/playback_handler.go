@@ -77,6 +77,9 @@ func (h *playbackHandler) GetStreamInfo(ctx context.Context, req *eveyv1.GetStre
 	if len(req.SupportedCodecs) > 0 {
 		client.VideoCodecs = req.SupportedCodecs
 	}
+	if len(req.SupportedAudioCodecs) > 0 {
+		client.AudioCodecs = req.SupportedAudioCodecs
+	}
 	if len(req.SupportedContainers) > 0 {
 		client.Containers = req.SupportedContainers
 	}
@@ -93,6 +96,10 @@ func (h *playbackHandler) GetStreamInfo(ctx context.Context, req *eveyv1.GetStre
 	}
 
 	decision := apptranscoding.MakePlaybackDecision(streams, item.ContainerFormat, client, maxBitrateKbps)
+	resp.TranscodeReasons = decision.TranscodeReasons
+	resp.VideoDecision = decision.VideoDecision
+	resp.AudioDecision = decision.AudioDecision
+
 	switch decision.PlayMethod {
 	case "direct_play":
 		resp.PlayMethod = eveyv1.PlayMethod_PLAY_METHOD_DIRECT_PLAY

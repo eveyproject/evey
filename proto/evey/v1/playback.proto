@@ -88,6 +88,9 @@ message StreamInfo {
   PlayMethod play_method = 5;
   string container = 6;
   int64 bitrate = 7;
+  repeated string transcode_reasons = 8;
+  string video_decision = 9;
+  string audio_decision = 10;
 }
 
 message WatchProgress {
@@ -126,6 +129,7 @@ message GetStreamInfoRequest {
   repeated string supported_containers = 7;
   int32 audio_stream_index = 8;
   int32 subtitle_stream_index = 9;
+  repeated string supported_audio_codecs = 10;
 }
 
 message StartStreamRequest {
