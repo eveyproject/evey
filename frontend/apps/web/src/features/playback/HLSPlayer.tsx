@@ -126,6 +126,13 @@ export function HLSPlayer({
     const match = subtitleStreams.find((s) => (s.language ?? s.title ?? "").toLowerCase() === prefLang.toLowerCase());
     return match?.trackIndex ?? null;
   });
+  // Burn-in subtitle: the selected subtitle track index when it's an image-based subtitle (PGS/VobSub)
+  const selectedBurnInTrack = (() => {
+    if (currentSubtitle === null) return null;
+    const sub = subtitleStreams.find((s) => s.trackIndex === currentSubtitle);
+    return sub?.burnIn ? currentSubtitle : null;
+  })();
+
   const [playbackSpeed, setPlaybackSpeed] = useState(1);
   const anyPanelOpenRef = useRef(false);
   const closePanelRef = useRef<(() => void) | null>(null);
@@ -262,6 +269,7 @@ export function HLSPlayer({
     if (currentQuality > 0) params.set("videoScale", String(currentQuality));
     if (canPlayHevc) params.set("remux", "1");
     if (offset > 0) params.set("startTime", String(offset));
+    if (selectedBurnInTrack !== null) params.set("subtitleTrack", String(selectedBurnInTrack));
     const url = `/api/v1/media/${mediaId}/transcode?${params.toString()}`;
 
     let ready = false;
@@ -300,7 +308,7 @@ export function HLSPlayer({
       video.removeEventListener("error", handleError);
       video.src = "";
     };
-  }, [transcodeMode, mediaId, accessToken, onEnded, currentTrackIndex, currentQuality, transcodeStartTime]);
+  }, [transcodeMode, mediaId, accessToken, onEnded, currentTrackIndex, currentQuality, transcodeStartTime, selectedBurnInTrack]);
 
   // Subtitle track management — imperatively add/remove <track> element
   useEffect(() => {
@@ -316,9 +324,12 @@ export function HLSPlayer({
       externalSubUrlRef.current = null;
     }
 
+    // Don't create <track> for burn-in subtitles — they are rendered server-side in the video stream
+    const isBurnIn = selectedBurnInTrack !== null;
+
     const src = externalSubUrl
       ? externalSubUrl.url
-      : currentSubtitle !== null && accessToken
+      : currentSubtitle !== null && !isBurnIn && accessToken
         ? `/api/v1/media/${mediaId}/subtitle/${currentSubtitle}?token=${accessToken}`
         : null;
 
@@ -864,7 +875,17 @@ export function HLSPlayer({
         autoQualityLabel={autoQualityLabel}
         currentSubtitleTrackIndex={currentSubtitle}
         onSubtitleChange={(trackIndex) => {
+          const prevBurnIn = selectedBurnInTrack;
+          const nextSub = trackIndex !== null ? subtitleStreams.find((st) => st.trackIndex === trackIndex) : null;
+          const nextBurnIn = nextSub?.burnIn ? trackIndex : null;
+
           setCurrentSubtitle(trackIndex);
+
+          // Restart transcode when switching between burn-in tracks or toggling burn-in on/off
+          if (transcodeMode && prevBurnIn !== nextBurnIn) {
+            setTranscodeStartTime(positionRef.current);
+          }
+
           if (trackIndex === null) {
             setPreferredSubtitleLang(null);
             if (seriesId) {
