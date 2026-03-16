@@ -23,6 +23,8 @@ export function getBrowserCapabilities(): BrowserCapabilities {
 
   const audioCodecs: string[] = ["aac", "mp3", "opus"];
   if (canPlay('audio/mp4; codecs="ac-3"') || canPlay('video/mp4; codecs="ac-3"')) audioCodecs.push("ac3");
+  if (canPlay('audio/mp4; codecs="ec-3"') || canPlay('video/mp4; codecs="ec-3"')) audioCodecs.push("eac3");
+  if (canPlay("audio/flac")) audioCodecs.push("flac");
 
   const containers: string[] = [];
   if (canPlay("video/mp4")) containers.push("mp4");

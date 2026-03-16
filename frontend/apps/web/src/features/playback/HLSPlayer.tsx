@@ -97,8 +97,10 @@ export function HLSPlayer({
   const positionRef = useRef(startPositionMs / 1000);
   const knownDurationSecRef = useRef(knownDurationMs ? knownDurationMs / 1000 : 0);
   knownDurationSecRef.current = knownDurationMs ? knownDurationMs / 1000 : 0;
-  // Backend serves fMP4 transcode (not HLS manifests), always start in transcode mode
-  const [transcodeMode, setTranscodeMode] = useState(true);
+  const [transcodeMode, setTranscodeMode] = useState(
+    streamInfo.playMethod !== "PLAY_METHOD_DIRECT_PLAY" &&
+    streamInfo.playMethod !== "PLAY_METHOD_DIRECT_STREAM"
+  );
   const [overlayTime, setOverlayTime] = useState(0);
   const [overlayDuration, setOverlayDuration] = useState(0);
   const defaultAudio = (() => {
@@ -170,14 +172,18 @@ export function HLSPlayer({
   // initialized below; ref object is stable, .current is updated after function def
   const attemptQualityFallbackRef = useRef<(q: number) => boolean>(() => false);
 
-  // HLS path — only used when transcodeUrl is available
+  const isDirectPlay = streamInfo.playMethod === "PLAY_METHOD_DIRECT_PLAY";
+  const isDirectStream = streamInfo.playMethod === "PLAY_METHOD_DIRECT_STREAM";
+
+  // Direct play / direct stream path
   useEffect(() => {
     const video = videoRef.current;
     if (!video || transcodeMode) return;
 
     let hlsInstance: InstanceType<typeof Hls> | null = null;
 
-    if (streamInfo.transcodeUrl && Hls.isSupported()) {
+    // HLS only when neither direct play nor direct stream — those use native video.src
+    if (!isDirectPlay && !isDirectStream && streamInfo.transcodeUrl && Hls.isSupported()) {
       hlsInstance = new Hls();
       hlsRef.current = hlsInstance;
       hlsInstance.loadSource(streamInfo.transcodeUrl);
@@ -192,7 +198,6 @@ export function HLSPlayer({
       hlsInstance.on(Hls.Events.ERROR, (_, data) => {
         if (!data.fatal) return;
         console.warn("[player] HLS fatal error:", data.type, data.details);
-        // HLS failure = switch to transcode mode, NOT a quality issue
         setTranscodeMode(true);
       });
     } else if (streamInfo.directPlayUrl) {
@@ -213,10 +218,15 @@ export function HLSPlayer({
     function handleEnded() { onEnded?.(); }
     function handleError() {
       const e = video!.error;
-      if (e) console.warn("Video error:", e.code, e.message);
+      if (e) {
+        console.warn("[player] direct play error:", e.code, e.message);
+        setTranscodeMode(true);
+      }
     }
+    function handleTimeUpdate() { positionRef.current = video!.currentTime; }
     function handleWaiting() { setIsBuffering(true); }
     function handlePlaying() { setIsBuffering(false); }
+    video.addEventListener("timeupdate", handleTimeUpdate);
     video.addEventListener("ended", handleEnded);
     video.addEventListener("canplay", handleCanPlay);
     video.addEventListener("error", handleError);
@@ -226,6 +236,7 @@ export function HLSPlayer({
 
     return () => {
       if (canPlayTimer !== null) clearTimeout(canPlayTimer);
+      video.removeEventListener("timeupdate", handleTimeUpdate);
       video.removeEventListener("ended", handleEnded);
       video.removeEventListener("canplay", handleCanPlay);
       video.removeEventListener("error", handleError);
@@ -237,7 +248,7 @@ export function HLSPlayer({
         hlsRef.current = null;
       }
     };
-  }, [streamInfo, startPositionMs, onEnded, transcodeMode]);
+  }, [streamInfo, startPositionMs, onEnded, transcodeMode, isDirectPlay, isDirectStream]);
 
   // Transcode path — reload video with current audio track, quality and startTime
   const [transcodeStartTime, setTranscodeStartTime] = useState(startPositionMs / 1000);

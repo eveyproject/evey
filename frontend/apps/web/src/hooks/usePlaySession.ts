@@ -30,6 +30,7 @@ export function usePlaySession(mediaId: string): PlaySessionResult {
   const caps = useMemo(() => getBrowserCapabilities(), []);
   const streamInfoParams = useMemo(() => ({
     supportedCodecs: caps.videoCodecs,
+    supportedAudioCodecs: caps.audioCodecs,
     supportedContainers: caps.containers,
     maxWidth: window.screen.width,
     maxHeight: window.screen.height,
@@ -42,16 +43,20 @@ export function usePlaySession(mediaId: string): PlaySessionResult {
 
   const streamInfo: V1StreamInfo | undefined = rawStreamInfo
     ? (() => {
-        const isDirectPlay =
-          rawStreamInfo.playMethod === "PLAY_METHOD_DIRECT_PLAY" ||
-          rawStreamInfo.playMethod === "PLAY_METHOD_DIRECT_STREAM";
-        const url = isDirectPlay
-          ? (token
-              ? `${rawStreamInfo.directPlayUrl ?? `/api/v1/media/${mediaId}/stream`}?token=${token}`
-              : rawStreamInfo.directPlayUrl)
-          : (token
-              ? `/api/v1/media/${mediaId}/transcode?token=${token}`
-              : rawStreamInfo.transcodeUrl);
+        let url: string | undefined;
+        if (rawStreamInfo.playMethod === "PLAY_METHOD_DIRECT_PLAY") {
+          url = token
+            ? `${rawStreamInfo.directPlayUrl ?? `/api/v1/media/${mediaId}/stream`}?token=${token}`
+            : rawStreamInfo.directPlayUrl;
+        } else if (rawStreamInfo.playMethod === "PLAY_METHOD_DIRECT_STREAM") {
+          url = token
+            ? `/api/v1/media/${mediaId}/transcode?token=${token}&remux=1`
+            : rawStreamInfo.transcodeUrl;
+        } else {
+          url = token
+            ? `/api/v1/media/${mediaId}/transcode?token=${token}`
+            : rawStreamInfo.transcodeUrl;
+        }
         return { ...rawStreamInfo, directPlayUrl: url };
       })()
     : undefined;
