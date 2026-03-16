@@ -34,7 +34,7 @@ export function BulkActionBar({
     >
       <span
         className="text-sm font-semibold px-2 py-0.5 rounded-full"
-        style={{ backgroundColor: "var(--accent)", color: "#fff" }}
+        style={{ backgroundColor: "var(--accent)", color: "var(--filter-active-text)" }}
       >
         {count}
       </span>

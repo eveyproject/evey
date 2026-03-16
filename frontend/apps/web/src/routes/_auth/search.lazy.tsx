@@ -193,7 +193,7 @@ function SearchPage() {
                 </button>
                 <button
                   onClick={() => removeRecent(r)}
-                  className="ml-1 hover:text-red-400 cursor-pointer transition-colors"
+                  className="ml-1 cursor-pointer transition-colors hover:opacity-80"
                   style={{ color: "var(--text-muted)" }}
                   aria-label={`Remove ${r}`}
                 >

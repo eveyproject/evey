@@ -574,7 +574,7 @@ function LibraryPage() {
           >
             <span
               className="text-sm font-semibold px-2 py-0.5 rounded-full mr-1"
-              style={{ backgroundColor: "var(--accent)", color: "#fff" }}
+              style={{ backgroundColor: "var(--accent)", color: "var(--filter-active-text)" }}
             >
               {selectedIds.size}
             </span>

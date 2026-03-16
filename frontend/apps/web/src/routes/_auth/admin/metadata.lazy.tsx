@@ -92,7 +92,7 @@ function TmdbSearchPanel({
       <Button variant="secondary" onClick={search} loading={loading}>
         Search TMDB
       </Button>
-      {error && <p className="text-sm text-red-400">{error}</p>}
+      {error && <p className="text-sm" style={{ color: "var(--color-danger)" }}>{error}</p>}
       {results !== null && results.length === 0 && !loading && (
         <p className="text-sm" style={{ color: "var(--text-muted)" }}>
           No TMDB results found.
@@ -174,7 +174,8 @@ function GenrePills({
             {g}
             <button
               onClick={() => remove(g)}
-              className="hover:text-red-400 transition-colors"
+              className="transition-colors hover:opacity-80"
+              style={{ color: "var(--color-danger)" }}
               aria-label={`Remove ${g}`}
             >
               \u00D7

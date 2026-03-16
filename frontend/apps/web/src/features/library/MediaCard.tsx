@@ -378,7 +378,7 @@ export function MediaCard({
             className="absolute top-2 right-2 text-xs font-medium px-1.5 py-0.5"
             style={{
               backgroundColor: "rgba(0,0,0,0.7)",
-              color: "#fff",
+              color: "var(--overlay-text)",
               borderRadius: "var(--radius-sm)",
             }}
           >
@@ -396,7 +396,7 @@ export function MediaCard({
               width: "20px",
               height: "20px",
               borderRadius: "50%",
-              backgroundColor: "#22c55e",
+              backgroundColor: "var(--color-success)",
             }}
             data-testid="watched-badge"
           >
@@ -436,7 +436,7 @@ export function MediaCard({
                 className="text-[10px] font-bold px-1.5 py-0.5 leading-none"
                 style={{
                   backgroundColor: "rgba(0,0,0,0.7)",
-                  color: "#fff",
+                  color: "var(--overlay-text)",
                   borderRadius: "var(--radius-sm)",
                 }}
                 data-testid="resolution-badge"

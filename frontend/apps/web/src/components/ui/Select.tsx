@@ -41,7 +41,7 @@ export function Select({
           onChange={(e) => onChange(e.target.value)}
           disabled={disabled}
           {...props}
-          className={`w-full appearance-none px-3 py-2 pr-8 rounded-[var(--radius-md)] bg-[var(--surface-raised)] border border-[var(--border)] text-[var(--text)] text-sm focus:outline-none focus:ring-2 focus:ring-[var(--accent)] focus:border-transparent disabled:opacity-50 disabled:cursor-not-allowed ${error ? "border-red-500" : ""} ${className}`}
+          className={`w-full appearance-none px-3 py-2 pr-8 rounded-[var(--radius-md)] bg-[var(--surface-raised)] border border-[var(--border)] text-[var(--text)] text-sm focus:outline-none focus:ring-2 focus:ring-[var(--accent)] focus:border-transparent disabled:opacity-50 disabled:cursor-not-allowed ${error ? "border-[var(--color-danger)]" : ""} ${className}`}
         >
           {placeholder && (
             <option value="" disabled>
@@ -64,7 +64,7 @@ export function Select({
           <path strokeLinecap="round" strokeLinejoin="round" d="M6 9l6 6 6-6" />
         </svg>
       </div>
-      {error && <span className="text-xs text-red-400">{error}</span>}
+      {error && <span className="text-xs" style={{ color: "var(--color-danger)" }}>{error}</span>}
     </div>
   );
 }

@@ -432,7 +432,7 @@ export function LibraryFilterToggle({
         {count > 0 && (
           <span
             className="inline-flex items-center justify-center w-4 h-4 rounded-full text-xs font-bold"
-            style={{ backgroundColor: "#fff", color: "var(--accent)" }}
+            style={{ backgroundColor: "var(--filter-active-text)", color: "var(--accent)" }}
           >
             {count}
           </span>
