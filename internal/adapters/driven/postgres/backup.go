@@ -75,7 +75,7 @@ func (d *DatabaseDumper) RestoreTables(ctx context.Context, data io.Reader) erro
 		return fmt.Errorf("restore: read header: %w", err)
 	}
 	header = header[:n]
-	if !bytes.HasPrefix(header, pgDumpHeader) {
+	if !bytes.Contains(header, pgDumpHeader) {
 		return fmt.Errorf("restore: invalid file: missing pg_dump header")
 	}
 

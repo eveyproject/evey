@@ -31,20 +31,21 @@ func registerBackupRoutes(mux *http.ServeMux, svc *appbackup.Service, tokenGen *
 		}
 		m, err := svc.CreateBackup(r.Context())
 		if err != nil {
-			slog.Error("create backup", slog.Any("err", err))
+			slog.Error("create backup failed", slog.Any("err", err))
 			http.Error(w, `{"message":"internal error"}`, http.StatusInternalServerError)
 			return
 		}
+		slog.Info("backup created", slog.String("id", m.ID), slog.Int64("size", m.Size))
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusCreated)
-		if err := json.NewEncoder(w).Encode(map[string]any{
+		if encErr := json.NewEncoder(w).Encode(map[string]any{
 			"id":        m.ID,
 			"createdAt": m.CreatedAt.Format(time.RFC3339),
 			"version":   m.Version,
 			"tables":    m.Tables,
 			"size":      m.Size,
-		}); err != nil {
-			slog.Warn("json encode failed", slog.Any("err", err))
+		}); encErr != nil {
+			slog.Warn("json encode failed", slog.Any("err", encErr))
 		}
 	})
 
@@ -74,8 +75,8 @@ func registerBackupRoutes(mux *http.ServeMux, svc *appbackup.Service, tokenGen *
 			})
 		}
 		w.Header().Set("Content-Type", "application/json")
-		if err := json.NewEncoder(w).Encode(map[string]any{"backups": items}); err != nil {
-			slog.Warn("json encode failed", slog.Any("err", err))
+		if encErr := json.NewEncoder(w).Encode(map[string]any{"backups": items}); encErr != nil {
+			slog.Warn("json encode failed", slog.Any("err", encErr))
 		}
 	})
 
@@ -92,9 +93,9 @@ func registerBackupRoutes(mux *http.ServeMux, svc *appbackup.Service, tokenGen *
 		}
 		defer rc.Close()
 		w.Header().Set("Content-Type", "application/gzip")
-		w.Header().Set("Content-Disposition", fmt.Sprintf(`attachment; filename="%s.gz"`, m.ID))
-		if _, err := io.Copy(w, rc); err != nil {
-			slog.Warn("backup download copy", slog.Any("err", err))
+		w.Header().Set("Content-Disposition", fmt.Sprintf(`attachment; filename="%s.tar.gz"`, m.ID))
+		if _, cpErr := io.Copy(w, rc); cpErr != nil {
+			slog.Warn("backup download copy", slog.Any("err", cpErr))
 		}
 	})
 
@@ -115,13 +116,14 @@ func registerBackupRoutes(mux *http.ServeMux, svc *appbackup.Service, tokenGen *
 		}
 		defer file.Close()
 		if err := svc.RestoreBackup(r.Context(), file); err != nil {
-			slog.Error("restore backup", slog.Any("err", err))
+			slog.Error("restore backup failed", slog.Any("err", err))
 			http.Error(w, `{"message":"restore failed"}`, http.StatusInternalServerError)
 			return
 		}
+		slog.Info("backup restored successfully")
 		w.Header().Set("Content-Type", "application/json")
-		if _, err := w.Write([]byte(`{"ok":true}`)); err != nil {
-			slog.Warn("write failed", slog.Any("err", err))
+		if _, writeErr := w.Write([]byte(`{"ok":true}`)); writeErr != nil {
+			slog.Warn("write failed", slog.Any("err", writeErr))
 		}
 	})
 

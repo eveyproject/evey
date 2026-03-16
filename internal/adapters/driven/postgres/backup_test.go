@@ -21,6 +21,14 @@ func TestRestoreTables_Validation(t *testing.T) {
 		}
 	})
 
+	t.Run("valid header with leading comment passes", func(t *testing.T) {
+		body := "--\n-- PostgreSQL database dump\n--\n\nSET statement_timeout = 0;\n"
+		err := d.RestoreTables(ctx, strings.NewReader(body))
+		if err != nil && (strings.Contains(err.Error(), "invalid file") || strings.Contains(err.Error(), "dangerous")) {
+			t.Fatalf("valid dump with leading comment was rejected: %v", err)
+		}
+	})
+
 	t.Run("missing header is rejected", func(t *testing.T) {
 		body := "INSERT INTO users VALUES (1, 'hacked');\n"
 		err := d.RestoreTables(ctx, strings.NewReader(body))

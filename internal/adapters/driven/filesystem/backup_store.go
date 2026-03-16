@@ -1,6 +1,7 @@
 package filesystem
 
 import (
+	"archive/tar"
 	"compress/gzip"
 	"context"
 	"encoding/json"
@@ -23,11 +24,24 @@ func NewBackupStore(dir string) *BackupStore {
 	return &BackupStore{dir: dir}
 }
 
+// resolveArchivePath returns the path to the archive file, trying .tar.gz first then legacy .gz.
+func (s *BackupStore) resolveArchivePath(id string) (string, bool) {
+	tarPath := filepath.Join(s.dir, id+".tar.gz")
+	if _, err := os.Stat(tarPath); err == nil {
+		return tarPath, true
+	}
+	gzPath := filepath.Join(s.dir, id+".gz")
+	if _, err := os.Stat(gzPath); err == nil {
+		return gzPath, true
+	}
+	return tarPath, false
+}
+
 func (s *BackupStore) Create(_ context.Context, m *backup.BackupManifest, data io.Reader) error {
 	if err := os.MkdirAll(s.dir, 0750); err != nil {
 		return fmt.Errorf("create backup dir: %w", err)
 	}
-	archivePath := filepath.Join(s.dir, m.ID+".gz")
+	archivePath := filepath.Join(s.dir, m.ID+".tar.gz")
 	f, err := os.Create(archivePath)
 	if err != nil {
 		return fmt.Errorf("create archive: %w", err)
@@ -35,45 +49,55 @@ func (s *BackupStore) Create(_ context.Context, m *backup.BackupManifest, data i
 	defer f.Close()
 
 	gw := gzip.NewWriter(f)
-	defer func() {
-		if closeErr := gw.Close(); closeErr != nil {
-			slog.Warn("close gzip writer", slog.Any("err", closeErr))
-		}
-	}()
+	tw := tar.NewWriter(gw)
 
-	manifestBytes, err := json.Marshal(m)
-	if err != nil {
-		return fmt.Errorf("marshal manifest: %w", err)
+	manifestBytes, marshalErr := json.Marshal(m)
+	if marshalErr != nil {
+		return fmt.Errorf("marshal manifest: %w", marshalErr)
 	}
-	// write manifest length prefix + manifest + dump data
-	header := fmt.Sprintf("%d\n", len(manifestBytes))
-	if _, err2 := gw.Write([]byte(header)); err2 != nil {
-		return err2
+	if writeErr := writeTarEntry(tw, "manifest.json", manifestBytes); writeErr != nil {
+		return fmt.Errorf("write manifest: %w", writeErr)
 	}
-	if _, err2 := gw.Write(manifestBytes); err2 != nil {
-		return err2
+
+	dumpBytes, readErr := io.ReadAll(data)
+	if readErr != nil {
+		return fmt.Errorf("read dump: %w", readErr)
 	}
-	written, err := io.Copy(gw, data)
-	if err != nil {
-		return fmt.Errorf("write data: %w", err)
+	if writeErr := writeTarEntry(tw, "dump.sql", dumpBytes); writeErr != nil {
+		return fmt.Errorf("write dump: %w", writeErr)
 	}
-	if err2 := gw.Close(); err2 != nil {
-		return err2
+
+	if closeErr := tw.Close(); closeErr != nil {
+		return closeErr
 	}
-	if err2 := f.Close(); err2 != nil {
-		return err2
+	if closeErr := gw.Close(); closeErr != nil {
+		return closeErr
+	}
+	if closeErr := f.Close(); closeErr != nil {
+		return closeErr
 	}
 
 	fi, err := os.Stat(archivePath)
 	if err == nil {
 		m.Size = fi.Size()
-	} else {
-		m.Size = written
 	}
 
-	// write manifest sidecar for fast listing
-	manifestPath := filepath.Join(s.dir, m.ID+".json")
-	return os.WriteFile(manifestPath, manifestBytes, 0640)
+	// sidecar for fast listing
+	sidecarPath := filepath.Join(s.dir, m.ID+".json")
+	return os.WriteFile(sidecarPath, manifestBytes, 0640)
+}
+
+func writeTarEntry(tw *tar.Writer, name string, data []byte) error {
+	hdr := &tar.Header{
+		Name: name,
+		Mode: 0640,
+		Size: int64(len(data)),
+	}
+	if err := tw.WriteHeader(hdr); err != nil {
+		return err
+	}
+	_, err := tw.Write(data)
+	return err
 }
 
 func (s *BackupStore) List(_ context.Context) ([]*backup.BackupManifest, error) {
@@ -89,16 +113,16 @@ func (s *BackupStore) List(_ context.Context) ([]*backup.BackupManifest, error) 
 		if e.IsDir() || !strings.HasSuffix(e.Name(), ".json") {
 			continue
 		}
-		data, err := os.ReadFile(filepath.Join(s.dir, e.Name()))
-		if err != nil {
+		data, readErr := os.ReadFile(filepath.Join(s.dir, e.Name()))
+		if readErr != nil {
 			continue
 		}
 		var m backup.BackupManifest
 		if json.Unmarshal(data, &m) == nil {
-			// update size from archive
-			archivePath := filepath.Join(s.dir, m.ID+".gz")
-			if fi, err := os.Stat(archivePath); err == nil {
-				m.Size = fi.Size()
+			if archivePath, ok := s.resolveArchivePath(m.ID); ok {
+				if fi, statErr := os.Stat(archivePath); statErr == nil {
+					m.Size = fi.Size()
+				}
 			}
 			result = append(result, &m)
 		}
@@ -119,15 +143,18 @@ func (s *BackupStore) Get(_ context.Context, id string) (*backup.BackupManifest,
 		return nil, nil, fmt.Errorf("backup not found")
 	}
 	var m backup.BackupManifest
-	if err2 := json.Unmarshal(data, &m); err2 != nil {
+	if unmarshalErr := json.Unmarshal(data, &m); unmarshalErr != nil {
 		return nil, nil, fmt.Errorf("corrupt manifest")
 	}
-	archivePath := filepath.Join(s.dir, id+".gz")
-	f, err := os.Open(archivePath)
-	if err != nil {
+	archivePath, ok := s.resolveArchivePath(id)
+	if !ok {
 		return nil, nil, fmt.Errorf("backup archive not found")
 	}
-	if fi, err2 := os.Stat(archivePath); err2 == nil {
+	f, openErr := os.Open(archivePath)
+	if openErr != nil {
+		return nil, nil, fmt.Errorf("backup archive not found")
+	}
+	if fi, statErr := os.Stat(archivePath); statErr == nil {
 		m.Size = fi.Size()
 	}
 	return &m, f, nil
@@ -137,11 +164,11 @@ func (s *BackupStore) Delete(_ context.Context, id string) error {
 	if strings.Contains(id, "/") || strings.Contains(id, "\\") || strings.Contains(id, "..") {
 		return fmt.Errorf("invalid backup id")
 	}
-	archivePath := filepath.Join(s.dir, id+".gz")
-	manifestPath := filepath.Join(s.dir, id+".json")
-	if _, err := os.Stat(archivePath); os.IsNotExist(err) {
+	archivePath, ok := s.resolveArchivePath(id)
+	if !ok {
 		return fmt.Errorf("backup not found")
 	}
+	manifestPath := filepath.Join(s.dir, id+".json")
 	if err := os.Remove(archivePath); err != nil {
 		slog.Warn("remove backup archive", slog.Any("err", err))
 	}

@@ -1,15 +1,19 @@
 package backup
 
 import (
+	"archive/tar"
 	"bytes"
+	"compress/gzip"
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"io"
 	"log/slog"
 	"time"
 
 	"github.com/gravity-zero/evey/internal/domain/backup"
-	"github.com/gravity-zero/evey/internal/pkg/backupcrypto"
 	"github.com/gravity-zero/evey/internal/pkg/id"
 )
 
@@ -44,20 +48,13 @@ var BackupTables = []string{
 }
 
 type Service struct {
-	store         backup.BackupStore
-	dumper        backup.DatabaseDumper
-	version       string
-	encryptionKey []byte // nil = no encryption
+	store   backup.BackupStore
+	dumper  backup.DatabaseDumper
+	version string
 }
 
 func NewService(store backup.BackupStore, dumper backup.DatabaseDumper, version string) *Service {
 	return &Service{store: store, dumper: dumper, version: version}
-}
-
-// WithEncryptionKey sets a 32-byte AES-256-GCM key for backup encryption.
-// Generate via: openssl rand -base64 32  (set EVEY_BACKUP_ENCRYPTION_KEY)
-func (s *Service) WithEncryptionKey(key []byte) {
-	s.encryptionKey = key
 }
 
 func (s *Service) CreateBackup(ctx context.Context) (*backup.BackupManifest, error) {
@@ -65,28 +62,22 @@ func (s *Service) CreateBackup(ctx context.Context) (*backup.BackupManifest, err
 	if err != nil {
 		return nil, err
 	}
+
+	dumpBytes, err := io.ReadAll(data)
+	if err != nil {
+		return nil, err
+	}
+
+	hash := sha256.Sum256(dumpBytes)
 	m := &backup.BackupManifest{
-		ID:        id.New("bk-"),
-		CreatedAt: time.Now().UTC(),
-		Version:   s.version,
-		Tables:    BackupTables,
-		Encrypted: len(s.encryptionKey) > 0,
+		ID:         id.New("bk-"),
+		CreatedAt:  time.Now().UTC(),
+		Version:    s.version,
+		Tables:     BackupTables,
+		DumpSHA256: hex.EncodeToString(hash[:]),
 	}
 
-	var reader = data
-	if len(s.encryptionKey) > 0 {
-		raw, readErr := io.ReadAll(data)
-		if readErr != nil {
-			return nil, readErr
-		}
-		enc, encErr := backupcrypto.Encrypt(raw, s.encryptionKey)
-		if encErr != nil {
-			return nil, encErr
-		}
-		reader = bytes.NewReader(enc)
-	}
-
-	if err := s.store.Create(ctx, m, reader); err != nil {
+	if err := s.store.Create(ctx, m, bytes.NewReader(dumpBytes)); err != nil {
 		return nil, err
 	}
 	return m, nil
@@ -105,16 +96,22 @@ func (s *Service) RestoreBackup(ctx context.Context, data io.Reader) error {
 	if err != nil {
 		return err
 	}
-	if backupcrypto.IsEncrypted(raw) {
-		if len(s.encryptionKey) == 0 {
-			return fmt.Errorf("backup is encrypted but no EVEY_BACKUP_ENCRYPTION_KEY is set")
-		}
-		raw, err = backupcrypto.Decrypt(raw, s.encryptionKey)
-		if err != nil {
-			return fmt.Errorf("decrypt backup: %w", err)
+
+	archive, extractErr := extractTarGz(raw)
+	if extractErr != nil {
+		return fmt.Errorf("restore: %w", extractErr)
+	}
+
+	dump := archive.dump
+	if archive.manifest.DumpSHA256 != "" {
+		hash := sha256.Sum256(dump)
+		got := hex.EncodeToString(hash[:])
+		if got != archive.manifest.DumpSHA256 {
+			return fmt.Errorf("restore: dump integrity check failed (sha256 mismatch)")
 		}
 	}
-	return s.dumper.RestoreTables(ctx, bytes.NewReader(raw))
+
+	return s.dumper.RestoreTables(ctx, bytes.NewReader(dump))
 }
 
 func (s *Service) DeleteBackup(ctx context.Context, backupID string) error {
@@ -166,4 +163,59 @@ func (s *Service) CleanupOldBackups(ctx context.Context, retentionDays int) erro
 		}
 	}
 	return nil
+}
+
+type backupArchive struct {
+	manifestJSON []byte
+	manifest     *backup.BackupManifest
+	dump         []byte
+}
+
+func extractTarGz(raw []byte) (*backupArchive, error) {
+	gz, err := gzip.NewReader(bytes.NewReader(raw))
+	if err != nil {
+		return nil, fmt.Errorf("not a valid gzip archive: %w", err)
+	}
+	defer func() {
+		if closeErr := gz.Close(); closeErr != nil {
+			slog.Debug("close gzip reader", slog.Any("err", closeErr))
+		}
+	}()
+
+	tr := tar.NewReader(gz)
+	a := &backupArchive{}
+
+	for {
+		hdr, tarErr := tr.Next()
+		if tarErr == io.EOF {
+			break
+		}
+		if tarErr != nil {
+			return nil, fmt.Errorf("read tar: %w", tarErr)
+		}
+		content, readErr := io.ReadAll(tr)
+		if readErr != nil {
+			return nil, fmt.Errorf("read tar entry %s: %w", hdr.Name, readErr)
+		}
+		switch hdr.Name {
+		case "manifest.json":
+			a.manifestJSON = content
+		case "dump.sql":
+			a.dump = content
+		}
+	}
+
+	if a.manifestJSON == nil {
+		return nil, fmt.Errorf("archive missing manifest.json")
+	}
+	if a.dump == nil {
+		return nil, fmt.Errorf("archive missing dump.sql")
+	}
+
+	var m backup.BackupManifest
+	if err := json.Unmarshal(a.manifestJSON, &m); err != nil {
+		return nil, fmt.Errorf("parse manifest: %w", err)
+	}
+	a.manifest = &m
+	return a, nil
 }
