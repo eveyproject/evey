@@ -15,7 +15,7 @@ export default async function globalSetup() {
   fs.writeFileSync(MARKER, new Date().toISOString());
 
   // Perform login once; save storage state for reuse across all spec files
-  const browser = await chromium.launch({ ignoreDefaultArgs: ["--headless"] });
+  const browser = await chromium.launch();
   const context = await browser.newContext({ ignoreHTTPSErrors: true });
   const page = await context.newPage();
   await page.goto(`${BASE_URL}/login`, { waitUntil: "networkidle" });

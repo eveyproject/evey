@@ -63,10 +63,10 @@ test.describe("Player", () => {
     const video = page.locator("video");
     await expect(video).toBeVisible();
 
-    // verify video has a src (transcode URL with token)
+    // verify video has a src (transcode or stream URL with token)
     const src = await video.getAttribute("src");
     expect(src).toBeTruthy();
-    expect(src).toContain("/transcode");
+    expect(src!.includes("/transcode") || src!.includes("/stream")).toBe(true);
   });
 
   test("seek bar exists with valid max", async ({ page }) => {
