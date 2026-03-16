@@ -74,17 +74,15 @@ function BackupRow({ backup }: { backup: Backup }) {
     const a = document.createElement("a");
     a.href = `/api/v1/admin/backups/${backup.id}`;
     if (token) {
-      // Append token as query param for direct download
       a.href += `?token=${encodeURIComponent(token)}`;
     }
-    a.download = `${backup.id}.gz`;
+    a.download = `${backup.id}.tar.gz`;
     a.click();
   }
 
   async function handleRestore() {
     setRestoring(true);
     try {
-      // Raw fetch required: blob download then multipart upload (eveyFetch is JSON-only)
       const fileRes = await fetch(`/api/v1/admin/backups/${backup.id}`, {
         headers: token ? { Authorization: `Bearer ${token}` } : {},
       });
@@ -92,7 +90,7 @@ function BackupRow({ backup }: { backup: Backup }) {
       if (!fileRes.ok) throw new Error("Failed to fetch backup file");
       const blob = await fileRes.blob();
       const formData = new FormData();
-      formData.append("backup", blob, `${backup.id}.gz`);
+      formData.append("backup", blob, `${backup.id}.tar.gz`);
       const res = await fetch("/api/v1/admin/backups/restore", {
         method: "POST",
         headers: token ? { Authorization: `Bearer ${token}` } : {},
@@ -220,7 +218,6 @@ function RestoreUploadModal({
     try {
       const formData = new FormData();
       formData.append("backup", file);
-      // Raw fetch required: multipart upload (eveyFetch is JSON-only)
       const res = await fetch("/api/v1/admin/backups/restore", {
         method: "POST",
         headers: token ? { Authorization: `Bearer ${token}` } : {},
@@ -241,14 +238,14 @@ function RestoreUploadModal({
     <Modal open={open} onClose={onClose} title="Restore from File">
       <div className="flex flex-col gap-4">
         <p className="text-sm" style={{ color: "var(--text-muted)" }}>
-          Upload a backup .gz file to restore. This will overwrite existing data.
+          Upload a backup .tar.gz file to restore. This will overwrite existing data.
         </p>
         <input
           ref={fileInputRef}
           type="file"
-          accept=".gz"
-          className="text-sm"
-          style={{ color: "var(--text)" }}
+          accept=".tar.gz,.gz"
+          className="text-sm file:mr-3 file:rounded-[var(--radius-lg)] file:border file:border-solid file:border-[var(--border)] file:bg-[var(--surface)] file:px-4 file:py-2 file:text-sm file:font-medium file:text-[var(--text)] file:cursor-pointer hover:file:bg-[var(--accent)] hover:file:text-white file:transition-colors"
+          style={{ color: "var(--text-muted)" }}
         />
         <div className="flex justify-end gap-2">
           <Button variant="ghost" onClick={onClose}>Cancel</Button>

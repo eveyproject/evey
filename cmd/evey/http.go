@@ -19,7 +19,7 @@ func buildHTTPHandler(gwMux http.Handler, deps *appDeps, cfg *config.Config, sta
 
 	loginRL := ratelimit.New(cfg.Server.LoginRateLimitMax)
 	globalRL := ratelimit.New(100)
-	adminHeavyRL := ratelimit.NewWithBurst(3, 6.0)
+	adminHeavyRL := ratelimit.NewWithBurst(10, 10.0)
 	go func() {
 		<-ctx.Done()
 		loginRL.Stop()
