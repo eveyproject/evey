@@ -44,9 +44,8 @@ type SMTPConfig struct {
 
 type BackupConfig struct {
 	Dir           string
-	EncryptionKey string // base64-encoded 32-byte key for AES-256-GCM; empty = no encryption
-	IntervalHours int    // 0 = disabled
-	RetentionDays int    // 0 = keep forever
+	IntervalHours int // 0 = disabled
+	RetentionDays int // 0 = keep forever
 }
 
 type RemoteAccessConfig struct {
@@ -229,7 +228,6 @@ func Load() (*Config, error) {
 		},
 		Backup: BackupConfig{
 			Dir:           envStr("EVEY_BACKUP_DIR", "/data/backups"),
-			EncryptionKey: envStr("EVEY_BACKUP_ENCRYPTION_KEY", ""),
 			IntervalHours: envInt("EVEY_BACKUP_INTERVAL_HOURS", 0),
 			RetentionDays: envInt("EVEY_BACKUP_RETENTION_DAYS", 30),
 		},

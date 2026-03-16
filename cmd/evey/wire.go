@@ -40,8 +40,7 @@ import (
 	"github.com/gravity-zero/evey/internal/config"
 	"github.com/gravity-zero/evey/internal/domain/metadata"
 	"github.com/gravity-zero/evey/internal/pkg/auth"
-	"github.com/gravity-zero/evey/internal/pkg/backupcrypto"
-	"github.com/gravity-zero/evey/internal/pkg/eventbus"
+"github.com/gravity-zero/evey/internal/pkg/eventbus"
 	eveylogger "github.com/gravity-zero/evey/internal/pkg/logger"
 	appsyncplay "github.com/gravity-zero/evey/internal/app/syncplay"
 )
@@ -286,14 +285,6 @@ func buildServices(ctx context.Context, cfg *config.Config, db *sql.DB, rootLog 
 	backupSvc := appbackup.NewService(filesystem.NewBackupStore(cfg.Backup.Dir),
 		postgres.NewDatabaseDumper(cfg.DB.Host, cfg.DB.Port, cfg.DB.User, cfg.DB.Password, cfg.DB.DBName, cfg.DB.SSLMode),
 		version)
-	if cfg.Backup.EncryptionKey != "" {
-		bkey, bkeyErr := backupcrypto.KeyFromBase64(cfg.Backup.EncryptionKey)
-		if bkeyErr != nil {
-			return nil, fmt.Errorf("backup encryption key: %w", bkeyErr)
-		}
-		backupSvc.WithEncryptionKey(bkey)
-		rootLog.Info("backup encryption enabled")
-	}
 
 	syncPlayHub := appsyncplay.NewHub(postgres.NewSyncPlayRoomRepo(db))
 
