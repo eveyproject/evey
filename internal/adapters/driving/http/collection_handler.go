@@ -9,6 +9,7 @@ import (
 	"time"
 
 	appcollection "github.com/gravity-zero/evey/internal/app/collection"
+	"github.com/gravity-zero/evey/internal/domain/library"
 	"github.com/gravity-zero/evey/internal/pkg/auth"
 )
 
@@ -20,6 +21,7 @@ type collectionHandler struct {
 func registerCollectionRoutes(mux *http.ServeMux, svc *appcollection.Service, tokenGen *auth.JWTGenerator) {
 	h := &collectionHandler{svc: svc, tokenGen: tokenGen}
 	mux.HandleFunc("GET /api/v1/collections", h.list)
+	mux.HandleFunc("POST /api/v1/collections", h.create)
 	mux.HandleFunc("/api/v1/collections/", h.routeByID)
 }
 
@@ -41,6 +43,45 @@ func (h *collectionHandler) requireAdmin(r *http.Request) bool {
 	return err == nil && claims.IsAdmin
 }
 
+type collectionRuleDTO struct {
+	Field    string `json:"field"`
+	Operator string `json:"operator"`
+	Value    string `json:"value"`
+}
+
+type smartCollectionRequest struct {
+	Name   string              `json:"name"`
+	Rules  []collectionRuleDTO `json:"rules"`
+	SortBy string              `json:"sortBy"`
+}
+
+func (h *collectionHandler) create(w http.ResponseWriter, r *http.Request) {
+	if !h.requireAdmin(r) {
+		http.Error(w, `{"message":"forbidden"}`, http.StatusForbidden)
+		return
+	}
+	var req smartCollectionRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, `{"message":"invalid body"}`, http.StatusBadRequest)
+		return
+	}
+	rules := make([]library.CollectionRule, len(req.Rules))
+	for i, r := range req.Rules {
+		rules[i] = library.CollectionRule{Field: r.Field, Operator: r.Operator, Value: r.Value}
+	}
+	col, err := h.svc.CreateSmart(r.Context(), req.Name, rules, req.SortBy)
+	if err != nil {
+		slog.Warn("create smart collection", slog.Any("err", err))
+		http.Error(w, `{"message":"bad request"}`, http.StatusBadRequest)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusCreated)
+	if err := json.NewEncoder(w).Encode(h.collectionToJSON(col)); err != nil {
+		slog.Warn("json encode failed", slog.Any("err", err))
+	}
+}
+
 func (h *collectionHandler) list(w http.ResponseWriter, r *http.Request) {
 	if !h.requireAuth(r) {
 		http.Error(w, `{"message":"unauthenticated"}`, http.StatusUnauthorized)
@@ -52,20 +93,27 @@ func (h *collectionHandler) list(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	type colResp struct {
-		ID          string `json:"id"`
-		Name        string `json:"name"`
-		Overview    string `json:"overview,omitempty"`
-		TmdbID      *int   `json:"tmdbId,omitempty"`
-		PosterURL   string `json:"posterUrl,omitempty"`
-		BackdropURL string `json:"backdropUrl,omitempty"`
-		CreatedAt   string `json:"createdAt"`
-		UpdatedAt   string `json:"updatedAt"`
+		ID          string              `json:"id"`
+		Name        string              `json:"name"`
+		Overview    string              `json:"overview,omitempty"`
+		TmdbID      *int                `json:"tmdbId,omitempty"`
+		PosterURL   string              `json:"posterUrl,omitempty"`
+		BackdropURL string              `json:"backdropUrl,omitempty"`
+		Rules       []collectionRuleDTO `json:"rules,omitempty"`
+		SortBy      string              `json:"sortBy,omitempty"`
+		CreatedAt   string              `json:"createdAt"`
+		UpdatedAt   string              `json:"updatedAt"`
 	}
 	out := make([]colResp, 0, len(cols))
 	for _, c := range cols {
+		rules := make([]collectionRuleDTO, 0, len(c.Rules))
+		for _, r := range c.Rules {
+			rules = append(rules, collectionRuleDTO{Field: r.Field, Operator: r.Operator, Value: r.Value})
+		}
 		out = append(out, colResp{
 			ID: c.ID, Name: c.Name, Overview: c.Overview,
 			TmdbID: c.TmdbID, PosterURL: c.PosterURL, BackdropURL: c.BackdropURL,
+			Rules: rules, SortBy: c.SortBy,
 			CreatedAt: c.CreatedAt.Format(time.RFC3339),
 			UpdatedAt: c.UpdatedAt.Format(time.RFC3339),
 		})
@@ -92,6 +140,8 @@ func (h *collectionHandler) routeByID(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case http.MethodGet:
 		h.getByID(w, r, id)
+	case http.MethodPut:
+		h.update(w, r, id)
 	case http.MethodDelete:
 		h.delete(w, r, id)
 	default:
@@ -164,6 +214,36 @@ func (h *collectionHandler) getByID(w http.ResponseWriter, r *http.Request, id s
 	}
 }
 
+func (h *collectionHandler) update(w http.ResponseWriter, r *http.Request, id string) {
+	if !h.requireAdmin(r) {
+		http.Error(w, `{"message":"forbidden"}`, http.StatusForbidden)
+		return
+	}
+	var req smartCollectionRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, `{"message":"invalid body"}`, http.StatusBadRequest)
+		return
+	}
+	rules := make([]library.CollectionRule, len(req.Rules))
+	for i, ru := range req.Rules {
+		rules[i] = library.CollectionRule{Field: ru.Field, Operator: ru.Operator, Value: ru.Value}
+	}
+	col, err := h.svc.UpdateSmart(r.Context(), id, req.Name, rules, req.SortBy)
+	if err != nil {
+		if strings.Contains(err.Error(), "not found") {
+			http.Error(w, `{"message":"not found"}`, http.StatusNotFound)
+			return
+		}
+		slog.Warn("update smart collection", slog.Any("err", err))
+		http.Error(w, `{"message":"bad request"}`, http.StatusBadRequest)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	if err := json.NewEncoder(w).Encode(h.collectionToJSON(col)); err != nil {
+		slog.Warn("json encode failed", slog.Any("err", err))
+	}
+}
+
 func (h *collectionHandler) delete(w http.ResponseWriter, r *http.Request, id string) {
 	if !h.requireAdmin(r) {
 		http.Error(w, `{"message":"forbidden"}`, http.StatusForbidden)
@@ -174,4 +254,18 @@ func (h *collectionHandler) delete(w http.ResponseWriter, r *http.Request, id st
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
+}
+
+func (h *collectionHandler) collectionToJSON(col *library.Collection) map[string]any {
+	rules := make([]collectionRuleDTO, 0, len(col.Rules))
+	for _, r := range col.Rules {
+		rules = append(rules, collectionRuleDTO{Field: r.Field, Operator: r.Operator, Value: r.Value})
+	}
+	return map[string]any{
+		"id": col.ID, "name": col.Name, "overview": col.Overview,
+		"tmdbId": col.TmdbID, "posterUrl": col.PosterURL, "backdropUrl": col.BackdropURL,
+		"rules": rules, "sortBy": col.SortBy,
+		"createdAt": col.CreatedAt.Format(time.RFC3339),
+		"updatedAt": col.UpdatedAt.Format(time.RFC3339),
+	}
 }

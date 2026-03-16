@@ -59,6 +59,19 @@ func (r *FakeCollectionCommandRepo) Upsert(_ context.Context, col *library.Colle
 	return nil
 }
 
+func (r *FakeCollectionCommandRepo) Update(_ context.Context, col *library.Collection) error {
+	if r.Err != nil {
+		return r.Err
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if _, ok := r.collections[col.ID]; !ok {
+		return ErrNotFound
+	}
+	r.collections[col.ID] = col
+	return nil
+}
+
 func (r *FakeCollectionCommandRepo) Delete(_ context.Context, id string) error {
 	if r.Err != nil {
 		return r.Err

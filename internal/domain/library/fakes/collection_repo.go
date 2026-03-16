@@ -27,6 +27,9 @@ func (r *FakeCollectionRepository) Create(ctx context.Context, col *library.Coll
 func (r *FakeCollectionRepository) Upsert(ctx context.Context, col *library.Collection) error {
 	return r.cmd.Upsert(ctx, col)
 }
+func (r *FakeCollectionRepository) Update(ctx context.Context, col *library.Collection) error {
+	return r.cmd.Update(ctx, col)
+}
 func (r *FakeCollectionRepository) Delete(ctx context.Context, id string) error {
 	return r.cmd.Delete(ctx, id)
 }

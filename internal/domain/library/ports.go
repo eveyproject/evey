@@ -69,6 +69,7 @@ type MediaPersonRepository interface {
 type CollectionCommandRepo interface {
 	Create(ctx context.Context, col *Collection) error
 	Upsert(ctx context.Context, col *Collection) error
+	Update(ctx context.Context, col *Collection) error
 	Delete(ctx context.Context, id string) error
 	LinkItem(ctx context.Context, collectionID, mediaItemID string, sortOrder int) error
 }

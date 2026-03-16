@@ -65,6 +65,33 @@ func (r *CollectionRepository) Upsert(ctx context.Context, col *library.Collecti
 	return err
 }
 
+func (r *CollectionRepository) Update(ctx context.Context, col *library.Collection) error {
+	rulesJSON, err := json.Marshal(col.Rules)
+	if err != nil {
+		rulesJSON = []byte("[]")
+	}
+	sortBy := col.SortBy
+	if sortBy == "" {
+		sortBy = "added_at"
+	}
+	res, err := r.db.ExecContext(ctx,
+		`UPDATE collections SET name = $1, overview = $2, rules = $3, sort_by = $4, updated_at = $5
+		 WHERE id = $6`,
+		col.Name, col.Overview, rulesJSON, sortBy, col.UpdatedAt, col.ID,
+	)
+	if err != nil {
+		return err
+	}
+	n, rowsErr := res.RowsAffected()
+	if rowsErr != nil {
+		slog.Warn("rows affected", slog.Any("err", rowsErr))
+	}
+	if n == 0 {
+		return shared.ErrNotFound
+	}
+	return nil
+}
+
 func (r *CollectionRepository) GetByID(ctx context.Context, id string) (*library.Collection, error) {
 	col := &library.Collection{}
 	var rulesJSON []byte

@@ -401,6 +401,98 @@ func TestGetItems_SmartCollection_LimitTruncatesResults(t *testing.T) {
 	assert.Equal(t, "m2", items[1].ID)
 }
 
+func TestCreateSmart(t *testing.T) {
+	t.Parallel()
+	svc, _, _ := newSvc()
+	ctx := context.Background()
+
+	rules := []library.CollectionRule{{Field: "genre", Operator: "eq", Value: "Action"}}
+	col, err := svc.CreateSmart(ctx, "Action Movies", rules, "year")
+	require.NoError(t, err)
+	assert.NotEmpty(t, col.ID)
+	assert.Equal(t, "Action Movies", col.Name)
+	assert.Equal(t, "year", col.SortBy)
+	assert.Len(t, col.Rules, 1)
+	assert.Nil(t, col.TmdbID)
+}
+
+func TestCreateSmart_EmptyName(t *testing.T) {
+	t.Parallel()
+	svc, _, _ := newSvc()
+	rules := []library.CollectionRule{{Field: "genre", Operator: "eq", Value: "Action"}}
+	_, err := svc.CreateSmart(context.Background(), "", rules, "year")
+	require.Error(t, err)
+}
+
+func TestCreateSmart_NoRules(t *testing.T) {
+	t.Parallel()
+	svc, _, _ := newSvc()
+	_, err := svc.CreateSmart(context.Background(), "Empty", nil, "year")
+	require.Error(t, err)
+}
+
+func TestCreateSmart_DefaultSortBy(t *testing.T) {
+	t.Parallel()
+	svc, _, _ := newSvc()
+	rules := []library.CollectionRule{{Field: "type", Operator: "eq", Value: "movie"}}
+	col, err := svc.CreateSmart(context.Background(), "Movies", rules, "")
+	require.NoError(t, err)
+	assert.Equal(t, "added_at", col.SortBy)
+}
+
+func TestUpdateSmart(t *testing.T) {
+	t.Parallel()
+	svc, _, _ := newSvc()
+	ctx := context.Background()
+
+	rules := []library.CollectionRule{{Field: "genre", Operator: "eq", Value: "Action"}}
+	col, err := svc.CreateSmart(ctx, "Action Movies", rules, "year")
+	require.NoError(t, err)
+
+	newRules := []library.CollectionRule{{Field: "genre", Operator: "eq", Value: "Drama"}}
+	updated, err := svc.UpdateSmart(ctx, col.ID, "Drama Movies", newRules, "rating")
+	require.NoError(t, err)
+	assert.Equal(t, col.ID, updated.ID)
+	assert.Equal(t, "Drama Movies", updated.Name)
+	assert.Equal(t, "rating", updated.SortBy)
+	assert.Len(t, updated.Rules, 1)
+	assert.Equal(t, "Drama", updated.Rules[0].Value)
+}
+
+func TestUpdateSmart_NotFound(t *testing.T) {
+	t.Parallel()
+	svc, _, _ := newSvc()
+	rules := []library.CollectionRule{{Field: "genre", Operator: "eq", Value: "Action"}}
+	_, err := svc.UpdateSmart(context.Background(), "nonexistent", "Name", rules, "year")
+	require.Error(t, err)
+}
+
+func TestUpdateSmart_EmptyName(t *testing.T) {
+	t.Parallel()
+	svc, _, _ := newSvc()
+	ctx := context.Background()
+
+	rules := []library.CollectionRule{{Field: "genre", Operator: "eq", Value: "Action"}}
+	col, err := svc.CreateSmart(ctx, "Action Movies", rules, "year")
+	require.NoError(t, err)
+
+	_, err = svc.UpdateSmart(ctx, col.ID, "", rules, "year")
+	require.Error(t, err)
+}
+
+func TestUpdateSmart_NoRules(t *testing.T) {
+	t.Parallel()
+	svc, _, _ := newSvc()
+	ctx := context.Background()
+
+	rules := []library.CollectionRule{{Field: "genre", Operator: "eq", Value: "Action"}}
+	col, err := svc.CreateSmart(ctx, "Action", rules, "year")
+	require.NoError(t, err)
+
+	_, err = svc.UpdateSmart(ctx, col.ID, "Action", nil, "year")
+	require.Error(t, err)
+}
+
 func TestGetItems_SmartCollection_LimitEqualLen_NoTruncation(t *testing.T) {
 	t.Parallel()
 	mediaRepo := libfakes.NewFakeMediaItemRepository()

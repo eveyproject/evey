@@ -12,6 +12,7 @@ import (
 type CollectionCommandRepo interface {
 	Create(ctx context.Context, col *library.Collection) error
 	Upsert(ctx context.Context, col *library.Collection) error
+	Update(ctx context.Context, col *library.Collection) error
 	Delete(ctx context.Context, id string) error
 	LinkItem(ctx context.Context, collectionID, mediaItemID string, sortOrder int) error
 }
@@ -61,6 +62,55 @@ func (s *Service) Upsert(ctx context.Context, tmdbID int, name, overview, poster
 	// After upsert, the ID may differ if the row already existed; fetch by tmdb_id via query.
 	// Since CollectionQueryRepo doesn't expose GetByTmdbID, we return the col as-is.
 	// The caller can rely on the returned col for further operations.
+	return col, nil
+}
+
+func (s *Service) CreateSmart(ctx context.Context, name string, rules []library.CollectionRule, sortBy string) (*library.Collection, error) {
+	if name == "" {
+		return nil, fmt.Errorf("name is required")
+	}
+	if len(rules) == 0 {
+		return nil, fmt.Errorf("at least one rule is required")
+	}
+	if sortBy == "" {
+		sortBy = "added_at"
+	}
+	now := time.Now()
+	col := &library.Collection{
+		ID:        uuid.New().String(),
+		Name:      name,
+		Rules:     rules,
+		SortBy:    sortBy,
+		CreatedAt: now,
+		UpdatedAt: now,
+	}
+	if err := s.cmd.Create(ctx, col); err != nil {
+		return nil, err
+	}
+	return col, nil
+}
+
+func (s *Service) UpdateSmart(ctx context.Context, id, name string, rules []library.CollectionRule, sortBy string) (*library.Collection, error) {
+	col, err := s.query.GetByID(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	if name == "" {
+		return nil, fmt.Errorf("name is required")
+	}
+	if len(rules) == 0 {
+		return nil, fmt.Errorf("at least one rule is required")
+	}
+	if sortBy == "" {
+		sortBy = "added_at"
+	}
+	col.Name = name
+	col.Rules = rules
+	col.SortBy = sortBy
+	col.UpdatedAt = time.Now()
+	if err := s.cmd.Update(ctx, col); err != nil {
+		return nil, err
+	}
 	return col, nil
 }
 
