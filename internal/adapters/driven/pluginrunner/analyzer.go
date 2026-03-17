@@ -96,6 +96,12 @@ var (
 	suspiciousSchemeRe = regexp.MustCompile(`(?i)(wss?|ssh|telnet|ftp|ldap|smb|stratum\+tcp)://`)
 )
 
+var depManifests = map[string]bool{
+	"requirements.txt": true, "Pipfile": true, "pyproject.toml": true,
+	"package.json": true, "yarn.lock": true, "pnpm-lock.yaml": true,
+	"composer.json": true, "Gemfile": true, "go.mod": true,
+}
+
 var analyzedExtensions = map[string]bool{
 	".py": true, ".js": true, ".ts": true, ".go": true,
 	".sh": true, ".bash": true, ".rb": true, ".pl": true,
@@ -156,6 +162,20 @@ func AnalyzePlugin(dir string) (*AnalysisReport, error) {
 				return filepath.SkipDir
 			}
 			return nil
+		}
+
+		// Warn if dependency manifests are present (deps must be vendored)
+		base := info.Name()
+		if depManifests[base] {
+			relPath, _ := filepath.Rel(dir, path)
+			report.Findings = append(report.Findings, AnalysisFinding{
+				Severity:    SeverityWarning,
+				Category:    "unvendored_deps",
+				File:        relPath,
+				Line:        0,
+				Pattern:     base,
+				Description: "dependency manifest found — deps must be vendored in the ZIP",
+			})
 		}
 
 		ext := strings.ToLower(filepath.Ext(path))
