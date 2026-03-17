@@ -12,8 +12,8 @@ from concurrent import futures
 # Generated from proto/plugin/v1/plugin_api.proto
 # pip install grpcio grpcio-tools
 # python -m grpc_tools.protoc -I../../proto --python_out=. --grpc_python_out=. plugin/v1/plugin_api.proto
-import plugin.v1.plugin_api_pb2 as pb
-import plugin.v1.plugin_api_pb2_grpc as rpc
+import plugin_api_pb2 as pb
+import plugin_api_pb2_grpc as rpc
 
 PLUGIN_ID = os.environ.get("EVEY_PLUGIN_ID", "unknown")
 PLUGIN_SOCK = os.environ.get("EVEY_PLUGIN_SOCK", "/tmp/evey/plugins/python-hello.sock")

@@ -1,11 +1,13 @@
 package plugin
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
 	"log/slog"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"time"
@@ -99,6 +101,13 @@ func (s *Service) InstallPlugin(ctx context.Context, zipPath string) (*plugin.Pl
 		p.InstallDir = installDir
 	}
 
+	// Generate gRPC stubs for interpreted languages
+	if p.InstallDir != "" && !isStaticPlugin(p) {
+		if genErr := generateGRPCStubs(p.Language, p.InstallDir); genErr != nil {
+			slog.Warn("generate gRPC stubs", slog.String("pluginID", p.ID), slog.Any("err", genErr))
+		}
+	}
+
 	// Run static analysis
 	if s.analyzer != nil && p.InstallDir != "" {
 		report, analyzeErr := s.analyzer.Analyze(p.InstallDir)
@@ -141,6 +150,85 @@ func (s *Service) InstallPlugin(ctx context.Context, zipPath string) (*plugin.Pl
 // isStaticPlugin returns true for plugins that don't need a subprocess (CSS themes).
 func isStaticPlugin(p *plugin.Plugin) bool {
 	return strings.EqualFold(p.Language, "css")
+}
+
+const protoSourcePath = "/app/proto/plugin/v1/plugin_api.proto"
+const protoIncludePath = "/app/proto"
+
+// generateGRPCStubs generates language-specific gRPC client/server code
+// from the plugin proto, so plugin authors don't need to do it themselves.
+func generateGRPCStubs(language, installDir string) error {
+	lang := strings.ToLower(language)
+	switch lang {
+	case "python":
+		return generatePythonStubs(installDir)
+	case "nodejs", "node":
+		// Node.js uses @grpc/proto-loader at runtime — just copy the proto
+		return copyProtoFile(installDir)
+	default:
+		// Go/Rust/C plugins are compiled — stubs are built-in
+		return nil
+	}
+}
+
+func generatePythonStubs(installDir string) error {
+	// Generate into a temp dir first, then flatten to installDir
+	tmpDir := filepath.Join(installDir, ".grpc_gen_tmp")
+	if err := os.MkdirAll(tmpDir, 0755); err != nil {
+		return fmt.Errorf("create temp dir: %w", err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	cmd := exec.Command("python3", "-m", "grpc_tools.protoc",
+		"--proto_path="+protoIncludePath,
+		"--python_out="+tmpDir,
+		"--grpc_python_out="+tmpDir,
+		protoSourcePath,
+	)
+	var stderr bytes.Buffer
+	cmd.Stderr = &stderr
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("protoc python: %s: %w", strings.TrimSpace(stderr.String()), err)
+	}
+
+	// Flatten: move generated files from plugin/v1/ to installDir root
+	genDir := filepath.Join(tmpDir, "plugin", "v1")
+	entries, err := os.ReadDir(genDir)
+	if err != nil {
+		return fmt.Errorf("read generated dir: %w", err)
+	}
+	for _, e := range entries {
+		if e.IsDir() {
+			continue
+		}
+		src := filepath.Join(genDir, e.Name())
+		data, readErr := os.ReadFile(src)
+		if readErr != nil {
+			return fmt.Errorf("read %s: %w", e.Name(), readErr)
+		}
+		// Fix import paths: "from plugin.v1 import" → direct import
+		content := strings.ReplaceAll(string(data), "from plugin.v1 import ", "import ")
+		content = strings.ReplaceAll(content, "from plugin.v1.", "from .")
+		dst := filepath.Join(installDir, e.Name())
+		if writeErr := os.WriteFile(dst, []byte(content), 0644); writeErr != nil {
+			return fmt.Errorf("write %s: %w", e.Name(), writeErr)
+		}
+	}
+
+	slog.Info("generated Python gRPC stubs", slog.String("dir", installDir))
+	return nil
+}
+
+func copyProtoFile(installDir string) error {
+	src, err := os.ReadFile(protoSourcePath)
+	if err != nil {
+		return fmt.Errorf("read proto: %w", err)
+	}
+	dst := filepath.Join(installDir, "plugin_api.proto")
+	if err := os.WriteFile(dst, src, 0644); err != nil {
+		return fmt.Errorf("write proto: %w", err)
+	}
+	return nil
 }
 
 func (s *Service) UninstallPlugin(ctx context.Context, id string) error {
