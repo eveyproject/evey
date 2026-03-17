@@ -1,4 +1,4 @@
-.PHONY: proto-gen build test lint clean \
+.PHONY: proto-gen plugin-sdk build test lint clean \
 	migrate-up migrate-down setup dev dev-down dev-logs \
 	docker-build docker-up docker-down frontend-typecheck
 
@@ -9,6 +9,18 @@ DC=docker compose --env-file .env.dev
 
 proto-gen:
 	buf generate
+
+plugin-sdk:
+	@echo "Generating plugin SDK stubs..."
+	python3 -m grpc_tools.protoc --proto_path=proto --python_out=sdk/python --grpc_python_out=sdk/python proto/plugin/v1/plugin_api.proto
+	mv sdk/python/plugin/v1/plugin_api_pb2.py sdk/python/ 2>/dev/null || true
+	mv sdk/python/plugin/v1/plugin_api_pb2_grpc.py sdk/python/ 2>/dev/null || true
+	rm -rf sdk/python/plugin
+	sed -i 's/from plugin\.v1 import /import /g' sdk/python/plugin_api_pb2_grpc.py
+	cp proto/plugin/v1/plugin_api.proto sdk/nodejs/
+	cp proto/plugin/v1/plugin_api.proto sdk/php/
+	cp proto/plugin/v1/plugin_api.proto sdk/ruby/
+	@echo "Done — sdk/ updated"
 
 build:
 	go build -o bin/$(BINARY) ./cmd/evey

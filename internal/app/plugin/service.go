@@ -1,13 +1,11 @@
 package plugin
 
 import (
-	"bytes"
 	"context"
 	"errors"
 	"fmt"
 	"log/slog"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 	"time"
@@ -101,10 +99,10 @@ func (s *Service) InstallPlugin(ctx context.Context, zipPath string) (*plugin.Pl
 		p.InstallDir = installDir
 	}
 
-	// Generate gRPC stubs for interpreted languages
-	if p.InstallDir != "" && !isStaticPlugin(p) {
-		if genErr := generateGRPCStubs(p.Language, p.InstallDir); genErr != nil {
-			slog.Warn("generate gRPC stubs", slog.String("pluginID", p.ID), slog.Any("err", genErr))
+	// Copy pre-generated SDK stubs into plugin dir
+	if p.InstallDir != "" {
+		if cpErr := copySDKStubs(p.Language, p.InstallDir); cpErr != nil {
+			slog.Warn("copy SDK stubs", slog.String("pluginID", p.ID), slog.Any("err", cpErr))
 		}
 	}
 
@@ -152,136 +150,46 @@ func isStaticPlugin(p *plugin.Plugin) bool {
 	return strings.EqualFold(p.Language, "css")
 }
 
-const protoSourcePath = "/app/proto/plugin/v1/plugin_api.proto"
-const protoIncludePath = "/app/proto"
+const sdkBasePath = "/app/sdk"
 
-// generateGRPCStubs generates language-specific gRPC client/server code
-// from the plugin proto, so plugin authors don't need to do it themselves.
-func generateGRPCStubs(language, installDir string) error {
+// copySDKStubs copies pre-generated gRPC stubs from sdk/{language}/ into the plugin install dir.
+// Stubs are generated once via `make plugin-sdk` and versioned in the repo.
+func copySDKStubs(language, installDir string) error {
 	lang := strings.ToLower(language)
 	switch lang {
-	case "python":
-		return generatePythonStubs(installDir)
 	case "nodejs", "node":
-		// Node.js uses @grpc/proto-loader at runtime — just copy the proto
-		return copyProtoFile(installDir)
-	case "php":
-		return generatePHPStubs(installDir)
-	case "ruby":
-		return generateRubyStubs(installDir)
-	default:
-		// Go/Rust/C plugins are compiled — stubs are built-in
-		// Unknown languages get the proto file as fallback
-		return copyProtoFile(installDir)
-	}
-}
-
-func generatePythonStubs(installDir string) error {
-	// Generate into a temp dir first, then flatten to installDir
-	tmpDir := filepath.Join(installDir, ".grpc_gen_tmp")
-	if err := os.MkdirAll(tmpDir, 0755); err != nil {
-		return fmt.Errorf("create temp dir: %w", err)
-	}
-	defer os.RemoveAll(tmpDir)
-
-	cmd := exec.Command("python3", "-m", "grpc_tools.protoc",
-		"--proto_path="+protoIncludePath,
-		"--python_out="+tmpDir,
-		"--grpc_python_out="+tmpDir,
-		protoSourcePath,
-	)
-	var stderr bytes.Buffer
-	cmd.Stderr = &stderr
-	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("protoc python: %s: %w", strings.TrimSpace(stderr.String()), err)
+		lang = "nodejs"
+	case "css":
+		return nil // themes don't need stubs
 	}
 
-	// Flatten: move generated files from plugin/v1/ to installDir root
-	genDir := filepath.Join(tmpDir, "plugin", "v1")
-	entries, err := os.ReadDir(genDir)
+	sdkDir := filepath.Join(sdkBasePath, lang)
+	if _, err := os.Stat(sdkDir); err != nil {
+		slog.Debug("no SDK stubs for language", slog.String("language", lang))
+		return nil
+	}
+
+	entries, err := os.ReadDir(sdkDir)
 	if err != nil {
-		return fmt.Errorf("read generated dir: %w", err)
+		return fmt.Errorf("read sdk dir: %w", err)
 	}
 	for _, e := range entries {
-		if e.IsDir() {
+		if e.IsDir() || e.Name() == "README.md" || e.Name() == "VERSION" {
 			continue
 		}
-		src := filepath.Join(genDir, e.Name())
+		src := filepath.Join(sdkDir, e.Name())
 		data, readErr := os.ReadFile(src)
 		if readErr != nil {
-			return fmt.Errorf("read %s: %w", e.Name(), readErr)
+			return fmt.Errorf("read sdk file %s: %w", e.Name(), readErr)
 		}
-		// Fix import paths: "from plugin.v1 import" → direct import
-		content := strings.ReplaceAll(string(data), "from plugin.v1 import ", "import ")
-		content = strings.ReplaceAll(content, "from plugin.v1.", "from .")
 		dst := filepath.Join(installDir, e.Name())
-		if writeErr := os.WriteFile(dst, []byte(content), 0644); writeErr != nil {
+		if writeErr := os.WriteFile(dst, data, 0644); writeErr != nil {
 			return fmt.Errorf("write %s: %w", e.Name(), writeErr)
 		}
 	}
 
-	slog.Info("generated Python gRPC stubs", slog.String("dir", installDir))
+	slog.Info("copied SDK stubs", slog.String("language", lang), slog.String("dir", installDir))
 	return nil
-}
-
-func copyProtoFile(installDir string) error {
-	src, err := os.ReadFile(protoSourcePath)
-	if err != nil {
-		return fmt.Errorf("read proto: %w", err)
-	}
-	dst := filepath.Join(installDir, "plugin_api.proto")
-	if err := os.WriteFile(dst, src, 0644); err != nil {
-		return fmt.Errorf("write proto: %w", err)
-	}
-	return nil
-}
-
-func generatePHPStubs(installDir string) error {
-	outDir := filepath.Join(installDir, "generated")
-	if err := os.MkdirAll(outDir, 0755); err != nil {
-		return fmt.Errorf("create php output dir: %w", err)
-	}
-	cmd := exec.Command("protoc",
-		"--proto_path="+protoIncludePath,
-		"--php_out="+outDir,
-		"--grpc_out="+outDir,
-		"--plugin=protoc-gen-grpc="+findGRPCPlugin("grpc_php_plugin"),
-		protoSourcePath,
-	)
-	var stderr bytes.Buffer
-	cmd.Stderr = &stderr
-	if err := cmd.Run(); err != nil {
-		// Fallback: just copy the proto file
-		slog.Debug("php protoc failed, copying proto as fallback", slog.Any("err", err))
-		return copyProtoFile(installDir)
-	}
-	slog.Info("generated PHP gRPC stubs", slog.String("dir", installDir))
-	return nil
-}
-
-func generateRubyStubs(installDir string) error {
-	cmd := exec.Command("grpc_tools_ruby_protoc",
-		"--proto_path="+protoIncludePath,
-		"--ruby_out="+installDir,
-		"--grpc_out="+installDir,
-		protoSourcePath,
-	)
-	var stderr bytes.Buffer
-	cmd.Stderr = &stderr
-	if err := cmd.Run(); err != nil {
-		// Fallback: just copy the proto file
-		slog.Debug("ruby protoc failed, copying proto as fallback", slog.Any("err", err))
-		return copyProtoFile(installDir)
-	}
-	slog.Info("generated Ruby gRPC stubs", slog.String("dir", installDir))
-	return nil
-}
-
-func findGRPCPlugin(name string) string {
-	if path, err := exec.LookPath(name); err == nil {
-		return path
-	}
-	return name
 }
 
 func (s *Service) UninstallPlugin(ctx context.Context, id string) error {
