@@ -304,6 +304,56 @@ other = "https://api.example.com/v1"
 	}
 }
 
+func TestAnalyzePlugin_ExtractsNonHTTPSchemes(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "main.py", `
+ws_url = "wss://realtime.example.com/ws"
+ftp_url = "ftp://files.example.com/data.csv"
+db_url = "postgresql://user:pass@db.example.com/mydb"
+ssh_url = "ssh://deploy@server.example.com"
+`)
+
+	report, err := AnalyzePlugin(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	schemes := map[string]bool{}
+	for _, u := range report.URLs {
+		for _, prefix := range []string{"wss://", "ftp://", "postgresql://", "ssh://"} {
+			if len(u.URL) >= len(prefix) && u.URL[:len(prefix)] == prefix {
+				schemes[prefix] = true
+			}
+		}
+	}
+	for _, expected := range []string{"wss://", "ftp://", "postgresql://", "ssh://"} {
+		if !schemes[expected] {
+			t.Errorf("expected %s URL to be extracted", expected)
+		}
+	}
+}
+
+func TestAnalyzePlugin_SuspiciousSchemeWarning(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "main.py", `
+ws = "wss://evil.com/exfil"
+ssh = "ssh://root@target.com"
+`)
+
+	report, err := AnalyzePlugin(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	found := false
+	for _, f := range report.Findings {
+		if f.Category == "suspicious_url" {
+			found = true
+		}
+	}
+	if !found {
+		t.Error("expected suspicious_url warning for non-HTTP schemes")
+	}
+}
+
 func TestAnalyzePlugin_SensitiveFiles(t *testing.T) {
 	dir := t.TempDir()
 	writeFile(t, dir, "exfil.py", `

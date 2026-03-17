@@ -84,14 +84,16 @@ var analyzerRules = []analyzerRule{
 	{regexp.MustCompile(`(?i)(pip\s+install|npm\s+install|yarn\s+add|go\s+install|curl\s.*\|\s*(sh|bash))`), SeverityCritical, "runtime_install", "runtime package installation", nil},
 }
 
-// URL extraction patterns
+// URL extraction patterns — all network schemes
+const urlSchemes = `(?:https?|ftp|ftps|wss?|ssh|telnet|ldaps?|smb|mqtt|amqp|redis|mongodb|postgres(?:ql)?|mysql|stratum\+tcp)`
+
 var (
-	// Literal URLs: "https://example.com/path"
-	urlLiteralRe = regexp.MustCompile(`https?://[^\s"'\x60\]}>),;]+`)
-	// Template/f-string URLs: f"https://api.example.com/{var}"
-	urlTemplateRe = regexp.MustCompile(`(?:f["']|` + "`" + `)https?://[^"'` + "`" + `]+`)
-	// String concatenation: "https://" + host + "/api"
-	urlConcatRe = regexp.MustCompile(`["']https?://["']\s*[\+\.]`)
+	urlLiteralRe  = regexp.MustCompile(urlSchemes + `://[^\s"'\x60\]}>),;]+`)
+	urlTemplateRe = regexp.MustCompile(`(?:f["']|` + "`" + `)` + urlSchemes + `://[^"'` + "`" + `]+`)
+	urlConcatRe   = regexp.MustCompile(`["']` + urlSchemes + `://["']\s*[\+\.]`)
+
+	// Suspicious schemes that should always be flagged as WARNING
+	suspiciousSchemeRe = regexp.MustCompile(`(?i)(wss?|ssh|telnet|ftp|ldap|smb|stratum\+tcp)://`)
 )
 
 var analyzedExtensions = map[string]bool{
@@ -231,6 +233,16 @@ func scanFile(path, relPath string) ([]AnalysisFinding, []ExtractedURL, error) {
 			if !seen[u] {
 				seen[u] = true
 				urls = append(urls, ExtractedURL{URL: u, File: relPath, Line: lineNum, Type: "literal"})
+			}
+			if suspiciousSchemeRe.MatchString(u) {
+				findings = append(findings, AnalysisFinding{
+					Severity:    SeverityWarning,
+					Category:    "suspicious_url",
+					File:        relPath,
+					Line:        lineNum,
+					Pattern:     u,
+					Description: "non-HTTP URL scheme",
+				})
 			}
 		}
 		if loc := urlTemplateRe.FindString(line); loc != "" && !seen[loc] {
