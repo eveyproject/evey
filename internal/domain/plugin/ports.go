@@ -28,6 +28,7 @@ type PluginRunner interface {
 
 type ManifestParser interface {
 	Parse(zipPath string) (*PluginManifest, error)
+	ParseDir(dir string) (*PluginManifest, error)
 }
 
 type PluginInstaller interface {

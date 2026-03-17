@@ -19,3 +19,10 @@ func (p *FakeManifestParser) Parse(_ string) (*plugin.PluginManifest, error) {
 	}
 	return p.Result, nil
 }
+
+func (p *FakeManifestParser) ParseDir(_ string) (*plugin.PluginManifest, error) {
+	if p.Err != nil {
+		return nil, p.Err
+	}
+	return p.Result, nil
+}

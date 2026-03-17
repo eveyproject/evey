@@ -281,6 +281,9 @@ func (s *Service) StartPlugin(ctx context.Context, id string) error {
 		p.ErrorMessage = ""
 		return s.plugins.Update(ctx, p)
 	}
+	if p.InstallDir == "" {
+		p.InstallDir = filepath.Join(s.pluginDir, p.ID)
+	}
 	if err := s.runner.Start(ctx, p); err != nil {
 		p.Status = string(plugin.Error)
 		p.ErrorMessage = err.Error()
@@ -346,9 +349,25 @@ func (s *Service) AutoStartPlugins(ctx context.Context) {
 		if !p.Enabled || p.Status != string(plugin.Running) {
 			continue
 		}
-		// CSS themes don't need a subprocess
 		if isStaticPlugin(p) {
 			continue
+		}
+		// Rebuild missing fields (plugins installed before migration 42)
+		rebuilt := false
+		if p.InstallDir == "" {
+			p.InstallDir = filepath.Join(s.pluginDir, p.ID)
+			rebuilt = true
+		}
+		if p.Entrypoint == "" {
+			if m, mErr := s.parser.ParseDir(p.InstallDir); mErr == nil && m != nil {
+				p.Entrypoint = m.Entrypoint
+				rebuilt = true
+			}
+		}
+		if rebuilt {
+			if upErr := s.plugins.Update(ctx, p); upErr != nil {
+				slog.Warn("persist rebuilt plugin fields", slog.String("pluginID", p.ID), slog.Any("err", upErr))
+			}
 		}
 		slog.Info("auto-starting plugin", slog.String("pluginID", p.ID), slog.String("name", p.Name))
 		if startErr := s.runner.Start(ctx, p); startErr != nil {

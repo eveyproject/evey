@@ -4,6 +4,8 @@ import (
 	"archive/zip"
 	"fmt"
 	"io"
+	"os"
+	"path/filepath"
 
 	"github.com/gravity-zero/evey/internal/domain/plugin"
 	"gopkg.in/yaml.v3"
@@ -53,6 +55,29 @@ func (p *YAMLManifestParser) Parse(zipPath string) (*plugin.PluginManifest, erro
 		return nil, err
 	}
 
+	return &manifest, nil
+}
+
+func (p *YAMLManifestParser) ParseDir(dir string) (*plugin.PluginManifest, error) {
+	var data []byte
+	var err error
+	for _, name := range []string{"plugin.yaml", "plugin.yml"} {
+		data, err = os.ReadFile(filepath.Join(dir, name))
+		if err == nil {
+			break
+		}
+	}
+	if err != nil {
+		return nil, fmt.Errorf("read manifest from dir: %w", err)
+	}
+
+	var manifest plugin.PluginManifest
+	if err := yaml.Unmarshal(data, &manifest); err != nil {
+		return nil, fmt.Errorf("parse yaml: %w", err)
+	}
+	if err := validateManifest(&manifest); err != nil {
+		return nil, err
+	}
 	return &manifest, nil
 }
 

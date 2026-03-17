@@ -39,6 +39,7 @@ import (
 	"github.com/gravity-zero/evey/internal/adapters/driven/postgres"
 	httpapi "github.com/gravity-zero/evey/internal/adapters/driving/http"
 	"github.com/gravity-zero/evey/internal/config"
+	"github.com/gravity-zero/evey/internal/domain/library"
 	"github.com/gravity-zero/evey/internal/domain/metadata"
 	"github.com/gravity-zero/evey/internal/pkg/auth"
 "github.com/gravity-zero/evey/internal/pkg/eventbus"
@@ -136,9 +137,11 @@ func buildServices(ctx context.Context, cfg *config.Config, db *sql.DB, rootLog 
 	r := postgres.NewRepos(db)
 
 	// --- Infrastructure ---
-	searchAdapter, err := meili.NewSearchAdapter(cfg.Meilisearch.URL, cfg.Meilisearch.APIKey)
-	if err != nil {
+	var searchAdapter library.SearchIndex
+	if sa, err := meili.NewSearchAdapter(cfg.Meilisearch.URL, cfg.Meilisearch.APIKey); err != nil {
 		slog.Warn("meilisearch unavailable, search disabled", slog.Any("err", err))
+	} else {
+		searchAdapter = sa
 	}
 	scanner := filesystem.NewScanner()
 	prober := ffmpeg.NewProber("ffprobe")
