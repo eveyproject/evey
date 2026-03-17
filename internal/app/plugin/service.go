@@ -343,15 +343,20 @@ func (s *Service) AutoStartPlugins(ctx context.Context) {
 		return
 	}
 	for _, p := range all {
-		if p.Status == string(plugin.Running) && p.Enabled {
-			slog.Info("auto-starting plugin", slog.String("pluginID", p.ID), slog.String("name", p.Name))
-			if err := s.runner.Start(ctx, p); err != nil {
-				slog.Warn("auto-start plugin failed", slog.String("pluginID", p.ID), slog.Any("err", err))
-				p.Status = string(plugin.Error)
-				p.ErrorMessage = err.Error()
-				if updateErr := s.plugins.Update(ctx, p); updateErr != nil {
-					slog.Warn("update plugin status", slog.String("pluginID", p.ID), slog.Any("err", updateErr))
-				}
+		if !p.Enabled || p.Status != string(plugin.Running) {
+			continue
+		}
+		// CSS themes don't need a subprocess
+		if isStaticPlugin(p) {
+			continue
+		}
+		slog.Info("auto-starting plugin", slog.String("pluginID", p.ID), slog.String("name", p.Name))
+		if startErr := s.runner.Start(ctx, p); startErr != nil {
+			slog.Warn("auto-start plugin failed", slog.String("pluginID", p.ID), slog.Any("err", startErr))
+			p.Status = string(plugin.Error)
+			p.ErrorMessage = startErr.Error()
+			if updateErr := s.plugins.Update(ctx, p); updateErr != nil {
+				slog.Warn("update plugin status", slog.String("pluginID", p.ID), slog.Any("err", updateErr))
 			}
 		}
 	}
