@@ -2,9 +2,11 @@ FROM golang:1.25.8-alpine
 
 RUN apk add --no-cache ffmpeg curl postgresql-client \
     python3 py3-pip py3-grpcio py3-protobuf \
-    nodejs npm && \
+    nodejs npm \
+    bash perl lua5.4 ruby php83 && \
     go install github.com/air-verse/air@latest && \
-    npm install -g esbuild@0.25.12 @grpc/grpc-js@1.12.6 @grpc/proto-loader@0.7.13
+    npm install -g esbuild@0.25.12 @grpc/grpc-js@1.12.6 @grpc/proto-loader@0.7.13 && \
+    ln -sf /usr/bin/lua5.4 /usr/bin/lua
 
 WORKDIR /app
 

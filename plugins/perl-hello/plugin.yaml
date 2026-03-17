@@ -1,0 +1,10 @@
+name: perl-hello
+version: 1.0.0
+description: Example Perl plugin — stays alive as daemon
+author: Evey
+language: perl
+entrypoint: perl main.pl
+capabilities:
+  - media.read
+permissions:
+  - api.library
