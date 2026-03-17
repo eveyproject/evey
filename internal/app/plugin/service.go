@@ -5,12 +5,16 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"os"
+	"path/filepath"
 	"time"
 
 	"github.com/gravity-zero/evey/internal/domain/plugin"
 	"github.com/gravity-zero/evey/internal/domain/shared"
 	"github.com/gravity-zero/evey/internal/pkg/id"
 )
+
+const defaultPluginBaseDir = "/data/plugins"
 
 var (
 	ErrPluginNotFound = errors.New("plugin not found")
@@ -19,11 +23,14 @@ var (
 )
 
 type Service struct {
-	plugins  plugin.PluginRepository
-	runtimes plugin.PluginRuntimeRepository
-	runner   plugin.PluginRunner
-	parser   plugin.ManifestParser
-	events   shared.EventBus
+	plugins    plugin.PluginRepository
+	runtimes   plugin.PluginRuntimeRepository
+	runner     plugin.PluginRunner
+	parser     plugin.ManifestParser
+	events     shared.EventBus
+	installer  plugin.PluginInstaller
+	analyzer   plugin.PluginAnalyzer
+	pluginDir  string
 }
 
 func NewService(
@@ -34,12 +41,28 @@ func NewService(
 	events shared.EventBus,
 ) *Service {
 	return &Service{
-		plugins:  plugins,
-		runtimes: runtimes,
-		runner:   runner,
-		parser:   parser,
-		events:   events,
+		plugins:   plugins,
+		runtimes:  runtimes,
+		runner:    runner,
+		parser:    parser,
+		events:    events,
+		pluginDir: defaultPluginBaseDir,
 	}
+}
+
+func (s *Service) WithInstaller(installer plugin.PluginInstaller) *Service {
+	s.installer = installer
+	return s
+}
+
+func (s *Service) WithAnalyzer(analyzer plugin.PluginAnalyzer) *Service {
+	s.analyzer = analyzer
+	return s
+}
+
+func (s *Service) WithPluginDir(dir string) *Service {
+	s.pluginDir = dir
+	return s
 }
 
 func (s *Service) InstallPlugin(ctx context.Context, zipPath string) (*plugin.Plugin, error) {
@@ -55,6 +78,7 @@ func (s *Service) InstallPlugin(ctx context.Context, zipPath string) (*plugin.Pl
 		Description:  manifest.Description,
 		Author:       manifest.Author,
 		Language:     manifest.Language,
+		Entrypoint:   manifest.Entrypoint,
 		Capabilities: manifest.Capabilities,
 		Permissions:  manifest.Permissions,
 		ConfigSchema: manifest.ConfigSchema,
@@ -63,6 +87,25 @@ func (s *Service) InstallPlugin(ctx context.Context, zipPath string) (*plugin.Pl
 		Status:       string(plugin.Stopped),
 		InstalledAt:  time.Now(),
 		UpdatedAt:    time.Now(),
+	}
+
+	// Extract ZIP to install dir
+	if s.installer != nil {
+		installDir := filepath.Join(s.pluginDir, p.ID)
+		if err := s.installer.Extract(zipPath, installDir); err != nil {
+			return nil, fmt.Errorf("extract plugin: %w", err)
+		}
+		p.InstallDir = installDir
+	}
+
+	// Run static analysis
+	if s.analyzer != nil && p.InstallDir != "" {
+		report, analyzeErr := s.analyzer.Analyze(p.InstallDir)
+		if analyzeErr != nil {
+			slog.Warn("plugin static analysis failed", slog.String("pluginID", p.ID), slog.Any("err", analyzeErr))
+		} else if !report.Safe {
+			slog.Warn("plugin has security issues", slog.String("pluginID", p.ID), slog.Any("issues", report.Issues))
+		}
 	}
 
 	if err := s.plugins.Create(ctx, p); err != nil {
@@ -99,6 +142,14 @@ func (s *Service) UninstallPlugin(ctx context.Context, id string) error {
 			slog.Warn("stop plugin runner failed", slog.String("pluginID", id), slog.Any("err", err))
 		}
 	}
+
+	// Remove install directory
+	if p.InstallDir != "" {
+		if err := os.RemoveAll(p.InstallDir); err != nil {
+			slog.Warn("remove plugin dir", slog.String("pluginID", id), slog.Any("err", err))
+		}
+	}
+
 	if err := s.plugins.Delete(ctx, id); err != nil {
 		return err
 	}
@@ -217,4 +268,26 @@ func (s *Service) AddRuntime(ctx context.Context, rt *plugin.PluginRuntime) erro
 
 func (s *Service) RemoveRuntime(ctx context.Context, id string) error {
 	return s.runtimes.Delete(ctx, id)
+}
+
+// AutoStartPlugins starts all plugins that were running before shutdown.
+func (s *Service) AutoStartPlugins(ctx context.Context) {
+	all, err := s.plugins.List(ctx)
+	if err != nil {
+		slog.Error("list plugins for auto-start", slog.Any("err", err))
+		return
+	}
+	for _, p := range all {
+		if p.Status == string(plugin.Running) && p.Enabled {
+			slog.Info("auto-starting plugin", slog.String("pluginID", p.ID), slog.String("name", p.Name))
+			if err := s.runner.Start(ctx, p); err != nil {
+				slog.Warn("auto-start plugin failed", slog.String("pluginID", p.ID), slog.Any("err", err))
+				p.Status = string(plugin.Error)
+				p.ErrorMessage = err.Error()
+				if updateErr := s.plugins.Update(ctx, p); updateErr != nil {
+					slog.Warn("update plugin status", slog.String("pluginID", p.ID), slog.Any("err", updateErr))
+				}
+			}
+		}
+	}
 }

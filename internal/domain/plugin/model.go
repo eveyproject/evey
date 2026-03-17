@@ -51,6 +51,12 @@ type PluginManifest struct {
 	ConfigSchema   map[string]any `yaml:"config_schema"`
 }
 
+type AnalysisReport struct {
+	Safe     bool
+	Issues   []string
+	FileCount int
+}
+
 type PluginRuntime struct {
 	ID       string
 	Language string
