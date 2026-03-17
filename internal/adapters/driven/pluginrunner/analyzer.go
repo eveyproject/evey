@@ -167,7 +167,10 @@ func AnalyzePlugin(dir string) (*AnalysisReport, error) {
 		// Warn if dependency manifests are present (deps must be vendored)
 		base := info.Name()
 		if depManifests[base] {
-			relPath, _ := filepath.Rel(dir, path)
+			relPath, relErr := filepath.Rel(dir, path)
+			if relErr != nil {
+				relPath = path
+			}
 			report.Findings = append(report.Findings, AnalysisFinding{
 				Severity:    SeverityWarning,
 				Category:    "unvendored_deps",

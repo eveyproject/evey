@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 
 	domainplugin "github.com/gravity-zero/evey/internal/domain/plugin"
@@ -85,14 +86,7 @@ func (h *pluginAssetHandler) handleThemeCSS(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	hasThemeCap := false
-	for _, cap := range p.Capabilities {
-		if cap == "ui.theme" {
-			hasThemeCap = true
-			break
-		}
-	}
-	if !hasThemeCap {
+	if !slices.Contains(p.Capabilities, "ui.theme") {
 		http.Error(w, `{"message":"not a theme plugin"}`, http.StatusNotFound)
 		return
 	}
@@ -142,11 +136,8 @@ func (h *pluginAssetHandler) handleListThemes(w http.ResponseWriter, r *http.Req
 		if !p.Enabled {
 			continue
 		}
-		for _, cap := range p.Capabilities {
-			if cap == "ui.theme" {
-				result = append(result, themeEntry{ID: p.ID, Name: p.Name})
-				break
-			}
+		if slices.Contains(p.Capabilities, "ui.theme") {
+			result = append(result, themeEntry{ID: p.ID, Name: p.Name})
 		}
 	}
 
@@ -183,7 +174,12 @@ func registerPluginUploadRoute(mux *http.ServeMux, tokenGen *auth.JWTGenerator, 
 			http.Error(w, `{"message":"internal error"}`, http.StatusInternalServerError)
 			return
 		}
-		defer os.Remove(tmpFile.Name())
+		tmpName := tmpFile.Name()
+		defer func() {
+			if rmErr := os.Remove(tmpName); rmErr != nil {
+				slog.Debug("remove temp plugin file", slog.Any("err", rmErr))
+			}
+		}()
 		defer tmpFile.Close()
 
 		if _, cpErr := io.Copy(tmpFile, file); cpErr != nil {

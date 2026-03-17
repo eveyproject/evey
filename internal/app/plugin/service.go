@@ -164,8 +164,8 @@ func copySDKStubs(language, installDir string) error {
 	}
 
 	sdkDir := filepath.Join(sdkBasePath, lang)
-	if _, err := os.Stat(sdkDir); err != nil {
-		slog.Debug("no SDK stubs for language", slog.String("language", lang))
+	if _, statErr := os.Stat(sdkDir); statErr != nil {
+		slog.Debug("no SDK stubs for language", slog.String("language", lang), slog.Any("err", statErr))
 		return nil
 	}
 
