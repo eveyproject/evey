@@ -1,14 +1,10 @@
 {
-  "name": "evey-nodejs-example-plugin",
+  "name": "evey-plugin-nodejs-hello",
   "version": "1.0.0",
-  "description": "Example Evey plugin in Node.js",
-  "main": "index.js",
-  "scripts": {
-    "start": "node index.js",
-    "proto": "grpc_tools_node_protoc --js_out=import_style=commonjs,binary:. --grpc_out=grpc_mode=grpc_js:. -I ../../proto ../../proto/plugin/v1/plugin_api.proto"
-  },
+  "private": true,
+  "main": "main.js",
   "dependencies": {
-    "@grpc/grpc-js": "1.10.3",
+    "@grpc/grpc-js": "1.12.6",
     "@grpc/proto-loader": "0.7.13"
   }
 }

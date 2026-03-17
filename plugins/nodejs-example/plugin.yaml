@@ -1,18 +1,10 @@
-name: nodejs-example
+name: nodejs-hello
 version: 1.0.0
-description: Example Evey plugin written in Node.js
-author: Evey Team
+description: Example Node.js plugin — logs media events
+author: Evey
 language: nodejs
-entrypoint: node index.js
-min_evey_version: 0.1.0
+entrypoint: node main.js
 capabilities:
-  - metadata.provider
   - media.read
 permissions:
-  - media.read
   - api.library
-  - api.metadata
-config_schema:
-  api_key:
-    type: string
-    required: false
