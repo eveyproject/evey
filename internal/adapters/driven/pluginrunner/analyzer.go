@@ -29,8 +29,16 @@ type AnalysisFinding struct {
 	Description string
 }
 
+type ExtractedURL struct {
+	URL  string
+	File string
+	Line int
+	Type string // "literal", "template", "concatenation"
+}
+
 type AnalysisReport struct {
 	Findings          []AnalysisFinding
+	URLs              []ExtractedURL
 	TotalFilesScanned int
 	Safe              bool
 }
@@ -76,6 +84,16 @@ var analyzerRules = []analyzerRule{
 	{regexp.MustCompile(`(?i)(pip\s+install|npm\s+install|yarn\s+add|go\s+install|curl\s.*\|\s*(sh|bash))`), SeverityCritical, "runtime_install", "runtime package installation", nil},
 }
 
+// URL extraction patterns
+var (
+	// Literal URLs: "https://example.com/path"
+	urlLiteralRe = regexp.MustCompile(`https?://[^\s"'\x60\]}>),;]+`)
+	// Template/f-string URLs: f"https://api.example.com/{var}"
+	urlTemplateRe = regexp.MustCompile(`(?:f["']|` + "`" + `)https?://[^"'` + "`" + `]+`)
+	// String concatenation: "https://" + host + "/api"
+	urlConcatRe = regexp.MustCompile(`["']https?://["']\s*[\+\.]`)
+)
+
 var analyzedExtensions = map[string]bool{
 	".py": true, ".js": true, ".ts": true, ".go": true,
 	".sh": true, ".bash": true, ".rb": true, ".pl": true,
@@ -99,6 +117,14 @@ func (a *StaticAnalyzer) Analyze(dir string) (*plugin.AnalysisReport, error) {
 	}
 	for _, f := range raw.Findings {
 		report.Issues = append(report.Issues, fmt.Sprintf("[%s] %s:%d — %s (%s)", severityLabel(f.Severity), f.File, f.Line, f.Description, f.Pattern))
+	}
+	for _, u := range raw.URLs {
+		report.URLs = append(report.URLs, plugin.ExtractedURL{
+			URL:  u.URL,
+			File: u.File,
+			Line: u.Line,
+			Type: u.Type,
+		})
 	}
 	return report, nil
 }
@@ -141,11 +167,12 @@ func AnalyzePlugin(dir string) (*AnalysisReport, error) {
 			relPath = path
 		}
 
-		findings, scanErr := scanFile(path, relPath)
+		findings, urls, scanErr := scanFile(path, relPath)
 		if scanErr != nil {
 			return scanErr
 		}
 		report.Findings = append(report.Findings, findings...)
+		report.URLs = append(report.URLs, urls...)
 		return nil
 	})
 	if err != nil {
@@ -162,14 +189,16 @@ func AnalyzePlugin(dir string) (*AnalysisReport, error) {
 	return report, nil
 }
 
-func scanFile(path, relPath string) ([]AnalysisFinding, error) {
+func scanFile(path, relPath string) ([]AnalysisFinding, []ExtractedURL, error) {
 	f, err := os.Open(path)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	defer f.Close()
 
 	var findings []AnalysisFinding
+	var urls []ExtractedURL
+	seen := map[string]bool{}
 	scanner := bufio.NewScanner(f)
 	lineNum := 0
 
@@ -196,7 +225,26 @@ func scanFile(path, relPath string) ([]AnalysisFinding, error) {
 				})
 			}
 		}
+
+		// Extract URLs
+		for _, u := range urlLiteralRe.FindAllString(line, -1) {
+			if !seen[u] {
+				seen[u] = true
+				urls = append(urls, ExtractedURL{URL: u, File: relPath, Line: lineNum, Type: "literal"})
+			}
+		}
+		if loc := urlTemplateRe.FindString(line); loc != "" && !seen[loc] {
+			seen[loc] = true
+			urls = append(urls, ExtractedURL{URL: loc, File: relPath, Line: lineNum, Type: "template"})
+		}
+		if urlConcatRe.MatchString(line) {
+			key := relPath + ":" + fmt.Sprint(lineNum)
+			if !seen[key] {
+				seen[key] = true
+				urls = append(urls, ExtractedURL{URL: "(concatenated URL)", File: relPath, Line: lineNum, Type: "concatenation"})
+			}
+		}
 	}
 
-	return findings, scanner.Err()
+	return findings, urls, scanner.Err()
 }

@@ -235,6 +235,75 @@ func TestAnalyzePlugin_SkipsBinaryFiles(t *testing.T) {
 	}
 }
 
+func TestAnalyzePlugin_ExtractsURLs(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "fetcher.py", `
+import requests
+API = "https://graphql.anilist.co"
+resp = requests.get(f"https://api.example.com/{media_id}")
+base = "https://" + host + "/api"
+`)
+
+	report, err := AnalyzePlugin(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(report.URLs) == 0 {
+		t.Fatal("expected URLs to be extracted")
+	}
+	types := map[string]bool{}
+	for _, u := range report.URLs {
+		types[u.Type] = true
+	}
+	if !types["literal"] {
+		t.Error("expected literal URL")
+	}
+	if !types["template"] {
+		t.Error("expected template URL")
+	}
+	if !types["concatenation"] {
+		t.Error("expected concatenation URL")
+	}
+}
+
+func TestAnalyzePlugin_NoURLsInCleanPlugin(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "main.py", `
+def hello():
+    return "world"
+`)
+
+	report, err := AnalyzePlugin(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(report.URLs) != 0 {
+		t.Errorf("expected no URLs, got %d", len(report.URLs))
+	}
+}
+
+func TestAnalyzePlugin_DeduplicatesURLs(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "main.py", `
+url = "https://api.example.com/v1"
+other = "https://api.example.com/v1"
+`)
+
+	report, err := AnalyzePlugin(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	count := 0
+	for _, u := range report.URLs {
+		if u.URL == "https://api.example.com/v1" {
+			count++
+		}
+	}
+	if count != 1 {
+		t.Errorf("expected 1 deduplicated URL, got %d", count)
+	}
+}
+
 func TestAnalyzePlugin_SensitiveFiles(t *testing.T) {
 	dir := t.TempDir()
 	writeFile(t, dir, "exfil.py", `

@@ -59,9 +59,17 @@ type PluginManifest struct {
 }
 
 type AnalysisReport struct {
-	Safe     bool
-	Issues   []string
+	Safe      bool
+	Issues    []string
+	URLs      []ExtractedURL
 	FileCount int
+}
+
+type ExtractedURL struct {
+	URL  string
+	File string
+	Line int
+	Type string // "literal", "template", "concatenation"
 }
 
 type PluginRuntime struct {
