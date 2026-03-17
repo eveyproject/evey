@@ -1,0 +1,27 @@
+# Evey plugin runtimes — copy and customize as needed
+# Usage: replace Dockerfile.dev reference in docker-compose.yml
+#   build:
+#     dockerfile: docker/Dockerfile.plugins.example
+
+FROM golang:1.25.8-alpine
+
+RUN apk add --no-cache ffmpeg curl postgresql-client \
+    # Default runtimes (Python + Node.js)
+    python3 py3-pip py3-grpcio py3-grpcio-tools \
+    nodejs npm \
+    # Uncomment the runtimes you need for your plugins:
+    # php php-grpc \
+    # ruby ruby-grpc \
+    # perl \
+    # lua \
+    && go install github.com/air-verse/air@latest \
+    && npm install -g esbuild@0.25.12
+
+WORKDIR /app
+
+COPY go.mod go.sum ./
+RUN go mod download
+
+ENV EVEY_LOG_DEV_MODE=true
+
+CMD ["air", "-c", ".air.toml"]
