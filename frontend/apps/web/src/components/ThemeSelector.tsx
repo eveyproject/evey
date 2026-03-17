@@ -20,13 +20,11 @@ function usePluginThemes() {
   return useQuery<PluginThemeInfo[]>({
     queryKey: ["plugin-themes"],
     queryFn: async () => {
-      const data = await eveyFetch<{ plugins: Array<{ id: string; name: string; capabilities: string[]; enabled: boolean }> }>({
-        url: "/api/v1/admin/plugins",
+      const data = await eveyFetch<{ themes: PluginThemeInfo[] }>({
+        url: "/api/v1/plugins/themes",
         method: "GET",
       });
-      return (data.plugins ?? [])
-        .filter((p) => p.enabled && p.capabilities?.includes("ui.theme"))
-        .map((p) => ({ id: p.id, name: p.name }));
+      return data.themes ?? [];
     },
     staleTime: 60_000,
   });

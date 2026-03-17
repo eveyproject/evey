@@ -28,6 +28,7 @@ func registerPluginAssetRoutes(mux *http.ServeMux, tokenGen *auth.JWTGenerator, 
 	h := &pluginAssetHandler{tokenGen: tokenGen, pluginDir: pluginDir, repo: repo}
 	mux.HandleFunc("GET /api/v1/plugins/{id}/widget.js", h.handleWidgetJS)
 	mux.HandleFunc("GET /api/v1/plugins/{id}/theme.css", h.handleThemeCSS)
+	mux.HandleFunc("GET /api/v1/plugins/themes", h.handleListThemes)
 }
 
 func (h *pluginAssetHandler) handleWidgetJS(w http.ResponseWriter, r *http.Request) {
@@ -121,6 +122,46 @@ func (h *pluginAssetHandler) handleThemeCSS(w http.ResponseWriter, r *http.Reque
 	w.Header().Set("Cache-Control", "public, max-age=3600")
 	if _, err := w.Write(data); err != nil {
 		return
+	}
+}
+
+func (h *pluginAssetHandler) handleListThemes(w http.ResponseWriter, r *http.Request) {
+	token := extractBearerToken(r)
+	if token == "" {
+		http.Error(w, `{"message":"unauthorized"}`, http.StatusUnauthorized)
+		return
+	}
+	if _, err := h.tokenGen.ValidateAccessToken(token); err != nil {
+		http.Error(w, `{"message":"unauthorized"}`, http.StatusUnauthorized)
+		return
+	}
+
+	plugins, err := h.repo.List(r.Context())
+	if err != nil {
+		http.Error(w, `{"message":"internal error"}`, http.StatusInternalServerError)
+		return
+	}
+
+	type themeEntry struct {
+		ID   string `json:"id"`
+		Name string `json:"name"`
+	}
+	var result []themeEntry
+	for _, p := range plugins {
+		if !p.Enabled {
+			continue
+		}
+		for _, cap := range p.Capabilities {
+			if cap == "ui.theme" {
+				result = append(result, themeEntry{ID: p.ID, Name: p.Name})
+				break
+			}
+		}
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	if encErr := json.NewEncoder(w).Encode(map[string]any{"themes": result}); encErr != nil {
+		slog.Warn("encode themes", slog.Any("err", encErr))
 	}
 }
 
