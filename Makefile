@@ -12,11 +12,10 @@ proto-gen:
 
 plugin-sdk:
 	@echo "Generating plugin SDK stubs..."
-	@# Python — grpc_tools.protoc
-	python3 -m grpc_tools.protoc --proto_path=proto --python_out=sdk/python --grpc_python_out=sdk/python proto/plugin/v1/plugin_api.proto
-	mv sdk/python/plugin/v1/plugin_api_pb2.py sdk/python/ 2>/dev/null || true
-	mv sdk/python/plugin/v1/plugin_api_pb2_grpc.py sdk/python/ 2>/dev/null || true
-	rm -rf sdk/python/plugin
+	@# Python — generate inside container to match grpcio version
+	docker compose exec evey sh -c 'mkdir -p /tmp/sdk_gen && python3 -m grpc_tools.protoc --proto_path=/app/proto --python_out=/tmp/sdk_gen --grpc_python_out=/tmp/sdk_gen /app/proto/plugin/v1/plugin_api.proto'
+	docker cp $$(docker compose ps -q evey):/tmp/sdk_gen/plugin/v1/plugin_api_pb2.py sdk/python/
+	docker cp $$(docker compose ps -q evey):/tmp/sdk_gen/plugin/v1/plugin_api_pb2_grpc.py sdk/python/
 	sed -i 's/from plugin\.v1 import /import /g' sdk/python/plugin_api_pb2_grpc.py
 	@# Node.js — proto-loader (runtime), just copy proto
 	cp proto/plugin/v1/plugin_api.proto sdk/nodejs/
