@@ -13,6 +13,7 @@ import {
   ArrowLeft,
 } from "lucide-react";
 import { AdminNav } from "@/features/admin/AdminNav";
+import { PluginSlot } from "@/features/plugins/PluginSlot";
 
 const COLLAPSED_KEY = "evey-sidebar-collapsed";
 
@@ -138,6 +139,9 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
           )}
         </ul>
       )}
+      <div className={`mt-auto ${isCollapsed ? "px-1" : "px-2"}`}>
+        <PluginSlot name="sidebar.bottom" />
+      </div>
     </nav>
   );
 }

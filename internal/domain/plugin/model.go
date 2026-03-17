@@ -29,6 +29,7 @@ type Plugin struct {
 	InstallDir   string
 	Capabilities []string
 	Permissions  []string
+	UIWidgets    []UIWidget
 	ConfigSchema map[string]any
 	Config       map[string]any
 	Enabled      bool
@@ -36,6 +37,11 @@ type Plugin struct {
 	ErrorMessage string
 	InstalledAt  time.Time
 	UpdatedAt    time.Time
+}
+
+type UIWidget struct {
+	Slot string `yaml:"slot" json:"slot"`
+	Src  string `yaml:"src" json:"src"`
 }
 
 type PluginManifest struct {
@@ -49,6 +55,7 @@ type PluginManifest struct {
 	Permissions    []string       `yaml:"permissions"`
 	MinEveyVersion string         `yaml:"min_evey_version"`
 	ConfigSchema   map[string]any `yaml:"config_schema"`
+	UIWidgets      []UIWidget     `yaml:"ui_widgets"`
 }
 
 type AnalysisReport struct {

@@ -1,5 +1,6 @@
 import { createFileRoute, Outlet, redirect } from "@tanstack/react-router";
 import { useAuthStore } from "@evey/store";
+import { PluginSlot } from "@/features/plugins/PluginSlot";
 
 export const Route = createFileRoute("/_auth/admin")({
   beforeLoad: () => {
@@ -13,6 +14,7 @@ function AdminLayout() {
   return (
     <div className="flex-1 min-w-0 flex flex-col gap-8">
       <Outlet />
+      <PluginSlot name="admin.section" />
     </div>
   );
 }

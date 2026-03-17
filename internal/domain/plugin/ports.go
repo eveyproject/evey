@@ -41,3 +41,7 @@ type PluginLogger interface {
 type PluginAnalyzer interface {
 	Analyze(dir string) (*AnalysisReport, error)
 }
+
+type WidgetCompiler interface {
+	CompileWidget(srcPath, outPath string) error
+}

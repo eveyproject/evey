@@ -18,6 +18,7 @@ import { slugify } from "@/utils/slugify";
 import { useCollections } from "../../features/collection/api";
 import { CollectionCard } from "../../features/collection/CollectionCard";
 import { useMostPopular } from "@/hooks/usePopular";
+import { PluginSlot } from "@/features/plugins/PluginSlot";
 
 export const Route = createLazyFileRoute("/_auth/home")({
   component: HomePage,
@@ -340,6 +341,7 @@ function HomePage() {
                 <LibrarySlider key={lib.id} libraryId={lib.id} name={lib.name ?? "Library"} libraryType={lib.type} />
               ) : null
             )}
+            <PluginSlot name="home.section" />
           </>
         )}
       </div>

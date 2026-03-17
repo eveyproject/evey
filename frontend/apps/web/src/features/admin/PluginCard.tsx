@@ -35,11 +35,64 @@ function stateLabel(state?: V1PluginState): string {
   }
 }
 
-interface PluginConfigPanelProps {
-  pluginId: string;
+interface ConfigFieldSchema {
+  type?: string;
+  description?: string;
+  default?: unknown;
 }
 
-function PluginConfigPanel({ pluginId }: PluginConfigPanelProps) {
+interface PluginConfigPanelProps {
+  pluginId: string;
+  configSchema?: Record<string, ConfigFieldSchema>;
+}
+
+function SchemaField({
+  fieldKey,
+  schema,
+  value,
+  onChange,
+}: {
+  fieldKey: string;
+  schema: ConfigFieldSchema;
+  value: string;
+  onChange: (val: string) => void;
+}) {
+  if (schema.type === "boolean") {
+    return (
+      <label className="flex items-center gap-2 text-sm" style={{ color: "var(--text)" }}>
+        <input
+          type="checkbox"
+          checked={value === "true"}
+          onChange={(e) => onChange(String(e.target.checked))}
+          className="rounded"
+        />
+        <span>{fieldKey}</span>
+        {schema.description && (
+          <span className="text-xs" style={{ color: "var(--text-muted)" }}>{schema.description}</span>
+        )}
+      </label>
+    );
+  }
+  if (schema.type === "integer" || schema.type === "number") {
+    return (
+      <Input
+        label={fieldKey}
+        type="number"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+      />
+    );
+  }
+  return (
+    <Input
+      label={fieldKey}
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+    />
+  );
+}
+
+function PluginConfigPanel({ pluginId, configSchema }: PluginConfigPanelProps) {
   const queryClient = useQueryClient();
   const { data, isLoading } = useAdminServiceGetPluginConfig(pluginId);
   const [edits, setEdits] = useState<Record<string, string>>({});
@@ -64,7 +117,8 @@ function PluginConfigPanel({ pluginId }: PluginConfigPanelProps) {
   }
 
   const values = data?.values ?? {};
-  const keys = Object.keys(values);
+  const schemaKeys = configSchema ? Object.keys(configSchema) : [];
+  const keys = schemaKeys.length > 0 ? schemaKeys : Object.keys(values);
 
   if (keys.length === 0) {
     return (
@@ -83,14 +137,28 @@ function PluginConfigPanel({ pluginId }: PluginConfigPanelProps) {
 
   return (
     <div className="flex flex-col gap-3">
-      {keys.map((key) => (
-        <Input
-          key={key}
-          label={key}
-          value={current[key] ?? ""}
-          onChange={(e) => setEdits((prev) => ({ ...prev, [key]: e.target.value }))}
-        />
-      ))}
+      {keys.map((key) => {
+        const schema = configSchema?.[key];
+        if (schema) {
+          return (
+            <SchemaField
+              key={key}
+              fieldKey={key}
+              schema={schema}
+              value={current[key] ?? String(schema.default ?? "")}
+              onChange={(val) => setEdits((prev) => ({ ...prev, [key]: val }))}
+            />
+          );
+        }
+        return (
+          <Input
+            key={key}
+            label={key}
+            value={current[key] ?? ""}
+            onChange={(e) => setEdits((prev) => ({ ...prev, [key]: e.target.value }))}
+          />
+        );
+      })}
       {isDirty && (
         <div className="flex justify-end">
           <Button

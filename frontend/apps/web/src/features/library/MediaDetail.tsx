@@ -34,6 +34,7 @@ import { AddToPlaylistModal } from "../playlist/AddToPlaylistModal";
 import { MetadataOverrideModal } from "../media/MetadataOverrideModal";
 import { Modal } from "@/components/ui/Modal";
 import { slugify } from "@/utils/slugify";
+import { PluginSlot } from "@/features/plugins/PluginSlot";
 
 interface MediaDetailProps {
   item: V1MediaItem;
@@ -1080,6 +1081,7 @@ export function MediaDetail({ item, onMetadataUpdated, initialEdit }: MediaDetai
           )}
         </div>
       )}
+      <PluginSlot name="media.detail.sidebar" context={{ mediaId: item.id }} />
     </div>
   );
 }
