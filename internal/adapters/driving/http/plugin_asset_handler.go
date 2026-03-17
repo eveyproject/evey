@@ -73,16 +73,7 @@ func (h *pluginAssetHandler) handleWidgetJS(w http.ResponseWriter, r *http.Reque
 }
 
 func (h *pluginAssetHandler) handleThemeCSS(w http.ResponseWriter, r *http.Request) {
-	token := extractBearerToken(r)
-	if token == "" {
-		http.Error(w, `{"message":"unauthorized"}`, http.StatusUnauthorized)
-		return
-	}
-	if _, err := h.tokenGen.ValidateAccessToken(token); err != nil {
-		http.Error(w, `{"message":"unauthorized"}`, http.StatusUnauthorized)
-		return
-	}
-
+	// theme CSS is public — no auth required (not sensitive data)
 	pluginID := r.PathValue("id")
 	p, err := h.repo.GetByID(r.Context(), pluginID)
 	if err != nil {
