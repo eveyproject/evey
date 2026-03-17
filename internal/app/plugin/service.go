@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/gravity-zero/evey/internal/domain/plugin"
@@ -112,15 +113,20 @@ func (s *Service) InstallPlugin(ctx context.Context, zipPath string) (*plugin.Pl
 		return nil, err
 	}
 
-	if err := s.runner.Start(ctx, p); err != nil {
-		p.Status = string(plugin.Error)
-		p.ErrorMessage = err.Error()
-		if updateErr := s.plugins.Update(ctx, p); updateErr != nil {
-			slog.Warn("update plugin status failed", slog.String("pluginID", p.ID), slog.Any("err", updateErr))
+	// CSS-only plugins (themes) don't need a subprocess
+	if !isStaticPlugin(p) {
+		if err := s.runner.Start(ctx, p); err != nil {
+			p.Status = string(plugin.Error)
+			p.ErrorMessage = err.Error()
+			if updateErr := s.plugins.Update(ctx, p); updateErr != nil {
+				slog.Warn("update plugin status failed", slog.String("pluginID", p.ID), slog.Any("err", updateErr))
+			}
+			return p, nil
 		}
-		return p, nil
+		p.Status = string(plugin.Running)
+	} else {
+		p.Status = string(plugin.Running)
 	}
-	p.Status = string(plugin.Running)
 	if err := s.plugins.Update(ctx, p); err != nil {
 		slog.Warn("update plugin status failed", slog.String("pluginID", p.ID), slog.Any("err", err))
 	}
@@ -130,6 +136,11 @@ func (s *Service) InstallPlugin(ctx context.Context, zipPath string) (*plugin.Pl
 		slog.Warn("publish event", slog.String("event", evtInstalled.EventName()), slog.Any("err", err))
 	}
 	return p, nil
+}
+
+// isStaticPlugin returns true for plugins that don't need a subprocess (CSS themes).
+func isStaticPlugin(p *plugin.Plugin) bool {
+	return strings.EqualFold(p.Language, "css")
 }
 
 func (s *Service) UninstallPlugin(ctx context.Context, id string) error {
@@ -215,6 +226,11 @@ func (s *Service) StartPlugin(ctx context.Context, id string) error {
 	}
 	if p.Status == string(plugin.Running) {
 		return ErrAlreadyRunning
+	}
+	if isStaticPlugin(p) {
+		p.Status = string(plugin.Running)
+		p.ErrorMessage = ""
+		return s.plugins.Update(ctx, p)
 	}
 	if err := s.runner.Start(ctx, p); err != nil {
 		p.Status = string(plugin.Error)
