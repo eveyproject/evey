@@ -16,5 +16,6 @@ var KnownPermissions = map[string]bool{
 	"media.write":  true,
 	"api.library":  true,
 	"api.user":     true,
-	"api.metadata": true,
+	"api.metadata":         true,
+	"notification.sender":  true,
 }
