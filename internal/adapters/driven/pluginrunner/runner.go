@@ -55,6 +55,15 @@ func (r *Runner) WithLogger(l *PluginLogger) *Runner {
 	return r
 }
 
+var knownInterpreters = map[string]bool{
+	"python3": true, "python": true, "node": true, "php": true,
+	"ruby": true, "perl": true, "lua": true, "bash": true, "sh": true,
+}
+
+func isInterpreter(cmd string) bool {
+	return knownInterpreters[filepath.Base(cmd)]
+}
+
 func (r *Runner) validateEntrypoint(entrypoint, installDir string) (string, error) {
 	if strings.Contains(entrypoint, "..") {
 		return "", fmt.Errorf("entrypoint must not contain '..'")
@@ -112,13 +121,38 @@ func (r *Runner) Start(_ context.Context, p *plugin.Plugin) error {
 		entrypoint = p.Name
 	}
 
-	resolved, err := r.validateEntrypoint(entrypoint, p.InstallDir)
-	if err != nil {
-		return fmt.Errorf("plugin %s: %w", p.ID, err)
+	parts := strings.Fields(entrypoint)
+	if len(parts) == 0 {
+		return fmt.Errorf("plugin %s: empty entrypoint", p.ID)
+	}
+
+	// If the command is an interpreter (python3, node, php, etc.),
+	// resolve the script path, not the interpreter itself.
+	var cmdName string
+	var cmdArgs []string
+	if isInterpreter(parts[0]) {
+		cmdName = parts[0]
+		if len(parts) > 1 {
+			scriptPath := parts[1]
+			if !filepath.IsAbs(scriptPath) && p.InstallDir != "" {
+				scriptPath = filepath.Join(p.InstallDir, scriptPath)
+			}
+			if _, err := os.Stat(scriptPath); err != nil {
+				return fmt.Errorf("plugin %s: script not found: %w", p.ID, err)
+			}
+			cmdArgs = append([]string{scriptPath}, parts[2:]...)
+		}
+	} else {
+		resolved, resolveErr := r.validateEntrypoint(parts[0], p.InstallDir)
+		if resolveErr != nil {
+			return fmt.Errorf("plugin %s: %w", p.ID, resolveErr)
+		}
+		cmdName = resolved
+		cmdArgs = parts[1:]
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), pluginExecTimeout)
-	cmd := exec.CommandContext(ctx, resolved)
+	cmd := exec.CommandContext(ctx, cmdName, cmdArgs...)
 	if p.InstallDir != "" {
 		cmd.Dir = p.InstallDir
 	}
