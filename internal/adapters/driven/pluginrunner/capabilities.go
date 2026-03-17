@@ -7,6 +7,7 @@ var KnownCapabilities = map[string]bool{
 	"webhook.receiver":    true,
 	"notification.sender": true,
 	"ui.extension":        true,
+	"ui.theme":            true,
 }
 
 var KnownPermissions = map[string]bool{

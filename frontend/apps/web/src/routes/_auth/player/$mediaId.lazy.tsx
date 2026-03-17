@@ -9,6 +9,7 @@ import { Spinner } from "@/components/ui/Spinner";
 import type { AudioStream, SubtitleStream } from "@/features/playback/HLSPlayer";
 import { useSyncPlay } from "@/features/syncplay/useSyncPlay";
 import { SyncPlayBar } from "@/features/syncplay/SyncPlayBar";
+import { PluginSlot } from "@/features/plugins/PluginSlot";
 import { useParentalGate, markUnlocked } from "@/hooks/useParentalGate";
 import { ParentalPINDialog } from "@/components/ParentalPINDialog";
 import { useAuthStore } from "@evey/store";
@@ -315,6 +316,7 @@ function PlayerPageInner({ mediaId }: { mediaId: string }) {
           onLeave={() => void syncControls.leaveRoom()}
         />
       )}
+      <PluginSlot name="player.overlay" context={{ mediaId }} />
     </div>
   );
 }

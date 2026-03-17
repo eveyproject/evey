@@ -24,6 +24,7 @@ import (
 	"github.com/gravity-zero/evey/internal/config"
 	domainlibrary "github.com/gravity-zero/evey/internal/domain/library"
 	"github.com/gravity-zero/evey/internal/domain/notification"
+	domainplugin "github.com/gravity-zero/evey/internal/domain/plugin"
 	domainshared "github.com/gravity-zero/evey/internal/domain/shared"
 	domainuser "github.com/gravity-zero/evey/internal/domain/user"
 	"github.com/gravity-zero/evey/internal/pkg/auth"
@@ -108,6 +109,10 @@ type HTTPServer struct {
 	ProfileRepo       domainuser.ProfileRepository
 	UserRepo          domainuser.UserRepository
 	Hasher            domainuser.PasswordHasher
+
+	// Plugin
+	PluginRepo domainplugin.PluginRepository
+	PluginDir  string
 
 	// Config store for remote access persistence
 	CfgStore remoteAccessPersister
@@ -218,6 +223,10 @@ func (s *HTTPServer) RegisterRoutes(mux *http.ServeMux, gwMux http.Handler) {
 
 	if s.SubtitleSvc != nil {
 		registerSubtitleRoutes(mux, s.SubtitleSvc, s.TokenGen, s.LibQuerySvc, s.LibraryAccessRepo)
+	}
+
+	if s.PluginRepo != nil && s.PluginDir != "" {
+		registerPluginAssetRoutes(mux, s.TokenGen, s.PluginRepo, s.PluginDir)
 	}
 
 	mux.HandleFunc("GET /api/v1/admin/sessions/active", requireAdmin(s.TokenGen, activeSessionsHandler(s.TokenGen, s.PlaybackSvc)))

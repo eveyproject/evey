@@ -29,3 +29,7 @@ type PluginRunner interface {
 type ManifestParser interface {
 	Parse(zipPath string) (*PluginManifest, error)
 }
+
+type WidgetCompiler interface {
+	CompileWidget(srcPath, outPath string) error
+}
