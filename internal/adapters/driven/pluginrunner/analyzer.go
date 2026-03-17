@@ -8,6 +8,8 @@ import (
 	"regexp"
 	"slices"
 	"strings"
+
+	"github.com/gravity-zero/evey/internal/domain/plugin"
 )
 
 type AnalysisSeverity int
@@ -79,6 +81,37 @@ var analyzedExtensions = map[string]bool{
 	".sh": true, ".bash": true, ".rb": true, ".pl": true,
 	".lua": true, ".php": true, ".yaml": true, ".yml": true,
 	".json": true, ".toml": true, ".cfg": true, ".ini": true,
+}
+
+// StaticAnalyzer implements the domain PluginAnalyzer interface.
+type StaticAnalyzer struct{}
+
+func NewStaticAnalyzer() *StaticAnalyzer { return &StaticAnalyzer{} }
+
+func (a *StaticAnalyzer) Analyze(dir string) (*plugin.AnalysisReport, error) {
+	raw, err := AnalyzePlugin(dir)
+	if err != nil {
+		return nil, err
+	}
+	report := &plugin.AnalysisReport{
+		Safe:      raw.Safe,
+		FileCount: raw.TotalFilesScanned,
+	}
+	for _, f := range raw.Findings {
+		report.Issues = append(report.Issues, fmt.Sprintf("[%s] %s:%d — %s (%s)", severityLabel(f.Severity), f.File, f.Line, f.Description, f.Pattern))
+	}
+	return report, nil
+}
+
+func severityLabel(s AnalysisSeverity) string {
+	switch s {
+	case SeverityCritical:
+		return "CRITICAL"
+	case SeverityWarning:
+		return "WARNING"
+	default:
+		return "INFO"
+	}
 }
 
 // AnalyzePlugin scans a plugin directory for suspicious patterns.

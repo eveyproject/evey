@@ -3,7 +3,8 @@ FROM golang:1.25.8-alpine
 RUN apk add --no-cache ffmpeg curl postgresql-client \
     python3 py3-pip py3-grpcio \
     nodejs npm && \
-    go install github.com/air-verse/air@latest
+    go install github.com/air-verse/air@latest && \
+    npm install -g esbuild@0.25.12
 
 WORKDIR /app
 
