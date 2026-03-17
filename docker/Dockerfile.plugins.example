@@ -6,16 +6,39 @@
 FROM golang:1.25.8-alpine
 
 RUN apk add --no-cache ffmpeg curl postgresql-client \
-    # Default runtimes (Python + Node.js)
-    python3 py3-pip py3-grpcio py3-grpcio-tools \
+    # ── Default runtimes (always included) ──
+    python3 py3-pip py3-grpcio \
     nodejs npm \
-    # Uncomment the runtimes you need for your plugins:
-    # php php-grpc \
-    # ruby ruby-grpc \
-    # perl \
-    # lua \
     && go install github.com/air-verse/air@latest \
     && npm install -g esbuild@0.25.12
+
+# ── Uncomment the runtimes you need for your plugins ──
+
+# PHP (requires PECL extensions — heavy)
+# RUN apk add --no-cache php83 php83-phar php83-openssl php83-json \
+#     && wget -O /usr/local/bin/composer https://getcomposer.org/download/latest-stable/composer.phar \
+#     && chmod +x /usr/local/bin/composer \
+#     && apk add --no-cache --virtual .build-deps php83-dev php83-pear gcc musl-dev \
+#     && pecl install grpc protobuf \
+#     && echo "extension=grpc.so" > /etc/php83/conf.d/grpc.ini \
+#     && echo "extension=protobuf.so" > /etc/php83/conf.d/protobuf.ini \
+#     && apk del .build-deps
+
+# Ruby
+# RUN apk add --no-cache ruby ruby-dev gcc musl-dev make \
+#     && gem install grpc google-protobuf
+
+# Java/Kotlin (JRE only — plugins ship compiled .jar)
+# RUN apk add --no-cache openjdk17-jre
+
+# Swift (no Alpine package — use ubuntu-based image or cross-compile)
+# Not recommended on Alpine.
+
+# Dart
+# RUN apk add --no-cache dart
+
+# Elixir
+# RUN apk add --no-cache elixir
 
 WORKDIR /app
 

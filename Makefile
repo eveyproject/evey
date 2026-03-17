@@ -12,14 +12,27 @@ proto-gen:
 
 plugin-sdk:
 	@echo "Generating plugin SDK stubs..."
+	@# Python — grpc_tools.protoc
 	python3 -m grpc_tools.protoc --proto_path=proto --python_out=sdk/python --grpc_python_out=sdk/python proto/plugin/v1/plugin_api.proto
 	mv sdk/python/plugin/v1/plugin_api_pb2.py sdk/python/ 2>/dev/null || true
 	mv sdk/python/plugin/v1/plugin_api_pb2_grpc.py sdk/python/ 2>/dev/null || true
 	rm -rf sdk/python/plugin
 	sed -i 's/from plugin\.v1 import /import /g' sdk/python/plugin_api_pb2_grpc.py
+	@# Node.js — proto-loader (runtime), just copy proto
 	cp proto/plugin/v1/plugin_api.proto sdk/nodejs/
+	@# PHP — needs protoc + grpc_php_plugin (see Dockerfile.plugins.example)
 	cp proto/plugin/v1/plugin_api.proto sdk/php/
+	@# Ruby — needs grpc-tools gem (see Dockerfile.plugins.example)
 	cp proto/plugin/v1/plugin_api.proto sdk/ruby/
+	@# Java/Kotlin — needs protoc-gen-grpc-java (see Dockerfile.plugins.example)
+	mkdir -p sdk/java
+	cp proto/plugin/v1/plugin_api.proto sdk/java/
+	@# Swift — needs protoc-gen-swift + protoc-gen-grpc-swift
+	mkdir -p sdk/swift
+	cp proto/plugin/v1/plugin_api.proto sdk/swift/
+	@# Dart — needs protoc-gen-dart
+	mkdir -p sdk/dart
+	cp proto/plugin/v1/plugin_api.proto sdk/dart/
 	@echo "Done — sdk/ updated"
 
 build:
