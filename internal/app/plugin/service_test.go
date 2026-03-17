@@ -69,7 +69,7 @@ func TestInstallPluginExtractsZip(t *testing.T) {
 	assert.Equal(t, p.InstallDir, destDir)
 }
 
-func TestInstallPluginRunsAnalysis(t *testing.T) {
+func TestInstallPluginBlocksUnsafe(t *testing.T) {
 	svc, _, _, parser, _, analyzer := newTestService()
 
 	parser.Result = &plugindomain.PluginManifest{
@@ -83,10 +83,9 @@ func TestInstallPluginRunsAnalysis(t *testing.T) {
 		Issues: []string{"contains os/exec"},
 	}
 
-	// Plugin still installs even with security issues (logged as warning)
-	p, err := svc.InstallPlugin(context.Background(), "/tmp/plugin.zip")
-	require.NoError(t, err)
-	assert.Equal(t, "unsafe-plugin", p.Name)
+	_, err := svc.InstallPlugin(context.Background(), "/tmp/plugin.zip")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "plugin blocked")
 }
 
 func TestAutoStartPlugins(t *testing.T) {

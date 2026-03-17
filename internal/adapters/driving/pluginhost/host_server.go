@@ -34,11 +34,12 @@ type PluginConfigStore interface {
 
 type HostServer struct {
 	pluginv1.UnimplementedHostServiceServer
-	mediaItems MediaItemQuerier
-	plugins    PluginConfigStore
-	events     shared.EventBus
-	logger     plugindomain.PluginLogger
-	grpcSrv    *grpc.Server
+	mediaItems      MediaItemQuerier
+	plugins         PluginConfigStore
+	events          shared.EventBus
+	logger          plugindomain.PluginLogger
+	permInterceptor grpc.UnaryServerInterceptor
+	grpcSrv         *grpc.Server
 }
 
 func NewHostServer(
@@ -46,12 +47,14 @@ func NewHostServer(
 	plugins PluginConfigStore,
 	events shared.EventBus,
 	logger plugindomain.PluginLogger,
+	permInterceptor grpc.UnaryServerInterceptor,
 ) *HostServer {
 	return &HostServer{
-		mediaItems: mediaItems,
-		plugins:    plugins,
-		events:     events,
-		logger:     logger,
+		mediaItems:      mediaItems,
+		plugins:         plugins,
+		events:          events,
+		logger:          logger,
+		permInterceptor: permInterceptor,
 	}
 }
 
@@ -69,9 +72,11 @@ func (h *HostServer) Start() error {
 		return fmt.Errorf("listen host sock: %w", err)
 	}
 
-	h.grpcSrv = grpc.NewServer(
-		grpc.UnaryInterceptor(h.pluginIDInterceptor()),
-	)
+	if h.permInterceptor != nil {
+		h.grpcSrv = grpc.NewServer(grpc.ChainUnaryInterceptor(h.pluginIDInterceptor(), h.permInterceptor))
+	} else {
+		h.grpcSrv = grpc.NewServer(grpc.UnaryInterceptor(h.pluginIDInterceptor()))
+	}
 	pluginv1.RegisterHostServiceServer(h.grpcSrv, h)
 
 	slog.Info("host gRPC server started", slog.String("sock", hostSockPath))

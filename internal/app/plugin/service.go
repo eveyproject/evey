@@ -30,8 +30,9 @@ type Service struct {
 	parser     plugin.ManifestParser
 	events     shared.EventBus
 	installer  plugin.PluginInstaller
-	analyzer   plugin.PluginAnalyzer
-	pluginDir  string
+	analyzer    plugin.PluginAnalyzer
+	permChecker *PermissionChecker
+	pluginDir   string
 }
 
 func NewService(
@@ -58,6 +59,11 @@ func (s *Service) WithInstaller(installer plugin.PluginInstaller) *Service {
 
 func (s *Service) WithAnalyzer(analyzer plugin.PluginAnalyzer) *Service {
 	s.analyzer = analyzer
+	return s
+}
+
+func (s *Service) WithPermissionChecker(pc *PermissionChecker) *Service {
+	s.permChecker = pc
 	return s
 }
 
@@ -106,13 +112,16 @@ func (s *Service) InstallPlugin(ctx context.Context, zipPath string) (*plugin.Pl
 		}
 	}
 
-	// Run static analysis
+	// Run static analysis — block on critical issues
 	if s.analyzer != nil && p.InstallDir != "" {
 		report, analyzeErr := s.analyzer.Analyze(p.InstallDir)
 		if analyzeErr != nil {
 			slog.Warn("plugin static analysis failed", slog.String("pluginID", p.ID), slog.Any("err", analyzeErr))
 		} else if !report.Safe {
-			slog.Warn("plugin has security issues", slog.String("pluginID", p.ID), slog.Any("issues", report.Issues))
+			if p.InstallDir != "" {
+				os.RemoveAll(p.InstallDir)
+			}
+			return nil, fmt.Errorf("plugin blocked: critical security issues found: %v", report.Issues)
 		}
 	}
 
@@ -129,6 +138,9 @@ func (s *Service) InstallPlugin(ctx context.Context, zipPath string) (*plugin.Pl
 				slog.Warn("update plugin status failed", slog.String("pluginID", p.ID), slog.Any("err", updateErr))
 			}
 			return p, nil
+		}
+		if s.permChecker != nil {
+			s.permChecker.LoadPermissions(p.ID, p.Permissions)
 		}
 		p.Status = string(plugin.Running)
 	} else {
@@ -201,6 +213,10 @@ func (s *Service) UninstallPlugin(ctx context.Context, id string) error {
 		if err := s.runner.Stop(ctx, id); err != nil {
 			slog.Warn("stop plugin runner failed", slog.String("pluginID", id), slog.Any("err", err))
 		}
+	}
+
+	if s.permChecker != nil {
+		s.permChecker.InvalidatePermissions(p.ID)
 	}
 
 	// Remove install directory
@@ -289,6 +305,9 @@ func (s *Service) StartPlugin(ctx context.Context, id string) error {
 		}
 		return err
 	}
+	if s.permChecker != nil {
+		s.permChecker.LoadPermissions(p.ID, p.Permissions)
+	}
 	p.Status = string(plugin.Running)
 	p.ErrorMessage = ""
 	if err := s.plugins.Update(ctx, p); err != nil {
@@ -311,6 +330,9 @@ func (s *Service) StopPlugin(ctx context.Context, id string) error {
 	}
 	if err := s.runner.Stop(ctx, id); err != nil {
 		return err
+	}
+	if s.permChecker != nil {
+		s.permChecker.InvalidatePermissions(p.ID)
 	}
 	p.Status = string(plugin.Stopped)
 	if err := s.plugins.Update(ctx, p); err != nil {
@@ -358,6 +380,8 @@ func (s *Service) AutoStartPlugins(ctx context.Context) {
 			if updateErr := s.plugins.Update(ctx, p); updateErr != nil {
 				slog.Warn("update plugin status", slog.String("pluginID", p.ID), slog.Any("err", updateErr))
 			}
+		} else if s.permChecker != nil {
+			s.permChecker.LoadPermissions(p.ID, p.Permissions)
 		}
 	}
 }
