@@ -86,6 +86,10 @@ func buildHTTPHandler(gwMux http.Handler, deps *appDeps, cfg *config.Config, sta
 		UserRepo:          deps.repos.userRepo,
 		Hasher:            deps.auth.hasher,
 
+		PluginRepo: deps.repos.pluginRepo,
+		PluginSvc:  deps.engagement.pluginSvc,
+		PluginDir:  "/data/plugins",
+
 		CfgStore:  deps.cfgStore,
 		ServerCtx: ctx,
 

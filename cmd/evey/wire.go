@@ -112,6 +112,7 @@ type repoDeps struct {
 	mediaItemRepo     *postgres.MediaItemRepository
 	userRepo          *postgres.UserRepository
 	apiKeyRepo        *postgres.APIKeyRepository
+	pluginRepo        *postgres.PluginRepository
 }
 
 // appDeps holds all application-level services and adapters needed by HTTP/gRPC layers.
@@ -351,6 +352,7 @@ func buildServices(ctx context.Context, cfg *config.Config, db *sql.DB, rootLog 
 			mediaItemRepo:     r.MediaItem,
 			userRepo:          r.User,
 			apiKeyRepo:        r.APIKey,
+			pluginRepo:        r.Plugin,
 		},
 		cfgStore:  httpapi.NewServerConfigStore(r.ServerCfg),
 		backupSvc: backupSvc,

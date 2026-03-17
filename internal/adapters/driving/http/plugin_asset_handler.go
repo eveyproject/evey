@@ -1,22 +1,30 @@
 package httpapi
 
 import (
+	"context"
+	"encoding/json"
+	"io"
+	"log/slog"
 	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
 
-	"github.com/gravity-zero/evey/internal/domain/plugin"
+	domainplugin "github.com/gravity-zero/evey/internal/domain/plugin"
 	"github.com/gravity-zero/evey/internal/pkg/auth"
 )
+
+type pluginInstaller interface {
+	InstallPlugin(ctx context.Context, source string) (*domainplugin.Plugin, error)
+}
 
 type pluginAssetHandler struct {
 	tokenGen  *auth.JWTGenerator
 	pluginDir string
-	repo      plugin.PluginRepository
+	repo      domainplugin.PluginRepository
 }
 
-func registerPluginAssetRoutes(mux *http.ServeMux, tokenGen *auth.JWTGenerator, repo plugin.PluginRepository, pluginDir string) {
+func registerPluginAssetRoutes(mux *http.ServeMux, tokenGen *auth.JWTGenerator, repo domainplugin.PluginRepository, pluginDir string) {
 	h := &pluginAssetHandler{tokenGen: tokenGen, pluginDir: pluginDir, repo: repo}
 	mux.HandleFunc("GET /api/v1/plugins/{id}/widget.js", h.handleWidgetJS)
 	mux.HandleFunc("GET /api/v1/plugins/{id}/theme.css", h.handleThemeCSS)
@@ -114,4 +122,60 @@ func (h *pluginAssetHandler) handleThemeCSS(w http.ResponseWriter, r *http.Reque
 	if _, err := w.Write(data); err != nil {
 		return
 	}
+}
+
+func registerPluginUploadRoute(mux *http.ServeMux, tokenGen *auth.JWTGenerator, svc pluginInstaller) {
+	mux.HandleFunc("POST /api/v1/admin/plugins/upload", func(w http.ResponseWriter, r *http.Request) {
+		token := extractBearerToken(r)
+		if token == "" {
+			http.Error(w, `{"message":"unauthorized"}`, http.StatusUnauthorized)
+			return
+		}
+		claims, err := tokenGen.ValidateAccessToken(token)
+		if err != nil || !claims.IsAdmin {
+			http.Error(w, `{"message":"forbidden"}`, http.StatusForbidden)
+			return
+		}
+
+		r.Body = http.MaxBytesReader(w, r.Body, 100<<20) // 100MB max
+		file, _, formErr := r.FormFile("plugin")
+		if formErr != nil {
+			http.Error(w, `{"message":"plugin file required"}`, http.StatusBadRequest)
+			return
+		}
+		defer file.Close()
+
+		tmpFile, tmpErr := os.CreateTemp("", "evey-plugin-*.zip")
+		if tmpErr != nil {
+			slog.Error("create temp file for plugin upload", slog.Any("err", tmpErr))
+			http.Error(w, `{"message":"internal error"}`, http.StatusInternalServerError)
+			return
+		}
+		defer os.Remove(tmpFile.Name())
+		defer tmpFile.Close()
+
+		if _, cpErr := io.Copy(tmpFile, file); cpErr != nil {
+			slog.Error("write plugin upload", slog.Any("err", cpErr))
+			http.Error(w, `{"message":"internal error"}`, http.StatusInternalServerError)
+			return
+		}
+		tmpFile.Close()
+
+		p, installErr := svc.InstallPlugin(r.Context(), tmpFile.Name())
+		if installErr != nil {
+			slog.Error("install uploaded plugin", slog.Any("err", installErr))
+			http.Error(w, `{"message":"install failed: `+installErr.Error()+`"}`, http.StatusInternalServerError)
+			return
+		}
+
+		slog.Info("plugin installed via upload", slog.String("id", p.ID), slog.String("name", p.Name))
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusCreated)
+		if encErr := json.NewEncoder(w).Encode(map[string]any{
+			"id":   p.ID,
+			"name": p.Name,
+		}); encErr != nil {
+			slog.Warn("encode plugin response", slog.Any("err", encErr))
+		}
+	})
 }

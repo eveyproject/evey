@@ -112,6 +112,7 @@ type HTTPServer struct {
 
 	// Plugin
 	PluginRepo domainplugin.PluginRepository
+	PluginSvc  pluginInstaller
 	PluginDir  string
 
 	// Config store for remote access persistence
@@ -227,6 +228,9 @@ func (s *HTTPServer) RegisterRoutes(mux *http.ServeMux, gwMux http.Handler) {
 
 	if s.PluginRepo != nil && s.PluginDir != "" {
 		registerPluginAssetRoutes(mux, s.TokenGen, s.PluginRepo, s.PluginDir)
+		if s.PluginSvc != nil {
+			registerPluginUploadRoute(mux, s.TokenGen, s.PluginSvc)
+		}
 	}
 
 	mux.HandleFunc("GET /api/v1/admin/sessions/active", requireAdmin(s.TokenGen, activeSessionsHandler(s.TokenGen, s.PlaybackSvc)))

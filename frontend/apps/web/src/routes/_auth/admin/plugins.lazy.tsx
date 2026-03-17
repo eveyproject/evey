@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { createLazyFileRoute } from "@tanstack/react-router";
 import { useQueryClient } from "@tanstack/react-query";
 import {
@@ -8,7 +8,7 @@ import {
   useAdminServiceUninstallPlugin,
   useAdminServiceInstallPlugin,
 } from "@evey/api";
-import { toast } from "@evey/store";
+import { toast, useAuthStore } from "@evey/store";
 import { Spinner } from "@/components/ui/Spinner";
 import { Button } from "@/components/ui/Button";
 import { Modal } from "@/components/ui/Modal";
@@ -22,37 +22,115 @@ export const Route = createLazyFileRoute("/_auth/admin/plugins")({
 const PLUGINS_QUERY_KEY = ["/api/v1/admin/plugins"];
 
 function InstallPluginForm({ onSuccess }: { onSuccess: () => void }) {
+  const [mode, setMode] = useState<"url" | "file">("file");
   const [source, setSource] = useState("");
   const [name, setName] = useState("");
+  const [uploading, setUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const token = useAuthStore((s) => s.accessToken);
 
   const installPlugin = useAdminServiceInstallPlugin({ mutation: { onSuccess } });
 
-  function handleSubmit(e: React.FormEvent) {
+  function handleSubmitUrl(e: React.FormEvent) {
     e.preventDefault();
     installPlugin.mutate({ data: { source, name } });
   }
 
+  async function handleSubmitFile(e: React.FormEvent) {
+    e.preventDefault();
+    const file = fileInputRef.current?.files?.[0];
+    if (!file) {
+      toast.error("Select a plugin file first");
+      return;
+    }
+    setUploading(true);
+    try {
+      const formData = new FormData();
+      formData.append("plugin", file);
+      const res = await fetch("/api/v1/admin/plugins/upload", {
+        method: "POST",
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+        body: formData,
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body.message || "Upload failed");
+      }
+      onSuccess();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Upload failed");
+    } finally {
+      setUploading(false);
+    }
+  }
+
   return (
-    <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-      <Input
-        label="Source URL"
-        value={source}
-        onChange={(e) => setSource(e.target.value)}
-        placeholder="https://example.com/plugin.zip"
-        required
-      />
-      <Input
-        label="Name (optional)"
-        value={name}
-        onChange={(e) => setName(e.target.value)}
-        placeholder="my-plugin"
-      />
-      <div className="flex justify-end pt-2">
-        <Button type="submit" loading={installPlugin.isPending} disabled={!source.trim()}>
-          Install
-        </Button>
+    <div className="flex flex-col gap-4">
+      <div className="flex gap-2">
+        <button
+          type="button"
+          onClick={() => setMode("file")}
+          className="px-3 py-1.5 rounded-[var(--radius-md)] text-sm font-medium transition-colors"
+          style={{
+            backgroundColor: mode === "file" ? "var(--accent)" : "var(--surface)",
+            color: mode === "file" ? "white" : "var(--text-muted)",
+            border: "1px solid var(--border)",
+          }}
+        >
+          Upload file
+        </button>
+        <button
+          type="button"
+          onClick={() => setMode("url")}
+          className="px-3 py-1.5 rounded-[var(--radius-md)] text-sm font-medium transition-colors"
+          style={{
+            backgroundColor: mode === "url" ? "var(--accent)" : "var(--surface)",
+            color: mode === "url" ? "white" : "var(--text-muted)",
+            border: "1px solid var(--border)",
+          }}
+        >
+          From URL
+        </button>
       </div>
-    </form>
+
+      {mode === "url" ? (
+        <form onSubmit={handleSubmitUrl} className="flex flex-col gap-4">
+          <Input
+            label="Source URL"
+            value={source}
+            onChange={(e) => setSource(e.target.value)}
+            placeholder="https://example.com/plugin.zip"
+            required
+          />
+          <Input
+            label="Name (optional)"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder="my-plugin"
+          />
+          <div className="flex justify-end pt-2">
+            <Button type="submit" loading={installPlugin.isPending} disabled={!source.trim()}>
+              Install
+            </Button>
+          </div>
+        </form>
+      ) : (
+        <form onSubmit={handleSubmitFile} className="flex flex-col gap-4">
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".zip"
+            className="text-sm file:mr-3 file:rounded-[var(--radius-lg)] file:border file:border-solid file:border-[var(--border)] file:bg-[var(--surface)] file:px-4 file:py-2 file:text-sm file:font-medium file:text-[var(--text)] file:cursor-pointer hover:file:bg-[var(--accent)] hover:file:text-white file:transition-colors"
+            style={{ color: "var(--text-muted)" }}
+          />
+          <div className="flex justify-end pt-2">
+            <Button type="submit" loading={uploading}>
+              Install
+            </Button>
+          </div>
+        </form>
+      )}
+    </div>
   );
 }
 
