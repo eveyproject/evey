@@ -95,7 +95,7 @@ func newTestHostServer() *HostServer {
 	}}
 	bus := &fakeEventBus{}
 	logger := &fakePluginLogger{}
-	return NewHostServer(media, plugins, bus, logger)
+	return NewHostServer(media, plugins, bus, logger, nil)
 }
 
 func ctxWithPluginID(pluginID string) context.Context {

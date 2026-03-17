@@ -238,11 +238,15 @@ func buildServices(ctx context.Context, cfg *config.Config, db *sql.DB, rootLog 
 	activityQuerySvc := appactivity.NewQueryService(r.LoginHistory, r.ServerMetric, r.AuditLog, r.PlaySessionStats, r.PlayHistory).
 		WithAnalyticsReader(postgres.NewAnalyticsReader(db))
 
+	permChecker := appplugin.NewPermissionChecker(r.Plugin)
+
 	pluginSvc := appplugin.NewService(r.Plugin, r.PluginRuntime, pluginRunner, manifestParser, bus).
 		WithInstaller(pluginInstaller).
-		WithAnalyzer(pluginAnalyzer)
+		WithAnalyzer(pluginAnalyzer).
+		WithPermissionChecker(permChecker)
 
-	pluginHostSrv := pluginhost.NewHostServer(r.MediaItemQuery, r.Plugin, bus, pluginLogger)
+	permInterceptor := appplugin.PluginPermissionInterceptor(permChecker)
+	pluginHostSrv := pluginhost.NewHostServer(r.MediaItemQuery, r.Plugin, bus, pluginLogger, permInterceptor)
 
 	// --- Filesystem watcher ---
 	startWatcher(ctx, cfg, bus, r.Library, libCmdSvc, rootLog)

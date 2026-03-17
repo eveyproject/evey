@@ -20,6 +20,11 @@ var methodPermissions = map[string][]string{
 	"/plugin.v1.HostService/ListMediaItems":     {"api.library", "media.read"},
 	"/plugin.v1.HostService/UpdateMetadata":     {"api.metadata", "media.write"},
 	"/plugin.v1.HostService/GetUserPreferences": {"api.user"},
+	"/plugin.v1.HostService/SearchMedia":        {"api.library", "media.read"},
+	"/plugin.v1.HostService/GetMediaStreams":     {"api.library", "media.read"},
+	"/plugin.v1.HostService/GetChapters":         {"api.library", "media.read"},
+	"/plugin.v1.HostService/GetSubtitles":        {"api.library", "media.read"},
+	"/plugin.v1.HostService/SendNotification":    {"notification.sender"},
 	// Always allowed — nil means skip check
 	"/plugin.v1.HostService/EmitEvent":  nil,
 	"/plugin.v1.HostService/Log":        nil,
