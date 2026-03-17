@@ -1,0 +1,10 @@
+name: sh-hello
+version: 1.0.0
+description: Example POSIX sh plugin — stays alive as daemon
+author: Evey
+language: sh
+entrypoint: sh main.sh
+capabilities:
+  - media.read
+permissions:
+  - api.library

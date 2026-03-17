@@ -1,0 +1,10 @@
+name: php-hello
+version: 1.0.0
+description: Example PHP plugin — stays alive as daemon
+author: Evey
+language: php
+entrypoint: php main.php
+capabilities:
+  - media.read
+permissions:
+  - api.library

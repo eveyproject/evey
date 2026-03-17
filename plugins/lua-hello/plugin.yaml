@@ -1,0 +1,10 @@
+name: lua-hello
+version: 1.0.0
+description: Example Lua plugin — stays alive as daemon
+author: Evey
+language: lua
+entrypoint: lua main.lua
+capabilities:
+  - media.read
+permissions:
+  - api.library

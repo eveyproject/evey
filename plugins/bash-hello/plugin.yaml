@@ -1,0 +1,10 @@
+name: bash-hello
+version: 1.0.0
+description: Example Bash plugin — stays alive as daemon
+author: Evey
+language: bash
+entrypoint: bash main.sh
+capabilities:
+  - media.read
+permissions:
+  - api.library
