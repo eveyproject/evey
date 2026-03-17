@@ -19,15 +19,35 @@ service PluginService {
 
 // Plugin -> Host communication
 service HostService {
+  // Media
   rpc GetMediaItem(GetMediaItemRequest) returns (MediaItem);
   rpc ListMediaItems(ListMediaItemsRequest) returns (ListMediaItemsResponse);
+  rpc SearchMedia(SearchMediaRequest) returns (SearchMediaResponse);
+  rpc GetMediaStreams(GetMediaStreamsRequest) returns (GetMediaStreamsResponse);
+  rpc GetChapters(GetChaptersRequest) returns (GetChaptersResponse);
+  rpc GetSubtitles(GetSubtitlesRequest) returns (GetSubtitlesResponse);
+
+  // Metadata
   rpc UpdateMetadata(UpdateMetadataRequest) returns (UpdateMetadataResponse);
+
+  // User
   rpc GetUserPreferences(GetUserPreferencesRequest) returns (GetUserPreferencesResponse);
+
+  // Notifications
+  rpc SendNotification(SendNotificationRequest) returns (SendNotificationResponse);
+
+  // Events
   rpc EmitEvent(EmitEventRequest) returns (EmitEventResponse);
+
+  // Logging
   rpc Log(LogRequest) returns (LogResponse);
+
+  // Config
   rpc GetConfig(GetConfigRequest) returns (GetConfigResponse);
   rpc SetConfig(SetConfigRequest) returns (SetConfigResponse);
 }
+
+// --- Enums ---
 
 enum LogLevel {
   LOG_LEVEL_UNSPECIFIED = 0;
@@ -36,6 +56,8 @@ enum LogLevel {
   LOG_LEVEL_WARN = 3;
   LOG_LEVEL_ERROR = 4;
 }
+
+// --- Host -> Plugin messages ---
 
 message InitRequest {
   string plugin_id = 1;
@@ -87,7 +109,7 @@ message GetCapabilitiesResponse {
   string api_version = 2;
 }
 
-// Host service messages
+// --- Media messages ---
 
 message MediaItem {
   string id = 1;
@@ -120,6 +142,76 @@ message ListMediaItemsResponse {
   int32 total = 2;
 }
 
+message SearchMediaRequest {
+  string query = 1;
+  string library_id = 2;
+  string type = 3;
+  int32 limit = 4;
+}
+
+message SearchMediaResponse {
+  repeated MediaItem items = 1;
+  int32 total = 2;
+}
+
+message MediaStream {
+  int32 index = 1;
+  string stream_type = 2;  // video, audio, subtitle
+  string codec = 3;
+  string language = 4;
+  string title = 5;
+  bool default = 6;
+  int32 width = 7;
+  int32 height = 8;
+  int32 bit_depth = 9;
+  int32 channels = 10;
+  int64 bitrate = 11;
+  string hdr_type = 12;
+}
+
+message GetMediaStreamsRequest {
+  string media_item_id = 1;
+}
+
+message GetMediaStreamsResponse {
+  repeated MediaStream streams = 1;
+}
+
+message Chapter {
+  string title = 1;
+  double start_seconds = 2;
+  double end_seconds = 3;
+}
+
+message GetChaptersRequest {
+  string media_item_id = 1;
+}
+
+message GetChaptersResponse {
+  repeated Chapter chapters = 1;
+}
+
+message Subtitle {
+  int32 index = 1;
+  string codec = 2;
+  string language = 3;
+  string title = 4;
+  bool default = 5;
+  bool forced = 6;
+  bool external = 7;
+  string path = 8;
+}
+
+message GetSubtitlesRequest {
+  string media_item_id = 1;
+}
+
+message GetSubtitlesResponse {
+  repeated Subtitle subtitles = 1;
+}
+
+// --- Metadata messages ---
+
 message UpdateMetadataRequest {
   string media_item_id = 1;
   map<string, string> fields = 2;
@@ -130,6 +222,8 @@ message UpdateMetadataResponse {
   bool success = 1;
 }
 
+// --- User messages ---
+
 message GetUserPreferencesRequest {
   string user_id = 1;
   string profile_id = 2;
@@ -139,12 +233,30 @@ message GetUserPreferencesResponse {
   map<string, string> preferences = 1;
 }
 
+// --- Notification messages ---
+
+message SendNotificationRequest {
+  string user_id = 1;
+  string title = 2;
+  string body = 3;
+  string url = 4;
+  string image_url = 5;
+}
+
+message SendNotificationResponse {
+  bool success = 1;
+}
+
+// --- Event messages ---
+
 message EmitEventRequest {
   string event_type = 1;
   google.protobuf.Struct payload = 2;
 }
 
 message EmitEventResponse {}
+
+// --- Log messages ---
 
 message LogRequest {
   LogLevel level = 1;
@@ -153,6 +265,8 @@ message LogRequest {
 }
 
 message LogResponse {}
+
+// --- Config messages ---
 
 message GetConfigRequest {
   string key = 1;
@@ -169,3 +283,27 @@ message SetConfigRequest {
 }
 
 message SetConfigResponse {}
+
+// --- Static analysis (returned by host on install) ---
+
+enum AnalysisSeverity {
+  ANALYSIS_SEVERITY_UNSPECIFIED = 0;
+  ANALYSIS_SEVERITY_INFO = 1;
+  ANALYSIS_SEVERITY_WARNING = 2;
+  ANALYSIS_SEVERITY_CRITICAL = 3;
+}
+
+message AnalysisFinding {
+  AnalysisSeverity severity = 1;
+  string category = 2;   // e.g. "shell_exec", "network", "obfuscation", "filesystem"
+  string file = 3;
+  int32 line = 4;
+  string pattern = 5;    // matched pattern
+  string description = 6;
+}
+
+message PluginAnalysisReport {
+  repeated AnalysisFinding findings = 1;
+  int32 total_files_scanned = 2;
+  bool safe = 3;  // false if any CRITICAL finding
+}
