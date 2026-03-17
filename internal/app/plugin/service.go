@@ -165,9 +165,14 @@ func generateGRPCStubs(language, installDir string) error {
 	case "nodejs", "node":
 		// Node.js uses @grpc/proto-loader at runtime — just copy the proto
 		return copyProtoFile(installDir)
+	case "php":
+		return generatePHPStubs(installDir)
+	case "ruby":
+		return generateRubyStubs(installDir)
 	default:
 		// Go/Rust/C plugins are compiled — stubs are built-in
-		return nil
+		// Unknown languages get the proto file as fallback
+		return copyProtoFile(installDir)
 	}
 }
 
@@ -229,6 +234,54 @@ func copyProtoFile(installDir string) error {
 		return fmt.Errorf("write proto: %w", err)
 	}
 	return nil
+}
+
+func generatePHPStubs(installDir string) error {
+	outDir := filepath.Join(installDir, "generated")
+	if err := os.MkdirAll(outDir, 0755); err != nil {
+		return fmt.Errorf("create php output dir: %w", err)
+	}
+	cmd := exec.Command("protoc",
+		"--proto_path="+protoIncludePath,
+		"--php_out="+outDir,
+		"--grpc_out="+outDir,
+		"--plugin=protoc-gen-grpc="+findGRPCPlugin("grpc_php_plugin"),
+		protoSourcePath,
+	)
+	var stderr bytes.Buffer
+	cmd.Stderr = &stderr
+	if err := cmd.Run(); err != nil {
+		// Fallback: just copy the proto file
+		slog.Debug("php protoc failed, copying proto as fallback", slog.Any("err", err))
+		return copyProtoFile(installDir)
+	}
+	slog.Info("generated PHP gRPC stubs", slog.String("dir", installDir))
+	return nil
+}
+
+func generateRubyStubs(installDir string) error {
+	cmd := exec.Command("grpc_tools_ruby_protoc",
+		"--proto_path="+protoIncludePath,
+		"--ruby_out="+installDir,
+		"--grpc_out="+installDir,
+		protoSourcePath,
+	)
+	var stderr bytes.Buffer
+	cmd.Stderr = &stderr
+	if err := cmd.Run(); err != nil {
+		// Fallback: just copy the proto file
+		slog.Debug("ruby protoc failed, copying proto as fallback", slog.Any("err", err))
+		return copyProtoFile(installDir)
+	}
+	slog.Info("generated Ruby gRPC stubs", slog.String("dir", installDir))
+	return nil
+}
+
+func findGRPCPlugin(name string) string {
+	if path, err := exec.LookPath(name); err == nil {
+		return path
+	}
+	return name
 }
 
 func (s *Service) UninstallPlugin(ctx context.Context, id string) error {
