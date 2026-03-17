@@ -1,11 +1,10 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
-import { type ThemeName } from "@evey/theme";
 
 interface ThemeState {
-  theme: ThemeName;
+  theme: string;
   customVars: Record<string, string> | null;
-  setTheme: (name: ThemeName) => void;
+  setTheme: (name: string) => void;
   setCustomVars: (vars: Record<string, string>) => void;
 }
 

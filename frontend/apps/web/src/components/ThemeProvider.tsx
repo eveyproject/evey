@@ -1,12 +1,42 @@
 import { useEffect, type ReactNode } from "react";
 import { useThemeStore } from "@evey/store";
-import { applyThemeToDOM } from "@evey/theme";
+import { themes, applyThemeToDOM } from "@evey/theme";
+import { loadPluginTheme, unloadAllPluginThemes } from "@/features/plugins/theme-loader";
+import { getPluginIdForTheme } from "./ThemeSelector";
+
+const PLUGIN_THEME_PREFIX = "plugin:";
+
+export function isPluginTheme(name: string): boolean {
+  return name.startsWith(PLUGIN_THEME_PREFIX);
+}
+
+export function pluginNameFromTheme(name: string): string {
+  return name.slice(PLUGIN_THEME_PREFIX.length);
+}
+
+export function pluginThemeName(pluginName: string): string {
+  return PLUGIN_THEME_PREFIX + pluginName;
+}
 
 export function ThemeProvider({ children }: { children: ReactNode }) {
   const { theme, customVars } = useThemeStore();
 
   useEffect(() => {
-    applyThemeToDOM(theme, customVars ?? undefined);
+    unloadAllPluginThemes();
+
+    if (isPluginTheme(theme)) {
+      const name = pluginNameFromTheme(theme);
+      document.documentElement.setAttribute("data-theme", name);
+      const pluginId = getPluginIdForTheme(name);
+      if (pluginId) {
+        loadPluginTheme(pluginId);
+      }
+      const link = document.getElementById("theme-link") as HTMLLinkElement | null;
+      if (link) link.href = "";
+    } else {
+      document.documentElement.removeAttribute("data-theme");
+      applyThemeToDOM(theme, customVars ?? undefined);
+    }
   }, [theme, customVars]);
 
   return <>{children}</>;
