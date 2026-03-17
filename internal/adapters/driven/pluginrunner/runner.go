@@ -160,6 +160,7 @@ func (r *Runner) Start(_ context.Context, p *plugin.Plugin) error {
 	cmd.Env = []string{
 		"PATH=/usr/local/bin:/usr/bin:/bin",
 		"HOME=/tmp",
+		"NODE_PATH=/usr/local/lib/node_modules",
 		"EVEY_PLUGIN_ID=" + p.ID,
 		"EVEY_PLUGIN_SOCK=" + sock,
 		"EVEY_HOST_SOCK=" + hostSock,
