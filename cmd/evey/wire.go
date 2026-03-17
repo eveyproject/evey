@@ -35,6 +35,7 @@ import (
 	metadataadapter "github.com/gravity-zero/evey/internal/adapters/driven/metadata"
 	"github.com/gravity-zero/evey/internal/adapters/driven/opensubtitles"
 	"github.com/gravity-zero/evey/internal/adapters/driven/pluginrunner"
+	"github.com/gravity-zero/evey/internal/adapters/driving/pluginhost"
 	"github.com/gravity-zero/evey/internal/adapters/driven/postgres"
 	httpapi "github.com/gravity-zero/evey/internal/adapters/driving/http"
 	"github.com/gravity-zero/evey/internal/config"
@@ -91,6 +92,7 @@ type engagementDeps struct {
 	feedQuerySvc     *appfeed.QueryService
 	webhookSvc       *appwebhook.Service
 	pluginSvc        *appplugin.Service
+	pluginHostServer *pluginhost.HostServer
 }
 
 // authDeps groups authentication infrastructure.
@@ -156,8 +158,11 @@ func buildServices(ctx context.Context, cfg *config.Config, db *sql.DB, rootLog 
 	tvmazeProvider := metadataadapter.NewTVMazeProvider(nil)
 	omdbProvider := metadataadapter.NewOMDbProvider(os.Getenv("EVEY_OMDB_API_KEY"), nil)
 	artworkDownloader := metadataadapter.NewArtworkHTTPDownloader(nil)
-	pluginRunner := pluginrunner.NewRunner()
+	pluginLogger := pluginrunner.NewPluginLogger(cfg.Log.Dir + "/plugins")
+	pluginRunner := pluginrunner.NewRunner().WithLogger(pluginLogger)
 	manifestParser := pluginrunner.NewManifestParser()
+	pluginInstaller := pluginrunner.NewZipInstaller()
+	pluginAnalyzer := pluginrunner.NewStaticAnalyzer()
 
 	// --- JWT ---
 	privateKey, err := auth.LoadOrGenerateRSAKey(cfg.JWT.PrivateKeyPath)
@@ -229,7 +234,11 @@ func buildServices(ctx context.Context, cfg *config.Config, db *sql.DB, rootLog 
 	activityQuerySvc := appactivity.NewQueryService(r.LoginHistory, r.ServerMetric, r.AuditLog, r.PlaySessionStats, r.PlayHistory).
 		WithAnalyticsReader(postgres.NewAnalyticsReader(db))
 
-	pluginSvc := appplugin.NewService(r.Plugin, r.PluginRuntime, pluginRunner, manifestParser, bus)
+	pluginSvc := appplugin.NewService(r.Plugin, r.PluginRuntime, pluginRunner, manifestParser, bus).
+		WithInstaller(pluginInstaller).
+		WithAnalyzer(pluginAnalyzer)
+
+	pluginHostSrv := pluginhost.NewHostServer(r.MediaItemQuery, r.Plugin, bus, pluginLogger)
 
 	// --- Filesystem watcher ---
 	startWatcher(ctx, cfg, bus, r.Library, libCmdSvc, rootLog)
@@ -326,6 +335,7 @@ func buildServices(ctx context.Context, cfg *config.Config, db *sql.DB, rootLog 
 			feedQuerySvc:     feedQuerySvc,
 			webhookSvc:       webhookSvc,
 			pluginSvc:        pluginSvc,
+			pluginHostServer: pluginHostSrv,
 		},
 		auth: authDeps{
 			tokenGen: tokenGen,

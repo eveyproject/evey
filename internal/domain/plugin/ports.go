@@ -29,3 +29,15 @@ type PluginRunner interface {
 type ManifestParser interface {
 	Parse(zipPath string) (*PluginManifest, error)
 }
+
+type PluginInstaller interface {
+	Extract(zipPath, destDir string) error
+}
+
+type PluginLogger interface {
+	WriteLog(pluginID, level, msg string, fields map[string]string)
+}
+
+type PluginAnalyzer interface {
+	Analyze(dir string) (*AnalysisReport, error)
+}

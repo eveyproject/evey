@@ -96,6 +96,16 @@ func run() error {
 	deps.backupSvc.StartScheduler(ctx, cfg.Backup.IntervalHours, cfg.Backup.RetentionDays)
 	go deps.library.scheduler.Run(ctx)
 
+	// Plugin host gRPC server (unix socket)
+	if err := deps.engagement.pluginHostServer.Start(); err != nil {
+		rootLog.Warn("plugin host server start failed", slog.Any("err", err))
+	} else {
+		rootLog.Info("plugin host gRPC server started")
+	}
+
+	// Auto-start previously running plugins
+	go deps.engagement.pluginSvc.AutoStartPlugins(ctx)
+
 	errCh := make(chan error, 2)
 	go func() {
 		if err := grpcSrv.Start(grpcAddr); err != nil {
@@ -118,6 +128,7 @@ func run() error {
 		return err
 	}
 
+	deps.engagement.pluginHostServer.Stop()
 	grpcSrv.Stop()
 	if httpSrv != nil {
 		shutdownCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)

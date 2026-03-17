@@ -21,6 +21,7 @@ const (
 	shutdownTimeout   = 5 * time.Second
 	killTimeout       = 3 * time.Second
 	pluginExecTimeout = 30 * time.Minute
+	hostVersion       = "0.1.0"
 )
 
 type processEntry struct {
@@ -28,12 +29,14 @@ type processEntry struct {
 	cancel   context.CancelFunc
 	sockPath string
 	pluginID string
+	ipc      *ipcClient
 }
 
 type Runner struct {
 	mu         sync.RWMutex
 	processes  map[string]*processEntry
 	pluginDirs []string
+	logger     *PluginLogger
 }
 
 func NewRunner(pluginDirs ...string) *Runner {
@@ -45,6 +48,11 @@ func NewRunner(pluginDirs ...string) *Runner {
 		processes:  make(map[string]*processEntry),
 		pluginDirs: dirs,
 	}
+}
+
+func (r *Runner) WithLogger(l *PluginLogger) *Runner {
+	r.logger = l
+	return r
 }
 
 func (r *Runner) validateEntrypoint(entrypoint, installDir string) (string, error) {
@@ -122,8 +130,15 @@ func (r *Runner) Start(_ context.Context, p *plugin.Plugin) error {
 		"EVEY_PLUGIN_SOCK=" + sock,
 		"EVEY_HOST_SOCK=" + hostSock,
 	}
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
+
+	if r.logger != nil {
+		cmd.Stdout = r.logger.LogWriter(p.ID, "INFO")
+		cmd.Stderr = r.logger.LogWriter(p.ID, "ERROR")
+	} else {
+		cmd.Stdout = os.Stdout
+		cmd.Stderr = os.Stderr
+	}
+
 	cmd.SysProcAttr = &syscall.SysProcAttr{
 		Setpgid:   true,
 		Pdeathsig: syscall.SIGTERM,
@@ -134,6 +149,10 @@ func (r *Runner) Start(_ context.Context, p *plugin.Plugin) error {
 		return fmt.Errorf("start plugin %s: %w", p.ID, err)
 	}
 
+	if r.logger != nil {
+		r.logger.WriteLog(p.ID, "INFO", "plugin process started", map[string]string{"pid": fmt.Sprintf("%d", cmd.Process.Pid)})
+	}
+
 	entry := &processEntry{
 		cmd:      cmd,
 		cancel:   cancel,
@@ -141,11 +160,37 @@ func (r *Runner) Start(_ context.Context, p *plugin.Plugin) error {
 		pluginID: p.ID,
 	}
 
+	// Try to connect IPC client (non-blocking — plugin may not create socket immediately)
+	go r.connectIPC(entry, p)
+
 	r.mu.Lock()
 	r.processes[p.ID] = entry
 	r.mu.Unlock()
 
 	return nil
+}
+
+func (r *Runner) connectIPC(entry *processEntry, p *plugin.Plugin) {
+	client, err := newIPCClient(entry.sockPath)
+	if err != nil {
+		slog.Warn("plugin IPC connect failed", slog.String("pluginID", p.ID), slog.Any("err", err))
+		return
+	}
+
+	r.mu.Lock()
+	entry.ipc = client
+	r.mu.Unlock()
+
+	cfgMap := make(map[string]string)
+	for k, v := range p.Config {
+		cfgMap[k] = fmt.Sprintf("%v", v)
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), ipcCallTimeout)
+	defer cancel()
+	if err := client.Initialize(ctx, p.ID, cfgMap, hostVersion); err != nil {
+		slog.Warn("plugin Initialize failed", slog.String("pluginID", p.ID), slog.Any("err", err))
+	}
 }
 
 func (r *Runner) Stop(_ context.Context, pluginID string) error {
@@ -159,6 +204,18 @@ func (r *Runner) Stop(_ context.Context, pluginID string) error {
 	r.mu.Unlock()
 
 	defer entry.cancel()
+
+	// Try gRPC Shutdown first
+	if entry.ipc != nil {
+		shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), ipcCallTimeout)
+		if err := entry.ipc.Shutdown(shutdownCtx, "host requested shutdown"); err != nil {
+			slog.Warn("plugin Shutdown RPC failed", slog.String("pluginID", pluginID), slog.Any("err", err))
+		}
+		shutdownCancel()
+		if err := entry.ipc.Close(); err != nil {
+			slog.Warn("close plugin IPC", slog.Any("err", err))
+		}
+	}
 
 	if entry.cmd.Process == nil {
 		if err := os.Remove(entry.sockPath); err != nil {
@@ -189,6 +246,10 @@ func (r *Runner) Stop(_ context.Context, pluginID string) error {
 	if err := os.Remove(entry.sockPath); err != nil {
 		slog.Warn("remove plugin sock", slog.Any("err", err))
 	}
+
+	if r.logger != nil {
+		r.logger.WriteLog(pluginID, "INFO", "plugin process stopped", nil)
+	}
 	return nil
 }
 
@@ -205,17 +266,50 @@ func (r *Runner) Health(_ context.Context, pluginID string) (bool, error) {
 		return false, nil
 	}
 
+	// If IPC client available, do a real health check
+	r.mu.RLock()
+	ipc := entry.ipc
+	r.mu.RUnlock()
+	if ipc != nil {
+		ctx, cancel := context.WithTimeout(context.Background(), ipcCallTimeout)
+		defer cancel()
+		healthy, err := ipc.HealthCheck(ctx)
+		if err != nil {
+			return true, nil // process running but gRPC unavailable, still "alive"
+		}
+		return healthy, nil
+	}
+
 	return true, nil
 }
 
 func (r *Runner) SendEvent(_ context.Context, pluginID string, event any) error {
 	r.mu.RLock()
-	_, ok := r.processes[pluginID]
+	entry, ok := r.processes[pluginID]
 	r.mu.RUnlock()
 
 	if !ok {
 		return fmt.Errorf("plugin %s not running", pluginID)
 	}
 
-	return nil
+	r.mu.RLock()
+	ipc := entry.ipc
+	r.mu.RUnlock()
+	if ipc == nil {
+		return fmt.Errorf("plugin %s IPC not connected", pluginID)
+	}
+
+	payload := make(map[string]any)
+	if m, ok := event.(map[string]any); ok {
+		payload = m
+	}
+
+	eventType := "unknown"
+	if named, ok := event.(interface{ EventName() string }); ok {
+		eventType = named.EventName()
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), ipcCallTimeout)
+	defer cancel()
+	return ipc.OnEvent(ctx, eventType, payload, "host")
 }
