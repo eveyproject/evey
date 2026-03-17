@@ -1,0 +1,10 @@
+name: security-test-nodejs
+version: 1.0.0
+description: Security pentest plugin — tests sandbox escape vectors
+author: Evey
+language: nodejs
+entrypoint: node main.js
+capabilities:
+  - media.read
+permissions:
+  - api.library

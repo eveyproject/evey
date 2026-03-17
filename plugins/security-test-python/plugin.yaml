@@ -1,0 +1,10 @@
+name: security-test-python
+version: 1.0.0
+description: Security pentest plugin — tests sandbox escape vectors
+author: Evey
+language: python
+entrypoint: python3 main.py
+capabilities:
+  - media.read
+permissions:
+  - api.library
