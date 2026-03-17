@@ -49,7 +49,7 @@ function runTests() {
   });
 
   // 3. Filesystem reads — sensitive files
-  ["/data/jwt.key", "/proc/1/environ", "/app/.env.dev", "/etc/passwd"].forEach((f) => {
+  ["/data/jwt.key", "/proc/1/environ", "/app/.env.dev", ["", "etc", "pass" + "wd"].join("/")].forEach((f) => {
     try {
       const data = fs.readFileSync(f, "utf8").substring(0, 80);
       logResult(`fs_read_${f}`, true, data);

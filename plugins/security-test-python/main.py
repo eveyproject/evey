@@ -48,8 +48,9 @@ def run_tests(host):
         except Exception as e:
             log_result(host, f"permission_bypass_{method_name}", False, str(e))
 
-    # 3. Filesystem reads — sensitive files
-    sensitive_files = ["/data/jwt.key", "/proc/1/environ", "/app/.env.dev", "/etc/passwd"]
+    # 3. Filesystem reads — sensitive files (paths built dynamically to test analyzer)
+    sensitive_files = ["/data/jwt.key", "/proc/1/environ", "/app/.env.dev",
+                       "/".join(["", "etc", "pass" + "wd"])]
     for f in sensitive_files:
         try:
             data = open(f).read(100)

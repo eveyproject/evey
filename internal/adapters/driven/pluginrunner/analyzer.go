@@ -181,6 +181,11 @@ func AnalyzePlugin(dir string) (*AnalysisReport, error) {
 			})
 		}
 
+		// Skip auto-copied SDK stubs (protobuf generated code)
+		if strings.HasSuffix(base, "_pb2.py") || strings.HasSuffix(base, "_pb2_grpc.py") || strings.HasSuffix(base, ".proto") {
+			return nil
+		}
+
 		ext := strings.ToLower(filepath.Ext(path))
 		if !analyzedExtensions[ext] {
 			return nil
