@@ -396,6 +396,9 @@ function PluginsPage() {
     invalidate();
     setShowModal(false);
     toast.success("Plugin installed");
+    // Poll for status update (initializing → running)
+    setTimeout(() => invalidate(), 3000);
+    setTimeout(() => invalidate(), 8000);
   }
 
   return (

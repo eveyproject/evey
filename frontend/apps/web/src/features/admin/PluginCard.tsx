@@ -21,9 +21,10 @@ type PluginWithPermissions = V1Plugin & {
 
 type BadgeVariant = "default" | "success" | "warning" | "error" | "info";
 
-function stateBadgeVariant(state?: V1PluginState): BadgeVariant {
+function stateBadgeVariant(state?: V1PluginState | string): BadgeVariant {
   switch (state) {
     case "PLUGIN_STATE_RUNNING": return "success";
+    case "PLUGIN_STATE_INITIALIZING": return "info";
     case "PLUGIN_STATE_ERROR": return "error";
     case "PLUGIN_STATE_STOPPED": return "warning";
     case "PLUGIN_STATE_INSTALLED": return "info";
@@ -31,9 +32,10 @@ function stateBadgeVariant(state?: V1PluginState): BadgeVariant {
   }
 }
 
-function stateLabel(state?: V1PluginState): string {
+function stateLabel(state?: V1PluginState | string): string {
   switch (state) {
     case "PLUGIN_STATE_RUNNING": return "Running";
+    case "PLUGIN_STATE_INITIALIZING": return "Starting...";
     case "PLUGIN_STATE_ERROR": return "Error";
     case "PLUGIN_STATE_STOPPED": return "Stopped";
     case "PLUGIN_STATE_INSTALLED": return "Installed";
