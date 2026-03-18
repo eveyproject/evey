@@ -88,6 +88,19 @@ var analyzerRules = []analyzerRule{
 
 	// Direct syscall interface
 	{regexp.MustCompile(`(?i)(ctypes\.CDLL|ctypes\.cdll|ffi\.Library)`), SeverityCritical, "native_code", "native code execution via ctypes/ffi", nil},
+
+	// String concatenation evasion — building dangerous strings dynamically
+	{regexp.MustCompile(`(?i)require\s*\(\s*["'][^"']*["']\s*\+`), SeverityCritical, "obfuscation", "dynamic require with string concatenation", nil},
+	{regexp.MustCompile(`(?i)["']child_["']\s*\+|["']sub["']\s*\+\s*["']process`), SeverityCritical, "obfuscation", "obfuscated child_process/subprocess import", nil},
+	{regexp.MustCompile(`(?i)["']pass["']\s*\+\s*["']wd|["']shad["']\s*\+\s*["']ow`), SeverityCritical, "obfuscation", "obfuscated sensitive file path construction", nil},
+
+	// Sensitive file paths — broader patterns
+	{regexp.MustCompile(`(?i)/proc/\d+/environ`), SeverityCritical, "filesystem", "access to process environment via /proc", nil},
+	{regexp.MustCompile(`(?i)/data/jwt\.key|jwt[._-]key|private[._-]key`), SeverityWarning, "filesystem", "reference to JWT/private key file", nil},
+	{regexp.MustCompile(`(?i)\.env\.dev|\.env\.local|\.env\.prod`), SeverityWarning, "filesystem", "reference to environment config file", nil},
+
+	// Process signals
+	{regexp.MustCompile(`(?i)process\.kill\s*\(\s*1[,)]|os\.kill\s*\(\s*1[,)]`), SeverityCritical, "privilege", "attempt to signal PID 1 (server process)", nil},
 }
 
 // URL extraction patterns — all network schemes
