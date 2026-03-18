@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -13,7 +14,7 @@ import (
 func TestNewPluginLoggerDefaults(t *testing.T) {
 	l := NewPluginLogger("", 0)
 	assert.Equal(t, defaultLogDir, l.logDir)
-	assert.Equal(t, 30, l.maxAgeDays)
+	assert.Equal(t, 10, l.maxAgeDays)
 }
 
 func TestNewPluginLoggerCustom(t *testing.T) {
@@ -22,37 +23,39 @@ func TestNewPluginLoggerCustom(t *testing.T) {
 	assert.Equal(t, 7, l.maxAgeDays)
 }
 
-func TestWriteLogCreatesFile(t *testing.T) {
+func TestWriteLogCreatesDateFile(t *testing.T) {
 	dir := t.TempDir()
-	l := NewPluginLogger(dir, 30)
+	l := NewPluginLogger(dir, 10)
 	defer l.Close()
 
-	l.WriteLog("test-plugin", "hello world")
+	l.WriteLog("plg-test", "hello world")
 
-	logPath := filepath.Join(dir, "test-plugin.log")
+	today := time.Now().Format("2006-01-02")
+	logPath := filepath.Join(dir, "plg-test-"+today+".log")
 	data, err := os.ReadFile(logPath)
 	require.NoError(t, err)
 	assert.Contains(t, string(data), "hello world")
 }
 
-func TestWriterCreatesFile(t *testing.T) {
+func TestWriterCreatesDateFile(t *testing.T) {
 	dir := t.TempDir()
-	l := NewPluginLogger(dir, 30)
+	l := NewPluginLogger(dir, 10)
 	defer l.Close()
 
 	w := l.Writer("plg-1")
 	_, err := w.Write([]byte("test output\n"))
 	require.NoError(t, err)
 
-	logPath := filepath.Join(dir, "plg-1.log")
-	data, err := os.ReadFile(logPath)
-	require.NoError(t, err)
+	today := time.Now().Format("2006-01-02")
+	logPath := filepath.Join(dir, "plg-1-"+today+".log")
+	data, readErr := os.ReadFile(logPath)
+	require.NoError(t, readErr)
 	assert.Contains(t, string(data), "test output")
 }
 
 func TestClosePluginRemovesWriter(t *testing.T) {
 	dir := t.TempDir()
-	l := NewPluginLogger(dir, 30)
+	l := NewPluginLogger(dir, 10)
 
 	l.WriteLog("plg-close", "before")
 	l.ClosePlugin("plg-close")
@@ -64,23 +67,56 @@ func TestClosePluginRemovesWriter(t *testing.T) {
 }
 
 func TestSetRetentionDays(t *testing.T) {
-	dir := t.TempDir()
-	l := NewPluginLogger(dir, 30)
-	defer l.Close()
-
-	_ = l.Writer("plg-ret")
+	l := NewPluginLogger(t.TempDir(), 10)
 	l.SetRetentionDays(7)
-
 	assert.Equal(t, 7, l.maxAgeDays)
-	l.mu.Lock()
-	assert.Equal(t, 7, l.writers["plg-ret"].MaxAge)
-	l.mu.Unlock()
 }
 
-func TestSetRetentionDaysZeroDefaultsTo30(t *testing.T) {
-	l := NewPluginLogger(t.TempDir(), 10)
+func TestSetRetentionDaysZeroDefaultsTo10(t *testing.T) {
+	l := NewPluginLogger(t.TempDir(), 5)
 	l.SetRetentionDays(0)
-	assert.Equal(t, 30, l.maxAgeDays)
+	assert.Equal(t, 10, l.maxAgeDays)
+}
+
+func TestExtractDateFromFilename(t *testing.T) {
+	tests := []struct {
+		name string
+		want string
+	}{
+		{"plg-abc123-2026-03-18.log", "2026-03-18"},
+		{"plg-abc123-2026-03-18-14.log", "2026-03-18"},
+		{"invalid.log", ""},
+	}
+	for _, tt := range tests {
+		d := extractDateFromFilename(tt.name)
+		if tt.want == "" {
+			assert.True(t, d.IsZero(), "expected zero time for %s", tt.name)
+		} else {
+			assert.Equal(t, tt.want, d.Format("2006-01-02"))
+		}
+	}
+}
+
+func TestCleanOldLogs(t *testing.T) {
+	dir := t.TempDir()
+	l := NewPluginLogger(dir, 5)
+	defer l.Close()
+
+	// Create an "old" log file (20 days ago)
+	old := time.Now().AddDate(0, 0, -20).Format("2006-01-02")
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "plg-old-"+old+".log"), []byte("old"), 0o644))
+
+	// Create a "recent" log file (today)
+	today := time.Now().Format("2006-01-02")
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "plg-new-"+today+".log"), []byte("new"), 0o644))
+
+	l.cleanOldLogs()
+
+	_, err := os.Stat(filepath.Join(dir, "plg-old-"+old+".log"))
+	assert.True(t, os.IsNotExist(err), "old log should be deleted")
+
+	_, err = os.Stat(filepath.Join(dir, "plg-new-"+today+".log"))
+	assert.NoError(t, err, "recent log should still exist")
 }
 
 type fakeLister struct {
@@ -94,25 +130,21 @@ func (f *fakeLister) ListIDs(_ context.Context) ([]string, error) {
 
 func TestCleanOrphanLogs(t *testing.T) {
 	dir := t.TempDir()
-	l := NewPluginLogger(dir, 30)
+	l := NewPluginLogger(dir, 10)
 	defer l.Close()
 
-	// Create log files for 3 plugins
+	today := time.Now().Format("2006-01-02")
 	for _, id := range []string{"plg-a", "plg-b", "plg-orphan"} {
-		err := os.WriteFile(filepath.Join(dir, id+".log"), []byte("data"), 0o644)
-		require.NoError(t, err)
+		require.NoError(t, os.WriteFile(filepath.Join(dir, id+"-"+today+".log"), []byte("data"), 0o644))
 	}
 
 	lister := &fakeLister{ids: []string{"plg-a", "plg-b"}}
 	l.cleanOrphanLogs(context.Background(), lister)
 
-	// plg-a and plg-b should still exist
-	_, err := os.Stat(filepath.Join(dir, "plg-a.log"))
+	_, err := os.Stat(filepath.Join(dir, "plg-a-"+today+".log"))
 	assert.NoError(t, err)
-	_, err = os.Stat(filepath.Join(dir, "plg-b.log"))
+	_, err = os.Stat(filepath.Join(dir, "plg-b-"+today+".log"))
 	assert.NoError(t, err)
-
-	// plg-orphan should be removed
-	_, err = os.Stat(filepath.Join(dir, "plg-orphan.log"))
+	_, err = os.Stat(filepath.Join(dir, "plg-orphan-"+today+".log"))
 	assert.True(t, os.IsNotExist(err))
 }

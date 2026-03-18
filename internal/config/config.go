@@ -237,7 +237,7 @@ func Load() (*Config, error) {
 			Dir:                 envStr("EVEY_LOG_DIR", "logs"),
 			MaxSizeMB:           envInt("EVEY_LOG_MAX_SIZE_MB", 50),
 			RetentionDays:       envInt("EVEY_LOG_RETENTION_DAYS", 90),
-			PluginRetentionDays: envInt("EVEY_LOG_PLUGIN_RETENTION_DAYS", 30),
+			PluginRetentionDays: envInt("EVEY_LOG_PLUGIN_RETENTION_DAYS", 10),
 			DevMode:             envBool("EVEY_LOG_DEV_MODE", false),
 			PluginDebug:         envBool("EVEY_PLUGIN_DEBUG", false),
 		},
