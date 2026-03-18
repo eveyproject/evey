@@ -1,0 +1,352 @@
+package user
+
+import (
+	"context"
+	"errors"
+	"testing"
+	"time"
+
+	"github.com/gravity-zero/evey/internal/domain/shared/fakes"
+	"github.com/gravity-zero/evey/internal/domain/user"
+	ufakes "github.com/gravity-zero/evey/internal/domain/user/fakes"
+)
+
+type accessTestDeps struct {
+	users        *ufakes.FakeUserRepository
+	apiKeys      *ufakes.FakeAPIKeyRepository
+	invites      *ufakes.FakeInviteLinkRepository
+	quickConnect *ufakes.FakeQuickConnectRepository
+	hasher       *ufakes.FakePasswordHasher
+	events       *fakes.FakeEventBus
+	svc          *AccessService
+}
+
+func newAccessTestDeps() *accessTestDeps {
+	users := ufakes.NewFakeUserRepository()
+	apiKeys := ufakes.NewFakeAPIKeyRepository()
+	invites := ufakes.NewFakeInviteLinkRepository()
+	quickConnect := ufakes.NewFakeQuickConnectRepository()
+	hasher := ufakes.NewFakePasswordHasher()
+	events := fakes.NewFakeEventBus()
+
+	svc := NewAccessService(users, apiKeys, invites, quickConnect, hasher, events)
+	return &accessTestDeps{users, apiKeys, invites, quickConnect, hasher, events, svc}
+}
+
+// --- CreateInviteLink ---
+
+func TestCreateInviteLink_Happy(t *testing.T) {
+	d := newAccessTestDeps()
+	link := &user.InviteLink{ID: "inv1", Token: "tok", CreatedBy: "u1"}
+	err := d.svc.CreateInviteLink(context.Background(), link)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if link.CreatedAt.IsZero() {
+		t.Fatal("expected CreatedAt set")
+	}
+}
+
+func TestCreateInviteLink_RepoError(t *testing.T) {
+	d := newAccessTestDeps()
+	d.invites.Err = errors.New("fail")
+	err := d.svc.CreateInviteLink(context.Background(), &user.InviteLink{ID: "inv1"})
+	if err == nil {
+		t.Fatal("expected error")
+	}
+}
+
+// --- RevokeInviteLink ---
+
+func TestRevokeInviteLink_Happy(t *testing.T) {
+	d := newAccessTestDeps()
+	ctx := context.Background()
+	_ = d.invites.Create(ctx, &user.InviteLink{ID: "inv1", Token: "tok"})
+
+	err := d.svc.RevokeInviteLink(ctx, "inv1")
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestRevokeInviteLink_RepoError(t *testing.T) {
+	d := newAccessTestDeps()
+	d.invites.Err = errors.New("fail")
+	err := d.svc.RevokeInviteLink(context.Background(), "inv1")
+	if err == nil {
+		t.Fatal("expected error")
+	}
+}
+
+// --- RegisterWithInvite ---
+
+func TestRegisterWithInvite_Happy(t *testing.T) {
+	d := newAccessTestDeps()
+	ctx := context.Background()
+	_ = d.invites.Create(ctx, &user.InviteLink{ID: "inv1", Token: "valid-token", MaxUses: 10, UsedCount: 0})
+
+	u, err := d.svc.RegisterWithInvite(ctx, "valid-token", "bob", "longpassword", "bob@b.com")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if u.Username != "bob" || u.Email != "bob@b.com" {
+		t.Fatal("wrong user fields")
+	}
+	if !u.Enabled {
+		t.Fatal("expected enabled")
+	}
+
+	evts := d.events.PublishedEvents()
+	if len(evts) != 1 || evts[0].EventName() != "user.created" {
+		t.Fatal("expected user.created event")
+	}
+
+	inv, _ := d.invites.GetByToken(ctx, "valid-token")
+	if inv.UsedCount != 1 {
+		t.Fatalf("expected UsedCount=1, got %d", inv.UsedCount)
+	}
+}
+
+func TestRegisterWithInvite_ShortPassword(t *testing.T) {
+	d := newAccessTestDeps()
+	_, err := d.svc.RegisterWithInvite(context.Background(), "tok", "bob", "short", "b@b.com")
+	if !errors.Is(err, ErrPasswordTooShort) {
+		t.Fatalf("expected ErrPasswordTooShort, got %v", err)
+	}
+}
+
+func TestRegisterWithInvite_InvalidToken(t *testing.T) {
+	d := newAccessTestDeps()
+	_, err := d.svc.RegisterWithInvite(context.Background(), "bad-token", "bob", "longpassword", "b@b.com")
+	if !errors.Is(err, ErrInviteInvalid) {
+		t.Fatalf("expected ErrInviteInvalid, got %v", err)
+	}
+}
+
+func TestRegisterWithInvite_ExpiredInvite(t *testing.T) {
+	d := newAccessTestDeps()
+	ctx := context.Background()
+	expired := time.Now().Add(-1 * time.Hour)
+	_ = d.invites.Create(ctx, &user.InviteLink{ID: "inv1", Token: "exp-tok", ExpiresAt: &expired})
+
+	_, err := d.svc.RegisterWithInvite(ctx, "exp-tok", "bob", "longpassword", "b@b.com")
+	if !errors.Is(err, ErrInviteInvalid) {
+		t.Fatalf("expected ErrInviteInvalid, got %v", err)
+	}
+}
+
+func TestRegisterWithInvite_MaxUsesReached(t *testing.T) {
+	d := newAccessTestDeps()
+	ctx := context.Background()
+	_ = d.invites.Create(ctx, &user.InviteLink{ID: "inv1", Token: "max-tok", MaxUses: 1, UsedCount: 1})
+
+	_, err := d.svc.RegisterWithInvite(ctx, "max-tok", "bob", "longpassword", "b@b.com")
+	if !errors.Is(err, ErrInviteInvalid) {
+		t.Fatalf("expected ErrInviteInvalid, got %v", err)
+	}
+}
+
+func TestRegisterWithInvite_HashError(t *testing.T) {
+	d := newAccessTestDeps()
+	ctx := context.Background()
+	_ = d.invites.Create(ctx, &user.InviteLink{ID: "inv1", Token: "tok"})
+	d.hasher.Err = errors.New("hash fail")
+
+	_, err := d.svc.RegisterWithInvite(ctx, "tok", "bob", "longpassword", "b@b.com")
+	if err == nil {
+		t.Fatal("expected error")
+	}
+}
+
+func TestRegisterWithInvite_UserCreateError(t *testing.T) {
+	d := newAccessTestDeps()
+	ctx := context.Background()
+	_ = d.invites.Create(ctx, &user.InviteLink{ID: "inv1", Token: "tok"})
+	d.users.Err = errors.New("create fail")
+
+	_, err := d.svc.RegisterWithInvite(ctx, "tok", "bob", "longpassword", "b@b.com")
+	if err == nil {
+		t.Fatal("expected error")
+	}
+}
+
+func TestRegisterWithInvite_AdminInvite(t *testing.T) {
+	d := newAccessTestDeps()
+	ctx := context.Background()
+	_ = d.invites.Create(ctx, &user.InviteLink{ID: "inv1", Token: "admin-tok", IsAdmin: true})
+
+	u, err := d.svc.RegisterWithInvite(ctx, "admin-tok", "bob", "longpassword", "b@b.com")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !u.IsAdmin {
+		t.Fatal("expected admin user from admin invite")
+	}
+}
+
+func TestRegisterWithInvite_InviteWithNoExpiry(t *testing.T) {
+	d := newAccessTestDeps()
+	ctx := context.Background()
+	_ = d.invites.Create(ctx, &user.InviteLink{ID: "inv1", Token: "no-exp"})
+
+	u, err := d.svc.RegisterWithInvite(ctx, "no-exp", "bob", "longpassword", "b@b.com")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if u == nil {
+		t.Fatal("expected user")
+	}
+}
+
+func TestRegisterWithInvite_UnlimitedUses(t *testing.T) {
+	d := newAccessTestDeps()
+	ctx := context.Background()
+	_ = d.invites.Create(ctx, &user.InviteLink{ID: "inv1", Token: "unlim", MaxUses: 0, UsedCount: 100})
+
+	u, err := d.svc.RegisterWithInvite(ctx, "unlim", "bob", "longpassword", "b@b.com")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if u == nil {
+		t.Fatal("expected user with unlimited invite")
+	}
+}
+
+func TestRegisterWithInvite_EventPublishError_NonFatal(t *testing.T) {
+	d := newAccessTestDeps()
+	ctx := context.Background()
+	_ = d.invites.Create(ctx, &user.InviteLink{ID: "inv1", Token: "tok"})
+	d.events.PublishErr = errors.New("bus down")
+
+	u, err := d.svc.RegisterWithInvite(ctx, "tok", "bob", "longpassword", "b@b.com")
+	if err != nil {
+		t.Fatalf("event error should be non-fatal, got %v", err)
+	}
+	if u == nil {
+		t.Fatal("expected user")
+	}
+}
+
+// --- InitiateQuickConnect ---
+
+func TestInitiateQuickConnect_Happy(t *testing.T) {
+	d := newAccessTestDeps()
+	req := &user.QuickConnectRequest{ID: "qc1", Code: "ABC"}
+	err := d.svc.InitiateQuickConnect(context.Background(), req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if req.CreatedAt.IsZero() {
+		t.Fatal("expected CreatedAt set")
+	}
+}
+
+func TestInitiateQuickConnect_RepoError(t *testing.T) {
+	d := newAccessTestDeps()
+	d.quickConnect.Err = errors.New("fail")
+	err := d.svc.InitiateQuickConnect(context.Background(), &user.QuickConnectRequest{Code: "X"})
+	if err == nil {
+		t.Fatal("expected error")
+	}
+}
+
+// --- AuthorizeQuickConnect ---
+
+func TestAuthorizeQuickConnect_Happy(t *testing.T) {
+	d := newAccessTestDeps()
+	ctx := context.Background()
+	_ = d.quickConnect.Create(ctx, &user.QuickConnectRequest{ID: "qc1", Code: "ABC", Status: "pending"})
+
+	err := d.svc.AuthorizeQuickConnect(ctx, "ABC", "u1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	req, _ := d.quickConnect.GetByCode(ctx, "ABC")
+	if req.Status != "authorized" {
+		t.Fatalf("expected authorized, got %s", req.Status)
+	}
+}
+
+func TestAuthorizeQuickConnect_NotFound(t *testing.T) {
+	d := newAccessTestDeps()
+	err := d.svc.AuthorizeQuickConnect(context.Background(), "NOPE", "u1")
+	if err == nil {
+		t.Fatal("expected error")
+	}
+}
+
+// --- CreateAPIKey ---
+
+func TestCreateAPIKey_Happy(t *testing.T) {
+	d := newAccessTestDeps()
+	key := &user.APIKeyModel{ID: "k1", UserID: "u1", Name: "test-key", KeyHash: "fakehash"}
+	err := d.svc.CreateAPIKey(context.Background(), key)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if key.CreatedAt.IsZero() {
+		t.Fatal("expected CreatedAt set")
+	}
+
+	evts := d.events.PublishedEvents()
+	if len(evts) != 1 || evts[0].EventName() != "user.apikey.created" {
+		t.Fatal("expected apikey.created event")
+	}
+}
+
+func TestCreateAPIKey_RepoError(t *testing.T) {
+	d := newAccessTestDeps()
+	d.apiKeys.Err = errors.New("fail")
+	err := d.svc.CreateAPIKey(context.Background(), &user.APIKeyModel{ID: "k1", UserID: "u1", Name: "test", KeyHash: "h"})
+	if err == nil {
+		t.Fatal("expected error")
+	}
+}
+
+func TestCreateAPIKey_EventPublishError_NonFatal(t *testing.T) {
+	d := newAccessTestDeps()
+	d.events.PublishErr = errors.New("bus down")
+	err := d.svc.CreateAPIKey(context.Background(), &user.APIKeyModel{ID: "k1", UserID: "u1", Name: "k", KeyHash: "fakehash"})
+	if err != nil {
+		t.Fatalf("event error should be non-fatal, got %v", err)
+	}
+}
+
+// --- RevokeAPIKey ---
+
+func TestRevokeAPIKey_Happy(t *testing.T) {
+	d := newAccessTestDeps()
+	ctx := context.Background()
+	_ = d.apiKeys.Create(ctx, &user.APIKeyModel{ID: "k1", UserID: "u1"})
+
+	err := d.svc.RevokeAPIKey(ctx, "k1")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	evts := d.events.PublishedEvents()
+	if len(evts) != 1 || evts[0].EventName() != "user.apikey.revoked" {
+		t.Fatal("expected apikey.revoked event")
+	}
+}
+
+func TestRevokeAPIKey_RepoError(t *testing.T) {
+	d := newAccessTestDeps()
+	d.apiKeys.Err = errors.New("fail")
+	err := d.svc.RevokeAPIKey(context.Background(), "k1")
+	if err == nil {
+		t.Fatal("expected error")
+	}
+}
+
+func TestRevokeAPIKey_EventPublishError_NonFatal(t *testing.T) {
+	d := newAccessTestDeps()
+	ctx := context.Background()
+	_ = d.apiKeys.Create(ctx, &user.APIKeyModel{ID: "k1", UserID: "u1"})
+	d.events.PublishErr = errors.New("bus down")
+
+	err := d.svc.RevokeAPIKey(ctx, "k1")
+	if err != nil {
+		t.Fatalf("event error should be non-fatal, got %v", err)
+	}
+}

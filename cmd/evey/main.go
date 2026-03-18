@@ -91,7 +91,7 @@ func run() error {
 
 	deps.engagement.notifCmdSvc.Start(ctx)
 	deps.engagement.notifCmdSvc.StartCleanup(ctx)
-	deps.user.cmdSvc.StartCleanup(ctx)
+	deps.user.authSvc.StartCleanup(ctx, deps.repos.quickConnectRepo)
 	deps.media.playbackSvc.CommandService().StartCleanup(ctx)
 	deps.backupSvc.StartScheduler(ctx, cfg.Backup.IntervalHours, cfg.Backup.RetentionDays)
 	go deps.library.scheduler.Run(ctx)

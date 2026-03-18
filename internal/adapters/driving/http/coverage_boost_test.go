@@ -2281,19 +2281,16 @@ func newUserAdminMux(t *testing.T) (*http.ServeMux, string, string) {
 	userRepo := userfakes.NewFakeUserRepository()
 	profileRepo := userfakes.NewFakeProfileRepository()
 	refreshRepo := userfakes.NewFakeRefreshTokenRepository()
-	roleRepo := userfakes.NewFakeRoleRepository()
-	userRoleRepo := userfakes.NewFakeUserRoleRepository(roleRepo)
 	hasher := userfakes.NewFakePasswordHasher()
-	tokenGen := userfakes.NewFakeTokenGenerator()
 	apiKeyRepo := userfakes.NewFakeAPIKeyRepository()
 	inviteRepo := userfakes.NewFakeInviteLinkRepository()
 	qcRepo := userfakes.NewFakeQuickConnectRepository()
 
-	userCmd := appuser.NewCommandService(userRepo, profileRepo, refreshRepo, apiKeyRepo, inviteRepo, qcRepo, roleRepo, userRoleRepo, hasher, tokenGen, nil)
+	userSvc := appuser.NewUserService(userRepo, profileRepo, refreshRepo, hasher, nil)
 	userQuery := appuser.NewQueryService(userRepo, profileRepo, apiKeyRepo, inviteRepo, qcRepo)
 
 	mux := http.NewServeMux()
-	registerUserAdminRoutes(mux, userCmd, userQuery, gen)
+	registerUserAdminRoutes(mux, userSvc, userQuery, gen)
 	return mux, adminTok, userTok
 }
 

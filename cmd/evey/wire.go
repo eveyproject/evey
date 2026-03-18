@@ -56,9 +56,11 @@ type libraryDeps struct {
 
 // userDeps groups user/auth services.
 type userDeps struct {
-	cmdSvc   *appuser.CommandService
-	querySvc *appuser.QueryService
-	oidcSvc  *appuser.OIDCService
+	authSvc    *appuser.CommandService
+	userSvc    *appuser.UserService
+	accessSvc  *appuser.AccessService
+	querySvc   *appuser.QueryService
+	oidcSvc    *appuser.OIDCService
 }
 
 // mediaDeps groups playback, transcoding, and media-format services.
@@ -114,6 +116,7 @@ type repoDeps struct {
 	userRepo          *postgres.UserRepository
 	apiKeyRepo        *postgres.APIKeyRepository
 	pluginRepo        *postgres.PluginRepository
+	quickConnectRepo  *postgres.QuickConnectRepository
 }
 
 // appDeps holds all application-level services and adapters needed by HTTP/gRPC layers.
@@ -190,12 +193,14 @@ func buildServices(ctx context.Context, cfg *config.Config, db *sql.DB, rootLog 
 	schedulerLog := eveylogger.NewWith(rootLog, "scheduler")
 	libScheduler := applibrary.NewScheduler(r.ScanSchedule, libCmdSvc, schedulerLog)
 
-	userCmdSvc := appuser.NewCommandService(
-		r.User, r.Profile, r.RefreshToken, r.APIKey,
-		r.InviteLink, r.QuickConnect, r.Role, r.UserRole,
+	userAuthSvc := appuser.NewCommandService(
+		r.User, r.Profile, r.RefreshToken,
+		r.Role, r.UserRole,
 		hasher, tokenGen, bus,
 	)
-	userCmdSvc.InitSetupState(context.Background())
+	userAuthSvc.InitSetupState(context.Background())
+	userSvc := appuser.NewUserService(r.User, r.Profile, r.RefreshToken, hasher, bus)
+	userAccessSvc := appuser.NewAccessService(r.User, r.APIKey, r.InviteLink, r.QuickConnect, hasher, bus)
 	userQuerySvc := appuser.NewQueryService(r.User, r.Profile, r.APIKey, r.InviteLink, r.QuickConnect)
 
 	var oidcSvc *appuser.OIDCService
@@ -329,9 +334,11 @@ func buildServices(ctx context.Context, cfg *config.Config, db *sql.DB, rootLog 
 			scheduler: libScheduler,
 		},
 		user: userDeps{
-			cmdSvc:   userCmdSvc,
-			querySvc: userQuerySvc,
-			oidcSvc:  oidcSvc,
+			authSvc:   userAuthSvc,
+			userSvc:   userSvc,
+			accessSvc: userAccessSvc,
+			querySvc:  userQuerySvc,
+			oidcSvc:   oidcSvc,
 		},
 		media: mediaDeps{
 			playbackSvc:    playbackSvc,
@@ -377,6 +384,7 @@ func buildServices(ctx context.Context, cfg *config.Config, db *sql.DB, rootLog 
 			userRepo:          r.User,
 			apiKeyRepo:        r.APIKey,
 			pluginRepo:        r.Plugin,
+			quickConnectRepo:  r.QuickConnect,
 		},
 		cfgStore:  httpapi.NewServerConfigStore(r.ServerCfg),
 		backupSvc: backupSvc,

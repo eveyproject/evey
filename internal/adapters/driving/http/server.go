@@ -57,7 +57,7 @@ type HTTPServer struct {
 	Scheduler   *applibrary.Scheduler
 
 	// User
-	UserCmdSvc   *appuser.CommandService
+	UserSvc      *appuser.UserService
 	UserQuerySvc *appuser.QueryService
 	OIDCSvc      *appuser.OIDCService
 
@@ -195,7 +195,7 @@ func (s *HTTPServer) RegisterRoutes(mux *http.ServeMux, gwMux http.Handler) {
 	}
 
 	registerAdminRoutes(mux, s.MetadataCmdSvc, s.MetadataQuerySvc, s.TokenGen, s.AdminHeavyRL)
-	registerUserAdminRoutes(mux, s.UserCmdSvc, s.UserQuerySvc, s.TokenGen)
+	registerUserAdminRoutes(mux, s.UserSvc, s.UserQuerySvc, s.TokenGen)
 	registerFavoriteRoutes(mux, s.FavoriteSvc, s.LibQuerySvc, s.TokenGen)
 	registerPhotoRoutes(mux, s.PhotoSvc, s.TokenGen, s.LibraryAccessRepo, s.LibQuerySvc, s.ServerCtx)
 	registerMetadataOverrideRoutes(mux, s.MetadataCmdSvc, s.MetadataQuerySvc, s.TokenGen)

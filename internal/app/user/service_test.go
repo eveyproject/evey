@@ -13,24 +13,31 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func newUserSvc() (*appuser.CommandService, *userfakes.FakeUserRepository, *userfakes.FakeProfileRepository, *userfakes.FakePasswordHasher, *sharedfakes.FakeEventBus) {
+func newAuthSvc() (*appuser.CommandService, *userfakes.FakeUserRepository, *userfakes.FakeProfileRepository, *userfakes.FakePasswordHasher, *sharedfakes.FakeEventBus) {
 	userRepo := userfakes.NewFakeUserRepository()
 	profileRepo := userfakes.NewFakeProfileRepository()
 	rtRepo := userfakes.NewFakeRefreshTokenRepository()
-	apiKeyRepo := userfakes.NewFakeAPIKeyRepository()
-	inviteRepo := userfakes.NewFakeInviteLinkRepository()
-	qcRepo := userfakes.NewFakeQuickConnectRepository()
 	roleRepo := userfakes.NewFakeRoleRepository()
 	userRoleRepo := userfakes.NewFakeUserRoleRepository(roleRepo)
 	hasher := userfakes.NewFakePasswordHasher()
 	tokenGen := userfakes.NewFakeTokenGenerator()
 	bus := sharedfakes.NewFakeEventBus()
-	svc := appuser.NewCommandService(userRepo, profileRepo, rtRepo, apiKeyRepo, inviteRepo, qcRepo, roleRepo, userRoleRepo, hasher, tokenGen, bus)
+	svc := appuser.NewCommandService(userRepo, profileRepo, rtRepo, roleRepo, userRoleRepo, hasher, tokenGen, bus)
+	return svc, userRepo, profileRepo, hasher, bus
+}
+
+func newUserSvc() (*appuser.UserService, *userfakes.FakeUserRepository, *userfakes.FakeProfileRepository, *userfakes.FakePasswordHasher, *sharedfakes.FakeEventBus) {
+	userRepo := userfakes.NewFakeUserRepository()
+	profileRepo := userfakes.NewFakeProfileRepository()
+	rtRepo := userfakes.NewFakeRefreshTokenRepository()
+	hasher := userfakes.NewFakePasswordHasher()
+	bus := sharedfakes.NewFakeEventBus()
+	svc := appuser.NewUserService(userRepo, profileRepo, rtRepo, hasher, bus)
 	return svc, userRepo, profileRepo, hasher, bus
 }
 
 func TestSetup(t *testing.T) {
-	svc, _, _, _, _ := newUserSvc()
+	svc, _, _, _, _ := newAuthSvc()
 
 	u, err := svc.Setup(context.Background(), "admin", "password123", "admin@evey.local")
 	require.NoError(t, err)
@@ -42,10 +49,10 @@ func TestSetup(t *testing.T) {
 }
 
 func TestLogin_Success(t *testing.T) {
-	svc, userRepo, _, hasher, bus := newUserSvc()
+	svc, userRepo, _, hasher, bus := newAuthSvc()
 
 	hash, _ := hasher.Hash("secret")
-	userRepo.Create(context.Background(), &domainuser.User{
+	_ = userRepo.Create(context.Background(), &domainuser.User{
 		ID:           "u1",
 		Username:     "alice",
 		PasswordHash: hash,
@@ -67,10 +74,10 @@ func TestLogin_Success(t *testing.T) {
 }
 
 func TestLogin_WrongPassword(t *testing.T) {
-	svc, userRepo, _, hasher, _ := newUserSvc()
+	svc, userRepo, _, hasher, _ := newAuthSvc()
 
 	hash, _ := hasher.Hash("correct")
-	userRepo.Create(context.Background(), &domainuser.User{
+	_ = userRepo.Create(context.Background(), &domainuser.User{
 		ID:           "u2",
 		Username:     "bob",
 		PasswordHash: hash,
@@ -82,20 +89,14 @@ func TestLogin_WrongPassword(t *testing.T) {
 }
 
 func TestLogin_UserNotFound(t *testing.T) {
-	svc, _, _, _, _ := newUserSvc()
+	svc, _, _, _, _ := newAuthSvc()
 
 	_, _, err := svc.Login(context.Background(), "nobody", "pass")
 	assert.ErrorIs(t, err, appuser.ErrInvalidCredentials)
 }
 
 func TestCreateProfile(t *testing.T) {
-	svc, userRepo, profileRepo, _, bus := newUserSvc()
-
-	userRepo.Create(context.Background(), &domainuser.User{
-		ID:       "u3",
-		Username: "carol",
-		Enabled:  true,
-	})
+	svc, _, profileRepo, _, bus := newUserSvc()
 
 	p := &domainuser.Profile{
 		ID:     "prof-1",
@@ -149,9 +150,6 @@ func TestLogin_DuplicateRefreshTokenRetries(t *testing.T) {
 	userRepo := userfakes.NewFakeUserRepository()
 	profileRepo := userfakes.NewFakeProfileRepository()
 	rtRepo := userfakes.NewFakeRefreshTokenRepository()
-	apiKeyRepo := userfakes.NewFakeAPIKeyRepository()
-	inviteRepo := userfakes.NewFakeInviteLinkRepository()
-	qcRepo := userfakes.NewFakeQuickConnectRepository()
 	roleRepo := userfakes.NewFakeRoleRepository()
 	userRoleRepo := userfakes.NewFakeUserRoleRepository(roleRepo)
 	hasher := userfakes.NewFakePasswordHasher()
@@ -163,20 +161,19 @@ func TestLogin_DuplicateRefreshTokenRetries(t *testing.T) {
 		collideCount: 1,
 	}
 
-	svc := appuser.NewCommandService(userRepo, profileRepo, rtRepo, apiKeyRepo, inviteRepo, qcRepo, roleRepo, userRoleRepo, hasher, tokenGen, bus)
+	svc := appuser.NewCommandService(userRepo, profileRepo, rtRepo, roleRepo, userRoleRepo, hasher, tokenGen, bus)
 
 	hash, _ := hasher.Hash("pass")
-	userRepo.Create(context.Background(), &domainuser.User{
+	_ = userRepo.Create(context.Background(), &domainuser.User{
 		ID: "u-dup1", Username: "dup1", PasswordHash: hash, Enabled: true,
 	})
-	userRepo.Create(context.Background(), &domainuser.User{
+	_ = userRepo.Create(context.Background(), &domainuser.User{
 		ID: "u-dup2", Username: "dup2", PasswordHash: hash, Enabled: true,
 	})
 
 	_, _, err := svc.Login(context.Background(), "dup1", "pass")
 	require.NoError(t, err)
 
-	// second login collides once on same fixedToken, retries with unique
 	_, refresh, err := svc.Login(context.Background(), "dup2", "pass")
 	require.NoError(t, err)
 	assert.NotEmpty(t, refresh)
@@ -186,9 +183,6 @@ func TestLogin_DuplicateRefreshTokenExhausted(t *testing.T) {
 	userRepo := userfakes.NewFakeUserRepository()
 	profileRepo := userfakes.NewFakeProfileRepository()
 	rtRepo := userfakes.NewFakeRefreshTokenRepository()
-	apiKeyRepo := userfakes.NewFakeAPIKeyRepository()
-	inviteRepo := userfakes.NewFakeInviteLinkRepository()
-	qcRepo := userfakes.NewFakeQuickConnectRepository()
 	roleRepo := userfakes.NewFakeRoleRepository()
 	userRoleRepo := userfakes.NewFakeUserRoleRepository(roleRepo)
 	hasher := userfakes.NewFakePasswordHasher()
@@ -200,13 +194,13 @@ func TestLogin_DuplicateRefreshTokenExhausted(t *testing.T) {
 		collideCount: 100,
 	}
 
-	svc := appuser.NewCommandService(userRepo, profileRepo, rtRepo, apiKeyRepo, inviteRepo, qcRepo, roleRepo, userRoleRepo, hasher, tokenGen, bus)
+	svc := appuser.NewCommandService(userRepo, profileRepo, rtRepo, roleRepo, userRoleRepo, hasher, tokenGen, bus)
 
 	hash, _ := hasher.Hash("pass")
-	userRepo.Create(context.Background(), &domainuser.User{
+	_ = userRepo.Create(context.Background(), &domainuser.User{
 		ID: "u-ex1", Username: "ex1", PasswordHash: hash, Enabled: true,
 	})
-	userRepo.Create(context.Background(), &domainuser.User{
+	_ = userRepo.Create(context.Background(), &domainuser.User{
 		ID: "u-ex2", Username: "ex2", PasswordHash: hash, Enabled: true,
 	})
 
@@ -219,10 +213,10 @@ func TestLogin_DuplicateRefreshTokenExhausted(t *testing.T) {
 }
 
 func TestLogin_ConcurrentSameUser(t *testing.T) {
-	svc, userRepo, _, hasher, _ := newUserSvc()
+	svc, userRepo, _, hasher, _ := newAuthSvc()
 
 	hash, _ := hasher.Hash("pass")
-	userRepo.Create(context.Background(), &domainuser.User{
+	_ = userRepo.Create(context.Background(), &domainuser.User{
 		ID: "u-conc", Username: "concurrent", PasswordHash: hash, Enabled: true,
 	})
 
@@ -245,8 +239,6 @@ func TestLogin_ConcurrentSameUser(t *testing.T) {
 func TestRegister_HashedPassword(t *testing.T) {
 	svc, userRepo, _, _, _ := newUserSvc()
 
-	// setup so admin exists (setup required before register isn't enforced, but we use Setup to pre-populate)
-	// Use CreateUser directly with admin flag
 	err := svc.CreateUser(context.Background(), true, &domainuser.User{
 		ID:       "u4",
 		Username: "dave",
@@ -257,7 +249,6 @@ func TestRegister_HashedPassword(t *testing.T) {
 
 	stored, err := userRepo.GetByUsername(context.Background(), "dave")
 	require.NoError(t, err)
-	// password must not be stored as plaintext
 	assert.NotEqual(t, "mypassword", stored.PasswordHash)
 	assert.NotEmpty(t, stored.PasswordHash)
 }
@@ -265,7 +256,7 @@ func TestRegister_HashedPassword(t *testing.T) {
 func TestUpdateProfile_BitrateLimit(t *testing.T) {
 	svc, _, profileRepo, _, _ := newUserSvc()
 
-	profileRepo.Create(context.Background(), &domainuser.Profile{
+	_ = profileRepo.Create(context.Background(), &domainuser.Profile{
 		ID:     "prof-br",
 		UserID: "u-br",
 		Name:   "Main",

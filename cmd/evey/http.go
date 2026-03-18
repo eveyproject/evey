@@ -46,7 +46,7 @@ func buildHTTPHandler(gwMux http.Handler, deps *appDeps, cfg *config.Config, sta
 		LibQuerySvc: deps.library.querySvc,
 		Scheduler:   deps.library.scheduler,
 
-		UserCmdSvc:   deps.user.cmdSvc,
+		UserSvc:      deps.user.userSvc,
 		UserQuerySvc: deps.user.querySvc,
 		OIDCSvc:      deps.user.oidcSvc,
 
