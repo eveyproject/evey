@@ -134,7 +134,7 @@ func (s *CommandService) handleMediaItemAdded(parentCtx context.Context, ev shar
 		}
 		if lvl == notification.LevelRelevant || lvl == notification.LevelHighlyRelevant {
 			if len(e.Genres) == 0 {
-				break
+				continue
 			}
 			score, err := s.analyzer.CalculateRelevanceScore(ctx, p.ID, e.Genres)
 			if err != nil || score == 0 {

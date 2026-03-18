@@ -47,12 +47,13 @@ func (fw *FSWatcher) loop() {
 			if op < 0 {
 				continue
 			}
-			// Only forward video files or directories (for recursive watch)
+			// Directories: register for recursive watch AND trigger scan
 			if ev.Has(fsnotify.Create) {
 				if info, err := os.Stat(ev.Name); err == nil && info.IsDir() {
 					if err := fw.watchRecursive(ev.Name); err != nil {
 						slog.Warn("watchRecursive", slog.Any("err", err))
 					}
+					fw.events <- library.FileEvent{Path: ev.Name, Op: library.FileCreated}
 					continue
 				}
 			}
