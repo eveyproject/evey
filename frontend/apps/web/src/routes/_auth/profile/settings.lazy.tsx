@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/Input";
 import { Button } from "@/components/ui/Button";
 import { Select } from "@/components/ui/Select";
 import { ThemeSettings } from "@/features/user/ThemeSettings";
+import { LanguageSettings } from "@/features/user/LanguageSettings";
 import { NotificationSettings } from "@/features/user/NotificationSettings";
 import { APIKeySettings } from "@/features/user/APIKeySettings";
 import { DeviceSettings } from "@/features/user/DeviceSettings";
@@ -86,7 +87,14 @@ function SettingsPage() {
 
       <Card>
         <div className="p-6">
-          {tab === "appearance" && <ThemeSettings />}
+          {tab === "appearance" && (
+            <>
+              <ThemeSettings />
+              <div className="border-t border-[var(--border)] mt-6 pt-6">
+                <LanguageSettings />
+              </div>
+            </>
+          )}
           {tab === "playback" && <PlaybackSection />}
           {tab === "notifications" && <NotificationSettings />}
           {tab === "account" && <AccountSection />}

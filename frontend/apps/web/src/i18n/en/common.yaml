@@ -1,80 +1,13 @@
-actions:
-  save: "Save"
-  cancel: "Cancel"
-  delete: "Delete"
-  edit: "Edit"
-  create: "Create"
-  close: "Close"
-  back: "Back"
-  next: "Next"
-  confirm: "Confirm"
-  search: "Search"
-  filter: "Filter"
-  refresh: "Refresh"
-  retry: "Retry"
-  loading: "Loading..."
-  submit: "Submit"
-  apply: "Apply"
-  reset: "Reset"
-  clear: "Clear"
-  download: "Download"
-  upload: "Upload"
-  play: "Play"
-  pause: "Pause"
-  stop: "Stop"
-  get_started: "Get Started"
-  sign_out: "Sign Out"
-  sign_in: "Sign In"
-
-status:
-  online: "Online"
-  offline: "Offline"
-  active: "Active"
-  inactive: "Inactive"
-  enabled: "Enabled"
-  disabled: "Disabled"
-  running: "Running"
-  stopped: "Stopped"
-  error: "Error"
-  pending: "Pending"
-  unknown: "Unknown"
-
-time:
-  seconds: "{count} seconds"
-  minutes: "{count} minutes"
-  hours: "{count} hours"
-  days: "{count} days"
-  ago: "{time} ago"
-  just_now: "Just now"
-
-empty_state:
-  no_results: "No results found"
-  no_entries: "No entries found"
-  no_items: "No items"
-
-toast:
-  saved: "Saved"
-  deleted: "Deleted"
-  failed: "Failed"
-  copied: "Copied to clipboard"
-
-labels:
-  name: "Name"
-  type: "Type"
-  title: "Title"
-  description: "Description"
-  date: "Date"
-  size: "Size"
-  path: "Path"
-  url: "URL"
-  all: "All"
-  none: "None"
-  yes: "Yes"
-  no: "No"
-
-errors:
-  generic: "Something went wrong"
-  network: "Network error"
-  not_found: "Not found"
-  unauthorized: "Unauthorized"
-  forbidden: "Forbidden"
+back: Back
+save: Save
+cancel: Cancel
+create: Create
+delete: Delete
+enable: Enable
+disable: Disable
+skip: Skip
+continue: Continue
+loading: Loading...
+error: Error
+unknown: Unknown
+settings: Settings

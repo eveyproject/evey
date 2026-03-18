@@ -1,80 +1,13 @@
-actions:
-  save: "Enregistrer"
-  cancel: "Annuler"
-  delete: "Supprimer"
-  edit: "Modifier"
-  create: "Créer"
-  close: "Fermer"
-  back: "Retour"
-  next: "Suivant"
-  confirm: "Confirmer"
-  search: "Rechercher"
-  filter: "Filtrer"
-  refresh: "Actualiser"
-  retry: "Réessayer"
-  loading: "Chargement..."
-  submit: "Envoyer"
-  apply: "Appliquer"
-  reset: "Réinitialiser"
-  clear: "Effacer"
-  download: "Télécharger"
-  upload: "Envoyer"
-  play: "Lecture"
-  pause: "Pause"
-  stop: "Arrêter"
-  get_started: "Commencer"
-  sign_out: "Se déconnecter"
-  sign_in: "Se connecter"
-
-status:
-  online: "En ligne"
-  offline: "Hors ligne"
-  active: "Actif"
-  inactive: "Inactif"
-  enabled: "Activé"
-  disabled: "Désactivé"
-  running: "En cours"
-  stopped: "Arrêté"
-  error: "Erreur"
-  pending: "En attente"
-  unknown: "Inconnu"
-
-time:
-  seconds: "{count} secondes"
-  minutes: "{count} minutes"
-  hours: "{count} heures"
-  days: "{count} jours"
-  ago: "il y a {time}"
-  just_now: "À l'instant"
-
-empty_state:
-  no_results: "Aucun résultat trouvé"
-  no_entries: "Aucune entrée"
-  no_items: "Aucun élément"
-
-toast:
-  saved: "Enregistré"
-  deleted: "Supprimé"
-  failed: "Échec"
-  copied: "Copié dans le presse-papiers"
-
-labels:
-  name: "Nom"
-  type: "Type"
-  title: "Titre"
-  description: "Description"
-  date: "Date"
-  size: "Taille"
-  path: "Chemin"
-  url: "URL"
-  all: "Tout"
-  none: "Aucun"
-  yes: "Oui"
-  no: "Non"
-
-errors:
-  generic: "Une erreur est survenue"
-  network: "Erreur réseau"
-  not_found: "Introuvable"
-  unauthorized: "Non autorisé"
-  forbidden: "Interdit"
+back: Retour
+save: Enregistrer
+cancel: Annuler
+create: "Cr\xE9er"
+delete: Supprimer
+enable: Activer
+disable: "D\xE9sactiver"
+skip: Passer
+continue: Continuer
+loading: "Chargement\u2026"
+error: Erreur
+unknown: Inconnu
+settings: "Param\xE8tres"

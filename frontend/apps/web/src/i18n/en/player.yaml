@@ -1,42 +1,56 @@
 controls:
-  play: "Play"
-  pause: "Pause"
-  mute: "Mute"
-  unmute: "Unmute"
-  volume: "Volume"
-  fullscreen: "Fullscreen"
-  exit_fullscreen: "Exit Fullscreen"
-  settings: "Settings"
-  captions: "Captions"
-  pip: "Picture-in-Picture"
-
+  play: Play
+  pause: Pause
+  mute: Mute
+  unmute: Unmute
+  fullscreen: Fullscreen
+  exitFullscreen: Exit fullscreen
+  pip: Picture-in-Picture
+  exitPip: Exit Picture-in-Picture
+  settings: Settings
+  episodes: Episodes
+  chapters: Chapters
+  rewind: "Rewind {{seconds}}s"
+  forward: "Forward {{seconds}}s"
+  previousEpisode: Previous episode
+  nextEpisode: Next episode
+  seek: Seek
+  volume: Volume
 settings:
-  quality: "Quality"
-  speed: "Speed"
-  audio: "Audio"
-  subtitles: "Subtitles"
-  auto: "Auto"
+  quality: Quality
+  auto: Auto
+  audio: Audio
+  subtitles: Subtitles
+  speed: Speed
+  subtitleStyle: Subtitle Style
+  normal: Normal
+  uploadSubtitle: "Upload subtitle\u2026"
   off: "Off"
-
-shortcuts:
-  title: "Keyboard Shortcuts"
-  play_pause: "Play / Pause"
-  toggle_fullscreen: "Toggle fullscreen"
-  toggle_mute: "Toggle mute"
-  volume_up: "Volume up"
-  volume_down: "Volume down"
-  seek_percent: "Seek to 0%–90%"
-  toggle_captions: "Toggle captions"
-  decrease_speed: "Decrease speed"
-  increase_speed: "Increase speed"
-  show_shortcuts: "Show shortcuts"
-
-next_episode:
-  up_next: "Up Next"
-  play_now: "Play Now"
-  cancel: "Cancel"
-  starting_in: "Starting in {seconds}s"
-
-errors:
-  playback_failed: "Playback failed"
-  stream_unavailable: "Stream unavailable"
+subtitleStyle:
+  size: Size
+  textColor: Text Color
+  background: Background
+  font: Font
+  position: Position
+  top: Top
+  bottom: Bottom
+  textShadow: Text shadow
+colors:
+  white: White
+  yellow: Yellow
+  green: Green
+  cyan: Cyan
+  orange: Orange
+bgColors:
+  black: Black
+  darkGrey: Dark grey
+  navy: Navy
+  none: None
+fonts:
+  default: Default
+  sansSerif: Sans-serif
+  serif: Serif
+  monospace: Monospace
+  comicSans: Comic Sans
+quality:
+  original: Original

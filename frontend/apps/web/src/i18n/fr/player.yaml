@@ -1,42 +1,56 @@
 controls:
-  play: "Lecture"
-  pause: "Pause"
-  mute: "Couper le son"
-  unmute: "Rétablir le son"
-  volume: "Volume"
-  fullscreen: "Plein écran"
-  exit_fullscreen: "Quitter le plein écran"
-  settings: "Paramètres"
-  captions: "Sous-titres"
-  pip: "Picture-in-Picture"
-
+  play: Lecture
+  pause: Pause
+  mute: Couper le son
+  unmute: "R\xE9activer le son"
+  fullscreen: Plein \xE9cran
+  exitFullscreen: "Quitter le plein \xE9cran"
+  pip: Image dans l'image
+  exitPip: "Quitter l'image dans l'image"
+  settings: "Param\xE8tres"
+  episodes: "\xC9pisodes"
+  chapters: Chapitres
+  rewind: "Reculer de {{seconds}}s"
+  forward: "Avancer de {{seconds}}s"
+  previousEpisode: "\xC9pisode pr\xE9c\xE9dent"
+  nextEpisode: "\xC9pisode suivant"
+  seek: Rechercher
+  volume: Volume
 settings:
-  quality: "Qualité"
-  speed: "Vitesse"
-  audio: "Audio"
-  subtitles: "Sous-titres"
-  auto: "Auto"
-  off: "Désactivé"
-
-shortcuts:
-  title: "Raccourcis clavier"
-  play_pause: "Lecture / Pause"
-  toggle_fullscreen: "Basculer en plein écran"
-  toggle_mute: "Basculer le son"
-  volume_up: "Augmenter le volume"
-  volume_down: "Diminuer le volume"
-  seek_percent: "Aller à 0%–90%"
-  toggle_captions: "Basculer les sous-titres"
-  decrease_speed: "Réduire la vitesse"
-  increase_speed: "Augmenter la vitesse"
-  show_shortcuts: "Afficher les raccourcis"
-
-next_episode:
-  up_next: "À suivre"
-  play_now: "Lire maintenant"
-  cancel: "Annuler"
-  starting_in: "Début dans {seconds}s"
-
-errors:
-  playback_failed: "Échec de lecture"
-  stream_unavailable: "Flux indisponible"
+  quality: "Qualit\xE9"
+  auto: Auto
+  audio: Audio
+  subtitles: Sous-titres
+  speed: Vitesse
+  subtitleStyle: Style des sous-titres
+  normal: Normal
+  uploadSubtitle: "T\xE9l\xE9verser un sous-titre\u2026"
+  off: "D\xE9sactiv\xE9"
+subtitleStyle:
+  size: Taille
+  textColor: Couleur du texte
+  background: "Arri\xE8re-plan"
+  font: Police
+  position: Position
+  top: Haut
+  bottom: Bas
+  textShadow: Ombre du texte
+colors:
+  white: Blanc
+  yellow: Jaune
+  green: Vert
+  cyan: Cyan
+  orange: Orange
+bgColors:
+  black: Noir
+  darkGrey: Gris fonc\xE9
+  navy: Marine
+  none: Aucun
+fonts:
+  default: "Par d\xE9faut"
+  sansSerif: Sans-serif
+  serif: Serif
+  monospace: Monospace
+  comicSans: Comic Sans
+quality:
+  original: Original
