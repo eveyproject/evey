@@ -435,7 +435,7 @@ function PluginsPage() {
         </div>
       )}
 
-      <Modal open={showModal} onClose={() => setShowModal(false)} title="Install Plugin">
+      <Modal open={showModal} onClose={() => setShowModal(false)} title="Install Plugin" size="lg">
         <InstallPluginForm onSuccess={handleInstallSuccess} />
       </Modal>
 
