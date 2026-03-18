@@ -116,6 +116,8 @@ func (r *Runner) Start(_ context.Context, p *plugin.Plugin) error {
 	if err := os.MkdirAll(sockDir, 0o777); err != nil {
 		return fmt.Errorf("create sock dir: %w", err)
 	}
+	// Ensure plugins (evey-plugin user) can create sockets in the dir
+	os.Chmod(sockDir, 0o1777)
 
 	sock := filepath.Join(sockDir, p.ID+".sock")
 	if err := os.Remove(sock); err != nil && !os.IsNotExist(err) {
