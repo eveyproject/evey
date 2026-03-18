@@ -624,10 +624,11 @@ func auditLogEntryToProto(e *activity.AuditLogEntry) *eveyv1.AuditLogEntry {
 // --- Plugin converters ---
 
 var pluginStateToProto = map[string]eveyv1.PluginState{
-	"stopped":   eveyv1.PluginState_PLUGIN_STATE_STOPPED,
-	"running":   eveyv1.PluginState_PLUGIN_STATE_RUNNING,
-	"error":     eveyv1.PluginState_PLUGIN_STATE_ERROR,
-	"installed": eveyv1.PluginState_PLUGIN_STATE_INSTALLED,
+	"stopped":      eveyv1.PluginState_PLUGIN_STATE_STOPPED,
+	"initializing": eveyv1.PluginState(5), // PLUGIN_STATE_INITIALIZING — regenerate proto to use constant
+	"running":      eveyv1.PluginState_PLUGIN_STATE_RUNNING,
+	"error":        eveyv1.PluginState_PLUGIN_STATE_ERROR,
+	"installed":    eveyv1.PluginState_PLUGIN_STATE_INSTALLED,
 }
 
 func pluginToProto(p *plugin.Plugin) *eveyv1.Plugin {

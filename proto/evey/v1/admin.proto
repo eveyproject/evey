@@ -265,6 +265,7 @@ enum PluginState {
   PLUGIN_STATE_RUNNING = 2;
   PLUGIN_STATE_STOPPED = 3;
   PLUGIN_STATE_ERROR = 4;
+  PLUGIN_STATE_INITIALIZING = 5;
 }
 
 message PluginConfig {

@@ -44,7 +44,7 @@ func TestInstallPlugin(t *testing.T) {
 	p, err := svc.InstallPlugin(context.Background(), "/tmp/plugin.zip")
 	require.NoError(t, err)
 	assert.Equal(t, "test-plugin", p.Name)
-	assert.Equal(t, string(plugindomain.Running), p.Status)
+	assert.Equal(t, string(plugindomain.Initializing), p.Status)
 	assert.Equal(t, "./plugin", p.Entrypoint)
 }
 

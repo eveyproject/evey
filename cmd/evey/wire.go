@@ -240,6 +240,23 @@ func buildServices(ctx context.Context, cfg *config.Config, db *sql.DB, rootLog 
 
 	permChecker := appplugin.NewPermissionChecker(r.Plugin)
 
+	pluginRunner.WithIPCCallback(func(pluginID string, ipcErr error) {
+		p, getErr := r.Plugin.GetByID(context.Background(), pluginID)
+		if getErr != nil {
+			return
+		}
+		if ipcErr != nil {
+			p.Status = "error"
+			p.ErrorMessage = ipcErr.Error()
+		} else {
+			p.Status = "running"
+			p.ErrorMessage = ""
+		}
+		if upErr := r.Plugin.Update(context.Background(), p); upErr != nil {
+			slog.Warn("update plugin status after IPC", slog.String("pluginID", pluginID), slog.Any("err", upErr))
+		}
+	})
+
 	pluginSvc := appplugin.NewService(r.Plugin, r.PluginRuntime, pluginRunner, manifestParser, bus).
 		WithInstaller(pluginInstaller).
 		WithAnalyzer(pluginAnalyzer).

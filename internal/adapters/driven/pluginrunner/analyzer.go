@@ -91,7 +91,7 @@ var analyzerRules = []analyzerRule{
 }
 
 // URL extraction patterns — all network schemes
-const urlSchemes = `(?:https?|ftp|ftps|wss?|ssh|telnet|ldaps?|smb|mqtt|amqp|redis|mongodb|postgres(?:ql)?|mysql|stratum\+tcp)`
+const urlSchemes = `(?:https?|ftp|ftps|wss?|ssh|telnet|ldaps?|smb|mqtt|amqp|redis|mongodb|postgres(?:ql)?|mysql|stratum\+tcp|gopher|file)`
 
 var (
 	urlLiteralRe  = regexp.MustCompile(urlSchemes + `://[^\s"'\x60\]}>),;]+`)
@@ -108,11 +108,16 @@ var depManifests = map[string]bool{
 	"composer.json": true, "Gemfile": true, "go.mod": true,
 }
 
-var analyzedExtensions = map[string]bool{
-	".py": true, ".js": true, ".ts": true, ".go": true,
-	".sh": true, ".bash": true, ".rb": true, ".pl": true,
-	".lua": true, ".php": true, ".yaml": true, ".yml": true,
-	".json": true, ".toml": true, ".cfg": true, ".ini": true,
+// Binary extensions to skip (scan everything else as text)
+var binaryExtensions = map[string]bool{
+	".so": true, ".dll": true, ".dylib": true, ".exe": true,
+	".bin": true, ".o": true, ".a": true, ".class": true, ".jar": true,
+	".pyc": true, ".pyo": true, ".wasm": true,
+	".png": true, ".jpg": true, ".jpeg": true, ".gif": true, ".ico": true, ".svg": true,
+	".woff": true, ".woff2": true, ".ttf": true, ".eot": true,
+	".zip": true, ".gz": true, ".tar": true, ".bz2": true, ".xz": true,
+	".mp3": true, ".mp4": true, ".wav": true, ".flac": true,
+	".pdf": true, ".doc": true, ".docx": true,
 }
 
 // StaticAnalyzer implements the domain PluginAnalyzer interface.
@@ -193,7 +198,7 @@ func AnalyzePlugin(dir string) (*AnalysisReport, error) {
 		}
 
 		ext := strings.ToLower(filepath.Ext(path))
-		if !analyzedExtensions[ext] {
+		if binaryExtensions[ext] {
 			return nil
 		}
 

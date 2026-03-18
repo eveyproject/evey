@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/gravity-zero/evey/internal/domain/plugin"
@@ -33,6 +34,7 @@ type Service struct {
 	analyzer    plugin.PluginAnalyzer
 	permChecker *PermissionChecker
 	pluginDir   string
+	installMu   sync.Mutex
 }
 
 func NewService(
@@ -73,9 +75,16 @@ func (s *Service) WithPluginDir(dir string) *Service {
 }
 
 func (s *Service) InstallPlugin(ctx context.Context, zipPath string) (*plugin.Plugin, error) {
+	s.installMu.Lock()
+	defer s.installMu.Unlock()
+
 	manifest, err := s.parser.Parse(zipPath)
 	if err != nil {
 		return nil, fmt.Errorf("parse manifest: %w", err)
+	}
+
+	if existing, _ := s.plugins.GetByName(ctx, manifest.Name); existing != nil {
+		return nil, fmt.Errorf("plugin %q already installed (id: %s)", manifest.Name, existing.ID)
 	}
 
 	p := &plugin.Plugin{
@@ -150,7 +159,7 @@ func (s *Service) InstallPlugin(ctx context.Context, zipPath string) (*plugin.Pl
 		if s.permChecker != nil {
 			s.permChecker.LoadPermissions(p.ID, p.Permissions)
 		}
-		p.Status = string(plugin.Running)
+		p.Status = string(plugin.Initializing)
 	} else {
 		p.Status = string(plugin.Running)
 	}
@@ -437,7 +446,7 @@ func (s *Service) AutoStartPlugins(ctx context.Context) {
 		return
 	}
 	for _, p := range all {
-		if !p.Enabled || p.Status != string(plugin.Running) {
+		if !p.Enabled || (p.Status != string(plugin.Running) && p.Status != string(plugin.Initializing)) {
 			continue
 		}
 		if isStaticPlugin(p) {

@@ -41,7 +41,7 @@ func (p *YAMLManifestParser) Parse(zipPath string) (*plugin.PluginManifest, erro
 	}
 	defer rc.Close()
 
-	data, err := io.ReadAll(rc)
+	data, err := io.ReadAll(io.LimitReader(rc, 1<<20)) // 1MB max manifest
 	if err != nil {
 		return nil, fmt.Errorf("read manifest: %w", err)
 	}
@@ -60,15 +60,21 @@ func (p *YAMLManifestParser) Parse(zipPath string) (*plugin.PluginManifest, erro
 
 func (p *YAMLManifestParser) ParseDir(dir string) (*plugin.PluginManifest, error) {
 	var data []byte
-	var err error
+	var readErr error
 	for _, name := range []string{"plugin.yaml", "plugin.yml"} {
-		data, err = os.ReadFile(filepath.Join(dir, name))
-		if err == nil {
+		f, fErr := os.Open(filepath.Join(dir, name))
+		if fErr != nil {
+			readErr = fErr
+			continue
+		}
+		data, readErr = io.ReadAll(io.LimitReader(f, 1<<20))
+		f.Close()
+		if readErr == nil {
 			break
 		}
 	}
-	if err != nil {
-		return nil, fmt.Errorf("read manifest from dir: %w", err)
+	if readErr != nil {
+		return nil, fmt.Errorf("read manifest from dir: %w", readErr)
 	}
 
 	var manifest plugin.PluginManifest

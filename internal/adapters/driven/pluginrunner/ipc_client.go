@@ -3,6 +3,7 @@ package pluginrunner
 import (
 	"context"
 	"fmt"
+	"net"
 	"os"
 	"path/filepath"
 	"time"
@@ -126,7 +127,10 @@ func waitForSocket(ctx context.Context, sockPath string) error {
 		case <-ctx.Done():
 			return fmt.Errorf("timeout waiting for socket %s", sockPath)
 		case <-ticker.C:
-			if _, err := os.Stat(sockPath); err == nil {
+			// Try to actually dial, not just check file existence
+			conn, err := net.DialTimeout("unix", sockPath, sockPollInterval)
+			if err == nil {
+				conn.Close()
 				return nil
 			}
 		}

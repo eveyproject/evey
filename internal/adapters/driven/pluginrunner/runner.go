@@ -37,6 +37,9 @@ type processEntry struct {
 	ipc      *ipcClient
 }
 
+// OnIPCResult is called after IPC Initialize completes (success or failure).
+type OnIPCResult func(pluginID string, err error)
+
 type Runner struct {
 	mu          sync.RWMutex
 	processes   map[string]*processEntry
@@ -44,6 +47,7 @@ type Runner struct {
 	logger      *PluginLogger
 	sandboxLib  string
 	sandboxOnce sync.Once
+	onIPCResult OnIPCResult
 }
 
 func NewRunner(pluginDirs ...string) *Runner {
@@ -59,6 +63,11 @@ func NewRunner(pluginDirs ...string) *Runner {
 
 func (r *Runner) WithLogger(l *PluginLogger) *Runner {
 	r.logger = l
+	return r
+}
+
+func (r *Runner) WithIPCCallback(cb OnIPCResult) *Runner {
+	r.onIPCResult = cb
 	return r
 }
 
@@ -208,6 +217,7 @@ func (r *Runner) Start(_ context.Context, p *plugin.Plugin) error {
 
 	if err := cmd.Start(); err != nil {
 		cancel()
+		os.RemoveAll(pluginSockDir)
 		return fmt.Errorf("start plugin %s: %w", p.ID, err)
 	}
 
@@ -236,6 +246,9 @@ func (r *Runner) connectIPC(entry *processEntry, p *plugin.Plugin) {
 	client, err := newIPCClient(entry.sockPath)
 	if err != nil {
 		slog.Warn("plugin IPC connect failed", slog.String("pluginID", p.ID), slog.Any("err", err))
+		if r.onIPCResult != nil {
+			r.onIPCResult(p.ID, err)
+		}
 		return
 	}
 
@@ -250,8 +263,15 @@ func (r *Runner) connectIPC(entry *processEntry, p *plugin.Plugin) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), ipcCallTimeout)
 	defer cancel()
-	if err := client.Initialize(ctx, p.ID, cfgMap, hostVersion); err != nil {
-		slog.Warn("plugin Initialize failed", slog.String("pluginID", p.ID), slog.Any("err", err))
+	if initErr := client.Initialize(ctx, p.ID, cfgMap, hostVersion); initErr != nil {
+		slog.Warn("plugin Initialize failed", slog.String("pluginID", p.ID), slog.Any("err", initErr))
+		if r.onIPCResult != nil {
+			r.onIPCResult(p.ID, initErr)
+		}
+		return
+	}
+	if r.onIPCResult != nil {
+		r.onIPCResult(p.ID, nil)
 	}
 }
 

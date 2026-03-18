@@ -5,9 +5,10 @@ import "time"
 type PluginStatus string
 
 const (
-	Stopped PluginStatus = "stopped"
-	Running PluginStatus = "running"
-	Error   PluginStatus = "error"
+	Stopped      PluginStatus = "stopped"
+	Initializing PluginStatus = "initializing"
+	Running      PluginStatus = "running"
+	Error        PluginStatus = "error"
 )
 
 type RuntimeStatus string
