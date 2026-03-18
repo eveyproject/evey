@@ -113,13 +113,20 @@ func (r *Runner) validateEntrypoint(entrypoint, installDir string) (string, erro
 }
 
 func (r *Runner) Start(_ context.Context, p *plugin.Plugin) error {
-	if err := os.MkdirAll(sockDir, 0o777); err != nil {
+	if err := os.MkdirAll(sockDir, 0o755); err != nil {
 		return fmt.Errorf("create sock dir: %w", err)
 	}
-	// Ensure plugins (evey-plugin user) can create sockets in the dir
-	os.Chmod(sockDir, 0o1777)
 
-	sock := filepath.Join(sockDir, p.ID+".sock")
+	// Per-plugin socket subdirectory — isolates sockets between plugins
+	pluginSockDir := filepath.Join(sockDir, p.ID)
+	if err := os.MkdirAll(pluginSockDir, 0o700); err != nil {
+		return fmt.Errorf("create plugin sock dir: %w", err)
+	}
+	if os.Getuid() == 0 {
+		os.Chown(pluginSockDir, pluginUID, pluginGID)
+	}
+
+	sock := filepath.Join(pluginSockDir, "plugin.sock")
 	if err := os.Remove(sock); err != nil && !os.IsNotExist(err) {
 		slog.Warn("remove old plugin sock", slog.Any("err", err))
 	}
@@ -272,9 +279,7 @@ func (r *Runner) Stop(_ context.Context, pluginID string) error {
 	}
 
 	if entry.cmd.Process == nil {
-		if err := os.Remove(entry.sockPath); err != nil {
-			slog.Warn("remove plugin sock", slog.Any("err", err))
-		}
+		os.RemoveAll(filepath.Dir(entry.sockPath))
 		return nil
 	}
 
@@ -297,8 +302,9 @@ func (r *Runner) Stop(_ context.Context, pluginID string) error {
 		}
 	}
 
-	if err := os.Remove(entry.sockPath); err != nil {
-		slog.Warn("remove plugin sock", slog.Any("err", err))
+	// Remove entire socket subdirectory
+	if err := os.RemoveAll(filepath.Dir(entry.sockPath)); err != nil {
+		slog.Warn("remove plugin sock dir", slog.Any("err", err))
 	}
 
 	if r.logger != nil {
