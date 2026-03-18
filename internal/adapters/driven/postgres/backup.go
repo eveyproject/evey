@@ -1,6 +1,7 @@
 package postgres
 
 import (
+	"bufio"
 	"bytes"
 	"context"
 	"fmt"
@@ -8,14 +9,13 @@ import (
 	"os"
 	"os/exec"
 	"regexp"
-	"slices"
 	"strconv"
 	"strings"
 )
 
 var (
-	pgDumpHeader      = []byte("-- PostgreSQL database dump")
-	copyToProgramRe   = regexp.MustCompile(`(?i)COPY\s+.*\s+TO\s+PROGRAM`)
+	pgDumpHeader    = []byte("-- PostgreSQL database dump")
+	dangerousLineRe = regexp.MustCompile(`(?i)(COPY\s+.*\s+TO\s+PROGRAM|CREATE\s+.*\s+LANGUAGE|DO\s+\$\$|EXECUTE|pg_read_file|pg_write_file|lo_import|lo_export)`)
 )
 
 type DatabaseDumper struct {
@@ -69,28 +69,10 @@ func (d *DatabaseDumper) DumpTables(ctx context.Context, tables []string) (io.Re
 }
 
 func (d *DatabaseDumper) RestoreTables(ctx context.Context, data io.Reader) error {
-	header := make([]byte, 128)
-	n, err := io.ReadFull(data, header)
-	if err != nil && err != io.ErrUnexpectedEOF {
-		return fmt.Errorf("restore: read header: %w", err)
+	validated, err := d.validateBackup(data)
+	if err != nil {
+		return err
 	}
-	header = header[:n]
-	if !bytes.HasPrefix(header, pgDumpHeader) {
-		return fmt.Errorf("restore: invalid file: missing pg_dump header")
-	}
-
-	peek := make([]byte, 8192)
-	pn, peekErr := io.ReadFull(data, peek)
-	if peekErr != nil && peekErr != io.ErrUnexpectedEOF && peekErr != io.EOF {
-		return fmt.Errorf("restore: read peek: %w", peekErr)
-	}
-	peek = peek[:pn]
-	combined := slices.Concat(header, peek)
-	if copyToProgramRe.Match(combined) {
-		return fmt.Errorf("restore: rejected: dangerous COPY TO PROGRAM statement")
-	}
-
-	safe := io.MultiReader(bytes.NewReader(combined), data)
 
 	cmd := exec.CommandContext(ctx, "psql",
 		"-h", d.host,
@@ -100,7 +82,7 @@ func (d *DatabaseDumper) RestoreTables(ctx context.Context, data io.Reader) erro
 		"--single-transaction",
 	)
 	cmd.Env = d.pgEnv()
-	cmd.Stdin = safe
+	cmd.Stdin = bytes.NewReader(validated)
 	var stderr bytes.Buffer
 	cmd.Stderr = &stderr
 
@@ -108,4 +90,37 @@ func (d *DatabaseDumper) RestoreTables(ctx context.Context, data io.Reader) erro
 		return fmt.Errorf("psql restore: %s: %w", strings.TrimSpace(stderr.String()), err)
 	}
 	return nil
+}
+
+// validateBackup reads the entire backup, checks the header and scans every line for dangerous SQL.
+func (d *DatabaseDumper) validateBackup(data io.Reader) ([]byte, error) {
+	scanner := bufio.NewScanner(data)
+	scanner.Buffer(make([]byte, 0, 64*1024), 10*1024*1024)
+
+	var buf bytes.Buffer
+	lineNum := 0
+
+	for scanner.Scan() {
+		line := scanner.Text()
+		lineNum++
+
+		if lineNum == 1 && !strings.HasPrefix(line, string(pgDumpHeader)) {
+			return nil, fmt.Errorf("restore: invalid file: missing pg_dump header")
+		}
+
+		if dangerousLineRe.MatchString(line) {
+			return nil, fmt.Errorf("restore: rejected: dangerous SQL at line %d", lineNum)
+		}
+
+		buf.WriteString(line)
+		buf.WriteByte('\n')
+	}
+	if err := scanner.Err(); err != nil {
+		return nil, fmt.Errorf("restore: scan backup: %w", err)
+	}
+	if lineNum == 0 {
+		return nil, fmt.Errorf("restore: invalid file: empty backup")
+	}
+
+	return buf.Bytes(), nil
 }

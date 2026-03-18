@@ -145,6 +145,30 @@ func (r *Runner) Start(_ context.Context, p *plugin.Plugin) error {
 	r.processes[p.ID] = entry
 	r.mu.Unlock()
 
+	go func() {
+		err := cmd.Wait()
+		r.mu.Lock()
+		_, stillTracked := r.processes[p.ID]
+		if stillTracked {
+			delete(r.processes, p.ID)
+		}
+		r.mu.Unlock()
+
+		if !stillTracked {
+			return // Stop() already handled cleanup
+		}
+
+		cancel()
+		if err2 := os.Remove(sock); err2 != nil {
+			slog.Warn("remove plugin sock on crash", slog.Any("err", err2))
+		}
+		if err != nil {
+			slog.Warn("plugin process crashed", slog.String("plugin", p.ID), slog.Any("err", err))
+		} else {
+			slog.Info("plugin process exited", slog.String("plugin", p.ID))
+		}
+	}()
+
 	return nil
 }
 

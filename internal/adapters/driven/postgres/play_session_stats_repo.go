@@ -3,6 +3,7 @@ package postgres
 import (
 	"context"
 	"database/sql"
+	"fmt"
 
 	"github.com/gravity-zero/evey/internal/domain/activity"
 )
@@ -22,123 +23,93 @@ func (r *PlaySessionStatsReader) GetUserStats(ctx context.Context, profileID str
 		PlayCountByMonth: make(map[string]int),
 	}
 
-	err := r.db.QueryRowContext(ctx,
-		`SELECT COALESCE(SUM(duration_ms), 0), COUNT(*)
-		 FROM play_sessions WHERE profile_id = $1`, profileID,
-	).Scan(&stats.TotalWatchTimeMs, &stats.TotalPlayCount)
-	if err != nil {
-		return nil, err
-	}
+	// Single round-trip: totals + genres + most-played + monthly breakdown
+	const q = `
+	WITH totals AS (
+		SELECT COALESCE(SUM(duration_ms), 0) AS total_ms, COUNT(*) AS total_count
+		FROM play_sessions WHERE profile_id = $1
+	),
+	genres AS (
+		SELECT g.genre, COALESCE(SUM(ps.duration_ms), 0) AS total_ms
+		FROM play_sessions ps
+		INNER JOIN media_items mi ON mi.id = ps.media_item_id,
+		jsonb_array_elements_text(mi.genres) AS g(genre)
+		WHERE ps.profile_id = $1
+		GROUP BY g.genre
+		ORDER BY total_ms DESC
+	),
+	most_played AS (
+		SELECT ps.media_item_id, mi.title, COUNT(*) AS play_count
+		FROM play_sessions ps
+		INNER JOIN media_items mi ON mi.id = ps.media_item_id
+		WHERE ps.profile_id = $1
+		GROUP BY ps.media_item_id, mi.title
+		ORDER BY play_count DESC
+		LIMIT 10
+	),
+	monthly AS (
+		SELECT TO_CHAR(started_at, 'YYYY-MM') AS month, COUNT(*) AS cnt
+		FROM play_sessions WHERE profile_id = $1
+		GROUP BY month
+		ORDER BY month
+	)
+	SELECT 'T' AS kind, total_ms::TEXT, total_count::TEXT, '' FROM totals
+	UNION ALL
+	SELECT 'G', genre, total_ms::TEXT, '' FROM genres
+	UNION ALL
+	SELECT 'P', media_item_id, title, play_count::TEXT FROM most_played
+	UNION ALL
+	SELECT 'M', month, cnt::TEXT, '' FROM monthly`
 
-	genreRows, err := r.db.QueryContext(ctx,
-		`SELECT g.genre, COALESCE(SUM(ps.duration_ms), 0) AS total_ms
-		 FROM play_sessions ps
-		 INNER JOIN media_items mi ON mi.id = ps.media_item_id,
-		 jsonb_array_elements_text(mi.genres) AS g(genre)
-		 WHERE ps.profile_id = $1
-		 GROUP BY g.genre
-		 ORDER BY total_ms DESC`, profileID)
+	rows, err := r.db.QueryContext(ctx, q, profileID)
 	if err != nil {
 		return nil, err
 	}
-	defer genreRows.Close()
-	for genreRows.Next() {
-		var genre string
-		var totalMs int64
-		if err2 := genreRows.Scan(&genre, &totalMs); err2 != nil {
-			return nil, err2
-		}
-		stats.GenreBreakdown[genre] = totalMs
-	}
-	if err2 := genreRows.Err(); err2 != nil {
-		return nil, err2
-	}
+	defer rows.Close()
 
-	mostPlayed, err := r.db.QueryContext(ctx,
-		`SELECT ps.media_item_id, mi.title, COUNT(*) AS play_count
-		 FROM play_sessions ps
-		 INNER JOIN media_items mi ON mi.id = ps.media_item_id
-		 WHERE ps.profile_id = $1
-		 GROUP BY ps.media_item_id, mi.title
-		 ORDER BY play_count DESC
-		 LIMIT 10`, profileID)
-	if err != nil {
-		return nil, err
-	}
-	defer mostPlayed.Close()
-	for mostPlayed.Next() {
-		var mpc activity.MediaPlayCount
-		if err2 := mostPlayed.Scan(&mpc.MediaItemID, &mpc.Title, &mpc.PlayCount); err2 != nil {
-			return nil, err2
-		}
-		stats.MostPlayedItems = append(stats.MostPlayedItems, mpc)
-	}
-	if err2 := mostPlayed.Err(); err2 != nil {
-		return nil, err2
-	}
-
-	monthRows, err := r.db.QueryContext(ctx,
-		`SELECT TO_CHAR(started_at, 'YYYY-MM') AS month, COUNT(*) AS cnt
-		 FROM play_sessions WHERE profile_id = $1
-		 GROUP BY month
-		 ORDER BY month`, profileID)
-	if err != nil {
-		return nil, err
-	}
-	defer monthRows.Close()
-	for monthRows.Next() {
-		var month string
-		var cnt int
-		if err := monthRows.Scan(&month, &cnt); err != nil {
+	for rows.Next() {
+		var kind, col1, col2, col3 string
+		if err := rows.Scan(&kind, &col1, &col2, &col3); err != nil {
 			return nil, err
 		}
-		stats.PlayCountByMonth[month] = cnt
+		switch kind {
+		case "T":
+			fmt.Sscan(col1, &stats.TotalWatchTimeMs)
+			fmt.Sscan(col2, &stats.TotalPlayCount)
+		case "G":
+			var ms int64
+			fmt.Sscan(col2, &ms)
+			stats.GenreBreakdown[col1] = ms
+		case "P":
+			var cnt int
+			fmt.Sscan(col3, &cnt)
+			stats.MostPlayedItems = append(stats.MostPlayedItems, activity.MediaPlayCount{
+				MediaItemID: col1,
+				Title:       col2,
+				PlayCount:   cnt,
+			})
+		case "M":
+			var cnt int
+			fmt.Sscan(col2, &cnt)
+			stats.PlayCountByMonth[col1] = cnt
+		}
 	}
-	if err := monthRows.Err(); err != nil {
-		return nil, err
-	}
-
-	return stats, nil
+	return stats, rows.Err()
 }
 
 func (r *PlaySessionStatsReader) GetServerStats(ctx context.Context) (*activity.ServerStatsResult, error) {
 	stats := &activity.ServerStatsResult{}
-
 	err := r.db.QueryRowContext(ctx,
-		`SELECT COUNT(*) FROM play_sessions WHERE ended_at IS NULL`,
-	).Scan(&stats.ActiveStreams)
+		`SELECT
+			(SELECT COUNT(*) FROM play_sessions WHERE ended_at IS NULL),
+			(SELECT COUNT(*) FROM transcode_sessions WHERE status IN ('queued', 'running')),
+			(SELECT COUNT(*) FROM users),
+			(SELECT COUNT(*) FROM media_items),
+			(SELECT COALESCE(SUM(duration_ms), 0) FROM play_sessions)`,
+	).Scan(&stats.ActiveStreams, &stats.ActiveTranscodes, &stats.TotalUsers, &stats.TotalItems, &stats.TotalPlayTimeMs)
 	if err != nil {
 		return nil, err
 	}
-
-	err = r.db.QueryRowContext(ctx,
-		`SELECT COUNT(*) FROM transcode_sessions WHERE status IN ('queued', 'running')`,
-	).Scan(&stats.ActiveTranscodes)
-	if err != nil {
-		return nil, err
-	}
-
-	err = r.db.QueryRowContext(ctx,
-		`SELECT COUNT(*) FROM users`,
-	).Scan(&stats.TotalUsers)
-	if err != nil {
-		return nil, err
-	}
-
-	err = r.db.QueryRowContext(ctx,
-		`SELECT COUNT(*) FROM media_items`,
-	).Scan(&stats.TotalItems)
-	if err != nil {
-		return nil, err
-	}
-
-	err = r.db.QueryRowContext(ctx,
-		`SELECT COALESCE(SUM(duration_ms), 0) FROM play_sessions`,
-	).Scan(&stats.TotalPlayTimeMs)
-	if err != nil {
-		return nil, err
-	}
-
 	return stats, nil
 }
 
