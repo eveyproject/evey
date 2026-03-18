@@ -125,6 +125,44 @@ func TestAutoStartPlugins(t *testing.T) {
 	assert.False(t, healthy, "disabled plugin should not be started")
 }
 
+func TestPreviewPlugin(t *testing.T) {
+	svc, _, _, parser, _, analyzer := newTestService()
+
+	parser.Result = &plugindomain.PluginManifest{
+		Name:         "preview-plugin",
+		Version:      "2.0.0",
+		Description:  "desc",
+		Author:       "author",
+		Language:     "nodejs",
+		Entrypoint:   "main.js",
+		Permissions:  []string{"api.library"},
+		Capabilities: []string{"media.read"},
+	}
+	analyzer.Report = &plugindomain.AnalysisReport{
+		Safe:      true,
+		FileCount: 3,
+	}
+
+	preview, err := svc.PreviewPlugin(context.Background(), "/tmp/plugin.zip")
+	require.NoError(t, err)
+	assert.Equal(t, "preview-plugin", preview.Name)
+	assert.Equal(t, "2.0.0", preview.Version)
+	assert.Equal(t, []string{"api.library"}, preview.Permissions)
+	assert.Equal(t, []string{"media.read"}, preview.Capabilities)
+	require.NotNil(t, preview.Analysis)
+	assert.True(t, preview.Analysis.Safe)
+	assert.Equal(t, 3, preview.Analysis.FileCount)
+}
+
+func TestPreviewPlugin_ParseError(t *testing.T) {
+	svc, _, _, parser, _, _ := newTestService()
+	parser.Err = assert.AnError
+
+	_, err := svc.PreviewPlugin(context.Background(), "/tmp/bad.zip")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "parse manifest")
+}
+
 func TestUninstallRemovesDir(t *testing.T) {
 	svc, pluginRepo, _, parser, _, _ := newTestService()
 

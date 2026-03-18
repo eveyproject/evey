@@ -193,10 +193,16 @@ func (s *Service) PreviewPlugin(_ context.Context, zipPath string) (*PluginPrevi
 	if s.installer != nil && s.analyzer != nil {
 		tmpDir, tmpErr := os.MkdirTemp("", "evey-plugin-preview-*")
 		if tmpErr == nil {
-			defer os.RemoveAll(tmpDir)
+			defer func() {
+				if rmErr := os.RemoveAll(tmpDir); rmErr != nil {
+					slog.Warn("remove preview tmpdir", slog.Any("err", rmErr))
+				}
+			}()
 			if extErr := s.installer.Extract(zipPath, tmpDir); extErr == nil {
-				report, _ := s.analyzer.Analyze(tmpDir)
-				preview.Analysis = report
+				report, analyzeErr := s.analyzer.Analyze(tmpDir)
+				if analyzeErr == nil {
+					preview.Analysis = report
+				}
 			}
 		}
 	}

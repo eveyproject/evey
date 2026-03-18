@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	appplugin "github.com/gravity-zero/evey/internal/app/plugin"
 	"github.com/gravity-zero/evey/internal/domain/plugin"
 	pluginfakes "github.com/gravity-zero/evey/internal/domain/plugin/fakes"
 	domainuser "github.com/gravity-zero/evey/internal/domain/user"
@@ -127,4 +128,56 @@ func TestThemeCSS_NoThemeCapability(t *testing.T) {
 	mux.ServeHTTP(w, req)
 
 	assert.Equal(t, http.StatusNotFound, w.Code)
+}
+
+// --- preview endpoint tests ---
+
+func setupPreviewTest(t *testing.T) (*http.ServeMux, string) {
+	t.Helper()
+	key, err := rsa.GenerateKey(rand.Reader, 2048)
+	require.NoError(t, err)
+	tokenGen := auth.NewJWTGenerator(key, time.Minute)
+	adminToken, err := tokenGen.GenerateAccessToken(domainuser.Claims{UserID: "admin-1", IsAdmin: true})
+	require.NoError(t, err)
+
+	svc := &stubPluginManager{}
+	mux := http.NewServeMux()
+	registerPluginPreviewRoute(mux, tokenGen, svc)
+	return mux, adminToken
+}
+
+type stubPluginManager struct {
+	installResult *plugin.Plugin
+	installErr    error
+	previewResult *appplugin.PluginPreview
+	previewErr    error
+}
+
+func (s *stubPluginManager) InstallPlugin(_ context.Context, _ string) (*plugin.Plugin, error) {
+	return s.installResult, s.installErr
+}
+
+func (s *stubPluginManager) PreviewPlugin(_ context.Context, _ string) (*appplugin.PluginPreview, error) {
+	return s.previewResult, s.previewErr
+}
+
+func TestPluginPreview_Forbidden(t *testing.T) {
+	mux, _ := setupPreviewTest(t)
+
+	req := httptest.NewRequest("POST", "/api/v1/admin/plugins/preview", nil)
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusUnauthorized, w.Code)
+}
+
+func TestPluginPreview_NoFile(t *testing.T) {
+	mux, token := setupPreviewTest(t)
+
+	req := httptest.NewRequest("POST", "/api/v1/admin/plugins/preview", nil)
+	req.Header.Set("Authorization", "Bearer "+token)
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusBadRequest, w.Code)
 }
