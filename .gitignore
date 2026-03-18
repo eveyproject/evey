@@ -62,6 +62,10 @@ frontend/apps/web/tsconfig.tsbuildinfo
 .claude/worktrees/
 .claude/scheduled_tasks.lock
 
+# Plugin ZIPs (dist/ contains release-ready zips, root zips are dev artifacts)
+*.zip
+!plugins/dist/*.zip
+
 # E2E test artifacts
 tests/e2e/.e2e-start-time
 tests/e2e/.token-cache.json
