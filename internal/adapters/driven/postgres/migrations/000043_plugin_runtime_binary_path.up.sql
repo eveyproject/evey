@@ -1,0 +1,1 @@
+ALTER TABLE plugin_runtimes ADD COLUMN IF NOT EXISTS binary_path TEXT NOT NULL DEFAULT '';
