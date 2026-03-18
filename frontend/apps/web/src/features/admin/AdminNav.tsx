@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Link, useRouterState } from "@tanstack/react-router";
+import { useTranslation } from "react-i18next";
 import {
   LayoutDashboard,
   PlayCircle,
@@ -24,66 +25,66 @@ import {
 
 interface NavLink {
   href: string;
-  label: string;
+  labelKey: string;
   icon: LucideIcon;
 }
 
 interface NavSection {
-  title: string;
+  titleKey: string;
   links: NavLink[];
 }
 
-const sections: NavSection[] = [
+const sectionsDef: NavSection[] = [
   {
-    title: "Dashboard & System",
+    titleKey: "nav.dashboardSystem",
     links: [
-      { href: "/admin", label: "Dashboard", icon: LayoutDashboard },
-      { href: "/admin/sessions", label: "Now Playing", icon: PlayCircle },
-      { href: "/admin/remote-access", label: "Remote Access", icon: Globe },
-      { href: "/admin/server-config", label: "Server Config", icon: SlidersHorizontal },
-      { href: "/admin/system-health", label: "System Health", icon: Cpu },
+      { href: "/admin", labelKey: "nav.dashboard", icon: LayoutDashboard },
+      { href: "/admin/sessions", labelKey: "nav.nowPlaying", icon: PlayCircle },
+      { href: "/admin/remote-access", labelKey: "nav.remoteAccess", icon: Globe },
+      { href: "/admin/server-config", labelKey: "nav.serverConfig", icon: SlidersHorizontal },
+      { href: "/admin/system-health", labelKey: "nav.systemHealth", icon: Cpu },
     ],
   },
   {
-    title: "Media",
+    titleKey: "nav.media",
     links: [
-      { href: "/admin/libraries", label: "Libraries", icon: Library },
-      { href: "/admin/metadata", label: "Metadata", icon: Tags },
-      { href: "/admin/transcode-cache", label: "Transcode Cache", icon: HardDrive },
-      { href: "/admin/transcoding-profiles", label: "Transcoding Profiles", icon: Sliders },
+      { href: "/admin/libraries", labelKey: "nav.libraries", icon: Library },
+      { href: "/admin/metadata", labelKey: "nav.metadata", icon: Tags },
+      { href: "/admin/transcode-cache", labelKey: "nav.transcodeCache", icon: HardDrive },
+      { href: "/admin/transcoding-profiles", labelKey: "nav.transcodingProfiles", icon: Sliders },
     ],
   },
   {
-    title: "Users & Access",
+    titleKey: "nav.usersAccess",
     links: [
-      { href: "/admin/users", label: "Users", icon: Users },
+      { href: "/admin/users", labelKey: "nav.users", icon: Users },
     ],
   },
   {
-    title: "Integrations",
+    titleKey: "nav.integrations",
     links: [
-      { href: "/admin/plugins", label: "Plugins", icon: Puzzle },
-      { href: "/admin/webhooks", label: "Webhooks", icon: Webhook },
+      { href: "/admin/plugins", labelKey: "nav.plugins", icon: Puzzle },
+      { href: "/admin/webhooks", labelKey: "nav.webhooks", icon: Webhook },
     ],
   },
   {
-    title: "Monitoring",
+    titleKey: "nav.monitoring",
     links: [
-      { href: "/admin/analytics", label: "Analytics", icon: TrendingUp },
-      { href: "/admin/activity", label: "Activity", icon: BarChart3 },
-      { href: "/admin/audit", label: "Audit Log", icon: FileText },
-      { href: "/admin/logs", label: "Live Logs", icon: ScrollText },
+      { href: "/admin/analytics", labelKey: "nav.analytics", icon: TrendingUp },
+      { href: "/admin/activity", labelKey: "nav.activity", icon: BarChart3 },
+      { href: "/admin/audit", labelKey: "nav.auditLog", icon: FileText },
+      { href: "/admin/logs", labelKey: "nav.liveLogs", icon: ScrollText },
     ],
   },
   {
-    title: "Maintenance",
+    titleKey: "nav.maintenance",
     links: [
-      { href: "/admin/backup", label: "Backup & Restore", icon: Database },
+      { href: "/admin/backup", labelKey: "nav.backupRestore", icon: Database },
     ],
   },
 ];
 
-export { sections };
+export { sectionsDef as sections };
 
 function isLinkActive(pathname: string, href: string): boolean {
   if (href === "/admin") return pathname === "/admin" || pathname === "/admin/";
@@ -96,6 +97,7 @@ export interface AdminNavProps {
 }
 
 export function AdminNav({ collapsed = false, onNavigate }: AdminNavProps) {
+  const { t } = useTranslation("admin");
   const { location } = useRouterState();
   const pathname = location.pathname;
 
@@ -107,15 +109,16 @@ export function AdminNav({ collapsed = false, onNavigate }: AdminNavProps) {
 
   return (
     <div className="flex flex-col gap-1">
-      {sections.map((section, idx) => {
-        const isCollapsed = sectionCollapsed[section.title] ?? false;
+      {sectionsDef.map((section, idx) => {
+        const sectionTitle = t(section.titleKey);
+        const isCollapsed = sectionCollapsed[section.titleKey] ?? false;
 
         return (
-          <div key={section.title} className={idx > 0 ? "mt-2" : ""}>
+          <div key={section.titleKey} className={idx > 0 ? "mt-2" : ""}>
             {!collapsed && (
               <button
                 type="button"
-                onClick={() => toggleSection(section.title)}
+                onClick={() => toggleSection(section.titleKey)}
                 className="w-full flex items-center justify-between px-2 py-1.5 cursor-pointer rounded-[var(--radius-sm)] transition-colors"
                 style={{ color: "var(--text-muted)" }}
                 onMouseEnter={(e) => {
@@ -128,7 +131,7 @@ export function AdminNav({ collapsed = false, onNavigate }: AdminNavProps) {
                 <span
                   className="text-[11px] font-semibold uppercase tracking-wider select-none"
                 >
-                  {section.title}
+                  {sectionTitle}
                 </span>
                 <ChevronDown
                   size={12}
@@ -142,7 +145,8 @@ export function AdminNav({ collapsed = false, onNavigate }: AdminNavProps) {
 
             {(collapsed || !isCollapsed) && (
               <div className="flex flex-col gap-0.5 mt-0.5">
-                {section.links.map(({ href, label, icon: Icon }) => {
+                {section.links.map(({ href, labelKey, icon: Icon }) => {
+                  const label = t(labelKey);
                   const active = isLinkActive(pathname, href);
                   return (
                     <Link

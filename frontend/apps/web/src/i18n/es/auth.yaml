@@ -1,0 +1,27 @@
+setup:
+  welcome: Bienvenido a Evey
+  description: "Configuremos tu servidor multimedia. Solo toma un minuto."
+  getStarted: Comenzar
+  stepOf: "Paso {{current}} de {{total}} \u2014 {{name}}"
+  steps:
+    welcome: Bienvenida
+    admin: Cuenta de administrador
+    library: Primera biblioteca
+  createAdmin: Crear cuenta de administrador
+  username: Nombre de usuario
+  password: "Contrase\xF1a"
+  confirmPassword: "Confirmar contrase\xF1a"
+  usernameMin: "M\xEDnimo 3 caracteres"
+  passwordMin: "M\xEDnimo 8 caracteres"
+  passwordMismatch: "Las contrase\xF1as no coinciden"
+  setupFailed: "Error en la configuraci\xF3n"
+  addLibrary: "A\xF1ade tu primera biblioteca"
+  addLibraryHint: "Puedes a\xF1adir m\xE1s bibliotecas luego desde el panel de administraci\xF3n."
+  libraryName: Nombre de la biblioteca
+  libraryType: Tipo de biblioteca
+  libraryNameRequired: El nombre de la biblioteca es obligatorio
+  libraryTypes:
+    movies: "Pel\xEDculas"
+    shows: Series
+    music: "M\xFAsica"
+    photos: Fotos

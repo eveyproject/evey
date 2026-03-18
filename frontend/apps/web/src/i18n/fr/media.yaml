@@ -1,0 +1,5 @@
+season: "Saison {{number}}"
+episode: "E{{number}}"
+chapter: "Chapitre {{number}}"
+track: "Piste {{number}}"
+burnIn: "(incrust\xE9)"

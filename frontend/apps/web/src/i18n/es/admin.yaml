@@ -1,0 +1,43 @@
+nav:
+  dashboardSystem: Panel y sistema
+  dashboard: Panel
+  nowPlaying: Reproduciendo ahora
+  remoteAccess: Acceso remoto
+  serverConfig: "Configuraci\xF3n del servidor"
+  systemHealth: Estado del sistema
+  media: Medios
+  libraries: Bibliotecas
+  metadata: Metadatos
+  transcodeCache: "Cach\xE9 de transcodificaci\xF3n"
+  transcodingProfiles: "Perfiles de transcodificaci\xF3n"
+  usersAccess: Usuarios y acceso
+  users: Usuarios
+  integrations: Integraciones
+  plugins: Plugins
+  webhooks: Webhooks
+  monitoring: Monitoreo
+  analytics: "Anal\xEDtica"
+  activity: Actividad
+  auditLog: "Registro de auditor\xEDa"
+  liveLogs: Logs en vivo
+  maintenance: Mantenimiento
+  backupRestore: "Copia de seguridad y restauraci\xF3n"
+plugin:
+  enabled: Activado
+  disabled: Desactivado
+  config: Config
+  hideConfig: Ocultar config
+  logs: Logs
+  uninstall: Desinstalar
+  configuration: "Configuraci\xF3n"
+  noConfig: No hay claves de config definidas.
+  configSaved: Config guardada
+  subprocess: Subproceso
+  sandboxed: Aislado
+  state:
+    running: En ejecuci\xF3n
+    starting: "Iniciando\u2026"
+    error: Error
+    stopped: Detenido
+    installed: Instalado
+    unknown: Desconocido

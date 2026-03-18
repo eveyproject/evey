@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { useQueryClient } from "@tanstack/react-query";
+import { useTranslation } from "react-i18next";
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
@@ -13,7 +14,6 @@ import {
 import { toast } from "@evey/store";
 import type { V1Plugin, V1PluginState } from "@evey/api/src/generated/admin.schemas";
 
-// Extends generated type until orval adds permissions/capabilities
 type PluginWithPermissions = V1Plugin & {
   permissions?: string[];
   capabilities?: string[];
@@ -32,16 +32,13 @@ function stateBadgeVariant(state?: V1PluginState | string): BadgeVariant {
   }
 }
 
-function stateLabel(state?: V1PluginState | string): string {
-  switch (state) {
-    case "PLUGIN_STATE_RUNNING": return "Running";
-    case "PLUGIN_STATE_INITIALIZING": return "Starting...";
-    case "PLUGIN_STATE_ERROR": return "Error";
-    case "PLUGIN_STATE_STOPPED": return "Stopped";
-    case "PLUGIN_STATE_INSTALLED": return "Installed";
-    default: return "Unknown";
-  }
-}
+const STATE_LABEL_KEYS: Record<string, string> = {
+  PLUGIN_STATE_RUNNING: "plugin.state.running",
+  PLUGIN_STATE_INITIALIZING: "plugin.state.starting",
+  PLUGIN_STATE_ERROR: "plugin.state.error",
+  PLUGIN_STATE_STOPPED: "plugin.state.stopped",
+  PLUGIN_STATE_INSTALLED: "plugin.state.installed",
+};
 
 interface ConfigFieldSchema {
   type?: string;
@@ -101,6 +98,7 @@ function SchemaField({
 }
 
 function PluginConfigPanel({ pluginId, configSchema }: PluginConfigPanelProps) {
+  const { t } = useTranslation("admin");
   const queryClient = useQueryClient();
   const { data, isLoading } = useAdminServiceGetPluginConfig(pluginId);
   const [edits, setEdits] = useState<Record<string, string>>({});
@@ -110,7 +108,7 @@ function PluginConfigPanel({ pluginId, configSchema }: PluginConfigPanelProps) {
       onSuccess: () => {
         queryClient.invalidateQueries({ queryKey: ["/api/v1/admin/plugins", pluginId, "config"] });
         setEdits({});
-        toast.success("Config saved");
+        toast.success(t("plugin.configSaved"));
       },
       onError: (err: Error) => toast.error(err.message || "Failed to save config"),
     },
@@ -131,7 +129,7 @@ function PluginConfigPanel({ pluginId, configSchema }: PluginConfigPanelProps) {
   if (keys.length === 0) {
     return (
       <p className="text-xs py-2" style={{ color: "var(--text-muted)" }}>
-        No config keys defined.
+        {t("plugin.noConfig")}
       </p>
     );
   }
@@ -174,7 +172,7 @@ function PluginConfigPanel({ pluginId, configSchema }: PluginConfigPanelProps) {
             onClick={handleSave}
             loading={updateConfig.isPending}
           >
-            Save
+            {t("common:save")}
           </Button>
         </div>
       )}
@@ -190,7 +188,10 @@ interface PluginCardProps {
 }
 
 export function PluginCard({ plugin, onEnable, onDisable, onUninstall }: PluginCardProps) {
+  const { t } = useTranslation("admin");
   const [showConfig, setShowConfig] = useState(false);
+
+  const stateKey = STATE_LABEL_KEYS[plugin.state ?? ""] ?? "plugin.state.unknown";
 
   return (
     <Card className="flex flex-col gap-3">
@@ -204,17 +205,17 @@ export function PluginCard({ plugin, onEnable, onDisable, onUninstall }: PluginC
           </span>
         </div>
         <div className="flex items-center gap-2 shrink-0">
-          <Badge variant={stateBadgeVariant(plugin.state)}>{stateLabel(plugin.state)}</Badge>
+          <Badge variant={stateBadgeVariant(plugin.state)}>{t(stateKey)}</Badge>
           {plugin.enabled ? (
-            <Badge variant="success">Enabled</Badge>
+            <Badge variant="success">{t("plugin.enabled")}</Badge>
           ) : (
-            <Badge variant="default">Disabled</Badge>
+            <Badge variant="default">{t("plugin.disabled")}</Badge>
           )}
           {plugin.permissions?.includes("subprocess") && (
-            <Badge variant="warning">Subprocess</Badge>
+            <Badge variant="warning">{t("plugin.subprocess")}</Badge>
           )}
           {plugin.language !== "css" && !plugin.permissions?.includes("subprocess") && (
-            <Badge variant="success">Sandboxed</Badge>
+            <Badge variant="success">{t("plugin.sandboxed")}</Badge>
           )}
         </div>
       </div>
@@ -227,20 +228,20 @@ export function PluginCard({ plugin, onEnable, onDisable, onUninstall }: PluginC
 
       <div className="flex gap-2 pt-1 flex-wrap">
         {plugin.enabled ? (
-          <Button variant="secondary" onClick={onDisable}>Disable</Button>
+          <Button variant="secondary" onClick={onDisable}>{t("common:disable")}</Button>
         ) : (
-          <Button variant="primary" onClick={onEnable}>Enable</Button>
+          <Button variant="primary" onClick={onEnable}>{t("common:enable")}</Button>
         )}
         <Button variant="ghost" onClick={() => setShowConfig((v) => !v)}>
-          {showConfig ? "Hide Config" : "Config"}
+          {showConfig ? t("plugin.hideConfig") : t("plugin.config")}
         </Button>
         <Link
           to="/admin/logs"
           className="inline-flex items-center px-3 py-2 rounded-[var(--radius-md)] text-sm font-medium transition-colors bg-transparent hover:bg-[var(--surface-raised)] text-[var(--text-muted)]"
         >
-          Logs
+          {t("plugin.logs")}
         </Link>
-        <Button variant="danger" onClick={onUninstall}>Uninstall</Button>
+        <Button variant="danger" onClick={onUninstall}>{t("plugin.uninstall")}</Button>
       </div>
 
       {showConfig && plugin.id && (
@@ -249,7 +250,7 @@ export function PluginCard({ plugin, onEnable, onDisable, onUninstall }: PluginC
           style={{ borderColor: "var(--border)" }}
         >
           <p className="text-xs font-semibold mb-2" style={{ color: "var(--text-muted)" }}>
-            Configuration
+            {t("plugin.configuration")}
           </p>
           <PluginConfigPanel pluginId={plugin.id} />
         </div>

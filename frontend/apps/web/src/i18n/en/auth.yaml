@@ -1,0 +1,27 @@
+setup:
+  welcome: Welcome to Evey
+  description: Let's set up your media server. It only takes a minute.
+  getStarted: Get Started
+  stepOf: "Step {{current}} of {{total}} — {{name}}"
+  steps:
+    welcome: Welcome
+    admin: Admin account
+    library: First library
+  createAdmin: Create admin account
+  username: Username
+  password: Password
+  confirmPassword: Confirm password
+  usernameMin: At least 3 characters
+  passwordMin: At least 8 characters
+  passwordMismatch: Passwords do not match
+  setupFailed: Setup failed
+  addLibrary: Add your first library
+  addLibraryHint: You can add more libraries later from the admin panel.
+  libraryName: Library name
+  libraryType: Library type
+  libraryNameRequired: Library name is required
+  libraryTypes:
+    movies: Movies
+    shows: Shows
+    music: Music
+    photos: Photos

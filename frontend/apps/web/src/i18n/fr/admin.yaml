@@ -1,0 +1,43 @@
+nav:
+  dashboardSystem: "Tableau de bord et syst\xE8me"
+  dashboard: Tableau de bord
+  nowPlaying: En cours de lecture
+  remoteAccess: "Acc\xE8s distant"
+  serverConfig: Configuration du serveur
+  systemHealth: "Sant\xE9 du syst\xE8me"
+  media: "M\xE9dias"
+  libraries: "Biblioth\xE8ques"
+  metadata: "M\xE9tadonn\xE9es"
+  transcodeCache: Cache de transcodage
+  transcodingProfiles: Profils de transcodage
+  usersAccess: "Utilisateurs et acc\xE8s"
+  users: Utilisateurs
+  integrations: "Int\xE9grations"
+  plugins: Plugins
+  webhooks: Webhooks
+  monitoring: Surveillance
+  analytics: Analytique
+  activity: "Activit\xE9"
+  auditLog: "Journal d'audit"
+  liveLogs: Logs en direct
+  maintenance: Maintenance
+  backupRestore: Sauvegarde et restauration
+plugin:
+  enabled: "Activ\xE9"
+  disabled: "D\xE9sactiv\xE9"
+  config: Config
+  hideConfig: Masquer config
+  logs: Logs
+  uninstall: "D\xE9sinstaller"
+  configuration: Configuration
+  noConfig: "Aucune cl\xE9 de config d\xE9finie."
+  configSaved: "Config enregistr\xE9e"
+  subprocess: Sous-processus
+  sandboxed: "Isol\xE9"
+  state:
+    running: "En cours d'ex\xE9cution"
+    starting: "D\xE9marrage\u2026"
+    error: Erreur
+    stopped: "Arr\xEAt\xE9"
+    installed: "Install\xE9"
+    unknown: Inconnu

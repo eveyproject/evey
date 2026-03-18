@@ -1,0 +1,5 @@
+season: "Temporada {{number}}"
+episode: "E{{number}}"
+chapter: "Cap\xEDtulo {{number}}"
+track: "Pista {{number}}"
+burnIn: "(incrustado)"

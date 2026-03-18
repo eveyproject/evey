@@ -1,0 +1,27 @@
+setup:
+  welcome: Bienvenue sur Evey
+  description: "Configurons votre serveur multim\xE9dia. Cela ne prend qu'une minute."
+  getStarted: Commencer
+  stepOf: "\xC9tape {{current}} sur {{total}} \u2014 {{name}}"
+  steps:
+    welcome: Bienvenue
+    admin: Compte administrateur
+    library: "Premi\xE8re biblioth\xE8que"
+  createAdmin: "Cr\xE9er un compte administrateur"
+  username: "Nom d'utilisateur"
+  password: Mot de passe
+  confirmPassword: Confirmer le mot de passe
+  usernameMin: "Au moins 3 caract\xE8res"
+  passwordMin: "Au moins 8 caract\xE8res"
+  passwordMismatch: Les mots de passe ne correspondent pas
+  setupFailed: "\xC9chec de la configuration"
+  addLibrary: "Ajoutez votre premi\xE8re biblioth\xE8que"
+  addLibraryHint: "Vous pourrez ajouter d'autres biblioth\xE8ques plus tard depuis le panneau d'administration."
+  libraryName: "Nom de la biblioth\xE8que"
+  libraryType: "Type de biblioth\xE8que"
+  libraryNameRequired: "Le nom de la biblioth\xE8que est requis"
+  libraryTypes:
+    movies: Films
+    shows: "S\xE9ries"
+    music: Musique
+    photos: Photos

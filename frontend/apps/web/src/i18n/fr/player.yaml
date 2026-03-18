@@ -1,0 +1,56 @@
+controls:
+  play: Lecture
+  pause: Pause
+  mute: Couper le son
+  unmute: "R\xE9activer le son"
+  fullscreen: Plein \xE9cran
+  exitFullscreen: "Quitter le plein \xE9cran"
+  pip: Image dans l'image
+  exitPip: "Quitter l'image dans l'image"
+  settings: "Param\xE8tres"
+  episodes: "\xC9pisodes"
+  chapters: Chapitres
+  rewind: "Reculer de {{seconds}}s"
+  forward: "Avancer de {{seconds}}s"
+  previousEpisode: "\xC9pisode pr\xE9c\xE9dent"
+  nextEpisode: "\xC9pisode suivant"
+  seek: Rechercher
+  volume: Volume
+settings:
+  quality: "Qualit\xE9"
+  auto: Auto
+  audio: Audio
+  subtitles: Sous-titres
+  speed: Vitesse
+  subtitleStyle: Style des sous-titres
+  normal: Normal
+  uploadSubtitle: "T\xE9l\xE9verser un sous-titre\u2026"
+  off: "D\xE9sactiv\xE9"
+subtitleStyle:
+  size: Taille
+  textColor: Couleur du texte
+  background: "Arri\xE8re-plan"
+  font: Police
+  position: Position
+  top: Haut
+  bottom: Bas
+  textShadow: Ombre du texte
+colors:
+  white: Blanc
+  yellow: Jaune
+  green: Vert
+  cyan: Cyan
+  orange: Orange
+bgColors:
+  black: Noir
+  darkGrey: Gris fonc\xE9
+  navy: Marine
+  none: Aucun
+fonts:
+  default: "Par d\xE9faut"
+  sansSerif: Sans-serif
+  serif: Serif
+  monospace: Monospace
+  comicSans: Comic Sans
+quality:
+  original: Original

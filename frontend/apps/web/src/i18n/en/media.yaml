@@ -1,0 +1,5 @@
+season: "Season {{number}}"
+episode: "E{{number}}"
+chapter: "Chapter {{number}}"
+track: "Track {{number}}"
+burnIn: "(burn-in)"

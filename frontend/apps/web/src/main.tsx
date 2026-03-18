@@ -5,6 +5,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { routeTree } from "./routeTree.gen";
 import { useAuthStore } from "@evey/store";
 import { setTokenProvider, setTokensUpdater } from "@evey/api";
+import "./i18n";
 import "./styles/main.css";
 
 // Wire auth token into the API fetcher

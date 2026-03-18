@@ -2,6 +2,7 @@ import { useState } from "react";
 import { createFileRoute, isRedirect, redirect, useNavigate } from "@tanstack/react-router";
 import { eveyFetch, useAdminServiceSetupWizard, useLibraryServiceCreateLibrary } from "@evey/api";
 import { useAuthStore } from "@evey/store";
+import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Select } from "@/components/ui/Select";
@@ -25,15 +26,6 @@ export const Route = createFileRoute("/setup")({
   component: SetupPage,
 });
 
-const STEPS = ["Welcome", "Admin account", "First library"] as const;
-
-const LIBRARY_TYPE_OPTIONS = [
-  { value: "LIBRARY_TYPE_MOVIES", label: "Movies" },
-  { value: "LIBRARY_TYPE_SHOWS", label: "Shows" },
-  { value: "LIBRARY_TYPE_MUSIC", label: "Music" },
-  { value: "LIBRARY_TYPE_PHOTOS", label: "Photos" },
-];
-
 interface AdminForm {
   username: string;
   password: string;
@@ -49,14 +41,6 @@ interface AdminErrors {
   username?: string;
   password?: string;
   confirmPassword?: string;
-}
-
-function validateAdmin(form: AdminForm): AdminErrors {
-  const errors: AdminErrors = {};
-  if (form.username.length < 3) errors.username = "At least 3 characters";
-  if (form.password.length < 8) errors.password = "At least 8 characters";
-  if (form.password !== form.confirmPassword) errors.confirmPassword = "Passwords do not match";
-  return errors;
 }
 
 function StepDots({ current, total }: { current: number; total: number }) {
@@ -78,6 +62,7 @@ function StepDots({ current, total }: { current: number; total: number }) {
 }
 
 function SetupPage() {
+  const { t } = useTranslation("auth");
   const navigate = useNavigate();
   const { setTokens } = useAuthStore();
   const [step, setStep] = useState(0);
@@ -86,6 +71,23 @@ function SetupPage() {
   const [libraryForm, setLibraryForm] = useState<LibraryForm>({ name: "", type: "LIBRARY_TYPE_MOVIES" });
   const [libraryError, setLibraryError] = useState<string | undefined>();
   const [setupError, setSetupError] = useState<string | undefined>();
+
+  const STEPS = [t("setup.steps.welcome"), t("setup.steps.admin"), t("setup.steps.library")] as const;
+
+  const LIBRARY_TYPE_OPTIONS = [
+    { value: "LIBRARY_TYPE_MOVIES", label: t("setup.libraryTypes.movies") },
+    { value: "LIBRARY_TYPE_SHOWS", label: t("setup.libraryTypes.shows") },
+    { value: "LIBRARY_TYPE_MUSIC", label: t("setup.libraryTypes.music") },
+    { value: "LIBRARY_TYPE_PHOTOS", label: t("setup.libraryTypes.photos") },
+  ];
+
+  function validateAdmin(form: AdminForm): AdminErrors {
+    const errors: AdminErrors = {};
+    if (form.username.length < 3) errors.username = t("setup.usernameMin");
+    if (form.password.length < 8) errors.password = t("setup.passwordMin");
+    if (form.password !== form.confirmPassword) errors.confirmPassword = t("setup.passwordMismatch");
+    return errors;
+  }
 
   const setup = useAdminServiceSetupWizard({
     mutation: {
@@ -98,7 +100,7 @@ function SetupPage() {
           void navigate({ to: "/login" });
           return;
         }
-        setSetupError(err instanceof Error ? err.message : "Setup failed");
+        setSetupError(err instanceof Error ? err.message : t("setup.setupFailed"));
       },
     },
   });
@@ -107,7 +109,7 @@ function SetupPage() {
     mutation: {
       onSuccess: () => void navigate({ to: "/home" }),
       onError: (err) => {
-        setLibraryError(err instanceof Error ? err.message : "Failed to create library");
+        setLibraryError(err instanceof Error ? err.message : t("setup.setupFailed"));
       },
     },
   });
@@ -139,7 +141,7 @@ function SetupPage() {
   const handleCreateLibrary = (e: React.FormEvent) => {
     e.preventDefault();
     if (!libraryForm.name.trim()) {
-      setLibraryError("Library name is required");
+      setLibraryError(t("setup.libraryNameRequired"));
       return;
     }
     setLibraryError(undefined);
@@ -167,7 +169,7 @@ function SetupPage() {
         <div className="flex flex-col items-center mb-2">{logoIcon}</div>
 
         <p className="text-center text-xs text-[var(--text-muted)] mb-1">
-          Step {step + 1} of {STEPS.length} — {STEPS[step]}
+          {t("setup.stepOf", { current: step + 1, total: STEPS.length, name: STEPS[step] })}
         </p>
         <StepDots current={step} total={STEPS.length} />
 
@@ -175,13 +177,13 @@ function SetupPage() {
         {step === 0 && (
           <div className="flex flex-col items-center gap-6 text-center">
             <div>
-              <h1 className="text-2xl font-bold text-[var(--text)]">Welcome to Evey</h1>
+              <h1 className="text-2xl font-bold text-[var(--text)]">{t("setup.welcome")}</h1>
               <p className="text-[var(--text-muted)] text-sm mt-2">
-                Let's set up your media server. It only takes a minute.
+                {t("setup.description")}
               </p>
             </div>
             <Button className="w-full" onClick={() => setStep(1)}>
-              Get Started
+              {t("setup.getStarted")}
             </Button>
           </div>
         )}
@@ -189,10 +191,10 @@ function SetupPage() {
         {/* Step 1: Admin account */}
         {step === 1 && (
           <form onSubmit={handleAdminSubmit} className="flex flex-col gap-4">
-            <h2 className="text-xl font-bold text-[var(--text)] text-center">Create admin account</h2>
+            <h2 className="text-xl font-bold text-[var(--text)] text-center">{t("setup.createAdmin")}</h2>
             <div className="flex flex-col gap-1">
               <Input
-                label="Username"
+                label={t("setup.username")}
                 value={adminForm.username}
                 onChange={updateAdmin("username")}
                 autoComplete="username"
@@ -206,7 +208,7 @@ function SetupPage() {
             </div>
             <div className="flex flex-col gap-1">
               <Input
-                label="Password"
+                label={t("setup.password")}
                 type="password"
                 value={adminForm.password}
                 onChange={updateAdmin("password")}
@@ -220,7 +222,7 @@ function SetupPage() {
             </div>
             <div className="flex flex-col gap-1">
               <Input
-                label="Confirm password"
+                label={t("setup.confirmPassword")}
                 type="password"
                 value={adminForm.confirmPassword}
                 onChange={updateAdmin("confirmPassword")}
@@ -244,10 +246,10 @@ function SetupPage() {
                 className="flex-1"
                 onClick={() => setStep(0)}
               >
-                Back
+                {t("common:back")}
               </Button>
               <Button type="submit" loading={setup.isPending} className="flex-1">
-                Continue
+                {t("common:continue")}
               </Button>
             </div>
           </form>
@@ -256,13 +258,13 @@ function SetupPage() {
         {/* Step 2: First library */}
         {step === 2 && (
           <form onSubmit={handleCreateLibrary} className="flex flex-col gap-4">
-            <h2 className="text-xl font-bold text-[var(--text)] text-center">Add your first library</h2>
+            <h2 className="text-xl font-bold text-[var(--text)] text-center">{t("setup.addLibrary")}</h2>
             <p className="text-sm text-center text-[var(--text-muted)]">
-              You can add more libraries later from the admin panel.
+              {t("setup.addLibraryHint")}
             </p>
             <div className="flex flex-col gap-1">
               <Input
-                label="Library name"
+                label={t("setup.libraryName")}
                 value={libraryForm.name}
                 onChange={(e) => {
                   setLibraryForm((prev) => ({ ...prev, name: e.target.value }));
@@ -277,7 +279,7 @@ function SetupPage() {
               )}
             </div>
             <Select
-              label="Library type"
+              label={t("setup.libraryType")}
               options={LIBRARY_TYPE_OPTIONS}
               value={libraryForm.type}
               onChange={(value) => setLibraryForm((prev) => ({ ...prev, type: value }))}
@@ -289,10 +291,10 @@ function SetupPage() {
                 className="flex-1"
                 onClick={() => void navigate({ to: "/home" })}
               >
-                Skip
+                {t("common:skip")}
               </Button>
               <Button type="submit" loading={createLibrary.isPending} className="flex-1">
-                Create
+                {t("common:create")}
               </Button>
             </div>
           </form>

@@ -1,0 +1,43 @@
+nav:
+  dashboardSystem: Dashboard & System
+  dashboard: Dashboard
+  nowPlaying: Now Playing
+  remoteAccess: Remote Access
+  serverConfig: Server Config
+  systemHealth: System Health
+  media: Media
+  libraries: Libraries
+  metadata: Metadata
+  transcodeCache: Transcode Cache
+  transcodingProfiles: Transcoding Profiles
+  usersAccess: Users & Access
+  users: Users
+  integrations: Integrations
+  plugins: Plugins
+  webhooks: Webhooks
+  monitoring: Monitoring
+  analytics: Analytics
+  activity: Activity
+  auditLog: Audit Log
+  liveLogs: Live Logs
+  maintenance: Maintenance
+  backupRestore: Backup & Restore
+plugin:
+  enabled: Enabled
+  disabled: Disabled
+  config: Config
+  hideConfig: Hide Config
+  logs: Logs
+  uninstall: Uninstall
+  configuration: Configuration
+  noConfig: No config keys defined.
+  configSaved: Config saved
+  subprocess: Subprocess
+  sandboxed: Sandboxed
+  state:
+    running: Running
+    starting: "Starting..."
+    error: Error
+    stopped: Stopped
+    installed: Installed
+    unknown: Unknown

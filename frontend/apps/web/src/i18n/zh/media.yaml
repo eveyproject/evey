@@ -1,0 +1,5 @@
+season: "\u7B2C {{number}} \u5B63"
+episode: "\u7B2C{{number}}\u96C6"
+chapter: "\u7B2C {{number}} \u7AE0"
+track: "\u97F3\u8F68 {{number}}"
+burnIn: "(\u5185\u5D4C)"

@@ -1,0 +1,56 @@
+controls:
+  play: Reproducir
+  pause: Pausar
+  mute: Silenciar
+  unmute: Activar sonido
+  fullscreen: Pantalla completa
+  exitFullscreen: Salir de pantalla completa
+  pip: "Imagen en imagen"
+  exitPip: "Salir de imagen en imagen"
+  settings: Ajustes
+  episodes: Episodios
+  chapters: "Cap\xEDtulos"
+  rewind: "Retroceder {{seconds}}s"
+  forward: "Avanzar {{seconds}}s"
+  previousEpisode: Episodio anterior
+  nextEpisode: Siguiente episodio
+  seek: Buscar
+  volume: Volumen
+settings:
+  quality: Calidad
+  auto: Auto
+  audio: Audio
+  subtitles: "Subt\xEDtulos"
+  speed: Velocidad
+  subtitleStyle: "Estilo de subt\xEDtulos"
+  normal: Normal
+  uploadSubtitle: "Subir subt\xEDtulo\u2026"
+  off: Desactivado
+subtitleStyle:
+  size: "Tama\xF1o"
+  textColor: Color del texto
+  background: Fondo
+  font: Fuente
+  position: "Posici\xF3n"
+  top: Arriba
+  bottom: Abajo
+  textShadow: Sombra del texto
+colors:
+  white: Blanco
+  yellow: Amarillo
+  green: Verde
+  cyan: Cian
+  orange: Naranja
+bgColors:
+  black: Negro
+  darkGrey: Gris oscuro
+  navy: Azul marino
+  none: Ninguno
+fonts:
+  default: Predeterminada
+  sansSerif: Sans-serif
+  serif: Serif
+  monospace: Monoespaciada
+  comicSans: Comic Sans
+quality:
+  original: Original
