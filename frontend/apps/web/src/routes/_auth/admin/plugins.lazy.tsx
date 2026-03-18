@@ -168,6 +168,7 @@ function InstallPluginForm({ onSuccess }: { onSuccess: () => void }) {
   const [preview, setPreview] = useState<PluginPreview | null>(null);
   const [error, setError] = useState("");
   const [blockedIssues, setBlockedIssues] = useState<string[]>([]);
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const token = useAuthStore((s) => s.accessToken);
 
@@ -183,6 +184,7 @@ function InstallPluginForm({ onSuccess }: { onSuccess: () => void }) {
   async function handleFilePreview() {
     const file = getFile();
     if (!file) { toast.error("Select a plugin file first"); return; }
+    setSelectedFile(file);
     setStep("previewing");
     setError("");
     try {
@@ -209,7 +211,7 @@ function InstallPluginForm({ onSuccess }: { onSuccess: () => void }) {
   }
 
   async function handleFileInstall() {
-    const file = getFile();
+    const file = selectedFile;
     if (!file) { toast.error("File missing — select again"); return; }
     setStep("installing");
     setError("");
@@ -246,6 +248,7 @@ function InstallPluginForm({ onSuccess }: { onSuccess: () => void }) {
     setPreview(null);
     setError("");
     setBlockedIssues([]);
+    setSelectedFile(null);
   }
 
   function handleUrlSubmit(e: React.FormEvent) {
