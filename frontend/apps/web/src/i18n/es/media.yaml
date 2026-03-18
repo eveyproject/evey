@@ -1,0 +1,58 @@
+detail:
+  overview: "Sinopsis"
+  cast: "Reparto"
+  genres: "Géneros"
+  year: "Año"
+  rating: "Calificación"
+  original_title: "Título original"
+  duration: "Duración"
+  episodes: "Episodios"
+  seasons: "Temporadas"
+
+actions:
+  play: "Reproducir"
+  resume: "Continuar"
+  mark_watched: "Marcar como visto"
+  mark_unwatched: "Marcar como no visto"
+  add_to_collection: "Agregar a colección"
+  add_to_playlist: "Agregar a lista"
+  refresh_metadata: "Actualizar metadatos"
+  edit_metadata: "Editar metadatos"
+  metadata_overrides: "Sobrescrituras de metadatos"
+
+metadata:
+  title: "Título"
+  original_title: "Título original"
+  overview: "Sinopsis"
+  year: "Año"
+  rating: "Calificación"
+  genres: "Géneros (separados por coma)"
+
+toast:
+  artwork_updated: "Portada actualizada"
+  artwork_failed: "Error al actualizar la portada"
+  metadata_saved: "Metadatos guardados"
+  metadata_failed: "Error al guardar"
+  metadata_refresh_failed: "Error al actualizar metadatos"
+  override_saved: "Sobrescritura guardada: {field}"
+  override_removed: "Sobrescritura eliminada: {field}"
+  override_save_failed: "Error al guardar sobrescritura"
+  override_remove_failed: "Error al eliminar sobrescritura"
+  marked_watched: "Marcado como visto"
+  marked_unwatched: "Marcado como no visto"
+  mark_watched_failed: "Error al marcar como visto"
+  mark_unwatched_failed: "Error al marcar como no visto"
+  enriched: "Metadatos obtenidos con nueva ID"
+  no_profile: "No hay perfil seleccionado"
+  added_to_collection: "{count} elementos agregados a \"{name}\""
+  add_to_collection_failed: "Error al agregar a la colección"
+
+subtitles:
+  search: "Buscar subtítulos"
+  download: "Descargar"
+  no_results: "No se encontraron subtítulos"
+
+collections:
+  created: "Colección inteligente creada"
+  updated: "Colección inteligente actualizada"
+  save_failed: "Error al guardar colección inteligente"

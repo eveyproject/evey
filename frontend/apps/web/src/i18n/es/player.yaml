@@ -1,0 +1,42 @@
+controls:
+  play: "Reproducir"
+  pause: "Pausar"
+  mute: "Silenciar"
+  unmute: "Activar sonido"
+  volume: "Volumen"
+  fullscreen: "Pantalla completa"
+  exit_fullscreen: "Salir de pantalla completa"
+  settings: "Configuración"
+  captions: "Subtítulos"
+  pip: "Picture-in-Picture"
+
+settings:
+  quality: "Calidad"
+  speed: "Velocidad"
+  audio: "Audio"
+  subtitles: "Subtítulos"
+  auto: "Auto"
+  off: "Desactivado"
+
+shortcuts:
+  title: "Atajos de teclado"
+  play_pause: "Reproducir / Pausar"
+  toggle_fullscreen: "Alternar pantalla completa"
+  toggle_mute: "Alternar silencio"
+  volume_up: "Subir volumen"
+  volume_down: "Bajar volumen"
+  seek_percent: "Ir a 0%–90%"
+  toggle_captions: "Alternar subtítulos"
+  decrease_speed: "Reducir velocidad"
+  increase_speed: "Aumentar velocidad"
+  show_shortcuts: "Mostrar atajos"
+
+next_episode:
+  up_next: "A continuación"
+  play_now: "Reproducir ahora"
+  cancel: "Cancelar"
+  starting_in: "Comienza en {seconds}s"
+
+errors:
+  playback_failed: "Error de reproducción"
+  stream_unavailable: "Transmisión no disponible"

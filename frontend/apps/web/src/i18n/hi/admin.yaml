@@ -1,0 +1,76 @@
+nav:
+  dashboard_system: "डैशबोर्ड और सिस्टम"
+  dashboard: "डैशबोर्ड"
+  now_playing: "अभी चल रहा है"
+  remote_access: "रिमोट एक्सेस"
+  server_config: "सर्वर कॉन्फ़िग"
+  system_health: "सिस्टम स्वास्थ्य"
+  media: "मीडिया"
+  libraries: "लाइब्रेरी"
+  metadata: "मेटाडेटा"
+  transcode_cache: "ट्रांसकोड कैश"
+  transcoding_profiles: "ट्रांसकोडिंग प्रोफ़ाइल"
+  users_access: "उपयोगकर्ता और एक्सेस"
+  users: "उपयोगकर्ता"
+  integrations: "इंटीग्रेशन"
+  plugins: "प्लगइन"
+  webhooks: "Webhooks"
+  monitoring: "मॉनिटरिंग"
+  analytics: "एनालिटिक्स"
+  activity: "गतिविधि"
+  audit_log: "ऑडिट लॉग"
+  live_logs: "लाइव लॉग"
+  maintenance: "रखरखाव"
+  backup_restore: "बैकअप और रीस्टोर"
+
+dashboard:
+  movies: "फ़िल्में"
+  series: "सीरीज़"
+  users: "उपयोगकर्ता"
+  active_streams: "सक्रिय स्ट्रीम"
+  memory: "मेमोरी"
+  transcodes: "ट्रांसकोड"
+  total_media: "कुल मीडिया"
+
+audit:
+  columns:
+    time: "समय"
+    user: "उपयोगकर्ता"
+    action: "क्रिया"
+    resource: "संसाधन"
+    details: "विवरण"
+    ip: "IP"
+  no_entries: "कोई प्रविष्टि नहीं"
+
+library:
+  create: "लाइब्रेरी बनाएं"
+  name: "नाम"
+  scan_started: "स्कैन शुरू हुआ"
+  scan_failed: "स्कैन विफल"
+  all_scans_triggered: "सभी लाइब्रेरी स्कैन शुरू किए गए"
+
+plugin:
+  states:
+    running: "चल रहा है"
+    starting: "शुरू हो रहा है..."
+    error: "त्रुटि"
+    stopped: "रुका हुआ"
+    installed: "इंस्टॉल किया गया"
+    unknown: "अज्ञात"
+  config_saved: "कॉन्फ़िग सहेजा गया"
+  config_save_failed: "कॉन्फ़िग सहेजने में विफल"
+  show_config: "कॉन्फ़िग"
+  hide_config: "कॉन्फ़िग छिपाएं"
+
+webhook:
+  create: "Webhook बनाएं"
+  name: "नाम"
+  url: "URL"
+  events: "इवेंट"
+  all_events: "सभी इवेंट"
+  secret: "सीक्रेट"
+  enabled: "सक्षम"
+
+playlist:
+  rules_saved: "नियम सहेजे गए"
+  rules_save_failed: "नियम सहेजने में विफल"

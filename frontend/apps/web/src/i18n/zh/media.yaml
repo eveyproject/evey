@@ -1,0 +1,58 @@
+detail:
+  overview: "简介"
+  cast: "演员"
+  genres: "类型"
+  year: "年份"
+  rating: "评分"
+  original_title: "原名"
+  duration: "时长"
+  episodes: "剧集"
+  seasons: "季"
+
+actions:
+  play: "播放"
+  resume: "继续播放"
+  mark_watched: "标为已看"
+  mark_unwatched: "标为未看"
+  add_to_collection: "加入收藏"
+  add_to_playlist: "加入播放列表"
+  refresh_metadata: "刷新元数据"
+  edit_metadata: "编辑元数据"
+  metadata_overrides: "元数据覆盖"
+
+metadata:
+  title: "标题"
+  original_title: "原名"
+  overview: "简介"
+  year: "年份"
+  rating: "评分"
+  genres: "类型（逗号分隔）"
+
+toast:
+  artwork_updated: "封面已更新"
+  artwork_failed: "封面更新失败"
+  metadata_saved: "元数据已保存"
+  metadata_failed: "保存失败"
+  metadata_refresh_failed: "刷新元数据失败"
+  override_saved: "覆盖已保存：{field}"
+  override_removed: "覆盖已移除：{field}"
+  override_save_failed: "保存覆盖失败"
+  override_remove_failed: "移除覆盖失败"
+  marked_watched: "已标为已看"
+  marked_unwatched: "已标为未看"
+  mark_watched_failed: "标为已看失败"
+  mark_unwatched_failed: "标为未看失败"
+  enriched: "已使用新ID重新获取元数据"
+  no_profile: "未选择档案"
+  added_to_collection: "{count}个项目已添加到「{name}」"
+  add_to_collection_failed: "添加到收藏失败"
+
+subtitles:
+  search: "搜索字幕"
+  download: "下载"
+  no_results: "未找到字幕"
+
+collections:
+  created: "智能收藏已创建"
+  updated: "智能收藏已更新"
+  save_failed: "保存智能收藏失败"

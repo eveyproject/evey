@@ -1,0 +1,58 @@
+detail:
+  overview: "Synopsis"
+  cast: "Distribution"
+  genres: "Genres"
+  year: "Année"
+  rating: "Note"
+  original_title: "Titre original"
+  duration: "Durée"
+  episodes: "Épisodes"
+  seasons: "Saisons"
+
+actions:
+  play: "Lecture"
+  resume: "Reprendre"
+  mark_watched: "Marquer comme vu"
+  mark_unwatched: "Marquer comme non vu"
+  add_to_collection: "Ajouter à la collection"
+  add_to_playlist: "Ajouter à la liste"
+  refresh_metadata: "Actualiser les métadonnées"
+  edit_metadata: "Modifier les métadonnées"
+  metadata_overrides: "Remplacement des métadonnées"
+
+metadata:
+  title: "Titre"
+  original_title: "Titre original"
+  overview: "Synopsis"
+  year: "Année"
+  rating: "Note"
+  genres: "Genres (séparés par des virgules)"
+
+toast:
+  artwork_updated: "Pochette mise à jour"
+  artwork_failed: "Échec de mise à jour de la pochette"
+  metadata_saved: "Métadonnées enregistrées"
+  metadata_failed: "Échec de l'enregistrement"
+  metadata_refresh_failed: "Échec de l'actualisation des métadonnées"
+  override_saved: "Remplacement enregistré : {field}"
+  override_removed: "Remplacement supprimé : {field}"
+  override_save_failed: "Échec de l'enregistrement du remplacement"
+  override_remove_failed: "Échec de la suppression du remplacement"
+  marked_watched: "Marqué comme vu"
+  marked_unwatched: "Marqué comme non vu"
+  mark_watched_failed: "Échec du marquage comme vu"
+  mark_unwatched_failed: "Échec du marquage comme non vu"
+  enriched: "Métadonnées récupérées avec le nouvel ID"
+  no_profile: "Aucun profil sélectionné"
+  added_to_collection: "{count} éléments ajoutés à « {name} »"
+  add_to_collection_failed: "Échec de l'ajout à la collection"
+
+subtitles:
+  search: "Rechercher des sous-titres"
+  download: "Télécharger"
+  no_results: "Aucun sous-titre trouvé"
+
+collections:
+  created: "Collection intelligente créée"
+  updated: "Collection intelligente mise à jour"
+  save_failed: "Échec de l'enregistrement de la collection intelligente"

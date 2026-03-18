@@ -1,0 +1,76 @@
+nav:
+  dashboard_system: "Tableau de bord et système"
+  dashboard: "Tableau de bord"
+  now_playing: "En cours de lecture"
+  remote_access: "Accès distant"
+  server_config: "Configuration du serveur"
+  system_health: "État du système"
+  media: "Médias"
+  libraries: "Bibliothèques"
+  metadata: "Métadonnées"
+  transcode_cache: "Cache de transcodage"
+  transcoding_profiles: "Profils de transcodage"
+  users_access: "Utilisateurs et accès"
+  users: "Utilisateurs"
+  integrations: "Intégrations"
+  plugins: "Plugins"
+  webhooks: "Webhooks"
+  monitoring: "Surveillance"
+  analytics: "Analytique"
+  activity: "Activité"
+  audit_log: "Journal d'audit"
+  live_logs: "Journaux en direct"
+  maintenance: "Maintenance"
+  backup_restore: "Sauvegarde et restauration"
+
+dashboard:
+  movies: "Films"
+  series: "Séries"
+  users: "Utilisateurs"
+  active_streams: "Flux actifs"
+  memory: "Mémoire"
+  transcodes: "Transcodages"
+  total_media: "Total des médias"
+
+audit:
+  columns:
+    time: "Heure"
+    user: "Utilisateur"
+    action: "Action"
+    resource: "Ressource"
+    details: "Détails"
+    ip: "IP"
+  no_entries: "Aucune entrée"
+
+library:
+  create: "Créer une bibliothèque"
+  name: "Nom"
+  scan_started: "Scan lancé"
+  scan_failed: "Échec du scan"
+  all_scans_triggered: "Tous les scans de bibliothèques lancés"
+
+plugin:
+  states:
+    running: "En cours"
+    starting: "Démarrage..."
+    error: "Erreur"
+    stopped: "Arrêté"
+    installed: "Installé"
+    unknown: "Inconnu"
+  config_saved: "Configuration enregistrée"
+  config_save_failed: "Échec de l'enregistrement de la configuration"
+  show_config: "Configuration"
+  hide_config: "Masquer la configuration"
+
+webhook:
+  create: "Créer un Webhook"
+  name: "Nom"
+  url: "URL"
+  events: "Événements"
+  all_events: "Tous les événements"
+  secret: "Secret"
+  enabled: "Activé"
+
+playlist:
+  rules_saved: "Règles enregistrées"
+  rules_save_failed: "Échec de l'enregistrement des règles"

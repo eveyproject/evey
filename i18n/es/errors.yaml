@@ -1,0 +1,66 @@
+auth:
+  unauthenticated: "No autenticado"
+  unauthorized: "No autorizado"
+  forbidden: "Prohibido"
+  invalid_credentials: "Nombre de usuario o contraseña inválidos"
+  invalid_body: "Cuerpo de solicitud inválido"
+  invalid_token: "Token inválido o expirado"
+  missing_token: "Token faltante"
+  no_session: "No hay sesión activa"
+  too_many_requests: "Demasiadas solicitudes"
+  too_many_attempts: "Demasiados intentos"
+  passwords_do_not_match: "Las contraseñas no coinciden"
+  password_too_short: "La contraseña debe tener al menos 8 caracteres"
+  username_too_short: "El nombre de usuario debe tener al menos 3 caracteres"
+  explicit_consent_required: "Se requiere consentimiento explícito para notificaciones push"
+  invalid_current_pin: "PIN actual inválido"
+  profile_not_found: "Perfil no encontrado"
+
+general:
+  not_found: "No encontrado"
+  conflict: "Conflicto"
+  invalid_input: "Entrada inválida"
+  rate_limited: "Límite de solicitudes alcanzado"
+  not_configured: "No configurado"
+  internal_error: "Error interno"
+  encode_error: "Error de codificación"
+  bad_request: "Solicitud inválida"
+  remote_access_disabled: "Acceso remoto deshabilitado"
+  path_traversal_detected: "Se detectó recorrido de ruta"
+
+media:
+  not_found: "Medio no encontrado"
+  file_not_found: "Archivo no encontrado"
+  invalid_path: "Ruta inválida"
+  image_not_found: "Imagen no encontrada"
+
+transcode:
+  busy: "Transcodificación ocupada"
+  failed: "Transcodificación fallida"
+  no_active_session: "No hay sesión de transcodificación activa"
+  session_not_ready: "La sesión no está lista"
+  segment_not_found: "Segmento no encontrado"
+
+subtitle:
+  not_found: "Subtítulo no encontrado"
+  search_failed: "Búsqueda de subtítulos fallida"
+  download_failed: "Descarga de subtítulos fallida"
+  file_id_required: "El ID de archivo es obligatorio"
+
+library:
+  name_required: "El nombre de la biblioteca es obligatorio"
+
+plugin:
+  blocked_by_security: "Plugin bloqueado por el análisis de seguridad"
+  manifest_invalid: "Manifiesto de plugin inválido"
+  not_found: "Plugin no encontrado"
+  config_save_failed: "Error al guardar la configuración del plugin"
+
+notification:
+  invalid_movie_level: "Nivel de notificación de películas inválido"
+  invalid_series_level: "Nivel de notificación de series inválido"
+  invalid_music_level: "Nivel de notificación de música inválido"
+
+backup:
+  failed: "Respaldo fallido"
+  restore_failed: "Restauración fallida"

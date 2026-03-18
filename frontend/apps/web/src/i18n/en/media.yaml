@@ -1,45 +1,58 @@
-browse:
-  recently_added: "Recently Added"
-  continue_watching: "Continue Watching"
-  recommended: "Recommended for You"
-  scroll_left: "Scroll left"
-  scroll_right: "Scroll right"
-  search_placeholder: "Search movies, series..."
-  search_music: "Search tracks, artists, albums…"
-  search_favorites: "Search favorites"
+detail:
+  overview: "Overview"
+  cast: "Cast"
+  genres: "Genres"
+  year: "Year"
+  rating: "Rating"
+  original_title: "Original Title"
+  duration: "Duration"
+  episodes: "Episodes"
+  seasons: "Seasons"
 
-types:
-  movie: "Movie"
-  series: "Series"
-  season: "Season"
-  episode: "Episode"
-
-empty:
-  no_results: "No results"
-  no_items: "No items found"
-  no_favorites: "No favorites yet"
-  no_collections: "No collections yet"
-  no_playlists: "No playlists yet"
-  no_watch_history: "No watch history yet"
-  start_watching: "Start watching something to see it here."
-  no_albums: "No albums found in this library"
-  no_photos: "No photos found in this library"
-  add_photo_library: "Add a photo library in the Admin panel to get started."
-  collection_not_found: "This collection no longer exists."
-
-toast:
-  added_to_playlist: "{count} item(s) added to \"{playlist}\""
-  marked_watched: "{count} item(s) marked as watched"
-  marked_unwatched: "{count} item(s) marked as unwatched"
-  link_copied: "Link copied to clipboard"
-
-context_menu:
+actions:
   play: "Play"
-  edit_metadata: "Edit metadata"
-  download: "Download"
+  resume: "Resume"
   mark_watched: "Mark as watched"
   mark_unwatched: "Mark as unwatched"
-  add_to_playlist: "Add to playlist"
   add_to_collection: "Add to collection"
-  add_to_favorites: "Add to favorites"
-  remove_from_favorites: "Remove from favorites"
+  add_to_playlist: "Add to playlist"
+  refresh_metadata: "Refresh metadata"
+  edit_metadata: "Edit metadata"
+  metadata_overrides: "Metadata Overrides"
+
+metadata:
+  title: "Title"
+  original_title: "Original Title"
+  overview: "Overview"
+  year: "Year"
+  rating: "Rating"
+  genres: "Genres (comma-separated)"
+
+toast:
+  artwork_updated: "Artwork updated"
+  artwork_failed: "Failed to update artwork"
+  metadata_saved: "Metadata saved"
+  metadata_failed: "Failed to save"
+  metadata_refresh_failed: "Failed to refresh metadata"
+  override_saved: "Override saved: {field}"
+  override_removed: "Override removed: {field}"
+  override_save_failed: "Failed to save override"
+  override_remove_failed: "Failed to remove override"
+  marked_watched: "Marked as watched"
+  marked_unwatched: "Marked as unwatched"
+  mark_watched_failed: "Failed to mark as watched"
+  mark_unwatched_failed: "Failed to mark as unwatched"
+  enriched: "Re-enriched with new ID"
+  no_profile: "No profile selected"
+  added_to_collection: "{count} items added to \"{name}\""
+  add_to_collection_failed: "Failed to add to collection"
+
+subtitles:
+  search: "Search subtitles"
+  download: "Download"
+  no_results: "No subtitles found"
+
+collections:
+  created: "Smart collection created"
+  updated: "Smart collection updated"
+  save_failed: "Failed to save smart collection"

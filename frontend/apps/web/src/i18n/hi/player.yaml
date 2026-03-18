@@ -1,0 +1,42 @@
+controls:
+  play: "चलाएं"
+  pause: "रोकें"
+  mute: "म्यूट"
+  unmute: "अनम्यूट"
+  volume: "आवाज़"
+  fullscreen: "पूर्ण स्क्रीन"
+  exit_fullscreen: "पूर्ण स्क्रीन से बाहर"
+  settings: "सेटिंग्स"
+  captions: "उपशीर्षक"
+  pip: "पिक्चर-इन-पिक्चर"
+
+settings:
+  quality: "गुणवत्ता"
+  speed: "गति"
+  audio: "ऑडियो"
+  subtitles: "उपशीर्षक"
+  auto: "स्वचालित"
+  off: "बंद"
+
+shortcuts:
+  title: "कीबोर्ड शॉर्टकट"
+  play_pause: "चलाएं / रोकें"
+  toggle_fullscreen: "पूर्ण स्क्रीन टॉगल"
+  toggle_mute: "म्यूट टॉगल"
+  volume_up: "आवाज़ बढ़ाएं"
+  volume_down: "आवाज़ घटाएं"
+  seek_percent: "0%–90% पर जाएं"
+  toggle_captions: "उपशीर्षक टॉगल"
+  decrease_speed: "गति कम करें"
+  increase_speed: "गति बढ़ाएं"
+  show_shortcuts: "शॉर्टकट दिखाएं"
+
+next_episode:
+  up_next: "अगला"
+  play_now: "अभी चलाएं"
+  cancel: "रद्द करें"
+  starting_in: "{seconds} सेकंड में शुरू होगा"
+
+errors:
+  playback_failed: "प्लेबैक विफल"
+  stream_unavailable: "स्ट्रीम उपलब्ध नहीं है"

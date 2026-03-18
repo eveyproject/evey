@@ -1,0 +1,31 @@
+new_movie:
+  title: "नई फ़िल्म"
+  message: "{title} आपकी लाइब्रेरी में जोड़ी गई है"
+
+new_episode:
+  title: "नया एपिसोड"
+  message: "{title} — नया एपिसोड उपलब्ध है"
+
+new_season:
+  title: "नया सीज़न"
+  message: "{title} — नया सीज़न उपलब्ध है"
+
+new_series:
+  title: "नई सीरीज़"
+  message: "{title} आपकी लाइब्रेरी में जोड़ी गई है"
+
+new_album:
+  title: "नया एल्बम"
+  message: "{title} आपकी लाइब्रेरी में जोड़ा गया है"
+
+library_scanned:
+  title: "लाइब्रेरी स्कैन पूर्ण"
+  message: "लाइब्रेरी स्कैन पूर्ण: {count} आइटम मिले"
+
+plugin_error:
+  title: "प्लगइन त्रुटि"
+  message: "प्लगइन {title} में त्रुटि हुई"
+
+custom:
+  title: "सूचना"
+  message: "{message}"
