@@ -1,7 +1,7 @@
 import { initializeApp, getApps } from "firebase/app";
 import { getMessaging, getToken, deleteToken } from "firebase/messaging";
 
-const TOKEN_STORAGE = "evey_fcm_token";
+let cachedToken: string | null = null;
 
 function getFirebaseConfig() {
   return {
@@ -39,7 +39,7 @@ export async function requestPushToken(vapidKey: string): Promise<string | null>
   const messaging = getMessaging(app);
   const token = await getToken(messaging, { vapidKey });
   if (token) {
-    localStorage.setItem(TOKEN_STORAGE, token);
+    cachedToken = token;
   }
   return token || null;
 }
@@ -49,9 +49,9 @@ export async function revokePushToken(): Promise<void> {
   const app = getOrInitApp();
   const messaging = getMessaging(app);
   await deleteToken(messaging);
-  localStorage.removeItem(TOKEN_STORAGE);
+  cachedToken = null;
 }
 
 export function getStoredPushToken(): string | null {
-  return localStorage.getItem(TOKEN_STORAGE);
+  return cachedToken;
 }
