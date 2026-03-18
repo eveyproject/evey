@@ -85,15 +85,17 @@ type contentDeps struct {
 
 // engagementDeps groups activity, notifications, feeds, webhooks and plugins.
 type engagementDeps struct {
-	activityCmdSvc   *appactivity.CommandService
-	activityQuerySvc *appactivity.QueryService
-	notifCmdSvc      *appnotification.CommandService
-	notifQuerySvc    *appnotification.QueryService
-	feedCmdSvc       *appfeed.CommandService
-	feedQuerySvc     *appfeed.QueryService
-	webhookSvc       *appwebhook.Service
-	pluginSvc        *appplugin.Service
-	pluginHostServer *pluginhost.HostServer
+	activityCmdSvc     *appactivity.CommandService
+	activityQuerySvc   *appactivity.QueryService
+	notifCmdSvc        *appnotification.CommandService
+	notifQuerySvc      *appnotification.QueryService
+	feedCmdSvc         *appfeed.CommandService
+	feedQuerySvc       *appfeed.QueryService
+	webhookSvc         *appwebhook.Service
+	pluginInstallerSvc *appplugin.InstallerService
+	pluginRuntimeSvc   *appplugin.RuntimeService
+	pluginQuerySvc     *appplugin.QueryService
+	pluginHostServer   *pluginhost.HostServer
 }
 
 // authDeps groups authentication infrastructure.
@@ -272,10 +274,13 @@ func buildServices(ctx context.Context, cfg *config.Config, db *sql.DB, rootLog 
 		}
 	})
 
-	pluginSvc := appplugin.NewService(r.Plugin, r.PluginRuntime, pluginRunner, manifestParser, bus).
+	pluginInstallerSvc := appplugin.NewInstallerService(r.Plugin, pluginRunner, manifestParser, bus).
 		WithInstaller(pluginInstaller).
 		WithAnalyzer(pluginAnalyzer).
 		WithPermissionChecker(permChecker)
+	pluginRuntimeSvc := appplugin.NewRuntimeService(r.Plugin, pluginRunner, manifestParser, bus).
+		WithPermissionChecker(permChecker)
+	pluginQuerySvc := appplugin.NewQueryService(r.Plugin, r.PluginRuntime)
 
 	permInterceptor := appplugin.PluginPermissionInterceptor(permChecker)
 	pluginHostSrv := pluginhost.NewHostServer(r.MediaItemQuery, r.Plugin, bus, pluginLogger, permInterceptor)
@@ -367,15 +372,17 @@ func buildServices(ctx context.Context, cfg *config.Config, db *sql.DB, rootLog 
 			playlistSvc:      playlistSvc,
 		},
 		engagement: engagementDeps{
-			activityCmdSvc:   activityCmdSvc,
-			activityQuerySvc: activityQuerySvc,
-			notifCmdSvc:      notifCmdSvc,
-			notifQuerySvc:    notifQuerySvc,
-			feedCmdSvc:       feedCmdSvc,
-			feedQuerySvc:     feedQuerySvc,
-			webhookSvc:       webhookSvc,
-			pluginSvc:        pluginSvc,
-			pluginHostServer: pluginHostSrv,
+			activityCmdSvc:     activityCmdSvc,
+			activityQuerySvc:   activityQuerySvc,
+			notifCmdSvc:        notifCmdSvc,
+			notifQuerySvc:      notifQuerySvc,
+			feedCmdSvc:         feedCmdSvc,
+			feedQuerySvc:       feedQuerySvc,
+			webhookSvc:         webhookSvc,
+			pluginInstallerSvc: pluginInstallerSvc,
+			pluginRuntimeSvc:   pluginRuntimeSvc,
+			pluginQuerySvc:     pluginQuerySvc,
+			pluginHostServer:   pluginHostSrv,
 		},
 		auth: authDeps{
 			tokenGen: tokenGen,

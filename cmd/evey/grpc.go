@@ -18,7 +18,7 @@ func buildGRPCServer(deps *appDeps, cfg *config.Config, rootLog *slog.Logger, lo
 		deps.library.cmdSvc, deps.library.querySvc, deps.user.cmdSvc, deps.user.querySvc,
 		deps.media.playbackSvc.CommandService(), deps.media.playbackSvc.QueryService(),
 		deps.media.transcodingSvc,
-		deps.media.mkvSvc, deps.engagement.pluginSvc, deps.content.metadataCmdSvc, deps.content.metadataQuerySvc,
+		deps.media.mkvSvc, deps.engagement.pluginInstallerSvc, deps.engagement.pluginRuntimeSvc, deps.engagement.pluginQuerySvc, deps.content.metadataCmdSvc, deps.content.metadataQuerySvc,
 		deps.engagement.activityCmdSvc, deps.engagement.activityQuerySvc,
 		deps.engagement.notifCmdSvc, deps.engagement.notifQuerySvc, deps.engagement.feedCmdSvc, deps.engagement.feedQuerySvc, deps.engagement.webhookSvc,
 		deps.content.collectionSvc, deps.content.playlistSvc, deps.content.favoriteSvc,
