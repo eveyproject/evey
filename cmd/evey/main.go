@@ -104,7 +104,7 @@ func run() error {
 	}
 
 	// Auto-start previously running plugins
-	go deps.engagement.pluginSvc.AutoStartPlugins(ctx)
+	go deps.engagement.pluginRuntimeSvc.AutoStartPlugins(ctx)
 
 	errCh := make(chan error, 2)
 	go func() {

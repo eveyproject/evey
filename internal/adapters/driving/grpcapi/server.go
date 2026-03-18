@@ -36,7 +36,9 @@ type GRPCServer struct {
 	playbackQuery *appplayback.QueryService
 	transcoding   *apptranscoding.Service
 	mkv           *appmkv.Service
-	plugin        *appplugin.Service
+	pluginInstaller *appplugin.InstallerService
+	pluginRuntime   *appplugin.RuntimeService
+	pluginQuery     *appplugin.QueryService
 	metadataCmd   *appmetadata.CommandService
 	metadataQuery *appmetadata.QueryService
 	activityCmd   *appactivity.CommandService
@@ -89,7 +91,9 @@ func NewGRPCServer(
 	playbackQuery *appplayback.QueryService,
 	transcoding *apptranscoding.Service,
 	mkv *appmkv.Service,
-	plugin *appplugin.Service,
+	pluginInstaller *appplugin.InstallerService,
+	pluginRuntime *appplugin.RuntimeService,
+	pluginQuery *appplugin.QueryService,
 	metadataCmd *appmetadata.CommandService,
 	metadataQuery *appmetadata.QueryService,
 	activityCmd *appactivity.CommandService,
@@ -120,9 +124,11 @@ func NewGRPCServer(
 		playbackCmd:   playbackCmd,
 		playbackQuery: playbackQuery,
 		transcoding:   transcoding,
-		mkv:           mkv,
-		plugin:        plugin,
-		metadataCmd:   metadataCmd,
+		mkv:             mkv,
+		pluginInstaller: pluginInstaller,
+		pluginRuntime:   pluginRuntime,
+		pluginQuery:     pluginQuery,
+		metadataCmd:     metadataCmd,
 		metadataQuery: metadataQuery,
 		activityCmd:   activityCmd,
 		activityQuery: activityQuery,
@@ -158,7 +164,9 @@ func (s *GRPCServer) RegisterServices() {
 		userQuery:        s.userQuery,
 		transcodingSvc:   s.transcoding,
 		activitySvc:      s.activityQuery,
-		pluginSvc:        s.plugin,
+		pluginInstaller:  s.pluginInstaller,
+		pluginRuntime:    s.pluginRuntime,
+		pluginQuery:      s.pluginQuery,
 		hlsManager:       s.hlsManager,
 		libLister:        s.libQuery,
 		scheduler:        s.scheduler,

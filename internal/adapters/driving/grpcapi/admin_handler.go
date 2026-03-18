@@ -48,7 +48,9 @@ type adminHandler struct {
 	userQuery        *appuser.QueryService
 	transcodingSvc   *apptranscoding.Service
 	activitySvc      *appactivity.QueryService
-	pluginSvc        *appplugin.Service
+	pluginInstaller  *appplugin.InstallerService
+	pluginRuntime    *appplugin.RuntimeService
+	pluginQuery      *appplugin.QueryService
 	hlsManager       *apptranscoding.HLSManager
 	libLister        adminLibraryLister
 	scheduler        adminScheduler
@@ -282,7 +284,7 @@ func (h *adminHandler) GetAuditLog(ctx context.Context, req *eveyv1.GetAuditLogR
 }
 
 func (h *adminHandler) ListPluginRuntimes(ctx context.Context, _ *eveyv1.ListPluginRuntimesRequest) (*eveyv1.ListPluginRuntimesResponse, error) {
-	runtimes, err := h.pluginSvc.ListRuntimes(ctx)
+	runtimes, err := h.pluginQuery.ListRuntimes(ctx)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "list runtimes: %v", err)
 	}
@@ -299,21 +301,21 @@ func (h *adminHandler) AddPluginRuntime(ctx context.Context, req *eveyv1.AddPlug
 		Language: req.Language,
 		Version:  req.Version,
 	}
-	if err := h.pluginSvc.AddRuntime(ctx, rt); err != nil {
+	if err := h.pluginQuery.AddRuntime(ctx, rt); err != nil {
 		return nil, status.Errorf(codes.Internal, "add runtime: %v", err)
 	}
 	return pluginRuntimeToProto(rt), nil
 }
 
 func (h *adminHandler) RemovePluginRuntime(ctx context.Context, req *eveyv1.RemovePluginRuntimeRequest) (*eveyv1.RemovePluginRuntimeResponse, error) {
-	if err := h.pluginSvc.RemoveRuntime(ctx, req.Id); err != nil {
+	if err := h.pluginQuery.RemoveRuntime(ctx, req.Id); err != nil {
 		return nil, status.Errorf(codes.Internal, "remove runtime: %v", err)
 	}
 	return &eveyv1.RemovePluginRuntimeResponse{}, nil
 }
 
 func (h *adminHandler) InstallPlugin(ctx context.Context, req *eveyv1.InstallPluginRequest) (*eveyv1.Plugin, error) {
-	p, err := h.pluginSvc.InstallPlugin(ctx, req.Source)
+	p, err := h.pluginInstaller.InstallPlugin(ctx, req.Source)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "install plugin: %v", err)
 	}
@@ -321,28 +323,28 @@ func (h *adminHandler) InstallPlugin(ctx context.Context, req *eveyv1.InstallPlu
 }
 
 func (h *adminHandler) UninstallPlugin(ctx context.Context, req *eveyv1.UninstallPluginRequest) (*eveyv1.UninstallPluginResponse, error) {
-	if err := h.pluginSvc.UninstallPlugin(ctx, req.Id); err != nil {
+	if err := h.pluginInstaller.UninstallPlugin(ctx, req.Id); err != nil {
 		return nil, status.Errorf(codes.Internal, "uninstall plugin: %v", err)
 	}
 	return &eveyv1.UninstallPluginResponse{}, nil
 }
 
 func (h *adminHandler) EnablePlugin(ctx context.Context, req *eveyv1.EnablePluginRequest) (*eveyv1.Plugin, error) {
-	if err := h.pluginSvc.EnablePlugin(ctx, req.Id); err != nil {
+	if err := h.pluginRuntime.EnablePlugin(ctx, req.Id); err != nil {
 		return nil, status.Errorf(codes.Internal, "enable plugin: %v", err)
 	}
 	return &eveyv1.Plugin{Id: req.Id, Enabled: true}, nil
 }
 
 func (h *adminHandler) DisablePlugin(ctx context.Context, req *eveyv1.DisablePluginRequest) (*eveyv1.Plugin, error) {
-	if err := h.pluginSvc.DisablePlugin(ctx, req.Id); err != nil {
+	if err := h.pluginRuntime.DisablePlugin(ctx, req.Id); err != nil {
 		return nil, status.Errorf(codes.Internal, "disable plugin: %v", err)
 	}
 	return &eveyv1.Plugin{Id: req.Id, Enabled: false}, nil
 }
 
 func (h *adminHandler) ListPlugins(ctx context.Context, _ *eveyv1.ListPluginsRequest) (*eveyv1.ListPluginsResponse, error) {
-	plugins, err := h.pluginSvc.ListPlugins(ctx)
+	plugins, err := h.pluginQuery.ListPlugins(ctx)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "list plugins: %v", err)
 	}
@@ -354,7 +356,7 @@ func (h *adminHandler) ListPlugins(ctx context.Context, _ *eveyv1.ListPluginsReq
 }
 
 func (h *adminHandler) GetPluginConfig(ctx context.Context, req *eveyv1.GetPluginConfigRequest) (*eveyv1.PluginConfig, error) {
-	cfg, err := h.pluginSvc.GetPluginConfig(ctx, req.PluginId)
+	cfg, err := h.pluginQuery.GetPluginConfig(ctx, req.PluginId)
 	if err != nil {
 		return nil, status.Errorf(codes.NotFound, "get config: %v", err)
 	}
@@ -373,7 +375,7 @@ func (h *adminHandler) UpdatePluginConfig(ctx context.Context, req *eveyv1.Updat
 	for k, v := range req.Values {
 		cfg[k] = v
 	}
-	if err := h.pluginSvc.UpdatePluginConfig(ctx, req.PluginId, cfg); err != nil {
+	if err := h.pluginQuery.UpdatePluginConfig(ctx, req.PluginId, cfg); err != nil {
 		return nil, status.Errorf(codes.Internal, "update config: %v", err)
 	}
 	return &eveyv1.PluginConfig{

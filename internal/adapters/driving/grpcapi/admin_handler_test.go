@@ -51,19 +51,21 @@ func newTestAdminHandler() *adminHandler {
 		activityfakes.NewFakePlaySessionStatsReader(),
 		activityfakes.NewFakePlayHistoryRepository(),
 	)
-	pluginSvc := appplugin.NewService(
-		pluginfakes.NewFakePluginRepository(),
-		pluginfakes.NewFakePluginRuntimeRepository(),
-		pluginfakes.NewFakePluginRunner(),
-		pluginfakes.NewFakeManifestParser(),
-		events,
-	)
+	pluginRepo := pluginfakes.NewFakePluginRepository()
+	pluginRuntimeRepo := pluginfakes.NewFakePluginRuntimeRepository()
+	pluginRunner := pluginfakes.NewFakePluginRunner()
+	pluginParser := pluginfakes.NewFakeManifestParser()
+	pluginInstallerSvc := appplugin.NewInstallerService(pluginRepo, pluginRunner, pluginParser, events)
+	pluginRuntimeSvc := appplugin.NewRuntimeService(pluginRepo, pluginRunner, pluginParser, events)
+	pluginQuerySvc := appplugin.NewQueryService(pluginRepo, pluginRuntimeRepo)
 	return &adminHandler{
-		userCmd:     userCmd,
-		userQuery:   userQuery,
-		activitySvc: activitySvc,
-		pluginSvc:   pluginSvc,
-		version:     "1.0.0-test",
+		userCmd:         userCmd,
+		userQuery:       userQuery,
+		activitySvc:     activitySvc,
+		pluginInstaller: pluginInstallerSvc,
+		pluginRuntime:   pluginRuntimeSvc,
+		pluginQuery:     pluginQuerySvc,
+		version:         "1.0.0-test",
 	}
 }
 
