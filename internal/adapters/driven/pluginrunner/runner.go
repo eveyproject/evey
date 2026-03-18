@@ -22,6 +22,8 @@ const (
 	killTimeout       = 3 * time.Second
 	pluginExecTimeout = 30 * time.Minute
 	hostVersion       = "0.1.0"
+	pluginUID         = 1001 // evey-plugin user
+	pluginGID         = 1001
 )
 
 type processEntry struct {
@@ -107,7 +109,7 @@ func (r *Runner) validateEntrypoint(entrypoint, installDir string) (string, erro
 }
 
 func (r *Runner) Start(_ context.Context, p *plugin.Plugin) error {
-	if err := os.MkdirAll(sockDir, 0o755); err != nil {
+	if err := os.MkdirAll(sockDir, 0o777); err != nil {
 		return fmt.Errorf("create sock dir: %w", err)
 	}
 
@@ -174,10 +176,15 @@ func (r *Runner) Start(_ context.Context, p *plugin.Plugin) error {
 		cmd.Stderr = os.Stderr
 	}
 
-	cmd.SysProcAttr = &syscall.SysProcAttr{
+	sysProcAttr := &syscall.SysProcAttr{
 		Setpgid:   true,
 		Pdeathsig: syscall.SIGTERM,
 	}
+	// Drop privileges: run plugins as evey-plugin (UID 1001) when server is root
+	if os.Getuid() == 0 {
+		sysProcAttr.Credential = &syscall.Credential{Uid: pluginUID, Gid: pluginGID}
+	}
+	cmd.SysProcAttr = sysProcAttr
 
 	if err := cmd.Start(); err != nil {
 		cancel()

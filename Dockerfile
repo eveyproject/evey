@@ -17,10 +17,13 @@ FROM alpine:3.21.3
 
 RUN apk add --no-cache ffmpeg ca-certificates unzip curl postgresql-client
 
-RUN adduser -D -u 1000 evey
+RUN adduser -D -u 1000 evey \
+    && adduser -D -u 1001 -G evey evey-plugin
 
 RUN mkdir -p /data/media /data/transcoding /data/logs /data/plugins /data/keys \
-    && chown -R evey:evey /data
+    && chown -R evey:evey /data \
+    && chown evey-plugin:evey /data/plugins \
+    && chmod 750 /data/plugins
 
 COPY --from=builder /evey /evey
 

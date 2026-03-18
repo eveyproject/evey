@@ -71,6 +71,10 @@ func (h *HostServer) Start() error {
 	if err != nil {
 		return fmt.Errorf("listen host sock: %w", err)
 	}
+	// Allow plugin processes (evey-plugin user) to connect
+	if chErr := os.Chmod(hostSockPath, 0o777); chErr != nil {
+		slog.Warn("chmod host sock", slog.Any("err", chErr))
+	}
 
 	if h.permInterceptor != nil {
 		h.grpcSrv = grpc.NewServer(grpc.ChainUnaryInterceptor(h.pluginIDInterceptor(), h.permInterceptor))

@@ -112,6 +112,11 @@ func (s *Service) InstallPlugin(ctx context.Context, zipPath string) (*plugin.Pl
 		}
 	}
 
+	// Chown plugin dir to sandbox user so the plugin process can write
+	if p.InstallDir != "" && os.Getuid() == 0 {
+		chownPluginDir(p.InstallDir)
+	}
+
 	// Run static analysis — block on critical issues
 	if s.analyzer != nil && p.InstallDir != "" {
 		report, analyzeErr := s.analyzer.Analyze(p.InstallDir)
@@ -160,6 +165,20 @@ func (s *Service) InstallPlugin(ctx context.Context, zipPath string) (*plugin.Pl
 // isStaticPlugin returns true for plugins that don't need a subprocess (CSS themes).
 func isStaticPlugin(p *plugin.Plugin) bool {
 	return strings.EqualFold(p.Language, "css")
+}
+
+const pluginUID = 1001
+
+// chownPluginDir recursively sets ownership to the sandbox user (evey-plugin UID 1001).
+func chownPluginDir(dir string) {
+	if err := filepath.Walk(dir, func(path string, _ os.FileInfo, walkErr error) error {
+		if walkErr != nil {
+			return walkErr
+		}
+		return os.Chown(path, pluginUID, pluginUID)
+	}); err != nil {
+		slog.Warn("chown plugin dir", slog.String("dir", dir), slog.Any("err", err))
+	}
 }
 
 const sdkBasePath = "/app/sdk"
