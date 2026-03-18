@@ -46,6 +46,7 @@ import (
 	domainplugin "github.com/gravity-zero/evey/internal/domain/plugin"
 	"github.com/gravity-zero/evey/internal/pkg/auth"
 	"github.com/gravity-zero/evey/internal/pkg/eventbus"
+	eveyi18n "github.com/gravity-zero/evey/internal/pkg/i18n"
 	eveylogger "github.com/gravity-zero/evey/internal/pkg/logger"
 )
 
@@ -106,6 +107,14 @@ func buildServices(ctx context.Context, cfg *config.Config, db *sql.DB, rootLog 
 	manifestParser := pluginrunner.NewManifestParser()
 	pluginInstaller := pluginrunner.NewZipInstaller()
 	pluginAnalyzer := pluginrunner.NewStaticAnalyzer()
+
+	// --- i18n ---
+	translator, i18nErr := eveyi18n.NewFromDir("i18n")
+	if i18nErr != nil {
+		slog.Warn("i18n load failed, using defaults", slog.Any("err", i18nErr))
+		translator, _ = eveyi18n.NewFromDir("") // empty translator, returns keys as-is
+	}
+	_ = translator // wired into gRPC server below
 
 	// --- JWT ---
 	privateKey, err := auth.LoadOrGenerateRSAKey(cfg.JWT.PrivateKeyPath)

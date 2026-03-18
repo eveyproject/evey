@@ -90,7 +90,7 @@ func (t *Translator) T(locale, key string, params ...map[string]string) string {
 	msg := t.lookup(locale, key)
 	if len(params) > 0 && params[0] != nil {
 		for pk, pv := range params[0] {
-			msg = strings.ReplaceAll(msg, "{{"+pk+"}}", pv)
+			msg = strings.ReplaceAll(msg, "{"+pk+"}", pv)
 		}
 	}
 	return msg

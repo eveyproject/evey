@@ -20,7 +20,7 @@ func setupTestDir(t *testing.T) string {
 	require.NoError(t, os.WriteFile(filepath.Join(enDir, "errors.yaml"), []byte(`
 auth:
   invalid_credentials: "Invalid username or password"
-  password_too_short: "Password must be at least {{min}} characters"
+  password_too_short: "Password must be at least {min} characters"
 general:
   not_found: "Resource not found"
 `), 0o644))
@@ -31,7 +31,7 @@ general:
 	require.NoError(t, os.WriteFile(filepath.Join(frDir, "errors.yaml"), []byte(`
 auth:
   invalid_credentials: "Nom d'utilisateur ou mot de passe invalide"
-  password_too_short: "Le mot de passe doit contenir au moins {{min}} caractères"
+  password_too_short: "Le mot de passe doit contenir au moins {min} caractères"
 general:
   not_found: "Ressource introuvable"
 `), 0o644))
