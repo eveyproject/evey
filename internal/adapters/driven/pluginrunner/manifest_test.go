@@ -4,6 +4,7 @@ import (
 	"archive/zip"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -170,4 +171,117 @@ func TestParseInvalidZipPath(t *testing.T) {
 	parser := NewManifestParser()
 	_, err := parser.Parse("/nonexistent/path.zip")
 	assert.Error(t, err)
+}
+
+func TestParse_PluginYml(t *testing.T) {
+	yml := `
+name: yml-plugin
+version: "1.0.0"
+language: python
+entrypoint: python main.py
+`
+	zipPath := createTestZip(t, "plugin.yml", yml)
+	parser := NewManifestParser()
+
+	m, err := parser.Parse(zipPath)
+	require.NoError(t, err)
+	assert.Equal(t, "yml-plugin", m.Name)
+}
+
+func TestParse_ManifestSizeLimit(t *testing.T) {
+	huge := "name: big\nversion: \"1.0.0\"\nlanguage: go\nentrypoint: ./plugin\ndescription: " + strings.Repeat("x", 2*1024*1024) + "\n"
+	zipPath := createTestZip(t, "plugin.yaml", huge)
+	parser := NewManifestParser()
+
+	m, err := parser.Parse(zipPath)
+	// LimitReader truncates at 1MB, yaml parse may succeed with truncated data or fail
+	// Either way it should not crash or return a manifest with the full 2MB string
+	if err == nil && len(m.Description) > 1<<20 {
+		t.Fatal("manifest should be limited to 1MB read")
+	}
+}
+
+func TestParse_EmptyName_Fails(t *testing.T) {
+	yml := `
+name: ""
+version: "1.0.0"
+language: go
+entrypoint: ./plugin
+`
+	zipPath := createTestZip(t, "plugin.yaml", yml)
+	parser := NewManifestParser()
+
+	_, err := parser.Parse(zipPath)
+	assert.ErrorContains(t, err, "name is required")
+}
+
+func TestParse_EmptyEntrypoint_Fails(t *testing.T) {
+	yml := `
+name: test
+version: "1.0.0"
+language: go
+entrypoint: ""
+`
+	zipPath := createTestZip(t, "plugin.yaml", yml)
+	parser := NewManifestParser()
+
+	_, err := parser.Parse(zipPath)
+	assert.ErrorContains(t, err, "entrypoint is required")
+}
+
+func TestParse_UnknownCapability_Fails(t *testing.T) {
+	yml := `
+name: test
+version: "1.0.0"
+language: go
+entrypoint: ./plugin
+capabilities:
+  - totally.fake.cap
+`
+	zipPath := createTestZip(t, "plugin.yaml", yml)
+	parser := NewManifestParser()
+
+	_, err := parser.Parse(zipPath)
+	assert.ErrorContains(t, err, "unknown capability")
+}
+
+func TestParse_UnknownPermission_Fails(t *testing.T) {
+	yml := `
+name: test
+version: "1.0.0"
+language: go
+entrypoint: ./plugin
+permissions:
+  - root.access
+`
+	zipPath := createTestZip(t, "plugin.yaml", yml)
+	parser := NewManifestParser()
+
+	_, err := parser.Parse(zipPath)
+	assert.ErrorContains(t, err, "unknown permission")
+}
+
+func TestParseDir_FallbackToYml(t *testing.T) {
+	dir := t.TempDir()
+	yml := `
+name: dir-yml-plugin
+version: "1.0.0"
+language: python
+entrypoint: python main.py
+`
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "plugin.yml"), []byte(yml), 0644))
+	parser := NewManifestParser()
+
+	m, err := parser.ParseDir(dir)
+	require.NoError(t, err)
+	assert.Equal(t, "dir-yml-plugin", m.Name)
+}
+
+func TestParseDir_NotFound(t *testing.T) {
+	dir := t.TempDir()
+	parser := NewManifestParser()
+
+	_, err := parser.ParseDir(dir)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "read manifest from dir")
 }
