@@ -93,6 +93,7 @@ export function Modal({ open, onClose, title, children }: ModalProps) {
         role="dialog"
         aria-modal="true"
         aria-labelledby={title ? "modal-title" : undefined}
+        aria-describedby="modal-body"
         tabIndex={-1}
         className="bg-[var(--surface)] rounded-[var(--radius-lg)] border border-[var(--border)] p-6 w-full max-w-md shadow-xl outline-none"
       >
@@ -101,7 +102,7 @@ export function Modal({ open, onClose, title, children }: ModalProps) {
             {title}
           </h2>
         )}
-        {children}
+        <div id="modal-body">{children}</div>
       </div>
     </div>,
     document.body,

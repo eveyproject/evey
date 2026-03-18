@@ -11,6 +11,8 @@ import { AddToPlaylistModal } from "../playlist/AddToPlaylistModal";
 import { AddToCollectionModal } from "../collection/AddToCollectionModal";
 import { typeLabel } from "@/utils/typeLabel";
 
+const WATCHED_THRESHOLD_PCT = 95;
+
 export type { MediaCardItem };
 
 interface MediaCardItem {
@@ -271,7 +273,7 @@ export const MediaCard = memo(function MediaCard({
       ? Math.min(100, Math.max(0, Math.round(progressPercent)))
       : undefined;
 
-  const watched = isWatched || (pct !== undefined && pct >= 95);
+  const watched = isWatched || (pct !== undefined && pct >= WATCHED_THRESHOLD_PCT);
 
   const linkTo = href ?? "/media/$mediaId";
   const linkParams = href ? undefined : { mediaId: item.id ?? "" };

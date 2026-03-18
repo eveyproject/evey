@@ -54,7 +54,7 @@ export function MediaSlider({
   const dragStartX = useRef(0);
   const dragScrollLeft = useRef(0);
 
-  const CARD_WIDTH = 160; // w-40
+  const CARD_WIDTH = 160; // matches Tailwind w-40
 
   const checkOverflow = useCallback(() => {
     const el = scrollRef.current;
@@ -188,6 +188,7 @@ export function MediaSlider({
             className="absolute left-0 top-0 bottom-2 z-10 flex items-center justify-center w-10 rounded-r-[var(--radius-md)] opacity-0 group-hover/slider:opacity-100 transition-opacity"
             style={{ background: "linear-gradient(to right, var(--overlay-gradient), transparent)" }}
             aria-label="Scroll left"
+            title="Scroll left"
           >
             <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
@@ -219,6 +220,7 @@ export function MediaSlider({
             className="absolute right-0 top-0 bottom-2 z-10 flex items-center justify-center w-10 rounded-l-[var(--radius-md)] opacity-0 group-hover/slider:opacity-100 transition-opacity"
             style={{ background: "linear-gradient(to left, var(--overlay-gradient), transparent)" }}
             aria-label="Scroll right"
+            title="Scroll right"
           >
             <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />

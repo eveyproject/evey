@@ -61,6 +61,7 @@ export class ErrorBoundary extends Component<Props, State> {
         <div style={{ display: "flex", gap: "0.75rem", marginTop: "0.5rem" }}>
           <button
             onClick={() => window.location.reload()}
+            aria-label="Reload the page"
             style={{
               padding: "0.625rem 1.5rem",
               fontSize: "0.875rem",
@@ -76,6 +77,7 @@ export class ErrorBoundary extends Component<Props, State> {
           </button>
           <button
             onClick={() => { window.location.replace("/"); }}
+            aria-label="Go to home page"
             style={{
               padding: "0.625rem 1.5rem",
               fontSize: "0.875rem",
