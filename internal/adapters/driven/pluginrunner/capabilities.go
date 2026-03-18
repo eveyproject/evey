@@ -11,12 +11,13 @@ var KnownCapabilities = map[string]bool{
 }
 
 var KnownPermissions = map[string]bool{
-	"network":      true,
-	"filesystem":   true,
-	"media.read":   true,
-	"media.write":  true,
-	"api.library":  true,
-	"api.user":     true,
-	"api.metadata":         true,
-	"notification.sender":  true,
+	"network":             true,
+	"filesystem":          true,
+	"media.read":          true,
+	"media.write":         true,
+	"api.library":         true,
+	"api.user":            true,
+	"api.metadata":        true,
+	"notification.sender": true,
+	"subprocess":          true,
 }
