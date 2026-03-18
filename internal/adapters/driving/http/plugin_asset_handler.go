@@ -194,7 +194,18 @@ func registerPluginUploadRoute(mux *http.ServeMux, tokenGen *auth.JWTGenerator, 
 		p, installErr := svc.InstallPlugin(r.Context(), tmpFile.Name())
 		if installErr != nil {
 			slog.Error("install uploaded plugin", slog.Any("err", installErr))
-			http.Error(w, `{"message":"plugin installation failed"}`, http.StatusInternalServerError)
+			if strings.Contains(installErr.Error(), "plugin blocked:") {
+				w.Header().Set("Content-Type", "application/json")
+				w.WriteHeader(http.StatusForbidden)
+				if encErr := json.NewEncoder(w).Encode(map[string]any{
+					"message": installErr.Error(),
+					"blocked": true,
+				}); encErr != nil {
+					slog.Warn("encode blocked response", slog.Any("err", encErr))
+				}
+			} else {
+				http.Error(w, `{"message":"plugin installation failed"}`, http.StatusInternalServerError)
+			}
 			return
 		}
 
