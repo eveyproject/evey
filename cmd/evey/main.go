@@ -41,7 +41,6 @@ func run() error {
 	}
 	rootLog := eveylogger.New(logCfg)
 	slog.SetDefault(rootLog)
-	eveylogger.StartCleanup(ctx, cfg.Log.Dir, cfg.Log.RetentionDays)
 
 	cfg.WarnValidate()
 
@@ -54,6 +53,8 @@ func run() error {
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
+
+	eveylogger.StartCleanup(ctx, cfg.Log.Dir, cfg.Log.RetentionDays)
 
 	deps, err := buildServices(ctx, cfg, db, rootLog)
 	if err != nil {
