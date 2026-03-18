@@ -13,6 +13,12 @@ import {
 import { toast } from "@evey/store";
 import type { V1Plugin, V1PluginState } from "@evey/api/src/generated/admin.schemas";
 
+// Extends generated type until orval adds permissions/capabilities
+type PluginWithPermissions = V1Plugin & {
+  permissions?: string[];
+  capabilities?: string[];
+};
+
 type BadgeVariant = "default" | "success" | "warning" | "error" | "info";
 
 function stateBadgeVariant(state?: V1PluginState): BadgeVariant {
@@ -107,7 +113,7 @@ function PluginConfigPanel({ pluginId }: PluginConfigPanelProps) {
 }
 
 interface PluginCardProps {
-  plugin: V1Plugin;
+  plugin: PluginWithPermissions;
   onEnable: () => void;
   onDisable: () => void;
   onUninstall: () => void;
@@ -133,6 +139,12 @@ export function PluginCard({ plugin, onEnable, onDisable, onUninstall }: PluginC
             <Badge variant="success">Enabled</Badge>
           ) : (
             <Badge variant="default">Disabled</Badge>
+          )}
+          {plugin.permissions?.includes("subprocess") && (
+            <Badge variant="warning">Subprocess</Badge>
+          )}
+          {plugin.language !== "css" && !plugin.permissions?.includes("subprocess") && (
+            <Badge variant="success">Sandboxed</Badge>
           )}
         </div>
       </div>

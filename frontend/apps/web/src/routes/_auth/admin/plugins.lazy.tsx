@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { createLazyFileRoute } from "@tanstack/react-router";
 import { useQueryClient } from "@tanstack/react-query";
 import {
@@ -8,11 +8,12 @@ import {
   useAdminServiceUninstallPlugin,
   useAdminServiceInstallPlugin,
 } from "@evey/api";
-import { toast } from "@evey/store";
+import { useAuthStore, toast } from "@evey/store";
 import { Spinner } from "@/components/ui/Spinner";
 import { Button } from "@/components/ui/Button";
 import { Modal } from "@/components/ui/Modal";
 import { Input } from "@/components/ui/Input";
+import { Badge } from "@/components/ui/Badge";
 import { PluginCard } from "@/features/admin/PluginCard";
 
 export const Route = createLazyFileRoute("/_auth/admin/plugins")({
@@ -21,38 +22,325 @@ export const Route = createLazyFileRoute("/_auth/admin/plugins")({
 
 const PLUGINS_QUERY_KEY = ["/api/v1/admin/plugins"];
 
+interface PluginPreview {
+  name: string;
+  version: string;
+  description: string;
+  author: string;
+  language: string;
+  permissions: string[];
+  capabilities: string[];
+  analysis?: {
+    safe: boolean;
+    issues: string[];
+    total_files_scanned: number;
+  };
+}
+
+type InstallStep = "idle" | "previewing" | "reviewing" | "installing" | "done";
+
+function SubprocessWarning() {
+  return (
+    <div
+      className="flex items-start gap-3 p-4 rounded-[var(--radius-md)]"
+      style={{
+        backgroundColor: "var(--badge-warning-bg, #713f12)",
+        border: "1px solid var(--badge-warning-text, #fde047)",
+      }}
+    >
+      <svg
+        className="w-5 h-5 shrink-0 mt-0.5"
+        style={{ color: "var(--badge-warning-text, #fde047)" }}
+        viewBox="0 0 20 20"
+        fill="currentColor"
+      >
+        <path
+          fillRule="evenodd"
+          d="M8.485 2.495c.673-1.167 2.357-1.167 3.03 0l6.28 10.875c.673 1.167-.168 2.625-1.516 2.625H3.72c-1.347 0-2.189-1.458-1.515-2.625L8.485 2.495zM10 5a.75.75 0 01.75.75v3.5a.75.75 0 01-1.5 0v-3.5A.75.75 0 0110 5zm0 9a1 1 0 100-2 1 1 0 000 2z"
+          clipRule="evenodd"
+        />
+      </svg>
+      <div>
+        <p
+          className="font-semibold text-sm"
+          style={{ color: "var(--badge-warning-text, #fde047)" }}
+        >
+          Subprocess Permission Required
+        </p>
+        <p className="text-xs mt-1" style={{ color: "var(--text-muted)" }}>
+          This plugin can execute system commands, bypassing the seccomp sandbox.
+          Only install if you trust the author.
+        </p>
+      </div>
+    </div>
+  );
+}
+
+function PreviewPanel({
+  preview,
+  hasWarnings,
+  installing,
+  onCancel,
+  onConfirm,
+}: {
+  preview: PluginPreview;
+  hasWarnings: boolean;
+  installing: boolean;
+  onCancel: () => void;
+  onConfirm: () => void;
+}) {
+  return (
+    <div className="flex flex-col gap-4">
+      <div className="flex flex-col gap-1">
+        <span className="font-semibold" style={{ color: "var(--text)" }}>
+          {preview.name}
+        </span>
+        <span className="text-xs" style={{ color: "var(--text-muted)" }}>
+          v{preview.version} — {preview.language}
+          {preview.author ? ` — by ${preview.author}` : ""}
+        </span>
+        {preview.description && (
+          <p className="text-sm mt-1" style={{ color: "var(--text-muted)" }}>
+            {preview.description}
+          </p>
+        )}
+      </div>
+
+      {preview.permissions?.length > 0 && (
+        <div className="flex flex-col gap-2">
+          <span className="text-xs font-semibold" style={{ color: "var(--text-muted)" }}>
+            Permissions
+          </span>
+          <div className="flex flex-wrap gap-1.5">
+            {preview.permissions.map((p) => (
+              <Badge
+                key={p}
+                variant={p === "subprocess" ? "warning" : "default"}
+              >
+                {p}
+              </Badge>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {preview.capabilities?.length > 0 && (
+        <div className="flex flex-col gap-2">
+          <span className="text-xs font-semibold" style={{ color: "var(--text-muted)" }}>
+            Capabilities
+          </span>
+          <div className="flex flex-wrap gap-1.5">
+            {preview.capabilities.map((c) => (
+              <Badge key={c} variant="info">{c}</Badge>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {preview.permissions?.includes("subprocess") && <SubprocessWarning />}
+
+      {preview.analysis?.issues && preview.analysis.issues.length > 0 && (
+        <div className="flex flex-col gap-1 text-xs" style={{ color: "var(--text-muted)" }}>
+          <span className="font-semibold">Static Analysis</span>
+          {preview.analysis.issues.map((issue, i) => (
+            <span key={i}>{issue}</span>
+          ))}
+        </div>
+      )}
+
+      <div className="flex justify-end gap-2 pt-2">
+        <Button variant="ghost" onClick={onCancel}>Cancel</Button>
+        <Button
+          variant={hasWarnings ? "danger" : "primary"}
+          loading={installing}
+          onClick={onConfirm}
+        >
+          {hasWarnings ? "Install Anyway" : "Install"}
+        </Button>
+      </div>
+    </div>
+  );
+}
+
 function InstallPluginForm({ onSuccess }: { onSuccess: () => void }) {
+  const [mode, setMode] = useState<"file" | "url">("file");
+  const [step, setStep] = useState<InstallStep>("idle");
+  const [preview, setPreview] = useState<PluginPreview | null>(null);
+  const [error, setError] = useState("");
+  const fileRef = useRef<HTMLInputElement>(null);
+  const token = useAuthStore((s) => s.accessToken);
+
+  // URL mode state
   const [source, setSource] = useState("");
   const [name, setName] = useState("");
-
   const installPlugin = useAdminServiceInstallPlugin({ mutation: { onSuccess } });
 
-  function handleSubmit(e: React.FormEvent) {
+  function getFile(): File | null {
+    return fileRef.current?.files?.[0] ?? null;
+  }
+
+  async function handleFilePreview() {
+    const file = getFile();
+    if (!file) { toast.error("Select a plugin file first"); return; }
+    setStep("previewing");
+    setError("");
+    try {
+      const formData = new FormData();
+      formData.append("plugin", file);
+      // Raw fetch required: multipart upload (eveyFetch is JSON-only)
+      const res = await fetch("/api/v1/admin/plugins/preview", {
+        method: "POST",
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+        body: formData,
+      });
+      if (res.status === 401) window.dispatchEvent(new Event("evey:unauthorized"));
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({})) as { message?: string };
+        throw new Error(body.message || `Preview failed (${res.status})`);
+      }
+      const data = (await res.json()) as PluginPreview;
+      setPreview(data);
+      setStep("reviewing");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Preview failed");
+      setStep("idle");
+    }
+  }
+
+  async function handleFileInstall() {
+    const file = getFile();
+    if (!file) { toast.error("File missing — select again"); return; }
+    setStep("installing");
+    setError("");
+    try {
+      const formData = new FormData();
+      formData.append("plugin", file);
+      // Raw fetch required: multipart upload (eveyFetch is JSON-only)
+      const res = await fetch("/api/v1/admin/plugins/upload", {
+        method: "POST",
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+        body: formData,
+      });
+      if (res.status === 401) window.dispatchEvent(new Event("evey:unauthorized"));
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({})) as { message?: string };
+        throw new Error(body.message || `Install failed (${res.status})`);
+      }
+      setStep("done");
+      onSuccess();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Install failed");
+      setStep("reviewing");
+    }
+  }
+
+  function resetFileFlow() {
+    setStep("idle");
+    setPreview(null);
+    setError("");
+  }
+
+  function handleUrlSubmit(e: React.FormEvent) {
     e.preventDefault();
     installPlugin.mutate({ data: { source, name } });
   }
 
+  const hasWarnings = !!preview?.permissions?.includes("subprocess") ||
+    (preview?.analysis?.issues?.length ?? 0) > 0;
+
   return (
-    <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-      <Input
-        label="Source URL"
-        value={source}
-        onChange={(e) => setSource(e.target.value)}
-        placeholder="https://example.com/plugin.zip"
-        required
-      />
-      <Input
-        label="Name (optional)"
-        value={name}
-        onChange={(e) => setName(e.target.value)}
-        placeholder="my-plugin"
-      />
-      <div className="flex justify-end pt-2">
-        <Button type="submit" loading={installPlugin.isPending} disabled={!source.trim()}>
-          Install
+    <div className="flex flex-col gap-4">
+      <div className="flex gap-2">
+        <Button
+          variant={mode === "file" ? "primary" : "ghost"}
+          onClick={() => { setMode("file"); resetFileFlow(); }}
+        >
+          Upload File
+        </Button>
+        <Button
+          variant={mode === "url" ? "primary" : "ghost"}
+          onClick={() => { setMode("url"); resetFileFlow(); }}
+        >
+          From URL
         </Button>
       </div>
-    </form>
+
+      {mode === "file" && step !== "reviewing" && step !== "installing" && (
+        <div className="flex flex-col gap-4">
+          <div>
+            <label
+              className="block text-sm font-medium mb-1"
+              style={{ color: "var(--text-muted)" }}
+            >
+              Plugin file (.zip)
+            </label>
+            <input
+              ref={fileRef}
+              type="file"
+              accept=".zip"
+              className="block w-full text-sm"
+              style={{ color: "var(--text)" }}
+            />
+          </div>
+          {error && (
+            <p className="text-xs" style={{ color: "var(--badge-error-text, #fca5a5)" }}>
+              {error}
+            </p>
+          )}
+          <div className="flex justify-end pt-2">
+            <Button
+              onClick={handleFilePreview}
+              loading={step === "previewing"}
+            >
+              Preview &amp; Install
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {mode === "file" && (step === "reviewing" || step === "installing") && preview && (
+        <>
+          {error && (
+            <p className="text-xs" style={{ color: "var(--badge-error-text, #fca5a5)" }}>
+              {error}
+            </p>
+          )}
+          <PreviewPanel
+            preview={preview}
+            hasWarnings={hasWarnings}
+            installing={step === "installing"}
+            onCancel={resetFileFlow}
+            onConfirm={handleFileInstall}
+          />
+        </>
+      )}
+
+      {mode === "url" && (
+        <form onSubmit={handleUrlSubmit} className="flex flex-col gap-4">
+          <p className="text-xs" style={{ color: "var(--text-muted)" }}>
+            Note: URL installs skip the preview step.
+          </p>
+          <Input
+            label="Source URL"
+            value={source}
+            onChange={(e) => setSource(e.target.value)}
+            placeholder="https://example.com/plugin.zip"
+            required
+          />
+          <Input
+            label="Name (optional)"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder="my-plugin"
+          />
+          <div className="flex justify-end pt-2">
+            <Button type="submit" loading={installPlugin.isPending} disabled={!source.trim()}>
+              Install
+            </Button>
+          </div>
+        </form>
+      )}
+    </div>
   );
 }
 
