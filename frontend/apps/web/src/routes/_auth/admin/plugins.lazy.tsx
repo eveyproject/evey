@@ -167,6 +167,7 @@ function InstallPluginForm({ onSuccess }: { onSuccess: () => void }) {
   const [step, setStep] = useState<InstallStep>("idle");
   const [preview, setPreview] = useState<PluginPreview | null>(null);
   const [error, setError] = useState("");
+  const [blockedIssues, setBlockedIssues] = useState<string[]>([]);
   const fileRef = useRef<HTMLInputElement>(null);
   const token = useAuthStore((s) => s.accessToken);
 
@@ -223,7 +224,13 @@ function InstallPluginForm({ onSuccess }: { onSuccess: () => void }) {
       });
       if (res.status === 401) window.dispatchEvent(new Event("evey:unauthorized"));
       if (!res.ok) {
-        const body = await res.json().catch(() => ({})) as { message?: string };
+        const body = await res.json().catch(() => ({})) as { message?: string; blocked?: boolean; issues?: string[] };
+        if (body.blocked && body.issues) {
+          setBlockedIssues(body.issues);
+          setError("Plugin blocked by security analysis");
+          setStep("reviewing");
+          return;
+        }
         throw new Error(body.message || `Install failed (${res.status})`);
       }
       setStep("done");
@@ -238,6 +245,7 @@ function InstallPluginForm({ onSuccess }: { onSuccess: () => void }) {
     setStep("idle");
     setPreview(null);
     setError("");
+    setBlockedIssues([]);
   }
 
   function handleUrlSubmit(e: React.FormEvent) {
@@ -301,9 +309,18 @@ function InstallPluginForm({ onSuccess }: { onSuccess: () => void }) {
       {mode === "file" && (step === "reviewing" || step === "installing") && preview && (
         <>
           {error && (
-            <p className="text-xs" style={{ color: "var(--badge-error-text, #fca5a5)" }}>
-              {error}
-            </p>
+            <div className="flex flex-col gap-2 p-3 rounded-[var(--radius-md)]" style={{ backgroundColor: "var(--badge-error-bg, #7f1d1d)", border: "1px solid var(--badge-error-text, #fca5a5)" }}>
+              <p className="text-sm font-semibold" style={{ color: "var(--badge-error-text, #fca5a5)" }}>
+                {error}
+              </p>
+              {blockedIssues.length > 0 && (
+                <ul className="flex flex-col gap-1 text-xs list-disc pl-4" style={{ color: "var(--text-muted)" }}>
+                  {blockedIssues.map((issue, i) => (
+                    <li key={i}>{issue}</li>
+                  ))}
+                </ul>
+              )}
+            </div>
           )}
           <PreviewPanel
             preview={preview}

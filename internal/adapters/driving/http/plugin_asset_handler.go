@@ -195,11 +195,13 @@ func registerPluginUploadRoute(mux *http.ServeMux, tokenGen *auth.JWTGenerator, 
 		if installErr != nil {
 			slog.Error("install uploaded plugin", slog.Any("err", installErr))
 			if strings.Contains(installErr.Error(), "plugin blocked:") {
+				issues := extractBlockedIssues(installErr.Error())
 				w.Header().Set("Content-Type", "application/json")
 				w.WriteHeader(http.StatusForbidden)
 				if encErr := json.NewEncoder(w).Encode(map[string]any{
-					"message": installErr.Error(),
+					"message": "Plugin blocked by security analysis",
 					"blocked": true,
+					"issues":  issues,
 				}); encErr != nil {
 					slog.Warn("encode blocked response", slog.Any("err", encErr))
 				}
@@ -329,4 +331,31 @@ func registerPluginPreviewRoute(mux *http.ServeMux, tokenGen *auth.JWTGenerator,
 			slog.Warn("encode plugin preview", slog.Any("err", encErr))
 		}
 	})
+}
+
+// extractBlockedIssues parses individual issues from the analyzer error message.
+func extractBlockedIssues(errMsg string) []string {
+	idx := strings.Index(errMsg, "[")
+	if idx < 0 {
+		return []string{errMsg}
+	}
+	raw := errMsg[idx:]
+	var issues []string
+	for _, part := range strings.Split(raw, " [") {
+		part = strings.TrimSpace(part)
+		if part == "" {
+			continue
+		}
+		if part[0] != '[' {
+			part = "[" + part
+		}
+		part = strings.TrimRight(part, "]")
+		if part != "" {
+			issues = append(issues, part)
+		}
+	}
+	if len(issues) == 0 {
+		return []string{errMsg}
+	}
+	return issues
 }
