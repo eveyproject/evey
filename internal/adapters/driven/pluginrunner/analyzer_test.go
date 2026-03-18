@@ -369,3 +369,279 @@ with open("/etc/passwd") as f:
 		t.Fatal("expected unsafe — access to /etc/passwd")
 	}
 }
+
+func TestAnalyze_CleanPlugin_IsSafe(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "main.py", `print("hello")`)
+
+	report, err := AnalyzePlugin(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !report.Safe {
+		t.Fatal("expected Safe=true for clean plugin")
+	}
+	if len(report.Findings) != 0 {
+		t.Errorf("expected 0 findings, got %d", len(report.Findings))
+	}
+}
+
+func TestAnalyze_CriticalFinding_IsUnsafe(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "bad.py", `os.system("whoami")`)
+
+	report, err := AnalyzePlugin(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if report.Safe {
+		t.Fatal("expected Safe=false when critical finding exists")
+	}
+	hasCritical := false
+	for _, f := range report.Findings {
+		if f.Severity == SeverityCritical {
+			hasCritical = true
+		}
+	}
+	if !hasCritical {
+		t.Fatal("expected at least one critical finding")
+	}
+}
+
+func TestAnalyze_WarningOnly_StillSafe(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "net.py", `requests.get("https://example.com")`)
+
+	report, err := AnalyzePlugin(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !report.Safe {
+		t.Fatal("expected Safe=true — warnings should not make plugin unsafe")
+	}
+	if len(report.Findings) == 0 {
+		t.Fatal("expected at least one warning finding")
+	}
+	for _, f := range report.Findings {
+		if f.Severity == SeverityCritical {
+			t.Fatal("unexpected critical finding")
+		}
+	}
+}
+
+func TestAnalyze_SkipsNodeModules_NoFindings(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "clean.js", `console.log("ok")`)
+	writeFile(t, dir, "node_modules/pkg/index.js", `eval("evil")`)
+
+	report, err := AnalyzePlugin(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, f := range report.Findings {
+		if f.Category == "obfuscation" {
+			t.Fatal("eval in node_modules should not be flagged")
+		}
+	}
+}
+
+func TestAnalyze_SkipsBinaryExtensions(t *testing.T) {
+	dir := t.TempDir()
+	for _, ext := range []string{".so", ".dll", ".png"} {
+		writeFile(t, dir, "lib"+ext, `eval("should not be scanned")`)
+	}
+	writeFile(t, dir, "clean.py", `print("ok")`)
+
+	report, err := AnalyzePlugin(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if report.TotalFilesScanned != 1 {
+		t.Errorf("expected 1 file scanned (.so/.dll/.png skipped), got %d", report.TotalFilesScanned)
+	}
+	if !report.Safe {
+		t.Fatal("expected safe — binary files should be skipped")
+	}
+}
+
+func TestAnalyze_ScansUnknownExtensions(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "data.txt", `os.system("pwned")`)
+	writeFile(t, dir, "backup.bak", `subprocess.call("rm -rf /")`)
+
+	report, err := AnalyzePlugin(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if report.TotalFilesScanned != 2 {
+		t.Errorf("expected 2 files scanned (.txt and .bak), got %d", report.TotalFilesScanned)
+	}
+	if report.Safe {
+		t.Fatal("expected unsafe — .txt/.bak files should be scanned")
+	}
+}
+
+func TestAnalyze_DynamicImport_Critical(t *testing.T) {
+	for _, code := range []string{
+		`__import__("os")`,
+		`importlib.import_module("os")`,
+	} {
+		t.Run(code, func(t *testing.T) {
+			dir := t.TempDir()
+			writeFile(t, dir, "exploit.py", code)
+
+			report, err := AnalyzePlugin(dir)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if report.Safe {
+				t.Fatalf("expected unsafe for %q", code)
+			}
+			found := false
+			for _, f := range report.Findings {
+				if f.Category == "dynamic_import" && f.Severity == SeverityCritical {
+					found = true
+				}
+			}
+			if !found {
+				t.Errorf("expected dynamic_import critical finding for %q", code)
+			}
+		})
+	}
+}
+
+func TestAnalyze_NodeVmEscape_Critical(t *testing.T) {
+	for _, code := range []string{
+		`vm.runInNewContext("code")`,
+		`new Function("return this")()`,
+	} {
+		t.Run(code, func(t *testing.T) {
+			dir := t.TempDir()
+			writeFile(t, dir, "escape.js", code)
+
+			report, err := AnalyzePlugin(dir)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if report.Safe {
+				t.Fatalf("expected unsafe for %q", code)
+			}
+			found := false
+			for _, f := range report.Findings {
+				if f.Category == "sandbox_escape" && f.Severity == SeverityCritical {
+					found = true
+				}
+			}
+			if !found {
+				t.Errorf("expected sandbox_escape critical for %q", code)
+			}
+		})
+	}
+}
+
+func TestAnalyze_CtypesCDLL_Critical(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "native.py", `lib = ctypes.CDLL("libc.so.6")`)
+
+	report, err := AnalyzePlugin(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if report.Safe {
+		t.Fatal("expected unsafe for ctypes.CDLL")
+	}
+	found := false
+	for _, f := range report.Findings {
+		if f.Category == "native_code" && f.Severity == SeverityCritical {
+			found = true
+		}
+	}
+	if !found {
+		t.Error("expected native_code critical finding")
+	}
+}
+
+func TestAnalyze_URLExtraction_Dedup(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "urls.py", `
+url1 = "https://same.example.com/api"
+url2 = "https://same.example.com/api"
+url3 = "https://same.example.com/api"
+`)
+
+	report, err := AnalyzePlugin(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	count := 0
+	for _, u := range report.URLs {
+		if u.URL == "https://same.example.com/api" {
+			count++
+		}
+	}
+	if count != 1 {
+		t.Errorf("expected URL to appear exactly once, got %d", count)
+	}
+}
+
+func TestAnalyze_SuspiciousScheme_Warning(t *testing.T) {
+	for _, scheme := range []string{"ssh://host.com", "telnet://host.com"} {
+		t.Run(scheme, func(t *testing.T) {
+			dir := t.TempDir()
+			writeFile(t, dir, "test.py", `url = "`+scheme+`"`)
+
+			report, err := AnalyzePlugin(dir)
+			if err != nil {
+				t.Fatal(err)
+			}
+			found := false
+			for _, f := range report.Findings {
+				if f.Category == "suspicious_url" && f.Severity == SeverityWarning {
+					found = true
+				}
+			}
+			if !found {
+				t.Errorf("expected suspicious_url warning for %s", scheme)
+			}
+		})
+	}
+}
+
+func TestAnalyze_DepManifest_Warning(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "package.json", `{"name": "test", "version": "1.0.0"}`)
+	writeFile(t, dir, "main.js", `console.log("ok")`)
+
+	report, err := AnalyzePlugin(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	found := false
+	for _, f := range report.Findings {
+		if f.Category == "unvendored_deps" && f.Severity == SeverityWarning {
+			found = true
+		}
+	}
+	if !found {
+		t.Error("expected unvendored_deps warning for package.json")
+	}
+}
+
+func TestAnalyze_SDKStubsSkipped(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "plugin_pb2.py", `eval("should not be scanned")`)
+	writeFile(t, dir, "plugin_pb2_grpc.py", `os.system("hidden")`)
+	writeFile(t, dir, "plugin.proto", `exec("hidden")`)
+	writeFile(t, dir, "main.py", `print("clean")`)
+
+	report, err := AnalyzePlugin(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if report.TotalFilesScanned != 1 {
+		t.Errorf("expected 1 file scanned (stubs skipped), got %d", report.TotalFilesScanned)
+	}
+	if !report.Safe {
+		t.Fatal("expected safe — SDK stubs should be skipped entirely")
+	}
+}

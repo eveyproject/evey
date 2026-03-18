@@ -91,3 +91,80 @@ func TestZipExtractInvalidZip(t *testing.T) {
 	err := installer.Extract("/nonexistent.zip", t.TempDir())
 	assert.Error(t, err)
 }
+
+func TestZipExtract_FileAtMaxSize_Passes(t *testing.T) {
+	dir := t.TempDir()
+	zipPath := filepath.Join(dir, "big.zip")
+	f, err := os.Create(zipPath)
+	require.NoError(t, err)
+
+	w := zip.NewWriter(f)
+	header := &zip.FileHeader{Name: "big.txt", Method: zip.Store}
+	fw, err := w.CreateHeader(header)
+	require.NoError(t, err)
+	// Write exactly maxZipFileSize bytes (100MB)
+	data := make([]byte, maxZipFileSize)
+	for i := range data {
+		data[i] = 'A'
+	}
+	_, err = fw.Write(data)
+	require.NoError(t, err)
+	require.NoError(t, w.Close())
+	require.NoError(t, f.Close())
+
+	dest := t.TempDir()
+	installer := NewZipInstaller()
+	err = installer.Extract(zipPath, dest)
+	require.NoError(t, err)
+
+	info, err := os.Stat(filepath.Join(dest, "big.txt"))
+	require.NoError(t, err)
+	assert.Equal(t, int64(maxZipFileSize), info.Size())
+}
+
+func TestZipExtract_FileOverMaxSize_Fails(t *testing.T) {
+	dir := t.TempDir()
+	zipPath := filepath.Join(dir, "toobig.zip")
+	f, err := os.Create(zipPath)
+	require.NoError(t, err)
+
+	w := zip.NewWriter(f)
+	header := &zip.FileHeader{Name: "toobig.txt", Method: zip.Store}
+	fw, err := w.CreateHeader(header)
+	require.NoError(t, err)
+	data := make([]byte, maxZipFileSize+1)
+	for i := range data {
+		data[i] = 'B'
+	}
+	_, err = fw.Write(data)
+	require.NoError(t, err)
+	require.NoError(t, w.Close())
+	require.NoError(t, f.Close())
+
+	dest := t.TempDir()
+	installer := NewZipInstaller()
+	err = installer.Extract(zipPath, dest)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "exceeds max size")
+}
+
+func TestZipExtract_PreservesContent(t *testing.T) {
+	content := "line1\nline2\nline3\nspecial chars: éàü 日本語\n"
+	zipPath := createZipWithFiles(t, map[string]string{
+		"data.txt":     content,
+		"sub/inner.py": "import os\nprint('hello')\n",
+	})
+	dest := t.TempDir()
+	installer := NewZipInstaller()
+
+	err := installer.Extract(zipPath, dest)
+	require.NoError(t, err)
+
+	got, err := os.ReadFile(filepath.Join(dest, "data.txt"))
+	require.NoError(t, err)
+	assert.Equal(t, content, string(got))
+
+	got2, err := os.ReadFile(filepath.Join(dest, "sub", "inner.py"))
+	require.NoError(t, err)
+	assert.Equal(t, "import os\nprint('hello')\n", string(got2))
+}
