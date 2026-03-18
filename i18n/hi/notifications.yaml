@@ -1,0 +1,17 @@
+media:
+  added: "{{title}} आपकी लाइब्रेरी में जोड़ा गया है"
+  transcode_complete: "{{title}} का ट्रांसकोडिंग पूर्ण"
+  transcode_failed: "{{title}} का ट्रांसकोडिंग विफल"
+
+library:
+  scan_complete: "लाइब्रेरी स्कैन पूर्ण: {{count}} आइटम मिले"
+  scan_failed: "लाइब्रेरी स्कैन विफल"
+
+plugin:
+  installed: "प्लगइन {{name}} स्थापित हो गया है"
+  updated: "प्लगइन {{name}} अपडेट हो गया है"
+  error: "प्लगइन {{name}} में त्रुटि आई"
+
+user:
+  welcome: "Evey में आपका स्वागत है, {{username}}!"
+  password_changed: "आपका पासवर्ड बदल दिया गया है"

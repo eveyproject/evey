@@ -1,0 +1,17 @@
+media:
+  added: "{{title}} ha sido añadido a su biblioteca"
+  transcode_complete: "Transcodificación completada para {{title}}"
+  transcode_failed: "Error en la transcodificación de {{title}}"
+
+library:
+  scan_complete: "Escaneo de biblioteca completado: {{count}} elementos encontrados"
+  scan_failed: "Error en el escaneo de la biblioteca"
+
+plugin:
+  installed: "El complemento {{name}} ha sido instalado"
+  updated: "El complemento {{name}} ha sido actualizado"
+  error: "El complemento {{name}} encontró un error"
+
+user:
+  welcome: "Bienvenido a Evey, {{username}}!"
+  password_changed: "Su contraseña ha sido cambiada"

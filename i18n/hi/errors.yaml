@@ -1,0 +1,54 @@
+auth:
+  invalid_credentials: "गलत उपयोगकर्ता नाम या पासवर्ड"
+  user_disabled: "खाता अक्षम है"
+  missing_metadata: "प्रमाणीकरण मेटाडेटा अनुपलब्ध"
+  missing_authorization: "प्राधिकरण हेडर अनुपलब्ध"
+  invalid_token: "अमान्य या समय-सीमित टोकन"
+  token_expired: "सत्र समाप्त हो गया, कृपया पुनः लॉगिन करें"
+  permission_denied: "आपके पास यह क्रिया करने की अनुमति नहीं है"
+  admin_required: "व्यवस्थापक पहुँच आवश्यक है"
+  api_key_expired: "API कुंजी समाप्त हो गई है"
+  api_key_invalid: "अमान्य API कुंजी"
+  password_too_short: "पासवर्ड कम से कम 8 अक्षरों का होना चाहिए"
+
+user:
+  not_found: "उपयोगकर्ता नहीं मिला"
+  already_exists: "इस उपयोगकर्ता नाम से एक खाता पहले से मौजूद है"
+  profile_not_found: "प्रोफ़ाइल नहीं मिली"
+  email_invalid: "अमान्य ईमेल पता"
+
+library:
+  not_found: "पुस्तकालय नहीं मिला"
+  scan_in_progress: "स्कैन पहले से चल रहा है"
+  path_invalid: "अमान्य पुस्तकालय पथ"
+  access_denied: "आपके पास इस पुस्तकालय तक पहुँच नहीं है"
+
+media:
+  not_found: "मीडिया आइटम नहीं मिला"
+  stream_not_found: "स्ट्रीम नहीं मिली"
+  transcode_failed: "ट्रांसकोडिंग विफल"
+  playback_error: "प्लेबैक त्रुटि"
+
+plugin:
+  not_found: "प्लगइन नहीं मिला"
+  install_failed: "प्लगइन स्थापना विफल"
+  invalid_manifest: "अमान्य प्लगइन मैनिफ़ेस्ट"
+  permission_denied: "प्लगइन के पास आवश्यक अनुमति नहीं है"
+  already_installed: "प्लगइन पहले से स्थापित है"
+  start_failed: "प्लगइन शुरू करने में विफल"
+  stop_failed: "प्लगइन रोकने में विफल"
+
+invite:
+  invalid: "अमान्य आमंत्रण लिंक"
+  expired: "आमंत्रण लिंक समाप्त हो गया है"
+  max_uses: "आमंत्रण लिंक अधिकतम उपयोग सीमा तक पहुँच गया है"
+
+general:
+  internal_error: "एक अप्रत्याशित त्रुटि हुई"
+  not_found: "संसाधन नहीं मिला"
+  invalid_request: "अमान्य अनुरोध"
+  rate_limited: "बहुत अधिक अनुरोध, कृपया बाद में पुनः प्रयास करें"
+
+notification:
+  not_found: "सूचना नहीं मिली"
+  settings_not_found: "सूचना सेटिंग्स नहीं मिलीं"

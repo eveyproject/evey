@@ -1,0 +1,142 @@
+package i18n
+
+import (
+	"context"
+	"fmt"
+	"os"
+	"path/filepath"
+	"strings"
+	"sync"
+
+	"gopkg.in/yaml.v3"
+)
+
+type localeKey struct{}
+
+const FallbackLocale = "en"
+
+var supportedLocales = map[string]bool{
+	"en": true, "fr": true, "es": true, "zh": true, "hi": true,
+}
+
+type Translator struct {
+	mu       sync.RWMutex
+	messages map[string]map[string]string // locale -> flat key -> message
+	fallback string
+}
+
+func NewFromDir(dir string) (*Translator, error) {
+	t := &Translator{
+		messages: make(map[string]map[string]string),
+		fallback: FallbackLocale,
+	}
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return nil, fmt.Errorf("i18n: read dir %s: %w", dir, err)
+	}
+	for _, entry := range entries {
+		if !entry.IsDir() {
+			continue
+		}
+		locale := entry.Name()
+		localeDir := filepath.Join(dir, locale)
+		files, err := os.ReadDir(localeDir)
+		if err != nil {
+			return nil, fmt.Errorf("i18n: read locale dir %s: %w", localeDir, err)
+		}
+		for _, f := range files {
+			if f.IsDir() || !strings.HasSuffix(f.Name(), ".yaml") {
+				continue
+			}
+			data, err := os.ReadFile(filepath.Join(localeDir, f.Name()))
+			if err != nil {
+				return nil, fmt.Errorf("i18n: read file %s/%s: %w", locale, f.Name(), err)
+			}
+			var raw map[string]any
+			if err := yaml.Unmarshal(data, &raw); err != nil {
+				return nil, fmt.Errorf("i18n: parse %s/%s: %w", locale, f.Name(), err)
+			}
+			if t.messages[locale] == nil {
+				t.messages[locale] = make(map[string]string)
+			}
+			flatten("", raw, t.messages[locale])
+		}
+	}
+	if _, ok := t.messages[FallbackLocale]; !ok {
+		return nil, fmt.Errorf("i18n: fallback locale %q not found in %s", FallbackLocale, dir)
+	}
+	return t, nil
+}
+
+func flatten(prefix string, m map[string]any, out map[string]string) {
+	for k, v := range m {
+		key := k
+		if prefix != "" {
+			key = prefix + "." + k
+		}
+		switch val := v.(type) {
+		case string:
+			out[key] = val
+		case map[string]any:
+			flatten(key, val, out)
+		}
+	}
+}
+
+func (t *Translator) T(locale, key string, params ...map[string]string) string {
+	t.mu.RLock()
+	defer t.mu.RUnlock()
+
+	msg := t.lookup(locale, key)
+	if len(params) > 0 && params[0] != nil {
+		for pk, pv := range params[0] {
+			msg = strings.ReplaceAll(msg, "{{"+pk+"}}", pv)
+		}
+	}
+	return msg
+}
+
+func (t *Translator) lookup(locale, key string) string {
+	if msgs, ok := t.messages[locale]; ok {
+		if msg, ok := msgs[key]; ok {
+			return msg
+		}
+	}
+	if locale != t.fallback {
+		if msgs, ok := t.messages[t.fallback]; ok {
+			if msg, ok := msgs[key]; ok {
+				return msg
+			}
+		}
+	}
+	return key
+}
+
+func ContextWithLocale(ctx context.Context, locale string) context.Context {
+	return context.WithValue(ctx, localeKey{}, locale)
+}
+
+func LocaleFromCtx(ctx context.Context) string {
+	v, _ := ctx.Value(localeKey{}).(string)
+	if v == "" {
+		return FallbackLocale
+	}
+	return v
+}
+
+func ParseLocale(raw string) string {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return FallbackLocale
+	}
+	// Accept-Language can be "fr-FR, en;q=0.9" — take first tag, strip region
+	parts := strings.Split(raw, ",")
+	tag := strings.TrimSpace(parts[0])
+	tag = strings.SplitN(tag, ";", 2)[0]
+	tag = strings.SplitN(tag, "-", 2)[0]
+	tag = strings.ToLower(strings.TrimSpace(tag))
+	if supportedLocales[tag] {
+		return tag
+	}
+	return FallbackLocale
+}

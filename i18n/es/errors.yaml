@@ -1,0 +1,54 @@
+auth:
+  invalid_credentials: "Nombre de usuario o contraseña incorrectos"
+  user_disabled: "La cuenta está desactivada"
+  missing_metadata: "Faltan metadatos de autenticación"
+  missing_authorization: "Falta el encabezado de autorización"
+  invalid_token: "Token inválido o expirado"
+  token_expired: "Sesión expirada, por favor inicie sesión nuevamente"
+  permission_denied: "No tiene permiso para realizar esta acción"
+  admin_required: "Se requiere acceso de administrador"
+  api_key_expired: "La clave API ha expirado"
+  api_key_invalid: "Clave API inválida"
+  password_too_short: "La contraseña debe tener al menos 8 caracteres"
+
+user:
+  not_found: "Usuario no encontrado"
+  already_exists: "Ya existe un usuario con este nombre"
+  profile_not_found: "Perfil no encontrado"
+  email_invalid: "Dirección de correo electrónico inválida"
+
+library:
+  not_found: "Biblioteca no encontrada"
+  scan_in_progress: "Ya hay un escaneo en curso"
+  path_invalid: "Ruta de biblioteca inválida"
+  access_denied: "No tiene acceso a esta biblioteca"
+
+media:
+  not_found: "Elemento multimedia no encontrado"
+  stream_not_found: "Flujo no encontrado"
+  transcode_failed: "Error en la transcodificación"
+  playback_error: "Error de reproducción"
+
+plugin:
+  not_found: "Complemento no encontrado"
+  install_failed: "Error al instalar el complemento"
+  invalid_manifest: "Manifiesto de complemento inválido"
+  permission_denied: "El complemento no tiene el permiso requerido"
+  already_installed: "El complemento ya está instalado"
+  start_failed: "Error al iniciar el complemento"
+  stop_failed: "Error al detener el complemento"
+
+invite:
+  invalid: "Enlace de invitación inválido"
+  expired: "El enlace de invitación ha expirado"
+  max_uses: "El enlace de invitación ha alcanzado el número máximo de usos"
+
+general:
+  internal_error: "Ocurrió un error inesperado"
+  not_found: "Recurso no encontrado"
+  invalid_request: "Solicitud inválida"
+  rate_limited: "Demasiadas solicitudes, por favor intente más tarde"
+
+notification:
+  not_found: "Notificación no encontrada"
+  settings_not_found: "Configuración de notificaciones no encontrada"

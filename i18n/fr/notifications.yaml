@@ -1,0 +1,17 @@
+media:
+  added: "{{title}} a été ajouté à votre bibliothèque"
+  transcode_complete: "Transcodage terminé pour {{title}}"
+  transcode_failed: "Échec du transcodage pour {{title}}"
+
+library:
+  scan_complete: "Scan de la bibliothèque terminé : {{count}} éléments trouvés"
+  scan_failed: "Échec du scan de la bibliothèque"
+
+plugin:
+  installed: "L'extension {{name}} a été installée"
+  updated: "L'extension {{name}} a été mise à jour"
+  error: "L'extension {{name}} a rencontré une erreur"
+
+user:
+  welcome: "Bienvenue sur Evey, {{username}} !"
+  password_changed: "Votre mot de passe a été modifié"

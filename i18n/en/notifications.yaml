@@ -1,0 +1,17 @@
+media:
+  added: "{{title}} has been added to your library"
+  transcode_complete: "Transcoding complete for {{title}}"
+  transcode_failed: "Transcoding failed for {{title}}"
+
+library:
+  scan_complete: "Library scan complete: {{count}} items found"
+  scan_failed: "Library scan failed"
+
+plugin:
+  installed: "Plugin {{name}} has been installed"
+  updated: "Plugin {{name}} has been updated"
+  error: "Plugin {{name}} encountered an error"
+
+user:
+  welcome: "Welcome to Evey, {{username}}!"
+  password_changed: "Your password has been changed"

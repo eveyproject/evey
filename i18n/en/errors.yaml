@@ -1,0 +1,54 @@
+auth:
+  invalid_credentials: "Invalid username or password"
+  user_disabled: "Account is disabled"
+  missing_metadata: "Missing authentication metadata"
+  missing_authorization: "Missing authorization header"
+  invalid_token: "Invalid or expired token"
+  token_expired: "Session expired, please log in again"
+  permission_denied: "You do not have permission to perform this action"
+  admin_required: "Administrator access required"
+  api_key_expired: "API key has expired"
+  api_key_invalid: "Invalid API key"
+  password_too_short: "Password must be at least 8 characters"
+
+user:
+  not_found: "User not found"
+  already_exists: "A user with this username already exists"
+  profile_not_found: "Profile not found"
+  email_invalid: "Invalid email address"
+
+library:
+  not_found: "Library not found"
+  scan_in_progress: "A scan is already in progress"
+  path_invalid: "Invalid library path"
+  access_denied: "You do not have access to this library"
+
+media:
+  not_found: "Media item not found"
+  stream_not_found: "Stream not found"
+  transcode_failed: "Transcoding failed"
+  playback_error: "Playback error"
+
+plugin:
+  not_found: "Plugin not found"
+  install_failed: "Plugin installation failed"
+  invalid_manifest: "Invalid plugin manifest"
+  permission_denied: "Plugin does not have the required permission"
+  already_installed: "Plugin is already installed"
+  start_failed: "Failed to start plugin"
+  stop_failed: "Failed to stop plugin"
+
+invite:
+  invalid: "Invalid invite link"
+  expired: "Invite link has expired"
+  max_uses: "Invite link has reached maximum uses"
+
+general:
+  internal_error: "An unexpected error occurred"
+  not_found: "Resource not found"
+  invalid_request: "Invalid request"
+  rate_limited: "Too many requests, please try again later"
+
+notification:
+  not_found: "Notification not found"
+  settings_not_found: "Notification settings not found"

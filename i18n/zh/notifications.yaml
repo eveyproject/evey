@@ -1,0 +1,17 @@
+media:
+  added: "{{title}} 已添加到您的媒体库"
+  transcode_complete: "{{title}} 转码完成"
+  transcode_failed: "{{title}} 转码失败"
+
+library:
+  scan_complete: "媒体库扫描完成：找到 {{count}} 个项目"
+  scan_failed: "媒体库扫描失败"
+
+plugin:
+  installed: "插件 {{name}} 已安装"
+  updated: "插件 {{name}} 已更新"
+  error: "插件 {{name}} 遇到错误"
+
+user:
+  welcome: "欢迎使用 Evey，{{username}}！"
+  password_changed: "您的密码已更改"

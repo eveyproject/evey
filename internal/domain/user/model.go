@@ -48,6 +48,7 @@ type Profile struct {
 	SubtitleLanguages []string // ordered fallback list
 	MaxBitrateKbps    *int
 	Parental          *ParentalSettings
+	Locale            string // UI locale (en, fr, es, zh, hi)
 	CreatedAt         time.Time
 }
 

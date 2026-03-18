@@ -1,0 +1,54 @@
+auth:
+  invalid_credentials: "Nom d'utilisateur ou mot de passe invalide"
+  user_disabled: "Ce compte est désactivé"
+  missing_metadata: "Métadonnées d'authentification manquantes"
+  missing_authorization: "En-tête d'autorisation manquant"
+  invalid_token: "Jeton invalide ou expiré"
+  token_expired: "Session expirée, veuillez vous reconnecter"
+  permission_denied: "Vous n'avez pas la permission d'effectuer cette action"
+  admin_required: "Accès administrateur requis"
+  api_key_expired: "La clé API a expiré"
+  api_key_invalid: "Clé API invalide"
+  password_too_short: "Le mot de passe doit contenir au moins 8 caractères"
+
+user:
+  not_found: "Utilisateur introuvable"
+  already_exists: "Un utilisateur avec ce nom existe déjà"
+  profile_not_found: "Profil introuvable"
+  email_invalid: "Adresse e-mail invalide"
+
+library:
+  not_found: "Bibliothèque introuvable"
+  scan_in_progress: "Un scan est déjà en cours"
+  path_invalid: "Chemin de bibliothèque invalide"
+  access_denied: "Vous n'avez pas accès à cette bibliothèque"
+
+media:
+  not_found: "Élément multimédia introuvable"
+  stream_not_found: "Flux introuvable"
+  transcode_failed: "Échec du transcodage"
+  playback_error: "Erreur de lecture"
+
+plugin:
+  not_found: "Extension introuvable"
+  install_failed: "Échec de l'installation de l'extension"
+  invalid_manifest: "Manifeste d'extension invalide"
+  permission_denied: "L'extension ne dispose pas de la permission requise"
+  already_installed: "L'extension est déjà installée"
+  start_failed: "Échec du démarrage de l'extension"
+  stop_failed: "Échec de l'arrêt de l'extension"
+
+invite:
+  invalid: "Lien d'invitation invalide"
+  expired: "Le lien d'invitation a expiré"
+  max_uses: "Le lien d'invitation a atteint le nombre maximum d'utilisations"
+
+general:
+  internal_error: "Une erreur inattendue s'est produite"
+  not_found: "Ressource introuvable"
+  invalid_request: "Requête invalide"
+  rate_limited: "Trop de requêtes, veuillez réessayer plus tard"
+
+notification:
+  not_found: "Notification introuvable"
+  settings_not_found: "Paramètres de notification introuvables"
