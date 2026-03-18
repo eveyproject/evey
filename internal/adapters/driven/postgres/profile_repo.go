@@ -32,13 +32,17 @@ func (r *ProfileRepository) Create(ctx context.Context, p *user.Profile) error {
 		subLangs = []string{}
 	}
 	pMaxRating, pBlockedTags, pPINHash, pEnabled := parentalToColumns(p.Parental)
+	locale := p.Locale
+	if locale == "" {
+		locale = "en"
+	}
 	_, err = r.db.ExecContext(ctx,
-		`INSERT INTO profiles (id, user_id, name, avatar_path, preferences, max_rating, is_default, audio_languages, subtitle_languages, max_bitrate_kbps, parental_max_rating, parental_blocked_tags, parental_pin_hash, parental_enabled, created_at)
-		 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)`,
+		`INSERT INTO profiles (id, user_id, name, avatar_path, preferences, max_rating, is_default, audio_languages, subtitle_languages, max_bitrate_kbps, parental_max_rating, parental_blocked_tags, parental_pin_hash, parental_enabled, locale, created_at)
+		 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)`,
 		p.ID, p.UserID, p.Name, p.AvatarPath, prefsJSON, p.MaxRating, p.IsDefault,
 		pq.Array(audioLangs), pq.Array(subLangs), p.MaxBitrateKbps,
 		pMaxRating, pq.Array(pBlockedTags), pPINHash, pEnabled,
-		p.CreatedAt,
+		locale, p.CreatedAt,
 	)
 	return err
 }
@@ -50,12 +54,12 @@ func (r *ProfileRepository) GetByID(ctx context.Context, id string) (*user.Profi
 	var pBlockedTags []string
 	var pEnabled bool
 	err := r.db.QueryRowContext(ctx,
-		`SELECT id, user_id, name, avatar_path, preferences, max_rating, is_default, audio_languages, subtitle_languages, max_bitrate_kbps, parental_max_rating, parental_blocked_tags, parental_pin_hash, parental_enabled, created_at
+		`SELECT id, user_id, name, avatar_path, preferences, max_rating, is_default, audio_languages, subtitle_languages, max_bitrate_kbps, parental_max_rating, parental_blocked_tags, parental_pin_hash, parental_enabled, locale, created_at
 		 FROM profiles WHERE id = $1`, id,
 	).Scan(&p.ID, &p.UserID, &p.Name, &p.AvatarPath, &prefsJSON, &p.MaxRating, &p.IsDefault,
 		pq.Array(&p.AudioLanguages), pq.Array(&p.SubtitleLanguages), &p.MaxBitrateKbps,
 		&pMaxRating, pq.Array(&pBlockedTags), &pPINHash, &pEnabled,
-		&p.CreatedAt)
+		&p.Locale, &p.CreatedAt)
 	if err != nil {
 		return nil, err
 	}
@@ -68,7 +72,7 @@ func (r *ProfileRepository) GetByID(ctx context.Context, id string) (*user.Profi
 
 func (r *ProfileRepository) GetByUserID(ctx context.Context, userID string) ([]*user.Profile, error) {
 	rows, err := r.db.QueryContext(ctx,
-		`SELECT id, user_id, name, avatar_path, preferences, max_rating, is_default, audio_languages, subtitle_languages, max_bitrate_kbps, parental_max_rating, parental_blocked_tags, parental_pin_hash, parental_enabled, created_at
+		`SELECT id, user_id, name, avatar_path, preferences, max_rating, is_default, audio_languages, subtitle_languages, max_bitrate_kbps, parental_max_rating, parental_blocked_tags, parental_pin_hash, parental_enabled, locale, created_at
 		 FROM profiles WHERE user_id = $1 ORDER BY is_default DESC, name`, userID)
 	if err != nil {
 		return nil, err
@@ -100,19 +104,23 @@ func (r *ProfileRepository) Update(ctx context.Context, p *user.Profile) error {
 		subLangs = []string{}
 	}
 	pMaxRating, pBlockedTags, pPINHash, pEnabled := parentalToColumns(p.Parental)
+	locale := p.Locale
+	if locale == "" {
+		locale = "en"
+	}
 	_, err = r.db.ExecContext(ctx,
-		`UPDATE profiles SET name=$1, avatar_path=$2, preferences=$3, max_rating=$4, is_default=$5, audio_languages=$6, subtitle_languages=$7, max_bitrate_kbps=$8, parental_max_rating=$9, parental_blocked_tags=$10, parental_pin_hash=$11, parental_enabled=$12 WHERE id=$13`,
+		`UPDATE profiles SET name=$1, avatar_path=$2, preferences=$3, max_rating=$4, is_default=$5, audio_languages=$6, subtitle_languages=$7, max_bitrate_kbps=$8, parental_max_rating=$9, parental_blocked_tags=$10, parental_pin_hash=$11, parental_enabled=$12, locale=$13 WHERE id=$14`,
 		p.Name, p.AvatarPath, prefsJSON, p.MaxRating, p.IsDefault,
 		pq.Array(audioLangs), pq.Array(subLangs), p.MaxBitrateKbps,
 		pMaxRating, pq.Array(pBlockedTags), pPINHash, pEnabled,
-		p.ID,
+		locale, p.ID,
 	)
 	return err
 }
 
 func (r *ProfileRepository) GetAll(ctx context.Context) ([]*user.Profile, error) {
 	rows, err := r.db.QueryContext(ctx,
-		`SELECT id, user_id, name, avatar_path, preferences, max_rating, is_default, audio_languages, subtitle_languages, max_bitrate_kbps, parental_max_rating, parental_blocked_tags, parental_pin_hash, parental_enabled, created_at
+		`SELECT id, user_id, name, avatar_path, preferences, max_rating, is_default, audio_languages, subtitle_languages, max_bitrate_kbps, parental_max_rating, parental_blocked_tags, parental_pin_hash, parental_enabled, locale, created_at
 		 FROM profiles ORDER BY user_id, is_default DESC, name`)
 	if err != nil {
 		return nil, err
@@ -144,7 +152,7 @@ func scanProfile(rows *sql.Rows) (*user.Profile, error) {
 	if err := rows.Scan(&p.ID, &p.UserID, &p.Name, &p.AvatarPath, &prefsJSON, &p.MaxRating, &p.IsDefault,
 		pq.Array(&p.AudioLanguages), pq.Array(&p.SubtitleLanguages), &p.MaxBitrateKbps,
 		&pMaxRating, pq.Array(&pBlockedTags), &pPINHash, &pEnabled,
-		&p.CreatedAt); err != nil {
+		&p.Locale, &p.CreatedAt); err != nil {
 		return nil, err
 	}
 	if err := json.Unmarshal(prefsJSON, &p.Preferences); err != nil {

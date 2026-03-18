@@ -27,12 +27,14 @@ func buildGRPCServer(deps *appDeps, cfg *config.Config, rootLog *slog.Logger, lo
 		version,
 		grpc.ChainUnaryInterceptor(
 			interceptors.ErrorSanitizerUnary(),
+			interceptors.LocaleUnary(),
 			interceptors.ClientInfoUnary(),
 			interceptors.LoggingUnary(grpcLog),
 			authInterceptor.Unary(),
 		),
 		grpc.ChainStreamInterceptor(
 			interceptors.ErrorSanitizerStream(),
+			interceptors.LocaleStream(),
 			interceptors.ClientInfoStream(),
 			interceptors.LoggingStream(grpcLog),
 			authInterceptor.Stream(),
