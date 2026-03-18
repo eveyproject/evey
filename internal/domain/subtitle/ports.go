@@ -12,3 +12,7 @@ type Provider interface {
 	Search(ctx context.Context, hash, title, language string) ([]SearchResult, error)
 	Download(ctx context.Context, fileID int, destPath string) (string, error)
 }
+
+type MediaItemGetter interface {
+	GetMediaItem(ctx context.Context, id string) (*MediaItemInfo, error)
+}

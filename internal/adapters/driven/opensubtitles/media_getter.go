@@ -3,29 +3,29 @@ package opensubtitles
 import (
 	"context"
 
-	appsubtitle "github.com/gravity-zero/evey/internal/app/subtitle"
 	domainlibrary "github.com/gravity-zero/evey/internal/domain/library"
+	"github.com/gravity-zero/evey/internal/domain/subtitle"
 )
 
 type libraryQuerySvc interface {
 	GetMediaItem(ctx context.Context, id string) (*domainlibrary.MediaItem, error)
 }
 
-// LibraryMediaGetter adapts applibrary.QueryService to appsubtitle.MediaItemGetter.
+// LibraryMediaGetter adapts library query service to subtitle.MediaItemGetter.
 type LibraryMediaGetter struct {
 	q libraryQuerySvc
 }
 
-func NewLibraryMediaGetter(q libraryQuerySvc) appsubtitle.MediaItemGetter {
+func NewLibraryMediaGetter(q libraryQuerySvc) subtitle.MediaItemGetter {
 	return &LibraryMediaGetter{q: q}
 }
 
-func (g *LibraryMediaGetter) GetMediaItem(ctx context.Context, id string) (*appsubtitle.MediaItemInfo, error) {
+func (g *LibraryMediaGetter) GetMediaItem(ctx context.Context, id string) (*subtitle.MediaItemInfo, error) {
 	item, err := g.q.GetMediaItem(ctx, id)
 	if err != nil {
 		return nil, err
 	}
-	return &appsubtitle.MediaItemInfo{
+	return &subtitle.MediaItemInfo{
 		ID:       item.ID,
 		FilePath: item.FilePath,
 		Title:    item.Title,

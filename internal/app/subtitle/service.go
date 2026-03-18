@@ -11,23 +11,13 @@ import (
 	"github.com/gravity-zero/evey/internal/pkg/id"
 )
 
-type MediaItemGetter interface {
-	GetMediaItem(ctx context.Context, id string) (*MediaItemInfo, error)
-}
-
-type MediaItemInfo struct {
-	ID       string
-	FilePath string
-	Title    string
-}
-
 type Service struct {
 	repo     subtitle.Repository
 	provider subtitle.Provider
-	media    MediaItemGetter
+	media    subtitle.MediaItemGetter
 }
 
-func NewService(repo subtitle.Repository, provider subtitle.Provider, media MediaItemGetter) *Service {
+func NewService(repo subtitle.Repository, provider subtitle.Provider, media subtitle.MediaItemGetter) *Service {
 	return &Service{repo: repo, provider: provider, media: media}
 }
 

@@ -22,3 +22,9 @@ type SearchResult struct {
 	Rating   float64
 	Hash     string
 }
+
+type MediaItemInfo struct {
+	ID       string
+	FilePath string
+	Title    string
+}
