@@ -81,8 +81,8 @@ type fakePluginLogger struct {
 	entries []string
 }
 
-func (l *fakePluginLogger) WriteLog(_, _, msg string, _ map[string]string) {
-	l.entries = append(l.entries, msg)
+func (l *fakePluginLogger) WriteLog(_, line string) {
+	l.entries = append(l.entries, line)
 }
 
 func newTestHostServer() *HostServer {
@@ -176,7 +176,8 @@ func TestHostLog(t *testing.T) {
 		Message: "test log message",
 	})
 	require.NoError(t, err)
-	assert.Contains(t, logger.entries, "test log message")
+	require.Len(t, logger.entries, 1)
+	assert.Contains(t, logger.entries[0], "test log message")
 }
 
 func TestHostEmitEvent(t *testing.T) {

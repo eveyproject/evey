@@ -207,7 +207,13 @@ func (h *HostServer) Log(ctx context.Context, req *pluginv1.LogRequest) (*plugin
 	level = strings.TrimPrefix(level, "LOG_LEVEL_")
 
 	if h.logger != nil {
-		h.logger.WriteLog(pluginID, level, req.Message, req.Fields)
+		line := fmt.Sprintf("[%s] %s", level, req.Message)
+		if len(req.Fields) > 0 {
+			for k, v := range req.Fields {
+				line += fmt.Sprintf(" %s=%s", k, v)
+			}
+		}
+		h.logger.WriteLog(pluginID, line)
 	}
 	return &pluginv1.LogResponse{}, nil
 }

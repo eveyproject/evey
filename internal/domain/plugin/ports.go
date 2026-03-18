@@ -36,7 +36,7 @@ type PluginInstaller interface {
 }
 
 type PluginLogger interface {
-	WriteLog(pluginID, level, msg string, fields map[string]string)
+	WriteLog(pluginID, line string)
 }
 
 type PluginAnalyzer interface {

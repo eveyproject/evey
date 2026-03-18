@@ -4,9 +4,7 @@ import "sync"
 
 type LogEntry struct {
 	PluginID string
-	Level    string
-	Msg      string
-	Fields   map[string]string
+	Line     string
 }
 
 type FakePluginLogger struct {
@@ -18,13 +16,8 @@ func NewFakePluginLogger() *FakePluginLogger {
 	return &FakePluginLogger{}
 }
 
-func (l *FakePluginLogger) WriteLog(pluginID, level, msg string, fields map[string]string) {
+func (l *FakePluginLogger) WriteLog(pluginID, line string) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
-	l.Entries = append(l.Entries, LogEntry{
-		PluginID: pluginID,
-		Level:    level,
-		Msg:      msg,
-		Fields:   fields,
-	})
+	l.Entries = append(l.Entries, LogEntry{PluginID: pluginID, Line: line})
 }
