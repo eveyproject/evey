@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 	"syscall"
@@ -21,6 +22,8 @@ const (
 	shutdownTimeout   = 5 * time.Second
 	killTimeout       = 3 * time.Second
 	pluginExecTimeout = 30 * time.Minute
+	sandboxLibPath    = "/app/libevey-sandbox.so"
+	subprocessPerm    = "subprocess"
 )
 
 type processEntry struct {
@@ -34,6 +37,7 @@ type Runner struct {
 	mu         sync.RWMutex
 	processes  map[string]*processEntry
 	pluginDirs []string
+	sandboxLib string
 }
 
 func NewRunner(pluginDirs ...string) *Runner {
@@ -122,6 +126,12 @@ func (r *Runner) Start(_ context.Context, p *plugin.Plugin) error {
 		"EVEY_PLUGIN_SOCK=" + sock,
 		"EVEY_HOST_SOCK=" + hostSock,
 	}
+	if !slices.Contains(p.Permissions, subprocessPerm) {
+		if libPath := r.ensureSandboxLib(); libPath != "" {
+			cmd.Env = append(cmd.Env, "LD_PRELOAD="+libPath)
+		}
+	}
+
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	cmd.SysProcAttr = &syscall.SysProcAttr{
@@ -218,4 +228,26 @@ func (r *Runner) SendEvent(_ context.Context, pluginID string, event any) error 
 	}
 
 	return nil
+}
+
+func (r *Runner) ensureSandboxLib() string {
+	if r.sandboxLib != "" {
+		return r.sandboxLib
+	}
+	if _, err := os.Stat(sandboxLibPath); err == nil {
+		r.sandboxLib = sandboxLibPath
+		return r.sandboxLib
+	}
+	srcPath := filepath.Join("/app", "sandbox", "sandbox.c")
+	if _, err := os.Stat(srcPath); err != nil {
+		return ""
+	}
+	cmd := exec.Command("gcc", "-shared", "-fPIC", "-nostartfiles", "-o", sandboxLibPath, srcPath)
+	if err := cmd.Run(); err != nil {
+		slog.Warn("compile sandbox lib failed", slog.Any("err", err))
+		return ""
+	}
+	slog.Info("compiled sandbox lib", slog.String("path", sandboxLibPath))
+	r.sandboxLib = sandboxLibPath
+	return r.sandboxLib
 }

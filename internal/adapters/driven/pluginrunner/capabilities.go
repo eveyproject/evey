@@ -17,4 +17,5 @@ var KnownPermissions = map[string]bool{
 	"api.library":  true,
 	"api.user":     true,
 	"api.metadata": true,
+	"subprocess":   true,
 }
