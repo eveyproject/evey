@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"path/filepath"
 
 	appactivity "github.com/gravity-zero/evey/internal/app/activity"
 	appbackup "github.com/gravity-zero/evey/internal/app/backup"
@@ -42,6 +43,7 @@ import (
 	"github.com/gravity-zero/evey/internal/config"
 	"github.com/gravity-zero/evey/internal/domain/library"
 	"github.com/gravity-zero/evey/internal/domain/metadata"
+	domainplugin "github.com/gravity-zero/evey/internal/domain/plugin"
 	"github.com/gravity-zero/evey/internal/pkg/auth"
 	"github.com/gravity-zero/evey/internal/pkg/eventbus"
 	eveylogger "github.com/gravity-zero/evey/internal/pkg/logger"
@@ -94,7 +96,12 @@ func buildServices(ctx context.Context, cfg *config.Config, db *sql.DB, rootLog 
 	tvmazeProvider := metadataadapter.NewTVMazeProvider(nil)
 	omdbProvider := metadataadapter.NewOMDbProvider(os.Getenv("EVEY_OMDB_API_KEY"), nil)
 	artworkDownloader := metadataadapter.NewArtworkHTTPDownloader(nil)
-	pluginLogger := pluginrunner.NewPluginLogger(cfg.Log.Dir + "/plugins")
+	pluginLogDir := filepath.Join(cfg.Log.Dir, "plugins")
+	pluginRetention := cfg.Log.PluginRetentionDays
+	if pluginRetention <= 0 {
+		pluginRetention = 30
+	}
+	pluginLogger := pluginrunner.NewPluginLogger(pluginLogDir, pluginRetention)
 	pluginRunner := pluginrunner.NewRunner().WithLogger(pluginLogger)
 	manifestParser := pluginrunner.NewManifestParser()
 	pluginInstaller := pluginrunner.NewZipInstaller()
@@ -202,6 +209,7 @@ func buildServices(ctx context.Context, cfg *config.Config, db *sql.DB, rootLog 
 
 	permInterceptor := appplugin.PluginPermissionInterceptor(permChecker)
 	pluginHostSrv := pluginhost.NewHostServer(r.MediaItemQuery, r.Plugin, bus, pluginLogger, permInterceptor)
+	pluginLogger.StartCleanup(ctx, &pluginIDLister{repo: r.Plugin})
 
 	// --- Filesystem watcher ---
 	startWatcher(ctx, cfg, bus, r.Library, libCmdSvc, rootLog)
@@ -346,4 +354,23 @@ func startWatcher(ctx context.Context, cfg *config.Config, bus *eventbus.InMemor
 		<-ctx.Done()
 		watcherSvc.Stop()
 	}()
+}
+
+// pluginIDLister adapts postgres.PluginRepository to pluginrunner.PluginLister.
+type pluginIDLister struct {
+	repo interface {
+		List(ctx context.Context) ([]*domainplugin.Plugin, error)
+	}
+}
+
+func (a *pluginIDLister) ListIDs(ctx context.Context) ([]string, error) {
+	plugins, err := a.repo.List(ctx)
+	if err != nil {
+		return nil, err
+	}
+	ids := make([]string, len(plugins))
+	for i, p := range plugins {
+		ids[i] = p.ID
+	}
+	return ids, nil
 }

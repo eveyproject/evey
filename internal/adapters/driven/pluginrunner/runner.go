@@ -198,8 +198,8 @@ func (r *Runner) Start(_ context.Context, p *plugin.Plugin) error {
 	}
 
 	if r.logger != nil {
-		cmd.Stdout = r.logger.LogWriter(p.ID, "INFO")
-		cmd.Stderr = r.logger.LogWriter(p.ID, "ERROR")
+		cmd.Stdout = r.logger.Writer(p.ID)
+		cmd.Stderr = r.logger.Writer(p.ID)
 	} else {
 		cmd.Stdout = os.Stdout
 		cmd.Stderr = os.Stderr
@@ -222,7 +222,7 @@ func (r *Runner) Start(_ context.Context, p *plugin.Plugin) error {
 	}
 
 	if r.logger != nil {
-		r.logger.WriteLog(p.ID, "INFO", "plugin process started", map[string]string{"pid": fmt.Sprintf("%d", cmd.Process.Pid)})
+		r.logger.WriteLog(p.ID, fmt.Sprintf("[INFO] plugin process started pid=%d", cmd.Process.Pid))
 	}
 
 	entry := &processEntry{
@@ -353,7 +353,7 @@ func (r *Runner) Stop(_ context.Context, pluginID string) error {
 	}
 
 	if r.logger != nil {
-		r.logger.WriteLog(pluginID, "INFO", "plugin process stopped", nil)
+		r.logger.WriteLog(pluginID, "[INFO] plugin process stopped")
 		r.logger.ClosePlugin(pluginID)
 	}
 	return nil

@@ -60,12 +60,13 @@ type MetadataConfig struct {
 }
 
 type LogConfig struct {
-	Level         string
-	Dir           string
-	MaxSizeMB     int
-	RetentionDays int
-	DevMode       bool
-	PluginDebug   bool
+	Level               string
+	Dir                 string
+	MaxSizeMB           int
+	RetentionDays       int
+	PluginRetentionDays int
+	DevMode             bool
+	PluginDebug         bool
 }
 
 type ServerConfig struct {
@@ -232,12 +233,13 @@ func Load() (*Config, error) {
 			RetentionDays: envInt("EVEY_BACKUP_RETENTION_DAYS", 30),
 		},
 		Log: LogConfig{
-			Level:         envStr("EVEY_LOG_LEVEL", "info"),
-			Dir:           envStr("EVEY_LOG_DIR", "logs"),
-			MaxSizeMB:     envInt("EVEY_LOG_MAX_SIZE_MB", 50),
-			RetentionDays: envInt("EVEY_LOG_RETENTION_DAYS", 90),
-			DevMode:       envBool("EVEY_LOG_DEV_MODE", false),
-			PluginDebug:   envBool("EVEY_PLUGIN_DEBUG", false),
+			Level:               envStr("EVEY_LOG_LEVEL", "info"),
+			Dir:                 envStr("EVEY_LOG_DIR", "logs"),
+			MaxSizeMB:           envInt("EVEY_LOG_MAX_SIZE_MB", 50),
+			RetentionDays:       envInt("EVEY_LOG_RETENTION_DAYS", 90),
+			PluginRetentionDays: envInt("EVEY_LOG_PLUGIN_RETENTION_DAYS", 30),
+			DevMode:             envBool("EVEY_LOG_DEV_MODE", false),
+			PluginDebug:         envBool("EVEY_PLUGIN_DEBUG", false),
 		},
 		RemoteAccess: RemoteAccessConfig{
 			Enabled:              envBool("EVEY_REMOTE_ACCESS_ENABLED", false),

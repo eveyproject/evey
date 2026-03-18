@@ -1,68 +1,118 @@
 package pluginrunner
 
 import (
-	"encoding/json"
+	"context"
 	"os"
 	"path/filepath"
-	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-func TestPluginLoggerCreatesLogFile(t *testing.T) {
+func TestNewPluginLoggerDefaults(t *testing.T) {
+	l := NewPluginLogger("", 0)
+	assert.Equal(t, defaultLogDir, l.logDir)
+	assert.Equal(t, 30, l.maxAgeDays)
+}
+
+func TestNewPluginLoggerCustom(t *testing.T) {
+	l := NewPluginLogger("/tmp/test-logs", 7)
+	assert.Equal(t, "/tmp/test-logs", l.logDir)
+	assert.Equal(t, 7, l.maxAgeDays)
+}
+
+func TestWriteLogCreatesFile(t *testing.T) {
 	dir := t.TempDir()
-	logger := NewPluginLogger(dir)
-	defer logger.Close()
+	l := NewPluginLogger(dir, 30)
+	defer l.Close()
 
-	logger.WriteLog("plg-test-1", "INFO", "hello world", map[string]string{"key": "val"})
+	l.WriteLog("test-plugin", "hello world")
 
-	logPath := filepath.Join(dir, "plg-test-1.log")
+	logPath := filepath.Join(dir, "test-plugin.log")
 	data, err := os.ReadFile(logPath)
 	require.NoError(t, err)
-
-	var entry map[string]any
-	err = json.Unmarshal(data[:len(data)-1], &entry) // strip trailing newline
-	require.NoError(t, err)
-
-	assert.Equal(t, "INFO", entry["level"])
-	assert.Equal(t, "hello world", entry["msg"])
-	assert.Equal(t, "plg-test-1", entry["plugin"])
-	assert.Equal(t, "val", entry["key"])
-	assert.NotEmpty(t, entry["ts"])
+	assert.Contains(t, string(data), "hello world")
 }
 
-func TestPluginLoggerMultipleEntries(t *testing.T) {
+func TestWriterCreatesFile(t *testing.T) {
 	dir := t.TempDir()
-	logger := NewPluginLogger(dir)
-	defer logger.Close()
+	l := NewPluginLogger(dir, 30)
+	defer l.Close()
 
-	logger.WriteLog("plg-2", "INFO", "first", nil)
-	logger.WriteLog("plg-2", "ERROR", "second", nil)
-
-	data, err := os.ReadFile(filepath.Join(dir, "plg-2.log"))
+	w := l.Writer("plg-1")
+	_, err := w.Write([]byte("test output\n"))
 	require.NoError(t, err)
 
-	lines := strings.Split(strings.TrimSpace(string(data)), "\n")
-	assert.Len(t, lines, 2)
+	logPath := filepath.Join(dir, "plg-1.log")
+	data, err := os.ReadFile(logPath)
+	require.NoError(t, err)
+	assert.Contains(t, string(data), "test output")
 }
 
-func TestPluginLogWriterInterface(t *testing.T) {
+func TestClosePluginRemovesWriter(t *testing.T) {
 	dir := t.TempDir()
-	logger := NewPluginLogger(dir)
-	defer logger.Close()
+	l := NewPluginLogger(dir, 30)
 
-	w := logger.LogWriter("plg-3", "WARN")
-	_, err := w.Write([]byte("some output\n"))
-	require.NoError(t, err)
+	l.WriteLog("plg-close", "before")
+	l.ClosePlugin("plg-close")
 
-	data, err := os.ReadFile(filepath.Join(dir, "plg-3.log"))
-	require.NoError(t, err)
+	l.mu.Lock()
+	_, exists := l.writers["plg-close"]
+	l.mu.Unlock()
+	assert.False(t, exists)
+}
 
-	var entry map[string]any
-	err = json.Unmarshal(data[:len(data)-1], &entry)
-	require.NoError(t, err)
-	assert.Equal(t, "WARN", entry["level"])
-	assert.Equal(t, "some output", entry["msg"])
+func TestSetRetentionDays(t *testing.T) {
+	dir := t.TempDir()
+	l := NewPluginLogger(dir, 30)
+	defer l.Close()
+
+	_ = l.Writer("plg-ret")
+	l.SetRetentionDays(7)
+
+	assert.Equal(t, 7, l.maxAgeDays)
+	l.mu.Lock()
+	assert.Equal(t, 7, l.writers["plg-ret"].MaxAge)
+	l.mu.Unlock()
+}
+
+func TestSetRetentionDaysZeroDefaultsTo30(t *testing.T) {
+	l := NewPluginLogger(t.TempDir(), 10)
+	l.SetRetentionDays(0)
+	assert.Equal(t, 30, l.maxAgeDays)
+}
+
+type fakeLister struct {
+	ids []string
+	err error
+}
+
+func (f *fakeLister) ListIDs(_ context.Context) ([]string, error) {
+	return f.ids, f.err
+}
+
+func TestCleanOrphanLogs(t *testing.T) {
+	dir := t.TempDir()
+	l := NewPluginLogger(dir, 30)
+	defer l.Close()
+
+	// Create log files for 3 plugins
+	for _, id := range []string{"plg-a", "plg-b", "plg-orphan"} {
+		err := os.WriteFile(filepath.Join(dir, id+".log"), []byte("data"), 0o644)
+		require.NoError(t, err)
+	}
+
+	lister := &fakeLister{ids: []string{"plg-a", "plg-b"}}
+	l.cleanOrphanLogs(context.Background(), lister)
+
+	// plg-a and plg-b should still exist
+	_, err := os.Stat(filepath.Join(dir, "plg-a.log"))
+	assert.NoError(t, err)
+	_, err = os.Stat(filepath.Join(dir, "plg-b.log"))
+	assert.NoError(t, err)
+
+	// plg-orphan should be removed
+	_, err = os.Stat(filepath.Join(dir, "plg-orphan.log"))
+	assert.True(t, os.IsNotExist(err))
 }

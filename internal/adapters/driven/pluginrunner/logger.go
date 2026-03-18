@@ -1,116 +1,173 @@
 package pluginrunner
 
 import (
-	"encoding/json"
+	"context"
 	"fmt"
 	"io"
 	"log/slog"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"time"
+
+	"gopkg.in/lumberjack.v2"
 )
 
 const defaultLogDir = "/data/logs/plugins"
 
-type PluginLogger struct {
-	mu     sync.Mutex
-	logDir string
-	files  map[string]*os.File
+// PluginLister returns installed plugin IDs (used for orphan cleanup).
+type PluginLister interface {
+	ListIDs(ctx context.Context) ([]string, error)
 }
 
-func NewPluginLogger(logDir string) *PluginLogger {
+type PluginLogger struct {
+	mu         sync.Mutex
+	logDir     string
+	writers    map[string]*lumberjack.Logger
+	maxAgeDays int
+}
+
+func NewPluginLogger(logDir string, maxAgeDays int) *PluginLogger {
 	if logDir == "" {
 		logDir = defaultLogDir
 	}
+	if maxAgeDays <= 0 {
+		maxAgeDays = 30
+	}
 	return &PluginLogger{
-		logDir: logDir,
-		files:  make(map[string]*os.File),
+		logDir:     logDir,
+		writers:    make(map[string]*lumberjack.Logger),
+		maxAgeDays: maxAgeDays,
 	}
 }
 
-func (l *PluginLogger) WriteLog(pluginID, level, msg string, fields map[string]string) {
-	entry := map[string]any{
-		"ts":     time.Now().UTC().Format(time.RFC3339),
-		"level":  level,
-		"msg":    msg,
-		"plugin": pluginID,
-	}
-	for k, v := range fields {
-		entry[k] = v
-	}
-	data, err := json.Marshal(entry)
-	if err != nil {
-		slog.Warn("marshal plugin log", slog.Any("err", err))
-		return
-	}
-	data = append(data, '\n')
-
-	l.mu.Lock()
-	defer l.mu.Unlock()
-
-	f, err := l.getOrCreateFile(pluginID)
-	if err != nil {
-		slog.Warn("open plugin log file", slog.String("pluginID", pluginID), slog.Any("err", err))
-		return
-	}
-	if _, err := f.Write(data); err != nil {
-		slog.Warn("write plugin log", slog.String("pluginID", pluginID), slog.Any("err", err))
-	}
-}
-
-func (l *PluginLogger) getOrCreateFile(pluginID string) (*os.File, error) {
-	if f, ok := l.files[pluginID]; ok {
-		return f, nil
+func (l *PluginLogger) getOrCreateWriter(pluginID string) *lumberjack.Logger {
+	if w, ok := l.writers[pluginID]; ok {
+		return w
 	}
 	if err := os.MkdirAll(l.logDir, 0o755); err != nil {
-		return nil, fmt.Errorf("create log dir: %w", err)
+		slog.Warn("plugin logger: create log dir", slog.Any("err", err))
 	}
 	logPath := filepath.Join(l.logDir, pluginID+".log")
-	f, err := os.OpenFile(logPath, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0o644)
-	if err != nil {
-		return nil, err
+	w := &lumberjack.Logger{
+		Filename:   logPath,
+		MaxSize:    10, // MB
+		MaxBackups: 3,
+		MaxAge:     l.maxAgeDays,
+		Compress:   true,
 	}
-	l.files[pluginID] = f
-	return f, nil
+	l.writers[pluginID] = w
+	return w
 }
 
-// LogWriter returns an io.Writer that writes to the plugin log file with the given level.
-func (l *PluginLogger) LogWriter(pluginID, level string) io.Writer {
-	return &pluginLogWriter{logger: l, pluginID: pluginID, level: level}
+// Writer returns an io.Writer for the given plugin, suitable for cmd.Stdout/Stderr.
+func (l *PluginLogger) Writer(pluginID string) io.Writer {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	return l.getOrCreateWriter(pluginID)
 }
 
+// WriteLog writes a timestamped line to the plugin's log file.
+func (l *PluginLogger) WriteLog(pluginID, line string) {
+	l.mu.Lock()
+	w := l.getOrCreateWriter(pluginID)
+	l.mu.Unlock()
+
+	ts := time.Now().UTC().Format(time.RFC3339)
+	fmt.Fprintf(w, "%s %s\n", ts, line)
+}
+
+// ClosePlugin closes and removes the writer for a specific plugin.
 func (l *PluginLogger) ClosePlugin(pluginID string) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
-	if f, ok := l.files[pluginID]; ok {
-		f.Close()
-		delete(l.files, pluginID)
+	if w, ok := l.writers[pluginID]; ok {
+		_ = w.Close()
+		delete(l.writers, pluginID)
 	}
 }
 
+// Close closes all plugin log writers.
 func (l *PluginLogger) Close() {
 	l.mu.Lock()
 	defer l.mu.Unlock()
-	for _, f := range l.files {
-		f.Close()
+	for id, w := range l.writers {
+		_ = w.Close()
+		delete(l.writers, id)
 	}
-	l.files = make(map[string]*os.File)
 }
 
-type pluginLogWriter struct {
-	logger   *PluginLogger
-	pluginID string
-	level    string
+// SetRetentionDays updates retention on all existing and future writers.
+func (l *PluginLogger) SetRetentionDays(days int) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	if days <= 0 {
+		days = 30
+	}
+	l.maxAgeDays = days
+	for _, w := range l.writers {
+		w.MaxAge = days
+	}
 }
 
-func (w *pluginLogWriter) Write(p []byte) (int, error) {
-	msg := string(p)
-	if msg != "" && msg[len(msg)-1] == '\n' {
-		msg = msg[:len(msg)-1]
+// StartCleanup periodically removes log files for plugins that no longer exist.
+func (l *PluginLogger) StartCleanup(ctx context.Context, lister PluginLister) {
+	go func() {
+		ticker := time.NewTicker(24 * time.Hour)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				l.cleanOrphanLogs(ctx, lister)
+			}
+		}
+	}()
+}
+
+func (l *PluginLogger) cleanOrphanLogs(ctx context.Context, lister PluginLister) {
+	ids, err := lister.ListIDs(ctx)
+	if err != nil {
+		slog.Warn("plugin logger: list plugins for cleanup", slog.Any("err", err))
+		return
 	}
-	if msg != "" {
-		w.logger.WriteLog(w.pluginID, w.level, msg, nil)
+
+	installed := make(map[string]struct{}, len(ids))
+	for _, id := range ids {
+		installed[id] = struct{}{}
 	}
-	return len(p), nil
+
+	entries, err := os.ReadDir(l.logDir)
+	if err != nil {
+		slog.Warn("plugin logger: read log dir for cleanup", slog.Any("err", err))
+		return
+	}
+
+	for _, e := range entries {
+		if e.IsDir() {
+			continue
+		}
+		name := e.Name()
+		// Strip .gz and .log extensions; rotated files have "-<timestamp>" suffix
+		base := strings.TrimSuffix(name, ".gz")
+		base = strings.TrimSuffix(base, ".log")
+		matched := false
+		for id := range installed {
+			if base == id || strings.HasPrefix(base, id+"-") {
+				matched = true
+				break
+			}
+		}
+		if matched {
+			continue
+		}
+		path := filepath.Join(l.logDir, name)
+		if err := os.Remove(path); err != nil {
+			slog.Warn("plugin logger: remove orphan log", slog.String("path", path), slog.Any("err", err))
+		} else {
+			slog.Info("plugin logger: removed orphan log", slog.String("path", path))
+		}
+	}
 }
