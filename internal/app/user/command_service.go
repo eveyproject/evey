@@ -1,3 +1,5 @@
+// TODO(refactor): Split into AuthService (login, tokens, OIDC), UserService (CRUD, profiles),
+// and AccessService (roles, permissions, API keys, invites). Current file: ~574 lines.
 package user
 
 import (

@@ -1,3 +1,5 @@
+// TODO(refactor): Split into PluginInstallerService (install, uninstall, preview),
+// PluginRuntimeService (start, stop, auto-start), and PluginConfigService (config, permissions).
 package plugin
 
 import (

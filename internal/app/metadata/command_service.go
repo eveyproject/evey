@@ -51,6 +51,7 @@ func (s *CommandService) RefreshMetadata(ctx context.Context, mediaItemID, provi
 		if err != nil {
 			return nil, fmt.Errorf("get metadata from %s: %w", providerName, err)
 		}
+		// Log-only: notification event — actual metadata fetch already succeeded above
 		evt := metadata.MetadataRefreshed{MediaItemID: mediaItemID, Provider: providerName, OccurredAt: time.Now()}
 		if err := s.events.Publish(ctx, evt); err != nil {
 			slog.Warn("publish event", slog.String("event", evt.EventName()), slog.Any("err", err))
@@ -83,6 +84,7 @@ func (s *CommandService) RefreshItemMetadata(ctx context.Context, mediaItemID, t
 	if err := s.enricher.EnrichItem(ctx, item, result); err != nil {
 		return fmt.Errorf("enrich item: %w", err)
 	}
+	// Log-only: notification event — enrichment already committed above
 	evtTmdb := metadata.MetadataRefreshed{MediaItemID: mediaItemID, Provider: "tmdb", OccurredAt: time.Now()}
 	if err := s.events.Publish(ctx, evtTmdb); err != nil {
 		slog.Warn("publish event", slog.String("event", evtTmdb.EventName()), slog.Any("err", err))
@@ -136,6 +138,7 @@ func (s *CommandService) RefreshItemMetadataByIMDB(ctx context.Context, mediaIte
 	if err := s.enricher.EnrichItem(ctx, item, result); err != nil {
 		return fmt.Errorf("enrich item: %w", err)
 	}
+	// Log-only: notification event — enrichment already committed above
 	evtImdb := metadata.MetadataRefreshed{MediaItemID: mediaItemID, Provider: usedProvider, OccurredAt: time.Now()}
 	if err := s.events.Publish(ctx, evtImdb); err != nil {
 		slog.Warn("publish event", slog.String("event", evtImdb.EventName()), slog.Any("err", err))
@@ -148,6 +151,7 @@ func (s *CommandService) SetOverride(ctx context.Context, override *metadata.Met
 	if err := s.overrides.Set(ctx, override); err != nil {
 		return err
 	}
+	// Log-only: audit event — override already persisted above
 	evtOverride := metadata.MetadataOverrideSet{MediaItemID: override.MediaItemID, FieldName: override.FieldName, EditedBy: override.EditedBy, OccurredAt: time.Now()}
 	if err := s.events.Publish(ctx, evtOverride); err != nil {
 		slog.Warn("publish event", slog.String("event", evtOverride.EventName()), slog.Any("err", err))
@@ -163,6 +167,7 @@ func (s *CommandService) ResetOverrides(ctx context.Context, mediaItemID string)
 	if err := s.overrides.DeleteByMediaItemID(ctx, mediaItemID); err != nil {
 		return err
 	}
+	// Log-only: audit event — overrides already deleted above
 	evtRemoved := metadata.MetadataOverrideRemoved{MediaItemID: mediaItemID, FieldName: "*", OccurredAt: time.Now()}
 	if err := s.events.Publish(ctx, evtRemoved); err != nil {
 		slog.Warn("publish event", slog.String("event", evtRemoved.EventName()), slog.Any("err", err))
@@ -178,6 +183,7 @@ func (s *CommandService) DownloadArtwork(ctx context.Context, record *metadata.A
 		return fmt.Errorf("download artwork: %w", err)
 	}
 	record.LocalPath = &destPath
+	// Log-only: notification event — file already downloaded to destPath above
 	evtArtwork := metadata.ArtworkDownloaded{MediaItemID: record.MediaItemID, Type: record.Type, LocalPath: destPath, OccurredAt: time.Now()}
 	if err := s.events.Publish(ctx, evtArtwork); err != nil {
 		slog.Warn("publish event", slog.String("event", evtArtwork.EventName()), slog.Any("err", err))
