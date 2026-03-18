@@ -9,38 +9,24 @@ import (
 	"github.com/gravity-zero/evey/internal/domain/library"
 )
 
-type CollectionCommandRepo interface {
-	Create(ctx context.Context, col *library.Collection) error
-	Upsert(ctx context.Context, col *library.Collection) error
-	Update(ctx context.Context, col *library.Collection) error
-	Delete(ctx context.Context, id string) error
-	LinkItem(ctx context.Context, collectionID, mediaItemID string, sortOrder int) error
-}
-
-type CollectionQueryRepo interface {
-	GetByID(ctx context.Context, id string) (*library.Collection, error)
-	List(ctx context.Context) ([]*library.Collection, error)
-	GetItems(ctx context.Context, collectionID string, limit, offset int) ([]*library.MediaItem, error)
-	CountItems(ctx context.Context, collectionID string) (int, error)
-}
-
 // SmartQuerier evaluates collection rules against media_items.
 type SmartQuerier interface {
 	QueryByRules(ctx context.Context, rules []library.CollectionRule, sortBy, sortOrder string, limit int) ([]*library.MediaItem, error)
 }
 
+// MediaItemGetter is a narrow read interface for media item lookups.
 type MediaItemGetter interface {
 	GetByID(ctx context.Context, id string) (*library.MediaItem, error)
 }
 
 type Service struct {
-	cmd          CollectionCommandRepo
-	query        CollectionQueryRepo
+	cmd          library.CollectionCommandRepo
+	query        library.CollectionQueryRepo
 	smartQuerier SmartQuerier
 	mediaItems   MediaItemGetter
 }
 
-func NewService(cmd CollectionCommandRepo, query CollectionQueryRepo, smartQuerier SmartQuerier, mediaItems MediaItemGetter) *Service {
+func NewService(cmd library.CollectionCommandRepo, query library.CollectionQueryRepo, smartQuerier SmartQuerier, mediaItems MediaItemGetter) *Service {
 	return &Service{cmd: cmd, query: query, smartQuerier: smartQuerier, mediaItems: mediaItems}
 }
 

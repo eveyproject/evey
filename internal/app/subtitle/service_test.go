@@ -13,10 +13,10 @@ import (
 )
 
 type fakeMediaGetter struct {
-	items map[string]*MediaItemInfo
+	items map[string]*subtitle.MediaItemInfo
 }
 
-func (f *fakeMediaGetter) GetMediaItem(_ context.Context, id string) (*MediaItemInfo, error) {
+func (f *fakeMediaGetter) GetMediaItem(_ context.Context, id string) (*subtitle.MediaItemInfo, error) {
 	if item, ok := f.items[id]; ok {
 		return item, nil
 	}
@@ -26,7 +26,7 @@ func (f *fakeMediaGetter) GetMediaItem(_ context.Context, id string) (*MediaItem
 func newTestService() (*Service, *fakes.FakeRepository, *fakes.FakeProvider, *fakeMediaGetter) {
 	repo := fakes.NewFakeRepository()
 	provider := fakes.NewFakeProvider()
-	media := &fakeMediaGetter{items: map[string]*MediaItemInfo{
+	media := &fakeMediaGetter{items: map[string]*subtitle.MediaItemInfo{
 		"m1": {ID: "m1", FilePath: "/media/movie.mkv", Title: "Test Movie"},
 	}}
 	svc := NewService(repo, provider, media)
