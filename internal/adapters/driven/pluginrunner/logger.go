@@ -80,6 +80,15 @@ func (l *PluginLogger) LogWriter(pluginID, level string) io.Writer {
 	return &pluginLogWriter{logger: l, pluginID: pluginID, level: level}
 }
 
+func (l *PluginLogger) ClosePlugin(pluginID string) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	if f, ok := l.files[pluginID]; ok {
+		f.Close()
+		delete(l.files, pluginID)
+	}
+}
+
 func (l *PluginLogger) Close() {
 	l.mu.Lock()
 	defer l.mu.Unlock()

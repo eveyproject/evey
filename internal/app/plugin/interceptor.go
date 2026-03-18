@@ -71,5 +71,21 @@ func extractPluginID(ctx context.Context) (string, error) {
 	if len(vals) == 0 || vals[0] == "" {
 		return "", status.Error(codes.InvalidArgument, "missing x-plugin-id header")
 	}
-	return vals[0], nil
+	id := vals[0]
+	if len(id) > 50 || !isValidPluginID(id) {
+		return "", status.Error(codes.InvalidArgument, "invalid plugin ID format")
+	}
+	return id, nil
+}
+
+func isValidPluginID(id string) bool {
+	if len(id) < 4 {
+		return false
+	}
+	for _, c := range id {
+		if !((c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') || c == '-') {
+			return false
+		}
+	}
+	return true
 }

@@ -38,11 +38,12 @@ type processEntry struct {
 }
 
 type Runner struct {
-	mu         sync.RWMutex
-	processes  map[string]*processEntry
-	pluginDirs []string
-	logger     *PluginLogger
-	sandboxLib string
+	mu          sync.RWMutex
+	processes   map[string]*processEntry
+	pluginDirs  []string
+	logger      *PluginLogger
+	sandboxLib  string
+	sandboxOnce sync.Once
 }
 
 func NewRunner(pluginDirs ...string) *Runner {
@@ -309,6 +310,7 @@ func (r *Runner) Stop(_ context.Context, pluginID string) error {
 
 	if r.logger != nil {
 		r.logger.WriteLog(pluginID, "INFO", "plugin process stopped", nil)
+		r.logger.ClosePlugin(pluginID)
 	}
 	return nil
 }
@@ -375,23 +377,22 @@ func (r *Runner) SendEvent(_ context.Context, pluginID string, event any) error 
 }
 
 func (r *Runner) ensureSandboxLib() string {
-	if r.sandboxLib != "" {
-		return r.sandboxLib
-	}
-	if _, err := os.Stat(sandboxLibPath); err == nil {
+	r.sandboxOnce.Do(func() {
+		if _, err := os.Stat(sandboxLibPath); err == nil {
+			r.sandboxLib = sandboxLibPath
+			return
+		}
+		srcPath := filepath.Join("/app", "sandbox", "sandbox.c")
+		if _, err := os.Stat(srcPath); err != nil {
+			return
+		}
+		cmd := exec.Command("gcc", "-shared", "-fPIC", "-nostartfiles", "-o", sandboxLibPath, srcPath)
+		if err := cmd.Run(); err != nil {
+			slog.Warn("compile sandbox lib failed", slog.Any("err", err))
+			return
+		}
+		slog.Info("compiled sandbox lib", slog.String("path", sandboxLibPath))
 		r.sandboxLib = sandboxLibPath
-		return r.sandboxLib
-	}
-	srcPath := filepath.Join("/app", "sandbox", "sandbox.c")
-	if _, err := os.Stat(srcPath); err != nil {
-		return ""
-	}
-	cmd := exec.Command("gcc", "-shared", "-fPIC", "-nostartfiles", "-o", sandboxLibPath, srcPath)
-	if err := cmd.Run(); err != nil {
-		slog.Warn("compile sandbox lib failed", slog.Any("err", err))
-		return ""
-	}
-	slog.Info("compiled sandbox lib", slog.String("path", sandboxLibPath))
-	r.sandboxLib = sandboxLibPath
+	})
 	return r.sandboxLib
 }

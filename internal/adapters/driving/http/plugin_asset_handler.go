@@ -194,7 +194,7 @@ func registerPluginUploadRoute(mux *http.ServeMux, tokenGen *auth.JWTGenerator, 
 		p, installErr := svc.InstallPlugin(r.Context(), tmpFile.Name())
 		if installErr != nil {
 			slog.Error("install uploaded plugin", slog.Any("err", installErr))
-			http.Error(w, `{"message":"install failed: `+installErr.Error()+`"}`, http.StatusInternalServerError)
+			http.Error(w, `{"message":"plugin installation failed"}`, http.StatusInternalServerError)
 			return
 		}
 
@@ -260,7 +260,7 @@ func registerPluginPreviewRoute(mux *http.ServeMux, tokenGen *auth.JWTGenerator,
 		preview, previewErr := svc.PreviewPlugin(r.Context(), tmpName)
 		if previewErr != nil {
 			slog.Warn("preview plugin", slog.Any("err", previewErr))
-			http.Error(w, `{"message":"`+previewErr.Error()+`"}`, http.StatusBadRequest)
+			http.Error(w, `{"message":"plugin preview failed"}`, http.StatusBadRequest)
 			return
 		}
 

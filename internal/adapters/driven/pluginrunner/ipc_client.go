@@ -36,6 +36,10 @@ func newIPCClient(sockPath string) (*ipcClient, error) {
 	conn, err := grpc.NewClient(
 		"unix://"+sockPath,
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
+		grpc.WithDefaultCallOptions(
+			grpc.MaxCallRecvMsgSize(10*1024*1024),
+			grpc.MaxCallSendMsgSize(10*1024*1024),
+		),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("dial plugin socket: %w", err)

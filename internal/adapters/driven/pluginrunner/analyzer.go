@@ -82,6 +82,15 @@ var analyzerRules = []analyzerRule{
 
 	// Package install at runtime
 	{regexp.MustCompile(`(?i)(pip\s+install|npm\s+install|yarn\s+add|go\s+install|curl\s.*\|\s*(sh|bash))`), SeverityCritical, "runtime_install", "runtime package installation", nil},
+
+	// Dynamic imports — bypass static import restrictions
+	{regexp.MustCompile(`(?i)(__import__\s*\(|importlib\.import_module|getattr\s*\(\s*__builtins__)`), SeverityCritical, "dynamic_import", "dynamic module import (potential sandbox bypass)", nil},
+
+	// Node.js sandbox escape
+	{regexp.MustCompile(`(?i)(vm\.(runIn|createContext)|process\.binding\(|new\s+Function\s*\()`), SeverityCritical, "sandbox_escape", "potential sandbox escape via vm/Function/binding", nil},
+
+	// Direct syscall interface
+	{regexp.MustCompile(`(?i)(ctypes\.CDLL|ctypes\.cdll|ffi\.Library)`), SeverityCritical, "native_code", "native code execution via ctypes/ffi", nil},
 }
 
 // URL extraction patterns — all network schemes

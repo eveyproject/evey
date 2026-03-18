@@ -131,6 +131,9 @@ func (s *Service) InstallPlugin(ctx context.Context, zipPath string) (*plugin.Pl
 	}
 
 	if err := s.plugins.Create(ctx, p); err != nil {
+		if p.InstallDir != "" {
+			os.RemoveAll(p.InstallDir)
+		}
 		return nil, err
 	}
 

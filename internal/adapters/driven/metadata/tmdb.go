@@ -215,9 +215,9 @@ func (p *TMDBProvider) doRequestWithRetry(ctx context.Context, rawURL string) ([
 			lastErr = err
 			continue
 		}
+		defer resp.Body.Close()
 
 		body, err := io.ReadAll(resp.Body)
-		resp.Body.Close()
 		if err != nil {
 			lastErr = err
 			continue

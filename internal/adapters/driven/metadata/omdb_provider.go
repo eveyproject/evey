@@ -130,8 +130,8 @@ func (p *OMDbProvider) doRequest(ctx context.Context, rawURL string) ([]byte, er
 	if err != nil {
 		return nil, err
 	}
+	defer resp.Body.Close()
 	body, err := io.ReadAll(resp.Body)
-	resp.Body.Close()
 	if err != nil {
 		return nil, err
 	}
