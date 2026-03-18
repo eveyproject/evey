@@ -34,6 +34,7 @@ type Runner struct {
 	mu         sync.RWMutex
 	processes  map[string]*processEntry
 	pluginDirs []string
+	logger     *PluginLogger
 }
 
 func NewRunner(pluginDirs ...string) *Runner {
@@ -45,6 +46,12 @@ func NewRunner(pluginDirs ...string) *Runner {
 		processes:  make(map[string]*processEntry),
 		pluginDirs: dirs,
 	}
+}
+
+// WithLogger sets a PluginLogger to capture plugin stdout/stderr.
+func (r *Runner) WithLogger(l *PluginLogger) *Runner {
+	r.logger = l
+	return r
 }
 
 func (r *Runner) validateEntrypoint(entrypoint, installDir string) (string, error) {
@@ -122,8 +129,14 @@ func (r *Runner) Start(_ context.Context, p *plugin.Plugin) error {
 		"EVEY_PLUGIN_SOCK=" + sock,
 		"EVEY_HOST_SOCK=" + hostSock,
 	}
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
+	if r.logger != nil {
+		w := r.logger.Writer(p.ID)
+		cmd.Stdout = w
+		cmd.Stderr = w
+	} else {
+		cmd.Stdout = os.Stdout
+		cmd.Stderr = os.Stderr
+	}
 	cmd.SysProcAttr = &syscall.SysProcAttr{
 		Setpgid:   true,
 		Pdeathsig: syscall.SIGTERM,
@@ -188,6 +201,9 @@ func (r *Runner) Stop(_ context.Context, pluginID string) error {
 
 	if err := os.Remove(entry.sockPath); err != nil {
 		slog.Warn("remove plugin sock", slog.Any("err", err))
+	}
+	if r.logger != nil {
+		r.logger.ClosePlugin(pluginID)
 	}
 	return nil
 }
