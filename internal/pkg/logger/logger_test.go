@@ -1,15 +1,20 @@
 package logger_test
 
 import (
-	"bytes"
 	"context"
 	"log/slog"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
+	"time"
 
 	"github.com/gravity-zero/evey/internal/pkg/logger"
 )
+
+func todayLogFile(dir string) string {
+	return filepath.Join(dir, "evey-"+time.Now().Format("2006-01-02")+".log")
+}
 
 func TestNew_NotNil(t *testing.T) {
 	dir := t.TempDir()
@@ -17,9 +22,8 @@ func TestNew_NotNil(t *testing.T) {
 	if l == nil {
 		t.Fatal("expected non-nil logger")
 	}
-	// lumberjack creates file lazily; write to trigger creation
 	l.Info("init")
-	if _, err := os.Stat(filepath.Join(dir, "evey.log")); err != nil {
+	if _, err := os.Stat(todayLogFile(dir)); err != nil {
 		t.Fatalf("log file not created: %v", err)
 	}
 }
@@ -30,7 +34,6 @@ func TestNew_DevMode(t *testing.T) {
 	if l == nil {
 		t.Fatal("expected non-nil logger in dev mode")
 	}
-	// dev mode logger should be enabled at debug level
 	if !l.Enabled(context.Background(), slog.LevelDebug) {
 		t.Fatal("dev mode logger should be enabled at debug level")
 	}
@@ -73,12 +76,35 @@ func TestNew_WritesToFile(t *testing.T) {
 	l := logger.New(logger.Config{Dir: dir, Level: "info"})
 	l.Info("test message")
 
-	// force flush by reading file
-	data, err := os.ReadFile(filepath.Join(dir, "evey.log"))
+	data, err := os.ReadFile(todayLogFile(dir))
 	if err != nil {
 		t.Fatalf("read log: %v", err)
 	}
-	if !bytes.Contains(data, []byte("test message")) {
+	if !strings.Contains(string(data), "test message") {
 		t.Fatalf("log file missing message, got: %s", data)
+	}
+}
+
+func TestStartCleanup_RemovesOldLogs(t *testing.T) {
+	dir := t.TempDir()
+	old := time.Now().AddDate(0, 0, -100).Format("2006-01-02")
+	if err := os.WriteFile(filepath.Join(dir, "evey-"+old+".log"), []byte("old"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	today := time.Now().Format("2006-01-02")
+	if err := os.WriteFile(filepath.Join(dir, "evey-"+today+".log"), []byte("new"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	logger.StartCleanup(ctx, dir, 30)
+	time.Sleep(100 * time.Millisecond)
+	cancel()
+
+	if _, err := os.Stat(filepath.Join(dir, "evey-"+old+".log")); !os.IsNotExist(err) {
+		t.Fatal("old log should be deleted")
+	}
+	if _, err := os.Stat(filepath.Join(dir, "evey-"+today+".log")); err != nil {
+		t.Fatal("today log should still exist")
 	}
 }

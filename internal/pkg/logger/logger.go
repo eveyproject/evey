@@ -8,9 +8,8 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
-
-	"gopkg.in/lumberjack.v2"
 )
 
 type Config struct {
@@ -45,18 +44,87 @@ func parseLevel(s string) slog.Level {
 	}
 }
 
-func newFileHandler(path string, cfg Config) slog.Handler {
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+// rotatingWriter writes to date-stamped log files with size rotation.
+type rotatingWriter struct {
+	mu      sync.Mutex
+	dir     string
+	prefix  string
+	maxSize int64
+	current *os.File
+	curDate string
+	curSize int64
+}
+
+func newRotatingWriter(dir, prefix string, maxSizeMB int) *rotatingWriter {
+	if maxSizeMB <= 0 {
+		maxSizeMB = 50
+	}
+	return &rotatingWriter{
+		dir:     dir,
+		prefix:  prefix,
+		maxSize: int64(maxSizeMB) << 20,
+	}
+}
+
+func (w *rotatingWriter) Write(p []byte) (int, error) {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+
+	today := time.Now().Format("2006-01-02")
+	if w.current == nil || w.curDate != today || w.curSize+int64(len(p)) > w.maxSize {
+		w.rotate(today)
+	}
+	if w.current == nil {
+		return os.Stderr.Write(p) // fallback
+	}
+	n, err := w.current.Write(p)
+	w.curSize += int64(n)
+	return n, err
+}
+
+func (w *rotatingWriter) rotate(today string) {
+	if w.current != nil {
+		w.current.Close()
+		w.current = nil
+	}
+
+	name := w.prefix + "-" + today + ".log"
+	path := filepath.Join(w.dir, name)
+
+	if info, err := os.Stat(path); err == nil && info.Size() >= w.maxSize {
+		name = w.prefix + "-" + today + "-" + time.Now().Format("15") + ".log"
+		path = filepath.Join(w.dir, name)
+	}
+
+	f, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0o644)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "logger: open %s: %v\n", path, err)
+		return
+	}
+	w.current = f
+	w.curDate = today
+	if info, statErr := f.Stat(); statErr == nil {
+		w.curSize = info.Size()
+	}
+}
+
+func (w *rotatingWriter) Close() error {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	if w.current != nil {
+		err := w.current.Close()
+		w.current = nil
+		return err
+	}
+	return nil
+}
+
+func newFileHandler(dir string, cfg Config) slog.Handler {
+	if err := os.MkdirAll(dir, 0o755); err != nil {
 		fmt.Fprintf(os.Stderr, "logger: cannot create log dir: %v\n", err)
 	}
-	lj := &lumberjack.Logger{
-		Filename:  path,
-		MaxSize:   cfg.MaxSizeMB,
-		MaxAge:    cfg.RetentionDays,
-		LocalTime: false,
-		Compress:  true,
-	}
-	return slog.NewJSONHandler(lj, &slog.HandlerOptions{
+	w := newRotatingWriter(dir, "evey", cfg.MaxSizeMB)
+	return slog.NewJSONHandler(w, &slog.HandlerOptions{
 		Level:     parseLevel(cfg.Level),
 		AddSource: false,
 	})
@@ -64,14 +132,12 @@ func newFileHandler(path string, cfg Config) slog.Handler {
 
 // New builds the system logger. JSON → file always; colorized text → stderr in dev mode.
 func New(cfg Config) *slog.Logger {
-	path := filepath.Join(cfg.Dir, "evey.log")
-	fileH := newFileHandler(path, cfg)
+	fileH := newFileHandler(cfg.Dir, cfg)
 
 	if !cfg.DevMode {
 		return slog.New(fileH)
 	}
 
-	// Dev: both JSON file + colorized stderr
 	multiH := &multiHandler{handlers: []slog.Handler{
 		fileH,
 		&devHandler{
@@ -85,6 +151,55 @@ func New(cfg Config) *slog.Logger {
 // NewWith returns a child logger with an added component attribute.
 func NewWith(parent *slog.Logger, component string) *slog.Logger {
 	return parent.With(slog.String("component", component))
+}
+
+// StartCleanup removes log files older than retention days.
+func StartCleanup(ctx context.Context, dir string, retentionDays int) {
+	if retentionDays <= 0 {
+		retentionDays = 90
+	}
+	go func() {
+		cleanOldLogs(dir, retentionDays)
+		ticker := time.NewTicker(24 * time.Hour)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				cleanOldLogs(dir, retentionDays)
+			}
+		}
+	}()
+}
+
+func cleanOldLogs(dir string, retentionDays int) {
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return
+	}
+	cutoff := time.Now().AddDate(0, 0, -retentionDays)
+	for _, e := range entries {
+		if e.IsDir() || !strings.HasSuffix(e.Name(), ".log") {
+			continue
+		}
+		name := strings.TrimSuffix(e.Name(), ".log")
+		parts := strings.Split(name, "-")
+		for i := 0; i+2 < len(parts); i++ {
+			if len(parts[i]) == 4 {
+				dateStr := parts[i] + "-" + parts[i+1] + "-" + parts[i+2]
+				if t, pErr := time.Parse("2006-01-02", dateStr); pErr == nil {
+					if t.Before(cutoff) {
+						path := filepath.Join(dir, e.Name())
+						if rmErr := os.Remove(path); rmErr == nil {
+							slog.Info("removed old server log", slog.String("path", path))
+						}
+					}
+					break
+				}
+			}
+		}
+	}
 }
 
 // --- multi-handler ---
@@ -105,7 +220,7 @@ func (m *multiHandler) Enabled(ctx context.Context, level slog.Level) bool {
 func (m *multiHandler) Handle(ctx context.Context, r slog.Record) error {
 	for _, h := range m.handlers {
 		if h.Enabled(ctx, r.Level) {
-			_ = h.Handle(ctx, r) //nolint:errcheck
+			_ = h.Handle(ctx, r)
 		}
 	}
 	return nil
@@ -176,12 +291,10 @@ func (h *devHandler) Handle(_ context.Context, r slog.Record) error {
 	sb.WriteString(" ")
 	sb.WriteString(r.Message)
 
-	// pre-set attrs
 	for _, a := range h.attrs {
 		fmt.Fprintf(&sb, " %s%s=%v%s", colorGray, a.Key, a.Value, colorReset)
 	}
 
-	// record attrs
 	r.Attrs(func(a slog.Attr) bool {
 		fmt.Fprintf(&sb, " %s%s=%v%s", colorGray, a.Key, a.Value, colorReset)
 		return true

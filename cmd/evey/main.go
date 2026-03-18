@@ -41,6 +41,7 @@ func run() error {
 	}
 	rootLog := eveylogger.New(logCfg)
 	slog.SetDefault(rootLog)
+	eveylogger.StartCleanup(ctx, cfg.Log.Dir, cfg.Log.RetentionDays)
 
 	cfg.WarnValidate()
 
