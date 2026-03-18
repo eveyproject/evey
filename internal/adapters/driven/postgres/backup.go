@@ -99,12 +99,16 @@ func (d *DatabaseDumper) validateBackup(data io.Reader) ([]byte, error) {
 
 	var buf bytes.Buffer
 	lineNum := 0
+	headerFound := false
 
 	for scanner.Scan() {
 		line := scanner.Text()
 		lineNum++
 
-		if lineNum == 1 && !strings.HasPrefix(line, string(pgDumpHeader)) {
+		if !headerFound && strings.Contains(line, string(pgDumpHeader)) {
+			headerFound = true
+		}
+		if lineNum == 50 && !headerFound {
 			return nil, fmt.Errorf("restore: invalid file: missing pg_dump header")
 		}
 
@@ -120,6 +124,9 @@ func (d *DatabaseDumper) validateBackup(data io.Reader) ([]byte, error) {
 	}
 	if lineNum == 0 {
 		return nil, fmt.Errorf("restore: invalid file: empty backup")
+	}
+	if !headerFound {
+		return nil, fmt.Errorf("restore: invalid file: missing pg_dump header")
 	}
 
 	return buf.Bytes(), nil
