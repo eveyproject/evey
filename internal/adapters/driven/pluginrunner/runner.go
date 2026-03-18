@@ -151,8 +151,13 @@ func (r *Runner) Start(_ context.Context, p *plugin.Plugin) error {
 		return fmt.Errorf("plugin %s: empty entrypoint", p.ID)
 	}
 
-	// If the command is an interpreter (python3, node, php, etc.),
-	// resolve the script path, not the interpreter itself.
+	// Verify interpreter is installed before attempting to start
+	if isInterpreter(parts[0]) {
+		if _, lookErr := exec.LookPath(parts[0]); lookErr != nil {
+			return fmt.Errorf("plugin %s: runtime %q not installed", p.ID, parts[0])
+		}
+	}
+
 	var cmdName string
 	var cmdArgs []string
 	if isInterpreter(parts[0]) {
