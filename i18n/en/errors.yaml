@@ -1,0 +1,73 @@
+auth:
+  invalid_credentials: "Invalid username or password"
+  not_authenticated: "Please log in"
+  missing_authorization: "Missing authorization"
+  invalid_token: "Invalid or expired token"
+  invalid_api_key: "Invalid API key"
+  api_key_expired: "API key expired"
+  user_disabled: "Account disabled"
+  admin_required: "Admin access required"
+  session_expired: "Session expired"
+  too_many_attempts: "Too many attempts, please try again later"
+
+user:
+  cannot_update_other: "Cannot update another user"
+  cannot_delete_other_profile: "Cannot delete another user's profile"
+  cannot_create_other_profile: "Cannot create a profile for another user"
+  cannot_update_other_profile: "Cannot update another user's profile"
+  cannot_escalate_admin: "Cannot escalate to admin"
+  cannot_revoke_other_api_key: "Cannot revoke another user's API key"
+  cannot_revoke_other_invite: "Cannot revoke another user's invite link"
+  cannot_access_other_history: "Cannot access another user's login history"
+  password_too_short: "Password must be at least 8 characters"
+  username_too_short: "Username must be at least 3 characters"
+  last_admin: "Cannot remove the last admin"
+  invalid_invite: "Invalid or expired invite link"
+
+playback:
+  not_found: "Media not found"
+  content_restricted: "Content restricted by parental controls"
+  cannot_stop_other_session: "Cannot stop another user's session"
+  cannot_report_other_progress: "Cannot report progress for another user's session"
+  transcode_busy: "Transcoding is busy, try again later"
+  transcode_failed: "Transcoding failed"
+  max_streams_reached: "Maximum concurrent streams reached"
+  no_active_session: "No active session"
+  session_not_ready: "Session not ready yet"
+
+playlist:
+  not_owner: "You are not the playlist owner"
+  cannot_add_smart: "Cannot manually add items to a smart playlist"
+  cannot_remove_smart: "Cannot remove items from a smart playlist"
+  limit_reached: "Playlist item limit reached"
+
+plugin:
+  blocked: "Plugin blocked by security analysis"
+  installation_failed: "Plugin installation failed"
+  preview_failed: "Plugin preview failed"
+  not_found: "Plugin not found"
+  disabled: "Plugin is disabled"
+  runtime_not_installed: "Runtime \"{runtime}\" is not installed"
+
+general:
+  not_found: "Not found"
+  bad_request: "Bad request"
+  forbidden: "Access denied"
+  internal_error: "An unexpected error occurred"
+  invalid_body: "Invalid request body"
+  rate_limited: "Too many requests"
+  conflict: "Resource already exists"
+
+setup:
+  already_completed: "Setup already completed"
+
+server:
+  heavy_operation_running: "A heavy operation is already running"
+  scheduler_not_available: "Scheduler not available"
+  not_configured: "Service not configured"
+
+validation:
+  required: "\"{field}\" is required"
+  invalid_path: "Invalid path"
+  invalid_url: "Invalid URL"
+  invalid_cron: "Invalid cron expression"

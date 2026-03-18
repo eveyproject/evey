@@ -1,0 +1,9 @@
+media:
+  added_movie: "New movie added: {title}"
+  added_episode: "New episode: {series} S{season}E{episode}"
+  added_music: "New music added: {title}"
+
+plugin:
+  installed: "Plugin \"{name}\" installed"
+  uninstalled: "Plugin \"{name}\" uninstalled"
+  error: "Plugin \"{name}\" encountered an error"

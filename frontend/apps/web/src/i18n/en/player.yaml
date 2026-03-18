@@ -1,0 +1,58 @@
+controls:
+  play: "Play"
+  pause: "Pause"
+  episodes: "Episodes"
+  chapters: "Chapters"
+  settings: "Settings"
+  back: "Back"
+  seek: "Seek"
+  previous: "Previous episode"
+  rewind: "Rewind {seconds}s"
+  forward: "Forward {seconds}s"
+  next: "Next episode"
+  speed: "Speed"
+  quality: "Quality"
+  subtitles: "Subtitles"
+  audio: "Audio"
+  fullscreen: "Fullscreen"
+  mute: "Mute"
+  unmute: "Unmute"
+  download: "Download"
+
+quality:
+  original: "Original"
+  1080p: "1080p"
+  720p: "720p"
+  480p: "480p"
+  360p: "360p"
+
+speed:
+  normal: "Normal"
+
+subtitles:
+  off: "Off"
+  font_size: "Subtitle font size"
+  bg_opacity: "Background opacity"
+  colors:
+    white: "White"
+    yellow: "Yellow"
+    green: "Green"
+    cyan: "Cyan"
+    orange: "Orange"
+  backgrounds:
+    black: "Black"
+    dark_grey: "Dark grey"
+    navy: "Navy"
+    none: "None"
+  fonts:
+    default: "Default"
+    sans_serif: "Sans-serif"
+    serif: "Serif"
+    monospace: "Monospace"
+    comic_sans: "Comic Sans"
+
+tracks:
+  track: "Track {index}"
+  chapter: "Chapter {index}"
+  season: "Season {index}"
+  episode_short: "E{number}"

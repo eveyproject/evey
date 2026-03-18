@@ -1,0 +1,32 @@
+actions:
+  save: "Save"
+  cancel: "Cancel"
+  delete: "Delete"
+  edit: "Edit"
+  create: "Create"
+  back: "Back"
+  continue: "Continue"
+  skip: "Skip"
+  install: "Install"
+  install_anyway: "Install Anyway"
+  uninstall: "Uninstall"
+  enable: "Enable"
+  disable: "Disable"
+  close: "Close"
+  confirm: "Confirm"
+  search: "Search"
+  clear: "Clear"
+  refresh: "Refresh"
+  copy: "Copy"
+  download: "Download"
+
+status:
+  loading: "Loading..."
+  no_results: "No results"
+  empty: "Nothing here"
+
+time:
+  just_now: "Just now"
+  minutes_ago: "{count} min ago"
+  hours_ago: "{count}h ago"
+  days_ago: "{count}d ago"
