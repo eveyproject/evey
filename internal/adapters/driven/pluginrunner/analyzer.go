@@ -77,9 +77,6 @@ var analyzerRules = []analyzerRule{
 	// Crypto mining
 	{regexp.MustCompile(`(?i)(stratum\+tcp|xmrig|coinhive|cryptonight|monero)`), SeverityCritical, "cryptomining", "crypto mining indicator", nil},
 
-	// Environment variable exfiltration
-	{regexp.MustCompile(`(?i)(os\.environ|process\.env|ENV\[|getenv\()`), SeverityWarning, "env_access", "environment variable access", nil},
-
 	// Package install at runtime
 	{regexp.MustCompile(`(?i)(pip\s+install|npm\s+install|yarn\s+add|go\s+install|curl\s.*\|\s*(sh|bash))`), SeverityCritical, "runtime_install", "runtime package installation", nil},
 
