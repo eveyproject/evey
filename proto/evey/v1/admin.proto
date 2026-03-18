@@ -255,6 +255,8 @@ message Plugin {
   PluginState state = 8;
   string entry_point = 9;
   google.protobuf.Timestamp installed_at = 10;
+  repeated string permissions = 11;
+  repeated string capabilities = 12;
 }
 
 enum PluginState {

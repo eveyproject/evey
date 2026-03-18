@@ -11,12 +11,14 @@ import (
 	"slices"
 	"strings"
 
+	appplugin "github.com/gravity-zero/evey/internal/app/plugin"
 	domainplugin "github.com/gravity-zero/evey/internal/domain/plugin"
 	"github.com/gravity-zero/evey/internal/pkg/auth"
 )
 
-type pluginInstaller interface {
+type pluginManager interface {
 	InstallPlugin(ctx context.Context, source string) (*domainplugin.Plugin, error)
+	PreviewPlugin(ctx context.Context, zipPath string) (*appplugin.PluginPreview, error)
 }
 
 type pluginAssetHandler struct {
@@ -147,7 +149,7 @@ func (h *pluginAssetHandler) handleListThemes(w http.ResponseWriter, r *http.Req
 	}
 }
 
-func registerPluginUploadRoute(mux *http.ServeMux, tokenGen *auth.JWTGenerator, svc pluginInstaller) {
+func registerPluginUploadRoute(mux *http.ServeMux, tokenGen *auth.JWTGenerator, svc pluginManager) {
 	mux.HandleFunc("POST /api/v1/admin/plugins/upload", func(w http.ResponseWriter, r *http.Request) {
 		token := extractBearerToken(r)
 		if token == "" {
@@ -199,11 +201,121 @@ func registerPluginUploadRoute(mux *http.ServeMux, tokenGen *auth.JWTGenerator, 
 		slog.Info("plugin installed via upload", slog.String("id", p.ID), slog.String("name", p.Name))
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusCreated)
+		perms := p.Permissions
+		if perms == nil {
+			perms = []string{}
+		}
 		if encErr := json.NewEncoder(w).Encode(map[string]any{
-			"id":   p.ID,
-			"name": p.Name,
+			"id":          p.ID,
+			"name":        p.Name,
+			"permissions": perms,
 		}); encErr != nil {
 			slog.Warn("encode plugin response", slog.Any("err", encErr))
+		}
+	})
+}
+
+func registerPluginPreviewRoute(mux *http.ServeMux, tokenGen *auth.JWTGenerator, svc pluginManager) {
+	mux.HandleFunc("POST /api/v1/admin/plugins/preview", func(w http.ResponseWriter, r *http.Request) {
+		token := extractBearerToken(r)
+		if token == "" {
+			http.Error(w, `{"message":"unauthorized"}`, http.StatusUnauthorized)
+			return
+		}
+		claims, claimsErr := tokenGen.ValidateAccessToken(token)
+		if claimsErr != nil || !claims.IsAdmin {
+			http.Error(w, `{"message":"forbidden"}`, http.StatusForbidden)
+			return
+		}
+
+		r.Body = http.MaxBytesReader(w, r.Body, 100<<20) // 100MB max
+		file, _, formErr := r.FormFile("plugin")
+		if formErr != nil {
+			http.Error(w, `{"message":"plugin file required"}`, http.StatusBadRequest)
+			return
+		}
+		defer file.Close()
+
+		tmpFile, tmpErr := os.CreateTemp("", "evey-plugin-preview-*.zip")
+		if tmpErr != nil {
+			slog.Error("create temp file for plugin preview", slog.Any("err", tmpErr))
+			http.Error(w, `{"message":"internal error"}`, http.StatusInternalServerError)
+			return
+		}
+		tmpName := tmpFile.Name()
+		defer func() {
+			if rmErr := os.Remove(tmpName); rmErr != nil {
+				slog.Debug("remove temp plugin preview file", slog.Any("err", rmErr))
+			}
+		}()
+		defer tmpFile.Close()
+
+		if _, cpErr := io.Copy(tmpFile, file); cpErr != nil {
+			slog.Error("write plugin preview upload", slog.Any("err", cpErr))
+			http.Error(w, `{"message":"internal error"}`, http.StatusInternalServerError)
+			return
+		}
+		tmpFile.Close()
+
+		preview, previewErr := svc.PreviewPlugin(r.Context(), tmpName)
+		if previewErr != nil {
+			slog.Warn("preview plugin", slog.Any("err", previewErr))
+			http.Error(w, `{"message":"`+previewErr.Error()+`"}`, http.StatusBadRequest)
+			return
+		}
+
+		type analysisResp struct {
+			Safe              bool     `json:"safe"`
+			Issues            []string `json:"issues"`
+			URLs              []string `json:"urls,omitempty"`
+			TotalFilesScanned int      `json:"total_files_scanned"`
+		}
+
+		perms := preview.Permissions
+		if perms == nil {
+			perms = []string{}
+		}
+		caps := preview.Capabilities
+		if caps == nil {
+			caps = []string{}
+		}
+
+		resp := struct {
+			Name         string        `json:"name"`
+			Version      string        `json:"version"`
+			Description  string        `json:"description"`
+			Author       string        `json:"author"`
+			Language     string        `json:"language"`
+			Entrypoint   string        `json:"entrypoint"`
+			Permissions  []string      `json:"permissions"`
+			Capabilities []string      `json:"capabilities"`
+			Analysis     *analysisResp `json:"analysis,omitempty"`
+		}{
+			Name:         preview.Name,
+			Version:      preview.Version,
+			Description:  preview.Description,
+			Author:       preview.Author,
+			Language:     preview.Language,
+			Entrypoint:   preview.Entrypoint,
+			Permissions:  perms,
+			Capabilities: caps,
+		}
+
+		if preview.Analysis != nil {
+			issues := preview.Analysis.Issues
+			if issues == nil {
+				issues = []string{}
+			}
+			resp.Analysis = &analysisResp{
+				Safe:              preview.Analysis.Safe,
+				Issues:            issues,
+				TotalFilesScanned: preview.Analysis.FileCount,
+			}
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		if encErr := json.NewEncoder(w).Encode(resp); encErr != nil {
+			slog.Warn("encode plugin preview", slog.Any("err", encErr))
 		}
 	})
 }

@@ -112,7 +112,7 @@ type HTTPServer struct {
 
 	// Plugin
 	PluginRepo domainplugin.PluginRepository
-	PluginSvc  pluginInstaller
+	PluginSvc  pluginManager
 	PluginDir  string
 
 	// Config store for remote access persistence
@@ -230,6 +230,7 @@ func (s *HTTPServer) RegisterRoutes(mux *http.ServeMux, gwMux http.Handler) {
 		registerPluginAssetRoutes(mux, s.TokenGen, s.PluginRepo, s.PluginDir)
 		if s.PluginSvc != nil {
 			registerPluginUploadRoute(mux, s.TokenGen, s.PluginSvc)
+			registerPluginPreviewRoute(mux, s.TokenGen, s.PluginSvc)
 		}
 	}
 

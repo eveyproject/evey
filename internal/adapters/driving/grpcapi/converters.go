@@ -632,15 +632,17 @@ var pluginStateToProto = map[string]eveyv1.PluginState{
 
 func pluginToProto(p *plugin.Plugin) *eveyv1.Plugin {
 	return &eveyv1.Plugin{
-		Id:          p.ID,
-		Name:        p.Name,
-		Description: p.Description,
-		Version:     p.Version,
-		Author:      p.Author,
-		Language:    p.Language,
-		Enabled:     p.Enabled,
-		State:       pluginStateToProto[p.Status],
-		InstalledAt: toTimestamppb(p.InstalledAt),
+		Id:           p.ID,
+		Name:         p.Name,
+		Description:  p.Description,
+		Version:      p.Version,
+		Author:       p.Author,
+		Language:     p.Language,
+		Enabled:      p.Enabled,
+		State:        pluginStateToProto[p.Status],
+		InstalledAt:  toTimestamppb(p.InstalledAt),
+		Permissions:  p.Permissions,
+		Capabilities: p.Capabilities,
 	}
 }
 

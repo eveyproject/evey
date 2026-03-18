@@ -162,6 +162,47 @@ func (s *Service) InstallPlugin(ctx context.Context, zipPath string) (*plugin.Pl
 	return p, nil
 }
 
+// PluginPreview holds manifest info + analysis without installing.
+type PluginPreview struct {
+	Name         string
+	Version      string
+	Description  string
+	Author       string
+	Language     string
+	Entrypoint   string
+	Permissions  []string
+	Capabilities []string
+	Analysis     *plugin.AnalysisReport
+}
+
+func (s *Service) PreviewPlugin(_ context.Context, zipPath string) (*PluginPreview, error) {
+	manifest, err := s.parser.Parse(zipPath)
+	if err != nil {
+		return nil, fmt.Errorf("parse manifest: %w", err)
+	}
+	preview := &PluginPreview{
+		Name:         manifest.Name,
+		Version:      manifest.Version,
+		Description:  manifest.Description,
+		Author:       manifest.Author,
+		Language:     manifest.Language,
+		Entrypoint:   manifest.Entrypoint,
+		Permissions:  manifest.Permissions,
+		Capabilities: manifest.Capabilities,
+	}
+	if s.installer != nil && s.analyzer != nil {
+		tmpDir, tmpErr := os.MkdirTemp("", "evey-plugin-preview-*")
+		if tmpErr == nil {
+			defer os.RemoveAll(tmpDir)
+			if extErr := s.installer.Extract(zipPath, tmpDir); extErr == nil {
+				report, _ := s.analyzer.Analyze(tmpDir)
+				preview.Analysis = report
+			}
+		}
+	}
+	return preview, nil
+}
+
 // isStaticPlugin returns true for plugins that don't need a subprocess (CSS themes).
 func isStaticPlugin(p *plugin.Plugin) bool {
 	return strings.EqualFold(p.Language, "css")
