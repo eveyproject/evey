@@ -129,6 +129,20 @@ type appDeps struct {
 	backupSvc  *appbackup.Service
 }
 
+// Event subscription map (bus.Subscribe calls):
+//
+//   "media.item.added"      → notification (handleMediaItemAdded)
+//                           → trickplay worker (auto-generate on new media)
+//                           → metadata enricher (auto-enrich on new media)
+//   "library.created"       → filesystem watcher (watch new library paths)
+//   "library.deleted"       → filesystem watcher (stop watching deleted library)
+//   "notification.created"  → email adapter (send email, only when SMTP configured)
+//   "*"                     → webhook dispatcher (delivers matching webhooks)
+//
+// All other domain events (user.*, playback.*, transcode.*, plugin.*, rating.*,
+// activity.*, music.*, photo.*, mkv.*, metadata.*) are published but have no
+// bus subscribers — they are consumed by the webhook "*" catch-all only.
+
 // buildServices constructs all repos, infrastructure adapters, and application services.
 // It also starts the filesystem watcher if enabled, and subscribes to bus events.
 // ctx is used for watcher and OIDC init; the caller provides the signal context.
@@ -185,6 +199,7 @@ func buildServices(ctx context.Context, cfg *config.Config, db *sql.DB, rootLog 
 	libCmdSvc.WithChapters(r.Chapter, ebmlReader)
 	libCmdSvc.WithSubtitleScanner(subScanner)
 	libCmdSvc.WithTrickplay(r.Trickplay, trickplayGen, cfg.Transcoding.TrickplayCacheDir)
+	libCmdSvc.Validate()
 	libQuerySvc := applibrary.NewQueryService(r.Library, r.MediaItemQuery, r.MediaStream, searchAdapter)
 
 	schedulerLog := eveylogger.NewWith(rootLog, "scheduler")
