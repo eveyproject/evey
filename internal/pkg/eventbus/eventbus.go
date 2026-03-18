@@ -40,12 +40,6 @@ func New() *InMemoryEventBus {
 	}
 }
 
-func NewWithRetry(cfg RetryConfig) *InMemoryEventBus {
-	return &InMemoryEventBus{
-		subs:  make(map[string][]subscription),
-		retry: cfg,
-	}
-}
 
 func (b *InMemoryEventBus) dispatch(ctx context.Context, sub subscription, event shared.Event) {
 	for attempt := range b.retry.MaxRetries {

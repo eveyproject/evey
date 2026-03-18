@@ -227,7 +227,7 @@ func TestAuthInterceptor_CustomRBACConfig(t *testing.T) {
 		PublicMethods: map[string]bool{"/test/Public": true},
 		MethodRoles:   map[string]interceptors.Role{"/test/Admin": interceptors.RoleAdmin},
 	}
-	ai := interceptors.NewAuthInterceptorWithRBAC(tokenGen, rbac)
+	ai := interceptors.NewAuthInterceptor(tokenGen).WithRBAC(rbac)
 	unary := ai.Unary()
 
 	t.Run("custom public method skips auth", func(t *testing.T) {

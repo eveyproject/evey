@@ -28,8 +28,10 @@ func NewAuthInterceptor(tokenGen user.TokenGenerator) *AuthInterceptor {
 	return &AuthInterceptor{tokenGen: tokenGen, rbac: DefaultRBACConfig()}
 }
 
-func NewAuthInterceptorWithRBAC(tokenGen user.TokenGenerator, rbac RBACConfig) *AuthInterceptor {
-	return &AuthInterceptor{tokenGen: tokenGen, rbac: rbac}
+
+func (i *AuthInterceptor) WithRBAC(rbac RBACConfig) *AuthInterceptor {
+	i.rbac = rbac
+	return i
 }
 
 func (i *AuthInterceptor) WithAPIKeys(apiKeys user.APIKeyRepository, users user.UserRepository) *AuthInterceptor {

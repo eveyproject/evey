@@ -91,7 +91,7 @@ func TestUnsubscribe(t *testing.T) {
 
 func TestPanickingHandlerDoesNotCrash(t *testing.T) {
 	t.Parallel()
-	bus := eventbus.NewWithRetry(fastRetry())
+	bus := eventbus.New()
 	var mu sync.Mutex
 	normalCalled := false
 
@@ -116,7 +116,7 @@ func TestPanickingHandlerDoesNotCrash(t *testing.T) {
 
 func TestRetryOnPanicThenSuccess(t *testing.T) {
 	t.Parallel()
-	bus := eventbus.NewWithRetry(fastRetry())
+	bus := eventbus.New()
 	var calls atomic.Int32
 
 	bus.Subscribe("test.event", func(_ context.Context, _ shared.Event) {
@@ -127,14 +127,14 @@ func TestRetryOnPanicThenSuccess(t *testing.T) {
 	})
 
 	_ = bus.Publish(context.Background(), testEvent{msg: "retry"})
-	time.Sleep(100 * time.Millisecond)
+	time.Sleep(3 * time.Second)
 
 	assert.Equal(t, int32(3), calls.Load(), "handler should be called 3 times (2 panics + 1 success)")
 }
 
 func TestAllRetriesExhausted(t *testing.T) {
 	t.Parallel()
-	bus := eventbus.NewWithRetry(fastRetry())
+	bus := eventbus.New()
 	var calls atomic.Int32
 
 	bus.Subscribe("test.event", func(_ context.Context, _ shared.Event) {
@@ -143,17 +143,14 @@ func TestAllRetriesExhausted(t *testing.T) {
 	})
 
 	_ = bus.Publish(context.Background(), testEvent{msg: "exhaust"})
-	time.Sleep(100 * time.Millisecond)
+	time.Sleep(3 * time.Second)
 
 	assert.Equal(t, int32(3), calls.Load(), "handler called MaxRetries times")
 }
 
 func TestContextCancellationStopsRetry(t *testing.T) {
 	t.Parallel()
-	bus := eventbus.NewWithRetry(eventbus.RetryConfig{
-		MaxRetries: 5,
-		Backoffs:   []time.Duration{50 * time.Millisecond, 50 * time.Millisecond},
-	})
+	bus := eventbus.New()
 	var calls atomic.Int32
 
 	bus.Subscribe("test.event", func(_ context.Context, _ shared.Event) {
@@ -175,7 +172,7 @@ func TestContextCancellationStopsRetry(t *testing.T) {
 
 func TestSuccessfulDeliveryNoRetry(t *testing.T) {
 	t.Parallel()
-	bus := eventbus.NewWithRetry(fastRetry())
+	bus := eventbus.New()
 	var calls atomic.Int32
 
 	bus.Subscribe("test.event", func(_ context.Context, _ shared.Event) {
