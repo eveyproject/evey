@@ -15,7 +15,7 @@ func buildGRPCServer(deps *appDeps, cfg *config.Config, rootLog *slog.Logger, lo
 	authInterceptor := interceptors.NewAuthInterceptor(deps.auth.tokenGen).WithAPIKeys(deps.repos.apiKeyRepo, deps.repos.userRepo)
 	grpcLog := eveylogger.NewWith(rootLog, "grpc")
 	grpcSrv := grpcapi.NewGRPCServer(
-		deps.library.cmdSvc, deps.library.querySvc, deps.user.cmdSvc, deps.user.querySvc,
+		deps.library.cmdSvc, deps.library.querySvc, deps.user.authSvc, deps.user.userSvc, deps.user.accessSvc, deps.user.querySvc,
 		deps.media.playbackSvc.CommandService(), deps.media.playbackSvc.QueryService(),
 		deps.media.transcodingSvc,
 		deps.media.mkvSvc, deps.engagement.pluginInstallerSvc, deps.engagement.pluginRuntimeSvc, deps.engagement.pluginQuerySvc, deps.content.metadataCmdSvc, deps.content.metadataQuerySvc,

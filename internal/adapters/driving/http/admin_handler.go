@@ -28,7 +28,7 @@ type adminHandler struct {
 	metaCmd      *appmetadata.CommandService
 	metaQuery    *appmetadata.QueryService
 	heavyRL      *ratelimit.Limiter
-	userCmd      *appuser.CommandService
+	userSvc      *appuser.UserService
 	userQuery    *appuser.QueryService
 	logDir       string
 	startTime    time.Time
@@ -230,7 +230,7 @@ func (h *adminHandler) handleSetBitrateLimit(w http.ResponseWriter, r *http.Requ
 		http.Error(w, `{"message":"max_bitrate_kbps must be >= 0"}`, http.StatusBadRequest)
 		return
 	}
-	if err := h.userCmd.SetUserBitrateLimit(r.Context(), userID, body.MaxBitrateKbps); err != nil {
+	if err := h.userSvc.SetUserBitrateLimit(r.Context(), userID, body.MaxBitrateKbps); err != nil {
 		slog.Error("set user bitrate limit", slog.String("userID", userID), slog.Any("err", err))
 		http.Error(w, `{"message":"internal error"}`, http.StatusInternalServerError)
 		return
@@ -631,8 +631,8 @@ func registerAdminRoutes(mux *http.ServeMux, metaCmd *appmetadata.CommandService
 	mux.HandleFunc("POST /api/v1/admin/metadata/refresh-all", h.handleRefreshAll)
 }
 
-func registerUserAdminRoutes(mux *http.ServeMux, userCmd *appuser.CommandService, userQuery *appuser.QueryService, tokenGen *auth.JWTGenerator) {
-	h := &adminHandler{tokenGen: tokenGen, userCmd: userCmd, userQuery: userQuery}
+func registerUserAdminRoutes(mux *http.ServeMux, userSvc *appuser.UserService, userQuery *appuser.QueryService, tokenGen *auth.JWTGenerator) {
+	h := &adminHandler{tokenGen: tokenGen, userSvc: userSvc, userQuery: userQuery}
 	mux.HandleFunc("GET /api/v1/admin/users/{id}/bitrate-limit", h.handleGetBitrateLimit)
 	mux.HandleFunc("PATCH /api/v1/admin/users/{id}/bitrate-limit", h.handleSetBitrateLimit)
 }

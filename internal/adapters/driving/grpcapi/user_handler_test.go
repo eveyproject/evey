@@ -20,7 +20,9 @@ type testUserEnv struct {
 	handler     *userHandler
 	userRepo    *userfakes.FakeUserRepository
 	profileRepo *userfakes.FakeProfileRepository
-	cmd         *appuser.CommandService
+	auth        *appuser.CommandService
+	userSvc     *appuser.UserService
+	access      *appuser.AccessService
 	query       *appuser.QueryService
 	events      *sharedfakes.FakeEventBus
 	tokenGen    *userfakes.FakeTokenGenerator
@@ -40,11 +42,13 @@ func setupUserHandler() *testUserEnv {
 	tokenGen := userfakes.NewFakeTokenGenerator()
 	events := sharedfakes.NewFakeEventBus()
 
-	cmd := appuser.NewCommandService(
-		userRepo, profileRepo, refreshRepo, apiKeyRepo,
-		inviteRepo, qcRepo, roleRepo, userRoleRepo,
+	auth := appuser.NewCommandService(
+		userRepo, profileRepo, refreshRepo,
+		roleRepo, userRoleRepo,
 		hasher, tokenGen, events,
 	)
+	userSvc := appuser.NewUserService(userRepo, profileRepo, refreshRepo, hasher, events)
+	access := appuser.NewAccessService(userRepo, apiKeyRepo, inviteRepo, qcRepo, hasher, events)
 	query := appuser.NewQueryService(userRepo, profileRepo, apiKeyRepo, inviteRepo, qcRepo)
 
 	actSvc := appactivity.NewCommandService(
@@ -55,7 +59,9 @@ func setupUserHandler() *testUserEnv {
 	)
 
 	h := &userHandler{
-		cmd:         cmd,
+		auth:        auth,
+		userSvc:     userSvc,
+		access:      access,
 		query:       query,
 		users:       userRepo,
 		activitySvc: actSvc,
@@ -65,7 +71,9 @@ func setupUserHandler() *testUserEnv {
 		handler:     h,
 		userRepo:    userRepo,
 		profileRepo: profileRepo,
-		cmd:         cmd,
+		auth:        auth,
+		userSvc:     userSvc,
+		access:      access,
 		query:       query,
 		events:      events,
 		tokenGen:    tokenGen,
@@ -100,7 +108,6 @@ func assertCode(t *testing.T, err error, want codes.Code) {
 func TestLogin_Success(t *testing.T) {
 	env := setupUserHandler()
 	seedUser(t, env, &user.User{ID: "usr-1", Username: "alice", Email: "a@b.com", IsAdmin: false}, "password123")
-	// seed a default profile so the login token gets a profile ID
 	env.profileRepo.Create(context.Background(), &user.Profile{ID: "prf-1", UserID: "usr-1", Name: "alice", IsDefault: true})
 
 	resp, err := env.handler.Login(context.Background(), &eveyv1.LoginRequest{
@@ -155,7 +162,6 @@ func TestGetCurrentUser_Unauthenticated(t *testing.T) {
 
 func TestCreateUser_Success(t *testing.T) {
 	env := setupUserHandler()
-	// need at least one admin in repo for delete checks
 	seedUser(t, env, &user.User{ID: "usr-admin", Username: "admin", Email: "admin@b.com", IsAdmin: true}, "adminpass1")
 
 	ctx := adminCtx()
