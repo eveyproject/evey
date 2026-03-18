@@ -168,7 +168,10 @@ function NowPlayingBar({
   useEffect(() => {
     const audio = audioRef.current;
     if (!audio) return;
-    audio.play().then(() => setIsPlaying(true)).catch(() => setIsPlaying(false));
+    audio.play().then(() => setIsPlaying(true)).catch((e) => {
+      setIsPlaying(false);
+      if (e.name !== "AbortError") console.warn("Autoplay blocked:", e.message);
+    });
   }, [playing.ID]);
 
   useEffect(() => {
@@ -182,7 +185,9 @@ function NowPlayingBar({
       audio.pause();
       setIsPlaying(false);
     } else {
-      audio.play().then(() => setIsPlaying(true)).catch(() => {});
+      audio.play().then(() => setIsPlaying(true)).catch((e) => {
+        if (e.name !== "AbortError") console.warn("Autoplay blocked:", e.message);
+      });
     }
   }
 

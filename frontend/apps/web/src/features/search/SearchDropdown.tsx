@@ -2,12 +2,7 @@ import { useEffect, useRef, useCallback } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { libraryServiceSearchMedia } from "@evey/api";
-
-const typeLabel = (t?: string) => {
-  if (t === "MEDIA_ITEM_TYPE_MOVIE") return "Film";
-  if (t === "MEDIA_ITEM_TYPE_SERIES") return "Serie";
-  return "";
-};
+import { typeLabel } from "@/utils/typeLabel";
 
 interface SearchDropdownProps {
   query: string;

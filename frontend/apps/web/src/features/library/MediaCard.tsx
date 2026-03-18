@@ -1,4 +1,4 @@
-import { useRef, useState, useEffect } from "react";
+import { memo, useRef, useState, useEffect, useCallback, useMemo } from "react";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { useQueryClient } from "@tanstack/react-query";
 import { usePlaybackServiceMarkAsWatched, usePlaybackServiceMarkAsUnwatched } from "@evey/api";
@@ -9,8 +9,11 @@ import { StarRatingBadge } from "./StarRating";
 import { useIsFavorite, useToggleFavorite } from "@/hooks/useFavorite";
 import { AddToPlaylistModal } from "../playlist/AddToPlaylistModal";
 import { AddToCollectionModal } from "../collection/AddToCollectionModal";
+import { typeLabel } from "@/utils/typeLabel";
 
-export interface MediaCardItem {
+export type { MediaCardItem };
+
+interface MediaCardItem {
   id?: string;
   title?: string;
   year?: number;
@@ -38,15 +41,11 @@ export interface MediaCardProps {
   onSelect?: (id: string, selected: boolean) => void;
 }
 
-export const typeLabel = (t?: string) => {
-  if (t === "MEDIA_ITEM_TYPE_MOVIE") return "Film";
-  if (t === "MEDIA_ITEM_TYPE_SERIES") return "Serie";
-  return "";
-};
+export { typeLabel };
 
 const formatResolution = (r: string) => (r === "2160p" ? "4K" : r);
 
-function HoverPreview({ item }: { item: MediaCardItem }) {
+const HoverPreview = memo(function HoverPreview({ item }: { item: MediaCardItem }) {
   const hasContent = item.overview || item.communityRating || (item.genres && item.genres.length > 0);
   if (!hasContent) return null;
 
@@ -102,9 +101,9 @@ function HoverPreview({ item }: { item: MediaCardItem }) {
       )}
     </div>
   );
-}
+});
 
-function CardContextMenu({
+const CardContextMenu = memo(function CardContextMenu({
   mediaId,
   onClose,
   position,
@@ -233,9 +232,9 @@ function CardContextMenu({
       ))}
     </div>
   );
-}
+});
 
-export function MediaCard({
+export const MediaCard = memo(function MediaCard({
   item,
   href,
   posterSrc,
@@ -254,13 +253,18 @@ export function MediaCard({
   const hoverTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [showPreview, setShowPreview] = useState(false);
   const accessToken = useAuthStore((s) => s.accessToken);
-  const artworkPosterUrl = item.artwork?.find((a) => a.type === "ARTWORK_TYPE_PRIMARY")?.url ?? null;
-  const poster =
-    posterSrc
-    ?? artworkPosterUrl
-    ?? (item.id && accessToken
-      ? `/api/v1/media/${item.id}/artwork/poster?token=${encodeURIComponent(accessToken)}`
-      : null);
+
+  const poster = useMemo(() => {
+    const artworkPosterUrl = item.artwork?.find((a) => a.type === "ARTWORK_TYPE_PRIMARY")?.url ?? null;
+    return (
+      posterSrc
+      ?? artworkPosterUrl
+      ?? (item.id && accessToken
+        ? `/api/v1/media/${item.id}/artwork/poster?token=${encodeURIComponent(accessToken)}`
+        : null)
+    );
+  }, [posterSrc, item.artwork, item.id, accessToken]);
+
   const initial = item.title ? item.title[0].toUpperCase() : "?";
   const pct =
     progressPercent !== undefined
@@ -278,32 +282,37 @@ export function MediaCard({
   const menuBtnRef = useRef<HTMLButtonElement>(null);
   const hasPreviewData = !!(item.overview || item.communityRating || (item.genres && item.genres.length > 0));
 
-  function handleMouseEnter() {
+  const handleMouseEnter = useCallback(() => {
     if (!hasPreviewData) return;
     hoverTimer.current = setTimeout(() => setShowPreview(true), 400);
-  }
+  }, [hasPreviewData]);
 
-  function handleMouseLeave() {
+  const handleMouseLeave = useCallback(() => {
     if (hoverTimer.current) clearTimeout(hoverTimer.current);
     setShowPreview(false);
-  }
+  }, []);
 
-  function handleFocus() {
+  const handleFocus = useCallback(() => {
     if (!hasPreviewData) return;
     hoverTimer.current = setTimeout(() => setShowPreview(true), 400);
-  }
+  }, [hasPreviewData]);
 
-  function handleBlur() {
+  const handleBlur = useCallback(() => {
     if (hoverTimer.current) clearTimeout(hoverTimer.current);
     setShowPreview(false);
-  }
+  }, []);
 
-  function handleContextMenu(e: React.MouseEvent) {
+  const handleContextMenu = useCallback((e: React.MouseEvent) => {
     if (!item.id) return;
     e.preventDefault();
     setShowPreview(false);
     setCtxMenu({ x: e.clientX, y: e.clientY });
-  }
+  }, [item.id]);
+
+  const handleSelectionClick = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    onSelect?.(item.id!, !selected);
+  }, [onSelect, item.id, selected]);
 
   const hasProgressBar = showProgress && pct !== undefined;
 
@@ -334,7 +343,7 @@ export function MediaCard({
       onFocus={handleFocus}
       onBlur={handleBlur}
       onContextMenu={handleContextMenu}
-      onClick={(onSelect && selectionMode) ? (e) => { e.preventDefault(); onSelect(item.id!, !selected); } : undefined}
+      onClick={(onSelect && selectionMode) ? handleSelectionClick : undefined}
     >
       {showPreview && <HoverPreview item={item} />}
 
@@ -386,7 +395,6 @@ export function MediaCard({
           </span>
         )}
 
-        {/* Watched checkmark */}
         {watched && (
           <span
             className="absolute z-20 flex items-center justify-center"
@@ -406,7 +414,6 @@ export function MediaCard({
           </span>
         )}
 
-        {/* Community rating badge */}
         {item.communityRating != null && item.communityRating > 0 && (
           <span
             className="absolute z-20 flex items-center gap-0.5 text-[10px] font-bold px-1 py-0.5 leading-none"
@@ -425,7 +432,6 @@ export function MediaCard({
           </span>
         )}
 
-        {/* Resolution & HDR badges */}
         {(resolution || isHdr) && (
           <div
             className="absolute z-20 flex items-center gap-1"
@@ -460,7 +466,6 @@ export function MediaCard({
           </div>
         )}
 
-        {/* Selection checkbox (bulk mode) or Favorite button */}
         {item.id && (onSelect || selectionMode) ? (
           <button
             aria-label={selected ? "Deselect" : "Select"}
@@ -483,10 +488,8 @@ export function MediaCard({
           </div>
         ) : null}
 
-        {/* User star rating badge */}
         {item.id && <StarRatingBadge mediaId={item.id} />}
 
-        {/* Options button — top-right, visible on hover/focus, keyboard accessible */}
         {item.id && (
           <button
             ref={menuBtnRef}
@@ -515,7 +518,6 @@ export function MediaCard({
           </button>
         )}
 
-        {/* Hover overlay: play button + title */}
         <div
           className="absolute inset-0 flex flex-col items-center justify-center opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity duration-200"
           style={{ background: "linear-gradient(to top, rgba(0,0,0,0.8) 0%, rgba(0,0,0,0.3) 50%, rgba(0,0,0,0.1) 100%)" }}
@@ -580,4 +582,4 @@ export function MediaCard({
     </Link>
     </>
   );
-}
+});
