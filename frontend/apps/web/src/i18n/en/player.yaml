@@ -1,0 +1,42 @@
+controls:
+  play: "Play"
+  pause: "Pause"
+  mute: "Mute"
+  unmute: "Unmute"
+  volume: "Volume"
+  fullscreen: "Fullscreen"
+  exit_fullscreen: "Exit Fullscreen"
+  settings: "Settings"
+  captions: "Captions"
+  pip: "Picture-in-Picture"
+
+settings:
+  quality: "Quality"
+  speed: "Speed"
+  audio: "Audio"
+  subtitles: "Subtitles"
+  auto: "Auto"
+  off: "Off"
+
+shortcuts:
+  title: "Keyboard Shortcuts"
+  play_pause: "Play / Pause"
+  toggle_fullscreen: "Toggle fullscreen"
+  toggle_mute: "Toggle mute"
+  volume_up: "Volume up"
+  volume_down: "Volume down"
+  seek_percent: "Seek to 0%–90%"
+  toggle_captions: "Toggle captions"
+  decrease_speed: "Decrease speed"
+  increase_speed: "Increase speed"
+  show_shortcuts: "Show shortcuts"
+
+next_episode:
+  up_next: "Up Next"
+  play_now: "Play Now"
+  cancel: "Cancel"
+  starting_in: "Starting in {seconds}s"
+
+errors:
+  playback_failed: "Playback failed"
+  stream_unavailable: "Stream unavailable"

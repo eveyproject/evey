@@ -1,0 +1,76 @@
+nav:
+  dashboard_system: "Panel y sistema"
+  dashboard: "Panel"
+  now_playing: "Reproduciendo"
+  remote_access: "Acceso remoto"
+  server_config: "Configuración del servidor"
+  system_health: "Estado del sistema"
+  media: "Medios"
+  libraries: "Bibliotecas"
+  metadata: "Metadatos"
+  transcode_cache: "Caché de transcodificación"
+  transcoding_profiles: "Perfiles de transcodificación"
+  users_access: "Usuarios y acceso"
+  users: "Usuarios"
+  integrations: "Integraciones"
+  plugins: "Plugins"
+  webhooks: "Webhooks"
+  monitoring: "Monitoreo"
+  analytics: "Analítica"
+  activity: "Actividad"
+  audit_log: "Registro de auditoría"
+  live_logs: "Registros en vivo"
+  maintenance: "Mantenimiento"
+  backup_restore: "Respaldo y restauración"
+
+dashboard:
+  movies: "Películas"
+  series: "Series"
+  users: "Usuarios"
+  active_streams: "Transmisiones activas"
+  memory: "Memoria"
+  transcodes: "Transcodificaciones"
+  total_media: "Total de medios"
+
+audit:
+  columns:
+    time: "Hora"
+    user: "Usuario"
+    action: "Acción"
+    resource: "Recurso"
+    details: "Detalles"
+    ip: "IP"
+  no_entries: "No hay entradas"
+
+library:
+  create: "Crear biblioteca"
+  name: "Nombre"
+  scan_started: "Escaneo iniciado"
+  scan_failed: "Error en el escaneo"
+  all_scans_triggered: "Todos los escaneos de bibliotecas iniciados"
+
+plugin:
+  states:
+    running: "En ejecución"
+    starting: "Iniciando..."
+    error: "Error"
+    stopped: "Detenido"
+    installed: "Instalado"
+    unknown: "Desconocido"
+  config_saved: "Configuración guardada"
+  config_save_failed: "Error al guardar configuración"
+  show_config: "Configuración"
+  hide_config: "Ocultar configuración"
+
+webhook:
+  create: "Crear Webhook"
+  name: "Nombre"
+  url: "URL"
+  events: "Eventos"
+  all_events: "Todos los eventos"
+  secret: "Secreto"
+  enabled: "Habilitado"
+
+playlist:
+  rules_saved: "Reglas guardadas"
+  rules_save_failed: "Error al guardar reglas"

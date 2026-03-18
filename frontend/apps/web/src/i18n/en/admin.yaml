@@ -1,0 +1,76 @@
+nav:
+  dashboard_system: "Dashboard & System"
+  dashboard: "Dashboard"
+  now_playing: "Now Playing"
+  remote_access: "Remote Access"
+  server_config: "Server Config"
+  system_health: "System Health"
+  media: "Media"
+  libraries: "Libraries"
+  metadata: "Metadata"
+  transcode_cache: "Transcode Cache"
+  transcoding_profiles: "Transcoding Profiles"
+  users_access: "Users & Access"
+  users: "Users"
+  integrations: "Integrations"
+  plugins: "Plugins"
+  webhooks: "Webhooks"
+  monitoring: "Monitoring"
+  analytics: "Analytics"
+  activity: "Activity"
+  audit_log: "Audit Log"
+  live_logs: "Live Logs"
+  maintenance: "Maintenance"
+  backup_restore: "Backup & Restore"
+
+dashboard:
+  movies: "Movies"
+  series: "Series"
+  users: "Users"
+  active_streams: "Active Streams"
+  memory: "Memory"
+  transcodes: "Transcodes"
+  total_media: "Total Media"
+
+audit:
+  columns:
+    time: "Time"
+    user: "User"
+    action: "Action"
+    resource: "Resource"
+    details: "Details"
+    ip: "IP"
+  no_entries: "No entries found"
+
+library:
+  create: "Create Library"
+  name: "Name"
+  scan_started: "Scan started"
+  scan_failed: "Scan failed"
+  all_scans_triggered: "All library scans triggered"
+
+plugin:
+  states:
+    running: "Running"
+    starting: "Starting..."
+    error: "Error"
+    stopped: "Stopped"
+    installed: "Installed"
+    unknown: "Unknown"
+  config_saved: "Config saved"
+  config_save_failed: "Failed to save config"
+  show_config: "Config"
+  hide_config: "Hide Config"
+
+webhook:
+  create: "Create Webhook"
+  name: "Name"
+  url: "URL"
+  events: "Events"
+  all_events: "All events"
+  secret: "Secret"
+  enabled: "Enabled"
+
+playlist:
+  rules_saved: "Rules saved"
+  rules_save_failed: "Failed to save rules"

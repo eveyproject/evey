@@ -1,0 +1,66 @@
+auth:
+  unauthenticated: "अप्रमाणित"
+  unauthorized: "अनधिकृत"
+  forbidden: "निषिद्ध"
+  invalid_credentials: "अमान्य उपयोगकर्ता नाम या पासवर्ड"
+  invalid_body: "अमान्य अनुरोध"
+  invalid_token: "अमान्य या समय-सीमा समाप्त टोकन"
+  missing_token: "टोकन अनुपलब्ध"
+  no_session: "कोई सक्रिय सत्र नहीं"
+  too_many_requests: "बहुत अधिक अनुरोध"
+  too_many_attempts: "बहुत अधिक प्रयास"
+  passwords_do_not_match: "पासवर्ड मेल नहीं खाते"
+  password_too_short: "पासवर्ड कम से कम 8 अक्षरों का होना चाहिए"
+  username_too_short: "उपयोगकर्ता नाम कम से कम 3 अक्षरों का होना चाहिए"
+  explicit_consent_required: "पुश सूचनाओं के लिए स्पष्ट सहमति आवश्यक है"
+  invalid_current_pin: "वर्तमान PIN अमान्य है"
+  profile_not_found: "प्रोफ़ाइल नहीं मिली"
+
+general:
+  not_found: "नहीं मिला"
+  conflict: "विरोध"
+  invalid_input: "अमान्य इनपुट"
+  rate_limited: "दर सीमित"
+  not_configured: "कॉन्फ़िगर नहीं किया गया"
+  internal_error: "आंतरिक त्रुटि"
+  encode_error: "एन्कोड त्रुटि"
+  bad_request: "खराब अनुरोध"
+  remote_access_disabled: "रिमोट एक्सेस अक्षम है"
+  path_traversal_detected: "पथ ट्रैवर्सल का पता चला"
+
+media:
+  not_found: "मीडिया नहीं मिला"
+  file_not_found: "फ़ाइल नहीं मिली"
+  invalid_path: "अमान्य पथ"
+  image_not_found: "चित्र नहीं मिला"
+
+transcode:
+  busy: "ट्रांसकोड व्यस्त है"
+  failed: "ट्रांसकोड विफल"
+  no_active_session: "कोई सक्रिय ट्रांसकोड सत्र नहीं"
+  session_not_ready: "सत्र तैयार नहीं है"
+  segment_not_found: "सेगमेंट नहीं मिला"
+
+subtitle:
+  not_found: "उपशीर्षक नहीं मिला"
+  search_failed: "उपशीर्षक खोज विफल"
+  download_failed: "उपशीर्षक डाउनलोड विफल"
+  file_id_required: "फ़ाइल ID आवश्यक है"
+
+library:
+  name_required: "लाइब्रेरी का नाम आवश्यक है"
+
+plugin:
+  blocked_by_security: "सुरक्षा विश्लेषण द्वारा प्लगइन अवरुद्ध"
+  manifest_invalid: "अमान्य प्लगइन मैनिफ़ेस्ट"
+  not_found: "प्लगइन नहीं मिला"
+  config_save_failed: "प्लगइन कॉन्फ़िग सहेजने में विफल"
+
+notification:
+  invalid_movie_level: "अमान्य फ़िल्म सूचना स्तर"
+  invalid_series_level: "अमान्य सीरीज़ सूचना स्तर"
+  invalid_music_level: "अमान्य संगीत सूचना स्तर"
+
+backup:
+  failed: "बैकअप विफल"
+  restore_failed: "पुनर्स्थापना विफल"

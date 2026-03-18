@@ -1,0 +1,76 @@
+nav:
+  dashboard_system: "仪表盘与系统"
+  dashboard: "仪表盘"
+  now_playing: "正在播放"
+  remote_access: "远程访问"
+  server_config: "服务器配置"
+  system_health: "系统健康"
+  media: "媒体"
+  libraries: "媒体库"
+  metadata: "元数据"
+  transcode_cache: "转码缓存"
+  transcoding_profiles: "转码配置"
+  users_access: "用户与权限"
+  users: "用户"
+  integrations: "集成"
+  plugins: "插件"
+  webhooks: "Webhooks"
+  monitoring: "监控"
+  analytics: "分析"
+  activity: "活动"
+  audit_log: "审计日志"
+  live_logs: "实时日志"
+  maintenance: "维护"
+  backup_restore: "备份与恢复"
+
+dashboard:
+  movies: "电影"
+  series: "剧集"
+  users: "用户"
+  active_streams: "活跃流"
+  memory: "内存"
+  transcodes: "转码"
+  total_media: "总媒体数"
+
+audit:
+  columns:
+    time: "时间"
+    user: "用户"
+    action: "操作"
+    resource: "资源"
+    details: "详情"
+    ip: "IP"
+  no_entries: "暂无条目"
+
+library:
+  create: "创建媒体库"
+  name: "名称"
+  scan_started: "扫描已开始"
+  scan_failed: "扫描失败"
+  all_scans_triggered: "已触发所有媒体库扫描"
+
+plugin:
+  states:
+    running: "运行中"
+    starting: "启动中..."
+    error: "错误"
+    stopped: "已停止"
+    installed: "已安装"
+    unknown: "未知"
+  config_saved: "配置已保存"
+  config_save_failed: "配置保存失败"
+  show_config: "配置"
+  hide_config: "隐藏配置"
+
+webhook:
+  create: "创建 Webhook"
+  name: "名称"
+  url: "URL"
+  events: "事件"
+  all_events: "所有事件"
+  secret: "密钥"
+  enabled: "已启用"
+
+playlist:
+  rules_saved: "规则已保存"
+  rules_save_failed: "保存规则失败"
