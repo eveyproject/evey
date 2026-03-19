@@ -29,8 +29,8 @@ describe("ErrorBoundary", () => {
       </ErrorBoundary>
     );
     expect(screen.getByText("Something went wrong")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Try Again" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Go Home" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Reload the page" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Go to home page" })).toBeInTheDocument();
     consoleSpy.mockRestore();
   });
 
@@ -58,7 +58,7 @@ describe("ErrorBoundary", () => {
         <Bomb shouldThrow={true} />
       </ErrorBoundary>
     );
-    await user.click(screen.getByRole("button", { name: "Try Again" }));
+    await user.click(screen.getByRole("button", { name: "Reload the page" }));
     expect(reloadMock).toHaveBeenCalled();
     consoleSpy.mockRestore();
   });
