@@ -217,6 +217,7 @@ func buildServices(ctx context.Context, cfg *config.Config, db *sql.DB, rootLog 
 	libCmdSvc.WithShutdownCtx(ctx)
 
 	// --- Background workers ---
+	libCmdSvc.StartPeriodicScan(ctx, r.Library)
 	if os.Getenv("EVEY_TMDB_API_KEY") != "" {
 		metadataCmdSvc.StartEnrichmentWorker(ctx)
 	}
