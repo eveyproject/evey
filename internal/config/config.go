@@ -146,7 +146,7 @@ type PlaybackConfig struct {
 func (c *Config) WarnValidate() {
 	// OPS-NEW-004: Meilisearch master key
 	k := c.Meilisearch.APIKey
-	if k == "" || k == "changeme" || len(k) < 16 {
+	if k == "" || k == "changeme" || k == "change-me-generate-a-random-secret" || len(k) < 16 {
 		slog.Warn("meilisearch API key is weak or default — change EVEY_MEILI_API_KEY",
 			slog.String("current", k))
 	}
@@ -189,7 +189,7 @@ func Load() (*Config, error) {
 		},
 		Meilisearch: MeilisearchConfig{
 			URL:    envStr("EVEY_MEILI_URL", "http://localhost:7700"),
-			APIKey: envStr("EVEY_MEILI_API_KEY", "changeme"),
+			APIKey: envStr("EVEY_MEILI_API_KEY", "change-me-generate-a-random-secret"),
 		},
 		JWT: JWTConfig{
 			PrivateKeyPath:  envStr("EVEY_JWT_PRIVATE_KEY_PATH", "/data/jwt.key"),

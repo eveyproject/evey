@@ -74,7 +74,8 @@ func buildServices(ctx context.Context, cfg *config.Config, db *sql.DB, rootLog 
 	// --- Infrastructure ---
 	var searchAdapter library.SearchIndex
 	if sa, err := meili.NewSearchAdapter(cfg.Meilisearch.URL, cfg.Meilisearch.APIKey); err != nil {
-		slog.Warn("meilisearch unavailable, search disabled", slog.Any("err", err))
+		slog.Warn("meilisearch unavailable, using SQL search fallback", slog.Any("err", err))
+		searchAdapter = postgres.NewSQLSearchFallback(db)
 	} else {
 		searchAdapter = sa
 	}
