@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { createLazyFileRoute, useNavigate } from "@tanstack/react-router";
+import { useTranslation } from "react-i18next";
 import { useQuery } from "@tanstack/react-query";
 import { libraryServiceSearchMedia } from "@evey/api";
 import { EmptyState } from "@/components/ui/EmptyState";
@@ -14,16 +15,17 @@ export const Route = createLazyFileRoute("/_auth/search")({
 
 type MediaTypeFilter = "MEDIA_ITEM_TYPE_MOVIE" | "MEDIA_ITEM_TYPE_SERIES";
 
-const typeFilters: { label: string; value: MediaTypeFilter | undefined }[] = [
-  { label: "All", value: undefined },
-  { label: "Movies", value: "MEDIA_ITEM_TYPE_MOVIE" },
-  { label: "Series", value: "MEDIA_ITEM_TYPE_SERIES" },
-];
-
 function SearchPage() {
+  const { t } = useTranslation();
   const { q } = Route.useSearch();
   const navigate = useNavigate();
   const inputRef = useRef<HTMLInputElement>(null);
+
+  const typeFilters: { label: string; value: MediaTypeFilter | undefined }[] = [
+    { label: t("media.search.all"), value: undefined },
+    { label: t("media.search.movies"), value: "MEDIA_ITEM_TYPE_MOVIE" },
+    { label: t("media.search.series"), value: "MEDIA_ITEM_TYPE_SERIES" },
+  ];
 
   const [inputValue, setInputValue] = useState(q ?? "");
   const [debouncedQuery, setDebouncedQuery] = useState(q?.trim() ?? "");
@@ -52,7 +54,6 @@ function SearchPage() {
     return () => clearTimeout(timer);
   }, [inputValue, navigate, pushRecent]);
 
-  // Focus input on mount
   useEffect(() => {
     inputRef.current?.focus();
   }, []);
@@ -94,7 +95,7 @@ function SearchPage() {
           <input
             ref={inputRef}
             type="search"
-            placeholder="Search movies, series..."
+            placeholder={t("media.search.placeholder")}
             data-testid="search-page-input"
             value={inputValue}
             onChange={(e) => setInputValue(e.target.value)}
@@ -160,8 +161,8 @@ function SearchPage() {
         >
           <EmptyState
             icon="search"
-            title={`No results for \u201c${debouncedQuery}\u201d`}
-            description="Try a different search term, check the spelling, or change the filter."
+            title={t("media.search.noResultsFor", { query: debouncedQuery })}
+            description={t("media.search.noResultsDesc")}
           />
         </div>
       )}
@@ -169,13 +170,13 @@ function SearchPage() {
       {!hasQuery && !isLoading && recents.length > 0 && (
         <div className="mb-6">
           <div className="flex items-center justify-between mb-3">
-            <span className="text-sm font-semibold" style={{ color: "var(--text-muted)" }}>Recent searches</span>
+            <span className="text-sm font-semibold" style={{ color: "var(--text-muted)" }}>{t("media.search.recentSearches")}</span>
             <button
               onClick={clearRecents}
               className="text-xs hover:underline cursor-pointer"
               style={{ color: "var(--text-muted)" }}
             >
-              Clear all
+              {t("media.search.clearAll")}
             </button>
           </div>
           <div className="flex flex-wrap gap-2">
@@ -195,7 +196,7 @@ function SearchPage() {
                   onClick={() => removeRecent(r)}
                   className="ml-1 cursor-pointer transition-colors hover:opacity-80"
                   style={{ color: "var(--text-muted)" }}
-                  aria-label={`Remove ${r}`}
+                  aria-label={`${t("common.remove")} ${r}`}
                 >
                   <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
                     <path strokeLinecap="round" d="M6 18L18 6M6 6l12 12" />
@@ -217,8 +218,8 @@ function SearchPage() {
         >
           <EmptyState
             icon="search"
-            title="Search your media library"
-            description="Type at least 2 characters to search across all your movies, series, and more."
+            title={t("media.search.searchLibrary")}
+            description={t("media.search.searchLibraryDesc")}
           />
         </div>
       )}
@@ -226,8 +227,10 @@ function SearchPage() {
       {items.length > 0 && (
         <>
           <p className="text-sm mb-4" style={{ color: "var(--text-muted)" }}>
-            {totalHits} result{totalHits !== 1 ? "s" : ""} for &ldquo;
-            {debouncedQuery}&rdquo;
+            {totalHits === 1
+              ? t("media.search.resultCount", { count: totalHits })
+              : t("media.search.resultCount_plural", { count: totalHits })}
+            {" "}{t("media.search.resultFor", { query: debouncedQuery })}
           </p>
           <MediaGrid>
             {items.map((item) => (

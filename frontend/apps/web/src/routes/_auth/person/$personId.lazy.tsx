@@ -1,5 +1,6 @@
 import { useMemo } from "react";
 import { createLazyFileRoute } from "@tanstack/react-router";
+import { useTranslation } from "react-i18next";
 import { useLibraryServiceListMediaItems } from "@evey/api";
 import type { V1MediaItem, V1MediaPerson } from "@evey/api/src/generated/library.schemas";
 import { BackButton } from "@/components/ui/BackButton";
@@ -11,13 +12,13 @@ export const Route = createLazyFileRoute("/_auth/person/$personId")({
   component: PersonPage,
 });
 
-const ROLE_LABELS: Record<string, string> = {
-  PERSON_TYPE_ACTOR: "Actor",
-  PERSON_TYPE_DIRECTOR: "Director",
-  PERSON_TYPE_WRITER: "Writer",
-  PERSON_TYPE_PRODUCER: "Producer",
-  PERSON_TYPE_COMPOSER: "Composer",
-  PERSON_TYPE_GUEST_STAR: "Guest Star",
+const ROLE_KEYS: Record<string, string> = {
+  PERSON_TYPE_ACTOR: "media.person.actor",
+  PERSON_TYPE_DIRECTOR: "media.person.director",
+  PERSON_TYPE_WRITER: "media.person.writer",
+  PERSON_TYPE_PRODUCER: "media.person.producer",
+  PERSON_TYPE_COMPOSER: "media.person.composer",
+  PERSON_TYPE_GUEST_STAR: "media.person.guestStar",
 };
 
 interface FilmographyEntry {
@@ -62,18 +63,19 @@ function usePersonFilmography(personId: string) {
 }
 
 function PersonPage() {
+  const { t } = useTranslation();
   const { personId } = Route.useParams();
   const { entries, personInfo, roles, isLoading } = usePersonFilmography(personId);
 
   if (!personId) {
     return (
       <div className="text-center py-16" style={{ color: "var(--text-muted)" }}>
-        Person not found.
+        {t("media.person.notFound")}
       </div>
     );
   }
 
-  const name = personInfo?.name ?? "Unknown";
+  const name = personInfo?.name ?? t("media.person.unknown");
   const initial = name[0]?.toUpperCase() ?? "?";
   const thumbUrl = personInfo?.thumbUrl;
 
@@ -118,12 +120,14 @@ function PersonPage() {
           <h1 className="text-3xl font-bold mb-2" style={{ color: "var(--text)" }}>{name}</h1>
           <div className="flex flex-wrap gap-2 mb-3">
             {roles.map((r) => (
-              <Badge key={r} variant="info">{ROLE_LABELS[r] ?? r}</Badge>
+              <Badge key={r} variant="info">{t(ROLE_KEYS[r] ?? "media.person.other")}</Badge>
             ))}
           </div>
           {!isLoading && (
             <p className="text-sm" style={{ color: "var(--text-muted)" }}>
-              {entries.length} title{entries.length !== 1 ? "s" : ""}
+              {entries.length === 1
+                ? t("media.person.titleCount", { count: entries.length })
+                : t("media.person.titleCount_plural", { count: entries.length })}
             </p>
           )}
         </div>
@@ -137,14 +141,14 @@ function PersonPage() {
 
       {!isLoading && entries.length === 0 && (
         <div className="text-center py-16" style={{ color: "var(--text-muted)" }}>
-          No filmography found for this person.
+          {t("media.person.noFilmography")}
         </div>
       )}
 
       {Array.from(byRole.entries()).map(([role, items]) => (
         <section key={role} className="mb-10">
           <h2 className="text-lg font-semibold mb-4" style={{ color: "var(--text)" }}>
-            {ROLE_LABELS[role] ?? "Other"}
+            {t(ROLE_KEYS[role] ?? "media.person.other")}
             <span className="text-sm font-normal ml-2" style={{ color: "var(--text-muted)" }}>
               ({items.length})
             </span>
@@ -155,7 +159,7 @@ function PersonPage() {
                 <MediaCard item={item} />
                 {person.role && (
                   <p className="text-xs mt-1 truncate px-0.5" style={{ color: "var(--text-muted)" }}>
-                    as {person.role}
+                    {t("media.person.asRole", { role: person.role })}
                   </p>
                 )}
               </div>

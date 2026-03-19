@@ -1,5 +1,6 @@
 import { createLazyFileRoute, useRouter } from "@tanstack/react-router";
 import { useCallback, useState, useEffect, useRef } from "react";
+import { useTranslation } from "react-i18next";
 import { useQuery } from "@tanstack/react-query";
 import { libraryServiceGetMediaItem, libraryServiceListMediaItems } from "@evey/api";
 import { usePlaySession } from "@/hooks/usePlaySession";
@@ -67,6 +68,7 @@ function PlayerPage() {
 }
 
 function PlayerPageInner({ mediaId }: { mediaId: string }) {
+  const { t } = useTranslation();
   const { room: roomParam } = Route.useSearch();
   const router = useRouter();
   const [showShareDialog, setShowShareDialog] = useState(false);
@@ -94,7 +96,6 @@ function PlayerPageInner({ mediaId }: { mediaId: string }) {
     },
   });
 
-  // Auto-join if URL has ?room=ID
   useEffect(() => {
     if (roomParam && !syncState.roomId) {
       syncControls.joinRoom(roomParam).catch(() => {});
@@ -208,7 +209,7 @@ function PlayerPageInner({ mediaId }: { mediaId: string }) {
       <div className="flex-1 relative flex items-center justify-center">
         {!syncState.roomId && !isLoading && !isError && streamInfo && (
           <button
-            aria-label="Watch Together"
+            aria-label={t("player.watchTogether")}
             onClick={() => void handleWatchTogether()}
             className="absolute top-4 right-4 z-[60] flex items-center gap-2 px-3 py-2 rounded-full text-white text-sm font-medium transition-opacity hover:opacity-80"
             style={{ backgroundColor: "rgba(0,0,0,0.5)", border: "1px solid rgba(255,255,255,0.2)" }}
@@ -216,7 +217,7 @@ function PlayerPageInner({ mediaId }: { mediaId: string }) {
             <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
             </svg>
-            Watch Together
+            {t("player.watchTogether")}
           </button>
         )}
         {isError ? (
@@ -224,21 +225,21 @@ function PlayerPageInner({ mediaId }: { mediaId: string }) {
             <svg className="w-12 h-12" style={{ color: "var(--color-danger)" }} fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
             </svg>
-            <p className="text-lg font-medium">Failed to start playback</p>
+            <p className="text-lg font-medium">{t("player.failedToStart")}</p>
             <div className="flex gap-3">
               <button
                 onClick={() => window.location.reload()}
                 className="px-4 py-2 rounded text-sm font-medium"
                 style={{ backgroundColor: "rgba(255,255,255,0.25)" }}
               >
-                Retry
+                {t("player.retry")}
               </button>
               <button
                 onClick={handleClose}
                 className="px-4 py-2 rounded text-sm font-medium"
                 style={{ backgroundColor: "rgba(255,255,255,0.15)" }}
               >
-                Go back
+                {t("player.goBack")}
               </button>
             </div>
           </div>
@@ -280,8 +281,8 @@ function PlayerPageInner({ mediaId }: { mediaId: string }) {
               style={{ background: "#1a1a2e", border: "1px solid rgba(255,255,255,0.15)" }}
               onClick={(e) => e.stopPropagation()}
             >
-              <h2 className="text-lg font-semibold">Watch Together</h2>
-              <p className="text-sm text-white/70">Share this link with friends to watch together:</p>
+              <h2 className="text-lg font-semibold">{t("player.watchTogether")}</h2>
+              <p className="text-sm text-white/70">{t("player.shareDesc")}</p>
               <div
                 className="rounded px-3 py-2 text-sm font-mono break-all select-all"
                 style={{ background: "rgba(255,255,255,0.1)" }}
@@ -294,14 +295,14 @@ function PlayerPageInner({ mediaId }: { mediaId: string }) {
                   className="flex-1 py-2 rounded font-medium text-sm hover:opacity-80 transition-opacity"
                   style={{ background: "rgba(255,255,255,0.2)" }}
                 >
-                  Copy link
+                  {t("player.copyLink")}
                 </button>
                 <button
                   onClick={() => setShowShareDialog(false)}
                   className="flex-1 py-2 rounded font-medium text-sm hover:opacity-80 transition-opacity"
                   style={{ background: "rgba(255,255,255,0.1)" }}
                 >
-                  Close
+                  {t("player.close")}
                 </button>
               </div>
             </div>

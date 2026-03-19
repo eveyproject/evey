@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/Button";
 import { toast } from "@evey/store";
 import { useUpdatePlaylist, type PlaylistRule } from "./api";
@@ -151,6 +152,7 @@ interface Props {
 }
 
 export function SmartPlaylistRulesEditor({ playlistId, initialRules, onSaved }: Props) {
+  const { t } = useTranslation();
   const [editing, setEditing] = useState(false);
   const [rules, setRules] = useState<SmartRule[]>(() =>
     (initialRules ?? []).map(toSmartRule).filter((r): r is SmartRule => r !== null)
@@ -187,11 +189,11 @@ export function SmartPlaylistRulesEditor({ playlistId, initialRules, onSaved }: 
     const validRules = rules.filter((r) => r.value.trim() !== "");
     try {
       await update.mutateAsync({ id: playlistId, rules: validRules });
-      toast.success("Rules saved");
+      toast.success(t("media.playlist.rulesSaved"));
       setEditing(false);
       onSaved?.();
     } catch {
-      toast.error("Failed to save rules");
+      toast.error(t("media.playlist.rulesSaveFailed"));
     }
   }
 
@@ -200,10 +202,10 @@ export function SmartPlaylistRulesEditor({ playlistId, initialRules, onSaved }: 
       <div className="mb-6">
         <div className="flex items-center justify-between mb-2">
           <span className="text-sm font-medium" style={{ color: "var(--text-muted)" }}>
-            Rules
+            {t("media.playlist.rules")}
           </span>
           <Button type="button" variant="secondary" onClick={startEdit}>
-            Edit Rules
+            {t("media.playlist.editRules")}
           </Button>
         </div>
         {initialRules && initialRules.length > 0 ? (
@@ -224,7 +226,7 @@ export function SmartPlaylistRulesEditor({ playlistId, initialRules, onSaved }: 
           </div>
         ) : (
           <p className="text-sm" style={{ color: "var(--text-muted)" }}>
-            No rules set. Click "Edit Rules" to add rules.
+            {t("media.playlist.noRules")}
           </p>
         )}
       </div>
@@ -237,12 +239,12 @@ export function SmartPlaylistRulesEditor({ playlistId, initialRules, onSaved }: 
       style={{ backgroundColor: "var(--surface)", border: "1px solid var(--border)" }}
     >
       <span className="text-sm font-medium block mb-3" style={{ color: "var(--text)" }}>
-        Edit Rules
+        {t("media.playlist.editRules")}
       </span>
 
       {rules.length === 0 && (
         <p className="text-sm mb-3" style={{ color: "var(--text-muted)" }}>
-          No rules yet. Add at least one rule to filter items.
+          {t("media.playlist.noRulesYet")}
         </p>
       )}
 
@@ -283,10 +285,10 @@ export function SmartPlaylistRulesEditor({ playlistId, initialRules, onSaved }: 
 
       <div className="flex gap-2">
         <Button type="button" onClick={save} loading={update.isPending}>
-          Save Rules
+          {t("media.playlist.saveRules")}
         </Button>
         <Button type="button" variant="secondary" onClick={cancel}>
-          Cancel
+          {t("common.cancel")}
         </Button>
       </div>
     </div>

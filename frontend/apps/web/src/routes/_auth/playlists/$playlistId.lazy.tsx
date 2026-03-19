@@ -1,4 +1,5 @@
 import { createLazyFileRoute, Link } from "@tanstack/react-router";
+import { useTranslation } from "react-i18next";
 import { Badge } from "@/components/ui/Badge";
 import { Spinner } from "@/components/ui/Spinner";
 import { BackButton } from "@/components/ui/BackButton";
@@ -12,6 +13,7 @@ export const Route = createLazyFileRoute("/_auth/playlists/$playlistId")({
 });
 
 function PlaylistItemRow({ item, playlistId, playlistType }: { item: PlaylistItem; playlistId: string; playlistType: string }) {
+  const { t } = useTranslation();
   const remove = useRemoveFromPlaylist();
 
   return (
@@ -41,15 +43,15 @@ function PlaylistItemRow({ item, playlistId, playlistType }: { item: PlaylistIte
             remove.mutate(
               { playlistId, mediaItemId: item.media_item_id },
               {
-                onSuccess: () => toast.success("Removed from playlist"),
-                onError: () => toast.error("Failed to remove"),
+                onSuccess: () => toast.success(t("media.playlist.removedFromPlaylist")),
+                onError: () => toast.error(t("media.playlist.failedRemove")),
               },
             );
           }}
           disabled={remove.isPending}
           className="p-1 rounded hover:bg-[var(--surface-raised)] transition-colors flex-shrink-0"
           style={{ color: "var(--text-muted)" }}
-          title="Remove"
+          title={t("common.remove")}
         >
           <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
@@ -61,6 +63,7 @@ function PlaylistItemRow({ item, playlistId, playlistType }: { item: PlaylistIte
 }
 
 function PlaylistDetail() {
+  const { t } = useTranslation();
   const { playlistId } = Route.useParams();
   const { data: playlist, isLoading, isError } = usePlaylistDetail(playlistId);
 
@@ -73,7 +76,7 @@ function PlaylistDetail() {
   if (isError || !playlist) {
     return (
       <div className="text-center py-16" style={{ color: "var(--text-muted)" }}>
-        Playlist not found.
+        {t("media.playlist.notFound")}
       </div>
     );
   }
@@ -102,8 +105,8 @@ function PlaylistDetail() {
         <div className="rounded-[var(--radius-lg)]" style={{ backgroundColor: "var(--surface)", border: "1px solid var(--border)" }}>
           <EmptyState
             icon="library"
-            title="No items"
-            description={playlist.type === "smart" ? "No media matches these rules." : "Add items from the media detail page."}
+            title={t("media.playlist.noItems")}
+            description={playlist.type === "smart" ? t("media.playlist.noItemsSmart") : t("media.playlist.noItemsManual")}
           />
         </div>
       ) : (
@@ -119,7 +122,7 @@ function PlaylistDetail() {
             ))}
           </div>
           <div className="px-4 py-2 text-xs" style={{ color: "var(--text-muted)", borderTop: "1px solid var(--border)" }}>
-            {items.length} item{items.length !== 1 ? "s" : ""}
+            {items.length === 1 ? t("common.item", { count: items.length }) : t("common.items", { count: items.length })}
           </div>
         </div>
       )}

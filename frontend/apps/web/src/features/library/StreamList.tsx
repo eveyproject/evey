@@ -1,3 +1,4 @@
+import { useTranslation } from "react-i18next";
 import type { V1MediaStream } from "@evey/api/src/generated/library.schemas";
 import { Badge } from "@/components/ui/Badge";
 
@@ -6,6 +7,7 @@ interface StreamListProps {
 }
 
 function StreamRow({ stream }: { stream: V1MediaStream }) {
+  const { t } = useTranslation();
   return (
     <div
       className="flex items-center gap-3 py-2 px-3 rounded-[var(--radius-sm)]"
@@ -26,14 +28,15 @@ function StreamRow({ stream }: { stream: V1MediaStream }) {
           {stream.title}
         </span>
       )}
-      {stream.isDefault && <Badge variant="info">Default</Badge>}
-      {stream.isForced && <Badge variant="warning">Forced</Badge>}
-      {stream.isExternal && <Badge variant="info">External</Badge>}
+      {stream.isDefault && <Badge variant="info">{t("media.streams.default")}</Badge>}
+      {stream.isForced && <Badge variant="warning">{t("media.streams.forced")}</Badge>}
+      {stream.isExternal && <Badge variant="info">{t("media.streams.external")}</Badge>}
     </div>
   );
 }
 
 export function StreamList({ streams }: StreamListProps) {
+  const { t } = useTranslation();
   if (!streams || streams.length === 0) return null;
 
   const audio = streams.filter((s) => s.type === "MEDIA_STREAM_TYPE_AUDIO");
@@ -44,7 +47,7 @@ export function StreamList({ streams }: StreamListProps) {
       {audio.length > 0 && (
         <div>
           <h3 className="text-sm font-semibold mb-2" style={{ color: "var(--text-muted)" }}>
-            Audio
+            {t("media.streams.audio")}
           </h3>
           <div className="space-y-1">
             {audio.map((s) => (
@@ -56,7 +59,7 @@ export function StreamList({ streams }: StreamListProps) {
       {subtitles.length > 0 && (
         <div>
           <h3 className="text-sm font-semibold mb-2" style={{ color: "var(--text-muted)" }}>
-            Subtitles
+            {t("media.streams.subtitles")}
           </h3>
           <div className="space-y-1">
             {subtitles.map((s) => (

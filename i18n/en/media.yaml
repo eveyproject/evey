@@ -45,9 +45,36 @@ collections:
   deleteConfirm: Delete this collection?
   deleteSmartConfirm: Delete this smart collection?
   browseResults: "Browse results \u2192"
+  smart: Smart
+  noItems: No items
+  noItemsDesc: This collection has no media items yet.
+  notFound: Collection not found
+  notFoundDesc: This smart collection no longer exists.
+  noRules: This collection has no rules configured.
+  noRuleMatch: No items match the current rules.
+  smartDeleted: Smart collection deleted
+  deleteFailed: Failed to delete
+  noCollectionsAvailable: No collections available.
+  itemsAdded: "{{count}} item(s) added to \"{{name}}\""
+  addFailed: Failed to add to collection
+  adding: "Adding\u2026"
+  editSmartCollection: Edit smart collection
+  nameRequired: Name is required
+  noRulesYet: No rules yet. Add at least one rule to filter items.
+  smartUpdated: Smart collection updated
+  smartCreated: Smart collection created
+  smartSaveFailed: Failed to save smart collection
+  saveChanges: Save changes
 library:
   title: Library
   libraries: Libraries
+  movies: Movies
+  tvShows: TV Shows
+  music: Music
+  photos: Photos
+  books: Books
+  noLibraries: No libraries configured
+  noLibrariesDesc: Add a library in the admin panel to start browsing your media collection.
   filterByName: "Filter by name..."
   series: Series
   seasons: Seasons
@@ -76,6 +103,20 @@ library:
   noPlaylists: No playlists yet.
   failedAddPlaylist: Failed to add to playlist
   itemsAddedToPlaylist: "{{count}} item(s) added to \"{{name}}\""
+person:
+  notFound: Person not found.
+  unknown: Unknown
+  titleCount: "{{count}} title"
+  titleCount_plural: "{{count}} titles"
+  noFilmography: No filmography found for this person.
+  other: Other
+  asRole: "as {{role}}"
+  actor: Actor
+  director: Director
+  writer: Writer
+  producer: Producer
+  composer: Composer
+  guestStar: Guest Star
 detail:
   notFound: Media item not found.
 contextMenu:
@@ -156,6 +197,24 @@ playlist:
   field: Field
   op: Operator
   value: Value
+  playlists: Playlists
+  notFound: Playlist not found.
+  noItems: No items
+  noItemsSmart: No media matches these rules.
+  noItemsManual: Add items from the media detail page.
+  removedFromPlaylist: Removed from playlist
+  failedRemove: Failed to remove
+  deleteConfirm: "Delete \"{{name}}\"?"
+  deleted: "Deleted \"{{name}}\""
+  deleteFailed: Failed to delete
+  deletePlaylist: Delete playlist
+  noPlaylistsDesc: Create a playlist to organize your media.
+  editRules: Edit Rules
+  saveRules: Save Rules
+  noRules: "No rules set. Click \"Edit Rules\" to add rules."
+  noRulesYet: No rules yet. Add at least one rule to filter items.
+  rulesSaved: Rules saved
+  rulesSaveFailed: Failed to save rules
 search:
   searching: "Searching..."
   noResults: No results
@@ -163,3 +222,25 @@ search:
   recentSearches: Recent searches
   clearAll: Clear all
   searchFailed: Search failed
+  placeholder: "Search movies, series\u2026"
+  all: All
+  movies: Movies
+  series: Series
+  noResultsFor: "No results for \u201c{{query}}\u201d"
+  noResultsDesc: Try a different search term, check the spelling, or change the filter.
+  resultCount: "{{count}} result"
+  resultCount_plural: "{{count}} results"
+  resultFor: "for \u201c{{query}}\u201d"
+  searchLibrary: Search your media library
+  searchLibraryDesc: Type at least 2 characters to search across all your movies, series, and more.
+streams:
+  audio: Audio
+  subtitles: Subtitles
+  default: Default
+  forced: Forced
+  external: External
+rating:
+  like: Like
+  dislike: Dislike
+  removeLike: Remove like
+  removeDislike: Remove dislike
