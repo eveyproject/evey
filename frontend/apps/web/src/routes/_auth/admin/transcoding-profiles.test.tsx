@@ -7,6 +7,15 @@ const mockListProfiles = vi.fn();
 const mockEveyFetch = vi.fn();
 const mockInvalidateQueries = vi.fn();
 
+vi.mock("@evey/api/src/generated/transcoding.schemas", () => ({
+  V1HWAccelType: {
+    HW_ACCEL_TYPE_NONE: "HW_ACCEL_TYPE_NONE",
+    HW_ACCEL_TYPE_VAAPI: "HW_ACCEL_TYPE_VAAPI",
+    HW_ACCEL_TYPE_NVENC: "HW_ACCEL_TYPE_NVENC",
+    HW_ACCEL_TYPE_QSV: "HW_ACCEL_TYPE_QSV",
+  },
+}));
+
 // Both @evey/api and @evey/api/src/fetcher alias to the same file in vitest config,
 // so we mock under @evey/api/src/fetcher and include everything the component needs.
 vi.mock("@evey/api/src/fetcher", () => ({

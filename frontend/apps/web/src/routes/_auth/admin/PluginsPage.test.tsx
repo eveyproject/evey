@@ -26,6 +26,7 @@ vi.mock("@evey/api", () => ({
 
 vi.mock("@evey/store", () => ({
   toast: { success: vi.fn(), error: vi.fn() },
+  useAuthStore: (selector: (s: { accessToken: string }) => unknown) => selector({ accessToken: "test-token" }),
 }));
 
 vi.mock("@tanstack/react-query", async (importActual) => {

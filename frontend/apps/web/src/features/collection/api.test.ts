@@ -97,7 +97,7 @@ describe("useCreateCollection", () => {
       expect.objectContaining({
         url: "/api/v1/collections",
         method: "POST",
-        body: { name: "Action Movies", rules: [{ field: "genre", operator: "eq", value: "Action" }] },
+        data: { name: "Action Movies", rules: [{ field: "genre", operator: "eq", value: "Action" }] },
       }),
     );
     expect(invalidateSpy).toHaveBeenCalledWith(
@@ -130,7 +130,7 @@ describe("useUpdateCollection", () => {
       expect.objectContaining({
         url: "/api/v1/collections/c-1",
         method: "PUT",
-        body: { name: "Updated", rules: [] },
+        data: { name: "Updated", rules: [] },
       }),
     );
     expect(invalidateSpy).toHaveBeenCalledWith(
