@@ -189,7 +189,7 @@ func Load() (*Config, error) {
 		},
 		Meilisearch: MeilisearchConfig{
 			URL:    envStr("EVEY_MEILI_URL", "http://localhost:7700"),
-			APIKey: envStr("EVEY_MEILI_API_KEY", "change-me-generate-a-random-secret"),
+			APIKey: envStr("EVEY_MEILI_API_KEY", "changeme"),
 		},
 		JWT: JWTConfig{
 			PrivateKeyPath:  envStr("EVEY_JWT_PRIVATE_KEY_PATH", "/data/jwt.key"),
