@@ -44,7 +44,7 @@ func (s *FakeSearchIndex) RemoveMediaItem(_ context.Context, id string) error {
 	return nil
 }
 
-func (s *FakeSearchIndex) Search(_ context.Context, query string, _ map[string]string, limit int64) ([]library.SearchHit, int64, error) {
+func (s *FakeSearchIndex) Search(_ context.Context, query string, _ map[string]string, _ []string, limit int64) ([]library.SearchHit, int64, error) {
 	if s.Err != nil {
 		return nil, 0, s.Err
 	}

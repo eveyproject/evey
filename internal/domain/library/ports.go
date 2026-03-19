@@ -145,7 +145,7 @@ type SearchResult struct {
 type SearchIndex interface {
 	IndexMediaItem(ctx context.Context, item *MediaItem, castNames []string) error
 	RemoveMediaItem(ctx context.Context, id string) error
-	Search(ctx context.Context, query string, filters map[string]string, limit int64) ([]SearchHit, int64, error)
+	Search(ctx context.Context, query string, filters map[string]string, sort []string, limit int64) ([]SearchHit, int64, error)
 }
 
 type FileEvent struct {

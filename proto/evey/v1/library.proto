@@ -323,6 +323,11 @@ message SearchMediaRequest {
   string query = 1;
   MediaItemType type = 2;
   int32 limit = 3;
+  string genre = 4;
+  int32 year_min = 5;
+  int32 year_max = 6;
+  MediaSortField sort_field = 7;
+  SortOrder sort_order = 8;
 }
 
 message SearchMediaResponse {

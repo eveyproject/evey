@@ -2,6 +2,7 @@ package grpcapi
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 
 	eveyv1 "github.com/gravity-zero/evey/gen/evey/v1"
@@ -208,11 +209,35 @@ func (h *libraryHandler) SearchMedia(ctx context.Context, req *eveyv1.SearchMedi
 	if req.Type != eveyv1.MediaItemType_MEDIA_ITEM_TYPE_UNSPECIFIED {
 		filters["type"] = mediaItemTypeFromProto[req.Type]
 	}
+	if req.Genre != "" {
+		filters["genres"] = req.Genre
+	}
+	if req.YearMin > 0 {
+		filters["year_min"] = fmt.Sprintf("%d", req.YearMin)
+	}
+	if req.YearMax > 0 {
+		filters["year_max"] = fmt.Sprintf("%d", req.YearMax)
+	}
+	var sort []string
+	if req.SortField != eveyv1.MediaSortField_MEDIA_SORT_FIELD_UNSPECIFIED {
+		dir := "asc"
+		if req.SortOrder == eveyv1.SortOrder_SORT_ORDER_DESC {
+			dir = "desc"
+		}
+		switch req.SortField {
+		case eveyv1.MediaSortField_MEDIA_SORT_FIELD_TITLE:
+			sort = append(sort, "title:"+dir)
+		case eveyv1.MediaSortField_MEDIA_SORT_FIELD_YEAR:
+			sort = append(sort, "year:"+dir)
+		case eveyv1.MediaSortField_MEDIA_SORT_FIELD_DATE_ADDED:
+			sort = append(sort, "added_at:"+dir)
+		}
+	}
 	limit := int64(req.Limit)
 	if limit <= 0 {
 		limit = 40
 	}
-	hits, total, err := h.query.SearchMedia(ctx, req.Query, filters, limit)
+	hits, total, err := h.query.SearchMedia(ctx, req.Query, filters, sort, limit)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "search media: %v", err)
 	}
