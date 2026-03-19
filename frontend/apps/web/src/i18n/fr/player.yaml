@@ -2,34 +2,34 @@ controls:
   play: Lecture
   pause: Pause
   mute: Couper le son
-  unmute: "R\xE9activer le son"
-  fullscreen: Plein \xE9cran
-  exitFullscreen: "Quitter le plein \xE9cran"
-  pip: Image dans l'image
+  unmute: Réactiver le son
+  fullscreen: Plein écran
+  exitFullscreen: Quitter le plein écran
+  pip: "Image dans l'image"
   exitPip: "Quitter l'image dans l'image"
-  settings: "Param\xE8tres"
-  episodes: "\xC9pisodes"
+  settings: Paramètres
+  episodes: Épisodes
   chapters: Chapitres
   rewind: "Reculer de {{seconds}}s"
   forward: "Avancer de {{seconds}}s"
-  previousEpisode: "\xC9pisode pr\xE9c\xE9dent"
-  nextEpisode: "\xC9pisode suivant"
+  previousEpisode: Épisode précédent
+  nextEpisode: Épisode suivant
   seek: Rechercher
   volume: Volume
 settings:
-  quality: "Qualit\xE9"
+  quality: Qualité
   auto: Auto
   audio: Audio
   subtitles: Sous-titres
   speed: Vitesse
   subtitleStyle: Style des sous-titres
   normal: Normal
-  uploadSubtitle: "T\xE9l\xE9verser un sous-titre\u2026"
-  off: "D\xE9sactiv\xE9"
+  uploadSubtitle: "Téléverser un sous-titre…"
+  off: Désactivé
 subtitleStyle:
   size: Taille
   textColor: Couleur du texte
-  background: "Arri\xE8re-plan"
+  background: Arrière-plan
   font: Police
   position: Position
   top: Haut
@@ -43,11 +43,11 @@ colors:
   orange: Orange
 bgColors:
   black: Noir
-  darkGrey: Gris fonc\xE9
+  darkGrey: Gris foncé
   navy: Marine
   none: Aucun
 fonts:
-  default: "Par d\xE9faut"
+  default: Par défaut
   sansSerif: Sans-serif
   serif: Serif
   monospace: Monospace
@@ -55,25 +55,25 @@ fonts:
 quality:
   original: Original
 nextEpisodeOverlay:
-  upNext: Up Next
-  nextIn: "Next in {{seconds}}s"
-  playNow: Play Now
-  episode: "Episode {{number}}"
-  nextEpisode: Next Episode
-skipIntro: Skip Intro
-download: Download
+  upNext: "À suivre"
+  nextIn: "Suivant dans {{seconds}}s"
+  playNow: "Lire maintenant"
+  episode: "Épisode {{number}}"
+  nextEpisode: "Épisode suivant"
+skipIntro: "Passer l'intro"
+download: "Télécharger"
 shortcuts:
-  title: Keyboard Shortcuts
-  playPause: Play / Pause
-  toggleFullscreen: Toggle fullscreen
-  toggleMute: Toggle mute
-  seekBack: "Seek back {{seconds}}s"
-  seekForward: "Seek forward {{seconds}}s"
-  volumeUp: Volume up
-  volumeDown: Volume down
-  seekPercent: "Seek to 0%–90%"
-  toggleCaptions: Toggle captions
-  decreaseSpeed: Decrease speed
-  increaseSpeed: Increase speed
-  pip: Picture-in-Picture
-  showShortcuts: Show shortcuts
+  title: "Raccourcis clavier"
+  playPause: "Lecture / Pause"
+  toggleFullscreen: "Basculer en plein écran"
+  toggleMute: "Couper/rétablir le son"
+  seekBack: "Reculer de {{seconds}}s"
+  seekForward: "Avancer de {{seconds}}s"
+  volumeUp: "Augmenter le volume"
+  volumeDown: "Baisser le volume"
+  seekPercent: "Aller à 0%–90%"
+  toggleCaptions: "Basculer les sous-titres"
+  decreaseSpeed: "Réduire la vitesse"
+  increaseSpeed: "Augmenter la vitesse"
+  pip: "Image dans l'image"
+  showShortcuts: "Afficher les raccourcis"

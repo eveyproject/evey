@@ -2,127 +2,127 @@ setup:
   welcome: Bienvenido a Evey
   description: "Configuremos tu servidor multimedia. Solo toma un minuto."
   getStarted: Comenzar
-  stepOf: "Paso {{current}} de {{total}} \u2014 {{name}}"
+  stepOf: "Paso {{current}} de {{total}} — {{name}}"
   steps:
     welcome: Bienvenida
     admin: Cuenta de administrador
     library: Primera biblioteca
   createAdmin: Crear cuenta de administrador
   username: Nombre de usuario
-  password: "Contrase\xF1a"
-  confirmPassword: "Confirmar contrase\xF1a"
-  usernameMin: "M\xEDnimo 3 caracteres"
-  passwordMin: "M\xEDnimo 8 caracteres"
-  passwordMismatch: "Las contrase\xF1as no coinciden"
-  setupFailed: "Error en la configuraci\xF3n"
-  addLibrary: "A\xF1ade tu primera biblioteca"
-  addLibraryHint: "Puedes a\xF1adir m\xE1s bibliotecas luego desde el panel de administraci\xF3n."
+  password: Contraseña
+  confirmPassword: Confirmar contraseña
+  usernameMin: Mínimo 3 caracteres
+  passwordMin: Mínimo 8 caracteres
+  passwordMismatch: Las contraseñas no coinciden
+  setupFailed: Error en la configuración
+  addLibrary: Añade tu primera biblioteca
+  addLibraryHint: "Puedes añadir más bibliotecas luego desde el panel de administración."
   libraryName: Nombre de la biblioteca
   libraryType: Tipo de biblioteca
   libraryNameRequired: El nombre de la biblioteca es obligatorio
   libraryTypes:
-    movies: "Pel\xEDculas"
+    movies: Películas
     shows: Series
-    music: "M\xFAsica"
+    music: Música
     photos: Fotos
-login: # TODO translate
-  signIn: Sign in
-  signInToAccount: Sign in to your account
-  username: Username
-  password: Password
-  invalidCredentials: Invalid username or password
-  passwordTooShort: Password must be at least 8 characters
-  loginFailed: Login failed. Please try again.
-  ssoFailed: SSO sign-in failed. Please try again.
-  or: or
-  signInWithSSO: Sign in with SSO
-register: # TODO translate
-  createAccount: Create Account
-  createAccountBtn: Create account
-  invitedMessage: "You've been invited! Fill in your details below."
-  signUpWithInvite: Sign up with an invite code
-  inviteCodeLabel: "Invite code:"
-  username: Username
-  email: Email
-  password: Password
-  confirmPassword: Confirm password
-  inviteCode: Invite code
-  passwordMismatch: Passwords do not match
-  passwordMin: Password must be at least 8 characters
-  registrationFailed: Registration failed
-  alreadyHaveAccount: Already have an account?
-  signIn: Sign in
-profile: # TODO translate
-  title: Profile
-  edit: Edit
-  username: Username
-  email: Email
-  save: Save
-  cancel: Cancel
-  admin: Admin
-  memberSince: "Member since {{date}}"
-  profileUpdated: Profile updated
-  failedToUpdate: Failed to update profile
+login:
+  signIn: "Iniciar sesión"
+  signInToAccount: "Inicia sesión en tu cuenta"
+  username: "Nombre de usuario"
+  password: "Contraseña"
+  invalidCredentials: "Nombre de usuario o contraseña inválidos"
+  passwordTooShort: "La contraseña debe tener al menos 8 caracteres"
+  loginFailed: "Error al iniciar sesión. Inténtalo de nuevo."
+  ssoFailed: "Error de inicio de sesión con SSO. Inténtalo de nuevo."
+  or: "o"
+  signInWithSSO: "Iniciar sesión con SSO"
+register:
+  createAccount: "Crear cuenta"
+  createAccountBtn: "Crear cuenta"
+  invitedMessage: "¡Has sido invitado! Completa tus datos a continuación."
+  signUpWithInvite: "Regístrate con un código de invitación"
+  inviteCodeLabel: "Código de invitación:"
+  username: "Nombre de usuario"
+  email: "Correo electrónico"
+  password: "Contraseña"
+  confirmPassword: "Confirmar contraseña"
+  inviteCode: "Código de invitación"
+  passwordMismatch: "Las contraseñas no coinciden"
+  passwordMin: "La contraseña debe tener al menos 8 caracteres"
+  registrationFailed: "Error en el registro"
+  alreadyHaveAccount: "¿Ya tienes una cuenta?"
+  signIn: "Iniciar sesión"
+profile:
+  title: "Perfil"
+  edit: "Editar"
+  username: "Nombre de usuario"
+  email: "Correo electrónico"
+  save: "Guardar"
+  cancel: "Cancelar"
+  admin: "Administrador"
+  memberSince: "Miembro desde {{date}}"
+  profileUpdated: "Perfil actualizado"
+  failedToUpdate: "Error al actualizar el perfil"
   nav:
-    settings: Settings
-    settingsDesc: "Theme, notifications, password"
-    watchHistory: Watch History
-    watchHistoryDesc: Your recently watched media
-    notifications: Notifications
-    notificationsDesc: Alerts and updates
-    adminPanel: Admin Panel
-    adminPanelDesc: Manage server and users
-settings: # TODO translate
-  title: Settings
+    settings: "Ajustes"
+    settingsDesc: "Tema, notificaciones, contraseña"
+    watchHistory: "Historial de reproducción"
+    watchHistoryDesc: "Tu contenido visto recientemente"
+    notifications: "Notificaciones"
+    notificationsDesc: "Alertas y actualizaciones"
+    adminPanel: "Panel de administración"
+    adminPanelDesc: "Administrar servidor y usuarios"
+settings:
+  title: "Ajustes"
   tabs:
-    appearance: Appearance
-    playback: Playback
-    notifications: Notifications
-    account: Account
-    parental: Parental
-    devices: Devices
-    apiKeys: API Keys
+    appearance: "Apariencia"
+    playback: "Reproducción"
+    notifications: "Notificaciones"
+    account: "Cuenta"
+    parental: "Control parental"
+    devices: "Dispositivos"
+    apiKeys: "Claves API"
   playback:
-    bitrateTitle: Streaming Bitrate Limit
-    bitrateDesc: Maximum bitrate for transcoded streams. Does not affect direct play.
-    maxBitrate: Max bitrate
-    bitrateUpdated: Bitrate limit updated
-    bitrateFailed: Failed to update bitrate limit
+    bitrateTitle: "Límite de bitrate de streaming"
+    bitrateDesc: "Bitrate máximo para streams transcodificados. No afecta la reproducción directa."
+    maxBitrate: "Bitrate máximo"
+    bitrateUpdated: "Límite de bitrate actualizado"
+    bitrateFailed: "Error al actualizar el límite de bitrate"
   account:
-    changePassword: Change Password
-    changePasswordDesc: Use a strong password with at least 8 characters.
-    newPassword: New password
-    confirmPassword: Confirm password
-    updatePassword: Update password
-    passwordUpdated: Password updated
-    passwordFailed: Failed to update password
-    passwordMismatch: Passwords do not match
-    passwordMin: Password must be at least 8 characters
+    changePassword: "Cambiar contraseña"
+    changePasswordDesc: "Usa una contraseña segura de al menos 8 caracteres."
+    newPassword: "Nueva contraseña"
+    confirmPassword: "Confirmar contraseña"
+    updatePassword: "Actualizar contraseña"
+    passwordUpdated: "Contraseña actualizada"
+    passwordFailed: "Error al actualizar la contraseña"
+    passwordMismatch: "Las contraseñas no coinciden"
+    passwordMin: "La contraseña debe tener al menos 8 caracteres"
   parental:
-    title: Parental Controls
-    description: Restrict content by rating for this profile.
-    enable: Enable parental controls
-    enableDesc: Filter content by rating
-    maxRating: Max content rating
-    saveRating: Save rating
-    noProfile: No profile found.
-    updated: Parental controls updated
-    failedToUpdate: Failed to update
+    title: "Control parental"
+    description: "Restringir contenido por clasificación para este perfil."
+    enable: "Activar control parental"
+    enableDesc: "Filtrar contenido por clasificación"
+    maxRating: "Clasificación máxima"
+    saveRating: "Guardar clasificación"
+    noProfile: "No se encontró perfil."
+    updated: "Control parental actualizado"
+    failedToUpdate: "Error al actualizar"
     pin:
-      title: Set PIN
-      description: 4-digit PIN to unlock restricted content.
-      newPin: New PIN
-      confirmPin: Confirm PIN
-      savePin: Save PIN
-      saved: "PIN saved"
-      mustBe4: PIN must be 4 digits
-      mismatch: PINs do not match
+      title: "Establecer PIN"
+      description: "PIN de 4 dígitos para desbloquear contenido restringido."
+      newPin: "Nuevo PIN"
+      confirmPin: "Confirmar PIN"
+      savePin: "Guardar PIN"
+      saved: "PIN guardado"
+      mustBe4: "El PIN debe tener 4 dígitos"
+      mismatch: "Los PIN no coinciden"
     ratings:
-      none: No restriction
-      g: "G — General Audiences"
-      pg: "PG — Parental Guidance"
-      pg13: "PG-13 — Parents Strongly Cautioned"
-      r: "R — Restricted"
-      nc17: "NC-17 — Adults Only"
+      none: "Sin restricción"
+      g: "G — Público general"
+      pg: "PG — Guía parental"
+      pg13: "PG-13 — Precaución parental"
+      r: "R — Restringido"
+      nc17: "NC-17 — Solo adultos"
     bitrates:
-      unlimited: Unlimited
+      unlimited: "Ilimitado"

@@ -1,39 +1,39 @@
-back: "\u0935\u093E\u092A\u0938"
-save: "\u0938\u0939\u0947\u091C\u0947\u0902"
-cancel: "\u0930\u0926\u094D\u0926 \u0915\u0930\u0947\u0902"
-create: "\u092C\u0928\u093E\u090F\u0902"
-delete: "\u092E\u093F\u091F\u093E\u090F\u0902"
-enable: "\u0938\u0915\u094D\u0937\u092E \u0915\u0930\u0947\u0902"
-disable: "\u0905\u0915\u094D\u0937\u092E \u0915\u0930\u0947\u0902"
-skip: "\u091B\u094B\u0921\u093C\u0947\u0902"
-continue: "\u091C\u093E\u0930\u0940 \u0930\u0916\u0947\u0902"
-loading: "\u0932\u094B\u0921 \u0939\u094B \u0930\u0939\u093E \u0939\u0948\u2026"
-error: "\u0924\u094D\u0930\u0941\u091F\u093F"
-unknown: "\u0905\u091C\u094D\u091E\u093E\u0924"
-settings: "\u0938\u0947\u091F\u093F\u0902\u0917\u094D\u0938"
-select: Select # TODO translate
-selectAll: Select all # TODO translate
-deselectAll: Deselect all # TODO translate
-exit: Exit # TODO translate
-search: Search # TODO translate
-or: or # TODO translate
-previous: Previous # TODO translate
-next: Next # TODO translate
-edit: Edit # TODO translate
-all: All # TODO translate
-items: "{{count}} items" # TODO translate
-item: "{{count}} item" # TODO translate
-filtered: "(filtered)" # TODO translate
-noItemsMatch: No items match the current filter. # TODO translate
-notifications: # TODO translate
-  title: Notifications
-  markRead: Mark read
-  markAllRead: Mark all read
-  deleteAll: Delete all
-  deleteAllTitle: Delete all notifications
-  deleteAllConfirm: This will permanently delete all your notifications. This action cannot be undone.
-  noNotifications: No notifications
-  allCaughtUp: "You're all caught up."
-  justNow: Just now
-watchHistory: # TODO translate
-  title: Watch History
+back: "वापस"
+save: "सहेजें"
+cancel: "रद्द करें"
+create: "बनाएं"
+delete: "मिटाएं"
+enable: "सक्षम करें"
+disable: "अक्षम करें"
+skip: "छोड़ें"
+continue: "जारी रखें"
+loading: "लोड हो रहा है…"
+error: "त्रुटि"
+unknown: "अज्ञात"
+settings: "सेटिंग्स"
+select: "चुनें"
+selectAll: "सभी चुनें"
+deselectAll: "सभी अचयनित करें"
+exit: "बाहर निकलें"
+search: "खोजें"
+or: "या"
+previous: "पिछला"
+next: "अगला"
+edit: "संपादित करें"
+all: "सभी"
+items: "{{count}} आइटम"
+item: "{{count}} आइटम"
+filtered: "(फ़िल्टर किया गया)"
+noItemsMatch: "वर्तमान फ़िल्टर से कोई आइटम मेल नहीं खाता।"
+notifications:
+  title: "सूचनाएं"
+  markRead: "पढ़ा हुआ चिह्नित करें"
+  markAllRead: "सभी पढ़ा हुआ चिह्नित करें"
+  deleteAll: "सभी मिटाएं"
+  deleteAllTitle: "सभी सूचनाएं मिटाएं"
+  deleteAllConfirm: "यह आपकी सभी सूचनाओं को स्थायी रूप से मिटा देगा। यह क्रिया पूर्ववत नहीं की जा सकती।"
+  noNotifications: "कोई सूचना नहीं"
+  allCaughtUp: "सब देख लिया।"
+  justNow: "अभी"
+watchHistory:
+  title: "देखने का इतिहास"

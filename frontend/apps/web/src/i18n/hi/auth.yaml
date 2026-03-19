@@ -1,128 +1,128 @@
 setup:
-  welcome: "Evey \u092E\u0947\u0902 \u0906\u092A\u0915\u093E \u0938\u094D\u0935\u093E\u0917\u0924 \u0939\u0948"
-  description: "\u0906\u0907\u090F \u0906\u092A\u0915\u093E \u092E\u0940\u0921\u093F\u092F\u093E \u0938\u0930\u094D\u0935\u0930 \u0938\u0947\u091F\u0905\u092A \u0915\u0930\u0947\u0902\u0964 \u092C\u0938 \u090F\u0915 \u092E\u093F\u0928\u091F \u0932\u0917\u0947\u0917\u093E\u0964"
-  getStarted: "\u0936\u0941\u0930\u0942 \u0915\u0930\u0947\u0902"
-  stepOf: "\u091A\u0930\u0923 {{current}} / {{total}} \u2014 {{name}}"
+  welcome: "Evey में आपका स्वागत है"
+  description: "आइए आपका मीडिया सर्वर सेटअप करें। बस एक मिनट लगेगा।"
+  getStarted: "शुरू करें"
+  stepOf: "चरण {{current}} / {{total}} — {{name}}"
   steps:
-    welcome: "\u0938\u094D\u0935\u093E\u0917\u0924"
-    admin: "\u090F\u0921\u092E\u093F\u0928 \u0916\u093E\u0924\u093E"
-    library: "\u092A\u0939\u0932\u0940 \u0932\u093E\u0907\u092C\u094D\u0930\u0947\u0930\u0940"
-  createAdmin: "\u090F\u0921\u092E\u093F\u0928 \u0916\u093E\u0924\u093E \u092C\u0928\u093E\u090F\u0902"
-  username: "\u0909\u092A\u092F\u094B\u0917\u0915\u0930\u094D\u0924\u093E \u0928\u093E\u092E"
-  password: "\u092A\u093E\u0938\u0935\u0930\u094D\u0921"
-  confirmPassword: "\u092A\u093E\u0938\u0935\u0930\u094D\u0921 \u0915\u0940 \u092A\u0941\u0937\u094D\u091F\u093F \u0915\u0930\u0947\u0902"
-  usernameMin: "\u0915\u092E \u0938\u0947 \u0915\u092E 3 \u0905\u0915\u094D\u0937\u0930"
-  passwordMin: "\u0915\u092E \u0938\u0947 \u0915\u092E 8 \u0905\u0915\u094D\u0937\u0930"
-  passwordMismatch: "\u092A\u093E\u0938\u0935\u0930\u094D\u0921 \u092E\u0947\u0932 \u0928\u0939\u0940\u0902 \u0916\u093E\u0924\u0947"
-  setupFailed: "\u0938\u0947\u091F\u0905\u092A \u0935\u093F\u092B\u0932"
-  addLibrary: "\u0905\u092A\u0928\u0940 \u092A\u0939\u0932\u0940 \u0932\u093E\u0907\u092C\u094D\u0930\u0947\u0930\u0940 \u091C\u094B\u0921\u093C\u0947\u0902"
-  addLibraryHint: "\u0906\u092A \u092C\u093E\u0926 \u092E\u0947\u0902 \u090F\u0921\u092E\u093F\u0928 \u092A\u0948\u0928\u0932 \u0938\u0947 \u0914\u0930 \u0932\u093E\u0907\u092C\u094D\u0930\u0947\u0930\u0940 \u091C\u094B\u0921\u093C \u0938\u0915\u0924\u0947 \u0939\u0948\u0902\u0964"
-  libraryName: "\u0932\u093E\u0907\u092C\u094D\u0930\u0947\u0930\u0940 \u0915\u093E \u0928\u093E\u092E"
-  libraryType: "\u0932\u093E\u0907\u092C\u094D\u0930\u0947\u0930\u0940 \u0915\u093E \u092A\u094D\u0930\u0915\u093E\u0930"
-  libraryNameRequired: "\u0932\u093E\u0907\u092C\u094D\u0930\u0947\u0930\u0940 \u0915\u093E \u0928\u093E\u092E \u0906\u0935\u0936\u094D\u092F\u0915 \u0939\u0948"
+    welcome: "स्वागत"
+    admin: "एडमिन खाता"
+    library: "पहली लाइब्रेरी"
+  createAdmin: "एडमिन खाता बनाएं"
+  username: "उपयोगकर्ता नाम"
+  password: "पासवर्ड"
+  confirmPassword: "पासवर्ड की पुष्टि करें"
+  usernameMin: "कम से कम 3 अक्षर"
+  passwordMin: "कम से कम 8 अक्षर"
+  passwordMismatch: "पासवर्ड मेल नहीं खाते"
+  setupFailed: "सेटअप विफल"
+  addLibrary: "अपनी पहली लाइब्रेरी जोड़ें"
+  addLibraryHint: "आप बाद में एडमिन पैनल से और लाइब्रेरी जोड़ सकते हैं।"
+  libraryName: "लाइब्रेरी का नाम"
+  libraryType: "लाइब्रेरी का प्रकार"
+  libraryNameRequired: "लाइब्रेरी का नाम आवश्यक है"
   libraryTypes:
-    movies: "\u092B\u093C\u093F\u0932\u094D\u092E\u0947\u0902"
-    shows: "\u0936\u094B"
-    music: "\u0938\u0902\u0917\u0940\u0924"
-    photos: "\u092B\u093C\u094B\u091F\u094B"
-login: # TODO translate
-  signIn: Sign in
-  signInToAccount: Sign in to your account
-  username: Username
-  password: Password
-  invalidCredentials: Invalid username or password
-  passwordTooShort: Password must be at least 8 characters
-  loginFailed: Login failed. Please try again.
-  ssoFailed: SSO sign-in failed. Please try again.
-  or: or
-  signInWithSSO: Sign in with SSO
-register: # TODO translate
-  createAccount: Create Account
-  createAccountBtn: Create account
-  invitedMessage: "You've been invited! Fill in your details below."
-  signUpWithInvite: Sign up with an invite code
-  inviteCodeLabel: "Invite code:"
-  username: Username
-  email: Email
-  password: Password
-  confirmPassword: Confirm password
-  inviteCode: Invite code
-  passwordMismatch: Passwords do not match
-  passwordMin: Password must be at least 8 characters
-  registrationFailed: Registration failed
-  alreadyHaveAccount: Already have an account?
-  signIn: Sign in
-profile: # TODO translate
-  title: Profile
-  edit: Edit
-  username: Username
-  email: Email
-  save: Save
-  cancel: Cancel
-  admin: Admin
-  memberSince: "Member since {{date}}"
-  profileUpdated: Profile updated
-  failedToUpdate: Failed to update profile
+    movies: "फ़िल्में"
+    shows: "शो"
+    music: "संगीत"
+    photos: "फ़ोटो"
+login:
+  signIn: "साइन इन"
+  signInToAccount: "अपने खाते में साइन इन करें"
+  username: "उपयोगकर्ता नाम"
+  password: "पासवर्ड"
+  invalidCredentials: "अमान्य उपयोगकर्ता नाम या पासवर्ड"
+  passwordTooShort: "पासवर्ड कम से कम 8 अक्षरों का होना चाहिए"
+  loginFailed: "लॉगिन विफल। कृपया पुनः प्रयास करें।"
+  ssoFailed: "SSO साइन इन विफल। कृपया पुनः प्रयास करें।"
+  or: "या"
+  signInWithSSO: "SSO से साइन इन करें"
+register:
+  createAccount: "खाता बनाएं"
+  createAccountBtn: "खाता बनाएं"
+  invitedMessage: "आपको आमंत्रित किया गया है! नीचे अपनी जानकारी भरें।"
+  signUpWithInvite: "आमंत्रण कोड से साइन अप करें"
+  inviteCodeLabel: "आमंत्रण कोड:"
+  username: "उपयोगकर्ता नाम"
+  email: "ईमेल"
+  password: "पासवर्ड"
+  confirmPassword: "पासवर्ड की पुष्टि करें"
+  inviteCode: "आमंत्रण कोड"
+  passwordMismatch: "पासवर्ड मेल नहीं खाते"
+  passwordMin: "पासवर्ड कम से कम 8 अक्षरों का होना चाहिए"
+  registrationFailed: "पंजीकरण विफल"
+  alreadyHaveAccount: "पहले से खाता है?"
+  signIn: "साइन इन"
+profile:
+  title: "प्रोफ़ाइल"
+  edit: "संपादित करें"
+  username: "उपयोगकर्ता नाम"
+  email: "ईमेल"
+  save: "सहेजें"
+  cancel: "रद्द करें"
+  admin: "एडमिन"
+  memberSince: "सदस्य {{date}} से"
+  profileUpdated: "प्रोफ़ाइल अपडेट हुई"
+  failedToUpdate: "प्रोफ़ाइल अपडेट करने में विफल"
   nav:
-    settings: Settings
-    settingsDesc: "Theme, notifications, password"
-    watchHistory: Watch History
-    watchHistoryDesc: Your recently watched media
-    notifications: Notifications
-    notificationsDesc: Alerts and updates
-    adminPanel: Admin Panel
-    adminPanelDesc: Manage server and users
-settings: # TODO translate
-  title: Settings
+    settings: "सेटिंग्स"
+    settingsDesc: "थीम, सूचनाएं, पासवर्ड"
+    watchHistory: "देखने का इतिहास"
+    watchHistoryDesc: "आपका हाल ही में देखा गया मीडिया"
+    notifications: "सूचनाएं"
+    notificationsDesc: "अलर्ट और अपडेट"
+    adminPanel: "एडमिन पैनल"
+    adminPanelDesc: "सर्वर और उपयोगकर्ता प्रबंधित करें"
+settings:
+  title: "सेटिंग्स"
   tabs:
-    appearance: Appearance
-    playback: Playback
-    notifications: Notifications
-    account: Account
-    parental: Parental
-    devices: Devices
-    apiKeys: API Keys
+    appearance: "दिखावट"
+    playback: "प्लेबैक"
+    notifications: "सूचनाएं"
+    account: "खाता"
+    parental: "अभिभावक नियंत्रण"
+    devices: "डिवाइस"
+    apiKeys: "API कुंजियां"
   playback:
-    bitrateTitle: Streaming Bitrate Limit
-    bitrateDesc: Maximum bitrate for transcoded streams. Does not affect direct play.
-    maxBitrate: Max bitrate
-    bitrateUpdated: Bitrate limit updated
-    bitrateFailed: Failed to update bitrate limit
+    bitrateTitle: "स्ट्रीमिंग बिटरेट सीमा"
+    bitrateDesc: "ट्रांसकोड स्ट्रीम के लिए अधिकतम बिटरेट। सीधे प्लेबैक को प्रभावित नहीं करता।"
+    maxBitrate: "अधिकतम बिटरेट"
+    bitrateUpdated: "बिटरेट सीमा अपडेट हुई"
+    bitrateFailed: "बिटरेट सीमा अपडेट करने में विफल"
   account:
-    changePassword: Change Password
-    changePasswordDesc: Use a strong password with at least 8 characters.
-    newPassword: New password
-    confirmPassword: Confirm password
-    updatePassword: Update password
-    passwordUpdated: Password updated
-    passwordFailed: Failed to update password
-    passwordMismatch: Passwords do not match
-    passwordMin: Password must be at least 8 characters
+    changePassword: "पासवर्ड बदलें"
+    changePasswordDesc: "कम से कम 8 अक्षरों का मजबूत पासवर्ड उपयोग करें।"
+    newPassword: "नया पासवर्ड"
+    confirmPassword: "पासवर्ड की पुष्टि करें"
+    updatePassword: "पासवर्ड अपडेट करें"
+    passwordUpdated: "पासवर्ड अपडेट हुआ"
+    passwordFailed: "पासवर्ड अपडेट करने में विफल"
+    passwordMismatch: "पासवर्ड मेल नहीं खाते"
+    passwordMin: "पासवर्ड कम से कम 8 अक्षरों का होना चाहिए"
   parental:
-    title: Parental Controls
-    description: Restrict content by rating for this profile.
-    enable: Enable parental controls
-    enableDesc: Filter content by rating
-    maxRating: Max content rating
-    saveRating: Save rating
-    noProfile: No profile found.
-    updated: Parental controls updated
-    failedToUpdate: Failed to update
+    title: "अभिभावक नियंत्रण"
+    description: "इस प्रोफ़ाइल के लिए रेटिंग द्वारा सामग्री प्रतिबंधित करें।"
+    enable: "अभिभावक नियंत्रण सक्षम करें"
+    enableDesc: "रेटिंग द्वारा सामग्री फ़िल्टर करें"
+    maxRating: "अधिकतम सामग्री रेटिंग"
+    saveRating: "रेटिंग सहेजें"
+    noProfile: "कोई प्रोफ़ाइल नहीं मिली।"
+    updated: "अभिभावक नियंत्रण अपडेट हुआ"
+    failedToUpdate: "अपडेट करने में विफल"
     pin:
-      title: Set PIN
-      description: 4-digit PIN to unlock restricted content.
-      newPin: New PIN
-      confirmPin: Confirm PIN
-      savePin: Save PIN
-      saved: "PIN saved"
-      mustBe4: PIN must be 4 digits
-      mismatch: PINs do not match
+      title: "PIN सेट करें"
+      description: "प्रतिबंधित सामग्री अनलॉक करने के लिए 4 अंकों का PIN।"
+      newPin: "नया PIN"
+      confirmPin: "PIN की पुष्टि करें"
+      savePin: "PIN सहेजें"
+      saved: "PIN सहेजा गया"
+      mustBe4: "PIN 4 अंकों का होना चाहिए"
+      mismatch: "PIN मेल नहीं खाते"
     ratings:
-      none: No restriction
-      g: "G — General Audiences"
-      pg: "PG — Parental Guidance"
-      pg13: "PG-13 — Parents Strongly Cautioned"
-      r: "R — Restricted"
-      nc17: "NC-17 — Adults Only"
+      none: "कोई प्रतिबंध नहीं"
+      g: "G — सामान्य दर्शक"
+      pg: "PG — अभिभावक मार्गदर्शन"
+      pg13: "PG-13 — अभिभावक विशेष सावधानी"
+      r: "R — प्रतिबंधित"
+      nc17: "NC-17 — केवल वयस्क"
     bitrates:
-      unlimited: Unlimited
+      unlimited: "असीमित"

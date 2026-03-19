@@ -2,114 +2,114 @@ season: "Saison {{number}}"
 episode: "E{{number}}"
 chapter: "Chapitre {{number}}"
 track: "Piste {{number}}"
-burnIn: "(incrust\xE9)"
-home: # TODO translate
-  play: Play
-  moreInfo: More Info
-  continueWatching: Continue Watching
-  upNext: Up Next
-  recentlyAdded: Recently Added
-  mostPopular: Most Popular
-  recommendedForYou: Recommended For You
-  collections: Collections
-  emptyLibrary: Your library is empty
-  emptyLibraryDesc: "Go to Admin → Libraries to add a media folder."
-  goToLibraries: Go to Libraries
-  library: Library
-favorites: # TODO translate
-  title: Favorites
-  searchPlaceholder: "Search…"
-  all: All
-  movies: Movies
-  series: Series
-  recentlyAdded: Recently Added
-  titleAZ: "Title A–Z"
-  titleZA: "Title Z–A"
-  yearNewest: Year (newest)
-  rating: Rating
-  noFavorites: No favorites yet
-  noFavoritesDesc: Click the heart icon on any media item to add it to your favorites.
-  addToPlaylist: Add to Playlist
-  noPlaylists: No playlists yet.
-  failedAddPlaylist: Failed to add to playlist
-  itemsAddedToPlaylist: "{{count}} item(s) added to \"{{name}}\""
-  markedWatched: "{{count}} item(s) marked as watched"
-  markedUnwatched: "{{count}} item(s) marked as unwatched"
-collections: # TODO translate
-  title: Collections
-  newSmartCollection: New smart collection
-  smartCollections: Smart Collections
-  tmdbCollections: TMDB Collections
-  noCollections: No collections yet
-  noCollectionsDesc: Collections are automatically populated from TMDB sagas.
-  deleteConfirm: Delete this collection?
-  deleteSmartConfirm: Delete this smart collection?
-  browseResults: "Browse results →"
-library: # TODO translate
-  title: Library
-  libraries: Libraries
-  filterByName: "Filter by name..."
-  series: Series
-  seasons: Seasons
-  episodes: Episodes
-  titleSort: Title
-  year: Year
-  ratingSort: Rating
-  dateAdded: Date Added
-  ascending: Ascending
-  descending: Descending
-  switchToList: Switch to list view
-  switchToGrid: Switch to grid view
-  noItems: No items found
-  noItemsFiltered: Try adjusting your filters or search term.
-  noItemsType: Try a different filter, or scan the library to add content.
-  noItemsEmpty: This library is empty. Trigger a scan to add content.
-  goToAdmin: Go to Admin
-  loadMore: "Load more ({{current}} of {{total}})"
-  selected: selected
-  addToFavorites: Add to favorites
-  addedToFavorites: "{{count}} item(s) added to favorites"
-  failedFavorites: Failed to add some items to favorites
-  duration: Duration
-  type: Type
-  addToPlaylist: Add to Playlist
-  noPlaylists: No playlists yet.
-  failedAddPlaylist: Failed to add to playlist
-  itemsAddedToPlaylist: "{{count}} item(s) added to \"{{name}}\""
-detail: # TODO translate
-  notFound: Media item not found.
-music: # TODO translate
-  title: Music
-  tracks: Tracks
-  albums: Albums
-  artists: Artists
-  searchPlaceholder: "Search tracks, artists, albums…"
-  loading: "Loading…"
-  noTracks: No tracks found.
-  noTracksSearch: No tracks match your search.
-  noAlbums: No albums found.
-  noArtists: No artists found.
-  noLibraries: No music libraries found. Add one in the Admin panel.
-  trackDeleted: Track deleted
-  failedDeleteTrack: Failed to delete track
-  deleteTrackConfirm: Delete this track? This cannot be undone.
-  deleteTrack: Delete track
-  trackCount: "{{count}} track"
-  trackCount_plural: "{{count}} tracks"
+burnIn: "(incrusté)"
+home:
+  play: "Lecture"
+  moreInfo: "Plus d'infos"
+  continueWatching: "Reprendre la lecture"
+  upNext: "À suivre"
+  recentlyAdded: "Ajoutés récemment"
+  mostPopular: "Les plus populaires"
+  recommendedForYou: "Recommandé pour vous"
+  collections: "Collections"
+  emptyLibrary: "Votre bibliothèque est vide"
+  emptyLibraryDesc: "Allez dans Administration → Bibliothèques pour ajouter un dossier multimédia."
+  goToLibraries: "Aller aux bibliothèques"
+  library: "Bibliothèque"
+favorites:
+  title: "Favoris"
+  searchPlaceholder: "Rechercher…"
+  all: "Tout"
+  movies: "Films"
+  series: "Séries"
+  recentlyAdded: "Ajoutés récemment"
+  titleAZ: "Titre A–Z"
+  titleZA: "Titre Z–A"
+  yearNewest: "Année (plus récent)"
+  rating: "Note"
+  noFavorites: "Pas encore de favoris"
+  noFavoritesDesc: "Cliquez sur l'icône cœur de n'importe quel média pour l'ajouter aux favoris."
+  addToPlaylist: "Ajouter à la liste de lecture"
+  noPlaylists: "Pas encore de listes de lecture."
+  failedAddPlaylist: "Échec de l'ajout à la liste de lecture"
+  itemsAddedToPlaylist: "{{count}} élément(s) ajouté(s) à \"{{name}}\""
+  markedWatched: "{{count}} élément(s) marqué(s) comme vu(s)"
+  markedUnwatched: "{{count}} élément(s) marqué(s) comme non vu(s)"
+collections:
+  title: "Collections"
+  newSmartCollection: "Nouvelle collection intelligente"
+  smartCollections: "Collections intelligentes"
+  tmdbCollections: "Collections TMDB"
+  noCollections: "Pas encore de collections"
+  noCollectionsDesc: "Les collections sont automatiquement générées à partir des sagas TMDB."
+  deleteConfirm: "Supprimer cette collection ?"
+  deleteSmartConfirm: "Supprimer cette collection intelligente ?"
+  browseResults: "Parcourir les résultats →"
+library:
+  title: "Bibliothèque"
+  libraries: "Bibliothèques"
+  filterByName: "Filtrer par nom..."
+  series: "Séries"
+  seasons: "Saisons"
+  episodes: "Épisodes"
+  titleSort: "Titre"
+  year: "Année"
+  ratingSort: "Note"
+  dateAdded: "Date d'ajout"
+  ascending: "Croissant"
+  descending: "Décroissant"
+  switchToList: "Passer en vue liste"
+  switchToGrid: "Passer en vue grille"
+  noItems: "Aucun élément trouvé"
+  noItemsFiltered: "Essayez d'ajuster vos filtres ou votre recherche."
+  noItemsType: "Essayez un filtre différent, ou scannez la bibliothèque pour ajouter du contenu."
+  noItemsEmpty: "Cette bibliothèque est vide. Lancez un scan pour ajouter du contenu."
+  goToAdmin: "Aller à l'administration"
+  loadMore: "Charger plus ({{current}} sur {{total}})"
+  selected: "sélectionné(s)"
+  addToFavorites: "Ajouter aux favoris"
+  addedToFavorites: "{{count}} élément(s) ajouté(s) aux favoris"
+  failedFavorites: "Échec de l'ajout de certains éléments aux favoris"
+  duration: "Durée"
+  type: "Type"
+  addToPlaylist: "Ajouter à la liste de lecture"
+  noPlaylists: "Pas encore de listes de lecture."
+  failedAddPlaylist: "Échec de l'ajout à la liste de lecture"
+  itemsAddedToPlaylist: "{{count}} élément(s) ajouté(s) à \"{{name}}\""
+detail:
+  notFound: "Élément multimédia introuvable."
+music:
+  title: "Musique"
+  tracks: "Pistes"
+  albums: "Albums"
+  artists: "Artistes"
+  searchPlaceholder: "Rechercher pistes, artistes, albums…"
+  loading: "Chargement…"
+  noTracks: "Aucune piste trouvée."
+  noTracksSearch: "Aucune piste ne correspond à votre recherche."
+  noAlbums: "Aucun album trouvé."
+  noArtists: "Aucun artiste trouvé."
+  noLibraries: "Aucune bibliothèque musicale trouvée. Ajoutez-en une dans le panneau d'administration."
+  trackDeleted: "Piste supprimée"
+  failedDeleteTrack: "Échec de la suppression de la piste"
+  deleteTrackConfirm: "Supprimer cette piste ? Cette action est irréversible."
+  deleteTrack: "Supprimer la piste"
+  trackCount: "{{count}} piste"
+  trackCount_plural: "{{count}} pistes"
   albumCount: "{{count}} album"
   albumCount_plural: "{{count}} albums"
-photos: # TODO translate
-  title: Photos
-  albums: Albums
-  allPhotos: All Photos
-  noPhotos: No photos
-  noPhotosDesc: No photos found in this library.
-  noAlbums: No albums
-  noAlbumsDesc: No albums found in this library.
-  noPhotoLibraries: No photo libraries
-  noPhotoLibrariesDesc: Add a photo library in the Admin panel to get started.
-  photoDeleted: Photo deleted
-  failedDeletePhoto: Failed to delete photo
-  deletePhotoConfirm: "Delete \"{{title}}\"? This cannot be undone."
+photos:
+  title: "Photos"
+  albums: "Albums"
+  allPhotos: "Toutes les photos"
+  noPhotos: "Aucune photo"
+  noPhotosDesc: "Aucune photo trouvée dans cette bibliothèque."
+  noAlbums: "Aucun album"
+  noAlbumsDesc: "Aucun album trouvé dans cette bibliothèque."
+  noPhotoLibraries: "Aucune bibliothèque de photos"
+  noPhotoLibrariesDesc: "Ajoutez une bibliothèque de photos dans le panneau d'administration pour commencer."
+  photoDeleted: "Photo supprimée"
+  failedDeletePhoto: "Échec de la suppression de la photo"
+  deletePhotoConfirm: "Supprimer \"{{title}}\" ? Cette action est irréversible."
   photoCount: "{{count}} photo"
   photoCount_plural: "{{count}} photos"

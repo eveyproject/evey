@@ -13,6 +13,9 @@ auth:
   password_too_short: "密码至少需要8个字符"
   username_too_short: "用户名至少需要3个字符"
   explicit_consent_required: "推送通知需要明确授权"
+  missing_authorization: "缺少授权头"
+  missing_metadata: "缺少请求元数据"
+  admin_access_required: "需要管理员权限"
   invalid_current_pin: "当前PIN码无效"
   profile_not_found: "未找到档案"
 
@@ -27,6 +30,51 @@ general:
   bad_request: "请求无效"
   remote_access_disabled: "远程访问已禁用"
   path_traversal_detected: "检测到路径遍历"
+
+playlist:
+  not_owner: "您不是播放列表的所有者"
+  cannot_add_smart: "无法手动向智能播放列表添加项目"
+  cannot_remove_smart: "无法从智能播放列表中移除项目"
+  limit_reached: "播放列表项目数量已达上限"
+
+playback:
+  parental_blocked: "内容被家长控制拦截"
+  cannot_stop_other_session: "无法停止其他用户的会话"
+  cannot_report_other_session: "无法为其他用户的会话报告进度"
+  session_not_found: "会话未找到"
+
+activity:
+  cannot_access_other_history: "无法访问其他用户的登录历史"
+
+library:
+  parental_restricted: "内容被家长控制限制"
+  name_required: "媒体库名称为必填项"
+
+admin:
+  setup_already_completed: "设置已完成"
+  scheduler_not_available: "调度器不可用"
+  scanner_not_available: "扫描器不可用"
+  service_not_configured: "服务未配置"
+  heavy_op_running: "已有繁重操作正在运行"
+  scheduled_task_not_found: "未找到计划任务"
+
+config:
+  key_required: "键为必填项"
+  key_not_found: "未找到配置键"
+
+playback_settings:
+  skip_forward_positive: "skip_forward_seconds 必须为正数"
+
+user:
+  cannot_update_other: "无法更新其他用户"
+  cannot_escalate_admin: "无法提升为管理员"
+  cannot_create_profile_other: "无法为其他用户创建档案"
+  cannot_update_profile_other: "无法更新其他用户的档案"
+  cannot_delete_profile_other: "无法删除其他用户的档案"
+  cannot_revoke_invite_other: "无法撤销其他用户的邀请链接"
+  cannot_revoke_apikey_other: "无法撤销其他用户的 API 密钥"
+  invalid_invite_data: "无效的邀请或注册数据"
+  invalid_expired_code: "无效或已过期的代码"
 
 media:
   not_found: "媒体未找到"
@@ -46,9 +94,6 @@ subtitle:
   search_failed: "字幕搜索失败"
   download_failed: "字幕下载失败"
   file_id_required: "文件ID为必填项"
-
-library:
-  name_required: "媒体库名称为必填项"
 
 plugin:
   blocked_by_security: "插件被安全分析拦截"

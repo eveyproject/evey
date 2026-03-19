@@ -1,115 +1,115 @@
-season: "\u7B2C {{number}} \u5B63"
-episode: "\u7B2C{{number}}\u96C6"
-chapter: "\u7B2C {{number}} \u7AE0"
-track: "\u97F3\u8F68 {{number}}"
-burnIn: "(\u5185\u5D4C)"
-home: # TODO translate
-  play: Play
-  moreInfo: More Info
-  continueWatching: Continue Watching
-  upNext: Up Next
-  recentlyAdded: Recently Added
-  mostPopular: Most Popular
-  recommendedForYou: Recommended For You
-  collections: Collections
-  emptyLibrary: Your library is empty
-  emptyLibraryDesc: "Go to Admin → Libraries to add a media folder."
-  goToLibraries: Go to Libraries
-  library: Library
-favorites: # TODO translate
-  title: Favorites
-  searchPlaceholder: "Search…"
-  all: All
-  movies: Movies
-  series: Series
-  recentlyAdded: Recently Added
-  titleAZ: "Title A–Z"
-  titleZA: "Title Z–A"
-  yearNewest: Year (newest)
-  rating: Rating
-  noFavorites: No favorites yet
-  noFavoritesDesc: Click the heart icon on any media item to add it to your favorites.
-  addToPlaylist: Add to Playlist
-  noPlaylists: No playlists yet.
-  failedAddPlaylist: Failed to add to playlist
-  itemsAddedToPlaylist: "{{count}} item(s) added to \"{{name}}\""
-  markedWatched: "{{count}} item(s) marked as watched"
-  markedUnwatched: "{{count}} item(s) marked as unwatched"
-collections: # TODO translate
-  title: Collections
-  newSmartCollection: New smart collection
-  smartCollections: Smart Collections
-  tmdbCollections: TMDB Collections
-  noCollections: No collections yet
-  noCollectionsDesc: Collections are automatically populated from TMDB sagas.
-  deleteConfirm: Delete this collection?
-  deleteSmartConfirm: Delete this smart collection?
-  browseResults: "Browse results →"
-library: # TODO translate
-  title: Library
-  libraries: Libraries
-  filterByName: "Filter by name..."
-  series: Series
-  seasons: Seasons
-  episodes: Episodes
-  titleSort: Title
-  year: Year
-  ratingSort: Rating
-  dateAdded: Date Added
-  ascending: Ascending
-  descending: Descending
-  switchToList: Switch to list view
-  switchToGrid: Switch to grid view
-  noItems: No items found
-  noItemsFiltered: Try adjusting your filters or search term.
-  noItemsType: Try a different filter, or scan the library to add content.
-  noItemsEmpty: This library is empty. Trigger a scan to add content.
-  goToAdmin: Go to Admin
-  loadMore: "Load more ({{current}} of {{total}})"
-  selected: selected
-  addToFavorites: Add to favorites
-  addedToFavorites: "{{count}} item(s) added to favorites"
-  failedFavorites: Failed to add some items to favorites
-  duration: Duration
-  type: Type
-  addToPlaylist: Add to Playlist
-  noPlaylists: No playlists yet.
-  failedAddPlaylist: Failed to add to playlist
-  itemsAddedToPlaylist: "{{count}} item(s) added to \"{{name}}\""
-detail: # TODO translate
-  notFound: Media item not found.
-music: # TODO translate
-  title: Music
-  tracks: Tracks
-  albums: Albums
-  artists: Artists
-  searchPlaceholder: "Search tracks, artists, albums…"
-  loading: "Loading…"
-  noTracks: No tracks found.
-  noTracksSearch: No tracks match your search.
-  noAlbums: No albums found.
-  noArtists: No artists found.
-  noLibraries: No music libraries found. Add one in the Admin panel.
-  trackDeleted: Track deleted
-  failedDeleteTrack: Failed to delete track
-  deleteTrackConfirm: Delete this track? This cannot be undone.
-  deleteTrack: Delete track
-  trackCount: "{{count}} track"
-  trackCount_plural: "{{count}} tracks"
-  albumCount: "{{count}} album"
-  albumCount_plural: "{{count}} albums"
-photos: # TODO translate
-  title: Photos
-  albums: Albums
-  allPhotos: All Photos
-  noPhotos: No photos
-  noPhotosDesc: No photos found in this library.
-  noAlbums: No albums
-  noAlbumsDesc: No albums found in this library.
-  noPhotoLibraries: No photo libraries
-  noPhotoLibrariesDesc: Add a photo library in the Admin panel to get started.
-  photoDeleted: Photo deleted
-  failedDeletePhoto: Failed to delete photo
-  deletePhotoConfirm: "Delete \"{{title}}\"? This cannot be undone."
-  photoCount: "{{count}} photo"
-  photoCount_plural: "{{count}} photos"
+season: "第 {{number}} 季"
+episode: "第{{number}}集"
+chapter: "第 {{number}} 章"
+track: "音轨 {{number}}"
+burnIn: "(内嵌)"
+home:
+  play: "播放"
+  moreInfo: "更多信息"
+  continueWatching: "继续观看"
+  upNext: "即将播放"
+  recentlyAdded: "最近添加"
+  mostPopular: "最受欢迎"
+  recommendedForYou: "为您推荐"
+  collections: "合集"
+  emptyLibrary: "您的媒体库为空"
+  emptyLibraryDesc: "前往管理 → 媒体库添加媒体文件夹。"
+  goToLibraries: "前往媒体库"
+  library: "媒体库"
+favorites:
+  title: "收藏"
+  searchPlaceholder: "搜索…"
+  all: "全部"
+  movies: "电影"
+  series: "剧集"
+  recentlyAdded: "最近添加"
+  titleAZ: "标题 A–Z"
+  titleZA: "标题 Z–A"
+  yearNewest: "年份（最新）"
+  rating: "评分"
+  noFavorites: "暂无收藏"
+  noFavoritesDesc: "点击任意媒体项的心形图标即可添加到收藏。"
+  addToPlaylist: "添加到播放列表"
+  noPlaylists: "暂无播放列表。"
+  failedAddPlaylist: "添加到播放列表失败"
+  itemsAddedToPlaylist: "{{count}} 项已添加到「{{name}}」"
+  markedWatched: "{{count}} 项已标记为已看"
+  markedUnwatched: "{{count}} 项已标记为未看"
+collections:
+  title: "合集"
+  newSmartCollection: "新建智能合集"
+  smartCollections: "智能合集"
+  tmdbCollections: "TMDB 合集"
+  noCollections: "暂无合集"
+  noCollectionsDesc: "合集根据 TMDB 系列自动生成。"
+  deleteConfirm: "确定删除此合集？"
+  deleteSmartConfirm: "确定删除此智能合集？"
+  browseResults: "浏览结果 →"
+library:
+  title: "媒体库"
+  libraries: "媒体库"
+  filterByName: "按名称筛选..."
+  series: "剧集"
+  seasons: "季"
+  episodes: "集"
+  titleSort: "标题"
+  year: "年份"
+  ratingSort: "评分"
+  dateAdded: "添加日期"
+  ascending: "升序"
+  descending: "降序"
+  switchToList: "切换到列表视图"
+  switchToGrid: "切换到网格视图"
+  noItems: "未找到项目"
+  noItemsFiltered: "请尝试调整过滤条件或搜索词。"
+  noItemsType: "尝试不同的过滤条件，或扫描媒体库以添加内容。"
+  noItemsEmpty: "此媒体库为空。触发扫描以添加内容。"
+  goToAdmin: "前往管理"
+  loadMore: "加载更多（{{current}} / {{total}}）"
+  selected: "已选择"
+  addToFavorites: "添加到收藏"
+  addedToFavorites: "{{count}} 项已添加到收藏"
+  failedFavorites: "添加到收藏失败"
+  duration: "时长"
+  type: "类型"
+  addToPlaylist: "添加到播放列表"
+  noPlaylists: "暂无播放列表。"
+  failedAddPlaylist: "添加到播放列表失败"
+  itemsAddedToPlaylist: "{{count}} 项已添加到「{{name}}」"
+detail:
+  notFound: "未找到媒体项。"
+music:
+  title: "音乐"
+  tracks: "曲目"
+  albums: "专辑"
+  artists: "艺术家"
+  searchPlaceholder: "搜索曲目、艺术家、专辑…"
+  loading: "加载中…"
+  noTracks: "未找到曲目。"
+  noTracksSearch: "没有匹配的曲目。"
+  noAlbums: "未找到专辑。"
+  noArtists: "未找到艺术家。"
+  noLibraries: "未找到音乐媒体库。请在管理面板中添加。"
+  trackDeleted: "曲目已删除"
+  failedDeleteTrack: "删除曲目失败"
+  deleteTrackConfirm: "确定删除此曲目？此操作无法撤销。"
+  deleteTrack: "删除曲目"
+  trackCount: "{{count}} 首曲目"
+  trackCount_plural: "{{count}} 首曲目"
+  albumCount: "{{count}} 张专辑"
+  albumCount_plural: "{{count}} 张专辑"
+photos:
+  title: "照片"
+  albums: "相册"
+  allPhotos: "所有照片"
+  noPhotos: "没有照片"
+  noPhotosDesc: "此媒体库中没有照片。"
+  noAlbums: "没有相册"
+  noAlbumsDesc: "此媒体库中没有相册。"
+  noPhotoLibraries: "没有照片媒体库"
+  noPhotoLibrariesDesc: "请在管理面板中添加照片媒体库以开始使用。"
+  photoDeleted: "照片已删除"
+  failedDeletePhoto: "删除照片失败"
+  deletePhotoConfirm: "确定删除「{{title}}」？此操作无法撤销。"
+  photoCount: "{{count}} 张照片"
+  photoCount_plural: "{{count}} 张照片"
