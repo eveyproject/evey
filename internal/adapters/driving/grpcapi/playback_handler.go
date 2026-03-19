@@ -127,7 +127,7 @@ func (h *playbackHandler) StartStream(ctx context.Context, req *eveyv1.StartStre
 		return nil, err
 	}
 	if h.profiles != nil {
-		if blocked, reason := h.isBlockedByParental(ctx, profileID, req.MediaItemId); blocked {
+		if blocked, _ := h.isBlockedByParental(ctx, profileID, req.MediaItemId); blocked {
 			return nil, h.translator.TranslatedError(ctx, codes.PermissionDenied, "playback.parental_blocked")
 		}
 	}
