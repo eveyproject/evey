@@ -4,7 +4,6 @@ package evey.v1;
 
 import "google/api/annotations.proto";
 import "google/protobuf/timestamp.proto";
-import "google/protobuf/struct.proto";
 import "evey/v1/transcoding.proto";
 
 option go_package = "github.com/gravity/evey/gen/evey/v1;eveyv1";
