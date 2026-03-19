@@ -126,3 +126,14 @@ func TestNewFromDir_InvalidDir(t *testing.T) {
 	_, err := NewFromDir("/nonexistent/path")
 	assert.Error(t, err)
 }
+
+func TestNewFromDir_RealYAML(t *testing.T) {
+	root := "../../../i18n"
+	if _, err := os.Stat(root); os.IsNotExist(err) {
+		t.Skip("i18n dir not found")
+	}
+	tr, err := NewFromDir(root)
+	require.NoError(t, err, "real i18n YAML must parse without errors")
+	assert.NotEmpty(t, tr.T("en", "auth.unauthenticated"))
+	assert.NotEmpty(t, tr.T("en", "library.name_required"))
+}
