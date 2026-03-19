@@ -184,7 +184,7 @@ libraries:
     weekly3am: Weekly (Sunday 3 AM)
     customCron: "Custom cron..."
   items: "{{count}} items"
-  off: "Off"
+  "off": "Off"
   paths: Paths
   pathsHint: "(enter the full path inside the container, e.g. /media/movies)"
   selectDirectory: "— select a directory —"

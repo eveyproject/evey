@@ -25,7 +25,7 @@ settings:
   subtitleStyle: "字幕样式"
   normal: "正常"
   uploadSubtitle: "上传字幕…"
-  off: "关闭"
+  "off": "关闭"
 subtitleStyle:
   size: "大小"
   textColor: "文字颜色"

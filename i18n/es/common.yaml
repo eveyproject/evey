@@ -5,6 +5,8 @@ create: Crear
 delete: Eliminar
 enable: Activar
 disable: Desactivar
+enabled: Activado
+disabled: Desactivado
 skip: Omitir
 continue: Continuar
 loading: "Cargando…"
@@ -21,6 +23,33 @@ previous: "Anterior"
 next: "Siguiente"
 edit: "Editar"
 all: "Todo"
+add: "Agregar"
+remove: "Quitar"
+name: "Nombre"
+status: "Estado"
+actions: "Acciones"
+apply: "Aplicar"
+clear: "Limpiar"
+test: "Probar"
+download: "Descargar"
+restore: "Restaurar"
+revoke: "Revocar"
+refresh: "Actualizar"
+done: "Listo"
+copied: "¡Copiado!"
+seeAll: "Ver todo →"
+scrollLeft: "Desplazar a la izquierda"
+scrollRight: "Desplazar a la derecha"
+appearance: "Apariencia"
+appearanceDesc: "Elige tu tema y tu idioma."
+language: "Idioma"
+languageDesc: "Elige tu idioma preferido"
+newKey: "Nueva clave"
+copyKey: "Copiar clave"
+unableToLoadNotifications: "No se pudieron cargar las notificaciones"
+viewAllNotifications: "Ver todas las notificaciones"
+markAllRead: "Marcar todas como leídas"
+noNotifications: "Sin notificaciones"
 items: "{{count}} elementos"
 item: "{{count}} elemento"
 filtered: "(filtrado)"

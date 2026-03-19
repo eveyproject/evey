@@ -183,7 +183,7 @@ libraries:
     weekly3am: "साप्ताहिक (रविवार सुबह 3 बजे)"
     customCron: "कस्टम cron..."
   items: "{{count}} आइटम"
-  off: "बंद"
+  "off": "बंद"
   paths: "पथ"
   pathsHint: "(कंटेनर के अंदर पूरा पथ दर्ज करें, जैसे /media/movies)"
   selectDirectory: "— एक डायरेक्टरी चुनें —"

@@ -183,7 +183,7 @@ libraries:
     weekly3am: "每周（周日凌晨 3 点）"
     customCron: "自定义 cron..."
   items: "{{count}} 项"
-  off: "关闭"
+  "off": "关闭"
   paths: "路径"
   pathsHint: "（输入容器内完整路径，如 /media/movies）"
   selectDirectory: "— 选择目录 —"

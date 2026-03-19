@@ -183,7 +183,7 @@ libraries:
     weekly3am: "Semanal (domingo 3 AM)"
     customCron: "Cron personalizado..."
   items: "{{count}} elementos"
-  off: "Desactivado"
+  "off": "Desactivado"
   paths: "Rutas"
   pathsHint: "(ingresa la ruta completa dentro del contenedor, ej. /media/movies)"
   selectDirectory: "— seleccionar un directorio —"

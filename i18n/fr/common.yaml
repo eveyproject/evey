@@ -5,6 +5,8 @@ create: Créer
 delete: Supprimer
 enable: Activer
 disable: Désactiver
+enabled: Activé
+disabled: Désactivé
 skip: Passer
 continue: Continuer
 loading: "Chargement…"
@@ -21,6 +23,33 @@ previous: "Précédent"
 next: "Suivant"
 edit: "Modifier"
 all: "Tout"
+add: Ajouter
+remove: Supprimer
+name: Nom
+status: Statut
+actions: Actions
+apply: Appliquer
+clear: Effacer
+test: Tester
+download: Télécharger
+restore: Restaurer
+revoke: Révoquer
+refresh: Actualiser
+done: Terminé
+copied: "Copié !"
+seeAll: "Tout voir →"
+scrollLeft: Défiler à gauche
+scrollRight: Défiler à droite
+appearance: Apparence
+appearanceDesc: "Choisissez votre thème et votre langue."
+language: Langue
+languageDesc: Choisissez votre langue préférée
+newKey: Nouvelle clé
+copyKey: Copier la clé
+unableToLoadNotifications: Impossible de charger les notifications
+viewAllNotifications: Voir toutes les notifications
+markAllRead: Tout marquer comme lu
+noNotifications: Aucune notification
 items: "{{count}} éléments"
 item: "{{count}} élément"
 filtered: "(filtré)"
