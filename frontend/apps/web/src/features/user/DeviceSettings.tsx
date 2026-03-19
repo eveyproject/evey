@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useTranslation } from "react-i18next";
 import { eveyFetch } from "@evey/api";
 import { toast } from "@evey/store";
 import { Button } from "@/components/ui/Button";
@@ -23,14 +24,14 @@ function platformLabel(platform: string): string {
 function platformIcon(platform: string): string {
   switch (platform.toLowerCase()) {
     case "ios":
-    case "android": return "📱";
-    default: return "🌐";
+    case "android": return "\uD83D\uDCF1";
+    default: return "\uD83C\uDF10";
   }
 }
 
 function truncateToken(token: string): string {
   if (token.length <= 12) return token;
-  return `${token.slice(0, 6)}…${token.slice(-6)}`;
+  return `${token.slice(0, 6)}\u2026${token.slice(-6)}`;
 }
 
 function formatDate(iso: string): string {
@@ -40,6 +41,8 @@ function formatDate(iso: string): string {
 const DEVICES_QUERY_KEY = ["push-devices"] as const;
 
 export function DeviceSettings() {
+  const { t } = useTranslation("auth");
+  const { t: tc } = useTranslation("common");
   const qc = useQueryClient();
   const [revokeTarget, setRevokeTarget] = useState<Device | null>(null);
 
@@ -63,39 +66,39 @@ export function DeviceSettings() {
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: DEVICES_QUERY_KEY });
       setRevokeTarget(null);
-      toast.success("Device revoked");
+      toast.success(t("devices.deviceRevoked"));
     },
-    onError: (err: Error) => toast.error(err.message || "Failed to revoke device"),
+    onError: (err: Error) => toast.error(err.message || t("devices.revokeError")),
   });
 
   return (
     <div className="flex flex-col gap-6">
       <div className="flex items-center justify-between">
         <div>
-          <h3 className="text-sm font-semibold text-[var(--text)]">Registered Devices</h3>
+          <h3 className="text-sm font-semibold text-[var(--text)]">{t("devices.title")}</h3>
           <p className="text-xs text-[var(--text-muted)] mt-1">
-            Devices registered for push notifications. Revoke access for any device you no longer use.
+            {t("devices.description")}
           </p>
         </div>
         <Button variant="secondary" className="py-1 px-3 text-xs" loading={isFetching} onClick={() => void refetch()}>
-          Refresh
+          {tc("refresh")}
         </Button>
       </div>
 
       {isLoading ? (
         <div className="flex items-center gap-2 text-sm text-[var(--text-muted)]">
           <span className="inline-block w-4 h-4 border-2 border-[var(--text-muted)] border-t-transparent rounded-full animate-spin" />
-          Loading…
+          {tc("loading")}
         </div>
       ) : devices.length === 0 ? (
-        <div className="text-sm text-[var(--text-muted)]">No registered devices.</div>
+        <div className="text-sm text-[var(--text-muted)]">{t("devices.noDevices")}</div>
       ) : (
         <table className="w-full text-sm border-collapse">
           <thead>
             <tr className="text-left text-xs text-[var(--text-muted)] border-b border-[var(--border)]">
-              <th className="pb-2 font-semibold">Platform</th>
-              <th className="pb-2 font-semibold">Token</th>
-              <th className="pb-2 font-semibold">Registered</th>
+              <th className="pb-2 font-semibold">{t("devices.platform")}</th>
+              <th className="pb-2 font-semibold">{t("devices.token")}</th>
+              <th className="pb-2 font-semibold">{t("devices.registered")}</th>
               <th className="pb-2" />
             </tr>
           </thead>
@@ -113,7 +116,7 @@ export function DeviceSettings() {
                     className="py-1 px-2 text-xs"
                     onClick={() => setRevokeTarget(d)}
                   >
-                    Revoke
+                    {tc("revoke")}
                   </Button>
                 </td>
               </tr>
@@ -122,21 +125,23 @@ export function DeviceSettings() {
         </table>
       )}
 
-      <Modal open={!!revokeTarget} onClose={() => setRevokeTarget(null)} title="Revoke Device">
+      <Modal open={!!revokeTarget} onClose={() => setRevokeTarget(null)} title={t("devices.revokeTitle")}>
         <div className="flex flex-col gap-4">
-          <p className="text-sm text-[var(--text)]">
-            Revoke the <span className="font-semibold">{revokeTarget ? platformLabel(revokeTarget.platform) : ""}</span> device? It will no longer receive push notifications.
-          </p>
+          <p className="text-sm text-[var(--text)]"
+            dangerouslySetInnerHTML={{
+              __html: t("devices.revokeConfirm", { platform: revokeTarget ? platformLabel(revokeTarget.platform) : "" }),
+            }}
+          />
           <div className="flex justify-end gap-2">
             <Button variant="secondary" onClick={() => setRevokeTarget(null)}>
-              Cancel
+              {tc("cancel")}
             </Button>
             <Button
               variant="danger"
               loading={revokeMutation.isPending}
               onClick={() => { if (revokeTarget) revokeMutation.mutate(revokeTarget.token); }}
             >
-              Revoke
+              {tc("revoke")}
             </Button>
           </div>
         </div>

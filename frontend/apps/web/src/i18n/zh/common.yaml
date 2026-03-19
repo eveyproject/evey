@@ -11,3 +11,22 @@ loading: "\u52A0\u8F7D\u4E2D\u2026"
 error: "\u9519\u8BEF"
 unknown: "\u672A\u77E5"
 settings: "\u8BBE\u7F6E"
+refresh: Refresh
+remove: Remove
+done: Done
+revoke: Revoke
+copied: Copied!
+copyKey: Copy key
+newKey: New key
+appearance: Appearance
+appearanceDesc: Choose a color theme for the interface.
+language: Language
+languageDesc: Choose the display language for the interface.
+notifications: Notifications
+noNotifications: No notifications
+markAllRead: Mark all read
+viewAllNotifications: View all notifications
+unableToLoadNotifications: Unable to load notifications
+scrollLeft: Scroll left
+scrollRight: Scroll right
+seeAll: "See all →"

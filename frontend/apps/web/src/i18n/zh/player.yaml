@@ -54,3 +54,26 @@ fonts:
   comicSans: "Comic Sans"
 quality:
   original: "\u539F\u753B\u8D28"
+nextEpisodeOverlay:
+  upNext: Up Next
+  nextIn: "Next in {{seconds}}s"
+  playNow: Play Now
+  episode: "Episode {{number}}"
+  nextEpisode: Next Episode
+skipIntro: Skip Intro
+download: Download
+shortcuts:
+  title: Keyboard Shortcuts
+  playPause: Play / Pause
+  toggleFullscreen: Toggle fullscreen
+  toggleMute: Toggle mute
+  seekBack: "Seek back {{seconds}}s"
+  seekForward: "Seek forward {{seconds}}s"
+  volumeUp: Volume up
+  volumeDown: Volume down
+  seekPercent: "Seek to 0%–90%"
+  toggleCaptions: Toggle captions
+  decreaseSpeed: Decrease speed
+  increaseSpeed: Increase speed
+  pip: Picture-in-Picture
+  showShortcuts: Show shortcuts

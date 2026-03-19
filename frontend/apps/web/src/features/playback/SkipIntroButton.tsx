@@ -1,4 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
+import { useTranslation } from "react-i18next";
 import { mKVServiceListChapters } from "@evey/api";
 
 const INTRO_PATTERNS = /^(intro|introduction|opening|op$|op\s)/i;
@@ -10,6 +11,7 @@ interface SkipIntroButtonProps {
 }
 
 export function SkipIntroButton({ filePath, currentTime, onSkip }: SkipIntroButtonProps) {
+  const { t } = useTranslation("player");
   const { data } = useQuery({
     queryKey: ["/api/v1/mkv/chapters", filePath],
     queryFn: ({ signal }) => mKVServiceListChapters({ path: filePath }, signal),
@@ -39,7 +41,7 @@ export function SkipIntroButton({ filePath, currentTime, onSkip }: SkipIntroButt
         backdropFilter: "blur(8px)",
       }}
     >
-      Skip Intro
+      {t("skipIntro")}
     </button>
   );
 }

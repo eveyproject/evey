@@ -3,3 +3,50 @@ episode: "E{{number}}"
 chapter: "Cap\xEDtulo {{number}}"
 track: "Pista {{number}}"
 burnIn: "(incrustado)"
+contextMenu:
+  editMetadata: Edit metadata
+  addToPlaylist: Add to Playlist
+  addToCollection: Add to Collection
+  addToFavorites: Add to Favorites
+  removeFromFavorites: Remove from Favorites
+  download: Download
+  markWatched: Mark as watched
+  markUnwatched: Mark as unwatched
+  markedWatched: Marked as watched
+  markedUnwatched: Marked as unwatched
+  markError: "Failed to mark as {{status}}"
+search:
+  searching: "Searching..."
+  searchFailed: Search failed
+  noResults: "No results for \"{{query}}\""
+  viewAllResults: "View all {{count}} results"
+  recentSearches: Recent searches
+  clearAll: Clear all
+playlist:
+  createTitle: Create Playlist
+  addTitle: Add to Playlist
+  name: Name
+  description: Description
+  type: Type
+  manual: Manual
+  smart: "Smart (rule-based)"
+  rules: Rules
+  addRule: "+ Add Rule"
+  field: Field
+  op: Op
+  value: Value
+  noPlaylists: No playlists yet.
+  createPlaylist: Create Playlist
+  newPlaylist: "+ New Playlist"
+  createSuccess: "Playlist \"{{name}}\" created"
+  createError: Failed to create playlist
+  addError: Failed to add to playlist
+  addSuccess: "Added to \"{{name}}\""
+syncplay:
+  watchTogetherRoom: Watch Together room
+  watchingWith: "Watching with: {{names}}"
+  watchingWithMore: "Watching with: {{names}} +{{count}} more"
+  shareLink: Share link
+  leave: Leave
+  connected: Connected
+  connecting: "Connecting..."

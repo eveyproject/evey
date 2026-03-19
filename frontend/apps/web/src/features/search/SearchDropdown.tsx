@@ -1,5 +1,6 @@
 import { useEffect, useRef, useCallback } from "react";
 import { useNavigate } from "@tanstack/react-router";
+import { useTranslation } from "react-i18next";
 import { useQuery } from "@tanstack/react-query";
 import { libraryServiceSearchMedia } from "@evey/api";
 import { typeLabel } from "@/utils/typeLabel";
@@ -25,6 +26,7 @@ export function SearchDropdown({
   onRemoveRecent,
   onClearRecents,
 }: SearchDropdownProps) {
+  const { t } = useTranslation("media");
   const navigate = useNavigate();
   const dropdownRef = useRef<HTMLDivElement>(null);
   const activeIndex = useRef(-1);
@@ -42,7 +44,6 @@ export function SearchDropdown({
   const items = data?.items ?? [];
   const totalHits = data?.totalHits ?? 0;
 
-  // Close on outside click
   useEffect(() => {
     if (!visible) return;
     const handler = (e: MouseEvent) => {
@@ -67,7 +68,6 @@ export function SearchDropdown({
     [navigate, onClose],
   );
 
-  // Keyboard nav inside dropdown
   useEffect(() => {
     if (!visible) {
       activeIndex.current = -1;
@@ -110,7 +110,7 @@ export function SearchDropdown({
               <circle cx="12" cy="12" r="10" />
               <path strokeLinecap="round" d="M12 6v6l4 2" />
             </svg>
-            Recent searches
+            {t("search.recentSearches")}
           </div>
           {onClearRecents && (
             <button
@@ -118,7 +118,7 @@ export function SearchDropdown({
               className="text-xs hover:underline cursor-pointer"
               style={{ color: "var(--text-muted)" }}
             >
-              Clear all
+              {t("search.clearAll")}
             </button>
           )}
         </div>
@@ -170,7 +170,7 @@ export function SearchDropdown({
             style={{ borderColor: "var(--accent)", borderTopColor: "transparent" }}
           />
           <span className="text-sm" style={{ color: "var(--text-muted)" }}>
-            Searching...
+            {t("search.searching")}
           </span>
         </div>
       )}
@@ -178,7 +178,7 @@ export function SearchDropdown({
       {!isLoading && isError && (
         <div className="px-4 py-3" data-testid="search-dropdown-error">
           <span className="text-sm" style={{ color: "var(--color-danger)" }}>
-            Search failed
+            {t("search.searchFailed")}
           </span>
         </div>
       )}
@@ -186,7 +186,7 @@ export function SearchDropdown({
       {!isLoading && !isError && items.length === 0 && (
         <div className="px-4 py-3" data-testid="search-dropdown-empty">
           <span className="text-sm" style={{ color: "var(--text-muted)" }}>
-            No results for &ldquo;{trimmed}&rdquo;
+            {t("search.noResults", { query: trimmed })}
           </span>
         </div>
       )}
@@ -270,7 +270,7 @@ export function SearchDropdown({
               className="w-full px-3 py-2.5 text-sm font-medium border-t border-[var(--border)] hover:bg-[var(--surface)] focus:bg-[var(--surface)] focus:outline-none transition-colors cursor-pointer text-center"
               style={{ color: "var(--accent)" }}
             >
-              View all {totalHits} results
+              {t("search.viewAllResults", { count: totalHits })}
             </button>
           )}
         </>

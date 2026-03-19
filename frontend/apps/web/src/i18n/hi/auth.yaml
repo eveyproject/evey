@@ -25,3 +25,59 @@ setup:
     shows: "\u0936\u094B"
     music: "\u0938\u0902\u0917\u0940\u0924"
     photos: "\u092B\u093C\u094B\u091F\u094B"
+devices:
+  title: Registered Devices
+  description: Devices registered for push notifications. Revoke access for any device you no longer use.
+  noDevices: No registered devices.
+  platform: Platform
+  token: Token
+  registered: Registered
+  revokeTitle: Revoke Device
+  revokeConfirm: "Revoke the <strong>{{platform}}</strong> device? It will no longer receive push notifications."
+  deviceRevoked: Device revoked
+  revokeError: Failed to revoke device
+apiKeys:
+  title: API Keys
+  description: Use API keys to authenticate external apps with Evey.
+  noKeys: No API keys yet.
+  name: Name
+  key: Key
+  created: Created
+  lastUsed: Last used
+  newKeyTitle: New API Key
+  namePlaceholder: "e.g. Plex sync, HomeAssistant"
+  nameRequired: Name is required
+  keyCreatedTitle: API Key Created
+  saveWarning: "Save this key now — it won't be shown again."
+  keyRevoked: API key revoked
+  revokeTitle: Revoke API Key
+  revokeConfirm: "Revoke <strong>{{name}}</strong>? This cannot be undone."
+  revokeError: Failed to revoke API key
+  createError: Failed to create API key
+watchHistory:
+  title: Watch History
+  watched: Watched
+  noHistory: No watch history yet
+  noHistoryDesc: Start watching something to see it here.
+  clearHistory: Clear history
+  clearTitle: Clear watch history
+  clearConfirm: This will remove all items from your watch history. This action cannot be undone.
+  clearAll: Clear all
+  plays: "{{count}} plays"
+  today: Today
+  yesterday: Yesterday
+  thisWeek: This Week
+  thisMonth: This Month
+notificationSettings:
+  movies: Movies
+  series: Series
+  music: Music
+  pushNotifications: Push notifications
+  pushDesc: Receive browser push notifications for new content
+  pushNotConfigured: Push notifications not configured on this server.
+  permissionDenied: Permission denied or push unavailable
+  pushEnabled: Push notifications enabled
+  pushDisabled: Push notifications disabled
+  pushError: Failed to update push settings
+  saved: Notification settings saved
+  saveError: Failed to save settings
