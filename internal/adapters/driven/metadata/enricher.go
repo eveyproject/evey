@@ -490,7 +490,7 @@ func (e *Enricher) AutoEnrichAll(ctx context.Context, items []*domaindomain.Medi
 	sem := make(chan struct{}, 3)
 	var wg sync.WaitGroup
 	for _, item := range items {
-		if item.Overview != "" {
+		if item.Overview != "" && len(item.Trailers) > 0 {
 			continue
 		}
 		wg.Add(1)
