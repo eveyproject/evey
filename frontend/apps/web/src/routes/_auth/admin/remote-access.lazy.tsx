@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { createLazyFileRoute } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useTranslation } from "react-i18next";
 import { toast } from "@evey/store";
 import { eveyFetch } from "@evey/api/src/fetcher";
 import { Spinner } from "@/components/ui/Spinner";
@@ -43,6 +44,7 @@ function useNetworkInfo() {
 }
 
 function RemoteAccessPage() {
+  const { t } = useTranslation("admin");
   const { data, isLoading } = useRemoteAccessConfig();
   const { data: netInfo } = useNetworkInfo();
   const queryClient = useQueryClient();
@@ -67,7 +69,7 @@ function RemoteAccessPage() {
       eveyFetch<RemoteAccessConfig>({ url: "/api/v1/admin/remote-access", method: "PUT", data: body }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: CONFIG_KEY });
-      toast.success("Remote access settings saved");
+      toast.success(t("remoteAccess.saved"));
       setDirty(false);
     },
     onError: (err: Error) => toast.error(err.message),
@@ -90,10 +92,10 @@ function RemoteAccessPage() {
     <div className="flex flex-col gap-6">
       <div className="flex items-center justify-between">
         <h2 className="text-xl font-semibold" style={{ color: "var(--text)" }}>
-          Remote Access
+          {t("remoteAccess.title")}
         </h2>
         <Badge variant={data?.enabled ? "success" : "default"}>
-          {data?.enabled ? "Enabled" : "Disabled"}
+          {data?.enabled ? t("common:enabled") : t("common:disabled")}
         </Badge>
       </div>
 
@@ -107,7 +109,7 @@ function RemoteAccessPage() {
             <div className="flex flex-col gap-4 p-2">
               <div className="flex items-center gap-3">
                 <label className="text-sm font-medium" style={{ color: "var(--text)" }}>
-                  Enable Remote Access
+                  {t("remoteAccess.enableRemoteAccess")}
                 </label>
                 <button
                   type="button"
@@ -132,7 +134,7 @@ function RemoteAccessPage() {
               </div>
 
               <Input
-                label="External URL"
+                label={t("remoteAccess.externalUrl")}
                 placeholder="https://evey.example.com"
                 value={externalUrl}
                 onChange={(e) => {
@@ -142,7 +144,7 @@ function RemoteAccessPage() {
               />
 
               <Input
-                label="LAN Networks (CIDR, comma-separated)"
+                label={t("remoteAccess.lanNetworks")}
                 placeholder="192.168.0.0/16, 10.0.0.0/8, 172.16.0.0/12"
                 value={lanNetworks}
                 onChange={(e) => {
@@ -152,7 +154,7 @@ function RemoteAccessPage() {
               />
 
               <Input
-                label="Max Remote Bitrate (Kbps, 0 = unlimited)"
+                label={t("remoteAccess.maxRemoteBitrate")}
                 type="number"
                 min={0}
                 value={maxBitrate}
@@ -168,7 +170,7 @@ function RemoteAccessPage() {
                   loading={saveMutation.isPending}
                   disabled={!dirty}
                 >
-                  Save
+                  {t("common:save")}
                 </Button>
               </div>
             </div>
@@ -181,7 +183,7 @@ function RemoteAccessPage() {
                   className="text-sm font-semibold mb-3"
                   style={{ color: "var(--text)" }}
                 >
-                  Server Network Interfaces
+                  {t("remoteAccess.networkInterfaces")}
                 </h3>
                 <div
                   className="rounded-[var(--radius-md)] overflow-hidden"
@@ -194,13 +196,13 @@ function RemoteAccessPage() {
                           className="text-left px-4 py-2 font-medium"
                           style={{ color: "var(--text-muted)" }}
                         >
-                          Interface
+                          {t("remoteAccess.interface")}
                         </th>
                         <th
                           className="text-left px-4 py-2 font-medium"
                           style={{ color: "var(--text-muted)" }}
                         >
-                          Address
+                          {t("remoteAccess.address")}
                         </th>
                       </tr>
                     </thead>

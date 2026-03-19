@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { createLazyFileRoute } from "@tanstack/react-router";
 import { useQueryClient, useQuery, useMutation } from "@tanstack/react-query";
+import { useTranslation } from "react-i18next";
 import {
   useLibraryServiceListLibraries,
   useLibraryServiceDeleteLibrary,
@@ -22,12 +23,12 @@ export const Route = createLazyFileRoute("/_auth/admin/libraries")({
   component: LibrariesPage,
 });
 
-function libraryTypeLabel(type?: string): string {
+function libraryTypeLabel(type: string | undefined, t: (key: string) => string): string {
   switch (type) {
-    case "LIBRARY_TYPE_MOVIES": return "Movies";
-    case "LIBRARY_TYPE_SHOWS": return "Shows";
-    case "LIBRARY_TYPE_MUSIC": return "Music";
-    default: return "Library";
+    case "LIBRARY_TYPE_MOVIES": return t("libraries.types.movies");
+    case "LIBRARY_TYPE_SHOWS": return t("libraries.types.shows");
+    case "LIBRARY_TYPE_MUSIC": return t("libraries.types.music");
+    default: return t("libraries.types.library");
   }
 }
 
@@ -52,14 +53,6 @@ interface ScanSchedule {
   lastRunAt?: string | null;
   nextRunAt?: string | null;
 }
-
-const PRESET_SCHEDULES = [
-  { value: "0 */6 * * *", label: "Every 6 hours" },
-  { value: "0 */12 * * *", label: "Every 12 hours" },
-  { value: "0 3 * * *", label: "Daily (3 AM)" },
-  { value: "0 3 * * 0", label: "Weekly (Sunday 3 AM)" },
-  { value: "custom", label: "Custom cron..." },
-];
 
 function useLibraryStats() {
   return useQuery<LibraryStat[]>({
@@ -87,11 +80,20 @@ function useSchedule(libraryId: string) {
 }
 
 function ScheduleModal({ library, onClose }: { library: V1Library; onClose: () => void }) {
+  const { t } = useTranslation("admin");
   const queryClient = useQueryClient();
   const { data: schedule, isLoading } = useSchedule(library.id!);
   const [preset, setPreset] = useState("");
   const [customCron, setCustomCron] = useState("");
   const [enabled, setEnabled] = useState(true);
+
+  const PRESET_SCHEDULES = [
+    { value: "0 */6 * * *", label: t("libraries.presets.every6h") },
+    { value: "0 */12 * * *", label: t("libraries.presets.every12h") },
+    { value: "0 3 * * *", label: t("libraries.presets.daily3am") },
+    { value: "0 3 * * 0", label: t("libraries.presets.weekly3am") },
+    { value: "custom", label: t("libraries.presets.customCron") },
+  ];
 
   useEffect(() => {
     if (schedule) {
@@ -104,6 +106,7 @@ function ScheduleModal({ library, onClose }: { library: V1Library; onClose: () =
         setCustomCron(schedule.cron);
       }
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [schedule]);
 
   const cronValue = preset === "custom" ? customCron : preset;
@@ -118,10 +121,10 @@ function ScheduleModal({ library, onClose }: { library: V1Library; onClose: () =
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/v1/libraries", library.id, "schedule"] });
-      toast.success("Schedule saved");
+      toast.success(t("libraries.scheduleSaved"));
       onClose();
     },
-    onError: (err: Error) => toast.error(err.message || "Failed to save schedule"),
+    onError: (err: Error) => toast.error(err.message || t("libraries.failedSchedule")),
   });
 
   const deleteMutation = useMutation({
@@ -133,10 +136,10 @@ function ScheduleModal({ library, onClose }: { library: V1Library; onClose: () =
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/v1/libraries", library.id, "schedule"] });
-      toast.success("Schedule removed");
+      toast.success(t("libraries.scheduleRemoved"));
       onClose();
     },
-    onError: (err: Error) => toast.error(err.message || "Failed to remove schedule"),
+    onError: (err: Error) => toast.error(err.message || t("libraries.failedRemoveSchedule")),
   });
 
   if (isLoading) {
@@ -146,19 +149,19 @@ function ScheduleModal({ library, onClose }: { library: V1Library; onClose: () =
   return (
     <div className="flex flex-col gap-4">
       <Select
-        label="Scan frequency"
+        label={t("libraries.scanFrequency")}
         value={preset}
         onChange={(v) => {
           setPreset(v);
           if (v !== "custom") setCustomCron("");
         }}
-        placeholder="-- select frequency --"
+        placeholder={t("libraries.selectFrequency")}
         options={PRESET_SCHEDULES}
       />
 
       {preset === "custom" && (
         <Input
-          label="Cron expression"
+          label={t("libraries.cronExpression")}
           placeholder="0 */6 * * *"
           value={customCron}
           onChange={(e) => setCustomCron(e.target.value)}
@@ -172,13 +175,13 @@ function ScheduleModal({ library, onClose }: { library: V1Library; onClose: () =
           onChange={(e) => setEnabled(e.target.checked)}
           className="rounded"
         />
-        Enabled
+        {t("common:enabled")}
       </label>
 
       {schedule && (
         <div className="text-xs space-y-1" style={{ color: "var(--text-muted)" }}>
-          {schedule.lastRunAt && <p>Last run: {formatDate(schedule.lastRunAt)}</p>}
-          {schedule.nextRunAt && <p>Next run: {formatDate(schedule.nextRunAt)}</p>}
+          {schedule.lastRunAt && <p>{t("libraries.lastRun", { date: formatDate(schedule.lastRunAt) })}</p>}
+          {schedule.nextRunAt && <p>{t("libraries.nextRun", { date: formatDate(schedule.nextRunAt) })}</p>}
         </div>
       )}
 
@@ -190,18 +193,18 @@ function ScheduleModal({ library, onClose }: { library: V1Library; onClose: () =
               loading={deleteMutation.isPending}
               onClick={() => deleteMutation.mutate()}
             >
-              Remove
+              {t("common:remove")}
             </Button>
           )}
         </div>
         <div className="flex gap-2">
-          <Button variant="ghost" onClick={onClose}>Cancel</Button>
+          <Button variant="ghost" onClick={onClose}>{t("common:cancel")}</Button>
           <Button
             loading={saveMutation.isPending}
             disabled={!cronValue}
             onClick={() => saveMutation.mutate()}
           >
-            Save
+            {t("common:save")}
           </Button>
         </div>
       </div>
@@ -210,6 +213,7 @@ function ScheduleModal({ library, onClose }: { library: V1Library; onClose: () =
 }
 
 function LibraryRow({ library, stats }: { library: V1Library; stats: LibraryStat[] }) {
+  const { t } = useTranslation("admin");
   const queryClient = useQueryClient();
   const [scanDone, setScanDone] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
@@ -221,9 +225,9 @@ function LibraryRow({ library, stats }: { library: V1Library; stats: LibraryStat
       onSuccess: () => {
         queryClient.invalidateQueries({ queryKey: ["/api/v1/libraries"] });
         queryClient.invalidateQueries({ queryKey: ["/api/v1/admin/library-stats"] });
-        toast.success(`Library "${library.name}" deleted`);
+        toast.success(t("libraries.libraryDeleted", { name: library.name }));
       },
-      onError: (err: Error) => toast.error(err.message || "Failed to delete library"),
+      onError: (err: Error) => toast.error(err.message || t("libraries.failedDelete")),
     },
   });
 
@@ -234,9 +238,9 @@ function LibraryRow({ library, stats }: { library: V1Library; stats: LibraryStat
         queryClient.invalidateQueries({ queryKey: ["/api/v1/libraries"] });
         queryClient.invalidateQueries({ queryKey: ["/api/v1/media"] });
         queryClient.invalidateQueries({ queryKey: ["/api/v1/admin/library-stats"] });
-        toast.success("Scan started");
+        toast.success(t("libraries.scanStarted"));
       },
-      onError: (err: Error) => toast.error(err.message || "Failed to start scan"),
+      onError: (err: Error) => toast.error(err.message || t("libraries.failedScan")),
     },
   });
 
@@ -259,13 +263,13 @@ function LibraryRow({ library, stats }: { library: V1Library; stats: LibraryStat
         {library.name}
       </td>
       <td className="px-4 py-3">
-        <Badge variant="info">{libraryTypeLabel(library.type)}</Badge>
+        <Badge variant="info">{libraryTypeLabel(library.type, t)}</Badge>
       </td>
       <td className="px-4 py-3 text-sm" style={{ color: "var(--text-muted)" }}>
         {library.paths?.join(", ") ?? "\u2014"}
       </td>
       <td className="px-4 py-3 text-sm" style={{ color: "var(--text-muted)" }}>
-        {totalItems != null ? `${totalItems} items` : <span className="opacity-50">{"\u2014"}</span>}
+        {totalItems != null ? t("libraries.items", { count: totalItems }) : <span className="opacity-50">{"\u2014"}</span>}
       </td>
       <td className="px-4 py-3 text-sm" style={{ color: "var(--text-muted)" }}>
         {formatDate(libStat?.lastScannedAt ?? undefined)}
@@ -273,10 +277,10 @@ function LibraryRow({ library, stats }: { library: V1Library; stats: LibraryStat
       <td className="px-4 py-3 text-sm" style={{ color: "var(--text-muted)" }}>
         {schedule?.enabled ? (
           <span title={`Cron: ${schedule.cron}`}>
-            {schedule.nextRunAt ? formatDate(schedule.nextRunAt) : "Enabled"}
+            {schedule.nextRunAt ? formatDate(schedule.nextRunAt) : t("common:enabled")}
           </span>
         ) : (
-          <span className="opacity-50">Off</span>
+          <span className="opacity-50">{t("libraries.off")}</span>
         )}
       </td>
       <td className="px-4 py-3 whitespace-nowrap">
@@ -284,7 +288,7 @@ function LibraryRow({ library, stats }: { library: V1Library; stats: LibraryStat
           {scanLib.isPending ? (
             <div className="flex items-center gap-2 text-sm" style={{ color: "var(--text-muted)" }}>
               <Spinner size="sm" />
-              <span>Scanning...</span>
+              <span>{t("libraries.scanning")}</span>
             </div>
           ) : (
             <Button
@@ -294,30 +298,30 @@ function LibraryRow({ library, stats }: { library: V1Library; stats: LibraryStat
                 scanLib.mutate({ id: library.id! });
               }}
             >
-              {scanDone ? "Scan again" : "Scan"}
+              {scanDone ? t("libraries.scanAgain") : t("libraries.scan")}
             </Button>
           )}
           <Button variant="secondary" onClick={() => setShowSchedule(true)}>
-            Schedule
+            {t("libraries.schedule")}
           </Button>
           <Button
             variant="danger"
             loading={deleteLib.isPending}
             onClick={() => setShowDeleteConfirm(true)}
           >
-            Delete
+            {t("common:delete")}
           </Button>
         </div>
       </td>
-      <Modal open={showSchedule} onClose={() => setShowSchedule(false)} title={`Scan Schedule \u2014 ${library.name}`}>
+      <Modal open={showSchedule} onClose={() => setShowSchedule(false)} title={t("libraries.scanScheduleTitle", { name: library.name })}>
         <ScheduleModal library={library} onClose={() => setShowSchedule(false)} />
       </Modal>
-      <Modal open={showDeleteConfirm} onClose={() => setShowDeleteConfirm(false)} title="Delete Library">
+      <Modal open={showDeleteConfirm} onClose={() => setShowDeleteConfirm(false)} title={t("libraries.deleteTitle")}>
         <p className="text-sm text-[var(--text-muted)] mb-4">
-          Delete library "{library.name}"? This cannot be undone.
+          {t("libraries.deleteConfirm", { name: library.name })}
         </p>
         <div className="flex justify-end gap-2">
-          <Button variant="ghost" onClick={() => setShowDeleteConfirm(false)}>Cancel</Button>
+          <Button variant="ghost" onClick={() => setShowDeleteConfirm(false)}>{t("common:cancel")}</Button>
           <Button
             variant="danger"
             loading={deleteLib.isPending}
@@ -326,7 +330,7 @@ function LibraryRow({ library, stats }: { library: V1Library; stats: LibraryStat
               setShowDeleteConfirm(false);
             }}
           >
-            Delete
+            {t("common:delete")}
           </Button>
         </div>
       </Modal>
@@ -335,6 +339,7 @@ function LibraryRow({ library, stats }: { library: V1Library; stats: LibraryStat
 }
 
 function LibrariesPage() {
+  const { t } = useTranslation("admin");
   const [showModal, setShowModal] = useState(false);
   const queryClient = useQueryClient();
   const { data, isLoading } = useLibraryServiceListLibraries();
@@ -344,16 +349,16 @@ function LibrariesPage() {
   function handleCreateSuccess() {
     queryClient.invalidateQueries({ queryKey: ["/api/v1/libraries"] });
     setShowModal(false);
-    toast.success("Library created");
+    toast.success(t("libraries.libraryCreated"));
   }
 
   return (
     <div className="flex flex-col gap-6" data-testid="libraries-page">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold" style={{ color: "var(--text)" }}>
-          Libraries
+          {t("libraries.title")}
         </h1>
-        <Button onClick={() => setShowModal(true)} data-testid="add-library-btn">Add Library</Button>
+        <Button onClick={() => setShowModal(true)} data-testid="add-library-btn">{t("libraries.addLibrary")}</Button>
       </div>
 
       {isLoading ? (
@@ -368,7 +373,7 @@ function LibrariesPage() {
           <table className="w-full text-sm">
             <thead>
               <tr style={{ backgroundColor: "var(--surface)", borderBottom: "1px solid var(--border)" }}>
-                {["Name", "Type", "Paths", "Items", "Last Scanned", "Next Scan", "Actions"].map((h) => (
+                {[t("libraries.tableHeaders.name"), t("libraries.tableHeaders.type"), t("libraries.tableHeaders.paths"), t("libraries.tableHeaders.items"), t("libraries.tableHeaders.lastScanned"), t("libraries.tableHeaders.nextScan"), t("libraries.tableHeaders.actions")].map((h) => (
                   <th
                     key={h}
                     className="px-4 py-2 text-left font-medium"
@@ -387,7 +392,7 @@ function LibrariesPage() {
                     className="px-4 py-8 text-center"
                     style={{ color: "var(--text-muted)" }}
                   >
-                    No libraries. Add one to get started.
+                    {t("libraries.noLibraries")}
                   </td>
                 </tr>
               ) : (
@@ -398,7 +403,7 @@ function LibrariesPage() {
         </div>
       )}
 
-      <Modal open={showModal} onClose={() => setShowModal(false)} title="Add Library">
+      <Modal open={showModal} onClose={() => setShowModal(false)} title={t("libraries.addLibrary")}>
         <LibraryForm onSuccess={handleCreateSuccess} />
       </Modal>
     </div>

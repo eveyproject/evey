@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { createLazyFileRoute } from "@tanstack/react-router";
+import { useTranslation } from "react-i18next";
 import { useAdminServiceGetDashboard, useAdminServiceGetSystemInfo } from "@evey/api";
 import { Spinner } from "@/components/ui/Spinner";
 import type { V1DashboardInfo, V1SystemInfo } from "@evey/api/src/generated/admin.schemas";
@@ -41,7 +42,6 @@ function getUsageTextColor(pct: number): string {
   return "text-[var(--color-success)]";
 }
 
-// Inline SVG sparkline — no external lib
 function Sparkline({ values, color }: { values: number[]; color: string }) {
   if (values.length < 2) return null;
   const w = 120;
@@ -108,6 +108,7 @@ interface StorageCardProps {
 }
 
 function StorageCard({ path, usedBytes, totalBytes, freeBytes }: StorageCardProps) {
+  const { t } = useTranslation("admin");
   const used = parseInt(usedBytes ?? "0");
   const total = parseInt(totalBytes ?? "1");
   const pct = total > 0 ? Math.round((used / total) * 100) : 0;
@@ -129,9 +130,9 @@ function StorageCard({ path, usedBytes, totalBytes, freeBytes }: StorageCardProp
         />
       </div>
       <div className="flex justify-between text-xs" style={{ color: "var(--text-muted)" }}>
-        <span>Used: {formatBytes(usedBytes)}</span>
-        <span>Free: {formatBytes(freeBytes)}</span>
-        <span>Total: {formatBytes(totalBytes)}</span>
+        <span>{t("systemHealth.used", { size: formatBytes(usedBytes) })}</span>
+        <span>{t("systemHealth.free", { size: formatBytes(freeBytes) })}</span>
+        <span>{t("systemHealth.total", { size: formatBytes(totalBytes) })}</span>
       </div>
     </div>
   );
@@ -148,25 +149,26 @@ function InfoRow({ label, value }: { label: string; value: string | undefined })
 }
 
 function ServerInfoPanel({ info }: { info: V1SystemInfo }) {
+  const { t } = useTranslation("admin");
   const devices = info.hwDevices ?? [];
   return (
     <div
       className="p-4 rounded-[var(--radius-lg)]"
       style={{ backgroundColor: "var(--surface)", border: "1px solid var(--border)" }}
     >
-      <h3 className="text-sm font-semibold mb-4" style={{ color: "var(--text)" }}>Server Info</h3>
+      <h3 className="text-sm font-semibold mb-4" style={{ color: "var(--text)" }}>{t("systemHealth.serverInfo")}</h3>
       <dl className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-x-6 gap-y-4">
-        <InfoRow label="Version" value={info.version} />
-        <InfoRow label="OS" value={info.os && info.arch ? `${info.os}/${info.arch}` : info.os} />
+        <InfoRow label={t("dashboard.version")} value={info.version} />
+        <InfoRow label={t("dashboard.os")} value={info.os && info.arch ? `${info.os}/${info.arch}` : info.os} />
         <InfoRow label="Go" value={info.goVersion} />
-        <InfoRow label="FFmpeg" value={info.ffmpegVersion} />
-        <InfoRow label="Uptime" value={formatUptime(info.uptimeSeconds)} />
-        <InfoRow label="Server ID" value={info.serverId} />
+        <InfoRow label={t("dashboard.ffmpeg")} value={info.ffmpegVersion} />
+        <InfoRow label={t("dashboard.uptime")} value={formatUptime(info.uptimeSeconds)} />
+        <InfoRow label={t("systemHealth.serverId")} value={info.serverId} />
       </dl>
       {devices.length > 0 && (
         <div className="mt-4">
           <p className="text-xs font-semibold uppercase tracking-wide mb-2" style={{ color: "var(--text-muted)" }}>
-            HW Acceleration
+            {t("systemHealth.hwAcceleration")}
           </p>
           <div className="flex flex-wrap gap-2">
             {devices.map((d, i) => (
@@ -198,17 +200,19 @@ function StatBadge({ label, value }: { label: string; value: number | undefined 
 }
 
 function DashboardPanel({ info }: { info: V1DashboardInfo; }) {
+  const { t } = useTranslation("admin");
   return (
     <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-      <StatBadge label="Active Streams" value={info.activeStreams} />
-      <StatBadge label="Active Transcodes" value={info.activeTranscodes} />
-      <StatBadge label="Total Media" value={info.totalMediaItems} />
-      <StatBadge label="Total Users" value={info.totalUsers} />
+      <StatBadge label={t("systemHealth.activeStreams")} value={info.activeStreams} />
+      <StatBadge label={t("systemHealth.activeTranscodes")} value={info.activeTranscodes} />
+      <StatBadge label={t("systemHealth.totalMedia")} value={info.totalMediaItems} />
+      <StatBadge label={t("systemHealth.totalUsers")} value={info.totalUsers} />
     </div>
   );
 }
 
 function SystemHealthPage() {
+  const { t } = useTranslation("admin");
   const { data: dashData, isLoading: dashLoading, dataUpdatedAt } = useAdminServiceGetDashboard({
     query: { refetchInterval: 5_000 },
   });
@@ -232,10 +236,10 @@ function SystemHealthPage() {
     <div className="flex flex-col gap-6">
       <div className="flex items-center justify-between flex-wrap gap-2">
         <div>
-          <h1 className="text-2xl font-bold" style={{ color: "var(--text)" }}>System Health</h1>
+          <h1 className="text-2xl font-bold" style={{ color: "var(--text)" }}>{t("systemHealth.title")}</h1>
           {dataUpdatedAt > 0 && (
             <p className="text-xs mt-1" style={{ color: "var(--text-muted)" }}>
-              Updated {new Date(dataUpdatedAt).toLocaleTimeString()} · auto-refreshes every 5s
+              {t("systemHealth.autoRefresh", { time: new Date(dataUpdatedAt).toLocaleTimeString() })}
             </p>
           )}
         </div>
@@ -245,27 +249,25 @@ function SystemHealthPage() {
         <div className="flex justify-center py-16"><Spinner size="lg" /></div>
       ) : (
         <>
-          {/* Real-time metrics */}
           {dashData && (
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <MetricCard
-                label="CPU Usage"
+                label={t("systemHealth.cpuUsage")}
                 value={dashData.cpuPercent ?? 0}
                 history={cpuHistory.current}
               />
               <MetricCard
-                label="Memory Usage"
+                label={t("systemHealth.memoryUsage")}
                 value={dashData.memoryPercent ?? 0}
                 history={memHistory.current}
               />
             </div>
           )}
 
-          {/* Storage */}
           {dashData?.storage && dashData.storage.length > 0 && (
             <div>
               <h2 className="text-sm font-semibold uppercase tracking-wide mb-3" style={{ color: "var(--text-muted)" }}>
-                Storage
+                {t("systemHealth.storage")}
               </h2>
               <div className="flex flex-col gap-3">
                 {dashData.storage.map((s, i) => (
@@ -281,21 +283,19 @@ function SystemHealthPage() {
             </div>
           )}
 
-          {/* Stream stats */}
           {dashData && (
             <div>
               <h2 className="text-sm font-semibold uppercase tracking-wide mb-3" style={{ color: "var(--text-muted)" }}>
-                Activity
+                {t("systemHealth.activitySection")}
               </h2>
               <DashboardPanel info={dashData} />
             </div>
           )}
 
-          {/* Server info */}
           {sysData && (
             <div>
               <h2 className="text-sm font-semibold uppercase tracking-wide mb-3" style={{ color: "var(--text-muted)" }}>
-                Server
+                {t("systemHealth.server")}
               </h2>
               <ServerInfoPanel info={sysData} />
             </div>

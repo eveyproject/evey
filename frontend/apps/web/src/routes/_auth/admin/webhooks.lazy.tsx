@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { createLazyFileRoute } from "@tanstack/react-router";
 import { useQueryClient } from "@tanstack/react-query";
+import { useTranslation } from "react-i18next";
 import {
   useWebhookServiceListWebhooks,
   useWebhookServiceDeleteWebhook,
@@ -28,6 +29,7 @@ function WebhookRow({
   webhook: V1WebhookConfig;
   onEdit: (wh: V1WebhookConfig) => void;
 }) {
+  const { t } = useTranslation("admin");
   const queryClient = useQueryClient();
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [testing, setTesting] = useState(false);
@@ -36,16 +38,16 @@ function WebhookRow({
     mutation: {
       onSuccess: () => {
         queryClient.invalidateQueries({ queryKey: WEBHOOKS_QUERY_KEY });
-        toast.success("Webhook deleted");
+        toast.success(t("webhooks.webhookDeleted"));
       },
-      onError: (err: Error) => toast.error(err.message || "Failed to delete webhook"),
+      onError: (err: Error) => toast.error(err.message || t("webhooks.failedDelete")),
     },
   });
 
   const toggleEnabled = useWebhookServiceUpdateWebhook({
     mutation: {
       onSuccess: () => queryClient.invalidateQueries({ queryKey: WEBHOOKS_QUERY_KEY }),
-      onError: () => toast.error("Failed to update webhook"),
+      onError: () => toast.error(t("webhooks.failedUpdate")),
     },
   });
 
@@ -57,9 +59,9 @@ function WebhookRow({
         url: `/api/v1/admin/webhooks/${webhook.id}/test`,
         method: "POST",
       });
-      toast.success("Test ping sent");
+      toast.success(t("webhooks.testPingSent"));
     } catch {
-      toast.error("Test ping failed");
+      toast.error(t("webhooks.testPingFailed"));
     } finally {
       setTesting(false);
     }
@@ -85,7 +87,7 @@ function WebhookRow({
     <tr style={{ borderBottom: "1px solid var(--border)" }}>
       <td className="px-4 py-3 max-w-xs">
         <div className="font-medium text-sm truncate" style={{ color: "var(--text)" }}>
-          {webhook.name || "—"}
+          {webhook.name || "\u2014"}
         </div>
         <div className="text-xs truncate mt-0.5" style={{ color: "var(--text-muted)" }}>
           {webhook.url}
@@ -109,46 +111,46 @@ function WebhookRow({
           type="button"
           onClick={handleToggleEnabled}
           disabled={toggleEnabled.isPending}
-          title={webhook.enabled ? "Click to disable" : "Click to enable"}
+          title={webhook.enabled ? t("common:disable") : t("common:enable")}
           className="cursor-pointer"
         >
           {webhook.enabled ? (
-            <Badge variant="success">Enabled</Badge>
+            <Badge variant="success">{t("common:enabled")}</Badge>
           ) : (
-            <Badge variant="error">Disabled</Badge>
+            <Badge variant="error">{t("common:disabled")}</Badge>
           )}
         </button>
       </td>
       <td className="px-4 py-3 whitespace-nowrap text-sm" style={{ color: "var(--text-muted)" }}>
-        {webhook.createdAt ? new Date(webhook.createdAt).toLocaleString() : "—"}
+        {webhook.createdAt ? new Date(webhook.createdAt).toLocaleString() : "\u2014"}
       </td>
       <td className="px-4 py-3">
         <div className="flex gap-2 flex-wrap">
           <Button variant="secondary" loading={testing} onClick={handleTest}>
-            Test
+            {t("common:test")}
           </Button>
           <Button variant="secondary" onClick={() => onEdit(webhook)}>
-            Edit
+            {t("common:edit")}
           </Button>
           <Button
             variant="danger"
             loading={deleteWebhook.isPending}
             onClick={() => setShowDeleteConfirm(true)}
           >
-            Delete
+            {t("common:delete")}
           </Button>
         </div>
         <Modal
           open={showDeleteConfirm}
           onClose={() => setShowDeleteConfirm(false)}
-          title="Delete Webhook"
+          title={t("webhooks.deleteTitle")}
         >
-          <p className="text-sm mb-4" style={{ color: "var(--text-muted)" }}>
-            Delete <strong style={{ color: "var(--text)" }}>{webhook.name || webhook.url}</strong>? This cannot be undone.
-          </p>
+          <p className="text-sm mb-4" style={{ color: "var(--text-muted)" }}
+            dangerouslySetInnerHTML={{ __html: t("webhooks.deleteConfirm", { name: webhook.name || webhook.url }) }}
+          />
           <div className="flex justify-end gap-2">
             <Button variant="ghost" onClick={() => setShowDeleteConfirm(false)}>
-              Cancel
+              {t("common:cancel")}
             </Button>
             <Button
               variant="danger"
@@ -158,7 +160,7 @@ function WebhookRow({
                 setShowDeleteConfirm(false);
               }}
             >
-              Delete
+              {t("common:delete")}
             </Button>
           </div>
         </Modal>
@@ -168,6 +170,7 @@ function WebhookRow({
 }
 
 function WebhooksPage() {
+  const { t } = useTranslation("admin");
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [editTarget, setEditTarget] = useState<V1WebhookConfig | null>(null);
   const queryClient = useQueryClient();
@@ -178,16 +181,16 @@ function WebhooksPage() {
     queryClient.invalidateQueries({ queryKey: WEBHOOKS_QUERY_KEY });
     setShowCreateModal(false);
     setEditTarget(null);
-    toast.success(editTarget ? "Webhook updated" : "Webhook created");
+    toast.success(editTarget ? t("webhooks.webhookUpdated") : t("webhooks.webhookCreated"));
   }
 
   return (
     <div className="flex flex-col gap-6">
       <div className="flex items-center justify-between">
         <h2 className="text-xl font-semibold" style={{ color: "var(--text)" }}>
-          Webhooks
+          {t("webhooks.title")}
         </h2>
-        <Button onClick={() => setShowCreateModal(true)}>Create Webhook</Button>
+        <Button onClick={() => setShowCreateModal(true)}>{t("webhooks.createWebhook")}</Button>
       </div>
 
       {isLoading ? (
@@ -207,7 +210,7 @@ function WebhooksPage() {
                   borderBottom: "1px solid var(--border)",
                 }}
               >
-                {["Name / URL", "Events", "Status", "Created", "Actions"].map((h) => (
+                {[t("webhooks.tableHeaders.nameUrl"), t("webhooks.tableHeaders.events"), t("webhooks.tableHeaders.status"), t("webhooks.tableHeaders.created"), t("webhooks.tableHeaders.actions")].map((h) => (
                   <th
                     key={h}
                     className="px-4 py-2 text-left font-medium"
@@ -226,7 +229,7 @@ function WebhooksPage() {
                     className="px-4 py-8 text-center"
                     style={{ color: "var(--text-muted)" }}
                   >
-                    No webhooks configured.
+                    {t("webhooks.noWebhooks")}
                   </td>
                 </tr>
               ) : (
@@ -242,7 +245,7 @@ function WebhooksPage() {
       <Modal
         open={showCreateModal}
         onClose={() => setShowCreateModal(false)}
-        title="Create Webhook"
+        title={t("webhooks.createWebhook")}
       >
         <WebhookForm onSuccess={handleMutationSuccess} />
       </Modal>
@@ -250,7 +253,7 @@ function WebhooksPage() {
       <Modal
         open={!!editTarget}
         onClose={() => setEditTarget(null)}
-        title="Edit Webhook"
+        title={t("webhooks.editWebhook")}
       >
         {editTarget && (
           <WebhookForm existing={editTarget} onSuccess={handleMutationSuccess} />

@@ -11,3 +11,17 @@ loading: Loading...
 error: Error
 unknown: Unknown
 settings: Settings
+edit: Edit
+add: Add
+remove: Remove
+apply: Apply
+clear: Clear
+test: Test
+restore: Restore
+download: Download
+search: Search
+enabled: Enabled
+disabled: Disabled
+actions: Actions
+status: Status
+name: Name

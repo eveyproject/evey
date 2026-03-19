@@ -1,5 +1,6 @@
 import { createLazyFileRoute } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
+import { useTranslation } from "react-i18next";
 import { eveyFetch } from "@evey/api/src/fetcher";
 import { Spinner } from "@/components/ui/Spinner";
 
@@ -69,10 +70,12 @@ function StatCard({ label, value }: { label: string; value: number }) {
 }
 
 function TopMediaTable({ items }: { items: TopMediaItem[] }) {
+  const { t } = useTranslation("admin");
+
   if (items.length === 0) {
     return (
       <div className="py-8 text-center text-sm" style={{ color: "var(--text-muted)" }}>
-        No plays in the last 30 days
+        {t("analytics.noPlays")}
       </div>
     );
   }
@@ -87,7 +90,7 @@ function TopMediaTable({ items }: { items: TopMediaItem[] }) {
       <table className="w-full text-sm">
         <thead>
           <tr style={{ backgroundColor: "var(--surface)", borderBottom: "1px solid var(--border)" }}>
-            {["Title", "Plays", "Total Watch Time"].map((h) => (
+            {[t("analytics.tableHeaders.title"), t("analytics.tableHeaders.plays"), t("analytics.tableHeaders.totalWatchTime")].map((h) => (
               <th
                 key={h}
                 className="px-4 py-2 text-left font-medium"
@@ -135,10 +138,12 @@ function TopMediaTable({ items }: { items: TopMediaItem[] }) {
 }
 
 function RecentActivityTable({ entries }: { entries: RecentActivityEntry[] }) {
+  const { t } = useTranslation("admin");
+
   if (entries.length === 0) {
     return (
       <div className="py-8 text-center text-sm" style={{ color: "var(--text-muted)" }}>
-        No recent activity
+        {t("analytics.noActivity")}
       </div>
     );
   }
@@ -151,7 +156,7 @@ function RecentActivityTable({ entries }: { entries: RecentActivityEntry[] }) {
       <table className="w-full text-sm">
         <thead>
           <tr style={{ backgroundColor: "var(--surface)", borderBottom: "1px solid var(--border)" }}>
-            {["User", "Media", "When"].map((h) => (
+            {[t("analytics.tableHeaders.user"), t("analytics.tableHeaders.media"), t("analytics.tableHeaders.when")].map((h) => (
               <th
                 key={h}
                 className="px-4 py-2 text-left font-medium"
@@ -183,12 +188,13 @@ function RecentActivityTable({ entries }: { entries: RecentActivityEntry[] }) {
 }
 
 function AnalyticsPage() {
+  const { t } = useTranslation("admin");
   const { data, isLoading, error } = useAnalytics();
 
   return (
     <div className="flex flex-col gap-6">
       <h1 className="text-2xl font-bold" style={{ color: "var(--text)" }}>
-        Analytics
+        {t("analytics.title")}
       </h1>
 
       {isLoading ? (
@@ -197,26 +203,26 @@ function AnalyticsPage() {
         </div>
       ) : error ? (
         <div className="py-8 text-center text-sm" style={{ color: "var(--text-muted)" }}>
-          Failed to load analytics
+          {t("analytics.failedLoad")}
         </div>
       ) : data ? (
         <>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            <StatCard label="Plays Today" value={data.total_plays_today} />
-            <StatCard label="Plays This Week" value={data.total_plays_this_week} />
-            <StatCard label="Active Users Today" value={data.active_users_today} />
+            <StatCard label={t("analytics.playsToday")} value={data.total_plays_today} />
+            <StatCard label={t("analytics.playsThisWeek")} value={data.total_plays_this_week} />
+            <StatCard label={t("analytics.activeUsersToday")} value={data.active_users_today} />
           </div>
 
           <div>
             <h2 className="text-sm font-semibold uppercase tracking-wide mb-3" style={{ color: "var(--text-muted)" }}>
-              Top 10 Media — Last 30 Days
+              {t("analytics.topMedia")}
             </h2>
             <TopMediaTable items={data.top_media} />
           </div>
 
           <div>
             <h2 className="text-sm font-semibold uppercase tracking-wide mb-3" style={{ color: "var(--text-muted)" }}>
-              Recent Activity
+              {t("analytics.recentActivity")}
             </h2>
             <RecentActivityTable entries={data.recent_activity} />
           </div>

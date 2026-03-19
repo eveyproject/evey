@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { createLazyFileRoute } from "@tanstack/react-router";
+import { useTranslation } from "react-i18next";
 import { useTranscodingServiceListTranscodeProfiles, getTranscodingServiceListTranscodeProfilesQueryKey } from "@evey/api";
 import type {
   V1TranscodeProfile,
@@ -44,7 +45,6 @@ const HW_ACCEL_OPTIONS: { label: string; value: V1HWAccelType }[] = [
   { label: "VAAPI", value: HWAccelType.HW_ACCEL_TYPE_VAAPI },
   { label: "NVENC", value: HWAccelType.HW_ACCEL_TYPE_NVENC },
   { label: "QSV", value: HWAccelType.HW_ACCEL_TYPE_QSV },
-  // VideoToolbox not in proto enum — omitted
 ];
 
 function hwAccelLabel(v: V1HWAccelType | undefined): string {
@@ -55,7 +55,7 @@ function resolutionLabel(maxWidth?: number, maxHeight?: number): string {
   const match = RESOLUTION_OPTIONS.find(
     (r) => r.maxWidth === maxWidth && r.maxHeight === maxHeight,
   );
-  return match ? match.label : maxHeight ? `${maxHeight}p` : "—";
+  return match ? match.label : maxHeight ? `${maxHeight}p` : "\u2014";
 }
 
 interface ProfileFormState {
@@ -85,6 +85,7 @@ interface ProfileDialogProps {
 }
 
 function ProfileDialog({ open, profile, onClose }: ProfileDialogProps) {
+  const { t } = useTranslation("admin");
   const isEdit = profile !== null;
   const queryClient = useQueryClient();
 
@@ -125,15 +126,15 @@ function ProfileDialog({ open, profile, onClose }: ProfileDialogProps) {
     try {
       if (isEdit && profile.id) {
         await eveyFetch({ url: `/api/v1/admin/transcoding/profiles/${profile.id}`, method: "PUT", data: body });
-        toast.success("Profile updated");
+        toast.success(t("transcodingProfiles.profileUpdated"));
       } else {
         await eveyFetch({ url: `/api/v1/admin/transcoding/profiles`, method: "POST", data: body });
-        toast.success("Profile created");
+        toast.success(t("transcodingProfiles.profileCreated"));
       }
       queryClient.invalidateQueries({ queryKey: getTranscodingServiceListTranscodeProfilesQueryKey() });
       handleClose();
     } catch {
-      toast.error("Failed to save profile");
+      toast.error(t("transcodingProfiles.failedSave"));
     } finally {
       setSaving(false);
     }
@@ -143,12 +144,12 @@ function ProfileDialog({ open, profile, onClose }: ProfileDialogProps) {
     <Modal
       open={open}
       onClose={handleClose}
-      title={isEdit ? "Edit Profile" : "Create Profile"}
+      title={isEdit ? t("transcodingProfiles.editProfile") : t("transcodingProfiles.createProfile")}
     >
       <form onSubmit={handleSubmit} className="flex flex-col gap-4">
         <div className="flex flex-col gap-1">
           <label className="text-sm font-medium" style={{ color: "var(--text)" }}>
-            Name
+            {t("transcodingProfiles.form.name")}
           </label>
           <input
             type="text"
@@ -168,90 +169,64 @@ function ProfileDialog({ open, profile, onClose }: ProfileDialogProps) {
         <div className="grid grid-cols-2 gap-4">
           <div className="flex flex-col gap-1">
             <label className="text-sm font-medium" style={{ color: "var(--text)" }}>
-              Max Resolution
+              {t("transcodingProfiles.form.maxResolution")}
             </label>
             <select
               value={form.resolution}
               onChange={(e) => setForm((f) => ({ ...f, resolution: e.target.value }))}
               className="px-3 py-2 text-sm rounded-[var(--radius-sm)]"
-              style={{
-                backgroundColor: "var(--surface-raised)",
-                border: "1px solid var(--border)",
-                color: "var(--text)",
-              }}
+              style={{ backgroundColor: "var(--surface-raised)", border: "1px solid var(--border)", color: "var(--text)" }}
             >
               {RESOLUTION_OPTIONS.map((r) => (
-                <option key={r.label} value={r.label}>
-                  {r.label}
-                </option>
+                <option key={r.label} value={r.label}>{r.label}</option>
               ))}
             </select>
           </div>
 
           <div className="flex flex-col gap-1">
             <label className="text-sm font-medium" style={{ color: "var(--text)" }}>
-              Hardware Acceleration
+              {t("transcodingProfiles.form.hwAccel")}
             </label>
             <select
               value={form.hwAccel}
-              onChange={(e) =>
-                setForm((f) => ({ ...f, hwAccel: e.target.value as V1HWAccelType }))
-              }
+              onChange={(e) => setForm((f) => ({ ...f, hwAccel: e.target.value as V1HWAccelType }))}
               className="px-3 py-2 text-sm rounded-[var(--radius-sm)]"
-              style={{
-                backgroundColor: "var(--surface-raised)",
-                border: "1px solid var(--border)",
-                color: "var(--text)",
-              }}
+              style={{ backgroundColor: "var(--surface-raised)", border: "1px solid var(--border)", color: "var(--text)" }}
             >
               {HW_ACCEL_OPTIONS.map((o) => (
-                <option key={o.value} value={o.value}>
-                  {o.label}
-                </option>
+                <option key={o.value} value={o.value}>{o.label}</option>
               ))}
             </select>
           </div>
 
           <div className="flex flex-col gap-1">
             <label className="text-sm font-medium" style={{ color: "var(--text)" }}>
-              Video Codec
+              {t("transcodingProfiles.form.videoCodec")}
             </label>
             <select
               value={form.videoCodec}
               onChange={(e) => setForm((f) => ({ ...f, videoCodec: e.target.value }))}
               className="px-3 py-2 text-sm rounded-[var(--radius-sm)]"
-              style={{
-                backgroundColor: "var(--surface-raised)",
-                border: "1px solid var(--border)",
-                color: "var(--text)",
-              }}
+              style={{ backgroundColor: "var(--surface-raised)", border: "1px solid var(--border)", color: "var(--text)" }}
             >
               {VIDEO_CODEC_OPTIONS.map((c) => (
-                <option key={c} value={c}>
-                  {c}
-                </option>
+                <option key={c} value={c}>{c}</option>
               ))}
             </select>
           </div>
 
           <div className="flex flex-col gap-1">
             <label className="text-sm font-medium" style={{ color: "var(--text)" }}>
-              Audio Codec
+              {t("transcodingProfiles.form.audioCodec")}
             </label>
             <select
               value={form.audioCodec}
               onChange={(e) => setForm((f) => ({ ...f, audioCodec: e.target.value }))}
               className="px-3 py-2 text-sm rounded-[var(--radius-sm)]"
-              style={{
-                backgroundColor: "var(--surface-raised)",
-                border: "1px solid var(--border)",
-                color: "var(--text)",
-              }}
+              style={{ backgroundColor: "var(--surface-raised)", border: "1px solid var(--border)", color: "var(--text)" }}
             >
               {AUDIO_CODEC_OPTIONS.map((c) => (
-                <option key={c} value={c}>
-                  {c}
-                </option>
+                <option key={c} value={c}>{c}</option>
               ))}
             </select>
           </div>
@@ -259,7 +234,7 @@ function ProfileDialog({ open, profile, onClose }: ProfileDialogProps) {
 
         <div className="flex flex-col gap-1">
           <label className="text-sm font-medium" style={{ color: "var(--text)" }}>
-            Max Video Bitrate (kbps)
+            {t("transcodingProfiles.form.maxBitrate")}
           </label>
           <input
             type="number"
@@ -268,11 +243,7 @@ function ProfileDialog({ open, profile, onClose }: ProfileDialogProps) {
             value={form.maxBitrate}
             onChange={(e) => setForm((f) => ({ ...f, maxBitrate: e.target.value }))}
             className="px-3 py-2 text-sm rounded-[var(--radius-sm)]"
-            style={{
-              backgroundColor: "var(--surface-raised)",
-              border: "1px solid var(--border)",
-              color: "var(--text)",
-            }}
+            style={{ backgroundColor: "var(--surface-raised)", border: "1px solid var(--border)", color: "var(--text)" }}
           />
         </div>
 
@@ -284,16 +255,16 @@ function ProfileDialog({ open, profile, onClose }: ProfileDialogProps) {
             className="w-4 h-4"
           />
           <span className="text-sm" style={{ color: "var(--text)" }}>
-            Default profile
+            {t("transcodingProfiles.form.defaultProfile")}
           </span>
         </label>
 
         <div className="flex justify-end gap-3 pt-2">
           <Button type="button" variant="secondary" onClick={handleClose}>
-            Cancel
+            {t("common:cancel")}
           </Button>
           <Button type="submit" loading={saving}>
-            {isEdit ? "Save" : "Create"}
+            {isEdit ? t("common:save") : t("common:create")}
           </Button>
         </div>
       </form>
@@ -308,6 +279,7 @@ interface DeleteDialogProps {
 }
 
 function DeleteDialog({ open, profile, onClose }: DeleteDialogProps) {
+  const { t } = useTranslation("admin");
   const queryClient = useQueryClient();
   const [deleting, setDeleting] = useState(false);
 
@@ -316,28 +288,27 @@ function DeleteDialog({ open, profile, onClose }: DeleteDialogProps) {
     setDeleting(true);
     try {
       await eveyFetch({ url: `/api/v1/admin/transcoding/profiles/${profile.id}`, method: "DELETE" });
-      toast.success("Profile deleted");
+      toast.success(t("transcodingProfiles.profileDeleted"));
       queryClient.invalidateQueries({ queryKey: getTranscodingServiceListTranscodeProfilesQueryKey() });
       onClose();
     } catch {
-      toast.error("Failed to delete profile");
+      toast.error(t("transcodingProfiles.failedDeleteProfile"));
     } finally {
       setDeleting(false);
     }
   }
 
   return (
-    <Modal open={open} onClose={onClose} title="Delete Profile">
-      <p className="text-sm mb-4" style={{ color: "var(--text-muted)" }}>
-        Delete profile <strong style={{ color: "var(--text)" }}>{profile?.name}</strong>? This
-        cannot be undone.
-      </p>
+    <Modal open={open} onClose={onClose} title={t("transcodingProfiles.deleteProfile")}>
+      <p className="text-sm mb-4" style={{ color: "var(--text-muted)" }}
+        dangerouslySetInnerHTML={{ __html: t("transcodingProfiles.deleteConfirm", { name: profile?.name }) }}
+      />
       <div className="flex justify-end gap-3">
         <Button variant="secondary" onClick={onClose}>
-          Cancel
+          {t("common:cancel")}
         </Button>
         <Button variant="danger" loading={deleting} onClick={handleConfirm}>
-          Delete
+          {t("common:delete")}
         </Button>
       </div>
     </Modal>
@@ -345,6 +316,7 @@ function DeleteDialog({ open, profile, onClose }: DeleteDialogProps) {
 }
 
 function TranscodingProfilesPage() {
+  const { t } = useTranslation("admin");
   const { data, isLoading } = useTranscodingServiceListTranscodeProfiles();
   const profiles = data?.profiles ?? [];
 
@@ -356,9 +328,9 @@ function TranscodingProfilesPage() {
     <div className="flex flex-col gap-6">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold" style={{ color: "var(--text)" }}>
-          Transcoding Profiles
+          {t("transcodingProfiles.title")}
         </h1>
-        <Button onClick={() => setShowCreate(true)}>Create Profile</Button>
+        <Button onClick={() => setShowCreate(true)}>{t("transcodingProfiles.createProfile")}</Button>
       </div>
 
       {isLoading ? (
@@ -373,12 +345,9 @@ function TranscodingProfilesPage() {
           <table className="w-full text-sm">
             <thead>
               <tr
-                style={{
-                  backgroundColor: "var(--surface)",
-                  borderBottom: "1px solid var(--border)",
-                }}
+                style={{ backgroundColor: "var(--surface)", borderBottom: "1px solid var(--border)" }}
               >
-                {["Name", "Resolution", "Video Codec", "Audio Codec", "Bitrate", "HW Accel", ""].map(
+                {[t("transcodingProfiles.tableHeaders.name"), t("transcodingProfiles.tableHeaders.resolution"), t("transcodingProfiles.tableHeaders.videoCodec"), t("transcodingProfiles.tableHeaders.audioCodec"), t("transcodingProfiles.tableHeaders.bitrate"), t("transcodingProfiles.tableHeaders.hwAccel"), ""].map(
                   (h) => (
                     <th
                       key={h}
@@ -399,20 +368,17 @@ function TranscodingProfilesPage() {
                     className="px-4 py-8 text-center"
                     style={{ color: "var(--text-muted)" }}
                   >
-                    No transcoding profiles found.
+                    {t("transcodingProfiles.noProfiles")}
                   </td>
                 </tr>
               ) : (
                 profiles.map((p) => (
-                  <tr
-                    key={p.id}
-                    style={{ borderBottom: "1px solid var(--border)" }}
-                  >
+                  <tr key={p.id} style={{ borderBottom: "1px solid var(--border)" }}>
                     <td className="px-4 py-3" style={{ color: "var(--text)" }}>
                       <div className="flex items-center gap-2">
                         {p.name}
                         {p.isDefault && (
-                          <Badge variant="success">Default</Badge>
+                          <Badge variant="success">{t("transcodingProfiles.default")}</Badge>
                         )}
                       </div>
                     </td>
@@ -420,32 +386,24 @@ function TranscodingProfilesPage() {
                       {resolutionLabel(p.maxWidth, p.maxHeight)}
                     </td>
                     <td className="px-4 py-3" style={{ color: "var(--text-muted)" }}>
-                      {p.videoCodec ?? "—"}
+                      {p.videoCodec ?? "\u2014"}
                     </td>
                     <td className="px-4 py-3" style={{ color: "var(--text-muted)" }}>
-                      {p.audioCodec ?? "—"}
+                      {p.audioCodec ?? "\u2014"}
                     </td>
                     <td className="px-4 py-3 whitespace-nowrap" style={{ color: "var(--text-muted)" }}>
-                      {p.maxBitrate ? `${Number(p.maxBitrate).toLocaleString()} kbps` : "—"}
+                      {p.maxBitrate ? `${Number(p.maxBitrate).toLocaleString()} kbps` : "\u2014"}
                     </td>
                     <td className="px-4 py-3" style={{ color: "var(--text-muted)" }}>
                       {hwAccelLabel(p.hwAccel)}
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-2">
-                        <Button
-                          variant="secondary"
-                          className="text-xs"
-                          onClick={() => setEditProfile(p)}
-                        >
-                          Edit
+                        <Button variant="secondary" className="text-xs" onClick={() => setEditProfile(p)}>
+                          {t("common:edit")}
                         </Button>
-                        <Button
-                          variant="danger"
-                          className="text-xs"
-                          onClick={() => setDeleteProfile(p)}
-                        >
-                          Delete
+                        <Button variant="danger" className="text-xs" onClick={() => setDeleteProfile(p)}>
+                          {t("common:delete")}
                         </Button>
                       </div>
                     </td>

@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { eveyFetch, useLibraryServiceCreateLibrary } from "@evey/api";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
@@ -10,6 +11,7 @@ interface LibraryFormProps {
 }
 
 export function LibraryForm({ onSuccess }: LibraryFormProps) {
+  const { t } = useTranslation("admin");
   const [name, setName] = useState("");
   const [type, setType] = useState<V1LibraryType>("LIBRARY_TYPE_MOVIES");
   const [paths, setPaths] = useState<string[]>([""]);
@@ -54,29 +56,29 @@ export function LibraryForm({ onSuccess }: LibraryFormProps) {
   return (
     <form onSubmit={handleSubmit} className="flex flex-col gap-4">
       <Input
-        label="Name"
+        label={t("common:name")}
         value={name}
         onChange={(e) => setName(e.target.value)}
         required
       />
 
       <Select
-        label="Type"
+        label={t("libraries.tableHeaders.type")}
         value={type}
         onChange={(v) => setType(v as V1LibraryType)}
         options={[
-          { value: "LIBRARY_TYPE_MOVIES", label: "Movies" },
-          { value: "LIBRARY_TYPE_SHOWS", label: "TV Shows" },
-          { value: "LIBRARY_TYPE_MUSIC", label: "Music" },
+          { value: "LIBRARY_TYPE_MOVIES", label: t("libraries.types.movies") },
+          { value: "LIBRARY_TYPE_SHOWS", label: t("libraries.tvShows") },
+          { value: "LIBRARY_TYPE_MUSIC", label: t("libraries.types.music") },
         ]}
       />
 
       <div className="flex flex-col gap-2">
         <span className="text-sm font-medium" style={{ color: "var(--text-muted)" }}>
-          Paths
+          {t("libraries.paths")}
           {mediaDirs.length === 0 && (
             <span className="ml-2 text-xs font-normal">
-              (enter the full path inside the container, e.g. /media/movies)
+              {t("libraries.pathsHint")}
             </span>
           )}
         </span>
@@ -87,10 +89,10 @@ export function LibraryForm({ onSuccess }: LibraryFormProps) {
               <Select
                 value={p}
                 onChange={(v) => updatePath(i, v)}
-                placeholder="— select a directory —"
+                placeholder={t("libraries.selectDirectory")}
                 options={[
                   ...mediaDirs.map((d) => ({ value: d, label: d })),
-                  { value: "__custom__", label: "Enter custom path..." },
+                  { value: "__custom__", label: t("libraries.enterCustomPath") },
                 ]}
                 className="flex-1"
               />
@@ -105,14 +107,14 @@ export function LibraryForm({ onSuccess }: LibraryFormProps) {
             )}
             {paths.length > 1 && (
               <Button type="button" variant="danger" onClick={() => removePath(i)}>
-                Remove
+                {t("common:remove")}
               </Button>
             )}
           </div>
         ))}
 
         <Button type="button" variant="secondary" onClick={addPath} className="self-start">
-          + Add Path
+          {t("libraries.addPath")}
         </Button>
       </div>
 
@@ -122,7 +124,7 @@ export function LibraryForm({ onSuccess }: LibraryFormProps) {
           loading={createLib.isPending}
           disabled={!name.trim() || paths.every((p) => !p.trim() || p === "__custom__")}
         >
-          Create Library
+          {t("libraries.createLibrary")}
         </Button>
       </div>
     </form>
