@@ -224,8 +224,10 @@ func (s *ScanService) removeOrphanedItems(ctx context.Context, libraryID string,
 			slog.Warn("delete orphaned media item failed", slog.String("id", id), slog.String("path", path), slog.Any("err", delErr))
 			continue
 		}
-		if idxErr := s.search.RemoveMediaItem(ctx, id); idxErr != nil {
-			slog.Warn("remove orphan from search index failed", slog.String("id", id), slog.Any("err", idxErr))
+		if s.search != nil {
+			if idxErr := s.search.RemoveMediaItem(ctx, id); idxErr != nil {
+				slog.Warn("remove orphan from search index failed", slog.String("id", id), slog.Any("err", idxErr))
+			}
 		}
 		evt := library.MediaItemRemoved{
 			MediaItemID: id,
@@ -281,8 +283,10 @@ func (s *ScanService) upsertMediaFile(ctx context.Context, libraryID, parentID s
 		if s.metadata != nil {
 			s.metadata.extractAndStoreChapters(ctx, item.ID, f.Path)
 		}
-		if err := s.search.IndexMediaItem(ctx, item, nil); err != nil {
-			slog.Warn("index media item failed", slog.String("mediaItemID", item.ID), slog.Any("err", err))
+		if s.search != nil {
+			if err := s.search.IndexMediaItem(ctx, item, nil); err != nil {
+				slog.Warn("index media item failed", slog.String("mediaItemID", item.ID), slog.Any("err", err))
+			}
 		}
 		showTitle := ""
 		if len(seriesTitle) > 0 {
@@ -328,8 +332,10 @@ func (s *ScanService) upsertMediaFile(ctx context.Context, libraryID, parentID s
 	if err := s.mediaItems.Update(ctx, existing); err != nil {
 		slog.Warn("update media item failed", slog.String("mediaItemID", existing.ID), slog.Any("err", err))
 	}
-	if err := s.search.IndexMediaItem(ctx, existing, nil); err != nil {
-		slog.Warn("index media item failed", slog.String("mediaItemID", existing.ID), slog.Any("err", err))
+	if s.search != nil {
+		if err := s.search.IndexMediaItem(ctx, existing, nil); err != nil {
+			slog.Warn("index media item failed", slog.String("mediaItemID", existing.ID), slog.Any("err", err))
+		}
 	}
 	if existing.Overview == "" {
 		showTitle := ""
