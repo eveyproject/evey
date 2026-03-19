@@ -1,6 +1,7 @@
 import { memo, useRef, useState, useEffect, useCallback, useMemo } from "react";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { useQueryClient } from "@tanstack/react-query";
+import { useTranslation } from "react-i18next";
 import { usePlaybackServiceMarkAsWatched, usePlaybackServiceMarkAsUnwatched } from "@evey/api";
 import type { V1Artwork } from "@evey/api/src/generated/library.schemas";
 import { toast, useAuthStore } from "@evey/store";
@@ -118,6 +119,7 @@ const CardContextMenu = memo(function CardContextMenu({
   onAddToPlaylist: () => void;
   onAddToCollection: () => void;
 }) {
+  const { t } = useTranslation("media");
   const ref = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -128,11 +130,11 @@ const CardContextMenu = memo(function CardContextMenu({
     mutation: {
       onSuccess: () => {
         queryClient.invalidateQueries({ queryKey: [`/api/v1/media/${mediaId}`] });
-        toast.success("Marked as watched");
+        toast.success(t("contextMenu.markedWatched"));
         onClose();
       },
       onError: () => {
-        toast.error("Failed to mark as watched");
+        toast.error(t("contextMenu.markError", { status: "watched" }));
         onClose();
       },
     },
@@ -141,11 +143,11 @@ const CardContextMenu = memo(function CardContextMenu({
     mutation: {
       onSuccess: () => {
         queryClient.invalidateQueries({ queryKey: [`/api/v1/media/${mediaId}`] });
-        toast.success("Marked as unwatched");
+        toast.success(t("contextMenu.markedUnwatched"));
         onClose();
       },
       onError: () => {
-        toast.error("Failed to mark as unwatched");
+        toast.error(t("contextMenu.markError", { status: "unwatched" }));
         onClose();
       },
     },
@@ -161,49 +163,49 @@ const CardContextMenu = memo(function CardContextMenu({
 
   const items = [
     {
-      label: "Edit metadata",
+      label: t("contextMenu.editMetadata"),
       onClick: () => {
         navigate({ to: "/media/$mediaId", params: { mediaId }, search: { edit: true } as never });
         onClose();
       },
     },
     {
-      label: "Add to Playlist",
+      label: t("contextMenu.addToPlaylist"),
       onClick: () => {
         onClose();
         onAddToPlaylist();
       },
     },
     {
-      label: "Add to Collection",
+      label: t("contextMenu.addToCollection"),
       onClick: () => {
         onClose();
         onAddToCollection();
       },
     },
     {
-      label: isFav ? "Remove from Favorites" : "Add to Favorites",
+      label: isFav ? t("contextMenu.removeFromFavorites") : t("contextMenu.addToFavorites"),
       onClick: () => {
         toggleFav.mutate();
         onClose();
       },
     },
     {
-      label: "Download",
+      label: t("contextMenu.download"),
       onClick: () => {
         window.open(`/api/v1/media/${mediaId}/download`, "_blank");
         onClose();
       },
     },
     {
-      label: "Mark as watched",
+      label: t("contextMenu.markWatched"),
       onClick: () => {
         if (!profileId) { toast.error("No profile selected"); onClose(); return; }
         markWatched.mutate({ mediaItemId: mediaId, params: { profileId } });
       },
     },
     {
-      label: "Mark as unwatched",
+      label: t("contextMenu.markUnwatched"),
       onClick: () => {
         if (!profileId) { toast.error("No profile selected"); onClose(); return; }
         markUnwatched.mutate({ mediaItemId: mediaId, params: { profileId } });

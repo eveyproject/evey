@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import {
   usePlaybackServiceGetWatchHistory,
   usePlaybackServiceMarkAsUnwatched,
@@ -38,21 +39,6 @@ function formatDuration(ms: string | undefined): string {
   return m > 0 ? `${h}h ${m}min` : `${h}h`;
 }
 
-function getDateGroup(iso: string | undefined): string {
-  if (!iso) return "Unknown";
-  const date = new Date(iso);
-  const now = new Date();
-  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  const itemDate = new Date(date.getFullYear(), date.getMonth(), date.getDate());
-  const diffDays = Math.floor((today.getTime() - itemDate.getTime()) / 86400000);
-
-  if (diffDays === 0) return "Today";
-  if (diffDays === 1) return "Yesterday";
-  if (diffDays < 7) return "This Week";
-  if (diffDays < 30) return "This Month";
-  return date.toLocaleDateString(undefined, { year: "numeric", month: "long" });
-}
-
 function formatDate(iso: string | undefined): string {
   if (!iso) return "";
   return new Date(iso).toLocaleDateString(undefined, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
@@ -71,6 +57,8 @@ function ProgressBar({ percent }: { percent: number }) {
 }
 
 function HistoryItem({ item }: { item: WatchProgress }) {
+  const { t } = useTranslation("auth");
+  const { t: tc } = useTranslation("common");
   const qc = useQueryClient();
   const unwatch = usePlaybackServiceMarkAsUnwatched({
     mutation: {
@@ -114,7 +102,7 @@ function HistoryItem({ item }: { item: WatchProgress }) {
           className="text-sm font-medium text-[var(--text)] hover:text-[var(--accent)] transition-colors truncate block"
         >
           Media {item.mediaItemId?.slice(0, 8)}
-          {item.playCount && item.playCount > 1 ? ` (${item.playCount} plays)` : ""}
+          {item.playCount && item.playCount > 1 ? ` (${t("watchHistory.plays", { count: item.playCount })})` : ""}
         </Link>
         <div className="flex items-center gap-2 mt-0.5">
           <p className="text-xs text-[var(--text-muted)]">{formatDate(item.lastPlayedAt)}</p>
@@ -131,7 +119,7 @@ function HistoryItem({ item }: { item: WatchProgress }) {
       </div>
 
       <div className="flex items-center gap-2 shrink-0">
-        {item.played && <Badge variant="success">Watched</Badge>}
+        {item.played && <Badge variant="success">{t("watchHistory.watched")}</Badge>}
         <button
           onClick={() => {
             if (item.mediaItemId) {
@@ -141,7 +129,7 @@ function HistoryItem({ item }: { item: WatchProgress }) {
           disabled={unwatch.isPending}
           className="text-xs text-[var(--text-muted)] hover:text-[var(--text)] transition-colors disabled:opacity-50"
         >
-          Remove
+          {tc("remove")}
         </button>
       </div>
     </div>
@@ -149,10 +137,27 @@ function HistoryItem({ item }: { item: WatchProgress }) {
 }
 
 export function WatchHistory({ limit, showClearButton = false }: Props) {
+  const { t } = useTranslation("auth");
+  const { t: tc } = useTranslation("common");
   const [showClearModal, setShowClearModal] = useState(false);
   const qc = useQueryClient();
   const { data, isLoading } = usePlaybackServiceGetWatchHistory(limit ? { limit } : undefined);
   const items = data?.items ?? [];
+
+  function getDateGroup(iso: string | undefined): string {
+    if (!iso) return tc("unknown");
+    const date = new Date(iso);
+    const now = new Date();
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const itemDate = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+    const diffDays = Math.floor((today.getTime() - itemDate.getTime()) / 86400000);
+
+    if (diffDays === 0) return t("watchHistory.today");
+    if (diffDays === 1) return t("watchHistory.yesterday");
+    if (diffDays < 7) return t("watchHistory.thisWeek");
+    if (diffDays < 30) return t("watchHistory.thisMonth");
+    return date.toLocaleDateString(undefined, { year: "numeric", month: "long" });
+  }
 
   const grouped = items.reduce<Record<string, WatchProgress[]>>((acc, item) => {
     const group = getDateGroup(item.lastPlayedAt);
@@ -161,17 +166,16 @@ export function WatchHistory({ limit, showClearButton = false }: Props) {
   }, {});
 
   const handleClearAll = () => {
-    // Mark each item as unwatched (no bulk clear endpoint available)
     setShowClearModal(false);
     void qc.invalidateQueries({ queryKey: getPlaybackServiceGetWatchHistoryQueryKey() });
   };
 
   if (isLoading) {
-    return <p className="text-sm text-[var(--text-muted)]">Loading...</p>;
+    return <p className="text-sm text-[var(--text-muted)]">{tc("loading")}</p>;
   }
 
   if (items.length === 0) {
-    return <div data-testid="history-empty"><EmptyState icon="history" title="No watch history yet" description="Start watching something to see it here." /></div>;
+    return <div data-testid="history-empty"><EmptyState icon="history" title={t("watchHistory.noHistory")} description={t("watchHistory.noHistoryDesc")} /></div>;
   }
 
   return (
@@ -179,7 +183,7 @@ export function WatchHistory({ limit, showClearButton = false }: Props) {
       {showClearButton && items.length > 0 && (
         <div className="flex justify-end">
           <Button variant="danger" onClick={() => setShowClearModal(true)} data-testid="clear-history-btn">
-            Clear history
+            {t("watchHistory.clearHistory")}
           </Button>
         </div>
       )}
@@ -195,16 +199,16 @@ export function WatchHistory({ limit, showClearButton = false }: Props) {
         </div>
       ))}
 
-      <Modal open={showClearModal} onClose={() => setShowClearModal(false)} title="Clear watch history">
+      <Modal open={showClearModal} onClose={() => setShowClearModal(false)} title={t("watchHistory.clearTitle")}>
         <p className="text-sm text-[var(--text-muted)] mb-6">
-          This will remove all items from your watch history. This action cannot be undone.
+          {t("watchHistory.clearConfirm")}
         </p>
         <div className="flex justify-end gap-2">
           <Button variant="ghost" onClick={() => setShowClearModal(false)}>
-            Cancel
+            {tc("cancel")}
           </Button>
           <Button variant="danger" onClick={handleClearAll}>
-            Clear all
+            {t("watchHistory.clearAll")}
           </Button>
         </div>
       </Modal>

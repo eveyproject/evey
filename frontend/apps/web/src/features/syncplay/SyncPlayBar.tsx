@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import type { SyncPlayMember } from "./useSyncPlay";
 
 interface SyncPlayBarProps {
@@ -9,6 +10,8 @@ interface SyncPlayBarProps {
 }
 
 export function SyncPlayBar({ roomId, members, connected, onLeave }: SyncPlayBarProps) {
+  const { t } = useTranslation("media");
+  const { t: tc } = useTranslation("common");
   const [copied, setCopied] = useState(false);
 
   const shareUrl = `${window.location.origin}${window.location.pathname}?room=${roomId}`;
@@ -23,8 +26,10 @@ export function SyncPlayBar({ roomId, members, connected, onLeave }: SyncPlayBar
   const displayNames = members.slice(0, 3).map((m) => m.username);
   const extra = members.length > 3 ? members.length - 3 : 0;
   const watchingWith = displayNames.length > 0
-    ? `Watching with: ${displayNames.join(", ")}${extra > 0 ? ` +${extra} more` : ""}`
-    : "Watch Together room";
+    ? extra > 0
+      ? t("syncplay.watchingWithMore", { names: displayNames.join(", "), count: extra })
+      : t("syncplay.watchingWith", { names: displayNames.join(", ") })
+    : t("syncplay.watchTogetherRoom");
 
   return (
     <div
@@ -34,7 +39,7 @@ export function SyncPlayBar({ roomId, members, connected, onLeave }: SyncPlayBar
       <span
         className="w-2 h-2 rounded-full flex-shrink-0"
         style={{ background: connected ? "var(--color-success)" : "var(--color-danger)" }}
-        title={connected ? "Connected" : "Connecting..."}
+        title={connected ? t("syncplay.connected") : t("syncplay.connecting")}
       />
       <span className="flex-1 truncate">{watchingWith}</span>
       <button
@@ -42,14 +47,14 @@ export function SyncPlayBar({ roomId, members, connected, onLeave }: SyncPlayBar
         className="px-3 py-1 rounded text-xs font-medium hover:opacity-80 transition-opacity flex-shrink-0"
         style={{ background: "var(--overlay-btn-bg)" }}
       >
-        {copied ? "Copied!" : "Share link"}
+        {copied ? tc("copied") : t("syncplay.shareLink")}
       </button>
       <button
         onClick={onLeave}
         className="px-3 py-1 rounded text-xs font-medium hover:opacity-80 transition-opacity flex-shrink-0"
         style={{ background: "color-mix(in srgb, var(--color-danger) 30%, transparent)" }}
       >
-        Leave
+        {t("syncplay.leave")}
       </button>
     </div>
   );

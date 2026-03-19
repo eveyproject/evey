@@ -1,6 +1,7 @@
 import { useRef, useState, useEffect, useCallback } from "react";
 import type { ReactNode } from "react";
 import { Link } from "@tanstack/react-router";
+import { useTranslation } from "react-i18next";
 
 interface MediaSliderProps {
   title: string;
@@ -39,6 +40,7 @@ export function MediaSlider({
   isLoading,
   skeletonCount = 6,
 }: MediaSliderProps) {
+  const { t } = useTranslation("common");
   const scrollRef = useRef<HTMLDivElement>(null);
   const [showLeft, setShowLeft] = useState(false);
   const [showRight, setShowRight] = useState(false);
@@ -176,7 +178,7 @@ export function MediaSlider({
             className="text-sm transition-colors"
             style={{ color: "var(--accent)" }}
           >
-            See all →
+            {t("seeAll")}
           </Link>
         )}
       </div>
@@ -187,8 +189,8 @@ export function MediaSlider({
             onClick={() => scroll("left")}
             className="absolute left-0 top-0 bottom-2 z-10 flex items-center justify-center w-10 rounded-r-[var(--radius-md)] opacity-0 group-hover/slider:opacity-100 transition-opacity"
             style={{ background: "linear-gradient(to right, var(--overlay-gradient), transparent)" }}
-            aria-label="Scroll left"
-            title="Scroll left"
+            aria-label={t("scrollLeft")}
+            title={t("scrollLeft")}
           >
             <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
@@ -219,8 +221,8 @@ export function MediaSlider({
             onClick={() => scroll("right")}
             className="absolute right-0 top-0 bottom-2 z-10 flex items-center justify-center w-10 rounded-l-[var(--radius-md)] opacity-0 group-hover/slider:opacity-100 transition-opacity"
             style={{ background: "linear-gradient(to left, var(--overlay-gradient), transparent)" }}
-            aria-label="Scroll right"
-            title="Scroll right"
+            aria-label={t("scrollRight")}
+            title={t("scrollRight")}
           >
             <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />

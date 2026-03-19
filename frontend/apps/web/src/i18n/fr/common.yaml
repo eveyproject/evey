@@ -11,3 +11,22 @@ loading: "Chargement\u2026"
 error: Erreur
 unknown: Inconnu
 settings: "Param\xE8tres"
+refresh: Refresh
+remove: Remove
+done: Done
+revoke: Revoke
+copied: Copied!
+copyKey: Copy key
+newKey: New key
+appearance: Appearance
+appearanceDesc: Choose a color theme for the interface.
+language: Language
+languageDesc: Choose the display language for the interface.
+notifications: Notifications
+noNotifications: No notifications
+markAllRead: Mark all read
+viewAllNotifications: View all notifications
+unableToLoadNotifications: Unable to load notifications
+scrollLeft: Scroll left
+scrollRight: Scroll right
+seeAll: "See all →"

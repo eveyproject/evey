@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 
 interface NextEpisodeOverlayProps {
   nextEpisode: { id: string; title?: string; indexNumber?: number } | null;
@@ -18,6 +19,7 @@ export function NextEpisodeOverlay({
   onPlayNow,
   onCancel,
 }: NextEpisodeOverlayProps) {
+  const { t } = useTranslation("player");
   const [countdown, setCountdown] = useState(COUNTDOWN_SEC);
   const [cancelled, setCancelled] = useState(false);
   const [ended, setEnded] = useState(false);
@@ -71,15 +73,15 @@ export function NextEpisodeOverlay({
   if (!visible) return null;
 
   const label = nextEpisode.indexNumber != null
-    ? `Episode ${nextEpisode.indexNumber}`
-    : "Next Episode";
+    ? t("nextEpisodeOverlay.episode", { number: nextEpisode.indexNumber })
+    : t("nextEpisodeOverlay.nextEpisode");
 
   return (
     <div className="absolute bottom-24 right-4 z-30 rounded-lg p-4 max-w-xs animate-in fade-in slide-in-from-right"
       style={{ backgroundColor: "rgba(0,0,0,0.85)", border: "1px solid var(--border)" }}
     >
       <p className="text-xs uppercase tracking-wider mb-1" style={{ color: "var(--text-muted)" }}>
-        {ended ? `Next in ${Math.max(countdown, 0)}s` : "Up Next"}
+        {ended ? t("nextEpisodeOverlay.nextIn", { seconds: Math.max(countdown, 0) }) : t("nextEpisodeOverlay.upNext")}
       </p>
       <p className="text-sm font-medium text-white mb-3 truncate">
         {label}{nextEpisode.title ? ` - ${nextEpisode.title}` : ""}
@@ -90,14 +92,14 @@ export function NextEpisodeOverlay({
           className="px-3 py-1.5 rounded text-sm font-medium text-black transition-colors"
           style={{ backgroundColor: "var(--accent)" }}
         >
-          Play Now
+          {t("nextEpisodeOverlay.playNow")}
         </button>
         <button
           onClick={handleCancel}
           className="px-3 py-1.5 rounded text-sm font-medium text-white transition-colors hover:bg-white/20"
           style={{ backgroundColor: "rgba(255,255,255,0.1)" }}
         >
-          Cancel
+          {t("cancel", { ns: "common" })}
         </button>
       </div>
       {ended && (

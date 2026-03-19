@@ -3,7 +3,7 @@ import { Select } from "@/components/ui/Select";
 import { supportedLanguages } from "@/i18n";
 
 export function LanguageSettings() {
-  const { i18n } = useTranslation();
+  const { t, i18n } = useTranslation("common");
 
   const options = supportedLanguages.map((l) => ({
     value: l.code,
@@ -15,13 +15,13 @@ export function LanguageSettings() {
   return (
     <div className="flex flex-col gap-4">
       <div>
-        <h3 className="text-sm font-semibold text-[var(--text)]">Language</h3>
+        <h3 className="text-sm font-semibold text-[var(--text)]">{t("language")}</h3>
         <p className="text-xs text-[var(--text-muted)] mt-1">
-          Choose the display language for the interface.
+          {t("languageDesc")}
         </p>
       </div>
       <Select
-        label="Language"
+        label={t("language")}
         options={options}
         value={current}
         onChange={(code) => void i18n.changeLanguage(code)}

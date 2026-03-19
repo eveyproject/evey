@@ -1,4 +1,5 @@
 import { useEffect, useMemo } from "react";
+import { useTranslation } from "react-i18next";
 
 interface KeyboardShortcutsOverlayProps {
   onClose: () => void;
@@ -7,21 +8,22 @@ interface KeyboardShortcutsOverlayProps {
 }
 
 export function KeyboardShortcutsOverlay({ onClose, skipBackwardSeconds = 10, skipForwardSeconds = 10 }: KeyboardShortcutsOverlayProps) {
+  const { t } = useTranslation("player");
   const shortcuts: [string, string][] = useMemo(() => [
-    ["Space / K", "Play / Pause"],
-    ["F", "Toggle fullscreen"],
-    ["M", "Toggle mute"],
-    ["J / ←", `Seek back ${skipBackwardSeconds}s`],
-    ["L / →", `Seek forward ${skipForwardSeconds}s`],
-    ["↑", "Volume up"],
-    ["↓", "Volume down"],
-    ["0–9", "Seek to 0%–90%"],
-    ["C", "Toggle captions"],
-    ["< (,)", "Decrease speed"],
-    ["> (.)", "Increase speed"],
-    ["P", "Picture-in-Picture"],
-    ["?", "Show shortcuts"],
-  ], [skipBackwardSeconds, skipForwardSeconds]);
+    ["Space / K", t("shortcuts.playPause")],
+    ["F", t("shortcuts.toggleFullscreen")],
+    ["M", t("shortcuts.toggleMute")],
+    ["J / \u2190", t("shortcuts.seekBack", { seconds: skipBackwardSeconds })],
+    ["L / \u2192", t("shortcuts.seekForward", { seconds: skipForwardSeconds })],
+    ["\u2191", t("shortcuts.volumeUp")],
+    ["\u2193", t("shortcuts.volumeDown")],
+    ["0\u20139", t("shortcuts.seekPercent")],
+    ["C", t("shortcuts.toggleCaptions")],
+    ["< (,)", t("shortcuts.decreaseSpeed")],
+    ["> (.)", t("shortcuts.increaseSpeed")],
+    ["P", t("shortcuts.pip")],
+    ["?", t("shortcuts.showShortcuts")],
+  ], [skipBackwardSeconds, skipForwardSeconds, t]);
   useEffect(() => {
     function handleKey(e: KeyboardEvent) {
       if (e.key === "Escape" || e.key === "?") {
@@ -46,7 +48,7 @@ export function KeyboardShortcutsOverlay({ onClose, skipBackwardSeconds = 10, sk
         onClick={(e) => e.stopPropagation()}
       >
         <h2 className="text-lg font-semibold mb-4" style={{ color: "var(--text)" }}>
-          Keyboard Shortcuts
+          {t("shortcuts.title")}
         </h2>
         <div className="grid grid-cols-[auto_1fr] gap-x-6 gap-y-2">
           {shortcuts.map(([key, action]) => (
