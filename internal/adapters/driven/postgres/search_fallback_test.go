@@ -28,7 +28,7 @@ func TestSQLSearchFallback_RemoveMediaItem_Noop(t *testing.T) {
 func TestSQLSearchFallback_Search_EmptyQuery(t *testing.T) {
 	fb := postgres.NewSQLSearchFallback(nil)
 
-	hits, total, err := fb.Search(context.Background(), "", nil, 20)
+	hits, total, err := fb.Search(context.Background(), "", nil, nil, 20)
 	require.NoError(t, err)
 	assert.Nil(t, hits)
 	assert.Equal(t, int64(0), total)
@@ -37,7 +37,7 @@ func TestSQLSearchFallback_Search_EmptyQuery(t *testing.T) {
 func TestSQLSearchFallback_Search_WhitespaceQuery(t *testing.T) {
 	fb := postgres.NewSQLSearchFallback(nil)
 
-	hits, total, err := fb.Search(context.Background(), "   ", nil, 20)
+	hits, total, err := fb.Search(context.Background(), "   ", nil, nil, 20)
 	require.NoError(t, err)
 	assert.Nil(t, hits)
 	assert.Equal(t, int64(0), total)
@@ -72,7 +72,7 @@ func TestSQLSearchFallback_Search_Integration(t *testing.T) {
 	fb := postgres.NewSQLSearchFallback(db)
 
 	t.Run("match title", func(t *testing.T) {
-		hits, total, err := fb.Search(ctx, "fight", nil, 20)
+		hits, total, err := fb.Search(ctx, "fight", nil, nil, 20)
 		require.NoError(t, err)
 		assert.Equal(t, int64(1), total)
 		require.Len(t, hits, 1)
@@ -85,14 +85,14 @@ func TestSQLSearchFallback_Search_Integration(t *testing.T) {
 	})
 
 	t.Run("case insensitive", func(t *testing.T) {
-		hits, _, err := fb.Search(ctx, "MATRIX", nil, 20)
+		hits, _, err := fb.Search(ctx, "MATRIX", nil, nil, 20)
 		require.NoError(t, err)
 		require.Len(t, hits, 1)
 		assert.Equal(t, "s2", hits[0].ID)
 	})
 
 	t.Run("filter by type", func(t *testing.T) {
-		hits, total, err := fb.Search(ctx, "inter", map[string]string{"type": "movie"}, 20)
+		hits, total, err := fb.Search(ctx, "inter", map[string]string{"type": "movie"}, nil, 20)
 		require.NoError(t, err)
 		assert.Equal(t, int64(1), total)
 		require.Len(t, hits, 1)
@@ -100,20 +100,20 @@ func TestSQLSearchFallback_Search_Integration(t *testing.T) {
 	})
 
 	t.Run("filter by library_id", func(t *testing.T) {
-		hits, _, err := fb.Search(ctx, "fight", map[string]string{"library_id": "nonexistent"}, 20)
+		hits, _, err := fb.Search(ctx, "fight", map[string]string{"library_id": "nonexistent"}, nil, 20)
 		require.NoError(t, err)
 		assert.Empty(t, hits)
 	})
 
 	t.Run("limit", func(t *testing.T) {
-		hits, total, err := fb.Search(ctx, "the", nil, 1)
+		hits, total, err := fb.Search(ctx, "the", nil, nil, 1)
 		require.NoError(t, err)
 		assert.LessOrEqual(t, len(hits), 1)
 		_ = total
 	})
 
 	t.Run("no match", func(t *testing.T) {
-		hits, total, err := fb.Search(ctx, "zzzznotfound", nil, 20)
+		hits, total, err := fb.Search(ctx, "zzzznotfound", nil, nil, 20)
 		require.NoError(t, err)
 		assert.Empty(t, hits)
 		assert.Equal(t, int64(0), total)

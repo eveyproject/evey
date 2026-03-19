@@ -25,7 +25,7 @@ func (s *SQLSearchFallback) RemoveMediaItem(_ context.Context, _ string) error {
 	return nil
 }
 
-func (s *SQLSearchFallback) Search(ctx context.Context, query string, filters map[string]string, limit int64) ([]library.SearchHit, int64, error) {
+func (s *SQLSearchFallback) Search(ctx context.Context, query string, filters map[string]string, sort []string, limit int64) ([]library.SearchHit, int64, error) {
 	q := strings.ToLower(strings.TrimSpace(query))
 	if q == "" {
 		return nil, 0, nil
