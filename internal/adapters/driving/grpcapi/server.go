@@ -71,6 +71,9 @@ type GRPCServer struct {
 }
 
 func (s *GRPCServer) SetServerConfigHandler(h *serverConfigHandler) {
+	if s.translator != nil {
+		h.SetTranslator(s.translator)
+	}
 	s.serverCfgHndlr = h
 }
 
@@ -165,9 +168,9 @@ func NewGRPCServer(
 }
 
 func (s *GRPCServer) RegisterServices() {
-	eveyv1.RegisterLibraryServiceServer(s.server, &libraryHandler{cmd: s.libCmd, query: s.libQuery, metadataSvc: s.metadataQuery, libraryAccess: s.libraryAccess, profiles: s.profiles})
+	eveyv1.RegisterLibraryServiceServer(s.server, &libraryHandler{cmd: s.libCmd, query: s.libQuery, metadataSvc: s.metadataQuery, libraryAccess: s.libraryAccess, profiles: s.profiles, translator: s.translator})
 	eveyv1.RegisterUserServiceServer(s.server, &userHandler{auth: s.userAuth, userSvc: s.userSvc, access: s.userAccess, query: s.userQuery, users: s.users, activitySvc: s.activityCmd, translator: s.translator})
-	eveyv1.RegisterPlaybackServiceServer(s.server, &playbackHandler{cmd: s.playbackCmd, query: s.playbackQuery, librarySvc: s.libQuery, activitySvc: s.activityCmd, profiles: s.profiles})
+	eveyv1.RegisterPlaybackServiceServer(s.server, &playbackHandler{cmd: s.playbackCmd, query: s.playbackQuery, librarySvc: s.libQuery, activitySvc: s.activityCmd, profiles: s.profiles, translator: s.translator})
 	eveyv1.RegisterTranscodingServiceServer(s.server, &transcodingHandler{svc: s.transcoding, profiles: s.profiles})
 	eveyv1.RegisterMKVServiceServer(s.server, &mkvHandler{svc: s.mkv})
 	eveyv1.RegisterMetadataServiceServer(s.server, &metadataHandler{cmd: s.metadataCmd, query: s.metadataQuery})
@@ -190,18 +193,19 @@ func (s *GRPCServer) RegisterServices() {
 		startTime:        s.startTime,
 		ffmpegPath:       s.ffmpegPath,
 		heavyOpSemaphore: make(chan struct{}, 1),
+		translator:       s.translator,
 	})
-	eveyv1.RegisterActivityServiceServer(s.server, &activityHandler{svc: s.activityQuery})
+	eveyv1.RegisterActivityServiceServer(s.server, &activityHandler{svc: s.activityQuery, translator: s.translator})
 	eveyv1.RegisterNotificationServiceServer(s.server, &notificationHandler{cmd: s.notifCmd, query: s.notifQuery})
 	eveyv1.RegisterFeedServiceServer(s.server, &feedHandler{commands: s.feedCmd, queries: s.feedQuery})
 	eveyv1.RegisterWebhookServiceServer(s.server, &webhookHandler{svc: s.webhook})
 	eveyv1.RegisterCollectionServiceServer(s.server, &collectionHandler{svc: s.collection})
-	eveyv1.RegisterPlaylistServiceServer(s.server, &playlistHandler{svc: s.playlist})
+	eveyv1.RegisterPlaylistServiceServer(s.server, &playlistHandler{svc: s.playlist, translator: s.translator})
 	eveyv1.RegisterFavoriteServiceServer(s.server, &favoriteHandler{svc: s.favorite})
 	eveyv1.RegisterTranscodeCacheServiceServer(s.server, &transcodeCacheHandler{svc: s.transcoding})
 	eveyv1.RegisterBackupServiceServer(s.server, &backupHandler{svc: s.backup})
 	eveyv1.RegisterRemoteAccessServiceServer(s.server, &remoteAccessHandler{cfg: s.cfg, store: s.cfgStore})
-	eveyv1.RegisterPlaybackSettingsServiceServer(s.server, &playbackSettingsHandler{cfg: s.cfg})
+	eveyv1.RegisterPlaybackSettingsServiceServer(s.server, &playbackSettingsHandler{cfg: s.cfg, translator: s.translator})
 	eveyv1.RegisterLibraryAccessServiceServer(s.server, &libraryAccessHandler{accessRepo: s.libraryAccess, libQuery: s.libQuery})
 	if s.serverCfgHndlr != nil {
 		eveyv1.RegisterServerConfigServiceServer(s.server, s.serverCfgHndlr)

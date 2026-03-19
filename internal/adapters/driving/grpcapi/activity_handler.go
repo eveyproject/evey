@@ -7,13 +7,15 @@ import (
 	eveyv1 "github.com/gravity-zero/evey/gen/evey/v1"
 	appactivity "github.com/gravity-zero/evey/internal/app/activity"
 	"github.com/gravity-zero/evey/internal/domain/activity"
+	eveyi18n "github.com/gravity-zero/evey/internal/pkg/i18n"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
 
 type activityHandler struct {
 	eveyv1.UnimplementedActivityServiceServer
-	svc *appactivity.QueryService
+	svc        *appactivity.QueryService
+	translator *eveyi18n.Translator
 }
 
 func (h *activityHandler) GetPlayHistory(ctx context.Context, req *eveyv1.GetPlayHistoryRequest) (*eveyv1.GetPlayHistoryResponse, error) {
@@ -101,7 +103,7 @@ func (h *activityHandler) GetLoginHistory(ctx context.Context, req *eveyv1.GetLo
 	if userID == "" {
 		userID = claims.UserID
 	} else if userID != claims.UserID && !claims.IsAdmin {
-		return nil, status.Error(codes.PermissionDenied, "cannot access another user's login history")
+		return nil, h.translator.TranslatedError(ctx, codes.PermissionDenied, "activity.cannot_access_other_history")
 	}
 	limit := 50
 	offset := 0

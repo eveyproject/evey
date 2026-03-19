@@ -6,14 +6,15 @@ import (
 
 	eveyv1 "github.com/gravity-zero/evey/gen/evey/v1"
 	"github.com/gravity-zero/evey/internal/config"
+	eveyi18n "github.com/gravity-zero/evey/internal/pkg/i18n"
 	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
 )
 
 type playbackSettingsHandler struct {
 	eveyv1.UnimplementedPlaybackSettingsServiceServer
-	mu  sync.RWMutex
-	cfg *config.Config
+	mu         sync.RWMutex
+	cfg        *config.Config
+	translator *eveyi18n.Translator
 }
 
 func (h *playbackSettingsHandler) GetPlaybackSettings(_ context.Context, _ *eveyv1.GetPlaybackSettingsRequest) (*eveyv1.PlaybackSettings, error) {
@@ -25,7 +26,7 @@ func (h *playbackSettingsHandler) GetPlaybackSettings(_ context.Context, _ *evey
 	}, nil
 }
 
-func (h *playbackSettingsHandler) UpdatePlaybackSettings(_ context.Context, req *eveyv1.UpdatePlaybackSettingsRequest) (*eveyv1.PlaybackSettings, error) {
+func (h *playbackSettingsHandler) UpdatePlaybackSettings(ctx context.Context, req *eveyv1.UpdatePlaybackSettingsRequest) (*eveyv1.PlaybackSettings, error) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	if req.SkipForwardSeconds != nil && *req.SkipForwardSeconds > 0 {
@@ -35,7 +36,7 @@ func (h *playbackSettingsHandler) UpdatePlaybackSettings(_ context.Context, req 
 		h.cfg.Playback.SkipBackwardSeconds = int(*req.SkipBackwardSeconds)
 	}
 	if h.cfg.Playback.SkipForwardSeconds <= 0 {
-		return nil, status.Errorf(codes.InvalidArgument, "skip_forward_seconds must be positive")
+		return nil, h.translator.TranslatedError(ctx, codes.InvalidArgument, "playback_settings.skip_forward_positive")
 	}
 	return &eveyv1.PlaybackSettings{
 		SkipForwardSeconds:  int32(h.cfg.Playback.SkipForwardSeconds),

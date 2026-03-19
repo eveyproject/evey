@@ -31,6 +31,50 @@ general:
   remote_access_disabled: "Remote access disabled"
   path_traversal_detected: "Path traversal detected"
 
+playlist:
+  not_owner: "You are not the playlist owner"
+  cannot_add_smart: "Cannot manually add items to a smart playlist"
+  cannot_remove_smart: "Cannot remove items from a smart playlist"
+  limit_reached: "Playlist item limit reached"
+
+playback:
+  parental_blocked: "Content blocked by parental controls"
+  cannot_stop_other_session: "Cannot stop another user's session"
+  cannot_report_other_session: "Cannot report progress for another user's session"
+  session_not_found: "Session not found"
+
+activity:
+  cannot_access_other_history: "Cannot access another user's login history"
+
+library:
+  parental_restricted: "Content restricted by parental controls"
+
+admin:
+  setup_already_completed: "Setup already completed"
+  scheduler_not_available: "Scheduler not available"
+  scanner_not_available: "Scanner not available"
+  service_not_configured: "Service not configured"
+  heavy_op_running: "A heavy operation is already running"
+  scheduled_task_not_found: "Scheduled task not found"
+
+config:
+  key_required: "Key is required"
+  key_not_found: "Configuration key not found"
+
+playback_settings:
+  skip_forward_positive: "skip_forward_seconds must be positive"
+
+user:
+  cannot_update_other: "Cannot update another user"
+  cannot_escalate_admin: "Cannot escalate to admin"
+  cannot_create_profile_other: "Cannot create profile for another user"
+  cannot_update_profile_other: "Cannot update another user's profile"
+  cannot_delete_profile_other: "Cannot delete another user's profile"
+  cannot_revoke_invite_other: "Cannot revoke another user's invite link"
+  cannot_revoke_apikey_other: "Cannot revoke another user's API key"
+  invalid_invite_data: "Invalid invite or registration data"
+  invalid_expired_code: "Invalid or expired code"
+
 media:
   not_found: "Media not found"
   file_not_found: "File not found"

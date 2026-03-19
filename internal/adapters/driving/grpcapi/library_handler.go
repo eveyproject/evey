@@ -11,6 +11,7 @@ import (
 	"github.com/gravity-zero/evey/internal/domain/library"
 	domainmetadata "github.com/gravity-zero/evey/internal/domain/metadata"
 	"github.com/gravity-zero/evey/internal/domain/user"
+	eveyi18n "github.com/gravity-zero/evey/internal/pkg/i18n"
 	"github.com/gravity-zero/evey/internal/pkg/id"
 	"github.com/gravity-zero/evey/internal/pkg/ratings"
 	"google.golang.org/grpc/codes"
@@ -24,6 +25,7 @@ type libraryHandler struct {
 	metadataSvc   *appmetadata.QueryService
 	libraryAccess user.LibraryAccessRepository
 	profiles      user.ProfileRepository
+	translator    *eveyi18n.Translator
 }
 
 func (h *libraryHandler) CreateLibrary(ctx context.Context, req *eveyv1.CreateLibraryRequest) (*eveyv1.Library, error) {
@@ -97,13 +99,13 @@ func (h *libraryHandler) GetMediaItem(ctx context.Context, req *eveyv1.GetMediaI
 		if accessErr != nil {
 			slog.Warn("check library access", slog.Any("err", accessErr))
 		}
-		return nil, status.Errorf(codes.NotFound, "media item not found")
+		return nil, h.translator.TranslatedError(ctx, codes.NotFound, "media.not_found")
 	}
 	if blocked, parentalErr := h.isBlockedByParental(ctx, item); blocked {
 		if parentalErr != nil {
 			slog.Warn("parental check", slog.Any("err", parentalErr))
 		}
-		return nil, status.Errorf(codes.PermissionDenied, "content restricted by parental controls")
+		return nil, h.translator.TranslatedError(ctx, codes.PermissionDenied, "library.parental_restricted")
 	}
 	pb := mediaItemToProto(item)
 	if h.metadataSvc != nil {

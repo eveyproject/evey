@@ -22,7 +22,6 @@ import (
 	"google.golang.org/grpc/status"
 )
 
-// TODO: migrate remaining hardcoded error strings to TranslatedError across all handlers
 type userHandler struct {
 	eveyv1.UnimplementedUserServiceServer
 	auth        *appuser.CommandService
@@ -141,10 +140,10 @@ func (h *userHandler) UpdateUser(ctx context.Context, req *eveyv1.UpdateUserRequ
 	}
 	if !claims.IsAdmin {
 		if req.Id != claims.UserID {
-			return nil, status.Error(codes.PermissionDenied, "cannot update another user")
+			return nil, h.translator.TranslatedError(ctx, codes.PermissionDenied, "user.cannot_update_other")
 		}
 		if req.IsAdmin != nil && *req.IsAdmin {
-			return nil, status.Error(codes.PermissionDenied, "cannot escalate to admin")
+			return nil, h.translator.TranslatedError(ctx, codes.PermissionDenied, "user.cannot_escalate_admin")
 		}
 	}
 	u, err := h.users.GetByID(ctx, req.Id)
@@ -222,7 +221,7 @@ func (h *userHandler) CreateProfile(ctx context.Context, req *eveyv1.CreateProfi
 		return nil, err
 	}
 	if !claims.IsAdmin && req.UserId != claims.UserID {
-		return nil, status.Error(codes.PermissionDenied, "cannot create profile for another user")
+		return nil, h.translator.TranslatedError(ctx, codes.PermissionDenied, "user.cannot_create_profile_other")
 	}
 	p := &user.Profile{
 		ID:          id.New("prf-"),
@@ -249,7 +248,7 @@ func (h *userHandler) UpdateProfile(ctx context.Context, req *eveyv1.UpdateProfi
 		return nil, err
 	}
 	if !claims.IsAdmin && req.Id != claims.ProfileID {
-		return nil, status.Error(codes.PermissionDenied, "cannot update another user's profile")
+		return nil, h.translator.TranslatedError(ctx, codes.PermissionDenied, "user.cannot_update_profile_other")
 	}
 	p := &user.Profile{
 		ID:          req.Id,
@@ -288,7 +287,7 @@ func (h *userHandler) DeleteProfile(ctx context.Context, req *eveyv1.DeleteProfi
 		return nil, err
 	}
 	if !claims.IsAdmin && req.Id != claims.ProfileID {
-		return nil, status.Error(codes.PermissionDenied, "cannot delete another user's profile")
+		return nil, h.translator.TranslatedError(ctx, codes.PermissionDenied, "user.cannot_delete_profile_other")
 	}
 	if err := h.userSvc.DeleteProfile(ctx, req.Id); err != nil {
 		slog.Error("delete profile", slog.Any("err", err))
@@ -373,7 +372,7 @@ func (h *userHandler) RevokeInviteLink(ctx context.Context, req *eveyv1.RevokeIn
 			}
 		}
 		if !owned {
-			return nil, status.Error(codes.PermissionDenied, "cannot revoke another user's invite link")
+			return nil, h.translator.TranslatedError(ctx, codes.PermissionDenied, "user.cannot_revoke_invite_other")
 		}
 	}
 	if err := h.access.RevokeInviteLink(ctx, req.Id); err != nil {
@@ -386,7 +385,7 @@ func (h *userHandler) RevokeInviteLink(ctx context.Context, req *eveyv1.RevokeIn
 func (h *userHandler) RegisterWithInvite(ctx context.Context, req *eveyv1.RegisterWithInviteRequest) (*eveyv1.AuthResponse, error) {
 	u, err := h.access.RegisterWithInvite(ctx, req.InviteCode, req.Username, req.Password, req.Email)
 	if err != nil {
-		return nil, status.Error(codes.InvalidArgument, "invalid invite or registration data")
+		return nil, h.translator.TranslatedError(ctx, codes.InvalidArgument, "user.invalid_invite_data")
 	}
 	access, refresh, loginErr := h.auth.Login(ctx, req.Username, req.Password)
 	if loginErr != nil {
@@ -428,7 +427,7 @@ func (h *userHandler) AuthorizeQuickConnect(ctx context.Context, req *eveyv1.Aut
 func (h *userHandler) CheckQuickConnect(ctx context.Context, req *eveyv1.CheckQuickConnectRequest) (*eveyv1.CheckQuickConnectResponse, error) {
 	qc, err := h.query.CheckQuickConnect(ctx, req.Code)
 	if err != nil {
-		return nil, status.Error(codes.NotFound, "invalid or expired code")
+		return nil, h.translator.TranslatedError(ctx, codes.NotFound, "user.invalid_expired_code")
 	}
 	return &eveyv1.CheckQuickConnectResponse{
 		Authorized: qc.Status == string(user.Authorized),
@@ -501,7 +500,7 @@ func (h *userHandler) RevokeAPIKey(ctx context.Context, req *eveyv1.RevokeAPIKey
 			}
 		}
 		if !owned {
-			return nil, status.Error(codes.PermissionDenied, "cannot revoke another user's API key")
+			return nil, h.translator.TranslatedError(ctx, codes.PermissionDenied, "user.cannot_revoke_apikey_other")
 		}
 	}
 	if err := h.access.RevokeAPIKey(ctx, req.Id); err != nil {
