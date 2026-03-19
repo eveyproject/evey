@@ -7,6 +7,7 @@ import { useToastStore } from "@evey/store";
 type HlsEventHandler = (...args: unknown[]) => void;
 
 const hlsEventListeners: Record<string, HlsEventHandler[]> = {};
+let lastHlsInstance: MockHls | null = null;
 
 class MockHls {
   static isSupported = vi.fn(() => true);
@@ -15,14 +16,25 @@ class MockHls {
     AUDIO_TRACKS_UPDATED: "hlsAudioTracksUpdated",
     ERROR: "hlsError",
   };
+  static ErrorTypes = {
+    NETWORK_ERROR: "networkError",
+    MEDIA_ERROR: "mediaError",
+    OTHER_ERROR: "otherError",
+  };
   loadSource = vi.fn();
   attachMedia = vi.fn();
   destroy = vi.fn();
+  startLoad = vi.fn();
   audioTrack = 0;
+  currentLevel = -1;
+  levels: { height: number }[] = [];
   on = vi.fn((event: string, handler: HlsEventHandler) => {
     if (!hlsEventListeners[event]) hlsEventListeners[event] = [];
     hlsEventListeners[event].push(handler);
   });
+  constructor() {
+    lastHlsInstance = this;
+  }
 }
 
 vi.mock("hls.js", () => ({ default: MockHls }));
@@ -106,6 +118,7 @@ let HLSPlayer: typeof import("./HLSPlayer").HLSPlayer;
 
 beforeEach(async () => {
   for (const key of Object.keys(hlsEventListeners)) delete hlsEventListeners[key];
+  lastHlsInstance = null;
   vi.clearAllMocks();
   useToastStore.setState({ toasts: [] });
   Object.defineProperty(HTMLMediaElement.prototype, "play", {
@@ -132,18 +145,25 @@ describe("HLSPlayer", () => {
     expect(screen.queryByText("Playback failed")).not.toBeInTheDocument();
   });
 
-  it("starts in transcode mode when playMethod is TRANSCODE", () => {
+  it("starts in transcode mode with hls.js when playMethod is TRANSCODE", () => {
     renderPlayer({ ...DEFAULT_STREAM_INFO, playMethod: "PLAY_METHOD_TRANSCODE" });
     const video = document.querySelector("video");
     expect(video).toBeTruthy();
-    expect(video!.src).toContain("/api/v1/media/media-1/transcode");
+    expect(lastHlsInstance).toBeTruthy();
+    expect(lastHlsInstance!.loadSource).toHaveBeenCalledWith(
+      expect.stringContaining("/api/v1/media/media-1/hls/master.m3u8"),
+    );
+    expect(lastHlsInstance!.attachMedia).toHaveBeenCalled();
   });
 
-  it("starts in transcode mode when playMethod is undefined", () => {
+  it("starts in transcode mode with hls.js when playMethod is undefined", () => {
     renderPlayer();
     const video = document.querySelector("video");
     expect(video).toBeTruthy();
-    expect(video!.src).toContain("/api/v1/media/media-1/transcode");
+    expect(lastHlsInstance).toBeTruthy();
+    expect(lastHlsInstance!.loadSource).toHaveBeenCalledWith(
+      expect.stringContaining("/api/v1/media/media-1/hls/master.m3u8"),
+    );
   });
 
   it("starts in direct play mode when playMethod is DIRECT_PLAY", () => {
