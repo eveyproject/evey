@@ -70,6 +70,16 @@ func (r *fakeSyncPlayRepo) Get(_ context.Context, id string) (*domainsyncplay.Ro
 	return &cp, nil
 }
 
+func (r *fakeSyncPlayRepo) GetByCode(_ context.Context, code string) (*domainsyncplay.Room, error) {
+	for _, room := range r.rooms {
+		if room.Code == code {
+			cp := *room
+			return &cp, nil
+		}
+	}
+	return nil, http.ErrNoCookie
+}
+
 func (r *fakeSyncPlayRepo) AddMember(_ context.Context, roomID string, member domainsyncplay.Member) error {
 	room, ok := r.rooms[roomID]
 	if !ok {
@@ -267,6 +277,167 @@ func TestSyncPlayRoomGet_Forbidden_NonMember(t *testing.T) {
 
 	if getW.Code != http.StatusForbidden {
 		t.Errorf("expected 403, got %d", getW.Code)
+	}
+}
+
+func TestSyncPlayJoinByCode_Success(t *testing.T) {
+	t.Parallel()
+	tokenGen := newTestJWTGen(t)
+	repo := newFakeSyncPlayRepo()
+	hub := appsyncplay.NewHub(repo)
+	mediaGetter := newFakeMediaGetter()
+	mediaGetter.items["media-1"] = &domainlibrary.MediaItem{ID: "media-1", LibraryID: "lib-1"}
+	mux := http.NewServeMux()
+	registerSyncPlayRoutes(mux, hub, tokenGen, mediaGetter, allowAll())
+
+	// Create room as host
+	hostClaims := domainuser.Claims{UserID: "host-1", Username: "Host", IsAdmin: false}
+	hostToken, _ := tokenGen.GenerateAccessToken(hostClaims)
+	createReq := httptest.NewRequest(http.MethodPost, "/api/v1/syncplay/rooms",
+		strings.NewReader(`{"mediaId":"media-1","name":"Room"}`))
+	createReq.Header.Set("Content-Type", "application/json")
+	createReq.Header.Set("Authorization", "Bearer "+hostToken)
+	createW := httptest.NewRecorder()
+	mux.ServeHTTP(createW, createReq)
+	if createW.Code != http.StatusCreated {
+		t.Fatalf("room creation failed: %d", createW.Code)
+	}
+	var createResp map[string]any
+	_ = json.NewDecoder(createW.Body).Decode(&createResp)
+	code := createResp["code"].(string)
+
+	// Join by code as another user
+	guestClaims := domainuser.Claims{UserID: "guest-1", Username: "Guest", IsAdmin: false}
+	guestToken, _ := tokenGen.GenerateAccessToken(guestClaims)
+	joinBody := `{"code":"` + code + `"}`
+	joinReq := httptest.NewRequest(http.MethodPost, "/api/v1/syncplay/join", strings.NewReader(joinBody))
+	joinReq.Header.Set("Content-Type", "application/json")
+	joinReq.Header.Set("Authorization", "Bearer "+guestToken)
+	joinW := httptest.NewRecorder()
+	mux.ServeHTTP(joinW, joinReq)
+
+	if joinW.Code != http.StatusOK {
+		t.Errorf("expected 200, got %d; body: %s", joinW.Code, joinW.Body.String())
+	}
+	var joinResp map[string]any
+	_ = json.NewDecoder(joinW.Body).Decode(&joinResp)
+	if joinResp["roomId"] == nil || joinResp["roomId"] == "" {
+		t.Error("response should contain roomId")
+	}
+	if joinResp["wsUrl"] == nil || joinResp["wsUrl"] == "" {
+		t.Error("response should contain wsUrl")
+	}
+	if joinResp["mediaId"] == nil || joinResp["mediaId"] == "" {
+		t.Error("response should contain mediaId")
+	}
+}
+
+func TestSyncPlayJoinByCode_InvalidCode_404(t *testing.T) {
+	t.Parallel()
+	tokenGen := newTestJWTGen(t)
+	repo := newFakeSyncPlayRepo()
+	hub := appsyncplay.NewHub(repo)
+	mediaGetter := newFakeMediaGetter()
+	mux := http.NewServeMux()
+	registerSyncPlayRoutes(mux, hub, tokenGen, mediaGetter, allowAll())
+
+	claims := domainuser.Claims{UserID: "user-1", Username: "User", IsAdmin: false}
+	token, _ := tokenGen.GenerateAccessToken(claims)
+
+	joinReq := httptest.NewRequest(http.MethodPost, "/api/v1/syncplay/join",
+		strings.NewReader(`{"code":"ZZZZZZ"}`))
+	joinReq.Header.Set("Content-Type", "application/json")
+	joinReq.Header.Set("Authorization", "Bearer "+token)
+	joinW := httptest.NewRecorder()
+	mux.ServeHTTP(joinW, joinReq)
+
+	if joinW.Code != http.StatusNotFound {
+		t.Errorf("expected 404, got %d", joinW.Code)
+	}
+}
+
+func TestSyncPlayJoinByCode_NoAuth_401(t *testing.T) {
+	t.Parallel()
+	tokenGen := newTestJWTGen(t)
+	repo := newFakeSyncPlayRepo()
+	hub := appsyncplay.NewHub(repo)
+	mux := http.NewServeMux()
+	registerSyncPlayRoutes(mux, hub, tokenGen, newFakeMediaGetter(), allowAll())
+
+	joinReq := httptest.NewRequest(http.MethodPost, "/api/v1/syncplay/join",
+		strings.NewReader(`{"code":"ABC123"}`))
+	joinReq.Header.Set("Content-Type", "application/json")
+	joinW := httptest.NewRecorder()
+	mux.ServeHTTP(joinW, joinReq)
+
+	if joinW.Code != http.StatusUnauthorized {
+		t.Errorf("expected 401, got %d", joinW.Code)
+	}
+}
+
+func TestSyncPlayJoinByCode_EmptyCode_400(t *testing.T) {
+	t.Parallel()
+	tokenGen := newTestJWTGen(t)
+	repo := newFakeSyncPlayRepo()
+	hub := appsyncplay.NewHub(repo)
+	mediaGetter := newFakeMediaGetter()
+	mux := http.NewServeMux()
+	registerSyncPlayRoutes(mux, hub, tokenGen, mediaGetter, allowAll())
+
+	claims := domainuser.Claims{UserID: "user-1", Username: "User", IsAdmin: false}
+	token, _ := tokenGen.GenerateAccessToken(claims)
+
+	joinReq := httptest.NewRequest(http.MethodPost, "/api/v1/syncplay/join",
+		strings.NewReader(`{"code":""}`))
+	joinReq.Header.Set("Content-Type", "application/json")
+	joinReq.Header.Set("Authorization", "Bearer "+token)
+	joinW := httptest.NewRecorder()
+	mux.ServeHTTP(joinW, joinReq)
+
+	if joinW.Code != http.StatusBadRequest {
+		t.Errorf("expected 400, got %d", joinW.Code)
+	}
+}
+
+func TestSyncPlayJoinByCode_LibraryAccessDenied_403(t *testing.T) {
+	t.Parallel()
+	tokenGen := newTestJWTGen(t)
+	repo := newFakeSyncPlayRepo()
+	hub := appsyncplay.NewHub(repo)
+	mediaGetter := newFakeMediaGetter()
+	mediaGetter.items["media-1"] = &domainlibrary.MediaItem{ID: "media-1", LibraryID: "lib-1"}
+
+	// Create with allowAll, then test join with denyAll
+	allowMux := http.NewServeMux()
+	registerSyncPlayRoutes(allowMux, hub, tokenGen, mediaGetter, allowAll())
+
+	hostClaims := domainuser.Claims{UserID: "host-1", Username: "Host", IsAdmin: false}
+	hostToken, _ := tokenGen.GenerateAccessToken(hostClaims)
+	createReq := httptest.NewRequest(http.MethodPost, "/api/v1/syncplay/rooms",
+		strings.NewReader(`{"mediaId":"media-1","name":"Room"}`))
+	createReq.Header.Set("Content-Type", "application/json")
+	createReq.Header.Set("Authorization", "Bearer "+hostToken)
+	createW := httptest.NewRecorder()
+	allowMux.ServeHTTP(createW, createReq)
+	var createResp map[string]any
+	_ = json.NewDecoder(createW.Body).Decode(&createResp)
+	code := createResp["code"].(string)
+
+	// Now use denyAll mux for join
+	denyMux := http.NewServeMux()
+	registerSyncPlayRoutes(denyMux, hub, tokenGen, mediaGetter, denyAll())
+
+	attackerClaims := domainuser.Claims{UserID: "attacker", Username: "Evil", IsAdmin: false}
+	attackerToken, _ := tokenGen.GenerateAccessToken(attackerClaims)
+	joinReq := httptest.NewRequest(http.MethodPost, "/api/v1/syncplay/join",
+		strings.NewReader(`{"code":"`+code+`"}`))
+	joinReq.Header.Set("Content-Type", "application/json")
+	joinReq.Header.Set("Authorization", "Bearer "+attackerToken)
+	joinW := httptest.NewRecorder()
+	denyMux.ServeHTTP(joinW, joinReq)
+
+	if joinW.Code != http.StatusForbidden {
+		t.Errorf("expected 403, got %d; body: %s", joinW.Code, joinW.Body.String())
 	}
 }
 

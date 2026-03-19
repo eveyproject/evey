@@ -44,6 +44,7 @@ func NewHub(repo syncplay.RoomRepository) *Hub {
 func (h *Hub) CreateRoom(ctx context.Context, hostID, mediaID, name string) (*syncplay.Room, error) {
 	room := &syncplay.Room{
 		ID:        id.New("room-"),
+		Code:      syncplay.GenerateCode(),
 		Name:      name,
 		HostID:    hostID,
 		MediaID:   mediaID,
@@ -58,6 +59,10 @@ func (h *Hub) CreateRoom(ctx context.Context, hostID, mediaID, name string) (*sy
 
 func (h *Hub) GetRoom(ctx context.Context, roomID string) (*syncplay.Room, error) {
 	return h.repo.Get(ctx, roomID)
+}
+
+func (h *Hub) GetRoomByCode(ctx context.Context, code string) (*syncplay.Room, error) {
+	return h.repo.GetByCode(ctx, code)
 }
 
 func (h *Hub) JoinRoom(ctx context.Context, roomID, userID, username string) error {

@@ -6,6 +6,31 @@ import (
 	"github.com/gravity-zero/evey/internal/domain/syncplay"
 )
 
+func TestGenerateCode(t *testing.T) {
+	t.Parallel()
+	code := syncplay.GenerateCode()
+	if len(code) != 6 {
+		t.Errorf("code length = %d, want 6", len(code))
+	}
+	for _, c := range code {
+		if !((c >= 'A' && c <= 'Z') || (c >= '2' && c <= '9')) {
+			t.Errorf("unexpected char %c in code %q", c, code)
+		}
+	}
+}
+
+func TestGenerateCode_Unique(t *testing.T) {
+	t.Parallel()
+	seen := make(map[string]bool)
+	for range 100 {
+		code := syncplay.GenerateCode()
+		if seen[code] {
+			t.Fatalf("duplicate code %q in 100 iterations", code)
+		}
+		seen[code] = true
+	}
+}
+
 func TestMaskUsername(t *testing.T) {
 	t.Parallel()
 	tests := []struct {

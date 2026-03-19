@@ -27,6 +27,7 @@ func registerSyncPlayRoutes(mux *http.ServeMux, hub *appsyncplay.Hub, tokenGen *
 		libChecker: libChecker,
 	}
 	mux.HandleFunc("POST /api/v1/syncplay/rooms", h.createRoom)
+	mux.HandleFunc("POST /api/v1/syncplay/join", h.joinByCode)
 	mux.HandleFunc("GET /api/v1/syncplay/rooms/{id}", h.getRoom)
 	mux.HandleFunc("POST /api/v1/syncplay/rooms/{id}/join", h.joinRoom)
 	mux.HandleFunc("DELETE /api/v1/syncplay/rooms/{id}/leave", h.leaveRoom)
@@ -88,9 +89,50 @@ func (s *syncplayHandler) createRoom(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusCreated)
 	if err := json.NewEncoder(w).Encode(map[string]any{
 		"id":      room.ID,
+		"code":    room.Code,
 		"name":    room.Name,
 		"mediaId": room.MediaID,
 		"hostId":  room.HostID,
+	}); err != nil {
+		slog.Warn("json encode failed", slog.Any("err", err))
+	}
+}
+
+func (s *syncplayHandler) joinByCode(w http.ResponseWriter, r *http.Request) {
+	claims, ok := s.extractClaims(r)
+	if !ok {
+		http.Error(w, `{"message":"unauthenticated"}`, http.StatusUnauthorized)
+		return
+	}
+	var body struct {
+		Code string `json:"code"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil || body.Code == "" {
+		http.Error(w, `{"message":"code required"}`, http.StatusBadRequest)
+		return
+	}
+	room, err := s.hub.GetRoomByCode(r.Context(), body.Code)
+	if err != nil || room == nil {
+		http.Error(w, `{"message":"room not found"}`, http.StatusNotFound)
+		return
+	}
+	item, err := s.media.GetMediaItem(r.Context(), room.MediaID)
+	if err != nil || item == nil {
+		http.Error(w, `{"message":"not found"}`, http.StatusNotFound)
+		return
+	}
+	if !checkLibraryAccess(r.Context(), w, claims, item.LibraryID, s.libChecker) {
+		return
+	}
+	if err := s.hub.JoinRoom(r.Context(), room.ID, claims.UserID, claims.Username); err != nil {
+		http.Error(w, `{"message":"room not found"}`, http.StatusNotFound)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	if err := json.NewEncoder(w).Encode(map[string]any{
+		"roomId":  room.ID,
+		"mediaId": room.MediaID,
+		"wsUrl":   "/api/v1/syncplay/rooms/" + room.ID + "/ws",
 	}); err != nil {
 		slog.Warn("json encode failed", slog.Any("err", err))
 	}
@@ -126,8 +168,7 @@ func (s *syncplayHandler) getRoom(w http.ResponseWriter, r *http.Request) {
 	for _, m := range room.Members {
 		members = append(members, memberResp{UserID: m.UserID, Username: domainsyncplay.MaskUsername(m.Username)})
 	}
-	w.Header().Set("Content-Type", "application/json")
-	if err := json.NewEncoder(w).Encode(map[string]any{
+	resp := map[string]any{
 		"id":      room.ID,
 		"name":    room.Name,
 		"mediaId": room.MediaID,
@@ -137,7 +178,12 @@ func (s *syncplayHandler) getRoom(w http.ResponseWriter, r *http.Request) {
 			"playing":    room.State.Playing,
 			"positionMs": room.State.PositionMs,
 		},
-	}); err != nil {
+	}
+	if room.HostID == claims.UserID || claims.IsAdmin {
+		resp["code"] = room.Code
+	}
+	w.Header().Set("Content-Type", "application/json")
+	if err := json.NewEncoder(w).Encode(resp); err != nil {
 		slog.Warn("json encode failed", slog.Any("err", err))
 	}
 }

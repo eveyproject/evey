@@ -312,6 +312,8 @@ function PlayerPageInner({ mediaId }: { mediaId: string }) {
       {syncState.roomId && (
         <SyncPlayBar
           roomId={syncState.roomId}
+          roomCode={syncState.roomCode}
+          isHost={syncState.isHost}
           members={syncState.members}
           connected={syncState.connected}
           onLeave={() => void syncControls.leaveRoom()}

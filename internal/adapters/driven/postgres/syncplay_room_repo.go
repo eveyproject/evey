@@ -27,20 +27,30 @@ func (r *SyncPlayRoomRepo) Create(ctx context.Context, room *syncplay.Room) erro
 		return err
 	}
 	_, err = r.db.ExecContext(ctx,
-		`INSERT INTO syncplay_rooms (id, name, host_id, media_id, members, state, created_at)
-		 VALUES ($1,$2,$3,$4,$5,$6,$7)`,
-		room.ID, room.Name, room.HostID, room.MediaID, membersJSON, stateJSON, room.CreatedAt,
+		`INSERT INTO syncplay_rooms (id, code, name, host_id, media_id, members, state, created_at)
+		 VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`,
+		room.ID, room.Code, room.Name, room.HostID, room.MediaID, membersJSON, stateJSON, room.CreatedAt,
 	)
 	return err
 }
 
 func (r *SyncPlayRoomRepo) Get(ctx context.Context, id string) (*syncplay.Room, error) {
+	return r.scanRoom(ctx, `SELECT id, code, name, host_id, media_id, members, state, created_at
+		 FROM syncplay_rooms WHERE id = $1`, id)
+}
+
+func (r *SyncPlayRoomRepo) GetByCode(ctx context.Context, code string) (*syncplay.Room, error) {
+	return r.scanRoom(ctx, `SELECT id, code, name, host_id, media_id, members, state, created_at
+		 FROM syncplay_rooms WHERE code = $1`, code)
+}
+
+func (r *SyncPlayRoomRepo) scanRoom(_ context.Context, query string, arg string) (*syncplay.Room, error) {
 	var room syncplay.Room
 	var membersJSON, stateJSON []byte
-	err := r.db.QueryRowContext(ctx,
-		`SELECT id, name, host_id, media_id, members, state, created_at
-		 FROM syncplay_rooms WHERE id = $1`, id,
-	).Scan(&room.ID, &room.Name, &room.HostID, &room.MediaID, &membersJSON, &stateJSON, &room.CreatedAt)
+	err := r.db.QueryRow(query, arg).Scan(
+		&room.ID, &room.Code, &room.Name, &room.HostID, &room.MediaID,
+		&membersJSON, &stateJSON, &room.CreatedAt,
+	)
 	if err == sql.ErrNoRows {
 		return nil, nil
 	}
