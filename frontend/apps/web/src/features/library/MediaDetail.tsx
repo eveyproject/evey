@@ -9,9 +9,11 @@ import {
   useLibraryServiceGetMediaItem,
   useLibraryServiceListLibraries,
   useMetadataServiceSetMetadataOverride,
+  useMetadataServiceRemoveMetadataOverride,
   useMetadataServiceRefreshMetadata,
   useMetadataServiceGetArtwork,
   useMetadataServiceListMetadataOverrides,
+  getMetadataServiceListMetadataOverridesQueryKey,
   eveyFetch,
 } from "@evey/api";
 import { useQueryClient } from "@tanstack/react-query";
@@ -31,7 +33,6 @@ import { FavoriteButton } from "./FavoriteButton";
 import { RatingButtons } from "./RatingButtons";
 import { StarRating } from "./StarRating";
 import { AddToPlaylistModal } from "../playlist/AddToPlaylistModal";
-import { MetadataOverrideModal } from "../media/MetadataOverrideModal";
 import { Modal } from "@/components/ui/Modal";
 import { slugify } from "@/utils/slugify";
 import { PluginSlot } from "@/features/plugins/PluginSlot";
@@ -130,6 +131,27 @@ function ArtworkPicker({ mediaItemId }: { mediaItemId: string }) {
   );
 }
 
+const FIELD_MAP: Array<{ formKey: keyof EditForm; overrideKey: string; label: string }> = [
+  { formKey: "title", overrideKey: "title", label: "Title" },
+  { formKey: "originalTitle", overrideKey: "original_title", label: "Original Title" },
+  { formKey: "year", overrideKey: "year", label: "Year" },
+  { formKey: "overview", overrideKey: "overview", label: "Overview" },
+  { formKey: "genres", overrideKey: "genres", label: "Genres (comma-separated)" },
+  { formKey: "communityRating", overrideKey: "community_rating", label: "Rating" },
+];
+
+function FieldBadge({ isOverridden }: { isOverridden: boolean }) {
+  return isOverridden ? (
+    <span className="text-xs px-1.5 py-0.5 rounded" style={{ backgroundColor: "var(--badge-warning-bg, #f59e0b33)", color: "var(--badge-warning-text, #f59e0b)" }}>
+      Overridden
+    </span>
+  ) : (
+    <span className="text-xs px-1.5 py-0.5 rounded" style={{ backgroundColor: "var(--surface-raised)", color: "var(--text-muted)" }}>
+      Auto
+    </span>
+  );
+}
+
 function MetadataEditPanel({
   item,
   onSave,
@@ -154,8 +176,16 @@ function MetadataEditPanel({
   const [saving, setSaving] = useState(false);
   const [refreshStatus, setRefreshStatus] = useState<"idle" | "running" | "done" | "error">("idle");
   const setOverride = useMetadataServiceSetMetadataOverride();
+  const removeOverride = useMetadataServiceRemoveMetadataOverride();
   const refresh = useMetadataServiceRefreshMetadata();
   const queryClient = useQueryClient();
+
+  const { data: overridesData } = useMetadataServiceListMetadataOverrides(item.id ?? "", {
+    query: { enabled: !!item.id },
+  });
+  const overridesByField = Object.fromEntries(
+    (overridesData?.overrides ?? []).map((o) => [o.fieldName ?? "", o]),
+  );
 
   const mediaType = item.type === "MEDIA_ITEM_TYPE_SERIES" || item.type === "MEDIA_ITEM_TYPE_SEASON" || item.type === "MEDIA_ITEM_TYPE_EPISODE" ? "tv" : "movie";
 
@@ -184,14 +214,7 @@ function MetadataEditPanel({
         toast.success("Re-enriched with new ID");
       }
 
-      const fields: Array<[string, string]> = [
-        ["title", form.title.trim()],
-        ["original_title", form.originalTitle.trim()],
-        ["year", form.year.trim()],
-        ["overview", form.overview.trim()],
-        ["genres", form.genres.trim()],
-        ["community_rating", form.communityRating.trim()],
-      ];
+      const fields: Array<[string, string]> = FIELD_MAP.map(({ overrideKey, formKey }) => [overrideKey, form[formKey].trim()]);
       const hasOverrides = fields.some(([, v]) => v !== "");
       if (hasOverrides) {
         for (const [fieldName, customValue] of fields) {
@@ -200,13 +223,26 @@ function MetadataEditPanel({
           }
         }
         queryClient.invalidateQueries({ queryKey: [`/api/v1/media/${item.id}`] });
+        queryClient.invalidateQueries({ queryKey: getMetadataServiceListMetadataOverridesQueryKey(item.id) });
         toast.success("Metadata saved");
       }
       onSave();
-    } catch (err) {
+    } catch {
       toast.error("Failed to save");
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function handleResetField(overrideId: string, fieldName: string) {
+    if (!item.id) return;
+    try {
+      await removeOverride.mutateAsync({ id: overrideId });
+      queryClient.invalidateQueries({ queryKey: getMetadataServiceListMetadataOverridesQueryKey(item.id) });
+      queryClient.invalidateQueries({ queryKey: [`/api/v1/media/${item.id}`] });
+      toast.success(`Reset ${fieldName} to auto`);
+    } catch {
+      toast.error("Failed to reset field");
     }
   }
 
@@ -217,7 +253,7 @@ function MetadataEditPanel({
       await refresh.mutateAsync({ mediaItemId: item.id });
       setRefreshStatus("done");
       setTimeout(() => { setRefreshStatus("idle"); onSave(); }, 1500);
-    } catch (_err) {
+    } catch {
       setRefreshStatus("error");
       toast.error("Failed to refresh metadata");
     }
@@ -235,14 +271,44 @@ function MetadataEditPanel({
     ? `https://www.imdb.com/title/${form.imdbId.trim()}/`
     : null;
 
+  function renderField({ formKey, overrideKey, label }: typeof FIELD_MAP[number]) {
+    const hasOverride = !!overridesByField[overrideKey]?.id;
+    const overrideId = overridesByField[overrideKey]?.id;
+    return (
+      <div key={formKey} className="flex flex-col gap-1">
+        <div className="flex items-center gap-2">
+          <FieldBadge isOverridden={hasOverride} />
+          {hasOverride && overrideId && (
+            <button
+              type="button"
+              onClick={() => handleResetField(overrideId, overrideKey)}
+              className="text-xs underline"
+              style={{ color: "var(--text-muted)" }}
+            >
+              Reset to auto
+            </button>
+          )}
+        </div>
+        {formKey === "overview" ? (
+          <Textarea label={label} value={form[formKey]} onChange={set(formKey)} rows={4} />
+        ) : formKey === "year" ? (
+          <Input label={label} type="number" value={form[formKey]} onChange={set(formKey)} placeholder="2024" />
+        ) : formKey === "communityRating" ? (
+          <Input label={label} type="number" step="0.1" min="0" max="10" value={form[formKey]} onChange={set(formKey)} placeholder="7.5" />
+        ) : formKey === "genres" ? (
+          <Input label={label} value={form[formKey]} onChange={set(formKey)} placeholder="Action, Drama" />
+        ) : formKey === "title" ? (
+          <Input label={label} value={form[formKey]} onChange={set(formKey)} required />
+        ) : (
+          <Input label={label} value={form[formKey]} onChange={set(formKey)} placeholder={label} />
+        )}
+      </div>
+    );
+  }
+
   return (
     <form onSubmit={handleSave} className="flex flex-col gap-4">
-      <Input label="Title" value={form.title} onChange={set("title")} required />
-      <Input label="Original Title" value={form.originalTitle} onChange={set("originalTitle")} placeholder="Original title" />
-      <Input label="Year" type="number" value={form.year} onChange={set("year")} placeholder="2024" />
-      <Textarea label="Overview" value={form.overview} onChange={set("overview")} rows={4} />
-      <Input label="Genres (comma-separated)" value={form.genres} onChange={set("genres")} placeholder="Action, Drama" />
-      <Input label="Rating" type="number" step="0.1" min="0" max="10" value={form.communityRating} onChange={set("communityRating")} placeholder="7.5" />
+      {FIELD_MAP.map(renderField)}
       <div className="grid grid-cols-2 gap-3">
         <div className="flex flex-col gap-1">
           <Input label="IMDB ID" value={form.imdbId} onChange={set("imdbId")} placeholder="tt1234567" />
@@ -652,18 +718,12 @@ export function MediaDetail({ item, onMetadataUpdated, initialEdit }: MediaDetai
   const isSeason = item.type === "MEDIA_ITEM_TYPE_SEASON";
   const isEpisode = item.type === "MEDIA_ITEM_TYPE_EPISODE";
   const [playlistModalOpen, setPlaylistModalOpen] = useState(false);
-  const [overrideModalOpen, setOverrideModalOpen] = useState(false);
   const [pinDialogOpen, setPinDialogOpen] = useState(false);
   const [pendingPlayId, setPendingPlayId] = useState<string | null>(null);
   const profileId = useAuthStore((s) => s.profileId);
   const isAdmin = useAuthStore((s) => s.isAdmin);
   const navigate = useNavigate();
   const { needsPin } = useParentalGate(item.officialRating);
-
-  const { data: overridesData } = useMetadataServiceListMetadataOverrides(item.id ?? "", {
-    query: { enabled: isAdmin && !!item.id },
-  });
-  const hasOverrides = isAdmin && (overridesData?.overrides?.length ?? 0) > 0;
 
   const { data: parentItem } = useLibraryServiceGetMediaItem(
     item.parentId ?? "",
@@ -971,23 +1031,6 @@ export function MediaDetail({ item, onMetadataUpdated, initialEdit }: MediaDetai
                 Add to Playlist
               </Button>
             )}
-            {item.id && isAdmin && (
-              <Button variant="secondary" onClick={() => setOverrideModalOpen(true)}>
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.324.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 011.37.49l1.296 2.247a1.125 1.125 0 01-.26 1.431l-1.003.827c-.293.24-.438.613-.431.992a6.759 6.759 0 010 .255c-.007.378.138.75.43.99l1.005.828c.424.35.534.954.26 1.43l-1.298 2.247a1.125 1.125 0 01-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.57 6.57 0 01-.22.128c-.331.183-.581.495-.644.869l-.213 1.28c-.09.543-.56.941-1.11.941h-2.594c-.55 0-1.02-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 01-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 01-1.369-.49l-1.297-2.247a1.125 1.125 0 01.26-1.431l1.004-.827c.292-.24.437-.613.43-.992a6.932 6.932 0 010-.255c.007-.378-.138-.75-.43-.99l-1.004-.828a1.125 1.125 0 01-.26-1.43l1.297-2.247a1.125 1.125 0 011.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.087.22-.128.332-.183.582-.495.644-.869l.214-1.281z" />
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                </svg>
-                Metadata Overrides
-                {hasOverrides && (
-                  <span
-                    className="text-xs px-1.5 py-0.5 rounded-full ml-1"
-                    style={{ backgroundColor: "var(--accent)", color: "var(--filter-active-text)", fontSize: "10px" }}
-                  >
-                    active
-                  </span>
-                )}
-              </Button>
-            )}
           </div>
           {item.id && (
             <AddToPlaylistModal
@@ -1011,14 +1054,6 @@ export function MediaDetail({ item, onMetadataUpdated, initialEdit }: MediaDetai
               profileId={profileId}
             />
           )}
-          {item.id && isAdmin && (
-            <MetadataOverrideModal
-              open={overrideModalOpen}
-              onClose={() => setOverrideModalOpen(false)}
-              mediaItemId={item.id}
-            />
-          )}
-
           {item.id && (
             <Modal open={editing} onClose={() => setEditing(false)} title="Edit Metadata">
               <div className="overflow-y-auto" style={{ maxHeight: "70vh" }}>
