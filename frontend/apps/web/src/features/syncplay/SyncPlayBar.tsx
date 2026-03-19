@@ -10,9 +10,8 @@ interface SyncPlayBarProps {
 }
 
 export function SyncPlayBar({ roomId, members, connected, onLeave }: SyncPlayBarProps) {
-  const { t } = useTranslation("media");
-  const { t: tc } = useTranslation("common");
-  const [copied, setCopied] = useState(false);
+  const { t } = useTranslation();
+    const [copied, setCopied] = useState(false);
 
   const shareUrl = `${window.location.origin}${window.location.pathname}?room=${roomId}`;
 
@@ -27,9 +26,9 @@ export function SyncPlayBar({ roomId, members, connected, onLeave }: SyncPlayBar
   const extra = members.length > 3 ? members.length - 3 : 0;
   const watchingWith = displayNames.length > 0
     ? extra > 0
-      ? t("syncplay.watchingWithMore", { names: displayNames.join(", "), count: extra })
-      : t("syncplay.watchingWith", { names: displayNames.join(", ") })
-    : t("syncplay.watchTogetherRoom");
+      ? t("media.syncplay.watchingWithMore", { names: displayNames.join(", "), count: extra })
+      : t("media.syncplay.watchingWith", { names: displayNames.join(", ") })
+    : t("media.syncplay.watchTogetherRoom");
 
   return (
     <div
@@ -39,7 +38,7 @@ export function SyncPlayBar({ roomId, members, connected, onLeave }: SyncPlayBar
       <span
         className="w-2 h-2 rounded-full flex-shrink-0"
         style={{ background: connected ? "var(--color-success)" : "var(--color-danger)" }}
-        title={connected ? t("syncplay.connected") : t("syncplay.connecting")}
+        title={connected ? t("media.syncplay.connected") : t("media.syncplay.connecting")}
       />
       <span className="flex-1 truncate">{watchingWith}</span>
       <button
@@ -47,14 +46,14 @@ export function SyncPlayBar({ roomId, members, connected, onLeave }: SyncPlayBar
         className="px-3 py-1 rounded text-xs font-medium hover:opacity-80 transition-opacity flex-shrink-0"
         style={{ background: "var(--overlay-btn-bg)" }}
       >
-        {copied ? tc("copied") : t("syncplay.shareLink")}
+        {copied ? t("common.copied") : t("media.syncplay.shareLink")}
       </button>
       <button
         onClick={onLeave}
         className="px-3 py-1 rounded text-xs font-medium hover:opacity-80 transition-opacity flex-shrink-0"
         style={{ background: "color-mix(in srgb, var(--color-danger) 30%, transparent)" }}
       >
-        {t("syncplay.leave")}
+        {t("media.syncplay.leave")}
       </button>
     </div>
   );

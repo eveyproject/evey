@@ -125,3 +125,41 @@ photos:
   deletePhotoConfirm: "Delete \"{{title}}\"? This cannot be undone."
   photoCount: "{{count}} photo"
   photoCount_plural: "{{count}} photos"
+added: Added
+created: Created
+updated: Updated
+syncplay:
+  connected: Connected
+  connecting: "Connecting..."
+  leave: Leave
+  shareLink: Share link
+  watchTogetherRoom: Watch Together room
+  watchingWith: "Watching with: {{names}}"
+  watchingWithMore: "Watching with: {{names}} +{{count}} more"
+playlist:
+  name: Name
+  description: Description
+  type: Type
+  manual: Manual
+  smart: Smart
+  createTitle: Create Playlist
+  createPlaylist: Create Playlist
+  newPlaylist: "+ New Playlist"
+  noPlaylists: No playlists yet.
+  addTitle: Add to Playlist
+  addSuccess: "Added to playlist"
+  addError: Failed to add to playlist
+  createSuccess: Playlist created
+  createError: Failed to create playlist
+  rules: Rules
+  addRule: Add Rule
+  field: Field
+  op: Operator
+  value: Value
+search:
+  searching: "Searching..."
+  noResults: No results
+  viewAllResults: "View all {{count}} results"
+  recentSearches: Recent searches
+  clearAll: Clear all
+  searchFailed: Search failed

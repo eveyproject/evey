@@ -62,7 +62,7 @@ function StepDots({ current, total }: { current: number; total: number }) {
 }
 
 function SetupPage() {
-  const { t } = useTranslation("auth");
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const { setTokens } = useAuthStore();
   const [step, setStep] = useState(0);
@@ -72,20 +72,20 @@ function SetupPage() {
   const [libraryError, setLibraryError] = useState<string | undefined>();
   const [setupError, setSetupError] = useState<string | undefined>();
 
-  const STEPS = [t("setup.steps.welcome"), t("setup.steps.admin"), t("setup.steps.library")] as const;
+  const STEPS = [t("auth.setup.steps.welcome"), t("auth.setup.steps.admin"), t("auth.setup.steps.library")] as const;
 
   const LIBRARY_TYPE_OPTIONS = [
-    { value: "LIBRARY_TYPE_MOVIES", label: t("setup.libraryTypes.movies") },
-    { value: "LIBRARY_TYPE_SHOWS", label: t("setup.libraryTypes.shows") },
-    { value: "LIBRARY_TYPE_MUSIC", label: t("setup.libraryTypes.music") },
-    { value: "LIBRARY_TYPE_PHOTOS", label: t("setup.libraryTypes.photos") },
+    { value: "LIBRARY_TYPE_MOVIES", label: t("auth.setup.libraryTypes.movies") },
+    { value: "LIBRARY_TYPE_SHOWS", label: t("auth.setup.libraryTypes.shows") },
+    { value: "LIBRARY_TYPE_MUSIC", label: t("auth.setup.libraryTypes.music") },
+    { value: "LIBRARY_TYPE_PHOTOS", label: t("auth.setup.libraryTypes.photos") },
   ];
 
   function validateAdmin(form: AdminForm): AdminErrors {
     const errors: AdminErrors = {};
-    if (form.username.length < 3) errors.username = t("setup.usernameMin");
-    if (form.password.length < 8) errors.password = t("setup.passwordMin");
-    if (form.password !== form.confirmPassword) errors.confirmPassword = t("setup.passwordMismatch");
+    if (form.username.length < 3) errors.username = t("auth.setup.usernameMin");
+    if (form.password.length < 8) errors.password = t("auth.setup.passwordMin");
+    if (form.password !== form.confirmPassword) errors.confirmPassword = t("auth.setup.passwordMismatch");
     return errors;
   }
 
@@ -100,7 +100,7 @@ function SetupPage() {
           void navigate({ to: "/login" });
           return;
         }
-        setSetupError(err instanceof Error ? err.message : t("setup.setupFailed"));
+        setSetupError(err instanceof Error ? err.message : t("auth.setup.setupFailed"));
       },
     },
   });
@@ -109,7 +109,7 @@ function SetupPage() {
     mutation: {
       onSuccess: () => void navigate({ to: "/home" }),
       onError: (err) => {
-        setLibraryError(err instanceof Error ? err.message : t("setup.setupFailed"));
+        setLibraryError(err instanceof Error ? err.message : t("auth.setup.setupFailed"));
       },
     },
   });
@@ -141,7 +141,7 @@ function SetupPage() {
   const handleCreateLibrary = (e: React.FormEvent) => {
     e.preventDefault();
     if (!libraryForm.name.trim()) {
-      setLibraryError(t("setup.libraryNameRequired"));
+      setLibraryError(t("auth.setup.libraryNameRequired"));
       return;
     }
     setLibraryError(undefined);
@@ -169,7 +169,7 @@ function SetupPage() {
         <div className="flex flex-col items-center mb-2">{logoIcon}</div>
 
         <p className="text-center text-xs text-[var(--text-muted)] mb-1">
-          {t("setup.stepOf", { current: step + 1, total: STEPS.length, name: STEPS[step] })}
+          {t("auth.setup.stepOf", { current: step + 1, total: STEPS.length, name: STEPS[step] })}
         </p>
         <StepDots current={step} total={STEPS.length} />
 
@@ -177,13 +177,13 @@ function SetupPage() {
         {step === 0 && (
           <div className="flex flex-col items-center gap-6 text-center">
             <div>
-              <h1 className="text-2xl font-bold text-[var(--text)]">{t("setup.welcome")}</h1>
+              <h1 className="text-2xl font-bold text-[var(--text)]">{t("auth.setup.welcome")}</h1>
               <p className="text-[var(--text-muted)] text-sm mt-2">
-                {t("setup.description")}
+                {t("auth.setup.description")}
               </p>
             </div>
             <Button className="w-full" onClick={() => setStep(1)}>
-              {t("setup.getStarted")}
+              {t("auth.setup.getStarted")}
             </Button>
           </div>
         )}
@@ -191,10 +191,10 @@ function SetupPage() {
         {/* Step 1: Admin account */}
         {step === 1 && (
           <form onSubmit={handleAdminSubmit} className="flex flex-col gap-4">
-            <h2 className="text-xl font-bold text-[var(--text)] text-center">{t("setup.createAdmin")}</h2>
+            <h2 className="text-xl font-bold text-[var(--text)] text-center">{t("auth.setup.createAdmin")}</h2>
             <div className="flex flex-col gap-1">
               <Input
-                label={t("setup.username")}
+                label={t("auth.setup.username")}
                 value={adminForm.username}
                 onChange={updateAdmin("username")}
                 autoComplete="username"
@@ -208,7 +208,7 @@ function SetupPage() {
             </div>
             <div className="flex flex-col gap-1">
               <Input
-                label={t("setup.password")}
+                label={t("auth.setup.password")}
                 type="password"
                 value={adminForm.password}
                 onChange={updateAdmin("password")}
@@ -222,7 +222,7 @@ function SetupPage() {
             </div>
             <div className="flex flex-col gap-1">
               <Input
-                label={t("setup.confirmPassword")}
+                label={t("auth.setup.confirmPassword")}
                 type="password"
                 value={adminForm.confirmPassword}
                 onChange={updateAdmin("confirmPassword")}
@@ -246,10 +246,10 @@ function SetupPage() {
                 className="flex-1"
                 onClick={() => setStep(0)}
               >
-                {t("common:back")}
+                {t("common.back")}
               </Button>
               <Button type="submit" loading={setup.isPending} className="flex-1">
-                {t("common:continue")}
+                {t("common.continue")}
               </Button>
             </div>
           </form>
@@ -258,13 +258,13 @@ function SetupPage() {
         {/* Step 2: First library */}
         {step === 2 && (
           <form onSubmit={handleCreateLibrary} className="flex flex-col gap-4">
-            <h2 className="text-xl font-bold text-[var(--text)] text-center">{t("setup.addLibrary")}</h2>
+            <h2 className="text-xl font-bold text-[var(--text)] text-center">{t("auth.setup.addLibrary")}</h2>
             <p className="text-sm text-center text-[var(--text-muted)]">
-              {t("setup.addLibraryHint")}
+              {t("auth.setup.addLibraryHint")}
             </p>
             <div className="flex flex-col gap-1">
               <Input
-                label={t("setup.libraryName")}
+                label={t("auth.setup.libraryName")}
                 value={libraryForm.name}
                 onChange={(e) => {
                   setLibraryForm((prev) => ({ ...prev, name: e.target.value }));
@@ -279,7 +279,7 @@ function SetupPage() {
               )}
             </div>
             <Select
-              label={t("setup.libraryType")}
+              label={t("auth.setup.libraryType")}
               options={LIBRARY_TYPE_OPTIONS}
               value={libraryForm.type}
               onChange={(value) => setLibraryForm((prev) => ({ ...prev, type: value }))}
@@ -291,10 +291,10 @@ function SetupPage() {
                 className="flex-1"
                 onClick={() => void navigate({ to: "/home" })}
               >
-                {t("common:skip")}
+                {t("common.skip")}
               </Button>
               <Button type="submit" loading={createLibrary.isPending} className="flex-1">
-                {t("common:create")}
+                {t("common.create")}
               </Button>
             </div>
           </form>

@@ -11,7 +11,7 @@ interface SkipIntroButtonProps {
 }
 
 export function SkipIntroButton({ filePath, currentTime, onSkip }: SkipIntroButtonProps) {
-  const { t } = useTranslation("player");
+  const { t } = useTranslation();
   const { data } = useQuery({
     queryKey: ["/api/v1/mkv/chapters", filePath],
     queryFn: ({ signal }) => mKVServiceListChapters({ path: filePath }, signal),
@@ -41,7 +41,7 @@ export function SkipIntroButton({ filePath, currentTime, onSkip }: SkipIntroButt
         backdropFilter: "blur(8px)",
       }}
     >
-      {t("skipIntro")}
+      {t("player.skipIntro")}
     </button>
   );
 }

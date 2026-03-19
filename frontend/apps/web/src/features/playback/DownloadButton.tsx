@@ -7,7 +7,7 @@ interface DownloadButtonProps {
 }
 
 export function DownloadButton({ mediaId, title }: DownloadButtonProps) {
-  const { t } = useTranslation("player");
+  const { t } = useTranslation();
   const token = useAuthStore((s) => s.accessToken);
   const url = `/api/v1/media/${mediaId}/download${token ? `?token=${encodeURIComponent(token)}` : ""}`;
 
@@ -21,7 +21,7 @@ export function DownloadButton({ mediaId, title }: DownloadButtonProps) {
       <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
         <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v12m0 0l-4-4m4 4l4-4M4 18h16" />
       </svg>
-      {t("download")}
+      {t("player.download")}
     </a>
   );
 }

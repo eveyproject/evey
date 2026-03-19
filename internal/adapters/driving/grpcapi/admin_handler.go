@@ -113,7 +113,7 @@ func (h *adminHandler) SetupWizard(ctx context.Context, req *eveyv1.SetupWizardR
 	u, err := h.userCmd.Setup(ctx, req.AdminUsername, req.AdminPassword, req.AdminEmail)
 	if err != nil {
 		if errors.Is(err, appuser.ErrSetupDone) {
-			return nil, h.translator.TranslatedError(ctx, codes.AlreadyExists, "admin.setup_already_completed")
+			return nil, h.translator.TranslatedError(ctx, codes.AlreadyExists, "errors.admin.setup_already_completed")
 		}
 		return nil, status.Errorf(codes.Internal, "setup: %v", err)
 	}
@@ -204,7 +204,7 @@ func (h *adminHandler) ListScheduledTasks(ctx context.Context, _ *eveyv1.ListSch
 
 func (h *adminHandler) UpdateScheduledTask(ctx context.Context, req *eveyv1.UpdateScheduledTaskRequest) (*eveyv1.ScheduledTask, error) {
 	if h.scheduler == nil {
-		return nil, h.translator.TranslatedError(ctx, codes.Unimplemented, "admin.scheduler_not_available")
+		return nil, h.translator.TranslatedError(ctx, codes.Unimplemented, "errors.admin.scheduler_not_available")
 	}
 	existing, err := h.scheduler.ListSchedules(ctx)
 	if err != nil {
@@ -218,7 +218,7 @@ func (h *adminHandler) UpdateScheduledTask(ctx context.Context, req *eveyv1.Upda
 		}
 	}
 	if current == nil {
-		return nil, h.translator.TranslatedError(ctx, codes.NotFound, "admin.scheduled_task_not_found")
+		return nil, h.translator.TranslatedError(ctx, codes.NotFound, "errors.admin.scheduled_task_not_found")
 	}
 	cron := current.CronExpression
 	if req.CronExpression != nil {
@@ -247,7 +247,7 @@ func (h *adminHandler) UpdateScheduledTask(ctx context.Context, req *eveyv1.Upda
 
 func (h *adminHandler) RunScheduledTask(ctx context.Context, req *eveyv1.RunScheduledTaskRequest) (*eveyv1.RunScheduledTaskResponse, error) {
 	if h.libScanner == nil {
-		return nil, h.translator.TranslatedError(ctx, codes.Unimplemented, "admin.scanner_not_available")
+		return nil, h.translator.TranslatedError(ctx, codes.Unimplemented, "errors.admin.scanner_not_available")
 	}
 	go func() {
 		added, updated, err := h.libScanner.ScanLibrary(context.Background(), req.Id)
@@ -490,10 +490,10 @@ func (h *adminHandler) releaseHeavyOp() {
 
 func (h *adminHandler) RefreshAllMetadata(ctx context.Context, _ *eveyv1.RefreshAllMetadataRequest) (*eveyv1.RefreshAllMetadataResponse, error) {
 	if h.metadataCmd == nil {
-		return nil, h.translator.TranslatedError(ctx, codes.Unimplemented, "admin.service_not_configured")
+		return nil, h.translator.TranslatedError(ctx, codes.Unimplemented, "errors.admin.service_not_configured")
 	}
 	if !h.acquireHeavyOp() {
-		return nil, h.translator.TranslatedError(ctx, codes.ResourceExhausted, "admin.heavy_op_running")
+		return nil, h.translator.TranslatedError(ctx, codes.ResourceExhausted, "errors.admin.heavy_op_running")
 	}
 	defer h.releaseHeavyOp()
 	if err := h.metadataCmd.AutoRefreshAllItems(ctx); err != nil {
@@ -504,10 +504,10 @@ func (h *adminHandler) RefreshAllMetadata(ctx context.Context, _ *eveyv1.Refresh
 
 func (h *adminHandler) GenerateAllTrickplays(ctx context.Context, _ *eveyv1.GenerateAllTrickplaysRequest) (*eveyv1.GenerateAllTrickplaysResponse, error) {
 	if h.libCmd == nil {
-		return nil, h.translator.TranslatedError(ctx, codes.Unimplemented, "admin.service_not_configured")
+		return nil, h.translator.TranslatedError(ctx, codes.Unimplemented, "errors.admin.service_not_configured")
 	}
 	if !h.acquireHeavyOp() {
-		return nil, h.translator.TranslatedError(ctx, codes.ResourceExhausted, "admin.heavy_op_running")
+		return nil, h.translator.TranslatedError(ctx, codes.ResourceExhausted, "errors.admin.heavy_op_running")
 	}
 	defer h.releaseHeavyOp()
 	n, err := h.libCmd.GenerateAllMissingTrickplays(ctx)
@@ -519,7 +519,7 @@ func (h *adminHandler) GenerateAllTrickplays(ctx context.Context, _ *eveyv1.Gene
 
 func (h *adminHandler) DeleteMediaItem(ctx context.Context, req *eveyv1.DeleteMediaItemRequest) (*eveyv1.DeleteMediaItemResponse, error) {
 	if h.libCmd == nil {
-		return nil, h.translator.TranslatedError(ctx, codes.Unimplemented, "admin.service_not_configured")
+		return nil, h.translator.TranslatedError(ctx, codes.Unimplemented, "errors.admin.service_not_configured")
 	}
 	if err := h.libCmd.DeleteMediaItem(ctx, req.Id); err != nil {
 		return nil, status.Errorf(codes.Internal, "delete media item: %v", err)

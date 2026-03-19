@@ -33,11 +33,11 @@ function stateBadgeVariant(state?: V1PluginState | string): BadgeVariant {
 }
 
 const STATE_LABEL_KEYS: Record<string, string> = {
-  PLUGIN_STATE_RUNNING: "plugin.state.running",
-  PLUGIN_STATE_INITIALIZING: "plugin.state.starting",
-  PLUGIN_STATE_ERROR: "plugin.state.error",
-  PLUGIN_STATE_STOPPED: "plugin.state.stopped",
-  PLUGIN_STATE_INSTALLED: "plugin.state.installed",
+  PLUGIN_STATE_RUNNING: "admin.plugin.state.running",
+  PLUGIN_STATE_INITIALIZING: "admin.plugin.state.starting",
+  PLUGIN_STATE_ERROR: "admin.plugin.state.error",
+  PLUGIN_STATE_STOPPED: "admin.plugin.state.stopped",
+  PLUGIN_STATE_INSTALLED: "admin.plugin.state.installed",
 };
 
 interface ConfigFieldSchema {
@@ -98,7 +98,7 @@ function SchemaField({
 }
 
 function PluginConfigPanel({ pluginId, configSchema }: PluginConfigPanelProps) {
-  const { t } = useTranslation("admin");
+  const { t } = useTranslation();
   const queryClient = useQueryClient();
   const { data, isLoading } = useAdminServiceGetPluginConfig(pluginId);
   const [edits, setEdits] = useState<Record<string, string>>({});
@@ -108,7 +108,7 @@ function PluginConfigPanel({ pluginId, configSchema }: PluginConfigPanelProps) {
       onSuccess: () => {
         queryClient.invalidateQueries({ queryKey: ["/api/v1/admin/plugins", pluginId, "config"] });
         setEdits({});
-        toast.success(t("plugin.configSaved"));
+        toast.success(t("admin.plugin.configSaved"));
       },
       onError: (err: Error) => toast.error(err.message || "Failed to save config"),
     },
@@ -129,7 +129,7 @@ function PluginConfigPanel({ pluginId, configSchema }: PluginConfigPanelProps) {
   if (keys.length === 0) {
     return (
       <p className="text-xs py-2" style={{ color: "var(--text-muted)" }}>
-        {t("plugin.noConfig")}
+        {t("admin.plugin.noConfig")}
       </p>
     );
   }
@@ -172,7 +172,7 @@ function PluginConfigPanel({ pluginId, configSchema }: PluginConfigPanelProps) {
             onClick={handleSave}
             loading={updateConfig.isPending}
           >
-            {t("common:save")}
+            {t("common.save")}
           </Button>
         </div>
       )}
@@ -188,10 +188,10 @@ interface PluginCardProps {
 }
 
 export function PluginCard({ plugin, onEnable, onDisable, onUninstall }: PluginCardProps) {
-  const { t } = useTranslation("admin");
+  const { t } = useTranslation();
   const [showConfig, setShowConfig] = useState(false);
 
-  const stateKey = STATE_LABEL_KEYS[plugin.state ?? ""] ?? "plugin.state.unknown";
+  const stateKey = STATE_LABEL_KEYS[plugin.state ?? ""] ?? "admin.plugin.state.unknown";
 
   return (
     <Card className="flex flex-col gap-3">
@@ -207,15 +207,15 @@ export function PluginCard({ plugin, onEnable, onDisable, onUninstall }: PluginC
         <div className="flex items-center gap-2 shrink-0">
           <Badge variant={stateBadgeVariant(plugin.state)}>{t(stateKey)}</Badge>
           {plugin.enabled ? (
-            <Badge variant="success">{t("plugin.enabled")}</Badge>
+            <Badge variant="success">{t("admin.plugin.enabled")}</Badge>
           ) : (
-            <Badge variant="default">{t("plugin.disabled")}</Badge>
+            <Badge variant="default">{t("admin.plugin.disabled")}</Badge>
           )}
           {plugin.permissions?.includes("subprocess") && (
-            <Badge variant="warning">{t("plugin.subprocess")}</Badge>
+            <Badge variant="warning">{t("admin.plugin.subprocess")}</Badge>
           )}
           {plugin.language !== "css" && !plugin.permissions?.includes("subprocess") && (
-            <Badge variant="success">{t("plugin.sandboxed")}</Badge>
+            <Badge variant="success">{t("admin.plugin.sandboxed")}</Badge>
           )}
         </div>
       </div>
@@ -228,20 +228,20 @@ export function PluginCard({ plugin, onEnable, onDisable, onUninstall }: PluginC
 
       <div className="flex gap-2 pt-1 flex-wrap">
         {plugin.enabled ? (
-          <Button variant="secondary" onClick={onDisable}>{t("common:disable")}</Button>
+          <Button variant="secondary" onClick={onDisable}>{t("common.disable")}</Button>
         ) : (
-          <Button variant="primary" onClick={onEnable}>{t("common:enable")}</Button>
+          <Button variant="primary" onClick={onEnable}>{t("common.enable")}</Button>
         )}
         <Button variant="ghost" onClick={() => setShowConfig((v) => !v)}>
-          {showConfig ? t("plugin.hideConfig") : t("plugin.config")}
+          {showConfig ? t("admin.plugin.hideConfig") : t("admin.plugin.config")}
         </Button>
         <Link
           to="/admin/logs"
           className="inline-flex items-center px-3 py-2 rounded-[var(--radius-md)] text-sm font-medium transition-colors bg-transparent hover:bg-[var(--surface-raised)] text-[var(--text-muted)]"
         >
-          {t("plugin.logs")}
+          {t("admin.plugin.logs")}
         </Link>
-        <Button variant="danger" onClick={onUninstall}>{t("plugin.uninstall")}</Button>
+        <Button variant="danger" onClick={onUninstall}>{t("admin.plugin.uninstall")}</Button>
       </div>
 
       {showConfig && plugin.id && (
@@ -250,7 +250,7 @@ export function PluginCard({ plugin, onEnable, onDisable, onUninstall }: PluginC
           style={{ borderColor: "var(--border)" }}
         >
           <p className="text-xs font-semibold mb-2" style={{ color: "var(--text-muted)" }}>
-            {t("plugin.configuration")}
+            {t("admin.plugin.configuration")}
           </p>
           <PluginConfigPanel pluginId={plugin.id} />
         </div>

@@ -103,7 +103,7 @@ func (h *activityHandler) GetLoginHistory(ctx context.Context, req *eveyv1.GetLo
 	if userID == "" {
 		userID = claims.UserID
 	} else if userID != claims.UserID && !claims.IsAdmin {
-		return nil, h.translator.TranslatedError(ctx, codes.PermissionDenied, "activity.cannot_access_other_history")
+		return nil, h.translator.TranslatedError(ctx, codes.PermissionDenied, "errors.activity.cannot_access_other_history")
 	}
 	limit := 50
 	offset := 0

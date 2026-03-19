@@ -8,21 +8,21 @@ interface KeyboardShortcutsOverlayProps {
 }
 
 export function KeyboardShortcutsOverlay({ onClose, skipBackwardSeconds = 10, skipForwardSeconds = 10 }: KeyboardShortcutsOverlayProps) {
-  const { t } = useTranslation("player");
+  const { t } = useTranslation();
   const shortcuts: [string, string][] = useMemo(() => [
-    ["Space / K", t("shortcuts.playPause")],
-    ["F", t("shortcuts.toggleFullscreen")],
-    ["M", t("shortcuts.toggleMute")],
-    ["J / \u2190", t("shortcuts.seekBack", { seconds: skipBackwardSeconds })],
-    ["L / \u2192", t("shortcuts.seekForward", { seconds: skipForwardSeconds })],
-    ["\u2191", t("shortcuts.volumeUp")],
-    ["\u2193", t("shortcuts.volumeDown")],
-    ["0\u20139", t("shortcuts.seekPercent")],
-    ["C", t("shortcuts.toggleCaptions")],
-    ["< (,)", t("shortcuts.decreaseSpeed")],
-    ["> (.)", t("shortcuts.increaseSpeed")],
-    ["P", t("shortcuts.pip")],
-    ["?", t("shortcuts.showShortcuts")],
+    ["Space / K", t("player.shortcuts.playPause")],
+    ["F", t("player.shortcuts.toggleFullscreen")],
+    ["M", t("player.shortcuts.toggleMute")],
+    ["J / \u2190", t("player.shortcuts.seekBack", { seconds: skipBackwardSeconds })],
+    ["L / \u2192", t("player.shortcuts.seekForward", { seconds: skipForwardSeconds })],
+    ["\u2191", t("player.shortcuts.volumeUp")],
+    ["\u2193", t("player.shortcuts.volumeDown")],
+    ["0\u20139", t("player.shortcuts.seekPercent")],
+    ["C", t("player.shortcuts.toggleCaptions")],
+    ["< (,)", t("player.shortcuts.decreaseSpeed")],
+    ["> (.)", t("player.shortcuts.increaseSpeed")],
+    ["P", t("player.shortcuts.pip")],
+    ["?", t("player.shortcuts.showShortcuts")],
   ], [skipBackwardSeconds, skipForwardSeconds, t]);
   useEffect(() => {
     function handleKey(e: KeyboardEvent) {
@@ -48,7 +48,7 @@ export function KeyboardShortcutsOverlay({ onClose, skipBackwardSeconds = 10, sk
         onClick={(e) => e.stopPropagation()}
       >
         <h2 className="text-lg font-semibold mb-4" style={{ color: "var(--text)" }}>
-          {t("shortcuts.title")}
+          {t("player.shortcuts.title")}
         </h2>
         <div className="grid grid-cols-[auto_1fr] gap-x-6 gap-y-2">
           {shortcuts.map(([key, action]) => (

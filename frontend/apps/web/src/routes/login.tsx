@@ -28,14 +28,14 @@ export const Route = createFileRoute("/login")({
 function friendlyLoginError(err: unknown, t: (key: string) => string): string {
   const msg = err instanceof Error ? err.message.toLowerCase() : "";
   if (msg.includes("invalid credentials") || msg.includes("not found"))
-    return t("login.invalidCredentials");
+    return t("auth.login.invalidCredentials");
   if (msg.includes("password") && (msg.includes("short") || msg.includes("length")))
-    return t("login.passwordTooShort");
-  return t("login.loginFailed");
+    return t("auth.login.passwordTooShort");
+  return t("auth.login.loginFailed");
 }
 
 function LoginPage() {
-  const { t } = useTranslation("auth");
+  const { t } = useTranslation();
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const { setTokens } = useAuthStore();
@@ -80,10 +80,10 @@ function LoginPage() {
             </svg>
           </div>
           <h1 className="text-2xl font-bold text-[var(--text)]">Evey</h1>
-          <p className="text-[var(--text-muted)] text-sm mt-1">{t("login.signInToAccount")}</p>
+          <p className="text-[var(--text-muted)] text-sm mt-1">{t("auth.login.signInToAccount")}</p>
         </div>
         {oidc_error && (
-          <p className="text-sm text-center mb-4" style={{ color: "var(--color-danger)" }}>{t("login.ssoFailed")}</p>
+          <p className="text-sm text-center mb-4" style={{ color: "var(--color-danger)" }}>{t("auth.login.ssoFailed")}</p>
         )}
         <form
           onSubmit={(e) => {
@@ -93,7 +93,7 @@ function LoginPage() {
           className="flex flex-col gap-4"
         >
           <Input
-            label={t("login.username")}
+            label={t("auth.login.username")}
             type="text"
             value={username}
             onChange={(e) => setUsername(e.target.value)}
@@ -101,7 +101,7 @@ function LoginPage() {
             autoFocus
           />
           <Input
-            label={t("login.password")}
+            label={t("auth.login.password")}
             type="password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
@@ -113,14 +113,14 @@ function LoginPage() {
             </p>
           )}
           <Button type="submit" loading={login.isPending} className="w-full mt-2" data-testid="login-submit">
-            {t("login.signIn")}
+            {t("auth.login.signIn")}
           </Button>
         </form>
         {oidcConfig.data?.enabled && (
           <>
             <div className="flex items-center gap-2 my-4">
               <div className="flex-1 h-px bg-[var(--border)]" />
-              <span className="text-xs text-[var(--text-muted)]">{t("login.or")}</span>
+              <span className="text-xs text-[var(--text-muted)]">{t("auth.login.or")}</span>
               <div className="flex-1 h-px bg-[var(--border)]" />
             </div>
             <Button
@@ -129,7 +129,7 @@ function LoginPage() {
               className="w-full"
               onClick={() => { window.location.href = "/api/v1/auth/oidc/login"; }}
             >
-              {t("login.signInWithSSO")}
+              {t("auth.login.signInWithSSO")}
             </Button>
           </>
         )}

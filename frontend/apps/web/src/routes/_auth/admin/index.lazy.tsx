@@ -9,7 +9,7 @@ export const Route = createLazyFileRoute("/_auth/admin/")({
 });
 
 function SystemInfoCard() {
-  const { t } = useTranslation("admin");
+  const { t } = useTranslation();
   const { data: sysData, isLoading } = useAdminServiceGetSystemInfo();
 
   if (isLoading) {
@@ -23,12 +23,12 @@ function SystemInfoCard() {
   if (!sysData) return null;
 
   const fields: [string, string | undefined][] = [
-    [t("dashboard.version"), sysData.version],
-    [t("dashboard.os"), sysData.os],
-    [t("dashboard.arch"), sysData.arch],
-    [t("dashboard.goVersion"), sysData.goVersion],
-    [t("dashboard.ffmpeg"), sysData.ffmpegVersion],
-    [t("dashboard.uptime"), sysData.uptimeSeconds ? `${Math.floor(parseInt(sysData.uptimeSeconds) / 60)}m` : undefined],
+    [t("admin.dashboard.version"), sysData.version],
+    [t("admin.dashboard.os"), sysData.os],
+    [t("admin.dashboard.arch"), sysData.arch],
+    [t("admin.dashboard.goVersion"), sysData.goVersion],
+    [t("admin.dashboard.ffmpeg"), sysData.ffmpegVersion],
+    [t("admin.dashboard.uptime"), sysData.uptimeSeconds ? `${Math.floor(parseInt(sysData.uptimeSeconds) / 60)}m` : undefined],
   ];
 
   return (
@@ -37,7 +37,7 @@ function SystemInfoCard() {
       style={{ backgroundColor: "var(--surface)", border: "1px solid var(--border)" }}
     >
       <h3 className="text-sm font-semibold mb-3" style={{ color: "var(--text)" }}>
-        {t("dashboard.systemInfo")}
+        {t("admin.dashboard.systemInfo")}
       </h3>
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-8 gap-y-3 text-sm">
         {fields.map(([k, v]) =>
@@ -56,7 +56,7 @@ function SystemInfoCard() {
 }
 
 function AdminDashboard() {
-  const { t } = useTranslation("admin");
+  const { t } = useTranslation();
   const { data: dashData, isLoading: dashLoading, dataUpdatedAt } = useAdminServiceGetDashboard({
     query: { refetchInterval: 10_000 },
   });
@@ -65,11 +65,11 @@ function AdminDashboard() {
     <div className="flex flex-col gap-8">
       <div className="flex items-center justify-between gap-4 flex-wrap">
         <h1 className="text-2xl font-bold" style={{ color: "var(--text)" }}>
-          {t("dashboard.title")}
+          {t("admin.dashboard.title")}
         </h1>
         {dataUpdatedAt > 0 && (
           <p className="text-xs" style={{ color: "var(--text-muted)" }}>
-            {t("dashboard.autoRefresh", { time: new Date(dataUpdatedAt).toLocaleTimeString(), interval: "10s" })}
+            {t("admin.dashboard.autoRefresh", { time: new Date(dataUpdatedAt).toLocaleTimeString(), interval: "10s" })}
           </p>
         )}
       </div>

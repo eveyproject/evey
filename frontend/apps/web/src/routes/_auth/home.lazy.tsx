@@ -26,7 +26,7 @@ export const Route = createLazyFileRoute("/_auth/home")({
 });
 
 function HeroBanner() {
-  const { t } = useTranslation("media");
+  const { t } = useTranslation();
   const { data, isLoading } = useFeedServiceRecentlyAdded();
   const items = data?.items ?? [];
 
@@ -148,7 +148,7 @@ function HeroBanner() {
             <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
               <path d="M6.3 2.8L17 10 6.3 17.2V2.8z" />
             </svg>
-            {t("home.play")}
+            {t("media.home.play")}
           </Link>
           <Link
             to="/media/$mediaId"
@@ -156,7 +156,7 @@ function HeroBanner() {
             className="flex items-center gap-2 px-5 py-2.5 rounded-[var(--radius-md)] font-semibold text-sm transition-opacity hover:opacity-90"
             style={{ backgroundColor: "var(--overlay-btn-bg)", color: "var(--overlay-text)", backdropFilter: "blur(4px)" }}
           >
-            {t("home.moreInfo")}
+            {t("media.home.moreInfo")}
           </Link>
         </div>
       </div>
@@ -191,13 +191,13 @@ function LibrarySlider({ libraryId, name, libraryType }: { libraryId: string; na
 }
 
 function ContinueWatchingSlider() {
-  const { t } = useTranslation("media");
+  const { t } = useTranslation();
   const { data, isLoading } = useFeedServiceContinueWatching();
   const items = data?.items ?? [];
   if (!isLoading && items.length === 0) return null;
 
   return (
-    <MediaSlider title={t("home.continueWatching")} isLoading={isLoading}>
+    <MediaSlider title={t("media.home.continueWatching")} isLoading={isLoading}>
       {items.map((item) => (
         <MediaCard
           key={item.mediaItemId}
@@ -211,7 +211,7 @@ function ContinueWatchingSlider() {
 }
 
 function UpNextSlider() {
-  const { t } = useTranslation("media");
+  const { t } = useTranslation();
   const profileId = useAuthStore((s) => s.profileId);
   const { data, isLoading } = usePlaybackServiceGetNextUp(
     { profileId: profileId ?? undefined, limit: 15 },
@@ -221,7 +221,7 @@ function UpNextSlider() {
   if (!isLoading && items.length === 0) return null;
 
   return (
-    <MediaSlider title={t("home.upNext")} isLoading={isLoading}>
+    <MediaSlider title={t("media.home.upNext")} isLoading={isLoading}>
       {items.map((item) => (
         <MediaCard
           key={item.id}
@@ -244,13 +244,13 @@ function UpNextSlider() {
 }
 
 function RecentlyAddedSlider() {
-  const { t } = useTranslation("media");
+  const { t } = useTranslation();
   const { data, isLoading } = useFeedServiceRecentlyAdded();
   const items = data?.items ?? [];
   if (!isLoading && items.length === 0) return null;
 
   return (
-    <MediaSlider title={t("home.recentlyAdded")} isLoading={isLoading}>
+    <MediaSlider title={t("media.home.recentlyAdded")} isLoading={isLoading}>
       {items.map((item) => (
         <MediaCard
           key={item.mediaItemId}
@@ -264,13 +264,13 @@ function RecentlyAddedSlider() {
 }
 
 function MostPopularSlider() {
-  const { t } = useTranslation("media");
+  const { t } = useTranslation();
   const { data, isLoading } = useMostPopular(20);
   const items = data ?? [];
   if (!isLoading && items.length === 0) return null;
 
   return (
-    <MediaSlider title={t("home.mostPopular")} isLoading={isLoading}>
+    <MediaSlider title={t("media.home.mostPopular")} isLoading={isLoading}>
       {items.map((item) => (
         <MediaCard
           key={item.mediaItemId}
@@ -283,13 +283,13 @@ function MostPopularSlider() {
 }
 
 function RecommendedSlider() {
-  const { t } = useTranslation("media");
+  const { t } = useTranslation();
   const { data, isLoading } = useFeedServiceRecommended({ limit: 20 });
   const items = data?.items ?? [];
   if (!isLoading && items.length === 0) return null;
 
   return (
-    <MediaSlider title={t("home.recommendedForYou")} isLoading={isLoading}>
+    <MediaSlider title={t("media.home.recommendedForYou")} isLoading={isLoading}>
       {items.map((item) => (
         <MediaCard
           key={item.mediaItemId}
@@ -302,13 +302,13 @@ function RecommendedSlider() {
 }
 
 function CollectionsSection() {
-  const { t } = useTranslation("media");
+  const { t } = useTranslation();
   const { data, isLoading } = useCollections();
   const collections = data?.collections ?? [];
   if (!isLoading && collections.length === 0) return null;
 
   return (
-    <MediaSlider title={t("home.collections")} seeAllHref="/collections" isLoading={isLoading} skeletonCount={6}>
+    <MediaSlider title={t("media.home.collections")} seeAllHref="/collections" isLoading={isLoading} skeletonCount={6}>
       {collections.map((col) => (
         <CollectionCard key={col.id} collection={col} />
       ))}
@@ -317,7 +317,7 @@ function CollectionsSection() {
 }
 
 function HomePage() {
-  const { t } = useTranslation("media");
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const { data: librariesData, isLoading: librariesLoading } = useLibraryServiceListLibraries();
   const libraries = librariesData?.libraries ?? [];
@@ -333,9 +333,9 @@ function HomePage() {
         {!isLoading && !hasContent ? (
           <EmptyState
             icon="library"
-            title={t("home.emptyLibrary")}
-            description={t("home.emptyLibraryDesc")}
-            action={{ label: t("home.goToLibraries"), onClick: () => navigate({ to: "/admin/libraries" }) }}
+            title={t("media.home.emptyLibrary")}
+            description={t("media.home.emptyLibraryDesc")}
+            action={{ label: t("media.home.goToLibraries"), onClick: () => navigate({ to: "/admin/libraries" }) }}
           />
         ) : (
           <>
@@ -347,7 +347,7 @@ function HomePage() {
             <MostPopularSlider />
             {libraries.map((lib) =>
               lib.id ? (
-                <LibrarySlider key={lib.id} libraryId={lib.id} name={lib.name ?? t("home.library")} libraryType={lib.type} />
+                <LibrarySlider key={lib.id} libraryId={lib.id} name={lib.name ?? t("media.home.library")} libraryType={lib.type} />
               ) : null
             )}
             <PluginSlot name="home.section" />

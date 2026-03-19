@@ -28,12 +28,12 @@ func (h *serverConfigHandler) SetTranslator(t *eveyi18n.Translator) {
 
 func (h *serverConfigHandler) GetServerConfigEntry(ctx context.Context, req *eveyv1.GetServerConfigEntryRequest) (*eveyv1.ServerConfigEntryResponse, error) {
 	if req.Key == "" {
-		return nil, h.translator.TranslatedError(ctx, codes.InvalidArgument, "config.key_required")
+		return nil, h.translator.TranslatedError(ctx, codes.InvalidArgument, "errors.config.key_required")
 	}
 	e, err := h.repo.Get(ctx, req.Key)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, h.translator.TranslatedError(ctx, codes.NotFound, "config.key_not_found")
+			return nil, h.translator.TranslatedError(ctx, codes.NotFound, "errors.config.key_not_found")
 		}
 		return nil, status.Errorf(codes.Internal, "get config: %v", err)
 	}
@@ -42,7 +42,7 @@ func (h *serverConfigHandler) GetServerConfigEntry(ctx context.Context, req *eve
 
 func (h *serverConfigHandler) SetServerConfigEntry(ctx context.Context, req *eveyv1.SetServerConfigEntryRequest) (*eveyv1.SetServerConfigEntryResponse, error) {
 	if req.Key == "" {
-		return nil, h.translator.TranslatedError(ctx, codes.InvalidArgument, "config.key_required")
+		return nil, h.translator.TranslatedError(ctx, codes.InvalidArgument, "errors.config.key_required")
 	}
 	if err := h.repo.Set(ctx, req.Key, req.Value); err != nil {
 		return nil, status.Errorf(codes.Internal, "set config: %v", err)
@@ -64,7 +64,7 @@ func (h *serverConfigHandler) ListServerConfigEntries(ctx context.Context, _ *ev
 
 func (h *serverConfigHandler) DeleteServerConfigEntry(ctx context.Context, req *eveyv1.DeleteServerConfigEntryRequest) (*eveyv1.DeleteServerConfigEntryResponse, error) {
 	if req.Key == "" {
-		return nil, h.translator.TranslatedError(ctx, codes.InvalidArgument, "config.key_required")
+		return nil, h.translator.TranslatedError(ctx, codes.InvalidArgument, "errors.config.key_required")
 	}
 	if err := h.repo.Delete(ctx, req.Key); err != nil {
 		return nil, status.Errorf(codes.Internal, "delete config: %v", err)

@@ -18,7 +18,7 @@ export function AuditLogTable({
   page,
   pageSize,
 }: AuditLogTableProps) {
-  const { t } = useTranslation("admin");
+  const { t } = useTranslation();
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
 
   return (
@@ -30,7 +30,7 @@ export function AuditLogTable({
         <table className="w-full text-sm">
           <thead>
             <tr style={{ backgroundColor: "var(--surface)", borderBottom: "1px solid var(--border)" }}>
-              {[t("audit.tableHeaders.time"), t("audit.tableHeaders.user"), t("audit.tableHeaders.action"), t("audit.tableHeaders.resource"), t("audit.tableHeaders.details"), t("audit.tableHeaders.ip")].map((h) => (
+              {[t("admin.audit.tableHeaders.time"), t("admin.audit.tableHeaders.user"), t("admin.audit.tableHeaders.action"), t("admin.audit.tableHeaders.resource"), t("admin.audit.tableHeaders.details"), t("admin.audit.tableHeaders.ip")].map((h) => (
                 <th
                   key={h}
                   className="px-4 py-2 text-left font-medium"
@@ -45,7 +45,7 @@ export function AuditLogTable({
             {entries.length === 0 ? (
               <tr>
                 <td colSpan={6}>
-                  <EmptyState icon="history" title={t("audit.noEntries")} />
+                  <EmptyState icon="history" title={t("admin.audit.noEntries")} />
                 </td>
               </tr>
             ) : (
@@ -82,7 +82,7 @@ export function AuditLogTable({
 
       <div className="flex items-center justify-between">
         <span className="text-sm" style={{ color: "var(--text-muted)" }}>
-          {t("audit.entries", { count: total })}
+          {t("admin.audit.entries", { count: total })}
         </span>
         <Pagination
           page={page + 1}

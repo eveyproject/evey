@@ -25,10 +25,10 @@ export const Route = createLazyFileRoute("/_auth/admin/libraries")({
 
 function libraryTypeLabel(type: string | undefined, t: (key: string) => string): string {
   switch (type) {
-    case "LIBRARY_TYPE_MOVIES": return t("libraries.types.movies");
-    case "LIBRARY_TYPE_SHOWS": return t("libraries.types.shows");
-    case "LIBRARY_TYPE_MUSIC": return t("libraries.types.music");
-    default: return t("libraries.types.library");
+    case "LIBRARY_TYPE_MOVIES": return t("admin.libraries.types.movies");
+    case "LIBRARY_TYPE_SHOWS": return t("admin.libraries.types.shows");
+    case "LIBRARY_TYPE_MUSIC": return t("admin.libraries.types.music");
+    default: return t("admin.libraries.types.library");
   }
 }
 
@@ -80,7 +80,7 @@ function useSchedule(libraryId: string) {
 }
 
 function ScheduleModal({ library, onClose }: { library: V1Library; onClose: () => void }) {
-  const { t } = useTranslation("admin");
+  const { t } = useTranslation();
   const queryClient = useQueryClient();
   const { data: schedule, isLoading } = useSchedule(library.id!);
   const [preset, setPreset] = useState("");
@@ -88,11 +88,11 @@ function ScheduleModal({ library, onClose }: { library: V1Library; onClose: () =
   const [enabled, setEnabled] = useState(true);
 
   const PRESET_SCHEDULES = [
-    { value: "0 */6 * * *", label: t("libraries.presets.every6h") },
-    { value: "0 */12 * * *", label: t("libraries.presets.every12h") },
-    { value: "0 3 * * *", label: t("libraries.presets.daily3am") },
-    { value: "0 3 * * 0", label: t("libraries.presets.weekly3am") },
-    { value: "custom", label: t("libraries.presets.customCron") },
+    { value: "0 */6 * * *", label: t("admin.libraries.presets.every6h") },
+    { value: "0 */12 * * *", label: t("admin.libraries.presets.every12h") },
+    { value: "0 3 * * *", label: t("admin.libraries.presets.daily3am") },
+    { value: "0 3 * * 0", label: t("admin.libraries.presets.weekly3am") },
+    { value: "custom", label: t("admin.libraries.presets.customCron") },
   ];
 
   useEffect(() => {
@@ -121,10 +121,10 @@ function ScheduleModal({ library, onClose }: { library: V1Library; onClose: () =
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/v1/libraries", library.id, "schedule"] });
-      toast.success(t("libraries.scheduleSaved"));
+      toast.success(t("admin.libraries.scheduleSaved"));
       onClose();
     },
-    onError: (err: Error) => toast.error(err.message || t("libraries.failedSchedule")),
+    onError: (err: Error) => toast.error(err.message || t("admin.libraries.failedSchedule")),
   });
 
   const deleteMutation = useMutation({
@@ -136,10 +136,10 @@ function ScheduleModal({ library, onClose }: { library: V1Library; onClose: () =
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/v1/libraries", library.id, "schedule"] });
-      toast.success(t("libraries.scheduleRemoved"));
+      toast.success(t("admin.libraries.scheduleRemoved"));
       onClose();
     },
-    onError: (err: Error) => toast.error(err.message || t("libraries.failedRemoveSchedule")),
+    onError: (err: Error) => toast.error(err.message || t("admin.libraries.failedRemoveSchedule")),
   });
 
   if (isLoading) {
@@ -149,19 +149,19 @@ function ScheduleModal({ library, onClose }: { library: V1Library; onClose: () =
   return (
     <div className="flex flex-col gap-4">
       <Select
-        label={t("libraries.scanFrequency")}
+        label={t("admin.libraries.scanFrequency")}
         value={preset}
         onChange={(v) => {
           setPreset(v);
           if (v !== "custom") setCustomCron("");
         }}
-        placeholder={t("libraries.selectFrequency")}
+        placeholder={t("admin.libraries.selectFrequency")}
         options={PRESET_SCHEDULES}
       />
 
       {preset === "custom" && (
         <Input
-          label={t("libraries.cronExpression")}
+          label={t("admin.libraries.cronExpression")}
           placeholder="0 */6 * * *"
           value={customCron}
           onChange={(e) => setCustomCron(e.target.value)}
@@ -175,13 +175,13 @@ function ScheduleModal({ library, onClose }: { library: V1Library; onClose: () =
           onChange={(e) => setEnabled(e.target.checked)}
           className="rounded"
         />
-        {t("common:enabled")}
+        {t("common.enabled")}
       </label>
 
       {schedule && (
         <div className="text-xs space-y-1" style={{ color: "var(--text-muted)" }}>
-          {schedule.lastRunAt && <p>{t("libraries.lastRun", { date: formatDate(schedule.lastRunAt) })}</p>}
-          {schedule.nextRunAt && <p>{t("libraries.nextRun", { date: formatDate(schedule.nextRunAt) })}</p>}
+          {schedule.lastRunAt && <p>{t("admin.libraries.lastRun", { date: formatDate(schedule.lastRunAt) })}</p>}
+          {schedule.nextRunAt && <p>{t("admin.libraries.nextRun", { date: formatDate(schedule.nextRunAt) })}</p>}
         </div>
       )}
 
@@ -193,18 +193,18 @@ function ScheduleModal({ library, onClose }: { library: V1Library; onClose: () =
               loading={deleteMutation.isPending}
               onClick={() => deleteMutation.mutate()}
             >
-              {t("common:remove")}
+              {t("common.remove")}
             </Button>
           )}
         </div>
         <div className="flex gap-2">
-          <Button variant="ghost" onClick={onClose}>{t("common:cancel")}</Button>
+          <Button variant="ghost" onClick={onClose}>{t("common.cancel")}</Button>
           <Button
             loading={saveMutation.isPending}
             disabled={!cronValue}
             onClick={() => saveMutation.mutate()}
           >
-            {t("common:save")}
+            {t("common.save")}
           </Button>
         </div>
       </div>
@@ -213,7 +213,7 @@ function ScheduleModal({ library, onClose }: { library: V1Library; onClose: () =
 }
 
 function LibraryRow({ library, stats }: { library: V1Library; stats: LibraryStat[] }) {
-  const { t } = useTranslation("admin");
+  const { t } = useTranslation();
   const queryClient = useQueryClient();
   const [scanDone, setScanDone] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
@@ -225,9 +225,9 @@ function LibraryRow({ library, stats }: { library: V1Library; stats: LibraryStat
       onSuccess: () => {
         queryClient.invalidateQueries({ queryKey: ["/api/v1/libraries"] });
         queryClient.invalidateQueries({ queryKey: ["/api/v1/admin/library-stats"] });
-        toast.success(t("libraries.libraryDeleted", { name: library.name }));
+        toast.success(t("admin.libraries.libraryDeleted", { name: library.name }));
       },
-      onError: (err: Error) => toast.error(err.message || t("libraries.failedDelete")),
+      onError: (err: Error) => toast.error(err.message || t("admin.libraries.failedDelete")),
     },
   });
 
@@ -238,9 +238,9 @@ function LibraryRow({ library, stats }: { library: V1Library; stats: LibraryStat
         queryClient.invalidateQueries({ queryKey: ["/api/v1/libraries"] });
         queryClient.invalidateQueries({ queryKey: ["/api/v1/media"] });
         queryClient.invalidateQueries({ queryKey: ["/api/v1/admin/library-stats"] });
-        toast.success(t("libraries.scanStarted"));
+        toast.success(t("admin.libraries.scanStarted"));
       },
-      onError: (err: Error) => toast.error(err.message || t("libraries.failedScan")),
+      onError: (err: Error) => toast.error(err.message || t("admin.libraries.failedScan")),
     },
   });
 
@@ -269,7 +269,7 @@ function LibraryRow({ library, stats }: { library: V1Library; stats: LibraryStat
         {library.paths?.join(", ") ?? "\u2014"}
       </td>
       <td className="px-4 py-3 text-sm" style={{ color: "var(--text-muted)" }}>
-        {totalItems != null ? t("libraries.items", { count: totalItems }) : <span className="opacity-50">{"\u2014"}</span>}
+        {totalItems != null ? t("admin.libraries.items", { count: totalItems }) : <span className="opacity-50">{"\u2014"}</span>}
       </td>
       <td className="px-4 py-3 text-sm" style={{ color: "var(--text-muted)" }}>
         {formatDate(libStat?.lastScannedAt ?? undefined)}
@@ -277,10 +277,10 @@ function LibraryRow({ library, stats }: { library: V1Library; stats: LibraryStat
       <td className="px-4 py-3 text-sm" style={{ color: "var(--text-muted)" }}>
         {schedule?.enabled ? (
           <span title={`Cron: ${schedule.cron}`}>
-            {schedule.nextRunAt ? formatDate(schedule.nextRunAt) : t("common:enabled")}
+            {schedule.nextRunAt ? formatDate(schedule.nextRunAt) : t("common.enabled")}
           </span>
         ) : (
-          <span className="opacity-50">{t("libraries.off")}</span>
+          <span className="opacity-50">{t("admin.libraries.off")}</span>
         )}
       </td>
       <td className="px-4 py-3 whitespace-nowrap">
@@ -288,7 +288,7 @@ function LibraryRow({ library, stats }: { library: V1Library; stats: LibraryStat
           {scanLib.isPending ? (
             <div className="flex items-center gap-2 text-sm" style={{ color: "var(--text-muted)" }}>
               <Spinner size="sm" />
-              <span>{t("libraries.scanning")}</span>
+              <span>{t("admin.libraries.scanning")}</span>
             </div>
           ) : (
             <Button
@@ -298,30 +298,30 @@ function LibraryRow({ library, stats }: { library: V1Library; stats: LibraryStat
                 scanLib.mutate({ id: library.id! });
               }}
             >
-              {scanDone ? t("libraries.scanAgain") : t("libraries.scan")}
+              {scanDone ? t("admin.libraries.scanAgain") : t("admin.libraries.scan")}
             </Button>
           )}
           <Button variant="secondary" onClick={() => setShowSchedule(true)}>
-            {t("libraries.schedule")}
+            {t("admin.libraries.schedule")}
           </Button>
           <Button
             variant="danger"
             loading={deleteLib.isPending}
             onClick={() => setShowDeleteConfirm(true)}
           >
-            {t("common:delete")}
+            {t("common.delete")}
           </Button>
         </div>
       </td>
-      <Modal open={showSchedule} onClose={() => setShowSchedule(false)} title={t("libraries.scanScheduleTitle", { name: library.name })}>
+      <Modal open={showSchedule} onClose={() => setShowSchedule(false)} title={t("admin.libraries.scanScheduleTitle", { name: library.name })}>
         <ScheduleModal library={library} onClose={() => setShowSchedule(false)} />
       </Modal>
-      <Modal open={showDeleteConfirm} onClose={() => setShowDeleteConfirm(false)} title={t("libraries.deleteTitle")}>
+      <Modal open={showDeleteConfirm} onClose={() => setShowDeleteConfirm(false)} title={t("admin.libraries.deleteTitle")}>
         <p className="text-sm text-[var(--text-muted)] mb-4">
-          {t("libraries.deleteConfirm", { name: library.name })}
+          {t("admin.libraries.deleteConfirm", { name: library.name })}
         </p>
         <div className="flex justify-end gap-2">
-          <Button variant="ghost" onClick={() => setShowDeleteConfirm(false)}>{t("common:cancel")}</Button>
+          <Button variant="ghost" onClick={() => setShowDeleteConfirm(false)}>{t("common.cancel")}</Button>
           <Button
             variant="danger"
             loading={deleteLib.isPending}
@@ -330,7 +330,7 @@ function LibraryRow({ library, stats }: { library: V1Library; stats: LibraryStat
               setShowDeleteConfirm(false);
             }}
           >
-            {t("common:delete")}
+            {t("common.delete")}
           </Button>
         </div>
       </Modal>
@@ -339,7 +339,7 @@ function LibraryRow({ library, stats }: { library: V1Library; stats: LibraryStat
 }
 
 function LibrariesPage() {
-  const { t } = useTranslation("admin");
+  const { t } = useTranslation();
   const [showModal, setShowModal] = useState(false);
   const queryClient = useQueryClient();
   const { data, isLoading } = useLibraryServiceListLibraries();
@@ -349,16 +349,16 @@ function LibrariesPage() {
   function handleCreateSuccess() {
     queryClient.invalidateQueries({ queryKey: ["/api/v1/libraries"] });
     setShowModal(false);
-    toast.success(t("libraries.libraryCreated"));
+    toast.success(t("admin.libraries.libraryCreated"));
   }
 
   return (
     <div className="flex flex-col gap-6" data-testid="libraries-page">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold" style={{ color: "var(--text)" }}>
-          {t("libraries.title")}
+          {t("admin.libraries.title")}
         </h1>
-        <Button onClick={() => setShowModal(true)} data-testid="add-library-btn">{t("libraries.addLibrary")}</Button>
+        <Button onClick={() => setShowModal(true)} data-testid="add-library-btn">{t("admin.libraries.addLibrary")}</Button>
       </div>
 
       {isLoading ? (
@@ -373,7 +373,7 @@ function LibrariesPage() {
           <table className="w-full text-sm">
             <thead>
               <tr style={{ backgroundColor: "var(--surface)", borderBottom: "1px solid var(--border)" }}>
-                {[t("libraries.tableHeaders.name"), t("libraries.tableHeaders.type"), t("libraries.tableHeaders.paths"), t("libraries.tableHeaders.items"), t("libraries.tableHeaders.lastScanned"), t("libraries.tableHeaders.nextScan"), t("libraries.tableHeaders.actions")].map((h) => (
+                {[t("admin.libraries.tableHeaders.name"), t("admin.libraries.tableHeaders.type"), t("admin.libraries.tableHeaders.paths"), t("admin.libraries.tableHeaders.items"), t("admin.libraries.tableHeaders.lastScanned"), t("admin.libraries.tableHeaders.nextScan"), t("admin.libraries.tableHeaders.actions")].map((h) => (
                   <th
                     key={h}
                     className="px-4 py-2 text-left font-medium"
@@ -392,7 +392,7 @@ function LibrariesPage() {
                     className="px-4 py-8 text-center"
                     style={{ color: "var(--text-muted)" }}
                   >
-                    {t("libraries.noLibraries")}
+                    {t("admin.libraries.noLibraries")}
                   </td>
                 </tr>
               ) : (
@@ -403,7 +403,7 @@ function LibrariesPage() {
         </div>
       )}
 
-      <Modal open={showModal} onClose={() => setShowModal(false)} title={t("libraries.addLibrary")}>
+      <Modal open={showModal} onClose={() => setShowModal(false)} title={t("admin.libraries.addLibrary")}>
         <LibraryForm onSuccess={handleCreateSuccess} />
       </Modal>
     </div>

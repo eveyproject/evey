@@ -1,9 +1,8 @@
 import { defineConfig } from "vitest/config";
-import yaml from "@modyfi/vite-plugin-yaml";
 import { resolve } from "path";
 
 export default defineConfig({
-  plugins: [yaml()],
+  plugins: [],
   resolve: {
     alias: {
       "@": resolve(__dirname, "./src"),

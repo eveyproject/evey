@@ -99,13 +99,13 @@ func (h *libraryHandler) GetMediaItem(ctx context.Context, req *eveyv1.GetMediaI
 		if accessErr != nil {
 			slog.Warn("check library access", slog.Any("err", accessErr))
 		}
-		return nil, h.translator.TranslatedError(ctx, codes.NotFound, "media.not_found")
+		return nil, h.translator.TranslatedError(ctx, codes.NotFound, "errors.media.not_found")
 	}
 	if blocked, parentalErr := h.isBlockedByParental(ctx, item); blocked {
 		if parentalErr != nil {
 			slog.Warn("parental check", slog.Any("err", parentalErr))
 		}
-		return nil, h.translator.TranslatedError(ctx, codes.PermissionDenied, "library.parental_restricted")
+		return nil, h.translator.TranslatedError(ctx, codes.PermissionDenied, "errors.library.parental_restricted")
 	}
 	pb := mediaItemToProto(item)
 	if h.metadataSvc != nil {

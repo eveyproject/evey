@@ -329,7 +329,7 @@ function useDebounce<T>(value: T, delay: number): T {
 }
 
 function MusicPage() {
-  const { t } = useTranslation("media");
+  const { t } = useTranslation();
   const [tab, setTab] = useState<Tab>("tracks");
   const [selectedLibraryID, setSelectedLibraryID] = useState<string | undefined>(undefined);
   const [playing, setPlaying] = useState<Track | null>(null);
@@ -357,13 +357,13 @@ function MusicPage() {
     mutationFn: (id: string) => eveyFetch({ url: `/api/v1/music/tracks/${id}`, method: "DELETE" }),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["music", "tracks"] });
-      toast.success(t("music.trackDeleted"));
+      toast.success(t("media.music.trackDeleted"));
     },
-    onError: (err: Error) => toast.error(err.message || t("music.failedDeleteTrack")),
+    onError: (err: Error) => toast.error(err.message || t("media.music.failedDeleteTrack")),
   });
 
   function handleDeleteTrack(id: string) {
-    if (!window.confirm(t("music.deleteTrackConfirm"))) return;
+    if (!window.confirm(t("media.music.deleteTrackConfirm"))) return;
     deleteTrackMutation.mutate(id);
   }
 
@@ -389,7 +389,7 @@ function MusicPage() {
   if (!libraries || libraries.length === 0) {
     return (
       <div className="flex-1 p-6">
-        <p style={{ color: "var(--text-muted)" }}>{t("music.noLibraries")}</p>
+        <p style={{ color: "var(--text-muted)" }}>{t("media.music.noLibraries")}</p>
       </div>
     );
   }
@@ -398,7 +398,7 @@ function MusicPage() {
     <div className="flex-1 p-6" style={{ paddingBottom: playing ? 120 : undefined }}>
       <div className="flex flex-col sm:flex-row sm:items-center gap-4 mb-4">
         <h1 className="text-2xl font-bold" style={{ color: "var(--text)" }}>
-          {t("music.title")}
+          {t("media.music.title")}
         </h1>
 
         {libraries.length > 1 && (
@@ -417,7 +417,7 @@ function MusicPage() {
       <div className="flex gap-2 mb-6">
         {(["tracks", "albums", "artists"] as Tab[]).map((tabKey) => (
           <button key={tabKey} style={tabStyle(tab === tabKey)} onClick={() => setTab(tabKey)}>
-            {t(`music.${tabKey}`)}
+            {t(`media.music.${tabKey}`)}
           </button>
         ))}
       </div>
@@ -474,7 +474,7 @@ function TracksTab({
   search: string;
   onSearchChange: (v: string) => void;
 }) {
-  const { t } = useTranslation("media");
+  const { t } = useTranslation();
   const [page, setPage] = useState(0);
   const totalPages = Math.ceil(tracks.length / TRACKS_PAGE_SIZE);
   const pageTrack = useMemo(
@@ -487,7 +487,7 @@ function TracksTab({
       <div style={{ marginBottom: "16px" }}>
         <input
           type="search"
-          placeholder={t("music.searchPlaceholder")}
+          placeholder={t("media.music.searchPlaceholder")}
           value={search}
           onChange={(e) => { onSearchChange(e.target.value); setPage(0); }}
           style={{
@@ -502,17 +502,17 @@ function TracksTab({
           }}
         />
       </div>
-      {loading && <p style={{ color: "var(--text-muted)" }}>{t("music.loading")}</p>}
-      {!loading && !tracks.length && <p style={{ color: "var(--text-muted)" }}>{search ? t("music.noTracksSearch") : t("music.noTracks")}</p>}
+      {loading && <p style={{ color: "var(--text-muted)" }}>{t("media.music.loading")}</p>}
+      {!loading && !tracks.length && <p style={{ color: "var(--text-muted)" }}>{search ? t("media.music.noTracksSearch") : t("media.music.noTracks")}</p>}
       {!loading && tracks.length > 0 && <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.875rem" }}>
         <thead>
           <tr style={{ color: "var(--text-muted)", textAlign: "left", borderBottom: "1px solid var(--border)" }}>
             <th style={{ padding: "8px 12px" }}>#</th>
             <th style={{ padding: "8px 12px" }}></th>
-            <th style={{ padding: "8px 12px" }}>{t("library.titleSort")}</th>
-            <th style={{ padding: "8px 12px" }}>{t("music.artists")}</th>
-            <th style={{ padding: "8px 12px" }}>{t("music.albums")}</th>
-            <th style={{ padding: "8px 12px", textAlign: "right" }}>{t("library.duration")}</th>
+            <th style={{ padding: "8px 12px" }}>{t("media.library.titleSort")}</th>
+            <th style={{ padding: "8px 12px" }}>{t("media.music.artists")}</th>
+            <th style={{ padding: "8px 12px" }}>{t("media.music.albums")}</th>
+            <th style={{ padding: "8px 12px", textAlign: "right" }}>{t("media.library.duration")}</th>
             {isAdmin && <th style={{ padding: "8px 12px" }}></th>}
           </tr>
         </thead>
@@ -544,7 +544,7 @@ function TracksTab({
                   <td style={{ padding: "8px 12px" }} onClick={(e) => e.stopPropagation()}>
                     <button
                       onClick={() => onDelete(t.ID)}
-                      title={t("music.deleteTrack")}
+                      title={t("media.music.deleteTrack")}
                       style={{
                         background: "none",
                         border: "none",
@@ -582,7 +582,7 @@ function TracksTab({
               opacity: page === 0 ? 0.5 : 1,
             }}
           >
-            {t("previous", { ns: "common" })}
+            {t("common.previous")}
           </button>
           <span>
             {page + 1} / {totalPages} · {tracks.length} tracks
@@ -600,7 +600,7 @@ function TracksTab({
               opacity: page === totalPages - 1 ? 0.5 : 1,
             }}
           >
-            {t("next", { ns: "common" })}
+            {t("common.next")}
           </button>
         </div>
       )}
@@ -609,9 +609,9 @@ function TracksTab({
 }
 
 function AlbumsTab({ albums, loading }: { albums: Album[]; loading: boolean }) {
-  const { t } = useTranslation("media");
-  if (loading) return <p style={{ color: "var(--text-muted)" }}>{t("music.loading")}</p>;
-  if (!albums.length) return <p style={{ color: "var(--text-muted)" }}>{t("music.noAlbums")}</p>;
+  const { t } = useTranslation();
+  if (loading) return <p style={{ color: "var(--text-muted)" }}>{t("media.music.loading")}</p>;
+  if (!albums.length) return <p style={{ color: "var(--text-muted)" }}>{t("media.music.noAlbums")}</p>;
 
   return (
     <div className="grid gap-4" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))" }}>
@@ -653,9 +653,9 @@ function AlbumsTab({ albums, loading }: { albums: Album[]; loading: boolean }) {
 }
 
 function ArtistsTab({ artists, loading }: { artists: Artist[]; loading: boolean }) {
-  const { t } = useTranslation("media");
-  if (loading) return <p style={{ color: "var(--text-muted)" }}>{t("music.loading")}</p>;
-  if (!artists.length) return <p style={{ color: "var(--text-muted)" }}>{t("music.noArtists")}</p>;
+  const { t } = useTranslation();
+  if (loading) return <p style={{ color: "var(--text-muted)" }}>{t("media.music.loading")}</p>;
+  if (!artists.length) return <p style={{ color: "var(--text-muted)" }}>{t("media.music.noArtists")}</p>;
 
   return (
     <div className="flex flex-col gap-1">

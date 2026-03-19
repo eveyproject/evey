@@ -30,9 +30,8 @@ interface CreatedKey {
 }
 
 export function APIKeySettings() {
-  const { t } = useTranslation("auth");
-  const { t: tc } = useTranslation("common");
-  const qc = useQueryClient();
+  const { t } = useTranslation();
+    const qc = useQueryClient();
   const { data, isLoading } = useUserServiceListAPIKeys();
   const keys = data?.apiKeys ?? [];
 
@@ -54,7 +53,7 @@ export function APIKeySettings() {
           setCreatedKey({ id: key.id, name: key.name, key: key.key });
         }
       },
-      onError: (err: Error) => toast.error(err.message || t("apiKeys.createError")),
+      onError: (err: Error) => toast.error(err.message || t("auth.apiKeys.createError")),
     },
   });
 
@@ -63,15 +62,15 @@ export function APIKeySettings() {
       onSuccess: () => {
         void qc.invalidateQueries({ queryKey: getUserServiceListAPIKeysQueryKey() });
         setRevokeTarget(null);
-        toast.success(t("apiKeys.keyRevoked"));
+        toast.success(t("auth.apiKeys.keyRevoked"));
       },
-      onError: (err: Error) => toast.error(err.message || t("apiKeys.revokeError")),
+      onError: (err: Error) => toast.error(err.message || t("auth.apiKeys.revokeError")),
     },
   });
 
   function handleCreate() {
     if (!newName.trim()) {
-      setNameError(t("apiKeys.nameRequired"));
+      setNameError(t("auth.apiKeys.nameRequired"));
       return;
     }
     setNameError("");
@@ -90,28 +89,28 @@ export function APIKeySettings() {
     <div className="flex flex-col gap-6">
       <div className="flex items-center justify-between">
         <div>
-          <h3 className="text-sm font-semibold text-[var(--text)]">{t("apiKeys.title")}</h3>
+          <h3 className="text-sm font-semibold text-[var(--text)]">{t("auth.apiKeys.title")}</h3>
           <p className="text-xs text-[var(--text-muted)] mt-1">
-            {t("apiKeys.description")}
+            {t("auth.apiKeys.description")}
           </p>
         </div>
         <Button variant="primary" onClick={() => setCreateOpen(true)}>
-          {tc("newKey")}
+          {t("common.newKey")}
         </Button>
       </div>
 
       {isLoading ? (
-        <div className="text-sm text-[var(--text-muted)]">{tc("loading")}</div>
+        <div className="text-sm text-[var(--text-muted)]">{t("common.loading")}</div>
       ) : keys.length === 0 ? (
-        <div className="text-sm text-[var(--text-muted)]">{t("apiKeys.noKeys")}</div>
+        <div className="text-sm text-[var(--text-muted)]">{t("auth.apiKeys.noKeys")}</div>
       ) : (
         <table className="w-full text-sm border-collapse">
           <thead>
             <tr className="text-left text-xs text-[var(--text-muted)] border-b border-[var(--border)]">
-              <th className="pb-2 font-semibold">{t("apiKeys.name")}</th>
-              <th className="pb-2 font-semibold">{t("apiKeys.key")}</th>
-              <th className="pb-2 font-semibold">{t("apiKeys.created")}</th>
-              <th className="pb-2 font-semibold">{t("apiKeys.lastUsed")}</th>
+              <th className="pb-2 font-semibold">{t("auth.apiKeys.name")}</th>
+              <th className="pb-2 font-semibold">{t("auth.apiKeys.key")}</th>
+              <th className="pb-2 font-semibold">{t("auth.apiKeys.created")}</th>
+              <th className="pb-2 font-semibold">{t("auth.apiKeys.lastUsed")}</th>
               <th className="pb-2" />
             </tr>
           </thead>
@@ -130,7 +129,7 @@ export function APIKeySettings() {
                     className="py-1 px-2 text-xs"
                     onClick={() => setRevokeTarget(k)}
                   >
-                    {tc("revoke")}
+                    {t("common.revoke")}
                   </Button>
                 </td>
               </tr>
@@ -140,11 +139,11 @@ export function APIKeySettings() {
       )}
 
       {/* Create dialog */}
-      <Modal open={createOpen} onClose={() => { setCreateOpen(false); setNewName(""); setNameError(""); }} title={t("apiKeys.newKeyTitle")}>
+      <Modal open={createOpen} onClose={() => { setCreateOpen(false); setNewName(""); setNameError(""); }} title={t("auth.apiKeys.newKeyTitle")}>
         <div className="flex flex-col gap-4">
           <Input
-            label={t("apiKeys.name")}
-            placeholder={t("apiKeys.namePlaceholder")}
+            label={t("auth.apiKeys.name")}
+            placeholder={t("auth.apiKeys.namePlaceholder")}
             value={newName}
             onChange={(e) => setNewName(e.target.value)}
             error={nameError}
@@ -153,54 +152,54 @@ export function APIKeySettings() {
           />
           <div className="flex justify-end gap-2 mt-2">
             <Button variant="secondary" onClick={() => { setCreateOpen(false); setNewName(""); setNameError(""); }}>
-              {tc("cancel")}
+              {t("common.cancel")}
             </Button>
             <Button variant="primary" loading={createMutation.isPending} onClick={handleCreate}>
-              {tc("create")}
+              {t("common.create")}
             </Button>
           </div>
         </div>
       </Modal>
 
       {/* Show new key once */}
-      <Modal open={!!createdKey} onClose={() => { setCreatedKey(null); setCopied(false); }} title={t("apiKeys.keyCreatedTitle")}>
+      <Modal open={!!createdKey} onClose={() => { setCreatedKey(null); setCopied(false); }} title={t("auth.apiKeys.keyCreatedTitle")}>
         <div className="flex flex-col gap-4">
           <div className="rounded-[var(--radius-md)] border border-[var(--border)] bg-[var(--surface-raised)] px-3 py-2">
             <p className="text-xs text-[var(--text-muted)] mb-1 font-medium">{createdKey?.name}</p>
             <p className="font-mono text-sm break-all text-[var(--text)]">{createdKey?.key}</p>
           </div>
           <div className="rounded-[var(--radius-md)] px-3 py-2 text-xs" style={{ backgroundColor: "var(--badge-warning-bg)", borderColor: "var(--toast-warning-border)", borderWidth: "1px", borderStyle: "solid", color: "var(--badge-warning-text)" }}>
-            {t("apiKeys.saveWarning")}
+            {t("auth.apiKeys.saveWarning")}
           </div>
           <div className="flex justify-end gap-2">
             <Button variant="secondary" onClick={() => { setCreatedKey(null); setCopied(false); }}>
-              {tc("done")}
+              {t("common.done")}
             </Button>
             <Button variant="primary" onClick={handleCopy}>
-              {copied ? tc("copied") : tc("copyKey")}
+              {copied ? t("common.copied") : t("common.copyKey")}
             </Button>
           </div>
         </div>
       </Modal>
 
       {/* Revoke confirmation */}
-      <Modal open={!!revokeTarget} onClose={() => setRevokeTarget(null)} title={t("apiKeys.revokeTitle")}>
+      <Modal open={!!revokeTarget} onClose={() => setRevokeTarget(null)} title={t("auth.apiKeys.revokeTitle")}>
         <div className="flex flex-col gap-4">
           <p className="text-sm text-[var(--text)]"
             dangerouslySetInnerHTML={{
-              __html: t("apiKeys.revokeConfirm", { name: revokeTarget?.name ?? "" }),
+              __html: t("auth.apiKeys.revokeConfirm", { name: revokeTarget?.name ?? "" }),
             }}
           />
           <div className="flex justify-end gap-2">
             <Button variant="secondary" onClick={() => setRevokeTarget(null)}>
-              {tc("cancel")}
+              {t("common.cancel")}
             </Button>
             <Button
               variant="danger"
               loading={revokeMutation.isPending}
               onClick={() => { if (revokeTarget?.id) revokeMutation.mutate({ id: revokeTarget.id }); }}
             >
-              {tc("revoke")}
+              {t("common.revoke")}
             </Button>
           </div>
         </div>

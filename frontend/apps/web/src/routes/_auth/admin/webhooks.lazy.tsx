@@ -29,7 +29,7 @@ function WebhookRow({
   webhook: V1WebhookConfig;
   onEdit: (wh: V1WebhookConfig) => void;
 }) {
-  const { t } = useTranslation("admin");
+  const { t } = useTranslation();
   const queryClient = useQueryClient();
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [testing, setTesting] = useState(false);
@@ -38,16 +38,16 @@ function WebhookRow({
     mutation: {
       onSuccess: () => {
         queryClient.invalidateQueries({ queryKey: WEBHOOKS_QUERY_KEY });
-        toast.success(t("webhooks.webhookDeleted"));
+        toast.success(t("admin.webhooks.webhookDeleted"));
       },
-      onError: (err: Error) => toast.error(err.message || t("webhooks.failedDelete")),
+      onError: (err: Error) => toast.error(err.message || t("admin.webhooks.failedDelete")),
     },
   });
 
   const toggleEnabled = useWebhookServiceUpdateWebhook({
     mutation: {
       onSuccess: () => queryClient.invalidateQueries({ queryKey: WEBHOOKS_QUERY_KEY }),
-      onError: () => toast.error(t("webhooks.failedUpdate")),
+      onError: () => toast.error(t("admin.webhooks.failedUpdate")),
     },
   });
 
@@ -59,9 +59,9 @@ function WebhookRow({
         url: `/api/v1/admin/webhooks/${webhook.id}/test`,
         method: "POST",
       });
-      toast.success(t("webhooks.testPingSent"));
+      toast.success(t("admin.webhooks.testPingSent"));
     } catch {
-      toast.error(t("webhooks.testPingFailed"));
+      toast.error(t("admin.webhooks.testPingFailed"));
     } finally {
       setTesting(false);
     }
@@ -111,13 +111,13 @@ function WebhookRow({
           type="button"
           onClick={handleToggleEnabled}
           disabled={toggleEnabled.isPending}
-          title={webhook.enabled ? t("common:disable") : t("common:enable")}
+          title={webhook.enabled ? t("common.disable") : t("common.enable")}
           className="cursor-pointer"
         >
           {webhook.enabled ? (
-            <Badge variant="success">{t("common:enabled")}</Badge>
+            <Badge variant="success">{t("common.enabled")}</Badge>
           ) : (
-            <Badge variant="error">{t("common:disabled")}</Badge>
+            <Badge variant="error">{t("common.disabled")}</Badge>
           )}
         </button>
       </td>
@@ -127,30 +127,30 @@ function WebhookRow({
       <td className="px-4 py-3">
         <div className="flex gap-2 flex-wrap">
           <Button variant="secondary" loading={testing} onClick={handleTest}>
-            {t("common:test")}
+            {t("common.test")}
           </Button>
           <Button variant="secondary" onClick={() => onEdit(webhook)}>
-            {t("common:edit")}
+            {t("common.edit")}
           </Button>
           <Button
             variant="danger"
             loading={deleteWebhook.isPending}
             onClick={() => setShowDeleteConfirm(true)}
           >
-            {t("common:delete")}
+            {t("common.delete")}
           </Button>
         </div>
         <Modal
           open={showDeleteConfirm}
           onClose={() => setShowDeleteConfirm(false)}
-          title={t("webhooks.deleteTitle")}
+          title={t("admin.webhooks.deleteTitle")}
         >
           <p className="text-sm mb-4" style={{ color: "var(--text-muted)" }}
-            dangerouslySetInnerHTML={{ __html: t("webhooks.deleteConfirm", { name: webhook.name || webhook.url }) }}
+            dangerouslySetInnerHTML={{ __html: t("admin.webhooks.deleteConfirm", { name: webhook.name || webhook.url }) }}
           />
           <div className="flex justify-end gap-2">
             <Button variant="ghost" onClick={() => setShowDeleteConfirm(false)}>
-              {t("common:cancel")}
+              {t("common.cancel")}
             </Button>
             <Button
               variant="danger"
@@ -160,7 +160,7 @@ function WebhookRow({
                 setShowDeleteConfirm(false);
               }}
             >
-              {t("common:delete")}
+              {t("common.delete")}
             </Button>
           </div>
         </Modal>
@@ -170,7 +170,7 @@ function WebhookRow({
 }
 
 function WebhooksPage() {
-  const { t } = useTranslation("admin");
+  const { t } = useTranslation();
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [editTarget, setEditTarget] = useState<V1WebhookConfig | null>(null);
   const queryClient = useQueryClient();
@@ -181,16 +181,16 @@ function WebhooksPage() {
     queryClient.invalidateQueries({ queryKey: WEBHOOKS_QUERY_KEY });
     setShowCreateModal(false);
     setEditTarget(null);
-    toast.success(editTarget ? t("webhooks.webhookUpdated") : t("webhooks.webhookCreated"));
+    toast.success(editTarget ? t("admin.webhooks.webhookUpdated") : t("admin.webhooks.webhookCreated"));
   }
 
   return (
     <div className="flex flex-col gap-6">
       <div className="flex items-center justify-between">
         <h2 className="text-xl font-semibold" style={{ color: "var(--text)" }}>
-          {t("webhooks.title")}
+          {t("admin.webhooks.title")}
         </h2>
-        <Button onClick={() => setShowCreateModal(true)}>{t("webhooks.createWebhook")}</Button>
+        <Button onClick={() => setShowCreateModal(true)}>{t("admin.webhooks.createWebhook")}</Button>
       </div>
 
       {isLoading ? (
@@ -210,7 +210,7 @@ function WebhooksPage() {
                   borderBottom: "1px solid var(--border)",
                 }}
               >
-                {[t("webhooks.tableHeaders.nameUrl"), t("webhooks.tableHeaders.events"), t("webhooks.tableHeaders.status"), t("webhooks.tableHeaders.created"), t("webhooks.tableHeaders.actions")].map((h) => (
+                {[t("admin.webhooks.tableHeaders.nameUrl"), t("admin.webhooks.tableHeaders.events"), t("admin.webhooks.tableHeaders.status"), t("admin.webhooks.tableHeaders.created"), t("admin.webhooks.tableHeaders.actions")].map((h) => (
                   <th
                     key={h}
                     className="px-4 py-2 text-left font-medium"
@@ -229,7 +229,7 @@ function WebhooksPage() {
                     className="px-4 py-8 text-center"
                     style={{ color: "var(--text-muted)" }}
                   >
-                    {t("webhooks.noWebhooks")}
+                    {t("admin.webhooks.noWebhooks")}
                   </td>
                 </tr>
               ) : (
@@ -245,7 +245,7 @@ function WebhooksPage() {
       <Modal
         open={showCreateModal}
         onClose={() => setShowCreateModal(false)}
-        title={t("webhooks.createWebhook")}
+        title={t("admin.webhooks.createWebhook")}
       >
         <WebhookForm onSuccess={handleMutationSuccess} />
       </Modal>
@@ -253,7 +253,7 @@ function WebhooksPage() {
       <Modal
         open={!!editTarget}
         onClose={() => setEditTarget(null)}
-        title={t("webhooks.editWebhook")}
+        title={t("admin.webhooks.editWebhook")}
       >
         {editTarget && (
           <WebhookForm existing={editTarget} onSuccess={handleMutationSuccess} />

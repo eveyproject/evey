@@ -8,7 +8,7 @@ interface ChapterMarkersProps {
 }
 
 export function ChapterMarkers({ chapters, durationSec, onSeek }: ChapterMarkersProps) {
-  const { t } = useTranslation("media");
+  const { t } = useTranslation();
   if (durationSec <= 0 || chapters.length === 0) return null;
 
   return (
@@ -17,12 +17,12 @@ export function ChapterMarkers({ chapters, durationSec, onSeek }: ChapterMarkers
         const pct = (ch.startTimeMs / 1000 / durationSec) * 100;
         if (pct <= 0) return null;
         const startSec = ch.startTimeMs / 1000;
-        const label = ch.title || t("chapter", { number: i + 1 });
+        const label = ch.title || t("media.chapter", { number: i + 1 });
         return (
           <button
             key={i}
             type="button"
-            aria-label={label}
+            aria-label={`Jump to chapter: ${label}`}
             title={label}
             onClick={(e) => {
               e.stopPropagation();

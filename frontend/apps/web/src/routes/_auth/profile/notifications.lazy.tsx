@@ -77,7 +77,7 @@ function NotifIcon({ type }: { type?: string }) {
 }
 
 function NotificationRow({ notif }: { notif: Notification }) {
-  const { t } = useTranslation("common");
+  const { t } = useTranslation();
   const qc = useQueryClient();
   const invalidate = () => {
     void qc.invalidateQueries({ queryKey: getNotificationServiceListNotificationsQueryKey() });
@@ -112,7 +112,7 @@ function NotificationRow({ notif }: { notif: Notification }) {
           disabled={markRead.isPending}
           className="shrink-0 text-xs text-[var(--accent)] hover:underline disabled:opacity-50 mt-1"
         >
-          {t("notifications.markRead")}
+          {t("common.notifications.markRead")}
         </button>
       )}
     </div>
@@ -120,7 +120,7 @@ function NotificationRow({ notif }: { notif: Notification }) {
 }
 
 function NotificationsPage() {
-  const { t } = useTranslation("common");
+  const { t } = useTranslation();
   const qc = useQueryClient();
   const [showDeleteModal, setShowDeleteModal] = useState(false);
 
@@ -146,7 +146,7 @@ function NotificationsPage() {
   return (
     <div className="px-6 py-8 max-w-2xl flex flex-col gap-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-[var(--text)]">{t("notifications.title")}</h1>
+        <h1 className="text-2xl font-bold text-[var(--text)]">{t("common.notifications.title")}</h1>
         {notifications.length > 0 && (
           <div className="flex gap-2">
             {hasUnread && (
@@ -155,20 +155,20 @@ function NotificationsPage() {
                 loading={markAllRead.isPending}
                 onClick={() => markAllRead.mutate({ data: {} })}
               >
-                {t("notifications.markAllRead")}
+                {t("common.notifications.markAllRead")}
               </Button>
             )}
             <Button variant="danger" onClick={() => setShowDeleteModal(true)}>
-              {t("notifications.deleteAll")}
+              {t("common.notifications.deleteAll")}
             </Button>
           </div>
         )}
       </div>
 
-      {isLoading && <p className="text-sm text-[var(--text-muted)]">{t("loading")}</p>}
+      {isLoading && <p className="text-sm text-[var(--text-muted)]">{t("common.loading")}</p>}
 
       {!isLoading && notifications.length === 0 && (
-        <EmptyState icon="notification" title={t("notifications.noNotifications")} description={t("notifications.allCaughtUp")} />
+        <EmptyState icon="notification" title={t("common.notifications.noNotifications")} description={t("common.notifications.allCaughtUp")} />
       )}
 
       {!isLoading && notifications.length > 0 && (
@@ -179,16 +179,16 @@ function NotificationsPage() {
         </div>
       )}
 
-      <Modal open={showDeleteModal} onClose={() => setShowDeleteModal(false)} title={t("notifications.deleteAllTitle")}>
+      <Modal open={showDeleteModal} onClose={() => setShowDeleteModal(false)} title={t("common.notifications.deleteAllTitle")}>
         <p className="text-sm text-[var(--text-muted)] mb-6">
-          {t("notifications.deleteAllConfirm")}
+          {t("common.notifications.deleteAllConfirm")}
         </p>
         <div className="flex justify-end gap-2">
           <Button variant="ghost" onClick={() => setShowDeleteModal(false)}>
-            {t("cancel")}
+            {t("common.cancel")}
           </Button>
           <Button variant="danger" loading={deleteAll.isPending} onClick={() => deleteAll.mutate({})}>
-            {t("notifications.deleteAll")}
+            {t("common.notifications.deleteAll")}
           </Button>
         </div>
       </Modal>

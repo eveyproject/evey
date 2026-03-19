@@ -19,7 +19,7 @@ export function NextEpisodeOverlay({
   onPlayNow,
   onCancel,
 }: NextEpisodeOverlayProps) {
-  const { t } = useTranslation("player");
+  const { t } = useTranslation();
   const [countdown, setCountdown] = useState(COUNTDOWN_SEC);
   const [cancelled, setCancelled] = useState(false);
   const [ended, setEnded] = useState(false);
@@ -73,15 +73,15 @@ export function NextEpisodeOverlay({
   if (!visible) return null;
 
   const label = nextEpisode.indexNumber != null
-    ? t("nextEpisodeOverlay.episode", { number: nextEpisode.indexNumber })
-    : t("nextEpisodeOverlay.nextEpisode");
+    ? t("player.nextEpisodeOverlay.episode", { number: nextEpisode.indexNumber })
+    : t("player.nextEpisodeOverlay.nextEpisode");
 
   return (
     <div className="absolute bottom-24 right-4 z-30 rounded-lg p-4 max-w-xs animate-in fade-in slide-in-from-right"
       style={{ backgroundColor: "rgba(0,0,0,0.85)", border: "1px solid var(--border)" }}
     >
       <p className="text-xs uppercase tracking-wider mb-1" style={{ color: "var(--text-muted)" }}>
-        {ended ? t("nextEpisodeOverlay.nextIn", { seconds: Math.max(countdown, 0) }) : t("nextEpisodeOverlay.upNext")}
+        {ended ? t("player.nextEpisodeOverlay.nextIn", { seconds: Math.max(countdown, 0) }) : t("player.nextEpisodeOverlay.upNext")}
       </p>
       <p className="text-sm font-medium text-white mb-3 truncate">
         {label}{nextEpisode.title ? ` - ${nextEpisode.title}` : ""}
@@ -92,14 +92,14 @@ export function NextEpisodeOverlay({
           className="px-3 py-1.5 rounded text-sm font-medium text-black transition-colors"
           style={{ backgroundColor: "var(--accent)" }}
         >
-          {t("nextEpisodeOverlay.playNow")}
+          {t("player.nextEpisodeOverlay.playNow")}
         </button>
         <button
           onClick={handleCancel}
           className="px-3 py-1.5 rounded text-sm font-medium text-white transition-colors hover:bg-white/20"
           style={{ backgroundColor: "rgba(255,255,255,0.1)" }}
         >
-          {t("cancel", { ns: "common" })}
+          {t("common.cancel")}
         </button>
       </div>
       {ended && (

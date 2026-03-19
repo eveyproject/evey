@@ -36,50 +36,50 @@ interface NavSection {
 
 const sectionsDef: NavSection[] = [
   {
-    titleKey: "nav.dashboardSystem",
+    titleKey: "admin.nav.dashboardSystem",
     links: [
-      { href: "/admin", labelKey: "nav.dashboard", icon: LayoutDashboard },
-      { href: "/admin/sessions", labelKey: "nav.nowPlaying", icon: PlayCircle },
-      { href: "/admin/remote-access", labelKey: "nav.remoteAccess", icon: Globe },
-      { href: "/admin/server-config", labelKey: "nav.serverConfig", icon: SlidersHorizontal },
-      { href: "/admin/system-health", labelKey: "nav.systemHealth", icon: Cpu },
+      { href: "/admin", labelKey: "admin.nav.dashboard", icon: LayoutDashboard },
+      { href: "/admin/sessions", labelKey: "admin.nav.nowPlaying", icon: PlayCircle },
+      { href: "/admin/remote-access", labelKey: "admin.nav.remoteAccess", icon: Globe },
+      { href: "/admin/server-config", labelKey: "admin.nav.serverConfig", icon: SlidersHorizontal },
+      { href: "/admin/system-health", labelKey: "admin.nav.systemHealth", icon: Cpu },
     ],
   },
   {
-    titleKey: "nav.media",
+    titleKey: "admin.nav.media",
     links: [
-      { href: "/admin/libraries", labelKey: "nav.libraries", icon: Library },
-      { href: "/admin/metadata", labelKey: "nav.metadata", icon: Tags },
-      { href: "/admin/transcode-cache", labelKey: "nav.transcodeCache", icon: HardDrive },
-      { href: "/admin/transcoding-profiles", labelKey: "nav.transcodingProfiles", icon: Sliders },
+      { href: "/admin/libraries", labelKey: "admin.nav.libraries", icon: Library },
+      { href: "/admin/metadata", labelKey: "admin.nav.metadata", icon: Tags },
+      { href: "/admin/transcode-cache", labelKey: "admin.nav.transcodeCache", icon: HardDrive },
+      { href: "/admin/transcoding-profiles", labelKey: "admin.nav.transcodingProfiles", icon: Sliders },
     ],
   },
   {
-    titleKey: "nav.usersAccess",
+    titleKey: "admin.nav.usersAccess",
     links: [
-      { href: "/admin/users", labelKey: "nav.users", icon: Users },
+      { href: "/admin/users", labelKey: "admin.nav.users", icon: Users },
     ],
   },
   {
-    titleKey: "nav.integrations",
+    titleKey: "admin.nav.integrations",
     links: [
-      { href: "/admin/plugins", labelKey: "nav.plugins", icon: Puzzle },
-      { href: "/admin/webhooks", labelKey: "nav.webhooks", icon: Webhook },
+      { href: "/admin/plugins", labelKey: "admin.nav.plugins", icon: Puzzle },
+      { href: "/admin/webhooks", labelKey: "admin.nav.webhooks", icon: Webhook },
     ],
   },
   {
-    titleKey: "nav.monitoring",
+    titleKey: "admin.nav.monitoring",
     links: [
-      { href: "/admin/analytics", labelKey: "nav.analytics", icon: TrendingUp },
-      { href: "/admin/activity", labelKey: "nav.activity", icon: BarChart3 },
-      { href: "/admin/audit", labelKey: "nav.auditLog", icon: FileText },
-      { href: "/admin/logs", labelKey: "nav.liveLogs", icon: ScrollText },
+      { href: "/admin/analytics", labelKey: "admin.nav.analytics", icon: TrendingUp },
+      { href: "/admin/activity", labelKey: "admin.nav.activity", icon: BarChart3 },
+      { href: "/admin/audit", labelKey: "admin.nav.auditLog", icon: FileText },
+      { href: "/admin/logs", labelKey: "admin.nav.liveLogs", icon: ScrollText },
     ],
   },
   {
-    titleKey: "nav.maintenance",
+    titleKey: "admin.nav.maintenance",
     links: [
-      { href: "/admin/backup", labelKey: "nav.backupRestore", icon: Database },
+      { href: "/admin/backup", labelKey: "admin.nav.backupRestore", icon: Database },
     ],
   },
 ];
@@ -97,7 +97,7 @@ export interface AdminNavProps {
 }
 
 export function AdminNav({ collapsed = false, onNavigate }: AdminNavProps) {
-  const { t } = useTranslation("admin");
+  const { t } = useTranslation();
   const { location } = useRouterState();
   const pathname = location.pathname;
 

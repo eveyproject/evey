@@ -166,8 +166,8 @@ interface PhotoGridProps {
 }
 
 function PhotoGrid({ photos, onPhotoClick }: PhotoGridProps) {
-  const { t } = useTranslation("media");
-  if (photos.length === 0) return <EmptyState title={t("photos.noPhotos")} description={t("photos.noPhotosDesc")} />;
+  const { t } = useTranslation();
+  if (photos.length === 0) return <EmptyState title={t("media.photos.noPhotos")} description={t("media.photos.noPhotosDesc")} />;
   return (
     <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-2">
       {photos.map((photo, i) => (
@@ -199,8 +199,8 @@ interface AlbumGridProps {
 }
 
 function AlbumGrid({ albums, onAlbumClick }: AlbumGridProps) {
-  const { t } = useTranslation("media");
-  if (albums.length === 0) return <EmptyState title={t("photos.noAlbums")} description={t("photos.noAlbumsDesc")} />;
+  const { t } = useTranslation();
+  if (albums.length === 0) return <EmptyState title={t("media.photos.noAlbums")} description={t("media.photos.noAlbumsDesc")} />;
   return (
     <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
       {albums.map((album) => (
@@ -240,7 +240,7 @@ function AlbumGrid({ albums, onAlbumClick }: AlbumGridProps) {
 type View = "albums" | "photos";
 
 function PhotosPage() {
-  const { t } = useTranslation("media");
+  const { t } = useTranslation();
   const { data: libraries, isLoading: libLoading } = usePhotoLibraries();
   const [selectedLibraryID, setSelectedLibraryID] = useState<string | undefined>(undefined);
   const [view, setView] = useState<View>("albums");
@@ -267,13 +267,13 @@ function PhotosPage() {
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["photos"] });
       setLightboxIndex(null);
-      toast.success(t("photos.photoDeleted"));
+      toast.success(t("media.photos.photoDeleted"));
     },
-    onError: (err: Error) => toast.error(err.message || t("photos.failedDeletePhoto")),
+    onError: (err: Error) => toast.error(err.message || t("media.photos.failedDeletePhoto")),
   });
 
   function handleDeletePhoto(photo: Photo) {
-    if (!window.confirm(t("photos.deletePhotoConfirm", { title: photo.Title }))) return;
+    if (!window.confirm(t("media.photos.deletePhotoConfirm", { title: photo.Title }))) return;
     deletePhotoMutation.mutate(photo.ID);
   }
 
@@ -293,7 +293,7 @@ function PhotosPage() {
   if (!libraries || libraries.length === 0) {
     return (
       <div className="flex-1 p-6">
-        <EmptyState title={t("photos.noPhotoLibraries")} description={t("photos.noPhotoLibrariesDesc")} />
+        <EmptyState title={t("media.photos.noPhotoLibraries")} description={t("media.photos.noPhotoLibrariesDesc")} />
       </div>
     );
   }
@@ -304,7 +304,7 @@ function PhotosPage() {
       <div className="flex flex-col sm:flex-row sm:items-center gap-4">
         <h1 className="text-2xl font-bold text-[var(--text)] flex items-center gap-2">
           <Images size={24} />
-          {t("photos.title")}
+          {t("media.photos.title")}
         </h1>
 
         <div className="flex items-center gap-3 ml-auto flex-wrap">
@@ -327,13 +327,13 @@ function PhotosPage() {
               onClick={() => { setView("albums"); setSelectedAlbum(undefined); }}
               className={`px-3 py-1.5 text-sm transition-colors ${view === "albums" ? "bg-[var(--accent)] text-white" : "bg-[var(--surface-raised)] text-[var(--text-secondary)] hover:bg-[var(--surface)]"}`}
             >
-              {t("photos.albums")}
+              {t("media.photos.albums")}
             </button>
             <button
               onClick={() => setView("photos")}
               className={`px-3 py-1.5 text-sm transition-colors ${view === "photos" ? "bg-[var(--accent)] text-white" : "bg-[var(--surface-raised)] text-[var(--text-secondary)] hover:bg-[var(--surface)]"}`}
             >
-              {t("photos.allPhotos")}
+              {t("media.photos.allPhotos")}
             </button>
           </div>
         </div>
@@ -366,7 +366,7 @@ function PhotosPage() {
                 className="text-sm text-[var(--text-muted)] hover:text-[var(--text)] flex items-center gap-1 transition-colors"
               >
                 <ChevronLeft size={16} />
-                {t("photos.albums")}
+                {t("media.photos.albums")}
               </button>
               <span className="text-[var(--text-muted)]">/</span>
               <span className="text-sm font-medium text-[var(--text)]">{selectedAlbum}</span>
