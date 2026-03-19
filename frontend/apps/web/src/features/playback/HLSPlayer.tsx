@@ -583,6 +583,14 @@ export function HLSPlayer({
 
       // Don't downgrade if buffer has enough headroom (>2min ahead of playback)
       const bufferAhead = currentBuffered - v.currentTime;
+      // Only auto-adjust quality if we're already transcoding video.
+      // If currentQuality === 0 (original), the server does video copy — downgrading
+      // would force a full video transcode which is slower, causing a death spiral.
+      if (currentQuality === 0) {
+        slowCountRef.current = 0;
+        return;
+      }
+
       if (fillRate < 0.8 && bufferAhead < 120) {
         slowCountRef.current++;
         if (slowCountRef.current >= 2 && curIdx < QUALITY_LEVELS.length - 1) {
@@ -642,6 +650,8 @@ export function HLSPlayer({
   seekRef.current = handleSeekRequest;
 
   function attemptQualityFallback(currentQualityVal: number): boolean {
+    // Don't downgrade from original — it would force a full video transcode
+    if (currentQualityVal === 0) return false;
     if (fallbackCountRef.current >= MAX_FALLBACK_ATTEMPTS) return false;
     const curIdx = QUALITY_LEVELS.indexOf(currentQualityVal);
     if (curIdx < 0 || curIdx >= QUALITY_LEVELS.length - 1) return false;
