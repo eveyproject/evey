@@ -11,3 +11,29 @@ loading: Loading...
 error: Error
 unknown: Unknown
 settings: Settings
+select: Select
+selectAll: Select all
+deselectAll: Deselect all
+exit: Exit
+search: Search
+or: or
+previous: Previous
+next: Next
+edit: Edit
+all: All
+items: "{{count}} items"
+item: "{{count}} item"
+filtered: "(filtered)"
+noItemsMatch: No items match the current filter.
+notifications:
+  title: Notifications
+  markRead: Mark read
+  markAllRead: Mark all read
+  deleteAll: Delete all
+  deleteAllTitle: Delete all notifications
+  deleteAllConfirm: This will permanently delete all your notifications. This action cannot be undone.
+  noNotifications: No notifications
+  allCaughtUp: "You're all caught up."
+  justNow: Just now
+watchHistory:
+  title: Watch History

@@ -1,6 +1,7 @@
 import { createLazyFileRoute } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { libraryServiceGetMediaItem } from "@evey/api";
+import { useTranslation } from "react-i18next";
 import { MediaDetailSkeleton } from "@/components/ui/Skeleton";
 import { MediaDetail } from "@/features/library/MediaDetail";
 
@@ -9,6 +10,7 @@ export const Route = createLazyFileRoute("/_auth/media/$mediaId")({
 });
 
 function MediaPage() {
+  const { t } = useTranslation("media");
   const { mediaId } = Route.useParams();
   const { edit } = Route.useSearch();
 
@@ -25,7 +27,7 @@ function MediaPage() {
   if (isError || !item) {
     return (
       <div className="text-center py-16" style={{ color: "var(--text-muted)" }}>
-        Media item not found.
+        {t("detail.notFound")}
       </div>
     );
   }

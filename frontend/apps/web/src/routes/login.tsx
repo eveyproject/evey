@@ -3,6 +3,7 @@ import { createFileRoute, redirect, useNavigate } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useUserServiceLogin, eveyFetch } from "@evey/api";
 import { useAuthStore } from "@evey/store";
+import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Card } from "@/components/ui/Card";
@@ -24,16 +25,17 @@ export const Route = createFileRoute("/login")({
   component: LoginPage,
 });
 
-function friendlyLoginError(err: unknown): string {
+function friendlyLoginError(err: unknown, t: (key: string) => string): string {
   const msg = err instanceof Error ? err.message.toLowerCase() : "";
   if (msg.includes("invalid credentials") || msg.includes("not found"))
-    return "Invalid username or password";
+    return t("login.invalidCredentials");
   if (msg.includes("password") && (msg.includes("short") || msg.includes("length")))
-    return "Password must be at least 8 characters";
-  return "Login failed. Please try again.";
+    return t("login.passwordTooShort");
+  return t("login.loginFailed");
 }
 
 function LoginPage() {
+  const { t } = useTranslation("auth");
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const { setTokens } = useAuthStore();
@@ -78,10 +80,10 @@ function LoginPage() {
             </svg>
           </div>
           <h1 className="text-2xl font-bold text-[var(--text)]">Evey</h1>
-          <p className="text-[var(--text-muted)] text-sm mt-1">Sign in to your account</p>
+          <p className="text-[var(--text-muted)] text-sm mt-1">{t("login.signInToAccount")}</p>
         </div>
         {oidc_error && (
-          <p className="text-sm text-center mb-4" style={{ color: "var(--color-danger)" }}>SSO sign-in failed. Please try again.</p>
+          <p className="text-sm text-center mb-4" style={{ color: "var(--color-danger)" }}>{t("login.ssoFailed")}</p>
         )}
         <form
           onSubmit={(e) => {
@@ -91,7 +93,7 @@ function LoginPage() {
           className="flex flex-col gap-4"
         >
           <Input
-            label="Username"
+            label={t("login.username")}
             type="text"
             value={username}
             onChange={(e) => setUsername(e.target.value)}
@@ -99,7 +101,7 @@ function LoginPage() {
             autoFocus
           />
           <Input
-            label="Password"
+            label={t("login.password")}
             type="password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
@@ -107,18 +109,18 @@ function LoginPage() {
           />
           {login.error && (
             <p className="text-sm text-center" style={{ color: "var(--color-danger)" }} data-testid="login-error">
-              {friendlyLoginError(login.error)}
+              {friendlyLoginError(login.error, t)}
             </p>
           )}
           <Button type="submit" loading={login.isPending} className="w-full mt-2" data-testid="login-submit">
-            Sign in
+            {t("login.signIn")}
           </Button>
         </form>
         {oidcConfig.data?.enabled && (
           <>
             <div className="flex items-center gap-2 my-4">
               <div className="flex-1 h-px bg-[var(--border)]" />
-              <span className="text-xs text-[var(--text-muted)]">or</span>
+              <span className="text-xs text-[var(--text-muted)]">{t("login.or")}</span>
               <div className="flex-1 h-px bg-[var(--border)]" />
             </div>
             <Button
@@ -127,7 +129,7 @@ function LoginPage() {
               className="w-full"
               onClick={() => { window.location.href = "/api/v1/auth/oidc/login"; }}
             >
-              Sign in with SSO
+              {t("login.signInWithSSO")}
             </Button>
           </>
         )}

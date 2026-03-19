@@ -25,3 +25,104 @@ setup:
     shows: Series
     music: "M\xFAsica"
     photos: Fotos
+login: # TODO translate
+  signIn: Sign in
+  signInToAccount: Sign in to your account
+  username: Username
+  password: Password
+  invalidCredentials: Invalid username or password
+  passwordTooShort: Password must be at least 8 characters
+  loginFailed: Login failed. Please try again.
+  ssoFailed: SSO sign-in failed. Please try again.
+  or: or
+  signInWithSSO: Sign in with SSO
+register: # TODO translate
+  createAccount: Create Account
+  createAccountBtn: Create account
+  invitedMessage: "You've been invited! Fill in your details below."
+  signUpWithInvite: Sign up with an invite code
+  inviteCodeLabel: "Invite code:"
+  username: Username
+  email: Email
+  password: Password
+  confirmPassword: Confirm password
+  inviteCode: Invite code
+  passwordMismatch: Passwords do not match
+  passwordMin: Password must be at least 8 characters
+  registrationFailed: Registration failed
+  alreadyHaveAccount: Already have an account?
+  signIn: Sign in
+profile: # TODO translate
+  title: Profile
+  edit: Edit
+  username: Username
+  email: Email
+  save: Save
+  cancel: Cancel
+  admin: Admin
+  memberSince: "Member since {{date}}"
+  profileUpdated: Profile updated
+  failedToUpdate: Failed to update profile
+  nav:
+    settings: Settings
+    settingsDesc: "Theme, notifications, password"
+    watchHistory: Watch History
+    watchHistoryDesc: Your recently watched media
+    notifications: Notifications
+    notificationsDesc: Alerts and updates
+    adminPanel: Admin Panel
+    adminPanelDesc: Manage server and users
+settings: # TODO translate
+  title: Settings
+  tabs:
+    appearance: Appearance
+    playback: Playback
+    notifications: Notifications
+    account: Account
+    parental: Parental
+    devices: Devices
+    apiKeys: API Keys
+  playback:
+    bitrateTitle: Streaming Bitrate Limit
+    bitrateDesc: Maximum bitrate for transcoded streams. Does not affect direct play.
+    maxBitrate: Max bitrate
+    bitrateUpdated: Bitrate limit updated
+    bitrateFailed: Failed to update bitrate limit
+  account:
+    changePassword: Change Password
+    changePasswordDesc: Use a strong password with at least 8 characters.
+    newPassword: New password
+    confirmPassword: Confirm password
+    updatePassword: Update password
+    passwordUpdated: Password updated
+    passwordFailed: Failed to update password
+    passwordMismatch: Passwords do not match
+    passwordMin: Password must be at least 8 characters
+  parental:
+    title: Parental Controls
+    description: Restrict content by rating for this profile.
+    enable: Enable parental controls
+    enableDesc: Filter content by rating
+    maxRating: Max content rating
+    saveRating: Save rating
+    noProfile: No profile found.
+    updated: Parental controls updated
+    failedToUpdate: Failed to update
+    pin:
+      title: Set PIN
+      description: 4-digit PIN to unlock restricted content.
+      newPin: New PIN
+      confirmPin: Confirm PIN
+      savePin: Save PIN
+      saved: "PIN saved"
+      mustBe4: PIN must be 4 digits
+      mismatch: PINs do not match
+    ratings:
+      none: No restriction
+      g: "G — General Audiences"
+      pg: "PG — Parental Guidance"
+      pg13: "PG-13 — Parents Strongly Cautioned"
+      r: "R — Restricted"
+      nc17: "NC-17 — Adults Only"
+    bitrates:
+      unlimited: Unlimited

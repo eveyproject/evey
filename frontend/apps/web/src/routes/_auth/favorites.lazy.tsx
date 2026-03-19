@@ -1,6 +1,7 @@
 import { useState, useMemo, useCallback, useEffect } from "react";
 import { createLazyFileRoute } from "@tanstack/react-router";
 import { usePlaybackServiceMarkAsWatched, usePlaybackServiceMarkAsUnwatched } from "@evey/api";
+import { useTranslation } from "react-i18next";
 import { useFavoritesList } from "@/hooks/useFavorite";
 import { MediaGrid } from "@/features/library/MediaGrid";
 import { MediaCard } from "@/features/library/MediaCard";
@@ -55,24 +56,26 @@ function BulkPlaylistModal({
   const addTo = useAddToPlaylist();
   const manualPlaylists = (playlists ?? []).filter((p) => p.type === "manual");
 
+  const { t } = useTranslation("media");
+
   async function handleAdd(playlistId: string, playlistName: string) {
     try {
       await Promise.all(mediaIds.map((id) => addTo.mutateAsync({ playlistId, mediaItemId: id })));
-      toast.success(`${mediaIds.length} item${mediaIds.length > 1 ? "s" : ""} added to "${playlistName}"`);
+      toast.success(t("favorites.itemsAddedToPlaylist", { count: mediaIds.length, name: playlistName }));
       onClose();
     } catch {
-      toast.error("Failed to add to playlist");
+      toast.error(t("favorites.failedAddPlaylist"));
     }
   }
 
   return (
-    <Modal open={open} onClose={onClose} title="Add to Playlist">
+    <Modal open={open} onClose={onClose} title={t("favorites.addToPlaylist")}>
       {isLoading ? (
         <div className="flex justify-center py-8">
           <div className="w-6 h-6 border-2 rounded-full animate-spin" style={{ borderColor: "var(--border)", borderTopColor: "var(--accent)" }} />
         </div>
       ) : manualPlaylists.length === 0 ? (
-        <p className="text-sm text-center py-6" style={{ color: "var(--text-muted)" }}>No playlists yet.</p>
+        <p className="text-sm text-center py-6" style={{ color: "var(--text-muted)" }}>{t("favorites.noPlaylists")}</p>
       ) : (
         <div className="space-y-1">
           {manualPlaylists.map((pl) => (
@@ -93,6 +96,8 @@ function BulkPlaylistModal({
 }
 
 function FavoritesPage() {
+  const { t } = useTranslation("media");
+  const { t: tc } = useTranslation("common");
   const { data: favorites, isLoading } = useFavoritesList(200);
   const [sort, setSort] = useState<SortKey>("dateAdded");
   const [typeFilter, setTypeFilter] = useState<TypeFilter>("all");
@@ -128,7 +133,7 @@ function FavoritesPage() {
     const fn = watched ? markWatched.mutateAsync : markUnwatched.mutateAsync;
     await Promise.all(ids.map((mediaItemId) => fn({ mediaItemId, params: { profileId } })));
     ids.forEach((id) => queryClient.invalidateQueries({ queryKey: [`/api/v1/media/${id}`] }));
-    toast.success(`${ids.length} item${ids.length > 1 ? "s" : ""} marked as ${watched ? "watched" : "unwatched"}`);
+    toast.success(watched ? t("favorites.markedWatched", { count: ids.length }) : t("favorites.markedUnwatched", { count: ids.length }));
     clear();
     setBulkMode(false);
   }
@@ -179,7 +184,7 @@ function FavoritesPage() {
 
       <div className="flex items-center justify-between mb-4 gap-3 flex-wrap">
         <h1 className="text-2xl font-bold" style={{ color: "var(--text)" }}>
-          Favorites
+          {t("favorites.title")}
         </h1>
         {!isLoading && favorites && favorites.length > 0 && (
           <div className="flex items-center gap-2 flex-wrap">
@@ -188,23 +193,23 @@ function FavoritesPage() {
             </span>
             <input
               type="search"
-              placeholder="Search…"
+              placeholder={t("favorites.searchPlaceholder")}
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               style={searchInputStyle}
-              aria-label="Search favorites"
+              aria-label={t("favorites.searchPlaceholder")}
             />
             <select style={selectStyle} value={typeFilter} onChange={(e) => setTypeFilter(e.target.value as TypeFilter)}>
-              <option value="all">All</option>
-              <option value="MEDIA_ITEM_TYPE_MOVIE">Movies</option>
-              <option value="MEDIA_ITEM_TYPE_SERIES">Series</option>
+              <option value="all">{t("favorites.all")}</option>
+              <option value="MEDIA_ITEM_TYPE_MOVIE">{t("favorites.movies")}</option>
+              <option value="MEDIA_ITEM_TYPE_SERIES">{t("favorites.series")}</option>
             </select>
             <select style={selectStyle} value={sort} onChange={(e) => setSort(e.target.value as SortKey)}>
-              <option value="dateAdded">Recently Added</option>
-              <option value="titleAZ">Title A–Z</option>
-              <option value="titleZA">Title Z–A</option>
-              <option value="yearNewest">Year (newest)</option>
-              <option value="rating">Rating</option>
+              <option value="dateAdded">{t("favorites.recentlyAdded")}</option>
+              <option value="titleAZ">{t("favorites.titleAZ")}</option>
+              <option value="titleZA">{t("favorites.titleZA")}</option>
+              <option value="yearNewest">{t("favorites.yearNewest")}</option>
+              <option value="rating">{t("favorites.rating")}</option>
             </select>
             <button
               type="button"
@@ -216,7 +221,7 @@ function FavoritesPage() {
                 borderColor: bulkMode ? "var(--accent)" : "var(--border)",
               }}
             >
-              Select
+              {tc("select")}
             </button>
             {bulkMode && (
               <button
@@ -225,7 +230,7 @@ function FavoritesPage() {
                 className="text-xs hover:underline"
                 style={{ color: "var(--accent)" }}
               >
-                Select all
+                {tc("selectAll")}
               </button>
             )}
           </div>
@@ -241,12 +246,12 @@ function FavoritesPage() {
         >
           <EmptyState
             icon="library"
-            title="No favorites yet"
-            description="Click the heart icon on any media item to add it to your favorites."
+            title={t("favorites.noFavorites")}
+            description={t("favorites.noFavoritesDesc")}
           />
         </div>
       ) : filtered.length === 0 ? (
-        <p className="text-sm" style={{ color: "var(--text-muted)" }}>No items match the current filter.</p>
+        <p className="text-sm" style={{ color: "var(--text-muted)" }}>{tc("noItemsMatch")}</p>
       ) : (
         <MediaGrid>
           {filtered.map((fav) => (

@@ -3,3 +3,113 @@ episode: "E{{number}}"
 chapter: "Chapter {{number}}"
 track: "Track {{number}}"
 burnIn: "(burn-in)"
+home:
+  play: Play
+  moreInfo: More Info
+  continueWatching: Continue Watching
+  upNext: Up Next
+  recentlyAdded: Recently Added
+  mostPopular: Most Popular
+  recommendedForYou: Recommended For You
+  collections: Collections
+  emptyLibrary: Your library is empty
+  emptyLibraryDesc: "Go to Admin \u2192 Libraries to add a media folder."
+  goToLibraries: Go to Libraries
+  library: Library
+favorites:
+  title: Favorites
+  searchPlaceholder: "Search\u2026"
+  all: All
+  movies: Movies
+  series: Series
+  recentlyAdded: Recently Added
+  titleAZ: "Title A\u2013Z"
+  titleZA: "Title Z\u2013A"
+  yearNewest: Year (newest)
+  rating: Rating
+  noFavorites: No favorites yet
+  noFavoritesDesc: Click the heart icon on any media item to add it to your favorites.
+  addToPlaylist: Add to Playlist
+  noPlaylists: No playlists yet.
+  failedAddPlaylist: Failed to add to playlist
+  itemsAddedToPlaylist: "{{count}} item(s) added to \"{{name}}\""
+  markedWatched: "{{count}} item(s) marked as watched"
+  markedUnwatched: "{{count}} item(s) marked as unwatched"
+collections:
+  title: Collections
+  newSmartCollection: New smart collection
+  smartCollections: Smart Collections
+  tmdbCollections: TMDB Collections
+  noCollections: No collections yet
+  noCollectionsDesc: Collections are automatically populated from TMDB sagas.
+  deleteConfirm: Delete this collection?
+  deleteSmartConfirm: Delete this smart collection?
+  browseResults: "Browse results \u2192"
+library:
+  title: Library
+  libraries: Libraries
+  filterByName: "Filter by name..."
+  series: Series
+  seasons: Seasons
+  episodes: Episodes
+  titleSort: Title
+  year: Year
+  ratingSort: Rating
+  dateAdded: Date Added
+  ascending: Ascending
+  descending: Descending
+  switchToList: Switch to list view
+  switchToGrid: Switch to grid view
+  noItems: No items found
+  noItemsFiltered: Try adjusting your filters or search term.
+  noItemsType: Try a different filter, or scan the library to add content.
+  noItemsEmpty: This library is empty. Trigger a scan to add content.
+  goToAdmin: Go to Admin
+  loadMore: "Load more ({{current}} of {{total}})"
+  selected: selected
+  addToFavorites: Add to favorites
+  addedToFavorites: "{{count}} item(s) added to favorites"
+  failedFavorites: Failed to add some items to favorites
+  duration: Duration
+  type: Type
+  addToPlaylist: Add to Playlist
+  noPlaylists: No playlists yet.
+  failedAddPlaylist: Failed to add to playlist
+  itemsAddedToPlaylist: "{{count}} item(s) added to \"{{name}}\""
+detail:
+  notFound: Media item not found.
+music:
+  title: Music
+  tracks: Tracks
+  albums: Albums
+  artists: Artists
+  searchPlaceholder: "Search tracks, artists, albums\u2026"
+  loading: "Loading\u2026"
+  noTracks: No tracks found.
+  noTracksSearch: No tracks match your search.
+  noAlbums: No albums found.
+  noArtists: No artists found.
+  noLibraries: No music libraries found. Add one in the Admin panel.
+  trackDeleted: Track deleted
+  failedDeleteTrack: Failed to delete track
+  deleteTrackConfirm: Delete this track? This cannot be undone.
+  deleteTrack: Delete track
+  trackCount: "{{count}} track"
+  trackCount_plural: "{{count}} tracks"
+  albumCount: "{{count}} album"
+  albumCount_plural: "{{count}} albums"
+photos:
+  title: Photos
+  albums: Albums
+  allPhotos: All Photos
+  noPhotos: No photos
+  noPhotosDesc: No photos found in this library.
+  noAlbums: No albums
+  noAlbumsDesc: No albums found in this library.
+  noPhotoLibraries: No photo libraries
+  noPhotoLibrariesDesc: Add a photo library in the Admin panel to get started.
+  photoDeleted: Photo deleted
+  failedDeletePhoto: Failed to delete photo
+  deletePhotoConfirm: "Delete \"{{title}}\"? This cannot be undone."
+  photoCount: "{{count}} photo"
+  photoCount_plural: "{{count}} photos"

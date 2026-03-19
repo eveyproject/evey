@@ -11,6 +11,7 @@ import {
   libraryServiceGetMediaItem,
 } from "@evey/api";
 import { useAuthStore } from "@evey/store";
+import { useTranslation } from "react-i18next";
 import { MediaSlider } from "../../features/home/MediaSlider";
 import { MediaCard } from "../../features/library/MediaCard";
 import { EmptyState } from "@/components/ui/EmptyState";
@@ -25,6 +26,7 @@ export const Route = createLazyFileRoute("/_auth/home")({
 });
 
 function HeroBanner() {
+  const { t } = useTranslation("media");
   const { data, isLoading } = useFeedServiceRecentlyAdded();
   const items = data?.items ?? [];
 
@@ -146,7 +148,7 @@ function HeroBanner() {
             <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
               <path d="M6.3 2.8L17 10 6.3 17.2V2.8z" />
             </svg>
-            Play
+            {t("home.play")}
           </Link>
           <Link
             to="/media/$mediaId"
@@ -154,7 +156,7 @@ function HeroBanner() {
             className="flex items-center gap-2 px-5 py-2.5 rounded-[var(--radius-md)] font-semibold text-sm transition-opacity hover:opacity-90"
             style={{ backgroundColor: "var(--overlay-btn-bg)", color: "var(--overlay-text)", backdropFilter: "blur(4px)" }}
           >
-            More Info
+            {t("home.moreInfo")}
           </Link>
         </div>
       </div>
@@ -189,12 +191,13 @@ function LibrarySlider({ libraryId, name, libraryType }: { libraryId: string; na
 }
 
 function ContinueWatchingSlider() {
+  const { t } = useTranslation("media");
   const { data, isLoading } = useFeedServiceContinueWatching();
   const items = data?.items ?? [];
   if (!isLoading && items.length === 0) return null;
 
   return (
-    <MediaSlider title="Continue Watching" isLoading={isLoading}>
+    <MediaSlider title={t("home.continueWatching")} isLoading={isLoading}>
       {items.map((item) => (
         <MediaCard
           key={item.mediaItemId}
@@ -208,6 +211,7 @@ function ContinueWatchingSlider() {
 }
 
 function UpNextSlider() {
+  const { t } = useTranslation("media");
   const profileId = useAuthStore((s) => s.profileId);
   const { data, isLoading } = usePlaybackServiceGetNextUp(
     { profileId: profileId ?? undefined, limit: 15 },
@@ -217,7 +221,7 @@ function UpNextSlider() {
   if (!isLoading && items.length === 0) return null;
 
   return (
-    <MediaSlider title="Up Next" isLoading={isLoading}>
+    <MediaSlider title={t("home.upNext")} isLoading={isLoading}>
       {items.map((item) => (
         <MediaCard
           key={item.id}
@@ -240,12 +244,13 @@ function UpNextSlider() {
 }
 
 function RecentlyAddedSlider() {
+  const { t } = useTranslation("media");
   const { data, isLoading } = useFeedServiceRecentlyAdded();
   const items = data?.items ?? [];
   if (!isLoading && items.length === 0) return null;
 
   return (
-    <MediaSlider title="Recently Added" isLoading={isLoading}>
+    <MediaSlider title={t("home.recentlyAdded")} isLoading={isLoading}>
       {items.map((item) => (
         <MediaCard
           key={item.mediaItemId}
@@ -259,12 +264,13 @@ function RecentlyAddedSlider() {
 }
 
 function MostPopularSlider() {
+  const { t } = useTranslation("media");
   const { data, isLoading } = useMostPopular(20);
   const items = data ?? [];
   if (!isLoading && items.length === 0) return null;
 
   return (
-    <MediaSlider title="Most Popular" isLoading={isLoading}>
+    <MediaSlider title={t("home.mostPopular")} isLoading={isLoading}>
       {items.map((item) => (
         <MediaCard
           key={item.mediaItemId}
@@ -277,12 +283,13 @@ function MostPopularSlider() {
 }
 
 function RecommendedSlider() {
+  const { t } = useTranslation("media");
   const { data, isLoading } = useFeedServiceRecommended({ limit: 20 });
   const items = data?.items ?? [];
   if (!isLoading && items.length === 0) return null;
 
   return (
-    <MediaSlider title="Recommended For You" isLoading={isLoading}>
+    <MediaSlider title={t("home.recommendedForYou")} isLoading={isLoading}>
       {items.map((item) => (
         <MediaCard
           key={item.mediaItemId}
@@ -295,12 +302,13 @@ function RecommendedSlider() {
 }
 
 function CollectionsSection() {
+  const { t } = useTranslation("media");
   const { data, isLoading } = useCollections();
   const collections = data?.collections ?? [];
   if (!isLoading && collections.length === 0) return null;
 
   return (
-    <MediaSlider title="Collections" seeAllHref="/collections" isLoading={isLoading} skeletonCount={6}>
+    <MediaSlider title={t("home.collections")} seeAllHref="/collections" isLoading={isLoading} skeletonCount={6}>
       {collections.map((col) => (
         <CollectionCard key={col.id} collection={col} />
       ))}
@@ -309,6 +317,7 @@ function CollectionsSection() {
 }
 
 function HomePage() {
+  const { t } = useTranslation("media");
   const navigate = useNavigate();
   const { data: librariesData, isLoading: librariesLoading } = useLibraryServiceListLibraries();
   const libraries = librariesData?.libraries ?? [];
@@ -324,9 +333,9 @@ function HomePage() {
         {!isLoading && !hasContent ? (
           <EmptyState
             icon="library"
-            title="Your library is empty"
-            description="Go to Admin \u2192 Libraries to add a media folder."
-            action={{ label: "Go to Libraries", onClick: () => navigate({ to: "/admin/libraries" }) }}
+            title={t("home.emptyLibrary")}
+            description={t("home.emptyLibraryDesc")}
+            action={{ label: t("home.goToLibraries"), onClick: () => navigate({ to: "/admin/libraries" }) }}
           />
         ) : (
           <>
@@ -338,7 +347,7 @@ function HomePage() {
             <MostPopularSlider />
             {libraries.map((lib) =>
               lib.id ? (
-                <LibrarySlider key={lib.id} libraryId={lib.id} name={lib.name ?? "Library"} libraryType={lib.type} />
+                <LibrarySlider key={lib.id} libraryId={lib.id} name={lib.name ?? t("home.library")} libraryType={lib.type} />
               ) : null
             )}
             <PluginSlot name="home.section" />
