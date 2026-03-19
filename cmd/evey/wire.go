@@ -112,7 +112,7 @@ func buildServices(ctx context.Context, cfg *config.Config, db *sql.DB, rootLog 
 	translator, i18nErr := eveyi18n.NewFromDir("i18n")
 	if i18nErr != nil {
 		slog.Warn("i18n load failed, using defaults", slog.Any("err", i18nErr))
-		translator, _ = eveyi18n.NewFromDir("") // empty translator, returns keys as-is
+		translator = eveyi18n.NewEmpty()
 	}
 
 	// --- JWT ---

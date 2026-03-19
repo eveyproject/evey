@@ -25,6 +25,14 @@ type Translator struct {
 	fallback string
 }
 
+// NewEmpty returns a translator with no messages — T() returns keys as-is.
+func NewEmpty() *Translator {
+	return &Translator{
+		messages: map[string]map[string]string{"en": {}},
+		fallback: FallbackLocale,
+	}
+}
+
 func NewFromDir(dir string) (*Translator, error) {
 	t := &Translator{
 		messages: make(map[string]map[string]string),
@@ -84,6 +92,9 @@ func flatten(prefix string, m map[string]any, out map[string]string) {
 }
 
 func (t *Translator) T(locale, key string, params ...map[string]string) string {
+	if t == nil {
+		return key
+	}
 	t.mu.RLock()
 	defer t.mu.RUnlock()
 
