@@ -13,6 +13,9 @@ auth:
   password_too_short: "Le mot de passe doit contenir au moins 8 caractères"
   username_too_short: "Le nom d'utilisateur doit contenir au moins 3 caractères"
   explicit_consent_required: "Consentement explicite requis pour les notifications push"
+  missing_authorization: "En-tête d'autorisation manquant"
+  missing_metadata: "Métadonnées de requête manquantes"
+  admin_access_required: "Accès administrateur requis"
   invalid_current_pin: "PIN actuel invalide"
   profile_not_found: "Profil introuvable"
 
@@ -27,6 +30,51 @@ general:
   bad_request: "Requête invalide"
   remote_access_disabled: "Accès distant désactivé"
   path_traversal_detected: "Traversée de chemin détectée"
+
+playlist:
+  not_owner: "Vous n'êtes pas le propriétaire de la liste de lecture"
+  cannot_add_smart: "Impossible d'ajouter manuellement des éléments à une liste intelligente"
+  cannot_remove_smart: "Impossible de supprimer des éléments d'une liste intelligente"
+  limit_reached: "Limite d'éléments de la liste atteinte"
+
+playback:
+  parental_blocked: "Contenu bloqué par le contrôle parental"
+  cannot_stop_other_session: "Impossible d'arrêter la session d'un autre utilisateur"
+  cannot_report_other_session: "Impossible de signaler la progression de la session d'un autre utilisateur"
+  session_not_found: "Session introuvable"
+
+activity:
+  cannot_access_other_history: "Impossible d'accéder à l'historique de connexion d'un autre utilisateur"
+
+library:
+  parental_restricted: "Contenu restreint par le contrôle parental"
+  name_required: "Le nom de la bibliothèque est obligatoire"
+
+admin:
+  setup_already_completed: "La configuration est déjà terminée"
+  scheduler_not_available: "Planificateur non disponible"
+  scanner_not_available: "Scanner non disponible"
+  service_not_configured: "Service non configuré"
+  heavy_op_running: "Une opération lourde est déjà en cours"
+  scheduled_task_not_found: "Tâche planifiée introuvable"
+
+config:
+  key_required: "La clé est obligatoire"
+  key_not_found: "Clé de configuration introuvable"
+
+playback_settings:
+  skip_forward_positive: "skip_forward_seconds doit être positif"
+
+user:
+  cannot_update_other: "Impossible de mettre à jour un autre utilisateur"
+  cannot_escalate_admin: "Impossible d'escalader en administrateur"
+  cannot_create_profile_other: "Impossible de créer un profil pour un autre utilisateur"
+  cannot_update_profile_other: "Impossible de mettre à jour le profil d'un autre utilisateur"
+  cannot_delete_profile_other: "Impossible de supprimer le profil d'un autre utilisateur"
+  cannot_revoke_invite_other: "Impossible de révoquer le lien d'invitation d'un autre utilisateur"
+  cannot_revoke_apikey_other: "Impossible de révoquer la clé API d'un autre utilisateur"
+  invalid_invite_data: "Données d'invitation ou d'inscription invalides"
+  invalid_expired_code: "Code invalide ou expiré"
 
 media:
   not_found: "Média introuvable"
@@ -46,9 +94,6 @@ subtitle:
   search_failed: "Recherche de sous-titres échouée"
   download_failed: "Téléchargement de sous-titres échoué"
   file_id_required: "L'ID du fichier est obligatoire"
-
-library:
-  name_required: "Le nom de la bibliothèque est obligatoire"
 
 plugin:
   blocked_by_security: "Plugin bloqué par l'analyse de sécurité"

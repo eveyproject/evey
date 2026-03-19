@@ -7,33 +7,33 @@ enable: Activar
 disable: Desactivar
 skip: Omitir
 continue: Continuar
-loading: "Cargando\u2026"
+loading: "Cargando…"
 error: Error
 unknown: Desconocido
 settings: Ajustes
-select: Select # TODO translate
-selectAll: Select all # TODO translate
-deselectAll: Deselect all # TODO translate
-exit: Exit # TODO translate
-search: Search # TODO translate
-or: or # TODO translate
-previous: Previous # TODO translate
-next: Next # TODO translate
-edit: Edit # TODO translate
-all: All # TODO translate
-items: "{{count}} items" # TODO translate
-item: "{{count}} item" # TODO translate
-filtered: "(filtered)" # TODO translate
-noItemsMatch: No items match the current filter. # TODO translate
-notifications: # TODO translate
-  title: Notifications
-  markRead: Mark read
-  markAllRead: Mark all read
-  deleteAll: Delete all
-  deleteAllTitle: Delete all notifications
-  deleteAllConfirm: This will permanently delete all your notifications. This action cannot be undone.
-  noNotifications: No notifications
-  allCaughtUp: "You're all caught up."
-  justNow: Just now
-watchHistory: # TODO translate
-  title: Watch History
+select: "Seleccionar"
+selectAll: "Seleccionar todo"
+deselectAll: "Deseleccionar todo"
+exit: "Salir"
+search: "Buscar"
+or: "o"
+previous: "Anterior"
+next: "Siguiente"
+edit: "Editar"
+all: "Todo"
+items: "{{count}} elementos"
+item: "{{count}} elemento"
+filtered: "(filtrado)"
+noItemsMatch: "Ningún elemento coincide con el filtro actual."
+notifications:
+  title: "Notificaciones"
+  markRead: "Marcar como leída"
+  markAllRead: "Marcar todas como leídas"
+  deleteAll: "Eliminar todas"
+  deleteAllTitle: "Eliminar todas las notificaciones"
+  deleteAllConfirm: "Esto eliminará permanentemente todas tus notificaciones. Esta acción no se puede deshacer."
+  noNotifications: "Sin notificaciones"
+  allCaughtUp: "Estás al día."
+  justNow: "Ahora mismo"
+watchHistory:
+  title: "Historial de reproducción"

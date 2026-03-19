@@ -13,6 +13,9 @@ auth:
   password_too_short: "पासवर्ड कम से कम 8 अक्षरों का होना चाहिए"
   username_too_short: "उपयोगकर्ता नाम कम से कम 3 अक्षरों का होना चाहिए"
   explicit_consent_required: "पुश सूचनाओं के लिए स्पष्ट सहमति आवश्यक है"
+  missing_authorization: "प्राधिकरण हेडर अनुपलब्ध"
+  missing_metadata: "अनुरोध मेटाडेटा अनुपलब्ध"
+  admin_access_required: "एडमिन एक्सेस आवश्यक है"
   invalid_current_pin: "वर्तमान PIN अमान्य है"
   profile_not_found: "प्रोफ़ाइल नहीं मिली"
 
@@ -27,6 +30,51 @@ general:
   bad_request: "खराब अनुरोध"
   remote_access_disabled: "रिमोट एक्सेस अक्षम है"
   path_traversal_detected: "पथ ट्रैवर्सल का पता चला"
+
+playlist:
+  not_owner: "आप प्लेलिस्ट के स्वामी नहीं हैं"
+  cannot_add_smart: "स्मार्ट प्लेलिस्ट में मैन्युअल रूप से आइटम नहीं जोड़े जा सकते"
+  cannot_remove_smart: "स्मार्ट प्लेलिस्ट से आइटम नहीं हटाए जा सकते"
+  limit_reached: "प्लेलिस्ट आइटम सीमा पूरी हो गई"
+
+playback:
+  parental_blocked: "अभिभावक नियंत्रण द्वारा सामग्री अवरुद्ध"
+  cannot_stop_other_session: "अन्य उपयोगकर्ता का सत्र रोका नहीं जा सकता"
+  cannot_report_other_session: "अन्य उपयोगकर्ता के सत्र की प्रगति रिपोर्ट नहीं की जा सकती"
+  session_not_found: "सत्र नहीं मिला"
+
+activity:
+  cannot_access_other_history: "अन्य उपयोगकर्ता का लॉगिन इतिहास एक्सेस नहीं किया जा सकता"
+
+library:
+  parental_restricted: "अभिभावक नियंत्रण द्वारा सामग्री प्रतिबंधित"
+  name_required: "लाइब्रेरी का नाम आवश्यक है"
+
+admin:
+  setup_already_completed: "सेटअप पहले ही पूर्ण हो चुका है"
+  scheduler_not_available: "शेड्यूलर उपलब्ध नहीं है"
+  scanner_not_available: "स्कैनर उपलब्ध नहीं है"
+  service_not_configured: "सेवा कॉन्फ़िगर नहीं है"
+  heavy_op_running: "एक भारी ऑपरेशन पहले से चल रहा है"
+  scheduled_task_not_found: "निर्धारित कार्य नहीं मिला"
+
+config:
+  key_required: "कुंजी आवश्यक है"
+  key_not_found: "कॉन्फ़िगरेशन कुंजी नहीं मिली"
+
+playback_settings:
+  skip_forward_positive: "skip_forward_seconds सकारात्मक होना चाहिए"
+
+user:
+  cannot_update_other: "अन्य उपयोगकर्ता को अपडेट नहीं किया जा सकता"
+  cannot_escalate_admin: "एडमिन में एस्केलेट नहीं किया जा सकता"
+  cannot_create_profile_other: "अन्य उपयोगकर्ता के लिए प्रोफ़ाइल नहीं बनाई जा सकती"
+  cannot_update_profile_other: "अन्य उपयोगकर्ता की प्रोफ़ाइल अपडेट नहीं की जा सकती"
+  cannot_delete_profile_other: "अन्य उपयोगकर्ता की प्रोफ़ाइल मिटाई नहीं जा सकती"
+  cannot_revoke_invite_other: "अन्य उपयोगकर्ता का आमंत्रण लिंक निरस्त नहीं किया जा सकता"
+  cannot_revoke_apikey_other: "अन्य उपयोगकर्ता की API कुंजी निरस्त नहीं की जा सकती"
+  invalid_invite_data: "अमान्य आमंत्रण या पंजीकरण डेटा"
+  invalid_expired_code: "अमान्य या समय-सीमा समाप्त कोड"
 
 media:
   not_found: "मीडिया नहीं मिला"
@@ -46,9 +94,6 @@ subtitle:
   search_failed: "उपशीर्षक खोज विफल"
   download_failed: "उपशीर्षक डाउनलोड विफल"
   file_id_required: "फ़ाइल ID आवश्यक है"
-
-library:
-  name_required: "लाइब्रेरी का नाम आवश्यक है"
 
 plugin:
   blocked_by_security: "सुरक्षा विश्लेषण द्वारा प्लगइन अवरुद्ध"

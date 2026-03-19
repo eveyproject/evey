@@ -1,128 +1,128 @@
 setup:
   welcome: Bienvenue sur Evey
-  description: "Configurons votre serveur multim\xE9dia. Cela ne prend qu'une minute."
+  description: "Configurons votre serveur multimédia. Cela ne prend qu'une minute."
   getStarted: Commencer
-  stepOf: "\xC9tape {{current}} sur {{total}} \u2014 {{name}}"
+  stepOf: "Étape {{current}} sur {{total}} — {{name}}"
   steps:
     welcome: Bienvenue
     admin: Compte administrateur
-    library: "Premi\xE8re biblioth\xE8que"
-  createAdmin: "Cr\xE9er un compte administrateur"
+    library: Première bibliothèque
+  createAdmin: Créer un compte administrateur
   username: "Nom d'utilisateur"
   password: Mot de passe
   confirmPassword: Confirmer le mot de passe
-  usernameMin: "Au moins 3 caract\xE8res"
-  passwordMin: "Au moins 8 caract\xE8res"
+  usernameMin: Au moins 3 caractères
+  passwordMin: Au moins 8 caractères
   passwordMismatch: Les mots de passe ne correspondent pas
-  setupFailed: "\xC9chec de la configuration"
-  addLibrary: "Ajoutez votre premi\xE8re biblioth\xE8que"
-  addLibraryHint: "Vous pourrez ajouter d'autres biblioth\xE8ques plus tard depuis le panneau d'administration."
-  libraryName: "Nom de la biblioth\xE8que"
-  libraryType: "Type de biblioth\xE8que"
-  libraryNameRequired: "Le nom de la biblioth\xE8que est requis"
+  setupFailed: Échec de la configuration
+  addLibrary: Ajoutez votre première bibliothèque
+  addLibraryHint: "Vous pourrez ajouter d'autres bibliothèques plus tard depuis le panneau d'administration."
+  libraryName: Nom de la bibliothèque
+  libraryType: Type de bibliothèque
+  libraryNameRequired: Le nom de la bibliothèque est requis
   libraryTypes:
     movies: Films
-    shows: "S\xE9ries"
+    shows: Séries
     music: Musique
     photos: Photos
-login: # TODO translate
-  signIn: Sign in
-  signInToAccount: Sign in to your account
-  username: Username
-  password: Password
-  invalidCredentials: Invalid username or password
-  passwordTooShort: Password must be at least 8 characters
-  loginFailed: Login failed. Please try again.
-  ssoFailed: SSO sign-in failed. Please try again.
-  or: or
-  signInWithSSO: Sign in with SSO
-register: # TODO translate
-  createAccount: Create Account
-  createAccountBtn: Create account
-  invitedMessage: "You've been invited! Fill in your details below."
-  signUpWithInvite: Sign up with an invite code
-  inviteCodeLabel: "Invite code:"
-  username: Username
-  email: Email
-  password: Password
-  confirmPassword: Confirm password
-  inviteCode: Invite code
-  passwordMismatch: Passwords do not match
-  passwordMin: Password must be at least 8 characters
-  registrationFailed: Registration failed
-  alreadyHaveAccount: Already have an account?
-  signIn: Sign in
-profile: # TODO translate
-  title: Profile
-  edit: Edit
-  username: Username
-  email: Email
-  save: Save
-  cancel: Cancel
-  admin: Admin
-  memberSince: "Member since {{date}}"
-  profileUpdated: Profile updated
-  failedToUpdate: Failed to update profile
+login:
+  signIn: "Se connecter"
+  signInToAccount: "Connectez-vous à votre compte"
+  username: "Nom d'utilisateur"
+  password: "Mot de passe"
+  invalidCredentials: "Nom d'utilisateur ou mot de passe invalide"
+  passwordTooShort: "Le mot de passe doit contenir au moins 8 caractères"
+  loginFailed: "Échec de la connexion. Veuillez réessayer."
+  ssoFailed: "Échec de la connexion SSO. Veuillez réessayer."
+  or: "ou"
+  signInWithSSO: "Se connecter avec SSO"
+register:
+  createAccount: "Créer un compte"
+  createAccountBtn: "Créer un compte"
+  invitedMessage: "Vous avez été invité ! Remplissez vos informations ci-dessous."
+  signUpWithInvite: "S'inscrire avec un code d'invitation"
+  inviteCodeLabel: "Code d'invitation :"
+  username: "Nom d'utilisateur"
+  email: "E-mail"
+  password: "Mot de passe"
+  confirmPassword: "Confirmer le mot de passe"
+  inviteCode: "Code d'invitation"
+  passwordMismatch: "Les mots de passe ne correspondent pas"
+  passwordMin: "Le mot de passe doit contenir au moins 8 caractères"
+  registrationFailed: "Échec de l'inscription"
+  alreadyHaveAccount: "Vous avez déjà un compte ?"
+  signIn: "Se connecter"
+profile:
+  title: "Profil"
+  edit: "Modifier"
+  username: "Nom d'utilisateur"
+  email: "E-mail"
+  save: "Enregistrer"
+  cancel: "Annuler"
+  admin: "Administrateur"
+  memberSince: "Membre depuis {{date}}"
+  profileUpdated: "Profil mis à jour"
+  failedToUpdate: "Échec de la mise à jour du profil"
   nav:
-    settings: Settings
-    settingsDesc: "Theme, notifications, password"
-    watchHistory: Watch History
-    watchHistoryDesc: Your recently watched media
-    notifications: Notifications
-    notificationsDesc: Alerts and updates
-    adminPanel: Admin Panel
-    adminPanelDesc: Manage server and users
-settings: # TODO translate
-  title: Settings
+    settings: "Paramètres"
+    settingsDesc: "Thème, notifications, mot de passe"
+    watchHistory: "Historique de lecture"
+    watchHistoryDesc: "Vos médias récemment regardés"
+    notifications: "Notifications"
+    notificationsDesc: "Alertes et mises à jour"
+    adminPanel: "Panneau d'administration"
+    adminPanelDesc: "Gérer le serveur et les utilisateurs"
+settings:
+  title: "Paramètres"
   tabs:
-    appearance: Appearance
-    playback: Playback
-    notifications: Notifications
-    account: Account
-    parental: Parental
-    devices: Devices
-    apiKeys: API Keys
+    appearance: "Apparence"
+    playback: "Lecture"
+    notifications: "Notifications"
+    account: "Compte"
+    parental: "Contrôle parental"
+    devices: "Appareils"
+    apiKeys: "Clés API"
   playback:
-    bitrateTitle: Streaming Bitrate Limit
-    bitrateDesc: Maximum bitrate for transcoded streams. Does not affect direct play.
-    maxBitrate: Max bitrate
-    bitrateUpdated: Bitrate limit updated
-    bitrateFailed: Failed to update bitrate limit
+    bitrateTitle: "Limite de débit de streaming"
+    bitrateDesc: "Débit maximal pour les flux transcodés. N'affecte pas la lecture directe."
+    maxBitrate: "Débit maximal"
+    bitrateUpdated: "Limite de débit mise à jour"
+    bitrateFailed: "Échec de la mise à jour de la limite de débit"
   account:
-    changePassword: Change Password
-    changePasswordDesc: Use a strong password with at least 8 characters.
-    newPassword: New password
-    confirmPassword: Confirm password
-    updatePassword: Update password
-    passwordUpdated: Password updated
-    passwordFailed: Failed to update password
-    passwordMismatch: Passwords do not match
-    passwordMin: Password must be at least 8 characters
+    changePassword: "Changer le mot de passe"
+    changePasswordDesc: "Utilisez un mot de passe fort d'au moins 8 caractères."
+    newPassword: "Nouveau mot de passe"
+    confirmPassword: "Confirmer le mot de passe"
+    updatePassword: "Mettre à jour le mot de passe"
+    passwordUpdated: "Mot de passe mis à jour"
+    passwordFailed: "Échec de la mise à jour du mot de passe"
+    passwordMismatch: "Les mots de passe ne correspondent pas"
+    passwordMin: "Le mot de passe doit contenir au moins 8 caractères"
   parental:
-    title: Parental Controls
-    description: Restrict content by rating for this profile.
-    enable: Enable parental controls
-    enableDesc: Filter content by rating
-    maxRating: Max content rating
-    saveRating: Save rating
-    noProfile: No profile found.
-    updated: Parental controls updated
-    failedToUpdate: Failed to update
+    title: "Contrôle parental"
+    description: "Restreindre le contenu par classification pour ce profil."
+    enable: "Activer le contrôle parental"
+    enableDesc: "Filtrer le contenu par classification"
+    maxRating: "Classification maximale"
+    saveRating: "Enregistrer la classification"
+    noProfile: "Aucun profil trouvé."
+    updated: "Contrôle parental mis à jour"
+    failedToUpdate: "Échec de la mise à jour"
     pin:
-      title: Set PIN
-      description: 4-digit PIN to unlock restricted content.
-      newPin: New PIN
-      confirmPin: Confirm PIN
-      savePin: Save PIN
-      saved: "PIN saved"
-      mustBe4: PIN must be 4 digits
-      mismatch: PINs do not match
+      title: "Définir le PIN"
+      description: "PIN à 4 chiffres pour déverrouiller le contenu restreint."
+      newPin: "Nouveau PIN"
+      confirmPin: "Confirmer le PIN"
+      savePin: "Enregistrer le PIN"
+      saved: "PIN enregistré"
+      mustBe4: "Le PIN doit contenir 4 chiffres"
+      mismatch: "Les PIN ne correspondent pas"
     ratings:
-      none: No restriction
-      g: "G — General Audiences"
-      pg: "PG — Parental Guidance"
-      pg13: "PG-13 — Parents Strongly Cautioned"
-      r: "R — Restricted"
-      nc17: "NC-17 — Adults Only"
+      none: "Aucune restriction"
+      g: "G — Tous publics"
+      pg: "PG — Accord parental souhaitable"
+      pg13: "PG-13 — Accord parental recommandé"
+      r: "R — Restreint"
+      nc17: "NC-17 — Adultes uniquement"
     bitrates:
-      unlimited: Unlimited
+      unlimited: "Illimité"

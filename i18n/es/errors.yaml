@@ -13,6 +13,9 @@ auth:
   password_too_short: "La contraseña debe tener al menos 8 caracteres"
   username_too_short: "El nombre de usuario debe tener al menos 3 caracteres"
   explicit_consent_required: "Se requiere consentimiento explícito para notificaciones push"
+  missing_authorization: "Falta el encabezado de autorización"
+  missing_metadata: "Faltan metadatos de solicitud"
+  admin_access_required: "Se requiere acceso de administrador"
   invalid_current_pin: "PIN actual inválido"
   profile_not_found: "Perfil no encontrado"
 
@@ -27,6 +30,51 @@ general:
   bad_request: "Solicitud inválida"
   remote_access_disabled: "Acceso remoto deshabilitado"
   path_traversal_detected: "Se detectó recorrido de ruta"
+
+playlist:
+  not_owner: "No eres el propietario de la lista de reproducción"
+  cannot_add_smart: "No se pueden agregar elementos manualmente a una lista inteligente"
+  cannot_remove_smart: "No se pueden eliminar elementos de una lista inteligente"
+  limit_reached: "Límite de elementos de la lista alcanzado"
+
+playback:
+  parental_blocked: "Contenido bloqueado por control parental"
+  cannot_stop_other_session: "No se puede detener la sesión de otro usuario"
+  cannot_report_other_session: "No se puede reportar progreso de la sesión de otro usuario"
+  session_not_found: "Sesión no encontrada"
+
+activity:
+  cannot_access_other_history: "No se puede acceder al historial de inicio de sesión de otro usuario"
+
+library:
+  parental_restricted: "Contenido restringido por control parental"
+  name_required: "El nombre de la biblioteca es obligatorio"
+
+admin:
+  setup_already_completed: "La configuración ya fue completada"
+  scheduler_not_available: "Programador no disponible"
+  scanner_not_available: "Escáner no disponible"
+  service_not_configured: "Servicio no configurado"
+  heavy_op_running: "Ya hay una operación pesada en ejecución"
+  scheduled_task_not_found: "Tarea programada no encontrada"
+
+config:
+  key_required: "La clave es obligatoria"
+  key_not_found: "Clave de configuración no encontrada"
+
+playback_settings:
+  skip_forward_positive: "skip_forward_seconds debe ser positivo"
+
+user:
+  cannot_update_other: "No se puede actualizar a otro usuario"
+  cannot_escalate_admin: "No se puede escalar a administrador"
+  cannot_create_profile_other: "No se puede crear perfil para otro usuario"
+  cannot_update_profile_other: "No se puede actualizar el perfil de otro usuario"
+  cannot_delete_profile_other: "No se puede eliminar el perfil de otro usuario"
+  cannot_revoke_invite_other: "No se puede revocar el enlace de invitación de otro usuario"
+  cannot_revoke_apikey_other: "No se puede revocar la clave API de otro usuario"
+  invalid_invite_data: "Datos de invitación o registro inválidos"
+  invalid_expired_code: "Código inválido o expirado"
 
 media:
   not_found: "Medio no encontrado"
@@ -46,9 +94,6 @@ subtitle:
   search_failed: "Búsqueda de subtítulos fallida"
   download_failed: "Descarga de subtítulos fallida"
   file_id_required: "El ID de archivo es obligatorio"
-
-library:
-  name_required: "El nombre de la biblioteca es obligatorio"
 
 plugin:
   blocked_by_security: "Plugin bloqueado por el análisis de seguridad"

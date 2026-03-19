@@ -9,7 +9,7 @@ controls:
   exitPip: "Salir de imagen en imagen"
   settings: Ajustes
   episodes: Episodios
-  chapters: "Cap\xEDtulos"
+  chapters: Capítulos
   rewind: "Retroceder {{seconds}}s"
   forward: "Avanzar {{seconds}}s"
   previousEpisode: Episodio anterior
@@ -20,18 +20,18 @@ settings:
   quality: Calidad
   auto: Auto
   audio: Audio
-  subtitles: "Subt\xEDtulos"
+  subtitles: Subtítulos
   speed: Velocidad
-  subtitleStyle: "Estilo de subt\xEDtulos"
+  subtitleStyle: Estilo de subtítulos
   normal: Normal
-  uploadSubtitle: "Subir subt\xEDtulo\u2026"
+  uploadSubtitle: "Subir subtítulo…"
   off: Desactivado
 subtitleStyle:
-  size: "Tama\xF1o"
+  size: Tamaño
   textColor: Color del texto
   background: Fondo
   font: Fuente
-  position: "Posici\xF3n"
+  position: Posición
   top: Arriba
   bottom: Abajo
   textShadow: Sombra del texto
@@ -55,25 +55,25 @@ fonts:
 quality:
   original: Original
 nextEpisodeOverlay:
-  upNext: Up Next
-  nextIn: "Next in {{seconds}}s"
-  playNow: Play Now
-  episode: "Episode {{number}}"
-  nextEpisode: Next Episode
-skipIntro: Skip Intro
-download: Download
+  upNext: "A continuación"
+  nextIn: "Siguiente en {{seconds}}s"
+  playNow: "Reproducir ahora"
+  episode: "Episodio {{number}}"
+  nextEpisode: "Siguiente episodio"
+skipIntro: "Saltar intro"
+download: "Descargar"
 shortcuts:
-  title: Keyboard Shortcuts
-  playPause: Play / Pause
-  toggleFullscreen: Toggle fullscreen
-  toggleMute: Toggle mute
-  seekBack: "Seek back {{seconds}}s"
-  seekForward: "Seek forward {{seconds}}s"
-  volumeUp: Volume up
-  volumeDown: Volume down
-  seekPercent: "Seek to 0%–90%"
-  toggleCaptions: Toggle captions
-  decreaseSpeed: Decrease speed
-  increaseSpeed: Increase speed
-  pip: Picture-in-Picture
-  showShortcuts: Show shortcuts
+  title: "Atajos de teclado"
+  playPause: "Reproducir / Pausar"
+  toggleFullscreen: "Alternar pantalla completa"
+  toggleMute: "Alternar silencio"
+  seekBack: "Retroceder {{seconds}}s"
+  seekForward: "Avanzar {{seconds}}s"
+  volumeUp: "Subir volumen"
+  volumeDown: "Bajar volumen"
+  seekPercent: "Ir a 0%–90%"
+  toggleCaptions: "Alternar subtítulos"
+  decreaseSpeed: "Reducir velocidad"
+  increaseSpeed: "Aumentar velocidad"
+  pip: "Imagen en imagen"
+  showShortcuts: "Mostrar atajos"

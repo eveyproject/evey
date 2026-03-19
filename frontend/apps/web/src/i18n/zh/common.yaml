@@ -1,39 +1,39 @@
-back: "\u8FD4\u56DE"
-save: "\u4FDD\u5B58"
-cancel: "\u53D6\u6D88"
-create: "\u521B\u5EFA"
-delete: "\u5220\u9664"
-enable: "\u542F\u7528"
-disable: "\u7981\u7528"
-skip: "\u8DF3\u8FC7"
-continue: "\u7EE7\u7EED"
-loading: "\u52A0\u8F7D\u4E2D\u2026"
-error: "\u9519\u8BEF"
-unknown: "\u672A\u77E5"
-settings: "\u8BBE\u7F6E"
-select: Select # TODO translate
-selectAll: Select all # TODO translate
-deselectAll: Deselect all # TODO translate
-exit: Exit # TODO translate
-search: Search # TODO translate
-or: or # TODO translate
-previous: Previous # TODO translate
-next: Next # TODO translate
-edit: Edit # TODO translate
-all: All # TODO translate
-items: "{{count}} items" # TODO translate
-item: "{{count}} item" # TODO translate
-filtered: "(filtered)" # TODO translate
-noItemsMatch: No items match the current filter. # TODO translate
-notifications: # TODO translate
-  title: Notifications
-  markRead: Mark read
-  markAllRead: Mark all read
-  deleteAll: Delete all
-  deleteAllTitle: Delete all notifications
-  deleteAllConfirm: This will permanently delete all your notifications. This action cannot be undone.
-  noNotifications: No notifications
-  allCaughtUp: "You're all caught up."
-  justNow: Just now
-watchHistory: # TODO translate
-  title: Watch History
+back: "返回"
+save: "保存"
+cancel: "取消"
+create: "创建"
+delete: "删除"
+enable: "启用"
+disable: "禁用"
+skip: "跳过"
+continue: "继续"
+loading: "加载中…"
+error: "错误"
+unknown: "未知"
+settings: "设置"
+select: "选择"
+selectAll: "全选"
+deselectAll: "取消全选"
+exit: "退出"
+search: "搜索"
+or: "或"
+previous: "上一个"
+next: "下一个"
+edit: "编辑"
+all: "全部"
+items: "{{count}} 项"
+item: "{{count}} 项"
+filtered: "（已过滤）"
+noItemsMatch: "没有匹配当前过滤条件的项目。"
+notifications:
+  title: "通知"
+  markRead: "标记已读"
+  markAllRead: "全部标记已读"
+  deleteAll: "全部删除"
+  deleteAllTitle: "删除所有通知"
+  deleteAllConfirm: "这将永久删除您的所有通知。此操作无法撤销。"
+  noNotifications: "没有通知"
+  allCaughtUp: "已全部查看。"
+  justNow: "刚刚"
+watchHistory:
+  title: "观看历史"
