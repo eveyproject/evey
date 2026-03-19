@@ -37,6 +37,8 @@ function setCache(lng: string, data: Record<string, string>) {
   }
 }
 
+// Skip if already initialized (e.g., test setup inits with static translations)
+if (!i18n.isInitialized) {
 void i18n
   .use(HttpBackend)
   .use(LanguageDetector)
@@ -85,5 +87,6 @@ void i18n
       caches: ["localStorage"],
     },
   });
+}
 
 export default i18n;
