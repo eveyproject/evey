@@ -294,6 +294,7 @@ func (s *ScanService) upsertMediaFile(ctx context.Context, libraryID, parentID s
 			Title:       item.Title,
 			SeriesTitle: showTitle,
 			Type:        item.Type,
+			Genres:      item.Genres,
 			OccurredAt:  time.Now(),
 		}
 		if err := s.events.Publish(ctx, evtAdded); err != nil {
@@ -341,6 +342,7 @@ func (s *ScanService) upsertMediaFile(ctx context.Context, libraryID, parentID s
 			Title:       existing.Title,
 			SeriesTitle: showTitle,
 			Type:        existing.Type,
+			Genres:      existing.Genres,
 			OccurredAt:  time.Now(),
 		}
 		if err := s.events.Publish(ctx, evtReAdded); err != nil {
@@ -438,6 +440,7 @@ func (s *ScanService) scanTVShowFiles(ctx context.Context, libraryID string, fil
 					LibraryID:   libraryID,
 					Title:       seriesItem.Title,
 					Type:        seriesItem.Type,
+					Genres:      seriesItem.Genres,
 					OccurredAt:  time.Now(),
 				}
 				if err := s.events.Publish(ctx, evtSeriesAdded); err != nil {
