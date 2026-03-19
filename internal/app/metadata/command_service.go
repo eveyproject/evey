@@ -230,6 +230,9 @@ func (s *CommandService) StartEnrichmentWorker(ctx context.Context) {
 			}
 		}()
 	}
+	if bulkOK && s.mediaItems != nil {
+		go s.dailyReEnrich(ctx, be)
+	}
 	if singleOK && s.mediaItems != nil {
 		queue := make(chan string, 100)
 		for range 4 {
@@ -260,4 +263,48 @@ func (s *CommandService) StartEnrichmentWorker(ctx context.Context) {
 			}
 		})
 	}
+}
+
+func (s *CommandService) dailyReEnrich(ctx context.Context, be BulkItemEnricher) {
+	ticker := time.NewTicker(24 * time.Hour)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			s.ReEnrichWithoutOverrides(ctx, be)
+		}
+	}
+}
+
+// ReEnrichWithoutOverrides re-enriches all items that have no user overrides.
+func (s *CommandService) ReEnrichWithoutOverrides(ctx context.Context, be BulkItemEnricher) (refreshed, skipped int) {
+	items, err := s.mediaItems.List(ctx, library.ListMediaItemsFilter{Limit: 5000})
+	if err != nil {
+		slog.Warn("re-enrich: list items", slog.Any("err", err))
+		return 0, 0
+	}
+	var toEnrich []*library.MediaItem
+	for _, item := range items {
+		overrides, oErr := s.overrides.GetByMediaItem(ctx, item.ID)
+		if oErr != nil {
+			slog.Warn("re-enrich: check overrides", slog.String("item", item.ID), slog.Any("err", oErr))
+			continue
+		}
+		if len(overrides) > 0 {
+			skipped++
+			continue
+		}
+		toEnrich = append(toEnrich, item)
+	}
+	slog.Info("re-enrich: starting",
+		slog.Int("items", len(toEnrich)),
+		slog.Int("skipped_overrides", skipped),
+	)
+	if len(toEnrich) > 0 {
+		be.AutoEnrichAll(ctx, toEnrich, slog.Default())
+	}
+	slog.Info("re-enrich: done", slog.Int("refreshed", len(toEnrich)), slog.Int("skipped", skipped))
+	return len(toEnrich), skipped
 }

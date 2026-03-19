@@ -2,9 +2,12 @@ package metadata_test
 
 import (
 	"context"
+	"log/slog"
 	"testing"
 
 	appmetadata "github.com/gravity-zero/evey/internal/app/metadata"
+	"github.com/gravity-zero/evey/internal/domain/library"
+	libfakes "github.com/gravity-zero/evey/internal/domain/library/fakes"
 	"github.com/gravity-zero/evey/internal/domain/metadata"
 	metafakes "github.com/gravity-zero/evey/internal/domain/metadata/fakes"
 	sharedfakes "github.com/gravity-zero/evey/internal/domain/shared/fakes"
@@ -231,4 +234,89 @@ func TestDownloadArtwork_Success(t *testing.T) {
 	events := bus.PublishedEvents()
 	require.Len(t, events, 1)
 	assert.Equal(t, "metadata.artwork.downloaded", events[0].EventName())
+}
+
+// fakeBulkEnricher records calls for testing.
+type fakeBulkEnricher struct {
+	enrichedItems []*library.MediaItem
+}
+
+func (f *fakeBulkEnricher) EnrichItem(_ context.Context, _ *library.MediaItem, _ *metadata.MetadataResult) error {
+	return nil
+}
+
+func (f *fakeBulkEnricher) AutoEnrichAll(_ context.Context, items []*library.MediaItem, _ *slog.Logger) {
+	f.enrichedItems = append(f.enrichedItems, items...)
+}
+
+func TestReEnrichWithoutOverrides_SkipsOverriddenItems(t *testing.T) {
+	overrideRepo := metafakes.NewFakeMetadataOverrideRepository()
+	artworkRepo := metafakes.NewFakeArtworkRepository()
+	downloader := metafakes.NewFakeArtworkDownloader()
+	bus := sharedfakes.NewFakeEventBus()
+	cmdSvc := appmetadata.NewCommandService(overrideRepo, artworkRepo, downloader, bus, nil)
+
+	mediaRepo := libfakes.NewFakeMediaItemRepository()
+	enricher := &fakeBulkEnricher{}
+	cmdSvc.WithEnricher(enricher, mediaRepo)
+
+	ctx := context.Background()
+
+	require.NoError(t, mediaRepo.Create(ctx, &library.MediaItem{ID: "item-1", Title: "Movie A"}))
+	require.NoError(t, mediaRepo.Create(ctx, &library.MediaItem{ID: "item-2", Title: "Movie B"}))
+	require.NoError(t, mediaRepo.Create(ctx, &library.MediaItem{ID: "item-3", Title: "Movie C"}))
+
+	require.NoError(t, overrideRepo.Set(ctx, &metadata.MetadataOverride{
+		ID: "ov-1", MediaItemID: "item-2", FieldName: "title", CustomValue: "Custom",
+	}))
+
+	refreshed, skipped := cmdSvc.ReEnrichWithoutOverrides(ctx, enricher)
+
+	assert.Equal(t, 2, refreshed)
+	assert.Equal(t, 1, skipped)
+	assert.Len(t, enricher.enrichedItems, 2)
+	ids := make(map[string]bool)
+	for _, it := range enricher.enrichedItems {
+		ids[it.ID] = true
+	}
+	assert.True(t, ids["item-1"])
+	assert.True(t, ids["item-3"])
+	assert.False(t, ids["item-2"])
+}
+
+func TestReEnrichWithoutOverrides_AllOverridden(t *testing.T) {
+	overrideRepo := metafakes.NewFakeMetadataOverrideRepository()
+	artworkRepo := metafakes.NewFakeArtworkRepository()
+	bus := sharedfakes.NewFakeEventBus()
+	cmdSvc := appmetadata.NewCommandService(overrideRepo, artworkRepo, metafakes.NewFakeArtworkDownloader(), bus, nil)
+
+	mediaRepo := libfakes.NewFakeMediaItemRepository()
+	enricher := &fakeBulkEnricher{}
+	cmdSvc.WithEnricher(enricher, mediaRepo)
+	ctx := context.Background()
+
+	require.NoError(t, mediaRepo.Create(ctx, &library.MediaItem{ID: "item-1", Title: "A"}))
+	require.NoError(t, overrideRepo.Set(ctx, &metadata.MetadataOverride{
+		ID: "ov-1", MediaItemID: "item-1", FieldName: "title", CustomValue: "X",
+	}))
+
+	refreshed, skipped := cmdSvc.ReEnrichWithoutOverrides(ctx, enricher)
+	assert.Equal(t, 0, refreshed)
+	assert.Equal(t, 1, skipped)
+	assert.Empty(t, enricher.enrichedItems)
+}
+
+func TestReEnrichWithoutOverrides_NoItems(t *testing.T) {
+	overrideRepo := metafakes.NewFakeMetadataOverrideRepository()
+	artworkRepo := metafakes.NewFakeArtworkRepository()
+	bus := sharedfakes.NewFakeEventBus()
+	cmdSvc := appmetadata.NewCommandService(overrideRepo, artworkRepo, metafakes.NewFakeArtworkDownloader(), bus, nil)
+
+	mediaRepo := libfakes.NewFakeMediaItemRepository()
+	enricher := &fakeBulkEnricher{}
+	cmdSvc.WithEnricher(enricher, mediaRepo)
+
+	refreshed, skipped := cmdSvc.ReEnrichWithoutOverrides(context.Background(), enricher)
+	assert.Equal(t, 0, refreshed)
+	assert.Equal(t, 0, skipped)
 }

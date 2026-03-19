@@ -99,6 +99,37 @@ func (s *CommandService) GetChapters(ctx context.Context, mediaItemID string) ([
 	return s.metadata.GetChapters(ctx, mediaItemID)
 }
 
+// StartPeriodicScan runs a lightweight full-library scan every 2 minutes as
+// an inotify fallback. Skips libraries already being scanned.
+func (s *CommandService) StartPeriodicScan(ctx context.Context, libQueries library.LibraryQueryRepo) {
+	go func() {
+		ticker := time.NewTicker(2 * time.Minute)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				libs, err := libQueries.List(ctx)
+				if err != nil {
+					slog.Warn("periodic scan: list libraries", slog.Any("err", err))
+					continue
+				}
+				for _, lib := range libs {
+					added, _, scanErr := s.ScanLibrary(ctx, lib.ID)
+					if scanErr != nil {
+						slog.Debug("periodic scan: skip", slog.String("library", lib.Name), slog.Any("err", scanErr))
+						continue
+					}
+					if added > 0 {
+						slog.Info("periodic scan", slog.String("library", lib.Name), slog.Int("new", added))
+					}
+				}
+			}
+		}
+	}()
+}
+
 // --- Delegated to TrickplayService ---
 
 func (s *CommandService) GenerateTrickplay(ctx context.Context, mediaItemID string) error {
