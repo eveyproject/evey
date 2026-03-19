@@ -62,6 +62,13 @@ nextEpisodeOverlay:
   nextEpisode: "下一集"
 skipIntro: "跳过片头"
 download: "下载"
+watchTogether: "一起看"
+failedToStart: "播放启动失败"
+retry: "重试"
+goBack: "返回"
+shareDesc: "分享此链接给朋友一起观看："
+copyLink: "复制链接"
+close: "关闭"
 shortcuts:
   title: "键盘快捷键"
   playPause: "播放 / 暂停"

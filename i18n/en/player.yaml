@@ -62,6 +62,13 @@ nextEpisodeOverlay:
   nextEpisode: Next Episode
 skipIntro: Skip Intro
 download: Download
+watchTogether: Watch Together
+failedToStart: Failed to start playback
+retry: Retry
+goBack: Go back
+shareDesc: "Share this link with friends to watch together:"
+copyLink: Copy link
+close: Close
 shortcuts:
   title: Keyboard Shortcuts
   playPause: Play / Pause

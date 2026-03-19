@@ -1,4 +1,5 @@
 import { createLazyFileRoute, Link } from "@tanstack/react-router";
+import { useTranslation } from "react-i18next";
 import { useCollection, useDeleteCollection } from "@/features/collection/api";
 import { Spinner } from "@/components/ui/Spinner";
 import { EmptyState } from "@/components/ui/EmptyState";
@@ -20,6 +21,7 @@ const OP_LABELS: Record<string, string> = {
 };
 
 function SmartFilterPage() {
+  const { t } = useTranslation();
   const { filterId } = Route.useParams();
   const navigate = Route.useNavigate();
   const { data, isLoading } = useCollection(filterId);
@@ -31,13 +33,13 @@ function SmartFilterPage() {
   const total = data?.total ?? items.length;
 
   function handleDelete() {
-    if (!confirm(`Delete "${col?.name}"?`)) return;
+    if (!confirm(t("media.collections.deleteSmartConfirm"))) return;
     deleteMut.mutate(filterId, {
       onSuccess: () => {
-        toast.success("Smart collection deleted");
+        toast.success(t("media.collections.smartDeleted"));
         navigate({ to: "/collections" });
       },
-      onError: () => toast.error("Failed to delete"),
+      onError: () => toast.error(t("media.collections.deleteFailed")),
     });
   }
 
@@ -45,7 +47,7 @@ function SmartFilterPage() {
     return (
       <div>
         <BackButton fallback="/collections" />
-        <EmptyState icon="library" title="Collection not found" description="This smart collection no longer exists." />
+        <EmptyState icon="library" title={t("media.collections.notFound")} description={t("media.collections.notFoundDesc")} />
       </div>
     );
   }
@@ -58,13 +60,13 @@ function SmartFilterPage() {
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 mb-1 flex-wrap">
             <h1 className="text-2xl font-bold" style={{ color: "var(--text)" }}>
-              {col?.name ?? "…"}
+              {col?.name ?? "\u2026"}
             </h1>
             <span
               className="text-xs font-semibold px-2 py-0.5 rounded-full"
               style={{ backgroundColor: "var(--accent)", color: "var(--filter-active-text)" }}
             >
-              Smart
+              {t("media.collections.smart")}
             </span>
           </div>
           {rules.length > 0 && (
@@ -78,13 +80,13 @@ function SmartFilterPage() {
           )}
           {!isLoading && (
             <p className="text-sm mt-2" style={{ color: "var(--text-muted)" }}>
-              {total} {total === 1 ? "item" : "items"}
+              {total === 1 ? t("common.item", { count: total }) : t("common.items", { count: total })}
             </p>
           )}
         </div>
         <div className="flex gap-2 flex-shrink-0">
           <Button variant="danger" onClick={handleDelete} type="button" loading={deleteMut.isPending}>
-            Delete
+            {t("common.delete")}
           </Button>
         </div>
       </div>
@@ -98,8 +100,8 @@ function SmartFilterPage() {
         >
           <EmptyState
             icon="library"
-            title="No results"
-            description={rules.length === 0 ? "This collection has no rules configured." : "No items match the current rules."}
+            title={t("media.search.noResults")}
+            description={rules.length === 0 ? t("media.collections.noRules") : t("media.collections.noRuleMatch")}
           />
         </div>
       ) : (
@@ -131,7 +133,7 @@ function SmartFilterPage() {
             ))}
           </div>
           <div className="px-4 py-2 text-xs" style={{ color: "var(--text-muted)", borderTop: "1px solid var(--border)" }}>
-            {items.length} item{items.length !== 1 ? "s" : ""}
+            {items.length === 1 ? t("common.item", { count: items.length }) : t("common.items", { count: items.length })}
           </div>
         </div>
       )}

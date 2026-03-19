@@ -1,4 +1,5 @@
 import { createLazyFileRoute, Link } from "@tanstack/react-router";
+import { useTranslation } from "react-i18next";
 import { useLibraryServiceListLibraries, useLibraryServiceListMediaItems } from "@evey/api";
 import type { V1Library, V1LibraryType } from "@evey/api/src/generated/library.schemas";
 import { Badge } from "@/components/ui/Badge";
@@ -10,16 +11,13 @@ export const Route = createLazyFileRoute("/_auth/library/")({
   component: LibraryIndex,
 });
 
-function libraryTypeLabel(type?: V1LibraryType): string {
-  switch (type) {
-    case "LIBRARY_TYPE_MOVIES": return "Movies";
-    case "LIBRARY_TYPE_SHOWS": return "TV Shows";
-    case "LIBRARY_TYPE_MUSIC": return "Music";
-    case "LIBRARY_TYPE_PHOTOS": return "Photos";
-    case "LIBRARY_TYPE_BOOKS": return "Books";
-    default: return "Library";
-  }
-}
+const LIBRARY_TYPE_KEYS: Record<string, string> = {
+  LIBRARY_TYPE_MOVIES: "media.library.movies",
+  LIBRARY_TYPE_SHOWS: "media.library.tvShows",
+  LIBRARY_TYPE_MUSIC: "media.library.music",
+  LIBRARY_TYPE_PHOTOS: "media.library.photos",
+  LIBRARY_TYPE_BOOKS: "media.library.books",
+};
 
 function libraryTypeIcon(type?: V1LibraryType) {
   switch (type) {
@@ -73,6 +71,7 @@ function LibraryCardSkeleton() {
 }
 
 function LibraryItemCount({ libraryId }: { libraryId: string }) {
+  const { t } = useTranslation();
   const { data } = useLibraryServiceListMediaItems({
     libraryId,
     "pagination.page": 1,
@@ -82,13 +81,15 @@ function LibraryItemCount({ libraryId }: { libraryId: string }) {
   if (total === undefined) return null;
   return (
     <span className="text-sm" style={{ color: "var(--text-muted)" }}>
-      {total} {total === 1 ? "item" : "items"}
+      {total === 1 ? t("common.item", { count: total }) : t("common.items", { count: total })}
     </span>
   );
 }
 
 function LibraryCard({ library }: { library: V1Library }) {
-  const label = libraryTypeLabel(library.type);
+  const { t } = useTranslation();
+  const typeKey = LIBRARY_TYPE_KEYS[library.type ?? ""] ?? "media.library.title";
+  const label = t(typeKey);
   const icon = libraryTypeIcon(library.type);
 
   return (
@@ -127,7 +128,7 @@ function LibraryCard({ library }: { library: V1Library }) {
           {library.id && <LibraryItemCount libraryId={library.id} />}
           {library.updatedAt && (
             <p className="text-xs mt-2" style={{ color: "var(--text-muted)" }}>
-              Updated {new Date(library.updatedAt).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })}
+              {t("media.updated")} {new Date(library.updatedAt).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })}
             </p>
           )}
         </div>
@@ -147,6 +148,7 @@ function LibraryCard({ library }: { library: V1Library }) {
 }
 
 function LibraryIndex() {
+  const { t } = useTranslation();
   const { data, isLoading } = useLibraryServiceListLibraries();
   const libraries = data?.libraries ?? [];
 
@@ -154,11 +156,13 @@ function LibraryIndex() {
     <div>
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-2xl font-bold" style={{ color: "var(--text)" }}>
-          Libraries
+          {t("media.library.libraries")}
         </h1>
         {!isLoading && libraries.length > 0 && (
           <span className="text-sm" style={{ color: "var(--text-muted)" }}>
-            {libraries.length} {libraries.length === 1 ? "library" : "libraries"}
+            {libraries.length === 1
+              ? `1 ${t("media.library.title").toLowerCase()}`
+              : `${libraries.length} ${t("media.library.libraries").toLowerCase()}`}
           </span>
         )}
       </div>
@@ -176,10 +180,10 @@ function LibraryIndex() {
         >
           <EmptyState
             icon="library"
-            title="No libraries configured"
-            description="Add a library in the admin panel to start browsing your media collection."
+            title={t("media.library.noLibraries")}
+            description={t("media.library.noLibrariesDesc")}
             action={{
-              label: "Go to Admin",
+              label: t("media.library.goToAdmin"),
               onClick: () => { window.location.href = "/admin/libraries"; },
             }}
           />

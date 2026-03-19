@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { createLazyFileRoute, Link } from "@tanstack/react-router";
+import { useTranslation } from "react-i18next";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { EmptyState } from "@/components/ui/EmptyState";
@@ -27,6 +28,7 @@ function PlaylistCardSkeleton() {
 }
 
 function PlaylistCard({ playlist, onDelete }: { playlist: Playlist; onDelete: () => void }) {
+  const { t } = useTranslation();
   return (
     <div
       className="group p-5 transition-all duration-200"
@@ -60,14 +62,14 @@ function PlaylistCard({ playlist, onDelete }: { playlist: Playlist; onDelete: ()
             <p className="text-xs truncate" style={{ color: "var(--text-muted)" }}>{playlist.description}</p>
           )}
           <p className="text-xs mt-1" style={{ color: "var(--text-muted)" }}>
-            Created {new Date(playlist.created_at).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })}
+            {t("media.created")} {new Date(playlist.created_at).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })}
           </p>
         </div>
         <button
           onClick={(e) => { e.preventDefault(); onDelete(); }}
           className="opacity-0 group-hover:opacity-100 p-1.5 rounded-full hover:bg-[var(--surface-raised)] transition-all"
           style={{ color: "var(--text-muted)" }}
-          title="Delete playlist"
+          title={t("media.playlist.deletePlaylist")}
         >
           <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" />
@@ -79,23 +81,24 @@ function PlaylistCard({ playlist, onDelete }: { playlist: Playlist; onDelete: ()
 }
 
 function PlaylistsIndex() {
+  const { t } = useTranslation();
   const { data: playlists, isLoading } = usePlaylistList();
   const deletePlaylist = useDeletePlaylist();
   const [createOpen, setCreateOpen] = useState(false);
 
   function handleDelete(id: string, name: string) {
-    if (!confirm(`Delete "${name}"?`)) return;
+    if (!confirm(t("media.playlist.deleteConfirm", { name }))) return;
     deletePlaylist.mutate(id, {
-      onSuccess: () => toast.success(`Deleted "${name}"`),
-      onError: () => toast.error("Failed to delete"),
+      onSuccess: () => toast.success(t("media.playlist.deleted", { name })),
+      onError: () => toast.error(t("media.playlist.deleteFailed")),
     });
   }
 
   return (
     <div>
       <div className="flex items-center justify-between mb-6">
-        <h1 className="text-2xl font-bold" style={{ color: "var(--text)" }}>Playlists</h1>
-        <Button onClick={() => setCreateOpen(true)}>+ New Playlist</Button>
+        <h1 className="text-2xl font-bold" style={{ color: "var(--text)" }}>{t("media.playlist.playlists")}</h1>
+        <Button onClick={() => setCreateOpen(true)}>{t("media.playlist.newPlaylist")}</Button>
       </div>
 
       {isLoading ? (
@@ -106,9 +109,9 @@ function PlaylistsIndex() {
         <div className="rounded-[var(--radius-lg)]" style={{ backgroundColor: "var(--surface)", border: "1px solid var(--border)" }}>
           <EmptyState
             icon="library"
-            title="No playlists yet"
-            description="Create a playlist to organize your media."
-            action={{ label: "Create Playlist", onClick: () => setCreateOpen(true) }}
+            title={t("media.playlist.noPlaylists")}
+            description={t("media.playlist.noPlaylistsDesc")}
+            action={{ label: t("media.playlist.createPlaylist"), onClick: () => setCreateOpen(true) }}
           />
         </div>
       ) : (

@@ -62,6 +62,13 @@ nextEpisodeOverlay:
   nextEpisode: "Siguiente episodio"
 skipIntro: "Saltar intro"
 download: "Descargar"
+watchTogether: "Ver juntos"
+failedToStart: "Error al iniciar la reproducción"
+retry: "Reintentar"
+goBack: "Volver"
+shareDesc: "Comparte este enlace con tus amigos para ver juntos:"
+copyLink: "Copiar enlace"
+close: "Cerrar"
 shortcuts:
   title: "Atajos de teclado"
   playPause: "Reproducir / Pausar"

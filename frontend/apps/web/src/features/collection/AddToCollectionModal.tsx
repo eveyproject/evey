@@ -5,6 +5,7 @@ import { toast } from "@evey/store";
 import { eveyFetch } from "@evey/api";
 import { useCollections } from "./api";
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 
 interface Props {
   open: boolean;
@@ -13,6 +14,7 @@ interface Props {
 }
 
 export function AddToCollectionModal({ open, onClose, mediaItemIds }: Props) {
+  const { t } = useTranslation();
   const { data, isLoading } = useCollections();
   const collections = data?.collections ?? [];
   const [pending, setPending] = useState(false);
@@ -30,25 +32,25 @@ export function AddToCollectionModal({ open, onClose, mediaItemIds }: Props) {
         )
       );
       toast.success(
-        `${mediaItemIds.length} item${mediaItemIds.length > 1 ? "s" : ""} added to "${collectionName}"`
+        t("media.collections.itemsAdded", { count: mediaItemIds.length, name: collectionName })
       );
       onClose();
     } catch {
-      toast.error("Failed to add to collection");
+      toast.error(t("media.collections.addFailed"));
     } finally {
       setPending(false);
     }
   }
 
   return (
-    <Modal open={open} onClose={onClose} title="Add to Collection">
+    <Modal open={open} onClose={onClose} title={t("media.contextMenu.addToCollection")}>
       {isLoading ? (
         <div className="flex justify-center py-8">
           <Spinner />
         </div>
       ) : collections.length === 0 ? (
         <p className="text-sm text-center py-6" style={{ color: "var(--text-muted)" }}>
-          No collections available.
+          {t("media.collections.noCollectionsAvailable")}
         </p>
       ) : (
         <div className="space-y-1">
@@ -74,7 +76,7 @@ export function AddToCollectionModal({ open, onClose, mediaItemIds }: Props) {
       )}
       {pending && (
         <div className="flex justify-center pt-4">
-          <Button variant="ghost" disabled>Adding…</Button>
+          <Button variant="ghost" disabled>{t("media.collections.adding")}</Button>
         </div>
       )}
     </Modal>

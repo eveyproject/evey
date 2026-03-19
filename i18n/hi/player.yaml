@@ -62,6 +62,13 @@ nextEpisodeOverlay:
   nextEpisode: "अगला एपिसोड"
 skipIntro: "इंट्रो छोड़ें"
 download: "डाउनलोड"
+watchTogether: "साथ में देखें"
+failedToStart: "प्लेबैक शुरू करने में विफल"
+retry: "पुनः प्रयास करें"
+goBack: "वापस जाएं"
+shareDesc: "साथ में देखने के लिए यह लिंक दोस्तों को भेजें:"
+copyLink: "लिंक कॉपी करें"
+close: "बंद करें"
 shortcuts:
   title: "कीबोर्ड शॉर्टकट"
   playPause: "चलाएं / रोकें"

@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { createLazyFileRoute } from "@tanstack/react-router";
+import { useTranslation } from "react-i18next";
 import { useCollection, useDeleteCollection } from "@/features/collection/api";
 import { MediaGrid } from "@/features/library/MediaGrid";
 import { MediaCard } from "@/features/library/MediaCard";
@@ -13,6 +14,7 @@ export const Route = createLazyFileRoute("/_auth/collections/$collectionId")({
 });
 
 function CollectionDetailPage() {
+  const { t } = useTranslation();
   const { collectionId } = Route.useParams();
   const [page, setPage] = useState(1);
   const pageSize = 50;
@@ -69,20 +71,20 @@ function CollectionDetailPage() {
               <Button
                 variant="danger"
                 onClick={() => {
-                  if (confirm("Delete this collection?")) {
+                  if (confirm(t("media.collections.deleteConfirm"))) {
                     deleteMut.mutate(collectionId, {
                       onSuccess: () => navigate({ to: "/collections" }),
                     });
                   }
                 }}
               >
-                Delete
+                {t("common.delete")}
               </Button>
             </div>
           )}
 
           <p className="text-xs mb-4" style={{ color: "var(--text-muted)" }}>
-            {total} {total === 1 ? "item" : "items"}
+            {total === 1 ? t("common.item", { count: total }) : t("common.items", { count: total })}
           </p>
         </>
       )}
@@ -96,8 +98,8 @@ function CollectionDetailPage() {
         >
           <EmptyState
             icon="library"
-            title="No items"
-            description="This collection has no media items yet."
+            title={t("media.collections.noItems")}
+            description={t("media.collections.noItemsDesc")}
           />
         </div>
       ) : (

@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useTranslation } from "react-i18next";
 import { Modal } from "@/components/ui/Modal";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
@@ -161,6 +162,7 @@ interface SmartCollectionDialogProps {
 }
 
 export function SmartCollectionDialog({ open, onClose, onSaved, editing }: SmartCollectionDialogProps) {
+  const { t } = useTranslation();
   const [name, setName] = useState(editing?.name ?? "");
   const [rules, setRules] = useState<SmartRule[]>(editing?.rules ?? []);
   const [nameError, setNameError] = useState("");
@@ -194,7 +196,7 @@ export function SmartCollectionDialog({ open, onClose, onSaved, editing }: Smart
   }
 
   async function handleSave() {
-    if (!name.trim()) { setNameError("Name is required"); return; }
+    if (!name.trim()) { setNameError(t("media.collections.nameRequired")); return; }
 
     const validRules: CollectionRule[] = rules
       .filter((r) => r.value.trim() !== "")
@@ -209,28 +211,28 @@ export function SmartCollectionDialog({ open, onClose, onSaved, editing }: Smart
           name: name.trim(),
           rules: validRules,
         });
-        toast.success("Smart collection updated");
+        toast.success(t("media.collections.smartUpdated"));
       } else {
         await createCollection.mutateAsync({
           name: name.trim(),
           rules: validRules,
         });
-        toast.success("Smart collection created");
+        toast.success(t("media.collections.smartCreated"));
       }
       onSaved();
       onClose();
     } catch {
-      toast.error("Failed to save smart collection");
+      toast.error(t("media.collections.smartSaveFailed"));
     }
   }
 
   const isSaving = createCollection.isPending || updateCollection.isPending;
 
   return (
-    <Modal open={open} onClose={onClose} title={editing ? "Edit smart collection" : "New smart collection"}>
+    <Modal open={open} onClose={onClose} title={editing ? t("media.collections.editSmartCollection") : t("media.collections.newSmartCollection")}>
       <div className="flex flex-col gap-5">
         <Input
-          label="Name"
+          label={t("common.name")}
           value={name}
           onChange={(e) => { setName(e.target.value); setNameError(""); }}
           placeholder="e.g. Action movies after 2015"
@@ -240,11 +242,11 @@ export function SmartCollectionDialog({ open, onClose, onSaved, editing }: Smart
 
         <div className="flex flex-col gap-2">
           <span className="text-sm font-medium" style={{ color: "var(--text-muted)" }}>
-            Rules
+            {t("media.playlist.rules")}
           </span>
           {rules.length === 0 && (
             <p className="text-sm" style={{ color: "var(--text-muted)" }}>
-              No rules yet. Add at least one rule to filter items.
+              {t("media.collections.noRulesYet")}
             </p>
           )}
           {rules.map((rule, i) => (
@@ -282,10 +284,10 @@ export function SmartCollectionDialog({ open, onClose, onSaved, editing }: Smart
 
         <div className="flex justify-end gap-2 pt-1">
           <Button variant="secondary" onClick={onClose} type="button">
-            Cancel
+            {t("common.cancel")}
           </Button>
           <Button onClick={handleSave} type="button" loading={isSaving}>
-            {editing ? "Save changes" : "Create"}
+            {editing ? t("media.collections.saveChanges") : t("common.create")}
           </Button>
         </div>
       </div>
