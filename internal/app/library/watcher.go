@@ -25,10 +25,11 @@ type WatcherService struct {
 	log       *slog.Logger
 	bus       shared.EventBus
 
-	mu        sync.Mutex
-	pathToLib map[string]string // watched path → library ID
-	cancel    context.CancelFunc
-	ctx       context.Context
+	mu            sync.Mutex
+	pathToLib     map[string]string // watched path → library ID
+	failedLibs    map[string]bool   // library IDs where inotify failed → need periodic scan
+	cancel        context.CancelFunc
+	ctx           context.Context
 }
 
 func NewWatcherService(
@@ -38,11 +39,12 @@ func NewWatcherService(
 	log *slog.Logger,
 ) *WatcherService {
 	return &WatcherService{
-		watcher:   watcher,
-		libraries: libraries,
-		scanner:   scanner,
-		log:       log,
-		pathToLib: make(map[string]string),
+		watcher:    watcher,
+		libraries:  libraries,
+		scanner:    scanner,
+		log:        log,
+		pathToLib:  make(map[string]string),
+		failedLibs: make(map[string]bool),
 	}
 }
 
@@ -90,14 +92,31 @@ func (ws *WatcherService) Start(ctx context.Context) error {
 func (ws *WatcherService) watchLibrary(lib *library.Library) {
 	ws.mu.Lock()
 	defer ws.mu.Unlock()
+	allFailed := true
 	for _, p := range lib.Paths {
 		if err := ws.watcher.Watch(p); err != nil {
-			ws.log.Warn("watcher: failed to watch path", slog.String("path", p), slog.Any("err", err))
+			ws.log.Warn("watcher: inotify failed for path, will use periodic scan", slog.String("path", p), slog.String("library", lib.Name), slog.Any("err", err))
 			continue
 		}
+		allFailed = false
 		ws.pathToLib[p] = lib.ID
 		ws.log.Info("watcher: watching", slog.String("path", p), slog.String("library", lib.Name))
 	}
+	if allFailed && len(lib.Paths) > 0 {
+		ws.failedLibs[lib.ID] = true
+		ws.log.Info("watcher: library needs periodic scan fallback", slog.String("library", lib.Name))
+	}
+}
+
+// FailedLibraryIDs returns library IDs where inotify couldn't watch any path.
+func (ws *WatcherService) FailedLibraryIDs() []string {
+	ws.mu.Lock()
+	defer ws.mu.Unlock()
+	ids := make([]string, 0, len(ws.failedLibs))
+	for id := range ws.failedLibs {
+		ids = append(ids, id)
+	}
+	return ids
 }
 
 // AddLibrary registers a library for watching at runtime (e.g. after creation).

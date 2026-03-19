@@ -99,13 +99,21 @@ func (s *CommandService) GetChapters(ctx context.Context, mediaItemID string) ([
 	return s.metadata.GetChapters(ctx, mediaItemID)
 }
 
-// StartPeriodicScan runs a lightweight full-library scan at the given interval
-// as an inotify fallback. Skips libraries already being scanned.
-func (s *CommandService) StartPeriodicScan(ctx context.Context, libQueries library.LibraryQueryRepo, interval time.Duration) {
+// StartPeriodicScan runs a lightweight scan at the given interval for specific library IDs
+// where inotify is unavailable. If libraryIDs is empty, scans all libraries.
+func (s *CommandService) StartPeriodicScan(ctx context.Context, libQueries library.LibraryQueryRepo, interval time.Duration, libraryIDs []string) {
 	if interval <= 0 {
 		interval = 2 * time.Minute
 	}
-	slog.Info("periodic scan started", slog.Duration("interval", interval))
+	if len(libraryIDs) > 0 {
+		slog.Info("periodic scan started (fallback for inotify-failed libraries)", slog.Duration("interval", interval), slog.Int("libraries", len(libraryIDs)))
+	} else {
+		slog.Info("periodic scan started (all libraries)", slog.Duration("interval", interval))
+	}
+	targetSet := make(map[string]bool, len(libraryIDs))
+	for _, id := range libraryIDs {
+		targetSet[id] = true
+	}
 	go func() {
 		ticker := time.NewTicker(interval)
 		defer ticker.Stop()
@@ -120,6 +128,9 @@ func (s *CommandService) StartPeriodicScan(ctx context.Context, libQueries libra
 					continue
 				}
 				for _, lib := range libs {
+					if len(targetSet) > 0 && !targetSet[lib.ID] {
+						continue
+					}
 					added, scanErr := func() (a int, err error) {
 						defer func() {
 							if r := recover(); r != nil {

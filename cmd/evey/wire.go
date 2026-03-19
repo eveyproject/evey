@@ -223,15 +223,18 @@ func buildServices(ctx context.Context, cfg *config.Config, db *sql.DB, rootLog 
 	pluginLogger.StartCleanup(ctx, &pluginIDLister{repo: r.Plugin})
 
 	// --- Filesystem watcher ---
-	watcherOK := startWatcher(ctx, cfg, bus, r.Library, libCmdSvc, rootLog)
+	watcherSvc := startWatcher(ctx, cfg, bus, r.Library, libCmdSvc, rootLog)
 
 	libCmdSvc.WithShutdownCtx(ctx)
 
 	// --- Background workers ---
-	// Periodic scan only as fallback when inotify is unavailable
-	if !watcherOK {
-		rootLog.Info("inotify unavailable, falling back to periodic scan")
-		libCmdSvc.StartPeriodicScan(ctx, r.Library, cfg.Library.PeriodicScanInterval)
+	// Periodic scan only for libraries where inotify failed
+	if watcherSvc == nil {
+		rootLog.Info("inotify unavailable, falling back to periodic scan for all libraries")
+		libCmdSvc.StartPeriodicScan(ctx, r.Library, cfg.Library.PeriodicScanInterval, nil)
+	} else if failedIDs := watcherSvc.FailedLibraryIDs(); len(failedIDs) > 0 {
+		rootLog.Info("periodic scan fallback for inotify-failed libraries", slog.Int("count", len(failedIDs)))
+		libCmdSvc.StartPeriodicScan(ctx, r.Library, cfg.Library.PeriodicScanInterval, failedIDs)
 	}
 	if tmdbKey != "" {
 		metadataCmdSvc.StartEnrichmentWorker(ctx)
@@ -370,27 +373,27 @@ func buildServices(ctx context.Context, cfg *config.Config, db *sql.DB, rootLog 
 	}, nil
 }
 
-func startWatcher(ctx context.Context, cfg *config.Config, bus *eventbus.InMemoryEventBus, libraryRepo *postgres.LibraryRepository, libCmdSvc *applibrary.CommandService, rootLog *slog.Logger) bool {
+func startWatcher(ctx context.Context, cfg *config.Config, bus *eventbus.InMemoryEventBus, libraryRepo *postgres.LibraryRepository, libCmdSvc *applibrary.CommandService, rootLog *slog.Logger) *applibrary.WatcherService {
 	if !cfg.Library.WatcherEnabled {
-		return false
+		return nil
 	}
 	fsWatcher, err := filesystem.NewFSWatcher()
 	if err != nil {
 		rootLog.Warn("filesystem watcher init failed, realtime monitoring disabled", slog.Any("err", err))
-		return false
+		return nil
 	}
 	watcherSvc := applibrary.NewWatcherService(fsWatcher, libraryRepo, libCmdSvc, eveylogger.NewWith(rootLog, "watcher")).
 		WithEventBus(bus)
 	if err := watcherSvc.Start(context.Background()); err != nil {
 		rootLog.Warn("watcher start failed", slog.Any("err", err))
-		return false
+		return nil
 	}
 	rootLog.Info("filesystem watcher started")
 	go func() {
 		<-ctx.Done()
 		watcherSvc.Stop()
 	}()
-	return true
+	return watcherSvc
 }
 
 func resolveAPIKey(cfgRepo *postgres.ServerConfigRepository, dbKey, envVar string) string {
