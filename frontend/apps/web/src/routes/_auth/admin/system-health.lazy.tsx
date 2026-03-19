@@ -108,7 +108,7 @@ interface StorageCardProps {
 }
 
 function StorageCard({ path, usedBytes, totalBytes, freeBytes }: StorageCardProps) {
-  const { t } = useTranslation("admin");
+  const { t } = useTranslation();
   const used = parseInt(usedBytes ?? "0");
   const total = parseInt(totalBytes ?? "1");
   const pct = total > 0 ? Math.round((used / total) * 100) : 0;
@@ -130,9 +130,9 @@ function StorageCard({ path, usedBytes, totalBytes, freeBytes }: StorageCardProp
         />
       </div>
       <div className="flex justify-between text-xs" style={{ color: "var(--text-muted)" }}>
-        <span>{t("systemHealth.used", { size: formatBytes(usedBytes) })}</span>
-        <span>{t("systemHealth.free", { size: formatBytes(freeBytes) })}</span>
-        <span>{t("systemHealth.total", { size: formatBytes(totalBytes) })}</span>
+        <span>{t("admin.systemHealth.used", { size: formatBytes(usedBytes) })}</span>
+        <span>{t("admin.systemHealth.free", { size: formatBytes(freeBytes) })}</span>
+        <span>{t("admin.systemHealth.total", { size: formatBytes(totalBytes) })}</span>
       </div>
     </div>
   );
@@ -149,26 +149,26 @@ function InfoRow({ label, value }: { label: string; value: string | undefined })
 }
 
 function ServerInfoPanel({ info }: { info: V1SystemInfo }) {
-  const { t } = useTranslation("admin");
+  const { t } = useTranslation();
   const devices = info.hwDevices ?? [];
   return (
     <div
       className="p-4 rounded-[var(--radius-lg)]"
       style={{ backgroundColor: "var(--surface)", border: "1px solid var(--border)" }}
     >
-      <h3 className="text-sm font-semibold mb-4" style={{ color: "var(--text)" }}>{t("systemHealth.serverInfo")}</h3>
+      <h3 className="text-sm font-semibold mb-4" style={{ color: "var(--text)" }}>{t("admin.systemHealth.serverInfo")}</h3>
       <dl className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-x-6 gap-y-4">
-        <InfoRow label={t("dashboard.version")} value={info.version} />
-        <InfoRow label={t("dashboard.os")} value={info.os && info.arch ? `${info.os}/${info.arch}` : info.os} />
+        <InfoRow label={t("admin.dashboard.version")} value={info.version} />
+        <InfoRow label={t("admin.dashboard.os")} value={info.os && info.arch ? `${info.os}/${info.arch}` : info.os} />
         <InfoRow label="Go" value={info.goVersion} />
-        <InfoRow label={t("dashboard.ffmpeg")} value={info.ffmpegVersion} />
-        <InfoRow label={t("dashboard.uptime")} value={formatUptime(info.uptimeSeconds)} />
-        <InfoRow label={t("systemHealth.serverId")} value={info.serverId} />
+        <InfoRow label={t("admin.dashboard.ffmpeg")} value={info.ffmpegVersion} />
+        <InfoRow label={t("admin.dashboard.uptime")} value={formatUptime(info.uptimeSeconds)} />
+        <InfoRow label={t("admin.systemHealth.serverId")} value={info.serverId} />
       </dl>
       {devices.length > 0 && (
         <div className="mt-4">
           <p className="text-xs font-semibold uppercase tracking-wide mb-2" style={{ color: "var(--text-muted)" }}>
-            {t("systemHealth.hwAcceleration")}
+            {t("admin.systemHealth.hwAcceleration")}
           </p>
           <div className="flex flex-wrap gap-2">
             {devices.map((d, i) => (
@@ -200,19 +200,19 @@ function StatBadge({ label, value }: { label: string; value: number | undefined 
 }
 
 function DashboardPanel({ info }: { info: V1DashboardInfo; }) {
-  const { t } = useTranslation("admin");
+  const { t } = useTranslation();
   return (
     <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-      <StatBadge label={t("systemHealth.activeStreams")} value={info.activeStreams} />
-      <StatBadge label={t("systemHealth.activeTranscodes")} value={info.activeTranscodes} />
-      <StatBadge label={t("systemHealth.totalMedia")} value={info.totalMediaItems} />
-      <StatBadge label={t("systemHealth.totalUsers")} value={info.totalUsers} />
+      <StatBadge label={t("admin.systemHealth.activeStreams")} value={info.activeStreams} />
+      <StatBadge label={t("admin.systemHealth.activeTranscodes")} value={info.activeTranscodes} />
+      <StatBadge label={t("admin.systemHealth.totalMedia")} value={info.totalMediaItems} />
+      <StatBadge label={t("admin.systemHealth.totalUsers")} value={info.totalUsers} />
     </div>
   );
 }
 
 function SystemHealthPage() {
-  const { t } = useTranslation("admin");
+  const { t } = useTranslation();
   const { data: dashData, isLoading: dashLoading, dataUpdatedAt } = useAdminServiceGetDashboard({
     query: { refetchInterval: 5_000 },
   });
@@ -236,10 +236,10 @@ function SystemHealthPage() {
     <div className="flex flex-col gap-6">
       <div className="flex items-center justify-between flex-wrap gap-2">
         <div>
-          <h1 className="text-2xl font-bold" style={{ color: "var(--text)" }}>{t("systemHealth.title")}</h1>
+          <h1 className="text-2xl font-bold" style={{ color: "var(--text)" }}>{t("admin.systemHealth.title")}</h1>
           {dataUpdatedAt > 0 && (
             <p className="text-xs mt-1" style={{ color: "var(--text-muted)" }}>
-              {t("systemHealth.autoRefresh", { time: new Date(dataUpdatedAt).toLocaleTimeString() })}
+              {t("admin.systemHealth.autoRefresh", { time: new Date(dataUpdatedAt).toLocaleTimeString() })}
             </p>
           )}
         </div>
@@ -252,12 +252,12 @@ function SystemHealthPage() {
           {dashData && (
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <MetricCard
-                label={t("systemHealth.cpuUsage")}
+                label={t("admin.systemHealth.cpuUsage")}
                 value={dashData.cpuPercent ?? 0}
                 history={cpuHistory.current}
               />
               <MetricCard
-                label={t("systemHealth.memoryUsage")}
+                label={t("admin.systemHealth.memoryUsage")}
                 value={dashData.memoryPercent ?? 0}
                 history={memHistory.current}
               />
@@ -267,7 +267,7 @@ function SystemHealthPage() {
           {dashData?.storage && dashData.storage.length > 0 && (
             <div>
               <h2 className="text-sm font-semibold uppercase tracking-wide mb-3" style={{ color: "var(--text-muted)" }}>
-                {t("systemHealth.storage")}
+                {t("admin.systemHealth.storage")}
               </h2>
               <div className="flex flex-col gap-3">
                 {dashData.storage.map((s, i) => (
@@ -286,7 +286,7 @@ function SystemHealthPage() {
           {dashData && (
             <div>
               <h2 className="text-sm font-semibold uppercase tracking-wide mb-3" style={{ color: "var(--text-muted)" }}>
-                {t("systemHealth.activitySection")}
+                {t("admin.systemHealth.activitySection")}
               </h2>
               <DashboardPanel info={dashData} />
             </div>
@@ -295,7 +295,7 @@ function SystemHealthPage() {
           {sysData && (
             <div>
               <h2 className="text-sm font-semibold uppercase tracking-wide mb-3" style={{ color: "var(--text-muted)" }}>
-                {t("systemHealth.server")}
+                {t("admin.systemHealth.server")}
               </h2>
               <ServerInfoPanel info={sysData} />
             </div>

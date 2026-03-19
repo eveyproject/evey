@@ -14,7 +14,7 @@ export const Route = createLazyFileRoute("/_auth/admin/audit")({
 const PAGE_SIZE = 50;
 
 function AuditPage() {
-  const { t } = useTranslation("admin");
+  const { t } = useTranslation();
   const [page, setPage] = useState(0);
   const [actionFilter, setActionFilter] = useState("");
   const [resourceFilter, setResourceFilter] = useState("");
@@ -48,7 +48,7 @@ function AuditPage() {
   return (
     <div className="flex flex-col gap-6">
       <h1 className="text-2xl font-bold" style={{ color: "var(--text)" }}>
-        {t("audit.title")}
+        {t("admin.audit.title")}
       </h1>
 
       <div
@@ -56,23 +56,23 @@ function AuditPage() {
         style={{ backgroundColor: "var(--surface)", border: "1px solid var(--border)" }}
       >
         <Input
-          label={t("audit.action")}
+          label={t("admin.audit.action")}
           value={actionFilter}
           onChange={(e) => setActionFilter(e.target.value)}
           placeholder="e.g. login"
           className="w-48"
         />
         <Input
-          label={t("audit.resourceType")}
+          label={t("admin.audit.resourceType")}
           value={resourceFilter}
           onChange={(e) => setResourceFilter(e.target.value)}
           placeholder="e.g. library"
           className="w-48"
         />
         <div className="flex gap-2">
-          <Button onClick={applyFilters}>{t("common:apply")}</Button>
+          <Button onClick={applyFilters}>{t("common.apply")}</Button>
           <Button variant="secondary" onClick={clearFilters}>
-            {t("common:clear")}
+            {t("common.clear")}
           </Button>
         </div>
       </div>

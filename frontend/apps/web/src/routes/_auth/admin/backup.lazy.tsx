@@ -41,33 +41,33 @@ function useBackups() {
 }
 
 function useCreateBackup() {
-  const { t } = useTranslation("admin");
+  const { t } = useTranslation();
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: () => eveyFetch<Backup>({ url: "/api/v1/admin/backups", method: "POST" }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: BACKUPS_QUERY_KEY });
-      toast.success(t("backup.backupCreated"));
+      toast.success(t("admin.backup.backupCreated"));
     },
-    onError: (err: Error) => toast.error(err.message || t("backup.failedCreate")),
+    onError: (err: Error) => toast.error(err.message || t("admin.backup.failedCreate")),
   });
 }
 
 function useDeleteBackup() {
-  const { t } = useTranslation("admin");
+  const { t } = useTranslation();
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (id: string) => eveyFetch<void>({ url: `/api/v1/admin/backups/${id}`, method: "DELETE" }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: BACKUPS_QUERY_KEY });
-      toast.success(t("backup.backupDeleted"));
+      toast.success(t("admin.backup.backupDeleted"));
     },
-    onError: (err: Error) => toast.error(err.message || t("backup.failedDeleteBackup")),
+    onError: (err: Error) => toast.error(err.message || t("admin.backup.failedDeleteBackup")),
   });
 }
 
 function BackupRow({ backup }: { backup: Backup }) {
-  const { t } = useTranslation("admin");
+  const { t } = useTranslation();
   const token = useAuthStore((s) => s.accessToken);
   const deleteBackup = useDeleteBackup();
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -101,10 +101,10 @@ function BackupRow({ backup }: { backup: Backup }) {
         body: formData,
       });
       if (res.status === 401) window.dispatchEvent(new Event("evey:unauthorized"));
-      if (!res.ok) throw new Error(t("backup.restoreFailed"));
-      toast.success(t("backup.restoreCompleted"));
+      if (!res.ok) throw new Error(t("admin.backup.restoreFailed"));
+      toast.success(t("admin.backup.restoreCompleted"));
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : t("backup.restoreFailed"));
+      toast.error(err instanceof Error ? err.message : t("admin.backup.restoreFailed"));
     } finally {
       setRestoring(false);
     }
@@ -125,12 +125,12 @@ function BackupRow({ backup }: { backup: Backup }) {
         {formatSize(backup.size)}
       </td>
       <td className="px-4 py-3">
-        <Badge variant="success">{t("backup.ready")}</Badge>
+        <Badge variant="success">{t("admin.backup.ready")}</Badge>
       </td>
       <td className="px-4 py-3">
         <div className="flex gap-2">
           <Button variant="secondary" onClick={handleDownload} className="text-xs">
-            {t("common:download")}
+            {t("common.download")}
           </Button>
           <Button
             variant="secondary"
@@ -138,7 +138,7 @@ function BackupRow({ backup }: { backup: Backup }) {
             onClick={() => setConfirmRestore(true)}
             className="text-xs"
           >
-            {t("common:restore")}
+            {t("common.restore")}
           </Button>
           <Button
             variant="danger"
@@ -146,20 +146,20 @@ function BackupRow({ backup }: { backup: Backup }) {
             onClick={() => setConfirmDelete(true)}
             className="text-xs"
           >
-            {t("common:delete")}
+            {t("common.delete")}
           </Button>
         </div>
         <Modal
           open={confirmRestore}
           onClose={() => setConfirmRestore(false)}
-          title={t("backup.restoreBackupTitle")}
+          title={t("admin.backup.restoreBackupTitle")}
         >
           <p className="text-sm mb-4" style={{ color: "var(--text-muted)" }}>
-            {t("backup.restoreConfirm", { date: new Date(backup.createdAt).toLocaleString() })}
+            {t("admin.backup.restoreConfirm", { date: new Date(backup.createdAt).toLocaleString() })}
           </p>
           <div className="flex justify-end gap-2">
             <Button variant="ghost" onClick={() => setConfirmRestore(false)}>
-              {t("common:cancel")}
+              {t("common.cancel")}
             </Button>
             <Button
               loading={restoring}
@@ -168,21 +168,21 @@ function BackupRow({ backup }: { backup: Backup }) {
                 handleRestore();
               }}
             >
-              {t("common:restore")}
+              {t("common.restore")}
             </Button>
           </div>
         </Modal>
         <Modal
           open={confirmDelete}
           onClose={() => setConfirmDelete(false)}
-          title={t("backup.deleteBackupTitle")}
+          title={t("admin.backup.deleteBackupTitle")}
         >
           <p className="text-sm mb-4" style={{ color: "var(--text-muted)" }}>
-            {t("backup.deleteConfirm", { date: new Date(backup.createdAt).toLocaleString() })}
+            {t("admin.backup.deleteConfirm", { date: new Date(backup.createdAt).toLocaleString() })}
           </p>
           <div className="flex justify-end gap-2">
             <Button variant="ghost" onClick={() => setConfirmDelete(false)}>
-              {t("common:cancel")}
+              {t("common.cancel")}
             </Button>
             <Button
               variant="danger"
@@ -192,7 +192,7 @@ function BackupRow({ backup }: { backup: Backup }) {
                 setConfirmDelete(false);
               }}
             >
-              {t("common:delete")}
+              {t("common.delete")}
             </Button>
           </div>
         </Modal>
@@ -208,7 +208,7 @@ function RestoreUploadModal({
   open: boolean;
   onClose: () => void;
 }) {
-  const { t } = useTranslation("admin");
+  const { t } = useTranslation();
   const token = useAuthStore((s) => s.accessToken);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [restoring, setRestoring] = useState(false);
@@ -216,7 +216,7 @@ function RestoreUploadModal({
   async function handleUpload() {
     const file = fileInputRef.current?.files?.[0];
     if (!file) {
-      toast.error(t("backup.selectFileFirst"));
+      toast.error(t("admin.backup.selectFileFirst"));
       return;
     }
     setRestoring(true);
@@ -229,21 +229,21 @@ function RestoreUploadModal({
         body: formData,
       });
       if (res.status === 401) window.dispatchEvent(new Event("evey:unauthorized"));
-      if (!res.ok) throw new Error(t("backup.restoreFailed"));
-      toast.success(t("backup.restoreCompleted"));
+      if (!res.ok) throw new Error(t("admin.backup.restoreFailed"));
+      toast.success(t("admin.backup.restoreCompleted"));
       onClose();
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : t("backup.restoreFailed"));
+      toast.error(err instanceof Error ? err.message : t("admin.backup.restoreFailed"));
     } finally {
       setRestoring(false);
     }
   }
 
   return (
-    <Modal open={open} onClose={onClose} title={t("backup.restoreFromFileTitle")}>
+    <Modal open={open} onClose={onClose} title={t("admin.backup.restoreFromFileTitle")}>
       <div className="flex flex-col gap-4">
         <p className="text-sm" style={{ color: "var(--text-muted)" }}>
-          {t("backup.restoreFromFileDesc")}
+          {t("admin.backup.restoreFromFileDesc")}
         </p>
         <input
           ref={fileInputRef}
@@ -253,9 +253,9 @@ function RestoreUploadModal({
           style={{ color: "var(--text-muted)" }}
         />
         <div className="flex justify-end gap-2">
-          <Button variant="ghost" onClick={onClose}>{t("common:cancel")}</Button>
+          <Button variant="ghost" onClick={onClose}>{t("common.cancel")}</Button>
           <Button loading={restoring} onClick={handleUpload}>
-            {t("common:restore")}
+            {t("common.restore")}
           </Button>
         </div>
       </div>
@@ -264,7 +264,7 @@ function RestoreUploadModal({
 }
 
 function BackupPage() {
-  const { t } = useTranslation("admin");
+  const { t } = useTranslation();
   const { data: backups, isLoading } = useBackups();
   const createBackup = useCreateBackup();
   const [showRestoreUpload, setShowRestoreUpload] = useState(false);
@@ -273,20 +273,20 @@ function BackupPage() {
     <div className="flex flex-col gap-6">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold" style={{ color: "var(--text)" }}>
-          {t("backup.title")}
+          {t("admin.backup.title")}
         </h1>
         <div className="flex gap-2">
           <Button
             variant="secondary"
             onClick={() => setShowRestoreUpload(true)}
           >
-            {t("backup.restoreFromFile")}
+            {t("admin.backup.restoreFromFile")}
           </Button>
           <Button
             loading={createBackup.isPending}
             onClick={() => createBackup.mutate()}
           >
-            {t("backup.createBackup")}
+            {t("admin.backup.createBackup")}
           </Button>
         </div>
       </div>
@@ -298,8 +298,8 @@ function BackupPage() {
       ) : !backups || backups.length === 0 ? (
         <EmptyState
           icon="library"
-          title={t("backup.noBackups")}
-          description={t("backup.noBackupsDesc")}
+          title={t("admin.backup.noBackups")}
+          description={t("admin.backup.noBackupsDesc")}
         />
       ) : (
         <div
@@ -314,7 +314,7 @@ function BackupPage() {
                   borderBottom: "1px solid var(--border)",
                 }}
               >
-                {[t("backup.tableHeaders.id"), t("backup.tableHeaders.date"), t("backup.tableHeaders.version"), t("backup.tableHeaders.size"), t("backup.tableHeaders.status"), t("backup.tableHeaders.actions")].map((h) => (
+                {[t("admin.backup.tableHeaders.id"), t("admin.backup.tableHeaders.date"), t("admin.backup.tableHeaders.version"), t("admin.backup.tableHeaders.size"), t("admin.backup.tableHeaders.status"), t("admin.backup.tableHeaders.actions")].map((h) => (
                   <th
                     key={h}
                     className="px-4 py-2 text-left font-medium"

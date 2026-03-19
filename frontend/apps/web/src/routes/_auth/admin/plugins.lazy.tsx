@@ -41,7 +41,7 @@ interface PluginPreview {
 type InstallStep = "idle" | "previewing" | "reviewing" | "installing" | "done";
 
 function SubprocessWarning() {
-  const { t } = useTranslation("admin");
+  const { t } = useTranslation();
   return (
     <div
       className="flex items-start gap-3 p-4 rounded-[var(--radius-md)]"
@@ -67,10 +67,10 @@ function SubprocessWarning() {
           className="font-semibold text-sm"
           style={{ color: "var(--badge-warning-text, #fde047)" }}
         >
-          {t("plugins.subprocessRequired")}
+          {t("admin.plugins.subprocessRequired")}
         </p>
         <p className="text-xs mt-1" style={{ color: "var(--text-muted)" }}>
-          {t("plugins.subprocessWarning")}
+          {t("admin.plugins.subprocessWarning")}
         </p>
       </div>
     </div>
@@ -90,7 +90,7 @@ function PreviewPanel({
   onCancel: () => void;
   onConfirm: () => void;
 }) {
-  const { t } = useTranslation("admin");
+  const { t } = useTranslation();
   return (
     <div className="flex flex-col gap-4">
       <div className="flex flex-col gap-1">
@@ -111,7 +111,7 @@ function PreviewPanel({
       {preview.permissions?.length > 0 && (
         <div className="flex flex-col gap-2">
           <span className="text-xs font-semibold" style={{ color: "var(--text-muted)" }}>
-            {t("plugins.permissions")}
+            {t("admin.plugins.permissions")}
           </span>
           <div className="flex flex-wrap gap-1.5">
             {preview.permissions.map((p) => (
@@ -129,7 +129,7 @@ function PreviewPanel({
       {preview.capabilities?.length > 0 && (
         <div className="flex flex-col gap-2">
           <span className="text-xs font-semibold" style={{ color: "var(--text-muted)" }}>
-            {t("plugins.capabilities")}
+            {t("admin.plugins.capabilities")}
           </span>
           <div className="flex flex-wrap gap-1.5">
             {preview.capabilities.map((c) => (
@@ -143,7 +143,7 @@ function PreviewPanel({
 
       {preview.analysis?.issues && preview.analysis.issues.length > 0 && (
         <div className="flex flex-col gap-1 text-xs" style={{ color: "var(--text-muted)" }}>
-          <span className="font-semibold">{t("plugins.staticAnalysis")}</span>
+          <span className="font-semibold">{t("admin.plugins.staticAnalysis")}</span>
           {preview.analysis.issues.map((issue, i) => (
             <span key={i}>{issue}</span>
           ))}
@@ -151,13 +151,13 @@ function PreviewPanel({
       )}
 
       <div className="flex justify-end gap-2 pt-2">
-        <Button variant="ghost" onClick={onCancel}>{t("common:cancel")}</Button>
+        <Button variant="ghost" onClick={onCancel}>{t("common.cancel")}</Button>
         <Button
           variant={hasWarnings ? "danger" : "primary"}
           loading={installing}
           onClick={onConfirm}
         >
-          {hasWarnings ? t("plugins.installAnyway") : t("plugins.install")}
+          {hasWarnings ? t("admin.plugins.installAnyway") : t("admin.plugins.install")}
         </Button>
       </div>
     </div>
@@ -165,7 +165,7 @@ function PreviewPanel({
 }
 
 function InstallPluginForm({ onSuccess }: { onSuccess: () => void }) {
-  const { t } = useTranslation("admin");
+  const { t } = useTranslation();
   const [mode, setMode] = useState<"file" | "url">("file");
   const [step, setStep] = useState<InstallStep>("idle");
   const [preview, setPreview] = useState<PluginPreview | null>(null);
@@ -186,7 +186,7 @@ function InstallPluginForm({ onSuccess }: { onSuccess: () => void }) {
 
   async function handleFilePreview() {
     const file = getFile();
-    if (!file) { toast.error(t("plugins.selectFileFirst")); return; }
+    if (!file) { toast.error(t("admin.plugins.selectFileFirst")); return; }
     setSelectedFile(file);
     setStep("previewing");
     setError("");
@@ -208,14 +208,14 @@ function InstallPluginForm({ onSuccess }: { onSuccess: () => void }) {
       setPreview(data);
       setStep("reviewing");
     } catch (err) {
-      setError(err instanceof Error ? err.message : t("plugins.previewFailed"));
+      setError(err instanceof Error ? err.message : t("admin.plugins.previewFailed"));
       setStep("idle");
     }
   }
 
   async function handleFileInstall() {
     const file = selectedFile;
-    if (!file) { toast.error(t("plugins.fileMissing")); return; }
+    if (!file) { toast.error(t("admin.plugins.fileMissing")); return; }
     setStep("installing");
     setError("");
     try {
@@ -232,7 +232,7 @@ function InstallPluginForm({ onSuccess }: { onSuccess: () => void }) {
         const body = await res.json().catch(() => ({})) as { message?: string; blocked?: boolean; issues?: string[] };
         if (body.blocked && body.issues) {
           setBlockedIssues(body.issues);
-          setError(t("plugins.blockedByAnalysis"));
+          setError(t("admin.plugins.blockedByAnalysis"));
           setStep("reviewing");
           return;
         }
@@ -241,7 +241,7 @@ function InstallPluginForm({ onSuccess }: { onSuccess: () => void }) {
       setStep("done");
       onSuccess();
     } catch (err) {
-      setError(err instanceof Error ? err.message : t("plugins.installFailed"));
+      setError(err instanceof Error ? err.message : t("admin.plugins.installFailed"));
       setStep("reviewing");
     }
   }
@@ -270,13 +270,13 @@ function InstallPluginForm({ onSuccess }: { onSuccess: () => void }) {
           variant={mode === "file" ? "primary" : "ghost"}
           onClick={() => { setMode("file"); resetFileFlow(); }}
         >
-          {t("plugins.uploadFile")}
+          {t("admin.plugins.uploadFile")}
         </Button>
         <Button
           variant={mode === "url" ? "primary" : "ghost"}
           onClick={() => { setMode("url"); resetFileFlow(); }}
         >
-          {t("plugins.fromUrl")}
+          {t("admin.plugins.fromUrl")}
         </Button>
       </div>
 
@@ -287,7 +287,7 @@ function InstallPluginForm({ onSuccess }: { onSuccess: () => void }) {
               className="block text-sm font-medium mb-1"
               style={{ color: "var(--text-muted)" }}
             >
-              {t("plugins.pluginFileZip")}
+              {t("admin.plugins.pluginFileZip")}
             </label>
             <input
               ref={fileRef}
@@ -313,7 +313,7 @@ function InstallPluginForm({ onSuccess }: { onSuccess: () => void }) {
                 <path d="M9.25 13.25a.75.75 0 001.5 0V4.636l2.955 3.129a.75.75 0 001.09-1.03l-4.25-4.5a.75.75 0 00-1.09 0l-4.25 4.5a.75.75 0 101.09 1.03L9.25 4.636v8.614z" />
                 <path d="M3.5 12.75a.75.75 0 00-1.5 0v2.5A2.75 2.75 0 004.75 18h10.5A2.75 2.75 0 0018 15.25v-2.5a.75.75 0 00-1.5 0v2.5c0 .69-.56 1.25-1.25 1.25H4.75c-.69 0-1.25-.56-1.25-1.25v-2.5z" />
               </svg>
-              {selectedFileName || t("plugins.chooseFile")}
+              {selectedFileName || t("admin.plugins.chooseFile")}
             </button>
           </div>
           {error && (
@@ -326,7 +326,7 @@ function InstallPluginForm({ onSuccess }: { onSuccess: () => void }) {
               onClick={handleFilePreview}
               loading={step === "previewing"}
             >
-              {t("plugins.previewInstall")}
+              {t("admin.plugins.previewInstall")}
             </Button>
           </div>
         </div>
@@ -361,24 +361,24 @@ function InstallPluginForm({ onSuccess }: { onSuccess: () => void }) {
       {mode === "url" && (
         <form onSubmit={handleUrlSubmit} className="flex flex-col gap-4">
           <p className="text-xs" style={{ color: "var(--text-muted)" }}>
-            {t("plugins.urlSkipPreview")}
+            {t("admin.plugins.urlSkipPreview")}
           </p>
           <Input
-            label={t("plugins.sourceUrl")}
+            label={t("admin.plugins.sourceUrl")}
             value={source}
             onChange={(e) => setSource(e.target.value)}
             placeholder="https://example.com/plugin.zip"
             required
           />
           <Input
-            label={t("plugins.nameOptional")}
+            label={t("admin.plugins.nameOptional")}
             value={name}
             onChange={(e) => setName(e.target.value)}
             placeholder="my-plugin"
           />
           <div className="flex justify-end pt-2">
             <Button type="submit" loading={installPlugin.isPending} disabled={!source.trim()}>
-              {t("plugins.install")}
+              {t("admin.plugins.install")}
             </Button>
           </div>
         </form>
@@ -388,7 +388,7 @@ function InstallPluginForm({ onSuccess }: { onSuccess: () => void }) {
 }
 
 function PluginsPage() {
-  const { t } = useTranslation("admin");
+  const { t } = useTranslation();
   const [showModal, setShowModal] = useState(false);
   const [uninstallTarget, setUninstallTarget] = useState<{ id: string; name: string } | null>(null);
   const queryClient = useQueryClient();
@@ -399,27 +399,27 @@ function PluginsPage() {
 
   const enablePlugin = useAdminServiceEnablePlugin({
     mutation: {
-      onSuccess: () => { invalidate(); toast.success(t("plugins.pluginEnabled")); },
-      onError: (err: Error) => toast.error(err.message || t("plugins.failedEnable")),
+      onSuccess: () => { invalidate(); toast.success(t("admin.plugins.pluginEnabled")); },
+      onError: (err: Error) => toast.error(err.message || t("admin.plugins.failedEnable")),
     },
   });
   const disablePlugin = useAdminServiceDisablePlugin({
     mutation: {
-      onSuccess: () => { invalidate(); toast.success(t("plugins.pluginDisabled")); },
-      onError: (err: Error) => toast.error(err.message || t("plugins.failedDisable")),
+      onSuccess: () => { invalidate(); toast.success(t("admin.plugins.pluginDisabled")); },
+      onError: (err: Error) => toast.error(err.message || t("admin.plugins.failedDisable")),
     },
   });
   const uninstallPlugin = useAdminServiceUninstallPlugin({
     mutation: {
-      onSuccess: () => { invalidate(); toast.success(t("plugins.pluginUninstalled")); },
-      onError: (err: Error) => toast.error(err.message || t("plugins.failedUninstall")),
+      onSuccess: () => { invalidate(); toast.success(t("admin.plugins.pluginUninstalled")); },
+      onError: (err: Error) => toast.error(err.message || t("admin.plugins.failedUninstall")),
     },
   });
 
   function handleInstallSuccess() {
     invalidate();
     setShowModal(false);
-    toast.success(t("plugins.pluginInstalled"));
+    toast.success(t("admin.plugins.pluginInstalled"));
     setTimeout(() => invalidate(), 3000);
     setTimeout(() => invalidate(), 8000);
   }
@@ -428,9 +428,9 @@ function PluginsPage() {
     <div className="flex flex-col gap-6">
       <div className="flex items-center justify-between">
         <h2 className="text-xl font-semibold" style={{ color: "var(--text)" }}>
-          {t("plugins.title")}
+          {t("admin.plugins.title")}
         </h2>
-        <Button onClick={() => setShowModal(true)}>{t("plugins.installPlugin")}</Button>
+        <Button onClick={() => setShowModal(true)}>{t("admin.plugins.installPlugin")}</Button>
       </div>
 
       {isLoading ? (
@@ -442,7 +442,7 @@ function PluginsPage() {
           className="text-center py-16 rounded-[var(--radius-lg)]"
           style={{ backgroundColor: "var(--surface)", border: "1px solid var(--border)" }}
         >
-          <p style={{ color: "var(--text-muted)" }}>{t("plugins.noPlugins")}</p>
+          <p style={{ color: "var(--text-muted)" }}>{t("admin.plugins.noPlugins")}</p>
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
@@ -458,16 +458,16 @@ function PluginsPage() {
         </div>
       )}
 
-      <Modal open={showModal} onClose={() => setShowModal(false)} title={t("plugins.installPlugin")} size="lg">
+      <Modal open={showModal} onClose={() => setShowModal(false)} title={t("admin.plugins.installPlugin")} size="lg">
         <InstallPluginForm onSuccess={handleInstallSuccess} />
       </Modal>
 
-      <Modal open={!!uninstallTarget} onClose={() => setUninstallTarget(null)} title={t("plugins.uninstallTitle")}>
+      <Modal open={!!uninstallTarget} onClose={() => setUninstallTarget(null)} title={t("admin.plugins.uninstallTitle")}>
         <p className="text-sm text-[var(--text-muted)] mb-4">
-          {t("plugins.uninstallConfirm", { name: uninstallTarget?.name })}
+          {t("admin.plugins.uninstallConfirm", { name: uninstallTarget?.name })}
         </p>
         <div className="flex justify-end gap-2">
-          <Button variant="ghost" onClick={() => setUninstallTarget(null)}>{t("common:cancel")}</Button>
+          <Button variant="ghost" onClick={() => setUninstallTarget(null)}>{t("common.cancel")}</Button>
           <Button
             variant="danger"
             loading={uninstallPlugin.isPending}
@@ -478,7 +478,7 @@ function PluginsPage() {
               }
             }}
           >
-            {t("plugin.uninstall")}
+            {t("admin.plugin.uninstall")}
           </Button>
         </div>
       </Modal>

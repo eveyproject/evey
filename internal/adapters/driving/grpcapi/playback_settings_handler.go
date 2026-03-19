@@ -36,7 +36,7 @@ func (h *playbackSettingsHandler) UpdatePlaybackSettings(ctx context.Context, re
 		h.cfg.Playback.SkipBackwardSeconds = int(*req.SkipBackwardSeconds)
 	}
 	if h.cfg.Playback.SkipForwardSeconds <= 0 {
-		return nil, h.translator.TranslatedError(ctx, codes.InvalidArgument, "playback_settings.skip_forward_positive")
+		return nil, h.translator.TranslatedError(ctx, codes.InvalidArgument, "errors.playback_settings.skip_forward_positive")
 	}
 	return &eveyv1.PlaybackSettings{
 		SkipForwardSeconds:  int32(h.cfg.Playback.SkipForwardSeconds),

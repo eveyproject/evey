@@ -128,7 +128,7 @@ func (h *playbackHandler) StartStream(ctx context.Context, req *eveyv1.StartStre
 	}
 	if h.profiles != nil {
 		if blocked, _ := h.isBlockedByParental(ctx, profileID, req.MediaItemId); blocked {
-			return nil, h.translator.TranslatedError(ctx, codes.PermissionDenied, "playback.parental_blocked")
+			return nil, h.translator.TranslatedError(ctx, codes.PermissionDenied, "errors.playback.parental_blocked")
 		}
 	}
 
@@ -142,7 +142,7 @@ func (h *playbackHandler) StartStream(ctx context.Context, req *eveyv1.StartStre
 	}
 	if err := h.cmd.StartStream(ctx, session, claims.UserID); err != nil {
 		if errors.Is(err, appplayback.ErrProfileNotFound) {
-			return nil, h.translator.TranslatedError(ctx, codes.NotFound, "auth.profile_not_found")
+			return nil, h.translator.TranslatedError(ctx, codes.NotFound, "errors.auth.profile_not_found")
 		}
 		slog.Error("start stream", slog.Any("err", err))
 		return nil, status.Errorf(codes.Internal, "internal error")
@@ -163,10 +163,10 @@ func (h *playbackHandler) StopStream(ctx context.Context, req *eveyv1.StopStream
 	if !claims.IsAdmin {
 		session, err := h.cmd.GetSession(ctx, req.SessionId)
 		if err != nil {
-			return nil, h.translator.TranslatedError(ctx, codes.NotFound, "playback.session_not_found")
+			return nil, h.translator.TranslatedError(ctx, codes.NotFound, "errors.playback.session_not_found")
 		}
 		if session.ProfileID != claims.ProfileID {
-			return nil, h.translator.TranslatedError(ctx, codes.PermissionDenied, "playback.cannot_stop_other_session")
+			return nil, h.translator.TranslatedError(ctx, codes.PermissionDenied, "errors.playback.cannot_stop_other_session")
 		}
 	}
 	if err := h.cmd.StopStream(ctx, req.SessionId); err != nil {
@@ -186,15 +186,15 @@ func (h *playbackHandler) ReportProgress(ctx context.Context, req *eveyv1.Report
 	if !claims.IsAdmin {
 		session, err := h.cmd.GetSession(ctx, req.SessionId)
 		if err != nil {
-			return nil, h.translator.TranslatedError(ctx, codes.NotFound, "playback.session_not_found")
+			return nil, h.translator.TranslatedError(ctx, codes.NotFound, "errors.playback.session_not_found")
 		}
 		if session.ProfileID != claims.ProfileID {
-			return nil, h.translator.TranslatedError(ctx, codes.PermissionDenied, "playback.cannot_report_other_session")
+			return nil, h.translator.TranslatedError(ctx, codes.PermissionDenied, "errors.playback.cannot_report_other_session")
 		}
 	}
 	if err := h.cmd.ReportProgressBySession(ctx, req.SessionId, req.PositionMs); err != nil {
 		if errors.Is(err, appplayback.ErrProfileNotFound) {
-			return nil, h.translator.TranslatedError(ctx, codes.NotFound, "auth.profile_not_found")
+			return nil, h.translator.TranslatedError(ctx, codes.NotFound, "errors.auth.profile_not_found")
 		}
 		slog.Error("report progress", slog.Any("err", err))
 		return nil, status.Errorf(codes.Internal, "internal error")
@@ -317,7 +317,7 @@ func (h *playbackHandler) MarkAsWatched(ctx context.Context, req *eveyv1.MarkAsW
 	}
 	if err := h.cmd.MarkAsWatched(ctx, profileID, req.MediaItemId); err != nil {
 		if errors.Is(err, appplayback.ErrProfileNotFound) {
-			return nil, h.translator.TranslatedError(ctx, codes.NotFound, "auth.profile_not_found")
+			return nil, h.translator.TranslatedError(ctx, codes.NotFound, "errors.auth.profile_not_found")
 		}
 		slog.Error("mark as watched", slog.Any("err", err))
 		return nil, status.Errorf(codes.Internal, "internal error")
@@ -336,7 +336,7 @@ func (h *playbackHandler) MarkAsUnwatched(ctx context.Context, req *eveyv1.MarkA
 	}
 	if err := h.cmd.MarkAsUnwatched(ctx, profileID, req.MediaItemId); err != nil {
 		if errors.Is(err, appplayback.ErrProfileNotFound) {
-			return nil, h.translator.TranslatedError(ctx, codes.NotFound, "auth.profile_not_found")
+			return nil, h.translator.TranslatedError(ctx, codes.NotFound, "errors.auth.profile_not_found")
 		}
 		slog.Error("mark as unwatched", slog.Any("err", err))
 		return nil, status.Errorf(codes.Internal, "internal error")

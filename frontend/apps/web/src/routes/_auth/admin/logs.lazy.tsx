@@ -133,7 +133,7 @@ function VirtualLogList({ lines, live, noMatchText }: { lines: ParsedLine[]; liv
 }
 
 function LogsPage() {
-  const { t } = useTranslation("admin");
+  const { t } = useTranslation();
   const accessToken = useAuthStore((s) => s.accessToken);
   const [filterLevel, setFilterLevel] = useState<Level>("all");
   const [search, setSearch] = useState("");
@@ -194,7 +194,7 @@ function LogsPage() {
   return (
     <div className="flex flex-col gap-4 h-full">
       <div className="flex items-center gap-3 flex-wrap">
-        <h1 className="text-2xl font-bold" style={{ color: "var(--text)" }}>{t("logs.title")}</h1>
+        <h1 className="text-2xl font-bold" style={{ color: "var(--text)" }}>{t("admin.logs.title")}</h1>
         <div className="flex-1" />
 
         <label className="flex items-center gap-1.5 text-sm cursor-pointer" style={{ color: "var(--text)" }}>
@@ -204,7 +204,7 @@ function LogsPage() {
             onChange={(e) => setLive(e.target.checked)}
             className="accent-[var(--accent)]"
           />
-          {t("logs.live")}
+          {t("admin.logs.live")}
         </label>
 
         <button
@@ -212,20 +212,20 @@ function LogsPage() {
           className="text-sm px-3 py-1 rounded transition-colors hover:opacity-80"
           style={{ backgroundColor: "var(--surface-raised)", color: "var(--text-muted)", border: "1px solid var(--border)" }}
         >
-          {t("common:clear")}
+          {t("common.clear")}
         </button>
       </div>
 
       <div className="flex gap-2 flex-wrap">
         <input
-          placeholder={t("logs.searchLogs")}
+          placeholder={t("admin.logs.searchLogs")}
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           className="px-3 py-1.5 text-sm rounded-[var(--radius-md)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)]"
           style={{ backgroundColor: "var(--surface-raised)", border: "1px solid var(--border)", color: "var(--text)", minWidth: 180 }}
         />
         <input
-          placeholder={t("logs.component")}
+          placeholder={t("admin.logs.component")}
           value={componentFilter}
           onChange={(e) => setComponentFilter(e.target.value)}
           className="px-3 py-1.5 text-sm rounded-[var(--radius-md)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)]"
@@ -252,7 +252,7 @@ function LogsPage() {
       {loading ? (
         <div className="flex justify-center py-16"><Spinner size="lg" /></div>
       ) : (
-        <VirtualLogList lines={filtered} live={live} noMatchText={t("logs.noMatch")} />
+        <VirtualLogList lines={filtered} live={live} noMatchText={t("admin.logs.noMatch")} />
       )}
     </div>
   );

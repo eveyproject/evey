@@ -5,6 +5,8 @@ create: Create
 delete: Delete
 enable: Enable
 disable: Disable
+enabled: Enabled
+disabled: Disabled
 skip: Skip
 continue: Continue
 loading: Loading...
@@ -21,6 +23,32 @@ previous: Previous
 next: Next
 edit: Edit
 all: All
+add: Add
+remove: Remove
+name: Name
+status: Status
+actions: Actions
+apply: Apply
+clear: Clear
+test: Test
+download: Download
+restore: Restore
+revoke: Revoke
+refresh: Refresh
+done: Done
+copied: "Copied!"
+seeAll: "See all →"
+scrollLeft: Scroll left
+scrollRight: Scroll right
+appearance: Appearance
+appearanceDesc: "Choose your color theme and language."
+language: Language
+languageDesc: Choose your preferred language
+newKey: New Key
+copyKey: Copy Key
+unableToLoadNotifications: Unable to load notifications
+viewAllNotifications: View all notifications
+markAllRead: Mark all read
 items: "{{count}} items"
 item: "{{count}} item"
 filtered: "(filtered)"
@@ -35,5 +63,6 @@ notifications:
   noNotifications: No notifications
   allCaughtUp: "You're all caught up."
   justNow: Just now
+noNotifications: No notifications
 watchHistory:
   title: Watch History

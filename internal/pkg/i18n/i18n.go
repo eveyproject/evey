@@ -69,7 +69,8 @@ func NewFromDir(dir string) (*Translator, error) {
 			if t.messages[locale] == nil {
 				t.messages[locale] = make(map[string]string)
 			}
-			flatten("", raw, t.messages[locale])
+			stem := strings.TrimSuffix(f.Name(), ".yaml")
+			flatten(stem, raw, t.messages[locale])
 		}
 	}
 	if _, ok := t.messages[FallbackLocale]; !ok {
@@ -91,6 +92,26 @@ func flatten(prefix string, m map[string]any, out map[string]string) {
 			flatten(key, val, out)
 		}
 	}
+}
+
+func (t *Translator) AllMessages(locale string) map[string]string {
+	t.mu.RLock()
+	defer t.mu.RUnlock()
+
+	result := make(map[string]string)
+	if fb, ok := t.messages[t.fallback]; ok {
+		for k, v := range fb {
+			result[k] = v
+		}
+	}
+	if locale != t.fallback {
+		if msgs, ok := t.messages[locale]; ok {
+			for k, v := range msgs {
+				result[k] = v
+			}
+		}
+	}
+	return result
 }
 
 func (t *Translator) T(locale, key string, params ...map[string]string) string {

@@ -14,7 +14,7 @@ interface Props {
 }
 
 export function AddToPlaylistModal({ open, onClose, mediaItemId }: Props) {
-  const { t } = useTranslation("media");
+  const { t } = useTranslation();
   const { data: playlists, isLoading } = usePlaylistList();
   const addTo = useAddToPlaylist();
   const [createOpen, setCreateOpen] = useState(false);
@@ -24,22 +24,22 @@ export function AddToPlaylistModal({ open, onClose, mediaItemId }: Props) {
   async function handleAdd(playlistId: string, playlistName: string) {
     try {
       await addTo.mutateAsync({ playlistId, mediaItemId });
-      toast.success(t("playlist.addSuccess", { name: playlistName }));
+      toast.success(t("media.playlist.addSuccess", { name: playlistName }));
       onClose();
     } catch {
-      toast.error(t("playlist.addError"));
+      toast.error(t("media.playlist.addError"));
     }
   }
 
   return (
     <>
-      <Modal open={open && !createOpen} onClose={onClose} title={t("playlist.addTitle")}>
+      <Modal open={open && !createOpen} onClose={onClose} title={t("media.playlist.addTitle")}>
         {isLoading ? (
           <div className="flex justify-center py-8"><Spinner /></div>
         ) : manualPlaylists.length === 0 ? (
           <div className="text-center py-6">
-            <p className="text-sm mb-4" style={{ color: "var(--text-muted)" }}>{t("playlist.noPlaylists")}</p>
-            <Button onClick={() => setCreateOpen(true)}>{t("playlist.createPlaylist")}</Button>
+            <p className="text-sm mb-4" style={{ color: "var(--text-muted)" }}>{t("media.playlist.noPlaylists")}</p>
+            <Button onClick={() => setCreateOpen(true)}>{t("media.playlist.createPlaylist")}</Button>
           </div>
         ) : (
           <div className="space-y-2">
@@ -62,7 +62,7 @@ export function AddToPlaylistModal({ open, onClose, mediaItemId }: Props) {
             ))}
             <div className="pt-2 border-t" style={{ borderColor: "var(--border)" }}>
               <Button variant="secondary" onClick={() => setCreateOpen(true)} className="w-full">
-                {t("playlist.newPlaylist")}
+                {t("media.playlist.newPlaylist")}
               </Button>
             </div>
           </div>

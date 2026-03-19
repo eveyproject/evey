@@ -24,7 +24,7 @@ interface WebhookFormProps {
 }
 
 export function WebhookForm({ onSuccess, existing }: WebhookFormProps) {
-  const { t } = useTranslation("admin");
+  const { t } = useTranslation();
   const [name, setName] = useState(existing?.name ?? "");
   const [url, setUrl] = useState(existing?.url ?? "");
   const [secret, setSecret] = useState(existing?.secret ?? "");
@@ -65,14 +65,14 @@ export function WebhookForm({ onSuccess, existing }: WebhookFormProps) {
   return (
     <form onSubmit={handleSubmit} className="flex flex-col gap-4">
       <Input
-        label={t("webhooks.form.name")}
+        label={t("admin.webhooks.form.name")}
         value={name}
         onChange={(e) => setName(e.target.value)}
         placeholder="My Webhook"
         required
       />
       <Input
-        label={t("webhooks.form.url")}
+        label={t("admin.webhooks.form.url")}
         type="url"
         value={url}
         onChange={(e) => setUrl(e.target.value)}
@@ -80,14 +80,14 @@ export function WebhookForm({ onSuccess, existing }: WebhookFormProps) {
         required
       />
       <Input
-        label={t("webhooks.form.secret")}
+        label={t("admin.webhooks.form.secret")}
         value={secret}
         onChange={(e) => setSecret(e.target.value)}
         placeholder="mysecret"
       />
 
       <div>
-        <p className="text-xs font-medium mb-2" style={{ color: "var(--text)" }}>{t("webhooks.form.events")}</p>
+        <p className="text-xs font-medium mb-2" style={{ color: "var(--text)" }}>{t("admin.webhooks.form.events")}</p>
         <label className="flex items-center gap-2 mb-2 cursor-pointer select-none">
           <input
             type="checkbox"
@@ -95,7 +95,7 @@ export function WebhookForm({ onSuccess, existing }: WebhookFormProps) {
             onChange={(e) => setAllEvents(e.target.checked)}
             className="accent-[var(--accent)]"
           />
-          <span className="text-sm" style={{ color: "var(--text)" }}>{t("webhooks.form.allEvents")}</span>
+          <span className="text-sm" style={{ color: "var(--text)" }}>{t("admin.webhooks.form.allEvents")}</span>
         </label>
         {!allEvents && (
           <div className="grid grid-cols-2 gap-1.5 pl-2">
@@ -121,12 +121,12 @@ export function WebhookForm({ onSuccess, existing }: WebhookFormProps) {
           onChange={(e) => setEnabled(e.target.checked)}
           className="accent-[var(--accent)]"
         />
-        <span className="text-sm" style={{ color: "var(--text)" }}>{t("webhooks.form.enabled")}</span>
+        <span className="text-sm" style={{ color: "var(--text)" }}>{t("admin.webhooks.form.enabled")}</span>
       </label>
 
       <div className="flex justify-end pt-2">
         <Button type="submit" loading={isPending} disabled={!url.trim() || !name.trim()}>
-          {existing ? t("common:save") : t("webhooks.form.createWebhook")}
+          {existing ? t("common.save") : t("admin.webhooks.form.createWebhook")}
         </Button>
       </div>
     </form>

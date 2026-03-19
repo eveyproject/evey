@@ -23,7 +23,7 @@ export const Route = createFileRoute("/register")({
 });
 
 function RegisterPage() {
-  const { t } = useTranslation("auth");
+  const { t } = useTranslation();
   const { invite } = Route.useSearch();
   const navigate = useNavigate();
   const { setTokens } = useAuthStore();
@@ -50,11 +50,11 @@ function RegisterPage() {
     e.preventDefault();
     setValidationError("");
     if (password !== confirm) {
-      setValidationError(t("register.passwordMismatch"));
+      setValidationError(t("auth.register.passwordMismatch"));
       return;
     }
     if (password.length < 8) {
-      setValidationError(t("register.passwordMin"));
+      setValidationError(t("auth.register.passwordMin"));
       return;
     }
     register.mutate({
@@ -84,13 +84,13 @@ function RegisterPage() {
               <path d="M6.3 2.8L17 10 6.3 17.2V2.8z" />
             </svg>
           </div>
-          <h1 className="text-2xl font-bold text-[var(--text)]">{t("register.createAccount")}</h1>
+          <h1 className="text-2xl font-bold text-[var(--text)]">{t("auth.register.createAccount")}</h1>
           {invite ? (
             <p className="text-[var(--text-muted)] text-sm mt-1 text-center">
-              {t("register.invitedMessage")}
+              {t("auth.register.invitedMessage")}
             </p>
           ) : (
-            <p className="text-[var(--text-muted)] text-sm mt-1">{t("register.signUpWithInvite")}</p>
+            <p className="text-[var(--text-muted)] text-sm mt-1">{t("auth.register.signUpWithInvite")}</p>
           )}
         </div>
 
@@ -99,26 +99,26 @@ function RegisterPage() {
             className="mb-4 px-3 py-2 rounded-[var(--radius-md)] text-sm"
             style={{ backgroundColor: "var(--surface-raised)", color: "var(--text-muted)" }}
           >
-            {t("register.inviteCodeLabel")} <span className="font-mono text-[var(--text)]">{invite}</span>
+            {t("auth.register.inviteCodeLabel")} <span className="font-mono text-[var(--text)]">{invite}</span>
           </div>
         )}
 
         <form onSubmit={handleSubmit} className="flex flex-col gap-4">
           <Input
-            label={t("register.username")}
+            label={t("auth.register.username")}
             value={username}
             onChange={(e) => setUsername(e.target.value)}
             required
             autoFocus
           />
           <Input
-            label={t("register.email")}
+            label={t("auth.register.email")}
             type="email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
           />
           <Input
-            label={t("register.password")}
+            label={t("auth.register.password")}
             type="password"
             autoComplete="new-password"
             value={password}
@@ -126,7 +126,7 @@ function RegisterPage() {
             required
           />
           <Input
-            label={t("register.confirmPassword")}
+            label={t("auth.register.confirmPassword")}
             type="password"
             autoComplete="new-password"
             value={confirm}
@@ -135,7 +135,7 @@ function RegisterPage() {
           />
           {!invite && (
             <Input
-              label={t("register.inviteCode")}
+              label={t("auth.register.inviteCode")}
               value={inviteCode}
               onChange={(e) => setInviteCode(e.target.value)}
               required
@@ -143,7 +143,7 @@ function RegisterPage() {
           )}
           {(validationError || register.error) && (
             <p className="text-sm text-center" style={{ color: "var(--color-danger)" }}>
-              {validationError || (register.error instanceof Error ? register.error.message : t("register.registrationFailed"))}
+              {validationError || (register.error instanceof Error ? register.error.message : t("auth.register.registrationFailed"))}
             </p>
           )}
           <Button
@@ -152,14 +152,14 @@ function RegisterPage() {
             className="w-full mt-2"
             disabled={!username || !password || !confirm || !inviteCode}
           >
-            {t("register.createAccountBtn")}
+            {t("auth.register.createAccountBtn")}
           </Button>
         </form>
 
         <p className="text-center text-sm text-[var(--text-muted)] mt-6">
-          {t("register.alreadyHaveAccount")}{" "}
+          {t("auth.register.alreadyHaveAccount")}{" "}
           <a href="/login" className="text-[var(--accent)] hover:underline">
-            {t("register.signIn")}
+            {t("auth.register.signIn")}
           </a>
         </p>
       </Card>

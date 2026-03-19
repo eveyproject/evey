@@ -41,7 +41,7 @@ function formatDate(d?: string): string {
 }
 
 function PlayHistoryTab() {
-  const { t } = useTranslation("admin");
+  const { t } = useTranslation();
   const PAGE_SIZE = 25;
   const [page, setPage] = useState(1);
   const { data, isLoading } = useActivityServiceGetPlayHistory({
@@ -68,7 +68,7 @@ function PlayHistoryTab() {
         <table className="w-full text-sm">
           <thead>
             <tr style={{ backgroundColor: "var(--surface)", borderBottom: "1px solid var(--border)" }}>
-              {[t("activity.playHeaders.title"), t("activity.playHeaders.device"), t("activity.playHeaders.duration"), t("activity.playHeaders.progress"), t("activity.playHeaders.started")].map((h) => (
+              {[t("admin.activity.playHeaders.title"), t("admin.activity.playHeaders.device"), t("admin.activity.playHeaders.duration"), t("admin.activity.playHeaders.progress"), t("admin.activity.playHeaders.started")].map((h) => (
                 <th
                   key={h}
                   className="px-4 py-2 text-left font-medium"
@@ -83,7 +83,7 @@ function PlayHistoryTab() {
             {entries.length === 0 ? (
               <tr>
                 <td colSpan={5}>
-                  <EmptyState icon="media" title={t("activity.noPlayHistory")} />
+                  <EmptyState icon="media" title={t("admin.activity.noPlayHistory")} />
                 </td>
               </tr>
             ) : (
@@ -129,7 +129,7 @@ function PlayHistoryTab() {
         </table>
       </div>
       <div className="flex items-center justify-between text-sm" style={{ color: "var(--text-muted)" }}>
-        <span>{t("activity.totalEntries", { count: total })}</span>
+        <span>{t("admin.activity.totalEntries", { count: total })}</span>
         <Pagination
           page={page}
           totalPages={Math.max(1, Math.ceil(total / PAGE_SIZE))}
@@ -141,7 +141,7 @@ function PlayHistoryTab() {
 }
 
 function LoginHistoryTab() {
-  const { t } = useTranslation("admin");
+  const { t } = useTranslation();
   const PAGE_SIZE = 25;
   const [page, setPage] = useState(1);
   const { data, isLoading } = useActivityServiceGetLoginHistory({
@@ -168,7 +168,7 @@ function LoginHistoryTab() {
         <table className="w-full text-sm">
           <thead>
             <tr style={{ backgroundColor: "var(--surface)", borderBottom: "1px solid var(--border)" }}>
-              {[t("activity.loginHeaders.user"), t("activity.loginHeaders.ip"), t("activity.loginHeaders.status"), t("activity.loginHeaders.userAgent"), t("activity.loginHeaders.timestamp")].map((h) => (
+              {[t("admin.activity.loginHeaders.user"), t("admin.activity.loginHeaders.ip"), t("admin.activity.loginHeaders.status"), t("admin.activity.loginHeaders.userAgent"), t("admin.activity.loginHeaders.timestamp")].map((h) => (
                 <th
                   key={h}
                   className="px-4 py-2 text-left font-medium"
@@ -183,7 +183,7 @@ function LoginHistoryTab() {
             {entries.length === 0 ? (
               <tr>
                 <td colSpan={5}>
-                  <EmptyState icon="history" title={t("activity.noLoginHistory")} />
+                  <EmptyState icon="history" title={t("admin.activity.noLoginHistory")} />
                 </td>
               </tr>
             ) : (
@@ -197,9 +197,9 @@ function LoginHistoryTab() {
                   </td>
                   <td className="px-4 py-3">
                     {e.success ? (
-                      <Badge variant="success">{t("activity.ok")}</Badge>
+                      <Badge variant="success">{t("admin.activity.ok")}</Badge>
                     ) : (
-                      <Badge variant="error">{t("activity.failed")}</Badge>
+                      <Badge variant="error">{t("admin.activity.failed")}</Badge>
                     )}
                   </td>
                   <td className="px-4 py-3 text-xs max-w-xs truncate" style={{ color: "var(--text-muted)" }}>
@@ -215,7 +215,7 @@ function LoginHistoryTab() {
         </table>
       </div>
       <div className="flex items-center justify-between text-sm" style={{ color: "var(--text-muted)" }}>
-        <span>{t("activity.totalEntries", { count: total })}</span>
+        <span>{t("admin.activity.totalEntries", { count: total })}</span>
         <Pagination
           page={page}
           totalPages={Math.max(1, Math.ceil(total / PAGE_SIZE))}
@@ -227,7 +227,7 @@ function LoginHistoryTab() {
 }
 
 function StatsTab() {
-  const { t } = useTranslation("admin");
+  const { t } = useTranslation();
   const { data, isLoading } = useActivityServiceGetServerStats();
 
   if (isLoading) {
@@ -244,10 +244,10 @@ function StatsTab() {
     <div className="flex flex-col gap-6">
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
         {[
-          [t("activity.stats.totalPlays"), stats?.totalPlays ?? 0],
-          [t("activity.stats.totalUsers"), stats?.totalUsers ?? 0],
-          [t("activity.stats.totalMedia"), stats?.totalMediaItems ?? 0],
-          [t("activity.stats.bandwidth"), formatBytes(stats?.totalBandwidthBytes)],
+          [t("admin.activity.stats.totalPlays"), stats?.totalPlays ?? 0],
+          [t("admin.activity.stats.totalUsers"), stats?.totalUsers ?? 0],
+          [t("admin.activity.stats.totalMedia"), stats?.totalMediaItems ?? 0],
+          [t("admin.activity.stats.bandwidth"), formatBytes(stats?.totalBandwidthBytes)],
         ].map(([label, value]) => (
           <Card key={String(label)} className="flex flex-col gap-1">
             <span className="text-xs font-medium uppercase tracking-wide" style={{ color: "var(--text-muted)" }}>
@@ -263,7 +263,7 @@ function StatsTab() {
       {stats?.popularMedia && stats.popularMedia.length > 0 && (
         <Card>
           <h3 className="font-semibold mb-4" style={{ color: "var(--text)" }}>
-            {t("activity.popularMedia")}
+            {t("admin.activity.popularMedia")}
           </h3>
           <div className="flex flex-col gap-2">
             {stats.popularMedia.map((m) => (
@@ -274,7 +274,7 @@ function StatsTab() {
               >
                 <span style={{ color: "var(--text)" }}>{m.title ?? "\u2014"}</span>
                 <span className="text-xs" style={{ color: "var(--text-muted)" }}>
-                  {t("activity.plays", { count: m.playCount })}
+                  {t("admin.activity.plays", { count: m.playCount })}
                 </span>
               </div>
             ))}
@@ -285,7 +285,7 @@ function StatsTab() {
       {stats?.activeUsers && stats.activeUsers.length > 0 && (
         <Card>
           <h3 className="font-semibold mb-4" style={{ color: "var(--text)" }}>
-            {t("activity.mostActiveUsers")}
+            {t("admin.activity.mostActiveUsers")}
           </h3>
           <div className="flex flex-col gap-2">
             {stats.activeUsers.map((u) => (
@@ -296,7 +296,7 @@ function StatsTab() {
               >
                 <span style={{ color: "var(--text)" }}>{u.username}</span>
                 <div className="flex gap-4 text-xs" style={{ color: "var(--text-muted)" }}>
-                  <span>{t("activity.plays", { count: u.playCount })}</span>
+                  <span>{t("admin.activity.plays", { count: u.playCount })}</span>
                   <span>{formatMs(u.totalWatchTimeMs)}</span>
                 </div>
               </div>
@@ -309,19 +309,19 @@ function StatsTab() {
 }
 
 function ActivityPage() {
-  const { t } = useTranslation("admin");
+  const { t } = useTranslation();
   const [tab, setTab] = useState<Tab>("play");
 
   const tabs: Array<{ id: Tab; label: string }> = [
-    { id: "play", label: t("activity.tabs.playHistory") },
-    { id: "logins", label: t("activity.tabs.loginHistory") },
-    { id: "stats", label: t("activity.tabs.serverStats") },
+    { id: "play", label: t("admin.activity.tabs.playHistory") },
+    { id: "logins", label: t("admin.activity.tabs.loginHistory") },
+    { id: "stats", label: t("admin.activity.tabs.serverStats") },
   ];
 
   return (
     <div className="flex flex-col gap-6">
       <h1 className="text-2xl font-bold" style={{ color: "var(--text)" }}>
-        {t("activity.title")}
+        {t("admin.activity.title")}
       </h1>
 
       <div className="flex gap-1 p-1 rounded-[var(--radius-md)] self-start"

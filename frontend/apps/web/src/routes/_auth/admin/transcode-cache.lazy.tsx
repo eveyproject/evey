@@ -48,7 +48,7 @@ function useCacheInfo() {
 }
 
 function TranscodeCachePage() {
-  const { t } = useTranslation("admin");
+  const { t } = useTranslation();
   const { data, isLoading } = useCacheInfo();
   const queryClient = useQueryClient();
   const [showClearConfirm, setShowClearConfirm] = useState(false);
@@ -59,10 +59,10 @@ function TranscodeCachePage() {
     setClearing(true);
     try {
       await eveyFetch<void>({ url: "/api/v1/admin/transcode-cache", method: "DELETE" });
-      toast.success(t("transcodeCache.cacheCleared"));
+      toast.success(t("admin.transcodeCache.cacheCleared"));
       queryClient.invalidateQueries({ queryKey: CACHE_QUERY_KEY });
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : t("transcodeCache.failedClear"));
+      toast.error(err instanceof Error ? err.message : t("admin.transcodeCache.failedClear"));
     } finally {
       setClearing(false);
       setShowClearConfirm(false);
@@ -73,10 +73,10 @@ function TranscodeCachePage() {
     setDeletingFile(filename);
     try {
       await eveyFetch<void>({ url: `/api/v1/admin/transcode-cache/${encodeURIComponent(filename)}`, method: "DELETE" });
-      toast.success(t("transcodeCache.deleted", { name: filename }));
+      toast.success(t("admin.transcodeCache.deleted", { name: filename }));
       queryClient.invalidateQueries({ queryKey: CACHE_QUERY_KEY });
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : t("transcodeCache.failedDeleteFile"));
+      toast.error(err instanceof Error ? err.message : t("admin.transcodeCache.failedDeleteFile"));
     } finally {
       setDeletingFile(null);
     }
@@ -88,11 +88,11 @@ function TranscodeCachePage() {
     <div className="flex flex-col gap-6">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold" style={{ color: "var(--text)" }}>
-          {t("transcodeCache.title")}
+          {t("admin.transcodeCache.title")}
         </h1>
         {files.length > 0 && (
           <Button variant="danger" onClick={() => setShowClearConfirm(true)}>
-            {t("transcodeCache.clearAll")}
+            {t("admin.transcodeCache.clearAll")}
           </Button>
         )}
       </div>
@@ -106,7 +106,7 @@ function TranscodeCachePage() {
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
             <Card>
               <dt className="text-xs font-medium mb-1" style={{ color: "var(--text-muted)" }}>
-                {t("transcodeCache.totalSize")}
+                {t("admin.transcodeCache.totalSize")}
               </dt>
               <dd className="text-xl font-bold" style={{ color: "var(--text)" }}>
                 {formatSize(data?.totalSize ?? 0)}
@@ -114,7 +114,7 @@ function TranscodeCachePage() {
             </Card>
             <Card>
               <dt className="text-xs font-medium mb-1" style={{ color: "var(--text-muted)" }}>
-                {t("transcodeCache.files")}
+                {t("admin.transcodeCache.files")}
               </dt>
               <dd className="text-xl font-bold" style={{ color: "var(--text)" }}>
                 {data?.fileCount ?? 0}
@@ -127,7 +127,7 @@ function TranscodeCachePage() {
               className="rounded-[var(--radius-lg)]"
               style={{ backgroundColor: "var(--surface)", border: "1px solid var(--border)" }}
             >
-              <EmptyState icon="media" title={t("transcodeCache.cacheEmpty")} />
+              <EmptyState icon="media" title={t("admin.transcodeCache.cacheEmpty")} />
             </div>
           ) : (
             <div
@@ -138,13 +138,13 @@ function TranscodeCachePage() {
                 <thead>
                   <tr style={{ borderBottom: "1px solid var(--border)" }}>
                     <th className="text-left px-4 py-3 font-medium" style={{ color: "var(--text-muted)" }}>
-                      {t("transcodeCache.tableHeaders.file")}
+                      {t("admin.transcodeCache.tableHeaders.file")}
                     </th>
                     <th className="text-left px-4 py-3 font-medium" style={{ color: "var(--text-muted)" }}>
-                      {t("transcodeCache.tableHeaders.size")}
+                      {t("admin.transcodeCache.tableHeaders.size")}
                     </th>
                     <th className="text-left px-4 py-3 font-medium hidden sm:table-cell" style={{ color: "var(--text-muted)" }}>
-                      {t("transcodeCache.tableHeaders.modified")}
+                      {t("admin.transcodeCache.tableHeaders.modified")}
                     </th>
                     <th className="px-4 py-3 w-20" />
                   </tr>
@@ -168,7 +168,7 @@ function TranscodeCachePage() {
                           onClick={() => handleDeleteFile(file.name)}
                           className="text-xs"
                         >
-                          {t("common:delete")}
+                          {t("common.delete")}
                         </Button>
                       </td>
                     </tr>
@@ -183,17 +183,17 @@ function TranscodeCachePage() {
       <Modal
         open={showClearConfirm}
         onClose={() => setShowClearConfirm(false)}
-        title={t("transcodeCache.clearConfirmTitle")}
+        title={t("admin.transcodeCache.clearConfirmTitle")}
       >
         <p className="text-sm mb-4" style={{ color: "var(--text-muted)" }}>
-          {t("transcodeCache.clearConfirm", { count: data?.fileCount ?? 0, size: formatSize(data?.totalSize ?? 0) })}
+          {t("admin.transcodeCache.clearConfirm", { count: data?.fileCount ?? 0, size: formatSize(data?.totalSize ?? 0) })}
         </p>
         <div className="flex justify-end gap-3">
           <Button variant="secondary" onClick={() => setShowClearConfirm(false)}>
-            {t("common:cancel")}
+            {t("common.cancel")}
           </Button>
           <Button variant="danger" loading={clearing} onClick={handleClearAll}>
-            {t("transcodeCache.clearAll")}
+            {t("admin.transcodeCache.clearAll")}
           </Button>
         </div>
       </Modal>

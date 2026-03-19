@@ -60,7 +60,7 @@ function LevelSelect({ label, value, onChange }: LevelSelectProps) {
 }
 
 function PushNotificationSection() {
-  const { t } = useTranslation("auth");
+  const { t } = useTranslation();
   const [enabled, setEnabled] = useState(false);
   const [loading, setLoading] = useState(false);
 
@@ -71,7 +71,7 @@ function PushNotificationSection() {
   if (!isFCMConfigured()) {
     return (
       <p className="text-xs text-[var(--text-muted)]">
-        {t("notificationSettings.pushNotConfigured")}
+        {t("auth.notificationSettings.pushNotConfigured")}
       </p>
     );
   }
@@ -82,7 +82,7 @@ function PushNotificationSection() {
       if (!enabled) {
         const token = await requestPushToken(VAPID_KEY ?? "");
         if (!token) {
-          toast.error(t("notificationSettings.permissionDenied"));
+          toast.error(t("auth.notificationSettings.permissionDenied"));
           return;
         }
         await eveyFetch({
@@ -92,7 +92,7 @@ function PushNotificationSection() {
           data: { token, platform: "web" },
         });
         setEnabled(true);
-        toast.success(t("notificationSettings.pushEnabled"));
+        toast.success(t("auth.notificationSettings.pushEnabled"));
       } else {
         const token = getStoredPushToken();
         await revokePushToken();
@@ -105,10 +105,10 @@ function PushNotificationSection() {
           });
         }
         setEnabled(false);
-        toast.success(t("notificationSettings.pushDisabled"));
+        toast.success(t("auth.notificationSettings.pushDisabled"));
       }
     } catch (err) {
-      toast.error((err as Error).message || t("notificationSettings.pushError"));
+      toast.error((err as Error).message || t("auth.notificationSettings.pushError"));
     } finally {
       setLoading(false);
     }
@@ -117,9 +117,9 @@ function PushNotificationSection() {
   return (
     <div className="flex items-center justify-between py-3">
       <div>
-        <p className="text-sm text-[var(--text)]">{t("notificationSettings.pushNotifications")}</p>
+        <p className="text-sm text-[var(--text)]">{t("auth.notificationSettings.pushNotifications")}</p>
         <p className="text-xs text-[var(--text-muted)] mt-0.5">
-          {t("notificationSettings.pushDesc")}
+          {t("auth.notificationSettings.pushDesc")}
         </p>
       </div>
       <Button
@@ -127,16 +127,15 @@ function PushNotificationSection() {
         loading={loading}
         onClick={handleToggle}
       >
-        {enabled ? t("disable", { ns: "common" }) : t("enable", { ns: "common" })}
+        {enabled ? t("common.disable") : t("common.enable")}
       </Button>
     </div>
   );
 }
 
 export function NotificationSettings() {
-  const { t } = useTranslation("auth");
-  const { t: tc } = useTranslation("common");
-  const { data: settings, isLoading } = useNotificationServiceGetNotificationSettings();
+  const { t } = useTranslation();
+    const { data: settings, isLoading } = useNotificationServiceGetNotificationSettings();
 
   const [movieLevel, setMovieLevel] = useState<NotificationLevel>("NOTIFICATION_LEVEL_UNSPECIFIED");
   const [seriesLevel, setSeriesLevel] = useState<NotificationLevel>("NOTIFICATION_LEVEL_UNSPECIFIED");
@@ -152,8 +151,8 @@ export function NotificationSettings() {
 
   const update = useNotificationServiceUpdateNotificationSettings({
     mutation: {
-      onSuccess: () => toast.success(t("notificationSettings.saved")),
-      onError: (err: Error) => toast.error(err.message || t("notificationSettings.saveError")),
+      onSuccess: () => toast.success(t("auth.notificationSettings.saved")),
+      onError: (err: Error) => toast.error(err.message || t("auth.notificationSettings.saveError")),
     },
   });
 
@@ -164,15 +163,15 @@ export function NotificationSettings() {
   };
 
   if (isLoading) {
-    return <p className="text-sm text-[var(--text-muted)]">{tc("loading")}</p>;
+    return <p className="text-sm text-[var(--text-muted)]">{t("common.loading")}</p>;
   }
 
   return (
     <div className="flex flex-col gap-6">
       <div className="bg-[var(--surface-raised)] rounded-[var(--radius-md)] px-4">
-        <LevelSelect label={t("notificationSettings.movies")} value={movieLevel} onChange={setMovieLevel} />
-        <LevelSelect label={t("notificationSettings.series")} value={seriesLevel} onChange={setSeriesLevel} />
-        <LevelSelect label={t("notificationSettings.music")} value={musicLevel} onChange={setMusicLevel} />
+        <LevelSelect label={t("auth.notificationSettings.movies")} value={movieLevel} onChange={setMovieLevel} />
+        <LevelSelect label={t("auth.notificationSettings.series")} value={seriesLevel} onChange={setSeriesLevel} />
+        <LevelSelect label={t("auth.notificationSettings.music")} value={musicLevel} onChange={setMusicLevel} />
       </div>
       <div>
         <Button
@@ -180,7 +179,7 @@ export function NotificationSettings() {
           loading={update.isPending}
           onClick={handleSave}
         >
-          {tc("save")}
+          {t("common.save")}
         </Button>
       </div>
       <div className="bg-[var(--surface-raised)] rounded-[var(--radius-md)] px-4">

@@ -88,7 +88,7 @@ func (i *AuthInterceptor) enforceRBAC(ctx context.Context, method string) error 
 	if role == RoleAdmin {
 		claims := ClaimsFromContext(ctx)
 		if claims == nil || !claims.IsAdmin {
-			return i.translatedErr(ctx, codes.PermissionDenied, "auth.admin_access_required")
+			return i.translatedErr(ctx, codes.PermissionDenied, "errors.auth.admin_access_required")
 		}
 	}
 	return nil
@@ -97,11 +97,11 @@ func (i *AuthInterceptor) enforceRBAC(ctx context.Context, method string) error 
 func (i *AuthInterceptor) authenticate(ctx context.Context) (context.Context, error) {
 	md, ok := metadata.FromIncomingContext(ctx)
 	if !ok {
-		return nil, i.translatedErr(ctx, codes.Unauthenticated, "auth.missing_metadata")
+		return nil, i.translatedErr(ctx, codes.Unauthenticated, "errors.auth.missing_metadata")
 	}
 	vals := md.Get("authorization")
 	if len(vals) == 0 {
-		return nil, i.translatedErr(ctx, codes.Unauthenticated, "auth.missing_authorization")
+		return nil, i.translatedErr(ctx, codes.Unauthenticated, "errors.auth.missing_authorization")
 	}
 	raw := vals[0]
 	// API key auth: "evey_..." (without "Bearer " prefix)
@@ -111,7 +111,7 @@ func (i *AuthInterceptor) authenticate(ctx context.Context) (context.Context, er
 	}
 	claims, err := i.tokenGen.ValidateAccessToken(trimmed)
 	if err != nil {
-		return nil, i.translatedErr(ctx, codes.Unauthenticated, "auth.invalid_token")
+		return nil, i.translatedErr(ctx, codes.Unauthenticated, "errors.auth.invalid_token")
 	}
 	return context.WithValue(ctx, claimsKey{}, claims), nil
 }

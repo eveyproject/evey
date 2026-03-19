@@ -64,7 +64,7 @@ func (h *userHandler) audit(ctx context.Context, userID, action, resourceType st
 func (h *userHandler) Login(ctx context.Context, req *eveyv1.LoginRequest) (*eveyv1.AuthResponse, error) {
 	access, refresh, err := h.auth.Login(ctx, req.Username, req.Password)
 	if err != nil {
-		return nil, h.translator.TranslatedError(ctx, codes.Unauthenticated, "auth.invalid_credentials")
+		return nil, h.translator.TranslatedError(ctx, codes.Unauthenticated, "errors.auth.invalid_credentials")
 	}
 	u, userErr := h.users.GetByUsername(ctx, req.Username)
 	if userErr != nil {
@@ -84,7 +84,7 @@ func (h *userHandler) Login(ctx context.Context, req *eveyv1.LoginRequest) (*eve
 func (h *userHandler) RefreshToken(ctx context.Context, req *eveyv1.RefreshTokenRequest) (*eveyv1.AuthResponse, error) {
 	access, newRefresh, err := h.auth.RefreshToken(ctx, req.RefreshToken)
 	if err != nil {
-		return nil, h.translator.TranslatedError(ctx, codes.Unauthenticated, "auth.invalid_credentials")
+		return nil, h.translator.TranslatedError(ctx, codes.Unauthenticated, "errors.auth.invalid_credentials")
 	}
 	return &eveyv1.AuthResponse{AccessToken: access, RefreshToken: newRefresh}, nil
 }
@@ -92,7 +92,7 @@ func (h *userHandler) RefreshToken(ctx context.Context, req *eveyv1.RefreshToken
 func (h *userHandler) Logout(ctx context.Context, _ *eveyv1.LogoutRequest) (*eveyv1.LogoutResponse, error) {
 	claims := interceptors.ClaimsFromContext(ctx)
 	if claims == nil {
-		return nil, h.translator.TranslatedError(ctx, codes.Unauthenticated, "auth.unauthenticated")
+		return nil, h.translator.TranslatedError(ctx, codes.Unauthenticated, "errors.auth.unauthenticated")
 	}
 	if err := h.auth.Logout(ctx, claims.UserID); err != nil {
 		slog.Error("logout", slog.Any("err", err))
@@ -105,7 +105,7 @@ func (h *userHandler) Logout(ctx context.Context, _ *eveyv1.LogoutRequest) (*eve
 func (h *userHandler) GetCurrentUser(ctx context.Context, _ *eveyv1.GetCurrentUserRequest) (*eveyv1.User, error) {
 	claims := interceptors.ClaimsFromContext(ctx)
 	if claims == nil {
-		return nil, h.translator.TranslatedError(ctx, codes.Unauthenticated, "auth.unauthenticated")
+		return nil, h.translator.TranslatedError(ctx, codes.Unauthenticated, "errors.auth.unauthenticated")
 	}
 	u, err := h.users.GetByID(ctx, claims.UserID)
 	if err != nil {
@@ -117,7 +117,7 @@ func (h *userHandler) GetCurrentUser(ctx context.Context, _ *eveyv1.GetCurrentUs
 func (h *userHandler) CreateUser(ctx context.Context, req *eveyv1.CreateUserRequest) (*eveyv1.User, error) {
 	claims := interceptors.ClaimsFromContext(ctx)
 	if claims == nil {
-		return nil, h.translator.TranslatedError(ctx, codes.Unauthenticated, "auth.unauthenticated")
+		return nil, h.translator.TranslatedError(ctx, codes.Unauthenticated, "errors.auth.unauthenticated")
 	}
 	u := &user.User{
 		ID:       id.New("usr-"),
@@ -140,10 +140,10 @@ func (h *userHandler) UpdateUser(ctx context.Context, req *eveyv1.UpdateUserRequ
 	}
 	if !claims.IsAdmin {
 		if req.Id != claims.UserID {
-			return nil, h.translator.TranslatedError(ctx, codes.PermissionDenied, "user.cannot_update_other")
+			return nil, h.translator.TranslatedError(ctx, codes.PermissionDenied, "errors.user.cannot_update_other")
 		}
 		if req.IsAdmin != nil && *req.IsAdmin {
-			return nil, h.translator.TranslatedError(ctx, codes.PermissionDenied, "user.cannot_escalate_admin")
+			return nil, h.translator.TranslatedError(ctx, codes.PermissionDenied, "errors.user.cannot_escalate_admin")
 		}
 	}
 	u, err := h.users.GetByID(ctx, req.Id)
@@ -221,7 +221,7 @@ func (h *userHandler) CreateProfile(ctx context.Context, req *eveyv1.CreateProfi
 		return nil, err
 	}
 	if !claims.IsAdmin && req.UserId != claims.UserID {
-		return nil, h.translator.TranslatedError(ctx, codes.PermissionDenied, "user.cannot_create_profile_other")
+		return nil, h.translator.TranslatedError(ctx, codes.PermissionDenied, "errors.user.cannot_create_profile_other")
 	}
 	p := &user.Profile{
 		ID:          id.New("prf-"),
@@ -248,7 +248,7 @@ func (h *userHandler) UpdateProfile(ctx context.Context, req *eveyv1.UpdateProfi
 		return nil, err
 	}
 	if !claims.IsAdmin && req.Id != claims.ProfileID {
-		return nil, h.translator.TranslatedError(ctx, codes.PermissionDenied, "user.cannot_update_profile_other")
+		return nil, h.translator.TranslatedError(ctx, codes.PermissionDenied, "errors.user.cannot_update_profile_other")
 	}
 	p := &user.Profile{
 		ID:          req.Id,
@@ -287,7 +287,7 @@ func (h *userHandler) DeleteProfile(ctx context.Context, req *eveyv1.DeleteProfi
 		return nil, err
 	}
 	if !claims.IsAdmin && req.Id != claims.ProfileID {
-		return nil, h.translator.TranslatedError(ctx, codes.PermissionDenied, "user.cannot_delete_profile_other")
+		return nil, h.translator.TranslatedError(ctx, codes.PermissionDenied, "errors.user.cannot_delete_profile_other")
 	}
 	if err := h.userSvc.DeleteProfile(ctx, req.Id); err != nil {
 		slog.Error("delete profile", slog.Any("err", err))
@@ -320,7 +320,7 @@ func (h *userHandler) ListProfiles(ctx context.Context, req *eveyv1.ListProfiles
 func (h *userHandler) CreateInviteLink(ctx context.Context, req *eveyv1.CreateInviteLinkRequest) (*eveyv1.InviteLink, error) {
 	claims := interceptors.ClaimsFromContext(ctx)
 	if claims == nil {
-		return nil, h.translator.TranslatedError(ctx, codes.Unauthenticated, "auth.unauthenticated")
+		return nil, h.translator.TranslatedError(ctx, codes.Unauthenticated, "errors.auth.unauthenticated")
 	}
 	link := &user.InviteLink{
 		ID:        id.New("inv-"),
@@ -372,7 +372,7 @@ func (h *userHandler) RevokeInviteLink(ctx context.Context, req *eveyv1.RevokeIn
 			}
 		}
 		if !owned {
-			return nil, h.translator.TranslatedError(ctx, codes.PermissionDenied, "user.cannot_revoke_invite_other")
+			return nil, h.translator.TranslatedError(ctx, codes.PermissionDenied, "errors.user.cannot_revoke_invite_other")
 		}
 	}
 	if err := h.access.RevokeInviteLink(ctx, req.Id); err != nil {
@@ -385,7 +385,7 @@ func (h *userHandler) RevokeInviteLink(ctx context.Context, req *eveyv1.RevokeIn
 func (h *userHandler) RegisterWithInvite(ctx context.Context, req *eveyv1.RegisterWithInviteRequest) (*eveyv1.AuthResponse, error) {
 	u, err := h.access.RegisterWithInvite(ctx, req.InviteCode, req.Username, req.Password, req.Email)
 	if err != nil {
-		return nil, h.translator.TranslatedError(ctx, codes.InvalidArgument, "user.invalid_invite_data")
+		return nil, h.translator.TranslatedError(ctx, codes.InvalidArgument, "errors.user.invalid_invite_data")
 	}
 	access, refresh, loginErr := h.auth.Login(ctx, req.Username, req.Password)
 	if loginErr != nil {
@@ -415,7 +415,7 @@ func (h *userHandler) InitiateQuickConnect(ctx context.Context, _ *eveyv1.Initia
 func (h *userHandler) AuthorizeQuickConnect(ctx context.Context, req *eveyv1.AuthorizeQuickConnectRequest) (*eveyv1.AuthorizeQuickConnectResponse, error) {
 	claims := interceptors.ClaimsFromContext(ctx)
 	if claims == nil {
-		return nil, h.translator.TranslatedError(ctx, codes.Unauthenticated, "auth.unauthenticated")
+		return nil, h.translator.TranslatedError(ctx, codes.Unauthenticated, "errors.auth.unauthenticated")
 	}
 	if err := h.access.AuthorizeQuickConnect(ctx, req.Code, claims.UserID); err != nil {
 		slog.Error("authorize quick connect", slog.Any("err", err))
@@ -427,7 +427,7 @@ func (h *userHandler) AuthorizeQuickConnect(ctx context.Context, req *eveyv1.Aut
 func (h *userHandler) CheckQuickConnect(ctx context.Context, req *eveyv1.CheckQuickConnectRequest) (*eveyv1.CheckQuickConnectResponse, error) {
 	qc, err := h.query.CheckQuickConnect(ctx, req.Code)
 	if err != nil {
-		return nil, h.translator.TranslatedError(ctx, codes.NotFound, "user.invalid_expired_code")
+		return nil, h.translator.TranslatedError(ctx, codes.NotFound, "errors.user.invalid_expired_code")
 	}
 	return &eveyv1.CheckQuickConnectResponse{
 		Authorized: qc.Status == string(user.Authorized),
@@ -437,7 +437,7 @@ func (h *userHandler) CheckQuickConnect(ctx context.Context, req *eveyv1.CheckQu
 func (h *userHandler) CreateAPIKey(ctx context.Context, req *eveyv1.CreateAPIKeyRequest) (*eveyv1.APIKey, error) {
 	claims := interceptors.ClaimsFromContext(ctx)
 	if claims == nil {
-		return nil, h.translator.TranslatedError(ctx, codes.Unauthenticated, "auth.unauthenticated")
+		return nil, h.translator.TranslatedError(ctx, codes.Unauthenticated, "errors.auth.unauthenticated")
 	}
 
 	rawBytes := make([]byte, 32)
@@ -468,7 +468,7 @@ func (h *userHandler) CreateAPIKey(ctx context.Context, req *eveyv1.CreateAPIKey
 func (h *userHandler) ListAPIKeys(ctx context.Context, _ *eveyv1.ListAPIKeysRequest) (*eveyv1.ListAPIKeysResponse, error) {
 	claims := interceptors.ClaimsFromContext(ctx)
 	if claims == nil {
-		return nil, h.translator.TranslatedError(ctx, codes.Unauthenticated, "auth.unauthenticated")
+		return nil, h.translator.TranslatedError(ctx, codes.Unauthenticated, "errors.auth.unauthenticated")
 	}
 	keys, err := h.query.ListAPIKeys(ctx, claims.UserID)
 	if err != nil {
@@ -500,7 +500,7 @@ func (h *userHandler) RevokeAPIKey(ctx context.Context, req *eveyv1.RevokeAPIKey
 			}
 		}
 		if !owned {
-			return nil, h.translator.TranslatedError(ctx, codes.PermissionDenied, "user.cannot_revoke_apikey_other")
+			return nil, h.translator.TranslatedError(ctx, codes.PermissionDenied, "errors.user.cannot_revoke_apikey_other")
 		}
 	}
 	if err := h.access.RevokeAPIKey(ctx, req.Id); err != nil {

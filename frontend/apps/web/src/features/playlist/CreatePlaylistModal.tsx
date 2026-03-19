@@ -30,9 +30,8 @@ const RULE_OPERATORS = [
 ];
 
 export function CreatePlaylistModal({ open, onClose }: Props) {
-  const { t } = useTranslation("media");
-  const { t: tc } = useTranslation("common");
-  const [name, setName] = useState("");
+  const { t } = useTranslation();
+    const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [type, setType] = useState<"manual" | "smart">("manual");
   const [rules, setRules] = useState<PlaylistRule[]>([]);
@@ -67,53 +66,53 @@ export function CreatePlaylistModal({ open, onClose }: Props) {
         type,
         rules: type === "smart" ? rules.filter((r) => r.value.trim()) : undefined,
       });
-      toast.success(t("playlist.createSuccess", { name }));
+      toast.success(t("media.playlist.createSuccess", { name }));
       reset();
       onClose();
     } catch {
-      toast.error(t("playlist.createError"));
+      toast.error(t("media.playlist.createError"));
     }
   }
 
   return (
-    <Modal open={open} onClose={onClose} title={t("playlist.createTitle")}>
+    <Modal open={open} onClose={onClose} title={t("media.playlist.createTitle")}>
       <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-        <Input label={t("playlist.name")} value={name} onChange={(e) => setName(e.target.value)} required />
-        <Textarea label={t("playlist.description")} value={description} onChange={(e) => setDescription(e.target.value)} rows={2} />
+        <Input label={t("media.playlist.name")} value={name} onChange={(e) => setName(e.target.value)} required />
+        <Textarea label={t("media.playlist.description")} value={description} onChange={(e) => setDescription(e.target.value)} rows={2} />
         <Select
-          label={t("playlist.type")}
+          label={t("media.playlist.type")}
           value={type}
           onChange={(v) => setType(v as "manual" | "smart")}
           options={[
-            { value: "manual", label: t("playlist.manual") },
-            { value: "smart", label: t("playlist.smart") },
+            { value: "manual", label: t("media.playlist.manual") },
+            { value: "smart", label: t("media.playlist.smart") },
           ]}
         />
 
         {type === "smart" && (
           <div className="space-y-3">
             <div className="flex items-center justify-between">
-              <span className="text-sm font-medium" style={{ color: "var(--text)" }}>{t("playlist.rules")}</span>
+              <span className="text-sm font-medium" style={{ color: "var(--text)" }}>{t("media.playlist.rules")}</span>
               <Button type="button" variant="secondary" onClick={addRule}>
-                {t("playlist.addRule")}
+                {t("media.playlist.addRule")}
               </Button>
             </div>
             {rules.map((rule, i) => (
               <div key={i} className="flex gap-2 items-end">
                 <Select
-                  label={i === 0 ? t("playlist.field") : undefined}
+                  label={i === 0 ? t("media.playlist.field") : undefined}
                   value={rule.field}
                   onChange={(v) => updateRule(i, "field", v)}
                   options={RULE_FIELDS}
                 />
                 <Select
-                  label={i === 0 ? t("playlist.op") : undefined}
+                  label={i === 0 ? t("media.playlist.op") : undefined}
                   value={rule.operator}
                   onChange={(v) => updateRule(i, "operator", v)}
                   options={RULE_OPERATORS}
                 />
                 <Input
-                  label={i === 0 ? t("playlist.value") : undefined}
+                  label={i === 0 ? t("media.playlist.value") : undefined}
                   value={rule.value}
                   onChange={(e) => updateRule(i, "value", e.target.value)}
                   placeholder="e.g. Action"
@@ -134,8 +133,8 @@ export function CreatePlaylistModal({ open, onClose }: Props) {
         )}
 
         <div className="flex gap-2 pt-2">
-          <Button type="submit" loading={create.isPending}>{tc("create")}</Button>
-          <Button type="button" variant="secondary" onClick={onClose}>{tc("cancel")}</Button>
+          <Button type="submit" loading={create.isPending}>{t("common.create")}</Button>
+          <Button type="button" variant="secondary" onClick={onClose}>{t("common.cancel")}</Button>
         </div>
       </form>
     </Modal>

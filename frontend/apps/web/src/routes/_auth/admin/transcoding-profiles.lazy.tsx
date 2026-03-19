@@ -85,7 +85,7 @@ interface ProfileDialogProps {
 }
 
 function ProfileDialog({ open, profile, onClose }: ProfileDialogProps) {
-  const { t } = useTranslation("admin");
+  const { t } = useTranslation();
   const isEdit = profile !== null;
   const queryClient = useQueryClient();
 
@@ -126,15 +126,15 @@ function ProfileDialog({ open, profile, onClose }: ProfileDialogProps) {
     try {
       if (isEdit && profile.id) {
         await eveyFetch({ url: `/api/v1/admin/transcoding/profiles/${profile.id}`, method: "PUT", data: body });
-        toast.success(t("transcodingProfiles.profileUpdated"));
+        toast.success(t("admin.transcodingProfiles.profileUpdated"));
       } else {
         await eveyFetch({ url: `/api/v1/admin/transcoding/profiles`, method: "POST", data: body });
-        toast.success(t("transcodingProfiles.profileCreated"));
+        toast.success(t("admin.transcodingProfiles.profileCreated"));
       }
       queryClient.invalidateQueries({ queryKey: getTranscodingServiceListTranscodeProfilesQueryKey() });
       handleClose();
     } catch {
-      toast.error(t("transcodingProfiles.failedSave"));
+      toast.error(t("admin.transcodingProfiles.failedSave"));
     } finally {
       setSaving(false);
     }
@@ -144,12 +144,12 @@ function ProfileDialog({ open, profile, onClose }: ProfileDialogProps) {
     <Modal
       open={open}
       onClose={handleClose}
-      title={isEdit ? t("transcodingProfiles.editProfile") : t("transcodingProfiles.createProfile")}
+      title={isEdit ? t("admin.transcodingProfiles.editProfile") : t("admin.transcodingProfiles.createProfile")}
     >
       <form onSubmit={handleSubmit} className="flex flex-col gap-4">
         <div className="flex flex-col gap-1">
           <label className="text-sm font-medium" style={{ color: "var(--text)" }}>
-            {t("transcodingProfiles.form.name")}
+            {t("admin.transcodingProfiles.form.name")}
           </label>
           <input
             type="text"
@@ -169,7 +169,7 @@ function ProfileDialog({ open, profile, onClose }: ProfileDialogProps) {
         <div className="grid grid-cols-2 gap-4">
           <div className="flex flex-col gap-1">
             <label className="text-sm font-medium" style={{ color: "var(--text)" }}>
-              {t("transcodingProfiles.form.maxResolution")}
+              {t("admin.transcodingProfiles.form.maxResolution")}
             </label>
             <select
               value={form.resolution}
@@ -185,7 +185,7 @@ function ProfileDialog({ open, profile, onClose }: ProfileDialogProps) {
 
           <div className="flex flex-col gap-1">
             <label className="text-sm font-medium" style={{ color: "var(--text)" }}>
-              {t("transcodingProfiles.form.hwAccel")}
+              {t("admin.transcodingProfiles.form.hwAccel")}
             </label>
             <select
               value={form.hwAccel}
@@ -201,7 +201,7 @@ function ProfileDialog({ open, profile, onClose }: ProfileDialogProps) {
 
           <div className="flex flex-col gap-1">
             <label className="text-sm font-medium" style={{ color: "var(--text)" }}>
-              {t("transcodingProfiles.form.videoCodec")}
+              {t("admin.transcodingProfiles.form.videoCodec")}
             </label>
             <select
               value={form.videoCodec}
@@ -217,7 +217,7 @@ function ProfileDialog({ open, profile, onClose }: ProfileDialogProps) {
 
           <div className="flex flex-col gap-1">
             <label className="text-sm font-medium" style={{ color: "var(--text)" }}>
-              {t("transcodingProfiles.form.audioCodec")}
+              {t("admin.transcodingProfiles.form.audioCodec")}
             </label>
             <select
               value={form.audioCodec}
@@ -234,7 +234,7 @@ function ProfileDialog({ open, profile, onClose }: ProfileDialogProps) {
 
         <div className="flex flex-col gap-1">
           <label className="text-sm font-medium" style={{ color: "var(--text)" }}>
-            {t("transcodingProfiles.form.maxBitrate")}
+            {t("admin.transcodingProfiles.form.maxBitrate")}
           </label>
           <input
             type="number"
@@ -255,16 +255,16 @@ function ProfileDialog({ open, profile, onClose }: ProfileDialogProps) {
             className="w-4 h-4"
           />
           <span className="text-sm" style={{ color: "var(--text)" }}>
-            {t("transcodingProfiles.form.defaultProfile")}
+            {t("admin.transcodingProfiles.form.defaultProfile")}
           </span>
         </label>
 
         <div className="flex justify-end gap-3 pt-2">
           <Button type="button" variant="secondary" onClick={handleClose}>
-            {t("common:cancel")}
+            {t("common.cancel")}
           </Button>
           <Button type="submit" loading={saving}>
-            {isEdit ? t("common:save") : t("common:create")}
+            {isEdit ? t("common.save") : t("common.create")}
           </Button>
         </div>
       </form>
@@ -279,7 +279,7 @@ interface DeleteDialogProps {
 }
 
 function DeleteDialog({ open, profile, onClose }: DeleteDialogProps) {
-  const { t } = useTranslation("admin");
+  const { t } = useTranslation();
   const queryClient = useQueryClient();
   const [deleting, setDeleting] = useState(false);
 
@@ -288,27 +288,27 @@ function DeleteDialog({ open, profile, onClose }: DeleteDialogProps) {
     setDeleting(true);
     try {
       await eveyFetch({ url: `/api/v1/admin/transcoding/profiles/${profile.id}`, method: "DELETE" });
-      toast.success(t("transcodingProfiles.profileDeleted"));
+      toast.success(t("admin.transcodingProfiles.profileDeleted"));
       queryClient.invalidateQueries({ queryKey: getTranscodingServiceListTranscodeProfilesQueryKey() });
       onClose();
     } catch {
-      toast.error(t("transcodingProfiles.failedDeleteProfile"));
+      toast.error(t("admin.transcodingProfiles.failedDeleteProfile"));
     } finally {
       setDeleting(false);
     }
   }
 
   return (
-    <Modal open={open} onClose={onClose} title={t("transcodingProfiles.deleteProfile")}>
+    <Modal open={open} onClose={onClose} title={t("admin.transcodingProfiles.deleteProfile")}>
       <p className="text-sm mb-4" style={{ color: "var(--text-muted)" }}
-        dangerouslySetInnerHTML={{ __html: t("transcodingProfiles.deleteConfirm", { name: profile?.name }) }}
+        dangerouslySetInnerHTML={{ __html: t("admin.transcodingProfiles.deleteConfirm", { name: profile?.name }) }}
       />
       <div className="flex justify-end gap-3">
         <Button variant="secondary" onClick={onClose}>
-          {t("common:cancel")}
+          {t("common.cancel")}
         </Button>
         <Button variant="danger" loading={deleting} onClick={handleConfirm}>
-          {t("common:delete")}
+          {t("common.delete")}
         </Button>
       </div>
     </Modal>
@@ -316,7 +316,7 @@ function DeleteDialog({ open, profile, onClose }: DeleteDialogProps) {
 }
 
 function TranscodingProfilesPage() {
-  const { t } = useTranslation("admin");
+  const { t } = useTranslation();
   const { data, isLoading } = useTranscodingServiceListTranscodeProfiles();
   const profiles = data?.profiles ?? [];
 
@@ -328,9 +328,9 @@ function TranscodingProfilesPage() {
     <div className="flex flex-col gap-6">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold" style={{ color: "var(--text)" }}>
-          {t("transcodingProfiles.title")}
+          {t("admin.transcodingProfiles.title")}
         </h1>
-        <Button onClick={() => setShowCreate(true)}>{t("transcodingProfiles.createProfile")}</Button>
+        <Button onClick={() => setShowCreate(true)}>{t("admin.transcodingProfiles.createProfile")}</Button>
       </div>
 
       {isLoading ? (
@@ -347,7 +347,7 @@ function TranscodingProfilesPage() {
               <tr
                 style={{ backgroundColor: "var(--surface)", borderBottom: "1px solid var(--border)" }}
               >
-                {[t("transcodingProfiles.tableHeaders.name"), t("transcodingProfiles.tableHeaders.resolution"), t("transcodingProfiles.tableHeaders.videoCodec"), t("transcodingProfiles.tableHeaders.audioCodec"), t("transcodingProfiles.tableHeaders.bitrate"), t("transcodingProfiles.tableHeaders.hwAccel"), ""].map(
+                {[t("admin.transcodingProfiles.tableHeaders.name"), t("admin.transcodingProfiles.tableHeaders.resolution"), t("admin.transcodingProfiles.tableHeaders.videoCodec"), t("admin.transcodingProfiles.tableHeaders.audioCodec"), t("admin.transcodingProfiles.tableHeaders.bitrate"), t("admin.transcodingProfiles.tableHeaders.hwAccel"), ""].map(
                   (h) => (
                     <th
                       key={h}
@@ -368,7 +368,7 @@ function TranscodingProfilesPage() {
                     className="px-4 py-8 text-center"
                     style={{ color: "var(--text-muted)" }}
                   >
-                    {t("transcodingProfiles.noProfiles")}
+                    {t("admin.transcodingProfiles.noProfiles")}
                   </td>
                 </tr>
               ) : (
@@ -378,7 +378,7 @@ function TranscodingProfilesPage() {
                       <div className="flex items-center gap-2">
                         {p.name}
                         {p.isDefault && (
-                          <Badge variant="success">{t("transcodingProfiles.default")}</Badge>
+                          <Badge variant="success">{t("admin.transcodingProfiles.default")}</Badge>
                         )}
                       </div>
                     </td>
@@ -400,10 +400,10 @@ function TranscodingProfilesPage() {
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-2">
                         <Button variant="secondary" className="text-xs" onClick={() => setEditProfile(p)}>
-                          {t("common:edit")}
+                          {t("common.edit")}
                         </Button>
                         <Button variant="danger" className="text-xs" onClick={() => setDeleteProfile(p)}>
-                          {t("common:delete")}
+                          {t("common.delete")}
                         </Button>
                       </div>
                     </td>

@@ -26,7 +26,7 @@ export function SearchDropdown({
   onRemoveRecent,
   onClearRecents,
 }: SearchDropdownProps) {
-  const { t } = useTranslation("media");
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const dropdownRef = useRef<HTMLDivElement>(null);
   const activeIndex = useRef(-1);
@@ -110,7 +110,7 @@ export function SearchDropdown({
               <circle cx="12" cy="12" r="10" />
               <path strokeLinecap="round" d="M12 6v6l4 2" />
             </svg>
-            {t("search.recentSearches")}
+            {t("media.search.recentSearches")}
           </div>
           {onClearRecents && (
             <button
@@ -118,7 +118,7 @@ export function SearchDropdown({
               className="text-xs hover:underline cursor-pointer"
               style={{ color: "var(--text-muted)" }}
             >
-              {t("search.clearAll")}
+              {t("media.search.clearAll")}
             </button>
           )}
         </div>
@@ -170,7 +170,7 @@ export function SearchDropdown({
             style={{ borderColor: "var(--accent)", borderTopColor: "transparent" }}
           />
           <span className="text-sm" style={{ color: "var(--text-muted)" }}>
-            {t("search.searching")}
+            {t("media.search.searching")}
           </span>
         </div>
       )}
@@ -178,7 +178,7 @@ export function SearchDropdown({
       {!isLoading && isError && (
         <div className="px-4 py-3" data-testid="search-dropdown-error">
           <span className="text-sm" style={{ color: "var(--color-danger)" }}>
-            {t("search.searchFailed")}
+            {t("media.search.searchFailed")}
           </span>
         </div>
       )}
@@ -186,7 +186,7 @@ export function SearchDropdown({
       {!isLoading && !isError && items.length === 0 && (
         <div className="px-4 py-3" data-testid="search-dropdown-empty">
           <span className="text-sm" style={{ color: "var(--text-muted)" }}>
-            {t("search.noResults", { query: trimmed })}
+            {t("media.search.noResults", { query: trimmed })}
           </span>
         </div>
       )}
@@ -270,7 +270,7 @@ export function SearchDropdown({
               className="w-full px-3 py-2.5 text-sm font-medium border-t border-[var(--border)] hover:bg-[var(--surface)] focus:bg-[var(--surface)] focus:outline-none transition-colors cursor-pointer text-center"
               style={{ color: "var(--accent)" }}
             >
-              {t("search.viewAllResults", { count: totalHits })}
+              {t("media.search.viewAllResults", { count: totalHits })}
             </button>
           )}
         </>

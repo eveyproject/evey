@@ -31,7 +31,7 @@ const USERS_QUERY_KEY = ["/api/v1/admin/users"];
 const INVITES_QUERY_KEY = ["/api/v1/invites"];
 
 function CreateUserForm({ onSuccess }: { onSuccess: () => void }) {
-  const { t } = useTranslation("admin");
+  const { t } = useTranslation();
   const [username, setUsername] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -47,19 +47,19 @@ function CreateUserForm({ onSuccess }: { onSuccess: () => void }) {
   return (
     <form onSubmit={handleSubmit} className="flex flex-col gap-4">
       <Input
-        label={t("users.username")}
+        label={t("admin.users.username")}
         value={username}
         onChange={(e) => setUsername(e.target.value)}
         required
       />
       <Input
-        label={t("users.email")}
+        label={t("admin.users.email")}
         type="email"
         value={email}
         onChange={(e) => setEmail(e.target.value)}
       />
       <Input
-        label={t("users.password")}
+        label={t("admin.users.password")}
         type="password"
         value={password}
         onChange={(e) => setPassword(e.target.value)}
@@ -71,11 +71,11 @@ function CreateUserForm({ onSuccess }: { onSuccess: () => void }) {
           checked={isAdmin}
           onChange={(e) => setIsAdmin(e.target.checked)}
         />
-        {t("users.admin")}
+        {t("admin.users.admin")}
       </label>
       <div className="flex justify-end pt-2">
         <Button type="submit" loading={createUser.isPending} disabled={!username || !password}>
-          {t("users.createUser")}
+          {t("admin.users.createUser")}
         </Button>
       </div>
     </form>
@@ -101,7 +101,7 @@ function LibraryAccessModal({
   open: boolean;
   onClose: () => void;
 }) {
-  const { t } = useTranslation("admin");
+  const { t } = useTranslation();
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [saving, setSaving] = useState(false);
 
@@ -144,17 +144,17 @@ function LibraryAccessModal({
           data: { libraryIds: Array.from(selected) },
         });
       }
-      toast.success(t("users.libraryAccessUpdated"));
+      toast.success(t("admin.users.libraryAccessUpdated"));
       onClose();
     } catch {
-      toast.error(t("users.failedLibraryAccess"));
+      toast.error(t("admin.users.failedLibraryAccess"));
     } finally {
       setSaving(false);
     }
   }
 
   return (
-    <Modal open={open} onClose={onClose} title={t("users.libraryAccessTitle", { name: user.username })}>
+    <Modal open={open} onClose={onClose} title={t("admin.users.libraryAccessTitle", { name: user.username })}>
       {isLoading ? (
         <div className="flex justify-center py-8">
           <Spinner size="md" />
@@ -163,12 +163,12 @@ function LibraryAccessModal({
         <div className="flex flex-col gap-4">
           <p className="text-sm" style={{ color: "var(--text-muted)" }}>
             {isUnrestricted
-              ? t("users.unrestrictedDesc")
-              : t("users.restrictedDesc", { count: selected.size, libraryWord: selected.size === 1 ? "library" : "libraries" })}
+              ? t("admin.users.unrestrictedDesc")
+              : t("admin.users.restrictedDesc", { count: selected.size, libraryWord: selected.size === 1 ? "library" : "libraries" })}
           </p>
 
           {isUnrestricted && (
-            <Badge variant="success">{t("users.unrestricted")}</Badge>
+            <Badge variant="success">{t("admin.users.unrestricted")}</Badge>
           )}
 
           <div className="flex flex-col gap-2">
@@ -196,16 +196,16 @@ function LibraryAccessModal({
               variant="ghost"
               onClick={() => setSelected(new Set())}
             >
-              {t("users.clearAllUnrestricted")}
+              {t("admin.users.clearAllUnrestricted")}
             </Button>
           )}
 
           <div className="flex justify-end gap-2 pt-2">
             <Button variant="ghost" onClick={onClose}>
-              {t("common:cancel")}
+              {t("common.cancel")}
             </Button>
             <Button onClick={handleSave} loading={saving}>
-              {t("common:save")}
+              {t("common.save")}
             </Button>
           </div>
         </div>
@@ -233,7 +233,7 @@ function BitrateModal({
   open: boolean;
   onClose: () => void;
 }) {
-  const { t } = useTranslation("admin");
+  const { t } = useTranslation();
   const [selectedBitrate, setSelectedBitrate] = useState<number>(0);
   const [saving, setSaving] = useState(false);
 
@@ -261,17 +261,17 @@ function BitrateModal({
         method: "PATCH",
         data: { max_bitrate_kbps: selectedBitrate },
       });
-      toast.success(t("users.bitrateUpdated"));
+      toast.success(t("admin.users.bitrateUpdated"));
       onClose();
     } catch {
-      toast.error(t("users.failedBitrate"));
+      toast.error(t("admin.users.failedBitrate"));
     } finally {
       setSaving(false);
     }
   }
 
   return (
-    <Modal open={open} onClose={onClose} title={t("users.maxBitrateTitle", { name: user.username })}>
+    <Modal open={open} onClose={onClose} title={t("admin.users.maxBitrateTitle", { name: user.username })}>
       {isLoading ? (
         <div className="flex justify-center py-8">
           <Spinner size="md" />
@@ -279,17 +279,17 @@ function BitrateModal({
       ) : (
         <div className="flex flex-col gap-4">
           <p className="text-sm" style={{ color: "var(--text-muted)" }}>
-            {t("users.maxBitrateDesc")}
+            {t("admin.users.maxBitrateDesc")}
           </p>
           <Select
-            label={t("users.maxBitrate")}
+            label={t("admin.users.maxBitrate")}
             value={String(selectedBitrate)}
             onChange={(v) => setSelectedBitrate(Number(v))}
             options={BITRATE_OPTIONS.map((o) => ({ label: o.label, value: String(o.value) }))}
           />
           <div className="flex justify-end gap-2 pt-2">
-            <Button variant="ghost" onClick={onClose}>{t("common:cancel")}</Button>
-            <Button onClick={handleSave} loading={saving}>{t("common:save")}</Button>
+            <Button variant="ghost" onClick={onClose}>{t("common.cancel")}</Button>
+            <Button onClick={handleSave} loading={saving}>{t("common.save")}</Button>
           </div>
         </div>
       )}
@@ -298,7 +298,7 @@ function BitrateModal({
 }
 
 function UserRow({ user }: { user: V1User }) {
-  const { t } = useTranslation("admin");
+  const { t } = useTranslation();
   const queryClient = useQueryClient();
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [showLibraryAccess, setShowLibraryAccess] = useState(false);
@@ -308,9 +308,9 @@ function UserRow({ user }: { user: V1User }) {
     mutation: {
       onSuccess: () => {
         queryClient.invalidateQueries({ queryKey: USERS_QUERY_KEY });
-        toast.success(t("users.userDeleted", { name: user.username }));
+        toast.success(t("admin.users.userDeleted", { name: user.username }));
       },
-      onError: (err: Error) => toast.error(err.message || t("users.failedDeleteUser")),
+      onError: (err: Error) => toast.error(err.message || t("admin.users.failedDeleteUser")),
     },
   });
 
@@ -318,9 +318,9 @@ function UserRow({ user }: { user: V1User }) {
     mutation: {
       onSuccess: () => {
         queryClient.invalidateQueries({ queryKey: USERS_QUERY_KEY });
-        toast.success(user.enabled !== false ? t("users.userDisabled") : t("users.userEnabled"));
+        toast.success(user.enabled !== false ? t("admin.users.userDisabled") : t("admin.users.userEnabled"));
       },
-      onError: (err: Error) => toast.error(err.message || t("users.failedUpdateUser")),
+      onError: (err: Error) => toast.error(err.message || t("admin.users.failedUpdateUser")),
     },
   });
 
@@ -333,13 +333,13 @@ function UserRow({ user }: { user: V1User }) {
         {user.email ?? "\u2014"}
       </td>
       <td className="px-4 py-3">
-        {user.isAdmin ? <Badge variant="warning">{t("users.admin")}</Badge> : <Badge>{t("users.user")}</Badge>}
+        {user.isAdmin ? <Badge variant="warning">{t("admin.users.admin")}</Badge> : <Badge>{t("admin.users.user")}</Badge>}
       </td>
       <td className="px-4 py-3">
         {user.enabled !== false ? (
-          <Badge variant="success">{t("common:enabled")}</Badge>
+          <Badge variant="success">{t("common.enabled")}</Badge>
         ) : (
-          <Badge variant="error">{t("common:disabled")}</Badge>
+          <Badge variant="error">{t("common.disabled")}</Badge>
         )}
       </td>
       <td className="px-4 py-3 whitespace-nowrap">
@@ -349,14 +349,14 @@ function UserRow({ user }: { user: V1User }) {
               variant="secondary"
               onClick={() => setShowLibraryAccess(true)}
             >
-              {t("nav.libraries")}
+              {t("admin.nav.libraries")}
             </Button>
           )}
           <Button
             variant="secondary"
             onClick={() => setShowBitrate(true)}
           >
-            {t("users.bitrate")}
+            {t("admin.users.bitrate")}
           </Button>
           <Button
             variant="secondary"
@@ -365,22 +365,22 @@ function UserRow({ user }: { user: V1User }) {
               disableUser.mutate({ id: user.id!, params: { disabled: user.enabled !== false } })
             }
           >
-            {user.enabled !== false ? t("common:disable") : t("common:enable")}
+            {user.enabled !== false ? t("common.disable") : t("common.enable")}
           </Button>
           <Button
             variant="danger"
             loading={deleteUser.isPending}
             onClick={() => setShowDeleteConfirm(true)}
           >
-            {t("common:delete")}
+            {t("common.delete")}
           </Button>
         </div>
-        <Modal open={showDeleteConfirm} onClose={() => setShowDeleteConfirm(false)} title={t("users.deleteUserTitle")}>
+        <Modal open={showDeleteConfirm} onClose={() => setShowDeleteConfirm(false)} title={t("admin.users.deleteUserTitle")}>
           <p className="text-sm text-[var(--text-muted)] mb-4">
-            {t("users.deleteUserConfirm", { name: user.username })}
+            {t("admin.users.deleteUserConfirm", { name: user.username })}
           </p>
           <div className="flex justify-end gap-2">
-            <Button variant="ghost" onClick={() => setShowDeleteConfirm(false)}>{t("common:cancel")}</Button>
+            <Button variant="ghost" onClick={() => setShowDeleteConfirm(false)}>{t("common.cancel")}</Button>
             <Button
               variant="danger"
               loading={deleteUser.isPending}
@@ -389,7 +389,7 @@ function UserRow({ user }: { user: V1User }) {
                 setShowDeleteConfirm(false);
               }}
             >
-              {t("common:delete")}
+              {t("common.delete")}
             </Button>
           </div>
         </Modal>
@@ -411,7 +411,7 @@ function UserRow({ user }: { user: V1User }) {
 }
 
 function InviteLinkRow({ link }: { link: V1InviteLink }) {
-  const { t } = useTranslation("admin");
+  const { t } = useTranslation();
   const queryClient = useQueryClient();
   const [showRevokeConfirm, setShowRevokeConfirm] = useState(false);
 
@@ -419,9 +419,9 @@ function InviteLinkRow({ link }: { link: V1InviteLink }) {
     mutation: {
       onSuccess: () => {
         queryClient.invalidateQueries({ queryKey: INVITES_QUERY_KEY });
-        toast.success(t("users.inviteRevoked"));
+        toast.success(t("admin.users.inviteRevoked"));
       },
-      onError: (err: Error) => toast.error(err.message || t("users.failedRevoke")),
+      onError: (err: Error) => toast.error(err.message || t("admin.users.failedRevoke")),
     },
   });
 
@@ -430,7 +430,7 @@ function InviteLinkRow({ link }: { link: V1InviteLink }) {
   function copyLink() {
     if (link.code) {
       navigator.clipboard.writeText(inviteUrl);
-      toast.success(t("users.linkCopied"));
+      toast.success(t("admin.users.linkCopied"));
     }
   }
 
@@ -443,27 +443,27 @@ function InviteLinkRow({ link }: { link: V1InviteLink }) {
         {link.timesUsed ?? 0} / {link.maxUses ?? "\u221E"}
       </td>
       <td className="px-4 py-3 text-sm" style={{ color: "var(--text-muted)" }}>
-        {link.expiresAt ? new Date(link.expiresAt).toLocaleString() : t("users.never")}
+        {link.expiresAt ? new Date(link.expiresAt).toLocaleString() : t("admin.users.never")}
       </td>
       <td className="px-4 py-3 whitespace-nowrap">
         <div className="flex gap-2">
           <Button variant="secondary" onClick={copyLink}>
-            {t("users.copyLink")}
+            {t("admin.users.copyLink")}
           </Button>
           <Button
             variant="danger"
             loading={revoke.isPending}
             onClick={() => setShowRevokeConfirm(true)}
           >
-            {t("users.revoke")}
+            {t("admin.users.revoke")}
           </Button>
         </div>
-        <Modal open={showRevokeConfirm} onClose={() => setShowRevokeConfirm(false)} title={t("users.revokeInviteTitle")}>
+        <Modal open={showRevokeConfirm} onClose={() => setShowRevokeConfirm(false)} title={t("admin.users.revokeInviteTitle")}>
           <p className="text-sm text-[var(--text-muted)] mb-4">
-            {t("users.revokeInviteConfirm")}
+            {t("admin.users.revokeInviteConfirm")}
           </p>
           <div className="flex justify-end gap-2">
-            <Button variant="ghost" onClick={() => setShowRevokeConfirm(false)}>{t("common:cancel")}</Button>
+            <Button variant="ghost" onClick={() => setShowRevokeConfirm(false)}>{t("common.cancel")}</Button>
             <Button
               variant="danger"
               loading={revoke.isPending}
@@ -472,7 +472,7 @@ function InviteLinkRow({ link }: { link: V1InviteLink }) {
                 setShowRevokeConfirm(false);
               }}
             >
-              {t("users.revoke")}
+              {t("admin.users.revoke")}
             </Button>
           </div>
         </Modal>
@@ -482,7 +482,7 @@ function InviteLinkRow({ link }: { link: V1InviteLink }) {
 }
 
 function CreateInviteForm({ onSuccess }: { onSuccess: () => void }) {
-  const { t } = useTranslation("admin");
+  const { t } = useTranslation();
   const [maxUses, setMaxUses] = useState("");
   const [expiresAt, setExpiresAt] = useState("");
 
@@ -501,21 +501,21 @@ function CreateInviteForm({ onSuccess }: { onSuccess: () => void }) {
   return (
     <form onSubmit={handleSubmit} className="flex flex-col gap-4">
       <Input
-        label={t("users.maxUsesLabel")}
+        label={t("admin.users.maxUsesLabel")}
         type="number"
         min={1}
         value={maxUses}
         onChange={(e) => setMaxUses(e.target.value)}
       />
       <Input
-        label={t("users.expiresAtLabel")}
+        label={t("admin.users.expiresAtLabel")}
         type="datetime-local"
         value={expiresAt}
         onChange={(e) => setExpiresAt(e.target.value)}
       />
       <div className="flex justify-end pt-2">
         <Button type="submit" loading={createInvite.isPending}>
-          {t("users.createInviteLink")}
+          {t("admin.users.createInviteLink")}
         </Button>
       </div>
     </form>
@@ -523,7 +523,7 @@ function CreateInviteForm({ onSuccess }: { onSuccess: () => void }) {
 }
 
 function UsersPage() {
-  const { t } = useTranslation("admin");
+  const { t } = useTranslation();
   const [showUserModal, setShowUserModal] = useState(false);
   const [showInviteModal, setShowInviteModal] = useState(false);
   const queryClient = useQueryClient();
@@ -535,13 +535,13 @@ function UsersPage() {
   function handleCreateSuccess() {
     queryClient.invalidateQueries({ queryKey: USERS_QUERY_KEY });
     setShowUserModal(false);
-    toast.success(t("users.userCreated"));
+    toast.success(t("admin.users.userCreated"));
   }
 
   function handleInviteSuccess() {
     queryClient.invalidateQueries({ queryKey: INVITES_QUERY_KEY });
     setShowInviteModal(false);
-    toast.success(t("users.inviteCreated"));
+    toast.success(t("admin.users.inviteCreated"));
   }
 
   return (
@@ -549,9 +549,9 @@ function UsersPage() {
       <section className="flex flex-col gap-4">
         <div className="flex items-center justify-between">
           <h2 className="text-xl font-semibold" style={{ color: "var(--text)" }}>
-            {t("users.title")}
+            {t("admin.users.title")}
           </h2>
-          <Button onClick={() => setShowUserModal(true)}>{t("users.createUser")}</Button>
+          <Button onClick={() => setShowUserModal(true)}>{t("admin.users.createUser")}</Button>
         </div>
 
         {isLoading ? (
@@ -566,7 +566,7 @@ function UsersPage() {
             <table className="w-full text-sm">
               <thead>
                 <tr style={{ backgroundColor: "var(--surface)", borderBottom: "1px solid var(--border)" }}>
-                  {[t("users.username"), t("users.email"), t("users.role"), t("common:status"), t("common:actions")].map((h) => (
+                  {[t("admin.users.username"), t("admin.users.email"), t("admin.users.role"), t("common.status"), t("common.actions")].map((h) => (
                     <th
                       key={h}
                       className="px-4 py-2 text-left font-medium"
@@ -581,7 +581,7 @@ function UsersPage() {
                 {users.length === 0 ? (
                   <tr>
                     <td colSpan={5}>
-                      <EmptyState icon="library" title={t("users.noUsers")} />
+                      <EmptyState icon="library" title={t("admin.users.noUsers")} />
                     </td>
                   </tr>
                 ) : (
@@ -596,10 +596,10 @@ function UsersPage() {
       <section className="flex flex-col gap-4">
         <div className="flex items-center justify-between">
           <h2 className="text-xl font-semibold" style={{ color: "var(--text)" }}>
-            {t("users.inviteLinks")}
+            {t("admin.users.inviteLinks")}
           </h2>
           <Button variant="secondary" onClick={() => setShowInviteModal(true)}>
-            {t("users.createInviteLink")}
+            {t("admin.users.createInviteLink")}
           </Button>
         </div>
 
@@ -615,7 +615,7 @@ function UsersPage() {
             <table className="w-full text-sm">
               <thead>
                 <tr style={{ backgroundColor: "var(--surface)", borderBottom: "1px solid var(--border)" }}>
-                  {[t("users.code"), t("users.uses"), t("users.expires"), t("common:actions")].map((h) => (
+                  {[t("admin.users.code"), t("admin.users.uses"), t("admin.users.expires"), t("common.actions")].map((h) => (
                     <th
                       key={h}
                       className="px-4 py-2 text-left font-medium"
@@ -630,7 +630,7 @@ function UsersPage() {
                 {invites.length === 0 ? (
                   <tr>
                     <td colSpan={4}>
-                      <EmptyState icon="notification" title={t("users.noInvites")} />
+                      <EmptyState icon="notification" title={t("admin.users.noInvites")} />
                     </td>
                   </tr>
                 ) : (
@@ -642,11 +642,11 @@ function UsersPage() {
         )}
       </section>
 
-      <Modal open={showUserModal} onClose={() => setShowUserModal(false)} title={t("users.createUser")}>
+      <Modal open={showUserModal} onClose={() => setShowUserModal(false)} title={t("admin.users.createUser")}>
         <CreateUserForm onSuccess={handleCreateSuccess} />
       </Modal>
 
-      <Modal open={showInviteModal} onClose={() => setShowInviteModal(false)} title={t("users.createInviteLink")}>
+      <Modal open={showInviteModal} onClose={() => setShowInviteModal(false)} title={t("admin.users.createInviteLink")}>
         <CreateInviteForm onSuccess={handleInviteSuccess} />
       </Modal>
     </div>

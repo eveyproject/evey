@@ -43,16 +43,16 @@ func TestTranslate_English(t *testing.T) {
 	tr, err := NewFromDir(setupTestDir(t))
 	require.NoError(t, err)
 
-	assert.Equal(t, "Invalid username or password", tr.T("en", "auth.invalid_credentials"))
-	assert.Equal(t, "Resource not found", tr.T("en", "general.not_found"))
+	assert.Equal(t, "Invalid username or password", tr.T("en", "errors.auth.invalid_credentials"))
+	assert.Equal(t, "Resource not found", tr.T("en", "errors.general.not_found"))
 }
 
 func TestTranslate_French(t *testing.T) {
 	tr, err := NewFromDir(setupTestDir(t))
 	require.NoError(t, err)
 
-	assert.Equal(t, "Nom d'utilisateur ou mot de passe invalide", tr.T("fr", "auth.invalid_credentials"))
-	assert.Equal(t, "Ressource introuvable", tr.T("fr", "general.not_found"))
+	assert.Equal(t, "Nom d'utilisateur ou mot de passe invalide", tr.T("fr", "errors.auth.invalid_credentials"))
+	assert.Equal(t, "Ressource introuvable", tr.T("fr", "errors.general.not_found"))
 }
 
 func TestTranslate_Fallback(t *testing.T) {
@@ -60,10 +60,8 @@ func TestTranslate_Fallback(t *testing.T) {
 	require.NoError(t, err)
 
 	// Unknown locale falls back to en
-	assert.Equal(t, "Invalid username or password", tr.T("de", "auth.invalid_credentials"))
-	// Key only in en, requested in fr (fr has it, but test a missing key)
-	// fr doesn't have "auth.missing_key", should fallback to en, then return key
-	assert.Equal(t, "auth.missing_key", tr.T("fr", "auth.missing_key"))
+	assert.Equal(t, "Invalid username or password", tr.T("de", "errors.auth.invalid_credentials"))
+	assert.Equal(t, "errors.auth.missing_key", tr.T("fr", "errors.auth.missing_key"))
 }
 
 func TestTranslate_MissingKey(t *testing.T) {
@@ -79,10 +77,10 @@ func TestTranslate_WithParams(t *testing.T) {
 	tr, err := NewFromDir(setupTestDir(t))
 	require.NoError(t, err)
 
-	msg := tr.T("en", "auth.password_too_short", map[string]string{"min": "8"})
+	msg := tr.T("en", "errors.auth.password_too_short", map[string]string{"min": "8"})
 	assert.Equal(t, "Password must be at least 8 characters", msg)
 
-	msg = tr.T("fr", "auth.password_too_short", map[string]string{"min": "8"})
+	msg = tr.T("fr", "errors.auth.password_too_short", map[string]string{"min": "8"})
 	assert.Equal(t, "Le mot de passe doit contenir au moins 8 caractères", msg)
 }
 
@@ -127,6 +125,22 @@ func TestNewFromDir_InvalidDir(t *testing.T) {
 	assert.Error(t, err)
 }
 
+func TestAllMessages(t *testing.T) {
+	tr, err := NewFromDir(setupTestDir(t))
+	require.NoError(t, err)
+
+	msgs := tr.AllMessages("en")
+	assert.Equal(t, "Invalid username or password", msgs["errors.auth.invalid_credentials"])
+	assert.Equal(t, "Resource not found", msgs["errors.general.not_found"])
+
+	frMsgs := tr.AllMessages("fr")
+	assert.Equal(t, "Nom d'utilisateur ou mot de passe invalide", frMsgs["errors.auth.invalid_credentials"])
+
+	// Unknown locale returns fallback
+	deMsgs := tr.AllMessages("de")
+	assert.Equal(t, "Invalid username or password", deMsgs["errors.auth.invalid_credentials"])
+}
+
 func TestNewFromDir_RealYAML(t *testing.T) {
 	root := "../../../i18n"
 	if _, err := os.Stat(root); os.IsNotExist(err) {
@@ -134,6 +148,6 @@ func TestNewFromDir_RealYAML(t *testing.T) {
 	}
 	tr, err := NewFromDir(root)
 	require.NoError(t, err, "real i18n YAML must parse without errors")
-	assert.NotEmpty(t, tr.T("en", "auth.unauthenticated"))
-	assert.NotEmpty(t, tr.T("en", "library.name_required"))
+	assert.NotEmpty(t, tr.T("en", "errors.auth.unauthenticated"))
+	assert.NotEmpty(t, tr.T("en", "errors.library.name_required"))
 }

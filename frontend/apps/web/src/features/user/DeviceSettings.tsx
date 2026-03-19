@@ -41,9 +41,8 @@ function formatDate(iso: string): string {
 const DEVICES_QUERY_KEY = ["push-devices"] as const;
 
 export function DeviceSettings() {
-  const { t } = useTranslation("auth");
-  const { t: tc } = useTranslation("common");
-  const qc = useQueryClient();
+  const { t } = useTranslation();
+    const qc = useQueryClient();
   const [revokeTarget, setRevokeTarget] = useState<Device | null>(null);
 
   const { data, isLoading, refetch, isFetching } = useQuery({
@@ -66,39 +65,39 @@ export function DeviceSettings() {
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: DEVICES_QUERY_KEY });
       setRevokeTarget(null);
-      toast.success(t("devices.deviceRevoked"));
+      toast.success(t("auth.devices.deviceRevoked"));
     },
-    onError: (err: Error) => toast.error(err.message || t("devices.revokeError")),
+    onError: (err: Error) => toast.error(err.message || t("auth.devices.revokeError")),
   });
 
   return (
     <div className="flex flex-col gap-6">
       <div className="flex items-center justify-between">
         <div>
-          <h3 className="text-sm font-semibold text-[var(--text)]">{t("devices.title")}</h3>
+          <h3 className="text-sm font-semibold text-[var(--text)]">{t("auth.devices.title")}</h3>
           <p className="text-xs text-[var(--text-muted)] mt-1">
-            {t("devices.description")}
+            {t("auth.devices.description")}
           </p>
         </div>
         <Button variant="secondary" className="py-1 px-3 text-xs" loading={isFetching} onClick={() => void refetch()}>
-          {tc("refresh")}
+          {t("common.refresh")}
         </Button>
       </div>
 
       {isLoading ? (
         <div className="flex items-center gap-2 text-sm text-[var(--text-muted)]">
           <span className="inline-block w-4 h-4 border-2 border-[var(--text-muted)] border-t-transparent rounded-full animate-spin" />
-          {tc("loading")}
+          {t("common.loading")}
         </div>
       ) : devices.length === 0 ? (
-        <div className="text-sm text-[var(--text-muted)]">{t("devices.noDevices")}</div>
+        <div className="text-sm text-[var(--text-muted)]">{t("auth.devices.noDevices")}</div>
       ) : (
         <table className="w-full text-sm border-collapse">
           <thead>
             <tr className="text-left text-xs text-[var(--text-muted)] border-b border-[var(--border)]">
-              <th className="pb-2 font-semibold">{t("devices.platform")}</th>
-              <th className="pb-2 font-semibold">{t("devices.token")}</th>
-              <th className="pb-2 font-semibold">{t("devices.registered")}</th>
+              <th className="pb-2 font-semibold">{t("auth.devices.platform")}</th>
+              <th className="pb-2 font-semibold">{t("auth.devices.token")}</th>
+              <th className="pb-2 font-semibold">{t("auth.devices.registered")}</th>
               <th className="pb-2" />
             </tr>
           </thead>
@@ -116,7 +115,7 @@ export function DeviceSettings() {
                     className="py-1 px-2 text-xs"
                     onClick={() => setRevokeTarget(d)}
                   >
-                    {tc("revoke")}
+                    {t("common.revoke")}
                   </Button>
                 </td>
               </tr>
@@ -125,23 +124,23 @@ export function DeviceSettings() {
         </table>
       )}
 
-      <Modal open={!!revokeTarget} onClose={() => setRevokeTarget(null)} title={t("devices.revokeTitle")}>
+      <Modal open={!!revokeTarget} onClose={() => setRevokeTarget(null)} title={t("auth.devices.revokeTitle")}>
         <div className="flex flex-col gap-4">
           <p className="text-sm text-[var(--text)]"
             dangerouslySetInnerHTML={{
-              __html: t("devices.revokeConfirm", { platform: revokeTarget ? platformLabel(revokeTarget.platform) : "" }),
+              __html: t("auth.devices.revokeConfirm", { platform: revokeTarget ? platformLabel(revokeTarget.platform) : "" }),
             }}
           />
           <div className="flex justify-end gap-2">
             <Button variant="secondary" onClick={() => setRevokeTarget(null)}>
-              {tc("cancel")}
+              {t("common.cancel")}
             </Button>
             <Button
               variant="danger"
               loading={revokeMutation.isPending}
               onClick={() => { if (revokeTarget) revokeMutation.mutate(revokeTarget.token); }}
             >
-              {tc("revoke")}
+              {t("common.revoke")}
             </Button>
           </div>
         </div>

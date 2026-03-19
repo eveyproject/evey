@@ -119,7 +119,7 @@ const CardContextMenu = memo(function CardContextMenu({
   onAddToPlaylist: () => void;
   onAddToCollection: () => void;
 }) {
-  const { t } = useTranslation("media");
+  const { t } = useTranslation();
   const ref = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -130,11 +130,11 @@ const CardContextMenu = memo(function CardContextMenu({
     mutation: {
       onSuccess: () => {
         queryClient.invalidateQueries({ queryKey: [`/api/v1/media/${mediaId}`] });
-        toast.success(t("contextMenu.markedWatched"));
+        toast.success(t("media.contextMenu.markedWatched"));
         onClose();
       },
       onError: () => {
-        toast.error(t("contextMenu.markError", { status: "watched" }));
+        toast.error(t("media.contextMenu.markError", { status: "watched" }));
         onClose();
       },
     },
@@ -143,11 +143,11 @@ const CardContextMenu = memo(function CardContextMenu({
     mutation: {
       onSuccess: () => {
         queryClient.invalidateQueries({ queryKey: [`/api/v1/media/${mediaId}`] });
-        toast.success(t("contextMenu.markedUnwatched"));
+        toast.success(t("media.contextMenu.markedUnwatched"));
         onClose();
       },
       onError: () => {
-        toast.error(t("contextMenu.markError", { status: "unwatched" }));
+        toast.error(t("media.contextMenu.markError", { status: "unwatched" }));
         onClose();
       },
     },
@@ -163,49 +163,49 @@ const CardContextMenu = memo(function CardContextMenu({
 
   const items = [
     {
-      label: t("contextMenu.editMetadata"),
+      label: t("media.contextMenu.editMetadata"),
       onClick: () => {
         navigate({ to: "/media/$mediaId", params: { mediaId }, search: { edit: true } as never });
         onClose();
       },
     },
     {
-      label: t("contextMenu.addToPlaylist"),
+      label: t("media.contextMenu.addToPlaylist"),
       onClick: () => {
         onClose();
         onAddToPlaylist();
       },
     },
     {
-      label: t("contextMenu.addToCollection"),
+      label: t("media.contextMenu.addToCollection"),
       onClick: () => {
         onClose();
         onAddToCollection();
       },
     },
     {
-      label: isFav ? t("contextMenu.removeFromFavorites") : t("contextMenu.addToFavorites"),
+      label: isFav ? t("media.contextMenu.removeFromFavorites") : t("media.contextMenu.addToFavorites"),
       onClick: () => {
         toggleFav.mutate();
         onClose();
       },
     },
     {
-      label: t("contextMenu.download"),
+      label: t("media.contextMenu.download"),
       onClick: () => {
         window.open(`/api/v1/media/${mediaId}/download`, "_blank");
         onClose();
       },
     },
     {
-      label: t("contextMenu.markWatched"),
+      label: t("media.contextMenu.markWatched"),
       onClick: () => {
         if (!profileId) { toast.error("No profile selected"); onClose(); return; }
         markWatched.mutate({ mediaItemId: mediaId, params: { profileId } });
       },
     },
     {
-      label: t("contextMenu.markUnwatched"),
+      label: t("media.contextMenu.markUnwatched"),
       onClick: () => {
         if (!profileId) { toast.error("No profile selected"); onClose(); return; }
         markUnwatched.mutate({ mediaItemId: mediaId, params: { profileId } });

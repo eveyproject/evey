@@ -41,16 +41,16 @@ export const Route = createLazyFileRoute("/_auth/library/$libraryId")({
 });
 
 const SHOW_TYPE_KEYS: Array<{ labelKey: string; value: LibraryServiceListMediaItemsType | "" }> = [
-  { labelKey: "library.series", value: "MEDIA_ITEM_TYPE_SERIES" },
-  { labelKey: "library.seasons", value: "MEDIA_ITEM_TYPE_SEASON" },
-  { labelKey: "library.episodes", value: "MEDIA_ITEM_TYPE_EPISODE" },
+  { labelKey: "media.library.series", value: "MEDIA_ITEM_TYPE_SERIES" },
+  { labelKey: "media.library.seasons", value: "MEDIA_ITEM_TYPE_SEASON" },
+  { labelKey: "media.library.episodes", value: "MEDIA_ITEM_TYPE_EPISODE" },
 ];
 
 const SORT_KEYS: Array<{ labelKey: string; value: LibraryServiceListMediaItemsSortField }> = [
-  { labelKey: "library.titleSort", value: "MEDIA_SORT_FIELD_TITLE" },
-  { labelKey: "library.year", value: "MEDIA_SORT_FIELD_YEAR" },
-  { labelKey: "library.ratingSort", value: "MEDIA_SORT_FIELD_RATING" },
-  { labelKey: "library.dateAdded", value: "MEDIA_SORT_FIELD_DATE_ADDED" },
+  { labelKey: "media.library.titleSort", value: "MEDIA_SORT_FIELD_TITLE" },
+  { labelKey: "media.library.year", value: "MEDIA_SORT_FIELD_YEAR" },
+  { labelKey: "media.library.ratingSort", value: "MEDIA_SORT_FIELD_RATING" },
+  { labelKey: "media.library.dateAdded", value: "MEDIA_SORT_FIELD_DATE_ADDED" },
 ];
 
 const PAGE_SIZE = 48;
@@ -220,7 +220,7 @@ function BulkPlaylistModal({
   mediaIds: string[];
   onClose: () => void;
 }) {
-  const { t } = useTranslation("media");
+  const { t } = useTranslation();
   const { data: playlists, isLoading } = usePlaylistList();
   const addTo = useAddToPlaylist();
   const manualPlaylists = (playlists ?? []).filter((p) => p.type === "manual");
@@ -228,21 +228,21 @@ function BulkPlaylistModal({
   async function handleAdd(playlistId: string, playlistName: string) {
     try {
       await Promise.all(mediaIds.map((id) => addTo.mutateAsync({ playlistId, mediaItemId: id })));
-      toast.success(t("library.itemsAddedToPlaylist", { count: mediaIds.length, name: playlistName }));
+      toast.success(t("media.library.itemsAddedToPlaylist", { count: mediaIds.length, name: playlistName }));
       onClose();
     } catch {
-      toast.error(t("library.failedAddPlaylist"));
+      toast.error(t("media.library.failedAddPlaylist"));
     }
   }
 
   return (
-    <Modal open={open} onClose={onClose} title={t("library.addToPlaylist")}>
+    <Modal open={open} onClose={onClose} title={t("media.library.addToPlaylist")}>
       {isLoading ? (
         <div className="flex justify-center py-8">
           <div className="w-6 h-6 border-2 rounded-full animate-spin" style={{ borderColor: "var(--border)", borderTopColor: "var(--accent)" }} />
         </div>
       ) : manualPlaylists.length === 0 ? (
-        <p className="text-sm text-center py-6" style={{ color: "var(--text-muted)" }}>{t("library.noPlaylists")}</p>
+        <p className="text-sm text-center py-6" style={{ color: "var(--text-muted)" }}>{t("media.library.noPlaylists")}</p>
       ) : (
         <div className="space-y-1">
           {manualPlaylists.map((pl) => (
@@ -263,9 +263,8 @@ function BulkPlaylistModal({
 }
 
 function LibraryPage() {
-  const { t } = useTranslation("media");
-  const { t: tc } = useTranslation("common");
-  const { libraryId: slug } = Route.useParams();
+  const { t } = useTranslation();
+    const { libraryId: slug } = Route.useParams();
   const search = Route.useSearch();
   const navigate = useNavigate();
 
@@ -328,7 +327,7 @@ function LibraryPage() {
     const fn = watched ? markWatched.mutateAsync : markUnwatched.mutateAsync;
     await Promise.all(ids.map((mediaItemId) => fn({ mediaItemId, params: { profileId } })));
     ids.forEach((id) => queryClient.invalidateQueries({ queryKey: [`/api/v1/media/${id}`] }));
-    toast.success(watched ? t("favorites.markedWatched", { count: ids.length }) : t("favorites.markedUnwatched", { count: ids.length }));
+    toast.success(watched ? t("media.favorites.markedWatched", { count: ids.length }) : t("media.favorites.markedUnwatched", { count: ids.length }));
     setSelectedIds(new Set());
     setBulkMode(false);
   }
@@ -340,11 +339,11 @@ function LibraryPage() {
     try {
       await Promise.all(ids.map((id) => eveyFetch<unknown>({ url: `/api/v1/favorites/${id}`, method: "POST" })));
       queryClient.invalidateQueries({ queryKey: ["favorites"] });
-      toast.success(t("library.addedToFavorites", { count: ids.length }));
+      toast.success(t("media.library.addedToFavorites", { count: ids.length }));
       setSelectedIds(new Set());
       setBulkMode(false);
     } catch {
-      toast.error(t("library.failedFavorites"));
+      toast.error(t("media.library.failedFavorites"));
     } finally {
       setBulkFavPending(false);
     }
@@ -481,22 +480,22 @@ function LibraryPage() {
     <div data-testid="library-page">
       <nav className="flex items-center gap-1.5 text-sm mb-3" aria-label="Breadcrumb">
         <Link to="/library" className="hover:underline" style={{ color: "var(--text-muted)" }}>
-          {t("library.libraries")}
+          {t("media.library.libraries")}
         </Link>
         <svg className="w-3 h-3 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24" style={{ color: "var(--text-muted)" }}>
           <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
         </svg>
         <span className="truncate font-medium" style={{ color: "var(--text)" }}>
-          {library?.name ?? t("library.title")}
+          {library?.name ?? t("media.library.title")}
         </span>
       </nav>
       <div className="flex items-center justify-between gap-4 mb-2 flex-wrap">
         <h1 className="text-2xl font-bold" style={{ color: "var(--text)" }} data-testid="library-name">
-          {library?.name ?? t("library.title")}
+          {library?.name ?? t("media.library.title")}
         </h1>
         <span className="text-sm" style={{ color: "var(--text-muted)" }} data-testid="library-item-count">
           {displayCount} {displayCount === 1 ? "item" : "items"}
-          {hasActiveFilters && ` ${tc("filtered")}`}
+          {hasActiveFilters && ` ${t("common.filtered")}`}
         </span>
       </div>
 
@@ -504,7 +503,7 @@ function LibraryPage() {
         <div className="w-48">
           <Input
             type="search"
-            placeholder={t("library.filterByName")}
+            placeholder={t("media.library.filterByName")}
             value={searchTerm}
             onChange={(e) => updateSearch({ q: e.target.value || undefined })}
             data-testid="library-search-input"
@@ -539,9 +538,9 @@ function LibraryPage() {
             color: bulkMode ? "#fff" : "var(--text-muted)",
             borderColor: bulkMode ? "var(--accent)" : "var(--border)",
           }}
-          title={bulkMode ? tc("exit") : tc("select")}
+          title={bulkMode ? t("common.exit") : t("common.select")}
         >
-          {tc("select")}
+          {t("common.select")}
         </button>
       </div>
 
@@ -582,7 +581,7 @@ function LibraryPage() {
             >
               {selectedIds.size}
             </span>
-            <span className="text-sm mr-2" style={{ color: "var(--text-muted)" }}>{t("library.selected")}</span>
+            <span className="text-sm mr-2" style={{ color: "var(--text-muted)" }}>{t("media.library.selected")}</span>
             {selectedIds.size > 0 && (
               <>
                 <Button
@@ -590,7 +589,7 @@ function LibraryPage() {
                   loading={bulkFavPending}
                   onClick={() => void bulkAddFavorites()}
                 >
-                  {t("library.addToFavorites")}
+                  {t("media.library.addToFavorites")}
                 </Button>
               </>
             )}
@@ -601,7 +600,7 @@ function LibraryPage() {
                 className="text-xs hover:underline"
                 style={{ color: "var(--accent)" }}
               >
-                {tc("selectAll")}
+                {t("common.selectAll")}
               </button>
               <button
                 type="button"
@@ -609,7 +608,7 @@ function LibraryPage() {
                 className="text-xs hover:underline"
                 style={{ color: "var(--text-muted)" }}
               >
-                {tc("deselectAll")}
+                {t("common.deselectAll")}
               </button>
               <button
                 type="button"
@@ -617,7 +616,7 @@ function LibraryPage() {
                 className="text-xs hover:underline"
                 style={{ color: "var(--text-muted)" }}
               >
-                {tc("exit")}
+                {t("common.exit")}
               </button>
             </div>
           </div>
@@ -671,11 +670,11 @@ function LibraryPage() {
                 style={{ color: "var(--text-muted)", borderBottom: "1px solid var(--border)" }}
               >
                 <span className="w-7 flex-shrink-0" />
-                <span className="flex-1 min-w-0">{t("library.titleSort")}</span>
-                <span className="hidden sm:block w-16 text-right flex-shrink-0">{t("library.year")}</span>
-                <span className="hidden md:block w-16 text-right flex-shrink-0">{t("library.ratingSort")}</span>
-                <span className="hidden lg:block w-12 flex-shrink-0">{t("library.type")}</span>
-                <span className="hidden lg:block w-16 text-right flex-shrink-0">{t("library.duration")}</span>
+                <span className="flex-1 min-w-0">{t("media.library.titleSort")}</span>
+                <span className="hidden sm:block w-16 text-right flex-shrink-0">{t("media.library.year")}</span>
+                <span className="hidden md:block w-16 text-right flex-shrink-0">{t("media.library.ratingSort")}</span>
+                <span className="hidden lg:block w-12 flex-shrink-0">{t("media.library.type")}</span>
+                <span className="hidden lg:block w-16 text-right flex-shrink-0">{t("media.library.duration")}</span>
               </div>
               {displayItems.map((item) => (
                 <ListRow key={item.id} item={item as unknown as Record<string, unknown>} />
@@ -690,17 +689,17 @@ function LibraryPage() {
             >
               <EmptyState
                 icon="library"
-                title={t("library.noItems")}
+                title={t("media.library.noItems")}
                 description={
                   hasActiveFilters
-                    ? t("library.noItemsFiltered")
+                    ? t("media.library.noItemsFiltered")
                     : typeFilter
-                      ? t("library.noItemsType")
-                      : t("library.noItemsEmpty")
+                      ? t("media.library.noItemsType")
+                      : t("media.library.noItemsEmpty")
                 }
                 action={
                   !hasActiveFilters
-                    ? { label: t("library.goToAdmin"), onClick: () => { window.location.href = "/admin/libraries"; } }
+                    ? { label: t("media.library.goToAdmin"), onClick: () => { window.location.href = "/admin/libraries"; } }
                     : undefined
                 }
               />
@@ -710,7 +709,7 @@ function LibraryPage() {
           {hasMore && !isLoading && !hasActiveFilters && (
             <div className="flex justify-center mt-8">
               <Button variant="secondary" onClick={() => setPage((p) => p + 1)}>
-                {t("library.loadMore", { current: items.length, total: totalItems })}
+                {t("media.library.loadMore", { current: items.length, total: totalItems })}
               </Button>
             </div>
           )}

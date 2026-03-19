@@ -28,6 +28,7 @@ import (
 	domainshared "github.com/gravity-zero/evey/internal/domain/shared"
 	domainuser "github.com/gravity-zero/evey/internal/domain/user"
 	"github.com/gravity-zero/evey/internal/pkg/auth"
+	"github.com/gravity-zero/evey/internal/pkg/i18n"
 	eveymetrics "github.com/gravity-zero/evey/internal/pkg/metrics"
 	"github.com/gravity-zero/evey/internal/pkg/ratelimit"
 )
@@ -126,6 +127,9 @@ type HTTPServer struct {
 	GlobalRL     *ratelimit.Limiter
 	AdminHeavyRL *ratelimit.Limiter
 
+	// i18n
+	Translator *i18n.Translator
+
 	// audio normalize getter (closure capturing serverCfgRepo)
 	AudioNormalizeGetter func(ctx context.Context) bool
 
@@ -139,6 +143,10 @@ type HTTPServer struct {
 func (s *HTTPServer) RegisterRoutes(mux *http.ServeMux, gwMux http.Handler) {
 	mux.Handle("GET /metrics", eveymetrics.Handler())
 	mux.HandleFunc("/healthz", s.healthzHandler)
+
+	if s.Translator != nil {
+		mux.HandleFunc("GET /api/v1/i18n/{locale}", i18nHandler(s.Translator))
+	}
 
 	mux.HandleFunc("GET /api/v1/admin/fs/browse", requireAdmin(s.TokenGen, browseDirsHandler(s.TokenGen)))
 

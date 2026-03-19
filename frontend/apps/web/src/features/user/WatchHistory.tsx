@@ -57,9 +57,8 @@ function ProgressBar({ percent }: { percent: number }) {
 }
 
 function HistoryItem({ item }: { item: WatchProgress }) {
-  const { t } = useTranslation("auth");
-  const { t: tc } = useTranslation("common");
-  const qc = useQueryClient();
+  const { t } = useTranslation();
+    const qc = useQueryClient();
   const unwatch = usePlaybackServiceMarkAsUnwatched({
     mutation: {
       onSuccess: () => {
@@ -102,7 +101,7 @@ function HistoryItem({ item }: { item: WatchProgress }) {
           className="text-sm font-medium text-[var(--text)] hover:text-[var(--accent)] transition-colors truncate block"
         >
           Media {item.mediaItemId?.slice(0, 8)}
-          {item.playCount && item.playCount > 1 ? ` (${t("watchHistory.plays", { count: item.playCount })})` : ""}
+          {item.playCount && item.playCount > 1 ? ` (${t("auth.watchHistory.plays", { count: item.playCount })})` : ""}
         </Link>
         <div className="flex items-center gap-2 mt-0.5">
           <p className="text-xs text-[var(--text-muted)]">{formatDate(item.lastPlayedAt)}</p>
@@ -119,7 +118,7 @@ function HistoryItem({ item }: { item: WatchProgress }) {
       </div>
 
       <div className="flex items-center gap-2 shrink-0">
-        {item.played && <Badge variant="success">{t("watchHistory.watched")}</Badge>}
+        {item.played && <Badge variant="success">{t("auth.watchHistory.watched")}</Badge>}
         <button
           onClick={() => {
             if (item.mediaItemId) {
@@ -129,7 +128,7 @@ function HistoryItem({ item }: { item: WatchProgress }) {
           disabled={unwatch.isPending}
           className="text-xs text-[var(--text-muted)] hover:text-[var(--text)] transition-colors disabled:opacity-50"
         >
-          {tc("remove")}
+          {t("common.remove")}
         </button>
       </div>
     </div>
@@ -137,25 +136,25 @@ function HistoryItem({ item }: { item: WatchProgress }) {
 }
 
 export function WatchHistory({ limit, showClearButton = false }: Props) {
-  const { t } = useTranslation("auth");
-  const { t: tc } = useTranslation("common");
+  const { t } = useTranslation();
+  
   const [showClearModal, setShowClearModal] = useState(false);
   const qc = useQueryClient();
   const { data, isLoading } = usePlaybackServiceGetWatchHistory(limit ? { limit } : undefined);
   const items = data?.items ?? [];
 
   function getDateGroup(iso: string | undefined): string {
-    if (!iso) return tc("unknown");
+    if (!iso) return t("common.unknown");
     const date = new Date(iso);
     const now = new Date();
     const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
     const itemDate = new Date(date.getFullYear(), date.getMonth(), date.getDate());
     const diffDays = Math.floor((today.getTime() - itemDate.getTime()) / 86400000);
 
-    if (diffDays === 0) return t("watchHistory.today");
-    if (diffDays === 1) return t("watchHistory.yesterday");
-    if (diffDays < 7) return t("watchHistory.thisWeek");
-    if (diffDays < 30) return t("watchHistory.thisMonth");
+    if (diffDays === 0) return t("auth.watchHistory.today");
+    if (diffDays === 1) return t("auth.watchHistory.yesterday");
+    if (diffDays < 7) return t("auth.watchHistory.thisWeek");
+    if (diffDays < 30) return t("auth.watchHistory.thisMonth");
     return date.toLocaleDateString(undefined, { year: "numeric", month: "long" });
   }
 
@@ -171,11 +170,11 @@ export function WatchHistory({ limit, showClearButton = false }: Props) {
   };
 
   if (isLoading) {
-    return <p className="text-sm text-[var(--text-muted)]">{tc("loading")}</p>;
+    return <p className="text-sm text-[var(--text-muted)]">{t("common.loading")}</p>;
   }
 
   if (items.length === 0) {
-    return <div data-testid="history-empty"><EmptyState icon="history" title={t("watchHistory.noHistory")} description={t("watchHistory.noHistoryDesc")} /></div>;
+    return <div data-testid="history-empty"><EmptyState icon="history" title={t("auth.watchHistory.noHistory")} description={t("auth.watchHistory.noHistoryDesc")} /></div>;
   }
 
   return (
@@ -183,7 +182,7 @@ export function WatchHistory({ limit, showClearButton = false }: Props) {
       {showClearButton && items.length > 0 && (
         <div className="flex justify-end">
           <Button variant="danger" onClick={() => setShowClearModal(true)} data-testid="clear-history-btn">
-            {t("watchHistory.clearHistory")}
+            {t("auth.watchHistory.clearHistory")}
           </Button>
         </div>
       )}
@@ -199,16 +198,16 @@ export function WatchHistory({ limit, showClearButton = false }: Props) {
         </div>
       ))}
 
-      <Modal open={showClearModal} onClose={() => setShowClearModal(false)} title={t("watchHistory.clearTitle")}>
+      <Modal open={showClearModal} onClose={() => setShowClearModal(false)} title={t("auth.watchHistory.clearTitle")}>
         <p className="text-sm text-[var(--text-muted)] mb-6">
-          {t("watchHistory.clearConfirm")}
+          {t("auth.watchHistory.clearConfirm")}
         </p>
         <div className="flex justify-end gap-2">
           <Button variant="ghost" onClick={() => setShowClearModal(false)}>
-            {tc("cancel")}
+            {t("common.cancel")}
           </Button>
           <Button variant="danger" onClick={handleClearAll}>
-            {t("watchHistory.clearAll")}
+            {t("auth.watchHistory.clearAll")}
           </Button>
         </div>
       </Modal>

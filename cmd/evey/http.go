@@ -97,6 +97,7 @@ func buildHTTPHandler(gwMux http.Handler, deps *appDeps, cfg *config.Config, sta
 		GlobalRL:     globalRL,
 		AdminHeavyRL: adminHeavyRL,
 
+		Translator:           deps.translator,
 		AudioNormalizeGetter: audioNormalizeGetter,
 		UserMaxStreams:        httpapi.NewUserMaxStreamsAdapter(deps.repos.userRepo),
 		UserBitrate:          httpapi.NewUserBitrateAdapter(deps.user.querySvc),

@@ -22,7 +22,7 @@ function CollectionCardSkeleton() {
 }
 
 function CollectionPosterCard({ col }: { col: Collection }) {
-  const { t } = useTranslation("media");
+  const { t } = useTranslation();
   const deleteMut = useDeleteCollection();
   const initial = col.name[0]?.toUpperCase() ?? "?";
 
@@ -66,7 +66,7 @@ function CollectionPosterCard({ col }: { col: Collection }) {
         onClick={(e) => {
           e.preventDefault();
           e.stopPropagation();
-          if (confirm(t("collections.deleteConfirm"))) {
+          if (confirm(t("media.collections.deleteConfirm"))) {
             deleteMut.mutate(col.id);
           }
         }}
@@ -92,7 +92,7 @@ function collectionToSmartCollection(col: Collection): SmartCollection {
 }
 
 function SmartFilterCard({ col, onEdit, onDelete }: { col: Collection; onEdit: () => void; onDelete: () => void }) {
-  const { t } = useTranslation("media");
+  const { t } = useTranslation();
   const rulesLabel = (col.rules ?? [])
     .map((r) => {
       if (r.field === "genre") return `genre = ${r.value}`;
@@ -149,14 +149,14 @@ function SmartFilterCard({ col, onEdit, onDelete }: { col: Collection; onEdit: (
         className="text-xs font-medium transition-colors"
         style={{ color: "var(--accent)" }}
       >
-        {t("collections.browseResults")}
+        {t("media.collections.browseResults")}
       </Link>
     </div>
   );
 }
 
 function CollectionsPage() {
-  const { t } = useTranslation("media");
+  const { t } = useTranslation();
   const { data, isLoading } = useCollections();
   const deleteMut = useDeleteCollection();
   const allCollections = data?.collections ?? [];
@@ -174,13 +174,13 @@ function CollectionsPage() {
     <div>
       <div className="mb-6 flex items-center justify-between">
         <h1 className="text-2xl font-bold" style={{ color: "var(--text)" }}>
-          {t("collections.title")}
+          {t("media.collections.title")}
         </h1>
         <Button variant="secondary" onClick={openCreate}>
           <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
           </svg>
-          {t("collections.newSmartCollection")}
+          {t("media.collections.newSmartCollection")}
         </Button>
       </div>
 
@@ -188,7 +188,7 @@ function CollectionsPage() {
       {smartCollections.length > 0 && (
         <div className="mb-8">
           <h2 className="text-sm font-semibold uppercase tracking-wider mb-3" style={{ color: "var(--text-muted)" }}>
-            {t("collections.smartCollections")}
+            {t("media.collections.smartCollections")}
           </h2>
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-3">
             {smartCollections.map((col) => (
@@ -196,7 +196,7 @@ function CollectionsPage() {
                 key={col.id}
                 col={col}
                 onEdit={() => openEdit(col)}
-                onDelete={() => { if (confirm(t("collections.deleteSmartConfirm"))) deleteMut.mutate(col.id); }}
+                onDelete={() => { if (confirm(t("media.collections.deleteSmartConfirm"))) deleteMut.mutate(col.id); }}
               />
             ))}
           </div>
@@ -207,7 +207,7 @@ function CollectionsPage() {
       <div>
         {smartCollections.length > 0 && (
           <h2 className="text-sm font-semibold uppercase tracking-wider mb-3" style={{ color: "var(--text-muted)" }}>
-            {t("collections.tmdbCollections")}
+            {t("media.collections.tmdbCollections")}
           </h2>
         )}
         {isLoading ? (
@@ -223,8 +223,8 @@ function CollectionsPage() {
           >
             <EmptyState
               icon="library"
-              title={t("collections.noCollections")}
-              description={t("collections.noCollectionsDesc")}
+              title={t("media.collections.noCollections")}
+              description={t("media.collections.noCollectionsDesc")}
             />
           </div>
         ) : (

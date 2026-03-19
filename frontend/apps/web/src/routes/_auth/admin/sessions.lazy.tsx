@@ -49,7 +49,7 @@ function useActiveSessions() {
 }
 
 function useKillSession() {
-  const { t } = useTranslation("admin");
+  const { t } = useTranslation();
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async (sessionId: string) => {
@@ -60,9 +60,9 @@ function useKillSession() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["admin", "sessions", "active"] });
-      toast.success(t("sessions.sessionStopped"));
+      toast.success(t("admin.sessions.sessionStopped"));
     },
-    onError: (err: Error) => toast.error(err.message || t("sessions.failedStop")),
+    onError: (err: Error) => toast.error(err.message || t("admin.sessions.failedStop")),
   });
 }
 
@@ -88,12 +88,12 @@ function formatBandwidth(bps: number): string {
 }
 
 function usePlayMethodLabel() {
-  const { t } = useTranslation("admin");
+  const { t } = useTranslation();
   return (method: string): string => {
     switch (method) {
-      case "direct_play": return t("sessions.directPlay");
-      case "direct_stream": return t("sessions.directStream");
-      case "transcode": return t("sessions.transcode");
+      case "direct_play": return t("admin.sessions.directPlay");
+      case "direct_stream": return t("admin.sessions.directStream");
+      case "transcode": return t("admin.sessions.transcode");
       default: return method;
     }
   };
@@ -125,7 +125,7 @@ function StopIcon() {
 }
 
 function SessionCard({ session }: { session: ActiveSession }) {
-  const { t } = useTranslation("admin");
+  const { t } = useTranslation();
   const killSession = useKillSession();
   const playMethodLabel = usePlayMethodLabel();
   const [confirming, setConfirming] = useState(false);
@@ -165,7 +165,7 @@ function SessionCard({ session }: { session: ActiveSession }) {
               variant="ghost"
               className="shrink-0 !px-2 !py-1"
               onClick={() => setConfirming(true)}
-              title={t("sessions.stopSession")}
+              title={t("admin.sessions.stopSession")}
             >
               <StopIcon />
             </Button>
@@ -180,14 +180,14 @@ function SessionCard({ session }: { session: ActiveSession }) {
                   setConfirming(false);
                 }}
               >
-                {t("sessions.stop")}
+                {t("admin.sessions.stop")}
               </Button>
               <Button
                 variant="ghost"
                 className="!px-2 !py-1 text-xs"
                 onClick={() => setConfirming(false)}
               >
-                {t("common:cancel")}
+                {t("common.cancel")}
               </Button>
             </div>
           )}
@@ -221,7 +221,7 @@ function SessionCard({ session }: { session: ActiveSession }) {
           <div className="flex justify-between text-xs mb-1" style={{ color: "var(--text-muted)" }}>
             <span>{formatMs(session.positionMs)}</span>
             <span>
-              {remaining ? `-${remaining}` : `${formatElapsed(session.startedAt)} ${t("sessions.elapsed")}`}
+              {remaining ? `-${remaining}` : `${formatElapsed(session.startedAt)} ${t("admin.sessions.elapsed")}`}
             </span>
           </div>
           <div className="h-1.5 rounded-full" style={{ backgroundColor: "var(--border)" }}>
@@ -244,10 +244,10 @@ function SessionCard({ session }: { session: ActiveSession }) {
             </span>
           )}
           {session.videoCodec && (
-            <span>{t("sessions.video", { codec: session.videoCodec })}</span>
+            <span>{t("admin.sessions.video", { codec: session.videoCodec })}</span>
           )}
           {session.audioCodec && (
-            <span>{t("sessions.audio", { codec: session.audioCodec })}</span>
+            <span>{t("admin.sessions.audio", { codec: session.audioCodec })}</span>
           )}
           {session.bandwidthBps > 0 && (
             <span>{formatBandwidth(session.bandwidthBps)}</span>
@@ -259,13 +259,13 @@ function SessionCard({ session }: { session: ActiveSession }) {
 }
 
 function SessionsPage() {
-  const { t } = useTranslation("admin");
+  const { t } = useTranslation();
   const { data: sessions, isLoading, isError } = useActiveSessions();
 
   return (
     <div className="flex flex-col gap-6">
       <h1 className="text-2xl font-bold" style={{ color: "var(--text)" }}>
-        {t("sessions.title")}
+        {t("admin.sessions.title")}
       </h1>
 
       {isLoading ? (
@@ -275,19 +275,19 @@ function SessionsPage() {
       ) : isError ? (
         <EmptyState
           icon="media"
-          title={t("sessions.failedLoad")}
-          description={t("sessions.failedLoadDesc")}
+          title={t("admin.sessions.failedLoad")}
+          description={t("admin.sessions.failedLoadDesc")}
         />
       ) : !sessions || sessions.length === 0 ? (
         <EmptyState
           icon="media"
-          title={t("sessions.noSessions")}
-          description={t("sessions.noSessionsDesc")}
+          title={t("admin.sessions.noSessions")}
+          description={t("admin.sessions.noSessionsDesc")}
         />
       ) : (
         <>
           <p className="text-sm" style={{ color: "var(--text-muted)" }}>
-            {t("sessions.activeCount", { count: sessions.length, word: sessions.length === 1 ? t("sessions.session") : t("sessions.sessions") })}
+            {t("admin.sessions.activeCount", { count: sessions.length, word: sessions.length === 1 ? t("admin.sessions.session") : t("admin.sessions.sessions") })}
           </p>
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
             {sessions.map((session) => (

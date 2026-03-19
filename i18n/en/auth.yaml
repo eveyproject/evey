@@ -126,3 +126,58 @@ settings:
       nc17: "NC-17 — Adults Only"
     bitrates:
       unlimited: Unlimited
+apiKeys:
+  title: API Keys
+  description: Create API keys for external integrations.
+  newKeyTitle: New API Key
+  name: Name
+  namePlaceholder: "My integration"
+  nameRequired: Name is required
+  key: Key
+  lastUsed: Last Used
+  created: Created
+  keyCreatedTitle: API Key Created
+  saveWarning: Save this key now — it won't be shown again.
+  noKeys: No API keys yet
+  createError: Failed to create API key
+  revokeTitle: Revoke API Key
+  revokeConfirm: Revoke this API key? It will stop working immediately.
+  keyRevoked: API key revoked
+  revokeError: Failed to revoke API key
+devices:
+  title: Devices
+  description: Manage push notification devices.
+  platform: Platform
+  token: Token
+  registered: Registered
+  noDevices: No registered devices
+  revokeTitle: Revoke Device
+  revokeConfirm: Revoke this device? It will no longer receive notifications.
+  deviceRevoked: Device revoked
+  revokeError: Failed to remove device
+notificationSettings:
+  pushNotifications: Push Notifications
+  pushDesc: Receive push notifications on this device.
+  pushEnabled: Push notifications enabled
+  pushDisabled: Push notifications disabled
+  pushError: Failed to toggle push notifications
+  pushNotConfigured: Push notifications not configured on this server.
+  permissionDenied: Notification permission denied by browser.
+  movies: Movies
+  series: Series
+  music: Music
+  saved: Notification preferences saved
+  saveError: Failed to save notification preferences
+watchHistory:
+  today: Today
+  yesterday: Yesterday
+  thisWeek: This Week
+  thisMonth: This Month
+  plays: "{{count}} plays"
+  watched: Watched
+  noHistory: No watch history
+  noHistoryDesc: Start watching something to see your history here.
+  clearHistory: Clear History
+  clearTitle: Clear Watch History
+  clearConfirm: This will permanently delete all your watch history. This action cannot be undone.
+  clearAll: Clear all

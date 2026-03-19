@@ -10,7 +10,7 @@ export const Route = createLazyFileRoute("/_auth/media/$mediaId")({
 });
 
 function MediaPage() {
-  const { t } = useTranslation("media");
+  const { t } = useTranslation();
   const { mediaId } = Route.useParams();
   const { edit } = Route.useSearch();
 
@@ -27,7 +27,7 @@ function MediaPage() {
   if (isError || !item) {
     return (
       <div className="text-center py-16" style={{ color: "var(--text-muted)" }}>
-        {t("detail.notFound")}
+        {t("media.detail.notFound")}
       </div>
     );
   }
