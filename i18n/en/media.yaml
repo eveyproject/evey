@@ -1,0 +1,299 @@
+season: "Season {{number}}"
+episode: "E{{number}}"
+chapter: "Chapter {{number}}"
+track: "Track {{number}}"
+burnIn: "(burn-in)"
+home:
+  play: Play
+  moreInfo: More Info
+  continueWatching: Continue Watching
+  upNext: Up Next
+  recentlyAdded: Recently Added
+  mostPopular: Most Popular
+  recommendedForYou: Recommended For You
+  collections: Collections
+  emptyLibrary: Your library is empty
+  emptyLibraryDesc: "Go to Admin \u2192 Libraries to add a media folder."
+  goToLibraries: Go to Libraries
+  library: Library
+favorites:
+  title: Favorites
+  searchPlaceholder: "Search\u2026"
+  all: All
+  movies: Movies
+  series: Series
+  recentlyAdded: Recently Added
+  titleAZ: "Title A\u2013Z"
+  titleZA: "Title Z\u2013A"
+  yearNewest: Year (newest)
+  rating: Rating
+  yourRating: "Your rating"
+  noFavorites: No favorites yet
+  noFavoritesDesc: Click the heart icon on any media item to add it to your favorites.
+  addToPlaylist: Add to Playlist
+  noPlaylists: No playlists yet.
+  failedAddPlaylist: Failed to add to playlist
+  itemsAddedToPlaylist: "{{count}} item(s) added to \"{{name}}\""
+  markedWatched: "{{count}} item(s) marked as watched"
+  markedUnwatched: "{{count}} item(s) marked as unwatched"
+collections:
+  title: Collections
+  newSmartCollection: New smart collection
+  smartCollections: Smart Collections
+  tmdbCollections: TMDB Collections
+  noCollections: No collections yet
+  noCollectionsDesc: Collections are automatically populated from TMDB sagas.
+  deleteConfirm: Delete this collection?
+  deleteSmartConfirm: Delete this smart collection?
+  browseResults: "Browse results \u2192"
+  smart: Smart
+  noItems: No items
+  noItemsDesc: This collection has no media items yet.
+  notFound: Collection not found
+  notFoundDesc: This smart collection no longer exists.
+  noRules: This collection has no rules configured.
+  noRuleMatch: No items match the current rules.
+  smartDeleted: Smart collection deleted
+  deleteFailed: Failed to delete
+  noCollectionsAvailable: No collections available.
+  itemsAdded: "{{count}} item(s) added to \"{{name}}\""
+  addFailed: Failed to add to collection
+  adding: "Adding\u2026"
+  editSmartCollection: Edit smart collection
+  nameRequired: Name is required
+  noRulesYet: No rules yet. Add at least one rule to filter items.
+  smartUpdated: Smart collection updated
+  smartCreated: Smart collection created
+  smartSaveFailed: Failed to save smart collection
+  saveChanges: Save changes
+library:
+  title: Library
+  libraries: Libraries
+  movies: Movies
+  tvShows: TV Shows
+  music: Music
+  photos: Photos
+  books: Books
+  noLibraries: No libraries configured
+  noLibrariesDesc: Add a library in the admin panel to start browsing your media collection.
+  filterByName: "Filter by name..."
+  series: Series
+  seasons: Seasons
+  episodes: Episodes
+  titleSort: Title
+  year: Year
+  ratingSort: Rating
+  dateAdded: Date Added
+  ascending: Ascending
+  descending: Descending
+  switchToList: Switch to list view
+  switchToGrid: Switch to grid view
+  noItems: No items found
+  noItemsFiltered: Try adjusting your filters or search term.
+  noItemsType: Try a different filter, or scan the library to add content.
+  noItemsEmpty: This library is empty. Trigger a scan to add content.
+  goToAdmin: Go to Admin
+  loadMore: "Load more ({{current}} of {{total}})"
+  selected: selected
+  addToFavorites: Add to favorites
+  addedToFavorites: "{{count}} item(s) added to favorites"
+  failedFavorites: Failed to add some items to favorites
+  duration: Duration
+  type: Type
+  addToPlaylist: Add to Playlist
+  noPlaylists: No playlists yet.
+  failedAddPlaylist: Failed to add to playlist
+  itemsAddedToPlaylist: "{{count}} item(s) added to \"{{name}}\""
+person:
+  notFound: Person not found.
+  unknown: Unknown
+  titleCount: "{{count}} title"
+  titleCount_plural: "{{count}} titles"
+  noFilmography: No filmography found for this person.
+  other: Other
+  asRole: "as {{role}}"
+  actor: Actor
+  director: Director
+  writer: Writer
+  producer: Producer
+  composer: Composer
+  guestStar: Guest Star
+detail:
+  notFound: Media item not found.
+  play: Play
+  markWatched: Mark Watched
+  markUnwatched: Mark Unwatched
+  markedWatched: Marked as watched
+  markedUnwatched: Marked as unwatched
+  addToPlaylist: Add to Playlist
+  yourRating: "Your rating"
+  editMetadata: Edit Metadata
+  cast: Cast
+  crew: Crew
+  seasons: Seasons
+  seasonCount: "{{count}} season"
+  seasonCount_plural: "{{count}} seasons"
+  episodes: Episodes
+  episodeCount: "{{count}} episode"
+  episodeCount_plural: "{{count}} episodes"
+  ep: "{{count}} ep"
+  similarTitles: Similar Titles
+  fileInfo: File Info
+  director: "Director: "
+  writer: "Writer: "
+  studio: "Studio: "
+  trailer: Trailer
+  close: "Close"
+  unsupportedPlatform: "Unsupported platform: {{platform}}"
+  artworkUpdated: Artwork updated
+  artworkFailed: Failed to update artwork
+  poster: Poster
+  backdrop: Backdrop
+  title: Title
+  originalTitle: Original Title
+  year: Year
+  overview: Overview
+  genresLabel: "Genres (comma-separated)"
+  rating: Rating
+  overridden: Overridden
+  auto: Auto
+  resetToAuto: Reset to auto
+  resetSuccess: "Reset {{field}} to auto"
+  resetFailed: Failed to reset field
+  imdbId: IMDB ID
+  tmdbId: TMDB ID
+  viewOnImdb: View on IMDB
+  viewOnTmdb: View on TMDB
+  idChangedWarning: "ID changed — saving will re-fetch metadata from the provider"
+  refreshMetadata: Refresh metadata
+  reEnrichedWithNewId: Re-enriched with new ID
+  metadataSaved: Metadata saved
+  failedToSave: Failed to save
+  failedToSaveDot: Failed to save.
+  refreshFailed: Failed to refresh metadata
+  noProfileSelected: No profile selected
+contextMenu:
+  editMetadata: Edit metadata
+  addToPlaylist: Add to Playlist
+  addToCollection: Add to Collection
+  addToFavorites: Add to Favorites
+  removeFromFavorites: Remove from Favorites
+  download: Download
+  markWatched: Mark as watched
+  markUnwatched: Mark as unwatched
+  markedWatched: Marked as watched
+  markedUnwatched: Marked as unwatched
+  markError: "Failed to mark as {{status}}"
+music:
+  title: Music
+  tracks: Tracks
+  albums: Albums
+  artists: Artists
+  searchPlaceholder: "Search tracks, artists, albums\u2026"
+  loading: "Loading\u2026"
+  noTracks: No tracks found.
+  noTracksSearch: No tracks match your search.
+  noAlbums: No albums found.
+  noArtists: No artists found.
+  noLibraries: No music libraries found. Add one in the Admin panel.
+  trackDeleted: Track deleted
+  failedDeleteTrack: Failed to delete track
+  deleteTrackConfirm: Delete this track? This cannot be undone.
+  deleteTrack: Delete track
+  trackCount: "{{count}} track"
+  trackCount_plural: "{{count}} tracks"
+  albumCount: "{{count}} album"
+  albumCount_plural: "{{count}} albums"
+photos:
+  title: Photos
+  albums: Albums
+  allPhotos: All Photos
+  noPhotos: No photos
+  noPhotosDesc: No photos found in this library.
+  noAlbums: No albums
+  noAlbumsDesc: No albums found in this library.
+  noPhotoLibraries: No photo libraries
+  noPhotoLibrariesDesc: Add a photo library in the Admin panel to get started.
+  photoDeleted: Photo deleted
+  failedDeletePhoto: Failed to delete photo
+  deletePhotoConfirm: "Delete \"{{title}}\"? This cannot be undone."
+  photoCount: "{{count}} photo"
+  photoCount_plural: "{{count}} photos"
+added: Added
+created: Created
+updated: Updated
+syncplay:
+  connected: Connected
+  connecting: "Connecting..."
+  leave: Leave
+  shareLink: Share link
+  watchTogetherRoom: Watch Together room
+  watchingWith: "Watching with: {{names}}"
+  watchingWithMore: "Watching with: {{names}} +{{count}} more"
+playlist:
+  name: Name
+  description: Description
+  type: Type
+  manual: Manual
+  smart: Smart
+  createTitle: Create Playlist
+  createPlaylist: Create Playlist
+  newPlaylist: "+ New Playlist"
+  noPlaylists: No playlists yet.
+  addTitle: Add to Playlist
+  addSuccess: "Added to playlist"
+  addError: Failed to add to playlist
+  createSuccess: Playlist created
+  createError: Failed to create playlist
+  rules: Rules
+  addRule: Add Rule
+  field: Field
+  op: Operator
+  value: Value
+  playlists: Playlists
+  notFound: Playlist not found.
+  noItems: No items
+  noItemsSmart: No media matches these rules.
+  noItemsManual: Add items from the media detail page.
+  removedFromPlaylist: Removed from playlist
+  failedRemove: Failed to remove
+  deleteConfirm: "Delete \"{{name}}\"?"
+  deleted: "Deleted \"{{name}}\""
+  deleteFailed: Failed to delete
+  deletePlaylist: Delete playlist
+  noPlaylistsDesc: Create a playlist to organize your media.
+  editRules: Edit Rules
+  saveRules: Save Rules
+  noRules: "No rules set. Click \"Edit Rules\" to add rules."
+  noRulesYet: No rules yet. Add at least one rule to filter items.
+  rulesSaved: Rules saved
+  rulesSaveFailed: Failed to save rules
+search:
+  searching: "Searching..."
+  noResults: No results
+  viewAllResults: "View all {{count}} results"
+  recentSearches: Recent searches
+  clearAll: Clear all
+  searchFailed: Search failed
+  placeholder: "Search movies, series\u2026"
+  all: All
+  movies: Movies
+  series: Series
+  noResultsFor: "No results for \u201c{{query}}\u201d"
+  noResultsDesc: Try a different search term, check the spelling, or change the filter.
+  resultCount: "{{count}} result"
+  resultCount_plural: "{{count}} results"
+  resultFor: "for \u201c{{query}}\u201d"
+  searchLibrary: Search your media library
+  searchLibraryDesc: Type at least 2 characters to search across all your movies, series, and more.
+streams:
+  audio: Audio
+  subtitles: Subtitles
+  default: Default
+  forced: Forced
+  external: External
+rating:
+  like: Like
+  dislike: Dislike
+  removeLike: Remove like
+  removeDislike: Remove dislike

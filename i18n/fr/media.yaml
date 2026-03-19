@@ -1,0 +1,299 @@
+season: "Saison {{number}}"
+episode: "E{{number}}"
+chapter: "Chapitre {{number}}"
+track: "Piste {{number}}"
+burnIn: "(incrusté)"
+home:
+  play: Lecture
+  moreInfo: "Plus d'infos"
+  continueWatching: Reprendre la lecture
+  upNext: À suivre
+  recentlyAdded: Ajoutés récemment
+  mostPopular: Les plus populaires
+  recommendedForYou: Recommandé pour vous
+  collections: Collections
+  emptyLibrary: Votre bibliothèque est vide
+  emptyLibraryDesc: "Allez dans Administration \u2192 Bibliothèques pour ajouter un dossier multimédia."
+  goToLibraries: Aller aux bibliothèques
+  library: Bibliothèque
+favorites:
+  title: Favoris
+  searchPlaceholder: "Rechercher\u2026"
+  all: Tout
+  movies: Films
+  series: Séries
+  recentlyAdded: Ajoutés récemment
+  titleAZ: "Titre A\u2013Z"
+  titleZA: "Titre Z\u2013A"
+  yearNewest: Année (plus récent)
+  rating: Note
+  yourRating: "Votre note"
+  noFavorites: Pas encore de favoris
+  noFavoritesDesc: "Cliquez sur l'icône cœur de n'importe quel média pour l'ajouter aux favoris."
+  addToPlaylist: Ajouter à la liste de lecture
+  noPlaylists: Pas encore de listes de lecture.
+  failedAddPlaylist: "Échec de l'ajout à la liste de lecture"
+  itemsAddedToPlaylist: "{{count}} élément(s) ajouté(s) à \"{{name}}\""
+  markedWatched: "{{count}} élément(s) marqué(s) comme vu(s)"
+  markedUnwatched: "{{count}} élément(s) marqué(s) comme non vu(s)"
+collections:
+  title: Collections
+  newSmartCollection: Nouvelle collection intelligente
+  smartCollections: Collections intelligentes
+  tmdbCollections: Collections TMDB
+  noCollections: Pas encore de collections
+  noCollectionsDesc: Les collections sont automatiquement générées à partir des sagas TMDB.
+  deleteConfirm: Supprimer cette collection ?
+  deleteSmartConfirm: Supprimer cette collection intelligente ?
+  browseResults: "Parcourir les résultats \u2192"
+  smart: Intelligent
+  noItems: Aucun élément
+  noItemsDesc: "Cette collection n'a pas encore d'éléments multimédias."
+  notFound: Collection introuvable
+  notFoundDesc: "Cette collection intelligente n'existe plus."
+  noRules: "Cette collection n'a aucune règle configurée."
+  noRuleMatch: Aucun élément ne correspond aux règles actuelles.
+  smartDeleted: Collection intelligente supprimée
+  deleteFailed: Échec de la suppression
+  noCollectionsAvailable: Aucune collection disponible.
+  itemsAdded: "{{count}} élément(s) ajouté(s) à \"{{name}}\""
+  addFailed: "Échec de l'ajout à la collection"
+  adding: "Ajout en cours\u2026"
+  editSmartCollection: Modifier la collection intelligente
+  nameRequired: Le nom est obligatoire
+  noRulesYet: Pas encore de règles. Ajoutez au moins une règle pour filtrer les éléments.
+  smartUpdated: Collection intelligente mise à jour
+  smartCreated: Collection intelligente créée
+  smartSaveFailed: Échec de la sauvegarde de la collection intelligente
+  saveChanges: Enregistrer les modifications
+library:
+  title: Bibliothèque
+  libraries: Bibliothèques
+  movies: Films
+  tvShows: Séries TV
+  music: Musique
+  photos: Photos
+  books: Livres
+  noLibraries: Aucune bibliothèque configurée
+  noLibrariesDesc: "Ajoutez une bibliothèque dans le panneau d'administration pour parcourir vos médias."
+  filterByName: "Filtrer par nom..."
+  series: Séries
+  seasons: Saisons
+  episodes: Épisodes
+  titleSort: Titre
+  year: Année
+  ratingSort: Note
+  dateAdded: "Date d'ajout"
+  ascending: Croissant
+  descending: Décroissant
+  switchToList: Passer en vue liste
+  switchToGrid: Passer en vue grille
+  noItems: Aucun élément trouvé
+  noItemsFiltered: "Essayez d'ajuster vos filtres ou votre recherche."
+  noItemsType: "Essayez un filtre différent, ou scannez la bibliothèque pour ajouter du contenu."
+  noItemsEmpty: Cette bibliothèque est vide. Lancez un scan pour ajouter du contenu.
+  goToAdmin: "Aller à l'administration"
+  loadMore: "Charger plus ({{current}} sur {{total}})"
+  selected: sélectionné(s)
+  addToFavorites: Ajouter aux favoris
+  addedToFavorites: "{{count}} élément(s) ajouté(s) aux favoris"
+  failedFavorites: "Échec de l'ajout de certains éléments aux favoris"
+  duration: Durée
+  type: Type
+  addToPlaylist: Ajouter à la liste de lecture
+  noPlaylists: Pas encore de listes de lecture.
+  failedAddPlaylist: "Échec de l'ajout à la liste de lecture"
+  itemsAddedToPlaylist: "{{count}} élément(s) ajouté(s) à \"{{name}}\""
+person:
+  notFound: Personne introuvable.
+  unknown: Inconnu
+  titleCount: "{{count}} titre"
+  titleCount_plural: "{{count}} titres"
+  noFilmography: Aucune filmographie trouvée pour cette personne.
+  other: Autre
+  asRole: "dans le rôle de {{role}}"
+  actor: Acteur
+  director: Réalisateur
+  writer: Scénariste
+  producer: Producteur
+  composer: Compositeur
+  guestStar: Guest star
+detail:
+  notFound: Élément multimédia introuvable.
+  play: Lecture
+  markWatched: Marquer comme vu
+  markUnwatched: Marquer comme non vu
+  markedWatched: Marqué comme vu
+  markedUnwatched: Marqué comme non vu
+  addToPlaylist: Ajouter à la liste de lecture
+  yourRating: "Votre note"
+  editMetadata: Modifier les métadonnées
+  cast: Distribution
+  crew: Équipe technique
+  seasons: Saisons
+  seasonCount: "{{count}} saison"
+  seasonCount_plural: "{{count}} saisons"
+  episodes: Épisodes
+  episodeCount: "{{count}} épisode"
+  episodeCount_plural: "{{count}} épisodes"
+  ep: "{{count}} ép."
+  similarTitles: Titres similaires
+  fileInfo: Informations fichier
+  director: "Réalisateur : "
+  writer: "Scénariste : "
+  studio: "Studio : "
+  trailer: Bande-annonce
+  close: "Fermer"
+  unsupportedPlatform: "Plateforme non supportée : {{platform}}"
+  artworkUpdated: Artwork mis à jour
+  artworkFailed: "Échec de la mise à jour de l'artwork"
+  poster: Affiche
+  backdrop: Fond
+  title: Titre
+  originalTitle: Titre original
+  year: Année
+  overview: Synopsis
+  genresLabel: "Genres (séparés par des virgules)"
+  rating: Note
+  overridden: Personnalisé
+  auto: Auto
+  resetToAuto: Réinitialiser
+  resetSuccess: "{{field}} réinitialisé"
+  resetFailed: Échec de la réinitialisation
+  imdbId: ID IMDB
+  tmdbId: ID TMDB
+  viewOnImdb: Voir sur IMDB
+  viewOnTmdb: Voir sur TMDB
+  idChangedWarning: "ID modifié — l'enregistrement récupérera les métadonnées du fournisseur"
+  refreshMetadata: Actualiser les métadonnées
+  reEnrichedWithNewId: Ré-enrichi avec le nouvel ID
+  metadataSaved: Métadonnées enregistrées
+  failedToSave: "Échec de l'enregistrement"
+  failedToSaveDot: "Échec de l'enregistrement."
+  refreshFailed: "Échec de l'actualisation des métadonnées"
+  noProfileSelected: Aucun profil sélectionné
+contextMenu:
+  editMetadata: Modifier les métadonnées
+  addToPlaylist: Ajouter à la liste de lecture
+  addToCollection: Ajouter à la collection
+  addToFavorites: Ajouter aux favoris
+  removeFromFavorites: Retirer des favoris
+  download: Télécharger
+  markWatched: Marquer comme vu
+  markUnwatched: Marquer comme non vu
+  markedWatched: Marqué comme vu
+  markedUnwatched: Marqué comme non vu
+  markError: "Échec du marquage comme {{status}}"
+music:
+  title: Musique
+  tracks: Pistes
+  albums: Albums
+  artists: Artistes
+  searchPlaceholder: "Rechercher pistes, artistes, albums\u2026"
+  loading: "Chargement\u2026"
+  noTracks: Aucune piste trouvée.
+  noTracksSearch: Aucune piste ne correspond à votre recherche.
+  noAlbums: Aucun album trouvé.
+  noArtists: Aucun artiste trouvé.
+  noLibraries: "Aucune bibliothèque musicale trouvée. Ajoutez-en une dans le panneau d'administration."
+  trackDeleted: Piste supprimée
+  failedDeleteTrack: Échec de la suppression de la piste
+  deleteTrackConfirm: Supprimer cette piste ? Cette action est irréversible.
+  deleteTrack: Supprimer la piste
+  trackCount: "{{count}} piste"
+  trackCount_plural: "{{count}} pistes"
+  albumCount: "{{count}} album"
+  albumCount_plural: "{{count}} albums"
+photos:
+  title: Photos
+  albums: Albums
+  allPhotos: Toutes les photos
+  noPhotos: Aucune photo
+  noPhotosDesc: Aucune photo trouvée dans cette bibliothèque.
+  noAlbums: Aucun album
+  noAlbumsDesc: Aucun album trouvé dans cette bibliothèque.
+  noPhotoLibraries: Aucune bibliothèque de photos
+  noPhotoLibrariesDesc: "Ajoutez une bibliothèque de photos dans le panneau d'administration pour commencer."
+  photoDeleted: Photo supprimée
+  failedDeletePhoto: Échec de la suppression de la photo
+  deletePhotoConfirm: "Supprimer \"{{title}}\" ? Cette action est irréversible."
+  photoCount: "{{count}} photo"
+  photoCount_plural: "{{count}} photos"
+added: Ajouté
+created: Créé
+updated: Mis à jour
+syncplay:
+  connected: Connecté
+  connecting: "Connexion..."
+  leave: Quitter
+  shareLink: Partager le lien
+  watchTogetherRoom: Salle Regarder ensemble
+  watchingWith: "Avec : {{names}}"
+  watchingWithMore: "Avec : {{names}} +{{count}} de plus"
+playlist:
+  name: Nom
+  description: Description
+  type: Type
+  manual: Manuel
+  smart: Intelligent
+  createTitle: Créer une liste de lecture
+  createPlaylist: Créer une liste de lecture
+  newPlaylist: "+ Nouvelle liste de lecture"
+  noPlaylists: Pas encore de listes de lecture.
+  addTitle: Ajouter à la liste de lecture
+  addSuccess: "Ajouté à la liste de lecture"
+  addError: "Échec de l'ajout à la liste de lecture"
+  createSuccess: Liste de lecture créée
+  createError: Échec de la création de la liste de lecture
+  rules: Règles
+  addRule: Ajouter une règle
+  field: Champ
+  op: Opérateur
+  value: Valeur
+  playlists: Listes de lecture
+  notFound: Liste de lecture introuvable.
+  noItems: Aucun élément
+  noItemsSmart: Aucun média ne correspond à ces règles.
+  noItemsManual: Ajoutez des éléments depuis la page de détail du média.
+  removedFromPlaylist: Retiré de la liste de lecture
+  failedRemove: Échec du retrait
+  deleteConfirm: "Supprimer \"{{name}}\" ?"
+  deleted: "\"{{name}}\" supprimée"
+  deleteFailed: Échec de la suppression
+  deletePlaylist: Supprimer la liste de lecture
+  noPlaylistsDesc: Créez une liste de lecture pour organiser vos médias.
+  editRules: Modifier les règles
+  saveRules: Enregistrer les règles
+  noRules: "Aucune règle définie. Cliquez sur \"Modifier les règles\" pour en ajouter."
+  noRulesYet: Pas encore de règles. Ajoutez au moins une règle pour filtrer les éléments.
+  rulesSaved: Règles enregistrées
+  rulesSaveFailed: Échec de la sauvegarde des règles
+search:
+  searching: "Recherche..."
+  noResults: Aucun résultat
+  viewAllResults: "Voir les {{count}} résultats"
+  recentSearches: Recherches récentes
+  clearAll: Tout effacer
+  searchFailed: Échec de la recherche
+  placeholder: "Rechercher films, séries\u2026"
+  all: Tout
+  movies: Films
+  series: Séries
+  noResultsFor: "Aucun résultat pour \u201c{{query}}\u201d"
+  noResultsDesc: "Essayez un autre terme, vérifiez l'orthographe ou changez le filtre."
+  resultCount: "{{count}} résultat"
+  resultCount_plural: "{{count}} résultats"
+  resultFor: "pour \u201c{{query}}\u201d"
+  searchLibrary: Rechercher dans votre médiathèque
+  searchLibraryDesc: "Saisissez au moins 2 caractères pour rechercher parmi vos films, séries et plus."
+streams:
+  audio: Audio
+  subtitles: Sous-titres
+  default: Par défaut
+  forced: Forcé
+  external: Externe
+rating:
+  like: "J'aime"
+  dislike: "Je n'aime pas"
+  removeLike: "Retirer j'aime"
+  removeDislike: "Retirer je n'aime pas"
