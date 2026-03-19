@@ -1,299 +1,304 @@
-season: "Temporada {{number}}"
-episode: "E{{number}}"
-chapter: "Capítulo {{number}}"
-track: "Pista {{number}}"
-burnIn: "(incrustado)"
+season: Temporada {{number}}
+episode: E{{number}}
+chapter: Capítulo {{number}}
+track: Pista {{number}}
+burnIn: (incrustado)
 home:
-  play: "Reproducir"
-  moreInfo: "Más información"
-  continueWatching: "Seguir viendo"
-  upNext: "A continuación"
-  recentlyAdded: "Añadido recientemente"
-  mostPopular: "Más popular"
-  recommendedForYou: "Recomendado para ti"
-  collections: "Colecciones"
-  emptyLibrary: "Tu biblioteca está vacía"
-  emptyLibraryDesc: "Ve a Administración → Bibliotecas para añadir una carpeta multimedia."
-  goToLibraries: "Ir a Bibliotecas"
-  library: "Biblioteca"
+  play: Reproducir
+  moreInfo: Más información
+  continueWatching: Seguir viendo
+  upNext: A continuación
+  recentlyAdded: Añadido recientemente
+  mostPopular: Más popular
+  recommendedForYou: Recomendado para ti
+  collections: Colecciones
+  emptyLibrary: Tu biblioteca está vacía
+  emptyLibraryDesc: Ve a Administración → Bibliotecas para añadir una carpeta multimedia.
+  goToLibraries: Ir a Bibliotecas
+  library: Biblioteca
 favorites:
-  title: "Favoritos"
-  searchPlaceholder: "Buscar…"
-  all: "Todo"
-  movies: "Películas"
-  series: "Series"
-  recentlyAdded: "Añadido recientemente"
-  titleAZ: "Título A–Z"
-  titleZA: "Título Z–A"
-  yearNewest: "Año (más reciente)"
-  rating: "Calificación"
-  yourRating: "Tu valoración"
-  noFavorites: "Sin favoritos aún"
-  noFavoritesDesc: "Haz clic en el ícono de corazón en cualquier elemento para añadirlo a favoritos."
-  addToPlaylist: "Añadir a lista de reproducción"
-  yourRating: "Tu valoración"
-  noPlaylists: "Sin listas de reproducción aún."
-  failedAddPlaylist: "Error al añadir a la lista de reproducción"
-  itemsAddedToPlaylist: "{{count}} elemento(s) añadido(s) a \"{{name}}\""
-  markedWatched: "{{count}} elemento(s) marcado(s) como visto(s)"
-  markedUnwatched: "{{count}} elemento(s) marcado(s) como no visto(s)"
+  title: Favoritos
+  searchPlaceholder: Buscar…
+  all: Todo
+  movies: Películas
+  series: Series
+  recentlyAdded: Añadido recientemente
+  titleAZ: Título A–Z
+  titleZA: Título Z–A
+  yearNewest: Año (más reciente)
+  rating: Calificación
+  yourRating: Tu valoración
+  noFavorites: Sin favoritos aún
+  noFavoritesDesc: Haz clic en el ícono de corazón en cualquier elemento para añadirlo
+    a favoritos.
+  addToPlaylist: Añadir a lista de reproducción
+  noPlaylists: Sin listas de reproducción aún.
+  failedAddPlaylist: Error al añadir a la lista de reproducción
+  itemsAddedToPlaylist: '{{count}} elemento(s) añadido(s) a "{{name}}"'
+  markedWatched: '{{count}} elemento(s) marcado(s) como visto(s)'
+  markedUnwatched: '{{count}} elemento(s) marcado(s) como no visto(s)'
 collections:
-  title: "Colecciones"
-  newSmartCollection: "Nueva colección inteligente"
-  smartCollections: "Colecciones inteligentes"
-  tmdbCollections: "Colecciones TMDB"
-  noCollections: "Sin colecciones aún"
-  noCollectionsDesc: "Las colecciones se generan automáticamente desde las sagas de TMDB."
-  deleteConfirm: "¿Eliminar esta colección?"
-  deleteSmartConfirm: "¿Eliminar esta colección inteligente?"
-  browseResults: "Ver resultados →"
-  smart: "Inteligente"
-  noItems: "Sin elementos"
-  noItemsDesc: "Esta colección aún no tiene elementos multimedia."
-  notFound: "Colección no encontrada"
-  notFoundDesc: "Esta colección inteligente ya no existe."
-  noRules: "Esta colección no tiene reglas configuradas."
-  noRuleMatch: "Ningún elemento coincide con las reglas actuales."
-  smartDeleted: "Colección inteligente eliminada"
-  deleteFailed: "Error al eliminar"
-  noCollectionsAvailable: "No hay colecciones disponibles."
-  itemsAdded: "{{count}} elemento(s) añadido(s) a \"{{name}}\""
-  addFailed: "Error al añadir a la colección"
-  adding: "Añadiendo…"
-  editSmartCollection: "Editar colección inteligente"
-  nameRequired: "El nombre es obligatorio"
-  noRulesYet: "Sin reglas aún. Añade al menos una regla para filtrar elementos."
-  smartUpdated: "Colección inteligente actualizada"
-  smartCreated: "Colección inteligente creada"
-  smartSaveFailed: "Error al guardar la colección inteligente"
-  saveChanges: "Guardar cambios"
+  title: Colecciones
+  newSmartCollection: Nueva colección inteligente
+  smartCollections: Colecciones inteligentes
+  tmdbCollections: Colecciones TMDB
+  noCollections: Sin colecciones aún
+  noCollectionsDesc: Las colecciones se generan automáticamente desde las sagas de
+    TMDB.
+  deleteConfirm: ¿Eliminar esta colección?
+  deleteSmartConfirm: ¿Eliminar esta colección inteligente?
+  browseResults: Ver resultados →
+  smart: Inteligente
+  noItems: Sin elementos
+  noItemsDesc: Esta colección aún no tiene elementos multimedia.
+  notFound: Colección no encontrada
+  notFoundDesc: Esta colección inteligente ya no existe.
+  noRules: Esta colección no tiene reglas configuradas.
+  noRuleMatch: Ningún elemento coincide con las reglas actuales.
+  smartDeleted: Colección inteligente eliminada
+  deleteFailed: Error al eliminar
+  noCollectionsAvailable: No hay colecciones disponibles.
+  itemsAdded: '{{count}} elemento(s) añadido(s) a "{{name}}"'
+  addFailed: Error al añadir a la colección
+  adding: Añadiendo…
+  editSmartCollection: Editar colección inteligente
+  nameRequired: El nombre es obligatorio
+  noRulesYet: Sin reglas aún. Añade al menos una regla para filtrar elementos.
+  smartUpdated: Colección inteligente actualizada
+  smartCreated: Colección inteligente creada
+  smartSaveFailed: Error al guardar la colección inteligente
+  saveChanges: Guardar cambios
 library:
-  title: "Biblioteca"
-  libraries: "Bibliotecas"
-  movies: "Películas"
-  tvShows: "Series de TV"
-  music: "Música"
-  photos: "Fotos"
-  books: "Libros"
-  noLibraries: "No hay bibliotecas configuradas"
-  noLibrariesDesc: "Añade una biblioteca en el panel de administración para explorar tu colección multimedia."
-  filterByName: "Filtrar por nombre..."
-  series: "Series"
-  seasons: "Temporadas"
-  episodes: "Episodios"
-  titleSort: "Título"
-  year: "Año"
-  ratingSort: "Calificación"
-  dateAdded: "Fecha de adición"
-  ascending: "Ascendente"
-  descending: "Descendente"
-  switchToList: "Cambiar a vista de lista"
-  switchToGrid: "Cambiar a vista de cuadrícula"
-  noItems: "No se encontraron elementos"
-  noItemsFiltered: "Intenta ajustar tus filtros o término de búsqueda."
-  noItemsType: "Prueba un filtro diferente, o escanea la biblioteca para añadir contenido."
-  noItemsEmpty: "Esta biblioteca está vacía. Inicia un escaneo para añadir contenido."
-  goToAdmin: "Ir a Administración"
-  loadMore: "Cargar más ({{current}} de {{total}})"
-  selected: "seleccionado(s)"
-  addToFavorites: "Añadir a favoritos"
-  addedToFavorites: "{{count}} elemento(s) añadido(s) a favoritos"
-  failedFavorites: "Error al añadir algunos elementos a favoritos"
-  duration: "Duración"
-  type: "Tipo"
-  addToPlaylist: "Añadir a lista de reproducción"
-  noPlaylists: "Sin listas de reproducción aún."
-  failedAddPlaylist: "Error al añadir a la lista de reproducción"
-  itemsAddedToPlaylist: "{{count}} elemento(s) añadido(s) a \"{{name}}\""
+  title: Biblioteca
+  libraries: Bibliotecas
+  movies: Películas
+  tvShows: Series de TV
+  music: Música
+  photos: Fotos
+  books: Libros
+  noLibraries: No hay bibliotecas configuradas
+  noLibrariesDesc: Añade una biblioteca en el panel de administración para explorar
+    tu colección multimedia.
+  filterByName: Filtrar por nombre...
+  series: Series
+  seasons: Temporadas
+  episodes: Episodios
+  titleSort: Título
+  year: Año
+  ratingSort: Calificación
+  dateAdded: Fecha de adición
+  ascending: Ascendente
+  descending: Descendente
+  switchToList: Cambiar a vista de lista
+  switchToGrid: Cambiar a vista de cuadrícula
+  noItems: No se encontraron elementos
+  noItemsFiltered: Intenta ajustar tus filtros o término de búsqueda.
+  noItemsType: Prueba un filtro diferente, o escanea la biblioteca para añadir contenido.
+  noItemsEmpty: Esta biblioteca está vacía. Inicia un escaneo para añadir contenido.
+  goToAdmin: Ir a Administración
+  loadMore: Cargar más ({{current}} de {{total}})
+  selected: seleccionado(s)
+  addToFavorites: Añadir a favoritos
+  addedToFavorites: '{{count}} elemento(s) añadido(s) a favoritos'
+  failedFavorites: Error al añadir algunos elementos a favoritos
+  duration: Duración
+  type: Tipo
+  addToPlaylist: Añadir a lista de reproducción
+  noPlaylists: Sin listas de reproducción aún.
+  failedAddPlaylist: Error al añadir a la lista de reproducción
+  itemsAddedToPlaylist: '{{count}} elemento(s) añadido(s) a "{{name}}"'
 person:
-  notFound: "Persona no encontrada."
-  unknown: "Desconocido"
-  titleCount: "{{count}} título"
-  titleCount_plural: "{{count}} títulos"
-  noFilmography: "No se encontró filmografía para esta persona."
-  other: "Otro"
-  asRole: "como {{role}}"
-  actor: "Actor"
-  director: "Director"
-  writer: "Guionista"
-  producer: "Productor"
-  composer: "Compositor"
-  guestStar: "Estrella invitada"
+  notFound: Persona no encontrada.
+  unknown: Desconocido
+  titleCount: '{{count}} título'
+  titleCount_plural: '{{count}} títulos'
+  noFilmography: No se encontró filmografía para esta persona.
+  other: Otro
+  asRole: como {{role}}
+  actor: Actor
+  director: Director
+  writer: Guionista
+  producer: Productor
+  composer: Compositor
+  guestStar: Estrella invitada
 detail:
-  notFound: "Elemento multimedia no encontrado."
-  play: "Reproducir"
-  markWatched: "Marcar como visto"
-  markUnwatched: "Marcar como no visto"
-  markedWatched: "Marcado como visto"
-  markedUnwatched: "Marcado como no visto"
-  addToPlaylist: "Añadir a lista de reproducción"
-  editMetadata: "Editar metadatos"
-  cast: "Reparto"
-  crew: "Equipo"
-  seasons: "Temporadas"
-  seasonCount: "{{count}} temporada"
-  seasonCount_plural: "{{count}} temporadas"
-  episodes: "Episodios"
-  episodeCount: "{{count}} episodio"
-  episodeCount_plural: "{{count}} episodios"
-  ep: "{{count}} ep."
-  similarTitles: "Títulos similares"
-  fileInfo: "Info del archivo"
-  director: "Director: "
-  writer: "Guionista: "
-  studio: "Estudio: "
-  trailer: "Tráiler"
-  close: "Cerrar"
-  unsupportedPlatform: "Plataforma no soportada: {{platform}}"
-  artworkUpdated: "Artwork actualizado"
-  artworkFailed: "Error al actualizar el artwork"
-  poster: "Póster"
-  backdrop: "Fondo"
-  title: "Título"
-  originalTitle: "Título original"
-  year: "Año"
-  overview: "Sinopsis"
-  genresLabel: "Géneros (separados por comas)"
-  rating: "Calificación"
-  overridden: "Personalizado"
-  auto: "Auto"
-  resetToAuto: "Restablecer"
-  resetSuccess: "{{field}} restablecido"
-  resetFailed: "Error al restablecer"
-  imdbId: "ID IMDB"
-  tmdbId: "ID TMDB"
-  viewOnImdb: "Ver en IMDB"
-  viewOnTmdb: "Ver en TMDB"
-  idChangedWarning: "ID cambiado — al guardar se volverá a obtener los metadatos del proveedor"
-  refreshMetadata: "Actualizar metadatos"
-  reEnrichedWithNewId: "Re-enriquecido con nuevo ID"
-  metadataSaved: "Metadatos guardados"
-  failedToSave: "Error al guardar"
-  failedToSaveDot: "Error al guardar."
-  refreshFailed: "Error al actualizar metadatos"
-  noProfileSelected: "Ningún perfil seleccionado"
+  notFound: Elemento multimedia no encontrado.
+  play: Reproducir
+  markWatched: Marcar como visto
+  markUnwatched: Marcar como no visto
+  markedWatched: Marcado como visto
+  markedUnwatched: Marcado como no visto
+  addToPlaylist: Añadir a lista de reproducción
+  editMetadata: Editar metadatos
+  cast: Reparto
+  crew: Equipo
+  seasons: Temporadas
+  seasonCount: '{{count}} temporada'
+  seasonCount_plural: '{{count}} temporadas'
+  episodes: Episodios
+  episodeCount: '{{count}} episodio'
+  episodeCount_plural: '{{count}} episodios'
+  ep: '{{count}} ep.'
+  similarTitles: Títulos similares
+  fileInfo: Info del archivo
+  director: 'Director: '
+  writer: 'Guionista: '
+  studio: 'Estudio: '
+  trailer: Tráiler
+  close: Cerrar
+  unsupportedPlatform: 'Plataforma no soportada: {{platform}}'
+  artworkUpdated: Artwork actualizado
+  artworkFailed: Error al actualizar el artwork
+  poster: Póster
+  backdrop: Fondo
+  title: Título
+  originalTitle: Título original
+  year: Año
+  overview: Sinopsis
+  genresLabel: Géneros (separados por comas)
+  rating: Calificación
+  overridden: Personalizado
+  auto: Auto
+  resetToAuto: Restablecer
+  resetSuccess: '{{field}} restablecido'
+  resetFailed: Error al restablecer
+  imdbId: ID IMDB
+  tmdbId: ID TMDB
+  viewOnImdb: Ver en IMDB
+  viewOnTmdb: Ver en TMDB
+  idChangedWarning: ID cambiado — al guardar se volverá a obtener los metadatos del
+    proveedor
+  refreshMetadata: Actualizar metadatos
+  reEnrichedWithNewId: Re-enriquecido con nuevo ID
+  metadataSaved: Metadatos guardados
+  failedToSave: Error al guardar
+  failedToSaveDot: Error al guardar.
+  refreshFailed: Error al actualizar metadatos
+  noProfileSelected: Ningún perfil seleccionado
 music:
-  title: "Música"
-  tracks: "Pistas"
-  albums: "Álbumes"
-  artists: "Artistas"
-  searchPlaceholder: "Buscar pistas, artistas, álbumes…"
-  loading: "Cargando…"
-  noTracks: "No se encontraron pistas."
-  noTracksSearch: "Ninguna pista coincide con tu búsqueda."
-  noAlbums: "No se encontraron álbumes."
-  noArtists: "No se encontraron artistas."
-  noLibraries: "No se encontraron bibliotecas de música. Añade una en el panel de administración."
-  trackDeleted: "Pista eliminada"
-  failedDeleteTrack: "Error al eliminar la pista"
-  deleteTrackConfirm: "¿Eliminar esta pista? Esta acción no se puede deshacer."
-  deleteTrack: "Eliminar pista"
-  trackCount: "{{count}} pista"
-  trackCount_plural: "{{count}} pistas"
-  albumCount: "{{count}} álbum"
-  albumCount_plural: "{{count}} álbumes"
+  title: Música
+  tracks: Pistas
+  albums: Álbumes
+  artists: Artistas
+  searchPlaceholder: Buscar pistas, artistas, álbumes…
+  loading: Cargando…
+  noTracks: No se encontraron pistas.
+  noTracksSearch: Ninguna pista coincide con tu búsqueda.
+  noAlbums: No se encontraron álbumes.
+  noArtists: No se encontraron artistas.
+  noLibraries: No se encontraron bibliotecas de música. Añade una en el panel de administración.
+  trackDeleted: Pista eliminada
+  failedDeleteTrack: Error al eliminar la pista
+  deleteTrackConfirm: ¿Eliminar esta pista? Esta acción no se puede deshacer.
+  deleteTrack: Eliminar pista
+  trackCount: '{{count}} pista'
+  trackCount_plural: '{{count}} pistas'
+  albumCount: '{{count}} álbum'
+  albumCount_plural: '{{count}} álbumes'
 photos:
-  title: "Fotos"
-  albums: "Álbumes"
-  allPhotos: "Todas las fotos"
-  noPhotos: "Sin fotos"
-  noPhotosDesc: "No se encontraron fotos en esta biblioteca."
-  noAlbums: "Sin álbumes"
-  noAlbumsDesc: "No se encontraron álbumes en esta biblioteca."
-  noPhotoLibraries: "Sin bibliotecas de fotos"
-  noPhotoLibrariesDesc: "Añade una biblioteca de fotos en el panel de administración para comenzar."
-  photoDeleted: "Foto eliminada"
-  failedDeletePhoto: "Error al eliminar la foto"
-  deletePhotoConfirm: "¿Eliminar \"{{title}}\"? Esta acción no se puede deshacer."
-  photoCount: "{{count}} foto"
-  photoCount_plural: "{{count}} fotos"
-added: "Agregado"
-created: "Creado"
-updated: "Actualizado"
+  title: Fotos
+  albums: Álbumes
+  allPhotos: Todas las fotos
+  noPhotos: Sin fotos
+  noPhotosDesc: No se encontraron fotos en esta biblioteca.
+  noAlbums: Sin álbumes
+  noAlbumsDesc: No se encontraron álbumes en esta biblioteca.
+  noPhotoLibraries: Sin bibliotecas de fotos
+  noPhotoLibrariesDesc: Añade una biblioteca de fotos en el panel de administración
+    para comenzar.
+  photoDeleted: Foto eliminada
+  failedDeletePhoto: Error al eliminar la foto
+  deletePhotoConfirm: ¿Eliminar "{{title}}"? Esta acción no se puede deshacer.
+  photoCount: '{{count}} foto'
+  photoCount_plural: '{{count}} fotos'
+added: Agregado
+created: Creado
+updated: Actualizado
 contextMenu:
-  editMetadata: "Editar metadatos"
-  addToPlaylist: "Agregar a lista de reproducción"
-  addToCollection: "Agregar a colección"
-  addToFavorites: "Agregar a favoritos"
-  removeFromFavorites: "Quitar de favoritos"
-  download: "Descargar"
-  markWatched: "Marcar como visto"
-  markUnwatched: "Marcar como no visto"
-  markedWatched: "Marcado como visto"
-  markedUnwatched: "Marcado como no visto"
-  markError: "Error al marcar como {{status}}"
+  editMetadata: Editar metadatos
+  addToPlaylist: Agregar a lista de reproducción
+  addToCollection: Agregar a colección
+  addToFavorites: Agregar a favoritos
+  removeFromFavorites: Quitar de favoritos
+  download: Descargar
+  markWatched: Marcar como visto
+  markUnwatched: Marcar como no visto
+  markedWatched: Marcado como visto
+  markedUnwatched: Marcado como no visto
+  markError: Error al marcar como {{status}}
 syncplay:
-  connected: "Conectado"
-  connecting: "Conectando…"
-  leave: "Salir"
-  shareLink: "Compartir enlace"
-  watchTogetherRoom: "Sala Ver juntos"
-  watchingWith: "Viendo con: {{names}}"
-  watchingWithMore: "Viendo con: {{names}} +{{count}} más"
+  connected: Conectado
+  connecting: Conectando…
+  leave: Salir
+  shareLink: Compartir enlace
+  watchTogetherRoom: Sala Ver juntos
+  watchingWith: 'Viendo con: {{names}}'
+  watchingWithMore: 'Viendo con: {{names}} +{{count}} más'
 playlist:
-  name: "Nombre"
-  description: "Descripción"
-  type: "Tipo"
-  manual: "Manual"
-  smart: "Inteligente"
-  createTitle: "Crear lista de reproducción"
-  createPlaylist: "Crear lista de reproducción"
-  newPlaylist: "+ Nueva lista"
-  noPlaylists: "Aún no hay listas de reproducción."
-  addTitle: "Agregar a lista de reproducción"
-  addSuccess: "Agregado a la lista de reproducción"
-  addError: "Error al agregar a la lista de reproducción"
-  createSuccess: "Lista de reproducción creada"
-  createError: "Error al crear la lista de reproducción"
-  rules: "Reglas"
-  addRule: "Agregar regla"
-  field: "Campo"
-  op: "Operador"
-  value: "Valor"
-  playlists: "Listas de reproducción"
-  notFound: "Lista de reproducción no encontrada."
-  noItems: "Sin elementos"
-  noItemsSmart: "Ningún medio coincide con estas reglas."
-  noItemsManual: "Añade elementos desde la página de detalle del medio."
-  removedFromPlaylist: "Eliminado de la lista de reproducción"
-  failedRemove: "Error al eliminar"
-  deleteConfirm: "¿Eliminar \"{{name}}\"?"
-  deleted: "\"{{name}}\" eliminada"
-  deleteFailed: "Error al eliminar"
-  deletePlaylist: "Eliminar lista de reproducción"
-  noPlaylistsDesc: "Crea una lista de reproducción para organizar tus medios."
-  editRules: "Editar reglas"
-  saveRules: "Guardar reglas"
-  noRules: "Sin reglas. Haz clic en \"Editar reglas\" para añadir."
-  noRulesYet: "Sin reglas aún. Añade al menos una regla para filtrar elementos."
-  rulesSaved: "Reglas guardadas"
-  rulesSaveFailed: "Error al guardar las reglas"
+  name: Nombre
+  description: Descripción
+  type: Tipo
+  manual: Manual
+  smart: Inteligente
+  createTitle: Crear lista de reproducción
+  createPlaylist: Crear lista de reproducción
+  newPlaylist: + Nueva lista
+  noPlaylists: Aún no hay listas de reproducción.
+  addTitle: Agregar a lista de reproducción
+  addSuccess: Agregado a la lista de reproducción
+  addError: Error al agregar a la lista de reproducción
+  createSuccess: Lista de reproducción creada
+  createError: Error al crear la lista de reproducción
+  rules: Reglas
+  addRule: Agregar regla
+  field: Campo
+  op: Operador
+  value: Valor
+  playlists: Listas de reproducción
+  notFound: Lista de reproducción no encontrada.
+  noItems: Sin elementos
+  noItemsSmart: Ningún medio coincide con estas reglas.
+  noItemsManual: Añade elementos desde la página de detalle del medio.
+  removedFromPlaylist: Eliminado de la lista de reproducción
+  failedRemove: Error al eliminar
+  deleteConfirm: ¿Eliminar "{{name}}"?
+  deleted: '"{{name}}" eliminada'
+  deleteFailed: Error al eliminar
+  deletePlaylist: Eliminar lista de reproducción
+  noPlaylistsDesc: Crea una lista de reproducción para organizar tus medios.
+  editRules: Editar reglas
+  saveRules: Guardar reglas
+  noRules: Sin reglas. Haz clic en "Editar reglas" para añadir.
+  noRulesYet: Sin reglas aún. Añade al menos una regla para filtrar elementos.
+  rulesSaved: Reglas guardadas
+  rulesSaveFailed: Error al guardar las reglas
 search:
-  searching: "Buscando…"
-  noResults: "Sin resultados"
-  viewAllResults: "Ver los {{count}} resultados"
-  recentSearches: "Búsquedas recientes"
-  clearAll: "Borrar todo"
-  searchFailed: "Error en la búsqueda"
-  placeholder: "Buscar películas, series…"
-  all: "Todo"
-  movies: "Películas"
-  series: "Series"
-  noResultsFor: "Sin resultados para \"{{query}}\""
-  noResultsDesc: "Prueba con otro término, verifica la ortografía o cambia el filtro."
-  resultCount: "{{count}} resultado"
-  resultCount_plural: "{{count}} resultados"
-  resultFor: "para \"{{query}}\""
-  searchLibrary: "Busca en tu biblioteca multimedia"
-  searchLibraryDesc: "Escribe al menos 2 caracteres para buscar en tus películas, series y más."
+  searching: Buscando…
+  noResults: Sin resultados
+  viewAllResults: Ver los {{count}} resultados
+  recentSearches: Búsquedas recientes
+  clearAll: Borrar todo
+  searchFailed: Error en la búsqueda
+  placeholder: Buscar películas, series…
+  all: Todo
+  movies: Películas
+  series: Series
+  noResultsFor: Sin resultados para "{{query}}"
+  noResultsDesc: Prueba con otro término, verifica la ortografía o cambia el filtro.
+  resultCount: '{{count}} resultado'
+  resultCount_plural: '{{count}} resultados'
+  resultFor: para "{{query}}"
+  searchLibrary: Busca en tu biblioteca multimedia
+  searchLibraryDesc: Escribe al menos 2 caracteres para buscar en tus películas, series
+    y más.
 streams:
-  audio: "Audio"
-  subtitles: "Subtítulos"
-  default: "Por defecto"
-  forced: "Forzado"
-  external: "Externo"
+  audio: Audio
+  subtitles: Subtítulos
+  default: Por defecto
+  forced: Forzado
+  external: Externo
 rating:
-  like: "Me gusta"
-  dislike: "No me gusta"
-  removeLike: "Quitar me gusta"
-  removeDislike: "Quitar no me gusta"
+  like: Me gusta
+  dislike: No me gusta
+  removeLike: Quitar me gusta
+  removeDislike: Quitar no me gusta
