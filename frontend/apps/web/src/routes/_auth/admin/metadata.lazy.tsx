@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { createLazyFileRoute } from "@tanstack/react-router";
 import { useQueryClient, useQuery } from "@tanstack/react-query";
+import { useTranslation } from "react-i18next";
 import {
   useLibraryServiceListMediaItems,
   libraryServiceGetMediaItem,
@@ -43,6 +44,7 @@ function TmdbSearchPanel({
   item: V1MediaItem;
   onApplied: () => void;
 }) {
+  const { t } = useTranslation("admin");
   const [results, setResults] = useState<TmdbResult[] | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -90,12 +92,12 @@ function TmdbSearchPanel({
   return (
     <div className="flex flex-col gap-3 mt-4">
       <Button variant="secondary" onClick={search} loading={loading}>
-        Search TMDB
+        {t("metadata.searchTmdb")}
       </Button>
       {error && <p className="text-sm" style={{ color: "var(--color-danger)" }}>{error}</p>}
       {results !== null && results.length === 0 && !loading && (
         <p className="text-sm" style={{ color: "var(--text-muted)" }}>
-          No TMDB results found.
+          {t("metadata.noTmdbResults")}
         </p>
       )}
       {results && results.length > 0 && (
@@ -128,7 +130,7 @@ function TmdbSearchPanel({
                 onClick={() => apply(r)}
                 className="flex-shrink-0"
               >
-                Apply
+                {t("common:apply")}
               </Button>
             </div>
           ))}
@@ -145,6 +147,7 @@ function GenrePills({
   genres: string[];
   onChange: (genres: string[]) => void;
 }) {
+  const { t } = useTranslation("admin");
   const [input, setInput] = useState("");
 
   function add() {
@@ -162,7 +165,7 @@ function GenrePills({
   return (
     <div className="flex flex-col gap-2">
       <label className="text-sm font-medium" style={{ color: "var(--text-muted)" }}>
-        Genres
+        {t("metadata.genres")}
       </label>
       <div className="flex flex-wrap gap-1 min-h-8">
         {genres.map((g) => (
@@ -186,13 +189,13 @@ function GenrePills({
       <div className="flex gap-2">
         <input
           className="flex-1 px-3 py-1.5 rounded-[var(--radius-md)] text-sm bg-[var(--surface-raised)] border border-[var(--border)] text-[var(--text)] placeholder:text-[var(--text-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)]"
-          placeholder="Add genre..."
+          placeholder={t("metadata.addGenre")}
           value={input}
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); add(); } }}
         />
         <Button variant="secondary" onClick={add} disabled={!input.trim()}>
-          Add
+          {t("common:add")}
         </Button>
       </div>
     </div>
@@ -208,6 +211,7 @@ function MetadataEditorModal({
   open: boolean;
   onClose: () => void;
 }) {
+  const { t } = useTranslation("admin");
   const { data: item, isLoading } = useQuery({
     queryKey: [`/api/v1/media/${itemId}`],
     queryFn: ({ signal }) => libraryServiceGetMediaItem(itemId, signal),
@@ -236,7 +240,7 @@ function MetadataEditorModal({
   const backdrop = `/api/v1/media/${itemId}/artwork/backdrop`;
 
   return (
-    <Modal open={open} onClose={onClose} title={item?.title ?? "Edit Metadata"}>
+    <Modal open={open} onClose={onClose} title={item?.title ?? t("metadata.editMetadata")}>
       {isLoading ? (
         <div className="flex justify-center py-8">
           <Spinner />
@@ -259,20 +263,20 @@ function MetadataEditorModal({
           </div>
 
           <Input
-            label="Title"
+            label={t("metadata.titleLabel")}
             value={title}
             onChange={(e) => setTitle(e.target.value)}
           />
 
           <Textarea
-            label="Overview"
+            label={t("metadata.overview")}
             value={overview}
             onChange={(e) => setOverview(e.target.value)}
-            placeholder="Overview..."
+            placeholder={t("metadata.overviewPlaceholder")}
           />
 
           <Input
-            label="Year"
+            label={t("metadata.year")}
             type="number"
             value={year}
             onChange={(e) => setYear(e.target.value)}
@@ -285,7 +289,7 @@ function MetadataEditorModal({
               variant="secondary"
               onClick={() => setShowTmdb((v) => !v)}
             >
-              {showTmdb ? "Hide TMDB Search" : "Search TMDB"}
+              {showTmdb ? t("metadata.hideTmdbSearch") : t("metadata.searchTmdb")}
             </Button>
             {showTmdb && (
               <TmdbSearchPanel
@@ -299,7 +303,7 @@ function MetadataEditorModal({
           </div>
         </div>
       ) : (
-        <p style={{ color: "var(--text-muted)" }}>Failed to load item.</p>
+        <p style={{ color: "var(--text-muted)" }}>{t("metadata.failedLoad")}</p>
       )}
     </Modal>
   );
@@ -335,14 +339,15 @@ function MediaThumb({ item, onClick }: { item: V1MediaItem; onClick: () => void 
 }
 
 function useRefreshAll() {
+  const { t } = useTranslation("admin");
   const [loading, setLoading] = useState(false);
   async function refreshAll() {
     setLoading(true);
     try {
       await eveyFetch({ url: "/api/v1/admin/metadata/refresh-all", method: "POST" });
-      toast.success("Bulk metadata refresh started");
+      toast.success(t("metadata.refreshStarted"));
     } catch {
-      toast.error("Failed to start refresh");
+      toast.error(t("metadata.failedRefresh"));
     } finally {
       setLoading(false);
     }
@@ -351,14 +356,15 @@ function useRefreshAll() {
 }
 
 function MetadataPage() {
+  const { t } = useTranslation("admin");
   const [query, setQuery] = useState("");
   const [debouncedQuery, setDebouncedQuery] = useState("");
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const { refreshAll, loading: refreshing } = useRefreshAll();
 
   useEffect(() => {
-    const t = setTimeout(() => setDebouncedQuery(query), 400);
-    return () => clearTimeout(t);
+    const timer = setTimeout(() => setDebouncedQuery(query), 400);
+    return () => clearTimeout(timer);
   }, [query]);
 
   const { data, isLoading } = useLibraryServiceListMediaItems({
@@ -374,15 +380,15 @@ function MetadataPage() {
   return (
     <div className="flex flex-col gap-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold" style={{ color: "var(--text)" }}>Metadata</h1>
+        <h1 className="text-2xl font-bold" style={{ color: "var(--text)" }}>{t("metadata.title")}</h1>
         <Button variant="secondary" loading={refreshing} onClick={refreshAll}>
-          Refresh All
+          {t("metadata.refreshAll")}
         </Button>
       </div>
 
       <input
         className="w-full px-4 py-2.5 rounded-[var(--radius-md)] bg-[var(--surface-raised)] border border-[var(--border)] text-[var(--text)] placeholder:text-[var(--text-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)]"
-        placeholder="Search media items..."
+        placeholder={t("metadata.searchPlaceholder")}
         value={query}
         onChange={(e) => setQuery(e.target.value)}
       />
@@ -394,8 +400,8 @@ function MetadataPage() {
       ) : filtered.length === 0 ? (
         <EmptyState
           icon={debouncedQuery ? "search" : "media"}
-          title={debouncedQuery ? "No results" : "No media items found"}
-          description={debouncedQuery ? "Try a different search term." : undefined}
+          title={debouncedQuery ? t("metadata.noResults") : t("metadata.noMedia")}
+          description={debouncedQuery ? t("metadata.tryDifferent") : undefined}
         />
       ) : (
         <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 gap-4">

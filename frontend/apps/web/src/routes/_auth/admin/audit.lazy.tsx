@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { createLazyFileRoute } from "@tanstack/react-router";
+import { useTranslation } from "react-i18next";
 import { useAdminServiceGetAuditLog } from "@evey/api";
 import { Spinner } from "@/components/ui/Spinner";
 import { Button } from "@/components/ui/Button";
@@ -13,6 +14,7 @@ export const Route = createLazyFileRoute("/_auth/admin/audit")({
 const PAGE_SIZE = 50;
 
 function AuditPage() {
+  const { t } = useTranslation("admin");
   const [page, setPage] = useState(0);
   const [actionFilter, setActionFilter] = useState("");
   const [resourceFilter, setResourceFilter] = useState("");
@@ -46,7 +48,7 @@ function AuditPage() {
   return (
     <div className="flex flex-col gap-6">
       <h1 className="text-2xl font-bold" style={{ color: "var(--text)" }}>
-        Audit Log
+        {t("audit.title")}
       </h1>
 
       <div
@@ -54,23 +56,23 @@ function AuditPage() {
         style={{ backgroundColor: "var(--surface)", border: "1px solid var(--border)" }}
       >
         <Input
-          label="Action"
+          label={t("audit.action")}
           value={actionFilter}
           onChange={(e) => setActionFilter(e.target.value)}
           placeholder="e.g. login"
           className="w-48"
         />
         <Input
-          label="Resource Type"
+          label={t("audit.resourceType")}
           value={resourceFilter}
           onChange={(e) => setResourceFilter(e.target.value)}
           placeholder="e.g. library"
           className="w-48"
         />
         <div className="flex gap-2">
-          <Button onClick={applyFilters}>Apply</Button>
+          <Button onClick={applyFilters}>{t("common:apply")}</Button>
           <Button variant="secondary" onClick={clearFilters}>
-            Clear
+            {t("common:clear")}
           </Button>
         </div>
       </div>

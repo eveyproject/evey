@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { createLazyFileRoute } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useTranslation } from "react-i18next";
 import { toast } from "@evey/store";
 import { eveyFetch } from "@evey/api/src/fetcher";
 import { Spinner } from "@/components/ui/Spinner";
@@ -47,6 +48,7 @@ function useCacheInfo() {
 }
 
 function TranscodeCachePage() {
+  const { t } = useTranslation("admin");
   const { data, isLoading } = useCacheInfo();
   const queryClient = useQueryClient();
   const [showClearConfirm, setShowClearConfirm] = useState(false);
@@ -57,10 +59,10 @@ function TranscodeCachePage() {
     setClearing(true);
     try {
       await eveyFetch<void>({ url: "/api/v1/admin/transcode-cache", method: "DELETE" });
-      toast.success("Cache cleared");
+      toast.success(t("transcodeCache.cacheCleared"));
       queryClient.invalidateQueries({ queryKey: CACHE_QUERY_KEY });
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to clear cache");
+      toast.error(err instanceof Error ? err.message : t("transcodeCache.failedClear"));
     } finally {
       setClearing(false);
       setShowClearConfirm(false);
@@ -71,10 +73,10 @@ function TranscodeCachePage() {
     setDeletingFile(filename);
     try {
       await eveyFetch<void>({ url: `/api/v1/admin/transcode-cache/${encodeURIComponent(filename)}`, method: "DELETE" });
-      toast.success(`Deleted ${filename}`);
+      toast.success(t("transcodeCache.deleted", { name: filename }));
       queryClient.invalidateQueries({ queryKey: CACHE_QUERY_KEY });
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to delete file");
+      toast.error(err instanceof Error ? err.message : t("transcodeCache.failedDeleteFile"));
     } finally {
       setDeletingFile(null);
     }
@@ -86,11 +88,11 @@ function TranscodeCachePage() {
     <div className="flex flex-col gap-6">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold" style={{ color: "var(--text)" }}>
-          Transcode Cache
+          {t("transcodeCache.title")}
         </h1>
         {files.length > 0 && (
           <Button variant="danger" onClick={() => setShowClearConfirm(true)}>
-            Clear All
+            {t("transcodeCache.clearAll")}
           </Button>
         )}
       </div>
@@ -103,30 +105,18 @@ function TranscodeCachePage() {
         <>
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
             <Card>
-              <dt
-                className="text-xs font-medium mb-1"
-                style={{ color: "var(--text-muted)" }}
-              >
-                Total Size
+              <dt className="text-xs font-medium mb-1" style={{ color: "var(--text-muted)" }}>
+                {t("transcodeCache.totalSize")}
               </dt>
-              <dd
-                className="text-xl font-bold"
-                style={{ color: "var(--text)" }}
-              >
+              <dd className="text-xl font-bold" style={{ color: "var(--text)" }}>
                 {formatSize(data?.totalSize ?? 0)}
               </dd>
             </Card>
             <Card>
-              <dt
-                className="text-xs font-medium mb-1"
-                style={{ color: "var(--text-muted)" }}
-              >
-                Files
+              <dt className="text-xs font-medium mb-1" style={{ color: "var(--text-muted)" }}>
+                {t("transcodeCache.files")}
               </dt>
-              <dd
-                className="text-xl font-bold"
-                style={{ color: "var(--text)" }}
-              >
+              <dd className="text-xl font-bold" style={{ color: "var(--text)" }}>
                 {data?.fileCount ?? 0}
               </dd>
             </Card>
@@ -135,68 +125,40 @@ function TranscodeCachePage() {
           {files.length === 0 ? (
             <div
               className="rounded-[var(--radius-lg)]"
-              style={{
-                backgroundColor: "var(--surface)",
-                border: "1px solid var(--border)",
-              }}
+              style={{ backgroundColor: "var(--surface)", border: "1px solid var(--border)" }}
             >
-              <EmptyState icon="media" title="Cache is empty" />
+              <EmptyState icon="media" title={t("transcodeCache.cacheEmpty")} />
             </div>
           ) : (
             <div
               className="rounded-[var(--radius-lg)] overflow-hidden"
-              style={{
-                backgroundColor: "var(--surface)",
-                border: "1px solid var(--border)",
-              }}
+              style={{ backgroundColor: "var(--surface)", border: "1px solid var(--border)" }}
             >
               <table className="w-full text-sm">
                 <thead>
                   <tr style={{ borderBottom: "1px solid var(--border)" }}>
-                    <th
-                      className="text-left px-4 py-3 font-medium"
-                      style={{ color: "var(--text-muted)" }}
-                    >
-                      File
+                    <th className="text-left px-4 py-3 font-medium" style={{ color: "var(--text-muted)" }}>
+                      {t("transcodeCache.tableHeaders.file")}
                     </th>
-                    <th
-                      className="text-left px-4 py-3 font-medium"
-                      style={{ color: "var(--text-muted)" }}
-                    >
-                      Size
+                    <th className="text-left px-4 py-3 font-medium" style={{ color: "var(--text-muted)" }}>
+                      {t("transcodeCache.tableHeaders.size")}
                     </th>
-                    <th
-                      className="text-left px-4 py-3 font-medium hidden sm:table-cell"
-                      style={{ color: "var(--text-muted)" }}
-                    >
-                      Modified
+                    <th className="text-left px-4 py-3 font-medium hidden sm:table-cell" style={{ color: "var(--text-muted)" }}>
+                      {t("transcodeCache.tableHeaders.modified")}
                     </th>
                     <th className="px-4 py-3 w-20" />
                   </tr>
                 </thead>
                 <tbody>
                   {files.map((file) => (
-                    <tr
-                      key={file.name}
-                      style={{ borderBottom: "1px solid var(--border)" }}
-                    >
-                      <td
-                        className="px-4 py-3 font-mono text-xs truncate max-w-[200px] sm:max-w-[400px]"
-                        style={{ color: "var(--text)" }}
-                        title={file.name}
-                      >
+                    <tr key={file.name} style={{ borderBottom: "1px solid var(--border)" }}>
+                      <td className="px-4 py-3 font-mono text-xs truncate max-w-[200px] sm:max-w-[400px]" style={{ color: "var(--text)" }} title={file.name}>
                         {file.name}
                       </td>
-                      <td
-                        className="px-4 py-3 whitespace-nowrap"
-                        style={{ color: "var(--text-muted)" }}
-                      >
+                      <td className="px-4 py-3 whitespace-nowrap" style={{ color: "var(--text-muted)" }}>
                         {formatSize(file.size)}
                       </td>
-                      <td
-                        className="px-4 py-3 whitespace-nowrap hidden sm:table-cell"
-                        style={{ color: "var(--text-muted)" }}
-                      >
+                      <td className="px-4 py-3 whitespace-nowrap hidden sm:table-cell" style={{ color: "var(--text-muted)" }}>
                         {formatDate(file.lastModified)}
                       </td>
                       <td className="px-4 py-3">
@@ -206,7 +168,7 @@ function TranscodeCachePage() {
                           onClick={() => handleDeleteFile(file.name)}
                           className="text-xs"
                         >
-                          Delete
+                          {t("common:delete")}
                         </Button>
                       </td>
                     </tr>
@@ -221,21 +183,17 @@ function TranscodeCachePage() {
       <Modal
         open={showClearConfirm}
         onClose={() => setShowClearConfirm(false)}
-        title="Clear Transcode Cache"
+        title={t("transcodeCache.clearConfirmTitle")}
       >
         <p className="text-sm mb-4" style={{ color: "var(--text-muted)" }}>
-          Delete all {data?.fileCount ?? 0} cached files (
-          {formatSize(data?.totalSize ?? 0)})? This cannot be undone.
+          {t("transcodeCache.clearConfirm", { count: data?.fileCount ?? 0, size: formatSize(data?.totalSize ?? 0) })}
         </p>
         <div className="flex justify-end gap-3">
-          <Button
-            variant="secondary"
-            onClick={() => setShowClearConfirm(false)}
-          >
-            Cancel
+          <Button variant="secondary" onClick={() => setShowClearConfirm(false)}>
+            {t("common:cancel")}
           </Button>
           <Button variant="danger" loading={clearing} onClick={handleClearAll}>
-            Clear All
+            {t("transcodeCache.clearAll")}
           </Button>
         </div>
       </Modal>

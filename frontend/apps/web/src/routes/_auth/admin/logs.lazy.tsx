@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import { createLazyFileRoute } from "@tanstack/react-router";
+import { useTranslation } from "react-i18next";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { eveyFetch } from "@evey/api";
 import { useAuthStore } from "@evey/store";
@@ -57,7 +58,7 @@ function levelBg(level?: string): string {
 
 const LOG_LINE_HEIGHT = 22;
 
-function VirtualLogList({ lines, live }: { lines: ParsedLine[]; live: boolean }) {
+function VirtualLogList({ lines, live, noMatchText }: { lines: ParsedLine[]; live: boolean; noMatchText: string }) {
   const parentRef = useRef<HTMLDivElement>(null);
   const prevLengthRef = useRef(0);
 
@@ -125,13 +126,14 @@ function VirtualLogList({ lines, live }: { lines: ParsedLine[]; live: boolean })
         })}
       </div>
       {lines.length === 0 && (
-        <p style={{ color: "var(--text-muted)" }}>No log entries match your filter.</p>
+        <p style={{ color: "var(--text-muted)" }}>{noMatchText}</p>
       )}
     </div>
   );
 }
 
 function LogsPage() {
+  const { t } = useTranslation("admin");
   const accessToken = useAuthStore((s) => s.accessToken);
   const [filterLevel, setFilterLevel] = useState<Level>("all");
   const [search, setSearch] = useState("");
@@ -148,7 +150,6 @@ function LogsPage() {
     });
   }, []);
 
-  // Initial load
   useEffect(() => {
     setLoading(true);
     eveyFetch<{ lines: string[] }>({ url: "/api/v1/admin/logs?lines=200", method: "GET" })
@@ -160,7 +161,6 @@ function LogsPage() {
       .finally(() => setLoading(false));
   }, []);
 
-  // SSE stream — lines=0 skips initial backlog (already loaded via REST)
   useEffect(() => {
     if (!live) {
       esRef.current?.close();
@@ -194,7 +194,7 @@ function LogsPage() {
   return (
     <div className="flex flex-col gap-4 h-full">
       <div className="flex items-center gap-3 flex-wrap">
-        <h1 className="text-2xl font-bold" style={{ color: "var(--text)" }}>Live Logs</h1>
+        <h1 className="text-2xl font-bold" style={{ color: "var(--text)" }}>{t("logs.title")}</h1>
         <div className="flex-1" />
 
         <label className="flex items-center gap-1.5 text-sm cursor-pointer" style={{ color: "var(--text)" }}>
@@ -204,7 +204,7 @@ function LogsPage() {
             onChange={(e) => setLive(e.target.checked)}
             className="accent-[var(--accent)]"
           />
-          Live
+          {t("logs.live")}
         </label>
 
         <button
@@ -212,20 +212,20 @@ function LogsPage() {
           className="text-sm px-3 py-1 rounded transition-colors hover:opacity-80"
           style={{ backgroundColor: "var(--surface-raised)", color: "var(--text-muted)", border: "1px solid var(--border)" }}
         >
-          Clear
+          {t("common:clear")}
         </button>
       </div>
 
       <div className="flex gap-2 flex-wrap">
         <input
-          placeholder="Search logs…"
+          placeholder={t("logs.searchLogs")}
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           className="px-3 py-1.5 text-sm rounded-[var(--radius-md)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)]"
           style={{ backgroundColor: "var(--surface-raised)", border: "1px solid var(--border)", color: "var(--text)", minWidth: 180 }}
         />
         <input
-          placeholder="Component…"
+          placeholder={t("logs.component")}
           value={componentFilter}
           onChange={(e) => setComponentFilter(e.target.value)}
           className="px-3 py-1.5 text-sm rounded-[var(--radius-md)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)]"
@@ -252,7 +252,7 @@ function LogsPage() {
       {loading ? (
         <div className="flex justify-center py-16"><Spinner size="lg" /></div>
       ) : (
-        <VirtualLogList lines={filtered} live={live} />
+        <VirtualLogList lines={filtered} live={live} noMatchText={t("logs.noMatch")} />
       )}
     </div>
   );

@@ -22,6 +22,7 @@ nav:
   liveLogs: Live Logs
   maintenance: Maintenance
   backupRestore: Backup & Restore
+
 plugin:
   enabled: Enabled
   disabled: Disabled
@@ -41,3 +42,452 @@ plugin:
     stopped: Stopped
     installed: Installed
     unknown: Unknown
+
+plugins:
+  title: Plugins
+  installPlugin: Install Plugin
+  uploadFile: Upload File
+  fromUrl: From URL
+  chooseFile: "Choose file..."
+  previewInstall: Preview & Install
+  pluginFileZip: Plugin file (.zip)
+  sourceUrl: Source URL
+  nameOptional: Name (optional)
+  urlSkipPreview: "Note: URL installs skip the preview step."
+  permissions: Permissions
+  capabilities: Capabilities
+  staticAnalysis: Static Analysis
+  installAnyway: Install Anyway
+  install: Install
+  subprocessRequired: Subprocess Permission Required
+  subprocessWarning: This plugin can execute system commands, bypassing the seccomp sandbox. Only install if you trust the author.
+  noPlugins: No plugins installed.
+  pluginEnabled: Plugin enabled
+  pluginDisabled: Plugin disabled
+  pluginInstalled: Plugin installed
+  pluginUninstalled: Plugin uninstalled
+  failedEnable: Failed to enable plugin
+  failedDisable: Failed to disable plugin
+  failedUninstall: Failed to uninstall plugin
+  uninstallTitle: Uninstall Plugin
+  uninstallConfirm: "Uninstall plugin \"{{name}}\"? This cannot be undone."
+  selectFileFirst: Select a plugin file first
+  fileMissing: "File missing — select again"
+  blockedByAnalysis: Plugin blocked by security analysis
+  previewFailed: Preview failed
+  installFailed: Install failed
+
+dashboard:
+  title: Dashboard
+  systemInfo: System Info
+  version: Version
+  os: OS
+  arch: Arch
+  goVersion: Go Version
+  ffmpeg: FFmpeg
+  uptime: Uptime
+  autoRefresh: "Updated {{time}} · auto-refreshes every {{interval}}"
+
+users:
+  title: Users
+  createUser: Create User
+  username: Username
+  email: Email
+  password: Password
+  admin: Admin
+  role: Role
+  user: User
+  userCreated: User created
+  userDeleted: "User \"{{name}}\" deleted"
+  userDisabled: User disabled
+  userEnabled: User enabled
+  failedDeleteUser: Failed to delete user
+  failedUpdateUser: Failed to update user
+  deleteUserTitle: Delete User
+  deleteUserConfirm: "Delete user \"{{name}}\"? This cannot be undone."
+  libraryAccess: Library Access
+  libraryAccessTitle: "Library Access — {{name}}"
+  unrestricted: Unrestricted
+  unrestrictedDesc: This user can access all libraries (unrestricted).
+  restrictedDesc: "This user can only access {{count}} selected {{libraryWord}}."
+  libraryAccessUpdated: Library access updated
+  failedLibraryAccess: Failed to update library access
+  clearAllUnrestricted: Clear all (unrestricted)
+  bitrate: Bitrate
+  maxBitrateTitle: "Max Bitrate — {{name}}"
+  maxBitrateDesc: "Limit the maximum streaming bitrate for this user. 0 = unlimited."
+  maxBitrate: Max Bitrate
+  bitrateUpdated: Bitrate limit updated
+  failedBitrate: Failed to update bitrate limit
+  inviteLinks: Invite Links
+  createInviteLink: Create Invite Link
+  code: Code
+  uses: Uses
+  expires: Expires
+  never: Never
+  copyLink: Copy Link
+  linkCopied: Link copied to clipboard
+  revoke: Revoke
+  revokeInviteTitle: Revoke Invite
+  revokeInviteConfirm: Revoke this invite link? It will no longer be usable.
+  inviteRevoked: Invite link revoked
+  failedRevoke: Failed to revoke invite
+  inviteCreated: Invite link created
+  maxUsesLabel: Max uses (empty = unlimited)
+  expiresAtLabel: Expires at (optional)
+  noUsers: No users found
+  noInvites: No invite links
+
+libraries:
+  title: Libraries
+  addLibrary: Add Library
+  createLibrary: Create Library
+  libraryCreated: Library created
+  libraryDeleted: "Library \"{{name}}\" deleted"
+  failedDelete: Failed to delete library
+  scanStarted: Scan started
+  failedScan: Failed to start scan
+  deleteTitle: Delete Library
+  deleteConfirm: "Delete library \"{{name}}\"? This cannot be undone."
+  noLibraries: No libraries. Add one to get started.
+  tableHeaders:
+    name: Name
+    type: Type
+    paths: Paths
+    items: Items
+    lastScanned: Last Scanned
+    nextScan: Next Scan
+    actions: Actions
+  types:
+    movies: Movies
+    shows: Shows
+    music: Music
+    library: Library
+  scan: Scan
+  scanAgain: Scan again
+  scanning: "Scanning..."
+  schedule: Schedule
+  scanScheduleTitle: "Scan Schedule — {{name}}"
+  scanFrequency: Scan frequency
+  selectFrequency: "-- select frequency --"
+  cronExpression: Cron expression
+  scheduleSaved: Schedule saved
+  failedSchedule: Failed to save schedule
+  scheduleRemoved: Schedule removed
+  failedRemoveSchedule: Failed to remove schedule
+  lastRun: "Last run: {{date}}"
+  nextRun: "Next run: {{date}}"
+  presets:
+    every6h: Every 6 hours
+    every12h: Every 12 hours
+    daily3am: Daily (3 AM)
+    weekly3am: Weekly (Sunday 3 AM)
+    customCron: "Custom cron..."
+  items: "{{count}} items"
+  off: "Off"
+  paths: Paths
+  pathsHint: "(enter the full path inside the container, e.g. /media/movies)"
+  selectDirectory: "— select a directory —"
+  enterCustomPath: "Enter custom path..."
+  addPath: "+ Add Path"
+  tvShows: TV Shows
+
+sessions:
+  title: Now Playing
+  failedLoad: Failed to load sessions
+  failedLoadDesc: Could not fetch active sessions. Check your connection and try again.
+  noSessions: No active sessions
+  noSessionsDesc: When users start streaming, their sessions will appear here.
+  activeCount: "{{count}} active {{word}} — refreshes every 10s"
+  session: session
+  sessions: sessions
+  stopSession: Stop session
+  stop: Stop
+  sessionStopped: Session stopped
+  failedStop: Failed to stop session
+  elapsed: "elapsed"
+  video: "Video: {{codec}}"
+  audio: "Audio: {{codec}}"
+  directPlay: Direct Play
+  directStream: Direct Stream
+  transcode: Transcode
+
+backup:
+  title: Backup & Restore
+  createBackup: Create Backup
+  restoreFromFile: Restore from File
+  backupCreated: Backup created
+  failedCreate: Failed to create backup
+  backupDeleted: Backup deleted
+  failedDeleteBackup: Failed to delete backup
+  noBackups: No backups
+  noBackupsDesc: Create a backup to save your database state.
+  tableHeaders:
+    id: ID
+    date: Date
+    version: Version
+    size: Size
+    status: Status
+    actions: Actions
+  ready: Ready
+  restoreBackupTitle: Restore Backup
+  restoreConfirm: "Restore backup from {{date}}? This will overwrite current data and cannot be undone."
+  restoreCompleted: Restore completed
+  restoreFailed: Restore failed
+  deleteBackupTitle: Delete Backup
+  deleteConfirm: "Delete backup from {{date}}? This cannot be undone."
+  restoreFromFileTitle: Restore from File
+  restoreFromFileDesc: Upload a backup .tar.gz file to restore. This will overwrite existing data.
+  selectFileFirst: Select a backup file first
+
+webhooks:
+  title: Webhooks
+  createWebhook: Create Webhook
+  editWebhook: Edit Webhook
+  webhookCreated: Webhook created
+  webhookUpdated: Webhook updated
+  webhookDeleted: Webhook deleted
+  failedDelete: Failed to delete webhook
+  failedUpdate: Failed to update webhook
+  testPingSent: Test ping sent
+  testPingFailed: Test ping failed
+  deleteTitle: Delete Webhook
+  deleteConfirm: "Delete <strong>{{name}}</strong>? This cannot be undone."
+  noWebhooks: No webhooks configured.
+  tableHeaders:
+    nameUrl: Name / URL
+    events: Events
+    status: Status
+    created: Created
+    actions: Actions
+  form:
+    name: Name
+    url: URL
+    secret: Secret (optional, for HMAC signing)
+    events: Events
+    allEvents: All events
+    enabled: Enabled
+    createWebhook: Create Webhook
+
+analytics:
+  title: Analytics
+  failedLoad: Failed to load analytics
+  playsToday: Plays Today
+  playsThisWeek: Plays This Week
+  activeUsersToday: Active Users Today
+  topMedia: Top 10 Media — Last 30 Days
+  recentActivity: Recent Activity
+  noPlays: No plays in the last 30 days
+  noActivity: No recent activity
+  tableHeaders:
+    title: Title
+    plays: Plays
+    totalWatchTime: Total Watch Time
+    user: User
+    media: Media
+    when: When
+
+activity:
+  title: Activity
+  tabs:
+    playHistory: Play History
+    loginHistory: Login History
+    serverStats: Server Stats
+  playHeaders:
+    title: Title
+    device: Device
+    duration: Duration
+    progress: Progress
+    started: Started
+  loginHeaders:
+    user: User
+    ip: IP
+    status: Status
+    userAgent: User Agent
+    timestamp: Timestamp
+  noPlayHistory: No play history
+  noLoginHistory: No login history
+  ok: OK
+  failed: Failed
+  totalEntries: "{{count}} total entries"
+  stats:
+    totalPlays: Total Plays
+    totalUsers: Total Users
+    totalMedia: Total Media
+    bandwidth: Bandwidth
+  popularMedia: Popular Media
+  mostActiveUsers: Most Active Users
+  plays: "{{count}} plays"
+
+audit:
+  title: Audit Log
+  action: Action
+  resourceType: Resource Type
+  tableHeaders:
+    time: Time
+    user: User
+    action: Action
+    resource: Resource
+    details: Details
+    ip: IP
+  noEntries: No entries found
+  entries: "{{count}} entries"
+
+logs:
+  title: Live Logs
+  live: Live
+  searchLogs: "Search logs\u2026"
+  component: "Component\u2026"
+  noMatch: No log entries match your filter.
+
+metadata:
+  title: Metadata
+  refreshAll: Refresh All
+  refreshStarted: Bulk metadata refresh started
+  failedRefresh: Failed to start refresh
+  searchPlaceholder: "Search media items..."
+  noResults: No results
+  noMedia: No media items found
+  tryDifferent: Try a different search term.
+  editMetadata: Edit Metadata
+  titleLabel: Title
+  overview: Overview
+  overviewPlaceholder: "Overview..."
+  year: Year
+  genres: Genres
+  addGenre: "Add genre..."
+  searchTmdb: Search TMDB
+  hideTmdbSearch: Hide TMDB Search
+  noTmdbResults: No TMDB results found.
+  failedLoad: Failed to load item.
+
+serverConfig:
+  title: Server Config
+  subtitle: Key-value configuration entries persisted in the database.
+  languageRegion: Language & Region
+  languageRegionDesc: Metadata language used when fetching from TMDB and other providers. Takes effect after server restart.
+  metadataLanguage: Metadata language
+  envDefault: "— env default —"
+  languageUpdated: "Language updated — restart server to apply to metadata fetching"
+  configUpdated: Config updated
+  failedUpdate: Failed to update config
+  configDeleted: Config entry deleted
+  failedDeleteEntry: Failed to delete entry
+  emailSmtp: Email / SMTP
+  emailSmtpDesc: Configure outgoing email for notifications and invitations.
+  smtpHost: SMTP Host
+  port: Port
+  smtpUsername: Username
+  smtpPassword: Password
+  fromAddress: From Address
+  tlsMode: TLS Mode
+  saveSmtp: Save SMTP Settings
+  smtpSaved: SMTP settings saved
+  failedSmtp: "Failed to save {{key}}"
+  tableHeaders:
+    key: Key
+    value: Value
+    updated: Updated
+    actions: Actions
+  noEntries: No config entries
+  noEntriesDesc: Add key-value entries below.
+  show: Show
+  hide: Hide
+
+remoteAccess:
+  title: Remote Access
+  enableRemoteAccess: Enable Remote Access
+  externalUrl: External URL
+  lanNetworks: LAN Networks (CIDR, comma-separated)
+  maxRemoteBitrate: Max Remote Bitrate (Kbps, 0 = unlimited)
+  saved: Remote access settings saved
+  networkInterfaces: Server Network Interfaces
+  interface: Interface
+  address: Address
+
+systemHealth:
+  title: System Health
+  autoRefresh: "Updated {{time}} · auto-refreshes every 5s"
+  cpuUsage: CPU Usage
+  memoryUsage: Memory Usage
+  storage: Storage
+  activitySection: Activity
+  server: Server
+  serverInfo: Server Info
+  used: "Used: {{size}}"
+  free: "Free: {{size}}"
+  total: "Total: {{size}}"
+  activeStreams: Active Streams
+  activeTranscodes: Active Transcodes
+  totalMedia: Total Media
+  totalUsers: Total Users
+  hwAcceleration: HW Acceleration
+  serverId: Server ID
+
+transcodeCache:
+  title: Transcode Cache
+  clearAll: Clear All
+  totalSize: Total Size
+  files: Files
+  cacheEmpty: Cache is empty
+  cacheCleared: Cache cleared
+  failedClear: Failed to clear cache
+  deleted: "Deleted {{name}}"
+  failedDeleteFile: Failed to delete file
+  clearConfirmTitle: Clear Transcode Cache
+  clearConfirm: "Delete all {{count}} cached files ({{size}})? This cannot be undone."
+  tableHeaders:
+    file: File
+    size: Size
+    modified: Modified
+
+transcodingProfiles:
+  title: Transcoding Profiles
+  createProfile: Create Profile
+  editProfile: Edit Profile
+  deleteProfile: Delete Profile
+  profileCreated: Profile created
+  profileUpdated: Profile updated
+  profileDeleted: Profile deleted
+  failedSave: Failed to save profile
+  failedDeleteProfile: Failed to delete profile
+  noProfiles: No transcoding profiles found.
+  deleteConfirm: "Delete profile <strong>{{name}}</strong>? This cannot be undone."
+  default: Default
+  form:
+    name: Name
+    maxResolution: Max Resolution
+    hwAccel: Hardware Acceleration
+    videoCodec: Video Codec
+    audioCodec: Audio Codec
+    maxBitrate: Max Video Bitrate (kbps)
+    defaultProfile: Default profile
+  tableHeaders:
+    name: Name
+    resolution: Resolution
+    videoCodec: Video Codec
+    audioCodec: Audio Codec
+    bitrate: Bitrate
+    hwAccel: HW Accel
+
+dashboardStats:
+  movies: Movies
+  series: Series
+  users: Users
+  activeStreams: Active Streams
+  cpu: CPU
+  memory: Memory
+  transcodes: Transcodes
+  totalMedia: Total Media
+  storage: Storage
+  quickActions: Quick Actions
+  scanAllLibraries: Scan All Libraries
+  manageLibraries: Manage Libraries
+  manageUsers: Manage Users
+  recentActivity: Recent Activity
+  viewAll: View all
+  popularMedia: Popular Media
+  viewers: "{{count}} viewers"
+  scanStarted: Scan started
+  scanFailed: Scan failed
+  allScansTriggered: All library scans triggered

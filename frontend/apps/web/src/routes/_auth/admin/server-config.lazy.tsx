@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { createLazyFileRoute } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useTranslation } from "react-i18next";
 import { eveyFetch } from "@evey/api/src/fetcher";
 import { toast, useLocaleStore } from "@evey/store";
 import { Spinner } from "@/components/ui/Spinner";
@@ -39,32 +40,35 @@ function useServerConfig() {
 }
 
 function useSetConfigEntry() {
+  const { t } = useTranslation("admin");
   const qc = useQueryClient();
   return useMutation({
     mutationFn: ({ key, value }: { key: string; value: string }) =>
       eveyFetch<void>({ url: `/api/v1/admin/server-config/${encodeURIComponent(key)}`, method: "PUT", data: { value } }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: QUERY_KEY });
-      toast.success("Config updated");
+      toast.success(t("serverConfig.configUpdated"));
     },
-    onError: () => toast.error("Failed to update config"),
+    onError: () => toast.error(t("serverConfig.failedUpdate")),
   });
 }
 
 function useDeleteConfigEntry() {
+  const { t } = useTranslation("admin");
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (key: string) =>
       eveyFetch<void>({ url: `/api/v1/admin/server-config/${encodeURIComponent(key)}`, method: "DELETE" }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: QUERY_KEY });
-      toast.success("Config entry deleted");
+      toast.success(t("serverConfig.configDeleted"));
     },
-    onError: () => toast.error("Failed to delete entry"),
+    onError: () => toast.error(t("serverConfig.failedDeleteEntry")),
   });
 }
 
 function ConfigRow({ entry }: { entry: ConfigEntry }) {
+  const { t } = useTranslation("admin");
   const [editing, setEditing] = useState(false);
   const [value, setValue] = useState(entry.value);
   const setEntry = useSetConfigEntry();
@@ -108,13 +112,13 @@ function ConfigRow({ entry }: { entry: ConfigEntry }) {
         <div className="flex gap-2">
           {editing ? (
             <>
-              <Button variant="secondary" onClick={handleSave} loading={setEntry.isPending} className="text-xs">Save</Button>
-              <Button variant="ghost" onClick={() => { setValue(entry.value); setEditing(false); }} className="text-xs">Cancel</Button>
+              <Button variant="secondary" onClick={handleSave} loading={setEntry.isPending} className="text-xs">{t("common:save")}</Button>
+              <Button variant="ghost" onClick={() => { setValue(entry.value); setEditing(false); }} className="text-xs">{t("common:cancel")}</Button>
             </>
           ) : (
             <>
-              <Button variant="secondary" onClick={() => setEditing(true)} className="text-xs">Edit</Button>
-              <Button variant="danger" onClick={() => deleteEntry.mutate(entry.key)} loading={deleteEntry.isPending} className="text-xs">Delete</Button>
+              <Button variant="secondary" onClick={() => setEditing(true)} className="text-xs">{t("common:edit")}</Button>
+              <Button variant="danger" onClick={() => deleteEntry.mutate(entry.key)} loading={deleteEntry.isPending} className="text-xs">{t("common:delete")}</Button>
             </>
           )}
         </div>
@@ -125,19 +129,20 @@ function ConfigRow({ entry }: { entry: ConfigEntry }) {
 
 const LOCALE_OPTIONS = [
   { label: "English (US)", value: "en-US" },
-  { label: "Français (FR)", value: "fr-FR" },
+  { label: "Fran\u00E7ais (FR)", value: "fr-FR" },
   { label: "Deutsch (DE)", value: "de-DE" },
-  { label: "Español (ES)", value: "es-ES" },
+  { label: "Espa\u00F1ol (ES)", value: "es-ES" },
   { label: "Italiano (IT)", value: "it-IT" },
-  { label: "Português (BR)", value: "pt-BR" },
-  { label: "日本語 (JP)", value: "ja-JP" },
-  { label: "한국어 (KR)", value: "ko-KR" },
-  { label: "中文 (CN)", value: "zh-CN" },
+  { label: "Portugu\u00EAs (BR)", value: "pt-BR" },
+  { label: "\u65E5\u672C\u8A9E (JP)", value: "ja-JP" },
+  { label: "\uD55C\uAD6D\uC5B4 (KR)", value: "ko-KR" },
+  { label: "\u4E2D\u6587 (CN)", value: "zh-CN" },
 ];
 
 const METADATA_LANG_KEY = "metadata.language";
 
 function LocaleSettingsCard({ entries }: { entries: ConfigEntry[] | undefined }) {
+  const { t } = useTranslation("admin");
   const setEntry = useSetConfigEntry();
   const setLocale = useLocaleStore((s) => s.setLocale);
 
@@ -149,7 +154,7 @@ function LocaleSettingsCard({ entries }: { entries: ConfigEntry[] | undefined })
       {
         onSuccess: () => {
           setLocale(value);
-          toast.success("Language updated — restart server to apply to metadata fetching");
+          toast.success(t("serverConfig.languageUpdated"));
         },
       }
     );
@@ -161,14 +166,14 @@ function LocaleSettingsCard({ entries }: { entries: ConfigEntry[] | undefined })
       style={{ border: "1px solid var(--border)", backgroundColor: "var(--surface)" }}
     >
       <h2 className="text-base font-semibold mb-1" style={{ color: "var(--text)" }}>
-        Language &amp; Region
+        {t("serverConfig.languageRegion")}
       </h2>
       <p className="text-sm mb-4" style={{ color: "var(--text-muted)" }}>
-        Metadata language used when fetching from TMDB and other providers. Takes effect after server restart.
+        {t("serverConfig.languageRegionDesc")}
       </p>
       <div className="flex items-center gap-3">
         <label className="text-sm font-medium" style={{ color: "var(--text)" }} htmlFor="metadata-lang">
-          Metadata language
+          {t("serverConfig.metadataLanguage")}
         </label>
         <select
           id="metadata-lang"
@@ -181,7 +186,7 @@ function LocaleSettingsCard({ entries }: { entries: ConfigEntry[] | undefined })
             color: "var(--text)",
           }}
         >
-          <option value="">— env default —</option>
+          <option value="">{t("serverConfig.envDefault")}</option>
           {LOCALE_OPTIONS.map((opt) => (
             <option key={opt.value} value={opt.value}>
               {opt.label}
@@ -195,6 +200,7 @@ function LocaleSettingsCard({ entries }: { entries: ConfigEntry[] | undefined })
 }
 
 function AddEntryRow() {
+  const { t } = useTranslation("admin");
   const [key, setKey] = useState("");
   const [value, setValue] = useState("");
   const setEntry = useSetConfigEntry();
@@ -229,7 +235,7 @@ function AddEntryRow() {
       </td>
       <td />
       <td className="px-4 py-3">
-        <Button onClick={handleAdd} loading={setEntry.isPending} className="text-xs" disabled={!key.trim()}>Add</Button>
+        <Button onClick={handleAdd} loading={setEntry.isPending} className="text-xs" disabled={!key.trim()}>{t("common:add")}</Button>
       </td>
     </tr>
   );
@@ -242,6 +248,7 @@ const inputStyle = {
 } as const;
 
 function SmtpSettingsCard({ entries }: { entries: ConfigEntry[] | undefined }) {
+  const { t } = useTranslation("admin");
   const setEntry = useSetConfigEntry();
 
   function val(key: SmtpKey) {
@@ -273,11 +280,11 @@ function SmtpSettingsCard({ entries }: { entries: ConfigEntry[] | undefined }) {
         {
           onSuccess: () => {
             remaining -= 1;
-            if (remaining === 0 && !hasError) toast.success("SMTP settings saved");
+            if (remaining === 0 && !hasError) toast.success(t("serverConfig.smtpSaved"));
           },
           onError: () => {
             hasError = true;
-            toast.error(`Failed to save ${key}`);
+            toast.error(t("serverConfig.failedSmtp", { key }));
           },
         }
       );
@@ -293,88 +300,41 @@ function SmtpSettingsCard({ entries }: { entries: ConfigEntry[] | undefined }) {
       style={{ border: "1px solid var(--border)", backgroundColor: "var(--surface)" }}
     >
       <h2 className="text-base font-semibold mb-1" style={{ color: "var(--text)" }}>
-        Email / SMTP
+        {t("serverConfig.emailSmtp")}
       </h2>
       <p className="text-sm mb-4" style={{ color: "var(--text-muted)" }}>
-        Configure outgoing email for notifications and invitations.
+        {t("serverConfig.emailSmtpDesc")}
       </p>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
         <div className="flex flex-col gap-1">
-          <label className={labelClass} style={fieldStyle}>SMTP Host</label>
-          <input
-            className="px-3 py-1.5 rounded text-sm w-full"
-            style={inputStyle}
-            placeholder="smtp.example.com"
-            value={host}
-            onChange={(e) => setHost(e.target.value)}
-          />
+          <label className={labelClass} style={fieldStyle}>{t("serverConfig.smtpHost")}</label>
+          <input className="px-3 py-1.5 rounded text-sm w-full" style={inputStyle} placeholder="smtp.example.com" value={host} onChange={(e) => setHost(e.target.value)} />
         </div>
-
         <div className="flex flex-col gap-1">
-          <label className={labelClass} style={fieldStyle}>Port</label>
-          <input
-            className="px-3 py-1.5 rounded text-sm w-full"
-            style={inputStyle}
-            type="number"
-            placeholder="587"
-            value={port}
-            onChange={(e) => setPort(e.target.value)}
-          />
+          <label className={labelClass} style={fieldStyle}>{t("serverConfig.port")}</label>
+          <input className="px-3 py-1.5 rounded text-sm w-full" style={inputStyle} type="number" placeholder="587" value={port} onChange={(e) => setPort(e.target.value)} />
         </div>
-
         <div className="flex flex-col gap-1">
-          <label className={labelClass} style={fieldStyle}>Username</label>
-          <input
-            className="px-3 py-1.5 rounded text-sm w-full"
-            style={inputStyle}
-            placeholder="user@example.com"
-            value={username}
-            onChange={(e) => setUsername(e.target.value)}
-          />
+          <label className={labelClass} style={fieldStyle}>{t("serverConfig.smtpUsername")}</label>
+          <input className="px-3 py-1.5 rounded text-sm w-full" style={inputStyle} placeholder="user@example.com" value={username} onChange={(e) => setUsername(e.target.value)} />
         </div>
-
         <div className="flex flex-col gap-1">
-          <label className={labelClass} style={fieldStyle}>Password</label>
+          <label className={labelClass} style={fieldStyle}>{t("serverConfig.smtpPassword")}</label>
           <div className="flex gap-2">
-            <input
-              className="px-3 py-1.5 rounded text-sm flex-1"
-              style={inputStyle}
-              type={showPassword ? "text" : "password"}
-              placeholder="••••••••"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-            />
-            <button
-              type="button"
-              onClick={() => setShowPassword((v) => !v)}
-              className="px-2 rounded text-xs"
-              style={{ border: "1px solid var(--border)", backgroundColor: "var(--surface-raised)", color: "var(--text-muted)" }}
-            >
-              {showPassword ? "Hide" : "Show"}
+            <input className="px-3 py-1.5 rounded text-sm flex-1" style={inputStyle} type={showPassword ? "text" : "password"} placeholder="\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022" value={password} onChange={(e) => setPassword(e.target.value)} />
+            <button type="button" onClick={() => setShowPassword((v) => !v)} className="px-2 rounded text-xs" style={{ border: "1px solid var(--border)", backgroundColor: "var(--surface-raised)", color: "var(--text-muted)" }}>
+              {showPassword ? t("serverConfig.hide") : t("serverConfig.show")}
             </button>
           </div>
         </div>
-
         <div className="flex flex-col gap-1">
-          <label className={labelClass} style={fieldStyle}>From Address</label>
-          <input
-            className="px-3 py-1.5 rounded text-sm w-full"
-            style={inputStyle}
-            placeholder="Evey <noreply@example.com>"
-            value={from}
-            onChange={(e) => setFrom(e.target.value)}
-          />
+          <label className={labelClass} style={fieldStyle}>{t("serverConfig.fromAddress")}</label>
+          <input className="px-3 py-1.5 rounded text-sm w-full" style={inputStyle} placeholder="Evey <noreply@example.com>" value={from} onChange={(e) => setFrom(e.target.value)} />
         </div>
-
         <div className="flex flex-col gap-1">
-          <label className={labelClass} style={fieldStyle}>TLS Mode</label>
-          <select
-            className="px-3 py-1.5 rounded text-sm w-full"
-            style={inputStyle}
-            value={tls}
-            onChange={(e) => setTls(e.target.value)}
-          >
+          <label className={labelClass} style={fieldStyle}>{t("serverConfig.tlsMode")}</label>
+          <select className="px-3 py-1.5 rounded text-sm w-full" style={inputStyle} value={tls} onChange={(e) => setTls(e.target.value)}>
             {TLS_OPTIONS.map((opt) => (
               <option key={opt.value} value={opt.value}>{opt.label}</option>
             ))}
@@ -383,21 +343,22 @@ function SmtpSettingsCard({ entries }: { entries: ConfigEntry[] | undefined }) {
       </div>
 
       <Button onClick={handleSave} loading={setEntry.isPending}>
-        Save SMTP Settings
+        {t("serverConfig.saveSmtp")}
       </Button>
     </div>
   );
 }
 
 function ServerConfigPage() {
+  const { t } = useTranslation("admin");
   const { data: entries, isLoading } = useServerConfig();
 
   return (
     <div className="flex flex-col gap-6">
       <div>
-        <h1 className="text-2xl font-bold" style={{ color: "var(--text)" }}>Server Config</h1>
+        <h1 className="text-2xl font-bold" style={{ color: "var(--text)" }}>{t("serverConfig.title")}</h1>
         <p className="text-sm mt-1" style={{ color: "var(--text-muted)" }}>
-          Key-value configuration entries persisted in the database.
+          {t("serverConfig.subtitle")}
         </p>
       </div>
 
@@ -412,7 +373,7 @@ function ServerConfigPage() {
           <table className="w-full text-sm">
             <thead>
               <tr style={{ backgroundColor: "var(--surface)", borderBottom: "1px solid var(--border)" }}>
-                {["Key", "Value", "Updated", "Actions"].map((h) => (
+                {[t("serverConfig.tableHeaders.key"), t("serverConfig.tableHeaders.value"), t("serverConfig.tableHeaders.updated"), t("serverConfig.tableHeaders.actions")].map((h) => (
                   <th key={h} className="px-4 py-2 text-left font-medium" style={{ color: "var(--text-muted)" }}>{h}</th>
                 ))}
               </tr>
@@ -421,7 +382,7 @@ function ServerConfigPage() {
               {entries && entries.length === 0 ? (
                 <tr>
                   <td colSpan={4}>
-                    <EmptyState icon="library" title="No config entries" description="Add key-value entries below." />
+                    <EmptyState icon="library" title={t("serverConfig.noEntries")} description={t("serverConfig.noEntriesDesc")} />
                   </td>
                 </tr>
               ) : (

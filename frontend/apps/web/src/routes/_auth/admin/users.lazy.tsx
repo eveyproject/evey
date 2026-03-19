@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { createLazyFileRoute } from "@tanstack/react-router";
 import { useQueryClient, useQuery } from "@tanstack/react-query";
+import { useTranslation } from "react-i18next";
 import {
   useUserServiceListUsers,
   useUserServiceCreateUser,
@@ -30,6 +31,7 @@ const USERS_QUERY_KEY = ["/api/v1/admin/users"];
 const INVITES_QUERY_KEY = ["/api/v1/invites"];
 
 function CreateUserForm({ onSuccess }: { onSuccess: () => void }) {
+  const { t } = useTranslation("admin");
   const [username, setUsername] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -45,19 +47,19 @@ function CreateUserForm({ onSuccess }: { onSuccess: () => void }) {
   return (
     <form onSubmit={handleSubmit} className="flex flex-col gap-4">
       <Input
-        label="Username"
+        label={t("users.username")}
         value={username}
         onChange={(e) => setUsername(e.target.value)}
         required
       />
       <Input
-        label="Email"
+        label={t("users.email")}
         type="email"
         value={email}
         onChange={(e) => setEmail(e.target.value)}
       />
       <Input
-        label="Password"
+        label={t("users.password")}
         type="password"
         value={password}
         onChange={(e) => setPassword(e.target.value)}
@@ -69,11 +71,11 @@ function CreateUserForm({ onSuccess }: { onSuccess: () => void }) {
           checked={isAdmin}
           onChange={(e) => setIsAdmin(e.target.checked)}
         />
-        Admin
+        {t("users.admin")}
       </label>
       <div className="flex justify-end pt-2">
         <Button type="submit" loading={createUser.isPending} disabled={!username || !password}>
-          Create User
+          {t("users.createUser")}
         </Button>
       </div>
     </form>
@@ -99,6 +101,7 @@ function LibraryAccessModal({
   open: boolean;
   onClose: () => void;
 }) {
+  const { t } = useTranslation("admin");
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [saving, setSaving] = useState(false);
 
@@ -141,17 +144,17 @@ function LibraryAccessModal({
           data: { libraryIds: Array.from(selected) },
         });
       }
-      toast.success("Library access updated");
+      toast.success(t("users.libraryAccessUpdated"));
       onClose();
     } catch {
-      toast.error("Failed to update library access");
+      toast.error(t("users.failedLibraryAccess"));
     } finally {
       setSaving(false);
     }
   }
 
   return (
-    <Modal open={open} onClose={onClose} title={`Library Access — ${user.username}`}>
+    <Modal open={open} onClose={onClose} title={t("users.libraryAccessTitle", { name: user.username })}>
       {isLoading ? (
         <div className="flex justify-center py-8">
           <Spinner size="md" />
@@ -160,12 +163,12 @@ function LibraryAccessModal({
         <div className="flex flex-col gap-4">
           <p className="text-sm" style={{ color: "var(--text-muted)" }}>
             {isUnrestricted
-              ? "This user can access all libraries (unrestricted)."
-              : `This user can only access ${selected.size} selected ${selected.size === 1 ? "library" : "libraries"}.`}
+              ? t("users.unrestrictedDesc")
+              : t("users.restrictedDesc", { count: selected.size, libraryWord: selected.size === 1 ? "library" : "libraries" })}
           </p>
 
           {isUnrestricted && (
-            <Badge variant="success">Unrestricted</Badge>
+            <Badge variant="success">{t("users.unrestricted")}</Badge>
           )}
 
           <div className="flex flex-col gap-2">
@@ -193,16 +196,16 @@ function LibraryAccessModal({
               variant="ghost"
               onClick={() => setSelected(new Set())}
             >
-              Clear all (unrestricted)
+              {t("users.clearAllUnrestricted")}
             </Button>
           )}
 
           <div className="flex justify-end gap-2 pt-2">
             <Button variant="ghost" onClick={onClose}>
-              Cancel
+              {t("common:cancel")}
             </Button>
             <Button onClick={handleSave} loading={saving}>
-              Save
+              {t("common:save")}
             </Button>
           </div>
         </div>
@@ -230,6 +233,7 @@ function BitrateModal({
   open: boolean;
   onClose: () => void;
 }) {
+  const { t } = useTranslation("admin");
   const [selectedBitrate, setSelectedBitrate] = useState<number>(0);
   const [saving, setSaving] = useState(false);
 
@@ -257,17 +261,17 @@ function BitrateModal({
         method: "PATCH",
         data: { max_bitrate_kbps: selectedBitrate },
       });
-      toast.success("Bitrate limit updated");
+      toast.success(t("users.bitrateUpdated"));
       onClose();
     } catch {
-      toast.error("Failed to update bitrate limit");
+      toast.error(t("users.failedBitrate"));
     } finally {
       setSaving(false);
     }
   }
 
   return (
-    <Modal open={open} onClose={onClose} title={`Max Bitrate — ${user.username}`}>
+    <Modal open={open} onClose={onClose} title={t("users.maxBitrateTitle", { name: user.username })}>
       {isLoading ? (
         <div className="flex justify-center py-8">
           <Spinner size="md" />
@@ -275,17 +279,17 @@ function BitrateModal({
       ) : (
         <div className="flex flex-col gap-4">
           <p className="text-sm" style={{ color: "var(--text-muted)" }}>
-            Limit the maximum streaming bitrate for this user. 0 = unlimited.
+            {t("users.maxBitrateDesc")}
           </p>
           <Select
-            label="Max Bitrate"
+            label={t("users.maxBitrate")}
             value={String(selectedBitrate)}
             onChange={(v) => setSelectedBitrate(Number(v))}
             options={BITRATE_OPTIONS.map((o) => ({ label: o.label, value: String(o.value) }))}
           />
           <div className="flex justify-end gap-2 pt-2">
-            <Button variant="ghost" onClick={onClose}>Cancel</Button>
-            <Button onClick={handleSave} loading={saving}>Save</Button>
+            <Button variant="ghost" onClick={onClose}>{t("common:cancel")}</Button>
+            <Button onClick={handleSave} loading={saving}>{t("common:save")}</Button>
           </div>
         </div>
       )}
@@ -294,6 +298,7 @@ function BitrateModal({
 }
 
 function UserRow({ user }: { user: V1User }) {
+  const { t } = useTranslation("admin");
   const queryClient = useQueryClient();
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [showLibraryAccess, setShowLibraryAccess] = useState(false);
@@ -303,9 +308,9 @@ function UserRow({ user }: { user: V1User }) {
     mutation: {
       onSuccess: () => {
         queryClient.invalidateQueries({ queryKey: USERS_QUERY_KEY });
-        toast.success(`User "${user.username}" deleted`);
+        toast.success(t("users.userDeleted", { name: user.username }));
       },
-      onError: (err: Error) => toast.error(err.message || "Failed to delete user"),
+      onError: (err: Error) => toast.error(err.message || t("users.failedDeleteUser")),
     },
   });
 
@@ -313,9 +318,9 @@ function UserRow({ user }: { user: V1User }) {
     mutation: {
       onSuccess: () => {
         queryClient.invalidateQueries({ queryKey: USERS_QUERY_KEY });
-        toast.success(user.enabled !== false ? "User disabled" : "User enabled");
+        toast.success(user.enabled !== false ? t("users.userDisabled") : t("users.userEnabled"));
       },
-      onError: (err: Error) => toast.error(err.message || "Failed to update user"),
+      onError: (err: Error) => toast.error(err.message || t("users.failedUpdateUser")),
     },
   });
 
@@ -325,16 +330,16 @@ function UserRow({ user }: { user: V1User }) {
         {user.username}
       </td>
       <td className="px-4 py-3 text-sm" style={{ color: "var(--text-muted)" }}>
-        {user.email ?? "—"}
+        {user.email ?? "\u2014"}
       </td>
       <td className="px-4 py-3">
-        {user.isAdmin ? <Badge variant="warning">Admin</Badge> : <Badge>User</Badge>}
+        {user.isAdmin ? <Badge variant="warning">{t("users.admin")}</Badge> : <Badge>{t("users.user")}</Badge>}
       </td>
       <td className="px-4 py-3">
         {user.enabled !== false ? (
-          <Badge variant="success">Enabled</Badge>
+          <Badge variant="success">{t("common:enabled")}</Badge>
         ) : (
-          <Badge variant="error">Disabled</Badge>
+          <Badge variant="error">{t("common:disabled")}</Badge>
         )}
       </td>
       <td className="px-4 py-3 whitespace-nowrap">
@@ -344,14 +349,14 @@ function UserRow({ user }: { user: V1User }) {
               variant="secondary"
               onClick={() => setShowLibraryAccess(true)}
             >
-              Libraries
+              {t("nav.libraries")}
             </Button>
           )}
           <Button
             variant="secondary"
             onClick={() => setShowBitrate(true)}
           >
-            Bitrate
+            {t("users.bitrate")}
           </Button>
           <Button
             variant="secondary"
@@ -360,22 +365,22 @@ function UserRow({ user }: { user: V1User }) {
               disableUser.mutate({ id: user.id!, params: { disabled: user.enabled !== false } })
             }
           >
-            {user.enabled !== false ? "Disable" : "Enable"}
+            {user.enabled !== false ? t("common:disable") : t("common:enable")}
           </Button>
           <Button
             variant="danger"
             loading={deleteUser.isPending}
             onClick={() => setShowDeleteConfirm(true)}
           >
-            Delete
+            {t("common:delete")}
           </Button>
         </div>
-        <Modal open={showDeleteConfirm} onClose={() => setShowDeleteConfirm(false)} title="Delete User">
+        <Modal open={showDeleteConfirm} onClose={() => setShowDeleteConfirm(false)} title={t("users.deleteUserTitle")}>
           <p className="text-sm text-[var(--text-muted)] mb-4">
-            Delete user "{user.username}"? This cannot be undone.
+            {t("users.deleteUserConfirm", { name: user.username })}
           </p>
           <div className="flex justify-end gap-2">
-            <Button variant="ghost" onClick={() => setShowDeleteConfirm(false)}>Cancel</Button>
+            <Button variant="ghost" onClick={() => setShowDeleteConfirm(false)}>{t("common:cancel")}</Button>
             <Button
               variant="danger"
               loading={deleteUser.isPending}
@@ -384,7 +389,7 @@ function UserRow({ user }: { user: V1User }) {
                 setShowDeleteConfirm(false);
               }}
             >
-              Delete
+              {t("common:delete")}
             </Button>
           </div>
         </Modal>
@@ -406,6 +411,7 @@ function UserRow({ user }: { user: V1User }) {
 }
 
 function InviteLinkRow({ link }: { link: V1InviteLink }) {
+  const { t } = useTranslation("admin");
   const queryClient = useQueryClient();
   const [showRevokeConfirm, setShowRevokeConfirm] = useState(false);
 
@@ -413,51 +419,51 @@ function InviteLinkRow({ link }: { link: V1InviteLink }) {
     mutation: {
       onSuccess: () => {
         queryClient.invalidateQueries({ queryKey: INVITES_QUERY_KEY });
-        toast.success("Invite link revoked");
+        toast.success(t("users.inviteRevoked"));
       },
-      onError: (err: Error) => toast.error(err.message || "Failed to revoke invite"),
+      onError: (err: Error) => toast.error(err.message || t("users.failedRevoke")),
     },
   });
 
-  const inviteUrl = link.code ? `${window.location.origin}/register?invite=${link.code}` : "—";
+  const inviteUrl = link.code ? `${window.location.origin}/register?invite=${link.code}` : "\u2014";
 
   function copyLink() {
     if (link.code) {
       navigator.clipboard.writeText(inviteUrl);
-      toast.success("Link copied to clipboard");
+      toast.success(t("users.linkCopied"));
     }
   }
 
   return (
     <tr style={{ borderBottom: "1px solid var(--border)" }}>
       <td className="px-4 py-3 font-mono text-sm" style={{ color: "var(--text)" }}>
-        {link.code ?? "—"}
+        {link.code ?? "\u2014"}
       </td>
       <td className="px-4 py-3 text-sm" style={{ color: "var(--text-muted)" }}>
         {link.timesUsed ?? 0} / {link.maxUses ?? "\u221E"}
       </td>
       <td className="px-4 py-3 text-sm" style={{ color: "var(--text-muted)" }}>
-        {link.expiresAt ? new Date(link.expiresAt).toLocaleString() : "Never"}
+        {link.expiresAt ? new Date(link.expiresAt).toLocaleString() : t("users.never")}
       </td>
       <td className="px-4 py-3 whitespace-nowrap">
         <div className="flex gap-2">
           <Button variant="secondary" onClick={copyLink}>
-            Copy Link
+            {t("users.copyLink")}
           </Button>
           <Button
             variant="danger"
             loading={revoke.isPending}
             onClick={() => setShowRevokeConfirm(true)}
           >
-            Revoke
+            {t("users.revoke")}
           </Button>
         </div>
-        <Modal open={showRevokeConfirm} onClose={() => setShowRevokeConfirm(false)} title="Revoke Invite">
+        <Modal open={showRevokeConfirm} onClose={() => setShowRevokeConfirm(false)} title={t("users.revokeInviteTitle")}>
           <p className="text-sm text-[var(--text-muted)] mb-4">
-            Revoke this invite link? It will no longer be usable.
+            {t("users.revokeInviteConfirm")}
           </p>
           <div className="flex justify-end gap-2">
-            <Button variant="ghost" onClick={() => setShowRevokeConfirm(false)}>Cancel</Button>
+            <Button variant="ghost" onClick={() => setShowRevokeConfirm(false)}>{t("common:cancel")}</Button>
             <Button
               variant="danger"
               loading={revoke.isPending}
@@ -466,7 +472,7 @@ function InviteLinkRow({ link }: { link: V1InviteLink }) {
                 setShowRevokeConfirm(false);
               }}
             >
-              Revoke
+              {t("users.revoke")}
             </Button>
           </div>
         </Modal>
@@ -476,6 +482,7 @@ function InviteLinkRow({ link }: { link: V1InviteLink }) {
 }
 
 function CreateInviteForm({ onSuccess }: { onSuccess: () => void }) {
+  const { t } = useTranslation("admin");
   const [maxUses, setMaxUses] = useState("");
   const [expiresAt, setExpiresAt] = useState("");
 
@@ -494,21 +501,21 @@ function CreateInviteForm({ onSuccess }: { onSuccess: () => void }) {
   return (
     <form onSubmit={handleSubmit} className="flex flex-col gap-4">
       <Input
-        label="Max uses (empty = unlimited)"
+        label={t("users.maxUsesLabel")}
         type="number"
         min={1}
         value={maxUses}
         onChange={(e) => setMaxUses(e.target.value)}
       />
       <Input
-        label="Expires at (optional)"
+        label={t("users.expiresAtLabel")}
         type="datetime-local"
         value={expiresAt}
         onChange={(e) => setExpiresAt(e.target.value)}
       />
       <div className="flex justify-end pt-2">
         <Button type="submit" loading={createInvite.isPending}>
-          Create Invite Link
+          {t("users.createInviteLink")}
         </Button>
       </div>
     </form>
@@ -516,6 +523,7 @@ function CreateInviteForm({ onSuccess }: { onSuccess: () => void }) {
 }
 
 function UsersPage() {
+  const { t } = useTranslation("admin");
   const [showUserModal, setShowUserModal] = useState(false);
   const [showInviteModal, setShowInviteModal] = useState(false);
   const queryClient = useQueryClient();
@@ -527,13 +535,13 @@ function UsersPage() {
   function handleCreateSuccess() {
     queryClient.invalidateQueries({ queryKey: USERS_QUERY_KEY });
     setShowUserModal(false);
-    toast.success("User created");
+    toast.success(t("users.userCreated"));
   }
 
   function handleInviteSuccess() {
     queryClient.invalidateQueries({ queryKey: INVITES_QUERY_KEY });
     setShowInviteModal(false);
-    toast.success("Invite link created");
+    toast.success(t("users.inviteCreated"));
   }
 
   return (
@@ -541,9 +549,9 @@ function UsersPage() {
       <section className="flex flex-col gap-4">
         <div className="flex items-center justify-between">
           <h2 className="text-xl font-semibold" style={{ color: "var(--text)" }}>
-            Users
+            {t("users.title")}
           </h2>
-          <Button onClick={() => setShowUserModal(true)}>Create User</Button>
+          <Button onClick={() => setShowUserModal(true)}>{t("users.createUser")}</Button>
         </div>
 
         {isLoading ? (
@@ -558,7 +566,7 @@ function UsersPage() {
             <table className="w-full text-sm">
               <thead>
                 <tr style={{ backgroundColor: "var(--surface)", borderBottom: "1px solid var(--border)" }}>
-                  {["Username", "Email", "Role", "Status", "Actions"].map((h) => (
+                  {[t("users.username"), t("users.email"), t("users.role"), t("common:status"), t("common:actions")].map((h) => (
                     <th
                       key={h}
                       className="px-4 py-2 text-left font-medium"
@@ -573,7 +581,7 @@ function UsersPage() {
                 {users.length === 0 ? (
                   <tr>
                     <td colSpan={5}>
-                      <EmptyState icon="library" title="No users found" />
+                      <EmptyState icon="library" title={t("users.noUsers")} />
                     </td>
                   </tr>
                 ) : (
@@ -588,10 +596,10 @@ function UsersPage() {
       <section className="flex flex-col gap-4">
         <div className="flex items-center justify-between">
           <h2 className="text-xl font-semibold" style={{ color: "var(--text)" }}>
-            Invite Links
+            {t("users.inviteLinks")}
           </h2>
           <Button variant="secondary" onClick={() => setShowInviteModal(true)}>
-            Create Invite Link
+            {t("users.createInviteLink")}
           </Button>
         </div>
 
@@ -607,7 +615,7 @@ function UsersPage() {
             <table className="w-full text-sm">
               <thead>
                 <tr style={{ backgroundColor: "var(--surface)", borderBottom: "1px solid var(--border)" }}>
-                  {["Code", "Uses", "Expires", "Actions"].map((h) => (
+                  {[t("users.code"), t("users.uses"), t("users.expires"), t("common:actions")].map((h) => (
                     <th
                       key={h}
                       className="px-4 py-2 text-left font-medium"
@@ -622,7 +630,7 @@ function UsersPage() {
                 {invites.length === 0 ? (
                   <tr>
                     <td colSpan={4}>
-                      <EmptyState icon="notification" title="No invite links" />
+                      <EmptyState icon="notification" title={t("users.noInvites")} />
                     </td>
                   </tr>
                 ) : (
@@ -634,11 +642,11 @@ function UsersPage() {
         )}
       </section>
 
-      <Modal open={showUserModal} onClose={() => setShowUserModal(false)} title="Create User">
+      <Modal open={showUserModal} onClose={() => setShowUserModal(false)} title={t("users.createUser")}>
         <CreateUserForm onSuccess={handleCreateSuccess} />
       </Modal>
 
-      <Modal open={showInviteModal} onClose={() => setShowInviteModal(false)} title="Create Invite Link">
+      <Modal open={showInviteModal} onClose={() => setShowInviteModal(false)} title={t("users.createInviteLink")}>
         <CreateInviteForm onSuccess={handleInviteSuccess} />
       </Modal>
     </div>

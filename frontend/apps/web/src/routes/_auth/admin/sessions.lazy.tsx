@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { createLazyFileRoute } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useTranslation } from "react-i18next";
 import { eveyFetch } from "@evey/api/src/fetcher";
 import { toast } from "@evey/store";
 import { Spinner } from "@/components/ui/Spinner";
@@ -48,6 +49,7 @@ function useActiveSessions() {
 }
 
 function useKillSession() {
+  const { t } = useTranslation("admin");
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async (sessionId: string) => {
@@ -58,9 +60,9 @@ function useKillSession() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["admin", "sessions", "active"] });
-      toast.success("Session stopped");
+      toast.success(t("sessions.sessionStopped"));
     },
-    onError: (err: Error) => toast.error(err.message || "Failed to stop session"),
+    onError: (err: Error) => toast.error(err.message || t("sessions.failedStop")),
   });
 }
 
@@ -85,13 +87,16 @@ function formatBandwidth(bps: number): string {
   return `${bps} bps`;
 }
 
-function playMethodLabel(method: string): string {
-  switch (method) {
-    case "direct_play": return "Direct Play";
-    case "direct_stream": return "Direct Stream";
-    case "transcode": return "Transcode";
-    default: return method;
-  }
+function usePlayMethodLabel() {
+  const { t } = useTranslation("admin");
+  return (method: string): string => {
+    switch (method) {
+      case "direct_play": return t("sessions.directPlay");
+      case "direct_stream": return t("sessions.directStream");
+      case "transcode": return t("sessions.transcode");
+      default: return method;
+    }
+  };
 }
 
 function DeviceIcon() {
@@ -120,7 +125,9 @@ function StopIcon() {
 }
 
 function SessionCard({ session }: { session: ActiveSession }) {
+  const { t } = useTranslation("admin");
   const killSession = useKillSession();
+  const playMethodLabel = usePlayMethodLabel();
   const [confirming, setConfirming] = useState(false);
 
   const progress = Math.min(100, Math.max(0, session.progress));
@@ -134,7 +141,6 @@ function SessionCard({ session }: { session: ActiveSession }) {
       style={{ backgroundColor: "var(--surface)", border: "1px solid var(--border)" }}
     >
       <div className="p-4 flex flex-col gap-3">
-        {/* Header: user + media */}
         <div className="flex items-start justify-between gap-3">
           <div className="flex items-center gap-3 min-w-0">
             <div
@@ -159,7 +165,7 @@ function SessionCard({ session }: { session: ActiveSession }) {
               variant="ghost"
               className="shrink-0 !px-2 !py-1"
               onClick={() => setConfirming(true)}
-              title="Stop session"
+              title={t("sessions.stopSession")}
             >
               <StopIcon />
             </Button>
@@ -174,20 +180,19 @@ function SessionCard({ session }: { session: ActiveSession }) {
                   setConfirming(false);
                 }}
               >
-                Stop
+                {t("sessions.stop")}
               </Button>
               <Button
                 variant="ghost"
                 className="!px-2 !py-1 text-xs"
                 onClick={() => setConfirming(false)}
               >
-                Cancel
+                {t("common:cancel")}
               </Button>
             </div>
           )}
         </div>
 
-        {/* Media info */}
         <div className="flex items-center gap-2">
           <PlayIcon />
           <div className="min-w-0 flex-1">
@@ -212,12 +217,11 @@ function SessionCard({ session }: { session: ActiveSession }) {
           </div>
         </div>
 
-        {/* Progress bar */}
         <div>
           <div className="flex justify-between text-xs mb-1" style={{ color: "var(--text-muted)" }}>
             <span>{formatMs(session.positionMs)}</span>
             <span>
-              {remaining ? `-${remaining}` : `${formatElapsed(session.startedAt)} elapsed`}
+              {remaining ? `-${remaining}` : `${formatElapsed(session.startedAt)} ${t("sessions.elapsed")}`}
             </span>
           </div>
           <div className="h-1.5 rounded-full" style={{ backgroundColor: "var(--border)" }}>
@@ -231,7 +235,6 @@ function SessionCard({ session }: { session: ActiveSession }) {
           </div>
         </div>
 
-        {/* Device + codec info */}
         <div className="flex items-center gap-4 flex-wrap text-xs" style={{ color: "var(--text-muted)" }}>
           {session.deviceName && (
             <span className="flex items-center gap-1">
@@ -241,10 +244,10 @@ function SessionCard({ session }: { session: ActiveSession }) {
             </span>
           )}
           {session.videoCodec && (
-            <span>Video: {session.videoCodec}</span>
+            <span>{t("sessions.video", { codec: session.videoCodec })}</span>
           )}
           {session.audioCodec && (
-            <span>Audio: {session.audioCodec}</span>
+            <span>{t("sessions.audio", { codec: session.audioCodec })}</span>
           )}
           {session.bandwidthBps > 0 && (
             <span>{formatBandwidth(session.bandwidthBps)}</span>
@@ -256,12 +259,13 @@ function SessionCard({ session }: { session: ActiveSession }) {
 }
 
 function SessionsPage() {
+  const { t } = useTranslation("admin");
   const { data: sessions, isLoading, isError } = useActiveSessions();
 
   return (
     <div className="flex flex-col gap-6">
       <h1 className="text-2xl font-bold" style={{ color: "var(--text)" }}>
-        Now Playing
+        {t("sessions.title")}
       </h1>
 
       {isLoading ? (
@@ -271,19 +275,19 @@ function SessionsPage() {
       ) : isError ? (
         <EmptyState
           icon="media"
-          title="Failed to load sessions"
-          description="Could not fetch active sessions. Check your connection and try again."
+          title={t("sessions.failedLoad")}
+          description={t("sessions.failedLoadDesc")}
         />
       ) : !sessions || sessions.length === 0 ? (
         <EmptyState
           icon="media"
-          title="No active sessions"
-          description="When users start streaming, their sessions will appear here."
+          title={t("sessions.noSessions")}
+          description={t("sessions.noSessionsDesc")}
         />
       ) : (
         <>
           <p className="text-sm" style={{ color: "var(--text-muted)" }}>
-            {sessions.length} active {sessions.length === 1 ? "session" : "sessions"} — refreshes every 10s
+            {t("sessions.activeCount", { count: sessions.length, word: sessions.length === 1 ? t("sessions.session") : t("sessions.sessions") })}
           </p>
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
             {sessions.map((session) => (

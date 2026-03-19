@@ -1,3 +1,4 @@
+import { useTranslation } from "react-i18next";
 import type { V1AuditLogEntry } from "@evey/api/src/generated/admin.schemas";
 import { Pagination } from "@/components/ui/Pagination";
 import { EmptyState } from "@/components/ui/EmptyState";
@@ -17,6 +18,7 @@ export function AuditLogTable({
   page,
   pageSize,
 }: AuditLogTableProps) {
+  const { t } = useTranslation("admin");
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
 
   return (
@@ -28,7 +30,7 @@ export function AuditLogTable({
         <table className="w-full text-sm">
           <thead>
             <tr style={{ backgroundColor: "var(--surface)", borderBottom: "1px solid var(--border)" }}>
-              {["Time", "User", "Action", "Resource", "Details", "IP"].map((h) => (
+              {[t("audit.tableHeaders.time"), t("audit.tableHeaders.user"), t("audit.tableHeaders.action"), t("audit.tableHeaders.resource"), t("audit.tableHeaders.details"), t("audit.tableHeaders.ip")].map((h) => (
                 <th
                   key={h}
                   className="px-4 py-2 text-left font-medium"
@@ -43,7 +45,7 @@ export function AuditLogTable({
             {entries.length === 0 ? (
               <tr>
                 <td colSpan={6}>
-                  <EmptyState icon="history" title="No entries found" />
+                  <EmptyState icon="history" title={t("audit.noEntries")} />
                 </td>
               </tr>
             ) : (
@@ -54,22 +56,22 @@ export function AuditLogTable({
                   className="hover:bg-[var(--surface-raised)] transition-colors"
                 >
                   <td className="px-4 py-2 whitespace-nowrap" style={{ color: "var(--text-muted)" }}>
-                    {entry.createdAt ? new Date(entry.createdAt).toLocaleString() : "—"}
+                    {entry.createdAt ? new Date(entry.createdAt).toLocaleString() : "\u2014"}
                   </td>
                   <td className="px-4 py-2 whitespace-nowrap" style={{ color: "var(--text)" }}>
-                    {entry.username ?? entry.userId ?? "—"}
+                    {entry.username ?? entry.userId ?? "\u2014"}
                   </td>
                   <td className="px-4 py-2 whitespace-nowrap" style={{ color: "var(--text)" }}>
-                    {entry.action ?? "—"}
+                    {entry.action ?? "\u2014"}
                   </td>
                   <td className="px-4 py-2 whitespace-nowrap" style={{ color: "var(--text-muted)" }}>
-                    {entry.resourceType ? `${entry.resourceType}/${entry.resourceId ?? ""}` : "—"}
+                    {entry.resourceType ? `${entry.resourceType}/${entry.resourceId ?? ""}` : "\u2014"}
                   </td>
                   <td className="px-4 py-2 max-w-xs truncate" style={{ color: "var(--text-muted)" }}>
-                    {entry.details ?? "—"}
+                    {entry.details ?? "\u2014"}
                   </td>
                   <td className="px-4 py-2 whitespace-nowrap" style={{ color: "var(--text-muted)" }}>
-                    {entry.ipAddress ?? "—"}
+                    {entry.ipAddress ?? "\u2014"}
                   </td>
                 </tr>
               ))
@@ -80,7 +82,7 @@ export function AuditLogTable({
 
       <div className="flex items-center justify-between">
         <span className="text-sm" style={{ color: "var(--text-muted)" }}>
-          {total} entries
+          {t("audit.entries", { count: total })}
         </span>
         <Pagination
           page={page + 1}

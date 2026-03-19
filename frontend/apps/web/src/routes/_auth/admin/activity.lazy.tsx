@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { createLazyFileRoute } from "@tanstack/react-router";
+import { useTranslation } from "react-i18next";
 import {
   useActivityServiceGetPlayHistory,
   useActivityServiceGetLoginHistory,
@@ -40,6 +41,7 @@ function formatDate(d?: string): string {
 }
 
 function PlayHistoryTab() {
+  const { t } = useTranslation("admin");
   const PAGE_SIZE = 25;
   const [page, setPage] = useState(1);
   const { data, isLoading } = useActivityServiceGetPlayHistory({
@@ -66,7 +68,7 @@ function PlayHistoryTab() {
         <table className="w-full text-sm">
           <thead>
             <tr style={{ backgroundColor: "var(--surface)", borderBottom: "1px solid var(--border)" }}>
-              {["Title", "Device", "Duration", "Progress", "Started"].map((h) => (
+              {[t("activity.playHeaders.title"), t("activity.playHeaders.device"), t("activity.playHeaders.duration"), t("activity.playHeaders.progress"), t("activity.playHeaders.started")].map((h) => (
                 <th
                   key={h}
                   className="px-4 py-2 text-left font-medium"
@@ -81,7 +83,7 @@ function PlayHistoryTab() {
             {entries.length === 0 ? (
               <tr>
                 <td colSpan={5}>
-                  <EmptyState icon="media" title="No play history" />
+                  <EmptyState icon="media" title={t("activity.noPlayHistory")} />
                 </td>
               </tr>
             ) : (
@@ -127,7 +129,7 @@ function PlayHistoryTab() {
         </table>
       </div>
       <div className="flex items-center justify-between text-sm" style={{ color: "var(--text-muted)" }}>
-        <span>{total} total entries</span>
+        <span>{t("activity.totalEntries", { count: total })}</span>
         <Pagination
           page={page}
           totalPages={Math.max(1, Math.ceil(total / PAGE_SIZE))}
@@ -139,6 +141,7 @@ function PlayHistoryTab() {
 }
 
 function LoginHistoryTab() {
+  const { t } = useTranslation("admin");
   const PAGE_SIZE = 25;
   const [page, setPage] = useState(1);
   const { data, isLoading } = useActivityServiceGetLoginHistory({
@@ -165,7 +168,7 @@ function LoginHistoryTab() {
         <table className="w-full text-sm">
           <thead>
             <tr style={{ backgroundColor: "var(--surface)", borderBottom: "1px solid var(--border)" }}>
-              {["User", "IP", "Status", "User Agent", "Timestamp"].map((h) => (
+              {[t("activity.loginHeaders.user"), t("activity.loginHeaders.ip"), t("activity.loginHeaders.status"), t("activity.loginHeaders.userAgent"), t("activity.loginHeaders.timestamp")].map((h) => (
                 <th
                   key={h}
                   className="px-4 py-2 text-left font-medium"
@@ -180,7 +183,7 @@ function LoginHistoryTab() {
             {entries.length === 0 ? (
               <tr>
                 <td colSpan={5}>
-                  <EmptyState icon="history" title="No login history" />
+                  <EmptyState icon="history" title={t("activity.noLoginHistory")} />
                 </td>
               </tr>
             ) : (
@@ -194,9 +197,9 @@ function LoginHistoryTab() {
                   </td>
                   <td className="px-4 py-3">
                     {e.success ? (
-                      <Badge variant="success">OK</Badge>
+                      <Badge variant="success">{t("activity.ok")}</Badge>
                     ) : (
-                      <Badge variant="error">Failed</Badge>
+                      <Badge variant="error">{t("activity.failed")}</Badge>
                     )}
                   </td>
                   <td className="px-4 py-3 text-xs max-w-xs truncate" style={{ color: "var(--text-muted)" }}>
@@ -212,7 +215,7 @@ function LoginHistoryTab() {
         </table>
       </div>
       <div className="flex items-center justify-between text-sm" style={{ color: "var(--text-muted)" }}>
-        <span>{total} total entries</span>
+        <span>{t("activity.totalEntries", { count: total })}</span>
         <Pagination
           page={page}
           totalPages={Math.max(1, Math.ceil(total / PAGE_SIZE))}
@@ -224,6 +227,7 @@ function LoginHistoryTab() {
 }
 
 function StatsTab() {
+  const { t } = useTranslation("admin");
   const { data, isLoading } = useActivityServiceGetServerStats();
 
   if (isLoading) {
@@ -240,10 +244,10 @@ function StatsTab() {
     <div className="flex flex-col gap-6">
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
         {[
-          ["Total Plays", stats?.totalPlays ?? 0],
-          ["Total Users", stats?.totalUsers ?? 0],
-          ["Total Media", stats?.totalMediaItems ?? 0],
-          ["Bandwidth", formatBytes(stats?.totalBandwidthBytes)],
+          [t("activity.stats.totalPlays"), stats?.totalPlays ?? 0],
+          [t("activity.stats.totalUsers"), stats?.totalUsers ?? 0],
+          [t("activity.stats.totalMedia"), stats?.totalMediaItems ?? 0],
+          [t("activity.stats.bandwidth"), formatBytes(stats?.totalBandwidthBytes)],
         ].map(([label, value]) => (
           <Card key={String(label)} className="flex flex-col gap-1">
             <span className="text-xs font-medium uppercase tracking-wide" style={{ color: "var(--text-muted)" }}>
@@ -259,7 +263,7 @@ function StatsTab() {
       {stats?.popularMedia && stats.popularMedia.length > 0 && (
         <Card>
           <h3 className="font-semibold mb-4" style={{ color: "var(--text)" }}>
-            Popular Media
+            {t("activity.popularMedia")}
           </h3>
           <div className="flex flex-col gap-2">
             {stats.popularMedia.map((m) => (
@@ -270,7 +274,7 @@ function StatsTab() {
               >
                 <span style={{ color: "var(--text)" }}>{m.title ?? "\u2014"}</span>
                 <span className="text-xs" style={{ color: "var(--text-muted)" }}>
-                  {m.playCount} plays
+                  {t("activity.plays", { count: m.playCount })}
                 </span>
               </div>
             ))}
@@ -281,7 +285,7 @@ function StatsTab() {
       {stats?.activeUsers && stats.activeUsers.length > 0 && (
         <Card>
           <h3 className="font-semibold mb-4" style={{ color: "var(--text)" }}>
-            Most Active Users
+            {t("activity.mostActiveUsers")}
           </h3>
           <div className="flex flex-col gap-2">
             {stats.activeUsers.map((u) => (
@@ -292,7 +296,7 @@ function StatsTab() {
               >
                 <span style={{ color: "var(--text)" }}>{u.username}</span>
                 <div className="flex gap-4 text-xs" style={{ color: "var(--text-muted)" }}>
-                  <span>{u.playCount} plays</span>
+                  <span>{t("activity.plays", { count: u.playCount })}</span>
                   <span>{formatMs(u.totalWatchTimeMs)}</span>
                 </div>
               </div>
@@ -305,18 +309,19 @@ function StatsTab() {
 }
 
 function ActivityPage() {
+  const { t } = useTranslation("admin");
   const [tab, setTab] = useState<Tab>("play");
 
   const tabs: Array<{ id: Tab; label: string }> = [
-    { id: "play", label: "Play History" },
-    { id: "logins", label: "Login History" },
-    { id: "stats", label: "Server Stats" },
+    { id: "play", label: t("activity.tabs.playHistory") },
+    { id: "logins", label: t("activity.tabs.loginHistory") },
+    { id: "stats", label: t("activity.tabs.serverStats") },
   ];
 
   return (
     <div className="flex flex-col gap-6">
       <h1 className="text-2xl font-bold" style={{ color: "var(--text)" }}>
-        Activity
+        {t("activity.title")}
       </h1>
 
       <div className="flex gap-1 p-1 rounded-[var(--radius-md)] self-start"

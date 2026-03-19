@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { useQueryClient } from "@tanstack/react-query";
+import { useTranslation } from "react-i18next";
 import {
   useAdminServiceGetAuditLog,
   useLibraryServiceListLibraries,
@@ -28,7 +29,6 @@ function formatBytes(bytes: string | undefined) {
   return `${n} B`;
 }
 
-// SVG icons for stat cards
 function MovieIcon() {
   return (
     <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
@@ -116,6 +116,7 @@ function StatCard({ icon, label, value, valueColor }: StatCardProps) {
 }
 
 function QuickActions() {
+  const { t } = useTranslation("admin");
   const queryClient = useQueryClient();
   const { data: libData } = useLibraryServiceListLibraries();
   const libraries = libData?.libraries ?? [];
@@ -123,9 +124,9 @@ function QuickActions() {
     mutation: {
       onSuccess: () => {
         queryClient.invalidateQueries({ queryKey: ["/api/v1/media"] });
-        toast.success("Scan started");
+        toast.success(t("dashboardStats.scanStarted"));
       },
-      onError: (err: Error) => toast.error(err.message || "Scan failed"),
+      onError: (err: Error) => toast.error(err.message || t("dashboardStats.scanFailed")),
     },
   });
   const [scanningAll, setScanningAll] = useState(false);
@@ -138,13 +139,13 @@ function QuickActions() {
       }
     }
     setScanningAll(false);
-    toast.success("All library scans triggered");
+    toast.success(t("dashboardStats.allScansTriggered"));
   }
 
   return (
     <div>
       <h3 className="text-sm font-semibold mb-3" style={{ color: "var(--text)" }}>
-        Quick Actions
+        {t("dashboardStats.quickActions")}
       </h3>
       <div className="flex gap-3 flex-wrap">
         <Button
@@ -156,14 +157,14 @@ function QuickActions() {
           <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" />
           </svg>
-          Scan All Libraries
+          {t("dashboardStats.scanAllLibraries")}
         </Button>
         <Link to="/admin/libraries">
           <Button variant="secondary">
             <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 9.776c.112-.017.227-.026.344-.026h15.812c.117 0 .232.009.344.026m-16.5 0a2.25 2.25 0 00-1.883 2.542l.857 6a2.25 2.25 0 002.227 1.932H19.05a2.25 2.25 0 002.227-1.932l.857-6a2.25 2.25 0 00-1.883-2.542m-16.5 0V6A2.25 2.25 0 016 3.75h3.879a1.5 1.5 0 011.06.44l2.122 2.12a1.5 1.5 0 001.06.44H18A2.25 2.25 0 0120.25 9v.776" />
             </svg>
-            Manage Libraries
+            {t("dashboardStats.manageLibraries")}
           </Button>
         </Link>
         <Link to="/admin/users">
@@ -171,7 +172,7 @@ function QuickActions() {
             <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" d="M15 19.128a9.38 9.38 0 002.625.372 9.337 9.337 0 004.121-.952 4.125 4.125 0 00-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 018.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0111.964-3.07M12 6.375a3.375 3.375 0 11-6.75 0 3.375 3.375 0 016.75 0zm8.25 2.25a2.625 2.625 0 11-5.25 0 2.625 2.625 0 015.25 0z" />
             </svg>
-            Manage Users
+            {t("dashboardStats.manageUsers")}
           </Button>
         </Link>
       </div>
@@ -180,6 +181,7 @@ function QuickActions() {
 }
 
 function RecentActivity() {
+  const { t } = useTranslation("admin");
   const { data, isLoading } = useAdminServiceGetAuditLog({ limit: 8, offset: 0 });
   const entries = data?.entries ?? [];
 
@@ -197,14 +199,14 @@ function RecentActivity() {
     <div>
       <div className="flex items-center justify-between mb-3">
         <h3 className="text-sm font-semibold" style={{ color: "var(--text)" }}>
-          Recent Activity
+          {t("dashboardStats.recentActivity")}
         </h3>
         <Link
           to="/admin/audit"
           className="text-xs font-medium hover:underline"
           style={{ color: "var(--accent)" }}
         >
-          View all
+          {t("dashboardStats.viewAll")}
         </Link>
       </div>
       <div
@@ -214,7 +216,7 @@ function RecentActivity() {
         <table className="w-full text-sm">
           <thead>
             <tr style={{ backgroundColor: "var(--surface)", borderBottom: "1px solid var(--border)" }}>
-              {["Time", "User", "Action", "Resource", "Details"].map((h) => (
+              {[t("audit.tableHeaders.time"), t("audit.tableHeaders.user"), t("audit.tableHeaders.action"), t("audit.tableHeaders.resource"), t("audit.tableHeaders.details")].map((h) => (
                 <th key={h} className="px-3 py-2 text-left font-medium" style={{ color: "var(--text-muted)" }}>
                   {h}
                 </th>
@@ -253,6 +255,7 @@ function RecentActivity() {
 }
 
 function PopularMedia() {
+  const { t } = useTranslation("admin");
   const { data } = useActivityServiceGetServerStats({ popularLimit: 5 });
   const popular = data?.popularMedia ?? [];
   if (popular.length === 0) return null;
@@ -260,7 +263,7 @@ function PopularMedia() {
   return (
     <div>
       <h3 className="text-sm font-semibold mb-3" style={{ color: "var(--text)" }}>
-        Popular Media
+        {t("dashboardStats.popularMedia")}
       </h3>
       <div className="flex flex-col gap-1">
         {popular.map((m, i) => (
@@ -277,11 +280,11 @@ function PopularMedia() {
               {m.title ?? "Unknown"}
             </span>
             <span className="text-xs" style={{ color: "var(--text-muted)" }}>
-              {m.playCount ?? 0} plays
+              {t("activity.plays", { count: m.playCount ?? 0 })}
             </span>
             {m.uniqueViewers != null && m.uniqueViewers > 0 && (
               <span className="text-xs" style={{ color: "var(--text-muted)" }}>
-                {m.uniqueViewers} viewers
+                {t("dashboardStats.viewers", { count: m.uniqueViewers })}
               </span>
             )}
           </Link>
@@ -296,6 +299,7 @@ interface DashboardStatsProps {
 }
 
 export function DashboardStats({ info }: DashboardStatsProps) {
+  const { t } = useTranslation("admin");
   const { data: moviesData } = useLibraryServiceListMediaItems({
     type: "MEDIA_ITEM_TYPE_MOVIE" as never,
     "pagination.page": 1,
@@ -312,31 +316,29 @@ export function DashboardStats({ info }: DashboardStatsProps) {
 
   return (
     <div className="flex flex-col gap-8">
-      {/* Stat cards grid */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
-        <StatCard icon={<MovieIcon />} label="Movies" value={movieCount} />
-        <StatCard icon={<SeriesIcon />} label="Series" value={seriesCount} />
-        <StatCard icon={<UsersIcon />} label="Users" value={info.totalUsers ?? 0} />
-        <StatCard icon={<StreamIcon />} label="Active Streams" value={info.activeStreams ?? 0} />
-        <StatCard icon={<CpuIcon />} label="CPU" value={`${(info.cpuPercent ?? 0).toFixed(1)}%`} valueColor={getUsageColor(info.cpuPercent ?? 0)} />
-        <StatCard icon={<MemoryIcon />} label="Memory" value={`${(info.memoryPercent ?? 0).toFixed(1)}%`} valueColor={getUsageColor(info.memoryPercent ?? 0)} />
+        <StatCard icon={<MovieIcon />} label={t("dashboardStats.movies")} value={movieCount} />
+        <StatCard icon={<SeriesIcon />} label={t("dashboardStats.series")} value={seriesCount} />
+        <StatCard icon={<UsersIcon />} label={t("dashboardStats.users")} value={info.totalUsers ?? 0} />
+        <StatCard icon={<StreamIcon />} label={t("dashboardStats.activeStreams")} value={info.activeStreams ?? 0} />
+        <StatCard icon={<CpuIcon />} label={t("dashboardStats.cpu")} value={`${(info.cpuPercent ?? 0).toFixed(1)}%`} valueColor={getUsageColor(info.cpuPercent ?? 0)} />
+        <StatCard icon={<MemoryIcon />} label={t("dashboardStats.memory")} value={`${(info.memoryPercent ?? 0).toFixed(1)}%`} valueColor={getUsageColor(info.memoryPercent ?? 0)} />
         <StatCard
           icon={<StreamIcon />}
-          label="Transcodes"
+          label={t("dashboardStats.transcodes")}
           value={info.activeTranscodes ?? 0}
         />
         <StatCard
           icon={<StorageIcon />}
-          label="Total Media"
+          label={t("dashboardStats.totalMedia")}
           value={info.totalMediaItems ?? 0}
         />
       </div>
 
-      {/* Storage bars */}
       {info.storage && info.storage.length > 0 && (
         <div>
           <h3 className="text-sm font-semibold mb-3" style={{ color: "var(--text)" }}>
-            Storage
+            {t("dashboardStats.storage")}
           </h3>
           <div className="flex flex-col gap-2">
             {info.storage.map((s, i) => {
@@ -371,10 +373,8 @@ export function DashboardStats({ info }: DashboardStatsProps) {
         </div>
       )}
 
-      {/* Quick Actions */}
       <QuickActions />
 
-      {/* Two-column layout: recent activity + popular media */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <RecentActivity />
         <PopularMedia />

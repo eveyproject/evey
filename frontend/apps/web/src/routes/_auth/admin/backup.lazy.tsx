@@ -1,6 +1,7 @@
 import { useRef, useState } from "react";
 import { createLazyFileRoute } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useTranslation } from "react-i18next";
 import { useAuthStore, toast } from "@evey/store";
 import { eveyFetch } from "@evey/api";
 import { Spinner } from "@/components/ui/Spinner";
@@ -40,30 +41,33 @@ function useBackups() {
 }
 
 function useCreateBackup() {
+  const { t } = useTranslation("admin");
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: () => eveyFetch<Backup>({ url: "/api/v1/admin/backups", method: "POST" }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: BACKUPS_QUERY_KEY });
-      toast.success("Backup created");
+      toast.success(t("backup.backupCreated"));
     },
-    onError: (err: Error) => toast.error(err.message || "Failed to create backup"),
+    onError: (err: Error) => toast.error(err.message || t("backup.failedCreate")),
   });
 }
 
 function useDeleteBackup() {
+  const { t } = useTranslation("admin");
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (id: string) => eveyFetch<void>({ url: `/api/v1/admin/backups/${id}`, method: "DELETE" }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: BACKUPS_QUERY_KEY });
-      toast.success("Backup deleted");
+      toast.success(t("backup.backupDeleted"));
     },
-    onError: (err: Error) => toast.error(err.message || "Failed to delete backup"),
+    onError: (err: Error) => toast.error(err.message || t("backup.failedDeleteBackup")),
   });
 }
 
 function BackupRow({ backup }: { backup: Backup }) {
+  const { t } = useTranslation("admin");
   const token = useAuthStore((s) => s.accessToken);
   const deleteBackup = useDeleteBackup();
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -97,10 +101,10 @@ function BackupRow({ backup }: { backup: Backup }) {
         body: formData,
       });
       if (res.status === 401) window.dispatchEvent(new Event("evey:unauthorized"));
-      if (!res.ok) throw new Error("Restore failed");
-      toast.success("Restore completed");
+      if (!res.ok) throw new Error(t("backup.restoreFailed"));
+      toast.success(t("backup.restoreCompleted"));
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Restore failed");
+      toast.error(err instanceof Error ? err.message : t("backup.restoreFailed"));
     } finally {
       setRestoring(false);
     }
@@ -121,12 +125,12 @@ function BackupRow({ backup }: { backup: Backup }) {
         {formatSize(backup.size)}
       </td>
       <td className="px-4 py-3">
-        <Badge variant="success">Ready</Badge>
+        <Badge variant="success">{t("backup.ready")}</Badge>
       </td>
       <td className="px-4 py-3">
         <div className="flex gap-2">
           <Button variant="secondary" onClick={handleDownload} className="text-xs">
-            Download
+            {t("common:download")}
           </Button>
           <Button
             variant="secondary"
@@ -134,7 +138,7 @@ function BackupRow({ backup }: { backup: Backup }) {
             onClick={() => setConfirmRestore(true)}
             className="text-xs"
           >
-            Restore
+            {t("common:restore")}
           </Button>
           <Button
             variant="danger"
@@ -142,20 +146,20 @@ function BackupRow({ backup }: { backup: Backup }) {
             onClick={() => setConfirmDelete(true)}
             className="text-xs"
           >
-            Delete
+            {t("common:delete")}
           </Button>
         </div>
         <Modal
           open={confirmRestore}
           onClose={() => setConfirmRestore(false)}
-          title="Restore Backup"
+          title={t("backup.restoreBackupTitle")}
         >
           <p className="text-sm mb-4" style={{ color: "var(--text-muted)" }}>
-            Restore backup from {new Date(backup.createdAt).toLocaleString()}? This will overwrite current data and cannot be undone.
+            {t("backup.restoreConfirm", { date: new Date(backup.createdAt).toLocaleString() })}
           </p>
           <div className="flex justify-end gap-2">
             <Button variant="ghost" onClick={() => setConfirmRestore(false)}>
-              Cancel
+              {t("common:cancel")}
             </Button>
             <Button
               loading={restoring}
@@ -164,21 +168,21 @@ function BackupRow({ backup }: { backup: Backup }) {
                 handleRestore();
               }}
             >
-              Restore
+              {t("common:restore")}
             </Button>
           </div>
         </Modal>
         <Modal
           open={confirmDelete}
           onClose={() => setConfirmDelete(false)}
-          title="Delete Backup"
+          title={t("backup.deleteBackupTitle")}
         >
           <p className="text-sm mb-4" style={{ color: "var(--text-muted)" }}>
-            Delete backup from {new Date(backup.createdAt).toLocaleString()}? This cannot be undone.
+            {t("backup.deleteConfirm", { date: new Date(backup.createdAt).toLocaleString() })}
           </p>
           <div className="flex justify-end gap-2">
             <Button variant="ghost" onClick={() => setConfirmDelete(false)}>
-              Cancel
+              {t("common:cancel")}
             </Button>
             <Button
               variant="danger"
@@ -188,7 +192,7 @@ function BackupRow({ backup }: { backup: Backup }) {
                 setConfirmDelete(false);
               }}
             >
-              Delete
+              {t("common:delete")}
             </Button>
           </div>
         </Modal>
@@ -204,6 +208,7 @@ function RestoreUploadModal({
   open: boolean;
   onClose: () => void;
 }) {
+  const { t } = useTranslation("admin");
   const token = useAuthStore((s) => s.accessToken);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [restoring, setRestoring] = useState(false);
@@ -211,7 +216,7 @@ function RestoreUploadModal({
   async function handleUpload() {
     const file = fileInputRef.current?.files?.[0];
     if (!file) {
-      toast.error("Select a backup file first");
+      toast.error(t("backup.selectFileFirst"));
       return;
     }
     setRestoring(true);
@@ -224,21 +229,21 @@ function RestoreUploadModal({
         body: formData,
       });
       if (res.status === 401) window.dispatchEvent(new Event("evey:unauthorized"));
-      if (!res.ok) throw new Error("Restore failed");
-      toast.success("Restore completed");
+      if (!res.ok) throw new Error(t("backup.restoreFailed"));
+      toast.success(t("backup.restoreCompleted"));
       onClose();
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Restore failed");
+      toast.error(err instanceof Error ? err.message : t("backup.restoreFailed"));
     } finally {
       setRestoring(false);
     }
   }
 
   return (
-    <Modal open={open} onClose={onClose} title="Restore from File">
+    <Modal open={open} onClose={onClose} title={t("backup.restoreFromFileTitle")}>
       <div className="flex flex-col gap-4">
         <p className="text-sm" style={{ color: "var(--text-muted)" }}>
-          Upload a backup .tar.gz file to restore. This will overwrite existing data.
+          {t("backup.restoreFromFileDesc")}
         </p>
         <input
           ref={fileInputRef}
@@ -248,9 +253,9 @@ function RestoreUploadModal({
           style={{ color: "var(--text-muted)" }}
         />
         <div className="flex justify-end gap-2">
-          <Button variant="ghost" onClick={onClose}>Cancel</Button>
+          <Button variant="ghost" onClick={onClose}>{t("common:cancel")}</Button>
           <Button loading={restoring} onClick={handleUpload}>
-            Restore
+            {t("common:restore")}
           </Button>
         </div>
       </div>
@@ -259,6 +264,7 @@ function RestoreUploadModal({
 }
 
 function BackupPage() {
+  const { t } = useTranslation("admin");
   const { data: backups, isLoading } = useBackups();
   const createBackup = useCreateBackup();
   const [showRestoreUpload, setShowRestoreUpload] = useState(false);
@@ -267,20 +273,20 @@ function BackupPage() {
     <div className="flex flex-col gap-6">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold" style={{ color: "var(--text)" }}>
-          Backup & Restore
+          {t("backup.title")}
         </h1>
         <div className="flex gap-2">
           <Button
             variant="secondary"
             onClick={() => setShowRestoreUpload(true)}
           >
-            Restore from File
+            {t("backup.restoreFromFile")}
           </Button>
           <Button
             loading={createBackup.isPending}
             onClick={() => createBackup.mutate()}
           >
-            Create Backup
+            {t("backup.createBackup")}
           </Button>
         </div>
       </div>
@@ -292,8 +298,8 @@ function BackupPage() {
       ) : !backups || backups.length === 0 ? (
         <EmptyState
           icon="library"
-          title="No backups"
-          description="Create a backup to save your database state."
+          title={t("backup.noBackups")}
+          description={t("backup.noBackupsDesc")}
         />
       ) : (
         <div
@@ -308,7 +314,7 @@ function BackupPage() {
                   borderBottom: "1px solid var(--border)",
                 }}
               >
-                {["ID", "Date", "Version", "Size", "Status", "Actions"].map((h) => (
+                {[t("backup.tableHeaders.id"), t("backup.tableHeaders.date"), t("backup.tableHeaders.version"), t("backup.tableHeaders.size"), t("backup.tableHeaders.status"), t("backup.tableHeaders.actions")].map((h) => (
                   <th
                     key={h}
                     className="px-4 py-2 text-left font-medium"
