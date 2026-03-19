@@ -114,7 +114,6 @@ func buildServices(ctx context.Context, cfg *config.Config, db *sql.DB, rootLog 
 		slog.Warn("i18n load failed, using defaults", slog.Any("err", i18nErr))
 		translator, _ = eveyi18n.NewFromDir("") // empty translator, returns keys as-is
 	}
-	_ = translator // wired into gRPC server below
 
 	// --- JWT ---
 	privateKey, err := auth.LoadOrGenerateRSAKey(cfg.JWT.PrivateKeyPath)
@@ -338,8 +337,9 @@ func buildServices(ctx context.Context, cfg *config.Config, db *sql.DB, rootLog 
 			pluginRepo:        r.Plugin,
 			quickConnectRepo:  r.QuickConnect,
 		},
-		cfgStore:  httpapi.NewServerConfigStore(r.ServerCfg),
-		backupSvc: backupSvc,
+		cfgStore:   httpapi.NewServerConfigStore(r.ServerCfg),
+		backupSvc:  backupSvc,
+		translator: translator,
 	}, nil
 }
 

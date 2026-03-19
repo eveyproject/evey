@@ -25,6 +25,7 @@ import (
 	"github.com/gravity-zero/evey/internal/adapters/driving/pluginhost"
 	httpapi "github.com/gravity-zero/evey/internal/adapters/driving/http"
 	"github.com/gravity-zero/evey/internal/pkg/auth"
+	eveyi18n "github.com/gravity-zero/evey/internal/pkg/i18n"
 )
 
 // libraryDeps groups library scanning, querying and scheduling services.
@@ -110,6 +111,7 @@ type appDeps struct {
 	engagement engagementDeps
 	auth       authDeps
 	repos      repoDeps
-	cfgStore   *httpapi.ServerConfigStore
-	backupSvc  *appbackup.Service
+	cfgStore    *httpapi.ServerConfigStore
+	backupSvc   *appbackup.Service
+	translator  *eveyi18n.Translator
 }

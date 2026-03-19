@@ -23,6 +23,7 @@ import (
 	appwebhook "github.com/gravity-zero/evey/internal/app/webhook"
 	"github.com/gravity-zero/evey/internal/config"
 	"github.com/gravity-zero/evey/internal/domain/user"
+	eveyi18n "github.com/gravity-zero/evey/internal/pkg/i18n"
 	"google.golang.org/grpc"
 )
 
@@ -66,6 +67,7 @@ type GRPCServer struct {
 	cfg             *config.Config
 	cfgStore        remoteAccessConfigStore
 	serverCfgHndlr  *serverConfigHandler
+	translator      *eveyi18n.Translator
 }
 
 func (s *GRPCServer) SetServerConfigHandler(h *serverConfigHandler) {
@@ -82,6 +84,10 @@ func (s *GRPCServer) SetScheduler(sc *applibrary.Scheduler) {
 
 func (s *GRPCServer) SetLogDir(dir string) {
 	s.logDir = dir
+}
+
+func (s *GRPCServer) SetTranslator(t *eveyi18n.Translator) {
+	s.translator = t
 }
 
 func NewGRPCServer(
@@ -160,7 +166,7 @@ func NewGRPCServer(
 
 func (s *GRPCServer) RegisterServices() {
 	eveyv1.RegisterLibraryServiceServer(s.server, &libraryHandler{cmd: s.libCmd, query: s.libQuery, metadataSvc: s.metadataQuery, libraryAccess: s.libraryAccess, profiles: s.profiles})
-	eveyv1.RegisterUserServiceServer(s.server, &userHandler{auth: s.userAuth, userSvc: s.userSvc, access: s.userAccess, query: s.userQuery, users: s.users, activitySvc: s.activityCmd})
+	eveyv1.RegisterUserServiceServer(s.server, &userHandler{auth: s.userAuth, userSvc: s.userSvc, access: s.userAccess, query: s.userQuery, users: s.users, activitySvc: s.activityCmd, translator: s.translator})
 	eveyv1.RegisterPlaybackServiceServer(s.server, &playbackHandler{cmd: s.playbackCmd, query: s.playbackQuery, librarySvc: s.libQuery, activitySvc: s.activityCmd, profiles: s.profiles})
 	eveyv1.RegisterTranscodingServiceServer(s.server, &transcodingHandler{svc: s.transcoding, profiles: s.profiles})
 	eveyv1.RegisterMKVServiceServer(s.server, &mkvHandler{svc: s.mkv})

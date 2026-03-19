@@ -12,7 +12,7 @@ import (
 )
 
 func buildGRPCServer(deps *appDeps, cfg *config.Config, rootLog *slog.Logger, logDir string) *grpcapi.GRPCServer {
-	authInterceptor := interceptors.NewAuthInterceptor(deps.auth.tokenGen).WithAPIKeys(deps.repos.apiKeyRepo, deps.repos.userRepo)
+	authInterceptor := interceptors.NewAuthInterceptor(deps.auth.tokenGen).WithAPIKeys(deps.repos.apiKeyRepo, deps.repos.userRepo).WithTranslator(deps.translator)
 	grpcLog := eveylogger.NewWith(rootLog, "grpc")
 	grpcSrv := grpcapi.NewGRPCServer(
 		deps.library.cmdSvc, deps.library.querySvc, deps.user.authSvc, deps.user.userSvc, deps.user.accessSvc, deps.user.querySvc,
@@ -40,6 +40,7 @@ func buildGRPCServer(deps *appDeps, cfg *config.Config, rootLog *slog.Logger, lo
 			authInterceptor.Stream(),
 		),
 	)
+	grpcSrv.SetTranslator(deps.translator)
 	grpcSrv.SetHLSManager(deps.media.hlsManager)
 	grpcSrv.SetScheduler(deps.library.scheduler)
 	grpcSrv.SetLogDir(logDir)

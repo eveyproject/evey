@@ -13,6 +13,9 @@ auth:
   password_too_short: "Password must be at least 8 characters"
   username_too_short: "Username must be at least 3 characters"
   explicit_consent_required: "Explicit consent required for push notifications"
+  missing_authorization: "Missing authorization header"
+  missing_metadata: "Missing request metadata"
+  admin_access_required: "Admin access required"
   invalid_current_pin: "Invalid current PIN"
   profile_not_found: "Profile not found"
 
