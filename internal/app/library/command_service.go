@@ -116,7 +116,16 @@ func (s *CommandService) StartPeriodicScan(ctx context.Context, libQueries libra
 					continue
 				}
 				for _, lib := range libs {
-					added, _, scanErr := s.ScanLibrary(ctx, lib.ID)
+					added, scanErr := func() (a int, err error) {
+						defer func() {
+							if r := recover(); r != nil {
+								slog.Error("periodic scan: panic recovered", slog.String("library", lib.Name), slog.Any("panic", r))
+								err = fmt.Errorf("panic: %v", r)
+							}
+						}()
+						a, _, err = s.ScanLibrary(ctx, lib.ID)
+						return
+					}()
 					if scanErr != nil {
 						slog.Debug("periodic scan: skip", slog.String("library", lib.Name), slog.Any("err", scanErr))
 						continue
