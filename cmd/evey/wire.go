@@ -92,11 +92,11 @@ func buildServices(ctx context.Context, cfg *config.Config, db *sql.DB, rootLog 
 	if langEntry, err2 := r.ServerCfg.Get(context.Background(), "metadata.language"); err2 == nil && langEntry.Value != "" {
 		cfg.Metadata.Language = langEntry.Value
 	}
-	tmdbKey := resolveAPIKey(r.ServerCfg, "api.tmdb_key", "EVEY_TMDB_API_KEY", defaultTMDBKey)
+	tmdbKey := resolveAPIKey(r.ServerCfg, "api.tmdb_key", "EVEY_TMDB_API_KEY")
 	tmdbProvider := metadataadapter.NewTMDBProvider(tmdbKey, cfg.Metadata.Language, nil)
 	imdbProvider := metadataadapter.NewIMDBAPIProvider(nil)
 	tvmazeProvider := metadataadapter.NewTVMazeProvider(nil)
-	omdbKey := resolveAPIKey(r.ServerCfg, "api.omdb_key", "EVEY_OMDB_API_KEY", "")
+	omdbKey := resolveAPIKey(r.ServerCfg, "api.omdb_key", "EVEY_OMDB_API_KEY")
 	omdbProvider := metadataadapter.NewOMDbProvider(omdbKey, nil)
 	artworkDownloader := metadataadapter.NewArtworkHTTPDownloader(nil)
 	pluginLogDir := filepath.Join(cfg.Log.Dir, "plugins")
@@ -266,7 +266,7 @@ func buildServices(ctx context.Context, cfg *config.Config, db *sql.DB, rootLog 
 
 	// --- Subtitle service ---
 	var subtitleSvc *appsubtitle.Service
-	if osAPIKey := resolveAPIKey(r.ServerCfg, "api.opensubtitles_key", "EVEY_OPENSUBTITLES_API_KEY", ""); osAPIKey != "" {
+	if osAPIKey := resolveAPIKey(r.ServerCfg, "api.opensubtitles_key", "EVEY_OPENSUBTITLES_API_KEY"); osAPIKey != "" {
 		osClient := opensubtitles.New(osAPIKey, os.Getenv("EVEY_OPENSUBTITLES_USERNAME"), os.Getenv("EVEY_OPENSUBTITLES_PASSWORD"))
 		subtitleSvc = appsubtitle.NewService(r.Subtitle, osClient, opensubtitles.NewLibraryMediaGetter(libQuerySvc))
 		rootLog.Info("opensubtitles integration enabled")
@@ -368,27 +368,20 @@ func startWatcher(ctx context.Context, cfg *config.Config, bus *eventbus.InMemor
 	}()
 }
 
-const defaultTMDBKey = "eyJhbGciOiJIUzI1NiJ9.eyJhdWQiOiI0OTdmMDk2NTBlOTlkNGJjZmM0NDE1NjNiYWVmY2NlYiIsIm5iZiI6MTU4NjUxMTg0NS40MTI5OTk5LCJzdWIiOiI1ZTkwM2ZlNWU2NDBkNjAwMWIxZjIzODMiLCJzY29wZXMiOlsiYXBpX3JlYWQiXSwidmVyc2lvbiI6MX0.nG3dwy0jKg2LKxyjipQScOocwA3pEyj2N8qXkI1V51Q"
-
-func resolveAPIKey(cfgRepo *postgres.ServerConfigRepository, dbKey, envVar, defaultVal string) string {
-	// 1. DB has it → use it
+func resolveAPIKey(cfgRepo *postgres.ServerConfigRepository, dbKey, envVar string) string {
+	// 1. DB has it (set by admin via panel) → use it
 	if entry, err := cfgRepo.Get(context.Background(), dbKey); err == nil && entry.Value != "" {
 		return entry.Value
 	}
-	// 2. Env var override → use it and seed DB
+	// 2. Env var fallback (docker/compose) → seed to DB so admin sees it
 	if v := os.Getenv(envVar); v != "" {
 		if setErr := cfgRepo.Set(context.Background(), dbKey, v); setErr != nil {
 			slog.Warn("seed api key to db", slog.String("key", dbKey), slog.Any("err", setErr))
 		}
 		return v
 	}
-	// 3. Embedded default → seed DB so admin can see/edit it
-	if defaultVal != "" {
-		if setErr := cfgRepo.Set(context.Background(), dbKey, defaultVal); setErr != nil {
-			slog.Warn("seed default api key to db", slog.String("key", dbKey), slog.Any("err", setErr))
-		}
-	}
-	return defaultVal
+	// 3. Not configured — admin must set via panel
+	return ""
 }
 
 // pluginIDLister adapts postgres.PluginRepository to pluginrunner.PluginLister.
