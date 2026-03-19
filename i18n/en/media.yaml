@@ -119,6 +119,57 @@ person:
   guestStar: Guest Star
 detail:
   notFound: Media item not found.
+  play: Play
+  markWatched: Mark Watched
+  markUnwatched: Mark Unwatched
+  markedWatched: Marked as watched
+  markedUnwatched: Marked as unwatched
+  addToPlaylist: Add to Playlist
+  editMetadata: Edit Metadata
+  cast: Cast
+  crew: Crew
+  seasons: Seasons
+  seasonCount: "{{count}} season"
+  seasonCount_plural: "{{count}} seasons"
+  episodes: Episodes
+  episodeCount: "{{count}} episode"
+  episodeCount_plural: "{{count}} episodes"
+  ep: "{{count}} ep"
+  similarTitles: Similar Titles
+  fileInfo: File Info
+  director: "Director: "
+  writer: "Writer: "
+  studio: "Studio: "
+  trailer: Trailer
+  close: "Close"
+  unsupportedPlatform: "Unsupported platform: {{platform}}"
+  artworkUpdated: Artwork updated
+  artworkFailed: Failed to update artwork
+  poster: Poster
+  backdrop: Backdrop
+  title: Title
+  originalTitle: Original Title
+  year: Year
+  overview: Overview
+  genresLabel: "Genres (comma-separated)"
+  rating: Rating
+  overridden: Overridden
+  auto: Auto
+  resetToAuto: Reset to auto
+  resetSuccess: "Reset {{field}} to auto"
+  resetFailed: Failed to reset field
+  imdbId: IMDB ID
+  tmdbId: TMDB ID
+  viewOnImdb: View on IMDB
+  viewOnTmdb: View on TMDB
+  idChangedWarning: "ID changed — saving will re-fetch metadata from the provider"
+  refreshMetadata: Refresh metadata
+  reEnrichedWithNewId: Re-enriched with new ID
+  metadataSaved: Metadata saved
+  failedToSave: Failed to save
+  failedToSaveDot: Failed to save.
+  refreshFailed: Failed to refresh metadata
+  noProfileSelected: No profile selected
 contextMenu:
   editMetadata: Edit metadata
   addToPlaylist: Add to Playlist

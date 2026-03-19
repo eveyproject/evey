@@ -66,3 +66,20 @@ notifications:
 noNotifications: No notifications
 watchHistory:
   title: Watch History
+nav:
+  home: Home
+  libraries: Libraries
+  photos: Photos
+  favorites: Favorites
+  music: Music
+  admin: Admin
+  backToApp: Back to app
+  profile: Profile
+  settings: Settings
+  watchHistory: Watch History
+  signOut: Sign Out
+  expandSidebar: Expand sidebar
+  collapseSidebar: Collapse sidebar
+  mainNav: Main navigation
+  adminNav: Admin navigation
+  userMenu: User menu

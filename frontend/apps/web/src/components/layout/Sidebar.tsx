@@ -1,5 +1,6 @@
 import { useState, useCallback } from "react";
 import { Link, useRouterState } from "@tanstack/react-router";
+import { useTranslation } from "react-i18next";
 import { useAuthStore } from "@evey/store";
 import {
   Home,
@@ -18,14 +19,15 @@ import { PluginSlot } from "@/features/plugins/PluginSlot";
 const COLLAPSED_KEY = "evey-sidebar-collapsed";
 
 const navItems = [
-  { to: "/home" as const, label: "Home", icon: Home },
-  { to: "/library" as const, label: "Libraries", icon: Library },
-  { to: "/photos" as const, label: "Photos", icon: Images },
-  { to: "/favorites" as const, label: "Favorites", icon: Heart },
-  { to: "/music" as const, label: "Music", icon: Music2 },
+  { to: "/home" as const, labelKey: "common.nav.home", icon: Home },
+  { to: "/library" as const, labelKey: "common.nav.libraries", icon: Library },
+  { to: "/photos" as const, labelKey: "common.nav.photos", icon: Images },
+  { to: "/favorites" as const, labelKey: "common.nav.favorites", icon: Heart },
+  { to: "/music" as const, labelKey: "common.nav.music", icon: Music2 },
 ];
 
 export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
+  const { t } = useTranslation();
   const { location } = useRouterState();
   const pathname = location.pathname;
   const isAdmin = useAuthStore((s) => s.isAdmin);
@@ -53,7 +55,7 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
 
   return (
     <nav
-      aria-label={isOnAdmin ? "Admin navigation" : "Main navigation"}
+      aria-label={isOnAdmin ? t("common.nav.adminNav") : t("common.nav.mainNav")}
       className={`flex flex-col h-full bg-[var(--surface)] border-r border-[var(--border)] py-4 shrink-0 transition-[width] duration-200 ${isCollapsed ? "w-16" : "w-56"}`}
     >
       {/* Header */}
@@ -67,8 +69,8 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
           <button
             onClick={toggleCollapsed}
             className="p-1 rounded-[var(--radius-sm)] text-[var(--text-muted)] hover:text-[var(--text)] hover:bg-[var(--surface-raised)] transition-colors cursor-pointer"
-            aria-label={isCollapsed ? "Expand sidebar" : "Collapse sidebar"}
-            title={isCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+            aria-label={isCollapsed ? t("common.nav.expandSidebar") : t("common.nav.collapseSidebar")}
+            title={isCollapsed ? t("common.nav.expandSidebar") : t("common.nav.collapseSidebar")}
           >
             {isCollapsed ? <PanelLeft size={18} /> : <PanelLeftClose size={18} />}
           </button>
@@ -84,10 +86,10 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
               to="/home"
               onClick={onNavigate}
               className={`flex items-center gap-2.5 px-2 py-1.5 text-[13px] rounded-[var(--radius-sm)] transition-colors text-[var(--text-muted)] hover:text-[var(--text)] hover:bg-[var(--surface-raised)] ${isCollapsed ? "justify-center" : ""}`}
-              title={isCollapsed ? "Back to app" : undefined}
+              title={isCollapsed ? t("common.nav.backToApp") : undefined}
             >
               <ArrowLeft size={15} />
-              {!isCollapsed && <span>Back to app</span>}
+              {!isCollapsed && <span>{t("common.nav.backToApp")}</span>}
             </Link>
             <div className="border-b border-[var(--border)] mt-2" />
           </div>
@@ -99,7 +101,8 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
       ) : (
         // Regular nav mode
         <ul className={`flex-1 flex flex-col gap-1 ${isCollapsed ? "px-1" : "px-2"}`}>
-          {navItems.map(({ to, label, icon: Icon }) => {
+          {navItems.map(({ to, labelKey, icon: Icon }) => {
+            const label = t(labelKey);
             const active = pathname === to || pathname.startsWith(to + "/")
               || (to === "/library" && pathname.startsWith("/media/"));
             return (
@@ -130,10 +133,10 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
                     ? "border-l-2 border-[var(--accent)] text-[var(--accent)] bg-[var(--surface-raised)]"
                     : "border-l-2 border-transparent text-[var(--text-secondary)] hover:bg-[var(--surface-raised)] hover:text-[var(--text)]"
                 }`}
-                title={isCollapsed ? "Admin" : undefined}
+                title={isCollapsed ? t("common.nav.admin") : undefined}
               >
                 <Settings size={18} />
-                {!isCollapsed && "Admin"}
+                {!isCollapsed && t("common.nav.admin")}
               </Link>
             </li>
           )}
