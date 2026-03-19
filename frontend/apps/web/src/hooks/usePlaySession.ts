@@ -54,7 +54,7 @@ export function usePlaySession(mediaId: string): PlaySessionResult {
             : rawStreamInfo.transcodeUrl;
         } else {
           url = token
-            ? `/api/v1/media/${mediaId}/transcode?token=${token}`
+            ? `/api/v1/media/${mediaId}/hls/master.m3u8?token=${token}`
             : rawStreamInfo.transcodeUrl;
         }
         return { ...rawStreamInfo, directPlayUrl: url };

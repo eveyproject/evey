@@ -109,7 +109,7 @@ func (h *playbackHandler) GetStreamInfo(ctx context.Context, req *eveyv1.GetStre
 		resp.DirectPlayUrl = "/api/v1/media/" + req.MediaItemId + "/stream"
 	default:
 		resp.PlayMethod = eveyv1.PlayMethod_PLAY_METHOD_TRANSCODE
-		resp.TranscodeUrl = "/api/v1/media/" + req.MediaItemId + "/transcode"
+		resp.TranscodeUrl = "/api/v1/media/" + req.MediaItemId + "/hls/master.m3u8"
 	}
 
 	return resp, nil
