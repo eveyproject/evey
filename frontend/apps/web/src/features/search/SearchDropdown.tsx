@@ -3,6 +3,7 @@ import { useNavigate } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { useQuery } from "@tanstack/react-query";
 import { libraryServiceSearchMedia } from "@evey/api";
+import { useAuthStore } from "@evey/store";
 import { typeLabel } from "@/utils/typeLabel";
 
 interface SearchDropdownProps {
@@ -28,6 +29,7 @@ export function SearchDropdown({
 }: SearchDropdownProps) {
   const { t } = useTranslation();
   const navigate = useNavigate();
+  const accessToken = useAuthStore((s) => s.accessToken) ?? "";
   const dropdownRef = useRef<HTMLDivElement>(null);
   const activeIndex = useRef(-1);
 
@@ -210,7 +212,7 @@ export function SearchDropdown({
                   >
                     {item.id ? (
                       <img
-                        src={`/api/v1/media/${item.id}/artwork/poster`}
+                        src={`/api/v1/media/${item.id}/artwork/poster?token=${encodeURIComponent(accessToken)}`}
                         alt=""
                         className="w-full h-full object-cover"
                         onError={(e) => {
