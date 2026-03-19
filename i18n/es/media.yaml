@@ -27,6 +27,7 @@ favorites:
   titleZA: "Título Z–A"
   yearNewest: "Año (más reciente)"
   rating: "Calificación"
+  yourRating: "Tu valoración"
   noFavorites: "Sin favoritos aún"
   noFavoritesDesc: "Haz clic en el ícono de corazón en cualquier elemento para añadirlo a favoritos."
   addToPlaylist: "Añadir a lista de reproducción"

@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { useStarRating, useRatingAggregate } from "@/hooks/useStarRating";
 
 interface StarRatingProps {
@@ -37,6 +38,7 @@ function StarIcon({ filled, half }: { filled: boolean; half?: boolean }) {
 }
 
 export function StarRating({ mediaId }: StarRatingProps) {
+  const { t } = useTranslation();
   const { rating, setRating } = useStarRating(mediaId);
   const { data: agg } = useRatingAggregate(mediaId);
   const [hovered, setHovered] = useState(0);
@@ -47,7 +49,7 @@ export function StarRating({ mediaId }: StarRatingProps) {
     <div className="flex flex-col gap-1">
       <div className="flex items-center gap-1.5">
         <span className="text-sm" style={{ color: "var(--text-muted)" }}>
-          Your rating:
+          {t("media.detail.yourRating")}:
         </span>
         <div
           className="flex items-center gap-0.5"

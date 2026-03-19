@@ -27,6 +27,7 @@ favorites:
   titleZA: "标题 Z–A"
   yearNewest: "年份（最新）"
   rating: "评分"
+  yourRating: "您的评分"
   noFavorites: "暂无收藏"
   noFavoritesDesc: "点击任意媒体项的心形图标即可添加到收藏。"
   addToPlaylist: "添加到播放列表"

@@ -27,6 +27,7 @@ favorites:
   titleZA: "Titre Z–A"
   yearNewest: "Année (plus récent)"
   rating: "Note"
+  yourRating: "Votre note"
   noFavorites: "Pas encore de favoris"
   noFavoritesDesc: "Cliquez sur l'icône cœur de n'importe quel média pour l'ajouter aux favoris."
   addToPlaylist: "Ajouter à la liste de lecture"
