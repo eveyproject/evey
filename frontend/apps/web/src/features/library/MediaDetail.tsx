@@ -56,6 +56,7 @@ interface EditForm {
 }
 
 function ArtworkPicker({ mediaItemId }: { mediaItemId: string }) {
+  const { t } = useTranslation();
   const { data } = useMetadataServiceGetArtwork(mediaItemId, undefined);
   const queryClient = useQueryClient();
   const [selecting, setSelecting] = useState<string | null>(null);
@@ -70,9 +71,9 @@ function ArtworkPicker({ mediaItemId }: { mediaItemId: string }) {
       await eveyFetch<void>({ url: `/api/v1/media/${mediaItemId}/artwork/${artworkId}/select`, method: "POST" });
       queryClient.invalidateQueries({ queryKey: [`/api/v1/metadata/${mediaItemId}/artwork`] });
       queryClient.invalidateQueries({ queryKey: [`/api/v1/media/${mediaItemId}`] });
-      toast.success("Artwork updated");
+      toast.success(t("media.detail.artworkUpdated"));
     } catch (err) {
-      toast.error("Failed to update artwork");
+      toast.error(t("media.detail.artworkFailed"));
     } finally {
       setSelecting(null);
     }
@@ -84,7 +85,7 @@ function ArtworkPicker({ mediaItemId }: { mediaItemId: string }) {
     <div className="flex flex-col gap-3">
       {posters.length > 1 && (
         <div>
-          <p className="text-xs font-medium mb-2" style={{ color: "var(--text-muted)" }}>Poster</p>
+          <p className="text-xs font-medium mb-2" style={{ color: "var(--text-muted)" }}>{t("media.detail.poster")}</p>
           <div className="flex gap-2 overflow-x-auto pb-1" style={{ scrollbarWidth: "thin" }}>
             {posters.map((a, i) => (
               <button
@@ -107,7 +108,7 @@ function ArtworkPicker({ mediaItemId }: { mediaItemId: string }) {
       )}
       {backdrops.length > 1 && (
         <div>
-          <p className="text-xs font-medium mb-2" style={{ color: "var(--text-muted)" }}>Backdrop</p>
+          <p className="text-xs font-medium mb-2" style={{ color: "var(--text-muted)" }}>{t("media.detail.backdrop")}</p>
           <div className="flex gap-2 overflow-x-auto pb-1" style={{ scrollbarWidth: "thin" }}>
             {backdrops.map((a, i) => (
               <button
@@ -132,23 +133,24 @@ function ArtworkPicker({ mediaItemId }: { mediaItemId: string }) {
   );
 }
 
-const FIELD_MAP: Array<{ formKey: keyof EditForm; overrideKey: string; label: string }> = [
-  { formKey: "title", overrideKey: "title", label: "Title" },
-  { formKey: "originalTitle", overrideKey: "original_title", label: "Original Title" },
-  { formKey: "year", overrideKey: "year", label: "Year" },
-  { formKey: "overview", overrideKey: "overview", label: "Overview" },
-  { formKey: "genres", overrideKey: "genres", label: "Genres (comma-separated)" },
-  { formKey: "communityRating", overrideKey: "community_rating", label: "Rating" },
+const FIELD_MAP: Array<{ formKey: keyof EditForm; overrideKey: string; labelKey: string }> = [
+  { formKey: "title", overrideKey: "title", labelKey: "media.detail.title" },
+  { formKey: "originalTitle", overrideKey: "original_title", labelKey: "media.detail.originalTitle" },
+  { formKey: "year", overrideKey: "year", labelKey: "media.detail.year" },
+  { formKey: "overview", overrideKey: "overview", labelKey: "media.detail.overview" },
+  { formKey: "genres", overrideKey: "genres", labelKey: "media.detail.genresLabel" },
+  { formKey: "communityRating", overrideKey: "community_rating", labelKey: "media.detail.rating" },
 ];
 
 function FieldBadge({ isOverridden }: { isOverridden: boolean }) {
+  const { t } = useTranslation();
   return isOverridden ? (
     <span className="text-xs px-1.5 py-0.5 rounded" style={{ backgroundColor: "var(--badge-warning-bg, #f59e0b33)", color: "var(--badge-warning-text, #f59e0b)" }}>
-      Overridden
+      {t("media.detail.overridden")}
     </span>
   ) : (
     <span className="text-xs px-1.5 py-0.5 rounded" style={{ backgroundColor: "var(--surface-raised)", color: "var(--text-muted)" }}>
-      Auto
+      {t("media.detail.auto")}
     </span>
   );
 }
@@ -162,6 +164,7 @@ function MetadataEditPanel({
   onSave: () => void;
   onCancel: () => void;
 }) {
+  const { t } = useTranslation();
   const origImdbId = item.providerIds?.imdb ?? "";
   const origTmdbId = item.providerIds?.tmdb ?? "";
   const [form, setForm] = useState<EditForm>({
@@ -212,7 +215,7 @@ function MetadataEditPanel({
           },
         });
         queryClient.invalidateQueries({ queryKey: [`/api/v1/media/${item.id}`] });
-        toast.success("Re-enriched with new ID");
+        toast.success(t("media.detail.reEnrichedWithNewId"));
       }
 
       const fields: Array<[string, string]> = FIELD_MAP.map(({ overrideKey, formKey }) => [overrideKey, form[formKey].trim()]);
@@ -225,11 +228,11 @@ function MetadataEditPanel({
         }
         queryClient.invalidateQueries({ queryKey: [`/api/v1/media/${item.id}`] });
         queryClient.invalidateQueries({ queryKey: getMetadataServiceListMetadataOverridesQueryKey(item.id) });
-        toast.success("Metadata saved");
+        toast.success(t("media.detail.metadataSaved"));
       }
       onSave();
     } catch {
-      toast.error("Failed to save");
+      toast.error(t("media.detail.failedToSave"));
     } finally {
       setSaving(false);
     }
@@ -241,9 +244,9 @@ function MetadataEditPanel({
       await removeOverride.mutateAsync({ id: overrideId });
       queryClient.invalidateQueries({ queryKey: getMetadataServiceListMetadataOverridesQueryKey(item.id) });
       queryClient.invalidateQueries({ queryKey: [`/api/v1/media/${item.id}`] });
-      toast.success(`Reset ${fieldName} to auto`);
+      toast.success(t("media.detail.resetSuccess", { field: fieldName }));
     } catch {
-      toast.error("Failed to reset field");
+      toast.error(t("media.detail.resetFailed"));
     }
   }
 
@@ -256,7 +259,7 @@ function MetadataEditPanel({
       setTimeout(() => { setRefreshStatus("idle"); onSave(); }, 1500);
     } catch {
       setRefreshStatus("error");
-      toast.error("Failed to refresh metadata");
+      toast.error(t("media.detail.refreshFailed"));
     }
   }
 
@@ -272,7 +275,8 @@ function MetadataEditPanel({
     ? `https://www.imdb.com/title/${form.imdbId.trim()}/`
     : null;
 
-  function renderField({ formKey, overrideKey, label }: typeof FIELD_MAP[number]) {
+  function renderField({ formKey, overrideKey, labelKey }: typeof FIELD_MAP[number]) {
+    const label = t(labelKey);
     const hasOverride = !!overridesByField[overrideKey]?.id;
     const overrideId = overridesByField[overrideKey]?.id;
     return (
@@ -286,7 +290,7 @@ function MetadataEditPanel({
               className="text-xs underline"
               style={{ color: "var(--text-muted)" }}
             >
-              Reset to auto
+              {t("media.detail.resetToAuto")}
             </button>
           )}
         </div>
@@ -312,20 +316,20 @@ function MetadataEditPanel({
       {FIELD_MAP.map(renderField)}
       <div className="grid grid-cols-2 gap-3">
         <div className="flex flex-col gap-1">
-          <Input label="IMDB ID" value={form.imdbId} onChange={set("imdbId")} placeholder="tt1234567" />
+          <Input label={t("media.detail.imdbId")} value={form.imdbId} onChange={set("imdbId")} placeholder="tt1234567" />
           {imdbLink && (
             <a href={imdbLink} target="_blank" rel="noopener noreferrer"
               className="text-xs underline" style={{ color: "var(--accent)" }}>
-              View on IMDB
+              {t("media.detail.viewOnImdb")}
             </a>
           )}
         </div>
         <div className="flex flex-col gap-1">
-          <Input label="TMDB ID" value={form.tmdbId} onChange={set("tmdbId")} placeholder="12345" />
+          <Input label={t("media.detail.tmdbId")} value={form.tmdbId} onChange={set("tmdbId")} placeholder="12345" />
           {tmdbLink && (
             <a href={tmdbLink} target="_blank" rel="noopener noreferrer"
               className="text-xs underline" style={{ color: "var(--accent)" }}>
-              View on TMDB
+              {t("media.detail.viewOnTmdb")}
             </a>
           )}
         </div>
@@ -333,18 +337,18 @@ function MetadataEditPanel({
       {(form.tmdbId.trim() !== origTmdbId || form.imdbId.trim() !== origImdbId) &&
         (form.tmdbId.trim() !== "" || form.imdbId.trim() !== "") && (
         <p className="text-xs" style={{ color: "var(--warning, #f59e0b)" }}>
-          ID changed — saving will re-fetch metadata from the provider
+          {t("media.detail.idChangedWarning")}
         </p>
       )}
       {item.id && <ArtworkPicker mediaItemId={item.id} />}
       <div className="flex gap-2 flex-wrap pt-1">
-        <Button type="submit" loading={saving}>Save</Button>
+        <Button type="submit" loading={saving}>{t("common.save")}</Button>
         <Button type="button" variant="secondary" loading={refreshStatus === "running"} onClick={handleRefresh}>
-          {refreshStatus === "done" ? "Done" : refreshStatus === "error" ? "Error" : "Refresh metadata"}
+          {refreshStatus === "done" ? t("common.done") : refreshStatus === "error" ? t("common.error") : t("media.detail.refreshMetadata")}
         </Button>
-        <Button type="button" variant="secondary" onClick={onCancel}>Cancel</Button>
+        <Button type="button" variant="secondary" onClick={onCancel}>{t("common.cancel")}</Button>
       </div>
-      {setOverride.isError && <p className="text-sm" style={{ color: "var(--color-danger)" }}>Failed to save.</p>}
+      {setOverride.isError && <p className="text-sm" style={{ color: "var(--color-danger)" }}>{t("media.detail.failedToSaveDot")}</p>}
     </form>
   );
 }
@@ -469,14 +473,15 @@ function CastCarousel({ people, title }: { people: V1MediaPerson[]; title: strin
 }
 
 function SeasonRow({ seasonId }: { seasonId: string }) {
+  const { t } = useTranslation();
   const { data: season } = useLibraryServiceGetMediaItem(seasonId);
   const { data: episodesData } = useLibraryServiceListMediaItems({ parentId: seasonId });
   const [open, setOpen] = useState(false);
   const episodes = [...(episodesData?.items ?? [])].sort((a, b) => (a.indexNumber ?? 0) - (b.indexNumber ?? 0));
 
   const seasonLabel = season?.indexNumber != null
-    ? `Season ${season.indexNumber}`
-    : (season?.title ?? "Season");
+    ? t("media.season", { number: season.indexNumber })
+    : (season?.title ?? t("media.season", { number: "" }));
 
   return (
     <div className="mb-2" style={{ border: "1px solid var(--border)", borderRadius: "var(--radius-md)" }}>
@@ -487,7 +492,7 @@ function SeasonRow({ seasonId }: { seasonId: string }) {
       >
         <span className="font-medium" style={{ color: "var(--text)" }}>{seasonLabel}</span>
         <span className="text-sm" style={{ color: "var(--text-muted)" }}>
-          {episodes.length} ep
+          {t("media.detail.ep", { count: episodes.length })}
           <svg className="w-4 h-4 inline-block ml-1 transition-transform" style={{ transform: open ? "rotate(180deg)" : "rotate(0)" }} fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
           </svg>
@@ -519,6 +524,7 @@ function SeasonRow({ seasonId }: { seasonId: string }) {
 }
 
 function PlaySeriesButton({ seriesId, onPlay }: { seriesId: string; onPlay: (episodeId: string) => void }) {
+  const { t } = useTranslation();
   const { data: seasonsData } = useLibraryServiceListMediaItems({ parentId: seriesId });
   const seasons = [...(seasonsData?.items ?? [])].sort((a, b) => (a.indexNumber ?? 0) - (b.indexNumber ?? 0));
   const firstSeason = seasons[0];
@@ -535,12 +541,13 @@ function PlaySeriesButton({ seriesId, onPlay }: { seriesId: string; onPlay: (epi
   return (
     <Button variant="primary" onClick={() => onPlay(firstEpisode.id!)}>
       <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path d="M6.3 2.8L17 10 6.3 17.2V2.8z" /></svg>
-      Play
+      {t("media.detail.play")}
     </Button>
   );
 }
 
 function SeriesSection({ item }: { item: V1MediaItem }) {
+  const { t } = useTranslation();
   const { data: seasonsData } = useLibraryServiceListMediaItems({ parentId: item.id ?? "" });
   const seasons = [...(seasonsData?.items ?? [])].sort((a, b) => (a.indexNumber ?? 0) - (b.indexNumber ?? 0));
   if (!seasons.length) return null;
@@ -548,8 +555,8 @@ function SeriesSection({ item }: { item: V1MediaItem }) {
   return (
     <div className="mt-10">
       <div className="flex items-center gap-3 mb-4">
-        <h2 className="text-lg font-semibold" style={{ color: "var(--text)" }}>Seasons</h2>
-        <Badge variant="info">{seasons.length} season{seasons.length !== 1 ? "s" : ""}</Badge>
+        <h2 className="text-lg font-semibold" style={{ color: "var(--text)" }}>{t("media.detail.seasons")}</h2>
+        <Badge variant="info">{t("media.detail.seasonCount", { count: seasons.length })}</Badge>
       </div>
       {seasons.map((s) => s.id ? <SeasonRow key={s.id} seasonId={s.id} /> : null)}
     </div>
@@ -557,6 +564,7 @@ function SeriesSection({ item }: { item: V1MediaItem }) {
 }
 
 function SeasonEpisodesSection({ item }: { item: V1MediaItem }) {
+  const { t } = useTranslation();
   const { data: episodesData } = useLibraryServiceListMediaItems({ parentId: item.id ?? "" });
   const episodes = [...(episodesData?.items ?? [])].sort((a, b) => (a.indexNumber ?? 0) - (b.indexNumber ?? 0));
   if (!episodes.length) return null;
@@ -564,8 +572,8 @@ function SeasonEpisodesSection({ item }: { item: V1MediaItem }) {
   return (
     <div className="mt-10">
       <div className="flex items-center gap-3 mb-4">
-        <h2 className="text-lg font-semibold" style={{ color: "var(--text)" }}>Episodes</h2>
-        <Badge variant="info">{episodes.length} episode{episodes.length !== 1 ? "s" : ""}</Badge>
+        <h2 className="text-lg font-semibold" style={{ color: "var(--text)" }}>{t("media.detail.episodes")}</h2>
+        <Badge variant="info">{t("media.detail.episodeCount", { count: episodes.length })}</Badge>
       </div>
       <div className="divide-y" style={{ border: "1px solid var(--border)", borderRadius: "var(--radius-md)", borderColor: "var(--border)" }}>
         {episodes.map((ep) => (
@@ -591,6 +599,7 @@ function SeasonEpisodesSection({ item }: { item: V1MediaItem }) {
 }
 
 function TrailerPlayer({ trailer, userLang }: { trailer: V1Trailer; userLang: string }) {
+  const { t } = useTranslation();
   const [open, setOpen] = useState(false);
 
   if (!trailer.key || !trailer.site) return null;
@@ -624,7 +633,7 @@ function TrailerPlayer({ trailer, userLang }: { trailer: V1Trailer; userLang: st
         <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
           <path d="M6.3 2.8L17 10 6.3 17.2V2.8z" />
         </svg>
-        Trailer
+        {t("media.detail.trailer")}
         {needsSubtitles && (
           <span className="text-xs px-1 rounded" style={{ backgroundColor: "rgba(255,255,255,0.15)", color: "var(--text-muted)" }}>
             CC
@@ -652,14 +661,14 @@ function TrailerPlayer({ trailer, userLang }: { trailer: V1Trailer; userLang: st
               />
             ) : (
               <div className="w-full h-full flex items-center justify-center" style={{ backgroundColor: "var(--surface)", borderRadius: "var(--radius-md)", color: "var(--text-muted)" }}>
-                Unsupported platform: {trailer.site}
+                {t("media.detail.unsupportedPlatform", { platform: trailer.site })}
               </div>
             )}
             <button
               onClick={() => setOpen(false)}
               className="absolute -top-10 right-0 text-white/70 hover:text-white text-sm"
             >
-              Close ✕
+              {t("media.detail.close")} ✕
             </button>
           </div>
         </div>
@@ -698,6 +707,7 @@ function TrailerSection({ trailers }: { trailers?: V1Trailer[] }) {
 }
 
 function SimilarSection({ item }: { item: V1MediaItem }) {
+  const { t } = useTranslation();
   const { data: similarData } = useFeedServiceSimilarItems(item.id ?? "");
   const firstGenre = item.genres?.[0];
   const hasSimilar = (similarData?.items?.length ?? 0) > 0;
@@ -721,7 +731,7 @@ function SimilarSection({ item }: { item: V1MediaItem }) {
 
   return (
     <div className="mt-10">
-      <h2 className="text-lg font-semibold mb-4" style={{ color: "var(--text)" }}>Similar Titles</h2>
+      <h2 className="text-lg font-semibold mb-4" style={{ color: "var(--text)" }}>{t("media.detail.similarTitles")}</h2>
       <div className="flex gap-4 overflow-x-auto pb-2" style={{ scrollbarWidth: "thin" }}>
         {cards.map((c) => (
           <MediaCard key={c.id} item={c} />
@@ -732,6 +742,7 @@ function SimilarSection({ item }: { item: V1MediaItem }) {
 }
 
 export function MediaDetail({ item, onMetadataUpdated, initialEdit }: MediaDetailProps) {
+  const { t } = useTranslation();
   const [watched, setWatched] = useState(false);
   const [fileInfoOpen, setFileInfoOpen] = useState(false);
   const [editing, setEditing] = useState(initialEdit ?? false);
@@ -762,12 +773,12 @@ export function MediaDetail({ item, onMetadataUpdated, initialEdit }: MediaDetai
 
   const markWatched = usePlaybackServiceMarkAsWatched({
     mutation: {
-      onSuccess: () => { setWatched(true); toast.success("Marked as watched"); },
+      onSuccess: () => { setWatched(true); toast.success(t("media.detail.markedWatched")); },
     },
   });
   const markUnwatched = usePlaybackServiceMarkAsUnwatched({
     mutation: {
-      onSuccess: () => { setWatched(false); toast.success("Marked as unwatched"); },
+      onSuccess: () => { setWatched(false); toast.success(t("media.detail.markedUnwatched")); },
     },
   });
 
@@ -784,20 +795,20 @@ export function MediaDetail({ item, onMetadataUpdated, initialEdit }: MediaDetai
   const crew = [...directors, ...writers, ...producers];
 
   const breadcrumbItems = (() => {
-    const crumbs: Array<{ label: string; to?: string }> = [{ label: "Home", to: "/home" }];
+    const crumbs: Array<{ label: string; to?: string }> = [{ label: t("common.nav.home"), to: "/home" }];
     if (librarySlug && library) {
-      crumbs.push({ label: library.name ?? "Library", to: `/library/${librarySlug}` });
+      crumbs.push({ label: library.name ?? t("media.home.library"), to: `/library/${librarySlug}` });
     }
     if (isEpisode && grandParentItem) {
-      crumbs.push({ label: grandParentItem.title ?? "Series", to: `/media/${grandParentItem.id}` });
+      crumbs.push({ label: grandParentItem.title ?? t("media.library.series"), to: `/media/${grandParentItem.id}` });
       if (parentItem) {
-        const seasonLabel = parentItem.indexNumber != null ? `Season ${parentItem.indexNumber}` : (parentItem.title ?? "Season");
+        const seasonLabel = parentItem.indexNumber != null ? t("media.season", { number: parentItem.indexNumber }) : (parentItem.title ?? t("media.season", { number: "" }));
         crumbs.push({ label: seasonLabel, to: `/media/${parentItem.id}` });
       }
       crumbs.push({ label: item.title ?? "" });
     } else if (isSeason && parentItem) {
-      crumbs.push({ label: parentItem.title ?? "Series", to: `/media/${parentItem.id}` });
-      const seasonLabel = item.indexNumber != null ? `Season ${item.indexNumber}` : (item.title ?? "Season");
+      crumbs.push({ label: parentItem.title ?? t("media.library.series"), to: `/media/${parentItem.id}` });
+      const seasonLabel = item.indexNumber != null ? t("media.season", { number: item.indexNumber }) : (item.title ?? t("media.season", { number: "" }));
       crumbs.push({ label: seasonLabel });
     } else {
       crumbs.push({ label: item.title ?? "" });
@@ -893,7 +904,7 @@ export function MediaDetail({ item, onMetadataUpdated, initialEdit }: MediaDetai
             {item.id && (
               <button
                 onClick={() => setEditing((v) => !v)}
-                title="Edit metadata"
+                title={t("media.detail.editMetadata")}
                 className="flex-shrink-0 p-1.5 rounded-full transition-opacity hover:opacity-80"
                 style={{ backgroundColor: "rgba(0,0,0,0.4)", color: "rgba(255,255,255,0.8)" }}
               >
@@ -954,7 +965,7 @@ export function MediaDetail({ item, onMetadataUpdated, initialEdit }: MediaDetai
 
           {directors.length > 0 && (
             <p className="text-sm" style={{ color: "var(--text-muted)" }}>
-              <span className="font-medium" style={{ color: "var(--text)" }}>Director: </span>
+              <span className="font-medium" style={{ color: "var(--text)" }}>{t("media.detail.director")}</span>
               {directors.map((d, i) => (
                 <span key={d.id ?? d.name}>
                   {i > 0 && ", "}
@@ -968,7 +979,7 @@ export function MediaDetail({ item, onMetadataUpdated, initialEdit }: MediaDetai
 
           {writers.length > 0 && (
             <p className="text-sm" style={{ color: "var(--text-muted)" }}>
-              <span className="font-medium" style={{ color: "var(--text)" }}>Writer: </span>
+              <span className="font-medium" style={{ color: "var(--text)" }}>{t("media.detail.writer")}</span>
               {writers.map((w, i) => (
                 <span key={w.id ?? w.name}>
                   {i > 0 && ", "}
@@ -982,7 +993,7 @@ export function MediaDetail({ item, onMetadataUpdated, initialEdit }: MediaDetai
 
           {item.studios && item.studios.length > 0 && (
             <p className="text-sm" style={{ color: "var(--text-muted)" }}>
-              <span className="font-medium" style={{ color: "var(--text)" }}>Studio: </span>
+              <span className="font-medium" style={{ color: "var(--text)" }}>{t("media.detail.studio")}</span>
               {item.studios.join(", ")}
             </p>
           )}
@@ -1017,24 +1028,24 @@ export function MediaDetail({ item, onMetadataUpdated, initialEdit }: MediaDetai
                 }}
               >
                 <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path d="M6.3 2.8L17 10 6.3 17.2V2.8z" /></svg>
-                Play
+                {t("media.detail.play")}
               </Button>
             )}
             {item.id && (
               watched ? (
-                <Button variant="secondary" loading={markUnwatched.isPending} onClick={() => { if (profileId) markUnwatched.mutate({ mediaItemId: item.id!, params: { profileId } }); else toast.error("No profile selected"); }} data-testid="mark-unwatched-btn">
+                <Button variant="secondary" loading={markUnwatched.isPending} onClick={() => { if (profileId) markUnwatched.mutate({ mediaItemId: item.id!, params: { profileId } }); else toast.error(t("media.detail.noProfileSelected")); }} data-testid="mark-unwatched-btn">
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" d="M3.98 8.223A10.477 10.477 0 001.934 12C3.226 16.338 7.244 19.5 12 19.5c.993 0 1.953-.138 2.863-.395M6.228 6.228A10.45 10.45 0 0112 4.5c4.756 0 8.773 3.162 10.065 7.498a10.523 10.523 0 01-4.293 5.774M6.228 6.228L3 3m3.228 3.228l3.65 3.65m7.894 7.894L21 21m-3.228-3.228l-3.65-3.65m0 0a3 3 0 10-4.243-4.243m4.242 4.242L9.88 9.88" />
                   </svg>
-                  Mark Unwatched
+                  {t("media.detail.markUnwatched")}
                 </Button>
               ) : (
-                <Button variant="secondary" loading={markWatched.isPending} onClick={() => { if (profileId) markWatched.mutate({ mediaItemId: item.id!, params: { profileId } }); else toast.error("No profile selected"); }} data-testid="mark-watched-btn">
+                <Button variant="secondary" loading={markWatched.isPending} onClick={() => { if (profileId) markWatched.mutate({ mediaItemId: item.id!, params: { profileId } }); else toast.error(t("media.detail.noProfileSelected")); }} data-testid="mark-watched-btn">
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178z" />
                     <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
                   </svg>
-                  Mark Watched
+                  {t("media.detail.markWatched")}
                 </Button>
               )
             )}
@@ -1049,7 +1060,7 @@ export function MediaDetail({ item, onMetadataUpdated, initialEdit }: MediaDetai
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
                 </svg>
-                Add to Playlist
+                {t("media.detail.addToPlaylist")}
               </Button>
             )}
           </div>
@@ -1076,7 +1087,7 @@ export function MediaDetail({ item, onMetadataUpdated, initialEdit }: MediaDetai
             />
           )}
           {item.id && (
-            <Modal open={editing} onClose={() => setEditing(false)} title="Edit Metadata">
+            <Modal open={editing} onClose={() => setEditing(false)} title={t("media.detail.editMetadata")}>
               <div className="overflow-y-auto" style={{ maxHeight: "70vh" }}>
                 <MetadataEditPanel
                   item={item}
@@ -1090,8 +1101,8 @@ export function MediaDetail({ item, onMetadataUpdated, initialEdit }: MediaDetai
       </div>
 
       {/* Cast & Crew carousels */}
-      <div data-testid="cast-section"><CastCarousel people={actors} title="Cast" /></div>
-      {crew.length > 0 && <CastCarousel people={crew} title="Crew" />}
+      <div data-testid="cast-section"><CastCarousel people={actors} title={t("media.detail.cast")} /></div>
+      {crew.length > 0 && <CastCarousel people={crew} title={t("media.detail.crew")} />}
 
       {/* Seasons (series detail) */}
       {isSeries && <div data-testid="seasons-section"><SeriesSection item={item} /></div>}
@@ -1117,7 +1128,7 @@ export function MediaDetail({ item, onMetadataUpdated, initialEdit }: MediaDetai
             >
               <path d="M9 18l6-6-6-6" />
             </svg>
-            File Info
+            {t("media.detail.fileInfo")}
           </button>
           {fileInfoOpen && (
             <div className="space-y-2">
