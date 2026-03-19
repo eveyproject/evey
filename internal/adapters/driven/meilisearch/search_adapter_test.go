@@ -153,7 +153,7 @@ func TestSearch(t *testing.T) {
 	}
 	adapter := &SearchAdapter{index: fake}
 
-	hits, total, err := adapter.Search(context.Background(), "fight", map[string]string{"type": "movie"}, 20)
+	hits, total, err := adapter.Search(context.Background(), "fight", map[string]string{"type": "movie"}, nil, 20)
 	require.NoError(t, err)
 	require.Len(t, hits, 1)
 	assert.Equal(t, int64(1), total)
@@ -175,7 +175,7 @@ func TestSearch_NoFilters(t *testing.T) {
 	}
 	adapter := &SearchAdapter{index: fake}
 
-	hits, _, err := adapter.Search(context.Background(), "hello", nil, 20)
+	hits, _, err := adapter.Search(context.Background(), "hello", nil, nil, 20)
 	require.NoError(t, err)
 	assert.Empty(t, hits)
 	assert.Nil(t, fake.searchReq.Filter)
@@ -187,9 +187,27 @@ func TestSearch_Error(t *testing.T) {
 	}
 	adapter := &SearchAdapter{index: fake}
 
-	hits, _, err := adapter.Search(context.Background(), "fail", nil, 20)
+	hits, _, err := adapter.Search(context.Background(), "fail", nil, nil, 20)
 	require.Error(t, err)
 	assert.Nil(t, hits)
+}
+
+func TestBuildFilterString_RangeFilters(t *testing.T) {
+	f := BuildFilterString(map[string]string{"year_min": "2000", "year_max": "2020"})
+	assert.Contains(t, f, "year >= 2000")
+	assert.Contains(t, f, "year <= 2020")
+	assert.Contains(t, f, " AND ")
+}
+
+func TestSearch_WithSort(t *testing.T) {
+	fake := &fakeIndex{
+		searchResp: &ms.SearchResponse{Hits: ms.Hits{}},
+	}
+	adapter := &SearchAdapter{index: fake}
+
+	_, _, err := adapter.Search(context.Background(), "test", nil, []string{"year:desc"}, 20)
+	require.NoError(t, err)
+	assert.Equal(t, []string{"year:desc"}, fake.searchReq.Sort)
 }
 
 func TestSearch_DefaultLimit(t *testing.T) {
@@ -198,7 +216,7 @@ func TestSearch_DefaultLimit(t *testing.T) {
 	}
 	adapter := &SearchAdapter{index: fake}
 
-	_, _, err := adapter.Search(context.Background(), "test", nil, 0)
+	_, _, err := adapter.Search(context.Background(), "test", nil, nil, 0)
 	require.NoError(t, err)
 	assert.Equal(t, int64(20), fake.searchReq.Limit)
 }

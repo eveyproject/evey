@@ -101,8 +101,17 @@ func BuildFilterString(filters map[string]string) string {
 	}
 	parts := make([]string, 0, len(filters))
 	for k, v := range filters {
-		escaped := strings.ReplaceAll(v, "'", "\\'")
-		parts = append(parts, fmt.Sprintf("%s = '%s'", k, escaped))
+		switch {
+		case strings.HasSuffix(k, "_min"):
+			field := strings.TrimSuffix(k, "_min")
+			parts = append(parts, fmt.Sprintf("%s >= %s", field, v))
+		case strings.HasSuffix(k, "_max"):
+			field := strings.TrimSuffix(k, "_max")
+			parts = append(parts, fmt.Sprintf("%s <= %s", field, v))
+		default:
+			escaped := strings.ReplaceAll(v, "'", "\\'")
+			parts = append(parts, fmt.Sprintf("%s = '%s'", k, escaped))
+		}
 	}
 	return strings.Join(parts, " AND ")
 }
@@ -124,7 +133,7 @@ func (a *SearchAdapter) RemoveMediaItem(ctx context.Context, id string) error {
 	return nil
 }
 
-func (a *SearchAdapter) Search(ctx context.Context, query string, filters map[string]string, limit int64) ([]library.SearchHit, int64, error) {
+func (a *SearchAdapter) Search(ctx context.Context, query string, filters map[string]string, sort []string, limit int64) ([]library.SearchHit, int64, error) {
 	if limit <= 0 {
 		limit = 20
 	}
@@ -138,6 +147,9 @@ func (a *SearchAdapter) Search(ctx context.Context, query string, filters map[st
 	}
 	if f := BuildFilterString(filters); f != "" {
 		req.Filter = f
+	}
+	if len(sort) > 0 {
+		req.Sort = sort
 	}
 
 	resp, err := a.index.SearchWithContext(ctx, query, req)

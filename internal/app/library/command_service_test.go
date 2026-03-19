@@ -1329,7 +1329,7 @@ func TestRemoveOrphans_AlsoRemovesFromSearchIndex(t *testing.T) {
 	_, _, err := h.svc.ScanLibrary(context.Background(), "lib-1")
 	require.NoError(t, err)
 
-	hits, _, _ := h.search.Search(context.Background(), "gone", nil, 10)
+	hits, _, _ := h.search.Search(context.Background(), "gone", nil, nil, 10)
 	assert.Empty(t, hits)
 }
 
@@ -1406,7 +1406,7 @@ func TestScanLibrary_NewFile_IndexedInSearch(t *testing.T) {
 	_, _, err := h.svc.ScanLibrary(context.Background(), "lib-1")
 	require.NoError(t, err)
 
-	hits, total, err := h.search.Search(context.Background(), "batman", nil, 10)
+	hits, total, err := h.search.Search(context.Background(), "batman", nil, nil, 10)
 	require.NoError(t, err)
 	assert.Equal(t, int64(1), total)
 	assert.Equal(t, "Batman", hits[0].Title)
@@ -1494,7 +1494,7 @@ func TestScanLibrary_NewFile_IndexesInSearch(t *testing.T) {
 	_, _, err := svc.ScanLibrary(context.Background(), "lib-idx")
 	require.NoError(t, err)
 
-	hits, total, err := search.Search(context.Background(), "batman", nil, 10)
+	hits, total, err := search.Search(context.Background(), "batman", nil, nil, 10)
 	require.NoError(t, err)
 	assert.Equal(t, int64(1), total)
 	assert.Equal(t, "Batman", hits[0].Title)
@@ -1526,7 +1526,7 @@ func TestScanLibrary_OrphanRemovedFromSearchIndex(t *testing.T) {
 	_, _, err := svc.ScanLibrary(context.Background(), "lib-orphan")
 	require.NoError(t, err)
 
-	hits, _, err := search.Search(context.Background(), "deleted", nil, 10)
+	hits, _, err := search.Search(context.Background(), "deleted", nil, nil, 10)
 	require.NoError(t, err)
 	assert.Empty(t, hits, "orphaned item should be removed from search index")
 }

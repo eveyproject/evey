@@ -59,6 +59,6 @@ func (s *QueryService) GetMediaStreams(ctx context.Context, mediaItemID string) 
 	return s.streams.GetByMediaItemID(ctx, mediaItemID)
 }
 
-func (s *QueryService) SearchMedia(ctx context.Context, query string, filters map[string]string, limit int64) ([]library.SearchHit, int64, error) {
-	return s.search.Search(ctx, query, filters, limit)
+func (s *QueryService) SearchMedia(ctx context.Context, query string, filters map[string]string, sort []string, limit int64) ([]library.SearchHit, int64, error) {
+	return s.search.Search(ctx, query, filters, sort, limit)
 }

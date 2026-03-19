@@ -1,6 +1,5 @@
 import { useState, useEffect, useRef } from "react";
 import { createLazyFileRoute, useNavigate } from "@tanstack/react-router";
-import { useTranslation } from "react-i18next";
 import { useQuery } from "@tanstack/react-query";
 import { libraryServiceSearchMedia } from "@evey/api";
 import { EmptyState } from "@/components/ui/EmptyState";
@@ -15,21 +14,38 @@ export const Route = createLazyFileRoute("/_auth/search")({
 
 type MediaTypeFilter = "MEDIA_ITEM_TYPE_MOVIE" | "MEDIA_ITEM_TYPE_SERIES";
 
+const typeFilters: { label: string; value: MediaTypeFilter | undefined }[] = [
+  { label: "All", value: undefined },
+  { label: "Movies", value: "MEDIA_ITEM_TYPE_MOVIE" },
+  { label: "Series", value: "MEDIA_ITEM_TYPE_SERIES" },
+];
+
+const sortOptions = [
+  { label: "Relevance", field: undefined, order: undefined },
+  { label: "Title A-Z", field: "MEDIA_SORT_FIELD_TITLE" as const, order: "SORT_ORDER_ASC" as const },
+  { label: "Year (newest)", field: "MEDIA_SORT_FIELD_YEAR" as const, order: "SORT_ORDER_DESC" as const },
+  { label: "Date added", field: "MEDIA_SORT_FIELD_DATE_ADDED" as const, order: "SORT_ORDER_DESC" as const },
+];
+
+const COMMON_GENRES = [
+  "Action", "Adventure", "Animation", "Comedy", "Crime", "Documentary",
+  "Drama", "Fantasy", "Horror", "Mystery", "Romance", "Sci-Fi",
+  "Thriller", "War", "Western",
+];
+
 function SearchPage() {
-  const { t } = useTranslation();
   const { q } = Route.useSearch();
   const navigate = useNavigate();
   const inputRef = useRef<HTMLInputElement>(null);
 
-  const typeFilters: { label: string; value: MediaTypeFilter | undefined }[] = [
-    { label: t("media.search.all"), value: undefined },
-    { label: t("media.search.movies"), value: "MEDIA_ITEM_TYPE_MOVIE" },
-    { label: t("media.search.series"), value: "MEDIA_ITEM_TYPE_SERIES" },
-  ];
-
   const [inputValue, setInputValue] = useState(q ?? "");
   const [debouncedQuery, setDebouncedQuery] = useState(q?.trim() ?? "");
   const [typeFilter, setTypeFilter] = useState<MediaTypeFilter | undefined>(undefined);
+  const [genre, setGenre] = useState("");
+  const [yearMin, setYearMin] = useState("");
+  const [yearMax, setYearMax] = useState("");
+  const [sortIdx, setSortIdx] = useState(0);
+  const [showFilters, setShowFilters] = useState(false);
   const { recents, push: pushRecent, remove: removeRecent, clear: clearRecents } = useRecentSearches();
 
   useEffect(() => {
@@ -58,13 +74,21 @@ function SearchPage() {
     inputRef.current?.focus();
   }, []);
 
+  const sort = sortOptions[sortIdx];
+  const parsedYearMin = yearMin ? parseInt(yearMin, 10) : undefined;
+  const parsedYearMax = yearMax ? parseInt(yearMax, 10) : undefined;
+
   const { data, isLoading } = useQuery({
-    queryKey: ["/api/v1/media/search", debouncedQuery, typeFilter],
+    queryKey: ["/api/v1/media/search", debouncedQuery, typeFilter, genre, parsedYearMin, parsedYearMax, sort.field, sort.order],
     queryFn: ({ signal }) =>
       libraryServiceSearchMedia(
         {
           query: debouncedQuery,
           ...(typeFilter ? { type: typeFilter } : {}),
+          ...(genre ? { genre } : {}),
+          ...(parsedYearMin ? { yearMin: parsedYearMin } : {}),
+          ...(parsedYearMax ? { yearMax: parsedYearMax } : {}),
+          ...(sort.field ? { sortField: sort.field, sortOrder: sort.order } : {}),
           limit: 40,
         },
         signal,
@@ -76,6 +100,15 @@ function SearchPage() {
   const totalHits = data?.totalHits ?? items.length;
 
   const hasQuery = debouncedQuery.length > 1;
+  const hasActiveFilters = !!typeFilter || !!genre || !!yearMin || !!yearMax || sortIdx !== 0;
+
+  const clearAllFilters = () => {
+    setTypeFilter(undefined);
+    setGenre("");
+    setYearMin("");
+    setYearMax("");
+    setSortIdx(0);
+  };
 
   return (
     <div>
@@ -95,7 +128,7 @@ function SearchPage() {
           <input
             ref={inputRef}
             type="search"
-            placeholder={t("media.search.placeholder")}
+            placeholder="Search movies, series..."
             data-testid="search-page-input"
             value={inputValue}
             onChange={(e) => setInputValue(e.target.value)}
@@ -120,24 +153,133 @@ function SearchPage() {
       </div>
 
       {hasQuery && (
-        <div className="flex items-center gap-1 mb-5" data-testid="search-type-filters">
-          {typeFilters.map((f) => (
+        <div className="mb-5 space-y-3">
+          <div className="flex items-center gap-2 flex-wrap">
+            <div className="flex items-center gap-1" data-testid="search-type-filters">
+              {typeFilters.map((f) => (
+                <button
+                  key={f.label}
+                  data-testid={`search-filter-${f.label.toLowerCase()}`}
+                  onClick={() => setTypeFilter(f.value)}
+                  className="px-3 py-1.5 rounded-full text-sm font-medium transition-colors cursor-pointer"
+                  style={{
+                    backgroundColor:
+                      typeFilter === f.value ? "var(--accent)" : "var(--surface)",
+                    color:
+                      typeFilter === f.value ? "#fff" : "var(--text-secondary)",
+                    border: `1px solid ${typeFilter === f.value ? "var(--accent)" : "var(--border)"}`,
+                  }}
+                >
+                  {f.label}
+                </button>
+              ))}
+            </div>
+
             <button
-              key={f.label}
-              data-testid={`search-filter-${f.label.toLowerCase()}`}
-              onClick={() => setTypeFilter(f.value)}
-              className="px-3 py-1.5 rounded-full text-sm font-medium transition-colors cursor-pointer"
+              data-testid="search-toggle-filters"
+              onClick={() => setShowFilters((v) => !v)}
+              className="px-3 py-1.5 rounded-full text-sm font-medium transition-colors cursor-pointer flex items-center gap-1.5"
               style={{
-                backgroundColor:
-                  typeFilter === f.value ? "var(--accent)" : "var(--surface)",
-                color:
-                  typeFilter === f.value ? "#fff" : "var(--text-secondary)",
-                border: `1px solid ${typeFilter === f.value ? "var(--accent)" : "var(--border)"}`,
+                backgroundColor: showFilters ? "var(--accent)" : "var(--surface)",
+                color: showFilters ? "#fff" : "var(--text-secondary)",
+                border: `1px solid ${showFilters ? "var(--accent)" : "var(--border)"}`,
               }}
             >
-              {f.label}
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                <path strokeLinecap="round" d="M3 4h18M6 8h12M9 12h6M11 16h2" />
+              </svg>
+              Filters
+              {hasActiveFilters && !showFilters && (
+                <span
+                  className="w-2 h-2 rounded-full"
+                  style={{ backgroundColor: "var(--accent)" }}
+                />
+              )}
             </button>
-          ))}
+
+            {hasActiveFilters && (
+              <button
+                onClick={clearAllFilters}
+                className="text-xs hover:underline cursor-pointer"
+                style={{ color: "var(--text-muted)" }}
+              >
+                Clear filters
+              </button>
+            )}
+          </div>
+
+          {showFilters && (
+            <div
+              data-testid="search-filters-panel"
+              className="flex flex-wrap gap-4 p-4 rounded-[var(--radius-lg)]"
+              style={{
+                backgroundColor: "var(--surface)",
+                border: "1px solid var(--border)",
+              }}
+            >
+              <div className="flex flex-col gap-1.5">
+                <label className="text-xs font-medium" style={{ color: "var(--text-muted)" }}>
+                  Genre
+                </label>
+                <select
+                  data-testid="search-filter-genre"
+                  value={genre}
+                  onChange={(e) => setGenre(e.target.value)}
+                  className="px-3 py-1.5 rounded-[var(--radius-md)] text-sm bg-[var(--surface-raised)] border border-[var(--border)] text-[var(--text)] cursor-pointer"
+                >
+                  <option value="">All genres</option>
+                  {COMMON_GENRES.map((g) => (
+                    <option key={g} value={g}>{g}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="flex flex-col gap-1.5">
+                <label className="text-xs font-medium" style={{ color: "var(--text-muted)" }}>
+                  Year
+                </label>
+                <div className="flex items-center gap-2">
+                  <input
+                    data-testid="search-filter-year-min"
+                    type="number"
+                    placeholder="From"
+                    value={yearMin}
+                    onChange={(e) => setYearMin(e.target.value)}
+                    className="w-20 px-2 py-1.5 rounded-[var(--radius-md)] text-sm bg-[var(--surface-raised)] border border-[var(--border)] text-[var(--text)] placeholder:text-[var(--text-muted)]"
+                    min={1900}
+                    max={2099}
+                  />
+                  <span className="text-xs" style={{ color: "var(--text-muted)" }}>-</span>
+                  <input
+                    data-testid="search-filter-year-max"
+                    type="number"
+                    placeholder="To"
+                    value={yearMax}
+                    onChange={(e) => setYearMax(e.target.value)}
+                    className="w-20 px-2 py-1.5 rounded-[var(--radius-md)] text-sm bg-[var(--surface-raised)] border border-[var(--border)] text-[var(--text)] placeholder:text-[var(--text-muted)]"
+                    min={1900}
+                    max={2099}
+                  />
+                </div>
+              </div>
+
+              <div className="flex flex-col gap-1.5">
+                <label className="text-xs font-medium" style={{ color: "var(--text-muted)" }}>
+                  Sort by
+                </label>
+                <select
+                  data-testid="search-filter-sort"
+                  value={sortIdx}
+                  onChange={(e) => setSortIdx(Number(e.target.value))}
+                  className="px-3 py-1.5 rounded-[var(--radius-md)] text-sm bg-[var(--surface-raised)] border border-[var(--border)] text-[var(--text)] cursor-pointer"
+                >
+                  {sortOptions.map((opt, i) => (
+                    <option key={opt.label} value={i}>{opt.label}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+          )}
         </div>
       )}
 
@@ -161,8 +303,8 @@ function SearchPage() {
         >
           <EmptyState
             icon="search"
-            title={t("media.search.noResultsFor", { query: debouncedQuery })}
-            description={t("media.search.noResultsDesc")}
+            title={`No results for \u201c${debouncedQuery}\u201d`}
+            description="Try a different search term, check the spelling, or change the filter."
           />
         </div>
       )}
@@ -170,13 +312,13 @@ function SearchPage() {
       {!hasQuery && !isLoading && recents.length > 0 && (
         <div className="mb-6">
           <div className="flex items-center justify-between mb-3">
-            <span className="text-sm font-semibold" style={{ color: "var(--text-muted)" }}>{t("media.search.recentSearches")}</span>
+            <span className="text-sm font-semibold" style={{ color: "var(--text-muted)" }}>Recent searches</span>
             <button
               onClick={clearRecents}
               className="text-xs hover:underline cursor-pointer"
               style={{ color: "var(--text-muted)" }}
             >
-              {t("media.search.clearAll")}
+              Clear all
             </button>
           </div>
           <div className="flex flex-wrap gap-2">
@@ -196,7 +338,7 @@ function SearchPage() {
                   onClick={() => removeRecent(r)}
                   className="ml-1 cursor-pointer transition-colors hover:opacity-80"
                   style={{ color: "var(--text-muted)" }}
-                  aria-label={`${t("common.remove")} ${r}`}
+                  aria-label={`Remove ${r}`}
                 >
                   <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
                     <path strokeLinecap="round" d="M6 18L18 6M6 6l12 12" />
@@ -218,8 +360,8 @@ function SearchPage() {
         >
           <EmptyState
             icon="search"
-            title={t("media.search.searchLibrary")}
-            description={t("media.search.searchLibraryDesc")}
+            title="Search your media library"
+            description="Type at least 2 characters to search across all your movies, series, and more."
           />
         </div>
       )}
@@ -227,10 +369,8 @@ function SearchPage() {
       {items.length > 0 && (
         <>
           <p className="text-sm mb-4" style={{ color: "var(--text-muted)" }}>
-            {totalHits === 1
-              ? t("media.search.resultCount", { count: totalHits })
-              : t("media.search.resultCount_plural", { count: totalHits })}
-            {" "}{t("media.search.resultFor", { query: debouncedQuery })}
+            {totalHits} result{totalHits !== 1 ? "s" : ""} for &ldquo;
+            {debouncedQuery}&rdquo;
           </p>
           <MediaGrid>
             {items.map((item) => (

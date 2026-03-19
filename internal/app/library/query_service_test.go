@@ -138,7 +138,7 @@ func TestQueryService_SearchMedia_Finds(t *testing.T) {
 	f.search.IndexMediaItem(context.Background(), &library.MediaItem{ID: "m2", Title: "Batman Returns"}, nil)
 	f.search.IndexMediaItem(context.Background(), &library.MediaItem{ID: "m3", Title: "Superman"}, nil)
 
-	hits, total, err := f.svc.SearchMedia(context.Background(), "batman", nil, 10)
+	hits, total, err := f.svc.SearchMedia(context.Background(), "batman", nil, nil, 10)
 	require.NoError(t, err)
 	assert.Equal(t, int64(2), total)
 	assert.Len(t, hits, 2)
@@ -150,7 +150,7 @@ func TestQueryService_SearchMedia_LimitApplied(t *testing.T) {
 	f.search.IndexMediaItem(context.Background(), &library.MediaItem{ID: "m1", Title: "Batman Begins"}, nil)
 	f.search.IndexMediaItem(context.Background(), &library.MediaItem{ID: "m2", Title: "Batman Returns"}, nil)
 
-	hits, _, err := f.svc.SearchMedia(context.Background(), "batman", nil, 1)
+	hits, _, err := f.svc.SearchMedia(context.Background(), "batman", nil, nil, 1)
 	require.NoError(t, err)
 	assert.Len(t, hits, 1)
 }
@@ -158,7 +158,7 @@ func TestQueryService_SearchMedia_LimitApplied(t *testing.T) {
 func TestQueryService_SearchMedia_NoResults(t *testing.T) {
 	t.Parallel()
 	f := newQuerySvcFull()
-	hits, total, err := f.svc.SearchMedia(context.Background(), "xyzzy-notfound", nil, 10)
+	hits, total, err := f.svc.SearchMedia(context.Background(), "xyzzy-notfound", nil, nil, 10)
 	require.NoError(t, err)
 	assert.Equal(t, int64(0), total)
 	assert.Empty(t, hits)
@@ -381,7 +381,7 @@ func TestQueryService_SearchMedia_HitContent(t *testing.T) {
 		Year: &year, Genres: []string{"action"}, OfficialRating: "PG-13",
 	}, nil)
 
-	hits, total, err := f.svc.SearchMedia(context.Background(), "batman", nil, 10)
+	hits, total, err := f.svc.SearchMedia(context.Background(), "batman", nil, nil, 10)
 	require.NoError(t, err)
 	assert.Equal(t, int64(1), total)
 	require.Len(t, hits, 1)
