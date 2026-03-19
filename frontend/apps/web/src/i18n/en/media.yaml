@@ -78,6 +78,18 @@ library:
   itemsAddedToPlaylist: "{{count}} item(s) added to \"{{name}}\""
 detail:
   notFound: Media item not found.
+contextMenu:
+  editMetadata: Edit metadata
+  addToPlaylist: Add to Playlist
+  addToCollection: Add to Collection
+  addToFavorites: Add to Favorites
+  removeFromFavorites: Remove from Favorites
+  download: Download
+  markWatched: Mark as watched
+  markUnwatched: Mark as unwatched
+  markedWatched: Marked as watched
+  markedUnwatched: Marked as unwatched
+  markError: "Failed to mark as {{status}}"
 music:
   title: Music
   tracks: Tracks

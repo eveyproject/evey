@@ -48,6 +48,7 @@ activity:
 
 library:
   parental_restricted: "Content restricted by parental controls"
+  name_required: "Library name is required"
 
 admin:
   setup_already_completed: "Setup already completed"
@@ -93,9 +94,6 @@ subtitle:
   search_failed: "Subtitle search failed"
   download_failed: "Subtitle download failed"
   file_id_required: "File ID is required"
-
-library:
-  name_required: "Library name is required"
 
 plugin:
   blocked_by_security: "Plugin blocked by security analysis"
