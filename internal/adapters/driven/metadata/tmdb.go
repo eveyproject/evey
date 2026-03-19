@@ -175,6 +175,7 @@ func (p *TMDBProvider) GetByProviderID(ctx context.Context, providerID string, m
 		"append_to_response":      {"credits,keywords,images,external_ids,videos"},
 		"language":                {p.language},
 		"include_image_language":  {p.language + ",en,null"},
+		"include_video_language":  {p.language + ",en,null"},
 	}
 	u := fmt.Sprintf("%s%s?%s", p.baseURL, endpoint, params.Encode())
 
@@ -451,22 +452,11 @@ func mapDetailCollection(col *tmdbCollection) *domain.CollectionRef {
 	return ref
 }
 
-// selectTrailers filters videos to trailers only, sorts server language first
-// (official first within each group), marks VO trailers with UseSubtitles=true.
-func selectTrailers(videos []tmdbVideo, serverLang string) []domain.TrailerResult {
-	var serverLangTrailers, otherTrailers []tmdbVideo
-	for _, v := range videos {
-		if v.Type != "Trailer" || v.Key == "" {
-			continue
-		}
-		if v.Language == serverLang {
-			serverLangTrailers = append(serverLangTrailers, v)
-		} else {
-			otherTrailers = append(otherTrailers, v)
-		}
-	}
+const maxTrailersPerLanguage = 3
 
-	// official first within each group
+// selectTrailers filters videos to type "Trailer", keeps max 3 per language,
+// sorted official-first within each language group.
+func selectTrailers(videos []tmdbVideo, _ string) []domain.TrailerResult {
 	sortByOfficial := func(a, b tmdbVideo) int {
 		if a.Official && !b.Official {
 			return -1
@@ -476,35 +466,29 @@ func selectTrailers(videos []tmdbVideo, serverLang string) []domain.TrailerResul
 		}
 		return 0
 	}
-	sortVideos(serverLangTrailers, sortByOfficial)
-	sortVideos(otherTrailers, sortByOfficial)
+
+	byLang := map[string][]tmdbVideo{}
+	for _, v := range videos {
+		if v.Type != "Trailer" || v.Key == "" {
+			continue
+		}
+		byLang[v.Language] = append(byLang[v.Language], v)
+	}
 
 	var result []domain.TrailerResult
-	for _, v := range serverLangTrailers {
-		result = append(result, domain.TrailerResult{
-			Site:         v.Site,
-			Key:          v.Key,
-			Language:     v.Language,
-			Official:     v.Official,
-			Type:         v.Type,
-			UseSubtitles: false,
-		})
-		if len(result) >= 3 {
-			return result
-		}
-	}
-	for _, v := range otherTrailers {
-		result = append(result, domain.TrailerResult{
-			Site:             v.Site,
-			Key:              v.Key,
-			Language:         v.Language,
-			Official:         v.Official,
-			Type:             v.Type,
-			UseSubtitles:     true,
-			SubtitleLanguage: serverLang,
-		})
-		if len(result) >= 3 {
-			return result
+	for _, vids := range byLang {
+		sortVideos(vids, sortByOfficial)
+		for i, v := range vids {
+			if i >= maxTrailersPerLanguage {
+				break
+			}
+			result = append(result, domain.TrailerResult{
+				Site:     v.Site,
+				Key:      v.Key,
+				Language: v.Language,
+				Official: v.Official,
+				Type:     v.Type,
+			})
 		}
 	}
 	return result
