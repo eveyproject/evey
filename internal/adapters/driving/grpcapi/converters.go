@@ -253,6 +253,7 @@ func profileToProto(p *user.Profile) *eveyv1.Profile {
 		Name:        p.Name,
 		Preferences: prefs,
 		IsDefault:   p.IsDefault,
+		Locale:      p.Locale,
 		CreatedAt:   toTimestamppb(p.CreatedAt),
 	}
 	if p.AvatarPath != nil {

@@ -187,6 +187,7 @@ message Profile {
   google.protobuf.Timestamp created_at = 8;
   google.protobuf.Timestamp updated_at = 9;
   optional int32 max_bitrate_kbps = 10;
+  string locale = 11;
 }
 
 message AuthResponse {
@@ -285,6 +286,7 @@ message UpdateProfileRequest {
   map<string, string> preferences = 4;
   optional string max_rating = 5;
   optional int32 max_bitrate_kbps = 6;
+  optional string locale = 7;
 }
 
 message DeleteProfileRequest {

@@ -17,10 +17,12 @@ import (
 	"github.com/gravity-zero/evey/internal/domain/activity"
 	"github.com/gravity-zero/evey/internal/domain/user"
 	"github.com/gravity-zero/evey/internal/pkg/id"
+	eveyi18n "github.com/gravity-zero/evey/internal/pkg/i18n"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
 
+// TODO: migrate remaining hardcoded error strings to TranslatedError across all handlers
 type userHandler struct {
 	eveyv1.UnimplementedUserServiceServer
 	auth        *appuser.CommandService
@@ -29,6 +31,7 @@ type userHandler struct {
 	query       *appuser.QueryService
 	users       user.UserRepository
 	activitySvc *appactivity.CommandService
+	translator  *eveyi18n.Translator
 }
 
 func (h *userHandler) audit(ctx context.Context, userID, action, resourceType string, resourceID *string, details map[string]any) {
@@ -62,7 +65,7 @@ func (h *userHandler) audit(ctx context.Context, userID, action, resourceType st
 func (h *userHandler) Login(ctx context.Context, req *eveyv1.LoginRequest) (*eveyv1.AuthResponse, error) {
 	access, refresh, err := h.auth.Login(ctx, req.Username, req.Password)
 	if err != nil {
-		return nil, status.Error(codes.Unauthenticated, "invalid credentials")
+		return nil, h.translator.TranslatedError(ctx, codes.Unauthenticated, "auth.invalid_credentials")
 	}
 	u, userErr := h.users.GetByUsername(ctx, req.Username)
 	if userErr != nil {
@@ -82,7 +85,7 @@ func (h *userHandler) Login(ctx context.Context, req *eveyv1.LoginRequest) (*eve
 func (h *userHandler) RefreshToken(ctx context.Context, req *eveyv1.RefreshTokenRequest) (*eveyv1.AuthResponse, error) {
 	access, newRefresh, err := h.auth.RefreshToken(ctx, req.RefreshToken)
 	if err != nil {
-		return nil, status.Error(codes.Unauthenticated, "invalid credentials")
+		return nil, h.translator.TranslatedError(ctx, codes.Unauthenticated, "auth.invalid_credentials")
 	}
 	return &eveyv1.AuthResponse{AccessToken: access, RefreshToken: newRefresh}, nil
 }
@@ -90,7 +93,7 @@ func (h *userHandler) RefreshToken(ctx context.Context, req *eveyv1.RefreshToken
 func (h *userHandler) Logout(ctx context.Context, _ *eveyv1.LogoutRequest) (*eveyv1.LogoutResponse, error) {
 	claims := interceptors.ClaimsFromContext(ctx)
 	if claims == nil {
-		return nil, status.Error(codes.Unauthenticated, "not authenticated")
+		return nil, h.translator.TranslatedError(ctx, codes.Unauthenticated, "auth.unauthenticated")
 	}
 	if err := h.auth.Logout(ctx, claims.UserID); err != nil {
 		slog.Error("logout", slog.Any("err", err))
@@ -103,7 +106,7 @@ func (h *userHandler) Logout(ctx context.Context, _ *eveyv1.LogoutRequest) (*eve
 func (h *userHandler) GetCurrentUser(ctx context.Context, _ *eveyv1.GetCurrentUserRequest) (*eveyv1.User, error) {
 	claims := interceptors.ClaimsFromContext(ctx)
 	if claims == nil {
-		return nil, status.Error(codes.Unauthenticated, "not authenticated")
+		return nil, h.translator.TranslatedError(ctx, codes.Unauthenticated, "auth.unauthenticated")
 	}
 	u, err := h.users.GetByID(ctx, claims.UserID)
 	if err != nil {
@@ -115,7 +118,7 @@ func (h *userHandler) GetCurrentUser(ctx context.Context, _ *eveyv1.GetCurrentUs
 func (h *userHandler) CreateUser(ctx context.Context, req *eveyv1.CreateUserRequest) (*eveyv1.User, error) {
 	claims := interceptors.ClaimsFromContext(ctx)
 	if claims == nil {
-		return nil, status.Error(codes.Unauthenticated, "not authenticated")
+		return nil, h.translator.TranslatedError(ctx, codes.Unauthenticated, "auth.unauthenticated")
 	}
 	u := &user.User{
 		ID:       id.New("usr-"),
@@ -261,6 +264,9 @@ func (h *userHandler) UpdateProfile(ctx context.Context, req *eveyv1.UpdateProfi
 	if req.MaxRating != nil {
 		p.MaxRating = req.MaxRating
 	}
+	if req.Locale != nil {
+		p.Locale = *req.Locale
+	}
 	if v, ok := req.Preferences["max_bitrate_kbps"]; ok {
 		delete(p.Preferences, "max_bitrate_kbps")
 		if v == "" || v == "0" {
@@ -315,7 +321,7 @@ func (h *userHandler) ListProfiles(ctx context.Context, req *eveyv1.ListProfiles
 func (h *userHandler) CreateInviteLink(ctx context.Context, req *eveyv1.CreateInviteLinkRequest) (*eveyv1.InviteLink, error) {
 	claims := interceptors.ClaimsFromContext(ctx)
 	if claims == nil {
-		return nil, status.Error(codes.Unauthenticated, "not authenticated")
+		return nil, h.translator.TranslatedError(ctx, codes.Unauthenticated, "auth.unauthenticated")
 	}
 	link := &user.InviteLink{
 		ID:        id.New("inv-"),
@@ -410,7 +416,7 @@ func (h *userHandler) InitiateQuickConnect(ctx context.Context, _ *eveyv1.Initia
 func (h *userHandler) AuthorizeQuickConnect(ctx context.Context, req *eveyv1.AuthorizeQuickConnectRequest) (*eveyv1.AuthorizeQuickConnectResponse, error) {
 	claims := interceptors.ClaimsFromContext(ctx)
 	if claims == nil {
-		return nil, status.Error(codes.Unauthenticated, "not authenticated")
+		return nil, h.translator.TranslatedError(ctx, codes.Unauthenticated, "auth.unauthenticated")
 	}
 	if err := h.access.AuthorizeQuickConnect(ctx, req.Code, claims.UserID); err != nil {
 		slog.Error("authorize quick connect", slog.Any("err", err))
@@ -432,7 +438,7 @@ func (h *userHandler) CheckQuickConnect(ctx context.Context, req *eveyv1.CheckQu
 func (h *userHandler) CreateAPIKey(ctx context.Context, req *eveyv1.CreateAPIKeyRequest) (*eveyv1.APIKey, error) {
 	claims := interceptors.ClaimsFromContext(ctx)
 	if claims == nil {
-		return nil, status.Error(codes.Unauthenticated, "not authenticated")
+		return nil, h.translator.TranslatedError(ctx, codes.Unauthenticated, "auth.unauthenticated")
 	}
 
 	rawBytes := make([]byte, 32)
@@ -463,7 +469,7 @@ func (h *userHandler) CreateAPIKey(ctx context.Context, req *eveyv1.CreateAPIKey
 func (h *userHandler) ListAPIKeys(ctx context.Context, _ *eveyv1.ListAPIKeysRequest) (*eveyv1.ListAPIKeysResponse, error) {
 	claims := interceptors.ClaimsFromContext(ctx)
 	if claims == nil {
-		return nil, status.Error(codes.Unauthenticated, "not authenticated")
+		return nil, h.translator.TranslatedError(ctx, codes.Unauthenticated, "auth.unauthenticated")
 	}
 	keys, err := h.query.ListAPIKeys(ctx, claims.UserID)
 	if err != nil {

@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/gravity-zero/evey/internal/domain/user"
+	eveyi18n "github.com/gravity-zero/evey/internal/pkg/i18n"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
@@ -18,16 +19,22 @@ import (
 type claimsKey struct{}
 
 type AuthInterceptor struct {
-	tokenGen user.TokenGenerator
-	apiKeys  user.APIKeyRepository
-	users    user.UserRepository
-	rbac     RBACConfig
+	tokenGen   user.TokenGenerator
+	apiKeys    user.APIKeyRepository
+	users      user.UserRepository
+	rbac       RBACConfig
+	translator *eveyi18n.Translator
 }
 
 func NewAuthInterceptor(tokenGen user.TokenGenerator) *AuthInterceptor {
 	return &AuthInterceptor{tokenGen: tokenGen, rbac: DefaultRBACConfig()}
 }
 
+
+func (i *AuthInterceptor) WithTranslator(t *eveyi18n.Translator) *AuthInterceptor {
+	i.translator = t
+	return i
+}
 
 func (i *AuthInterceptor) WithRBAC(rbac RBACConfig) *AuthInterceptor {
 	i.rbac = rbac
@@ -81,7 +88,7 @@ func (i *AuthInterceptor) enforceRBAC(ctx context.Context, method string) error 
 	if role == RoleAdmin {
 		claims := ClaimsFromContext(ctx)
 		if claims == nil || !claims.IsAdmin {
-			return status.Error(codes.PermissionDenied, "admin access required")
+			return i.translatedErr(ctx, codes.PermissionDenied, "auth.admin_access_required")
 		}
 	}
 	return nil
@@ -90,11 +97,11 @@ func (i *AuthInterceptor) enforceRBAC(ctx context.Context, method string) error 
 func (i *AuthInterceptor) authenticate(ctx context.Context) (context.Context, error) {
 	md, ok := metadata.FromIncomingContext(ctx)
 	if !ok {
-		return nil, status.Error(codes.Unauthenticated, "missing metadata")
+		return nil, i.translatedErr(ctx, codes.Unauthenticated, "auth.missing_metadata")
 	}
 	vals := md.Get("authorization")
 	if len(vals) == 0 {
-		return nil, status.Error(codes.Unauthenticated, "missing authorization")
+		return nil, i.translatedErr(ctx, codes.Unauthenticated, "auth.missing_authorization")
 	}
 	raw := vals[0]
 	// API key auth: "evey_..." (without "Bearer " prefix)
@@ -104,7 +111,7 @@ func (i *AuthInterceptor) authenticate(ctx context.Context) (context.Context, er
 	}
 	claims, err := i.tokenGen.ValidateAccessToken(trimmed)
 	if err != nil {
-		return nil, status.Error(codes.Unauthenticated, "invalid token")
+		return nil, i.translatedErr(ctx, codes.Unauthenticated, "auth.invalid_token")
 	}
 	return context.WithValue(ctx, claimsKey{}, claims), nil
 }
@@ -138,6 +145,13 @@ func (i *AuthInterceptor) authenticateAPIKey(ctx context.Context, rawKey string)
 		}
 	}()
 	return context.WithValue(ctx, claimsKey{}, claims), nil
+}
+
+func (i *AuthInterceptor) translatedErr(ctx context.Context, code codes.Code, key string) error {
+	if i.translator != nil {
+		return i.translator.TranslatedError(ctx, code, key)
+	}
+	return status.Error(code, key)
 }
 
 func ClaimsFromContext(ctx context.Context) *user.Claims {
