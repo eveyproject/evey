@@ -4,14 +4,17 @@ import type { SyncPlayMember } from "./useSyncPlay";
 
 interface SyncPlayBarProps {
   roomId: string;
+  roomCode: string | null;
+  isHost: boolean;
   members: SyncPlayMember[];
   connected: boolean;
   onLeave: () => void;
 }
 
-export function SyncPlayBar({ roomId, members, connected, onLeave }: SyncPlayBarProps) {
+export function SyncPlayBar({ roomId, roomCode, isHost, members, connected, onLeave }: SyncPlayBarProps) {
   const { t } = useTranslation();
-    const [copied, setCopied] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const [codeCopied, setCodeCopied] = useState(false);
 
   const shareUrl = `${window.location.origin}${window.location.pathname}?room=${roomId}`;
 
@@ -19,6 +22,14 @@ export function SyncPlayBar({ roomId, members, connected, onLeave }: SyncPlayBar
     void navigator.clipboard.writeText(shareUrl).then(() => {
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
+    });
+  }
+
+  function handleCopyCode() {
+    if (!roomCode) return;
+    void navigator.clipboard.writeText(roomCode).then(() => {
+      setCodeCopied(true);
+      setTimeout(() => setCodeCopied(false), 2000);
     });
   }
 
@@ -41,6 +52,16 @@ export function SyncPlayBar({ roomId, members, connected, onLeave }: SyncPlayBar
         title={connected ? t("media.syncplay.connected") : t("media.syncplay.connecting")}
       />
       <span className="flex-1 truncate">{watchingWith}</span>
+      {isHost && roomCode && (
+        <button
+          onClick={handleCopyCode}
+          className="px-3 py-1 rounded text-xs font-bold tracking-widest hover:opacity-80 transition-opacity flex-shrink-0"
+          style={{ background: "var(--overlay-btn-bg)", letterSpacing: "0.15em" }}
+          title={t("media.syncplay.copyCode")}
+        >
+          {codeCopied ? t("common.copied") : roomCode}
+        </button>
+      )}
       <button
         onClick={handleCopy}
         className="px-3 py-1 rounded text-xs font-medium hover:opacity-80 transition-opacity flex-shrink-0"

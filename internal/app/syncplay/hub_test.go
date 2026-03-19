@@ -38,6 +38,18 @@ func (r *fakeRoomRepo) Get(_ context.Context, id string) (*syncplay.Room, error)
 	return &cp, nil
 }
 
+func (r *fakeRoomRepo) GetByCode(_ context.Context, code string) (*syncplay.Room, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	for _, room := range r.rooms {
+		if room.Code == code {
+			cp := *room
+			return &cp, nil
+		}
+	}
+	return nil, errors.New("room not found")
+}
+
 func (r *fakeRoomRepo) AddMember(_ context.Context, roomID string, member syncplay.Member) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -91,6 +103,50 @@ func (r *fakeRoomRepo) Delete(_ context.Context, id string) error {
 
 func newTestHub() *Hub {
 	return NewHub(newFakeRoomRepo())
+}
+
+func TestHub_CreateRoom_HasCode(t *testing.T) {
+	t.Parallel()
+	h := newTestHub()
+	ctx := context.Background()
+
+	room, err := h.CreateRoom(ctx, "host-1", "media-1", "Room")
+	if err != nil {
+		t.Fatalf("CreateRoom: %v", err)
+	}
+	if len(room.Code) != 6 {
+		t.Errorf("Code length = %d, want 6", len(room.Code))
+	}
+}
+
+func TestHub_GetRoomByCode(t *testing.T) {
+	t.Parallel()
+	h := newTestHub()
+	ctx := context.Background()
+
+	room, err := h.CreateRoom(ctx, "host-1", "media-1", "Room")
+	if err != nil {
+		t.Fatalf("CreateRoom: %v", err)
+	}
+
+	found, err := h.GetRoomByCode(ctx, room.Code)
+	if err != nil {
+		t.Fatalf("GetRoomByCode: %v", err)
+	}
+	if found.ID != room.ID {
+		t.Errorf("ID = %q, want %q", found.ID, room.ID)
+	}
+}
+
+func TestHub_GetRoomByCode_NotFound(t *testing.T) {
+	t.Parallel()
+	h := newTestHub()
+	ctx := context.Background()
+
+	_, err := h.GetRoomByCode(ctx, "ZZZZZZ")
+	if err == nil {
+		t.Error("expected error for nonexistent code")
+	}
 }
 
 func TestHub_CreateRoom(t *testing.T) {

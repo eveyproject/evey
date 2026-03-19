@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useAuthStore } from "@evey/store";
+import { eveyFetch } from "@evey/api";
 
 export interface SyncPlayMember {
   userId: string;
@@ -8,13 +9,16 @@ export interface SyncPlayMember {
 
 export interface SyncPlayState {
   roomId: string | null;
+  roomCode: string | null;
   members: SyncPlayMember[];
   connected: boolean;
+  isHost: boolean;
 }
 
 export interface SyncPlayControls {
   createRoom: (mediaId: string) => Promise<string>;
   joinRoom: (roomId: string) => Promise<void>;
+  joinByCode: (code: string) => Promise<{ roomId: string; mediaId: string }>;
   leaveRoom: () => Promise<void>;
   sendPlay: (positionMs: number) => void;
   sendPause: (positionMs: number) => void;
@@ -39,7 +43,7 @@ interface UseSyncPlayOptions {
 
 export function useSyncPlay(opts: UseSyncPlayOptions = {}): [SyncPlayState, SyncPlayControls] {
   const accessToken = useAuthStore((s) => s.accessToken);
-  const [state, setState] = useState<SyncPlayState>({ roomId: null, members: [], connected: false });
+  const [state, setState] = useState<SyncPlayState>({ roomId: null, roomCode: null, members: [], connected: false, isHost: false });
   const wsRef = useRef<WebSocket | null>(null);
   const myUserIdRef = useRef<string | null>(null);
   const optsRef = useRef(opts);
@@ -52,7 +56,6 @@ export function useSyncPlay(opts: UseSyncPlayOptions = {}): [SyncPlayState, Sync
     }
     const proto = window.location.protocol === "https:" ? "wss:" : "ws:";
     const url = `${proto}//${window.location.host}/api/v1/syncplay/rooms/${roomId}/ws`;
-    // Pass token as subprotocol — browsers cannot set custom headers on WebSocket connections.
     const ws = new WebSocket(url, [`Bearer.${accessToken ?? ""}`]);
     wsRef.current = ws;
 
@@ -98,7 +101,6 @@ export function useSyncPlay(opts: UseSyncPlayOptions = {}): [SyncPlayState, Sync
           }
           break;
         case "state":
-          // Initial state on join — caller can handle via onPlay/onSeek
           if (msg.positionMs !== undefined) {
             optsRef.current.onSeek?.(msg.positionMs);
           }
@@ -115,46 +117,54 @@ export function useSyncPlay(opts: UseSyncPlayOptions = {}): [SyncPlayState, Sync
   }, []);
 
   const createRoom = useCallback(async (mediaId: string): Promise<string> => {
-    const res = await fetch("/api/v1/syncplay/rooms", {
+    const data = await eveyFetch<{ id: string; code: string }>({
+      url: "/api/v1/syncplay/rooms",
       method: "POST",
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${accessToken ?? ""}` },
-      body: JSON.stringify({ mediaId, name: "Watch Together" }),
+      headers: { "Content-Type": "application/json" },
+      data: { mediaId, name: "Watch Together" },
     });
-    if (!res.ok) throw new Error("Failed to create room");
-    const data = (await res.json()) as { id: string };
-    const roomId = data.id;
-    setState({ roomId, members: [], connected: false });
-    connect(roomId);
-    return roomId;
-  }, [accessToken, connect]);
+    setState({ roomId: data.id, roomCode: data.code, members: [], connected: false, isHost: true });
+    connect(data.id);
+    return data.id;
+  }, [connect]);
 
   const joinRoom = useCallback(async (roomId: string): Promise<void> => {
-    const joinRes = await fetch(`/api/v1/syncplay/rooms/${roomId}/join`, {
+    await eveyFetch<void>({
+      url: `/api/v1/syncplay/rooms/${roomId}/join`,
       method: "POST",
-      headers: { Authorization: `Bearer ${accessToken ?? ""}` },
     });
-    if (!joinRes.ok) throw new Error("Failed to join room");
-
-    const infoRes = await fetch(`/api/v1/syncplay/rooms/${roomId}`, {
-      headers: { Authorization: `Bearer ${accessToken ?? ""}` },
+    const info = await eveyFetch<{ members?: SyncPlayMember[]; code?: string }>({
+      url: `/api/v1/syncplay/rooms/${roomId}`,
+      method: "GET",
     });
-    const info = infoRes.ok ? ((await infoRes.json()) as { members?: SyncPlayMember[] }) : null;
-    setState({ roomId, members: info?.members ?? [], connected: false });
+    setState({ roomId, roomCode: info.code ?? null, members: info.members ?? [], connected: false, isHost: false });
     connect(roomId);
-  }, [accessToken, connect]);
+  }, [connect]);
+
+  const joinByCode = useCallback(async (code: string): Promise<{ roomId: string; mediaId: string }> => {
+    const data = await eveyFetch<{ roomId: string; mediaId: string; wsUrl: string }>({
+      url: "/api/v1/syncplay/join",
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      data: { code },
+    });
+    setState({ roomId: data.roomId, roomCode: null, members: [], connected: false, isHost: false });
+    connect(data.roomId);
+    return { roomId: data.roomId, mediaId: data.mediaId };
+  }, [connect]);
 
   const leaveRoom = useCallback(async (): Promise<void> => {
     const roomId = state.roomId;
     wsRef.current?.close();
     wsRef.current = null;
-    setState({ roomId: null, members: [], connected: false });
+    setState({ roomId: null, roomCode: null, members: [], connected: false, isHost: false });
     if (roomId) {
-      await fetch(`/api/v1/syncplay/rooms/${roomId}/leave`, {
+      await eveyFetch<void>({
+        url: `/api/v1/syncplay/rooms/${roomId}/leave`,
         method: "DELETE",
-        headers: { Authorization: `Bearer ${accessToken ?? ""}` },
       }).catch(() => {});
     }
-  }, [accessToken, state.roomId]);
+  }, [state.roomId]);
 
   const send = useCallback((msg: SyncMessage) => {
     const ws = wsRef.current;
@@ -174,7 +184,6 @@ export function useSyncPlay(opts: UseSyncPlayOptions = {}): [SyncPlayState, Sync
     send({ type: "seek", positionMs });
   }, [send]);
 
-  // Store userId for echo suppression (set from token if available)
   useEffect(() => {
     if (!accessToken) return;
     try {
@@ -185,5 +194,5 @@ export function useSyncPlay(opts: UseSyncPlayOptions = {}): [SyncPlayState, Sync
     }
   }, [accessToken]);
 
-  return [state, { createRoom, joinRoom, leaveRoom, sendPlay, sendPause, sendSeek }];
+  return [state, { createRoom, joinRoom, joinByCode, leaveRoom, sendPlay, sendPause, sendSeek }];
 }

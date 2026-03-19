@@ -1,9 +1,25 @@
 package syncplay
 
-import "time"
+import (
+	"crypto/rand"
+	"math/big"
+	"time"
+)
+
+const codeAlphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
+
+func GenerateCode() string {
+	b := make([]byte, 6)
+	for i := range b {
+		n, _ := rand.Int(rand.Reader, big.NewInt(int64(len(codeAlphabet))))
+		b[i] = codeAlphabet[n.Int64()]
+	}
+	return string(b)
+}
 
 type Room struct {
 	ID        string
+	Code      string
 	Name      string
 	HostID    string
 	MediaID   string
