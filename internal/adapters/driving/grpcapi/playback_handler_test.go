@@ -257,7 +257,7 @@ func TestPlaybackHandler_StartStream_ParentalBlocked(t *testing.T) {
 
 	require.Error(t, err)
 	assert.Equal(t, codes.PermissionDenied, status.Code(err))
-	assert.Contains(t, status.Convert(err).Message(), "parental control")
+	assert.Contains(t, status.Convert(err).Message(), "parental_blocked")
 }
 
 func TestPlaybackHandler_StartStream_ParentalAllowed(t *testing.T) {
@@ -345,7 +345,7 @@ func TestPlaybackHandler_StartStream_ParentalBlockedTag(t *testing.T) {
 
 	require.Error(t, err)
 	assert.Equal(t, codes.PermissionDenied, status.Code(err))
-	assert.Contains(t, status.Convert(err).Message(), "blocked tags")
+	assert.Contains(t, status.Convert(err).Message(), "parental_blocked")
 }
 
 func intPtr(v int) *int       { return &v }
