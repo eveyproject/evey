@@ -92,10 +92,12 @@ func buildServices(ctx context.Context, cfg *config.Config, db *sql.DB, rootLog 
 	if langEntry, err2 := r.ServerCfg.Get(context.Background(), "metadata.language"); err2 == nil && langEntry.Value != "" {
 		cfg.Metadata.Language = langEntry.Value
 	}
-	tmdbProvider := metadataadapter.NewTMDBProvider(os.Getenv("EVEY_TMDB_API_KEY"), cfg.Metadata.Language, nil)
+	tmdbKey := resolveAPIKey(r.ServerCfg, "api.tmdb_key", "EVEY_TMDB_API_KEY", defaultTMDBKey)
+	tmdbProvider := metadataadapter.NewTMDBProvider(tmdbKey, cfg.Metadata.Language, nil)
 	imdbProvider := metadataadapter.NewIMDBAPIProvider(nil)
 	tvmazeProvider := metadataadapter.NewTVMazeProvider(nil)
-	omdbProvider := metadataadapter.NewOMDbProvider(os.Getenv("EVEY_OMDB_API_KEY"), nil)
+	omdbKey := resolveAPIKey(r.ServerCfg, "api.omdb_key", "EVEY_OMDB_API_KEY", "")
+	omdbProvider := metadataadapter.NewOMDbProvider(omdbKey, nil)
 	artworkDownloader := metadataadapter.NewArtworkHTTPDownloader(nil)
 	pluginLogDir := filepath.Join(cfg.Log.Dir, "plugins")
 	pluginRetention := cfg.Log.PluginRetentionDays
@@ -226,7 +228,7 @@ func buildServices(ctx context.Context, cfg *config.Config, db *sql.DB, rootLog 
 
 	// --- Background workers ---
 	libCmdSvc.StartPeriodicScan(ctx, r.Library)
-	if os.Getenv("EVEY_TMDB_API_KEY") != "" {
+	if tmdbKey != "" {
 		metadataCmdSvc.StartEnrichmentWorker(ctx)
 	}
 	libCmdSvc.StartTrickplayWorker(ctx)
@@ -264,7 +266,7 @@ func buildServices(ctx context.Context, cfg *config.Config, db *sql.DB, rootLog 
 
 	// --- Subtitle service ---
 	var subtitleSvc *appsubtitle.Service
-	if osAPIKey := os.Getenv("EVEY_OPENSUBTITLES_API_KEY"); osAPIKey != "" {
+	if osAPIKey := resolveAPIKey(r.ServerCfg, "api.opensubtitles_key", "EVEY_OPENSUBTITLES_API_KEY", ""); osAPIKey != "" {
 		osClient := opensubtitles.New(osAPIKey, os.Getenv("EVEY_OPENSUBTITLES_USERNAME"), os.Getenv("EVEY_OPENSUBTITLES_PASSWORD"))
 		subtitleSvc = appsubtitle.NewService(r.Subtitle, osClient, opensubtitles.NewLibraryMediaGetter(libQuerySvc))
 		rootLog.Info("opensubtitles integration enabled")
@@ -364,6 +366,18 @@ func startWatcher(ctx context.Context, cfg *config.Config, bus *eventbus.InMemor
 		<-ctx.Done()
 		watcherSvc.Stop()
 	}()
+}
+
+const defaultTMDBKey = "eyJhbGciOiJIUzI1NiJ9.eyJhdWQiOiI0OTdmMDk2NTBlOTlkNGJjZmM0NDE1NjNiYWVmY2NlYiIsIm5iZiI6MTU4NjUxMTg0NS40MTI5OTk5LCJzdWIiOiI1ZTkwM2ZlNWU2NDBkNjAwMWIxZjIzODMiLCJzY29wZXMiOlsiYXBpX3JlYWQiXSwidmVyc2lvbiI6MX0.nG3dwy0jKg2LKxyjipQScOocwA3pEyj2N8qXkI1V51Q"
+
+func resolveAPIKey(cfgRepo *postgres.ServerConfigRepository, dbKey, envVar, defaultVal string) string {
+	if entry, err := cfgRepo.Get(context.Background(), dbKey); err == nil && entry.Value != "" {
+		return entry.Value
+	}
+	if v := os.Getenv(envVar); v != "" {
+		return v
+	}
+	return defaultVal
 }
 
 // pluginIDLister adapts postgres.PluginRepository to pluginrunner.PluginLister.

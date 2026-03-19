@@ -392,6 +392,19 @@ serverConfig:
   noEntriesDesc: "Ajoutez des entrées clé-valeur ci-dessous."
   show: "Afficher"
   hide: "Masquer"
+  apiKeys:
+    title: "Clés API"
+    description: "Configurer les clés API pour les fournisseurs de métadonnées. Les clés définies ici remplacent les variables d'environnement."
+    tmdb: "Clé API TMDB"
+    tmdbLink: "Obtenir une clé gratuite sur themoviedb.org"
+    omdb: "Clé API OMDB"
+    omdbLink: "Obtenir une clé gratuite sur omdbapi.com"
+    opensubtitles: "Clé API OpenSubtitles"
+    opensubtitlesLink: "Obtenir une clé sur opensubtitles.com"
+    resetToDefault: "Réinitialiser par défaut"
+    saved: "Clé API enregistrée"
+    usingDefault: "Utilise la clé par défaut"
+    usingCustom: "Utilise une clé personnalisée"
 
 remoteAccess:
   title: "Accès distant"

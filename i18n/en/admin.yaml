@@ -393,6 +393,19 @@ serverConfig:
   noEntriesDesc: Add key-value entries below.
   show: Show
   hide: Hide
+  apiKeys:
+    title: API Keys
+    description: Configure API keys for metadata providers. Keys set here override environment variables.
+    tmdb: TMDB API Key
+    tmdbLink: Get a free key at themoviedb.org
+    omdb: OMDB API Key
+    omdbLink: Get a free key at omdbapi.com
+    opensubtitles: OpenSubtitles API Key
+    opensubtitlesLink: Get a key at opensubtitles.com
+    resetToDefault: Reset to default
+    saved: API key saved
+    usingDefault: Using default key
+    usingCustom: Using custom key
 
 remoteAccess:
   title: Remote Access
