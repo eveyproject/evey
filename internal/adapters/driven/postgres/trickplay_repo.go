@@ -56,6 +56,7 @@ func (r *TrickplayRepository) ListMissingMediaItemIDs(ctx context.Context) ([]st
 	rows, err := r.db.QueryContext(ctx,
 		`SELECT id FROM media_items
 		 WHERE file_path != ''
+		   AND type IN ('movie', 'episode')
 		   AND id NOT IN (SELECT media_item_id FROM trickplay_manifests)`)
 	if err != nil {
 		return nil, err
