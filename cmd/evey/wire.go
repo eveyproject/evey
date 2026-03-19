@@ -371,11 +371,22 @@ func startWatcher(ctx context.Context, cfg *config.Config, bus *eventbus.InMemor
 const defaultTMDBKey = "eyJhbGciOiJIUzI1NiJ9.eyJhdWQiOiI0OTdmMDk2NTBlOTlkNGJjZmM0NDE1NjNiYWVmY2NlYiIsIm5iZiI6MTU4NjUxMTg0NS40MTI5OTk5LCJzdWIiOiI1ZTkwM2ZlNWU2NDBkNjAwMWIxZjIzODMiLCJzY29wZXMiOlsiYXBpX3JlYWQiXSwidmVyc2lvbiI6MX0.nG3dwy0jKg2LKxyjipQScOocwA3pEyj2N8qXkI1V51Q"
 
 func resolveAPIKey(cfgRepo *postgres.ServerConfigRepository, dbKey, envVar, defaultVal string) string {
+	// 1. DB has it → use it
 	if entry, err := cfgRepo.Get(context.Background(), dbKey); err == nil && entry.Value != "" {
 		return entry.Value
 	}
+	// 2. Env var override → use it and seed DB
 	if v := os.Getenv(envVar); v != "" {
+		if setErr := cfgRepo.Set(context.Background(), dbKey, v); setErr != nil {
+			slog.Warn("seed api key to db", slog.String("key", dbKey), slog.Any("err", setErr))
+		}
 		return v
+	}
+	// 3. Embedded default → seed DB so admin can see/edit it
+	if defaultVal != "" {
+		if setErr := cfgRepo.Set(context.Background(), dbKey, defaultVal); setErr != nil {
+			slog.Warn("seed default api key to db", slog.String("key", dbKey), slog.Any("err", setErr))
+		}
 	}
 	return defaultVal
 }
