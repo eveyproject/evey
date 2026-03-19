@@ -131,8 +131,9 @@ type MetricsConfig struct {
 }
 
 type LibraryConfig struct {
-	DefaultScanInterval time.Duration
-	WatcherEnabled      bool
+	DefaultScanInterval   time.Duration
+	PeriodicScanInterval  time.Duration // fallback polling when inotify misses events
+	WatcherEnabled        bool
 }
 
 type PlaybackConfig struct {
@@ -216,8 +217,9 @@ func Load() (*Config, error) {
 			SampleIntervalSec: envInt("EVEY_METRICS_SAMPLE_INTERVAL_SEC", 60),
 		},
 		Library: LibraryConfig{
-			DefaultScanInterval: envDuration("EVEY_LIBRARY_SCAN_INTERVAL", 6*time.Hour),
-			WatcherEnabled:      envBool("EVEY_LIBRARY_WATCHER_ENABLED", true),
+			DefaultScanInterval:  envDuration("EVEY_LIBRARY_SCAN_INTERVAL", 6*time.Hour),
+			PeriodicScanInterval: envDuration("EVEY_LIBRARY_PERIODIC_SCAN_INTERVAL", 2*time.Minute),
+			WatcherEnabled:       envBool("EVEY_LIBRARY_WATCHER_ENABLED", true),
 		},
 		Playback: PlaybackConfig{
 			DefaultMaxStreams:   envInt("EVEY_PLAYBACK_MAX_STREAMS", 0),

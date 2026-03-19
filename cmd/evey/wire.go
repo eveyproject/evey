@@ -228,7 +228,7 @@ func buildServices(ctx context.Context, cfg *config.Config, db *sql.DB, rootLog 
 	libCmdSvc.WithShutdownCtx(ctx)
 
 	// --- Background workers ---
-	libCmdSvc.StartPeriodicScan(ctx, r.Library)
+	libCmdSvc.StartPeriodicScan(ctx, r.Library, cfg.Library.PeriodicScanInterval)
 	if tmdbKey != "" {
 		metadataCmdSvc.StartEnrichmentWorker(ctx)
 	}

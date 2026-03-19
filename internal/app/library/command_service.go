@@ -99,11 +99,15 @@ func (s *CommandService) GetChapters(ctx context.Context, mediaItemID string) ([
 	return s.metadata.GetChapters(ctx, mediaItemID)
 }
 
-// StartPeriodicScan runs a lightweight full-library scan every 2 minutes as
-// an inotify fallback. Skips libraries already being scanned.
-func (s *CommandService) StartPeriodicScan(ctx context.Context, libQueries library.LibraryQueryRepo) {
+// StartPeriodicScan runs a lightweight full-library scan at the given interval
+// as an inotify fallback. Skips libraries already being scanned.
+func (s *CommandService) StartPeriodicScan(ctx context.Context, libQueries library.LibraryQueryRepo, interval time.Duration) {
+	if interval <= 0 {
+		interval = 2 * time.Minute
+	}
+	slog.Info("periodic scan started", slog.Duration("interval", interval))
 	go func() {
-		ticker := time.NewTicker(2 * time.Minute)
+		ticker := time.NewTicker(interval)
 		defer ticker.Stop()
 		for {
 			select {
