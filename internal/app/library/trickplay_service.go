@@ -132,6 +132,10 @@ func (s *TrickplayService) StartTrickplayWorker(ctx context.Context) {
 		if !ok {
 			return
 		}
+		// Only movies and episodes have playable files
+		if e.Type != string(library.MovieItem) && e.Type != string(library.Episode) {
+			return
+		}
 		select {
 		case sem <- struct{}{}:
 		default:
