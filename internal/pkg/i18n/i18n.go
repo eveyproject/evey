@@ -3,6 +3,7 @@ package i18n
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
@@ -62,7 +63,8 @@ func NewFromDir(dir string) (*Translator, error) {
 			}
 			var raw map[string]any
 			if err := yaml.Unmarshal(data, &raw); err != nil {
-				return nil, fmt.Errorf("i18n: parse %s/%s: %w", locale, f.Name(), err)
+				slog.Warn("i18n: skipping invalid file", slog.String("file", locale+"/"+f.Name()), slog.Any("err", err))
+				continue
 			}
 			if t.messages[locale] == nil {
 				t.messages[locale] = make(map[string]string)
