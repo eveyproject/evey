@@ -234,6 +234,25 @@ func buildServices(ctx context.Context, cfg *config.Config, db *sql.DB, rootLog 
 	}
 	libCmdSvc.StartTrickplayWorker(ctx)
 
+	if _, isMeili := searchAdapter.(*meili.SearchAdapter); isMeili {
+		go func() {
+			items, err := r.MediaItem.List(context.Background(), library.ListMediaItemsFilter{Limit: 10000})
+			if err != nil {
+				slog.Warn("startup index: list items", slog.Any("err", err))
+				return
+			}
+			indexed := 0
+			for _, item := range items {
+				if err := searchAdapter.IndexMediaItem(context.Background(), item, nil); err != nil {
+					slog.Warn("startup index", slog.String("id", item.ID), slog.Any("err", err))
+					continue
+				}
+				indexed++
+			}
+			slog.Info("startup index complete", slog.Int("indexed", indexed), slog.Int("total", len(items)))
+		}()
+	}
+
 	webhookLog := eveylogger.NewWith(rootLog, "webhook")
 	webhookSvc := appwebhook.NewService(r.Webhook, r.WebhookDelivery, webhookLog, bus)
 
