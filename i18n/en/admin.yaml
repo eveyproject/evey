@@ -76,6 +76,8 @@ plugins:
   blockedByAnalysis: Plugin blocked by security analysis
   previewFailed: Preview failed
   installFailed: Install failed
+  availableRuntimes: Available Runtimes
+  noRuntimes: No plugin runtimes detected
 
 dashboard:
   title: Dashboard

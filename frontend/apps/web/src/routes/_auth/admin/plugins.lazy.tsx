@@ -1,6 +1,6 @@
 import { useState, useRef } from "react";
 import { createLazyFileRoute } from "@tanstack/react-router";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import {
   useAdminServiceListPlugins,
@@ -8,6 +8,7 @@ import {
   useAdminServiceDisablePlugin,
   useAdminServiceUninstallPlugin,
   useAdminServiceInstallPlugin,
+  eveyFetch,
 } from "@evey/api";
 import { useAuthStore, toast } from "@evey/store";
 import { Spinner } from "@/components/ui/Spinner";
@@ -22,6 +23,24 @@ export const Route = createLazyFileRoute("/_auth/admin/plugins")({
 });
 
 const PLUGINS_QUERY_KEY = ["/api/v1/admin/plugins"];
+
+interface DetectedRuntime {
+  language: string;
+  command: string;
+  version: string;
+}
+
+function useAvailableRuntimes() {
+  return useQuery({
+    queryKey: ["/api/v1/admin/plugin-runtimes/available"],
+    queryFn: () =>
+      eveyFetch<{ runtimes: DetectedRuntime[] }>({
+        url: "/api/v1/admin/plugin-runtimes/available",
+        method: "GET",
+      }),
+    staleTime: 60_000,
+  });
+}
 
 interface PluginPreview {
   name: string;
@@ -394,6 +413,8 @@ function PluginsPage() {
   const queryClient = useQueryClient();
   const { data, isLoading } = useAdminServiceListPlugins();
   const plugins = data?.plugins ?? [];
+  const { data: runtimesData } = useAvailableRuntimes();
+  const runtimes = runtimesData?.runtimes ?? [];
 
   const invalidate = () => queryClient.invalidateQueries({ queryKey: PLUGINS_QUERY_KEY });
 
@@ -432,6 +453,21 @@ function PluginsPage() {
         </h2>
         <Button onClick={() => setShowModal(true)}>{t("admin.plugins.installPlugin")}</Button>
       </div>
+
+      {runtimes.length > 0 && (
+        <div className="flex flex-col gap-2">
+          <span className="text-xs font-semibold" style={{ color: "var(--text-muted)" }}>
+            {t("admin.plugins.availableRuntimes")}
+          </span>
+          <div className="flex flex-wrap gap-2">
+            {runtimes.map((rt) => (
+              <Badge key={rt.language} variant="success">
+                {rt.language} {rt.version}
+              </Badge>
+            ))}
+          </div>
+        </div>
+      )}
 
       {isLoading ? (
         <div className="flex justify-center py-16">

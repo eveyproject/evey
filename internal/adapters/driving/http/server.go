@@ -227,6 +227,7 @@ func (s *HTTPServer) RegisterRoutes(mux *http.ServeMux, gwMux http.Handler) {
 	registerSystemStatsRoute(mux, s.StartTime, s.TokenGen)
 	registerServerConfigRoutes(mux, s.ServerCfgRepo, s.TokenGen)
 	registerLogsRoute(mux, s.LogDir, s.TokenGen)
+	registerAvailableRuntimesRoute(mux, s.TokenGen)
 	registerMusicRoutes(mux, s.MusicSvc, s.TokenGen, s.LibraryAccessRepo, s.LibQuerySvc)
 	registerPushRoutes(mux, s.FCMTokenRepo, s.ProfileRepo, s.UserRepo, s.TokenGen)
 

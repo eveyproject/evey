@@ -16,6 +16,7 @@ import (
 	appmetadata "github.com/gravity-zero/evey/internal/app/metadata"
 	apptranscoding "github.com/gravity-zero/evey/internal/app/transcoding"
 	appuser "github.com/gravity-zero/evey/internal/app/user"
+	"github.com/gravity-zero/evey/internal/pkg/runtimedetect"
 	domainshared "github.com/gravity-zero/evey/internal/domain/shared"
 	domaintranscoding "github.com/gravity-zero/evey/internal/domain/transcoding"
 	"github.com/gravity-zero/evey/internal/pkg/auth"
@@ -667,6 +668,16 @@ func registerTranscodeCacheRoutes(mux *http.ServeMux, transcodeSvc *apptranscodi
 	mux.HandleFunc("GET /api/v1/admin/transcode-cache", h.handleGetTranscodeCache)
 	mux.HandleFunc("DELETE /api/v1/admin/transcode-cache", h.handleClearTranscodeCache)
 	mux.HandleFunc("DELETE /api/v1/admin/transcode-cache/{filename}", h.handleDeleteTranscodeCacheFile)
+}
+
+func registerAvailableRuntimesRoute(mux *http.ServeMux, tokenGen *auth.JWTGenerator) {
+	mux.HandleFunc("GET /api/v1/admin/plugin-runtimes/available", requireAdmin(tokenGen, func(w http.ResponseWriter, _ *http.Request) {
+		runtimes := runtimedetect.DetectRuntimes()
+		w.Header().Set("Content-Type", "application/json")
+		if err := json.NewEncoder(w).Encode(map[string]any{"runtimes": runtimes}); err != nil {
+			slog.Warn("json encode failed", slog.Any("err", err))
+		}
+	}))
 }
 
 // tailFile reads the last n lines from a file efficiently.
