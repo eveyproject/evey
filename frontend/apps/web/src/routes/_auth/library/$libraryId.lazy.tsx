@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo, useCallback } from "react";
+import { useTranslation } from "react-i18next";
 import { createLazyFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import {
   useLibraryServiceListLibraries,
@@ -39,17 +40,17 @@ export const Route = createLazyFileRoute("/_auth/library/$libraryId")({
   component: LibraryPage,
 });
 
-const SHOW_TYPE_OPTIONS: Array<{ label: string; value: LibraryServiceListMediaItemsType | "" }> = [
-  { label: "Series", value: "MEDIA_ITEM_TYPE_SERIES" },
-  { label: "Seasons", value: "MEDIA_ITEM_TYPE_SEASON" },
-  { label: "Episodes", value: "MEDIA_ITEM_TYPE_EPISODE" },
+const SHOW_TYPE_KEYS: Array<{ labelKey: string; value: LibraryServiceListMediaItemsType | "" }> = [
+  { labelKey: "library.series", value: "MEDIA_ITEM_TYPE_SERIES" },
+  { labelKey: "library.seasons", value: "MEDIA_ITEM_TYPE_SEASON" },
+  { labelKey: "library.episodes", value: "MEDIA_ITEM_TYPE_EPISODE" },
 ];
 
-const SORT_OPTIONS: Array<{ label: string; value: LibraryServiceListMediaItemsSortField }> = [
-  { label: "Title", value: "MEDIA_SORT_FIELD_TITLE" },
-  { label: "Year", value: "MEDIA_SORT_FIELD_YEAR" },
-  { label: "Rating", value: "MEDIA_SORT_FIELD_RATING" },
-  { label: "Date Added", value: "MEDIA_SORT_FIELD_DATE_ADDED" },
+const SORT_KEYS: Array<{ labelKey: string; value: LibraryServiceListMediaItemsSortField }> = [
+  { labelKey: "library.titleSort", value: "MEDIA_SORT_FIELD_TITLE" },
+  { labelKey: "library.year", value: "MEDIA_SORT_FIELD_YEAR" },
+  { labelKey: "library.ratingSort", value: "MEDIA_SORT_FIELD_RATING" },
+  { labelKey: "library.dateAdded", value: "MEDIA_SORT_FIELD_DATE_ADDED" },
 ];
 
 const PAGE_SIZE = 48;
@@ -219,6 +220,7 @@ function BulkPlaylistModal({
   mediaIds: string[];
   onClose: () => void;
 }) {
+  const { t } = useTranslation("media");
   const { data: playlists, isLoading } = usePlaylistList();
   const addTo = useAddToPlaylist();
   const manualPlaylists = (playlists ?? []).filter((p) => p.type === "manual");
@@ -226,21 +228,21 @@ function BulkPlaylistModal({
   async function handleAdd(playlistId: string, playlistName: string) {
     try {
       await Promise.all(mediaIds.map((id) => addTo.mutateAsync({ playlistId, mediaItemId: id })));
-      toast.success(`${mediaIds.length} item${mediaIds.length > 1 ? "s" : ""} added to "${playlistName}"`);
+      toast.success(t("library.itemsAddedToPlaylist", { count: mediaIds.length, name: playlistName }));
       onClose();
     } catch {
-      toast.error("Failed to add to playlist");
+      toast.error(t("library.failedAddPlaylist"));
     }
   }
 
   return (
-    <Modal open={open} onClose={onClose} title="Add to Playlist">
+    <Modal open={open} onClose={onClose} title={t("library.addToPlaylist")}>
       {isLoading ? (
         <div className="flex justify-center py-8">
           <div className="w-6 h-6 border-2 rounded-full animate-spin" style={{ borderColor: "var(--border)", borderTopColor: "var(--accent)" }} />
         </div>
       ) : manualPlaylists.length === 0 ? (
-        <p className="text-sm text-center py-6" style={{ color: "var(--text-muted)" }}>No playlists yet.</p>
+        <p className="text-sm text-center py-6" style={{ color: "var(--text-muted)" }}>{t("library.noPlaylists")}</p>
       ) : (
         <div className="space-y-1">
           {manualPlaylists.map((pl) => (
@@ -261,6 +263,8 @@ function BulkPlaylistModal({
 }
 
 function LibraryPage() {
+  const { t } = useTranslation("media");
+  const { t: tc } = useTranslation("common");
   const { libraryId: slug } = Route.useParams();
   const search = Route.useSearch();
   const navigate = useNavigate();
@@ -324,7 +328,7 @@ function LibraryPage() {
     const fn = watched ? markWatched.mutateAsync : markUnwatched.mutateAsync;
     await Promise.all(ids.map((mediaItemId) => fn({ mediaItemId, params: { profileId } })));
     ids.forEach((id) => queryClient.invalidateQueries({ queryKey: [`/api/v1/media/${id}`] }));
-    toast.success(`${ids.length} item${ids.length > 1 ? "s" : ""} marked as ${watched ? "watched" : "unwatched"}`);
+    toast.success(watched ? t("favorites.markedWatched", { count: ids.length }) : t("favorites.markedUnwatched", { count: ids.length }));
     setSelectedIds(new Set());
     setBulkMode(false);
   }
@@ -336,11 +340,11 @@ function LibraryPage() {
     try {
       await Promise.all(ids.map((id) => eveyFetch<unknown>({ url: `/api/v1/favorites/${id}`, method: "POST" })));
       queryClient.invalidateQueries({ queryKey: ["favorites"] });
-      toast.success(`${ids.length} item${ids.length > 1 ? "s" : ""} added to favorites`);
+      toast.success(t("library.addedToFavorites", { count: ids.length }));
       setSelectedIds(new Set());
       setBulkMode(false);
     } catch {
-      toast.error("Failed to add some items to favorites");
+      toast.error(t("library.failedFavorites"));
     } finally {
       setBulkFavPending(false);
     }
@@ -364,7 +368,7 @@ function LibraryPage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [library?.type, typeFilter, navigate]);
 
-  const typeOptions = isShowLibrary ? SHOW_TYPE_OPTIONS : [];
+  const typeOptions = isShowLibrary ? SHOW_TYPE_KEYS : [];
 
   const hasServerFilters = Boolean(
     search.yearFrom != null ||
@@ -477,22 +481,22 @@ function LibraryPage() {
     <div data-testid="library-page">
       <nav className="flex items-center gap-1.5 text-sm mb-3" aria-label="Breadcrumb">
         <Link to="/library" className="hover:underline" style={{ color: "var(--text-muted)" }}>
-          Libraries
+          {t("library.libraries")}
         </Link>
         <svg className="w-3 h-3 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24" style={{ color: "var(--text-muted)" }}>
           <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
         </svg>
         <span className="truncate font-medium" style={{ color: "var(--text)" }}>
-          {library?.name ?? "Library"}
+          {library?.name ?? t("library.title")}
         </span>
       </nav>
       <div className="flex items-center justify-between gap-4 mb-2 flex-wrap">
         <h1 className="text-2xl font-bold" style={{ color: "var(--text)" }} data-testid="library-name">
-          {library?.name ?? "Library"}
+          {library?.name ?? t("library.title")}
         </h1>
         <span className="text-sm" style={{ color: "var(--text-muted)" }} data-testid="library-item-count">
           {displayCount} {displayCount === 1 ? "item" : "items"}
-          {hasActiveFilters && " (filtered)"}
+          {hasActiveFilters && ` ${tc("filtered")}`}
         </span>
       </div>
 
@@ -500,7 +504,7 @@ function LibraryPage() {
         <div className="w-48">
           <Input
             type="search"
-            placeholder="Filter by name..."
+            placeholder={t("library.filterByName")}
             value={searchTerm}
             onChange={(e) => updateSearch({ q: e.target.value || undefined })}
             data-testid="library-search-input"
@@ -510,14 +514,14 @@ function LibraryPage() {
           <Select
             value={typeFilter ?? ""}
             onChange={(v) => updateSearch({ type: (v as LibraryServiceListMediaItemsType) || undefined })}
-            options={typeOptions.map((o) => ({ value: o.value, label: o.label }))}
+            options={typeOptions.map((o) => ({ value: o.value, label: t(o.labelKey) }))}
             className="w-auto"
           />
         )}
         <Select
           value={sortField}
           onChange={(v) => updateSearch({ sortField: v as LibraryServiceListMediaItemsSortField })}
-          options={SORT_OPTIONS.map((o) => ({ value: o.value, label: o.label }))}
+          options={SORT_KEYS.map((o) => ({ value: o.value, label: t(o.labelKey) }))}
           className="w-auto"
         />
         <SortOrderButton
@@ -535,9 +539,9 @@ function LibraryPage() {
             color: bulkMode ? "#fff" : "var(--text-muted)",
             borderColor: bulkMode ? "var(--accent)" : "var(--border)",
           }}
-          title={bulkMode ? "Exit selection" : "Select items"}
+          title={bulkMode ? tc("exit") : tc("select")}
         >
-          Select
+          {tc("select")}
         </button>
       </div>
 
@@ -578,7 +582,7 @@ function LibraryPage() {
             >
               {selectedIds.size}
             </span>
-            <span className="text-sm mr-2" style={{ color: "var(--text-muted)" }}>selected</span>
+            <span className="text-sm mr-2" style={{ color: "var(--text-muted)" }}>{t("library.selected")}</span>
             {selectedIds.size > 0 && (
               <>
                 <Button
@@ -586,7 +590,7 @@ function LibraryPage() {
                   loading={bulkFavPending}
                   onClick={() => void bulkAddFavorites()}
                 >
-                  Add to favorites
+                  {t("library.addToFavorites")}
                 </Button>
               </>
             )}
@@ -597,7 +601,7 @@ function LibraryPage() {
                 className="text-xs hover:underline"
                 style={{ color: "var(--accent)" }}
               >
-                Select all
+                {tc("selectAll")}
               </button>
               <button
                 type="button"
@@ -605,7 +609,7 @@ function LibraryPage() {
                 className="text-xs hover:underline"
                 style={{ color: "var(--text-muted)" }}
               >
-                Deselect all
+                {tc("deselectAll")}
               </button>
               <button
                 type="button"
@@ -613,7 +617,7 @@ function LibraryPage() {
                 className="text-xs hover:underline"
                 style={{ color: "var(--text-muted)" }}
               >
-                Exit
+                {tc("exit")}
               </button>
             </div>
           </div>
@@ -667,11 +671,11 @@ function LibraryPage() {
                 style={{ color: "var(--text-muted)", borderBottom: "1px solid var(--border)" }}
               >
                 <span className="w-7 flex-shrink-0" />
-                <span className="flex-1 min-w-0">Title</span>
-                <span className="hidden sm:block w-16 text-right flex-shrink-0">Year</span>
-                <span className="hidden md:block w-16 text-right flex-shrink-0">Rating</span>
-                <span className="hidden lg:block w-12 flex-shrink-0">Type</span>
-                <span className="hidden lg:block w-16 text-right flex-shrink-0">Duration</span>
+                <span className="flex-1 min-w-0">{t("library.titleSort")}</span>
+                <span className="hidden sm:block w-16 text-right flex-shrink-0">{t("library.year")}</span>
+                <span className="hidden md:block w-16 text-right flex-shrink-0">{t("library.ratingSort")}</span>
+                <span className="hidden lg:block w-12 flex-shrink-0">{t("library.type")}</span>
+                <span className="hidden lg:block w-16 text-right flex-shrink-0">{t("library.duration")}</span>
               </div>
               {displayItems.map((item) => (
                 <ListRow key={item.id} item={item as unknown as Record<string, unknown>} />
@@ -686,17 +690,17 @@ function LibraryPage() {
             >
               <EmptyState
                 icon="library"
-                title="No items found"
+                title={t("library.noItems")}
                 description={
                   hasActiveFilters
-                    ? "Try adjusting your filters or search term."
+                    ? t("library.noItemsFiltered")
                     : typeFilter
-                      ? "Try a different filter, or scan the library to add content."
-                      : "This library is empty. Trigger a scan to add content."
+                      ? t("library.noItemsType")
+                      : t("library.noItemsEmpty")
                 }
                 action={
                   !hasActiveFilters
-                    ? { label: "Go to Admin", onClick: () => { window.location.href = "/admin/libraries"; } }
+                    ? { label: t("library.goToAdmin"), onClick: () => { window.location.href = "/admin/libraries"; } }
                     : undefined
                 }
               />
@@ -706,7 +710,7 @@ function LibraryPage() {
           {hasMore && !isLoading && !hasActiveFilters && (
             <div className="flex justify-center mt-8">
               <Button variant="secondary" onClick={() => setPage((p) => p + 1)}>
-                Load more ({items.length} of {totalItems})
+                {t("library.loadMore", { current: items.length, total: totalItems })}
               </Button>
             </div>
           )}

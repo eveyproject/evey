@@ -11,22 +11,29 @@ loading: "\u52A0\u8F7D\u4E2D\u2026"
 error: "\u9519\u8BEF"
 unknown: "\u672A\u77E5"
 settings: "\u8BBE\u7F6E"
-refresh: Refresh
-remove: Remove
-done: Done
-revoke: Revoke
-copied: Copied!
-copyKey: Copy key
-newKey: New key
-appearance: Appearance
-appearanceDesc: Choose a color theme for the interface.
-language: Language
-languageDesc: Choose the display language for the interface.
-notifications: Notifications
-noNotifications: No notifications
-markAllRead: Mark all read
-viewAllNotifications: View all notifications
-unableToLoadNotifications: Unable to load notifications
-scrollLeft: Scroll left
-scrollRight: Scroll right
-seeAll: "See all →"
+select: Select # TODO translate
+selectAll: Select all # TODO translate
+deselectAll: Deselect all # TODO translate
+exit: Exit # TODO translate
+search: Search # TODO translate
+or: or # TODO translate
+previous: Previous # TODO translate
+next: Next # TODO translate
+edit: Edit # TODO translate
+all: All # TODO translate
+items: "{{count}} items" # TODO translate
+item: "{{count}} item" # TODO translate
+filtered: "(filtered)" # TODO translate
+noItemsMatch: No items match the current filter. # TODO translate
+notifications: # TODO translate
+  title: Notifications
+  markRead: Mark read
+  markAllRead: Mark all read
+  deleteAll: Delete all
+  deleteAllTitle: Delete all notifications
+  deleteAllConfirm: This will permanently delete all your notifications. This action cannot be undone.
+  noNotifications: No notifications
+  allCaughtUp: "You're all caught up."
+  justNow: Just now
+watchHistory: # TODO translate
+  title: Watch History

@@ -25,59 +25,104 @@ setup:
     shows: "\u0936\u094B"
     music: "\u0938\u0902\u0917\u0940\u0924"
     photos: "\u092B\u093C\u094B\u091F\u094B"
-devices:
-  title: Registered Devices
-  description: Devices registered for push notifications. Revoke access for any device you no longer use.
-  noDevices: No registered devices.
-  platform: Platform
-  token: Token
-  registered: Registered
-  revokeTitle: Revoke Device
-  revokeConfirm: "Revoke the <strong>{{platform}}</strong> device? It will no longer receive push notifications."
-  deviceRevoked: Device revoked
-  revokeError: Failed to revoke device
-apiKeys:
-  title: API Keys
-  description: Use API keys to authenticate external apps with Evey.
-  noKeys: No API keys yet.
-  name: Name
-  key: Key
-  created: Created
-  lastUsed: Last used
-  newKeyTitle: New API Key
-  namePlaceholder: "e.g. Plex sync, HomeAssistant"
-  nameRequired: Name is required
-  keyCreatedTitle: API Key Created
-  saveWarning: "Save this key now — it won't be shown again."
-  keyRevoked: API key revoked
-  revokeTitle: Revoke API Key
-  revokeConfirm: "Revoke <strong>{{name}}</strong>? This cannot be undone."
-  revokeError: Failed to revoke API key
-  createError: Failed to create API key
-watchHistory:
-  title: Watch History
-  watched: Watched
-  noHistory: No watch history yet
-  noHistoryDesc: Start watching something to see it here.
-  clearHistory: Clear history
-  clearTitle: Clear watch history
-  clearConfirm: This will remove all items from your watch history. This action cannot be undone.
-  clearAll: Clear all
-  plays: "{{count}} plays"
-  today: Today
-  yesterday: Yesterday
-  thisWeek: This Week
-  thisMonth: This Month
-notificationSettings:
-  movies: Movies
-  series: Series
-  music: Music
-  pushNotifications: Push notifications
-  pushDesc: Receive browser push notifications for new content
-  pushNotConfigured: Push notifications not configured on this server.
-  permissionDenied: Permission denied or push unavailable
-  pushEnabled: Push notifications enabled
-  pushDisabled: Push notifications disabled
-  pushError: Failed to update push settings
-  saved: Notification settings saved
-  saveError: Failed to save settings
+login: # TODO translate
+  signIn: Sign in
+  signInToAccount: Sign in to your account
+  username: Username
+  password: Password
+  invalidCredentials: Invalid username or password
+  passwordTooShort: Password must be at least 8 characters
+  loginFailed: Login failed. Please try again.
+  ssoFailed: SSO sign-in failed. Please try again.
+  or: or
+  signInWithSSO: Sign in with SSO
+register: # TODO translate
+  createAccount: Create Account
+  createAccountBtn: Create account
+  invitedMessage: "You've been invited! Fill in your details below."
+  signUpWithInvite: Sign up with an invite code
+  inviteCodeLabel: "Invite code:"
+  username: Username
+  email: Email
+  password: Password
+  confirmPassword: Confirm password
+  inviteCode: Invite code
+  passwordMismatch: Passwords do not match
+  passwordMin: Password must be at least 8 characters
+  registrationFailed: Registration failed
+  alreadyHaveAccount: Already have an account?
+  signIn: Sign in
+profile: # TODO translate
+  title: Profile
+  edit: Edit
+  username: Username
+  email: Email
+  save: Save
+  cancel: Cancel
+  admin: Admin
+  memberSince: "Member since {{date}}"
+  profileUpdated: Profile updated
+  failedToUpdate: Failed to update profile
+  nav:
+    settings: Settings
+    settingsDesc: "Theme, notifications, password"
+    watchHistory: Watch History
+    watchHistoryDesc: Your recently watched media
+    notifications: Notifications
+    notificationsDesc: Alerts and updates
+    adminPanel: Admin Panel
+    adminPanelDesc: Manage server and users
+settings: # TODO translate
+  title: Settings
+  tabs:
+    appearance: Appearance
+    playback: Playback
+    notifications: Notifications
+    account: Account
+    parental: Parental
+    devices: Devices
+    apiKeys: API Keys
+  playback:
+    bitrateTitle: Streaming Bitrate Limit
+    bitrateDesc: Maximum bitrate for transcoded streams. Does not affect direct play.
+    maxBitrate: Max bitrate
+    bitrateUpdated: Bitrate limit updated
+    bitrateFailed: Failed to update bitrate limit
+  account:
+    changePassword: Change Password
+    changePasswordDesc: Use a strong password with at least 8 characters.
+    newPassword: New password
+    confirmPassword: Confirm password
+    updatePassword: Update password
+    passwordUpdated: Password updated
+    passwordFailed: Failed to update password
+    passwordMismatch: Passwords do not match
+    passwordMin: Password must be at least 8 characters
+  parental:
+    title: Parental Controls
+    description: Restrict content by rating for this profile.
+    enable: Enable parental controls
+    enableDesc: Filter content by rating
+    maxRating: Max content rating
+    saveRating: Save rating
+    noProfile: No profile found.
+    updated: Parental controls updated
+    failedToUpdate: Failed to update
+    pin:
+      title: Set PIN
+      description: 4-digit PIN to unlock restricted content.
+      newPin: New PIN
+      confirmPin: Confirm PIN
+      savePin: Save PIN
+      saved: "PIN saved"
+      mustBe4: PIN must be 4 digits
+      mismatch: PINs do not match
+    ratings:
+      none: No restriction
+      g: "G — General Audiences"
+      pg: "PG — Parental Guidance"
+      pg13: "PG-13 — Parents Strongly Cautioned"
+      r: "R — Restricted"
+      nc17: "NC-17 — Adults Only"
+    bitrates:
+      unlimited: Unlimited

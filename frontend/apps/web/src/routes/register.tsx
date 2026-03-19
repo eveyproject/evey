@@ -2,6 +2,7 @@ import { useState } from "react";
 import { createFileRoute, redirect, useNavigate } from "@tanstack/react-router";
 import { useUserServiceRegisterWithInvite } from "@evey/api";
 import { useAuthStore } from "@evey/store";
+import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Card } from "@/components/ui/Card";
@@ -22,6 +23,7 @@ export const Route = createFileRoute("/register")({
 });
 
 function RegisterPage() {
+  const { t } = useTranslation("auth");
   const { invite } = Route.useSearch();
   const navigate = useNavigate();
   const { setTokens } = useAuthStore();
@@ -48,11 +50,11 @@ function RegisterPage() {
     e.preventDefault();
     setValidationError("");
     if (password !== confirm) {
-      setValidationError("Passwords do not match");
+      setValidationError(t("register.passwordMismatch"));
       return;
     }
     if (password.length < 8) {
-      setValidationError("Password must be at least 8 characters");
+      setValidationError(t("register.passwordMin"));
       return;
     }
     register.mutate({
@@ -82,13 +84,13 @@ function RegisterPage() {
               <path d="M6.3 2.8L17 10 6.3 17.2V2.8z" />
             </svg>
           </div>
-          <h1 className="text-2xl font-bold text-[var(--text)]">Create Account</h1>
+          <h1 className="text-2xl font-bold text-[var(--text)]">{t("register.createAccount")}</h1>
           {invite ? (
             <p className="text-[var(--text-muted)] text-sm mt-1 text-center">
-              You've been invited! Fill in your details below.
+              {t("register.invitedMessage")}
             </p>
           ) : (
-            <p className="text-[var(--text-muted)] text-sm mt-1">Sign up with an invite code</p>
+            <p className="text-[var(--text-muted)] text-sm mt-1">{t("register.signUpWithInvite")}</p>
           )}
         </div>
 
@@ -97,26 +99,26 @@ function RegisterPage() {
             className="mb-4 px-3 py-2 rounded-[var(--radius-md)] text-sm"
             style={{ backgroundColor: "var(--surface-raised)", color: "var(--text-muted)" }}
           >
-            Invite code: <span className="font-mono text-[var(--text)]">{invite}</span>
+            {t("register.inviteCodeLabel")} <span className="font-mono text-[var(--text)]">{invite}</span>
           </div>
         )}
 
         <form onSubmit={handleSubmit} className="flex flex-col gap-4">
           <Input
-            label="Username"
+            label={t("register.username")}
             value={username}
             onChange={(e) => setUsername(e.target.value)}
             required
             autoFocus
           />
           <Input
-            label="Email"
+            label={t("register.email")}
             type="email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
           />
           <Input
-            label="Password"
+            label={t("register.password")}
             type="password"
             autoComplete="new-password"
             value={password}
@@ -124,7 +126,7 @@ function RegisterPage() {
             required
           />
           <Input
-            label="Confirm password"
+            label={t("register.confirmPassword")}
             type="password"
             autoComplete="new-password"
             value={confirm}
@@ -133,7 +135,7 @@ function RegisterPage() {
           />
           {!invite && (
             <Input
-              label="Invite code"
+              label={t("register.inviteCode")}
               value={inviteCode}
               onChange={(e) => setInviteCode(e.target.value)}
               required
@@ -141,7 +143,7 @@ function RegisterPage() {
           )}
           {(validationError || register.error) && (
             <p className="text-sm text-center" style={{ color: "var(--color-danger)" }}>
-              {validationError || (register.error instanceof Error ? register.error.message : "Registration failed")}
+              {validationError || (register.error instanceof Error ? register.error.message : t("register.registrationFailed"))}
             </p>
           )}
           <Button
@@ -150,14 +152,14 @@ function RegisterPage() {
             className="w-full mt-2"
             disabled={!username || !password || !confirm || !inviteCode}
           >
-            Create account
+            {t("register.createAccountBtn")}
           </Button>
         </form>
 
         <p className="text-center text-sm text-[var(--text-muted)] mt-6">
-          Already have an account?{" "}
+          {t("register.alreadyHaveAccount")}{" "}
           <a href="/login" className="text-[var(--accent)] hover:underline">
-            Sign in
+            {t("register.signIn")}
           </a>
         </p>
       </Card>

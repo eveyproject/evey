@@ -11,22 +11,29 @@ loading: "\u0932\u094B\u0921 \u0939\u094B \u0930\u0939\u093E \u0939\u0948\u2026"
 error: "\u0924\u094D\u0930\u0941\u091F\u093F"
 unknown: "\u0905\u091C\u094D\u091E\u093E\u0924"
 settings: "\u0938\u0947\u091F\u093F\u0902\u0917\u094D\u0938"
-refresh: Refresh
-remove: Remove
-done: Done
-revoke: Revoke
-copied: Copied!
-copyKey: Copy key
-newKey: New key
-appearance: Appearance
-appearanceDesc: Choose a color theme for the interface.
-language: Language
-languageDesc: Choose the display language for the interface.
-notifications: Notifications
-noNotifications: No notifications
-markAllRead: Mark all read
-viewAllNotifications: View all notifications
-unableToLoadNotifications: Unable to load notifications
-scrollLeft: Scroll left
-scrollRight: Scroll right
-seeAll: "See all →"
+select: Select # TODO translate
+selectAll: Select all # TODO translate
+deselectAll: Deselect all # TODO translate
+exit: Exit # TODO translate
+search: Search # TODO translate
+or: or # TODO translate
+previous: Previous # TODO translate
+next: Next # TODO translate
+edit: Edit # TODO translate
+all: All # TODO translate
+items: "{{count}} items" # TODO translate
+item: "{{count}} item" # TODO translate
+filtered: "(filtered)" # TODO translate
+noItemsMatch: No items match the current filter. # TODO translate
+notifications: # TODO translate
+  title: Notifications
+  markRead: Mark read
+  markAllRead: Mark all read
+  deleteAll: Delete all
+  deleteAllTitle: Delete all notifications
+  deleteAllConfirm: This will permanently delete all your notifications. This action cannot be undone.
+  noNotifications: No notifications
+  allCaughtUp: "You're all caught up."
+  justNow: Just now
+watchHistory: # TODO translate
+  title: Watch History

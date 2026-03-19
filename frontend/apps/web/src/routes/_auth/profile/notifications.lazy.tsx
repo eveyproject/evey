@@ -9,6 +9,7 @@ import {
   getNotificationServiceGetUnreadCountQueryKey,
 } from "@evey/api";
 import { useQueryClient } from "@tanstack/react-query";
+import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/Button";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Modal } from "@/components/ui/Modal";
@@ -76,6 +77,7 @@ function NotifIcon({ type }: { type?: string }) {
 }
 
 function NotificationRow({ notif }: { notif: Notification }) {
+  const { t } = useTranslation("common");
   const qc = useQueryClient();
   const invalidate = () => {
     void qc.invalidateQueries({ queryKey: getNotificationServiceListNotificationsQueryKey() });
@@ -110,7 +112,7 @@ function NotificationRow({ notif }: { notif: Notification }) {
           disabled={markRead.isPending}
           className="shrink-0 text-xs text-[var(--accent)] hover:underline disabled:opacity-50 mt-1"
         >
-          Mark read
+          {t("notifications.markRead")}
         </button>
       )}
     </div>
@@ -118,6 +120,7 @@ function NotificationRow({ notif }: { notif: Notification }) {
 }
 
 function NotificationsPage() {
+  const { t } = useTranslation("common");
   const qc = useQueryClient();
   const [showDeleteModal, setShowDeleteModal] = useState(false);
 
@@ -143,7 +146,7 @@ function NotificationsPage() {
   return (
     <div className="px-6 py-8 max-w-2xl flex flex-col gap-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-[var(--text)]">Notifications</h1>
+        <h1 className="text-2xl font-bold text-[var(--text)]">{t("notifications.title")}</h1>
         {notifications.length > 0 && (
           <div className="flex gap-2">
             {hasUnread && (
@@ -152,20 +155,20 @@ function NotificationsPage() {
                 loading={markAllRead.isPending}
                 onClick={() => markAllRead.mutate({ data: {} })}
               >
-                Mark all read
+                {t("notifications.markAllRead")}
               </Button>
             )}
             <Button variant="danger" onClick={() => setShowDeleteModal(true)}>
-              Delete all
+              {t("notifications.deleteAll")}
             </Button>
           </div>
         )}
       </div>
 
-      {isLoading && <p className="text-sm text-[var(--text-muted)]">Loading...</p>}
+      {isLoading && <p className="text-sm text-[var(--text-muted)]">{t("loading")}</p>}
 
       {!isLoading && notifications.length === 0 && (
-        <EmptyState icon="notification" title="No notifications" description="You're all caught up." />
+        <EmptyState icon="notification" title={t("notifications.noNotifications")} description={t("notifications.allCaughtUp")} />
       )}
 
       {!isLoading && notifications.length > 0 && (
@@ -176,16 +179,16 @@ function NotificationsPage() {
         </div>
       )}
 
-      <Modal open={showDeleteModal} onClose={() => setShowDeleteModal(false)} title="Delete all notifications">
+      <Modal open={showDeleteModal} onClose={() => setShowDeleteModal(false)} title={t("notifications.deleteAllTitle")}>
         <p className="text-sm text-[var(--text-muted)] mb-6">
-          This will permanently delete all your notifications. This action cannot be undone.
+          {t("notifications.deleteAllConfirm")}
         </p>
         <div className="flex justify-end gap-2">
           <Button variant="ghost" onClick={() => setShowDeleteModal(false)}>
-            Cancel
+            {t("cancel")}
           </Button>
           <Button variant="danger" loading={deleteAll.isPending} onClick={() => deleteAll.mutate({})}>
-            Delete all
+            {t("notifications.deleteAll")}
           </Button>
         </div>
       </Modal>
