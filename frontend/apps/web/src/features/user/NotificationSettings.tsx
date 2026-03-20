@@ -89,7 +89,7 @@ function PushNotificationSection() {
           url: "/api/v1/push/register",
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          data: { token, platform: "web" },
+          data: { token, platform: "web", consent: true },
         });
         setEnabled(true);
         toast.success(t("auth.notificationSettings.pushEnabled"));

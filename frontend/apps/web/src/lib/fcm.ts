@@ -1,5 +1,5 @@
 import { initializeApp, getApps } from "firebase/app";
-import { getMessaging, getToken, deleteToken } from "firebase/messaging";
+import { getMessaging, getToken, deleteToken, onMessage } from "firebase/messaging";
 
 let cachedToken: string | null = null;
 
@@ -54,4 +54,15 @@ export async function revokePushToken(): Promise<void> {
 
 export function getStoredPushToken(): string | null {
   return cachedToken;
+}
+
+export function setupForegroundListener(onNotification: (title: string, body: string) => void) {
+  if (!isFCMConfigured()) return;
+  const app = getOrInitApp();
+  const messaging = getMessaging(app);
+  onMessage(messaging, (payload) => {
+    const title = payload.notification?.title ?? "Evey";
+    const body = payload.notification?.body ?? "";
+    onNotification(title, body);
+  });
 }

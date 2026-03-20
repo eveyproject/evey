@@ -3,8 +3,9 @@ import { createRoot } from "react-dom/client";
 import { RouterProvider, createRouter } from "@tanstack/react-router";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { routeTree } from "./routeTree.gen";
-import { useAuthStore } from "@evey/store";
+import { useAuthStore, toast } from "@evey/store";
 import { setTokenProvider, setTokensUpdater } from "@evey/api";
+import { setupForegroundListener } from "@/lib/fcm";
 import "./i18n";
 import "./styles/main.css";
 
@@ -31,6 +32,14 @@ const router = createRouter({ routeTree, context: { queryClient } });
 declare module "@tanstack/react-router" {
   interface Register { router: typeof router }
 }
+
+if ("serviceWorker" in navigator) {
+  navigator.serviceWorker.register("/firebase-messaging-sw.js").catch(() => {});
+}
+
+setupForegroundListener((title, body) => {
+  toast.info(`${title}: ${body}`);
+});
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
