@@ -197,5 +197,5 @@ type TrickplayResult struct {
 }
 
 type TrickplayGenerator interface {
-	Generate(ctx context.Context, filePath string, outputDir string, interval, width, tileWidth, tileHeight int) (*TrickplayResult, error)
+	Generate(ctx context.Context, filePath string, outputDir string, interval, width, tileWidth, tileHeight, maxWorkers int) (*TrickplayResult, error)
 }

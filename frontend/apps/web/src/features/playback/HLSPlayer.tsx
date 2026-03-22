@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { RotateCcw, RotateCw, Play, Pause, Loader, TriangleAlert } from "lucide-react";
 import Hls from "hls.js";
 import { useAuthStore } from "@evey/store";
 import type { V1StreamInfo } from "@evey/api/src/generated/playback.schemas";
@@ -46,6 +47,7 @@ interface HLSPlayerProps {
   streamInfo: V1StreamInfo;
   sessionId: string;
   mediaId: string;
+  mediaType?: string;
   startPositionMs?: number;
   knownDurationMs?: number;
   filePath?: string;
@@ -69,6 +71,7 @@ export function HLSPlayer({
   streamInfo,
   sessionId,
   mediaId,
+  mediaType,
   startPositionMs = 0,
   knownDurationMs,
   filePath,
@@ -262,19 +265,20 @@ export function HLSPlayer({
     }
 
     const offset = transcodeStartTime;
-    transcodeOffsetRef.current = 0; // hls.js manages position natively
+    transcodeOffsetRef.current = offset > 0 ? offset : 0;
 
-    const token = accessToken ?? "";
+    const currentToken = useAuthStore.getState().accessToken ?? "";
     const params = new URLSearchParams();
-    if (token) params.set("token", token);
+    if (currentToken) params.set("token", currentToken);
     params.set("audioTrack", String(currentTrackIndex));
     if (selectedBurnInTrack !== null) params.set("subtitleTrack", String(selectedBurnInTrack));
+    if (offset > 0) params.set("startSec", String(offset));
     const hlsUrl = `/api/v1/media/${mediaId}/hls/master.m3u8?${params.toString()}`;
 
     if (!Hls.isSupported()) {
       // Safari native HLS fallback
       video.src = hlsUrl;
-      video.currentTime = offset;
+      video.currentTime = 0;
       if (!wasPausedRef.current) video.play().catch(() => {});
       function onTimeUpdate() { positionRef.current = video!.currentTime; }
       function handleEnded() { onEnded?.(); }
@@ -289,13 +293,14 @@ export function HLSPlayer({
     }
 
     const hls = new Hls({
-      startPosition: offset,
+      startPosition: 0,
       maxBufferLength: 30,
       maxMaxBufferLength: 60,
       xhrSetup: (xhr: XMLHttpRequest, url: string) => {
-        if (token && !url.includes("token=")) {
+        const currentToken = useAuthStore.getState().accessToken;
+        if (currentToken && !url.includes("token=")) {
           const sep = url.includes("?") ? "&" : "?";
-          xhr.open("GET", `${url}${sep}token=${token}`, true);
+          xhr.open("GET", `${url}${sep}token=${currentToken}`, true);
         }
       },
     });
@@ -306,20 +311,34 @@ export function HLSPlayer({
 
     hls.on(Hls.Events.MANIFEST_PARSED, () => {
       hlsLevelsRef.current = hls.levels.map((l) => ({ height: l.height }));
-      if (!wasPausedRef.current) video.play().catch(() => {});
+      video.play().catch(() => {});
     });
 
+    let retries = 0;
     hls.on(Hls.Events.ERROR, (_, data) => {
       if (!data.fatal) return;
-      console.warn("[player] HLS fatal error:", data.type, data.details);
+      console.warn("[player] HLS fatal error:", data.type, data.details, data.response?.code);
+      retries++;
+      if (retries > 10) {
+        setFatalError(true);
+        return;
+      }
       if (data.type === Hls.ErrorTypes.NETWORK_ERROR) {
-        hls.startLoad();
+        const seekPos = transcodeOffsetRef.current + (video.currentTime || 0);
+        if (data.response?.code === 404 && seekPos > 0) {
+          setTranscodeStartTime(seekPos);
+          return;
+        }
+        setTimeout(() => hls.startLoad(), 2000);
+      } else if (data.type === Hls.ErrorTypes.MEDIA_ERROR) {
+        hls.recoverMediaError();
       } else {
         setFatalError(true);
       }
     });
+    hls.on(Hls.Events.FRAG_LOADED, () => { retries = 0; });
 
-    function onTimeUpdate() { positionRef.current = video!.currentTime; }
+    function onTimeUpdate() { positionRef.current = transcodeOffsetRef.current + video!.currentTime; }
     function handleEnded() { onEnded?.(); }
     function handleWaiting() { setIsBuffering(true); }
     function handlePlaying() { setIsBuffering(false); }
@@ -337,7 +356,8 @@ export function HLSPlayer({
       hls.destroy();
       hlsRef.current = null;
     };
-  }, [transcodeMode, mediaId, accessToken, onEnded, currentTrackIndex, transcodeStartTime, selectedBurnInTrack]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [transcodeMode, mediaId, onEnded, currentTrackIndex, transcodeStartTime, selectedBurnInTrack]);
 
   // Subtitle track management — imperatively add/remove <track> element
   useEffect(() => {
@@ -592,8 +612,17 @@ export function HLSPlayer({
   const handleSeekRequest = useCallback((absoluteTimeSec: number) => {
     const video = videoRef.current;
     if (!video) return;
-    video.currentTime = absoluteTimeSec;
-  }, []);
+    if (transcodeMode) {
+      const localTime = absoluteTimeSec - transcodeOffsetRef.current;
+      if (localTime < 0 || (video.buffered.length > 0 && localTime > video.buffered.end(video.buffered.length - 1) + 10)) {
+        setTranscodeStartTime(absoluteTimeSec);
+        return;
+      }
+      video.currentTime = localTime;
+    } else {
+      video.currentTime = absoluteTimeSec;
+    }
+  }, [transcodeMode]);
 
   const seekRef = useRef(handleSeekRequest);
   seekRef.current = handleSeekRequest;
@@ -722,29 +751,34 @@ export function HLSPlayer({
     };
   }, []);
 
+  function handleWheel(e: React.WheelEvent) {
+    const video = videoRef.current;
+    if (!video) return;
+    e.preventDefault();
+    const delta = e.deltaY < 0 ? 0.05 : -0.05;
+    video.volume = Math.min(1, Math.max(0, video.volume + delta));
+  }
+
   return (
     <div
       className="absolute inset-0 bg-black"
       onTouchStart={handleTouchStart}
       onTouchEnd={handleTouchEnd}
+      onWheel={handleWheel}
     >
       <video ref={(el) => { videoRef.current = el; onVideoRef?.(el); }} className="w-full h-full" playsInline />
       {/* Touch seek flash indicators */}
       {seekFlash === "left" && (
         <div className="absolute left-0 top-0 bottom-0 w-1/2 flex items-center justify-center pointer-events-none" style={{ zIndex: 6 }}>
           <div className="rounded-full bg-white/20 w-16 h-16 flex items-center justify-center">
-            <svg className="w-8 h-8 text-white" fill="currentColor" viewBox="0 0 24 24">
-              <path d="M11.99 5V1l-5 5 5 5V7c3.31 0 6 2.69 6 6s-2.69 6-6 6-6-2.69-6-6h-2c0 4.42 3.58 8 8 8s8-3.58 8-8-3.58-8-8-8z"/>
-            </svg>
+            <RotateCcw size={32} className="text-white" />
           </div>
         </div>
       )}
       {seekFlash === "right" && (
         <div className="absolute right-0 top-0 bottom-0 w-1/2 flex items-center justify-center pointer-events-none" style={{ zIndex: 6 }}>
           <div className="rounded-full bg-white/20 w-16 h-16 flex items-center justify-center">
-            <svg className="w-8 h-8 text-white" fill="currentColor" viewBox="0 0 24 24">
-              <path d="M12.01 5V1l5 5-5 5V7c-3.31 0-6 2.69-6 6s2.69 6 6 6 6-2.69 6-6h2c0 4.42-3.58 8-8 8s-8-3.58-8-8 3.58-8 8-8z"/>
-            </svg>
+            <RotateCw size={32} className="text-white" />
           </div>
         </div>
       )}
@@ -753,14 +787,9 @@ export function HLSPlayer({
         <div className="absolute inset-0 flex items-center justify-center pointer-events-none" style={{ zIndex: 6 }}>
           <div className="rounded-full bg-black/40 w-16 h-16 flex items-center justify-center animate-ping-once">
             {actionFlash === "play" ? (
-              <svg className="w-8 h-8 text-white ml-1" fill="currentColor" viewBox="0 0 24 24">
-                <path d="M5 3l14 9-14 9V3z" />
-              </svg>
+              <Play size={32} className="text-white ml-1" fill="currentColor" />
             ) : (
-              <svg className="w-8 h-8 text-white" fill="currentColor" viewBox="0 0 24 24">
-                <rect x="6" y="4" width="4" height="16" />
-                <rect x="14" y="4" width="4" height="16" />
-              </svg>
+              <Pause size={32} className="text-white" fill="currentColor" />
             )}
           </div>
         </div>
@@ -768,10 +797,7 @@ export function HLSPlayer({
       {isBuffering && (
         <div className="absolute inset-0 flex items-center justify-center pointer-events-none" style={{ zIndex: 5 }}>
           <div className="flex flex-col items-center gap-2">
-            <svg className="animate-spin w-10 h-10 text-white/80" viewBox="0 0 24 24" fill="none">
-              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" />
-            </svg>
+            <Loader size={40} className="animate-spin text-white/80" />
             <span className="text-white/80 text-sm font-medium">Buffering…</span>
           </div>
         </div>
@@ -779,9 +805,7 @@ export function HLSPlayer({
       {fatalError && (
         <div className="absolute inset-0 flex items-center justify-center" style={{ zIndex: 10, background: "rgba(0,0,0,0.7)" }}>
           <div className="flex flex-col items-center gap-4 text-white">
-            <svg className="w-12 h-12" style={{ color: "var(--color-error, #f87171)" }} fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
-            </svg>
+            <TriangleAlert size={48} style={{ color: "var(--color-danger)" }} strokeWidth={1.5} />
             <p className="text-lg font-medium">Playback failed</p>
             <p className="text-sm" style={{ color: "var(--text-muted, rgba(255,255,255,0.6))" }}>Unable to play at any quality level</p>
             <button
@@ -862,6 +886,7 @@ export function HLSPlayer({
         onEpisodeChange={onEpisodeChange}
         chapters={chapters}
         mediaId={mediaId}
+        mediaType={mediaType}
         onSeekRequest={handleSeekRequest}
         transcodeOffset={transcodeOffsetRef.current}
         skipForwardSeconds={skipFwd}

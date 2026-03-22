@@ -16,7 +16,7 @@ func NewFakeTrickplayGenerator() *FakeTrickplayGenerator {
 	return &FakeTrickplayGenerator{Results: make(map[string]*library.TrickplayResult)}
 }
 
-func (g *FakeTrickplayGenerator) Generate(_ context.Context, filePath, outputDir string, interval, width, tileWidth, tileHeight int) (*library.TrickplayResult, error) {
+func (g *FakeTrickplayGenerator) Generate(_ context.Context, filePath, outputDir string, interval, width, tileWidth, tileHeight, _ int) (*library.TrickplayResult, error) {
 	g.LastOutputDir = outputDir
 	if g.Err != nil {
 		return nil, g.Err

@@ -8,11 +8,30 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strconv"
 	"sync"
 
 	"github.com/gravity-zero/evey/internal/domain/library"
 )
+
+// TrickplayWorkers returns the number of parallel ffmpeg workers for trickplay.
+// adaptiveCPU=true → 25% of cores (gentle), false → 50% of cores (faster).
+// Minimum 1, maximum 4.
+func TrickplayWorkers(adaptiveCPU bool) int {
+	divisor := 4
+	if !adaptiveCPU {
+		divisor = 2
+	}
+	n := runtime.NumCPU() / divisor
+	if n < 1 {
+		return 1
+	}
+	if n > 4 {
+		return 4
+	}
+	return n
+}
 
 type TrickplayGenerator struct {
 	binary      string
@@ -24,7 +43,7 @@ func NewTrickplayGenerator(binary, probeBinary string) *TrickplayGenerator {
 }
 
 func (g *TrickplayGenerator) probeDuration(ctx context.Context, filePath string) (float64, error) {
-	out, err := exec.CommandContext(ctx, "nice", "-n", "15", g.probeBinary,
+	out, err := exec.CommandContext(ctx, "nice", "-n", "19", g.probeBinary,
 		"-v", "quiet",
 		"-print_format", "json",
 		"-show_format",
@@ -48,7 +67,7 @@ func (g *TrickplayGenerator) probeDuration(ctx context.Context, filePath string)
 	return d, nil
 }
 
-func (g *TrickplayGenerator) Generate(ctx context.Context, filePath, outputDir string, interval, width, tileWidth, tileHeight int) (*library.TrickplayResult, error) {
+func (g *TrickplayGenerator) Generate(ctx context.Context, filePath, outputDir string, interval, width, tileWidth, tileHeight, maxWorkers int) (*library.TrickplayResult, error) {
 	if err := os.MkdirAll(outputDir, 0755); err != nil {
 		return nil, fmt.Errorf("create trickplay dir: %w", err)
 	}
@@ -76,8 +95,11 @@ func (g *TrickplayGenerator) Generate(ctx context.Context, filePath, outputDir s
 		}
 	}()
 
-	// Extract one frame per timestamp in parallel (max 16 goroutines).
-	sem := make(chan struct{}, 14)
+	workers := maxWorkers
+	if workers <= 0 {
+		workers = TrickplayWorkers(true)
+	}
+	sem := make(chan struct{}, workers)
 	errs := make([]error, len(timestamps))
 	var wg sync.WaitGroup
 	for i, ts := range timestamps {
@@ -87,12 +109,13 @@ func (g *TrickplayGenerator) Generate(ctx context.Context, filePath, outputDir s
 			defer wg.Done()
 			defer func() { <-sem }()
 			out := filepath.Join(thumbDir, fmt.Sprintf("thumb_%05d.jpg", idx))
-			cmd := exec.CommandContext(ctx, "nice", "-n", "15", g.binary,
+			cmd := exec.CommandContext(ctx, "nice", "-n", "19", g.binary,
+				"-threads", "1",
 				"-ss", fmt.Sprintf("%.3f", t),
 				"-i", filePath,
 				"-frames:v", "1",
 				"-vf", fmt.Sprintf("scale=%d:-1", width),
-				"-q:v", "5",
+				"-q:v", "8",
 				"-y", out,
 			)
 			if b, runErr := cmd.CombinedOutput(); runErr != nil {
@@ -124,12 +147,13 @@ func (g *TrickplayGenerator) Generate(ctx context.Context, filePath, outputDir s
 
 	// Tile thumbnails into sprite sheets.
 	outputPattern := filepath.Join(outputDir, "trickplay_%03d.jpg")
-	tileCmd := exec.CommandContext(ctx, "nice", "-n", "15", g.binary,
+	tileCmd := exec.CommandContext(ctx, "nice", "-n", "19", g.binary,
+		"-threads", "1",
 		"-f", "concat",
 		"-safe", "0",
 		"-i", concatPath,
 		"-vf", fmt.Sprintf("tile=%dx%d", tileWidth, tileHeight),
-		"-q:v", "5",
+		"-q:v", "8",
 		"-y", outputPattern,
 	)
 	if out, runErr := tileCmd.CombinedOutput(); runErr != nil {

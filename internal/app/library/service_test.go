@@ -3,7 +3,9 @@ package library_test
 import (
 	"context"
 	"errors"
+	"sync"
 	"testing"
+	"time"
 
 	applib "github.com/gravity-zero/evey/internal/app/library"
 	"github.com/gravity-zero/evey/internal/domain/library"
@@ -291,7 +293,7 @@ func TestGenerateTrickplay_Success(t *testing.T) {
 	svc, _, _, mediaRepo, _, _ := newCmdSvc()
 	trickplayRepo := libfakes.NewFakeTrickplayRepository()
 	trickplayGen := libfakes.NewFakeTrickplayGenerator()
-	svc.WithTrickplay(trickplayRepo, trickplayGen, "/cache/trickplay")
+	svc.WithTrickplay(trickplayRepo, trickplayGen, "/cache/trickplay", nil)
 
 	mediaRepo.Create(context.Background(), &library.MediaItem{
 		ID:       "media-1",
@@ -310,8 +312,8 @@ func TestGenerateTrickplay_Success(t *testing.T) {
 	manifest, err := svc.GetTrickplayManifest(context.Background(), "media-1")
 	require.NoError(t, err)
 	assert.Equal(t, "media-1", manifest.MediaItemID)
-	assert.Equal(t, 10, manifest.Interval)
-	assert.Equal(t, 160, manifest.Width)
+	assert.Equal(t, 15, manifest.Interval)
+	assert.Equal(t, 120, manifest.Width)
 	assert.Equal(t, 10, manifest.TileWidth)
 	assert.Equal(t, 10, manifest.TileHeight)
 	assert.Equal(t, 3, manifest.ImageCount)
@@ -322,7 +324,7 @@ func TestGenerateTrickplay_UsesCacheDir(t *testing.T) {
 	svc, _, _, mediaRepo, _, _ := newCmdSvc()
 	trickplayRepo := libfakes.NewFakeTrickplayRepository()
 	trickplayGen := libfakes.NewFakeTrickplayGenerator()
-	svc.WithTrickplay(trickplayRepo, trickplayGen, "/my/custom/cache")
+	svc.WithTrickplay(trickplayRepo, trickplayGen, "/my/custom/cache", nil)
 
 	mediaRepo.Create(context.Background(), &library.MediaItem{
 		ID:       "media-2",
@@ -340,7 +342,7 @@ func TestGenerateTrickplay_MediaNotFound(t *testing.T) {
 	svc, _, _, _, _, _ := newCmdSvc()
 	trickplayRepo := libfakes.NewFakeTrickplayRepository()
 	trickplayGen := libfakes.NewFakeTrickplayGenerator()
-	svc.WithTrickplay(trickplayRepo, trickplayGen, "/cache/trickplay")
+	svc.WithTrickplay(trickplayRepo, trickplayGen, "/cache/trickplay", nil)
 
 	err := svc.GenerateTrickplay(context.Background(), "nonexistent")
 	require.Error(t, err)
@@ -352,7 +354,7 @@ func TestGenerateTrickplay_NoFilePath(t *testing.T) {
 	svc, _, _, mediaRepo, _, _ := newCmdSvc()
 	trickplayRepo := libfakes.NewFakeTrickplayRepository()
 	trickplayGen := libfakes.NewFakeTrickplayGenerator()
-	svc.WithTrickplay(trickplayRepo, trickplayGen, "/cache/trickplay")
+	svc.WithTrickplay(trickplayRepo, trickplayGen, "/cache/trickplay", nil)
 
 	mediaRepo.Create(context.Background(), &library.MediaItem{
 		ID:       "media-1",
@@ -379,10 +381,106 @@ func TestGetTrickplayManifest_NotFound(t *testing.T) {
 	svc, _, _, _, _, _ := newCmdSvc()
 	trickplayRepo := libfakes.NewFakeTrickplayRepository()
 	trickplayGen := libfakes.NewFakeTrickplayGenerator()
-	svc.WithTrickplay(trickplayRepo, trickplayGen, "/cache/trickplay")
+	svc.WithTrickplay(trickplayRepo, trickplayGen, "/cache/trickplay", nil)
 
 	_, err := svc.GetTrickplayManifest(context.Background(), "nonexistent")
 	require.Error(t, err)
+}
+
+// --- Trickplay: waitForIdleStreams ---
+
+type fakeStreamChecker struct {
+	mu    sync.Mutex
+	count int
+}
+
+func (f *fakeStreamChecker) ActiveSessionCount() int {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.count
+}
+
+func (f *fakeStreamChecker) setCount(n int) {
+	f.mu.Lock()
+	f.count = n
+	f.mu.Unlock()
+}
+
+func TestGenerateTrickplay_BlocksWhileStreamsActive(t *testing.T) {
+	t.Parallel()
+	svc, _, _, mediaRepo, _, _ := newCmdSvc()
+	trickplayRepo := libfakes.NewFakeTrickplayRepository()
+	trickplayGen := libfakes.NewFakeTrickplayGenerator()
+	svc.WithTrickplay(trickplayRepo, trickplayGen, "/cache/trickplay", nil)
+
+	checker := &fakeStreamChecker{count: 1}
+	svc.SetTrickplayActiveStreamChecker(checker)
+
+	mediaRepo.Create(context.Background(), &library.MediaItem{
+		ID:       "media-wait",
+		FilePath: "/movies/test.mkv",
+		Title:    "Test",
+	})
+
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan struct{})
+	go func() {
+		svc.GenerateTrickplay(ctx, "media-wait")
+		close(done)
+	}()
+
+	// With active streams, GenerateTrickplay should block
+	select {
+	case <-done:
+		t.Fatal("GenerateTrickplay should block while streams are active")
+	case <-time.After(200 * time.Millisecond):
+	}
+
+	// Cancel context to unblock
+	cancel()
+	select {
+	case <-done:
+	case <-time.After(5 * time.Second):
+		t.Fatal("GenerateTrickplay should unblock on context cancel")
+	}
+}
+
+func TestGenerateTrickplay_ProceedsWhenNoActiveStreams(t *testing.T) {
+	t.Parallel()
+	svc, _, _, mediaRepo, _, _ := newCmdSvc()
+	trickplayRepo := libfakes.NewFakeTrickplayRepository()
+	trickplayGen := libfakes.NewFakeTrickplayGenerator()
+	svc.WithTrickplay(trickplayRepo, trickplayGen, "/cache/trickplay", nil)
+
+	checker := &fakeStreamChecker{count: 0}
+	svc.SetTrickplayActiveStreamChecker(checker)
+
+	mediaRepo.Create(context.Background(), &library.MediaItem{
+		ID:       "media-idle",
+		FilePath: "/movies/test.mkv",
+		Title:    "Test",
+	})
+
+	err := svc.GenerateTrickplay(context.Background(), "media-idle")
+	require.NoError(t, err)
+}
+
+func TestGenerateTrickplay_NilCheckerProceeds(t *testing.T) {
+	t.Parallel()
+	svc, _, _, mediaRepo, _, _ := newCmdSvc()
+	trickplayRepo := libfakes.NewFakeTrickplayRepository()
+	trickplayGen := libfakes.NewFakeTrickplayGenerator()
+	svc.WithTrickplay(trickplayRepo, trickplayGen, "/cache/trickplay", nil)
+	// no SetActiveStreamChecker call → nil checker
+
+	mediaRepo.Create(context.Background(), &library.MediaItem{
+		ID:       "media-nil-check",
+		FilePath: "/movies/test.mkv",
+		Title:    "Test",
+	})
+
+	err := svc.GenerateTrickplay(context.Background(), "media-nil-check")
+	require.NoError(t, err)
 }
 
 func TestListMediaItems_ParentalFilter_ExcludesRatedR(t *testing.T) {

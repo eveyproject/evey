@@ -208,9 +208,13 @@ func (r *MediaItemRepository) List(ctx context.Context, f library.ListMediaItems
 
 	sortField := "sort_title"
 	if f.SortField != "" {
-		allowed := map[string]bool{"title": true, "sort_title": true, "added_at": true, "year": true, "premiere_date": true, "community_rating": true}
-		if allowed[f.SortField] {
-			sortField = f.SortField
+		columnMap := map[string]string{
+			"title": "sort_title", "sort_title": "sort_title", "added_at": "added_at",
+			"date_added": "added_at", "year": "year", "premiere_date": "premiere_date",
+			"community_rating": "community_rating",
+		}
+		if col, ok := columnMap[f.SortField]; ok {
+			sortField = col
 		}
 	}
 	sortOrder := "ASC"
@@ -340,7 +344,7 @@ func (r *MediaItemRepository) ListByLibraryID(ctx context.Context, libraryID str
 		`SELECT id, library_id, parent_id, type, title, sort_title, original_title, overview, tagline,
 		 file_path, file_size, file_fingerprint, mod_time, duration_ms, bitrate, container_format, index_number, community_rating,
 		 official_rating, premiere_date, year, provider_ids, genres, studios, tags, trailers, ratings, added_at, updated_at
-		 FROM media_items WHERE library_id = $1 AND file_path IS NOT NULL AND file_path <> ''`, libraryID)
+		 FROM media_items WHERE library_id = $1`, libraryID)
 	if err != nil {
 		return nil, err
 	}

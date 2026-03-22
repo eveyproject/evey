@@ -62,6 +62,8 @@ export function usePlaySession(mediaId: string): PlaySessionResult {
     : undefined;
 
   const { mutate: stopStreamMutate } = usePlaybackServiceStopStream();
+  const stopStreamRef = useRef(stopStreamMutate);
+  stopStreamRef.current = stopStreamMutate;
 
   useEffect(() => {
     stopped.current = false;
@@ -100,9 +102,9 @@ export function usePlaySession(mediaId: string): PlaySessionResult {
     stopped.current = true;
     const sid = sessionIdRef.current;
     if (sid) {
-      stopStreamMutate({ data: { sessionId: sid } });
+      stopStreamRef.current({ data: { sessionId: sid } });
     }
-  }, [stopStreamMutate]);
+  }, []);
 
   useEffect(() => {
     return () => stopSession();

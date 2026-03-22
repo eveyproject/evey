@@ -39,7 +39,9 @@ func trickplayManifestHandler(tokenGen TokenVerifier, libSvc TrickplayGetter, ba
 		}
 		manifest, err := libSvc.GetTrickplayManifest(r.Context(), mediaID)
 		if err != nil {
-			http.Error(w, `{"message":"not found"}`, http.StatusNotFound)
+			w.Header().Set("Content-Type", "text/vtt")
+			w.Header().Set("Cache-Control", "no-cache")
+			fmt.Fprint(w, "WEBVTT\n")
 			return
 		}
 		tilesPerImage := manifest.TileWidth * manifest.TileHeight

@@ -44,10 +44,14 @@ type HLSSession struct {
 	UserID              string
 	OutputDir           string
 	Profiles            []HLSProfile
+	VideoDecision       string // "copy" or "transcode"
+	AudioDecision       string // "copy" or "transcode"
+	AudioTrackIndex     int    // ffmpeg audio stream index (0:a:N)
 	SubtitleTrackIndex  int    // -1 = no subtitle
 	SubtitleCodec       string // codec name of the selected subtitle stream
 	HDRSupported        bool
 	AudioNormalize      bool // apply EBU R128 loudnorm filter
+	StartSec            float64 // seek offset: ffmpeg -ss before -i
 	streams             []*library.MediaStream
 	StartedAt           time.Time
 	LastAccess          time.Time
@@ -57,6 +61,12 @@ type HLSSession struct {
 	ready               chan struct{}
 	done                chan struct{} // closed when start() goroutine exits (process reaped)
 	err                 error
+}
+
+// IsSingleStream returns true when the session produces a single stream variant
+// (Mode A: video copy, or Mode B: single-quality transcode) instead of multi-variant ABR.
+func (s *HLSSession) IsSingleStream() bool {
+	return s.VideoDecision == "copy" || s.VideoDecision == "transcode"
 }
 
 func (s *HLSSession) MarkAccess() {
@@ -106,7 +116,7 @@ func (m *HLSManager) countByUser(userID string) int {
 	return m.userSessions[userID]
 }
 
-func (m *HLSManager) GetOrCreate(userID, mediaItemID, filePath string, sourceWidth, sourceHeight, maxUserStreams, subtitleTrackIndex int, subtitleCodec string, streams []*library.MediaStream, hdrSupported, audioNormalize bool) (*HLSSession, error) {
+func (m *HLSManager) GetOrCreate(userID, mediaItemID, filePath string, sourceWidth, sourceHeight, maxUserStreams, audioTrackIndex, subtitleTrackIndex int, subtitleCodec string, streams []*library.MediaStream, hdrSupported, audioNormalize bool, startSec float64, videoDecision, audioDecision string) (*HLSSession, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -125,9 +135,6 @@ func (m *HLSManager) GetOrCreate(userID, mediaItemID, filePath string, sourceWid
 
 	profiles := FilterProfiles(DefaultProfiles, sourceWidth, sourceHeight)
 	outputDir := filepath.Join(m.cacheDir, mediaItemID)
-	if err := os.MkdirAll(outputDir, 0755); err != nil {
-		return nil, fmt.Errorf("create output dir: %w", err)
-	}
 
 	now := time.Now()
 	session := &HLSSession{
@@ -136,10 +143,14 @@ func (m *HLSManager) GetOrCreate(userID, mediaItemID, filePath string, sourceWid
 		UserID:             userID,
 		OutputDir:          outputDir,
 		Profiles:           profiles,
+		VideoDecision:      videoDecision,
+		AudioDecision:      audioDecision,
+		AudioTrackIndex:    audioTrackIndex,
 		SubtitleTrackIndex: subtitleTrackIndex,
 		SubtitleCodec:      subtitleCodec,
 		HDRSupported:       hdrSupported,
 		AudioNormalize:     audioNormalize,
+		StartSec:           startSec,
 		streams:            streams,
 		StartedAt:          now,
 		LastAccess:         now,
@@ -149,7 +160,17 @@ func (m *HLSManager) GetOrCreate(userID, mediaItemID, filePath string, sourceWid
 	m.sessions[mediaItemID] = session
 	m.userSessions[userID]++
 
-	go session.start(filePath)
+	if err := os.MkdirAll(outputDir, 0755); err != nil {
+		return nil, fmt.Errorf("create output dir: %w", err)
+	}
+
+	if isTranscodeComplete(outputDir, session.streamCount()) {
+		slog.Info("hls: reusing cached transcode", slog.String("media_id", mediaItemID))
+		close(session.ready)
+		close(session.done)
+	} else {
+		go session.start(filePath)
+	}
 	return session, nil
 }
 
@@ -172,15 +193,40 @@ func (s *HLSSession) start(filePath string) {
 		return
 	}
 
-	masterPath := filepath.Join(s.OutputDir, "master.m3u8")
-	if err := waitForFile(ctx, masterPath, 30*time.Second, 500*time.Millisecond); err != nil {
-		s.err = fmt.Errorf("waiting for master.m3u8: %w", err)
-		cancel()
-		if waitErr := cmd.Wait(); waitErr != nil {
-			slog.Warn("hls: ffmpeg wait failed", slog.String("media_id", s.MediaItemID), slog.Any("err", waitErr))
+	// For single-stream mode, ffmpeg doesn't produce master.m3u8 (no -master_pl_name).
+	// Wait for stream_0.m3u8, then generate a minimal master playlist pointing to it.
+	if s.IsSingleStream() {
+		streamPath := filepath.Join(s.OutputDir, "stream_0.m3u8")
+		if err := waitForFile(ctx, streamPath, 30*time.Second, 100*time.Millisecond); err != nil {
+			s.err = fmt.Errorf("waiting for stream_0.m3u8: %w", err)
+			cancel()
+			if waitErr := cmd.Wait(); waitErr != nil {
+				slog.Warn("hls: ffmpeg wait failed", slog.String("media_id", s.MediaItemID), slog.Any("err", waitErr))
+			}
+			close(s.ready)
+			return
 		}
-		close(s.ready)
-		return
+		master := "#EXTM3U\n#EXT-X-VERSION:3\n#EXT-X-STREAM-INF:BANDWIDTH=5000000\nstream_0.m3u8\n"
+		if err := os.WriteFile(filepath.Join(s.OutputDir, "master.m3u8"), []byte(master), 0644); err != nil {
+			s.err = fmt.Errorf("write master.m3u8: %w", err)
+			cancel()
+			if waitErr := cmd.Wait(); waitErr != nil {
+				slog.Warn("hls: ffmpeg wait failed", slog.String("media_id", s.MediaItemID), slog.Any("err", waitErr))
+			}
+			close(s.ready)
+			return
+		}
+	} else {
+		masterPath := filepath.Join(s.OutputDir, "master.m3u8")
+		if err := waitForFile(ctx, masterPath, 30*time.Second, 100*time.Millisecond); err != nil {
+			s.err = fmt.Errorf("waiting for master.m3u8: %w", err)
+			cancel()
+			if waitErr := cmd.Wait(); waitErr != nil {
+				slog.Warn("hls: ffmpeg wait failed", slog.String("media_id", s.MediaItemID), slog.Any("err", waitErr))
+			}
+			close(s.ready)
+			return
+		}
 	}
 
 	close(s.ready)
@@ -194,22 +240,134 @@ func (s *HLSSession) BuildFFmpegArgs(filePath string) []string {
 	return s.buildFFmpegArgs(filePath)
 }
 
+// streamCount returns the number of HLS stream variants this session produces.
+func (s *HLSSession) streamCount() int {
+	if s.IsSingleStream() {
+		return 1
+	}
+	return len(s.Profiles)
+}
+
 func (s *HLSSession) buildFFmpegArgs(filePath string) []string {
+	if s.VideoDecision == "copy" {
+		return s.buildCopyVideoArgs(filePath)
+	}
+	if s.VideoDecision == "transcode" {
+		return s.buildSingleTranscodeArgs(filePath)
+	}
+	return s.buildMultiVariantArgs(filePath)
+}
+
+// buildCopyVideoArgs — Mode A: video copy + audio transcode/copy. Single stream, no filter_complex.
+// -ss BEFORE -i (input seeking) for instant seek — lands on nearest keyframe.
+func (s *HLSSession) buildCopyVideoArgs(filePath string) []string {
+	var args []string
+	if s.StartSec > 0 {
+		args = append(args, "-ss", fmt.Sprintf("%.3f", s.StartSec))
+	}
+	args = append(args, "-i", filePath)
+	args = append(args,
+		"-map", "0:v:0", "-map", fmt.Sprintf("0:a:%d", s.AudioTrackIndex),
+		"-c:v", "copy",
+	)
+	if s.AudioDecision == "transcode" {
+		args = append(args, "-c:a", "aac", "-ac", "2", "-b:a", "192k")
+		if s.AudioNormalize {
+			args = append(args, "-af", "loudnorm=I=-16:TP=-1.5:LRA=11:linear=true")
+		}
+	} else {
+		args = append(args, "-c:a", "copy")
+	}
+	args = append(args,
+		"-f", "hls",
+		"-hls_time", "3",
+		"-hls_list_size", "0",
+		"-hls_segment_filename", filepath.Join(s.OutputDir, "stream_0_%03d.ts"),
+		filepath.Join(s.OutputDir, "stream_0.m3u8"),
+	)
+	return args
+}
+
+// buildSingleTranscodeArgs — Mode B: single-quality video transcode at best matching profile resolution.
+func (s *HLSSession) buildSingleTranscodeArgs(filePath string) []string {
+	burnIn := s.SubtitleTrackIndex >= 0 && IsImageSubtitle(s.SubtitleCodec)
+
+	toneMap := s.detectToneMap()
+
+	var args []string
+	if s.StartSec > 0 {
+		args = append(args, "-ss", fmt.Sprintf("%.3f", s.StartSec))
+	}
+	args = append(args, "-i", filePath)
+
+	// Pick the highest-resolution profile that fits the source
+	p := s.Profiles[len(s.Profiles)-1]
+
+	if burnIn || toneMap != "" {
+		var filterParts []string
+		switch {
+		case burnIn && toneMap != "":
+			filterParts = append(filterParts,
+				fmt.Sprintf("[0:v]%s[vt]", toneMap),
+				fmt.Sprintf("[vt][0:s:%d]overlay,scale=%d:-2,setsar=1[out]", s.SubtitleTrackIndex, p.Width),
+			)
+		case burnIn:
+			filterParts = append(filterParts,
+				fmt.Sprintf("[0:v][0:s:%d]overlay,scale=%d:-2,setsar=1[out]", s.SubtitleTrackIndex, p.Width),
+			)
+		default: // toneMap only
+			filterParts = append(filterParts,
+				fmt.Sprintf("[0:v]%s,scale=%d:-2,setsar=1[out]", toneMap, p.Width),
+			)
+		}
+		args = append(args, "-filter_complex", strings.Join(filterParts, ";"))
+		args = append(args, "-map", "[out]")
+	} else {
+		args = append(args, "-map", "0:v:0",
+			"-vf", fmt.Sprintf("scale=%d:-2,setsar=1", p.Width),
+		)
+	}
+
+	args = append(args, "-map", fmt.Sprintf("0:a:%d", s.AudioTrackIndex),
+		"-c:v", "libx264",
+		"-profile:v", "high", "-level:v", "4.1",
+		"-b:v", fmt.Sprintf("%dk", p.VideoBitrate),
+		"-preset", "veryfast",
+		"-pix_fmt", "yuv420p",
+	)
+
+	if s.AudioDecision == "transcode" {
+		args = append(args, "-c:a", "aac", "-ac", "2", "-b:a", fmt.Sprintf("%dk", p.AudioBitrate))
+		if s.AudioNormalize {
+			args = append(args, "-filter:a:0", "loudnorm=I=-16:TP=-1.5:LRA=11:linear=true")
+		}
+	} else {
+		args = append(args, "-c:a", "copy")
+	}
+
+	args = append(args,
+		"-f", "hls",
+		"-hls_time", "3",
+		"-hls_list_size", "0",
+		"-hls_segment_filename", filepath.Join(s.OutputDir, "stream_0_%03d.ts"),
+		filepath.Join(s.OutputDir, "stream_0.m3u8"),
+	)
+	return args
+}
+
+// buildMultiVariantArgs — legacy multi-variant ABR (4 quality levels).
+func (s *HLSSession) buildMultiVariantArgs(filePath string) []string {
 	n := len(s.Profiles)
 	burnIn := s.SubtitleTrackIndex >= 0 && IsImageSubtitle(s.SubtitleCodec)
 
-	// HDR→SDR tone mapping when source is HDR and client doesn't support HDR
-	toneMap := ""
-	if !s.HDRSupported {
-		hdrInfo := hdr.DetectHDR(s.streams)
-		if hdrInfo.IsHDR {
-			toneMap = hdr.BuildToneMapFilter(hdrInfo, hdr.DefaultToneMapOptions())
-		}
+	toneMap := s.detectToneMap()
+
+	var args []string
+	if s.StartSec > 0 {
+		args = append(args, "-ss", fmt.Sprintf("%.3f", s.StartSec))
 	}
+	args = append(args, "-i", filePath)
 
-	args := []string{"-i", filePath}
-
-	// Build filter_complex
 	var filterParts []string
 	splitOutputs := make([]string, n)
 	for i := range n {
@@ -224,7 +382,6 @@ func (s *HLSSession) buildFFmpegArgs(filePath string) []string {
 				fmt.Sprintf("[vb]split=%d%s", n, strings.Join(splitOutputs, "")),
 			)
 		} else {
-			// overlay subtitle stream onto video before splitting
 			filterParts = append(filterParts,
 				fmt.Sprintf("[0:v][0:s:%d]overlay[vb]", s.SubtitleTrackIndex),
 				fmt.Sprintf("[vb]split=%d%s", n, strings.Join(splitOutputs, "")),
@@ -244,18 +401,17 @@ func (s *HLSSession) buildFFmpegArgs(filePath string) []string {
 	}
 
 	for i, p := range s.Profiles {
-		filterParts = append(filterParts, fmt.Sprintf("[v%d]scale=%d:%d[o%d]", i, p.Width, p.Height, i))
+		filterParts = append(filterParts, fmt.Sprintf("[v%d]scale=%d:-2,setsar=1[o%d]", i, p.Width, i))
 	}
 	args = append(args, "-filter_complex", strings.Join(filterParts, ";"))
 
-	// Map each scaled video + first audio, set codecs/bitrates
 	for i, p := range s.Profiles {
 		args = append(args,
 			"-map", fmt.Sprintf("[o%d]", i),
 			fmt.Sprintf("-c:v:%d", i), "libx264",
 			fmt.Sprintf("-b:v:%d", i), fmt.Sprintf("%dk", p.VideoBitrate),
-			"-map", "0:a:0",
-			fmt.Sprintf("-c:a:%d", i), "aac",
+			"-map", fmt.Sprintf("0:a:%d", s.AudioTrackIndex),
+			fmt.Sprintf("-c:a:%d", i), "aac", "-ac", "2",
 			fmt.Sprintf("-b:a:%d", i), fmt.Sprintf("%dk", p.AudioBitrate),
 		)
 		if s.AudioNormalize {
@@ -263,7 +419,6 @@ func (s *HLSSession) buildFFmpegArgs(filePath string) []string {
 		}
 	}
 
-	// var_stream_map
 	var streamMap []string
 	for i := range n {
 		streamMap = append(streamMap, fmt.Sprintf("v:%d,a:%d", i, i))
@@ -273,12 +428,27 @@ func (s *HLSSession) buildFFmpegArgs(filePath string) []string {
 	args = append(args,
 		"-master_pl_name", "master.m3u8",
 		"-f", "hls",
-		"-hls_time", "6",
+		"-hls_time", "3",
 		"-hls_list_size", "0",
 		"-hls_segment_filename", filepath.Join(s.OutputDir, "stream_%v_%03d.ts"),
 		filepath.Join(s.OutputDir, "stream_%v.m3u8"),
 	)
 	return args
+}
+
+func (s *HLSSession) detectToneMap() string {
+	if s.HDRSupported {
+		return ""
+	}
+	hdrStreams := make([]hdr.VideoStream, len(s.streams))
+	for i, st := range s.streams {
+		hdrStreams[i] = st
+	}
+	hdrInfo := hdr.DetectHDR(hdrStreams)
+	if hdrInfo.IsHDR {
+		return hdr.BuildToneMapFilter(hdrInfo, hdr.DefaultToneMapOptions())
+	}
+	return ""
 }
 
 func (s *HLSSession) WaitReady(ctx context.Context) error {
@@ -324,7 +494,7 @@ func (m *HLSManager) cleanupLoop() {
 		case <-m.stopCleanup:
 			return
 		case <-ticker.C:
-			m.cleanupStale(30 * time.Minute)
+			m.cleanupStale(10 * time.Minute)
 		}
 	}
 }
@@ -378,10 +548,47 @@ func (m *HLSManager) GetSession(mediaItemID string) (*HLSSession, bool) {
 	return s, ok
 }
 
+func (m *HLSManager) RestartFromPosition(userID, mediaItemID, filePath string, sourceWidth, sourceHeight, maxUserStreams, audioTrackIndex, subtitleTrackIndex int, subtitleCodec string, streams []*library.MediaStream, hdrSupported, audioNormalize bool, startSec float64, videoDecision, audioDecision string) (*HLSSession, error) {
+	m.mu.Lock()
+	if old, ok := m.sessions[mediaItemID]; ok {
+		delete(m.sessions, mediaItemID)
+		m.userSessions[old.UserID]--
+		if m.userSessions[old.UserID] <= 0 {
+			delete(m.userSessions, old.UserID)
+		}
+		m.mu.Unlock()
+		old.stop()
+	} else {
+		m.mu.Unlock()
+	}
+	return m.GetOrCreate(userID, mediaItemID, filePath, sourceWidth, sourceHeight, maxUserStreams, audioTrackIndex, subtitleTrackIndex, subtitleCodec, streams, hdrSupported, audioNormalize, startSec, videoDecision, audioDecision)
+}
+
 func (m *HLSManager) ActiveSessionCount() int {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	return len(m.sessions)
+}
+
+// isTranscodeComplete checks if a previous transcode exists and is fully finished
+// (all stream playlists have #EXT-X-ENDLIST). If so, we can serve the cached files
+// instead of re-encoding.
+func isTranscodeComplete(outputDir string, numStreams int) bool {
+	masterPath := filepath.Join(outputDir, "master.m3u8")
+	if _, err := os.Stat(masterPath); err != nil {
+		return false
+	}
+	for i := range numStreams {
+		playlistPath := filepath.Join(outputDir, fmt.Sprintf("stream_%d.m3u8", i))
+		data, err := os.ReadFile(playlistPath)
+		if err != nil {
+			return false
+		}
+		if !strings.Contains(string(data), "#EXT-X-ENDLIST") {
+			return false
+		}
+	}
+	return true
 }
 
 func waitForFile(ctx context.Context, path string, timeout, interval time.Duration) error {

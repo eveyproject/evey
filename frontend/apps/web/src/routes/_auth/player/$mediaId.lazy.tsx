@@ -1,3 +1,4 @@
+import { Users, TriangleAlert } from "lucide-react";
 import { createLazyFileRoute, useRouter } from "@tanstack/react-router";
 import { useCallback, useState, useEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
@@ -214,17 +215,13 @@ function PlayerPageInner({ mediaId }: { mediaId: string }) {
             className="absolute top-4 right-4 z-[60] flex items-center gap-2 px-3 py-2 rounded-full text-white text-sm font-medium transition-opacity hover:opacity-80"
             style={{ backgroundColor: "rgba(0,0,0,0.5)", border: "1px solid rgba(255,255,255,0.2)" }}
           >
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
-            </svg>
+            <Users size={16} />
             {t("player.watchTogether")}
           </button>
         )}
         {isError ? (
           <div className="flex flex-col items-center gap-4 text-white">
-            <svg className="w-12 h-12" style={{ color: "var(--color-danger)" }} fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
-            </svg>
+            <TriangleAlert size={48} style={{ color: "var(--color-danger)" }} strokeWidth={1.5} />
             <p className="text-lg font-medium">{t("player.failedToStart")}</p>
             <div className="flex gap-3">
               <button
@@ -251,6 +248,7 @@ function PlayerPageInner({ mediaId }: { mediaId: string }) {
             streamInfo={streamInfo}
             sessionId={sessionId}
             mediaId={mediaId}
+            mediaType={mediaItem?.type}
             startPositionMs={startPositionMs}
             knownDurationMs={mediaItem?.durationMs ? Number(mediaItem.durationMs) : undefined}
             filePath={mediaItem?.filePath}

@@ -59,8 +59,8 @@ func (s *CommandService) WithSubtitleScanner(sc library.ExternalSubtitleScanner)
 	}
 }
 
-func (s *CommandService) WithTrickplay(repo library.TrickplayRepository, gen library.TrickplayGenerator, cacheDir string) {
-	s.trickplay = NewTrickplayService(repo, gen, cacheDir, s.mediaItems, s.events)
+func (s *CommandService) WithTrickplay(repo library.TrickplayRepository, gen library.TrickplayGenerator, cacheDir string, configRepo shared.ServerConfigRepository) {
+	s.trickplay = NewTrickplayService(repo, gen, cacheDir, s.mediaItems, s.events, configRepo)
 }
 
 // Validate panics if required With*() deps were not set.
@@ -182,6 +182,19 @@ func (s *CommandService) StartTrickplayWorker(ctx context.Context) {
 		return
 	}
 	s.trickplay.StartTrickplayWorker(ctx)
+}
+
+func (s *CommandService) SetTrickplayActiveStreamChecker(c ActiveStreamChecker) {
+	if s.trickplay != nil {
+		s.trickplay.WithActiveStreamChecker(c)
+	}
+}
+
+func (s *CommandService) StartBackgroundGeneration(ctx context.Context) {
+	if s.trickplay == nil {
+		return
+	}
+	s.trickplay.StartBackgroundGeneration(ctx)
 }
 
 // --- Direct methods (library CRUD) ---

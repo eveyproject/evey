@@ -7,6 +7,9 @@ import { toast, useLocaleStore } from "@evey/store";
 import { Spinner } from "@/components/ui/Spinner";
 import { Button } from "@/components/ui/Button";
 import { EmptyState } from "@/components/ui/EmptyState";
+import { Input } from "@/components/ui/Input";
+import { Select } from "@/components/ui/Select";
+import { Checkbox } from "@/components/ui/Checkbox";
 
 const SMTP_KEYS = ["smtp.host", "smtp.port", "smtp.username", "smtp.password", "smtp.from", "smtp.tls"] as const;
 type SmtpKey = (typeof SMTP_KEYS)[number];
@@ -171,28 +174,14 @@ function LocaleSettingsCard({ entries }: { entries: ConfigEntry[] | undefined })
       <p className="text-sm mb-4" style={{ color: "var(--text-muted)" }}>
         {t("admin.serverConfig.languageRegionDesc")}
       </p>
-      <div className="flex items-center gap-3">
-        <label className="text-sm font-medium" style={{ color: "var(--text)" }} htmlFor="metadata-lang">
-          {t("admin.serverConfig.metadataLanguage")}
-        </label>
-        <select
+      <div className="flex items-end gap-3">
+        <Select
           id="metadata-lang"
+          label={t("admin.serverConfig.metadataLanguage")}
           value={current}
-          onChange={(e) => handleChange(e.target.value)}
-          className="px-3 py-1.5 rounded text-sm"
-          style={{
-            backgroundColor: "var(--surface-raised)",
-            border: "1px solid var(--border)",
-            color: "var(--text)",
-          }}
-        >
-          <option value="">{t("admin.serverConfig.envDefault")}</option>
-          {LOCALE_OPTIONS.map((opt) => (
-            <option key={opt.value} value={opt.value}>
-              {opt.label}
-            </option>
-          ))}
-        </select>
+          onChange={handleChange}
+          options={[{ label: t("admin.serverConfig.envDefault"), value: "" }, ...LOCALE_OPTIONS]}
+        />
         {setEntry.isPending && <Spinner size="sm" />}
       </div>
     </div>
@@ -410,12 +399,6 @@ function ApiKeysCard({ entries }: { entries: ConfigEntry[] | undefined }) {
   );
 }
 
-const inputStyle = {
-  backgroundColor: "var(--surface-raised)",
-  border: "1px solid var(--border)",
-  color: "var(--text)",
-} as const;
-
 function SmtpSettingsCard({ entries }: { entries: ConfigEntry[] | undefined }) {
   const { t } = useTranslation();
   const setEntry = useSetConfigEntry();
@@ -460,9 +443,6 @@ function SmtpSettingsCard({ entries }: { entries: ConfigEntry[] | undefined }) {
     }
   }
 
-  const labelClass = "text-sm font-medium" as const;
-  const fieldStyle = { color: "var(--text)" } as const;
-
   return (
     <div
       className="rounded-[var(--radius-lg)] p-5"
@@ -476,44 +456,69 @@ function SmtpSettingsCard({ entries }: { entries: ConfigEntry[] | undefined }) {
       </p>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
+        <Input label={t("admin.serverConfig.smtpHost")} placeholder="smtp.example.com" value={host} onChange={(e) => setHost(e.target.value)} />
+        <Input label={t("admin.serverConfig.port")} type="number" placeholder="587" value={port} onChange={(e) => setPort(e.target.value)} />
+        <Input label={t("admin.serverConfig.smtpUsername")} placeholder="user@example.com" value={username} onChange={(e) => setUsername(e.target.value)} />
         <div className="flex flex-col gap-1">
-          <label className={labelClass} style={fieldStyle}>{t("admin.serverConfig.smtpHost")}</label>
-          <input className="px-3 py-1.5 rounded text-sm w-full" style={inputStyle} placeholder="smtp.example.com" value={host} onChange={(e) => setHost(e.target.value)} />
+          <Input label={t("admin.serverConfig.smtpPassword")} type={showPassword ? "text" : "password"} placeholder="••••••••" value={password} onChange={(e) => setPassword(e.target.value)} />
+          <button type="button" onClick={() => setShowPassword((v) => !v)} className="self-start px-2 rounded text-xs" style={{ border: "1px solid var(--border)", backgroundColor: "var(--surface-raised)", color: "var(--text-muted)" }}>
+            {showPassword ? t("admin.serverConfig.hide") : t("admin.serverConfig.show")}
+          </button>
         </div>
-        <div className="flex flex-col gap-1">
-          <label className={labelClass} style={fieldStyle}>{t("admin.serverConfig.port")}</label>
-          <input className="px-3 py-1.5 rounded text-sm w-full" style={inputStyle} type="number" placeholder="587" value={port} onChange={(e) => setPort(e.target.value)} />
-        </div>
-        <div className="flex flex-col gap-1">
-          <label className={labelClass} style={fieldStyle}>{t("admin.serverConfig.smtpUsername")}</label>
-          <input className="px-3 py-1.5 rounded text-sm w-full" style={inputStyle} placeholder="user@example.com" value={username} onChange={(e) => setUsername(e.target.value)} />
-        </div>
-        <div className="flex flex-col gap-1">
-          <label className={labelClass} style={fieldStyle}>{t("admin.serverConfig.smtpPassword")}</label>
-          <div className="flex gap-2">
-            <input className="px-3 py-1.5 rounded text-sm flex-1" style={inputStyle} type={showPassword ? "text" : "password"} placeholder="\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022" value={password} onChange={(e) => setPassword(e.target.value)} />
-            <button type="button" onClick={() => setShowPassword((v) => !v)} className="px-2 rounded text-xs" style={{ border: "1px solid var(--border)", backgroundColor: "var(--surface-raised)", color: "var(--text-muted)" }}>
-              {showPassword ? t("admin.serverConfig.hide") : t("admin.serverConfig.show")}
-            </button>
-          </div>
-        </div>
-        <div className="flex flex-col gap-1">
-          <label className={labelClass} style={fieldStyle}>{t("admin.serverConfig.fromAddress")}</label>
-          <input className="px-3 py-1.5 rounded text-sm w-full" style={inputStyle} placeholder="Evey <noreply@example.com>" value={from} onChange={(e) => setFrom(e.target.value)} />
-        </div>
-        <div className="flex flex-col gap-1">
-          <label className={labelClass} style={fieldStyle}>{t("admin.serverConfig.tlsMode")}</label>
-          <select className="px-3 py-1.5 rounded text-sm w-full" style={inputStyle} value={tls} onChange={(e) => setTls(e.target.value)}>
-            {TLS_OPTIONS.map((opt) => (
-              <option key={opt.value} value={opt.value}>{opt.label}</option>
-            ))}
-          </select>
-        </div>
+        <Input label={t("admin.serverConfig.fromAddress")} placeholder="Evey <noreply@example.com>" value={from} onChange={(e) => setFrom(e.target.value)} />
+        <Select label={t("admin.serverConfig.tlsMode")} value={tls} onChange={setTls} options={TLS_OPTIONS} />
       </div>
 
       <Button onClick={handleSave} loading={setEntry.isPending}>
         {t("admin.serverConfig.saveSmtp")}
       </Button>
+    </div>
+  );
+}
+
+const TRICKPLAY_KEY = "trickplay.enabled";
+const TRICKPLAY_CPU_KEY = "trickplay.adaptive_cpu";
+
+function TrickplaySettingsCard({ entries }: { entries: ConfigEntry[] | undefined }) {
+  const { t } = useTranslation();
+  const setEntry = useSetConfigEntry();
+
+  const enabled = entries?.find((e) => e.key === TRICKPLAY_KEY)?.value !== "false";
+  const adaptiveCpu = entries?.find((e) => e.key === TRICKPLAY_CPU_KEY)?.value !== "false";
+
+  return (
+    <div
+      className="rounded-[var(--radius-lg)] p-5"
+      style={{ border: "1px solid var(--border)", backgroundColor: "var(--surface)" }}
+    >
+      <h2 className="text-base font-semibold mb-1" style={{ color: "var(--text)" }}>
+        {t("admin.serverConfig.trickplayTitle")}
+      </h2>
+      <p className="text-sm mb-4" style={{ color: "var(--text-muted)" }}>
+        {t("admin.serverConfig.trickplayDesc")}
+      </p>
+      <div className="flex flex-col gap-3">
+        <div className="flex items-center gap-3">
+          <Checkbox
+            label={t("admin.serverConfig.trickplayEnabled")}
+            checked={enabled}
+            onChange={(v) => setEntry.mutate({ key: TRICKPLAY_KEY, value: v ? "true" : "false" })}
+            disabled={setEntry.isPending}
+          />
+        </div>
+        <div className="flex items-center gap-3">
+          <Checkbox
+            label={t("admin.serverConfig.trickplayAdaptiveCpu")}
+            checked={adaptiveCpu}
+            onChange={(v) => setEntry.mutate({ key: TRICKPLAY_CPU_KEY, value: v ? "true" : "false" })}
+            disabled={setEntry.isPending || !enabled}
+          />
+        </div>
+        <p className="text-xs" style={{ color: "var(--text-muted)" }}>
+          {t("admin.serverConfig.trickplayAdaptiveCpuDesc")}
+        </p>
+        {setEntry.isPending && <Spinner size="sm" />}
+      </div>
     </div>
   );
 }
@@ -536,6 +541,8 @@ function ServerConfigPage() {
       <ApiKeysCard entries={entries} />
 
       <SmtpSettingsCard entries={entries} />
+
+      <TrickplaySettingsCard entries={entries} />
 
       {isLoading ? (
         <div className="flex justify-center py-16"><Spinner size="lg" /></div>

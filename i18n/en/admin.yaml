@@ -386,6 +386,11 @@ serverConfig:
   saveSmtp: Save SMTP Settings
   smtpSaved: SMTP settings saved
   failedSmtp: "Failed to save {{key}}"
+  trickplayTitle: Trickplay Thumbnails
+  trickplayDesc: Auto-generate timeline preview thumbnails for movies and episodes.
+  trickplayEnabled: Enable trickplay thumbnails
+  trickplayAdaptiveCpu: "Adaptive CPU"
+  trickplayAdaptiveCpuDesc: "Gentle mode (~25% CPU). Disable for faster generation (~50% CPU)."
   tableHeaders:
     key: Key
     value: Value

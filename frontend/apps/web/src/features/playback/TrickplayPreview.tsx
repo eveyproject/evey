@@ -54,23 +54,32 @@ function parseVTT(text: string): TrickplayCue[] {
   return cues;
 }
 
+const TRICKPLAY_TYPES = new Set(["MEDIA_ITEM_TYPE_MOVIE", "MEDIA_ITEM_TYPE_EPISODE"]);
+// Module-level cache: one fetch per mediaId per page load
+const fetchedIds = new Set<string>();
+const cueCache = new Map<string, TrickplayCue[]>();
+
 interface TrickplayPreviewProps {
   mediaId: string;
   hoverTime: number | null;
+  mediaType?: string;
 }
 
-export function TrickplayPreview({ mediaId, hoverTime }: TrickplayPreviewProps) {
-  const [cues, setCues] = useState<TrickplayCue[]>([]);
-  const [loaded, setLoaded] = useState(false);
-  const accessToken = useAuthStore((s) => s.accessToken);
+export function TrickplayPreview({ mediaId, hoverTime, mediaType }: TrickplayPreviewProps) {
+  const [cues, setCues] = useState<TrickplayCue[]>(() => cueCache.get(mediaId) ?? []);
+  const [loaded, setLoaded] = useState(() => (cueCache.get(mediaId)?.length ?? 0) > 0);
   const imageCache = useRef<Map<string, HTMLImageElement>>(new Map());
+  const hasTrickplay = !mediaType || TRICKPLAY_TYPES.has(mediaType);
 
   useEffect(() => {
-    if (!mediaId || !accessToken) return;
-    let cancelled = false;
+    if (!mediaId || !hasTrickplay || fetchedIds.has(mediaId)) return;
+    fetchedIds.add(mediaId);
+
+    const token = useAuthStore.getState().accessToken;
+    if (!token) return;
 
     fetch(`/api/v1/media/${mediaId}/trickplay`, {
-      headers: { Authorization: `Bearer ${accessToken}` },
+      headers: { Authorization: `Bearer ${token}` },
     })
       .then((res) => {
         if (res.status === 401) window.dispatchEvent(new Event("evey:unauthorized"));
@@ -78,12 +87,12 @@ export function TrickplayPreview({ mediaId, hoverTime }: TrickplayPreviewProps) 
         return res.text();
       })
       .then((text) => {
-        if (cancelled) return;
         const parsed = parseVTT(text);
+        cueCache.set(mediaId, parsed);
         setCues(parsed);
         setLoaded(parsed.length > 0);
 
-        // Preload sprite images
+        const accessToken = useAuthStore.getState().accessToken;
         const urls = new Set(parsed.map((c) => c.url));
         for (const url of urls) {
           if (!imageCache.current.has(url)) {
@@ -94,17 +103,16 @@ export function TrickplayPreview({ mediaId, hoverTime }: TrickplayPreviewProps) 
         }
       })
       .catch(() => {
-        if (!cancelled) setLoaded(false);
+        cueCache.set(mediaId, []);
       });
+  }, [mediaId, hasTrickplay]);
 
-    return () => { cancelled = true; };
-  }, [mediaId, accessToken]);
-
-  if (!loaded || hoverTime === null) return null;
+  if (!hasTrickplay || !loaded || hoverTime === null) return null;
 
   const cue = cues.find((c) => hoverTime >= c.startTime && hoverTime < c.endTime);
   if (!cue) return null;
 
+  const accessToken = useAuthStore.getState().accessToken;
   const imgSrc = imageCache.current.get(cue.url)?.src ?? `${cue.url}?token=${accessToken}`;
   const thumbW = cue.w;
   const thumbH = cue.h;

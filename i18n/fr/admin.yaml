@@ -383,6 +383,11 @@ serverConfig:
   saveSmtp: "Enregistrer les paramètres SMTP"
   smtpSaved: "Paramètres SMTP enregistrés"
   failedSmtp: "Échec de l'enregistrement de {{key}}"
+  trickplayTitle: "Miniatures Trickplay"
+  trickplayDesc: "Générer automatiquement les miniatures de prévisualisation pour les films et épisodes."
+  trickplayEnabled: "Activer les miniatures trickplay"
+  trickplayAdaptiveCpu: "CPU adaptatif"
+  trickplayAdaptiveCpuDesc: "Mode doux (~25% CPU). Désactiver pour une génération plus rapide (~50% CPU)."
   tableHeaders:
     key: "Clé"
     value: "Valeur"

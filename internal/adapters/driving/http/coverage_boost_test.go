@@ -760,7 +760,7 @@ func newTranscodeCacheMux(t *testing.T) (*http.ServeMux, string, string) {
 	svc := apptranscoding.NewService(transcoder, hw, jobRepo, profileRepo, bus, 0)
 	svc.WithCacheStore(cache)
 	mux := http.NewServeMux()
-	registerTranscodeCacheRoutes(mux, svc, gen)
+	registerTranscodeCacheRoutes(mux, svc, gen, &fakeMediaItemGetter{})
 	return mux, adminTok, userTok
 }
 
@@ -1785,10 +1785,10 @@ func TestParentalVerifyPIN_IDOR_403(t *testing.T) {
 
 func TestPushUnregister_NoAuth_401(t *testing.T) {
 	tokenGen := newTestJWTGen(t)
-	repo := notifakes.NewFakeDeviceTokenRepository()
+	repo := notifakes.NewFakePushSubscriptionRepository()
 	mux := http.NewServeMux()
-	registerPushRoutes(mux, repo, userfakes.NewFakeProfileRepository(), userfakes.NewFakeUserRepository(), tokenGen)
-	req := httptest.NewRequest(http.MethodDelete, "/api/v1/push/unregister", strings.NewReader(`{"token":"tok"}`))
+	registerPushRoutes(mux, repo, userfakes.NewFakeProfileRepository(), userfakes.NewFakeUserRepository(), tokenGen, "test-vapid-key")
+	req := httptest.NewRequest(http.MethodDelete, "/api/v1/push/unregister", strings.NewReader(`{"endpoint":"https://push.example.com/1"}`))
 	w := httptest.NewRecorder()
 	mux.ServeHTTP(w, req)
 	if w.Code != http.StatusUnauthorized {
@@ -1796,15 +1796,13 @@ func TestPushUnregister_NoAuth_401(t *testing.T) {
 	}
 }
 
-// --- push list devices happy path ---
-
-func TestPushListDevices_OK(t *testing.T) {
+func TestPushListSubscriptions_OK(t *testing.T) {
 	tokenGen := newTestJWTGen(t)
-	repo := notifakes.NewFakeDeviceTokenRepository()
+	repo := notifakes.NewFakePushSubscriptionRepository()
 	mux := http.NewServeMux()
-	registerPushRoutes(mux, repo, userfakes.NewFakeProfileRepository(), userfakes.NewFakeUserRepository(), tokenGen)
+	registerPushRoutes(mux, repo, userfakes.NewFakeProfileRepository(), userfakes.NewFakeUserRepository(), tokenGen, "test-vapid-key")
 	token, _ := tokenGen.GenerateAccessToken(domainuser.Claims{UserID: "u1", Username: "user"})
-	req := httptest.NewRequest(http.MethodGet, "/api/v1/push/devices", nil)
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/push/subscriptions", nil)
 	req.Header.Set("Authorization", "Bearer "+token)
 	req.RemoteAddr = "10.20.30.1:9999"
 	w := httptest.NewRecorder()
@@ -1814,39 +1812,35 @@ func TestPushListDevices_OK(t *testing.T) {
 	}
 }
 
-// --- push delete device happy path ---
-
-func TestPushDeleteDevice_OK(t *testing.T) {
+func TestPushDeleteSubscription_OK(t *testing.T) {
 	tokenGen := newTestJWTGen(t)
-	repo := notifakes.NewFakeDeviceTokenRepository()
+	repo := notifakes.NewFakePushSubscriptionRepository()
 	mux := http.NewServeMux()
-	registerPushRoutes(mux, repo, userfakes.NewFakeProfileRepository(), userfakes.NewFakeUserRepository(), tokenGen)
+	registerPushRoutes(mux, repo, userfakes.NewFakeProfileRepository(), userfakes.NewFakeUserRepository(), tokenGen, "test-vapid-key")
 	token, _ := tokenGen.GenerateAccessToken(domainuser.Claims{UserID: "u1", Username: "user"})
-	req := httptest.NewRequest(http.MethodDelete, "/api/v1/push/devices/some-token", nil)
+	req := httptest.NewRequest(http.MethodDelete, "/api/v1/push/subscriptions", strings.NewReader(`{"endpoint":"https://push.example.com/1"}`))
 	req.Header.Set("Authorization", "Bearer "+token)
 	req.RemoteAddr = "10.20.30.2:9999"
 	w := httptest.NewRecorder()
 	mux.ServeHTTP(w, req)
-	// device doesn't exist but that's OK — delete is idempotent
-	if w.Code != http.StatusOK && w.Code != http.StatusInternalServerError {
-		t.Errorf("expected 200 or 500, got %d", w.Code)
+	if w.Code != http.StatusOK {
+		t.Errorf("expected 200, got %d", w.Code)
 	}
 }
 
-func TestPushDeleteDevice_MissingToken_400(t *testing.T) {
+func TestPushDeleteSubscription_MissingEndpoint_400(t *testing.T) {
 	tokenGen := newTestJWTGen(t)
-	repo := notifakes.NewFakeDeviceTokenRepository()
+	repo := notifakes.NewFakePushSubscriptionRepository()
 	mux := http.NewServeMux()
-	registerPushRoutes(mux, repo, userfakes.NewFakeProfileRepository(), userfakes.NewFakeUserRepository(), tokenGen)
+	registerPushRoutes(mux, repo, userfakes.NewFakeProfileRepository(), userfakes.NewFakeUserRepository(), tokenGen, "test-vapid-key")
 	token, _ := tokenGen.GenerateAccessToken(domainuser.Claims{UserID: "u1", Username: "user"})
-	req := httptest.NewRequest(http.MethodDelete, "/api/v1/push/devices/", nil)
+	req := httptest.NewRequest(http.MethodDelete, "/api/v1/push/subscriptions", strings.NewReader(`{}`))
 	req.Header.Set("Authorization", "Bearer "+token)
 	req.RemoteAddr = "10.20.30.3:9999"
 	w := httptest.NewRecorder()
 	mux.ServeHTTP(w, req)
-	// empty token path value → 400
-	if w.Code != http.StatusBadRequest && w.Code != http.StatusNotFound {
-		t.Errorf("expected 400 or 404, got %d", w.Code)
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("expected 400, got %d", w.Code)
 	}
 }
 
@@ -2580,7 +2574,7 @@ func newAdminMediaMux(t *testing.T) (*http.ServeMux, string, string) {
 	metaQuery := appmetadata.NewQueryService(metaOverrides, metaArtwork, []domainmeta.MetadataProvider{provider})
 	rl := ratelimit.New(100)
 	mux := http.NewServeMux()
-	registerAdminRoutes(mux, metaCmd, metaQuery, gen, rl)
+	registerAdminRoutes(mux, metaCmd, metaQuery, gen, rl, context.Background())
 	return mux, adminTok, userTok
 }
 
@@ -2790,24 +2784,22 @@ func TestSubtitleRoutes_RequireMediaAccess_IDOR(t *testing.T) {
 
 func TestPushUnregister_OK(t *testing.T) {
 	tokenGen := newTestJWTGen(t)
-	repo := notifakes.NewFakeDeviceTokenRepository()
+	repo := notifakes.NewFakePushSubscriptionRepository()
 	userRepo := userfakes.NewFakeUserRepository()
 	_ = userRepo.Create(context.Background(), &domainuser.User{ID: "u1", Username: "user", Enabled: true})
 	mux := http.NewServeMux()
-	registerPushRoutes(mux, repo, userfakes.NewFakeProfileRepository(), userRepo, tokenGen)
+	registerPushRoutes(mux, repo, userfakes.NewFakeProfileRepository(), userRepo, tokenGen, "test-vapid-key")
 	token, _ := tokenGen.GenerateAccessToken(domainuser.Claims{UserID: "u1", Username: "user"})
 
-	// Register first
 	regReq := httptest.NewRequest(http.MethodPost, "/api/v1/push/register",
-		strings.NewReader(`{"token":"tok-1","platform":"web","consent":true}`))
+		strings.NewReader(`{"endpoint":"https://push.example.com/1","keys":{"p256dh":"abc","auth":"def"},"consent":true}`))
 	regReq.Header.Set("Authorization", "Bearer "+token)
 	regReq.RemoteAddr = "10.50.50.1:9999"
 	regW := httptest.NewRecorder()
 	mux.ServeHTTP(regW, regReq)
 
-	// Unregister
 	unregReq := httptest.NewRequest(http.MethodDelete, "/api/v1/push/unregister",
-		strings.NewReader(`{"token":"tok-1"}`))
+		strings.NewReader(`{"endpoint":"https://push.example.com/1"}`))
 	unregReq.Header.Set("Authorization", "Bearer "+token)
 	unregW := httptest.NewRecorder()
 	mux.ServeHTTP(unregW, unregReq)
@@ -2818,9 +2810,9 @@ func TestPushUnregister_OK(t *testing.T) {
 
 func TestPushUnregister_InvalidBody_400(t *testing.T) {
 	tokenGen := newTestJWTGen(t)
-	repo := notifakes.NewFakeDeviceTokenRepository()
+	repo := notifakes.NewFakePushSubscriptionRepository()
 	mux := http.NewServeMux()
-	registerPushRoutes(mux, repo, userfakes.NewFakeProfileRepository(), userfakes.NewFakeUserRepository(), tokenGen)
+	registerPushRoutes(mux, repo, userfakes.NewFakeProfileRepository(), userfakes.NewFakeUserRepository(), tokenGen, "test-vapid-key")
 	token, _ := tokenGen.GenerateAccessToken(domainuser.Claims{UserID: "u1", Username: "user"})
 	req := httptest.NewRequest(http.MethodDelete, "/api/v1/push/unregister", strings.NewReader("bad"))
 	req.Header.Set("Authorization", "Bearer "+token)

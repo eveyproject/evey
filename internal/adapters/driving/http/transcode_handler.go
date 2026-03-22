@@ -261,9 +261,38 @@ func (h *hlsMasterServe) serveHTTP(w http.ResponseWriter, r *http.Request) {
 	sourceWidth, sourceHeight, mediaStreams := h.resolveSourceDimensions(r.Context(), mediaID)
 	subtitleTrackIndex, subtitleCodec := h.resolveSubtitle(r, mediaStreams)
 
+	audioTrackIndex := 0
+	if at := r.URL.Query().Get("audioTrack"); at != "" {
+		if n, parseErr := strconv.Atoi(at); parseErr == nil && n >= 0 {
+			audioTrackIndex = n
+		}
+	}
+
 	hdrSupported := r.URL.Query().Get("hdr") == "1"
 	audioNormalize := h.audioNormalizeGetter != nil && h.audioNormalizeGetter(r.Context())
-	session, err := h.hlsManager.GetOrCreate(claims.UserID, mediaID, item.FilePath, sourceWidth, sourceHeight, maxStreams, subtitleTrackIndex, subtitleCodec, mediaStreams, hdrSupported, audioNormalize)
+
+	// Compute playback decision to determine video/audio copy vs transcode
+	client := domaintranscoding.DefaultWebProfile
+	if hdrSupported {
+		client.SupportsHDR = true
+	}
+	decision := apptranscoding.MakePlaybackDecision(mediaStreams, item.ContainerFormat, client, 0)
+	videoDecision := decision.VideoDecision
+	audioDecision := decision.AudioDecision
+
+	var startSec float64
+	if ss := r.URL.Query().Get("startSec"); ss != "" {
+		if f, parseErr := strconv.ParseFloat(ss, 64); parseErr == nil && f > 0 {
+			startSec = f
+		}
+	}
+
+	var session *apptranscoding.HLSSession
+	if startSec > 0 {
+		session, err = h.hlsManager.RestartFromPosition(claims.UserID, mediaID, item.FilePath, sourceWidth, sourceHeight, maxStreams, audioTrackIndex, subtitleTrackIndex, subtitleCodec, mediaStreams, hdrSupported, audioNormalize, startSec, videoDecision, audioDecision)
+	} else {
+		session, err = h.hlsManager.GetOrCreate(claims.UserID, mediaID, item.FilePath, sourceWidth, sourceHeight, maxStreams, audioTrackIndex, subtitleTrackIndex, subtitleCodec, mediaStreams, hdrSupported, audioNormalize, 0, videoDecision, audioDecision)
+	}
 	if err != nil {
 		slog.Error("hls: get or create session", slog.Any("err", err))
 		http.Error(w, `{"message":"transcode busy"}`, http.StatusServiceUnavailable)
@@ -275,6 +304,9 @@ func (h *hlsMasterServe) serveHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if session.StartSec > 0 {
+		w.Header().Set("X-Start-Sec", fmt.Sprintf("%.3f", session.StartSec))
+	}
 	h.serveMaster(w, r, session.OutputDir, claims.UserID)
 }
 
@@ -400,7 +432,7 @@ func hlsSegmentHandler(tokenGen TokenVerifier, libSvc MediaItemGetter, hlsManage
 			w.Header().Set("Cache-Control", "no-cache")
 		case strings.HasSuffix(file, ".ts"):
 			w.Header().Set("Content-Type", "video/mp2t")
-			w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
+			w.Header().Set("Cache-Control", "no-cache")
 		}
 		session.MarkAccess()
 		http.ServeFile(w, r, filePath)
@@ -586,7 +618,11 @@ func (h *transcodeServe) analyzeStreams(ctx context.Context, mediaID string, rem
 		}
 	}
 
-	a.hdrInfo = hdr.DetectHDR(streams)
+	hdrStreams := make([]hdr.VideoStream, len(streams))
+	for i, s := range streams {
+		hdrStreams[i] = s
+	}
+	a.hdrInfo = hdr.DetectHDR(hdrStreams)
 	a.needsToneMap = a.hdrInfo.IsHDR && !clientSupportsHDR
 	if a.needsToneMap {
 		a.needsVideoTranscode = true

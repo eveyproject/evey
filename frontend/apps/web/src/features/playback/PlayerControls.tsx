@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { List, BookOpen, Check, ChevronLeft, ChevronRight, Settings, ArrowLeft, SkipBack, SkipForward, Pause, Play, VolumeX, Volume1, Volume2, Upload, Minimize, Maximize, PictureInPicture, PictureInPicture2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import type { AudioStream } from "./AudioTrackSelector";
 import type { SubtitleStream } from "./SubtitleSelector";
@@ -45,9 +46,7 @@ function EpisodesPanel({ seasons, currentSeasonId, episodes, currentEpisodeId, o
   return (
     <div className="relative">
       <button onClick={toggle} aria-label={t("player.controls.episodes")} title={t("player.controls.episodes")} className="text-white hover:text-[var(--accent)] transition-colors p-1">
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
-          <path d="M3 13h2v-2H3v2zm0 4h2v-2H3v2zm0-8h2V7H3v2zm4 4h14v-2H7v2zm0 4h14v-2H7v2zM7 7v2h14V7H7z" />
-        </svg>
+        <List size={20} />
       </button>
       {open && (
         <div
@@ -80,9 +79,7 @@ function EpisodesPanel({ seasons, currentSeasonId, episodes, currentEpisodeId, o
                 </span>
                 <span className="flex-1 truncate">{ep.title}</span>
                 {ep.id === currentEpisodeId && (
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" className="flex-shrink-0">
-                    <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z" />
-                  </svg>
+                  <Check size={12} className="flex-shrink-0" />
                 )}
               </button>
             ))}
@@ -113,9 +110,7 @@ function ChaptersPanel({ chapters, currentTimeSec, onSeek, open, onToggle }: Cha
   return (
     <div className="relative">
       <button onClick={toggle} aria-label={t("player.controls.chapters")} title={t("player.controls.chapters")} className="text-white hover:text-[var(--accent)] transition-colors p-1">
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
-          <path d="M4 6H2v14c0 1.1.9 2 2 2h14v-2H4V6zm16-4H8c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H8V4h12v12zM10 9h8v2h-8V9zm0 3h4v2h-4v-2zm0-6h8v2h-8V6z" />
-        </svg>
+        <BookOpen size={20} />
       </button>
       {open && (
         <div
@@ -142,9 +137,7 @@ function ChaptersPanel({ chapters, currentTimeSec, onSeek, open, onToggle }: Cha
                   </span>
                   <span className="flex-1 truncate">{ch.title || t("media.chapter", { number: i + 1 })}</span>
                   {isActive && (
-                    <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" className="flex-shrink-0">
-                      <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z" />
-                    </svg>
+                    <Check size={12} className="flex-shrink-0" />
                   )}
                 </button>
               );
@@ -179,6 +172,7 @@ interface PlayerControlsProps {
   onEpisodeChange?: (id: string) => void;
   chapters?: Chapter[];
   mediaId?: string;
+  mediaType?: string;
   onSeekRequest?: (absoluteTimeSec: number) => void;
   transcodeOffset?: number;
   autoQuality?: boolean;
@@ -266,22 +260,14 @@ async function loadSubtitleFile(file: File): Promise<string> {
   return URL.createObjectURL(file);
 }
 
-const CheckIcon = () => (
-  <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
-    <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z" />
-  </svg>
-);
+const CheckIcon = () => <Check size={14} />;
 
-const ChevronRight = () => (
-  <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" style={{ color: "var(--text-muted)" }}>
-    <path d="M8.59 16.59L13.17 12 8.59 7.41 10 6l6 6-6 6z" />
-  </svg>
-);
+const ChevronRightIcon = () => <ChevronRight size={14} style={{ color: "var(--text-muted)" }} />;
 
 function SubMenuHeader({ label, onBack }: { label: string; onBack: () => void }) {
   return (
     <button onClick={onBack} className="flex items-center gap-2 w-full px-3 pt-2 pb-1 text-xs font-semibold uppercase tracking-wider hover:bg-[var(--surface-raised)] transition-colors" style={{ color: "var(--text-muted)" }}>
-      <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M15.41 16.59L10.83 12l4.58-4.59L14 6l-6 6 6 6z" /></svg>
+      <ChevronLeft size={14} />
       {label}
     </button>
   );
@@ -351,9 +337,7 @@ function SettingsPanel({
         title={t("player.controls.settings")}
         className="text-white hover:text-[var(--accent)] transition-colors p-1"
       >
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
-          <path d="M19.14 12.94c.04-.3.06-.61.06-.94s-.02-.64-.07-.94l2.03-1.58a.49.49 0 0 0 .12-.61l-1.92-3.32a.49.49 0 0 0-.59-.22l-2.39.96a7.01 7.01 0 0 0-1.62-.94l-.36-2.54a.484.484 0 0 0-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96a.48.48 0 0 0-.59.22L2.74 8.87a.47.47 0 0 0 .12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58a.49.49 0 0 0-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32a.47.47 0 0 0-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z" />
-        </svg>
+        <Settings size={20} />
       </button>
 
       {open && (
@@ -400,7 +384,7 @@ function SettingsPanel({
                     <span>{t("player.settings.audio")}</span>
                     <span className="flex items-center gap-1">
                       <span className="text-xs" style={{ color: "var(--text-muted)" }}>{currentAudioLabel}</span>
-                      <ChevronRight />
+                      <ChevronRightIcon />
                     </span>
                   </button>
                 </>
@@ -417,7 +401,7 @@ function SettingsPanel({
                     <span>{t("player.settings.subtitles")}</span>
                     <span className="flex items-center gap-1">
                       <span className="text-xs" style={{ color: "var(--text-muted)" }}>{currentSubLabel}</span>
-                      <ChevronRight />
+                      <ChevronRightIcon />
                     </span>
                   </button>
                 </>
@@ -434,7 +418,7 @@ function SettingsPanel({
                     <span>{t("player.settings.speed")}</span>
                     <span className="flex items-center gap-1">
                       <span className="text-xs" style={{ color: "var(--text-muted)" }}>{currentSpeedLabel}</span>
-                      <ChevronRight />
+                      <ChevronRightIcon />
                     </span>
                   </button>
                 </>
@@ -449,7 +433,7 @@ function SettingsPanel({
                     style={{ color: "var(--text)" }}
                   >
                     <span>{t("player.settings.subtitleStyle")}</span>
-                    <ChevronRight />
+                    <ChevronRightIcon />
                   </button>
                 </>
               )}
@@ -531,9 +515,7 @@ function SettingsPanel({
                     className="flex items-center gap-2 w-full px-4 py-2 text-sm hover:bg-[var(--surface-raised)] transition-colors"
                     style={{ color: "var(--text)" }}
                   >
-                    <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5" />
-                    </svg>
+                    <Upload size={16} className="flex-shrink-0" />
                     {t("player.settings.uploadSubtitle")}
                   </button>
                 </>
@@ -721,6 +703,7 @@ export function PlayerControls({
   onEpisodeChange,
   chapters = [],
   mediaId,
+  mediaType,
   onSeekRequest,
   transcodeOffset = 0,
   autoQuality = false,
@@ -973,9 +956,7 @@ export function PlayerControls({
           aria-label={t("common.back")}
           className="text-white hover:text-[var(--accent)] transition-colors"
         >
-          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <path d="M19 12H5M12 5l-7 7 7 7" />
-          </svg>
+          <ArrowLeft size={24} />
         </button>
         {title && <span className="text-white text-sm font-medium truncate">{title}</span>}
       </div>
@@ -1006,7 +987,7 @@ export function PlayerControls({
                 style={{ left: seekHoverX }}
               >
                 {mediaId && (
-                  <TrickplayPreview mediaId={mediaId} hoverTime={seekHoverPos} />
+                  <TrickplayPreview mediaId={mediaId} hoverTime={seekHoverPos} mediaType={mediaType} />
                 )}
                 <div
                   className="px-2 py-1 rounded text-xs text-white mt-1 text-center"
@@ -1060,9 +1041,7 @@ export function PlayerControls({
               className="text-white hover:text-[var(--accent)] transition-colors p-1"
               title={prevEpisode.title ? `E${prevEpisode.indexNumber} - ${prevEpisode.title}` : undefined}
             >
-              <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor">
-                <path d="M6 6h2v12H6zm3.5 6l8.5 6V6z" />
-              </svg>
+              <SkipBack size={22} fill="currentColor" />
             </button>
           )}
 
@@ -1087,14 +1066,9 @@ export function PlayerControls({
             className="text-white hover:text-[var(--accent)] transition-colors p-1"
           >
             {playing ? (
-              <svg width="28" height="28" viewBox="0 0 24 24" fill="currentColor">
-                <rect x="6" y="4" width="4" height="16" />
-                <rect x="14" y="4" width="4" height="16" />
-              </svg>
+              <Pause size={28} fill="currentColor" />
             ) : (
-              <svg width="28" height="28" viewBox="0 0 24 24" fill="currentColor">
-                <path d="M5 3l14 9-14 9V3z" />
-              </svg>
+              <Play size={28} fill="currentColor" />
             )}
           </button>
 
@@ -1123,9 +1097,7 @@ export function PlayerControls({
                 className="text-white hover:text-[var(--accent)] transition-colors p-1"
                 title={next.title ? `E${next.indexNumber} - ${next.title}` : undefined}
               >
-                <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor">
-                  <path d="M6 18l8.5-6L6 6v12zM16 6v12h2V6h-2z" />
-                </svg>
+                <SkipForward size={22} fill="currentColor" />
               </button>
             );
           })()}
@@ -1144,17 +1116,11 @@ export function PlayerControls({
               className="text-white hover:text-[var(--accent)] transition-colors p-1"
             >
               {muted || volume === 0 ? (
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
-                  <path d="M16.5 12c0-1.77-1.02-3.29-2.5-4.03v2.21l2.45 2.45c.03-.2.05-.41.05-.63zm2.5 0c0 .94-.2 1.82-.54 2.64l1.51 1.51C20.63 14.91 21 13.5 21 12c0-4.28-2.99-7.86-7-8.77v2.06c2.89.86 5 3.54 5 6.71zM4.27 3L3 4.27 7.73 9H3v6h4l5 5v-6.73l4.25 4.25c-.67.52-1.42.93-2.25 1.18v2.06c1.38-.31 2.63-.95 3.69-1.81L19.73 21 21 19.73l-9-9L4.27 3zM12 4L9.91 6.09 12 8.18V4z" />
-                </svg>
+                <VolumeX size={18} />
               ) : volume < 0.5 ? (
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
-                  <path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02z" />
-                </svg>
+                <Volume1 size={18} />
               ) : (
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
-                  <path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z" />
-                </svg>
+                <Volume2 size={18} />
               )}
             </button>
             <input
@@ -1227,14 +1193,9 @@ export function PlayerControls({
               className="text-white hover:text-[var(--accent)] transition-colors p-1"
             >
               {isPip ? (
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
-                  <path d="M19 7h-8v6h8V7zm2-4H3c-1.1 0-2 .9-2 2v14c0 1.1.9 1.98 2 1.98h18c1.1 0 2-.88 2-1.98V5c0-1.1-.9-2-2-2zm0 16.01H3V4.98h18v14.03z"/>
-                  <path d="M10 11h4v2h-4z"/>
-                </svg>
+                <PictureInPicture2 size={20} />
               ) : (
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
-                  <path d="M19 7h-8v6h8V7zm2-4H3c-1.1 0-2 .9-2 2v14c0 1.1.9 1.98 2 1.98h18c1.1 0 2-.88 2-1.98V5c0-1.1-.9-2-2-2zm0 16.01H3V4.98h18v14.03z"/>
-                </svg>
+                <PictureInPicture size={20} />
               )}
             </button>
           )}
@@ -1247,13 +1208,9 @@ export function PlayerControls({
             className="text-white hover:text-[var(--accent)] transition-colors p-1"
           >
             {fullscreen ? (
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
-                <path d="M5 16h3v3h2v-5H5v2zm3-8H5v2h5V5H8v3zm6 11h2v-3h3v-2h-5v5zm2-11V5h-2v5h5V8h-3z" />
-              </svg>
+              <Minimize size={20} />
             ) : (
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
-                <path d="M7 14H5v5h5v-2H7v-3zm-2-4h2V7h3V5H5v5zm12 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z" />
-              </svg>
+              <Maximize size={20} />
             )}
           </button>
         </div>

@@ -1223,7 +1223,7 @@ func TestGenerateTrickplay_GenError_Propagates(t *testing.T) {
 	trickplayRepo := libfakes.NewFakeTrickplayRepository()
 	trickplayGen := libfakes.NewFakeTrickplayGenerator()
 	trickplayGen.Err = errors.New("ffmpeg crash")
-	h.svc.WithTrickplay(trickplayRepo, trickplayGen, "/cache")
+	h.svc.WithTrickplay(trickplayRepo, trickplayGen, "/cache", nil)
 
 	h.mediaItems.Create(context.Background(), &library.MediaItem{
 		ID: "m1", FilePath: "/movies/film.mkv",
@@ -1241,7 +1241,7 @@ func TestGenerateTrickplay_StoreError_Propagates(t *testing.T) {
 	trickplayRepo := libfakes.NewFakeTrickplayRepository()
 	trickplayRepo.Err = errors.New("db write failed")
 	trickplayGen := libfakes.NewFakeTrickplayGenerator()
-	h.svc.WithTrickplay(trickplayRepo, trickplayGen, "/cache")
+	h.svc.WithTrickplay(trickplayRepo, trickplayGen, "/cache", nil)
 
 	h.mediaItems.Create(context.Background(), &library.MediaItem{
 		ID: "m1", FilePath: "/movies/film.mkv",
@@ -1267,7 +1267,7 @@ func TestGenerateAllMissingTrickplays_ListError(t *testing.T) {
 	trickplayRepo := libfakes.NewFakeTrickplayRepository()
 	trickplayRepo.Err = errors.New("db down")
 	trickplayGen := libfakes.NewFakeTrickplayGenerator()
-	h.svc.WithTrickplay(trickplayRepo, trickplayGen, "/cache")
+	h.svc.WithTrickplay(trickplayRepo, trickplayGen, "/cache", nil)
 
 	count, err := h.svc.GenerateAllMissingTrickplays(context.Background())
 	require.Error(t, err)

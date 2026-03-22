@@ -10,6 +10,7 @@ import (
 	appbackup "github.com/gravity-zero/evey/internal/app/backup"
 	appcollection "github.com/gravity-zero/evey/internal/app/collection"
 	appfavorite "github.com/gravity-zero/evey/internal/app/favorite"
+	appfeed "github.com/gravity-zero/evey/internal/app/feed"
 	applibrary "github.com/gravity-zero/evey/internal/app/library"
 	appmetadata "github.com/gravity-zero/evey/internal/app/metadata"
 	appmusic "github.com/gravity-zero/evey/internal/app/music"
@@ -101,7 +102,8 @@ type HTTPServer struct {
 	BackupSvc *appbackup.Service
 
 	// Push
-	FCMTokenRepo notification.DeviceTokenRepository
+	PushSubRepo    notification.PushSubscriptionRepository
+	VAPIDPublicKey string
 
 	// Repos / accessors
 	ArtworkRepo       ArtworkRepo
@@ -115,6 +117,10 @@ type HTTPServer struct {
 	PluginRepo domainplugin.PluginRepository
 	PluginSvc  pluginManager
 	PluginDir  string
+
+	// Feed
+	FeedCmdSvc   *appfeed.CommandService
+	FeedQuerySvc *appfeed.QueryService
 
 	// Config store for remote access persistence
 	CfgStore remoteAccessPersister
@@ -145,7 +151,7 @@ func (s *HTTPServer) RegisterRoutes(mux *http.ServeMux, gwMux http.Handler) {
 	mux.HandleFunc("/healthz", s.healthzHandler)
 
 	if s.Translator != nil {
-		mux.HandleFunc("GET /api/v1/i18n/{locale}", i18nHandler(s.Translator))
+		mux.HandleFunc("GET /api/v1/i18n/{locale}", i18nHandler(s.Translator, s.Cfg.Log.DevMode))
 	}
 
 	mux.HandleFunc("GET /api/v1/admin/fs/browse", requireAdmin(s.TokenGen, browseDirsHandler(s.TokenGen)))
@@ -167,7 +173,9 @@ func (s *HTTPServer) RegisterRoutes(mux *http.ServeMux, gwMux http.Handler) {
 	mux.HandleFunc("POST /api/v1/admin/trickplay/generate-all", requireAdmin(s.TokenGen, ratelimit.MiddlewareFunc(s.AdminHeavyRL, trickplayGenerateAllHandler(s.TokenGen, s.LibCmdSvc))))
 	mux.HandleFunc("GET /api/v1/media/{id}/playback-info", playbackInfoHandler(s.TokenGen, s.LibQuerySvc, s.LibraryAccessRepo))
 	mux.HandleFunc("GET /api/v1/media/{id}/hls/master.m3u8", hlsMasterHandler(s.TokenGen, s.LibQuerySvc, s.HLSManager, s.LibraryAccessRepo, s.UserMaxStreams, s.AudioNormalizeGetter, s.UserBitrate))
-	mux.HandleFunc("GET /api/v1/media/{id}/hls/{file}", hlsSegmentHandler(s.TokenGen, s.LibQuerySvc, s.HLSManager, s.LibraryAccessRepo))
+	hlsMediaCache := NewCachedMediaItemGetter(s.LibQuerySvc)
+	hlsAccessCache := NewCachedLibraryAccessChecker(s.LibraryAccessRepo)
+	mux.HandleFunc("GET /api/v1/media/{id}/hls/{file}", hlsSegmentHandler(s.TokenGen, hlsMediaCache, s.HLSManager, hlsAccessCache))
 	mux.HandleFunc("GET /api/v1/admin/library-stats", requireAdmin(s.TokenGen, libraryStatsHandler(s.TokenGen, s.LibQuerySvc)))
 
 	if gwMux != nil {
@@ -202,12 +210,13 @@ func (s *HTTPServer) RegisterRoutes(mux *http.ServeMux, gwMux http.Handler) {
 		})
 	}
 
-	registerAdminRoutes(mux, s.MetadataCmdSvc, s.MetadataQuerySvc, s.TokenGen, s.AdminHeavyRL)
+	registerFeedRoutes(mux, s.FeedCmdSvc, s.FeedQuerySvc, s.TokenGen)
+	registerAdminRoutes(mux, s.MetadataCmdSvc, s.MetadataQuerySvc, s.TokenGen, s.AdminHeavyRL, s.ServerCtx)
 	registerUserAdminRoutes(mux, s.UserSvc, s.UserQuerySvc, s.TokenGen)
 	registerFavoriteRoutes(mux, s.FavoriteSvc, s.LibQuerySvc, s.TokenGen)
 	registerPhotoRoutes(mux, s.PhotoSvc, s.TokenGen, s.LibraryAccessRepo, s.LibQuerySvc, s.ServerCtx)
 	registerMetadataOverrideRoutes(mux, s.MetadataCmdSvc, s.MetadataQuerySvc, s.TokenGen)
-	registerTranscodeCacheRoutes(mux, s.TranscodingSvc, s.TokenGen)
+	registerTranscodeCacheRoutes(mux, s.TranscodingSvc, s.TokenGen, s.LibQuerySvc)
 	registerTranscodeProfileRoutes(mux, s.TranscodingSvc, s.TokenGen)
 	registerCollectionRoutes(mux, s.CollectionSvc, s.TokenGen)
 	registerScheduleRoutes(mux, s.Scheduler, s.TokenGen)
@@ -229,7 +238,7 @@ func (s *HTTPServer) RegisterRoutes(mux *http.ServeMux, gwMux http.Handler) {
 	registerLogsRoute(mux, s.LogDir, s.TokenGen)
 	registerAvailableRuntimesRoute(mux, s.TokenGen)
 	registerMusicRoutes(mux, s.MusicSvc, s.TokenGen, s.LibraryAccessRepo, s.LibQuerySvc)
-	registerPushRoutes(mux, s.FCMTokenRepo, s.ProfileRepo, s.UserRepo, s.TokenGen)
+	registerPushRoutes(mux, s.PushSubRepo, s.ProfileRepo, s.UserRepo, s.TokenGen, s.VAPIDPublicKey)
 
 	if s.SubtitleSvc != nil {
 		registerSubtitleRoutes(mux, s.SubtitleSvc, s.TokenGen, s.LibQuerySvc, s.LibraryAccessRepo)

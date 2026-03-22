@@ -13,8 +13,10 @@ export const supportedLanguages = [
 
 const CACHE_KEY = "evey_i18n_";
 const CACHE_TTL = 24 * 60 * 60 * 1000;
+const IS_DEV = import.meta.env.DEV;
 
 function getCached(lng: string): Record<string, string> | null {
+  if (IS_DEV) return null;
   try {
     const raw = localStorage.getItem(CACHE_KEY + lng);
     if (!raw) return null;
@@ -27,6 +29,7 @@ function getCached(lng: string): Record<string, string> | null {
 }
 
 function setCache(lng: string, data: Record<string, string>) {
+  if (IS_DEV) return;
   try {
     localStorage.setItem(
       CACHE_KEY + lng,
@@ -81,6 +84,7 @@ void i18n
     ns: ["translation"],
     defaultNS: "translation",
     fallbackLng: "en",
+    keySeparator: false,
     interpolation: { escapeValue: false },
     detection: {
       order: ["localStorage", "navigator"],

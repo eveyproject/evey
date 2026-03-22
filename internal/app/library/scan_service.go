@@ -239,7 +239,62 @@ func (s *ScanService) removeOrphanedItems(ctx context.Context, libraryID string,
 		}
 		removed++
 	}
+
+	// Prune empty seasons (no child episodes) and empty series (no child seasons)
+	pruned, pruneErr := s.pruneEmptyContainers(ctx, libraryID)
+	if pruneErr != nil {
+		slog.Warn("prune empty containers failed", slog.Any("err", pruneErr))
+	}
+	removed += pruned
+
 	return removed, nil
+}
+
+func (svc *ScanService) pruneEmptyContainers(ctx context.Context, libraryID string) (int, error) {
+	all, err := svc.mediaItems.ListByLibraryID(ctx, libraryID)
+	if err != nil {
+		return 0, err
+	}
+	childCount := make(map[string]int)
+	for _, item := range all {
+		if item.ParentID != "" {
+			childCount[item.ParentID]++
+		}
+	}
+	pruned := 0
+	// First pass: delete empty seasons (no child episodes)
+	for _, item := range all {
+		if item.Type != string(library.Season) {
+			continue
+		}
+		if childCount[item.ID] > 0 {
+			continue
+		}
+		if dErr := svc.mediaItems.Delete(ctx, item.ID); dErr != nil {
+			slog.Warn("delete empty season", slog.String("id", item.ID), slog.Any("err", dErr))
+			continue
+		}
+		childCount[item.ParentID]--
+		pruned++
+	}
+	// Second pass: delete empty series (seasons may have been removed above)
+	for _, item := range all {
+		if item.Type != string(library.Series) {
+			continue
+		}
+		if childCount[item.ID] > 0 {
+			continue
+		}
+		if dErr := svc.mediaItems.Delete(ctx, item.ID); dErr != nil {
+			slog.Warn("delete empty series", slog.String("id", item.ID), slog.Any("err", dErr))
+			continue
+		}
+		if svc.search != nil {
+			_ = svc.search.RemoveMediaItem(ctx, item.ID)
+		}
+		pruned++
+	}
+	return pruned, nil
 }
 
 func (s *ScanService) upsertMediaFile(ctx context.Context, libraryID, parentID string, f library.ScannedFile, seriesTitle ...string) (added, updated int, err error) {

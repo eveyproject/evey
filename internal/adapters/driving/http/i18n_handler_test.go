@@ -44,7 +44,7 @@ func TestI18nHandler_OK(t *testing.T) {
 
 	assert.Equal(t, http.StatusOK, rec.Code)
 	assert.Equal(t, "application/json", rec.Header().Get("Content-Type"))
-	assert.Contains(t, rec.Header().Get("Cache-Control"), "max-age=86400")
+	assert.Contains(t, rec.Header().Get("Cache-Control"), "max-age=3600")
 	assert.NotEmpty(t, rec.Header().Get("ETag"))
 
 	var msgs map[string]string
@@ -87,4 +87,50 @@ func TestI18nHandler_ETag304(t *testing.T) {
 
 	assert.Equal(t, http.StatusNotModified, rec2.Code)
 	assert.Empty(t, rec2.Body.Bytes())
+}
+
+func TestI18nHandler_DevMode_NoCache(t *testing.T) {
+	tr := setupI18nDir(t)
+	mux := http.NewServeMux()
+	mux.HandleFunc("GET /api/v1/i18n/{locale}", i18nHandler(tr, true))
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/i18n/en", nil)
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+
+	assert.Equal(t, http.StatusOK, rec.Code)
+	assert.Equal(t, "no-store", rec.Header().Get("Cache-Control"))
+	assert.Empty(t, rec.Header().Get("ETag"), "dev mode must not set ETag")
+
+	var msgs map[string]string
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &msgs))
+	assert.Equal(t, "Save", msgs["common.save"])
+}
+
+func TestI18nHandler_ProdMode_CacheAndETag(t *testing.T) {
+	tr := setupI18nDir(t)
+	mux := http.NewServeMux()
+	mux.HandleFunc("GET /api/v1/i18n/{locale}", i18nHandler(tr, false))
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/i18n/en", nil)
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+
+	assert.Equal(t, http.StatusOK, rec.Code)
+	assert.Contains(t, rec.Header().Get("Cache-Control"), "max-age=3600")
+	assert.NotEmpty(t, rec.Header().Get("ETag"), "prod mode must set ETag")
+}
+
+func TestI18nHandler_DevMode_NoETag304(t *testing.T) {
+	tr := setupI18nDir(t)
+	mux := http.NewServeMux()
+	mux.HandleFunc("GET /api/v1/i18n/{locale}", i18nHandler(tr, true))
+
+	// Even if client sends If-None-Match, dev mode ignores it (no ETag comparison)
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/i18n/en", nil)
+	req.Header.Set("If-None-Match", `"anything"`)
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+
+	assert.Equal(t, http.StatusOK, rec.Code, "dev mode should always return 200")
 }

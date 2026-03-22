@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"time"
 
 	appactivity "github.com/gravity-zero/evey/internal/app/activity"
 	appbackup "github.com/gravity-zero/evey/internal/app/backup"
@@ -30,7 +31,7 @@ import (
 	appwebhook "github.com/gravity-zero/evey/internal/app/webhook"
 	"github.com/gravity-zero/evey/internal/adapters/driven/ebml"
 	"github.com/gravity-zero/evey/internal/adapters/driven/email"
-	fcmadapter "github.com/gravity-zero/evey/internal/adapters/driven/fcm"
+	webpushadapter "github.com/gravity-zero/evey/internal/adapters/driven/webpush"
 	"github.com/gravity-zero/evey/internal/adapters/driven/ffmpeg"
 	"github.com/gravity-zero/evey/internal/adapters/driven/filesystem"
 	meili "github.com/gravity-zero/evey/internal/adapters/driven/meilisearch"
@@ -134,7 +135,7 @@ func buildServices(ctx context.Context, cfg *config.Config, db *sql.DB, rootLog 
 	)
 	libCmdSvc.WithChapters(r.Chapter, ebmlReader)
 	libCmdSvc.WithSubtitleScanner(subScanner)
-	libCmdSvc.WithTrickplay(r.Trickplay, trickplayGen, cfg.Transcoding.TrickplayCacheDir)
+	libCmdSvc.WithTrickplay(r.Trickplay, trickplayGen, cfg.Transcoding.TrickplayCacheDir, r.ServerCfg)
 	libCmdSvc.Validate()
 	libQuerySvc := applibrary.NewQueryService(r.Library, r.MediaItemQuery, r.MediaStream, searchAdapter)
 
@@ -214,7 +215,7 @@ func buildServices(ctx context.Context, cfg *config.Config, db *sql.DB, rootLog 
 		WithInstaller(pluginInstaller).
 		WithAnalyzer(pluginAnalyzer).
 		WithPermissionChecker(permChecker)
-	pluginRuntimeSvc := appplugin.NewRuntimeService(r.Plugin, pluginRunner, manifestParser, bus).
+	pluginRuntimeSvc := appplugin.NewRuntimeService(r.Plugin, r.PluginRuntime, pluginRunner, manifestParser, bus).
 		WithPermissionChecker(permChecker)
 	pluginQuerySvc := appplugin.NewQueryService(r.Plugin, r.PluginRuntime)
 
@@ -223,34 +224,51 @@ func buildServices(ctx context.Context, cfg *config.Config, db *sql.DB, rootLog 
 	pluginLogger.StartCleanup(ctx, &pluginIDLister{repo: r.Plugin})
 
 	// --- Filesystem watcher ---
-	watcherSvc := startWatcher(ctx, cfg, bus, r.Library, libCmdSvc, rootLog)
+	_ = startWatcher(ctx, cfg, bus, r.Library, libCmdSvc, rootLog)
 
 	libCmdSvc.WithShutdownCtx(ctx)
 
 	// --- Background workers ---
-	// Periodic scan only for libraries where inotify failed
-	if watcherSvc == nil {
-		rootLog.Info("inotify unavailable, falling back to periodic scan for all libraries")
-		libCmdSvc.StartPeriodicScan(ctx, r.Library, cfg.Library.PeriodicScanInterval, nil)
-	} else if failedIDs := watcherSvc.FailedLibraryIDs(); len(failedIDs) > 0 {
-		rootLog.Info("periodic scan fallback for inotify-failed libraries", slog.Int("count", len(failedIDs)))
-		libCmdSvc.StartPeriodicScan(ctx, r.Library, cfg.Library.PeriodicScanInterval, failedIDs)
-	}
+	// Always run periodic scan for all libraries as a safety net.
+	// On WSL2, inotify appears to succeed but never fires events,
+	// so we can't rely on failedLibs to detect broken watchers.
+	// Scanning an up-to-date library is a no-op (hash check).
+	rootLog.Info("periodic scan started for all libraries", slog.Duration("interval", cfg.Library.PeriodicScanInterval))
+	libCmdSvc.StartPeriodicScan(ctx, r.Library, cfg.Library.PeriodicScanInterval, nil)
 	if tmdbKey != "" {
 		metadataCmdSvc.StartEnrichmentWorker(ctx)
 	}
+	hlsMgr := apptranscoding.NewHLSManager(cfg.Transcoding.CacheDir+"/hls", cfg.Transcoding.MaxConcurrent)
+	libCmdSvc.SetTrickplayActiveStreamChecker(hlsMgr)
 	libCmdSvc.StartTrickplayWorker(ctx)
+	libCmdSvc.StartBackgroundGeneration(ctx)
 
-	if _, isMeili := searchAdapter.(*meili.SearchAdapter); isMeili {
+	if sa, isMeili := searchAdapter.(*meili.SearchAdapter); isMeili {
 		go func() {
-			items, err := r.MediaItem.List(context.Background(), library.ListMediaItemsFilter{Limit: 10000})
+			indexCtx, indexCancel := context.WithTimeout(ctx, 5*time.Minute)
+			defer indexCancel()
+			dbCount, err := r.MediaItem.Count(indexCtx, library.ListMediaItemsFilter{})
+			if err != nil {
+				slog.Warn("startup index: count db items", slog.Any("err", err))
+				return
+			}
+			meiliCount, err := sa.DocumentCount(indexCtx)
+			if err == nil && meiliCount == int64(dbCount) {
+				slog.Info("startup index: already up to date", slog.Int("items", dbCount))
+				return
+			}
+			items, err := r.MediaItem.List(indexCtx, library.ListMediaItemsFilter{Limit: 10000})
 			if err != nil {
 				slog.Warn("startup index: list items", slog.Any("err", err))
 				return
 			}
 			indexed := 0
 			for _, item := range items {
-				if err := searchAdapter.IndexMediaItem(context.Background(), item, nil); err != nil {
+				if indexCtx.Err() != nil {
+					slog.Warn("startup index: cancelled", slog.Int("indexed", indexed))
+					return
+				}
+				if err := searchAdapter.IndexMediaItem(indexCtx, item, nil); err != nil {
 					slog.Warn("startup index", slog.String("id", item.ID), slog.Any("err", err))
 					continue
 				}
@@ -266,14 +284,11 @@ func buildServices(ctx context.Context, cfg *config.Config, db *sql.DB, rootLog 
 	notifCmdSvc := appnotification.NewCommandService(r.Notification, r.NotificationSettings, r.WatchHistoryAnalyzer, r.Profile, bus)
 	notifQuerySvc := appnotification.NewQueryService(r.Notification, r.NotificationSettings)
 
-	if cfg.FCM.Enabled && cfg.FCM.ServiceAccountJSON != "" {
-		fcmSender, fcmErr := fcmadapter.NewSender(ctx, cfg.FCM.ServiceAccountJSON)
-		if fcmErr != nil {
-			rootLog.Warn("FCM init failed, push notifications disabled", slog.Any("err", fcmErr))
-		} else {
-			notifCmdSvc.WithPush(fcmSender, r.FCMToken)
-			rootLog.Info("FCM push notifications enabled", slog.String("project", cfg.FCM.ProjectID))
-		}
+	vapidPub, vapidPriv := resolveVAPIDKeys(r.ServerCfg, cfg)
+	if vapidPub != "" && vapidPriv != "" {
+		wpSender := webpushadapter.NewSender(vapidPub, vapidPriv, cfg.VAPID.Subject)
+		notifCmdSvc.WithPush(wpSender, r.PushSubscription)
+		rootLog.Info("Web Push (VAPID) notifications enabled")
 	}
 
 	if cfg.SMTP.Host != "" {
@@ -282,8 +297,15 @@ func buildServices(ctx context.Context, cfg *config.Config, db *sql.DB, rootLog 
 		rootLog.Info("SMTP email notifications enabled", slog.String("host", cfg.SMTP.Host))
 	}
 
-	feedCmdSvc := appfeed.NewCommandService(r.FeedConfigCmd)
+	feedCmdSvc := appfeed.NewCommandService(r.FeedConfigCmd, r.FeedConfigQuery).WithEventBus(bus)
 	feedQuerySvc := appfeed.NewQueryService(r.FeedConfigQuery, r.FeedQuerier, r.WatchHistoryAnalyzer)
+
+	// Ensure all existing libraries have feed configs (covers libs created before event system)
+	if libs, libErr := r.Library.List(ctx); libErr == nil {
+		for _, lib := range libs {
+			_ = feedCmdSvc.EnsureLibraryFeedConfig(ctx, lib.ID, lib.Name)
+		}
+	}
 
 	favoriteSvc := appfavorite.NewService(r.Favorite)
 	photoSvc := appphoto.NewService(r.Photo, bus, r.Library)
@@ -322,7 +344,7 @@ func buildServices(ctx context.Context, cfg *config.Config, db *sql.DB, rootLog 
 		media: mediaDeps{
 			playbackSvc:    playbackSvc,
 			transcodingSvc: transcodingSvc,
-			hlsManager:     apptranscoding.NewHLSManager(cfg.Transcoding.CacheDir+"/hls", cfg.Transcoding.MaxConcurrent),
+			hlsManager:     hlsMgr,
 			mkvSvc:         mkvSvc,
 			musicSvc:       musicSvc,
 			photoSvc:       photoSvc,
@@ -357,7 +379,7 @@ func buildServices(ctx context.Context, cfg *config.Config, db *sql.DB, rootLog 
 		repos: repoDeps{
 			artworkRepo:       r.Artwork,
 			userRatingRepo:    r.UserRating,
-			fcmTokenRepo:      r.FCMToken,
+			pushSubRepo:       r.PushSubscription,
 			libraryAccessRepo: r.LibraryAccess,
 			profileRepo:       r.Profile,
 			serverCfgRepo:     r.ServerCfg,
@@ -384,7 +406,7 @@ func startWatcher(ctx context.Context, cfg *config.Config, bus *eventbus.InMemor
 	}
 	watcherSvc := applibrary.NewWatcherService(fsWatcher, libraryRepo, libCmdSvc, eveylogger.NewWith(rootLog, "watcher")).
 		WithEventBus(bus)
-	if err := watcherSvc.Start(context.Background()); err != nil {
+	if err := watcherSvc.Start(ctx); err != nil {
 		rootLog.Warn("watcher start failed", slog.Any("err", err))
 		return nil
 	}
@@ -410,6 +432,37 @@ func resolveAPIKey(cfgRepo *postgres.ServerConfigRepository, dbKey, envVar strin
 	}
 	// 3. Not configured — admin must set via panel
 	return ""
+}
+
+func resolveVAPIDKeys(cfgRepo *postgres.ServerConfigRepository, cfg *config.Config) (string, string) {
+	pub := cfg.VAPID.PublicKey
+	priv := cfg.VAPID.PrivateKey
+
+	if pub == "" || priv == "" {
+		if e, err := cfgRepo.Get(context.Background(), "vapid.public_key"); err == nil && e.Value != "" {
+			pub = e.Value
+		}
+		if e, err := cfgRepo.Get(context.Background(), "vapid.private_key"); err == nil && e.Value != "" {
+			priv = e.Value
+		}
+	}
+
+	if pub == "" || priv == "" {
+		genPriv, genPub, err := webpushadapter.GenerateVAPIDKeys()
+		if err != nil {
+			slog.Warn("VAPID key generation failed", slog.Any("err", err))
+			return "", ""
+		}
+		pub, priv = genPub, genPriv
+		if err := cfgRepo.Set(context.Background(), "vapid.public_key", pub); err != nil {
+			slog.Warn("store VAPID public key", slog.Any("err", err))
+		}
+		if err := cfgRepo.Set(context.Background(), "vapid.private_key", priv); err != nil {
+			slog.Warn("store VAPID private key", slog.Any("err", err))
+		}
+		slog.Info("VAPID keys auto-generated and stored in DB")
+	}
+	return pub, priv
 }
 
 // pluginIDLister adapts postgres.PluginRepository to pluginrunner.PluginLister.

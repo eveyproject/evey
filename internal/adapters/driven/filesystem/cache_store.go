@@ -32,7 +32,29 @@ func (s *CacheStore) GetCacheInfo(_ context.Context) (*transcoding.CacheInfo, er
 	}
 	for _, e := range entries {
 		if e.IsDir() {
-			size, latest := dirStats(filepath.Join(s.dir, e.Name()))
+			subDir := filepath.Join(s.dir, e.Name())
+			// Descend into subdirectories (e.g. hls/) to list individual sessions
+			subEntries, subErr := os.ReadDir(subDir)
+			if subErr == nil && len(subEntries) > 0 {
+				for _, sub := range subEntries {
+					if !sub.IsDir() {
+						continue
+					}
+					size, latest := dirStats(filepath.Join(subDir, sub.Name()))
+					if size == 0 {
+						continue
+					}
+					info.Files = append(info.Files, transcoding.CacheFileInfo{
+						Name:         sub.Name(),
+						Size:         size,
+						LastModified: latest,
+					})
+					info.TotalSize += size
+					info.FileCount++
+				}
+				continue
+			}
+			size, latest := dirStats(subDir)
 			if size == 0 {
 				continue
 			}
@@ -100,13 +122,28 @@ func (s *CacheStore) ClearCache(_ context.Context) error {
 }
 
 func (s *CacheStore) DeleteFile(_ context.Context, filename string) error {
-	if strings.Contains(filename, "/") || strings.Contains(filename, "\\") || strings.Contains(filename, "..") {
+	if strings.Contains(filename, "..") {
 		return fmt.Errorf("invalid filename")
 	}
+	// Try direct child first, then search in subdirs (e.g. hls/<mediaId>)
 	path := filepath.Join(s.dir, filename)
 	clean := filepath.Clean(path)
 	if !strings.HasPrefix(clean, filepath.Clean(s.dir)+string(os.PathSeparator)) {
 		return fmt.Errorf("invalid filename")
+	}
+	if _, err := os.Stat(clean); os.IsNotExist(err) {
+		// Search in subdirectories
+		entries, _ := os.ReadDir(s.dir)
+		for _, e := range entries {
+			if !e.IsDir() {
+				continue
+			}
+			candidate := filepath.Join(s.dir, e.Name(), filename)
+			if _, statErr := os.Stat(candidate); statErr == nil {
+				clean = candidate
+				break
+			}
+		}
 	}
 	fi, err := os.Stat(clean)
 	if err != nil {

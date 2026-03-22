@@ -383,6 +383,11 @@ serverConfig:
   saveSmtp: "SMTP सेटिंग्स सहेजें"
   smtpSaved: "SMTP सेटिंग्स सहेजी गईं"
   failedSmtp: "{{key}} सहेजने में विफल"
+  trickplayTitle: "Trickplay थंबनेल"
+  trickplayDesc: "फिल्मों और एपिसोड के लिए स्वचालित रूप से टाइमलाइन प्रीव्यू थंबनेल बनाएं।"
+  trickplayEnabled: "Trickplay थंबनेल सक्षम करें"
+  trickplayAdaptiveCpu: "अनुकूली CPU"
+  trickplayAdaptiveCpuDesc: "हल्का मोड (~25% CPU)। तेज़ जनरेशन (~50% CPU) के लिए अक्षम करें।"
   tableHeaders:
     key: "कुंजी"
     value: "मान"

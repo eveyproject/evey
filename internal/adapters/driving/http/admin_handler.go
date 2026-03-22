@@ -35,6 +35,8 @@ type adminHandler struct {
 	startTime    time.Time
 	cfgRepo      domainshared.ServerConfigRepository
 	transcodeSvc *apptranscoding.Service
+	mediaGetter  MediaItemGetter
+	serverCtx    context.Context
 
 	statsMu      sync.Mutex
 	cachedMS     goruntime.MemStats
@@ -183,7 +185,7 @@ func (h *adminHandler) handleRefreshAll(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 	go func() {
-		if err := h.metaCmd.AutoRefreshAllItems(context.Background()); err != nil {
+		if err := h.metaCmd.AutoRefreshAllItems(h.serverCtx); err != nil {
 			slog.Error("bulk metadata refresh", slog.Any("err", err))
 		}
 	}()
@@ -583,7 +585,13 @@ func (h *adminHandler) handleGetTranscodeCache(w http.ResponseWriter, r *http.Re
 		Files     []fileEntry `json:"files"`
 	}{TotalSize: info.TotalSize, FileCount: info.FileCount, Files: make([]fileEntry, 0, len(info.Files))}
 	for _, f := range info.Files {
-		resp.Files = append(resp.Files, fileEntry{Name: f.Name, Size: f.Size, LastModified: f.LastModified.UTC().Format(time.RFC3339)})
+		displayName := f.Name
+		if h.mediaGetter != nil {
+			if item, lookupErr := h.mediaGetter.GetMediaItem(r.Context(), f.Name); lookupErr == nil && item.Title != "" {
+				displayName = item.Title
+			}
+		}
+		resp.Files = append(resp.Files, fileEntry{Name: displayName, Size: f.Size, LastModified: f.LastModified.UTC().Format(time.RFC3339)})
 	}
 	w.Header().Set("Content-Type", "application/json")
 	if err := json.NewEncoder(w).Encode(resp); err != nil {
@@ -626,8 +634,8 @@ func (h *adminHandler) handleDeleteTranscodeCacheFile(w http.ResponseWriter, r *
 
 // --- register functions (preserve existing signatures) ---
 
-func registerAdminRoutes(mux *http.ServeMux, metaCmd *appmetadata.CommandService, metaQuery *appmetadata.QueryService, tokenGen *auth.JWTGenerator, heavyRL *ratelimit.Limiter) {
-	h := &adminHandler{tokenGen: tokenGen, metaCmd: metaCmd, metaQuery: metaQuery, heavyRL: heavyRL}
+func registerAdminRoutes(mux *http.ServeMux, metaCmd *appmetadata.CommandService, metaQuery *appmetadata.QueryService, tokenGen *auth.JWTGenerator, heavyRL *ratelimit.Limiter, serverCtx context.Context) {
+	h := &adminHandler{tokenGen: tokenGen, metaCmd: metaCmd, metaQuery: metaQuery, heavyRL: heavyRL, serverCtx: serverCtx}
 	mux.HandleFunc("/api/v1/admin/media/", h.handleMedia)
 	mux.HandleFunc("POST /api/v1/admin/metadata/refresh-all", h.handleRefreshAll)
 }
@@ -663,8 +671,8 @@ func registerTranscodeProfileRoutes(mux *http.ServeMux, transcodeSvc *apptransco
 	mux.HandleFunc("DELETE /api/v1/admin/transcoding/profiles/{id}", h.handleDeleteTranscodeProfile)
 }
 
-func registerTranscodeCacheRoutes(mux *http.ServeMux, transcodeSvc *apptranscoding.Service, tokenGen *auth.JWTGenerator) {
-	h := &adminHandler{tokenGen: tokenGen, transcodeSvc: transcodeSvc}
+func registerTranscodeCacheRoutes(mux *http.ServeMux, transcodeSvc *apptranscoding.Service, tokenGen *auth.JWTGenerator, mediaGetter MediaItemGetter) {
+	h := &adminHandler{tokenGen: tokenGen, transcodeSvc: transcodeSvc, mediaGetter: mediaGetter}
 	mux.HandleFunc("GET /api/v1/admin/transcode-cache", h.handleGetTranscodeCache)
 	mux.HandleFunc("DELETE /api/v1/admin/transcode-cache", h.handleClearTranscodeCache)
 	mux.HandleFunc("DELETE /api/v1/admin/transcode-cache/{filename}", h.handleDeleteTranscodeCacheFile)

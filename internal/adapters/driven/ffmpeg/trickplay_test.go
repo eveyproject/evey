@@ -65,7 +65,7 @@ func TestTrickplayGenerator_Generate_Success(t *testing.T) {
 	outputDir := t.TempDir()
 
 	g := NewTrickplayGenerator(ffmpeg, probe)
-	result, err := g.Generate(context.Background(), "/fake/video.mkv", outputDir, 10, 160, 5, 5)
+	result, err := g.Generate(context.Background(), "/fake/video.mkv", outputDir, 10, 160, 5, 5, 1)
 
 	require.NoError(t, err)
 	require.NotNil(t, result)
@@ -79,7 +79,7 @@ func TestTrickplayGenerator_Generate_InvalidBinary(t *testing.T) {
 	g := NewTrickplayGenerator("/nonexistent/ffmpeg-trickplay", probe)
 	outputDir := t.TempDir()
 
-	_, err := g.Generate(context.Background(), "/fake/video.mkv", outputDir, 10, 160, 5, 5)
+	_, err := g.Generate(context.Background(), "/fake/video.mkv", outputDir, 10, 160, 5, 5, 1)
 
 	require.Error(t, err)
 }
@@ -89,7 +89,7 @@ func TestTrickplayGenerator_Generate_InvalidProbe(t *testing.T) {
 	g := NewTrickplayGenerator("/nonexistent/ffmpeg", "/nonexistent/ffprobe")
 	outputDir := t.TempDir()
 
-	_, err := g.Generate(context.Background(), "/fake/video.mkv", outputDir, 10, 160, 5, 5)
+	_, err := g.Generate(context.Background(), "/fake/video.mkv", outputDir, 10, 160, 5, 5, 1)
 
 	require.Error(t, err)
 }
@@ -102,10 +102,32 @@ func TestTrickplayGenerator_Generate_CreatesOutputDir(t *testing.T) {
 	outputDir := filepath.Join(base, "nested", "trickplay")
 
 	g := NewTrickplayGenerator(ffmpeg, probe)
-	_, err := g.Generate(context.Background(), "/fake/video.mkv", outputDir, 10, 160, 5, 5)
+	_, err := g.Generate(context.Background(), "/fake/video.mkv", outputDir, 10, 160, 5, 5, 1)
 
 	require.NoError(t, err)
 	info, statErr := os.Stat(outputDir)
 	require.NoError(t, statErr)
 	assert.True(t, info.IsDir())
+}
+
+func TestTrickplayWorkers_Adaptive(t *testing.T) {
+	t.Parallel()
+	n := TrickplayWorkers(true)
+	assert.GreaterOrEqual(t, n, 1, "minimum 1 worker")
+	assert.LessOrEqual(t, n, 4, "maximum 4 workers")
+}
+
+func TestTrickplayWorkers_NonAdaptive(t *testing.T) {
+	t.Parallel()
+	n := TrickplayWorkers(false)
+	assert.GreaterOrEqual(t, n, 1, "minimum 1 worker")
+	assert.LessOrEqual(t, n, 4, "maximum 4 workers")
+}
+
+func TestTrickplayWorkers_AdaptiveVsNonAdaptive(t *testing.T) {
+	t.Parallel()
+	adaptive := TrickplayWorkers(true)
+	nonAdaptive := TrickplayWorkers(false)
+	// non-adaptive uses 50% cores vs adaptive 25%, so non-adaptive >= adaptive
+	assert.GreaterOrEqual(t, nonAdaptive, adaptive, "non-adaptive should use at least as many workers as adaptive")
 }
