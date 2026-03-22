@@ -133,7 +133,9 @@ func (r *Runner) Start(_ context.Context, p *plugin.Plugin) error {
 		return fmt.Errorf("create plugin sock dir: %w", err)
 	}
 	if os.Getuid() == 0 {
-		os.Chown(pluginSockDir, pluginUID, pluginGID)
+		if err := os.Chown(pluginSockDir, pluginUID, pluginGID); err != nil {
+			return fmt.Errorf("chown plugin sock dir: %w", err)
+		}
 	}
 
 	sock := filepath.Join(pluginSockDir, "plugin.sock")
@@ -238,7 +240,7 @@ func (r *Runner) Start(_ context.Context, p *plugin.Plugin) error {
 	}
 
 	// Try to connect IPC client (non-blocking — plugin may not create socket immediately)
-	go r.connectIPC(entry, p)
+	go r.connectIPC(ctx, entry, p)
 
 	r.mu.Lock()
 	r.processes[p.ID] = entry
@@ -271,7 +273,7 @@ func (r *Runner) Start(_ context.Context, p *plugin.Plugin) error {
 	return nil
 }
 
-func (r *Runner) connectIPC(entry *processEntry, p *plugin.Plugin) {
+func (r *Runner) connectIPC(parentCtx context.Context, entry *processEntry, p *plugin.Plugin) {
 	client, err := newIPCClient(entry.sockPath)
 	if err != nil {
 		slog.Warn("plugin IPC connect failed", slog.String("pluginID", p.ID), slog.Any("err", err))
@@ -290,9 +292,9 @@ func (r *Runner) connectIPC(entry *processEntry, p *plugin.Plugin) {
 		cfgMap[k] = fmt.Sprintf("%v", v)
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), ipcCallTimeout)
+	initCtx, cancel := context.WithTimeout(parentCtx, ipcCallTimeout)
 	defer cancel()
-	if initErr := client.Initialize(ctx, p.ID, cfgMap, hostVersion); initErr != nil {
+	if initErr := client.Initialize(initCtx, p.ID, cfgMap, hostVersion); initErr != nil {
 		slog.Warn("plugin Initialize failed", slog.String("pluginID", p.ID), slog.Any("err", initErr))
 		if r.onIPCResult != nil {
 			r.onIPCResult(p.ID, initErr)
@@ -304,7 +306,7 @@ func (r *Runner) connectIPC(entry *processEntry, p *plugin.Plugin) {
 	}
 }
 
-func (r *Runner) Stop(_ context.Context, pluginID string) error {
+func (r *Runner) Stop(ctx context.Context, pluginID string) error {
 	r.mu.Lock()
 	entry, ok := r.processes[pluginID]
 	if !ok {
@@ -318,7 +320,7 @@ func (r *Runner) Stop(_ context.Context, pluginID string) error {
 
 	// Try gRPC Shutdown first
 	if entry.ipc != nil {
-		shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), ipcCallTimeout)
+		shutdownCtx, shutdownCancel := context.WithTimeout(ctx, ipcCallTimeout)
 		if err := entry.ipc.Shutdown(shutdownCtx, "host requested shutdown"); err != nil {
 			slog.Warn("plugin Shutdown RPC failed", slog.String("pluginID", pluginID), slog.Any("err", err))
 		}
@@ -364,7 +366,7 @@ func (r *Runner) Stop(_ context.Context, pluginID string) error {
 	return nil
 }
 
-func (r *Runner) Health(_ context.Context, pluginID string) (bool, error) {
+func (r *Runner) Health(ctx context.Context, pluginID string) (bool, error) {
 	r.mu.RLock()
 	entry, ok := r.processes[pluginID]
 	r.mu.RUnlock()
@@ -382,9 +384,9 @@ func (r *Runner) Health(_ context.Context, pluginID string) (bool, error) {
 	ipc := entry.ipc
 	r.mu.RUnlock()
 	if ipc != nil {
-		ctx, cancel := context.WithTimeout(context.Background(), ipcCallTimeout)
+		hcCtx, cancel := context.WithTimeout(ctx, ipcCallTimeout)
 		defer cancel()
-		healthy, err := ipc.HealthCheck(ctx)
+		healthy, err := ipc.HealthCheck(hcCtx)
 		if err != nil {
 			return true, nil // process running but gRPC unavailable, still "alive"
 		}
@@ -394,7 +396,7 @@ func (r *Runner) Health(_ context.Context, pluginID string) (bool, error) {
 	return true, nil
 }
 
-func (r *Runner) SendEvent(_ context.Context, pluginID string, event any) error {
+func (r *Runner) SendEvent(ctx context.Context, pluginID string, event any) error {
 	r.mu.RLock()
 	entry, ok := r.processes[pluginID]
 	r.mu.RUnlock()
@@ -420,9 +422,9 @@ func (r *Runner) SendEvent(_ context.Context, pluginID string, event any) error 
 		eventType = named.EventName()
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), ipcCallTimeout)
+	evtCtx, cancel := context.WithTimeout(ctx, ipcCallTimeout)
 	defer cancel()
-	return ipc.OnEvent(ctx, eventType, payload, "host")
+	return ipc.OnEvent(evtCtx, eventType, payload, "host")
 }
 
 func (r *Runner) ensureSandboxLib() string {
