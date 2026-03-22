@@ -156,7 +156,7 @@ function PersonPage() {
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
             {items.map(({ item, person }) => (
               <div key={item.id} className="relative">
-                <MediaCard item={item} />
+                <MediaCard item={item} lite />
                 {person.role && (
                   <p className="text-xs mt-1 truncate px-0.5" style={{ color: "var(--text-muted)" }}>
                     {t("media.person.asRole", { role: person.role })}

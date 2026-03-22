@@ -230,7 +230,7 @@ function LibrarySlider({ libraryId, name, libraryType }: { libraryId: string; na
   return (
     <MediaSlider title={name} seeAllHref={`/library/${slugify(name)}`} isLoading={isLoading}>
       {items.map((item) => (
-        <MediaCard key={item.id} item={item} />
+        <MediaCard key={item.id} item={item} lite />
       ))}
     </MediaSlider>
   );
@@ -253,6 +253,7 @@ function ResumePlaybackSlider() {
           item={{ id: item.mediaItemId, title: item.title, type: item.type }}
           showYear={false}
           showProgress={!!item.positionMs}
+          lite
         />
       ))}
     </MediaSlider>
@@ -276,6 +277,7 @@ function NextEpisodeSlider() {
           item={{ id: item.mediaItemId, title: item.title, type: item.type }}
           showYear={false}
           showType
+          lite
         />
       ))}
     </MediaSlider>
@@ -295,6 +297,7 @@ function MostPopularSlider() {
           key={item.mediaItemId}
           item={{ id: item.mediaItemId, title: item.title, type: item.type }}
           showType
+          lite
         />
       ))}
     </MediaSlider>
@@ -314,6 +317,7 @@ function RecommendedSlider() {
           key={item.mediaItemId}
           item={{ id: item.mediaItemId, title: item.title, type: item.type }}
           showType
+          lite
         />
       ))}
     </MediaSlider>

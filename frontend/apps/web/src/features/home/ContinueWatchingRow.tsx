@@ -31,6 +31,7 @@ export function ContinueWatchingRow() {
           showYear={false}
           showProgress
           progressPercent={progressMap.get(item.id ?? "")}
+          lite
         />
       ))}
     </FeedSection>

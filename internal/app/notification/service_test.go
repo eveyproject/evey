@@ -338,6 +338,134 @@ func TestNotificationService_List_UnreadOnly(t *testing.T) {
 	assert.Equal(t, "n2", notifs[0].ID)
 }
 
+func TestNotificationService_WithPush_SendsToSubscriptions(t *testing.T) {
+	t.Parallel()
+	repo := notiffakes.NewFakeNotificationRepository()
+	settings := notiffakes.NewFakeSettingsRepository()
+	analyzer := notiffakes.NewFakeWatchHistoryAnalyzer()
+	profileRepo := userfakes.NewFakeProfileRepository()
+	bus := sharedfakes.NewFakeEventBus()
+	pushSender := notiffakes.NewFakePushSender()
+	subRepo := notiffakes.NewFakePushSubscriptionRepository()
+
+	ctx := context.Background()
+	_ = profileRepo.Create(ctx, &user.Profile{ID: "p1", UserID: "u1", Name: "Alice"})
+	_ = subRepo.Upsert(ctx, "u1", "p1", "https://push.example.com/1", "key1", "auth1")
+	_ = subRepo.Upsert(ctx, "u1", "p1", "https://push.example.com/2", "key2", "auth2")
+
+	svc := appnotification.NewCommandService(repo, settings, analyzer, profileRepo, bus)
+	svc.WithPush(pushSender, subRepo)
+
+	bus.Publish(ctx, libevent.MediaItemAdded{
+		MediaItemID: "m1",
+		LibraryID:   "lib1",
+		Title:       "Inception",
+		Type:        "movie",
+		OccurredAt:  time.Now(),
+	})
+
+	assert.Len(t, pushSender.Calls, 2, "should send push to both subscriptions")
+	assert.Equal(t, "https://push.example.com/1", pushSender.Calls[0].Sub.Endpoint)
+	assert.Equal(t, "https://push.example.com/2", pushSender.Calls[1].Sub.Endpoint)
+}
+
+func TestNotificationService_WithPush_NoSubsNoPush(t *testing.T) {
+	t.Parallel()
+	repo := notiffakes.NewFakeNotificationRepository()
+	settings := notiffakes.NewFakeSettingsRepository()
+	analyzer := notiffakes.NewFakeWatchHistoryAnalyzer()
+	profileRepo := userfakes.NewFakeProfileRepository()
+	bus := sharedfakes.NewFakeEventBus()
+	pushSender := notiffakes.NewFakePushSender()
+	subRepo := notiffakes.NewFakePushSubscriptionRepository()
+
+	ctx := context.Background()
+	_ = profileRepo.Create(ctx, &user.Profile{ID: "p1", UserID: "u1", Name: "Alice"})
+
+	svc := appnotification.NewCommandService(repo, settings, analyzer, profileRepo, bus)
+	svc.WithPush(pushSender, subRepo)
+
+	bus.Publish(ctx, libevent.MediaItemAdded{
+		MediaItemID: "m1",
+		LibraryID:   "lib1",
+		Title:       "Inception",
+		Type:        "movie",
+		OccurredAt:  time.Now(),
+	})
+
+	// notification created but no push calls
+	notifs, err := repo.ListByProfile(ctx, "p1", false, 0, 0)
+	require.NoError(t, err)
+	assert.Len(t, notifs, 1)
+	assert.Empty(t, pushSender.Calls, "no subscriptions = no push")
+}
+
+func TestNotificationService_WithPush_DisabledLevel_NoPush(t *testing.T) {
+	t.Parallel()
+	repo := notiffakes.NewFakeNotificationRepository()
+	settings := notiffakes.NewFakeSettingsRepository()
+	analyzer := notiffakes.NewFakeWatchHistoryAnalyzer()
+	profileRepo := userfakes.NewFakeProfileRepository()
+	bus := sharedfakes.NewFakeEventBus()
+	pushSender := notiffakes.NewFakePushSender()
+	subRepo := notiffakes.NewFakePushSubscriptionRepository()
+
+	ctx := context.Background()
+	_ = profileRepo.Create(ctx, &user.Profile{ID: "p1", UserID: "u1", Name: "Alice"})
+	_ = subRepo.Upsert(ctx, "u1", "p1", "https://push.example.com/1", "key1", "auth1")
+	_ = settings.Upsert(ctx, &notifdom.Settings{
+		ProfileID:   "p1",
+		MovieLevel:  notifdom.LevelDisabled,
+		SeriesLevel: notifdom.LevelAll,
+		MusicLevel:  notifdom.LevelAll,
+	})
+
+	svc := appnotification.NewCommandService(repo, settings, analyzer, profileRepo, bus)
+	svc.WithPush(pushSender, subRepo)
+
+	bus.Publish(ctx, libevent.MediaItemAdded{
+		MediaItemID: "m1",
+		LibraryID:   "lib1",
+		Title:       "Inception",
+		Type:        "movie",
+		OccurredAt:  time.Now(),
+	})
+
+	assert.Empty(t, pushSender.Calls, "disabled level should not send push")
+}
+
+func TestNotificationService_WithPush_PushSendError_DoesNotBlockNotification(t *testing.T) {
+	t.Parallel()
+	repo := notiffakes.NewFakeNotificationRepository()
+	settings := notiffakes.NewFakeSettingsRepository()
+	analyzer := notiffakes.NewFakeWatchHistoryAnalyzer()
+	profileRepo := userfakes.NewFakeProfileRepository()
+	bus := sharedfakes.NewFakeEventBus()
+	pushSender := notiffakes.NewFakePushSender()
+	pushSender.Err = errors.New("push service down")
+	subRepo := notiffakes.NewFakePushSubscriptionRepository()
+
+	ctx := context.Background()
+	_ = profileRepo.Create(ctx, &user.Profile{ID: "p1", UserID: "u1", Name: "Alice"})
+	_ = subRepo.Upsert(ctx, "u1", "p1", "https://push.example.com/1", "key1", "auth1")
+
+	svc := appnotification.NewCommandService(repo, settings, analyzer, profileRepo, bus)
+	svc.WithPush(pushSender, subRepo)
+
+	bus.Publish(ctx, libevent.MediaItemAdded{
+		MediaItemID: "m1",
+		LibraryID:   "lib1",
+		Title:       "Inception",
+		Type:        "movie",
+		OccurredAt:  time.Now(),
+	})
+
+	// notification still created despite push failure
+	notifs, err := repo.ListByProfile(ctx, "p1", false, 0, 0)
+	require.NoError(t, err)
+	assert.Len(t, notifs, 1, "notification should be created even if push fails")
+}
+
 func TestNotificationService_CleanupExpired(t *testing.T) {
 	t.Parallel()
 	repo := notiffakes.NewFakeNotificationRepository()

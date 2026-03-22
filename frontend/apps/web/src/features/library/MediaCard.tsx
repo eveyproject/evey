@@ -43,6 +43,8 @@ export interface MediaCardProps {
   selected?: boolean;
   selectionMode?: boolean;
   onSelect?: (id: string, selected: boolean) => void;
+  /** Skip per-card API calls (favorite, star rating) to reduce HTTP requests in lists */
+  lite?: boolean;
 }
 
 export { typeLabel };
@@ -251,6 +253,7 @@ export const MediaCard = memo(function MediaCard({
   selected = false,
   selectionMode = false,
   onSelect,
+  lite = false,
 }: MediaCardProps) {
   const [imgLoaded, setImgLoaded] = useState(false);
   const hoverTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -479,13 +482,13 @@ export const MediaCard = memo(function MediaCard({
               <Check size={12} className="text-white" strokeWidth={3} />
             )}
           </button>
-        ) : item.id ? (
+        ) : (item.id && !lite) ? (
           <div className="absolute top-2 left-2 z-20 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity duration-200">
             <FavoriteButton mediaId={item.id} size="sm" />
           </div>
         ) : null}
 
-        {item.id && <StarRatingBadge mediaId={item.id} />}
+        {item.id && !lite && <StarRatingBadge mediaId={item.id} />}
 
         {item.id && (
           <button
