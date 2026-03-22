@@ -2,8 +2,10 @@ package httpapi
 
 import (
 	"encoding/json"
+	"log/slog"
 	"net/http"
 	"strconv"
+
 	appfeed "github.com/gravity-zero/evey/internal/app/feed"
 	"github.com/gravity-zero/evey/internal/domain/feed"
 	"github.com/gravity-zero/evey/internal/pkg/auth"
@@ -122,6 +124,8 @@ func writeFeedResponse(w http.ResponseWriter, items []*feed.FeedItem) {
 		})
 	}
 	w.Header().Set("Content-Type", "application/json")
-	_ = json.NewEncoder(w).Encode(map[string]any{"items": out})
+	if err := json.NewEncoder(w).Encode(map[string]any{"items": out}); err != nil {
+		slog.Error("encode response", slog.Any("err", err))
+	}
 }
 

@@ -257,24 +257,39 @@ func buildServices(ctx context.Context, cfg *config.Config, db *sql.DB, rootLog 
 				slog.Info("startup index: already up to date", slog.Int("items", dbCount))
 				return
 			}
-			items, err := r.MediaItem.List(indexCtx, library.ListMediaItemsFilter{Limit: 10000})
-			if err != nil {
-				slog.Warn("startup index: list items", slog.Any("err", err))
-				return
-			}
+			const pageSize = 500
 			indexed := 0
-			for _, item := range items {
+			offset := 0
+			for {
 				if indexCtx.Err() != nil {
 					slog.Warn("startup index: cancelled", slog.Int("indexed", indexed))
 					return
 				}
-				if err := searchAdapter.IndexMediaItem(indexCtx, item, nil); err != nil {
-					slog.Warn("startup index", slog.String("id", item.ID), slog.Any("err", err))
-					continue
+				items, err := r.MediaItem.List(indexCtx, library.ListMediaItemsFilter{Limit: pageSize, Offset: offset})
+				if err != nil {
+					slog.Warn("startup index: list items", slog.Any("err", err))
+					return
 				}
-				indexed++
+				if len(items) == 0 {
+					break
+				}
+				for _, item := range items {
+					if indexCtx.Err() != nil {
+						slog.Warn("startup index: cancelled", slog.Int("indexed", indexed))
+						return
+					}
+					if err := searchAdapter.IndexMediaItem(indexCtx, item, nil); err != nil {
+						slog.Warn("startup index", slog.String("id", item.ID), slog.Any("err", err))
+						continue
+					}
+					indexed++
+				}
+				offset += len(items)
+				if len(items) < pageSize {
+					break
+				}
 			}
-			slog.Info("startup index complete", slog.Int("indexed", indexed), slog.Int("total", len(items)))
+			slog.Info("startup index complete", slog.Int("indexed", indexed))
 		}()
 	}
 

@@ -290,7 +290,9 @@ func (svc *ScanService) pruneEmptyContainers(ctx context.Context, libraryID stri
 			continue
 		}
 		if svc.search != nil {
-			_ = svc.search.RemoveMediaItem(ctx, item.ID)
+			if rmErr := svc.search.RemoveMediaItem(ctx, item.ID); rmErr != nil {
+				slog.Warn("remove empty series from search index", slog.String("id", item.ID), slog.Any("err", rmErr))
+			}
 		}
 		pruned++
 	}

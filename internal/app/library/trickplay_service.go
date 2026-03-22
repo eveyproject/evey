@@ -68,11 +68,11 @@ func (s *TrickplayService) WithShutdownCtx(ctx context.Context) {
 	s.shutdownCtx = ctx
 }
 
-func (s *TrickplayService) isTrickplayEnabled() bool {
+func (s *TrickplayService) isTrickplayEnabled(ctx context.Context) bool {
 	if s.configRepo == nil {
 		return true
 	}
-	entry, err := s.configRepo.Get(context.Background(), "trickplay.enabled")
+	entry, err := s.configRepo.Get(ctx, "trickplay.enabled")
 	if err != nil {
 		return true
 	}
@@ -81,11 +81,11 @@ func (s *TrickplayService) isTrickplayEnabled() bool {
 
 // isAdaptiveCPU reads `trickplay.adaptive_cpu` from config. Default: true (gentle 25%).
 // When false, uses 50% of cores for faster generation.
-func (s *TrickplayService) isAdaptiveCPU() bool {
+func (s *TrickplayService) isAdaptiveCPU(ctx context.Context) bool {
 	if s.configRepo == nil {
 		return true
 	}
-	entry, err := s.configRepo.Get(context.Background(), "trickplay.adaptive_cpu")
+	entry, err := s.configRepo.Get(ctx, "trickplay.adaptive_cpu")
 	if err != nil {
 		return true
 	}
@@ -96,7 +96,7 @@ func (s *TrickplayService) GenerateTrickplay(ctx context.Context, mediaItemID st
 	if s.trickplayRepo == nil || s.trickplayGen == nil {
 		return errors.New("trickplay not configured")
 	}
-	if !s.isTrickplayEnabled() {
+	if !s.isTrickplayEnabled(ctx) {
 		return nil
 	}
 	s.waitForIdleStreams(ctx)
@@ -116,7 +116,7 @@ func (s *TrickplayService) GenerateTrickplay(ctx context.Context, mediaItemID st
 
 	outputDir := fmt.Sprintf("%s/%s", s.trickplayCacheDir, mediaItemID)
 
-	adaptive := s.isAdaptiveCPU()
+	adaptive := s.isAdaptiveCPU(ctx)
 	workers := ffmpeg.TrickplayWorkers(adaptive)
 	result, err := s.trickplayGen.Generate(ctx, item.FilePath, outputDir, interval, width, tileWidth, tileHeight, workers)
 	if err != nil {
@@ -153,7 +153,7 @@ func (s *TrickplayService) GenerateAllMissingTrickplays(ctx context.Context) (in
 	if s.trickplayRepo == nil || s.trickplayGen == nil {
 		return 0, errors.New("trickplay not configured")
 	}
-	if !s.isTrickplayEnabled() {
+	if !s.isTrickplayEnabled(ctx) {
 		return 0, nil
 	}
 	ids, err := s.trickplayRepo.ListMissingMediaItemIDs(ctx)
@@ -194,7 +194,7 @@ func (s *TrickplayService) StartTrickplayWorker(ctx context.Context) {
 	}
 	sem := make(chan struct{}, 1)
 	s.events.Subscribe("media.item.added", func(_ context.Context, ev shared.Event) {
-		if !s.isTrickplayEnabled() {
+		if !s.isTrickplayEnabled(ctx) {
 			return
 		}
 		e, ok := ev.(library.MediaItemAdded)
@@ -234,7 +234,7 @@ func (s *TrickplayService) StartBackgroundGeneration(ctx context.Context) {
 		case <-ctx.Done():
 			return
 		}
-		if !s.isTrickplayEnabled() {
+		if !s.isTrickplayEnabled(ctx) {
 			return
 		}
 		slog.Info("trickplay: starting background generation of missing trickplays")
