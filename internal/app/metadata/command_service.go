@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"sync"
 	"time"
 
 	"github.com/gravity-zero/evey/internal/domain/library"
@@ -19,6 +20,7 @@ type CommandService struct {
 	providers  []metadata.MetadataProvider
 	mediaItems library.MediaItemRepository
 	enricher   ItemEnricher
+	workerWg   sync.WaitGroup
 }
 
 func NewCommandService(
@@ -223,20 +225,22 @@ func (s *CommandService) StartEnrichmentWorker(ctx context.Context) {
 		return
 	}
 	if bulkOK && s.mediaItems != nil {
-		go func() {
+		s.workerWg.Go(func() {
 			items, err := s.mediaItems.List(ctx, library.ListMediaItemsFilter{Limit: 5000})
 			if err == nil {
 				be.AutoEnrichAll(ctx, items, slog.Default())
 			}
-		}()
+		})
 	}
 	if bulkOK && s.mediaItems != nil {
-		go s.dailyReEnrich(ctx, be)
+		s.workerWg.Go(func() {
+			s.dailyReEnrich(ctx, be)
+		})
 	}
 	if singleOK && s.mediaItems != nil {
 		queue := make(chan string, 100)
 		for range 4 {
-			go func() {
+			s.workerWg.Go(func() {
 				for {
 					select {
 					case <-ctx.Done():
@@ -251,7 +255,7 @@ func (s *CommandService) StartEnrichmentWorker(ctx context.Context) {
 						}
 					}
 				}
-			}()
+			})
 		}
 		s.events.Subscribe("media.item.added", func(_ context.Context, ev shared.Event) {
 			if e, ok := ev.(library.MediaItemAdded); ok {
@@ -263,6 +267,11 @@ func (s *CommandService) StartEnrichmentWorker(ctx context.Context) {
 			}
 		})
 	}
+}
+
+// WaitWorkers blocks until all enrichment goroutines finish (after ctx cancel).
+func (s *CommandService) WaitWorkers() {
+	s.workerWg.Wait()
 }
 
 func (s *CommandService) dailyReEnrich(ctx context.Context, be BulkItemEnricher) {
