@@ -168,6 +168,11 @@ notificationSettings:
   music: "Música"
   saved: "Preferencias de notificación guardadas"
   saveError: "Error al guardar las preferencias de notificación"
+  levelDefault: "Predeterminado"
+  levelDisabled: "Desactivado"
+  levelAll: "Todas"
+  levelRelevant: "Relevantes"
+  levelImportant: "Solo importantes"
 watchHistory:
   today: "Hoy"
   yesterday: "Ayer"

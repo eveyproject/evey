@@ -168,6 +168,11 @@ notificationSettings:
   music: Music
   saved: Notification preferences saved
   saveError: Failed to save notification preferences
+  levelDefault: Default
+  levelDisabled: Disabled
+  levelAll: All
+  levelRelevant: Relevant
+  levelImportant: Important only
 watchHistory:
   today: Today
   yesterday: Yesterday
