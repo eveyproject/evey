@@ -26,6 +26,7 @@ func buildGRPCServer(deps *appDeps, cfg *config.Config, rootLog *slog.Logger, lo
 		deps.repos.userRepo, deps.repos.profileRepo, deps.repos.libraryAccessRepo,
 		deps.backupSvc, cfg, deps.cfgStore,
 		version,
+		grpc.MaxRecvMsgSize(16 * 1024 * 1024),
 		grpc.ChainUnaryInterceptor(
 			interceptors.ErrorSanitizerUnary(),
 			interceptors.LocaleUnary(),
