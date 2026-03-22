@@ -162,6 +162,21 @@ func (a *SearchAdapter) IndexMediaItem(ctx context.Context, item *library.MediaI
 	return nil
 }
 
+func (a *SearchAdapter) IndexMediaItemsBatch(ctx context.Context, items []*library.MediaItem) error {
+	if len(items) == 0 {
+		return nil
+	}
+	docs := make([]mediaDocument, len(items))
+	for i, item := range items {
+		docs[i] = ToDocument(item, nil)
+	}
+	_, err := a.index.AddDocumentsWithContext(ctx, docs, nil)
+	if err != nil {
+		return fmt.Errorf("index media items batch: %w", err)
+	}
+	return nil
+}
+
 func (a *SearchAdapter) RemoveMediaItem(ctx context.Context, id string) error {
 	_, err := a.index.DeleteDocumentWithContext(ctx, id, nil)
 	if err != nil {

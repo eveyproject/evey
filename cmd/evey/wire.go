@@ -238,7 +238,7 @@ func buildServices(ctx context.Context, cfg *config.Config, db *sql.DB, rootLog 
 	if tmdbKey != "" {
 		metadataCmdSvc.StartEnrichmentWorker(ctx)
 	}
-	hlsMgr := apptranscoding.NewHLSManager(cfg.Transcoding.CacheDir+"/hls", cfg.Transcoding.MaxConcurrent)
+	hlsMgr := apptranscoding.NewHLSManager(ctx, cfg.Transcoding.CacheDir+"/hls", cfg.Transcoding.MaxConcurrent)
 	libCmdSvc.SetTrickplayActiveStreamChecker(hlsMgr)
 	libCmdSvc.StartTrickplayWorker(ctx)
 	libCmdSvc.StartBackgroundGeneration(ctx)
@@ -262,17 +262,22 @@ func buildServices(ctx context.Context, cfg *config.Config, db *sql.DB, rootLog 
 				slog.Warn("startup index: list items", slog.Any("err", err))
 				return
 			}
+			const batchSize = 500
 			indexed := 0
-			for _, item := range items {
+			for i := 0; i < len(items); i += batchSize {
 				if indexCtx.Err() != nil {
 					slog.Warn("startup index: cancelled", slog.Int("indexed", indexed))
 					return
 				}
-				if err := searchAdapter.IndexMediaItem(indexCtx, item, nil); err != nil {
-					slog.Warn("startup index", slog.String("id", item.ID), slog.Any("err", err))
+				end := i + batchSize
+				if end > len(items) {
+					end = len(items)
+				}
+				if err := searchAdapter.IndexMediaItemsBatch(indexCtx, items[i:end]); err != nil {
+					slog.Warn("startup index batch", slog.Int("offset", i), slog.Any("err", err))
 					continue
 				}
-				indexed++
+				indexed += end - i
 			}
 			slog.Info("startup index complete", slog.Int("indexed", indexed), slog.Int("total", len(items)))
 		}()

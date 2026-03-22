@@ -89,7 +89,7 @@ func TestAdminGetDashboard(t *testing.T) {
 func TestAdminGetDashboard_WithHLSManager(t *testing.T) {
 	h := newTestAdminHandler()
 	tmpDir := t.TempDir()
-	hls := apptranscoding.NewHLSManager(tmpDir, 5)
+	hls := apptranscoding.NewHLSManager(context.Background(), tmpDir, 5)
 	defer hls.CleanupAll()
 	h.hlsManager = hls
 

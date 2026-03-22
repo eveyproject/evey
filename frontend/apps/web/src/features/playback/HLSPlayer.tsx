@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { RotateCcw, RotateCw, Play, Pause, Loader, TriangleAlert } from "lucide-react";
 import Hls from "hls.js";
 import { useAuthStore } from "@evey/store";
@@ -90,6 +91,7 @@ export function HLSPlayer({
   seriesId,
   onVideoRef,
 }: HLSPlayerProps) {
+  const { t } = useTranslation();
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const hlsRef = useRef<InstanceType<typeof Hls> | null>(null);
   // Track current playback position across reloads (cleanup resets video.currentTime to 0)
@@ -798,7 +800,7 @@ export function HLSPlayer({
         <div className="absolute inset-0 flex items-center justify-center pointer-events-none" style={{ zIndex: 5 }}>
           <div className="flex flex-col items-center gap-2">
             <Loader size={40} className="animate-spin text-white/80" />
-            <span className="text-white/80 text-sm font-medium">Buffering…</span>
+            <span className="text-white/80 text-sm font-medium">{t("player.buffering")}</span>
           </div>
         </div>
       )}
@@ -806,14 +808,14 @@ export function HLSPlayer({
         <div className="absolute inset-0 flex items-center justify-center" style={{ zIndex: 10, background: "rgba(0,0,0,0.7)" }}>
           <div className="flex flex-col items-center gap-4 text-white">
             <TriangleAlert size={48} style={{ color: "var(--color-danger)" }} strokeWidth={1.5} />
-            <p className="text-lg font-medium">Playback failed</p>
-            <p className="text-sm" style={{ color: "var(--text-muted, rgba(255,255,255,0.6))" }}>Unable to play at any quality level</p>
+            <p className="text-lg font-medium">{t("player.playbackFailed")}</p>
+            <p className="text-sm" style={{ color: "var(--text-muted, rgba(255,255,255,0.6))" }}>{t("player.unableToPlayAnyQuality")}</p>
             <button
               onClick={() => { setFatalError(false); window.location.reload(); }}
               className="px-4 py-2 rounded text-sm font-medium"
               style={{ backgroundColor: "rgba(255,255,255,0.25)" }}
             >
-              Retry
+              {t("player.retry")}
             </button>
           </div>
         </div>

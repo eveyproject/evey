@@ -81,16 +81,18 @@ type HLSManager struct {
 	userSessions  map[string]int // userID → active session count (O(1) lookup)
 	cacheDir      string
 	maxConcurrent int
+	shutdownCtx   context.Context
 	stopCleanup   chan struct{}
 	cleanupOnce   sync.Once
 }
 
-func NewHLSManager(cacheDir string, maxConcurrent int) *HLSManager {
+func NewHLSManager(shutdownCtx context.Context, cacheDir string, maxConcurrent int) *HLSManager {
 	m := &HLSManager{
 		sessions:      make(map[string]*HLSSession),
 		userSessions:  make(map[string]int),
 		cacheDir:      cacheDir,
 		maxConcurrent: maxConcurrent,
+		shutdownCtx:   shutdownCtx,
 		stopCleanup:   make(chan struct{}),
 	}
 	go m.cleanupLoop()
@@ -169,14 +171,14 @@ func (m *HLSManager) GetOrCreate(userID, mediaItemID, filePath string, sourceWid
 		close(session.ready)
 		close(session.done)
 	} else {
-		go session.start(filePath)
+		go session.start(m.shutdownCtx, filePath)
 	}
 	return session, nil
 }
 
-func (s *HLSSession) start(filePath string) {
+func (s *HLSSession) start(parentCtx context.Context, filePath string) {
 	defer close(s.done)
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(parentCtx)
 	args := s.buildFFmpegArgs(filePath)
 	slog.Debug("hls: ffmpeg", slog.String("media_id", s.MediaItemID), slog.String("args", strings.Join(args, " ")))
 	cmd := exec.CommandContext(ctx, "ffmpeg", args...)

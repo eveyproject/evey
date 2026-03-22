@@ -31,6 +31,18 @@ func (s *FakeSearchIndex) IndexMediaItem(_ context.Context, item *library.MediaI
 	return nil
 }
 
+func (s *FakeSearchIndex) IndexMediaItemsBatch(_ context.Context, items []*library.MediaItem) error {
+	if s.Err != nil {
+		return s.Err
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for _, item := range items {
+		s.items[item.ID] = item
+	}
+	return nil
+}
+
 func (s *FakeSearchIndex) RemoveMediaItem(_ context.Context, id string) error {
 	if s.Err != nil {
 		return s.Err

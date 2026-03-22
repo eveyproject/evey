@@ -1,6 +1,7 @@
 package transcoding_test
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"strings"
@@ -26,7 +27,7 @@ func TestIsImageSubtitle(t *testing.T) {
 
 func TestBuildFFmpegArgs_NoBurnIn_MultiVariant(t *testing.T) {
 	dir := t.TempDir()
-	m := apptranscode.NewHLSManager(dir, 5)
+	m := apptranscode.NewHLSManager(context.Background(), dir, 5)
 	defer m.CleanupAll()
 
 	// Empty decisions → legacy multi-variant ABR
@@ -41,7 +42,7 @@ func TestBuildFFmpegArgs_NoBurnIn_MultiVariant(t *testing.T) {
 
 func TestBuildFFmpegArgs_ModeA_VideoCopy(t *testing.T) {
 	dir := t.TempDir()
-	m := apptranscode.NewHLSManager(dir, 5)
+	m := apptranscode.NewHLSManager(context.Background(), dir, 5)
 	defer m.CleanupAll()
 
 	sess, err := m.GetOrCreate("u", "m-copy", "/f.mkv", 1920, 1080, 0, 0, -1, "", nil, false, false, 0, "copy", "transcode")
@@ -58,7 +59,7 @@ func TestBuildFFmpegArgs_ModeA_VideoCopy(t *testing.T) {
 
 func TestBuildFFmpegArgs_ModeA_AllCopy(t *testing.T) {
 	dir := t.TempDir()
-	m := apptranscode.NewHLSManager(dir, 5)
+	m := apptranscode.NewHLSManager(context.Background(), dir, 5)
 	defer m.CleanupAll()
 
 	sess, err := m.GetOrCreate("u", "m-allcopy", "/f.mkv", 1920, 1080, 0, 0, -1, "", nil, false, false, 0, "copy", "copy")
@@ -73,7 +74,7 @@ func TestBuildFFmpegArgs_ModeA_AllCopy(t *testing.T) {
 
 func TestBuildFFmpegArgs_ModeB_SingleTranscode(t *testing.T) {
 	dir := t.TempDir()
-	m := apptranscode.NewHLSManager(dir, 5)
+	m := apptranscode.NewHLSManager(context.Background(), dir, 5)
 	defer m.CleanupAll()
 
 	sess, err := m.GetOrCreate("u", "m-transcode", "/f.mkv", 1920, 1080, 0, 0, -1, "", nil, false, false, 0, "transcode", "transcode")
@@ -90,7 +91,7 @@ func TestBuildFFmpegArgs_ModeB_SingleTranscode(t *testing.T) {
 
 func TestBuildFFmpegArgs_BurnIn(t *testing.T) {
 	dir := t.TempDir()
-	m := apptranscode.NewHLSManager(dir, 5)
+	m := apptranscode.NewHLSManager(context.Background(), dir, 5)
 	defer m.CleanupAll()
 
 	// Burn-in with multi-variant (empty decisions)
@@ -133,7 +134,7 @@ func TestFilterProfiles_LowRes(t *testing.T) {
 
 func TestNewHLSManager(t *testing.T) {
 	dir := t.TempDir()
-	m := apptranscode.NewHLSManager(dir, 3)
+	m := apptranscode.NewHLSManager(context.Background(), dir, 3)
 	defer m.CleanupAll()
 
 	assert.NotNil(t, m)
@@ -143,7 +144,7 @@ func TestNewHLSManager(t *testing.T) {
 
 func TestSessionCleanup(t *testing.T) {
 	dir := t.TempDir()
-	m := apptranscode.NewHLSManager(dir, 3)
+	m := apptranscode.NewHLSManager(context.Background(), dir, 3)
 	defer m.CleanupAll()
 
 	// GetOrCreate will fail to start ffmpeg (no real file) but the session is created
@@ -164,7 +165,7 @@ func TestSessionCleanup(t *testing.T) {
 
 func TestGetOrCreate_MaxConcurrent(t *testing.T) {
 	dir := t.TempDir()
-	m := apptranscode.NewHLSManager(dir, 1)
+	m := apptranscode.NewHLSManager(context.Background(), dir, 1)
 	defer m.CleanupAll()
 
 	_, err := m.GetOrCreate("user1", "media1", "/nonexistent/a.mkv", 1920, 1080, 0, 0, -1, "", nil, false, false, 0, "", "")
@@ -177,7 +178,7 @@ func TestGetOrCreate_MaxConcurrent(t *testing.T) {
 
 func TestGetOrCreate_ReturnsSameSession(t *testing.T) {
 	dir := t.TempDir()
-	m := apptranscode.NewHLSManager(dir, 5)
+	m := apptranscode.NewHLSManager(context.Background(), dir, 5)
 	defer m.CleanupAll()
 
 	s1, err := m.GetOrCreate("user1", "media1", "/nonexistent/a.mkv", 1920, 1080, 0, 0, -1, "", nil, false, false, 0, "", "")
@@ -190,7 +191,7 @@ func TestGetOrCreate_ReturnsSameSession(t *testing.T) {
 
 func TestSessionOutputDir(t *testing.T) {
 	dir := t.TempDir()
-	m := apptranscode.NewHLSManager(dir, 5)
+	m := apptranscode.NewHLSManager(context.Background(), dir, 5)
 	defer m.CleanupAll()
 
 	sess, err := m.GetOrCreate("user1", "my-media-id", "/nonexistent/a.mkv", 1920, 1080, 0, 0, -1, "", nil, false, false, 0, "", "")
@@ -205,7 +206,7 @@ func TestFilterProfiles_EmptyInput(t *testing.T) {
 
 func TestSessionMarkAccess(t *testing.T) {
 	dir := t.TempDir()
-	m := apptranscode.NewHLSManager(dir, 5)
+	m := apptranscode.NewHLSManager(context.Background(), dir, 5)
 	defer m.CleanupAll()
 
 	sess, err := m.GetOrCreate("user1", "media-access", "/nonexistent/a.mkv", 1920, 1080, 0, 0, -1, "", nil, false, false, 0, "", "")
@@ -219,7 +220,7 @@ func TestSessionMarkAccess(t *testing.T) {
 
 func TestWaitReady_FailsOnBadFile(t *testing.T) {
 	dir := t.TempDir()
-	m := apptranscode.NewHLSManager(dir, 5)
+	m := apptranscode.NewHLSManager(context.Background(), dir, 5)
 	defer m.CleanupAll()
 
 	sess, err := m.GetOrCreate("user1", "bad-file", "/nonexistent/file.mkv", 1920, 1080, 0, 0, -1, "", nil, false, false, 0, "", "")
@@ -232,7 +233,7 @@ func TestWaitReady_FailsOnBadFile(t *testing.T) {
 
 func TestGetOrCreate_MaxUserStreams(t *testing.T) {
 	dir := t.TempDir()
-	m := apptranscode.NewHLSManager(dir, 10)
+	m := apptranscode.NewHLSManager(context.Background(), dir, 10)
 	defer m.CleanupAll()
 
 	_, err := m.GetOrCreate("user1", "media-u1a", "/nonexistent/a.mkv", 1920, 1080, 1, 0, -1, "", nil, false, false, 0, "", "")
@@ -249,7 +250,7 @@ func TestGetOrCreate_MaxUserStreams(t *testing.T) {
 
 func TestCleanupAll_RemovesOutputDirs(t *testing.T) {
 	dir := t.TempDir()
-	m := apptranscode.NewHLSManager(dir, 5)
+	m := apptranscode.NewHLSManager(context.Background(), dir, 5)
 
 	sess, err := m.GetOrCreate("user1", "cleanup-test", "/nonexistent/a.mkv", 1920, 1080, 0, 0, -1, "", nil, false, false, 0, "", "")
 	require.NoError(t, err)
@@ -271,7 +272,7 @@ func TestBuildFFmpegArgs_HDRToneMapping(t *testing.T) {
 	}
 
 	dir := t.TempDir()
-	m := apptranscode.NewHLSManager(dir, 5)
+	m := apptranscode.NewHLSManager(context.Background(), dir, 5)
 	defer m.CleanupAll()
 
 	// HDR source, client does NOT support HDR → tone mapping must be injected
@@ -293,7 +294,7 @@ func TestBuildFFmpegArgs_HDRToneMapping_HDRClientSkips(t *testing.T) {
 	}
 
 	dir := t.TempDir()
-	m := apptranscode.NewHLSManager(dir, 5)
+	m := apptranscode.NewHLSManager(context.Background(), dir, 5)
 	defer m.CleanupAll()
 
 	// HDR source, client supports HDR → no tone mapping
@@ -308,7 +309,7 @@ func TestBuildFFmpegArgs_HDRToneMapping_HDRClientSkips(t *testing.T) {
 
 func TestBuildFFmpegArgs_SDRNoToneMapping(t *testing.T) {
 	dir := t.TempDir()
-	m := apptranscode.NewHLSManager(dir, 5)
+	m := apptranscode.NewHLSManager(context.Background(), dir, 5)
 	defer m.CleanupAll()
 
 	// SDR source → no tone mapping regardless of hdrSupported
@@ -323,7 +324,7 @@ func TestBuildFFmpegArgs_SDRNoToneMapping(t *testing.T) {
 
 func TestBuildFFmpegArgs_AudioNormalize(t *testing.T) {
 	dir := t.TempDir()
-	m := apptranscode.NewHLSManager(dir, 5)
+	m := apptranscode.NewHLSManager(context.Background(), dir, 5)
 	defer m.CleanupAll()
 
 	sess, err := m.GetOrCreate("u", "audio-norm", "/f.mkv", 1920, 1080, 0, 0, -1, "", nil, false, true, 0, "", "")
@@ -338,7 +339,7 @@ func TestBuildFFmpegArgs_AudioNormalize(t *testing.T) {
 
 func TestBuildFFmpegArgs_ModeA_AudioTrackIndex(t *testing.T) {
 	dir := t.TempDir()
-	m := apptranscode.NewHLSManager(dir, 5)
+	m := apptranscode.NewHLSManager(context.Background(), dir, 5)
 	defer m.CleanupAll()
 
 	sess, err := m.GetOrCreate("u", "m-copy-at2", "/f.mkv", 1920, 1080, 0, 2, -1, "", nil, false, false, 0, "copy", "transcode")
@@ -356,7 +357,7 @@ func TestBuildFFmpegArgs_ModeA_AudioTrackIndex(t *testing.T) {
 
 func TestBuildFFmpegArgs_ModeB_AudioCopy(t *testing.T) {
 	dir := t.TempDir()
-	m := apptranscode.NewHLSManager(dir, 5)
+	m := apptranscode.NewHLSManager(context.Background(), dir, 5)
 	defer m.CleanupAll()
 
 	sess, err := m.GetOrCreate("u", "m-transcode-acopy", "/f.mkv", 1920, 1080, 0, 0, -1, "", nil, false, false, 0, "transcode", "copy")
@@ -373,7 +374,7 @@ func TestBuildFFmpegArgs_ModeB_AudioCopy(t *testing.T) {
 
 func TestBuildFFmpegArgs_ModeA_AudioTranscode_AC2(t *testing.T) {
 	dir := t.TempDir()
-	m := apptranscode.NewHLSManager(dir, 5)
+	m := apptranscode.NewHLSManager(context.Background(), dir, 5)
 	defer m.CleanupAll()
 
 	sess, err := m.GetOrCreate("u", "m-ac2-a", "/f.mkv", 1920, 1080, 0, 0, -1, "", nil, false, false, 0, "copy", "transcode")
@@ -386,7 +387,7 @@ func TestBuildFFmpegArgs_ModeA_AudioTranscode_AC2(t *testing.T) {
 
 func TestBuildFFmpegArgs_ModeB_AudioTranscode_AC2(t *testing.T) {
 	dir := t.TempDir()
-	m := apptranscode.NewHLSManager(dir, 5)
+	m := apptranscode.NewHLSManager(context.Background(), dir, 5)
 	defer m.CleanupAll()
 
 	sess, err := m.GetOrCreate("u", "m-ac2-b", "/f.mkv", 1920, 1080, 0, 0, -1, "", nil, false, false, 0, "transcode", "transcode")
@@ -401,7 +402,7 @@ func TestBuildFFmpegArgs_ModeB_AudioTranscode_AC2(t *testing.T) {
 
 func TestBuildFFmpegArgs_ModeB_ScaleFormat(t *testing.T) {
 	dir := t.TempDir()
-	m := apptranscode.NewHLSManager(dir, 5)
+	m := apptranscode.NewHLSManager(context.Background(), dir, 5)
 	defer m.CleanupAll()
 
 	sess, err := m.GetOrCreate("u", "m-scale-fmt", "/f.mkv", 1920, 1080, 0, 0, -1, "", nil, false, false, 0, "transcode", "transcode")
@@ -415,7 +416,7 @@ func TestBuildFFmpegArgs_ModeB_ScaleFormat(t *testing.T) {
 
 func TestBuildFFmpegArgs_Legacy_ScaleFormat(t *testing.T) {
 	dir := t.TempDir()
-	m := apptranscode.NewHLSManager(dir, 5)
+	m := apptranscode.NewHLSManager(context.Background(), dir, 5)
 	defer m.CleanupAll()
 
 	sess, err := m.GetOrCreate("u", "m-scale-legacy", "/f.mkv", 1920, 1080, 0, 0, -1, "", nil, false, false, 0, "", "")
@@ -432,7 +433,7 @@ func TestBuildFFmpegArgs_Legacy_ScaleFormat(t *testing.T) {
 
 func TestBuildFFmpegArgs_ModeB_TranscodeProfile(t *testing.T) {
 	dir := t.TempDir()
-	m := apptranscode.NewHLSManager(dir, 5)
+	m := apptranscode.NewHLSManager(context.Background(), dir, 5)
 	defer m.CleanupAll()
 
 	sess, err := m.GetOrCreate("u", "m-profile", "/f.mkv", 1920, 1080, 0, 0, -1, "", nil, false, false, 0, "transcode", "transcode")
@@ -449,7 +450,7 @@ func TestBuildFFmpegArgs_ModeB_TranscodeProfile(t *testing.T) {
 
 func TestBuildFFmpegArgs_ModeA_SeekBeforeInput(t *testing.T) {
 	dir := t.TempDir()
-	m := apptranscode.NewHLSManager(dir, 5)
+	m := apptranscode.NewHLSManager(context.Background(), dir, 5)
 	defer m.CleanupAll()
 
 	sess, err := m.GetOrCreate("u", "m-seek-a", "/f.mkv", 1920, 1080, 0, 0, -1, "", nil, false, false, 42.5, "copy", "transcode")
@@ -473,7 +474,7 @@ func TestBuildFFmpegArgs_ModeA_SeekBeforeInput(t *testing.T) {
 
 func TestBuildFFmpegArgs_ModeB_SeekBeforeInput(t *testing.T) {
 	dir := t.TempDir()
-	m := apptranscode.NewHLSManager(dir, 5)
+	m := apptranscode.NewHLSManager(context.Background(), dir, 5)
 	defer m.CleanupAll()
 
 	sess, err := m.GetOrCreate("u", "m-seek-b", "/f.mkv", 1920, 1080, 0, 0, -1, "", nil, false, false, 10.0, "transcode", "transcode")
@@ -497,7 +498,7 @@ func TestBuildFFmpegArgs_ModeB_SeekBeforeInput(t *testing.T) {
 
 func TestBuildFFmpegArgs_Legacy_SeekBeforeInput(t *testing.T) {
 	dir := t.TempDir()
-	m := apptranscode.NewHLSManager(dir, 5)
+	m := apptranscode.NewHLSManager(context.Background(), dir, 5)
 	defer m.CleanupAll()
 
 	sess, err := m.GetOrCreate("u", "m-seek-legacy", "/f.mkv", 1920, 1080, 0, 0, -1, "", nil, false, false, 5.0, "", "")
@@ -521,7 +522,7 @@ func TestBuildFFmpegArgs_Legacy_SeekBeforeInput(t *testing.T) {
 
 func TestBuildFFmpegArgs_NoSeekWhenZero(t *testing.T) {
 	dir := t.TempDir()
-	m := apptranscode.NewHLSManager(dir, 5)
+	m := apptranscode.NewHLSManager(context.Background(), dir, 5)
 	defer m.CleanupAll()
 
 	sess, err := m.GetOrCreate("u", "m-noseek", "/f.mkv", 1920, 1080, 0, 0, -1, "", nil, false, false, 0, "copy", "transcode")
@@ -536,7 +537,7 @@ func TestBuildFFmpegArgs_NoSeekWhenZero(t *testing.T) {
 
 func TestBuildFFmpegArgs_ModeC_FullTranscode(t *testing.T) {
 	dir := t.TempDir()
-	m := apptranscode.NewHLSManager(dir, 5)
+	m := apptranscode.NewHLSManager(context.Background(), dir, 5)
 	defer m.CleanupAll()
 
 	sess, err := m.GetOrCreate("u", "m-full-tc", "/f.mkv", 1920, 1080, 0, 1, -1, "", nil, false, false, 0, "transcode", "transcode")
@@ -558,7 +559,7 @@ func TestBuildFFmpegArgs_ModeC_FullTranscode(t *testing.T) {
 
 func TestCleanupStale_10MinThreshold(t *testing.T) {
 	dir := t.TempDir()
-	m := apptranscode.NewHLSManager(dir, 5)
+	m := apptranscode.NewHLSManager(context.Background(), dir, 5)
 	defer m.CleanupAll()
 
 	sess, err := m.GetOrCreate("u", "stale-test", "/nonexistent/f.mkv", 1920, 1080, 0, 0, -1, "", nil, false, false, 0, "", "")
@@ -580,7 +581,7 @@ func TestCleanupStale_10MinThreshold(t *testing.T) {
 
 func TestCleanupStale_RecentSessionKept(t *testing.T) {
 	dir := t.TempDir()
-	m := apptranscode.NewHLSManager(dir, 5)
+	m := apptranscode.NewHLSManager(context.Background(), dir, 5)
 	defer m.CleanupAll()
 
 	_, err := m.GetOrCreate("u", "recent-test", "/nonexistent/f.mkv", 1920, 1080, 0, 0, -1, "", nil, false, false, 0, "", "")
@@ -635,7 +636,7 @@ func TestIsTranscodeComplete_SingleStream(t *testing.T) {
 
 func TestIsSingleStream(t *testing.T) {
 	dir := t.TempDir()
-	m := apptranscode.NewHLSManager(dir, 10)
+	m := apptranscode.NewHLSManager(context.Background(), dir, 10)
 	defer m.CleanupAll()
 
 	copy, _ := m.GetOrCreate("u", "ss-copy", "/f.mkv", 1920, 1080, 0, 0, -1, "", nil, false, false, 0, "copy", "transcode")

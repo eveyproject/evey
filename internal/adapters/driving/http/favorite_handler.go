@@ -6,7 +6,6 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
-	"sync"
 	"time"
 
 	appfavorite "github.com/gravity-zero/evey/internal/app/favorite"
@@ -78,26 +77,27 @@ func registerFavoriteRoutes(mux *http.ServeMux, favSvc *appfavorite.Service, lib
 			CommunityRating *float64 `json:"communityRating,omitempty"`
 		}
 		items := make([]favItem, len(favs))
+		ids := make([]string, len(favs))
 		for i, f := range favs {
 			items[i] = favItem{MediaItemID: f.MediaItemID, CreatedAt: f.CreatedAt.UTC().Format(time.RFC3339)}
+			ids[i] = f.MediaItemID
 		}
-		var wg sync.WaitGroup
-		ctx := r.Context()
+		mediaItems, err := libQuery.GetMediaItemsByIDs(r.Context(), ids)
+		if err != nil {
+			slog.Warn("fetch media items for favorites", slog.Any("err", err))
+		}
+		byID := make(map[string]*struct{ title, typ string; year *int; rating *float64 }, len(mediaItems))
+		for _, mi := range mediaItems {
+			byID[mi.ID] = &struct{ title, typ string; year *int; rating *float64 }{mi.Title, mi.Type, mi.Year, mi.CommunityRating}
+		}
 		for i, f := range favs {
-			wg.Add(1)
-			go func(idx int, mediaID string) {
-				defer wg.Done()
-				mi, ferr := libQuery.GetMediaItem(ctx, mediaID)
-				if ferr != nil || mi == nil {
-					return
-				}
-				items[idx].Title = mi.Title
-				items[idx].Type = mi.Type
-				items[idx].Year = mi.Year
-				items[idx].CommunityRating = mi.CommunityRating
-			}(i, f.MediaItemID)
+			if mi, ok := byID[f.MediaItemID]; ok {
+				items[i].Title = mi.title
+				items[i].Type = mi.typ
+				items[i].Year = mi.year
+				items[i].CommunityRating = mi.rating
+			}
 		}
-		wg.Wait()
 		w.Header().Set("Content-Type", "application/json")
 		if err := json.NewEncoder(w).Encode(map[string]any{"items": items}); err != nil {
 			slog.Warn("json encode failed", slog.Any("err", err))

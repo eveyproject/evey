@@ -63,6 +63,9 @@ nextEpisodeOverlay:
 skipIntro: Skip Intro
 download: Download
 watchTogether: Watch Together
+buffering: "Buffering\u2026"
+playbackFailed: Playback failed
+unableToPlayAnyQuality: Unable to play at any quality level
 failedToStart: Failed to start playback
 retry: Retry
 goBack: Go back
