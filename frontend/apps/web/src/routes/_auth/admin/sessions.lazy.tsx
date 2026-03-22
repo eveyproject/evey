@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Monitor, Play, Square } from "lucide-react";
 import { createLazyFileRoute } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
@@ -45,6 +46,7 @@ function useActiveSessions() {
       return res.sessions ?? [];
     },
     refetchInterval: 10_000,
+    refetchIntervalInBackground: false,
   });
 }
 
@@ -99,30 +101,9 @@ function usePlayMethodLabel() {
   };
 }
 
-function DeviceIcon() {
-  return (
-    <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
-      <rect x={2} y={3} width={20} height={14} rx={2} />
-      <path strokeLinecap="round" d="M8 21h8M12 17v4" />
-    </svg>
-  );
-}
-
-function PlayIcon() {
-  return (
-    <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-      <path strokeLinecap="round" strokeLinejoin="round" d="M5.25 5.653c0-.856.917-1.398 1.667-.986l11.54 6.348a1.125 1.125 0 010 1.971l-11.54 6.347a1.125 1.125 0 01-1.667-.985V5.653z" />
-    </svg>
-  );
-}
-
-function StopIcon() {
-  return (
-    <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-      <rect x={6} y={6} width={12} height={12} rx={1} />
-    </svg>
-  );
-}
+const DeviceIcon = () => <Monitor size={16} strokeWidth={1.5} />;
+const PlayIcon = () => <Play size={20} strokeWidth={2} />;
+const StopIcon = () => <Square size={16} strokeWidth={2} />;
 
 function SessionCard({ session }: { session: ActiveSession }) {
   const { t } = useTranslation();

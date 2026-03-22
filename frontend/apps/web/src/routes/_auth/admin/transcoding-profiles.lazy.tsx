@@ -14,6 +14,9 @@ import { Spinner } from "@/components/ui/Spinner";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
 import { Modal } from "@/components/ui/Modal";
+import { Input } from "@/components/ui/Input";
+import { Select } from "@/components/ui/Select";
+import { Checkbox } from "@/components/ui/Checkbox";
 
 export const Route = createLazyFileRoute("/_auth/admin/transcoding-profiles")({
   component: TranscodingProfilesPage,
@@ -147,117 +150,59 @@ function ProfileDialog({ open, profile, onClose }: ProfileDialogProps) {
       title={isEdit ? t("admin.transcodingProfiles.editProfile") : t("admin.transcodingProfiles.createProfile")}
     >
       <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-        <div className="flex flex-col gap-1">
-          <label className="text-sm font-medium" style={{ color: "var(--text)" }}>
-            {t("admin.transcodingProfiles.form.name")}
-          </label>
-          <input
-            type="text"
-            required
-            value={form.name}
-            onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
-            className="px-3 py-2 text-sm rounded-[var(--radius-sm)]"
-            style={{
-              backgroundColor: "var(--surface-raised)",
-              border: "1px solid var(--border)",
-              color: "var(--text)",
-            }}
-            placeholder="e.g. High Quality 1080p"
-          />
-        </div>
+        <Input
+          label={t("admin.transcodingProfiles.form.name")}
+          type="text"
+          required
+          value={form.name}
+          onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
+          placeholder="e.g. High Quality 1080p"
+        />
 
         <div className="grid grid-cols-2 gap-4">
-          <div className="flex flex-col gap-1">
-            <label className="text-sm font-medium" style={{ color: "var(--text)" }}>
-              {t("admin.transcodingProfiles.form.maxResolution")}
-            </label>
-            <select
-              value={form.resolution}
-              onChange={(e) => setForm((f) => ({ ...f, resolution: e.target.value }))}
-              className="px-3 py-2 text-sm rounded-[var(--radius-sm)]"
-              style={{ backgroundColor: "var(--surface-raised)", border: "1px solid var(--border)", color: "var(--text)" }}
-            >
-              {RESOLUTION_OPTIONS.map((r) => (
-                <option key={r.label} value={r.label}>{r.label}</option>
-              ))}
-            </select>
-          </div>
+          <Select
+            label={t("admin.transcodingProfiles.form.maxResolution")}
+            value={form.resolution}
+            onChange={(v) => setForm((f) => ({ ...f, resolution: v }))}
+            options={RESOLUTION_OPTIONS.map((r) => ({ label: r.label, value: r.label }))}
+          />
 
-          <div className="flex flex-col gap-1">
-            <label className="text-sm font-medium" style={{ color: "var(--text)" }}>
-              {t("admin.transcodingProfiles.form.hwAccel")}
-            </label>
-            <select
-              value={form.hwAccel}
-              onChange={(e) => setForm((f) => ({ ...f, hwAccel: e.target.value as V1HWAccelType }))}
-              className="px-3 py-2 text-sm rounded-[var(--radius-sm)]"
-              style={{ backgroundColor: "var(--surface-raised)", border: "1px solid var(--border)", color: "var(--text)" }}
-            >
-              {HW_ACCEL_OPTIONS.map((o) => (
-                <option key={o.value} value={o.value}>{o.label}</option>
-              ))}
-            </select>
-          </div>
+          <Select
+            label={t("admin.transcodingProfiles.form.hwAccel")}
+            value={form.hwAccel}
+            onChange={(v) => setForm((f) => ({ ...f, hwAccel: v as V1HWAccelType }))}
+            options={HW_ACCEL_OPTIONS.map((o) => ({ label: o.label, value: o.value }))}
+          />
 
-          <div className="flex flex-col gap-1">
-            <label className="text-sm font-medium" style={{ color: "var(--text)" }}>
-              {t("admin.transcodingProfiles.form.videoCodec")}
-            </label>
-            <select
-              value={form.videoCodec}
-              onChange={(e) => setForm((f) => ({ ...f, videoCodec: e.target.value }))}
-              className="px-3 py-2 text-sm rounded-[var(--radius-sm)]"
-              style={{ backgroundColor: "var(--surface-raised)", border: "1px solid var(--border)", color: "var(--text)" }}
-            >
-              {VIDEO_CODEC_OPTIONS.map((c) => (
-                <option key={c} value={c}>{c}</option>
-              ))}
-            </select>
-          </div>
+          <Select
+            label={t("admin.transcodingProfiles.form.videoCodec")}
+            value={form.videoCodec}
+            onChange={(v) => setForm((f) => ({ ...f, videoCodec: v }))}
+            options={VIDEO_CODEC_OPTIONS.map((c) => ({ label: c, value: c }))}
+          />
 
-          <div className="flex flex-col gap-1">
-            <label className="text-sm font-medium" style={{ color: "var(--text)" }}>
-              {t("admin.transcodingProfiles.form.audioCodec")}
-            </label>
-            <select
-              value={form.audioCodec}
-              onChange={(e) => setForm((f) => ({ ...f, audioCodec: e.target.value }))}
-              className="px-3 py-2 text-sm rounded-[var(--radius-sm)]"
-              style={{ backgroundColor: "var(--surface-raised)", border: "1px solid var(--border)", color: "var(--text)" }}
-            >
-              {AUDIO_CODEC_OPTIONS.map((c) => (
-                <option key={c} value={c}>{c}</option>
-              ))}
-            </select>
-          </div>
-        </div>
-
-        <div className="flex flex-col gap-1">
-          <label className="text-sm font-medium" style={{ color: "var(--text)" }}>
-            {t("admin.transcodingProfiles.form.maxBitrate")}
-          </label>
-          <input
-            type="number"
-            min={100}
-            max={100000}
-            value={form.maxBitrate}
-            onChange={(e) => setForm((f) => ({ ...f, maxBitrate: e.target.value }))}
-            className="px-3 py-2 text-sm rounded-[var(--radius-sm)]"
-            style={{ backgroundColor: "var(--surface-raised)", border: "1px solid var(--border)", color: "var(--text)" }}
+          <Select
+            label={t("admin.transcodingProfiles.form.audioCodec")}
+            value={form.audioCodec}
+            onChange={(v) => setForm((f) => ({ ...f, audioCodec: v }))}
+            options={AUDIO_CODEC_OPTIONS.map((c) => ({ label: c, value: c }))}
           />
         </div>
 
-        <label className="flex items-center gap-2 cursor-pointer select-none">
-          <input
-            type="checkbox"
-            checked={form.isDefault}
-            onChange={(e) => setForm((f) => ({ ...f, isDefault: e.target.checked }))}
-            className="w-4 h-4"
-          />
-          <span className="text-sm" style={{ color: "var(--text)" }}>
-            {t("admin.transcodingProfiles.form.defaultProfile")}
-          </span>
-        </label>
+        <Input
+          label={t("admin.transcodingProfiles.form.maxBitrate")}
+          type="number"
+          min={100}
+          max={100000}
+          value={form.maxBitrate}
+          onChange={(e) => setForm((f) => ({ ...f, maxBitrate: e.target.value }))}
+        />
+
+        <Checkbox
+          label={t("admin.transcodingProfiles.form.defaultProfile")}
+          checked={form.isDefault}
+          onChange={(v) => setForm((f) => ({ ...f, isDefault: v }))}
+        />
 
         <div className="flex justify-end gap-3 pt-2">
           <Button type="button" variant="secondary" onClick={handleClose}>
@@ -300,9 +245,9 @@ function DeleteDialog({ open, profile, onClose }: DeleteDialogProps) {
 
   return (
     <Modal open={open} onClose={onClose} title={t("admin.transcodingProfiles.deleteProfile")}>
-      <p className="text-sm mb-4" style={{ color: "var(--text-muted)" }}
-        dangerouslySetInnerHTML={{ __html: t("admin.transcodingProfiles.deleteConfirm", { name: profile?.name }) }}
-      />
+      <p className="text-sm mb-4" style={{ color: "var(--text-muted)" }}>
+        {t("admin.transcodingProfiles.deleteConfirm", { name: profile?.name })}
+      </p>
       <div className="flex justify-end gap-3">
         <Button variant="secondary" onClick={onClose}>
           {t("common.cancel")}

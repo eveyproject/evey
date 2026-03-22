@@ -269,6 +269,11 @@ func (e *Enricher) AutoEnrichItem(ctx context.Context, item *domaindomain.MediaI
 		return
 	}
 
+	if item.Type == string(domaindomain.Season) {
+		e.autoEnrichSeason(ctx, item, log)
+		return
+	}
+
 	if item.Overview != "" {
 		return
 	}
@@ -413,6 +418,52 @@ func (e *Enricher) searchAndFetch(ctx context.Context, provider domainmetadata.M
 		return &best
 	}
 	return full
+}
+
+func (e *Enricher) autoEnrichSeason(ctx context.Context, item *domaindomain.MediaItem, log *slog.Logger) {
+	if item.ParentID == "" || item.IndexNumber == nil {
+		return
+	}
+	series, err := e.mediaItems.GetByID(ctx, item.ParentID)
+	if err != nil {
+		return
+	}
+
+	// Ensure series is enriched first
+	if series.Overview == "" {
+		e.AutoEnrichItem(ctx, series, log)
+		series, err = e.mediaItems.GetByID(ctx, item.ParentID)
+		if err != nil {
+			return
+		}
+	}
+
+	// Try each provider that supports season details
+	for _, p := range append([]domainmetadata.MetadataProvider{e.primary}, e.supplementary...) {
+		sp, ok := p.(domainmetadata.SeasonDetailProvider)
+		if !ok {
+			continue
+		}
+		seriesID := series.ProviderIDs[p.Name()]
+		if seriesID == "" {
+			continue
+		}
+		result, err := sp.GetSeasonDetails(ctx, seriesID, *item.IndexNumber)
+		if err != nil {
+			if log != nil {
+				log.Debug("season lookup failed",
+					slog.String("provider", p.Name()),
+					slog.String("series_id", seriesID),
+					slog.Int("season", *item.IndexNumber),
+					slog.Any("err", err))
+			}
+			continue
+		}
+		if err := e.EnrichItem(ctx, item, result); err != nil && log != nil {
+			log.Warn("season enrich failed", slog.String("id", item.ID), slog.Any("err", err))
+		}
+		return
+	}
 }
 
 func (e *Enricher) autoEnrichEpisode(ctx context.Context, item *domaindomain.MediaItem, log *slog.Logger) {

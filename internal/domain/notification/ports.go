@@ -2,17 +2,16 @@ package notification
 
 import "context"
 
-type DeviceTokenRepository interface {
-	Upsert(ctx context.Context, userID, profileID, token, platform string) error
-	Delete(ctx context.Context, userID, token string) error
+type PushSubscriptionRepository interface {
+	Upsert(ctx context.Context, userID, profileID, endpoint, p256dh, auth string) error
+	DeleteByEndpoint(ctx context.Context, userID, endpoint string) error
 	DeleteByUser(ctx context.Context, userID string) error
-	GetByProfile(ctx context.Context, profileID string) ([]string, error)
-	GetByUser(ctx context.Context, userID string) ([]string, error)
-	ListByUser(ctx context.Context, userID string) ([]DeviceToken, error)
+	GetByProfile(ctx context.Context, profileID string) ([]PushSubscription, error)
+	ListByUser(ctx context.Context, userID string) ([]PushSubscription, error)
 }
 
 type PushSender interface {
-	SendToTokens(ctx context.Context, tokens []string, title, body string, data map[string]string) error
+	Send(ctx context.Context, sub PushSubscription, title, body string, data map[string]string) error
 }
 
 type Repository interface {

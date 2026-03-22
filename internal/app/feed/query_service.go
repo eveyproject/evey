@@ -45,9 +45,8 @@ func (s *QueryService) GetMergedConfig(ctx context.Context, profileID string) ([
 			Params:       a.Params,
 		}
 		if o, ok := overrideMap[a.FeedType]; ok {
-			// profile can only disable, not enable a disabled feed
-			if o.Enabled != nil && (!a.Enabled || !*o.Enabled) {
-				m.Enabled = false
+			if o.Enabled != nil {
+				m.Enabled = *o.Enabled
 			}
 			if o.DisplayOrder != nil {
 				m.DisplayOrder = *o.DisplayOrder
@@ -70,6 +69,14 @@ func (s *QueryService) GetAdminConfigs(ctx context.Context) ([]*feed.AdminConfig
 
 func (s *QueryService) ContinueWatching(ctx context.Context, profileID string, limit int) ([]*feed.FeedItem, error) {
 	return s.querier.ContinueWatching(ctx, profileID, limit)
+}
+
+func (s *QueryService) ResumePlayback(ctx context.Context, profileID string, limit int) ([]*feed.FeedItem, error) {
+	return s.querier.ResumePlayback(ctx, profileID, limit)
+}
+
+func (s *QueryService) NextEpisode(ctx context.Context, profileID string, limit int) ([]*feed.FeedItem, error) {
+	return s.querier.NextEpisode(ctx, profileID, limit)
 }
 
 func (s *QueryService) RecentlyAdded(ctx context.Context, daysWindow, limit int) ([]*feed.FeedItem, error) {

@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { X, Plus } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Modal } from "@/components/ui/Modal";
 import { Button } from "@/components/ui/Button";
@@ -146,9 +147,7 @@ function RuleRow({ rule, onChange, onRemove }: RuleRowProps) {
         className="flex-shrink-0 p-1 rounded hover:bg-[var(--surface-raised)] transition-colors"
         style={{ color: "var(--text-muted)" }}
       >
-        <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-        </svg>
+        <X size={16} />
       </button>
     </div>
   );
@@ -272,9 +271,7 @@ export function SmartCollectionDialog({ open, onClose, onSaved, editing }: Smart
                     color: "var(--accent)",
                   }}
                 >
-                  <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
-                  </svg>
+                  <Plus size={12} strokeWidth={2.5} />
                   {FIELD_LABELS[f]}
                 </button>
               ))}

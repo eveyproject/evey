@@ -20,8 +20,8 @@ type CommandService struct {
 	analyzer notification.WatchHistoryAnalyzer
 	profiles ProfileLister
 	events   shared.EventBus
-	push     notification.PushSender
-	tokens   notification.DeviceTokenRepository
+	push notification.PushSender
+	subs notification.PushSubscriptionRepository
 
 	mu       sync.Mutex
 	dedupe   map[string]time.Time
@@ -49,9 +49,9 @@ func NewCommandService(
 	return s
 }
 
-func (s *CommandService) WithPush(push notification.PushSender, tokens notification.DeviceTokenRepository) *CommandService {
+func (s *CommandService) WithPush(push notification.PushSender, subs notification.PushSubscriptionRepository) *CommandService {
 	s.push = push
-	s.tokens = tokens
+	s.subs = subs
 	return s
 }
 
@@ -156,13 +156,15 @@ func (s *CommandService) handleMediaItemAdded(parentCtx context.Context, ev shar
 			slog.Warn("create notification failed", slog.String("profileID", p.ID), slog.Any("err", err))
 			continue
 		}
-		if s.push != nil && s.tokens != nil {
-			toks, err := s.tokens.GetByProfile(ctx, n.ProfileID)
+		if s.push != nil && s.subs != nil {
+			subs, err := s.subs.GetByProfile(ctx, n.ProfileID)
 			if err != nil {
-				slog.Warn("fcm: get tokens failed", slog.String("profileID", n.ProfileID), slog.Any("err", err))
-			} else if len(toks) > 0 {
-				if err := s.push.SendToTokens(ctx, toks, n.Title, n.Message, nil); err != nil {
-					slog.Warn("fcm: send failed", slog.String("profileID", n.ProfileID), slog.Any("err", err))
+				slog.Warn("webpush: get subscriptions failed", slog.String("profileID", n.ProfileID), slog.Any("err", err))
+			} else {
+				for _, sub := range subs {
+					if err := s.push.Send(ctx, sub, n.Title, n.Message, nil); err != nil {
+						slog.Warn("webpush: send failed", slog.String("profileID", n.ProfileID), slog.String("endpoint", sub.Endpoint), slog.Any("err", err))
+					}
 				}
 			}
 		}

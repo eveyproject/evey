@@ -286,6 +286,19 @@ search:
   resultFor: "pour \u201c{{query}}\u201d"
   searchLibrary: Rechercher dans votre médiathèque
   searchLibraryDesc: "Saisissez au moins 2 caractères pour rechercher parmi vos films, séries et plus."
+  clearSearch: Effacer la recherche
+  filters: Filtres
+  clearFilters: Effacer les filtres
+  genre: Genre
+  allGenres: Tous les genres
+  year: Année
+  fromYear: De
+  toYear: À
+  sortBy: Trier par
+  relevance: Pertinence
+  titleAZ: "Titre A\u2013Z"
+  yearNewest: Année (plus récent)
+  dateAdded: "Date d'ajout"
 streams:
   audio: Audio
   subtitles: Sous-titres

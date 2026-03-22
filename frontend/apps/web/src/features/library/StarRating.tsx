@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
+import { Star } from "lucide-react";
 import { useStarRating, useRatingAggregate } from "@/hooks/useStarRating";
 
 interface StarRatingProps {
@@ -26,14 +27,12 @@ function StarIcon({ filled, half }: { filled: boolean; half?: boolean }) {
     );
   }
   return (
-    <svg className="w-5 h-5" viewBox="0 0 24 24">
-      <path
-        d="M12 2l3.09 6.26L22 9.27l-5 4.87L18.18 21 12 17.77 5.82 21 7 14.14 2 9.27l6.91-1.01L12 2z"
-        fill={filled ? "var(--accent)" : "none"}
-        stroke="var(--accent)"
-        strokeWidth={1.5}
-      />
-    </svg>
+    <Star
+      size={20}
+      fill={filled ? "var(--accent)" : "none"}
+      stroke="var(--accent)"
+      strokeWidth={1.5}
+    />
   );
 }
 
@@ -101,9 +100,7 @@ export function StarRatingBadge({ mediaId }: { mediaId: string }) {
       }}
       title={`Your rating: ${rating}/5`}
     >
-      <svg className="w-2.5 h-2.5" viewBox="0 0 24 24" fill="currentColor">
-        <path d="M12 2l3.09 6.26L22 9.27l-5 4.87L18.18 21 12 17.77 5.82 21 7 14.14 2 9.27l6.91-1.01L12 2z" />
-      </svg>
+      <Star size={10} fill="currentColor" strokeWidth={0} />
       {rating}
     </span>
   );

@@ -3,6 +3,7 @@ package postgres
 import (
 	"context"
 	"database/sql"
+	"sync"
 
 	"github.com/gravity-zero/evey/internal/domain/activity"
 )
@@ -16,79 +17,123 @@ func NewAnalyticsReader(db *sql.DB) *AnalyticsReader {
 }
 
 func (r *AnalyticsReader) GetAnalytics(ctx context.Context) (*activity.AnalyticsData, error) {
-	data := &activity.AnalyticsData{
-		TopMedia:       []activity.TopMediaItem{},
-		RecentActivity: []activity.RecentActivityEntry{},
+	type result struct {
+		topMedia       []activity.TopMediaItem
+		recentActivity []activity.RecentActivityEntry
+		playsToday     int
+		playsWeek      int
+		activeToday    int
+		err            error
 	}
 
-	topRows, err := r.db.QueryContext(ctx, `
-		SELECT ps.media_item_id, mi.title,
-		       COUNT(*) AS play_count,
-		       COALESCE(SUM(ps.duration_ms) / 1000, 0) AS total_duration_seconds
-		FROM play_sessions ps
-		INNER JOIN media_items mi ON mi.id = ps.media_item_id
-		WHERE ps.started_at >= NOW() - INTERVAL '30 days'
-		GROUP BY ps.media_item_id, mi.title
-		ORDER BY play_count DESC
-		LIMIT 10`)
-	if err != nil {
-		return nil, err
-	}
-	defer topRows.Close()
-	for topRows.Next() {
-		var item activity.TopMediaItem
-		if scanErr := topRows.Scan(&item.MediaItemID, &item.Title, &item.PlayCount, &item.TotalDurationSeconds); scanErr != nil {
-			return nil, scanErr
+	results := make([]result, 5)
+	var wg sync.WaitGroup
+	wg.Add(5)
+
+	go func() {
+		defer wg.Done()
+		rows, err := r.db.QueryContext(ctx, `
+			SELECT ps.media_item_id, mi.title,
+			       COUNT(*) AS play_count,
+			       COALESCE(SUM(ps.duration_ms) / 1000, 0) AS total_duration_seconds
+			FROM play_sessions ps
+			INNER JOIN media_items mi ON mi.id = ps.media_item_id
+			WHERE ps.started_at >= NOW() - INTERVAL '30 days'
+			GROUP BY ps.media_item_id, mi.title
+			ORDER BY play_count DESC
+			LIMIT 10`)
+		if err != nil {
+			results[0].err = err
+			return
 		}
-		data.TopMedia = append(data.TopMedia, item)
-	}
-	if rowsErr := topRows.Err(); rowsErr != nil {
-		return nil, rowsErr
-	}
-
-	recentRows, err := r.db.QueryContext(ctx, `
-		SELECT u.id, u.username, mi.title, ps.started_at
-		FROM play_sessions ps
-		INNER JOIN profiles p ON p.id = ps.profile_id
-		INNER JOIN users u ON u.id = p.user_id
-		INNER JOIN media_items mi ON mi.id = ps.media_item_id
-		ORDER BY ps.started_at DESC
-		LIMIT 20`)
-	if err != nil {
-		return nil, err
-	}
-	defer recentRows.Close()
-	for recentRows.Next() {
-		var entry activity.RecentActivityEntry
-		if err := recentRows.Scan(&entry.UserID, &entry.Username, &entry.MediaTitle, &entry.PlayedAt); err != nil {
-			return nil, err
+		defer rows.Close()
+		var items []activity.TopMediaItem
+		for rows.Next() {
+			var item activity.TopMediaItem
+			if scanErr := rows.Scan(&item.MediaItemID, &item.Title, &item.PlayCount, &item.TotalDurationSeconds); scanErr != nil {
+				results[0].err = scanErr
+				return
+			}
+			items = append(items, item)
 		}
-		data.RecentActivity = append(data.RecentActivity, entry)
-	}
-	if err := recentRows.Err(); err != nil {
-		return nil, err
+		results[0].err = rows.Err()
+		results[0].topMedia = items
+	}()
+
+	go func() {
+		defer wg.Done()
+		rows, err := r.db.QueryContext(ctx, `
+			SELECT u.id, u.username, mi.title, ps.started_at
+			FROM play_sessions ps
+			INNER JOIN profiles p ON p.id = ps.profile_id
+			INNER JOIN users u ON u.id = p.user_id
+			INNER JOIN media_items mi ON mi.id = ps.media_item_id
+			ORDER BY ps.started_at DESC
+			LIMIT 20`)
+		if err != nil {
+			results[1].err = err
+			return
+		}
+		defer rows.Close()
+		var entries []activity.RecentActivityEntry
+		for rows.Next() {
+			var entry activity.RecentActivityEntry
+			if scanErr := rows.Scan(&entry.UserID, &entry.Username, &entry.MediaTitle, &entry.PlayedAt); scanErr != nil {
+				results[1].err = scanErr
+				return
+			}
+			entries = append(entries, entry)
+		}
+		results[1].err = rows.Err()
+		results[1].recentActivity = entries
+	}()
+
+	go func() {
+		defer wg.Done()
+		results[2].err = r.db.QueryRowContext(ctx,
+			`SELECT COUNT(*) FROM play_sessions WHERE started_at >= CURRENT_DATE`,
+		).Scan(&results[2].playsToday)
+	}()
+
+	go func() {
+		defer wg.Done()
+		results[3].err = r.db.QueryRowContext(ctx,
+			`SELECT COUNT(*) FROM play_sessions WHERE started_at >= date_trunc('week', NOW())`,
+		).Scan(&results[3].playsWeek)
+	}()
+
+	go func() {
+		defer wg.Done()
+		results[4].err = r.db.QueryRowContext(ctx, `
+			SELECT COUNT(DISTINCT p.user_id)
+			FROM play_sessions ps
+			INNER JOIN profiles p ON p.id = ps.profile_id
+			WHERE ps.started_at >= CURRENT_DATE`,
+		).Scan(&results[4].activeToday)
+	}()
+
+	wg.Wait()
+
+	for _, res := range results {
+		if res.err != nil {
+			return nil, res.err
+		}
 	}
 
-	if err := r.db.QueryRowContext(ctx,
-		`SELECT COUNT(*) FROM play_sessions WHERE started_at >= CURRENT_DATE`,
-	).Scan(&data.TotalPlaysToday); err != nil {
-		return nil, err
+	top := results[0].topMedia
+	if top == nil {
+		top = []activity.TopMediaItem{}
+	}
+	recent := results[1].recentActivity
+	if recent == nil {
+		recent = []activity.RecentActivityEntry{}
 	}
 
-	if err := r.db.QueryRowContext(ctx,
-		`SELECT COUNT(*) FROM play_sessions WHERE started_at >= date_trunc('week', NOW())`,
-	).Scan(&data.TotalPlaysThisWeek); err != nil {
-		return nil, err
-	}
-
-	if err := r.db.QueryRowContext(ctx, `
-		SELECT COUNT(DISTINCT p.user_id)
-		FROM play_sessions ps
-		INNER JOIN profiles p ON p.id = ps.profile_id
-		WHERE ps.started_at >= CURRENT_DATE`,
-	).Scan(&data.ActiveUsersToday); err != nil {
-		return nil, err
-	}
-
-	return data, nil
+	return &activity.AnalyticsData{
+		TopMedia:           top,
+		RecentActivity:     recent,
+		TotalPlaysToday:    results[2].playsToday,
+		TotalPlaysThisWeek: results[3].playsWeek,
+		ActiveUsersToday:   results[4].activeToday,
+	}, nil
 }

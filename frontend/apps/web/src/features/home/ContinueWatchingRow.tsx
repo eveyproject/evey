@@ -1,9 +1,11 @@
 import { useMemo } from "react";
+import { useTranslation } from "react-i18next";
 import { usePlaybackServiceGetResumeItems } from "@evey/api";
 import { FeedSection } from "./FeedSection";
 import { MediaCard } from "../library/MediaCard";
 
 export function ContinueWatchingRow() {
+  const { t } = useTranslation();
   const { data, isLoading } = usePlaybackServiceGetResumeItems();
   const items = data?.items ?? [];
   const progress = data?.progress ?? [];
@@ -21,7 +23,7 @@ export function ContinueWatchingRow() {
   if (!isLoading && items.length === 0) return null;
 
   return (
-    <FeedSection title="Continue Watching" isLoading={isLoading}>
+    <FeedSection title={t("media.home.continueWatching")} isLoading={isLoading}>
       {items.map((item) => (
         <MediaCard
           key={item.id}

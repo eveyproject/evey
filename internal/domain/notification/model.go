@@ -5,12 +5,13 @@ import (
 	"time"
 )
 
-type DeviceToken struct {
+type PushSubscription struct {
 	ID        string
 	UserID    string
 	ProfileID string
-	Token     string
-	Platform  string
+	Endpoint  string
+	P256dh    string
+	Auth      string
 	CreatedAt time.Time
 	UpdatedAt time.Time
 }

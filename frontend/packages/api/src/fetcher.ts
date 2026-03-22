@@ -5,7 +5,9 @@ let getToken: (() => string | null) | null = null;
 let updateTokens: ((access: string) => void) | null = null;
 
 export function setTokenProvider(fn: () => string | null) { getToken = fn; }
-export function setTokensUpdater(fn: (access: string) => void) { updateTokens = fn; }
+export function setTokensUpdater(fn: (access: string) => void) {
+  updateTokens = (token) => { refreshFailed = false; fn(token); };
+}
 
 export interface FetcherRequest {
   url: string;
@@ -17,9 +19,10 @@ export interface FetcherRequest {
 }
 
 let refreshPromise: Promise<string> | null = null;
+let refreshFailed = false;
 
 /** Reset module state — for tests only */
-export function _resetFetcherState() { refreshPromise = null; }
+export function _resetFetcherState() { refreshPromise = null; refreshFailed = false; }
 
 async function attemptRefresh(): Promise<string> {
   if (!refreshPromise) {
@@ -65,10 +68,16 @@ export async function eveyFetch<T>(request: FetcherRequest): Promise<T> {
   let response = await doFetch(token ?? undefined);
 
   if (response.status === 401 && !url.includes("/auth/refresh")) {
+    if (refreshFailed) {
+      window.dispatchEvent(new Event("evey:unauthorized"));
+      throw Object.assign(new Error("Unauthorized"), { httpStatus: 401 });
+    }
     try {
       const newToken = await attemptRefresh();
+      refreshFailed = false;
       response = await doFetch(newToken);
     } catch {
+      refreshFailed = true;
       window.dispatchEvent(new Event("evey:unauthorized"));
       throw Object.assign(new Error("Unauthorized"), { httpStatus: 401 });
     }

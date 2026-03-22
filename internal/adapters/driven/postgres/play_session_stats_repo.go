@@ -119,6 +119,7 @@ func (r *PlaySessionStatsReader) GetMostPopular(ctx context.Context, limit int) 
 		 FROM play_sessions ps
 		 INNER JOIN media_items mi ON mi.id = ps.media_item_id
 		 WHERE mi.type IN ('movie', 'series')
+		   AND ps.started_at >= NOW() - INTERVAL '90 days'
 		 GROUP BY ps.media_item_id, mi.title
 		 ORDER BY play_count DESC
 		 LIMIT $1`, limit)

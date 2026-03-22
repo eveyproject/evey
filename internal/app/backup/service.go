@@ -44,7 +44,7 @@ var BackupTables = []string{
 	"login_history",
 	"music_tracks",
 	"photos",
-	"fcm_device_tokens",
+	"push_subscriptions",
 }
 
 type Service struct {

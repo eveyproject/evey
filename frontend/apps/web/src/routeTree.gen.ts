@@ -47,6 +47,7 @@ import { Route as AuthAdminPluginsRouteImport } from './routes/_auth/admin/plugi
 import { Route as AuthAdminMetadataRouteImport } from './routes/_auth/admin/metadata'
 import { Route as AuthAdminLogsRouteImport } from './routes/_auth/admin/logs'
 import { Route as AuthAdminLibrariesRouteImport } from './routes/_auth/admin/libraries'
+import { Route as AuthAdminFeedsRouteImport } from './routes/_auth/admin/feeds'
 import { Route as AuthAdminBackupRouteImport } from './routes/_auth/admin/backup'
 import { Route as AuthAdminAuditRouteImport } from './routes/_auth/admin/audit'
 import { Route as AuthAdminAnalyticsRouteImport } from './routes/_auth/admin/analytics'
@@ -307,6 +308,13 @@ const AuthAdminLibrariesRoute = AuthAdminLibrariesRouteImport.update({
 } as any).lazy(() =>
   import('./routes/_auth/admin/libraries.lazy').then((d) => d.Route),
 )
+const AuthAdminFeedsRoute = AuthAdminFeedsRouteImport.update({
+  id: '/feeds',
+  path: '/feeds',
+  getParentRoute: () => AuthAdminRoute,
+} as any).lazy(() =>
+  import('./routes/_auth/admin/feeds.lazy').then((d) => d.Route),
+)
 const AuthAdminBackupRoute = AuthAdminBackupRouteImport.update({
   id: '/backup',
   path: '/backup',
@@ -360,6 +368,7 @@ export interface FileRoutesByFullPath {
   '/admin/analytics': typeof AuthAdminAnalyticsRoute
   '/admin/audit': typeof AuthAdminAuditRoute
   '/admin/backup': typeof AuthAdminBackupRoute
+  '/admin/feeds': typeof AuthAdminFeedsRoute
   '/admin/libraries': typeof AuthAdminLibrariesRoute
   '/admin/logs': typeof AuthAdminLogsRoute
   '/admin/metadata': typeof AuthAdminMetadataRoute
@@ -403,6 +412,7 @@ export interface FileRoutesByTo {
   '/admin/analytics': typeof AuthAdminAnalyticsRoute
   '/admin/audit': typeof AuthAdminAuditRoute
   '/admin/backup': typeof AuthAdminBackupRoute
+  '/admin/feeds': typeof AuthAdminFeedsRoute
   '/admin/libraries': typeof AuthAdminLibrariesRoute
   '/admin/logs': typeof AuthAdminLogsRoute
   '/admin/metadata': typeof AuthAdminMetadataRoute
@@ -449,6 +459,7 @@ export interface FileRoutesById {
   '/_auth/admin/analytics': typeof AuthAdminAnalyticsRoute
   '/_auth/admin/audit': typeof AuthAdminAuditRoute
   '/_auth/admin/backup': typeof AuthAdminBackupRoute
+  '/_auth/admin/feeds': typeof AuthAdminFeedsRoute
   '/_auth/admin/libraries': typeof AuthAdminLibrariesRoute
   '/_auth/admin/logs': typeof AuthAdminLogsRoute
   '/_auth/admin/metadata': typeof AuthAdminMetadataRoute
@@ -495,6 +506,7 @@ export interface FileRouteTypes {
     | '/admin/analytics'
     | '/admin/audit'
     | '/admin/backup'
+    | '/admin/feeds'
     | '/admin/libraries'
     | '/admin/logs'
     | '/admin/metadata'
@@ -538,6 +550,7 @@ export interface FileRouteTypes {
     | '/admin/analytics'
     | '/admin/audit'
     | '/admin/backup'
+    | '/admin/feeds'
     | '/admin/libraries'
     | '/admin/logs'
     | '/admin/metadata'
@@ -583,6 +596,7 @@ export interface FileRouteTypes {
     | '/_auth/admin/analytics'
     | '/_auth/admin/audit'
     | '/_auth/admin/backup'
+    | '/_auth/admin/feeds'
     | '/_auth/admin/libraries'
     | '/_auth/admin/logs'
     | '/_auth/admin/metadata'
@@ -891,6 +905,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthAdminLibrariesRouteImport
       parentRoute: typeof AuthAdminRoute
     }
+    '/_auth/admin/feeds': {
+      id: '/_auth/admin/feeds'
+      path: '/feeds'
+      fullPath: '/admin/feeds'
+      preLoaderRoute: typeof AuthAdminFeedsRouteImport
+      parentRoute: typeof AuthAdminRoute
+    }
     '/_auth/admin/backup': {
       id: '/_auth/admin/backup'
       path: '/backup'
@@ -934,6 +955,7 @@ interface AuthAdminRouteChildren {
   AuthAdminAnalyticsRoute: typeof AuthAdminAnalyticsRoute
   AuthAdminAuditRoute: typeof AuthAdminAuditRoute
   AuthAdminBackupRoute: typeof AuthAdminBackupRoute
+  AuthAdminFeedsRoute: typeof AuthAdminFeedsRoute
   AuthAdminLibrariesRoute: typeof AuthAdminLibrariesRoute
   AuthAdminLogsRoute: typeof AuthAdminLogsRoute
   AuthAdminMetadataRoute: typeof AuthAdminMetadataRoute
@@ -954,6 +976,7 @@ const AuthAdminRouteChildren: AuthAdminRouteChildren = {
   AuthAdminAnalyticsRoute: AuthAdminAnalyticsRoute,
   AuthAdminAuditRoute: AuthAdminAuditRoute,
   AuthAdminBackupRoute: AuthAdminBackupRoute,
+  AuthAdminFeedsRoute: AuthAdminFeedsRoute,
   AuthAdminLibrariesRoute: AuthAdminLibrariesRoute,
   AuthAdminLogsRoute: AuthAdminLogsRoute,
   AuthAdminMetadataRoute: AuthAdminMetadataRoute,

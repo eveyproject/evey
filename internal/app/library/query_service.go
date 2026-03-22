@@ -39,6 +39,10 @@ func (s *QueryService) GetMediaItem(ctx context.Context, id string) (*library.Me
 	return s.mediaItems.GetByID(ctx, id)
 }
 
+func (s *QueryService) GetMediaItemsByIDs(ctx context.Context, ids []string) ([]*library.MediaItem, error) {
+	return s.mediaItems.GetByIDs(ctx, ids)
+}
+
 func (s *QueryService) ListMediaItems(ctx context.Context, filter library.ListMediaItemsFilter) ([]*library.MediaItem, error) {
 	return s.mediaItems.List(ctx, filter)
 }

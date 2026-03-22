@@ -71,6 +71,7 @@ nav:
   libraries: "媒体库"
   photos: "照片"
   favorites: "收藏"
+  search: "搜索"
   music: "音乐"
   admin: "管理"
   backToApp: "返回应用"
@@ -83,3 +84,19 @@ nav:
   mainNav: "主导航"
   adminNav: "管理导航"
   userMenu: "用户菜单"
+  homeFeeds: "首页信息流"
+feeds:
+  title: "首页板块"
+  section: 板块
+  order: 排序
+  maxItems: 最大数量
+  saved: "配置已保存"
+  customize: 自定义
+  customizeTitle: "自定义首页"
+  resetDefaults: "恢复默认"
+  labels:
+    resume_playback: "继续播放"
+    next_episode: "下一集"
+    recommended: "推荐"
+    most_popular: "最受欢迎"
+    collections: "合集"

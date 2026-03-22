@@ -39,6 +39,7 @@ function useAnalytics() {
         method: "GET",
       }),
     refetchInterval: 60_000,
+    refetchIntervalInBackground: false,
   });
 }
 

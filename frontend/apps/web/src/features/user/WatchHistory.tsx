@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Film } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import {
   usePlaybackServiceGetWatchHistory,
@@ -86,10 +87,7 @@ function HistoryItem({ item }: { item: WatchProgress }) {
           />
         ) : (
           <div className="w-full h-full flex items-center justify-center text-[var(--text-muted)]">
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
-              <rect x={2} y={4} width={20} height={16} rx={2} />
-              <path strokeLinecap="round" strokeLinejoin="round" d="M10 9l5 3-5 3V9z" />
-            </svg>
+            <Film size={20} strokeWidth={1.5} />
           </div>
         )}
       </Link>

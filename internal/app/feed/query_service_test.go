@@ -71,7 +71,7 @@ func TestQueryService_GetMergedConfig_ProfileDisablesFeed(t *testing.T) {
 	assert.False(t, configs[0].Enabled)
 }
 
-func TestQueryService_GetMergedConfig_ProfileCannotEnableDisabledFeed(t *testing.T) {
+func TestQueryService_GetMergedConfig_ProfileCanEnableDisabledFeed(t *testing.T) {
 	queryRepo := fakes.NewFakeConfigQueryRepo()
 	querier := fakes.NewFakeFeedQuerier()
 	analyzer := notiffakes.NewFakeWatchHistoryAnalyzer()
@@ -88,7 +88,7 @@ func TestQueryService_GetMergedConfig_ProfileCannotEnableDisabledFeed(t *testing
 	configs, err := svc.GetMergedConfig(context.Background(), "p1")
 	require.NoError(t, err)
 	require.Len(t, configs, 1)
-	assert.False(t, configs[0].Enabled)
+	assert.True(t, configs[0].Enabled)
 }
 
 func TestQueryService_GetAdminConfigs(t *testing.T) {

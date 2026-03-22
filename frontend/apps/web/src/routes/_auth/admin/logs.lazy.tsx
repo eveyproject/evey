@@ -5,6 +5,7 @@ import { useVirtualizer } from "@tanstack/react-virtual";
 import { eveyFetch } from "@evey/api";
 import { useAuthStore } from "@evey/store";
 import { Spinner } from "@/components/ui/Spinner";
+import { Checkbox } from "@/components/ui/Checkbox";
 
 export const Route = createLazyFileRoute("/_auth/admin/logs")({
   component: LogsPage,
@@ -197,15 +198,11 @@ function LogsPage() {
         <h1 className="text-2xl font-bold" style={{ color: "var(--text)" }}>{t("admin.logs.title")}</h1>
         <div className="flex-1" />
 
-        <label className="flex items-center gap-1.5 text-sm cursor-pointer" style={{ color: "var(--text)" }}>
-          <input
-            type="checkbox"
-            checked={live}
-            onChange={(e) => setLive(e.target.checked)}
-            className="accent-[var(--accent)]"
-          />
-          {t("admin.logs.live")}
-        </label>
+        <Checkbox
+          label={t("admin.logs.live")}
+          checked={live}
+          onChange={setLive}
+        />
 
         <button
           onClick={() => setLines([])}

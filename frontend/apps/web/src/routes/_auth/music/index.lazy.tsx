@@ -517,12 +517,12 @@ function TracksTab({
           </tr>
         </thead>
         <tbody>
-          {pageTrack.map((t, i) => {
-            const isActive = playing?.ID === t.ID;
+          {pageTrack.map((track, i) => {
+            const isActive = playing?.ID === track.ID;
             return (
               <tr
-                key={t.ID}
-                onClick={() => onPlay(t)}
+                key={track.ID}
+                onClick={() => onPlay(track)}
                 style={{
                   cursor: "pointer",
                   borderBottom: "1px solid var(--border)",
@@ -532,31 +532,30 @@ function TracksTab({
               >
                 <td style={{ padding: "8px 12px", color: "var(--text-muted)" }}>{page * TRACKS_PAGE_SIZE + i + 1}</td>
                 <td style={{ padding: "8px 4px" }}>
-                  <TrackArt trackID={t.ID} size={36} />
+                  <TrackArt trackID={track.ID} size={36} />
                 </td>
-                <td style={{ padding: "8px 12px", color: isActive ? "var(--accent)" : "var(--text)", fontWeight: 500 }}>{t.Title || "—"}</td>
-                <td style={{ padding: "8px 12px", color: "var(--text-secondary)" }}>{t.Artist || "—"}</td>
-                <td style={{ padding: "8px 12px", color: "var(--text-secondary)" }}>{t.Album || "—"}</td>
+                <td style={{ padding: "8px 12px", color: isActive ? "var(--accent)" : "var(--text)", fontWeight: 500 }}>{track.Title || "—"}</td>
+                <td style={{ padding: "8px 12px", color: "var(--text-secondary)" }}>{track.Artist || "—"}</td>
+                <td style={{ padding: "8px 12px", color: "var(--text-secondary)" }}>{track.Album || "—"}</td>
                 <td style={{ padding: "8px 12px", color: "var(--text-muted)", textAlign: "right" }}>
-                  {t.Duration > 0 ? formatDuration(t.Duration) : "—"}
+                  {track.Duration > 0 ? formatDuration(track.Duration) : "—"}
                 </td>
                 {isAdmin && (
                   <td style={{ padding: "8px 12px" }} onClick={(e) => e.stopPropagation()}>
                     <button
-                      onClick={() => onDelete(t.ID)}
+                      onClick={() => onDelete(track.ID)}
                       title={t("media.music.deleteTrack")}
                       style={{
                         background: "none",
                         border: "none",
                         cursor: "pointer",
-                        color: "var(--text-muted)",
+                        color: "var(--color-danger)",
                         padding: "4px",
                         borderRadius: "var(--radius-sm)",
                         display: "flex",
                         alignItems: "center",
                       }}
                       className="hover:opacity-80"
-                      style={{ color: "var(--color-danger)" }}
                     >
                       <Trash2 size={16} />
                     </button>

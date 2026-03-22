@@ -45,6 +45,10 @@ func (f *fakeIndex) UpdateSettingsWithContext(_ context.Context, _ *ms.Settings)
 	return &ms.TaskInfo{TaskUID: 3}, nil
 }
 
+func (f *fakeIndex) GetStatsWithContext(_ context.Context) (*ms.StatsIndex, error) {
+	return &ms.StatsIndex{NumberOfDocuments: 0}, nil
+}
+
 func TestToDocument(t *testing.T) {
 	year := 2023
 	now := time.Date(2023, 6, 15, 12, 0, 0, 0, time.UTC)
@@ -208,6 +212,25 @@ func TestSearch_WithSort(t *testing.T) {
 	_, _, err := adapter.Search(context.Background(), "test", nil, []string{"year:desc"}, 20)
 	require.NoError(t, err)
 	assert.Equal(t, []string{"year:desc"}, fake.searchReq.Sort)
+}
+
+func TestBuildFilterString_RejectsUnknownKeys(t *testing.T) {
+	f := BuildFilterString(map[string]string{"evil_field": "pwned"})
+	assert.Empty(t, f)
+}
+
+func TestBuildFilterString_RejectsInjectionInNumeric(t *testing.T) {
+	f := BuildFilterString(map[string]string{"year_min": "2000 OR 1=1"})
+	assert.Equal(t, "year >= 0", f)
+}
+
+func TestSanitizeNumeric(t *testing.T) {
+	assert.Equal(t, "2000", sanitizeNumeric("2000"))
+	assert.Equal(t, "-5", sanitizeNumeric("-5"))
+	assert.Equal(t, "0", sanitizeNumeric(""))
+	assert.Equal(t, "0", sanitizeNumeric("abc"))
+	assert.Equal(t, "0", sanitizeNumeric("123abc"))
+	assert.Equal(t, "0", sanitizeNumeric("-"))
 }
 
 func TestSearch_DefaultLimit(t *testing.T) {

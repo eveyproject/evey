@@ -70,7 +70,7 @@ func run() error {
 
 	startMetricsCollector(ctx, db, deps.media.hlsManager, deps.repos.mediaItemRepo)
 
-	grpcSrv := buildGRPCServer(deps, cfg, rootLog, logCfg.Dir)
+	grpcSrv := buildGRPCServer(deps, cfg, rootLog, logCfg.Dir, ctx)
 	defer deps.media.hlsManager.CleanupAll()
 
 	grpcAddr := fmt.Sprintf(":%d", cfg.Server.Port)

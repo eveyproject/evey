@@ -4,16 +4,15 @@ import {
   useNotificationServiceGetNotificationSettings,
   useNotificationServiceUpdateNotificationSettings,
 } from "@evey/api";
-import { eveyFetch } from "@evey/api";
 import { toast } from "@evey/store";
 import { Button } from "@/components/ui/Button";
 import { Select } from "@/components/ui/Select";
 import {
-  isFCMConfigured,
-  requestPushToken,
-  revokePushToken,
-  getStoredPushToken,
-} from "@/lib/fcm";
+  isPushSupported,
+  isPushSubscribed,
+  subscribeToPush,
+  unsubscribeFromPush,
+} from "@/lib/webpush";
 
 type NotificationLevel =
   | "NOTIFICATION_LEVEL_UNSPECIFIED"
@@ -36,8 +35,6 @@ const LEVEL_LABELS: Record<NotificationLevel, string> = {
   NOTIFICATION_LEVEL_RELEVANT: "Relevant",
   NOTIFICATION_LEVEL_HIGHLY_RELEVANT: "Important only",
 };
-
-const VAPID_KEY = import.meta.env.VITE_FIREBASE_VAPID_KEY;
 
 interface LevelSelectProps {
   label: string;
@@ -63,12 +60,14 @@ function PushNotificationSection() {
   const { t } = useTranslation();
   const [enabled, setEnabled] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [supported] = useState(() => isPushSupported());
 
   useEffect(() => {
-    setEnabled(!!getStoredPushToken());
-  }, []);
+    if (!supported) return;
+    isPushSubscribed().then(setEnabled);
+  }, [supported]);
 
-  if (!isFCMConfigured()) {
+  if (!supported) {
     return (
       <p className="text-xs text-[var(--text-muted)]">
         {t("auth.notificationSettings.pushNotConfigured")}
@@ -80,30 +79,15 @@ function PushNotificationSection() {
     setLoading(true);
     try {
       if (!enabled) {
-        const token = await requestPushToken(VAPID_KEY ?? "");
-        if (!token) {
+        const ok = await subscribeToPush();
+        if (!ok) {
           toast.error(t("auth.notificationSettings.permissionDenied"));
           return;
         }
-        await eveyFetch({
-          url: "/api/v1/push/register",
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          data: { token, platform: "web", consent: true },
-        });
         setEnabled(true);
         toast.success(t("auth.notificationSettings.pushEnabled"));
       } else {
-        const token = getStoredPushToken();
-        await revokePushToken();
-        if (token) {
-          await eveyFetch({
-            url: "/api/v1/push/unregister",
-            method: "DELETE",
-            headers: { "Content-Type": "application/json" },
-            data: { token },
-          });
-        }
+        await unsubscribeFromPush();
         setEnabled(false);
         toast.success(t("auth.notificationSettings.pushDisabled"));
       }

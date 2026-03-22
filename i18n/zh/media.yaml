@@ -286,6 +286,19 @@ search:
   resultFor: "「{{query}}」"
   searchLibrary: 搜索您的媒体库
   searchLibraryDesc: 输入至少 2 个字符以搜索所有电影、剧集等。
+  clearSearch: 清除搜索
+  filters: 筛选
+  clearFilters: 清除筛选
+  genre: 类型
+  allGenres: 所有类型
+  year: 年份
+  fromYear: 从
+  toYear: 至
+  sortBy: 排序方式
+  relevance: 相关性
+  titleAZ: "标题 A\u2013Z"
+  yearNewest: 年份（最新）
+  dateAdded: 添加日期
 streams:
   audio: 音频
   subtitles: 字幕

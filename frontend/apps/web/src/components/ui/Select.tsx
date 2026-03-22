@@ -1,4 +1,5 @@
 import { type SelectHTMLAttributes } from "react";
+import { ChevronDown } from "lucide-react";
 
 interface SelectOption {
   value: string;
@@ -54,15 +55,7 @@ export function Select({
             </option>
           ))}
         </select>
-        <svg
-          className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--text-muted)]"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth={2}
-          viewBox="0 0 24 24"
-        >
-          <path strokeLinecap="round" strokeLinejoin="round" d="M6 9l6 6 6-6" />
-        </svg>
+        <ChevronDown className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--text-muted)]" size={16} />
       </div>
       {error && <span className="text-xs" style={{ color: "var(--color-danger)" }}>{error}</span>}
     </div>

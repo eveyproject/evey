@@ -1,3 +1,4 @@
+import { X } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 
 export interface BulkActionBarProps {
@@ -60,9 +61,7 @@ export function BulkActionBar({
         style={{ color: "var(--text-muted)" }}
         aria-label="Clear selection"
       >
-        <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-        </svg>
+        <X size={16} />
       </button>
     </div>
   );

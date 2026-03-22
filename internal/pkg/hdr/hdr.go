@@ -3,9 +3,14 @@ package hdr
 import (
 	"fmt"
 	"strings"
-
-	"github.com/gravity-zero/evey/internal/domain/library"
 )
+
+type VideoStream interface {
+	GetStreamType() string
+	GetBitDepth() *int
+	GetColorSpace() *string
+	GetHDRType() *string
+}
 
 type HDRInfo struct {
 	IsHDR      bool
@@ -28,30 +33,29 @@ func DefaultToneMapOptions() ToneMapOptions {
 	}
 }
 
-// DetectHDR analyzes video streams for HDR content
-func DetectHDR(streams []*library.MediaStream) *HDRInfo {
+func DetectHDR(streams []VideoStream) *HDRInfo {
 	for _, s := range streams {
-		if s.StreamType != "video" {
+		if s.GetStreamType() != "video" {
 			continue
 		}
 
 		info := &HDRInfo{}
 
-		if s.BitDepth != nil {
-			info.BitDepth = *s.BitDepth
+		if bd := s.GetBitDepth(); bd != nil {
+			info.BitDepth = *bd
 		}
-		if s.ColorSpace != nil {
-			info.ColorSpace = *s.ColorSpace
+		if cs := s.GetColorSpace(); cs != nil {
+			info.ColorSpace = *cs
 		}
 
-		if s.HDRType != nil && *s.HDRType != "" {
+		if ht := s.GetHDRType(); ht != nil && *ht != "" {
 			info.IsHDR = true
-			info.Type = normalizeHDRType(*s.HDRType)
+			info.Type = normalizeHDRType(*ht)
 			return info
 		}
 
-		if s.ColorSpace != nil && strings.Contains(strings.ToLower(*s.ColorSpace), "bt2020") {
-			if s.BitDepth != nil && *s.BitDepth >= 10 {
+		if cs := s.GetColorSpace(); cs != nil && strings.Contains(strings.ToLower(*cs), "bt2020") {
+			if bd := s.GetBitDepth(); bd != nil && *bd >= 10 {
 				info.IsHDR = true
 				info.Type = "hdr10"
 				return info

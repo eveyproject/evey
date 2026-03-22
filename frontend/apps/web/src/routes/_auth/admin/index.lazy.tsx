@@ -58,7 +58,7 @@ function SystemInfoCard() {
 function AdminDashboard() {
   const { t } = useTranslation();
   const { data: dashData, isLoading: dashLoading, dataUpdatedAt } = useAdminServiceGetDashboard({
-    query: { refetchInterval: 10_000 },
+    query: { refetchInterval: 10_000, refetchIntervalInBackground: false },
   });
 
   return (

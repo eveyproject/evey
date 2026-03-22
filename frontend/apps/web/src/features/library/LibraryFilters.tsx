@@ -1,4 +1,5 @@
 import type { V1MediaItem, LibraryServiceListMediaItemsType } from "@evey/api/src/generated/library.schemas";
+import { Check, Star, Filter } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import type { LibrarySearch } from "@/routes/_auth/library/$libraryId";
 
@@ -156,9 +157,7 @@ function CheckboxGroup({
                 }}
               >
                 {checked && (
-                  <svg className="w-2.5 h-2.5 text-white" fill="none" stroke="currentColor" strokeWidth={3} viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                  </svg>
+                  <Check size={10} className="text-white" strokeWidth={3} />
                 )}
               </span>
               <span className="text-sm group-hover:text-[var(--text)] transition-colors" style={{ color: "var(--text-muted)" }}>
@@ -253,9 +252,7 @@ function RatingFilter({
               className="p-0.5 transition-colors"
               style={{ color: active ? "var(--accent)" : "var(--border)" }}
             >
-              <svg className="w-5 h-5" viewBox="0 0 20 20" fill="currentColor">
-                <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
-              </svg>
+              <Star size={20} fill="currentColor" />
             </button>
           );
         })}
@@ -425,9 +422,7 @@ export function LibraryFilterToggle({
         title="Toggle filters"
         data-testid="filter-toggle"
       >
-        <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" d="M3 4.5h17.25M3 9h11.25m-11.25 4.5h8.25M3 18h5.25" />
-        </svg>
+        <Filter size={16} />
         Filters
         {count > 0 && (
           <span

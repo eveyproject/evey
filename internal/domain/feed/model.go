@@ -1,17 +1,38 @@
 package feed
 
-import "errors"
+import (
+	"errors"
+	"strings"
+)
 
 type Type string
 
 const (
-	TypeContinueWatching Type = "continue_watching"
+	TypeContinueWatching Type = "continue_watching" // legacy, split into resume+next
 	TypeRecentlyAdded    Type = "recently_added"
 	TypeRecommended      Type = "recommended"
+	TypeUpNext           Type = "up_next" // legacy, replaced by next_episode
+	TypeMostPopular      Type = "most_popular"
+	TypeCollections      Type = "collections"
+	TypeResumePlayback   Type = "resume_playback"
+	TypeNextEpisode      Type = "next_episode"
 )
 
-func (t Type) IsValid() bool {
-	return t == TypeContinueWatching || t == TypeRecentlyAdded || t == TypeRecommended
+func (t Type) IsValid() bool { return t != "" }
+
+func (t Type) IsLibrary() bool {
+	return strings.HasPrefix(string(t), "library:")
+}
+
+func (t Type) LibraryID() string {
+	if t.IsLibrary() {
+		return strings.TrimPrefix(string(t), "library:")
+	}
+	return ""
+}
+
+func LibraryType(libraryID string) Type {
+	return Type("library:" + libraryID)
 }
 
 // AdminConfig is the server-wide preset for a feed.

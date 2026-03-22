@@ -22,6 +22,7 @@ func openDB(cfg *config.Config) (*sql.DB, error) {
 	db.SetMaxOpenConns(cfg.DB.MaxOpenConns)
 	db.SetMaxIdleConns(cfg.DB.MaxIdleConns)
 	db.SetConnMaxLifetime(30 * time.Minute)
+	db.SetConnMaxIdleTime(5 * time.Minute)
 
 	if err2 := postgres.RunMigrations(db); err2 != nil {
 		return nil, fmt.Errorf("migrations: %w", err2)

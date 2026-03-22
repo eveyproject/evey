@@ -97,7 +97,7 @@ describe("FavoritesPage", () => {
 
   it("shows empty state when no favorites", async () => {
     const { useFavoritesList } = await import("@/hooks/useFavorite");
-    vi.mocked(useFavoritesList).mockReturnValue({ data: [], isLoading: false } as ReturnType<typeof useFavoritesList>);
+    vi.mocked(useFavoritesList).mockReturnValue({ data: [], isLoading: false } as never);
     const mod = await import("./favorites.lazy");
     const FavoritesPage = (mod.Route as unknown as { component: React.ComponentType }).component;
     render(React.createElement(FavoritesPage), { wrapper: createWrapper() });
@@ -106,7 +106,7 @@ describe("FavoritesPage", () => {
 
   it("renders favorite items in grid", async () => {
     const { useFavoritesList } = await import("@/hooks/useFavorite");
-    vi.mocked(useFavoritesList).mockReturnValue({ data: mockFavorites as never, isLoading: false } as ReturnType<typeof useFavoritesList>);
+    vi.mocked(useFavoritesList).mockReturnValue({ data: mockFavorites as never, isLoading: false } as never);
     const mod = await import("./favorites.lazy");
     const FavoritesPage = (mod.Route as unknown as { component: React.ComponentType }).component;
     render(React.createElement(FavoritesPage), { wrapper: createWrapper() });
@@ -116,7 +116,7 @@ describe("FavoritesPage", () => {
 
   it("shows item count when favorites exist", async () => {
     const { useFavoritesList } = await import("@/hooks/useFavorite");
-    vi.mocked(useFavoritesList).mockReturnValue({ data: mockFavorites as never, isLoading: false } as ReturnType<typeof useFavoritesList>);
+    vi.mocked(useFavoritesList).mockReturnValue({ data: mockFavorites as never, isLoading: false } as never);
     const mod = await import("./favorites.lazy");
     const FavoritesPage = (mod.Route as unknown as { component: React.ComponentType }).component;
     render(React.createElement(FavoritesPage), { wrapper: createWrapper() });
@@ -125,7 +125,7 @@ describe("FavoritesPage", () => {
 
   it("filters by type", async () => {
     const { useFavoritesList } = await import("@/hooks/useFavorite");
-    vi.mocked(useFavoritesList).mockReturnValue({ data: mockFavorites as never, isLoading: false } as ReturnType<typeof useFavoritesList>);
+    vi.mocked(useFavoritesList).mockReturnValue({ data: mockFavorites as never, isLoading: false } as never);
     const mod = await import("./favorites.lazy");
     const FavoritesPage = (mod.Route as unknown as { component: React.ComponentType }).component;
     render(React.createElement(FavoritesPage), { wrapper: createWrapper() });
@@ -136,7 +136,7 @@ describe("FavoritesPage", () => {
 
   it("filters by search query", async () => {
     const { useFavoritesList } = await import("@/hooks/useFavorite");
-    vi.mocked(useFavoritesList).mockReturnValue({ data: mockFavorites as never, isLoading: false } as ReturnType<typeof useFavoritesList>);
+    vi.mocked(useFavoritesList).mockReturnValue({ data: mockFavorites as never, isLoading: false } as never);
     const mod = await import("./favorites.lazy");
     const FavoritesPage = (mod.Route as unknown as { component: React.ComponentType }).component;
     render(React.createElement(FavoritesPage), { wrapper: createWrapper() });
@@ -147,7 +147,7 @@ describe("FavoritesPage", () => {
 
   it("shows no-match message when filter yields zero results", async () => {
     const { useFavoritesList } = await import("@/hooks/useFavorite");
-    vi.mocked(useFavoritesList).mockReturnValue({ data: mockFavorites as never, isLoading: false } as ReturnType<typeof useFavoritesList>);
+    vi.mocked(useFavoritesList).mockReturnValue({ data: mockFavorites as never, isLoading: false } as never);
     const mod = await import("./favorites.lazy");
     const FavoritesPage = (mod.Route as unknown as { component: React.ComponentType }).component;
     render(React.createElement(FavoritesPage), { wrapper: createWrapper() });

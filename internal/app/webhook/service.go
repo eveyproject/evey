@@ -4,10 +4,11 @@ import (
 	"bytes"
 	"context"
 	"crypto/hmac"
-	"errors"
 	"crypto/sha256"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"io"
 	"log/slog"
 	"net/http"
 	"time"
@@ -151,6 +152,7 @@ func (s *Service) attemptDeliver(ctx context.Context, cfg *webhook.Config, body 
 			s.log.Warn("webhook delivery failed", slog.String("webhook", cfg.ID), slog.Int("attempt", attempt+1), slog.Any("err", err))
 			continue
 		}
+		_, _ = io.Copy(io.Discard, resp.Body)
 		resp.Body.Close()
 		statusCode = resp.StatusCode
 

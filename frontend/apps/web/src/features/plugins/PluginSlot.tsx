@@ -1,5 +1,7 @@
 import { Component, useEffect, useState, type ReactNode } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { eveyFetch } from "@evey/api";
+import { useAuthStore } from "@evey/store";
 import { loadPlugin, getPluginsForSlot } from "./plugin-registry";
 
 interface UIWidget {
@@ -47,17 +49,21 @@ interface PluginSlotProps {
 
 export function PluginSlot({ name, context }: PluginSlotProps) {
   const [ready, setReady] = useState(false);
+  const isAuthenticated = useAuthStore((s) => !!s.accessToken);
+
+  const { data } = useQuery<ListPluginsResponse>({
+    queryKey: ["plugins", "list"],
+    queryFn: () =>
+      eveyFetch<ListPluginsResponse>({ url: "/api/v1/admin/plugins", method: "GET" }),
+    staleTime: 60_000,
+    enabled: isAuthenticated,
+  });
 
   useEffect(() => {
     let cancelled = false;
 
     async function load() {
       try {
-        const data = await eveyFetch<ListPluginsResponse>({
-          url: "/api/v1/admin/plugins",
-          method: "GET",
-        });
-
         const plugins = data?.plugins ?? [];
         const promises: Promise<void>[] = [];
 
@@ -79,9 +85,11 @@ export function PluginSlot({ name, context }: PluginSlotProps) {
       if (!cancelled) setReady(true);
     }
 
-    void load();
+    if (data !== undefined) {
+      void load();
+    }
     return () => { cancelled = true; };
-  }, [name]);
+  }, [name, data]);
 
   if (!ready) return null;
 

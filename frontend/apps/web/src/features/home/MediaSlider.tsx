@@ -2,6 +2,7 @@ import { useRef, useState, useEffect, useCallback } from "react";
 import type { ReactNode } from "react";
 import { Link } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 
 interface MediaSliderProps {
   title: string;
@@ -16,16 +17,13 @@ function SkeletonCard() {
   return (
     <div className="flex-shrink-0 w-32 sm:w-40" style={{ aspectRatio: "2/3" }}>
       <div
-        className="w-full h-full animate-pulse"
-        style={{
-          backgroundColor: "var(--surface-raised)",
-          borderRadius: "var(--radius-md)",
-        }}
+        className="w-full h-full animate-shimmer"
+        style={{ borderRadius: "var(--radius-md)" }}
       />
       <div className="mt-2 space-y-1 px-0.5">
         <div
-          className="h-3 w-4/5 animate-pulse rounded"
-          style={{ backgroundColor: "var(--surface-raised)" }}
+          className="h-3 w-4/5 animate-shimmer"
+          style={{ borderRadius: "var(--radius-sm)" }}
         />
       </div>
     </div>
@@ -166,9 +164,9 @@ export function MediaSlider({
   }
 
   return (
-    <section className="mb-8 group/slider" data-testid="media-slider">
+    <section className="mb-10 group/slider" data-testid="media-slider">
       <div className="flex items-center justify-between mb-3 px-1">
-        <h2 className="text-base sm:text-lg font-semibold" style={{ color: "var(--text)" }}>
+        <h2 className="text-lg sm:text-xl font-semibold tracking-tight" style={{ color: "var(--text)" }}>
           {title}
         </h2>
         {seeAllHref && (
@@ -187,14 +185,12 @@ export function MediaSlider({
         {showLeft && (
           <button
             onClick={() => scroll("left")}
-            className="absolute left-0 top-0 bottom-2 z-10 flex items-center justify-center w-10 rounded-r-[var(--radius-md)] opacity-0 group-hover/slider:opacity-100 transition-opacity"
-            style={{ background: "linear-gradient(to right, var(--overlay-gradient), transparent)" }}
+            className="absolute left-0 top-0 bottom-2 z-10 flex items-center justify-center w-12 rounded-r-[var(--radius-md)] opacity-0 group-hover/slider:opacity-100 transition-opacity backdrop-blur-sm"
+            style={{ background: "var(--glass-bg)", borderRight: "1px solid var(--glass-border)" }}
             aria-label={t("common.scrollLeft")}
             title={t("common.scrollLeft")}
           >
-            <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-            </svg>
+            <ChevronLeft size={20} className="text-white" />
           </button>
         )}
 
@@ -208,7 +204,7 @@ export function MediaSlider({
           onMouseMove={handleMouseMove}
           onMouseUp={stopDrag}
           onMouseLeave={stopDrag}
-          className="flex gap-3 overflow-x-auto pb-2 -mx-1 px-1"
+          className="flex gap-4 overflow-x-auto pb-2 -mx-1 px-1"
           style={{ scrollbarWidth: "none", scrollSnapType: "x mandatory", cursor: "grab" }}
         >
           {isLoading
@@ -219,14 +215,12 @@ export function MediaSlider({
         {showRight && (
           <button
             onClick={() => scroll("right")}
-            className="absolute right-0 top-0 bottom-2 z-10 flex items-center justify-center w-10 rounded-l-[var(--radius-md)] opacity-0 group-hover/slider:opacity-100 transition-opacity"
-            style={{ background: "linear-gradient(to left, var(--overlay-gradient), transparent)" }}
+            className="absolute right-0 top-0 bottom-2 z-10 flex items-center justify-center w-12 rounded-l-[var(--radius-md)] opacity-0 group-hover/slider:opacity-100 transition-opacity backdrop-blur-sm"
+            style={{ background: "var(--glass-bg)", borderLeft: "1px solid var(--glass-border)" }}
             aria-label={t("common.scrollRight")}
             title={t("common.scrollRight")}
           >
-            <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-            </svg>
+            <ChevronRight size={20} className="text-white" />
           </button>
         )}
       </div>

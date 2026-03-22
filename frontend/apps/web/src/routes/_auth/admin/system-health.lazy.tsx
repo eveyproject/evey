@@ -214,7 +214,7 @@ function DashboardPanel({ info }: { info: V1DashboardInfo; }) {
 function SystemHealthPage() {
   const { t } = useTranslation();
   const { data: dashData, isLoading: dashLoading, dataUpdatedAt } = useAdminServiceGetDashboard({
-    query: { refetchInterval: 5_000 },
+    query: { refetchInterval: 5_000, refetchIntervalInBackground: false },
   });
   const { data: sysData, isLoading: sysLoading } = useAdminServiceGetSystemInfo();
 

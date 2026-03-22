@@ -1,4 +1,5 @@
 import { memo, useRef, useState, useEffect, useCallback, useMemo } from "react";
+import { Star, Check, Play } from "lucide-react";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
@@ -68,9 +69,7 @@ const HoverPreview = memo(function HoverPreview({ item }: { item: MediaCardItem 
         {item.year && <span>{item.year}</span>}
         {item.communityRating != null && item.communityRating > 0 && (
           <span className="flex items-center gap-0.5">
-            <svg className="w-3 h-3" viewBox="0 0 20 20" fill="currentColor" style={{ color: "var(--accent)" }}>
-              <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
-            </svg>
+            <Star size={12} fill="currentColor" style={{ color: "var(--accent)" }} />
             {item.communityRating.toFixed(1)}
           </span>
         )}
@@ -352,11 +351,11 @@ export const MediaCard = memo(function MediaCard({
       {showPreview && <HoverPreview item={item} />}
 
       <div
-        className="relative w-full overflow-hidden transition-all duration-200 ease-out group-hover:scale-105 group-hover:shadow-[0_8px_24px_rgba(0,0,0,0.4)] group-focus-within:scale-105 group-focus-within:shadow-[0_8px_24px_rgba(0,0,0,0.4)]"
+        className="relative w-full overflow-hidden transition-all duration-200 ease-out group-hover:scale-[1.03] group-focus-within:scale-[1.03]"
         style={{
           aspectRatio: "2/3",
           borderRadius: "var(--radius-md)",
-          boxShadow: "0 2px 8px rgba(0,0,0,0.2)",
+          boxShadow: "var(--shadow-md)",
         }}
       >
         {poster ? (
@@ -412,9 +411,7 @@ export const MediaCard = memo(function MediaCard({
             }}
             data-testid="watched-badge"
           >
-            <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" strokeWidth={3} viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-            </svg>
+            <Check size={12} className="text-white" strokeWidth={3} />
           </span>
         )}
 
@@ -429,9 +426,7 @@ export const MediaCard = memo(function MediaCard({
               borderRadius: "var(--radius-sm)",
             }}
           >
-            <svg className="w-2.5 h-2.5" viewBox="0 0 20 20" fill="currentColor">
-              <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
-            </svg>
+            <Star size={10} fill="currentColor" />
             {item.communityRating.toFixed(1)}
           </span>
         )}
@@ -481,9 +476,7 @@ export const MediaCard = memo(function MediaCard({
             }}
           >
             {selected && (
-              <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" strokeWidth={3} viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-              </svg>
+              <Check size={12} className="text-white" strokeWidth={3} />
             )}
           </button>
         ) : item.id ? (
@@ -524,22 +517,15 @@ export const MediaCard = memo(function MediaCard({
 
         <div
           className="absolute inset-0 flex flex-col items-center justify-center opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity duration-200"
-          style={{ background: "linear-gradient(to top, rgba(0,0,0,0.8) 0%, rgba(0,0,0,0.3) 50%, rgba(0,0,0,0.1) 100%)" }}
+          style={{ background: "linear-gradient(to top, rgba(0,0,0,0.7) 0%, rgba(0,0,0,0.1) 60%, transparent 100%)" }}
         >
           <div
             role="img"
             aria-label="Play"
             className="w-12 h-12 rounded-full flex items-center justify-center backdrop-blur-sm transition-transform duration-200 group-hover:scale-110 group-focus-within:scale-110"
-            style={{ backgroundColor: "rgba(255,255,255,0.2)", border: "2px solid rgba(255,255,255,0.6)" }}
+            style={{ backgroundColor: "var(--glass-bg)", border: "1px solid var(--glass-border)" }}
           >
-            <svg
-              className="w-5 h-5 text-white ml-0.5"
-              fill="currentColor"
-              viewBox="0 0 20 20"
-              aria-hidden="true"
-            >
-              <path d="M6.3 2.8L17 10 6.3 17.2V2.8z" />
-            </svg>
+            <Play size={20} className="text-white ml-0.5" fill="currentColor" aria-hidden="true" />
           </div>
           <p className="absolute bottom-2 left-2 right-2 text-xs font-medium text-white truncate text-center">
             {item.title}
@@ -556,7 +542,8 @@ export const MediaCard = memo(function MediaCard({
               style={{
                 backgroundColor: "var(--accent)",
                 width: `${pct}%`,
-                boxShadow: "0 0 6px var(--accent)",
+                borderRadius: "0 2px 2px 0",
+                boxShadow: "0 0 8px var(--accent)",
               }}
             />
           </div>

@@ -21,7 +21,7 @@ func newFeedHandler() (*feedHandler, *feedfakes.FakeConfigCommandRepo, *feedfake
 	querier := feedfakes.NewFakeFeedQuerier()
 	analyzer := notiffakes.NewFakeWatchHistoryAnalyzer()
 
-	commands := appfeed.NewCommandService(cmdRepo)
+	commands := appfeed.NewCommandService(cmdRepo, queryRepo)
 	queries := appfeed.NewQueryService(queryRepo, querier, analyzer)
 
 	h := &feedHandler{commands: commands, queries: queries}

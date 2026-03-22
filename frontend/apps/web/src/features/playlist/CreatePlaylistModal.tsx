@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { X } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Modal } from "@/components/ui/Modal";
 import { Button } from "@/components/ui/Button";
@@ -123,9 +124,7 @@ export function CreatePlaylistModal({ open, onClose }: Props) {
                   className="p-2 rounded hover:bg-[var(--surface-raised)] transition-colors"
                   style={{ color: "var(--text-muted)" }}
                 >
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-                  </svg>
+                  <X size={16} />
                 </button>
               </div>
             ))}

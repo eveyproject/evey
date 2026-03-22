@@ -64,6 +64,7 @@ type adminHandler struct {
 	ffmpegPath       string
 	heavyOpSemaphore chan struct{} // capacity 1; non-blocking acquire guards heavy ops
 	translator       *eveyi18n.Translator
+	serverCtx        context.Context
 }
 
 func (h *adminHandler) GetSystemInfo(ctx context.Context, _ *eveyv1.GetSystemInfoRequest) (*eveyv1.SystemInfo, error) {
@@ -250,7 +251,7 @@ func (h *adminHandler) RunScheduledTask(ctx context.Context, req *eveyv1.RunSche
 		return nil, h.translator.TranslatedError(ctx, codes.Unimplemented, "errors.admin.scanner_not_available")
 	}
 	go func() {
-		added, updated, err := h.libScanner.ScanLibrary(context.Background(), req.Id)
+		added, updated, err := h.libScanner.ScanLibrary(h.serverCtx, req.Id)
 		if err != nil {
 			slog.Error("manual scan failed", slog.String("libraryID", req.Id), slog.Any("err", err))
 		} else {
@@ -303,14 +304,14 @@ func (h *adminHandler) AddPluginRuntime(ctx context.Context, req *eveyv1.AddPlug
 		Language: req.Language,
 		Version:  req.Version,
 	}
-	if err := h.pluginQuery.AddRuntime(ctx, rt); err != nil {
+	if err := h.pluginRuntime.AddRuntime(ctx, rt); err != nil {
 		return nil, status.Errorf(codes.Internal, "add runtime: %v", err)
 	}
 	return pluginRuntimeToProto(rt), nil
 }
 
 func (h *adminHandler) RemovePluginRuntime(ctx context.Context, req *eveyv1.RemovePluginRuntimeRequest) (*eveyv1.RemovePluginRuntimeResponse, error) {
-	if err := h.pluginQuery.RemoveRuntime(ctx, req.Id); err != nil {
+	if err := h.pluginRuntime.RemoveRuntime(ctx, req.Id); err != nil {
 		return nil, status.Errorf(codes.Internal, "remove runtime: %v", err)
 	}
 	return &eveyv1.RemovePluginRuntimeResponse{}, nil
@@ -377,7 +378,7 @@ func (h *adminHandler) UpdatePluginConfig(ctx context.Context, req *eveyv1.Updat
 	for k, v := range req.Values {
 		cfg[k] = v
 	}
-	if err := h.pluginQuery.UpdatePluginConfig(ctx, req.PluginId, cfg); err != nil {
+	if err := h.pluginRuntime.UpdatePluginConfig(ctx, req.PluginId, cfg); err != nil {
 		return nil, status.Errorf(codes.Internal, "update config: %v", err)
 	}
 	return &eveyv1.PluginConfig{

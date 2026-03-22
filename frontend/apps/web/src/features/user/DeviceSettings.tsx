@@ -126,11 +126,9 @@ export function DeviceSettings() {
 
       <Modal open={!!revokeTarget} onClose={() => setRevokeTarget(null)} title={t("auth.devices.revokeTitle")}>
         <div className="flex flex-col gap-4">
-          <p className="text-sm text-[var(--text)]"
-            dangerouslySetInnerHTML={{
-              __html: t("auth.devices.revokeConfirm", { platform: revokeTarget ? platformLabel(revokeTarget.platform) : "" }),
-            }}
-          />
+          <p className="text-sm text-[var(--text)]">
+            {t("auth.devices.revokeConfirm", { platform: revokeTarget ? platformLabel(revokeTarget.platform) : "" })}
+          </p>
           <div className="flex justify-end gap-2">
             <Button variant="secondary" onClick={() => setRevokeTarget(null)}>
               {t("common.cancel")}

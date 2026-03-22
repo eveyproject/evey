@@ -16,6 +16,7 @@ import { eveyFetch } from "@evey/api/src/fetcher";
 import type { V1User } from "@evey/api/src/generated/user.schemas";
 import type { V1InviteLink } from "@evey/api/src/generated/user.schemas";
 import { Select } from "@/components/ui/Select";
+import { Checkbox } from "@/components/ui/Checkbox";
 import { Spinner } from "@/components/ui/Spinner";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
@@ -65,14 +66,11 @@ function CreateUserForm({ onSuccess }: { onSuccess: () => void }) {
         onChange={(e) => setPassword(e.target.value)}
         required
       />
-      <label className="flex items-center gap-2 text-sm cursor-pointer" style={{ color: "var(--text)" }}>
-        <input
-          type="checkbox"
-          checked={isAdmin}
-          onChange={(e) => setIsAdmin(e.target.checked)}
-        />
-        {t("admin.users.admin")}
-      </label>
+      <Checkbox
+        label={t("admin.users.admin")}
+        checked={isAdmin}
+        onChange={setIsAdmin}
+      />
       <div className="flex justify-end pt-2">
         <Button type="submit" loading={createUser.isPending} disabled={!username || !password}>
           {t("admin.users.createUser")}
@@ -173,21 +171,17 @@ function LibraryAccessModal({
 
           <div className="flex flex-col gap-2">
             {libraries.map((lib) => (
-              <label
+              <div
                 key={lib.id}
-                className="flex items-center gap-3 px-3 py-2 rounded-[var(--radius)] cursor-pointer hover:opacity-80"
+                className="px-3 py-2 rounded-[var(--radius-md)] hover:opacity-80"
                 style={{ backgroundColor: "var(--surface)" }}
               >
-                <input
-                  type="checkbox"
+                <Checkbox
+                  label={lib.name}
                   checked={selected.has(lib.id)}
                   onChange={() => handleToggle(lib.id)}
-                  className="accent-[var(--primary)]"
                 />
-                <span className="text-sm" style={{ color: "var(--text)" }}>
-                  {lib.name}
-                </span>
-              </label>
+              </div>
             ))}
           </div>
 

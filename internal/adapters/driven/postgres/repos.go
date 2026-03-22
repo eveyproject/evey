@@ -35,7 +35,7 @@ type Repos struct {
 	PlayHistory          *PlayHistoryRepository
 	Notification         *NotificationRepository
 	NotificationSettings *NotificationSettingsRepository
-	FCMToken             *FCMDeviceTokenRepository
+	PushSubscription     *PushSubscriptionRepository
 	WatchHistoryAnalyzer *WatchHistoryAnalyzer
 	Webhook              *WebhookRepository
 	WebhookDelivery      *WebhookDeliveryRepository
@@ -90,7 +90,7 @@ func NewRepos(db *sql.DB) *Repos {
 		PlayHistory:          NewPlayHistoryRepository(db),
 		Notification:         NewNotificationRepository(db),
 		NotificationSettings: NewNotificationSettingsRepository(db),
-		FCMToken:             NewFCMDeviceTokenRepository(db),
+		PushSubscription:     NewPushSubscriptionRepository(db),
 		WatchHistoryAnalyzer: NewWatchHistoryAnalyzer(db),
 		Webhook:              NewWebhookRepository(db),
 		WebhookDelivery:      NewWebhookDeliveryRepository(db),

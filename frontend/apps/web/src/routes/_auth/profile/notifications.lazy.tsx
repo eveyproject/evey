@@ -1,3 +1,4 @@
+import { Plus, Play, Info } from "lucide-react";
 import { createLazyFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import {
@@ -44,36 +45,17 @@ function relativeTime(iso: string | undefined): string {
   return new Date(iso).toLocaleDateString(undefined, { month: "short", day: "numeric" });
 }
 
-const TYPE_ICONS: Record<string, { path: string; color: string }> = {
-  library_new: {
-    path: "M12 6v6m0 0v6m0-6h6m-6 0H6",
-    color: "var(--accent)",
-  },
-  playback: {
-    path: "M5 3l14 9-14 9V3z",
-    color: "var(--badge-info-text, #93c5fd)",
-  },
-  system: {
-    path: "M13 16h-1v-4h-1m1-4h.01M12 2a10 10 0 100 20 10 10 0 000-20z",
-    color: "var(--badge-warning-text, #fde047)",
-  },
+const TYPE_ICON_COLORS: Record<string, string> = {
+  library_new: "var(--accent)",
+  playback: "var(--badge-info-text, #93c5fd)",
+  system: "var(--badge-warning-text, #fde047)",
 };
 
 function NotifIcon({ type }: { type?: string }) {
-  const cfg = TYPE_ICONS[type ?? ""] ?? TYPE_ICONS.system;
-  return (
-    <svg
-      className="w-5 h-5 shrink-0"
-      fill="none"
-      stroke={cfg.color}
-      strokeWidth={2}
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      viewBox="0 0 24 24"
-    >
-      <path d={cfg.path} />
-    </svg>
-  );
+  const color = TYPE_ICON_COLORS[type ?? ""] ?? TYPE_ICON_COLORS.system;
+  if (type === "library_new") return <Plus size={20} className="shrink-0" style={{ color }} />;
+  if (type === "playback") return <Play size={20} className="shrink-0" style={{ color }} />;
+  return <Info size={20} className="shrink-0" style={{ color }} />;
 }
 
 function NotificationRow({ notif }: { notif: Notification }) {

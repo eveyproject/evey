@@ -71,6 +71,7 @@ nav:
   libraries: "Bibliotecas"
   photos: "Fotos"
   favorites: "Favoritos"
+  search: "Buscar"
   music: "Música"
   admin: "Administración"
   backToApp: "Volver a la aplicación"
@@ -83,3 +84,19 @@ nav:
   mainNav: "Navegación principal"
   adminNav: "Navegación de administración"
   userMenu: "Menú de usuario"
+  homeFeeds: "Feeds de inicio"
+feeds:
+  title: "Secciones de la página de inicio"
+  section: Sección
+  order: Orden
+  maxItems: Máx. elementos
+  saved: "Configuración guardada"
+  customize: Personalizar
+  customizeTitle: "Personalizar inicio"
+  resetDefaults: "Restablecer"
+  labels:
+    resume_playback: "Reanudar reproducción"
+    next_episode: "Siguiente episodio"
+    recommended: "Recomendados"
+    most_popular: "Más populares"
+    collections: Colecciones

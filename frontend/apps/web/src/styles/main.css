@@ -1,5 +1,22 @@
 @import "tailwindcss";
 
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 400 700;
+  font-display: swap;
+  src: url('/fonts/inter-latin-ext.woff2') format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 400 700;
+  font-display: swap;
+  src: url('/fonts/inter-latin.woff2') format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
 /* Design tokens bridged from active theme */
 @theme {
   --color-bg: var(--bg);
@@ -20,27 +37,60 @@
 
 body {
   margin: 0;
-  background-color: var(--bg);
+  background-color: var(--bg, #0c1220);
+  color: var(--text, #f1f5f9);
+  font-family: var(--font-family, 'Inter', system-ui, -apple-system, sans-serif);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  animation: body-reveal 0s 50ms both;
+}
+
+@keyframes body-reveal {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+button, [role="button"], a, summary, label[for] { cursor: pointer; }
+button:disabled, [aria-disabled="true"] { cursor: not-allowed; }
+
+::selection {
+  background: var(--accent-subtle);
   color: var(--text);
-  font-family: system-ui, -apple-system, sans-serif;
+}
+
+/* Scrollbar */
+* {
+  scrollbar-color: var(--scrollbar-thumb) var(--scrollbar-track);
+  scrollbar-width: thin;
 }
 
 /* Ken Burns slow zoom on hero backdrop */
 @keyframes ken-burns {
   0% { transform: scale(1); }
-  100% { transform: scale(1.08); }
+  100% { transform: scale(1.05); }
 }
 .animate-ken-burns {
   animation: ken-burns 20s ease-in-out alternate infinite;
 }
 
-/* Route transition fade */
+/* Route transition fade + slide up */
 @keyframes fade-in {
-  from { opacity: 0; }
-  to { opacity: 1; }
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 .animate-fade-in {
   animation: fade-in 0.2s ease-out;
+}
+
+/* Shimmer skeleton */
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+.animate-shimmer {
+  background: linear-gradient(90deg, var(--surface-raised) 25%, color-mix(in srgb, var(--surface-raised) 70%, var(--text-muted)) 50%, var(--surface-raised) 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s ease-in-out infinite;
 }
 
 /* Player action flash (play/pause indicator) */

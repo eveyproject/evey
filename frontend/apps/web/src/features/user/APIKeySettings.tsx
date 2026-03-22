@@ -185,11 +185,9 @@ export function APIKeySettings() {
       {/* Revoke confirmation */}
       <Modal open={!!revokeTarget} onClose={() => setRevokeTarget(null)} title={t("auth.apiKeys.revokeTitle")}>
         <div className="flex flex-col gap-4">
-          <p className="text-sm text-[var(--text)]"
-            dangerouslySetInnerHTML={{
-              __html: t("auth.apiKeys.revokeConfirm", { name: revokeTarget?.name ?? "" }),
-            }}
-          />
+          <p className="text-sm text-[var(--text)]">
+            {t("auth.apiKeys.revokeConfirm", { name: revokeTarget?.name ?? "" })}
+          </p>
           <div className="flex justify-end gap-2">
             <Button variant="secondary" onClick={() => setRevokeTarget(null)}>
               {t("common.cancel")}

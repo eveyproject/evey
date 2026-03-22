@@ -60,6 +60,44 @@ func (r *FeedAdminConfigRepository) Upsert(ctx context.Context, cfg *feed.AdminC
 	return err
 }
 
+func (r *FeedAdminConfigRepository) BatchUpsert(ctx context.Context, cfgs []*feed.AdminConfig) error {
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	stmt, err := tx.PrepareContext(ctx, `
+		INSERT INTO feed_admin_config (feed_type, enabled, display_order, max_items, params)
+		VALUES ($1,$2,$3,$4,$5)
+		ON CONFLICT (feed_type) DO UPDATE SET
+			enabled = EXCLUDED.enabled,
+			display_order = EXCLUDED.display_order,
+			max_items = EXCLUDED.max_items,
+			params = EXCLUDED.params`)
+	if err != nil {
+		return err
+	}
+	defer stmt.Close()
+
+	for _, cfg := range cfgs {
+		paramsJSON, err := json.Marshal(cfg.Params)
+		if err != nil {
+			return err
+		}
+		if _, err := stmt.ExecContext(ctx, string(cfg.FeedType), cfg.Enabled, cfg.DisplayOrder, cfg.MaxItems, paramsJSON); err != nil {
+			return err
+		}
+	}
+	return tx.Commit()
+}
+
+func (r *FeedAdminConfigRepository) DeleteByType(ctx context.Context, feedType feed.Type) error {
+	_, err := r.db.ExecContext(ctx,
+		`DELETE FROM feed_admin_config WHERE feed_type = $1`, string(feedType))
+	return err
+}
+
 type FeedProfileConfigRepository struct {
 	db *sql.DB
 }
@@ -115,5 +153,11 @@ func (r *FeedProfileConfigRepository) Delete(ctx context.Context, profileID stri
 	_, err := r.db.ExecContext(ctx,
 		`DELETE FROM feed_profile_config WHERE profile_id = $1 AND feed_type = $2`,
 		profileID, string(feedType))
+	return err
+}
+
+func (r *FeedProfileConfigRepository) DeleteByType(ctx context.Context, feedType feed.Type) error {
+	_, err := r.db.ExecContext(ctx,
+		`DELETE FROM feed_profile_config WHERE feed_type = $1`, string(feedType))
 	return err
 }

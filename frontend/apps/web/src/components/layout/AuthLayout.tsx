@@ -1,6 +1,7 @@
 import { type ReactNode, useState } from "react";
 import { Link, useRouterState } from "@tanstack/react-router";
-import { Home, Library, Heart, Settings, Search } from "lucide-react";
+import { Home, Library, Heart, Settings, Search, Menu } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import { useAuthStore } from "@evey/store";
 import { Sidebar } from "./Sidebar";
 import { TopBar } from "./TopBar";
@@ -12,13 +13,14 @@ interface AuthLayoutProps {
 }
 
 const bottomNavItems = [
-  { to: "/home" as const, label: "Home", icon: Home },
-  { to: "/library" as const, label: "Libraries", icon: Library },
-  { to: "/search" as const, label: "Search", icon: Search },
-  { to: "/favorites" as const, label: "Favorites", icon: Heart },
+  { to: "/home" as const, labelKey: "common.nav.home", icon: Home },
+  { to: "/library" as const, labelKey: "common.nav.libraries", icon: Library },
+  { to: "/search" as const, labelKey: "common.nav.search", icon: Search },
+  { to: "/favorites" as const, labelKey: "common.nav.favorites", icon: Heart },
 ];
 
 export function AuthLayout({ children }: AuthLayoutProps) {
+  const { t } = useTranslation();
   const { location } = useRouterState();
   const isHome = location.pathname === "/home";
   const isPlayer = location.pathname.startsWith("/player/");
@@ -60,9 +62,7 @@ export function AuthLayout({ children }: AuthLayoutProps) {
             onClick={() => setSidebarOpen(true)}
             aria-label="Open menu"
           >
-            <svg className="w-6 h-6" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
-            </svg>
+            <Menu size={24} />
           </button>
           <div className="flex-1">
             <TopBar />
@@ -81,7 +81,7 @@ export function AuthLayout({ children }: AuthLayoutProps) {
         aria-label="Bottom navigation"
         className="md:hidden fixed bottom-0 left-0 right-0 z-50 flex items-center justify-around bg-[var(--surface)] border-t border-[var(--border)] h-16"
       >
-        {bottomNavItems.map(({ to, label, icon: Icon }) => {
+        {bottomNavItems.map(({ to, labelKey, icon: Icon }) => {
           const active = location.pathname === to || location.pathname.startsWith(to + "/")
             || (to === "/library" && location.pathname.startsWith("/media/"));
           return (
@@ -93,7 +93,7 @@ export function AuthLayout({ children }: AuthLayoutProps) {
               }`}
             >
               <Icon size={22} />
-              <span>{label}</span>
+              <span>{t(labelKey)}</span>
             </Link>
           );
         })}
@@ -107,7 +107,7 @@ export function AuthLayout({ children }: AuthLayoutProps) {
             }`}
           >
             <Settings size={22} />
-            <span>Admin</span>
+            <span>{t("common.nav.admin")}</span>
           </Link>
         )}
       </nav>

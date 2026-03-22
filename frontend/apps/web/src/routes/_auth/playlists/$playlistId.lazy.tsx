@@ -1,3 +1,4 @@
+import { X } from "lucide-react";
 import { createLazyFileRoute, Link } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { Badge } from "@/components/ui/Badge";
@@ -53,9 +54,7 @@ function PlaylistItemRow({ item, playlistId, playlistType }: { item: PlaylistIte
           style={{ color: "var(--text-muted)" }}
           title={t("common.remove")}
         >
-          <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-          </svg>
+          <X size={16} />
         </button>
       )}
     </div>

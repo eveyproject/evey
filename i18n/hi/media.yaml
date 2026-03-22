@@ -286,6 +286,19 @@ search:
   resultFor: "\u201c{{query}}\u201d के लिए"
   searchLibrary: अपनी मीडिया लाइब्रेरी खोजें
   searchLibraryDesc: अपनी फ़िल्मों, सीरीज़ और अन्य में खोजने के लिए कम से कम 2 अक्षर टाइप करें।
+  clearSearch: खोज साफ़ करें
+  filters: फ़िल्टर
+  clearFilters: फ़िल्टर साफ़ करें
+  genre: शैली
+  allGenres: सभी शैलियां
+  year: वर्ष
+  fromYear: से
+  toYear: तक
+  sortBy: क्रमबद्ध करें
+  relevance: प्रासंगिकता
+  titleAZ: "शीर्षक A\u2013Z"
+  yearNewest: वर्ष (नवीनतम)
+  dateAdded: जोड़ने की तिथि
 streams:
   audio: ऑडियो
   subtitles: उपशीर्षक

@@ -19,7 +19,7 @@ func newTestRuntimeService() (*appplugin.RuntimeService, *plgfakes.FakePluginRep
 	parser := plgfakes.NewFakeManifestParser()
 	bus := sharedfakes.NewFakeEventBus()
 
-	svc := appplugin.NewRuntimeService(pluginRepo, runner, parser, bus).
+	svc := appplugin.NewRuntimeService(pluginRepo, plgfakes.NewFakePluginRuntimeRepository(), runner, parser, bus).
 		WithPluginDir("/tmp/test-plugins")
 
 	return svc, pluginRepo, runner, parser
@@ -194,7 +194,7 @@ func TestAutoStartPlugins(t *testing.T) {
 	parser := plgfakes.NewFakeManifestParser()
 	bus := sharedfakes.NewFakeEventBus()
 
-	svc := appplugin.NewRuntimeService(pluginRepo, runner, parser, bus)
+	svc := appplugin.NewRuntimeService(pluginRepo, plgfakes.NewFakePluginRuntimeRepository(), runner, parser, bus)
 
 	ctx := context.Background()
 	require.NoError(t, pluginRepo.Create(ctx, &plugindomain.Plugin{
@@ -227,7 +227,7 @@ func TestAutoStartPlugins_SkipsDisabled(t *testing.T) {
 	runner := plgfakes.NewFakePluginRunner()
 	parser := plgfakes.NewFakeManifestParser()
 	bus := sharedfakes.NewFakeEventBus()
-	svc := appplugin.NewRuntimeService(pluginRepo, runner, parser, bus)
+	svc := appplugin.NewRuntimeService(pluginRepo, plgfakes.NewFakePluginRuntimeRepository(), runner, parser, bus)
 
 	ctx := context.Background()
 	require.NoError(t, pluginRepo.Create(ctx, &plugindomain.Plugin{
@@ -246,7 +246,7 @@ func TestAutoStartPlugins_SkipsCSS(t *testing.T) {
 	runner := plgfakes.NewFakePluginRunner()
 	parser := plgfakes.NewFakeManifestParser()
 	bus := sharedfakes.NewFakeEventBus()
-	svc := appplugin.NewRuntimeService(pluginRepo, runner, parser, bus)
+	svc := appplugin.NewRuntimeService(pluginRepo, plgfakes.NewFakePluginRuntimeRepository(), runner, parser, bus)
 
 	ctx := context.Background()
 	require.NoError(t, pluginRepo.Create(ctx, &plugindomain.Plugin{
@@ -265,7 +265,7 @@ func TestAutoStartPlugins_RebuildsMissingFields(t *testing.T) {
 	runner := plgfakes.NewFakePluginRunner()
 	parser := plgfakes.NewFakeManifestParser()
 	bus := sharedfakes.NewFakeEventBus()
-	svc := appplugin.NewRuntimeService(pluginRepo, runner, parser, bus).
+	svc := appplugin.NewRuntimeService(pluginRepo, plgfakes.NewFakePluginRuntimeRepository(), runner, parser, bus).
 		WithPluginDir("/tmp/test-plugins")
 
 	parser.Result = &plugindomain.PluginManifest{
@@ -294,7 +294,7 @@ func TestAutoStartPlugins_LoadsPermissions(t *testing.T) {
 	parser := plgfakes.NewFakeManifestParser()
 	bus := sharedfakes.NewFakeEventBus()
 	pc := appplugin.NewPermissionChecker(pluginRepo)
-	svc := appplugin.NewRuntimeService(pluginRepo, runner, parser, bus).
+	svc := appplugin.NewRuntimeService(pluginRepo, plgfakes.NewFakePluginRuntimeRepository(), runner, parser, bus).
 		WithPermissionChecker(pc)
 
 	ctx := context.Background()

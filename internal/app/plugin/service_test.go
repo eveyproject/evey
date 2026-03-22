@@ -42,7 +42,7 @@ func TestGetPluginConfig_NotFound(t *testing.T) {
 }
 
 func TestUpdatePluginConfig(t *testing.T) {
-	svc, pluginRepo := newTestQueryService()
+	svc, pluginRepo, _, _ := newTestRuntimeService()
 	ctx := context.Background()
 	require.NoError(t, pluginRepo.Create(ctx, &plugindomain.Plugin{
 		ID: "plg-ucfg", Name: "cfg-update",
@@ -61,7 +61,7 @@ func TestUpdatePluginConfig(t *testing.T) {
 }
 
 func TestUpdatePluginConfig_NotFound(t *testing.T) {
-	svc, _ := newTestQueryService()
+	svc, _, _, _ := newTestRuntimeService()
 	err := svc.UpdatePluginConfig(context.Background(), "plg-nope", map[string]any{})
 	assert.ErrorIs(t, err, appplugin.ErrPluginNotFound)
 }

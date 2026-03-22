@@ -132,6 +132,11 @@ type MediaStream struct {
 	ExternalPath   *string
 }
 
+func (s *MediaStream) GetStreamType() string  { return s.StreamType }
+func (s *MediaStream) GetBitDepth() *int       { return s.BitDepth }
+func (s *MediaStream) GetColorSpace() *string  { return s.ColorSpace }
+func (s *MediaStream) GetHDRType() *string     { return s.HDRType }
+
 type Person struct {
 	ID          string
 	Name        string

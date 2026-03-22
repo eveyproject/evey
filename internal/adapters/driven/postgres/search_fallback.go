@@ -3,6 +3,7 @@ package postgres
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"fmt"
 	"strings"
 
@@ -93,18 +94,9 @@ func parseJSONStringArray(data []byte) []string {
 	if len(data) == 0 {
 		return nil
 	}
-	s := string(data)
-	s = strings.Trim(s, "[]")
-	if s == "" {
-		return nil
-	}
 	var result []string
-	for _, part := range strings.Split(s, ",") {
-		part = strings.TrimSpace(part)
-		part = strings.Trim(part, "\"")
-		if part != "" {
-			result = append(result, part)
-		}
+	if err := json.Unmarshal(data, &result); err != nil {
+		return nil
 	}
 	return result
 }

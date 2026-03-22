@@ -5,7 +5,6 @@ import (
 	"log/slog"
 	"net/http"
 	"strings"
-	"sync"
 
 	appactivity "github.com/gravity-zero/evey/internal/app/activity"
 	applibrary "github.com/gravity-zero/evey/internal/app/library"
@@ -35,27 +34,31 @@ func registerPopularRoute(mux *http.ServeMux, activityQuery *appactivity.QuerySe
 			Type        string `json:"type,omitempty"`
 			PlayCount   int    `json:"playCount"`
 		}
-		items := make([]popItem, 0, len(popular))
+		ids := make([]string, len(popular))
+		for i, p := range popular {
+			ids[i] = p.MediaItemID
+		}
+		typeByID := make(map[string]string, len(ids))
+		if len(ids) > 0 {
+			mis, merr := libQuery.GetMediaItemsByIDs(r.Context(), ids)
+			if merr != nil {
+				slog.Warn("popular: batch fetch media items", slog.Any("err", merr))
+			}
+			for _, mi := range mis {
+				typeByID[mi.ID] = mi.Type
+			}
+		}
 		results := make([]popItem, len(popular))
 		for i, p := range popular {
-			results[i] = popItem{MediaItemID: p.MediaItemID, Title: p.Title, PlayCount: p.PlayCount}
+			results[i] = popItem{
+				MediaItemID: p.MediaItemID,
+				Title:       p.Title,
+				PlayCount:   p.PlayCount,
+				Type:        typeByID[p.MediaItemID],
+			}
 		}
-		var wg sync.WaitGroup
-		ctx := r.Context()
-		for i, p := range popular {
-			wg.Add(1)
-			go func(idx int, mediaID string) {
-				defer wg.Done()
-				mi, ferr := libQuery.GetMediaItem(ctx, mediaID)
-				if ferr == nil && mi != nil {
-					results[idx].Type = mi.Type
-				}
-			}(i, p.MediaItemID)
-		}
-		wg.Wait()
-		items = append(items, results...)
 		w.Header().Set("Content-Type", "application/json")
-		if err := json.NewEncoder(w).Encode(map[string]any{"items": items}); err != nil {
+		if err := json.NewEncoder(w).Encode(map[string]any{"items": results}); err != nil {
 			slog.Warn("json encode failed", slog.Any("err", err))
 		}
 	})

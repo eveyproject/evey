@@ -70,9 +70,9 @@ func (ws *WatcherService) Start(ctx context.Context) error {
 	}
 
 	if ws.bus != nil {
-		ws.bus.Subscribe("library.created", func(_ context.Context, ev shared.Event) {
+		ws.bus.Subscribe("library.created", func(ctx context.Context, ev shared.Event) {
 			if e, ok := ev.(library.LibraryCreated); ok {
-				lib, err := ws.libraries.GetByID(context.Background(), e.LibraryID)
+				lib, err := ws.libraries.GetByID(ctx, e.LibraryID)
 				if err == nil {
 					ws.AddLibrary(lib)
 				}

@@ -38,6 +38,21 @@ func (r *FakeMediaItemQueryRepo) GetByID(_ context.Context, id string) (*library
 	return item, nil
 }
 
+func (r *FakeMediaItemQueryRepo) GetByIDs(_ context.Context, ids []string) ([]*library.MediaItem, error) {
+	if r.Err != nil {
+		return nil, r.Err
+	}
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	var result []*library.MediaItem
+	for _, id := range ids {
+		if item, ok := r.items[id]; ok {
+			result = append(result, item)
+		}
+	}
+	return result, nil
+}
+
 func allowedRatingsSet(allowed []string) map[string]bool {
 	if len(allowed) == 0 {
 		return nil

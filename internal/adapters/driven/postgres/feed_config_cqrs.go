@@ -28,8 +28,19 @@ func (r *FeedConfigCommandRepo) UpsertProfileConfig(ctx context.Context, cfg *fe
 	return r.profile.Upsert(ctx, cfg)
 }
 
+func (r *FeedConfigCommandRepo) BatchUpsertAdminConfig(ctx context.Context, cfgs []*feed.AdminConfig) error {
+	return r.admin.BatchUpsert(ctx, cfgs)
+}
+
 func (r *FeedConfigCommandRepo) DeleteProfileConfig(ctx context.Context, profileID string, feedType feed.Type) error {
 	return r.profile.Delete(ctx, profileID, feedType)
+}
+
+func (r *FeedConfigCommandRepo) DeleteAdminConfigByType(ctx context.Context, feedType feed.Type) error {
+	if err := r.profile.DeleteByType(ctx, feedType); err != nil {
+		return err
+	}
+	return r.admin.DeleteByType(ctx, feedType)
 }
 
 // FeedConfigQueryRepo implements feed.ConfigQueryRepo (read side).

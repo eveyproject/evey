@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { memo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import type { SyncPlayMember } from "./useSyncPlay";
 
@@ -11,7 +11,7 @@ interface SyncPlayBarProps {
   onLeave: () => void;
 }
 
-export function SyncPlayBar({ roomId, roomCode, isHost, members, connected, onLeave }: SyncPlayBarProps) {
+export const SyncPlayBar = memo(function SyncPlayBar({ roomId, roomCode, isHost, members, connected, onLeave }: SyncPlayBarProps) {
   const { t } = useTranslation();
   const [copied, setCopied] = useState(false);
   const [codeCopied, setCodeCopied] = useState(false);
@@ -78,4 +78,4 @@ export function SyncPlayBar({ roomId, roomCode, isHost, members, connected, onLe
       </button>
     </div>
   );
-}
+});

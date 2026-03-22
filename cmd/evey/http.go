@@ -8,6 +8,7 @@ import (
 	"time"
 
 	httpapi "github.com/gravity-zero/evey/internal/adapters/driving/http"
+	"github.com/gravity-zero/evey/internal/adapters/driven/postgres"
 	"github.com/gravity-zero/evey/internal/config"
 	eveymetrics "github.com/gravity-zero/evey/internal/pkg/metrics"
 	"github.com/gravity-zero/evey/internal/pkg/network"
@@ -77,7 +78,8 @@ func buildHTTPHandler(gwMux http.Handler, deps *appDeps, cfg *config.Config, sta
 
 		BackupSvc: deps.backupSvc,
 
-		FCMTokenRepo: deps.repos.fcmTokenRepo,
+		PushSubRepo:    deps.repos.pushSubRepo,
+		VAPIDPublicKey: resolveVAPIDPublicKey(deps.repos.serverCfgRepo, cfg),
 
 		ArtworkRepo:       deps.repos.artworkRepo,
 		LibraryAccessRepo: deps.repos.libraryAccessRepo,
@@ -90,7 +92,10 @@ func buildHTTPHandler(gwMux http.Handler, deps *appDeps, cfg *config.Config, sta
 		PluginSvc:  deps.engagement.pluginInstallerSvc,
 		PluginDir:  "/data/plugins",
 
-		CfgStore:  deps.cfgStore,
+		FeedCmdSvc:   deps.engagement.feedCmdSvc,
+		FeedQuerySvc: deps.engagement.feedQuerySvc,
+
+		CfgStore: deps.cfgStore,
 		ServerCtx: ctx,
 
 		LoginRL:      loginRL,
@@ -120,4 +125,14 @@ func buildHTTPHandler(gwMux http.Handler, deps *appDeps, cfg *config.Config, sta
 	}
 
 	return httpapi.TokenRedactMiddleware(eveymetrics.InstrumentHandler(httpapi.SecurityHeadersMiddleware(proxyTrust.Middleware(netMw(mux))))), nil
+}
+
+func resolveVAPIDPublicKey(cfgRepo *postgres.ServerConfigRepository, cfg *config.Config) string {
+	if cfg.VAPID.PublicKey != "" {
+		return cfg.VAPID.PublicKey
+	}
+	if e, err := cfgRepo.Get(context.Background(), "vapid.public_key"); err == nil && e.Value != "" {
+		return e.Value
+	}
+	return ""
 }

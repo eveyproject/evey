@@ -19,6 +19,7 @@ type IndexClient interface {
 	DeleteDocumentWithContext(ctx context.Context, identifier string, opts *ms.DocumentOptions) (*ms.TaskInfo, error)
 	SearchWithContext(ctx context.Context, query string, request *ms.SearchRequest) (*ms.SearchResponse, error)
 	UpdateSettingsWithContext(ctx context.Context, request *ms.Settings) (*ms.TaskInfo, error)
+	GetStatsWithContext(ctx context.Context) (*ms.StatsIndex, error)
 }
 
 type ServiceClient interface {
@@ -95,25 +96,55 @@ func ToDocument(item *library.MediaItem, castNames []string) mediaDocument {
 	}
 }
 
+var allowedFilterKeys = map[string]bool{
+	"type": true, "library_id": true, "year": true, "genres": true,
+	"year_min": true, "year_max": true,
+}
+
 func BuildFilterString(filters map[string]string) string {
 	if len(filters) == 0 {
 		return ""
 	}
 	parts := make([]string, 0, len(filters))
 	for k, v := range filters {
+		if !allowedFilterKeys[k] {
+			continue
+		}
 		switch {
 		case strings.HasSuffix(k, "_min"):
 			field := strings.TrimSuffix(k, "_min")
-			parts = append(parts, fmt.Sprintf("%s >= %s", field, v))
+			parts = append(parts, fmt.Sprintf("%s >= %s", field, sanitizeNumeric(v)))
 		case strings.HasSuffix(k, "_max"):
 			field := strings.TrimSuffix(k, "_max")
-			parts = append(parts, fmt.Sprintf("%s <= %s", field, v))
+			parts = append(parts, fmt.Sprintf("%s <= %s", field, sanitizeNumeric(v)))
 		default:
 			escaped := strings.ReplaceAll(v, "'", "\\'")
+			escaped = strings.ReplaceAll(escaped, "\\", "\\\\")
 			parts = append(parts, fmt.Sprintf("%s = '%s'", k, escaped))
 		}
 	}
 	return strings.Join(parts, " AND ")
+}
+
+func sanitizeNumeric(v string) string {
+	v = strings.TrimSpace(v)
+	for _, c := range v {
+		if (c < '0' || c > '9') && c != '-' {
+			return "0"
+		}
+	}
+	if v == "" || v == "-" {
+		return "0"
+	}
+	return v
+}
+
+func (a *SearchAdapter) DocumentCount(ctx context.Context) (int64, error) {
+	stats, err := a.index.GetStatsWithContext(ctx)
+	if err != nil {
+		return 0, fmt.Errorf("get index stats: %w", err)
+	}
+	return stats.NumberOfDocuments, nil
 }
 
 func (a *SearchAdapter) IndexMediaItem(ctx context.Context, item *library.MediaItem, castNames []string) error {

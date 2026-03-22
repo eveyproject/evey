@@ -12,6 +12,7 @@ import (
 
 type RuntimeService struct {
 	plugins     plugin.PluginRepository
+	runtimes    plugin.PluginRuntimeRepository
 	runner      plugin.PluginRunner
 	parser      plugin.ManifestParser
 	events      shared.EventBus
@@ -21,12 +22,14 @@ type RuntimeService struct {
 
 func NewRuntimeService(
 	plugins plugin.PluginRepository,
+	runtimes plugin.PluginRuntimeRepository,
 	runner plugin.PluginRunner,
 	parser plugin.ManifestParser,
 	events shared.EventBus,
 ) *RuntimeService {
 	return &RuntimeService{
 		plugins:   plugins,
+		runtimes:  runtimes,
 		runner:    runner,
 		parser:    parser,
 		events:    events,
@@ -176,4 +179,22 @@ func (s *RuntimeService) AutoStartPlugins(ctx context.Context) {
 			s.permChecker.LoadPermissions(p.ID, p.Permissions)
 		}
 	}
+}
+
+func (s *RuntimeService) UpdatePluginConfig(ctx context.Context, id string, config map[string]any) error {
+	p, err := s.plugins.GetByID(ctx, id)
+	if err != nil {
+		return ErrPluginNotFound
+	}
+	p.Config = config
+	p.UpdatedAt = time.Now()
+	return s.plugins.Update(ctx, p)
+}
+
+func (s *RuntimeService) AddRuntime(ctx context.Context, rt *plugin.PluginRuntime) error {
+	return s.runtimes.Create(ctx, rt)
+}
+
+func (s *RuntimeService) RemoveRuntime(ctx context.Context, id string) error {
+	return s.runtimes.Delete(ctx, id)
 }

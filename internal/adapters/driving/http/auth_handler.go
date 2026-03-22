@@ -130,14 +130,14 @@ func registerOIDCRoutes(mux *http.ServeMux, oidcSvc *appuser.OIDCService, httpsO
 	})
 }
 
-// 10 registrations per minute per authenticated user
-var fcmRegisterLimiter = ratelimit.New(10)
+var pushRegisterLimiter = ratelimit.New(10)
 
 type pushHandler struct {
-	tokens      notification.DeviceTokenRepository
+	subs        notification.PushSubscriptionRepository
 	profileRepo domainuser.ProfileRepository
 	userRepo    domainuser.UserRepository
 	tokenGen    *auth.JWTGenerator
+	vapidPubKey string
 }
 
 func (h *pushHandler) extractClaims(r *http.Request) (*domainuser.Claims, bool) {
@@ -158,17 +158,19 @@ func (h *pushHandler) register(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, `{"message":"unauthenticated"}`, http.StatusUnauthorized)
 		return
 	}
-	// SEC-NEW-17: rate limit per authenticated user
-	if !fcmRegisterLimiter.Allow(claims.UserID) {
+	if !pushRegisterLimiter.Allow(claims.UserID) {
 		http.Error(w, `{"message":"too many requests"}`, http.StatusTooManyRequests)
 		return
 	}
 	var body struct {
-		Token    string `json:"token"`
-		Platform string `json:"platform"`
-		Consent  bool   `json:"consent"`
+		Endpoint string `json:"endpoint"`
+		Keys     struct {
+			P256dh string `json:"p256dh"`
+			Auth   string `json:"auth"`
+		} `json:"keys"`
+		Consent bool `json:"consent"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&body); err != nil || body.Token == "" {
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil || body.Endpoint == "" || body.Keys.P256dh == "" || body.Keys.Auth == "" {
 		http.Error(w, `{"message":"invalid body"}`, http.StatusBadRequest)
 		return
 	}
@@ -176,7 +178,6 @@ func (h *pushHandler) register(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, `{"message":"explicit consent required for push notifications"}`, http.StatusBadRequest)
 		return
 	}
-	// SEC-NEW-11: validate the profile from the JWT belongs to the authenticated user
 	if claims.ProfileID != "" {
 		profile, err := h.profileRepo.GetByID(r.Context(), claims.ProfileID)
 		if err != nil || profile.UserID != claims.UserID {
@@ -199,11 +200,7 @@ func (h *pushHandler) register(w http.ResponseWriter, r *http.Request) {
 		}
 		slog.Info("push consent persisted", slog.String("user_id", claims.UserID))
 	}
-	platform := body.Platform
-	if platform == "" {
-		platform = "web"
-	}
-	if err := h.tokens.Upsert(r.Context(), claims.UserID, claims.ProfileID, body.Token, platform); err != nil {
+	if err := h.subs.Upsert(r.Context(), claims.UserID, claims.ProfileID, body.Endpoint, body.Keys.P256dh, body.Keys.Auth); err != nil {
 		slog.Warn("push register: upsert failed", slog.Any("err", err))
 		http.Error(w, `{"message":"internal error"}`, http.StatusInternalServerError)
 		return
@@ -221,13 +218,13 @@ func (h *pushHandler) unregister(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var body struct {
-		Token string `json:"token"`
+		Endpoint string `json:"endpoint"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&body); err != nil || body.Token == "" {
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil || body.Endpoint == "" {
 		http.Error(w, `{"message":"invalid body"}`, http.StatusBadRequest)
 		return
 	}
-	if err := h.tokens.Delete(r.Context(), claims.UserID, body.Token); err != nil {
+	if err := h.subs.DeleteByEndpoint(r.Context(), claims.UserID, body.Endpoint); err != nil {
 		slog.Warn("push unregister: delete failed", slog.Any("err", err))
 		http.Error(w, `{"message":"internal error"}`, http.StatusInternalServerError)
 		return
@@ -238,50 +235,50 @@ func (h *pushHandler) unregister(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (h *pushHandler) listDevices(w http.ResponseWriter, r *http.Request) {
+func (h *pushHandler) listSubscriptions(w http.ResponseWriter, r *http.Request) {
 	claims, ok := h.extractClaims(r)
 	if !ok {
 		http.Error(w, `{"message":"unauthenticated"}`, http.StatusUnauthorized)
 		return
 	}
-	devices, err := h.tokens.ListByUser(r.Context(), claims.UserID)
+	subs, err := h.subs.ListByUser(r.Context(), claims.UserID)
 	if err != nil {
-		slog.Warn("push devices: list failed", slog.Any("err", err))
+		slog.Warn("push subscriptions: list failed", slog.Any("err", err))
 		http.Error(w, `{"message":"internal error"}`, http.StatusInternalServerError)
 		return
 	}
-	type deviceResp struct {
-		Token     string `json:"token"`
-		Platform  string `json:"platform"`
+	type subResp struct {
+		Endpoint  string `json:"endpoint"`
 		CreatedAt string `json:"createdAt"`
 	}
-	out := make([]deviceResp, 0, len(devices))
-	for _, d := range devices {
-		out = append(out, deviceResp{
-			Token:     d.Token,
-			Platform:  d.Platform,
-			CreatedAt: d.CreatedAt.UTC().Format("2006-01-02T15:04:05Z"),
+	out := make([]subResp, 0, len(subs))
+	for _, s := range subs {
+		out = append(out, subResp{
+			Endpoint:  s.Endpoint,
+			CreatedAt: s.CreatedAt.UTC().Format("2006-01-02T15:04:05Z"),
 		})
 	}
 	w.Header().Set("Content-Type", "application/json")
-	if err := json.NewEncoder(w).Encode(map[string]any{"devices": out}); err != nil {
+	if err := json.NewEncoder(w).Encode(map[string]any{"subscriptions": out}); err != nil {
 		slog.Warn("json encode failed", slog.Any("err", err))
 	}
 }
 
-func (h *pushHandler) deleteDevice(w http.ResponseWriter, r *http.Request) {
+func (h *pushHandler) deleteSubscription(w http.ResponseWriter, r *http.Request) {
 	claims, ok := h.extractClaims(r)
 	if !ok {
 		http.Error(w, `{"message":"unauthenticated"}`, http.StatusUnauthorized)
 		return
 	}
-	token := r.PathValue("token")
-	if token == "" {
-		http.Error(w, `{"message":"missing token"}`, http.StatusBadRequest)
+	var body struct {
+		Endpoint string `json:"endpoint"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil || body.Endpoint == "" {
+		http.Error(w, `{"message":"invalid body"}`, http.StatusBadRequest)
 		return
 	}
-	if err := h.tokens.Delete(r.Context(), claims.UserID, token); err != nil {
-		slog.Warn("push devices: delete failed", slog.Any("err", err))
+	if err := h.subs.DeleteByEndpoint(r.Context(), claims.UserID, body.Endpoint); err != nil {
+		slog.Warn("push subscriptions: delete failed", slog.Any("err", err))
 		http.Error(w, `{"message":"internal error"}`, http.StatusInternalServerError)
 		return
 	}
@@ -333,12 +330,12 @@ func (h *pushHandler) updateConsent(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if !body.Consent {
-		if err := h.tokens.DeleteByUser(r.Context(), claims.UserID); err != nil {
-			slog.Warn("push consent: delete tokens failed", slog.Any("err", err))
+		if err := h.subs.DeleteByUser(r.Context(), claims.UserID); err != nil {
+			slog.Warn("push consent: delete subscriptions failed", slog.Any("err", err))
 			http.Error(w, `{"message":"internal error"}`, http.StatusInternalServerError)
 			return
 		}
-		slog.Info("push consent revoked, tokens deleted", slog.String("user_id", claims.UserID))
+		slog.Info("push consent revoked, subscriptions deleted", slog.String("user_id", claims.UserID))
 	} else {
 		slog.Info("push consent granted", slog.String("user_id", claims.UserID))
 	}
@@ -348,14 +345,22 @@ func (h *pushHandler) updateConsent(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func registerPushRoutes(mux *http.ServeMux, tokens notification.DeviceTokenRepository, profileRepo domainuser.ProfileRepository, userRepo domainuser.UserRepository, tokenGen *auth.JWTGenerator) {
-	h := &pushHandler{tokens: tokens, profileRepo: profileRepo, userRepo: userRepo, tokenGen: tokenGen}
+func registerPushRoutes(mux *http.ServeMux, subs notification.PushSubscriptionRepository, profileRepo domainuser.ProfileRepository, userRepo domainuser.UserRepository, tokenGen *auth.JWTGenerator, vapidPubKey string) {
+	h := &pushHandler{subs: subs, profileRepo: profileRepo, userRepo: userRepo, tokenGen: tokenGen, vapidPubKey: vapidPubKey}
+	mux.HandleFunc("GET /api/v1/push/vapid-key", h.vapidKey)
 	mux.HandleFunc("POST /api/v1/push/register", h.register)
 	mux.HandleFunc("DELETE /api/v1/push/unregister", h.unregister)
-	mux.HandleFunc("GET /api/v1/push/devices", h.listDevices)
-	mux.HandleFunc("DELETE /api/v1/push/devices/{token}", h.deleteDevice)
+	mux.HandleFunc("GET /api/v1/push/subscriptions", h.listSubscriptions)
+	mux.HandleFunc("DELETE /api/v1/push/subscriptions", h.deleteSubscription)
 	mux.HandleFunc("GET /api/v1/push/consent", h.getConsent)
 	mux.HandleFunc("PUT /api/v1/push/consent", h.updateConsent)
+}
+
+func (h *pushHandler) vapidKey(w http.ResponseWriter, _ *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	if err := json.NewEncoder(w).Encode(map[string]string{"publicKey": h.vapidPubKey}); err != nil {
+		slog.Warn("json encode failed", slog.Any("err", err))
+	}
 }
 
 type parentalHandler struct {

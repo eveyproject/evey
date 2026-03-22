@@ -33,6 +33,10 @@ type EpisodeDetailProvider interface {
 	GetEpisodeDetails(ctx context.Context, seriesID string, seasonNum, episodeNum int) (*MetadataResult, error)
 }
 
+type SeasonDetailProvider interface {
+	GetSeasonDetails(ctx context.Context, seriesID string, seasonNum int) (*MetadataResult, error)
+}
+
 type ExternalIDLookup interface {
 	LookupByExternalID(ctx context.Context, providerName, externalID string) (*MetadataResult, error)
 }

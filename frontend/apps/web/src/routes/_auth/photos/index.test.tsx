@@ -35,7 +35,7 @@ function createWrapper() {
 
 async function setupQuery(overrides: Record<string, unknown> = {}) {
   const rq = await import("@tanstack/react-query");
-  vi.spyOn(rq, "useQuery").mockImplementation(({ queryKey }: { queryKey: unknown[] }) => {
+  vi.spyOn(rq, "useQuery").mockImplementation(({ queryKey }: { queryKey: readonly unknown[] }) => {
     const [k0, k1] = queryKey as string[];
     if (k0 === "libraries" && k1 === "photos") return { data: overrides.libraries ?? [], isLoading: false } as never;
     if (k0 === "photos" && k1 === "albums") return { data: overrides.albums ?? [], isLoading: false } as never;

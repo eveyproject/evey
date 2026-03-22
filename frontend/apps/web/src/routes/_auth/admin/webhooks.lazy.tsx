@@ -145,9 +145,9 @@ function WebhookRow({
           onClose={() => setShowDeleteConfirm(false)}
           title={t("admin.webhooks.deleteTitle")}
         >
-          <p className="text-sm mb-4" style={{ color: "var(--text-muted)" }}
-            dangerouslySetInnerHTML={{ __html: t("admin.webhooks.deleteConfirm", { name: webhook.name || webhook.url }) }}
-          />
+          <p className="text-sm mb-4" style={{ color: "var(--text-muted)" }}>
+            {t("admin.webhooks.deleteConfirm", { name: webhook.name || webhook.url })}
+          </p>
           <div className="flex justify-end gap-2">
             <Button variant="ghost" onClick={() => setShowDeleteConfirm(false)}>
               {t("common.cancel")}

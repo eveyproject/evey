@@ -23,14 +23,14 @@ type Config struct {
 	Log          LogConfig
 	Backup       BackupConfig
 	RemoteAccess RemoteAccessConfig
-	SMTP         SMTPConfig
-	FCM          FCMConfig
+	SMTP  SMTPConfig
+	VAPID VAPIDConfig
 }
 
-type FCMConfig struct {
-	Enabled            bool   // FCM_ENABLED
-	ServiceAccountJSON string // FCM_SERVICE_ACCOUNT_JSON — path to service account JSON file
-	ProjectID          string // FCM_PROJECT_ID
+type VAPIDConfig struct {
+	PublicKey  string // VAPID_PUBLIC_KEY
+	PrivateKey string // VAPID_PRIVATE_KEY
+	Subject    string // VAPID_SUBJECT
 }
 
 type SMTPConfig struct {
@@ -152,15 +152,6 @@ func (c *Config) WarnValidate() {
 			slog.String("current", k))
 	}
 
-	// OPS-NEW-001: FCM service account JSON
-	if c.FCM.Enabled && c.FCM.ServiceAccountJSON != "" {
-		if _, err := os.Stat(c.FCM.ServiceAccountJSON); err != nil {
-			slog.Warn("FCM service account file not accessible",
-				slog.String("path", c.FCM.ServiceAccountJSON),
-				slog.Any("err", err))
-		}
-	}
-
 	// OPS-NEW-002: OIDC client secret
 	if c.OIDC.Enabled && c.OIDC.Issuer != "" && c.OIDC.ClientSecret == "" {
 		slog.Warn("OIDC enabled but client secret is empty — set EVEY_OIDC_CLIENT_SECRET")
@@ -257,10 +248,10 @@ func Load() (*Config, error) {
 			From:     envStr("EVEY_SMTP_FROM", ""),
 			TLS:      envStr("EVEY_SMTP_TLS", "starttls"),
 		},
-		FCM: FCMConfig{
-			Enabled:            envBool("FCM_ENABLED", false),
-			ServiceAccountJSON: envStr("FCM_SERVICE_ACCOUNT_JSON", ""),
-			ProjectID:          envStr("FCM_PROJECT_ID", ""),
+		VAPID: VAPIDConfig{
+			PublicKey:  envStr("VAPID_PUBLIC_KEY", ""),
+			PrivateKey: envStr("VAPID_PRIVATE_KEY", ""),
+			Subject:    envStr("VAPID_SUBJECT", "mailto:admin@localhost"),
 		},
 	}
 	return cfg, nil

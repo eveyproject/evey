@@ -9,11 +9,19 @@ import (
 
 func ptr[T any](v T) *T { return &v }
 
+func toVS(ms []*library.MediaStream) []VideoStream {
+	vs := make([]VideoStream, len(ms))
+	for i, s := range ms {
+		vs[i] = s
+	}
+	return vs
+}
+
 func TestDetectHDR_HDR10(t *testing.T) {
 	streams := []*library.MediaStream{
 		{StreamType: "video", HDRType: ptr("HDR10"), BitDepth: ptr(10), ColorSpace: ptr("bt2020nc")},
 	}
-	info := DetectHDR(streams)
+	info := DetectHDR(toVS(streams))
 	if !info.IsHDR {
 		t.Fatal("expected HDR")
 	}
@@ -26,7 +34,7 @@ func TestDetectHDR_HLG(t *testing.T) {
 	streams := []*library.MediaStream{
 		{StreamType: "video", HDRType: ptr("HLG"), BitDepth: ptr(10)},
 	}
-	info := DetectHDR(streams)
+	info := DetectHDR(toVS(streams))
 	if !info.IsHDR {
 		t.Fatal("expected HDR")
 	}
@@ -39,7 +47,7 @@ func TestDetectHDR_DolbyVision(t *testing.T) {
 	streams := []*library.MediaStream{
 		{StreamType: "video", HDRType: ptr("Dolby Vision"), BitDepth: ptr(10)},
 	}
-	info := DetectHDR(streams)
+	info := DetectHDR(toVS(streams))
 	if !info.IsHDR {
 		t.Fatal("expected HDR")
 	}
@@ -52,7 +60,7 @@ func TestDetectHDR_SDR(t *testing.T) {
 	streams := []*library.MediaStream{
 		{StreamType: "video", Codec: "h264", BitDepth: ptr(8)},
 	}
-	info := DetectHDR(streams)
+	info := DetectHDR(toVS(streams))
 	if info.IsHDR {
 		t.Fatal("expected SDR")
 	}
@@ -62,7 +70,7 @@ func TestDetectHDR_BT2020ColorSpace(t *testing.T) {
 	streams := []*library.MediaStream{
 		{StreamType: "video", ColorSpace: ptr("bt2020nc"), BitDepth: ptr(10)},
 	}
-	info := DetectHDR(streams)
+	info := DetectHDR(toVS(streams))
 	if !info.IsHDR {
 		t.Fatal("expected HDR from bt2020 color space + 10-bit")
 	}
@@ -75,7 +83,7 @@ func TestDetectHDR_BT2020_8bit_NotHDR(t *testing.T) {
 	streams := []*library.MediaStream{
 		{StreamType: "video", ColorSpace: ptr("bt2020nc"), BitDepth: ptr(8)},
 	}
-	info := DetectHDR(streams)
+	info := DetectHDR(toVS(streams))
 	if info.IsHDR {
 		t.Fatal("bt2020 with 8-bit should not be HDR")
 	}
@@ -85,7 +93,7 @@ func TestDetectHDR_NoVideoStreams(t *testing.T) {
 	streams := []*library.MediaStream{
 		{StreamType: "audio", Codec: "aac"},
 	}
-	info := DetectHDR(streams)
+	info := DetectHDR(toVS(streams))
 	if info.IsHDR {
 		t.Fatal("audio-only should not be HDR")
 	}

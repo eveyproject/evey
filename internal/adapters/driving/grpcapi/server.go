@@ -1,6 +1,7 @@
 package grpcapi
 
 import (
+	"context"
 	"log/slog"
 	"net"
 	"time"
@@ -68,6 +69,7 @@ type GRPCServer struct {
 	cfgStore        remoteAccessConfigStore
 	serverCfgHndlr  *serverConfigHandler
 	translator      *eveyi18n.Translator
+	serverCtx       context.Context
 }
 
 func (s *GRPCServer) SetServerConfigHandler(h *serverConfigHandler) {
@@ -87,6 +89,10 @@ func (s *GRPCServer) SetScheduler(sc *applibrary.Scheduler) {
 
 func (s *GRPCServer) SetLogDir(dir string) {
 	s.logDir = dir
+}
+
+func (s *GRPCServer) SetServerCtx(ctx context.Context) {
+	s.serverCtx = ctx
 }
 
 func (s *GRPCServer) SetTranslator(t *eveyi18n.Translator) {
@@ -174,6 +180,10 @@ func (s *GRPCServer) RegisterServices() {
 	eveyv1.RegisterTranscodingServiceServer(s.server, &transcodingHandler{svc: s.transcoding, profiles: s.profiles})
 	eveyv1.RegisterMKVServiceServer(s.server, &mkvHandler{svc: s.mkv})
 	eveyv1.RegisterMetadataServiceServer(s.server, &metadataHandler{cmd: s.metadataCmd, query: s.metadataQuery})
+	srvCtx := s.serverCtx
+	if srvCtx == nil {
+		srvCtx = context.Background()
+	}
 	eveyv1.RegisterAdminServiceServer(s.server, &adminHandler{
 		userCmd:          s.userAuth,
 		userQuery:        s.userQuery,
@@ -194,6 +204,7 @@ func (s *GRPCServer) RegisterServices() {
 		ffmpegPath:       s.ffmpegPath,
 		heavyOpSemaphore: make(chan struct{}, 1),
 		translator:       s.translator,
+		serverCtx:        srvCtx,
 	})
 	eveyv1.RegisterActivityServiceServer(s.server, &activityHandler{svc: s.activityQuery, translator: s.translator})
 	eveyv1.RegisterNotificationServiceServer(s.server, &notificationHandler{cmd: s.notifCmd, query: s.notifQuery})

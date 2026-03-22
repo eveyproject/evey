@@ -1,4 +1,5 @@
 import { useState, useRef } from "react";
+import { Star, ChevronLeft, ChevronRight, ChevronDown, Play, EyeOff, Eye, Plus, Pencil } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Link, useNavigate } from "@tanstack/react-router";
 import type { V1MediaItem, V1MediaPerson, V1Trailer } from "@evey/api/src/generated/library.schemas";
@@ -378,16 +379,13 @@ function Stars({ rating }: { rating: number }) {
   return (
     <span className="flex items-center gap-0.5">
       {Array.from({ length: 5 }, (_, i) => (
-        <svg
+        <Star
           key={i}
-          className="w-3.5 h-3.5"
+          size={14}
           fill={i < full ? "var(--accent)" : "none"}
           stroke="var(--accent)"
           strokeWidth={1.5}
-          viewBox="0 0 24 24"
-        >
-          <path d="M12 2l3.09 6.26L22 9.27l-5 4.87L18.18 21 12 17.77 5.82 21 7 14.14 2 9.27l6.91-1.01L12 2z" />
-        </svg>
+        />
       ))}
     </span>
   );
@@ -455,10 +453,10 @@ function CastCarousel({ people, title }: { people: V1MediaPerson[]; title: strin
         {people.length > 6 && (
           <div className="flex gap-1">
             <button onClick={() => scroll("left")} className="p-1.5 rounded-full hover:bg-[var(--surface-raised)] transition-colors" style={{ color: "var(--text-muted)" }}>
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" /></svg>
+              <ChevronLeft size={16} />
             </button>
             <button onClick={() => scroll("right")} className="p-1.5 rounded-full hover:bg-[var(--surface-raised)] transition-colors" style={{ color: "var(--text-muted)" }}>
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" /></svg>
+              <ChevronRight size={16} />
             </button>
           </div>
         )}
@@ -493,9 +491,7 @@ function SeasonRow({ seasonId }: { seasonId: string }) {
         <span className="font-medium" style={{ color: "var(--text)" }}>{seasonLabel}</span>
         <span className="text-sm" style={{ color: "var(--text-muted)" }}>
           {t("media.detail.ep", { count: episodes.length })}
-          <svg className="w-4 h-4 inline-block ml-1 transition-transform" style={{ transform: open ? "rotate(180deg)" : "rotate(0)" }} fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
-          </svg>
+          <ChevronDown className="inline-block ml-1 transition-transform" size={16} style={{ transform: open ? "rotate(180deg)" : "rotate(0)" }} />
         </span>
       </button>
       {open && (
@@ -540,7 +536,7 @@ function PlaySeriesButton({ seriesId, onPlay }: { seriesId: string; onPlay: (epi
 
   return (
     <Button variant="primary" onClick={() => onPlay(firstEpisode.id!)}>
-      <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path d="M6.3 2.8L17 10 6.3 17.2V2.8z" /></svg>
+      <Play size={16} fill="currentColor" />
       {t("media.detail.play")}
     </Button>
   );
@@ -630,9 +626,7 @@ function TrailerPlayer({ trailer, userLang }: { trailer: V1Trailer; userLang: st
         className="flex items-center gap-2 px-4 py-2 rounded text-sm font-medium transition-colors"
         style={{ backgroundColor: "rgba(255,255,255,0.12)", color: "var(--text)", border: "1px solid var(--border)" }}
       >
-        <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-          <path d="M6.3 2.8L17 10 6.3 17.2V2.8z" />
-        </svg>
+        <Play size={16} fill="currentColor" />
         {t("media.detail.trailer")}
         {needsSubtitles && (
           <span className="text-xs px-1 rounded" style={{ backgroundColor: "rgba(255,255,255,0.15)", color: "var(--text-muted)" }}>
@@ -908,9 +902,7 @@ export function MediaDetail({ item, onMetadataUpdated, initialEdit }: MediaDetai
                 className="flex-shrink-0 p-1.5 rounded-full transition-opacity hover:opacity-80"
                 style={{ backgroundColor: "rgba(0,0,0,0.4)", color: "rgba(255,255,255,0.8)" }}
               >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M15.232 5.232l3.536 3.536M9 11l6.586-6.586a2 2 0 112.828 2.828L11.828 13.828a2 2 0 01-1.414.586H8v-2.414a2 2 0 01.586-1.414z" />
-                </svg>
+                <Pencil size={16} />
               </button>
             )}
           </div>
@@ -1027,24 +1019,19 @@ export function MediaDetail({ item, onMetadataUpdated, initialEdit }: MediaDetai
                   }
                 }}
               >
-                <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path d="M6.3 2.8L17 10 6.3 17.2V2.8z" /></svg>
+                <Play size={16} fill="currentColor" />
                 {t("media.detail.play")}
               </Button>
             )}
             {item.id && (
               watched ? (
                 <Button variant="secondary" loading={markUnwatched.isPending} onClick={() => { if (profileId) markUnwatched.mutate({ mediaItemId: item.id!, params: { profileId } }); else toast.error(t("media.detail.noProfileSelected")); }} data-testid="mark-unwatched-btn">
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M3.98 8.223A10.477 10.477 0 001.934 12C3.226 16.338 7.244 19.5 12 19.5c.993 0 1.953-.138 2.863-.395M6.228 6.228A10.45 10.45 0 0112 4.5c4.756 0 8.773 3.162 10.065 7.498a10.523 10.523 0 01-4.293 5.774M6.228 6.228L3 3m3.228 3.228l3.65 3.65m7.894 7.894L21 21m-3.228-3.228l-3.65-3.65m0 0a3 3 0 10-4.243-4.243m4.242 4.242L9.88 9.88" />
-                  </svg>
+                  <EyeOff size={16} />
                   {t("media.detail.markUnwatched")}
                 </Button>
               ) : (
                 <Button variant="secondary" loading={markWatched.isPending} onClick={() => { if (profileId) markWatched.mutate({ mediaItemId: item.id!, params: { profileId } }); else toast.error(t("media.detail.noProfileSelected")); }} data-testid="mark-watched-btn">
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178z" />
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                  </svg>
+                  <Eye size={16} />
                   {t("media.detail.markWatched")}
                 </Button>
               )
@@ -1057,9 +1044,7 @@ export function MediaDetail({ item, onMetadataUpdated, initialEdit }: MediaDetai
             {item.id && <StarRating mediaId={item.id} />}
             {item.id && (
               <Button variant="secondary" onClick={() => setPlaylistModalOpen(true)}>
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
-                </svg>
+                <Plus size={16} />
                 {t("media.detail.addToPlaylist")}
               </Button>
             )}
@@ -1121,13 +1106,11 @@ export function MediaDetail({ item, onMetadataUpdated, initialEdit }: MediaDetai
             style={{ color: "var(--text-muted)" }}
             onClick={() => setFileInfoOpen((v) => !v)}
           >
-            <svg
-              className="w-4 h-4 transition-transform"
+            <ChevronRight
+              className="transition-transform"
+              size={16}
               style={{ transform: fileInfoOpen ? "rotate(90deg)" : "rotate(0deg)" }}
-              fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"
-            >
-              <path d="M9 18l6-6-6-6" />
-            </svg>
+            />
             {t("media.detail.fileInfo")}
           </button>
           {fileInfoOpen && (

@@ -91,7 +91,7 @@ type authDeps struct {
 type repoDeps struct {
 	artworkRepo       *postgres.ArtworkRepository
 	userRatingRepo    *postgres.UserRatingRepository
-	fcmTokenRepo      *postgres.FCMDeviceTokenRepository
+	pushSubRepo       *postgres.PushSubscriptionRepository
 	libraryAccessRepo *postgres.LibraryAccessRepository
 	profileRepo       *postgres.ProfileRepository
 	serverCfgRepo     *postgres.ServerConfigRepository

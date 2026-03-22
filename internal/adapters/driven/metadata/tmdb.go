@@ -10,14 +10,16 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/gravity-zero/evey/internal/pkg/cache"
 	domain "github.com/gravity-zero/evey/internal/domain/metadata"
 )
 
 const (
-	defaultBaseURL   = "https://api.themoviedb.org/3"
-	imageBaseURL     = "https://image.tmdb.org/t/p/original"
-	maxRetries       = 3
-	retryWait        = 500 * time.Millisecond
+	defaultBaseURL = "https://api.themoviedb.org/3"
+	imageBaseURL   = "https://image.tmdb.org/t/p/original"
+	maxRetries     = 3
+	retryWait      = 500 * time.Millisecond
+	cacheTTL       = time.Hour
 )
 
 var movieGenres = map[int]string{
@@ -37,10 +39,13 @@ var tvGenres = map[int]string{
 }
 
 type TMDBProvider struct {
-	apiKey     string
-	baseURL    string
-	language   string // ISO 639-1, e.g. "en", "fr"
-	httpClient *http.Client
+	apiKey      string
+	baseURL     string
+	language    string // ISO 639-1, e.g. "en", "fr"
+	httpClient  *http.Client
+	searchCache *cache.TTLCache[[]domain.MetadataResult]
+	detailCache *cache.TTLCache[domain.MetadataResult]
+	stopCleanup func()
 }
 
 func NewTMDBProvider(apiKey string, language string, httpClient *http.Client) *TMDBProvider {
@@ -50,11 +55,16 @@ func NewTMDBProvider(apiKey string, language string, httpClient *http.Client) *T
 	if language == "" {
 		language = "en"
 	}
+	sc, stopSC := cache.New[[]domain.MetadataResult](10 * time.Minute)
+	dc, stopDC := cache.New[domain.MetadataResult](10 * time.Minute)
 	return &TMDBProvider{
-		apiKey:     apiKey,
-		baseURL:    defaultBaseURL,
-		language:   language,
-		httpClient: httpClient,
+		apiKey:      apiKey,
+		baseURL:     defaultBaseURL,
+		language:    language,
+		httpClient:  httpClient,
+		searchCache: sc,
+		detailCache: dc,
+		stopCleanup: func() { stopSC(); stopDC() },
 	}
 }
 
@@ -66,17 +76,30 @@ func (p *TMDBProvider) Search(ctx context.Context, query string, year *int, medi
 		return nil, err
 	}
 
-	// Try with year filter first, fallback without if no results
+	cacheKey := "tmdb:search:" + mediaType + ":" + query
 	if year != nil {
-		results, err := p.searchPages(ctx, endpoint, query, year, mediaType)
+		cacheKey += ":" + strconv.Itoa(*year)
+	}
+	if cached, ok := p.searchCache.Get(cacheKey); ok {
+		return cached, nil
+	}
+
+	var results []domain.MetadataResult
+	if year != nil {
+		results, err = p.searchPages(ctx, endpoint, query, year, mediaType)
 		if err != nil {
 			return nil, err
 		}
-		if len(results) > 0 {
-			return results, nil
+	}
+	if len(results) == 0 {
+		results, err = p.searchPages(ctx, endpoint, query, nil, mediaType)
+		if err != nil {
+			return nil, err
 		}
 	}
-	return p.searchPages(ctx, endpoint, query, nil, mediaType)
+
+	p.searchCache.Set(cacheKey, results, cacheTTL)
+	return results, nil
 }
 
 func (p *TMDBProvider) searchPages(ctx context.Context, endpoint, query string, year *int, mediaType string) ([]domain.MetadataResult, error) {
@@ -165,17 +188,63 @@ func (p *TMDBProvider) GetEpisodeDetails(ctx context.Context, seriesID string, s
 	return result, nil
 }
 
+// GetSeasonDetails fetches metadata for a specific season of a TV series.
+func (p *TMDBProvider) GetSeasonDetails(ctx context.Context, seriesID string, seasonNum int) (*domain.MetadataResult, error) {
+	u := fmt.Sprintf("%s/tv/%s/season/%d?language=%s&append_to_response=images",
+		p.baseURL, seriesID, seasonNum, p.language)
+	body, err := p.doRequestWithRetry(ctx, u)
+	if err != nil {
+		return nil, fmt.Errorf("tmdb season request: %w", err)
+	}
+	var s struct {
+		Name        string  `json:"name"`
+		Overview    string  `json:"overview"`
+		PosterPath  string  `json:"poster_path"`
+		AirDate     string  `json:"air_date"`
+		VoteAverage float64 `json:"vote_average"`
+	}
+	if err := json.Unmarshal(body, &s); err != nil {
+		return nil, fmt.Errorf("tmdb season unmarshal: %w", err)
+	}
+	result := &domain.MetadataResult{
+		Title:    s.Name,
+		Overview: s.Overview,
+	}
+	if s.VoteAverage > 0 {
+		r := s.VoteAverage
+		result.CommunityRating = &r
+	}
+	if s.PosterPath != "" {
+		result.Artwork = []domain.ArtworkResult{{
+			Type:     "poster",
+			URL:      imageBaseURL + s.PosterPath,
+			Provider: "tmdb",
+		}}
+	}
+	if t := parseDate(s.AirDate); t != nil {
+		result.PremiereDate = t
+		y := t.Year()
+		result.Year = &y
+	}
+	return result, nil
+}
+
 func (p *TMDBProvider) GetByProviderID(ctx context.Context, providerID string, mediaType string) (*domain.MetadataResult, error) {
+	cacheKey := "tmdb:detail:" + mediaType + ":" + providerID
+	if cached, ok := p.detailCache.Get(cacheKey); ok {
+		return &cached, nil
+	}
+
 	endpoint, err := detailEndpoint(mediaType, providerID)
 	if err != nil {
 		return nil, err
 	}
 
 	params := url.Values{
-		"append_to_response":      {"credits,keywords,images,external_ids,videos"},
-		"language":                {p.language},
-		"include_image_language":  {p.language + ",en,null"},
-		"include_video_language":  {p.language + ",en,null"},
+		"append_to_response":     {"credits,keywords,images,external_ids,videos"},
+		"language":               {p.language},
+		"include_image_language": {p.language + ",en,null"},
+		"include_video_language": {p.language + ",en,null"},
 	}
 	u := fmt.Sprintf("%s%s?%s", p.baseURL, endpoint, params.Encode())
 
@@ -190,6 +259,7 @@ func (p *TMDBProvider) GetByProviderID(ctx context.Context, providerID string, m
 	}
 
 	result := mapDetailResult(detail, mediaType, p.language)
+	p.detailCache.Set(cacheKey, result, cacheTTL)
 	return &result, nil
 }
 

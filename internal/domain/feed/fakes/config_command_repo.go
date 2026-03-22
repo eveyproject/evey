@@ -34,6 +34,34 @@ func (r *FakeConfigCommandRepo) UpsertAdminConfig(_ context.Context, cfg *feed.A
 	return nil
 }
 
+func (r *FakeConfigCommandRepo) BatchUpsertAdminConfig(_ context.Context, cfgs []*feed.AdminConfig) error {
+	if r.Err != nil {
+		return r.Err
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	for _, cfg := range cfgs {
+		r.AdminConfigs[cfg.FeedType] = cfg
+	}
+	return nil
+}
+
+func (r *FakeConfigCommandRepo) DeleteAdminConfigByType(_ context.Context, feedType feed.Type) error {
+	if r.Err != nil {
+		return r.Err
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	delete(r.AdminConfigs, feedType)
+	for pid, m := range r.ProfileConfigs {
+		delete(m, feedType)
+		if len(m) == 0 {
+			delete(r.ProfileConfigs, pid)
+		}
+	}
+	return nil
+}
+
 func (r *FakeConfigCommandRepo) UpsertProfileConfig(_ context.Context, cfg *feed.ProfileConfig) error {
 	if r.Err != nil {
 		return r.Err

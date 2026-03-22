@@ -96,6 +96,94 @@ func (q *FeedQuerier) ContinueWatching(ctx context.Context, profileID string, li
 	return result, nil
 }
 
+// ResumePlayback returns in-progress media AND next episodes per series, sorted by last user interaction.
+func (q *FeedQuerier) ResumePlayback(ctx context.Context, profileID string, limit int) ([]*feed.FeedItem, error) {
+	rows, err := q.db.QueryContext(ctx, `
+		WITH in_progress AS (
+			SELECT mi.id, COALESCE(mi.parent_id,'') AS parent_id, mi.title, mi.type,
+			       wp.position_ms, wp.last_played_at
+			FROM watch_progress wp
+			INNER JOIN media_items mi ON mi.id = wp.media_item_id
+			WHERE wp.profile_id = $1
+			  AND wp.position_ms > 0
+			  AND wp.completed = FALSE
+		),
+		watched_series AS (
+			SELECT DISTINCT s.parent_id AS series_id,
+			       MAX(wp.last_played_at) AS last_played_at
+			FROM watch_progress wp
+			INNER JOIN media_items mi ON mi.id = wp.media_item_id
+			INNER JOIN media_items s  ON s.id = mi.parent_id
+			WHERE wp.profile_id = $1
+			  AND mi.type = 'episode'
+			  AND wp.completed = TRUE
+			GROUP BY s.parent_id
+		),
+		next_ep AS (
+			SELECT DISTINCT ON (ws.series_id)
+			       mi.id, COALESCE(mi.parent_id,'') AS parent_id, mi.title, mi.type,
+			       0::bigint AS position_ms, ws.last_played_at
+			FROM watched_series ws
+			INNER JOIN media_items sea ON sea.parent_id = ws.series_id AND sea.type = 'season'
+			INNER JOIN media_items mi  ON mi.parent_id = sea.id       AND mi.type  = 'episode'
+			WHERE mi.id NOT IN (
+				SELECT media_item_id FROM watch_progress WHERE profile_id = $1 AND completed = TRUE
+			)
+			AND mi.id NOT IN (SELECT id FROM in_progress)
+			ORDER BY ws.series_id, sea.index_number, mi.index_number
+		)
+		SELECT id, parent_id, title, type, position_ms, ''
+		FROM (
+			SELECT id, parent_id, title, type, position_ms, last_played_at FROM in_progress
+			UNION ALL
+			SELECT id, parent_id, title, type, position_ms, last_played_at FROM next_ep
+		) combined
+		ORDER BY last_played_at DESC
+		LIMIT $2
+	`, profileID, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	return scanFeedItems(rows)
+}
+
+// NextEpisode returns the next unwatched episode per series where the user completed at least one episode.
+func (q *FeedQuerier) NextEpisode(ctx context.Context, profileID string, limit int) ([]*feed.FeedItem, error) {
+	rows, err := q.db.QueryContext(ctx, `
+		WITH watched_series AS (
+			SELECT DISTINCT s.parent_id AS series_id
+			FROM watch_progress wp
+			INNER JOIN media_items mi ON mi.id = wp.media_item_id
+			INNER JOIN media_items s  ON s.id = mi.parent_id
+			WHERE wp.profile_id = $1
+			  AND mi.type = 'episode'
+			  AND wp.completed = TRUE
+		),
+		next_ep AS (
+			SELECT DISTINCT ON (ws.series_id)
+			       mi.id, mi.parent_id, mi.title, mi.type,
+			       0::bigint AS position_ms, '' AS added_at
+			FROM watched_series ws
+			INNER JOIN media_items sea ON sea.parent_id = ws.series_id AND sea.type = 'season'
+			INNER JOIN media_items mi  ON mi.parent_id = sea.id       AND mi.type  = 'episode'
+			WHERE mi.id NOT IN (
+				SELECT media_item_id FROM watch_progress
+				WHERE profile_id = $1 AND completed = TRUE
+			)
+			ORDER BY ws.series_id, sea.index_number, mi.index_number
+		)
+		SELECT id, parent_id, title, type, position_ms, added_at
+		FROM next_ep
+		LIMIT $2
+	`, profileID, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	return scanFeedItems(rows)
+}
+
 // RecentlyAdded returns media items added within daysWindow days, most recent first.
 func (q *FeedQuerier) RecentlyAdded(ctx context.Context, daysWindow, limit int) ([]*feed.FeedItem, error) {
 	rows, err := q.db.QueryContext(ctx, `

@@ -272,6 +272,9 @@ func (s *CommandService) Logout(ctx context.Context, userID string) error {
 const maxRefreshTokenRetries = 3
 
 func (s *CommandService) generateAndStoreRefreshToken(ctx context.Context, userID string) (string, error) {
+	if err := s.refreshTkns.DeleteByUserID(ctx, userID); err != nil {
+		slog.Warn("cleanup old refresh tokens", slog.String("userID", userID), slog.Any("err", err))
+	}
 	for range maxRefreshTokenRetries {
 		token, err := s.tokens.GenerateRefreshToken()
 		if err != nil {

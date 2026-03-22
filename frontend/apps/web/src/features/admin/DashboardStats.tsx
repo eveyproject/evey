@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Film, Monitor, Users, Zap, Cpu, MemoryStick, HardDrive, Search, Folder } from "lucide-react";
 import { Link } from "@tanstack/react-router";
 import { useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
@@ -29,60 +30,13 @@ function formatBytes(bytes: string | undefined) {
   return `${n} B`;
 }
 
-function MovieIcon() {
-  return (
-    <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
-      <rect x={2} y={4} width={20} height={16} rx={2} />
-      <path strokeLinecap="round" d="M10 9l5 3-5 3V9z" />
-    </svg>
-  );
-}
-function SeriesIcon() {
-  return (
-    <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
-      <rect x={2} y={3} width={20} height={14} rx={2} />
-      <path strokeLinecap="round" d="M8 21h8M12 17v4" />
-    </svg>
-  );
-}
-function UsersIcon() {
-  return (
-    <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
-      <path strokeLinecap="round" strokeLinejoin="round" d="M15 19.128a9.38 9.38 0 002.625.372 9.337 9.337 0 004.121-.952 4.125 4.125 0 00-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 018.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0111.964-3.07M12 6.375a3.375 3.375 0 11-6.75 0 3.375 3.375 0 016.75 0zm8.25 2.25a2.625 2.625 0 11-5.25 0 2.625 2.625 0 015.25 0z" />
-    </svg>
-  );
-}
-function StreamIcon() {
-  return (
-    <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
-      <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 13.5l10.5-11.25L12 10.5h8.25L9.75 21.75 12 13.5H3.75z" />
-    </svg>
-  );
-}
-function CpuIcon() {
-  return (
-    <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
-      <rect x={4} y={4} width={16} height={16} rx={2} />
-      <rect x={8} y={8} width={8} height={8} rx={1} />
-      <path strokeLinecap="round" d="M9 1v3m6-3v3M9 20v3m6-3v3M1 9h3m-3 6h3M20 9h3m-3 6h3" />
-    </svg>
-  );
-}
-function MemoryIcon() {
-  return (
-    <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
-      <rect x={3} y={6} width={18} height={12} rx={2} />
-      <path strokeLinecap="round" d="M7 6V4m4 2V4m4 2V4M7 18v2m4-2v2m4-2v2" />
-    </svg>
-  );
-}
-function StorageIcon() {
-  return (
-    <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
-      <path strokeLinecap="round" strokeLinejoin="round" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
-    </svg>
-  );
-}
+const MovieIcon = () => <Film size={20} strokeWidth={1.5} />;
+const SeriesIcon = () => <Monitor size={20} strokeWidth={1.5} />;
+const UsersIcon = () => <Users size={20} strokeWidth={1.5} />;
+const StreamIcon = () => <Zap size={20} strokeWidth={1.5} />;
+const CpuIcon = () => <Cpu size={20} strokeWidth={1.5} />;
+const MemoryIcon = () => <MemoryStick size={20} strokeWidth={1.5} />;
+const StorageIcon = () => <HardDrive size={20} strokeWidth={1.5} />;
 
 interface StatCardProps {
   icon: React.ReactNode;
@@ -154,24 +108,18 @@ function QuickActions() {
           onClick={scanAll}
           disabled={libraries.length === 0}
         >
-          <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" />
-          </svg>
+          <Search size={16} />
           {t("admin.dashboardStats.scanAllLibraries")}
         </Button>
         <Link to="/admin/libraries">
           <Button variant="secondary">
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 9.776c.112-.017.227-.026.344-.026h15.812c.117 0 .232.009.344.026m-16.5 0a2.25 2.25 0 00-1.883 2.542l.857 6a2.25 2.25 0 002.227 1.932H19.05a2.25 2.25 0 002.227-1.932l.857-6a2.25 2.25 0 00-1.883-2.542m-16.5 0V6A2.25 2.25 0 016 3.75h3.879a1.5 1.5 0 011.06.44l2.122 2.12a1.5 1.5 0 001.06.44H18A2.25 2.25 0 0120.25 9v.776" />
-            </svg>
+            <Folder size={16} />
             {t("admin.dashboardStats.manageLibraries")}
           </Button>
         </Link>
         <Link to="/admin/users">
           <Button variant="secondary">
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M15 19.128a9.38 9.38 0 002.625.372 9.337 9.337 0 004.121-.952 4.125 4.125 0 00-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 018.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0111.964-3.07M12 6.375a3.375 3.375 0 11-6.75 0 3.375 3.375 0 016.75 0zm8.25 2.25a2.625 2.625 0 11-5.25 0 2.625 2.625 0 015.25 0z" />
-            </svg>
+            <Users size={16} />
             {t("admin.dashboardStats.manageUsers")}
           </Button>
         </Link>

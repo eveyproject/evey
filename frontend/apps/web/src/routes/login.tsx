@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Play } from "lucide-react";
 import { createFileRoute, redirect, useNavigate } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useUserServiceLogin, eveyFetch } from "@evey/api";
@@ -75,9 +76,7 @@ function LoginPage() {
             className="w-12 h-12 rounded-[var(--radius-md)] flex items-center justify-center mb-4"
             style={{ backgroundColor: "var(--accent)" }}
           >
-            <svg className="w-6 h-6 text-white" fill="currentColor" viewBox="0 0 20 20">
-              <path d="M6.3 2.8L17 10 6.3 17.2V2.8z" />
-            </svg>
+            <Play size={24} className="text-white" fill="currentColor" />
           </div>
           <h1 className="text-2xl font-bold text-[var(--text)]">Evey</h1>
           <p className="text-[var(--text-muted)] text-sm mt-1">{t("auth.login.signInToAccount")}</p>

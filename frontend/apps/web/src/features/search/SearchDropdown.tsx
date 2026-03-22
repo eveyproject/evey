@@ -1,4 +1,5 @@
-import { useEffect, useRef, useCallback } from "react";
+import { memo, useEffect, useRef, useCallback } from "react";
+import { Clock, X } from "lucide-react";
 import { useNavigate } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { useQuery } from "@tanstack/react-query";
@@ -17,7 +18,7 @@ interface SearchDropdownProps {
   onClearRecents?: () => void;
 }
 
-export function SearchDropdown({
+export const SearchDropdown = memo(function SearchDropdown({
   query,
   visible,
   onClose,
@@ -108,10 +109,7 @@ export function SearchDropdown({
       >
         <div className="flex items-center justify-between px-3 pt-2.5 pb-1">
           <div className="flex items-center gap-1.5 text-xs font-semibold" style={{ color: "var(--text-muted)" }}>
-            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-              <circle cx="12" cy="12" r="10" />
-              <path strokeLinecap="round" d="M12 6v6l4 2" />
-            </svg>
+            <Clock size={14} />
             {t("media.search.recentSearches")}
           </div>
           {onClearRecents && (
@@ -133,10 +131,7 @@ export function SearchDropdown({
                 className="flex-1 flex items-center gap-2 px-2 py-2 text-left hover:bg-[var(--surface)] focus:bg-[var(--surface)] focus:outline-none transition-colors cursor-pointer rounded"
                 style={{ color: "var(--text)" }}
               >
-                <svg className="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24" style={{ color: "var(--text-muted)" }}>
-                  <circle cx="12" cy="12" r="10" />
-                  <path strokeLinecap="round" d="M12 6v6l4 2" />
-                </svg>
+                <Clock size={14} className="shrink-0" style={{ color: "var(--text-muted)" }} />
                 <span className="text-sm truncate">{r}</span>
               </button>
               {onRemoveRecent && (
@@ -146,9 +141,7 @@ export function SearchDropdown({
                   style={{ color: "var(--text-muted)" }}
                   aria-label={`Remove ${r}`}
                 >
-                  <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-                    <path strokeLinecap="round" d="M6 18L18 6M6 6l12 12" />
-                  </svg>
+                  <X size={12} />
                 </button>
               )}
             </li>
@@ -279,4 +272,4 @@ export function SearchDropdown({
       )}
     </div>
   );
-}
+});

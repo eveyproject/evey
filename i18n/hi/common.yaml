@@ -71,6 +71,7 @@ nav:
   libraries: "लाइब्रेरी"
   photos: "फ़ोटो"
   favorites: "पसंदीदा"
+  search: "खोजें"
   music: "संगीत"
   admin: "एडमिन"
   backToApp: "ऐप पर वापस"
@@ -83,3 +84,19 @@ nav:
   mainNav: "मुख्य नेविगेशन"
   adminNav: "एडमिन नेविगेशन"
   userMenu: "उपयोगकर्ता मेनू"
+  homeFeeds: "होम फ़ीड्स"
+feeds:
+  title: "होम पेज अनुभाग"
+  section: अनुभाग
+  order: क्रम
+  maxItems: अधिकतम आइटम
+  saved: "कॉन्फ़िग सहेजा गया"
+  customize: अनुकूलित करें
+  customizeTitle: "होम पेज अनुकूलित करें"
+  resetDefaults: "डिफ़ॉल्ट रीसेट करें"
+  labels:
+    resume_playback: "प्लेबैक फिर से शुरू करें"
+    next_episode: "अगला एपिसोड"
+    recommended: "अनुशंसित"
+    most_popular: "सबसे लोकप्रिय"
+    collections: "संग्रह"

@@ -157,20 +157,33 @@ func (h *photoHandler) servePhoto(w http.ResponseWriter, r *http.Request) {
 	if !checkLibraryAccess(r.Context(), w, claims, p.LibraryID, h.libChecker) {
 		return
 	}
+	w.Header().Set("Content-Type", p.MimeType)
+	w.Header().Set("Cache-Control", "public, max-age=86400")
+	if err := http.NewResponseController(w).SetWriteDeadline(time.Time{}); err != nil {
+		slog.Warn("set write deadline", slog.Any("err", err))
+	}
+	if p.MimeType != "image/jpeg" {
+		f, err := os.Open(p.FilePath)
+		if err != nil {
+			http.Error(w, `{"message":"file not found"}`, http.StatusNotFound)
+			return
+		}
+		defer f.Close()
+		fi, err := f.Stat()
+		if err != nil {
+			http.Error(w, `{"message":"file not found"}`, http.StatusNotFound)
+			return
+		}
+		http.ServeContent(w, r, filepath.Base(p.FilePath), fi.ModTime(), f)
+		return
+	}
 	data, err := os.ReadFile(p.FilePath)
 	if err != nil {
 		http.Error(w, `{"message":"file not found"}`, http.StatusNotFound)
 		return
 	}
-	if p.MimeType == "image/jpeg" {
-		if stripped := exifstrip.StripJPEGAppExif(data); stripped != nil {
-			data = stripped
-		}
-	}
-	w.Header().Set("Content-Type", p.MimeType)
-	w.Header().Set("Cache-Control", "public, max-age=86400")
-	if err := http.NewResponseController(w).SetWriteDeadline(time.Time{}); err != nil {
-		slog.Warn("set write deadline", slog.Any("err", err))
+	if stripped := exifstrip.StripJPEGAppExif(data); stripped != nil {
+		data = stripped
 	}
 	http.ServeContent(w, r, filepath.Base(p.FilePath), time.Time{}, bytes.NewReader(data))
 }

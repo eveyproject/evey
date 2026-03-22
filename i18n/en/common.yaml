@@ -71,6 +71,7 @@ nav:
   libraries: Libraries
   photos: Photos
   favorites: Favorites
+  search: Search
   music: Music
   admin: Admin
   backToApp: Back to app
@@ -83,3 +84,19 @@ nav:
   mainNav: Main navigation
   adminNav: Admin navigation
   userMenu: User menu
+  homeFeeds: Home Feeds
+feeds:
+  title: Homepage Sections
+  section: Section
+  order: Order
+  maxItems: Max Items
+  saved: Feed config saved
+  customize: Customize
+  customizeTitle: Customize Homepage
+  resetDefaults: Reset to Defaults
+  labels:
+    resume_playback: Resume Playback
+    next_episode: Next Episode
+    recommended: Recommended
+    most_popular: Most Popular
+    collections: Collections

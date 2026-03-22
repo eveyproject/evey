@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"log/slog"
 
 	"google.golang.org/grpc"
@@ -11,7 +12,7 @@ import (
 	eveylogger "github.com/gravity-zero/evey/internal/pkg/logger"
 )
 
-func buildGRPCServer(deps *appDeps, cfg *config.Config, rootLog *slog.Logger, logDir string) *grpcapi.GRPCServer {
+func buildGRPCServer(deps *appDeps, cfg *config.Config, rootLog *slog.Logger, logDir string, serverCtx context.Context) *grpcapi.GRPCServer {
 	authInterceptor := interceptors.NewAuthInterceptor(deps.auth.tokenGen).WithAPIKeys(deps.repos.apiKeyRepo, deps.repos.userRepo).WithTranslator(deps.translator)
 	grpcLog := eveylogger.NewWith(rootLog, "grpc")
 	grpcSrv := grpcapi.NewGRPCServer(
@@ -44,6 +45,7 @@ func buildGRPCServer(deps *appDeps, cfg *config.Config, rootLog *slog.Logger, lo
 	grpcSrv.SetHLSManager(deps.media.hlsManager)
 	grpcSrv.SetScheduler(deps.library.scheduler)
 	grpcSrv.SetLogDir(logDir)
+	grpcSrv.SetServerCtx(serverCtx)
 	grpcSrv.SetServerConfigHandler(grpcapi.NewServerConfigHandler(deps.repos.serverCfgRepo))
 	grpcSrv.RegisterServices()
 	return grpcSrv

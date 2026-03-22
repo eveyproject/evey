@@ -17,6 +17,7 @@ import { Badge } from "@/components/ui/Badge";
 import { Modal } from "@/components/ui/Modal";
 import { Select } from "@/components/ui/Select";
 import { Input } from "@/components/ui/Input";
+import { Checkbox } from "@/components/ui/Checkbox";
 import { LibraryForm } from "@/features/admin/LibraryForm";
 
 export const Route = createLazyFileRoute("/_auth/admin/libraries")({
@@ -168,15 +169,11 @@ function ScheduleModal({ library, onClose }: { library: V1Library; onClose: () =
         />
       )}
 
-      <label className="flex items-center gap-2 text-sm" style={{ color: "var(--text)" }}>
-        <input
-          type="checkbox"
-          checked={enabled}
-          onChange={(e) => setEnabled(e.target.checked)}
-          className="rounded"
-        />
-        {t("common.enabled")}
-      </label>
+      <Checkbox
+        label={t("common.enabled")}
+        checked={enabled}
+        onChange={setEnabled}
+      />
 
       {schedule && (
         <div className="text-xs space-y-1" style={{ color: "var(--text-muted)" }}>

@@ -13,7 +13,7 @@ import (
 
 func TestCommandService_UpdateAdminConfig(t *testing.T) {
 	repo := fakes.NewFakeConfigCommandRepo()
-	svc := appfeed.NewCommandService(repo)
+	svc := appfeed.NewCommandService(repo, fakes.NewFakeConfigQueryRepo())
 
 	cfg := &feed.AdminConfig{
 		FeedType:     feed.TypeRecentlyAdded,
@@ -27,7 +27,7 @@ func TestCommandService_UpdateAdminConfig(t *testing.T) {
 
 func TestCommandService_UpdateProfileConfig(t *testing.T) {
 	repo := fakes.NewFakeConfigCommandRepo()
-	svc := appfeed.NewCommandService(repo)
+	svc := appfeed.NewCommandService(repo, fakes.NewFakeConfigQueryRepo())
 
 	enabled := false
 	cfg := &feed.ProfileConfig{
@@ -41,7 +41,7 @@ func TestCommandService_UpdateProfileConfig(t *testing.T) {
 
 func TestCommandService_ResetProfileConfig(t *testing.T) {
 	repo := fakes.NewFakeConfigCommandRepo()
-	svc := appfeed.NewCommandService(repo)
+	svc := appfeed.NewCommandService(repo, fakes.NewFakeConfigQueryRepo())
 
 	enabled := true
 	cfg := &feed.ProfileConfig{

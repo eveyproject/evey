@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { List } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Modal } from "@/components/ui/Modal";
 import { Button } from "@/components/ui/Button";
@@ -51,9 +52,7 @@ export function AddToPlaylistModal({ open, onClose, mediaItemId }: Props) {
                 className="w-full flex items-center gap-3 px-4 py-3 rounded-[var(--radius-md)] text-left transition-colors hover:bg-[var(--surface-raised)]"
                 style={{ color: "var(--text)" }}
               >
-                <svg className="w-5 h-5 flex-shrink-0" style={{ color: "var(--accent)" }} fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 12h16.5m-16.5 3.75h16.5M3.75 19.5h16.5M5.625 4.5h12.75a1.875 1.875 0 010 3.75H5.625a1.875 1.875 0 010-3.75z" />
-                </svg>
+                <List size={20} strokeWidth={1.5} className="flex-shrink-0" style={{ color: "var(--accent)" }} />
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium truncate">{pl.name}</p>
                   {pl.description && <p className="text-xs truncate" style={{ color: "var(--text-muted)" }}>{pl.description}</p>}
