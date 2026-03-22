@@ -6,13 +6,17 @@ import (
 	"fmt"
 	"log/slog"
 	"strings"
+	"time"
 
 	ms "github.com/meilisearch/meilisearch-go"
 
 	"github.com/gravity-zero/evey/internal/domain/library"
 )
 
-const indexName = "media_items"
+const (
+	indexName      = "media_items"
+	connectTimeout = 30 * time.Second
+)
 
 type IndexClient interface {
 	AddDocumentsWithContext(ctx context.Context, documentsPtr any, opts *ms.DocumentOptions) (*ms.TaskInfo, error)
@@ -34,7 +38,9 @@ type SearchAdapter struct {
 
 func NewSearchAdapter(url, apiKey string) (*SearchAdapter, error) {
 	client := ms.New(url, ms.WithAPIKey(apiKey))
-	return newSearchAdapterFromClient(context.Background(), client)
+	ctx, cancel := context.WithTimeout(context.Background(), connectTimeout)
+	defer cancel()
+	return newSearchAdapterFromClient(ctx, client)
 }
 
 func newSearchAdapterFromClient(ctx context.Context, client ServiceClient) (*SearchAdapter, error) {
