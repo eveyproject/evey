@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useCallback } from "react";
-import { ArrowUpNarrowWide, ArrowDownWideNarrow, List, LayoutGrid, Star, ChevronRight } from "lucide-react";
+import { ArrowUpNarrowWide, ArrowDownWideNarrow, Folder, List, LayoutGrid, Star, ChevronRight } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { createLazyFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import {
@@ -671,7 +671,7 @@ function LibraryPage() {
               style={{ backgroundColor: "var(--surface)", border: "1px solid var(--border)" }}
             >
               <EmptyState
-                icon="library"
+                icon={<Folder size={48} strokeWidth={1.5} />}
                 title={t("media.library.noItems")}
                 description={
                   hasActiveFilters

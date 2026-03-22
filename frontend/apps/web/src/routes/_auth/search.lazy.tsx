@@ -305,7 +305,7 @@ function SearchPage() {
           }}
         >
           <EmptyState
-            icon="search"
+            icon={<Search size={48} strokeWidth={1.5} />}
             title={t("search.noResultsFor", { query: debouncedQuery })}
             description={t("search.noResultsDesc")}
           />
@@ -360,7 +360,7 @@ function SearchPage() {
           }}
         >
           <EmptyState
-            icon="search"
+            icon={<Search size={48} strokeWidth={1.5} />}
             title={t("search.searchLibrary")}
             description={t("search.searchLibraryDesc")}
           />

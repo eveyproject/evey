@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
+import { Film, Folder, Search } from "lucide-react";
 import { createLazyFileRoute } from "@tanstack/react-router";
 import { useQueryClient, useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
@@ -15,6 +16,7 @@ import { Modal } from "@/components/ui/Modal";
 import { Input } from "@/components/ui/Input";
 import { Textarea } from "@/components/ui/Textarea";
 import { EmptyState } from "@/components/ui/EmptyState";
+import { PageHeader } from "@/components/ui/PageHeader";
 
 export const Route = createLazyFileRoute("/_auth/admin/metadata")({
   component: MetadataPage,
@@ -379,12 +381,11 @@ function MetadataPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold" style={{ color: "var(--text)" }}>{t("admin.metadata.title")}</h1>
+      <PageHeader title={t("admin.metadata.title")} actions={
         <Button variant="secondary" loading={refreshing} onClick={refreshAll}>
           {t("admin.metadata.refreshAll")}
         </Button>
-      </div>
+      } />
 
       <input
         className="w-full px-4 py-2.5 rounded-[var(--radius-md)] bg-[var(--surface-raised)] border border-[var(--border)] text-[var(--text)] placeholder:text-[var(--text-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)]"
@@ -399,7 +400,7 @@ function MetadataPage() {
         </div>
       ) : filtered.length === 0 ? (
         <EmptyState
-          icon={debouncedQuery ? "search" : "media"}
+          icon={debouncedQuery ? <Search size={48} strokeWidth={1.5} /> : <Film size={48} strokeWidth={1.5} />}
           title={debouncedQuery ? t("admin.metadata.noResults") : t("admin.metadata.noMedia")}
           description={debouncedQuery ? t("admin.metadata.tryDifferent") : undefined}
         />

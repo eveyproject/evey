@@ -1,11 +1,12 @@
 import { useState } from "react";
-import { Monitor, Play, Square } from "lucide-react";
+import { Film, Monitor, Play, Square } from "lucide-react";
 import { createLazyFileRoute } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { eveyFetch } from "@evey/api/src/fetcher";
 import { toast } from "@evey/store";
 import { Spinner } from "@/components/ui/Spinner";
+import { PageHeader } from "@/components/ui/PageHeader";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
 import { EmptyState } from "@/components/ui/EmptyState";
@@ -245,9 +246,7 @@ function SessionsPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <h1 className="text-2xl font-bold" style={{ color: "var(--text)" }}>
-        {t("admin.sessions.title")}
-      </h1>
+      <PageHeader title={t("admin.sessions.title")} />
 
       {isLoading ? (
         <div className="flex justify-center py-16">
@@ -255,13 +254,13 @@ function SessionsPage() {
         </div>
       ) : isError ? (
         <EmptyState
-          icon="media"
+          icon={<Film size={48} strokeWidth={1.5} />}
           title={t("admin.sessions.failedLoad")}
           description={t("admin.sessions.failedLoadDesc")}
         />
       ) : !sessions || sessions.length === 0 ? (
         <EmptyState
-          icon="media"
+          icon={<Film size={48} strokeWidth={1.5} />}
           title={t("admin.sessions.noSessions")}
           description={t("admin.sessions.noSessionsDesc")}
         />

@@ -1,4 +1,5 @@
 import { useTranslation } from "react-i18next";
+import { Clock } from "lucide-react";
 import type { V1AuditLogEntry } from "@evey/api/src/generated/admin.schemas";
 import { Pagination } from "@/components/ui/Pagination";
 import { EmptyState } from "@/components/ui/EmptyState";
@@ -45,7 +46,7 @@ export function AuditLogTable({
             {entries.length === 0 ? (
               <tr>
                 <td colSpan={6}>
-                  <EmptyState icon="history" title={t("admin.audit.noEntries")} />
+                  <EmptyState icon={<Clock size={48} strokeWidth={1.5} />} title={t("admin.audit.noEntries")} />
                 </td>
               </tr>
             ) : (

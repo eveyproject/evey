@@ -1,4 +1,5 @@
 import { useState, useMemo, useCallback, useEffect } from "react";
+import { Folder } from "lucide-react";
 import { createLazyFileRoute } from "@tanstack/react-router";
 import { usePlaybackServiceMarkAsWatched, usePlaybackServiceMarkAsUnwatched } from "@evey/api";
 import { useTranslation } from "react-i18next";
@@ -244,7 +245,7 @@ function FavoritesPage() {
           style={{ backgroundColor: "var(--surface)", border: "1px solid var(--border)" }}
         >
           <EmptyState
-            icon="library"
+            icon={<Folder size={48} strokeWidth={1.5} />}
             title={t("media.favorites.noFavorites")}
             description={t("media.favorites.noFavoritesDesc")}
           />

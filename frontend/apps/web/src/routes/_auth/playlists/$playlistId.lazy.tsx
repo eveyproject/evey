@@ -1,4 +1,4 @@
-import { X } from "lucide-react";
+import { Folder, X } from "lucide-react";
 import { createLazyFileRoute, Link } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { Badge } from "@/components/ui/Badge";
@@ -103,7 +103,7 @@ function PlaylistDetail() {
       {items.length === 0 ? (
         <div className="rounded-[var(--radius-lg)]" style={{ backgroundColor: "var(--surface)", border: "1px solid var(--border)" }}>
           <EmptyState
-            icon="library"
+            icon={<Folder size={48} strokeWidth={1.5} />}
             title={t("media.playlist.noItems")}
             description={playlist.type === "smart" ? t("media.playlist.noItemsSmart") : t("media.playlist.noItemsManual")}
           />

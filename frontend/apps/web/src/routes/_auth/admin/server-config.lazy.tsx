@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Folder } from "lucide-react";
 import { createLazyFileRoute } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
@@ -7,6 +8,7 @@ import { toast, useLocaleStore } from "@evey/store";
 import { Spinner } from "@/components/ui/Spinner";
 import { Button } from "@/components/ui/Button";
 import { EmptyState } from "@/components/ui/EmptyState";
+import { PageHeader } from "@/components/ui/PageHeader";
 import { Input } from "@/components/ui/Input";
 import { Select } from "@/components/ui/Select";
 import { Checkbox } from "@/components/ui/Checkbox";
@@ -529,12 +531,7 @@ function ServerConfigPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <div>
-        <h1 className="text-2xl font-bold" style={{ color: "var(--text)" }}>{t("admin.serverConfig.title")}</h1>
-        <p className="text-sm mt-1" style={{ color: "var(--text-muted)" }}>
-          {t("admin.serverConfig.subtitle")}
-        </p>
-      </div>
+      <PageHeader title={t("admin.serverConfig.title")} subtitle={t("admin.serverConfig.subtitle")} />
 
       <LocaleSettingsCard entries={entries} />
 
@@ -560,7 +557,7 @@ function ServerConfigPage() {
               {entries && entries.length === 0 ? (
                 <tr>
                   <td colSpan={4}>
-                    <EmptyState icon="library" title={t("admin.serverConfig.noEntries")} description={t("admin.serverConfig.noEntriesDesc")} />
+                    <EmptyState icon={<Folder size={48} strokeWidth={1.5} />} title={t("admin.serverConfig.noEntries")} description={t("admin.serverConfig.noEntriesDesc")} />
                   </td>
                 </tr>
               ) : (

@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Film } from "lucide-react";
+import { Clock, Film } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import {
   usePlaybackServiceGetWatchHistory,
@@ -172,7 +172,7 @@ export function WatchHistory({ limit, showClearButton = false }: Props) {
   }
 
   if (items.length === 0) {
-    return <div data-testid="history-empty"><EmptyState icon="history" title={t("auth.watchHistory.noHistory")} description={t("auth.watchHistory.noHistoryDesc")} /></div>;
+    return <div data-testid="history-empty"><EmptyState icon={<Clock size={48} strokeWidth={1.5} />} title={t("auth.watchHistory.noHistory")} description={t("auth.watchHistory.noHistoryDesc")} /></div>;
   }
 
   return (

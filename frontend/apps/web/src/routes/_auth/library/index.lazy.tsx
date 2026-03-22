@@ -159,7 +159,7 @@ function LibraryIndex() {
           style={{ backgroundColor: "var(--surface)", border: "1px solid var(--border)" }}
         >
           <EmptyState
-            icon="library"
+            icon={<Folder size={48} strokeWidth={1.5} />}
             title={t("media.library.noLibraries")}
             description={t("media.library.noLibrariesDesc")}
             action={{

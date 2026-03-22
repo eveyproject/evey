@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Trash2, Pencil, Plus } from "lucide-react";
+import { Folder, Trash2, Pencil, Plus } from "lucide-react";
 import { createLazyFileRoute, Link } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { useCollections, useDeleteCollection } from "@/features/collection/api";
@@ -215,7 +215,7 @@ function CollectionsPage() {
             style={{ backgroundColor: "var(--surface)", border: "1px solid var(--border)" }}
           >
             <EmptyState
-              icon="library"
+              icon={<Folder size={48} strokeWidth={1.5} />}
               title={t("media.collections.noCollections")}
               description={t("media.collections.noCollectionsDesc")}
             />
