@@ -45,7 +45,6 @@ func (s *SQLSearchFallback) Search(ctx context.Context, query string, filters ma
 	if libID, ok := filters["library_id"]; ok && libID != "" {
 		where += fmt.Sprintf(" AND library_id = $%d", argN)
 		args = append(args, libID)
-		argN++
 	}
 
 	if limit <= 0 {
@@ -58,9 +57,14 @@ func (s *SQLSearchFallback) Search(ctx context.Context, query string, filters ma
 		return nil, 0, fmt.Errorf("search count: %w", err)
 	}
 
+	orderClause := "title"
+	if len(sort) > 0 {
+		orderClause = buildSortClause(sort)
+	}
+
 	dataSQL := fmt.Sprintf(
-		"SELECT id, title, year, type, genres, official_rating FROM media_items WHERE %s ORDER BY title LIMIT %d",
-		where, limit,
+		"SELECT id, title, year, type, genres, official_rating FROM media_items WHERE %s ORDER BY %s LIMIT %d",
+		where, orderClause, limit,
 	)
 	rows, err := s.db.QueryContext(ctx, dataSQL, args...)
 	if err != nil {
@@ -88,6 +92,36 @@ func (s *SQLSearchFallback) Search(ctx context.Context, query string, filters ma
 	}
 
 	return hits, total, nil
+}
+
+var sortColumnMap = map[string]string{
+	"title": "sort_title", "sort_title": "sort_title",
+	"added_at": "added_at", "date_added": "added_at",
+	"year": "year", "premiere_date": "premiere_date",
+	"community_rating": "community_rating",
+}
+
+func buildSortClause(sort []string) string {
+	parts := make([]string, 0, len(sort))
+	for _, s := range sort {
+		field := s
+		dir := "ASC"
+		if f, ok := strings.CutSuffix(s, ":desc"); ok {
+			field = f
+			dir = "DESC"
+		} else if f, ok := strings.CutSuffix(s, ":asc"); ok {
+			field = f
+		}
+		col, ok := sortColumnMap[field]
+		if !ok {
+			continue
+		}
+		parts = append(parts, col+" "+dir)
+	}
+	if len(parts) == 0 {
+		return "title"
+	}
+	return strings.Join(parts, ", ")
 }
 
 func parseJSONStringArray(data []byte) []string {
