@@ -63,15 +63,16 @@ func (s *CommandService) WithTrickplay(repo library.TrickplayRepository, gen lib
 	s.trickplay = NewTrickplayService(repo, gen, cacheDir, s.mediaItems, s.events, configRepo)
 }
 
-// Validate panics if required With*() deps were not set.
+// Validate returns an error if required With*() deps were not set.
 // Must be called after all With*() calls (e.g. from wire.go).
-func (s *CommandService) Validate() {
+func (s *CommandService) Validate() error {
 	if s.metadata == nil {
-		panic("library.CommandService: WithChapters not called")
+		return fmt.Errorf("library.CommandService: WithChapters not called")
 	}
 	if s.trickplay == nil {
-		panic("library.CommandService: WithTrickplay not called")
+		return fmt.Errorf("library.CommandService: WithTrickplay not called")
 	}
+	return nil
 }
 
 func (s *CommandService) WithShutdownCtx(ctx context.Context) {

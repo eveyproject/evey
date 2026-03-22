@@ -136,7 +136,9 @@ func buildServices(ctx context.Context, cfg *config.Config, db *sql.DB, rootLog 
 	libCmdSvc.WithChapters(r.Chapter, ebmlReader)
 	libCmdSvc.WithSubtitleScanner(subScanner)
 	libCmdSvc.WithTrickplay(r.Trickplay, trickplayGen, cfg.Transcoding.TrickplayCacheDir, r.ServerCfg)
-	libCmdSvc.Validate()
+	if err := libCmdSvc.Validate(); err != nil {
+		return nil, fmt.Errorf("library command service: %w", err)
+	}
 	libQuerySvc := applibrary.NewQueryService(r.Library, r.MediaItemQuery, r.MediaStream, searchAdapter)
 
 	schedulerLog := eveylogger.NewWith(rootLog, "scheduler")

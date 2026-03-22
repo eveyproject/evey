@@ -30,14 +30,22 @@ func (s *HTTPServer) healthzHandler(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	overallStatus := "ok"
+	if dbStatus == "error" {
+		overallStatus = "error"
+	}
+
 	resp := healthResponse{
-		Status:        "ok",
+		Status:        overallStatus,
 		DB:            dbStatus,
 		Version:       version,
 		UptimeSeconds: int64(time.Since(s.StartTime).Seconds()),
 	}
 
 	w.Header().Set("Content-Type", "application/json")
+	if overallStatus != "ok" {
+		w.WriteHeader(http.StatusServiceUnavailable)
+	}
 	if err := json.NewEncoder(w).Encode(resp); err != nil {
 		return
 	}

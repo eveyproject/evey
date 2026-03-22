@@ -57,13 +57,16 @@ func TestHealthzHandler_DBError(t *testing.T) {
 	w := httptest.NewRecorder()
 	srv.healthzHandler(w, req)
 
-	if w.Code != http.StatusOK {
-		t.Fatalf("expected 200, got %d", w.Code)
+	if w.Code != http.StatusServiceUnavailable {
+		t.Fatalf("expected 503, got %d", w.Code)
 	}
 
 	var resp healthResponse
 	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
 		t.Fatalf("decode: %v", err)
+	}
+	if resp.Status != "error" {
+		t.Errorf("status: want error, got %q", resp.Status)
 	}
 	if resp.DB != "error" {
 		t.Errorf("db: want error, got %q", resp.DB)

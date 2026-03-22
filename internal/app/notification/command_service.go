@@ -57,6 +57,11 @@ func (s *CommandService) WithPush(push notification.PushSender, subs notificatio
 
 func (s *CommandService) Start(ctx context.Context) {
 	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				slog.Error("recovered panic in notification service", slog.Any("error", r))
+			}
+		}()
 		ticker := time.NewTicker(dedupeWindow)
 		defer ticker.Stop()
 		for {

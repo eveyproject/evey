@@ -7,8 +7,6 @@ services:
       POSTGRES_DB: ${EVEY_DB_NAME:-evey}
       POSTGRES_USER: ${EVEY_DB_USER:-evey}
       POSTGRES_PASSWORD: ${EVEY_DB_PASSWORD:-evey}
-    ports:
-      - "${POSTGRES_PORT:-5432}:5432"
     volumes:
       - ${POSTGRES_DATA_DIR:-~/.evey/postgres-data}:/var/lib/postgresql/data
     healthcheck:
@@ -130,6 +128,11 @@ services:
     container_name: evey-server-prod
     profiles: [prod]
     build: .
+    deploy:
+      resources:
+        limits:
+          memory: 4g
+          cpus: '4'
     logging:
       driver: "json-file"
       options:

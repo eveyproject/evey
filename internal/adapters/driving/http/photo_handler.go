@@ -321,6 +321,11 @@ func (h *photoHandler) scanPhotos(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				slog.Error("recovered panic in photo scan", slog.Any("error", r))
+			}
+		}()
 		n, err := h.photoSvc.ScanDirectory(h.serverCtx, body.LibraryID, body.Dir)
 		if err != nil {
 			slog.Error("photo scan", slog.Any("err", err))
