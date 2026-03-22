@@ -1,4 +1,4 @@
-import { type InputHTMLAttributes } from "react";
+import { useId, type InputHTMLAttributes } from "react";
 
 interface CheckboxProps extends Omit<InputHTMLAttributes<HTMLInputElement>, "type" | "checked" | "onChange"> {
   label?: string;
@@ -8,7 +8,8 @@ interface CheckboxProps extends Omit<InputHTMLAttributes<HTMLInputElement>, "typ
 }
 
 export function Checkbox({ label, checked, onChange, disabled, className = "", id, ...props }: CheckboxProps) {
-  const inputId = id ?? label?.toLowerCase().replace(/\s+/g, "-");
+  const autoId = useId();
+  const inputId = id ?? autoId;
   return (
     <label
       htmlFor={inputId}
