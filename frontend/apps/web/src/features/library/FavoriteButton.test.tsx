@@ -30,8 +30,8 @@ describe("FavoriteButton", () => {
     expect(mutateMock).toHaveBeenCalledOnce();
   });
 
-  it("shows 'Add to favorites' title when not favorited", () => {
+  it("shows 'Add to Favorites' title when not favorited", () => {
     render(<FavoriteButton mediaId="1" />, { wrapper: Wrapper });
-    expect(screen.getByTitle("Add to favorites")).toBeInTheDocument();
+    expect(screen.getByTitle("Add to Favorites")).toBeInTheDocument();
   });
 });

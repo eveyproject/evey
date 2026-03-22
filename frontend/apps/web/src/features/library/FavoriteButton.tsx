@@ -1,4 +1,5 @@
 import { Heart } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import { useIsFavorite, useToggleFavorite } from "@/hooks/useFavorite";
 
 interface FavoriteButtonProps {
@@ -8,6 +9,7 @@ interface FavoriteButtonProps {
 }
 
 export function FavoriteButton({ mediaId, size = "md", className = "" }: FavoriteButtonProps) {
+  const { t } = useTranslation();
   const { data: isFav } = useIsFavorite(mediaId);
   const toggle = useToggleFavorite(mediaId);
 
@@ -28,7 +30,7 @@ export function FavoriteButton({ mediaId, size = "md", className = "" }: Favorit
         color: isFav ? "#ef4444" : "rgba(255,255,255,0.8)",
         backdropFilter: "blur(4px)",
       }}
-      title={isFav ? "Remove from favorites" : "Add to favorites"}
+      title={isFav ? t("media.contextMenu.removeFromFavorites") : t("media.contextMenu.addToFavorites")}
     >
       <Heart size={iconPixels} fill={isFav ? "currentColor" : "none"} strokeWidth={2} />
     </button>
