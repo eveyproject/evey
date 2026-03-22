@@ -3,6 +3,7 @@ import { createLazyFileRoute } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { useAdminServiceGetDashboard, useAdminServiceGetSystemInfo } from "@evey/api";
 import { Spinner } from "@/components/ui/Spinner";
+import { PageHeader } from "@/components/ui/PageHeader";
 import type { V1DashboardInfo, V1SystemInfo } from "@evey/api/src/generated/admin.schemas";
 
 export const Route = createLazyFileRoute("/_auth/admin/system-health")({
@@ -234,16 +235,10 @@ function SystemHealthPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex items-center justify-between flex-wrap gap-2">
-        <div>
-          <h1 className="text-2xl font-bold" style={{ color: "var(--text)" }}>{t("admin.systemHealth.title")}</h1>
-          {dataUpdatedAt > 0 && (
-            <p className="text-xs mt-1" style={{ color: "var(--text-muted)" }}>
-              {t("admin.systemHealth.autoRefresh", { time: new Date(dataUpdatedAt).toLocaleTimeString() })}
-            </p>
-          )}
-        </div>
-      </div>
+      <PageHeader
+        title={t("admin.systemHealth.title")}
+        subtitle={dataUpdatedAt > 0 ? t("admin.systemHealth.autoRefresh", { time: new Date(dataUpdatedAt).toLocaleTimeString() }) : undefined}
+      />
 
       {isLoading ? (
         <div className="flex justify-center py-16"><Spinner size="lg" /></div>

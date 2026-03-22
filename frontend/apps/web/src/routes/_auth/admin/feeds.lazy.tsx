@@ -6,6 +6,7 @@ import { toast } from "@evey/store";
 import { eveyFetch } from "@evey/api";
 import { useQueryClient } from "@tanstack/react-query";
 import { GripVertical } from "lucide-react";
+import { PageHeader } from "@/components/ui/PageHeader";
 
 export const Route = createLazyFileRoute("/_auth/admin/feeds")({
   component: AdminFeedsPage,
@@ -95,9 +96,7 @@ function AdminFeedsPage() {
   if (isLoading) {
     return (
       <div className="p-6 animate-fade-in">
-        <h1 className="text-xl font-bold mb-4" style={{ color: "var(--text)" }}>
-          {t("common.feeds.title")}
-        </h1>
+        <PageHeader title={t("common.feeds.title")} />
         <div className="animate-shimmer h-64 rounded-[var(--radius-md)]" />
       </div>
     );
@@ -105,18 +104,17 @@ function AdminFeedsPage() {
 
   return (
     <div className="p-6 animate-fade-in max-w-3xl">
-      <div className="flex items-center justify-between mb-6">
-        <h1 className="text-xl font-bold" style={{ color: "var(--text)" }}>
-          {t("common.feeds.title")}
-        </h1>
-        <button
-          onClick={save}
-          disabled={saving}
-          className="px-4 py-2 rounded-[var(--radius-md)] text-sm font-medium transition-opacity hover:opacity-90 disabled:opacity-50"
-          style={{ backgroundColor: "var(--accent)", color: "var(--filter-active-text)" }}
-        >
-          {saving ? t("common.loading") : t("common.save")}
-        </button>
+      <div className="mb-6">
+        <PageHeader title={t("common.feeds.title")} actions={
+          <button
+            onClick={save}
+            disabled={saving}
+            className="px-4 py-2 rounded-[var(--radius-md)] text-sm font-medium transition-opacity hover:opacity-90 disabled:opacity-50"
+            style={{ backgroundColor: "var(--accent)", color: "var(--filter-active-text)" }}
+          >
+            {saving ? t("common.loading") : t("common.save")}
+          </button>
+        } />
       </div>
 
       <div

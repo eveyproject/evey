@@ -6,6 +6,7 @@ import { Spinner } from "@/components/ui/Spinner";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { AuditLogTable } from "@/features/admin/AuditLogTable";
+import { PageHeader } from "@/components/ui/PageHeader";
 
 export const Route = createLazyFileRoute("/_auth/admin/audit")({
   component: AuditPage,
@@ -47,9 +48,7 @@ function AuditPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <h1 className="text-2xl font-bold" style={{ color: "var(--text)" }}>
-        {t("admin.audit.title")}
-      </h1>
+      <PageHeader title={t("admin.audit.title")} />
 
       <div
         className="flex flex-wrap items-end gap-3 p-4 rounded-[var(--radius-lg)]"

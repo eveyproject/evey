@@ -12,6 +12,7 @@ import {
 import { toast } from "@evey/store";
 import type { V1Library } from "@evey/api/src/generated/library.schemas";
 import { Spinner } from "@/components/ui/Spinner";
+import { PageHeader } from "@/components/ui/PageHeader";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
 import { Modal } from "@/components/ui/Modal";
@@ -351,12 +352,7 @@ function LibrariesPage() {
 
   return (
     <div className="flex flex-col gap-6" data-testid="libraries-page">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold" style={{ color: "var(--text)" }}>
-          {t("admin.libraries.title")}
-        </h1>
-        <Button onClick={() => setShowModal(true)} data-testid="add-library-btn">{t("admin.libraries.addLibrary")}</Button>
-      </div>
+      <PageHeader title={t("admin.libraries.title")} actions={<Button onClick={() => setShowModal(true)} data-testid="add-library-btn">{t("admin.libraries.addLibrary")}</Button>} />
 
       {isLoading ? (
         <div className="flex justify-center py-16">

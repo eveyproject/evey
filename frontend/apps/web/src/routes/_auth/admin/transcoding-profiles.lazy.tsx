@@ -13,6 +13,7 @@ import { eveyFetch } from "@evey/api/src/fetcher";
 import { Spinner } from "@/components/ui/Spinner";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
+import { PageHeader } from "@/components/ui/PageHeader";
 import { Modal } from "@/components/ui/Modal";
 import { Input } from "@/components/ui/Input";
 import { Select } from "@/components/ui/Select";
@@ -271,12 +272,7 @@ function TranscodingProfilesPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold" style={{ color: "var(--text)" }}>
-          {t("admin.transcodingProfiles.title")}
-        </h1>
-        <Button onClick={() => setShowCreate(true)}>{t("admin.transcodingProfiles.createProfile")}</Button>
-      </div>
+      <PageHeader title={t("admin.transcodingProfiles.title")} actions={<Button onClick={() => setShowCreate(true)}>{t("admin.transcodingProfiles.createProfile")}</Button>} />
 
       {isLoading ? (
         <div className="flex justify-center py-16">
