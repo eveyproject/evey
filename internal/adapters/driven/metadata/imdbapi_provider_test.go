@@ -32,6 +32,7 @@ func TestIMDBAPIProvider_Search(t *testing.T) {
 			Results: []imdbTitle{
 				{
 					ID:            "tt1375666",
+					Type:          "movie",
 					PrimaryTitle:  "Inception",
 					OriginalTitle: "Inception",
 					Plot:          "A thief who steals corporate secrets.",
@@ -45,6 +46,7 @@ func TestIMDBAPIProvider_Search(t *testing.T) {
 				},
 				{
 					ID:           "tt2980516",
+					Type:         "movie",
 					PrimaryTitle: "Inception: The Cobol Job",
 					StartYear:    2010,
 					Genres:       []string{"Animation"},
@@ -86,6 +88,42 @@ func TestIMDBAPIProvider_Search(t *testing.T) {
 	assert.Equal(t, "Christopher Nolan", writers[0].Name)
 
 	assert.Equal(t, "Inception: The Cobol Job", results[1].Title)
+}
+
+func TestIMDBAPIProvider_Search_FiltersMoviesForTVType(t *testing.T) {
+	srv, p := newIMDBAPITestServer(func(w http.ResponseWriter, r *http.Request) {
+		json.NewEncoder(w).Encode(imdbSearchResponse{
+			Results: []imdbTitle{
+				{ID: "tt1396484", Type: "movie", PrimaryTitle: "It", StartYear: 2017},
+				{ID: "tt0099864", Type: "tvMiniSeries", PrimaryTitle: "It", StartYear: 1990},
+				{ID: "tt7349950", Type: "tvSeries", PrimaryTitle: "It", StartYear: 2024},
+			},
+		})
+	})
+	defer srv.Close()
+
+	results, err := p.Search(context.Background(), "It", nil, "tv")
+	require.NoError(t, err)
+	require.Len(t, results, 2)
+	assert.Equal(t, "tt0099864", results[0].ProviderIDs["imdb"])
+	assert.Equal(t, "tt7349950", results[1].ProviderIDs["imdb"])
+}
+
+func TestIMDBAPIProvider_Search_FiltersTVForMovieType(t *testing.T) {
+	srv, p := newIMDBAPITestServer(func(w http.ResponseWriter, r *http.Request) {
+		json.NewEncoder(w).Encode(imdbSearchResponse{
+			Results: []imdbTitle{
+				{ID: "tt1396484", Type: "movie", PrimaryTitle: "It", StartYear: 2017},
+				{ID: "tt0099864", Type: "tvMiniSeries", PrimaryTitle: "It", StartYear: 1990},
+			},
+		})
+	})
+	defer srv.Close()
+
+	results, err := p.Search(context.Background(), "It", nil, "movie")
+	require.NoError(t, err)
+	require.Len(t, results, 1)
+	assert.Equal(t, "tt1396484", results[0].ProviderIDs["imdb"])
 }
 
 func TestIMDBAPIProvider_Search_Empty(t *testing.T) {
@@ -165,6 +203,29 @@ func TestIMDBAPIProvider_GetByProviderID_NotFound(t *testing.T) {
 	require.Error(t, err)
 	assert.Nil(t, result)
 	assert.Contains(t, err.Error(), "404")
+}
+
+func TestImdbTypeMatches(t *testing.T) {
+	tests := []struct {
+		imdbType  string
+		mediaType string
+		want      bool
+	}{
+		{"movie", "movie", true},
+		{"tvMovie", "movie", true},
+		{"tvSeries", "movie", false},
+		{"tvMiniSeries", "movie", false},
+		{"tvSeries", "tv", true},
+		{"tvMiniSeries", "tv", true},
+		{"tvSpecial", "tv", true},
+		{"movie", "tv", false},
+		{"movie", "", true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.imdbType+"_"+tt.mediaType, func(t *testing.T) {
+			assert.Equal(t, tt.want, imdbTypeMatches(tt.imdbType, tt.mediaType))
+		})
+	}
 }
 
 func TestIMDBAPIProvider_Search_ServerError(t *testing.T) {
