@@ -106,7 +106,7 @@ function CollectionDetailPage() {
         <>
           <MediaGrid>
             {items.map((item) => (
-              <MediaCard key={item.id} item={item} />
+              <MediaCard key={item.id} item={item} lite />
             ))}
           </MediaGrid>
           {totalPages > 1 && (

@@ -18,6 +18,7 @@ export function RecommendedRow() {
           item={{ id: item.mediaItemId, title: item.title, type: item.type }}
           showYear={false}
           showType
+          lite
         />
       ))}
     </FeedSection>

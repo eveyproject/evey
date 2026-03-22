@@ -728,7 +728,7 @@ function SimilarSection({ item }: { item: V1MediaItem }) {
       <h2 className="text-lg font-semibold mb-4" style={{ color: "var(--text)" }}>{t("media.detail.similarTitles")}</h2>
       <div className="flex gap-4 overflow-x-auto pb-2" style={{ scrollbarWidth: "thin" }}>
         {cards.map((c) => (
-          <MediaCard key={c.id} item={c} />
+          <MediaCard key={c.id} item={c} lite />
         ))}
       </div>
     </div>

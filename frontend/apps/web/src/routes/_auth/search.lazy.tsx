@@ -374,7 +374,7 @@ function SearchPage() {
           </p>
           <MediaGrid>
             {items.map((item) => (
-              <MediaCard key={item.id} item={item} showType />
+              <MediaCard key={item.id} item={item} showType lite />
             ))}
           </MediaGrid>
         </>

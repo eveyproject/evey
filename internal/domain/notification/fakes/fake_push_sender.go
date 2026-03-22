@@ -3,13 +3,15 @@ package fakes
 import (
 	"context"
 	"sync"
+
+	"github.com/gravity-zero/evey/internal/domain/notification"
 )
 
 type PushCall struct {
-	Tokens []string
-	Title  string
-	Body   string
-	Data   map[string]string
+	Sub   notification.PushSubscription
+	Title string
+	Body  string
+	Data  map[string]string
 }
 
 type FakePushSender struct {
@@ -22,12 +24,12 @@ func NewFakePushSender() *FakePushSender {
 	return &FakePushSender{}
 }
 
-func (s *FakePushSender) SendToTokens(_ context.Context, tokens []string, title, body string, data map[string]string) error {
+func (s *FakePushSender) Send(_ context.Context, sub notification.PushSubscription, title, body string, data map[string]string) error {
 	if s.Err != nil {
 		return s.Err
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.Calls = append(s.Calls, PushCall{Tokens: tokens, Title: title, Body: body, Data: data})
+	s.Calls = append(s.Calls, PushCall{Sub: sub, Title: title, Body: body, Data: data})
 	return nil
 }
