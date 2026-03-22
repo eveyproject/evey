@@ -1,4 +1,4 @@
-import { Plus, Play, Info } from "lucide-react";
+import { Bell, Plus, Play, Info } from "lucide-react";
 import { createLazyFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import {
@@ -150,7 +150,7 @@ function NotificationsPage() {
       {isLoading && <p className="text-sm text-[var(--text-muted)]">{t("common.loading")}</p>}
 
       {!isLoading && notifications.length === 0 && (
-        <EmptyState icon="notification" title={t("common.notifications.noNotifications")} description={t("common.notifications.allCaughtUp")} />
+        <EmptyState icon={<Bell size={48} strokeWidth={1.5} />} title={t("common.notifications.noNotifications")} description={t("common.notifications.allCaughtUp")} />
       )}
 
       {!isLoading && notifications.length > 0 && (

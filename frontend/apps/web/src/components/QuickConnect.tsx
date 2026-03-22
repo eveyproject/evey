@@ -31,6 +31,7 @@ export function QuickConnect() {
     query: {
       enabled: !!code && enabled,
       refetchInterval: 3000,
+      refetchIntervalInBackground: true,
     },
   });
 

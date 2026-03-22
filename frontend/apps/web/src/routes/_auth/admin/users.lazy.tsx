@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
+import { Bell, Folder } from "lucide-react";
 import { createLazyFileRoute } from "@tanstack/react-router";
 import { useQueryClient, useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
@@ -575,7 +576,7 @@ function UsersPage() {
                 {users.length === 0 ? (
                   <tr>
                     <td colSpan={5}>
-                      <EmptyState icon="library" title={t("admin.users.noUsers")} />
+                      <EmptyState icon={<Folder size={48} strokeWidth={1.5} />} title={t("admin.users.noUsers")} />
                     </td>
                   </tr>
                 ) : (
@@ -624,7 +625,7 @@ function UsersPage() {
                 {invites.length === 0 ? (
                   <tr>
                     <td colSpan={4}>
-                      <EmptyState icon="notification" title={t("admin.users.noInvites")} />
+                      <EmptyState icon={<Bell size={48} strokeWidth={1.5} />} title={t("admin.users.noInvites")} />
                     </td>
                   </tr>
                 ) : (

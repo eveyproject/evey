@@ -1,3 +1,4 @@
+import { Folder } from "lucide-react";
 import { createLazyFileRoute, Link } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { useCollection, useDeleteCollection } from "@/features/collection/api";
@@ -47,7 +48,7 @@ function SmartFilterPage() {
     return (
       <div>
         <BackButton fallback="/collections" />
-        <EmptyState icon="library" title={t("media.collections.notFound")} description={t("media.collections.notFoundDesc")} />
+        <EmptyState icon={<Folder size={48} strokeWidth={1.5} />} title={t("media.collections.notFound")} description={t("media.collections.notFoundDesc")} />
       </div>
     );
   }
@@ -99,7 +100,7 @@ function SmartFilterPage() {
           style={{ backgroundColor: "var(--surface)", border: "1px solid var(--border)" }}
         >
           <EmptyState
-            icon="library"
+            icon={<Folder size={48} strokeWidth={1.5} />}
             title={t("media.search.noResults")}
             description={rules.length === 0 ? t("media.collections.noRules") : t("media.collections.noRuleMatch")}
           />

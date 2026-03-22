@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Film } from "lucide-react";
 import { createLazyFileRoute } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
@@ -8,6 +9,7 @@ import { Spinner } from "@/components/ui/Spinner";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { EmptyState } from "@/components/ui/EmptyState";
+import { PageHeader } from "@/components/ui/PageHeader";
 import { Modal } from "@/components/ui/Modal";
 
 export const Route = createLazyFileRoute("/_auth/admin/transcode-cache")({
@@ -86,16 +88,11 @@ function TranscodeCachePage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold" style={{ color: "var(--text)" }}>
-          {t("admin.transcodeCache.title")}
-        </h1>
-        {files.length > 0 && (
-          <Button variant="danger" onClick={() => setShowClearConfirm(true)}>
-            {t("admin.transcodeCache.clearAll")}
-          </Button>
-        )}
-      </div>
+      <PageHeader title={t("admin.transcodeCache.title")} actions={files.length > 0 ? (
+        <Button variant="danger" onClick={() => setShowClearConfirm(true)}>
+          {t("admin.transcodeCache.clearAll")}
+        </Button>
+      ) : undefined} />
 
       {isLoading ? (
         <div className="flex justify-center py-16">
@@ -127,7 +124,7 @@ function TranscodeCachePage() {
               className="rounded-[var(--radius-lg)]"
               style={{ backgroundColor: "var(--surface)", border: "1px solid var(--border)" }}
             >
-              <EmptyState icon="media" title={t("admin.transcodeCache.cacheEmpty")} />
+              <EmptyState icon={<Film size={48} strokeWidth={1.5} />} title={t("admin.transcodeCache.cacheEmpty")} />
             </div>
           ) : (
             <div

@@ -76,26 +76,12 @@ export function ToastContainer() {
   if (toasts.length === 0) return null;
 
   return (
-    <>
-      <style>{`
-        @keyframes toast-slide-in {
-          from { transform: translateX(100%); opacity: 0; }
-          to { transform: translateX(0); opacity: 1; }
-        }
-        @keyframes toast-fade-out {
-          from { opacity: 1; transform: translateX(0); }
-          to { opacity: 0; transform: translateX(100%); }
-        }
-        .toast-enter { animation: toast-slide-in 0.3s ease-out; }
-        .toast-exit { animation: toast-fade-out 0.3s ease-out forwards; }
-      `}</style>
-      <div className="fixed bottom-4 right-4 z-50 flex flex-col gap-2 max-w-sm w-full pointer-events-none" aria-live="polite" aria-atomic="true">
-        {toasts.map((t) => (
-          <div key={t.id} className="pointer-events-auto">
-            <ToastItem toast={t} />
-          </div>
-        ))}
-      </div>
-    </>
+    <div className="fixed bottom-4 right-4 z-50 flex flex-col gap-2 max-w-sm w-full pointer-events-none" aria-live="polite" aria-atomic="true">
+      {toasts.map((t) => (
+        <div key={t.id} className="pointer-events-auto">
+          <ToastItem toast={t} />
+        </div>
+      ))}
+    </div>
   );
 }

@@ -28,12 +28,12 @@ const LEVELS: NotificationLevel[] = [
   "NOTIFICATION_LEVEL_ALL",
 ];
 
-const LEVEL_LABELS: Record<NotificationLevel, string> = {
-  NOTIFICATION_LEVEL_UNSPECIFIED: "Default",
-  NOTIFICATION_LEVEL_DISABLED: "Disabled",
-  NOTIFICATION_LEVEL_ALL: "All",
-  NOTIFICATION_LEVEL_RELEVANT: "Relevant",
-  NOTIFICATION_LEVEL_HIGHLY_RELEVANT: "Important only",
+const LEVEL_LABEL_KEYS: Record<NotificationLevel, string> = {
+  NOTIFICATION_LEVEL_UNSPECIFIED: "auth.notificationSettings.levelDefault",
+  NOTIFICATION_LEVEL_DISABLED: "auth.notificationSettings.levelDisabled",
+  NOTIFICATION_LEVEL_ALL: "auth.notificationSettings.levelAll",
+  NOTIFICATION_LEVEL_RELEVANT: "auth.notificationSettings.levelRelevant",
+  NOTIFICATION_LEVEL_HIGHLY_RELEVANT: "auth.notificationSettings.levelImportant",
 };
 
 interface LevelSelectProps {
@@ -43,13 +43,14 @@ interface LevelSelectProps {
 }
 
 function LevelSelect({ label, value, onChange }: LevelSelectProps) {
+  const { t } = useTranslation();
   return (
     <div className="flex items-center justify-between py-3 border-b border-[var(--border)] last:border-0">
       <span className="text-sm text-[var(--text)]">{label}</span>
       <Select
         value={value ?? "NOTIFICATION_LEVEL_UNSPECIFIED"}
         onChange={(v) => onChange(v as NotificationLevel)}
-        options={LEVELS.map((l) => ({ value: l, label: LEVEL_LABELS[l] }))}
+        options={LEVELS.map((l) => ({ value: l, label: t(LEVEL_LABEL_KEYS[l]) }))}
         className="w-auto"
       />
     </div>

@@ -168,6 +168,11 @@ notificationSettings:
   music: "संगीत"
   saved: "सूचना प्राथमिकताएं सहेजी गईं"
   saveError: "सूचना प्राथमिकताएं सहेजने में विफल"
+  levelDefault: "डिफ़ॉल्ट"
+  levelDisabled: "अक्षम"
+  levelAll: "सभी"
+  levelRelevant: "प्रासंगिक"
+  levelImportant: "केवल महत्वपूर्ण"
 watchHistory:
   today: "आज"
   yesterday: "कल"

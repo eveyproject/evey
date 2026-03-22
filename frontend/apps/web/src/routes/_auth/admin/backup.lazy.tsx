@@ -1,4 +1,5 @@
 import { useRef, useState } from "react";
+import { Folder } from "lucide-react";
 import { createLazyFileRoute } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
@@ -8,6 +9,7 @@ import { Spinner } from "@/components/ui/Spinner";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
 import { EmptyState } from "@/components/ui/EmptyState";
+import { PageHeader } from "@/components/ui/PageHeader";
 import { Modal } from "@/components/ui/Modal";
 
 export const Route = createLazyFileRoute("/_auth/admin/backup")({
@@ -271,10 +273,7 @@ function BackupPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold" style={{ color: "var(--text)" }}>
-          {t("admin.backup.title")}
-        </h1>
+      <PageHeader title={t("admin.backup.title")} actions={
         <div className="flex gap-2">
           <Button
             variant="secondary"
@@ -289,7 +288,7 @@ function BackupPage() {
             {t("admin.backup.createBackup")}
           </Button>
         </div>
-      </div>
+      } />
 
       {isLoading ? (
         <div className="flex justify-center py-16">
@@ -297,7 +296,7 @@ function BackupPage() {
         </div>
       ) : !backups || backups.length === 0 ? (
         <EmptyState
-          icon="library"
+          icon={<Folder size={48} strokeWidth={1.5} />}
           title={t("admin.backup.noBackups")}
           description={t("admin.backup.noBackupsDesc")}
         />

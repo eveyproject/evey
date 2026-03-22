@@ -121,14 +121,8 @@ export function AdminNav({ collapsed = false, onNavigate }: AdminNavProps) {
               <button
                 type="button"
                 onClick={() => toggleSection(section.titleKey)}
-                className="w-full flex items-center justify-between px-2 py-1.5 cursor-pointer rounded-[var(--radius-sm)] transition-colors"
+                className="w-full flex items-center justify-between px-2 py-1.5 cursor-pointer rounded-[var(--radius-sm)] transition-colors hover:bg-[var(--surface-raised)]"
                 style={{ color: "var(--text-muted)" }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.backgroundColor = "var(--surface-raised)";
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.backgroundColor = "transparent";
-                }}
               >
                 <span
                   className="text-[11px] font-semibold uppercase tracking-wider select-none"
@@ -155,22 +149,12 @@ export function AdminNav({ collapsed = false, onNavigate }: AdminNavProps) {
                       key={href}
                       to={href}
                       onClick={onNavigate}
-                      className={`flex items-center gap-2.5 px-2 py-1.5 text-[13px] rounded-[var(--radius-sm)] transition-colors ${collapsed ? "justify-center" : ""}`}
+                      className={`flex items-center gap-2.5 px-2 py-1.5 text-[13px] rounded-[var(--radius-sm)] transition-colors ${collapsed ? "justify-center" : ""} ${active ? "" : "hover:bg-[var(--surface-raised)]"}`}
                       style={{
-                        backgroundColor: active ? "var(--accent)" : "transparent",
+                        backgroundColor: active ? "var(--accent)" : undefined,
                         color: active ? "white" : "var(--text)",
                       }}
                       title={collapsed ? label : undefined}
-                      onMouseEnter={(e) => {
-                        if (!active) {
-                          e.currentTarget.style.backgroundColor = "var(--surface-raised)";
-                        }
-                      }}
-                      onMouseLeave={(e) => {
-                        if (!active) {
-                          e.currentTarget.style.backgroundColor = "transparent";
-                        }
-                      }}
                     >
                       <Icon size={15} />
                       {!collapsed && <span>{label}</span>}

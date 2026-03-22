@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef, useMemo, type FC } from "react";
-import { Play, Settings2 } from "lucide-react";
+import { Folder, Play, Settings2 } from "lucide-react";
 import { createLazyFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useQueries, useQuery } from "@tanstack/react-query";
 import {
@@ -396,7 +396,7 @@ function HomePage() {
 
         {!isLoading && !hasContent ? (
           <EmptyState
-            icon="library"
+            icon={<Folder size={48} strokeWidth={1.5} />}
             title={t("media.home.emptyLibrary")}
             description={t("media.home.emptyLibraryDesc")}
             action={{ label: t("media.home.goToLibraries"), onClick: () => navigate({ to: "/admin/libraries" }) }}

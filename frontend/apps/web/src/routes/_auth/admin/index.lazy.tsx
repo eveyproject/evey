@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import { useAdminServiceGetDashboard, useAdminServiceGetSystemInfo } from "@evey/api";
 import { Spinner } from "@/components/ui/Spinner";
 import { DashboardStats } from "@/features/admin/DashboardStats";
+import { PageHeader } from "@/components/ui/PageHeader";
 
 export const Route = createLazyFileRoute("/_auth/admin/")({
   component: AdminDashboard,
@@ -63,16 +64,11 @@ function AdminDashboard() {
 
   return (
     <div className="flex flex-col gap-8">
-      <div className="flex items-center justify-between gap-4 flex-wrap">
-        <h1 className="text-2xl font-bold" style={{ color: "var(--text)" }}>
-          {t("admin.dashboard.title")}
-        </h1>
-        {dataUpdatedAt > 0 && (
-          <p className="text-xs" style={{ color: "var(--text-muted)" }}>
-            {t("admin.dashboard.autoRefresh", { time: new Date(dataUpdatedAt).toLocaleTimeString(), interval: "10s" })}
-          </p>
-        )}
-      </div>
+      <PageHeader title={t("admin.dashboard.title")} actions={dataUpdatedAt > 0 ? (
+        <p className="text-xs" style={{ color: "var(--text-muted)" }}>
+          {t("admin.dashboard.autoRefresh", { time: new Date(dataUpdatedAt).toLocaleTimeString(), interval: "10s" })}
+        </p>
+      ) : undefined} />
       {dashLoading ? (
         <div className="flex justify-center py-8">
           <Spinner size="lg" />

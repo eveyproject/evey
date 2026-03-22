@@ -1,6 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, it, expect, vi } from "vitest";
+import { Search } from "lucide-react";
 import { EmptyState } from "./EmptyState";
 
 describe("EmptyState", () => {
@@ -21,7 +22,7 @@ describe("EmptyState", () => {
   });
 
   it("renders icon when provided", () => {
-    const { container } = render(<EmptyState title="No results" icon="search" />);
+    const { container } = render(<EmptyState title="No results" icon={<Search size={48} />} />);
     expect(container.querySelector("svg")).toBeInTheDocument();
   });
 

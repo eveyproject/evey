@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Clock, Film } from "lucide-react";
 import { createLazyFileRoute } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import {
@@ -11,6 +12,7 @@ import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { Pagination } from "@/components/ui/Pagination";
 import { EmptyState } from "@/components/ui/EmptyState";
+import { PageHeader } from "@/components/ui/PageHeader";
 
 export const Route = createLazyFileRoute("/_auth/admin/activity")({
   component: ActivityPage,
@@ -83,7 +85,7 @@ function PlayHistoryTab() {
             {entries.length === 0 ? (
               <tr>
                 <td colSpan={5}>
-                  <EmptyState icon="media" title={t("admin.activity.noPlayHistory")} />
+                  <EmptyState icon={<Film size={48} strokeWidth={1.5} />} title={t("admin.activity.noPlayHistory")} />
                 </td>
               </tr>
             ) : (
@@ -183,7 +185,7 @@ function LoginHistoryTab() {
             {entries.length === 0 ? (
               <tr>
                 <td colSpan={5}>
-                  <EmptyState icon="history" title={t("admin.activity.noLoginHistory")} />
+                  <EmptyState icon={<Clock size={48} strokeWidth={1.5} />} title={t("admin.activity.noLoginHistory")} />
                 </td>
               </tr>
             ) : (
@@ -320,9 +322,7 @@ function ActivityPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <h1 className="text-2xl font-bold" style={{ color: "var(--text)" }}>
-        {t("admin.activity.title")}
-      </h1>
+      <PageHeader title={t("admin.activity.title")} />
 
       <div className="flex gap-1 p-1 rounded-[var(--radius-md)] self-start"
         style={{ backgroundColor: "var(--surface)", border: "1px solid var(--border)" }}>

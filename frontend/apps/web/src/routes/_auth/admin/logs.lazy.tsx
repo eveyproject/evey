@@ -5,6 +5,7 @@ import { useVirtualizer } from "@tanstack/react-virtual";
 import { eveyFetch } from "@evey/api";
 import { useAuthStore } from "@evey/store";
 import { Spinner } from "@/components/ui/Spinner";
+import { PageHeader } from "@/components/ui/PageHeader";
 import { Checkbox } from "@/components/ui/Checkbox";
 
 export const Route = createLazyFileRoute("/_auth/admin/logs")({
@@ -194,24 +195,22 @@ function LogsPage() {
 
   return (
     <div className="flex flex-col gap-4 h-full">
-      <div className="flex items-center gap-3 flex-wrap">
-        <h1 className="text-2xl font-bold" style={{ color: "var(--text)" }}>{t("admin.logs.title")}</h1>
-        <div className="flex-1" />
-
-        <Checkbox
-          label={t("admin.logs.live")}
-          checked={live}
-          onChange={setLive}
-        />
-
-        <button
-          onClick={() => setLines([])}
-          className="text-sm px-3 py-1 rounded transition-colors hover:opacity-80"
-          style={{ backgroundColor: "var(--surface-raised)", color: "var(--text-muted)", border: "1px solid var(--border)" }}
-        >
-          {t("common.clear")}
-        </button>
-      </div>
+      <PageHeader title={t("admin.logs.title")} actions={
+        <div className="flex items-center gap-3">
+          <Checkbox
+            label={t("admin.logs.live")}
+            checked={live}
+            onChange={setLive}
+          />
+          <button
+            onClick={() => setLines([])}
+            className="text-sm px-3 py-1 rounded transition-colors hover:opacity-80"
+            style={{ backgroundColor: "var(--surface-raised)", color: "var(--text-muted)", border: "1px solid var(--border)" }}
+          >
+            {t("common.clear")}
+          </button>
+        </div>
+      } />
 
       <div className="flex gap-2 flex-wrap">
         <input

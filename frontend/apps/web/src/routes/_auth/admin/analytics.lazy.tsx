@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { eveyFetch } from "@evey/api/src/fetcher";
 import { Spinner } from "@/components/ui/Spinner";
+import { PageHeader } from "@/components/ui/PageHeader";
 
 export const Route = createLazyFileRoute("/_auth/admin/analytics")({
   component: AnalyticsPage,
@@ -194,9 +195,7 @@ function AnalyticsPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <h1 className="text-2xl font-bold" style={{ color: "var(--text)" }}>
-        {t("admin.analytics.title")}
-      </h1>
+      <PageHeader title={t("admin.analytics.title")} />
 
       {isLoading ? (
         <div className="flex justify-center py-16">

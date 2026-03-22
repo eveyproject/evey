@@ -168,6 +168,11 @@ notificationSettings:
   music: "音乐"
   saved: "通知偏好已保存"
   saveError: "保存通知偏好失败"
+  levelDefault: "默认"
+  levelDisabled: "已禁用"
+  levelAll: "全部"
+  levelRelevant: "相关"
+  levelImportant: "仅重要"
 watchHistory:
   today: "今天"
   yesterday: "昨天"
