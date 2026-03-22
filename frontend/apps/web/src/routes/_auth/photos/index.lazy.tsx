@@ -1,6 +1,7 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { createLazyFileRoute } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useVirtualizer } from "@tanstack/react-virtual";
 import { eveyFetch } from "@evey/api";
 import { toast, useAuthStore } from "@evey/store";
 import { useTranslation } from "react-i18next";
@@ -165,28 +166,101 @@ interface PhotoGridProps {
   onPhotoClick: (index: number) => void;
 }
 
+const PHOTO_COL_BREAKPOINTS = [
+  { minWidth: 1280, cols: 6 },
+  { minWidth: 1024, cols: 5 },
+  { minWidth: 768, cols: 4 },
+  { minWidth: 640, cols: 3 },
+  { minWidth: 0, cols: 2 },
+];
+const PHOTO_GAP = 8;
+
+function getPhotoCols(width: number): number {
+  for (const bp of PHOTO_COL_BREAKPOINTS) {
+    if (width >= bp.minWidth) return bp.cols;
+  }
+  return 2;
+}
+
 function PhotoGrid({ photos, onPhotoClick }: PhotoGridProps) {
   const { t } = useTranslation();
+  const parentRef = useRef<HTMLDivElement>(null);
+  const [containerWidth, setContainerWidth] = useState(800);
+
+  useEffect(() => {
+    const el = parentRef.current;
+    if (!el) return;
+    const ro = new ResizeObserver((entries) => {
+      const w = entries[0]?.contentRect.width;
+      if (w) setContainerWidth(w);
+    });
+    ro.observe(el);
+    setContainerWidth(el.clientWidth);
+    return () => ro.disconnect();
+  }, []);
+
+  const cols = getPhotoCols(containerWidth);
+  const cellSize = (containerWidth - PHOTO_GAP * (cols - 1)) / cols;
+
+  const rows = useMemo(() => {
+    const result: Photo[][] = [];
+    for (let i = 0; i < photos.length; i += cols) {
+      result.push(photos.slice(i, i + cols));
+    }
+    return result;
+  }, [photos, cols]);
+
+  const virtualizer = useVirtualizer({
+    count: rows.length,
+    getScrollElement: () => document.scrollingElement as HTMLElement,
+    estimateSize: () => cellSize + PHOTO_GAP,
+    overscan: 3,
+    scrollMargin: parentRef.current?.offsetTop ?? 0,
+  });
+
   if (photos.length === 0) return <EmptyState title={t("media.photos.noPhotos")} description={t("media.photos.noPhotosDesc")} />;
+
   return (
-    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-2">
-      {photos.map((photo, i) => (
-        <button
-          key={photo.ID}
-          onClick={() => onPhotoClick(i)}
-          className="group relative aspect-square overflow-hidden rounded-[var(--radius-md)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)] cursor-pointer"
-          style={{ backgroundColor: "var(--surface-raised)" }}
-          aria-label={photo.Title}
-        >
-          <img
-            src={`/api/v1/photos/${photo.ID}/serve`}
-            alt={photo.Title}
-            loading="lazy"
-            className="w-full h-full object-cover transition-transform duration-200 group-hover:scale-105"
-          />
-          <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors duration-200" />
-        </button>
-      ))}
+    <div ref={parentRef}>
+      <div style={{ height: virtualizer.getTotalSize(), position: "relative" }}>
+        {virtualizer.getVirtualItems().map((vRow) => (
+          <div
+            key={vRow.index}
+            style={{
+              position: "absolute",
+              top: 0,
+              left: 0,
+              right: 0,
+              transform: `translateY(${vRow.start - virtualizer.options.scrollMargin}px)`,
+              height: cellSize + PHOTO_GAP,
+              display: "grid",
+              gridTemplateColumns: `repeat(${cols}, 1fr)`,
+              gap: PHOTO_GAP,
+            }}
+          >
+            {rows[vRow.index].map((photo, colIdx) => {
+              const globalIdx = vRow.index * cols + colIdx;
+              return (
+                <button
+                  key={photo.ID}
+                  onClick={() => onPhotoClick(globalIdx)}
+                  className="group relative aspect-square overflow-hidden rounded-[var(--radius-md)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)] cursor-pointer"
+                  style={{ backgroundColor: "var(--surface-raised)" }}
+                  aria-label={photo.Title}
+                >
+                  <img
+                    src={`/api/v1/photos/${photo.ID}/serve`}
+                    alt={photo.Title}
+                    loading="lazy"
+                    className="w-full h-full object-cover transition-transform duration-200 group-hover:scale-105"
+                  />
+                  <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors duration-200" />
+                </button>
+              );
+            })}
+          </div>
+        ))}
+      </div>
     </div>
   );
 }

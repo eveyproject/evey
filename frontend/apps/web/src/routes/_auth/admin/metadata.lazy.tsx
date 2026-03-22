@@ -1,4 +1,5 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useCallback } from "react";
+import { useDebounce } from "@/hooks/useDebounce";
 import { Film, Folder, Search } from "lucide-react";
 import { createLazyFileRoute } from "@tanstack/react-router";
 import { useQueryClient, useQuery } from "@tanstack/react-query";
@@ -360,14 +361,9 @@ function useRefreshAll() {
 function MetadataPage() {
   const { t } = useTranslation();
   const [query, setQuery] = useState("");
-  const [debouncedQuery, setDebouncedQuery] = useState("");
+  const debouncedQuery = useDebounce(query, 400);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const { refreshAll, loading: refreshing } = useRefreshAll();
-
-  useEffect(() => {
-    const timer = setTimeout(() => setDebouncedQuery(query), 400);
-    return () => clearTimeout(timer);
-  }, [query]);
 
   const { data, isLoading } = useLibraryServiceListMediaItems({
     "pagination.pageSize": 96,

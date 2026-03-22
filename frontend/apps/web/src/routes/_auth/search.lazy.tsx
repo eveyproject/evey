@@ -10,6 +10,7 @@ import { MediaGridSkeleton } from "@/components/ui/Skeleton";
 import { MediaGrid } from "@/features/library/MediaGrid";
 import { MediaCard } from "@/features/library/MediaCard";
 import { useRecentSearches } from "@/hooks/useRecentSearches";
+import { useDebounce } from "@/hooks/useDebounce";
 
 export const Route = createLazyFileRoute("/_auth/search")({
   component: SearchPage,
@@ -43,7 +44,7 @@ function SearchPage() {
   ];
 
   const [inputValue, setInputValue] = useState(q ?? "");
-  const [debouncedQuery, setDebouncedQuery] = useState(q?.trim() ?? "");
+  const debouncedQuery = useDebounce(inputValue.trim(), 300);
   const [typeFilter, setTypeFilter] = useState<MediaTypeFilter | undefined>(undefined);
   const [genre, setGenre] = useState("");
   const [yearMin, setYearMin] = useState("");
@@ -55,24 +56,18 @@ function SearchPage() {
   useEffect(() => {
     if (q !== undefined && q !== inputValue) {
       setInputValue(q);
-      setDebouncedQuery(q.trim());
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [q]);
 
   useEffect(() => {
-    const timer = setTimeout(() => {
-      const trimmed = inputValue.trim();
-      setDebouncedQuery(trimmed);
-      if (trimmed.length > 1) pushRecent(trimmed);
-      void navigate({
-        to: "/search",
-        search: trimmed ? { q: trimmed } : {},
-        replace: true,
-      });
-    }, 300);
-    return () => clearTimeout(timer);
-  }, [inputValue, navigate, pushRecent]);
+    if (debouncedQuery.length > 1) pushRecent(debouncedQuery);
+    void navigate({
+      to: "/search",
+      search: debouncedQuery ? { q: debouncedQuery } : {},
+      replace: true,
+    });
+  }, [debouncedQuery, navigate, pushRecent]);
 
   useEffect(() => {
     inputRef.current?.focus();

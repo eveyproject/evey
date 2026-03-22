@@ -10,8 +10,9 @@ import {
   useAdminServiceUninstallPlugin,
   useAdminServiceInstallPlugin,
   eveyFetch,
+  eveyFetchRaw,
 } from "@evey/api";
-import { useAuthStore, toast } from "@evey/store";
+import { toast } from "@evey/store";
 import { Spinner } from "@/components/ui/Spinner";
 import { Button } from "@/components/ui/Button";
 import { Modal } from "@/components/ui/Modal";
@@ -187,8 +188,6 @@ function InstallPluginForm({ onSuccess }: { onSuccess: () => void }) {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [selectedFileName, setSelectedFileName] = useState("");
   const fileRef = useRef<HTMLInputElement>(null);
-  const token = useAuthStore((s) => s.accessToken);
-
   const [source, setSource] = useState("");
   const [name, setName] = useState("");
   const installPlugin = useAdminServiceInstallPlugin({ mutation: { onSuccess } });
@@ -206,17 +205,7 @@ function InstallPluginForm({ onSuccess }: { onSuccess: () => void }) {
     try {
       const formData = new FormData();
       formData.append("plugin", file);
-      // Raw fetch required: multipart upload (eveyFetch is JSON-only)
-      const res = await fetch("/api/v1/admin/plugins/preview", {
-        method: "POST",
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
-        body: formData,
-      });
-      if (res.status === 401) window.dispatchEvent(new Event("evey:unauthorized"));
-      if (!res.ok) {
-        const body = await res.json().catch(() => ({})) as { message?: string };
-        throw new Error(body.message || `Preview failed (${res.status})`);
-      }
+      const res = await eveyFetchRaw({ url: "/api/v1/admin/plugins/preview", method: "POST", body: formData });
       const data = (await res.json()) as PluginPreview;
       setPreview(data);
       setStep("reviewing");
@@ -234,22 +223,13 @@ function InstallPluginForm({ onSuccess }: { onSuccess: () => void }) {
     try {
       const formData = new FormData();
       formData.append("plugin", file);
-      // Raw fetch required: multipart upload (eveyFetch is JSON-only)
-      const res = await fetch("/api/v1/admin/plugins/upload", {
-        method: "POST",
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
-        body: formData,
-      });
-      if (res.status === 401) window.dispatchEvent(new Event("evey:unauthorized"));
-      if (!res.ok) {
-        const body = await res.json().catch(() => ({})) as { message?: string; blocked?: boolean; issues?: string[] };
-        if (body.blocked && body.issues) {
-          setBlockedIssues(body.issues);
-          setError(t("admin.plugins.blockedByAnalysis"));
-          setStep("reviewing");
-          return;
-        }
-        throw new Error(body.message || `Install failed (${res.status})`);
+      const res = await eveyFetchRaw({ url: "/api/v1/admin/plugins/upload", method: "POST", body: formData });
+      const body = (await res.json()) as { blocked?: boolean; issues?: string[] };
+      if (body.blocked && body.issues) {
+        setBlockedIssues(body.issues);
+        setError(t("admin.plugins.blockedByAnalysis"));
+        setStep("reviewing");
+        return;
       }
       setStep("done");
       onSuccess();

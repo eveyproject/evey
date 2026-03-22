@@ -102,6 +102,8 @@ function HeroBanner() {
               src={backdropUrl}
               alt={displayTitle}
               className="absolute inset-0 w-full h-full object-cover animate-ken-burns"
+              loading={isActive ? "eager" : "lazy"}
+              fetchPriority={isActive ? "high" : "low"}
               onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
             />
             <div
