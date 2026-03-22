@@ -161,14 +161,20 @@ func (r *PlaylistItemRepository) Reorder(ctx context.Context, playlistID string,
 	}
 	defer tx.Rollback()
 
+	if len(mediaItemIDs) == 0 {
+		return tx.Commit()
+	}
+	var vals []string
+	args := []any{playlistID}
 	for i, mid := range mediaItemIDs {
-		_, err := tx.ExecContext(ctx,
-			`UPDATE playlist_items SET sort_order = $1 WHERE playlist_id = $2 AND media_item_id = $3`,
-			i, playlistID, mid,
-		)
-		if err != nil {
-			return err
-		}
+		args = append(args, mid, i)
+		vals = append(vals, fmt.Sprintf("($%d, $%d)", len(args)-1, len(args)))
+	}
+	query := `UPDATE playlist_items SET sort_order = v.new_order::int
+		FROM (VALUES ` + strings.Join(vals, ", ") + `) AS v(mid, new_order)
+		WHERE playlist_items.playlist_id = $1 AND playlist_items.media_item_id = v.mid`
+	if _, err := tx.ExecContext(ctx, query, args...); err != nil {
+		return err
 	}
 	return tx.Commit()
 }

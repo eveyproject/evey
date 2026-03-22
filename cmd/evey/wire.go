@@ -240,7 +240,7 @@ func buildServices(ctx context.Context, cfg *config.Config, db *sql.DB, rootLog 
 	if tmdbKey != "" {
 		metadataCmdSvc.StartEnrichmentWorker(ctx)
 	}
-	hlsMgr := apptranscoding.NewHLSManager(cfg.Transcoding.CacheDir+"/hls", cfg.Transcoding.MaxConcurrent)
+	hlsMgr := apptranscoding.NewHLSManager(ctx, cfg.Transcoding.CacheDir+"/hls", cfg.Transcoding.MaxConcurrent)
 	libCmdSvc.SetTrickplayActiveStreamChecker(hlsMgr)
 	libCmdSvc.StartTrickplayWorker(ctx)
 	libCmdSvc.StartBackgroundGeneration(ctx)
@@ -275,17 +275,10 @@ func buildServices(ctx context.Context, cfg *config.Config, db *sql.DB, rootLog 
 				if len(items) == 0 {
 					break
 				}
-				for _, item := range items {
-					if indexCtx.Err() != nil {
-						slog.Warn("startup index: cancelled", slog.Int("indexed", indexed))
-						return
-					}
-					if err := searchAdapter.IndexMediaItem(indexCtx, item, nil); err != nil {
-						slog.Warn("startup index", slog.String("id", item.ID), slog.Any("err", err))
-						continue
-					}
-					indexed++
+				if err := searchAdapter.IndexMediaItemsBatch(indexCtx, items); err != nil {
+					slog.Warn("startup index batch", slog.Int("offset", offset), slog.Any("err", err))
 				}
+				indexed += len(items)
 				offset += len(items)
 				if len(items) < pageSize {
 					break

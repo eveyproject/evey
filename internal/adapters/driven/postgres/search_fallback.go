@@ -22,6 +22,10 @@ func (s *SQLSearchFallback) IndexMediaItem(_ context.Context, _ *library.MediaIt
 	return nil
 }
 
+func (s *SQLSearchFallback) IndexMediaItemsBatch(_ context.Context, _ []*library.MediaItem) error {
+	return nil
+}
+
 func (s *SQLSearchFallback) RemoveMediaItem(_ context.Context, _ string) error {
 	return nil
 }
