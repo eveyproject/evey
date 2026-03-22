@@ -4,7 +4,7 @@ import { createLazyFileRoute } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { useAuthStore, toast } from "@evey/store";
-import { eveyFetch } from "@evey/api";
+import { eveyFetch, eveyFetchRaw } from "@evey/api";
 import { Spinner } from "@/components/ui/Spinner";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
@@ -89,21 +89,11 @@ function BackupRow({ backup }: { backup: Backup }) {
   async function handleRestore() {
     setRestoring(true);
     try {
-      const fileRes = await fetch(`/api/v1/admin/backups/${backup.id}`, {
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
-      });
-      if (fileRes.status === 401) window.dispatchEvent(new Event("evey:unauthorized"));
-      if (!fileRes.ok) throw new Error("Failed to fetch backup file");
+      const fileRes = await eveyFetchRaw({ url: `/api/v1/admin/backups/${backup.id}`, method: "GET" });
       const blob = await fileRes.blob();
       const formData = new FormData();
       formData.append("backup", blob, `${backup.id}.tar.gz`);
-      const res = await fetch("/api/v1/admin/backups/restore", {
-        method: "POST",
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
-        body: formData,
-      });
-      if (res.status === 401) window.dispatchEvent(new Event("evey:unauthorized"));
-      if (!res.ok) throw new Error(t("admin.backup.restoreFailed"));
+      await eveyFetchRaw({ url: "/api/v1/admin/backups/restore", method: "POST", body: formData });
       toast.success(t("admin.backup.restoreCompleted"));
     } catch (err) {
       toast.error(err instanceof Error ? err.message : t("admin.backup.restoreFailed"));
@@ -211,7 +201,6 @@ function RestoreUploadModal({
   onClose: () => void;
 }) {
   const { t } = useTranslation();
-  const token = useAuthStore((s) => s.accessToken);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [restoring, setRestoring] = useState(false);
 
@@ -225,13 +214,7 @@ function RestoreUploadModal({
     try {
       const formData = new FormData();
       formData.append("backup", file);
-      const res = await fetch("/api/v1/admin/backups/restore", {
-        method: "POST",
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
-        body: formData,
-      });
-      if (res.status === 401) window.dispatchEvent(new Event("evey:unauthorized"));
-      if (!res.ok) throw new Error(t("admin.backup.restoreFailed"));
+      await eveyFetchRaw({ url: "/api/v1/admin/backups/restore", method: "POST", body: formData });
       toast.success(t("admin.backup.restoreCompleted"));
       onClose();
     } catch (err) {

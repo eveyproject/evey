@@ -1,4 +1,5 @@
 import { useRef, useState, useEffect, useCallback, useMemo } from "react";
+import { useDebounce } from "@/hooks/useDebounce";
 import type React from "react";
 import { useNavigate, useRouterState } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
@@ -105,7 +106,7 @@ export function TopBar() {
   const inputRef = useRef<HTMLInputElement>(null);
   const [searchValue, setSearchValue] = useState("");
   const [dropdownOpen, setDropdownOpen] = useState(false);
-  const [debouncedSearch, setDebouncedSearch] = useState("");
+  const debouncedSearch = useDebounce(searchValue.trim(), 200);
   const [scrolled, setScrolled] = useState(false);
 
   useEffect(() => {
@@ -121,14 +122,6 @@ export function TopBar() {
   const { recents, push: pushRecent, remove: removeRecent, clear: clearRecents } = useRecentSearches();
 
   const isOnSearch = location.pathname === "/search";
-
-  // Debounce search value for dropdown
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      setDebouncedSearch(searchValue.trim());
-    }, 200);
-    return () => clearTimeout(timer);
-  }, [searchValue]);
 
   const navigateToSearch = useCallback((q: string) => {
     const trimmed = q.trim();
