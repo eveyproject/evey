@@ -31,7 +31,7 @@ func NewIMDBAPIProvider(httpClient *http.Client) *IMDBAPIProvider {
 
 func (p *IMDBAPIProvider) Name() string { return "imdbapi" }
 
-// Search queries imdbapi.dev /search/titles.
+// Search queries imdbapi.dev /search/titles, filtering results by mediaType.
 func (p *IMDBAPIProvider) Search(ctx context.Context, query string, _ *int, mediaType string) ([]domain.MetadataResult, error) {
 	params := url.Values{"query": {query}, "limit": {"10"}}
 	u := fmt.Sprintf("%s/search/titles?%s", p.baseURL, params.Encode())
@@ -48,9 +48,24 @@ func (p *IMDBAPIProvider) Search(ctx context.Context, query string, _ *int, medi
 
 	results := make([]domain.MetadataResult, 0, len(resp.Results))
 	for _, t := range resp.Results {
+		if !imdbTypeMatches(t.Type, mediaType) {
+			continue
+		}
 		results = append(results, mapIMDBTitle(t))
 	}
 	return results, nil
+}
+
+// imdbTypeMatches returns true when an IMDB title type is compatible with the
+// requested mediaType ("movie" or "tv").
+func imdbTypeMatches(imdbType, mediaType string) bool {
+	switch mediaType {
+	case "movie":
+		return imdbType == "movie" || imdbType == "tvMovie"
+	case "tv":
+		return imdbType == "tvSeries" || imdbType == "tvMiniSeries" || imdbType == "tvSpecial"
+	}
+	return true
 }
 
 // GetByProviderID fetches a title by IMDB ID (e.g. "tt0111161").
