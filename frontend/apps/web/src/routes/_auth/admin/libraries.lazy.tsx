@@ -108,7 +108,7 @@ function ScheduleModal({ library, onClose }: { library: V1Library; onClose: () =
         setCustomCron(schedule.cron);
       }
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- PRESET_SCHEDULES uses t() so its identity changes every render; only sync when schedule prop changes
   }, [schedule]);
 
   const cronValue = preset === "custom" ? customCron : preset;

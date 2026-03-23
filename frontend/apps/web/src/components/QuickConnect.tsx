@@ -37,7 +37,7 @@ export function QuickConnect() {
 
   useEffect(() => {
     initiate.mutate();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- fire-once on mount; initiate.mutate identity changes every render
   }, []);
 
   // Auto-refresh code every 30s
@@ -47,7 +47,7 @@ export function QuickConnect() {
       initiate.mutate();
     }, REFRESH_INTERVAL_S * 1000);
     return () => clearInterval(id);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- fire-once on mount; initiate.mutate identity changes every render
   }, []);
 
   // Countdown ticker

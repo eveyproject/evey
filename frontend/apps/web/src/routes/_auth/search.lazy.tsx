@@ -57,7 +57,7 @@ function SearchPage() {
     if (q !== undefined && q !== inputValue) {
       setInputValue(q);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- inputValue excluded to avoid loop: q → setInputValue → inputValue changes → re-run
   }, [q]);
 
   useEffect(() => {
