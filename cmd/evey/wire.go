@@ -35,6 +35,7 @@ import (
 	"github.com/gravity-zero/evey/internal/adapters/driven/ffmpeg"
 	"github.com/gravity-zero/evey/internal/adapters/driven/filesystem"
 	meili "github.com/gravity-zero/evey/internal/adapters/driven/meilisearch"
+	"github.com/gravity-zero/evey/internal/adapters/driven/search"
 	metadataadapter "github.com/gravity-zero/evey/internal/adapters/driven/metadata"
 	"github.com/gravity-zero/evey/internal/adapters/driven/opensubtitles"
 	"github.com/gravity-zero/evey/internal/adapters/driven/pluginrunner"
@@ -73,12 +74,13 @@ func buildServices(ctx context.Context, cfg *config.Config, db *sql.DB, rootLog 
 	r := postgres.NewRepos(db)
 
 	// --- Infrastructure ---
+	sqlFallback := postgres.NewSQLSearchFallback(db)
 	var searchAdapter library.SearchIndex
 	if sa, err := meili.NewSearchAdapter(cfg.Meilisearch.URL, cfg.Meilisearch.APIKey); err != nil {
 		slog.Warn("meilisearch unavailable, using SQL search fallback", slog.Any("err", err))
-		searchAdapter = postgres.NewSQLSearchFallback(db)
+		searchAdapter = search.NewResilient(nil, sqlFallback)
 	} else {
-		searchAdapter = sa
+		searchAdapter = search.NewResilient(sa, sqlFallback)
 	}
 	scanner := filesystem.NewScanner()
 	prober := ffmpeg.NewProber("ffprobe")
@@ -245,7 +247,8 @@ func buildServices(ctx context.Context, cfg *config.Config, db *sql.DB, rootLog 
 	libCmdSvc.StartTrickplayWorker(ctx)
 	libCmdSvc.StartBackgroundGeneration(ctx)
 
-	if sa, isMeili := searchAdapter.(*meili.SearchAdapter); isMeili {
+	if rs, ok := searchAdapter.(*search.ResilientSearch); ok {
+		if sa, isMeili := rs.Primary().(*meili.SearchAdapter); isMeili {
 		go func() {
 			indexCtx, indexCancel := context.WithTimeout(ctx, 5*time.Minute)
 			defer indexCancel()
@@ -286,6 +289,7 @@ func buildServices(ctx context.Context, cfg *config.Config, db *sql.DB, rootLog 
 			}
 			slog.Info("startup index complete", slog.Int("indexed", indexed))
 		}()
+		}
 	}
 
 	webhookLog := eveylogger.NewWith(rootLog, "webhook")
