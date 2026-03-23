@@ -8,29 +8,17 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"runtime"
 	"strconv"
 	"sync"
 
 	"github.com/gravity-zero/evey/internal/domain/library"
+	"github.com/gravity-zero/evey/internal/pkg/cpuutil"
 )
 
-// TrickplayWorkers returns the number of parallel ffmpeg workers for trickplay.
-// adaptiveCPU=true → 25% of cores (gentle), false → 50% of cores (faster).
-// Minimum 1, maximum 4.
+// TrickplayWorkers delegates to cpuutil.TrickplayWorkers.
+// Kept for backward compatibility within the adapter.
 func TrickplayWorkers(adaptiveCPU bool) int {
-	divisor := 4
-	if !adaptiveCPU {
-		divisor = 2
-	}
-	n := runtime.NumCPU() / divisor
-	if n < 1 {
-		return 1
-	}
-	if n > 4 {
-		return 4
-	}
-	return n
+	return cpuutil.TrickplayWorkers(adaptiveCPU)
 }
 
 type TrickplayGenerator struct {

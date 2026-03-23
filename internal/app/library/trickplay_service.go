@@ -8,8 +8,8 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/gravity-zero/evey/internal/adapters/driven/ffmpeg"
 	"github.com/gravity-zero/evey/internal/domain/library"
+	"github.com/gravity-zero/evey/internal/pkg/cpuutil"
 	"github.com/gravity-zero/evey/internal/domain/shared"
 )
 
@@ -117,7 +117,7 @@ func (s *TrickplayService) GenerateTrickplay(ctx context.Context, mediaItemID st
 	outputDir := fmt.Sprintf("%s/%s", s.trickplayCacheDir, mediaItemID)
 
 	adaptive := s.isAdaptiveCPU(ctx)
-	workers := ffmpeg.TrickplayWorkers(adaptive)
+	workers := cpuutil.TrickplayWorkers(adaptive)
 	result, err := s.trickplayGen.Generate(ctx, item.FilePath, outputDir, interval, width, tileWidth, tileHeight, workers)
 	if err != nil {
 		return fmt.Errorf("generate trickplay: %w", err)
