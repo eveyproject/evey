@@ -36,6 +36,48 @@ func TestStartTranscode(t *testing.T) {
 	assert.Len(t, bus.PublishedEvents(), 1)
 }
 
+func TestStartTranscode_MaxConcurrentBoundary(t *testing.T) {
+	ctx := context.Background()
+
+	t.Run("exactly at limit returns ErrMaxConcurrent", func(t *testing.T) {
+		tc := tcfakes.NewFakeTranscoder()
+		hw := tcfakes.NewFakeHWDetector()
+		jobRepo := tcfakes.NewFakeTranscodeJobRepository()
+		profileRepo := tcfakes.NewFakeTranscodeProfileRepository()
+		bus := sharedfakes.NewFakeEventBus()
+		svc := apptranscode.NewService(tc, hw, jobRepo, profileRepo, bus, 2)
+
+		j1 := &transcoding.TranscodeJob{ID: "j1", MediaItemID: "m1", InputPath: "/a.mkv", InputCodec: "h264", OutputCodec: "h265"}
+		j2 := &transcoding.TranscodeJob{ID: "j2", MediaItemID: "m2", InputPath: "/b.mkv", InputCodec: "h264", OutputCodec: "h265"}
+		require.NoError(t, svc.StartTranscode(ctx, j1))
+		require.NoError(t, svc.StartTranscode(ctx, j2))
+		assert.Equal(t, string(transcoding.Running), j1.Status)
+		assert.Equal(t, string(transcoding.Running), j2.Status)
+
+		j3 := &transcoding.TranscodeJob{ID: "j3", MediaItemID: "m3", InputPath: "/c.mkv", InputCodec: "h264", OutputCodec: "h265"}
+		err := svc.StartTranscode(ctx, j3)
+		require.ErrorIs(t, err, apptranscode.ErrMaxConcurrent)
+		assert.Equal(t, string(transcoding.Queued), j3.Status)
+	})
+
+	t.Run("one below limit succeeds", func(t *testing.T) {
+		tc := tcfakes.NewFakeTranscoder()
+		hw := tcfakes.NewFakeHWDetector()
+		jobRepo := tcfakes.NewFakeTranscodeJobRepository()
+		profileRepo := tcfakes.NewFakeTranscodeProfileRepository()
+		bus := sharedfakes.NewFakeEventBus()
+		svc := apptranscode.NewService(tc, hw, jobRepo, profileRepo, bus, 2)
+
+		j1 := &transcoding.TranscodeJob{ID: "j1", MediaItemID: "m1", InputPath: "/a.mkv", InputCodec: "h264", OutputCodec: "h265"}
+		require.NoError(t, svc.StartTranscode(ctx, j1))
+
+		j2 := &transcoding.TranscodeJob{ID: "j2", MediaItemID: "m2", InputPath: "/b.mkv", InputCodec: "h264", OutputCodec: "h265"}
+		err := svc.StartTranscode(ctx, j2)
+		require.NoError(t, err)
+		assert.Equal(t, string(transcoding.Running), j2.Status)
+	})
+}
+
 func newSvcWithCache() (*apptranscode.Service, *tcfakes.FakeCacheStore) {
 	tc := tcfakes.NewFakeTranscoder()
 	hw := tcfakes.NewFakeHWDetector()

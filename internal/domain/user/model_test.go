@@ -345,7 +345,10 @@ func TestInviteLink_IsUsable(t *testing.T) {
 	}{
 		{"fresh unlimited", user.InviteLink{MaxUses: 0, UsedCount: 0}, true},
 		{"uses remaining", user.InviteLink{MaxUses: 5, UsedCount: 3}, true},
-		{"exhausted", user.InviteLink{MaxUses: 5, UsedCount: 5}, false},
+		{"one use left (UsedCount == MaxUses-1)", user.InviteLink{MaxUses: 5, UsedCount: 4}, true},
+		{"exactly exhausted (UsedCount == MaxUses)", user.InviteLink{MaxUses: 5, UsedCount: 5}, false},
+		{"over-used", user.InviteLink{MaxUses: 5, UsedCount: 6}, false},
+		{"unlimited with high usage", user.InviteLink{MaxUses: 0, UsedCount: 999}, true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

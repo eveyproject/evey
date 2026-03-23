@@ -390,6 +390,35 @@ func TestCleanupOldBackups_NegativeRetention(t *testing.T) {
 	}
 }
 
+func TestCleanupOldBackups_RetentionBoundary(t *testing.T) {
+	t.Run("retentionDays=0 keeps all", func(t *testing.T) {
+		svc, store, _ := setup()
+		ctx := context.Background()
+		m, _ := svc.CreateBackup(ctx)
+		store.SetCreatedAt(m.ID, time.Now().UTC().AddDate(0, 0, -999))
+		if err := svc.CleanupOldBackups(ctx, 0); err != nil {
+			t.Fatalf("CleanupOldBackups(0): %v", err)
+		}
+		list, _ := svc.ListBackups(ctx)
+		if len(list) != 1 {
+			t.Fatalf("retentionDays=0 should keep all backups, got %d", len(list))
+		}
+	})
+	t.Run("retentionDays=1 deletes old", func(t *testing.T) {
+		svc, store, _ := setup()
+		ctx := context.Background()
+		old, _ := svc.CreateBackup(ctx)
+		store.SetCreatedAt(old.ID, time.Now().UTC().AddDate(0, 0, -2))
+		if err := svc.CleanupOldBackups(ctx, 1); err != nil {
+			t.Fatalf("CleanupOldBackups(1): %v", err)
+		}
+		list, _ := svc.ListBackups(ctx)
+		if len(list) != 0 {
+			t.Fatalf("retentionDays=1 should delete 2-day-old backup, got %d remaining", len(list))
+		}
+	})
+}
+
 func TestCleanupOldBackups_ListError(t *testing.T) {
 	store := fakes.NewFakeBackupStore()
 	dumper := fakes.NewFakeDatabaseDumper()

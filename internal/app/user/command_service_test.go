@@ -144,6 +144,23 @@ func TestSetup_ShortPassword(t *testing.T) {
 	}
 }
 
+func TestSetup_PasswordBoundary(t *testing.T) {
+	t.Run("exactly 7 chars rejected", func(t *testing.T) {
+		d := newAuthTestDeps()
+		_, err := d.svc.Setup(context.Background(), "admin", "1234567", "a@a.com")
+		if !errors.Is(err, ErrPasswordTooShort) {
+			t.Fatalf("7-char password should be rejected, got %v", err)
+		}
+	})
+	t.Run("exactly 8 chars accepted", func(t *testing.T) {
+		d := newAuthTestDeps()
+		_, err := d.svc.Setup(context.Background(), "admin", "12345678", "a@a.com")
+		if errors.Is(err, ErrPasswordTooShort) {
+			t.Fatal("8-char password should be accepted")
+		}
+	})
+}
+
 func TestSetup_CountAdminsError(t *testing.T) {
 	d := newAuthTestDeps()
 	d.users.Err = errors.New("db error")

@@ -91,3 +91,36 @@ func TestCachedMediaItemQueryRepo_MissReturnsError(t *testing.T) {
 	_, err := cache.GetByID(context.Background(), "nonexistent")
 	require.Error(t, err)
 }
+
+func TestCachedMediaItemQueryRepo_ZeroTTL_NeverCaches(t *testing.T) {
+	t.Parallel()
+	inner := libfakes.NewFakeMediaItemQueryRepo()
+	inner.Seed(&library.MediaItem{ID: "m1", Title: "V1"})
+	cache := applib.NewCachedMediaItemQueryRepo(inner, 0)
+
+	_, err := cache.GetByID(context.Background(), "m1")
+	require.NoError(t, err)
+
+	inner.Seed(&library.MediaItem{ID: "m1", Title: "V2"})
+	time.Sleep(time.Millisecond)
+
+	item, err := cache.GetByID(context.Background(), "m1")
+	require.NoError(t, err)
+	assert.Equal(t, "V2", item.Title, "zero TTL should always miss cache")
+}
+
+func TestCachedMediaItemQueryRepo_ShortTTL_CacheHitBeforeExpiry(t *testing.T) {
+	t.Parallel()
+	inner := libfakes.NewFakeMediaItemQueryRepo()
+	inner.Seed(&library.MediaItem{ID: "m1", Title: "Original"})
+	cache := applib.NewCachedMediaItemQueryRepo(inner, 2*time.Second)
+
+	_, err := cache.GetByID(context.Background(), "m1")
+	require.NoError(t, err)
+
+	inner.Seed(&library.MediaItem{ID: "m1", Title: "Updated"})
+
+	item, err := cache.GetByID(context.Background(), "m1")
+	require.NoError(t, err)
+	assert.Equal(t, "Original", item.Title, "should still return cached value before TTL")
+}
