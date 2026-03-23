@@ -74,11 +74,13 @@ func buildServices(ctx context.Context, cfg *config.Config, db *sql.DB, rootLog 
 
 	// --- Infrastructure ---
 	var searchAdapter library.SearchIndex
+	var searchHealth httpapi.SearchHealthChecker
 	if sa, err := meili.NewSearchAdapter(cfg.Meilisearch.URL, cfg.Meilisearch.APIKey); err != nil {
 		slog.Warn("meilisearch unavailable, using SQL search fallback", slog.Any("err", err))
 		searchAdapter = postgres.NewSQLSearchFallback(db)
 	} else {
 		searchAdapter = sa
+		searchHealth = sa
 	}
 	scanner := filesystem.NewScanner()
 	prober := ffmpeg.NewProber("ffprobe")
@@ -399,9 +401,10 @@ func buildServices(ctx context.Context, cfg *config.Config, db *sql.DB, rootLog 
 			pluginRepo:        r.Plugin,
 			quickConnectRepo:  r.QuickConnect,
 		},
-		cfgStore:   httpapi.NewServerConfigStore(r.ServerCfg),
-		backupSvc:  backupSvc,
-		translator: translator,
+		cfgStore:     httpapi.NewServerConfigStore(r.ServerCfg),
+		backupSvc:    backupSvc,
+		translator:   translator,
+		searchHealth: searchHealth,
 	}, nil
 }
 

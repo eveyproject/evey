@@ -40,6 +40,8 @@ func buildHTTPHandler(gwMux http.Handler, deps *appDeps, cfg *config.Config, sta
 		LogDir:    logDir,
 		HTTPSOnly: cfg.Server.ForwardedProto,
 
+		SearchHealth: deps.searchHealth,
+
 		TokenGen: deps.auth.tokenGen,
 		Cfg:      cfg,
 
