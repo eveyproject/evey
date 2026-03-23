@@ -59,11 +59,7 @@ func (s *BackupStore) Create(_ context.Context, m *backup.BackupManifest, data i
 		return fmt.Errorf("write manifest: %w", writeErr)
 	}
 
-	dumpBytes, readErr := io.ReadAll(data)
-	if readErr != nil {
-		return fmt.Errorf("read dump: %w", readErr)
-	}
-	if writeErr := writeTarEntry(tw, "dump.sql", dumpBytes); writeErr != nil {
+	if writeErr := streamTarEntry(tw, "dump.sql", data); writeErr != nil {
 		return fmt.Errorf("write dump: %w", writeErr)
 	}
 
@@ -85,6 +81,50 @@ func (s *BackupStore) Create(_ context.Context, m *backup.BackupManifest, data i
 	// sidecar for fast listing
 	sidecarPath := filepath.Join(s.dir, m.ID+".json")
 	return os.WriteFile(sidecarPath, manifestBytes, 0640)
+}
+
+func streamTarEntry(tw *tar.Writer, name string, r io.Reader) error {
+	var size int64
+	var src io.Reader
+
+	if rs, ok := r.(io.ReadSeeker); ok {
+		cur, err := rs.Seek(0, io.SeekCurrent)
+		if err != nil {
+			return err
+		}
+		end, err := rs.Seek(0, io.SeekEnd)
+		if err != nil {
+			return err
+		}
+		size = end - cur
+		if _, err := rs.Seek(cur, io.SeekStart); err != nil {
+			return err
+		}
+		src = rs
+	} else {
+		tmp, err := os.CreateTemp("", "evey-tar-entry-*")
+		if err != nil {
+			return fmt.Errorf("create temp: %w", err)
+		}
+		defer os.Remove(tmp.Name()) //nolint:errcheck // best-effort cleanup
+		defer tmp.Close()
+
+		size, err = io.Copy(tmp, r)
+		if err != nil {
+			return fmt.Errorf("buffer to temp: %w", err)
+		}
+		if _, err := tmp.Seek(0, io.SeekStart); err != nil {
+			return err
+		}
+		src = tmp
+	}
+
+	hdr := &tar.Header{Name: name, Mode: 0640, Size: size}
+	if err := tw.WriteHeader(hdr); err != nil {
+		return err
+	}
+	_, err := io.Copy(tw, src)
+	return err
 }
 
 func writeTarEntry(tw *tar.Writer, name string, data []byte) error {

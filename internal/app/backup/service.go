@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"os"
 	"time"
 
 	"github.com/gravity-zero/evey/internal/domain/backup"
@@ -63,21 +64,30 @@ func (s *Service) CreateBackup(ctx context.Context) (*backup.BackupManifest, err
 		return nil, err
 	}
 
-	dumpBytes, err := io.ReadAll(data)
+	tmp, err := os.CreateTemp("", "evey-backup-*.sql")
 	if err != nil {
+		return nil, fmt.Errorf("create temp file: %w", err)
+	}
+	defer os.Remove(tmp.Name()) //nolint:errcheck // best-effort cleanup
+	defer tmp.Close()
+
+	h := sha256.New()
+	if _, err := io.Copy(io.MultiWriter(tmp, h), data); err != nil {
+		return nil, fmt.Errorf("stream dump to temp: %w", err)
+	}
+	if _, err := tmp.Seek(0, io.SeekStart); err != nil {
 		return nil, err
 	}
 
-	hash := sha256.Sum256(dumpBytes)
 	m := &backup.BackupManifest{
 		ID:         id.New("bk-"),
 		CreatedAt:  time.Now().UTC(),
 		Version:    s.version,
 		Tables:     BackupTables,
-		DumpSHA256: hex.EncodeToString(hash[:]),
+		DumpSHA256: hex.EncodeToString(h.Sum(nil)),
 	}
 
-	if err := s.store.Create(ctx, m, bytes.NewReader(dumpBytes)); err != nil {
+	if err := s.store.Create(ctx, m, tmp); err != nil {
 		return nil, err
 	}
 	return m, nil
