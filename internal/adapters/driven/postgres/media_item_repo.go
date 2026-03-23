@@ -221,7 +221,14 @@ func (r *MediaItemRepository) List(ctx context.Context, f library.ListMediaItems
 	if strings.EqualFold(f.SortOrder, "desc") {
 		sortOrder = "DESC"
 	}
-	query += fmt.Sprintf(" ORDER BY %s %s", sortField, sortOrder)
+	if sortField == "added_at" {
+		query += fmt.Sprintf(` ORDER BY CASE WHEN type = 'series' THEN COALESCE(
+			(SELECT MAX(e.added_at) FROM media_items e WHERE e.type = 'episode'
+			 AND e.parent_id IN (SELECT s.id FROM media_items s WHERE s.parent_id = media_items.id)),
+			added_at) ELSE added_at END %s`, sortOrder)
+	} else {
+		query += fmt.Sprintf(" ORDER BY %s %s", sortField, sortOrder)
+	}
 
 	limit := f.Limit
 	if limit <= 0 || limit > 500 {
