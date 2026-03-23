@@ -18,6 +18,10 @@ import (
 	"github.com/gravity-zero/evey/internal/domain/backup/fakes"
 )
 
+type errReader struct{ err error }
+
+func (r *errReader) Read([]byte) (int, error) { return 0, r.err }
+
 func setup() (*Service, *fakes.FakeBackupStore, *fakes.FakeDatabaseDumper) {
 	store := fakes.NewFakeBackupStore()
 	dumper := fakes.NewFakeDatabaseDumper()
@@ -240,6 +244,115 @@ func TestRestoreBackup_DumperError(t *testing.T) {
 	err := svc.RestoreBackup(context.Background(), bytes.NewReader(archive))
 	if err == nil {
 		t.Fatal("expected error when dumper fails")
+	}
+}
+
+func TestRestoreBackup_EmptySHA256_SkipsValidation(t *testing.T) {
+	svc, _, dumper := setup()
+	dump := []byte("-- dump with no sha\n")
+	m := makeManifest(dump)
+	m.DumpSHA256 = ""
+	archive := buildTarGz(t, m, dump, nil)
+
+	if err := svc.RestoreBackup(context.Background(), bytes.NewReader(archive)); err != nil {
+		t.Fatalf("RestoreBackup with empty SHA should succeed: %v", err)
+	}
+	if !bytes.Equal(dumper.Restored, dump) {
+		t.Fatal("restored data should match dump even without SHA validation")
+	}
+}
+
+func TestRestoreBackup_InvalidGzip(t *testing.T) {
+	svc, _, _ := setup()
+	err := svc.RestoreBackup(context.Background(), bytes.NewReader([]byte("not gzip data")))
+	if err == nil {
+		t.Fatal("expected error for invalid gzip")
+	}
+	if !strings.Contains(err.Error(), "restore:") {
+		t.Fatalf("expected wrapped restore error, got: %v", err)
+	}
+}
+
+func TestRestoreBackup_MissingManifest(t *testing.T) {
+	svc, _, _ := setup()
+	// build tar.gz with only dump.sql, no manifest.json
+	var buf bytes.Buffer
+	gw := gzip.NewWriter(&buf)
+	tw := tar.NewWriter(gw)
+	writeTar(t, tw, "dump.sql", []byte("-- dump\n"))
+	tw.Close()
+	gw.Close()
+
+	err := svc.RestoreBackup(context.Background(), &buf)
+	if err == nil {
+		t.Fatal("expected error for missing manifest")
+	}
+	if !strings.Contains(err.Error(), "manifest.json") {
+		t.Fatalf("expected manifest missing error, got: %v", err)
+	}
+}
+
+func TestRestoreBackup_MissingDump(t *testing.T) {
+	svc, _, _ := setup()
+	manifest := &backupmodel.BackupManifest{ID: "bk-x", Version: "1.0.0"}
+	manifestBytes, _ := json.Marshal(manifest)
+	var buf bytes.Buffer
+	gw := gzip.NewWriter(&buf)
+	tw := tar.NewWriter(gw)
+	writeTar(t, tw, "manifest.json", manifestBytes)
+	tw.Close()
+	gw.Close()
+
+	err := svc.RestoreBackup(context.Background(), &buf)
+	if err == nil {
+		t.Fatal("expected error for missing dump.sql")
+	}
+	if !strings.Contains(err.Error(), "dump.sql") {
+		t.Fatalf("expected dump missing error, got: %v", err)
+	}
+}
+
+func TestRestoreBackup_ReadError(t *testing.T) {
+	svc, _, _ := setup()
+	err := svc.RestoreBackup(context.Background(), &errReader{err: errors.New("read broken")})
+	if err == nil {
+		t.Fatal("expected error from reader")
+	}
+	if !strings.Contains(err.Error(), "read broken") {
+		t.Fatalf("expected read error, got: %v", err)
+	}
+}
+
+func TestRestoreBackup_CorrectSHA256_Validates(t *testing.T) {
+	svc, _, dumper := setup()
+	dump := []byte("SELECT 1;\nINSERT INTO users VALUES(1);\n")
+	m := makeManifest(dump)
+	archive := buildTarGz(t, m, dump, nil)
+
+	if err := svc.RestoreBackup(context.Background(), bytes.NewReader(archive)); err != nil {
+		t.Fatalf("RestoreBackup: %v", err)
+	}
+	if !bytes.Equal(dumper.Restored, dump) {
+		t.Fatal("dump content mismatch after restore")
+	}
+}
+
+func TestRestoreBackup_InvalidManifestJSON(t *testing.T) {
+	svc, _, _ := setup()
+	var buf bytes.Buffer
+	gw := gzip.NewWriter(&buf)
+	tw := tar.NewWriter(gw)
+	writeTar(t, tw, "manifest.json", []byte("{invalid json"))
+	writeTar(t, tw, "dump.sql", []byte("-- dump\n"))
+	tw.Close()
+	gw.Close()
+
+	err := svc.RestoreBackup(context.Background(), &buf)
+	if err == nil {
+		t.Fatal("expected error for invalid manifest JSON")
+	}
+	if !strings.Contains(err.Error(), "parse manifest") {
+		t.Fatalf("expected parse manifest error, got: %v", err)
 	}
 }
 
