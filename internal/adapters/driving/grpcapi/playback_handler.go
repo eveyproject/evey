@@ -13,6 +13,7 @@ import (
 	apptranscoding "github.com/gravity-zero/evey/internal/app/transcoding"
 	"github.com/gravity-zero/evey/internal/adapters/driving/grpcapi/interceptors"
 	"github.com/gravity-zero/evey/internal/domain/activity"
+	"github.com/gravity-zero/evey/internal/domain/library"
 	"github.com/gravity-zero/evey/internal/domain/playback"
 	"github.com/gravity-zero/evey/internal/domain/transcoding"
 	"github.com/gravity-zero/evey/internal/domain/user"
@@ -295,13 +296,24 @@ func (h *playbackHandler) GetNextUp(ctx context.Context, req *eveyv1.GetNextUpRe
 		slog.Error("get next up", slog.Any("err", err))
 		return nil, status.Errorf(codes.Internal, "internal error")
 	}
+	ids := make([]string, len(progresses))
+	for i, wp := range progresses {
+		ids[i] = wp.MediaItemID
+	}
+	mediaItems, err := h.librarySvc.GetMediaItemsByIDs(ctx, ids)
+	if err != nil {
+		slog.Error("get media items for next up", slog.Any("err", err))
+		return nil, status.Errorf(codes.Internal, "internal error")
+	}
+	byID := make(map[string]*library.MediaItem, len(mediaItems))
+	for _, mi := range mediaItems {
+		byID[mi.ID] = mi
+	}
 	resp := &eveyv1.GetNextUpResponse{}
 	for _, wp := range progresses {
-		item, err := h.librarySvc.GetMediaItem(ctx, wp.MediaItemID)
-		if err != nil {
-			continue
+		if item, ok := byID[wp.MediaItemID]; ok {
+			resp.Items = append(resp.Items, mediaItemToProto(item))
 		}
-		resp.Items = append(resp.Items, mediaItemToProto(item))
 	}
 	return resp, nil
 }
