@@ -358,7 +358,7 @@ export function HLSPlayer({
       hls.destroy();
       hlsRef.current = null;
     };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- accessToken read imperatively via getState(); setFatalError/setIsBuffering/setTranscodeStartTime are stable setState
   }, [transcodeMode, mediaId, onEnded, currentTrackIndex, transcodeStartTime, selectedBurnInTrack]);
 
   // Subtitle track management — imperatively add/remove <track> element

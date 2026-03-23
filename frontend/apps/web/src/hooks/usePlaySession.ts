@@ -94,7 +94,7 @@ export function usePlaySession(mediaId: string): PlaySessionResult {
     }).finally(() => {
       setStarting(false);
     });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- fire-once per mediaId via startedRef guard; rawStreamInfo may be undefined on first run (defaults to TRANSCODE, server resolves actual method)
   }, [mediaId]);
 
   const stopSession = useCallback(() => {

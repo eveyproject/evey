@@ -76,7 +76,7 @@ function VirtualLogList({ lines, live, noMatchText }: { lines: ParsedLine[]; liv
       virtualizer.scrollToIndex(lines.length - 1, { behavior: "smooth" });
     }
     prevLengthRef.current = lines.length;
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- virtualizer is recreated every render; using primitive lines.length instead
   }, [lines.length, live]);
 
   return (

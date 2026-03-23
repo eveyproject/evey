@@ -349,7 +349,7 @@ function LibraryPage() {
     } else if (library.type === "LIBRARY_TYPE_MOVIES") {
       void navigate({ to: "/library/$libraryId", params: { libraryId: slug }, search: { ...search, type: "MEDIA_ITEM_TYPE_MOVIE" as LibraryServiceListMediaItemsType }, replace: true });
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- search/slug excluded: search is a new object each render, slug is stable but derived from params already covered
   }, [library?.type, typeFilter, navigate]);
 
   const typeOptions = isShowLibrary ? SHOW_TYPE_KEYS : [];

@@ -101,7 +101,7 @@ function PlayerPageInner({ mediaId }: { mediaId: string }) {
     if (roomParam && !syncState.roomId) {
       syncControls.joinRoom(roomParam).catch(() => {});
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional: only join when URL roomParam changes, not when syncState/syncControls update
   }, [roomParam]);
   const { data: mediaItem } = useQuery({
     queryKey: [`/api/v1/media/${mediaId}`],
