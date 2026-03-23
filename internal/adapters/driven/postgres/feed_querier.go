@@ -187,11 +187,20 @@ func (q *FeedQuerier) NextEpisode(ctx context.Context, profileID string, limit i
 // RecentlyAdded returns media items added within daysWindow days, most recent first.
 func (q *FeedQuerier) RecentlyAdded(ctx context.Context, daysWindow, limit int) ([]*feed.FeedItem, error) {
 	rows, err := q.db.QueryContext(ctx, `
-		SELECT id, COALESCE(parent_id,''), title, type, 0, added_at::text
-		FROM media_items
-		WHERE added_at > NOW() - ($1 || ' days')::interval
-		  AND type IN ('movie', 'series', 'album')
-		ORDER BY added_at DESC
+		SELECT id, COALESCE(parent_id,''), title, type, 0, effective_added::text
+		FROM (
+			SELECT m.id, m.parent_id, m.title, m.type,
+				CASE WHEN m.type = 'series' THEN COALESCE(
+					(SELECT MAX(e.added_at) FROM media_items e
+					 WHERE e.type = 'episode'
+					   AND e.parent_id IN (SELECT s.id FROM media_items s WHERE s.parent_id = m.id)),
+					m.added_at)
+				ELSE m.added_at END AS effective_added
+			FROM media_items m
+			WHERE m.type IN ('movie', 'series', 'album')
+		) sub
+		WHERE effective_added > NOW() - ($1 || ' days')::interval
+		ORDER BY effective_added DESC
 		LIMIT $2
 	`, daysWindow, limit)
 	if err != nil {
