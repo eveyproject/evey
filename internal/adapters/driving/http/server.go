@@ -39,6 +39,11 @@ type DBPinger interface {
 	Ping(ctx context.Context) error
 }
 
+// SearchHealthChecker checks Meilisearch connectivity; may be nil (check skipped).
+type SearchHealthChecker interface {
+	HealthCheck(ctx context.Context) error
+}
+
 // HTTPServer holds shared dependencies for HTTP handlers.
 type HTTPServer struct {
 	BaseURL   string
@@ -49,6 +54,9 @@ type HTTPServer struct {
 
 	// DB is used for liveness checks; may be nil (check skipped).
 	DB DBPinger
+
+	// SearchHealth is used for health checks; nil means search not configured.
+	SearchHealth SearchHealthChecker
 
 	TokenGen *auth.JWTGenerator
 	Cfg      *config.Config

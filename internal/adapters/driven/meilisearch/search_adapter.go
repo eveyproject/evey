@@ -145,6 +145,14 @@ func sanitizeNumeric(v string) string {
 	return v
 }
 
+func (a *SearchAdapter) HealthCheck(ctx context.Context) error {
+	_, err := a.index.GetStatsWithContext(ctx)
+	if err != nil {
+		return fmt.Errorf("meilisearch health: %w", err)
+	}
+	return nil
+}
+
 func (a *SearchAdapter) DocumentCount(ctx context.Context) (int64, error) {
 	stats, err := a.index.GetStatsWithContext(ctx)
 	if err != nil {

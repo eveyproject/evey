@@ -10,6 +10,7 @@ import (
 type healthResponse struct {
 	Status        string `json:"status"`
 	DB            string `json:"db"`
+	Meilisearch   string `json:"meilisearch"`
 	Version       string `json:"version"`
 	UptimeSeconds int64  `json:"uptime_seconds"`
 }
@@ -19,6 +20,15 @@ func (s *HTTPServer) healthzHandler(w http.ResponseWriter, r *http.Request) {
 	if s.DB != nil {
 		if err := s.DB.Ping(r.Context()); err != nil {
 			dbStatus = "error"
+		}
+	}
+
+	meiliStatus := "not_configured"
+	if s.SearchHealth != nil {
+		if err := s.SearchHealth.HealthCheck(r.Context()); err != nil {
+			meiliStatus = "degraded"
+		} else {
+			meiliStatus = "ok"
 		}
 	}
 
@@ -33,17 +43,20 @@ func (s *HTTPServer) healthzHandler(w http.ResponseWriter, r *http.Request) {
 	overallStatus := "ok"
 	if dbStatus == "error" {
 		overallStatus = "error"
+	} else if meiliStatus == "degraded" {
+		overallStatus = "degraded"
 	}
 
 	resp := healthResponse{
 		Status:        overallStatus,
 		DB:            dbStatus,
+		Meilisearch:   meiliStatus,
 		Version:       version,
 		UptimeSeconds: int64(time.Since(s.StartTime).Seconds()),
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	if overallStatus != "ok" {
+	if dbStatus == "error" {
 		w.WriteHeader(http.StatusServiceUnavailable)
 	}
 	if err := json.NewEncoder(w).Encode(resp); err != nil {
