@@ -53,7 +53,7 @@ func newTestAdminHandler() *adminHandler {
 	pluginRunner := pluginfakes.NewFakePluginRunner()
 	pluginParser := pluginfakes.NewFakeManifestParser()
 	pluginInstallerSvc := appplugin.NewInstallerService(pluginRepo, pluginRunner, pluginParser, events)
-	pluginRuntimeSvc := appplugin.NewRuntimeService(pluginRepo, pluginRunner, pluginParser, events)
+	pluginRuntimeSvc := appplugin.NewRuntimeService(pluginRepo, pluginRuntimeRepo, pluginRunner, pluginParser, events)
 	pluginQuerySvc := appplugin.NewQueryService(pluginRepo, pluginRuntimeRepo)
 	return &adminHandler{
 		userCmd:         userCmd,
