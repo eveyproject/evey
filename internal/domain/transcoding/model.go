@@ -14,6 +14,9 @@ const (
 	None  HWAccelType = "none"
 )
 
+// DefaultAudioCodec is AAC — the only universally supported audio codec for HLS/web playback
+const DefaultAudioCodec = "aac"
+
 type JobStatus string
 
 const (
@@ -30,6 +33,7 @@ type TranscodeJob struct {
 	InputPath     string
 	InputCodec    string
 	OutputCodec   string
+	AudioCodec    string
 	HWAccelType   string
 	Preset        string
 	ResolutionIn  string

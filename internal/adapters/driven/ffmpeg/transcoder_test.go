@@ -120,6 +120,47 @@ func TestBuildTranscodeArgs_HLSOutput(t *testing.T) {
 	assert.Contains(t, args, "/tmp/evey/transcode/job-hls_%03d.ts")
 }
 
+func TestBuildTranscodeArgs_AudioCodecDefault(t *testing.T) {
+	t.Parallel()
+	tr := newTestTranscoder()
+	job := &transcoding.TranscodeJob{
+		ID:          "job-audio-default",
+		InputPath:   "/input/video.mkv",
+		OutputCodec: "h264",
+		HWAccelType: "none",
+	}
+
+	args := tr.BuildTranscodeArgs(job)
+	for i, a := range args {
+		if a == "-c:a" {
+			assert.Equal(t, transcoding.DefaultAudioCodec, args[i+1])
+			return
+		}
+	}
+	t.Fatal("-c:a flag not found in args")
+}
+
+func TestBuildTranscodeArgs_AudioCodecCustom(t *testing.T) {
+	t.Parallel()
+	tr := newTestTranscoder()
+	job := &transcoding.TranscodeJob{
+		ID:          "job-audio-custom",
+		InputPath:   "/input/video.mkv",
+		OutputCodec: "h264",
+		AudioCodec:  "opus",
+		HWAccelType: "none",
+	}
+
+	args := tr.BuildTranscodeArgs(job)
+	for i, a := range args {
+		if a == "-c:a" {
+			assert.Equal(t, "opus", args[i+1])
+			return
+		}
+	}
+	t.Fatal("-c:a flag not found in args")
+}
+
 func TestParseProgress(t *testing.T) {
 	t.Parallel()
 	line := "frame=  120 fps= 30.0 q=28.0 size=    256kB time=00:00:04.00 bitrate= 524.3kbits/s speed= 1.5x"

@@ -36,6 +36,7 @@ func (h *transcodingHandler) StartTranscode(req *eveyv1.StartTranscodeRequest, s
 		ID:            id.New("tj-"),
 		MediaItemID:   req.MediaItemId,
 		OutputCodec:   req.VideoCodec,
+		AudioCodec:    req.AudioCodec,
 		HWAccelType:   hwAccelTypeFromProto[req.HwAccel],
 		BitrateOut:    bitrateOut,
 		ResolutionOut: fmt.Sprintf("%dx%d", req.Width, req.Height),
