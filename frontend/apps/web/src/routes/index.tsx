@@ -2,15 +2,15 @@ import { createFileRoute, redirect } from "@tanstack/react-router";
 import { useAuthStore } from "@evey/store";
 import { eveyFetch } from "@evey/api";
 
-type SystemInfo = { setupComplete?: boolean };
+type SetupStatus = { setupComplete?: boolean };
 
 export const Route = createFileRoute("/")({
   beforeLoad: async ({ context }) => {
     let setupComplete = true;
     try {
-      const info = await context.queryClient.fetchQuery<SystemInfo>({
-        queryKey: ["system-info"],
-        queryFn: () => eveyFetch<SystemInfo>({ url: "/api/v1/admin/system", method: "GET" }),
+      const info = await context.queryClient.fetchQuery<SetupStatus>({
+        queryKey: ["setup-status"],
+        queryFn: () => eveyFetch<SetupStatus>({ url: "/api/v1/setup/status", method: "GET" }),
         staleTime: 0,
       });
       setupComplete = info.setupComplete ?? true;

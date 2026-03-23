@@ -9,14 +9,14 @@ import { Input } from "@/components/ui/Input";
 import { Select } from "@/components/ui/Select";
 import { Card } from "@/components/ui/Card";
 
-type SystemInfo = { setupComplete?: boolean };
+type SetupStatus = { setupComplete?: boolean };
 
 export const Route = createFileRoute("/setup")({
   beforeLoad: async ({ context }) => {
     try {
-      const info = await context.queryClient.fetchQuery<SystemInfo>({
-        queryKey: ["system-info"],
-        queryFn: () => eveyFetch<SystemInfo>({ url: "/api/v1/admin/system", method: "GET" }),
+      const info = await context.queryClient.fetchQuery<SetupStatus>({
+        queryKey: ["setup-status"],
+        queryFn: () => eveyFetch<SetupStatus>({ url: "/api/v1/setup/status", method: "GET" }),
         staleTime: 30_000,
       });
       if (info.setupComplete) throw redirect({ to: "/login" });

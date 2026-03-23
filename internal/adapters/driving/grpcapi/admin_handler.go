@@ -67,6 +67,14 @@ type adminHandler struct {
 	serverCtx        context.Context
 }
 
+func (h *adminHandler) GetSetupStatus(ctx context.Context, _ *eveyv1.GetSetupStatusRequest) (*eveyv1.SetupStatusResponse, error) {
+	admins, err := h.userQuery.CountAdmins(ctx)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "count admins: %v", err)
+	}
+	return &eveyv1.SetupStatusResponse{SetupComplete: admins > 0}, nil
+}
+
 func (h *adminHandler) GetSystemInfo(ctx context.Context, _ *eveyv1.GetSystemInfoRequest) (*eveyv1.SystemInfo, error) {
 	admins, adminErr := h.userQuery.CountAdmins(ctx)
 	if adminErr != nil {

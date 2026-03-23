@@ -22,6 +22,7 @@ func DefaultRBACConfig() RBACConfig {
 			"/evey.v1.UserService/RefreshToken":         true,
 			"/evey.v1.UserService/RegisterWithInvite":   true,
 			"/evey.v1.AdminService/SetupWizard":         true,
+			"/evey.v1.AdminService/GetSetupStatus":      true,
 			"/evey.v1.UserService/InitiateQuickConnect": true,
 			"/evey.v1.UserService/CheckQuickConnect":    true,
 		},

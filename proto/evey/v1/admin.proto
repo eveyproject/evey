@@ -15,6 +15,12 @@ service AdminService {
     };
   }
 
+  rpc GetSetupStatus(GetSetupStatusRequest) returns (SetupStatusResponse) {
+    option (google.api.http) = {
+      get: "/api/v1/setup/status"
+    };
+  }
+
   rpc GetServerConfig(GetServerConfigRequest) returns (ServerConfig) {
     option (google.api.http) = {
       get: "/api/v1/admin/config"
@@ -280,6 +286,12 @@ message PluginLogEntry {
 }
 
 message GetSystemInfoRequest {}
+
+message GetSetupStatusRequest {}
+
+message SetupStatusResponse {
+  bool setup_complete = 1;
+}
 
 message GetServerConfigRequest {}
 
