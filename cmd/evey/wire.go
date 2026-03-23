@@ -46,6 +46,7 @@ import (
 	"github.com/gravity-zero/evey/internal/domain/library"
 	"github.com/gravity-zero/evey/internal/domain/metadata"
 	domainplugin "github.com/gravity-zero/evey/internal/domain/plugin"
+	"github.com/gravity-zero/evey/internal/domain/shared"
 	"github.com/gravity-zero/evey/internal/pkg/auth"
 	"github.com/gravity-zero/evey/internal/pkg/eventbus"
 	eveyi18n "github.com/gravity-zero/evey/internal/pkg/i18n"
@@ -143,7 +144,18 @@ func buildServices(ctx context.Context, cfg *config.Config, db *sql.DB, rootLog 
 	if err := libCmdSvc.Validate(); err != nil {
 		return nil, fmt.Errorf("library command service: %w", err)
 	}
-	libQuerySvc := applibrary.NewQueryService(r.Library, r.MediaItemQuery, r.MediaStream, searchAdapter)
+	mediaItemCache := applibrary.NewCachedMediaItemQueryRepo(r.MediaItemQuery, 30*time.Second)
+	bus.Subscribe("media.item.removed", func(_ context.Context, ev shared.Event) {
+		if e, ok := ev.(library.MediaItemRemoved); ok {
+			mediaItemCache.Invalidate(e.MediaItemID)
+		}
+	})
+	bus.Subscribe("media.item.updated", func(_ context.Context, ev shared.Event) {
+		if e, ok := ev.(library.MediaItemUpdated); ok {
+			mediaItemCache.Invalidate(e.MediaItemID)
+		}
+	})
+	libQuerySvc := applibrary.NewQueryService(r.Library, mediaItemCache, r.MediaStream, searchAdapter)
 
 	schedulerLog := eveylogger.NewWith(rootLog, "scheduler")
 	libScheduler := applibrary.NewScheduler(r.ScanSchedule, libCmdSvc, schedulerLog)
