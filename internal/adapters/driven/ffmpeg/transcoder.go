@@ -162,9 +162,12 @@ func (t *Transcoder) BuildTranscodeArgs(job *transcoding.TranscodeJob) []string 
 
 	outBase := filepath.Join(t.outputDir, job.ID)
 
-	// TODO: use job's audio codec from TranscodeProfile when available; defaulting to aac
+	audioCodec := job.AudioCodec
+	if audioCodec == "" {
+		audioCodec = transcoding.DefaultAudioCodec
+	}
 	args = append(args,
-		"-c:a", "aac",
+		"-c:a", audioCodec,
 		"-f", "hls",
 		"-hls_time", "6",
 		"-hls_list_size", "0",

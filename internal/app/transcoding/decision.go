@@ -106,13 +106,13 @@ func evaluateAudio(d *transcoding.PlaybackDecision, s *library.MediaStream, clie
 	if !contains(client.AudioCodecs, strings.ToLower(s.Codec)) {
 		d.TranscodeReasons = append(d.TranscodeReasons, "audio_codec_unsupported")
 		d.AudioDecision = "transcode"
-		d.AudioCodec = "aac"
+		d.AudioCodec = transcoding.DefaultAudioCodec
 	}
 	if s.Channels != nil && client.MaxAudioChannels > 0 && *s.Channels > client.MaxAudioChannels {
 		d.TranscodeReasons = append(d.TranscodeReasons, "audio_channels_exceeded")
 		d.AudioDecision = "transcode"
 		if d.AudioCodec == "" {
-			d.AudioCodec = "aac"
+			d.AudioCodec = transcoding.DefaultAudioCodec
 		}
 	}
 }
