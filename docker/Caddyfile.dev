@@ -1,11 +1,7 @@
 evey.test {
 	tls internal
 
-	header {
-		Content-Security-Policy "default-src 'self'; img-src 'self' https://image.tmdb.org data:; media-src 'self' blob:; style-src 'self' 'unsafe-inline'; script-src 'self'; connect-src 'self' wss:; worker-src 'self'"
-	}
-
-	# Long-running: scan + transcode need no timeout + immediate flush
+# Long-running: scan + transcode need no timeout + immediate flush
 	@streaming {
 		path /api/v1/media/*/transcode /api/v1/media/*/hls/* /api/v1/media/*/stream /api/v1/libraries/*/scan
 	}
