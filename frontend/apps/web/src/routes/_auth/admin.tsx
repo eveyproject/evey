@@ -1,12 +1,14 @@
 import { createFileRoute, Outlet, redirect } from "@tanstack/react-router";
 import { useAuthStore } from "@evey/store";
 import { PluginSlot } from "@/features/plugins/PluginSlot";
+import { RouteErrorComponent } from "@/components/ui/RouteErrorComponent";
 
 export const Route = createFileRoute("/_auth/admin")({
   beforeLoad: () => {
     const { isAdmin } = useAuthStore.getState();
     if (!isAdmin) throw redirect({ to: "/home" });
   },
+  errorComponent: RouteErrorComponent,
   component: AdminLayout,
 });
 

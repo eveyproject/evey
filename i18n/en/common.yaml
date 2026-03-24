@@ -58,6 +58,11 @@ errorBoundary:
   description: An unexpected error occurred. Please try reloading the page. If the problem persists, go back to the home page.
   tryAgain: Try Again
   goHome: Go Home
+routeError:
+  title: Something went wrong
+  description: An error occurred while loading this page. You can retry or go back to the home page.
+  retry: Retry
+  goHome: Go Home
 notifications:
   title: Notifications
   markRead: Mark read
@@ -95,6 +100,8 @@ aria:
   bgOpacity: Background opacity
   operator: Operator
   value: Value
+  retryPage: Retry loading page
+  goToHomePage: Go to home page
 watchHistory:
   title: Watch History
 nav:
