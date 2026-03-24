@@ -2,6 +2,7 @@ package music
 
 import (
 	"context"
+	"io"
 	"time"
 )
 
@@ -17,4 +18,25 @@ type TrackRepository interface {
 	GetAlbums(ctx context.Context, libraryID string) ([]Album, error)
 	GetArtists(ctx context.Context, libraryID string) ([]Artist, error)
 	UpdateFilePath(ctx context.Context, id, newPath string, modTime time.Time) error
+}
+
+// ScannedAudioFile represents a discovered audio file during directory walking.
+type ScannedAudioFile struct {
+	Path     string
+	Size     int64
+	ModTime  time.Time
+	MimeType string
+}
+
+// ReadSeekCloser combines io.ReadSeeker with io.Closer.
+type ReadSeekCloser interface {
+	io.ReadSeeker
+	io.Closer
+}
+
+// MusicScanner abstracts filesystem operations needed by music scanning.
+type MusicScanner interface {
+	WalkAudioFiles(ctx context.Context, dir string, fn func(ScannedAudioFile) error) error
+	OpenFile(path string) (ReadSeekCloser, error)
+	ComputeHash(path string) (string, error)
 }

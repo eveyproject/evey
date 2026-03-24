@@ -7,7 +7,6 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
-	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -17,27 +16,17 @@ import (
 	"github.com/gravity-zero/evey/internal/domain/library"
 	"github.com/gravity-zero/evey/internal/domain/music"
 	"github.com/gravity-zero/evey/internal/domain/shared"
-	"github.com/gravity-zero/evey/internal/pkg/filehash"
 )
-
-var audioExts = map[string]string{
-	".mp3":  "audio/mpeg",
-	".flac": "audio/flac",
-	".m4a":  "audio/mp4",
-	".ogg":  "audio/ogg",
-	".opus": "audio/ogg",
-	".wav":  "audio/wav",
-	".aac":  "audio/aac",
-}
 
 type Service struct {
 	tracks  music.TrackRepository
 	bus     shared.EventBus
 	libRepo library.LibraryQueryRepo
+	scanner music.MusicScanner
 }
 
-func NewService(tracks music.TrackRepository, bus shared.EventBus, libRepo library.LibraryQueryRepo) *Service {
-	return &Service{tracks: tracks, bus: bus, libRepo: libRepo}
+func NewService(tracks music.TrackRepository, bus shared.EventBus, libRepo library.LibraryQueryRepo, scanner music.MusicScanner) *Service {
+	return &Service{tracks: tracks, bus: bus, libRepo: libRepo, scanner: scanner}
 }
 
 func (s *Service) ScanDirectory(ctx context.Context, libraryID, dir string) (int, error) {
@@ -70,49 +59,28 @@ func (s *Service) ScanDirectory(ctx context.Context, libraryID, dir string) (int
 	}
 	var toProcess []trackJob
 
-	walkErr := filepath.WalkDir(dir, func(path string, d os.DirEntry, walkE error) error {
-		if walkE != nil {
-			slog.Warn("music scan: walk error", slog.String("path", path), slog.Any("err", walkE))
-			return nil
-		}
-		if ctx.Err() != nil {
-			return ctx.Err()
-		}
-		if d.IsDir() {
-			return nil
-		}
-		ext := strings.ToLower(filepath.Ext(path))
-		mimeType, ok := audioExts[ext]
-		if !ok {
-			return nil
-		}
-		info, statErr := d.Info()
-		if statErr != nil {
-			slog.Warn("music scan: stat failed", slog.String("path", path), slog.Any("err", statErr))
-			return nil
-		}
-
-		hash, hashErr := filehash.Compute(path)
+	walkErr := s.scanner.WalkAudioFiles(ctx, dir, func(f music.ScannedAudioFile) error {
+		hash, hashErr := s.scanner.ComputeHash(f.Path)
 		if hashErr != nil {
-			slog.Warn("music scan: hash failed", slog.String("path", path), slog.Any("err", hashErr))
+			slog.Warn("music scan: hash failed", slog.String("path", f.Path), slog.Any("err", hashErr))
 		}
 
-		if ex := byPath[path]; ex != nil {
-			if ex.FileSize == info.Size() && ex.ModTime.Equal(info.ModTime()) && ex.FileHash == hash {
+		if ex := byPath[f.Path]; ex != nil {
+			if ex.FileSize == f.Size && ex.ModTime.Equal(f.ModTime) && ex.FileHash == hash {
 				return nil
 			}
 		}
 
-		if byPath[path] == nil && hash != "" {
+		if byPath[f.Path] == nil && hash != "" {
 			if moved := byHash[hash]; moved != nil {
-				if updateErr := s.tracks.UpdateFilePath(ctx, moved.ID, path, info.ModTime()); updateErr != nil {
+				if updateErr := s.tracks.UpdateFilePath(ctx, moved.ID, f.Path, f.ModTime); updateErr != nil {
 					slog.Warn("music scan: update path", slog.String("id", moved.ID), slog.Any("err", updateErr))
 				}
 				return nil
 			}
 		}
 
-		toProcess = append(toProcess, trackJob{path: path, size: info.Size(), modTime: info.ModTime(), mimeType: mimeType, hash: hash})
+		toProcess = append(toProcess, trackJob{path: f.Path, size: f.Size, modTime: f.ModTime, mimeType: f.MimeType, hash: hash})
 		return nil
 	})
 
@@ -134,7 +102,7 @@ func (s *Service) ScanDirectory(ctx context.Context, libraryID, dir string) (int
 				return
 			}
 
-			t, parseErr := parseTrackWithTimeout(ctx, j.path, libraryID, j.mimeType, j.size)
+			t, parseErr := s.parseTrackWithTimeout(ctx, j.path, libraryID, j.mimeType, j.size)
 			if parseErr != nil {
 				slog.Warn("music scan: parse failed", slog.String("path", j.path), slog.Any("err", parseErr))
 				t = &music.Track{
@@ -166,7 +134,7 @@ func (s *Service) ScanDirectory(ctx context.Context, libraryID, dir string) (int
 	return int(total.Load()), walkErr
 }
 
-func parseTrackWithTimeout(ctx context.Context, path, libraryID, mimeType string, fileSize int64) (*music.Track, error) {
+func (s *Service) parseTrackWithTimeout(ctx context.Context, path, libraryID, mimeType string, fileSize int64) (*music.Track, error) {
 	tCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 
@@ -176,7 +144,7 @@ func parseTrackWithTimeout(ctx context.Context, path, libraryID, mimeType string
 	}
 	ch := make(chan result, 1)
 	go func() {
-		t, err := parseTrack(path, libraryID, mimeType, fileSize)
+		t, err := s.parseTrack(path, libraryID, mimeType, fileSize)
 		select {
 		case ch <- result{t, err}:
 		case <-tCtx.Done():
@@ -191,8 +159,8 @@ func parseTrackWithTimeout(ctx context.Context, path, libraryID, mimeType string
 	}
 }
 
-func parseTrack(path, libraryID, mimeType string, fileSize int64) (*music.Track, error) {
-	f, err := os.Open(path)
+func (s *Service) parseTrack(path, libraryID, mimeType string, fileSize int64) (*music.Track, error) {
+	f, err := s.scanner.OpenFile(path)
 	if err != nil {
 		return nil, err
 	}
@@ -222,7 +190,7 @@ func parseTrack(path, libraryID, mimeType string, fileSize int64) (*music.Track,
 		Year:        m.Year(),
 		TrackNumber: trackNum,
 		DiskNumber:  diskNum,
-		Duration:    0, // tag lib doesn't expose duration directly
+		Duration:    0,
 		FilePath:    path,
 		FileSize:    fileSize,
 		MimeType:    mimeType,
@@ -242,7 +210,7 @@ func (s *Service) GetTrackArt(ctx context.Context, trackID string) (data []byte,
 	if t == nil {
 		return nil, "", os.ErrNotExist
 	}
-	f, err := os.Open(t.FilePath)
+	f, err := s.scanner.OpenFile(t.FilePath)
 	if err != nil {
 		return nil, "", os.ErrNotExist
 	}

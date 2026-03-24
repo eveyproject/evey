@@ -2197,7 +2197,7 @@ func TestSearchTracks_IDOR_403(t *testing.T) {
 	mux := http.NewServeMux()
 	repo := musicfakes.NewFakeMusicTrackRepository()
 	bus := sharedfakes.NewFakeEventBus()
-	svc := appmusic.NewService(repo, bus, nil)
+	svc := appmusic.NewService(repo, bus, nil, nil)
 	registerMusicRoutes(mux, svc, tokenGen, denyAll(), nil)
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/music/search?library_id=lib-x&q=test", nil)

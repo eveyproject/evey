@@ -315,7 +315,8 @@ func buildServices(ctx context.Context, cfg *config.Config, db *sql.DB, rootLog 
 	photoScanner := filesystem.NewPhotoScanner()
 	photoSvc := appphoto.NewService(r.Photo, bus, r.Library, photoScanner)
 	starRatingSvc := apprating.NewService(r.Rating, bus)
-	musicSvc := appmusic.NewService(r.MusicTrack, bus, r.Library)
+	musicScanner := filesystem.NewMusicScanner()
+	musicSvc := appmusic.NewService(r.MusicTrack, bus, r.Library, musicScanner)
 	playlistSvc := appplaylist.NewService(r.Playlist, r.PlaylistItem, r.SmartPlaylist)
 
 	// --- Subtitle service ---
