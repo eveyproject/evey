@@ -140,6 +140,11 @@ func (i *AuthInterceptor) authenticateAPIKey(ctx context.Context, rawKey string)
 		Permissions: key.Permissions,
 	}
 	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				slog.Error("recovered panic in api key last used update", "panic", r)
+			}
+		}()
 		bgCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
 		if upErr := i.apiKeys.UpdateLastUsed(bgCtx, key.ID, time.Now()); upErr != nil {

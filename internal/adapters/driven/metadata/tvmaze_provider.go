@@ -178,8 +178,8 @@ func (p *TVMazeProvider) doRequest(ctx context.Context, rawURL string) ([]byte, 
 	if err != nil {
 		return nil, err
 	}
-	body, err := io.ReadAll(resp.Body)
-	resp.Body.Close()
+	defer resp.Body.Close()
+	body, err := io.ReadAll(io.LimitReader(resp.Body, 10<<20)) // 10MB max
 	if err != nil {
 		return nil, err
 	}

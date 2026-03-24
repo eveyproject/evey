@@ -286,7 +286,7 @@ func (p *TMDBProvider) doRequestWithRetry(ctx context.Context, rawURL string) ([
 			lastErr = err
 			continue
 		}
-		body, err := io.ReadAll(resp.Body)
+		body, err := io.ReadAll(io.LimitReader(resp.Body, 10<<20)) // 10MB max
 		resp.Body.Close()
 		if err != nil {
 			lastErr = err
