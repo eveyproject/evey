@@ -90,3 +90,5 @@ func (r *PlayHistoryRepository) List(ctx context.Context, filter activity.PlayHi
 	}
 	return result, rows.Err()
 }
+
+var _ activity.PlayHistoryRepository = (*PlayHistoryRepository)(nil)

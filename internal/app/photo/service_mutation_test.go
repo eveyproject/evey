@@ -175,7 +175,7 @@ func TestScanDirectory_RepoUpsertError_CountZero(t *testing.T) {
 	assert.Equal(t, 0, count)
 }
 
-func TestScanDirectory_PublishesPhotoImportedEvent(t *testing.T) {
+func TestScanDirectory_PublishesPhotoAddedEvent(t *testing.T) {
 	dir := t.TempDir()
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "pic.jpg"), minimalJPEG, 0600))
 
@@ -188,15 +188,12 @@ func TestScanDirectory_PublishesPhotoImportedEvent(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, 1, count)
 	events := bus.PublishedEvents()
-	require.Len(t, events, 2)
-	assert.Equal(t, "photo.imported", events[0].EventName())
-	imported := events[0].(photo.PhotoImported)
-	assert.Equal(t, "lib-ev", imported.LibraryID)
-	assert.NotEmpty(t, imported.PhotoID)
-	assert.Contains(t, imported.Path, "pic.jpg")
-	assert.Equal(t, "photo.added", events[1].EventName())
-	added := events[1].(photo.PhotoAdded)
+	require.Len(t, events, 1)
+	assert.Equal(t, "photo.added", events[0].EventName())
+	added := events[0].(photo.PhotoAdded)
 	assert.Equal(t, "lib-ev", added.LibraryID)
+	assert.NotEmpty(t, added.PhotoID)
+	assert.Contains(t, added.Path, "pic.jpg")
 }
 
 func TestScanDirectory_EventNotPublished_OnUpsertError(t *testing.T) {
@@ -373,7 +370,7 @@ func TestScanDirectory_MultipleFilesCount(t *testing.T) {
 	count, err := svc.ScanDirectory(context.Background(), "lib-m", dir)
 	require.NoError(t, err)
 	assert.Equal(t, 5, count)
-	assert.Len(t, bus.PublishedEvents(), 10) // 5 PhotoImported + 5 PhotoAdded
+	assert.Len(t, bus.PublishedEvents(), 5) // 5 PhotoAdded
 }
 
 // --- EXIF readExifData / parseExifSegment mutation-killing tests ---
@@ -596,13 +593,10 @@ func TestDeletePhoto_NotFound_ReturnsNilPhoto(t *testing.T) {
 	require.NoError(t, err)
 
 	events := bus.PublishedEvents()
-	require.Len(t, events, 2)
-	deleted := events[0].(photo.PhotoDeleted)
-	assert.Equal(t, "nonexistent", deleted.PhotoID)
-	assert.Empty(t, deleted.LibraryID) // nil photo => empty libraryID
-	removed := events[1].(photo.PhotoRemoved)
+	require.Len(t, events, 1)
+	removed := events[0].(photo.PhotoRemoved)
 	assert.Equal(t, "nonexistent", removed.PhotoID)
-	assert.Empty(t, removed.LibraryID)
+	assert.Empty(t, removed.LibraryID) // nil photo => empty libraryID
 }
 
 func TestDeletePhoto_SetsLibraryIDFromPhoto(t *testing.T) {
@@ -628,10 +622,8 @@ func TestDeletePhoto_SetsLibraryIDFromPhoto(t *testing.T) {
 	require.NoError(t, err)
 
 	events := bus2.PublishedEvents()
-	require.Len(t, events, 2)
-	deleted := events[0].(photo.PhotoDeleted)
-	assert.Equal(t, "lib-del", deleted.LibraryID)
-	removed := events[1].(photo.PhotoRemoved)
+	require.Len(t, events, 1)
+	removed := events[0].(photo.PhotoRemoved)
 	assert.Equal(t, "lib-del", removed.LibraryID)
 }
 

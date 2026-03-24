@@ -78,3 +78,5 @@ func (r *RoleRepository) scanRole(row *sql.Row) (*user.Role, error) {
 	}
 	return role, nil
 }
+
+var _ user.RoleRepository = (*RoleRepository)(nil)

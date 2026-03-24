@@ -99,3 +99,5 @@ func (r *UserRepository) scanUser(row *sql.Row) (*user.User, error) {
 	}
 	return u, nil
 }
+
+var _ user.UserRepository = (*UserRepository)(nil)

@@ -66,3 +66,5 @@ func (r *InviteLinkRepository) Delete(ctx context.Context, id string) error {
 	_, err := r.db.ExecContext(ctx, `DELETE FROM invite_links WHERE id = $1`, id)
 	return err
 }
+
+var _ user.InviteLinkRepository = (*InviteLinkRepository)(nil)

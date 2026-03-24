@@ -33,7 +33,7 @@ func (s *CommandService) Rate(ctx context.Context, mediaItemID, profileID string
 	}); err != nil {
 		return err
 	}
-	if pubErr := s.bus.Publish(ctx, rating.MediaRated{UserID: profileID, MediaID: mediaItemID, Rating: score.Int(), OccurredAt: now}); pubErr != nil {
+	if pubErr := s.bus.Publish(ctx, rating.RatingSet{MediaID: mediaItemID, UserID: profileID, Score: score.Int(), OccurredAt: now}); pubErr != nil {
 		slog.Warn("rating: event publish failed", slog.String("mediaID", mediaItemID), slog.Any("err", pubErr))
 	}
 	return nil
@@ -43,8 +43,8 @@ func (s *CommandService) DeleteRating(ctx context.Context, mediaItemID, profileI
 	if err := s.repo.Delete(ctx, mediaItemID, profileID); err != nil {
 		return err
 	}
-	if pubErr := s.bus.Publish(ctx, rating.MediaRatingDeleted{UserID: profileID, MediaID: mediaItemID, OccurredAt: time.Now()}); pubErr != nil {
-		slog.Warn("rating: MediaRatingDeleted publish failed", slog.String("mediaID", mediaItemID), slog.Any("err", pubErr))
+	if pubErr := s.bus.Publish(ctx, rating.RatingDeleted{MediaID: mediaItemID, UserID: profileID, OccurredAt: time.Now()}); pubErr != nil {
+		slog.Warn("rating: RatingDeleted publish failed", slog.String("mediaID", mediaItemID), slog.Any("err", pubErr))
 	}
 	return nil
 }

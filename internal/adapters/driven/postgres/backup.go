@@ -11,6 +11,8 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+
+	"github.com/gravity-zero/evey/internal/domain/backup"
 )
 
 var (
@@ -149,3 +151,5 @@ func (d *DatabaseDumper) validateBackup(data io.Reader) ([]byte, error) {
 
 	return buf.Bytes(), nil
 }
+
+var _ backup.DatabaseDumper = (*DatabaseDumper)(nil)

@@ -103,3 +103,5 @@ func (r *ArtworkRepository) scanArtworkRows(rows *sql.Rows) ([]*metadata.Artwork
 	}
 	return result, rows.Err()
 }
+
+var _ metadata.ArtworkRepository = (*ArtworkRepository)(nil)

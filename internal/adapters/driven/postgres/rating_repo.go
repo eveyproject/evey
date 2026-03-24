@@ -77,3 +77,5 @@ func (r *RatingRepository) GetAggregates(ctx context.Context, mediaItemIDs []str
 	}
 	return result, rows.Err()
 }
+
+var _ rating.Repository = (*RatingRepository)(nil)

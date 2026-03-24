@@ -84,3 +84,5 @@ func (r *PersonRepository) scanPerson(row *sql.Row) (*library.Person, error) {
 	}
 	return person, nil
 }
+
+var _ library.PersonRepository = (*PersonRepository)(nil)

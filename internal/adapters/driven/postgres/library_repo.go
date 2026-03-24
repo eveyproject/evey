@@ -86,3 +86,5 @@ func (r *LibraryRepository) Delete(ctx context.Context, id string) error {
 	_, err := r.db.ExecContext(ctx, `DELETE FROM libraries WHERE id = $1`, id)
 	return err
 }
+
+var _ library.LibraryRepository = (*LibraryRepository)(nil)

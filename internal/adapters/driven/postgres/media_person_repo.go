@@ -49,3 +49,5 @@ func (r *MediaPersonRepository) GetByMediaItemID(ctx context.Context, mediaItemI
 	}
 	return result, rows.Err()
 }
+
+var _ library.MediaPersonRepository = (*MediaPersonRepository)(nil)

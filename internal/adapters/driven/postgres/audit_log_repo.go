@@ -88,3 +88,5 @@ func (r *AuditLogRepository) List(ctx context.Context, f activity.AuditLogFilter
 	}
 	return result, rows.Err()
 }
+
+var _ activity.AuditLogRepository = (*AuditLogRepository)(nil)

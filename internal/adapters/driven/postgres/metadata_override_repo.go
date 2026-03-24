@@ -115,3 +115,5 @@ func (r *MetadataOverrideRepository) DeleteByMediaItemID(ctx context.Context, me
 	_, err := r.db.ExecContext(ctx, `DELETE FROM metadata_overrides WHERE media_item_id = $1`, mediaItemID)
 	return err
 }
+
+var _ metadata.MetadataOverrideRepository = (*MetadataOverrideRepository)(nil)

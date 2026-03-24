@@ -141,3 +141,6 @@ func scanDeliveries(rows *sql.Rows) ([]*webhook.Delivery, error) {
 	}
 	return result, rows.Err()
 }
+
+var _ webhook.Repository = (*WebhookRepository)(nil)
+var _ webhook.DeliveryRepository = (*WebhookDeliveryRepository)(nil)

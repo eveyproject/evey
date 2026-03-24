@@ -47,3 +47,5 @@ func (r *QuickConnectRepository) DeleteExpired(ctx context.Context) error {
 	_, err := r.db.ExecContext(ctx, `DELETE FROM quick_connect_requests WHERE expires_at < NOW()`)
 	return err
 }
+
+var _ user.QuickConnectRepository = (*QuickConnectRepository)(nil)

@@ -95,3 +95,5 @@ func (r *NotificationRepository) CleanupExpired(ctx context.Context) error {
 	_, err := r.db.ExecContext(ctx, `DELETE FROM notifications WHERE expires_at IS NOT NULL AND expires_at < NOW()`)
 	return err
 }
+
+var _ notification.Repository = (*NotificationRepository)(nil)

@@ -80,3 +80,5 @@ func (r *MediaStreamRepository) DeleteByMediaItemID(ctx context.Context, mediaIt
 	_, err := r.db.ExecContext(ctx, `DELETE FROM media_streams WHERE media_item_id = $1`, mediaItemID)
 	return err
 }
+
+var _ library.MediaStreamRepository = (*MediaStreamRepository)(nil)

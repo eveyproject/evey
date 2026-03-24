@@ -110,3 +110,5 @@ func (r *MediaItemQueryRepoAdapter) GetCastForItems(ctx context.Context, mediaIt
 	}
 	return result, rows.Err()
 }
+
+var _ library.MediaItemQueryRepo = (*MediaItemQueryRepoAdapter)(nil)

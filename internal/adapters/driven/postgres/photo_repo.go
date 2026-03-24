@@ -190,3 +190,5 @@ func scanPhotosWithTotal(rows *sql.Rows) ([]photo.Photo, int, error) {
 	}
 	return photos, total, rows.Err()
 }
+
+var _ photo.Repository = (*PhotoRepository)(nil)

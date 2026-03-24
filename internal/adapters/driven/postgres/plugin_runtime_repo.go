@@ -74,3 +74,5 @@ func (r *PluginRuntimeRepository) scanRuntimeRows(rows *sql.Rows) ([]*plugin.Plu
 	}
 	return result, rows.Err()
 }
+
+var _ plugin.PluginRuntimeRepository = (*PluginRuntimeRepository)(nil)

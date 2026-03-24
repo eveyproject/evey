@@ -248,3 +248,5 @@ func scanTracks(rows *sql.Rows) ([]music.Track, error) {
 	}
 	return tracks, rows.Err()
 }
+
+var _ music.TrackRepository = (*MusicTrackRepository)(nil)

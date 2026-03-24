@@ -151,3 +151,5 @@ func (r *PluginRepository) scanPlugin(row *sql.Row) (*plugin.Plugin, error) {
 	}
 	return p, nil
 }
+
+var _ plugin.PluginRepository = (*PluginRepository)(nil)

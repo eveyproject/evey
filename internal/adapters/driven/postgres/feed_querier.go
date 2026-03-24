@@ -301,3 +301,5 @@ func scanFeedItemsWithScore(rows *sql.Rows) ([]*feed.FeedItem, error) {
 	}
 	return result, rows.Err()
 }
+
+var _ feed.FeedQuerier = (*FeedQuerier)(nil)

@@ -54,3 +54,5 @@ func (r *ServerMetricRepository) Purge(ctx context.Context, before time.Time) er
 	_, err := r.db.ExecContext(ctx, `DELETE FROM server_metrics WHERE recorded_at < $1`, before)
 	return err
 }
+
+var _ activity.ServerMetricRepository = (*ServerMetricRepository)(nil)
