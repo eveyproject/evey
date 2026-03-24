@@ -2,8 +2,6 @@ package playlist
 
 import (
 	"context"
-
-	"github.com/gravity-zero/evey/internal/domain/library"
 )
 
 type PlaylistRepository interface {
@@ -19,8 +17,4 @@ type PlaylistItemRepository interface {
 	Remove(ctx context.Context, playlistID, mediaItemID string) error
 	GetByPlaylistID(ctx context.Context, playlistID string) ([]*PlaylistItem, error)
 	Reorder(ctx context.Context, playlistID string, mediaItemIDs []string) error
-}
-
-type SmartPlaylistQuerier interface {
-	QueryByRules(ctx context.Context, rules []Rule, sortBy, sortOrder string, limit int) ([]*library.MediaItem, error)
 }
