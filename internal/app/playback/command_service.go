@@ -170,6 +170,11 @@ func (s *CommandService) CleanupStaleSessions(ctx context.Context, maxAge time.D
 
 func (s *CommandService) StartCleanup(ctx context.Context) {
 	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				slog.Error("panic in playback cleanup", slog.Any("recover", r))
+			}
+		}()
 		if n, err := s.sessions.CloseStale(ctx, 2*time.Hour); err != nil {
 			slog.Warn("stale session cleanup", slog.Any("err", err))
 		} else if n > 0 {

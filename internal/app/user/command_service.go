@@ -303,6 +303,11 @@ func (s *CommandService) generateAndStoreRefreshToken(ctx context.Context, userI
 
 func (s *CommandService) StartCleanup(ctx context.Context, quickConnect user.QuickConnectRepository) {
 	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				slog.Error("panic in user cleanup", slog.Any("recover", r))
+			}
+		}()
 		ticker := time.NewTicker(1 * time.Hour)
 		defer ticker.Stop()
 		for {

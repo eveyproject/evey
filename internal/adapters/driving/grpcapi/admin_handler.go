@@ -251,6 +251,11 @@ func (h *adminHandler) RunScheduledTask(ctx context.Context, req *eveyv1.RunSche
 		return nil, h.translator.TranslatedError(ctx, codes.Unimplemented, "errors.admin.scanner_not_available")
 	}
 	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				slog.Error("panic in RunScheduledTask", slog.Any("recover", r), slog.String("libraryID", req.Id))
+			}
+		}()
 		added, updated, err := h.libScanner.ScanLibrary(h.serverCtx, req.Id)
 		if err != nil {
 			slog.Error("manual scan failed", slog.String("libraryID", req.Id), slog.Any("err", err))
