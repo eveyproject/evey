@@ -210,11 +210,20 @@ func (s *CommandService) AutoRefreshAllItems(ctx context.Context) error {
 	if !ok {
 		return fmt.Errorf("enricher does not support bulk refresh")
 	}
-	items, err := s.mediaItems.List(ctx, library.ListMediaItemsFilter{Limit: 1000})
-	if err != nil {
-		return fmt.Errorf("list items: %w", err)
+	const pageSize = 500
+	for offset := 0; ; offset += pageSize {
+		items, err := s.mediaItems.List(ctx, library.ListMediaItemsFilter{Limit: pageSize, Offset: offset})
+		if err != nil {
+			return fmt.Errorf("list items: %w", err)
+		}
+		if len(items) == 0 {
+			break
+		}
+		be.AutoEnrichAll(ctx, items, slog.Default())
+		if len(items) < pageSize {
+			break
+		}
 	}
-	be.AutoEnrichAll(ctx, items, slog.Default())
 	return nil
 }
 
@@ -226,9 +235,16 @@ func (s *CommandService) StartEnrichmentWorker(ctx context.Context) {
 	}
 	if bulkOK && s.mediaItems != nil {
 		s.workerWg.Go(func() {
-			items, err := s.mediaItems.List(ctx, library.ListMediaItemsFilter{Limit: 5000})
-			if err == nil {
+			const pageSize = 500
+			for offset := 0; ; offset += pageSize {
+				items, err := s.mediaItems.List(ctx, library.ListMediaItemsFilter{Limit: pageSize, Offset: offset})
+				if err != nil || len(items) == 0 {
+					break
+				}
 				be.AutoEnrichAll(ctx, items, slog.Default())
+				if len(items) < pageSize {
+					break
+				}
 			}
 		})
 	}
@@ -289,31 +305,48 @@ func (s *CommandService) dailyReEnrich(ctx context.Context, be BulkItemEnricher)
 
 // ReEnrichWithoutOverrides re-enriches all items that have no user overrides.
 func (s *CommandService) ReEnrichWithoutOverrides(ctx context.Context, be BulkItemEnricher) (refreshed, skipped int) {
-	items, err := s.mediaItems.List(ctx, library.ListMediaItemsFilter{Limit: 5000})
-	if err != nil {
-		slog.Warn("re-enrich: list items", slog.Any("err", err))
-		return 0, 0
-	}
-	var toEnrich []*library.MediaItem
-	for _, item := range items {
-		overrides, oErr := s.overrides.GetByMediaItem(ctx, item.ID)
+	const pageSize = 500
+	for offset := 0; ; offset += pageSize {
+		items, err := s.mediaItems.List(ctx, library.ListMediaItemsFilter{Limit: pageSize, Offset: offset})
+		if err != nil {
+			slog.Warn("re-enrich: list items", slog.Any("err", err))
+			return refreshed, skipped
+		}
+		if len(items) == 0 {
+			break
+		}
+
+		ids := make([]string, len(items))
+		for i, item := range items {
+			ids[i] = item.ID
+		}
+		overridden, oErr := s.overrides.ListOverriddenMediaItemIDs(ctx, ids)
 		if oErr != nil {
-			slog.Warn("re-enrich: check overrides", slog.String("item", item.ID), slog.Any("err", oErr))
-			continue
+			slog.Warn("re-enrich: batch check overrides", slog.Any("err", oErr))
+			return refreshed, skipped
 		}
-		if len(overrides) > 0 {
-			skipped++
-			continue
+
+		var toEnrich []*library.MediaItem
+		for _, item := range items {
+			if overridden[item.ID] {
+				skipped++
+				continue
+			}
+			toEnrich = append(toEnrich, item)
 		}
-		toEnrich = append(toEnrich, item)
+		if len(toEnrich) > 0 {
+			slog.Info("re-enrich: page",
+				slog.Int("items", len(toEnrich)),
+				slog.Int("skipped_overrides", skipped),
+			)
+			be.AutoEnrichAll(ctx, toEnrich, slog.Default())
+			refreshed += len(toEnrich)
+		}
+
+		if len(items) < pageSize {
+			break
+		}
 	}
-	slog.Info("re-enrich: starting",
-		slog.Int("items", len(toEnrich)),
-		slog.Int("skipped_overrides", skipped),
-	)
-	if len(toEnrich) > 0 {
-		be.AutoEnrichAll(ctx, toEnrich, slog.Default())
-	}
-	slog.Info("re-enrich: done", slog.Int("refreshed", len(toEnrich)), slog.Int("skipped", skipped))
-	return len(toEnrich), skipped
+	slog.Info("re-enrich: done", slog.Int("refreshed", refreshed), slog.Int("skipped", skipped))
+	return refreshed, skipped
 }

@@ -97,16 +97,30 @@ func (s *ScanService) ScanLibrary(ctx context.Context, libraryID string) (added,
 		slog.Warn("publish event", slog.String("event", evtScanStarted.EventName()), slog.Any("err", publishErr))
 	}
 
-	existing, err := s.mediaItems.ListByLibraryID(ctx, libraryID)
+	summaries, err := s.mediaItems.ListScanSummaries(ctx, libraryID)
 	if err != nil {
 		return 0, 0, fmt.Errorf("list existing items: %w", err)
 	}
-	byPath := make(map[string]*library.MediaItem, len(existing))
-	byFingerprint := make(map[string]*library.MediaItem, len(existing))
-	for _, item := range existing {
-		byPath[item.FilePath] = item
-		if item.FileFingerprint != "" {
-			byFingerprint[item.FileFingerprint] = item
+	type scanRef struct {
+		ID              string
+		FileSize        int64
+		ModTime         time.Time
+		FileFingerprint string
+		FilePath        string
+	}
+	byPath := make(map[string]*scanRef, len(summaries))
+	byFingerprint := make(map[string]*scanRef, len(summaries))
+	for i := range summaries {
+		ref := &scanRef{
+			ID:              summaries[i].ID,
+			FileSize:        summaries[i].FileSize,
+			ModTime:         summaries[i].ModTime,
+			FileFingerprint: summaries[i].FileFingerprint,
+			FilePath:        summaries[i].FilePath,
+		}
+		byPath[ref.FilePath] = ref
+		if ref.FileFingerprint != "" {
+			byFingerprint[ref.FileFingerprint] = ref
 		}
 	}
 
@@ -149,11 +163,16 @@ func (s *ScanService) ScanLibrary(ctx context.Context, libraryID string) (added,
 
 			if byPath[f.Path] == nil && f.Fingerprint != "" {
 				if moved := byFingerprint[f.Fingerprint]; moved != nil {
-					moved.FilePath = f.Path
-					moved.ModTime = f.ModTime
-					moved.UpdatedAt = time.Now()
-					if updateErr := s.mediaItems.Update(ctx, moved); updateErr != nil {
-						slog.Warn("update moved item path", slog.String("id", moved.ID), slog.Any("err", updateErr))
+					fullItem, getErr := s.mediaItems.GetByID(ctx, moved.ID)
+					if getErr != nil {
+						slog.Warn("get moved item", slog.String("id", moved.ID), slog.Any("err", getErr))
+					} else {
+						fullItem.FilePath = f.Path
+						fullItem.ModTime = f.ModTime
+						fullItem.UpdatedAt = time.Now()
+						if updateErr := s.mediaItems.Update(ctx, fullItem); updateErr != nil {
+							slog.Warn("update moved item path", slog.String("id", moved.ID), slog.Any("err", updateErr))
+						}
 					}
 					updated++
 					continue
@@ -251,7 +270,7 @@ func (s *ScanService) removeOrphanedItems(ctx context.Context, libraryID string,
 }
 
 func (svc *ScanService) pruneEmptyContainers(ctx context.Context, libraryID string) (int, error) {
-	all, err := svc.mediaItems.ListByLibraryID(ctx, libraryID)
+	all, err := svc.mediaItems.ListContainerInfo(ctx, libraryID)
 	if err != nil {
 		return 0, err
 	}
@@ -262,7 +281,6 @@ func (svc *ScanService) pruneEmptyContainers(ctx context.Context, libraryID stri
 		}
 	}
 	pruned := 0
-	// First pass: delete empty seasons (no child episodes)
 	for _, item := range all {
 		if item.Type != string(library.Season) {
 			continue
@@ -277,7 +295,6 @@ func (svc *ScanService) pruneEmptyContainers(ctx context.Context, libraryID stri
 		childCount[item.ParentID]--
 		pruned++
 	}
-	// Second pass: delete empty series (seasons may have been removed above)
 	for _, item := range all {
 		if item.Type != string(library.Series) {
 			continue

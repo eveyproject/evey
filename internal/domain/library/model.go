@@ -98,6 +98,22 @@ type Trailer struct {
 	SubtitleLanguage string
 }
 
+// MediaItemScanRow is a lightweight projection for scan comparisons (avoids loading JSONB columns).
+type MediaItemScanRow struct {
+	ID              string
+	FilePath        string
+	FileFingerprint string
+	FileSize        int64
+	ModTime         time.Time
+}
+
+// MediaItemContainerRow is a lightweight projection for pruning empty containers.
+type MediaItemContainerRow struct {
+	ID       string
+	ParentID string
+	Type     string
+}
+
 func (m *MediaItem) HasFile() bool {
 	return m.FilePath != ""
 }
