@@ -71,22 +71,13 @@ func (s *CommandService) RefreshItemMetadata(ctx context.Context, mediaItemID, t
 	if err != nil {
 		return fmt.Errorf("get media item: %w", err)
 	}
-	var result *metadata.MetadataResult
-	for _, p := range s.providers {
-		r, err := p.GetByProviderID(ctx, tmdbID, mediaType)
-		if err != nil {
-			continue
-		}
-		result = r
-		break
-	}
+	result, _ := s.fetchFromProviders(ctx, tmdbID, mediaType, "")
 	if result == nil {
 		return fmt.Errorf("no provider returned metadata for tmdb id %s", tmdbID)
 	}
 	if err := s.enricher.EnrichItem(ctx, item, result); err != nil {
 		return fmt.Errorf("enrich item: %w", err)
 	}
-	// Log-only: notification event — enrichment already committed above
 	evtTmdb := metadata.MetadataRefreshed{MediaItemID: mediaItemID, Provider: "tmdb", OccurredAt: time.Now()}
 	if err := s.events.Publish(ctx, evtTmdb); err != nil {
 		slog.Warn("publish event", slog.String("event", evtTmdb.EventName()), slog.Any("err", err))
@@ -102,32 +93,7 @@ func (s *CommandService) RefreshItemMetadataByIMDB(ctx context.Context, mediaIte
 	if err != nil {
 		return fmt.Errorf("get media item: %w", err)
 	}
-
-	var result *metadata.MetadataResult
-	var usedProvider string
-	for _, p := range s.providers {
-		if p.Name() == "imdbapi" {
-			r, err := p.GetByProviderID(ctx, imdbID, mediaType)
-			if err == nil {
-				result = r
-				usedProvider = p.Name()
-				break
-			}
-		}
-	}
-	if result == nil {
-		for _, p := range s.providers {
-			if p.Name() == "imdbapi" {
-				continue
-			}
-			r, err := p.GetByProviderID(ctx, imdbID, mediaType)
-			if err == nil {
-				result = r
-				usedProvider = p.Name()
-				break
-			}
-		}
-	}
+	result, usedProvider := s.fetchFromProviders(ctx, imdbID, mediaType, "imdbapi")
 	if result == nil {
 		return fmt.Errorf("no provider returned metadata for imdb id %s", imdbID)
 	}
@@ -140,12 +106,37 @@ func (s *CommandService) RefreshItemMetadataByIMDB(ctx context.Context, mediaIte
 	if err := s.enricher.EnrichItem(ctx, item, result); err != nil {
 		return fmt.Errorf("enrich item: %w", err)
 	}
-	// Log-only: notification event — enrichment already committed above
 	evtImdb := metadata.MetadataRefreshed{MediaItemID: mediaItemID, Provider: usedProvider, OccurredAt: time.Now()}
 	if err := s.events.Publish(ctx, evtImdb); err != nil {
 		slog.Warn("publish event", slog.String("event", evtImdb.EventName()), slog.Any("err", err))
 	}
 	return nil
+}
+
+// fetchFromProviders tries providers in order. If preferProvider is set,
+// that provider is tried first, then the rest as fallback.
+func (s *CommandService) fetchFromProviders(ctx context.Context, providerID, mediaType, preferProvider string) (*metadata.MetadataResult, string) {
+	if preferProvider != "" {
+		for _, p := range s.providers {
+			if p.Name() == preferProvider {
+				r, err := p.GetByProviderID(ctx, providerID, mediaType)
+				if err == nil {
+					return r, p.Name()
+				}
+				break
+			}
+		}
+	}
+	for _, p := range s.providers {
+		if p.Name() == preferProvider {
+			continue
+		}
+		r, err := p.GetByProviderID(ctx, providerID, mediaType)
+		if err == nil {
+			return r, p.Name()
+		}
+	}
+	return nil, ""
 }
 
 func (s *CommandService) SetOverride(ctx context.Context, override *metadata.MetadataOverride) error {
