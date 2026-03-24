@@ -74,11 +74,10 @@ func (r *WatchProgressRepository) GetNextUp(ctx context.Context, profileID strin
 		   COALESCE(wp.id, ''), $1, mi.id, COALESCE(wp.position_ms, 0),
 		   COALESCE(wp.completed, FALSE), COALESCE(wp.play_count, 0), COALESCE(wp.last_played_at, NOW())
 		 FROM media_items mi
+		 INNER JOIN media_items prev ON prev.parent_id = mi.parent_id
+		   AND prev.index_number = mi.index_number - 1
 		 INNER JOIN watch_progress prev_wp ON prev_wp.profile_id = $1
-		   AND prev_wp.media_item_id = (
-		     SELECT id FROM media_items
-		     WHERE parent_id = mi.parent_id AND index_number = mi.index_number - 1
-		   )
+		   AND prev_wp.media_item_id = prev.id
 		   AND prev_wp.completed = TRUE
 		 LEFT JOIN watch_progress wp ON wp.profile_id = $1 AND wp.media_item_id = mi.id
 		 WHERE mi.type = 'episode' AND mi.index_number IS NOT NULL
