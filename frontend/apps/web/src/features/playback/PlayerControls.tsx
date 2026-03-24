@@ -185,6 +185,7 @@ interface PlayerControlsProps {
   onPanelOpenChange?: (anyOpen: boolean) => void;
   closePanelRef?: React.MutableRefObject<(() => void) | null>;
   onActionFlash?: (action: "play" | "pause") => void;
+  streamToken?: string;
 }
 
 function formatTime(seconds: number): string {
@@ -716,6 +717,7 @@ export function PlayerControls({
   onPanelOpenChange,
   closePanelRef,
   onActionFlash,
+  streamToken,
 }: PlayerControlsProps) {
   const { t } = useTranslation();
   const [visible, setVisible] = useState(true);
@@ -992,7 +994,7 @@ export function PlayerControls({
                 style={{ left: seekHoverX }}
               >
                 {mediaId && (
-                  <TrickplayPreview mediaId={mediaId} hoverTime={seekHoverPos} mediaType={mediaType} />
+                  <TrickplayPreview mediaId={mediaId} hoverTime={seekHoverPos} mediaType={mediaType} streamToken={streamToken} />
                 )}
                 <div
                   className="px-2 py-1 rounded text-xs text-white mt-1 text-center"

@@ -4,6 +4,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
 const startStreamFn = vi.fn(() => Promise.resolve({ id: "session-123" }));
 const stopMutateFn = vi.fn();
+const fetchStreamTokenFn = vi.fn(() => Promise.resolve("stream-tok-abc"));
 
 vi.mock("@evey/api", () => ({
   usePlaybackServiceGetWatchProgress: () => ({ data: undefined }),
@@ -14,11 +15,12 @@ vi.mock("@evey/api", () => ({
   usePlaybackServiceStopStream: () => ({ mutate: stopMutateFn }),
 }));
 
-vi.mock("@evey/store", () => ({
-  useAuthStore: Object.assign(
-    () => null,
-    { getState: () => ({ accessToken: "test-token" }) },
-  ),
+vi.mock("./useStreamToken", () => ({
+  useStreamToken: () => ({
+    streamToken: "stream-tok-abc",
+    fetchStreamToken: fetchStreamTokenFn,
+    isLoading: false,
+  }),
 }));
 
 describe("usePlaySession", () => {
@@ -26,6 +28,8 @@ describe("usePlaySession", () => {
     startStreamFn.mockClear();
     startStreamFn.mockReturnValue(Promise.resolve({ id: "session-123" }));
     stopMutateFn.mockClear();
+    fetchStreamTokenFn.mockClear();
+    fetchStreamTokenFn.mockReturnValue(Promise.resolve("stream-tok-abc"));
     vi.resetModules();
   });
 
@@ -39,11 +43,12 @@ describe("usePlaySession", () => {
     return mod.usePlaySession;
   }
 
-  it("initializes session on mount", async () => {
+  it("initializes session on mount after fetching stream token", async () => {
     const usePlaySession = await loadHook("");
     await act(async () => {
       renderHook(() => usePlaySession("media-1"));
     });
+    expect(fetchStreamTokenFn).toHaveBeenCalledWith("media-1");
     expect(startStreamFn).toHaveBeenCalledTimes(1);
     expect(startStreamFn).toHaveBeenCalledWith(
       expect.objectContaining({ mediaItemId: "media-1" }),
@@ -78,13 +83,24 @@ describe("usePlaySession", () => {
     );
   });
 
-  it("includes token in directPlayUrl when session starts", async () => {
+  it("includes stream token in directPlayUrl", async () => {
     const usePlaySession = await loadHook("probably");
     let result: { current: ReturnType<typeof usePlaySession> };
     await act(async () => {
       const hook = renderHook(() => usePlaySession("media-hevc"));
       result = hook.result;
     });
-    expect(result!.current.streamInfo?.directPlayUrl).toContain("token=test-token");
+    expect(result!.current.streamInfo?.directPlayUrl).toContain("token=stream-tok-abc");
+  });
+
+  it("exposes streamToken and fetchStreamToken", async () => {
+    const usePlaySession = await loadHook("");
+    let result: { current: ReturnType<typeof usePlaySession> };
+    await act(async () => {
+      const hook = renderHook(() => usePlaySession("media-3"));
+      result = hook.result;
+    });
+    expect(result!.current.streamToken).toBe("stream-tok-abc");
+    expect(typeof result!.current.fetchStreamToken).toBe("function");
   });
 });
