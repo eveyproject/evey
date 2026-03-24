@@ -114,10 +114,15 @@ func (e *Enricher) replaceArtwork(ctx context.Context, mediaItemID string, artwo
 	if err := e.artwork.DeleteByMediaItemID(ctx, mediaItemID); err != nil {
 		return fmt.Errorf("delete old artwork: %w", err)
 	}
+	if len(artwork) == 0 {
+		return nil
+	}
+	records := make([]*domainmetadata.ArtworkRecord, len(artwork))
 	for i, art := range artwork {
-		if err := e.artwork.Create(ctx, buildArtworkRecord(mediaItemID, i, art)); err != nil {
-			return fmt.Errorf("create artwork: %w", err)
-		}
+		records[i] = buildArtworkRecord(mediaItemID, i, art)
+	}
+	if err := e.artwork.CreateBatch(ctx, records); err != nil {
+		return fmt.Errorf("create artwork batch: %w", err)
 	}
 	return nil
 }

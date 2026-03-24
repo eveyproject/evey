@@ -30,6 +30,18 @@ func (r *FakeArtworkRepository) Create(_ context.Context, a *metadata.ArtworkRec
 	return nil
 }
 
+func (r *FakeArtworkRepository) CreateBatch(_ context.Context, records []*metadata.ArtworkRecord) error {
+	if r.Err != nil {
+		return r.Err
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	for _, a := range records {
+		r.items[a.ID] = a
+	}
+	return nil
+}
+
 func (r *FakeArtworkRepository) GetByMediaItem(_ context.Context, mediaItemID string) ([]*metadata.ArtworkRecord, error) {
 	if r.Err != nil {
 		return nil, r.Err

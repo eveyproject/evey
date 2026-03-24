@@ -26,6 +26,23 @@ func (r *ArtworkRepository) Create(ctx context.Context, a *metadata.ArtworkRecor
 	return err
 }
 
+func (r *ArtworkRepository) CreateBatch(ctx context.Context, records []*metadata.ArtworkRecord) error {
+	if len(records) == 0 {
+		return nil
+	}
+	vals := make([]string, 0, len(records))
+	args := make([]any, 0, len(records)*11)
+	for i, a := range records {
+		base := i * 11
+		vals = append(vals, fmt.Sprintf("($%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d)",
+			base+1, base+2, base+3, base+4, base+5, base+6, base+7, base+8, base+9, base+10, base+11))
+		args = append(args, a.ID, a.MediaItemID, a.PersonID, a.Type, a.Provider, a.SourceURL, a.LocalPath, a.Width, a.Height, a.Language, a.SortOrder)
+	}
+	q := `INSERT INTO artwork (id, media_item_id, person_id, type, provider, source_url, local_path, width, height, language, sort_order) VALUES ` + strings.Join(vals, ",")
+	_, err := r.db.ExecContext(ctx, q, args...)
+	return err
+}
+
 func (r *ArtworkRepository) GetByMediaItem(ctx context.Context, mediaItemID string) ([]*metadata.ArtworkRecord, error) {
 	rows, err := r.db.QueryContext(ctx,
 		`SELECT id, media_item_id, person_id, type, provider, source_url, local_path, width, height, language, sort_order
