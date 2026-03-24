@@ -1,0 +1,379 @@
+package library_test
+
+import (
+	"context"
+	"testing"
+
+	"github.com/gravity-zero/evey/internal/domain/library"
+	libfakes "github.com/gravity-zero/evey/internal/domain/library/fakes"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+)
+
+func intPtr(v int) *int { return &v }
+
+func itemsByType(repo *libfakes.FakeMediaItemCommandRepo, t string) []*library.MediaItem {
+	var out []*library.MediaItem
+	for _, item := range repo.All() {
+		if item.Type == t {
+			out = append(out, item)
+		}
+	}
+	return out
+}
+
+func TestScanTVShow_SingleEpisode_CreatesHierarchy(t *testing.T) {
+	t.Parallel()
+	svc, _, libQueryRepo, mediaRepo, scanner, bus := newCmdSvc()
+
+	libQueryRepo.Seed(&library.Library{
+		ID: "lib-tv", Name: "TV", Type: "tvshow", Paths: []string{"/tv"},
+	})
+
+	scanner.Results["/tv"] = []library.ScannedFile{
+		{Path: "/tv/MyShow/S01/e01.mkv", Size: 500, Title: "MyShow", Season: intPtr(1), Episode: intPtr(1), Type: library.Episode},
+	}
+
+	added, _, err := svc.ScanLibrary(context.Background(), "lib-tv")
+	require.NoError(t, err)
+
+	series := itemsByType(mediaRepo, "series")
+	require.Len(t, series, 1)
+	assert.Equal(t, "MyShow", series[0].Title)
+
+	seasons := itemsByType(mediaRepo, "season")
+	require.Len(t, seasons, 1)
+	assert.Equal(t, "Season 1", seasons[0].Title)
+	assert.Equal(t, series[0].ID, seasons[0].ParentID)
+
+	episodes := itemsByType(mediaRepo, "episode")
+	require.Len(t, episodes, 1)
+	assert.Equal(t, "S01E01", episodes[0].Title)
+	assert.Equal(t, seasons[0].ID, episodes[0].ParentID)
+	assert.Equal(t, "/tv/MyShow/S01/e01.mkv", episodes[0].FilePath)
+
+	// series + season + episode = 3 added
+	assert.Equal(t, 3, added)
+
+	var addedEvents int
+	for _, e := range bus.PublishedEvents() {
+		if e.EventName() == "media.item.added" {
+			addedEvents++
+		}
+	}
+	assert.GreaterOrEqual(t, addedEvents, 1)
+}
+
+func TestScanTVShow_MultipleSeasons(t *testing.T) {
+	t.Parallel()
+	svc, _, libQueryRepo, mediaRepo, scanner, _ := newCmdSvc()
+
+	libQueryRepo.Seed(&library.Library{
+		ID: "lib-tv", Name: "TV", Type: "tvshow", Paths: []string{"/tv"},
+	})
+
+	scanner.Results["/tv"] = []library.ScannedFile{
+		{Path: "/tv/Show/S01/e01.mkv", Size: 100, Title: "Show", Season: intPtr(1), Episode: intPtr(1), Type: library.Episode},
+		{Path: "/tv/Show/S01/e02.mkv", Size: 200, Title: "Show", Season: intPtr(1), Episode: intPtr(2), Type: library.Episode},
+		{Path: "/tv/Show/S02/e01.mkv", Size: 300, Title: "Show", Season: intPtr(2), Episode: intPtr(1), Type: library.Episode},
+	}
+
+	added, _, err := svc.ScanLibrary(context.Background(), "lib-tv")
+	require.NoError(t, err)
+
+	series := itemsByType(mediaRepo, "series")
+	require.Len(t, series, 1, "one series")
+
+	seasons := itemsByType(mediaRepo, "season")
+	require.Len(t, seasons, 2, "two seasons")
+
+	episodes := itemsByType(mediaRepo, "episode")
+	require.Len(t, episodes, 3, "three episodes")
+
+	// 1 series + 2 seasons + 3 episodes = 6
+	assert.Equal(t, 6, added)
+}
+
+func TestScanTVShow_MultipleShows(t *testing.T) {
+	t.Parallel()
+	svc, _, libQueryRepo, mediaRepo, scanner, _ := newCmdSvc()
+
+	libQueryRepo.Seed(&library.Library{
+		ID: "lib-tv", Name: "TV", Type: "tvshow", Paths: []string{"/tv"},
+	})
+
+	scanner.Results["/tv"] = []library.ScannedFile{
+		{Path: "/tv/ShowA/S01/e01.mkv", Size: 100, Title: "ShowA", Season: intPtr(1), Episode: intPtr(1), Type: library.Episode},
+		{Path: "/tv/ShowB/S01/e01.mkv", Size: 200, Title: "ShowB", Season: intPtr(1), Episode: intPtr(1), Type: library.Episode},
+	}
+
+	added, _, err := svc.ScanLibrary(context.Background(), "lib-tv")
+	require.NoError(t, err)
+
+	series := itemsByType(mediaRepo, "series")
+	require.Len(t, series, 2, "two distinct series")
+
+	titles := map[string]bool{}
+	for _, s := range series {
+		titles[s.Title] = true
+	}
+	assert.True(t, titles["ShowA"])
+	assert.True(t, titles["ShowB"])
+
+	// 2 series + 2 seasons + 2 episodes = 6
+	assert.Equal(t, 6, added)
+}
+
+func TestScanTVShow_NilSeason_DefaultsToZero(t *testing.T) {
+	t.Parallel()
+	svc, _, libQueryRepo, mediaRepo, scanner, _ := newCmdSvc()
+
+	libQueryRepo.Seed(&library.Library{
+		ID: "lib-tv", Name: "TV", Type: "tvshow", Paths: []string{"/tv"},
+	})
+
+	scanner.Results["/tv"] = []library.ScannedFile{
+		{Path: "/tv/Show/special.mkv", Size: 100, Title: "Show", Season: nil, Episode: intPtr(1), Type: library.Episode},
+	}
+
+	_, _, err := svc.ScanLibrary(context.Background(), "lib-tv")
+	require.NoError(t, err)
+
+	seasons := itemsByType(mediaRepo, "season")
+	require.Len(t, seasons, 1)
+	assert.Equal(t, "Season 0", seasons[0].Title)
+	assert.NotNil(t, seasons[0].IndexNumber)
+	assert.Equal(t, 0, *seasons[0].IndexNumber)
+
+	episodes := itemsByType(mediaRepo, "episode")
+	require.Len(t, episodes, 1)
+	assert.Equal(t, "S00E01", episodes[0].Title)
+}
+
+func TestScanTVShow_NilEpisode_UsesOriginalTitle(t *testing.T) {
+	t.Parallel()
+	svc, _, libQueryRepo, mediaRepo, scanner, _ := newCmdSvc()
+
+	libQueryRepo.Seed(&library.Library{
+		ID: "lib-tv", Name: "TV", Type: "tvshow", Paths: []string{"/tv"},
+	})
+
+	scanner.Results["/tv"] = []library.ScannedFile{
+		{Path: "/tv/Show/bonus.mkv", Size: 100, Title: "Show", Season: intPtr(1), Episode: nil, Type: library.Episode},
+	}
+
+	_, _, err := svc.ScanLibrary(context.Background(), "lib-tv")
+	require.NoError(t, err)
+
+	episodes := itemsByType(mediaRepo, "episode")
+	require.Len(t, episodes, 1)
+	assert.Equal(t, "Show", episodes[0].Title, "without episode number, original title preserved")
+}
+
+func TestScanTVShow_EmptyDirectory(t *testing.T) {
+	t.Parallel()
+	svc, _, libQueryRepo, mediaRepo, scanner, _ := newCmdSvc()
+
+	libQueryRepo.Seed(&library.Library{
+		ID: "lib-tv", Name: "TV", Type: "tvshow", Paths: []string{"/tv"},
+	})
+
+	scanner.Results["/tv"] = []library.ScannedFile{}
+
+	added, updated, err := svc.ScanLibrary(context.Background(), "lib-tv")
+	require.NoError(t, err)
+	assert.Equal(t, 0, added)
+	assert.Equal(t, 0, updated)
+	assert.Empty(t, mediaRepo.All())
+}
+
+func TestScanTVShow_SpecialCharactersInTitle(t *testing.T) {
+	t.Parallel()
+	svc, _, libQueryRepo, mediaRepo, scanner, _ := newCmdSvc()
+
+	libQueryRepo.Seed(&library.Library{
+		ID: "lib-tv", Name: "TV", Type: "tvshow", Paths: []string{"/tv"},
+	})
+
+	scanner.Results["/tv"] = []library.ScannedFile{
+		{Path: "/tv/L'Étrange Show (2020)/S01/e01.mkv", Size: 100, Title: "L'Étrange Show (2020)", Season: intPtr(1), Episode: intPtr(1), Type: library.Episode},
+	}
+
+	added, _, err := svc.ScanLibrary(context.Background(), "lib-tv")
+	require.NoError(t, err)
+	assert.Equal(t, 3, added)
+
+	series := itemsByType(mediaRepo, "series")
+	require.Len(t, series, 1)
+	assert.Equal(t, "L'Étrange Show (2020)", series[0].Title)
+}
+
+func TestScanTVShow_RescanExisting_UpdatesEpisode(t *testing.T) {
+	t.Parallel()
+	svc, _, libQueryRepo, _, scanner, _ := newCmdSvc()
+
+	libQueryRepo.Seed(&library.Library{
+		ID: "lib-tv", Name: "TV", Type: "tvshow", Paths: []string{"/tv"},
+	})
+
+	scanner.Results["/tv"] = []library.ScannedFile{
+		{Path: "/tv/Show/S01/e01.mkv", Size: 100, Title: "Show", Season: intPtr(1), Episode: intPtr(1), Type: library.Episode},
+	}
+
+	added1, _, err := svc.ScanLibrary(context.Background(), "lib-tv")
+	require.NoError(t, err)
+	assert.Equal(t, 3, added1)
+
+	// Rescan same file with different size (file replaced)
+	scanner.Results["/tv"] = []library.ScannedFile{
+		{Path: "/tv/Show/S01/e01.mkv", Size: 999, Title: "Show", Season: intPtr(1), Episode: intPtr(1), Type: library.Episode},
+	}
+
+	added2, updated2, err := svc.ScanLibrary(context.Background(), "lib-tv")
+	require.NoError(t, err)
+	assert.Equal(t, 0, added2, "no new items on rescan")
+	assert.Equal(t, 1, updated2, "episode updated")
+}
+
+func TestScanTVShow_RescanUnchanged_NoUpdates(t *testing.T) {
+	t.Parallel()
+	svc, _, libQueryRepo, mediaRepo, scanner, _ := newCmdSvc()
+
+	libQueryRepo.Seed(&library.Library{
+		ID: "lib-tv", Name: "TV", Type: "tvshow", Paths: []string{"/tv"},
+	})
+
+	scanner.Results["/tv"] = []library.ScannedFile{
+		{Path: "/tv/Show/S01/e01.mkv", Size: 100, Fingerprint: "fp1", Title: "Show", Season: intPtr(1), Episode: intPtr(1), Type: library.Episode},
+	}
+
+	_, _, err := svc.ScanLibrary(context.Background(), "lib-tv")
+	require.NoError(t, err)
+
+	epsBefore := itemsByType(mediaRepo, "episode")
+	require.Len(t, epsBefore, 1)
+
+	// Rescan with identical size + fingerprint
+	added2, updated2, err := svc.ScanLibrary(context.Background(), "lib-tv")
+	require.NoError(t, err)
+	assert.Equal(t, 0, added2)
+	assert.Equal(t, 1, updated2, "unchanged file still counted as updated (upsert path)")
+}
+
+func TestScanTVShow_EpisodeTitleFormatPadding(t *testing.T) {
+	t.Parallel()
+	svc, _, libQueryRepo, mediaRepo, scanner, _ := newCmdSvc()
+
+	libQueryRepo.Seed(&library.Library{
+		ID: "lib-tv", Name: "TV", Type: "tvshow", Paths: []string{"/tv"},
+	})
+
+	scanner.Results["/tv"] = []library.ScannedFile{
+		{Path: "/tv/Show/S03/e12.mkv", Size: 100, Title: "Show", Season: intPtr(3), Episode: intPtr(12), Type: library.Episode},
+		{Path: "/tv/Show/S10/e05.mkv", Size: 100, Title: "Show", Season: intPtr(10), Episode: intPtr(5), Type: library.Episode},
+	}
+
+	_, _, err := svc.ScanLibrary(context.Background(), "lib-tv")
+	require.NoError(t, err)
+
+	episodes := itemsByType(mediaRepo, "episode")
+	titles := map[string]bool{}
+	for _, ep := range episodes {
+		titles[ep.Title] = true
+	}
+	assert.True(t, titles["S03E12"], "season 3 episode 12")
+	assert.True(t, titles["S10E05"], "season 10 episode 5")
+}
+
+func TestScanTVShow_SeriesFingerprint(t *testing.T) {
+	t.Parallel()
+	svc, _, libQueryRepo, mediaRepo, scanner, _ := newCmdSvc()
+
+	libQueryRepo.Seed(&library.Library{
+		ID: "lib-tv", Name: "TV", Type: "tvshow", Paths: []string{"/tv"},
+	})
+
+	scanner.Results["/tv"] = []library.ScannedFile{
+		{Path: "/tv/Show/S01/e01.mkv", Size: 100, Title: "Show", Season: intPtr(1), Episode: intPtr(1), Type: library.Episode},
+	}
+
+	_, _, err := svc.ScanLibrary(context.Background(), "lib-tv")
+	require.NoError(t, err)
+
+	series := itemsByType(mediaRepo, "series")
+	require.Len(t, series, 1)
+	assert.Equal(t, "series:lib-tv:Show", series[0].FileFingerprint)
+
+	seasons := itemsByType(mediaRepo, "season")
+	require.Len(t, seasons, 1)
+	assert.Equal(t, "season:lib-tv:Show:1", seasons[0].FileFingerprint)
+}
+
+func TestScanTVShow_DuplicateSeriesNotCreated(t *testing.T) {
+	t.Parallel()
+	svc, _, libQueryRepo, mediaRepo, scanner, _ := newCmdSvc()
+
+	libQueryRepo.Seed(&library.Library{
+		ID: "lib-tv", Name: "TV", Type: "tvshow", Paths: []string{"/tv"},
+	})
+
+	scanner.Results["/tv"] = []library.ScannedFile{
+		{Path: "/tv/Show/S01/e01.mkv", Size: 100, Title: "Show", Season: intPtr(1), Episode: intPtr(1), Type: library.Episode},
+		{Path: "/tv/Show/S01/e02.mkv", Size: 200, Title: "Show", Season: intPtr(1), Episode: intPtr(2), Type: library.Episode},
+		{Path: "/tv/Show/S01/e03.mkv", Size: 300, Title: "Show", Season: intPtr(1), Episode: intPtr(3), Type: library.Episode},
+	}
+
+	_, _, err := svc.ScanLibrary(context.Background(), "lib-tv")
+	require.NoError(t, err)
+
+	series := itemsByType(mediaRepo, "series")
+	assert.Len(t, series, 1, "only one series despite 3 episodes")
+
+	seasons := itemsByType(mediaRepo, "season")
+	assert.Len(t, seasons, 1, "only one season despite 3 episodes")
+
+	episodes := itemsByType(mediaRepo, "episode")
+	assert.Len(t, episodes, 3)
+}
+
+func TestScanTVShow_SeasonIndexNumber(t *testing.T) {
+	t.Parallel()
+	svc, _, libQueryRepo, mediaRepo, scanner, _ := newCmdSvc()
+
+	libQueryRepo.Seed(&library.Library{
+		ID: "lib-tv", Name: "TV", Type: "tvshow", Paths: []string{"/tv"},
+	})
+
+	scanner.Results["/tv"] = []library.ScannedFile{
+		{Path: "/tv/Show/S03/e01.mkv", Size: 100, Title: "Show", Season: intPtr(3), Episode: intPtr(1), Type: library.Episode},
+	}
+
+	_, _, err := svc.ScanLibrary(context.Background(), "lib-tv")
+	require.NoError(t, err)
+
+	seasons := itemsByType(mediaRepo, "season")
+	require.Len(t, seasons, 1)
+	require.NotNil(t, seasons[0].IndexNumber)
+	assert.Equal(t, 3, *seasons[0].IndexNumber)
+}
+
+func TestScanTVShow_EpisodeIndexNumber(t *testing.T) {
+	t.Parallel()
+	svc, _, libQueryRepo, mediaRepo, scanner, _ := newCmdSvc()
+
+	libQueryRepo.Seed(&library.Library{
+		ID: "lib-tv", Name: "TV", Type: "tvshow", Paths: []string{"/tv"},
+	})
+
+	scanner.Results["/tv"] = []library.ScannedFile{
+		{Path: "/tv/Show/S01/e07.mkv", Size: 100, Title: "Show", Season: intPtr(1), Episode: intPtr(7), Type: library.Episode},
+	}
+
+	_, _, err := svc.ScanLibrary(context.Background(), "lib-tv")
+	require.NoError(t, err)
+
+	episodes := itemsByType(mediaRepo, "episode")
+	require.Len(t, episodes, 1)
+	require.NotNil(t, episodes[0].IndexNumber)
+	assert.Equal(t, 7, *episodes[0].IndexNumber)
+}
