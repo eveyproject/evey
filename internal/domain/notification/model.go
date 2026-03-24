@@ -25,6 +25,7 @@ const (
 	TypeNewSeries      Type = "new_series"
 	TypeNewAlbum       Type = "new_album"
 	TypeLibraryScanned Type = "library_scanned"
+	TypeBackupFailed   Type = "backup_failed"
 	TypePluginError    Type = "plugin_error"
 	TypeCustom         Type = "custom"
 )

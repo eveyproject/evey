@@ -7,6 +7,7 @@ import (
 	"time"
 
 	appnotification "github.com/gravity-zero/evey/internal/app/notification"
+	"github.com/gravity-zero/evey/internal/domain/backup"
 	libevent "github.com/gravity-zero/evey/internal/domain/library"
 	notifdom "github.com/gravity-zero/evey/internal/domain/notification"
 	notiffakes "github.com/gravity-zero/evey/internal/domain/notification/fakes"
@@ -475,6 +476,38 @@ func TestNotificationService_WithPush_PushSendError_DoesNotBlockNotification(t *
 	notifs, err := repo.ListByProfile(ctx, "p1", false, 0, 0)
 	require.NoError(t, err)
 	assert.Len(t, notifs, 1, "notification should be created even if push fails")
+}
+
+func TestNotificationService_BackupFailed_NotifiesAllProfiles(t *testing.T) {
+	t.Parallel()
+	repo := notiffakes.NewFakeNotificationRepository()
+	settings := notiffakes.NewFakeSettingsRepository()
+	analyzer := notiffakes.NewFakeWatchHistoryAnalyzer()
+	profileRepo := userfakes.NewFakeProfileRepository()
+	bus := sharedfakes.NewFakeEventBus()
+
+	ctx := context.Background()
+	_ = profileRepo.Create(ctx, &user.Profile{ID: "p1", UserID: "u1", Name: "Alice"})
+	_ = profileRepo.Create(ctx, &user.Profile{ID: "p2", UserID: "u2", Name: "Bob"})
+
+	svc := appnotification.NewCommandService(repo, settings, analyzer, profileRepo, bus)
+	svc.Register()
+
+	bus.Publish(ctx, backup.BackupFailed{
+		Error:      "disk full",
+		OccurredAt: time.Now(),
+	})
+
+	notifs1, err := repo.ListByProfile(ctx, "p1", false, 0, 0)
+	require.NoError(t, err)
+	require.Len(t, notifs1, 1)
+	assert.Equal(t, notifdom.TypeBackupFailed, notifs1[0].Type)
+	assert.Equal(t, "Scheduled Backup Failed", notifs1[0].Title)
+	assert.Equal(t, "disk full", notifs1[0].Message)
+
+	notifs2, err := repo.ListByProfile(ctx, "p2", false, 0, 0)
+	require.NoError(t, err)
+	assert.Len(t, notifs2, 1)
 }
 
 func TestNotificationService_CleanupExpired(t *testing.T) {

@@ -59,6 +59,7 @@ import (
 //   "media.item.added"      → notification (handleMediaItemAdded)
 //                           → trickplay worker (auto-generate on new media)
 //                           → metadata enricher (auto-enrich on new media)
+//   "backup.failed"         → notification (handleBackupFailed)
 //   "library.created"       → filesystem watcher (watch new library paths)
 //   "library.deleted"       → filesystem watcher (stop watching deleted library)
 //   "notification.created"  → email adapter (send email, only when SMTP configured)
@@ -331,7 +332,7 @@ func buildServices(ctx context.Context, cfg *config.Config, db *sql.DB, rootLog 
 	// --- Backup service ---
 	backupSvc := appbackup.NewService(filesystem.NewBackupStore(cfg.Backup.Dir),
 		postgres.NewDatabaseDumper(cfg.DB.Host, cfg.DB.Port, cfg.DB.User, cfg.DB.Password, cfg.DB.DBName, cfg.DB.SSLMode),
-		version)
+		version).WithEventBus(bus)
 
 	syncPlayHub := appsyncplay.NewHub(postgres.NewSyncPlayRoomRepo(db))
 

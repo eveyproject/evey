@@ -16,6 +16,7 @@ type FakeMediaItemCommandRepo struct {
 	ErrDelete                error
 	GetByFileFingerprintErr  error
 	GetByLibraryTypeTitleErr error
+	ListByLibraryIDErr       error
 }
 
 func NewFakeMediaItemCommandRepo() *FakeMediaItemCommandRepo {
@@ -136,9 +137,12 @@ func (r *FakeMediaItemCommandRepo) ListFilePaths(_ context.Context, libraryID st
 func (r *FakeMediaItemCommandRepo) ListByLibraryID(_ context.Context, libraryID string) ([]*library.MediaItem, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
+	if r.ListByLibraryIDErr != nil {
+		return nil, r.ListByLibraryIDErr
+	}
 	var result []*library.MediaItem
 	for _, item := range r.items {
-		if item.LibraryID == libraryID && item.FilePath != "" {
+		if item.LibraryID == libraryID {
 			result = append(result, item)
 		}
 	}
