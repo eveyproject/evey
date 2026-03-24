@@ -457,6 +457,39 @@ func TestRefreshToken_AlreadyUsed(t *testing.T) {
 	}
 }
 
+func TestRefreshToken_Reuse_PurgesAllUserTokens(t *testing.T) {
+	d := newAuthTestDeps()
+	ctx := context.Background()
+	seedAuthUser(t, d, "u1", "alice", "pw", false, true)
+
+	reusedToken := "reused-tok"
+	rh := sha256.Sum256([]byte(reusedToken))
+	rhash := hex.EncodeToString(rh[:])
+
+	otherToken := "other-tok"
+	oh := sha256.Sum256([]byte(otherToken))
+	ohash := hex.EncodeToString(oh[:])
+
+	_ = d.refreshTkns.Create(ctx, &user.RefreshToken{
+		ID: "rt1", UserID: "u1", TokenHash: rhash,
+		ExpiresAt: time.Now().Add(24 * time.Hour), Used: true,
+	})
+	_ = d.refreshTkns.Create(ctx, &user.RefreshToken{
+		ID: "rt2", UserID: "u1", TokenHash: ohash,
+		ExpiresAt: time.Now().Add(24 * time.Hour), Used: false,
+	})
+
+	_, _, err := d.svc.RefreshToken(ctx, reusedToken)
+	if !errors.Is(err, ErrInvalidCredentials) {
+		t.Fatalf("expected ErrInvalidCredentials, got %v", err)
+	}
+
+	_, errOther := d.refreshTkns.GetByTokenHash(ctx, ohash)
+	if errOther == nil {
+		t.Fatal("reuse detection should purge ALL tokens for the user, but other token still exists")
+	}
+}
+
 func TestRefreshToken_Expired(t *testing.T) {
 	d := newAuthTestDeps()
 	ctx := context.Background()
