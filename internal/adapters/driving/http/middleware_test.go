@@ -14,7 +14,7 @@ func TestTokenRedactMiddleware_MovesQueryToHeader(t *testing.T) {
 			t.Error("token query param should be removed")
 		}
 	})
-	h := tokenRedactMiddleware(next)
+	h := tokenRedactMiddleware(nil, next)
 	req := httptest.NewRequest(http.MethodGet, "/foo?token=mytoken", nil)
 	h.ServeHTTP(httptest.NewRecorder(), req)
 	if gotHeader != "Bearer mytoken" {
@@ -27,7 +27,7 @@ func TestTokenRedactMiddleware_DoesNotOverwriteHeader(t *testing.T) {
 	next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		gotHeader = r.Header.Get("Authorization")
 	})
-	h := tokenRedactMiddleware(next)
+	h := tokenRedactMiddleware(nil, next)
 	req := httptest.NewRequest(http.MethodGet, "/foo?token=querytoken", nil)
 	req.Header.Set("Authorization", "Bearer headertoken")
 	h.ServeHTTP(httptest.NewRecorder(), req)

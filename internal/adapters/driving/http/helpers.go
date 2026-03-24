@@ -10,6 +10,7 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/gravity-zero/evey/internal/domain/shared"
 	domainuser "github.com/gravity-zero/evey/internal/domain/user"
 )
 
@@ -68,6 +69,27 @@ func extractBearerToken(r *http.Request) string {
 	return r.URL.Query().Get("token")
 }
 
+// resolveAuth checks for a stream token in the context first (opaque token resolved by middleware),
+// then falls back to JWT validation. Returns claims and the resolved mediaItemID from the stream token (if any).
+func resolveAuth(r *http.Request, tokenGen tokenValidator) (*domainuser.Claims, string, error) {
+	if st, ok := StreamTokenFromContext(r.Context()); ok {
+		return &domainuser.Claims{UserID: st.UserID}, st.MediaItemID, nil
+	}
+	raw := extractBearerToken(r)
+	if raw == "" {
+		return nil, "", fmt.Errorf("unauthenticated")
+	}
+	claims, err := tokenGen.ValidateAccessToken(raw)
+	if err != nil {
+		return nil, "", err
+	}
+	return claims, "", nil
+}
+
+type tokenValidator interface {
+	ValidateAccessToken(token string) (*domainuser.Claims, error)
+}
+
 func setCORSHeaders(w http.ResponseWriter, r *http.Request, baseURL string) {
 	origin := r.Header.Get("Origin")
 	if origin == "" {
@@ -109,20 +131,54 @@ func checkLibraryAccess(ctx context.Context, w http.ResponseWriter, claims *doma
 }
 
 // TokenRedactMiddleware moves ?token= from URL query to Authorization header.
-func TokenRedactMiddleware(next http.Handler) http.Handler { return tokenRedactMiddleware(next) }
+// For opaque stream tokens (no "." = not a JWT), it resolves the token via the store
+// and injects synthetic claims into the context so handlers work unchanged.
+func TokenRedactMiddleware(next http.Handler) http.Handler { return tokenRedactMiddleware(nil, next) }
 
-func tokenRedactMiddleware(next http.Handler) http.Handler {
+// TokenRedactMiddlewareWithStore creates a token middleware that also resolves opaque stream tokens.
+func TokenRedactMiddlewareWithStore(store streamTokenValidator, next http.Handler) http.Handler {
+	return tokenRedactMiddleware(store, next)
+}
+
+type streamTokenValidator interface {
+	ValidateAny(token string) (*shared.StreamToken, bool)
+}
+
+func tokenRedactMiddleware(store streamTokenValidator, next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if t := r.URL.Query().Get("token"); t != "" {
+		t := r.URL.Query().Get("token")
+		if t != "" {
 			q := r.URL.Query()
 			q.Del("token")
 			r.URL.RawQuery = q.Encode()
+
 			if r.Header.Get("Authorization") == "" {
-				r.Header.Set("Authorization", "Bearer "+t)
+				// Opaque stream token: no "." (JWTs always have 2 dots)
+				if store != nil && !strings.Contains(t, ".") {
+					if st, ok := store.ValidateAny(t); ok {
+						r.Header.Set("Authorization", "Bearer "+t)
+						ctx := context.WithValue(r.Context(), streamTokenCtxKey, st)
+						r = r.WithContext(ctx)
+					}
+				}
+				// JWT or fallback: set as Bearer (handlers validate)
+				if r.Header.Get("Authorization") == "" {
+					r.Header.Set("Authorization", "Bearer "+t)
+				}
 			}
 		}
 		next.ServeHTTP(w, r)
 	})
+}
+
+type ctxKeyStreamToken struct{}
+
+var streamTokenCtxKey = ctxKeyStreamToken{}
+
+// StreamTokenFromContext returns the resolved stream token if the request was authenticated via opaque token.
+func StreamTokenFromContext(ctx context.Context) (*shared.StreamToken, bool) {
+	st, ok := ctx.Value(streamTokenCtxKey).(*shared.StreamToken)
+	return st, ok
 }
 
 // SecurityHeadersMiddleware sets security-related response headers.
@@ -163,6 +219,10 @@ func apiCacheMiddleware(next http.Handler) http.Handler {
 	})
 }
 
+type adminCtxKeyType struct{}
+
+var adminClaimsKey = adminCtxKeyType{}
+
 func requireAdmin(tokenGen TokenVerifier, next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		token := extractBearerToken(r)
@@ -179,7 +239,8 @@ func requireAdmin(tokenGen TokenVerifier, next http.HandlerFunc) http.HandlerFun
 			http.Error(w, "forbidden", http.StatusForbidden)
 			return
 		}
-		next(w, r)
+		ctx := context.WithValue(r.Context(), adminClaimsKey, claims)
+		next(w, r.WithContext(ctx))
 	}
 }
 

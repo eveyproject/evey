@@ -42,8 +42,10 @@ func buildHTTPHandler(gwMux http.Handler, deps *appDeps, cfg *config.Config, sta
 
 		SearchHealth: deps.searchHealth,
 
-		TokenGen: deps.auth.tokenGen,
-		Cfg:      cfg,
+		TokenGen:         deps.auth.tokenGen,
+		Cfg:              cfg,
+		StreamTokenStore: deps.media.streamTokenStore,
+		ShareSvc:         deps.media.shareSvc,
 
 		LibCmdSvc:   deps.library.cmdSvc,
 		LibQuerySvc: deps.library.querySvc,
@@ -126,7 +128,7 @@ func buildHTTPHandler(gwMux http.Handler, deps *appDeps, cfg *config.Config, sta
 		return nil, fmt.Errorf("proxy trust: %w", err)
 	}
 
-	return httpapi.TokenRedactMiddleware(eveymetrics.InstrumentHandler(httpapi.SecurityHeadersMiddleware(proxyTrust.Middleware(netMw(mux))))), nil
+	return httpapi.TokenRedactMiddlewareWithStore(srv.StreamTokenStore, eveymetrics.InstrumentHandler(httpapi.SecurityHeadersMiddleware(proxyTrust.Middleware(netMw(mux))))), nil
 }
 
 func resolveVAPIDPublicKey(cfgRepo shared.ServerConfigRepository, cfg *config.Config) string {

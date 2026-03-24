@@ -15,6 +15,7 @@ import (
 	appfavorite "github.com/gravity-zero/evey/internal/app/favorite"
 	appfeed "github.com/gravity-zero/evey/internal/app/feed"
 	applibrary "github.com/gravity-zero/evey/internal/app/library"
+	appmedia "github.com/gravity-zero/evey/internal/app/media"
 	appmetadata "github.com/gravity-zero/evey/internal/app/metadata"
 	appmkv "github.com/gravity-zero/evey/internal/app/mkv"
 	appmusic "github.com/gravity-zero/evey/internal/app/music"
@@ -339,6 +340,9 @@ func buildServices(ctx context.Context, cfg *config.Config, db *sql.DB, rootLog 
 		version).WithEventBus(bus)
 
 	syncPlayHub := appsyncplay.NewHub(postgres.NewSyncPlayRoomRepo(db))
+	streamTokenStore := appmedia.NewStreamTokenStore(appmedia.DefaultStreamTokenTTL)
+	shareLinkRepo := postgres.NewShareLinkRepo(db)
+	shareSvc := appmedia.NewShareService(shareLinkRepo)
 
 	return &appDeps{
 		library: libraryDeps{
@@ -361,7 +365,9 @@ func buildServices(ctx context.Context, cfg *config.Config, db *sql.DB, rootLog 
 			musicSvc:       musicSvc,
 			photoSvc:       photoSvc,
 			subtitleSvc:    subtitleSvc,
-			syncPlayHub:    syncPlayHub,
+			syncPlayHub:      syncPlayHub,
+			streamTokenStore: streamTokenStore,
+			shareSvc:         shareSvc,
 		},
 		content: contentDeps{
 			metadataCmdSvc:   metadataCmdSvc,

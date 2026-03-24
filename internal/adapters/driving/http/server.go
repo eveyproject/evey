@@ -12,6 +12,7 @@ import (
 	appfavorite "github.com/gravity-zero/evey/internal/app/favorite"
 	appfeed "github.com/gravity-zero/evey/internal/app/feed"
 	applibrary "github.com/gravity-zero/evey/internal/app/library"
+	appmedia "github.com/gravity-zero/evey/internal/app/media"
 	appmetadata "github.com/gravity-zero/evey/internal/app/metadata"
 	appmusic "github.com/gravity-zero/evey/internal/app/music"
 	appphoto "github.com/gravity-zero/evey/internal/app/photo"
@@ -58,8 +59,10 @@ type HTTPServer struct {
 	// SearchHealth is used for health checks; nil means search not configured.
 	SearchHealth SearchHealthChecker
 
-	TokenGen *auth.JWTGenerator
-	Cfg      *config.Config
+	TokenGen         *auth.JWTGenerator
+	Cfg              *config.Config
+	StreamTokenStore *appmedia.StreamTokenStore
+	ShareSvc         *appmedia.ShareService
 
 	// Library
 	LibCmdSvc   *applibrary.CommandService
@@ -170,6 +173,7 @@ func (s *HTTPServer) RegisterRoutes(mux *http.ServeMux, gwMux http.Handler) {
 	mux.HandleFunc("POST /api/v1/media/{id}/stream", mh)
 	mux.HandleFunc("POST /api/v1/media/{id}/artwork/{artworkId}/select", selectArtworkHandler(s.TokenGen, s.ArtworkRepo, s.LibQuerySvc, s.LibraryAccessRepo))
 	mux.HandleFunc("GET /api/v1/media/{id}/download", downloadHandler(s.TokenGen, s.LibQuerySvc, s.BaseURL, s.LibraryAccessRepo))
+	mux.HandleFunc("POST /api/v1/media/{id}/stream-token", streamTokenHandler(s.TokenGen, s.StreamTokenStore, s.LibraryAccessRepo, s.LibQuerySvc))
 
 	transcodeThrottle := apptranscoding.NewTranscodeThrottle()
 	mux.HandleFunc("GET /api/v1/media/{id}/transcode", transcodeHandler(s.TokenGen, s.LibQuerySvc, s.BaseURL, s.LibraryAccessRepo, transcodeThrottle, s.UserMaxStreams))
@@ -232,6 +236,9 @@ func (s *HTTPServer) RegisterRoutes(mux *http.ServeMux, gwMux http.Handler) {
 	registerPlaylistRoutes(mux, s.PlaylistSvc, s.TokenGen)
 
 	registerSyncPlayRoutes(mux, s.SyncPlayHub, s.TokenGen, s.LibQuerySvc, s.LibraryAccessRepo)
+	if s.ShareSvc != nil {
+		registerShareRoutes(mux, s.TokenGen, s.ShareSvc, s.LibQuerySvc, s.LibraryAccessRepo)
+	}
 	registerBackupRoutes(mux, s.BackupSvc, s.TokenGen, s.AdminHeavyRL)
 	registerRemoteAccessRoutes(mux, s.Cfg, s.TokenGen, s.CfgStore)
 	registerPlaybackSettingsRoutes(mux, s.Cfg, s.TokenGen)

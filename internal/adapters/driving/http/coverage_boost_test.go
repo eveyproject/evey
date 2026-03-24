@@ -2368,7 +2368,7 @@ func TestTokenRedactMiddleware(t *testing.T) {
 		}
 		w.WriteHeader(http.StatusOK)
 	})
-	handler := tokenRedactMiddleware(inner)
+	handler := tokenRedactMiddleware(nil, inner)
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/media?token=mytoken", nil)
 	w := httptest.NewRecorder()
 	handler.ServeHTTP(w, req)
@@ -2384,7 +2384,7 @@ func TestTokenRedactMiddleware_ExistingAuthHeader(t *testing.T) {
 		}
 		w.WriteHeader(http.StatusOK)
 	})
-	handler := tokenRedactMiddleware(inner)
+	handler := tokenRedactMiddleware(nil, inner)
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/media?token=mytoken", nil)
 	req.Header.Set("Authorization", "Bearer existing")
 	w := httptest.NewRecorder()

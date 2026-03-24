@@ -7,6 +7,7 @@ import (
 	appfavorite "github.com/gravity-zero/evey/internal/app/favorite"
 	appfeed "github.com/gravity-zero/evey/internal/app/feed"
 	applibrary "github.com/gravity-zero/evey/internal/app/library"
+	appmedia "github.com/gravity-zero/evey/internal/app/media"
 	appmetadata "github.com/gravity-zero/evey/internal/app/metadata"
 	appmkv "github.com/gravity-zero/evey/internal/app/mkv"
 	appmusic "github.com/gravity-zero/evey/internal/app/music"
@@ -57,7 +58,9 @@ type mediaDeps struct {
 	musicSvc       *appmusic.Service
 	photoSvc       *appphoto.Service
 	subtitleSvc    *appsubtitle.Service
-	syncPlayHub    *appsyncplay.Hub
+	syncPlayHub      *appsyncplay.Hub
+	streamTokenStore *appmedia.StreamTokenStore
+	shareSvc         *appmedia.ShareService
 }
 
 // contentDeps groups content-organisation services (metadata, collections, ratings).
