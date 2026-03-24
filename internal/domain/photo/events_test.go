@@ -13,8 +13,6 @@ func TestPhotoEventNames(t *testing.T) {
 		event interface{ EventName() string }
 		want  string
 	}{
-		{photo.PhotoImported{}, "photo.imported"},
-		{photo.PhotoDeleted{}, "photo.deleted"},
 		{photo.PhotoAdded{}, "photo.added"},
 		{photo.PhotoRemoved{}, "photo.removed"},
 	}

@@ -286,10 +286,7 @@ func (s *Service) ScanDirectory(ctx context.Context, libraryID, dir string) (int
 				slog.Warn("photo upsert failed", slog.String("path", j.path), slog.Any("err", upsertErr))
 				return
 			}
-			if pubErr := s.bus.Publish(ctx, photo.PhotoImported{LibraryID: libraryID, PhotoID: p.ID, Path: j.path, OccurredAt: time.Now()}); pubErr != nil {
-				slog.Warn("photo scan: event publish failed", slog.String("path", j.path), slog.Any("err", pubErr))
-			}
-			if pubErr := s.bus.Publish(ctx, photo.PhotoAdded{LibraryID: libraryID, PhotoID: p.ID, Title: title, Album: album, OccurredAt: time.Now()}); pubErr != nil {
+			if pubErr := s.bus.Publish(ctx, photo.PhotoAdded{LibraryID: libraryID, PhotoID: p.ID, Path: j.path, Title: title, Album: album, OccurredAt: time.Now()}); pubErr != nil {
 				slog.Warn("photo scan: PhotoAdded publish failed", slog.String("path", j.path), slog.Any("err", pubErr))
 			}
 			total.Add(1)
@@ -311,9 +308,6 @@ func (s *Service) DeletePhoto(ctx context.Context, photoID string) error {
 	}
 	if err := s.repo.Delete(ctx, photoID); err != nil {
 		return err
-	}
-	if pubErr := s.bus.Publish(ctx, photo.PhotoDeleted{PhotoID: photoID, LibraryID: libraryID, OccurredAt: time.Now()}); pubErr != nil {
-		slog.Warn("photo: PhotoDeleted publish failed", slog.String("photoID", photoID), slog.Any("err", pubErr))
 	}
 	if pubErr := s.bus.Publish(ctx, photo.PhotoRemoved{PhotoID: photoID, LibraryID: libraryID, OccurredAt: time.Now()}); pubErr != nil {
 		slog.Warn("photo: PhotoRemoved publish failed", slog.String("photoID", photoID), slog.Any("err", pubErr))

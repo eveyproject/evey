@@ -255,14 +255,11 @@ func TestDeletePhoto_PublishesEvent(t *testing.T) {
 		t.Fatalf("DeletePhoto failed: %v", err)
 	}
 	events := bus2.PublishedEvents()
-	if len(events) != 2 {
-		t.Fatalf("expected 2 events, got %d", len(events))
+	if len(events) != 1 {
+		t.Fatalf("expected 1 event, got %d", len(events))
 	}
-	if events[0].EventName() != "photo.deleted" {
+	if events[0].EventName() != "photo.removed" {
 		t.Errorf("unexpected event name %q", events[0].EventName())
-	}
-	if events[1].EventName() != "photo.removed" {
-		t.Errorf("unexpected event name %q", events[1].EventName())
 	}
 }
 
@@ -593,25 +590,18 @@ func TestDeletePhoto_NilPhoto_EmptyLibraryID(t *testing.T) {
 		t.Fatal(err)
 	}
 	events := bus.PublishedEvents()
-	if len(events) != 2 {
-		t.Fatalf("expected 2 events, got %d", len(events))
+	if len(events) != 1 {
+		t.Fatalf("expected 1 event, got %d", len(events))
 	}
-	evt, ok := events[0].(photo.PhotoDeleted)
+	removed, ok := events[0].(photo.PhotoRemoved)
 	if !ok {
-		t.Fatalf("expected PhotoDeleted, got %T", events[0])
-	}
-	if evt.LibraryID != "" {
-		t.Errorf("LibraryID = %q, want empty for nil photo", evt.LibraryID)
-	}
-	if evt.PhotoID != "nonexistent" {
-		t.Errorf("PhotoID = %q, want nonexistent", evt.PhotoID)
-	}
-	removed, ok := events[1].(photo.PhotoRemoved)
-	if !ok {
-		t.Fatalf("expected PhotoRemoved, got %T", events[1])
+		t.Fatalf("expected PhotoRemoved, got %T", events[0])
 	}
 	if removed.LibraryID != "" {
 		t.Errorf("LibraryID = %q, want empty for nil photo", removed.LibraryID)
+	}
+	if removed.PhotoID != "nonexistent" {
+		t.Errorf("PhotoID = %q, want nonexistent", removed.PhotoID)
 	}
 }
 
@@ -627,19 +617,15 @@ func TestDeletePhoto_EventContainsCorrectLibraryID(t *testing.T) {
 		t.Fatal(err)
 	}
 	events := bus.PublishedEvents()
-	if len(events) != 2 {
-		t.Fatalf("expected 2 events, got %d", len(events))
+	if len(events) != 1 {
+		t.Fatalf("expected 1 event, got %d", len(events))
 	}
-	evt := events[0].(photo.PhotoDeleted)
-	if evt.LibraryID != "my-lib" {
-		t.Errorf("event LibraryID = %q, want my-lib", evt.LibraryID)
-	}
-	if evt.PhotoID != "p1" {
-		t.Errorf("event PhotoID = %q, want p1", evt.PhotoID)
-	}
-	removed := events[1].(photo.PhotoRemoved)
+	removed := events[0].(photo.PhotoRemoved)
 	if removed.LibraryID != "my-lib" {
 		t.Errorf("event LibraryID = %q, want my-lib", removed.LibraryID)
+	}
+	if removed.PhotoID != "p1" {
+		t.Errorf("event PhotoID = %q, want p1", removed.PhotoID)
 	}
 }
 
