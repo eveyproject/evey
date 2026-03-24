@@ -9,6 +9,7 @@ import (
 	"log/slog"
 	"strings"
 
+	appplaylist "github.com/gravity-zero/evey/internal/app/playlist"
 	"github.com/gravity-zero/evey/internal/domain/library"
 	"github.com/gravity-zero/evey/internal/domain/playlist"
 	"github.com/gravity-zero/evey/internal/domain/shared"
@@ -335,4 +336,4 @@ func scanMediaItems(rows *sql.Rows) ([]*library.MediaItem, error) {
 // Ensure interface compliance
 var _ playlist.PlaylistRepository = (*PlaylistRepository)(nil)
 var _ playlist.PlaylistItemRepository = (*PlaylistItemRepository)(nil)
-var _ playlist.SmartPlaylistQuerier = (*SmartPlaylistQuerier)(nil)
+var _ appplaylist.SmartPlaylistQuerier = (*SmartPlaylistQuerier)(nil)

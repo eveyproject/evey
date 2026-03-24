@@ -21,6 +21,13 @@ type MediaItemExistsChecker interface {
 	GetByID(ctx context.Context, id string) (*library.MediaItem, error)
 }
 
+// SmartPlaylistQuerier lives in the app layer (not domain) because it returns
+// library.MediaItem, a cross-domain type. The domain playlist package should
+// not depend on domain library.
+type SmartPlaylistQuerier interface {
+	QueryByRules(ctx context.Context, rules []playlist.Rule, sortBy, sortOrder string, limit int) ([]*library.MediaItem, error)
+}
+
 // Service wraps CommandService + QueryService for backward compatibility.
 type Service struct {
 	cmd   *CommandService
@@ -30,7 +37,7 @@ type Service struct {
 func NewService(
 	playlists playlist.PlaylistRepository,
 	items playlist.PlaylistItemRepository,
-	smartQuerier playlist.SmartPlaylistQuerier,
+	smartQuerier SmartPlaylistQuerier,
 ) *Service {
 	cmd := NewCommandService(playlists, items)
 	q := NewQueryService(playlists, items, smartQuerier)
