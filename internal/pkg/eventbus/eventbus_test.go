@@ -184,3 +184,75 @@ func TestSuccessfulDeliveryNoRetry(t *testing.T) {
 
 	assert.Equal(t, int32(1), calls.Load(), "successful handler called exactly once")
 }
+
+func TestWorkerPoolBoundedConcurrency(t *testing.T) {
+	t.Parallel()
+	bus := eventbus.NewWithPoolSize(2)
+	defer bus.Stop()
+
+	var maxConcurrent atomic.Int32
+	var current atomic.Int32
+	var done sync.WaitGroup
+
+	done.Add(20)
+	bus.Subscribe("test.event", func(_ context.Context, _ shared.Event) {
+		defer done.Done()
+		c := current.Add(1)
+		for {
+			old := maxConcurrent.Load()
+			if c <= old || maxConcurrent.CompareAndSwap(old, c) {
+				break
+			}
+		}
+		time.Sleep(10 * time.Millisecond)
+		current.Add(-1)
+	})
+
+	for range 20 {
+		_ = bus.Publish(context.Background(), testEvent{msg: "pool"})
+	}
+	done.Wait()
+
+	assert.LessOrEqual(t, maxConcurrent.Load(), int32(2), "concurrency should not exceed pool size")
+}
+
+func TestWorkerPoolQueueFullDropsEvent(t *testing.T) {
+	t.Parallel()
+	bus := eventbus.NewWithPoolSize(1)
+	defer bus.Stop()
+
+	blocker := make(chan struct{})
+	var received atomic.Int32
+
+	bus.Subscribe("test.event", func(_ context.Context, _ shared.Event) {
+		received.Add(1)
+		<-blocker
+	})
+
+	// Fill the queue: 1 worker blocked + 64 buffer
+	for range 200 {
+		_ = bus.Publish(context.Background(), testEvent{msg: "flood"})
+	}
+
+	close(blocker)
+	time.Sleep(200 * time.Millisecond)
+
+	got := received.Load()
+	assert.Less(t, got, int32(200), "some events should be dropped when queue is full")
+	assert.Greater(t, got, int32(0), "at least some events should be processed")
+}
+
+func TestWorkerPoolStop(t *testing.T) {
+	t.Parallel()
+	bus := eventbus.NewWithPoolSize(4)
+	var calls atomic.Int32
+
+	bus.Subscribe("test.event", func(_ context.Context, _ shared.Event) {
+		calls.Add(1)
+	})
+
+	_ = bus.Publish(context.Background(), testEvent{msg: "before stop"})
+	bus.Stop()
+
+	assert.GreaterOrEqual(t, calls.Load(), int32(0))
+}

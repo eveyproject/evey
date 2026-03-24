@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"runtime"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -26,18 +27,52 @@ var DefaultRetryConfig = RetryConfig{
 	Backoffs:   []time.Duration{100 * time.Millisecond, 500 * time.Millisecond, 2 * time.Second},
 }
 
+type dispatchJob struct {
+	ctx   context.Context
+	sub   subscription
+	event shared.Event
+}
+
 type InMemoryEventBus struct {
 	mu     sync.RWMutex
 	subs   map[string][]subscription
 	nextID atomic.Int64
 	retry  RetryConfig
+	queue  chan dispatchJob
+	wg     sync.WaitGroup
 }
 
 func New() *InMemoryEventBus {
-	return &InMemoryEventBus{
+	return NewWithPoolSize(runtime.NumCPU() * 2)
+}
+
+func NewWithPoolSize(workers int) *InMemoryEventBus {
+	if workers <= 0 {
+		workers = 1
+	}
+	queueSize := workers * 64
+	b := &InMemoryEventBus{
 		subs:  make(map[string][]subscription),
 		retry: DefaultRetryConfig,
+		queue: make(chan dispatchJob, queueSize),
 	}
+	for range workers {
+		b.wg.Add(1)
+		go b.worker()
+	}
+	return b
+}
+
+func (b *InMemoryEventBus) worker() {
+	defer b.wg.Done()
+	for job := range b.queue {
+		b.dispatch(job.ctx, job.sub, job.event)
+	}
+}
+
+func (b *InMemoryEventBus) Stop() {
+	close(b.queue)
+	b.wg.Wait()
 }
 
 
@@ -95,12 +130,22 @@ func (b *InMemoryEventBus) Publish(ctx context.Context, event shared.Event) erro
 	b.mu.RUnlock()
 
 	for _, s := range specific {
-		go b.dispatch(ctx, s, event)
+		b.enqueue(ctx, s, event)
 	}
 	for _, s := range wildcards {
-		go b.dispatch(ctx, s, event)
+		b.enqueue(ctx, s, event)
 	}
 	return nil
+}
+
+func (b *InMemoryEventBus) enqueue(ctx context.Context, s subscription, event shared.Event) {
+	select {
+	case b.queue <- dispatchJob{ctx: ctx, sub: s, event: event}:
+	default:
+		slog.Warn("eventbus: queue full, dropping event",
+			slog.String("event", event.EventName()),
+			slog.String("sub", s.id))
+	}
 }
 
 func (b *InMemoryEventBus) Subscribe(eventName string, handler func(ctx context.Context, event shared.Event)) string {
