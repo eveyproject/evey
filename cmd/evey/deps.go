@@ -21,9 +21,13 @@ import (
 	apptranscoding "github.com/gravity-zero/evey/internal/app/transcoding"
 	appuser "github.com/gravity-zero/evey/internal/app/user"
 	appwebhook "github.com/gravity-zero/evey/internal/app/webhook"
-	"github.com/gravity-zero/evey/internal/adapters/driven/postgres"
 	"github.com/gravity-zero/evey/internal/adapters/driving/pluginhost"
 	httpapi "github.com/gravity-zero/evey/internal/adapters/driving/http"
+	domainlibrary "github.com/gravity-zero/evey/internal/domain/library"
+	domainnotif "github.com/gravity-zero/evey/internal/domain/notification"
+	domainplugin "github.com/gravity-zero/evey/internal/domain/plugin"
+	domainshared "github.com/gravity-zero/evey/internal/domain/shared"
+	domainuser "github.com/gravity-zero/evey/internal/domain/user"
 	"github.com/gravity-zero/evey/internal/pkg/auth"
 	eveyi18n "github.com/gravity-zero/evey/internal/pkg/i18n"
 )
@@ -87,19 +91,19 @@ type authDeps struct {
 	hasher   auth.BcryptHasher
 }
 
-// repoDeps groups repository adapters used directly by HTTP/gRPC layers.
+// repoDeps groups repository interfaces used directly by HTTP/gRPC layers.
 type repoDeps struct {
-	artworkRepo       *postgres.ArtworkRepository
-	userRatingRepo    *postgres.UserRatingRepository
-	pushSubRepo       *postgres.PushSubscriptionRepository
-	libraryAccessRepo *postgres.LibraryAccessRepository
-	profileRepo       *postgres.ProfileRepository
-	serverCfgRepo     *postgres.ServerConfigRepository
-	mediaItemRepo     *postgres.MediaItemRepository
-	userRepo          *postgres.UserRepository
-	apiKeyRepo        *postgres.APIKeyRepository
-	pluginRepo        *postgres.PluginRepository
-	quickConnectRepo  *postgres.QuickConnectRepository
+	artworkRepo       httpapi.ArtworkRepo
+	userRatingRepo    domainlibrary.UserRatingRepository
+	pushSubRepo       domainnotif.PushSubscriptionRepository
+	libraryAccessRepo domainuser.LibraryAccessRepository
+	profileRepo       domainuser.ProfileRepository
+	serverCfgRepo     domainshared.ServerConfigRepository
+	mediaItemRepo     mediaItemCounter
+	userRepo          domainuser.UserRepository
+	apiKeyRepo        domainuser.APIKeyRepository
+	pluginRepo        domainplugin.PluginRepository
+	quickConnectRepo  domainuser.QuickConnectRepository
 }
 
 // appDeps holds all application-level services and adapters needed by HTTP/gRPC layers.

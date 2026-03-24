@@ -447,7 +447,7 @@ func startWatcher(ctx context.Context, cfg *config.Config, bus *eventbus.InMemor
 	return watcherSvc
 }
 
-func resolveAPIKey(cfgRepo *postgres.ServerConfigRepository, dbKey, envVar string) string {
+func resolveAPIKey(cfgRepo shared.ServerConfigRepository, dbKey, envVar string) string {
 	// 1. DB has it (set by admin via panel) → use it
 	if entry, err := cfgRepo.Get(context.Background(), dbKey); err == nil && entry.Value != "" {
 		return entry.Value
@@ -463,7 +463,7 @@ func resolveAPIKey(cfgRepo *postgres.ServerConfigRepository, dbKey, envVar strin
 	return ""
 }
 
-func resolveVAPIDKeys(cfgRepo *postgres.ServerConfigRepository, cfg *config.Config) (string, string) {
+func resolveVAPIDKeys(cfgRepo shared.ServerConfigRepository, cfg *config.Config) (string, string) {
 	pub := cfg.VAPID.PublicKey
 	priv := cfg.VAPID.PrivateKey
 
