@@ -115,7 +115,7 @@ export function TrickplayPreview({ mediaId, hoverTime, mediaType }: TrickplayPre
       style={{
         width: thumbW,
         height: thumbH,
-        backgroundColor: "rgba(0,0,0,0.8)",
+        backgroundColor: "var(--overlay-bg-strong)",
       }}
     >
       <div

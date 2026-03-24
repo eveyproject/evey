@@ -44,7 +44,7 @@ export function AuthLayout({ children }: AuthLayoutProps) {
             className="absolute inset-0 bg-black/50"
             onClick={() => setSidebarOpen(false)}
             role="button"
-            aria-label="Close menu"
+            aria-label={t("common.aria.closeMenu")}
             tabIndex={0}
             onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") setSidebarOpen(false); }}
           />
@@ -60,7 +60,7 @@ export function AuthLayout({ children }: AuthLayoutProps) {
           <button
             className="md:hidden p-3 text-[var(--text-muted)] hover:text-[var(--text)] transition-colors"
             onClick={() => setSidebarOpen(true)}
-            aria-label="Open menu"
+            aria-label={t("common.aria.openMenu")}
           >
             <Menu size={24} />
           </button>
@@ -78,7 +78,7 @@ export function AuthLayout({ children }: AuthLayoutProps) {
 
       {/* Bottom navigation — mobile only */}
       <nav
-        aria-label="Bottom navigation"
+        aria-label={t("common.aria.bottomNav")}
         className="md:hidden fixed bottom-0 left-0 right-0 z-50 flex items-center justify-around bg-[var(--surface)] border-t border-[var(--border)] h-16"
       >
         {bottomNavItems.map(({ to, labelKey, icon: Icon }) => {

@@ -50,13 +50,21 @@
 
   --overlay-gradient: rgba(0,0,0,0.6);
 
+  --overlay-bg: rgba(0,0,0,0.5);
   --overlay-bg-strong: rgba(0,0,0,0.7);
+  --overlay-scrim: rgba(0,0,0,0.85);
+  --overlay-chip-bg: rgba(0,0,0,0.4);
   --overlay-border-subtle: rgba(255,255,255,0.1);
   --overlay-btn-bg: rgba(255,255,255,0.15);
+  --overlay-btn-hover-bg: rgba(255,255,255,0.25);
   --overlay-text: #ffffff;
+  --overlay-text-bright: rgba(255,255,255,0.9);
   --overlay-text-muted: rgba(255,255,255,0.8);
+  --overlay-dot-inactive: rgba(255,255,255,0.4);
+  --overlay-chapter-marker: rgba(255,255,255,0.85);
   --btn-overlay-inactive-bg: rgba(0,0,0,0.5);
   --log-hover-bg: rgba(255,255,255,0.05);
+  --error-bg-subtle: rgba(239,68,68,0.15);
   --filter-active-text: #ffffff;
 
   --shadow-sm: 0 1px 3px rgba(0,0,0,0.5), 0 1px 2px rgba(0,0,0,0.4);

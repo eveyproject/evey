@@ -954,7 +954,7 @@ export function PlayerControls({
       {/* top bar */}
       <div
         className={`absolute top-0 left-0 right-0 flex items-center gap-3 px-4 py-3 transition-opacity duration-300 ${visible ? "opacity-100" : "opacity-0 pointer-events-none"}`}
-        style={{ background: "linear-gradient(to bottom, rgba(0,0,0,0.7), transparent)" }}
+        style={{ background: "linear-gradient(to bottom, var(--overlay-bg-strong), transparent)" }}
         data-controls
       >
         <button
@@ -970,7 +970,7 @@ export function PlayerControls({
       {/* bottom controls */}
       <div
         className={`absolute bottom-0 left-0 right-0 px-4 pb-4 pt-8 flex flex-col gap-2 transition-opacity duration-300 ${visible ? "opacity-100" : "opacity-0 pointer-events-none"}`}
-        style={{ background: "linear-gradient(to top, rgba(0,0,0,0.8), transparent)" }}
+        style={{ background: "linear-gradient(to top, var(--overlay-bg-strong), transparent)" }}
         data-controls
       >
         {/* seek bar */}
@@ -997,7 +997,7 @@ export function PlayerControls({
                 )}
                 <div
                   className="px-2 py-1 rounded text-xs text-white mt-1 text-center"
-                  style={{ backgroundColor: "rgba(0,0,0,0.85)", maxWidth: 200 }}
+                  style={{ backgroundColor: "var(--overlay-scrim)", maxWidth: 200 }}
                 >
                   {hoverChapter?.title && <div className="truncate">{hoverChapter.title}</div>}
                   <div>{formatTime(seekHoverPos)}</div>

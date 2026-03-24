@@ -39,7 +39,7 @@ export function KeyboardShortcutsOverlay({ onClose, skipBackwardSeconds = 10, sk
   return (
     <div
       className="absolute inset-0 z-50 flex items-center justify-center"
-      style={{ backgroundColor: "rgba(0,0,0,0.75)" }}
+      style={{ backgroundColor: "var(--overlay-bg-strong)" }}
       onClick={onClose}
     >
       <div

@@ -53,7 +53,7 @@ function CollectionPosterCard({ col }: { col: Collection }) {
           )}
           <div
             className="absolute inset-0"
-            style={{ background: "linear-gradient(to top, rgba(0,0,0,0.7) 0%, transparent 50%)" }}
+            style={{ background: "linear-gradient(to top, var(--overlay-bg-strong) 0%, transparent 50%)" }}
           />
           <p
             className="absolute bottom-2 left-2 right-2 text-sm font-semibold text-white truncate"

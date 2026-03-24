@@ -1,6 +1,7 @@
 import type { V1MediaItem, LibraryServiceListMediaItemsType } from "@evey/api/src/generated/library.schemas";
 import { Check, Star, Filter } from "lucide-react";
 import { Button } from "@/components/ui/Button";
+import { FilterChip } from "@/components/ui/FilterChip";
 import type { LibrarySearch } from "@/routes/_auth/library/$libraryId";
 
 // Resolution bands derived from stream height
@@ -365,19 +366,13 @@ function GenreChips({
         {merged.map((g) => {
           const active = selected.includes(g);
           return (
-            <button
+            <FilterChip
               key={g}
-              type="button"
+              active={active}
               onClick={() => onChange(active ? selected.filter((v) => v !== g) : [...selected, g])}
-              className="px-2 py-0.5 rounded-full text-xs font-medium transition-colors"
-              style={{
-                backgroundColor: active ? "var(--accent)" : "var(--surface-raised)",
-                color: active ? "var(--filter-active-text)" : "var(--text-muted)",
-                border: `1px solid ${active ? "var(--accent)" : "var(--border)"}`,
-              }}
             >
               {g}
-            </button>
+            </FilterChip>
           );
         })}
       </div>

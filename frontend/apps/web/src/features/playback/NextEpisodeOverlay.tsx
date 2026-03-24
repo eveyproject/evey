@@ -78,7 +78,7 @@ export function NextEpisodeOverlay({
 
   return (
     <div className="absolute bottom-24 right-4 z-30 rounded-lg p-4 max-w-xs animate-in fade-in slide-in-from-right"
-      style={{ backgroundColor: "rgba(0,0,0,0.85)", border: "1px solid var(--border)" }}
+      style={{ backgroundColor: "var(--overlay-scrim)", border: "1px solid var(--border)" }}
     >
       <p className="text-xs uppercase tracking-wider mb-1" style={{ color: "var(--text-muted)" }}>
         {ended ? t("player.nextEpisodeOverlay.nextIn", { seconds: Math.max(countdown, 0) }) : t("player.nextEpisodeOverlay.upNext")}
@@ -97,13 +97,13 @@ export function NextEpisodeOverlay({
         <button
           onClick={handleCancel}
           className="px-3 py-1.5 rounded text-sm font-medium text-white transition-colors hover:bg-white/20"
-          style={{ backgroundColor: "rgba(255,255,255,0.1)" }}
+          style={{ backgroundColor: "var(--overlay-border-subtle)" }}
         >
           {t("common.cancel")}
         </button>
       </div>
       {ended && (
-        <div className="mt-2 h-0.5 rounded-full overflow-hidden" style={{ backgroundColor: "rgba(255,255,255,0.2)" }}>
+        <div className="mt-2 h-0.5 rounded-full overflow-hidden" style={{ backgroundColor: "var(--overlay-btn-bg)" }}>
           <div
             className="h-full rounded-full transition-all duration-1000 ease-linear"
             style={{

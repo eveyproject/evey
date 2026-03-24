@@ -401,7 +401,7 @@ export const MediaCard = memo(function MediaCard({
           <span
             className="absolute top-2 right-2 text-xs font-medium px-1.5 py-0.5"
             style={{
-              backgroundColor: "rgba(0,0,0,0.7)",
+              backgroundColor: "var(--overlay-bg-strong)",
               color: "var(--overlay-text)",
               borderRadius: "var(--radius-sm)",
             }}
@@ -433,7 +433,7 @@ export const MediaCard = memo(function MediaCard({
             style={{
               bottom: hasProgressBar ? "0.75rem" : "0.5rem",
               right: "0.5rem",
-              backgroundColor: "rgba(0,0,0,0.72)",
+              backgroundColor: "var(--overlay-bg-strong)",
               color: "#f5c518",
               borderRadius: "var(--radius-sm)",
             }}
@@ -452,7 +452,7 @@ export const MediaCard = memo(function MediaCard({
               <span
                 className="text-[10px] font-bold px-1.5 py-0.5 leading-none"
                 style={{
-                  backgroundColor: "rgba(0,0,0,0.7)",
+                  backgroundColor: "var(--overlay-bg-strong)",
                   color: "var(--overlay-text)",
                   borderRadius: "var(--radius-sm)",
                 }}
@@ -483,8 +483,8 @@ export const MediaCard = memo(function MediaCard({
             onClick={(e) => { e.preventDefault(); e.stopPropagation(); onSelect?.(item.id!, !selected); }}
             className={`absolute top-2 left-2 z-20 flex items-center justify-center w-5 h-5 rounded transition-colors${selectionMode && !selected ? " opacity-0 group-hover:opacity-100 group-focus-within:opacity-100" : ""}`}
             style={{
-              backgroundColor: selected ? "var(--accent)" : "rgba(0,0,0,0.6)",
-              border: `2px solid ${selected ? "var(--accent)" : "rgba(255,255,255,0.7)"}`,
+              backgroundColor: selected ? "var(--accent)" : "var(--overlay-gradient)",
+              border: `2px solid ${selected ? "var(--accent)" : "var(--overlay-text-muted)"}`,
             }}
           >
             {selected && (
@@ -529,7 +529,7 @@ export const MediaCard = memo(function MediaCard({
 
         <div
           className="absolute inset-0 flex flex-col items-center justify-center opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity duration-200"
-          style={{ background: "linear-gradient(to top, rgba(0,0,0,0.7) 0%, rgba(0,0,0,0.1) 60%, transparent 100%)" }}
+          style={{ background: "linear-gradient(to top, var(--overlay-bg-strong) 0%, var(--overlay-border-subtle) 60%, transparent 100%)" }}
         >
           <div
             role="img"
@@ -547,7 +547,7 @@ export const MediaCard = memo(function MediaCard({
         {hasProgressBar && (
           <div
             className="absolute bottom-0 left-0 right-0 h-1.5 z-10"
-            style={{ backgroundColor: "rgba(0,0,0,0.5)" }}
+            style={{ backgroundColor: "var(--overlay-bg)" }}
           >
             <div
               className="h-full transition-all duration-300"

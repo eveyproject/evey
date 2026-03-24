@@ -1,5 +1,6 @@
 import { Component, type ReactNode } from "react";
 import { TriangleAlert } from "lucide-react";
+import i18n from "@/i18n";
 
 interface Props {
   children: ReactNode;
@@ -43,7 +44,7 @@ export class ErrorBoundary extends Component<Props, State> {
             width: 64,
             height: 64,
             borderRadius: "50%",
-            backgroundColor: "rgba(239, 68, 68, 0.15)",
+            backgroundColor: "var(--error-bg-subtle)",
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
@@ -60,7 +61,7 @@ export class ErrorBoundary extends Component<Props, State> {
         <div style={{ display: "flex", gap: "0.75rem", marginTop: "0.5rem" }}>
           <button
             onClick={() => window.location.reload()}
-            aria-label="Reload the page"
+            aria-label={i18n.t("common.aria.reloadPage")}
             style={{
               padding: "0.625rem 1.5rem",
               fontSize: "0.875rem",
@@ -76,7 +77,7 @@ export class ErrorBoundary extends Component<Props, State> {
           </button>
           <button
             onClick={() => { window.location.replace("/"); }}
-            aria-label="Go to home page"
+            aria-label={i18n.t("common.aria.goToHome")}
             style={{
               padding: "0.625rem 1.5rem",
               fontSize: "0.875rem",

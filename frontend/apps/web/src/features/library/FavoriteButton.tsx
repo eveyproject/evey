@@ -26,8 +26,8 @@ export function FavoriteButton({ mediaId, size = "md", className = "" }: Favorit
       }}
       className={`${padding} rounded-full transition-all duration-200 hover:scale-110 ${className}`}
       style={{
-        backgroundColor: "rgba(0,0,0,0.5)",
-        color: isFav ? "var(--color-danger)" : "rgba(255,255,255,0.8)",
+        backgroundColor: "var(--overlay-bg)",
+        color: isFav ? "var(--color-danger)" : "var(--overlay-text-muted)",
         backdropFilter: "blur(4px)",
       }}
       title={isFav ? t("media.contextMenu.removeFromFavorites") : t("media.contextMenu.addToFavorites")}

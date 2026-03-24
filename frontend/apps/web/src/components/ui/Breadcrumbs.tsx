@@ -1,4 +1,5 @@
 import { Link } from "@tanstack/react-router";
+import { useTranslation } from "react-i18next";
 
 interface BreadcrumbItem {
   label: string;
@@ -6,8 +7,9 @@ interface BreadcrumbItem {
 }
 
 export function Breadcrumbs({ items, className = "" }: { items: BreadcrumbItem[]; className?: string }) {
+  const { t } = useTranslation();
   return (
-    <nav aria-label="breadcrumb" className={`flex items-center gap-2 text-sm mb-4 text-white/90 ${className}`}>
+    <nav aria-label={t("common.aria.breadcrumb")} className={`flex items-center gap-2 text-sm mb-4 text-white/90 ${className}`}>
       {items.map((item, i) => (
         <span key={i} className="flex items-center gap-2">
           {i > 0 && <span aria-hidden="true">›</span>}

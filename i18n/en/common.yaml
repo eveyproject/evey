@@ -64,6 +64,32 @@ notifications:
   allCaughtUp: "You're all caught up."
   justNow: Just now
 noNotifications: No notifications
+aria:
+  closeMenu: Close menu
+  openMenu: Open menu
+  bottomNav: Bottom navigation
+  options: Options
+  play: Play
+  loading: Loading
+  breadcrumb: Breadcrumb
+  pagination: Pagination
+  previousPage: Previous page
+  nextPage: Next page
+  reloadPage: Reload the page
+  goToHome: Go to home page
+  dismiss: Dismiss
+  removeRule: Remove rule
+  clearSelection: Clear selection
+  close: Close
+  deletePhoto: Delete photo
+  deleteCollection: Delete collection
+  editFilter: Edit filter
+  deleteFilter: Delete filter
+  closePlayer: Close player
+  subtitleFontSize: Subtitle font size
+  bgOpacity: Background opacity
+  operator: Operator
+  value: Value
 watchHistory:
   title: Watch History
 nav:

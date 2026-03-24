@@ -1,4 +1,5 @@
 import { useEffect, useRef } from "react";
+import { useTranslation } from "react-i18next";
 import { useToastStore, type Toast } from "@evey/store";
 
 const icons: Record<Toast["type"], string> = {
@@ -32,6 +33,7 @@ const typeStyles: Record<Toast["type"], { bg: string; border: string; icon: stri
 };
 
 function ToastItem({ toast }: { toast: Toast }) {
+  const { t } = useTranslation();
   const removeToast = useToastStore((s) => s.removeToast);
   const ref = useRef<HTMLDivElement>(null);
   const timerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
@@ -62,7 +64,7 @@ function ToastItem({ toast }: { toast: Toast }) {
       <button
         onClick={() => removeToast(toast.id)}
         className="flex-shrink-0 text-[var(--text-muted)] hover:text-[var(--text)] transition-colors text-lg leading-none"
-        aria-label="Dismiss"
+        aria-label={t("common.aria.dismiss")}
       >
         &times;
       </button>

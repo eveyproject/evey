@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef, useMemo, type FC } from "react";
+import { useState, useEffect, useCallback, useRef, useMemo, memo, type FC } from "react";
 import { Folder, Play, Settings2 } from "lucide-react";
 import { createLazyFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useQueries, useQuery } from "@tanstack/react-query";
@@ -32,7 +32,7 @@ const HERO_INTERVAL = 8000;
 
 function HeroBanner() {
   const { t } = useTranslation();
-  const { data, isLoading } = useFeedServiceRecentlyAdded();
+  const { data, isLoading } = useFeedServiceRecentlyAdded(undefined, { query: { staleTime: 5 * 60_000 } });
   const items = data?.items ?? [];
 
   const candidates = items.filter((i) => !!i.mediaItemId).slice(0, HERO_COUNT);
@@ -43,6 +43,7 @@ function HeroBanner() {
       queryKey: [`/api/v1/media/${id}`],
       queryFn: ({ signal }: { signal: AbortSignal }) => libraryServiceGetMediaItem(id, signal),
       enabled: !!id,
+      staleTime: 5 * 60_000,
     })),
   });
 
@@ -124,7 +125,7 @@ function HeroBanner() {
                 className="text-2xl sm:text-4xl font-bold mb-2 leading-tight"
                 style={{
                   color: "var(--overlay-text)",
-                  textShadow: "0 2px 8px rgba(0,0,0,0.8)",
+                  textShadow: "0 2px 8px var(--overlay-bg-strong)",
                   letterSpacing: "-0.02em",
                 }}
               >
@@ -148,7 +149,7 @@ function HeroBanner() {
                     className="text-xs px-2 py-0.5 font-medium hidden sm:inline-block"
                     style={{
                       backgroundColor: "var(--glass-bg)",
-                      color: "rgba(255,255,255,0.9)",
+                      color: "var(--overlay-text-bright)",
                       borderRadius: "9999px",
                       backdropFilter: `blur(var(--glass-blur))`,
                       border: "1px solid var(--glass-border)",
@@ -162,7 +163,7 @@ function HeroBanner() {
               {overview && (
                 <p
                   className="text-sm leading-relaxed mb-4 hidden sm:line-clamp-3 text-white/90"
-                  style={{ textShadow: "0 1px 6px rgba(0,0,0,0.9)" }}
+                  style={{ textShadow: "0 1px 6px var(--overlay-scrim)" }}
                 >
                   {overview}
                 </p>
@@ -200,7 +201,7 @@ function HeroBanner() {
               onClick={() => setActiveIndex(idx)}
               className="w-2 h-2 rounded-full transition-all duration-300"
               style={{
-                backgroundColor: idx === activeIndex ? "var(--accent)" : "rgba(255,255,255,0.4)",
+                backgroundColor: idx === activeIndex ? "var(--accent)" : "var(--overlay-dot-inactive)",
                 transform: idx === activeIndex ? "scale(1.3)" : "scale(1)",
               }}
               aria-label={`Slide ${idx + 1}`}
@@ -212,7 +213,7 @@ function HeroBanner() {
   );
 }
 
-function LibrarySlider({ libraryId, name, libraryType }: { libraryId: string; name: string; libraryType?: string }) {
+const LibrarySlider = memo(function LibrarySlider({ libraryId, name, libraryType }: { libraryId: string; name: string; libraryType?: string }) {
   const typeFilter = libraryType === "LIBRARY_TYPE_SHOWS"
     ? "MEDIA_ITEM_TYPE_SERIES"
     : libraryType === "LIBRARY_TYPE_MOVIES"
@@ -236,9 +237,9 @@ function LibrarySlider({ libraryId, name, libraryType }: { libraryId: string; na
       ))}
     </MediaSlider>
   );
-}
+});
 
-function ResumePlaybackSlider() {
+const ResumePlaybackSlider = memo(function ResumePlaybackSlider() {
   const { t } = useTranslation();
   const { data, isLoading } = useQuery<{ items?: { mediaItemId: string; title: string; type: string; positionMs: number }[] }>({
     queryKey: ["/api/v1/feeds/resume-playback"],
@@ -260,9 +261,9 @@ function ResumePlaybackSlider() {
       ))}
     </MediaSlider>
   );
-}
+});
 
-function NextEpisodeSlider() {
+const NextEpisodeSlider = memo(function NextEpisodeSlider() {
   const { t } = useTranslation();
   const { data, isLoading } = useQuery<{ items?: { mediaItemId: string; parentId?: string; title: string; type: string }[] }>({
     queryKey: ["/api/v1/feeds/next-episode"],
@@ -284,9 +285,9 @@ function NextEpisodeSlider() {
       ))}
     </MediaSlider>
   );
-}
+});
 
-function MostPopularSlider() {
+const MostPopularSlider = memo(function MostPopularSlider() {
   const { t } = useTranslation();
   const { data, isLoading } = useMostPopular(20);
   const items = data ?? [];
@@ -304,9 +305,9 @@ function MostPopularSlider() {
       ))}
     </MediaSlider>
   );
-}
+});
 
-function RecommendedSlider() {
+const RecommendedSlider = memo(function RecommendedSlider() {
   const { t } = useTranslation();
   const { data, isLoading } = useFeedServiceRecommended({ limit: 20 });
   const items = data?.items ?? [];
@@ -324,9 +325,9 @@ function RecommendedSlider() {
       ))}
     </MediaSlider>
   );
-}
+});
 
-function CollectionsSection() {
+const CollectionsSection = memo(function CollectionsSection() {
   const { t } = useTranslation();
   const { data, isLoading } = useCollections();
   const collections = data?.collections ?? [];
@@ -339,7 +340,7 @@ function CollectionsSection() {
       ))}
     </MediaSlider>
   );
-}
+});
 
 const SECTION_REGISTRY: Record<string, FC> = {
   resume_playback: ResumePlaybackSlider,
