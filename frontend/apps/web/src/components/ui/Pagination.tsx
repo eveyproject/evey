@@ -58,7 +58,7 @@ export function Pagination({ page, totalPages, onPageChange }: PaginationProps) 
             onClick={() => onPageChange(p)}
             className={`${btnBase} ${
               p === page
-                ? "bg-[var(--accent)] text-white"
+                ? "bg-[var(--accent)] text-[var(--filter-active-text)]"
                 : "bg-transparent hover:bg-[var(--surface-raised)] text-[var(--text-muted)]"
             }`}
             aria-current={p === page ? "page" : undefined}

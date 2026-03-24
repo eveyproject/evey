@@ -13,22 +13,22 @@ const typeStyles: Record<Toast["type"], { bg: string; border: string; icon: stri
   success: {
     bg: "bg-[var(--toast-success-bg)]",
     border: "border-[var(--toast-success-border)]",
-    icon: "bg-[var(--toast-success-icon)] text-white",
+    icon: "bg-[var(--toast-success-icon)] text-[var(--filter-active-text)]",
   },
   error: {
     bg: "bg-[var(--toast-error-bg)]",
     border: "border-[var(--toast-error-border)]",
-    icon: "bg-[var(--toast-error-icon)] text-white",
+    icon: "bg-[var(--toast-error-icon)] text-[var(--filter-active-text)]",
   },
   info: {
     bg: "bg-[var(--toast-info-bg)]",
     border: "border-[var(--toast-info-border)]",
-    icon: "bg-[var(--accent)] text-white",
+    icon: "bg-[var(--accent)] text-[var(--filter-active-text)]",
   },
   warning: {
     bg: "bg-[var(--toast-warning-bg)]",
     border: "border-[var(--toast-warning-border)]",
-    icon: "bg-[var(--toast-warning-icon)] text-white",
+    icon: "bg-[var(--toast-warning-icon)] text-[var(--filter-active-text)]",
   },
 };
 

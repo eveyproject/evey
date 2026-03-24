@@ -49,11 +49,18 @@ function HeroBanner() {
 
   const [activeIndex, setActiveIndex] = useState(0);
   const pausedRef = useRef(false);
+  const [seenSlides, setSeenSlides] = useState<Set<number>>(() => new Set([0]));
+
+  const goToSlide = useCallback((idx: number) => {
+    setActiveIndex(idx);
+    setSeenSlides((prev) => { if (prev.has(idx)) return prev; const next = new Set(prev); next.add(idx); return next; });
+  }, []);
 
   const advance = useCallback(() => {
     if (heroIds.length <= 1) return;
-    setActiveIndex((i) => (i + 1) % heroIds.length);
-  }, [heroIds.length]);
+    const next = (activeIndex + 1) % heroIds.length;
+    goToSlide(next);
+  }, [heroIds.length, activeIndex, goToSlide]);
 
   useEffect(() => {
     if (heroIds.length <= 1) return;
@@ -99,14 +106,16 @@ function HeroBanner() {
             className="absolute inset-0 transition-opacity duration-1000"
             style={{ opacity: isActive ? 1 : 0, pointerEvents: isActive ? "auto" : "none" }}
           >
-            <img
-              src={backdropUrl}
-              alt={displayTitle}
-              className="absolute inset-0 w-full h-full object-cover animate-ken-burns"
-              loading={isActive ? "eager" : "lazy"}
-              fetchPriority={isActive ? "high" : "low"}
-              onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
-            />
+            {seenSlides.has(idx) && (
+              <img
+                src={backdropUrl}
+                alt={displayTitle}
+                className="absolute inset-0 w-full h-full object-cover animate-ken-burns"
+                loading={isActive ? "eager" : "lazy"}
+                fetchPriority={isActive ? "high" : "low"}
+                onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
+              />
+            )}
             <div
               className="absolute inset-0"
               style={{
@@ -198,7 +207,7 @@ function HeroBanner() {
           {heroIds.map((_, idx) => (
             <button
               key={idx}
-              onClick={() => setActiveIndex(idx)}
+              onClick={() => goToSlide(idx)}
               className="w-2 h-2 rounded-full transition-all duration-300"
               style={{
                 backgroundColor: idx === activeIndex ? "var(--accent)" : "var(--overlay-dot-inactive)",

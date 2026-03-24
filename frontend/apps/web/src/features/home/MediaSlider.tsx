@@ -190,7 +190,7 @@ export const MediaSlider = memo(function MediaSlider({
             aria-label={t("common.scrollLeft")}
             title={t("common.scrollLeft")}
           >
-            <ChevronLeft size={20} className="text-white" />
+            <ChevronLeft size={20} className="text-[var(--overlay-text)]" />
           </button>
         )}
 
@@ -220,7 +220,7 @@ export const MediaSlider = memo(function MediaSlider({
             aria-label={t("common.scrollRight")}
             title={t("common.scrollRight")}
           >
-            <ChevronRight size={20} className="text-white" />
+            <ChevronRight size={20} className="text-[var(--overlay-text)]" />
           </button>
         )}
       </div>

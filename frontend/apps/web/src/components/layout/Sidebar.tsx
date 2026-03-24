@@ -56,12 +56,12 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
   return (
     <nav
       aria-label={isOnAdmin ? t("common.nav.adminNav") : t("common.nav.mainNav")}
-      className={`flex flex-col h-full bg-[var(--surface)] border-r border-[var(--border)] py-4 shrink-0 transition-[width] duration-200 ${isCollapsed ? "w-16" : "w-56"}`}
+      className={`flex flex-col h-full bg-[var(--surface)] border-r border-[var(--border)] py-4 shrink-0 overflow-hidden transition-[max-width] duration-200 ${isCollapsed ? "max-w-16 w-16" : "max-w-56 w-56"}`}
     >
       {/* Header */}
       <div className={`flex items-center mb-6 ${isCollapsed ? "justify-center px-2" : "justify-between px-4"}`}>
         {!isCollapsed && (
-          <Link to="/home" onClick={onNavigate} className="text-xl font-bold text-[var(--accent)] hover:opacity-80 transition-opacity">
+          <Link to="/home" onClick={onNavigate} preload="intent" className="text-xl font-bold text-[var(--accent)] hover:opacity-80 transition-opacity">
             Evey
           </Link>
         )}
@@ -85,6 +85,7 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
             <Link
               to="/home"
               onClick={onNavigate}
+              preload="intent"
               className={`flex items-center gap-2.5 px-2 py-1.5 text-[13px] rounded-[var(--radius-sm)] transition-colors text-[var(--text-muted)] hover:text-[var(--text)] hover:bg-[var(--surface-raised)] ${isCollapsed ? "justify-center" : ""}`}
               title={isCollapsed ? t("common.nav.backToApp") : undefined}
             >
@@ -110,6 +111,7 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
                 <Link
                   to={to}
                   onClick={onNavigate}
+                  preload="intent"
                   className={`flex items-center gap-3 px-3 py-2 rounded-[var(--radius-md)] text-sm font-medium transition-colors ${isCollapsed ? "justify-center" : ""} ${
                     active
                       ? "border-l-2 border-[var(--accent)] text-[var(--accent)] bg-[var(--surface-raised)]"
@@ -128,6 +130,7 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
               <Link
                 to="/admin"
                 onClick={onNavigate}
+                preload="intent"
                 className={`flex items-center gap-3 px-3 py-2 rounded-[var(--radius-md)] text-sm font-medium transition-colors ${isCollapsed ? "justify-center" : ""} ${
                   isOnAdmin
                     ? "border-l-2 border-[var(--accent)] text-[var(--accent)] bg-[var(--surface-raised)]"

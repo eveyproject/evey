@@ -65,7 +65,7 @@ function UserMenu({ userInitial }: { userInitial: string }) {
     <div ref={menuRef} className="relative">
       <button
         onClick={() => setOpen((v) => !v)}
-        className="w-8 h-8 rounded-full bg-[var(--accent)] flex items-center justify-center text-white text-sm font-medium cursor-pointer hover:opacity-90 transition-opacity"
+        className="w-8 h-8 rounded-full bg-[var(--accent)] flex items-center justify-center text-[var(--filter-active-text)] text-sm font-medium cursor-pointer hover:opacity-90 transition-opacity"
         aria-label={t("common.nav.userMenu")}
         aria-expanded={open}
         aria-haspopup="true"

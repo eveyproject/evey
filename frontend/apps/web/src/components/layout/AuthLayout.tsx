@@ -88,6 +88,7 @@ export function AuthLayout({ children }: AuthLayoutProps) {
             <Link
               key={to}
               to={to}
+              preload="intent"
               className={`flex flex-col items-center gap-0.5 px-3 py-1 min-w-0 text-[11px] font-medium transition-colors ${
                 active ? "text-[var(--accent)]" : "text-[var(--text-muted)]"
               }`}
@@ -100,6 +101,7 @@ export function AuthLayout({ children }: AuthLayoutProps) {
         {isAdmin && (
           <Link
             to="/admin"
+            preload="intent"
             className={`flex flex-col items-center gap-0.5 px-3 py-1 min-w-0 text-[11px] font-medium transition-colors ${
               location.pathname === "/admin" || location.pathname.startsWith("/admin/")
                 ? "text-[var(--accent)]"

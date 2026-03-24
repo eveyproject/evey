@@ -56,7 +56,7 @@ function CollectionPosterCard({ col }: { col: Collection }) {
             style={{ background: "linear-gradient(to top, var(--overlay-bg-strong) 0%, transparent 50%)" }}
           />
           <p
-            className="absolute bottom-2 left-2 right-2 text-sm font-semibold text-white truncate"
+            className="absolute bottom-2 left-2 right-2 text-sm font-semibold text-[var(--overlay-text)] truncate"
           >
             {col.name}
           </p>
@@ -71,7 +71,7 @@ function CollectionPosterCard({ col }: { col: Collection }) {
             deleteMut.mutate(col.id);
           }
         }}
-        className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity p-1.5 rounded-full bg-black/60 text-white"
+        className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity p-1.5 rounded-full bg-black/60 text-[var(--overlay-text)]"
         aria-label="Delete collection"
       >
         <Trash2 size={16} />

@@ -399,13 +399,13 @@ function PhotosPage() {
           <div className="flex rounded-[var(--radius-sm)] border border-[var(--border)] overflow-hidden">
             <button
               onClick={() => { setView("albums"); setSelectedAlbum(undefined); }}
-              className={`px-3 py-1.5 text-sm transition-colors ${view === "albums" ? "bg-[var(--accent)] text-white" : "bg-[var(--surface-raised)] text-[var(--text-secondary)] hover:bg-[var(--surface)]"}`}
+              className={`px-3 py-1.5 text-sm transition-colors ${view === "albums" ? "bg-[var(--accent)] text-[var(--filter-active-text)]" : "bg-[var(--surface-raised)] text-[var(--text-secondary)] hover:bg-[var(--surface)]"}`}
             >
               {t("media.photos.albums")}
             </button>
             <button
               onClick={() => setView("photos")}
-              className={`px-3 py-1.5 text-sm transition-colors ${view === "photos" ? "bg-[var(--accent)] text-white" : "bg-[var(--surface-raised)] text-[var(--text-secondary)] hover:bg-[var(--surface)]"}`}
+              className={`px-3 py-1.5 text-sm transition-colors ${view === "photos" ? "bg-[var(--accent)] text-[var(--filter-active-text)]" : "bg-[var(--surface-raised)] text-[var(--text-secondary)] hover:bg-[var(--surface)]"}`}
             >
               {t("media.photos.allPhotos")}
             </button>
