@@ -8,14 +8,6 @@ vi.mock("@evey/api", () => ({
   eveyFetchRaw: (...args: unknown[]) => mockEveyFetchRaw(...args),
 }));
 
-vi.mock("@evey/store", () => ({
-  useAuthStore: Object.assign(
-    (selector: (s: { accessToken: string }) => string) =>
-      selector({ accessToken: "test-token" }),
-    { getState: () => ({ accessToken: "test-token" }) },
-  ),
-}));
-
 const mockVTT = `WEBVTT
 
 00:00:00.000 --> 00:00:10.000
@@ -44,7 +36,7 @@ describe("TrickplayPreview", () => {
 
     const { TrickplayPreview } = await import("./TrickplayPreview");
     const { container } = render(
-      React.createElement(TrickplayPreview, { mediaId: "m1", hoverTime: null }),
+      React.createElement(TrickplayPreview, { mediaId: "m1", hoverTime: null, streamToken: "st-1" }),
     );
 
     await waitFor(() => {
@@ -57,7 +49,7 @@ describe("TrickplayPreview", () => {
 
     const { TrickplayPreview } = await import("./TrickplayPreview");
     const { container } = render(
-      React.createElement(TrickplayPreview, { mediaId: "m-fail", hoverTime: 5 }),
+      React.createElement(TrickplayPreview, { mediaId: "m-fail", hoverTime: 5, streamToken: "st-1" }),
     );
 
     await waitFor(() => {
@@ -70,7 +62,7 @@ describe("TrickplayPreview", () => {
 
     const { TrickplayPreview } = await import("./TrickplayPreview");
     const { container } = render(
-      React.createElement(TrickplayPreview, { mediaId: "m1", hoverTime: 5 }),
+      React.createElement(TrickplayPreview, { mediaId: "m1", hoverTime: 5, streamToken: "st-1" }),
     );
 
     await waitFor(() => {
@@ -87,7 +79,7 @@ describe("TrickplayPreview", () => {
 
     const { TrickplayPreview } = await import("./TrickplayPreview");
     const { container } = render(
-      React.createElement(TrickplayPreview, { mediaId: "m-nomatch", hoverTime: 999 }),
+      React.createElement(TrickplayPreview, { mediaId: "m-nomatch", hoverTime: 999, streamToken: "st-1" }),
     );
 
     await waitFor(() => {
@@ -100,7 +92,7 @@ describe("TrickplayPreview", () => {
 
     const { TrickplayPreview } = await import("./TrickplayPreview");
     const { container } = render(
-      React.createElement(TrickplayPreview, { mediaId: "m-bgpos", hoverTime: 15 }),
+      React.createElement(TrickplayPreview, { mediaId: "m-bgpos", hoverTime: 15, streamToken: "st-1" }),
     );
 
     await waitFor(() => {
@@ -116,7 +108,7 @@ describe("TrickplayPreview", () => {
 
     const { TrickplayPreview } = await import("./TrickplayPreview");
     render(
-      React.createElement(TrickplayPreview, { mediaId: "m-401", hoverTime: 5 }),
+      React.createElement(TrickplayPreview, { mediaId: "m-401", hoverTime: 5, streamToken: "st-1" }),
     );
 
     await waitFor(() => {

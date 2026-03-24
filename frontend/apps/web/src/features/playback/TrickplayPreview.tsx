@@ -1,5 +1,4 @@
 import { useEffect, useRef, useState } from "react";
-import { useAuthStore } from "@evey/store";
 import { eveyFetchRaw } from "@evey/api";
 
 interface TrickplayCue {
@@ -64,9 +63,10 @@ interface TrickplayPreviewProps {
   mediaId: string;
   hoverTime: number | null;
   mediaType?: string;
+  streamToken?: string;
 }
 
-export function TrickplayPreview({ mediaId, hoverTime, mediaType }: TrickplayPreviewProps) {
+export function TrickplayPreview({ mediaId, hoverTime, mediaType, streamToken }: TrickplayPreviewProps) {
   const [cues, setCues] = useState<TrickplayCue[]>(() => cueCache.get(mediaId) ?? []);
   const [loaded, setLoaded] = useState(() => (cueCache.get(mediaId)?.length ?? 0) > 0);
   const imageCache = useRef<Map<string, HTMLImageElement>>(new Map());
@@ -84,12 +84,11 @@ export function TrickplayPreview({ mediaId, hoverTime, mediaType }: TrickplayPre
         setCues(parsed);
         setLoaded(parsed.length > 0);
 
-        const accessToken = useAuthStore.getState().accessToken;
         const urls = new Set(parsed.map((c) => c.url));
         for (const url of urls) {
           if (!imageCache.current.has(url)) {
             const img = new Image();
-            img.src = `${url}?token=${encodeURIComponent(accessToken ?? "")}`;
+            img.src = `${url}${streamToken ? `?token=${encodeURIComponent(streamToken)}` : ""}`;
             imageCache.current.set(url, img);
           }
         }
@@ -104,8 +103,7 @@ export function TrickplayPreview({ mediaId, hoverTime, mediaType }: TrickplayPre
   const cue = cues.find((c) => hoverTime >= c.startTime && hoverTime < c.endTime);
   if (!cue) return null;
 
-  const accessToken = useAuthStore.getState().accessToken;
-  const imgSrc = imageCache.current.get(cue.url)?.src ?? `${cue.url}?token=${encodeURIComponent(accessToken ?? "")}`;
+  const imgSrc = imageCache.current.get(cue.url)?.src ?? `${cue.url}${streamToken ? `?token=${encodeURIComponent(streamToken)}` : ""}`;
   const thumbW = cue.w;
   const thumbH = cue.h;
 

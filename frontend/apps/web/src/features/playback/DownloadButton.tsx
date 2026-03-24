@@ -1,16 +1,15 @@
 import { useTranslation } from "react-i18next";
 import { Download } from "lucide-react";
-import { useAuthStore } from "@evey/store";
 
 interface DownloadButtonProps {
   mediaId: string;
   title?: string;
+  streamToken?: string;
 }
 
-export function DownloadButton({ mediaId, title }: DownloadButtonProps) {
+export function DownloadButton({ mediaId, title, streamToken }: DownloadButtonProps) {
   const { t } = useTranslation();
-  const token = useAuthStore((s) => s.accessToken);
-  const url = `/api/v1/media/${mediaId}/download${token ? `?token=${encodeURIComponent(token)}` : ""}`;
+  const url = `/api/v1/media/${mediaId}/download${streamToken ? `?token=${encodeURIComponent(streamToken)}` : ""}`;
 
   return (
     <a

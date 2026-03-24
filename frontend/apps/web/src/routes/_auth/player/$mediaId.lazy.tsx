@@ -75,7 +75,9 @@ function PlayerPageInner({ mediaId }: { mediaId: string }) {
   const [showShareDialog, setShowShareDialog] = useState(false);
   const [shareRoomId, setShareRoomId] = useState<string | null>(null);
   const videoRef = useRef<HTMLVideoElement | null>(null);
-  const { streamInfo, sessionId, isLoading, isError, progress, stopSession } = usePlaySession(mediaId);
+  const { streamInfo, sessionId, streamToken, fetchStreamToken, isLoading, isError, progress, stopSession } = usePlaySession(mediaId);
+
+  const handleStreamTokenRefresh = useCallback(() => fetchStreamToken(mediaId), [fetchStreamToken, mediaId]);
 
   const [syncState, syncControls] = useSyncPlay({
     onPlay: (positionMs) => {
@@ -240,13 +242,15 @@ function PlayerPageInner({ mediaId }: { mediaId: string }) {
               </button>
             </div>
           </div>
-        ) : isLoading || !streamInfo || !sessionId ? (
+        ) : isLoading || !streamInfo || !sessionId || !streamToken ? (
           <Spinner />
         ) : (
           <HLSPlayer
             key={mediaId}
             streamInfo={streamInfo}
             sessionId={sessionId}
+            streamToken={streamToken}
+            onStreamTokenRefresh={handleStreamTokenRefresh}
             mediaId={mediaId}
             mediaType={mediaItem?.type}
             startPositionMs={startPositionMs}

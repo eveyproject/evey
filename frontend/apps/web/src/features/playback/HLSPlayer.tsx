@@ -2,7 +2,6 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { RotateCcw, RotateCw, Play, Pause, Loader, TriangleAlert } from "lucide-react";
 import Hls from "hls.js";
-import { useAuthStore } from "@evey/store";
 import type { V1StreamInfo } from "@evey/api";
 import type { AudioStream } from "./AudioTrackSelector";
 import type { SubtitleStream } from "./SubtitleSelector";
@@ -48,6 +47,8 @@ interface HLSPlayerProps {
   sessionId: string;
   mediaId: string;
   mediaType?: string;
+  streamToken: string;
+  onStreamTokenRefresh: () => Promise<string>;
   startPositionMs?: number;
   knownDurationMs?: number;
   filePath?: string;
@@ -72,6 +73,8 @@ export function HLSPlayer({
   sessionId,
   mediaId,
   mediaType,
+  streamToken,
+  onStreamTokenRefresh,
   startPositionMs = 0,
   knownDurationMs,
   filePath,
@@ -163,7 +166,10 @@ export function HLSPlayer({
   subtitleStreamsRef.current = subtitleStreams;
   const currentSubtitleRef = useRef(currentSubtitle);
   currentSubtitleRef.current = currentSubtitle;
-  const accessToken = useAuthStore((s) => s.accessToken);
+  const streamTokenRef = useRef(streamToken);
+  streamTokenRef.current = streamToken;
+  const onStreamTokenRefreshRef = useRef(onStreamTokenRefresh);
+  onStreamTokenRefreshRef.current = onStreamTokenRefresh;
   const { data: playbackSettings } = usePlaybackSettings();
   const skipFwd = playbackSettings?.skipForwardSeconds ?? 10;
   const skipBwd = playbackSettings?.skipBackwardSeconds ?? 10;
@@ -268,9 +274,8 @@ export function HLSPlayer({
     const offset = transcodeStartTime;
     transcodeOffsetRef.current = offset > 0 ? offset : 0;
 
-    const currentToken = useAuthStore.getState().accessToken ?? "";
     const params = new URLSearchParams();
-    if (currentToken) params.set("token", currentToken);
+    if (streamTokenRef.current) params.set("token", streamTokenRef.current);
     params.set("audioTrack", String(currentTrackIndex));
     if (selectedBurnInTrack !== null) params.set("subtitleTrack", String(selectedBurnInTrack));
     if (offset > 0) params.set("startSec", String(offset));
@@ -298,10 +303,10 @@ export function HLSPlayer({
       maxBufferLength: 30,
       maxMaxBufferLength: 60,
       xhrSetup: (xhr: XMLHttpRequest, url: string) => {
-        const currentToken = useAuthStore.getState().accessToken;
-        if (currentToken && !url.includes("token=")) {
+        const tok = streamTokenRef.current;
+        if (tok && !url.includes("token=")) {
           const sep = url.includes("?") ? "&" : "?";
-          xhr.open("GET", `${url}${sep}token=${currentToken}`, true);
+          xhr.open("GET", `${url}${sep}token=${tok}`, true);
         }
       },
     });
@@ -325,6 +330,13 @@ export function HLSPlayer({
         return;
       }
       if (data.type === Hls.ErrorTypes.NETWORK_ERROR) {
+        if (data.response?.code === 401) {
+          onStreamTokenRefreshRef.current().then((newToken) => {
+            streamTokenRef.current = newToken;
+            hls.startLoad();
+          }).catch(() => setFatalError(true));
+          return;
+        }
         const seekPos = transcodeOffsetRef.current + (video.currentTime || 0);
         if (data.response?.code === 404 && seekPos > 0) {
           setTranscodeStartTime(seekPos);
@@ -379,8 +391,8 @@ export function HLSPlayer({
 
     const src = externalSubUrl
       ? externalSubUrl.url
-      : currentSubtitle !== null && !isBurnIn && accessToken
-        ? `/api/v1/media/${mediaId}/subtitle/${currentSubtitle}?token=${accessToken}`
+      : currentSubtitle !== null && !isBurnIn && streamToken
+        ? `/api/v1/media/${mediaId}/subtitle/${currentSubtitle}?token=${streamToken}`
         : null;
 
     if (!src) return;
@@ -404,7 +416,7 @@ export function HLSPlayer({
         video.textTracks[i].mode = "hidden";
       }
     }
-  }, [currentSubtitle, externalSubUrl, mediaId, accessToken, transcodeStartTime, currentTrackIndex]);
+  }, [currentSubtitle, externalSubUrl, mediaId, streamToken, transcodeStartTime, currentTrackIndex]);
 
   // Apply subtitle position (top/bottom) via cue line setting
   useEffect(() => {
@@ -901,6 +913,7 @@ export function HLSPlayer({
         onPanelOpenChange={(anyOpen) => { anyPanelOpenRef.current = anyOpen; }}
         closePanelRef={closePanelRef}
         onActionFlash={showActionFlash}
+        streamToken={streamToken}
       />
       {showShortcuts && <KeyboardShortcutsOverlay onClose={() => setShowShortcuts(false)} skipForwardSeconds={skipFwd} skipBackwardSeconds={skipBwd} />}
     </div>

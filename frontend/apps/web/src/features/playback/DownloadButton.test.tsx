@@ -1,18 +1,19 @@
 import { render, screen } from "@testing-library/react";
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect } from "vitest";
 import { DownloadButton } from "./DownloadButton";
 
-vi.mock("@evey/store", () => ({
-  useAuthStore: (selector: (s: { accessToken: string | null }) => unknown) =>
-    selector({ accessToken: "tok123" }),
-}));
-
 describe("DownloadButton", () => {
-  it("renders download link with correct href", () => {
-    render(<DownloadButton mediaId="m1" title="My Movie" />);
+  it("renders download link with stream token", () => {
+    render(<DownloadButton mediaId="m1" title="My Movie" streamToken="st-123" />);
     const link = screen.getByTestId("download-btn");
-    expect(link).toHaveAttribute("href", "/api/v1/media/m1/download?token=tok123");
+    expect(link).toHaveAttribute("href", "/api/v1/media/m1/download?token=st-123");
     expect(link).toHaveAttribute("download", "My Movie");
+  });
+
+  it("renders download link without token when streamToken missing", () => {
+    render(<DownloadButton mediaId="m2" />);
+    const link = screen.getByTestId("download-btn");
+    expect(link).toHaveAttribute("href", "/api/v1/media/m2/download");
   });
 
   it("renders 'Download' text", () => {
@@ -20,4 +21,3 @@ describe("DownloadButton", () => {
     expect(screen.getByText("Download")).toBeInTheDocument();
   });
 });
-

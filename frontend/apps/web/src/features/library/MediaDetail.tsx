@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { Star, ChevronLeft, ChevronRight, ChevronDown, Play, EyeOff, Eye, Plus, Pencil } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Link, useNavigate } from "@tanstack/react-router";
@@ -38,6 +38,7 @@ import { AddToPlaylistModal } from "../playlist/AddToPlaylistModal";
 import { Modal } from "@/components/ui/Modal";
 import { slugify } from "@/utils/slugify";
 import { PluginSlot } from "@/features/plugins/PluginSlot";
+import { useStreamToken } from "@/hooks/useStreamToken";
 
 interface MediaDetailProps {
   item: V1MediaItem;
@@ -750,6 +751,13 @@ export function MediaDetail({ item, onMetadataUpdated, initialEdit }: MediaDetai
   const isAdmin = useAuthStore((s) => s.isAdmin);
   const navigate = useNavigate();
   const { needsPin } = useParentalGate(item.officialRating);
+  const { streamToken, fetchStreamToken } = useStreamToken();
+
+  useEffect(() => {
+    if (item.id && item.filePath) {
+      fetchStreamToken(item.id).catch(() => {});
+    }
+  }, [item.id, item.filePath, fetchStreamToken]);
 
   const { data: parentItem } = useLibraryServiceGetMediaItem(
     item.parentId ?? "",
@@ -1037,7 +1045,7 @@ export function MediaDetail({ item, onMetadataUpdated, initialEdit }: MediaDetai
               )
             )}
             {item.id && item.filePath && (
-              <DownloadButton mediaId={item.id} title={item.title} />
+              <DownloadButton mediaId={item.id} title={item.title} streamToken={streamToken ?? undefined} />
             )}
             {item.id && <FavoriteButton mediaId={item.id} size="md" />}
             {item.id && <RatingButtons mediaId={item.id} />}
