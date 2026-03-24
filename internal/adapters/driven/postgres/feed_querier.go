@@ -66,8 +66,8 @@ func (q *FeedQuerier) ContinueWatching(ctx context.Context, profileID string, li
 			INNER JOIN media_items s ON s.id = mi.parent_id
 			INNER JOIN series_list sl ON sl.series_id = s.parent_id
 			WHERE mi.type = 'episode'
-			  AND mi.id NOT IN (SELECT media_item_id FROM watch_progress WHERE profile_id = $1 AND completed = TRUE)
-			  AND mi.id NOT IN (SELECT id FROM in_progress)
+			  AND NOT EXISTS (SELECT 1 FROM watch_progress wp2 WHERE wp2.media_item_id = mi.id AND wp2.profile_id = $1 AND wp2.completed = TRUE)
+			  AND NOT EXISTS (SELECT 1 FROM in_progress ip WHERE ip.id = mi.id)
 			ORDER BY s.parent_id, s.index_number, mi.index_number
 		)
 		SELECT id, parent_id, title, 'episode', position_ms, ''
@@ -126,10 +126,8 @@ func (q *FeedQuerier) ResumePlayback(ctx context.Context, profileID string, limi
 			FROM watched_series ws
 			INNER JOIN media_items sea ON sea.parent_id = ws.series_id AND sea.type = 'season'
 			INNER JOIN media_items mi  ON mi.parent_id = sea.id       AND mi.type  = 'episode'
-			WHERE mi.id NOT IN (
-				SELECT media_item_id FROM watch_progress WHERE profile_id = $1 AND completed = TRUE
-			)
-			AND mi.id NOT IN (SELECT id FROM in_progress)
+			WHERE NOT EXISTS (SELECT 1 FROM watch_progress wp2 WHERE wp2.media_item_id = mi.id AND wp2.profile_id = $1 AND wp2.completed = TRUE)
+			AND NOT EXISTS (SELECT 1 FROM in_progress ip WHERE ip.id = mi.id)
 			ORDER BY ws.series_id, sea.index_number, mi.index_number
 		)
 		SELECT id, parent_id, title, type, position_ms, ''
@@ -167,10 +165,7 @@ func (q *FeedQuerier) NextEpisode(ctx context.Context, profileID string, limit i
 			FROM watched_series ws
 			INNER JOIN media_items sea ON sea.parent_id = ws.series_id AND sea.type = 'season'
 			INNER JOIN media_items mi  ON mi.parent_id = sea.id       AND mi.type  = 'episode'
-			WHERE mi.id NOT IN (
-				SELECT media_item_id FROM watch_progress
-				WHERE profile_id = $1 AND completed = TRUE
-			)
+			WHERE NOT EXISTS (SELECT 1 FROM watch_progress wp2 WHERE wp2.media_item_id = mi.id AND wp2.profile_id = $1 AND wp2.completed = TRUE)
 			ORDER BY ws.series_id, sea.index_number, mi.index_number
 		)
 		SELECT id, parent_id, title, type, position_ms, added_at
@@ -235,9 +230,7 @@ func (q *FeedQuerier) Recommended(ctx context.Context, profileID string, genres 
 		SELECT mi.id, COALESCE(mi.parent_id,''), mi.title, mi.type, 0, '', (%s) AS score
 		FROM media_items mi
 		WHERE mi.type IN ('movie', 'series')
-		  AND mi.id NOT IN (
-		      SELECT media_item_id FROM watch_progress WHERE profile_id = $1 AND completed = TRUE
-		  )
+		  AND NOT EXISTS (SELECT 1 FROM watch_progress wp2 WHERE wp2.media_item_id = mi.id AND wp2.profile_id = $1 AND wp2.completed = TRUE)
 		  AND (%s) >= 1
 		ORDER BY score DESC, mi.community_rating DESC NULLS LAST
 		LIMIT $%d
@@ -257,21 +250,24 @@ func (q *FeedQuerier) SimilarItems(ctx context.Context, mediaItemID, profileID s
 		WITH target AS (
 			SELECT CASE WHEN jsonb_typeof(genres) = 'array' THEN genres ELSE '[]'::jsonb END AS genres
 			FROM media_items WHERE id = $1
+		),
+		target_genres AS (
+			SELECT g.value AS genre FROM target, jsonb_array_elements_text(target.genres) AS g(value)
 		)
 		SELECT mi.id, COALESCE(mi.parent_id,''), mi.title, mi.type, 0, '',
-		       (SELECT COUNT(*) FROM jsonb_array_elements_text(
-		            CASE WHEN jsonb_typeof(mi.genres) = 'array' THEN mi.genres ELSE '[]'::jsonb END
-		        ) g WHERE g IN (SELECT jsonb_array_elements_text(genres) FROM target)) AS score
-		FROM media_items mi, target
+		       gs.score
+		FROM media_items mi
+		INNER JOIN LATERAL (
+			SELECT COUNT(*)::int AS score
+			FROM jsonb_array_elements_text(
+				CASE WHEN jsonb_typeof(mi.genres) = 'array' THEN mi.genres ELSE '[]'::jsonb END
+			) AS g(value)
+			WHERE g.value IN (SELECT genre FROM target_genres)
+		) gs ON gs.score >= 1
 		WHERE mi.id != $1
 		  AND mi.type IN ('movie', 'series')
-		  AND mi.id NOT IN (
-		      SELECT media_item_id FROM watch_progress WHERE profile_id = $2 AND completed = TRUE
-		  )
-		  AND (SELECT COUNT(*) FROM jsonb_array_elements_text(
-		            CASE WHEN jsonb_typeof(mi.genres) = 'array' THEN mi.genres ELSE '[]'::jsonb END
-		        ) g WHERE g IN (SELECT jsonb_array_elements_text(genres) FROM target)) >= 1
-		ORDER BY score DESC, mi.community_rating DESC NULLS LAST
+		  AND NOT EXISTS (SELECT 1 FROM watch_progress wp2 WHERE wp2.media_item_id = mi.id AND wp2.profile_id = $2 AND wp2.completed = TRUE)
+		ORDER BY gs.score DESC, mi.community_rating DESC NULLS LAST
 		LIMIT $3
 	`, mediaItemID, profileID, limit)
 	if err != nil {
