@@ -14,6 +14,7 @@ import (
 	domainlib "github.com/gravity-zero/evey/internal/domain/library"
 	domainmetadata "github.com/gravity-zero/evey/internal/domain/metadata"
 	"github.com/gravity-zero/evey/internal/domain/shared"
+	"golang.org/x/time/rate"
 )
 
 // CollectionLinker upserts provider-sourced collections and links media items.
@@ -31,6 +32,7 @@ type Enricher struct {
 	primary       domainmetadata.MetadataProvider
 	supplementary []domainmetadata.MetadataProvider
 	collections   CollectionLinker
+	apiLimiter    *rate.Limiter
 }
 
 func NewEnricher(
@@ -52,6 +54,7 @@ func NewEnricher(
 		primary:       primary,
 		supplementary: supplementary,
 		collections:   collections,
+		apiLimiter:    rate.NewLimiter(rate.Every(250*time.Millisecond), 1),
 	}
 }
 
@@ -546,13 +549,17 @@ func (e *Enricher) episodeProviders() []episodeProvider {
 	return result
 }
 
-// AutoEnrichAll enriches all items concurrently (max 3 at a time).
+// AutoEnrichAll enriches all items concurrently (max 3 at a time)
+// with rate limiting to avoid 429s from external APIs.
 func (e *Enricher) AutoEnrichAll(ctx context.Context, items []*domainlib.MediaItem, log *slog.Logger) {
 	sem := make(chan struct{}, 3)
 	var wg sync.WaitGroup
 	for _, item := range items {
 		if item.Overview != "" && len(item.Trailers) > 0 {
 			continue
+		}
+		if err := e.apiLimiter.Wait(ctx); err != nil {
+			return
 		}
 		wg.Add(1)
 		go func(it *domainlib.MediaItem) {
