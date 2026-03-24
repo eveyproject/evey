@@ -17,7 +17,7 @@ vi.mock("@tanstack/react-query", async (importActual) => {
   };
 });
 
-vi.mock("@evey/api/src/fetcher", () => ({
+vi.mock("@evey/api", () => ({
   eveyFetch: (...args: unknown[]) => mockEveyFetch(...args),
 }));
 

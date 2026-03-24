@@ -8,7 +8,7 @@ const mockUseQuery = vi.fn();
 const mockUseMutation = vi.fn();
 const mockInvalidateQueries = vi.fn();
 
-vi.mock("@evey/api/src/fetcher", () => ({
+vi.mock("@evey/api", () => ({
   eveyFetch: (...args: unknown[]) => mockEveyFetch(...args),
 }));
 

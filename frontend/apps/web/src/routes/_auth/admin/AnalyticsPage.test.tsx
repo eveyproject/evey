@@ -3,9 +3,6 @@ import { render, screen, waitFor } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
-// analytics.lazy.tsx imports from "@evey/api/src/fetcher" (sub-path)
-// The vitest alias maps @evey/api → packages/api/src/fetcher.ts
-// We mock @evey/api which covers both usages
 vi.mock("@evey/api", () => ({
   eveyFetch: vi.fn(),
 }));
