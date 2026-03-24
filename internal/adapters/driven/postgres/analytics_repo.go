@@ -3,6 +3,8 @@ package postgres
 import (
 	"context"
 	"database/sql"
+	"log/slog"
+	"runtime/debug"
 	"sync"
 
 	"github.com/gravity-zero/evey/internal/domain/activity"
@@ -32,6 +34,11 @@ func (r *AnalyticsReader) GetAnalytics(ctx context.Context) (*activity.Analytics
 
 	go func() {
 		defer wg.Done()
+		defer func() {
+			if r := recover(); r != nil {
+				slog.Error("panic recovered in analytics top media", "error", r, "stack", debug.Stack())
+			}
+		}()
 		rows, err := r.db.QueryContext(ctx, `
 			SELECT ps.media_item_id, mi.title,
 			       COUNT(*) AS play_count,
@@ -62,6 +69,11 @@ func (r *AnalyticsReader) GetAnalytics(ctx context.Context) (*activity.Analytics
 
 	go func() {
 		defer wg.Done()
+		defer func() {
+			if r := recover(); r != nil {
+				slog.Error("panic recovered in analytics recent activity", "error", r, "stack", debug.Stack())
+			}
+		}()
 		rows, err := r.db.QueryContext(ctx, `
 			SELECT u.id, u.username, mi.title, ps.started_at
 			FROM play_sessions ps
@@ -90,6 +102,11 @@ func (r *AnalyticsReader) GetAnalytics(ctx context.Context) (*activity.Analytics
 
 	go func() {
 		defer wg.Done()
+		defer func() {
+			if r := recover(); r != nil {
+				slog.Error("panic recovered in analytics plays today", "error", r, "stack", debug.Stack())
+			}
+		}()
 		results[2].err = r.db.QueryRowContext(ctx,
 			`SELECT COUNT(*) FROM play_sessions WHERE started_at >= CURRENT_DATE`,
 		).Scan(&results[2].playsToday)
@@ -97,6 +114,11 @@ func (r *AnalyticsReader) GetAnalytics(ctx context.Context) (*activity.Analytics
 
 	go func() {
 		defer wg.Done()
+		defer func() {
+			if r := recover(); r != nil {
+				slog.Error("panic recovered in analytics plays week", "error", r, "stack", debug.Stack())
+			}
+		}()
 		results[3].err = r.db.QueryRowContext(ctx,
 			`SELECT COUNT(*) FROM play_sessions WHERE started_at >= date_trunc('week', NOW())`,
 		).Scan(&results[3].playsWeek)
@@ -104,6 +126,11 @@ func (r *AnalyticsReader) GetAnalytics(ctx context.Context) (*activity.Analytics
 
 	go func() {
 		defer wg.Done()
+		defer func() {
+			if r := recover(); r != nil {
+				slog.Error("panic recovered in analytics active users", "error", r, "stack", debug.Stack())
+			}
+		}()
 		results[4].err = r.db.QueryRowContext(ctx, `
 			SELECT COUNT(DISTINCT p.user_id)
 			FROM play_sessions ps

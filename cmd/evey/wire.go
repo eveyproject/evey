@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"runtime/debug"
 	"time"
 
 	appactivity "github.com/gravity-zero/evey/internal/app/activity"
@@ -245,6 +246,11 @@ func buildServices(ctx context.Context, cfg *config.Config, db *sql.DB, rootLog 
 	if rs, ok := searchAdapter.(*search.ResilientSearch); ok {
 		if sa, isMeili := rs.Primary().(*meili.SearchAdapter); isMeili {
 		go func() {
+			defer func() {
+				if r := recover(); r != nil {
+					slog.Error("panic recovered in meilisearch startup index", "error", r, "stack", debug.Stack())
+				}
+			}()
 			indexCtx, indexCancel := context.WithTimeout(ctx, 5*time.Minute)
 			defer indexCancel()
 			dbCount, err := r.MediaItem.Count(indexCtx, library.ListMediaItemsFilter{})
