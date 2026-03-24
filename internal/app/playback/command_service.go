@@ -116,7 +116,15 @@ func (s *CommandService) ReportProgressBySession(ctx context.Context, sessionID 
 	if err := s.sessions.Update(ctx, session); err != nil {
 		return fmt.Errorf("update session position: %w", err)
 	}
-	return s.ReportProgress(ctx, session.ProfileID, session.MediaItemID, positionMs, false)
+	wp := &playback.WatchProgress{
+		ID:           id.New("wp-"),
+		ProfileID:    session.ProfileID,
+		MediaItemID:  session.MediaItemID,
+		PositionMs:   positionMs,
+		Completed:    false,
+		LastPlayedAt: time.Now(),
+	}
+	return s.progress.Upsert(ctx, wp)
 }
 
 func (s *CommandService) ReportProgress(ctx context.Context, profileID, mediaItemID string, positionMs int64, completed bool) error {

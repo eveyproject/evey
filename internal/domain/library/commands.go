@@ -12,6 +12,7 @@ type MediaItemCommandRepo interface {
 	Create(ctx context.Context, item *MediaItem) error
 	Update(ctx context.Context, item *MediaItem) error
 	Delete(ctx context.Context, id string) error
+	DeleteByIDs(ctx context.Context, ids []string) error
 	GetByID(ctx context.Context, id string) (*MediaItem, error)
 	GetByFilePath(ctx context.Context, path string) (*MediaItem, error)
 	GetByFileFingerprint(ctx context.Context, fingerprint string) (*MediaItem, error)

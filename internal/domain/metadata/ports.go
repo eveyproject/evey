@@ -19,6 +19,7 @@ type MetadataOverrideRepository interface {
 
 type ArtworkRepository interface {
 	Create(ctx context.Context, a *ArtworkRecord) error
+	CreateBatch(ctx context.Context, records []*ArtworkRecord) error
 	GetByMediaItem(ctx context.Context, mediaItemID string) ([]*ArtworkRecord, error)
 	GetByMediaItems(ctx context.Context, mediaItemIDs []string) (map[string][]*ArtworkRecord, error)
 	GetByPerson(ctx context.Context, personID string) ([]*ArtworkRecord, error)
