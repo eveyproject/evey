@@ -57,15 +57,33 @@ func (d *DatabaseDumper) DumpTables(ctx context.Context, tables []string) (io.Re
 
 	cmd := exec.CommandContext(ctx, "pg_dump", args...)
 	cmd.Env = d.pgEnv()
-	var out bytes.Buffer
+
+	stdout, err := cmd.StdoutPipe()
+	if err != nil {
+		return nil, fmt.Errorf("pg_dump stdout pipe: %w", err)
+	}
 	var stderr bytes.Buffer
-	cmd.Stdout = &out
 	cmd.Stderr = &stderr
 
-	if err := cmd.Run(); err != nil {
-		return nil, fmt.Errorf("pg_dump: %s: %w", strings.TrimSpace(stderr.String()), err)
+	if err := cmd.Start(); err != nil {
+		return nil, fmt.Errorf("pg_dump start: %s: %w", strings.TrimSpace(stderr.String()), err)
 	}
-	return &out, nil
+
+	pr, pw := io.Pipe()
+	go func() {
+		_, copyErr := io.Copy(pw, stdout)
+		waitErr := cmd.Wait()
+		switch {
+		case copyErr != nil:
+			pw.CloseWithError(copyErr)
+		case waitErr != nil:
+			pw.CloseWithError(fmt.Errorf("pg_dump: %s: %w", strings.TrimSpace(stderr.String()), waitErr))
+		default:
+			pw.CloseWithError(nil)
+		}
+	}()
+
+	return pr, nil
 }
 
 func (d *DatabaseDumper) RestoreTables(ctx context.Context, data io.Reader) error {

@@ -102,12 +102,7 @@ func (s *Service) GetBackup(ctx context.Context, backupID string) (*backup.Backu
 }
 
 func (s *Service) RestoreBackup(ctx context.Context, data io.Reader) error {
-	raw, err := io.ReadAll(data)
-	if err != nil {
-		return err
-	}
-
-	archive, extractErr := extractTarGz(raw)
+	archive, extractErr := extractTarGz(data)
 	if extractErr != nil {
 		return fmt.Errorf("restore: %w", extractErr)
 	}
@@ -186,8 +181,8 @@ type backupArchive struct {
 	dump         []byte
 }
 
-func extractTarGz(raw []byte) (*backupArchive, error) {
-	gz, err := gzip.NewReader(bytes.NewReader(raw))
+func extractTarGz(r io.Reader) (*backupArchive, error) {
+	gz, err := gzip.NewReader(r)
 	if err != nil {
 		return nil, fmt.Errorf("not a valid gzip archive: %w", err)
 	}

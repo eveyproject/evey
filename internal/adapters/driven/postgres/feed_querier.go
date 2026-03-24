@@ -190,13 +190,17 @@ func (q *FeedQuerier) RecentlyAdded(ctx context.Context, daysWindow, limit int) 
 		SELECT id, COALESCE(parent_id,''), title, type, 0, effective_added::text
 		FROM (
 			SELECT m.id, m.parent_id, m.title, m.type,
-				CASE WHEN m.type = 'series' THEN COALESCE(
-					(SELECT MAX(e.added_at) FROM media_items e
-					 WHERE e.type = 'episode'
-					   AND e.parent_id IN (SELECT s.id FROM media_items s WHERE s.parent_id = m.id)),
-					m.added_at)
+				CASE WHEN m.type = 'series'
+					THEN COALESCE(ep_max.max_added, m.added_at)
 				ELSE m.added_at END AS effective_added
 			FROM media_items m
+			LEFT JOIN (
+				SELECT s.parent_id AS series_id, MAX(e.added_at) AS max_added
+				FROM media_items e
+				INNER JOIN media_items s ON s.id = e.parent_id
+				WHERE e.type = 'episode'
+				GROUP BY s.parent_id
+			) ep_max ON m.type = 'series' AND ep_max.series_id = m.id
 			WHERE m.type IN ('movie', 'series', 'album')
 		) sub
 		WHERE effective_added > NOW() - ($1 || ' days')::interval
