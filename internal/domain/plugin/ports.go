@@ -46,3 +46,11 @@ type PluginAnalyzer interface {
 type WidgetCompiler interface {
 	CompileWidget(srcPath, outPath string) error
 }
+
+// PluginFileSystem abstracts filesystem operations for plugin install/uninstall.
+type PluginFileSystem interface {
+	RemoveAll(path string) error
+	MkdirTemp(dir, pattern string) (string, error)
+	CopySDKStubs(language, installDir string) error
+	ChownPluginDir(dir string)
+}

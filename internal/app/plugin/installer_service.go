@@ -22,6 +22,7 @@ type InstallerService struct {
 	events      shared.EventBus
 	installer   plugin.PluginInstaller
 	analyzer    plugin.PluginAnalyzer
+	fs          plugin.PluginFileSystem
 	permChecker *PermissionChecker
 	pluginDir   string
 	installMu   sync.Mutex
@@ -59,6 +60,11 @@ func (s *InstallerService) WithPermissionChecker(pc *PermissionChecker) *Install
 
 func (s *InstallerService) WithPluginDir(dir string) *InstallerService {
 	s.pluginDir = dir
+	return s
+}
+
+func (s *InstallerService) WithFileSystem(fs plugin.PluginFileSystem) *InstallerService {
+	s.fs = fs
 	return s
 }
 
@@ -114,14 +120,14 @@ func (s *InstallerService) InstallPlugin(ctx context.Context, zipPath string) (*
 		p.InstallDir = installDir
 	}
 
-	if p.InstallDir != "" {
-		if cpErr := copySDKStubs(p.Language, p.InstallDir); cpErr != nil {
+	if p.InstallDir != "" && s.fs != nil {
+		if cpErr := s.fs.CopySDKStubs(p.Language, p.InstallDir); cpErr != nil {
 			slog.Warn("copy SDK stubs", slog.String("pluginID", p.ID), slog.Any("err", cpErr))
 		}
 	}
 
-	if p.InstallDir != "" && os.Getuid() == 0 {
-		chownPluginDir(p.InstallDir)
+	if p.InstallDir != "" && os.Getuid() == 0 && s.fs != nil {
+		s.fs.ChownPluginDir(p.InstallDir)
 	}
 
 	if s.analyzer != nil && p.InstallDir != "" {
@@ -129,16 +135,16 @@ func (s *InstallerService) InstallPlugin(ctx context.Context, zipPath string) (*
 		if analyzeErr != nil {
 			slog.Warn("plugin static analysis failed", slog.String("pluginID", p.ID), slog.Any("err", analyzeErr))
 		} else if !report.Safe {
-			if p.InstallDir != "" {
-				os.RemoveAll(p.InstallDir)
+			if p.InstallDir != "" && s.fs != nil {
+				s.fs.RemoveAll(p.InstallDir) //nolint:errcheck
 			}
 			return nil, fmt.Errorf("plugin blocked: critical security issues found: %v", report.Issues)
 		}
 	}
 
 	if err := s.plugins.Create(ctx, p); err != nil {
-		if p.InstallDir != "" {
-			os.RemoveAll(p.InstallDir)
+		if p.InstallDir != "" && s.fs != nil {
+			s.fs.RemoveAll(p.InstallDir) //nolint:errcheck
 		}
 		return nil, err
 	}
@@ -185,11 +191,11 @@ func (s *InstallerService) PreviewPlugin(_ context.Context, zipPath string) (*Pl
 		Permissions:  manifest.Permissions,
 		Capabilities: manifest.Capabilities,
 	}
-	if s.installer != nil && s.analyzer != nil {
-		tmpDir, tmpErr := os.MkdirTemp("", "evey-plugin-preview-*")
+	if s.installer != nil && s.analyzer != nil && s.fs != nil {
+		tmpDir, tmpErr := s.fs.MkdirTemp("", "evey-plugin-preview-*")
 		if tmpErr == nil {
 			defer func() {
-				if rmErr := os.RemoveAll(tmpDir); rmErr != nil {
+				if rmErr := s.fs.RemoveAll(tmpDir); rmErr != nil {
 					slog.Warn("remove preview tmpdir", slog.Any("err", rmErr))
 				}
 			}()
@@ -219,8 +225,8 @@ func (s *InstallerService) UninstallPlugin(ctx context.Context, id string) error
 		s.permChecker.InvalidatePermissions(p.ID)
 	}
 
-	if p.InstallDir != "" {
-		if err := os.RemoveAll(p.InstallDir); err != nil {
+	if p.InstallDir != "" && s.fs != nil {
+		if err := s.fs.RemoveAll(p.InstallDir); err != nil {
 			slog.Warn("remove plugin dir", slog.String("pluginID", id), slog.Any("err", err))
 		}
 	}
@@ -238,57 +244,4 @@ func (s *InstallerService) UninstallPlugin(ctx context.Context, id string) error
 // isStaticPlugin returns true for plugins that don't need a subprocess (CSS themes).
 func isStaticPlugin(p *plugin.Plugin) bool {
 	return strings.EqualFold(p.Language, "css")
-}
-
-const pluginUID = 1001
-
-func chownPluginDir(dir string) {
-	if err := filepath.Walk(dir, func(path string, _ os.FileInfo, walkErr error) error {
-		if walkErr != nil {
-			return walkErr
-		}
-		return os.Chown(path, pluginUID, pluginUID)
-	}); err != nil {
-		slog.Warn("chown plugin dir", slog.String("dir", dir), slog.Any("err", err))
-	}
-}
-
-const sdkBasePath = "/app/sdk"
-
-func copySDKStubs(language, installDir string) error {
-	lang := strings.ToLower(language)
-	switch lang {
-	case "nodejs", "node":
-		lang = "nodejs"
-	case "css":
-		return nil
-	}
-
-	sdkDir := filepath.Join(sdkBasePath, lang)
-	if _, statErr := os.Stat(sdkDir); statErr != nil {
-		slog.Debug("no SDK stubs for language", slog.String("language", lang), slog.Any("err", statErr))
-		return nil
-	}
-
-	entries, err := os.ReadDir(sdkDir)
-	if err != nil {
-		return fmt.Errorf("read sdk dir: %w", err)
-	}
-	for _, e := range entries {
-		if e.IsDir() || e.Name() == "README.md" || e.Name() == "VERSION" {
-			continue
-		}
-		src := filepath.Join(sdkDir, e.Name())
-		data, readErr := os.ReadFile(src)
-		if readErr != nil {
-			return fmt.Errorf("read sdk file %s: %w", e.Name(), readErr)
-		}
-		dst := filepath.Join(installDir, e.Name())
-		if writeErr := os.WriteFile(dst, data, 0644); writeErr != nil {
-			return fmt.Errorf("write %s: %w", e.Name(), writeErr)
-		}
-	}
-
-	slog.Info("copied SDK stubs", slog.String("language", lang), slog.String("dir", installDir))
-	return nil
 }

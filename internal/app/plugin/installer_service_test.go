@@ -23,10 +23,13 @@ func newTestInstallerService() (*appplugin.InstallerService, *plgfakes.FakePlugi
 	installer := plgfakes.NewFakePluginInstaller()
 	analyzer := plgfakes.NewFakePluginAnalyzer()
 
+	pluginFS := plgfakes.NewFakePluginFileSystem()
+
 	svc := appplugin.NewInstallerService(pluginRepo, runner, parser, bus).
 		WithInstaller(installer).
 		WithAnalyzer(analyzer).
-		WithPluginDir("/tmp/test-plugins")
+		WithPluginDir("/tmp/test-plugins").
+		WithFileSystem(pluginFS)
 
 	return svc, pluginRepo, runner, parser, installer, analyzer
 }
