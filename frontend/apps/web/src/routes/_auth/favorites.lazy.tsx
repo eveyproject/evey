@@ -261,6 +261,7 @@ function FavoritesPage() {
               selected={isSelected(fav.mediaItemId)}
               selectionMode={bulkMode}
               onSelect={bulkMode ? handleSelect : undefined}
+              lite
             />
           ))}
         </MediaGrid>
