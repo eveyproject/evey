@@ -133,6 +133,40 @@ func (r *FakeMediaItemCommandRepo) ListByLibraryID(_ context.Context, libraryID 
 	return result, nil
 }
 
+func (r *FakeMediaItemCommandRepo) ListScanSummaries(_ context.Context, libraryID string) ([]library.MediaItemScanRow, error) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	var result []library.MediaItemScanRow
+	for _, item := range r.items {
+		if item.LibraryID == libraryID {
+			result = append(result, library.MediaItemScanRow{
+				ID:              item.ID,
+				FilePath:        item.FilePath,
+				FileFingerprint: item.FileFingerprint,
+				FileSize:        item.FileSize,
+				ModTime:         item.ModTime,
+			})
+		}
+	}
+	return result, nil
+}
+
+func (r *FakeMediaItemCommandRepo) ListContainerInfo(_ context.Context, libraryID string) ([]library.MediaItemContainerRow, error) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	var result []library.MediaItemContainerRow
+	for _, item := range r.items {
+		if item.LibraryID == libraryID {
+			result = append(result, library.MediaItemContainerRow{
+				ID:       item.ID,
+				ParentID: item.ParentID,
+				Type:     item.Type,
+			})
+		}
+	}
+	return result, nil
+}
+
 // All returns all items for test assertions.
 func (r *FakeMediaItemCommandRepo) All() []*library.MediaItem {
 	r.mu.RLock()

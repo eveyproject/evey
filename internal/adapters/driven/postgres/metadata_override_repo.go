@@ -4,7 +4,9 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"fmt"
 	"log/slog"
+	"strings"
 
 	"github.com/gravity-zero/evey/internal/domain/metadata"
 )
@@ -70,6 +72,36 @@ func (r *MetadataOverrideRepository) GetByMediaItem(ctx context.Context, mediaIt
 			slog.Warn("json unmarshal", slog.String("field", "custom_value"), slog.Any("err", err))
 		}
 		result = append(result, o)
+	}
+	return result, rows.Err()
+}
+
+func (r *MetadataOverrideRepository) ListOverriddenMediaItemIDs(ctx context.Context, mediaItemIDs []string) (map[string]bool, error) {
+	if len(mediaItemIDs) == 0 {
+		return make(map[string]bool), nil
+	}
+	placeholders := make([]string, len(mediaItemIDs))
+	args := make([]interface{}, len(mediaItemIDs))
+	for i, id := range mediaItemIDs {
+		placeholders[i] = fmt.Sprintf("$%d", i+1)
+		args[i] = id
+	}
+	query := fmt.Sprintf(
+		`SELECT DISTINCT media_item_id FROM metadata_overrides WHERE media_item_id IN (%s)`,
+		strings.Join(placeholders, ","),
+	)
+	rows, err := r.db.QueryContext(ctx, query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	result := make(map[string]bool)
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		result[id] = true
 	}
 	return result, rows.Err()
 }

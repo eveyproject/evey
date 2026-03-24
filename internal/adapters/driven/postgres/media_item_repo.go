@@ -367,6 +367,54 @@ func (r *MediaItemRepository) ListByLibraryID(ctx context.Context, libraryID str
 	return result, rows.Err()
 }
 
+func (r *MediaItemRepository) ListScanSummaries(ctx context.Context, libraryID string) ([]library.MediaItemScanRow, error) {
+	rows, err := r.db.QueryContext(ctx,
+		`SELECT id, file_path, file_fingerprint, file_size, mod_time
+		 FROM media_items WHERE library_id = $1`, libraryID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var result []library.MediaItemScanRow
+	for rows.Next() {
+		var row library.MediaItemScanRow
+		var filePath, fingerprint *string
+		if err := rows.Scan(&row.ID, &filePath, &fingerprint, &row.FileSize, &row.ModTime); err != nil {
+			return nil, err
+		}
+		if filePath != nil {
+			row.FilePath = *filePath
+		}
+		if fingerprint != nil {
+			row.FileFingerprint = *fingerprint
+		}
+		result = append(result, row)
+	}
+	return result, rows.Err()
+}
+
+func (r *MediaItemRepository) ListContainerInfo(ctx context.Context, libraryID string) ([]library.MediaItemContainerRow, error) {
+	rows, err := r.db.QueryContext(ctx,
+		`SELECT id, parent_id, type FROM media_items WHERE library_id = $1`, libraryID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var result []library.MediaItemContainerRow
+	for rows.Next() {
+		var row library.MediaItemContainerRow
+		var parentID *string
+		if err := rows.Scan(&row.ID, &parentID, &row.Type); err != nil {
+			return nil, err
+		}
+		if parentID != nil {
+			row.ParentID = *parentID
+		}
+		result = append(result, row)
+	}
+	return result, rows.Err()
+}
+
 func (r *MediaItemRepository) scanMediaItem(row *sql.Row) (*library.MediaItem, error) {
 	item := &library.MediaItem{}
 	var parentID, filePath, fingerprint *string

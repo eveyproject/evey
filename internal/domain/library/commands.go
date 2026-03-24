@@ -19,4 +19,6 @@ type MediaItemCommandRepo interface {
 	// ListFilePaths returns id→filePath for all items in a library (for orphan detection).
 	ListFilePaths(ctx context.Context, libraryID string) (map[string]string, error)
 	ListByLibraryID(ctx context.Context, libraryID string) ([]*MediaItem, error)
+	ListScanSummaries(ctx context.Context, libraryID string) ([]MediaItemScanRow, error)
+	ListContainerInfo(ctx context.Context, libraryID string) ([]MediaItemContainerRow, error)
 }
