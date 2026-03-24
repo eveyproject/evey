@@ -59,6 +59,11 @@ errorBoundary:
   description: "Une erreur inattendue s'est produite. Veuillez recharger la page. Si le problème persiste, retournez à l'accueil."
   tryAgain: Réessayer
   goHome: "Retour à l'accueil"
+routeError:
+  title: "Une erreur est survenue"
+  description: "Une erreur est survenue lors du chargement de cette page. Vous pouvez réessayer ou retourner à l'accueil."
+  retry: Réessayer
+  goHome: "Retour à l'accueil"
 aria:
   closeMenu: Fermer le menu
   openMenu: Ouvrir le menu
@@ -85,6 +90,8 @@ aria:
   bgOpacity: Opacité du fond
   operator: Opérateur
   value: Valeur
+  retryPage: "Réessayer le chargement"
+  goToHomePage: "Aller à l'accueil"
 notifications:
   title: "Notifications"
   markRead: "Marquer comme lu"
