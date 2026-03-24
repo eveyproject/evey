@@ -145,16 +145,7 @@ func buildServices(ctx context.Context, cfg *config.Config, db *sql.DB, rootLog 
 		return nil, fmt.Errorf("library command service: %w", err)
 	}
 	mediaItemCache := applibrary.NewCachedMediaItemQueryRepo(r.MediaItemQuery, 30*time.Second)
-	bus.Subscribe("media.item.removed", func(_ context.Context, ev shared.Event) {
-		if e, ok := ev.(library.MediaItemRemoved); ok {
-			mediaItemCache.Invalidate(e.MediaItemID)
-		}
-	})
-	bus.Subscribe("media.item.updated", func(_ context.Context, ev shared.Event) {
-		if e, ok := ev.(library.MediaItemUpdated); ok {
-			mediaItemCache.Invalidate(e.MediaItemID)
-		}
-	})
+	mediaItemCache.Register(bus)
 	libQuerySvc := applibrary.NewQueryService(r.Library, mediaItemCache, r.MediaStream, searchAdapter)
 
 	schedulerLog := eveylogger.NewWith(rootLog, "scheduler")

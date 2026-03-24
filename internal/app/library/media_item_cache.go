@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/gravity-zero/evey/internal/domain/library"
+	"github.com/gravity-zero/evey/internal/domain/shared"
 )
 
 type cacheEntry struct {
@@ -54,6 +55,19 @@ func (c *CachedMediaItemQueryRepo) Invalidate(id string) {
 	c.mu.Lock()
 	delete(c.items, id)
 	c.mu.Unlock()
+}
+
+func (c *CachedMediaItemQueryRepo) Register(bus shared.EventBus) {
+	bus.Subscribe("media.item.removed", func(_ context.Context, ev shared.Event) {
+		if e, ok := ev.(library.MediaItemRemoved); ok {
+			c.Invalidate(e.MediaItemID)
+		}
+	})
+	bus.Subscribe("media.item.updated", func(_ context.Context, ev shared.Event) {
+		if e, ok := ev.(library.MediaItemUpdated); ok {
+			c.Invalidate(e.MediaItemID)
+		}
+	})
 }
 
 func (c *CachedMediaItemQueryRepo) GetByIDs(ctx context.Context, ids []string) ([]*library.MediaItem, error) {
