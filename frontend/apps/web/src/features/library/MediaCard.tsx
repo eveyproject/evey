@@ -3,7 +3,7 @@ import { Star, Check, Play } from "lucide-react";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
-import { usePlaybackServiceMarkAsWatched, usePlaybackServiceMarkAsUnwatched } from "@evey/api";
+import { usePlaybackServiceMarkAsWatched, usePlaybackServiceMarkAsUnwatched, libraryServiceGetMediaItem } from "@evey/api";
 import type { V1Artwork } from "@evey/api/src/generated/library.schemas";
 import { toast, useAuthStore } from "@evey/store";
 import { FavoriteButton } from "./FavoriteButton";
@@ -288,10 +288,19 @@ export const MediaCard = memo(function MediaCard({
   const menuBtnRef = useRef<HTMLButtonElement>(null);
   const hasPreviewData = !!(item.overview || item.communityRating || (item.genres && item.genres.length > 0));
 
+  const queryClient = useQueryClient();
+
   const handleMouseEnter = useCallback(() => {
+    if (item.id) {
+      queryClient.prefetchQuery({
+        queryKey: [`/api/v1/media/${item.id}`],
+        queryFn: ({ signal }) => libraryServiceGetMediaItem(item.id!, signal),
+        staleTime: 60_000,
+      });
+    }
     if (!hasPreviewData) return;
     hoverTimer.current = setTimeout(() => setShowPreview(true), 400);
-  }, [hasPreviewData]);
+  }, [hasPreviewData, item.id, queryClient]);
 
   const handleMouseLeave = useCallback(() => {
     if (hoverTimer.current) clearTimeout(hoverTimer.current);
