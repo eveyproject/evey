@@ -489,6 +489,42 @@ func (s *ScanService) getOrCreateItem(ctx context.Context, item *library.MediaIt
 }
 
 func (s *ScanService) scanTVShowFiles(ctx context.Context, libraryID string, files []library.ScannedFile) (added, updated int, err error) {
+	// Pre-load existing containers to avoid N+1 queries per series/season
+	existing, err := s.mediaItems.ListByLibraryID(ctx, libraryID)
+	if err != nil {
+		return 0, 0, fmt.Errorf("preload containers: %w", err)
+	}
+	byFingerprint := make(map[string]*library.MediaItem, len(existing))
+	type titleKey struct{ typ, title, parentID string }
+	byTitleKey := make(map[titleKey]*library.MediaItem, len(existing))
+	for _, item := range existing {
+		if item.FileFingerprint != "" {
+			byFingerprint[item.FileFingerprint] = item
+		}
+		byTitleKey[titleKey{item.Type, item.Title, item.ParentID}] = item
+	}
+
+	lookupOrCreate := func(item *library.MediaItem) (*library.MediaItem, bool, error) {
+		if ex, ok := byFingerprint[item.FileFingerprint]; ok {
+			return ex, false, nil
+		}
+		if ex, ok := byTitleKey[titleKey{item.Type, item.Title, item.ParentID}]; ok {
+			if ex.FileFingerprint != item.FileFingerprint {
+				ex.FileFingerprint = item.FileFingerprint
+				if updateErr := s.mediaItems.Update(ctx, ex); updateErr != nil {
+					slog.Warn("update media item fingerprint failed", slog.String("mediaItemID", ex.ID), slog.Any("err", updateErr))
+				}
+			}
+			return ex, false, nil
+		}
+		if createErr := s.mediaItems.Create(ctx, item); createErr != nil {
+			return nil, false, createErr
+		}
+		byFingerprint[item.FileFingerprint] = item
+		byTitleKey[titleKey{item.Type, item.Title, item.ParentID}] = item
+		return item, true, nil
+	}
+
 	seriesIDs := map[string]string{}
 	seasonIDs := map[string]string{}
 
@@ -502,7 +538,7 @@ func (s *ScanService) scanTVShowFiles(ctx context.Context, libraryID string, fil
 		seriesID, ok := seriesIDs[showTitle]
 		if !ok {
 			fp := fmt.Sprintf("series:%s:%s", libraryID, showTitle)
-			seriesItem, created, createErr := s.getOrCreateItem(ctx, &library.MediaItem{
+			seriesItem, created, createErr := lookupOrCreate(&library.MediaItem{
 				ID:              uuid.New().String(),
 				LibraryID:       libraryID,
 				Type:            "series",
@@ -537,7 +573,7 @@ func (s *ScanService) scanTVShowFiles(ctx context.Context, libraryID string, fil
 		if !ok {
 			fp := fmt.Sprintf("season:%s:%s:%d", libraryID, showTitle, seasonNum)
 			n := seasonNum
-			seasonItem, created, createErr := s.getOrCreateItem(ctx, &library.MediaItem{
+			seasonItem, created, createErr := lookupOrCreate(&library.MediaItem{
 				ID:              uuid.New().String(),
 				LibraryID:       libraryID,
 				ParentID:        seriesID,

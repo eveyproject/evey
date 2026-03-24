@@ -166,7 +166,7 @@ func TestScanTVShow_TransientDBError_NoDuplicate(t *testing.T) {
 	}
 
 	dbErr := errors.New("connection reset by peer")
-	mediaRepo.GetByFileFingerprintErr = dbErr
+	mediaRepo.ListByLibraryIDErr = dbErr
 
 	_, _, err := svc.ScanLibrary(context.Background(), "lib-1")
 	require.Error(t, err)
@@ -175,7 +175,7 @@ func TestScanTVShow_TransientDBError_NoDuplicate(t *testing.T) {
 	assert.Empty(t, mediaRepo.All(), "transient DB error must not create items")
 }
 
-func TestScanTVShow_TitleLookupTransientError_NoDuplicate(t *testing.T) {
+func TestScanTVShow_CreateError_NoDuplicate(t *testing.T) {
 	t.Parallel()
 	svc, _, libQueryRepo, mediaRepo, scanner, _ := newCmdSvc()
 
@@ -193,13 +193,13 @@ func TestScanTVShow_TitleLookupTransientError_NoDuplicate(t *testing.T) {
 	}
 
 	dbErr := errors.New("connection reset by peer")
-	mediaRepo.GetByLibraryTypeTitleErr = dbErr
+	mediaRepo.ErrCreate = dbErr
 
 	_, _, err := svc.ScanLibrary(context.Background(), "lib-1")
 	require.Error(t, err)
 	require.ErrorContains(t, err, "connection reset by peer")
 
-	assert.Empty(t, mediaRepo.All(), "transient DB error on title lookup must not create items")
+	assert.Empty(t, mediaRepo.All(), "transient DB error on create must not leave partial items")
 }
 
 func TestDeleteLibrary(t *testing.T) {
