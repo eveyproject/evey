@@ -201,14 +201,14 @@ const CardContextMenu = memo(function CardContextMenu({
     {
       label: t("media.contextMenu.markWatched"),
       onClick: () => {
-        if (!profileId) { toast.error("No profile selected"); onClose(); return; }
+        if (!profileId) { toast.error(t("media.contextMenu.noProfileSelected")); onClose(); return; }
         markWatched.mutate({ mediaItemId: mediaId, params: { profileId } });
       },
     },
     {
       label: t("media.contextMenu.markUnwatched"),
       onClick: () => {
-        if (!profileId) { toast.error("No profile selected"); onClose(); return; }
+        if (!profileId) { toast.error(t("media.contextMenu.noProfileSelected")); onClose(); return; }
         markUnwatched.mutate({ mediaItemId: mediaId, params: { profileId } });
       },
     },

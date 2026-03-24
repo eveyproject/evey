@@ -4,6 +4,12 @@ export function isPushSupported(): boolean {
   return "serviceWorker" in navigator && "PushManager" in window && "Notification" in window;
 }
 
+export function registerServiceWorker(): void {
+  if ("serviceWorker" in navigator) {
+    navigator.serviceWorker.register("/sw.js").catch(() => {});
+  }
+}
+
 async function getVapidKey(): Promise<string> {
   const res = await eveyFetch<{ key: string }>({
     url: "/api/v1/push/vapid-key",
@@ -25,8 +31,7 @@ export async function subscribeToPush(): Promise<boolean> {
   const permission = await Notification.requestPermission();
   if (permission !== "granted") return false;
 
-  const reg = await navigator.serviceWorker.register("/sw.js");
-  await navigator.serviceWorker.ready;
+  const reg = await navigator.serviceWorker.ready;
 
   const vapidKey = await getVapidKey();
   const subscription = await reg.pushManager.subscribe({

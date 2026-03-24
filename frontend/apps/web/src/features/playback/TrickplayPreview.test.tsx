@@ -2,9 +2,18 @@ import React from "react";
 import { render, waitFor } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
+const mockEveyFetchRaw = vi.fn();
+
+vi.mock("@evey/api", () => ({
+  eveyFetchRaw: (...args: unknown[]) => mockEveyFetchRaw(...args),
+}));
+
 vi.mock("@evey/store", () => ({
-  useAuthStore: (selector: (s: { accessToken: string }) => string) =>
-    selector({ accessToken: "test-token" }),
+  useAuthStore: Object.assign(
+    (selector: (s: { accessToken: string }) => string) =>
+      selector({ accessToken: "test-token" }),
+    { getState: () => ({ accessToken: "test-token" }) },
+  ),
 }));
 
 const mockVTT = `WEBVTT
@@ -17,19 +26,21 @@ const mockVTT = `WEBVTT
 
 `;
 
+function mockFetchRawOk(text: string) {
+  mockEveyFetchRaw.mockResolvedValue({ text: async () => text } as Response);
+}
+
+function mockFetchRawError() {
+  mockEveyFetchRaw.mockRejectedValue(new Error("fetch error"));
+}
+
 describe("TrickplayPreview", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    // reset fetch mock
-    vi.stubGlobal("fetch", vi.fn());
   });
 
   it("renders nothing when hoverTime is null", async () => {
-    vi.mocked(fetch).mockResolvedValue({
-      ok: true,
-      status: 200,
-      text: async () => mockVTT,
-    } as Response);
+    mockFetchRawOk(mockVTT);
 
     const { TrickplayPreview } = await import("./TrickplayPreview");
     const { container } = render(
@@ -42,15 +53,11 @@ describe("TrickplayPreview", () => {
   });
 
   it("renders nothing when trickplay fetch fails", async () => {
-    vi.mocked(fetch).mockResolvedValue({
-      ok: false,
-      status: 404,
-      text: async () => "",
-    } as Response);
+    mockFetchRawError();
 
     const { TrickplayPreview } = await import("./TrickplayPreview");
     const { container } = render(
-      React.createElement(TrickplayPreview, { mediaId: "m1", hoverTime: 5 }),
+      React.createElement(TrickplayPreview, { mediaId: "m-fail", hoverTime: 5 }),
     );
 
     await waitFor(() => {
@@ -59,11 +66,7 @@ describe("TrickplayPreview", () => {
   });
 
   it("renders preview div after successful VTT load with matching hoverTime", async () => {
-    vi.mocked(fetch).mockResolvedValue({
-      ok: true,
-      status: 200,
-      text: async () => mockVTT,
-    } as Response);
+    mockFetchRawOk(mockVTT);
 
     const { TrickplayPreview } = await import("./TrickplayPreview");
     const { container } = render(
@@ -80,35 +83,24 @@ describe("TrickplayPreview", () => {
   });
 
   it("renders nothing when hoverTime doesn't match any cue", async () => {
-    vi.mocked(fetch).mockResolvedValue({
-      ok: true,
-      status: 200,
-      text: async () => mockVTT,
-    } as Response);
+    mockFetchRawOk(mockVTT);
 
     const { TrickplayPreview } = await import("./TrickplayPreview");
     const { container } = render(
-      React.createElement(TrickplayPreview, { mediaId: "m1", hoverTime: 999 }),
+      React.createElement(TrickplayPreview, { mediaId: "m-nomatch", hoverTime: 999 }),
     );
 
-    // Wait for fetch to complete
     await waitFor(() => {
-      // Either null (no match) — cues loaded but hoverTime=999 is outside all cues
       expect(container.firstChild).toBeNull();
     });
   });
 
   it("uses correct background-position for the matched cue", async () => {
-    vi.mocked(fetch).mockResolvedValue({
-      ok: true,
-      status: 200,
-      text: async () => mockVTT,
-    } as Response);
+    mockFetchRawOk(mockVTT);
 
     const { TrickplayPreview } = await import("./TrickplayPreview");
     const { container } = render(
-      // hoverTime=15 matches the second cue: xywh=160,0,160,90
-      React.createElement(TrickplayPreview, { mediaId: "m1", hoverTime: 15 }),
+      React.createElement(TrickplayPreview, { mediaId: "m-bgpos", hoverTime: 15 }),
     );
 
     await waitFor(() => {
@@ -119,24 +111,16 @@ describe("TrickplayPreview", () => {
     expect(inner.style.backgroundPosition).toBe("-160px 0px");
   });
 
-  it("dispatches evey:unauthorized on 401 response", async () => {
-    vi.mocked(fetch).mockResolvedValue({
-      ok: false,
-      status: 401,
-      text: async () => "",
-    } as Response);
-
-    const dispatchSpy = vi.spyOn(window, "dispatchEvent");
+  it("rejects on 401 via eveyFetchRaw (handled by fetcher)", async () => {
+    mockFetchRawError();
 
     const { TrickplayPreview } = await import("./TrickplayPreview");
     render(
-      React.createElement(TrickplayPreview, { mediaId: "m1", hoverTime: 5 }),
+      React.createElement(TrickplayPreview, { mediaId: "m-401", hoverTime: 5 }),
     );
 
     await waitFor(() => {
-      expect(dispatchSpy).toHaveBeenCalledWith(
-        expect.objectContaining({ type: "evey:unauthorized" }),
-      );
+      expect(mockEveyFetchRaw).toHaveBeenCalled();
     });
   });
 });

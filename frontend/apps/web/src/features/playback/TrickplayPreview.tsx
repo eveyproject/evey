@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useAuthStore } from "@evey/store";
+import { eveyFetchRaw } from "@evey/api";
 
 interface TrickplayCue {
   startTime: number;
@@ -75,17 +76,8 @@ export function TrickplayPreview({ mediaId, hoverTime, mediaType }: TrickplayPre
     if (!mediaId || !hasTrickplay || fetchedIds.has(mediaId)) return;
     fetchedIds.add(mediaId);
 
-    const token = useAuthStore.getState().accessToken;
-    if (!token) return;
-
-    fetch(`/api/v1/media/${mediaId}/trickplay`, {
-      headers: { Authorization: `Bearer ${token}` },
-    })
-      .then((res) => {
-        if (res.status === 401) window.dispatchEvent(new Event("evey:unauthorized"));
-        if (!res.ok) throw new Error("no trickplay");
-        return res.text();
-      })
+    eveyFetchRaw({ url: `/api/v1/media/${mediaId}/trickplay`, method: "GET" })
+      .then((res) => res.text())
       .then((text) => {
         const parsed = parseVTT(text);
         cueCache.set(mediaId, parsed);
@@ -97,7 +89,7 @@ export function TrickplayPreview({ mediaId, hoverTime, mediaType }: TrickplayPre
         for (const url of urls) {
           if (!imageCache.current.has(url)) {
             const img = new Image();
-            img.src = `${url}?token=${accessToken}`;
+            img.src = `${url}?token=${encodeURIComponent(accessToken ?? "")}`;
             imageCache.current.set(url, img);
           }
         }
@@ -113,7 +105,7 @@ export function TrickplayPreview({ mediaId, hoverTime, mediaType }: TrickplayPre
   if (!cue) return null;
 
   const accessToken = useAuthStore.getState().accessToken;
-  const imgSrc = imageCache.current.get(cue.url)?.src ?? `${cue.url}?token=${accessToken}`;
+  const imgSrc = imageCache.current.get(cue.url)?.src ?? `${cue.url}?token=${encodeURIComponent(accessToken ?? "")}`;
   const thumbW = cue.w;
   const thumbH = cue.h;
 

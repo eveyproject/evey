@@ -3,7 +3,7 @@ import { Folder } from "lucide-react";
 import { createLazyFileRoute } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
-import { eveyFetch } from "@evey/api/src/fetcher";
+import { eveyFetch } from "@evey/api";
 import { toast, useLocaleStore } from "@evey/store";
 import { Spinner } from "@/components/ui/Spinner";
 import { Button } from "@/components/ui/Button";
