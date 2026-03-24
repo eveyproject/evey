@@ -9,7 +9,7 @@ import {
   eveyFetch,
 } from "@evey/api";
 import { toast } from "@evey/store";
-import type { V1WebhookConfig } from "@evey/api/src/generated/webhook.schemas";
+import type { V1WebhookConfig } from "@evey/api";
 import { Spinner } from "@/components/ui/Spinner";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";

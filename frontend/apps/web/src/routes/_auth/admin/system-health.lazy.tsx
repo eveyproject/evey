@@ -4,7 +4,7 @@ import { useTranslation } from "react-i18next";
 import { useAdminServiceGetDashboard, useAdminServiceGetSystemInfo } from "@evey/api";
 import { Spinner } from "@/components/ui/Spinner";
 import { PageHeader } from "@/components/ui/PageHeader";
-import type { V1DashboardInfo, V1SystemInfo } from "@evey/api/src/generated/admin.schemas";
+import type { V1DashboardInfo, V1SystemInfo } from "@evey/api";
 
 export const Route = createLazyFileRoute("/_auth/admin/system-health")({
   component: SystemHealthPage,

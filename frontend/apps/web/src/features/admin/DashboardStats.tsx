@@ -11,7 +11,7 @@ import {
   useActivityServiceGetServerStats,
 } from "@evey/api";
 import { toast } from "@evey/store";
-import type { V1DashboardInfo } from "@evey/api/src/generated/admin.schemas";
+import type { V1DashboardInfo } from "@evey/api";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
 import { Spinner } from "@/components/ui/Spinner";

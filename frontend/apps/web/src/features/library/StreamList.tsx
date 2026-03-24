@@ -1,5 +1,5 @@
 import { useTranslation } from "react-i18next";
-import type { V1MediaStream } from "@evey/api/src/generated/library.schemas";
+import type { V1MediaStream } from "@evey/api";
 import { Badge } from "@/components/ui/Badge";
 
 interface StreamListProps {

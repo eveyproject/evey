@@ -10,7 +10,7 @@ import {
   eveyFetch,
 } from "@evey/api";
 import { toast } from "@evey/store";
-import type { V1Library } from "@evey/api/src/generated/library.schemas";
+import type { V1Library } from "@evey/api";
 import { Spinner } from "@/components/ui/Spinner";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { Button } from "@/components/ui/Button";

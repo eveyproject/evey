@@ -2,11 +2,8 @@ import { useState } from "react";
 import { createLazyFileRoute } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { useTranscodingServiceListTranscodeProfiles, getTranscodingServiceListTranscodeProfilesQueryKey } from "@evey/api";
-import type {
-  V1TranscodeProfile,
-  V1HWAccelType,
-} from "@evey/api/src/generated/transcoding.schemas";
-import { V1HWAccelType as HWAccelType } from "@evey/api/src/generated/transcoding.schemas";
+import type { V1TranscodeProfile, V1HWAccelType } from "@evey/api";
+import { V1HWAccelType as HWAccelType } from "@evey/api";
 import { toast } from "@evey/store";
 import { useQueryClient } from "@tanstack/react-query";
 import { eveyFetch } from "@evey/api";

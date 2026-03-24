@@ -5,7 +5,7 @@ import {
   usePlaybackServiceGetStreamInfo,
   playbackServiceStartStream,
 } from "@evey/api";
-import type { V1StreamInfo, V1WatchProgress } from "@evey/api/src/generated/playback.schemas";
+import type { V1StreamInfo, V1WatchProgress } from "@evey/api";
 import { useAuthStore } from "@evey/store";
 import { getBrowserCapabilities } from "@/utils/codec";
 

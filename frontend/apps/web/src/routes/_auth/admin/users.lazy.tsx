@@ -14,8 +14,7 @@ import {
 } from "@evey/api";
 import { toast } from "@evey/store";
 import { eveyFetch } from "@evey/api";
-import type { V1User } from "@evey/api/src/generated/user.schemas";
-import type { V1InviteLink } from "@evey/api/src/generated/user.schemas";
+import type { V1User, V1InviteLink } from "@evey/api";
 import { Select } from "@/components/ui/Select";
 import { Checkbox } from "@/components/ui/Checkbox";
 import { Spinner } from "@/components/ui/Spinner";

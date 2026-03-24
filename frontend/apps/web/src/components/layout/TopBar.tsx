@@ -112,9 +112,19 @@ export function TopBar() {
   useEffect(() => {
     const main = document.querySelector("main");
     if (!main) return;
-    const handler = () => setScrolled(main.scrollTop > 8);
+    let raf = 0;
+    const handler = () => {
+      if (raf) return;
+      raf = requestAnimationFrame(() => {
+        setScrolled(main.scrollTop > 8);
+        raf = 0;
+      });
+    };
     main.addEventListener("scroll", handler, { passive: true });
-    return () => main.removeEventListener("scroll", handler);
+    return () => {
+      main.removeEventListener("scroll", handler);
+      cancelAnimationFrame(raf);
+    };
   }, []);
 
   const { data: currentUser } = useUserServiceGetCurrentUser();

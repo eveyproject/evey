@@ -2,7 +2,7 @@ import { useMemo } from "react";
 import { createLazyFileRoute } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { useLibraryServiceListMediaItems } from "@evey/api";
-import type { V1MediaItem, V1MediaPerson } from "@evey/api/src/generated/library.schemas";
+import type { V1MediaItem, V1MediaPerson } from "@evey/api";
 import { BackButton } from "@/components/ui/BackButton";
 import { Badge } from "@/components/ui/Badge";
 import { Spinner } from "@/components/ui/Spinner";

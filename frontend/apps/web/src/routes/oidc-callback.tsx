@@ -1,6 +1,8 @@
 import { useEffect } from "react";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { useTranslation } from "react-i18next";
 import { useAuthStore } from "@evey/store";
+import { eveyFetch } from "@evey/api";
 
 type OIDCCallbackSearch = {
   oidc_error?: string;
@@ -14,6 +16,7 @@ export const Route = createFileRoute("/oidc-callback")({
 });
 
 function OIDCCallbackPage() {
+  const { t } = useTranslation();
   const { oidc_error } = Route.useSearch();
   const { setTokens } = useAuthStore();
   const navigate = useNavigate();
@@ -23,12 +26,7 @@ function OIDCCallbackPage() {
       void navigate({ to: "/login", search: { oidc_error: "1" } });
       return;
     }
-    // Exchange the short-lived HttpOnly session cookie for the access token.
-    fetch("/api/v1/auth/oidc/session")
-      .then((res) => {
-        if (!res.ok) throw new Error("no session");
-        return res.json() as Promise<{ accessToken: string }>;
-      })
+    eveyFetch<{ accessToken: string }>({ url: "/api/v1/auth/oidc/session", method: "GET" })
       .then(({ accessToken }) => {
         setTokens(accessToken);
         void navigate({ to: "/home" });
@@ -40,7 +38,7 @@ function OIDCCallbackPage() {
 
   return (
     <div className="min-h-screen flex items-center justify-center">
-      <p className="text-[var(--text-muted)]">Signing in...</p>
+      <p className="text-[var(--text-muted)]">{t("auth.signingIn")}</p>
     </div>
   );
 }
