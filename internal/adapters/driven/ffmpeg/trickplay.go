@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime/debug"
 	"strconv"
 	"sync"
 
@@ -96,6 +97,11 @@ func (g *TrickplayGenerator) Generate(ctx context.Context, filePath, outputDir s
 		go func(idx int, t float64) {
 			defer wg.Done()
 			defer func() { <-sem }()
+			defer func() {
+				if r := recover(); r != nil {
+					slog.Error("panic recovered in trickplay frame extract", "error", r, "stack", debug.Stack())
+				}
+			}()
 			out := filepath.Join(thumbDir, fmt.Sprintf("thumb_%05d.jpg", idx))
 			cmd := exec.CommandContext(ctx, "nice", "-n", "19", g.binary,
 				"-threads", "1",

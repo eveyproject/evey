@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"path/filepath"
 	"runtime"
+	"runtime/debug"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -165,6 +166,11 @@ func (s *CommandService) parseTrackWithTimeout(ctx context.Context, path, librar
 	}
 	ch := make(chan result, 1)
 	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				slog.Error("panic recovered in music parseTrack", "error", r, "stack", debug.Stack())
+			}
+		}()
 		t, err := s.parseTrack(path, libraryID, mimeType, fileSize)
 		select {
 		case ch <- result{t, err}:

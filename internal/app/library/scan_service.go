@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 	"runtime"
+	"runtime/debug"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -192,6 +193,11 @@ func (s *ScanService) ScanLibrary(ctx context.Context, libraryID string) (added,
 		go func(w scanWork) {
 			defer wg.Done()
 			defer func() { <-sem }()
+			defer func() {
+				if r := recover(); r != nil {
+					slog.Error("panic recovered in scan worker", "error", r, "stack", debug.Stack())
+				}
+			}()
 			a, u, e := s.upsertMediaFile(ctx, libraryID, w.parentID, w.file, w.showTitle)
 			if e != nil {
 				slog.Warn("upsert media file", slog.String("path", w.file.Path), slog.Any("err", e))

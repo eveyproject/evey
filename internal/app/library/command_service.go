@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"runtime/debug"
 	"time"
 
 	"github.com/gravity-zero/evey/internal/domain/library"
@@ -116,6 +117,11 @@ func (s *CommandService) StartPeriodicScan(ctx context.Context, libQueries libra
 		targetSet[id] = true
 	}
 	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				slog.Error("panic recovered in periodic scan", "error", r, "stack", debug.Stack())
+			}
+		}()
 		ticker := time.NewTicker(interval)
 		defer ticker.Stop()
 		for {

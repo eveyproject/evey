@@ -10,6 +10,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime/debug"
 	"strconv"
 	"strings"
 	"time"
@@ -543,7 +544,15 @@ func (h *transcodeServe) serveHTTP(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "no-cache")
 	w.Header().Set("Accept-Ranges", "none")
 	setCORSHeaders(w, r, h.baseURL)
-	go func() { <-r.Context().Done(); cancel() }()
+	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				slog.Error("panic recovered in transcode ffmpeg cancel", "error", r, "stack", debug.Stack())
+			}
+		}()
+		<-r.Context().Done()
+		cancel()
+	}()
 	if _, err := io.Copy(w, stdout); err != nil && ctx.Err() == nil {
 		slog.Warn("transcode copy", slog.Any("err", err))
 	}

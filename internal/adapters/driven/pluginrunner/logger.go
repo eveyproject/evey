@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"runtime/debug"
 	"strings"
 	"sync"
 	"time"
@@ -171,6 +172,11 @@ func (l *PluginLogger) SetRetentionDays(days int) {
 // StartCleanup periodically removes old log files and orphan logs.
 func (l *PluginLogger) StartCleanup(ctx context.Context, lister PluginLister) {
 	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				slog.Error("panic recovered in plugin log cleanup", "error", r, "stack", debug.Stack())
+			}
+		}()
 		// Run once at startup
 		l.cleanOldLogs()
 		l.cleanOrphanLogs(ctx, lister)

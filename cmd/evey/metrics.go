@@ -3,6 +3,8 @@ package main
 import (
 	"context"
 	"database/sql"
+	"log/slog"
+	"runtime/debug"
 	"time"
 
 	apptranscoding "github.com/gravity-zero/evey/internal/app/transcoding"
@@ -16,6 +18,11 @@ type mediaItemCounter interface {
 
 func startMetricsCollector(ctx context.Context, db *sql.DB, hlsManager *apptranscoding.HLSManager, mediaItemRepo mediaItemCounter) {
 	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				slog.Error("panic recovered in metrics HLS collector", "error", r, "stack", debug.Stack())
+			}
+		}()
 		ticker := time.NewTicker(30 * time.Second)
 		defer ticker.Stop()
 		for {
@@ -29,6 +36,11 @@ func startMetricsCollector(ctx context.Context, db *sql.DB, hlsManager *apptrans
 	}()
 
 	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				slog.Error("panic recovered in metrics DB collector", "error", r, "stack", debug.Stack())
+			}
+		}()
 		dbTicker := time.NewTicker(30 * time.Second)
 		mediaTicker := time.NewTicker(5 * time.Minute)
 		defer dbTicker.Stop()

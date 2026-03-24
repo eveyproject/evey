@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os/exec"
 	"path/filepath"
+	"runtime/debug"
 	"strconv"
 	"strings"
 	"time"
@@ -74,7 +75,15 @@ func subtitleHandler(tokenGen TokenVerifier, libSvc MediaStreamsGetter, baseURL 
 			slog.Error("ffmpeg subtitle start", slog.Any("err", err))
 			return
 		}
-		go func() { <-r.Context().Done(); cancel() }()
+		go func() {
+			defer func() {
+				if r := recover(); r != nil {
+					slog.Error("panic recovered in subtitle ffmpeg cancel", "error", r, "stack", debug.Stack())
+				}
+			}()
+			<-r.Context().Done()
+			cancel()
+		}()
 		if err := cmd.Wait(); err != nil && ctx.Err() == nil {
 			slog.Warn("ffmpeg subtitle", slog.String("media_id", mediaID), slog.Any("err", err))
 		}
@@ -104,7 +113,15 @@ func serveExternalSubtitle(w http.ResponseWriter, r *http.Request, path, baseDir
 		slog.Error("ffmpeg external subtitle", slog.Any("err", err))
 		return
 	}
-	go func() { <-r.Context().Done(); cancel() }()
+	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				slog.Error("panic recovered in external subtitle ffmpeg cancel", "error", r, "stack", debug.Stack())
+			}
+		}()
+		<-r.Context().Done()
+		cancel()
+	}()
 	if err := cmd.Wait(); err != nil && ctx.Err() == nil {
 		slog.Warn("ffmpeg external subtitle convert", slog.String("path", safePath), slog.Any("err", err))
 	}

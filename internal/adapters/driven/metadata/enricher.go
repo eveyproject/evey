@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 	"maps"
+	"runtime/debug"
 	"strings"
 	"sync"
 	"time"
@@ -564,6 +565,11 @@ func (e *Enricher) AutoEnrichAll(ctx context.Context, items []*domainlib.MediaIt
 		wg.Add(1)
 		go func(it *domainlib.MediaItem) {
 			defer wg.Done()
+			defer func() {
+				if r := recover(); r != nil {
+					slog.Error("panic recovered in metadata enricher", "error", r, "stack", debug.Stack())
+				}
+			}()
 			sem <- struct{}{}
 			defer func() { <-sem }()
 			e.AutoEnrichItem(ctx, it, log)
