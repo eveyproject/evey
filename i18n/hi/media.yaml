@@ -104,6 +104,32 @@ library:
   noPlaylists: अभी कोई प्लेलिस्ट नहीं।
   failedAddPlaylist: प्लेलिस्ट में जोड़ने में विफल
   itemsAddedToPlaylist: "{{count}} आइटम \"{{name}}\" में जोड़े गए"
+  filters: फ़िल्टर
+  clearAll: सब हटाएं
+  resultCount: "{{count}} परिणाम"
+  resultCount_plural: "{{count}} परिणाम"
+  yearLabel: वर्ष
+  yearFrom: से
+  yearTo: तक
+  minRating: न्यूनतम रेटिंग
+  minStars: "न्यूनतम {{count}} स्टार"
+  minStars_plural: "न्यूनतम {{count}} स्टार"
+  clearRating: हटाएं
+  typeAll: सभी
+  typeMovie: फ़िल्म
+  typeShow: शो
+  typeEpisode: एपिसोड
+  typeTrack: ट्रैक
+  typePhoto: फ़ोटो
+  typeLabel: प्रकार
+  genreText: "शैली (टेक्स्ट)"
+  genrePlaceholder: "जैसे एक्शन"
+  genreLabel: शैली
+  resolution: रिज़ॉल्यूशन
+  videoCodec: वीडियो कोडेक
+  audioLanguage: ऑडियो भाषा
+  subtitleLanguage: उपशीर्षक भाषा
+  noFilterOptions: इस लाइब्रेरी के लिए अभी कोई फ़िल्टर विकल्प उपलब्ध नहीं है।
 person:
   notFound: व्यक्ति नहीं मिला।
   unknown: अज्ञात

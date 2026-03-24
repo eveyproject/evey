@@ -53,10 +53,10 @@ export class ErrorBoundary extends Component<Props, State> {
           <TriangleAlert size={32} stroke="#ef4444" strokeWidth={1.5} />
         </div>
         <h1 style={{ fontSize: "1.5rem", fontWeight: 600, color: "var(--text, #fff)", margin: 0 }}>
-          Something went wrong
+          {i18n.t("common.errorBoundary.title")}
         </h1>
         <p style={{ fontSize: "0.875rem", maxWidth: "28rem", textAlign: "center", color: "var(--text-muted, #999)", margin: 0, lineHeight: 1.6 }}>
-          An unexpected error occurred. Please try reloading the page. If the problem persists, go back to the home page.
+          {i18n.t("common.errorBoundary.description")}
         </p>
         <div style={{ display: "flex", gap: "0.75rem", marginTop: "0.5rem" }}>
           <button
@@ -73,7 +73,7 @@ export class ErrorBoundary extends Component<Props, State> {
               cursor: "pointer",
             }}
           >
-            Try Again
+            {i18n.t("common.errorBoundary.tryAgain")}
           </button>
           <button
             onClick={() => { window.location.replace("/"); }}
@@ -89,7 +89,7 @@ export class ErrorBoundary extends Component<Props, State> {
               cursor: "pointer",
             }}
           >
-            Go Home
+            {i18n.t("common.errorBoundary.goHome")}
           </button>
         </div>
       </div>

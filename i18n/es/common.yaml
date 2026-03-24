@@ -54,6 +54,11 @@ items: "{{count}} elementos"
 item: "{{count}} elemento"
 filtered: "(filtrado)"
 noItemsMatch: "Ningún elemento coincide con el filtro actual."
+errorBoundary:
+  title: Algo salió mal
+  description: "Ocurrió un error inesperado. Intenta recargar la página. Si el problema persiste, vuelve a la página de inicio."
+  tryAgain: Reintentar
+  goHome: Ir al inicio
 aria:
   closeMenu: Cerrar menú
   openMenu: Abrir menú

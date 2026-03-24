@@ -104,6 +104,32 @@ library:
   noPlaylists: Pas encore de listes de lecture.
   failedAddPlaylist: "Échec de l'ajout à la liste de lecture"
   itemsAddedToPlaylist: "{{count}} élément(s) ajouté(s) à \"{{name}}\""
+  filters: Filtres
+  clearAll: Tout effacer
+  resultCount: "{{count}} résultat"
+  resultCount_plural: "{{count}} résultats"
+  yearLabel: Année
+  yearFrom: De
+  yearTo: "À"
+  minRating: Note minimum
+  minStars: "Min {{count}} étoile"
+  minStars_plural: "Min {{count}} étoiles"
+  clearRating: Effacer
+  typeAll: Tout
+  typeMovie: Film
+  typeShow: Série
+  typeEpisode: Épisode
+  typeTrack: Piste
+  typePhoto: Photo
+  typeLabel: Type
+  genreText: "Genre (texte)"
+  genrePlaceholder: "ex. Action"
+  genreLabel: Genre
+  resolution: Résolution
+  videoCodec: Codec vidéo
+  audioLanguage: Langue audio
+  subtitleLanguage: Langue des sous-titres
+  noFilterOptions: Aucune option de filtre disponible pour cette bibliothèque.
 person:
   notFound: Personne introuvable.
   unknown: Inconnu

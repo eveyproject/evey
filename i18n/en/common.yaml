@@ -53,6 +53,11 @@ items: "{{count}} items"
 item: "{{count}} item"
 filtered: "(filtered)"
 noItemsMatch: No items match the current filter.
+errorBoundary:
+  title: Something went wrong
+  description: An unexpected error occurred. Please try reloading the page. If the problem persists, go back to the home page.
+  tryAgain: Try Again
+  goHome: Go Home
 notifications:
   title: Notifications
   markRead: Mark read

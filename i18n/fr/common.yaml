@@ -54,6 +54,11 @@ items: "{{count}} éléments"
 item: "{{count}} élément"
 filtered: "(filtré)"
 noItemsMatch: "Aucun élément ne correspond au filtre actuel."
+errorBoundary:
+  title: "Une erreur est survenue"
+  description: "Une erreur inattendue s'est produite. Veuillez recharger la page. Si le problème persiste, retournez à l'accueil."
+  tryAgain: Réessayer
+  goHome: "Retour à l'accueil"
 aria:
   closeMenu: Fermer le menu
   openMenu: Ouvrir le menu
