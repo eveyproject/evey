@@ -172,7 +172,10 @@ func parseTrackWithTimeout(ctx context.Context, path, libraryID, mimeType string
 	ch := make(chan result, 1)
 	go func() {
 		t, err := parseTrack(path, libraryID, mimeType, fileSize)
-		ch <- result{t, err}
+		select {
+		case ch <- result{t, err}:
+		case <-tCtx.Done():
+		}
 	}()
 	select {
 	case r := <-ch:
