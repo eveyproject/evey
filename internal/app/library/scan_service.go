@@ -234,39 +234,39 @@ func (s *ScanService) removeOrphanedItems(ctx context.Context, libraryID string,
 	if err != nil {
 		return 0, fmt.Errorf("list file paths: %w", err)
 	}
-	removed := 0
+	var orphanIDs []string
 	for id, path := range dbPaths {
-		if _, seen := seenPaths[path]; seen {
-			continue
+		if _, seen := seenPaths[path]; !seen {
+			orphanIDs = append(orphanIDs, id)
 		}
-		if delErr := s.mediaItems.Delete(ctx, id); delErr != nil {
-			slog.Warn("delete orphaned media item failed", slog.String("id", id), slog.String("path", path), slog.Any("err", delErr))
-			continue
+	}
+	if len(orphanIDs) > 0 {
+		if delErr := s.mediaItems.DeleteByIDs(ctx, orphanIDs); delErr != nil {
+			slog.Warn("batch delete orphaned media items failed", slog.Any("err", delErr))
 		}
-		if s.search != nil {
-			if idxErr := s.search.RemoveMediaItem(ctx, id); idxErr != nil {
-				slog.Warn("remove orphan from search index failed", slog.String("id", id), slog.Any("err", idxErr))
+		for _, id := range orphanIDs {
+			if s.search != nil {
+				if idxErr := s.search.RemoveMediaItem(ctx, id); idxErr != nil {
+					slog.Warn("remove orphan from search index failed", slog.String("id", id), slog.Any("err", idxErr))
+				}
+			}
+			evt := library.MediaItemRemoved{
+				MediaItemID: id,
+				LibraryID:   libraryID,
+				OccurredAt:  time.Now(),
+			}
+			if pubErr := s.events.Publish(ctx, evt); pubErr != nil {
+				slog.Warn("publish event", slog.String("event", evt.EventName()), slog.Any("err", pubErr))
 			}
 		}
-		evt := library.MediaItemRemoved{
-			MediaItemID: id,
-			LibraryID:   libraryID,
-			OccurredAt:  time.Now(),
-		}
-		if pubErr := s.events.Publish(ctx, evt); pubErr != nil {
-			slog.Warn("publish event", slog.String("event", evt.EventName()), slog.Any("err", pubErr))
-		}
-		removed++
 	}
 
-	// Prune empty seasons (no child episodes) and empty series (no child seasons)
 	pruned, pruneErr := s.pruneEmptyContainers(ctx, libraryID)
 	if pruneErr != nil {
 		slog.Warn("prune empty containers failed", slog.Any("err", pruneErr))
 	}
-	removed += pruned
 
-	return removed, nil
+	return len(orphanIDs) + pruned, nil
 }
 
 func (svc *ScanService) pruneEmptyContainers(ctx context.Context, libraryID string) (int, error) {

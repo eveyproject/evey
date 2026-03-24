@@ -58,6 +58,18 @@ func (r *FakeMediaItemCommandRepo) Delete(_ context.Context, id string) error {
 	return nil
 }
 
+func (r *FakeMediaItemCommandRepo) DeleteByIDs(_ context.Context, ids []string) error {
+	if r.ErrDelete != nil {
+		return r.ErrDelete
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	for _, id := range ids {
+		delete(r.items, id)
+	}
+	return nil
+}
+
 func (r *FakeMediaItemCommandRepo) GetByFilePath(_ context.Context, path string) (*library.MediaItem, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()

@@ -9,6 +9,7 @@ import (
 	"log/slog"
 	"strings"
 
+	"github.com/lib/pq"
 	"github.com/gravity-zero/evey/internal/domain/library"
 	"github.com/gravity-zero/evey/internal/domain/shared"
 )
@@ -333,6 +334,14 @@ func (r *MediaItemRepository) Update(ctx context.Context, item *library.MediaIte
 
 func (r *MediaItemRepository) Delete(ctx context.Context, id string) error {
 	_, err := r.db.ExecContext(ctx, `DELETE FROM media_items WHERE id = $1`, id)
+	return err
+}
+
+func (r *MediaItemRepository) DeleteByIDs(ctx context.Context, ids []string) error {
+	if len(ids) == 0 {
+		return nil
+	}
+	_, err := r.db.ExecContext(ctx, `DELETE FROM media_items WHERE id = ANY($1)`, pq.Array(ids))
 	return err
 }
 
