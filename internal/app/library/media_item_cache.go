@@ -20,6 +20,7 @@ type CachedMediaItemQueryRepo struct {
 
 	mu    sync.RWMutex
 	items map[string]cacheEntry
+	done  chan struct{}
 }
 
 func NewCachedMediaItemQueryRepo(inner library.MediaItemQueryRepo, ttl time.Duration) *CachedMediaItemQueryRepo {
@@ -27,9 +28,18 @@ func NewCachedMediaItemQueryRepo(inner library.MediaItemQueryRepo, ttl time.Dura
 		inner: inner,
 		ttl:   ttl,
 		items: make(map[string]cacheEntry),
+		done:  make(chan struct{}),
 	}
 	go c.evictLoop()
 	return c
+}
+
+func (c *CachedMediaItemQueryRepo) Stop() {
+	select {
+	case <-c.done:
+	default:
+		close(c.done)
+	}
 }
 
 func (c *CachedMediaItemQueryRepo) GetByID(ctx context.Context, id string) (*library.MediaItem, error) {
@@ -93,14 +103,19 @@ func (c *CachedMediaItemQueryRepo) GetCastForItems(ctx context.Context, mediaIte
 func (c *CachedMediaItemQueryRepo) evictLoop() {
 	ticker := time.NewTicker(10 * time.Second)
 	defer ticker.Stop()
-	for range ticker.C {
-		now := time.Now()
-		c.mu.Lock()
-		for id, e := range c.items {
-			if now.After(e.expiresAt) {
-				delete(c.items, id)
+	for {
+		select {
+		case <-c.done:
+			return
+		case <-ticker.C:
+			now := time.Now()
+			c.mu.Lock()
+			for id, e := range c.items {
+				if now.After(e.expiresAt) {
+					delete(c.items, id)
+				}
 			}
+			c.mu.Unlock()
 		}
-		c.mu.Unlock()
 	}
 }
