@@ -1,4 +1,4 @@
-import { useRef, useState, useEffect, useCallback } from "react";
+import { memo, useRef, useState, useEffect, useCallback } from "react";
 import type { ReactNode } from "react";
 import { Link } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
@@ -30,7 +30,7 @@ function SkeletonCard() {
   );
 }
 
-export function MediaSlider({
+export const MediaSlider = memo(function MediaSlider({
   title,
   seeAllHref,
   seeAllParams,
@@ -226,4 +226,4 @@ export function MediaSlider({
       </div>
     </section>
   );
-}
+});
