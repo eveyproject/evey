@@ -13,6 +13,7 @@ import (
 	applibrary "github.com/gravity-zero/evey/internal/app/library"
 	appplugin "github.com/gravity-zero/evey/internal/app/plugin"
 	apptranscoding "github.com/gravity-zero/evey/internal/app/transcoding"
+	transcodingfakes "github.com/gravity-zero/evey/internal/domain/transcoding/fakes"
 	appuser "github.com/gravity-zero/evey/internal/app/user"
 	activityfakes "github.com/gravity-zero/evey/internal/domain/activity/fakes"
 	libraryfakes "github.com/gravity-zero/evey/internal/domain/library/fakes"
@@ -89,7 +90,7 @@ func TestAdminGetDashboard(t *testing.T) {
 func TestAdminGetDashboard_WithHLSManager(t *testing.T) {
 	h := newTestAdminHandler()
 	tmpDir := t.TempDir()
-	hls := apptranscoding.NewHLSManager(context.Background(), tmpDir, 5)
+	hls := apptranscoding.NewHLSManager(context.Background(), tmpDir, 5, &transcodingfakes.HLSProcess{})
 	defer hls.CleanupAll()
 	h.hlsManager = hls
 

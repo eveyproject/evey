@@ -11,6 +11,12 @@ import (
 	"github.com/gravity-zero/evey/internal/domain/webhook"
 )
 
+type noopSender struct{}
+
+func (n *noopSender) Send(_ context.Context, _ string, _ map[string]string, _ []byte) (int, error) {
+	return 200, nil
+}
+
 type fakeWebhookRepo struct {
 	items map[string]*webhook.Config
 }
@@ -80,7 +86,7 @@ func setupWebhookHandler() (*webhookHandler, *fakeDeliveryRepo) {
 	repo := newFakeWebhookRepo()
 	deliveries := newFakeDeliveryRepo()
 	events := sharedfakes.NewFakeEventBus()
-	svc := appwebhook.NewService(repo, deliveries, slog.Default(), events)
+	svc := appwebhook.NewService(repo, deliveries, &noopSender{}, slog.Default(), events)
 	svc.SetURLValidator(func(string) error { return nil })
 
 	return &webhookHandler{svc: svc}, deliveries
