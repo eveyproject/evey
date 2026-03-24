@@ -4,7 +4,7 @@ import { Link, useNavigate } from "@tanstack/react-router";
 import { useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { usePlaybackServiceMarkAsWatched, usePlaybackServiceMarkAsUnwatched, libraryServiceGetMediaItem } from "@evey/api";
-import type { V1Artwork } from "@evey/api/src/generated/library.schemas";
+import type { V1Artwork } from "@evey/api";
 import { toast, useAuthStore } from "@evey/store";
 import { FavoriteButton } from "./FavoriteButton";
 import { StarRatingBadge } from "./StarRating";
@@ -290,19 +290,24 @@ export const MediaCard = memo(function MediaCard({
 
   const queryClient = useQueryClient();
 
+  const prefetchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   const handleMouseEnter = useCallback(() => {
     if (item.id) {
-      queryClient.prefetchQuery({
-        queryKey: [`/api/v1/media/${item.id}`],
-        queryFn: ({ signal }) => libraryServiceGetMediaItem(item.id!, signal),
-        staleTime: 60_000,
-      });
+      prefetchTimer.current = setTimeout(() => {
+        queryClient.prefetchQuery({
+          queryKey: [`/api/v1/media/${item.id}`],
+          queryFn: ({ signal }) => libraryServiceGetMediaItem(item.id!, signal),
+          staleTime: 60_000,
+        });
+      }, 100);
     }
     if (!hasPreviewData) return;
     hoverTimer.current = setTimeout(() => setShowPreview(true), 400);
   }, [hasPreviewData, item.id, queryClient]);
 
   const handleMouseLeave = useCallback(() => {
+    if (prefetchTimer.current) clearTimeout(prefetchTimer.current);
     if (hoverTimer.current) clearTimeout(hoverTimer.current);
     setShowPreview(false);
   }, []);
@@ -434,7 +439,7 @@ export const MediaCard = memo(function MediaCard({
               bottom: hasProgressBar ? "0.75rem" : "0.5rem",
               right: "0.5rem",
               backgroundColor: "var(--overlay-bg-strong)",
-              color: "#f5c518",
+              color: "var(--badge-imdb-bg)",
               borderRadius: "var(--radius-sm)",
             }}
           >

@@ -7,7 +7,7 @@ import {
   useUserServiceRevokeAPIKey,
   getUserServiceListAPIKeysQueryKey,
 } from "@evey/api";
-import type { V1APIKey } from "@evey/api/src/generated/user.schemas";
+import type { V1APIKey } from "@evey/api";
 import { toast } from "@evey/store";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";

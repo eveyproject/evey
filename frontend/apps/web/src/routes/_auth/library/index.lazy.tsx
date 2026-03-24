@@ -2,7 +2,7 @@ import { Film, Monitor, Music, Folder, ChevronRight } from "lucide-react";
 import { createLazyFileRoute, Link } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { useLibraryServiceListLibraries, useLibraryServiceListMediaItems } from "@evey/api";
-import type { V1Library, V1LibraryType } from "@evey/api/src/generated/library.schemas";
+import type { V1Library, V1LibraryType } from "@evey/api";
 import { Badge } from "@/components/ui/Badge";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Skeleton } from "@/components/ui/Skeleton";

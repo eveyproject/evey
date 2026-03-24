@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useWebhookServiceCreateWebhook, useWebhookServiceUpdateWebhook } from "@evey/api";
-import type { V1WebhookConfig } from "@evey/api/src/generated/webhook.schemas";
+import type { V1WebhookConfig } from "@evey/api";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 

@@ -7,19 +7,16 @@ const mockListProfiles = vi.fn();
 const mockEveyFetch = vi.fn();
 const mockInvalidateQueries = vi.fn();
 
-vi.mock("@evey/api/src/generated/transcoding.schemas", () => ({
+vi.mock("@evey/api", () => ({
+  eveyFetch: (...args: unknown[]) => mockEveyFetch(...args),
+  useTranscodingServiceListTranscodeProfiles: (...args: unknown[]) => mockListProfiles(...args),
+  getTranscodingServiceListTranscodeProfilesQueryKey: () => ["/api/v1/admin/transcoding/profiles"],
   V1HWAccelType: {
     HW_ACCEL_TYPE_NONE: "HW_ACCEL_TYPE_NONE",
     HW_ACCEL_TYPE_VAAPI: "HW_ACCEL_TYPE_VAAPI",
     HW_ACCEL_TYPE_NVENC: "HW_ACCEL_TYPE_NVENC",
     HW_ACCEL_TYPE_QSV: "HW_ACCEL_TYPE_QSV",
   },
-}));
-
-vi.mock("@evey/api", () => ({
-  eveyFetch: (...args: unknown[]) => mockEveyFetch(...args),
-  useTranscodingServiceListTranscodeProfiles: (...args: unknown[]) => mockListProfiles(...args),
-  getTranscodingServiceListTranscodeProfilesQueryKey: () => ["/api/v1/admin/transcoding/profiles"],
 }));
 
 vi.mock("@evey/store", () => ({

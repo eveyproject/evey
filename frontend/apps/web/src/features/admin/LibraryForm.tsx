@@ -4,7 +4,7 @@ import { eveyFetch, useLibraryServiceCreateLibrary } from "@evey/api";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Select } from "@/components/ui/Select";
-import type { V1LibraryType } from "@evey/api/src/generated/library.schemas";
+import type { V1LibraryType } from "@evey/api";
 
 interface LibraryFormProps {
   onSuccess: () => void;

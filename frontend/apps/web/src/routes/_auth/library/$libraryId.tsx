@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import type { LibraryServiceListMediaItemsType, LibraryServiceListMediaItemsSortField, LibraryServiceListMediaItemsSortOrder } from "@evey/api/src/generated/library.schemas";
+import type { LibraryServiceListMediaItemsType, LibraryServiceListMediaItemsSortField, LibraryServiceListMediaItemsSortOrder } from "@evey/api";
 
 export type LibrarySearch = {
   type?: LibraryServiceListMediaItemsType;

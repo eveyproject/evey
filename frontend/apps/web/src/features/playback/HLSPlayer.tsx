@@ -3,7 +3,7 @@ import { useTranslation } from "react-i18next";
 import { RotateCcw, RotateCw, Play, Pause, Loader, TriangleAlert } from "lucide-react";
 import Hls from "hls.js";
 import { useAuthStore } from "@evey/store";
-import type { V1StreamInfo } from "@evey/api/src/generated/playback.schemas";
+import type { V1StreamInfo } from "@evey/api";
 import type { AudioStream } from "./AudioTrackSelector";
 import type { SubtitleStream } from "./SubtitleSelector";
 import { PlayerControls } from "./PlayerControls";

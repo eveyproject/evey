@@ -10,7 +10,7 @@ import {
   eveyFetch,
 } from "@evey/api";
 import { toast } from "@evey/store";
-import type { V1MediaItem } from "@evey/api/src/generated/library.schemas";
+import type { V1MediaItem } from "@evey/api";
 import { Spinner } from "@/components/ui/Spinner";
 import { Button } from "@/components/ui/Button";
 import { Modal } from "@/components/ui/Modal";

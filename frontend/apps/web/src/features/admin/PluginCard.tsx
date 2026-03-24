@@ -12,7 +12,7 @@ import {
   useAdminServiceUpdatePluginConfig,
 } from "@evey/api";
 import { toast } from "@evey/store";
-import type { V1Plugin, V1PluginState } from "@evey/api/src/generated/admin.schemas";
+import type { V1Plugin, V1PluginState } from "@evey/api";
 
 type PluginWithPermissions = V1Plugin & {
   permissions?: string[];
@@ -110,7 +110,7 @@ function PluginConfigPanel({ pluginId, configSchema }: PluginConfigPanelProps) {
         setEdits({});
         toast.success(t("admin.plugin.configSaved"));
       },
-      onError: (err: Error) => toast.error(err.message || "Failed to save config"),
+      onError: (err: Error) => toast.error(err.message || t("admin.plugin.configSaveFailed")),
     },
   });
 

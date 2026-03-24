@@ -14,8 +14,6 @@ vi.mock("@evey/api", () => ({
   usePlaybackServiceStopStream: () => ({ mutate: stopMutateFn }),
 }));
 
-vi.mock("@evey/api/src/generated/playback.schemas", () => ({}));
-
 vi.mock("@evey/store", () => ({
   useAuthStore: Object.assign(
     () => null,

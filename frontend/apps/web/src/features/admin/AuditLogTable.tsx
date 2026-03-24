@@ -1,6 +1,6 @@
 import { useTranslation } from "react-i18next";
 import { Clock } from "lucide-react";
-import type { V1AuditLogEntry } from "@evey/api/src/generated/admin.schemas";
+import type { V1AuditLogEntry } from "@evey/api";
 import { Pagination } from "@/components/ui/Pagination";
 import { EmptyState } from "@/components/ui/EmptyState";
 

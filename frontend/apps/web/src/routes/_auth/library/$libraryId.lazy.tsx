@@ -15,7 +15,7 @@ import type {
   LibraryServiceListMediaItemsSortField,
   LibraryServiceListMediaItemsSortOrder,
   V1MediaItem,
-} from "@evey/api/src/generated/library.schemas";
+} from "@evey/api";
 import { Button } from "@/components/ui/Button";
 import { Select } from "@/components/ui/Select";
 import { Input } from "@/components/ui/Input";

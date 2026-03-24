@@ -2,7 +2,7 @@ import { useState, useRef } from "react";
 import { Star, ChevronLeft, ChevronRight, ChevronDown, Play, EyeOff, Eye, Plus, Pencil } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Link, useNavigate } from "@tanstack/react-router";
-import type { V1MediaItem, V1MediaPerson, V1Trailer } from "@evey/api/src/generated/library.schemas";
+import type { V1MediaItem, V1MediaPerson, V1Trailer } from "@evey/api";
 import {
   usePlaybackServiceMarkAsWatched,
   usePlaybackServiceMarkAsUnwatched,

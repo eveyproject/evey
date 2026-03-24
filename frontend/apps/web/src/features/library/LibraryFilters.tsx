@@ -1,4 +1,4 @@
-import type { V1MediaItem, LibraryServiceListMediaItemsType } from "@evey/api/src/generated/library.schemas";
+import type { V1MediaItem, LibraryServiceListMediaItemsType } from "@evey/api";
 import { Check, Star, Filter } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/Button";
