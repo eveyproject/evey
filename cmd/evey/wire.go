@@ -312,7 +312,8 @@ func buildServices(ctx context.Context, cfg *config.Config, db *sql.DB, rootLog 
 	}
 
 	favoriteSvc := appfavorite.NewService(r.Favorite)
-	photoSvc := appphoto.NewService(r.Photo, bus, r.Library)
+	photoScanner := filesystem.NewPhotoScanner()
+	photoSvc := appphoto.NewService(r.Photo, bus, r.Library, photoScanner)
 	starRatingSvc := apprating.NewService(r.Rating, bus)
 	musicSvc := appmusic.NewService(r.MusicTrack, bus, r.Library)
 	playlistSvc := appplaylist.NewService(r.Playlist, r.PlaylistItem, r.SmartPlaylist)

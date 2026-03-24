@@ -4,12 +4,7 @@ import (
 	"context"
 	"encoding/binary"
 	"fmt"
-	"image"
-	_ "image/gif"
-	_ "image/jpeg"
-	_ "image/png"
 	"log/slog"
-	"os"
 	"path/filepath"
 	"runtime"
 	"strings"
@@ -20,7 +15,6 @@ import (
 	"github.com/gravity-zero/evey/internal/domain/library"
 	"github.com/gravity-zero/evey/internal/domain/photo"
 	"github.com/gravity-zero/evey/internal/domain/shared"
-	"github.com/gravity-zero/evey/internal/pkg/filehash"
 	"github.com/gravity-zero/evey/internal/pkg/id"
 )
 
@@ -130,26 +124,15 @@ func readExifString(tiff, valueField []byte, dataType uint16, count int, order b
 	return strings.TrimSpace(s)
 }
 
-var imageExts = map[string]string{
-	".jpg":  "image/jpeg",
-	".jpeg": "image/jpeg",
-	".png":  "image/png",
-	".heic": "image/heic",
-	".webp": "image/webp",
-	".gif":  "image/gif",
-	".tiff": "image/tiff",
-	".tif":  "image/tiff",
-	".bmp":  "image/bmp",
-}
-
 type Service struct {
 	repo    photo.Repository
 	bus     shared.EventBus
 	libRepo library.LibraryQueryRepo
+	scanner photo.PhotoScanner
 }
 
-func NewService(repo photo.Repository, bus shared.EventBus, libRepo library.LibraryQueryRepo) *Service {
-	return &Service{repo: repo, bus: bus, libRepo: libRepo}
+func NewService(repo photo.Repository, bus shared.EventBus, libRepo library.LibraryQueryRepo, scanner photo.PhotoScanner) *Service {
+	return &Service{repo: repo, bus: bus, libRepo: libRepo, scanner: scanner}
 }
 
 func (s *Service) ScanDirectory(ctx context.Context, libraryID, dir string) (int, error) {
@@ -175,7 +158,7 @@ func (s *Service) ScanDirectory(ctx context.Context, libraryID, dir string) (int
 
 	type photoJob struct {
 		path    string
-		info    os.FileInfo
+		size    int64
 		mime    string
 		dir     string
 		hash    string
@@ -183,49 +166,28 @@ func (s *Service) ScanDirectory(ctx context.Context, libraryID, dir string) (int
 	}
 	var toProcess []photoJob
 
-	walkErr := filepath.WalkDir(dir, func(path string, d os.DirEntry, walkE error) error {
-		if walkE != nil {
-			slog.Warn("photo walk error", slog.String("path", path), slog.Any("err", walkE))
-			return nil
-		}
-		if d.IsDir() {
-			return nil
-		}
-		if ctx.Err() != nil {
-			return ctx.Err()
-		}
-		ext := strings.ToLower(filepath.Ext(path))
-		mime, ok := imageExts[ext]
-		if !ok {
-			return nil
-		}
-		info, infoErr := d.Info()
-		if infoErr != nil {
-			slog.Warn("photo stat error", slog.String("path", path), slog.Any("err", infoErr))
-			return nil
-		}
-
-		hash, hashErr := filehash.Compute(path)
+	walkErr := s.scanner.WalkImageFiles(ctx, dir, func(f photo.ScannedImageFile) error {
+		hash, hashErr := s.scanner.ComputeHash(f.Path)
 		if hashErr != nil {
-			slog.Warn("photo hash error", slog.String("path", path), slog.Any("err", hashErr))
+			slog.Warn("photo hash error", slog.String("path", f.Path), slog.Any("err", hashErr))
 		}
 
-		if ex := byPath[path]; ex != nil {
-			if ex.FileSize == info.Size() && ex.ModTime.Equal(info.ModTime()) && ex.FileHash == hash {
+		if ex := byPath[f.Path]; ex != nil {
+			if ex.FileSize == f.Size && ex.ModTime.Equal(f.ModTime) && ex.FileHash == hash {
 				return nil
 			}
 		}
 
-		if byPath[path] == nil && hash != "" {
+		if byPath[f.Path] == nil && hash != "" {
 			if moved := byHash[hash]; moved != nil {
-				if updateErr := s.repo.UpdateFilePath(ctx, moved.ID, path, info.ModTime()); updateErr != nil {
+				if updateErr := s.repo.UpdateFilePath(ctx, moved.ID, f.Path, f.ModTime); updateErr != nil {
 					slog.Warn("photo update path", slog.String("id", moved.ID), slog.Any("err", updateErr))
 				}
 				return nil
 			}
 		}
 
-		toProcess = append(toProcess, photoJob{path: path, info: info, mime: mime, dir: dir, hash: hash, modTime: info.ModTime()})
+		toProcess = append(toProcess, photoJob{path: f.Path, size: f.Size, mime: f.MimeType, dir: dir, hash: hash, modTime: f.ModTime})
 		return nil
 	})
 
@@ -250,18 +212,19 @@ func (s *Service) ScanDirectory(ctx context.Context, libraryID, dir string) (int
 			var takenAt *time.Time
 			var cameraModel string
 			if j.mime == "image/jpeg" {
-				if raw, readErr := os.ReadFile(j.path); readErr == nil {
+				if raw, readErr := s.scanner.ReadFile(j.path); readErr == nil {
 					takenAt, cameraModel = readExifData(raw)
 				}
 			}
 
-			title := strings.TrimSuffix(j.info.Name(), filepath.Ext(j.info.Name()))
+			name := filepath.Base(j.path)
+			title := strings.TrimSuffix(name, filepath.Ext(name))
 			album := filepath.Base(filepath.Dir(j.path))
 			if album == "." || album == j.dir {
 				album = ""
 			}
 
-			width, height := imageDimensions(j.path)
+			width, height := s.scanner.ImageDimensions(j.path)
 
 			now := time.Now()
 			p := photo.Photo{
@@ -269,7 +232,7 @@ func (s *Service) ScanDirectory(ctx context.Context, libraryID, dir string) (int
 				LibraryID:   libraryID,
 				Title:       title,
 				FilePath:    j.path,
-				FileSize:    j.info.Size(),
+				FileSize:    j.size,
 				FileHash:    j.hash,
 				ModTime:     j.modTime,
 				MimeType:    j.mime,
@@ -335,17 +298,4 @@ func (s *Service) Search(ctx context.Context, libraryID, query string, limit int
 		limit = 50
 	}
 	return s.repo.Search(ctx, libraryID, query, limit)
-}
-
-func imageDimensions(path string) (int, int) {
-	f, err := os.Open(path)
-	if err != nil {
-		return 0, 0
-	}
-	defer f.Close()
-	cfg, _, err := image.DecodeConfig(f)
-	if err != nil {
-		return 0, 0
-	}
-	return cfg.Width, cfg.Height
 }

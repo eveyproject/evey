@@ -68,7 +68,7 @@ func newPhotoTestMux(t *testing.T, checker LibraryAccessChecker) (*http.ServeMux
 
 	repo := photofakes.NewFakeRepository()
 	bus := sharedfakes.NewFakeEventBus()
-	svc := appphoto.NewService(repo, bus, nil)
+	svc := appphoto.NewService(repo, bus, nil, nil)
 
 	mux := http.NewServeMux()
 	registerPhotoRoutes(mux, svc, tokenGen, checker, nil, context.Background())
@@ -114,7 +114,7 @@ func newPhotoAdminTestMux(t *testing.T) (*http.ServeMux, string) {
 
 	repo := photofakes.NewFakeRepository()
 	bus := sharedfakes.NewFakeEventBus()
-	svc := appphoto.NewService(repo, bus, nil)
+	svc := appphoto.NewService(repo, bus, nil, nil)
 
 	mux := http.NewServeMux()
 	registerPhotoRoutes(mux, svc, tokenGen, allowAll(), nil, context.Background())

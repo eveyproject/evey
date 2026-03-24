@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	fsadapter "github.com/gravity-zero/evey/internal/adapters/driven/filesystem"
 	appphoto "github.com/gravity-zero/evey/internal/app/photo"
 	"github.com/gravity-zero/evey/internal/domain/library"
 	libfakes "github.com/gravity-zero/evey/internal/domain/library/fakes"
@@ -100,7 +101,7 @@ func TestScanDirectory_EmptyDir(t *testing.T) {
 	dir := t.TempDir()
 	repo := photofakes.NewFakeRepository()
 	bus := sharedfakes.NewFakeEventBus()
-	svc := appphoto.NewService(repo, bus, nil)
+	svc := appphoto.NewService(repo, bus, nil, fsadapter.NewPhotoScanner())
 
 	count, err := svc.ScanDirectory(context.Background(), "lib-1", dir)
 
@@ -111,7 +112,7 @@ func TestScanDirectory_EmptyDir(t *testing.T) {
 
 func TestScanDirectory_NonexistentDir(t *testing.T) {
 	repo := photofakes.NewFakeRepository()
-	svc := appphoto.NewService(repo, sharedfakes.NewFakeEventBus(), nil)
+	svc := appphoto.NewService(repo, sharedfakes.NewFakeEventBus(), nil, fsadapter.NewPhotoScanner())
 
 	count, err := svc.ScanDirectory(context.Background(), "lib-1", "/nonexistent/path/xyz")
 
@@ -123,7 +124,7 @@ func TestScanDirectory_NonexistentDir(t *testing.T) {
 func TestScanDirectory_LibraryValidation_NotFound(t *testing.T) {
 	libRepo := libfakes.NewFakeLibraryQueryRepo()
 	repo := photofakes.NewFakeRepository()
-	svc := appphoto.NewService(repo, sharedfakes.NewFakeEventBus(), libRepo)
+	svc := appphoto.NewService(repo, sharedfakes.NewFakeEventBus(), libRepo, fsadapter.NewPhotoScanner())
 
 	count, err := svc.ScanDirectory(context.Background(), "nonexistent-lib", t.TempDir())
 
@@ -140,7 +141,7 @@ func TestScanDirectory_LibraryValidation_Found(t *testing.T) {
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "img.jpg"), minimalJPEG, 0600))
 
 	repo := photofakes.NewFakeRepository()
-	svc := appphoto.NewService(repo, sharedfakes.NewFakeEventBus(), libRepo)
+	svc := appphoto.NewService(repo, sharedfakes.NewFakeEventBus(), libRepo, fsadapter.NewPhotoScanner())
 
 	count, err := svc.ScanDirectory(context.Background(), "lib-ok", dir)
 
@@ -153,7 +154,7 @@ func TestScanDirectory_LibraryNil_SkipsValidation(t *testing.T) {
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "a.jpg"), minimalJPEG, 0600))
 
 	repo := photofakes.NewFakeRepository()
-	svc := appphoto.NewService(repo, sharedfakes.NewFakeEventBus(), nil)
+	svc := appphoto.NewService(repo, sharedfakes.NewFakeEventBus(), nil, fsadapter.NewPhotoScanner())
 
 	count, err := svc.ScanDirectory(context.Background(), "any-lib", dir)
 
@@ -167,7 +168,7 @@ func TestScanDirectory_RepoUpsertError_CountZero(t *testing.T) {
 
 	repo := photofakes.NewFakeRepository()
 	repo.UpsertErr = errors.New("db down")
-	svc := appphoto.NewService(repo, sharedfakes.NewFakeEventBus(), nil)
+	svc := appphoto.NewService(repo, sharedfakes.NewFakeEventBus(), nil, fsadapter.NewPhotoScanner())
 
 	count, err := svc.ScanDirectory(context.Background(), "lib-1", dir)
 
@@ -181,7 +182,7 @@ func TestScanDirectory_PublishesPhotoAddedEvent(t *testing.T) {
 
 	repo := photofakes.NewFakeRepository()
 	bus := sharedfakes.NewFakeEventBus()
-	svc := appphoto.NewService(repo, bus, nil)
+	svc := appphoto.NewService(repo, bus, nil, fsadapter.NewPhotoScanner())
 
 	count, err := svc.ScanDirectory(context.Background(), "lib-ev", dir)
 
@@ -203,7 +204,7 @@ func TestScanDirectory_EventNotPublished_OnUpsertError(t *testing.T) {
 	repo := photofakes.NewFakeRepository()
 	repo.Err = errors.New("upsert fail")
 	bus := sharedfakes.NewFakeEventBus()
-	svc := appphoto.NewService(repo, bus, nil)
+	svc := appphoto.NewService(repo, bus, nil, fsadapter.NewPhotoScanner())
 
 	_, _ = svc.ScanDirectory(context.Background(), "lib-1", dir)
 
@@ -215,7 +216,7 @@ func TestScanDirectory_PhotoFields(t *testing.T) {
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "sunset.jpg"), minimalJPEG, 0600))
 
 	repo := photofakes.NewFakeRepository()
-	svc := appphoto.NewService(repo, sharedfakes.NewFakeEventBus(), nil)
+	svc := appphoto.NewService(repo, sharedfakes.NewFakeEventBus(), nil, fsadapter.NewPhotoScanner())
 	ctx := context.Background()
 
 	count, err := svc.ScanDirectory(ctx, "lib-f", dir)
@@ -244,7 +245,7 @@ func TestScanDirectory_AlbumFromSubdir(t *testing.T) {
 	require.NoError(t, os.WriteFile(filepath.Join(sub, "beach.jpg"), minimalJPEG, 0600))
 
 	repo := photofakes.NewFakeRepository()
-	svc := appphoto.NewService(repo, sharedfakes.NewFakeEventBus(), nil)
+	svc := appphoto.NewService(repo, sharedfakes.NewFakeEventBus(), nil, fsadapter.NewPhotoScanner())
 	ctx := context.Background()
 
 	count, err := svc.ScanDirectory(ctx, "lib-a", dir)
@@ -262,7 +263,7 @@ func TestScanDirectory_RootFileAlbumIsDirBasename(t *testing.T) {
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "root.jpg"), minimalJPEG, 0600))
 
 	repo := photofakes.NewFakeRepository()
-	svc := appphoto.NewService(repo, sharedfakes.NewFakeEventBus(), nil)
+	svc := appphoto.NewService(repo, sharedfakes.NewFakeEventBus(), nil, fsadapter.NewPhotoScanner())
 	ctx := context.Background()
 
 	_, err := svc.ScanDirectory(ctx, "lib-r", dir)
@@ -295,7 +296,7 @@ func TestScanDirectory_AllImageExtensions(t *testing.T) {
 	}
 
 	repo := photofakes.NewFakeRepository()
-	svc := appphoto.NewService(repo, sharedfakes.NewFakeEventBus(), nil)
+	svc := appphoto.NewService(repo, sharedfakes.NewFakeEventBus(), nil, fsadapter.NewPhotoScanner())
 
 	count, err := svc.ScanDirectory(context.Background(), "lib-ext", dir)
 	require.NoError(t, err)
@@ -318,7 +319,7 @@ func TestScanDirectory_NonImageExtSkipped(t *testing.T) {
 	}
 
 	repo := photofakes.NewFakeRepository()
-	svc := appphoto.NewService(repo, sharedfakes.NewFakeEventBus(), nil)
+	svc := appphoto.NewService(repo, sharedfakes.NewFakeEventBus(), nil, fsadapter.NewPhotoScanner())
 
 	count, err := svc.ScanDirectory(context.Background(), "lib-1", dir)
 	require.NoError(t, err)
@@ -331,7 +332,7 @@ func TestScanDirectory_CaseInsensitiveExt(t *testing.T) {
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "photo.Png"), minimalJPEG, 0600))
 
 	repo := photofakes.NewFakeRepository()
-	svc := appphoto.NewService(repo, sharedfakes.NewFakeEventBus(), nil)
+	svc := appphoto.NewService(repo, sharedfakes.NewFakeEventBus(), nil, fsadapter.NewPhotoScanner())
 
 	count, err := svc.ScanDirectory(context.Background(), "lib-1", dir)
 	require.NoError(t, err)
@@ -346,7 +347,7 @@ func TestScanDirectory_ContextCanceled(t *testing.T) {
 	}
 
 	repo := photofakes.NewFakeRepository()
-	svc := appphoto.NewService(repo, sharedfakes.NewFakeEventBus(), nil)
+	svc := appphoto.NewService(repo, sharedfakes.NewFakeEventBus(), nil, fsadapter.NewPhotoScanner())
 
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel() // cancel immediately
@@ -365,7 +366,7 @@ func TestScanDirectory_MultipleFilesCount(t *testing.T) {
 
 	repo := photofakes.NewFakeRepository()
 	bus := sharedfakes.NewFakeEventBus()
-	svc := appphoto.NewService(repo, bus, nil)
+	svc := appphoto.NewService(repo, bus, nil, fsadapter.NewPhotoScanner())
 
 	count, err := svc.ScanDirectory(context.Background(), "lib-m", dir)
 	require.NoError(t, err)
@@ -382,7 +383,7 @@ func TestScanDirectory_ExifDateTime_Extracted(t *testing.T) {
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "exif.jpg"), jpeg, 0600))
 
 	repo := photofakes.NewFakeRepository()
-	svc := appphoto.NewService(repo, sharedfakes.NewFakeEventBus(), nil)
+	svc := appphoto.NewService(repo, sharedfakes.NewFakeEventBus(), nil, fsadapter.NewPhotoScanner())
 	ctx := context.Background()
 
 	count, err := svc.ScanDirectory(ctx, "lib-exif", dir)
@@ -408,7 +409,7 @@ func TestScanDirectory_ExifDateOnly(t *testing.T) {
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "dateonly.jpg"), jpeg, 0600))
 
 	repo := photofakes.NewFakeRepository()
-	svc := appphoto.NewService(repo, sharedfakes.NewFakeEventBus(), nil)
+	svc := appphoto.NewService(repo, sharedfakes.NewFakeEventBus(), nil, fsadapter.NewPhotoScanner())
 	ctx := context.Background()
 
 	count, err := svc.ScanDirectory(ctx, "lib-d", dir)
@@ -428,7 +429,7 @@ func TestScanDirectory_ExifModelOnly(t *testing.T) {
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "model.jpg"), jpeg, 0600))
 
 	repo := photofakes.NewFakeRepository()
-	svc := appphoto.NewService(repo, sharedfakes.NewFakeEventBus(), nil)
+	svc := appphoto.NewService(repo, sharedfakes.NewFakeEventBus(), nil, fsadapter.NewPhotoScanner())
 	ctx := context.Background()
 
 	count, err := svc.ScanDirectory(ctx, "lib-m2", dir)
@@ -457,7 +458,7 @@ func TestScanDirectory_PngNoExif(t *testing.T) {
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "photo.png"), minPNG, 0600))
 
 	repo := photofakes.NewFakeRepository()
-	svc := appphoto.NewService(repo, sharedfakes.NewFakeEventBus(), nil)
+	svc := appphoto.NewService(repo, sharedfakes.NewFakeEventBus(), nil, fsadapter.NewPhotoScanner())
 	ctx := context.Background()
 
 	count, err := svc.ScanDirectory(ctx, "lib-png", dir)
@@ -478,7 +479,7 @@ func TestScanDirectory_OriginalFilePreserved(t *testing.T) {
 	require.NoError(t, os.WriteFile(fpath, jpeg, 0600))
 
 	repo := photofakes.NewFakeRepository()
-	svc := appphoto.NewService(repo, sharedfakes.NewFakeEventBus(), nil)
+	svc := appphoto.NewService(repo, sharedfakes.NewFakeEventBus(), nil, fsadapter.NewPhotoScanner())
 
 	_, err := svc.ScanDirectory(context.Background(), "lib-s", dir)
 	require.NoError(t, err)
@@ -492,7 +493,7 @@ func TestScanDirectory_OriginalFilePreserved(t *testing.T) {
 
 func TestListPhotos_LimitClampedToDefault(t *testing.T) {
 	repo := photofakes.NewFakeRepository()
-	svc := appphoto.NewService(repo, sharedfakes.NewFakeEventBus(), nil)
+	svc := appphoto.NewService(repo, sharedfakes.NewFakeEventBus(), nil, fsadapter.NewPhotoScanner())
 
 	// limit 0 should be clamped to 50
 	photos, total, err := svc.ListPhotos(context.Background(), "lib-1", 0, 0)
@@ -503,7 +504,7 @@ func TestListPhotos_LimitClampedToDefault(t *testing.T) {
 
 func TestListPhotos_NegativeLimitClampedToDefault(t *testing.T) {
 	repo := photofakes.NewFakeRepository()
-	svc := appphoto.NewService(repo, sharedfakes.NewFakeEventBus(), nil)
+	svc := appphoto.NewService(repo, sharedfakes.NewFakeEventBus(), nil, fsadapter.NewPhotoScanner())
 
 	photos, total, err := svc.ListPhotos(context.Background(), "lib-1", -5, 0)
 	require.NoError(t, err)
@@ -513,7 +514,7 @@ func TestListPhotos_NegativeLimitClampedToDefault(t *testing.T) {
 
 func TestListPhotos_OverMaxLimitClampedToDefault(t *testing.T) {
 	repo := photofakes.NewFakeRepository()
-	svc := appphoto.NewService(repo, sharedfakes.NewFakeEventBus(), nil)
+	svc := appphoto.NewService(repo, sharedfakes.NewFakeEventBus(), nil, fsadapter.NewPhotoScanner())
 
 	// limit > 500 should be clamped to 50
 	photos, total, err := svc.ListPhotos(context.Background(), "lib-1", 501, 0)
@@ -524,7 +525,7 @@ func TestListPhotos_OverMaxLimitClampedToDefault(t *testing.T) {
 
 func TestListPhotos_ExactBoundary500(t *testing.T) {
 	repo := photofakes.NewFakeRepository()
-	svc := appphoto.NewService(repo, sharedfakes.NewFakeEventBus(), nil)
+	svc := appphoto.NewService(repo, sharedfakes.NewFakeEventBus(), nil, fsadapter.NewPhotoScanner())
 
 	// limit exactly 500 should NOT be clamped
 	photos, total, err := svc.ListPhotos(context.Background(), "lib-1", 500, 0)
@@ -537,7 +538,7 @@ func TestListPhotos_ExactBoundary500(t *testing.T) {
 
 func TestSearch_LimitZeroClampedTo50(t *testing.T) {
 	repo := photofakes.NewFakeRepository()
-	svc := appphoto.NewService(repo, sharedfakes.NewFakeEventBus(), nil)
+	svc := appphoto.NewService(repo, sharedfakes.NewFakeEventBus(), nil, fsadapter.NewPhotoScanner())
 
 	results, err := svc.Search(context.Background(), "lib-1", "q", 0)
 	require.NoError(t, err)
@@ -546,7 +547,7 @@ func TestSearch_LimitZeroClampedTo50(t *testing.T) {
 
 func TestSearch_LimitNegativeClampedTo50(t *testing.T) {
 	repo := photofakes.NewFakeRepository()
-	svc := appphoto.NewService(repo, sharedfakes.NewFakeEventBus(), nil)
+	svc := appphoto.NewService(repo, sharedfakes.NewFakeEventBus(), nil, fsadapter.NewPhotoScanner())
 
 	results, err := svc.Search(context.Background(), "lib-1", "q", -1)
 	require.NoError(t, err)
@@ -555,7 +556,7 @@ func TestSearch_LimitNegativeClampedTo50(t *testing.T) {
 
 func TestSearch_LimitExactly200NotClamped(t *testing.T) {
 	repo := photofakes.NewFakeRepository()
-	svc := appphoto.NewService(repo, sharedfakes.NewFakeEventBus(), nil)
+	svc := appphoto.NewService(repo, sharedfakes.NewFakeEventBus(), nil, fsadapter.NewPhotoScanner())
 
 	results, err := svc.Search(context.Background(), "lib-1", "q", 200)
 	require.NoError(t, err)
@@ -564,7 +565,7 @@ func TestSearch_LimitExactly200NotClamped(t *testing.T) {
 
 func TestSearch_Limit201ClampedTo50(t *testing.T) {
 	repo := photofakes.NewFakeRepository()
-	svc := appphoto.NewService(repo, sharedfakes.NewFakeEventBus(), nil)
+	svc := appphoto.NewService(repo, sharedfakes.NewFakeEventBus(), nil, fsadapter.NewPhotoScanner())
 
 	results, err := svc.Search(context.Background(), "lib-1", "q", 201)
 	require.NoError(t, err)
@@ -576,7 +577,7 @@ func TestSearch_Limit201ClampedTo50(t *testing.T) {
 func TestDeletePhoto_RepoGetByIDError(t *testing.T) {
 	repo := photofakes.NewFakeRepository()
 	repo.Err = errors.New("get failed")
-	svc := appphoto.NewService(repo, sharedfakes.NewFakeEventBus(), nil)
+	svc := appphoto.NewService(repo, sharedfakes.NewFakeEventBus(), nil, fsadapter.NewPhotoScanner())
 
 	err := svc.DeletePhoto(context.Background(), "photo-1")
 	require.Error(t, err)
@@ -586,7 +587,7 @@ func TestDeletePhoto_RepoGetByIDError(t *testing.T) {
 func TestDeletePhoto_NotFound_ReturnsNilPhoto(t *testing.T) {
 	repo := photofakes.NewFakeRepository()
 	bus := sharedfakes.NewFakeEventBus()
-	svc := appphoto.NewService(repo, bus, nil)
+	svc := appphoto.NewService(repo, bus, nil, fsadapter.NewPhotoScanner())
 
 	// GetByID returns nil,nil for nonexistent; Delete on nonexistent is no-op
 	err := svc.DeletePhoto(context.Background(), "nonexistent")
@@ -605,7 +606,7 @@ func TestDeletePhoto_SetsLibraryIDFromPhoto(t *testing.T) {
 
 	repo := photofakes.NewFakeRepository()
 	bus := sharedfakes.NewFakeEventBus()
-	svc := appphoto.NewService(repo, bus, nil)
+	svc := appphoto.NewService(repo, bus, nil, fsadapter.NewPhotoScanner())
 	ctx := context.Background()
 
 	_, err := svc.ScanDirectory(ctx, "lib-del", dir)
@@ -616,7 +617,7 @@ func TestDeletePhoto_SetsLibraryIDFromPhoto(t *testing.T) {
 	photoID := photos[0].ID
 
 	bus2 := sharedfakes.NewFakeEventBus()
-	svc2 := appphoto.NewService(repo, bus2, nil)
+	svc2 := appphoto.NewService(repo, bus2, nil, fsadapter.NewPhotoScanner())
 
 	err = svc2.DeletePhoto(ctx, photoID)
 	require.NoError(t, err)
@@ -633,7 +634,7 @@ func TestDeletePhoto_BusPublishError_StillReturnsNil(t *testing.T) {
 
 	repo := photofakes.NewFakeRepository()
 	bus := sharedfakes.NewFakeEventBus()
-	svc := appphoto.NewService(repo, bus, nil)
+	svc := appphoto.NewService(repo, bus, nil, fsadapter.NewPhotoScanner())
 	ctx := context.Background()
 
 	_, _ = svc.ScanDirectory(ctx, "lib-1", dir)
@@ -642,7 +643,7 @@ func TestDeletePhoto_BusPublishError_StillReturnsNil(t *testing.T) {
 
 	bus2 := sharedfakes.NewFakeEventBus()
 	bus2.PublishErr = errors.New("bus down")
-	svc2 := appphoto.NewService(repo, bus2, nil)
+	svc2 := appphoto.NewService(repo, bus2, nil, fsadapter.NewPhotoScanner())
 
 	err := svc2.DeletePhoto(ctx, photos[0].ID)
 	assert.NoError(t, err) // publish error is logged, not returned
@@ -655,7 +656,7 @@ func TestGetPhoto_ReturnsExistingPhoto(t *testing.T) {
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "find.jpg"), minimalJPEG, 0600))
 
 	repo := photofakes.NewFakeRepository()
-	svc := appphoto.NewService(repo, sharedfakes.NewFakeEventBus(), nil)
+	svc := appphoto.NewService(repo, sharedfakes.NewFakeEventBus(), nil, fsadapter.NewPhotoScanner())
 	ctx := context.Background()
 
 	_, _ = svc.ScanDirectory(ctx, "lib-g", dir)
@@ -681,7 +682,7 @@ func TestGetAlbums_ReturnsAlbumsFromSubdirs(t *testing.T) {
 	require.NoError(t, os.WriteFile(filepath.Join(sub2, "b.jpg"), minimalJPEG, 0600))
 
 	repo := photofakes.NewFakeRepository()
-	svc := appphoto.NewService(repo, sharedfakes.NewFakeEventBus(), nil)
+	svc := appphoto.NewService(repo, sharedfakes.NewFakeEventBus(), nil, fsadapter.NewPhotoScanner())
 	ctx := context.Background()
 
 	_, err := svc.ScanDirectory(ctx, "lib-alb", dir)
@@ -709,7 +710,7 @@ func TestScanDirectory_BusPublishError_StillCounts(t *testing.T) {
 	repo := photofakes.NewFakeRepository()
 	bus := sharedfakes.NewFakeEventBus()
 	bus.PublishErr = errors.New("bus fail")
-	svc := appphoto.NewService(repo, bus, nil)
+	svc := appphoto.NewService(repo, bus, nil, fsadapter.NewPhotoScanner())
 
 	count, err := svc.ScanDirectory(context.Background(), "lib-1", dir)
 	require.NoError(t, err)
@@ -723,7 +724,7 @@ func TestScanDirectory_TitleStripsExtension(t *testing.T) {
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "my.photo.name.jpg"), minimalJPEG, 0600))
 
 	repo := photofakes.NewFakeRepository()
-	svc := appphoto.NewService(repo, sharedfakes.NewFakeEventBus(), nil)
+	svc := appphoto.NewService(repo, sharedfakes.NewFakeEventBus(), nil, fsadapter.NewPhotoScanner())
 	ctx := context.Background()
 
 	_, err := svc.ScanDirectory(ctx, "lib-t", dir)
