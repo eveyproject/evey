@@ -23,6 +23,17 @@ func (f *FakeWatchHistoryAnalyzer) GetFavoriteGenres(_ context.Context, _ string
 	return f.Genres, nil
 }
 
+func (f *FakeWatchHistoryAnalyzer) GetFavoriteGenresBatch(_ context.Context, profileIDs []string, _ int) (map[string][]string, error) {
+	if f.Err != nil {
+		return nil, f.Err
+	}
+	result := make(map[string][]string, len(profileIDs))
+	for _, pid := range profileIDs {
+		result[pid] = f.Genres
+	}
+	return result, nil
+}
+
 func (f *FakeWatchHistoryAnalyzer) HasWatchedSeries(_ context.Context, _, _ string) (bool, error) {
 	if f.Err != nil {
 		return false, f.Err
