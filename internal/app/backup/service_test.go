@@ -532,6 +532,51 @@ func TestCleanupOldBackups_RetentionBoundary(t *testing.T) {
 	})
 }
 
+func TestCleanupOldBackups_ExactCutoffBoundary(t *testing.T) {
+	t.Run("backup well after cutoff is kept", func(t *testing.T) {
+		svc, store, _ := setup()
+		ctx := context.Background()
+		m, _ := svc.CreateBackup(ctx)
+		store.SetCreatedAt(m.ID, time.Now().UTC().AddDate(0, 0, -29))
+
+		if err := svc.CleanupOldBackups(ctx, 30); err != nil {
+			t.Fatalf("CleanupOldBackups: %v", err)
+		}
+		list, _ := svc.ListBackups(ctx)
+		if len(list) != 1 {
+			t.Fatalf("backup newer than cutoff should be kept, got %d remaining", len(list))
+		}
+	})
+	t.Run("backup just before cutoff is deleted", func(t *testing.T) {
+		svc, store, _ := setup()
+		ctx := context.Background()
+		m, _ := svc.CreateBackup(ctx)
+		store.SetCreatedAt(m.ID, time.Now().UTC().AddDate(0, 0, -30).Add(-time.Second))
+
+		if err := svc.CleanupOldBackups(ctx, 30); err != nil {
+			t.Fatalf("CleanupOldBackups: %v", err)
+		}
+		list, _ := svc.ListBackups(ctx)
+		if len(list) != 0 {
+			t.Fatalf("backup older than cutoff should be deleted, got %d remaining", len(list))
+		}
+	})
+	t.Run("retentionDays=-1 keeps everything", func(t *testing.T) {
+		svc, store, _ := setup()
+		ctx := context.Background()
+		m, _ := svc.CreateBackup(ctx)
+		store.SetCreatedAt(m.ID, time.Now().UTC().AddDate(-10, 0, 0))
+
+		if err := svc.CleanupOldBackups(ctx, -1); err != nil {
+			t.Fatalf("CleanupOldBackups(-1): %v", err)
+		}
+		list, _ := svc.ListBackups(ctx)
+		if len(list) != 1 {
+			t.Fatalf("negative retention should keep all, got %d", len(list))
+		}
+	})
+}
+
 func TestCleanupOldBackups_ListError(t *testing.T) {
 	store := fakes.NewFakeBackupStore()
 	dumper := fakes.NewFakeDatabaseDumper()
