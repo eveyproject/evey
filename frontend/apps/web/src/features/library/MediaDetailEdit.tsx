@@ -1,0 +1,326 @@
+import { useState } from "react";
+import { useTranslation } from "react-i18next";
+import type { V1MediaItem } from "@evey/api";
+import {
+  useMetadataServiceSetMetadataOverride,
+  useMetadataServiceRemoveMetadataOverride,
+  useMetadataServiceRefreshMetadata,
+  useMetadataServiceGetArtwork,
+  useMetadataServiceListMetadataOverrides,
+  getMetadataServiceListMetadataOverridesQueryKey,
+  eveyFetch,
+} from "@evey/api";
+import { useQueryClient } from "@tanstack/react-query";
+import { toast } from "@evey/store";
+import { Button } from "@/components/ui/Button";
+import { Input } from "@/components/ui/Input";
+import { Textarea } from "@/components/ui/Textarea";
+
+interface EditForm {
+  title: string;
+  originalTitle: string;
+  year: string;
+  overview: string;
+  genres: string;
+  communityRating: string;
+  imdbId: string;
+  tmdbId: string;
+}
+
+const FIELD_MAP: Array<{ formKey: keyof EditForm; overrideKey: string; labelKey: string }> = [
+  { formKey: "title", overrideKey: "title", labelKey: "media.detail.title" },
+  { formKey: "originalTitle", overrideKey: "original_title", labelKey: "media.detail.originalTitle" },
+  { formKey: "year", overrideKey: "year", labelKey: "media.detail.year" },
+  { formKey: "overview", overrideKey: "overview", labelKey: "media.detail.overview" },
+  { formKey: "genres", overrideKey: "genres", labelKey: "media.detail.genresLabel" },
+  { formKey: "communityRating", overrideKey: "community_rating", labelKey: "media.detail.rating" },
+];
+
+function FieldBadge({ isOverridden }: { isOverridden: boolean }) {
+  const { t } = useTranslation();
+  return isOverridden ? (
+    <span className="text-xs px-1.5 py-0.5 rounded" style={{ backgroundColor: "var(--badge-warning-bg, #f59e0b33)", color: "var(--badge-warning-text, #f59e0b)" }}>
+      {t("media.detail.overridden")}
+    </span>
+  ) : (
+    <span className="text-xs px-1.5 py-0.5 rounded" style={{ backgroundColor: "var(--surface-raised)", color: "var(--text-muted)" }}>
+      {t("media.detail.auto")}
+    </span>
+  );
+}
+
+function ArtworkPicker({ mediaItemId }: { mediaItemId: string }) {
+  const { t } = useTranslation();
+  const { data } = useMetadataServiceGetArtwork(mediaItemId, undefined);
+  const queryClient = useQueryClient();
+  const [selecting, setSelecting] = useState<string | null>(null);
+
+  const allArtwork = data?.artwork ?? [];
+  const posters = allArtwork.filter((a) => a.type === "ARTWORK_TYPE_PRIMARY");
+  const backdrops = allArtwork.filter((a) => a.type === "ARTWORK_TYPE_BACKDROP");
+
+  async function selectArtwork(artworkId: string) {
+    setSelecting(artworkId);
+    try {
+      await eveyFetch<void>({ url: `/api/v1/media/${mediaItemId}/artwork/${artworkId}/select`, method: "POST" });
+      queryClient.invalidateQueries({ queryKey: [`/api/v1/metadata/${mediaItemId}/artwork`] });
+      queryClient.invalidateQueries({ queryKey: [`/api/v1/media/${mediaItemId}`] });
+      toast.success(t("media.detail.artworkUpdated"));
+    } catch (err) {
+      toast.error(t("media.detail.artworkFailed"));
+    } finally {
+      setSelecting(null);
+    }
+  }
+
+  if (posters.length <= 1 && backdrops.length <= 1) return null;
+
+  return (
+    <div className="flex flex-col gap-3">
+      {posters.length > 1 && (
+        <div>
+          <p className="text-xs font-medium mb-2" style={{ color: "var(--text-muted)" }}>{t("media.detail.poster")}</p>
+          <div className="flex gap-2 overflow-x-auto pb-1" style={{ scrollbarWidth: "thin" }}>
+            {posters.map((a, i) => (
+              <button
+                key={a.id}
+                onClick={() => a.id && selectArtwork(a.id)}
+                disabled={selecting === a.id}
+                className="flex-shrink-0 rounded overflow-hidden transition-all"
+                style={{
+                  width: 72,
+                  aspectRatio: "2/3",
+                  border: i === 0 ? "2px solid var(--accent)" : "2px solid transparent",
+                  opacity: selecting === a.id ? 0.5 : 1,
+                }}
+              >
+                <img src={a.url} alt="" className="w-full h-full object-cover" loading="lazy" />
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+      {backdrops.length > 1 && (
+        <div>
+          <p className="text-xs font-medium mb-2" style={{ color: "var(--text-muted)" }}>{t("media.detail.backdrop")}</p>
+          <div className="flex gap-2 overflow-x-auto pb-1" style={{ scrollbarWidth: "thin" }}>
+            {backdrops.map((a, i) => (
+              <button
+                key={a.id}
+                onClick={() => a.id && selectArtwork(a.id)}
+                disabled={selecting === a.id}
+                className="flex-shrink-0 rounded overflow-hidden transition-all"
+                style={{
+                  width: 128,
+                  aspectRatio: "16/9",
+                  border: i === 0 ? "2px solid var(--accent)" : "2px solid transparent",
+                  opacity: selecting === a.id ? 0.5 : 1,
+                }}
+              >
+                <img src={a.url} alt="" className="w-full h-full object-cover" loading="lazy" />
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+export function MetadataEditPanel({
+  item,
+  onSave,
+  onCancel,
+}: {
+  item: V1MediaItem;
+  onSave: () => void;
+  onCancel: () => void;
+}) {
+  const { t } = useTranslation();
+  const origImdbId = item.providerIds?.imdb ?? "";
+  const origTmdbId = item.providerIds?.tmdb ?? "";
+  const [form, setForm] = useState<EditForm>({
+    title: item.title ?? "",
+    originalTitle: item.originalTitle ?? "",
+    year: item.year ? String(item.year) : "",
+    overview: item.overview ?? "",
+    genres: item.genres?.join(", ") ?? "",
+    communityRating: item.communityRating ? String(item.communityRating) : "",
+    imdbId: origImdbId,
+    tmdbId: origTmdbId,
+  });
+  const [saving, setSaving] = useState(false);
+  const [refreshStatus, setRefreshStatus] = useState<"idle" | "running" | "done" | "error">("idle");
+  const setOverride = useMetadataServiceSetMetadataOverride();
+  const removeOverride = useMetadataServiceRemoveMetadataOverride();
+  const refresh = useMetadataServiceRefreshMetadata();
+  const queryClient = useQueryClient();
+
+  const { data: overridesData } = useMetadataServiceListMetadataOverrides(item.id ?? "", {
+    query: { enabled: !!item.id },
+  });
+  const overridesByField = Object.fromEntries(
+    (overridesData?.overrides ?? []).map((o) => [o.fieldName ?? "", o]),
+  );
+
+  const mediaType = item.type === "MEDIA_ITEM_TYPE_SERIES" || item.type === "MEDIA_ITEM_TYPE_SEASON" || item.type === "MEDIA_ITEM_TYPE_EPISODE" ? "tv" : "movie";
+
+  async function handleSave(e: React.FormEvent) {
+    e.preventDefault();
+    if (!item.id) return;
+    setSaving(true);
+
+    const newTmdbId = form.tmdbId.trim();
+    const newImdbId = form.imdbId.trim();
+    const tmdbChanged = newTmdbId !== origTmdbId && newTmdbId !== "";
+    const imdbChanged = newImdbId !== origImdbId && newImdbId !== "";
+
+    try {
+      if (tmdbChanged || imdbChanged) {
+        await eveyFetch<void>({
+          url: `/api/v1/admin/media/${item.id}/refresh-metadata`,
+          method: "POST",
+          data: {
+            tmdb_id: tmdbChanged ? newTmdbId : "",
+            imdb_id: imdbChanged ? newImdbId : "",
+            media_type: mediaType,
+          },
+        });
+        queryClient.invalidateQueries({ queryKey: [`/api/v1/media/${item.id}`] });
+        toast.success(t("media.detail.reEnrichedWithNewId"));
+      }
+
+      const fields: Array<[string, string]> = FIELD_MAP.map(({ overrideKey, formKey }) => [overrideKey, form[formKey].trim()]);
+      const hasOverrides = fields.some(([, v]) => v !== "");
+      if (hasOverrides) {
+        for (const [fieldName, customValue] of fields) {
+          if (customValue) {
+            await setOverride.mutateAsync({ data: { mediaItemId: item.id, fieldName, customValue } });
+          }
+        }
+        queryClient.invalidateQueries({ queryKey: [`/api/v1/media/${item.id}`] });
+        queryClient.invalidateQueries({ queryKey: getMetadataServiceListMetadataOverridesQueryKey(item.id) });
+        toast.success(t("media.detail.metadataSaved"));
+      }
+      onSave();
+    } catch {
+      toast.error(t("media.detail.failedToSave"));
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleResetField(overrideId: string, fieldName: string) {
+    if (!item.id) return;
+    try {
+      await removeOverride.mutateAsync({ id: overrideId });
+      queryClient.invalidateQueries({ queryKey: getMetadataServiceListMetadataOverridesQueryKey(item.id) });
+      queryClient.invalidateQueries({ queryKey: [`/api/v1/media/${item.id}`] });
+      toast.success(t("media.detail.resetSuccess", { field: fieldName }));
+    } catch {
+      toast.error(t("media.detail.resetFailed"));
+    }
+  }
+
+  async function handleRefresh() {
+    if (!item.id) return;
+    setRefreshStatus("running");
+    try {
+      await refresh.mutateAsync({ mediaItemId: item.id });
+      setRefreshStatus("done");
+      setTimeout(() => { setRefreshStatus("idle"); onSave(); }, 1500);
+    } catch {
+      setRefreshStatus("error");
+      toast.error(t("media.detail.refreshFailed"));
+    }
+  }
+
+  function set(field: keyof EditForm) {
+    return (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
+      setForm((prev) => ({ ...prev, [field]: e.target.value }));
+  }
+
+  const tmdbLink = form.tmdbId.trim()
+    ? `https://www.themoviedb.org/${mediaType}/${form.tmdbId.trim()}`
+    : null;
+  const imdbLink = form.imdbId.trim()
+    ? `https://www.imdb.com/title/${form.imdbId.trim()}/`
+    : null;
+
+  function renderField({ formKey, overrideKey, labelKey }: typeof FIELD_MAP[number]) {
+    const label = t(labelKey);
+    const hasOverride = !!overridesByField[overrideKey]?.id;
+    const overrideId = overridesByField[overrideKey]?.id;
+    return (
+      <div key={formKey} className="flex flex-col gap-1">
+        <div className="flex items-center gap-2">
+          <FieldBadge isOverridden={hasOverride} />
+          {hasOverride && overrideId && (
+            <button
+              type="button"
+              onClick={() => handleResetField(overrideId, overrideKey)}
+              className="text-xs underline"
+              style={{ color: "var(--text-muted)" }}
+            >
+              {t("media.detail.resetToAuto")}
+            </button>
+          )}
+        </div>
+        {formKey === "overview" ? (
+          <Textarea label={label} value={form[formKey]} onChange={set(formKey)} rows={4} />
+        ) : formKey === "year" ? (
+          <Input label={label} type="number" value={form[formKey]} onChange={set(formKey)} placeholder="2024" />
+        ) : formKey === "communityRating" ? (
+          <Input label={label} type="number" step="0.1" min="0" max="10" value={form[formKey]} onChange={set(formKey)} placeholder="7.5" />
+        ) : formKey === "genres" ? (
+          <Input label={label} value={form[formKey]} onChange={set(formKey)} placeholder="Action, Drama" />
+        ) : formKey === "title" ? (
+          <Input label={label} value={form[formKey]} onChange={set(formKey)} required />
+        ) : (
+          <Input label={label} value={form[formKey]} onChange={set(formKey)} placeholder={label} />
+        )}
+      </div>
+    );
+  }
+
+  return (
+    <form onSubmit={handleSave} className="flex flex-col gap-4">
+      {FIELD_MAP.map(renderField)}
+      <div className="grid grid-cols-2 gap-3">
+        <div className="flex flex-col gap-1">
+          <Input label={t("media.detail.imdbId")} value={form.imdbId} onChange={set("imdbId")} placeholder="tt1234567" />
+          {imdbLink && (
+            <a href={imdbLink} target="_blank" rel="noopener noreferrer"
+              className="text-xs underline" style={{ color: "var(--accent)" }}>
+              {t("media.detail.viewOnImdb")}
+            </a>
+          )}
+        </div>
+        <div className="flex flex-col gap-1">
+          <Input label={t("media.detail.tmdbId")} value={form.tmdbId} onChange={set("tmdbId")} placeholder="12345" />
+          {tmdbLink && (
+            <a href={tmdbLink} target="_blank" rel="noopener noreferrer"
+              className="text-xs underline" style={{ color: "var(--accent)" }}>
+              {t("media.detail.viewOnTmdb")}
+            </a>
+          )}
+        </div>
+      </div>
+      {(form.tmdbId.trim() !== origTmdbId || form.imdbId.trim() !== origImdbId) &&
+        (form.tmdbId.trim() !== "" || form.imdbId.trim() !== "") && (
+        <p className="text-xs" style={{ color: "var(--color-warning)" }}>
+          {t("media.detail.idChangedWarning")}
+        </p>
+      )}
+      {item.id && <ArtworkPicker mediaItemId={item.id} />}
+      <div className="flex gap-2 flex-wrap pt-1">
+        <Button type="submit" loading={saving}>{t("common.save")}</Button>
+        <Button type="button" variant="secondary" loading={refreshStatus === "running"} onClick={handleRefresh}>
+          {refreshStatus === "done" ? t("common.done") : refreshStatus === "error" ? t("common.error") : t("media.detail.refreshMetadata")}
+        </Button>
+        <Button type="button" variant="secondary" onClick={onCancel}>{t("common.cancel")}</Button>
+      </div>
+      {setOverride.isError && <p className="text-sm" style={{ color: "var(--color-danger)" }}>{t("media.detail.failedToSaveDot")}</p>}
+    </form>
+  );
+}

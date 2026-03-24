@@ -1,0 +1,19 @@
+export function formatDuration(ms?: string): string {
+  if (!ms) return "";
+  const totalMs = parseInt(ms, 10);
+  if (isNaN(totalMs)) return "";
+  const totalSec = Math.floor(totalMs / 1000);
+  const h = Math.floor(totalSec / 3600);
+  const m = Math.floor((totalSec % 3600) / 60);
+  if (h > 0) return `${h}h ${m}m`;
+  return `${m}m`;
+}
+
+export function formatFileSize(bytes?: string): string {
+  if (!bytes) return "";
+  const n = parseInt(bytes, 10);
+  if (isNaN(n)) return "";
+  if (n >= 1_073_741_824) return `${(n / 1_073_741_824).toFixed(1)} GB`;
+  if (n >= 1_048_576) return `${(n / 1_048_576).toFixed(0)} MB`;
+  return `${(n / 1024).toFixed(0)} KB`;
+}
