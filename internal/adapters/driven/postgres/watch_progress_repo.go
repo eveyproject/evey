@@ -103,3 +103,6 @@ func (r *WatchProgressRepository) scanWatchProgressRows(rows *sql.Rows) ([]*play
 	}
 	return result, rows.Err()
 }
+
+var _ playback.ProgressCommandRepo = (*WatchProgressRepository)(nil)
+var _ playback.ProgressQueryRepo = (*WatchProgressRepository)(nil)

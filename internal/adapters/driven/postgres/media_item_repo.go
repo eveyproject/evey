@@ -524,3 +524,5 @@ func (r *MediaItemRepository) scanMediaItemFromRows(rows *sql.Rows) (*library.Me
 	}
 	return item, nil
 }
+
+var _ library.MediaItemRepository = (*MediaItemRepository)(nil)

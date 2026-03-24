@@ -193,3 +193,5 @@ func (r *PlaySessionRepository) scanPlaySessionRows(rows *sql.Rows) ([]*playback
 	}
 	return result, rows.Err()
 }
+
+var _ playback.PlaySessionRepository = (*PlaySessionRepository)(nil)

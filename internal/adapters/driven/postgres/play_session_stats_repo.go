@@ -160,3 +160,5 @@ func (r *PlaySessionStatsReader) GetMostPopular(ctx context.Context, limit int) 
 	return result, rows.Err()
 }
 
+
+var _ activity.PlaySessionStatsReader = (*PlaySessionStatsReader)(nil)

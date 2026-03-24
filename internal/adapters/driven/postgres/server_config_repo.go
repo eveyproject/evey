@@ -57,3 +57,5 @@ func (r *ServerConfigRepository) List(ctx context.Context) ([]*shared.ServerConf
 	}
 	return result, rows.Err()
 }
+
+var _ shared.ServerConfigRepository = (*ServerConfigRepository)(nil)

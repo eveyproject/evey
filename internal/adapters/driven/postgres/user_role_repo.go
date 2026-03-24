@@ -58,3 +58,5 @@ func (r *UserRoleRepository) GetRolesByUserID(ctx context.Context, userID string
 	}
 	return result, rows.Err()
 }
+
+var _ user.UserRoleRepository = (*UserRoleRepository)(nil)

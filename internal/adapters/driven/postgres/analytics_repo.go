@@ -137,3 +137,5 @@ func (r *AnalyticsReader) GetAnalytics(ctx context.Context) (*activity.Analytics
 		ActiveUsersToday:   results[4].activeToday,
 	}, nil
 }
+
+var _ activity.AnalyticsReader = (*AnalyticsReader)(nil)

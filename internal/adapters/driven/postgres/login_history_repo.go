@@ -44,3 +44,5 @@ func (r *LoginHistoryRepository) GetByUserID(ctx context.Context, userID string,
 	}
 	return result, rows.Err()
 }
+
+var _ activity.LoginHistoryRepository = (*LoginHistoryRepository)(nil)

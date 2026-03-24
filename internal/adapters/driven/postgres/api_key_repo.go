@@ -81,3 +81,5 @@ func (r *APIKeyRepository) UpdateLastUsed(ctx context.Context, id string, t time
 		`UPDATE api_keys SET last_used_at = $1 WHERE id = $2`, t, id)
 	return err
 }
+
+var _ user.APIKeyRepository = (*APIKeyRepository)(nil)

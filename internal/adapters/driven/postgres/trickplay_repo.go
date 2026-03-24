@@ -72,3 +72,5 @@ func (r *TrickplayRepository) ListMissingMediaItemIDs(ctx context.Context) ([]st
 	}
 	return ids, rows.Err()
 }
+
+var _ library.TrickplayRepository = (*TrickplayRepository)(nil)

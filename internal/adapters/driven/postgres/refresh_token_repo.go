@@ -66,3 +66,5 @@ func (r *RefreshTokenRepository) DeleteExpired(ctx context.Context) error {
 	_, err := r.db.ExecContext(ctx, `DELETE FROM refresh_tokens WHERE expires_at < NOW()`)
 	return err
 }
+
+var _ user.RefreshTokenRepository = (*RefreshTokenRepository)(nil)

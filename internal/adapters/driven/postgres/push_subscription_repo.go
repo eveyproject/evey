@@ -75,3 +75,5 @@ func scanSubscriptions(rows *sql.Rows) ([]notification.PushSubscription, error) 
 	}
 	return out, rows.Err()
 }
+
+var _ notification.PushSubscriptionRepository = (*PushSubscriptionRepository)(nil)

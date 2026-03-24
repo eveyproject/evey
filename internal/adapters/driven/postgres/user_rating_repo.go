@@ -76,3 +76,5 @@ func (r *UserRatingRepository) GetForItems(ctx context.Context, profileID string
 	}
 	return result, rows.Err()
 }
+
+var _ library.UserRatingRepository = (*UserRatingRepository)(nil)

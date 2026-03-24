@@ -114,3 +114,5 @@ func (r *NotificationSettingsRepository) UpsertGlobalDefaults(ctx context.Contex
 	)
 	return err
 }
+
+var _ notification.SettingsRepository = (*NotificationSettingsRepository)(nil)

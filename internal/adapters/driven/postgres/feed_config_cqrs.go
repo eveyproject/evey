@@ -63,3 +63,6 @@ func (r *FeedConfigQueryRepo) GetAdminConfig(ctx context.Context) ([]*feed.Admin
 func (r *FeedConfigQueryRepo) GetProfileConfig(ctx context.Context, profileID string) ([]*feed.ProfileConfig, error) {
 	return r.profile.GetByProfile(ctx, profileID)
 }
+
+var _ feed.ConfigCommandRepo = (*FeedConfigCommandRepo)(nil)
+var _ feed.ConfigQueryRepo = (*FeedConfigQueryRepo)(nil)

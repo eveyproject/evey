@@ -3,6 +3,8 @@ package postgres
 import (
 	"context"
 	"database/sql"
+
+	"github.com/gravity-zero/evey/internal/domain/user"
 )
 
 type LibraryAccessRepository struct {
@@ -78,3 +80,5 @@ func (r *LibraryAccessRepository) ListUsersWithRestrictions(ctx context.Context)
 	}
 	return result, rows.Err()
 }
+
+var _ user.LibraryAccessRepository = (*LibraryAccessRepository)(nil)

@@ -5,6 +5,8 @@ import (
 	"database/sql"
 	"fmt"
 	"strings"
+
+	"github.com/gravity-zero/evey/internal/domain/notification"
 )
 
 // WatchHistoryAnalyzer implements notification.WatchHistoryAnalyzer using PostgreSQL.
@@ -152,3 +154,5 @@ func (a *WatchHistoryAnalyzer) CalculateRelevanceScore(ctx context.Context, prof
 	}
 	return score, nil
 }
+
+var _ notification.WatchHistoryAnalyzer = (*WatchHistoryAnalyzer)(nil)

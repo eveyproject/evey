@@ -134,3 +134,5 @@ func (r *SyncPlayRoomRepo) Delete(ctx context.Context, id string) error {
 	)
 	return err
 }
+
+var _ syncplay.RoomRepository = (*SyncPlayRoomRepo)(nil)

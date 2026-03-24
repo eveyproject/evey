@@ -161,3 +161,6 @@ func (r *FeedProfileConfigRepository) DeleteByType(ctx context.Context, feedType
 		`DELETE FROM feed_profile_config WHERE feed_type = $1`, string(feedType))
 	return err
 }
+
+var _ feed.AdminConfigRepository = (*FeedAdminConfigRepository)(nil)
+var _ feed.ProfileConfigRepository = (*FeedProfileConfigRepository)(nil)

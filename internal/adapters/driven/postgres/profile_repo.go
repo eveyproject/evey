@@ -184,3 +184,5 @@ func parentalFromColumns(maxRating string, blockedTags []string, pinHash string,
 		Enabled:     enabled,
 	}
 }
+
+var _ user.ProfileRepository = (*ProfileRepository)(nil)

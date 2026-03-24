@@ -105,3 +105,5 @@ func (r *TranscodeJobRepository) scanJobRows(rows *sql.Rows) ([]*transcoding.Tra
 	}
 	return result, rows.Err()
 }
+
+var _ transcoding.TranscodeJobRepository = (*TranscodeJobRepository)(nil)

@@ -94,3 +94,5 @@ func (r *ScanScheduleRepository) UpdateAfterRun(ctx context.Context, libraryID s
 	)
 	return err
 }
+
+var _ library.ScanScheduleRepository = (*ScanScheduleRepository)(nil)

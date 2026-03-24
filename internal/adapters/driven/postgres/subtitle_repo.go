@@ -68,3 +68,5 @@ func (r *SubtitleRepository) Delete(ctx context.Context, id string) error {
 	}
 	return nil
 }
+
+var _ subtitle.Repository = (*SubtitleRepository)(nil)

@@ -403,3 +403,6 @@ func (q *CollectionSmartQuerier) scanItems(rows *sql.Rows) ([]*library.MediaItem
 	}
 	return result, rows.Err()
 }
+
+var _ library.CollectionCommandRepo = (*CollectionRepository)(nil)
+var _ library.CollectionQueryRepo = (*CollectionRepository)(nil)

@@ -75,3 +75,5 @@ func (r *TranscodeProfileRepository) scanProfile(row *sql.Row) (*transcoding.Tra
 	}
 	return p, nil
 }
+
+var _ transcoding.TranscodeProfileRepository = (*TranscodeProfileRepository)(nil)

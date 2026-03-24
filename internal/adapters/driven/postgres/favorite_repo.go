@@ -63,3 +63,5 @@ func (r *FavoriteRepository) IsFavorite(ctx context.Context, profileID, mediaIte
 	).Scan(&exists)
 	return exists, err
 }
+
+var _ favorite.Repository = (*FavoriteRepository)(nil)

@@ -138,3 +138,5 @@ func parseJSONStringArray(data []byte) []string {
 	}
 	return result
 }
+
+var _ library.SearchIndex = (*SQLSearchFallback)(nil)
