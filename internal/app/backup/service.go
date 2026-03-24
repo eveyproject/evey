@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/gravity-zero/evey/internal/domain/backup"
+	"github.com/gravity-zero/evey/internal/domain/shared"
 	"github.com/gravity-zero/evey/internal/pkg/id"
 )
 
@@ -52,10 +53,16 @@ type Service struct {
 	store   backup.BackupStore
 	dumper  backup.DatabaseDumper
 	version string
+	events  shared.EventBus
 }
 
 func NewService(store backup.BackupStore, dumper backup.DatabaseDumper, version string) *Service {
 	return &Service{store: store, dumper: dumper, version: version}
+}
+
+func (s *Service) WithEventBus(bus shared.EventBus) *Service {
+	s.events = bus
+	return s
 }
 
 func (s *Service) CreateBackup(ctx context.Context) (*backup.BackupManifest, error) {
@@ -145,6 +152,15 @@ func (s *Service) StartScheduler(ctx context.Context, intervalHours, retentionDa
 			case <-ticker.C:
 				if _, err := s.CreateBackup(ctx); err != nil {
 					slog.Warn("scheduled backup failed", slog.Any("err", err))
+					if s.events != nil {
+						evt := backup.BackupFailed{
+							Error:      err.Error(),
+							OccurredAt: time.Now(),
+						}
+						if pubErr := s.events.Publish(ctx, evt); pubErr != nil {
+							slog.Warn("publish backup.failed event", slog.Any("err", pubErr))
+						}
+					}
 				} else {
 					slog.Info("scheduled backup created")
 				}

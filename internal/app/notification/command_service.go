@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/gravity-zero/evey/internal/domain/backup"
 	libevent "github.com/gravity-zero/evey/internal/domain/library"
 	"github.com/gravity-zero/evey/internal/domain/notification"
 	"github.com/gravity-zero/evey/internal/domain/shared"
@@ -49,6 +50,7 @@ func NewCommandService(
 
 func (s *CommandService) Register() {
 	s.events.Subscribe("media.item.added", s.handleMediaItemAdded)
+	s.events.Subscribe("backup.failed", s.handleBackupFailed)
 }
 
 func (s *CommandService) WithPush(push notification.PushSender, subs notification.PushSubscriptionRepository) *CommandService {
@@ -217,6 +219,62 @@ func (s *CommandService) handleMediaItemAdded(parentCtx context.Context, ev shar
 		}
 		if err := s.events.Publish(ctx, evt); err != nil {
 			slog.Warn("publish notification.created", slog.Any("err", err))
+		}
+	}
+}
+
+func (s *CommandService) handleBackupFailed(parentCtx context.Context, ev shared.Event) {
+	ctx, cancel := context.WithTimeout(parentCtx, 30*time.Second)
+	defer cancel()
+	e, ok := ev.(backup.BackupFailed)
+	if !ok {
+		return
+	}
+
+	profiles, err := s.profiles.GetAll(ctx)
+	if err != nil {
+		slog.Warn("notification: list profiles for backup.failed", slog.Any("err", err))
+		return
+	}
+
+	expires := time.Now().AddDate(0, 0, defaultRetentionDays)
+	title := "Scheduled Backup Failed"
+	for _, p := range profiles {
+		n := &notification.Notification{
+			ID:        uuid.New().String(),
+			ProfileID: p.ID,
+			Type:      notification.TypeBackupFailed,
+			Title:     title,
+			Message:   e.Error,
+			Level:     notification.LevelAll,
+			CreatedAt: time.Now(),
+			ExpiresAt: &expires,
+		}
+		if err := s.repo.Create(ctx, n); err != nil {
+			slog.Warn("create backup failure notification", slog.String("profileID", p.ID), slog.Any("err", err))
+			continue
+		}
+		if s.push != nil && s.subs != nil {
+			subs, subErr := s.subs.GetByProfile(ctx, n.ProfileID)
+			if subErr != nil {
+				slog.Warn("webpush: get subscriptions for backup.failed", slog.String("profileID", n.ProfileID), slog.Any("err", subErr))
+			} else {
+				for _, sub := range subs {
+					if pushErr := s.push.Send(ctx, sub, n.Title, n.Message, nil); pushErr != nil {
+						slog.Warn("webpush: send backup.failed", slog.String("profileID", n.ProfileID), slog.Any("err", pushErr))
+					}
+				}
+			}
+		}
+		evt := notification.NotificationCreated{
+			NotificationID: n.ID,
+			ProfileID:      n.ProfileID,
+			Type:           n.Type,
+			Title:          n.Title,
+			OccurredAt:     n.CreatedAt,
+		}
+		if pubErr := s.events.Publish(ctx, evt); pubErr != nil {
+			slog.Warn("publish notification.created for backup.failed", slog.Any("err", pubErr))
 		}
 	}
 }

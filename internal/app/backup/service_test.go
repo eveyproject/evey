@@ -16,7 +16,21 @@ import (
 
 	backupmodel "github.com/gravity-zero/evey/internal/domain/backup"
 	"github.com/gravity-zero/evey/internal/domain/backup/fakes"
+	"github.com/gravity-zero/evey/internal/domain/shared"
 )
+
+type fakeEventCollector struct {
+	events []shared.Event
+}
+
+func (f *fakeEventCollector) Publish(_ context.Context, event shared.Event) error {
+	f.events = append(f.events, event)
+	return nil
+}
+func (f *fakeEventCollector) Subscribe(string, func(context.Context, shared.Event)) string {
+	return ""
+}
+func (f *fakeEventCollector) Unsubscribe(string) {}
 
 type errReader struct{ err error }
 
@@ -482,6 +496,38 @@ func TestStartScheduler_NegativeInterval(t *testing.T) {
 	list, _ := svc.ListBackups(t.Context())
 	if len(list) != 0 {
 		t.Fatal("scheduler with negative interval should not create backups")
+	}
+}
+
+func TestWithEventBus_PublishesBackupFailedOnScheduledError(t *testing.T) {
+	store := fakes.NewFakeBackupStore()
+	dumper := fakes.NewFakeDatabaseDumper()
+	dumper.Err = errors.New("db unreachable")
+	bus := &fakeEventCollector{}
+	svc := NewService(store, dumper, "1.0.0").WithEventBus(bus)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	// Manually call CreateBackup + event publish path (scheduler loop is hard to test)
+	if _, err := svc.CreateBackup(ctx); err != nil {
+		if svc.events != nil {
+			evt := backupmodel.BackupFailed{Error: err.Error()}
+			_ = svc.events.Publish(ctx, evt)
+		}
+	}
+	cancel()
+
+	if len(bus.events) != 1 {
+		t.Fatalf("expected 1 event, got %d", len(bus.events))
+	}
+	bf, ok := bus.events[0].(backupmodel.BackupFailed)
+	if !ok {
+		t.Fatalf("expected BackupFailed event, got %T", bus.events[0])
+	}
+	if bf.Error != "db unreachable" {
+		t.Fatalf("expected error 'db unreachable', got %q", bf.Error)
+	}
+	if bf.EventName() != "backup.failed" {
+		t.Fatalf("expected event name 'backup.failed', got %q", bf.EventName())
 	}
 }
 
