@@ -866,7 +866,7 @@ export function MediaDetail({ item, onMetadataUpdated, initialEdit }: MediaDetai
                 target="_blank"
                 rel="noopener noreferrer"
                 className="text-xs font-bold px-1.5 py-0.5 rounded"
-                style={{ backgroundColor: "#f5c518", color: "#000", textDecoration: "none" }}
+                style={{ backgroundColor: "var(--badge-imdb-bg)", color: "var(--badge-imdb-text)", textDecoration: "none" }}
                 onClick={(e) => e.stopPropagation()}
               >
                 IMDb
@@ -878,7 +878,7 @@ export function MediaDetail({ item, onMetadataUpdated, initialEdit }: MediaDetai
                 target="_blank"
                 rel="noopener noreferrer"
                 className="text-xs font-bold px-1.5 py-0.5 rounded"
-                style={{ backgroundColor: "#01b4e4", color: "#fff", textDecoration: "none" }}
+                style={{ backgroundColor: "var(--badge-tmdb-bg)", color: "var(--badge-tmdb-text)", textDecoration: "none" }}
                 onClick={(e) => e.stopPropagation()}
               >
                 TMDB
