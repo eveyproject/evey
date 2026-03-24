@@ -306,8 +306,8 @@ func (e *Enricher) AutoEnrichItem(ctx context.Context, item *domaindomain.MediaI
 		return
 	}
 
-	// 4. Supplement async (extra IDs, ratings) — does not block
-	go e.supplementItem(ctx, item, primary, mediaType, log)
+	// 4. Supplement with extra IDs, ratings from secondary providers
+	e.supplementItem(ctx, item, primary, mediaType, log)
 }
 
 // supplementItem calls supplementary providers to merge extra data (IMDB ID, ratings, TheTVDB ID).
