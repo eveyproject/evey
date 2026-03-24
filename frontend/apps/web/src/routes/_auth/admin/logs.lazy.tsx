@@ -7,6 +7,7 @@ import { useAuthStore } from "@evey/store";
 import { Spinner } from "@/components/ui/Spinner";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { Checkbox } from "@/components/ui/Checkbox";
+import { FilterChip } from "@/components/ui/FilterChip";
 
 export const Route = createLazyFileRoute("/_auth/admin/logs")({
   component: LogsPage,
@@ -229,18 +230,13 @@ function LogsPage() {
         />
         <div className="flex gap-1">
           {LEVELS.map((l) => (
-            <button
+            <FilterChip
               key={l}
+              active={filterLevel === l}
               onClick={() => setFilterLevel(l)}
-              className="px-3 py-1.5 rounded-full text-xs font-medium transition-colors"
-              style={{
-                backgroundColor: filterLevel === l ? "var(--accent)" : "var(--surface-raised)",
-                color: filterLevel === l ? "var(--filter-active-text)" : "var(--text-muted)",
-                border: `1px solid ${filterLevel === l ? "var(--accent)" : "var(--border)"}`,
-              }}
             >
               {l}
-            </button>
+            </FilterChip>
           ))}
         </div>
       </div>

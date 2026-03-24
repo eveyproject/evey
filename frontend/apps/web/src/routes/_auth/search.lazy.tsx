@@ -11,6 +11,7 @@ import { MediaGrid } from "@/features/library/MediaGrid";
 import { MediaCard } from "@/features/library/MediaCard";
 import { useRecentSearches } from "@/hooks/useRecentSearches";
 import { useDebounce } from "@/hooks/useDebounce";
+import { FilterChip } from "@/components/ui/FilterChip";
 
 export const Route = createLazyFileRoute("/_auth/search")({
   component: SearchPage,
@@ -148,40 +149,23 @@ function SearchPage() {
           <div className="flex items-center gap-2 flex-wrap">
             <div className="flex items-center gap-1" data-testid="search-type-filters" role="radiogroup" aria-label={t("search.filterByType")}>
               {typeFilters.map((f) => (
-                <button
+                <FilterChip
                   key={f.value ?? "all"}
-                  data-testid={`search-filter-${f.value === undefined ? "all" : f.value === "MEDIA_ITEM_TYPE_MOVIE" ? "movies" : "series"}`}
-                  role="radio"
-                  aria-checked={typeFilter === f.value}
+                  active={typeFilter === f.value}
                   onClick={() => setTypeFilter(f.value)}
-                  onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setTypeFilter(f.value); } }}
-                  className="px-3 py-1.5 rounded-full text-sm font-medium transition-colors cursor-pointer"
-                  style={{
-                    backgroundColor:
-                      typeFilter === f.value ? "var(--accent)" : "var(--surface)",
-                    color:
-                      typeFilter === f.value ? "var(--filter-active-text)" : "var(--text-secondary)",
-                    border: `1px solid ${typeFilter === f.value ? "var(--accent)" : "var(--border)"}`,
-                  }}
+                  size="md"
                 >
                   {f.label}
-                </button>
+                </FilterChip>
               ))}
             </div>
 
-            <button
-              data-testid="search-toggle-filters"
-              aria-label={t("search.filters")}
-              aria-expanded={showFilters}
+            <FilterChip
+              active={showFilters}
               onClick={() => setShowFilters((v) => !v)}
-              className="px-3 py-1.5 rounded-full text-sm font-medium transition-colors cursor-pointer flex items-center gap-1.5"
-              style={{
-                backgroundColor: showFilters ? "var(--accent)" : "var(--surface)",
-                color: showFilters ? "var(--filter-active-text)" : "var(--text-secondary)",
-                border: `1px solid ${showFilters ? "var(--accent)" : "var(--border)"}`,
-              }}
+              size="md"
+              icon={<ListFilter size={14} />}
             >
-              <ListFilter size={14} />
               {t("search.filters")}
               {hasActiveFilters && !showFilters && (
                 <span
@@ -189,7 +173,7 @@ function SearchPage() {
                   style={{ backgroundColor: "var(--accent)" }}
                 />
               )}
-            </button>
+            </FilterChip>
 
             {hasActiveFilters && (
               <button
