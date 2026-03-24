@@ -44,6 +44,7 @@ export function useCollections() {
   return useQuery<ListCollectionsResponse>({
     queryKey: ["collections"],
     queryFn: () => eveyFetch<ListCollectionsResponse>({ url: "/api/v1/collections", method: "GET" }),
+    staleTime: 5 * 60_000,
   });
 }
 
@@ -53,6 +54,7 @@ export function useCollection(id: string, limit = 50, offset = 0) {
     queryFn: () =>
       eveyFetch<GetCollectionResponse>({ url: `/api/v1/collections/${id}?limit=${limit}&offset=${offset}`, method: "GET" }),
     enabled: !!id,
+    staleTime: 5 * 60_000,
   });
 }
 

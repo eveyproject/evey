@@ -50,22 +50,14 @@ export interface RawFetcherRequest {
   signal?: AbortSignal;
 }
 
-export async function eveyFetchRaw(request: RawFetcherRequest): Promise<Response> {
-  const token = getToken?.();
-  const headers: Record<string, string> = { ...(request.headers ?? {}) };
-  if (token) headers["Authorization"] = `Bearer ${token}`;
+async function fetchWithRefresh(
+  url: string,
+  doFetch: (authToken: string | undefined) => Promise<Response>,
+  initialToken: string | undefined,
+): Promise<Response> {
+  let response = await doFetch(initialToken);
 
-  const doFetch = (authToken: string | undefined) =>
-    fetch(request.url, {
-      method: request.method,
-      headers: authToken ? { ...headers, Authorization: `Bearer ${authToken}` } : headers,
-      body: request.body,
-      signal: request.signal,
-    });
-
-  let response = await doFetch(token ?? undefined);
-
-  if (response.status === 401 && !request.url.includes("/auth/refresh")) {
+  if (response.status === 401 && !url.includes("/auth/refresh")) {
     if (refreshFailed) {
       window.dispatchEvent(new Event("evey:unauthorized"));
       throw Object.assign(new Error("Unauthorized"), { httpStatus: 401 });
@@ -99,6 +91,22 @@ export async function eveyFetchRaw(request: RawFetcherRequest): Promise<Response
   return response;
 }
 
+export async function eveyFetchRaw(request: RawFetcherRequest): Promise<Response> {
+  const token = getToken?.();
+  const headers: Record<string, string> = { ...(request.headers ?? {}) };
+  if (token) headers["Authorization"] = `Bearer ${token}`;
+
+  const doFetch = (authToken: string | undefined) =>
+    fetch(request.url, {
+      method: request.method,
+      headers: authToken ? { ...headers, Authorization: `Bearer ${authToken}` } : headers,
+      body: request.body,
+      signal: request.signal,
+    });
+
+  return fetchWithRefresh(request.url, doFetch, token ?? undefined);
+}
+
 export async function eveyFetch<T>(request: FetcherRequest): Promise<T> {
   const token = getToken?.();
   const headers: Record<string, string> = { ...(request.headers ?? {}) };
@@ -122,39 +130,7 @@ export async function eveyFetch<T>(request: FetcherRequest): Promise<T> {
       signal: request.signal,
     });
 
-  let response = await doFetch(token ?? undefined);
-
-  if (response.status === 401 && !url.includes("/auth/refresh")) {
-    if (refreshFailed) {
-      window.dispatchEvent(new Event("evey:unauthorized"));
-      throw Object.assign(new Error("Unauthorized"), { httpStatus: 401 });
-    }
-    try {
-      const newToken = await attemptRefresh();
-      refreshFailed = false;
-      response = await doFetch(newToken);
-    } catch {
-      refreshFailed = true;
-      window.dispatchEvent(new Event("evey:unauthorized"));
-      throw Object.assign(new Error("Unauthorized"), { httpStatus: 401 });
-    }
-  }
-
-  if (response.status === 401) {
-    window.dispatchEvent(new Event("evey:unauthorized"));
-  }
-
-  if (!response.ok) {
-    let message = `${response.status} ${response.statusText}`;
-    try {
-      const body = await response.json() as { message?: string; code?: number };
-      if (body.message) message = body.message;
-    } catch {
-      // ignore parse errors
-    }
-    const err = Object.assign(new Error(message), { httpStatus: response.status });
-    throw err;
-  }
+  const response = await fetchWithRefresh(url, doFetch, token ?? undefined);
 
   if (response.status === 204 || response.headers.get("content-length") === "0") {
     return undefined as T;

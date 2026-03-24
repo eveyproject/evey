@@ -32,6 +32,7 @@ export function usePlaylistList() {
   return useQuery({
     queryKey: ["playlists"],
     queryFn: () => eveyFetch<{ playlists: Playlist[] }>({ url: "/api/v1/playlists", method: "GET" }).then((r) => r.playlists ?? []),
+    staleTime: 5 * 60_000,
   });
 }
 
@@ -87,6 +88,7 @@ export function usePlaylistDetail(id: string) {
       };
     },
     enabled: !!id,
+    staleTime: 5 * 60_000,
   });
 }
 

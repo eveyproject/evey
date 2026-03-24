@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef, useMemo } from "react";
 import { Clock, Film } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import {
@@ -8,6 +8,7 @@ import {
 } from "@evey/api";
 import { Link } from "@tanstack/react-router";
 import { useQueryClient } from "@tanstack/react-query";
+import { useVirtualizer } from "@tanstack/react-virtual";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Modal } from "@/components/ui/Modal";
@@ -133,9 +134,17 @@ function HistoryItem({ item }: { item: WatchProgress }) {
   );
 }
 
+type VirtualRow =
+  | { type: "header"; label: string }
+  | { type: "item"; item: WatchProgress; isFirst: boolean; isLast: boolean };
+
+const ITEM_HEIGHT = 76;
+const HEADER_HEIGHT = 36;
+
 export function WatchHistory({ limit, showClearButton = false }: Props) {
   const { t } = useTranslation();
-  
+  const parentRef = useRef<HTMLDivElement>(null);
+
   const [showClearModal, setShowClearModal] = useState(false);
   const qc = useQueryClient();
   const { data, isLoading } = usePlaybackServiceGetWatchHistory(limit ? { limit } : undefined);
@@ -156,11 +165,29 @@ export function WatchHistory({ limit, showClearButton = false }: Props) {
     return date.toLocaleDateString(undefined, { year: "numeric", month: "long" });
   }
 
-  const grouped = items.reduce<Record<string, WatchProgress[]>>((acc, item) => {
-    const group = getDateGroup(item.lastPlayedAt);
-    (acc[group] ??= []).push(item);
-    return acc;
-  }, {});
+  const virtualRows = useMemo(() => {
+    const grouped = items.reduce<Record<string, WatchProgress[]>>((acc, item) => {
+      const group = getDateGroup(item.lastPlayedAt);
+      (acc[group] ??= []).push(item);
+      return acc;
+    }, {});
+
+    const rows: VirtualRow[] = [];
+    for (const [label, groupItems] of Object.entries(grouped)) {
+      rows.push({ type: "header", label });
+      groupItems.forEach((item, i) =>
+        rows.push({ type: "item", item, isFirst: i === 0, isLast: i === groupItems.length - 1 }),
+      );
+    }
+    return rows;
+  }, [items, t]);
+
+  const virtualizer = useVirtualizer({
+    count: virtualRows.length,
+    getScrollElement: () => parentRef.current,
+    estimateSize: (i) => virtualRows[i].type === "header" ? HEADER_HEIGHT : ITEM_HEIGHT,
+    overscan: 10,
+  });
 
   const handleClearAll = () => {
     setShowClearModal(false);
@@ -185,16 +212,32 @@ export function WatchHistory({ limit, showClearButton = false }: Props) {
         </div>
       )}
 
-      {Object.entries(grouped).map(([group, groupItems]) => (
-        <div key={group}>
-          <h3 className="text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wide mb-2">{group}</h3>
-          <div className="bg-[var(--surface-raised)] rounded-[var(--radius-md)] px-4">
-            {groupItems.map((item) => (
-              <HistoryItem key={item.id ?? item.mediaItemId} item={item} />
-            ))}
-          </div>
+      <div ref={parentRef} style={{ maxHeight: "70vh", overflow: "auto" }}>
+        <div style={{ height: virtualizer.getTotalSize(), width: "100%", position: "relative" }}>
+          {virtualizer.getVirtualItems().map((vItem) => {
+            const row = virtualRows[vItem.index];
+            if (row.type === "header") {
+              return (
+                <div
+                  key={vItem.key}
+                  style={{ position: "absolute", top: vItem.start, left: 0, width: "100%", height: vItem.size }}
+                >
+                  <h3 className="text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wide mb-2">{row.label}</h3>
+                </div>
+              );
+            }
+            return (
+              <div
+                key={vItem.key}
+                style={{ position: "absolute", top: vItem.start, left: 0, width: "100%" }}
+                className={`bg-[var(--surface-raised)] px-4 ${row.isFirst ? "rounded-t-[var(--radius-md)]" : ""} ${row.isLast ? "rounded-b-[var(--radius-md)]" : ""}`}
+              >
+                <HistoryItem item={row.item} />
+              </div>
+            );
+          })}
         </div>
-      ))}
+      </div>
 
       <Modal open={showClearModal} onClose={() => setShowClearModal(false)} title={t("auth.watchHistory.clearTitle")}>
         <p className="text-sm text-[var(--text-muted)] mb-6">
