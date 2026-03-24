@@ -36,7 +36,7 @@ func NewCommandService(
 	profiles ProfileLister,
 	events shared.EventBus,
 ) *CommandService {
-	s := &CommandService{
+	return &CommandService{
 		repo:     repo,
 		settings: settings,
 		analyzer: analyzer,
@@ -45,8 +45,10 @@ func NewCommandService(
 		dedupe:   make(map[string]time.Time),
 		done:     make(chan struct{}),
 	}
-	events.Subscribe("media.item.added", s.handleMediaItemAdded)
-	return s
+}
+
+func (s *CommandService) Register() {
+	s.events.Subscribe("media.item.added", s.handleMediaItemAdded)
 }
 
 func (s *CommandService) WithPush(push notification.PushSender, subs notification.PushSubscriptionRepository) *CommandService {

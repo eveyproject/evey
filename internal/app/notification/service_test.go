@@ -35,7 +35,8 @@ func TestNotificationService_MediaItemAdded_CreatesNotificationsForAllProfiles(t
 	_ = profileRepo.Create(ctx, &user.Profile{ID: "p1", UserID: "u1", Name: "Alice"})
 	_ = profileRepo.Create(ctx, &user.Profile{ID: "p2", UserID: "u2", Name: "Bob"})
 
-	_ = appnotification.NewCommandService(repo, settings, analyzer, profileRepo, bus)
+	svc := appnotification.NewCommandService(repo, settings, analyzer, profileRepo, bus)
+	svc.Register()
 
 	bus.Publish(ctx, libevent.MediaItemAdded{
 		MediaItemID: "m1",
@@ -66,7 +67,8 @@ func TestNotificationService_Deduplication(t *testing.T) {
 	ctx := context.Background()
 	_ = profileRepo.Create(ctx, &user.Profile{ID: "p1", UserID: "u1", Name: "Alice"})
 
-	_ = appnotification.NewCommandService(repo, settings, analyzer, profileRepo, bus)
+	svc := appnotification.NewCommandService(repo, settings, analyzer, profileRepo, bus)
+	svc.Register()
 
 	ev := libevent.MediaItemAdded{
 		MediaItemID: "m1",
@@ -101,7 +103,8 @@ func TestNotificationService_LevelDisabled_SkipsProfile(t *testing.T) {
 		MusicLevel:  notifdom.LevelAll,
 	})
 
-	_ = appnotification.NewCommandService(repo, settings, analyzer, profileRepo, bus)
+	svc := appnotification.NewCommandService(repo, settings, analyzer, profileRepo, bus)
+	svc.Register()
 
 	bus.Publish(ctx, libevent.MediaItemAdded{
 		MediaItemID: "m1",
@@ -152,7 +155,8 @@ func TestNotificationService_GetAllProfilesError_NoNotifications(t *testing.T) {
 	bus := sharedfakes.NewFakeEventBus()
 
 	lister := &errProfileLister{err: errors.New("db down")}
-	_ = appnotification.NewCommandService(repo, settings, analyzer, lister, bus)
+	svc := appnotification.NewCommandService(repo, settings, analyzer, lister, bus)
+	svc.Register()
 
 	ctx := context.Background()
 	bus.Publish(ctx, libevent.MediaItemAdded{
@@ -179,7 +183,8 @@ func TestNotificationService_EpisodeNotification(t *testing.T) {
 	ctx := context.Background()
 	_ = profileRepo.Create(ctx, &user.Profile{ID: "p1", UserID: "u1", Name: "Alice"})
 
-	_ = appnotification.NewCommandService(repo, settings, analyzer, profileRepo, bus)
+	svc := appnotification.NewCommandService(repo, settings, analyzer, profileRepo, bus)
+	svc.Register()
 
 	bus.Publish(ctx, libevent.MediaItemAdded{
 		MediaItemID: "ep1",
@@ -208,7 +213,8 @@ func TestNotificationService_AlbumNotification(t *testing.T) {
 	ctx := context.Background()
 	_ = profileRepo.Create(ctx, &user.Profile{ID: "p1", UserID: "u1", Name: "Alice"})
 
-	_ = appnotification.NewCommandService(repo, settings, analyzer, profileRepo, bus)
+	svc := appnotification.NewCommandService(repo, settings, analyzer, profileRepo, bus)
+	svc.Register()
 
 	bus.Publish(ctx, libevent.MediaItemAdded{
 		MediaItemID: "alb1",
@@ -235,7 +241,8 @@ func TestNotificationService_UnknownMediaType_NoNotification(t *testing.T) {
 	ctx := context.Background()
 	_ = profileRepo.Create(ctx, &user.Profile{ID: "p1", UserID: "u1", Name: "Alice"})
 
-	_ = appnotification.NewCommandService(repo, settings, analyzer, profileRepo, bus)
+	svc := appnotification.NewCommandService(repo, settings, analyzer, profileRepo, bus)
+	svc.Register()
 
 	bus.Publish(ctx, libevent.MediaItemAdded{
 		MediaItemID: "x1",
@@ -355,6 +362,7 @@ func TestNotificationService_WithPush_SendsToSubscriptions(t *testing.T) {
 
 	svc := appnotification.NewCommandService(repo, settings, analyzer, profileRepo, bus)
 	svc.WithPush(pushSender, subRepo)
+	svc.Register()
 
 	bus.Publish(ctx, libevent.MediaItemAdded{
 		MediaItemID: "m1",
@@ -384,6 +392,7 @@ func TestNotificationService_WithPush_NoSubsNoPush(t *testing.T) {
 
 	svc := appnotification.NewCommandService(repo, settings, analyzer, profileRepo, bus)
 	svc.WithPush(pushSender, subRepo)
+	svc.Register()
 
 	bus.Publish(ctx, libevent.MediaItemAdded{
 		MediaItemID: "m1",
@@ -422,6 +431,7 @@ func TestNotificationService_WithPush_DisabledLevel_NoPush(t *testing.T) {
 
 	svc := appnotification.NewCommandService(repo, settings, analyzer, profileRepo, bus)
 	svc.WithPush(pushSender, subRepo)
+	svc.Register()
 
 	bus.Publish(ctx, libevent.MediaItemAdded{
 		MediaItemID: "m1",
@@ -451,6 +461,7 @@ func TestNotificationService_WithPush_PushSendError_DoesNotBlockNotification(t *
 
 	svc := appnotification.NewCommandService(repo, settings, analyzer, profileRepo, bus)
 	svc.WithPush(pushSender, subRepo)
+	svc.Register()
 
 	bus.Publish(ctx, libevent.MediaItemAdded{
 		MediaItemID: "m1",

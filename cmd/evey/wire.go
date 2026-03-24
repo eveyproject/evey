@@ -285,6 +285,7 @@ func buildServices(ctx context.Context, cfg *config.Config, db *sql.DB, rootLog 
 	webhookSvc := appwebhook.NewService(r.Webhook, r.WebhookDelivery, webhookLog, bus)
 
 	notifCmdSvc := appnotification.NewCommandService(r.Notification, r.NotificationSettings, r.WatchHistoryAnalyzer, r.Profile, bus)
+	notifCmdSvc.Register()
 	notifQuerySvc := appnotification.NewQueryService(r.Notification, r.NotificationSettings)
 
 	vapidPub, vapidPriv := resolveVAPIDKeys(r.ServerCfg, cfg)
