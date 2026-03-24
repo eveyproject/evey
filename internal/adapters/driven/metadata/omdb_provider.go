@@ -131,7 +131,7 @@ func (p *OMDbProvider) doRequest(ctx context.Context, rawURL string) ([]byte, er
 		return nil, err
 	}
 	defer resp.Body.Close()
-	body, err := io.ReadAll(resp.Body)
+	body, err := io.ReadAll(io.LimitReader(resp.Body, 10<<20)) // 10MB max
 	if err != nil {
 		return nil, err
 	}

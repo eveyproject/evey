@@ -138,6 +138,11 @@ func trickplayGenerateHandler(tokenGen TokenVerifier, libSvc TrickplayGenerator,
 			return
 		}
 		go func() {
+			defer func() {
+				if r := recover(); r != nil {
+					slog.Error("recovered panic in trickplay generation", "panic", r)
+				}
+			}()
 			ctx, cancel := context.WithTimeout(serverCtx, 5*time.Minute)
 			defer cancel()
 			if err := libSvc.GenerateTrickplay(ctx, mediaID); err != nil {

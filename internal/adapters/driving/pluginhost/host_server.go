@@ -86,6 +86,11 @@ func (h *HostServer) Start() error {
 	slog.Info("host gRPC server started", slog.String("sock", hostSockPath))
 
 	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				slog.Error("recovered panic in host gRPC serve", "panic", r)
+			}
+		}()
 		if err := h.grpcSrv.Serve(lis); err != nil {
 			slog.Error("host gRPC serve", slog.Any("err", err))
 		}

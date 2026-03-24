@@ -221,6 +221,11 @@ func (s *CommandService) CleanupExpired(ctx context.Context) error {
 
 func (s *CommandService) StartCleanup(ctx context.Context) {
 	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				slog.Error("recovered panic in notification cleanup", "panic", r)
+			}
+		}()
 		if err := s.repo.CleanupExpired(ctx); err != nil {
 			slog.Warn("notification cleanup", slog.Any("err", err))
 		}
