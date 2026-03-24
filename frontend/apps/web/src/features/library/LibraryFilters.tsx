@@ -1,5 +1,6 @@
 import type { V1MediaItem, LibraryServiceListMediaItemsType } from "@evey/api/src/generated/library.schemas";
 import { Check, Star, Filter } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/Button";
 import { FilterChip } from "@/components/ui/FilterChip";
 import type { LibrarySearch } from "@/routes/_auth/library/$libraryId";
@@ -181,15 +182,16 @@ function YearRangeFilter({
   yearTo?: number;
   onChange: (from: number | undefined, to: number | undefined) => void;
 }) {
+  const { t } = useTranslation();
   return (
     <div className="mb-4">
       <p className="text-xs font-semibold mb-2 uppercase tracking-wide" style={{ color: "var(--text-muted)" }}>
-        Year
+        {t("media.library.yearLabel")}
       </p>
       <div className="flex items-center gap-2">
         <input
           type="number"
-          placeholder="From"
+          placeholder={t("media.library.yearFrom")}
           value={yearFrom ?? ""}
           min={1900}
           max={new Date().getFullYear() + 1}
@@ -207,7 +209,7 @@ function YearRangeFilter({
         <span className="flex-shrink-0 text-xs" style={{ color: "var(--text-muted)" }}>—</span>
         <input
           type="number"
-          placeholder="To"
+          placeholder={t("media.library.yearTo")}
           value={yearTo ?? ""}
           min={1900}
           max={new Date().getFullYear() + 1}
@@ -236,10 +238,11 @@ function RatingFilter({
   minRating?: number;
   onChange: (v: number | undefined) => void;
 }) {
+  const { t } = useTranslation();
   return (
     <div className="mb-4">
       <p className="text-xs font-semibold mb-2 uppercase tracking-wide" style={{ color: "var(--text-muted)" }}>
-        Min Rating
+        {t("media.library.minRating")}
       </p>
       <div className="flex items-center gap-1">
         {RATING_OPTIONS.map((star) => {
@@ -249,7 +252,7 @@ function RatingFilter({
               key={star}
               type="button"
               onClick={() => onChange(minRating === star ? undefined : star)}
-              title={`Min ${star} star${star > 1 ? "s" : ""}`}
+              title={t("media.library.minStars", { count: star })}
               className="p-0.5 transition-colors"
               style={{ color: active ? "var(--accent)" : "var(--border)" }}
             >
@@ -264,7 +267,7 @@ function RatingFilter({
             className="ml-1 text-xs hover:underline"
             style={{ color: "var(--text-muted)" }}
           >
-            Clear
+            {t("media.library.clearRating")}
           </button>
         )}
       </div>
@@ -272,13 +275,13 @@ function RatingFilter({
   );
 }
 
-const TYPE_OPTIONS: Array<{ label: string; value: LibraryServiceListMediaItemsType | "" }> = [
-  { label: "All", value: "" },
-  { label: "Movie", value: "MEDIA_ITEM_TYPE_MOVIE" },
-  { label: "Show", value: "MEDIA_ITEM_TYPE_SERIES" },
-  { label: "Episode", value: "MEDIA_ITEM_TYPE_EPISODE" },
-  { label: "Track", value: "MEDIA_ITEM_TYPE_TRACK" },
-  { label: "Photo", value: "MEDIA_ITEM_TYPE_PHOTO" },
+const TYPE_OPTIONS: Array<{ labelKey: string; value: LibraryServiceListMediaItemsType | "" }> = [
+  { labelKey: "media.library.typeAll", value: "" },
+  { labelKey: "media.library.typeMovie", value: "MEDIA_ITEM_TYPE_MOVIE" },
+  { labelKey: "media.library.typeShow", value: "MEDIA_ITEM_TYPE_SERIES" },
+  { labelKey: "media.library.typeEpisode", value: "MEDIA_ITEM_TYPE_EPISODE" },
+  { labelKey: "media.library.typeTrack", value: "MEDIA_ITEM_TYPE_TRACK" },
+  { labelKey: "media.library.typePhoto", value: "MEDIA_ITEM_TYPE_PHOTO" },
 ];
 
 function TypeFilter({
@@ -288,10 +291,11 @@ function TypeFilter({
   value?: LibraryServiceListMediaItemsType;
   onChange: (v: LibraryServiceListMediaItemsType | undefined) => void;
 }) {
+  const { t } = useTranslation();
   return (
     <div className="mb-4">
       <p className="text-xs font-semibold mb-2 uppercase tracking-wide" style={{ color: "var(--text-muted)" }}>
-        Type
+        {t("media.library.typeLabel")}
       </p>
       <select
         value={value ?? ""}
@@ -304,7 +308,7 @@ function TypeFilter({
         }}
       >
         {TYPE_OPTIONS.map((o) => (
-          <option key={o.value} value={o.value}>{o.label}</option>
+          <option key={o.value} value={o.value}>{t(o.labelKey)}</option>
         ))}
       </select>
     </div>
@@ -318,14 +322,15 @@ function GenreTextFilter({
   value?: string;
   onChange: (v: string | undefined) => void;
 }) {
+  const { t } = useTranslation();
   return (
     <div className="mb-4">
       <p className="text-xs font-semibold mb-2 uppercase tracking-wide" style={{ color: "var(--text-muted)" }}>
-        Genre (text)
+        {t("media.library.genreText")}
       </p>
       <input
         type="text"
-        placeholder="e.g. Action"
+        placeholder={t("media.library.genrePlaceholder")}
         value={value ?? ""}
         onChange={(e) => onChange(e.target.value || undefined)}
         className="w-full px-2 py-1.5 rounded-[var(--radius-md)] text-sm focus:outline-none focus:ring-2 focus:ring-[var(--accent)]"
@@ -356,11 +361,12 @@ function GenreChips({
 }) {
   // Merge predefined list with any genres found in library data
   const merged = Array.from(new Set([...PREDEFINED_GENRES, ...availableGenres])).sort();
+  const { t } = useTranslation();
   if (merged.length === 0) return null;
   return (
     <div className="mb-4">
       <p className="text-xs font-semibold mb-2 uppercase tracking-wide" style={{ color: "var(--text-muted)" }}>
-        Genre
+        {t("media.library.genreLabel")}
       </p>
       <div className="flex flex-wrap gap-1.5 max-h-36 overflow-y-auto pr-1">
         {merged.map((g) => {
@@ -402,6 +408,7 @@ export function LibraryFilterToggle({
   resultCount?: number;
   onClick: () => void;
 }) {
+  const { t } = useTranslation();
   const count = countActiveFilters(search);
   return (
     <div className="flex items-center gap-2">
@@ -418,7 +425,7 @@ export function LibraryFilterToggle({
         data-testid="filter-toggle"
       >
         <Filter size={16} />
-        Filters
+        {t("media.library.filters")}
         {count > 0 && (
           <span
             className="inline-flex items-center justify-center w-4 h-4 rounded-full text-xs font-bold"
@@ -430,7 +437,7 @@ export function LibraryFilterToggle({
       </button>
       {count > 0 && resultCount != null && (
         <span className="text-xs" style={{ color: "var(--text-muted)" }} data-testid="filter-result-count">
-          {resultCount} result{resultCount !== 1 ? "s" : ""}
+          {t("media.library.resultCount", { count: resultCount })}
         </span>
       )}
     </div>
@@ -443,6 +450,7 @@ export function LibraryFiltersPanel({
   availableOptions,
   onUpdate,
 }: LibraryFiltersProps) {
+  const { t } = useTranslation();
   const activeCount = countActiveFilters(search);
 
   return (
@@ -452,7 +460,7 @@ export function LibraryFiltersPanel({
       data-testid="filter-panel"
     >
       <div className="flex items-center justify-between mb-4">
-        <span className="text-sm font-semibold" style={{ color: "var(--text)" }}>Filters</span>
+        <span className="text-sm font-semibold" style={{ color: "var(--text)" }}>{t("media.library.filters")}</span>
         {activeCount > 0 && (
           <Button
             variant="ghost"
@@ -472,7 +480,7 @@ export function LibraryFiltersPanel({
               })
             }
           >
-            Clear all
+            {t("media.library.clearAll")}
           </Button>
         )}
       </div>
@@ -505,28 +513,28 @@ export function LibraryFiltersPanel({
       />
 
       <CheckboxGroup
-        label="Resolution"
+        label={t("media.library.resolution")}
         options={availableOptions.resolutions}
         selected={search.resolutions ?? []}
         onChange={(v) => onUpdate({ resolutions: v.length ? v : undefined })}
       />
 
       <CheckboxGroup
-        label="Video Codec"
+        label={t("media.library.videoCodec")}
         options={availableOptions.codecs}
         selected={search.codecs ?? []}
         onChange={(v) => onUpdate({ codecs: v.length ? v : undefined })}
       />
 
       <CheckboxGroup
-        label="Audio Language"
+        label={t("media.library.audioLanguage")}
         options={availableOptions.audioLangs}
         selected={search.audioLangs ?? []}
         onChange={(v) => onUpdate({ audioLangs: v.length ? v : undefined })}
       />
 
       <CheckboxGroup
-        label="Subtitle Language"
+        label={t("media.library.subtitleLanguage")}
         options={availableOptions.subLangs}
         selected={search.subLangs ?? []}
         onChange={(v) => onUpdate({ subLangs: v.length ? v : undefined })}
@@ -538,7 +546,7 @@ export function LibraryFiltersPanel({
         availableOptions.subLangs.length === 0 &&
         availableGenres.length === 0 && (
           <p className="text-xs" style={{ color: "var(--text-muted)" }}>
-            No filter options available for this library yet.
+            {t("media.library.noFilterOptions")}
           </p>
         )}
     </div>

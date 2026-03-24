@@ -104,6 +104,32 @@ library:
   noPlaylists: Sin listas de reproducción aún.
   failedAddPlaylist: Error al añadir a la lista de reproducción
   itemsAddedToPlaylist: "{{count}} elemento(s) añadido(s) a \"{{name}}\""
+  filters: Filtros
+  clearAll: Borrar todo
+  resultCount: "{{count}} resultado"
+  resultCount_plural: "{{count}} resultados"
+  yearLabel: Año
+  yearFrom: Desde
+  yearTo: Hasta
+  minRating: Puntuación mínima
+  minStars: "Mín {{count}} estrella"
+  minStars_plural: "Mín {{count}} estrellas"
+  clearRating: Borrar
+  typeAll: Todo
+  typeMovie: Película
+  typeShow: Serie
+  typeEpisode: Episodio
+  typeTrack: Pista
+  typePhoto: Foto
+  typeLabel: Tipo
+  genreText: "Género (texto)"
+  genrePlaceholder: "ej. Acción"
+  genreLabel: Género
+  resolution: Resolución
+  videoCodec: Códec de vídeo
+  audioLanguage: Idioma de audio
+  subtitleLanguage: Idioma de subtítulos
+  noFilterOptions: No hay opciones de filtro disponibles para esta biblioteca.
 person:
   notFound: Persona no encontrada.
   unknown: Desconocido

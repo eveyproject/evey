@@ -104,6 +104,32 @@ library:
   noPlaylists: 暂无播放列表。
   failedAddPlaylist: 添加到播放列表失败
   itemsAddedToPlaylist: "{{count}} 项已添加到「{{name}}」"
+  filters: 筛选
+  clearAll: 全部清除
+  resultCount: "{{count}} 个结果"
+  resultCount_plural: "{{count}} 个结果"
+  yearLabel: 年份
+  yearFrom: 从
+  yearTo: 至
+  minRating: 最低评分
+  minStars: "最低 {{count}} 星"
+  minStars_plural: "最低 {{count}} 星"
+  clearRating: 清除
+  typeAll: 全部
+  typeMovie: 电影
+  typeShow: 剧集
+  typeEpisode: 单集
+  typeTrack: 曲目
+  typePhoto: 照片
+  typeLabel: 类型
+  genreText: "类型（文本）"
+  genrePlaceholder: "如 动作"
+  genreLabel: 类型
+  resolution: 分辨率
+  videoCodec: 视频编码
+  audioLanguage: 音频语言
+  subtitleLanguage: 字幕语言
+  noFilterOptions: 此媒体库暂无可用的筛选选项。
 person:
   notFound: 未找到此人。
   unknown: 未知
