@@ -8,6 +8,7 @@ import type { Chapter } from "@/hooks/useChapters";
 import { TrickplayPreview } from "./TrickplayPreview";
 import { ChapterMarkers } from "./ChapterMarkers";
 import type { SubtitleStyle } from "@/hooks/usePlaybackPrefs";
+import { SPEED_OPTIONS } from "./constants";
 
 export interface EpisodeNavItem { id: string; title?: string; indexNumber?: number }
 export interface SeasonNavItem { id: string; title?: string; indexNumber?: number }
@@ -22,8 +23,6 @@ function useQualityOptions() {
     { label: "360p", value: 360 },
   ];
 }
-
-const SPEED_OPTIONS = [0.5, 0.75, 1, 1.25, 1.5, 2];
 
 interface EpisodesPanelProps {
   seasons: SeasonNavItem[];

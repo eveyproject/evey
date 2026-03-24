@@ -25,6 +25,7 @@ import {
   setSubtitleStyle,
   type SubtitleStyle,
 } from "@/hooks/usePlaybackPrefs";
+import { SPEED_OPTIONS } from "./constants";
 
 interface AudioTrack {
   id: string;
@@ -39,8 +40,6 @@ interface AudioTrackList {
 interface HTMLVideoElementWithAudioTracks extends HTMLVideoElement {
   audioTracks?: AudioTrackList;
 }
-
-const SPEED_OPTIONS = [0.5, 0.75, 1, 1.25, 1.5, 2];
 
 export type { AudioStream, SubtitleStream, EpisodeNavItem, SeasonNavItem };
 
@@ -200,7 +199,7 @@ export function HLSPlayer({
       });
       hlsInstance.on(Hls.Events.ERROR, (_, data) => {
         if (!data.fatal) return;
-        console.warn("[player] HLS fatal error:", data.type, data.details);
+        if (import.meta.env.DEV) console.warn("[player] HLS fatal error:", data.type, data.details);
         setTranscodeMode(true);
       });
     } else if (streamInfo.directPlayUrl) {
@@ -222,7 +221,7 @@ export function HLSPlayer({
     function handleError() {
       const e = video!.error;
       if (e) {
-        console.warn("[player] direct play error:", e.code, e.message);
+        if (import.meta.env.DEV) console.warn("[player] direct play error:", e.code, e.message);
         setTranscodeMode(true);
       }
     }
@@ -319,7 +318,7 @@ export function HLSPlayer({
     let retries = 0;
     hls.on(Hls.Events.ERROR, (_, data) => {
       if (!data.fatal) return;
-      console.warn("[player] HLS fatal error:", data.type, data.details, data.response?.code);
+      if (import.meta.env.DEV) console.warn("[player] HLS fatal error:", data.type, data.details, data.response?.code);
       retries++;
       if (retries > 10) {
         setFatalError(true);

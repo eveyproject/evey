@@ -1,3 +1,5 @@
+import { memo } from "react";
+
 interface FeedSectionProps {
   title: string;
   children: React.ReactNode;
@@ -31,7 +33,7 @@ function SkeletonCard() {
   );
 }
 
-export function FeedSection({ title, children, isLoading }: FeedSectionProps) {
+export const FeedSection = memo(function FeedSection({ title, children, isLoading }: FeedSectionProps) {
   return (
     <section className="mb-8">
       <h2
@@ -51,4 +53,4 @@ export function FeedSection({ title, children, isLoading }: FeedSectionProps) {
       </div>
     </section>
   );
-}
+});

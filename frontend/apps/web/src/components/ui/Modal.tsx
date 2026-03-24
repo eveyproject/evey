@@ -1,4 +1,4 @@
-import { useEffect, useRef, type ReactNode } from "react";
+import { useEffect, useId, useRef, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 
 const FOCUSABLE = 'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
@@ -20,6 +20,9 @@ interface ModalProps {
 }
 
 export function Modal({ open, onClose, title, size = "md", children }: ModalProps) {
+  const id = useId();
+  const titleId = `${id}-modal-title`;
+  const bodyId = `${id}-modal-body`;
   const backdropRef = useRef<HTMLDivElement>(null);
   const dialogRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLElement | null>(null);
@@ -101,17 +104,17 @@ export function Modal({ open, onClose, title, size = "md", children }: ModalProp
         ref={dialogRef}
         role="dialog"
         aria-modal="true"
-        aria-labelledby={title ? "modal-title" : undefined}
-        aria-describedby="modal-body"
+        aria-labelledby={title ? titleId : undefined}
+        aria-describedby={bodyId}
         tabIndex={-1}
         className={`bg-[var(--surface)] rounded-[var(--radius-lg)] border border-[var(--border)] p-6 w-full ${sizeClasses[size]} shadow-xl outline-none`}
       >
         {title && (
-          <h2 id="modal-title" className="text-lg font-semibold text-[var(--text)] mb-4">
+          <h2 id={titleId} className="text-lg font-semibold text-[var(--text)] mb-4">
             {title}
           </h2>
         )}
-        <div id="modal-body">{children}</div>
+        <div id={bodyId}>{children}</div>
       </div>
     </div>,
     document.body,

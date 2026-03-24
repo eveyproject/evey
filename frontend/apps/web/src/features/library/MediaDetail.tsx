@@ -937,7 +937,7 @@ export function MediaDetail({ item, onMetadataUpdated, initialEdit }: MediaDetai
             style={{ borderRadius: "var(--radius-md)", aspectRatio: "2/3", backgroundColor: "var(--surface-raised)" }}
           >
             {posterUrl ? (
-              <img src={posterUrl} alt={item.title ?? ""} className="w-full h-full object-cover" data-testid="media-poster" onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }} />
+              <img src={posterUrl} alt={item.title ?? ""} fetchPriority="high" className="w-full h-full object-cover" data-testid="media-poster" onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }} />
             ) : (
               <div className="w-full h-full flex items-center justify-center text-3xl font-bold" style={{ color: "var(--text-muted)" }}>
                 {item.title?.[0]?.toUpperCase() ?? "?"}
