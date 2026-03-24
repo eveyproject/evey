@@ -16,3 +16,19 @@ type Repository interface {
 	Search(ctx context.Context, libraryID, query string, limit int) ([]Photo, error)
 	UpdateFilePath(ctx context.Context, id, newPath string, modTime time.Time) error
 }
+
+// ScannedImageFile represents a discovered image file during directory walking.
+type ScannedImageFile struct {
+	Path     string
+	Size     int64
+	ModTime  time.Time
+	MimeType string
+}
+
+// PhotoScanner abstracts filesystem operations needed by photo scanning.
+type PhotoScanner interface {
+	WalkImageFiles(ctx context.Context, dir string, fn func(ScannedImageFile) error) error
+	ReadFile(path string) ([]byte, error)
+	ImageDimensions(path string) (width, height int)
+	ComputeHash(path string) (string, error)
+}

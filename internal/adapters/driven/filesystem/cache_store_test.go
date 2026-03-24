@@ -59,13 +59,13 @@ func TestCacheStore_GetCacheInfo_Subdirectories(t *testing.T) {
 	info, err := store.GetCacheInfo(context.Background())
 	require.NoError(t, err)
 	assert.Equal(t, int64(256+4096+4096+100), info.TotalSize)
-	assert.Equal(t, 2, info.FileCount) // "hls" dir + "job1.m3u8"
+	assert.Equal(t, 2, info.FileCount) // "media-123" session + "job1.m3u8"
 
 	nameMap := map[string]int64{}
 	for _, f := range info.Files {
 		nameMap[f.Name] = f.Size
 	}
-	assert.Equal(t, int64(256+4096+4096), nameMap["hls"])
+	assert.Equal(t, int64(256+4096+4096), nameMap["media-123"])
 	assert.Equal(t, int64(100), nameMap["job1.m3u8"])
 }
 

@@ -10,11 +10,12 @@ import (
 )
 
 type QueryService struct {
-	tracks music.TrackRepository
+	tracks  music.TrackRepository
+	scanner music.MusicScanner
 }
 
-func NewQueryService(tracks music.TrackRepository) *QueryService {
-	return &QueryService{tracks: tracks}
+func NewQueryService(tracks music.TrackRepository, scanner music.MusicScanner) *QueryService {
+	return &QueryService{tracks: tracks, scanner: scanner}
 }
 
 func (s *QueryService) GetTrack(ctx context.Context, trackID string) (*music.Track, error) {
@@ -29,7 +30,7 @@ func (s *QueryService) GetTrackArt(ctx context.Context, trackID string) (data []
 	if t == nil {
 		return nil, "", os.ErrNotExist
 	}
-	f, err := os.Open(t.FilePath)
+	f, err := s.scanner.OpenFile(t.FilePath)
 	if err != nil {
 		return nil, "", os.ErrNotExist
 	}
@@ -76,7 +77,6 @@ func (s *QueryService) StreamTrack(ctx context.Context, trackID string) (filePat
 	return t.FilePath, t.MimeType, nil
 }
 
-// StreamTrackURL returns a direct-use URL for the given track.
 func (s *QueryService) StreamTrackURL(trackID string) string {
 	return fmt.Sprintf("/api/v1/music/tracks/%s/stream", trackID)
 }

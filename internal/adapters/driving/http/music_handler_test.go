@@ -70,7 +70,7 @@ func newMusicTestMuxWithToken(t *testing.T) (*http.ServeMux, string) {
 	mux := http.NewServeMux()
 	repo := musicfakes.NewFakeMusicTrackRepository()
 	bus := sharedfakes.NewFakeEventBus()
-	svc := appmusic.NewService(repo, bus, nil)
+	svc := appmusic.NewService(repo, bus, nil, nil)
 	registerMusicRoutes(mux, svc, tokenGen, allowAll(), nil)
 	return mux, token
 }
@@ -105,7 +105,7 @@ func TestListTracks_IDOR_DeniedLibrary(t *testing.T) {
 	mux := http.NewServeMux()
 	repo := musicfakes.NewFakeMusicTrackRepository()
 	bus := sharedfakes.NewFakeEventBus()
-	svc := appmusic.NewService(repo, bus, nil)
+	svc := appmusic.NewService(repo, bus, nil, nil)
 	registerMusicRoutes(mux, svc, tokenGen, denyAll(), nil)
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/music/tracks?library_id=lib-other", nil)
@@ -177,7 +177,7 @@ func TestListAlbums_IDOR_403(t *testing.T) {
 	mux := http.NewServeMux()
 	repo := musicfakes.NewFakeMusicTrackRepository()
 	bus := sharedfakes.NewFakeEventBus()
-	svc := appmusic.NewService(repo, bus, nil)
+	svc := appmusic.NewService(repo, bus, nil, nil)
 	registerMusicRoutes(mux, svc, tokenGen, denyAll(), nil)
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/music/albums?library_id=lib-other", nil)
@@ -218,7 +218,7 @@ func TestListArtists_IDOR_403(t *testing.T) {
 	mux := http.NewServeMux()
 	repo := musicfakes.NewFakeMusicTrackRepository()
 	bus := sharedfakes.NewFakeEventBus()
-	svc := appmusic.NewService(repo, bus, nil)
+	svc := appmusic.NewService(repo, bus, nil, nil)
 	registerMusicRoutes(mux, svc, tokenGen, denyAll(), nil)
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/music/artists?library_id=lib-other", nil)
@@ -261,7 +261,7 @@ func TestDeleteTrack_NoLibraryAccess_Forbidden(t *testing.T) {
 	ctx := context.TODO()
 	_ = repo.Upsert(ctx, musicdomain.Track{ID: "track-1", LibraryID: "lib-1", FilePath: "/music/song.mp3"})
 	bus := sharedfakes.NewFakeEventBus()
-	svc := appmusic.NewService(repo, bus, nil)
+	svc := appmusic.NewService(repo, bus, nil, nil)
 	registerMusicRoutes(mux, svc, tokenGen, denyAll(), nil)
 
 	req := httptest.NewRequest(http.MethodDelete, "/api/v1/music/tracks/track-1", nil)

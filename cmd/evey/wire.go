@@ -205,10 +205,12 @@ func buildServices(ctx context.Context, cfg *config.Config, db *sql.DB, rootLog 
 
 	permChecker := appplugin.NewPermissionChecker(r.Plugin)
 
+	pluginFS := filesystem.NewPluginFileSystem()
 	pluginInstallerSvc := appplugin.NewInstallerService(r.Plugin, pluginRunner, manifestParser, bus).
 		WithInstaller(pluginInstaller).
 		WithAnalyzer(pluginAnalyzer).
-		WithPermissionChecker(permChecker)
+		WithPermissionChecker(permChecker).
+		WithFileSystem(pluginFS)
 	pluginRuntimeSvc := appplugin.NewRuntimeService(r.Plugin, r.PluginRuntime, pluginRunner, manifestParser, bus).
 		WithPermissionChecker(permChecker)
 	pluginRunner.WithIPCCallback(pluginRuntimeSvc.HandleIPCResult)
@@ -316,9 +318,11 @@ func buildServices(ctx context.Context, cfg *config.Config, db *sql.DB, rootLog 
 	}
 
 	favoriteSvc := appfavorite.NewService(r.Favorite)
-	photoSvc := appphoto.NewService(r.Photo, bus, r.Library)
+	photoScanner := filesystem.NewPhotoScanner()
+	photoSvc := appphoto.NewService(r.Photo, bus, r.Library, photoScanner)
 	starRatingSvc := apprating.NewService(r.Rating, bus)
-	musicSvc := appmusic.NewService(r.MusicTrack, bus, r.Library)
+	musicScanner := filesystem.NewMusicScanner()
+	musicSvc := appmusic.NewService(r.MusicTrack, bus, r.Library, musicScanner)
 	playlistSvc := appplaylist.NewService(r.Playlist, r.PlaylistItem, r.SmartPlaylist)
 
 	// --- Subtitle service ---

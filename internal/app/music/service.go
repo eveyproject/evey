@@ -8,25 +8,15 @@ import (
 	"github.com/gravity-zero/evey/internal/domain/shared"
 )
 
-var audioExts = map[string]string{
-	".mp3":  "audio/mpeg",
-	".flac": "audio/flac",
-	".m4a":  "audio/mp4",
-	".ogg":  "audio/ogg",
-	".opus": "audio/ogg",
-	".wav":  "audio/wav",
-	".aac":  "audio/aac",
-}
-
 // Service wraps CommandService + QueryService for backward compatibility.
 type Service struct {
 	cmd   *CommandService
 	query *QueryService
 }
 
-func NewService(tracks music.TrackRepository, bus shared.EventBus, libRepo library.LibraryQueryRepo) *Service {
-	cmd := NewCommandService(tracks, bus, libRepo)
-	q := NewQueryService(tracks)
+func NewService(tracks music.TrackRepository, bus shared.EventBus, libRepo library.LibraryQueryRepo, scanner music.MusicScanner) *Service {
+	cmd := NewCommandService(tracks, bus, libRepo, scanner)
+	q := NewQueryService(tracks, scanner)
 	return &Service{cmd: cmd, query: q}
 }
 

@@ -8,27 +8,15 @@ import (
 	"github.com/gravity-zero/evey/internal/domain/shared"
 )
 
-var imageExts = map[string]string{
-	".jpg":  "image/jpeg",
-	".jpeg": "image/jpeg",
-	".png":  "image/png",
-	".heic": "image/heic",
-	".webp": "image/webp",
-	".gif":  "image/gif",
-	".tiff": "image/tiff",
-	".tif":  "image/tiff",
-	".bmp":  "image/bmp",
-}
-
 // Service wraps CommandService + QueryService for backward compatibility.
 type Service struct {
 	cmd   *CommandService
 	query *QueryService
 }
 
-func NewService(repo photo.Repository, bus shared.EventBus, libRepo library.LibraryQueryRepo) *Service {
-	cmd := NewCommandService(repo, bus, libRepo)
-	q := NewQueryService(repo)
+func NewService(photos photo.Repository, bus shared.EventBus, libRepo library.LibraryQueryRepo, scanner photo.PhotoScanner) *Service {
+	cmd := NewCommandService(photos, bus, libRepo, scanner)
+	q := NewQueryService(photos)
 	return &Service{cmd: cmd, query: q}
 }
 
@@ -51,8 +39,8 @@ func (s *Service) GetAlbums(ctx context.Context, libraryID string) ([]photo.Albu
 	return s.query.GetAlbums(ctx, libraryID)
 }
 
-func (s *Service) GetPhoto(ctx context.Context, id string) (*photo.Photo, error) {
-	return s.query.GetPhoto(ctx, id)
+func (s *Service) GetPhoto(ctx context.Context, photoID string) (*photo.Photo, error) {
+	return s.query.GetPhoto(ctx, photoID)
 }
 
 func (s *Service) Search(ctx context.Context, libraryID, query string, limit int) ([]photo.Photo, error) {
