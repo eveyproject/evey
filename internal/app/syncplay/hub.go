@@ -157,8 +157,13 @@ func (h *Hub) WSHandler(tokenValidator func(token string) (userID, username stri
 		}
 		h.broadcast(roomID, userID, joinMsg)
 
+		const readDeadline = 60 * time.Second
+
 		// Read loop
 		for {
+			if err := ws.SetReadDeadline(time.Now().Add(readDeadline)); err != nil {
+				break
+			}
 			var raw string
 			if err := websocket.Message.Receive(ws, &raw); err != nil {
 				break
@@ -272,6 +277,11 @@ func (h *Hub) broadcast(roomID, senderUserID string, cmd syncplay.SyncCommand) {
 		wg.Add(1)
 		go func(c *conn) {
 			defer wg.Done()
+			defer func() {
+				if r := recover(); r != nil {
+					slog.Error("syncplay: broadcast goroutine panic", slog.Any("recover", r), slog.String("user", c.userID))
+				}
+			}()
 			if err := c.ws.SetWriteDeadline(time.Now().Add(sendTimeout)); err != nil {
 				slog.Warn("syncplay: set write deadline", slog.String("user", c.userID), slog.Any("err", err))
 				return

@@ -34,6 +34,7 @@ type SettingsRepository interface {
 
 type WatchHistoryAnalyzer interface {
 	GetFavoriteGenres(ctx context.Context, profileID string, minCount int) ([]string, error)
+	GetFavoriteGenresBatch(ctx context.Context, profileIDs []string, minCount int) (map[string][]string, error)
 	HasWatchedSeries(ctx context.Context, profileID, mediaItemID string) (bool, error)
 	IsCurrentlyWatchingSeries(ctx context.Context, profileID, mediaItemID string) (bool, error)
 	CalculateRelevanceScore(ctx context.Context, profileID string, genres []string) (int, error)

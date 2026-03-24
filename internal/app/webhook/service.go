@@ -82,6 +82,11 @@ func (s *Service) handleAny(ctx context.Context, ev shared.Event) {
 		case s.sem <- struct{}{}:
 			go func(c *webhook.Config) {
 				defer func() { <-s.sem }()
+				defer func() {
+					if r := recover(); r != nil {
+						s.log.Error("webhook: goroutine panic", slog.Any("recover", r), slog.String("webhook", c.ID))
+					}
+				}()
 				dCtx, cancel := context.WithTimeout(ctx, deliveryTimeout)
 				defer cancel()
 				s.deliver(dCtx, c, ev.EventName(), ev)

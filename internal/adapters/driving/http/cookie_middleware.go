@@ -77,7 +77,7 @@ func injectRefreshTokenFromCookie(r *http.Request) *http.Request {
 		return r
 	}
 
-	bodyBytes, err := io.ReadAll(r.Body)
+	bodyBytes, err := io.ReadAll(io.LimitReader(r.Body, 64<<10))
 	if err != nil {
 		return r
 	}

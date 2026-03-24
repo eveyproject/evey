@@ -238,6 +238,11 @@ func (s *Service) ScanDirectory(ctx context.Context, libraryID, dir string) (int
 		go func(j photoJob) {
 			defer wg.Done()
 			defer func() { <-sem }()
+			defer func() {
+				if r := recover(); r != nil {
+					slog.Error("photo: scan goroutine panic", slog.Any("recover", r), slog.String("path", j.path))
+				}
+			}()
 			if ctx.Err() != nil {
 				return
 			}

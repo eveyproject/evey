@@ -3,6 +3,8 @@ package postgres
 import (
 	"context"
 	"database/sql"
+	"fmt"
+	"strings"
 )
 
 // WatchHistoryAnalyzer implements notification.WatchHistoryAnalyzer using PostgreSQL.
@@ -49,6 +51,51 @@ func (a *WatchHistoryAnalyzer) GetFavoriteGenres(ctx context.Context, profileID 
 		genres = append(genres, genre)
 	}
 	return genres, rows.Err()
+}
+
+// GetFavoriteGenresBatch returns favorite genres for multiple profiles in a single query.
+func (a *WatchHistoryAnalyzer) GetFavoriteGenresBatch(ctx context.Context, profileIDs []string, minCount int) (map[string][]string, error) {
+	if len(profileIDs) == 0 {
+		return map[string][]string{}, nil
+	}
+
+	args := make([]any, 0, len(profileIDs)+1)
+	placeholders := make([]string, len(profileIDs))
+	for i, pid := range profileIDs {
+		placeholders[i] = fmt.Sprintf("$%d", i+1)
+		args = append(args, pid)
+	}
+	args = append(args, minCount)
+
+	query := fmt.Sprintf(`
+		SELECT ps.profile_id, genre, COUNT(*) AS cnt
+		FROM play_sessions ps
+		INNER JOIN media_items mi ON mi.id = ps.media_item_id
+		CROSS JOIN jsonb_array_elements_text(
+			CASE WHEN jsonb_typeof(mi.genres) = 'array' THEN mi.genres ELSE '[]'::jsonb END
+		) AS genre
+		WHERE ps.profile_id IN (%s)
+		GROUP BY ps.profile_id, genre
+		HAVING COUNT(*) >= $%d
+		ORDER BY ps.profile_id, cnt DESC
+	`, strings.Join(placeholders, ","), len(profileIDs)+1)
+
+	rows, err := a.db.QueryContext(ctx, query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	result := make(map[string][]string, len(profileIDs))
+	for rows.Next() {
+		var profileID, genre string
+		var cnt int
+		if err := rows.Scan(&profileID, &genre, &cnt); err != nil {
+			return nil, err
+		}
+		result[profileID] = append(result[profileID], genre)
+	}
+	return result, rows.Err()
 }
 
 // HasWatchedSeries returns true if the profile has any completed episodes in the series.

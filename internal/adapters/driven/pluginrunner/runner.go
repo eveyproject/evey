@@ -122,7 +122,7 @@ func (r *Runner) validateEntrypoint(entrypoint, installDir string) (string, erro
 	return resolved, nil
 }
 
-func (r *Runner) Start(_ context.Context, p *plugin.Plugin) error {
+func (r *Runner) Start(parentCtx context.Context, p *plugin.Plugin) error {
 	if err := os.MkdirAll(sockDir, 0o755); err != nil {
 		return fmt.Errorf("create sock dir: %w", err)
 	}
@@ -183,7 +183,7 @@ func (r *Runner) Start(_ context.Context, p *plugin.Plugin) error {
 		cmdArgs = parts[1:]
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), pluginExecTimeout)
+	ctx, cancel := context.WithTimeout(parentCtx, pluginExecTimeout)
 	cmd := exec.CommandContext(ctx, cmdName, cmdArgs...)
 	if p.InstallDir != "" {
 		cmd.Dir = p.InstallDir

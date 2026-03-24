@@ -129,6 +129,28 @@ func (s *CommandService) handleMediaItemAdded(parentCtx context.Context, ev shar
 		return
 	}
 
+	// Pre-fetch favorite genres for profiles needing relevance check (avoids N+1)
+	var relevanceIDs []string
+	for _, p := range profiles {
+		cfg := allSettings[p.ID]
+		if cfg == nil {
+			continue
+		}
+		lvl := levelForType(cfg, notifType)
+		if (lvl == notification.LevelRelevant || lvl == notification.LevelHighlyRelevant) && len(e.Genres) > 0 {
+			relevanceIDs = append(relevanceIDs, p.ID)
+		}
+	}
+	var favoritesByProfile map[string][]string
+	if len(relevanceIDs) > 0 {
+		var batchErr error
+		favoritesByProfile, batchErr = s.analyzer.GetFavoriteGenresBatch(ctx, relevanceIDs, 3)
+		if batchErr != nil {
+			slog.Warn("notification: batch get favorite genres failed", slog.Any("err", batchErr))
+			return
+		}
+	}
+
 	expires := time.Now().AddDate(0, 0, defaultRetentionDays)
 	for _, p := range profiles {
 		cfg := allSettings[p.ID]
@@ -143,8 +165,18 @@ func (s *CommandService) handleMediaItemAdded(parentCtx context.Context, ev shar
 			if len(e.Genres) == 0 {
 				continue
 			}
-			score, err := s.analyzer.CalculateRelevanceScore(ctx, p.ID, e.Genres)
-			if err != nil || score == 0 {
+			favs := favoritesByProfile[p.ID]
+			favSet := make(map[string]bool, len(favs))
+			for _, g := range favs {
+				favSet[g] = true
+			}
+			score := 0
+			for _, g := range e.Genres {
+				if favSet[g] {
+					score++
+				}
+			}
+			if score == 0 {
 				continue
 			}
 		}
