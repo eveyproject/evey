@@ -7,9 +7,10 @@ import (
 	"time"
 
 	apptranscode "github.com/gravity-zero/evey/internal/app/transcoding"
+	"github.com/gravity-zero/evey/internal/domain/shared"
+	sharedfakes "github.com/gravity-zero/evey/internal/domain/shared/fakes"
 	"github.com/gravity-zero/evey/internal/domain/transcoding"
 	tcfakes "github.com/gravity-zero/evey/internal/domain/transcoding/fakes"
-	sharedfakes "github.com/gravity-zero/evey/internal/domain/shared/fakes"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -200,7 +201,7 @@ func TestDeleteCacheFile(t *testing.T) {
 func TestDeleteCacheFile_NotFound(t *testing.T) {
 	svc, _ := newSvcWithCache()
 	err := svc.DeleteCacheFile(context.Background(), "missing.mp4")
-	assert.Error(t, err)
+	assert.ErrorContains(t, err, "not found")
 }
 
 func newSvc() *apptranscode.Service {
@@ -386,7 +387,7 @@ func TestUpdateProfile(t *testing.T) {
 func TestUpdateProfile_NotFound(t *testing.T) {
 	svc, _ := newProfileSvc()
 	err := svc.UpdateProfile(context.Background(), &transcoding.TranscodeProfile{ID: "missing", Name: "x", VideoCodec: "h264", Container: "mp4"})
-	assert.Error(t, err)
+	assert.ErrorIs(t, err, shared.ErrNotFound)
 }
 
 func TestDeleteProfile(t *testing.T) {
@@ -404,7 +405,7 @@ func TestDeleteProfile(t *testing.T) {
 func TestDeleteProfile_NotFound(t *testing.T) {
 	svc, _ := newProfileSvc()
 	err := svc.DeleteProfile(context.Background(), "missing")
-	assert.Error(t, err)
+	assert.ErrorIs(t, err, shared.ErrNotFound)
 }
 
 func newFullSvc() (*apptranscode.Service, *tcfakes.FakeTranscoder, *tcfakes.FakeTranscodeJobRepository, *sharedfakes.FakeEventBus) {
@@ -454,7 +455,7 @@ func TestStopTranscode_NonExistentJob(t *testing.T) {
 	svc, _, _, _ := newFullSvc()
 
 	err := svc.StopTranscode(context.Background(), "nonexistent")
-	assert.Error(t, err)
+	assert.ErrorIs(t, err, shared.ErrNotFound)
 }
 
 func TestStopTranscode_EventPublished(t *testing.T) {

@@ -58,7 +58,7 @@ func TestSearch_ProviderError(t *testing.T) {
 	provider.Err = fmt.Errorf("rate limited")
 
 	_, err := svc.Search(context.Background(), "m1", "en")
-	assert.Error(t, err)
+	assert.ErrorContains(t, err, "rate limited")
 }
 
 func TestDownload(t *testing.T) {

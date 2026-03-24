@@ -61,11 +61,11 @@ func TestValidateWebhookURL_AllowsPublicURL(t *testing.T) {
 func TestValidateWebhookURL_EmptyHost(t *testing.T) {
 	t.Parallel()
 	err := ValidateWebhookURL("http:///hook")
-	assert.Error(t, err)
+	assert.ErrorContains(t, err, "empty host")
 }
 
 func TestValidateWebhookURL_InvalidURL(t *testing.T) {
 	t.Parallel()
 	err := ValidateWebhookURL("://bad")
-	assert.Error(t, err)
+	assert.ErrorContains(t, err, "invalid URL")
 }
