@@ -191,6 +191,23 @@ func (s *RuntimeService) UpdatePluginConfig(ctx context.Context, id string, conf
 	return s.plugins.Update(ctx, p)
 }
 
+func (s *RuntimeService) HandleIPCResult(pluginID string, ipcErr error) {
+	p, getErr := s.plugins.GetByID(context.Background(), pluginID)
+	if getErr != nil {
+		return
+	}
+	if ipcErr != nil {
+		p.Status = "error"
+		p.ErrorMessage = ipcErr.Error()
+	} else {
+		p.Status = "running"
+		p.ErrorMessage = ""
+	}
+	if upErr := s.plugins.Update(context.Background(), p); upErr != nil {
+		slog.Warn("update plugin status after IPC", slog.String("pluginID", pluginID), slog.Any("err", upErr))
+	}
+}
+
 func (s *RuntimeService) AddRuntime(ctx context.Context, rt *plugin.PluginRuntime) error {
 	return s.runtimes.Create(ctx, rt)
 }

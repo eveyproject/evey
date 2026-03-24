@@ -8,8 +8,8 @@ import (
 	"time"
 
 	httpapi "github.com/gravity-zero/evey/internal/adapters/driving/http"
-	"github.com/gravity-zero/evey/internal/adapters/driven/postgres"
 	"github.com/gravity-zero/evey/internal/config"
+	"github.com/gravity-zero/evey/internal/domain/shared"
 	eveymetrics "github.com/gravity-zero/evey/internal/pkg/metrics"
 	"github.com/gravity-zero/evey/internal/pkg/network"
 	"github.com/gravity-zero/evey/internal/pkg/ratelimit"
@@ -129,7 +129,7 @@ func buildHTTPHandler(gwMux http.Handler, deps *appDeps, cfg *config.Config, sta
 	return httpapi.TokenRedactMiddleware(eveymetrics.InstrumentHandler(httpapi.SecurityHeadersMiddleware(proxyTrust.Middleware(netMw(mux))))), nil
 }
 
-func resolveVAPIDPublicKey(cfgRepo *postgres.ServerConfigRepository, cfg *config.Config) string {
+func resolveVAPIDPublicKey(cfgRepo shared.ServerConfigRepository, cfg *config.Config) string {
 	if cfg.VAPID.PublicKey != "" {
 		return cfg.VAPID.PublicKey
 	}

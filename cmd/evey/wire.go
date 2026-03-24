@@ -145,16 +145,7 @@ func buildServices(ctx context.Context, cfg *config.Config, db *sql.DB, rootLog 
 		return nil, fmt.Errorf("library command service: %w", err)
 	}
 	mediaItemCache := applibrary.NewCachedMediaItemQueryRepo(r.MediaItemQuery, 30*time.Second)
-	bus.Subscribe("media.item.removed", func(_ context.Context, ev shared.Event) {
-		if e, ok := ev.(library.MediaItemRemoved); ok {
-			mediaItemCache.Invalidate(e.MediaItemID)
-		}
-	})
-	bus.Subscribe("media.item.updated", func(_ context.Context, ev shared.Event) {
-		if e, ok := ev.(library.MediaItemUpdated); ok {
-			mediaItemCache.Invalidate(e.MediaItemID)
-		}
-	})
+	mediaItemCache.Register(bus)
 	libQuerySvc := applibrary.NewQueryService(r.Library, mediaItemCache, r.MediaStream, searchAdapter)
 
 	schedulerLog := eveylogger.NewWith(rootLog, "scheduler")
@@ -212,29 +203,13 @@ func buildServices(ctx context.Context, cfg *config.Config, db *sql.DB, rootLog 
 
 	permChecker := appplugin.NewPermissionChecker(r.Plugin)
 
-	pluginRunner.WithIPCCallback(func(pluginID string, ipcErr error) {
-		p, getErr := r.Plugin.GetByID(context.Background(), pluginID)
-		if getErr != nil {
-			return
-		}
-		if ipcErr != nil {
-			p.Status = "error"
-			p.ErrorMessage = ipcErr.Error()
-		} else {
-			p.Status = "running"
-			p.ErrorMessage = ""
-		}
-		if upErr := r.Plugin.Update(context.Background(), p); upErr != nil {
-			slog.Warn("update plugin status after IPC", slog.String("pluginID", pluginID), slog.Any("err", upErr))
-		}
-	})
-
 	pluginInstallerSvc := appplugin.NewInstallerService(r.Plugin, pluginRunner, manifestParser, bus).
 		WithInstaller(pluginInstaller).
 		WithAnalyzer(pluginAnalyzer).
 		WithPermissionChecker(permChecker)
 	pluginRuntimeSvc := appplugin.NewRuntimeService(r.Plugin, r.PluginRuntime, pluginRunner, manifestParser, bus).
 		WithPermissionChecker(permChecker)
+	pluginRunner.WithIPCCallback(pluginRuntimeSvc.HandleIPCResult)
 	pluginQuerySvc := appplugin.NewQueryService(r.Plugin, r.PluginRuntime)
 
 	permInterceptor := appplugin.PluginPermissionInterceptor(permChecker)
@@ -424,7 +399,7 @@ func buildServices(ctx context.Context, cfg *config.Config, db *sql.DB, rootLog 
 	}, nil
 }
 
-func startWatcher(ctx context.Context, cfg *config.Config, bus *eventbus.InMemoryEventBus, libraryRepo *postgres.LibraryRepository, libCmdSvc *applibrary.CommandService, rootLog *slog.Logger) *applibrary.WatcherService {
+func startWatcher(ctx context.Context, cfg *config.Config, bus shared.EventBus, libraryRepo library.LibraryRepository, libCmdSvc applibrary.LibraryScanner, rootLog *slog.Logger) *applibrary.WatcherService {
 	if !cfg.Library.WatcherEnabled {
 		return nil
 	}
@@ -447,7 +422,7 @@ func startWatcher(ctx context.Context, cfg *config.Config, bus *eventbus.InMemor
 	return watcherSvc
 }
 
-func resolveAPIKey(cfgRepo *postgres.ServerConfigRepository, dbKey, envVar string) string {
+func resolveAPIKey(cfgRepo shared.ServerConfigRepository, dbKey, envVar string) string {
 	// 1. DB has it (set by admin via panel) → use it
 	if entry, err := cfgRepo.Get(context.Background(), dbKey); err == nil && entry.Value != "" {
 		return entry.Value
@@ -463,7 +438,7 @@ func resolveAPIKey(cfgRepo *postgres.ServerConfigRepository, dbKey, envVar strin
 	return ""
 }
 
-func resolveVAPIDKeys(cfgRepo *postgres.ServerConfigRepository, cfg *config.Config) (string, string) {
+func resolveVAPIDKeys(cfgRepo shared.ServerConfigRepository, cfg *config.Config) (string, string) {
 	pub := cfg.VAPID.PublicKey
 	priv := cfg.VAPID.PrivateKey
 

@@ -3,7 +3,12 @@ package postgres
 import (
 	"context"
 	"database/sql"
+	"errors"
+	"fmt"
 
+	"github.com/lib/pq"
+
+	"github.com/gravity-zero/evey/internal/domain/shared"
 	"github.com/gravity-zero/evey/internal/domain/user"
 )
 
@@ -21,6 +26,12 @@ func (r *RefreshTokenRepository) Create(ctx context.Context, t *user.RefreshToke
 		 VALUES ($1,$2,$3,$4,$5,$6,$7)`,
 		t.ID, t.UserID, t.TokenHash, t.DeviceName, t.ClientIP, t.ExpiresAt, t.CreatedAt,
 	)
+	if err != nil {
+		var pqErr *pq.Error
+		if errors.As(err, &pqErr) && pqErr.Code == "23505" {
+			return fmt.Errorf("%w: %s", shared.ErrConflict, pqErr.Message)
+		}
+	}
 	return err
 }
 
