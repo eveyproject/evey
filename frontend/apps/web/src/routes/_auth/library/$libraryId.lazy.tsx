@@ -411,7 +411,7 @@ function LibraryPage() {
     ...(typeFilter ? { type: typeFilter } : {}),
     "pagination.page": 1,
     "pagination.pageSize": PAGE_SIZE * 4,
-  }, { query: { enabled: !!libraryId } });
+  }, { query: { enabled: !!libraryId && filtersOpen } });
 
   const genres = useMemo(() => {
     const allGenres = new Set<string>();
