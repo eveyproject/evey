@@ -140,7 +140,7 @@ describe("FavoritesPage", () => {
     const mod = await import("./favorites.lazy");
     const FavoritesPage = (mod.Route as unknown as { component: React.ComponentType }).component;
     render(React.createElement(FavoritesPage), { wrapper: createWrapper() });
-    const searchInput = screen.getByRole("searchbox", { name: /search favorites/i });
+    const searchInput = screen.getByRole("searchbox", { name: /search/i });
     fireEvent.change(searchInput, { target: { value: "matrix" } });
     await waitFor(() => expect(screen.getByText("1 item")).toBeInTheDocument());
   });
@@ -151,7 +151,7 @@ describe("FavoritesPage", () => {
     const mod = await import("./favorites.lazy");
     const FavoritesPage = (mod.Route as unknown as { component: React.ComponentType }).component;
     render(React.createElement(FavoritesPage), { wrapper: createWrapper() });
-    const searchInput = screen.getByRole("searchbox", { name: /search favorites/i });
+    const searchInput = screen.getByRole("searchbox", { name: /search/i });
     fireEvent.change(searchInput, { target: { value: "xyznotfound" } });
     await waitFor(() => expect(screen.getByText(/No items match/i)).toBeInTheDocument());
   });

@@ -34,7 +34,7 @@ function createWrapper() {
 describe("RecommendedRow", () => {
   it("renders Recommended title", () => {
     render(<RecommendedRow />, { wrapper: createWrapper() });
-    expect(screen.getByText("Recommended for You")).toBeInTheDocument();
+    expect(screen.getByText(/recommended for you/i)).toBeInTheDocument();
   });
 
   it("renders recommended items", () => {

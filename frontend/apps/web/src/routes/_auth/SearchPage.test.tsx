@@ -101,9 +101,9 @@ describe("SearchPage", () => {
     const input = screen.getByTestId("search-page-input");
     fireEvent.change(input, { target: { value: "ma" } });
     await waitFor(() => expect(screen.getByTestId("search-type-filters")).toBeInTheDocument(), { timeout: 1000 });
-    expect(screen.getByTestId("search-filter-all")).toBeInTheDocument();
-    expect(screen.getByTestId("search-filter-movies")).toBeInTheDocument();
-    expect(screen.getByTestId("search-filter-series")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /all/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /movies/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /series/i })).toBeInTheDocument();
   });
 
   it("shows no-results empty state when search returns empty", async () => {

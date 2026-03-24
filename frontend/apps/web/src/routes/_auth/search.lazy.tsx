@@ -32,16 +32,16 @@ function SearchPage() {
   const inputRef = useRef<HTMLInputElement>(null);
 
   const typeFilters: { label: string; value: MediaTypeFilter | undefined }[] = [
-    { label: t("search.all"), value: undefined },
-    { label: t("search.movies"), value: "MEDIA_ITEM_TYPE_MOVIE" },
-    { label: t("search.series"), value: "MEDIA_ITEM_TYPE_SERIES" },
+    { label: t("media.search.all"), value: undefined },
+    { label: t("media.search.movies"), value: "MEDIA_ITEM_TYPE_MOVIE" },
+    { label: t("media.search.series"), value: "MEDIA_ITEM_TYPE_SERIES" },
   ];
 
   const sortOptions = [
-    { label: t("search.relevance"), field: undefined, order: undefined },
-    { label: t("search.titleAZ"), field: "MEDIA_SORT_FIELD_TITLE" as const, order: "SORT_ORDER_ASC" as const },
-    { label: t("search.yearNewest"), field: "MEDIA_SORT_FIELD_YEAR" as const, order: "SORT_ORDER_DESC" as const },
-    { label: t("search.dateAdded"), field: "MEDIA_SORT_FIELD_DATE_ADDED" as const, order: "SORT_ORDER_DESC" as const },
+    { label: t("media.search.relevance"), field: undefined, order: undefined },
+    { label: t("media.search.titleAZ"), field: "MEDIA_SORT_FIELD_TITLE" as const, order: "SORT_ORDER_ASC" as const },
+    { label: t("media.search.yearNewest"), field: "MEDIA_SORT_FIELD_YEAR" as const, order: "SORT_ORDER_DESC" as const },
+    { label: t("media.search.dateAdded"), field: "MEDIA_SORT_FIELD_DATE_ADDED" as const, order: "SORT_ORDER_DESC" as const },
   ];
 
   const [inputValue, setInputValue] = useState(q ?? "");
@@ -97,7 +97,7 @@ function SearchPage() {
   });
 
   useEffect(() => {
-    if (isError) toast.error(t("search.searchFailed"));
+    if (isError) toast.error(t("media.search.searchFailed"));
   }, [isError, t]);
 
   const items = data?.items ?? [];
@@ -122,7 +122,7 @@ function SearchPage() {
           <input
             ref={inputRef}
             type="search"
-            placeholder={t("search.placeholder")}
+            placeholder={t("media.search.placeholder")}
             data-testid="search-page-input"
             value={inputValue}
             onChange={(e) => setInputValue(e.target.value)}
@@ -136,7 +136,7 @@ function SearchPage() {
               }}
               className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 rounded-full flex items-center justify-center hover:bg-[var(--surface-raised)] transition-colors cursor-pointer"
               style={{ color: "var(--text-muted)" }}
-              aria-label={t("search.clearSearch")}
+              aria-label={t("media.search.clearSearch")}
             >
               <X size={16} />
             </button>
@@ -147,7 +147,7 @@ function SearchPage() {
       {hasQuery && (
         <div className="mb-5 space-y-3">
           <div className="flex items-center gap-2 flex-wrap">
-            <div className="flex items-center gap-1" data-testid="search-type-filters" role="radiogroup" aria-label={t("search.filterByType")}>
+            <div className="flex items-center gap-1" data-testid="search-type-filters" role="radiogroup" aria-label={t("media.search.filterByType")}>
               {typeFilters.map((f) => (
                 <FilterChip
                   key={f.value ?? "all"}
@@ -166,7 +166,7 @@ function SearchPage() {
               size="md"
               icon={<ListFilter size={14} />}
             >
-              {t("search.filters")}
+              {t("media.search.filters")}
               {hasActiveFilters && !showFilters && (
                 <span
                   className="w-2 h-2 rounded-full"
@@ -181,7 +181,7 @@ function SearchPage() {
                 className="text-xs hover:underline cursor-pointer"
                 style={{ color: "var(--text-muted)" }}
               >
-                {t("search.clearFilters")}
+                {t("media.search.clearFilters")}
               </button>
             )}
           </div>
@@ -197,16 +197,16 @@ function SearchPage() {
             >
               <div className="flex flex-col gap-1.5">
                 <label className="text-xs font-medium" style={{ color: "var(--text-muted)" }}>
-                  {t("search.genre")}
+                  {t("media.search.genre")}
                 </label>
                 <select
                   data-testid="search-filter-genre"
-                  aria-label={t("search.genre")}
+                  aria-label={t("media.search.genre")}
                   value={genre}
                   onChange={(e) => setGenre(e.target.value)}
                   className="px-3 py-1.5 rounded-[var(--radius-md)] text-sm bg-[var(--surface-raised)] border border-[var(--border)] text-[var(--text)] cursor-pointer"
                 >
-                  <option value="">{t("search.allGenres")}</option>
+                  <option value="">{t("media.search.allGenres")}</option>
                   {COMMON_GENRES.map((g) => (
                     <option key={g} value={g}>{g}</option>
                   ))}
@@ -215,14 +215,14 @@ function SearchPage() {
 
               <div className="flex flex-col gap-1.5">
                 <label className="text-xs font-medium" style={{ color: "var(--text-muted)" }}>
-                  {t("search.year")}
+                  {t("media.search.year")}
                 </label>
                 <div className="flex items-center gap-2">
                   <input
                     data-testid="search-filter-year-min"
                     type="number"
-                    aria-label={t("search.fromYear")}
-                    placeholder={t("search.fromYear")}
+                    aria-label={t("media.search.fromYear")}
+                    placeholder={t("media.search.fromYear")}
                     value={yearMin}
                     onChange={(e) => setYearMin(e.target.value)}
                     className="w-20 px-2 py-1.5 rounded-[var(--radius-md)] text-sm bg-[var(--surface-raised)] border border-[var(--border)] text-[var(--text)] placeholder:text-[var(--text-muted)]"
@@ -233,8 +233,8 @@ function SearchPage() {
                   <input
                     data-testid="search-filter-year-max"
                     type="number"
-                    aria-label={t("search.toYear")}
-                    placeholder={t("search.toYear")}
+                    aria-label={t("media.search.toYear")}
+                    placeholder={t("media.search.toYear")}
                     value={yearMax}
                     onChange={(e) => setYearMax(e.target.value)}
                     className="w-20 px-2 py-1.5 rounded-[var(--radius-md)] text-sm bg-[var(--surface-raised)] border border-[var(--border)] text-[var(--text)] placeholder:text-[var(--text-muted)]"
@@ -246,11 +246,11 @@ function SearchPage() {
 
               <div className="flex flex-col gap-1.5">
                 <label className="text-xs font-medium" style={{ color: "var(--text-muted)" }}>
-                  {t("search.sortBy")}
+                  {t("media.search.sortBy")}
                 </label>
                 <select
                   data-testid="search-filter-sort"
-                  aria-label={t("search.sortBy")}
+                  aria-label={t("media.search.sortBy")}
                   value={sortIdx}
                   onChange={(e) => setSortIdx(Number(e.target.value))}
                   className="px-3 py-1.5 rounded-[var(--radius-md)] text-sm bg-[var(--surface-raised)] border border-[var(--border)] text-[var(--text)] cursor-pointer"
@@ -285,8 +285,8 @@ function SearchPage() {
         >
           <EmptyState
             icon={<Search size={48} strokeWidth={1.5} />}
-            title={t("search.noResultsFor", { query: debouncedQuery })}
-            description={t("search.noResultsDesc")}
+            title={t("media.search.noResultsFor", { query: debouncedQuery })}
+            description={t("media.search.noResultsDesc")}
           />
         </div>
       )}
@@ -294,13 +294,13 @@ function SearchPage() {
       {!hasQuery && !isLoading && recents.length > 0 && (
         <div className="mb-6">
           <div className="flex items-center justify-between mb-3">
-            <span className="text-sm font-semibold" style={{ color: "var(--text-muted)" }}>{t("search.recentSearches")}</span>
+            <span className="text-sm font-semibold" style={{ color: "var(--text-muted)" }}>{t("media.search.recentSearches")}</span>
             <button
               onClick={clearRecents}
               className="text-xs hover:underline cursor-pointer"
               style={{ color: "var(--text-muted)" }}
             >
-              {t("search.clearAll")}
+              {t("media.search.clearAll")}
             </button>
           </div>
           <div className="flex flex-wrap gap-2">
@@ -340,8 +340,8 @@ function SearchPage() {
         >
           <EmptyState
             icon={<Search size={48} strokeWidth={1.5} />}
-            title={t("search.searchLibrary")}
-            description={t("search.searchLibraryDesc")}
+            title={t("media.search.searchLibrary")}
+            description={t("media.search.searchLibraryDesc")}
           />
         </div>
       )}
@@ -349,7 +349,7 @@ function SearchPage() {
       {items.length > 0 && (
         <>
           <p className="text-sm mb-4" style={{ color: "var(--text-muted)" }}>
-            {t("search.resultCount", { count: totalHits })} {t("search.resultFor", { query: debouncedQuery })}
+            {t("media.search.resultCount", { count: totalHits })} {t("media.search.resultFor", { query: debouncedQuery })}
           </p>
           <MediaGrid>
             {items.map((item) => (

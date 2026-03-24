@@ -1,3 +1,4 @@
+import { renderWithQueryClient } from "@/test/test-utils";
 import { render, screen } from "@testing-library/react";
 import { describe, it, expect, vi } from "vitest";
 import { AdminNav } from "./AdminNav";
@@ -32,13 +33,14 @@ vi.mock("lucide-react", () => {
     ScrollText: Icon,
     ChevronDown: Icon,
     Sliders: Icon,
+    Rows3: Icon,
   };
 });
 
 describe("AdminNav", () => {
   it("renders all nav sections", () => {
     mockPathname = "/admin";
-    render(<AdminNav />);
+    renderWithQueryClient(<AdminNav />);
     expect(screen.getByText("Dashboard & System")).toBeInTheDocument();
     expect(screen.getByText("Media")).toBeInTheDocument();
     expect(screen.getByText("Users & Access")).toBeInTheDocument();
@@ -49,7 +51,7 @@ describe("AdminNav", () => {
 
   it("highlights active section", () => {
     mockPathname = "/admin/users";
-    render(<AdminNav />);
+    renderWithQueryClient(<AdminNav />);
     const usersLink = screen.getByTestId("link-/admin/users");
     expect(usersLink.style.backgroundColor).toBe("var(--accent)");
     expect(usersLink.style.color).toBe("white");
@@ -57,7 +59,7 @@ describe("AdminNav", () => {
 
   it("section links have correct href", () => {
     mockPathname = "/admin";
-    render(<AdminNav />);
+    renderWithQueryClient(<AdminNav />);
     expect(screen.getByTestId("link-/admin")).toHaveAttribute("href", "/admin");
     expect(screen.getByTestId("link-/admin/sessions")).toHaveAttribute("href", "/admin/sessions");
     expect(screen.getByTestId("link-/admin/users")).toHaveAttribute("href", "/admin/users");
@@ -66,14 +68,14 @@ describe("AdminNav", () => {
 
   it("does not render removed pages (logs, tasks)", () => {
     mockPathname = "/admin";
-    render(<AdminNav />);
+    renderWithQueryClient(<AdminNav />);
     expect(screen.queryByText("Logs")).not.toBeInTheDocument();
     expect(screen.queryByText("Tasks")).not.toBeInTheDocument();
   });
 
   it("hides labels when collapsed", () => {
     mockPathname = "/admin";
-    render(<AdminNav collapsed />);
+    renderWithQueryClient(<AdminNav collapsed />);
     expect(screen.queryByText("Dashboard")).not.toBeInTheDocument();
     expect(screen.queryByText("Dashboard & System")).not.toBeInTheDocument();
   });

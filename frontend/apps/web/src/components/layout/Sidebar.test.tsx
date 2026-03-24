@@ -1,3 +1,4 @@
+import { renderWithQueryClient } from "@/test/test-utils";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, it, expect, vi, beforeEach } from "vitest";
@@ -40,7 +41,7 @@ describe("Sidebar", () => {
   });
 
   it("renders main navigation links", () => {
-    render(<Sidebar />);
+    renderWithQueryClient(<Sidebar />);
     expect(screen.getByRole("link", { name: /home/i })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: /libraries/i })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: /favorites/i })).toBeInTheDocument();
@@ -50,38 +51,38 @@ describe("Sidebar", () => {
 
   it("shows Admin link when user is admin", () => {
     mockIsAdmin = true;
-    render(<Sidebar />);
+    renderWithQueryClient(<Sidebar />);
     expect(screen.getByRole("link", { name: /admin/i })).toBeInTheDocument();
   });
 
   it("does not show Admin link for non-admin", () => {
     mockIsAdmin = false;
-    render(<Sidebar />);
+    renderWithQueryClient(<Sidebar />);
     expect(screen.queryByRole("link", { name: /^admin$/i })).not.toBeInTheDocument();
   });
 
   it("shows Evey logo link", () => {
-    render(<Sidebar />);
+    renderWithQueryClient(<Sidebar />);
     expect(screen.getByRole("link", { name: "Evey" })).toBeInTheDocument();
   });
 
   it("renders AdminNav when on admin route and user is admin", () => {
     mockPathname = "/admin/users";
     mockIsAdmin = true;
-    render(<Sidebar />);
+    renderWithQueryClient(<Sidebar />);
     expect(screen.getByTestId("admin-nav")).toBeInTheDocument();
   });
 
   it("shows Back to app link in admin mode", () => {
     mockPathname = "/admin";
     mockIsAdmin = true;
-    render(<Sidebar />);
+    renderWithQueryClient(<Sidebar />);
     expect(screen.getByRole("link", { name: /back to app/i })).toBeInTheDocument();
   });
 
   it("toggles collapse on button click", async () => {
     const user = userEvent.setup();
-    render(<Sidebar />);
+    renderWithQueryClient(<Sidebar />);
     const nav = screen.getByRole("navigation");
     expect(nav).toHaveClass("w-56");
     await user.click(screen.getByRole("button", { name: /collapse sidebar/i }));
@@ -91,13 +92,13 @@ describe("Sidebar", () => {
   it("calls onNavigate when a nav link is clicked (mobile)", async () => {
     const onNavigate = vi.fn();
     const user = userEvent.setup();
-    render(<Sidebar onNavigate={onNavigate} />);
+    renderWithQueryClient(<Sidebar onNavigate={onNavigate} />);
     await user.click(screen.getByRole("link", { name: /home/i }));
     expect(onNavigate).toHaveBeenCalled();
   });
 
   it("does not show collapse button in mobile mode", () => {
-    render(<Sidebar onNavigate={vi.fn()} />);
+    renderWithQueryClient(<Sidebar onNavigate={vi.fn()} />);
     expect(screen.queryByRole("button", { name: /collapse/i })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /expand/i })).not.toBeInTheDocument();
   });
