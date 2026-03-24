@@ -2,6 +2,7 @@ package transcoding_test
 
 import (
 	"context"
+	"fmt"
 	"testing"
 	"time"
 
@@ -76,6 +77,72 @@ func TestStartTranscode_MaxConcurrentBoundary(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, string(transcoding.Running), j2.Status)
 	})
+}
+
+func TestStartTranscode_MaxConcurrentZero_Unlimited(t *testing.T) {
+	ctx := context.Background()
+	tc := tcfakes.NewFakeTranscoder()
+	hw := tcfakes.NewFakeHWDetector()
+	jobRepo := tcfakes.NewFakeTranscodeJobRepository()
+	profileRepo := tcfakes.NewFakeTranscodeProfileRepository()
+	bus := sharedfakes.NewFakeEventBus()
+	svc := apptranscode.NewService(tc, hw, jobRepo, profileRepo, bus, 0)
+
+	for i := range 10 {
+		j := &transcoding.TranscodeJob{
+			ID: fmt.Sprintf("j%d", i), MediaItemID: fmt.Sprintf("m%d", i),
+			InputPath: "/a.mkv", InputCodec: "h264", OutputCodec: "h265",
+		}
+		err := svc.StartTranscode(ctx, j)
+		require.NoError(t, err, "maxConcurrent=0 should allow unlimited transcodes")
+		assert.Equal(t, string(transcoding.Running), j.Status)
+	}
+}
+
+func TestStartTranscode_MaxConcurrentOne_RejectsSecond(t *testing.T) {
+	ctx := context.Background()
+	tc := tcfakes.NewFakeTranscoder()
+	hw := tcfakes.NewFakeHWDetector()
+	jobRepo := tcfakes.NewFakeTranscodeJobRepository()
+	profileRepo := tcfakes.NewFakeTranscodeProfileRepository()
+	bus := sharedfakes.NewFakeEventBus()
+	svc := apptranscode.NewService(tc, hw, jobRepo, profileRepo, bus, 1)
+
+	j1 := &transcoding.TranscodeJob{ID: "j1", MediaItemID: "m1", InputPath: "/a.mkv", InputCodec: "h264", OutputCodec: "h265"}
+	require.NoError(t, svc.StartTranscode(ctx, j1))
+	assert.Equal(t, string(transcoding.Running), j1.Status)
+
+	j2 := &transcoding.TranscodeJob{ID: "j2", MediaItemID: "m2", InputPath: "/b.mkv", InputCodec: "h264", OutputCodec: "h265"}
+	err := svc.StartTranscode(ctx, j2)
+	require.ErrorIs(t, err, apptranscode.ErrMaxConcurrent)
+	assert.Equal(t, string(transcoding.Queued), j2.Status)
+}
+
+func TestStartTranscode_TranscoderError_FailsJob(t *testing.T) {
+	ctx := context.Background()
+	tc := tcfakes.NewFakeTranscoder()
+	hw := tcfakes.NewFakeHWDetector()
+	jobRepo := tcfakes.NewFakeTranscodeJobRepository()
+	profileRepo := tcfakes.NewFakeTranscodeProfileRepository()
+	bus := sharedfakes.NewFakeEventBus()
+	svc := apptranscode.NewService(tc, hw, jobRepo, profileRepo, bus, 2)
+
+	tc.Err = assert.AnError
+	j := &transcoding.TranscodeJob{ID: "j1", MediaItemID: "m1", InputPath: "/a.mkv", InputCodec: "h264", OutputCodec: "h265"}
+	err := svc.StartTranscode(ctx, j)
+	require.Error(t, err)
+
+	stored, _ := jobRepo.GetByID(ctx, "j1")
+	assert.Equal(t, string(transcoding.Failed), stored.Status)
+	assert.NotEmpty(t, stored.ErrorMessage)
+
+	var found bool
+	for _, evt := range bus.PublishedEvents() {
+		if evt.EventName() == "transcode.failed" {
+			found = true
+		}
+	}
+	assert.True(t, found, "TranscodeFailed event should be published")
 }
 
 func newSvcWithCache() (*apptranscode.Service, *tcfakes.FakeCacheStore) {

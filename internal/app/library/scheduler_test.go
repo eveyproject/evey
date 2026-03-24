@@ -7,6 +7,7 @@ import (
 	"time"
 
 	applib "github.com/gravity-zero/evey/internal/app/library"
+	"github.com/gravity-zero/evey/internal/domain/library"
 	libfakes "github.com/gravity-zero/evey/internal/domain/library/fakes"
 	"github.com/gravity-zero/evey/internal/domain/shared"
 	"github.com/stretchr/testify/assert"
@@ -300,6 +301,79 @@ func TestNextCronTime_ExactFromTime(t *testing.T) {
 	next, err := applib.NextCronTime("0 * * * *", from)
 	require.NoError(t, err)
 	assert.Equal(t, time.Date(2026, 3, 10, 16, 0, 0, 0, time.UTC), next)
+}
+
+func TestScheduler_Tick_TriggersOverdueScans(t *testing.T) {
+	repo := libfakes.NewFakeScanScheduleRepository()
+	scanner := &fakeScannerForScheduler{}
+	sched := applib.NewScheduler(repo, scanner, slog.Default())
+
+	ctx := context.Background()
+	past := time.Now().Add(-1 * time.Minute)
+	future := time.Now().Add(1 * time.Hour)
+
+	repo.Upsert(ctx, &library.ScanSchedule{
+		LibraryID:      "lib-overdue",
+		CronExpression: "0 * * * *",
+		Enabled:        true,
+		NextRunAt:      &past,
+	})
+	repo.Upsert(ctx, &library.ScanSchedule{
+		LibraryID:      "lib-future",
+		CronExpression: "0 * * * *",
+		Enabled:        true,
+		NextRunAt:      &future,
+	})
+
+	frozen := time.Now()
+	sched.SetNowFunc(func() time.Time { return frozen })
+	sched.Tick(ctx)
+
+	time.Sleep(50 * time.Millisecond)
+
+	assert.Contains(t, scanner.called, "lib-overdue")
+	assert.NotContains(t, scanner.called, "lib-future")
+}
+
+func TestScheduler_Tick_SkipsDisabledSchedules(t *testing.T) {
+	repo := libfakes.NewFakeScanScheduleRepository()
+	scanner := &fakeScannerForScheduler{}
+	sched := applib.NewScheduler(repo, scanner, slog.Default())
+
+	ctx := context.Background()
+	past := time.Now().Add(-1 * time.Minute)
+	repo.Upsert(ctx, &library.ScanSchedule{
+		LibraryID:      "lib-disabled",
+		CronExpression: "0 * * * *",
+		Enabled:        false,
+		NextRunAt:      &past,
+	})
+
+	sched.SetNowFunc(func() time.Time { return time.Now() })
+	sched.Tick(ctx)
+	time.Sleep(50 * time.Millisecond)
+
+	assert.Empty(t, scanner.called)
+}
+
+func TestScheduler_Tick_NilNextRunAt(t *testing.T) {
+	repo := libfakes.NewFakeScanScheduleRepository()
+	scanner := &fakeScannerForScheduler{}
+	sched := applib.NewScheduler(repo, scanner, slog.Default())
+
+	ctx := context.Background()
+	repo.Upsert(ctx, &library.ScanSchedule{
+		LibraryID:      "lib-nil",
+		CronExpression: "0 * * * *",
+		Enabled:        true,
+		NextRunAt:      nil,
+	})
+
+	sched.SetNowFunc(func() time.Time { return time.Now() })
+	sched.Tick(ctx)
+	time.Sleep(50 * time.Millisecond)
+
+	assert.Empty(t, scanner.called)
 }
 
 func TestScheduler_RunStopsOnCancel(t *testing.T) {

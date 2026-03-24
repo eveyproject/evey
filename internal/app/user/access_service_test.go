@@ -146,6 +146,94 @@ func TestRegisterWithInvite_MaxUsesReached(t *testing.T) {
 	}
 }
 
+func TestRegisterWithInvite_MaxUsesBoundary(t *testing.T) {
+	t.Run("UsedCount=MaxUses-1 succeeds", func(t *testing.T) {
+		d := newAccessTestDeps()
+		ctx := context.Background()
+		_ = d.invites.Create(ctx, &user.InviteLink{ID: "inv1", Token: "tok1", MaxUses: 3, UsedCount: 2})
+
+		u, err := d.svc.RegisterWithInvite(ctx, "tok1", "bob", "longpassword", "b@b.com")
+		if err != nil {
+			t.Fatalf("UsedCount=MaxUses-1 should succeed, got %v", err)
+		}
+		if u == nil {
+			t.Fatal("expected user")
+		}
+	})
+	t.Run("UsedCount=MaxUses rejected", func(t *testing.T) {
+		d := newAccessTestDeps()
+		ctx := context.Background()
+		_ = d.invites.Create(ctx, &user.InviteLink{ID: "inv1", Token: "tok2", MaxUses: 3, UsedCount: 3})
+
+		_, err := d.svc.RegisterWithInvite(ctx, "tok2", "bob", "longpassword", "b@b.com")
+		if !errors.Is(err, ErrInviteInvalid) {
+			t.Fatalf("UsedCount=MaxUses should be rejected, got %v", err)
+		}
+	})
+	t.Run("UsedCount=MaxUses+1 rejected", func(t *testing.T) {
+		d := newAccessTestDeps()
+		ctx := context.Background()
+		_ = d.invites.Create(ctx, &user.InviteLink{ID: "inv1", Token: "tok3", MaxUses: 3, UsedCount: 4})
+
+		_, err := d.svc.RegisterWithInvite(ctx, "tok3", "bob", "longpassword", "b@b.com")
+		if !errors.Is(err, ErrInviteInvalid) {
+			t.Fatalf("UsedCount>MaxUses should be rejected, got %v", err)
+		}
+	})
+	t.Run("expiry boundary - just expired", func(t *testing.T) {
+		d := newAccessTestDeps()
+		ctx := context.Background()
+		justPast := time.Now().Add(-1 * time.Millisecond)
+		_ = d.invites.Create(ctx, &user.InviteLink{ID: "inv1", Token: "tok4", ExpiresAt: &justPast})
+
+		_, err := d.svc.RegisterWithInvite(ctx, "tok4", "bob", "longpassword", "b@b.com")
+		if !errors.Is(err, ErrInviteInvalid) {
+			t.Fatalf("just-expired invite should be rejected, got %v", err)
+		}
+	})
+	t.Run("expiry boundary - still valid", func(t *testing.T) {
+		d := newAccessTestDeps()
+		ctx := context.Background()
+		future := time.Now().Add(1 * time.Hour)
+		_ = d.invites.Create(ctx, &user.InviteLink{ID: "inv1", Token: "tok5", ExpiresAt: &future})
+
+		u, err := d.svc.RegisterWithInvite(ctx, "tok5", "bob", "longpassword", "b@b.com")
+		if err != nil {
+			t.Fatalf("future expiry should succeed, got %v", err)
+		}
+		if u == nil {
+			t.Fatal("expected user")
+		}
+	})
+}
+
+func TestRegisterWithInvite_PasswordBoundary(t *testing.T) {
+	t.Run("7 chars rejected", func(t *testing.T) {
+		d := newAccessTestDeps()
+		ctx := context.Background()
+		_ = d.invites.Create(ctx, &user.InviteLink{ID: "inv1", Token: "tok"})
+		_, err := d.svc.RegisterWithInvite(ctx, "tok", "bob", "1234567", "b@b.com")
+		if !errors.Is(err, ErrPasswordTooShort) {
+			t.Fatalf("7-char password should be rejected, got %v", err)
+		}
+	})
+	t.Run("8 chars accepted", func(t *testing.T) {
+		d := newAccessTestDeps()
+		ctx := context.Background()
+		_ = d.invites.Create(ctx, &user.InviteLink{ID: "inv1", Token: "tok"})
+		u, err := d.svc.RegisterWithInvite(ctx, "tok", "bob", "12345678", "b@b.com")
+		if errors.Is(err, ErrPasswordTooShort) {
+			t.Fatal("8-char password should be accepted")
+		}
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if u == nil {
+			t.Fatal("expected user")
+		}
+	})
+}
+
 func TestRegisterWithInvite_HashError(t *testing.T) {
 	d := newAccessTestDeps()
 	ctx := context.Background()
