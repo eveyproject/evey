@@ -11,23 +11,23 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	domaindomain "github.com/gravity-zero/evey/internal/domain/library"
+	domainlib "github.com/gravity-zero/evey/internal/domain/library"
 	domainmetadata "github.com/gravity-zero/evey/internal/domain/metadata"
 	"github.com/gravity-zero/evey/internal/domain/shared"
 )
 
 // CollectionLinker upserts provider-sourced collections and links media items.
 type CollectionLinker interface {
-	Upsert(ctx context.Context, tmdbID int, name, overview, posterURL, backdropURL string) (*domaindomain.Collection, error)
+	Upsert(ctx context.Context, tmdbID int, name, overview, posterURL, backdropURL string) (*domainlib.Collection, error)
 	LinkMediaItem(ctx context.Context, collectionID, mediaItemID string, sortOrder int) error
 }
 
 type Enricher struct {
 	artwork       domainmetadata.ArtworkRepository
-	persons       domaindomain.PersonRepository
-	mediaPersons  domaindomain.MediaPersonRepository
-	mediaItems    domaindomain.MediaItemRepository
-	search        domaindomain.SearchIndex
+	persons       domainlib.PersonRepository
+	mediaPersons  domainlib.MediaPersonRepository
+	mediaItems    domainlib.MediaItemRepository
+	search        domainlib.SearchIndex
 	primary       domainmetadata.MetadataProvider
 	supplementary []domainmetadata.MetadataProvider
 	collections   CollectionLinker
@@ -35,10 +35,10 @@ type Enricher struct {
 
 func NewEnricher(
 	artwork domainmetadata.ArtworkRepository,
-	persons domaindomain.PersonRepository,
-	mediaPersons domaindomain.MediaPersonRepository,
-	mediaItems domaindomain.MediaItemRepository,
-	search domaindomain.SearchIndex,
+	persons domainlib.PersonRepository,
+	mediaPersons domainlib.MediaPersonRepository,
+	mediaItems domainlib.MediaItemRepository,
+	search domainlib.SearchIndex,
 	primary domainmetadata.MetadataProvider,
 	supplementary []domainmetadata.MetadataProvider,
 	collections CollectionLinker,
@@ -57,7 +57,7 @@ func NewEnricher(
 
 // EnrichItem applies a MetadataResult to a media item: updates the item,
 // replaces artwork records, and upserts people/cast.
-func (e *Enricher) EnrichItem(ctx context.Context, item *domaindomain.MediaItem, result *domainmetadata.MetadataResult) error {
+func (e *Enricher) EnrichItem(ctx context.Context, item *domainlib.MediaItem, result *domainmetadata.MetadataResult) error {
 	applyBasicFields(item, result)
 
 	if err := e.mediaItems.Update(ctx, item); err != nil {
@@ -74,7 +74,7 @@ func (e *Enricher) EnrichItem(ctx context.Context, item *domaindomain.MediaItem,
 	return nil
 }
 
-func applyBasicFields(item *domaindomain.MediaItem, result *domainmetadata.MetadataResult) {
+func applyBasicFields(item *domainlib.MediaItem, result *domainmetadata.MetadataResult) {
 	item.Title = result.Title
 	item.OriginalTitle = result.OriginalTitle
 	item.Overview = result.Overview
@@ -85,9 +85,9 @@ func applyBasicFields(item *domaindomain.MediaItem, result *domainmetadata.Metad
 	item.Year = result.Year
 	item.CommunityRating = result.CommunityRating
 	item.OfficialRating = result.OfficialRating
-	item.Trailers = make([]domaindomain.Trailer, 0, len(result.Trailers))
+	item.Trailers = make([]domainlib.Trailer, 0, len(result.Trailers))
 	for _, t := range result.Trailers {
-		item.Trailers = append(item.Trailers, domaindomain.Trailer{
+		item.Trailers = append(item.Trailers, domainlib.Trailer{
 			Site:             t.Site,
 			Key:              t.Key,
 			Language:         t.Language,
@@ -172,7 +172,7 @@ func (e *Enricher) upsertPeople(ctx context.Context, mediaItemID string, people 
 			c := p.Character
 			charName = &c
 		}
-		mp := &domaindomain.MediaPerson{
+		mp := &domainlib.MediaPerson{
 			MediaItemID:   mediaItemID,
 			PersonID:      person.ID,
 			RoleType:      roleType(p.Role),
@@ -187,7 +187,7 @@ func (e *Enricher) upsertPeople(ctx context.Context, mediaItemID string, people 
 	return nil
 }
 
-func (e *Enricher) findOrCreatePerson(ctx context.Context, p domainmetadata.PersonResult) (*domaindomain.Person, error) {
+func (e *Enricher) findOrCreatePerson(ctx context.Context, p domainmetadata.PersonResult) (*domainlib.Person, error) {
 	person, err := e.persons.GetByName(ctx, p.Name)
 	if err == nil {
 		return person, nil
@@ -200,7 +200,7 @@ func (e *Enricher) findOrCreatePerson(ctx context.Context, p domainmetadata.Pers
 	if thumbPath != "" {
 		thumbPtr = &thumbPath
 	}
-	person = &domaindomain.Person{
+	person = &domainlib.Person{
 		ID:          uuid.New().String(),
 		Name:        p.Name,
 		ProviderIDs: map[string]string{},
@@ -212,7 +212,7 @@ func (e *Enricher) findOrCreatePerson(ctx context.Context, p domainmetadata.Pers
 	return person, nil
 }
 
-func (e *Enricher) indexSearch(ctx context.Context, item *domaindomain.MediaItem, people []domainmetadata.PersonResult) {
+func (e *Enricher) indexSearch(ctx context.Context, item *domainlib.MediaItem, people []domainmetadata.PersonResult) {
 	if e.search == nil {
 		return
 	}
@@ -259,17 +259,17 @@ func roleType(role string) string {
 
 // AutoEnrichItem searches providers and enriches a single item.
 // Primary provider first, then supplementary for extra IDs/ratings.
-func (e *Enricher) AutoEnrichItem(ctx context.Context, item *domaindomain.MediaItem, log *slog.Logger) {
+func (e *Enricher) AutoEnrichItem(ctx context.Context, item *domainlib.MediaItem, log *slog.Logger) {
 	if item.Title == "" {
 		return
 	}
 
-	if item.Type == string(domaindomain.Episode) {
+	if item.Type == string(domainlib.Episode) {
 		e.autoEnrichEpisode(ctx, item, log)
 		return
 	}
 
-	if item.Type == string(domaindomain.Season) {
+	if item.Type == string(domainlib.Season) {
 		e.autoEnrichSeason(ctx, item, log)
 		return
 	}
@@ -279,7 +279,7 @@ func (e *Enricher) AutoEnrichItem(ctx context.Context, item *domaindomain.MediaI
 	}
 
 	mediaType := "movie"
-	if item.Type == string(domaindomain.Series) {
+	if item.Type == string(domainlib.Series) {
 		mediaType = "tv"
 	}
 
@@ -311,7 +311,7 @@ func (e *Enricher) AutoEnrichItem(ctx context.Context, item *domaindomain.MediaI
 }
 
 // supplementItem calls supplementary providers to merge extra data (IMDB ID, ratings, TheTVDB ID).
-func (e *Enricher) supplementItem(ctx context.Context, item *domaindomain.MediaItem, primary *domainmetadata.MetadataResult, mediaType string, log *slog.Logger) {
+func (e *Enricher) supplementItem(ctx context.Context, item *domainlib.MediaItem, primary *domainmetadata.MetadataResult, mediaType string, log *slog.Logger) {
 	defer func() {
 		if r := recover(); r != nil {
 			slog.Error("panic in supplementItem", slog.Any("recover", r), slog.String("title", item.Title))
@@ -363,7 +363,7 @@ func lookupSupplement(ctx context.Context, sp domainmetadata.MetadataProvider, i
 	return nil
 }
 
-func mergeProviderIDs(item *domaindomain.MediaItem, src map[string]string) bool {
+func mergeProviderIDs(item *domainlib.MediaItem, src map[string]string) bool {
 	changed := false
 	for k, v := range src {
 		if _, exists := item.ProviderIDs[k]; !exists {
@@ -377,7 +377,7 @@ func mergeProviderIDs(item *domaindomain.MediaItem, src map[string]string) bool 
 	return changed
 }
 
-func mergeRatings(item *domaindomain.MediaItem, src map[string]float64) bool {
+func mergeRatings(item *domainlib.MediaItem, src map[string]float64) bool {
 	changed := false
 	for k, v := range src {
 		if _, exists := item.Ratings[k]; !exists {
@@ -425,7 +425,7 @@ func (e *Enricher) searchAndFetch(ctx context.Context, provider domainmetadata.M
 	return full
 }
 
-func (e *Enricher) autoEnrichSeason(ctx context.Context, item *domaindomain.MediaItem, log *slog.Logger) {
+func (e *Enricher) autoEnrichSeason(ctx context.Context, item *domainlib.MediaItem, log *slog.Logger) {
 	if item.ParentID == "" || item.IndexNumber == nil {
 		return
 	}
@@ -471,7 +471,7 @@ func (e *Enricher) autoEnrichSeason(ctx context.Context, item *domaindomain.Medi
 	}
 }
 
-func (e *Enricher) autoEnrichEpisode(ctx context.Context, item *domaindomain.MediaItem, log *slog.Logger) {
+func (e *Enricher) autoEnrichEpisode(ctx context.Context, item *domainlib.MediaItem, log *slog.Logger) {
 	if item.ParentID == "" || item.IndexNumber == nil {
 		return
 	}
@@ -542,7 +542,7 @@ func (e *Enricher) episodeProviders() []episodeProvider {
 }
 
 // AutoEnrichAll enriches all items concurrently (max 3 at a time).
-func (e *Enricher) AutoEnrichAll(ctx context.Context, items []*domaindomain.MediaItem, log *slog.Logger) {
+func (e *Enricher) AutoEnrichAll(ctx context.Context, items []*domainlib.MediaItem, log *slog.Logger) {
 	sem := make(chan struct{}, 3)
 	var wg sync.WaitGroup
 	for _, item := range items {
@@ -550,7 +550,7 @@ func (e *Enricher) AutoEnrichAll(ctx context.Context, items []*domaindomain.Medi
 			continue
 		}
 		wg.Add(1)
-		go func(it *domaindomain.MediaItem) {
+		go func(it *domainlib.MediaItem) {
 			defer wg.Done()
 			sem <- struct{}{}
 			defer func() { <-sem }()
