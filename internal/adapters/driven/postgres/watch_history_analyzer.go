@@ -17,13 +17,19 @@ func NewWatchHistoryAnalyzer(db *sql.DB) *WatchHistoryAnalyzer {
 // GetFavoriteGenres returns genres the profile has watched at least minCount times.
 func (a *WatchHistoryAnalyzer) GetFavoriteGenres(ctx context.Context, profileID string, minCount int) ([]string, error) {
 	rows, err := a.db.QueryContext(ctx, `
+		WITH recent_sessions AS (
+			SELECT media_item_id
+			FROM play_sessions
+			WHERE profile_id = $1
+			ORDER BY started_at DESC
+			LIMIT 200
+		)
 		SELECT genre, COUNT(*) AS cnt
-		FROM play_sessions ps
-		INNER JOIN media_items mi ON mi.id = ps.media_item_id
+		FROM recent_sessions rs
+		INNER JOIN media_items mi ON mi.id = rs.media_item_id
 		CROSS JOIN jsonb_array_elements_text(
 			CASE WHEN jsonb_typeof(mi.genres) = 'array' THEN mi.genres ELSE '[]'::jsonb END
 		) AS genre
-		WHERE ps.profile_id = $1
 		GROUP BY genre
 		HAVING COUNT(*) >= $2
 		ORDER BY cnt DESC
