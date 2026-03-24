@@ -159,7 +159,7 @@ function CheckboxGroup({
                 }}
               >
                 {checked && (
-                  <Check size={10} className="text-white" strokeWidth={3} />
+                  <Check size={10} className="text-[var(--filter-active-text)]" strokeWidth={3} />
                 )}
               </span>
               <span className="text-sm group-hover:text-[var(--text)] transition-colors" style={{ color: "var(--text-muted)" }}>

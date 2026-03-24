@@ -86,7 +86,7 @@ function ProfilePage() {
       <Card>
         <div className="p-6 flex flex-col gap-5">
           <div className="flex items-center gap-4">
-            <div className="w-16 h-16 rounded-full bg-[var(--accent)] flex items-center justify-center text-white text-2xl font-bold shrink-0">
+            <div className="w-16 h-16 rounded-full bg-[var(--accent)] flex items-center justify-center text-[var(--filter-active-text)] text-2xl font-bold shrink-0">
               {user?.username?.charAt(0).toUpperCase() ?? "U"}
             </div>
             <div className="flex-1 min-w-0">
@@ -94,7 +94,7 @@ function ProfilePage() {
               <p className="text-sm text-[var(--text-muted)] truncate">{user?.email ?? "---"}</p>
               <div className="flex items-center gap-2 mt-1">
                 {user?.isAdmin && (
-                  <span className="text-xs bg-[var(--accent)] text-white px-2 py-0.5 rounded-[var(--radius-sm)]">
+                  <span className="text-xs bg-[var(--accent)] text-[var(--filter-active-text)] px-2 py-0.5 rounded-[var(--radius-sm)]">
                     {t("auth.profile.admin")}
                   </span>
                 )}

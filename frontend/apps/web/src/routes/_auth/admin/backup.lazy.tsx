@@ -234,7 +234,7 @@ function RestoreUploadModal({
           ref={fileInputRef}
           type="file"
           accept=".tar.gz,.gz"
-          className="text-sm file:mr-3 file:rounded-[var(--radius-lg)] file:border file:border-solid file:border-[var(--border)] file:bg-[var(--surface)] file:px-4 file:py-2 file:text-sm file:font-medium file:text-[var(--text)] file:cursor-pointer hover:file:bg-[var(--accent)] hover:file:text-white file:transition-colors"
+          className="text-sm file:mr-3 file:rounded-[var(--radius-lg)] file:border file:border-solid file:border-[var(--border)] file:bg-[var(--surface)] file:px-4 file:py-2 file:text-sm file:font-medium file:text-[var(--text)] file:cursor-pointer hover:file:bg-[var(--accent)] hover:file:text-[var(--filter-active-text)] file:transition-colors"
           style={{ color: "var(--text-muted)" }}
         />
         <div className="flex justify-end gap-2">

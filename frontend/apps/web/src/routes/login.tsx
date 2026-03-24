@@ -76,7 +76,7 @@ function LoginPage() {
             className="w-12 h-12 rounded-[var(--radius-md)] flex items-center justify-center mb-4"
             style={{ backgroundColor: "var(--accent)" }}
           >
-            <Play size={24} className="text-white" fill="currentColor" />
+            <Play size={24} className="text-[var(--filter-active-text)]" fill="currentColor" />
           </div>
           <h1 className="text-2xl font-bold text-[var(--text)]">Evey</h1>
           <p className="text-[var(--text-muted)] text-sm mt-1">{t("auth.login.signInToAccount")}</p>

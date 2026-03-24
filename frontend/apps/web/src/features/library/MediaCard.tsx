@@ -423,7 +423,7 @@ export const MediaCard = memo(function MediaCard({
             }}
             data-testid="watched-badge"
           >
-            <Check size={12} className="text-white" strokeWidth={3} />
+            <Check size={12} className="text-[var(--filter-active-text)]" strokeWidth={3} />
           </span>
         )}
 
@@ -488,7 +488,7 @@ export const MediaCard = memo(function MediaCard({
             }}
           >
             {selected && (
-              <Check size={12} className="text-white" strokeWidth={3} />
+              <Check size={12} className="text-[var(--filter-active-text)]" strokeWidth={3} />
             )}
           </button>
         ) : (item.id && !lite) ? (
@@ -505,7 +505,7 @@ export const MediaCard = memo(function MediaCard({
             aria-label="Options"
             aria-haspopup="true"
             aria-expanded={ctxMenu !== null}
-            className="absolute top-2 right-2 z-20 opacity-0 group-hover:opacity-100 focus:opacity-100 p-1 rounded bg-black/60 text-white"
+            className="absolute top-2 right-2 z-20 opacity-0 group-hover:opacity-100 focus:opacity-100 p-1 rounded bg-black/60 text-[var(--overlay-text)]"
             style={{ lineHeight: 1 }}
             onClick={(e) => {
               e.preventDefault();
@@ -537,9 +537,9 @@ export const MediaCard = memo(function MediaCard({
             className="w-12 h-12 rounded-full flex items-center justify-center backdrop-blur-sm transition-transform duration-200 group-hover:scale-110 group-focus-within:scale-110"
             style={{ backgroundColor: "var(--glass-bg)", border: "1px solid var(--glass-border)" }}
           >
-            <Play size={20} className="text-white ml-0.5" fill="currentColor" aria-hidden="true" />
+            <Play size={20} className="text-[var(--overlay-text)] ml-0.5" fill="currentColor" aria-hidden="true" />
           </div>
-          <p className="absolute bottom-2 left-2 right-2 text-xs font-medium text-white truncate text-center">
+          <p className="absolute bottom-2 left-2 right-2 text-xs font-medium text-[var(--overlay-text)] truncate text-center">
             {item.title}
           </p>
         </div>

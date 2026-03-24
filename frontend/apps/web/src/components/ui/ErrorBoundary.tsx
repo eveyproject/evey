@@ -36,7 +36,7 @@ export class ErrorBoundary extends Component<Props, State> {
           padding: "2rem",
           backgroundColor: "var(--bg, #111)",
           color: "var(--text, #ccc)",
-          fontFamily: "system-ui, -apple-system, sans-serif",
+          fontFamily: "var(--font-family, system-ui, -apple-system, sans-serif)",
         }}
       >
         <div
@@ -50,7 +50,7 @@ export class ErrorBoundary extends Component<Props, State> {
             justifyContent: "center",
           }}
         >
-          <TriangleAlert size={32} stroke="#ef4444" strokeWidth={1.5} />
+          <TriangleAlert size={32} stroke="var(--color-danger, #ef4444)" strokeWidth={1.5} />
         </div>
         <h1 style={{ fontSize: "1.5rem", fontWeight: 600, color: "var(--text, #fff)", margin: 0 }}>
           {i18n.t("common.errorBoundary.title")}
