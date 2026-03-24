@@ -16,9 +16,7 @@ vi.mock("@evey/api/src/generated/transcoding.schemas", () => ({
   },
 }));
 
-// Both @evey/api and @evey/api/src/fetcher alias to the same file in vitest config,
-// so we mock under @evey/api/src/fetcher and include everything the component needs.
-vi.mock("@evey/api/src/fetcher", () => ({
+vi.mock("@evey/api", () => ({
   eveyFetch: (...args: unknown[]) => mockEveyFetch(...args),
   useTranscodingServiceListTranscodeProfiles: (...args: unknown[]) => mockListProfiles(...args),
   getTranscodingServiceListTranscodeProfilesQueryKey: () => ["/api/v1/admin/transcoding/profiles"],

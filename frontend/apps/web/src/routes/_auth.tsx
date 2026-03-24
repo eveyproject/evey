@@ -1,5 +1,6 @@
 import { createFileRoute, Outlet, redirect } from "@tanstack/react-router";
 import { useAuthStore } from "@evey/store";
+import { eveyFetch } from "@evey/api";
 import { AuthLayout } from "@/components/layout/AuthLayout";
 
 function isTokenExpired(token: string): boolean {
@@ -12,22 +13,17 @@ function isTokenExpired(token: string): boolean {
 }
 
 async function refreshToken(): Promise<boolean> {
-  const { setTokens } = useAuthStore.getState();
   try {
-    const res = await fetch("/api/v1/auth/refresh", {
+    const data = await eveyFetch<{ accessToken?: string }>({
+      url: "/api/v1/auth/refresh",
       method: "POST",
-      credentials: "include",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({}),
+      data: {},
     });
-    if (!res.ok) return false;
-    const data = await res.json() as { accessToken?: string };
-    if (data.accessToken) {
-      setTokens(data.accessToken);
-      return true;
-    }
-  } catch { /* cookie missing or expired */ }
-  return false;
+    return !!data.accessToken;
+  } catch {
+    return false;
+  }
 }
 
 export const Route = createFileRoute("/_auth")({

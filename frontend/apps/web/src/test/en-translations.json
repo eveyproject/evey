@@ -876,6 +876,7 @@
   "media.contextMenu.markUnwatched": "Mark as unwatched",
   "media.contextMenu.markedWatched": "Marked as watched",
   "media.contextMenu.markedUnwatched": "Marked as unwatched",
+  "media.contextMenu.noProfileSelected": "No profile selected",
   "media.contextMenu.markError": "Failed to mark as {{status}}",
   "media.music.title": "Music",
   "media.music.tracks": "Tracks",

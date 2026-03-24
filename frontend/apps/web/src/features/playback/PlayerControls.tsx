@@ -786,7 +786,13 @@ export function PlayerControls({
 
     function onPlay() { setPlaying(true); }
     function onPause() { setPlaying(false); }
-    function onTimeUpdate() { setCurrentTime(video!.currentTime); }
+    let lastTimeUpdate = 0;
+    function onTimeUpdate() {
+      const now = performance.now();
+      if (now - lastTimeUpdate < 250) return;
+      lastTimeUpdate = now;
+      setCurrentTime(video!.currentTime);
+    }
     function onDurationChange() {
       const d = video!.duration;
       if (d && isFinite(d) && d > 0) setDuration(d);

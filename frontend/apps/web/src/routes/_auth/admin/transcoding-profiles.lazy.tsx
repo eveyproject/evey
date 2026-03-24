@@ -9,7 +9,7 @@ import type {
 import { V1HWAccelType as HWAccelType } from "@evey/api/src/generated/transcoding.schemas";
 import { toast } from "@evey/store";
 import { useQueryClient } from "@tanstack/react-query";
-import { eveyFetch } from "@evey/api/src/fetcher";
+import { eveyFetch } from "@evey/api";
 import { Spinner } from "@/components/ui/Spinner";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
