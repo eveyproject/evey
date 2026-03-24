@@ -10,8 +10,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/lib/pq"
-
 	"github.com/gravity-zero/evey/internal/domain/shared"
 	"github.com/gravity-zero/evey/internal/domain/user"
 	"github.com/gravity-zero/evey/internal/pkg/id"
@@ -293,8 +291,7 @@ func (s *CommandService) generateAndStoreRefreshToken(ctx context.Context, userI
 		if err == nil {
 			return token, nil
 		}
-		var pqErr *pq.Error
-		if !errors.As(err, &pqErr) || pqErr.Code != "23505" {
+		if !errors.Is(err, shared.ErrConflict) {
 			return "", fmt.Errorf("store refresh token: %w", err)
 		}
 	}
