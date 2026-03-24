@@ -192,7 +192,10 @@ func (s *RuntimeService) UpdatePluginConfig(ctx context.Context, id string, conf
 }
 
 func (s *RuntimeService) HandleIPCResult(pluginID string, ipcErr error) {
-	p, getErr := s.plugins.GetByID(context.Background(), pluginID)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	p, getErr := s.plugins.GetByID(ctx, pluginID)
 	if getErr != nil {
 		return
 	}
@@ -203,7 +206,7 @@ func (s *RuntimeService) HandleIPCResult(pluginID string, ipcErr error) {
 		p.Status = "running"
 		p.ErrorMessage = ""
 	}
-	if upErr := s.plugins.Update(context.Background(), p); upErr != nil {
+	if upErr := s.plugins.Update(ctx, p); upErr != nil {
 		slog.Warn("update plugin status after IPC", slog.String("pluginID", pluginID), slog.Any("err", upErr))
 	}
 }
