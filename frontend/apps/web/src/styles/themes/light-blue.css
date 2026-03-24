@@ -86,4 +86,6 @@
   --bg-gradient-mid: #dce4f0;
 
   --focus-ring: 0 0 0 2px var(--bg), 0 0 0 4px var(--accent);
+
+  --font-family: 'Inter', system-ui, -apple-system, sans-serif;
 }

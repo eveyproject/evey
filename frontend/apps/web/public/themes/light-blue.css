@@ -50,4 +50,6 @@
   --bg-gradient-mid: #dce4f0;
 
   --overlay-gradient: rgba(0,0,0,0.4);
+
+  --font-family: 'Inter', system-ui, -apple-system, sans-serif;
 }
