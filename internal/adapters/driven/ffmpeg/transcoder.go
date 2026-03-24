@@ -71,6 +71,7 @@ func (t *Transcoder) Start(ctx context.Context, job *transcoding.TranscodeJob) (
 			if err := cmd.Wait(); err != nil {
 				slog.Warn("transcoder wait", slog.String("jobID", job.ID), slog.Any("err", err))
 			}
+			t.jobs.Delete(job.ID)
 		}()
 		scanner := bufio.NewScanner(stderr)
 		scanner.Split(scanFFmpegLines)
