@@ -9,6 +9,7 @@ import (
 	appplugin "github.com/gravity-zero/evey/internal/app/plugin"
 	plugindomain "github.com/gravity-zero/evey/internal/domain/plugin"
 	plgfakes "github.com/gravity-zero/evey/internal/domain/plugin/fakes"
+	"github.com/gravity-zero/evey/internal/domain/shared"
 	sharedfakes "github.com/gravity-zero/evey/internal/domain/shared/fakes"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -192,7 +193,7 @@ func TestUninstallRemovesDir(t *testing.T) {
 	require.NoError(t, err)
 
 	_, err = pluginRepo.GetByID(context.Background(), p.ID)
-	assert.Error(t, err)
+	assert.ErrorIs(t, err, shared.ErrNotFound)
 }
 
 func TestUninstallPlugin_NotFound(t *testing.T) {

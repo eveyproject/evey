@@ -70,13 +70,13 @@ func TestRunnerStartStop(t *testing.T) {
 func TestRunnerStopNotRunning(t *testing.T) {
 	r := NewRunner()
 	err := r.Stop(context.Background(), "nonexistent")
-	assert.Error(t, err)
+	assert.ErrorContains(t, err, "not running")
 }
 
 func TestRunnerSendEventNotRunning(t *testing.T) {
 	r := NewRunner()
 	err := r.SendEvent(context.Background(), "nonexistent", nil)
-	assert.Error(t, err)
+	assert.ErrorContains(t, err, "not running")
 }
 
 func TestRunnerHealthNotRunning(t *testing.T) {

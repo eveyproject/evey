@@ -170,7 +170,7 @@ func TestParseNoManifestInZip(t *testing.T) {
 func TestParseInvalidZipPath(t *testing.T) {
 	parser := NewManifestParser()
 	_, err := parser.Parse("/nonexistent/path.zip")
-	assert.Error(t, err)
+	assert.ErrorContains(t, err, "open")
 }
 
 func TestParse_PluginYml(t *testing.T) {
@@ -282,6 +282,5 @@ func TestParseDir_NotFound(t *testing.T) {
 	parser := NewManifestParser()
 
 	_, err := parser.ParseDir(dir)
-	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "read manifest from dir")
+	assert.ErrorContains(t, err, "read manifest from dir")
 }

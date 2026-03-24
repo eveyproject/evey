@@ -89,7 +89,7 @@ func TestZipExtractCreatesDestDir(t *testing.T) {
 func TestZipExtractInvalidZip(t *testing.T) {
 	installer := NewZipInstaller()
 	err := installer.Extract("/nonexistent.zip", t.TempDir())
-	assert.Error(t, err)
+	assert.ErrorContains(t, err, "open")
 }
 
 func TestZipExtract_FileAtMaxSize_Passes(t *testing.T) {

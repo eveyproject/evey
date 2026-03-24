@@ -122,7 +122,7 @@ func TestNewFromDir_MissingFallback(t *testing.T) {
 
 func TestNewFromDir_InvalidDir(t *testing.T) {
 	_, err := NewFromDir("/nonexistent/path")
-	assert.Error(t, err)
+	assert.ErrorContains(t, err, "read dir")
 }
 
 func TestAllMessages(t *testing.T) {

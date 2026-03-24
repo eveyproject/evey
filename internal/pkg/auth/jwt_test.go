@@ -63,7 +63,7 @@ func TestInvalidSignature(t *testing.T) {
 
 	token, _ := gen1.GenerateAccessToken(user.Claims{UserID: "u1", Username: "test"})
 	_, err := gen2.ValidateAccessToken(token)
-	assert.Error(t, err)
+	assert.ErrorContains(t, err, "token")
 }
 
 func TestAlgorithmConfusionRejected(t *testing.T) {

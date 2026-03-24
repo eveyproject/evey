@@ -3,6 +3,7 @@ package ebml
 import (
 	"bytes"
 	"context"
+	"io"
 	"os"
 	"testing"
 
@@ -53,13 +54,13 @@ func TestReadVINT_FourBytes(t *testing.T) {
 func TestReadVINT_ZeroByte(t *testing.T) {
 	r := bytes.NewReader([]byte{0x00})
 	_, _, err := ReadVINT(r)
-	assert.Error(t, err)
+	assert.ErrorContains(t, err, "invalid VINT")
 }
 
 func TestReadVINT_Empty(t *testing.T) {
 	r := bytes.NewReader([]byte{})
 	_, _, err := ReadVINT(r)
-	assert.Error(t, err)
+	assert.ErrorIs(t, err, io.EOF)
 }
 
 func TestReadDataSize(t *testing.T) {
