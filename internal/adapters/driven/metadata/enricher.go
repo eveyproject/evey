@@ -307,11 +307,16 @@ func (e *Enricher) AutoEnrichItem(ctx context.Context, item *domaindomain.MediaI
 	}
 
 	// 4. Supplement async (extra IDs, ratings) — does not block
-	go e.supplementItem(context.Background(), item, primary, mediaType, log)
+	go e.supplementItem(ctx, item, primary, mediaType, log)
 }
 
 // supplementItem calls supplementary providers to merge extra data (IMDB ID, ratings, TheTVDB ID).
 func (e *Enricher) supplementItem(ctx context.Context, item *domaindomain.MediaItem, primary *domainmetadata.MetadataResult, mediaType string, log *slog.Logger) {
+	defer func() {
+		if r := recover(); r != nil {
+			slog.Error("panic in supplementItem", slog.Any("recover", r), slog.String("title", item.Title))
+		}
+	}()
 	imdbID := primary.ProviderIDs["imdb"]
 	changed := false
 
