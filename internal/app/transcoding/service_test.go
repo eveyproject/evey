@@ -339,3 +339,94 @@ func TestDeleteProfile_NotFound(t *testing.T) {
 	err := svc.DeleteProfile(context.Background(), "missing")
 	assert.Error(t, err)
 }
+
+func newFullSvc() (*apptranscode.Service, *tcfakes.FakeTranscoder, *tcfakes.FakeTranscodeJobRepository, *sharedfakes.FakeEventBus) {
+	tc := tcfakes.NewFakeTranscoder()
+	hw := tcfakes.NewFakeHWDetector()
+	jobRepo := tcfakes.NewFakeTranscodeJobRepository()
+	profileRepo := tcfakes.NewFakeTranscodeProfileRepository()
+	bus := sharedfakes.NewFakeEventBus()
+	svc := apptranscode.NewService(tc, hw, jobRepo, profileRepo, bus, 2)
+	return svc, tc, jobRepo, bus
+}
+
+func startJob(t *testing.T, svc *apptranscode.Service, id, mediaID string) *transcoding.TranscodeJob {
+	t.Helper()
+	job := &transcoding.TranscodeJob{
+		ID:          id,
+		MediaItemID: mediaID,
+		InputPath:   "/media/movie.mkv",
+		InputCodec:  "h264",
+		OutputCodec: "h265",
+	}
+	require.NoError(t, svc.StartTranscode(context.Background(), job))
+	return job
+}
+
+func TestStopTranscode_HappyPath(t *testing.T) {
+	svc, _, jobRepo, bus := newFullSvc()
+	startJob(t, svc, "j1", "m1")
+
+	err := svc.StopTranscode(context.Background(), "j1")
+	require.NoError(t, err)
+
+	job, err := jobRepo.GetByID(context.Background(), "j1")
+	require.NoError(t, err)
+	assert.Equal(t, string(transcoding.Cancelled), job.Status)
+	assert.NotNil(t, job.EndedAt)
+
+	events := bus.PublishedEvents()
+	require.Len(t, events, 2)
+	cancelled, ok := events[1].(transcoding.TranscodeCancelled)
+	require.True(t, ok)
+	assert.Equal(t, "j1", cancelled.JobID)
+	assert.Equal(t, "m1", cancelled.MediaItemID)
+}
+
+func TestStopTranscode_NonExistentJob(t *testing.T) {
+	svc, _, _, _ := newFullSvc()
+
+	err := svc.StopTranscode(context.Background(), "nonexistent")
+	assert.Error(t, err)
+}
+
+func TestStopTranscode_EventPublished(t *testing.T) {
+	svc, _, _, bus := newFullSvc()
+	startJob(t, svc, "j1", "m1")
+
+	require.NoError(t, svc.StopTranscode(context.Background(), "j1"))
+
+	var found bool
+	for _, evt := range bus.PublishedEvents() {
+		if evt.EventName() == "transcode.cancelled" {
+			c := evt.(transcoding.TranscodeCancelled)
+			assert.Equal(t, "j1", c.JobID)
+			assert.Equal(t, "m1", c.MediaItemID)
+			assert.False(t, c.OccurredAt.IsZero())
+			found = true
+		}
+	}
+	assert.True(t, found, "TranscodeCancelled event not published")
+}
+
+func TestStopTranscode_ConcurrentStop(t *testing.T) {
+	svc, _, _, _ := newFullSvc()
+	startJob(t, svc, "j1", "m1")
+
+	errs := make(chan error, 2)
+	for i := 0; i < 2; i++ {
+		go func() {
+			errs <- svc.StopTranscode(context.Background(), "j1")
+		}()
+	}
+
+	var successes, failures int
+	for i := 0; i < 2; i++ {
+		if err := <-errs; err != nil {
+			failures++
+		} else {
+			successes++
+		}
+	}
+	assert.GreaterOrEqual(t, successes, 1, "at least one stop should succeed")
+}
