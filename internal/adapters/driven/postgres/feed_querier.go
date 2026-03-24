@@ -194,6 +194,7 @@ func (q *FeedQuerier) RecentlyAdded(ctx context.Context, daysWindow, limit int) 
 				FROM media_items e
 				INNER JOIN media_items s ON s.id = e.parent_id
 				WHERE e.type = 'episode'
+				  AND e.added_at > NOW() - ($1 || ' days')::interval
 				GROUP BY s.parent_id
 			) ep_max ON m.type = 'series' AND ep_max.series_id = m.id
 			WHERE m.type IN ('movie', 'series', 'album')
