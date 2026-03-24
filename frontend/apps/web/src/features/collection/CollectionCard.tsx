@@ -20,11 +20,11 @@ export function CollectionCard({ collection }: CollectionCardProps) {
       data-testid="collection-card"
     >
       <div
-        className="relative w-full overflow-hidden transition-all duration-200 ease-out group-hover:scale-105 group-hover:shadow-[0_8px_24px_rgba(0,0,0,0.4)]"
+        className="relative w-full overflow-hidden transition-all duration-200 ease-out group-hover:scale-105"
         style={{
           aspectRatio: "2/3",
           borderRadius: "var(--radius-md)",
-          boxShadow: "0 2px 8px rgba(0,0,0,0.2)",
+          boxShadow: "var(--shadow-sm)",
         }}
       >
         {collection.posterUrl && !imgError ? (
@@ -50,14 +50,14 @@ export function CollectionCard({ collection }: CollectionCardProps) {
 
         <div
           className="absolute inset-0"
-          style={{ background: "linear-gradient(to top, rgba(0,0,0,0.7) 0%, transparent 55%)" }}
+          style={{ background: "linear-gradient(to top, var(--overlay-bg-strong) 0%, transparent 55%)" }}
         />
 
         <div
           className="absolute inset-0 flex flex-col items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-200"
-          style={{ background: "rgba(0,0,0,0.25)" }}
+          style={{ background: "var(--overlay-chip-bg)" }}
         >
-          <LayoutGrid size={40} stroke="rgba(255,255,255,0.9)" strokeWidth={1.5} aria-hidden="true" />
+          <LayoutGrid size={40} stroke="var(--overlay-text-bright)" strokeWidth={1.5} aria-hidden="true" />
         </div>
       </div>
 

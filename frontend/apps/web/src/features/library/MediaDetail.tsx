@@ -624,12 +624,12 @@ function TrailerPlayer({ trailer, userLang }: { trailer: V1Trailer; userLang: st
       <button
         onClick={() => setOpen(true)}
         className="flex items-center gap-2 px-4 py-2 rounded text-sm font-medium transition-colors"
-        style={{ backgroundColor: "rgba(255,255,255,0.12)", color: "var(--text)", border: "1px solid var(--border)" }}
+        style={{ backgroundColor: "var(--overlay-border-subtle)", color: "var(--text)", border: "1px solid var(--border)" }}
       >
         <Play size={16} fill="currentColor" />
         {t("media.detail.trailer")}
         {needsSubtitles && (
-          <span className="text-xs px-1 rounded" style={{ backgroundColor: "rgba(255,255,255,0.15)", color: "var(--text-muted)" }}>
+          <span className="text-xs px-1 rounded" style={{ backgroundColor: "var(--overlay-btn-bg)", color: "var(--text-muted)" }}>
             CC
           </span>
         )}
@@ -638,7 +638,7 @@ function TrailerPlayer({ trailer, userLang }: { trailer: V1Trailer; userLang: st
       {open && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center p-4"
-          style={{ backgroundColor: "rgba(0,0,0,0.85)" }}
+          style={{ backgroundColor: "var(--overlay-scrim)" }}
           onClick={() => setOpen(false)}
         >
           <div
@@ -815,7 +815,7 @@ export function MediaDetail({ item, onMetadataUpdated, initialEdit }: MediaDetai
       {/* Backdrop hero */}
       <div className="relative w-full overflow-hidden -mx-4 sm:-mx-6 -mt-4 sm:-mt-6 mb-0" style={{ height: "clamp(260px, 50vw, 420px)" }}>
         {/* Breadcrumbs + back button pinned to top */}
-        <div className="absolute top-0 left-0 right-0 z-10 px-4 sm:px-6 pt-4 sm:pt-5" style={{ background: "linear-gradient(to bottom, rgba(0,0,0,0.88) 0%, rgba(0,0,0,0.4) 60%, transparent 100%)", textShadow: "0 1px 6px rgba(0,0,0,0.95)" }}>
+        <div className="absolute top-0 left-0 right-0 z-10 px-4 sm:px-6 pt-4 sm:pt-5" style={{ background: `linear-gradient(to bottom, var(--overlay-scrim) 0%, var(--overlay-chip-bg) 60%, transparent 100%)`, textShadow: `0 1px 6px var(--overlay-scrim)` }}>
           <BackButton fallback="/library" className="mb-1 !text-white hover:!text-white/80" />
           <Breadcrumbs items={breadcrumbItems} />
         </div>
@@ -834,7 +834,7 @@ export function MediaDetail({ item, onMetadataUpdated, initialEdit }: MediaDetai
         <div
           className="absolute inset-0"
           style={{
-            background: "linear-gradient(to top, var(--bg) 0%, rgba(0,0,0,0.5) 40%, rgba(0,0,0,0.2) 70%, transparent 100%)",
+            background: "linear-gradient(to top, var(--bg) 0%, var(--overlay-bg) 40%, var(--overlay-border-subtle) 70%, transparent 100%)",
           }}
         />
         {/* Title overlay on backdrop */}
@@ -843,21 +843,21 @@ export function MediaDetail({ item, onMetadataUpdated, initialEdit }: MediaDetai
             {item.officialRating && (
               <span
                 className="text-xs font-medium px-2 py-0.5 border"
-                style={{ color: "rgba(255,255,255,0.9)", borderColor: "rgba(255,255,255,0.5)", borderRadius: "var(--radius-sm)" }}
+                style={{ color: "var(--overlay-text-bright)", borderColor: "var(--overlay-dot-inactive)", borderRadius: "var(--radius-sm)" }}
               >
                 {item.officialRating}
               </span>
             )}
             {duration && (
-              <span className="text-sm" style={{ color: "rgba(255,255,255,0.8)" }}>{duration}</span>
+              <span className="text-sm" style={{ color: "var(--overlay-text-muted)" }}>{duration}</span>
             )}
             {item.year && (
-              <span className="text-sm" style={{ color: "rgba(255,255,255,0.8)" }}>{item.year}</span>
+              <span className="text-sm" style={{ color: "var(--overlay-text-muted)" }}>{item.year}</span>
             )}
             {item.communityRating !== undefined && item.communityRating > 0 && (
               <span className="flex items-center gap-1.5">
                 <Stars rating={item.communityRating} />
-                <span className="text-sm" style={{ color: "rgba(255,255,255,0.8)" }}>{item.communityRating.toFixed(1)}</span>
+                <span className="text-sm" style={{ color: "var(--overlay-text-muted)" }}>{item.communityRating.toFixed(1)}</span>
               </span>
             )}
             {item.providerIds?.imdb && (
@@ -887,10 +887,10 @@ export function MediaDetail({ item, onMetadataUpdated, initialEdit }: MediaDetai
           </div>
           {parentItem && (
             <div className="mb-1">
-              <Link to="/media/$mediaId" params={{ mediaId: item.parentId! }} className="text-sm font-medium hover:underline" style={{ color: "rgba(255,255,255,0.7)" }}>
+              <Link to="/media/$mediaId" params={{ mediaId: item.parentId! }} className="text-sm font-medium hover:underline" style={{ color: "var(--overlay-text-muted)" }}>
                 {parentItem.title}
               </Link>
-              <span className="text-sm mx-1" style={{ color: "rgba(255,255,255,0.5)" }}>&rsaquo;</span>
+              <span className="text-sm mx-1" style={{ color: "var(--overlay-dot-inactive)" }}>&rsaquo;</span>
             </div>
           )}
           <div className="flex items-center gap-3 mb-2">
@@ -900,7 +900,7 @@ export function MediaDetail({ item, onMetadataUpdated, initialEdit }: MediaDetai
                 onClick={() => setEditing((v) => !v)}
                 title={t("media.detail.editMetadata")}
                 className="flex-shrink-0 p-1.5 rounded-full transition-opacity hover:opacity-80"
-                style={{ backgroundColor: "rgba(0,0,0,0.4)", color: "rgba(255,255,255,0.8)" }}
+                style={{ backgroundColor: "var(--overlay-chip-bg)", color: "var(--overlay-text-muted)" }}
               >
                 <Pencil size={16} />
               </button>
@@ -914,8 +914,8 @@ export function MediaDetail({ item, onMetadataUpdated, initialEdit }: MediaDetai
                   key={g}
                   className="text-xs px-2.5 py-1 font-medium"
                   style={{
-                    backgroundColor: "rgba(255,255,255,0.15)",
-                    color: "rgba(255,255,255,0.9)",
+                    backgroundColor: "var(--overlay-btn-bg)",
+                    color: "var(--overlay-text-bright)",
                     borderRadius: "9999px",
                     backdropFilter: "blur(4px)",
                   }}

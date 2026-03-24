@@ -213,7 +213,7 @@ function PlayerPageInner({ mediaId }: { mediaId: string }) {
             aria-label={t("player.watchTogether")}
             onClick={() => void handleWatchTogether()}
             className="absolute top-4 right-4 z-[60] flex items-center gap-2 px-3 py-2 rounded-full text-white text-sm font-medium transition-opacity hover:opacity-80"
-            style={{ backgroundColor: "rgba(0,0,0,0.5)", border: "1px solid rgba(255,255,255,0.2)" }}
+            style={{ backgroundColor: "var(--overlay-bg)", border: "1px solid var(--overlay-btn-bg)" }}
           >
             <Users size={16} />
             {t("player.watchTogether")}
@@ -227,14 +227,14 @@ function PlayerPageInner({ mediaId }: { mediaId: string }) {
               <button
                 onClick={() => window.location.reload()}
                 className="px-4 py-2 rounded text-sm font-medium"
-                style={{ backgroundColor: "rgba(255,255,255,0.25)" }}
+                style={{ backgroundColor: "var(--overlay-btn-hover-bg)" }}
               >
                 {t("player.retry")}
               </button>
               <button
                 onClick={handleClose}
                 className="px-4 py-2 rounded text-sm font-medium"
-                style={{ backgroundColor: "rgba(255,255,255,0.15)" }}
+                style={{ backgroundColor: "var(--overlay-btn-bg)" }}
               >
                 {t("player.goBack")}
               </button>
@@ -271,7 +271,7 @@ function PlayerPageInner({ mediaId }: { mediaId: string }) {
         {showShareDialog && shareRoomId && (
           <div
             className="absolute inset-0 z-[70] flex items-center justify-center"
-            style={{ background: "rgba(0,0,0,0.7)" }}
+            style={{ background: "var(--overlay-bg-strong)" }}
             onClick={() => setShowShareDialog(false)}
           >
             <div
@@ -283,7 +283,7 @@ function PlayerPageInner({ mediaId }: { mediaId: string }) {
               <p className="text-sm text-white/70">{t("player.shareDesc")}</p>
               <div
                 className="rounded px-3 py-2 text-sm font-mono break-all select-all"
-                style={{ background: "rgba(255,255,255,0.1)" }}
+                style={{ background: "var(--overlay-border-subtle)" }}
               >
                 {shareUrl}
               </div>
@@ -291,14 +291,14 @@ function PlayerPageInner({ mediaId }: { mediaId: string }) {
                 <button
                   onClick={() => void navigator.clipboard.writeText(shareUrl)}
                   className="flex-1 py-2 rounded font-medium text-sm hover:opacity-80 transition-opacity"
-                  style={{ background: "rgba(255,255,255,0.2)" }}
+                  style={{ background: "var(--overlay-btn-bg)" }}
                 >
                   {t("player.copyLink")}
                 </button>
                 <button
                   onClick={() => setShowShareDialog(false)}
                   className="flex-1 py-2 rounded font-medium text-sm hover:opacity-80 transition-opacity"
-                  style={{ background: "rgba(255,255,255,0.1)" }}
+                  style={{ background: "var(--overlay-border-subtle)" }}
                 >
                   {t("player.close")}
                 </button>

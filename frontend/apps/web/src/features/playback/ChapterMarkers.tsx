@@ -33,7 +33,7 @@ export function ChapterMarkers({ chapters, durationSec, onSeek }: ChapterMarkers
           >
             <span
               className="rounded-full block transition-all group-hover:scale-y-125"
-              style={{ width: 3, height: "60%", backgroundColor: "rgba(255,255,255,0.85)" }}
+              style={{ width: 3, height: "60%", backgroundColor: "var(--overlay-chapter-marker)" }}
             />
           </button>
         );

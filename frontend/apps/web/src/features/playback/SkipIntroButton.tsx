@@ -36,8 +36,8 @@ export function SkipIntroButton({ filePath, currentTime, onSkip }: SkipIntroButt
       onClick={() => onSkip(endSec)}
       className="absolute bottom-28 right-4 z-30 px-5 py-2.5 text-sm font-semibold text-white rounded-md transition-all duration-200 hover:scale-105 animate-fade-in"
       style={{
-        backgroundColor: "rgba(255,255,255,0.15)",
-        border: "1px solid rgba(255,255,255,0.4)",
+        backgroundColor: "var(--overlay-btn-bg)",
+        border: "1px solid var(--overlay-dot-inactive)",
         backdropFilter: "blur(8px)",
       }}
     >

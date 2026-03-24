@@ -805,15 +805,15 @@ export function HLSPlayer({
         </div>
       )}
       {fatalError && (
-        <div className="absolute inset-0 flex items-center justify-center" style={{ zIndex: 10, background: "rgba(0,0,0,0.7)" }}>
+        <div className="absolute inset-0 flex items-center justify-center" style={{ zIndex: 10, background: "var(--overlay-bg-strong)" }}>
           <div className="flex flex-col items-center gap-4 text-white">
             <TriangleAlert size={48} style={{ color: "var(--color-danger)" }} strokeWidth={1.5} />
             <p className="text-lg font-medium">{t("player.playbackFailed")}</p>
-            <p className="text-sm" style={{ color: "var(--text-muted, rgba(255,255,255,0.6))" }}>{t("player.unableToPlayAnyQuality")}</p>
+            <p className="text-sm" style={{ color: "var(--overlay-text-muted)" }}>{t("player.unableToPlayAnyQuality")}</p>
             <button
               onClick={() => { setFatalError(false); window.location.reload(); }}
               className="px-4 py-2 rounded text-sm font-medium"
-              style={{ backgroundColor: "rgba(255,255,255,0.25)" }}
+              style={{ backgroundColor: "var(--overlay-btn-hover-bg)" }}
             >
               {t("player.retry")}
             </button>

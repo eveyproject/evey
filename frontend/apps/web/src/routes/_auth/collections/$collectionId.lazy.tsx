@@ -46,7 +46,7 @@ function CollectionDetailPage() {
               />
               <div
                 className="absolute inset-0"
-                style={{ background: "linear-gradient(to top, rgba(0,0,0,0.7) 0%, transparent 60%)" }}
+                style={{ background: "linear-gradient(to top, var(--overlay-bg-strong) 0%, transparent 60%)" }}
               />
               <div className="absolute bottom-4 left-4 right-4">
                 <h1 className="text-3xl font-bold text-white">{col.name}</h1>

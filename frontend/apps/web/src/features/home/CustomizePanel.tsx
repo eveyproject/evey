@@ -125,7 +125,7 @@ export function CustomizePanel({ open, onClose }: { open: boolean; onClose: () =
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex justify-end" style={{ backgroundColor: "rgba(0,0,0,0.4)" }}>
+    <div className="fixed inset-0 z-50 flex justify-end" style={{ backgroundColor: "var(--overlay-chip-bg)" }}>
       <div
         ref={panelRef}
         className="w-80 h-full overflow-y-auto animate-fade-in"

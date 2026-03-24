@@ -94,7 +94,7 @@ export function StarRatingBadge({ mediaId }: { mediaId: string }) {
       style={{
         top: "0.5rem",
         left: "2.25rem",
-        backgroundColor: "rgba(0,0,0,0.72)",
+        backgroundColor: "var(--overlay-bg-strong)",
         color: "var(--accent)",
         borderRadius: "var(--radius-sm)",
       }}
