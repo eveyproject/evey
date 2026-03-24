@@ -8,5 +8,6 @@ export function applyThemeToDOM(name: string, customVars?: Record<string, string
     Object.entries(customVars).forEach(([k, v]) => root.style.setProperty(k, v));
   } else if (link) {
     link.href = `/themes/${name}.css`;
+    link.media = "all";
   }
 }
