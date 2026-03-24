@@ -108,17 +108,6 @@ func (ws *WatcherService) watchLibrary(lib *library.Library) {
 	}
 }
 
-// FailedLibraryIDs returns library IDs where inotify couldn't watch any path.
-func (ws *WatcherService) FailedLibraryIDs() []string {
-	ws.mu.Lock()
-	defer ws.mu.Unlock()
-	ids := make([]string, 0, len(ws.failedLibs))
-	for id := range ws.failedLibs {
-		ids = append(ids, id)
-	}
-	return ids
-}
-
 // AddLibrary registers a library for watching at runtime (e.g. after creation).
 func (ws *WatcherService) AddLibrary(lib *library.Library) {
 	if !lib.RealtimeMonitoring || !lib.Enabled {
