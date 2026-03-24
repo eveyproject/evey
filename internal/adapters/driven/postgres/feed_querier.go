@@ -19,30 +19,18 @@ func NewFeedQuerier(db *sql.DB) *FeedQuerier {
 
 // ContinueWatching returns in-progress films and the next episode to watch per series.
 func (q *FeedQuerier) ContinueWatching(ctx context.Context, profileID string, limit int) ([]*feed.FeedItem, error) {
-	// Movies in progress
 	rows, err := q.db.QueryContext(ctx, `
-		SELECT mi.id, '', mi.title, mi.type, wp.position_ms, ''
-		FROM watch_progress wp
-		INNER JOIN media_items mi ON mi.id = wp.media_item_id
-		WHERE wp.profile_id = $1
-		  AND mi.type = 'movie'
-		  AND wp.position_ms > 0
-		  AND wp.completed = FALSE
-		ORDER BY wp.last_played_at DESC
-		LIMIT $2
-	`, profileID, limit)
-	if err != nil {
-		return nil, err
-	}
-	movies, err := scanFeedItems(rows)
-	rows.Close() //nolint:sqlclosecheck // rows is reused below; explicit close before reassignment
-	if err != nil {
-		return nil, err
-	}
-
-	// Episodes: in-progress or next unwatched per series
-	rows, err = q.db.QueryContext(ctx, `
-		WITH series_list AS (
+		WITH in_progress_movies AS (
+			SELECT mi.id, ''::text AS parent_id, mi.title, mi.type,
+			       wp.position_ms, ''::text AS added_at, wp.last_played_at
+			FROM watch_progress wp
+			INNER JOIN media_items mi ON mi.id = wp.media_item_id
+			WHERE wp.profile_id = $1
+			  AND mi.type = 'movie'
+			  AND wp.position_ms > 0
+			  AND wp.completed = FALSE
+		),
+		series_list AS (
 			SELECT DISTINCT mi.parent_id AS season_id, s.parent_id AS series_id
 			FROM watch_progress wp
 			INNER JOIN media_items mi ON mi.id = wp.media_item_id
@@ -50,8 +38,9 @@ func (q *FeedQuerier) ContinueWatching(ctx context.Context, profileID string, li
 			WHERE wp.profile_id = $1
 			  AND mi.type = 'episode'
 		),
-		in_progress AS (
-			SELECT mi.id, mi.parent_id, mi.title, wp.position_ms, s.parent_id AS series_id, wp.last_played_at
+		in_progress_eps AS (
+			SELECT mi.id, mi.parent_id, mi.title, 'episode'::text AS type,
+			       wp.position_ms, ''::text AS added_at, wp.last_played_at
 			FROM watch_progress wp
 			INNER JOIN media_items mi ON mi.id = wp.media_item_id
 			INNER JOIN media_items s ON s.id = mi.parent_id
@@ -61,39 +50,33 @@ func (q *FeedQuerier) ContinueWatching(ctx context.Context, profileID string, li
 			  AND wp.completed = FALSE
 		),
 		next_unwatched AS (
-			SELECT DISTINCT ON (s.parent_id) mi.id, mi.parent_id, mi.title, 0 AS position_ms, s.parent_id AS series_id, NOW() AS last_played_at
+			SELECT DISTINCT ON (s.parent_id)
+			       mi.id, mi.parent_id, mi.title, 'episode'::text AS type,
+			       0::bigint AS position_ms, ''::text AS added_at, NOW() AS last_played_at
 			FROM media_items mi
 			INNER JOIN media_items s ON s.id = mi.parent_id
 			INNER JOIN series_list sl ON sl.series_id = s.parent_id
 			WHERE mi.type = 'episode'
 			  AND NOT EXISTS (SELECT 1 FROM watch_progress wp2 WHERE wp2.media_item_id = mi.id AND wp2.profile_id = $1 AND wp2.completed = TRUE)
-			  AND NOT EXISTS (SELECT 1 FROM in_progress ip WHERE ip.id = mi.id)
+			  AND NOT EXISTS (SELECT 1 FROM in_progress_eps ip WHERE ip.id = mi.id)
 			ORDER BY s.parent_id, s.index_number, mi.index_number
 		)
-		SELECT id, parent_id, title, 'episode', position_ms, ''
+		SELECT id, parent_id, title, type, position_ms, added_at
 		FROM (
-			SELECT id, parent_id, title, position_ms, series_id, last_played_at FROM in_progress
+			SELECT * FROM in_progress_movies
 			UNION ALL
-			SELECT id, parent_id, title, position_ms, series_id, last_played_at FROM next_unwatched
+			SELECT * FROM in_progress_eps
+			UNION ALL
+			SELECT * FROM next_unwatched
 		) combined
-		ORDER BY series_id, last_played_at DESC
+		ORDER BY last_played_at DESC
 		LIMIT $2
 	`, profileID, limit)
 	if err != nil {
 		return nil, err
 	}
-	episodes, err := scanFeedItems(rows)
-	rows.Close() //nolint:sqlclosecheck // explicit close; function returns immediately after
-	if err != nil {
-		return nil, err
-	}
-
-	movies = append(movies, episodes...)
-	result := movies
-	if limit > 0 && len(result) > limit {
-		result = result[:limit]
-	}
-	return result, nil
+	defer rows.Close()
+	return scanFeedItems(rows)
 }
 
 // ResumePlayback returns in-progress media AND next episodes per series, sorted by last user interaction.
