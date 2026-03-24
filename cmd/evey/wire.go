@@ -399,7 +399,7 @@ func buildServices(ctx context.Context, cfg *config.Config, db *sql.DB, rootLog 
 	}, nil
 }
 
-func startWatcher(ctx context.Context, cfg *config.Config, bus *eventbus.InMemoryEventBus, libraryRepo *postgres.LibraryRepository, libCmdSvc *applibrary.CommandService, rootLog *slog.Logger) *applibrary.WatcherService {
+func startWatcher(ctx context.Context, cfg *config.Config, bus shared.EventBus, libraryRepo library.LibraryRepository, libCmdSvc applibrary.LibraryScanner, rootLog *slog.Logger) *applibrary.WatcherService {
 	if !cfg.Library.WatcherEnabled {
 		return nil
 	}
