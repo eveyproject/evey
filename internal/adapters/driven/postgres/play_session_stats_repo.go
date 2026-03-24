@@ -4,12 +4,18 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"sync"
+	"time"
 
 	"github.com/gravity-zero/evey/internal/domain/activity"
 )
 
 type PlaySessionStatsReader struct {
 	db *sql.DB
+
+	serverStatsMu    sync.Mutex
+	serverStatsCache *activity.ServerStatsResult
+	serverStatsTTL   time.Time
 }
 
 func NewPlaySessionStatsReader(db *sql.DB) *PlaySessionStatsReader {
@@ -97,7 +103,17 @@ func (r *PlaySessionStatsReader) GetUserStats(ctx context.Context, profileID str
 	return stats, rows.Err()
 }
 
+const serverStatsCacheDuration = 5 * time.Minute
+
 func (r *PlaySessionStatsReader) GetServerStats(ctx context.Context) (*activity.ServerStatsResult, error) {
+	r.serverStatsMu.Lock()
+	defer r.serverStatsMu.Unlock()
+
+	if r.serverStatsCache != nil && time.Now().Before(r.serverStatsTTL) {
+		cached := *r.serverStatsCache
+		return &cached, nil
+	}
+
 	stats := &activity.ServerStatsResult{}
 	err := r.db.QueryRowContext(ctx,
 		`SELECT
@@ -110,7 +126,12 @@ func (r *PlaySessionStatsReader) GetServerStats(ctx context.Context) (*activity.
 	if err != nil {
 		return nil, err
 	}
-	return stats, nil
+
+	r.serverStatsCache = stats
+	r.serverStatsTTL = time.Now().Add(serverStatsCacheDuration)
+
+	cached := *stats
+	return &cached, nil
 }
 
 func (r *PlaySessionStatsReader) GetMostPopular(ctx context.Context, limit int) ([]activity.MediaPlayCount, error) {
