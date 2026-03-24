@@ -276,7 +276,7 @@ function PlayerPageInner({ mediaId }: { mediaId: string }) {
           >
             <div
               className="rounded-xl p-6 text-white flex flex-col gap-4 max-w-sm w-full mx-4"
-              style={{ background: "#1a1a2e", border: "1px solid rgba(255,255,255,0.15)" }}
+              style={{ background: "var(--bg-gradient-mid)", border: "1px solid var(--overlay-border-subtle)" }}
               onClick={(e) => e.stopPropagation()}
             >
               <h2 className="text-lg font-semibold">{t("player.watchTogether")}</h2>

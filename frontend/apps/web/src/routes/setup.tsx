@@ -162,7 +162,7 @@ function SetupPage() {
   return (
     <div
       className="min-h-screen flex items-center justify-center px-4"
-      style={{ background: "linear-gradient(135deg, var(--bg) 0%, #1a1a2e 50%, var(--bg) 100%)" }}
+      style={{ background: "linear-gradient(135deg, var(--bg) 0%, var(--bg-gradient-mid) 50%, var(--bg) 100%)" }}
     >
       <Card className="w-full max-w-md p-8 shadow-2xl">
         <div className="flex flex-col items-center mb-2">{logoIcon}</div>

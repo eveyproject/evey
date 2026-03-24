@@ -337,7 +337,7 @@ function MetadataEditPanel({
       </div>
       {(form.tmdbId.trim() !== origTmdbId || form.imdbId.trim() !== origImdbId) &&
         (form.tmdbId.trim() !== "" || form.imdbId.trim() !== "") && (
-        <p className="text-xs" style={{ color: "var(--warning, #f59e0b)" }}>
+        <p className="text-xs" style={{ color: "var(--color-warning)" }}>
           {t("media.detail.idChangedWarning")}
         </p>
       )}

@@ -160,7 +160,7 @@ function SearchPage() {
                     backgroundColor:
                       typeFilter === f.value ? "var(--accent)" : "var(--surface)",
                     color:
-                      typeFilter === f.value ? "#fff" : "var(--text-secondary)",
+                      typeFilter === f.value ? "var(--filter-active-text)" : "var(--text-secondary)",
                     border: `1px solid ${typeFilter === f.value ? "var(--accent)" : "var(--border)"}`,
                   }}
                 >
@@ -177,7 +177,7 @@ function SearchPage() {
               className="px-3 py-1.5 rounded-full text-sm font-medium transition-colors cursor-pointer flex items-center gap-1.5"
               style={{
                 backgroundColor: showFilters ? "var(--accent)" : "var(--surface)",
-                color: showFilters ? "#fff" : "var(--text-secondary)",
+                color: showFilters ? "var(--filter-active-text)" : "var(--text-secondary)",
                 border: `1px solid ${showFilters ? "var(--accent)" : "var(--border)"}`,
               }}
             >

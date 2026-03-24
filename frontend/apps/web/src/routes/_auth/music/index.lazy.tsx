@@ -367,7 +367,7 @@ function MusicPage() {
     fontSize: "0.875rem",
     fontWeight: active ? 600 : 400,
     backgroundColor: active ? "var(--accent)" : "transparent",
-    color: active ? "#fff" : "var(--text-secondary)",
+    color: active ? "var(--filter-active-text)" : "var(--text-secondary)",
   });
 
   if (libLoading) {

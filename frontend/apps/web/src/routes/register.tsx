@@ -72,7 +72,7 @@ function RegisterPage() {
     <div
       className="min-h-screen flex items-center justify-center px-4"
       style={{
-        background: "linear-gradient(135deg, var(--bg) 0%, #1a1a2e 50%, var(--bg) 100%)",
+        background: "linear-gradient(135deg, var(--bg) 0%, var(--bg-gradient-mid) 50%, var(--bg) 100%)",
       }}
     >
       <Card className="w-full max-w-sm p-8 shadow-2xl">

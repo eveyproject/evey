@@ -372,7 +372,7 @@ function GenreChips({
               className="px-2 py-0.5 rounded-full text-xs font-medium transition-colors"
               style={{
                 backgroundColor: active ? "var(--accent)" : "var(--surface-raised)",
-                color: active ? "#fff" : "var(--text-muted)",
+                color: active ? "var(--filter-active-text)" : "var(--text-muted)",
                 border: `1px solid ${active ? "var(--accent)" : "var(--border)"}`,
               }}
             >
@@ -416,7 +416,7 @@ export function LibraryFilterToggle({
         className="relative flex items-center gap-1.5 px-3 py-2 rounded-[var(--radius-md)] border transition-colors text-sm"
         style={{
           backgroundColor: count > 0 ? "var(--accent)" : "var(--surface-raised)",
-          color: count > 0 ? "#fff" : "var(--text-muted)",
+          color: count > 0 ? "var(--filter-active-text)" : "var(--text-muted)",
           borderColor: count > 0 ? "var(--accent)" : "var(--border)",
         }}
         title="Toggle filters"

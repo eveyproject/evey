@@ -217,7 +217,7 @@ function FavoritesPage() {
               className="px-2 py-1 rounded-[var(--radius-md)] border text-xs transition-colors"
               style={{
                 backgroundColor: bulkMode ? "var(--accent)" : "var(--surface-raised)",
-                color: bulkMode ? "#fff" : "var(--text-muted)",
+                color: bulkMode ? "var(--filter-active-text)" : "var(--text-muted)",
                 borderColor: bulkMode ? "var(--accent)" : "var(--border)",
               }}
             >

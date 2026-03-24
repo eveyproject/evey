@@ -518,7 +518,7 @@ function LibraryPage() {
           className="p-2 rounded-[var(--radius-md)] border transition-colors text-sm"
           style={{
             backgroundColor: bulkMode ? "var(--accent)" : "var(--surface-raised)",
-            color: bulkMode ? "#fff" : "var(--text-muted)",
+            color: bulkMode ? "var(--filter-active-text)" : "var(--text-muted)",
             borderColor: bulkMode ? "var(--accent)" : "var(--border)",
           }}
           title={bulkMode ? t("common.exit") : t("common.select")}

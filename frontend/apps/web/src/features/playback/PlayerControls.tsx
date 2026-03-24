@@ -641,7 +641,7 @@ function SettingsPanel({
                       className="flex-1 text-xs py-1 rounded transition-colors"
                       style={{
                         backgroundColor: subtitlePosition === pos ? "var(--accent)" : "var(--surface-raised)",
-                        color: subtitlePosition === pos ? "#fff" : "var(--text)",
+                        color: subtitlePosition === pos ? "var(--filter-active-text)" : "var(--text)",
                         border: "1px solid var(--border)",
                       }}
                     >

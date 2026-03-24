@@ -64,7 +64,7 @@ function LoginPage() {
     <div
       className="min-h-screen flex items-center justify-center px-4 relative"
       style={{
-        background: "linear-gradient(135deg, var(--bg) 0%, #1a1a2e 50%, var(--bg) 100%)",
+        background: "linear-gradient(135deg, var(--bg) 0%, var(--bg-gradient-mid) 50%, var(--bg) 100%)",
       }}
     >
       <div className="absolute inset-0 pointer-events-none">

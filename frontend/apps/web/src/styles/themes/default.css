@@ -75,5 +75,7 @@
   --scrollbar-thumb: rgba(255,255,255,0.1);
   --scrollbar-track: transparent;
 
+  --bg-gradient-mid: #1a1a2e;
+
   --focus-ring: 0 0 0 2px var(--bg), 0 0 0 4px var(--accent);
 }
