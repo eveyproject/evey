@@ -159,6 +159,11 @@ func StartCleanup(ctx context.Context, dir string, retentionDays int) {
 		retentionDays = 90
 	}
 	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				slog.Error("panic in log cleanup", slog.Any("recover", r))
+			}
+		}()
 		cleanOldLogs(dir, retentionDays)
 		ticker := time.NewTicker(24 * time.Hour)
 		defer ticker.Stop()

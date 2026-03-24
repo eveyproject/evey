@@ -247,6 +247,11 @@ func (r *Runner) Start(_ context.Context, p *plugin.Plugin) error {
 	r.mu.Unlock()
 
 	go func() {
+		defer func() {
+			if rv := recover(); rv != nil {
+				slog.Error("panic in plugin runner", slog.Any("recover", rv), slog.String("plugin", p.ID))
+			}
+		}()
 		err := cmd.Wait()
 		r.mu.Lock()
 		_, stillTracked := r.processes[p.ID]
@@ -274,6 +279,11 @@ func (r *Runner) Start(_ context.Context, p *plugin.Plugin) error {
 }
 
 func (r *Runner) connectIPC(parentCtx context.Context, entry *processEntry, p *plugin.Plugin) {
+	defer func() {
+		if rv := recover(); rv != nil {
+			slog.Error("panic in connectIPC", slog.Any("recover", rv), slog.String("plugin", p.ID))
+		}
+	}()
 	client, err := newIPCClient(entry.sockPath)
 	if err != nil {
 		slog.Warn("plugin IPC connect failed", slog.String("pluginID", p.ID), slog.Any("err", err))

@@ -133,6 +133,11 @@ func (s *Service) StartScheduler(ctx context.Context, intervalHours, retentionDa
 		return
 	}
 	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				slog.Error("panic in backup scheduler", slog.Any("recover", r))
+			}
+		}()
 		if err := s.CleanupOldBackups(ctx, retentionDays); err != nil {
 			slog.Warn("backup retention cleanup", slog.Any("err", err))
 		}
