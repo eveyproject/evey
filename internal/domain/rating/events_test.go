@@ -13,8 +13,6 @@ func TestRatingEventNames(t *testing.T) {
 		event interface{ EventName() string }
 		want  string
 	}{
-		{rating.MediaRated{}, "rating.media.rated"},
-		{rating.MediaRatingDeleted{}, "rating.media.deleted"},
 		{rating.RatingSet{}, "rating.set"},
 		{rating.RatingDeleted{}, "rating.deleted"},
 	}

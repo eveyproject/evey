@@ -134,7 +134,7 @@ func TestRate_PublishesEvent(t *testing.T) {
 	if len(events) != 1 {
 		t.Fatalf("expected 1 event, got %d", len(events))
 	}
-	if events[0].EventName() != "rating.media.rated" {
+	if events[0].EventName() != "rating.set" {
 		t.Errorf("unexpected event name %q", events[0].EventName())
 	}
 }
@@ -155,7 +155,7 @@ func TestDeleteRating_PublishesEvent(t *testing.T) {
 	if len(events) != 1 {
 		t.Fatalf("expected 1 event after delete, got %d", len(events))
 	}
-	if events[0].EventName() != "rating.media.deleted" {
+	if events[0].EventName() != "rating.deleted" {
 		t.Errorf("unexpected event name %q", events[0].EventName())
 	}
 }
@@ -333,7 +333,7 @@ func TestRate_EventContainsCorrectData(t *testing.T) {
 		t.Fatalf("expected 1 event, got %d", len(events))
 	}
 	e := events[0]
-	if e.EventName() != "rating.media.rated" {
+	if e.EventName() != "rating.set" {
 		t.Fatalf("event name = %q", e.EventName())
 	}
 }
