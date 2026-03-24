@@ -54,6 +54,32 @@ items: "{{count}} éléments"
 item: "{{count}} élément"
 filtered: "(filtré)"
 noItemsMatch: "Aucun élément ne correspond au filtre actuel."
+aria:
+  closeMenu: Fermer le menu
+  openMenu: Ouvrir le menu
+  bottomNav: Navigation inférieure
+  options: Options
+  play: Lire
+  loading: Chargement
+  breadcrumb: Fil d'Ariane
+  pagination: Pagination
+  previousPage: Page précédente
+  nextPage: Page suivante
+  reloadPage: Recharger la page
+  goToHome: "Aller à l'accueil"
+  dismiss: Fermer
+  removeRule: Supprimer la règle
+  clearSelection: Effacer la sélection
+  close: Fermer
+  deletePhoto: Supprimer la photo
+  deleteCollection: Supprimer la collection
+  editFilter: Modifier le filtre
+  deleteFilter: Supprimer le filtre
+  closePlayer: Fermer le lecteur
+  subtitleFontSize: Taille des sous-titres
+  bgOpacity: Opacité du fond
+  operator: Opérateur
+  value: Valeur
 notifications:
   title: "Notifications"
   markRead: "Marquer comme lu"
