@@ -175,6 +175,18 @@ func (s *syncplayHandler) wsHandler() http.Handler {
 			http.Error(w, `{"message":"room not found"}`, http.StatusNotFound)
 			return
 		}
+		wsClaims, _ := s.tokenGen.ValidateAccessToken(token)
+		if wsClaims == nil {
+			wsClaims = &domainuser.Claims{UserID: userID, Username: username}
+		}
+		item, mErr := s.media.GetMediaItem(r.Context(), room.MediaID)
+		if mErr != nil || item == nil {
+			http.Error(w, `{"message":"not found"}`, http.StatusNotFound)
+			return
+		}
+		if !checkLibraryAccess(r.Context(), w, wsClaims, item.LibraryID, s.libChecker) {
+			return
+		}
 		if !room.IsMember(userID) {
 			slog.Warn("syncplay ws: non-member attempt", slog.String("user", userID), slog.String("room", roomID))
 			http.Error(w, `{"message":"forbidden"}`, http.StatusForbidden)
@@ -333,6 +345,14 @@ func (s *syncplayHandler) getRoom(w http.ResponseWriter, r *http.Request) {
 	room, err := s.hub.GetRoom(r.Context(), r.PathValue("id"))
 	if err != nil {
 		http.Error(w, `{"message":"room not found"}`, http.StatusNotFound)
+		return
+	}
+	item, err := s.media.GetMediaItem(r.Context(), room.MediaID)
+	if err != nil || item == nil {
+		http.Error(w, `{"message":"not found"}`, http.StatusNotFound)
+		return
+	}
+	if !checkLibraryAccess(r.Context(), w, claims, item.LibraryID, s.libChecker) {
 		return
 	}
 	isMember := room.HostID == claims.UserID
