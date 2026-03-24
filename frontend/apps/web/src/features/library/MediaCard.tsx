@@ -456,8 +456,8 @@ export const MediaCard = memo(function MediaCard({
               <span
                 className="text-[10px] font-bold px-1.5 py-0.5 leading-none"
                 style={{
-                  backgroundColor: "#f59e0b",
-                  color: "#000",
+                  backgroundColor: "var(--badge-hdr-bg)",
+                  color: "var(--badge-hdr-text)",
                   borderRadius: "var(--radius-sm)",
                 }}
                 data-testid="hdr-badge"

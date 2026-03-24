@@ -21,6 +21,12 @@
   --badge-error-text: #991b1b;
   --badge-info-bg: #dbeafe;
   --badge-info-text: #1e40af;
+  --badge-hdr-bg: #f59e0b;
+  --badge-hdr-text: #000000;
+  --badge-imdb-bg: #f5c518;
+  --badge-imdb-text: #000000;
+  --badge-tmdb-bg: #01b4e4;
+  --badge-tmdb-text: #ffffff;
 
   --toast-success-bg: #dcfce7;
   --toast-success-border: #86efac;

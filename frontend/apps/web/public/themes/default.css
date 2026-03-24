@@ -21,6 +21,12 @@
   --badge-error-text: #fca5a5;
   --badge-info-bg: rgba(30,58,95,0.5);
   --badge-info-text: #93c5fd;
+  --badge-hdr-bg: #f59e0b;
+  --badge-hdr-text: #000000;
+  --badge-imdb-bg: #f5c518;
+  --badge-imdb-text: #000000;
+  --badge-tmdb-bg: #01b4e4;
+  --badge-tmdb-text: #ffffff;
 
   --toast-success-bg: rgba(6,78,59,0.5);
   --toast-success-border: rgba(21,128,61,0.5);
