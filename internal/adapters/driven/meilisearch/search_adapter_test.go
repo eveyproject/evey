@@ -3,6 +3,7 @@ package meilisearch
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"testing"
 	"time"
 
@@ -47,6 +48,83 @@ func (f *fakeIndex) UpdateSettingsWithContext(_ context.Context, _ *ms.Settings)
 
 func (f *fakeIndex) GetStatsWithContext(_ context.Context) (*ms.StatsIndex, error) {
 	return &ms.StatsIndex{NumberOfDocuments: 0}, nil
+}
+
+type fakeServiceClient struct {
+	getIndexErr    error
+	createIndexErr error
+	indexResult    *ms.IndexResult
+	createdConfig  *ms.IndexConfig
+	updatedSettings bool
+	indexUID       string
+}
+
+func (f *fakeServiceClient) Index(uid string) ms.IndexManager {
+	f.indexUID = uid
+	return ms.New("http://127.0.0.1:1").Index(uid)
+}
+
+func (f *fakeServiceClient) CreateIndexWithContext(_ context.Context, config *ms.IndexConfig) (*ms.TaskInfo, error) {
+	f.createdConfig = config
+	if f.createIndexErr != nil {
+		return nil, f.createIndexErr
+	}
+	return &ms.TaskInfo{TaskUID: 10}, nil
+}
+
+func (f *fakeServiceClient) GetIndexWithContext(_ context.Context, _ string) (*ms.IndexResult, error) {
+	if f.getIndexErr != nil {
+		return nil, f.getIndexErr
+	}
+	return f.indexResult, nil
+}
+
+func TestNewSearchAdapter_CreateIndexFails(t *testing.T) {
+	svc := &fakeServiceClient{
+		getIndexErr:    fmt.Errorf("index not found"),
+		createIndexErr: fmt.Errorf("connection refused"),
+	}
+
+	_, err := newSearchAdapterFromClient(context.Background(), svc)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "create index")
+	assert.Contains(t, err.Error(), "connection refused")
+}
+
+func TestNewSearchAdapter_Unreachable(t *testing.T) {
+	svc := &fakeServiceClient{
+		getIndexErr:    fmt.Errorf("dial tcp: connection refused"),
+		createIndexErr: fmt.Errorf("dial tcp: connection refused"),
+	}
+
+	_, err := newSearchAdapterFromClient(context.Background(), svc)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "connection refused")
+}
+
+func TestNewSearchAdapter_IndexDoesNotExist_CreatesIndex(t *testing.T) {
+	svc := &fakeServiceClient{
+		getIndexErr: fmt.Errorf("index media_items not found"),
+	}
+
+	adapter, err := newSearchAdapterFromClient(context.Background(), svc)
+	require.NoError(t, err)
+	require.NotNil(t, adapter)
+	require.NotNil(t, svc.createdConfig)
+	assert.Equal(t, "media_items", svc.createdConfig.Uid)
+	assert.Equal(t, "id", svc.createdConfig.PrimaryKey)
+	assert.Equal(t, "media_items", svc.indexUID)
+}
+
+func TestNewSearchAdapter_IndexAlreadyExists_SkipsCreate(t *testing.T) {
+	svc := &fakeServiceClient{
+		indexResult: &ms.IndexResult{UID: "media_items"},
+	}
+
+	adapter, err := newSearchAdapterFromClient(context.Background(), svc)
+	require.NoError(t, err)
+	require.NotNil(t, adapter)
+	assert.Nil(t, svc.createdConfig, "should not create index when it already exists")
 }
 
 func TestToDocument(t *testing.T) {
