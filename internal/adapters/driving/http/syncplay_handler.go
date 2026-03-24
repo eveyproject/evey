@@ -1,15 +1,19 @@
 package httpapi
 
 import (
+	"context"
 	"encoding/json"
 	"log/slog"
 	"net/http"
 	"strings"
+	"sync"
+	"time"
 
 	appsyncplay "github.com/gravity-zero/evey/internal/app/syncplay"
 	domainsyncplay "github.com/gravity-zero/evey/internal/domain/syncplay"
 	domainuser "github.com/gravity-zero/evey/internal/domain/user"
 	"github.com/gravity-zero/evey/internal/pkg/auth"
+	"golang.org/x/net/websocket"
 )
 
 type syncplayHandler struct {
@@ -17,6 +21,13 @@ type syncplayHandler struct {
 	tokenGen   *auth.JWTGenerator
 	media      mediaLibraryGetter
 	libChecker LibraryAccessChecker
+	mu         sync.RWMutex
+	conns      map[string][]*wsConn // roomID → connections
+}
+
+type wsConn struct {
+	ws     *websocket.Conn
+	userID string
 }
 
 func registerSyncPlayRoutes(mux *http.ServeMux, hub *appsyncplay.Hub, tokenGen *auth.JWTGenerator, mediaGetter mediaLibraryGetter, libChecker LibraryAccessChecker) {
@@ -25,13 +36,14 @@ func registerSyncPlayRoutes(mux *http.ServeMux, hub *appsyncplay.Hub, tokenGen *
 		tokenGen:   tokenGen,
 		media:      mediaGetter,
 		libChecker: libChecker,
+		conns:      make(map[string][]*wsConn),
 	}
 	mux.HandleFunc("POST /api/v1/syncplay/rooms", h.createRoom)
 	mux.HandleFunc("POST /api/v1/syncplay/join", h.joinByCode)
 	mux.HandleFunc("GET /api/v1/syncplay/rooms/{id}", h.getRoom)
 	mux.HandleFunc("POST /api/v1/syncplay/rooms/{id}/join", h.joinRoom)
 	mux.HandleFunc("DELETE /api/v1/syncplay/rooms/{id}/leave", h.leaveRoom)
-	mux.Handle("/api/v1/syncplay/rooms/{id}/ws", hub.WSHandler(h.validateToken))
+	mux.Handle("/api/v1/syncplay/rooms/{id}/ws", h.wsHandler())
 }
 
 func (s *syncplayHandler) extractClaims(r *http.Request) (*domainuser.Claims, bool) {
@@ -52,6 +64,180 @@ func (s *syncplayHandler) validateToken(token string) (userID, username string, 
 		return "", "", vErr
 	}
 	return claims.UserID, claims.Username, nil
+}
+
+type wsCtxKey string
+
+const (
+	wsCtxUserID   wsCtxKey = "userID"
+	wsCtxUsername wsCtxKey = "username"
+)
+
+func extractWSToken(r *http.Request) string {
+	if h := r.Header.Get("Authorization"); strings.HasPrefix(h, "Bearer ") {
+		return strings.TrimPrefix(h, "Bearer ")
+	}
+	for p := range strings.SplitSeq(r.Header.Get("Sec-WebSocket-Protocol"), ",") {
+		p = strings.TrimSpace(p)
+		if token, ok := strings.CutPrefix(p, "Bearer."); ok {
+			return token
+		}
+	}
+	return ""
+}
+
+func (s *syncplayHandler) wsHandler() http.Handler {
+	wsHandler := websocket.Handler(func(ws *websocket.Conn) {
+		r := ws.Request()
+		roomID := r.PathValue("id")
+		userID, _ := r.Context().Value(wsCtxUserID).(string)
+		username, _ := r.Context().Value(wsCtxUsername).(string)
+
+		ctx := r.Context()
+		room, err := s.hub.ConnectMember(ctx, roomID, userID, username)
+		if err != nil {
+			slog.Warn("syncplay ws: connect failed", slog.String("room", roomID), slog.Any("err", err))
+			_ = ws.Close()
+			return
+		}
+
+		c := &wsConn{ws: ws, userID: userID}
+		s.addConn(roomID, c)
+		defer s.removeConn(roomID, c)
+
+		// Send current state
+		stateMsg := domainsyncplay.SyncCommand{
+			Type:       "state",
+			Playing:    room.State.Playing,
+			PositionMs: room.State.PositionMs,
+		}
+		if data, mErr := json.Marshal(stateMsg); mErr == nil {
+			_ = websocket.Message.Send(ws, string(data))
+		}
+
+		// Notify others
+		joinMsg := domainsyncplay.SyncCommand{
+			Type:     "member_joined",
+			UserID:   userID,
+			Username: domainsyncplay.MaskUsername(username),
+			RoomID:   roomID,
+		}
+		s.broadcast(roomID, userID, joinMsg)
+
+		const readDeadline = 60 * time.Second
+		for {
+			if err := ws.SetReadDeadline(time.Now().Add(readDeadline)); err != nil {
+				break
+			}
+			var raw string
+			if err := websocket.Message.Receive(ws, &raw); err != nil {
+				break
+			}
+			var cmd domainsyncplay.SyncCommand
+			if err := json.Unmarshal([]byte(raw), &cmd); err != nil {
+				continue
+			}
+
+			result, err := s.hub.HandleCommand(ctx, roomID, userID, username, cmd)
+			if err != nil {
+				slog.Error("syncplay: handle command", slog.String("room", roomID), slog.Any("err", err))
+				continue
+			}
+			if cmd.Type == "play" || cmd.Type == "pause" || cmd.Type == "seek" {
+				s.broadcast(roomID, userID, result)
+			}
+		}
+
+		// On disconnect
+		if err := s.hub.DisconnectMember(ctx, roomID, userID); err != nil {
+			slog.Error("syncplay: disconnect", slog.String("room", roomID), slog.Any("err", err))
+		}
+		leaveMsg := domainsyncplay.SyncCommand{
+			Type:   "member_left",
+			UserID: userID,
+			RoomID: roomID,
+		}
+		s.broadcast(roomID, userID, leaveMsg)
+	})
+
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		roomID := r.PathValue("id")
+		token := extractWSToken(r)
+		userID, username, err := s.validateToken(token)
+		if err != nil {
+			slog.Warn("syncplay ws: invalid token", slog.String("room", roomID))
+			http.Error(w, `{"message":"unauthenticated"}`, http.StatusUnauthorized)
+			return
+		}
+
+		room, err := s.hub.GetRoom(r.Context(), roomID)
+		if err != nil {
+			http.Error(w, `{"message":"room not found"}`, http.StatusNotFound)
+			return
+		}
+		if !room.IsMember(userID) {
+			slog.Warn("syncplay ws: non-member attempt", slog.String("user", userID), slog.String("room", roomID))
+			http.Error(w, `{"message":"forbidden"}`, http.StatusForbidden)
+			return
+		}
+
+		ctx := context.WithValue(r.Context(), wsCtxUserID, userID)
+		ctx = context.WithValue(ctx, wsCtxUsername, username)
+		wsHandler.ServeHTTP(w, r.WithContext(ctx))
+	})
+}
+
+func (s *syncplayHandler) addConn(roomID string, c *wsConn) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.conns[roomID] = append(s.conns[roomID], c)
+}
+
+func (s *syncplayHandler) removeConn(roomID string, c *wsConn) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	list := s.conns[roomID]
+	filtered := list[:0]
+	for _, existing := range list {
+		if existing != c {
+			filtered = append(filtered, existing)
+		}
+	}
+	s.conns[roomID] = filtered
+}
+
+func (s *syncplayHandler) broadcast(roomID, senderUserID string, cmd domainsyncplay.SyncCommand) {
+	data, err := json.Marshal(cmd)
+	if err != nil {
+		return
+	}
+	s.mu.RLock()
+	list := make([]*wsConn, len(s.conns[roomID]))
+	copy(list, s.conns[roomID])
+	s.mu.RUnlock()
+
+	const sendTimeout = 5 * time.Second
+	var wg sync.WaitGroup
+	for _, c := range list {
+		if c.userID == senderUserID {
+			continue
+		}
+		wg.Add(1)
+		go func(c *wsConn) {
+			defer wg.Done()
+			defer func() {
+				if r := recover(); r != nil {
+					slog.Error("syncplay: broadcast panic", slog.Any("recover", r), slog.String("user", c.userID))
+				}
+			}()
+			_ = c.ws.SetWriteDeadline(time.Now().Add(sendTimeout))
+			if err := websocket.Message.Send(c.ws, string(data)); err != nil {
+				slog.Warn("syncplay: broadcast failed", slog.String("room", roomID), slog.String("user", c.userID), slog.Any("err", err))
+			}
+			_ = c.ws.SetWriteDeadline(time.Time{})
+		}(c)
+	}
+	wg.Wait()
 }
 
 func (s *syncplayHandler) createRoom(w http.ResponseWriter, r *http.Request) {

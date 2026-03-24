@@ -36,6 +36,7 @@ import (
 	"github.com/gravity-zero/evey/internal/adapters/driven/filesystem"
 	meili "github.com/gravity-zero/evey/internal/adapters/driven/meilisearch"
 	"github.com/gravity-zero/evey/internal/adapters/driven/search"
+	"github.com/gravity-zero/evey/internal/adapters/driven/webhooksender"
 	metadataadapter "github.com/gravity-zero/evey/internal/adapters/driven/metadata"
 	"github.com/gravity-zero/evey/internal/adapters/driven/opensubtitles"
 	"github.com/gravity-zero/evey/internal/adapters/driven/pluginrunner"
@@ -231,7 +232,8 @@ func buildServices(ctx context.Context, cfg *config.Config, db *sql.DB, rootLog 
 	if tmdbKey != "" {
 		metadataCmdSvc.StartEnrichmentWorker(ctx)
 	}
-	hlsMgr := apptranscoding.NewHLSManager(ctx, cfg.Transcoding.CacheDir+"/hls", cfg.Transcoding.MaxConcurrent)
+	hlsTranscoder := ffmpeg.NewHLSTranscoder()
+	hlsMgr := apptranscoding.NewHLSManager(ctx, cfg.Transcoding.CacheDir+"/hls", cfg.Transcoding.MaxConcurrent, hlsTranscoder)
 	libCmdSvc.SetTrickplayActiveStreamChecker(hlsMgr)
 	libCmdSvc.StartTrickplayWorker(ctx)
 	libCmdSvc.StartBackgroundGeneration(ctx)
@@ -282,7 +284,8 @@ func buildServices(ctx context.Context, cfg *config.Config, db *sql.DB, rootLog 
 	}
 
 	webhookLog := eveylogger.NewWith(rootLog, "webhook")
-	webhookSvc := appwebhook.NewService(r.Webhook, r.WebhookDelivery, webhookLog, bus)
+	webhookSender := webhooksender.New()
+	webhookSvc := appwebhook.NewService(r.Webhook, r.WebhookDelivery, webhookSender, webhookLog, bus)
 
 	notifCmdSvc := appnotification.NewCommandService(r.Notification, r.NotificationSettings, r.WatchHistoryAnalyzer, r.Profile, bus)
 	notifCmdSvc.Register()

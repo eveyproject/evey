@@ -1,16 +1,13 @@
 package webhook
 
 import (
-	"bytes"
 	"context"
 	"crypto/hmac"
 	"crypto/sha256"
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"log/slog"
-	"net/http"
 	"time"
 
 	"github.com/google/uuid"
@@ -29,8 +26,8 @@ var defaultRetryDelays = []time.Duration{1 * time.Second, 5 * time.Second, 30 * 
 type Service struct {
 	repo        webhook.Repository
 	deliveries  webhook.DeliveryRepository
+	sender      webhook.Sender
 	log         *slog.Logger
-	httpClient  *http.Client
 	validateURL func(string) error
 	sem         chan struct{}
 	retryDelays []time.Duration
@@ -39,14 +36,15 @@ type Service struct {
 func NewService(
 	repo webhook.Repository,
 	deliveries webhook.DeliveryRepository,
+	sender webhook.Sender,
 	log *slog.Logger,
 	events shared.EventBus,
 ) *Service {
 	s := &Service{
 		repo:        repo,
 		deliveries:  deliveries,
+		sender:      sender,
 		log:         log,
-		httpClient:  &http.Client{Timeout: 10 * time.Second},
 		validateURL: urlvalidator.ValidateWebhookURL,
 		sem:         make(chan struct{}, maxConcurrentDeliveries),
 		retryDelays: defaultRetryDelays,
@@ -130,6 +128,12 @@ func (s *Service) attemptDeliver(ctx context.Context, cfg *webhook.Config, body 
 	var lastErr string
 	var statusCode int
 
+	headers := make(map[string]string, len(cfg.Headers)+1)
+	headers["X-Evey-Signature"] = sign(cfg.Secret, body)
+	for k, v := range cfg.Headers {
+		headers[k] = v
+	}
+
 	for attempt := 0; attempt <= len(s.retryDelays); attempt++ {
 		if attempt > 0 {
 			select {
@@ -139,33 +143,19 @@ func (s *Service) attemptDeliver(ctx context.Context, cfg *webhook.Config, body 
 			}
 		}
 
-		req, err := http.NewRequestWithContext(ctx, http.MethodPost, cfg.URL, bytes.NewReader(body))
-		if err != nil {
-			s.log.Error("webhook: bad URL", slog.String("webhook", cfg.ID), slog.Any("err", err))
-			lastErr = err.Error()
-			continue
-		}
-		req.Header.Set("Content-Type", "application/json")
-		req.Header.Set("X-Evey-Signature", sign(cfg.Secret, body))
-		for k, v := range cfg.Headers {
-			req.Header.Set(k, v)
-		}
-
-		resp, err := s.httpClient.Do(req)
+		sc, err := s.sender.Send(ctx, cfg.URL, headers, body)
 		if err != nil {
 			lastErr = err.Error()
 			s.log.Warn("webhook delivery failed", slog.String("webhook", cfg.ID), slog.Int("attempt", attempt+1), slog.Any("err", err))
 			continue
 		}
-		_, _ = io.Copy(io.Discard, resp.Body)
-		resp.Body.Close()
-		statusCode = resp.StatusCode
+		statusCode = sc
 
-		if resp.StatusCode < 300 {
+		if sc < 300 {
 			return "", statusCode
 		}
-		lastErr = fmt.Sprintf("HTTP %d", resp.StatusCode)
-		s.log.Warn("webhook non-2xx", slog.String("webhook", cfg.ID), slog.Int("status", resp.StatusCode))
+		lastErr = fmt.Sprintf("HTTP %d", sc)
+		s.log.Warn("webhook non-2xx", slog.String("webhook", cfg.ID), slog.Int("status", sc))
 	}
 
 	return lastErr, statusCode

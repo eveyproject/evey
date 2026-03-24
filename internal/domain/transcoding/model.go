@@ -117,3 +117,18 @@ type CacheInfo struct {
 	FileCount int
 	Files     []CacheFileInfo
 }
+
+type HLSProfile struct {
+	Name         string
+	Width        int
+	Height       int
+	VideoBitrate int64 // kbps
+	AudioBitrate int64 // kbps
+}
+
+var DefaultHLSProfiles = []HLSProfile{
+	{Name: "360p", Width: 640, Height: 360, VideoBitrate: 800, AudioBitrate: 96},
+	{Name: "480p", Width: 854, Height: 480, VideoBitrate: 1400, AudioBitrate: 128},
+	{Name: "720p", Width: 1280, Height: 720, VideoBitrate: 2800, AudioBitrate: 128},
+	{Name: "1080p", Width: 1920, Height: 1080, VideoBitrate: 5000, AudioBitrate: 192},
+}

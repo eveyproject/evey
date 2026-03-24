@@ -14,6 +14,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gravity-zero/evey/internal/adapters/driven/webhooksender"
 	"github.com/gravity-zero/evey/internal/app/webhook"
 	"github.com/gravity-zero/evey/internal/domain/shared"
 	"github.com/gravity-zero/evey/internal/domain/shared/fakes"
@@ -110,7 +111,7 @@ func (e fakeEvent) EventName() string { return e.name }
 
 func newTestService(repo webhookdomain.Repository, deliveries webhookdomain.DeliveryRepository, bus shared.EventBus) *webhook.Service {
 	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
-	svc := webhook.NewService(repo, deliveries, log, bus)
+	svc := webhook.NewService(repo, deliveries, webhooksender.New(), log, bus)
 	// Bypass SSRF protection in tests (test server runs on localhost)
 	svc.SetURLValidator(func(string) error { return nil })
 	return svc
@@ -215,7 +216,7 @@ func TestCreate_BlocksPrivateURL(t *testing.T) {
 	deliveries := &fakeDeliveryRepo{}
 	bus := fakes.NewFakeEventBus()
 	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
-	svc := webhook.NewService(repo, deliveries, log, bus)
+	svc := webhook.NewService(repo, deliveries, webhooksender.New(), log, bus)
 
 	cfg := &webhookdomain.Config{
 		Name:    "ssrf-test",
@@ -561,7 +562,7 @@ func TestUpdate_BlocksPrivateURL(t *testing.T) {
 	deliveries := &fakeDeliveryRepo{}
 	bus := fakes.NewFakeEventBus()
 	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
-	svc := webhook.NewService(repo, deliveries, log, bus)
+	svc := webhook.NewService(repo, deliveries, webhooksender.New(), log, bus)
 
 	cfg := &webhookdomain.Config{
 		ID: "w1", Name: "x", URL: "http://169.254.169.254/meta-data/", Events: []string{"*"}, Enabled: true,

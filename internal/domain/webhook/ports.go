@@ -14,3 +14,8 @@ type DeliveryRepository interface {
 	Create(ctx context.Context, d *Delivery) error
 	ListByWebhook(ctx context.Context, webhookID string, limit int) ([]*Delivery, error)
 }
+
+// Sender delivers webhook HTTP requests.
+type Sender interface {
+	Send(ctx context.Context, url string, headers map[string]string, body []byte) (statusCode int, err error)
+}

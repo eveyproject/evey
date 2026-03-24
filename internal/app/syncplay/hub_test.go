@@ -3,7 +3,6 @@ package syncplay
 import (
 	"context"
 	"errors"
-	"net/http/httptest"
 	"sync"
 	"testing"
 
@@ -428,108 +427,4 @@ func TestHub_UpdateState_Seek(t *testing.T) {
 	}
 }
 
-func TestHub_Broadcast_SkipsSender(t *testing.T) {
-	t.Parallel()
-	h := newTestHub()
-
-	received := make(chan syncplay.SyncCommand, 10)
-
-	// Add a fake conn for the recipient
-	recipientConn := &conn{
-		userID: "user-2",
-		roomID: "room-1",
-	}
-	h.mu.Lock()
-	h.conns["room-1"] = []*conn{
-		{userID: "user-1", roomID: "room-1"},
-		recipientConn,
-	}
-	h.mu.Unlock()
-
-	cmd := syncplay.SyncCommand{
-		Type:       "seek",
-		UserID:     "user-1",
-		RoomID:     "room-1",
-		PositionMs: 120000,
-	}
-
-	// broadcast returns after iterating; we capture the fact that sender is skipped
-	// by verifying the conn list still has both entries (broadcast doesn't remove)
-	go func() {
-		// broadcast is internal; verify via channel that sender is excluded
-		h.mu.RLock()
-		list := h.conns["room-1"]
-		h.mu.RUnlock()
-		for _, c := range list {
-			if c.userID != "user-1" {
-				received <- cmd
-			}
-		}
-		close(received)
-	}()
-
-	msgs := 0
-	for range received {
-		msgs++
-	}
-	if msgs != 1 {
-		t.Errorf("expected 1 recipient (not sender), got %d", msgs)
-	}
-	_ = recipientConn
-}
-
-func TestExtractWSToken(t *testing.T) {
-	t.Parallel()
-	tests := []struct {
-		name       string
-		authHeader string
-		protocol   string
-		query      string
-		want       string
-	}{
-		{
-			name:       "Authorization header takes priority",
-			authHeader: "Bearer header-token",
-			protocol:   "Bearer.proto-token",
-			query:      "query-token",
-			want:       "header-token",
-		},
-		{
-			name:     "Subprotocol used when no Authorization header",
-			protocol: "Bearer.proto-token",
-			query:    "query-token",
-			want:     "proto-token",
-		},
-		{
-			name: "Empty when nothing provided",
-			want: "",
-		},
-		{
-			name:       "Non-Bearer Authorization header ignored",
-			authHeader: "Basic dXNlcjpwYXNz",
-			want:       "",
-		},
-		{
-			name:  "Query param ignored (removed for security)",
-			query: "query-token",
-			want:  "",
-		},
-	}
-
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-			req := httptest.NewRequest("GET", "/ws?token="+tc.query, nil)
-			if tc.authHeader != "" {
-				req.Header.Set("Authorization", tc.authHeader)
-			}
-			if tc.protocol != "" {
-				req.Header.Set("Sec-WebSocket-Protocol", tc.protocol)
-			}
-			got := extractWSToken(req)
-			if got != tc.want {
-				t.Errorf("extractWSToken() = %q, want %q", got, tc.want)
-			}
-		})
-	}
-}
+// TestExtractWSToken and TestHub_Broadcast_SkipsSender moved to adapters/driving/http/ (transport layer)
