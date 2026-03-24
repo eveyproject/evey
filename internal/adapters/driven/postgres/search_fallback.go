@@ -98,12 +98,6 @@ func (s *SQLSearchFallback) Search(ctx context.Context, query string, filters ma
 	return hits, total, nil
 }
 
-var sortColumnMap = map[string]string{
-	"title": "sort_title", "sort_title": "sort_title",
-	"added_at": "added_at", "date_added": "added_at",
-	"year": "year", "premiere_date": "premiere_date",
-	"community_rating": "community_rating",
-}
 
 func buildSortClause(sort []string) string {
 	parts := make([]string, 0, len(sort))
@@ -116,7 +110,7 @@ func buildSortClause(sort []string) string {
 		} else if f, ok := strings.CutSuffix(s, ":asc"); ok {
 			field = f
 		}
-		col, ok := sortColumnMap[field]
+		col, ok := SortColumnMap[field]
 		if !ok {
 			continue
 		}

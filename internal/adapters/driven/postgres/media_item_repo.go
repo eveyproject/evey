@@ -208,12 +208,7 @@ func (r *MediaItemRepository) List(ctx context.Context, f library.ListMediaItems
 
 	sortField := "sort_title"
 	if f.SortField != "" {
-		columnMap := map[string]string{
-			"title": "sort_title", "sort_title": "sort_title", "added_at": "added_at",
-			"date_added": "added_at", "year": "year", "premiere_date": "premiere_date",
-			"community_rating": "community_rating",
-		}
-		if col, ok := columnMap[f.SortField]; ok {
+		if col, ok := SortColumnMap[f.SortField]; ok {
 			sortField = col
 		}
 	}
