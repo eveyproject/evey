@@ -105,6 +105,66 @@ func TestPlaylist_IsSmart(t *testing.T) {
 	}
 }
 
+func TestPlaylist_Validate(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		pl      playlist.Playlist
+		wantErr string
+	}{
+		{
+			name:    "valid manual",
+			pl:      playlist.Playlist{Name: "fav", UserID: "u1", Type: playlist.Manual},
+			wantErr: "",
+		},
+		{
+			name:    "valid smart",
+			pl:      playlist.Playlist{Name: "smart", UserID: "u1", Type: playlist.Smart},
+			wantErr: "",
+		},
+		{
+			name:    "missing name",
+			pl:      playlist.Playlist{UserID: "u1", Type: playlist.Manual},
+			wantErr: "playlist name is required",
+		},
+		{
+			name:    "missing user ID",
+			pl:      playlist.Playlist{Name: "fav", Type: playlist.Manual},
+			wantErr: "playlist user ID is required",
+		},
+		{
+			name:    "invalid type",
+			pl:      playlist.Playlist{Name: "fav", UserID: "u1", Type: "unknown"},
+			wantErr: "playlist type must be 'manual' or 'smart'",
+		},
+		{
+			name:    "empty type",
+			pl:      playlist.Playlist{Name: "fav", UserID: "u1"},
+			wantErr: "playlist type must be 'manual' or 'smart'",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			err := tt.pl.Validate()
+			if tt.wantErr == "" {
+				if err != nil {
+					t.Fatalf("unexpected error: %v", err)
+				}
+				return
+			}
+			if err == nil {
+				t.Fatal("expected error, got nil")
+			}
+			if err.Error() != tt.wantErr {
+				t.Errorf("error = %q, want %q", err.Error(), tt.wantErr)
+			}
+		})
+	}
+}
+
 func TestPlaylistItem_SortOrder(t *testing.T) {
 	t.Parallel()
 

@@ -266,6 +266,167 @@ func TestAuthInterceptor_CustomRBACConfig(t *testing.T) {
 	})
 }
 
+func TestContextWithClaims(t *testing.T) {
+	claims := &user.Claims{UserID: "u1", Username: "alice", IsAdmin: true}
+	ctx := interceptors.ContextWithClaims(context.Background(), claims)
+
+	got := interceptors.ClaimsFromContext(ctx)
+	require.NotNil(t, got)
+	assert.Equal(t, "u1", got.UserID)
+	assert.Equal(t, "alice", got.Username)
+	assert.True(t, got.IsAdmin)
+}
+
+func TestClaimsFromContext_NilWhenEmpty(t *testing.T) {
+	got := interceptors.ClaimsFromContext(context.Background())
+	assert.Nil(t, got)
+}
+
+func TestAuthInterceptor_Stream_PublicMethod(t *testing.T) {
+	ai, _ := setupInterceptor()
+	interceptor := ai.Stream()
+
+	info := &grpc.StreamServerInfo{FullMethod: "/evey.v1.UserService/Login"}
+	err := interceptor(nil, &fakeServerStream{ctx: context.Background()}, info, func(srv any, stream grpc.ServerStream) error {
+		return nil
+	})
+
+	require.NoError(t, err)
+}
+
+func TestAuthInterceptor_Stream_RequiresToken(t *testing.T) {
+	ai, _ := setupInterceptor()
+	interceptor := ai.Stream()
+
+	info := &grpc.StreamServerInfo{FullMethod: "/evey.v1.LibraryService/ListLibraries"}
+	err := interceptor(nil, &fakeServerStream{ctx: context.Background()}, info, func(srv any, stream grpc.ServerStream) error {
+		return nil
+	})
+
+	require.Error(t, err)
+	assert.Equal(t, codes.Unauthenticated, status.Code(err))
+}
+
+func TestAuthInterceptor_Stream_ValidToken(t *testing.T) {
+	ai, tokenGen := setupInterceptor()
+	interceptor := ai.Stream()
+
+	token, _ := tokenGen.GenerateAccessToken(user.Claims{
+		UserID: "u1", Username: "alice", IsAdmin: false,
+	})
+
+	md := metadata.Pairs("authorization", "Bearer "+token)
+	ctx := metadata.NewIncomingContext(context.Background(), md)
+
+	var captured context.Context
+	info := &grpc.StreamServerInfo{FullMethod: "/evey.v1.LibraryService/ListLibraries"}
+	err := interceptor(nil, &fakeServerStream{ctx: ctx}, info, func(srv any, stream grpc.ServerStream) error {
+		captured = stream.Context()
+		return nil
+	})
+
+	require.NoError(t, err)
+	claims := interceptors.ClaimsFromContext(captured)
+	require.NotNil(t, claims)
+	assert.Equal(t, "u1", claims.UserID)
+}
+
+func TestAuthInterceptor_Stream_AdminBlocked(t *testing.T) {
+	ai, tokenGen := setupInterceptor()
+	interceptor := ai.Stream()
+
+	token, _ := tokenGen.GenerateAccessToken(user.Claims{
+		UserID: "u1", Username: "viewer", IsAdmin: false,
+	})
+
+	md := metadata.Pairs("authorization", "Bearer "+token)
+	ctx := metadata.NewIncomingContext(context.Background(), md)
+
+	info := &grpc.StreamServerInfo{FullMethod: "/evey.v1.AdminService/GetAuditLog"}
+	err := interceptor(nil, &fakeServerStream{ctx: ctx}, info, func(srv any, stream grpc.ServerStream) error {
+		return nil
+	})
+
+	require.Error(t, err)
+	assert.Equal(t, codes.PermissionDenied, status.Code(err))
+}
+
+func TestAuthInterceptor_APIKey_DisabledUser(t *testing.T) {
+	tokenGen := fakes.NewFakeTokenGenerator()
+	apiKeyRepo := fakes.NewFakeAPIKeyRepository()
+	userRepo := fakes.NewFakeUserRepository()
+
+	rawKey := "evey_disabledkey"
+	apiKeyRepo.Create(context.Background(), &user.APIKeyModel{
+		ID:      "ak-dis",
+		UserID:  "usr-dis",
+		KeyHash: apiKeyHash(rawKey),
+		Name:    "disabled",
+	})
+	userRepo.Create(context.Background(), &user.User{
+		ID:       "usr-dis",
+		Username: "disabled-user",
+		Enabled:  false,
+	})
+
+	ai := interceptors.NewAuthInterceptor(tokenGen).WithAPIKeys(apiKeyRepo, userRepo)
+	interceptor := ai.Unary()
+
+	info := &grpc.UnaryServerInfo{FullMethod: "/evey.v1.LibraryService/ListLibraries"}
+	_, err := interceptor(ctxWithAPIKey(rawKey), nil, info, nopHandler)
+
+	require.Error(t, err)
+	assert.Equal(t, codes.Unauthenticated, status.Code(err))
+}
+
+func TestAuthInterceptor_WithTranslator(t *testing.T) {
+	tokenGen := fakes.NewFakeTokenGenerator()
+	ai := interceptors.NewAuthInterceptor(tokenGen).WithTranslator(nil)
+	interceptor := ai.Unary()
+
+	info := &grpc.UnaryServerInfo{FullMethod: "/evey.v1.LibraryService/ListLibraries"}
+	_, err := interceptor(context.Background(), nil, info, nopHandler)
+
+	require.Error(t, err)
+	assert.Equal(t, codes.Unauthenticated, status.Code(err))
+}
+
+func TestAuthInterceptor_APIKey_WithBearerPrefix(t *testing.T) {
+	tokenGen := fakes.NewFakeTokenGenerator()
+	apiKeyRepo := fakes.NewFakeAPIKeyRepository()
+	userRepo := fakes.NewFakeUserRepository()
+
+	rawKey := "evey_bearertest"
+	apiKeyRepo.Create(context.Background(), &user.APIKeyModel{
+		ID:      "ak-b",
+		UserID:  "usr-b",
+		KeyHash: apiKeyHash(rawKey),
+		Name:    "bearer-prefix",
+	})
+	userRepo.Create(context.Background(), &user.User{
+		ID:       "usr-b",
+		Username: "bob",
+		IsAdmin:  false,
+		Enabled:  true,
+	})
+
+	ai := interceptors.NewAuthInterceptor(tokenGen).WithAPIKeys(apiKeyRepo, userRepo)
+	interceptor := ai.Unary()
+
+	md := metadata.Pairs("authorization", "Bearer "+rawKey)
+	ctx := metadata.NewIncomingContext(context.Background(), md)
+
+	extractHandler := func(ctx context.Context, req any) (any, error) {
+		return interceptors.ClaimsFromContext(ctx), nil
+	}
+	info := &grpc.UnaryServerInfo{FullMethod: "/evey.v1.LibraryService/ListLibraries"}
+	resp, err := interceptor(ctx, nil, info, extractHandler)
+
+	require.NoError(t, err)
+	claims := resp.(*user.Claims)
+	assert.Equal(t, "usr-b", claims.UserID)
+}
+
 func TestEnforceRBAC_ContextClaims(t *testing.T) {
 	ai, tokenGen := setupInterceptor()
 	interceptor := ai.Unary()
