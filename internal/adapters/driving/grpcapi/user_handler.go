@@ -438,9 +438,20 @@ func (h *userHandler) CheckQuickConnect(ctx context.Context, req *eveyv1.CheckQu
 	if err != nil {
 		return nil, h.translator.TranslatedError(ctx, codes.NotFound, "errors.user.invalid_expired_code")
 	}
-	return &eveyv1.CheckQuickConnectResponse{
-		Authorized: qc.Status == string(user.Authorized),
-	}, nil
+	authorized := qc.Status == string(user.Authorized)
+	resp := &eveyv1.CheckQuickConnectResponse{Authorized: authorized}
+	if authorized && qc.UserID != nil {
+		access, refresh, err := h.auth.GenerateTokensForUser(ctx, *qc.UserID)
+		if err != nil {
+			slog.Error("generate tokens for quick connect", slog.Any("err", err))
+			return nil, status.Errorf(codes.Internal, "internal error")
+		}
+		resp.Auth = &eveyv1.AuthResponse{
+			AccessToken:  access,
+			RefreshToken: refresh,
+		}
+	}
+	return resp, nil
 }
 
 func (h *userHandler) CreateAPIKey(ctx context.Context, req *eveyv1.CreateAPIKeyRequest) (*eveyv1.APIKey, error) {

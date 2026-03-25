@@ -319,6 +319,7 @@ func TestListAPIKeys_Success(t *testing.T) {
 
 func TestQuickConnect_Flow(t *testing.T) {
 	env := setupUserHandler()
+	seedUser(t, env, &user.User{ID: "usr-1", Username: "tester", IsAdmin: false}, "pass")
 
 	// Initiate
 	initResp, err := env.handler.InitiateQuickConnect(context.Background(), &eveyv1.InitiateQuickConnectRequest{})
@@ -353,6 +354,9 @@ func TestQuickConnect_Flow(t *testing.T) {
 	}
 	if !checkResp.Authorized {
 		t.Fatal("expected authorized after AuthorizeQuickConnect")
+	}
+	if checkResp.Auth == nil || checkResp.Auth.AccessToken == "" {
+		t.Fatal("expected auth tokens in CheckQuickConnect response after authorize")
 	}
 }
 

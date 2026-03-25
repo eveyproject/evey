@@ -179,6 +179,55 @@ func (s *CommandService) Login(ctx context.Context, username, password string) (
 	return accessToken, refreshToken, nil
 }
 
+func (s *CommandService) GenerateTokensForUser(ctx context.Context, userID string) (accessToken, refreshToken string, err error) {
+	u, err := s.users.GetByID(ctx, userID)
+	if err != nil {
+		return "", "", fmt.Errorf("user not found: %w", err)
+	}
+	if !u.CanLogin() {
+		return "", "", ErrUserDisabled
+	}
+
+	roles, err := s.userRoles.GetRolesByUserID(ctx, u.ID)
+	if err != nil {
+		slog.Warn("get roles by user failed", slog.String("userID", u.ID), slog.Any("err", err))
+	}
+	var perms []string
+	for _, r := range roles {
+		perms = append(perms, r.Permissions...)
+	}
+
+	var defaultProfileID string
+	if profs, pErr := s.profiles.GetByUserID(ctx, u.ID); pErr == nil {
+		for _, p := range profs {
+			if p.IsDefault {
+				defaultProfileID = p.ID
+				break
+			}
+		}
+		if defaultProfileID == "" && len(profs) > 0 {
+			defaultProfileID = profs[0].ID
+		}
+	}
+
+	accessToken, err = s.tokens.GenerateAccessToken(user.Claims{
+		UserID:      u.ID,
+		Username:    u.Username,
+		IsAdmin:     u.IsAdmin,
+		ProfileID:   defaultProfileID,
+		Permissions: perms,
+	})
+	if err != nil {
+		return "", "", fmt.Errorf("generate access token: %w", err)
+	}
+
+	refreshToken, err = s.generateAndStoreRefreshToken(ctx, u.ID)
+	if err != nil {
+		return "", "", err
+	}
+	return accessToken, refreshToken, nil
+}
+
 func (s *CommandService) RefreshToken(ctx context.Context, token string) (string, string, error) {
 	h := sha256.Sum256([]byte(token))
 	hash := hex.EncodeToString(h[:])
