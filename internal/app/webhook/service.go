@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"maps"
 	"log/slog"
 	"time"
 
@@ -130,9 +131,7 @@ func (s *Service) attemptDeliver(ctx context.Context, cfg *webhook.Config, body 
 
 	headers := make(map[string]string, len(cfg.Headers)+1)
 	headers["X-Evey-Signature"] = sign(cfg.Secret, body)
-	for k, v := range cfg.Headers {
-		headers[k] = v
-	}
+	maps.Copy(headers, cfg.Headers)
 
 	for attempt := 0; attempt <= len(s.retryDelays); attempt++ {
 		if attempt > 0 {

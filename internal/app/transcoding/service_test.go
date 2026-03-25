@@ -482,14 +482,14 @@ func TestStopTranscode_ConcurrentStop(t *testing.T) {
 	startJob(t, svc, "j1", "m1")
 
 	errs := make(chan error, 2)
-	for i := 0; i < 2; i++ {
+	for range 2 {
 		go func() {
 			errs <- svc.StopTranscode(context.Background(), "j1")
 		}()
 	}
 
 	var successes, failures int
-	for i := 0; i < 2; i++ {
+	for range 2 {
 		if err := <-errs; err != nil {
 			failures++
 		} else {

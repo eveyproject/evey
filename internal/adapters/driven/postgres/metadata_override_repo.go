@@ -81,7 +81,7 @@ func (r *MetadataOverrideRepository) ListOverriddenMediaItemIDs(ctx context.Cont
 		return make(map[string]bool), nil
 	}
 	placeholders := make([]string, len(mediaItemIDs))
-	args := make([]interface{}, len(mediaItemIDs))
+	args := make([]any, len(mediaItemIDs))
 	for i, id := range mediaItemIDs {
 		placeholders[i] = fmt.Sprintf("$%d", i+1)
 		args[i] = id

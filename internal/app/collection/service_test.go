@@ -229,13 +229,13 @@ func TestGetItems_NegativeLimit_DefaultsTo50(t *testing.T) {
 	ctx := context.Background()
 
 	// create 3 items and link them
-	for i := 0; i < 3; i++ {
+	for i := range 3 {
 		id := fmt.Sprintf("m%d", i)
 		mediaRepo.Create(ctx, &library.MediaItem{ID: id, Title: id})
 	}
 	col, err := svc.Upsert(ctx, 80, "Saga", "", "", "")
 	require.NoError(t, err)
-	for i := 0; i < 3; i++ {
+	for i := range 3 {
 		colRepo.LinkItem(ctx, col.ID, fmt.Sprintf("m%d", i), i)
 	}
 

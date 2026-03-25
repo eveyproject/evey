@@ -29,7 +29,7 @@ func TestAcquire_OverLimit_Rejected(t *testing.T) {
 
 func TestAcquire_Unlimited_WhenMaxZero(t *testing.T) {
 	th := transcoding.NewTranscodeThrottle()
-	for i := 0; i < 100; i++ {
+	for range 100 {
 		assert.True(t, th.Acquire("user1", 0))
 	}
 }
@@ -51,7 +51,7 @@ func TestRelease_NeverGoesBelowZero(t *testing.T) {
 func TestAcquire_BoundaryExact_MaxStreams(t *testing.T) {
 	th := transcoding.NewTranscodeThrottle()
 	max := 3
-	for i := 0; i < max; i++ {
+	for i := range max {
 		assert.True(t, th.Acquire("user1", max), "acquire %d should succeed", i)
 	}
 	assert.False(t, th.Acquire("user1", max), "acquire at max should fail")
