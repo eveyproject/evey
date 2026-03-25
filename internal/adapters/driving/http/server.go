@@ -195,6 +195,9 @@ func (s *HTTPServer) RegisterRoutes(mux *http.ServeMux, gwMux http.Handler) {
 			r.Body = http.MaxBytesReader(w, r.Body, 1<<20)
 			authCookieMiddleware(gwMux, s.HTTPSOnly).ServeHTTP(w, r)
 		}))
+		mux.HandleFunc("GET /api/v1/auth/quick-connect/{code}", func(w http.ResponseWriter, r *http.Request) {
+			authCookieMiddleware(gwMux, s.HTTPSOnly).ServeHTTP(w, r)
+		})
 		mux.HandleFunc("POST /api/v1/auth/refresh", func(w http.ResponseWriter, r *http.Request) {
 			r = injectRefreshTokenFromCookie(r)
 			authCookieMiddleware(gwMux, s.HTTPSOnly).ServeHTTP(w, r)

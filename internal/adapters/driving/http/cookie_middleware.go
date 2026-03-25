@@ -9,6 +9,38 @@ import (
 	"strings"
 )
 
+// extractRefreshToken finds refreshToken in the JSON body.
+// It checks top-level "refreshToken" first (login/refresh responses),
+// then "auth.refreshToken" (CheckQuickConnect response).
+// Returns the token string and the key to delete from body.
+func extractRefreshToken(body map[string]json.RawMessage) (string, string) {
+	// Top-level: {"refreshToken": "..."}
+	if rt, ok := body["refreshToken"]; ok {
+		var s string
+		if json.Unmarshal(rt, &s) == nil && s != "" {
+			return s, "refreshToken"
+		}
+	}
+	// Nested: {"auth": {"refreshToken": "...", "accessToken": "..."}}
+	if authRaw, ok := body["auth"]; ok {
+		var auth map[string]json.RawMessage
+		if json.Unmarshal(authRaw, &auth) == nil {
+			if rt, ok := auth["refreshToken"]; ok {
+				var s string
+				if json.Unmarshal(rt, &s) == nil && s != "" {
+					// Strip refreshToken from nested auth, keep accessToken
+					delete(auth, "refreshToken")
+					if newAuth, err := json.Marshal(auth); err == nil {
+						body["auth"] = newAuth
+					}
+					return s, "" // don't delete "auth" key, just modified it in-place
+				}
+			}
+		}
+	}
+	return "", ""
+}
+
 // authCookieMiddleware wraps a handler: after the inner handler responds with an AuthResponse,
 // it extracts refreshToken from the JSON body, sets an httpOnly cookie, and strips it from the body.
 func authCookieMiddleware(next http.Handler, httpsOnly bool) http.Handler {
@@ -28,19 +60,13 @@ func authCookieMiddleware(next http.Handler, httpsOnly bool) http.Handler {
 			return
 		}
 
-		rt, ok := body["refreshToken"]
-		if !ok {
+		rtStr, key := extractRefreshToken(body)
+		if rtStr == "" {
 			rec.flush(w)
 			return
 		}
 
-		var rtStr string
-		if err := json.Unmarshal(rt, &rtStr); err != nil || rtStr == "" {
-			rec.flush(w)
-			return
-		}
-
-		delete(body, "refreshToken")
+		delete(body, key)
 		http.SetCookie(w, &http.Cookie{
 			Name:     refreshCookieName,
 			Value:    rtStr,
