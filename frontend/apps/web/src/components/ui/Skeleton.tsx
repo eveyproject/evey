@@ -6,21 +6,14 @@ export function MediaCardSkeleton() {
   return (
     <div className="w-40 flex-shrink-0">
       <div
-        className="w-full animate-pulse"
-        style={{
-          aspectRatio: "2/3",
-          backgroundColor: "var(--surface-raised)",
-          borderRadius: "var(--radius-md)",
-        }}
+        className="w-full animate-pulse aspect-[2/3] bg-[var(--surface-raised)] rounded-[var(--radius-md)]"
       />
       <div className="mt-2 px-0.5 space-y-1.5">
         <div
-          className="h-3.5 w-4/5 animate-pulse rounded"
-          style={{ backgroundColor: "var(--surface-raised)" }}
+          className="h-3.5 w-4/5 animate-pulse rounded bg-[var(--surface-raised)]"
         />
         <div
-          className="h-3 w-1/2 animate-pulse rounded"
-          style={{ backgroundColor: "var(--surface-raised)" }}
+          className="h-3 w-1/2 animate-pulse rounded bg-[var(--surface-raised)]"
         />
       </div>
     </div>
@@ -42,19 +35,13 @@ export function MediaDetailSkeleton() {
     <div className="animate-pulse">
       {/* Backdrop placeholder */}
       <div
-        className="w-full -mx-6 -mt-6 mb-0"
-        style={{ height: "420px", backgroundColor: "var(--surface)" }}
+        className="w-full -mx-6 -mt-6 mb-0 h-[420px] bg-[var(--surface)]"
       />
       {/* Content */}
       <div className="flex gap-6 mt-6">
         {/* Poster */}
         <div
-          className="flex-shrink-0 w-48 hidden md:block"
-          style={{
-            aspectRatio: "2/3",
-            backgroundColor: "var(--surface-raised)",
-            borderRadius: "var(--radius-md)",
-          }}
+          className="flex-shrink-0 w-48 hidden md:block aspect-[2/3] bg-[var(--surface-raised)] rounded-[var(--radius-md)]"
         />
         {/* Right side */}
         <div className="flex-1 space-y-4">

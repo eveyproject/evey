@@ -39,7 +39,7 @@ export function AddToPlaylistModal({ open, onClose, mediaItemId }: Props) {
           <div className="flex justify-center py-8"><Spinner /></div>
         ) : manualPlaylists.length === 0 ? (
           <div className="text-center py-6">
-            <p className="text-sm mb-4" style={{ color: "var(--text-muted)" }}>{t("media.playlist.noPlaylists")}</p>
+            <p className="text-sm mb-4 text-[var(--text-muted)]">{t("media.playlist.noPlaylists")}</p>
             <Button onClick={() => setCreateOpen(true)}>{t("media.playlist.createPlaylist")}</Button>
           </div>
         ) : (
@@ -49,17 +49,16 @@ export function AddToPlaylistModal({ open, onClose, mediaItemId }: Props) {
                 key={pl.id}
                 onClick={() => handleAdd(pl.id, pl.name)}
                 disabled={addTo.isPending}
-                className="w-full flex items-center gap-3 px-4 py-3 rounded-[var(--radius-md)] text-left transition-colors-fast hover:bg-[var(--surface-raised)]"
-                style={{ color: "var(--text)" }}
+                className="w-full flex items-center gap-3 px-4 py-3 rounded-[var(--radius-md)] text-left transition-colors-fast hover:bg-[var(--surface-raised)] text-[var(--text)]"
               >
-                <List size={20} strokeWidth={1.5} className="flex-shrink-0" style={{ color: "var(--accent)" }} />
+                <List size={20} strokeWidth={1.5} className="flex-shrink-0 text-[var(--accent)]" />
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium truncate">{pl.name}</p>
-                  {pl.description && <p className="text-xs truncate" style={{ color: "var(--text-muted)" }}>{pl.description}</p>}
+                  {pl.description && <p className="text-xs truncate text-[var(--text-muted)]">{pl.description}</p>}
                 </div>
               </button>
             ))}
-            <div className="pt-2 border-t" style={{ borderColor: "var(--border)" }}>
+            <div className="pt-2 border-t border-[var(--border)]">
               <Button variant="secondary" onClick={() => setCreateOpen(true)} className="w-full">
                 {t("media.playlist.newPlaylist")}
               </Button>

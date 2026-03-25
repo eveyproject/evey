@@ -8,17 +8,12 @@ interface MediaGridProps {
 
 function SkeletonCard() {
   return (
-    <div className="w-36" style={{ aspectRatio: "2/3" }}>
+    <div className="w-36 aspect-[2/3]">
       <div
-        className="w-full h-full animate-pulse"
-        style={{
-          backgroundColor: "var(--surface-raised)",
-          borderRadius: "var(--radius-md)",
-        }}
+        className="w-full h-full animate-pulse bg-[var(--surface-raised)] rounded-[var(--radius-md)]"
       />
       <div
-        className="mt-2 h-4 w-3/4 animate-pulse"
-        style={{ backgroundColor: "var(--surface-raised)", borderRadius: "var(--radius-sm)" }}
+        className="mt-2 h-4 w-3/4 animate-pulse bg-[var(--surface-raised)] rounded-[var(--radius-sm)]"
       />
     </div>
   );

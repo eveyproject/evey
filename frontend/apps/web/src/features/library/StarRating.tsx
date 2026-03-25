@@ -47,7 +47,7 @@ export function StarRating({ mediaId }: StarRatingProps) {
   return (
     <div className="flex flex-col gap-1">
       <div className="flex items-center gap-1.5">
-        <span className="text-sm" style={{ color: "var(--text-muted)" }}>
+        <span className="text-sm text-[var(--text-muted)]">
           {t("media.detail.yourRating")}:
         </span>
         <div
@@ -62,21 +62,20 @@ export function StarRating({ mediaId }: StarRatingProps) {
               aria-label={`Rate ${star} star${star > 1 ? "s" : ""}`}
               onMouseEnter={() => setHovered(star)}
               onClick={() => setRating(star)}
-              className="transition-transform-fast hover:scale-110 focus:outline-none focus:scale-110 cursor-pointer"
-              style={{ color: "var(--accent)" }}
+              className="transition-transform-fast hover:scale-110 focus:outline-none focus:scale-110 cursor-pointer text-[var(--accent)]"
             >
               <StarIcon filled={star <= display} />
             </button>
           ))}
         </div>
         {rating > 0 && (
-          <span className="text-xs" style={{ color: "var(--text-muted)" }}>
+          <span className="text-xs text-[var(--text-muted)]">
             {rating}/5
           </span>
         )}
       </div>
       {agg && agg.count > 0 && (
-        <span className="text-xs" style={{ color: "var(--text-muted)" }}>
+        <span className="text-xs text-[var(--text-muted)]">
           Community: {agg.average.toFixed(1)}/5 ({agg.count} {agg.count === 1 ? "rating" : "ratings"})
         </span>
       )}
@@ -90,14 +89,7 @@ export function StarRatingBadge({ mediaId }: { mediaId: string }) {
   if (rating === 0) return null;
   return (
     <span
-      className="absolute z-badge flex items-center gap-0.5 text-[10px] font-bold px-1 py-0.5 leading-none"
-      style={{
-        top: "0.5rem",
-        left: "2.25rem",
-        backgroundColor: "var(--overlay-bg-strong)",
-        color: "var(--accent)",
-        borderRadius: "var(--radius-sm)",
-      }}
+      className="absolute z-badge flex items-center gap-0.5 text-[10px] font-bold px-1 py-0.5 leading-none top-2 left-[2.25rem] bg-[var(--overlay-bg-strong)] text-[var(--accent)] rounded-[var(--radius-sm)]"
       title={`Your rating: ${rating}/5`}
     >
       <Star size={10} fill="currentColor" strokeWidth={0} />

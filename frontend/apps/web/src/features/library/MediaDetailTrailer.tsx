@@ -32,13 +32,12 @@ function TrailerPlayer({ trailer, userLang }: { trailer: V1Trailer; userLang: st
     <>
       <button
         onClick={() => setOpen(true)}
-        className="flex items-center gap-2 px-4 py-2 rounded text-sm font-medium transition-colors-fast"
-        style={{ backgroundColor: "var(--overlay-border-subtle)", color: "var(--text)", border: "1px solid var(--border)" }}
+        className="flex items-center gap-2 px-4 py-2 rounded text-sm font-medium transition-colors-fast bg-[var(--overlay-border-subtle)] text-[var(--text)] border border-[var(--border)]"
       >
         <Play size={16} fill="currentColor" />
         {t("media.detail.trailer")}
         {needsSubtitles && (
-          <span className="text-xs px-1 rounded" style={{ backgroundColor: "var(--overlay-btn-bg)", color: "var(--text-muted)" }}>
+          <span className="text-xs px-1 rounded bg-[var(--overlay-btn-bg)] text-[var(--text-muted)]">
             CC
           </span>
         )}
@@ -46,13 +45,11 @@ function TrailerPlayer({ trailer, userLang }: { trailer: V1Trailer; userLang: st
 
       {open && (
         <div
-          className="fixed inset-0 z-overlay flex items-center justify-center p-4"
-          style={{ backgroundColor: "var(--overlay-scrim)" }}
+          className="fixed inset-0 z-overlay flex items-center justify-center p-4 bg-[var(--overlay-scrim)]"
           onClick={() => setOpen(false)}
         >
           <div
-            className="relative w-full max-w-4xl"
-            style={{ aspectRatio: "16/9" }}
+            className="relative w-full max-w-4xl aspect-video"
             onClick={(e) => e.stopPropagation()}
           >
             {iframeSrc ? (
@@ -63,7 +60,7 @@ function TrailerPlayer({ trailer, userLang }: { trailer: V1Trailer; userLang: st
                 allowFullScreen
               />
             ) : (
-              <div className="w-full h-full flex items-center justify-center" style={{ backgroundColor: "var(--surface)", borderRadius: "var(--radius-md)", color: "var(--text-muted)" }}>
+              <div className="w-full h-full flex items-center justify-center bg-[var(--surface)] rounded-[var(--radius-md)] text-[var(--text-muted)]">
                 {t("media.detail.unsupportedPlatform", { platform: trailer.site })}
               </div>
             )}

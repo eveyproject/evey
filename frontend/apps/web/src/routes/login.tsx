@@ -73,8 +73,7 @@ function LoginPage() {
       <Card className="w-full max-w-sm p-8 shadow-2xl">
         <div className="flex flex-col items-center mb-8">
           <div
-            className="w-12 h-12 rounded-[var(--radius-md)] flex items-center justify-center mb-4"
-            style={{ backgroundColor: "var(--accent)" }}
+            className="w-12 h-12 rounded-[var(--radius-md)] flex items-center justify-center mb-4 bg-[var(--accent)]"
           >
             <Play size={24} className="text-[var(--filter-active-text)]" fill="currentColor" />
           </div>
@@ -82,7 +81,7 @@ function LoginPage() {
           <p className="text-[var(--text-muted)] text-sm mt-1">{t("auth.login.signInToAccount")}</p>
         </div>
         {oidc_error && (
-          <p className="text-sm text-center mb-4" style={{ color: "var(--color-danger)" }}>{t("auth.login.ssoFailed")}</p>
+          <p className="text-sm text-center mb-4 text-[var(--color-danger)]">{t("auth.login.ssoFailed")}</p>
         )}
         <form
           onSubmit={(e) => {
@@ -107,7 +106,7 @@ function LoginPage() {
             required
           />
           {login.error && (
-            <p className="text-sm text-center" style={{ color: "var(--color-danger)" }} data-testid="login-error">
+            <p className="text-sm text-center text-[var(--color-danger)]" data-testid="login-error">
               {friendlyLoginError(login.error, t)}
             </p>
           )}

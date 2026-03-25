@@ -34,20 +34,19 @@ function SystemInfoCard() {
 
   return (
     <div
-      className="p-4 rounded-[var(--radius-lg)]"
-      style={{ backgroundColor: "var(--surface)", border: "1px solid var(--border)" }}
+      className="p-4 rounded-[var(--radius-lg)] bg-[var(--surface)] border border-[var(--border)]"
     >
-      <h3 className="text-sm font-semibold mb-3" style={{ color: "var(--text)" }}>
+      <h3 className="text-sm font-semibold mb-3 text-[var(--text)]">
         {t("admin.dashboard.systemInfo")}
       </h3>
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-8 gap-y-3 text-sm">
         {fields.map(([k, v]) =>
           v ? (
             <div key={k}>
-              <dt className="font-medium" style={{ color: "var(--text-muted)" }}>
+              <dt className="font-medium text-[var(--text-muted)]">
                 {k}
               </dt>
-              <dd style={{ color: "var(--text)" }}>{v}</dd>
+              <dd className="text-[var(--text)]">{v}</dd>
             </div>
           ) : null,
         )}
@@ -65,7 +64,7 @@ function AdminDashboard() {
   return (
     <div className="flex flex-col gap-8">
       <PageHeader title={t("admin.dashboard.title")} actions={dataUpdatedAt > 0 ? (
-        <p className="text-xs" style={{ color: "var(--text-muted)" }}>
+        <p className="text-xs text-[var(--text-muted)]">
           {t("admin.dashboard.autoRefresh", { time: new Date(dataUpdatedAt).toLocaleTimeString(), interval: "10s" })}
         </p>
       ) : undefined} />

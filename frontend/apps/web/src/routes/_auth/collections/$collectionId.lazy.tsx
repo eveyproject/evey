@@ -36,8 +36,7 @@ function CollectionDetailPage() {
         <>
           {col.backdropUrl && (
             <div
-              className="relative w-full overflow-hidden mb-6 mt-4 rounded-[var(--radius-lg)]"
-              style={{ height: "clamp(180px, 30vw, 320px)" }}
+              className="relative w-full overflow-hidden mb-6 mt-4 rounded-[var(--radius-lg)] h-[clamp(180px,30vw,320px)]"
             >
               <img
                 src={col.backdropUrl}
@@ -60,11 +59,11 @@ function CollectionDetailPage() {
           {!col.backdropUrl && (
             <div className="flex items-start justify-between mb-6 mt-4">
               <div>
-                <h1 className="text-2xl font-bold mb-1" style={{ color: "var(--text)" }}>
+                <h1 className="text-2xl font-bold mb-1 text-[var(--text)]">
                   {col.name}
                 </h1>
                 {col.overview && (
-                  <p className="text-sm" style={{ color: "var(--text-muted)" }}>
+                  <p className="text-sm text-[var(--text-muted)]">
                     {col.overview}
                   </p>
                 )}
@@ -84,7 +83,7 @@ function CollectionDetailPage() {
             </div>
           )}
 
-          <p className="text-xs mb-4" style={{ color: "var(--text-muted)" }}>
+          <p className="text-xs mb-4 text-[var(--text-muted)]">
             {total === 1 ? t("common.item", { count: total }) : t("common.items", { count: total })}
           </p>
         </>
@@ -94,8 +93,7 @@ function CollectionDetailPage() {
         <MediaGrid isLoading>{null}</MediaGrid>
       ) : items.length === 0 ? (
         <div
-          className="rounded-[var(--radius-lg)]"
-          style={{ backgroundColor: "var(--surface)", border: "1px solid var(--border)" }}
+          className="rounded-[var(--radius-lg)] bg-[var(--surface)] border border-[var(--border)]"
         >
           <EmptyState
             icon={<Folder size={48} strokeWidth={1.5} />}

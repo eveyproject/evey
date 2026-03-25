@@ -43,8 +43,7 @@ export const SyncPlayBar = memo(function SyncPlayBar({ roomId, roomCode, isHost,
 
   return (
     <div
-      className="flex items-center gap-3 px-4 py-2 text-sm"
-      style={{ background: "var(--overlay-bg-strong)", borderTop: "1px solid var(--overlay-border-subtle)", color: "var(--overlay-text)" }}
+      className="flex items-center gap-3 px-4 py-2 text-sm bg-[var(--overlay-bg-strong)] border-t border-[var(--overlay-border-subtle)] text-[var(--overlay-text)]"
     >
       <span
         className="w-2 h-2 rounded-full flex-shrink-0"
@@ -55,8 +54,7 @@ export const SyncPlayBar = memo(function SyncPlayBar({ roomId, roomCode, isHost,
       {isHost && roomCode && (
         <button
           onClick={handleCopyCode}
-          className="px-3 py-1 rounded text-xs font-bold tracking-widest hover:opacity-80 transition-opacity-fast flex-shrink-0"
-          style={{ background: "var(--overlay-btn-bg)", letterSpacing: "0.15em" }}
+          className="px-3 py-1 rounded text-xs font-bold hover:opacity-80 transition-opacity-fast flex-shrink-0 bg-[var(--overlay-btn-bg)] tracking-[0.15em]"
           title={t("media.syncplay.copyCode")}
         >
           {codeCopied ? t("common.copied") : roomCode}
@@ -64,15 +62,13 @@ export const SyncPlayBar = memo(function SyncPlayBar({ roomId, roomCode, isHost,
       )}
       <button
         onClick={handleCopy}
-        className="px-3 py-1 rounded text-xs font-medium hover:opacity-80 transition-opacity-fast flex-shrink-0"
-        style={{ background: "var(--overlay-btn-bg)" }}
+        className="px-3 py-1 rounded text-xs font-medium hover:opacity-80 transition-opacity-fast flex-shrink-0 bg-[var(--overlay-btn-bg)]"
       >
         {copied ? t("common.copied") : t("media.syncplay.shareLink")}
       </button>
       <button
         onClick={onLeave}
-        className="px-3 py-1 rounded text-xs font-medium hover:opacity-80 transition-opacity-fast flex-shrink-0"
-        style={{ background: "color-mix(in srgb, var(--color-danger) 30%, transparent)" }}
+        className="px-3 py-1 rounded text-xs font-medium hover:opacity-80 transition-opacity-fast flex-shrink-0 bg-[color-mix(in_srgb,var(--color-danger)_30%,transparent)]"
       >
         {t("media.syncplay.leave")}
       </button>

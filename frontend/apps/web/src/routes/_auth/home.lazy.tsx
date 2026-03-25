@@ -73,8 +73,7 @@ function HeroBanner() {
   if (isLoading && heroIds.length === 0) {
     return (
       <div
-        className="w-full animate-shimmer"
-        style={{ height: "clamp(320px, 50vh, 600px)" }}
+        className="w-full animate-shimmer h-[clamp(320px,50vh,600px)]"
       />
     );
   }
@@ -83,8 +82,7 @@ function HeroBanner() {
 
   return (
     <div
-      className="relative w-full overflow-hidden"
-      style={{ height: "clamp(320px, 50vh, 600px)" }}
+      className="relative w-full overflow-hidden h-[clamp(320px,50vh,600px)]"
       data-testid="hero-banner"
       onMouseEnter={() => { pausedRef.current = true; }}
       onMouseLeave={() => { pausedRef.current = false; }}
@@ -153,10 +151,7 @@ function HeroBanner() {
                 {genres.slice(0, 3).map((g) => (
                   <span
                     key={g}
-                    className="text-xs px-2 py-0.5 font-medium hidden sm:inline-block bg-[var(--glass-bg)] text-[var(--overlay-text-bright)] rounded-full border border-[var(--glass-border)]"
-                    style={{
-                      backdropFilter: `blur(var(--glass-blur))`,
-                    }}
+                    className="text-xs px-2 py-0.5 font-medium hidden sm:inline-block bg-[var(--glass-bg)] text-[var(--overlay-text-bright)] rounded-full border border-[var(--glass-border)] backdrop-blur-[var(--glass-blur)]"
                   >
                     {g}
                   </span>
@@ -184,8 +179,7 @@ function HeroBanner() {
                 <Link
                   to="/media/$mediaId"
                   params={{ mediaId: id }}
-                  className="flex items-center gap-2 px-5 py-2.5 rounded-[var(--radius-md)] font-semibold text-sm transition-opacity-fast hover:opacity-90 bg-[var(--glass-bg)] text-[var(--overlay-text)] border border-[var(--glass-border)]"
-                  style={{ backdropFilter: `blur(var(--glass-blur))` }}
+                  className="flex items-center gap-2 px-5 py-2.5 rounded-[var(--radius-md)] font-semibold text-sm transition-opacity-fast hover:opacity-90 bg-[var(--glass-bg)] text-[var(--overlay-text)] border border-[var(--glass-border)] backdrop-blur-[var(--glass-blur)]"
                 >
                   {t("media.home.moreInfo")}
                 </Link>

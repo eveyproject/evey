@@ -78,8 +78,7 @@ function RegisterPage() {
       <Card className="w-full max-w-sm p-8 shadow-2xl">
         <div className="flex flex-col items-center mb-8">
           <div
-            className="w-12 h-12 rounded-[var(--radius-md)] flex items-center justify-center mb-4"
-            style={{ backgroundColor: "var(--accent)" }}
+            className="w-12 h-12 rounded-[var(--radius-md)] flex items-center justify-center mb-4 bg-[var(--accent)]"
           >
             <Play size={24} className="text-[var(--filter-active-text)]" fill="currentColor" />
           </div>
@@ -95,8 +94,7 @@ function RegisterPage() {
 
         {invite && (
           <div
-            className="mb-4 px-3 py-2 rounded-[var(--radius-md)] text-sm"
-            style={{ backgroundColor: "var(--surface-raised)", color: "var(--text-muted)" }}
+            className="mb-4 px-3 py-2 rounded-[var(--radius-md)] text-sm bg-[var(--surface-raised)] text-[var(--text-muted)]"
           >
             {t("auth.register.inviteCodeLabel")} <span className="font-mono text-[var(--text)]">{invite}</span>
           </div>
@@ -141,7 +139,7 @@ function RegisterPage() {
             />
           )}
           {(validationError || register.error) && (
-            <p className="text-sm text-center" style={{ color: "var(--color-danger)" }}>
+            <p className="text-sm text-center text-[var(--color-danger)]">
               {validationError || (register.error instanceof Error ? register.error.message : t("auth.register.registrationFailed"))}
             </p>
           )}
