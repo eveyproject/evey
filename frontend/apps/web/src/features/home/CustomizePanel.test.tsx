@@ -1,0 +1,180 @@
+import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { describe, it, expect, vi, beforeEach } from "vitest";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { CustomizePanel } from "./CustomizePanel";
+
+const mockMutate = vi.fn();
+const mockResetMutate = vi.fn();
+let mockFeedData: { configs: Array<{ feedType: string; enabled: boolean; displayOrder: number }> } | undefined;
+
+vi.mock("@evey/api", () => ({
+  useFeedServiceGetFeedConfig: () => ({ data: mockFeedData }),
+  useFeedServiceUpdateProfileFeedConfig: () => ({ mutate: mockMutate }),
+  useFeedServiceResetProfileFeedConfig: () => ({ mutate: mockResetMutate }),
+}));
+
+vi.mock("@evey/store", () => ({
+  useAuthStore: (selector: (s: { profileId: string }) => unknown) =>
+    selector({ profileId: "p1" }),
+}));
+
+vi.mock("lucide-react", () => {
+  const Icon = ({ size }: { size?: number }) => <span data-size={size} />;
+  return { X: Icon, GripVertical: Icon, RotateCcw: Icon };
+});
+
+function createWrapper() {
+  const qc = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 } } });
+  return ({ children }: { children: React.ReactNode }) => (
+    <QueryClientProvider client={qc}>{children}</QueryClientProvider>
+  );
+}
+
+function renderPanel(open = true, onClose = vi.fn()) {
+  return render(<CustomizePanel open={open} onClose={onClose} />, { wrapper: createWrapper() });
+}
+
+describe("CustomizePanel", () => {
+  beforeEach(() => {
+    mockMutate.mockReset();
+    mockResetMutate.mockReset();
+    mockFeedData = {
+      configs: [
+        { feedType: "resume_playback", enabled: true, displayOrder: 0 },
+        { feedType: "recommended", enabled: false, displayOrder: 1 },
+        { feedType: "most_popular", enabled: true, displayOrder: 2 },
+      ],
+    };
+  });
+
+  it("returns null when closed", () => {
+    const { container } = renderPanel(false);
+    expect(container.innerHTML).toBe("");
+  });
+
+  it("renders panel title", () => {
+    renderPanel();
+    expect(screen.getByText("Customize Homepage")).toBeInTheDocument();
+  });
+
+  it("renders all feed rows", () => {
+    renderPanel();
+    expect(screen.getByText("Resume Playback")).toBeInTheDocument();
+    expect(screen.getByText("Recommended")).toBeInTheDocument();
+    expect(screen.getByText("Most Popular")).toBeInTheDocument();
+  });
+
+  it("renders library feed with Library: prefix", () => {
+    mockFeedData = {
+      configs: [{ feedType: "library:Movies", enabled: true, displayOrder: 0 }],
+    };
+    renderPanel();
+    expect(screen.getByText("Library: Movies")).toBeInTheDocument();
+  });
+
+  it("renders unknown feed type as-is", () => {
+    mockFeedData = {
+      configs: [{ feedType: "custom_unknown", enabled: true, displayOrder: 0 }],
+    };
+    renderPanel();
+    expect(screen.getByText("custom_unknown")).toBeInTheDocument();
+  });
+
+  it("toggle calls updateMutation with flipped enabled", async () => {
+    const user = userEvent.setup();
+    renderPanel();
+    const toggleButtons = screen.getAllByRole("button").filter(
+      (btn) => btn.classList.contains("rounded-full"),
+    );
+    await user.click(toggleButtons[0]);
+    expect(mockMutate).toHaveBeenCalledWith(
+      { feedType: "resume_playback", data: { enabled: false, displayOrder: 0 } },
+      expect.objectContaining({ onSuccess: expect.any(Function) }),
+    );
+  });
+
+  it("toggle disabled row calls updateMutation with enabled=true", async () => {
+    const user = userEvent.setup();
+    renderPanel();
+    const toggleButtons = screen.getAllByRole("button").filter(
+      (btn) => btn.classList.contains("rounded-full"),
+    );
+    await user.click(toggleButtons[1]);
+    expect(mockMutate).toHaveBeenCalledWith(
+      { feedType: "recommended", data: { enabled: true, displayOrder: 1 } },
+      expect.objectContaining({ onSuccess: expect.any(Function) }),
+    );
+  });
+
+  it("close button calls onClose", async () => {
+    const user = userEvent.setup();
+    const onClose = vi.fn();
+    render(<CustomizePanel open={true} onClose={onClose} />, { wrapper: createWrapper() });
+    const buttons = screen.getAllByRole("button");
+    await user.click(buttons[0]);
+    expect(onClose).toHaveBeenCalledOnce();
+  });
+
+  it("Escape key calls onClose", () => {
+    const onClose = vi.fn();
+    render(<CustomizePanel open={true} onClose={onClose} />, { wrapper: createWrapper() });
+    fireEvent.keyDown(document, { key: "Escape" });
+    expect(onClose).toHaveBeenCalledOnce();
+  });
+
+  it("clicking outside panel calls onClose", () => {
+    const onClose = vi.fn();
+    const { container } = render(<CustomizePanel open={true} onClose={onClose} />, { wrapper: createWrapper() });
+    const overlay = container.firstChild as HTMLElement;
+    fireEvent.mouseDown(overlay);
+    expect(onClose).toHaveBeenCalled();
+  });
+
+  it("reset button calls resetMutation for each row", async () => {
+    const user = userEvent.setup();
+    renderPanel();
+    await user.click(screen.getByText("Reset to Defaults"));
+    expect(mockResetMutate).toHaveBeenCalledTimes(3);
+    expect(mockResetMutate).toHaveBeenCalledWith(
+      { feedType: "resume_playback" },
+      expect.objectContaining({ onSuccess: expect.any(Function) }),
+    );
+    expect(mockResetMutate).toHaveBeenCalledWith(
+      { feedType: "recommended" },
+      expect.objectContaining({ onSuccess: expect.any(Function) }),
+    );
+    expect(mockResetMutate).toHaveBeenCalledWith(
+      { feedType: "most_popular" },
+      expect.objectContaining({ onSuccess: expect.any(Function) }),
+    );
+  });
+
+  it("rows are draggable", () => {
+    renderPanel();
+    const row = screen.getByText("Resume Playback").closest("[draggable]");
+    expect(row).toHaveAttribute("draggable", "true");
+  });
+
+  it("sorts rows by displayOrder", () => {
+    mockFeedData = {
+      configs: [
+        { feedType: "most_popular", enabled: true, displayOrder: 2 },
+        { feedType: "resume_playback", enabled: true, displayOrder: 0 },
+        { feedType: "recommended", enabled: true, displayOrder: 1 },
+      ],
+    };
+    renderPanel();
+    const rows = screen.getAllByText(/Resume Playback|Recommended|Most Popular/);
+    expect(rows[0]).toHaveTextContent("Resume Playback");
+    expect(rows[1]).toHaveTextContent("Recommended");
+    expect(rows[2]).toHaveTextContent("Most Popular");
+  });
+
+  it("handles empty config data", () => {
+    mockFeedData = undefined;
+    const { container } = renderPanel();
+    expect(screen.getByText("Customize Homepage")).toBeInTheDocument();
+    expect(container.querySelectorAll("[draggable]")).toHaveLength(0);
+  });
+});
