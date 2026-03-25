@@ -142,9 +142,9 @@ function ProfilePage() {
           <Link
             key={item.to}
             to={item.to}
-            className="flex items-center gap-3 p-4 bg-[var(--surface-raised)] rounded-[var(--radius-md)] text-[var(--text)] hover:bg-[var(--border)] transition-colors-fast-fast group"
+            className="flex items-center gap-3 p-4 bg-[var(--surface-raised)] rounded-[var(--radius-md)] text-[var(--text)] hover:bg-[var(--border)] transition-colors-fast group"
           >
-            <span className="text-[var(--text-muted)] group-hover:text-[var(--accent)] transition-colors-fast-fast shrink-0">
+            <span className="text-[var(--text-muted)] group-hover:text-[var(--accent)] transition-colors-fast shrink-0">
               {item.icon}
             </span>
             <div className="flex-1 min-w-0">
@@ -157,7 +157,7 @@ function ProfilePage() {
         {user?.isAdmin && (
           <Link
             to="/admin"
-            className="flex items-center gap-3 p-4 bg-[var(--surface-raised)] rounded-[var(--radius-md)] hover:bg-[var(--border)] transition-colors-fast-fast group"
+            className="flex items-center gap-3 p-4 bg-[var(--surface-raised)] rounded-[var(--radius-md)] hover:bg-[var(--border)] transition-colors-fast group"
           >
             <Monitor size={20} strokeWidth={1.5} className="text-[var(--accent)] shrink-0" />
             <div className="flex-1 min-w-0">

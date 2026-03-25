@@ -173,7 +173,7 @@ export const MediaSlider = memo(function MediaSlider({
           <Link
             to={seeAllHref}
             params={seeAllParams as never}
-            className="text-sm transition-colors-fast-fast"
+            className="text-sm transition-colors-fast"
             style={{ color: "var(--accent)" }}
           >
             {t("common.seeAll")}
@@ -185,7 +185,7 @@ export const MediaSlider = memo(function MediaSlider({
         {showLeft && (
           <button
             onClick={() => scroll("left")}
-            className="absolute left-0 top-0 bottom-2 z-raised flex items-center justify-center w-12 rounded-r-[var(--radius-md)] opacity-0 group-hover/slider:opacity-100 transition-opacity-fast-fast backdrop-blur-sm"
+            className="absolute left-0 top-0 bottom-2 z-raised flex items-center justify-center w-12 rounded-r-[var(--radius-md)] opacity-0 group-hover/slider:opacity-100 transition-opacity-fast backdrop-blur-sm"
             style={{ background: "var(--glass-bg)", borderRight: "1px solid var(--glass-border)" }}
             aria-label={t("common.scrollLeft")}
             title={t("common.scrollLeft")}
@@ -215,7 +215,7 @@ export const MediaSlider = memo(function MediaSlider({
         {showRight && (
           <button
             onClick={() => scroll("right")}
-            className="absolute right-0 top-0 bottom-2 z-raised flex items-center justify-center w-12 rounded-l-[var(--radius-md)] opacity-0 group-hover/slider:opacity-100 transition-opacity-fast-fast backdrop-blur-sm"
+            className="absolute right-0 top-0 bottom-2 z-raised flex items-center justify-center w-12 rounded-l-[var(--radius-md)] opacity-0 group-hover/slider:opacity-100 transition-opacity-fast backdrop-blur-sm"
             style={{ background: "var(--glass-bg)", borderLeft: "1px solid var(--glass-border)" }}
             aria-label={t("common.scrollRight")}
             title={t("common.scrollRight")}

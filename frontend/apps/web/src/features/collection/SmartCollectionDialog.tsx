@@ -144,7 +144,7 @@ function RuleRow({ rule, onChange, onRemove }: RuleRowProps) {
         type="button"
         onClick={onRemove}
         aria-label="Remove rule"
-        className="flex-shrink-0 p-1 rounded hover:bg-[var(--surface-raised)] transition-colors-fast-fast"
+        className="flex-shrink-0 p-1 rounded hover:bg-[var(--surface-raised)] transition-colors-fast"
         style={{ color: "var(--text-muted)" }}
       >
         <X size={16} />
@@ -264,7 +264,7 @@ export function SmartCollectionDialog({ open, onClose, onSaved, editing }: Smart
                   key={f}
                   type="button"
                   onClick={() => addRule(f)}
-                  className="flex items-center gap-1 text-xs px-2 py-1 rounded-[var(--radius-md)] transition-colors-fast-fast"
+                  className="flex items-center gap-1 text-xs px-2 py-1 rounded-[var(--radius-md)] transition-colors-fast"
                   style={{
                     backgroundColor: "var(--surface-raised)",
                     border: "1px solid var(--border)",

@@ -89,14 +89,14 @@ export function NextEpisodeOverlay({
       <div className="flex gap-2">
         <button
           onClick={handlePlayNow}
-          className="px-3 py-1.5 rounded text-sm font-medium text-black transition-colors-fast-fast"
+          className="px-3 py-1.5 rounded text-sm font-medium text-black transition-colors-fast"
           style={{ backgroundColor: "var(--accent)" }}
         >
           {t("player.nextEpisodeOverlay.playNow")}
         </button>
         <button
           onClick={handleCancel}
-          className="px-3 py-1.5 rounded text-sm font-medium text-white transition-colors-fast-fast hover:bg-white/20"
+          className="px-3 py-1.5 rounded text-sm font-medium text-white transition-colors-fast hover:bg-white/20"
           style={{ backgroundColor: "var(--overlay-border-subtle)" }}
         >
           {t("common.cancel")}

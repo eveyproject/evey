@@ -59,7 +59,7 @@ export function AddToCollectionModal({ open, onClose, mediaItemIds }: Props) {
               key={col.id}
               onClick={() => void handleAdd(col.id, col.name)}
               disabled={pending}
-              className="w-full flex items-center gap-3 px-4 py-3 rounded-[var(--radius-md)] text-left transition-colors-fast-fast hover:bg-[var(--surface-raised)]"
+              className="w-full flex items-center gap-3 px-4 py-3 rounded-[var(--radius-md)] text-left transition-colors-fast hover:bg-[var(--surface-raised)]"
               style={{ color: "var(--text)" }}
             >
               {col.posterUrl && (

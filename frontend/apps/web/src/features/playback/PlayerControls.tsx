@@ -327,7 +327,7 @@ export function PlayerControls({
         <button
           onClick={onClose}
           aria-label={t("common.back")}
-          className="text-white hover:text-[var(--accent)] transition-colors-fast-fast"
+          className="text-white hover:text-[var(--accent)] transition-colors-fast"
         >
           <ArrowLeft size={24} />
         </button>
@@ -360,7 +360,7 @@ export function PlayerControls({
             <button
               onClick={() => onEpisodeChange(prevEpisode.id)}
               aria-label={t("player.controls.previousEpisode")}
-              className="text-white hover:text-[var(--accent)] transition-colors-fast-fast p-1"
+              className="text-white hover:text-[var(--accent)] transition-colors-fast p-1"
               title={prevEpisode.title ? `E${prevEpisode.indexNumber} - ${prevEpisode.title}` : undefined}
             >
               <SkipBack size={22} fill="currentColor" />
@@ -372,7 +372,7 @@ export function PlayerControls({
             onClick={skipBackward}
             aria-label={t("player.controls.rewind", { seconds: skipBackwardSeconds })}
             title={`${t("player.controls.rewind", { seconds: skipBackwardSeconds })} (J)`}
-            className="text-white hover:text-[var(--accent)] transition-colors-fast-fast p-1"
+            className="text-white hover:text-[var(--accent)] transition-colors-fast p-1"
           >
             <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor">
               <path d="M11.99 5V1l-5 5 5 5V7c3.31 0 6 2.69 6 6s-2.69 6-6 6-6-2.69-6-6h-2c0 4.42 3.58 8 8 8s8-3.58 8-8-3.58-8-8-8z" />
@@ -385,7 +385,7 @@ export function PlayerControls({
             onClick={togglePlay}
             aria-label={playing ? t("player.controls.pause") : t("player.controls.play")}
             title={playing ? `${t("player.controls.pause")} (K)` : `${t("player.controls.play")} (K)`}
-            className="text-white hover:text-[var(--accent)] transition-colors-fast-fast p-1"
+            className="text-white hover:text-[var(--accent)] transition-colors-fast p-1"
           >
             {playing ? (
               <Pause size={28} fill="currentColor" />
@@ -399,7 +399,7 @@ export function PlayerControls({
             onClick={skipForward}
             aria-label={t("player.controls.forward", { seconds: skipForwardSeconds })}
             title={`${t("player.controls.forward", { seconds: skipForwardSeconds })} (L)`}
-            className="text-white hover:text-[var(--accent)] transition-colors-fast-fast p-1"
+            className="text-white hover:text-[var(--accent)] transition-colors-fast p-1"
           >
             <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor">
               <path d="M12.01 5V1l5 5-5 5V7c-3.31 0-6 2.69-6 6s2.69 6 6 6 6-2.69 6-6h2c0 4.42-3.58 8-8 8s-8-3.58-8-8 3.58-8 8-8z" />
@@ -416,7 +416,7 @@ export function PlayerControls({
               <button
                 onClick={() => onEpisodeChange(next.id)}
                 aria-label={t("player.controls.nextEpisode")}
-                className="text-white hover:text-[var(--accent)] transition-colors-fast-fast p-1"
+                className="text-white hover:text-[var(--accent)] transition-colors-fast p-1"
                 title={next.title ? `E${next.indexNumber} - ${next.title}` : undefined}
               >
                 <SkipForward size={22} fill="currentColor" />
@@ -492,7 +492,7 @@ export function PlayerControls({
               onClick={togglePip}
               aria-label={isPip ? t("player.controls.exitPip") : t("player.controls.pip")}
               title={isPip ? `${t("player.controls.exitPip")} (P)` : `${t("player.controls.pip")} (P)`}
-              className="text-white hover:text-[var(--accent)] transition-colors-fast-fast p-1"
+              className="text-white hover:text-[var(--accent)] transition-colors-fast p-1"
             >
               {isPip ? (
                 <PictureInPicture2 size={20} />
@@ -507,7 +507,7 @@ export function PlayerControls({
             onClick={toggleFullscreen}
             aria-label={fullscreen ? t("player.controls.exitFullscreen") : t("player.controls.fullscreen")}
             title={fullscreen ? `${t("player.controls.exitFullscreen")} (F)` : `${t("player.controls.fullscreen")} (F)`}
-            className="text-white hover:text-[var(--accent)] transition-colors-fast-fast p-1"
+            className="text-white hover:text-[var(--accent)] transition-colors-fast p-1"
           >
             {fullscreen ? (
               <Minimize size={20} />

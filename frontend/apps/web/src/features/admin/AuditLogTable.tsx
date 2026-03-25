@@ -51,7 +51,7 @@ export function AuditLogTable({
               entries.map((entry) => (
                 <tr
                   key={entry.id}
-                  className="border-b border-[var(--border)] hover:bg-[var(--surface-raised)] transition-colors-fast-fast"
+                  className="border-b border-[var(--border)] hover:bg-[var(--surface-raised)] transition-colors-fast"
                 >
                   <td className="px-4 py-2 whitespace-nowrap text-[var(--text-muted)]">
                     {entry.createdAt ? new Date(entry.createdAt).toLocaleString() : "\u2014"}

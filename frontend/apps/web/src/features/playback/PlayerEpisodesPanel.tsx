@@ -26,7 +26,7 @@ export function EpisodesPanel({ seasons, currentSeasonId, episodes, currentEpiso
 
   return (
     <div className="relative">
-      <button onClick={toggle} aria-label={t("player.controls.episodes")} title={t("player.controls.episodes")} className="text-white hover:text-[var(--accent)] transition-colors-fast-fast p-1">
+      <button onClick={toggle} aria-label={t("player.controls.episodes")} title={t("player.controls.episodes")} className="text-white hover:text-[var(--accent)] transition-colors-fast p-1">
         <List size={20} />
       </button>
       {open && (
@@ -52,7 +52,7 @@ export function EpisodesPanel({ seasons, currentSeasonId, episodes, currentEpiso
               <button
                 key={ep.id}
                 onClick={() => { onEpisodeChange(ep.id); onToggle(); }}
-                className="flex items-center gap-2 w-full px-4 py-2 text-sm hover:bg-[var(--surface-raised)] transition-colors-fast-fast text-left"
+                className="flex items-center gap-2 w-full px-4 py-2 text-sm hover:bg-[var(--surface-raised)] transition-colors-fast text-left"
                 style={{ color: ep.id === currentEpisodeId ? "var(--accent)" : "var(--text)" }}
               >
                 <span className="w-8 flex-shrink-0 font-mono text-xs" style={{ color: "var(--text-muted)" }}>

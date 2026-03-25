@@ -126,7 +126,7 @@ export const SearchDropdown = memo(function SearchDropdown({
               <button
                 data-search-item
                 onClick={() => { onNavigateToSearch(r); onClose(); }}
-                className="flex-1 flex items-center gap-2 px-2 py-2 text-left hover:bg-[var(--surface)] focus:bg-[var(--surface)] focus:outline-none transition-colors-fast-fast-fast cursor-pointer rounded text-[var(--text)]"
+                className="flex-1 flex items-center gap-2 px-2 py-2 text-left hover:bg-[var(--surface)] focus:bg-[var(--surface)] focus:outline-none transition-colors-fast cursor-pointer rounded text-[var(--text)]"
               >
                 <Clock size={14} className="shrink-0 text-[var(--text-muted)]" />
                 <span className="text-sm truncate">{r}</span>
@@ -134,7 +134,7 @@ export const SearchDropdown = memo(function SearchDropdown({
               {onRemoveRecent && (
                 <button
                   onClick={() => onRemoveRecent(r)}
-                  className="p-1 rounded hover:bg-[var(--surface)] transition-colors-fast-fast-fast cursor-pointer text-[var(--text-muted)]"
+                  className="p-1 rounded hover:bg-[var(--surface)] transition-colors-fast cursor-pointer text-[var(--text-muted)]"
                   aria-label={`Remove ${r}`}
                 >
                   <X size={12} />
@@ -188,7 +188,7 @@ export const SearchDropdown = memo(function SearchDropdown({
                 <button
                   data-search-item
                   onClick={() => goToItem(item.id ?? "")}
-                  className="w-full flex items-center gap-3 px-3 py-2 text-left hover:bg-[var(--surface)] focus:bg-[var(--surface)] focus:outline-none transition-colors-fast-fast-fast cursor-pointer"
+                  className="w-full flex items-center gap-3 px-3 py-2 text-left hover:bg-[var(--surface)] focus:bg-[var(--surface)] focus:outline-none transition-colors-fast cursor-pointer"
                 >
                   <div
                     className="w-9 h-13 rounded overflow-hidden shrink-0 flex items-center justify-center aspect-[2/3] bg-[var(--surface)]"
@@ -245,7 +245,7 @@ export const SearchDropdown = memo(function SearchDropdown({
                 onClose();
                 onNavigateToSearch(trimmed);
               }}
-              className="w-full px-3 py-2.5 text-sm font-medium border-t border-[var(--border)] hover:bg-[var(--surface)] focus:bg-[var(--surface)] focus:outline-none transition-colors-fast-fast-fast cursor-pointer text-center text-[var(--accent)]"
+              className="w-full px-3 py-2.5 text-sm font-medium border-t border-[var(--border)] hover:bg-[var(--surface)] focus:bg-[var(--surface)] focus:outline-none transition-colors-fast cursor-pointer text-center text-[var(--accent)]"
             >
               {t("media.search.viewAllResults", { count: totalHits })}
             </button>

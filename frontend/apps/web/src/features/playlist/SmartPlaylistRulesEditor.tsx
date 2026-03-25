@@ -118,7 +118,7 @@ function RuleRow({ rule, onChange, onRemove }: RuleRowProps) {
         type="button"
         onClick={onRemove}
         aria-label="Remove rule"
-        className="flex-shrink-0 p-1 rounded hover:bg-[var(--surface-raised)] transition-colors-fast-fast text-[var(--text-muted)]"
+        className="flex-shrink-0 p-1 rounded hover:bg-[var(--surface-raised)] transition-colors-fast text-[var(--text-muted)]"
       >
         <X size={16} />
       </button>
@@ -242,7 +242,7 @@ export function SmartPlaylistRulesEditor({ playlistId, initialRules, onSaved }: 
               type="button"
               onClick={() => addRule(f)}
               aria-label={`Add ${FIELD_LABELS[f]} rule`}
-              className="flex items-center gap-1 text-xs px-2 py-1 rounded-[var(--radius-md)] transition-colors-fast-fast bg-[var(--surface-raised)] border border-[var(--border)] text-[var(--accent)]"
+              className="flex items-center gap-1 text-xs px-2 py-1 rounded-[var(--radius-md)] transition-colors-fast bg-[var(--surface-raised)] border border-[var(--border)] text-[var(--accent)]"
             >
               <Plus size={12} strokeWidth={2.5} />
               {FIELD_LABELS[f]}

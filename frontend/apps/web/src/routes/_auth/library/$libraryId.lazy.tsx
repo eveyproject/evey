@@ -114,7 +114,7 @@ function SortOrderButton({
     <button
       type="button"
       onClick={() => onChange(isAsc ? "SORT_ORDER_DESC" : "SORT_ORDER_ASC")}
-      className="p-2 rounded-[var(--radius-md)] bg-[var(--surface-raised)] border border-[var(--border)] text-[var(--text-muted)] hover:text-[var(--text)] hover:border-[var(--accent)] transition-colors-fast-fast"
+      className="p-2 rounded-[var(--radius-md)] bg-[var(--surface-raised)] border border-[var(--border)] text-[var(--text-muted)] hover:text-[var(--text)] hover:border-[var(--accent)] transition-colors-fast"
       title={isAsc ? "Ascending" : "Descending"}
     >
       {isAsc ? <ArrowUpNarrowWide size={16} /> : <ArrowDownWideNarrow size={16} />}
@@ -133,7 +133,7 @@ function ViewToggleButton({
     <button
       type="button"
       onClick={() => onChange(mode === "grid" ? "list" : "grid")}
-      className="p-2 rounded-[var(--radius-md)] bg-[var(--surface-raised)] border border-[var(--border)] text-[var(--text-muted)] hover:text-[var(--text)] hover:border-[var(--accent)] transition-colors-fast-fast"
+      className="p-2 rounded-[var(--radius-md)] bg-[var(--surface-raised)] border border-[var(--border)] text-[var(--text-muted)] hover:text-[var(--text)] hover:border-[var(--accent)] transition-colors-fast"
       title={mode === "grid" ? "Switch to list view" : "Switch to grid view"}
       data-testid="view-toggle"
     >
@@ -155,7 +155,7 @@ function ListRow({ item }: { item: Record<string, unknown> }) {
     <Link
       to="/media/$mediaId"
       params={{ mediaId: id ?? "" }}
-      className="flex items-center gap-4 px-3 py-2 rounded-[var(--radius-md)] transition-colors-fast-fast hover:bg-[var(--surface-raised)] border-b border-[var(--border)]"
+      className="flex items-center gap-4 px-3 py-2 rounded-[var(--radius-md)] transition-colors-fast hover:bg-[var(--surface-raised)] border-b border-[var(--border)]"
       data-testid="list-row"
     >
       <div
@@ -232,7 +232,7 @@ function BulkPlaylistModal({
               key={pl.id}
               onClick={() => void handleAdd(pl.id, pl.name)}
               disabled={addTo.isPending}
-              className="w-full flex items-center gap-3 px-4 py-3 rounded-[var(--radius-md)] text-left transition-colors-fast-fast hover:bg-[var(--surface-raised)] text-[var(--text)]"
+              className="w-full flex items-center gap-3 px-4 py-3 rounded-[var(--radius-md)] text-left transition-colors-fast hover:bg-[var(--surface-raised)] text-[var(--text)]"
             >
               <span className="text-sm font-medium truncate">{pl.name}</span>
             </button>
@@ -511,7 +511,7 @@ function LibraryPage() {
         <button
           type="button"
           onClick={() => { setBulkMode((v) => !v); setSelectedIds(new Set()); }}
-          className="p-2 rounded-[var(--radius-md)] border transition-colors-fast-fast text-sm"
+          className="p-2 rounded-[var(--radius-md)] border transition-colors-fast text-sm"
           style={{
             backgroundColor: bulkMode ? "var(--accent)" : "var(--surface-raised)",
             color: bulkMode ? "var(--filter-active-text)" : "var(--text-muted)",

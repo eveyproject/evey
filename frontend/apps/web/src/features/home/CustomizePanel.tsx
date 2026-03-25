@@ -164,7 +164,7 @@ export function CustomizePanel({ open, onClose }: { open: boolean; onClose: () =
 
               <button
                 onClick={() => toggle(i)}
-                className="w-9 h-5 rounded-full transition-colors-fast-fast relative flex-shrink-0"
+                className="w-9 h-5 rounded-full transition-colors-fast relative flex-shrink-0"
                 style={{ backgroundColor: row.enabled ? "var(--accent)" : "var(--surface-raised)" }}
               >
                 <span
@@ -179,7 +179,7 @@ export function CustomizePanel({ open, onClose }: { open: boolean; onClose: () =
         <div className="px-4 pb-4">
           <button
             onClick={resetAll}
-            className="flex items-center gap-2 text-sm hover:opacity-80 transition-opacity-fast-fast text-[var(--text-muted)]"
+            className="flex items-center gap-2 text-sm hover:opacity-80 transition-opacity-fast text-[var(--text-muted)]"
           >
             <RotateCcw size={14} />
             {t("common.feeds.resetDefaults")}

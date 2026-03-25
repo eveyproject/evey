@@ -111,7 +111,7 @@ function SmartFilterPage() {
                 key={item.id}
                 to="/media/$mediaId"
                 params={{ mediaId: item.id }}
-                className="flex items-center gap-3 px-4 py-3 transition-colors-fast-fast hover:bg-[var(--surface-raised)] text-[var(--text)]"
+                className="flex items-center gap-3 px-4 py-3 transition-colors-fast hover:bg-[var(--surface-raised)] text-[var(--text)]"
               >
                 <span className="text-sm font-mono w-6 flex-shrink-0 text-[var(--accent)]">
                   {i + 1}

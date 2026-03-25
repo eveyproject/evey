@@ -22,7 +22,7 @@ export function ChaptersPanel({ chapters, currentTimeSec, onSeek, open, onToggle
 
   return (
     <div className="relative">
-      <button onClick={toggle} aria-label={t("player.controls.chapters")} title={t("player.controls.chapters")} className="text-white hover:text-[var(--accent)] transition-colors-fast-fast p-1">
+      <button onClick={toggle} aria-label={t("player.controls.chapters")} title={t("player.controls.chapters")} className="text-white hover:text-[var(--accent)] transition-colors-fast p-1">
         <BookOpen size={20} />
       </button>
       {open && (
@@ -42,7 +42,7 @@ export function ChaptersPanel({ chapters, currentTimeSec, onSeek, open, onToggle
                 <button
                   key={i}
                   onClick={() => { onSeek(startSec); onToggle(); }}
-                  className="flex items-center gap-2 w-full px-4 py-2 text-sm hover:bg-[var(--surface-raised)] transition-colors-fast-fast text-left"
+                  className="flex items-center gap-2 w-full px-4 py-2 text-sm hover:bg-[var(--surface-raised)] transition-colors-fast text-left"
                   style={{ color: isActive ? "var(--accent)" : "var(--text)" }}
                 >
                   <span className="w-12 flex-shrink-0 font-mono text-xs" style={{ color: "var(--text-muted)" }}>

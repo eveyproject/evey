@@ -67,7 +67,7 @@ function BulkPlaylistModal({
               key={pl.id}
               onClick={() => void handleAdd(pl.id, pl.name)}
               disabled={addTo.isPending}
-              className="w-full flex items-center gap-3 px-4 py-3 rounded-[var(--radius-md)] text-left transition-colors-fast-fast-fast hover:bg-[var(--surface-raised)]"
+              className="w-full flex items-center gap-3 px-4 py-3 rounded-[var(--radius-md)] text-left transition-colors-fast hover:bg-[var(--surface-raised)]"
             >
               <span className="text-sm font-medium truncate text-[var(--text)]">{pl.name}</span>
             </button>
@@ -196,7 +196,7 @@ function FavoritesPage() {
             <button
               type="button"
               onClick={() => { setBulkMode((v) => !v); clear(); }}
-              className="px-2 py-1 rounded-[var(--radius-md)] border text-xs transition-colors-fast-fast-fast"
+              className="px-2 py-1 rounded-[var(--radius-md)] border text-xs transition-colors-fast"
               style={{
                 backgroundColor: bulkMode ? "var(--accent)" : "var(--surface-raised)",
                 color: bulkMode ? "var(--filter-active-text)" : "var(--text-muted)",
