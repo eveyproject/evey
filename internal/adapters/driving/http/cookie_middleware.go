@@ -10,30 +10,21 @@ import (
 )
 
 // extractRefreshToken finds refreshToken in the JSON body.
-// It checks top-level "refreshToken" first (login/refresh responses),
-// then "auth.refreshToken" (CheckQuickConnect response).
-// Returns the token string and the key to delete from body.
+// Checks top-level "refreshToken" (login/refresh) then nested "auth.refreshToken" (QuickConnect).
 func extractRefreshToken(body map[string]json.RawMessage) (string, string) {
-	// Top-level: {"refreshToken": "..."}
 	if rt, ok := body["refreshToken"]; ok {
 		var s string
 		if json.Unmarshal(rt, &s) == nil && s != "" {
 			return s, "refreshToken"
 		}
 	}
-	// Nested: {"auth": {"refreshToken": "...", "accessToken": "..."}}
 	if authRaw, ok := body["auth"]; ok {
 		var auth map[string]json.RawMessage
 		if json.Unmarshal(authRaw, &auth) == nil {
 			if rt, ok := auth["refreshToken"]; ok {
 				var s string
 				if json.Unmarshal(rt, &s) == nil && s != "" {
-					// Strip refreshToken from nested auth, keep accessToken
-					delete(auth, "refreshToken")
-					if newAuth, err := json.Marshal(auth); err == nil {
-						body["auth"] = newAuth
-					}
-					return s, "" // don't delete "auth" key, just modified it in-place
+					return s, "auth"
 				}
 			}
 		}
@@ -42,7 +33,7 @@ func extractRefreshToken(body map[string]json.RawMessage) (string, string) {
 }
 
 // authCookieMiddleware wraps a handler: after the inner handler responds with an AuthResponse,
-// it extracts refreshToken from the JSON body, sets an httpOnly cookie, and strips it from the body.
+// it sets an httpOnly refresh cookie. The token stays in the body so native clients can use it.
 func authCookieMiddleware(next http.Handler, httpsOnly bool) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		rec := &authResponseRecorder{ResponseWriter: w, code: http.StatusOK}
@@ -60,13 +51,13 @@ func authCookieMiddleware(next http.Handler, httpsOnly bool) http.Handler {
 			return
 		}
 
-		rtStr, key := extractRefreshToken(body)
+		rtStr, _ := extractRefreshToken(body)
 		if rtStr == "" {
 			rec.flush(w)
 			return
 		}
 
-		delete(body, key)
+		// Set httpOnly cookie (web clients use this for refresh)
 		http.SetCookie(w, &http.Cookie{
 			Name:     refreshCookieName,
 			Value:    rtStr,
@@ -77,17 +68,8 @@ func authCookieMiddleware(next http.Handler, httpsOnly bool) http.Handler {
 			MaxAge:   refreshCookieMaxAge,
 		})
 
-		newBody, err := json.Marshal(body)
-		if err != nil {
-			rec.flush(w)
-			return
-		}
-		maps.Copy(w.Header(), rec.header)
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(rec.code)
-		if _, err := w.Write(newBody); err != nil {
-			return
-		}
+		// Keep original body intact — native clients read tokens from body
+		rec.flush(w)
 	})
 }
 

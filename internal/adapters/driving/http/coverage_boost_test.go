@@ -1343,7 +1343,7 @@ func TestSyncPlayCreateRoom_IDOR_403(t *testing.T) {
 // cookie_middleware.go
 // =====================================
 
-func TestAuthCookieMiddleware_StripsRefreshToken(t *testing.T) {
+func TestAuthCookieMiddleware_SetsCookieAndKeepsBody(t *testing.T) {
 	inner := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
@@ -1358,8 +1358,8 @@ func TestAuthCookieMiddleware_StripsRefreshToken(t *testing.T) {
 		t.Errorf("expected 200, got %d", w.Code)
 	}
 	body := w.Body.String()
-	if strings.Contains(body, "refreshToken") {
-		t.Error("refreshToken should be stripped from body")
+	if !strings.Contains(body, "refreshToken") {
+		t.Error("refreshToken should remain in body for native clients")
 	}
 	var foundCookie bool
 	for _, c := range w.Result().Cookies() {
