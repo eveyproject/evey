@@ -249,6 +249,163 @@ func TestGetPlayHistory_FilterByMediaItem(t *testing.T) {
 	assert.Len(t, entries, 2)
 }
 
+func TestWithAnalyticsReader(t *testing.T) {
+	t.Parallel()
+	_, querySvc, _, _, _, _, _ := newTestServices()
+
+	reader := actfakes.NewFakeAnalyticsReader()
+	reader.Data = &activity.AnalyticsData{
+		TopMedia:       []activity.TopMediaItem{{MediaItemID: "m1", Title: "Movie", PlayCount: 5}},
+		RecentActivity: []activity.RecentActivityEntry{},
+	}
+
+	result := querySvc.WithAnalyticsReader(reader)
+	assert.Same(t, querySvc, result)
+
+	data, err := querySvc.GetAnalytics(context.Background())
+	require.NoError(t, err)
+	assert.Len(t, data.TopMedia, 1)
+	assert.Equal(t, "m1", data.TopMedia[0].MediaItemID)
+}
+
+func TestGetMostPopular(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		popular  []activity.MediaPlayCount
+		limit    int
+		wantLen  int
+		wantErr  bool
+	}{
+		{
+			name: "happy path",
+			popular: []activity.MediaPlayCount{
+				{MediaItemID: "m1", Title: "Movie A", PlayCount: 10},
+				{MediaItemID: "m2", Title: "Movie B", PlayCount: 5},
+			},
+			limit:   10,
+			wantLen: 2,
+		},
+		{
+			name:    "empty results",
+			popular: nil,
+			limit:   10,
+			wantLen: 0,
+		},
+		{
+			name: "with limit smaller than results",
+			popular: []activity.MediaPlayCount{
+				{MediaItemID: "m1", Title: "A", PlayCount: 10},
+				{MediaItemID: "m2", Title: "B", PlayCount: 5},
+				{MediaItemID: "m3", Title: "C", PlayCount: 1},
+			},
+			limit:   2,
+			wantLen: 2,
+		},
+		{
+			name:    "error from reader",
+			wantErr: true,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			_, querySvc, _, _, _, statsReader, _ := newTestServices()
+
+			if tc.wantErr {
+				statsReader.Err = errors.New("stats error")
+			} else {
+				statsReader.MostPopular = tc.popular
+			}
+
+			result, err := querySvc.GetMostPopular(context.Background(), tc.limit)
+			if tc.wantErr {
+				require.Error(t, err)
+				return
+			}
+			require.NoError(t, err)
+			assert.Len(t, result, tc.wantLen)
+		})
+	}
+}
+
+func TestGetAnalytics(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name      string
+		reader    *actfakes.FakeAnalyticsReader
+		wantLen   int
+		wantErr   bool
+	}{
+		{
+			name: "happy path",
+			reader: func() *actfakes.FakeAnalyticsReader {
+				r := actfakes.NewFakeAnalyticsReader()
+				r.Data = &activity.AnalyticsData{
+					TopMedia: []activity.TopMediaItem{
+						{MediaItemID: "m1", Title: "Movie", PlayCount: 10},
+					},
+					RecentActivity:     []activity.RecentActivityEntry{{UserID: "u1", Username: "alice"}},
+					TotalPlaysToday:    5,
+					TotalPlaysThisWeek: 20,
+					ActiveUsersToday:   3,
+				}
+				return r
+			}(),
+			wantLen: 1,
+		},
+		{
+			name:    "empty results",
+			reader:  actfakes.NewFakeAnalyticsReader(),
+			wantLen: 0,
+		},
+		{
+			name: "nil reader returns empty data",
+		},
+		{
+			name: "error from reader",
+			reader: func() *actfakes.FakeAnalyticsReader {
+				r := actfakes.NewFakeAnalyticsReader()
+				r.Err = errors.New("analytics error")
+				return r
+			}(),
+			wantErr: true,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			_, querySvc, _, _, _, _, _ := newTestServices()
+
+			if tc.reader != nil {
+				querySvc.WithAnalyticsReader(tc.reader)
+			}
+
+			data, err := querySvc.GetAnalytics(context.Background())
+			if tc.wantErr {
+				require.Error(t, err)
+				return
+			}
+			require.NoError(t, err)
+			require.NotNil(t, data)
+			assert.Len(t, data.TopMedia, tc.wantLen)
+
+			if tc.name == "nil reader returns empty data" {
+				assert.Empty(t, data.TopMedia)
+				assert.Empty(t, data.RecentActivity)
+			}
+			if tc.name == "happy path" {
+				assert.Equal(t, 5, data.TotalPlaysToday)
+				assert.Equal(t, 3, data.ActiveUsersToday)
+			}
+		})
+	}
+}
+
 func TestGetLoginHistory_Pagination(t *testing.T) {
 	t.Parallel()
 	cmdSvc, querySvc, _, _, _, _, _ := newTestServices()
