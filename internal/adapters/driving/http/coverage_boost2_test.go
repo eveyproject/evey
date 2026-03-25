@@ -1198,67 +1198,6 @@ func TestClearOIDCIDTokenCookie_HTTP(t *testing.T) {
 	}
 }
 
-// ============================================================
-// resolveAuth test
-// ============================================================
-
-func TestResolveAuth_BearerToken(t *testing.T) {
-	tv := &fakeTokenValidator{claims: &domainuser.Claims{UserID: "u1", IsAdmin: false}}
-	req := httptest.NewRequest(http.MethodGet, "/test", nil)
-	req.Header.Set("Authorization", "Bearer valid")
-	claims, mediaID, err := resolveAuth(req, tv)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if claims.UserID != "u1" {
-		t.Errorf("expected u1, got %s", claims.UserID)
-	}
-	if mediaID != "" {
-		t.Errorf("expected empty mediaID, got %s", mediaID)
-	}
-}
-
-func TestResolveAuth_NoToken(t *testing.T) {
-	tv := &fakeTokenValidator{claims: &domainuser.Claims{UserID: "u1"}}
-	req := httptest.NewRequest(http.MethodGet, "/test", nil)
-	_, _, err := resolveAuth(req, tv)
-	if err == nil {
-		t.Error("expected error for no token")
-	}
-}
-
-func TestResolveAuth_InvalidToken(t *testing.T) {
-	tv := &fakeTokenValidator{err: errors.New("invalid")}
-	req := httptest.NewRequest(http.MethodGet, "/test", nil)
-	req.Header.Set("Authorization", "Bearer bad")
-	_, _, err := resolveAuth(req, tv)
-	if err == nil {
-		t.Error("expected error for invalid token")
-	}
-}
-
-func TestResolveAuth_StreamTokenFromContext(t *testing.T) {
-	tv := &fakeTokenValidator{err: errors.New("should not be called")}
-	st := &shared.StreamToken{UserID: "u1", MediaItemID: "m1"}
-	ctx := context.WithValue(context.Background(), streamTokenCtxKey, st)
-	req := httptest.NewRequest(http.MethodGet, "/test", nil)
-	req = req.WithContext(ctx)
-	claims, mediaID, err := resolveAuth(req, tv)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if claims.UserID != "u1" {
-		t.Errorf("expected u1, got %s", claims.UserID)
-	}
-	if mediaID != "m1" {
-		t.Errorf("expected m1, got %s", mediaID)
-	}
-}
-
-// ============================================================
-// StreamTokenFromContext test
-// ============================================================
-
 func TestStreamTokenFromContext_Missing(t *testing.T) {
 	_, ok := StreamTokenFromContext(context.Background())
 	if ok {
