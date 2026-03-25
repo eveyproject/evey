@@ -55,7 +55,7 @@ export function NotificationBell() {
     <div ref={ref} className="relative">
       <button
         onClick={() => setOpen((v) => !v)}
-        className="relative text-[var(--text-muted)] hover:text-[var(--text)] transition-colors"
+        className="relative text-[var(--text-muted)] hover:text-[var(--text)] transition-colors-fast"
         aria-label={t("common.notifications.title")}
       >
         <Bell size={20} strokeWidth={1.5} />
@@ -108,7 +108,7 @@ export function NotificationBell() {
           <Link
             to="/profile/notifications"
             onClick={() => setOpen(false)}
-            className="block px-4 py-2.5 text-center text-xs font-medium text-[var(--accent)] hover:bg-[var(--surface-raised)] border-t border-[var(--border)] transition-colors"
+            className="block px-4 py-2.5 text-center text-xs font-medium text-[var(--accent)] hover:bg-[var(--surface-raised)] border-t border-[var(--border)] transition-colors-fast"
           >
             {t("common.viewAllNotifications")}
           </Link>

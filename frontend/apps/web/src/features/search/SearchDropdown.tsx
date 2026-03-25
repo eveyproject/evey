@@ -128,7 +128,7 @@ export const SearchDropdown = memo(function SearchDropdown({
               <button
                 data-search-item
                 onClick={() => { onNavigateToSearch(r); onClose(); }}
-                className="flex-1 flex items-center gap-2 px-2 py-2 text-left hover:bg-[var(--surface)] focus:bg-[var(--surface)] focus:outline-none transition-colors cursor-pointer rounded"
+                className="flex-1 flex items-center gap-2 px-2 py-2 text-left hover:bg-[var(--surface)] focus:bg-[var(--surface)] focus:outline-none transition-colors-fast cursor-pointer rounded"
                 style={{ color: "var(--text)" }}
               >
                 <Clock size={14} className="shrink-0" style={{ color: "var(--text-muted)" }} />
@@ -137,7 +137,7 @@ export const SearchDropdown = memo(function SearchDropdown({
               {onRemoveRecent && (
                 <button
                   onClick={() => onRemoveRecent(r)}
-                  className="p-1 rounded hover:bg-[var(--surface)] transition-colors cursor-pointer"
+                  className="p-1 rounded hover:bg-[var(--surface)] transition-colors-fast cursor-pointer"
                   style={{ color: "var(--text-muted)" }}
                   aria-label={`Remove ${r}`}
                 >
@@ -194,7 +194,7 @@ export const SearchDropdown = memo(function SearchDropdown({
                 <button
                   data-search-item
                   onClick={() => goToItem(item.id ?? "")}
-                  className="w-full flex items-center gap-3 px-3 py-2 text-left hover:bg-[var(--surface)] focus:bg-[var(--surface)] focus:outline-none transition-colors cursor-pointer"
+                  className="w-full flex items-center gap-3 px-3 py-2 text-left hover:bg-[var(--surface)] focus:bg-[var(--surface)] focus:outline-none transition-colors-fast cursor-pointer"
                 >
                   <div
                     className="w-9 h-13 rounded overflow-hidden shrink-0 flex items-center justify-center"
@@ -262,7 +262,7 @@ export const SearchDropdown = memo(function SearchDropdown({
                 onClose();
                 onNavigateToSearch(trimmed);
               }}
-              className="w-full px-3 py-2.5 text-sm font-medium border-t border-[var(--border)] hover:bg-[var(--surface)] focus:bg-[var(--surface)] focus:outline-none transition-colors cursor-pointer text-center"
+              className="w-full px-3 py-2.5 text-sm font-medium border-t border-[var(--border)] hover:bg-[var(--surface)] focus:bg-[var(--surface)] focus:outline-none transition-colors-fast cursor-pointer text-center"
               style={{ color: "var(--accent)" }}
             >
               {t("media.search.viewAllResults", { count: totalHits })}

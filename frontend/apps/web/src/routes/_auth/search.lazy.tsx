@@ -134,7 +134,7 @@ function SearchPage() {
                 setInputValue("");
                 inputRef.current?.focus();
               }}
-              className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 rounded-full flex items-center justify-center hover:bg-[var(--surface-raised)] transition-colors cursor-pointer"
+              className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 rounded-full flex items-center justify-center hover:bg-[var(--surface-raised)] transition-colors-fast cursor-pointer"
               style={{ color: "var(--text-muted)" }}
               aria-label={t("media.search.clearSearch")}
             >
@@ -311,14 +311,14 @@ function SearchPage() {
                 style={{ backgroundColor: "var(--surface)", border: "1px solid var(--border)", color: "var(--text)" }}
               >
                 <button
-                  className="hover:text-[var(--accent)] cursor-pointer transition-colors"
+                  className="hover:text-[var(--accent)] cursor-pointer transition-colors-fast"
                   onClick={() => setInputValue(r)}
                 >
                   {r}
                 </button>
                 <button
                   onClick={() => removeRecent(r)}
-                  className="ml-1 cursor-pointer transition-colors hover:opacity-80"
+                  className="ml-1 cursor-pointer transition-colors-fast hover:opacity-80"
                   style={{ color: "var(--text-muted)" }}
                   aria-label={`Remove ${r}`}
                 >

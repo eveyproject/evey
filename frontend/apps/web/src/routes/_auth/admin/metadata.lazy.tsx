@@ -180,7 +180,7 @@ function GenrePills({
             {g}
             <button
               onClick={() => remove(g)}
-              className="transition-colors hover:opacity-80"
+              className="transition-colors-fast hover:opacity-80"
               style={{ color: "var(--color-danger)" }}
               aria-label={`Remove ${g}`}
             >

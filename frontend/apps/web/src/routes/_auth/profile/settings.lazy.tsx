@@ -47,7 +47,7 @@ function SettingsPage() {
           <button
             key={tb.key}
             onClick={() => setTab(tb.key)}
-            className={`flex items-center gap-2 px-4 py-2 text-sm transition-colors border-b-2 -mb-px ${
+            className={`flex items-center gap-2 px-4 py-2 text-sm transition-colors-fast border-b-2 -mb-px ${
               tab === tb.key
                 ? "border-[var(--accent)] text-[var(--accent)]"
                 : "border-transparent text-[var(--text-muted)] hover:text-[var(--text)]"
@@ -377,12 +377,12 @@ function ParentalSection() {
           aria-checked={enabled}
           onClick={handleToggleEnabled}
           disabled={updateProfile.isPending}
-          className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-[var(--accent)] focus:ring-offset-2 disabled:opacity-50 ${
+          className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors-fast focus:outline-none focus:ring-2 focus:ring-[var(--accent)] focus:ring-offset-2 disabled:opacity-50 ${
             enabled ? "bg-[var(--accent)]" : "bg-[var(--border)]"
           }`}
         >
           <span
-            className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${
+            className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform-fast ${
               enabled ? "translate-x-6" : "translate-x-1"
             }`}
           />

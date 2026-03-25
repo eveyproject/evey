@@ -71,7 +71,7 @@ function NotificationRow({ notif }: { notif: Notification }) {
 
   return (
     <div
-      className={`flex items-start gap-3 py-3 px-3 border-b border-[var(--border)] last:border-0 transition-colors ${
+      className={`flex items-start gap-3 py-3 px-3 border-b border-[var(--border)] last:border-0 transition-colors-fast ${
         isRead ? "opacity-50" : "border-l-2 border-l-[var(--accent)]"
       }`}
     >

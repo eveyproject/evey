@@ -214,7 +214,7 @@ function PlayerPageInner({ mediaId }: { mediaId: string }) {
           <button
             aria-label={t("player.watchTogether")}
             onClick={() => void handleWatchTogether()}
-            className="absolute top-4 right-4 z-overlay-raised flex items-center gap-2 px-3 py-2 rounded-full text-white text-sm font-medium transition-opacity hover:opacity-80"
+            className="absolute top-4 right-4 z-overlay-raised flex items-center gap-2 px-3 py-2 rounded-full text-white text-sm font-medium transition-opacity-fast hover:opacity-80"
             style={{ backgroundColor: "var(--overlay-bg)", border: "1px solid var(--overlay-btn-bg)" }}
           >
             <Users size={16} />
@@ -294,14 +294,14 @@ function PlayerPageInner({ mediaId }: { mediaId: string }) {
               <div className="flex gap-3">
                 <button
                   onClick={() => void navigator.clipboard.writeText(shareUrl)}
-                  className="flex-1 py-2 rounded font-medium text-sm hover:opacity-80 transition-opacity"
+                  className="flex-1 py-2 rounded font-medium text-sm hover:opacity-80 transition-opacity-fast"
                   style={{ background: "var(--overlay-btn-bg)" }}
                 >
                   {t("player.copyLink")}
                 </button>
                 <button
                   onClick={() => setShowShareDialog(false)}
-                  className="flex-1 py-2 rounded font-medium text-sm hover:opacity-80 transition-opacity"
+                  className="flex-1 py-2 rounded font-medium text-sm hover:opacity-80 transition-opacity-fast"
                   style={{ background: "var(--overlay-border-subtle)" }}
                 >
                   {t("player.close")}

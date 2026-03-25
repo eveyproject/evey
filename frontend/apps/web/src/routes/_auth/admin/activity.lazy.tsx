@@ -330,7 +330,7 @@ function ActivityPage() {
           <button
             key={id}
             onClick={() => setTab(id)}
-            className="px-4 py-1.5 text-sm rounded-[var(--radius-sm)] font-medium transition-colors"
+            className="px-4 py-1.5 text-sm rounded-[var(--radius-sm)] font-medium transition-colors-fast"
             style={{
               backgroundColor: tab === id ? "var(--accent)" : "transparent",
               color: tab === id ? "white" : "var(--text-muted)",

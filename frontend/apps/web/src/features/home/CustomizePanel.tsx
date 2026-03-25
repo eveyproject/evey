@@ -165,11 +165,11 @@ export function CustomizePanel({ open, onClose }: { open: boolean; onClose: () =
 
               <button
                 onClick={() => toggle(i)}
-                className="w-9 h-5 rounded-full transition-colors relative flex-shrink-0"
+                className="w-9 h-5 rounded-full transition-colors-fast relative flex-shrink-0"
                 style={{ backgroundColor: row.enabled ? "var(--accent)" : "var(--surface-raised)" }}
               >
                 <span
-                  className="absolute top-0.5 w-4 h-4 rounded-full bg-white transition-transform"
+                  className="absolute top-0.5 w-4 h-4 rounded-full bg-white transition-transform-fast"
                   style={{ left: row.enabled ? "calc(100% - 1.125rem)" : "0.125rem" }}
                 />
               </button>
@@ -180,7 +180,7 @@ export function CustomizePanel({ open, onClose }: { open: boolean; onClose: () =
         <div className="px-4 pb-4">
           <button
             onClick={resetAll}
-            className="flex items-center gap-2 text-sm hover:opacity-80 transition-opacity"
+            className="flex items-center gap-2 text-sm hover:opacity-80 transition-opacity-fast"
             style={{ color: "var(--text-muted)" }}
           >
             <RotateCcw size={14} />

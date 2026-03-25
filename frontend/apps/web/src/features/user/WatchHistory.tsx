@@ -97,7 +97,7 @@ function HistoryItem({ item }: { item: WatchProgress }) {
         <Link
           to="/media/$mediaId"
           params={{ mediaId: item.mediaItemId ?? "" }}
-          className="text-sm font-medium text-[var(--text)] hover:text-[var(--accent)] transition-colors truncate block"
+          className="text-sm font-medium text-[var(--text)] hover:text-[var(--accent)] transition-colors-fast truncate block"
         >
           Media {item.mediaItemId?.slice(0, 8)}
           {item.playCount && item.playCount > 1 ? ` (${t("auth.watchHistory.plays", { count: item.playCount })})` : ""}
@@ -125,7 +125,7 @@ function HistoryItem({ item }: { item: WatchProgress }) {
             }
           }}
           disabled={unwatch.isPending}
-          className="text-xs text-[var(--text-muted)] hover:text-[var(--text)] transition-colors disabled:opacity-50"
+          className="text-xs text-[var(--text-muted)] hover:text-[var(--text)] transition-colors-fast disabled:opacity-50"
         >
           {t("common.remove")}
         </button>

@@ -62,7 +62,7 @@ export function StarRating({ mediaId }: StarRatingProps) {
               aria-label={`Rate ${star} star${star > 1 ? "s" : ""}`}
               onMouseEnter={() => setHovered(star)}
               onClick={() => setRating(star)}
-              className="transition-transform hover:scale-110 focus:outline-none focus:scale-110 cursor-pointer"
+              className="transition-transform-fast hover:scale-110 focus:outline-none focus:scale-110 cursor-pointer"
               style={{ color: "var(--accent)" }}
             >
               <StarIcon filled={star <= display} />

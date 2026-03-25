@@ -24,7 +24,7 @@ function getPageNumbers(current: number, total: number): (number | "ellipsis")[]
 }
 
 const btnBase =
-  "inline-flex items-center justify-center min-w-[2rem] h-8 px-2 rounded-[var(--radius-md)] text-sm font-medium transition-colors disabled:opacity-40 disabled:cursor-not-allowed";
+  "inline-flex items-center justify-center min-w-[2rem] h-8 px-2 rounded-[var(--radius-md)] text-sm font-medium transition-colors-fast disabled:opacity-40 disabled:cursor-not-allowed";
 
 export function Pagination({ page, totalPages, onPageChange }: PaginationProps) {
   const { t } = useTranslation();

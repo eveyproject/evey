@@ -176,7 +176,7 @@ function RecentActivity() {
               <tr
                 key={entry.id}
                 style={{ borderBottom: "1px solid var(--border)" }}
-                className="hover:bg-[var(--surface-raised)] transition-colors"
+                className="hover:bg-[var(--surface-raised)] transition-colors-fast"
               >
                 <td className="px-3 py-2 whitespace-nowrap text-xs" style={{ color: "var(--text-muted)" }}>
                   {entry.createdAt ? new Date(entry.createdAt).toLocaleString() : "--"}
@@ -219,7 +219,7 @@ function PopularMedia() {
             key={m.mediaItemId ?? i}
             to="/media/$mediaId"
             params={{ mediaId: m.mediaItemId ?? "" }}
-            className="flex items-center gap-3 px-3 py-2 rounded-[var(--radius-md)] hover:bg-[var(--surface-raised)] transition-colors"
+            className="flex items-center gap-3 px-3 py-2 rounded-[var(--radius-md)] hover:bg-[var(--surface-raised)] transition-colors-fast"
           >
             <span className="text-sm font-mono w-6 text-center" style={{ color: "var(--accent)" }}>
               {i + 1}

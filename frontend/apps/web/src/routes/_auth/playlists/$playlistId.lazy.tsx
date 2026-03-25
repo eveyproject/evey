@@ -19,7 +19,7 @@ function PlaylistItemRow({ item, playlistId, playlistType }: { item: PlaylistIte
 
   return (
     <div
-      className="flex items-center gap-3 px-4 py-3 transition-colors hover:bg-[var(--surface-raised)]"
+      className="flex items-center gap-3 px-4 py-3 transition-colors-fast hover:bg-[var(--surface-raised)]"
       style={{ color: "var(--text)" }}
     >
       <span className="text-sm w-8 flex-shrink-0 font-mono" style={{ color: "var(--accent)" }}>
@@ -50,7 +50,7 @@ function PlaylistItemRow({ item, playlistId, playlistType }: { item: PlaylistIte
             );
           }}
           disabled={remove.isPending}
-          className="p-1 rounded hover:bg-[var(--surface-raised)] transition-colors flex-shrink-0"
+          className="p-1 rounded hover:bg-[var(--surface-raised)] transition-colors-fast flex-shrink-0"
           style={{ color: "var(--text-muted)" }}
           title={t("common.remove")}
         >

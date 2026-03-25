@@ -29,7 +29,7 @@ function SeasonRow({ seasonId }: { seasonId: string }) {
         <span className="font-medium" style={{ color: "var(--text)" }}>{seasonLabel}</span>
         <span className="text-sm" style={{ color: "var(--text-muted)" }}>
           {t("media.detail.ep", { count: episodes.length })}
-          <ChevronDown className="inline-block ml-1 transition-transform" size={16} style={{ transform: open ? "rotate(180deg)" : "rotate(0)" }} />
+          <ChevronDown className="inline-block ml-1 transition-transform-fast" size={16} style={{ transform: open ? "rotate(180deg)" : "rotate(0)" }} />
         </span>
       </button>
       {open && (
@@ -39,7 +39,7 @@ function SeasonRow({ seasonId }: { seasonId: string }) {
               key={ep.id}
               to="/player/$mediaId"
               params={{ mediaId: ep.id ?? "" }}
-              className="flex items-center gap-3 px-4 py-2 hover:bg-[var(--surface-raised)] transition-colors"
+              className="flex items-center gap-3 px-4 py-2 hover:bg-[var(--surface-raised)] transition-colors-fast"
               style={{ color: "var(--text)" }}
             >
               <span className="text-sm w-10 flex-shrink-0 font-mono font-medium" style={{ color: "var(--accent)" }}>
@@ -115,7 +115,7 @@ export function SeasonEpisodesSection({ item }: { item: V1MediaItem }) {
             key={ep.id}
             to="/player/$mediaId"
             params={{ mediaId: ep.id ?? "" }}
-            className="flex items-center gap-3 px-4 py-2 hover:bg-[var(--surface-raised)] transition-colors"
+            className="flex items-center gap-3 px-4 py-2 hover:bg-[var(--surface-raised)] transition-colors-fast"
             style={{ color: "var(--text)" }}
           >
             <span className="text-sm w-10 flex-shrink-0 font-mono font-medium" style={{ color: "var(--accent)" }}>

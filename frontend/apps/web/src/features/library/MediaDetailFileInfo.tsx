@@ -23,7 +23,7 @@ export function MediaDetailFileInfo({ item }: { item: V1MediaItem }) {
         onClick={() => setFileInfoOpen((v) => !v)}
       >
         <ChevronRight
-          className="transition-transform"
+          className="transition-transform-fast"
           size={16}
           style={{ transform: fileInfoOpen ? "rotate(90deg)" : "rotate(0deg)" }}
         />

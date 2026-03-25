@@ -119,7 +119,7 @@ function LibraryCard({ library }: { library: V1Library }) {
         </div>
         <ChevronRight
           size={20}
-          className="flex-shrink-0 mt-1 opacity-0 group-hover:opacity-100 transition-opacity"
+          className="flex-shrink-0 mt-1 opacity-0 group-hover:opacity-100 transition-opacity-fast"
           style={{ color: "var(--text-muted)" }}
         />
       </div>

@@ -49,7 +49,7 @@ export function AddToPlaylistModal({ open, onClose, mediaItemId }: Props) {
                 key={pl.id}
                 onClick={() => handleAdd(pl.id, pl.name)}
                 disabled={addTo.isPending}
-                className="w-full flex items-center gap-3 px-4 py-3 rounded-[var(--radius-md)] text-left transition-colors hover:bg-[var(--surface-raised)]"
+                className="w-full flex items-center gap-3 px-4 py-3 rounded-[var(--radius-md)] text-left transition-colors-fast hover:bg-[var(--surface-raised)]"
                 style={{ color: "var(--text)" }}
               >
                 <List size={20} strokeWidth={1.5} className="flex-shrink-0" style={{ color: "var(--accent)" }} />

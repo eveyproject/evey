@@ -17,7 +17,7 @@ export function PlayerVolumeControl({ volume, muted, onToggleMute, onVolumeChang
         onClick={onToggleMute}
         aria-label={muted || volume === 0 ? t("player.controls.unmute") : t("player.controls.mute")}
         title={muted || volume === 0 ? `${t("player.controls.unmute")} (M)` : `${t("player.controls.mute")} (M)`}
-        className="text-white hover:text-[var(--accent)] transition-colors p-1"
+        className="text-white hover:text-[var(--accent)] transition-colors-fast p-1"
       >
         {muted || volume === 0 ? (
           <VolumeX size={18} />

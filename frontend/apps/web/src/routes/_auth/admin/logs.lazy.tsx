@@ -101,7 +101,7 @@ function VirtualLogList({ lines, live, noMatchText }: { lines: ParsedLine[]; liv
                 height: LOG_LINE_HEIGHT,
                 backgroundColor: levelBg(line.level),
               }}
-              className="flex gap-2 items-center px-1 rounded hover:bg-[var(--log-hover-bg)] transition-colors"
+              className="flex gap-2 items-center px-1 rounded hover:bg-[var(--log-hover-bg)] transition-colors-fast"
             >
               {line.time && (
                 <span className="flex-shrink-0 text-[11px]" style={{ color: "var(--text-muted)" }}>
@@ -205,7 +205,7 @@ function LogsPage() {
           />
           <button
             onClick={() => setLines([])}
-            className="text-sm px-3 py-1 rounded transition-colors hover:opacity-80"
+            className="text-sm px-3 py-1 rounded transition-colors-fast hover:opacity-80"
             style={{ backgroundColor: "var(--surface-raised)", color: "var(--text-muted)", border: "1px solid var(--border)" }}
           >
             {t("common.clear")}

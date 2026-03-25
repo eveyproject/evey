@@ -52,7 +52,7 @@ export function ThemeSelector() {
           <button
             key={name}
             onClick={() => setTheme(name)}
-            className={`px-3 py-1.5 rounded-[var(--radius-md)] text-sm transition-colors ${
+            className={`px-3 py-1.5 rounded-[var(--radius-md)] text-sm transition-colors-fast ${
               theme === name
                 ? "bg-[var(--accent)] text-[var(--filter-active-text)]"
                 : "bg-[var(--surface-raised)] text-[var(--text-muted)] hover:text-[var(--text)]"
@@ -67,7 +67,7 @@ export function ThemeSelector() {
             <button
               key={pt.id}
               onClick={() => setTheme(themeKey)}
-              className={`px-3 py-1.5 rounded-[var(--radius-md)] text-sm transition-colors ${
+              className={`px-3 py-1.5 rounded-[var(--radius-md)] text-sm transition-colors-fast ${
                 theme === themeKey
                   ? "bg-[var(--accent)] text-[var(--filter-active-text)]"
                   : "bg-[var(--surface-raised)] text-[var(--text-muted)] hover:text-[var(--text)]"

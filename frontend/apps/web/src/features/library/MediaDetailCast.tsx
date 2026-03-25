@@ -11,7 +11,7 @@ function CastCard({ person }: { person: V1MediaPerson }) {
   return (
     <Link to="/person/$personId" params={{ personId: person.id ?? "" }} className="flex-shrink-0 w-28 text-center group">
       <div
-        className="w-20 h-20 rounded-full mx-auto overflow-hidden flex items-center justify-center mb-2 transition-transform group-hover:scale-105"
+        className="w-20 h-20 rounded-full mx-auto overflow-hidden flex items-center justify-center mb-2 transition-transform-fast group-hover:scale-105"
         style={{ backgroundColor: "var(--surface-raised)" }}
       >
         {person.thumbUrl ? (
@@ -64,10 +64,10 @@ export function CastCarousel({ people, title }: { people: V1MediaPerson[]; title
         <h2 className="text-lg font-semibold" style={{ color: "var(--text)" }}>{title}</h2>
         {people.length > 6 && (
           <div className="flex gap-1">
-            <button onClick={() => scroll("left")} className="p-1.5 rounded-full hover:bg-[var(--surface-raised)] transition-colors" style={{ color: "var(--text-muted)" }}>
+            <button onClick={() => scroll("left")} className="p-1.5 rounded-full hover:bg-[var(--surface-raised)] transition-colors-fast" style={{ color: "var(--text-muted)" }}>
               <ChevronLeft size={16} />
             </button>
-            <button onClick={() => scroll("right")} className="p-1.5 rounded-full hover:bg-[var(--surface-raised)] transition-colors" style={{ color: "var(--text-muted)" }}>
+            <button onClick={() => scroll("right")} className="p-1.5 rounded-full hover:bg-[var(--surface-raised)] transition-colors-fast" style={{ color: "var(--text-muted)" }}>
               <ChevronRight size={16} />
             </button>
           </div>

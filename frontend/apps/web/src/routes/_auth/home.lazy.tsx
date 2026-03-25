@@ -182,7 +182,7 @@ function HeroBanner() {
                 <Link
                   to="/player/$mediaId"
                   params={{ mediaId: id }}
-                  className="flex items-center gap-2 px-5 py-2.5 rounded-[var(--radius-md)] font-semibold text-sm transition-opacity hover:opacity-90"
+                  className="flex items-center gap-2 px-5 py-2.5 rounded-[var(--radius-md)] font-semibold text-sm transition-opacity-fast hover:opacity-90"
                   style={{ backgroundColor: "var(--accent)", color: "var(--filter-active-text)" }}
                 >
                   <Play size={16} fill="currentColor" />
@@ -191,7 +191,7 @@ function HeroBanner() {
                 <Link
                   to="/media/$mediaId"
                   params={{ mediaId: id }}
-                  className="flex items-center gap-2 px-5 py-2.5 rounded-[var(--radius-md)] font-semibold text-sm transition-opacity hover:opacity-90"
+                  className="flex items-center gap-2 px-5 py-2.5 rounded-[var(--radius-md)] font-semibold text-sm transition-opacity-fast hover:opacity-90"
                   style={{ backgroundColor: "var(--glass-bg)", color: "var(--overlay-text)", backdropFilter: `blur(var(--glass-blur))`, border: "1px solid var(--glass-border)" }}
                 >
                   {t("media.home.moreInfo")}
@@ -397,7 +397,7 @@ function HomePage() {
         <div className="flex justify-end mb-2">
           <button
             onClick={() => setCustomizeOpen(true)}
-            className="flex items-center gap-1.5 text-xs px-2 py-1 rounded-[var(--radius-sm)] transition-colors hover:opacity-80"
+            className="flex items-center gap-1.5 text-xs px-2 py-1 rounded-[var(--radius-sm)] transition-colors-fast hover:opacity-80"
             style={{ color: "var(--text-muted)" }}
             aria-label={t("common.feeds.customize")}
           >

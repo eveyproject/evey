@@ -119,13 +119,13 @@ function RemoteAccessPage() {
                     setEnabled(!enabled);
                     setDirty(true);
                   }}
-                  className="relative inline-flex h-6 w-11 items-center rounded-full transition-colors"
+                  className="relative inline-flex h-6 w-11 items-center rounded-full transition-colors-fast"
                   style={{
                     backgroundColor: enabled ? "var(--accent)" : "var(--border)",
                   }}
                 >
                   <span
-                    className="inline-block h-4 w-4 rounded-full bg-white transition-transform"
+                    className="inline-block h-4 w-4 rounded-full bg-white transition-transform-fast"
                     style={{
                       transform: enabled ? "translateX(1.375rem)" : "translateX(0.25rem)",
                     }}

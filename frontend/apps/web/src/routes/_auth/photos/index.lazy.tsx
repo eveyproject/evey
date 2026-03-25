@@ -104,7 +104,7 @@ function Lightbox({ photos, index, onClose, onPrev, onNext, onDelete }: Lightbox
         {onDelete && (
           <button
             onClick={(e) => { e.stopPropagation(); onDelete(photo); }}
-            className="transition-colors"
+            className="transition-colors-fast"
             style={{ color: "var(--overlay-text-muted)" }}
             aria-label="Delete photo"
           >
@@ -113,7 +113,7 @@ function Lightbox({ photos, index, onClose, onPrev, onNext, onDelete }: Lightbox
         )}
         <button
           onClick={(e) => { e.stopPropagation(); onClose(); }}
-          className="transition-colors"
+          className="transition-colors-fast"
           style={{ color: "var(--overlay-text)" }}
           aria-label="Close"
         >
@@ -124,7 +124,7 @@ function Lightbox({ photos, index, onClose, onPrev, onNext, onDelete }: Lightbox
       {index > 0 && (
         <button
           onClick={(e) => { e.stopPropagation(); onPrev(); }}
-          className="absolute left-4 top-1/2 -translate-y-1/2 transition-colors z-raised p-2 rounded-full bg-black/40 hover:bg-black/60"
+          className="absolute left-4 top-1/2 -translate-y-1/2 transition-colors-fast z-raised p-2 rounded-full bg-black/40 hover:bg-black/60"
           style={{ color: "var(--overlay-text)" }}
           aria-label="Previous"
         >
@@ -135,7 +135,7 @@ function Lightbox({ photos, index, onClose, onPrev, onNext, onDelete }: Lightbox
       {index < photos.length - 1 && (
         <button
           onClick={(e) => { e.stopPropagation(); onNext(); }}
-          className="absolute right-4 top-1/2 -translate-y-1/2 transition-colors z-raised p-2 rounded-full bg-black/40 hover:bg-black/60"
+          className="absolute right-4 top-1/2 -translate-y-1/2 transition-colors-fast z-raised p-2 rounded-full bg-black/40 hover:bg-black/60"
           style={{ color: "var(--overlay-text)" }}
           aria-label="Next"
         >
@@ -399,13 +399,13 @@ function PhotosPage() {
           <div className="flex rounded-[var(--radius-sm)] border border-[var(--border)] overflow-hidden">
             <button
               onClick={() => { setView("albums"); setSelectedAlbum(undefined); }}
-              className={`px-3 py-1.5 text-sm transition-colors ${view === "albums" ? "bg-[var(--accent)] text-[var(--filter-active-text)]" : "bg-[var(--surface-raised)] text-[var(--text-secondary)] hover:bg-[var(--surface)]"}`}
+              className={`px-3 py-1.5 text-sm transition-colors-fast ${view === "albums" ? "bg-[var(--accent)] text-[var(--filter-active-text)]" : "bg-[var(--surface-raised)] text-[var(--text-secondary)] hover:bg-[var(--surface)]"}`}
             >
               {t("media.photos.albums")}
             </button>
             <button
               onClick={() => setView("photos")}
-              className={`px-3 py-1.5 text-sm transition-colors ${view === "photos" ? "bg-[var(--accent)] text-[var(--filter-active-text)]" : "bg-[var(--surface-raised)] text-[var(--text-secondary)] hover:bg-[var(--surface)]"}`}
+              className={`px-3 py-1.5 text-sm transition-colors-fast ${view === "photos" ? "bg-[var(--accent)] text-[var(--filter-active-text)]" : "bg-[var(--surface-raised)] text-[var(--text-secondary)] hover:bg-[var(--surface)]"}`}
             >
               {t("media.photos.allPhotos")}
             </button>
@@ -437,7 +437,7 @@ function PhotosPage() {
             <div className="flex items-center gap-2">
               <button
                 onClick={() => { setSelectedAlbum(undefined); setView("albums"); }}
-                className="text-sm text-[var(--text-muted)] hover:text-[var(--text)] flex items-center gap-1 transition-colors"
+                className="text-sm text-[var(--text-muted)] hover:text-[var(--text)] flex items-center gap-1 transition-colors-fast"
               >
                 <ChevronLeft size={16} />
                 {t("media.photos.albums")}

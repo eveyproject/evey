@@ -54,7 +54,7 @@ export function AuditLogTable({
                 <tr
                   key={entry.id}
                   style={{ borderBottom: "1px solid var(--border)" }}
-                  className="hover:bg-[var(--surface-raised)] transition-colors"
+                  className="hover:bg-[var(--surface-raised)] transition-colors-fast"
                 >
                   <td className="px-4 py-2 whitespace-nowrap" style={{ color: "var(--text-muted)" }}>
                     {entry.createdAt ? new Date(entry.createdAt).toLocaleString() : "\u2014"}

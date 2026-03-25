@@ -66,7 +66,7 @@ function UserMenu({ userInitial }: { userInitial: string }) {
     <div ref={menuRef} className="relative">
       <button
         onClick={() => setOpen((v) => !v)}
-        className="w-8 h-8 rounded-full bg-[var(--accent)] flex items-center justify-center text-[var(--filter-active-text)] text-sm font-medium cursor-pointer hover:opacity-90 transition-opacity"
+        className="w-8 h-8 rounded-full bg-[var(--accent)] flex items-center justify-center text-[var(--filter-active-text)] text-sm font-medium cursor-pointer hover:opacity-90 transition-opacity-fast"
         aria-label={t("common.nav.userMenu")}
         aria-expanded={open}
         aria-haspopup="true"
@@ -79,7 +79,7 @@ function UserMenu({ userInitial }: { userInitial: string }) {
             <button
               key={item.label}
               onClick={item.action}
-              className="w-full flex items-center gap-3 px-3 py-2 text-sm text-[var(--text)] hover:bg-[var(--surface)] transition-colors cursor-pointer"
+              className="w-full flex items-center gap-3 px-3 py-2 text-sm text-[var(--text)] hover:bg-[var(--surface)] transition-colors-fast cursor-pointer"
             >
               <span className="text-[var(--text-muted)] shrink-0">{item.icon}</span>
               {item.label}
@@ -89,7 +89,7 @@ function UserMenu({ userInitial }: { userInitial: string }) {
           <button
             onClick={handleLogout}
             data-testid="logout-btn"
-            className="w-full flex items-center gap-3 px-3 py-2 text-sm text-[var(--color-danger)] hover:bg-[var(--surface)] transition-colors cursor-pointer"
+            className="w-full flex items-center gap-3 px-3 py-2 text-sm text-[var(--color-danger)] hover:bg-[var(--surface)] transition-colors-fast cursor-pointer"
           >
             <LogOut size={16} className="shrink-0" />
             {t("common.nav.signOut")}

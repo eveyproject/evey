@@ -82,6 +82,20 @@ button:disabled, [aria-disabled="true"] { cursor: not-allowed; }
   color: var(--text);
 }
 
+/* Theme-aware transition utilities using --transition-fast token */
+@utility transition-colors-fast {
+  transition: color var(--transition-fast), background-color var(--transition-fast), border-color var(--transition-fast), text-decoration-color var(--transition-fast), fill var(--transition-fast), stroke var(--transition-fast);
+}
+@utility transition-opacity-fast {
+  transition: opacity var(--transition-fast);
+}
+@utility transition-transform-fast {
+  transition: transform var(--transition-fast);
+}
+@utility transition-all-fast {
+  transition: all var(--transition-fast);
+}
+
 /* Scrollbar */
 * {
   scrollbar-color: var(--scrollbar-thumb) var(--scrollbar-track);

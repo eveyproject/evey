@@ -63,7 +63,7 @@ function ToastItem({ toast }: { toast: Toast }) {
       <span className="flex-1 text-sm text-[var(--text)]">{toast.message}</span>
       <button
         onClick={() => removeToast(toast.id)}
-        className="flex-shrink-0 text-[var(--text-muted)] hover:text-[var(--text)] transition-colors text-lg leading-none"
+        className="flex-shrink-0 text-[var(--text-muted)] hover:text-[var(--text)] transition-colors-fast text-lg leading-none"
         aria-label={t("common.aria.dismiss")}
       >
         &times;

@@ -295,7 +295,7 @@ function InstallPluginForm({ onSuccess }: { onSuccess: () => void }) {
             <button
               type="button"
               onClick={() => fileRef.current?.click()}
-              className="flex items-center gap-2 w-full px-4 py-3 rounded-[var(--radius-md)] text-sm font-medium transition-colors cursor-pointer"
+              className="flex items-center gap-2 w-full px-4 py-3 rounded-[var(--radius-md)] text-sm font-medium transition-colors-fast cursor-pointer"
               style={{
                 backgroundColor: "var(--surface-raised, var(--surface))",
                 color: selectedFileName ? "var(--text)" : "var(--text-muted)",

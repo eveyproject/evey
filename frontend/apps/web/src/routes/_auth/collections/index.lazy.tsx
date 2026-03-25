@@ -71,7 +71,7 @@ function CollectionPosterCard({ col }: { col: Collection }) {
             deleteMut.mutate(col.id);
           }
         }}
-        className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity p-1.5 rounded-full bg-black/60 text-[var(--overlay-text)]"
+        className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity-fast p-1.5 rounded-full bg-black/60 text-[var(--overlay-text)]"
         aria-label="Delete collection"
       >
         <Trash2 size={16} />
@@ -123,7 +123,7 @@ function SmartFilterCard({ col, onEdit, onDelete }: { col: Collection; onEdit: (
           <button
             onClick={onEdit}
             aria-label="Edit filter"
-            className="p-1.5 rounded hover:bg-[var(--surface-raised)] transition-colors"
+            className="p-1.5 rounded hover:bg-[var(--surface-raised)] transition-colors-fast"
             style={{ color: "var(--text-muted)" }}
           >
             <Pencil size={16} strokeWidth={1.5} />
@@ -131,7 +131,7 @@ function SmartFilterCard({ col, onEdit, onDelete }: { col: Collection; onEdit: (
           <button
             onClick={onDelete}
             aria-label="Delete filter"
-            className="p-1.5 rounded hover:bg-[var(--surface-raised)] transition-colors"
+            className="p-1.5 rounded hover:bg-[var(--surface-raised)] transition-colors-fast"
             style={{ color: "var(--text-muted)" }}
           >
             <Trash2 size={16} strokeWidth={1.5} />
@@ -141,7 +141,7 @@ function SmartFilterCard({ col, onEdit, onDelete }: { col: Collection; onEdit: (
       <Link
         to="/collections/smart/$filterId"
         params={{ filterId: col.id }}
-        className="text-xs font-medium transition-colors"
+        className="text-xs font-medium transition-colors-fast"
         style={{ color: "var(--accent)" }}
       >
         {t("media.collections.browseResults")}

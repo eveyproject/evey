@@ -229,7 +229,7 @@ const CardContextMenu = memo(function CardContextMenu({
         <button
           key={it.label}
           onClick={it.onClick}
-          className="w-full text-left px-3 py-2 text-sm hover:bg-[var(--surface-raised)] transition-colors"
+          className="w-full text-left px-3 py-2 text-sm hover:bg-[var(--surface-raised)] transition-colors-fast"
           style={{ color: "var(--text)" }}
         >
           {it.label}
@@ -486,7 +486,7 @@ export const MediaCard = memo(function MediaCard({
           <button
             aria-label={selected ? "Deselect" : "Select"}
             onClick={(e) => { e.preventDefault(); e.stopPropagation(); onSelect?.(item.id!, !selected); }}
-            className={`absolute top-2 left-2 z-badge flex items-center justify-center w-5 h-5 rounded transition-colors${selectionMode && !selected ? " opacity-0 group-hover:opacity-100 group-focus-within:opacity-100" : ""}`}
+            className={`absolute top-2 left-2 z-badge flex items-center justify-center w-5 h-5 rounded transition-colors-fast${selectionMode && !selected ? " opacity-0 group-hover:opacity-100 group-focus-within:opacity-100" : ""}`}
             style={{
               backgroundColor: selected ? "var(--accent)" : "var(--overlay-gradient)",
               border: `2px solid ${selected ? "var(--accent)" : "var(--overlay-text-muted)"}`,
