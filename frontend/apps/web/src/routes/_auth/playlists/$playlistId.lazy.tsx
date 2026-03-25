@@ -19,10 +19,9 @@ function PlaylistItemRow({ item, playlistId, playlistType }: { item: PlaylistIte
 
   return (
     <div
-      className="flex items-center gap-3 px-4 py-3 transition-colors-fast hover:bg-[var(--surface-raised)]"
-      style={{ color: "var(--text)" }}
+      className="flex items-center gap-3 px-4 py-3 transition-colors-fast-fast hover:bg-[var(--surface-raised)] text-[var(--text)]"
     >
-      <span className="text-sm w-8 flex-shrink-0 font-mono" style={{ color: "var(--accent)" }}>
+      <span className="text-sm w-8 flex-shrink-0 font-mono text-[var(--accent)]">
         {item.sort_order != null ? item.sort_order + 1 : "-"}
       </span>
       <Link
@@ -36,7 +35,7 @@ function PlaylistItemRow({ item, playlistId, playlistType }: { item: PlaylistIte
         <Badge variant="default">{item.type.replace("MEDIA_ITEM_TYPE_", "").toLowerCase()}</Badge>
       )}
       {item.year && (
-        <span className="text-xs flex-shrink-0" style={{ color: "var(--text-muted)" }}>{item.year}</span>
+        <span className="text-xs flex-shrink-0 text-[var(--text-muted)]">{item.year}</span>
       )}
       {playlistType === "manual" && (
         <button
@@ -50,8 +49,7 @@ function PlaylistItemRow({ item, playlistId, playlistType }: { item: PlaylistIte
             );
           }}
           disabled={remove.isPending}
-          className="p-1 rounded hover:bg-[var(--surface-raised)] transition-colors-fast flex-shrink-0"
-          style={{ color: "var(--text-muted)" }}
+          className="p-1 rounded hover:bg-[var(--surface-raised)] transition-colors-fast-fast flex-shrink-0 text-[var(--text-muted)]"
           title={t("common.remove")}
         >
           <X size={16} />
@@ -74,7 +72,7 @@ function PlaylistDetail() {
 
   if (isError || !playlist) {
     return (
-      <div className="text-center py-16" style={{ color: "var(--text-muted)" }}>
+      <div className="text-center py-16 text-[var(--text-muted)]">
         {t("media.playlist.notFound")}
       </div>
     );
@@ -86,11 +84,11 @@ function PlaylistDetail() {
     <div>
       <BackButton fallback="/playlists" className="mb-4" />
       <div className="flex items-center gap-3 mb-2">
-        <h1 className="text-2xl font-bold" style={{ color: "var(--text)" }}>{playlist.name}</h1>
+        <h1 className="text-2xl font-bold text-[var(--text)]">{playlist.name}</h1>
         <Badge variant={playlist.type === "smart" ? "warning" : "info"}>{playlist.type}</Badge>
       </div>
       {playlist.description && (
-        <p className="text-sm mb-4" style={{ color: "var(--text-muted)" }}>{playlist.description}</p>
+        <p className="text-sm mb-4 text-[var(--text-muted)]">{playlist.description}</p>
       )}
 
       {playlist.type === "smart" && (
@@ -101,7 +99,7 @@ function PlaylistDetail() {
       )}
 
       {items.length === 0 ? (
-        <div className="rounded-[var(--radius-lg)]" style={{ backgroundColor: "var(--surface)", border: "1px solid var(--border)" }}>
+        <div className="rounded-[var(--radius-lg)] bg-[var(--surface)] border border-[var(--border)]">
           <EmptyState
             icon={<Folder size={48} strokeWidth={1.5} />}
             title={t("media.playlist.noItems")}
@@ -109,8 +107,8 @@ function PlaylistDetail() {
           />
         </div>
       ) : (
-        <div style={{ border: "1px solid var(--border)", borderRadius: "var(--radius-md)" }}>
-          <div className="divide-y" style={{ borderColor: "var(--border)" }}>
+        <div className="border border-[var(--border)] rounded-[var(--radius-md)]">
+          <div className="divide-y divide-[var(--border)]">
             {items.map((item) => (
               <PlaylistItemRow
                 key={item.media_item_id}
@@ -120,7 +118,7 @@ function PlaylistDetail() {
               />
             ))}
           </div>
-          <div className="px-4 py-2 text-xs" style={{ color: "var(--text-muted)", borderTop: "1px solid var(--border)" }}>
+          <div className="px-4 py-2 text-xs text-[var(--text-muted)] border-t border-[var(--border)]">
             {items.length === 1 ? t("common.item", { count: items.length }) : t("common.items", { count: items.length })}
           </div>
         </div>

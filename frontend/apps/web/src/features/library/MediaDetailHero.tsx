@@ -107,7 +107,7 @@ export function MediaDetailHero({
             <button
               onClick={onEditToggle}
               title={t("media.detail.editMetadata")}
-              className="flex-shrink-0 p-1.5 rounded-full transition-opacity-fast-fast hover:opacity-80 bg-[var(--overlay-chip-bg)] text-[var(--overlay-text-muted)]"
+              className="flex-shrink-0 p-1.5 rounded-full transition-opacity-fast-fast-fast hover:opacity-80 bg-[var(--overlay-chip-bg)] text-[var(--overlay-text-muted)]"
             >
               <Pencil size={16} />
             </button>

@@ -32,7 +32,7 @@ export function CollectionCard({ collection }: CollectionCardProps) {
             src={collection.posterUrl}
             alt={collection.name}
             loading="lazy"
-            className="w-full h-full object-cover transition-opacity duration-300"
+            className="w-full h-full object-cover transition-opacity-fast duration-300"
             style={{ opacity: imgLoaded ? 1 : 0 }}
             onLoad={() => setImgLoaded(true)}
             onError={() => setImgError(true)}
@@ -54,7 +54,7 @@ export function CollectionCard({ collection }: CollectionCardProps) {
         />
 
         <div
-          className="absolute inset-0 flex flex-col items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-200"
+          className="absolute inset-0 flex flex-col items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity-fast duration-200"
           style={{ background: "var(--overlay-chip-bg)" }}
         >
           <LayoutGrid size={40} stroke="var(--overlay-text-bright)" strokeWidth={1.5} aria-hidden="true" />

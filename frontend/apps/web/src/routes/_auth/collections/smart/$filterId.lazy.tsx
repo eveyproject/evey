@@ -60,12 +60,11 @@ function SmartFilterPage() {
       <div className="mt-4 mb-6 flex items-start justify-between gap-4">
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 mb-1 flex-wrap">
-            <h1 className="text-2xl font-bold" style={{ color: "var(--text)" }}>
+            <h1 className="text-2xl font-bold text-[var(--text)]">
               {col?.name ?? "\u2026"}
             </h1>
             <span
-              className="text-xs font-semibold px-2 py-0.5 rounded-full"
-              style={{ backgroundColor: "var(--accent)", color: "var(--filter-active-text)" }}
+              className="text-xs font-semibold px-2 py-0.5 rounded-full bg-[var(--accent)] text-[var(--filter-active-text)]"
             >
               {t("media.collections.smart")}
             </span>
@@ -80,7 +79,7 @@ function SmartFilterPage() {
             </div>
           )}
           {!isLoading && (
-            <p className="text-sm mt-2" style={{ color: "var(--text-muted)" }}>
+            <p className="text-sm mt-2 text-[var(--text-muted)]">
               {total === 1 ? t("common.item", { count: total }) : t("common.items", { count: total })}
             </p>
           )}
@@ -96,8 +95,7 @@ function SmartFilterPage() {
         <div className="flex justify-center py-16"><Spinner /></div>
       ) : items.length === 0 ? (
         <div
-          className="rounded-[var(--radius-lg)]"
-          style={{ backgroundColor: "var(--surface)", border: "1px solid var(--border)" }}
+          className="rounded-[var(--radius-lg)] bg-[var(--surface)] border border-[var(--border)]"
         >
           <EmptyState
             icon={<Folder size={48} strokeWidth={1.5} />}
@@ -106,34 +104,33 @@ function SmartFilterPage() {
           />
         </div>
       ) : (
-        <div style={{ border: "1px solid var(--border)", borderRadius: "var(--radius-md)" }}>
-          <div className="divide-y" style={{ borderColor: "var(--border)" }}>
+        <div className="border border-[var(--border)] rounded-[var(--radius-md)]">
+          <div className="divide-y divide-[var(--border)]">
             {items.map((item, i) => (
               <Link
                 key={item.id}
                 to="/media/$mediaId"
                 params={{ mediaId: item.id }}
-                className="flex items-center gap-3 px-4 py-3 transition-colors-fast hover:bg-[var(--surface-raised)]"
-                style={{ color: "var(--text)" }}
+                className="flex items-center gap-3 px-4 py-3 transition-colors-fast-fast hover:bg-[var(--surface-raised)] text-[var(--text)]"
               >
-                <span className="text-sm font-mono w-6 flex-shrink-0" style={{ color: "var(--accent)" }}>
+                <span className="text-sm font-mono w-6 flex-shrink-0 text-[var(--accent)]">
                   {i + 1}
                 </span>
                 <span className="text-sm flex-1 truncate">
                   {item.title ?? item.id}
                 </span>
                 {item.type && (
-                  <span className="text-xs flex-shrink-0" style={{ color: "var(--text-muted)" }}>
+                  <span className="text-xs flex-shrink-0 text-[var(--text-muted)]">
                     {item.type.replace("MEDIA_ITEM_TYPE_", "").toLowerCase()}
                   </span>
                 )}
                 {item.year && (
-                  <span className="text-xs flex-shrink-0" style={{ color: "var(--text-muted)" }}>{item.year}</span>
+                  <span className="text-xs flex-shrink-0 text-[var(--text-muted)]">{item.year}</span>
                 )}
               </Link>
             ))}
           </div>
-          <div className="px-4 py-2 text-xs" style={{ color: "var(--text-muted)", borderTop: "1px solid var(--border)" }}>
+          <div className="px-4 py-2 text-xs text-[var(--text-muted)] border-t border-[var(--border)]">
             {items.length === 1 ? t("common.item", { count: items.length }) : t("common.items", { count: items.length })}
           </div>
         </div>

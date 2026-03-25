@@ -109,7 +109,7 @@ function AdminFeedsPage() {
           <button
             onClick={save}
             disabled={saving}
-            className="px-4 py-2 rounded-[var(--radius-md)] text-sm font-medium transition-opacity-fast hover:opacity-90 disabled:opacity-50"
+            className="px-4 py-2 rounded-[var(--radius-md)] text-sm font-medium transition-opacity-fast-fast hover:opacity-90 disabled:opacity-50"
             style={{ backgroundColor: "var(--accent)", color: "var(--filter-active-text)" }}
           >
             {saving ? t("common.loading") : t("common.save")}
@@ -154,7 +154,7 @@ function AdminFeedsPage() {
             <div className="flex justify-center">
               <button
                 onClick={() => toggle(i)}
-                className="w-10 h-5 rounded-full transition-colors-fast relative"
+                className="w-10 h-5 rounded-full transition-colors-fast-fast relative"
                 style={{ backgroundColor: row.enabled ? "var(--accent)" : "var(--surface-raised)" }}
                 aria-label={row.enabled ? t("common.disable") : t("common.enable")}
               >

@@ -57,7 +57,7 @@ const HoverPreview = memo(function HoverPreview({ item }: { item: MediaCardItem 
 
   return (
     <div
-      className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 w-56 rounded-lg p-3 shadow-xl z-overlay pointer-events-none transition-opacity-fast duration-200 hidden sm:block bg-[var(--surface)] border border-[var(--border)]"
+      className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 w-56 rounded-lg p-3 shadow-xl z-overlay pointer-events-none transition-opacity-fast-fast duration-200 hidden sm:block bg-[var(--surface)] border border-[var(--border)]"
     >
       <p className="text-sm font-semibold mb-1 truncate text-[var(--text)]">
         {item.title}
@@ -218,7 +218,7 @@ const CardContextMenu = memo(function CardContextMenu({
         <button
           key={it.label}
           onClick={it.onClick}
-          className="w-full text-left px-3 py-2 text-sm hover:bg-[var(--surface-raised)] transition-colors-fast-fast text-[var(--text)]"
+          className="w-full text-left px-3 py-2 text-sm hover:bg-[var(--surface-raised)] transition-colors-fast-fast-fast text-[var(--text)]"
         >
           {it.label}
         </button>
@@ -368,7 +368,7 @@ export const MediaCard = memo(function MediaCard({
             src={poster}
             alt={item.title ?? ""}
             loading="lazy"
-            className="w-full h-full object-cover transition-opacity-fast duration-300"
+            className="w-full h-full object-cover transition-opacity-fast-fast duration-300"
             style={{ opacity: imgLoaded ? 1 : 0 }}
             onLoad={() => setImgLoaded(true)}
             onError={(e) => {
@@ -472,7 +472,7 @@ export const MediaCard = memo(function MediaCard({
           <button
             aria-label={selected ? "Deselect" : "Select"}
             onClick={(e) => { e.preventDefault(); e.stopPropagation(); onSelect?.(item.id!, !selected); }}
-            className={`absolute top-2 left-2 z-badge flex items-center justify-center w-5 h-5 rounded transition-colors-fast-fast${selectionMode && !selected ? " opacity-0 group-hover:opacity-100 group-focus-within:opacity-100" : ""}`}
+            className={`absolute top-2 left-2 z-badge flex items-center justify-center w-5 h-5 rounded transition-colors-fast-fast-fast${selectionMode && !selected ? " opacity-0 group-hover:opacity-100 group-focus-within:opacity-100" : ""}`}
             style={{
               backgroundColor: selected ? "var(--accent)" : "var(--overlay-gradient)",
               border: `2px solid ${selected ? "var(--accent)" : "var(--overlay-text-muted)"}`,
@@ -483,7 +483,7 @@ export const MediaCard = memo(function MediaCard({
             )}
           </button>
         ) : (item.id && !lite) ? (
-          <div className="absolute top-2 left-2 z-badge opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity-fast duration-200">
+          <div className="absolute top-2 left-2 z-badge opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity-fast-fast duration-200">
             <FavoriteButton mediaId={item.id} size="sm" />
           </div>
         ) : null}
@@ -519,7 +519,7 @@ export const MediaCard = memo(function MediaCard({
         )}
 
         <div
-          className="absolute inset-0 flex flex-col items-center justify-center opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity-fast duration-200"
+          className="absolute inset-0 flex flex-col items-center justify-center opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity-fast-fast duration-200"
           style={{ background: "linear-gradient(to top, var(--overlay-bg-strong) 0%, var(--overlay-border-subtle) 60%, transparent 100%)" }}
         >
           <div

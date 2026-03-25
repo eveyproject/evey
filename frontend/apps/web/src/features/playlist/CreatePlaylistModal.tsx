@@ -121,7 +121,7 @@ export function CreatePlaylistModal({ open, onClose }: Props) {
                 <button
                   type="button"
                   onClick={() => removeRule(i)}
-                  className="p-2 rounded hover:bg-[var(--surface-raised)] transition-colors-fast"
+                  className="p-2 rounded hover:bg-[var(--surface-raised)] transition-colors-fast-fast"
                   style={{ color: "var(--text-muted)" }}
                 >
                   <X size={16} />

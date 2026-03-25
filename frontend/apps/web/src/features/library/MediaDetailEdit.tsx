@@ -39,11 +39,11 @@ const FIELD_MAP: Array<{ formKey: keyof EditForm; overrideKey: string; labelKey:
 function FieldBadge({ isOverridden }: { isOverridden: boolean }) {
   const { t } = useTranslation();
   return isOverridden ? (
-    <span className="text-xs px-1.5 py-0.5 rounded" style={{ backgroundColor: "var(--badge-warning-bg, #f59e0b33)", color: "var(--badge-warning-text, #f59e0b)" }}>
+    <span className="text-xs px-1.5 py-0.5 rounded bg-[var(--badge-warning-bg,#f59e0b33)] text-[var(--badge-warning-text,#f59e0b)]">
       {t("media.detail.overridden")}
     </span>
   ) : (
-    <span className="text-xs px-1.5 py-0.5 rounded" style={{ backgroundColor: "var(--surface-raised)", color: "var(--text-muted)" }}>
+    <span className="text-xs px-1.5 py-0.5 rounded bg-[var(--surface-raised)] text-[var(--text-muted)]">
       {t("media.detail.auto")}
     </span>
   );
@@ -79,7 +79,7 @@ function ArtworkPicker({ mediaItemId }: { mediaItemId: string }) {
     <div className="flex flex-col gap-3">
       {posters.length > 1 && (
         <div>
-          <p className="text-xs font-medium mb-2" style={{ color: "var(--text-muted)" }}>{t("media.detail.poster")}</p>
+          <p className="text-xs font-medium mb-2 text-[var(--text-muted)]">{t("media.detail.poster")}</p>
           <div className="flex gap-2 overflow-x-auto pb-1" style={{ scrollbarWidth: "thin" }}>
             {posters.map((a, i) => (
               <button
@@ -102,7 +102,7 @@ function ArtworkPicker({ mediaItemId }: { mediaItemId: string }) {
       )}
       {backdrops.length > 1 && (
         <div>
-          <p className="text-xs font-medium mb-2" style={{ color: "var(--text-muted)" }}>{t("media.detail.backdrop")}</p>
+          <p className="text-xs font-medium mb-2 text-[var(--text-muted)]">{t("media.detail.backdrop")}</p>
           <div className="flex gap-2 overflow-x-auto pb-1" style={{ scrollbarWidth: "thin" }}>
             {backdrops.map((a, i) => (
               <button
@@ -259,8 +259,7 @@ export function MetadataEditPanel({
             <button
               type="button"
               onClick={() => handleResetField(overrideId, overrideKey)}
-              className="text-xs underline"
-              style={{ color: "var(--text-muted)" }}
+              className="text-xs underline text-[var(--text-muted)]"
             >
               {t("media.detail.resetToAuto")}
             </button>
@@ -291,7 +290,7 @@ export function MetadataEditPanel({
           <Input label={t("media.detail.imdbId")} value={form.imdbId} onChange={set("imdbId")} placeholder="tt1234567" />
           {imdbLink && (
             <a href={imdbLink} target="_blank" rel="noopener noreferrer"
-              className="text-xs underline" style={{ color: "var(--accent)" }}>
+              className="text-xs underline text-[var(--accent)]">
               {t("media.detail.viewOnImdb")}
             </a>
           )}
@@ -300,7 +299,7 @@ export function MetadataEditPanel({
           <Input label={t("media.detail.tmdbId")} value={form.tmdbId} onChange={set("tmdbId")} placeholder="12345" />
           {tmdbLink && (
             <a href={tmdbLink} target="_blank" rel="noopener noreferrer"
-              className="text-xs underline" style={{ color: "var(--accent)" }}>
+              className="text-xs underline text-[var(--accent)]">
               {t("media.detail.viewOnTmdb")}
             </a>
           )}
@@ -308,7 +307,7 @@ export function MetadataEditPanel({
       </div>
       {(form.tmdbId.trim() !== origTmdbId || form.imdbId.trim() !== origImdbId) &&
         (form.tmdbId.trim() !== "" || form.imdbId.trim() !== "") && (
-        <p className="text-xs" style={{ color: "var(--color-warning)" }}>
+        <p className="text-xs text-[var(--color-warning)]">
           {t("media.detail.idChangedWarning")}
         </p>
       )}
@@ -320,7 +319,7 @@ export function MetadataEditPanel({
         </Button>
         <Button type="button" variant="secondary" onClick={onCancel}>{t("common.cancel")}</Button>
       </div>
-      {setOverride.isError && <p className="text-sm" style={{ color: "var(--color-danger)" }}>{t("media.detail.failedToSaveDot")}</p>}
+      {setOverride.isError && <p className="text-sm text-[var(--color-danger)]">{t("media.detail.failedToSaveDot")}</p>}
     </form>
   );
 }

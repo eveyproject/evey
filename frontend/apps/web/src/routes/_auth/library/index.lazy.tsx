@@ -36,12 +36,7 @@ function libraryTypeIcon(type?: V1LibraryType) {
 function LibraryCardSkeleton() {
   return (
     <div
-      className="p-6"
-      style={{
-        backgroundColor: "var(--surface)",
-        border: "1px solid var(--border)",
-        borderRadius: "var(--radius-lg)",
-      }}
+      className="p-6 bg-[var(--surface)] border border-[var(--border)] rounded-[var(--radius-lg)]"
     >
       <div className="flex items-start gap-4">
         <Skeleton className="w-14 h-14 rounded-xl flex-shrink-0" />
@@ -65,7 +60,7 @@ function LibraryItemCount({ libraryId }: { libraryId: string }) {
   const total = data?.pagination?.totalItems;
   if (total === undefined) return null;
   return (
-    <span className="text-sm" style={{ color: "var(--text-muted)" }}>
+    <span className="text-sm text-[var(--text-muted)]">
       {total === 1 ? t("common.item", { count: total }) : t("common.items", { count: total })}
     </span>
   );
@@ -98,29 +93,27 @@ function LibraryCard({ library }: { library: V1Library }) {
     >
       <div className="flex items-start gap-4">
         <div
-          className="flex-shrink-0 w-14 h-14 rounded-xl flex items-center justify-center transition-colors duration-200"
-          style={{ backgroundColor: "var(--surface-raised)", color: "var(--accent)" }}
+          className="flex-shrink-0 w-14 h-14 rounded-xl flex items-center justify-center transition-colors-fast duration-200 bg-[var(--surface-raised)] text-[var(--accent)]"
         >
           {icon}
         </div>
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 mb-1">
-            <h2 className="text-lg font-semibold truncate" style={{ color: "var(--text)" }}>
+            <h2 className="text-lg font-semibold truncate text-[var(--text)]">
               {library.name}
             </h2>
             <Badge variant="info">{label}</Badge>
           </div>
           {library.id && <LibraryItemCount libraryId={library.id} />}
           {library.updatedAt && (
-            <p className="text-xs mt-2" style={{ color: "var(--text-muted)" }}>
+            <p className="text-xs mt-2 text-[var(--text-muted)]">
               {t("media.updated")} {new Date(library.updatedAt).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })}
             </p>
           )}
         </div>
         <ChevronRight
           size={20}
-          className="flex-shrink-0 mt-1 opacity-0 group-hover:opacity-100 transition-opacity-fast"
-          style={{ color: "var(--text-muted)" }}
+          className="flex-shrink-0 mt-1 opacity-0 group-hover:opacity-100 transition-opacity-fast-fast text-[var(--text-muted)]"
         />
       </div>
     </Link>
@@ -135,11 +128,11 @@ function LibraryIndex() {
   return (
     <div>
       <div className="flex items-center justify-between mb-6">
-        <h1 className="text-2xl font-bold" style={{ color: "var(--text)" }}>
+        <h1 className="text-2xl font-bold text-[var(--text)]">
           {t("media.library.libraries")}
         </h1>
         {!isLoading && libraries.length > 0 && (
-          <span className="text-sm" style={{ color: "var(--text-muted)" }}>
+          <span className="text-sm text-[var(--text-muted)]">
             {libraries.length === 1
               ? `1 ${t("media.library.title").toLowerCase()}`
               : `${libraries.length} ${t("media.library.libraries").toLowerCase()}`}
@@ -155,8 +148,7 @@ function LibraryIndex() {
         </div>
       ) : libraries.length === 0 ? (
         <div
-          className="rounded-[var(--radius-lg)]"
-          style={{ backgroundColor: "var(--surface)", border: "1px solid var(--border)" }}
+          className="rounded-[var(--radius-lg)] bg-[var(--surface)] border border-[var(--border)]"
         >
           <EmptyState
             icon={<Folder size={48} strokeWidth={1.5} />}

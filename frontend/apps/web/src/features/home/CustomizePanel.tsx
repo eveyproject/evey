@@ -125,17 +125,16 @@ export function CustomizePanel({ open, onClose }: { open: boolean; onClose: () =
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-overlay flex justify-end" style={{ backgroundColor: "var(--overlay-chip-bg)" }}>
+    <div className="fixed inset-0 z-overlay flex justify-end bg-[var(--overlay-chip-bg)]">
       <div
         ref={panelRef}
-        className="w-80 h-full overflow-y-auto animate-fade-in"
-        style={{ backgroundColor: "var(--surface)", borderLeft: "1px solid var(--border)" }}
+        className="w-80 h-full overflow-y-auto animate-fade-in bg-[var(--surface)] border-l border-[var(--border)]"
       >
-        <div className="flex items-center justify-between px-4 py-3 border-b" style={{ borderColor: "var(--border)" }}>
-          <h2 className="text-base font-semibold" style={{ color: "var(--text)" }}>
+        <div className="flex items-center justify-between px-4 py-3 border-b border-[var(--border)]">
+          <h2 className="text-base font-semibold text-[var(--text)]">
             {t("common.feeds.customizeTitle")}
           </h2>
-          <button onClick={onClose} className="p-1 rounded hover:opacity-80" style={{ color: "var(--text-muted)" }}>
+          <button onClick={onClose} className="p-1 rounded hover:opacity-80 text-[var(--text-muted)]">
             <X size={18} />
           </button>
         </div>
@@ -154,7 +153,7 @@ export function CustomizePanel({ open, onClose }: { open: boolean; onClose: () =
                 opacity: dragIdx === i ? 0.5 : 1,
               }}
             >
-              <GripVertical size={14} className="flex-shrink-0 cursor-grab active:cursor-grabbing" style={{ color: "var(--text-muted)" }} />
+              <GripVertical size={14} className="flex-shrink-0 cursor-grab active:cursor-grabbing text-[var(--text-muted)]" />
 
               <span
                 className="flex-1 text-sm select-none"
@@ -165,7 +164,7 @@ export function CustomizePanel({ open, onClose }: { open: boolean; onClose: () =
 
               <button
                 onClick={() => toggle(i)}
-                className="w-9 h-5 rounded-full transition-colors-fast relative flex-shrink-0"
+                className="w-9 h-5 rounded-full transition-colors-fast-fast relative flex-shrink-0"
                 style={{ backgroundColor: row.enabled ? "var(--accent)" : "var(--surface-raised)" }}
               >
                 <span
@@ -180,8 +179,7 @@ export function CustomizePanel({ open, onClose }: { open: boolean; onClose: () =
         <div className="px-4 pb-4">
           <button
             onClick={resetAll}
-            className="flex items-center gap-2 text-sm hover:opacity-80 transition-opacity-fast"
-            style={{ color: "var(--text-muted)" }}
+            className="flex items-center gap-2 text-sm hover:opacity-80 transition-opacity-fast-fast text-[var(--text-muted)]"
           >
             <RotateCcw size={14} />
             {t("common.feeds.resetDefaults")}

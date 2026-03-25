@@ -103,7 +103,7 @@ export function PlayerProgressBar({
         step={0.5}
         value={absoluteTime}
         onChange={onSeek}
-        className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
+        className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-raised"
         aria-label={t("player.controls.seek")}
       />
     </div>

@@ -103,7 +103,7 @@ function HeroBanner() {
         return (
           <div
             key={id}
-            className="absolute inset-0 transition-opacity-fast duration-1000"
+            className="absolute inset-0 transition-opacity-fast-fast duration-1000"
             style={{ opacity: isActive ? 1 : 0, pointerEvents: isActive ? "auto" : "none" }}
           >
             {seenSlides.has(idx) && (
@@ -176,7 +176,7 @@ function HeroBanner() {
                 <Link
                   to="/player/$mediaId"
                   params={{ mediaId: id }}
-                  className="flex items-center gap-2 px-5 py-2.5 rounded-[var(--radius-md)] font-semibold text-sm transition-opacity-fast-fast hover:opacity-90 bg-[var(--accent)] text-[var(--filter-active-text)]"
+                  className="flex items-center gap-2 px-5 py-2.5 rounded-[var(--radius-md)] font-semibold text-sm transition-opacity-fast-fast-fast hover:opacity-90 bg-[var(--accent)] text-[var(--filter-active-text)]"
                 >
                   <Play size={16} fill="currentColor" />
                   {t("media.home.play")}
@@ -184,7 +184,7 @@ function HeroBanner() {
                 <Link
                   to="/media/$mediaId"
                   params={{ mediaId: id }}
-                  className="flex items-center gap-2 px-5 py-2.5 rounded-[var(--radius-md)] font-semibold text-sm transition-opacity-fast-fast hover:opacity-90 bg-[var(--glass-bg)] text-[var(--overlay-text)] border border-[var(--glass-border)]"
+                  className="flex items-center gap-2 px-5 py-2.5 rounded-[var(--radius-md)] font-semibold text-sm transition-opacity-fast-fast-fast hover:opacity-90 bg-[var(--glass-bg)] text-[var(--overlay-text)] border border-[var(--glass-border)]"
                   style={{ backdropFilter: `blur(var(--glass-blur))` }}
                 >
                   {t("media.home.moreInfo")}
@@ -390,7 +390,7 @@ function HomePage() {
         <div className="flex justify-end mb-2">
           <button
             onClick={() => setCustomizeOpen(true)}
-            className="flex items-center gap-1.5 text-xs px-2 py-1 rounded-[var(--radius-sm)] transition-colors-fast-fast hover:opacity-80 text-[var(--text-muted)]"
+            className="flex items-center gap-1.5 text-xs px-2 py-1 rounded-[var(--radius-sm)] transition-colors-fast-fast-fast hover:opacity-80 text-[var(--text-muted)]"
             aria-label={t("common.feeds.customize")}
           >
             <Settings2 size={14} />

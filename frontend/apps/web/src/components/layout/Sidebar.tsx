@@ -61,14 +61,14 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
       {/* Header */}
       <div className={`flex items-center mb-6 ${isCollapsed ? "justify-center px-2" : "justify-between px-4"}`}>
         {!isCollapsed && (
-          <Link to="/home" onClick={onNavigate} preload="intent" className="text-xl font-bold text-[var(--accent)] hover:opacity-80 transition-opacity-fast">
+          <Link to="/home" onClick={onNavigate} preload="intent" className="text-xl font-bold text-[var(--accent)] hover:opacity-80 transition-opacity-fast-fast">
             Evey
           </Link>
         )}
         {!isMobile && (
           <button
             onClick={toggleCollapsed}
-            className="p-1 rounded-[var(--radius-sm)] text-[var(--text-muted)] hover:text-[var(--text)] hover:bg-[var(--surface-raised)] transition-colors-fast cursor-pointer"
+            className="p-1 rounded-[var(--radius-sm)] text-[var(--text-muted)] hover:text-[var(--text)] hover:bg-[var(--surface-raised)] transition-colors-fast-fast cursor-pointer"
             aria-label={isCollapsed ? t("common.nav.expandSidebar") : t("common.nav.collapseSidebar")}
             title={isCollapsed ? t("common.nav.expandSidebar") : t("common.nav.collapseSidebar")}
           >
@@ -86,7 +86,7 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
               to="/home"
               onClick={onNavigate}
               preload="intent"
-              className={`flex items-center gap-2.5 px-2 py-1.5 text-[13px] rounded-[var(--radius-sm)] transition-colors-fast text-[var(--text-muted)] hover:text-[var(--text)] hover:bg-[var(--surface-raised)] ${isCollapsed ? "justify-center" : ""}`}
+              className={`flex items-center gap-2.5 px-2 py-1.5 text-[13px] rounded-[var(--radius-sm)] transition-colors-fast-fast text-[var(--text-muted)] hover:text-[var(--text)] hover:bg-[var(--surface-raised)] ${isCollapsed ? "justify-center" : ""}`}
               title={isCollapsed ? t("common.nav.backToApp") : undefined}
             >
               <ArrowLeft size={15} />
@@ -112,7 +112,7 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
                   to={to}
                   onClick={onNavigate}
                   preload="intent"
-                  className={`flex items-center gap-3 px-3 py-2 rounded-[var(--radius-md)] text-sm font-medium transition-colors-fast ${isCollapsed ? "justify-center" : ""} ${
+                  className={`flex items-center gap-3 px-3 py-2 rounded-[var(--radius-md)] text-sm font-medium transition-colors-fast-fast ${isCollapsed ? "justify-center" : ""} ${
                     active
                       ? "border-l-2 border-[var(--accent)] text-[var(--accent)] bg-[var(--surface-raised)]"
                       : "border-l-2 border-transparent text-[var(--text-secondary)] hover:bg-[var(--surface-raised)] hover:text-[var(--text)]"
@@ -131,7 +131,7 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
                 to="/admin"
                 onClick={onNavigate}
                 preload="intent"
-                className={`flex items-center gap-3 px-3 py-2 rounded-[var(--radius-md)] text-sm font-medium transition-colors-fast ${isCollapsed ? "justify-center" : ""} ${
+                className={`flex items-center gap-3 px-3 py-2 rounded-[var(--radius-md)] text-sm font-medium transition-colors-fast-fast ${isCollapsed ? "justify-center" : ""} ${
                   isOnAdmin
                     ? "border-l-2 border-[var(--accent)] text-[var(--accent)] bg-[var(--surface-raised)]"
                     : "border-l-2 border-transparent text-[var(--text-secondary)] hover:bg-[var(--surface-raised)] hover:text-[var(--text)]"

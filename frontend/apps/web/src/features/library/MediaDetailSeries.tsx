@@ -38,7 +38,7 @@ function SeasonRow({ seasonId }: { seasonId: string }) {
               key={ep.id}
               to="/player/$mediaId"
               params={{ mediaId: ep.id ?? "" }}
-              className="flex items-center gap-3 px-4 py-2 hover:bg-[var(--surface-raised)] transition-colors-fast-fast text-[var(--text)]"
+              className="flex items-center gap-3 px-4 py-2 hover:bg-[var(--surface-raised)] transition-colors-fast-fast-fast text-[var(--text)]"
             >
               <span className="text-sm w-10 flex-shrink-0 font-mono font-medium text-[var(--accent)]">
                 E{ep.indexNumber ?? "?"}
@@ -113,7 +113,7 @@ export function SeasonEpisodesSection({ item }: { item: V1MediaItem }) {
             key={ep.id}
             to="/player/$mediaId"
             params={{ mediaId: ep.id ?? "" }}
-            className="flex items-center gap-3 px-4 py-2 hover:bg-[var(--surface-raised)] transition-colors-fast-fast text-[var(--text)]"
+            className="flex items-center gap-3 px-4 py-2 hover:bg-[var(--surface-raised)] transition-colors-fast-fast-fast text-[var(--text)]"
           >
             <span className="text-sm w-10 flex-shrink-0 font-mono font-medium text-[var(--accent)]">
               E{ep.indexNumber ?? "?"}

@@ -152,7 +152,7 @@ function CheckboxGroup({
                   }
                 }}
                 onClick={() => onChange(checked ? selected.filter((v) => v !== opt) : [...selected, opt])}
-                className="flex-shrink-0 w-4 h-4 rounded border flex items-center justify-center transition-colors-fast-fast"
+                className="flex-shrink-0 w-4 h-4 rounded border flex items-center justify-center transition-colors-fast-fast-fast"
                 style={{
                   backgroundColor: checked ? "var(--accent)" : "var(--surface-raised)",
                   borderColor: checked ? "var(--accent)" : "var(--border)",
@@ -162,7 +162,7 @@ function CheckboxGroup({
                   <Check size={10} className="text-[var(--filter-active-text)]" strokeWidth={3} />
                 )}
               </span>
-              <span className="text-sm group-hover:text-[var(--text)] transition-colors-fast-fast text-[var(--text-muted)]">
+              <span className="text-sm group-hover:text-[var(--text)] transition-colors-fast-fast-fast text-[var(--text-muted)]">
                 {opt}
               </span>
             </label>
@@ -243,7 +243,7 @@ function RatingFilter({
               type="button"
               onClick={() => onChange(minRating === star ? undefined : star)}
               title={t("media.library.minStars", { count: star })}
-              className="p-0.5 transition-colors-fast-fast"
+              className="p-0.5 transition-colors-fast-fast-fast"
               style={{ color: active ? "var(--accent)" : "var(--border)" }}
             >
               <Star size={20} fill="currentColor" />
@@ -394,7 +394,7 @@ export function LibraryFilterToggle({
       <button
         type="button"
         onClick={onClick}
-        className="relative flex items-center gap-1.5 px-3 py-2 rounded-[var(--radius-md)] border transition-colors-fast-fast text-sm"
+        className="relative flex items-center gap-1.5 px-3 py-2 rounded-[var(--radius-md)] border transition-colors-fast-fast-fast text-sm"
         style={{
           backgroundColor: count > 0 ? "var(--accent)" : "var(--surface-raised)",
           color: count > 0 ? "var(--filter-active-text)" : "var(--text-muted)",

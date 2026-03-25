@@ -134,7 +134,7 @@ function SearchPage() {
                 setInputValue("");
                 inputRef.current?.focus();
               }}
-              className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 rounded-full flex items-center justify-center hover:bg-[var(--surface-raised)] transition-colors-fast-fast cursor-pointer text-[var(--text-muted)]"
+              className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 rounded-full flex items-center justify-center hover:bg-[var(--surface-raised)] transition-colors-fast-fast-fast cursor-pointer text-[var(--text-muted)]"
               aria-label={t("media.search.clearSearch")}
             >
               <X size={16} />
@@ -297,14 +297,14 @@ function SearchPage() {
                 className="flex items-center gap-1 px-3 py-1.5 rounded-full text-sm bg-[var(--surface)] border border-[var(--border)] text-[var(--text)]"
               >
                 <button
-                  className="hover:text-[var(--accent)] cursor-pointer transition-colors-fast-fast"
+                  className="hover:text-[var(--accent)] cursor-pointer transition-colors-fast-fast-fast"
                   onClick={() => setInputValue(r)}
                 >
                   {r}
                 </button>
                 <button
                   onClick={() => removeRecent(r)}
-                  className="ml-1 cursor-pointer transition-colors-fast-fast hover:opacity-80 text-[var(--text-muted)]"
+                  className="ml-1 cursor-pointer transition-colors-fast-fast-fast hover:opacity-80 text-[var(--text-muted)]"
                   aria-label={`Remove ${r}`}
                 >
                   <X size={12} />

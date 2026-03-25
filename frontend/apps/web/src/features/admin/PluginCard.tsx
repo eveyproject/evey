@@ -237,7 +237,7 @@ export function PluginCard({ plugin, onEnable, onDisable, onUninstall }: PluginC
         </Button>
         <Link
           to="/admin/logs"
-          className="inline-flex items-center px-3 py-2 rounded-[var(--radius-md)] text-sm font-medium transition-colors-fast bg-transparent hover:bg-[var(--surface-raised)] text-[var(--text-muted)]"
+          className="inline-flex items-center px-3 py-2 rounded-[var(--radius-md)] text-sm font-medium transition-colors-fast-fast bg-transparent hover:bg-[var(--surface-raised)] text-[var(--text-muted)]"
         >
           {t("admin.plugin.logs")}
         </Link>

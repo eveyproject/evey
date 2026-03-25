@@ -84,12 +84,12 @@ function WebhookRow({
   const eventTags = webhook.events ?? [];
 
   return (
-    <tr style={{ borderBottom: "1px solid var(--border)" }}>
+    <tr className="border-b border-[var(--border)]">
       <td className="px-4 py-3 max-w-xs">
-        <div className="font-medium text-sm truncate" style={{ color: "var(--text)" }}>
+        <div className="font-medium text-sm truncate text-[var(--text)]">
           {webhook.name || "\u2014"}
         </div>
-        <div className="text-xs truncate mt-0.5" style={{ color: "var(--text-muted)" }}>
+        <div className="text-xs truncate mt-0.5 text-[var(--text-muted)]">
           {webhook.url}
         </div>
       </td>
@@ -98,8 +98,7 @@ function WebhookRow({
           {eventTags.map((evt) => (
             <span
               key={evt}
-              className="text-xs px-1.5 py-0.5 rounded font-mono"
-              style={{ backgroundColor: "var(--surface-raised)", color: "var(--text-muted)" }}
+              className="text-xs px-1.5 py-0.5 rounded font-mono bg-[var(--surface-raised)] text-[var(--text-muted)]"
             >
               {evt}
             </span>
@@ -121,7 +120,7 @@ function WebhookRow({
           )}
         </button>
       </td>
-      <td className="px-4 py-3 whitespace-nowrap text-sm" style={{ color: "var(--text-muted)" }}>
+      <td className="px-4 py-3 whitespace-nowrap text-sm text-[var(--text-muted)]">
         {webhook.createdAt ? new Date(webhook.createdAt).toLocaleString() : "\u2014"}
       </td>
       <td className="px-4 py-3">
@@ -145,7 +144,7 @@ function WebhookRow({
           onClose={() => setShowDeleteConfirm(false)}
           title={t("admin.webhooks.deleteTitle")}
         >
-          <p className="text-sm mb-4" style={{ color: "var(--text-muted)" }}>
+          <p className="text-sm mb-4 text-[var(--text-muted)]">
             {t("admin.webhooks.deleteConfirm", { name: webhook.name || webhook.url })}
           </p>
           <div className="flex justify-end gap-2">
@@ -187,7 +186,7 @@ function WebhooksPage() {
   return (
     <div className="flex flex-col gap-6">
       <div className="flex items-center justify-between">
-        <h2 className="text-xl font-semibold" style={{ color: "var(--text)" }}>
+        <h2 className="text-xl font-semibold text-[var(--text)]">
           {t("admin.webhooks.title")}
         </h2>
         <Button onClick={() => setShowCreateModal(true)}>{t("admin.webhooks.createWebhook")}</Button>
@@ -199,22 +198,15 @@ function WebhooksPage() {
         </div>
       ) : (
         <div
-          className="overflow-x-auto rounded-[var(--radius-lg)]"
-          style={{ border: "1px solid var(--border)" }}
+          className="overflow-x-auto rounded-[var(--radius-lg)] border border-[var(--border)]"
         >
           <table className="w-full text-sm">
             <thead>
-              <tr
-                style={{
-                  backgroundColor: "var(--surface)",
-                  borderBottom: "1px solid var(--border)",
-                }}
-              >
+              <tr className="bg-[var(--surface)] border-b border-[var(--border)]">
                 {[t("admin.webhooks.tableHeaders.nameUrl"), t("admin.webhooks.tableHeaders.events"), t("admin.webhooks.tableHeaders.status"), t("admin.webhooks.tableHeaders.created"), t("admin.webhooks.tableHeaders.actions")].map((h) => (
                   <th
                     key={h}
-                    className="px-4 py-2 text-left font-medium"
-                    style={{ color: "var(--text-muted)" }}
+                    className="px-4 py-2 text-left font-medium text-[var(--text-muted)]"
                   >
                     {h}
                   </th>
@@ -226,8 +218,7 @@ function WebhooksPage() {
                 <tr>
                   <td
                     colSpan={5}
-                    className="px-4 py-8 text-center"
-                    style={{ color: "var(--text-muted)" }}
+                    className="px-4 py-8 text-center text-[var(--text-muted)]"
                   >
                     {t("admin.webhooks.noWebhooks")}
                   </td>

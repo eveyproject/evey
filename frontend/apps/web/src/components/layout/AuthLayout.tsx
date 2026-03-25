@@ -58,7 +58,7 @@ export function AuthLayout({ children }: AuthLayoutProps) {
         {/* Hamburger + TopBar */}
         <div className="flex items-center">
           <button
-            className="md:hidden p-3 text-[var(--text-muted)] hover:text-[var(--text)] transition-colors-fast"
+            className="md:hidden p-3 text-[var(--text-muted)] hover:text-[var(--text)] transition-colors-fast-fast"
             onClick={() => setSidebarOpen(true)}
             aria-label={t("common.aria.openMenu")}
           >
@@ -89,7 +89,7 @@ export function AuthLayout({ children }: AuthLayoutProps) {
               key={to}
               to={to}
               preload="intent"
-              className={`flex flex-col items-center gap-0.5 px-3 py-1 min-w-0 text-[11px] font-medium transition-colors-fast ${
+              className={`flex flex-col items-center gap-0.5 px-3 py-1 min-w-0 text-[11px] font-medium transition-colors-fast-fast ${
                 active ? "text-[var(--accent)]" : "text-[var(--text-muted)]"
               }`}
             >
@@ -102,7 +102,7 @@ export function AuthLayout({ children }: AuthLayoutProps) {
           <Link
             to="/admin"
             preload="intent"
-            className={`flex flex-col items-center gap-0.5 px-3 py-1 min-w-0 text-[11px] font-medium transition-colors-fast ${
+            className={`flex flex-col items-center gap-0.5 px-3 py-1 min-w-0 text-[11px] font-medium transition-colors-fast-fast ${
               location.pathname === "/admin" || location.pathname.startsWith("/admin/")
                 ? "text-[var(--accent)]"
                 : "text-[var(--text-muted)]"

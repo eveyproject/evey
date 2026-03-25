@@ -66,8 +66,7 @@ function RuleRow({ rule, onChange, onRemove }: RuleRowProps) {
   return (
     <div className="flex items-center gap-2 py-1">
       <span
-        className="text-sm font-medium w-16 flex-shrink-0"
-        style={{ color: "var(--text-muted)" }}
+        className="text-sm font-medium w-16 flex-shrink-0 text-[var(--text-muted)]"
       >
         {FIELD_LABELS[rule.field]}
       </span>
@@ -77,12 +76,7 @@ function RuleRow({ rule, onChange, onRemove }: RuleRowProps) {
           value={rule.operator}
           onChange={(e) => onChange({ ...rule, operator: e.target.value as YearOperator })}
           aria-label="Operator"
-          className="text-sm px-2 py-1.5 rounded-[var(--radius-md)] w-16 flex-shrink-0"
-          style={{
-            backgroundColor: "var(--surface-raised)",
-            border: "1px solid var(--border)",
-            color: "var(--text)",
-          }}
+          className="text-sm px-2 py-1.5 rounded-[var(--radius-md)] w-16 flex-shrink-0 bg-[var(--surface-raised)] border border-[var(--border)] text-[var(--text)]"
         >
           {YEAR_OPERATORS.map((op) => (
             <option key={op.value} value={op.value}>{op.label}</option>
@@ -90,8 +84,7 @@ function RuleRow({ rule, onChange, onRemove }: RuleRowProps) {
         </select>
       ) : (
         <span
-          className="text-sm px-2 py-1.5 w-8 text-center flex-shrink-0"
-          style={{ color: "var(--text-muted)" }}
+          className="text-sm px-2 py-1.5 w-8 text-center flex-shrink-0 text-[var(--text-muted)]"
         >
           =
         </span>
@@ -102,12 +95,7 @@ function RuleRow({ rule, onChange, onRemove }: RuleRowProps) {
           value={rule.value}
           onChange={(e) => onChange({ ...rule, value: e.target.value })}
           aria-label="Value"
-          className="flex-1 text-sm px-2 py-1.5 rounded-[var(--radius-md)]"
-          style={{
-            backgroundColor: "var(--surface-raised)",
-            border: "1px solid var(--border)",
-            color: "var(--text)",
-          }}
+          className="flex-1 text-sm px-2 py-1.5 rounded-[var(--radius-md)] bg-[var(--surface-raised)] border border-[var(--border)] text-[var(--text)]"
         >
           {MEDIA_TYPES.map((t) => (
             <option key={t.value} value={t.value}>{t.label}</option>
@@ -122,12 +110,7 @@ function RuleRow({ rule, onChange, onRemove }: RuleRowProps) {
           placeholder={rule.field === "genre" ? "e.g. Action" : rule.field === "year" ? "e.g. 2020" : "e.g. library-id"}
           onChange={(e) => onChange({ ...rule, value: e.target.value })}
           aria-label="Value"
-          className="flex-1 text-sm px-3 py-1.5 rounded-[var(--radius-md)]"
-          style={{
-            backgroundColor: "var(--surface-raised)",
-            border: "1px solid var(--border)",
-            color: "var(--text)",
-          }}
+          className="flex-1 text-sm px-3 py-1.5 rounded-[var(--radius-md)] bg-[var(--surface-raised)] border border-[var(--border)] text-[var(--text)]"
         />
       )}
 
@@ -135,8 +118,7 @@ function RuleRow({ rule, onChange, onRemove }: RuleRowProps) {
         type="button"
         onClick={onRemove}
         aria-label="Remove rule"
-        className="flex-shrink-0 p-1 rounded hover:bg-[var(--surface-raised)] transition-colors-fast"
-        style={{ color: "var(--text-muted)" }}
+        className="flex-shrink-0 p-1 rounded hover:bg-[var(--surface-raised)] transition-colors-fast-fast text-[var(--text-muted)]"
       >
         <X size={16} />
       </button>
@@ -200,7 +182,7 @@ export function SmartPlaylistRulesEditor({ playlistId, initialRules, onSaved }: 
     return (
       <div className="mb-6">
         <div className="flex items-center justify-between mb-2">
-          <span className="text-sm font-medium" style={{ color: "var(--text-muted)" }}>
+          <span className="text-sm font-medium text-[var(--text-muted)]">
             {t("media.playlist.rules")}
           </span>
           <Button type="button" variant="secondary" onClick={startEdit}>
@@ -212,19 +194,14 @@ export function SmartPlaylistRulesEditor({ playlistId, initialRules, onSaved }: 
             {initialRules.map((rule, i) => (
               <span
                 key={i}
-                className="text-xs px-2 py-1 rounded-[var(--radius-md)]"
-                style={{
-                  backgroundColor: "var(--surface-raised)",
-                  border: "1px solid var(--border)",
-                  color: "var(--text)",
-                }}
+                className="text-xs px-2 py-1 rounded-[var(--radius-md)] bg-[var(--surface-raised)] border border-[var(--border)] text-[var(--text)]"
               >
                 {FIELD_LABELS[rule.field as RuleField] ?? rule.field} {rule.operator} {rule.value}
               </span>
             ))}
           </div>
         ) : (
-          <p className="text-sm" style={{ color: "var(--text-muted)" }}>
+          <p className="text-sm text-[var(--text-muted)]">
             {t("media.playlist.noRules")}
           </p>
         )}
@@ -234,15 +211,14 @@ export function SmartPlaylistRulesEditor({ playlistId, initialRules, onSaved }: 
 
   return (
     <div
-      className="mb-6 p-4 rounded-[var(--radius-lg)]"
-      style={{ backgroundColor: "var(--surface)", border: "1px solid var(--border)" }}
+      className="mb-6 p-4 rounded-[var(--radius-lg)] bg-[var(--surface)] border border-[var(--border)]"
     >
-      <span className="text-sm font-medium block mb-3" style={{ color: "var(--text)" }}>
+      <span className="text-sm font-medium block mb-3 text-[var(--text)]">
         {t("media.playlist.editRules")}
       </span>
 
       {rules.length === 0 && (
-        <p className="text-sm mb-3" style={{ color: "var(--text-muted)" }}>
+        <p className="text-sm mb-3 text-[var(--text-muted)]">
           {t("media.playlist.noRulesYet")}
         </p>
       )}
@@ -266,12 +242,7 @@ export function SmartPlaylistRulesEditor({ playlistId, initialRules, onSaved }: 
               type="button"
               onClick={() => addRule(f)}
               aria-label={`Add ${FIELD_LABELS[f]} rule`}
-              className="flex items-center gap-1 text-xs px-2 py-1 rounded-[var(--radius-md)] transition-colors-fast"
-              style={{
-                backgroundColor: "var(--surface-raised)",
-                border: "1px solid var(--border)",
-                color: "var(--accent)",
-              }}
+              className="flex items-center gap-1 text-xs px-2 py-1 rounded-[var(--radius-md)] transition-colors-fast-fast bg-[var(--surface-raised)] border border-[var(--border)] text-[var(--accent)]"
             >
               <Plus size={12} strokeWidth={2.5} />
               {FIELD_LABELS[f]}

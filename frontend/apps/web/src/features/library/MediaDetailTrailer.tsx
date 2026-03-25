@@ -32,7 +32,7 @@ function TrailerPlayer({ trailer, userLang }: { trailer: V1Trailer; userLang: st
     <>
       <button
         onClick={() => setOpen(true)}
-        className="flex items-center gap-2 px-4 py-2 rounded text-sm font-medium transition-colors-fast"
+        className="flex items-center gap-2 px-4 py-2 rounded text-sm font-medium transition-colors-fast-fast"
         style={{ backgroundColor: "var(--overlay-border-subtle)", color: "var(--text)", border: "1px solid var(--border)" }}
       >
         <Play size={16} fill="currentColor" />

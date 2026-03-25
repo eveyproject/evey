@@ -83,8 +83,7 @@ function VirtualLogList({ lines, live, noMatchText }: { lines: ParsedLine[]; liv
   return (
     <div
       ref={parentRef}
-      className="flex-1 overflow-y-auto rounded-[var(--radius-lg)] p-3 font-mono text-xs"
-      style={{ backgroundColor: "var(--surface)", border: "1px solid var(--border)", minHeight: 400, maxHeight: "60vh" }}
+      className="flex-1 overflow-y-auto rounded-[var(--radius-lg)] p-3 font-mono text-xs bg-[var(--surface)] border border-[var(--border)] min-h-[400px] max-h-[60vh]"
     >
       <div style={{ height: virtualizer.getTotalSize(), position: "relative" }}>
         {virtualizer.getVirtualItems().map((vItem) => {
@@ -101,10 +100,10 @@ function VirtualLogList({ lines, live, noMatchText }: { lines: ParsedLine[]; liv
                 height: LOG_LINE_HEIGHT,
                 backgroundColor: levelBg(line.level),
               }}
-              className="flex gap-2 items-center px-1 rounded hover:bg-[var(--log-hover-bg)] transition-colors-fast"
+              className="flex gap-2 items-center px-1 rounded hover:bg-[var(--log-hover-bg)] transition-colors-fast-fast"
             >
               {line.time && (
-                <span className="flex-shrink-0 text-[11px]" style={{ color: "var(--text-muted)" }}>
+                <span className="flex-shrink-0 text-[11px] text-[var(--text-muted)]">
                   {line.time.substring(11, 19)}
                 </span>
               )}
@@ -117,11 +116,11 @@ function VirtualLogList({ lines, live, noMatchText }: { lines: ParsedLine[]; liv
                 </span>
               )}
               {line.component && (
-                <span className="flex-shrink-0 text-[10px] px-1 rounded" style={{ color: "var(--text-secondary)", backgroundColor: "var(--surface-raised)" }}>
+                <span className="flex-shrink-0 text-[10px] px-1 rounded text-[var(--text-secondary)] bg-[var(--surface-raised)]">
                   {line.component}
                 </span>
               )}
-              <span className="truncate" style={{ color: "var(--text)" }}>
+              <span className="truncate text-[var(--text)]">
                 {line.msg ?? line.raw}
               </span>
             </div>
@@ -129,7 +128,7 @@ function VirtualLogList({ lines, live, noMatchText }: { lines: ParsedLine[]; liv
         })}
       </div>
       {lines.length === 0 && (
-        <p style={{ color: "var(--text-muted)" }}>{noMatchText}</p>
+        <p className="text-[var(--text-muted)]">{noMatchText}</p>
       )}
     </div>
   );
@@ -205,8 +204,7 @@ function LogsPage() {
           />
           <button
             onClick={() => setLines([])}
-            className="text-sm px-3 py-1 rounded transition-colors-fast hover:opacity-80"
-            style={{ backgroundColor: "var(--surface-raised)", color: "var(--text-muted)", border: "1px solid var(--border)" }}
+            className="text-sm px-3 py-1 rounded transition-colors-fast-fast hover:opacity-80 bg-[var(--surface-raised)] text-[var(--text-muted)] border border-[var(--border)]"
           >
             {t("common.clear")}
           </button>
@@ -218,15 +216,13 @@ function LogsPage() {
           placeholder={t("admin.logs.searchLogs")}
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          className="px-3 py-1.5 text-sm rounded-[var(--radius-md)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)]"
-          style={{ backgroundColor: "var(--surface-raised)", border: "1px solid var(--border)", color: "var(--text)", minWidth: 180 }}
+          className="px-3 py-1.5 text-sm rounded-[var(--radius-md)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)] bg-[var(--surface-raised)] border border-[var(--border)] text-[var(--text)] min-w-[180px]"
         />
         <input
           placeholder={t("admin.logs.component")}
           value={componentFilter}
           onChange={(e) => setComponentFilter(e.target.value)}
-          className="px-3 py-1.5 text-sm rounded-[var(--radius-md)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)]"
-          style={{ backgroundColor: "var(--surface-raised)", border: "1px solid var(--border)", color: "var(--text)", minWidth: 130 }}
+          className="px-3 py-1.5 text-sm rounded-[var(--radius-md)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)] bg-[var(--surface-raised)] border border-[var(--border)] text-[var(--text)] min-w-[130px]"
         />
         <div className="flex gap-1">
           {LEVELS.map((l) => (

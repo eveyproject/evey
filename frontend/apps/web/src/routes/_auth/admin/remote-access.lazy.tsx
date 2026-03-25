@@ -119,7 +119,7 @@ function RemoteAccessPage() {
                     setEnabled(!enabled);
                     setDirty(true);
                   }}
-                  className="relative inline-flex h-6 w-11 items-center rounded-full transition-colors-fast-fast"
+                  className="relative inline-flex h-6 w-11 items-center rounded-full transition-colors-fast-fast-fast"
                   style={{
                     backgroundColor: enabled ? "var(--accent)" : "var(--border)",
                   }}

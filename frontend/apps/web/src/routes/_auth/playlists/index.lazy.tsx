@@ -16,7 +16,7 @@ export const Route = createLazyFileRoute("/_auth/playlists/")({
 
 function PlaylistCardSkeleton() {
   return (
-    <div className="p-5" style={{ backgroundColor: "var(--surface)", border: "1px solid var(--border)", borderRadius: "var(--radius-lg)" }}>
+    <div className="p-5 bg-[var(--surface)] border border-[var(--border)] rounded-[var(--radius-lg)]">
       <div className="flex items-start gap-3">
         <Skeleton className="w-10 h-10 rounded-lg flex-shrink-0" />
         <div className="flex-1 space-y-2">
@@ -43,14 +43,13 @@ function PlaylistCard({ playlist, onDelete }: { playlist: Playlist; onDelete: ()
     >
       <div className="flex items-start gap-3">
         <div
-          className="flex-shrink-0 w-10 h-10 rounded-lg flex items-center justify-center"
-          style={{ backgroundColor: "var(--surface-raised)", color: "var(--accent)" }}
+          className="flex-shrink-0 w-10 h-10 rounded-lg flex items-center justify-center bg-[var(--surface-raised)] text-[var(--accent)]"
         >
           <List size={20} strokeWidth={1.5} />
         </div>
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 mb-1">
-            <Link to="/playlists/$playlistId" params={{ playlistId: playlist.id }} className="text-base font-semibold truncate hover:underline" style={{ color: "var(--text)" }}>
+            <Link to="/playlists/$playlistId" params={{ playlistId: playlist.id }} className="text-base font-semibold truncate hover:underline text-[var(--text)]">
               {playlist.name}
             </Link>
             <Badge variant={playlist.type === "smart" ? "warning" : "info"}>
@@ -58,16 +57,15 @@ function PlaylistCard({ playlist, onDelete }: { playlist: Playlist; onDelete: ()
             </Badge>
           </div>
           {playlist.description && (
-            <p className="text-xs truncate" style={{ color: "var(--text-muted)" }}>{playlist.description}</p>
+            <p className="text-xs truncate text-[var(--text-muted)]">{playlist.description}</p>
           )}
-          <p className="text-xs mt-1" style={{ color: "var(--text-muted)" }}>
+          <p className="text-xs mt-1 text-[var(--text-muted)]">
             {t("media.created")} {new Date(playlist.created_at).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })}
           </p>
         </div>
         <button
           onClick={(e) => { e.preventDefault(); onDelete(); }}
-          className="opacity-0 group-hover:opacity-100 p-1.5 rounded-full hover:bg-[var(--surface-raised)] transition-all"
-          style={{ color: "var(--text-muted)" }}
+          className="opacity-0 group-hover:opacity-100 p-1.5 rounded-full hover:bg-[var(--surface-raised)] transition-all text-[var(--text-muted)]"
           title={t("media.playlist.deletePlaylist")}
         >
           <Trash2 size={16} />
@@ -94,7 +92,7 @@ function PlaylistsIndex() {
   return (
     <div>
       <div className="flex items-center justify-between mb-6">
-        <h1 className="text-2xl font-bold" style={{ color: "var(--text)" }}>{t("media.playlist.playlists")}</h1>
+        <h1 className="text-2xl font-bold text-[var(--text)]">{t("media.playlist.playlists")}</h1>
         <Button onClick={() => setCreateOpen(true)}>{t("media.playlist.newPlaylist")}</Button>
       </div>
 
@@ -103,7 +101,7 @@ function PlaylistsIndex() {
           {Array.from({ length: 3 }).map((_, i) => <PlaylistCardSkeleton key={i} />)}
         </div>
       ) : !playlists?.length ? (
-        <div className="rounded-[var(--radius-lg)]" style={{ backgroundColor: "var(--surface)", border: "1px solid var(--border)" }}>
+        <div className="rounded-[var(--radius-lg)] bg-[var(--surface)] border border-[var(--border)]">
           <EmptyState
             icon={<Folder size={48} strokeWidth={1.5} />}
             title={t("media.playlist.noPlaylists")}

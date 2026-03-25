@@ -67,19 +67,19 @@ export function MediaDetailActions({
   return (
     <div className="flex-1 space-y-4 min-w-0">
       {item.tagline && (
-        <p className="text-base italic" style={{ color: "var(--text-muted)" }}>{item.tagline}</p>
+        <p className="text-base italic text-[var(--text-muted)]">{item.tagline}</p>
       )}
       {item.overview && (
-        <p className="text-sm leading-relaxed" style={{ color: "var(--text-muted)" }} data-testid="media-overview">{item.overview}</p>
+        <p className="text-sm leading-relaxed text-[var(--text-muted)]" data-testid="media-overview">{item.overview}</p>
       )}
 
       {directors.length > 0 && (
-        <p className="text-sm" style={{ color: "var(--text-muted)" }}>
-          <span className="font-medium" style={{ color: "var(--text)" }}>{t("media.detail.director")}</span>
+        <p className="text-sm text-[var(--text-muted)]">
+          <span className="font-medium text-[var(--text)]">{t("media.detail.director")}</span>
           {directors.map((d, i) => (
             <span key={d.id ?? d.name}>
               {i > 0 && ", "}
-              <Link to="/person/$personId" params={{ personId: d.id ?? "" }} className="hover:underline" style={{ color: "var(--accent)" }}>
+              <Link to="/person/$personId" params={{ personId: d.id ?? "" }} className="hover:underline text-[var(--accent)]">
                 {d.name}
               </Link>
             </span>
@@ -88,12 +88,12 @@ export function MediaDetailActions({
       )}
 
       {writers.length > 0 && (
-        <p className="text-sm" style={{ color: "var(--text-muted)" }}>
-          <span className="font-medium" style={{ color: "var(--text)" }}>{t("media.detail.writer")}</span>
+        <p className="text-sm text-[var(--text-muted)]">
+          <span className="font-medium text-[var(--text)]">{t("media.detail.writer")}</span>
           {writers.map((w, i) => (
             <span key={w.id ?? w.name}>
               {i > 0 && ", "}
-              <Link to="/person/$personId" params={{ personId: w.id ?? "" }} className="hover:underline" style={{ color: "var(--accent)" }}>
+              <Link to="/person/$personId" params={{ personId: w.id ?? "" }} className="hover:underline text-[var(--accent)]">
                 {w.name}
               </Link>
             </span>
@@ -102,8 +102,8 @@ export function MediaDetailActions({
       )}
 
       {item.studios && item.studios.length > 0 && (
-        <p className="text-sm" style={{ color: "var(--text-muted)" }}>
-          <span className="font-medium" style={{ color: "var(--text)" }}>{t("media.detail.studio")}</span>
+        <p className="text-sm text-[var(--text-muted)]">
+          <span className="font-medium text-[var(--text)]">{t("media.detail.studio")}</span>
           {item.studios.join(", ")}
         </p>
       )}
@@ -191,7 +191,7 @@ export function MediaDetailActions({
       )}
       {item.id && (
         <Modal open={editing} onClose={() => setEditing(false)} title={t("media.detail.editMetadata")}>
-          <div className="overflow-y-auto" style={{ maxHeight: "70vh" }}>
+          <div className="overflow-y-auto max-h-[70vh]">
             <MetadataEditPanel
               item={item}
               onSave={() => { setEditing(false); onMetadataUpdated?.(); }}
