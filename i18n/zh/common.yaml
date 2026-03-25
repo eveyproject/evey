@@ -116,6 +116,7 @@ nav:
   profile: "个人资料"
   settings: "设置"
   watchHistory: "观看历史"
+  quickConnect: "快速连接"
   signOut: "退出登录"
   expandSidebar: "展开侧栏"
   collapseSidebar: "收起侧栏"

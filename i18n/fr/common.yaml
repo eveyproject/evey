@@ -116,6 +116,7 @@ nav:
   profile: "Profil"
   settings: "Paramètres"
   watchHistory: "Historique de lecture"
+  quickConnect: "Connexion rapide"
   signOut: "Se déconnecter"
   expandSidebar: "Agrandir la barre latérale"
   collapseSidebar: "Réduire la barre latérale"

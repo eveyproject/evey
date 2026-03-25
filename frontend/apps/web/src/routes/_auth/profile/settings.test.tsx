@@ -45,10 +45,6 @@ vi.mock("@/features/user/NotificationSettings", () => ({
   NotificationSettings: () => React.createElement("div", { "data-testid": "notification-settings" }, "Notification Settings"),
 }));
 
-vi.mock("@/features/user/APIKeySettings", () => ({
-  APIKeySettings: () => React.createElement("div", { "data-testid": "api-key-settings" }, "API Key Settings"),
-}));
-
 vi.mock("@/features/user/DeviceSettings", () => ({
   DeviceSettings: () => React.createElement("div", { "data-testid": "device-settings" }, "Device Settings"),
 }));
@@ -97,7 +93,6 @@ describe("SettingsPage", () => {
     expect(screen.getByRole("button", { name: /Account/i })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /Parental/i })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /Devices/i })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /API Keys/i })).toBeInTheDocument();
   });
 
   it("shows Appearance tab content by default", async () => {
@@ -142,13 +137,6 @@ describe("SettingsPage", () => {
     render(React.createElement(SettingsPage), { wrapper: createWrapper() });
     fireEvent.click(screen.getByRole("button", { name: /Notifications/i }));
     await waitFor(() => expect(screen.getByTestId("notification-settings")).toBeInTheDocument());
-  });
-
-  it("switching to API Keys tab shows API key settings", async () => {
-    const SettingsPage = await getSettingsPage();
-    render(React.createElement(SettingsPage), { wrapper: createWrapper() });
-    fireEvent.click(screen.getByRole("button", { name: /API Keys/i }));
-    await waitFor(() => expect(screen.getByTestId("api-key-settings")).toBeInTheDocument());
   });
 
   it("switching to Parental tab shows parental controls toggle", async () => {

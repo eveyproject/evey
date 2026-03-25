@@ -82,6 +82,14 @@ settings:
     parental: "अभिभावक नियंत्रण"
     devices: "डिवाइस"
     apiKeys: "API कुंजियां"
+    quickConnect: "क्विक कनेक्ट"
+  quickConnect:
+    title: "क्विक कनेक्ट"
+    description: "जिस डिवाइस में साइन इन करना है, उस पर दिखाया गया कोड दर्ज करें।"
+    codeLabel: "डिवाइस कोड"
+    authorize: "डिवाइस अधिकृत करें"
+    authorized: "डिवाइस सफलतापूर्वक अधिकृत"
+    invalidCode: "कोड अमान्य या समाप्त"
   playback:
     bitrateTitle: "स्ट्रीमिंग बिटरेट सीमा"
     bitrateDesc: "ट्रांसकोड स्ट्रीम के लिए अधिकतम बिटरेट। सीधे प्लेबैक को प्रभावित नहीं करता।"

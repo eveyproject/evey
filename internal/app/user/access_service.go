@@ -103,6 +103,14 @@ func (s *AccessService) AuthorizeQuickConnect(ctx context.Context, code string, 
 	return s.quickConnect.UpdateStatus(ctx, req.ID, "authorized", &userID)
 }
 
+func (s *AccessService) AuthorizeByShortCode(ctx context.Context, shortCode string, userID string) error {
+	req, err := s.quickConnect.GetByShortCode(ctx, shortCode)
+	if err != nil {
+		return err
+	}
+	return s.quickConnect.UpdateStatus(ctx, req.ID, "authorized", &userID)
+}
+
 func (s *AccessService) CreateAPIKey(ctx context.Context, key *user.APIKeyModel) error {
 	if err := key.Validate(); err != nil {
 		return fmt.Errorf("invalid API key: %w", err)

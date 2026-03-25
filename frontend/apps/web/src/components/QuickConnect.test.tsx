@@ -77,6 +77,18 @@ describe("QuickConnect", () => {
     expect(screen.getByText("123456")).toBeInTheDocument();
   });
 
+  it("uses 120s refresh interval", async () => {
+    const { QuickConnect } = await import("./QuickConnect");
+    render(<QuickConnect />);
+
+    await act(async () => {
+      onSuccessCallback?.({ code: "TESTCODE1234" });
+    });
+
+    // Should show "120" somewhere in the countdown
+    expect(screen.getByText(/Expires in 120s/)).toBeInTheDocument();
+  });
+
   it("shows countdown when code is present", async () => {
     const { QuickConnect } = await import("./QuickConnect");
     render(<QuickConnect />);

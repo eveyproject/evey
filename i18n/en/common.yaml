@@ -116,6 +116,7 @@ nav:
   profile: Profile
   settings: Settings
   watchHistory: Watch History
+  quickConnect: Quick Connect
   signOut: Sign Out
   expandSidebar: Expand sidebar
   collapseSidebar: Collapse sidebar

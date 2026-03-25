@@ -53,6 +53,7 @@ type InviteLinkRepository interface {
 type QuickConnectRepository interface {
 	Create(ctx context.Context, req *QuickConnectRequest) error
 	GetByCode(ctx context.Context, code string) (*QuickConnectRequest, error)
+	GetByShortCode(ctx context.Context, shortCode string) (*QuickConnectRequest, error)
 	UpdateStatus(ctx context.Context, id, status string, userID *string) error
 	DeleteExpired(ctx context.Context) error
 }

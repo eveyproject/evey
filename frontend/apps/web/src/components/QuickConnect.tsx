@@ -5,7 +5,7 @@ import { useAuthStore } from "@evey/store";
 import { useNavigate } from "@tanstack/react-router";
 import { Spinner } from "@/components/ui/Spinner";
 
-const REFRESH_INTERVAL_S = 30;
+const REFRESH_INTERVAL_S = 120;
 
 export function QuickConnect() {
   const [code, setCode] = useState<string | null>(null);

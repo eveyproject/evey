@@ -363,6 +363,31 @@ func TestAuthorizeQuickConnect_NotFound(t *testing.T) {
 	}
 }
 
+// --- AuthorizeByShortCode ---
+
+func TestAuthorizeByShortCode_Happy(t *testing.T) {
+	d := newAccessTestDeps()
+	ctx := context.Background()
+	_ = d.quickConnect.Create(ctx, &user.QuickConnectRequest{ID: "qc1", Code: "qc-code-aabbccdd11223344", Status: "pending"})
+
+	err := d.svc.AuthorizeByShortCode(ctx, "223344", "u1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	req, _ := d.quickConnect.GetByCode(ctx, "qc-code-aabbccdd11223344")
+	if req.Status != "authorized" {
+		t.Fatalf("expected authorized, got %s", req.Status)
+	}
+}
+
+func TestAuthorizeByShortCode_NotFound(t *testing.T) {
+	d := newAccessTestDeps()
+	err := d.svc.AuthorizeByShortCode(context.Background(), "XXXXXX", "u1")
+	if err == nil {
+		t.Fatal("expected error")
+	}
+}
+
 // --- CreateAPIKey ---
 
 func TestCreateAPIKey_Happy(t *testing.T) {

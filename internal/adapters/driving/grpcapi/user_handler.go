@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"log/slog"
 	"strconv"
+	"time"
 
 	eveyv1 "github.com/gravity-zero/evey/gen/evey/v1"
 	"github.com/gravity-zero/evey/internal/adapters/driving/grpcapi/interceptors"
@@ -400,10 +401,11 @@ func (h *userHandler) RegisterWithInvite(ctx context.Context, req *eveyv1.Regist
 
 func (h *userHandler) InitiateQuickConnect(ctx context.Context, _ *eveyv1.InitiateQuickConnectRequest) (*eveyv1.QuickConnectResponse, error) {
 	qc := &user.QuickConnectRequest{
-		ID:     id.New("qc-"),
-		Code:   secureToken("qc-code-", 16),
-		Secret: secureToken("qc-secret-", 16),
-		Status: string(user.Pending),
+		ID:        id.New("qc-"),
+		Code:      secureToken("qc-code-", 16),
+		Secret:    secureToken("qc-secret-", 16),
+		Status:    string(user.Pending),
+		ExpiresAt: time.Now().Add(2 * time.Minute),
 	}
 	if err := h.access.InitiateQuickConnect(ctx, qc); err != nil {
 		slog.Error("initiate quick connect", slog.Any("err", err))
@@ -417,9 +419,16 @@ func (h *userHandler) AuthorizeQuickConnect(ctx context.Context, req *eveyv1.Aut
 	if claims == nil {
 		return nil, h.translator.TranslatedError(ctx, codes.Unauthenticated, "errors.auth.unauthenticated")
 	}
-	if err := h.access.AuthorizeQuickConnect(ctx, req.Code, claims.UserID); err != nil {
+	code := req.Code
+	var err error
+	if len(code) <= 10 {
+		err = h.access.AuthorizeByShortCode(ctx, code, claims.UserID)
+	} else {
+		err = h.access.AuthorizeQuickConnect(ctx, code, claims.UserID)
+	}
+	if err != nil {
 		slog.Error("authorize quick connect", slog.Any("err", err))
-		return nil, status.Errorf(codes.Internal, "internal error")
+		return nil, h.translator.TranslatedError(ctx, codes.NotFound, "errors.user.invalid_expired_code")
 	}
 	return &eveyv1.AuthorizeQuickConnectResponse{}, nil
 }

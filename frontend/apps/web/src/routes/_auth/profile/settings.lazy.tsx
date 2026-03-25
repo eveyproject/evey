@@ -1,4 +1,4 @@
-import { Palette, Play, Bell, Lock, Shield, Smartphone, Key } from "lucide-react";
+import { Palette, Play, Bell, Lock, Shield, Smartphone, QrCode } from "lucide-react";
 import type React from "react";
 import { createLazyFileRoute } from "@tanstack/react-router";
 import { useState, useEffect, useRef } from "react";
@@ -15,14 +15,14 @@ import { Select } from "@/components/ui/Select";
 import { ThemeSettings } from "@/features/user/ThemeSettings";
 import { LanguageSettings } from "@/features/user/LanguageSettings";
 import { NotificationSettings } from "@/features/user/NotificationSettings";
-import { APIKeySettings } from "@/features/user/APIKeySettings";
 import { DeviceSettings } from "@/features/user/DeviceSettings";
+import { QuickConnectSettings } from "@/features/user/QuickConnectSettings";
 
 export const Route = createLazyFileRoute("/_auth/profile/settings")({
   component: SettingsPage,
 });
 
-type Tab = "appearance" | "playback" | "notifications" | "account" | "parental" | "api-keys" | "devices";
+type Tab = "appearance" | "playback" | "notifications" | "account" | "parental" | "devices" | "quick-connect";
 
 const TABS: { key: Tab; labelKey: string; icon: React.ReactNode }[] = [
   { key: "appearance", labelKey: "auth.settings.tabs.appearance", icon: <Palette size={16} strokeWidth={1.5} /> },
@@ -31,7 +31,7 @@ const TABS: { key: Tab; labelKey: string; icon: React.ReactNode }[] = [
   { key: "account", labelKey: "auth.settings.tabs.account", icon: <Lock size={16} strokeWidth={1.5} /> },
   { key: "parental", labelKey: "auth.settings.tabs.parental", icon: <Shield size={16} strokeWidth={1.5} /> },
   { key: "devices", labelKey: "auth.settings.tabs.devices", icon: <Smartphone size={16} strokeWidth={1.5} /> },
-  { key: "api-keys", labelKey: "auth.settings.tabs.apiKeys", icon: <Key size={16} strokeWidth={1.5} /> },
+  { key: "quick-connect", labelKey: "auth.settings.tabs.quickConnect", icon: <QrCode size={16} strokeWidth={1.5} /> },
 ];
 
 function SettingsPage() {
@@ -74,7 +74,7 @@ function SettingsPage() {
           {tab === "account" && <AccountSection />}
           {tab === "parental" && <ParentalSection />}
           {tab === "devices" && <DeviceSettings />}
-          {tab === "api-keys" && <APIKeySettings />}
+          {tab === "quick-connect" && <QuickConnectSettings />}
         </div>
       </Card>
     </div>

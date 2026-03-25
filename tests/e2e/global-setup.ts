@@ -14,15 +14,38 @@ const PASS = process.env.EVEY_PASS ?? "REDACTED";
 export default async function globalSetup() {
   fs.writeFileSync(MARKER, new Date().toISOString());
 
-  // Perform login once; save storage state for reuse across all spec files
   const browser = await chromium.launch();
   const context = await browser.newContext({ ignoreHTTPSErrors: true });
   const page = await context.newPage();
-  await page.goto(`${BASE_URL}/login`, { waitUntil: "networkidle" });
+  await page.goto(`${BASE_URL}/login`);
+  await page.waitForSelector("#username", { state: "visible", timeout: 15_000 });
   await page.fill("#username", USER);
   await page.fill("#password", PASS);
   await page.click('button[type="submit"]');
   await page.waitForURL("**/home", { timeout: 15_000 });
+
+  // Zustand persists only profileId (not accessToken) to localStorage.
+  // Patch the persisted state to include the token so restored contexts work.
+  await page.evaluate(async (creds) => {
+    const res = await fetch("/api/v1/auth/login", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ username: creds.user, password: creds.pass }),
+    });
+    if (!res.ok) return;
+    const data = (await res.json()) as { accessToken?: string };
+    if (!data.accessToken) return;
+    const payload = JSON.parse(atob(data.accessToken.split(".")[1].replace(/-/g, "+").replace(/_/g, "/")));
+    localStorage.setItem("evey-auth", JSON.stringify({
+      state: {
+        accessToken: data.accessToken,
+        profileId: null,
+        isAdmin: payload.is_admin === true,
+      },
+      version: 0,
+    }));
+  }, { user: USER, pass: PASS });
+
   await context.storageState({ path: STORAGE_STATE });
   await browser.close();
 }

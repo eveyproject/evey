@@ -16,6 +16,7 @@ import { Route as LoginRouteImport } from './routes/login'
 import { Route as AuthRouteImport } from './routes/_auth'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AuthSearchRouteImport } from './routes/_auth/search'
+import { Route as AuthQuickconnectRouteImport } from './routes/_auth/quickconnect'
 import { Route as AuthHomeRouteImport } from './routes/_auth/home'
 import { Route as AuthFavoritesRouteImport } from './routes/_auth/favorites'
 import { Route as AuthAdminRouteImport } from './routes/_auth/admin'
@@ -50,6 +51,7 @@ import { Route as AuthAdminLibrariesRouteImport } from './routes/_auth/admin/lib
 import { Route as AuthAdminFeedsRouteImport } from './routes/_auth/admin/feeds'
 import { Route as AuthAdminBackupRouteImport } from './routes/_auth/admin/backup'
 import { Route as AuthAdminAuditRouteImport } from './routes/_auth/admin/audit'
+import { Route as AuthAdminApiKeysRouteImport } from './routes/_auth/admin/api-keys'
 import { Route as AuthAdminAnalyticsRouteImport } from './routes/_auth/admin/analytics'
 import { Route as AuthAdminActivityRouteImport } from './routes/_auth/admin/activity'
 import { Route as AuthCollectionsSmartFilterIdRouteImport } from './routes/_auth/collections/smart/$filterId'
@@ -88,6 +90,13 @@ const AuthSearchRoute = AuthSearchRouteImport.update({
   path: '/search',
   getParentRoute: () => AuthRoute,
 } as any).lazy(() => import('./routes/_auth/search.lazy').then((d) => d.Route))
+const AuthQuickconnectRoute = AuthQuickconnectRouteImport.update({
+  id: '/quickconnect',
+  path: '/quickconnect',
+  getParentRoute: () => AuthRoute,
+} as any).lazy(() =>
+  import('./routes/_auth/quickconnect.lazy').then((d) => d.Route),
+)
 const AuthHomeRoute = AuthHomeRouteImport.update({
   id: '/home',
   path: '/home',
@@ -329,6 +338,13 @@ const AuthAdminAuditRoute = AuthAdminAuditRouteImport.update({
 } as any).lazy(() =>
   import('./routes/_auth/admin/audit.lazy').then((d) => d.Route),
 )
+const AuthAdminApiKeysRoute = AuthAdminApiKeysRouteImport.update({
+  id: '/api-keys',
+  path: '/api-keys',
+  getParentRoute: () => AuthAdminRoute,
+} as any).lazy(() =>
+  import('./routes/_auth/admin/api-keys.lazy').then((d) => d.Route),
+)
 const AuthAdminAnalyticsRoute = AuthAdminAnalyticsRouteImport.update({
   id: '/analytics',
   path: '/analytics',
@@ -363,9 +379,11 @@ export interface FileRoutesByFullPath {
   '/admin': typeof AuthAdminRouteWithChildren
   '/favorites': typeof AuthFavoritesRoute
   '/home': typeof AuthHomeRoute
+  '/quickconnect': typeof AuthQuickconnectRoute
   '/search': typeof AuthSearchRoute
   '/admin/activity': typeof AuthAdminActivityRoute
   '/admin/analytics': typeof AuthAdminAnalyticsRoute
+  '/admin/api-keys': typeof AuthAdminApiKeysRoute
   '/admin/audit': typeof AuthAdminAuditRoute
   '/admin/backup': typeof AuthAdminBackupRoute
   '/admin/feeds': typeof AuthAdminFeedsRoute
@@ -407,9 +425,11 @@ export interface FileRoutesByTo {
   '/setup': typeof SetupRoute
   '/favorites': typeof AuthFavoritesRoute
   '/home': typeof AuthHomeRoute
+  '/quickconnect': typeof AuthQuickconnectRoute
   '/search': typeof AuthSearchRoute
   '/admin/activity': typeof AuthAdminActivityRoute
   '/admin/analytics': typeof AuthAdminAnalyticsRoute
+  '/admin/api-keys': typeof AuthAdminApiKeysRoute
   '/admin/audit': typeof AuthAdminAuditRoute
   '/admin/backup': typeof AuthAdminBackupRoute
   '/admin/feeds': typeof AuthAdminFeedsRoute
@@ -454,9 +474,11 @@ export interface FileRoutesById {
   '/_auth/admin': typeof AuthAdminRouteWithChildren
   '/_auth/favorites': typeof AuthFavoritesRoute
   '/_auth/home': typeof AuthHomeRoute
+  '/_auth/quickconnect': typeof AuthQuickconnectRoute
   '/_auth/search': typeof AuthSearchRoute
   '/_auth/admin/activity': typeof AuthAdminActivityRoute
   '/_auth/admin/analytics': typeof AuthAdminAnalyticsRoute
+  '/_auth/admin/api-keys': typeof AuthAdminApiKeysRoute
   '/_auth/admin/audit': typeof AuthAdminAuditRoute
   '/_auth/admin/backup': typeof AuthAdminBackupRoute
   '/_auth/admin/feeds': typeof AuthAdminFeedsRoute
@@ -501,9 +523,11 @@ export interface FileRouteTypes {
     | '/admin'
     | '/favorites'
     | '/home'
+    | '/quickconnect'
     | '/search'
     | '/admin/activity'
     | '/admin/analytics'
+    | '/admin/api-keys'
     | '/admin/audit'
     | '/admin/backup'
     | '/admin/feeds'
@@ -545,9 +569,11 @@ export interface FileRouteTypes {
     | '/setup'
     | '/favorites'
     | '/home'
+    | '/quickconnect'
     | '/search'
     | '/admin/activity'
     | '/admin/analytics'
+    | '/admin/api-keys'
     | '/admin/audit'
     | '/admin/backup'
     | '/admin/feeds'
@@ -591,9 +617,11 @@ export interface FileRouteTypes {
     | '/_auth/admin'
     | '/_auth/favorites'
     | '/_auth/home'
+    | '/_auth/quickconnect'
     | '/_auth/search'
     | '/_auth/admin/activity'
     | '/_auth/admin/analytics'
+    | '/_auth/admin/api-keys'
     | '/_auth/admin/audit'
     | '/_auth/admin/backup'
     | '/_auth/admin/feeds'
@@ -686,6 +714,13 @@ declare module '@tanstack/react-router' {
       path: '/search'
       fullPath: '/search'
       preLoaderRoute: typeof AuthSearchRouteImport
+      parentRoute: typeof AuthRoute
+    }
+    '/_auth/quickconnect': {
+      id: '/_auth/quickconnect'
+      path: '/quickconnect'
+      fullPath: '/quickconnect'
+      preLoaderRoute: typeof AuthQuickconnectRouteImport
       parentRoute: typeof AuthRoute
     }
     '/_auth/home': {
@@ -926,6 +961,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthAdminAuditRouteImport
       parentRoute: typeof AuthAdminRoute
     }
+    '/_auth/admin/api-keys': {
+      id: '/_auth/admin/api-keys'
+      path: '/api-keys'
+      fullPath: '/admin/api-keys'
+      preLoaderRoute: typeof AuthAdminApiKeysRouteImport
+      parentRoute: typeof AuthAdminRoute
+    }
     '/_auth/admin/analytics': {
       id: '/_auth/admin/analytics'
       path: '/analytics'
@@ -953,6 +995,7 @@ declare module '@tanstack/react-router' {
 interface AuthAdminRouteChildren {
   AuthAdminActivityRoute: typeof AuthAdminActivityRoute
   AuthAdminAnalyticsRoute: typeof AuthAdminAnalyticsRoute
+  AuthAdminApiKeysRoute: typeof AuthAdminApiKeysRoute
   AuthAdminAuditRoute: typeof AuthAdminAuditRoute
   AuthAdminBackupRoute: typeof AuthAdminBackupRoute
   AuthAdminFeedsRoute: typeof AuthAdminFeedsRoute
@@ -974,6 +1017,7 @@ interface AuthAdminRouteChildren {
 const AuthAdminRouteChildren: AuthAdminRouteChildren = {
   AuthAdminActivityRoute: AuthAdminActivityRoute,
   AuthAdminAnalyticsRoute: AuthAdminAnalyticsRoute,
+  AuthAdminApiKeysRoute: AuthAdminApiKeysRoute,
   AuthAdminAuditRoute: AuthAdminAuditRoute,
   AuthAdminBackupRoute: AuthAdminBackupRoute,
   AuthAdminFeedsRoute: AuthAdminFeedsRoute,
@@ -1000,6 +1044,7 @@ interface AuthRouteChildren {
   AuthAdminRoute: typeof AuthAdminRouteWithChildren
   AuthFavoritesRoute: typeof AuthFavoritesRoute
   AuthHomeRoute: typeof AuthHomeRoute
+  AuthQuickconnectRoute: typeof AuthQuickconnectRoute
   AuthSearchRoute: typeof AuthSearchRoute
   AuthCollectionsCollectionIdRoute: typeof AuthCollectionsCollectionIdRoute
   AuthLibraryLibraryIdRoute: typeof AuthLibraryLibraryIdRoute
@@ -1023,6 +1068,7 @@ const AuthRouteChildren: AuthRouteChildren = {
   AuthAdminRoute: AuthAdminRouteWithChildren,
   AuthFavoritesRoute: AuthFavoritesRoute,
   AuthHomeRoute: AuthHomeRoute,
+  AuthQuickconnectRoute: AuthQuickconnectRoute,
   AuthSearchRoute: AuthSearchRoute,
   AuthCollectionsCollectionIdRoute: AuthCollectionsCollectionIdRoute,
   AuthLibraryLibraryIdRoute: AuthLibraryLibraryIdRoute,

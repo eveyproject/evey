@@ -36,6 +36,20 @@ func (r *QuickConnectRepository) GetByCode(ctx context.Context, code string) (*u
 	return req, nil
 }
 
+func (r *QuickConnectRepository) GetByShortCode(ctx context.Context, shortCode string) (*user.QuickConnectRequest, error) {
+	req := &user.QuickConnectRequest{}
+	err := r.db.QueryRowContext(ctx,
+		`SELECT id, code, secret, user_id, device_name, status, expires_at, created_at
+		 FROM quick_connect_requests
+		 WHERE UPPER(RIGHT(code, 6)) = UPPER($1) AND status = 'pending'
+		 ORDER BY created_at DESC LIMIT 1`, shortCode,
+	).Scan(&req.ID, &req.Code, &req.Secret, &req.UserID, &req.DeviceName, &req.Status, &req.ExpiresAt, &req.CreatedAt)
+	if err != nil {
+		return nil, err
+	}
+	return req, nil
+}
+
 func (r *QuickConnectRepository) UpdateStatus(ctx context.Context, id, status string, userID *string) error {
 	_, err := r.db.ExecContext(ctx,
 		`UPDATE quick_connect_requests SET status = $1, user_id = $2 WHERE id = $3`,

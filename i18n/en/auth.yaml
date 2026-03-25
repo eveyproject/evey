@@ -82,6 +82,14 @@ settings:
     parental: Parental
     devices: Devices
     apiKeys: API Keys
+    quickConnect: Quick Connect
+  quickConnect:
+    title: Quick Connect
+    description: Enter the code displayed on the device you want to sign in to.
+    codeLabel: Device Code
+    authorize: Authorize Device
+    authorized: Device authorized successfully
+    invalidCode: Invalid or expired code
   playback:
     bitrateTitle: Streaming Bitrate Limit
     bitrateDesc: Maximum bitrate for transcoded streams. Does not affect direct play.

@@ -15,6 +15,7 @@ nav:
   integrations: Integrations
   plugins: Plugins
   webhooks: Webhooks
+  apiKeys: API Keys
   monitoring: Monitoring
   analytics: Analytics
   activity: Activity

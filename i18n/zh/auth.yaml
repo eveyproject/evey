@@ -82,6 +82,14 @@ settings:
     parental: "家长控制"
     devices: "设备"
     apiKeys: "API 密钥"
+    quickConnect: "快速连接"
+  quickConnect:
+    title: "快速连接"
+    description: "输入您要登录的设备上显示的代码。"
+    codeLabel: "设备代码"
+    authorize: "授权设备"
+    authorized: "设备授权成功"
+    invalidCode: "代码无效或已过期"
   playback:
     bitrateTitle: "流媒体码率限制"
     bitrateDesc: "转码流的最大码率。不影响直接播放。"

@@ -11,6 +11,7 @@ import {
   Users,
   Puzzle,
   Webhook,
+  Key,
   BarChart3,
   TrendingUp,
   FileText,
@@ -67,6 +68,7 @@ const sectionsDef: NavSection[] = [
     links: [
       { href: "/admin/plugins", labelKey: "admin.nav.plugins", icon: Puzzle },
       { href: "/admin/webhooks", labelKey: "admin.nav.webhooks", icon: Webhook },
+      { href: "/admin/api-keys", labelKey: "admin.nav.apiKeys", icon: Key },
     ],
   },
   {

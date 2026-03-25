@@ -2,6 +2,7 @@ package fakes
 
 import (
 	"context"
+	"strings"
 	"sync"
 
 	"github.com/gravity-zero/evey/internal/domain/user"
@@ -44,6 +45,21 @@ func (r *FakeQuickConnectRepository) GetByCode(_ context.Context, code string) (
 		return nil, ErrNotFound
 	}
 	return req, nil
+}
+
+func (r *FakeQuickConnectRepository) GetByShortCode(_ context.Context, shortCode string) (*user.QuickConnectRequest, error) {
+	if r.Err != nil {
+		return nil, r.Err
+	}
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	upper := strings.ToUpper(shortCode)
+	for _, req := range r.items {
+		if req.Status == string(user.Pending) && strings.HasSuffix(strings.ToUpper(req.Code), upper) {
+			return req, nil
+		}
+	}
+	return nil, ErrNotFound
 }
 
 func (r *FakeQuickConnectRepository) UpdateStatus(_ context.Context, id, status string, userID *string) error {

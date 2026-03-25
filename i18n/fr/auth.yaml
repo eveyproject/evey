@@ -82,6 +82,14 @@ settings:
     parental: "Contrôle parental"
     devices: "Appareils"
     apiKeys: "Clés API"
+    quickConnect: "Connexion rapide"
+  quickConnect:
+    title: "Connexion rapide"
+    description: "Entrez le code affiché sur l'appareil que vous souhaitez connecter."
+    codeLabel: "Code de l'appareil"
+    authorize: "Autoriser l'appareil"
+    authorized: "Appareil autorisé avec succès"
+    invalidCode: "Code invalide ou expiré"
   playback:
     bitrateTitle: "Limite de débit de streaming"
     bitrateDesc: "Débit maximal pour les flux transcodés. N'affecte pas la lecture directe."
