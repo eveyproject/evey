@@ -122,3 +122,35 @@ func TestUserRepo_CountAdmins(t *testing.T) {
 	require.NoError(t, err)
 	assert.GreaterOrEqual(t, count, 1)
 }
+
+func TestUserRepo_GetByOIDCSubject(t *testing.T) {
+	db, cleanup := testhelpers.StartPostgres(t)
+	defer cleanup()
+
+	repo := postgres.NewUserRepository(db)
+	ctx := context.Background()
+
+	issuer := "https://auth.example.com"
+	subject := "oidc-sub-123"
+	u := newTestUser("u-oidc")
+	u.OIDCIssuer = &issuer
+	u.OIDCSubject = &subject
+	require.NoError(t, repo.Create(ctx, u))
+
+	got, err := repo.GetByOIDCSubject(ctx, issuer, subject)
+	require.NoError(t, err)
+	assert.Equal(t, u.ID, got.ID)
+	assert.Equal(t, &issuer, got.OIDCIssuer)
+	assert.Equal(t, &subject, got.OIDCSubject)
+}
+
+func TestUserRepo_GetByOIDCSubject_NotFound(t *testing.T) {
+	db, cleanup := testhelpers.StartPostgres(t)
+	defer cleanup()
+
+	repo := postgres.NewUserRepository(db)
+	ctx := context.Background()
+
+	_, err := repo.GetByOIDCSubject(ctx, "https://nope.com", "no-sub")
+	assert.Error(t, err)
+}
