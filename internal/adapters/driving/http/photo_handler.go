@@ -159,18 +159,18 @@ func (h *photoHandler) servePhoto(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("Content-Type", p.MimeType)
 	w.Header().Set("Cache-Control", "public, max-age=86400")
-	if err := http.NewResponseController(w).SetWriteDeadline(time.Time{}); err != nil {
-		slog.Warn("set write deadline", slog.Any("err", err))
+	if dlErr := http.NewResponseController(w).SetWriteDeadline(time.Time{}); dlErr != nil {
+		slog.Warn("set write deadline", slog.Any("err", dlErr))
 	}
 	if p.MimeType != "image/jpeg" {
-		f, err := os.Open(p.FilePath)
-		if err != nil {
+		f, openErr := os.Open(p.FilePath)
+		if openErr != nil {
 			http.Error(w, `{"message":"file not found"}`, http.StatusNotFound)
 			return
 		}
 		defer f.Close()
-		fi, err := f.Stat()
-		if err != nil {
+		fi, statErr := f.Stat()
+		if statErr != nil {
 			http.Error(w, `{"message":"file not found"}`, http.StatusNotFound)
 			return
 		}

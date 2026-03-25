@@ -315,14 +315,14 @@ func TestHandleCallback_NewUser(t *testing.T) {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/.well-known/openid-configuration", oidcSrv2.handleDiscovery)
 	mux.HandleFunc("/jwks", oidcSrv2.handleJWKS)
-	mux.Handle("/token", http.HandlerFunc(oidcSrv2.handleTokenWithIDToken(
+	mux.Handle("/token", oidcSrv2.handleTokenWithIDToken(
 		oidcSrv2.signIDToken(t, map[string]interface{}{
 			"sub":                "oidc-sub-123",
 			"email":              "alice@example.com",
 			"preferred_username": "alice",
 			"name":               "Alice",
 		}, "test-client"),
-	)))
+	))
 	oidcSrv2.srv.Config.Handler = mux
 
 	svc := buildOIDCService(t, oidcSrv2)
@@ -393,13 +393,13 @@ func TestHandleCallback_ExistingUser(t *testing.T) {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/.well-known/openid-configuration", oidcSrv.handleDiscovery)
 	mux.HandleFunc("/jwks", oidcSrv.handleJWKS)
-	mux.Handle("/token", http.HandlerFunc(oidcSrv.handleTokenWithIDToken(
+	mux.Handle("/token", oidcSrv.handleTokenWithIDToken(
 		oidcSrv.signIDToken(t, map[string]interface{}{
 			"sub":                sub,
 			"email":              "bob@example.com",
 			"preferred_username": "bob",
 		}, "test-client"),
-	)))
+	))
 	oidcSrv.srv.Config.Handler = mux
 
 	svc := buildOIDCService(t, oidcSrv)
@@ -459,12 +459,12 @@ func TestHandleCallback_DisabledUser(t *testing.T) {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/.well-known/openid-configuration", oidcSrv.handleDiscovery)
 	mux.HandleFunc("/jwks", oidcSrv.handleJWKS)
-	mux.Handle("/token", http.HandlerFunc(oidcSrv.handleTokenWithIDToken(
+	mux.Handle("/token", oidcSrv.handleTokenWithIDToken(
 		oidcSrv.signIDToken(t, map[string]interface{}{
 			"sub":   sub,
 			"email": "disabled@example.com",
 		}, "test-client"),
-	)))
+	))
 	oidcSrv.srv.Config.Handler = mux
 
 	svc := buildOIDCService(t, oidcSrv)
@@ -492,13 +492,13 @@ func TestHandleCallback_EmailDomainNotAllowed(t *testing.T) {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/.well-known/openid-configuration", oidcSrv.handleDiscovery)
 	mux.HandleFunc("/jwks", oidcSrv.handleJWKS)
-	mux.Handle("/token", http.HandlerFunc(oidcSrv.handleTokenWithIDToken(
+	mux.Handle("/token", oidcSrv.handleTokenWithIDToken(
 		oidcSrv.signIDToken(t, map[string]interface{}{
 			"sub":                "new-sub",
 			"email":              "user@evil.com",
 			"preferred_username": "hacker",
 		}, "test-client"),
-	)))
+	))
 	oidcSrv.srv.Config.Handler = mux
 
 	svc := buildOIDCService(t, oidcSrv, func(s *OIDCService) {
@@ -518,13 +518,13 @@ func TestHandleCallback_AccessTokenGenerationError(t *testing.T) {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/.well-known/openid-configuration", oidcSrv.handleDiscovery)
 	mux.HandleFunc("/jwks", oidcSrv.handleJWKS)
-	mux.Handle("/token", http.HandlerFunc(oidcSrv.handleTokenWithIDToken(
+	mux.Handle("/token", oidcSrv.handleTokenWithIDToken(
 		oidcSrv.signIDToken(t, map[string]interface{}{
 			"sub":                "sub-tknerr",
 			"email":              "user@example.com",
 			"preferred_username": "user",
 		}, "test-client"),
-	)))
+	))
 	oidcSrv.srv.Config.Handler = mux
 
 	tokenGen := userfakes.NewFakeTokenGenerator()
@@ -552,13 +552,13 @@ func TestHandleCallback_UserRepoCreateError(t *testing.T) {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/.well-known/openid-configuration", oidcSrv.handleDiscovery)
 	mux.HandleFunc("/jwks", oidcSrv.handleJWKS)
-	mux.Handle("/token", http.HandlerFunc(oidcSrv.handleTokenWithIDToken(
+	mux.Handle("/token", oidcSrv.handleTokenWithIDToken(
 		oidcSrv.signIDToken(t, map[string]interface{}{
 			"sub":                "sub-repoerr",
 			"email":              "user@example.com",
 			"preferred_username": "user",
 		}, "test-client"),
-	)))
+	))
 	oidcSrv.srv.Config.Handler = mux
 
 	svc := buildOIDCService(t, oidcSrv, func(s *OIDCService) {
@@ -580,12 +580,12 @@ func TestHandleCallback_UsernameFromEmail(t *testing.T) {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/.well-known/openid-configuration", oidcSrv.handleDiscovery)
 	mux.HandleFunc("/jwks", oidcSrv.handleJWKS)
-	mux.Handle("/token", http.HandlerFunc(oidcSrv.handleTokenWithIDToken(
+	mux.Handle("/token", oidcSrv.handleTokenWithIDToken(
 		oidcSrv.signIDToken(t, map[string]interface{}{
 			"sub":   "sub-nousername",
 			"email": "jane@example.com",
 		}, "test-client"),
-	)))
+	))
 	oidcSrv.srv.Config.Handler = mux
 
 	svc := buildOIDCService(t, oidcSrv)
@@ -612,11 +612,11 @@ func TestHandleCallback_UsernameFallbackHex(t *testing.T) {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/.well-known/openid-configuration", oidcSrv.handleDiscovery)
 	mux.HandleFunc("/jwks", oidcSrv.handleJWKS)
-	mux.Handle("/token", http.HandlerFunc(oidcSrv.handleTokenWithIDToken(
+	mux.Handle("/token", oidcSrv.handleTokenWithIDToken(
 		oidcSrv.signIDToken(t, map[string]interface{}{
 			"sub": "sub-noemail",
 		}, "test-client"),
-	)))
+	))
 	oidcSrv.srv.Config.Handler = mux
 
 	svc := buildOIDCService(t, oidcSrv)
@@ -644,13 +644,13 @@ func TestHandleCallback_ProfileWithRoles(t *testing.T) {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/.well-known/openid-configuration", oidcSrv.handleDiscovery)
 	mux.HandleFunc("/jwks", oidcSrv.handleJWKS)
-	mux.Handle("/token", http.HandlerFunc(oidcSrv.handleTokenWithIDToken(
+	mux.Handle("/token", oidcSrv.handleTokenWithIDToken(
 		oidcSrv.signIDToken(t, map[string]interface{}{
 			"sub":                sub,
 			"email":              "admin@example.com",
 			"preferred_username": "admin",
 		}, "test-client"),
-	)))
+	))
 	oidcSrv.srv.Config.Handler = mux
 
 	roleRepo := userfakes.NewFakeRoleRepository()
@@ -701,13 +701,13 @@ func TestHandleCallback_RefreshTokenError(t *testing.T) {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/.well-known/openid-configuration", oidcSrv.handleDiscovery)
 	mux.HandleFunc("/jwks", oidcSrv.handleJWKS)
-	mux.Handle("/token", http.HandlerFunc(oidcSrv.handleTokenWithIDToken(
+	mux.Handle("/token", oidcSrv.handleTokenWithIDToken(
 		oidcSrv.signIDToken(t, map[string]interface{}{
 			"sub":                "sub-refresherr",
 			"email":              "user@example.com",
 			"preferred_username": "user",
 		}, "test-client"),
-	)))
+	))
 	oidcSrv.srv.Config.Handler = mux
 
 	tokenGen := userfakes.NewFakeTokenGenerator()

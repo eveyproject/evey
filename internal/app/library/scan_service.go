@@ -469,30 +469,6 @@ func (s *ScanService) ProbeAndStoreStreams(ctx context.Context, mediaItemID, fil
 	return result.DurationMs
 }
 
-func (s *ScanService) getOrCreateItem(ctx context.Context, item *library.MediaItem) (*library.MediaItem, bool, error) {
-	existing, err := s.mediaItems.GetByFileFingerprint(ctx, item.FileFingerprint)
-	if err == nil {
-		return existing, false, nil
-	}
-	if !errors.Is(err, shared.ErrNotFound) {
-		return nil, false, err
-	}
-	existing, err = s.mediaItems.GetByLibraryTypeTitle(ctx, item.LibraryID, item.Type, item.Title, item.ParentID)
-	if err == nil {
-		existing.FileFingerprint = item.FileFingerprint
-		if updateErr := s.mediaItems.Update(ctx, existing); updateErr != nil {
-			slog.Warn("update media item fingerprint failed", slog.String("mediaItemID", existing.ID), slog.Any("err", updateErr))
-		}
-		return existing, false, nil
-	}
-	if !errors.Is(err, shared.ErrNotFound) {
-		return nil, false, fmt.Errorf("lookup by title %q: %w", item.Title, err)
-	}
-	if err = s.mediaItems.Create(ctx, item); err != nil {
-		return nil, false, err
-	}
-	return item, true, nil
-}
 
 func (s *ScanService) scanTVShowFiles(ctx context.Context, libraryID string, files []library.ScannedFile) (added, updated int, err error) {
 	// Pre-load existing containers to avoid N+1 queries per series/season

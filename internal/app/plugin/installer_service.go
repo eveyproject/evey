@@ -90,7 +90,8 @@ func (s *InstallerService) InstallPlugin(ctx context.Context, zipPath string) (*
 		return nil, fmt.Errorf("parse manifest: %w", err)
 	}
 
-	if existing, _ := s.plugins.GetByName(ctx, manifest.Name); existing != nil {
+	existing, getErr := s.plugins.GetByName(ctx, manifest.Name)
+	if getErr == nil && existing != nil {
 		return nil, fmt.Errorf("plugin %q already installed (id: %s)", manifest.Name, existing.ID)
 	}
 

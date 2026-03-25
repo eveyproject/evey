@@ -69,27 +69,6 @@ func extractBearerToken(r *http.Request) string {
 	return r.URL.Query().Get("token")
 }
 
-// resolveAuth checks for a stream token in the context first (opaque token resolved by middleware),
-// then falls back to JWT validation. Returns claims and the resolved mediaItemID from the stream token (if any).
-func resolveAuth(r *http.Request, tokenGen tokenValidator) (*domainuser.Claims, string, error) {
-	if st, ok := StreamTokenFromContext(r.Context()); ok {
-		return &domainuser.Claims{UserID: st.UserID}, st.MediaItemID, nil
-	}
-	raw := extractBearerToken(r)
-	if raw == "" {
-		return nil, "", fmt.Errorf("unauthenticated")
-	}
-	claims, err := tokenGen.ValidateAccessToken(raw)
-	if err != nil {
-		return nil, "", err
-	}
-	return claims, "", nil
-}
-
-type tokenValidator interface {
-	ValidateAccessToken(token string) (*domainuser.Claims, error)
-}
-
 func setCORSHeaders(w http.ResponseWriter, r *http.Request, baseURL string) {
 	origin := r.Header.Get("Origin")
 	if origin == "" {

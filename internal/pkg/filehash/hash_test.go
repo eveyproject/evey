@@ -23,8 +23,8 @@ func TestCompute_SmallFile(t *testing.T) {
 
 	// same content → same hash
 	path2 := filepath.Join(dir, "small2.txt")
-	if err := os.WriteFile(path2, []byte("hello world"), 0644); err != nil {
-		t.Fatal(err)
+	if wErr := os.WriteFile(path2, []byte("hello world"), 0644); wErr != nil {
+		t.Fatal(wErr)
 	}
 	h2, err := Compute(path2)
 	if err != nil {
@@ -36,8 +36,8 @@ func TestCompute_SmallFile(t *testing.T) {
 
 	// different content → different hash
 	path3 := filepath.Join(dir, "diff.txt")
-	if err := os.WriteFile(path3, []byte("different"), 0644); err != nil {
-		t.Fatal(err)
+	if wErr := os.WriteFile(path3, []byte("different"), 0644); wErr != nil {
+		t.Fatal(wErr)
 	}
 	h3, err := Compute(path3)
 	if err != nil {
@@ -72,8 +72,8 @@ func TestCompute_LargeFile(t *testing.T) {
 	// modify middle (not in head/tail) - hash should NOT change since we only read head+tail
 	data[128*1024] = 0xFF
 	path2 := filepath.Join(dir, "large_mid.bin")
-	if err := os.WriteFile(path2, data, 0644); err != nil {
-		t.Fatal(err)
+	if wErr := os.WriteFile(path2, data, 0644); wErr != nil {
+		t.Fatal(wErr)
 	}
 	h2, err := Compute(path2)
 	if err != nil {
@@ -86,8 +86,8 @@ func TestCompute_LargeFile(t *testing.T) {
 	// modify first byte - hash SHOULD change
 	data[0] = 0xFF
 	path3 := filepath.Join(dir, "large_head.bin")
-	if err := os.WriteFile(path3, data, 0644); err != nil {
-		t.Fatal(err)
+	if wErr := os.WriteFile(path3, data, 0644); wErr != nil {
+		t.Fatal(wErr)
 	}
 	h3, err := Compute(path3)
 	if err != nil {

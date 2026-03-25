@@ -13,7 +13,7 @@ func TestGenerateCode(t *testing.T) {
 		t.Errorf("code length = %d, want 6", len(code))
 	}
 	for _, c := range code {
-		if !((c >= 'A' && c <= 'Z') || (c >= '2' && c <= '9')) {
+		if (c < 'A' || c > 'Z') && (c < '2' || c > '9') {
 			t.Errorf("unexpected char %c in code %q", c, code)
 		}
 	}

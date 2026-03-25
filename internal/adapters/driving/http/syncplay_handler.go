@@ -175,7 +175,7 @@ func (s *syncplayHandler) wsHandler() http.Handler {
 			http.Error(w, `{"message":"room not found"}`, http.StatusNotFound)
 			return
 		}
-		wsClaims, _ := s.tokenGen.ValidateAccessToken(token)
+		wsClaims, _ := s.tokenGen.ValidateAccessToken(token) //nolint:errcheck // fallback to synthetic claims below
 		if wsClaims == nil {
 			wsClaims = &domainuser.Claims{UserID: userID, Username: username}
 		}
