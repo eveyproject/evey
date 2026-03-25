@@ -21,7 +21,11 @@ async function refreshToken(): Promise<boolean> {
       headers: { "Content-Type": "application/json" },
       data: {},
     });
-    return !!data.accessToken;
+    if (data.accessToken) {
+      useAuthStore.getState().setTokens(data.accessToken);
+      return true;
+    }
+    return false;
   } catch {
     return false;
   }
