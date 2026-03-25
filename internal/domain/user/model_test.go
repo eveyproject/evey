@@ -388,6 +388,157 @@ func TestAPIKeyModel_IsExpired(t *testing.T) {
 	}
 }
 
+func TestUser_Validate(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name    string
+		user    user.User
+		wantErr string
+	}{
+		{"valid", user.User{Username: "alice"}, ""},
+		{"empty username", user.User{Username: ""}, "username is required"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			err := tt.user.Validate()
+			if tt.wantErr == "" {
+				if err != nil {
+					t.Errorf("unexpected error: %v", err)
+				}
+			} else {
+				if err == nil || err.Error() != tt.wantErr {
+					t.Errorf("Validate() = %v, want %q", err, tt.wantErr)
+				}
+			}
+		})
+	}
+}
+
+func TestProfile_Validate(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name    string
+		profile user.Profile
+		wantErr string
+	}{
+		{"valid", user.Profile{UserID: "u1", Name: "Main"}, ""},
+		{"no user ID", user.Profile{UserID: "", Name: "Main"}, "profile user ID is required"},
+		{"no name", user.Profile{UserID: "u1", Name: ""}, "profile name is required"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			err := tt.profile.Validate()
+			if tt.wantErr == "" {
+				if err != nil {
+					t.Errorf("unexpected error: %v", err)
+				}
+			} else {
+				if err == nil || err.Error() != tt.wantErr {
+					t.Errorf("Validate() = %v, want %q", err, tt.wantErr)
+				}
+			}
+		})
+	}
+}
+
+func TestInviteLink_Validate(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name    string
+		link    user.InviteLink
+		wantErr string
+	}{
+		{"valid", user.InviteLink{CreatedBy: "u1", Token: "tok", MaxUses: 5}, ""},
+		{"no created_by", user.InviteLink{CreatedBy: "", Token: "tok"}, "invite link created_by is required"},
+		{"no token", user.InviteLink{CreatedBy: "u1", Token: ""}, "invite link token is required"},
+		{"negative max uses", user.InviteLink{CreatedBy: "u1", Token: "tok", MaxUses: -1}, "invite link max uses must not be negative"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			err := tt.link.Validate()
+			if tt.wantErr == "" {
+				if err != nil {
+					t.Errorf("unexpected error: %v", err)
+				}
+			} else {
+				if err == nil || err.Error() != tt.wantErr {
+					t.Errorf("Validate() = %v, want %q", err, tt.wantErr)
+				}
+			}
+		})
+	}
+}
+
+func TestAPIKeyModel_Validate(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name    string
+		key     user.APIKeyModel
+		wantErr string
+	}{
+		{"valid", user.APIKeyModel{UserID: "u1", Name: "CI", KeyHash: "h"}, ""},
+		{"no user ID", user.APIKeyModel{UserID: "", Name: "CI", KeyHash: "h"}, "API key user ID is required"},
+		{"no name", user.APIKeyModel{UserID: "u1", Name: "", KeyHash: "h"}, "API key name is required"},
+		{"no hash", user.APIKeyModel{UserID: "u1", Name: "CI", KeyHash: ""}, "API key hash is required"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			err := tt.key.Validate()
+			if tt.wantErr == "" {
+				if err != nil {
+					t.Errorf("unexpected error: %v", err)
+				}
+			} else {
+				if err == nil || err.Error() != tt.wantErr {
+					t.Errorf("Validate() = %v, want %q", err, tt.wantErr)
+				}
+			}
+		})
+	}
+}
+
+func TestInviteLink_IsUsable_Expired(t *testing.T) {
+	t.Parallel()
+	past := time.Now().Add(-time.Hour)
+	link := user.InviteLink{MaxUses: 0, ExpiresAt: &past}
+	if link.IsUsable() {
+		t.Error("expired invite link should not be usable")
+	}
+}
+
+func TestAPIKeyModel_IsExpired_Future(t *testing.T) {
+	t.Parallel()
+	future := time.Now().Add(time.Hour)
+	k := &user.APIKeyModel{ExpiresAt: &future}
+	if k.IsExpired() {
+		t.Error("future ExpiresAt = not expired")
+	}
+}
+
+func TestAPIKeyModel_HasPermission_Empty(t *testing.T) {
+	t.Parallel()
+	k := &user.APIKeyModel{Permissions: []string{}}
+	if k.HasPermission("anything") {
+		t.Error("empty permissions should not match")
+	}
+}
+
+func TestRefreshToken_IsExpired(t *testing.T) {
+	t.Parallel()
+	expired := &user.RefreshToken{ExpiresAt: time.Now().Add(-time.Hour)}
+	if !expired.IsExpired() {
+		t.Error("past ExpiresAt = expired")
+	}
+	valid := &user.RefreshToken{ExpiresAt: time.Now().Add(time.Hour)}
+	if valid.IsExpired() {
+		t.Error("future ExpiresAt = not expired")
+	}
+}
+
 func TestRole_Permissions(t *testing.T) {
 	t.Parallel()
 

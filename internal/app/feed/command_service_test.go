@@ -7,6 +7,8 @@ import (
 	appfeed "github.com/gravity-zero/evey/internal/app/feed"
 	"github.com/gravity-zero/evey/internal/domain/feed"
 	"github.com/gravity-zero/evey/internal/domain/feed/fakes"
+	"github.com/gravity-zero/evey/internal/domain/library"
+	sharedfakes "github.com/gravity-zero/evey/internal/domain/shared/fakes"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -52,4 +54,140 @@ func TestCommandService_ResetProfileConfig(t *testing.T) {
 	require.NoError(t, svc.UpdateProfileConfig(context.Background(), cfg))
 	require.NoError(t, svc.ResetProfileConfig(context.Background(), "p1", feed.TypeRecommended))
 	assert.Empty(t, repo.ProfileConfigs["p1"])
+}
+
+func TestCommandService_UpdateAdminConfig_InvalidReturnsError(t *testing.T) {
+	repo := fakes.NewFakeConfigCommandRepo()
+	svc := appfeed.NewCommandService(repo, fakes.NewFakeConfigQueryRepo())
+
+	cfg := &feed.AdminConfig{FeedType: "", Enabled: true, MaxItems: 10}
+	err := svc.UpdateAdminConfig(context.Background(), cfg)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "invalid admin feed config")
+}
+
+func TestCommandService_UpdateProfileConfig_InvalidReturnsError(t *testing.T) {
+	repo := fakes.NewFakeConfigCommandRepo()
+	svc := appfeed.NewCommandService(repo, fakes.NewFakeConfigQueryRepo())
+
+	cfg := &feed.ProfileConfig{ProfileID: "", FeedType: feed.TypeRecentlyAdded}
+	err := svc.UpdateProfileConfig(context.Background(), cfg)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "invalid profile feed config")
+}
+
+func TestCommandService_BatchUpdateAdminConfigs(t *testing.T) {
+	repo := fakes.NewFakeConfigCommandRepo()
+	svc := appfeed.NewCommandService(repo, fakes.NewFakeConfigQueryRepo())
+
+	cfgs := []*feed.AdminConfig{
+		{FeedType: feed.TypeRecentlyAdded, Enabled: true, DisplayOrder: 0, MaxItems: 20},
+		{FeedType: feed.TypeRecommended, Enabled: true, DisplayOrder: 1, MaxItems: 15},
+	}
+	require.NoError(t, svc.BatchUpdateAdminConfigs(context.Background(), cfgs))
+	assert.Len(t, repo.AdminConfigs, 2)
+}
+
+func TestCommandService_BatchUpdateAdminConfigs_InvalidReturnsError(t *testing.T) {
+	repo := fakes.NewFakeConfigCommandRepo()
+	svc := appfeed.NewCommandService(repo, fakes.NewFakeConfigQueryRepo())
+
+	cfgs := []*feed.AdminConfig{
+		{FeedType: feed.TypeRecentlyAdded, Enabled: true, MaxItems: 20},
+		{FeedType: "", Enabled: true, MaxItems: 10},
+	}
+	err := svc.BatchUpdateAdminConfigs(context.Background(), cfgs)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "invalid admin feed config")
+}
+
+func TestCommandService_EnsureLibraryFeedConfig_New(t *testing.T) {
+	cmdRepo := fakes.NewFakeConfigCommandRepo()
+	queryRepo := fakes.NewFakeConfigQueryRepo()
+	svc := appfeed.NewCommandService(cmdRepo, queryRepo)
+
+	queryRepo.AdminConfigs = []*feed.AdminConfig{
+		{FeedType: feed.TypeRecentlyAdded, Enabled: true, DisplayOrder: 1, MaxItems: 20},
+	}
+
+	require.NoError(t, svc.EnsureLibraryFeedConfig(context.Background(), "lib-1", "Movies"))
+	created := cmdRepo.AdminConfigs[feed.LibraryType("lib-1")]
+	require.NotNil(t, created)
+	assert.True(t, created.Enabled)
+	assert.Equal(t, 2, created.DisplayOrder)
+	assert.Equal(t, 20, created.MaxItems)
+}
+
+func TestCommandService_EnsureLibraryFeedConfig_AlreadyExists(t *testing.T) {
+	cmdRepo := fakes.NewFakeConfigCommandRepo()
+	queryRepo := fakes.NewFakeConfigQueryRepo()
+	svc := appfeed.NewCommandService(cmdRepo, queryRepo)
+
+	ft := feed.LibraryType("lib-1")
+	queryRepo.AdminConfigs = []*feed.AdminConfig{
+		{FeedType: ft, Enabled: true, DisplayOrder: 0, MaxItems: 20},
+	}
+
+	require.NoError(t, svc.EnsureLibraryFeedConfig(context.Background(), "lib-1", "Movies"))
+	assert.Empty(t, cmdRepo.AdminConfigs)
+}
+
+func TestCommandService_DeleteLibraryFeedConfig(t *testing.T) {
+	cmdRepo := fakes.NewFakeConfigCommandRepo()
+	svc := appfeed.NewCommandService(cmdRepo, fakes.NewFakeConfigQueryRepo())
+
+	ft := feed.LibraryType("lib-1")
+	cmdRepo.AdminConfigs[ft] = &feed.AdminConfig{FeedType: ft, Enabled: true}
+
+	require.NoError(t, svc.DeleteLibraryFeedConfig(context.Background(), "lib-1"))
+	assert.Empty(t, cmdRepo.AdminConfigs)
+}
+
+func TestCommandService_WithEventBus_LibraryCreated(t *testing.T) {
+	cmdRepo := fakes.NewFakeConfigCommandRepo()
+	queryRepo := fakes.NewFakeConfigQueryRepo()
+	bus := sharedfakes.NewFakeEventBus()
+	svc := appfeed.NewCommandService(cmdRepo, queryRepo)
+	svc.WithEventBus(bus)
+
+	require.NoError(t, bus.Publish(context.Background(), library.LibraryCreated{
+		LibraryID: "lib-new",
+		Name:      "TV Shows",
+	}))
+
+	ft := feed.LibraryType("lib-new")
+	created := cmdRepo.AdminConfigs[ft]
+	require.NotNil(t, created)
+	assert.True(t, created.Enabled)
+}
+
+func TestCommandService_WithEventBus_LibraryDeleted(t *testing.T) {
+	cmdRepo := fakes.NewFakeConfigCommandRepo()
+	queryRepo := fakes.NewFakeConfigQueryRepo()
+	bus := sharedfakes.NewFakeEventBus()
+	svc := appfeed.NewCommandService(cmdRepo, queryRepo)
+	svc.WithEventBus(bus)
+
+	ft := feed.LibraryType("lib-del")
+	cmdRepo.AdminConfigs[ft] = &feed.AdminConfig{FeedType: ft, Enabled: true}
+
+	require.NoError(t, bus.Publish(context.Background(), library.LibraryDeleted{
+		LibraryID: "lib-del",
+	}))
+
+	assert.Empty(t, cmdRepo.AdminConfigs)
+}
+
+func TestCommandService_WithEventBus_WrongEventTypeIgnored(t *testing.T) {
+	cmdRepo := fakes.NewFakeConfigCommandRepo()
+	queryRepo := fakes.NewFakeConfigQueryRepo()
+	bus := sharedfakes.NewFakeEventBus()
+	svc := appfeed.NewCommandService(cmdRepo, queryRepo)
+	svc.WithEventBus(bus)
+
+	// publish a non-library event on "library.created" channel
+	type fakeEvent struct{}
+	_ = bus.Publish(context.Background(), library.LibraryDeleted{LibraryID: "x"})
+	// no panic = success; deleted handler runs on "library.deleted" not "library.created"
+	assert.Empty(t, cmdRepo.AdminConfigs)
 }

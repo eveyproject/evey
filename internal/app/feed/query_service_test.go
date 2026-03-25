@@ -2,6 +2,7 @@ package feed_test
 
 import (
 	"context"
+	"errors"
 	"testing"
 
 	appfeed "github.com/gravity-zero/evey/internal/app/feed"
@@ -218,6 +219,80 @@ func TestQueryService_GetMergedConfig_Empty(t *testing.T) {
 	configs, err := svc.GetMergedConfig(context.Background(), "p1")
 	require.NoError(t, err)
 	assert.Empty(t, configs)
+}
+
+func TestQueryService_ResumePlayback(t *testing.T) {
+	queryRepo := fakes.NewFakeConfigQueryRepo()
+	querier := fakes.NewFakeFeedQuerier()
+	analyzer := notiffakes.NewFakeWatchHistoryAnalyzer()
+
+	querier.ResumePlaybackItems = []*feed.FeedItem{
+		{MediaItemID: "m10", Title: "Paused Movie", Type: "movie", PositionMs: 30000},
+	}
+
+	svc := appfeed.NewQueryService(queryRepo, querier, analyzer)
+	items, err := svc.ResumePlayback(context.Background(), "p1", 10)
+	require.NoError(t, err)
+	require.Len(t, items, 1)
+	assert.Equal(t, "m10", items[0].MediaItemID)
+}
+
+func TestQueryService_NextEpisode(t *testing.T) {
+	queryRepo := fakes.NewFakeConfigQueryRepo()
+	querier := fakes.NewFakeFeedQuerier()
+	analyzer := notiffakes.NewFakeWatchHistoryAnalyzer()
+
+	querier.NextEpisodeItems = []*feed.FeedItem{
+		{MediaItemID: "ep5", Title: "Episode 5", Type: "episode"},
+	}
+
+	svc := appfeed.NewQueryService(queryRepo, querier, analyzer)
+	items, err := svc.NextEpisode(context.Background(), "p1", 10)
+	require.NoError(t, err)
+	require.Len(t, items, 1)
+	assert.Equal(t, "ep5", items[0].MediaItemID)
+}
+
+func TestQueryService_Recommended_AnalyzerError(t *testing.T) {
+	queryRepo := fakes.NewFakeConfigQueryRepo()
+	querier := fakes.NewFakeFeedQuerier()
+	analyzer := notiffakes.NewFakeWatchHistoryAnalyzer()
+	analyzer.Err = errors.New("db down")
+
+	svc := appfeed.NewQueryService(queryRepo, querier, analyzer)
+	_, err := svc.Recommended(context.Background(), "p1", 10)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "db down")
+}
+
+func TestQueryService_GetMergedConfig_ProfileOverridesParams(t *testing.T) {
+	queryRepo := fakes.NewFakeConfigQueryRepo()
+	querier := fakes.NewFakeFeedQuerier()
+	analyzer := notiffakes.NewFakeWatchHistoryAnalyzer()
+
+	queryRepo.AdminConfigs = []*feed.AdminConfig{
+		{FeedType: feed.TypeRecentlyAdded, Enabled: true, DisplayOrder: 1, MaxItems: 20, Params: map[string]any{"key": "admin"}},
+	}
+	queryRepo.ProfileConfigs["p1"] = []*feed.ProfileConfig{
+		{ProfileID: "p1", FeedType: feed.TypeRecentlyAdded, Params: map[string]any{"key": "user"}},
+	}
+
+	svc := appfeed.NewQueryService(queryRepo, querier, analyzer)
+	configs, err := svc.GetMergedConfig(context.Background(), "p1")
+	require.NoError(t, err)
+	require.Len(t, configs, 1)
+	assert.Equal(t, map[string]any{"key": "user"}, configs[0].Params)
+}
+
+func TestQueryService_GetMergedConfig_AdminQueryError(t *testing.T) {
+	queryRepo := fakes.NewFakeConfigQueryRepo()
+	querier := fakes.NewFakeFeedQuerier()
+	analyzer := notiffakes.NewFakeWatchHistoryAnalyzer()
+	queryRepo.Err = errors.New("db error")
+
+	svc := appfeed.NewQueryService(queryRepo, querier, analyzer)
+	_, err := svc.GetMergedConfig(context.Background(), "p1")
+	require.Error(t, err)
 }
 
 func TestQueryService_GetMergedConfig_ProfileOverridesDisplayOrder(t *testing.T) {

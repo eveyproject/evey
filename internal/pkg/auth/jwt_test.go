@@ -86,3 +86,68 @@ func TestAlgorithmConfusionRejected(t *testing.T) {
 	_, err = gen.ValidateAccessToken(tokenStr)
 	assert.Error(t, err, "HMAC-signed token must be rejected by RSA validator")
 }
+
+func TestGenerateRefreshToken(t *testing.T) {
+	t.Parallel()
+	key, err := rsa.GenerateKey(rand.Reader, 2048)
+	require.NoError(t, err)
+
+	gen := auth.NewJWTGenerator(key, 15*time.Minute)
+	token, err := gen.GenerateRefreshToken()
+	require.NoError(t, err)
+	assert.NotEmpty(t, token)
+
+	parsed, err := jwt.Parse(token, func(t *jwt.Token) (any, error) {
+		return &key.PublicKey, nil
+	})
+	require.NoError(t, err)
+	claims := parsed.Claims.(jwt.MapClaims)
+	assert.Equal(t, "refresh", claims["type"])
+	assert.NotEmpty(t, claims["jti"])
+}
+
+func TestValidateAccessToken_NoProfileNoPermissions(t *testing.T) {
+	t.Parallel()
+	key, _ := rsa.GenerateKey(rand.Reader, 2048)
+	gen := auth.NewJWTGenerator(key, 15*time.Minute)
+
+	token, err := gen.GenerateAccessToken(user.Claims{
+		UserID:   "u1",
+		Username: "bob",
+		IsAdmin:  false,
+	})
+	require.NoError(t, err)
+
+	parsed, err := gen.ValidateAccessToken(token)
+	require.NoError(t, err)
+	assert.Equal(t, "u1", parsed.UserID)
+	assert.Empty(t, parsed.ProfileID)
+	assert.Empty(t, parsed.Permissions)
+}
+
+func TestValidateAccessToken_MalformedToken(t *testing.T) {
+	t.Parallel()
+	key, _ := rsa.GenerateKey(rand.Reader, 2048)
+	gen := auth.NewJWTGenerator(key, 15*time.Minute)
+
+	_, err := gen.ValidateAccessToken("not.a.token")
+	require.Error(t, err)
+}
+
+func TestValidateAccessToken_MissingRequiredClaims(t *testing.T) {
+	t.Parallel()
+	key, _ := rsa.GenerateKey(rand.Reader, 2048)
+	gen := auth.NewJWTGenerator(key, 15*time.Minute)
+
+	// craft a token missing "sub" and "username"
+	token := jwt.NewWithClaims(jwt.SigningMethodRS256, jwt.MapClaims{
+		"iat": time.Now().Unix(),
+		"exp": time.Now().Add(time.Hour).Unix(),
+	})
+	tokenStr, err := token.SignedString(key)
+	require.NoError(t, err)
+
+	_, err = gen.ValidateAccessToken(tokenStr)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "invalid token claims")
+}
