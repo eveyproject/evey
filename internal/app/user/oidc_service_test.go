@@ -52,7 +52,7 @@ func newTestOIDCServer(t *testing.T) *testOIDCServer {
 func (s *testOIDCServer) close() { s.srv.Close() }
 
 func (s *testOIDCServer) handleDiscovery(w http.ResponseWriter, _ *http.Request) {
-	doc := map[string]interface{}{
+	doc := map[string]any{
 		"issuer":                 s.issuer,
 		"authorization_endpoint": s.issuer + "/auth",
 		"token_endpoint":         s.issuer + "/token",
@@ -70,7 +70,7 @@ func (s *testOIDCServer) handleJWKS(w http.ResponseWriter, _ *http.Request) {
 	json.NewEncoder(w).Encode(set)
 }
 
-func (s *testOIDCServer) signIDToken(t *testing.T, claims map[string]interface{}, clientID string) string {
+func (s *testOIDCServer) signIDToken(t *testing.T, claims map[string]any, clientID string) string {
 	t.Helper()
 	signerOpts := jose.SignerOptions{}
 	signerOpts.WithHeader(jose.HeaderKey("kid"), s.keyID)
@@ -97,7 +97,7 @@ func (s *testOIDCServer) signIDToken(t *testing.T, claims map[string]interface{}
 
 func (s *testOIDCServer) handleToken(w http.ResponseWriter, _ *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]interface{}{
+	json.NewEncoder(w).Encode(map[string]any{
 		"access_token": "test-access-token",
 		"token_type":   "Bearer",
 		"expires_in":   3600,
@@ -107,7 +107,7 @@ func (s *testOIDCServer) handleToken(w http.ResponseWriter, _ *http.Request) {
 func (s *testOIDCServer) handleTokenWithIDToken(idToken string) http.HandlerFunc {
 	return func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]interface{}{
+		json.NewEncoder(w).Encode(map[string]any{
 			"access_token": "test-access-token",
 			"token_type":   "Bearer",
 			"expires_in":   3600,
@@ -289,7 +289,7 @@ func TestHandleCallback_NewUser(t *testing.T) {
 	defer oidcSrv.close()
 
 	clientID := "test-client"
-	idToken := oidcSrv.signIDToken(t, map[string]interface{}{
+	idToken := oidcSrv.signIDToken(t, map[string]any{
 		"sub":                "oidc-sub-123",
 		"email":              "alice@example.com",
 		"preferred_username": "alice",
@@ -316,7 +316,7 @@ func TestHandleCallback_NewUser(t *testing.T) {
 	mux.HandleFunc("/.well-known/openid-configuration", oidcSrv2.handleDiscovery)
 	mux.HandleFunc("/jwks", oidcSrv2.handleJWKS)
 	mux.Handle("/token", oidcSrv2.handleTokenWithIDToken(
-		oidcSrv2.signIDToken(t, map[string]interface{}{
+		oidcSrv2.signIDToken(t, map[string]any{
 			"sub":                "oidc-sub-123",
 			"email":              "alice@example.com",
 			"preferred_username": "alice",
@@ -394,7 +394,7 @@ func TestHandleCallback_ExistingUser(t *testing.T) {
 	mux.HandleFunc("/.well-known/openid-configuration", oidcSrv.handleDiscovery)
 	mux.HandleFunc("/jwks", oidcSrv.handleJWKS)
 	mux.Handle("/token", oidcSrv.handleTokenWithIDToken(
-		oidcSrv.signIDToken(t, map[string]interface{}{
+		oidcSrv.signIDToken(t, map[string]any{
 			"sub":                sub,
 			"email":              "bob@example.com",
 			"preferred_username": "bob",
@@ -460,7 +460,7 @@ func TestHandleCallback_DisabledUser(t *testing.T) {
 	mux.HandleFunc("/.well-known/openid-configuration", oidcSrv.handleDiscovery)
 	mux.HandleFunc("/jwks", oidcSrv.handleJWKS)
 	mux.Handle("/token", oidcSrv.handleTokenWithIDToken(
-		oidcSrv.signIDToken(t, map[string]interface{}{
+		oidcSrv.signIDToken(t, map[string]any{
 			"sub":   sub,
 			"email": "disabled@example.com",
 		}, "test-client"),
@@ -493,7 +493,7 @@ func TestHandleCallback_EmailDomainNotAllowed(t *testing.T) {
 	mux.HandleFunc("/.well-known/openid-configuration", oidcSrv.handleDiscovery)
 	mux.HandleFunc("/jwks", oidcSrv.handleJWKS)
 	mux.Handle("/token", oidcSrv.handleTokenWithIDToken(
-		oidcSrv.signIDToken(t, map[string]interface{}{
+		oidcSrv.signIDToken(t, map[string]any{
 			"sub":                "new-sub",
 			"email":              "user@evil.com",
 			"preferred_username": "hacker",
@@ -519,7 +519,7 @@ func TestHandleCallback_AccessTokenGenerationError(t *testing.T) {
 	mux.HandleFunc("/.well-known/openid-configuration", oidcSrv.handleDiscovery)
 	mux.HandleFunc("/jwks", oidcSrv.handleJWKS)
 	mux.Handle("/token", oidcSrv.handleTokenWithIDToken(
-		oidcSrv.signIDToken(t, map[string]interface{}{
+		oidcSrv.signIDToken(t, map[string]any{
 			"sub":                "sub-tknerr",
 			"email":              "user@example.com",
 			"preferred_username": "user",
@@ -553,7 +553,7 @@ func TestHandleCallback_UserRepoCreateError(t *testing.T) {
 	mux.HandleFunc("/.well-known/openid-configuration", oidcSrv.handleDiscovery)
 	mux.HandleFunc("/jwks", oidcSrv.handleJWKS)
 	mux.Handle("/token", oidcSrv.handleTokenWithIDToken(
-		oidcSrv.signIDToken(t, map[string]interface{}{
+		oidcSrv.signIDToken(t, map[string]any{
 			"sub":                "sub-repoerr",
 			"email":              "user@example.com",
 			"preferred_username": "user",
@@ -581,7 +581,7 @@ func TestHandleCallback_UsernameFromEmail(t *testing.T) {
 	mux.HandleFunc("/.well-known/openid-configuration", oidcSrv.handleDiscovery)
 	mux.HandleFunc("/jwks", oidcSrv.handleJWKS)
 	mux.Handle("/token", oidcSrv.handleTokenWithIDToken(
-		oidcSrv.signIDToken(t, map[string]interface{}{
+		oidcSrv.signIDToken(t, map[string]any{
 			"sub":   "sub-nousername",
 			"email": "jane@example.com",
 		}, "test-client"),
@@ -613,7 +613,7 @@ func TestHandleCallback_UsernameFallbackHex(t *testing.T) {
 	mux.HandleFunc("/.well-known/openid-configuration", oidcSrv.handleDiscovery)
 	mux.HandleFunc("/jwks", oidcSrv.handleJWKS)
 	mux.Handle("/token", oidcSrv.handleTokenWithIDToken(
-		oidcSrv.signIDToken(t, map[string]interface{}{
+		oidcSrv.signIDToken(t, map[string]any{
 			"sub": "sub-noemail",
 		}, "test-client"),
 	))
@@ -645,7 +645,7 @@ func TestHandleCallback_ProfileWithRoles(t *testing.T) {
 	mux.HandleFunc("/.well-known/openid-configuration", oidcSrv.handleDiscovery)
 	mux.HandleFunc("/jwks", oidcSrv.handleJWKS)
 	mux.Handle("/token", oidcSrv.handleTokenWithIDToken(
-		oidcSrv.signIDToken(t, map[string]interface{}{
+		oidcSrv.signIDToken(t, map[string]any{
 			"sub":                sub,
 			"email":              "admin@example.com",
 			"preferred_username": "admin",
@@ -702,7 +702,7 @@ func TestHandleCallback_RefreshTokenError(t *testing.T) {
 	mux.HandleFunc("/.well-known/openid-configuration", oidcSrv.handleDiscovery)
 	mux.HandleFunc("/jwks", oidcSrv.handleJWKS)
 	mux.Handle("/token", oidcSrv.handleTokenWithIDToken(
-		oidcSrv.signIDToken(t, map[string]interface{}{
+		oidcSrv.signIDToken(t, map[string]any{
 			"sub":                "sub-refresherr",
 			"email":              "user@example.com",
 			"preferred_username": "user",

@@ -55,7 +55,7 @@ func TestRestoreTables_Validation(t *testing.T) {
 
 	t.Run("header at line 49 passes", func(t *testing.T) {
 		var lines []string
-		for i := 0; i < 48; i++ {
+		for range 48 {
 			lines = append(lines, "-- comment line")
 		}
 		lines = append(lines, "-- PostgreSQL database dump")

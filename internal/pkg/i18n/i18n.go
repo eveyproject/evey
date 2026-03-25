@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"maps"
 	"os"
 	"path/filepath"
 	"strings"
@@ -100,15 +101,11 @@ func (t *Translator) AllMessages(locale string) map[string]string {
 
 	result := make(map[string]string)
 	if fb, ok := t.messages[t.fallback]; ok {
-		for k, v := range fb {
-			result[k] = v
-		}
+		maps.Copy(result, fb)
 	}
 	if locale != t.fallback {
 		if msgs, ok := t.messages[locale]; ok {
-			for k, v := range msgs {
-				result[k] = v
-			}
+			maps.Copy(result, msgs)
 		}
 	}
 	return result

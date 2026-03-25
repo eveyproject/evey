@@ -212,12 +212,14 @@ func (h *HostServer) Log(ctx context.Context, req *pluginv1.LogRequest) (*plugin
 	level = strings.TrimPrefix(level, "LOG_LEVEL_")
 
 	if h.logger != nil {
-		line := fmt.Sprintf("[%s] %s", level, req.Message)
+		var b strings.Builder
+		fmt.Fprintf(&b, "[%s] %s", level, req.Message)
 		if len(req.Fields) > 0 {
 			for k, v := range req.Fields {
-				line += fmt.Sprintf(" %s=%s", k, v)
+				fmt.Fprintf(&b, " %s=%s", k, v)
 			}
 		}
+		line := b.String()
 		h.logger.WriteLog(pluginID, line)
 	}
 	return &pluginv1.LogResponse{}, nil

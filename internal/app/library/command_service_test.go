@@ -1338,9 +1338,7 @@ func TestRemoveOrphans_AlsoRemovesFromSearchIndex(t *testing.T) {
 func TestWithShutdownCtx_SetsContext(t *testing.T) {
 	t.Parallel()
 	h := newHarness()
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-	h.svc.WithShutdownCtx(ctx)
+	h.svc.WithShutdownCtx(t.Context())
 	// No panic = success; the shutdownCtx is used internally by GenerateAllMissingTrickplays
 }
 

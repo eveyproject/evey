@@ -112,7 +112,7 @@ func TestStartStream_MaxStreamsNil_NoLimit(t *testing.T) {
 	ctx := context.Background()
 	seedUserProfile(ctx, ur, pfr, nil)
 
-	for i := 0; i < 5; i++ {
+	for i := range 5 {
 		err := cmd.StartStream(ctx, &playback.PlaySession{
 			ID: "s" + string(rune('0'+i)), ProfileID: "p1", MediaItemID: "m1",
 		}, "u1")
