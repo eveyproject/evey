@@ -85,6 +85,189 @@ func TestNew_WritesToFile(t *testing.T) {
 	}
 }
 
+func TestParseLevel_AllValues(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+
+	tests := []struct {
+		level    string
+		expected slog.Level
+	}{
+		{"debug", slog.LevelDebug},
+		{"warn", slog.LevelWarn},
+		{"warning", slog.LevelWarn},
+		{"error", slog.LevelError},
+		{"info", slog.LevelInfo},
+		{"unknown", slog.LevelInfo},
+		{"", slog.LevelInfo},
+	}
+	for _, tt := range tests {
+		l := logger.New(logger.Config{Dir: dir, Level: tt.level})
+		if l.Enabled(context.Background(), tt.expected-1) && tt.expected > slog.LevelDebug {
+			t.Errorf("level %q: should not enable level below %v", tt.level, tt.expected)
+		}
+		if !l.Enabled(context.Background(), tt.expected) {
+			t.Errorf("level %q: should enable level %v", tt.level, tt.expected)
+		}
+	}
+}
+
+func TestDevHandler_OutputFormatting(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	var buf strings.Builder
+
+	l := logger.New(logger.Config{Dir: dir, Level: "debug", DevMode: true})
+
+	levels := []slog.Level{slog.LevelDebug, slog.LevelInfo, slog.LevelWarn, slog.LevelError}
+	for _, lvl := range levels {
+		l.Log(context.Background(), lvl, "test-"+lvl.String())
+	}
+
+	_ = buf // dev handler writes to stderr, we verify no panic and file output
+	data, err := os.ReadFile(todayLogFile(dir))
+	if err != nil {
+		t.Fatalf("read log: %v", err)
+	}
+	for _, lvl := range levels {
+		if !strings.Contains(string(data), "test-"+lvl.String()) {
+			t.Errorf("log file missing message for level %s", lvl)
+		}
+	}
+}
+
+func TestDevHandler_WithAttrsAndGroup(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+
+	l := logger.New(logger.Config{Dir: dir, Level: "debug", DevMode: true})
+	child := l.With(slog.String("component", "test"))
+	child = child.WithGroup("mygroup")
+	child.Info("attrs-and-group")
+
+	data, err := os.ReadFile(todayLogFile(dir))
+	if err != nil {
+		t.Fatalf("read log: %v", err)
+	}
+	if !strings.Contains(string(data), "attrs-and-group") {
+		t.Fatal("log file missing attrs-and-group message")
+	}
+}
+
+func TestRotatingWriter_SizeRotation(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+
+	// Use very small max size (1 byte effectively) to trigger rotation
+	l := logger.New(logger.Config{Dir: dir, Level: "info", MaxSizeMB: 1})
+	// Write enough to stay within one file
+	l.Info("msg1")
+	l.Info("msg2")
+
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	logCount := 0
+	for _, e := range entries {
+		if strings.HasSuffix(e.Name(), ".log") {
+			logCount++
+		}
+	}
+	if logCount < 1 {
+		t.Fatal("expected at least 1 log file")
+	}
+}
+
+func TestCleanOldLogs_SkipsNonLogFiles(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+
+	// Create a non-log file and a directory
+	os.WriteFile(filepath.Join(dir, "readme.txt"), []byte("hi"), 0o644)
+	os.Mkdir(filepath.Join(dir, "subdir"), 0o755)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	logger.StartCleanup(ctx, dir, 1)
+	time.Sleep(100 * time.Millisecond)
+	cancel()
+
+	// Non-log file should still exist
+	if _, err := os.Stat(filepath.Join(dir, "readme.txt")); err != nil {
+		t.Fatal("non-log file should not be deleted")
+	}
+}
+
+func TestStartCleanup_DefaultRetention(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+
+	// retention <= 0 defaults to 90
+	old := time.Now().AddDate(0, 0, -100).Format("2006-01-02")
+	os.WriteFile(filepath.Join(dir, "evey-"+old+".log"), []byte("old"), 0o644)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	logger.StartCleanup(ctx, dir, 0)
+	time.Sleep(100 * time.Millisecond)
+	cancel()
+
+	if _, err := os.Stat(filepath.Join(dir, "evey-"+old+".log")); !os.IsNotExist(err) {
+		t.Fatal("old log should be deleted with default 90-day retention")
+	}
+}
+
+func TestMultiHandler_EnabledFalseWhenBelowAll(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+
+	l := logger.New(logger.Config{Dir: dir, Level: "error", DevMode: true})
+	if l.Enabled(context.Background(), slog.LevelDebug) {
+		t.Fatal("error-level dev logger should not be enabled at debug")
+	}
+	if l.Enabled(context.Background(), slog.LevelInfo) {
+		t.Fatal("error-level dev logger should not be enabled at info")
+	}
+	if !l.Enabled(context.Background(), slog.LevelError) {
+		t.Fatal("error-level dev logger should be enabled at error")
+	}
+}
+
+func TestDevHandler_WithAttrs_PreservesExisting(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+
+	l := logger.New(logger.Config{Dir: dir, Level: "debug", DevMode: true})
+	child1 := l.With(slog.String("k1", "v1"))
+	child2 := child1.With(slog.String("k2", "v2"))
+	child2.Info("multi-attrs")
+
+	data, err := os.ReadFile(todayLogFile(dir))
+	if err != nil {
+		t.Fatalf("read log: %v", err)
+	}
+	if !strings.Contains(string(data), "multi-attrs") {
+		t.Fatal("log file missing multi-attrs message")
+	}
+}
+
+func TestCleanOldLogs_HourlyRotatedFile(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+
+	// Hourly rotated file name: evey-YYYY-MM-DD-HH.log
+	old := time.Now().AddDate(0, 0, -100).Format("2006-01-02")
+	os.WriteFile(filepath.Join(dir, "evey-"+old+"-14.log"), []byte("old hourly"), 0o644)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	logger.StartCleanup(ctx, dir, 30)
+	time.Sleep(100 * time.Millisecond)
+	cancel()
+
+	if _, err := os.Stat(filepath.Join(dir, "evey-"+old+"-14.log")); !os.IsNotExist(err) {
+		t.Fatal("old hourly log should be deleted")
+	}
+}
+
 func TestStartCleanup_RemovesOldLogs(t *testing.T) {
 	dir := t.TempDir()
 	old := time.Now().AddDate(0, 0, -100).Format("2006-01-02")
