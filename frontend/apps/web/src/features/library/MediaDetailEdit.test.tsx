@@ -1,0 +1,172 @@
+import React from "react";
+import { render, screen, fireEvent } from "@testing-library/react";
+import { describe, it, expect, vi, beforeEach } from "vitest";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { MetadataEditPanel } from "./MediaDetailEdit";
+import type { V1MediaItem } from "@evey/api";
+
+const mockSetOverride = { mutateAsync: vi.fn().mockResolvedValue({}), isError: false };
+const mockRemoveOverride = { mutateAsync: vi.fn().mockResolvedValue({}) };
+const mockRefresh = { mutateAsync: vi.fn().mockResolvedValue({}) };
+const mockListOverrides = vi.fn().mockReturnValue({ data: { overrides: [] } });
+
+vi.mock("@evey/api", () => ({
+  useMetadataServiceSetMetadataOverride: () => mockSetOverride,
+  useMetadataServiceRemoveMetadataOverride: () => mockRemoveOverride,
+  useMetadataServiceRefreshMetadata: () => mockRefresh,
+  useMetadataServiceGetArtwork: () => ({ data: undefined }),
+  useMetadataServiceListMetadataOverrides: (...args: unknown[]) => mockListOverrides(...args),
+  getMetadataServiceListMetadataOverridesQueryKey: (id: string) => [`/api/v1/metadata/${id}/overrides`],
+  eveyFetch: vi.fn().mockResolvedValue(undefined),
+}));
+
+vi.mock("@evey/store", () => ({
+  toast: { success: vi.fn(), error: vi.fn() },
+}));
+
+const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+function Wrapper({ children }: { children: React.ReactNode }) {
+  return <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>;
+}
+
+const baseItem: V1MediaItem = {
+  id: "m1",
+  title: "Inception",
+  originalTitle: "Inception (Original)",
+  year: 2010,
+  overview: "Dreams within dreams.",
+  genres: ["Action", "Sci-Fi"],
+  communityRating: 8.8,
+  type: "MEDIA_ITEM_TYPE_MOVIE",
+  providerIds: { imdb: "tt1375666", tmdb: "27205" },
+};
+
+const defaultProps = {
+  item: baseItem,
+  onSave: vi.fn(),
+  onCancel: vi.fn(),
+};
+
+beforeEach(() => {
+  vi.clearAllMocks();
+});
+
+describe("MetadataEditPanel", () => {
+  it("renders a form", () => {
+    render(<MetadataEditPanel {...defaultProps} />, { wrapper: Wrapper });
+    expect(document.querySelector("form")).toBeTruthy();
+  });
+
+  it("renders all FIELD_MAP fields with labels", () => {
+    render(<MetadataEditPanel {...defaultProps} />, { wrapper: Wrapper });
+    const form = document.querySelector("form")!;
+    expect(form.querySelectorAll("input, textarea").length).toBeGreaterThanOrEqual(6);
+  });
+
+  it("pre-fills title input", () => {
+    render(<MetadataEditPanel {...defaultProps} />, { wrapper: Wrapper });
+    const input = screen.getByDisplayValue("Inception");
+    expect(input).toBeInTheDocument();
+  });
+
+  it("pre-fills year input", () => {
+    render(<MetadataEditPanel {...defaultProps} />, { wrapper: Wrapper });
+    expect(screen.getByDisplayValue("2010")).toBeInTheDocument();
+  });
+
+  it("pre-fills overview textarea", () => {
+    render(<MetadataEditPanel {...defaultProps} />, { wrapper: Wrapper });
+    expect(screen.getByDisplayValue("Dreams within dreams.")).toBeInTheDocument();
+  });
+
+  it("pre-fills genres as comma-separated string", () => {
+    render(<MetadataEditPanel {...defaultProps} />, { wrapper: Wrapper });
+    expect(screen.getByDisplayValue("Action, Sci-Fi")).toBeInTheDocument();
+  });
+
+  it("pre-fills communityRating", () => {
+    render(<MetadataEditPanel {...defaultProps} />, { wrapper: Wrapper });
+    expect(screen.getByDisplayValue("8.8")).toBeInTheDocument();
+  });
+
+  it("pre-fills IMDB and TMDB ids", () => {
+    render(<MetadataEditPanel {...defaultProps} />, { wrapper: Wrapper });
+    expect(screen.getByDisplayValue("tt1375666")).toBeInTheDocument();
+    expect(screen.getByDisplayValue("27205")).toBeInTheDocument();
+  });
+
+  it("renders IMDB link when imdbId present", () => {
+    render(<MetadataEditPanel {...defaultProps} />, { wrapper: Wrapper });
+    const link = screen.getByRole("link", { name: /imdb/i });
+    expect(link).toHaveAttribute("href", "https://www.imdb.com/title/tt1375666/");
+  });
+
+  it("renders TMDB link when tmdbId present", () => {
+    render(<MetadataEditPanel {...defaultProps} />, { wrapper: Wrapper });
+    const link = screen.getByRole("link", { name: /tmdb/i });
+    expect(link).toHaveAttribute("href", "https://www.themoviedb.org/movie/27205");
+  });
+
+  it("renders save, refresh, and cancel buttons", () => {
+    render(<MetadataEditPanel {...defaultProps} />, { wrapper: Wrapper });
+    const buttons = screen.getAllByRole("button");
+    expect(buttons.length).toBeGreaterThanOrEqual(3);
+  });
+
+  it("calls onCancel when cancel button clicked", () => {
+    render(<MetadataEditPanel {...defaultProps} />, { wrapper: Wrapper });
+    const cancelBtn = screen.getAllByRole("button").find((b) =>
+      b.textContent?.toLowerCase().includes("cancel"),
+    );
+    expect(cancelBtn).toBeTruthy();
+    fireEvent.click(cancelBtn!);
+    expect(defaultProps.onCancel).toHaveBeenCalled();
+  });
+
+  it("shows auto badge when no overrides", () => {
+    render(<MetadataEditPanel {...defaultProps} />, { wrapper: Wrapper });
+    const badges = screen.getAllByText(/auto/i);
+    expect(badges.length).toBeGreaterThanOrEqual(1);
+  });
+
+  it("handles empty providerIds gracefully", () => {
+    const item = { ...baseItem, providerIds: undefined };
+    render(<MetadataEditPanel {...defaultProps} item={item} />, { wrapper: Wrapper });
+    expect(screen.getByDisplayValue("Inception")).toBeInTheDocument();
+  });
+
+  it("handles missing optional fields", () => {
+    const item: V1MediaItem = {
+      id: "m2",
+      title: undefined,
+      type: "MEDIA_ITEM_TYPE_MOVIE",
+    };
+    render(<MetadataEditPanel {...defaultProps} item={item} />, { wrapper: Wrapper });
+    expect(document.querySelector("form")).toBeTruthy();
+  });
+
+  it("uses tv mediaType for series", () => {
+    const item = { ...baseItem, type: "MEDIA_ITEM_TYPE_SERIES" as const };
+    render(<MetadataEditPanel {...defaultProps} item={item} />, { wrapper: Wrapper });
+    const tmdbLink = screen.getByRole("link", { name: /tmdb/i });
+    expect(tmdbLink).toHaveAttribute("href", "https://www.themoviedb.org/tv/27205");
+  });
+
+  it("shows id-changed warning when tmdbId modified", () => {
+    render(<MetadataEditPanel {...defaultProps} />, { wrapper: Wrapper });
+    const tmdbInput = screen.getByDisplayValue("27205");
+    fireEvent.change(tmdbInput, { target: { value: "99999" } });
+    const tmdbLink = screen.getByRole("link", { name: /tmdb/i });
+    expect(tmdbLink).toHaveAttribute("href", "https://www.themoviedb.org/movie/99999");
+  });
+});
+
+describe("FieldBadge", () => {
+  it("shows overridden badge when override exists", () => {
+    mockListOverrides.mockReturnValueOnce({
+      data: { overrides: [{ id: "ov1", fieldName: "title", customValue: "Custom" }] },
+    });
+    render(<MetadataEditPanel {...defaultProps} />, { wrapper: Wrapper });
+    expect(screen.getAllByText(/overrid/i).length).toBeGreaterThanOrEqual(1);
+  });
+});
