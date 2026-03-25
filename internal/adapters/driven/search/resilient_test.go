@@ -117,3 +117,134 @@ func TestSearch_NilPrimary_UsesFallback(t *testing.T) {
 	assert.Equal(t, int64(1), total)
 	assert.Equal(t, "fb-1", hits[0].ID)
 }
+
+// --- IndexMediaItem ---
+
+func TestIndexMediaItem_NilPrimary_Noop(t *testing.T) {
+	rs := search.NewResilient(nil, nil)
+	err := rs.IndexMediaItem(context.Background(), &library.MediaItem{ID: "1"}, nil)
+	require.NoError(t, err)
+}
+
+func TestIndexMediaItem_PrimarySuccess(t *testing.T) {
+	var indexed bool
+	primary := &fakeSearchIndex{
+		indexFunc: func(_ context.Context, _ *library.MediaItem, _ []string) error {
+			indexed = true
+			return nil
+		},
+	}
+	rs := search.NewResilient(primary, nil)
+	err := rs.IndexMediaItem(context.Background(), &library.MediaItem{ID: "1"}, []string{"Actor"})
+	require.NoError(t, err)
+	assert.True(t, indexed)
+}
+
+func TestIndexMediaItem_PrimaryFails_NoError(t *testing.T) {
+	primary := &fakeSearchIndex{
+		indexFunc: func(_ context.Context, _ *library.MediaItem, _ []string) error {
+			return errors.New("meili down")
+		},
+	}
+	rs := search.NewResilient(primary, nil)
+	err := rs.IndexMediaItem(context.Background(), &library.MediaItem{ID: "1"}, nil)
+	require.NoError(t, err)
+}
+
+// --- IndexMediaItemsBatch ---
+
+func TestIndexMediaItemsBatch_NilPrimary_Noop(t *testing.T) {
+	rs := search.NewResilient(nil, nil)
+	err := rs.IndexMediaItemsBatch(context.Background(), []*library.MediaItem{{ID: "1"}})
+	require.NoError(t, err)
+}
+
+func TestIndexMediaItemsBatch_PrimarySuccess(t *testing.T) {
+	var batchSize int
+	primary := &fakeSearchIndex{
+		indexBatchFunc: func(_ context.Context, items []*library.MediaItem) error {
+			batchSize = len(items)
+			return nil
+		},
+	}
+	rs := search.NewResilient(primary, nil)
+	err := rs.IndexMediaItemsBatch(context.Background(), []*library.MediaItem{{ID: "1"}, {ID: "2"}})
+	require.NoError(t, err)
+	assert.Equal(t, 2, batchSize)
+}
+
+func TestIndexMediaItemsBatch_PrimaryFails_NoError(t *testing.T) {
+	primary := &fakeSearchIndex{
+		indexBatchFunc: func(_ context.Context, _ []*library.MediaItem) error {
+			return errors.New("meili down")
+		},
+	}
+	rs := search.NewResilient(primary, nil)
+	err := rs.IndexMediaItemsBatch(context.Background(), []*library.MediaItem{{ID: "1"}})
+	require.NoError(t, err)
+}
+
+// --- RemoveMediaItem ---
+
+func TestRemoveMediaItem_NilPrimary_Noop(t *testing.T) {
+	rs := search.NewResilient(nil, nil)
+	err := rs.RemoveMediaItem(context.Background(), "1")
+	require.NoError(t, err)
+}
+
+func TestRemoveMediaItem_PrimarySuccess(t *testing.T) {
+	var removedID string
+	primary := &fakeSearchIndex{
+		removeFunc: func(_ context.Context, id string) error {
+			removedID = id
+			return nil
+		},
+	}
+	rs := search.NewResilient(primary, nil)
+	err := rs.RemoveMediaItem(context.Background(), "item-42")
+	require.NoError(t, err)
+	assert.Equal(t, "item-42", removedID)
+}
+
+func TestRemoveMediaItem_PrimaryFails_NoError(t *testing.T) {
+	primary := &fakeSearchIndex{
+		removeFunc: func(_ context.Context, _ string) error {
+			return errors.New("meili down")
+		},
+	}
+	rs := search.NewResilient(primary, nil)
+	err := rs.RemoveMediaItem(context.Background(), "1")
+	require.NoError(t, err)
+}
+
+// --- Primary accessor ---
+
+func TestPrimary_ReturnsSearchIndex(t *testing.T) {
+	primary := &fakeSearchIndex{}
+	rs := search.NewResilient(primary, nil)
+	assert.Equal(t, primary, rs.Primary())
+}
+
+func TestPrimary_NilReturnsNil(t *testing.T) {
+	rs := search.NewResilient(nil, nil)
+	assert.Nil(t, rs.Primary())
+}
+
+// --- Search with filters and sort ---
+
+func TestSearch_WithFiltersAndSort(t *testing.T) {
+	primary := &fakeSearchIndex{
+		searchFunc: func(_ context.Context, query string, filters map[string]string, sort []string, limit int64) ([]library.SearchHit, int64, error) {
+			assert.Equal(t, "test", query)
+			assert.Equal(t, "movie", filters["type"])
+			assert.Equal(t, []string{"title:asc"}, sort)
+			assert.Equal(t, int64(25), limit)
+			return []library.SearchHit{{ID: "hit-1"}}, 1, nil
+		},
+	}
+	rs := search.NewResilient(primary, nil)
+	hits, total, err := rs.Search(context.Background(), "test", map[string]string{"type": "movie"}, []string{"title:asc"}, 25)
+	require.NoError(t, err)
+	assert.Equal(t, int64(1), total)
+	assert.Equal(t, "hit-1", hits[0].ID)
+}
