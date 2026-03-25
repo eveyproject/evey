@@ -85,19 +85,14 @@ function ConfigRow({ entry }: { entry: ConfigEntry }) {
   }
 
   return (
-    <tr style={{ borderBottom: "1px solid var(--border)" }}>
-      <td className="px-4 py-3 font-mono text-sm" style={{ color: "var(--text)" }}>
+    <tr className="border-b border-[var(--border)]">
+      <td className="px-4 py-3 font-mono text-sm text-[var(--text)]">
         {entry.key}
       </td>
-      <td className="px-4 py-3 text-sm" style={{ color: "var(--text)" }}>
+      <td className="px-4 py-3 text-sm text-[var(--text)]">
         {editing ? (
           <input
-            className="w-full px-2 py-1 rounded text-sm"
-            style={{
-              backgroundColor: "var(--surface-raised)",
-              border: "1px solid var(--border)",
-              color: "var(--text)",
-            }}
+            className="w-full px-2 py-1 rounded text-sm bg-[var(--surface-raised)] border border-[var(--border)] text-[var(--text)]"
             value={value}
             onChange={(e) => setValue(e.target.value)}
             onKeyDown={(e) => {
@@ -110,7 +105,7 @@ function ConfigRow({ entry }: { entry: ConfigEntry }) {
           <span className="font-mono text-xs break-all">{entry.value}</span>
         )}
       </td>
-      <td className="px-4 py-3 text-xs whitespace-nowrap" style={{ color: "var(--text-muted)" }}>
+      <td className="px-4 py-3 text-xs whitespace-nowrap text-[var(--text-muted)]">
         {new Date(entry.updatedAt).toLocaleString()}
       </td>
       <td className="px-4 py-3">
@@ -167,13 +162,12 @@ function LocaleSettingsCard({ entries }: { entries: ConfigEntry[] | undefined })
 
   return (
     <div
-      className="rounded-[var(--radius-lg)] p-5"
-      style={{ border: "1px solid var(--border)", backgroundColor: "var(--surface)" }}
+      className="rounded-[var(--radius-lg)] p-5 border border-[var(--border)] bg-[var(--surface)]"
     >
-      <h2 className="text-base font-semibold mb-1" style={{ color: "var(--text)" }}>
+      <h2 className="text-base font-semibold mb-1 text-[var(--text)]">
         {t("admin.serverConfig.languageRegion")}
       </h2>
-      <p className="text-sm mb-4" style={{ color: "var(--text-muted)" }}>
+      <p className="text-sm mb-4 text-[var(--text-muted)]">
         {t("admin.serverConfig.languageRegionDesc")}
       </p>
       <div className="flex items-end gap-3">
@@ -204,12 +198,11 @@ function AddEntryRow() {
   }
 
   return (
-    <tr style={{ borderBottom: "1px solid var(--border)", backgroundColor: "var(--surface)" }}>
+    <tr className="border-b border-[var(--border)] bg-[var(--surface)]">
       <td className="px-4 py-3">
         <input
           placeholder="key"
-          className="w-full px-2 py-1 rounded text-sm font-mono"
-          style={{ backgroundColor: "var(--surface-raised)", border: "1px solid var(--border)", color: "var(--text)" }}
+          className="w-full px-2 py-1 rounded text-sm font-mono bg-[var(--surface-raised)] border border-[var(--border)] text-[var(--text)]"
           value={key}
           onChange={(e) => setKey(e.target.value)}
         />
@@ -217,8 +210,7 @@ function AddEntryRow() {
       <td className="px-4 py-3">
         <input
           placeholder="value"
-          className="w-full px-2 py-1 rounded text-sm"
-          style={{ backgroundColor: "var(--surface-raised)", border: "1px solid var(--border)", color: "var(--text)" }}
+          className="w-full px-2 py-1 rounded text-sm bg-[var(--surface-raised)] border border-[var(--border)] text-[var(--text)]"
           value={value}
           onChange={(e) => setValue(e.target.value)}
           onKeyDown={(e) => { if (e.key === "Enter") handleAdd(); }}
@@ -293,13 +285,12 @@ function ApiKeysCard({ entries }: { entries: ConfigEntry[] | undefined }) {
 
   return (
     <div
-      className="rounded-[var(--radius-lg)] p-5"
-      style={{ border: "1px solid var(--border)", backgroundColor: "var(--surface)" }}
+      className="rounded-[var(--radius-lg)] p-5 border border-[var(--border)] bg-[var(--surface)]"
     >
-      <h2 className="text-base font-semibold mb-1" style={{ color: "var(--text)" }}>
+      <h2 className="text-base font-semibold mb-1 text-[var(--text)]">
         {t("admin.serverConfig.apiKeys.title")}
       </h2>
-      <p className="text-sm mb-4" style={{ color: "var(--text-muted)" }}>
+      <p className="text-sm mb-4 text-[var(--text-muted)]">
         {t("admin.serverConfig.apiKeys.description")}
       </p>
 
@@ -312,16 +303,16 @@ function ApiKeysCard({ entries }: { entries: ConfigEntry[] | undefined }) {
           return (
             <div key={field.dbKey} className="flex flex-col gap-1.5">
               <div className="flex items-center gap-2">
-                <label className="text-sm font-medium" style={{ color: "var(--text)" }}>
+                <label className="text-sm font-medium text-[var(--text)]">
                   {t(field.labelKey)}
                 </label>
                 {field.hasDefault && !current && (
-                  <span className="text-xs px-1.5 py-0.5 rounded" style={{ backgroundColor: "var(--surface-raised)", color: "var(--text-muted)" }}>
+                  <span className="text-xs px-1.5 py-0.5 rounded bg-[var(--surface-raised)] text-[var(--text-muted)]">
                     {t("admin.serverConfig.apiKeys.usingDefault")}
                   </span>
                 )}
                 {current && (
-                  <span className="text-xs px-1.5 py-0.5 rounded" style={{ backgroundColor: "var(--accent-subtle)", color: "var(--accent)" }}>
+                  <span className="text-xs px-1.5 py-0.5 rounded bg-[var(--accent-subtle)] text-[var(--accent)]">
                     {t("admin.serverConfig.apiKeys.usingCustom")}
                   </span>
                 )}
@@ -330,12 +321,7 @@ function ApiKeysCard({ entries }: { entries: ConfigEntry[] | undefined }) {
               {isEditing ? (
                 <div className="flex gap-2">
                   <input
-                    className="px-3 py-1.5 rounded text-sm flex-1 font-mono"
-                    style={{
-                      backgroundColor: "var(--surface-raised)",
-                      border: "1px solid var(--border)",
-                      color: "var(--text)",
-                    }}
+                    className="px-3 py-1.5 rounded text-sm flex-1 font-mono bg-[var(--surface-raised)] border border-[var(--border)] text-[var(--text)]"
                     type="text"
                     value={drafts[field.dbKey] ?? current}
                     onChange={(e) => setDrafts((p) => ({ ...p, [field.dbKey]: e.target.value }))}
@@ -355,11 +341,11 @@ function ApiKeysCard({ entries }: { entries: ConfigEntry[] | undefined }) {
               ) : (
                 <div className="flex items-center gap-2">
                   {current ? (
-                    <span className="font-mono text-xs" style={{ color: "var(--text-muted)" }}>
+                    <span className="font-mono text-xs text-[var(--text-muted)]">
                       {isShown ? current : maskKey(current)}
                     </span>
                   ) : (
-                    <span className="text-xs" style={{ color: "var(--text-muted)" }}>
+                    <span className="text-xs text-[var(--text-muted)]">
                       {field.hasDefault ? maskKey("eyJhbGciOiJIUzI1NiJ9...V51Q") : "---"}
                     </span>
                   )}
@@ -367,8 +353,7 @@ function ApiKeysCard({ entries }: { entries: ConfigEntry[] | undefined }) {
                     <button
                       type="button"
                       onClick={() => setShowValue((p) => ({ ...p, [field.dbKey]: !p[field.dbKey] }))}
-                      className="px-1.5 rounded text-xs"
-                      style={{ border: "1px solid var(--border)", backgroundColor: "var(--surface-raised)", color: "var(--text-muted)" }}
+                      className="px-1.5 rounded text-xs border border-[var(--border)] bg-[var(--surface-raised)] text-[var(--text-muted)]"
                     >
                       {isShown ? t("admin.serverConfig.hide") : t("admin.serverConfig.show")}
                     </button>
@@ -388,8 +373,7 @@ function ApiKeysCard({ entries }: { entries: ConfigEntry[] | undefined }) {
                 href={field.linkUrl}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="text-xs underline"
-                style={{ color: "var(--accent)" }}
+                className="text-xs underline text-[var(--accent)]"
               >
                 {t(field.linkKey)}
               </a>
@@ -447,13 +431,12 @@ function SmtpSettingsCard({ entries }: { entries: ConfigEntry[] | undefined }) {
 
   return (
     <div
-      className="rounded-[var(--radius-lg)] p-5"
-      style={{ border: "1px solid var(--border)", backgroundColor: "var(--surface)" }}
+      className="rounded-[var(--radius-lg)] p-5 border border-[var(--border)] bg-[var(--surface)]"
     >
-      <h2 className="text-base font-semibold mb-1" style={{ color: "var(--text)" }}>
+      <h2 className="text-base font-semibold mb-1 text-[var(--text)]">
         {t("admin.serverConfig.emailSmtp")}
       </h2>
-      <p className="text-sm mb-4" style={{ color: "var(--text-muted)" }}>
+      <p className="text-sm mb-4 text-[var(--text-muted)]">
         {t("admin.serverConfig.emailSmtpDesc")}
       </p>
 
@@ -463,7 +446,7 @@ function SmtpSettingsCard({ entries }: { entries: ConfigEntry[] | undefined }) {
         <Input label={t("admin.serverConfig.smtpUsername")} placeholder="user@example.com" value={username} onChange={(e) => setUsername(e.target.value)} />
         <div className="flex flex-col gap-1">
           <Input label={t("admin.serverConfig.smtpPassword")} type={showPassword ? "text" : "password"} placeholder="••••••••" value={password} onChange={(e) => setPassword(e.target.value)} />
-          <button type="button" onClick={() => setShowPassword((v) => !v)} className="self-start px-2 rounded text-xs" style={{ border: "1px solid var(--border)", backgroundColor: "var(--surface-raised)", color: "var(--text-muted)" }}>
+          <button type="button" onClick={() => setShowPassword((v) => !v)} className="self-start px-2 rounded text-xs border border-[var(--border)] bg-[var(--surface-raised)] text-[var(--text-muted)]">
             {showPassword ? t("admin.serverConfig.hide") : t("admin.serverConfig.show")}
           </button>
         </div>
@@ -490,13 +473,12 @@ function TrickplaySettingsCard({ entries }: { entries: ConfigEntry[] | undefined
 
   return (
     <div
-      className="rounded-[var(--radius-lg)] p-5"
-      style={{ border: "1px solid var(--border)", backgroundColor: "var(--surface)" }}
+      className="rounded-[var(--radius-lg)] p-5 border border-[var(--border)] bg-[var(--surface)]"
     >
-      <h2 className="text-base font-semibold mb-1" style={{ color: "var(--text)" }}>
+      <h2 className="text-base font-semibold mb-1 text-[var(--text)]">
         {t("admin.serverConfig.trickplayTitle")}
       </h2>
-      <p className="text-sm mb-4" style={{ color: "var(--text-muted)" }}>
+      <p className="text-sm mb-4 text-[var(--text-muted)]">
         {t("admin.serverConfig.trickplayDesc")}
       </p>
       <div className="flex flex-col gap-3">
@@ -516,7 +498,7 @@ function TrickplaySettingsCard({ entries }: { entries: ConfigEntry[] | undefined
             disabled={setEntry.isPending || !enabled}
           />
         </div>
-        <p className="text-xs" style={{ color: "var(--text-muted)" }}>
+        <p className="text-xs text-[var(--text-muted)]">
           {t("admin.serverConfig.trickplayAdaptiveCpuDesc")}
         </p>
         {setEntry.isPending && <Spinner size="sm" />}
@@ -544,12 +526,12 @@ function ServerConfigPage() {
       {isLoading ? (
         <div className="flex justify-center py-16"><Spinner size="lg" /></div>
       ) : (
-        <div className="overflow-x-auto rounded-[var(--radius-lg)]" style={{ border: "1px solid var(--border)" }}>
+        <div className="overflow-x-auto rounded-[var(--radius-lg)] border border-[var(--border)]">
           <table className="w-full text-sm">
             <thead>
-              <tr style={{ backgroundColor: "var(--surface)", borderBottom: "1px solid var(--border)" }}>
+              <tr className="bg-[var(--surface)] border-b border-[var(--border)]">
                 {[t("admin.serverConfig.tableHeaders.key"), t("admin.serverConfig.tableHeaders.value"), t("admin.serverConfig.tableHeaders.updated"), t("admin.serverConfig.tableHeaders.actions")].map((h) => (
-                  <th key={h} className="px-4 py-2 text-left font-medium" style={{ color: "var(--text-muted)" }}>{h}</th>
+                  <th key={h} className="px-4 py-2 text-left font-medium text-[var(--text-muted)]">{h}</th>
                 ))}
               </tr>
             </thead>

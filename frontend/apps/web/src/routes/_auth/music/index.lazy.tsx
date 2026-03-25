@@ -233,8 +233,8 @@ function NowPlayingBar({
       <div className="flex items-center gap-3" style={{ minWidth: 0, width: 200 }}>
         <TrackArt trackID={playing.ID} size={48} />
         <div style={{ minWidth: 0 }}>
-          <p className="font-medium truncate text-sm" style={{ color: "var(--text)" }}>{playing.Title || "—"}</p>
-          <p className="text-xs truncate" style={{ color: "var(--text-muted)" }}>{playing.Artist || "—"}</p>
+          <p className="font-medium truncate text-sm text-[var(--text)]">{playing.Title || "—"}</p>
+          <p className="text-xs truncate text-[var(--text-muted)]">{playing.Artist || "—"}</p>
         </div>
       </div>
 
@@ -373,7 +373,7 @@ function MusicPage() {
   if (libLoading) {
     return (
       <div className="flex-1 p-6">
-        <div className="animate-pulse h-8 w-48 rounded mb-6" style={{ backgroundColor: "var(--surface-raised)" }} />
+        <div className="animate-pulse h-8 w-48 rounded mb-6 bg-[var(--surface-raised)]" />
       </div>
     );
   }
@@ -381,7 +381,7 @@ function MusicPage() {
   if (!libraries || libraries.length === 0) {
     return (
       <div className="flex-1 p-6">
-        <p style={{ color: "var(--text-muted)" }}>{t("media.music.noLibraries")}</p>
+        <p className="text-[var(--text-muted)]">{t("media.music.noLibraries")}</p>
       </div>
     );
   }
@@ -389,7 +389,7 @@ function MusicPage() {
   return (
     <div className="flex-1 p-6" style={{ paddingBottom: playing ? 120 : undefined }}>
       <div className="flex flex-col sm:flex-row sm:items-center gap-4 mb-4">
-        <h1 className="text-2xl font-bold" style={{ color: "var(--text)" }}>
+        <h1 className="text-2xl font-bold text-[var(--text)]">
           {t("media.music.title")}
         </h1>
 
@@ -494,8 +494,8 @@ function TracksTab({
           }}
         />
       </div>
-      {loading && <p style={{ color: "var(--text-muted)" }}>{t("media.music.loading")}</p>}
-      {!loading && !tracks.length && <p style={{ color: "var(--text-muted)" }}>{search ? t("media.music.noTracksSearch") : t("media.music.noTracks")}</p>}
+      {loading && <p className="text-[var(--text-muted)]">{t("media.music.loading")}</p>}
+      {!loading && !tracks.length && <p className="text-[var(--text-muted)]">{search ? t("media.music.noTracksSearch") : t("media.music.noTracks")}</p>}
       {!loading && tracks.length > 0 && <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.875rem" }}>
         <thead>
           <tr style={{ color: "var(--text-muted)", textAlign: "left", borderBottom: "1px solid var(--border)" }}>
@@ -601,28 +601,21 @@ function TracksTab({
 
 function AlbumsTab({ albums, loading }: { albums: Album[]; loading: boolean }) {
   const { t } = useTranslation();
-  if (loading) return <p style={{ color: "var(--text-muted)" }}>{t("media.music.loading")}</p>;
-  if (!albums.length) return <p style={{ color: "var(--text-muted)" }}>{t("media.music.noAlbums")}</p>;
+  if (loading) return <p className="text-[var(--text-muted)]">{t("media.music.loading")}</p>;
+  if (!albums.length) return <p className="text-[var(--text-muted)]">{t("media.music.noAlbums")}</p>;
 
   return (
     <div className="grid gap-4" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))" }}>
       {albums.map((a) => (
         <div
           key={a.ID}
-          className="rounded-[var(--radius-md)] overflow-hidden"
-          style={{ backgroundColor: "var(--surface-raised)", border: "1px solid var(--border)" }}
+          className="rounded-[var(--radius-md)] overflow-hidden bg-[var(--surface-raised)] border border-[var(--border)]"
         >
           <div
+            className="w-full flex items-center justify-center bg-[var(--surface)] bg-cover bg-center"
             style={{
-              width: "100%",
               aspectRatio: "1",
-              backgroundColor: "var(--surface)",
               backgroundImage: a.CoverArtURL ? `url(${a.CoverArtURL})` : undefined,
-              backgroundSize: "cover",
-              backgroundPosition: "center",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
             }}
           >
             {!a.CoverArtURL && (
@@ -630,9 +623,9 @@ function AlbumsTab({ albums, loading }: { albums: Album[]; loading: boolean }) {
             )}
           </div>
           <div className="p-2">
-            <p className="font-medium text-sm truncate" style={{ color: "var(--text)" }}>{a.Title || "—"}</p>
-            <p className="text-xs truncate" style={{ color: "var(--text-muted)" }}>{a.Artist || "—"}</p>
-            <p className="text-xs" style={{ color: "var(--text-muted)" }}>
+            <p className="font-medium text-sm truncate text-[var(--text)]">{a.Title || "—"}</p>
+            <p className="text-xs truncate text-[var(--text-muted)]">{a.Artist || "—"}</p>
+            <p className="text-xs text-[var(--text-muted)]">
               {a.TrackCount} {a.TrackCount === 1 ? "track" : "tracks"}
               {a.Year > 0 ? ` · ${a.Year}` : ""}
             </p>
@@ -645,19 +638,18 @@ function AlbumsTab({ albums, loading }: { albums: Album[]; loading: boolean }) {
 
 function ArtistsTab({ artists, loading }: { artists: Artist[]; loading: boolean }) {
   const { t } = useTranslation();
-  if (loading) return <p style={{ color: "var(--text-muted)" }}>{t("media.music.loading")}</p>;
-  if (!artists.length) return <p style={{ color: "var(--text-muted)" }}>{t("media.music.noArtists")}</p>;
+  if (loading) return <p className="text-[var(--text-muted)]">{t("media.music.loading")}</p>;
+  if (!artists.length) return <p className="text-[var(--text-muted)]">{t("media.music.noArtists")}</p>;
 
   return (
     <div className="flex flex-col gap-1">
       {artists.map((a) => (
         <div
           key={a.ID}
-          className="flex items-center justify-between px-4 py-3 rounded-[var(--radius-md)]"
-          style={{ backgroundColor: "var(--surface-raised)", border: "1px solid var(--border)" }}
+          className="flex items-center justify-between px-4 py-3 rounded-[var(--radius-md)] bg-[var(--surface-raised)] border border-[var(--border)]"
         >
-          <span className="font-medium" style={{ color: "var(--text)" }}>{a.Name}</span>
-          <span className="text-sm" style={{ color: "var(--text-muted)" }}>
+          <span className="font-medium text-[var(--text)]">{a.Name}</span>
+          <span className="text-sm text-[var(--text-muted)]">
             {a.AlbumCount} {a.AlbumCount === 1 ? "album" : "albums"} · {a.TrackCount} tracks
           </span>
         </div>

@@ -155,41 +155,38 @@ function ListRow({ item }: { item: Record<string, unknown> }) {
     <Link
       to="/media/$mediaId"
       params={{ mediaId: id ?? "" }}
-      className="flex items-center gap-4 px-3 py-2 rounded-[var(--radius-md)] transition-colors-fast hover:bg-[var(--surface-raised)]"
-      style={{ borderBottom: "1px solid var(--border)" }}
+      className="flex items-center gap-4 px-3 py-2 rounded-[var(--radius-md)] transition-colors-fast hover:bg-[var(--surface-raised)] border-b border-[var(--border)]"
       data-testid="list-row"
     >
       <div
-        className="flex-shrink-0 w-7 h-10 rounded overflow-hidden"
-        style={{ backgroundColor: "var(--surface-raised)" }}
+        className="flex-shrink-0 w-7 h-10 rounded overflow-hidden bg-[var(--surface-raised)]"
       >
         {poster && (
           <img src={poster} alt={title} className="w-full h-full object-cover" loading="lazy" />
         )}
       </div>
-      <span className="flex-1 min-w-0 text-sm font-medium truncate" style={{ color: "var(--text)" }}>
+      <span className="flex-1 min-w-0 text-sm font-medium truncate text-[var(--text)]">
         {title}
       </span>
-      <span className="hidden sm:block w-16 text-xs text-right flex-shrink-0" style={{ color: "var(--text-muted)" }}>
+      <span className="hidden sm:block w-16 text-xs text-right flex-shrink-0 text-[var(--text-muted)]">
         {year ?? "—"}
       </span>
-      <span className="hidden md:flex items-center gap-1 w-16 text-xs flex-shrink-0 justify-end" style={{ color: "var(--text-muted)" }}>
+      <span className="hidden md:flex items-center gap-1 w-16 text-xs flex-shrink-0 justify-end text-[var(--text-muted)]">
         {rating != null && rating > 0 ? (
           <>
-            <Star size={12} fill="currentColor" style={{ color: "var(--accent)" }} />
+            <Star size={12} fill="currentColor" className="text-[var(--accent)]" />
             {rating.toFixed(1)}
           </>
         ) : "—"}
       </span>
       {typeLabel(type) && (
         <span
-          className="hidden lg:block text-xs px-1.5 py-0.5 flex-shrink-0"
-          style={{ backgroundColor: "var(--surface-raised)", color: "var(--text-muted)", borderRadius: "var(--radius-sm)" }}
+          className="hidden lg:block text-xs px-1.5 py-0.5 flex-shrink-0 bg-[var(--surface-raised)] text-[var(--text-muted)] rounded-[var(--radius-sm)]"
         >
           {typeLabel(type)}
         </span>
       )}
-      <span className="hidden lg:block w-16 text-xs text-right flex-shrink-0" style={{ color: "var(--text-muted)" }}>
+      <span className="hidden lg:block w-16 text-xs text-right flex-shrink-0 text-[var(--text-muted)]">
         {durationMs ? formatDuration(durationMs) : "—"}
       </span>
     </Link>
@@ -224,10 +221,10 @@ function BulkPlaylistModal({
     <Modal open={open} onClose={onClose} title={t("media.library.addToPlaylist")}>
       {isLoading ? (
         <div className="flex justify-center py-8">
-          <div className="w-6 h-6 border-2 rounded-full animate-spin" style={{ borderColor: "var(--border)", borderTopColor: "var(--accent)" }} />
+          <div className="w-6 h-6 border-2 rounded-full animate-spin border-[var(--border)] border-t-[var(--accent)]" />
         </div>
       ) : manualPlaylists.length === 0 ? (
-        <p className="text-sm text-center py-6" style={{ color: "var(--text-muted)" }}>{t("media.library.noPlaylists")}</p>
+        <p className="text-sm text-center py-6 text-[var(--text-muted)]">{t("media.library.noPlaylists")}</p>
       ) : (
         <div className="space-y-1">
           {manualPlaylists.map((pl) => (
@@ -235,8 +232,7 @@ function BulkPlaylistModal({
               key={pl.id}
               onClick={() => void handleAdd(pl.id, pl.name)}
               disabled={addTo.isPending}
-              className="w-full flex items-center gap-3 px-4 py-3 rounded-[var(--radius-md)] text-left transition-colors-fast hover:bg-[var(--surface-raised)]"
-              style={{ color: "var(--text)" }}
+              className="w-full flex items-center gap-3 px-4 py-3 rounded-[var(--radius-md)] text-left transition-colors-fast hover:bg-[var(--surface-raised)] text-[var(--text)]"
             >
               <span className="text-sm font-medium truncate">{pl.name}</span>
             </button>
@@ -464,19 +460,19 @@ function LibraryPage() {
   return (
     <div data-testid="library-page">
       <nav className="flex items-center gap-1.5 text-sm mb-3" aria-label="Breadcrumb">
-        <Link to="/library" className="hover:underline" style={{ color: "var(--text-muted)" }}>
+        <Link to="/library" className="hover:underline text-[var(--text-muted)]">
           {t("media.library.libraries")}
         </Link>
-        <ChevronRight size={12} className="flex-shrink-0" style={{ color: "var(--text-muted)" }} />
-        <span className="truncate font-medium" style={{ color: "var(--text)" }}>
+        <ChevronRight size={12} className="flex-shrink-0 text-[var(--text-muted)]" />
+        <span className="truncate font-medium text-[var(--text)]">
           {library?.name ?? t("media.library.title")}
         </span>
       </nav>
       <div className="flex items-center justify-between gap-4 mb-2 flex-wrap">
-        <h1 className="text-2xl font-bold" style={{ color: "var(--text)" }} data-testid="library-name">
+        <h1 className="text-2xl font-bold text-[var(--text)]" data-testid="library-name">
           {library?.name ?? t("media.library.title")}
         </h1>
-        <span className="text-sm" style={{ color: "var(--text-muted)" }} data-testid="library-item-count">
+        <span className="text-sm text-[var(--text-muted)]" data-testid="library-item-count">
           {displayCount} {displayCount === 1 ? "item" : "items"}
           {hasActiveFilters && ` ${t("common.filtered")}`}
         </span>
@@ -555,16 +551,14 @@ function LibraryPage() {
       {bulkMode && (
         <>
           <div
-            className="sticky top-0 z-raised flex items-center gap-2 px-4 py-2 mb-4 rounded-[var(--radius-md)] flex-wrap"
-            style={{ backgroundColor: "var(--surface)", border: "1px solid var(--accent)" }}
+            className="sticky top-0 z-raised flex items-center gap-2 px-4 py-2 mb-4 rounded-[var(--radius-md)] flex-wrap bg-[var(--surface)] border border-[var(--accent)]"
           >
             <span
-              className="text-sm font-semibold px-2 py-0.5 rounded-full mr-1"
-              style={{ backgroundColor: "var(--accent)", color: "var(--filter-active-text)" }}
+              className="text-sm font-semibold px-2 py-0.5 rounded-full mr-1 bg-[var(--accent)] text-[var(--filter-active-text)]"
             >
               {selectedIds.size}
             </span>
-            <span className="text-sm mr-2" style={{ color: "var(--text-muted)" }}>{t("media.library.selected")}</span>
+            <span className="text-sm mr-2 text-[var(--text-muted)]">{t("media.library.selected")}</span>
             {selectedIds.size > 0 && (
               <>
                 <Button
@@ -580,24 +574,21 @@ function LibraryPage() {
               <button
                 type="button"
                 onClick={() => setSelectedIds(new Set(displayItems.map((i) => i.id ?? "").filter(Boolean)))}
-                className="text-xs hover:underline"
-                style={{ color: "var(--accent)" }}
+                className="text-xs hover:underline text-[var(--accent)]"
               >
                 {t("common.selectAll")}
               </button>
               <button
                 type="button"
                 onClick={() => setSelectedIds(new Set())}
-                className="text-xs hover:underline"
-                style={{ color: "var(--text-muted)" }}
+                className="text-xs hover:underline text-[var(--text-muted)]"
               >
                 {t("common.deselectAll")}
               </button>
               <button
                 type="button"
                 onClick={() => { setBulkMode(false); setSelectedIds(new Set()); }}
-                className="text-xs hover:underline"
-                style={{ color: "var(--text-muted)" }}
+                className="text-xs hover:underline text-[var(--text-muted)]"
               >
                 {t("common.exit")}
               </button>
@@ -645,12 +636,10 @@ function LibraryPage() {
             </MediaGrid>
           ) : (
             <div
-              className="rounded-[var(--radius-md)] overflow-hidden"
-              style={{ backgroundColor: "var(--surface)", border: "1px solid var(--border)" }}
+              className="rounded-[var(--radius-md)] overflow-hidden bg-[var(--surface)] border border-[var(--border)]"
             >
               <div
-                className="flex items-center gap-4 px-3 py-2 text-xs font-semibold"
-                style={{ color: "var(--text-muted)", borderBottom: "1px solid var(--border)" }}
+                className="flex items-center gap-4 px-3 py-2 text-xs font-semibold text-[var(--text-muted)] border-b border-[var(--border)]"
               >
                 <span className="w-7 flex-shrink-0" />
                 <span className="flex-1 min-w-0">{t("media.library.titleSort")}</span>
@@ -667,8 +656,7 @@ function LibraryPage() {
 
           {!isLoading && displayItems.length === 0 && (
             <div
-              className="rounded-[var(--radius-lg)]"
-              style={{ backgroundColor: "var(--surface)", border: "1px solid var(--border)" }}
+              className="rounded-[var(--radius-lg)] bg-[var(--surface)] border border-[var(--border)]"
             >
               <EmptyState
                 icon={<Folder size={48} strokeWidth={1.5} />}

@@ -65,16 +65,15 @@ function PlayHistoryTab() {
     <div className="flex flex-col gap-4">
       <div
         className="overflow-x-auto rounded-[var(--radius-lg)]"
-        style={{ border: "1px solid var(--border)" }}
+        className="overflow-x-auto rounded-[var(--radius-lg)] border border-[var(--border)]"
       >
         <table className="w-full text-sm">
           <thead>
-            <tr style={{ backgroundColor: "var(--surface)", borderBottom: "1px solid var(--border)" }}>
+            <tr className="bg-[var(--surface)] border-b border-[var(--border)]">
               {[t("admin.activity.playHeaders.title"), t("admin.activity.playHeaders.device"), t("admin.activity.playHeaders.duration"), t("admin.activity.playHeaders.progress"), t("admin.activity.playHeaders.started")].map((h) => (
                 <th
                   key={h}
-                  className="px-4 py-2 text-left font-medium"
-                  style={{ color: "var(--text-muted)" }}
+                  className="px-4 py-2 text-left font-medium text-[var(--text-muted)]"
                 >
                   {h}
                 </th>
@@ -94,33 +93,32 @@ function PlayHistoryTab() {
                 const dur = parseInt(e.durationMs ?? "1");
                 const pct = dur > 0 ? Math.round((pos / dur) * 100) : 0;
                 return (
-                  <tr key={e.id} style={{ borderBottom: "1px solid var(--border)" }}>
-                    <td className="px-4 py-3" style={{ color: "var(--text)" }}>
+                  <tr key={e.id} className="border-b border-[var(--border)]">
+                    <td className="px-4 py-3 text-[var(--text)]">
                       {e.mediaTitle ?? "\u2014"}
                     </td>
-                    <td className="px-4 py-3 text-xs" style={{ color: "var(--text-muted)" }}>
+                    <td className="px-4 py-3 text-xs text-[var(--text-muted)]">
                       {e.deviceName ?? e.clientName ?? "\u2014"}
                     </td>
-                    <td className="px-4 py-3" style={{ color: "var(--text-muted)" }}>
+                    <td className="px-4 py-3 text-[var(--text-muted)]">
                       {formatMs(e.durationMs)}
                     </td>
                     <td className="px-4 py-3 min-w-[100px]">
                       <div className="flex items-center gap-2">
                         <div
-                          className="h-1.5 flex-1 rounded-full"
-                          style={{ backgroundColor: "var(--border)" }}
+                          className="h-1.5 flex-1 rounded-full bg-[var(--border)]"
                         >
                           <div
-                            className="h-1.5 rounded-full"
-                            style={{ width: `${pct}%`, backgroundColor: "var(--accent)" }}
+                            className="h-1.5 rounded-full bg-[var(--accent)]"
+                            style={{ width: `${pct}%` }}
                           />
                         </div>
-                        <span className="text-xs w-8 text-right" style={{ color: "var(--text-muted)" }}>
+                        <span className="text-xs w-8 text-right text-[var(--text-muted)]">
                           {pct}%
                         </span>
                       </div>
                     </td>
-                    <td className="px-4 py-3 text-xs" style={{ color: "var(--text-muted)" }}>
+                    <td className="px-4 py-3 text-xs text-[var(--text-muted)]">
                       {formatDate(e.startedAt)}
                     </td>
                   </tr>
@@ -130,7 +128,7 @@ function PlayHistoryTab() {
           </tbody>
         </table>
       </div>
-      <div className="flex items-center justify-between text-sm" style={{ color: "var(--text-muted)" }}>
+      <div className="flex items-center justify-between text-sm text-[var(--text-muted)]">
         <span>{t("admin.activity.totalEntries", { count: total })}</span>
         <Pagination
           page={page}
@@ -165,16 +163,15 @@ function LoginHistoryTab() {
     <div className="flex flex-col gap-4">
       <div
         className="overflow-x-auto rounded-[var(--radius-lg)]"
-        style={{ border: "1px solid var(--border)" }}
+        className="overflow-x-auto rounded-[var(--radius-lg)] border border-[var(--border)]"
       >
         <table className="w-full text-sm">
           <thead>
-            <tr style={{ backgroundColor: "var(--surface)", borderBottom: "1px solid var(--border)" }}>
+            <tr className="bg-[var(--surface)] border-b border-[var(--border)]">
               {[t("admin.activity.loginHeaders.user"), t("admin.activity.loginHeaders.ip"), t("admin.activity.loginHeaders.status"), t("admin.activity.loginHeaders.userAgent"), t("admin.activity.loginHeaders.timestamp")].map((h) => (
                 <th
                   key={h}
-                  className="px-4 py-2 text-left font-medium"
-                  style={{ color: "var(--text-muted)" }}
+                  className="px-4 py-2 text-left font-medium text-[var(--text-muted)]"
                 >
                   {h}
                 </th>
@@ -190,11 +187,11 @@ function LoginHistoryTab() {
               </tr>
             ) : (
               entries.map((e) => (
-                <tr key={e.id} style={{ borderBottom: "1px solid var(--border)" }}>
-                  <td className="px-4 py-3 font-medium" style={{ color: "var(--text)" }}>
+                <tr key={e.id} className="border-b border-[var(--border)]">
+                  <td className="px-4 py-3 font-medium text-[var(--text)]">
                     {e.username ?? "\u2014"}
                   </td>
-                  <td className="px-4 py-3 font-mono text-xs" style={{ color: "var(--text-muted)" }}>
+                  <td className="px-4 py-3 font-mono text-xs text-[var(--text-muted)]">
                     {e.ipAddress ?? "\u2014"}
                   </td>
                   <td className="px-4 py-3">
@@ -204,10 +201,10 @@ function LoginHistoryTab() {
                       <Badge variant="error">{t("admin.activity.failed")}</Badge>
                     )}
                   </td>
-                  <td className="px-4 py-3 text-xs max-w-xs truncate" style={{ color: "var(--text-muted)" }}>
+                  <td className="px-4 py-3 text-xs max-w-xs truncate text-[var(--text-muted)]">
                     {e.userAgent ?? "\u2014"}
                   </td>
-                  <td className="px-4 py-3 text-xs" style={{ color: "var(--text-muted)" }}>
+                  <td className="px-4 py-3 text-xs text-[var(--text-muted)]">
                     {formatDate(e.timestamp)}
                   </td>
                 </tr>
@@ -216,7 +213,7 @@ function LoginHistoryTab() {
           </tbody>
         </table>
       </div>
-      <div className="flex items-center justify-between text-sm" style={{ color: "var(--text-muted)" }}>
+      <div className="flex items-center justify-between text-sm text-[var(--text-muted)]">
         <span>{t("admin.activity.totalEntries", { count: total })}</span>
         <Pagination
           page={page}
@@ -252,10 +249,10 @@ function StatsTab() {
           [t("admin.activity.stats.bandwidth"), formatBytes(stats?.totalBandwidthBytes)],
         ].map(([label, value]) => (
           <Card key={String(label)} className="flex flex-col gap-1">
-            <span className="text-xs font-medium uppercase tracking-wide" style={{ color: "var(--text-muted)" }}>
+            <span className="text-xs font-medium uppercase tracking-wide text-[var(--text-muted)]">
               {label}
             </span>
-            <span className="text-2xl font-bold" style={{ color: "var(--text)" }}>
+            <span className="text-2xl font-bold text-[var(--text)]">
               {String(value)}
             </span>
           </Card>
@@ -264,18 +261,17 @@ function StatsTab() {
 
       {stats?.popularMedia && stats.popularMedia.length > 0 && (
         <Card>
-          <h3 className="font-semibold mb-4" style={{ color: "var(--text)" }}>
+          <h3 className="font-semibold mb-4 text-[var(--text)]">
             {t("admin.activity.popularMedia")}
           </h3>
           <div className="flex flex-col gap-2">
             {stats.popularMedia.map((m) => (
               <div
                 key={m.mediaItemId}
-                className="flex items-center justify-between text-sm py-1"
-                style={{ borderBottom: "1px solid var(--border)" }}
+                className="flex items-center justify-between text-sm py-1 border-b border-[var(--border)]"
               >
-                <span style={{ color: "var(--text)" }}>{m.title ?? "\u2014"}</span>
-                <span className="text-xs" style={{ color: "var(--text-muted)" }}>
+                <span className="text-[var(--text)]">{m.title ?? "\u2014"}</span>
+                <span className="text-xs text-[var(--text-muted)]">
                   {t("admin.activity.plays", { count: m.playCount })}
                 </span>
               </div>
@@ -286,18 +282,17 @@ function StatsTab() {
 
       {stats?.activeUsers && stats.activeUsers.length > 0 && (
         <Card>
-          <h3 className="font-semibold mb-4" style={{ color: "var(--text)" }}>
+          <h3 className="font-semibold mb-4 text-[var(--text)]">
             {t("admin.activity.mostActiveUsers")}
           </h3>
           <div className="flex flex-col gap-2">
             {stats.activeUsers.map((u) => (
               <div
                 key={u.userId}
-                className="flex items-center justify-between text-sm py-1"
-                style={{ borderBottom: "1px solid var(--border)" }}
+                className="flex items-center justify-between text-sm py-1 border-b border-[var(--border)]"
               >
-                <span style={{ color: "var(--text)" }}>{u.username}</span>
-                <div className="flex gap-4 text-xs" style={{ color: "var(--text-muted)" }}>
+                <span className="text-[var(--text)]">{u.username}</span>
+                <div className="flex gap-4 text-xs text-[var(--text-muted)]">
                   <span>{t("admin.activity.plays", { count: u.playCount })}</span>
                   <span>{formatMs(u.totalWatchTimeMs)}</span>
                 </div>
@@ -324,8 +319,7 @@ function ActivityPage() {
     <div className="flex flex-col gap-6">
       <PageHeader title={t("admin.activity.title")} />
 
-      <div className="flex gap-1 p-1 rounded-[var(--radius-md)] self-start"
-        style={{ backgroundColor: "var(--surface)", border: "1px solid var(--border)" }}>
+      <div className="flex gap-1 p-1 rounded-[var(--radius-md)] self-start bg-[var(--surface)] border border-[var(--border)]">
         {tabs.map(({ id, label }) => (
           <button
             key={id}
