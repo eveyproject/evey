@@ -155,3 +155,88 @@ func TestPlaySessionRepo_GetHistory(t *testing.T) {
 	require.NoError(t, err)
 	assert.Len(t, list, 2)
 }
+
+func TestPlaySessionRepo_CloseStale(t *testing.T) {
+	db, cleanup := testhelpers.StartPostgres(t)
+	defer cleanup()
+
+	userRepo := postgres.NewUserRepository(db)
+	profileRepo := postgres.NewProfileRepository(db)
+	libRepo := postgres.NewLibraryRepository(db)
+	itemRepo := postgres.NewMediaItemRepository(db)
+	sessionRepo := postgres.NewPlaySessionRepository(db)
+	ctx := context.Background()
+
+	u := newTestUser("psu5")
+	require.NoError(t, userRepo.Create(ctx, u))
+	p := newTestProfile("psp5", u.ID)
+	require.NoError(t, profileRepo.Create(ctx, p))
+	lib := newTestLibrary("pslib5")
+	require.NoError(t, libRepo.Create(ctx, lib))
+	item := newTestMediaItem("psmi5", lib.ID)
+	require.NoError(t, itemRepo.Create(ctx, item))
+
+	session := newTestPlaySession("ps5", p.ID, item.ID)
+	require.NoError(t, sessionRepo.Create(ctx, session))
+
+	// with very short duration, the session should be "stale"
+	closed, err := sessionRepo.CloseStale(ctx, 0)
+	require.NoError(t, err)
+	assert.GreaterOrEqual(t, closed, 1)
+}
+
+func TestPlaySessionRepo_CountActiveByUser(t *testing.T) {
+	db, cleanup := testhelpers.StartPostgres(t)
+	defer cleanup()
+
+	userRepo := postgres.NewUserRepository(db)
+	profileRepo := postgres.NewProfileRepository(db)
+	libRepo := postgres.NewLibraryRepository(db)
+	itemRepo := postgres.NewMediaItemRepository(db)
+	sessionRepo := postgres.NewPlaySessionRepository(db)
+	ctx := context.Background()
+
+	u := newTestUser("psu6")
+	require.NoError(t, userRepo.Create(ctx, u))
+	p := newTestProfile("psp6", u.ID)
+	require.NoError(t, profileRepo.Create(ctx, p))
+	lib := newTestLibrary("pslib6")
+	require.NoError(t, libRepo.Create(ctx, lib))
+	item := newTestMediaItem("psmi6", lib.ID)
+	require.NoError(t, itemRepo.Create(ctx, item))
+
+	session := newTestPlaySession("ps6", p.ID, item.ID)
+	require.NoError(t, sessionRepo.Create(ctx, session))
+
+	count, err := sessionRepo.CountActiveByUser(ctx, u.ID)
+	require.NoError(t, err)
+	assert.Equal(t, 1, count)
+}
+
+func TestPlaySessionRepo_ListActiveSessions(t *testing.T) {
+	db, cleanup := testhelpers.StartPostgres(t)
+	defer cleanup()
+
+	userRepo := postgres.NewUserRepository(db)
+	profileRepo := postgres.NewProfileRepository(db)
+	libRepo := postgres.NewLibraryRepository(db)
+	itemRepo := postgres.NewMediaItemRepository(db)
+	sessionRepo := postgres.NewPlaySessionRepository(db)
+	ctx := context.Background()
+
+	u := newTestUser("psu7")
+	require.NoError(t, userRepo.Create(ctx, u))
+	p := newTestProfile("psp7", u.ID)
+	require.NoError(t, profileRepo.Create(ctx, p))
+	lib := newTestLibrary("pslib7")
+	require.NoError(t, libRepo.Create(ctx, lib))
+	item := newTestMediaItem("psmi7", lib.ID)
+	require.NoError(t, itemRepo.Create(ctx, item))
+
+	session := newTestPlaySession("ps7", p.ID, item.ID)
+	require.NoError(t, sessionRepo.Create(ctx, session))
+
+	active, err := sessionRepo.ListActiveSessions(ctx)
+	require.NoError(t, err)
+	assert.GreaterOrEqual(t, len(active), 1)
+}
