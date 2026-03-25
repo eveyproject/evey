@@ -95,7 +95,7 @@ export function Modal({ open, onClose, title, size = "md", children }: ModalProp
   return createPortal(
     <div
       ref={backdropRef}
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60"
+      className="fixed inset-0 z-overlay flex items-center justify-center bg-black/60"
       onClick={(e) => {
         if (e.target === backdropRef.current) onClose();
       }}

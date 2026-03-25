@@ -90,7 +90,7 @@ export function StarRatingBadge({ mediaId }: { mediaId: string }) {
   if (rating === 0) return null;
   return (
     <span
-      className="absolute z-20 flex items-center gap-0.5 text-[10px] font-bold px-1 py-0.5 leading-none"
+      className="absolute z-badge flex items-center gap-0.5 text-[10px] font-bold px-1 py-0.5 leading-none"
       style={{
         top: "0.5rem",
         left: "2.25rem",

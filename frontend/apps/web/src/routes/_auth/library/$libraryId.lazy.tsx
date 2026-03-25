@@ -555,7 +555,7 @@ function LibraryPage() {
       {bulkMode && (
         <>
           <div
-            className="sticky top-0 z-10 flex items-center gap-2 px-4 py-2 mb-4 rounded-[var(--radius-md)] flex-wrap"
+            className="sticky top-0 z-raised flex items-center gap-2 px-4 py-2 mb-4 rounded-[var(--radius-md)] flex-wrap"
             style={{ backgroundColor: "var(--surface)", border: "1px solid var(--accent)" }}
           >
             <span

@@ -104,7 +104,7 @@ export const SearchDropdown = memo(function SearchDropdown({
       <div
         ref={dropdownRef}
         data-testid="search-dropdown-recents"
-        className="absolute left-0 right-0 top-full mt-1 rounded-[var(--radius-md)] border border-[var(--border)] shadow-xl z-50 overflow-hidden animate-fade-in"
+        className="absolute left-0 right-0 top-full mt-1 rounded-[var(--radius-md)] border border-[var(--border)] shadow-xl z-overlay overflow-hidden animate-fade-in"
         style={{ backgroundColor: "var(--surface-raised)" }}
       >
         <div className="flex items-center justify-between px-3 pt-2.5 pb-1">
@@ -155,7 +155,7 @@ export const SearchDropdown = memo(function SearchDropdown({
     <div
       ref={dropdownRef}
       data-testid="search-dropdown"
-      className="absolute left-0 right-0 top-full mt-1 rounded-[var(--radius-md)] border border-[var(--border)] shadow-xl z-50 overflow-hidden animate-fade-in"
+      className="absolute left-0 right-0 top-full mt-1 rounded-[var(--radius-md)] border border-[var(--border)] shadow-xl z-overlay overflow-hidden animate-fade-in"
       style={{ backgroundColor: "var(--surface-raised)" }}
     >
       {isLoading && (

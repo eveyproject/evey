@@ -203,7 +203,7 @@ function HeroBanner() {
       })}
 
       {heroIds.length > 1 && (
-        <div className="absolute bottom-4 right-6 flex gap-2 z-10">
+        <div className="absolute bottom-4 right-6 flex gap-2 z-raised">
           {heroIds.map((_, idx) => (
             <button
               key={idx}

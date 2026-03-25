@@ -41,7 +41,7 @@ function PlayerPage() {
 
   if (gateLoading) {
     return (
-      <div className="fixed inset-0 bg-black z-50 flex items-center justify-center">
+      <div className="fixed inset-0 bg-black z-overlay flex items-center justify-center">
         <Spinner />
       </div>
     );
@@ -49,7 +49,7 @@ function PlayerPage() {
 
   if (blocked) {
     return (
-      <div className="fixed inset-0 bg-black z-50 flex items-center justify-center">
+      <div className="fixed inset-0 bg-black z-overlay flex items-center justify-center">
         {profileId && (
           <ParentalPINDialog
             open
@@ -207,14 +207,14 @@ function PlayerPageInner({ mediaId }: { mediaId: string }) {
 
   return (
     <div
-      className="fixed inset-0 bg-black z-50 flex flex-col"
+      className="fixed inset-0 bg-black z-overlay flex flex-col"
     >
       <div className="flex-1 relative flex items-center justify-center">
         {!syncState.roomId && !isLoading && !isError && streamInfo && (
           <button
             aria-label={t("player.watchTogether")}
             onClick={() => void handleWatchTogether()}
-            className="absolute top-4 right-4 z-[60] flex items-center gap-2 px-3 py-2 rounded-full text-white text-sm font-medium transition-opacity hover:opacity-80"
+            className="absolute top-4 right-4 z-overlay-raised flex items-center gap-2 px-3 py-2 rounded-full text-white text-sm font-medium transition-opacity hover:opacity-80"
             style={{ backgroundColor: "var(--overlay-bg)", border: "1px solid var(--overlay-btn-bg)" }}
           >
             <Users size={16} />
@@ -274,7 +274,7 @@ function PlayerPageInner({ mediaId }: { mediaId: string }) {
         )}
         {showShareDialog && shareRoomId && (
           <div
-            className="absolute inset-0 z-[70] flex items-center justify-center"
+            className="absolute inset-0 z-overlay-top flex items-center justify-center"
             style={{ background: "var(--overlay-bg-strong)" }}
             onClick={() => setShowShareDialog(false)}
           >

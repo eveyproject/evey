@@ -24,7 +24,7 @@ export function BulkActionBar({
 }: BulkActionBarProps) {
   return (
     <div
-      className="fixed bottom-0 left-0 right-0 z-50 flex items-center gap-2 px-4 py-3 flex-wrap shadow-2xl"
+      className="fixed bottom-0 left-0 right-0 z-overlay flex items-center gap-2 px-4 py-3 flex-wrap shadow-2xl"
       style={{
         backgroundColor: "var(--surface)",
         borderTop: "1px solid var(--accent)",

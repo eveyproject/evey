@@ -17,6 +17,18 @@
   unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
 }
 
+/* Z-index scale — single source of truth */
+:root {
+  --z-raised: 10;
+  --z-badge: 20;
+  --z-float: 30;
+  --z-sidebar: 40;
+  --z-overlay: 50;
+  --z-overlay-raised: 60;
+  --z-overlay-top: 70;
+  --z-popover: 100;
+}
+
 /* Design tokens bridged from active theme */
 @theme {
   --color-bg: var(--bg);
@@ -32,6 +44,15 @@
   --radius-sm: var(--radius-sm);
   --radius-md: var(--radius-md);
   --radius-lg: var(--radius-lg);
+
+  --z-index-raised: var(--z-raised);
+  --z-index-badge: var(--z-badge);
+  --z-index-float: var(--z-float);
+  --z-index-sidebar: var(--z-sidebar);
+  --z-index-overlay: var(--z-overlay);
+  --z-index-overlay-raised: var(--z-overlay-raised);
+  --z-index-overlay-top: var(--z-overlay-top);
+  --z-index-popover: var(--z-popover);
 }
 
 * {
