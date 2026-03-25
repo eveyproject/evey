@@ -128,6 +128,85 @@ func (f *fakeLister) ListIDs(_ context.Context) ([]string, error) {
 	return f.ids, f.err
 }
 
+func TestCleanOrphanLogs_ListerError(t *testing.T) {
+	dir := t.TempDir()
+	l := NewPluginLogger(dir, 10)
+	defer l.Close()
+
+	today := time.Now().Format("2006-01-02")
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "plg-x-"+today+".log"), []byte("data"), 0o644))
+
+	lister := &fakeLister{err: assert.AnError}
+	l.cleanOrphanLogs(context.Background(), lister)
+
+	// file should NOT be removed when lister errors
+	_, err := os.Stat(filepath.Join(dir, "plg-x-"+today+".log"))
+	assert.NoError(t, err)
+}
+
+func TestCloseAll(t *testing.T) {
+	dir := t.TempDir()
+	l := NewPluginLogger(dir, 10)
+	l.WriteLog("plg-a", "hello")
+	l.WriteLog("plg-b", "world")
+
+	l.Close()
+
+	l.mu.Lock()
+	count := len(l.writers)
+	l.mu.Unlock()
+	assert.Equal(t, 0, count)
+}
+
+func TestRotateOnSize(t *testing.T) {
+	dir := t.TempDir()
+	l := NewPluginLogger(dir, 10)
+	defer l.Close()
+
+	w := l.Writer("plg-rotate")
+	plw := w.(*pluginLogWriter)
+	plw.maxSize = 100 // very small max size
+
+	data := make([]byte, 60)
+	for i := range data {
+		data[i] = 'a'
+	}
+	data[59] = '\n'
+
+	_, err := w.Write(data)
+	require.NoError(t, err)
+	_, err = w.Write(data)
+	require.NoError(t, err)
+
+	entries, _ := os.ReadDir(dir)
+	logCount := 0
+	for _, e := range entries {
+		if !e.IsDir() {
+			logCount++
+		}
+	}
+	assert.GreaterOrEqual(t, logCount, 1)
+}
+
+func TestCleanOldLogs_NoLogDir(t *testing.T) {
+	l := NewPluginLogger("/nonexistent/path/that/does/not/exist", 5)
+	l.cleanOldLogs() // should not panic
+}
+
+func TestCleanOldLogs_SkipsNonLogFiles(t *testing.T) {
+	dir := t.TempDir()
+	l := NewPluginLogger(dir, 5)
+	defer l.Close()
+
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "readme.txt"), []byte("x"), 0o644))
+	require.NoError(t, os.MkdirAll(filepath.Join(dir, "subdir"), 0o755))
+
+	l.cleanOldLogs()
+
+	_, err := os.Stat(filepath.Join(dir, "readme.txt"))
+	assert.NoError(t, err, "non-log files should not be removed")
+}
+
 func TestCleanOrphanLogs(t *testing.T) {
 	dir := t.TempDir()
 	l := NewPluginLogger(dir, 10)

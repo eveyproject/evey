@@ -121,6 +121,102 @@ func TestRunnerRejectsEntrypointOutsidePluginDir(t *testing.T) {
 	assert.Contains(t, err.Error(), "outside allowed plugin directories")
 }
 
+func TestRunnerWithLogger(t *testing.T) {
+	dir := t.TempDir()
+	logger := NewPluginLogger(dir, 10)
+	r := NewRunner().WithLogger(logger)
+	assert.NotNil(t, r.logger)
+}
+
+func TestRunnerWithIPCCallback(t *testing.T) {
+	called := false
+	cb := func(pluginID string, err error) { called = true }
+	r := NewRunner().WithIPCCallback(cb)
+	assert.NotNil(t, r.onIPCResult)
+	r.onIPCResult("test", nil)
+	assert.True(t, called)
+}
+
+func TestIsInterpreter(t *testing.T) {
+	tests := []struct {
+		cmd  string
+		want bool
+	}{
+		{"python3", true},
+		{"python", true},
+		{"node", true},
+		{"php", true},
+		{"ruby", true},
+		{"bash", true},
+		{"sh", true},
+		{"perl", true},
+		{"lua", true},
+		{"gcc", false},
+		{"/usr/bin/node", true},
+		{"custom-binary", false},
+	}
+	for _, tt := range tests {
+		if got := isInterpreter(tt.cmd); got != tt.want {
+			t.Errorf("isInterpreter(%q) = %v, want %v", tt.cmd, got, tt.want)
+		}
+	}
+}
+
+func TestValidateEntrypoint_DirectoryIsError(t *testing.T) {
+	dir := t.TempDir()
+	r := NewRunner(dir)
+	_, err := r.validateEntrypoint(".", dir)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "directory")
+}
+
+func TestValidateEntrypoint_NotExecutableIsError(t *testing.T) {
+	dir := t.TempDir()
+	noExec := filepath.Join(dir, "script.py")
+	os.WriteFile(noExec, []byte("print('hi')"), 0o644)
+	r := NewRunner(dir)
+	_, err := r.validateEntrypoint("script.py", dir)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "not executable")
+}
+
+func TestRunnerStartEmptyEntrypoint(t *testing.T) {
+	r := NewRunner(t.TempDir())
+	p := &plugin.Plugin{ID: "plg-empty", Entrypoint: ""}
+	// Entrypoint falls back to Name, which is also empty
+	err := r.Start(context.Background(), p)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "empty entrypoint")
+}
+
+func TestRunnerStartInterpreterNotFound(t *testing.T) {
+	r := NewRunner(t.TempDir())
+	p := &plugin.Plugin{
+		ID:         "plg-no-interp",
+		Entrypoint: "nonexistent_interpreter main.py",
+	}
+	err := r.Start(context.Background(), p)
+	assert.Error(t, err)
+}
+
+func TestRunnerSendEvent_NoIPC(t *testing.T) {
+	bin := buildTestBinary(t)
+	dir := filepath.Dir(bin)
+	ctx := context.Background()
+	r := NewRunner(dir)
+
+	p := &plugin.Plugin{ID: "plg-no-ipc", Name: bin}
+	err := r.Start(ctx, p)
+	require.NoError(t, err)
+	defer r.Stop(ctx, p.ID)
+
+	time.Sleep(50 * time.Millisecond)
+
+	err = r.SendEvent(ctx, "plg-no-ipc", map[string]any{"key": "val"})
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "IPC not connected")
+}
+
 func TestRunnerRejectsPathTraversal(t *testing.T) {
 	r := NewRunner("/data/plugins")
 	ctx := context.Background()

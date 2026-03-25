@@ -132,7 +132,7 @@ func (h *hlsHandle) Err() error {
 
 // --- ffmpeg arg building ---
 
-func isImageSubtitle(codec string) bool {
+func IsImageSubtitle(codec string) bool {
 	switch strings.ToLower(codec) {
 	case "pgssub", "hdmv_pgs_subtitle", "dvd_subtitle", "dvbsub", "xsub":
 		return true
@@ -179,7 +179,7 @@ func buildCopyVideoArgs(opts transcoding.HLSProcessOpts) []string {
 }
 
 func buildSingleTranscodeArgs(opts transcoding.HLSProcessOpts) []string {
-	burnIn := opts.SubtitleTrackIndex >= 0 && isImageSubtitle(opts.SubtitleCodec)
+	burnIn := opts.SubtitleTrackIndex >= 0 && IsImageSubtitle(opts.SubtitleCodec)
 	toneMap := detectToneMap(opts.HDRSupported, opts.Streams)
 
 	var args []string
@@ -244,7 +244,7 @@ func buildSingleTranscodeArgs(opts transcoding.HLSProcessOpts) []string {
 
 func buildMultiVariantArgs(opts transcoding.HLSProcessOpts) []string {
 	n := len(opts.Profiles)
-	burnIn := opts.SubtitleTrackIndex >= 0 && isImageSubtitle(opts.SubtitleCodec)
+	burnIn := opts.SubtitleTrackIndex >= 0 && IsImageSubtitle(opts.SubtitleCodec)
 	toneMap := detectToneMap(opts.HDRSupported, opts.Streams)
 
 	var args []string

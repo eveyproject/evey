@@ -627,6 +627,86 @@ func TestAnalyze_DepManifest_Warning(t *testing.T) {
 	}
 }
 
+func TestSeverityLabel(t *testing.T) {
+	tests := []struct {
+		s    AnalysisSeverity
+		want string
+	}{
+		{SeverityCritical, "CRITICAL"},
+		{SeverityWarning, "WARNING"},
+		{SeverityInfo, "INFO"},
+		{AnalysisSeverity(99), "INFO"},
+	}
+	for _, tt := range tests {
+		if got := severityLabel(tt.s); got != tt.want {
+			t.Errorf("severityLabel(%d) = %q, want %q", tt.s, got, tt.want)
+		}
+	}
+}
+
+func TestNewStaticAnalyzer(t *testing.T) {
+	a := NewStaticAnalyzer()
+	if a == nil {
+		t.Fatal("expected non-nil analyzer")
+	}
+}
+
+func TestStaticAnalyzer_Analyze_CleanPlugin(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "main.py", `print("hello")`)
+
+	a := NewStaticAnalyzer()
+	report, err := a.Analyze(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !report.Safe {
+		t.Error("expected safe plugin")
+	}
+	if report.FileCount != 1 {
+		t.Errorf("expected 1 file, got %d", report.FileCount)
+	}
+}
+
+func TestStaticAnalyzer_Analyze_UnsafePlugin(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "bad.py", `os.system("whoami")`)
+
+	a := NewStaticAnalyzer()
+	report, err := a.Analyze(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if report.Safe {
+		t.Error("expected unsafe plugin")
+	}
+	if len(report.Issues) == 0 {
+		t.Error("expected issues to be reported")
+	}
+}
+
+func TestStaticAnalyzer_Analyze_WithURLs(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "net.py", `url = "https://api.example.com/v1"`)
+
+	a := NewStaticAnalyzer()
+	report, err := a.Analyze(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(report.URLs) == 0 {
+		t.Error("expected URLs in report")
+	}
+}
+
+func TestStaticAnalyzer_Analyze_InvalidDir(t *testing.T) {
+	a := NewStaticAnalyzer()
+	_, err := a.Analyze("/nonexistent/path/to/plugin")
+	if err == nil {
+		t.Error("expected error for nonexistent dir")
+	}
+}
+
 func TestAnalyze_SDKStubsSkipped(t *testing.T) {
 	dir := t.TempDir()
 	writeFile(t, dir, "plugin_pb2.py", `eval("should not be scanned")`)
