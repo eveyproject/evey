@@ -3,6 +3,7 @@ package subtitle
 import (
 	"context"
 	"fmt"
+	"os"
 	"testing"
 
 	"github.com/gravity-zero/evey/internal/domain/shared"
@@ -140,6 +141,16 @@ func TestDelete_NotFound(t *testing.T) {
 	assert.ErrorIs(t, err, shared.ErrNotFound)
 }
 
+func TestDownload_RepoSaveError(t *testing.T) {
+	svc, repo, provider, _ := newTestService()
+	provider.DownloadPath = "/media/.subtitles/100.srt"
+	repo.Err = fmt.Errorf("db write failed")
+
+	_, err := svc.Download(context.Background(), "m1", 100, "en", "srt")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "save subtitle")
+}
+
 func TestComputeOpenSubtitlesHash_EmptyPath(t *testing.T) {
 	h := computeOpenSubtitlesHash("")
 	assert.Empty(t, h)
@@ -148,4 +159,44 @@ func TestComputeOpenSubtitlesHash_EmptyPath(t *testing.T) {
 func TestComputeOpenSubtitlesHash_NonExistent(t *testing.T) {
 	h := computeOpenSubtitlesHash("/nonexistent/file.mkv")
 	assert.Empty(t, h)
+}
+
+func TestComputeOpenSubtitlesHash_FileTooSmall(t *testing.T) {
+	tmp := t.TempDir()
+	path := tmp + "/small.mkv"
+	data := make([]byte, 1000)
+	require.NoError(t, os.WriteFile(path, data, 0644))
+
+	h := computeOpenSubtitlesHash(path)
+	assert.Empty(t, h, "file smaller than 128KB should return empty hash")
+}
+
+func TestComputeOpenSubtitlesHash_ValidFile(t *testing.T) {
+	tmp := t.TempDir()
+	path := tmp + "/video.mkv"
+	size := 65536*2 + 1024
+	data := make([]byte, size)
+	for i := range data {
+		data[i] = byte(i % 256)
+	}
+	require.NoError(t, os.WriteFile(path, data, 0644))
+
+	h := computeOpenSubtitlesHash(path)
+	assert.NotEmpty(t, h, "valid file should produce a hash")
+	assert.Len(t, h, 16, "hash should be 16 hex characters")
+}
+
+func TestComputeOpenSubtitlesHash_Deterministic(t *testing.T) {
+	tmp := t.TempDir()
+	path := tmp + "/video.mkv"
+	size := 65536*2 + 2048
+	data := make([]byte, size)
+	for i := range data {
+		data[i] = byte((i * 7) % 256)
+	}
+	require.NoError(t, os.WriteFile(path, data, 0644))
+
+	h1 := computeOpenSubtitlesHash(path)
+	h2 := computeOpenSubtitlesHash(path)
+	assert.Equal(t, h1, h2, "hash should be deterministic")
 }
