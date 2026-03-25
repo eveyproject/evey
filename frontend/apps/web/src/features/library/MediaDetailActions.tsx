@@ -154,8 +154,8 @@ export function MediaDetailActions({
             </Button>
           )
         )}
-        {item.id && item.filePath && (
-          <DownloadButton mediaId={item.id} title={item.title} streamToken={streamToken ?? undefined} />
+        {item.id && item.filePath && streamToken && (
+          <DownloadButton mediaId={item.id} title={item.title} streamToken={streamToken} />
         )}
         {item.id && <FavoriteButton mediaId={item.id} size="md" />}
         {item.id && <RatingButtons mediaId={item.id} />}

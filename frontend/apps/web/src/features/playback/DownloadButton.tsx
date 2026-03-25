@@ -9,7 +9,8 @@ interface DownloadButtonProps {
 
 export function DownloadButton({ mediaId, title, streamToken }: DownloadButtonProps) {
   const { t } = useTranslation();
-  const url = `/api/v1/media/${mediaId}/download${streamToken ? `?token=${encodeURIComponent(streamToken)}` : ""}`;
+  if (!streamToken) return null;
+  const url = `/api/v1/media/${mediaId}/download?token=${encodeURIComponent(streamToken)}`;
 
   return (
     <a
