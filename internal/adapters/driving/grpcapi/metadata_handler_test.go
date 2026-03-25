@@ -80,6 +80,109 @@ func TestMetadataSetMetadataOverride(t *testing.T) {
 	}
 }
 
+func TestMetadataSearchMetadata(t *testing.T) {
+	h, provider, _, _ := newTestMetadataHandler()
+	year := 2020
+	rating := 8.5
+	provider.SearchResults["batman"] = []metadata.MetadataResult{
+		{Title: "Batman Begins", Year: &year, CommunityRating: &rating, Genres: []string{"Action"}},
+		{Title: "The Batman", Year: &year},
+	}
+
+	resp, err := h.SearchMetadata(context.Background(), &eveyv1.SearchMetadataRequest{
+		Query: "batman",
+		Type:  eveyv1.MediaItemType_MEDIA_ITEM_TYPE_MOVIE,
+		Limit: 10,
+	})
+	if err != nil {
+		t.Fatalf("SearchMetadata: %v", err)
+	}
+	if len(resp.Results) != 2 {
+		t.Fatalf("expected 2 results, got %d", len(resp.Results))
+	}
+	if resp.Results[0].Title != "Batman Begins" {
+		t.Errorf("expected title 'Batman Begins', got %q", resp.Results[0].Title)
+	}
+	if resp.Results[0].Rating != 8.5 {
+		t.Errorf("expected rating 8.5, got %f", resp.Results[0].Rating)
+	}
+}
+
+func TestMetadataSearchMetadata_EmptyResults(t *testing.T) {
+	h, _, _, _ := newTestMetadataHandler()
+	resp, err := h.SearchMetadata(context.Background(), &eveyv1.SearchMetadataRequest{
+		Query: "nonexistent",
+		Limit: 10,
+	})
+	if err != nil {
+		t.Fatalf("SearchMetadata: %v", err)
+	}
+	if len(resp.Results) != 0 {
+		t.Errorf("expected 0 results, got %d", len(resp.Results))
+	}
+}
+
+func TestMetadataSearchMetadata_WithLimit(t *testing.T) {
+	h, provider, _, _ := newTestMetadataHandler()
+	provider.SearchResults["test"] = []metadata.MetadataResult{
+		{Title: "Result 1"}, {Title: "Result 2"}, {Title: "Result 3"},
+	}
+
+	resp, err := h.SearchMetadata(context.Background(), &eveyv1.SearchMetadataRequest{
+		Query: "test",
+		Limit: 2,
+	})
+	if err != nil {
+		t.Fatalf("SearchMetadata: %v", err)
+	}
+	if len(resp.Results) != 2 {
+		t.Fatalf("expected 2 results (limited), got %d", len(resp.Results))
+	}
+}
+
+func TestMetadataRemoveMetadataOverride(t *testing.T) {
+	h, _, _, overrideRepo := newTestMetadataHandler()
+	overrideRepo.Set(context.Background(), &metadata.MetadataOverride{
+		ID:          "mo-1",
+		MediaItemID: "mi-1",
+		FieldName:   "title",
+		CustomValue: "Override",
+	})
+
+	resp, err := h.RemoveMetadataOverride(context.Background(), &eveyv1.RemoveMetadataOverrideRequest{Id: "mo-1"})
+	if err != nil {
+		t.Fatalf("RemoveMetadataOverride: %v", err)
+	}
+	if resp == nil {
+		t.Fatal("expected non-nil response")
+	}
+
+	list, _ := h.ListMetadataOverrides(context.Background(), &eveyv1.ListMetadataOverridesRequest{MediaItemId: "mi-1"})
+	if len(list.Overrides) != 0 {
+		t.Errorf("expected 0 overrides after removal, got %d", len(list.Overrides))
+	}
+}
+
+func TestMetadataGetMetadataProviders(t *testing.T) {
+	h, _, _, _ := newTestMetadataHandler()
+	resp, err := h.GetMetadataProviders(context.Background(), &eveyv1.GetMetadataProvidersRequest{})
+	if err != nil {
+		t.Fatalf("GetMetadataProviders: %v", err)
+	}
+	if len(resp.Providers) != 1 {
+		t.Fatalf("expected 1 provider, got %d", len(resp.Providers))
+	}
+	if resp.Providers[0].Name != "tmdb" {
+		t.Errorf("expected provider name 'tmdb', got %q", resp.Providers[0].Name)
+	}
+	if !resp.Providers[0].Enabled {
+		t.Error("expected provider to be enabled")
+	}
+	if resp.Providers[0].Priority != 1 {
+		t.Errorf("expected priority 1, got %d", resp.Providers[0].Priority)
+	}
+}
+
 func TestMetadataListMetadataOverrides(t *testing.T) {
 	h, _, _, overrideRepo := newTestMetadataHandler()
 	overrideRepo.Set(context.Background(), &metadata.MetadataOverride{

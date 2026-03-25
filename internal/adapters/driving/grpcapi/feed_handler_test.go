@@ -157,6 +157,46 @@ func TestFeedHandler_GetAdminFeedConfigs_Success(t *testing.T) {
 	assert.Equal(t, int32(12), resp.Configs[0].MaxItems)
 }
 
+func TestFeedHandler_Recommended_Success(t *testing.T) {
+	h, _, _, querier := newFeedHandler()
+
+	querier.RecommendedItems = []*feed.FeedItem{
+		{MediaItemID: "m5", Title: "Rec Movie", Type: "movie", Score: 90},
+		{MediaItemID: "m6", Title: "Rec Series", Type: "series", Score: 85},
+	}
+
+	ctx := ctxWithClaims("user-1", "profile-1", false)
+	resp, err := h.Recommended(ctx, &eveyv1.RecommendedRequest{Limit: 10})
+
+	require.NoError(t, err)
+	require.Len(t, resp.Items, 2)
+	assert.Equal(t, "m5", resp.Items[0].MediaItemId)
+	assert.Equal(t, int32(90), resp.Items[0].Score)
+}
+
+func TestFeedHandler_Recommended_Unauthenticated(t *testing.T) {
+	h, _, _, _ := newFeedHandler()
+	_, err := h.Recommended(context.Background(), &eveyv1.RecommendedRequest{Limit: 10})
+	require.Error(t, err)
+	assert.Equal(t, codes.Unauthenticated, status.Code(err))
+}
+
+func TestFeedHandler_SimilarItems_Success(t *testing.T) {
+	h, _, _, querier := newFeedHandler()
+
+	querier.SimilarItemsResult = []*feed.FeedItem{
+		{MediaItemID: "m7", Title: "Similar A", Type: "movie"},
+		{MediaItemID: "m8", Title: "Similar B", Type: "movie"},
+	}
+
+	ctx := ctxWithClaims("user-1", "profile-1", false)
+	resp, err := h.SimilarItems(ctx, &eveyv1.SimilarItemsRequest{MediaItemId: "m1", Limit: 10})
+
+	require.NoError(t, err)
+	require.Len(t, resp.Items, 2)
+	assert.Equal(t, "m7", resp.Items[0].MediaItemId)
+}
+
 func TestFeedHandler_SimilarItems_Unauthenticated(t *testing.T) {
 	h, _, _, _ := newFeedHandler()
 

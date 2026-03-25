@@ -361,3 +361,304 @@ func TestCheckQuickConnect_InvalidCode(t *testing.T) {
 	_, err := env.handler.CheckQuickConnect(context.Background(), &eveyv1.CheckQuickConnectRequest{Code: "bogus"})
 	assertCode(t, err, codes.NotFound)
 }
+
+// --- RefreshToken tests ---
+
+func TestRefreshToken_Success(t *testing.T) {
+	env := setupUserHandler()
+	seedUser(t, env, &user.User{ID: "usr-1", Username: "alice", Email: "a@b.com"}, "password123")
+	env.profileRepo.Create(context.Background(), &user.Profile{ID: "prf-1", UserID: "usr-1", Name: "alice", IsDefault: true})
+
+	loginResp, err := env.handler.Login(context.Background(), &eveyv1.LoginRequest{
+		Username: "alice", Password: "password123",
+	})
+	if err != nil {
+		t.Fatalf("Login: %v", err)
+	}
+
+	resp, err := env.handler.RefreshToken(context.Background(), &eveyv1.RefreshTokenRequest{
+		RefreshToken: loginResp.RefreshToken,
+	})
+	if err != nil {
+		t.Fatalf("RefreshToken: %v", err)
+	}
+	if resp.AccessToken == "" || resp.RefreshToken == "" {
+		t.Fatal("expected tokens in response")
+	}
+}
+
+func TestRefreshToken_InvalidToken(t *testing.T) {
+	env := setupUserHandler()
+	_, err := env.handler.RefreshToken(context.Background(), &eveyv1.RefreshTokenRequest{
+		RefreshToken: "invalid-token",
+	})
+	assertCode(t, err, codes.Unauthenticated)
+}
+
+// --- Logout tests ---
+
+func TestLogout_Success(t *testing.T) {
+	env := setupUserHandler()
+	seedUser(t, env, &user.User{ID: "usr-1", Username: "alice", Email: "a@b.com"}, "password123")
+
+	ctx := userCtx("usr-1", "prf-1")
+	resp, err := env.handler.Logout(ctx, &eveyv1.LogoutRequest{})
+	if err != nil {
+		t.Fatalf("Logout: %v", err)
+	}
+	if resp == nil {
+		t.Fatal("expected non-nil response")
+	}
+}
+
+func TestLogout_Unauthenticated(t *testing.T) {
+	env := setupUserHandler()
+	_, err := env.handler.Logout(context.Background(), &eveyv1.LogoutRequest{})
+	assertCode(t, err, codes.Unauthenticated)
+}
+
+// --- DeleteUser tests ---
+
+func TestDeleteUser_Success(t *testing.T) {
+	env := setupUserHandler()
+	seedUser(t, env, &user.User{ID: "usr-1", Username: "alice", Email: "a@b.com"}, "pass12345678")
+
+	ctx := adminCtx()
+	resp, err := env.handler.DeleteUser(ctx, &eveyv1.DeleteUserRequest{Id: "usr-1"})
+	if err != nil {
+		t.Fatalf("DeleteUser: %v", err)
+	}
+	if resp == nil {
+		t.Fatal("expected non-nil response")
+	}
+}
+
+// --- DisableUser tests ---
+
+func TestDisableUser_Success(t *testing.T) {
+	env := setupUserHandler()
+	seedUser(t, env, &user.User{ID: "usr-1", Username: "alice", Email: "a@b.com"}, "pass12345678")
+
+	ctx := adminCtx()
+	resp, err := env.handler.DisableUser(ctx, &eveyv1.DisableUserRequest{Id: "usr-1"})
+	if err != nil {
+		t.Fatalf("DisableUser: %v", err)
+	}
+	if resp.Enabled {
+		t.Fatal("expected user to be disabled")
+	}
+}
+
+// --- UpdateProfile tests ---
+
+func TestUpdateProfile_Success(t *testing.T) {
+	env := setupUserHandler()
+	env.profileRepo.Create(context.Background(), &user.Profile{
+		ID: "prf-1", UserID: "usr-1", Name: "Default",
+	})
+
+	ctx := userCtx("usr-1", "prf-1")
+	newName := "Updated Profile"
+	resp, err := env.handler.UpdateProfile(ctx, &eveyv1.UpdateProfileRequest{
+		Id:   "prf-1",
+		Name: &newName,
+	})
+	if err != nil {
+		t.Fatalf("UpdateProfile: %v", err)
+	}
+	if resp.Name != "Updated Profile" {
+		t.Fatalf("got name %q, want Updated Profile", resp.Name)
+	}
+}
+
+func TestUpdateProfile_OtherProfileDenied(t *testing.T) {
+	env := setupUserHandler()
+	ctx := userCtx("usr-1", "prf-1")
+	newName := "Hacked"
+	_, err := env.handler.UpdateProfile(ctx, &eveyv1.UpdateProfileRequest{
+		Id:   "prf-other",
+		Name: &newName,
+	})
+	assertCode(t, err, codes.PermissionDenied)
+}
+
+// --- DeleteProfile tests ---
+
+func TestDeleteProfile_Success(t *testing.T) {
+	env := setupUserHandler()
+	env.profileRepo.Create(context.Background(), &user.Profile{
+		ID: "prf-1", UserID: "usr-1", Name: "Default",
+	})
+
+	ctx := userCtx("usr-1", "prf-1")
+	resp, err := env.handler.DeleteProfile(ctx, &eveyv1.DeleteProfileRequest{Id: "prf-1"})
+	if err != nil {
+		t.Fatalf("DeleteProfile: %v", err)
+	}
+	if resp == nil {
+		t.Fatal("expected non-nil response")
+	}
+}
+
+func TestDeleteProfile_OtherProfileDenied(t *testing.T) {
+	env := setupUserHandler()
+	ctx := userCtx("usr-1", "prf-1")
+	_, err := env.handler.DeleteProfile(ctx, &eveyv1.DeleteProfileRequest{Id: "prf-other"})
+	assertCode(t, err, codes.PermissionDenied)
+}
+
+// --- ListProfiles tests ---
+
+func TestListProfiles_Success(t *testing.T) {
+	env := setupUserHandler()
+	env.profileRepo.Create(context.Background(), &user.Profile{ID: "prf-1", UserID: "usr-1", Name: "Main"})
+	env.profileRepo.Create(context.Background(), &user.Profile{ID: "prf-2", UserID: "usr-1", Name: "Kids"})
+
+	ctx := userCtx("usr-1", "prf-1")
+	resp, err := env.handler.ListProfiles(ctx, &eveyv1.ListProfilesRequest{UserId: "usr-1"})
+	if err != nil {
+		t.Fatalf("ListProfiles: %v", err)
+	}
+	if len(resp.Profiles) != 2 {
+		t.Fatalf("got %d profiles, want 2", len(resp.Profiles))
+	}
+}
+
+func TestListProfiles_NonAdminForcesOwnID(t *testing.T) {
+	env := setupUserHandler()
+	env.profileRepo.Create(context.Background(), &user.Profile{ID: "prf-1", UserID: "usr-1", Name: "Main"})
+
+	ctx := userCtx("usr-1", "prf-1")
+	resp, err := env.handler.ListProfiles(ctx, &eveyv1.ListProfilesRequest{UserId: "usr-other"})
+	if err != nil {
+		t.Fatalf("ListProfiles: %v", err)
+	}
+	for _, p := range resp.Profiles {
+		if p.UserId != "usr-1" {
+			t.Fatalf("non-admin should only see own profiles, got userId %q", p.UserId)
+		}
+	}
+}
+
+// --- InviteLink tests ---
+
+func TestCreateInviteLink_Success(t *testing.T) {
+	env := setupUserHandler()
+	ctx := userCtx("usr-1", "prf-1")
+
+	resp, err := env.handler.CreateInviteLink(ctx, &eveyv1.CreateInviteLinkRequest{MaxUses: 5})
+	if err != nil {
+		t.Fatalf("CreateInviteLink: %v", err)
+	}
+	if resp.Id == "" {
+		t.Fatal("expected non-empty invite link id")
+	}
+	if resp.Code == "" {
+		t.Fatal("expected non-empty invite code")
+	}
+	if resp.MaxUses != 5 {
+		t.Fatalf("got max_uses %d, want 5", resp.MaxUses)
+	}
+}
+
+func TestCreateInviteLink_Unauthenticated(t *testing.T) {
+	env := setupUserHandler()
+	_, err := env.handler.CreateInviteLink(context.Background(), &eveyv1.CreateInviteLinkRequest{})
+	assertCode(t, err, codes.Unauthenticated)
+}
+
+func TestListInviteLinks_Success(t *testing.T) {
+	env := setupUserHandler()
+	ctx := userCtx("usr-1", "prf-1")
+
+	_, _ = env.handler.CreateInviteLink(ctx, &eveyv1.CreateInviteLinkRequest{MaxUses: 1})
+	_, _ = env.handler.CreateInviteLink(ctx, &eveyv1.CreateInviteLinkRequest{MaxUses: 2})
+
+	resp, err := env.handler.ListInviteLinks(ctx, &eveyv1.ListInviteLinksRequest{})
+	if err != nil {
+		t.Fatalf("ListInviteLinks: %v", err)
+	}
+	if len(resp.InviteLinks) != 2 {
+		t.Fatalf("got %d invite links, want 2", len(resp.InviteLinks))
+	}
+}
+
+func TestRevokeInviteLink_OwnerSuccess(t *testing.T) {
+	env := setupUserHandler()
+	ctx := userCtx("usr-1", "prf-1")
+
+	created, _ := env.handler.CreateInviteLink(ctx, &eveyv1.CreateInviteLinkRequest{MaxUses: 1})
+	_, err := env.handler.RevokeInviteLink(ctx, &eveyv1.RevokeInviteLinkRequest{Id: created.Id})
+	if err != nil {
+		t.Fatalf("RevokeInviteLink: %v", err)
+	}
+}
+
+func TestRevokeInviteLink_NonOwnerDenied(t *testing.T) {
+	env := setupUserHandler()
+	ctxOwner := userCtx("usr-1", "prf-1")
+	created, _ := env.handler.CreateInviteLink(ctxOwner, &eveyv1.CreateInviteLinkRequest{MaxUses: 1})
+
+	ctxOther := userCtx("usr-2", "prf-2")
+	_, err := env.handler.RevokeInviteLink(ctxOther, &eveyv1.RevokeInviteLinkRequest{Id: created.Id})
+	assertCode(t, err, codes.PermissionDenied)
+}
+
+// --- RegisterWithInvite tests ---
+
+func TestRegisterWithInvite_Success(t *testing.T) {
+	env := setupUserHandler()
+	ctx := userCtx("usr-1", "prf-1")
+	created, _ := env.handler.CreateInviteLink(ctx, &eveyv1.CreateInviteLinkRequest{MaxUses: 1})
+
+	resp, err := env.handler.RegisterWithInvite(context.Background(), &eveyv1.RegisterWithInviteRequest{
+		InviteCode: created.Code,
+		Username:   "newuser",
+		Password:   "newpassword123",
+		Email:      "new@test.com",
+	})
+	if err != nil {
+		t.Fatalf("RegisterWithInvite: %v", err)
+	}
+	if resp.User == nil || resp.User.Username != "newuser" {
+		t.Fatal("expected user in response")
+	}
+}
+
+func TestRegisterWithInvite_InvalidCode(t *testing.T) {
+	env := setupUserHandler()
+	_, err := env.handler.RegisterWithInvite(context.Background(), &eveyv1.RegisterWithInviteRequest{
+		InviteCode: "invalid-code",
+		Username:   "newuser",
+		Password:   "newpassword123",
+	})
+	assertCode(t, err, codes.InvalidArgument)
+}
+
+// --- RevokeAPIKey tests ---
+
+func TestRevokeAPIKey_OwnerSuccess(t *testing.T) {
+	env := setupUserHandler()
+	ctx := userCtx("usr-1", "prf-1")
+
+	created, _ := env.handler.CreateAPIKey(ctx, &eveyv1.CreateAPIKeyRequest{Name: "my-key"})
+	_, err := env.handler.RevokeAPIKey(ctx, &eveyv1.RevokeAPIKeyRequest{Id: created.Id})
+	if err != nil {
+		t.Fatalf("RevokeAPIKey: %v", err)
+	}
+
+	resp, _ := env.handler.ListAPIKeys(ctx, &eveyv1.ListAPIKeysRequest{})
+	if len(resp.ApiKeys) != 0 {
+		t.Fatalf("expected 0 keys after revoke, got %d", len(resp.ApiKeys))
+	}
+}
+
+func TestRevokeAPIKey_NonOwnerDenied(t *testing.T) {
+	env := setupUserHandler()
+	ctxOwner := userCtx("usr-1", "prf-1")
+	created, _ := env.handler.CreateAPIKey(ctxOwner, &eveyv1.CreateAPIKeyRequest{Name: "key1"})
+
+	ctxOther := userCtx("usr-2", "prf-2")
+	_, err := env.handler.RevokeAPIKey(ctxOther, &eveyv1.RevokeAPIKeyRequest{Id: created.Id})
+	assertCode(t, err, codes.PermissionDenied)
+}

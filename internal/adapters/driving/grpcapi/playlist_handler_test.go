@@ -234,6 +234,165 @@ func TestPlaylistOtherProfileID_NonAdminDenied(t *testing.T) {
 	}
 }
 
+func TestPlaylistUpdatePlaylist_Success(t *testing.T) {
+	h := newTestPlaylistHandler()
+	ctx := ctxWithClaims("user-1", "profile-1", false)
+	created, err := h.CreatePlaylist(ctx, &eveyv1.CreatePlaylistRequest{
+		Name: "Original",
+		Type: eveyv1.PlaylistType_PLAYLIST_TYPE_MANUAL,
+	})
+	if err != nil {
+		t.Fatalf("CreatePlaylist: %v", err)
+	}
+
+	resp, err := h.UpdatePlaylist(ctx, &eveyv1.UpdatePlaylistRequest{
+		Id:   created.Id,
+		Name: "Renamed",
+	})
+	if err != nil {
+		t.Fatalf("UpdatePlaylist: %v", err)
+	}
+	if resp.Name != "Renamed" {
+		t.Errorf("expected name 'Renamed', got %q", resp.Name)
+	}
+}
+
+func TestPlaylistUpdatePlaylist_WrongOwner(t *testing.T) {
+	h := newTestPlaylistHandler()
+	ctxOwner := ctxWithClaims("user-1", "profile-1", false)
+	created, err := h.CreatePlaylist(ctxOwner, &eveyv1.CreatePlaylistRequest{Name: "Mine"})
+	if err != nil {
+		t.Fatalf("CreatePlaylist: %v", err)
+	}
+
+	ctxOther := ctxWithClaims("user-2", "profile-2", false)
+	_, err = h.UpdatePlaylist(ctxOther, &eveyv1.UpdatePlaylistRequest{
+		Id:   created.Id,
+		Name: "Hacked",
+	})
+	if err == nil {
+		t.Fatal("expected error for wrong owner")
+	}
+	if status.Code(err) != codes.PermissionDenied {
+		t.Errorf("expected PermissionDenied, got %v", status.Code(err))
+	}
+}
+
+func TestPlaylistUpdatePlaylist_NoAuth(t *testing.T) {
+	h := newTestPlaylistHandler()
+	_, err := h.UpdatePlaylist(context.Background(), &eveyv1.UpdatePlaylistRequest{Id: "pl-1", Name: "X"})
+	if err == nil {
+		t.Fatal("expected unauthenticated error")
+	}
+	if status.Code(err) != codes.Unauthenticated {
+		t.Errorf("expected Unauthenticated, got %v", status.Code(err))
+	}
+}
+
+func TestPlaylistGetPlaylistItems_Success(t *testing.T) {
+	h := newTestPlaylistHandler()
+	ctx := ctxWithClaims("user-1", "profile-1", false)
+	created, err := h.CreatePlaylist(ctx, &eveyv1.CreatePlaylistRequest{
+		Name: "My List",
+		Type: eveyv1.PlaylistType_PLAYLIST_TYPE_MANUAL,
+	})
+	if err != nil {
+		t.Fatalf("CreatePlaylist: %v", err)
+	}
+
+	_, _ = h.AddPlaylistItem(ctx, &eveyv1.AddPlaylistItemRequest{Id: created.Id, MediaItemId: "mi-1"})
+	_, _ = h.AddPlaylistItem(ctx, &eveyv1.AddPlaylistItemRequest{Id: created.Id, MediaItemId: "mi-2"})
+
+	resp, err := h.GetPlaylistItems(ctx, &eveyv1.GetPlaylistItemsRequest{Id: created.Id})
+	if err != nil {
+		t.Fatalf("GetPlaylistItems: %v", err)
+	}
+	if len(resp.Items) != 2 {
+		t.Errorf("expected 2 items, got %d", len(resp.Items))
+	}
+}
+
+func TestPlaylistGetPlaylistItems_WrongOwner(t *testing.T) {
+	h := newTestPlaylistHandler()
+	ctxOwner := ctxWithClaims("user-1", "profile-1", false)
+	created, err := h.CreatePlaylist(ctxOwner, &eveyv1.CreatePlaylistRequest{
+		Name: "Mine",
+		Type: eveyv1.PlaylistType_PLAYLIST_TYPE_MANUAL,
+	})
+	if err != nil {
+		t.Fatalf("CreatePlaylist: %v", err)
+	}
+
+	ctxOther := ctxWithClaims("user-2", "profile-2", false)
+	_, err = h.GetPlaylistItems(ctxOther, &eveyv1.GetPlaylistItemsRequest{Id: created.Id})
+	if err == nil {
+		t.Fatal("expected error for wrong owner")
+	}
+	if status.Code(err) != codes.PermissionDenied {
+		t.Errorf("expected PermissionDenied, got %v", status.Code(err))
+	}
+}
+
+func TestPlaylistGetPlaylistItems_NoAuth(t *testing.T) {
+	h := newTestPlaylistHandler()
+	_, err := h.GetPlaylistItems(context.Background(), &eveyv1.GetPlaylistItemsRequest{Id: "pl-1"})
+	if status.Code(err) != codes.Unauthenticated {
+		t.Errorf("expected Unauthenticated, got %v", status.Code(err))
+	}
+}
+
+func TestPlaylistRemovePlaylistItem_Success(t *testing.T) {
+	h := newTestPlaylistHandler()
+	ctx := ctxWithClaims("user-1", "profile-1", false)
+	created, err := h.CreatePlaylist(ctx, &eveyv1.CreatePlaylistRequest{
+		Name: "My List",
+		Type: eveyv1.PlaylistType_PLAYLIST_TYPE_MANUAL,
+	})
+	if err != nil {
+		t.Fatalf("CreatePlaylist: %v", err)
+	}
+
+	_, _ = h.AddPlaylistItem(ctx, &eveyv1.AddPlaylistItemRequest{Id: created.Id, MediaItemId: "mi-1"})
+	_, err = h.RemovePlaylistItem(ctx, &eveyv1.RemovePlaylistItemRequest{Id: created.Id, MediaItemId: "mi-1"})
+	if err != nil {
+		t.Fatalf("RemovePlaylistItem: %v", err)
+	}
+
+	items, _ := h.GetPlaylistItems(ctx, &eveyv1.GetPlaylistItemsRequest{Id: created.Id})
+	if len(items.Items) != 0 {
+		t.Errorf("expected 0 items after remove, got %d", len(items.Items))
+	}
+}
+
+func TestPlaylistRemovePlaylistItem_WrongOwner(t *testing.T) {
+	h := newTestPlaylistHandler()
+	ctxOwner := ctxWithClaims("user-1", "profile-1", false)
+	created, err := h.CreatePlaylist(ctxOwner, &eveyv1.CreatePlaylistRequest{
+		Name: "Mine", Type: eveyv1.PlaylistType_PLAYLIST_TYPE_MANUAL,
+	})
+	if err != nil {
+		t.Fatalf("CreatePlaylist: %v", err)
+	}
+	_, _ = h.AddPlaylistItem(ctxOwner, &eveyv1.AddPlaylistItemRequest{Id: created.Id, MediaItemId: "mi-1"})
+
+	ctxOther := ctxWithClaims("user-2", "profile-2", false)
+	_, err = h.RemovePlaylistItem(ctxOther, &eveyv1.RemovePlaylistItemRequest{Id: created.Id, MediaItemId: "mi-1"})
+	if err == nil {
+		t.Fatal("expected error for wrong owner")
+	}
+	if status.Code(err) != codes.PermissionDenied {
+		t.Errorf("expected PermissionDenied, got %v", status.Code(err))
+	}
+}
+
+func TestPlaylistRemovePlaylistItem_NoAuth(t *testing.T) {
+	h := newTestPlaylistHandler()
+	_, err := h.RemovePlaylistItem(context.Background(), &eveyv1.RemovePlaylistItemRequest{Id: "pl-1", MediaItemId: "mi-1"})
+	if status.Code(err) != codes.Unauthenticated {
+		t.Errorf("expected Unauthenticated, got %v", status.Code(err))
+	}
+}
+
 func TestPlaylistOtherProfileID_AdminAllowed(t *testing.T) {
 	h := newTestPlaylistHandler()
 	ctx := ctxWithClaims("admin-1", "profile-admin", true)

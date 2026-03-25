@@ -2,6 +2,7 @@ package grpcapi
 
 import (
 	"context"
+	"fmt"
 	"testing"
 	"time"
 
@@ -403,6 +404,90 @@ func TestGetStreamInfo_AudioCodecsDirectPlay(t *testing.T) {
 	assert.Empty(t, resp.TranscodeReasons)
 	assert.Equal(t, "copy", resp.AudioDecision)
 	assert.Equal(t, "copy", resp.VideoDecision)
+}
+
+func TestPlaybackHandler_GetWatchHistory(t *testing.T) {
+	h, _, progressRepo, _, _, _ := newTestPlaybackHandler()
+	ctx := pbAdminCtx()
+
+	progressRepo.Upsert(context.Background(), &playback.WatchProgress{
+		ID: "wp-1", ProfileID: "profile-1", MediaItemID: "mi-1",
+		PositionMs: 30000, LastPlayedAt: time.Now(),
+	})
+	progressRepo.Upsert(context.Background(), &playback.WatchProgress{
+		ID: "wp-2", ProfileID: "profile-1", MediaItemID: "mi-2",
+		PositionMs: 60000, LastPlayedAt: time.Now(),
+	})
+
+	resp, err := h.GetWatchHistory(ctx, &eveyv1.GetWatchHistoryRequest{Limit: 10})
+
+	require.NoError(t, err)
+	assert.Len(t, resp.Items, 2)
+}
+
+func TestPlaybackHandler_GetWatchHistory_Unauthenticated(t *testing.T) {
+	h, _, _, _, _, _ := newTestPlaybackHandler()
+	_, err := h.GetWatchHistory(context.Background(), &eveyv1.GetWatchHistoryRequest{})
+	require.Error(t, err)
+	assert.Equal(t, codes.Unauthenticated, status.Code(err))
+}
+
+func TestPlaybackHandler_GetWatchHistory_Pagination(t *testing.T) {
+	h, _, progressRepo, _, _, _ := newTestPlaybackHandler()
+	ctx := pbAdminCtx()
+
+	for i := 0; i < 5; i++ {
+		progressRepo.Upsert(context.Background(), &playback.WatchProgress{
+			ID: fmt.Sprintf("wp-%d", i), ProfileID: "profile-1",
+			MediaItemID: fmt.Sprintf("mi-%d", i), PositionMs: int64(i * 1000),
+			LastPlayedAt: time.Now(),
+		})
+	}
+
+	resp, err := h.GetWatchHistory(ctx, &eveyv1.GetWatchHistoryRequest{
+		Pagination: &eveyv1.PaginationRequest{Page: 1, PageSize: 2},
+	})
+	require.NoError(t, err)
+	assert.Len(t, resp.Items, 2)
+}
+
+func TestPlaybackHandler_GetNextUp(t *testing.T) {
+	h, _, progressRepo, mediaQuery, _, _ := newTestPlaybackHandler()
+	ctx := pbAdminCtx()
+
+	progressRepo.Upsert(context.Background(), &playback.WatchProgress{
+		ID: "wp-1", ProfileID: "profile-1", MediaItemID: "mi-ep1",
+		PositionMs: 30000, Completed: true, LastPlayedAt: time.Now(),
+	})
+	mediaQuery.Seed(&library.MediaItem{
+		ID: "mi-ep1", Title: "Episode 1", Type: "episode",
+	})
+
+	resp, err := h.GetNextUp(ctx, &eveyv1.GetNextUpRequest{Limit: 10})
+
+	require.NoError(t, err)
+	assert.NotNil(t, resp)
+}
+
+func TestPlaybackHandler_GetNextUp_Unauthenticated(t *testing.T) {
+	h, _, _, _, _, _ := newTestPlaybackHandler()
+	_, err := h.GetNextUp(context.Background(), &eveyv1.GetNextUpRequest{})
+	require.Error(t, err)
+	assert.Equal(t, codes.Unauthenticated, status.Code(err))
+}
+
+func TestPlaybackHandler_MarkAsWatched_Unauthenticated(t *testing.T) {
+	h, _, _, _, _, _ := newTestPlaybackHandler()
+	_, err := h.MarkAsWatched(context.Background(), &eveyv1.MarkAsWatchedRequest{MediaItemId: "mi-1"})
+	require.Error(t, err)
+	assert.Equal(t, codes.Unauthenticated, status.Code(err))
+}
+
+func TestPlaybackHandler_MarkAsUnwatched_Unauthenticated(t *testing.T) {
+	h, _, _, _, _, _ := newTestPlaybackHandler()
+	_, err := h.MarkAsUnwatched(context.Background(), &eveyv1.MarkAsUnwatchedRequest{MediaItemId: "mi-1"})
+	require.Error(t, err)
+	assert.Equal(t, codes.Unauthenticated, status.Code(err))
 }
 
 func TestGetStreamInfo_DecisionFieldsPopulated(t *testing.T) {
