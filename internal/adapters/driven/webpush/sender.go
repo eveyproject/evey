@@ -15,6 +15,7 @@ type Sender struct {
 	vapidPublicKey  string
 	vapidPrivateKey string
 	vapidSubject    string
+	httpClient      wp.HTTPClient
 }
 
 func NewSender(publicKey, privateKey, subject string) *Sender {
@@ -46,11 +47,15 @@ func (s *Sender) Send(_ context.Context, sub notification.PushSubscription, titl
 		},
 	}
 
-	resp, err := wp.SendNotification(raw, wpSub, &wp.Options{
+	opts := &wp.Options{
 		VAPIDPublicKey:  s.vapidPublicKey,
 		VAPIDPrivateKey: s.vapidPrivateKey,
 		Subscriber:      s.vapidSubject,
-	})
+	}
+	if s.httpClient != nil {
+		opts.HTTPClient = s.httpClient
+	}
+	resp, err := wp.SendNotification(raw, wpSub, opts)
 	if err != nil {
 		return fmt.Errorf("webpush send: %w", err)
 	}
