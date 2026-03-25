@@ -16,8 +16,7 @@ export const Route = createLazyFileRoute("/_auth/collections/")({
 function CollectionCardSkeleton() {
   return (
     <div
-      className="animate-pulse rounded-[var(--radius-lg)] overflow-hidden"
-      style={{ backgroundColor: "var(--surface)", border: "1px solid var(--border)", aspectRatio: "2/3" }}
+      className="animate-pulse rounded-[var(--radius-lg)] overflow-hidden bg-[var(--surface)] border border-[var(--border)] aspect-[2/3]"
     />
   );
 }
@@ -32,10 +31,9 @@ function CollectionPosterCard({ col }: { col: Collection }) {
       <Link
         to="/collections/$collectionId"
         params={{ collectionId: col.id }}
-        className="block overflow-hidden transition-transform duration-200 group-hover:scale-105"
-        style={{ borderRadius: "var(--radius-lg)" }}
+        className="block overflow-hidden transition-transform duration-200 group-hover:scale-105 rounded-[var(--radius-lg)]"
       >
-        <div style={{ aspectRatio: "2/3", position: "relative" }}>
+        <div className="aspect-[2/3] relative">
           {col.posterUrl ? (
             <img
               src={col.posterUrl}
@@ -45,8 +43,7 @@ function CollectionPosterCard({ col }: { col: Collection }) {
             />
           ) : (
             <div
-              className="w-full h-full flex items-center justify-center text-4xl font-bold"
-              style={{ backgroundColor: "var(--surface-raised)", color: "var(--text-muted)" }}
+              className="w-full h-full flex items-center justify-center text-4xl font-bold bg-[var(--surface-raised)] text-[var(--text-muted)]"
             >
               {initial}
             </div>
@@ -71,7 +68,7 @@ function CollectionPosterCard({ col }: { col: Collection }) {
             deleteMut.mutate(col.id);
           }
         }}
-        className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity-fast p-1.5 rounded-full bg-black/60 text-[var(--overlay-text)]"
+        className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity-fast-fast p-1.5 rounded-full bg-black/60 text-[var(--overlay-text)]"
         aria-label="Delete collection"
       >
         <Trash2 size={16} />
@@ -105,16 +102,15 @@ function SmartFilterCard({ col, onEdit, onDelete }: { col: Collection; onEdit: (
 
   return (
     <div
-      className="group relative flex flex-col gap-2 p-4 rounded-[var(--radius-lg)]"
-      style={{ backgroundColor: "var(--surface)", border: "1px solid var(--border)" }}
+      className="group relative flex flex-col gap-2 p-4 rounded-[var(--radius-lg)] bg-[var(--surface)] border border-[var(--border)]"
     >
       <div className="flex items-start justify-between gap-2">
         <div className="flex-1 min-w-0">
-          <p className="font-semibold truncate" style={{ color: "var(--text)" }}>
+          <p className="font-semibold truncate text-[var(--text)]">
             {col.name}
           </p>
           {rulesLabel && (
-            <p className="text-xs mt-0.5 truncate" style={{ color: "var(--text-muted)" }}>
+            <p className="text-xs mt-0.5 truncate text-[var(--text-muted)]">
               {rulesLabel}
             </p>
           )}
@@ -123,16 +119,14 @@ function SmartFilterCard({ col, onEdit, onDelete }: { col: Collection; onEdit: (
           <button
             onClick={onEdit}
             aria-label="Edit filter"
-            className="p-1.5 rounded hover:bg-[var(--surface-raised)] transition-colors-fast"
-            style={{ color: "var(--text-muted)" }}
+            className="p-1.5 rounded hover:bg-[var(--surface-raised)] transition-colors-fast-fast text-[var(--text-muted)]"
           >
             <Pencil size={16} strokeWidth={1.5} />
           </button>
           <button
             onClick={onDelete}
             aria-label="Delete filter"
-            className="p-1.5 rounded hover:bg-[var(--surface-raised)] transition-colors-fast"
-            style={{ color: "var(--text-muted)" }}
+            className="p-1.5 rounded hover:bg-[var(--surface-raised)] transition-colors-fast-fast text-[var(--text-muted)]"
           >
             <Trash2 size={16} strokeWidth={1.5} />
           </button>
@@ -141,8 +135,7 @@ function SmartFilterCard({ col, onEdit, onDelete }: { col: Collection; onEdit: (
       <Link
         to="/collections/smart/$filterId"
         params={{ filterId: col.id }}
-        className="text-xs font-medium transition-colors-fast"
-        style={{ color: "var(--accent)" }}
+        className="text-xs font-medium transition-colors-fast-fast text-[var(--accent)]"
       >
         {t("media.collections.browseResults")}
       </Link>
@@ -168,7 +161,7 @@ function CollectionsPage() {
   return (
     <div>
       <div className="mb-6 flex items-center justify-between">
-        <h1 className="text-2xl font-bold" style={{ color: "var(--text)" }}>
+        <h1 className="text-2xl font-bold text-[var(--text)]">
           {t("media.collections.title")}
         </h1>
         <Button variant="secondary" onClick={openCreate}>
@@ -180,7 +173,7 @@ function CollectionsPage() {
       {/* Smart collections section */}
       {smartCollections.length > 0 && (
         <div className="mb-8">
-          <h2 className="text-sm font-semibold uppercase tracking-wider mb-3" style={{ color: "var(--text-muted)" }}>
+          <h2 className="text-sm font-semibold uppercase tracking-wider mb-3 text-[var(--text-muted)]">
             {t("media.collections.smartCollections")}
           </h2>
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-3">
@@ -199,7 +192,7 @@ function CollectionsPage() {
       {/* TMDB collections */}
       <div>
         {smartCollections.length > 0 && (
-          <h2 className="text-sm font-semibold uppercase tracking-wider mb-3" style={{ color: "var(--text-muted)" }}>
+          <h2 className="text-sm font-semibold uppercase tracking-wider mb-3 text-[var(--text-muted)]">
             {t("media.collections.tmdbCollections")}
           </h2>
         )}
@@ -211,8 +204,7 @@ function CollectionsPage() {
           </div>
         ) : tmdbCollections.length === 0 ? (
           <div
-            className="rounded-[var(--radius-lg)]"
-            style={{ backgroundColor: "var(--surface)", border: "1px solid var(--border)" }}
+            className="rounded-[var(--radius-lg)] bg-[var(--surface)] border border-[var(--border)]"
           >
             <EmptyState
               icon={<Folder size={48} strokeWidth={1.5} />}

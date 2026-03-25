@@ -35,7 +35,7 @@ export function MediaDetailHero({
       {backdropUrl ? (
         <img src={backdropUrl} alt={item.title ?? ""} className="w-full h-full object-cover" data-testid="media-backdrop" onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }} />
       ) : (
-        <div className="w-full h-full" style={{ backgroundColor: "var(--surface)" }} />
+        <div className="w-full h-full bg-[var(--surface)]" />
       )}
       <div
         className="absolute inset-0"
@@ -53,22 +53,21 @@ export function MediaDetailHero({
         <div className="flex items-center gap-2 mb-2 flex-wrap">
           {item.officialRating && (
             <span
-              className="text-xs font-medium px-2 py-0.5 border"
-              style={{ color: "var(--overlay-text-bright)", borderColor: "var(--overlay-dot-inactive)", borderRadius: "var(--radius-sm)" }}
+              className="text-xs font-medium px-2 py-0.5 border text-[var(--overlay-text-bright)] border-[var(--overlay-dot-inactive)] rounded-[var(--radius-sm)]"
             >
               {item.officialRating}
             </span>
           )}
           {duration && (
-            <span className="text-sm" style={{ color: "var(--overlay-text-muted)" }}>{duration}</span>
+            <span className="text-sm text-[var(--overlay-text-muted)]">{duration}</span>
           )}
           {item.year && (
-            <span className="text-sm" style={{ color: "var(--overlay-text-muted)" }}>{item.year}</span>
+            <span className="text-sm text-[var(--overlay-text-muted)]">{item.year}</span>
           )}
           {item.communityRating !== undefined && item.communityRating > 0 && (
             <span className="flex items-center gap-1.5">
               <Stars rating={item.communityRating} />
-              <span className="text-sm" style={{ color: "var(--overlay-text-muted)" }}>{item.communityRating.toFixed(1)}</span>
+              <span className="text-sm text-[var(--overlay-text-muted)]">{item.communityRating.toFixed(1)}</span>
             </span>
           )}
           {item.providerIds?.imdb && (
@@ -76,8 +75,7 @@ export function MediaDetailHero({
               href={`https://www.imdb.com/title/${item.providerIds.imdb}/`}
               target="_blank"
               rel="noopener noreferrer"
-              className="text-xs font-bold px-1.5 py-0.5 rounded"
-              style={{ backgroundColor: "var(--badge-imdb-bg)", color: "var(--badge-imdb-text)", textDecoration: "none" }}
+              className="text-xs font-bold px-1.5 py-0.5 rounded bg-[var(--badge-imdb-bg)] text-[var(--badge-imdb-text)] no-underline"
               onClick={(e) => e.stopPropagation()}
             >
               IMDb
@@ -88,8 +86,7 @@ export function MediaDetailHero({
               href={`https://www.themoviedb.org/${item.type === "MEDIA_ITEM_TYPE_MOVIE" ? "movie" : "tv"}/${item.providerIds.tmdb}`}
               target="_blank"
               rel="noopener noreferrer"
-              className="text-xs font-bold px-1.5 py-0.5 rounded"
-              style={{ backgroundColor: "var(--badge-tmdb-bg)", color: "var(--badge-tmdb-text)", textDecoration: "none" }}
+              className="text-xs font-bold px-1.5 py-0.5 rounded bg-[var(--badge-tmdb-bg)] text-[var(--badge-tmdb-text)] no-underline"
               onClick={(e) => e.stopPropagation()}
             >
               TMDB
@@ -98,10 +95,10 @@ export function MediaDetailHero({
         </div>
         {parentItem && (
           <div className="mb-1">
-            <Link to="/media/$mediaId" params={{ mediaId: item.parentId! }} className="text-sm font-medium hover:underline" style={{ color: "var(--overlay-text-muted)" }}>
+            <Link to="/media/$mediaId" params={{ mediaId: item.parentId! }} className="text-sm font-medium hover:underline text-[var(--overlay-text-muted)]">
               {parentItem.title}
             </Link>
-            <span className="text-sm mx-1" style={{ color: "var(--overlay-dot-inactive)" }}>&rsaquo;</span>
+            <span className="text-sm mx-1 text-[var(--overlay-dot-inactive)]">&rsaquo;</span>
           </div>
         )}
         <div className="flex items-center gap-3 mb-2">
@@ -110,8 +107,7 @@ export function MediaDetailHero({
             <button
               onClick={onEditToggle}
               title={t("media.detail.editMetadata")}
-              className="flex-shrink-0 p-1.5 rounded-full transition-opacity-fast hover:opacity-80"
-              style={{ backgroundColor: "var(--overlay-chip-bg)", color: "var(--overlay-text-muted)" }}
+              className="flex-shrink-0 p-1.5 rounded-full transition-opacity-fast-fast hover:opacity-80 bg-[var(--overlay-chip-bg)] text-[var(--overlay-text-muted)]"
             >
               <Pencil size={16} />
             </button>
@@ -122,13 +118,7 @@ export function MediaDetailHero({
             {item.genres.map((g) => (
               <span
                 key={g}
-                className="text-xs px-2.5 py-1 font-medium"
-                style={{
-                  backgroundColor: "var(--overlay-btn-bg)",
-                  color: "var(--overlay-text-bright)",
-                  borderRadius: "9999px",
-                  backdropFilter: "blur(4px)",
-                }}
+                className="text-xs px-2.5 py-1 font-medium bg-[var(--overlay-btn-bg)] text-[var(--overlay-text-bright)] rounded-full backdrop-blur-[4px]"
               >
                 {g}
               </span>

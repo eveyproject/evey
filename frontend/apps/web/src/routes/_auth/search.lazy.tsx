@@ -118,7 +118,7 @@ function SearchPage() {
     <div>
       <div className="mb-6">
         <div className="relative max-w-xl">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" size={20} style={{ color: "var(--text-muted)" }} />
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none text-[var(--text-muted)]" size={20} />
           <input
             ref={inputRef}
             type="search"
@@ -134,8 +134,7 @@ function SearchPage() {
                 setInputValue("");
                 inputRef.current?.focus();
               }}
-              className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 rounded-full flex items-center justify-center hover:bg-[var(--surface-raised)] transition-colors-fast cursor-pointer"
-              style={{ color: "var(--text-muted)" }}
+              className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 rounded-full flex items-center justify-center hover:bg-[var(--surface-raised)] transition-colors-fast-fast cursor-pointer text-[var(--text-muted)]"
               aria-label={t("media.search.clearSearch")}
             >
               <X size={16} />
@@ -169,8 +168,7 @@ function SearchPage() {
               {t("media.search.filters")}
               {hasActiveFilters && !showFilters && (
                 <span
-                  className="w-2 h-2 rounded-full"
-                  style={{ backgroundColor: "var(--accent)" }}
+                  className="w-2 h-2 rounded-full bg-[var(--accent)]"
                 />
               )}
             </FilterChip>
@@ -178,8 +176,7 @@ function SearchPage() {
             {hasActiveFilters && (
               <button
                 onClick={clearAllFilters}
-                className="text-xs hover:underline cursor-pointer"
-                style={{ color: "var(--text-muted)" }}
+                className="text-xs hover:underline cursor-pointer text-[var(--text-muted)]"
               >
                 {t("media.search.clearFilters")}
               </button>
@@ -189,14 +186,10 @@ function SearchPage() {
           {showFilters && (
             <div
               data-testid="search-filters-panel"
-              className="flex flex-wrap gap-4 p-4 rounded-[var(--radius-lg)]"
-              style={{
-                backgroundColor: "var(--surface)",
-                border: "1px solid var(--border)",
-              }}
+              className="flex flex-wrap gap-4 p-4 rounded-[var(--radius-lg)] bg-[var(--surface)] border border-[var(--border)]"
             >
               <div className="flex flex-col gap-1.5">
-                <label className="text-xs font-medium" style={{ color: "var(--text-muted)" }}>
+                <label className="text-xs font-medium text-[var(--text-muted)]">
                   {t("media.search.genre")}
                 </label>
                 <select
@@ -214,7 +207,7 @@ function SearchPage() {
               </div>
 
               <div className="flex flex-col gap-1.5">
-                <label className="text-xs font-medium" style={{ color: "var(--text-muted)" }}>
+                <label className="text-xs font-medium text-[var(--text-muted)]">
                   {t("media.search.year")}
                 </label>
                 <div className="flex items-center gap-2">
@@ -229,7 +222,7 @@ function SearchPage() {
                     min={1900}
                     max={2099}
                   />
-                  <span className="text-xs" style={{ color: "var(--text-muted)" }}>-</span>
+                  <span className="text-xs text-[var(--text-muted)]">-</span>
                   <input
                     data-testid="search-filter-year-max"
                     type="number"
@@ -245,7 +238,7 @@ function SearchPage() {
               </div>
 
               <div className="flex flex-col gap-1.5">
-                <label className="text-xs font-medium" style={{ color: "var(--text-muted)" }}>
+                <label className="text-xs font-medium text-[var(--text-muted)]">
                   {t("media.search.sortBy")}
                 </label>
                 <select
@@ -268,8 +261,7 @@ function SearchPage() {
       {hasQuery && isLoading && (
         <div>
           <div
-            className="h-4 w-32 mb-4 animate-pulse rounded"
-            style={{ backgroundColor: "var(--surface-raised)" }}
+            className="h-4 w-32 mb-4 animate-pulse rounded bg-[var(--surface-raised)]"
           />
           <MediaGridSkeleton count={12} />
         </div>
@@ -277,11 +269,7 @@ function SearchPage() {
 
       {hasQuery && !isLoading && items.length === 0 && (
         <div
-          className="rounded-[var(--radius-lg)]"
-          style={{
-            backgroundColor: "var(--surface)",
-            border: "1px solid var(--border)",
-          }}
+          className="rounded-[var(--radius-lg)] bg-[var(--surface)] border border-[var(--border)]"
         >
           <EmptyState
             icon={<Search size={48} strokeWidth={1.5} />}
@@ -294,11 +282,10 @@ function SearchPage() {
       {!hasQuery && !isLoading && recents.length > 0 && (
         <div className="mb-6">
           <div className="flex items-center justify-between mb-3">
-            <span className="text-sm font-semibold" style={{ color: "var(--text-muted)" }}>{t("media.search.recentSearches")}</span>
+            <span className="text-sm font-semibold text-[var(--text-muted)]">{t("media.search.recentSearches")}</span>
             <button
               onClick={clearRecents}
-              className="text-xs hover:underline cursor-pointer"
-              style={{ color: "var(--text-muted)" }}
+              className="text-xs hover:underline cursor-pointer text-[var(--text-muted)]"
             >
               {t("media.search.clearAll")}
             </button>
@@ -307,19 +294,17 @@ function SearchPage() {
             {recents.map((r) => (
               <div
                 key={r}
-                className="flex items-center gap-1 px-3 py-1.5 rounded-full text-sm"
-                style={{ backgroundColor: "var(--surface)", border: "1px solid var(--border)", color: "var(--text)" }}
+                className="flex items-center gap-1 px-3 py-1.5 rounded-full text-sm bg-[var(--surface)] border border-[var(--border)] text-[var(--text)]"
               >
                 <button
-                  className="hover:text-[var(--accent)] cursor-pointer transition-colors-fast"
+                  className="hover:text-[var(--accent)] cursor-pointer transition-colors-fast-fast"
                   onClick={() => setInputValue(r)}
                 >
                   {r}
                 </button>
                 <button
                   onClick={() => removeRecent(r)}
-                  className="ml-1 cursor-pointer transition-colors-fast hover:opacity-80"
-                  style={{ color: "var(--text-muted)" }}
+                  className="ml-1 cursor-pointer transition-colors-fast-fast hover:opacity-80 text-[var(--text-muted)]"
                   aria-label={`Remove ${r}`}
                 >
                   <X size={12} />
@@ -332,11 +317,7 @@ function SearchPage() {
 
       {!hasQuery && !isLoading && recents.length === 0 && (
         <div
-          className="rounded-[var(--radius-lg)]"
-          style={{
-            backgroundColor: "var(--surface)",
-            border: "1px solid var(--border)",
-          }}
+          className="rounded-[var(--radius-lg)] bg-[var(--surface)] border border-[var(--border)]"
         >
           <EmptyState
             icon={<Search size={48} strokeWidth={1.5} />}
@@ -348,7 +329,7 @@ function SearchPage() {
 
       {items.length > 0 && (
         <>
-          <p className="text-sm mb-4" style={{ color: "var(--text-muted)" }}>
+          <p className="text-sm mb-4 text-[var(--text-muted)]">
             {t("media.search.resultCount", { count: totalHits })} {t("media.search.resultFor", { query: debouncedQuery })}
           </p>
           <MediaGrid>

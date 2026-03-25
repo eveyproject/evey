@@ -159,7 +159,7 @@ function LibraryAccessModal({
         </div>
       ) : (
         <div className="flex flex-col gap-4">
-          <p className="text-sm" style={{ color: "var(--text-muted)" }}>
+          <p className="text-sm text-[var(--text-muted)]">
             {isUnrestricted
               ? t("admin.users.unrestrictedDesc")
               : t("admin.users.restrictedDesc", { count: selected.size, libraryWord: selected.size === 1 ? "library" : "libraries" })}
@@ -173,8 +173,7 @@ function LibraryAccessModal({
             {libraries.map((lib) => (
               <div
                 key={lib.id}
-                className="px-3 py-2 rounded-[var(--radius-md)] hover:opacity-80"
-                style={{ backgroundColor: "var(--surface)" }}
+                className="px-3 py-2 rounded-[var(--radius-md)] hover:opacity-80 bg-[var(--surface)]"
               >
                 <Checkbox
                   label={lib.name}
@@ -272,7 +271,7 @@ function BitrateModal({
         </div>
       ) : (
         <div className="flex flex-col gap-4">
-          <p className="text-sm" style={{ color: "var(--text-muted)" }}>
+          <p className="text-sm text-[var(--text-muted)]">
             {t("admin.users.maxBitrateDesc")}
           </p>
           <Select
@@ -319,11 +318,11 @@ function UserRow({ user }: { user: V1User }) {
   });
 
   return (
-    <tr style={{ borderBottom: "1px solid var(--border)" }}>
-      <td className="px-4 py-3 font-medium" style={{ color: "var(--text)" }}>
+    <tr className="border-b border-[var(--border)]">
+      <td className="px-4 py-3 font-medium text-[var(--text)]">
         {user.username}
       </td>
-      <td className="px-4 py-3 text-sm" style={{ color: "var(--text-muted)" }}>
+      <td className="px-4 py-3 text-sm text-[var(--text-muted)]">
         {user.email ?? "\u2014"}
       </td>
       <td className="px-4 py-3">
@@ -429,14 +428,14 @@ function InviteLinkRow({ link }: { link: V1InviteLink }) {
   }
 
   return (
-    <tr style={{ borderBottom: "1px solid var(--border)" }}>
-      <td className="px-4 py-3 font-mono text-sm" style={{ color: "var(--text)" }}>
+    <tr className="border-b border-[var(--border)]">
+      <td className="px-4 py-3 font-mono text-sm text-[var(--text)]">
         {link.code ?? "\u2014"}
       </td>
-      <td className="px-4 py-3 text-sm" style={{ color: "var(--text-muted)" }}>
+      <td className="px-4 py-3 text-sm text-[var(--text-muted)]">
         {link.timesUsed ?? 0} / {link.maxUses ?? "\u221E"}
       </td>
-      <td className="px-4 py-3 text-sm" style={{ color: "var(--text-muted)" }}>
+      <td className="px-4 py-3 text-sm text-[var(--text-muted)]">
         {link.expiresAt ? new Date(link.expiresAt).toLocaleString() : t("admin.users.never")}
       </td>
       <td className="px-4 py-3 whitespace-nowrap">
@@ -542,7 +541,7 @@ function UsersPage() {
     <div className="flex flex-col gap-8">
       <section className="flex flex-col gap-4">
         <div className="flex items-center justify-between">
-          <h2 className="text-xl font-semibold" style={{ color: "var(--text)" }}>
+          <h2 className="text-xl font-semibold text-[var(--text)]">
             {t("admin.users.title")}
           </h2>
           <Button onClick={() => setShowUserModal(true)}>{t("admin.users.createUser")}</Button>
@@ -554,17 +553,15 @@ function UsersPage() {
           </div>
         ) : (
           <div
-            className="overflow-x-auto rounded-[var(--radius-lg)]"
-            style={{ border: "1px solid var(--border)" }}
+            className="overflow-x-auto rounded-[var(--radius-lg)] border border-[var(--border)]"
           >
             <table className="w-full text-sm">
               <thead>
-                <tr style={{ backgroundColor: "var(--surface)", borderBottom: "1px solid var(--border)" }}>
+                <tr className="bg-[var(--surface)] border-b border-[var(--border)]">
                   {[t("admin.users.username"), t("admin.users.email"), t("admin.users.role"), t("common.status"), t("common.actions")].map((h) => (
                     <th
                       key={h}
-                      className="px-4 py-2 text-left font-medium"
-                      style={{ color: "var(--text-muted)" }}
+                      className="px-4 py-2 text-left font-medium text-[var(--text-muted)]"
                     >
                       {h}
                     </th>
@@ -589,7 +586,7 @@ function UsersPage() {
 
       <section className="flex flex-col gap-4">
         <div className="flex items-center justify-between">
-          <h2 className="text-xl font-semibold" style={{ color: "var(--text)" }}>
+          <h2 className="text-xl font-semibold text-[var(--text)]">
             {t("admin.users.inviteLinks")}
           </h2>
           <Button variant="secondary" onClick={() => setShowInviteModal(true)}>
@@ -603,17 +600,15 @@ function UsersPage() {
           </div>
         ) : (
           <div
-            className="overflow-x-auto rounded-[var(--radius-lg)]"
-            style={{ border: "1px solid var(--border)" }}
+            className="overflow-x-auto rounded-[var(--radius-lg)] border border-[var(--border)]"
           >
             <table className="w-full text-sm">
               <thead>
-                <tr style={{ backgroundColor: "var(--surface)", borderBottom: "1px solid var(--border)" }}>
+                <tr className="bg-[var(--surface)] border-b border-[var(--border)]">
                   {[t("admin.users.code"), t("admin.users.uses"), t("admin.users.expires"), t("common.actions")].map((h) => (
                     <th
                       key={h}
-                      className="px-4 py-2 text-left font-medium"
-                      style={{ color: "var(--text-muted)" }}
+                      className="px-4 py-2 text-left font-medium text-[var(--text-muted)]"
                     >
                       {h}
                     </th>

@@ -133,7 +133,7 @@ function CheckboxGroup({
   if (options.length === 0) return null;
   return (
     <div className="mb-4">
-      <p className="text-xs font-semibold mb-2 uppercase tracking-wide" style={{ color: "var(--text-muted)" }}>
+      <p className="text-xs font-semibold mb-2 uppercase tracking-wide text-[var(--text-muted)]">
         {label}
       </p>
       <div className="flex flex-col gap-1.5">
@@ -152,7 +152,7 @@ function CheckboxGroup({
                   }
                 }}
                 onClick={() => onChange(checked ? selected.filter((v) => v !== opt) : [...selected, opt])}
-                className="flex-shrink-0 w-4 h-4 rounded border flex items-center justify-center transition-colors-fast"
+                className="flex-shrink-0 w-4 h-4 rounded border flex items-center justify-center transition-colors-fast-fast"
                 style={{
                   backgroundColor: checked ? "var(--accent)" : "var(--surface-raised)",
                   borderColor: checked ? "var(--accent)" : "var(--border)",
@@ -162,7 +162,7 @@ function CheckboxGroup({
                   <Check size={10} className="text-[var(--filter-active-text)]" strokeWidth={3} />
                 )}
               </span>
-              <span className="text-sm group-hover:text-[var(--text)] transition-colors-fast" style={{ color: "var(--text-muted)" }}>
+              <span className="text-sm group-hover:text-[var(--text)] transition-colors-fast-fast text-[var(--text-muted)]">
                 {opt}
               </span>
             </label>
@@ -185,7 +185,7 @@ function YearRangeFilter({
   const { t } = useTranslation();
   return (
     <div className="mb-4">
-      <p className="text-xs font-semibold mb-2 uppercase tracking-wide" style={{ color: "var(--text-muted)" }}>
+      <p className="text-xs font-semibold mb-2 uppercase tracking-wide text-[var(--text-muted)]">
         {t("media.library.yearLabel")}
       </p>
       <div className="flex items-center gap-2">
@@ -199,14 +199,9 @@ function YearRangeFilter({
             const val = e.target.value ? parseInt(e.target.value, 10) : undefined;
             onChange(val, yearTo);
           }}
-          className="w-full px-2 py-1.5 rounded-[var(--radius-md)] text-sm focus:outline-none focus:ring-2 focus:ring-[var(--accent)]"
-          style={{
-            backgroundColor: "var(--surface-raised)",
-            border: "1px solid var(--border)",
-            color: "var(--text)",
-          }}
+          className="w-full px-2 py-1.5 rounded-[var(--radius-md)] text-sm focus:outline-none focus:ring-2 focus:ring-[var(--accent)] bg-[var(--surface-raised)] border border-[var(--border)] text-[var(--text)]"
         />
-        <span className="flex-shrink-0 text-xs" style={{ color: "var(--text-muted)" }}>—</span>
+        <span className="flex-shrink-0 text-xs text-[var(--text-muted)]">—</span>
         <input
           type="number"
           placeholder={t("media.library.yearTo")}
@@ -217,12 +212,7 @@ function YearRangeFilter({
             const val = e.target.value ? parseInt(e.target.value, 10) : undefined;
             onChange(yearFrom, val);
           }}
-          className="w-full px-2 py-1.5 rounded-[var(--radius-md)] text-sm focus:outline-none focus:ring-2 focus:ring-[var(--accent)]"
-          style={{
-            backgroundColor: "var(--surface-raised)",
-            border: "1px solid var(--border)",
-            color: "var(--text)",
-          }}
+          className="w-full px-2 py-1.5 rounded-[var(--radius-md)] text-sm focus:outline-none focus:ring-2 focus:ring-[var(--accent)] bg-[var(--surface-raised)] border border-[var(--border)] text-[var(--text)]"
         />
       </div>
     </div>
@@ -241,7 +231,7 @@ function RatingFilter({
   const { t } = useTranslation();
   return (
     <div className="mb-4">
-      <p className="text-xs font-semibold mb-2 uppercase tracking-wide" style={{ color: "var(--text-muted)" }}>
+      <p className="text-xs font-semibold mb-2 uppercase tracking-wide text-[var(--text-muted)]">
         {t("media.library.minRating")}
       </p>
       <div className="flex items-center gap-1">
@@ -253,7 +243,7 @@ function RatingFilter({
               type="button"
               onClick={() => onChange(minRating === star ? undefined : star)}
               title={t("media.library.minStars", { count: star })}
-              className="p-0.5 transition-colors-fast"
+              className="p-0.5 transition-colors-fast-fast"
               style={{ color: active ? "var(--accent)" : "var(--border)" }}
             >
               <Star size={20} fill="currentColor" />
@@ -264,8 +254,7 @@ function RatingFilter({
           <button
             type="button"
             onClick={() => onChange(undefined)}
-            className="ml-1 text-xs hover:underline"
-            style={{ color: "var(--text-muted)" }}
+            className="ml-1 text-xs hover:underline text-[var(--text-muted)]"
           >
             {t("media.library.clearRating")}
           </button>
@@ -294,18 +283,13 @@ function TypeFilter({
   const { t } = useTranslation();
   return (
     <div className="mb-4">
-      <p className="text-xs font-semibold mb-2 uppercase tracking-wide" style={{ color: "var(--text-muted)" }}>
+      <p className="text-xs font-semibold mb-2 uppercase tracking-wide text-[var(--text-muted)]">
         {t("media.library.typeLabel")}
       </p>
       <select
         value={value ?? ""}
         onChange={(e) => onChange((e.target.value as LibraryServiceListMediaItemsType) || undefined)}
-        className="w-full px-2 py-1.5 rounded-[var(--radius-md)] text-sm focus:outline-none focus:ring-2 focus:ring-[var(--accent)]"
-        style={{
-          backgroundColor: "var(--surface-raised)",
-          border: "1px solid var(--border)",
-          color: "var(--text)",
-        }}
+        className="w-full px-2 py-1.5 rounded-[var(--radius-md)] text-sm focus:outline-none focus:ring-2 focus:ring-[var(--accent)] bg-[var(--surface-raised)] border border-[var(--border)] text-[var(--text)]"
       >
         {TYPE_OPTIONS.map((o) => (
           <option key={o.value} value={o.value}>{t(o.labelKey)}</option>
@@ -325,7 +309,7 @@ function GenreTextFilter({
   const { t } = useTranslation();
   return (
     <div className="mb-4">
-      <p className="text-xs font-semibold mb-2 uppercase tracking-wide" style={{ color: "var(--text-muted)" }}>
+      <p className="text-xs font-semibold mb-2 uppercase tracking-wide text-[var(--text-muted)]">
         {t("media.library.genreText")}
       </p>
       <input
@@ -333,12 +317,7 @@ function GenreTextFilter({
         placeholder={t("media.library.genrePlaceholder")}
         value={value ?? ""}
         onChange={(e) => onChange(e.target.value || undefined)}
-        className="w-full px-2 py-1.5 rounded-[var(--radius-md)] text-sm focus:outline-none focus:ring-2 focus:ring-[var(--accent)]"
-        style={{
-          backgroundColor: "var(--surface-raised)",
-          border: "1px solid var(--border)",
-          color: "var(--text)",
-        }}
+        className="w-full px-2 py-1.5 rounded-[var(--radius-md)] text-sm focus:outline-none focus:ring-2 focus:ring-[var(--accent)] bg-[var(--surface-raised)] border border-[var(--border)] text-[var(--text)]"
       />
     </div>
   );
@@ -365,7 +344,7 @@ function GenreChips({
   if (merged.length === 0) return null;
   return (
     <div className="mb-4">
-      <p className="text-xs font-semibold mb-2 uppercase tracking-wide" style={{ color: "var(--text-muted)" }}>
+      <p className="text-xs font-semibold mb-2 uppercase tracking-wide text-[var(--text-muted)]">
         {t("media.library.genreLabel")}
       </p>
       <div className="flex flex-wrap gap-1.5 max-h-36 overflow-y-auto pr-1">
@@ -415,7 +394,7 @@ export function LibraryFilterToggle({
       <button
         type="button"
         onClick={onClick}
-        className="relative flex items-center gap-1.5 px-3 py-2 rounded-[var(--radius-md)] border transition-colors-fast text-sm"
+        className="relative flex items-center gap-1.5 px-3 py-2 rounded-[var(--radius-md)] border transition-colors-fast-fast text-sm"
         style={{
           backgroundColor: count > 0 ? "var(--accent)" : "var(--surface-raised)",
           color: count > 0 ? "var(--filter-active-text)" : "var(--text-muted)",
@@ -428,15 +407,14 @@ export function LibraryFilterToggle({
         {t("media.library.filters")}
         {count > 0 && (
           <span
-            className="inline-flex items-center justify-center w-4 h-4 rounded-full text-xs font-bold"
-            style={{ backgroundColor: "var(--filter-active-text)", color: "var(--accent)" }}
+            className="inline-flex items-center justify-center w-4 h-4 rounded-full text-xs font-bold bg-[var(--filter-active-text)] text-[var(--accent)]"
           >
             {count}
           </span>
         )}
       </button>
       {count > 0 && resultCount != null && (
-        <span className="text-xs" style={{ color: "var(--text-muted)" }} data-testid="filter-result-count">
+        <span className="text-xs text-[var(--text-muted)]" data-testid="filter-result-count">
           {t("media.library.resultCount", { count: resultCount })}
         </span>
       )}
@@ -455,12 +433,11 @@ export function LibraryFiltersPanel({
 
   return (
     <div
-      className="rounded-[var(--radius-md)] p-4"
-      style={{ backgroundColor: "var(--surface)", border: "1px solid var(--border)", minWidth: "200px" }}
+      className="rounded-[var(--radius-md)] p-4 bg-[var(--surface)] border border-[var(--border)] min-w-[200px]"
       data-testid="filter-panel"
     >
       <div className="flex items-center justify-between mb-4">
-        <span className="text-sm font-semibold" style={{ color: "var(--text)" }}>{t("media.library.filters")}</span>
+        <span className="text-sm font-semibold text-[var(--text)]">{t("media.library.filters")}</span>
         {activeCount > 0 && (
           <Button
             variant="ghost"
@@ -545,7 +522,7 @@ export function LibraryFiltersPanel({
         availableOptions.audioLangs.length === 0 &&
         availableOptions.subLangs.length === 0 &&
         availableGenres.length === 0 && (
-          <p className="text-xs" style={{ color: "var(--text-muted)" }}>
+          <p className="text-xs text-[var(--text-muted)]">
             {t("media.library.noFilterOptions")}
           </p>
         )}

@@ -102,18 +102,18 @@ function TranscodeCachePage() {
         <>
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
             <Card>
-              <dt className="text-xs font-medium mb-1" style={{ color: "var(--text-muted)" }}>
+              <dt className="text-xs font-medium mb-1 text-[var(--text-muted)]">
                 {t("admin.transcodeCache.totalSize")}
               </dt>
-              <dd className="text-xl font-bold" style={{ color: "var(--text)" }}>
+              <dd className="text-xl font-bold text-[var(--text)]">
                 {formatSize(data?.totalSize ?? 0)}
               </dd>
             </Card>
             <Card>
-              <dt className="text-xs font-medium mb-1" style={{ color: "var(--text-muted)" }}>
+              <dt className="text-xs font-medium mb-1 text-[var(--text-muted)]">
                 {t("admin.transcodeCache.files")}
               </dt>
-              <dd className="text-xl font-bold" style={{ color: "var(--text)" }}>
+              <dd className="text-xl font-bold text-[var(--text)]">
                 {data?.fileCount ?? 0}
               </dd>
             </Card>
@@ -121,26 +121,24 @@ function TranscodeCachePage() {
 
           {files.length === 0 ? (
             <div
-              className="rounded-[var(--radius-lg)]"
-              style={{ backgroundColor: "var(--surface)", border: "1px solid var(--border)" }}
+              className="rounded-[var(--radius-lg)] bg-[var(--surface)] border border-[var(--border)]"
             >
               <EmptyState icon={<Film size={48} strokeWidth={1.5} />} title={t("admin.transcodeCache.cacheEmpty")} />
             </div>
           ) : (
             <div
-              className="rounded-[var(--radius-lg)] overflow-hidden"
-              style={{ backgroundColor: "var(--surface)", border: "1px solid var(--border)" }}
+              className="rounded-[var(--radius-lg)] overflow-hidden bg-[var(--surface)] border border-[var(--border)]"
             >
               <table className="w-full text-sm">
                 <thead>
-                  <tr style={{ borderBottom: "1px solid var(--border)" }}>
-                    <th className="text-left px-4 py-3 font-medium" style={{ color: "var(--text-muted)" }}>
+                  <tr className="border-b border-[var(--border)]">
+                    <th className="text-left px-4 py-3 font-medium text-[var(--text-muted)]">
                       {t("admin.transcodeCache.tableHeaders.file")}
                     </th>
-                    <th className="text-left px-4 py-3 font-medium" style={{ color: "var(--text-muted)" }}>
+                    <th className="text-left px-4 py-3 font-medium text-[var(--text-muted)]">
                       {t("admin.transcodeCache.tableHeaders.size")}
                     </th>
-                    <th className="text-left px-4 py-3 font-medium hidden sm:table-cell" style={{ color: "var(--text-muted)" }}>
+                    <th className="text-left px-4 py-3 font-medium hidden sm:table-cell text-[var(--text-muted)]">
                       {t("admin.transcodeCache.tableHeaders.modified")}
                     </th>
                     <th className="px-4 py-3 w-20" />
@@ -148,14 +146,14 @@ function TranscodeCachePage() {
                 </thead>
                 <tbody>
                   {files.map((file) => (
-                    <tr key={file.name} style={{ borderBottom: "1px solid var(--border)" }}>
-                      <td className="px-4 py-3 font-mono text-xs truncate max-w-[200px] sm:max-w-[400px]" style={{ color: "var(--text)" }} title={file.name}>
+                    <tr key={file.name} className="border-b border-[var(--border)]">
+                      <td className="px-4 py-3 font-mono text-xs truncate max-w-[200px] sm:max-w-[400px] text-[var(--text)]" title={file.name}>
                         {file.name}
                       </td>
-                      <td className="px-4 py-3 whitespace-nowrap" style={{ color: "var(--text-muted)" }}>
+                      <td className="px-4 py-3 whitespace-nowrap text-[var(--text-muted)]">
                         {formatSize(file.size)}
                       </td>
-                      <td className="px-4 py-3 whitespace-nowrap hidden sm:table-cell" style={{ color: "var(--text-muted)" }}>
+                      <td className="px-4 py-3 whitespace-nowrap hidden sm:table-cell text-[var(--text-muted)]">
                         {formatDate(file.lastModified)}
                       </td>
                       <td className="px-4 py-3">
@@ -182,7 +180,7 @@ function TranscodeCachePage() {
         onClose={() => setShowClearConfirm(false)}
         title={t("admin.transcodeCache.clearConfirmTitle")}
       >
-        <p className="text-sm mb-4" style={{ color: "var(--text-muted)" }}>
+        <p className="text-sm mb-4 text-[var(--text-muted)]">
           {t("admin.transcodeCache.clearConfirm", { count: data?.fileCount ?? 0, size: formatSize(data?.totalSize ?? 0) })}
         </p>
         <div className="flex justify-end gap-3">
