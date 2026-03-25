@@ -1,36 +1,12 @@
 import { describe, it, expect } from "vitest";
 import type { SubtitleStream } from "./SubtitleSelector";
+import {
+  getSelectedBurnInTrack,
+  buildTranscodeHlsUrl,
+  resolveDefaultAudio,
+  resolveDefaultSubtitle,
+} from "./hooks/hlsPlayerUtils";
 
-// Extract the same logic used in HLSPlayer to detect burn-in track
-function getSelectedBurnInTrack(
-  currentSubtitle: number | null,
-  subtitleStreams: SubtitleStream[],
-): number | null {
-  if (currentSubtitle === null) return null;
-  const sub = subtitleStreams.find((s) => s.trackIndex === currentSubtitle);
-  return sub?.burnIn ? currentSubtitle : null;
-}
-
-// Extract transcode URL param logic (mirrors the useEffect in HLSPlayer)
-function buildTranscodeParams(opts: {
-  token: string;
-  audioTrack: number;
-  quality: number;
-  canPlayHevc: boolean;
-  startTime: number;
-  selectedBurnInTrack: number | null;
-}): URLSearchParams {
-  const params = new URLSearchParams();
-  if (opts.token) params.set("token", opts.token);
-  params.set("audioTrack", String(opts.audioTrack));
-  if (opts.quality > 0) params.set("videoScale", String(opts.quality));
-  if (opts.canPlayHevc) params.set("remux", "1");
-  if (opts.startTime > 0) params.set("startTime", String(opts.startTime));
-  if (opts.selectedBurnInTrack !== null) params.set("subtitleTrack", String(opts.selectedBurnInTrack));
-  return params;
-}
-
-// Whether a <track> element should be created for the selected subtitle
 function shouldCreateTrackElement(
   currentSubtitle: number | null,
   subtitleStreams: SubtitleStream[],
@@ -39,7 +15,7 @@ function shouldCreateTrackElement(
   if (hasExternalSub) return true;
   if (currentSubtitle === null) return false;
   const burnIn = getSelectedBurnInTrack(currentSubtitle, subtitleStreams);
-  return burnIn === null; // only create <track> for non-burn-in
+  return burnIn === null;
 }
 
 const textSub: SubtitleStream = { index: 3, trackIndex: 0, language: "eng", codec: "subrip" };
@@ -65,45 +41,32 @@ describe("burn-in subtitle detection", () => {
   });
 });
 
-describe("transcode URL params with burn-in", () => {
-  it("adds subtitleTrack param for burn-in subtitle", () => {
-    const params = buildTranscodeParams({
-      token: "tok",
-      audioTrack: 0,
-      quality: 0,
-      canPlayHevc: false,
-      startTime: 0,
-      selectedBurnInTrack: 1,
-    });
-    expect(params.get("subtitleTrack")).toBe("1");
+describe("buildTranscodeHlsUrl", () => {
+  it("builds URL with token and audioTrack", () => {
+    const url = buildTranscodeHlsUrl("media-1", "tok", 0, null, 0);
+    expect(url).toContain("/api/v1/media/media-1/hls/master.m3u8");
+    expect(url).toContain("token=tok");
+    expect(url).toContain("audioTrack=0");
+    expect(url).not.toContain("subtitleTrack");
+    expect(url).not.toContain("startSec");
   });
 
-  it("does not add subtitleTrack when no burn-in selected", () => {
-    const params = buildTranscodeParams({
-      token: "tok",
-      audioTrack: 0,
-      quality: 0,
-      canPlayHevc: false,
-      startTime: 0,
-      selectedBurnInTrack: null,
-    });
-    expect(params.has("subtitleTrack")).toBe(false);
+  it("includes subtitleTrack for burn-in subtitle", () => {
+    const url = buildTranscodeHlsUrl("media-1", "tok", 0, 1, 0);
+    expect(url).toContain("subtitleTrack=1");
   });
 
-  it("includes subtitleTrack alongside other params", () => {
-    const params = buildTranscodeParams({
-      token: "tok",
-      audioTrack: 1,
-      quality: 720,
-      canPlayHevc: true,
-      startTime: 42,
-      selectedBurnInTrack: 2,
-    });
-    expect(params.get("subtitleTrack")).toBe("2");
-    expect(params.get("audioTrack")).toBe("1");
-    expect(params.get("videoScale")).toBe("720");
-    expect(params.get("remux")).toBe("1");
-    expect(params.get("startTime")).toBe("42");
+  it("includes startSec when offset > 0", () => {
+    const url = buildTranscodeHlsUrl("media-1", "tok", 0, null, 42);
+    expect(url).toContain("startSec=42");
+  });
+
+  it("includes all params together", () => {
+    const url = buildTranscodeHlsUrl("media-1", "tok", 1, 2, 42);
+    expect(url).toContain("token=tok");
+    expect(url).toContain("audioTrack=1");
+    expect(url).toContain("subtitleTrack=2");
+    expect(url).toContain("startSec=42");
   });
 });
 
@@ -126,5 +89,61 @@ describe("track element creation for burn-in", () => {
 
   it("creates track for external subtitle even when burn-in exists", () => {
     expect(shouldCreateTrackElement(null, streams, true)).toBe(true);
+  });
+});
+
+describe("resolveDefaultAudio", () => {
+  const audioStreams = [
+    { index: 0, trackIndex: 0, language: "eng", isDefault: true },
+    { index: 1, trackIndex: 1, language: "fre" },
+    { index: 2, trackIndex: 2, language: "jpn" },
+  ];
+
+  it("returns preferred lang match", () => {
+    const result = resolveDefaultAudio(audioStreams, undefined, () => null, () => "fre");
+    expect(result?.index).toBe(1);
+  });
+
+  it("returns series pref over global pref", () => {
+    const result = resolveDefaultAudio(audioStreams, "series-1", () => ({ audioLang: "jpn" }), () => "fre");
+    expect(result?.index).toBe(2);
+  });
+
+  it("falls back to default stream", () => {
+    const result = resolveDefaultAudio(audioStreams, undefined, () => null, () => null);
+    expect(result?.index).toBe(0);
+  });
+
+  it("falls back to first stream when no default", () => {
+    const noDefault = audioStreams.map((s) => ({ ...s, isDefault: false }));
+    const result = resolveDefaultAudio(noDefault, undefined, () => null, () => null);
+    expect(result?.index).toBe(0);
+  });
+});
+
+describe("resolveDefaultSubtitle", () => {
+  const subs: SubtitleStream[] = [
+    { index: 0, trackIndex: 0, language: "eng", codec: "subrip" },
+    { index: 1, trackIndex: 1, language: "fre", codec: "subrip" },
+  ];
+
+  it("returns null when no pref", () => {
+    const result = resolveDefaultSubtitle(subs, undefined, () => null, () => null);
+    expect(result).toBeNull();
+  });
+
+  it("returns matching lang pref", () => {
+    const result = resolveDefaultSubtitle(subs, undefined, () => null, () => "fre");
+    expect(result).toBe(1);
+  });
+
+  it("returns null when series pref explicitly sets null", () => {
+    const result = resolveDefaultSubtitle(subs, "s1", () => ({ subtitleLang: null }), () => "fre");
+    expect(result).toBeNull();
+  });
+
+  it("returns series pref over global", () => {
+    const result = resolveDefaultSubtitle(subs, "s1", () => ({ subtitleLang: "eng" }), () => "fre");
+    expect(result).toBe(0);
   });
 });
