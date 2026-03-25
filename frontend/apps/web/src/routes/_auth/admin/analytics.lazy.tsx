@@ -58,13 +58,12 @@ function formatDate(d: string): string {
 function StatCard({ label, value }: { label: string; value: number }) {
   return (
     <div
-      className="flex flex-col items-center justify-center p-6 rounded-[var(--radius-lg)] gap-1"
-      style={{ backgroundColor: "var(--surface)", border: "1px solid var(--border)" }}
+      className="flex flex-col items-center justify-center p-6 rounded-[var(--radius-lg)] gap-1 bg-[var(--surface)] border border-[var(--border)]"
     >
-      <span className="text-3xl font-bold" style={{ color: "var(--text)" }}>
+      <span className="text-3xl font-bold text-[var(--text)]">
         {value}
       </span>
-      <span className="text-xs font-semibold uppercase tracking-wide" style={{ color: "var(--text-muted)" }}>
+      <span className="text-xs font-semibold uppercase tracking-wide text-[var(--text-muted)]">
         {label}
       </span>
     </div>
@@ -76,7 +75,7 @@ function TopMediaTable({ items }: { items: TopMediaItem[] }) {
 
   if (items.length === 0) {
     return (
-      <div className="py-8 text-center text-sm" style={{ color: "var(--text-muted)" }}>
+      <div className="py-8 text-center text-sm text-[var(--text-muted)]">
         {t("admin.analytics.noPlays")}
       </div>
     );
@@ -86,17 +85,15 @@ function TopMediaTable({ items }: { items: TopMediaItem[] }) {
 
   return (
     <div
-      className="overflow-x-auto rounded-[var(--radius-lg)]"
-      style={{ border: "1px solid var(--border)" }}
+      className="overflow-x-auto rounded-[var(--radius-lg)] border border-[var(--border)]"
     >
       <table className="w-full text-sm">
         <thead>
-          <tr style={{ backgroundColor: "var(--surface)", borderBottom: "1px solid var(--border)" }}>
+          <tr className="bg-[var(--surface)] border-b border-[var(--border)]">
             {[t("admin.analytics.tableHeaders.title"), t("admin.analytics.tableHeaders.plays"), t("admin.analytics.tableHeaders.totalWatchTime")].map((h) => (
               <th
                 key={h}
-                className="px-4 py-2 text-left font-medium"
-                style={{ color: "var(--text-muted)" }}
+                className="px-4 py-2 text-left font-medium text-[var(--text-muted)]"
               >
                 {h}
               </th>
@@ -105,30 +102,28 @@ function TopMediaTable({ items }: { items: TopMediaItem[] }) {
         </thead>
         <tbody>
           {items.map((item) => (
-            <tr key={item.media_item_id} style={{ borderBottom: "1px solid var(--border)" }}>
-              <td className="px-4 py-3 font-medium" style={{ color: "var(--text)" }}>
+            <tr key={item.media_item_id} className="border-b border-[var(--border)]">
+              <td className="px-4 py-3 font-medium text-[var(--text)]">
                 {item.title}
               </td>
               <td className="px-4 py-3 min-w-[160px]">
                 <div className="flex items-center gap-2">
                   <div
-                    className="h-1.5 flex-1 rounded-full"
-                    style={{ backgroundColor: "var(--border)" }}
+                    className="h-1.5 flex-1 rounded-full bg-[var(--border)]"
                   >
                     <div
-                      className="h-1.5 rounded-full"
+                      className="h-1.5 rounded-full bg-[var(--accent)]"
                       style={{
                         width: `${Math.round((item.play_count / maxPlays) * 100)}%`,
-                        backgroundColor: "var(--accent)",
                       }}
                     />
                   </div>
-                  <span className="text-xs w-8 text-right" style={{ color: "var(--text-muted)" }}>
+                  <span className="text-xs w-8 text-right text-[var(--text-muted)]">
                     {item.play_count}
                   </span>
                 </div>
               </td>
-              <td className="px-4 py-3 text-xs" style={{ color: "var(--text-muted)" }}>
+              <td className="px-4 py-3 text-xs text-[var(--text-muted)]">
                 {formatDuration(item.total_duration_seconds)}
               </td>
             </tr>
@@ -144,7 +139,7 @@ function RecentActivityTable({ entries }: { entries: RecentActivityEntry[] }) {
 
   if (entries.length === 0) {
     return (
-      <div className="py-8 text-center text-sm" style={{ color: "var(--text-muted)" }}>
+      <div className="py-8 text-center text-sm text-[var(--text-muted)]">
         {t("admin.analytics.noActivity")}
       </div>
     );
@@ -152,17 +147,15 @@ function RecentActivityTable({ entries }: { entries: RecentActivityEntry[] }) {
 
   return (
     <div
-      className="overflow-x-auto rounded-[var(--radius-lg)]"
-      style={{ border: "1px solid var(--border)" }}
+      className="overflow-x-auto rounded-[var(--radius-lg)] border border-[var(--border)]"
     >
       <table className="w-full text-sm">
         <thead>
-          <tr style={{ backgroundColor: "var(--surface)", borderBottom: "1px solid var(--border)" }}>
+          <tr className="bg-[var(--surface)] border-b border-[var(--border)]">
             {[t("admin.analytics.tableHeaders.user"), t("admin.analytics.tableHeaders.media"), t("admin.analytics.tableHeaders.when")].map((h) => (
               <th
                 key={h}
-                className="px-4 py-2 text-left font-medium"
-                style={{ color: "var(--text-muted)" }}
+                className="px-4 py-2 text-left font-medium text-[var(--text-muted)]"
               >
                 {h}
               </th>
@@ -171,14 +164,14 @@ function RecentActivityTable({ entries }: { entries: RecentActivityEntry[] }) {
         </thead>
         <tbody>
           {entries.map((entry, i) => (
-            <tr key={`${entry.user_id}-${entry.played_at}-${i}`} style={{ borderBottom: "1px solid var(--border)" }}>
-              <td className="px-4 py-3 font-medium" style={{ color: "var(--text)" }}>
+            <tr key={`${entry.user_id}-${entry.played_at}-${i}`} className="border-b border-[var(--border)]">
+              <td className="px-4 py-3 font-medium text-[var(--text)]">
                 {entry.username}
               </td>
-              <td className="px-4 py-3" style={{ color: "var(--text)" }}>
+              <td className="px-4 py-3 text-[var(--text)]">
                 {entry.media_title}
               </td>
-              <td className="px-4 py-3 text-xs" style={{ color: "var(--text-muted)" }}>
+              <td className="px-4 py-3 text-xs text-[var(--text-muted)]">
                 {formatDate(entry.played_at)}
               </td>
             </tr>
@@ -202,7 +195,7 @@ function AnalyticsPage() {
           <Spinner size="lg" />
         </div>
       ) : error ? (
-        <div className="py-8 text-center text-sm" style={{ color: "var(--text-muted)" }}>
+        <div className="py-8 text-center text-sm text-[var(--text-muted)]">
           {t("admin.analytics.failedLoad")}
         </div>
       ) : data ? (
@@ -214,14 +207,14 @@ function AnalyticsPage() {
           </div>
 
           <div>
-            <h2 className="text-sm font-semibold uppercase tracking-wide mb-3" style={{ color: "var(--text-muted)" }}>
+            <h2 className="text-sm font-semibold uppercase tracking-wide mb-3 text-[var(--text-muted)]">
               {t("admin.analytics.topMedia")}
             </h2>
             <TopMediaTable items={data.top_media} />
           </div>
 
           <div>
-            <h2 className="text-sm font-semibold uppercase tracking-wide mb-3" style={{ color: "var(--text-muted)" }}>
+            <h2 className="text-sm font-semibold uppercase tracking-wide mb-3 text-[var(--text-muted)]">
               {t("admin.analytics.recentActivity")}
             </h2>
             <RecentActivityTable entries={data.recent_activity} />

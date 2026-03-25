@@ -57,21 +57,17 @@ const HoverPreview = memo(function HoverPreview({ item }: { item: MediaCardItem 
 
   return (
     <div
-      className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 w-56 rounded-lg p-3 shadow-xl z-overlay pointer-events-none transition-opacity duration-200 hidden sm:block"
-      style={{
-        backgroundColor: "var(--surface)",
-        border: "1px solid var(--border)",
-      }}
+      className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 w-56 rounded-lg p-3 shadow-xl z-overlay pointer-events-none transition-opacity-fast duration-200 hidden sm:block bg-[var(--surface)] border border-[var(--border)]"
     >
-      <p className="text-sm font-semibold mb-1 truncate" style={{ color: "var(--text)" }}>
+      <p className="text-sm font-semibold mb-1 truncate text-[var(--text)]">
         {item.title}
       </p>
 
-      <div className="flex items-center gap-2 mb-1.5 text-xs" style={{ color: "var(--text-muted)" }}>
+      <div className="flex items-center gap-2 mb-1.5 text-xs text-[var(--text-muted)]">
         {item.year && <span>{item.year}</span>}
         {item.communityRating != null && item.communityRating > 0 && (
           <span className="flex items-center gap-0.5">
-            <Star size={12} fill="currentColor" style={{ color: "var(--accent)" }} />
+            <Star size={12} fill="currentColor" className="text-[var(--accent)]" />
             {item.communityRating.toFixed(1)}
           </span>
         )}
@@ -83,11 +79,7 @@ const HoverPreview = memo(function HoverPreview({ item }: { item: MediaCardItem 
           {item.genres.slice(0, 3).map((g) => (
             <span
               key={g}
-              className="text-[10px] px-1.5 py-0.5 rounded-full"
-              style={{
-                backgroundColor: "var(--surface-raised)",
-                color: "var(--text-muted)",
-              }}
+              className="text-[10px] px-1.5 py-0.5 rounded-full bg-[var(--surface-raised)] text-[var(--text-muted)]"
             >
               {g}
             </span>
@@ -97,8 +89,7 @@ const HoverPreview = memo(function HoverPreview({ item }: { item: MediaCardItem 
 
       {item.overview && (
         <p
-          className="text-xs leading-relaxed line-clamp-3"
-          style={{ color: "var(--text-secondary)" }}
+          className="text-xs leading-relaxed line-clamp-3 text-[var(--text-secondary)]"
         >
           {item.overview}
         </p>
@@ -217,20 +208,17 @@ const CardContextMenu = memo(function CardContextMenu({
   return (
     <div
       ref={ref}
-      className="fixed z-popover min-w-[160px] py-1 rounded-[var(--radius-md)] shadow-xl"
+      className="fixed z-popover min-w-[160px] py-1 rounded-[var(--radius-md)] shadow-xl bg-[var(--surface)] border border-[var(--border)]"
       style={{
         left: position.x,
         top: position.y,
-        backgroundColor: "var(--surface)",
-        border: "1px solid var(--border)",
       }}
     >
       {items.map((it) => (
         <button
           key={it.label}
           onClick={it.onClick}
-          className="w-full text-left px-3 py-2 text-sm hover:bg-[var(--surface-raised)] transition-colors-fast"
-          style={{ color: "var(--text)" }}
+          className="w-full text-left px-3 py-2 text-sm hover:bg-[var(--surface-raised)] transition-colors-fast-fast text-[var(--text)]"
         >
           {it.label}
         </button>
@@ -380,7 +368,7 @@ export const MediaCard = memo(function MediaCard({
             src={poster}
             alt={item.title ?? ""}
             loading="lazy"
-            className="w-full h-full object-cover transition-opacity duration-300"
+            className="w-full h-full object-cover transition-opacity-fast duration-300"
             style={{ opacity: imgLoaded ? 1 : 0 }}
             onLoad={() => setImgLoaded(true)}
             onError={(e) => {
@@ -392,10 +380,8 @@ export const MediaCard = memo(function MediaCard({
           />
         ) : null}
         <div
-          className="absolute inset-0 items-center justify-center text-2xl font-bold"
+          className="absolute inset-0 items-center justify-center text-2xl font-bold bg-[var(--surface-raised)] text-[var(--text-muted)]"
           style={{
-            backgroundColor: "var(--surface-raised)",
-            color: "var(--text-muted)",
             display: poster ? "none" : "flex",
           }}
         >
@@ -486,7 +472,7 @@ export const MediaCard = memo(function MediaCard({
           <button
             aria-label={selected ? "Deselect" : "Select"}
             onClick={(e) => { e.preventDefault(); e.stopPropagation(); onSelect?.(item.id!, !selected); }}
-            className={`absolute top-2 left-2 z-badge flex items-center justify-center w-5 h-5 rounded transition-colors-fast${selectionMode && !selected ? " opacity-0 group-hover:opacity-100 group-focus-within:opacity-100" : ""}`}
+            className={`absolute top-2 left-2 z-badge flex items-center justify-center w-5 h-5 rounded transition-colors-fast-fast${selectionMode && !selected ? " opacity-0 group-hover:opacity-100 group-focus-within:opacity-100" : ""}`}
             style={{
               backgroundColor: selected ? "var(--accent)" : "var(--overlay-gradient)",
               border: `2px solid ${selected ? "var(--accent)" : "var(--overlay-text-muted)"}`,
@@ -497,7 +483,7 @@ export const MediaCard = memo(function MediaCard({
             )}
           </button>
         ) : (item.id && !lite) ? (
-          <div className="absolute top-2 left-2 z-badge opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity duration-200">
+          <div className="absolute top-2 left-2 z-badge opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity-fast duration-200">
             <FavoriteButton mediaId={item.id} size="sm" />
           </div>
         ) : null}
@@ -533,14 +519,13 @@ export const MediaCard = memo(function MediaCard({
         )}
 
         <div
-          className="absolute inset-0 flex flex-col items-center justify-center opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity duration-200"
+          className="absolute inset-0 flex flex-col items-center justify-center opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity-fast duration-200"
           style={{ background: "linear-gradient(to top, var(--overlay-bg-strong) 0%, var(--overlay-border-subtle) 60%, transparent 100%)" }}
         >
           <div
             role="img"
             aria-label="Play"
-            className="w-12 h-12 rounded-full flex items-center justify-center backdrop-blur-sm transition-transform duration-200 group-hover:scale-110 group-focus-within:scale-110"
-            style={{ backgroundColor: "var(--glass-bg)", border: "1px solid var(--glass-border)" }}
+            className="w-12 h-12 rounded-full flex items-center justify-center backdrop-blur-sm transition-transform duration-200 group-hover:scale-110 group-focus-within:scale-110 bg-[var(--glass-bg)] border border-[var(--glass-border)]"
           >
             <Play size={20} className="text-[var(--overlay-text)] ml-0.5" fill="currentColor" aria-hidden="true" />
           </div>
@@ -551,8 +536,7 @@ export const MediaCard = memo(function MediaCard({
 
         {hasProgressBar && (
           <div
-            className="absolute bottom-0 left-0 right-0 h-1.5 z-raised"
-            style={{ backgroundColor: "var(--overlay-bg)" }}
+            className="absolute bottom-0 left-0 right-0 h-1.5 z-raised bg-[var(--overlay-bg)]"
           >
             <div
               className="h-full transition-all duration-300"
@@ -569,19 +553,13 @@ export const MediaCard = memo(function MediaCard({
 
       <div className="mt-2 px-0.5">
         <p
-          className="text-sm font-medium truncate"
-          style={{ color: "var(--text)" }}
+          className="text-sm font-medium truncate text-[var(--text)]"
         >
           {item.title}
         </p>
         {showType && typeLabel(item.type) && (
           <span
-            className="text-xs px-1.5 py-0.5 rounded"
-            style={{
-              backgroundColor: "var(--surface-raised)",
-              color: "var(--text-muted)",
-              borderRadius: "var(--radius-sm)",
-            }}
+            className="text-xs px-1.5 py-0.5 rounded-[var(--radius-sm)] bg-[var(--surface-raised)] text-[var(--text-muted)]"
           >
             {typeLabel(item.type)}
           </span>

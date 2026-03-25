@@ -79,16 +79,15 @@ function MetricCard({ label, value, history }: MetricCardProps) {
   const textClass = getUsageTextColor(pct);
   return (
     <div
-      className="p-4 rounded-[var(--radius-lg)] flex flex-col gap-3"
-      style={{ backgroundColor: "var(--surface)", border: "1px solid var(--border)" }}
+      className="p-4 rounded-[var(--radius-lg)] flex flex-col gap-3 bg-[var(--surface)] border border-[var(--border)]"
     >
       <div className="flex items-center justify-between">
-        <span className="text-xs font-semibold uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>
+        <span className="text-xs font-semibold uppercase tracking-wider text-[var(--text-muted)]">
           {label}
         </span>
         <span className={`text-xl font-bold ${textClass}`}>{pct.toFixed(1)}%</span>
       </div>
-      <div className="h-2 rounded-full" style={{ backgroundColor: "var(--border)" }}>
+      <div className="h-2 rounded-full bg-[var(--border)]">
         <div
           className="h-2 rounded-full transition-all duration-500"
           style={{ width: `${pct}%`, backgroundColor: color }}
@@ -117,20 +116,19 @@ function StorageCard({ path, usedBytes, totalBytes, freeBytes }: StorageCardProp
   const textClass = getUsageTextColor(pct);
   return (
     <div
-      className="p-4 rounded-[var(--radius-lg)]"
-      style={{ backgroundColor: "var(--surface)", border: "1px solid var(--border)" }}
+      className="p-4 rounded-[var(--radius-lg)] bg-[var(--surface)] border border-[var(--border)]"
     >
       <div className="flex justify-between items-start mb-2 gap-2">
-        <span className="text-sm font-mono truncate" style={{ color: "var(--text)" }}>{path}</span>
+        <span className="text-sm font-mono truncate text-[var(--text)]">{path}</span>
         <span className={`text-sm font-bold whitespace-nowrap ${textClass}`}>{pct}%</span>
       </div>
-      <div className="h-2 rounded-full mb-2" style={{ backgroundColor: "var(--border)" }}>
+      <div className="h-2 rounded-full mb-2 bg-[var(--border)]">
         <div
           className="h-2 rounded-full transition-all"
           style={{ width: `${pct}%`, backgroundColor: color }}
         />
       </div>
-      <div className="flex justify-between text-xs" style={{ color: "var(--text-muted)" }}>
+      <div className="flex justify-between text-xs text-[var(--text-muted)]">
         <span>{t("admin.systemHealth.used", { size: formatBytes(usedBytes) })}</span>
         <span>{t("admin.systemHealth.free", { size: formatBytes(freeBytes) })}</span>
         <span>{t("admin.systemHealth.total", { size: formatBytes(totalBytes) })}</span>
@@ -143,8 +141,8 @@ function InfoRow({ label, value }: { label: string; value: string | undefined })
   if (!value) return null;
   return (
     <div>
-      <dt className="text-xs font-medium uppercase tracking-wide mb-0.5" style={{ color: "var(--text-muted)" }}>{label}</dt>
-      <dd className="text-sm font-mono" style={{ color: "var(--text)" }}>{value}</dd>
+      <dt className="text-xs font-medium uppercase tracking-wide mb-0.5 text-[var(--text-muted)]">{label}</dt>
+      <dd className="text-sm font-mono text-[var(--text)]">{value}</dd>
     </div>
   );
 }
@@ -154,10 +152,9 @@ function ServerInfoPanel({ info }: { info: V1SystemInfo }) {
   const devices = info.hwDevices ?? [];
   return (
     <div
-      className="p-4 rounded-[var(--radius-lg)]"
-      style={{ backgroundColor: "var(--surface)", border: "1px solid var(--border)" }}
+      className="p-4 rounded-[var(--radius-lg)] bg-[var(--surface)] border border-[var(--border)]"
     >
-      <h3 className="text-sm font-semibold mb-4" style={{ color: "var(--text)" }}>{t("admin.systemHealth.serverInfo")}</h3>
+      <h3 className="text-sm font-semibold mb-4 text-[var(--text)]">{t("admin.systemHealth.serverInfo")}</h3>
       <dl className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-x-6 gap-y-4">
         <InfoRow label={t("admin.dashboard.version")} value={info.version} />
         <InfoRow label={t("admin.dashboard.os")} value={info.os && info.arch ? `${info.os}/${info.arch}` : info.os} />
@@ -168,15 +165,14 @@ function ServerInfoPanel({ info }: { info: V1SystemInfo }) {
       </dl>
       {devices.length > 0 && (
         <div className="mt-4">
-          <p className="text-xs font-semibold uppercase tracking-wide mb-2" style={{ color: "var(--text-muted)" }}>
+          <p className="text-xs font-semibold uppercase tracking-wide mb-2 text-[var(--text-muted)]">
             {t("admin.systemHealth.hwAcceleration")}
           </p>
           <div className="flex flex-wrap gap-2">
             {devices.map((d, i) => (
               <span
                 key={i}
-                className="inline-flex items-center gap-1 px-2 py-1 rounded text-xs font-medium"
-                style={{ backgroundColor: "var(--surface-raised)", color: "var(--accent)" }}
+                className="inline-flex items-center gap-1 px-2 py-1 rounded text-xs font-medium bg-[var(--surface-raised)] text-[var(--accent)]"
               >
                 {d.type?.replace("HW_ACCEL_TYPE_", "") ?? "?"} — {d.name ?? "unknown"}
               </span>
@@ -191,11 +187,10 @@ function ServerInfoPanel({ info }: { info: V1SystemInfo }) {
 function StatBadge({ label, value }: { label: string; value: number | undefined }) {
   return (
     <div
-      className="flex flex-col items-center justify-center p-4 rounded-[var(--radius-lg)] gap-1"
-      style={{ backgroundColor: "var(--surface)", border: "1px solid var(--border)" }}
+      className="flex flex-col items-center justify-center p-4 rounded-[var(--radius-lg)] gap-1 bg-[var(--surface)] border border-[var(--border)]"
     >
-      <span className="text-2xl font-bold" style={{ color: "var(--text)" }}>{value ?? 0}</span>
-      <span className="text-xs font-semibold uppercase tracking-wide" style={{ color: "var(--text-muted)" }}>{label}</span>
+      <span className="text-2xl font-bold text-[var(--text)]">{value ?? 0}</span>
+      <span className="text-xs font-semibold uppercase tracking-wide text-[var(--text-muted)]">{label}</span>
     </div>
   );
 }
@@ -261,7 +256,7 @@ function SystemHealthPage() {
 
           {dashData?.storage && dashData.storage.length > 0 && (
             <div>
-              <h2 className="text-sm font-semibold uppercase tracking-wide mb-3" style={{ color: "var(--text-muted)" }}>
+              <h2 className="text-sm font-semibold uppercase tracking-wide mb-3 text-[var(--text-muted)]">
                 {t("admin.systemHealth.storage")}
               </h2>
               <div className="flex flex-col gap-3">
@@ -280,7 +275,7 @@ function SystemHealthPage() {
 
           {dashData && (
             <div>
-              <h2 className="text-sm font-semibold uppercase tracking-wide mb-3" style={{ color: "var(--text-muted)" }}>
+              <h2 className="text-sm font-semibold uppercase tracking-wide mb-3 text-[var(--text-muted)]">
                 {t("admin.systemHealth.activitySection")}
               </h2>
               <DashboardPanel info={dashData} />
@@ -289,7 +284,7 @@ function SystemHealthPage() {
 
           {sysData && (
             <div>
-              <h2 className="text-sm font-semibold uppercase tracking-wide mb-3" style={{ color: "var(--text-muted)" }}>
+              <h2 className="text-sm font-semibold uppercase tracking-wide mb-3 text-[var(--text-muted)]">
                 {t("admin.systemHealth.server")}
               </h2>
               <ServerInfoPanel info={sysData} />

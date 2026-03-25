@@ -65,25 +65,20 @@ function SubprocessWarning() {
   const { t } = useTranslation();
   return (
     <div
-      className="flex items-start gap-3 p-4 rounded-[var(--radius-md)]"
-      style={{
-        backgroundColor: "var(--badge-warning-bg, #713f12)",
-        border: "1px solid var(--badge-warning-text, #fde047)",
-      }}
+      className="flex items-start gap-3 p-4 rounded-[var(--radius-md)] bg-[var(--badge-warning-bg,#713f12)] border border-[var(--badge-warning-text,#fde047)]"
     >
       <TriangleAlert
         size={20}
         className="shrink-0 mt-0.5"
-        style={{ color: "var(--badge-warning-text, #fde047)" }}
+        className="shrink-0 mt-0.5 text-[var(--badge-warning-text,#fde047)]"
       />
       <div>
         <p
-          className="font-semibold text-sm"
-          style={{ color: "var(--badge-warning-text, #fde047)" }}
+          className="font-semibold text-sm text-[var(--badge-warning-text,#fde047)]"
         >
           {t("admin.plugins.subprocessRequired")}
         </p>
-        <p className="text-xs mt-1" style={{ color: "var(--text-muted)" }}>
+        <p className="text-xs mt-1 text-[var(--text-muted)]">
           {t("admin.plugins.subprocessWarning")}
         </p>
       </div>
@@ -108,15 +103,15 @@ function PreviewPanel({
   return (
     <div className="flex flex-col gap-4">
       <div className="flex flex-col gap-1">
-        <span className="font-semibold" style={{ color: "var(--text)" }}>
+        <span className="font-semibold text-[var(--text)]">
           {preview.name}
         </span>
-        <span className="text-xs" style={{ color: "var(--text-muted)" }}>
+        <span className="text-xs text-[var(--text-muted)]">
           v{preview.version} — {preview.language}
           {preview.author ? ` — by ${preview.author}` : ""}
         </span>
         {preview.description && (
-          <p className="text-sm mt-1" style={{ color: "var(--text-muted)" }}>
+          <p className="text-sm mt-1 text-[var(--text-muted)]">
             {preview.description}
           </p>
         )}
@@ -124,7 +119,7 @@ function PreviewPanel({
 
       {preview.permissions?.length > 0 && (
         <div className="flex flex-col gap-2">
-          <span className="text-xs font-semibold" style={{ color: "var(--text-muted)" }}>
+          <span className="text-xs font-semibold text-[var(--text-muted)]">
             {t("admin.plugins.permissions")}
           </span>
           <div className="flex flex-wrap gap-1.5">
@@ -142,7 +137,7 @@ function PreviewPanel({
 
       {preview.capabilities?.length > 0 && (
         <div className="flex flex-col gap-2">
-          <span className="text-xs font-semibold" style={{ color: "var(--text-muted)" }}>
+          <span className="text-xs font-semibold text-[var(--text-muted)]">
             {t("admin.plugins.capabilities")}
           </span>
           <div className="flex flex-wrap gap-1.5">
@@ -156,7 +151,7 @@ function PreviewPanel({
       {preview.permissions?.includes("subprocess") && <SubprocessWarning />}
 
       {preview.analysis?.issues && preview.analysis.issues.length > 0 && (
-        <div className="flex flex-col gap-1 text-xs" style={{ color: "var(--text-muted)" }}>
+        <div className="flex flex-col gap-1 text-xs text-[var(--text-muted)]">
           <span className="font-semibold">{t("admin.plugins.staticAnalysis")}</span>
           {preview.analysis.issues.map((issue, i) => (
             <span key={i}>{issue}</span>
@@ -277,8 +272,7 @@ function InstallPluginForm({ onSuccess }: { onSuccess: () => void }) {
         <div className="flex flex-col gap-4">
           <div>
             <label
-              className="block text-sm font-medium mb-1"
-              style={{ color: "var(--text-muted)" }}
+              className="block text-sm font-medium mb-1 text-[var(--text-muted)]"
             >
               {t("admin.plugins.pluginFileZip")}
             </label>
@@ -295,7 +289,7 @@ function InstallPluginForm({ onSuccess }: { onSuccess: () => void }) {
             <button
               type="button"
               onClick={() => fileRef.current?.click()}
-              className="flex items-center gap-2 w-full px-4 py-3 rounded-[var(--radius-md)] text-sm font-medium transition-colors-fast cursor-pointer"
+              className="flex items-center gap-2 w-full px-4 py-3 rounded-[var(--radius-md)] text-sm font-medium transition-colors-fast-fast cursor-pointer"
               style={{
                 backgroundColor: "var(--surface-raised, var(--surface))",
                 color: selectedFileName ? "var(--text)" : "var(--text-muted)",
@@ -307,7 +301,7 @@ function InstallPluginForm({ onSuccess }: { onSuccess: () => void }) {
             </button>
           </div>
           {error && (
-            <p className="text-xs" style={{ color: "var(--badge-error-text, #fca5a5)" }}>
+            <p className="text-xs text-[var(--badge-error-text,#fca5a5)]">
               {error}
             </p>
           )}
@@ -325,12 +319,12 @@ function InstallPluginForm({ onSuccess }: { onSuccess: () => void }) {
       {mode === "file" && (step === "reviewing" || step === "installing") && preview && (
         <>
           {error && (
-            <div className="flex flex-col gap-2 p-3 rounded-[var(--radius-md)]" style={{ backgroundColor: "var(--badge-error-bg, #7f1d1d)", border: "1px solid var(--badge-error-text, #fca5a5)" }}>
-              <p className="text-sm font-semibold" style={{ color: "var(--badge-error-text, #fca5a5)" }}>
+            <div className="flex flex-col gap-2 p-3 rounded-[var(--radius-md)] bg-[var(--badge-error-bg,#7f1d1d)] border border-[var(--badge-error-text,#fca5a5)]">
+              <p className="text-sm font-semibold text-[var(--badge-error-text,#fca5a5)]">
                 {error}
               </p>
               {blockedIssues.length > 0 && (
-                <ul className="flex flex-col gap-1 text-xs list-disc pl-4" style={{ color: "var(--text-muted)" }}>
+                <ul className="flex flex-col gap-1 text-xs list-disc pl-4 text-[var(--text-muted)]">
                   {blockedIssues.map((issue, i) => (
                     <li key={i}>{issue}</li>
                   ))}
@@ -350,7 +344,7 @@ function InstallPluginForm({ onSuccess }: { onSuccess: () => void }) {
 
       {mode === "url" && (
         <form onSubmit={handleUrlSubmit} className="flex flex-col gap-4">
-          <p className="text-xs" style={{ color: "var(--text-muted)" }}>
+          <p className="text-xs text-[var(--text-muted)]">
             {t("admin.plugins.urlSkipPreview")}
           </p>
           <Input
@@ -419,7 +413,7 @@ function PluginsPage() {
   return (
     <div className="flex flex-col gap-6">
       <div className="flex items-center justify-between">
-        <h2 className="text-xl font-semibold" style={{ color: "var(--text)" }}>
+        <h2 className="text-xl font-semibold text-[var(--text)]">
           {t("admin.plugins.title")}
         </h2>
         <Button onClick={() => setShowModal(true)}>{t("admin.plugins.installPlugin")}</Button>
@@ -427,7 +421,7 @@ function PluginsPage() {
 
       {runtimes.length > 0 && (
         <div className="flex flex-col gap-2">
-          <span className="text-xs font-semibold" style={{ color: "var(--text-muted)" }}>
+          <span className="text-xs font-semibold text-[var(--text-muted)]">
             {t("admin.plugins.availableRuntimes")}
           </span>
           <div className="flex flex-wrap gap-2">
@@ -446,10 +440,9 @@ function PluginsPage() {
         </div>
       ) : plugins.length === 0 ? (
         <div
-          className="text-center py-16 rounded-[var(--radius-lg)]"
-          style={{ backgroundColor: "var(--surface)", border: "1px solid var(--border)" }}
+          className="text-center py-16 rounded-[var(--radius-lg)] bg-[var(--surface)] border border-[var(--border)]"
         >
-          <p style={{ color: "var(--text-muted)" }}>{t("admin.plugins.noPlugins")}</p>
+          <p className="text-[var(--text-muted)]">{t("admin.plugins.noPlugins")}</p>
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">

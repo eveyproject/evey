@@ -48,12 +48,10 @@ interface StatCardProps {
 function StatCard({ icon, label, value, valueColor }: StatCardProps) {
   return (
     <div
-      className="flex items-center gap-3 p-4 rounded-[var(--radius-lg)]"
-      style={{ backgroundColor: "var(--surface)", border: "1px solid var(--border)" }}
+      className="flex items-center gap-3 p-4 rounded-[var(--radius-lg)] bg-[var(--surface)] border border-[var(--border)]"
     >
       <div
-        className="flex items-center justify-center w-10 h-10 rounded-[var(--radius-md)]"
-        style={{ backgroundColor: "var(--surface-raised)", color: "var(--accent)" }}
+        className="flex items-center justify-center w-10 h-10 rounded-[var(--radius-md)] bg-[var(--surface-raised)] text-[var(--accent)]"
       >
         {icon}
       </div>
@@ -61,7 +59,7 @@ function StatCard({ icon, label, value, valueColor }: StatCardProps) {
         <span className="text-2xl font-bold leading-tight" style={{ color: valueColor ?? "var(--text)" }}>
           {value}
         </span>
-        <span className="text-xs font-medium uppercase tracking-wide" style={{ color: "var(--text-muted)" }}>
+        <span className="text-xs font-medium uppercase tracking-wide text-[var(--text-muted)]">
           {label}
         </span>
       </div>
@@ -98,7 +96,7 @@ function QuickActions() {
 
   return (
     <div>
-      <h3 className="text-sm font-semibold mb-3" style={{ color: "var(--text)" }}>
+      <h3 className="text-sm font-semibold mb-3 text-[var(--text)]">
         {t("admin.dashboardStats.quickActions")}
       </h3>
       <div className="flex gap-3 flex-wrap">
@@ -146,26 +144,24 @@ function RecentActivity() {
   return (
     <div>
       <div className="flex items-center justify-between mb-3">
-        <h3 className="text-sm font-semibold" style={{ color: "var(--text)" }}>
+        <h3 className="text-sm font-semibold text-[var(--text)]">
           {t("admin.dashboardStats.recentActivity")}
         </h3>
         <Link
           to="/admin/audit"
-          className="text-xs font-medium hover:underline"
-          style={{ color: "var(--accent)" }}
+          className="text-xs font-medium hover:underline text-[var(--accent)]"
         >
           {t("admin.dashboardStats.viewAll")}
         </Link>
       </div>
       <div
-        className="overflow-x-auto rounded-[var(--radius-lg)]"
-        style={{ border: "1px solid var(--border)" }}
+        className="overflow-x-auto rounded-[var(--radius-lg)] border border-[var(--border)]"
       >
         <table className="w-full text-sm">
           <thead>
-            <tr style={{ backgroundColor: "var(--surface)", borderBottom: "1px solid var(--border)" }}>
+            <tr className="bg-[var(--surface)] border-b border-[var(--border)]">
               {[t("admin.audit.tableHeaders.time"), t("admin.audit.tableHeaders.user"), t("admin.audit.tableHeaders.action"), t("admin.audit.tableHeaders.resource"), t("admin.audit.tableHeaders.details")].map((h) => (
-                <th key={h} className="px-3 py-2 text-left font-medium" style={{ color: "var(--text-muted)" }}>
+                <th key={h} className="px-3 py-2 text-left font-medium text-[var(--text-muted)]">
                   {h}
                 </th>
               ))}
@@ -175,22 +171,21 @@ function RecentActivity() {
             {entries.map((entry) => (
               <tr
                 key={entry.id}
-                style={{ borderBottom: "1px solid var(--border)" }}
-                className="hover:bg-[var(--surface-raised)] transition-colors-fast"
+                className="border-b border-[var(--border)] hover:bg-[var(--surface-raised)] transition-colors-fast-fast"
               >
-                <td className="px-3 py-2 whitespace-nowrap text-xs" style={{ color: "var(--text-muted)" }}>
+                <td className="px-3 py-2 whitespace-nowrap text-xs text-[var(--text-muted)]">
                   {entry.createdAt ? new Date(entry.createdAt).toLocaleString() : "--"}
                 </td>
-                <td className="px-3 py-2 whitespace-nowrap" style={{ color: "var(--text)" }}>
+                <td className="px-3 py-2 whitespace-nowrap text-[var(--text)]">
                   {entry.username ?? "--"}
                 </td>
                 <td className="px-3 py-2 whitespace-nowrap">
                   <Badge variant="info">{entry.action ?? "--"}</Badge>
                 </td>
-                <td className="px-3 py-2 whitespace-nowrap text-xs" style={{ color: "var(--text-muted)" }}>
+                <td className="px-3 py-2 whitespace-nowrap text-xs text-[var(--text-muted)]">
                   {entry.resourceType ?? "--"}
                 </td>
-                <td className="px-3 py-2 max-w-xs truncate text-xs" style={{ color: "var(--text-muted)" }}>
+                <td className="px-3 py-2 max-w-xs truncate text-xs text-[var(--text-muted)]">
                   {entry.details ?? "--"}
                 </td>
               </tr>
@@ -210,7 +205,7 @@ function PopularMedia() {
 
   return (
     <div>
-      <h3 className="text-sm font-semibold mb-3" style={{ color: "var(--text)" }}>
+      <h3 className="text-sm font-semibold mb-3 text-[var(--text)]">
         {t("admin.dashboardStats.popularMedia")}
       </h3>
       <div className="flex flex-col gap-1">
@@ -219,19 +214,19 @@ function PopularMedia() {
             key={m.mediaItemId ?? i}
             to="/media/$mediaId"
             params={{ mediaId: m.mediaItemId ?? "" }}
-            className="flex items-center gap-3 px-3 py-2 rounded-[var(--radius-md)] hover:bg-[var(--surface-raised)] transition-colors-fast"
+            className="flex items-center gap-3 px-3 py-2 rounded-[var(--radius-md)] hover:bg-[var(--surface-raised)] transition-colors-fast-fast"
           >
-            <span className="text-sm font-mono w-6 text-center" style={{ color: "var(--accent)" }}>
+            <span className="text-sm font-mono w-6 text-center text-[var(--accent)]">
               {i + 1}
             </span>
-            <span className="text-sm flex-1 truncate" style={{ color: "var(--text)" }}>
+            <span className="text-sm flex-1 truncate text-[var(--text)]">
               {m.title ?? "Unknown"}
             </span>
-            <span className="text-xs" style={{ color: "var(--text-muted)" }}>
+            <span className="text-xs text-[var(--text-muted)]">
               {t("admin.activity.plays", { count: m.playCount ?? 0 })}
             </span>
             {m.uniqueViewers != null && m.uniqueViewers > 0 && (
-              <span className="text-xs" style={{ color: "var(--text-muted)" }}>
+              <span className="text-xs text-[var(--text-muted)]">
                 {t("admin.dashboardStats.viewers", { count: m.uniqueViewers })}
               </span>
             )}
@@ -285,7 +280,7 @@ export function DashboardStats({ info }: DashboardStatsProps) {
 
       {info.storage && info.storage.length > 0 && (
         <div>
-          <h3 className="text-sm font-semibold mb-3" style={{ color: "var(--text)" }}>
+          <h3 className="text-sm font-semibold mb-3 text-[var(--text)]">
             {t("admin.dashboardStats.storage")}
           </h3>
           <div className="flex flex-col gap-2">
@@ -296,16 +291,15 @@ export function DashboardStats({ info }: DashboardStatsProps) {
               return (
                 <div
                   key={i}
-                  className="p-3 rounded-[var(--radius-md)]"
-                  style={{ backgroundColor: "var(--surface)", border: "1px solid var(--border)" }}
+                  className="p-3 rounded-[var(--radius-md)] bg-[var(--surface)] border border-[var(--border)]"
                 >
                   <div className="flex justify-between text-sm mb-2">
-                    <span style={{ color: "var(--text)" }} className="truncate">{s.path ?? "--"}</span>
+                    <span className="truncate text-[var(--text)]">{s.path ?? "--"}</span>
                     <span style={{ color: getUsageColor(pct) }}>
                       {formatBytes(s.usedBytes)} / {formatBytes(s.totalBytes)} ({pct}%)
                     </span>
                   </div>
-                  <div className="h-2 rounded-full" style={{ backgroundColor: "var(--border)" }}>
+                  <div className="h-2 rounded-full bg-[var(--border)]">
                     <div
                       className="h-2 rounded-full transition-all"
                       style={{
