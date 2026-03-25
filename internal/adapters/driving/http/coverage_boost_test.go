@@ -13,6 +13,8 @@ import (
 	"testing"
 	"time"
 
+	media "github.com/gravity-zero/evey/internal/app/media"
+
 	appcollection "github.com/gravity-zero/evey/internal/app/collection"
 	appmetadata "github.com/gravity-zero/evey/internal/app/metadata"
 	appmusic "github.com/gravity-zero/evey/internal/app/music"
@@ -590,6 +592,7 @@ func TestSelectArtwork_OK(t *testing.T) {
 func TestDownloadHandler_InvalidToken_403(t *testing.T) {
 	h := downloadHandler(
 		&fakeTokenVerifier{err: errTest},
+		media.NewStreamTokenStore(5*time.Minute),
 		&fakeMediaItemGetter{item: testMediaItem("lib1")},
 		"http://localhost",
 		allowAll(),
@@ -607,6 +610,7 @@ func TestDownloadHandler_InvalidToken_403(t *testing.T) {
 func TestDownloadHandler_QueryToken(t *testing.T) {
 	h := downloadHandler(
 		&fakeTokenVerifier{claims: testClaims(false)},
+		media.NewStreamTokenStore(5*time.Minute),
 		&fakeMediaItemGetter{item: &domainlibrary.MediaItem{ID: "m1", LibraryID: "lib1", FilePath: "/nonexistent"}},
 		"http://localhost",
 		allowAll(),
@@ -623,6 +627,7 @@ func TestDownloadHandler_QueryToken(t *testing.T) {
 func TestDownloadHandler_EmptyFilePath_404(t *testing.T) {
 	h := downloadHandler(
 		&fakeTokenVerifier{claims: testClaims(false)},
+		media.NewStreamTokenStore(5*time.Minute),
 		&fakeMediaItemGetter{item: &domainlibrary.MediaItem{ID: "m1", LibraryID: "lib1", FilePath: ""}},
 		"http://localhost",
 		allowAll(),

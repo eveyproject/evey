@@ -9,6 +9,9 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+
+	appmedia "github.com/gravity-zero/evey/internal/app/media"
+	"github.com/gravity-zero/evey/internal/domain/library"
 )
 
 // filterMasterPlaylist removes #EXT-X-STREAM-INF variants exceeding maxBps (bps).
@@ -123,19 +126,32 @@ func (h *mediaServe) handleStream(w http.ResponseWriter, r *http.Request) {
 	http.ServeFile(w, r, item.FilePath)
 }
 
-func downloadHandler(tokens TokenVerifier, libSvc MediaItemGetter, baseURL string, libraryAccess LibraryAccessChecker) http.HandlerFunc {
+func downloadHandler(tokens TokenVerifier, streamTokens *appmedia.StreamTokenStore, libSvc MediaItemGetter, baseURL string, libraryAccess LibraryAccessChecker) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		mediaID := r.PathValue("id")
-		token := r.Header.Get("Authorization")
-		if strings.HasPrefix(token, "Bearer ") {
-			token = token[7:]
-		} else if t := r.URL.Query().Get("token"); t != "" {
-			token = t
-		} else {
+
+		// Stream token in query param (browser <a href> downloads)
+		if t := r.URL.Query().Get("token"); t != "" {
+			if _, ok := streamTokens.Validate(t, mediaID); !ok {
+				http.Error(w, `{"message":"invalid or expired token"}`, http.StatusForbidden)
+				return
+			}
+			item, err := libSvc.GetMediaItem(r.Context(), mediaID)
+			if err != nil || item.FilePath == "" {
+				http.Error(w, `{"message":"not found"}`, http.StatusNotFound)
+				return
+			}
+			serveDownload(w, r, item, baseURL)
+			return
+		}
+
+		// Bearer JWT (native apps)
+		authHeader := r.Header.Get("Authorization")
+		if !strings.HasPrefix(authHeader, "Bearer ") {
 			http.Error(w, `{"message":"unauthenticated"}`, http.StatusUnauthorized)
 			return
 		}
-		claims, err := tokens.ValidateAccessToken(token)
+		claims, err := tokens.ValidateAccessToken(authHeader[7:])
 		if err != nil {
 			http.Error(w, `{"message":"forbidden"}`, http.StatusForbidden)
 			return
@@ -148,16 +164,20 @@ func downloadHandler(tokens TokenVerifier, libSvc MediaItemGetter, baseURL strin
 		if !checkLibraryAccess(r.Context(), w, claims, item.LibraryID, libraryAccess) {
 			return
 		}
-		fi, err := os.Stat(item.FilePath)
-		if err != nil {
-			http.Error(w, `{"message":"file not found"}`, http.StatusNotFound)
-			return
-		}
-		filename := sanitizeFilename(filepath.Base(item.FilePath))
-		w.Header().Set("Content-Disposition", mime.FormatMediaType("attachment", map[string]string{"filename": filename}))
-		w.Header().Set("Content-Type", "application/octet-stream")
-		w.Header().Set("Content-Length", strconv.FormatInt(fi.Size(), 10))
-		setCORSHeaders(w, r, baseURL)
-		http.ServeFile(w, r, item.FilePath)
+		serveDownload(w, r, item, baseURL)
 	}
+}
+
+func serveDownload(w http.ResponseWriter, r *http.Request, item *library.MediaItem, baseURL string) {
+	fi, err := os.Stat(item.FilePath)
+	if err != nil {
+		http.Error(w, `{"message":"file not found"}`, http.StatusNotFound)
+		return
+	}
+	filename := sanitizeFilename(filepath.Base(item.FilePath))
+	w.Header().Set("Content-Disposition", mime.FormatMediaType("attachment", map[string]string{"filename": filename}))
+	w.Header().Set("Content-Type", "application/octet-stream")
+	w.Header().Set("Content-Length", strconv.FormatInt(fi.Size(), 10))
+	setCORSHeaders(w, r, baseURL)
+	http.ServeFile(w, r, item.FilePath)
 }

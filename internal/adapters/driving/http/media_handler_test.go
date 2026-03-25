@@ -8,6 +8,8 @@ import (
 	"testing"
 	"time"
 
+	media "github.com/gravity-zero/evey/internal/app/media"
+
 	domainlibrary "github.com/gravity-zero/evey/internal/domain/library"
 	domainuser "github.com/gravity-zero/evey/internal/domain/user"
 )
@@ -56,6 +58,7 @@ func testMediaItem(libraryID string) *domainlibrary.MediaItem {
 func TestDownloadHandler_Unauthenticated(t *testing.T) {
 	h := downloadHandler(
 		&fakeTokenVerifier{claims: testClaims(false)},
+		media.NewStreamTokenStore(5*time.Minute),
 		&fakeMediaItemGetter{item: testMediaItem("lib1")},
 		"http://localhost",
 		&fakeLibraryAccessChecker{allowed: true},
@@ -73,6 +76,7 @@ func TestDownloadHandler_Unauthenticated(t *testing.T) {
 func TestDownloadHandler_IDOR_Forbidden(t *testing.T) {
 	h := downloadHandler(
 		&fakeTokenVerifier{claims: testClaims(false)},
+		media.NewStreamTokenStore(5*time.Minute),
 		&fakeMediaItemGetter{item: testMediaItem("lib1")},
 		"http://localhost",
 		&fakeLibraryAccessChecker{allowed: false},
@@ -90,6 +94,7 @@ func TestDownloadHandler_IDOR_Forbidden(t *testing.T) {
 func TestDownloadHandler_Allowed_FileNotFound(t *testing.T) {
 	h := downloadHandler(
 		&fakeTokenVerifier{claims: testClaims(false)},
+		media.NewStreamTokenStore(5*time.Minute),
 		&fakeMediaItemGetter{item: &domainlibrary.MediaItem{ID: "m1", LibraryID: "lib1", FilePath: "/nonexistent_file_xyz.mkv"}},
 		"http://localhost",
 		&fakeLibraryAccessChecker{allowed: true},

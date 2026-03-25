@@ -172,7 +172,7 @@ func (s *HTTPServer) RegisterRoutes(mux *http.ServeMux, gwMux http.Handler) {
 	mux.HandleFunc("GET /api/v1/media/{id}/artwork/{artType}", mh)
 	mux.HandleFunc("POST /api/v1/media/{id}/stream", mh)
 	mux.HandleFunc("POST /api/v1/media/{id}/artwork/{artworkId}/select", selectArtworkHandler(s.TokenGen, s.ArtworkRepo, s.LibQuerySvc, s.LibraryAccessRepo))
-	mux.HandleFunc("GET /api/v1/media/{id}/download", downloadHandler(s.TokenGen, s.LibQuerySvc, s.BaseURL, s.LibraryAccessRepo))
+	mux.HandleFunc("GET /api/v1/media/{id}/download", downloadHandler(s.TokenGen, s.StreamTokenStore, s.LibQuerySvc, s.BaseURL, s.LibraryAccessRepo))
 	mux.HandleFunc("POST /api/v1/media/{id}/stream-token", streamTokenHandler(s.TokenGen, s.StreamTokenStore, s.LibraryAccessRepo, s.LibQuerySvc))
 
 	transcodeThrottle := apptranscoding.NewTranscodeThrottle()
