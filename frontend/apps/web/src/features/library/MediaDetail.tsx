@@ -29,7 +29,6 @@ export function MediaDetail({ item, onMetadataUpdated, initialEdit }: MediaDetai
   const isSeries = item.type === "MEDIA_ITEM_TYPE_SERIES";
   const isSeason = item.type === "MEDIA_ITEM_TYPE_SEASON";
   const isEpisode = item.type === "MEDIA_ITEM_TYPE_EPISODE";
-  const isAdmin = useAuthStore((s) => s.isAdmin);
   const { streamToken, fetchStreamToken } = useStreamToken();
 
   useEffect(() => {

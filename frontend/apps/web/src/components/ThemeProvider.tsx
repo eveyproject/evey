@@ -1,6 +1,6 @@
 import { useEffect, type ReactNode } from "react";
 import { useThemeStore } from "@evey/store";
-import { themes, applyThemeToDOM } from "@evey/theme";
+import { applyThemeToDOM } from "@evey/theme";
 import { loadPluginTheme, unloadAllPluginThemes } from "@/features/plugins/theme-loader";
 import { getPluginIdForTheme } from "./ThemeSelector";
 
