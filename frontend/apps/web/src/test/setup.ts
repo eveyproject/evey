@@ -4,7 +4,7 @@ import { initReactI18next } from "react-i18next";
 import { vi } from "vitest";
 
 // jsdom doesn't provide ResizeObserver
-global.ResizeObserver = class {
+(globalThis as Record<string, unknown>).ResizeObserver = class {
   observe() {}
   unobserve() {}
   disconnect() {}

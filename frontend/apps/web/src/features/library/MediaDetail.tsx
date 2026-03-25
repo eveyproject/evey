@@ -5,7 +5,6 @@ import {
   useLibraryServiceGetMediaItem,
   useLibraryServiceListLibraries,
 } from "@evey/api";
-import { useAuthStore } from "@evey/store";
 import { slugify } from "@/utils/slugify";
 import { PluginSlot } from "@/features/plugins/PluginSlot";
 import { useStreamToken } from "@/hooks/useStreamToken";

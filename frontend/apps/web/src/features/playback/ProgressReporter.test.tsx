@@ -120,7 +120,7 @@ describe("ProgressReporter", () => {
   });
 
   it("clears interval on unmount", async () => {
-    const clearSpy = vi.spyOn(global, "clearInterval");
+    const clearSpy = vi.spyOn(globalThis, "clearInterval");
 
     const { ProgressReporter } = await import("./ProgressReporter");
     const videoRef = createVideoRef();

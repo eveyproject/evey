@@ -50,7 +50,7 @@ describe("CollectionsPage", () => {
 
   it("shows empty state when no collections", async () => {
     const { useCollections } = await import("@/features/collection/api");
-    vi.mocked(useCollections).mockReturnValue({ data: { collections: [] }, isLoading: false } as ReturnType<typeof useCollections>);
+    vi.mocked(useCollections).mockReturnValue({ data: { collections: [] }, isLoading: false } as unknown as ReturnType<typeof useCollections>);
     const mod = await import("./index.lazy");
     const CollectionsPage = (mod.Route as unknown as { component: React.ComponentType }).component;
     render(React.createElement(CollectionsPage), { wrapper: createWrapper() });
@@ -59,7 +59,7 @@ describe("CollectionsPage", () => {
 
   it("renders collection names when data is loaded", async () => {
     const { useCollections } = await import("@/features/collection/api");
-    vi.mocked(useCollections).mockReturnValue({ data: { collections: mockCollections as never }, isLoading: false } as ReturnType<typeof useCollections>);
+    vi.mocked(useCollections).mockReturnValue({ data: { collections: mockCollections as never }, isLoading: false } as unknown as ReturnType<typeof useCollections>);
     const mod = await import("./index.lazy");
     const CollectionsPage = (mod.Route as unknown as { component: React.ComponentType }).component;
     render(React.createElement(CollectionsPage), { wrapper: createWrapper() });
@@ -71,7 +71,7 @@ describe("CollectionsPage", () => {
 
   it("shows initial letter fallback when no posterUrl", async () => {
     const { useCollections } = await import("@/features/collection/api");
-    vi.mocked(useCollections).mockReturnValue({ data: { collections: mockCollections as never }, isLoading: false } as ReturnType<typeof useCollections>);
+    vi.mocked(useCollections).mockReturnValue({ data: { collections: mockCollections as never }, isLoading: false } as unknown as ReturnType<typeof useCollections>);
     const mod = await import("./index.lazy");
     const CollectionsPage = (mod.Route as unknown as { component: React.ComponentType }).component;
     render(React.createElement(CollectionsPage), { wrapper: createWrapper() });
@@ -83,7 +83,7 @@ describe("CollectionsPage", () => {
 
   it("renders Collections heading", async () => {
     const { useCollections } = await import("@/features/collection/api");
-    vi.mocked(useCollections).mockReturnValue({ data: { collections: [] }, isLoading: false } as ReturnType<typeof useCollections>);
+    vi.mocked(useCollections).mockReturnValue({ data: { collections: [] }, isLoading: false } as unknown as ReturnType<typeof useCollections>);
     const mod = await import("./index.lazy");
     const CollectionsPage = (mod.Route as unknown as { component: React.ComponentType }).component;
     render(React.createElement(CollectionsPage), { wrapper: createWrapper() });
@@ -92,7 +92,7 @@ describe("CollectionsPage", () => {
 
   it("renders New smart collection button", async () => {
     const { useCollections } = await import("@/features/collection/api");
-    vi.mocked(useCollections).mockReturnValue({ data: { collections: [] }, isLoading: false } as ReturnType<typeof useCollections>);
+    vi.mocked(useCollections).mockReturnValue({ data: { collections: [] }, isLoading: false } as unknown as ReturnType<typeof useCollections>);
     const mod = await import("./index.lazy");
     const CollectionsPage = (mod.Route as unknown as { component: React.ComponentType }).component;
     render(React.createElement(CollectionsPage), { wrapper: createWrapper() });
@@ -105,7 +105,7 @@ describe("CollectionsPage", () => {
       { id: "s1", name: "Action Movies", rules: [{ field: "genre", operator: "eq", value: "Action" }], createdAt: "", updatedAt: "" },
       { id: "c1", name: "Marvel", posterUrl: null, createdAt: "", updatedAt: "" },
     ];
-    vi.mocked(useCollections).mockReturnValue({ data: { collections: mixed as never }, isLoading: false } as ReturnType<typeof useCollections>);
+    vi.mocked(useCollections).mockReturnValue({ data: { collections: mixed as never }, isLoading: false } as unknown as ReturnType<typeof useCollections>);
     const mod = await import("./index.lazy");
     const CollectionsPage = (mod.Route as unknown as { component: React.ComponentType }).component;
     render(React.createElement(CollectionsPage), { wrapper: createWrapper() });

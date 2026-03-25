@@ -1,5 +1,5 @@
 import { Link } from "@tanstack/react-router";
-import type { V1MediaItem, V1MediaPerson } from "@evey/api";
+import type { V1MediaItem } from "@evey/api";
 import { useTranslation } from "react-i18next";
 import { Pencil } from "lucide-react";
 import { BackButton } from "@/components/ui/BackButton";
