@@ -99,8 +99,8 @@ function Lightbox({ photos, index, onClose, onPrev, onNext, onDelete }: Lightbox
   if (!photo) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/90" onClick={onClose}>
-      <div className="absolute top-4 right-4 flex items-center gap-3 z-10">
+    <div className="fixed inset-0 z-overlay flex items-center justify-center bg-black/90" onClick={onClose}>
+      <div className="absolute top-4 right-4 flex items-center gap-3 z-raised">
         {onDelete && (
           <button
             onClick={(e) => { e.stopPropagation(); onDelete(photo); }}
@@ -124,7 +124,7 @@ function Lightbox({ photos, index, onClose, onPrev, onNext, onDelete }: Lightbox
       {index > 0 && (
         <button
           onClick={(e) => { e.stopPropagation(); onPrev(); }}
-          className="absolute left-4 top-1/2 -translate-y-1/2 transition-colors z-10 p-2 rounded-full bg-black/40 hover:bg-black/60"
+          className="absolute left-4 top-1/2 -translate-y-1/2 transition-colors z-raised p-2 rounded-full bg-black/40 hover:bg-black/60"
           style={{ color: "var(--overlay-text)" }}
           aria-label="Previous"
         >
@@ -135,7 +135,7 @@ function Lightbox({ photos, index, onClose, onPrev, onNext, onDelete }: Lightbox
       {index < photos.length - 1 && (
         <button
           onClick={(e) => { e.stopPropagation(); onNext(); }}
-          className="absolute right-4 top-1/2 -translate-y-1/2 transition-colors z-10 p-2 rounded-full bg-black/40 hover:bg-black/60"
+          className="absolute right-4 top-1/2 -translate-y-1/2 transition-colors z-raised p-2 rounded-full bg-black/40 hover:bg-black/60"
           style={{ color: "var(--overlay-text)" }}
           aria-label="Next"
         >

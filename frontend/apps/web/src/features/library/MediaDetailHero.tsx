@@ -28,7 +28,7 @@ export function MediaDetailHero({
 
   return (
     <div className="relative w-full overflow-hidden -mx-4 sm:-mx-6 -mt-4 sm:-mt-6 mb-0" style={{ height: "clamp(260px, 50vw, 420px)" }}>
-      <div className="absolute top-0 left-0 right-0 z-10 px-4 sm:px-6 pt-4 sm:pt-5" style={{ background: `linear-gradient(to bottom, var(--overlay-scrim) 0%, var(--overlay-chip-bg) 60%, transparent 100%)`, textShadow: `0 1px 6px var(--overlay-scrim)` }}>
+      <div className="absolute top-0 left-0 right-0 z-raised px-4 sm:px-6 pt-4 sm:pt-5" style={{ background: `linear-gradient(to bottom, var(--overlay-scrim) 0%, var(--overlay-chip-bg) 60%, transparent 100%)`, textShadow: `0 1px 6px var(--overlay-scrim)` }}>
         <BackButton fallback="/library" className="mb-1 !text-white hover:!text-white/80" />
         <Breadcrumbs items={breadcrumbItems} />
       </div>

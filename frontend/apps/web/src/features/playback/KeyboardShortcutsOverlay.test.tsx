@@ -14,7 +14,7 @@ describe("KeyboardShortcutsOverlay", () => {
 
   it("does not render when closed", () => {
     const { container } = render(<div id="wrapper" />);
-    expect(container.querySelector("[class*='z-50']")).not.toBeInTheDocument();
+    expect(container.querySelector("[class*='z-overlay']")).not.toBeInTheDocument();
     expect(screen.queryByText("Keyboard Shortcuts")).not.toBeInTheDocument();
   });
 

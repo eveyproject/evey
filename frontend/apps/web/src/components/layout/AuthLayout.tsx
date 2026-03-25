@@ -39,7 +39,7 @@ export function AuthLayout({ children }: AuthLayoutProps) {
 
       {/* Mobile sidebar overlay */}
       {sidebarOpen && (
-        <div className="fixed inset-0 z-40 md:hidden">
+        <div className="fixed inset-0 z-sidebar md:hidden">
           <div
             className="absolute inset-0 bg-black/50"
             onClick={() => setSidebarOpen(false)}
@@ -48,7 +48,7 @@ export function AuthLayout({ children }: AuthLayoutProps) {
             tabIndex={0}
             onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") setSidebarOpen(false); }}
           />
-          <div className="relative z-50 h-full w-56">
+          <div className="relative z-overlay h-full w-56">
             <Sidebar onNavigate={() => setSidebarOpen(false)} />
           </div>
         </div>
@@ -79,7 +79,7 @@ export function AuthLayout({ children }: AuthLayoutProps) {
       {/* Bottom navigation — mobile only */}
       <nav
         aria-label={t("common.aria.bottomNav")}
-        className="md:hidden fixed bottom-0 left-0 right-0 z-50 flex items-center justify-around bg-[var(--surface)] border-t border-[var(--border)] h-16"
+        className="md:hidden fixed bottom-0 left-0 right-0 z-overlay flex items-center justify-around bg-[var(--surface)] border-t border-[var(--border)] h-16"
       >
         {bottomNavItems.map(({ to, labelKey, icon: Icon }) => {
           const active = location.pathname === to || location.pathname.startsWith(to + "/")

@@ -28,7 +28,7 @@ export function ChapterMarkers({ chapters, durationSec, onSeek }: ChapterMarkers
               e.stopPropagation();
               onSeek(startSec);
             }}
-            className="absolute top-0 bottom-0 -translate-x-1/2 flex items-center justify-center z-30 cursor-pointer"
+            className="absolute top-0 bottom-0 -translate-x-1/2 flex items-center justify-center z-float cursor-pointer"
             style={{ left: `${pct}%`, width: 12 }}
           >
             <span

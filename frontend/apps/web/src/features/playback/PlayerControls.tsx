@@ -49,7 +49,7 @@ function EpisodesPanel({ seasons, currentSeasonId, episodes, currentEpisodeId, o
       </button>
       {open && (
         <div
-          className="absolute bottom-full mb-2 right-0 w-72 rounded-[var(--radius-md)] shadow-xl overflow-hidden z-20"
+          className="absolute bottom-full mb-2 right-0 w-72 rounded-[var(--radius-md)] shadow-xl overflow-hidden z-badge"
           style={{ backgroundColor: "var(--surface)", border: "1px solid var(--border)" }}
           onClick={(e) => e.stopPropagation()}
         >
@@ -113,7 +113,7 @@ function ChaptersPanel({ chapters, currentTimeSec, onSeek, open, onToggle }: Cha
       </button>
       {open && (
         <div
-          className="absolute bottom-full mb-2 right-0 w-72 rounded-[var(--radius-md)] shadow-xl overflow-hidden z-20"
+          className="absolute bottom-full mb-2 right-0 w-72 rounded-[var(--radius-md)] shadow-xl overflow-hidden z-badge"
           style={{ backgroundColor: "var(--surface)", border: "1px solid var(--border)" }}
           onClick={(e) => e.stopPropagation()}
         >
@@ -342,7 +342,7 @@ function SettingsPanel({
 
       {open && (
         <div
-          className="absolute bottom-full mb-2 right-0 w-56 rounded-[var(--radius-md)] shadow-xl overflow-y-auto z-20 max-h-[80vh]"
+          className="absolute bottom-full mb-2 right-0 w-56 rounded-[var(--radius-md)] shadow-xl overflow-y-auto z-badge max-h-[80vh]"
           style={{ backgroundColor: "var(--surface)", border: "1px solid var(--border)" }}
           onClick={(e) => e.stopPropagation()}
         >
@@ -1034,7 +1034,7 @@ export function PlayerControls({
             step={0.5}
             value={absoluteTime}
             onChange={handleSeek}
-            className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
+            className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-raised"
             aria-label={t("player.controls.seek")}
           />
         </div>

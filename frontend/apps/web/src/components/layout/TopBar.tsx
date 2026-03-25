@@ -73,7 +73,7 @@ function UserMenu({ userInitial }: { userInitial: string }) {
         {userInitial}
       </button>
       {open && (
-        <div className="absolute right-0 top-full mt-2 w-48 rounded-[var(--radius-md)] bg-[var(--surface-raised)] border border-[var(--border)] shadow-lg py-1 z-50 animate-fade-in">
+        <div className="absolute right-0 top-full mt-2 w-48 rounded-[var(--radius-md)] bg-[var(--surface-raised)] border border-[var(--border)] shadow-lg py-1 z-overlay animate-fade-in">
           {items.map((item) => (
             <button
               key={item.label}
@@ -182,7 +182,7 @@ export function TopBar() {
     >
       <div className="flex-1">
         <div className="relative w-full max-w-80">
-          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[var(--text-muted)] pointer-events-none z-10" size={16} />
+          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[var(--text-muted)] pointer-events-none z-raised" size={16} />
           <input
             ref={inputRef}
             type="search"

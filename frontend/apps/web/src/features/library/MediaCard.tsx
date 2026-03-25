@@ -57,7 +57,7 @@ const HoverPreview = memo(function HoverPreview({ item }: { item: MediaCardItem 
 
   return (
     <div
-      className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 w-56 rounded-lg p-3 shadow-xl z-50 pointer-events-none transition-opacity duration-200 hidden sm:block"
+      className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 w-56 rounded-lg p-3 shadow-xl z-overlay pointer-events-none transition-opacity duration-200 hidden sm:block"
       style={{
         backgroundColor: "var(--surface)",
         border: "1px solid var(--border)",
@@ -217,7 +217,7 @@ const CardContextMenu = memo(function CardContextMenu({
   return (
     <div
       ref={ref}
-      className="fixed z-[100] min-w-[160px] py-1 rounded-[var(--radius-md)] shadow-xl"
+      className="fixed z-popover min-w-[160px] py-1 rounded-[var(--radius-md)] shadow-xl"
       style={{
         left: position.x,
         top: position.y,
@@ -417,7 +417,7 @@ export const MediaCard = memo(function MediaCard({
 
         {watched && (
           <span
-            className="absolute z-20 flex items-center justify-center"
+            className="absolute z-badge flex items-center justify-center"
             style={{
               top: "0.5rem",
               right: showYear && item.year !== undefined ? "3.5rem" : "0.5rem",
@@ -434,7 +434,7 @@ export const MediaCard = memo(function MediaCard({
 
         {item.communityRating != null && item.communityRating > 0 && (
           <span
-            className="absolute z-20 flex items-center gap-0.5 text-[10px] font-bold px-1 py-0.5 leading-none"
+            className="absolute z-badge flex items-center gap-0.5 text-[10px] font-bold px-1 py-0.5 leading-none"
             style={{
               bottom: hasProgressBar ? "0.75rem" : "0.5rem",
               right: "0.5rem",
@@ -450,7 +450,7 @@ export const MediaCard = memo(function MediaCard({
 
         {(resolution || isHdr) && (
           <div
-            className="absolute z-20 flex items-center gap-1"
+            className="absolute z-badge flex items-center gap-1"
             style={{ bottom: hasProgressBar ? "0.75rem" : "0.5rem", left: "0.5rem" }}
           >
             {resolution && (
@@ -486,7 +486,7 @@ export const MediaCard = memo(function MediaCard({
           <button
             aria-label={selected ? "Deselect" : "Select"}
             onClick={(e) => { e.preventDefault(); e.stopPropagation(); onSelect?.(item.id!, !selected); }}
-            className={`absolute top-2 left-2 z-20 flex items-center justify-center w-5 h-5 rounded transition-colors${selectionMode && !selected ? " opacity-0 group-hover:opacity-100 group-focus-within:opacity-100" : ""}`}
+            className={`absolute top-2 left-2 z-badge flex items-center justify-center w-5 h-5 rounded transition-colors${selectionMode && !selected ? " opacity-0 group-hover:opacity-100 group-focus-within:opacity-100" : ""}`}
             style={{
               backgroundColor: selected ? "var(--accent)" : "var(--overlay-gradient)",
               border: `2px solid ${selected ? "var(--accent)" : "var(--overlay-text-muted)"}`,
@@ -497,7 +497,7 @@ export const MediaCard = memo(function MediaCard({
             )}
           </button>
         ) : (item.id && !lite) ? (
-          <div className="absolute top-2 left-2 z-20 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity duration-200">
+          <div className="absolute top-2 left-2 z-badge opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity duration-200">
             <FavoriteButton mediaId={item.id} size="sm" />
           </div>
         ) : null}
@@ -510,7 +510,7 @@ export const MediaCard = memo(function MediaCard({
             aria-label="Options"
             aria-haspopup="true"
             aria-expanded={ctxMenu !== null}
-            className="absolute top-2 right-2 z-20 opacity-0 group-hover:opacity-100 focus:opacity-100 p-1 rounded bg-black/60 text-[var(--overlay-text)]"
+            className="absolute top-2 right-2 z-badge opacity-0 group-hover:opacity-100 focus:opacity-100 p-1 rounded bg-black/60 text-[var(--overlay-text)]"
             style={{ lineHeight: 1 }}
             onClick={(e) => {
               e.preventDefault();
@@ -551,7 +551,7 @@ export const MediaCard = memo(function MediaCard({
 
         {hasProgressBar && (
           <div
-            className="absolute bottom-0 left-0 right-0 h-1.5 z-10"
+            className="absolute bottom-0 left-0 right-0 h-1.5 z-raised"
             style={{ backgroundColor: "var(--overlay-bg)" }}
           >
             <div

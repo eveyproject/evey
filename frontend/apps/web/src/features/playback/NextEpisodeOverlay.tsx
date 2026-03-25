@@ -77,7 +77,7 @@ export function NextEpisodeOverlay({
     : t("player.nextEpisodeOverlay.nextEpisode");
 
   return (
-    <div className="absolute bottom-24 right-4 z-30 rounded-lg p-4 max-w-xs animate-in fade-in slide-in-from-right"
+    <div className="absolute bottom-24 right-4 z-float rounded-lg p-4 max-w-xs animate-in fade-in slide-in-from-right"
       style={{ backgroundColor: "var(--overlay-scrim)", border: "1px solid var(--border)" }}
     >
       <p className="text-xs uppercase tracking-wider mb-1" style={{ color: "var(--text-muted)" }}>

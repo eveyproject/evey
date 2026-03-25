@@ -46,7 +46,7 @@ function TrailerPlayer({ trailer, userLang }: { trailer: V1Trailer; userLang: st
 
       {open && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center p-4"
+          className="fixed inset-0 z-overlay flex items-center justify-center p-4"
           style={{ backgroundColor: "var(--overlay-scrim)" }}
           onClick={() => setOpen(false)}
         >
