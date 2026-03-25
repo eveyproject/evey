@@ -212,7 +212,7 @@ export function WatchHistory({ limit, showClearButton = false }: Props) {
         </div>
       )}
 
-      <div ref={parentRef} style={{ maxHeight: "70vh", overflow: "auto" }}>
+      <div ref={parentRef} className="max-h-[70vh] overflow-auto">
         <div style={{ height: virtualizer.getTotalSize(), width: "100%", position: "relative" }}>
           {virtualizer.getVirtualItems().map((vItem) => {
             const row = virtualRows[vItem.index];

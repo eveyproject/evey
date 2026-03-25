@@ -26,68 +26,30 @@ export class ErrorBoundary extends Component<Props, State> {
 
     return (
       <div
-        style={{
-          minHeight: "100vh",
-          display: "flex",
-          flexDirection: "column",
-          alignItems: "center",
-          justifyContent: "center",
-          gap: "1.5rem",
-          padding: "2rem",
-          backgroundColor: "var(--bg, #111)",
-          color: "var(--text, #ccc)",
-          fontFamily: "var(--font-family, system-ui, -apple-system, sans-serif)",
-        }}
+        className="min-h-screen flex flex-col items-center justify-center gap-6 p-8 bg-[var(--bg,#111)] text-[var(--text,#ccc)]"
+        style={{ fontFamily: "var(--font-family, system-ui, -apple-system, sans-serif)" }}
       >
-        <div
-          style={{
-            width: 64,
-            height: 64,
-            borderRadius: "50%",
-            backgroundColor: "var(--error-bg-subtle)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-          }}
-        >
+        <div className="w-16 h-16 rounded-full bg-[var(--error-bg-subtle)] flex items-center justify-center">
           <TriangleAlert size={32} stroke="var(--color-danger, #ef4444)" strokeWidth={1.5} />
         </div>
-        <h1 style={{ fontSize: "1.5rem", fontWeight: 600, color: "var(--text, #fff)", margin: 0 }}>
+        <h1 className="text-2xl font-semibold text-[var(--text,#fff)] m-0">
           {i18n.t("common.errorBoundary.title")}
         </h1>
-        <p style={{ fontSize: "0.875rem", maxWidth: "28rem", textAlign: "center", color: "var(--text-muted, #999)", margin: 0, lineHeight: 1.6 }}>
+        <p className="text-sm max-w-md text-center text-[var(--text-muted,#999)] m-0 leading-relaxed">
           {i18n.t("common.errorBoundary.description")}
         </p>
-        <div style={{ display: "flex", gap: "0.75rem", marginTop: "0.5rem" }}>
+        <div className="flex gap-3 mt-2">
           <button
             onClick={() => window.location.reload()}
             aria-label={i18n.t("common.aria.reloadPage")}
-            style={{
-              padding: "0.625rem 1.5rem",
-              fontSize: "0.875rem",
-              fontWeight: 500,
-              borderRadius: "0.5rem",
-              backgroundColor: "var(--accent, #6366f1)",
-              color: "var(--overlay-text)",
-              border: "none",
-              cursor: "pointer",
-            }}
+            className="px-6 py-2.5 text-sm font-medium rounded-lg bg-[var(--accent,#6366f1)] text-[var(--overlay-text)] border-none cursor-pointer"
           >
             {i18n.t("common.errorBoundary.tryAgain")}
           </button>
           <button
             onClick={() => { window.location.replace("/"); }}
             aria-label={i18n.t("common.aria.goToHome")}
-            style={{
-              padding: "0.625rem 1.5rem",
-              fontSize: "0.875rem",
-              fontWeight: 500,
-              borderRadius: "0.5rem",
-              backgroundColor: "transparent",
-              color: "var(--text-muted, #999)",
-              border: "1px solid var(--border, #333)",
-              cursor: "pointer",
-            }}
+            className="px-6 py-2.5 text-sm font-medium rounded-lg bg-transparent text-[var(--text-muted,#999)] border border-[var(--border,#333)] cursor-pointer"
           >
             {i18n.t("common.errorBoundary.goHome")}
           </button>

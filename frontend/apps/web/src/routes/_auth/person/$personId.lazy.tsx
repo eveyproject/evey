@@ -69,7 +69,7 @@ function PersonPage() {
 
   if (!personId) {
     return (
-      <div className="text-center py-16" style={{ color: "var(--text-muted)" }}>
+      <div className="text-center py-16 text-[var(--text-muted)]">
         {t("media.person.notFound")}
       </div>
     );
@@ -92,8 +92,7 @@ function PersonPage() {
 
       <div className="flex items-start gap-6 mb-10">
         <div
-          className="w-32 h-32 rounded-full overflow-hidden flex-shrink-0 flex items-center justify-center"
-          style={{ backgroundColor: "var(--surface-raised)" }}
+          className="w-32 h-32 rounded-full overflow-hidden flex-shrink-0 flex items-center justify-center bg-[var(--surface-raised)]"
         >
           {thumbUrl ? (
             <img
@@ -110,21 +109,21 @@ function PersonPage() {
             />
           ) : null}
           <span
-            className="text-4xl font-bold items-center justify-center"
-            style={{ color: "var(--text-muted)", display: thumbUrl ? "none" : "flex" }}
+            className="text-4xl font-bold items-center justify-center text-[var(--text-muted)]"
+            style={{ display: thumbUrl ? "none" : "flex" }}
           >
             {initial}
           </span>
         </div>
         <div className="flex-1 min-w-0 pt-2">
-          <h1 className="text-3xl font-bold mb-2" style={{ color: "var(--text)" }}>{name}</h1>
+          <h1 className="text-3xl font-bold mb-2 text-[var(--text)]">{name}</h1>
           <div className="flex flex-wrap gap-2 mb-3">
             {roles.map((r) => (
               <Badge key={r} variant="info">{t(ROLE_KEYS[r] ?? "media.person.other")}</Badge>
             ))}
           </div>
           {!isLoading && (
-            <p className="text-sm" style={{ color: "var(--text-muted)" }}>
+            <p className="text-sm text-[var(--text-muted)]">
               {entries.length === 1
                 ? t("media.person.titleCount", { count: entries.length })
                 : t("media.person.titleCount_plural", { count: entries.length })}
@@ -140,16 +139,16 @@ function PersonPage() {
       )}
 
       {!isLoading && entries.length === 0 && (
-        <div className="text-center py-16" style={{ color: "var(--text-muted)" }}>
+        <div className="text-center py-16 text-[var(--text-muted)]">
           {t("media.person.noFilmography")}
         </div>
       )}
 
       {Array.from(byRole.entries()).map(([role, items]) => (
         <section key={role} className="mb-10">
-          <h2 className="text-lg font-semibold mb-4" style={{ color: "var(--text)" }}>
+          <h2 className="text-lg font-semibold mb-4 text-[var(--text)]">
             {t(ROLE_KEYS[role] ?? "media.person.other")}
-            <span className="text-sm font-normal ml-2" style={{ color: "var(--text-muted)" }}>
+            <span className="text-sm font-normal ml-2 text-[var(--text-muted)]">
               ({items.length})
             </span>
           </h2>
@@ -158,7 +157,7 @@ function PersonPage() {
               <div key={item.id} className="relative">
                 <MediaCard item={item} lite />
                 {person.role && (
-                  <p className="text-xs mt-1 truncate px-0.5" style={{ color: "var(--text-muted)" }}>
+                  <p className="text-xs mt-1 truncate px-0.5 text-[var(--text-muted)]">
                     {t("media.person.asRole", { role: person.role })}
                   </p>
                 )}

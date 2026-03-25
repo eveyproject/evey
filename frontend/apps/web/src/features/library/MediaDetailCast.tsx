@@ -11,8 +11,7 @@ function CastCard({ person }: { person: V1MediaPerson }) {
   return (
     <Link to="/person/$personId" params={{ personId: person.id ?? "" }} className="flex-shrink-0 w-28 text-center group">
       <div
-        className="w-20 h-20 rounded-full mx-auto overflow-hidden flex items-center justify-center mb-2 transition-transform-fast group-hover:scale-105"
-        style={{ backgroundColor: "var(--surface-raised)" }}
+        className="w-20 h-20 rounded-full mx-auto overflow-hidden flex items-center justify-center mb-2 transition-transform-fast group-hover:scale-105 bg-[var(--surface-raised)]"
       >
         {person.thumbUrl ? (
           <img
@@ -29,19 +28,19 @@ function CastCard({ person }: { person: V1MediaPerson }) {
           />
         ) : null}
         <span
-          className="text-xl font-bold"
-          style={{ color: "var(--text-muted)", display: person.thumbUrl ? "none" : "flex" }}
+          className="text-xl font-bold text-[var(--text-muted)]"
+          style={{ display: person.thumbUrl ? "none" : "flex" }}
         >
           {initial}
         </span>
       </div>
-      <p className="text-xs font-medium truncate group-hover:underline" style={{ color: "var(--text)" }}>
+      <p className="text-xs font-medium truncate group-hover:underline text-[var(--text)]">
         {person.name}
       </p>
       {person.role ? (
-        <p className="text-xs truncate" style={{ color: "var(--text-muted)" }}>{person.role}</p>
+        <p className="text-xs truncate text-[var(--text-muted)]">{person.role}</p>
       ) : personType && personType !== "ACTOR" ? (
-        <p className="text-xs truncate" style={{ color: "var(--text-muted)" }}>{roleLabel}</p>
+        <p className="text-xs truncate text-[var(--text-muted)]">{roleLabel}</p>
       ) : null}
     </Link>
   );
@@ -61,13 +60,13 @@ export function CastCarousel({ people, title }: { people: V1MediaPerson[]; title
   return (
     <div className="mt-10">
       <div className="flex items-center justify-between mb-4">
-        <h2 className="text-lg font-semibold" style={{ color: "var(--text)" }}>{title}</h2>
+        <h2 className="text-lg font-semibold text-[var(--text)]">{title}</h2>
         {people.length > 6 && (
           <div className="flex gap-1">
-            <button onClick={() => scroll("left")} className="p-1.5 rounded-full hover:bg-[var(--surface-raised)] transition-colors-fast" style={{ color: "var(--text-muted)" }}>
+            <button onClick={() => scroll("left")} className="p-1.5 rounded-full hover:bg-[var(--surface-raised)] transition-colors-fast text-[var(--text-muted)]">
               <ChevronLeft size={16} />
             </button>
-            <button onClick={() => scroll("right")} className="p-1.5 rounded-full hover:bg-[var(--surface-raised)] transition-colors-fast" style={{ color: "var(--text-muted)" }}>
+            <button onClick={() => scroll("right")} className="p-1.5 rounded-full hover:bg-[var(--surface-raised)] transition-colors-fast text-[var(--text-muted)]">
               <ChevronRight size={16} />
             </button>
           </div>

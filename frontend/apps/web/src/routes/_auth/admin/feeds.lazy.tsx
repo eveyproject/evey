@@ -109,8 +109,7 @@ function AdminFeedsPage() {
           <button
             onClick={save}
             disabled={saving}
-            className="px-4 py-2 rounded-[var(--radius-md)] text-sm font-medium transition-opacity-fast hover:opacity-90 disabled:opacity-50"
-            style={{ backgroundColor: "var(--accent)", color: "var(--filter-active-text)" }}
+            className="px-4 py-2 rounded-[var(--radius-md)] text-sm font-medium transition-opacity-fast hover:opacity-90 disabled:opacity-50 bg-[var(--accent)] text-[var(--filter-active-text)]"
           >
             {saving ? t("common.loading") : t("common.save")}
           </button>
@@ -118,12 +117,10 @@ function AdminFeedsPage() {
       </div>
 
       <div
-        className="rounded-[var(--radius-lg)] overflow-hidden border"
-        style={{ borderColor: "var(--border)", backgroundColor: "var(--surface)" }}
+        className="rounded-[var(--radius-lg)] overflow-hidden border border-[var(--border)] bg-[var(--surface)]"
       >
         <div
-          className="grid grid-cols-[24px_1fr_80px_80px] gap-2 px-4 py-2 text-xs font-semibold uppercase tracking-wider"
-          style={{ color: "var(--text-muted)", borderBottom: "1px solid var(--border)" }}
+          className="grid grid-cols-[24px_1fr_80px_80px] gap-2 px-4 py-2 text-xs font-semibold uppercase tracking-wider text-[var(--text-muted)] border-b border-[var(--border)]"
         >
           <span />
           <span>{t("common.feeds.section")}</span>
@@ -145,7 +142,7 @@ function AdminFeedsPage() {
               opacity: dragIdx === i ? 0.5 : 1,
             }}
           >
-            <GripVertical size={16} className="cursor-grab active:cursor-grabbing" style={{ color: "var(--text-muted)" }} />
+            <GripVertical size={16} className="cursor-grab active:cursor-grabbing text-[var(--text-muted)]" />
 
             <span className="text-sm font-medium select-none" style={{ color: row.enabled ? "var(--text)" : "var(--text-muted)" }}>
               {feedLabel(t, row.feedType)}
@@ -172,12 +169,7 @@ function AdminFeedsPage() {
                 max={100}
                 value={row.maxItems}
                 onChange={(e) => setMaxItems(i, Math.max(1, Number(e.target.value)))}
-                className="w-14 text-center text-sm py-0.5 rounded-[var(--radius-sm)] border"
-                style={{
-                  backgroundColor: "var(--bg)",
-                  borderColor: "var(--border)",
-                  color: "var(--text)",
-                }}
+                className="w-14 text-center text-sm py-0.5 rounded-[var(--radius-sm)] border bg-[var(--bg)] border-[var(--border)] text-[var(--text)]"
               />
             </div>
           </div>

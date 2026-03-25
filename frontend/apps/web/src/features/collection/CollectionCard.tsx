@@ -20,12 +20,7 @@ export function CollectionCard({ collection }: CollectionCardProps) {
       data-testid="collection-card"
     >
       <div
-        className="relative w-full overflow-hidden transition-all duration-200 ease-out group-hover:scale-105"
-        style={{
-          aspectRatio: "2/3",
-          borderRadius: "var(--radius-md)",
-          boxShadow: "var(--shadow-sm)",
-        }}
+        className="relative w-full overflow-hidden transition-all duration-200 ease-out group-hover:scale-105 aspect-[2/3] rounded-[var(--radius-md)] shadow-[var(--shadow-sm)]"
       >
         {collection.posterUrl && !imgError ? (
           <img
@@ -41,8 +36,7 @@ export function CollectionCard({ collection }: CollectionCardProps) {
 
         {(!collection.posterUrl || imgError) && (
           <div
-            className="absolute inset-0 flex items-center justify-center text-2xl font-bold"
-            style={{ backgroundColor: "var(--surface-raised)", color: "var(--text-muted)" }}
+            className="absolute inset-0 flex items-center justify-center text-2xl font-bold bg-[var(--surface-raised)] text-[var(--text-muted)]"
           >
             {initial}
           </div>
@@ -54,15 +48,14 @@ export function CollectionCard({ collection }: CollectionCardProps) {
         />
 
         <div
-          className="absolute inset-0 flex flex-col items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity-fast duration-200"
-          style={{ background: "var(--overlay-chip-bg)" }}
+          className="absolute inset-0 flex flex-col items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity-fast duration-200 bg-[var(--overlay-chip-bg)]"
         >
           <LayoutGrid size={40} stroke="var(--overlay-text-bright)" strokeWidth={1.5} aria-hidden="true" />
         </div>
       </div>
 
       <div className="mt-2 px-0.5">
-        <p className="text-sm font-medium truncate" style={{ color: "var(--text)" }}>
+        <p className="text-sm font-medium truncate text-[var(--text)]">
           {collection.name}
         </p>
       </div>

@@ -10,21 +10,20 @@ function StreamRow({ stream }: { stream: V1MediaStream }) {
   const { t } = useTranslation();
   return (
     <div
-      className="flex items-center gap-3 py-2 px-3 rounded-[var(--radius-sm)]"
-      style={{ backgroundColor: "var(--surface-raised)" }}
+      className="flex items-center gap-3 py-2 px-3 rounded-[var(--radius-sm)] bg-[var(--surface-raised)]"
     >
       {stream.codec && (
-        <span className="text-xs font-mono uppercase" style={{ color: "var(--text)" }}>
+        <span className="text-xs font-mono uppercase text-[var(--text)]">
           {stream.codec}
         </span>
       )}
       {stream.language && (
-        <span className="text-xs uppercase" style={{ color: "var(--text-muted)" }}>
+        <span className="text-xs uppercase text-[var(--text-muted)]">
           {stream.language}
         </span>
       )}
       {stream.title && (
-        <span className="text-xs flex-1 truncate" style={{ color: "var(--text-muted)" }}>
+        <span className="text-xs flex-1 truncate text-[var(--text-muted)]">
           {stream.title}
         </span>
       )}
@@ -46,7 +45,7 @@ export function StreamList({ streams }: StreamListProps) {
     <div className="space-y-4">
       {audio.length > 0 && (
         <div>
-          <h3 className="text-sm font-semibold mb-2" style={{ color: "var(--text-muted)" }}>
+          <h3 className="text-sm font-semibold mb-2 text-[var(--text-muted)]">
             {t("media.streams.audio")}
           </h3>
           <div className="space-y-1">
@@ -58,7 +57,7 @@ export function StreamList({ streams }: StreamListProps) {
       )}
       {subtitles.length > 0 && (
         <div>
-          <h3 className="text-sm font-semibold mb-2" style={{ color: "var(--text-muted)" }}>
+          <h3 className="text-sm font-semibold mb-2 text-[var(--text-muted)]">
             {t("media.streams.subtitles")}
           </h3>
           <div className="space-y-1">

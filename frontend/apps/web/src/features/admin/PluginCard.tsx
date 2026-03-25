@@ -64,7 +64,7 @@ function SchemaField({
 }) {
   if (schema.type === "boolean") {
     return (
-      <label className="flex items-center gap-2 text-sm" style={{ color: "var(--text)" }}>
+      <label className="flex items-center gap-2 text-sm text-[var(--text)]">
         <input
           type="checkbox"
           checked={value === "true"}
@@ -73,7 +73,7 @@ function SchemaField({
         />
         <span>{fieldKey}</span>
         {schema.description && (
-          <span className="text-xs" style={{ color: "var(--text-muted)" }}>{schema.description}</span>
+          <span className="text-xs text-[var(--text-muted)]">{schema.description}</span>
         )}
       </label>
     );
@@ -128,7 +128,7 @@ function PluginConfigPanel({ pluginId, configSchema }: PluginConfigPanelProps) {
 
   if (keys.length === 0) {
     return (
-      <p className="text-xs py-2" style={{ color: "var(--text-muted)" }}>
+      <p className="text-xs py-2 text-[var(--text-muted)]">
         {t("admin.plugin.noConfig")}
       </p>
     );
@@ -197,10 +197,10 @@ export function PluginCard({ plugin, onEnable, onDisable, onUninstall }: PluginC
     <Card className="flex flex-col gap-3">
       <div className="flex items-start justify-between gap-2">
         <div className="flex flex-col gap-0.5 min-w-0">
-          <span className="font-semibold truncate" style={{ color: "var(--text)" }}>
+          <span className="font-semibold truncate text-[var(--text)]">
             {plugin.name}
           </span>
-          <span className="text-xs" style={{ color: "var(--text-muted)" }}>
+          <span className="text-xs text-[var(--text-muted)]">
             v{plugin.version} — {plugin.language}
           </span>
         </div>
@@ -221,7 +221,7 @@ export function PluginCard({ plugin, onEnable, onDisable, onUninstall }: PluginC
       </div>
 
       {plugin.description && (
-        <p className="text-sm" style={{ color: "var(--text-muted)" }}>
+        <p className="text-sm text-[var(--text-muted)]">
           {plugin.description}
         </p>
       )}
@@ -246,10 +246,9 @@ export function PluginCard({ plugin, onEnable, onDisable, onUninstall }: PluginC
 
       {showConfig && plugin.id && (
         <div
-          className="border-t pt-3 mt-1"
-          style={{ borderColor: "var(--border)" }}
+          className="border-t pt-3 mt-1 border-[var(--border)]"
         >
-          <p className="text-xs font-semibold mb-2" style={{ color: "var(--text-muted)" }}>
+          <p className="text-xs font-semibold mb-2 text-[var(--text-muted)]">
             {t("admin.plugin.configuration")}
           </p>
           <PluginConfigPanel pluginId={plugin.id} />
