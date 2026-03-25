@@ -99,10 +99,10 @@ func TestShareService_Create_InvalidDuration(t *testing.T) {
 	svc := media.NewShareService(repo)
 
 	_, err := svc.Create(context.Background(), "media-1", "admin-1", 0, nil)
-	assert.Error(t, err)
+	require.Error(t, err)
 
 	_, err = svc.Create(context.Background(), "media-1", "admin-1", 100*time.Hour, nil)
-	assert.Error(t, err)
+	require.Error(t, err)
 }
 
 func TestShareService_Validate_Expired(t *testing.T) {
@@ -115,7 +115,7 @@ func TestShareService_Validate_Expired(t *testing.T) {
 	link.ExpiresAt = time.Now().Add(-1 * time.Minute)
 
 	_, err := svc.Validate(ctx, link.Token)
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "expired")
 }
 
@@ -134,7 +134,7 @@ func TestShareService_Validate_ViewLimit(t *testing.T) {
 	require.NoError(t, err)
 
 	_, err = svc.Validate(ctx, link.Token)
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "view limit")
 }
 

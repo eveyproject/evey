@@ -211,7 +211,7 @@ func TestUninstallPlugin_StopsRunning(t *testing.T) {
 	require.NoError(t, pluginRepo.Create(ctx, &plugindomain.Plugin{
 		ID: "plg-run", Name: "running-uni", Language: "go", Status: string(plugindomain.Running), Enabled: true,
 	}))
-	runner.Start(ctx, &plugindomain.Plugin{ID: "plg-run"}) //nolint:errcheck
+	_ = runner.Start(ctx, &plugindomain.Plugin{ID: "plg-run"})
 
 	err := svc.UninstallPlugin(ctx, "plg-run")
 	require.NoError(t, err)

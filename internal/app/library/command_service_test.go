@@ -1670,5 +1670,5 @@ func TestUpsertMediaFile_ExistingChanged_UpdatesParentID(t *testing.T) {
 	require.NoError(t, err)
 
 	item, _ := h.mediaItems.GetByID(context.Background(), "item-1")
-	assert.Equal(t, "", item.ParentID, "movie scan passes empty parentID")
+	assert.Empty(t, item.ParentID, "movie scan passes empty parentID")
 }

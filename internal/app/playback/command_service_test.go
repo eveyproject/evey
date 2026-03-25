@@ -102,7 +102,7 @@ func TestStartStream_UserNotFound(t *testing.T) {
 	pfr.Create(ctx, &user.Profile{ID: "p1", UserID: "u1"})
 
 	err := cmd.StartStream(ctx, &playback.PlaySession{ID: "s1", ProfileID: "p1", MediaItemID: "m1"}, "u1")
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "get user")
 }
 
@@ -116,7 +116,7 @@ func TestStartStream_MaxStreamsNil_NoLimit(t *testing.T) {
 		err := cmd.StartStream(ctx, &playback.PlaySession{
 			ID: "s" + string(rune('0'+i)), ProfileID: "p1", MediaItemID: "m1",
 		}, "u1")
-		assert.NoError(t, err)
+		require.NoError(t, err)
 	}
 }
 
@@ -128,9 +128,9 @@ func TestStartStream_MaxStreamsZero_NoLimit(t *testing.T) {
 	seedUserProfile(ctx, ur, pfr, &zero)
 
 	err := cmd.StartStream(ctx, &playback.PlaySession{ID: "s1", ProfileID: "p1", MediaItemID: "m1"}, "u1")
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	err = cmd.StartStream(ctx, &playback.PlaySession{ID: "s2", ProfileID: "p1", MediaItemID: "m2"}, "u1")
-	assert.NoError(t, err)
+	require.NoError(t, err)
 }
 
 func TestStartStream_ExactlyAtMax_Allowed(t *testing.T) {
@@ -345,7 +345,7 @@ func TestStartStream_CreateSessionError(t *testing.T) {
 
 	sr.Err = errors.New("db error")
 	err := cmd.StartStream(ctx, &playback.PlaySession{ID: "s1", ProfileID: "p1", MediaItemID: "m1"}, "u1")
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "create session")
 }
 
@@ -394,7 +394,7 @@ func TestStartStream_CountActiveError(t *testing.T) {
 
 	sr.Err = errors.New("db error")
 	err := cmd.StartStream(ctx, &playback.PlaySession{ID: "s1", ProfileID: "p1", MediaItemID: "m1"}, "u1")
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "count active")
 }
 

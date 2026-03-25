@@ -191,7 +191,7 @@ func TestHLSTranscoder_Integration_ModeA(t *testing.T) {
 		t.Fatal("ffmpeg did not finish in time")
 	}
 
-	assert.NoError(t, handle.Err())
+	require.NoError(t, handle.Err())
 
 	// Verify segments were created
 	entries, _ := os.ReadDir(outputDir)
@@ -201,7 +201,7 @@ func TestHLSTranscoder_Integration_ModeA(t *testing.T) {
 			tsCount++
 		}
 	}
-	assert.Greater(t, tsCount, 0, "should have produced .ts segments")
+	assert.Positive(t, tsCount, "should have produced .ts segments")
 }
 
 func TestHLSTranscoder_Stop(t *testing.T) {
@@ -225,7 +225,7 @@ func TestHLSTranscoder_Stop(t *testing.T) {
 	require.NoError(t, err)
 
 	err = handle.Stop()
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	select {
 	case <-handle.Done():

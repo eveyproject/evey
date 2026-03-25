@@ -203,7 +203,7 @@ func TestGetChapters_NilRepo(t *testing.T) {
 	svc := NewMetadataExtractionService(nil, reader, streamRepo)
 
 	chapters, err := svc.GetChapters(context.Background(), "m1")
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Nil(t, chapters)
 }
 

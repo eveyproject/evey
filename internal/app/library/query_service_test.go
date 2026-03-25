@@ -304,7 +304,7 @@ func TestQueryService_GetMediaItem_Found(t *testing.T) {
 	assert.Equal(t, "movie", item.Type)
 	assert.Equal(t, "lib-1", item.LibraryID)
 	assert.Equal(t, 2020, *item.Year)
-	assert.Equal(t, 8.5, *item.CommunityRating)
+	assert.InEpsilon(t, 8.5, *item.CommunityRating, 1e-9)
 	assert.Equal(t, []string{"sci-fi", "thriller"}, item.Genres)
 }
 

@@ -233,7 +233,7 @@ func TestWorkerPoolQueueFullDropsEvent(t *testing.T) {
 
 	got := received.Load()
 	assert.Less(t, got, int32(200), "some events should be dropped when queue is full")
-	assert.Greater(t, got, int32(0), "at least some events should be processed")
+	assert.Positive(t, got, "at least some events should be processed")
 }
 
 func TestWorkerPoolStop(t *testing.T) {

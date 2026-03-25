@@ -264,7 +264,7 @@ func TestGetOrCreate_DelegatestoProcess(t *testing.T) {
 	assert.Equal(t, "pgssub", opts.SubtitleCodec)
 	assert.True(t, opts.HDRSupported)
 	assert.True(t, opts.AudioNormalize)
-	assert.Equal(t, 42.5, opts.StartSec)
+	assert.InEpsilon(t, 42.5, opts.StartSec, 1e-9)
 }
 
 func TestActiveSessionCount(t *testing.T) {

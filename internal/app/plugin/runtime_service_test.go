@@ -126,7 +126,7 @@ func TestStopPlugin_InvalidatesPermissions(t *testing.T) {
 	}))
 	pc.LoadPermissions("plg-inv", []string{"api.library"})
 
-	assert.NoError(t, pc.CheckPermission("plg-inv", "api.library"))
+	require.NoError(t, pc.CheckPermission("plg-inv", "api.library"))
 
 	err := svc.StopPlugin(ctx, "plg-inv")
 	require.NoError(t, err)
@@ -156,7 +156,7 @@ func TestDisablePlugin_StopsRunningPlugin(t *testing.T) {
 	require.NoError(t, pluginRepo.Create(ctx, &plugindomain.Plugin{
 		ID: "plg-dis", Name: "running-dis", Language: "go", Status: string(plugindomain.Running), Enabled: true,
 	}))
-	runner.Start(ctx, &plugindomain.Plugin{ID: "plg-dis"}) //nolint:errcheck
+	_ = runner.Start(ctx, &plugindomain.Plugin{ID: "plg-dis"})
 
 	err := svc.DisablePlugin(ctx, "plg-dis")
 	require.NoError(t, err)
