@@ -177,7 +177,7 @@ function ScheduleModal({ library, onClose }: { library: V1Library; onClose: () =
       />
 
       {schedule && (
-        <div className="text-xs space-y-1" style={{ color: "var(--text-muted)" }}>
+        <div className="text-xs space-y-1 text-[var(--text-muted)]">
           {schedule.lastRunAt && <p>{t("admin.libraries.lastRun", { date: formatDate(schedule.lastRunAt) })}</p>}
           {schedule.nextRunAt && <p>{t("admin.libraries.nextRun", { date: formatDate(schedule.nextRunAt) })}</p>}
         </div>
@@ -256,23 +256,23 @@ function LibraryRow({ library, stats }: { library: V1Library; stats: LibraryStat
   const libStat = stats.find((s) => s.id === library.id);
 
   return (
-    <tr style={{ borderBottom: "1px solid var(--border)" }}>
-      <td className="px-4 py-3" style={{ color: "var(--text)" }}>
+    <tr className="border-b border-[var(--border)]">
+      <td className="px-4 py-3 text-[var(--text)]">
         {library.name}
       </td>
       <td className="px-4 py-3">
         <Badge variant="info">{libraryTypeLabel(library.type, t)}</Badge>
       </td>
-      <td className="px-4 py-3 text-sm" style={{ color: "var(--text-muted)" }}>
+      <td className="px-4 py-3 text-sm text-[var(--text-muted)]">
         {library.paths?.join(", ") ?? "\u2014"}
       </td>
-      <td className="px-4 py-3 text-sm" style={{ color: "var(--text-muted)" }}>
+      <td className="px-4 py-3 text-sm text-[var(--text-muted)]">
         {totalItems != null ? t("admin.libraries.items", { count: totalItems }) : <span className="opacity-50">{"\u2014"}</span>}
       </td>
-      <td className="px-4 py-3 text-sm" style={{ color: "var(--text-muted)" }}>
+      <td className="px-4 py-3 text-sm text-[var(--text-muted)]">
         {formatDate(libStat?.lastScannedAt ?? undefined)}
       </td>
-      <td className="px-4 py-3 text-sm" style={{ color: "var(--text-muted)" }}>
+      <td className="px-4 py-3 text-sm text-[var(--text-muted)]">
         {schedule?.enabled ? (
           <span title={`Cron: ${schedule.cron}`}>
             {schedule.nextRunAt ? formatDate(schedule.nextRunAt) : t("common.enabled")}
@@ -284,7 +284,7 @@ function LibraryRow({ library, stats }: { library: V1Library; stats: LibraryStat
       <td className="px-4 py-3 whitespace-nowrap">
         <div className="flex items-center gap-2">
           {scanLib.isPending ? (
-            <div className="flex items-center gap-2 text-sm" style={{ color: "var(--text-muted)" }}>
+            <div className="flex items-center gap-2 text-sm text-[var(--text-muted)]">
               <Spinner size="sm" />
               <span>{t("admin.libraries.scanning")}</span>
             </div>
@@ -360,17 +360,15 @@ function LibrariesPage() {
         </div>
       ) : (
         <div
-          className="overflow-x-auto rounded-[var(--radius-lg)]"
-          style={{ border: "1px solid var(--border)" }}
+          className="overflow-x-auto rounded-[var(--radius-lg)] border border-[var(--border)]"
         >
           <table className="w-full text-sm">
             <thead>
-              <tr style={{ backgroundColor: "var(--surface)", borderBottom: "1px solid var(--border)" }}>
+              <tr className="bg-[var(--surface)] border-b border-[var(--border)]">
                 {[t("admin.libraries.tableHeaders.name"), t("admin.libraries.tableHeaders.type"), t("admin.libraries.tableHeaders.paths"), t("admin.libraries.tableHeaders.items"), t("admin.libraries.tableHeaders.lastScanned"), t("admin.libraries.tableHeaders.nextScan"), t("admin.libraries.tableHeaders.actions")].map((h) => (
                   <th
                     key={h}
-                    className="px-4 py-2 text-left font-medium"
-                    style={{ color: "var(--text-muted)" }}
+                    className="px-4 py-2 text-left font-medium text-[var(--text-muted)]"
                   >
                     {h}
                   </th>
@@ -382,8 +380,7 @@ function LibrariesPage() {
                 <tr>
                   <td
                     colSpan={7}
-                    className="px-4 py-8 text-center"
-                    style={{ color: "var(--text-muted)" }}
+                    className="px-4 py-8 text-center text-[var(--text-muted)]"
                   >
                     {t("admin.libraries.noLibraries")}
                   </td>

@@ -103,7 +103,7 @@ function HeroBanner() {
         return (
           <div
             key={id}
-            className="absolute inset-0 transition-opacity duration-1000"
+            className="absolute inset-0 transition-opacity-fast duration-1000"
             style={{ opacity: isActive ? 1 : 0, pointerEvents: isActive ? "auto" : "none" }}
           >
             {seenSlides.has(idx) && (
@@ -131,11 +131,9 @@ function HeroBanner() {
 
             <div className="absolute inset-0 flex flex-col justify-end px-6 sm:px-10 pb-8 sm:pb-12 max-w-2xl">
               <h1
-                className="text-2xl sm:text-4xl font-bold mb-2 leading-tight"
+                className="text-2xl sm:text-4xl font-bold mb-2 leading-tight text-[var(--overlay-text)] tracking-[-0.02em]"
                 style={{
-                  color: "var(--overlay-text)",
                   textShadow: "0 2px 8px var(--overlay-bg-strong)",
-                  letterSpacing: "-0.02em",
                 }}
               >
                 {displayTitle}
@@ -143,25 +141,21 @@ function HeroBanner() {
 
               <div className="flex items-center gap-3 flex-wrap mb-2">
                 {year && (
-                  <span className="text-sm font-medium" style={{ color: "var(--overlay-text-muted)" }}>
+                  <span className="text-sm font-medium text-[var(--overlay-text-muted)]">
                     {year}
                   </span>
                 )}
                 {rating !== undefined && rating > 0 && (
-                  <span className="text-sm" style={{ color: "var(--overlay-text-muted)" }}>
+                  <span className="text-sm text-[var(--overlay-text-muted)]">
                     {"\u2605"} {rating.toFixed(1)}
                   </span>
                 )}
                 {genres.slice(0, 3).map((g) => (
                   <span
                     key={g}
-                    className="text-xs px-2 py-0.5 font-medium hidden sm:inline-block"
+                    className="text-xs px-2 py-0.5 font-medium hidden sm:inline-block bg-[var(--glass-bg)] text-[var(--overlay-text-bright)] rounded-full border border-[var(--glass-border)]"
                     style={{
-                      backgroundColor: "var(--glass-bg)",
-                      color: "var(--overlay-text-bright)",
-                      borderRadius: "9999px",
                       backdropFilter: `blur(var(--glass-blur))`,
-                      border: "1px solid var(--glass-border)",
                     }}
                   >
                     {g}
@@ -182,8 +176,7 @@ function HeroBanner() {
                 <Link
                   to="/player/$mediaId"
                   params={{ mediaId: id }}
-                  className="flex items-center gap-2 px-5 py-2.5 rounded-[var(--radius-md)] font-semibold text-sm transition-opacity-fast hover:opacity-90"
-                  style={{ backgroundColor: "var(--accent)", color: "var(--filter-active-text)" }}
+                  className="flex items-center gap-2 px-5 py-2.5 rounded-[var(--radius-md)] font-semibold text-sm transition-opacity-fast-fast hover:opacity-90 bg-[var(--accent)] text-[var(--filter-active-text)]"
                 >
                   <Play size={16} fill="currentColor" />
                   {t("media.home.play")}
@@ -191,8 +184,8 @@ function HeroBanner() {
                 <Link
                   to="/media/$mediaId"
                   params={{ mediaId: id }}
-                  className="flex items-center gap-2 px-5 py-2.5 rounded-[var(--radius-md)] font-semibold text-sm transition-opacity-fast hover:opacity-90"
-                  style={{ backgroundColor: "var(--glass-bg)", color: "var(--overlay-text)", backdropFilter: `blur(var(--glass-blur))`, border: "1px solid var(--glass-border)" }}
+                  className="flex items-center gap-2 px-5 py-2.5 rounded-[var(--radius-md)] font-semibold text-sm transition-opacity-fast-fast hover:opacity-90 bg-[var(--glass-bg)] text-[var(--overlay-text)] border border-[var(--glass-border)]"
+                  style={{ backdropFilter: `blur(var(--glass-blur))` }}
                 >
                   {t("media.home.moreInfo")}
                 </Link>
@@ -397,8 +390,7 @@ function HomePage() {
         <div className="flex justify-end mb-2">
           <button
             onClick={() => setCustomizeOpen(true)}
-            className="flex items-center gap-1.5 text-xs px-2 py-1 rounded-[var(--radius-sm)] transition-colors-fast hover:opacity-80"
-            style={{ color: "var(--text-muted)" }}
+            className="flex items-center gap-1.5 text-xs px-2 py-1 rounded-[var(--radius-sm)] transition-colors-fast-fast hover:opacity-80 text-[var(--text-muted)]"
             aria-label={t("common.feeds.customize")}
           >
             <Settings2 size={14} />

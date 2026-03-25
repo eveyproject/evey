@@ -61,18 +61,14 @@ function TrackArt({ trackID, size = 36 }: { trackID: string; size?: number }) {
   if (error) {
     return (
       <div
+        className="flex items-center justify-center bg-[var(--surface)] rounded-[var(--radius-sm)]"
         style={{
           width: size,
           height: size,
           minWidth: size,
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          backgroundColor: "var(--surface)",
-          borderRadius: "var(--radius-sm)",
         }}
       >
-        <Music size={size * 0.5} style={{ color: "var(--text-muted)", opacity: 0.5 }} />
+        <Music size={size * 0.5} className="text-[var(--text-muted)] opacity-50" />
       </div>
     );
   }
@@ -82,13 +78,11 @@ function TrackArt({ trackID, size = 36 }: { trackID: string; size?: number }) {
       alt=""
       width={size}
       height={size}
+      className="object-cover rounded-[var(--radius-sm)] bg-[var(--surface)]"
       style={{
         width: size,
         height: size,
         minWidth: size,
-        objectFit: "cover",
-        borderRadius: "var(--radius-sm)",
-        backgroundColor: "var(--surface)",
       }}
       onError={() => setError(true)}
     />
@@ -211,12 +205,7 @@ function NowPlayingBar({
 
   return (
     <div
-      className="fixed bottom-0 left-0 right-0 flex items-center gap-4 px-6 py-3"
-      style={{
-        backgroundColor: "var(--surface)",
-        borderTop: "1px solid var(--border)",
-        zIndex: 50,
-      }}
+      className="fixed bottom-0 left-0 right-0 flex items-center gap-4 px-6 py-3 bg-[var(--surface)] border-t border-[var(--border)] z-overlay"
     >
       <audio
         ref={audioRef}
@@ -230,9 +219,9 @@ function NowPlayingBar({
       />
 
       {/* Album art + info */}
-      <div className="flex items-center gap-3" style={{ minWidth: 0, width: 200 }}>
+      <div className="flex items-center gap-3 min-w-0 w-[200px]">
         <TrackArt trackID={playing.ID} size={48} />
-        <div style={{ minWidth: 0 }}>
+        <div className="min-w-0">
           <p className="font-medium truncate text-sm text-[var(--text)]">{playing.Title || "—"}</p>
           <p className="text-xs truncate text-[var(--text-muted)]">{playing.Artist || "—"}</p>
         </div>
@@ -251,18 +240,7 @@ function NowPlayingBar({
           </button>
           <button
             onClick={togglePlay}
-            style={{
-              background: "var(--accent)",
-              border: "none",
-              cursor: "pointer",
-              color: "var(--filter-active-text)",
-              borderRadius: "50%",
-              width: 36,
-              height: 36,
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-            }}
+            className="bg-[var(--accent)] border-none cursor-pointer text-[var(--filter-active-text)] rounded-full w-9 h-9 flex items-center justify-center"
             aria-label={isPlaying ? "Pause" : "Play"}
           >
             {isPlaying ? <Pause size={16} /> : <Play size={16} />}
@@ -276,8 +254,8 @@ function NowPlayingBar({
             <SkipForward size={18} />
           </button>
         </div>
-        <div className="flex items-center gap-2 w-full" style={{ maxWidth: 400 }}>
-          <span style={{ fontSize: "0.7rem", color: "var(--text-muted)", minWidth: 32, textAlign: "right" }}>
+        <div className="flex items-center gap-2 w-full max-w-[400px]">
+          <span className="text-[0.7rem] text-[var(--text-muted)] min-w-8 text-right">
             {formatDuration(currentTime)}
           </span>
           <input
@@ -287,17 +265,17 @@ function NowPlayingBar({
             step={1}
             value={currentTime}
             onChange={seek}
-            style={{ flex: 1, accentColor: "var(--accent)" }}
+            className="flex-1 accent-[var(--accent)]"
           />
-          <span style={{ fontSize: "0.7rem", color: "var(--text-muted)", minWidth: 32 }}>
+          <span className="text-[0.7rem] text-[var(--text-muted)] min-w-8">
             {duration > 0 ? formatDuration(duration) : "—"}
           </span>
         </div>
       </div>
 
       {/* Volume */}
-      <div className="flex items-center gap-2" style={{ minWidth: 100 }}>
-        <Volume2 size={16} style={{ color: "var(--text-muted)" }} />
+      <div className="flex items-center gap-2 min-w-[100px]">
+        <Volume2 size={16} className="text-[var(--text-muted)]" />
         <input
           type="range"
           min={0}
@@ -305,13 +283,13 @@ function NowPlayingBar({
           step={0.02}
           value={volume}
           onChange={(e) => setVolume(Number(e.target.value))}
-          style={{ width: 72, accentColor: "var(--accent)" }}
+          className="w-[72px] accent-[var(--accent)]"
         />
       </div>
 
       <button
         onClick={onClose}
-        style={{ color: "var(--text-muted)", background: "none", border: "none", cursor: "pointer" }}
+        className="text-[var(--text-muted)] bg-transparent border-none cursor-pointer"
         aria-label="Close player"
       >
         <X size={18} />
@@ -476,36 +454,27 @@ function TracksTab({
 
   return (
     <div>
-      <div style={{ marginBottom: "16px" }}>
+      <div className="mb-4">
         <input
           type="search"
           placeholder={t("media.music.searchPlaceholder")}
           value={search}
           onChange={(e) => { onSearchChange(e.target.value); setPage(0); }}
-          style={{
-            width: "100%",
-            maxWidth: "400px",
-            padding: "8px 12px",
-            borderRadius: "var(--radius-sm)",
-            border: "1px solid var(--border)",
-            backgroundColor: "var(--surface-raised)",
-            color: "var(--text)",
-            fontSize: "0.875rem",
-          }}
+          className="w-full max-w-[400px] px-3 py-2 rounded-[var(--radius-sm)] border border-[var(--border)] bg-[var(--surface-raised)] text-[var(--text)] text-sm"
         />
       </div>
       {loading && <p className="text-[var(--text-muted)]">{t("media.music.loading")}</p>}
       {!loading && !tracks.length && <p className="text-[var(--text-muted)]">{search ? t("media.music.noTracksSearch") : t("media.music.noTracks")}</p>}
-      {!loading && tracks.length > 0 && <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.875rem" }}>
+      {!loading && tracks.length > 0 && <table className="w-full border-collapse text-sm">
         <thead>
-          <tr style={{ color: "var(--text-muted)", textAlign: "left", borderBottom: "1px solid var(--border)" }}>
-            <th style={{ padding: "8px 12px" }}>#</th>
-            <th style={{ padding: "8px 12px" }}></th>
-            <th style={{ padding: "8px 12px" }}>{t("media.library.titleSort")}</th>
-            <th style={{ padding: "8px 12px" }}>{t("media.music.artists")}</th>
-            <th style={{ padding: "8px 12px" }}>{t("media.music.albums")}</th>
-            <th style={{ padding: "8px 12px", textAlign: "right" }}>{t("media.library.duration")}</th>
-            {isAdmin && <th style={{ padding: "8px 12px" }}></th>}
+          <tr className="text-[var(--text-muted)] text-left border-b border-[var(--border)]">
+            <th className="px-3 py-2">#</th>
+            <th className="px-3 py-2"></th>
+            <th className="px-3 py-2">{t("media.library.titleSort")}</th>
+            <th className="px-3 py-2">{t("media.music.artists")}</th>
+            <th className="px-3 py-2">{t("media.music.albums")}</th>
+            <th className="px-3 py-2 text-right">{t("media.library.duration")}</th>
+            {isAdmin && <th className="px-3 py-2"></th>}
           </tr>
         </thead>
         <tbody>
@@ -522,31 +491,22 @@ function TracksTab({
                 }}
                 className="hover:bg-[var(--surface-raised)]"
               >
-                <td style={{ padding: "8px 12px", color: "var(--text-muted)" }}>{page * TRACKS_PAGE_SIZE + i + 1}</td>
-                <td style={{ padding: "8px 4px" }}>
+                <td className="px-3 py-2 text-[var(--text-muted)]">{page * TRACKS_PAGE_SIZE + i + 1}</td>
+                <td className="px-1 py-2">
                   <TrackArt trackID={track.ID} size={36} />
                 </td>
-                <td style={{ padding: "8px 12px", color: isActive ? "var(--accent)" : "var(--text)", fontWeight: 500 }}>{track.Title || "—"}</td>
-                <td style={{ padding: "8px 12px", color: "var(--text-secondary)" }}>{track.Artist || "—"}</td>
-                <td style={{ padding: "8px 12px", color: "var(--text-secondary)" }}>{track.Album || "—"}</td>
-                <td style={{ padding: "8px 12px", color: "var(--text-muted)", textAlign: "right" }}>
+                <td className="px-3 py-2 font-medium" style={{ color: isActive ? "var(--accent)" : "var(--text)" }}>{track.Title || "—"}</td>
+                <td className="px-3 py-2 text-[var(--text-secondary)]">{track.Artist || "—"}</td>
+                <td className="px-3 py-2 text-[var(--text-secondary)]">{track.Album || "—"}</td>
+                <td className="px-3 py-2 text-[var(--text-muted)] text-right">
                   {track.Duration > 0 ? formatDuration(track.Duration) : "—"}
                 </td>
                 {isAdmin && (
-                  <td style={{ padding: "8px 12px" }} onClick={(e) => e.stopPropagation()}>
+                  <td className="px-3 py-2" onClick={(e) => e.stopPropagation()}>
                     <button
                       onClick={() => onDelete(track.ID)}
                       title={t("media.music.deleteTrack")}
-                      style={{
-                        background: "none",
-                        border: "none",
-                        cursor: "pointer",
-                        color: "var(--color-danger)",
-                        padding: "4px",
-                        borderRadius: "var(--radius-sm)",
-                        display: "flex",
-                        alignItems: "center",
-                      }}
+                      className="bg-transparent border-none cursor-pointer text-[var(--color-danger)] p-1 rounded-[var(--radius-sm)] flex items-center"
                       className="hover:opacity-80"
                     >
                       <Trash2 size={16} />
@@ -559,7 +519,7 @@ function TracksTab({
         </tbody>
       </table>}
       {!loading && tracks.length > 0 && totalPages > 1 && (
-        <div className="flex items-center justify-between mt-4" style={{ color: "var(--text-muted)", fontSize: "0.875rem" }}>
+        <div className="flex items-center justify-between mt-4 text-[var(--text-muted)] text-sm">
           <button
             onClick={() => setPage((p) => Math.max(0, p - 1))}
             disabled={page === 0}
@@ -605,21 +565,20 @@ function AlbumsTab({ albums, loading }: { albums: Album[]; loading: boolean }) {
   if (!albums.length) return <p className="text-[var(--text-muted)]">{t("media.music.noAlbums")}</p>;
 
   return (
-    <div className="grid gap-4" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))" }}>
+    <div className="grid gap-4 grid-cols-[repeat(auto-fill,minmax(160px,1fr))]">
       {albums.map((a) => (
         <div
           key={a.ID}
           className="rounded-[var(--radius-md)] overflow-hidden bg-[var(--surface-raised)] border border-[var(--border)]"
         >
           <div
-            className="w-full flex items-center justify-center bg-[var(--surface)] bg-cover bg-center"
+            className="w-full flex items-center justify-center bg-[var(--surface)] bg-cover bg-center aspect-square"
             style={{
-              aspectRatio: "1",
               backgroundImage: a.CoverArtURL ? `url(${a.CoverArtURL})` : undefined,
             }}
           >
             {!a.CoverArtURL && (
-              <Music size={32} style={{ opacity: 0.3, color: "var(--text-muted)" }} />
+              <Music size={32} className="opacity-30 text-[var(--text-muted)]" />
             )}
           </div>
           <div className="p-2">

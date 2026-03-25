@@ -119,25 +119,23 @@ function SessionCard({ session }: { session: ActiveSession }) {
 
   return (
     <div
-      className="rounded-[var(--radius-lg)] overflow-hidden"
-      style={{ backgroundColor: "var(--surface)", border: "1px solid var(--border)" }}
+      className="rounded-[var(--radius-lg)] overflow-hidden bg-[var(--surface)] border border-[var(--border)]"
     >
       <div className="p-4 flex flex-col gap-3">
         <div className="flex items-start justify-between gap-3">
           <div className="flex items-center gap-3 min-w-0">
             <div
-              className="flex items-center justify-center w-10 h-10 rounded-full shrink-0"
-              style={{ backgroundColor: "var(--accent)", color: "white" }}
+              className="flex items-center justify-center w-10 h-10 rounded-full shrink-0 bg-[var(--accent)] text-white"
             >
               <span className="text-sm font-bold">
                 {session.profileName.charAt(0).toUpperCase()}
               </span>
             </div>
             <div className="min-w-0">
-              <p className="text-sm font-semibold truncate" style={{ color: "var(--text)" }}>
+              <p className="text-sm font-semibold truncate text-[var(--text)]">
                 {session.profileName}
               </p>
-              <p className="text-xs truncate" style={{ color: "var(--text-muted)" }}>
+              <p className="text-xs truncate text-[var(--text-muted)]">
                 {session.clientIp}
               </p>
             </div>
@@ -178,7 +176,7 @@ function SessionCard({ session }: { session: ActiveSession }) {
         <div className="flex items-center gap-2">
           <PlayIcon />
           <div className="min-w-0 flex-1">
-            <p className="text-sm font-medium truncate" style={{ color: "var(--text)" }}>
+            <p className="text-sm font-medium truncate text-[var(--text)]">
               {session.mediaTitle}
             </p>
             <div className="flex items-center gap-2 flex-wrap">
@@ -186,12 +184,12 @@ function SessionCard({ session }: { session: ActiveSession }) {
                 {playMethodLabel(session.playMethod)}
               </Badge>
               {session.resolution && (
-                <span className="text-xs" style={{ color: "var(--text-muted)" }}>
+                <span className="text-xs text-[var(--text-muted)]">
                   {session.resolution}
                 </span>
               )}
               {session.transcodeInfo && (
-                <span className="text-xs" style={{ color: "var(--text-muted)" }}>
+                <span className="text-xs text-[var(--text-muted)]">
                   {session.transcodeInfo}
                 </span>
               )}
@@ -200,24 +198,23 @@ function SessionCard({ session }: { session: ActiveSession }) {
         </div>
 
         <div>
-          <div className="flex justify-between text-xs mb-1" style={{ color: "var(--text-muted)" }}>
+          <div className="flex justify-between text-xs mb-1 text-[var(--text-muted)]">
             <span>{formatMs(session.positionMs)}</span>
             <span>
               {remaining ? `-${remaining}` : `${formatElapsed(session.startedAt)} ${t("admin.sessions.elapsed")}`}
             </span>
           </div>
-          <div className="h-1.5 rounded-full" style={{ backgroundColor: "var(--border)" }}>
+          <div className="h-1.5 rounded-full bg-[var(--border)]">
             <div
-              className="h-1.5 rounded-full transition-all duration-500"
+              className="h-1.5 rounded-full transition-all duration-500 bg-[var(--accent)]"
               style={{
                 width: `${progress}%`,
-                backgroundColor: "var(--accent)",
               }}
             />
           </div>
         </div>
 
-        <div className="flex items-center gap-4 flex-wrap text-xs" style={{ color: "var(--text-muted)" }}>
+        <div className="flex items-center gap-4 flex-wrap text-xs text-[var(--text-muted)]">
           {session.deviceName && (
             <span className="flex items-center gap-1">
               <DeviceIcon />
@@ -266,7 +263,7 @@ function SessionsPage() {
         />
       ) : (
         <>
-          <p className="text-sm" style={{ color: "var(--text-muted)" }}>
+          <p className="text-sm text-[var(--text-muted)]">
             {t("admin.sessions.activeCount", { count: sessions.length, word: sessions.length === 1 ? t("admin.sessions.session") : t("admin.sessions.sessions") })}
           </p>
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">

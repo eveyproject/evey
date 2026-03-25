@@ -97,9 +97,9 @@ function TmdbSearchPanel({
       <Button variant="secondary" onClick={search} loading={loading}>
         {t("admin.metadata.searchTmdb")}
       </Button>
-      {error && <p className="text-sm" style={{ color: "var(--color-danger)" }}>{error}</p>}
+      {error && <p className="text-sm text-[var(--color-danger)]">{error}</p>}
       {results !== null && results.length === 0 && !loading && (
-        <p className="text-sm" style={{ color: "var(--text-muted)" }}>
+        <p className="text-sm text-[var(--text-muted)]">
           {t("admin.metadata.noTmdbResults")}
         </p>
       )}
@@ -108,8 +108,7 @@ function TmdbSearchPanel({
           {results.map((r) => (
             <div
               key={r.tmdbId}
-              className="flex items-start gap-3 p-3 rounded-[var(--radius-md)]"
-              style={{ backgroundColor: "var(--surface-raised)", border: "1px solid var(--border)" }}
+              className="flex items-start gap-3 p-3 rounded-[var(--radius-md)] bg-[var(--surface-raised)] border border-[var(--border)]"
             >
               {r.posterUrl && (
                 <img
@@ -120,10 +119,10 @@ function TmdbSearchPanel({
                 />
               )}
               <div className="flex-1 min-w-0">
-                <p className="font-medium text-sm" style={{ color: "var(--text)" }}>
+                <p className="font-medium text-sm text-[var(--text)]">
                   {r.title} {r.year ? `(${r.year})` : ""}
                 </p>
-                <p className="text-xs mt-1 line-clamp-2" style={{ color: "var(--text-muted)" }}>
+                <p className="text-xs mt-1 line-clamp-2 text-[var(--text-muted)]">
                   {r.overview}
                 </p>
               </div>
@@ -167,21 +166,19 @@ function GenrePills({
 
   return (
     <div className="flex flex-col gap-2">
-      <label className="text-sm font-medium" style={{ color: "var(--text-muted)" }}>
+      <label className="text-sm font-medium text-[var(--text-muted)]">
         {t("admin.metadata.genres")}
       </label>
       <div className="flex flex-wrap gap-1 min-h-8">
         {genres.map((g) => (
           <span
             key={g}
-            className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs"
-            style={{ backgroundColor: "var(--surface-raised)", color: "var(--text)" }}
+            className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs bg-[var(--surface-raised)] text-[var(--text)]"
           >
             {g}
             <button
               onClick={() => remove(g)}
-              className="transition-colors-fast hover:opacity-80"
-              style={{ color: "var(--color-danger)" }}
+              className="transition-colors-fast-fast hover:opacity-80 text-[var(--color-danger)]"
               aria-label={`Remove ${g}`}
             >
               \u00D7
@@ -306,7 +303,7 @@ function MetadataEditorModal({
           </div>
         </div>
       ) : (
-        <p style={{ color: "var(--text-muted)" }}>{t("admin.metadata.failedLoad")}</p>
+        <p className="text-[var(--text-muted)]">{t("admin.metadata.failedLoad")}</p>
       )}
     </Modal>
   );
@@ -316,8 +313,7 @@ function MediaThumb({ item, onClick }: { item: V1MediaItem; onClick: () => void 
   return (
     <button onClick={onClick} className="flex flex-col gap-2 text-left group">
       <div
-        className="w-full aspect-[2/3] rounded-[var(--radius-md)] overflow-hidden"
-        style={{ backgroundColor: "var(--surface-raised)" }}
+        className="w-full aspect-[2/3] rounded-[var(--radius-md)] overflow-hidden bg-[var(--surface-raised)]"
       >
         {item.id && (
           <img
@@ -329,10 +325,10 @@ function MediaThumb({ item, onClick }: { item: V1MediaItem; onClick: () => void 
         )}
       </div>
       <div>
-        <p className="text-sm font-medium truncate" style={{ color: "var(--text)" }}>
+        <p className="text-sm font-medium truncate text-[var(--text)]">
           {item.title ?? "Untitled"}
         </p>
-        <p className="text-xs" style={{ color: "var(--text-muted)" }}>
+        <p className="text-xs text-[var(--text-muted)]">
           {item.type?.replace("MEDIA_ITEM_TYPE_", "") ?? ""}
           {item.year ? ` \u00B7 ${item.year}` : ""}
         </p>

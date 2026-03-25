@@ -104,8 +104,8 @@ function Lightbox({ photos, index, onClose, onPrev, onNext, onDelete }: Lightbox
         {onDelete && (
           <button
             onClick={(e) => { e.stopPropagation(); onDelete(photo); }}
-            className="transition-colors-fast"
-            style={{ color: "var(--overlay-text-muted)" }}
+            className="transition-colors-fast-fast"
+            className="text-[var(--overlay-text-muted)]"
             aria-label="Delete photo"
           >
             <Trash2 size={22} />
@@ -113,8 +113,7 @@ function Lightbox({ photos, index, onClose, onPrev, onNext, onDelete }: Lightbox
         )}
         <button
           onClick={(e) => { e.stopPropagation(); onClose(); }}
-          className="transition-colors-fast"
-          style={{ color: "var(--overlay-text)" }}
+          className="transition-colors-fast-fast text-[var(--overlay-text)]"
           aria-label="Close"
         >
           <X size={28} />
@@ -124,8 +123,7 @@ function Lightbox({ photos, index, onClose, onPrev, onNext, onDelete }: Lightbox
       {index > 0 && (
         <button
           onClick={(e) => { e.stopPropagation(); onPrev(); }}
-          className="absolute left-4 top-1/2 -translate-y-1/2 transition-colors-fast z-raised p-2 rounded-full bg-black/40 hover:bg-black/60"
-          style={{ color: "var(--overlay-text)" }}
+          className="absolute left-4 top-1/2 -translate-y-1/2 transition-colors-fast-fast z-raised p-2 rounded-full bg-black/40 hover:bg-black/60 text-[var(--overlay-text)]"
           aria-label="Previous"
         >
           <ChevronLeft size={28} />
@@ -135,8 +133,7 @@ function Lightbox({ photos, index, onClose, onPrev, onNext, onDelete }: Lightbox
       {index < photos.length - 1 && (
         <button
           onClick={(e) => { e.stopPropagation(); onNext(); }}
-          className="absolute right-4 top-1/2 -translate-y-1/2 transition-colors-fast z-raised p-2 rounded-full bg-black/40 hover:bg-black/60"
-          style={{ color: "var(--overlay-text)" }}
+          className="absolute right-4 top-1/2 -translate-y-1/2 transition-colors-fast-fast z-raised p-2 rounded-full bg-black/40 hover:bg-black/60 text-[var(--overlay-text)]"
           aria-label="Next"
         >
           <ChevronRight size={28} />
@@ -151,8 +148,8 @@ function Lightbox({ photos, index, onClose, onPrev, onNext, onDelete }: Lightbox
         />
         <div className="text-white text-sm text-center">
           <span className="font-medium">{photo.Title}</span>
-          {photo.Album && <span className="ml-2" style={{ color: "var(--text-muted)" }}>— {photo.Album}</span>}
-          <span className="ml-2" style={{ color: "var(--text-muted)" }}>{index + 1} / {photos.length}</span>
+          {photo.Album && <span className="ml-2 text-[var(--text-muted)]">— {photo.Album}</span>}
+          <span className="ml-2 text-[var(--text-muted)]">{index + 1} / {photos.length}</span>
         </div>
       </div>
     </div>
@@ -244,8 +241,7 @@ function PhotoGrid({ photos, onPhotoClick }: PhotoGridProps) {
                 <button
                   key={photo.ID}
                   onClick={() => onPhotoClick(globalIdx)}
-                  className="group relative aspect-square overflow-hidden rounded-[var(--radius-md)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)] cursor-pointer"
-                  style={{ backgroundColor: "var(--surface-raised)" }}
+                  className="group relative aspect-square overflow-hidden rounded-[var(--radius-md)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)] cursor-pointer bg-[var(--surface-raised)]"
                   aria-label={photo.Title}
                 >
                   <img
@@ -254,7 +250,7 @@ function PhotoGrid({ photos, onPhotoClick }: PhotoGridProps) {
                     loading="lazy"
                     className="w-full h-full object-cover transition-transform duration-200 group-hover:scale-105"
                   />
-                  <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors duration-200" />
+                  <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors-fast duration-200" />
                 </button>
               );
             })}
@@ -284,8 +280,7 @@ function AlbumGrid({ albums, onAlbumClick }: AlbumGridProps) {
           className="group text-left focus:outline-none focus:ring-2 focus:ring-[var(--accent)] rounded-[var(--radius-lg)] cursor-pointer"
         >
           <div
-            className="relative overflow-hidden rounded-[var(--radius-lg)] aspect-square mb-2"
-            style={{ backgroundColor: "var(--surface-raised)" }}
+            className="relative overflow-hidden rounded-[var(--radius-lg)] aspect-square mb-2 bg-[var(--surface-raised)]"
           >
             {album.CoverPhotoID ? (
               <img
@@ -299,7 +294,7 @@ function AlbumGrid({ albums, onAlbumClick }: AlbumGridProps) {
                 <Images size={40} className="text-[var(--text-muted)]" />
               </div>
             )}
-            <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors duration-200" />
+            <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors-fast duration-200" />
           </div>
           <p className="text-sm font-medium text-[var(--text)] truncate">{album.Name}</p>
           <p className="text-xs text-[var(--text-muted)]">{album.PhotoCount} photo{album.PhotoCount !== 1 ? "s" : ""}</p>
@@ -354,10 +349,10 @@ function PhotosPage() {
   if (libLoading) {
     return (
       <div className="flex-1 p-6">
-        <div className="animate-pulse h-8 w-48 rounded mb-6" style={{ backgroundColor: "var(--surface-raised)" }} />
+        <div className="animate-pulse h-8 w-48 rounded mb-6 bg-[var(--surface-raised)]" />
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
           {Array.from({ length: 8 }).map((_, i) => (
-            <div key={i} className="animate-pulse aspect-square rounded-[var(--radius-lg)]" style={{ backgroundColor: "var(--surface-raised)" }} />
+            <div key={i} className="animate-pulse aspect-square rounded-[var(--radius-lg)] bg-[var(--surface-raised)]" />
           ))}
         </div>
       </div>
@@ -399,13 +394,13 @@ function PhotosPage() {
           <div className="flex rounded-[var(--radius-sm)] border border-[var(--border)] overflow-hidden">
             <button
               onClick={() => { setView("albums"); setSelectedAlbum(undefined); }}
-              className={`px-3 py-1.5 text-sm transition-colors-fast ${view === "albums" ? "bg-[var(--accent)] text-[var(--filter-active-text)]" : "bg-[var(--surface-raised)] text-[var(--text-secondary)] hover:bg-[var(--surface)]"}`}
+              className={`px-3 py-1.5 text-sm transition-colors-fast-fast ${view === "albums" ? "bg-[var(--accent)] text-[var(--filter-active-text)]" : "bg-[var(--surface-raised)] text-[var(--text-secondary)] hover:bg-[var(--surface)]"}`}
             >
               {t("media.photos.albums")}
             </button>
             <button
               onClick={() => setView("photos")}
-              className={`px-3 py-1.5 text-sm transition-colors-fast ${view === "photos" ? "bg-[var(--accent)] text-[var(--filter-active-text)]" : "bg-[var(--surface-raised)] text-[var(--text-secondary)] hover:bg-[var(--surface)]"}`}
+              className={`px-3 py-1.5 text-sm transition-colors-fast-fast ${view === "photos" ? "bg-[var(--accent)] text-[var(--filter-active-text)]" : "bg-[var(--surface-raised)] text-[var(--text-secondary)] hover:bg-[var(--surface)]"}`}
             >
               {t("media.photos.allPhotos")}
             </button>
@@ -419,7 +414,7 @@ function PhotosPage() {
           {albumsLoading ? (
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
               {Array.from({ length: 6 }).map((_, i) => (
-                <div key={i} className="animate-pulse aspect-square rounded-[var(--radius-lg)]" style={{ backgroundColor: "var(--surface-raised)" }} />
+                <div key={i} className="animate-pulse aspect-square rounded-[var(--radius-lg)] bg-[var(--surface-raised)]" />
               ))}
             </div>
           ) : (
@@ -437,7 +432,7 @@ function PhotosPage() {
             <div className="flex items-center gap-2">
               <button
                 onClick={() => { setSelectedAlbum(undefined); setView("albums"); }}
-                className="text-sm text-[var(--text-muted)] hover:text-[var(--text)] flex items-center gap-1 transition-colors-fast"
+                className="text-sm text-[var(--text-muted)] hover:text-[var(--text)] flex items-center gap-1 transition-colors-fast-fast"
               >
                 <ChevronLeft size={16} />
                 {t("media.photos.albums")}
@@ -449,7 +444,7 @@ function PhotosPage() {
           {photosLoading ? (
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-2">
               {Array.from({ length: 18 }).map((_, i) => (
-                <div key={i} className="animate-pulse aspect-square rounded-[var(--radius-md)]" style={{ backgroundColor: "var(--surface-raised)" }} />
+                <div key={i} className="animate-pulse aspect-square rounded-[var(--radius-md)] bg-[var(--surface-raised)]" />
               ))}
             </div>
           ) : (

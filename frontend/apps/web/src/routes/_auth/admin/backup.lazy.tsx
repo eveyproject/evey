@@ -103,17 +103,17 @@ function BackupRow({ backup }: { backup: Backup }) {
   }
 
   return (
-    <tr style={{ borderBottom: "1px solid var(--border)" }}>
-      <td className="px-4 py-3 font-mono text-xs" style={{ color: "var(--text)" }}>
+    <tr className="border-b border-[var(--border)]">
+      <td className="px-4 py-3 font-mono text-xs text-[var(--text)]">
         {backup.id}
       </td>
-      <td className="px-4 py-3 text-sm whitespace-nowrap" style={{ color: "var(--text-muted)" }}>
+      <td className="px-4 py-3 text-sm whitespace-nowrap text-[var(--text-muted)]">
         {new Date(backup.createdAt).toLocaleString()}
       </td>
-      <td className="px-4 py-3 text-sm" style={{ color: "var(--text-muted)" }}>
+      <td className="px-4 py-3 text-sm text-[var(--text-muted)]">
         {backup.version}
       </td>
-      <td className="px-4 py-3 text-sm whitespace-nowrap" style={{ color: "var(--text-muted)" }}>
+      <td className="px-4 py-3 text-sm whitespace-nowrap text-[var(--text-muted)]">
         {formatSize(backup.size)}
       </td>
       <td className="px-4 py-3">
@@ -146,7 +146,7 @@ function BackupRow({ backup }: { backup: Backup }) {
           onClose={() => setConfirmRestore(false)}
           title={t("admin.backup.restoreBackupTitle")}
         >
-          <p className="text-sm mb-4" style={{ color: "var(--text-muted)" }}>
+          <p className="text-sm mb-4 text-[var(--text-muted)]">
             {t("admin.backup.restoreConfirm", { date: new Date(backup.createdAt).toLocaleString() })}
           </p>
           <div className="flex justify-end gap-2">
@@ -169,7 +169,7 @@ function BackupRow({ backup }: { backup: Backup }) {
           onClose={() => setConfirmDelete(false)}
           title={t("admin.backup.deleteBackupTitle")}
         >
-          <p className="text-sm mb-4" style={{ color: "var(--text-muted)" }}>
+          <p className="text-sm mb-4 text-[var(--text-muted)]">
             {t("admin.backup.deleteConfirm", { date: new Date(backup.createdAt).toLocaleString() })}
           </p>
           <div className="flex justify-end gap-2">
@@ -227,15 +227,14 @@ function RestoreUploadModal({
   return (
     <Modal open={open} onClose={onClose} title={t("admin.backup.restoreFromFileTitle")}>
       <div className="flex flex-col gap-4">
-        <p className="text-sm" style={{ color: "var(--text-muted)" }}>
+        <p className="text-sm text-[var(--text-muted)]">
           {t("admin.backup.restoreFromFileDesc")}
         </p>
         <input
           ref={fileInputRef}
           type="file"
           accept=".tar.gz,.gz"
-          className="text-sm file:mr-3 file:rounded-[var(--radius-lg)] file:border file:border-solid file:border-[var(--border)] file:bg-[var(--surface)] file:px-4 file:py-2 file:text-sm file:font-medium file:text-[var(--text)] file:cursor-pointer hover:file:bg-[var(--accent)] hover:file:text-[var(--filter-active-text)] file:transition-colors-fast"
-          style={{ color: "var(--text-muted)" }}
+          className="text-sm file:mr-3 file:rounded-[var(--radius-lg)] file:border file:border-solid file:border-[var(--border)] file:bg-[var(--surface)] file:px-4 file:py-2 file:text-sm file:font-medium file:text-[var(--text)] file:cursor-pointer hover:file:bg-[var(--accent)] hover:file:text-[var(--filter-active-text)] file:transition-colors-fast-fast text-[var(--text-muted)]"
         />
         <div className="flex justify-end gap-2">
           <Button variant="ghost" onClick={onClose}>{t("common.cancel")}</Button>
@@ -285,22 +284,17 @@ function BackupPage() {
         />
       ) : (
         <div
-          className="overflow-x-auto rounded-[var(--radius-lg)]"
-          style={{ border: "1px solid var(--border)" }}
+          className="overflow-x-auto rounded-[var(--radius-lg)] border border-[var(--border)]"
         >
           <table className="w-full text-sm">
             <thead>
               <tr
-                style={{
-                  backgroundColor: "var(--surface)",
-                  borderBottom: "1px solid var(--border)",
-                }}
+                className="bg-[var(--surface)] border-b border-[var(--border)]"
               >
                 {[t("admin.backup.tableHeaders.id"), t("admin.backup.tableHeaders.date"), t("admin.backup.tableHeaders.version"), t("admin.backup.tableHeaders.size"), t("admin.backup.tableHeaders.status"), t("admin.backup.tableHeaders.actions")].map((h) => (
                   <th
                     key={h}
-                    className="px-4 py-2 text-left font-medium"
-                    style={{ color: "var(--text-muted)" }}
+                    className="px-4 py-2 text-left font-medium text-[var(--text-muted)]"
                   >
                     {h}
                   </th>

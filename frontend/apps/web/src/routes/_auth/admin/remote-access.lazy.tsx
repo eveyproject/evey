@@ -91,7 +91,7 @@ function RemoteAccessPage() {
   return (
     <div className="flex flex-col gap-6">
       <div className="flex items-center justify-between">
-        <h2 className="text-xl font-semibold" style={{ color: "var(--text)" }}>
+        <h2 className="text-xl font-semibold text-[var(--text)]">
           {t("admin.remoteAccess.title")}
         </h2>
         <Badge variant={data?.enabled ? "success" : "default"}>
@@ -108,7 +108,7 @@ function RemoteAccessPage() {
           <Card>
             <div className="flex flex-col gap-4 p-2">
               <div className="flex items-center gap-3">
-                <label className="text-sm font-medium" style={{ color: "var(--text)" }}>
+                <label className="text-sm font-medium text-[var(--text)]">
                   {t("admin.remoteAccess.enableRemoteAccess")}
                 </label>
                 <button
@@ -119,7 +119,7 @@ function RemoteAccessPage() {
                     setEnabled(!enabled);
                     setDirty(true);
                   }}
-                  className="relative inline-flex h-6 w-11 items-center rounded-full transition-colors-fast"
+                  className="relative inline-flex h-6 w-11 items-center rounded-full transition-colors-fast-fast"
                   style={{
                     backgroundColor: enabled ? "var(--accent)" : "var(--border)",
                   }}
@@ -180,27 +180,23 @@ function RemoteAccessPage() {
             <Card>
               <div className="p-2">
                 <h3
-                  className="text-sm font-semibold mb-3"
-                  style={{ color: "var(--text)" }}
+                  className="text-sm font-semibold mb-3 text-[var(--text)]"
                 >
                   {t("admin.remoteAccess.networkInterfaces")}
                 </h3>
                 <div
-                  className="rounded-[var(--radius-md)] overflow-hidden"
-                  style={{ border: "1px solid var(--border)" }}
+                  className="rounded-[var(--radius-md)] overflow-hidden border border-[var(--border)]"
                 >
                   <table className="w-full text-sm">
                     <thead>
-                      <tr style={{ borderBottom: "1px solid var(--border)" }}>
+                      <tr className="border-b border-[var(--border)]">
                         <th
-                          className="text-left px-4 py-2 font-medium"
-                          style={{ color: "var(--text-muted)" }}
+                          className="text-left px-4 py-2 font-medium text-[var(--text-muted)]"
                         >
                           {t("admin.remoteAccess.interface")}
                         </th>
                         <th
-                          className="text-left px-4 py-2 font-medium"
-                          style={{ color: "var(--text-muted)" }}
+                          className="text-left px-4 py-2 font-medium text-[var(--text-muted)]"
                         >
                           {t("admin.remoteAccess.address")}
                         </th>
@@ -210,17 +206,15 @@ function RemoteAccessPage() {
                       {netInfo.interfaces.map((iface, i) => (
                         <tr
                           key={`${iface.name}-${i}`}
-                          style={{ borderBottom: "1px solid var(--border)" }}
+                          className="border-b border-[var(--border)]"
                         >
                           <td
-                            className="px-4 py-2 font-mono text-xs"
-                            style={{ color: "var(--text)" }}
+                            className="px-4 py-2 font-mono text-xs text-[var(--text)]"
                           >
                             {iface.name}
                           </td>
                           <td
-                            className="px-4 py-2 font-mono text-xs"
-                            style={{ color: "var(--text-muted)" }}
+                            className="px-4 py-2 font-mono text-xs text-[var(--text-muted)]"
                           >
                             {iface.address}
                           </td>

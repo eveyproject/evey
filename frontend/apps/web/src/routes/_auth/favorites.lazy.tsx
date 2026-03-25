@@ -23,26 +23,9 @@ export const Route = createLazyFileRoute("/_auth/favorites")({
 type SortKey = "dateAdded" | "titleAZ" | "titleZA" | "yearNewest" | "rating";
 type TypeFilter = "all" | "MEDIA_ITEM_TYPE_MOVIE" | "MEDIA_ITEM_TYPE_SERIES";
 
-const selectStyle: React.CSSProperties = {
-  padding: "4px 8px",
-  borderRadius: "var(--radius-sm)",
-  border: "1px solid var(--border)",
-  backgroundColor: "var(--surface-raised)",
-  color: "var(--text)",
-  fontSize: "0.8rem",
-  cursor: "pointer",
-};
+const selectClass = "px-2 py-1 rounded-[var(--radius-sm)] border border-[var(--border)] bg-[var(--surface-raised)] text-[var(--text)] text-[0.8rem] cursor-pointer";
 
-const searchInputStyle: React.CSSProperties = {
-  padding: "4px 8px",
-  borderRadius: "var(--radius-sm)",
-  border: "1px solid var(--border)",
-  backgroundColor: "var(--surface-raised)",
-  color: "var(--text)",
-  fontSize: "0.8rem",
-  outline: "none",
-  width: "160px",
-};
+const searchInputClass = "px-2 py-1 rounded-[var(--radius-sm)] border border-[var(--border)] bg-[var(--surface-raised)] text-[var(--text)] text-[0.8rem] outline-none w-40";
 
 function BulkPlaylistModal({
   open,
@@ -73,10 +56,10 @@ function BulkPlaylistModal({
     <Modal open={open} onClose={onClose} title={t("media.favorites.addToPlaylist")}>
       {isLoading ? (
         <div className="flex justify-center py-8">
-          <div className="w-6 h-6 border-2 rounded-full animate-spin" style={{ borderColor: "var(--border)", borderTopColor: "var(--accent)" }} />
+          <div className="w-6 h-6 border-2 rounded-full animate-spin border-[var(--border)] border-t-[var(--accent)]" />
         </div>
       ) : manualPlaylists.length === 0 ? (
-        <p className="text-sm text-center py-6" style={{ color: "var(--text-muted)" }}>{t("media.favorites.noPlaylists")}</p>
+        <p className="text-sm text-center py-6 text-[var(--text-muted)]">{t("media.favorites.noPlaylists")}</p>
       ) : (
         <div className="space-y-1">
           {manualPlaylists.map((pl) => (
@@ -84,10 +67,9 @@ function BulkPlaylistModal({
               key={pl.id}
               onClick={() => void handleAdd(pl.id, pl.name)}
               disabled={addTo.isPending}
-              className="w-full flex items-center gap-3 px-4 py-3 rounded-[var(--radius-md)] text-left transition-colors-fast hover:bg-[var(--surface-raised)]"
-              style={{ color: "var(--text)" }}
+              className="w-full flex items-center gap-3 px-4 py-3 rounded-[var(--radius-md)] text-left transition-colors-fast-fast hover:bg-[var(--surface-raised)]"
             >
-              <span className="text-sm font-medium truncate">{pl.name}</span>
+              <span className="text-sm font-medium truncate text-[var(--text)]">{pl.name}</span>
             </button>
           ))}
         </div>
@@ -183,12 +165,12 @@ function FavoritesPage() {
       )}
 
       <div className="flex items-center justify-between mb-4 gap-3 flex-wrap">
-        <h1 className="text-2xl font-bold" style={{ color: "var(--text)" }}>
+        <h1 className="text-2xl font-bold text-[var(--text)]">
           {t("media.favorites.title")}
         </h1>
         {!isLoading && favorites && favorites.length > 0 && (
           <div className="flex items-center gap-2 flex-wrap">
-            <span className="text-sm" style={{ color: "var(--text-muted)" }}>
+            <span className="text-sm text-[var(--text-muted)]">
               {filtered.length} {filtered.length === 1 ? "item" : "items"}
             </span>
             <input
@@ -196,15 +178,15 @@ function FavoritesPage() {
               placeholder={t("media.favorites.searchPlaceholder")}
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              style={searchInputStyle}
+              className={searchInputClass}
               aria-label={t("media.favorites.searchPlaceholder")}
             />
-            <select style={selectStyle} value={typeFilter} onChange={(e) => setTypeFilter(e.target.value as TypeFilter)}>
+            <select className={selectClass} value={typeFilter} onChange={(e) => setTypeFilter(e.target.value as TypeFilter)}>
               <option value="all">{t("media.favorites.all")}</option>
               <option value="MEDIA_ITEM_TYPE_MOVIE">{t("media.favorites.movies")}</option>
               <option value="MEDIA_ITEM_TYPE_SERIES">{t("media.favorites.series")}</option>
             </select>
-            <select style={selectStyle} value={sort} onChange={(e) => setSort(e.target.value as SortKey)}>
+            <select className={selectClass} value={sort} onChange={(e) => setSort(e.target.value as SortKey)}>
               <option value="dateAdded">{t("media.favorites.recentlyAdded")}</option>
               <option value="titleAZ">{t("media.favorites.titleAZ")}</option>
               <option value="titleZA">{t("media.favorites.titleZA")}</option>
@@ -214,7 +196,7 @@ function FavoritesPage() {
             <button
               type="button"
               onClick={() => { setBulkMode((v) => !v); clear(); }}
-              className="px-2 py-1 rounded-[var(--radius-md)] border text-xs transition-colors-fast"
+              className="px-2 py-1 rounded-[var(--radius-md)] border text-xs transition-colors-fast-fast"
               style={{
                 backgroundColor: bulkMode ? "var(--accent)" : "var(--surface-raised)",
                 color: bulkMode ? "var(--filter-active-text)" : "var(--text-muted)",
@@ -228,7 +210,7 @@ function FavoritesPage() {
                 type="button"
                 onClick={() => selectAll(filtered.map((f) => f.mediaItemId))}
                 className="text-xs hover:underline"
-                style={{ color: "var(--accent)" }}
+                className="text-[var(--accent)]"
               >
                 {t("common.selectAll")}
               </button>
@@ -241,8 +223,7 @@ function FavoritesPage() {
         <MediaGridSkeleton />
       ) : !favorites || favorites.length === 0 ? (
         <div
-          className="rounded-[var(--radius-lg)]"
-          style={{ backgroundColor: "var(--surface)", border: "1px solid var(--border)" }}
+          className="rounded-[var(--radius-lg)] bg-[var(--surface)] border border-[var(--border)]"
         >
           <EmptyState
             icon={<Folder size={48} strokeWidth={1.5} />}
@@ -251,7 +232,7 @@ function FavoritesPage() {
           />
         </div>
       ) : filtered.length === 0 ? (
-        <p className="text-sm" style={{ color: "var(--text-muted)" }}>{t("common.noItemsMatch")}</p>
+        <p className="text-sm text-[var(--text-muted)]">{t("common.noItemsMatch")}</p>
       ) : (
         <MediaGrid>
           {filtered.map((fav) => (
