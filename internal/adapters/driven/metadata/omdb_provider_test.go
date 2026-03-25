@@ -135,6 +135,147 @@ func TestOMDb_SeriesYearParsing(t *testing.T) {
 	assert.Equal(t, 2006, *result.Year)
 }
 
+func TestOMDb_GetByProviderID_ErrorResponse(t *testing.T) {
+	srv, p := newOMDbTestServer(func(w http.ResponseWriter, r *http.Request) {
+		json.NewEncoder(w).Encode(omdbDetail{
+			Response: "False",
+			Error:    "Movie not found!",
+		})
+	})
+	defer srv.Close()
+
+	_, err := p.GetByProviderID(context.Background(), "tt0000000", "movie")
+	assert.ErrorContains(t, err, "Movie not found!")
+}
+
+func TestOMDb_GetByProviderID_ServerError(t *testing.T) {
+	srv, p := newOMDbTestServer(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+		w.Write([]byte("server error"))
+	})
+	defer srv.Close()
+
+	_, err := p.GetByProviderID(context.Background(), "tt123", "movie")
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "500")
+}
+
+func TestOMDb_Search_WithYear(t *testing.T) {
+	srv, p := newOMDbTestServer(func(w http.ResponseWriter, r *http.Request) {
+		assert.Equal(t, "2010", r.URL.Query().Get("y"))
+		json.NewEncoder(w).Encode(omdbSearchResponse{Response: "False"})
+	})
+	defer srv.Close()
+
+	y := 2010
+	_, err := p.Search(context.Background(), "Inception", &y, "movie")
+	require.NoError(t, err)
+}
+
+func TestOMDb_Search_NAPoster(t *testing.T) {
+	srv, p := newOMDbTestServer(func(w http.ResponseWriter, r *http.Request) {
+		json.NewEncoder(w).Encode(omdbSearchResponse{
+			Response: "True",
+			Search: []omdbSearchItem{
+				{Title: "Movie", Year: "2020", ImdbID: "tt1", Poster: "N/A"},
+			},
+		})
+	})
+	defer srv.Close()
+
+	results, err := p.Search(context.Background(), "Movie", nil, "movie")
+	require.NoError(t, err)
+	require.Len(t, results, 1)
+	assert.Empty(t, results[0].Artwork)
+}
+
+func TestOMDb_Search_InvalidYear(t *testing.T) {
+	srv, p := newOMDbTestServer(func(w http.ResponseWriter, r *http.Request) {
+		json.NewEncoder(w).Encode(omdbSearchResponse{
+			Response: "True",
+			Search: []omdbSearchItem{
+				{Title: "Movie", Year: "N/A", ImdbID: "tt1"},
+			},
+		})
+	})
+	defer srv.Close()
+
+	results, err := p.Search(context.Background(), "Movie", nil, "movie")
+	require.NoError(t, err)
+	require.Len(t, results, 1)
+	assert.Nil(t, results[0].Year)
+}
+
+func TestOMDb_MapDetail_NAFields(t *testing.T) {
+	d := omdbDetail{
+		Title:    "Movie",
+		Plot:     "N/A",
+		Rated:    "N/A",
+		Genre:    "N/A",
+		Director: "N/A",
+		Writer:   "N/A",
+		Actors:   "N/A",
+		Poster:   "N/A",
+		ImdbID:   "tt1",
+		Response: "True",
+	}
+	result := mapOMDbDetail(d)
+	assert.Empty(t, result.Overview)
+	assert.Empty(t, result.OfficialRating)
+	assert.Empty(t, result.Genres)
+	assert.Empty(t, result.People)
+	assert.Empty(t, result.Artwork)
+}
+
+func TestOMDb_MapDetail_WriterParentheses(t *testing.T) {
+	d := omdbDetail{
+		Title:    "Movie",
+		Writer:   "John Smith (screenplay), Jane Doe (novel)",
+		ImdbID:   "tt1",
+		Response: "True",
+	}
+	result := mapOMDbDetail(d)
+	writers := filterPeople(result.People, "Writer")
+	require.Len(t, writers, 2)
+	assert.Equal(t, "John Smith", writers[0].Name)
+	assert.Equal(t, "Jane Doe", writers[1].Name)
+}
+
+func TestOMDb_MapDetail_IMDBRatingSetsCommunityRating(t *testing.T) {
+	d := omdbDetail{
+		Title:  "Movie",
+		ImdbID: "tt1",
+		Ratings: []omdbRating{
+			{Source: "Internet Movie Database", Value: "7.5/10"},
+		},
+		Response: "True",
+	}
+	result := mapOMDbDetail(d)
+	require.NotNil(t, result.CommunityRating)
+	assert.InDelta(t, 7.5, *result.CommunityRating, 0.01)
+}
+
+func TestParseIMDBRating_Invalid(t *testing.T) {
+	_, err := parseIMDBRating("bad")
+	assert.Error(t, err)
+}
+
+func TestParseFractionRating_Invalid(t *testing.T) {
+	_, err := parseFractionRating("bad")
+	assert.Error(t, err)
+}
+
+func TestNaToEmpty(t *testing.T) {
+	assert.Empty(t, naToEmpty("N/A"))
+	assert.Equal(t, "hello", naToEmpty("hello"))
+}
+
+func TestSplitNames(t *testing.T) {
+	assert.Nil(t, splitNames(""))
+	assert.Nil(t, splitNames("N/A"))
+	assert.Equal(t, []string{"A", "B"}, splitNames("A, B"))
+}
+
 func filterPeople(people []domain.PersonResult, role string) []domain.PersonResult {
 	var out []domain.PersonResult
 	for _, p := range people {

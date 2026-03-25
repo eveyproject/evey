@@ -111,3 +111,183 @@ func TestStripHTML(t *testing.T) {
 	assert.Empty(t, stripHTML(""))
 	assert.Equal(t, "plain text", stripHTML("plain text"))
 }
+
+func TestTVMaze_GetByProviderID(t *testing.T) {
+	srv, p := newTVMazeTestServer(func(w http.ResponseWriter, r *http.Request) {
+		assert.Contains(t, r.URL.Path, "/shows/161")
+		json.NewEncoder(w).Encode(tvmazeShowDetail{
+			tvmazeShow: tvmazeShow{
+				ID:        161,
+				Name:      "Dexter",
+				Summary:   "<p>A serial killer.</p>",
+				Genres:    []string{"Drama", "Crime"},
+				Premiered: "2006-10-01",
+				Rating:    tvmazeRating{Average: 8.4},
+				Image:     &tvmazeImage{Original: "http://img.com/dexter.jpg"},
+				Externals: tvmazeExternal{IMDB: "tt0773262", TheTVDB: 79349},
+			},
+			Embedded: &tvmazeEmbedded{
+				Cast: []tvmazeCastMember{
+					{
+						Person:    tvmazePerson{ID: 1, Name: "Michael C. Hall", Image: &tvmazeImage{Medium: "http://img.com/hall.jpg"}},
+						Character: tvmazeCharacter{Name: "Dexter Morgan"},
+					},
+					{
+						Person:    tvmazePerson{ID: 2, Name: "Jennifer Carpenter"},
+						Character: tvmazeCharacter{Name: ""},
+					},
+				},
+			},
+		})
+	})
+	defer srv.Close()
+
+	result, err := p.GetByProviderID(context.Background(), "161", "tv")
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	assert.Equal(t, "Dexter", result.Title)
+	assert.Equal(t, "A serial killer.", result.Overview)
+	assert.Equal(t, "161", result.ProviderIDs["tvmaze"])
+	assert.Equal(t, "tt0773262", result.ProviderIDs["imdb"])
+
+	require.Len(t, result.People, 2)
+	assert.Equal(t, "Michael C. Hall", result.People[0].Name)
+	assert.Equal(t, "Dexter Morgan", result.People[0].Character)
+	assert.Equal(t, "http://img.com/hall.jpg", result.People[0].ThumbURL)
+	assert.Equal(t, "Jennifer Carpenter", result.People[1].Name)
+	assert.Empty(t, result.People[1].Character)
+	assert.Empty(t, result.People[1].ThumbURL)
+}
+
+func TestTVMaze_GetByProviderID_SkipsMovies(t *testing.T) {
+	p := NewTVMazeProvider(nil)
+	result, err := p.GetByProviderID(context.Background(), "161", "movie")
+	require.NoError(t, err)
+	assert.Nil(t, result)
+}
+
+func TestTVMaze_GetByProviderID_NoCast(t *testing.T) {
+	srv, p := newTVMazeTestServer(func(w http.ResponseWriter, r *http.Request) {
+		json.NewEncoder(w).Encode(tvmazeShowDetail{
+			tvmazeShow: tvmazeShow{ID: 1, Name: "Show"},
+		})
+	})
+	defer srv.Close()
+
+	result, err := p.GetByProviderID(context.Background(), "1", "tv")
+	require.NoError(t, err)
+	assert.Empty(t, result.People)
+}
+
+func TestTVMaze_GetByProviderID_ServerError(t *testing.T) {
+	srv, p := newTVMazeTestServer(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+		w.Write([]byte("error"))
+	})
+	defer srv.Close()
+
+	_, err := p.GetByProviderID(context.Background(), "1", "tv")
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "500")
+}
+
+func TestTVMaze_GetByProviderID_NotFound(t *testing.T) {
+	srv, p := newTVMazeTestServer(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusNotFound)
+	})
+	defer srv.Close()
+
+	_, err := p.GetByProviderID(context.Background(), "999999", "tv")
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "not found")
+}
+
+func TestTVMaze_LookupByExternalID_TheTVDB(t *testing.T) {
+	srv, p := newTVMazeTestServer(func(w http.ResponseWriter, r *http.Request) {
+		assert.Equal(t, "79349", r.URL.Query().Get("thetvdb"))
+		json.NewEncoder(w).Encode(tvmazeShow{
+			ID:        161,
+			Name:      "Dexter",
+			Externals: tvmazeExternal{TheTVDB: 79349},
+		})
+	})
+	defer srv.Close()
+
+	result, err := p.LookupByExternalID(context.Background(), "thetvdb", "79349")
+	require.NoError(t, err)
+	assert.Equal(t, "Dexter", result.Title)
+}
+
+func TestTVMaze_LookupByExternalID_UnsupportedProvider(t *testing.T) {
+	p := NewTVMazeProvider(nil)
+	_, err := p.LookupByExternalID(context.Background(), "tmdb", "12345")
+	assert.ErrorContains(t, err, "unsupported external provider")
+}
+
+func TestTVMaze_Search_ServerError(t *testing.T) {
+	srv, p := newTVMazeTestServer(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+		w.Write([]byte("error"))
+	})
+	defer srv.Close()
+
+	_, err := p.Search(context.Background(), "test", nil, "tv")
+	assert.Error(t, err)
+}
+
+func TestTVMaze_GetEpisodeDetails_WithImage(t *testing.T) {
+	srv, p := newTVMazeTestServer(func(w http.ResponseWriter, r *http.Request) {
+		json.NewEncoder(w).Encode(tvmazeEpisode{
+			ID:      1,
+			Name:    "Pilot",
+			Summary: "<p>First episode</p>",
+			Airdate: "2020-01-01",
+			Rating:  tvmazeRating{Average: 0},
+			Image:   &tvmazeImage{Original: "http://img.com/ep.jpg"},
+		})
+	})
+	defer srv.Close()
+
+	result, err := p.GetEpisodeDetails(context.Background(), "100", 1, 1)
+	require.NoError(t, err)
+	assert.Equal(t, "Pilot", result.Title)
+	assert.Nil(t, result.CommunityRating)
+	require.Len(t, result.Artwork, 1)
+	assert.Equal(t, "backdrop", result.Artwork[0].Type)
+	assert.Equal(t, "tvmaze", result.Artwork[0].Provider)
+}
+
+func TestTVMaze_GetEpisodeDetails_NoOptionalFields(t *testing.T) {
+	srv, p := newTVMazeTestServer(func(w http.ResponseWriter, r *http.Request) {
+		json.NewEncoder(w).Encode(tvmazeEpisode{
+			ID:   1,
+			Name: "Ep",
+		})
+	})
+	defer srv.Close()
+
+	result, err := p.GetEpisodeDetails(context.Background(), "100", 1, 1)
+	require.NoError(t, err)
+	assert.Nil(t, result.CommunityRating)
+	assert.Empty(t, result.Artwork)
+	assert.Nil(t, result.PremiereDate)
+}
+
+func TestTVMaze_MapShow_NoImage(t *testing.T) {
+	show := tvmazeShow{ID: 1, Name: "Show", Image: nil}
+	result := mapTVMazeShow(show)
+	assert.Empty(t, result.Artwork)
+}
+
+func TestTVMaze_MapShow_NoExternals(t *testing.T) {
+	show := tvmazeShow{ID: 1, Name: "Show"}
+	result := mapTVMazeShow(show)
+	assert.NotContains(t, result.ProviderIDs, "imdb")
+	assert.NotContains(t, result.ProviderIDs, "thetvdb")
+}
+
+func TestTVMaze_MapShow_NoRating(t *testing.T) {
+	show := tvmazeShow{ID: 1, Name: "Show", Rating: tvmazeRating{Average: 0}}
+	result := mapTVMazeShow(show)
+	assert.Nil(t, result.CommunityRating)
+}

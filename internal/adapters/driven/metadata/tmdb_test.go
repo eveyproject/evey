@@ -3,12 +3,14 @@ package metadata
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
 	"strings"
 	"testing"
 
+	domain "github.com/gravity-zero/evey/internal/domain/metadata"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -392,4 +394,360 @@ func TestMapSearchResult_NoDateNoRating(t *testing.T) {
 	assert.Nil(t, r.Year)
 	assert.Nil(t, r.CommunityRating)
 	assert.Nil(t, r.PremiereDate)
+}
+
+func TestSelectTrailers(t *testing.T) {
+	videos := []tmdbVideo{
+		{Key: "a1", Site: "YouTube", Type: "Trailer", Language: "en", Official: false},
+		{Key: "a2", Site: "YouTube", Type: "Trailer", Language: "en", Official: true},
+		{Key: "a3", Site: "YouTube", Type: "Trailer", Language: "en", Official: true},
+		{Key: "a4", Site: "YouTube", Type: "Trailer", Language: "en", Official: false},
+		{Key: "f1", Site: "YouTube", Type: "Trailer", Language: "fr", Official: true},
+		{Key: "", Site: "YouTube", Type: "Trailer", Language: "en"},    // empty key, skipped
+		{Key: "c1", Site: "YouTube", Type: "Clip", Language: "en"},     // not a trailer, skipped
+		{Key: "t1", Site: "YouTube", Type: "Teaser", Language: "en"},   // not a trailer, skipped
+	}
+
+	result := selectTrailers(videos, "en")
+	// en: max 3, fr: 1
+	enCount, frCount := 0, 0
+	for _, tr := range result {
+		if tr.Language == "en" {
+			enCount++
+		}
+		if tr.Language == "fr" {
+			frCount++
+		}
+		assert.Equal(t, "Trailer", tr.Type)
+		assert.NotEmpty(t, tr.Key)
+	}
+	assert.Equal(t, 3, enCount)
+	assert.Equal(t, 1, frCount)
+}
+
+func TestSelectTrailers_Empty(t *testing.T) {
+	result := selectTrailers(nil, "en")
+	assert.Empty(t, result)
+}
+
+func TestSelectTrailers_OfficialFirst(t *testing.T) {
+	videos := []tmdbVideo{
+		{Key: "unoff", Site: "YouTube", Type: "Trailer", Language: "en", Official: false},
+		{Key: "off", Site: "YouTube", Type: "Trailer", Language: "en", Official: true},
+	}
+	result := selectTrailers(videos, "en")
+	require.Len(t, result, 2)
+	assert.True(t, result[0].Official)
+}
+
+func TestSortVideos(t *testing.T) {
+	vids := []tmdbVideo{
+		{Key: "b", Official: false},
+		{Key: "a", Official: true},
+		{Key: "c", Official: true},
+	}
+	sortVideos(vids, func(a, b tmdbVideo) int {
+		if a.Official && !b.Official {
+			return -1
+		}
+		if !a.Official && b.Official {
+			return 1
+		}
+		return 0
+	})
+	assert.True(t, vids[0].Official)
+	assert.True(t, vids[1].Official)
+	assert.False(t, vids[2].Official)
+}
+
+func TestMapDetailCollection(t *testing.T) {
+	t.Run("nil", func(t *testing.T) {
+		assert.Nil(t, mapDetailCollection(nil))
+	})
+
+	t.Run("with paths", func(t *testing.T) {
+		col := &tmdbCollection{
+			ID: 42, Name: "Saga",
+			PosterPath: "/poster.jpg", BackdropPath: "/backdrop.jpg",
+		}
+		ref := mapDetailCollection(col)
+		require.NotNil(t, ref)
+		assert.Equal(t, 42, ref.TmdbID)
+		assert.Equal(t, "Saga", ref.Name)
+		assert.Contains(t, ref.PosterURL, "/poster.jpg")
+		assert.Contains(t, ref.BackdropURL, "/backdrop.jpg")
+	})
+
+	t.Run("empty paths", func(t *testing.T) {
+		col := &tmdbCollection{ID: 1, Name: "C"}
+		ref := mapDetailCollection(col)
+		assert.Empty(t, ref.PosterURL)
+		assert.Empty(t, ref.BackdropURL)
+	})
+}
+
+func TestMapDetailExternalIDs(t *testing.T) {
+	t.Run("nil", func(t *testing.T) {
+		r := &domain.MetadataResult{ProviderIDs: map[string]string{}}
+		mapDetailExternalIDs(r, nil)
+		assert.Empty(t, r.ProviderIDs)
+	})
+
+	t.Run("with imdb and tvdb", func(t *testing.T) {
+		r := &domain.MetadataResult{ProviderIDs: map[string]string{"tmdb": "1"}}
+		mapDetailExternalIDs(r, &tmdbExternalIDs{IMDBID: "tt123", TVDBID: 456})
+		assert.Equal(t, "tt123", r.ProviderIDs["imdb"])
+		assert.Equal(t, "456", r.ProviderIDs["thetvdb"])
+	})
+
+	t.Run("empty values", func(t *testing.T) {
+		r := &domain.MetadataResult{ProviderIDs: map[string]string{}}
+		mapDetailExternalIDs(r, &tmdbExternalIDs{})
+		assert.NotContains(t, r.ProviderIDs, "imdb")
+		assert.NotContains(t, r.ProviderIDs, "thetvdb")
+	})
+}
+
+func TestMapDetailRating_Zero(t *testing.T) {
+	r := &domain.MetadataResult{Ratings: map[string]float64{}}
+	mapDetailRating(r, 0)
+	assert.Nil(t, r.CommunityRating)
+	assert.Empty(t, r.Ratings)
+}
+
+func TestGetEpisodeDetails(t *testing.T) {
+	srv, p := newTestServer(func(w http.ResponseWriter, r *http.Request) {
+		assert.Contains(t, r.URL.Path, "/tv/100/season/1/episode/3")
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(`{
+			"name": "Pilot",
+			"overview": "The beginning",
+			"still_path": "/still.jpg",
+			"vote_average": 8.5,
+			"air_date": "2020-01-15"
+		}`))
+	})
+	defer srv.Close()
+
+	result, err := p.GetEpisodeDetails(context.Background(), "100", 1, 3)
+	require.NoError(t, err)
+	assert.Equal(t, "Pilot", result.Title)
+	assert.Equal(t, "The beginning", result.Overview)
+	require.NotNil(t, result.CommunityRating)
+	assert.InDelta(t, 8.5, *result.CommunityRating, 0.01)
+	require.Len(t, result.Artwork, 1)
+	assert.Equal(t, "backdrop", result.Artwork[0].Type)
+	assert.Contains(t, result.Artwork[0].URL, "/still.jpg")
+	require.NotNil(t, result.Year)
+	assert.Equal(t, 2020, *result.Year)
+}
+
+func TestGetEpisodeDetails_NotFound(t *testing.T) {
+	srv, p := newTestServer(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(`{"name": ""}`))
+	})
+	defer srv.Close()
+
+	_, err := p.GetEpisodeDetails(context.Background(), "100", 1, 99)
+	assert.ErrorContains(t, err, "episode not found")
+}
+
+func TestGetEpisodeDetails_NoOptionalFields(t *testing.T) {
+	srv, p := newTestServer(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(`{"name": "Ep", "overview": "", "vote_average": 0}`))
+	})
+	defer srv.Close()
+
+	result, err := p.GetEpisodeDetails(context.Background(), "100", 1, 1)
+	require.NoError(t, err)
+	assert.Nil(t, result.CommunityRating)
+	assert.Empty(t, result.Artwork)
+	assert.Nil(t, result.PremiereDate)
+}
+
+func TestGetSeasonDetails(t *testing.T) {
+	srv, p := newTestServer(func(w http.ResponseWriter, r *http.Request) {
+		assert.Contains(t, r.URL.Path, "/tv/100/season/2")
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(`{
+			"name": "Season 2",
+			"overview": "Second season",
+			"poster_path": "/s2poster.jpg",
+			"vote_average": 7.9,
+			"air_date": "2021-06-01"
+		}`))
+	})
+	defer srv.Close()
+
+	result, err := p.GetSeasonDetails(context.Background(), "100", 2)
+	require.NoError(t, err)
+	assert.Equal(t, "Season 2", result.Title)
+	assert.Equal(t, "Second season", result.Overview)
+	require.NotNil(t, result.CommunityRating)
+	assert.InDelta(t, 7.9, *result.CommunityRating, 0.01)
+	require.Len(t, result.Artwork, 1)
+	assert.Equal(t, "poster", result.Artwork[0].Type)
+	require.NotNil(t, result.Year)
+	assert.Equal(t, 2021, *result.Year)
+}
+
+func TestGetSeasonDetails_NoOptionalFields(t *testing.T) {
+	srv, p := newTestServer(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(`{"name": "Season 1", "overview": ""}`))
+	})
+	defer srv.Close()
+
+	result, err := p.GetSeasonDetails(context.Background(), "100", 1)
+	require.NoError(t, err)
+	assert.Nil(t, result.CommunityRating)
+	assert.Empty(t, result.Artwork)
+	assert.Nil(t, result.PremiereDate)
+}
+
+func TestGetByProviderID_WithExternalIDs(t *testing.T) {
+	detail := tmdbDetailResponse{
+		ID:          550,
+		Title:       "Fight Club",
+		ReleaseDate: "1999-10-15",
+		ExternalIDs: &tmdbExternalIDs{IMDBID: "tt0137523", TVDBID: 0},
+	}
+	srv, p := newTestServer(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(detail)
+	})
+	defer srv.Close()
+
+	result, err := p.GetByProviderID(context.Background(), "550", "movie")
+	require.NoError(t, err)
+	assert.Equal(t, "tt0137523", result.ProviderIDs["imdb"])
+	assert.NotContains(t, result.ProviderIDs, "thetvdb")
+}
+
+func TestGetByProviderID_WithVideos(t *testing.T) {
+	detail := tmdbDetailResponse{
+		ID:    1,
+		Title: "Movie",
+		Videos: &tmdbVideos{
+			Results: []tmdbVideo{
+				{Key: "abc", Site: "YouTube", Type: "Trailer", Language: "en", Official: true},
+			},
+		},
+	}
+	srv, p := newTestServer(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(detail)
+	})
+	defer srv.Close()
+
+	result, err := p.GetByProviderID(context.Background(), "1", "movie")
+	require.NoError(t, err)
+	require.Len(t, result.Trailers, 1)
+	assert.Equal(t, "abc", result.Trailers[0].Key)
+}
+
+func TestGetByProviderID_WithCollection(t *testing.T) {
+	detail := tmdbDetailResponse{
+		ID:    1,
+		Title: "Movie",
+		BelongsToCollection: &tmdbCollection{
+			ID: 10, Name: "The Saga",
+			PosterPath: "/col_poster.jpg", BackdropPath: "/col_bg.jpg",
+		},
+	}
+	srv, p := newTestServer(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(detail)
+	})
+	defer srv.Close()
+
+	result, err := p.GetByProviderID(context.Background(), "1", "movie")
+	require.NoError(t, err)
+	require.NotNil(t, result.Collection)
+	assert.Equal(t, 10, result.Collection.TmdbID)
+	assert.Equal(t, "The Saga", result.Collection.Name)
+}
+
+func TestGetByProviderID_CacheHit(t *testing.T) {
+	calls := 0
+	srv, p := newTestServer(func(w http.ResponseWriter, r *http.Request) {
+		calls++
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(tmdbDetailResponse{ID: 1, Title: "Cached"})
+	})
+	defer srv.Close()
+
+	_, err := p.GetByProviderID(context.Background(), "1", "movie")
+	require.NoError(t, err)
+	_, err = p.GetByProviderID(context.Background(), "1", "movie")
+	require.NoError(t, err)
+	assert.Equal(t, 1, calls)
+}
+
+func TestSearch_CacheHit(t *testing.T) {
+	calls := 0
+	srv, p := newTestServer(func(w http.ResponseWriter, r *http.Request) {
+		calls++
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(tmdbSearchResponse{Page: 1, TotalPages: 1,
+			Results: []tmdbSearchItem{{ID: 1, Title: "Cached"}},
+		})
+	})
+	defer srv.Close()
+
+	_, _ = p.Search(context.Background(), "test", nil, "movie")
+	_, _ = p.Search(context.Background(), "test", nil, "movie")
+	assert.Equal(t, 1, calls)
+}
+
+func TestNewTMDBProvider_Defaults(t *testing.T) {
+	p := NewTMDBProvider("key", "", nil)
+	assert.Equal(t, "en", p.language)
+	assert.NotNil(t, p.httpClient)
+}
+
+func TestAppendImages_Limit(t *testing.T) {
+	imgs := make([]tmdbImage, 10)
+	for i := range imgs {
+		imgs[i] = tmdbImage{FilePath: fmt.Sprintf("/img%d.jpg", i), Width: 100, Height: 100}
+	}
+	result := appendImages(nil, imgs, "poster", 3)
+	assert.Len(t, result, 3)
+}
+
+func TestGenreMapForType(t *testing.T) {
+	assert.Equal(t, tvGenres, genreMapForType("tv"))
+	assert.Equal(t, movieGenres, genreMapForType("movie"))
+	assert.Equal(t, movieGenres, genreMapForType("other"))
+}
+
+func TestDoRequestWithRetry_RetryAfterHeader(t *testing.T) {
+	attempts := 0
+	srv, p := newTestServer(func(w http.ResponseWriter, r *http.Request) {
+		attempts++
+		if attempts == 1 {
+			w.Header().Set("Retry-After", "1")
+			w.WriteHeader(http.StatusTooManyRequests)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(`{"page":1,"total_pages":1,"results":[]}`))
+	})
+	defer srv.Close()
+
+	_, err := p.Search(context.Background(), "test", nil, "movie")
+	require.NoError(t, err)
+	assert.Equal(t, 2, attempts)
+}
+
+func TestMapDetailResult_NoVideos(t *testing.T) {
+	d := tmdbDetailResponse{
+		ID:    1,
+		Title: "Movie",
+	}
+	result := mapDetailResult(d, "movie", "en")
+	assert.Empty(t, result.Trailers)
+	assert.Nil(t, result.Collection)
 }
