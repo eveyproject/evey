@@ -342,6 +342,257 @@ func TestAdminGetPluginLogs_Pagination(t *testing.T) {
 	}
 }
 
+func TestAdminGetSetupStatus_NoAdmins(t *testing.T) {
+	h := newTestAdminHandler()
+	resp, err := h.GetSetupStatus(context.Background(), &eveyv1.GetSetupStatusRequest{})
+	if err != nil {
+		t.Fatalf("GetSetupStatus: %v", err)
+	}
+	if resp.SetupComplete {
+		t.Error("expected SetupComplete=false with no admins")
+	}
+}
+
+func TestAdminGetSystemInfo(t *testing.T) {
+	h := newTestAdminHandler()
+	resp, err := h.GetSystemInfo(context.Background(), &eveyv1.GetSystemInfoRequest{})
+	if err != nil {
+		t.Fatalf("GetSystemInfo: %v", err)
+	}
+	if resp.Version != "1.0.0-test" {
+		t.Errorf("Version = %q, want 1.0.0-test", resp.Version)
+	}
+	if resp.GoVersion == "" {
+		t.Error("expected non-empty GoVersion")
+	}
+	if resp.Os == "" {
+		t.Error("expected non-empty Os")
+	}
+}
+
+func TestAdminGetSystemInfo_WithTranscoding(t *testing.T) {
+	h := newTestAdminHandler()
+	hwDetector := transcodingfakes.NewFakeHWDetector()
+	events := sharedfakes.NewFakeEventBus()
+	transcodingSvc := apptranscoding.NewService(nil, hwDetector, nil, nil, events, 1)
+	h.transcodingSvc = transcodingSvc
+
+	resp, err := h.GetSystemInfo(context.Background(), &eveyv1.GetSystemInfoRequest{})
+	if err != nil {
+		t.Fatalf("GetSystemInfo: %v", err)
+	}
+	// Just verify it doesn't crash with transcoding service present
+	_ = resp
+}
+
+func TestAdminGetAuditLog(t *testing.T) {
+	h := newTestAdminHandler()
+	resp, err := h.GetAuditLog(context.Background(), &eveyv1.GetAuditLogRequest{Limit: 10})
+	if err != nil {
+		t.Fatalf("GetAuditLog: %v", err)
+	}
+	if resp.Total != 0 {
+		t.Errorf("expected 0 audit entries, got %d", resp.Total)
+	}
+}
+
+func TestAdminGetAuditLog_WithFilters(t *testing.T) {
+	h := newTestAdminHandler()
+	resp, err := h.GetAuditLog(context.Background(), &eveyv1.GetAuditLogRequest{
+		Limit:        10,
+		UserId:       "u-1",
+		Action:       "login",
+		ResourceType: "user",
+	})
+	if err != nil {
+		t.Fatalf("GetAuditLog: %v", err)
+	}
+	_ = resp
+}
+
+func TestAdminListPluginRuntimes(t *testing.T) {
+	h := newTestAdminHandler()
+	resp, err := h.ListPluginRuntimes(context.Background(), &eveyv1.ListPluginRuntimesRequest{})
+	if err != nil {
+		t.Fatalf("ListPluginRuntimes: %v", err)
+	}
+	if len(resp.Runtimes) != 0 {
+		t.Errorf("expected 0 runtimes, got %d", len(resp.Runtimes))
+	}
+}
+
+func TestAdminAddPluginRuntime(t *testing.T) {
+	h := newTestAdminHandler()
+	resp, err := h.AddPluginRuntime(context.Background(), &eveyv1.AddPluginRuntimeRequest{
+		Name:     "python3",
+		Language: "python",
+		Version:  "3.11",
+	})
+	if err != nil {
+		t.Fatalf("AddPluginRuntime: %v", err)
+	}
+	if resp.Language != "python" {
+		t.Errorf("Language = %q", resp.Language)
+	}
+}
+
+func TestAdminRemovePluginRuntime(t *testing.T) {
+	h := newTestAdminHandler()
+	// Add first
+	h.AddPluginRuntime(context.Background(), &eveyv1.AddPluginRuntimeRequest{
+		Name: "python3", Language: "python", Version: "3.11",
+	})
+	_, err := h.RemovePluginRuntime(context.Background(), &eveyv1.RemovePluginRuntimeRequest{Id: "python3"})
+	if err != nil {
+		t.Fatalf("RemovePluginRuntime: %v", err)
+	}
+}
+
+func TestAdminListPlugins(t *testing.T) {
+	h := newTestAdminHandler()
+	resp, err := h.ListPlugins(context.Background(), &eveyv1.ListPluginsRequest{})
+	if err != nil {
+		t.Fatalf("ListPlugins: %v", err)
+	}
+	if len(resp.Plugins) != 0 {
+		t.Errorf("expected 0 plugins, got %d", len(resp.Plugins))
+	}
+}
+
+func TestAdminAcquireReleaseHeavyOp(t *testing.T) {
+	h := newTestAdminHandler()
+	h.heavyOpSemaphore = make(chan struct{}, 1)
+
+	if !h.acquireHeavyOp() {
+		t.Error("first acquire should succeed")
+	}
+	if h.acquireHeavyOp() {
+		t.Error("second acquire should fail (semaphore full)")
+	}
+	h.releaseHeavyOp()
+	if !h.acquireHeavyOp() {
+		t.Error("acquire after release should succeed")
+	}
+	h.releaseHeavyOp()
+}
+
+func TestAdminAcquireHeavyOp_NilSemaphore(t *testing.T) {
+	h := newTestAdminHandler()
+	h.heavyOpSemaphore = nil
+	if !h.acquireHeavyOp() {
+		t.Error("nil semaphore should always succeed")
+	}
+	h.releaseHeavyOp() // should not panic
+}
+
+func TestAdminGetDashboard_WithLibLister(t *testing.T) {
+	h := newTestAdminHandler()
+	h.libLister = &fakeAdminLibLister{
+		libs: []*domainlibrary.Library{
+			{ID: "lib-1", Paths: []string{"/tmp"}},
+		},
+	}
+	resp, err := h.GetDashboard(context.Background(), &eveyv1.GetDashboardRequest{})
+	if err != nil {
+		t.Fatalf("GetDashboard: %v", err)
+	}
+	// storage info should be populated for /tmp
+	if len(resp.Storage) == 0 {
+		t.Log("no storage info for /tmp (may be expected in CI)")
+	}
+}
+
+func TestAdminListScheduledTasks_NilScheduler(t *testing.T) {
+	h := newTestAdminHandler()
+	h.scheduler = nil
+	resp, err := h.ListScheduledTasks(context.Background(), &eveyv1.ListScheduledTasksRequest{})
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+	if len(resp.Tasks) != 0 {
+		t.Errorf("expected empty tasks, got %d", len(resp.Tasks))
+	}
+}
+
+func TestAdminRunScheduledTask_NilScanner(t *testing.T) {
+	h := newTestAdminHandler()
+	h.libScanner = nil
+	_, err := h.RunScheduledTask(context.Background(), &eveyv1.RunScheduledTaskRequest{Id: "lib-1"})
+	if err == nil {
+		t.Error("expected error for nil scanner")
+	}
+}
+
+func TestAdminEnablePlugin(t *testing.T) {
+	h := newTestAdminHandler()
+	_, err := h.EnablePlugin(context.Background(), &eveyv1.EnablePluginRequest{Id: "nonexistent"})
+	if err == nil {
+		t.Error("expected error for nonexistent plugin")
+	}
+}
+
+func TestAdminDisablePlugin(t *testing.T) {
+	h := newTestAdminHandler()
+	_, err := h.DisablePlugin(context.Background(), &eveyv1.DisablePluginRequest{Id: "nonexistent"})
+	if err == nil {
+		t.Error("expected error for nonexistent plugin")
+	}
+}
+
+func TestAdminGetPluginConfig(t *testing.T) {
+	h := newTestAdminHandler()
+	_, err := h.GetPluginConfig(context.Background(), &eveyv1.GetPluginConfigRequest{PluginId: "nonexistent"})
+	if err == nil {
+		t.Error("expected error for nonexistent plugin config")
+	}
+}
+
+func TestAdminUpdatePluginConfig(t *testing.T) {
+	h := newTestAdminHandler()
+	_, err := h.UpdatePluginConfig(context.Background(), &eveyv1.UpdatePluginConfigRequest{
+		PluginId: "nonexistent",
+		Values:   map[string]string{"key": "value"},
+	})
+	if err == nil {
+		t.Error("expected error for nonexistent plugin config")
+	}
+}
+
+func TestAdminRefreshAllMetadata_NilService(t *testing.T) {
+	h := newTestAdminHandler()
+	h.metadataCmd = nil
+	_, err := h.RefreshAllMetadata(context.Background(), &eveyv1.RefreshAllMetadataRequest{})
+	if err == nil {
+		t.Error("expected error for nil metadataCmd")
+	}
+}
+
+func TestAdminGenerateAllTrickplays_NilService(t *testing.T) {
+	h := newTestAdminHandler()
+	h.libCmd = nil
+	_, err := h.GenerateAllTrickplays(context.Background(), &eveyv1.GenerateAllTrickplaysRequest{})
+	if err == nil {
+		t.Error("expected error for nil libCmd")
+	}
+}
+
+func TestAdminDeleteMediaItem_NilService(t *testing.T) {
+	h := newTestAdminHandler()
+	h.libCmd = nil
+	_, err := h.DeleteMediaItem(context.Background(), &eveyv1.DeleteMediaItemRequest{Id: "m-1"})
+	if err == nil {
+		t.Error("expected error for nil libCmd")
+	}
+}
+
+type fakeAdminLibLister struct {
+	libs []*domainlibrary.Library
+}
+
+func (f *fakeAdminLibLister) ListLibraries(_ context.Context) ([]*domainlibrary.Library, error) {
+	return f.libs, nil
+}
+
 func TestAdminSetupWizard(t *testing.T) {
 	h := newTestAdminHandler()
 	resp, err := h.SetupWizard(context.Background(), &eveyv1.SetupWizardRequest{

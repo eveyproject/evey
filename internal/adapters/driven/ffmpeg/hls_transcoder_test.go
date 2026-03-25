@@ -153,6 +153,144 @@ func TestBuildFFmpegArgs_BurnIn(t *testing.T) {
 	assert.Contains(t, joined, "[vb]split=")
 }
 
+func TestBuildFFmpegArgs_SingleTranscode_AudioCopy(t *testing.T) {
+	opts := transcoding.HLSProcessOpts{
+		OutputDir:     "/tmp/test",
+		FilePath:      "/f.mkv",
+		Profiles:      transcoding.DefaultHLSProfiles,
+		VideoDecision: "transcode",
+		AudioDecision: "copy",
+	}
+	args := ffmpeg.BuildFFmpegArgs(opts)
+	joined := strings.Join(args, " ")
+	assert.Contains(t, joined, "-c:a copy")
+	assert.Contains(t, joined, "libx264")
+}
+
+func TestBuildFFmpegArgs_SingleTranscode_AudioNormalize(t *testing.T) {
+	opts := transcoding.HLSProcessOpts{
+		OutputDir:      "/tmp/test",
+		FilePath:       "/f.mkv",
+		Profiles:       transcoding.DefaultHLSProfiles,
+		VideoDecision:  "transcode",
+		AudioDecision:  "transcode",
+		AudioNormalize: true,
+	}
+	args := ffmpeg.BuildFFmpegArgs(opts)
+	joined := strings.Join(args, " ")
+	assert.Contains(t, joined, "loudnorm")
+}
+
+func TestBuildFFmpegArgs_SingleTranscode_WithSeek(t *testing.T) {
+	opts := transcoding.HLSProcessOpts{
+		OutputDir:     "/tmp/test",
+		FilePath:      "/f.mkv",
+		Profiles:      transcoding.DefaultHLSProfiles,
+		VideoDecision: "transcode",
+		AudioDecision: "transcode",
+		StartSec:      10.5,
+	}
+	args := ffmpeg.BuildFFmpegArgs(opts)
+	ssIdx, iIdx := -1, -1
+	for i, a := range args {
+		if a == "-ss" && ssIdx < 0 {
+			ssIdx = i
+		}
+		if a == "-i" && iIdx < 0 {
+			iIdx = i
+		}
+	}
+	require.Greater(t, ssIdx, -1)
+	require.Greater(t, iIdx, -1)
+	assert.Less(t, ssIdx, iIdx)
+}
+
+func TestBuildFFmpegArgs_MultiVariant_WithSeek(t *testing.T) {
+	opts := transcoding.HLSProcessOpts{
+		OutputDir:       "/tmp/test",
+		FilePath:        "/f.mkv",
+		Profiles:        transcoding.DefaultHLSProfiles,
+		VideoDecision:   "",
+		AudioDecision:   "",
+		AudioTrackIndex: 0,
+		StartSec:        30.0,
+	}
+	args := ffmpeg.BuildFFmpegArgs(opts)
+	joined := strings.Join(args, " ")
+	assert.Contains(t, joined, "-ss 30.000")
+}
+
+func TestBuildFFmpegArgs_MultiVariant_AudioNormalize(t *testing.T) {
+	opts := transcoding.HLSProcessOpts{
+		OutputDir:       "/tmp/test",
+		FilePath:        "/f.mkv",
+		Profiles:        transcoding.DefaultHLSProfiles,
+		VideoDecision:   "",
+		AudioDecision:   "",
+		AudioTrackIndex: 0,
+		AudioNormalize:  true,
+	}
+	args := ffmpeg.BuildFFmpegArgs(opts)
+	joined := strings.Join(args, " ")
+	assert.Contains(t, joined, "loudnorm")
+}
+
+func TestBuildFFmpegArgs_VideoCopy_AudioCopy(t *testing.T) {
+	opts := transcoding.HLSProcessOpts{
+		OutputDir:       "/tmp/test",
+		FilePath:        "/f.mkv",
+		Profiles:        transcoding.DefaultHLSProfiles,
+		VideoDecision:   "copy",
+		AudioDecision:   "copy",
+		AudioTrackIndex: 1,
+	}
+	args := ffmpeg.BuildFFmpegArgs(opts)
+	joined := strings.Join(args, " ")
+	assert.Contains(t, joined, "-c:v copy")
+	assert.Contains(t, joined, "-c:a copy")
+	assert.Contains(t, joined, "0:a:1")
+}
+
+func TestBuildFFmpegArgs_VideoCopy_AudioNormalize(t *testing.T) {
+	opts := transcoding.HLSProcessOpts{
+		OutputDir:       "/tmp/test",
+		FilePath:        "/f.mkv",
+		Profiles:        transcoding.DefaultHLSProfiles,
+		VideoDecision:   "copy",
+		AudioDecision:   "transcode",
+		AudioNormalize:  true,
+		AudioTrackIndex: 0,
+	}
+	args := ffmpeg.BuildFFmpegArgs(opts)
+	joined := strings.Join(args, " ")
+	assert.Contains(t, joined, "loudnorm")
+}
+
+func TestBuildFFmpegArgs_SingleTranscode_BurnInSubtitle(t *testing.T) {
+	opts := transcoding.HLSProcessOpts{
+		OutputDir:          "/tmp/test",
+		FilePath:           "/f.mkv",
+		Profiles:           transcoding.DefaultHLSProfiles,
+		VideoDecision:      "transcode",
+		AudioDecision:      "transcode",
+		SubtitleTrackIndex: 0,
+		SubtitleCodec:      "pgssub",
+	}
+	args := ffmpeg.BuildFFmpegArgs(opts)
+	joined := strings.Join(args, " ")
+	assert.Contains(t, joined, "overlay")
+	assert.Contains(t, joined, "[0:s:0]")
+}
+
+func TestIsImageSubtitle(t *testing.T) {
+	imageCodecs := []string{"pgssub", "hdmv_pgs_subtitle", "dvd_subtitle", "dvbsub", "xsub"}
+	for _, c := range imageCodecs {
+		assert.True(t, ffmpeg.IsImageSubtitle(c), "expected %s to be image subtitle", c)
+	}
+	assert.False(t, ffmpeg.IsImageSubtitle("srt"), "srt is not image subtitle")
+	assert.False(t, ffmpeg.IsImageSubtitle("ass"), "ass is not image subtitle")
+}
+
 // Integration test — requires ffmpeg binary
 func TestHLSTranscoder_Integration_ModeA(t *testing.T) {
 	requireFFmpeg(t)

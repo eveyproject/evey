@@ -223,6 +223,31 @@ func TestSettings_LevelForType(t *testing.T) {
 	}
 }
 
+func TestSettings_Validate(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		s       notification.Settings
+		wantErr bool
+	}{
+		{"valid all levels", notification.Settings{MovieLevel: notification.LevelAll, SeriesLevel: notification.LevelRelevant, MusicLevel: notification.LevelDisabled}, false},
+		{"valid highly_relevant", notification.Settings{MovieLevel: notification.LevelHighlyRelevant, SeriesLevel: notification.LevelAll, MusicLevel: notification.LevelAll}, false},
+		{"invalid movie level", notification.Settings{MovieLevel: "bad", SeriesLevel: notification.LevelAll, MusicLevel: notification.LevelAll}, true},
+		{"invalid series level", notification.Settings{MovieLevel: notification.LevelAll, SeriesLevel: "nope", MusicLevel: notification.LevelAll}, true},
+		{"invalid music level", notification.Settings{MovieLevel: notification.LevelAll, SeriesLevel: notification.LevelAll, MusicLevel: "wrong"}, true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			err := tt.s.Validate()
+			if (err != nil) != tt.wantErr {
+				t.Errorf("Validate() err=%v, wantErr=%v", err, tt.wantErr)
+			}
+		})
+	}
+}
+
 func TestSettings_Defaults(t *testing.T) {
 	t.Parallel()
 

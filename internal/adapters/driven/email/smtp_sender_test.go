@@ -193,6 +193,106 @@ func TestNotificationEmailer_NoEmail_SkipsSend(t *testing.T) {
 	}
 }
 
+func TestNotificationEmailer_WrongEventType_NoSend(t *testing.T) {
+	sender := &fakeSender{}
+	profiles := &fakeProfileGetter{profiles: map[string]*domainuser.Profile{}}
+	users := &fakeUserGetter{users: map[string]*domainuser.User{}}
+
+	bus := &fakeBus{}
+	emailer := NewNotificationEmailer(sender, profiles, users)
+	emailer.Register(bus)
+
+	// publish a non-NotificationCreated event
+	type fakeEvent struct{}
+	fe := fakeEvent{}
+	// call handle directly with wrong type
+	if h, ok := bus.handlers["notification.created"]; ok {
+		h(context.Background(), domainnotif.NotificationRead{ProfileID: "x"})
+		_ = fe
+	}
+
+	if len(sender.sent) != 0 {
+		t.Fatalf("expected 0 emails for wrong event type, got %d", len(sender.sent))
+	}
+}
+
+func TestNotificationEmailer_UserNotFound_NoSend(t *testing.T) {
+	sender := &fakeSender{}
+	profiles := &fakeProfileGetter{profiles: map[string]*domainuser.Profile{
+		"prof-1": {ID: "prof-1", UserID: "usr-missing"},
+	}}
+	users := &fakeUserGetter{users: map[string]*domainuser.User{}}
+
+	bus := &fakeBus{}
+	emailer := NewNotificationEmailer(sender, profiles, users)
+	emailer.Register(bus)
+
+	ev := domainnotif.NotificationCreated{ProfileID: "prof-1", Title: "X", OccurredAt: time.Now()}
+	_ = bus.Publish(context.Background(), ev)
+
+	if len(sender.sent) != 0 {
+		t.Fatalf("expected 0 emails when user not found, got %d", len(sender.sent))
+	}
+}
+
+type failSender struct {
+	err error
+}
+
+func (f *failSender) Send(to []string, subject, body string) error {
+	return f.err
+}
+
+func TestNotificationEmailer_SendFails_NoError(t *testing.T) {
+	sender := &failSender{err: errors.New("smtp failed")}
+	profiles := &fakeProfileGetter{profiles: map[string]*domainuser.Profile{
+		"prof-1": {ID: "prof-1", UserID: "usr-1"},
+	}}
+	users := &fakeUserGetter{users: map[string]*domainuser.User{
+		"usr-1": {ID: "usr-1", Email: "user@example.com"},
+	}}
+
+	bus := &fakeBus{}
+	emailer := NewNotificationEmailer(sender, profiles, users)
+	emailer.Register(bus)
+
+	ev := domainnotif.NotificationCreated{ProfileID: "prof-1", Title: "Fail", OccurredAt: time.Now()}
+	_ = bus.Publish(context.Background(), ev)
+	// should not panic, just log
+}
+
+func TestSMTPSend_SSLMode_DialError(t *testing.T) {
+	s := NewSMTPSender("127.0.0.1", 1, "", "", "from@test.com", "ssl")
+	err := s.Send([]string{"to@test.com"}, "subj", "body")
+	if err == nil {
+		t.Fatal("expected error for ssl dial to invalid addr")
+	}
+}
+
+func TestSMTPSend_StarttlsMode_DialError(t *testing.T) {
+	s := NewSMTPSender("127.0.0.1", 1, "", "", "from@test.com", "starttls")
+	err := s.Send([]string{"to@test.com"}, "subj", "body")
+	if err == nil {
+		t.Fatal("expected error for starttls dial to invalid addr")
+	}
+}
+
+func TestSMTPSend_PlainMode_DialError(t *testing.T) {
+	s := NewSMTPSender("127.0.0.1", 1, "", "", "from@test.com", "none")
+	err := s.Send([]string{"to@test.com"}, "subj", "body")
+	if err == nil {
+		t.Fatal("expected error for plain dial to invalid addr")
+	}
+}
+
+func TestSMTPSend_WithAuth(t *testing.T) {
+	s := NewSMTPSender("127.0.0.1", 1, "user", "pass", "from@test.com", "ssl")
+	err := s.Send([]string{"to@test.com"}, "subj", "body")
+	if err == nil {
+		t.Fatal("expected error for ssl dial with auth to invalid addr")
+	}
+}
+
 func TestNotificationEmailer_ProfileNotFound_NoSend(t *testing.T) {
 	sender := &fakeSender{}
 	profiles := &fakeProfileGetter{profiles: map[string]*domainuser.Profile{}}

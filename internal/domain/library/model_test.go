@@ -305,6 +305,43 @@ func TestCollection_OptionalTmdbID(t *testing.T) {
 	}
 }
 
+func TestMediaStream_Getters(t *testing.T) {
+	t.Parallel()
+
+	bitDepth := 10
+	colorSpace := "bt2020nc"
+	hdrType := "HDR10"
+	s := &library.MediaStream{
+		StreamType: "video",
+		BitDepth:   &bitDepth,
+		ColorSpace: &colorSpace,
+		HDRType:    &hdrType,
+	}
+	if s.GetStreamType() != "video" {
+		t.Errorf("GetStreamType() = %q, want %q", s.GetStreamType(), "video")
+	}
+	if *s.GetBitDepth() != 10 {
+		t.Errorf("GetBitDepth() = %d, want 10", *s.GetBitDepth())
+	}
+	if *s.GetColorSpace() != "bt2020nc" {
+		t.Errorf("GetColorSpace() = %q, want %q", *s.GetColorSpace(), "bt2020nc")
+	}
+	if *s.GetHDRType() != "HDR10" {
+		t.Errorf("GetHDRType() = %q, want %q", *s.GetHDRType(), "HDR10")
+	}
+
+	nilStream := &library.MediaStream{StreamType: "audio"}
+	if nilStream.GetBitDepth() != nil {
+		t.Error("GetBitDepth() should be nil")
+	}
+	if nilStream.GetColorSpace() != nil {
+		t.Error("GetColorSpace() should be nil")
+	}
+	if nilStream.GetHDRType() != nil {
+		t.Error("GetHDRType() should be nil")
+	}
+}
+
 func TestUserRating_Values(t *testing.T) {
 	t.Parallel()
 
