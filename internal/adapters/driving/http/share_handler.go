@@ -41,7 +41,7 @@ func shareCreateHandler(shareSvc *appmedia.ShareService, mediaGetter mediaLibrar
 			DurationHours int  `json:"durationHours"`
 			MaxViews      *int `json:"maxViews"`
 		}
-		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		if decErr := json.NewDecoder(r.Body).Decode(&body); decErr != nil {
 			http.Error(w, `{"message":"invalid body"}`, http.StatusBadRequest)
 			return
 		}

@@ -41,14 +41,36 @@ linters:
         - (*database/sql.Rows).Close
         - (*os.File).Close
         - (io.Closer).Close
+        - (net.Conn).Close
+        - (*github.com/gravity-zero/evey/internal/adapters/driven/pluginrunner.pluginLogWriter).Close
+        # startup best-effort initialization
+        - (*github.com/gravity-zero/evey/internal/app/feed.CommandService).EnsureLibraryFeedConfig
         - (net/http.Response.Body).Close
         - (*database/sql.DB).Close
         - (*database/sql.Tx).Rollback
+        - (*database/sql.Stmt).Close
+        - (database/sql.Result).RowsAffected
         # intentional zero-fallback conversions
         - strconv.Atoi
         - strconv.ParseFloat
         - strconv.ParseUint
         - strconv.ParseInt
+        # process cleanup — error expected after cancel/kill
+        - (*os/exec.Cmd).Wait
+        - (*os.Process).Kill
+        # cleanup / best-effort FS ops
+        - os.RemoveAll
+        - os.ReadDir
+        # scan helpers — zero-value fallback on parse failure
+        - fmt.Sscan
+        # body drain to io.Discard
+        - io.Copy
+        # slog handler — multi-handler best-effort
+        - (log/slog.Handler).Handle
+        # websocket best-effort operations
+        - (*golang.org/x/net/websocket.Conn).Close
+        - (*golang.org/x/net/websocket.Conn).SetWriteDeadline
+        - (golang.org/x/net/websocket.Codec).Send
     govet:
       enable:
         - shadow

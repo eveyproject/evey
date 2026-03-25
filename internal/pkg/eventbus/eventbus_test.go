@@ -18,12 +18,6 @@ type testEvent struct {
 
 func (e testEvent) EventName() string { return "test.event" }
 
-func fastRetry() eventbus.RetryConfig {
-	return eventbus.RetryConfig{
-		MaxRetries: 3,
-		Backoffs:   []time.Duration{time.Millisecond, 2 * time.Millisecond, 4 * time.Millisecond},
-	}
-}
 
 func TestPublishSubscribe(t *testing.T) {
 	t.Parallel()

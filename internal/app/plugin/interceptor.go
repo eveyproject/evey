@@ -83,7 +83,7 @@ func isValidPluginID(id string) bool {
 		return false
 	}
 	for _, c := range id {
-		if !((c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') || c == '-') {
+		if (c < 'a' || c > 'z') && (c < '0' || c > '9') && c != '-' {
 			return false
 		}
 	}

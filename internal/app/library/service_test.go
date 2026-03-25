@@ -400,11 +400,6 @@ func (f *fakeStreamChecker) ActiveSessionCount() int {
 	return f.count
 }
 
-func (f *fakeStreamChecker) setCount(n int) {
-	f.mu.Lock()
-	f.count = n
-	f.mu.Unlock()
-}
 
 func TestGenerateTrickplay_BlocksWhileStreamsActive(t *testing.T) {
 	t.Parallel()

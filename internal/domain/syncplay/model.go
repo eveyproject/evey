@@ -11,7 +11,10 @@ const codeAlphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
 func GenerateCode() string {
 	b := make([]byte, 6)
 	for i := range b {
-		n, _ := rand.Int(rand.Reader, big.NewInt(int64(len(codeAlphabet))))
+		n, err := rand.Int(rand.Reader, big.NewInt(int64(len(codeAlphabet))))
+		if err != nil {
+			panic("crypto/rand failed: " + err.Error())
+		}
 		b[i] = codeAlphabet[n.Int64()]
 	}
 	return string(b)

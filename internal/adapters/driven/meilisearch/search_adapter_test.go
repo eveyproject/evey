@@ -54,9 +54,8 @@ type fakeServiceClient struct {
 	getIndexErr    error
 	createIndexErr error
 	indexResult    *ms.IndexResult
-	createdConfig  *ms.IndexConfig
-	updatedSettings bool
-	indexUID       string
+	createdConfig *ms.IndexConfig
+	indexUID      string
 }
 
 func (f *fakeServiceClient) Index(uid string) ms.IndexManager {
