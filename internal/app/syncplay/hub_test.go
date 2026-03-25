@@ -5,6 +5,7 @@ import (
 	"errors"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/gravity-zero/evey/internal/domain/syncplay"
 )
@@ -428,3 +429,307 @@ func TestHub_UpdateState_Seek(t *testing.T) {
 }
 
 // TestExtractWSToken and TestHub_Broadcast_SkipsSender moved to adapters/driving/http/ (transport layer)
+
+// --- HandleCommand tests ---
+
+func TestHub_HandleCommand_Play(t *testing.T) {
+	t.Parallel()
+	h := newTestHub()
+	ctx := context.Background()
+
+	room, _ := h.CreateRoom(ctx, "host-1", "media-1", "Room")
+
+	cmd, err := h.HandleCommand(ctx, room.ID, "host-1", "Alice", syncplay.SyncCommand{
+		Type:       "play",
+		PositionMs: 5000,
+	})
+	if err != nil {
+		t.Fatalf("HandleCommand play: %v", err)
+	}
+	if cmd.UserID != "host-1" {
+		t.Errorf("cmd.UserID = %q, want %q", cmd.UserID, "host-1")
+	}
+	if cmd.Username != "A***" {
+		t.Errorf("cmd.Username = %q, want %q", cmd.Username, "A***")
+	}
+	if cmd.RoomID != room.ID {
+		t.Errorf("cmd.RoomID = %q, want %q", cmd.RoomID, room.ID)
+	}
+
+	fetched, _ := h.GetRoom(ctx, room.ID)
+	if !fetched.State.Playing {
+		t.Error("expected Playing=true after play command")
+	}
+	if fetched.State.PositionMs != 5000 {
+		t.Errorf("PositionMs = %d, want 5000", fetched.State.PositionMs)
+	}
+	if fetched.State.UpdatedBy != "host-1" {
+		t.Errorf("UpdatedBy = %q, want %q", fetched.State.UpdatedBy, "host-1")
+	}
+}
+
+func TestHub_HandleCommand_Pause(t *testing.T) {
+	t.Parallel()
+	h := newTestHub()
+	ctx := context.Background()
+
+	room, _ := h.CreateRoom(ctx, "host-1", "media-1", "Room")
+	// Start playing
+	_, _ = h.HandleCommand(ctx, room.ID, "host-1", "Alice", syncplay.SyncCommand{
+		Type: "play", PositionMs: 1000,
+	})
+
+	cmd, err := h.HandleCommand(ctx, room.ID, "user-2", "Bob", syncplay.SyncCommand{
+		Type: "pause", PositionMs: 3000,
+	})
+	if err != nil {
+		t.Fatalf("HandleCommand pause: %v", err)
+	}
+	if cmd.Type != "pause" {
+		t.Errorf("cmd.Type = %q, want %q", cmd.Type, "pause")
+	}
+
+	fetched, _ := h.GetRoom(ctx, room.ID)
+	if fetched.State.Playing {
+		t.Error("expected Playing=false after pause command")
+	}
+	if fetched.State.PositionMs != 3000 {
+		t.Errorf("PositionMs = %d, want 3000", fetched.State.PositionMs)
+	}
+}
+
+func TestHub_HandleCommand_Seek_PreservesPlaying(t *testing.T) {
+	t.Parallel()
+	h := newTestHub()
+	ctx := context.Background()
+
+	room, _ := h.CreateRoom(ctx, "host-1", "media-1", "Room")
+	// Start playing
+	_, _ = h.HandleCommand(ctx, room.ID, "host-1", "Alice", syncplay.SyncCommand{
+		Type: "play", PositionMs: 1000,
+	})
+
+	_, err := h.HandleCommand(ctx, room.ID, "host-1", "Alice", syncplay.SyncCommand{
+		Type: "seek", PositionMs: 50000,
+	})
+	if err != nil {
+		t.Fatalf("HandleCommand seek: %v", err)
+	}
+
+	fetched, _ := h.GetRoom(ctx, room.ID)
+	if !fetched.State.Playing {
+		t.Error("seek should preserve Playing=true")
+	}
+	if fetched.State.PositionMs != 50000 {
+		t.Errorf("PositionMs = %d, want 50000", fetched.State.PositionMs)
+	}
+}
+
+func TestHub_HandleCommand_Seek_PreservesPaused(t *testing.T) {
+	t.Parallel()
+	h := newTestHub()
+	ctx := context.Background()
+
+	room, _ := h.CreateRoom(ctx, "host-1", "media-1", "Room")
+	// Room starts paused by default (Playing=false)
+
+	_, err := h.HandleCommand(ctx, room.ID, "host-1", "Alice", syncplay.SyncCommand{
+		Type: "seek", PositionMs: 20000,
+	})
+	if err != nil {
+		t.Fatalf("HandleCommand seek: %v", err)
+	}
+
+	fetched, _ := h.GetRoom(ctx, room.ID)
+	if fetched.State.Playing {
+		t.Error("seek should preserve Playing=false when paused")
+	}
+}
+
+func TestHub_HandleCommand_UnknownType_NoStateChange(t *testing.T) {
+	t.Parallel()
+	h := newTestHub()
+	ctx := context.Background()
+
+	room, _ := h.CreateRoom(ctx, "host-1", "media-1", "Room")
+
+	cmd, err := h.HandleCommand(ctx, room.ID, "host-1", "Alice", syncplay.SyncCommand{
+		Type: "unknown",
+	})
+	if err != nil {
+		t.Fatalf("HandleCommand unknown: %v", err)
+	}
+	if cmd.RoomID != room.ID {
+		t.Errorf("cmd.RoomID = %q, want %q", cmd.RoomID, room.ID)
+	}
+
+	fetched, _ := h.GetRoom(ctx, room.ID)
+	if fetched.State.Playing {
+		t.Error("unknown command should not change state")
+	}
+}
+
+func TestHub_HandleCommand_NonexistentRoom(t *testing.T) {
+	t.Parallel()
+	h := newTestHub()
+	ctx := context.Background()
+
+	_, err := h.HandleCommand(ctx, "bad-room", "user-1", "Alice", syncplay.SyncCommand{
+		Type: "play", PositionMs: 0,
+	})
+	if err == nil {
+		t.Error("expected error for nonexistent room")
+	}
+}
+
+// --- ConnectMember tests ---
+
+func TestHub_ConnectMember_Success(t *testing.T) {
+	t.Parallel()
+	h := newTestHub()
+	ctx := context.Background()
+
+	room, _ := h.CreateRoom(ctx, "host-1", "media-1", "Room")
+
+	got, err := h.ConnectMember(ctx, room.ID, "user-2", "Alice")
+	if err != nil {
+		t.Fatalf("ConnectMember: %v", err)
+	}
+	if got.ID != room.ID {
+		t.Errorf("returned room ID = %q, want %q", got.ID, room.ID)
+	}
+
+	found := false
+	for _, m := range got.Members {
+		if m.UserID == "user-2" && m.Username == "Alice" {
+			found = true
+		}
+	}
+	if !found {
+		t.Error("user-2 not found in members after ConnectMember")
+	}
+}
+
+func TestHub_ConnectMember_Idempotent(t *testing.T) {
+	t.Parallel()
+	h := newTestHub()
+	ctx := context.Background()
+
+	room, _ := h.CreateRoom(ctx, "host-1", "media-1", "Room")
+	_, _ = h.ConnectMember(ctx, room.ID, "user-2", "Alice")
+	got, err := h.ConnectMember(ctx, room.ID, "user-2", "Alice")
+	if err != nil {
+		t.Fatalf("ConnectMember second call: %v", err)
+	}
+
+	count := 0
+	for _, m := range got.Members {
+		if m.UserID == "user-2" {
+			count++
+		}
+	}
+	if count != 1 {
+		t.Errorf("expected 1 entry for user-2, got %d", count)
+	}
+}
+
+func TestHub_ConnectMember_NonexistentRoom(t *testing.T) {
+	t.Parallel()
+	h := newTestHub()
+	ctx := context.Background()
+
+	_, err := h.ConnectMember(ctx, "bad-room", "user-1", "Alice")
+	if err == nil {
+		t.Error("expected error connecting to nonexistent room")
+	}
+}
+
+// --- DisconnectMember tests ---
+
+func TestHub_DisconnectMember_Success(t *testing.T) {
+	t.Parallel()
+	h := newTestHub()
+	ctx := context.Background()
+
+	room, _ := h.CreateRoom(ctx, "host-1", "media-1", "Room")
+	_, _ = h.ConnectMember(ctx, room.ID, "user-2", "Alice")
+
+	if err := h.DisconnectMember(ctx, room.ID, "user-2"); err != nil {
+		t.Fatalf("DisconnectMember: %v", err)
+	}
+
+	fetched, _ := h.GetRoom(ctx, room.ID)
+	for _, m := range fetched.Members {
+		if m.UserID == "user-2" {
+			t.Error("user-2 should be removed after DisconnectMember")
+		}
+	}
+}
+
+func TestHub_DisconnectMember_NonexistentRoom(t *testing.T) {
+	t.Parallel()
+	h := newTestHub()
+	ctx := context.Background()
+
+	err := h.DisconnectMember(ctx, "bad-room", "user-1")
+	if err == nil {
+		t.Error("expected error disconnecting from nonexistent room")
+	}
+}
+
+func TestHub_DisconnectMember_NonexistentUser_NoError(t *testing.T) {
+	t.Parallel()
+	h := newTestHub()
+	ctx := context.Background()
+
+	room, _ := h.CreateRoom(ctx, "host-1", "media-1", "Room")
+
+	err := h.DisconnectMember(ctx, room.ID, "nobody")
+	if err != nil {
+		t.Errorf("DisconnectMember for absent user should not error, got: %v", err)
+	}
+}
+
+// --- JoinRoom discrete tests ---
+
+func TestHub_JoinRoom_Idempotent(t *testing.T) {
+	t.Parallel()
+	h := newTestHub()
+	ctx := context.Background()
+
+	room, _ := h.CreateRoom(ctx, "host-1", "media-1", "Room")
+	_ = h.JoinRoom(ctx, room.ID, "user-2", "Alice")
+	_ = h.JoinRoom(ctx, room.ID, "user-2", "Alice")
+
+	fetched, _ := h.GetRoom(ctx, room.ID)
+	count := 0
+	for _, m := range fetched.Members {
+		if m.UserID == "user-2" {
+			count++
+		}
+	}
+	if count != 1 {
+		t.Errorf("expected 1 entry for user-2 after double join, got %d", count)
+	}
+}
+
+func TestHub_JoinRoom_SetsJoinedAt(t *testing.T) {
+	t.Parallel()
+	h := newTestHub()
+	ctx := context.Background()
+
+	room, _ := h.CreateRoom(ctx, "host-1", "media-1", "Room")
+	before := time.Now().UTC()
+	_ = h.JoinRoom(ctx, room.ID, "user-2", "Alice")
+
+	fetched, _ := h.GetRoom(ctx, room.ID)
+	for _, m := range fetched.Members {
+		if m.UserID == "user-2" {
+			if m.JoinedAt.Before(before) {
+				t.Errorf("JoinedAt = %v, expected >= %v", m.JoinedAt, before)
+			}
+			return
+		}
+	}
+	t.Error("user-2 not found in members")
+}
