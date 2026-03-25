@@ -142,9 +142,9 @@ func TestCleanOrphanLogs(t *testing.T) {
 	l.cleanOrphanLogs(context.Background(), lister)
 
 	_, err := os.Stat(filepath.Join(dir, "plg-a-"+today+".log"))
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	_, err = os.Stat(filepath.Join(dir, "plg-b-"+today+".log"))
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	_, err = os.Stat(filepath.Join(dir, "plg-orphan-"+today+".log"))
 	assert.True(t, os.IsNotExist(err))
 }

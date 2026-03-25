@@ -234,7 +234,7 @@ func TestDefaultRBACConfig_NoDuplicatesBetweenPublicAndRoles(t *testing.T) {
 }
 
 func TestRoleConstants(t *testing.T) {
-	assert.Equal(t, interceptors.Role(0), interceptors.RoleUser)
-	assert.Equal(t, interceptors.Role(1), interceptors.RoleAdmin)
+	assert.Equal(t, interceptors.RoleUser, interceptors.Role(0))
+	assert.Equal(t, interceptors.RoleAdmin, interceptors.Role(1))
 	assert.NotEqual(t, interceptors.RoleUser, interceptors.RoleAdmin)
 }

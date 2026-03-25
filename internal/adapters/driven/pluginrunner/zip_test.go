@@ -144,7 +144,7 @@ func TestZipExtract_FileOverMaxSize_Fails(t *testing.T) {
 	dest := t.TempDir()
 	installer := NewZipInstaller()
 	err = installer.Extract(zipPath, dest)
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "exceeds max size")
 }
 
