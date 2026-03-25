@@ -108,6 +108,8 @@ function renderPlayer(streamInfo = DEFAULT_STREAM_INFO) {
       streamInfo={streamInfo as never}
       sessionId="session-1"
       mediaId="media-1"
+      streamToken="test-token"
+      onStreamTokenRefresh={() => Promise.resolve("new-token")}
       startPositionMs={0}
     />,
   );
