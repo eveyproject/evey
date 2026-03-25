@@ -506,8 +506,7 @@ function TracksTab({
                     <button
                       onClick={() => onDelete(track.ID)}
                       title={t("media.music.deleteTrack")}
-                      className="bg-transparent border-none cursor-pointer text-[var(--color-danger)] p-1 rounded-[var(--radius-sm)] flex items-center"
-                      className="hover:opacity-80"
+                      className="bg-transparent border-none cursor-pointer text-[var(--color-danger)] p-1 rounded-[var(--radius-sm)] flex items-center hover:opacity-80"
                     >
                       <Trash2 size={16} />
                     </button>

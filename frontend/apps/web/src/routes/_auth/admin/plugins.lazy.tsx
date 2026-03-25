@@ -69,7 +69,6 @@ function SubprocessWarning() {
     >
       <TriangleAlert
         size={20}
-        className="shrink-0 mt-0.5"
         className="shrink-0 mt-0.5 text-[var(--badge-warning-text,#fde047)]"
       />
       <div>

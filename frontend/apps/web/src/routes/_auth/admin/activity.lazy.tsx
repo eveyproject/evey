@@ -64,7 +64,6 @@ function PlayHistoryTab() {
   return (
     <div className="flex flex-col gap-4">
       <div
-        className="overflow-x-auto rounded-[var(--radius-lg)]"
         className="overflow-x-auto rounded-[var(--radius-lg)] border border-[var(--border)]"
       >
         <table className="w-full text-sm">
@@ -162,7 +161,6 @@ function LoginHistoryTab() {
   return (
     <div className="flex flex-col gap-4">
       <div
-        className="overflow-x-auto rounded-[var(--radius-lg)]"
         className="overflow-x-auto rounded-[var(--radius-lg)] border border-[var(--border)]"
       >
         <table className="w-full text-sm">

@@ -209,8 +209,7 @@ function FavoritesPage() {
               <button
                 type="button"
                 onClick={() => selectAll(filtered.map((f) => f.mediaItemId))}
-                className="text-xs hover:underline"
-                className="text-[var(--accent)]"
+                className="text-xs hover:underline text-[var(--accent)]"
               >
                 {t("common.selectAll")}
               </button>

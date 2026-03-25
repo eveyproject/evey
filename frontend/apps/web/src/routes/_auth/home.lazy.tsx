@@ -265,30 +265,6 @@ const ResumePlaybackSlider = memo(function ResumePlaybackSlider() {
   );
 });
 
-const NextEpisodeSlider = memo(function NextEpisodeSlider() {
-  const { t } = useTranslation();
-  const { data, isLoading } = useQuery<{ items?: { mediaItemId: string; parentId?: string; title: string; type: string }[] }>({
-    queryKey: ["/api/v1/feeds/next-episode"],
-    queryFn: ({ signal }) => eveyFetch({ url: "/api/v1/feeds/next-episode", method: "GET", signal }),
-  });
-  const items = data?.items ?? [];
-  if (!isLoading && items.length === 0) return null;
-
-  return (
-    <MediaSlider title={t("common.feeds.labels.next_episode")} isLoading={isLoading}>
-      {items.map((item) => (
-        <MediaCard
-          key={item.mediaItemId}
-          item={{ id: item.mediaItemId, title: item.title, type: item.type }}
-          showYear={false}
-          showType
-          lite
-        />
-      ))}
-    </MediaSlider>
-  );
-});
-
 const MostPopularSlider = memo(function MostPopularSlider() {
   const { t } = useTranslation();
   const { data, isLoading } = useMostPopular(20);

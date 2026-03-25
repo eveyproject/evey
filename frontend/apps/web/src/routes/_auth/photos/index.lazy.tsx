@@ -104,8 +104,7 @@ function Lightbox({ photos, index, onClose, onPrev, onNext, onDelete }: Lightbox
         {onDelete && (
           <button
             onClick={(e) => { e.stopPropagation(); onDelete(photo); }}
-            className="transition-colors-fast"
-            className="text-[var(--overlay-text-muted)]"
+            className="transition-colors-fast text-[var(--overlay-text-muted)]"
             aria-label="Delete photo"
           >
             <Trash2 size={22} />
