@@ -9,7 +9,7 @@ import {
   libraryServiceGetMediaItem,
   eveyFetch,
 } from "@evey/api";
-import { toast } from "@evey/store";
+import { toast, useAuthStore } from "@evey/store";
 import type { V1MediaItem } from "@evey/api";
 import { Spinner } from "@/components/ui/Spinner";
 import { Button } from "@/components/ui/Button";
@@ -36,8 +36,9 @@ function mediaTypeForTmdb(item: V1MediaItem): string {
   return "movie";
 }
 
-function posterSrc(id: string) {
-  return `/api/v1/media/${id}/artwork/poster`;
+function posterSrc(id: string, accessToken?: string) {
+  const base = `/api/v1/media/${id}/artwork/poster`;
+  return accessToken ? `${base}?token=${encodeURIComponent(accessToken)}` : base;
 }
 
 function TmdbSearchPanel({
@@ -223,6 +224,7 @@ function MetadataEditorModal({
   const [year, setYear] = useState<string>("");
   const [genres, setGenres] = useState<string[]>([]);
   const [showTmdb, setShowTmdb] = useState(false);
+  const accessToken = useAuthStore((s) => s.accessToken);
 
   useEffect(() => {
     if (item) {
@@ -236,8 +238,8 @@ function MetadataEditorModal({
 
   if (!open) return null;
 
-  const poster = `/api/v1/media/${itemId}/artwork/poster`;
-  const backdrop = `/api/v1/media/${itemId}/artwork/backdrop`;
+  const poster = accessToken ? `/api/v1/media/${itemId}/artwork/poster?token=${encodeURIComponent(accessToken)}` : `/api/v1/media/${itemId}/artwork/poster`;
+  const backdrop = accessToken ? `/api/v1/media/${itemId}/artwork/backdrop?token=${encodeURIComponent(accessToken)}` : `/api/v1/media/${itemId}/artwork/backdrop`;
 
   return (
     <Modal open={open} onClose={onClose} title={item?.title ?? t("admin.metadata.editMetadata")}>
@@ -310,6 +312,7 @@ function MetadataEditorModal({
 }
 
 function MediaThumb({ item, onClick }: { item: V1MediaItem; onClick: () => void }) {
+  const accessToken = useAuthStore((s) => s.accessToken);
   return (
     <button onClick={onClick} className="flex flex-col gap-2 text-left group">
       <div
@@ -317,7 +320,7 @@ function MediaThumb({ item, onClick }: { item: V1MediaItem; onClick: () => void 
       >
         {item.id && (
           <img
-            src={posterSrc(item.id)}
+            src={posterSrc(item.id, accessToken)}
             alt={item.title}
             className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
             onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}

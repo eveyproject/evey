@@ -5,6 +5,7 @@ import {
   useLibraryServiceGetMediaItem,
   useLibraryServiceListLibraries,
 } from "@evey/api";
+import { useAuthStore } from "@evey/store";
 import { slugify } from "@/utils/slugify";
 import { PluginSlot } from "@/features/plugins/PluginSlot";
 import { useStreamToken } from "@/hooks/useStreamToken";
@@ -46,14 +47,16 @@ export function MediaDetail({ item, onMetadataUpdated, initialEdit }: MediaDetai
     { query: { enabled: !!parentItem?.parentId && isEpisode } } as never,
   );
 
+  const accessToken = useAuthStore((s) => s.accessToken);
   const { data: librariesData } = useLibraryServiceListLibraries();
   const library = librariesData?.libraries?.find((l) => l.id === item.libraryId);
   const librarySlug = library ? slugify(library.name ?? "") : null;
 
+  const artTokenParam = accessToken ? `?token=${encodeURIComponent(accessToken)}` : "";
   const backdropUrl = item.artwork?.find((a) => a.type === "ARTWORK_TYPE_BACKDROP")?.url
-    ?? (item.id ? `/api/v1/media/${item.id}/artwork/backdrop` : undefined);
+    ?? (item.id ? `/api/v1/media/${item.id}/artwork/backdrop${artTokenParam}` : undefined);
   const posterUrl = item.artwork?.find((a) => a.type === "ARTWORK_TYPE_PRIMARY")?.url
-    ?? (item.id ? `/api/v1/media/${item.id}/artwork/poster` : undefined);
+    ?? (item.id ? `/api/v1/media/${item.id}/artwork/poster${artTokenParam}` : undefined);
 
   const duration = formatDuration(item.durationMs);
   const actors = item.people?.filter((p) => p.type === "PERSON_TYPE_ACTOR") ?? [];

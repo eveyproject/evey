@@ -32,6 +32,7 @@ const HERO_INTERVAL = 8000;
 
 function HeroBanner() {
   const { t } = useTranslation();
+  const accessToken = useAuthStore((s) => s.accessToken);
   const { data, isLoading } = useFeedServiceRecentlyAdded(undefined, { query: { staleTime: 5 * 60_000 } });
   const items = data?.items ?? [];
 
@@ -90,7 +91,7 @@ function HeroBanner() {
       {heroIds.map((id, idx) => {
         const detail = details[idx]?.data;
         const candidate = candidates[idx];
-        const backdropUrl = `/api/v1/media/${id}/artwork/backdrop`;
+        const backdropUrl = accessToken ? `/api/v1/media/${id}/artwork/backdrop?token=${encodeURIComponent(accessToken)}` : `/api/v1/media/${id}/artwork/backdrop`;
         const displayTitle = candidate?.title ?? detail?.title ?? "";
         const overview = detail?.overview;
         const year = detail?.year;
