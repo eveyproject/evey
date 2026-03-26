@@ -1,8 +1,8 @@
 import { test, expect } from "./fixtures/auth";
 
 // Use env var or fallback to a known movie with metadata
-const MOVIE_ID = process.env.MEDIA_ID ?? "2fe73ab5-d888-432e-9a91-afdf2e98ae79";
-const SERIES_ID = process.env.SERIES_ID ?? "37600721-c254-4e9c-a0fd-7324b816b736";
+const MOVIE_ID = process.env.MEDIA_ID ?? "577d3d4d-da77-4c8a-8e46-6bee6b64635c";
+const SERIES_ID = process.env.SERIES_ID ?? "cda0bda7-a9d3-4e3b-b439-88ee774c9be9";
 
 test.describe("Media Detail — movie", () => {
   test.beforeEach(async ({ page }) => {

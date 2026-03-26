@@ -2,7 +2,7 @@ import { test, expect } from "./fixtures/auth";
 import { test as apiTest } from "./fixtures/api";
 
 const MEDIA_ID =
-  process.env.MEDIA_ID ?? "327046e8-621e-4289-8915-e5cf02c07a01";
+  process.env.MEDIA_ID ?? "577d3d4d-da77-4c8a-8e46-6bee6b64635c";
 const BASE_URL = process.env.BASE_URL ?? "https://evey.test";
 const USER = process.env.EVEY_USER ?? "gravity";
 const PASS = process.env.EVEY_PASS ?? "REDACTED";

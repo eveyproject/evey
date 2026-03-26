@@ -1,6 +1,6 @@
 import { test, expect } from "./fixtures/auth";
 
-const MOVIE_ID = process.env.MEDIA_ID ?? "2fe73ab5-d888-432e-9a91-afdf2e98ae79";
+const MOVIE_ID = process.env.MEDIA_ID ?? "577d3d4d-da77-4c8a-8e46-6bee6b64635c";
 
 test.describe("Metadata editing", () => {
   test("edit button is visible on media detail page", async ({ page }) => {
