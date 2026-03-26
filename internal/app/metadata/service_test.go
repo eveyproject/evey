@@ -4,7 +4,9 @@ import (
 	"context"
 	"errors"
 	"log/slog"
+	"sync"
 	"testing"
+	"time"
 
 	appmetadata "github.com/gravity-zero/evey/internal/app/metadata"
 	"github.com/gravity-zero/evey/internal/domain/library"
@@ -679,6 +681,326 @@ func TestBatchGetArtwork_Empty(t *testing.T) {
 }
 
 // --- SearchMetadata with provider error ---
+
+// --- StartEnrichmentWorker + WaitWorkers ---
+
+type fakeBulkSingleEnricher struct {
+	mu            sync.Mutex
+	enrichedItems []*library.MediaItem
+	autoItems     []*library.MediaItem
+}
+
+func (f *fakeBulkSingleEnricher) EnrichItem(_ context.Context, _ *library.MediaItem, _ *metadata.MetadataResult) error {
+	return nil
+}
+
+func (f *fakeBulkSingleEnricher) AutoEnrichAll(_ context.Context, items []*library.MediaItem, _ *slog.Logger) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.enrichedItems = append(f.enrichedItems, items...)
+}
+
+func (f *fakeBulkSingleEnricher) AutoEnrichItem(_ context.Context, item *library.MediaItem, _ *slog.Logger) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.autoItems = append(f.autoItems, item)
+}
+
+func TestStartEnrichmentWorker_BulkEnrich(t *testing.T) {
+	bus := sharedfakes.NewFakeEventBus()
+	cmdSvc := appmetadata.NewCommandService(
+		metafakes.NewFakeMetadataOverrideRepository(),
+		metafakes.NewFakeArtworkRepository(),
+		metafakes.NewFakeArtworkDownloader(),
+		bus, nil,
+	)
+	mediaRepo := libfakes.NewFakeMediaItemRepository()
+	enricher := &fakeBulkSingleEnricher{}
+	cmdSvc.WithEnricher(enricher, mediaRepo)
+	ctx, cancel := context.WithCancel(context.Background())
+
+	require.NoError(t, mediaRepo.Create(ctx, &library.MediaItem{ID: "item-1", Title: "A"}))
+	require.NoError(t, mediaRepo.Create(ctx, &library.MediaItem{ID: "item-2", Title: "B"}))
+
+	cmdSvc.StartEnrichmentWorker(ctx)
+	cancel()
+	cmdSvc.WaitWorkers()
+
+	enricher.mu.Lock()
+	defer enricher.mu.Unlock()
+	assert.Len(t, enricher.enrichedItems, 2)
+}
+
+func TestStartEnrichmentWorker_SingleEnrich_ViaEvent(t *testing.T) {
+	bus := sharedfakes.NewFakeEventBus()
+	cmdSvc := appmetadata.NewCommandService(
+		metafakes.NewFakeMetadataOverrideRepository(),
+		metafakes.NewFakeArtworkRepository(),
+		metafakes.NewFakeArtworkDownloader(),
+		bus, nil,
+	)
+	mediaRepo := libfakes.NewFakeMediaItemRepository()
+	enricher := &fakeBulkSingleEnricher{}
+	cmdSvc.WithEnricher(enricher, mediaRepo)
+	ctx, cancel := context.WithCancel(context.Background())
+
+	require.NoError(t, mediaRepo.Create(ctx, &library.MediaItem{ID: "item-99", Title: "New Movie"}))
+
+	cmdSvc.StartEnrichmentWorker(ctx)
+
+	evt := library.MediaItemAdded{MediaItemID: "item-99"}
+	_ = bus.Publish(ctx, evt)
+
+	// give worker time to process
+	time.Sleep(50 * time.Millisecond)
+	cancel()
+	cmdSvc.WaitWorkers()
+
+	enricher.mu.Lock()
+	defer enricher.mu.Unlock()
+	assert.Len(t, enricher.autoItems, 1)
+	assert.Equal(t, "item-99", enricher.autoItems[0].ID)
+}
+
+func TestStartEnrichmentWorker_NoEnricher(t *testing.T) {
+	bus := sharedfakes.NewFakeEventBus()
+	cmdSvc := appmetadata.NewCommandService(
+		metafakes.NewFakeMetadataOverrideRepository(),
+		metafakes.NewFakeArtworkRepository(),
+		metafakes.NewFakeArtworkDownloader(),
+		bus, nil,
+	)
+	// no enricher configured — should return immediately
+	cmdSvc.StartEnrichmentWorker(context.Background())
+	cmdSvc.WaitWorkers()
+}
+
+// --- event publish error paths (log-only, no failure) ---
+
+func TestRefreshMetadata_EventPublishError(t *testing.T) {
+	bus := sharedfakes.NewFakeEventBus()
+	bus.PublishErr = errors.New("bus down")
+	provider := metafakes.NewFakeMetadataProvider("tmdb")
+	provider.ByProviderID["tmdb-1"] = &metadata.MetadataResult{Title: "X"}
+	cmdSvc := appmetadata.NewCommandService(
+		metafakes.NewFakeMetadataOverrideRepository(),
+		metafakes.NewFakeArtworkRepository(),
+		metafakes.NewFakeArtworkDownloader(),
+		bus, []metadata.MetadataProvider{provider},
+	)
+	result, err := cmdSvc.RefreshMetadata(context.Background(), "item-1", "tmdb-1", "tmdb", "movie")
+	require.NoError(t, err)
+	assert.Equal(t, "X", result.Title)
+}
+
+func TestSetOverride_EventPublishError(t *testing.T) {
+	bus := sharedfakes.NewFakeEventBus()
+	bus.PublishErr = errors.New("bus down")
+	cmdSvc := appmetadata.NewCommandService(
+		metafakes.NewFakeMetadataOverrideRepository(),
+		metafakes.NewFakeArtworkRepository(),
+		metafakes.NewFakeArtworkDownloader(),
+		bus, nil,
+	)
+	err := cmdSvc.SetOverride(context.Background(), &metadata.MetadataOverride{
+		ID: "o1", MediaItemID: "i1", FieldName: "title", CustomValue: "X",
+	})
+	require.NoError(t, err)
+}
+
+func TestResetOverrides_EventPublishError(t *testing.T) {
+	bus := sharedfakes.NewFakeEventBus()
+	cmdSvc := appmetadata.NewCommandService(
+		metafakes.NewFakeMetadataOverrideRepository(),
+		metafakes.NewFakeArtworkRepository(),
+		metafakes.NewFakeArtworkDownloader(),
+		bus, nil,
+	)
+	ctx := context.Background()
+	_ = cmdSvc.SetOverride(ctx, &metadata.MetadataOverride{
+		ID: "o1", MediaItemID: "i1", FieldName: "title", CustomValue: "X",
+	})
+	bus.PublishErr = errors.New("bus down")
+	err := cmdSvc.ResetOverrides(ctx, "i1")
+	require.NoError(t, err)
+}
+
+func TestDownloadArtwork_EventPublishError(t *testing.T) {
+	bus := sharedfakes.NewFakeEventBus()
+	bus.PublishErr = errors.New("bus down")
+	cmdSvc := appmetadata.NewCommandService(
+		metafakes.NewFakeMetadataOverrideRepository(),
+		metafakes.NewFakeArtworkRepository(),
+		metafakes.NewFakeArtworkDownloader(),
+		bus, nil,
+	)
+	url := "http://example.com/art.jpg"
+	record := &metadata.ArtworkRecord{ID: "a1", MediaItemID: "i1", Type: metadata.ArtworkTypePoster, SourceURL: &url}
+	err := cmdSvc.DownloadArtwork(context.Background(), record, "/tmp/art.jpg")
+	require.NoError(t, err)
+	assert.Equal(t, "/tmp/art.jpg", *record.LocalPath)
+}
+
+func TestRefreshItemMetadata_EventPublishError(t *testing.T) {
+	bus := sharedfakes.NewFakeEventBus()
+	bus.PublishErr = errors.New("bus down")
+	provider := metafakes.NewFakeMetadataProvider("tmdb")
+	provider.ByProviderID["tmdb-1"] = &metadata.MetadataResult{Title: "X"}
+	cmdSvc := appmetadata.NewCommandService(
+		metafakes.NewFakeMetadataOverrideRepository(),
+		metafakes.NewFakeArtworkRepository(),
+		metafakes.NewFakeArtworkDownloader(),
+		bus, []metadata.MetadataProvider{provider},
+	)
+	mediaRepo := libfakes.NewFakeMediaItemRepository()
+	cmdSvc.WithEnricher(&fakeItemEnricher{}, mediaRepo)
+	ctx := context.Background()
+	require.NoError(t, mediaRepo.Create(ctx, &library.MediaItem{ID: "item-1", Title: "Old"}))
+	err := cmdSvc.RefreshItemMetadata(ctx, "item-1", "tmdb-1", "movie")
+	require.NoError(t, err)
+}
+
+func TestRefreshItemMetadataByIMDB_EventPublishError(t *testing.T) {
+	bus := sharedfakes.NewFakeEventBus()
+	bus.PublishErr = errors.New("bus down")
+	provider := metafakes.NewFakeMetadataProvider("imdbapi")
+	provider.ByProviderID["tt1"] = &metadata.MetadataResult{Title: "X"}
+	cmdSvc := appmetadata.NewCommandService(
+		metafakes.NewFakeMetadataOverrideRepository(),
+		metafakes.NewFakeArtworkRepository(),
+		metafakes.NewFakeArtworkDownloader(),
+		bus, []metadata.MetadataProvider{provider},
+	)
+	mediaRepo := libfakes.NewFakeMediaItemRepository()
+	cmdSvc.WithEnricher(&fakeItemEnricher{}, mediaRepo)
+	ctx := context.Background()
+	require.NoError(t, mediaRepo.Create(ctx, &library.MediaItem{ID: "item-1", Title: "Old"}))
+	err := cmdSvc.RefreshItemMetadataByIMDB(ctx, "item-1", "tt1", "movie")
+	require.NoError(t, err)
+}
+
+func TestRefreshItemMetadataByIMDB_ItemNotFound(t *testing.T) {
+	bus := sharedfakes.NewFakeEventBus()
+	cmdSvc := appmetadata.NewCommandService(
+		metafakes.NewFakeMetadataOverrideRepository(),
+		metafakes.NewFakeArtworkRepository(),
+		metafakes.NewFakeArtworkDownloader(),
+		bus, []metadata.MetadataProvider{metafakes.NewFakeMetadataProvider("tmdb")},
+	)
+	mediaRepo := libfakes.NewFakeMediaItemRepository()
+	cmdSvc.WithEnricher(&fakeItemEnricher{}, mediaRepo)
+	err := cmdSvc.RefreshItemMetadataByIMDB(context.Background(), "missing", "tt1", "movie")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "get media item")
+}
+
+func TestRefreshItemMetadataByIMDB_EnrichError(t *testing.T) {
+	bus := sharedfakes.NewFakeEventBus()
+	provider := metafakes.NewFakeMetadataProvider("imdbapi")
+	provider.ByProviderID["tt1"] = &metadata.MetadataResult{Title: "X"}
+	cmdSvc := appmetadata.NewCommandService(
+		metafakes.NewFakeMetadataOverrideRepository(),
+		metafakes.NewFakeArtworkRepository(),
+		metafakes.NewFakeArtworkDownloader(),
+		bus, []metadata.MetadataProvider{provider},
+	)
+	mediaRepo := libfakes.NewFakeMediaItemRepository()
+	cmdSvc.WithEnricher(&fakeItemEnricher{err: errors.New("enrich boom")}, mediaRepo)
+	ctx := context.Background()
+	require.NoError(t, mediaRepo.Create(ctx, &library.MediaItem{ID: "item-1", Title: "Old"}))
+	err := cmdSvc.RefreshItemMetadataByIMDB(ctx, "item-1", "tt1", "movie")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "enrich item")
+}
+
+// --- ReEnrichWithoutOverrides error paths ---
+
+func TestReEnrichWithoutOverrides_ListError(t *testing.T) {
+	bus := sharedfakes.NewFakeEventBus()
+	cmdSvc := appmetadata.NewCommandService(
+		metafakes.NewFakeMetadataOverrideRepository(),
+		metafakes.NewFakeArtworkRepository(),
+		metafakes.NewFakeArtworkDownloader(),
+		bus, nil,
+	)
+	mediaRepo := libfakes.NewFakeMediaItemRepository()
+	mediaRepo.ErrList = errors.New("db down")
+	enricher := &fakeBulkEnricher{}
+	cmdSvc.WithEnricher(enricher, mediaRepo)
+
+	refreshed, skipped := cmdSvc.ReEnrichWithoutOverrides(context.Background(), enricher)
+	assert.Equal(t, 0, refreshed)
+	assert.Equal(t, 0, skipped)
+}
+
+func TestReEnrichWithoutOverrides_OverrideCheckError(t *testing.T) {
+	overrideRepo := metafakes.NewFakeMetadataOverrideRepository()
+	bus := sharedfakes.NewFakeEventBus()
+	cmdSvc := appmetadata.NewCommandService(overrideRepo, metafakes.NewFakeArtworkRepository(), metafakes.NewFakeArtworkDownloader(), bus, nil)
+
+	mediaRepo := libfakes.NewFakeMediaItemRepository()
+	enricher := &fakeBulkEnricher{}
+	cmdSvc.WithEnricher(enricher, mediaRepo)
+	ctx := context.Background()
+	require.NoError(t, mediaRepo.Create(ctx, &library.MediaItem{ID: "item-1", Title: "A"}))
+
+	overrideRepo.Err = errors.New("db down")
+
+	refreshed, skipped := cmdSvc.ReEnrichWithoutOverrides(ctx, enricher)
+	assert.Equal(t, 0, refreshed)
+	assert.Equal(t, 0, skipped)
+	assert.Empty(t, enricher.enrichedItems)
+}
+
+// --- fetchFromProviders: preferred provider not in list ---
+
+func TestFetchFromProviders_PreferredNotInList(t *testing.T) {
+	bus := sharedfakes.NewFakeEventBus()
+	tmdbProvider := metafakes.NewFakeMetadataProvider("tmdb")
+	tmdbProvider.ByProviderID["tt1"] = &metadata.MetadataResult{Title: "TMDB Result"}
+	cmdSvc := appmetadata.NewCommandService(
+		metafakes.NewFakeMetadataOverrideRepository(),
+		metafakes.NewFakeArtworkRepository(),
+		metafakes.NewFakeArtworkDownloader(),
+		bus, []metadata.MetadataProvider{tmdbProvider},
+	)
+	mediaRepo := libfakes.NewFakeMediaItemRepository()
+	enricher := &fakeItemEnricher{}
+	cmdSvc.WithEnricher(enricher, mediaRepo)
+	ctx := context.Background()
+	require.NoError(t, mediaRepo.Create(ctx, &library.MediaItem{ID: "item-1", Title: "Old"}))
+
+	// imdbapi preferred but not in provider list; should fallback to tmdb
+	err := cmdSvc.RefreshItemMetadataByIMDB(ctx, "item-1", "tt1", "movie")
+	require.NoError(t, err)
+	require.Len(t, enricher.enrichedPairs, 1)
+	assert.Equal(t, "TMDB Result", enricher.enrichedPairs[0].result.Title)
+}
+
+// fetchFromProviders: preferred provider found but returns error -> break and fallback
+func TestFetchFromProviders_PreferredErrorFallback(t *testing.T) {
+	bus := sharedfakes.NewFakeEventBus()
+	imdbProvider := metafakes.NewFakeMetadataProvider("imdbapi")
+	imdbProvider.Err = errors.New("api down") // preferred but errors
+	tmdbProvider := metafakes.NewFakeMetadataProvider("tmdb")
+	tmdbProvider.ByProviderID["tt1"] = &metadata.MetadataResult{Title: "TMDB Fallback"}
+	cmdSvc := appmetadata.NewCommandService(
+		metafakes.NewFakeMetadataOverrideRepository(),
+		metafakes.NewFakeArtworkRepository(),
+		metafakes.NewFakeArtworkDownloader(),
+		bus, []metadata.MetadataProvider{tmdbProvider, imdbProvider},
+	)
+	mediaRepo := libfakes.NewFakeMediaItemRepository()
+	enricher := &fakeItemEnricher{}
+	cmdSvc.WithEnricher(enricher, mediaRepo)
+	ctx := context.Background()
+	require.NoError(t, mediaRepo.Create(ctx, &library.MediaItem{ID: "item-1", Title: "Old"}))
+
+	err := cmdSvc.RefreshItemMetadataByIMDB(ctx, "item-1", "tt1", "movie")
+	require.NoError(t, err)
+	require.Len(t, enricher.enrichedPairs, 1)
+	assert.Equal(t, "TMDB Fallback", enricher.enrichedPairs[0].result.Title)
+}
 
 func TestSearchMetadata_ProviderErrorSkipped(t *testing.T) {
 	errProvider := metafakes.NewFakeMetadataProvider("broken")
