@@ -8,6 +8,7 @@ import (
 	applib "github.com/gravity-zero/evey/internal/app/library"
 	"github.com/gravity-zero/evey/internal/domain/library"
 	libfakes "github.com/gravity-zero/evey/internal/domain/library/fakes"
+	sharedfakes "github.com/gravity-zero/evey/internal/domain/shared/fakes"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -107,6 +108,107 @@ func TestCachedMediaItemQueryRepo_ZeroTTL_NeverCaches(t *testing.T) {
 	item, err := cache.GetByID(context.Background(), "m1")
 	require.NoError(t, err)
 	assert.Equal(t, "V2", item.Title, "zero TTL should always miss cache")
+}
+
+func TestCachedMediaItemQueryRepo_Stop(t *testing.T) {
+	t.Parallel()
+	inner := libfakes.NewFakeMediaItemQueryRepo()
+	cache := applib.NewCachedMediaItemQueryRepo(inner, 5*time.Second)
+	cache.Stop()
+	// calling Stop twice is safe
+	cache.Stop()
+}
+
+func TestCachedMediaItemQueryRepo_Register_InvalidatesOnRemoved(t *testing.T) {
+	t.Parallel()
+	inner := libfakes.NewFakeMediaItemQueryRepo()
+	inner.Seed(&library.MediaItem{ID: "m1", Title: "Original"})
+	cache := applib.NewCachedMediaItemQueryRepo(inner, 5*time.Second)
+	defer cache.Stop()
+
+	bus := sharedfakes.NewFakeEventBus()
+	cache.Register(bus)
+
+	// populate cache
+	item, err := cache.GetByID(context.Background(), "m1")
+	require.NoError(t, err)
+	assert.Equal(t, "Original", item.Title)
+
+	// update inner + publish removal event
+	inner.Seed(&library.MediaItem{ID: "m1", Title: "Updated"})
+	bus.Publish(context.Background(), library.MediaItemRemoved{MediaItemID: "m1"})
+
+	item, err = cache.GetByID(context.Background(), "m1")
+	require.NoError(t, err)
+	assert.Equal(t, "Updated", item.Title)
+}
+
+func TestCachedMediaItemQueryRepo_Register_InvalidatesOnUpdated(t *testing.T) {
+	t.Parallel()
+	inner := libfakes.NewFakeMediaItemQueryRepo()
+	inner.Seed(&library.MediaItem{ID: "m1", Title: "Original"})
+	cache := applib.NewCachedMediaItemQueryRepo(inner, 5*time.Second)
+	defer cache.Stop()
+
+	bus := sharedfakes.NewFakeEventBus()
+	cache.Register(bus)
+
+	_, _ = cache.GetByID(context.Background(), "m1")
+
+	inner.Seed(&library.MediaItem{ID: "m1", Title: "V2"})
+	bus.Publish(context.Background(), library.MediaItemUpdated{MediaItemID: "m1"})
+
+	item, err := cache.GetByID(context.Background(), "m1")
+	require.NoError(t, err)
+	assert.Equal(t, "V2", item.Title)
+}
+
+func TestCachedMediaItemQueryRepo_GetCastByMediaItem(t *testing.T) {
+	t.Parallel()
+	inner := libfakes.NewFakeMediaItemQueryRepo()
+	inner.SeedCast("m1", []library.CastMember{
+		{PersonID: "p1", PersonName: "Alice", RoleType: "actor"},
+	})
+	cache := applib.NewCachedMediaItemQueryRepo(inner, 5*time.Second)
+	defer cache.Stop()
+
+	cast, err := cache.GetCastByMediaItem(context.Background(), "m1")
+	require.NoError(t, err)
+	assert.Len(t, cast, 1)
+	assert.Equal(t, "Alice", cast[0].PersonName)
+}
+
+func TestCachedMediaItemQueryRepo_GetCastForItems(t *testing.T) {
+	t.Parallel()
+	inner := libfakes.NewFakeMediaItemQueryRepo()
+	inner.SeedCast("m1", []library.CastMember{{PersonID: "p1", PersonName: "Alice"}})
+	inner.SeedCast("m2", []library.CastMember{{PersonID: "p2", PersonName: "Bob"}})
+	cache := applib.NewCachedMediaItemQueryRepo(inner, 5*time.Second)
+	defer cache.Stop()
+
+	castMap, err := cache.GetCastForItems(context.Background(), []string{"m1", "m2"})
+	require.NoError(t, err)
+	assert.Len(t, castMap, 2)
+}
+
+func TestCachedMediaItemQueryRepo_EvictLoop_RemovesExpired(t *testing.T) {
+	t.Parallel()
+	inner := libfakes.NewFakeMediaItemQueryRepo()
+	inner.Seed(&library.MediaItem{ID: "m1", Title: "V1"})
+	// very short TTL so evict loop cleans it up
+	cache := applib.NewCachedMediaItemQueryRepo(inner, 1*time.Millisecond)
+
+	_, _ = cache.GetByID(context.Background(), "m1")
+
+	// wait for eviction (loop runs every 10s, but entry expires immediately)
+	// we can verify by checking that after TTL expiry, re-fetch hits inner
+	time.Sleep(50 * time.Millisecond)
+	inner.Seed(&library.MediaItem{ID: "m1", Title: "V2"})
+
+	item, err := cache.GetByID(context.Background(), "m1")
+	require.NoError(t, err)
+	assert.Equal(t, "V2", item.Title)
+	cache.Stop()
 }
 
 func TestCachedMediaItemQueryRepo_ShortTTL_CacheHitBeforeExpiry(t *testing.T) {

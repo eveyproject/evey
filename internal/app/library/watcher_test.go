@@ -2,6 +2,7 @@ package library_test
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 	"os"
 	"sync"
@@ -11,6 +12,7 @@ import (
 	applib "github.com/gravity-zero/evey/internal/app/library"
 	"github.com/gravity-zero/evey/internal/domain/library"
 	libfakes "github.com/gravity-zero/evey/internal/domain/library/fakes"
+	sharedfakes "github.com/gravity-zero/evey/internal/domain/shared/fakes"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -327,6 +329,77 @@ func TestWatcherService_RemoveLibraryByID_NoMatchIsNoop(t *testing.T) {
 
 	ws.RemoveLibraryByID("nonexistent")
 	assert.Contains(t, watcher.WatchedPaths(), "/media/keep")
+}
+
+func TestWatcherService_WithEventBus_LibraryCreated(t *testing.T) {
+	watcher := libfakes.NewFakeFileWatcher()
+	libRepo := libfakes.NewFakeLibraryRepository()
+	scanner := &fakeLibraryScanner{}
+	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
+	bus := sharedfakes.NewFakeEventBus()
+
+	ctx := context.Background()
+	_ = libRepo.Create(ctx, &library.Library{
+		ID: "lib-evt", Name: "EventLib", Type: "movie",
+		Paths: []string{"/media/evt"}, Enabled: true, RealtimeMonitoring: true,
+	})
+
+	ws := applib.NewWatcherService(watcher, libRepo, scanner, log)
+	ws.WithEventBus(bus)
+	err := ws.Start(ctx)
+	require.NoError(t, err)
+	defer ws.Stop()
+
+	// publish library.created event => watcher should add it
+	bus.Publish(ctx, library.LibraryCreated{LibraryID: "lib-evt", Name: "EventLib", Type: "movie"})
+	assert.Contains(t, watcher.WatchedPaths(), "/media/evt")
+}
+
+func TestWatcherService_WithEventBus_LibraryDeleted(t *testing.T) {
+	watcher := libfakes.NewFakeFileWatcher()
+	libRepo := libfakes.NewFakeLibraryRepository()
+	scanner := &fakeLibraryScanner{}
+	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
+	bus := sharedfakes.NewFakeEventBus()
+
+	ctx := context.Background()
+	_ = libRepo.Create(ctx, &library.Library{
+		ID: "lib-del", Name: "Del", Type: "movie",
+		Paths: []string{"/media/del"}, Enabled: true, RealtimeMonitoring: true,
+	})
+
+	ws := applib.NewWatcherService(watcher, libRepo, scanner, log)
+	ws.WithEventBus(bus)
+	err := ws.Start(ctx)
+	require.NoError(t, err)
+	defer ws.Stop()
+
+	assert.Contains(t, watcher.WatchedPaths(), "/media/del")
+
+	bus.Publish(ctx, library.LibraryDeleted{LibraryID: "lib-del"})
+	assert.NotContains(t, watcher.WatchedPaths(), "/media/del")
+}
+
+func TestWatcherService_WatchFails_FallbackToPeriodicScan(t *testing.T) {
+	watcher := libfakes.NewFakeFileWatcher()
+	watcher.WatchErr = errors.New("inotify: no space")
+	libRepo := libfakes.NewFakeLibraryRepository()
+	scanner := &fakeLibraryScanner{}
+	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
+
+	ctx := context.Background()
+	_ = libRepo.Create(ctx, &library.Library{
+		ID: "lib-fail", Name: "Fail", Type: "movie",
+		Paths: []string{"/media/fail"}, Enabled: true, RealtimeMonitoring: true,
+	})
+
+	ws := applib.NewWatcherService(watcher, libRepo, scanner, log)
+	err := ws.Start(ctx)
+	require.NoError(t, err)
+	defer ws.Stop()
+
+	// inotify failed, path should not be in watched list
+	assert.NotContains(t, watcher.WatchedPaths(), "/media/fail")
 }
 
 func TestWatcherService_FileRemoved_TriggersScan(t *testing.T) {

@@ -646,6 +646,260 @@ func TestScanLibrary_OrphanCleanup_TVShow_RemovesDeletedEpisode(t *testing.T) {
 	assert.Equal(t, 1, removedEvents)
 }
 
+func TestValidate_MissingChapters(t *testing.T) {
+	t.Parallel()
+	svc, _, _, _, _, _ := newCmdSvc()
+	trickplayRepo := libfakes.NewFakeTrickplayRepository()
+	trickplayGen := libfakes.NewFakeTrickplayGenerator()
+	svc.WithTrickplay(trickplayRepo, trickplayGen, "/cache", nil)
+
+	err := svc.Validate()
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "WithChapters not called")
+}
+
+func TestValidate_MissingTrickplay(t *testing.T) {
+	t.Parallel()
+	svc, _, _, _, _, _ := newCmdSvc()
+	chapterRepo := libfakes.NewFakeChapterRepository()
+	reader := mkvfakes.NewFakeContainerReader()
+	svc.WithChapters(chapterRepo, reader)
+
+	err := svc.Validate()
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "WithTrickplay not called")
+}
+
+func TestValidate_AllSet(t *testing.T) {
+	t.Parallel()
+	svc, _, _, _, _, _ := newCmdSvc()
+	chapterRepo := libfakes.NewFakeChapterRepository()
+	reader := mkvfakes.NewFakeContainerReader()
+	svc.WithChapters(chapterRepo, reader)
+	trickplayRepo := libfakes.NewFakeTrickplayRepository()
+	trickplayGen := libfakes.NewFakeTrickplayGenerator()
+	svc.WithTrickplay(trickplayRepo, trickplayGen, "/cache", nil)
+
+	err := svc.Validate()
+	require.NoError(t, err)
+}
+
+func TestStartTrickplayWorker_NilTrickplay(t *testing.T) {
+	t.Parallel()
+	svc, _, _, _, _, _ := newCmdSvc()
+	svc.StartTrickplayWorker(context.Background())
+}
+
+func TestStartBackgroundGeneration_NilTrickplay(t *testing.T) {
+	t.Parallel()
+	svc, _, _, _, _, _ := newCmdSvc()
+	svc.StartBackgroundGeneration(context.Background())
+}
+
+func TestGenerateTrickplay_DisabledByConfig(t *testing.T) {
+	t.Parallel()
+	svc, _, _, mediaRepo, _, _ := newCmdSvc()
+	trickplayRepo := libfakes.NewFakeTrickplayRepository()
+	trickplayGen := libfakes.NewFakeTrickplayGenerator()
+	configRepo := sharedfakes.NewFakeServerConfigRepository()
+	configRepo.Set(context.Background(), "trickplay.enabled", "false")
+	svc.WithTrickplay(trickplayRepo, trickplayGen, "/cache", configRepo)
+
+	mediaRepo.Create(context.Background(), &library.MediaItem{
+		ID: "m1", FilePath: "/movies/test.mkv",
+	})
+
+	err := svc.GenerateTrickplay(context.Background(), "m1")
+	require.NoError(t, err)
+
+	_, err = svc.GetTrickplayManifest(context.Background(), "m1")
+	require.Error(t, err, "no manifest created when disabled")
+}
+
+func TestGenerateAllMissingTrickplays_DisabledByConfig(t *testing.T) {
+	t.Parallel()
+	svc, _, _, _, _, _ := newCmdSvc()
+	trickplayRepo := libfakes.NewFakeTrickplayRepository()
+	trickplayGen := libfakes.NewFakeTrickplayGenerator()
+	configRepo := sharedfakes.NewFakeServerConfigRepository()
+	configRepo.Set(context.Background(), "trickplay.enabled", "false")
+	svc.WithTrickplay(trickplayRepo, trickplayGen, "/cache", configRepo)
+
+	n, err := svc.GenerateAllMissingTrickplays(context.Background())
+	require.NoError(t, err)
+	assert.Equal(t, 0, n)
+}
+
+func TestGenerateTrickplay_AdaptiveCPUDisabled(t *testing.T) {
+	t.Parallel()
+	svc, _, _, mediaRepo, _, _ := newCmdSvc()
+	trickplayRepo := libfakes.NewFakeTrickplayRepository()
+	trickplayGen := libfakes.NewFakeTrickplayGenerator()
+	configRepo := sharedfakes.NewFakeServerConfigRepository()
+	configRepo.Set(context.Background(), "trickplay.adaptive_cpu", "false")
+	svc.WithTrickplay(trickplayRepo, trickplayGen, "/cache", configRepo)
+
+	mediaRepo.Create(context.Background(), &library.MediaItem{
+		ID: "m1", FilePath: "/movies/test.mkv",
+	})
+
+	err := svc.GenerateTrickplay(context.Background(), "m1")
+	require.NoError(t, err)
+}
+
+func TestQueryService_GetMediaItemsByIDs(t *testing.T) {
+	t.Parallel()
+	f := newQuerySvcFull()
+	f.media.Seed(&library.MediaItem{ID: "m1", Title: "A"})
+	f.media.Seed(&library.MediaItem{ID: "m2", Title: "B"})
+	f.media.Seed(&library.MediaItem{ID: "m3", Title: "C"})
+
+	items, err := f.svc.GetMediaItemsByIDs(context.Background(), []string{"m1", "m3"})
+	require.NoError(t, err)
+	assert.Len(t, items, 2)
+}
+
+func TestQueryService_GetMediaItemsByIDs_Empty(t *testing.T) {
+	t.Parallel()
+	f := newQuerySvcFull()
+	items, err := f.svc.GetMediaItemsByIDs(context.Background(), []string{})
+	require.NoError(t, err)
+	assert.Empty(t, items)
+}
+
+func TestStartPeriodicScan_CancelledImmediately(t *testing.T) {
+	t.Parallel()
+	svc, _, libQueryRepo, _, _, _ := newCmdSvc()
+	libQueryRepo.Seed(&library.Library{ID: "lib-1", Name: "Movies", Type: "movie"})
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	svc.StartPeriodicScan(ctx, libQueryRepo, 50*time.Millisecond, nil)
+	time.Sleep(100 * time.Millisecond)
+}
+
+func TestStartPeriodicScan_WithSpecificLibraryIDs(t *testing.T) {
+	t.Parallel()
+	svc, _, libQueryRepo, _, _, _ := newCmdSvc()
+	libQueryRepo.Seed(&library.Library{ID: "lib-1", Name: "Movies", Type: "movie"})
+
+	ctx, cancel := context.WithCancel(context.Background())
+	svc.StartPeriodicScan(ctx, libQueryRepo, 50*time.Millisecond, []string{"lib-1"})
+	time.Sleep(100 * time.Millisecond)
+	cancel()
+}
+
+func TestStartPeriodicScan_DefaultInterval(t *testing.T) {
+	t.Parallel()
+	svc, _, libQueryRepo, _, _, _ := newCmdSvc()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	// interval <= 0 should default to 2min
+	svc.StartPeriodicScan(ctx, libQueryRepo, 0, nil)
+	time.Sleep(50 * time.Millisecond)
+}
+
+func TestStartBackgroundGeneration_CancelledCtx(t *testing.T) {
+	t.Parallel()
+	svc, _, _, _, _, _ := newCmdSvc()
+	trickplayRepo := libfakes.NewFakeTrickplayRepository()
+	trickplayGen := libfakes.NewFakeTrickplayGenerator()
+	configRepo := sharedfakes.NewFakeServerConfigRepository()
+	svc.WithTrickplay(trickplayRepo, trickplayGen, "/cache", configRepo)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	svc.StartBackgroundGeneration(ctx)
+	time.Sleep(50 * time.Millisecond)
+}
+
+func TestScanLibrary_PrunesEmptySeasonAndSeries(t *testing.T) {
+	t.Parallel()
+	svc, _, libQueryRepo, mediaRepo, scanner, _ := newCmdSvc()
+
+	lib := &library.Library{
+		ID: "lib-tv", Name: "TV", Type: "tvshow", Paths: []string{"/tv"},
+	}
+	svc.CreateLibrary(context.Background(), lib)
+	libQueryRepo.Seed(lib)
+
+	// Pre-seed: series -> season -> episode (episode will be orphaned)
+	mediaRepo.Create(context.Background(), &library.MediaItem{
+		ID: "series-1", LibraryID: "lib-tv", Type: "series", Title: "Show",
+	})
+	mediaRepo.Create(context.Background(), &library.MediaItem{
+		ID: "season-1", LibraryID: "lib-tv", Type: "season", ParentID: "series-1", Title: "Season 1",
+	})
+	mediaRepo.Create(context.Background(), &library.MediaItem{
+		ID: "ep-1", LibraryID: "lib-tv", Type: "episode", ParentID: "season-1",
+		FilePath: "/tv/show/s01e01.mkv", FileSize: 100,
+	})
+
+	// scanner returns nothing -> ep-1 is orphaned -> season and series should be pruned
+	scanner.Results["/tv"] = []library.ScannedFile{}
+
+	_, _, err := svc.ScanLibrary(context.Background(), "lib-tv")
+	require.NoError(t, err)
+
+	items := mediaRepo.All()
+	ids := make([]string, 0, len(items))
+	for _, item := range items {
+		ids = append(ids, item.ID)
+	}
+	assert.NotContains(t, ids, "ep-1", "orphaned episode removed")
+	assert.NotContains(t, ids, "season-1", "empty season pruned")
+	assert.NotContains(t, ids, "series-1", "empty series pruned")
+}
+
+func TestScanLibrary_PrunesEmptySeason_KeepsSeriesWithOtherChildren(t *testing.T) {
+	t.Parallel()
+	svc, _, libQueryRepo, mediaRepo, scanner, _ := newCmdSvc()
+
+	lib := &library.Library{
+		ID: "lib-tv", Name: "TV", Type: "tvshow", Paths: []string{"/tv"},
+	}
+	svc.CreateLibrary(context.Background(), lib)
+	libQueryRepo.Seed(lib)
+
+	mediaRepo.Create(context.Background(), &library.MediaItem{
+		ID: "series-1", LibraryID: "lib-tv", Type: "series", Title: "Show",
+	})
+	mediaRepo.Create(context.Background(), &library.MediaItem{
+		ID: "season-1", LibraryID: "lib-tv", Type: "season", ParentID: "series-1",
+	})
+	mediaRepo.Create(context.Background(), &library.MediaItem{
+		ID: "season-2", LibraryID: "lib-tv", Type: "season", ParentID: "series-1",
+	})
+	mediaRepo.Create(context.Background(), &library.MediaItem{
+		ID: "ep-1", LibraryID: "lib-tv", Type: "episode", ParentID: "season-1",
+		FilePath: "/tv/show/s01e01.mkv", FileSize: 100,
+	})
+	mediaRepo.Create(context.Background(), &library.MediaItem{
+		ID: "ep-2", LibraryID: "lib-tv", Type: "episode", ParentID: "season-2",
+		FilePath: "/tv/show/s02e01.mkv", FileSize: 100,
+	})
+
+	s2, e1 := 2, 1
+	// only season 2 ep survives
+	scanner.Results["/tv"] = []library.ScannedFile{
+		{Path: "/tv/show/s02e01.mkv", Size: 100, Title: "Show", Season: &s2, Episode: &e1, Type: library.Episode},
+	}
+
+	_, _, err := svc.ScanLibrary(context.Background(), "lib-tv")
+	require.NoError(t, err)
+
+	items := mediaRepo.All()
+	ids := make([]string, 0, len(items))
+	for _, item := range items {
+		ids = append(ids, item.ID)
+	}
+	assert.NotContains(t, ids, "season-1", "empty season-1 pruned")
+	assert.NotContains(t, ids, "ep-1", "orphaned episode removed")
+	// series-1 still has season-2, so it should remain
+	// (series gets re-created by scan anyway)
+}
+
 func TestScanLibrary_ItemsRemovedCountInEvent(t *testing.T) {
 	t.Parallel()
 	svc, _, libQueryRepo, mediaRepo, scanner, bus := newCmdSvc()
