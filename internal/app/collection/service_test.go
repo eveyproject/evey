@@ -518,6 +518,149 @@ func TestGetItems_SmartCollection_LimitEqualLen_NoTruncation(t *testing.T) {
 	assert.Len(t, items, 2)
 }
 
+func TestCreate(t *testing.T) {
+	t.Parallel()
+	svc, _, _ := newSvc()
+	ctx := context.Background()
+
+	rules := []library.CollectionRule{{Field: "genre", Operator: "eq", Value: "Action"}}
+	col, err := svc.Create(ctx, "Manual Collection", rules, "title")
+	require.NoError(t, err)
+	assert.NotEmpty(t, col.ID)
+	assert.Equal(t, "Manual Collection", col.Name)
+	assert.Equal(t, "title", col.SortBy)
+	assert.Len(t, col.Rules, 1)
+}
+
+func TestCreate_RepoError(t *testing.T) {
+	t.Parallel()
+	mediaRepo := libfakes.NewFakeMediaItemRepository()
+	colRepo := libfakes.NewFakeCollectionRepository(mediaRepo)
+	smartQ := libfakes.NewFakeCollectionSmartQuerier()
+	cmdRepo := colRepo.CommandRepo()
+	cmdRepo.Err = fmt.Errorf("db down")
+	svc := appcol.NewService(cmdRepo, colRepo.QueryRepo(), smartQ, mediaRepo)
+
+	_, err := svc.Create(context.Background(), "Fail", nil, "title")
+	require.Error(t, err)
+}
+
+func TestUpdate(t *testing.T) {
+	t.Parallel()
+	svc, _, _ := newSvc()
+	ctx := context.Background()
+
+	rules := []library.CollectionRule{{Field: "genre", Operator: "eq", Value: "Action"}}
+	col, err := svc.Create(ctx, "Original", rules, "title")
+	require.NoError(t, err)
+
+	newRules := []library.CollectionRule{{Field: "genre", Operator: "eq", Value: "Drama"}}
+	err = svc.Update(ctx, col.ID, "Updated", newRules, "year")
+	require.NoError(t, err)
+
+	got, err := svc.GetByID(ctx, col.ID)
+	require.NoError(t, err)
+	assert.Equal(t, "Updated", got.Name)
+	assert.Equal(t, "year", got.SortBy)
+}
+
+func TestUpdate_NotFound(t *testing.T) {
+	t.Parallel()
+	svc, _, _ := newSvc()
+	err := svc.Update(context.Background(), "nonexistent", "Name", nil, "title")
+	require.Error(t, err)
+}
+
+func TestUpsert_RepoError(t *testing.T) {
+	t.Parallel()
+	mediaRepo := libfakes.NewFakeMediaItemRepository()
+	colRepo := libfakes.NewFakeCollectionRepository(mediaRepo)
+	smartQ := libfakes.NewFakeCollectionSmartQuerier()
+	cmdRepo := colRepo.CommandRepo()
+	cmdRepo.Err = fmt.Errorf("db down")
+	svc := appcol.NewService(cmdRepo, colRepo.QueryRepo(), smartQ, mediaRepo)
+
+	_, err := svc.Upsert(context.Background(), 1, "Fail", "", "", "")
+	require.Error(t, err)
+}
+
+func TestCreateSmart_RepoError(t *testing.T) {
+	t.Parallel()
+	mediaRepo := libfakes.NewFakeMediaItemRepository()
+	colRepo := libfakes.NewFakeCollectionRepository(mediaRepo)
+	smartQ := libfakes.NewFakeCollectionSmartQuerier()
+	cmdRepo := colRepo.CommandRepo()
+	cmdRepo.Err = fmt.Errorf("db down")
+	svc := appcol.NewService(cmdRepo, colRepo.QueryRepo(), smartQ, mediaRepo)
+
+	rules := []library.CollectionRule{{Field: "genre", Operator: "eq", Value: "Action"}}
+	_, err := svc.CreateSmart(context.Background(), "Fail", rules, "year")
+	require.Error(t, err)
+}
+
+func TestUpdateSmart_RepoError(t *testing.T) {
+	t.Parallel()
+	svc, _, _ := newSvc()
+	ctx := context.Background()
+
+	rules := []library.CollectionRule{{Field: "genre", Operator: "eq", Value: "Action"}}
+	col, err := svc.CreateSmart(ctx, "Action", rules, "year")
+	require.NoError(t, err)
+
+	// inject error after creation
+	mediaRepo := libfakes.NewFakeMediaItemRepository()
+	colRepo := libfakes.NewFakeCollectionRepository(mediaRepo)
+	smartQ := libfakes.NewFakeCollectionSmartQuerier()
+	cmdRepo := colRepo.CommandRepo()
+	// seed the collection in the new repo
+	colRepo.CommandRepo().Create(ctx, col)
+	cmdRepo.Err = fmt.Errorf("db down")
+	svc2 := appcol.NewService(cmdRepo, colRepo.QueryRepo(), smartQ, mediaRepo)
+
+	_, err = svc2.UpdateSmart(ctx, col.ID, "Updated", rules, "year")
+	require.Error(t, err)
+}
+
+func TestUpdateSmart_DefaultSortBy(t *testing.T) {
+	t.Parallel()
+	svc, _, _ := newSvc()
+	ctx := context.Background()
+
+	rules := []library.CollectionRule{{Field: "genre", Operator: "eq", Value: "Action"}}
+	col, err := svc.CreateSmart(ctx, "Action", rules, "year")
+	require.NoError(t, err)
+
+	updated, err := svc.UpdateSmart(ctx, col.ID, "Action v2", rules, "")
+	require.NoError(t, err)
+	assert.Equal(t, "added_at", updated.SortBy)
+}
+
+func TestGetItems_SmartCollection_QueryError(t *testing.T) {
+	t.Parallel()
+	mediaRepo := libfakes.NewFakeMediaItemRepository()
+	colRepo := libfakes.NewFakeCollectionRepository(mediaRepo)
+	smartQ := libfakes.NewFakeCollectionSmartQuerier()
+	smartQ.Err = fmt.Errorf("query failed")
+	ctx := context.Background()
+
+	svc := appcol.NewService(colRepo.CommandRepo(), colRepo.QueryRepo(), smartQ, mediaRepo)
+
+	col, err := svc.Upsert(ctx, 100, "Smart Fail", "", "", "")
+	require.NoError(t, err)
+	col.Rules = []library.CollectionRule{{Field: "genre", Operator: "eq", Value: "Action"}}
+	colRepo.CommandRepo().Upsert(ctx, col)
+
+	_, _, err = svc.GetItems(ctx, col.ID, 50, 0)
+	require.Error(t, err)
+}
+
+func TestGetItems_NotFound(t *testing.T) {
+	t.Parallel()
+	svc, _, _ := newSvc()
+	_, _, err := svc.GetItems(context.Background(), "nonexistent", 50, 0)
+	require.Error(t, err)
+}
+
 func TestGetItems_SmartCollection_RulesEvaluated(t *testing.T) {
 	t.Parallel()
 	mediaRepo := libfakes.NewFakeMediaItemRepository()
