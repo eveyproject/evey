@@ -63,10 +63,15 @@ function SearchPage() {
 
   useEffect(() => {
     if (debouncedQuery.length > 1) pushRecent(debouncedQuery);
-    const params = debouncedQuery ? `?q=${encodeURIComponent(debouncedQuery)}` : "";
-    window.history.replaceState(null, "", `/search${params}`);
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- only sync URL, don't trigger router navigation
-  }, [debouncedQuery]);
+    if ((q ?? "") !== debouncedQuery) {
+      void navigate({
+        to: "/search",
+        search: debouncedQuery ? { q: debouncedQuery } : {},
+        replace: true,
+      });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- q excluded: we only push to URL, never react to it here (q→inputValue sync is above)
+  }, [debouncedQuery, navigate, pushRecent]);
 
   useEffect(() => {
     inputRef.current?.focus();

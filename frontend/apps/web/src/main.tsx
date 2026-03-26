@@ -36,12 +36,15 @@ function scheduleTokenRefresh() {
     const delay = Math.max(refreshAt - Date.now(), 0);
     refreshTimer = setTimeout(async () => {
       try {
-        await eveyFetch<{ accessToken?: string }>({
+        const data = await eveyFetch<{ accessToken?: string }>({
           url: "/api/v1/auth/refresh",
           method: "POST",
           headers: { "Content-Type": "application/json" },
           data: {},
         });
+        if (data?.accessToken) {
+          useAuthStore.getState().setTokens(data.accessToken);
+        }
       } catch { /* ignore */ }
       scheduleTokenRefresh();
     }, delay);
