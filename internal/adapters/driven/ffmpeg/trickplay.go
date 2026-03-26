@@ -140,11 +140,13 @@ func (g *TrickplayGenerator) Generate(ctx context.Context, filePath, outputDir s
 	}
 
 	// Tile thumbnails into sprite sheets.
+	// -r 1 forces 1fps so each concat entry (duration 1) = exactly 1 frame for the tile filter.
 	outputPattern := filepath.Join(outputDir, "trickplay_%03d.jpg")
 	tileCmd := exec.CommandContext(ctx, "nice", "-n", "19", g.binary,
 		"-threads", "1",
 		"-f", "concat",
 		"-safe", "0",
+		"-r", "1",
 		"-i", concatPath,
 		"-vf", fmt.Sprintf("tile=%dx%d", tileWidth, tileHeight),
 		"-q:v", "8",
