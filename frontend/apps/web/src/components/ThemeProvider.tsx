@@ -3,20 +3,9 @@ import { useThemeStore } from "@evey/store";
 import { applyThemeToDOM } from "@evey/theme";
 import { loadPluginTheme, unloadAllPluginThemes } from "@/features/plugins/theme-loader";
 import { getPluginIdForTheme } from "./ThemeSelector";
+import { isPluginTheme, pluginNameFromTheme } from "./theme-utils";
 
-const PLUGIN_THEME_PREFIX = "plugin:";
-
-export function isPluginTheme(name: string): boolean {
-  return name.startsWith(PLUGIN_THEME_PREFIX);
-}
-
-export function pluginNameFromTheme(name: string): string {
-  return name.slice(PLUGIN_THEME_PREFIX.length);
-}
-
-export function pluginThemeName(pluginName: string): string {
-  return PLUGIN_THEME_PREFIX + pluginName;
-}
+export { isPluginTheme, pluginNameFromTheme, pluginThemeName } from "./theme-utils";
 
 export function ThemeProvider({ children }: { children: ReactNode }) {
   const { theme, customVars } = useThemeStore();

@@ -2,7 +2,7 @@ import { useThemeStore } from "@evey/store";
 import { themes, type ThemeName } from "@evey/theme";
 import { useQuery } from "@tanstack/react-query";
 import { eveyFetch } from "@evey/api";
-import { pluginThemeName } from "./ThemeProvider";
+import { pluginThemeName } from "./theme-utils";
 
 const builtInLabels: Record<ThemeName, string> = {
   default: "Dark",
