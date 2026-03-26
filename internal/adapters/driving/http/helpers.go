@@ -132,16 +132,16 @@ func tokenRedactMiddleware(store streamTokenValidator, next http.Handler) http.H
 			r.URL.RawQuery = q.Encode()
 
 			if r.Header.Get("Authorization") == "" {
-				// Opaque stream token: no "." (JWTs always have 2 dots)
-				if store != nil && !strings.Contains(t, ".") {
+				isOpaque := store != nil && !strings.Contains(t, ".")
+				if isOpaque {
 					if st, ok := store.ValidateAny(t); ok {
 						r.Header.Set("Authorization", "Bearer "+t)
 						ctx := context.WithValue(r.Context(), streamTokenCtxKey, st)
 						r = r.WithContext(ctx)
 					}
-				}
-				// JWT or fallback: set as Bearer (handlers validate)
-				if r.Header.Get("Authorization") == "" {
+					// opaque token invalid/expired: don't set as Bearer, handler returns 401
+				} else {
+					// JWT or no store: set as Bearer, handlers validate
 					r.Header.Set("Authorization", "Bearer "+t)
 				}
 			}
@@ -232,4 +232,3 @@ type discardResponseWriter struct {
 func (d *discardResponseWriter) Header() http.Header        { return d.header }
 func (d *discardResponseWriter) Write(b []byte) (int, error) { return len(b), nil }
 func (d *discardResponseWriter) WriteHeader(code int)        { d.status = code }
-

@@ -10,7 +10,6 @@ import (
 	"strconv"
 	"strings"
 
-	appmedia "github.com/gravity-zero/evey/internal/app/media"
 	"github.com/gravity-zero/evey/internal/domain/library"
 )
 
@@ -99,41 +98,57 @@ func mediaHandler(tokens TokenVerifier, libSvc MediaItemGetter, artworkRepo Artw
 
 func (h *mediaServe) handleStream(w http.ResponseWriter, r *http.Request) {
 	mediaID := r.PathValue("id")
-	authHeader := r.Header.Get("Authorization")
-	if len(authHeader) < 8 {
-		if t := r.URL.Query().Get("token"); t != "" {
-			authHeader = "Bearer " + t
+
+	var item *library.MediaItem
+	if st, ok := StreamTokenFromContext(r.Context()); ok {
+		if st.MediaItemID != mediaID {
+			http.Error(w, `{"message":"forbidden"}`, http.StatusForbidden)
+			return
 		}
-	}
-	if len(authHeader) < 8 || authHeader[:7] != "Bearer " {
-		http.Error(w, `{"message":"unauthenticated"}`, http.StatusUnauthorized)
-		return
-	}
-	claims, err := h.tokens.ValidateAccessToken(authHeader[7:])
-	if err != nil {
-		http.Error(w, `{"message":"forbidden"}`, http.StatusForbidden)
-		return
-	}
-	item, err := h.libSvc.GetMediaItem(r.Context(), mediaID)
-	if err != nil {
-		http.Error(w, `{"message":"not found"}`, http.StatusNotFound)
-		return
-	}
-	if !checkLibraryAccess(r.Context(), w, claims, item.LibraryID, h.libraryAccess) {
-		return
+		i, err := h.libSvc.GetMediaItem(r.Context(), mediaID)
+		if err != nil {
+			http.Error(w, `{"message":"not found"}`, http.StatusNotFound)
+			return
+		}
+		item = i
+	} else {
+		authHeader := r.Header.Get("Authorization")
+		if len(authHeader) < 8 {
+			if t := r.URL.Query().Get("token"); t != "" {
+				authHeader = "Bearer " + t
+			}
+		}
+		if len(authHeader) < 8 || authHeader[:7] != "Bearer " {
+			http.Error(w, `{"message":"unauthenticated"}`, http.StatusUnauthorized)
+			return
+		}
+		claims, err := h.tokens.ValidateAccessToken(authHeader[7:])
+		if err != nil {
+			http.Error(w, `{"message":"forbidden"}`, http.StatusForbidden)
+			return
+		}
+		i, err := h.libSvc.GetMediaItem(r.Context(), mediaID)
+		if err != nil {
+			http.Error(w, `{"message":"not found"}`, http.StatusNotFound)
+			return
+		}
+		if !checkLibraryAccess(r.Context(), w, claims, i.LibraryID, h.libraryAccess) {
+			return
+		}
+		item = i
 	}
 	setCORSHeaders(w, r, h.baseURL)
 	http.ServeFile(w, r, item.FilePath)
 }
 
-func downloadHandler(tokens TokenVerifier, streamTokens *appmedia.StreamTokenStore, libSvc MediaItemGetter, baseURL string, libraryAccess LibraryAccessChecker) http.HandlerFunc {
+func downloadHandler(tokens TokenVerifier, libSvc MediaItemGetter, baseURL string, libraryAccess LibraryAccessChecker) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		mediaID := r.PathValue("id")
 
-		// Stream token in query param (browser <a href> downloads)
-		if t := r.URL.Query().Get("token"); t != "" {
-			if _, ok := streamTokens.Validate(t, mediaID); !ok {
-				http.Error(w, `{"message":"invalid or expired token"}`, http.StatusForbidden)
+		// Stream token already validated by TokenRedactMiddleware (set in context)
+		if st, ok := StreamTokenFromContext(r.Context()); ok {
+			if st.MediaItemID != mediaID {
+				http.Error(w, `{"message":"forbidden"}`, http.StatusForbidden)
 				return
 			}
 			item, err := libSvc.GetMediaItem(r.Context(), mediaID)

@@ -5,6 +5,7 @@ import (
 	"log/slog"
 	"net/http"
 
+	"github.com/gravity-zero/evey/internal/domain/library"
 	domainmeta "github.com/gravity-zero/evey/internal/domain/metadata"
 	"github.com/gravity-zero/evey/internal/pkg/urlvalidator"
 )
@@ -12,28 +13,40 @@ import (
 func (h *mediaServe) handleArtwork(w http.ResponseWriter, r *http.Request) {
 	mediaID := r.PathValue("id")
 	artType := r.PathValue("artType")
-	artAuthHeader := r.Header.Get("Authorization")
-	if len(artAuthHeader) < 8 {
-		if t := r.URL.Query().Get("token"); t != "" {
-			artAuthHeader = "Bearer " + t
+
+	var artItem *library.MediaItem
+	if _, ok := StreamTokenFromContext(r.Context()); ok {
+		item, err := h.libSvc.GetMediaItem(r.Context(), mediaID)
+		if err != nil {
+			http.NotFound(w, r)
+			return
 		}
-	}
-	if len(artAuthHeader) < 8 || artAuthHeader[:7] != "Bearer " {
-		http.Error(w, `{"message":"unauthenticated"}`, http.StatusUnauthorized)
-		return
-	}
-	artClaims, err := h.tokens.ValidateAccessToken(artAuthHeader[7:])
-	if err != nil {
-		http.Error(w, `{"message":"forbidden"}`, http.StatusForbidden)
-		return
-	}
-	artItem, err := h.libSvc.GetMediaItem(r.Context(), mediaID)
-	if err != nil {
-		http.NotFound(w, r)
-		return
-	}
-	if !checkLibraryAccess(r.Context(), w, artClaims, artItem.LibraryID, h.libraryAccess) {
-		return
+		artItem = item
+	} else {
+		artAuthHeader := r.Header.Get("Authorization")
+		if len(artAuthHeader) < 8 {
+			if t := r.URL.Query().Get("token"); t != "" {
+				artAuthHeader = "Bearer " + t
+			}
+		}
+		if len(artAuthHeader) < 8 || artAuthHeader[:7] != "Bearer " {
+			http.Error(w, `{"message":"unauthenticated"}`, http.StatusUnauthorized)
+			return
+		}
+		artClaims, err := h.tokens.ValidateAccessToken(artAuthHeader[7:])
+		if err != nil {
+			http.Error(w, `{"message":"forbidden"}`, http.StatusForbidden)
+			return
+		}
+		item, err := h.libSvc.GetMediaItem(r.Context(), mediaID)
+		if err != nil {
+			http.NotFound(w, r)
+			return
+		}
+		if !checkLibraryAccess(r.Context(), w, artClaims, item.LibraryID, h.libraryAccess) {
+			return
+		}
+		artItem = item
 	}
 
 	records := h.findArtworkRecords(r.Context(), mediaID, artType, artItem.ParentID)

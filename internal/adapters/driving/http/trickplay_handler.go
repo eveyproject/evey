@@ -3,40 +3,56 @@ package httpapi
 import (
 	"context"
 	"fmt"
+	"image"
+	_ "image/jpeg"
 	"log/slog"
 	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
 	"time"
+
+	domainuser "github.com/gravity-zero/evey/internal/domain/user"
 )
 
 func trickplayManifestHandler(tokenGen TokenVerifier, libSvc TrickplayGetter, baseURL string, libraryAccess LibraryAccessChecker, mediaGetter MediaItemGetter) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		mediaID := r.PathValue("id")
-		token := r.Header.Get("Authorization")
-		if strings.HasPrefix(token, "Bearer ") {
-			token = token[7:]
-		} else if t := r.URL.Query().Get("token"); t != "" {
-			token = t
+
+		var jwtClaims *domainuser.Claims
+		if st, ok := StreamTokenFromContext(r.Context()); ok {
+			if st.MediaItemID != mediaID {
+				http.Error(w, `{"message":"forbidden"}`, http.StatusForbidden)
+				return
+			}
+		} else {
+			token := r.Header.Get("Authorization")
+			if strings.HasPrefix(token, "Bearer ") {
+				token = token[7:]
+			} else if t := r.URL.Query().Get("token"); t != "" {
+				token = t
+			}
+			if token == "" {
+				http.Error(w, `{"message":"unauthenticated"}`, http.StatusUnauthorized)
+				return
+			}
+			claims, err := tokenGen.ValidateAccessToken(token)
+			if err != nil {
+				http.Error(w, `{"message":"forbidden"}`, http.StatusForbidden)
+				return
+			}
+			jwtClaims = claims
 		}
-		if token == "" {
-			http.Error(w, `{"message":"unauthenticated"}`, http.StatusUnauthorized)
-			return
-		}
-		claims, err := tokenGen.ValidateAccessToken(token)
-		if err != nil {
-			http.Error(w, `{"message":"forbidden"}`, http.StatusForbidden)
-			return
-		}
+
 		item, err := mediaGetter.GetMediaItem(r.Context(), mediaID)
 		if err != nil {
 			http.Error(w, `{"message":"not found"}`, http.StatusNotFound)
 			return
 		}
-		if !checkLibraryAccess(r.Context(), w, claims, item.LibraryID, libraryAccess) {
+		if jwtClaims != nil && !checkLibraryAccess(r.Context(), w, jwtClaims, item.LibraryID, libraryAccess) {
 			return
 		}
+
 		manifest, err := libSvc.GetTrickplayManifest(r.Context(), mediaID)
 		if err != nil {
 			w.Header().Set("Content-Type", "text/vtt")
@@ -45,7 +61,28 @@ func trickplayManifestHandler(tokenGen TokenVerifier, libSvc TrickplayGetter, ba
 			return
 		}
 		tilesPerImage := manifest.TileWidth * manifest.TileHeight
+
+		// Compute real frame count from video duration (not ImageCount * tiles which overestimates)
 		totalFrames := manifest.ImageCount * tilesPerImage
+		if item.DurationMs > 0 && manifest.Interval > 0 {
+			realFrames := int(item.DurationMs/1000) / manifest.Interval
+			if realFrames < totalFrames {
+				totalFrames = realFrames
+			}
+		}
+
+		// Compute actual tile height from first sprite image (ffmpeg scale=-1 preserves aspect ratio)
+		tileH := manifest.Width * 9 / 16 // fallback 16:9
+		if manifest.ImagePath != "" && manifest.TileWidth > 0 && manifest.TileHeight > 0 {
+			firstSprite := filepath.Join(manifest.ImagePath, "trickplay_001.jpg")
+			if f, openErr := os.Open(firstSprite); openErr == nil {
+				defer f.Close()
+				if cfg, _, decErr := image.DecodeConfig(f); decErr == nil && cfg.Width > 0 && cfg.Height > 0 {
+					tileH = cfg.Height / manifest.TileHeight
+				}
+			}
+		}
+
 		w.Header().Set("Content-Type", "text/vtt")
 		setCORSHeaders(w, r, baseURL)
 		w.Header().Set("Cache-Control", "public, max-age=86400")
@@ -58,8 +95,8 @@ func trickplayManifestHandler(tokenGen TokenVerifier, libSvc TrickplayGetter, ba
 			col := tileIdx % manifest.TileWidth
 			row := tileIdx / manifest.TileWidth
 			xywh := fmt.Sprintf("%d,%d,%d,%d",
-				col*manifest.Width, row*manifest.Width*9/16,
-				manifest.Width, manifest.Width*9/16,
+				col*manifest.Width, row*tileH,
+				manifest.Width, tileH,
 			)
 			imageFile := fmt.Sprintf("trickplay_%03d.jpg", imageIdx+1)
 			imageURL := fmt.Sprintf("/api/v1/media/%s/trickplay/%s", mediaID, imageFile)
@@ -82,28 +119,40 @@ func trickplayImageHandler(tokenGen TokenVerifier, libSvc TrickplayGetter, baseU
 	return func(w http.ResponseWriter, r *http.Request) {
 		mediaID := r.PathValue("id")
 		imageName := r.PathValue("image")
-		token := r.Header.Get("Authorization")
-		if strings.HasPrefix(token, "Bearer ") {
-			token = token[7:]
-		} else if t := r.URL.Query().Get("token"); t != "" {
-			token = t
+
+		var jwtClaims *domainuser.Claims
+		if st, ok := StreamTokenFromContext(r.Context()); ok {
+			if st.MediaItemID != mediaID {
+				http.Error(w, `{"message":"forbidden"}`, http.StatusForbidden)
+				return
+			}
 		} else {
-			http.Error(w, `{"message":"unauthenticated"}`, http.StatusUnauthorized)
-			return
+			token := r.Header.Get("Authorization")
+			if strings.HasPrefix(token, "Bearer ") {
+				token = token[7:]
+			} else if t := r.URL.Query().Get("token"); t != "" {
+				token = t
+			} else {
+				http.Error(w, `{"message":"unauthenticated"}`, http.StatusUnauthorized)
+				return
+			}
+			claims, err := tokenGen.ValidateAccessToken(token)
+			if err != nil {
+				http.Error(w, `{"message":"forbidden"}`, http.StatusForbidden)
+				return
+			}
+			jwtClaims = claims
 		}
-		claims, err := tokenGen.ValidateAccessToken(token)
-		if err != nil {
-			http.Error(w, `{"message":"forbidden"}`, http.StatusForbidden)
-			return
-		}
+
 		item, err := mediaGetter.GetMediaItem(r.Context(), mediaID)
 		if err != nil {
 			http.Error(w, `{"message":"not found"}`, http.StatusNotFound)
 			return
 		}
-		if !checkLibraryAccess(r.Context(), w, claims, item.LibraryID, libraryAccess) {
+		if jwtClaims != nil && !checkLibraryAccess(r.Context(), w, jwtClaims, item.LibraryID, libraryAccess) {
 			return
 		}
+
 		manifest, err := libSvc.GetTrickplayManifest(r.Context(), mediaID)
 		if err != nil {
 			http.Error(w, `{"message":"not found"}`, http.StatusNotFound)

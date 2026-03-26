@@ -13,8 +13,6 @@ import (
 	"testing"
 	"time"
 
-	media "github.com/gravity-zero/evey/internal/app/media"
-
 	appcollection "github.com/gravity-zero/evey/internal/app/collection"
 	appmetadata "github.com/gravity-zero/evey/internal/app/metadata"
 	appmusic "github.com/gravity-zero/evey/internal/app/music"
@@ -33,6 +31,7 @@ import (
 	domainphoto "github.com/gravity-zero/evey/internal/domain/photo"
 	playlistfakes "github.com/gravity-zero/evey/internal/domain/playlist/fakes"
 	ratingfakes "github.com/gravity-zero/evey/internal/domain/rating/fakes"
+	shared "github.com/gravity-zero/evey/internal/domain/shared"
 	sharedfakes "github.com/gravity-zero/evey/internal/domain/shared/fakes"
 	transcodingfakes "github.com/gravity-zero/evey/internal/domain/transcoding/fakes"
 	domainuser "github.com/gravity-zero/evey/internal/domain/user"
@@ -592,7 +591,6 @@ func TestSelectArtwork_OK(t *testing.T) {
 func TestDownloadHandler_InvalidToken_403(t *testing.T) {
 	h := downloadHandler(
 		&fakeTokenVerifier{err: errTest},
-		media.NewStreamTokenStore(5*time.Minute),
 		&fakeMediaItemGetter{item: testMediaItem("lib1")},
 		"http://localhost",
 		allowAll(),
@@ -607,27 +605,29 @@ func TestDownloadHandler_InvalidToken_403(t *testing.T) {
 	}
 }
 
-func TestDownloadHandler_QueryToken(t *testing.T) {
+func TestDownloadHandler_StreamTokenContext(t *testing.T) {
 	h := downloadHandler(
 		&fakeTokenVerifier{claims: testClaims(false)},
-		media.NewStreamTokenStore(5*time.Minute),
 		&fakeMediaItemGetter{item: &domainlibrary.MediaItem{ID: "m1", LibraryID: "lib1", FilePath: "/nonexistent"}},
 		"http://localhost",
 		allowAll(),
 	)
-	req := httptest.NewRequest(http.MethodGet, "/api/v1/media/m1/download?token=valid", nil)
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/media/m1/download", nil)
 	req.SetPathValue("id", "m1")
+	ctx := context.WithValue(req.Context(), streamTokenCtxKey, &shared.StreamToken{
+		Token: "tok", UserID: "u1", MediaItemID: "m1",
+	})
+	req = req.WithContext(ctx)
 	w := httptest.NewRecorder()
 	h.ServeHTTP(w, req)
 	if w.Code == http.StatusUnauthorized {
-		t.Error("query token should be accepted")
+		t.Error("stream token in context should be accepted")
 	}
 }
 
 func TestDownloadHandler_EmptyFilePath_404(t *testing.T) {
 	h := downloadHandler(
 		&fakeTokenVerifier{claims: testClaims(false)},
-		media.NewStreamTokenStore(5*time.Minute),
 		&fakeMediaItemGetter{item: &domainlibrary.MediaItem{ID: "m1", LibraryID: "lib1", FilePath: ""}},
 		"http://localhost",
 		allowAll(),

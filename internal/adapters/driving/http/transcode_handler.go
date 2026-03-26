@@ -18,6 +18,7 @@ import (
 	apptranscoding "github.com/gravity-zero/evey/internal/app/transcoding"
 	domainlibrary "github.com/gravity-zero/evey/internal/domain/library"
 	domaintranscoding "github.com/gravity-zero/evey/internal/domain/transcoding"
+	domainuser "github.com/gravity-zero/evey/internal/domain/user"
 	"github.com/gravity-zero/evey/internal/pkg/hdr"
 )
 
@@ -229,32 +230,46 @@ func hlsMasterHandler(tokenGen TokenVerifier, libSvc MediaStreamsGetter, hlsMana
 
 func (h *hlsMasterServe) serveHTTP(w http.ResponseWriter, r *http.Request) {
 	mediaID := r.PathValue("id")
-	token := r.Header.Get("Authorization")
-	if strings.HasPrefix(token, "Bearer ") {
-		token = token[7:]
-	} else if t := r.URL.Query().Get("token"); t != "" {
-		token = t
+
+	var userID string
+	var jwtClaims *domainuser.Claims
+	if st, ok := StreamTokenFromContext(r.Context()); ok {
+		if st.MediaItemID != mediaID {
+			http.Error(w, `{"message":"forbidden"}`, http.StatusForbidden)
+			return
+		}
+		userID = st.UserID
 	} else {
-		http.Error(w, `{"message":"unauthenticated"}`, http.StatusUnauthorized)
-		return
+		token := r.Header.Get("Authorization")
+		if strings.HasPrefix(token, "Bearer ") {
+			token = token[7:]
+		} else if t := r.URL.Query().Get("token"); t != "" {
+			token = t
+		} else {
+			http.Error(w, `{"message":"unauthenticated"}`, http.StatusUnauthorized)
+			return
+		}
+		claims, err := h.tokens.ValidateAccessToken(token)
+		if err != nil {
+			http.Error(w, `{"message":"forbidden"}`, http.StatusForbidden)
+			return
+		}
+		userID = claims.UserID
+		jwtClaims = claims
 	}
-	claims, err := h.tokens.ValidateAccessToken(token)
-	if err != nil {
-		http.Error(w, `{"message":"forbidden"}`, http.StatusForbidden)
-		return
-	}
+
 	item, err := h.libSvc.GetMediaItem(r.Context(), mediaID)
 	if err != nil || item.FilePath == "" {
 		http.Error(w, `{"message":"not found"}`, http.StatusNotFound)
 		return
 	}
-	if !checkLibraryAccess(r.Context(), w, claims, item.LibraryID, h.libraryAccess) {
+	if jwtClaims != nil && !checkLibraryAccess(r.Context(), w, jwtClaims, item.LibraryID, h.libraryAccess) {
 		return
 	}
 
 	maxStreams := 0
 	if h.userMaxStreams != nil {
-		if ms := h.userMaxStreams.GetMaxStreams(r.Context(), claims.UserID); ms != nil {
+		if ms := h.userMaxStreams.GetMaxStreams(r.Context(), userID); ms != nil {
 			maxStreams = *ms
 		}
 	}
@@ -290,9 +305,9 @@ func (h *hlsMasterServe) serveHTTP(w http.ResponseWriter, r *http.Request) {
 
 	var session *apptranscoding.HLSSession
 	if startSec > 0 {
-		session, err = h.hlsManager.RestartFromPosition(claims.UserID, mediaID, item.FilePath, sourceWidth, sourceHeight, maxStreams, audioTrackIndex, subtitleTrackIndex, subtitleCodec, mediaStreams, hdrSupported, audioNormalize, startSec, videoDecision, audioDecision)
+		session, err = h.hlsManager.RestartFromPosition(userID, mediaID, item.FilePath, sourceWidth, sourceHeight, maxStreams, audioTrackIndex, subtitleTrackIndex, subtitleCodec, mediaStreams, hdrSupported, audioNormalize, startSec, videoDecision, audioDecision)
 	} else {
-		session, err = h.hlsManager.GetOrCreate(claims.UserID, mediaID, item.FilePath, sourceWidth, sourceHeight, maxStreams, audioTrackIndex, subtitleTrackIndex, subtitleCodec, mediaStreams, hdrSupported, audioNormalize, 0, videoDecision, audioDecision)
+		session, err = h.hlsManager.GetOrCreate(userID, mediaID, item.FilePath, sourceWidth, sourceHeight, maxStreams, audioTrackIndex, subtitleTrackIndex, subtitleCodec, mediaStreams, hdrSupported, audioNormalize, 0, videoDecision, audioDecision)
 	}
 	if err != nil {
 		slog.Error("hls: get or create session", slog.Any("err", err))
@@ -308,7 +323,7 @@ func (h *hlsMasterServe) serveHTTP(w http.ResponseWriter, r *http.Request) {
 	if session.StartSec > 0 {
 		w.Header().Set("X-Start-Sec", fmt.Sprintf("%.3f", session.StartSec))
 	}
-	h.serveMaster(w, r, session.OutputDir, claims.UserID)
+	h.serveMaster(w, r, session.OutputDir, userID)
 }
 
 func (h *hlsMasterServe) resolveSourceDimensions(ctx context.Context, mediaID string) (int, int, []*domainlibrary.MediaStream) {
@@ -379,28 +394,42 @@ func hlsSegmentHandler(tokenGen TokenVerifier, libSvc MediaItemGetter, hlsManage
 	return func(w http.ResponseWriter, r *http.Request) {
 		mediaID := r.PathValue("id")
 		file := r.PathValue("file")
-		token := r.Header.Get("Authorization")
-		if strings.HasPrefix(token, "Bearer ") {
-			token = token[7:]
-		} else if t := r.URL.Query().Get("token"); t != "" {
-			token = t
-		} else {
-			http.Error(w, `{"message":"unauthenticated"}`, http.StatusUnauthorized)
-			return
-		}
-		claims, err := tokenGen.ValidateAccessToken(token)
-		if err != nil {
-			http.Error(w, `{"message":"forbidden"}`, http.StatusForbidden)
-			return
-		}
 
-		item, err := libSvc.GetMediaItem(r.Context(), mediaID)
-		if err != nil {
-			http.Error(w, `{"message":"not found"}`, http.StatusNotFound)
-			return
-		}
-		if !checkLibraryAccess(r.Context(), w, claims, item.LibraryID, libraryAccess) {
-			return
+		var sessionUserID string
+		if st, ok := StreamTokenFromContext(r.Context()); ok {
+
+			if st.MediaItemID != mediaID {
+				slog.Warn("hls: stream token mediaID mismatch", slog.String("want", mediaID), slog.String("got", st.MediaItemID))
+				http.Error(w, `{"message":"forbidden"}`, http.StatusForbidden)
+				return
+			}
+			sessionUserID = st.UserID
+		} else {
+			token := r.Header.Get("Authorization")
+			if strings.HasPrefix(token, "Bearer ") {
+				token = token[7:]
+			} else if t := r.URL.Query().Get("token"); t != "" {
+				token = t
+			} else {
+				slog.Warn("hls: no auth at all")
+				http.Error(w, `{"message":"unauthenticated"}`, http.StatusUnauthorized)
+				return
+			}
+			claims, err := tokenGen.ValidateAccessToken(token)
+			if err != nil {
+				slog.Warn("hls: JWT validation failed", slog.Any("err", err))
+				http.Error(w, `{"message":"forbidden"}`, http.StatusForbidden)
+				return
+			}
+			item, err := libSvc.GetMediaItem(r.Context(), mediaID)
+			if err != nil {
+				http.Error(w, `{"message":"not found"}`, http.StatusNotFound)
+				return
+			}
+			if !checkLibraryAccess(r.Context(), w, claims, item.LibraryID, libraryAccess) {
+				return
+			}
+			sessionUserID = claims.UserID
 		}
 
 		session, ok := hlsManager.GetSession(mediaID)
@@ -408,7 +437,7 @@ func hlsSegmentHandler(tokenGen TokenVerifier, libSvc MediaItemGetter, hlsManage
 			http.Error(w, `{"message":"no active session"}`, http.StatusNotFound)
 			return
 		}
-		if !claims.IsAdmin && session.UserID != claims.UserID {
+		if sessionUserID != session.UserID {
 			http.Error(w, `{"message":"forbidden"}`, http.StatusForbidden)
 			return
 		}
