@@ -185,8 +185,6 @@ func TestCommandService_WithEventBus_WrongEventTypeIgnored(t *testing.T) {
 	svc := appfeed.NewCommandService(cmdRepo, queryRepo)
 	svc.WithEventBus(bus)
 
-	// publish a non-library event on "library.created" channel
-	type fakeEvent struct{}
 	_ = bus.Publish(context.Background(), library.LibraryDeleted{LibraryID: "x"})
 	// no panic = success; deleted handler runs on "library.deleted" not "library.created"
 	assert.Empty(t, cmdRepo.AdminConfigs)

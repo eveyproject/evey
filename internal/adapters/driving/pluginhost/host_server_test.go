@@ -196,7 +196,7 @@ func TestPluginIDInterceptor_NoPluginIDHeader(t *testing.T) {
 // --- pluginIDFromCtx ---
 
 func TestPluginIDFromCtx_Empty(t *testing.T) {
-	assert.Equal(t, "", pluginIDFromCtx(context.Background()))
+	assert.Empty(t, pluginIDFromCtx(context.Background()))
 }
 
 // --- GetMediaItem ---

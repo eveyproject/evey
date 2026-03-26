@@ -34,7 +34,7 @@ func TestBackupStore_Create_And_List(t *testing.T) {
 
 	err := store.Create(context.Background(), m, data)
 	require.NoError(t, err)
-	assert.Greater(t, m.Size, int64(0))
+	assert.Positive(t, m.Size)
 
 	// Verify archive + sidecar exist
 	_, statErr := os.Stat(filepath.Join(dir, "bk-001.tar.gz"))
@@ -47,7 +47,7 @@ func TestBackupStore_Create_And_List(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, list, 1)
 	assert.Equal(t, "bk-001", list[0].ID)
-	assert.Greater(t, list[0].Size, int64(0))
+	assert.Positive(t, list[0].Size)
 }
 
 func TestBackupStore_List_Empty(t *testing.T) {
@@ -83,7 +83,7 @@ func TestBackupStore_Get(t *testing.T) {
 	require.NotNil(t, rc)
 	defer rc.Close()
 	assert.Equal(t, "bk-002", got.ID)
-	assert.Greater(t, got.Size, int64(0))
+	assert.Positive(t, got.Size)
 }
 
 func TestBackupStore_Get_NotFound(t *testing.T) {

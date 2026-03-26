@@ -30,6 +30,7 @@ import (
 	subfakes "github.com/gravity-zero/evey/internal/domain/subtitle/fakes"
 	domainuser "github.com/gravity-zero/evey/internal/domain/user"
 	"github.com/gravity-zero/evey/internal/pkg/auth"
+	"github.com/stretchr/testify/assert"
 )
 
 // ============================================================
@@ -1758,9 +1759,7 @@ func TestParseClientProfile_InvalidValues(t *testing.T) {
 	h := &playbackServe{}
 	req := httptest.NewRequest(http.MethodGet, "/test?maxWidth=abc&maxHeight=-1&maxBitrate=bad", nil)
 	p := h.parseClientProfile(req)
-	if p.MaxWidth == 0 {
-		// invalid should keep default, which is non-zero
-	}
+	assert.NotZero(t, p.MaxWidth, "invalid should keep default, which is non-zero")
 	if p.SupportsHDR {
 		t.Error("expected SupportsHDR=false without hdr=true")
 	}

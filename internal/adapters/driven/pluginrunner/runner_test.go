@@ -166,7 +166,7 @@ func TestValidateEntrypoint_DirectoryIsError(t *testing.T) {
 	dir := t.TempDir()
 	r := NewRunner(dir)
 	_, err := r.validateEntrypoint(".", dir)
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "directory")
 }
 
@@ -176,7 +176,7 @@ func TestValidateEntrypoint_NotExecutableIsError(t *testing.T) {
 	os.WriteFile(noExec, []byte("print('hi')"), 0o644)
 	r := NewRunner(dir)
 	_, err := r.validateEntrypoint("script.py", dir)
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "not executable")
 }
 
@@ -185,7 +185,7 @@ func TestRunnerStartEmptyEntrypoint(t *testing.T) {
 	p := &plugin.Plugin{ID: "plg-empty", Entrypoint: ""}
 	// Entrypoint falls back to Name, which is also empty
 	err := r.Start(context.Background(), p)
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "empty entrypoint")
 }
 
@@ -213,7 +213,7 @@ func TestRunnerSendEvent_NoIPC(t *testing.T) {
 	time.Sleep(50 * time.Millisecond)
 
 	err = r.SendEvent(ctx, "plg-no-ipc", map[string]any{"key": "val"})
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "IPC not connected")
 }
 

@@ -240,7 +240,7 @@ func TestTranscoder_Progress_NotFound(t *testing.T) {
 	t.Parallel()
 	tr := newTestTranscoder()
 	_, err := tr.Progress(t.Context(), "nonexistent-job")
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "not found")
 }
 

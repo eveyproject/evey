@@ -156,7 +156,7 @@ func TestOMDb_GetByProviderID_ServerError(t *testing.T) {
 	defer srv.Close()
 
 	_, err := p.GetByProviderID(context.Background(), "tt123", "movie")
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "500")
 }
 

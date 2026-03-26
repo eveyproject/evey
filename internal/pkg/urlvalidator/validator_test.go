@@ -168,7 +168,7 @@ func TestValidateExternalURL_BlocksPrivateIPs(t *testing.T) {
 		"https://[::1]/path",
 	} {
 		err := ValidateExternalURL(u)
-		assert.Error(t, err, "expected blocked: %s", u)
+		require.Error(t, err, "expected blocked: %s", u)
 		assert.Contains(t, err.Error(), "private")
 	}
 }
@@ -232,7 +232,7 @@ func TestValidateRedirectURL_BlocksPrivateIPs(t *testing.T) {
 		"http://0.0.0.0/callback",
 	} {
 		err := ValidateRedirectURL(u)
-		assert.Error(t, err, "expected blocked: %s", u)
+		require.Error(t, err, "expected blocked: %s", u)
 		assert.Contains(t, err.Error(), "private")
 	}
 }

@@ -159,7 +159,7 @@ func TestPickBestMatch_PopularityTiebreaker(t *testing.T) {
 		{Title: "Same Title", Popularity: 50},
 	}
 	best := pickBestMatch(results, "Same Title", nil)
-	assert.Equal(t, 50.0, best.Popularity)
+	assert.InDelta(t, 50.0, best.Popularity, 0.001)
 }
 
 func TestTitleSimilarity(t *testing.T) {

@@ -187,7 +187,7 @@ func TestTVMaze_GetByProviderID_ServerError(t *testing.T) {
 	defer srv.Close()
 
 	_, err := p.GetByProviderID(context.Background(), "1", "tv")
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "500")
 }
 
@@ -198,7 +198,7 @@ func TestTVMaze_GetByProviderID_NotFound(t *testing.T) {
 	defer srv.Close()
 
 	_, err := p.GetByProviderID(context.Background(), "999999", "tv")
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "not found")
 }
 

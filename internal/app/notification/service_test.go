@@ -840,7 +840,7 @@ func TestNotificationService_UpdateSettings_ValidationError(t *testing.T) {
 		SeriesLevel: notifdom.LevelAll,
 		MusicLevel:  notifdom.LevelAll,
 	})
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "invalid notification settings")
 }
 
@@ -882,7 +882,7 @@ func TestNotificationService_UpdateGlobalSettings_ValidationError(t *testing.T) 
 		SeriesLevel: "invalid",
 		MusicLevel:  notifdom.LevelAll,
 	})
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "invalid notification settings")
 }
 
