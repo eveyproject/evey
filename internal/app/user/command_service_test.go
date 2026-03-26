@@ -704,6 +704,237 @@ func TestGenerateAndStoreRefreshToken_GenError(t *testing.T) {
 	}
 }
 
+// --- GenerateTokensForUser ---
+
+func TestGenerateTokensForUser_Happy(t *testing.T) {
+	d := newAuthTestDeps()
+	ctx := context.Background()
+	seedAuthUser(t, d, "u1", "alice", "pw", false, true)
+
+	access, refresh, err := d.svc.GenerateTokensForUser(ctx, "u1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if access == "" || refresh == "" {
+		t.Fatal("expected tokens")
+	}
+}
+
+func TestGenerateTokensForUser_UserNotFound(t *testing.T) {
+	d := newAuthTestDeps()
+	_, _, err := d.svc.GenerateTokensForUser(context.Background(), "ghost")
+	if err == nil {
+		t.Fatal("expected error")
+	}
+}
+
+func TestGenerateTokensForUser_UserDisabled(t *testing.T) {
+	d := newAuthTestDeps()
+	ctx := context.Background()
+	seedAuthUser(t, d, "u1", "alice", "pw", false, false)
+
+	_, _, err := d.svc.GenerateTokensForUser(ctx, "u1")
+	if !errors.Is(err, ErrUserDisabled) {
+		t.Fatalf("expected ErrUserDisabled, got %v", err)
+	}
+}
+
+func TestGenerateTokensForUser_WithRolesAndProfile(t *testing.T) {
+	d := newAuthTestDeps()
+	ctx := context.Background()
+	seedAuthUser(t, d, "u1", "alice", "pw", true, true)
+
+	_ = d.profiles.Create(ctx, &user.Profile{ID: "p1", UserID: "u1", Name: "Default", IsDefault: true})
+	role := &user.Role{ID: "r1", Name: "viewer", Permissions: []string{"read"}}
+	_ = d.roles.Create(ctx, role)
+	_ = d.userRoles.AssignRole(ctx, "u1", "r1")
+
+	access, _, err := d.svc.GenerateTokensForUser(ctx, "u1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	claims, _ := d.tokens.ValidateAccessToken(access)
+	if claims.ProfileID != "p1" {
+		t.Fatalf("expected profile p1, got %s", claims.ProfileID)
+	}
+	if len(claims.Permissions) != 1 || claims.Permissions[0] != "read" {
+		t.Fatalf("expected [read], got %v", claims.Permissions)
+	}
+}
+
+func TestGenerateTokensForUser_FallbackFirstProfile(t *testing.T) {
+	d := newAuthTestDeps()
+	ctx := context.Background()
+	seedAuthUser(t, d, "u1", "alice", "pw", false, true)
+	_ = d.profiles.Create(ctx, &user.Profile{ID: "p1", UserID: "u1", Name: "Alt", IsDefault: false})
+
+	access, _, err := d.svc.GenerateTokensForUser(ctx, "u1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	claims, _ := d.tokens.ValidateAccessToken(access)
+	if claims.ProfileID != "p1" {
+		t.Fatalf("expected fallback to p1, got %s", claims.ProfileID)
+	}
+}
+
+func TestGenerateTokensForUser_AccessTokenError(t *testing.T) {
+	d := newAuthTestDeps()
+	ctx := context.Background()
+	seedAuthUser(t, d, "u1", "alice", "pw", false, true)
+	d.tokens.Err = errors.New("token fail")
+
+	_, _, err := d.svc.GenerateTokensForUser(ctx, "u1")
+	if err == nil {
+		t.Fatal("expected error")
+	}
+}
+
+func TestGenerateTokensForUser_ProfileError_NonFatal(t *testing.T) {
+	d := newAuthTestDeps()
+	ctx := context.Background()
+	seedAuthUser(t, d, "u1", "alice", "pw", false, true)
+	d.profiles.Err = errors.New("profiles down")
+
+	access, _, err := d.svc.GenerateTokensForUser(ctx, "u1")
+	if err != nil {
+		t.Fatalf("profile error should be non-fatal, got %v", err)
+	}
+	claims, _ := d.tokens.ValidateAccessToken(access)
+	if claims.ProfileID != "" {
+		t.Fatalf("expected empty profile, got %s", claims.ProfileID)
+	}
+}
+
+func TestGenerateTokensForUser_RolesError_NonFatal(t *testing.T) {
+	d := newAuthTestDeps()
+	ctx := context.Background()
+	seedAuthUser(t, d, "u1", "alice", "pw", false, true)
+	d.userRoles.Err = errors.New("roles down")
+
+	_, _, err := d.svc.GenerateTokensForUser(ctx, "u1")
+	if err != nil {
+		t.Fatalf("roles error should be non-fatal, got %v", err)
+	}
+}
+
+// --- Setup empty username ---
+
+func TestSetup_EmptyUsername(t *testing.T) {
+	d := newAuthTestDeps()
+	_, err := d.svc.Setup(context.Background(), "", "longpassword", "a@a.com")
+	if err == nil {
+		t.Fatal("expected error for empty username")
+	}
+}
+
+// --- RefreshToken additional coverage ---
+
+type failOnNewRefreshGen struct {
+	inner *ufakes.FakeTokenGenerator
+	fail  bool
+}
+
+func (f *failOnNewRefreshGen) GenerateAccessToken(c user.Claims) (string, error) {
+	return f.inner.GenerateAccessToken(c)
+}
+func (f *failOnNewRefreshGen) GenerateRefreshToken() (string, error) {
+	if f.fail {
+		return "", errors.New("refresh gen boom")
+	}
+	return f.inner.GenerateRefreshToken()
+}
+func (f *failOnNewRefreshGen) ValidateAccessToken(t string) (*user.Claims, error) {
+	return f.inner.ValidateAccessToken(t)
+}
+
+func TestRefreshToken_NewRefreshGenError(t *testing.T) {
+	users := ufakes.NewFakeUserRepository()
+	profiles := ufakes.NewFakeProfileRepository()
+	refreshTkns := ufakes.NewFakeRefreshTokenRepository()
+	roles := ufakes.NewFakeRoleRepository()
+	userRoles := ufakes.NewFakeUserRoleRepository(roles)
+	hasher := ufakes.NewFakePasswordHasher()
+	events := fakes.NewFakeEventBus()
+	tokenGen := &failOnNewRefreshGen{inner: ufakes.NewFakeTokenGenerator()}
+
+	svc := NewCommandService(users, profiles, refreshTkns, roles, userRoles, hasher, tokenGen, events)
+	ctx := context.Background()
+
+	_ = users.Create(ctx, &user.User{ID: "u1", Username: "alice", PasswordHash: "hashed:pw", Enabled: true})
+
+	rawToken := "tok-rg"
+	h := sha256.Sum256([]byte(rawToken))
+	hash := hex.EncodeToString(h[:])
+	_ = refreshTkns.Create(ctx, &user.RefreshToken{
+		ID: "rt1", UserID: "u1", TokenHash: hash, ExpiresAt: time.Now().Add(24 * time.Hour),
+	})
+
+	// First call succeeds to mark used, then fail on new refresh gen
+	tokenGen.fail = true
+	_, _, err := svc.RefreshToken(ctx, rawToken)
+	if err == nil {
+		t.Fatal("expected error when new refresh token gen fails")
+	}
+}
+
+type failOnSecondCreateRT struct {
+	inner     *ufakes.FakeRefreshTokenRepository
+	createCnt int
+}
+
+func (r *failOnSecondCreateRT) Create(ctx context.Context, t *user.RefreshToken) error {
+	r.createCnt++
+	if r.createCnt > 0 {
+		return errors.New("store fail")
+	}
+	return r.inner.Create(ctx, t)
+}
+func (r *failOnSecondCreateRT) GetByTokenHash(ctx context.Context, hash string) (*user.RefreshToken, error) {
+	return r.inner.GetByTokenHash(ctx, hash)
+}
+func (r *failOnSecondCreateRT) MarkUsed(ctx context.Context, id string) error {
+	return r.inner.MarkUsed(ctx, id)
+}
+func (r *failOnSecondCreateRT) DeleteByID(ctx context.Context, id string) error {
+	return r.inner.DeleteByID(ctx, id)
+}
+func (r *failOnSecondCreateRT) DeleteByUserID(ctx context.Context, userID string) error {
+	return r.inner.DeleteByUserID(ctx, userID)
+}
+func (r *failOnSecondCreateRT) DeleteExpired(ctx context.Context) error {
+	return r.inner.DeleteExpired(ctx)
+}
+
+func TestRefreshToken_NewRTStoreError(t *testing.T) {
+	users := ufakes.NewFakeUserRepository()
+	profiles := ufakes.NewFakeProfileRepository()
+	innerRT := ufakes.NewFakeRefreshTokenRepository()
+	rtRepo := &failOnSecondCreateRT{inner: innerRT}
+	roles := ufakes.NewFakeRoleRepository()
+	userRoles := ufakes.NewFakeUserRoleRepository(roles)
+	hasher := ufakes.NewFakePasswordHasher()
+	tokenGen := ufakes.NewFakeTokenGenerator()
+	events := fakes.NewFakeEventBus()
+
+	svc := NewCommandService(users, profiles, rtRepo, roles, userRoles, hasher, tokenGen, events)
+	ctx := context.Background()
+
+	_ = users.Create(ctx, &user.User{ID: "u1", Username: "alice", PasswordHash: "hashed:pw", Enabled: true})
+
+	rawToken := "tok-store"
+	h := sha256.Sum256([]byte(rawToken))
+	hash := hex.EncodeToString(h[:])
+	_ = innerRT.Create(ctx, &user.RefreshToken{
+		ID: "rt1", UserID: "u1", TokenHash: hash, ExpiresAt: time.Now().Add(24 * time.Hour),
+	})
+
+	_, _, err := svc.RefreshToken(ctx, rawToken)
+	if err == nil {
+		t.Fatal("expected error when new RT store fails")
+	}
+}
+
 // --- StartCleanup ---
 
 func TestStartCleanup_RunsAndStops(t *testing.T) {

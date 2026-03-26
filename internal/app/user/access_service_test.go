@@ -47,6 +47,14 @@ func TestCreateInviteLink_Happy(t *testing.T) {
 	}
 }
 
+func TestCreateInviteLink_ValidationError(t *testing.T) {
+	d := newAccessTestDeps()
+	err := d.svc.CreateInviteLink(context.Background(), &user.InviteLink{ID: "inv1", Token: "", CreatedBy: ""})
+	if err == nil {
+		t.Fatal("expected validation error")
+	}
+}
+
 func TestCreateInviteLink_RepoError(t *testing.T) {
 	d := newAccessTestDeps()
 	d.invites.Err = errors.New("fail")
@@ -404,6 +412,14 @@ func TestCreateAPIKey_Happy(t *testing.T) {
 	evts := d.events.PublishedEvents()
 	if len(evts) != 1 || evts[0].EventName() != "user.apikey.created" {
 		t.Fatal("expected apikey.created event")
+	}
+}
+
+func TestCreateAPIKey_ValidationError(t *testing.T) {
+	d := newAccessTestDeps()
+	err := d.svc.CreateAPIKey(context.Background(), &user.APIKeyModel{ID: "k1", UserID: "", Name: "", KeyHash: ""})
+	if err == nil {
+		t.Fatal("expected validation error")
 	}
 }
 

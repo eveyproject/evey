@@ -76,6 +76,22 @@ func TestCreateUser_NotAdmin(t *testing.T) {
 	}
 }
 
+func TestCreateUser_InvalidUser(t *testing.T) {
+	d := newUserTestDeps()
+	err := d.svc.CreateUser(context.Background(), true, &user.User{ID: "u1", Username: ""}, "password123")
+	if err == nil {
+		t.Fatal("expected validation error for empty username")
+	}
+}
+
+func TestCreateUser_ShortPassword(t *testing.T) {
+	d := newUserTestDeps()
+	err := d.svc.CreateUser(context.Background(), true, &user.User{ID: "u1", Username: "bob"}, "short")
+	if !errors.Is(err, ErrPasswordTooShort) {
+		t.Fatalf("expected ErrPasswordTooShort, got %v", err)
+	}
+}
+
 func TestCreateUser_HashError(t *testing.T) {
 	d := newUserTestDeps()
 	d.hasher.Err = errors.New("hash fail")
@@ -449,6 +465,14 @@ func TestCreateProfile_Happy(t *testing.T) {
 	}
 }
 
+func TestCreateProfile_ValidationError(t *testing.T) {
+	d := newUserTestDeps()
+	err := d.svc.CreateProfile(context.Background(), &user.Profile{ID: "p1", UserID: "", Name: ""})
+	if err == nil {
+		t.Fatal("expected validation error")
+	}
+}
+
 func TestCreateProfile_RepoError(t *testing.T) {
 	d := newUserTestDeps()
 	d.profiles.Err = errors.New("fail")
@@ -510,6 +534,18 @@ func TestDeleteProfile_Happy(t *testing.T) {
 func TestDeleteProfile_NotFound(t *testing.T) {
 	d := newUserTestDeps()
 	err := d.svc.DeleteProfile(context.Background(), "ghost")
+	if err == nil {
+		t.Fatal("expected error")
+	}
+}
+
+func TestDeleteProfile_DeleteRepoError(t *testing.T) {
+	d := newUserTestDeps()
+	ctx := context.Background()
+	_ = d.profiles.Create(ctx, &user.Profile{ID: "p1", UserID: "u1", Name: "M"})
+	d.profiles.Err = errors.New("delete fail")
+
+	err := d.svc.DeleteProfile(ctx, "p1")
 	if err == nil {
 		t.Fatal("expected error")
 	}
