@@ -231,6 +231,9 @@ func (m *HLSManager) GetSession(mediaItemID string) (*HLSSession, bool) {
 	return s, ok
 }
 
+// CacheDir returns the base directory where HLS segments are stored.
+func (m *HLSManager) CacheDir() string { return m.cacheDir }
+
 func (m *HLSManager) RestartFromPosition(userID, mediaItemID, filePath string, sourceWidth, sourceHeight, maxUserStreams, audioTrackIndex, subtitleTrackIndex int, subtitleCodec string, streams []*library.MediaStream, hdrSupported, audioNormalize bool, startSec float64, videoDecision, audioDecision string) (*HLSSession, error) {
 	m.mu.Lock()
 	if old, ok := m.sessions[mediaItemID]; ok {

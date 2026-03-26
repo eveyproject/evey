@@ -438,21 +438,23 @@ func hlsSegmentHandler(tokenGen TokenVerifier, libSvc MediaItemGetter, hlsManage
 			sessionUserID = claims.UserID
 		}
 
-		session, ok := hlsManager.GetSession(mediaID)
-		if !ok {
-			http.Error(w, `{"message":"no active session"}`, http.StatusNotFound)
-			return
-		}
-		if sessionUserID != session.UserID {
-			http.Error(w, `{"message":"forbidden"}`, http.StatusForbidden)
-			return
-		}
-		if waitErr := session.WaitReady(r.Context()); waitErr != nil {
-			http.Error(w, `{"message":"session not ready"}`, http.StatusServiceUnavailable)
-			return
+		var outputDir string
+		if session, ok := hlsManager.GetSession(mediaID); ok {
+			if sessionUserID != session.UserID {
+				http.Error(w, `{"message":"forbidden"}`, http.StatusForbidden)
+				return
+			}
+			if waitErr := session.WaitReady(r.Context()); waitErr != nil {
+				http.Error(w, `{"message":"session not ready"}`, http.StatusServiceUnavailable)
+				return
+			}
+			outputDir = session.OutputDir
+		} else {
+			// No active session but segments may exist on disk (server restart)
+			outputDir = filepath.Join(hlsManager.CacheDir(), mediaID)
 		}
 
-		filePath, err := safeJoin(session.OutputDir, filepath.Base(file))
+		filePath, err := safeJoin(outputDir, filepath.Base(file))
 		if err != nil {
 			http.Error(w, `{"message":"not found"}`, http.StatusNotFound)
 			return
@@ -470,7 +472,9 @@ func hlsSegmentHandler(tokenGen TokenVerifier, libSvc MediaItemGetter, hlsManage
 			w.Header().Set("Content-Type", "video/mp2t")
 			w.Header().Set("Cache-Control", "no-cache")
 		}
-		session.MarkAccess()
+		if s, ok := hlsManager.GetSession(mediaID); ok {
+			s.MarkAccess()
+		}
 		http.ServeFile(w, r, filePath)
 	}
 }
