@@ -30,26 +30,36 @@ func chaptersHandler(tokenGen TokenVerifier, libSvc ChaptersGetter, baseURL stri
 	}
 	return func(w http.ResponseWriter, r *http.Request) {
 		mediaID := r.PathValue("id")
-		token := r.Header.Get("Authorization")
-		if strings.HasPrefix(token, "Bearer ") {
-			token = token[7:]
-		} else if t := r.URL.Query().Get("token"); t != "" {
-			token = t
+
+		var jwtClaims *domainuser.Claims
+		if st, ok := StreamTokenFromContext(r.Context()); ok {
+			if st.MediaItemID != mediaID {
+				http.Error(w, `{"message":"forbidden"}`, http.StatusForbidden)
+				return
+			}
 		} else {
-			http.Error(w, `{"message":"unauthenticated"}`, http.StatusUnauthorized)
-			return
-		}
-		claims, err := tokenGen.ValidateAccessToken(token)
-		if err != nil {
-			http.Error(w, `{"message":"forbidden"}`, http.StatusForbidden)
-			return
+			token := r.Header.Get("Authorization")
+			if strings.HasPrefix(token, "Bearer ") {
+				token = token[7:]
+			} else if t := r.URL.Query().Get("token"); t != "" {
+				token = t
+			} else {
+				http.Error(w, `{"message":"unauthenticated"}`, http.StatusUnauthorized)
+				return
+			}
+			claims, err := tokenGen.ValidateAccessToken(token)
+			if err != nil {
+				http.Error(w, `{"message":"forbidden"}`, http.StatusForbidden)
+				return
+			}
+			jwtClaims = claims
 		}
 		item, err := mediaGetter.GetMediaItem(r.Context(), mediaID)
 		if err != nil {
 			http.Error(w, `{"message":"not found"}`, http.StatusNotFound)
 			return
 		}
-		if !checkLibraryAccess(r.Context(), w, claims, item.LibraryID, libraryAccess) {
+		if jwtClaims != nil && !checkLibraryAccess(r.Context(), w, jwtClaims, item.LibraryID, libraryAccess) {
 			return
 		}
 		chapters, err := libSvc.GetChapters(r.Context(), mediaID)
@@ -397,9 +407,7 @@ func hlsSegmentHandler(tokenGen TokenVerifier, libSvc MediaItemGetter, hlsManage
 
 		var sessionUserID string
 		if st, ok := StreamTokenFromContext(r.Context()); ok {
-
 			if st.MediaItemID != mediaID {
-				slog.Warn("hls: stream token mediaID mismatch", slog.String("want", mediaID), slog.String("got", st.MediaItemID))
 				http.Error(w, `{"message":"forbidden"}`, http.StatusForbidden)
 				return
 			}
@@ -411,13 +419,11 @@ func hlsSegmentHandler(tokenGen TokenVerifier, libSvc MediaItemGetter, hlsManage
 			} else if t := r.URL.Query().Get("token"); t != "" {
 				token = t
 			} else {
-				slog.Warn("hls: no auth at all")
 				http.Error(w, `{"message":"unauthenticated"}`, http.StatusUnauthorized)
 				return
 			}
 			claims, err := tokenGen.ValidateAccessToken(token)
 			if err != nil {
-				slog.Warn("hls: JWT validation failed", slog.Any("err", err))
 				http.Error(w, `{"message":"forbidden"}`, http.StatusForbidden)
 				return
 			}
@@ -508,39 +514,52 @@ func transcodeHandler(tokenGen TokenVerifier, libSvc MediaStreamsGetter, baseURL
 
 func (h *transcodeServe) serveHTTP(w http.ResponseWriter, r *http.Request) {
 	mediaID := r.PathValue("id")
-	token := r.Header.Get("Authorization")
-	if strings.HasPrefix(token, "Bearer ") {
-		token = token[7:]
-	} else if t := r.URL.Query().Get("token"); t != "" {
-		token = t
+
+	var userID string
+	var jwtClaims *domainuser.Claims
+	if st, ok := StreamTokenFromContext(r.Context()); ok {
+		if st.MediaItemID != mediaID {
+			http.Error(w, `{"message":"forbidden"}`, http.StatusForbidden)
+			return
+		}
+		userID = st.UserID
 	} else {
-		http.Error(w, `{"message":"unauthenticated"}`, http.StatusUnauthorized)
-		return
-	}
-	claims, err := h.tokens.ValidateAccessToken(token)
-	if err != nil {
-		http.Error(w, `{"message":"forbidden"}`, http.StatusForbidden)
-		return
+		token := r.Header.Get("Authorization")
+		if strings.HasPrefix(token, "Bearer ") {
+			token = token[7:]
+		} else if t := r.URL.Query().Get("token"); t != "" {
+			token = t
+		} else {
+			http.Error(w, `{"message":"unauthenticated"}`, http.StatusUnauthorized)
+			return
+		}
+		claims, err := h.tokens.ValidateAccessToken(token)
+		if err != nil {
+			http.Error(w, `{"message":"forbidden"}`, http.StatusForbidden)
+			return
+		}
+		jwtClaims = claims
+		userID = claims.UserID
 	}
 	item, err := h.libSvc.GetMediaItem(r.Context(), mediaID)
 	if err != nil || item.FilePath == "" {
 		http.Error(w, `{"message":"not found"}`, http.StatusNotFound)
 		return
 	}
-	if !checkLibraryAccess(r.Context(), w, claims, item.LibraryID, h.libraryAccess) {
+	if jwtClaims != nil && !checkLibraryAccess(r.Context(), w, jwtClaims, item.LibraryID, h.libraryAccess) {
 		return
 	}
 	maxStreams := 0
 	if h.userMaxStreams != nil {
-		if ms := h.userMaxStreams.GetMaxStreams(r.Context(), claims.UserID); ms != nil {
+		if ms := h.userMaxStreams.GetMaxStreams(r.Context(), userID); ms != nil {
 			maxStreams = *ms
 		}
 	}
-	if !h.throttle.Acquire(claims.UserID, maxStreams) {
+	if !h.throttle.Acquire(userID, maxStreams) {
 		http.Error(w, `{"message":"max concurrent streams reached"}`, http.StatusTooManyRequests)
 		return
 	}
-	defer h.throttle.Release(claims.UserID)
+	defer h.throttle.Release(userID)
 
 	params := h.parseParams(r)
 	clientSupportsHDR := r.URL.Query().Get("hdr") == "true"

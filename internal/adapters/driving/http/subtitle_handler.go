@@ -21,19 +21,29 @@ func subtitleHandler(tokenGen TokenVerifier, libSvc MediaStreamsGetter, baseURL 
 	return func(w http.ResponseWriter, r *http.Request) {
 		mediaID := r.PathValue("id")
 		trackStr := r.PathValue("track")
-		token := r.Header.Get("Authorization")
-		if strings.HasPrefix(token, "Bearer ") {
-			token = token[7:]
-		} else if t := r.URL.Query().Get("token"); t != "" {
-			token = t
+
+		var jwtClaims *domainuser.Claims
+		if st, ok := StreamTokenFromContext(r.Context()); ok {
+			if st.MediaItemID != mediaID {
+				http.Error(w, `{"message":"forbidden"}`, http.StatusForbidden)
+				return
+			}
 		} else {
-			http.Error(w, `{"message":"unauthenticated"}`, http.StatusUnauthorized)
-			return
-		}
-		claims, err := tokenGen.ValidateAccessToken(token)
-		if err != nil {
-			http.Error(w, `{"message":"forbidden"}`, http.StatusForbidden)
-			return
+			token := r.Header.Get("Authorization")
+			if strings.HasPrefix(token, "Bearer ") {
+				token = token[7:]
+			} else if t := r.URL.Query().Get("token"); t != "" {
+				token = t
+			} else {
+				http.Error(w, `{"message":"unauthenticated"}`, http.StatusUnauthorized)
+				return
+			}
+			claims, err := tokenGen.ValidateAccessToken(token)
+			if err != nil {
+				http.Error(w, `{"message":"forbidden"}`, http.StatusForbidden)
+				return
+			}
+			jwtClaims = claims
 		}
 		trackIndex, _ := strconv.Atoi(trackStr)
 		item, err := libSvc.GetMediaItem(r.Context(), mediaID)
@@ -41,7 +51,7 @@ func subtitleHandler(tokenGen TokenVerifier, libSvc MediaStreamsGetter, baseURL 
 			http.Error(w, `{"message":"not found"}`, http.StatusNotFound)
 			return
 		}
-		if !checkLibraryAccess(r.Context(), w, claims, item.LibraryID, libraryAccess) {
+		if jwtClaims != nil && !checkLibraryAccess(r.Context(), w, jwtClaims, item.LibraryID, libraryAccess) {
 			return
 		}
 
