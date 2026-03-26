@@ -134,6 +134,92 @@ func TestStopSession(t *testing.T) {
 	assert.True(t, stopped)
 }
 
+func TestServiceWrapper_ReportProgressBySession(t *testing.T) {
+	t.Parallel()
+	svc, _, _, userRepo, profileRepo, _ := newPlaybackSvc()
+	ctx := context.Background()
+
+	userRepo.Create(ctx, &user.User{ID: "u1", Username: "alice", Enabled: true})
+	profileRepo.Create(ctx, &user.Profile{ID: "p1", UserID: "u1"})
+
+	err := svc.StartStream(ctx, &playback.PlaySession{ID: "s1", ProfileID: "p1", MediaItemID: "m1"}, "u1")
+	require.NoError(t, err)
+
+	err = svc.ReportProgressBySession(ctx, "s1", 50000)
+	require.NoError(t, err)
+}
+
+func TestServiceWrapper_GetWatchHistory(t *testing.T) {
+	t.Parallel()
+	svc, _, _, userRepo, profileRepo, _ := newPlaybackSvc()
+	ctx := context.Background()
+
+	userRepo.Create(ctx, &user.User{ID: "u1", Username: "alice", Enabled: true})
+	profileRepo.Create(ctx, &user.Profile{ID: "p1", UserID: "u1"})
+
+	require.NoError(t, svc.ReportProgress(ctx, "p1", "m1", 10000, true))
+
+	items, err := svc.GetWatchHistory(ctx, "p1", 10, 0)
+	require.NoError(t, err)
+	assert.Len(t, items, 1)
+}
+
+func TestServiceWrapper_GetResumeItems(t *testing.T) {
+	t.Parallel()
+	svc, _, _, userRepo, profileRepo, _ := newPlaybackSvc()
+	ctx := context.Background()
+
+	userRepo.Create(ctx, &user.User{ID: "u1", Username: "alice", Enabled: true})
+	profileRepo.Create(ctx, &user.Profile{ID: "p1", UserID: "u1"})
+
+	require.NoError(t, svc.ReportProgress(ctx, "p1", "m1", 30000, false))
+
+	items, err := svc.GetResumeItems(ctx, "p1", 10)
+	require.NoError(t, err)
+	assert.Len(t, items, 1)
+}
+
+func TestServiceWrapper_GetNextUp(t *testing.T) {
+	t.Parallel()
+	svc, _, _, _, _, _ := newPlaybackSvc()
+	ctx := context.Background()
+
+	items, err := svc.GetNextUp(ctx, "p1", 10)
+	require.NoError(t, err)
+	assert.Empty(t, items)
+}
+
+func TestServiceWrapper_MarkAsWatched(t *testing.T) {
+	t.Parallel()
+	svc, progressRepo, _, _, profileRepo, _ := newPlaybackSvc()
+	ctx := context.Background()
+
+	profileRepo.Create(ctx, &user.Profile{ID: "p1", UserID: "u1"})
+
+	err := svc.MarkAsWatched(ctx, "p1", "m1")
+	require.NoError(t, err)
+
+	wp, err := progressRepo.GetByProfileAndMedia(ctx, "p1", "m1")
+	require.NoError(t, err)
+	assert.True(t, wp.Completed)
+}
+
+func TestServiceWrapper_MarkAsUnwatched(t *testing.T) {
+	t.Parallel()
+	svc, progressRepo, _, _, profileRepo, _ := newPlaybackSvc()
+	ctx := context.Background()
+
+	profileRepo.Create(ctx, &user.Profile{ID: "p1", UserID: "u1"})
+
+	require.NoError(t, svc.MarkAsWatched(ctx, "p1", "m1"))
+	err := svc.MarkAsUnwatched(ctx, "p1", "m1")
+	require.NoError(t, err)
+
+	wp, err := progressRepo.GetByProfileAndMedia(ctx, "p1", "m1")
+	require.NoError(t, err)
+	assert.False(t, wp.Completed)
+}
+
 func TestGetActiveSessions_Empty(t *testing.T) {
 	t.Parallel()
 	svc, _, _, _, _, _ := newPlaybackSvc()

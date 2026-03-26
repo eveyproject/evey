@@ -40,6 +40,16 @@ func seedUserProfile(ctx context.Context, ur *userfakes.FakeUserRepository, pfr 
 
 // --- Mutation killers: event publish error must NOT propagate ---
 
+func TestStartStream_InvalidSession(t *testing.T) {
+	t.Parallel()
+	cmd, _, _, _, _, _ := setupCmd()
+	ctx := context.Background()
+
+	err := cmd.StartStream(ctx, &playback.PlaySession{ID: "s1", ProfileID: "", MediaItemID: "m1"}, "u1")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "invalid play session")
+}
+
 func TestStartStream_PublishError_StillSucceeds(t *testing.T) {
 	t.Parallel()
 	cmd, _, _, ur, pfr, bus := setupCmd()
@@ -396,6 +406,27 @@ func TestStartStream_CountActiveError(t *testing.T) {
 	err := cmd.StartStream(ctx, &playback.PlaySession{ID: "s1", ProfileID: "p1", MediaItemID: "m1"}, "u1")
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "count active")
+}
+
+func TestStartCleanup_RunsInitialCleanup(t *testing.T) {
+	t.Parallel()
+	cmd, _, sr, ur, pfr, _ := setupCmd()
+	ctx := context.Background()
+	seedUserProfile(ctx, ur, pfr, nil)
+
+	stale := &playback.PlaySession{
+		ID: "s-stale", ProfileID: "p1", MediaItemID: "m1",
+		StartedAt: time.Now().Add(-3 * time.Hour),
+	}
+	sr.Create(ctx, stale)
+
+	cancelCtx, cancel := context.WithCancel(ctx)
+	cmd.StartCleanup(cancelCtx)
+	time.Sleep(50 * time.Millisecond)
+	cancel()
+
+	stored, _ := sr.GetByID(ctx, "s-stale")
+	assert.NotNil(t, stored.EndedAt)
 }
 
 func TestMarkAsWatched_UpsertError(t *testing.T) {
