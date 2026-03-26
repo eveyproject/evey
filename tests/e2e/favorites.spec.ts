@@ -16,12 +16,12 @@ test.describe("Favorites", () => {
     const actions = page.locator('[data-testid="media-actions"]');
     // Wait for the favorite button to render (either state)
     const anyFavBtn = actions.locator(
-      'button[title="Add to favorites"], button[title="Remove from favorites"]',
+      '[data-testid="favorite-btn"], [data-testid="favorite-btn-active"]',
     );
     await expect(anyFavBtn).toBeVisible({ timeout: 10_000 });
 
     // If already favorited, toggle it off
-    const removeBtn = actions.locator('button[title="Remove from favorites"]');
+    const removeBtn = actions.locator('[data-testid="favorite-btn-active"]');
     if (await removeBtn.isVisible().catch(() => false)) {
       await Promise.all([
         page.waitForResponse(
@@ -30,7 +30,7 @@ test.describe("Favorites", () => {
         removeBtn.click(),
       ]);
       await expect(
-        actions.locator('button[title="Add to favorites"]'),
+        actions.locator('[data-testid="favorite-btn"]'),
       ).toBeVisible({ timeout: 10_000 });
     }
   });
@@ -42,7 +42,7 @@ test.describe("Favorites", () => {
     });
 
     const actions = page.locator('[data-testid="media-actions"]');
-    const favBtn = actions.locator('button[title="Add to favorites"]');
+    const favBtn = actions.locator('[data-testid="favorite-btn"]');
     await expect(favBtn).toBeVisible({ timeout: 10_000 });
 
     const [resp] = await Promise.all([
@@ -55,7 +55,7 @@ test.describe("Favorites", () => {
     expect(resp.status()).toBeLessThan(400);
 
     await expect(
-      actions.locator('button[title="Remove from favorites"]'),
+      actions.locator('[data-testid="favorite-btn-active"]'),
     ).toBeVisible({ timeout: 10_000 });
   });
 
@@ -99,7 +99,7 @@ test.describe("Favorites", () => {
     });
 
     const actions = page.locator('[data-testid="media-actions"]');
-    const removeBtn = actions.locator('button[title="Remove from favorites"]');
+    const removeBtn = actions.locator('[data-testid="favorite-btn-active"]');
     await expect(removeBtn).toBeVisible({ timeout: 10_000 });
 
     const [resp] = await Promise.all([
@@ -112,7 +112,7 @@ test.describe("Favorites", () => {
     expect(resp.status()).toBeLessThan(400);
 
     await expect(
-      actions.locator('button[title="Add to favorites"]'),
+      actions.locator('[data-testid="favorite-btn"]'),
     ).toBeVisible({ timeout: 10_000 });
   });
 
