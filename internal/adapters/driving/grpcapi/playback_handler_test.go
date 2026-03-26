@@ -436,7 +436,7 @@ func TestPlaybackHandler_GetWatchHistory_Pagination(t *testing.T) {
 	h, _, progressRepo, _, _, _ := newTestPlaybackHandler()
 	ctx := pbAdminCtx()
 
-	for i := 0; i < 5; i++ {
+	for i := range 5 {
 		progressRepo.Upsert(context.Background(), &playback.WatchProgress{
 			ID: fmt.Sprintf("wp-%d", i), ProfileID: "profile-1",
 			MediaItemID: fmt.Sprintf("mi-%d", i), PositionMs: int64(i * 1000),

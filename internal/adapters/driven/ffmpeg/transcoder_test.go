@@ -210,7 +210,7 @@ func TestScanFFmpegLines(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			advance, token, err := scanFFmpegLines(tt.data, tt.atEOF)
-			assert.NoError(t, err)
+			require.NoError(t, err)
 			assert.Equal(t, tt.wantA, advance)
 			if tt.wantOK {
 				assert.Equal(t, tt.wantT, string(token))
@@ -232,7 +232,7 @@ func TestTranscoder_Stop_NotFound(t *testing.T) {
 	t.Parallel()
 	tr := newTestTranscoder()
 	err := tr.Stop(t.Context(), "nonexistent-job")
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "not found")
 }
 

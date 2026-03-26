@@ -5,6 +5,7 @@ import (
 
 	"github.com/gravity-zero/evey/internal/domain/transcoding"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestResolveHWEncoder(t *testing.T) {
@@ -53,14 +54,14 @@ func TestDetectDevices_ReturnsNoError(t *testing.T) {
 func TestSupportsCodec_UnknownDevice(t *testing.T) {
 	d := NewHWDetector("/nonexistent/ffmpeg")
 	supported, err := d.SupportsCodec(t.Context(), "unknown_device", "h264")
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.False(t, supported)
 }
 
 func TestSupportsCodec_ValidDevice_InvalidPath(t *testing.T) {
 	d := NewHWDetector("/nonexistent/ffmpeg")
 	supported, err := d.SupportsCodec(t.Context(), string(transcoding.VAAPI), "h264")
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.False(t, supported, "invalid ffmpeg path means encoder not available")
 }
 
