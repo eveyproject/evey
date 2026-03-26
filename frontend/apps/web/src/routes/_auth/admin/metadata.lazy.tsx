@@ -36,7 +36,7 @@ function mediaTypeForTmdb(item: V1MediaItem): string {
   return "movie";
 }
 
-function posterSrc(id: string, accessToken?: string) {
+function posterSrc(id: string, accessToken?: string | null) {
   const base = `/api/v1/media/${id}/artwork/poster`;
   return accessToken ? `${base}?token=${encodeURIComponent(accessToken)}` : base;
 }
