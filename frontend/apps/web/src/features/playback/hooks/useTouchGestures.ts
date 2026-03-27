@@ -50,6 +50,11 @@ export function useTouchGestures({
   const [swipeIndicator, setSwipeIndicator] = useState<{ type: "volume" | "brightness"; value: number } | null>(null);
 
   const handleTouchStart = useCallback((e: React.TouchEvent) => {
+    const target = e.target as HTMLElement;
+    if (target.closest("button, input, [data-controls], a")) {
+      touchStartRef.current = null;
+      return;
+    }
     const t = e.touches[0];
     touchStartRef.current = { x: t.clientX, y: t.clientY, time: Date.now() };
     swipeActiveRef.current = null;
@@ -114,6 +119,10 @@ export function useTouchGestures({
       e.preventDefault();
       return;
     }
+
+    // Don't intercept taps on controls (buttons, inputs, sliders)
+    const target = e.target as HTMLElement;
+    if (target.closest("button, input, [data-controls], a")) return;
 
     e.preventDefault();
     const t = e.changedTouches[0];
