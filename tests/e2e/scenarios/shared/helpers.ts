@@ -9,6 +9,10 @@ export async function goto(page: Page, path: string) {
 
 /** Get auth token from storage state */
 export async function getToken(page: Page): Promise<string> {
+  // Navigate to origin first if on about:blank (localStorage inaccessible)
+  if (page.url() === "about:blank") {
+    await page.goto(BASE, { waitUntil: "domcontentloaded", timeout: 10_000 });
+  }
   return page.evaluate(() => {
     const raw = localStorage.getItem("evey-auth");
     if (!raw) return "";
