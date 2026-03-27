@@ -359,7 +359,7 @@ export const MediaCard = memo(function MediaCard({
   const hasProgressBar = showProgress && pct !== undefined;
 
   return (
-    <>
+    <div className="relative">
     {item.id && playlistModalOpen && (
       <AddToPlaylistModal open={playlistModalOpen} onClose={() => setPlaylistModalOpen(false)} mediaItemId={item.id} />
     )}
@@ -436,27 +436,6 @@ export const MediaCard = memo(function MediaCard({
           </span>
         )}
 
-        {item.id && (
-          <button
-            type="button"
-            className={`absolute z-badge bottom-2 right-2 flex items-center justify-center w-6 h-6 rounded-full backdrop-blur-[4px] transition-colors-fast ${
-              watched
-                ? "bg-[var(--color-success)] text-white"
-                : "bg-black/40 text-white/50 opacity-0 group-hover:opacity-100"
-            }`}
-            data-testid="watched-badge"
-            title={watched ? t("media.contextMenu.markUnwatched") : t("media.contextMenu.markWatched")}
-            onClick={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              if (!profileId) return;
-              if (watched) markUnwatched.mutate({ mediaItemId: item.id!, params: { profileId } });
-              else markWatched.mutate({ mediaItemId: item.id!, params: { profileId } });
-            }}
-          >
-            <Check size={14} strokeWidth={3} />
-          </button>
-        )}
 
         {item.communityRating != null && item.communityRating > 0 && (
           <span
@@ -606,6 +585,26 @@ export const MediaCard = memo(function MediaCard({
         )}
       </div>
     </Link>
-    </>
+    {item.id && (
+      <button
+        type="button"
+        className={`absolute z-badge flex items-center justify-center w-6 h-6 rounded-full backdrop-blur-[4px] transition-colors-fast cursor-pointer ${
+          watched
+            ? "bg-[var(--color-success)] text-white"
+            : "bg-black/40 text-white/60"
+        }`}
+        style={{ bottom: hasProgressBar ? "4.5rem" : "3.5rem", right: "0.5rem" }}
+        data-testid="watched-badge"
+        title={watched ? t("media.contextMenu.markUnwatched") : t("media.contextMenu.markWatched")}
+        onClick={() => {
+          if (!profileId) return;
+          if (watched) markUnwatched.mutate({ mediaItemId: item.id!, params: { profileId } });
+          else markWatched.mutate({ mediaItemId: item.id!, params: { profileId } });
+        }}
+      >
+        <Check size={14} strokeWidth={3} />
+      </button>
+    )}
+    </div>
   );
 });
