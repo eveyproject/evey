@@ -627,7 +627,7 @@ func (p *TMDBProvider) GetPersonDetails(ctx context.Context, name string) (*Pers
 		return nil, fmt.Errorf("tmdb search person: %w", err)
 	}
 	var searchResp tmdbPersonSearchResult
-	if err := json.Unmarshal(body, &searchResp); err != nil {
+	if err = json.Unmarshal(body, &searchResp); err != nil {
 		return nil, fmt.Errorf("tmdb decode search person: %w", err)
 	}
 	if len(searchResp.Results) == 0 {
@@ -641,7 +641,7 @@ func (p *TMDBProvider) GetPersonDetails(ctx context.Context, name string) (*Pers
 		return nil, fmt.Errorf("tmdb get person detail: %w", err)
 	}
 	var detail tmdbPersonDetail
-	if err := json.Unmarshal(body, &detail); err != nil {
+	if err = json.Unmarshal(body, &detail); err != nil {
 		return nil, fmt.Errorf("tmdb decode person detail: %w", err)
 	}
 	return &PersonDetails{

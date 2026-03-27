@@ -2,6 +2,7 @@ package library
 
 import (
 	"context"
+	"log/slog"
 
 	"github.com/gravity-zero/evey/internal/domain/library"
 )
@@ -72,7 +73,9 @@ func (s *QueryService) GetPerson(ctx context.Context, id string) (*library.Perso
 			if details.ThumbURL != "" && person.ThumbPath == nil {
 				person.ThumbPath = &details.ThumbURL
 			}
-			_ = s.people.Update(ctx, person)
+			if updateErr := s.people.Update(ctx, person); updateErr != nil {
+				slog.Warn("cache person bio failed", slog.String("personID", person.ID), slog.Any("err", updateErr))
+			}
 		}
 	}
 	return person, nil
