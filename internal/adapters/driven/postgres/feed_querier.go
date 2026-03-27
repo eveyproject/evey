@@ -84,7 +84,7 @@ func (q *FeedQuerier) ResumePlayback(ctx context.Context, profileID string, limi
 	rows, err := q.db.QueryContext(ctx, `
 		WITH in_progress AS (
 			SELECT mi.id, COALESCE(mi.parent_id,'') AS parent_id, mi.title, mi.type,
-			       wp.position_ms, wp.last_played_at
+			       wp.position_ms, COALESCE(mi.duration_ms, 0) AS duration_ms, wp.last_played_at
 			FROM watch_progress wp
 			INNER JOIN media_items mi ON mi.id = wp.media_item_id
 			WHERE wp.profile_id = $1
@@ -105,7 +105,7 @@ func (q *FeedQuerier) ResumePlayback(ctx context.Context, profileID string, limi
 		next_ep AS (
 			SELECT DISTINCT ON (ws.series_id)
 			       mi.id, COALESCE(mi.parent_id,'') AS parent_id, mi.title, mi.type,
-			       0::bigint AS position_ms, ws.last_played_at
+			       0::bigint AS position_ms, COALESCE(mi.duration_ms, 0) AS duration_ms, ws.last_played_at
 			FROM watched_series ws
 			INNER JOIN media_items sea ON sea.parent_id = ws.series_id AND sea.type = 'season'
 			INNER JOIN media_items mi  ON mi.parent_id = sea.id       AND mi.type  = 'episode'
@@ -113,11 +113,11 @@ func (q *FeedQuerier) ResumePlayback(ctx context.Context, profileID string, limi
 			AND NOT EXISTS (SELECT 1 FROM in_progress ip WHERE ip.id = mi.id)
 			ORDER BY ws.series_id, sea.index_number, mi.index_number
 		)
-		SELECT id, parent_id, title, type, position_ms, ''
+		SELECT id, parent_id, title, type, position_ms, duration_ms, ''
 		FROM (
-			SELECT id, parent_id, title, type, position_ms, last_played_at FROM in_progress
+			SELECT id, parent_id, title, type, position_ms, duration_ms, last_played_at FROM in_progress
 			UNION ALL
-			SELECT id, parent_id, title, type, position_ms, last_played_at FROM next_ep
+			SELECT id, parent_id, title, type, position_ms, duration_ms, last_played_at FROM next_ep
 		) combined
 		ORDER BY last_played_at DESC
 		LIMIT $2

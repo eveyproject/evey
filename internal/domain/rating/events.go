@@ -18,3 +18,11 @@ type RatingDeleted struct {
 }
 
 func (e RatingDeleted) EventName() string { return "rating.deleted" }
+
+type RatingRemoved struct {
+	MediaID    string
+	UserID     string
+	OccurredAt time.Time
+}
+
+func (e RatingRemoved) EventName() string { return "rating.removed" }

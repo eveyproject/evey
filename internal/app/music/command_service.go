@@ -128,6 +128,11 @@ func (s *CommandService) ScanDirectory(ctx context.Context, libraryID, dir strin
 			if pubErr := s.bus.Publish(ctx, music.TrackAdded{LibraryID: libraryID, TrackID: t.ID, Title: t.Title, Artist: t.Artist, OccurredAt: time.Now()}); pubErr != nil {
 				slog.Warn("music scan: TrackAdded publish failed", slog.String("path", j.path), slog.Any("err", pubErr))
 			}
+			if t.Album != "" {
+				if pubErr := s.bus.Publish(ctx, music.AlbumCreated{LibraryID: libraryID, AlbumName: t.Album, Artist: t.Artist, OccurredAt: time.Now()}); pubErr != nil {
+					slog.Warn("music scan: AlbumCreated publish failed", slog.String("album", t.Album), slog.Any("err", pubErr))
+				}
+			}
 			total.Add(1)
 		}(j)
 	}

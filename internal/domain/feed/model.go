@@ -91,6 +91,7 @@ type FeedItem struct {
 	Title       string
 	Type        string
 	PositionMs  int64
+	DurationMs  int64
 	AddedAt     string
 	Score       int
 }

@@ -37,3 +37,12 @@ type TrackRemoved struct {
 }
 
 func (e TrackRemoved) EventName() string { return "music.track.removed" }
+
+type AlbumCreated struct {
+	LibraryID  string
+	AlbumName  string
+	Artist     string
+	OccurredAt time.Time
+}
+
+func (e AlbumCreated) EventName() string { return "music.album.created" }

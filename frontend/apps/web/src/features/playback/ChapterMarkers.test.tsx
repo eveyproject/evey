@@ -13,60 +13,58 @@ const chapters: Chapter[] = [
 describe("ChapterMarkers", () => {
   it("renders nothing when durationSec is 0", () => {
     const { container } = render(
-      <ChapterMarkers chapters={chapters} durationSec={0} onSeek={vi.fn()} />,
+      <ChapterMarkers chapters={chapters} durationSec={0} currentTimeSec={0} onSeek={vi.fn()} />,
     );
     expect(container.firstChild).toBeNull();
   });
 
   it("renders nothing when chapters array is empty", () => {
     const { container } = render(
-      <ChapterMarkers chapters={[]} durationSec={300} onSeek={vi.fn()} />,
+      <ChapterMarkers chapters={[]} durationSec={300} currentTimeSec={0} onSeek={vi.fn()} />,
     );
     expect(container.firstChild).toBeNull();
   });
 
-  it("skips chapter at startTimeMs=0 (no marker at position 0)", () => {
-    render(<ChapterMarkers chapters={chapters} durationSec={300} onSeek={vi.fn()} />);
-    // Intro starts at 0ms → pct=0 → skipped
-    // Act 1 starts at 60s → button rendered
-    // Act 2 starts at 180s → button rendered
+  it("renders a button for each chapter segment", () => {
+    render(<ChapterMarkers chapters={chapters} durationSec={300} currentTimeSec={0} onSeek={vi.fn()} />);
     const buttons = screen.getAllByRole("button");
-    expect(buttons).toHaveLength(2);
+    expect(buttons).toHaveLength(3);
   });
 
-  it("renders marker buttons with correct aria-label", () => {
-    render(<ChapterMarkers chapters={chapters} durationSec={300} onSeek={vi.fn()} />);
+  it("renders segment buttons with correct aria-label", () => {
+    render(<ChapterMarkers chapters={chapters} durationSec={300} currentTimeSec={0} onSeek={vi.fn()} />);
+    expect(screen.getByRole("button", { name: "Jump to chapter: Intro" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Jump to chapter: Act 1" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Jump to chapter: Act 2" })).toBeInTheDocument();
   });
 
-  it("uses 'Chapter N' fallback when title is empty", () => {
-    const noTitle: Chapter[] = [
-      { title: "", startTimeMs: 30000, endTimeMs: 60000 },
-    ];
-    render(<ChapterMarkers chapters={noTitle} durationSec={300} onSeek={vi.fn()} />);
-    expect(screen.getByRole("button", { name: "Jump to chapter: Chapter 1" })).toBeInTheDocument();
-  });
-
-  it("positions marker at correct percentage", () => {
-    render(<ChapterMarkers chapters={chapters} durationSec={300} onSeek={vi.fn()} />);
+  it("positions segment at correct percentage with correct width", () => {
+    render(<ChapterMarkers chapters={chapters} durationSec={300} currentTimeSec={0} onSeek={vi.fn()} />);
     const act1Button = screen.getByRole("button", { name: "Jump to chapter: Act 1" });
-    // Act 1 startTimeMs=60000 → 60s / 300s * 100 = 20%
-    expect(act1Button).toHaveStyle({ left: "20%" });
+    // Act 1: start=60s/300s=20%, end=180s/300s=60%, width=40%
+    expect(act1Button).toHaveStyle({ left: "20%", width: "40%" });
   });
 
-  it("calls onSeek with correct time in seconds on click", async () => {
+  it("highlights active chapter segment", () => {
+    // currentTimeSec=90 → inside Act 1 (60s–180s)
+    render(<ChapterMarkers chapters={chapters} durationSec={300} currentTimeSec={90} onSeek={vi.fn()} />);
+    const act1Button = screen.getByRole("button", { name: "Jump to chapter: Act 1" });
+    const span = act1Button.querySelector("span");
+    expect(span).toHaveStyle({ backgroundColor: "var(--accent)", opacity: "0.5" });
+  });
+
+  it("calls onSeek with chapter start time on click", async () => {
     const user = userEvent.setup();
     const onSeek = vi.fn();
-    render(<ChapterMarkers chapters={chapters} durationSec={300} onSeek={onSeek} />);
+    render(<ChapterMarkers chapters={chapters} durationSec={300} currentTimeSec={0} onSeek={onSeek} />);
     await user.click(screen.getByRole("button", { name: "Jump to chapter: Act 1" }));
     expect(onSeek).toHaveBeenCalledWith(60);
   });
 
-  it("calls onSeek with correct time for second marker", async () => {
+  it("calls onSeek with correct time for Act 2", async () => {
     const user = userEvent.setup();
     const onSeek = vi.fn();
-    render(<ChapterMarkers chapters={chapters} durationSec={300} onSeek={onSeek} />);
+    render(<ChapterMarkers chapters={chapters} durationSec={300} currentTimeSec={0} onSeek={onSeek} />);
     await user.click(screen.getByRole("button", { name: "Jump to chapter: Act 2" }));
     expect(onSeek).toHaveBeenCalledWith(180);
   });

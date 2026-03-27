@@ -20,3 +20,19 @@ type PhotoRemoved struct {
 }
 
 func (e PhotoRemoved) EventName() string { return "photo.removed" }
+
+type PhotoDeleted struct {
+	LibraryID  string
+	PhotoID    string
+	OccurredAt time.Time
+}
+
+func (e PhotoDeleted) EventName() string { return "photo.deleted" }
+
+type AlbumCreated struct {
+	LibraryID  string
+	AlbumName  string
+	OccurredAt time.Time
+}
+
+func (e AlbumCreated) EventName() string { return "photo.album.created" }

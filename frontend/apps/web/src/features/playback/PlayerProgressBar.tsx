@@ -94,6 +94,7 @@ export function PlayerProgressBar({
       <ChapterMarkers
         chapters={chapters}
         durationSec={effectiveDuration}
+        currentTimeSec={absoluteTime}
         onSeek={onChapterSeek}
       />
       <input
