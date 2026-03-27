@@ -53,11 +53,17 @@ export async function pickRandomMediaId(page: Page): Promise<string | null> {
 
 /** Navigate to a random media detail page, return the media ID */
 export async function gotoRandomMedia(page: Page): Promise<string | null> {
-  const id = await pickRandomMediaId(page);
-  if (!id) return null;
-  await goto(page, `/media/${id}`);
-  await page.waitForSelector('[data-testid="media-detail"]', { timeout: 10_000 });
-  return id;
+  const ids = await fetchMediaIds(page);
+  if (ids.length === 0) return null;
+  // try up to 3 random IDs in case some are stale/inaccessible
+  for (let attempt = 0; attempt < Math.min(3, ids.length); attempt++) {
+    const idx = Math.floor(Math.random() * ids.length);
+    const id = ids[idx];
+    await goto(page, `/media/${id}`);
+    const found = await page.waitForSelector('[data-testid="media-detail"]', { timeout: 10_000 }).catch(() => null);
+    if (found) return id;
+  }
+  return null;
 }
 
 /** Navigate to a random MOVIE detail (has file → playable) */
@@ -72,10 +78,14 @@ export async function gotoRandomMovie(page: Page): Promise<string | null> {
     return (data.items ?? []).filter((i: { id?: string; filePath?: string }) => i.id && i.filePath).map((i: { id: string }) => i.id) as string[];
   }, { tk: token });
   if (ids.length === 0) return null;
-  const id = ids[Math.floor(Math.random() * ids.length)];
-  await goto(page, `/media/${id}`);
-  await page.waitForSelector('[data-testid="media-detail"]', { timeout: 10_000 });
-  return id;
+  for (let attempt = 0; attempt < Math.min(3, ids.length); attempt++) {
+    const idx = Math.floor(Math.random() * ids.length);
+    const id = ids[idx];
+    await goto(page, `/media/${id}`);
+    const found = await page.waitForSelector('[data-testid="media-detail"]', { timeout: 10_000 }).catch(() => null);
+    if (found) return id;
+  }
+  return null;
 }
 
 /** API helper: GET with auth */
