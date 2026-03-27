@@ -14,9 +14,9 @@ test.describe("Home > Search deep", () => {
     test.skip(!(await input.isVisible({ timeout: 2_000 }).catch(() => false)), "No search input");
 
     await input.click();
-    await input.fill("the");
+    await input.pressSequentially("the", { delay: 50 });
     await page.waitForTimeout(1_500);
-    // either results or empty dropdown should appear
+    // either results or empty-state dropdown should appear
     const dropdown = page.locator(`${DROPDOWN}, ${DROPDOWN_EMPTY}`).first();
     await expect(dropdown).toBeVisible({ timeout: 5_000 });
   });
@@ -27,7 +27,7 @@ test.describe("Home > Search deep", () => {
     test.skip(!(await input.isVisible({ timeout: 2_000 }).catch(() => false)), "No search input");
 
     await input.click();
-    await input.fill("the");
+    await input.pressSequentially("the", { delay: 50 });
     await page.waitForTimeout(1_500);
     const items = page.locator(`${DROPDOWN} ${SEARCH_ITEM}`);
     const count = await items.count();
@@ -45,7 +45,7 @@ test.describe("Home > Search deep", () => {
     test.skip(!(await input.isVisible({ timeout: 2_000 }).catch(() => false)), "No search input");
 
     await input.click();
-    await input.fill("the");
+    await input.pressSequentially("the", { delay: 50 });
     await page.waitForTimeout(1_500);
     const firstResult = page.locator(`${DROPDOWN} ${SEARCH_ITEM}`).first();
     test.skip(!(await firstResult.isVisible({ timeout: 2_000 }).catch(() => false)), "No results");
@@ -61,7 +61,7 @@ test.describe("Home > Search deep", () => {
     test.skip(!(await input.isVisible({ timeout: 2_000 }).catch(() => false)), "No search input");
 
     await input.click();
-    await input.fill("the");
+    await input.pressSequentially("the", { delay: 50 });
     await page.waitForTimeout(1_500);
     const items = page.locator(`${DROPDOWN} ${SEARCH_ITEM}`);
     test.skip((await items.count()) === 0, "No results");
@@ -79,7 +79,7 @@ test.describe("Home > Search deep", () => {
     test.skip(!(await input.isVisible({ timeout: 2_000 }).catch(() => false)), "No search input");
 
     await input.click();
-    await input.fill("the");
+    await input.pressSequentially("the", { delay: 50 });
     await page.waitForTimeout(1_500);
     const dropdown = page.locator(`${DROPDOWN}, ${DROPDOWN_EMPTY}`).first();
     const wasVisible = await dropdown.isVisible({ timeout: 2_000 }).catch(() => false);
@@ -96,7 +96,7 @@ test.describe("Home > Search deep", () => {
     test.skip(!(await input.isVisible({ timeout: 2_000 }).catch(() => false)), "No search input");
 
     await input.click();
-    await input.fill("the");
+    await input.pressSequentially("the", { delay: 50 });
     await page.waitForTimeout(1_500);
     const dropdown = page.locator(`${DROPDOWN}, ${DROPDOWN_EMPTY}`).first();
     const wasVisible = await dropdown.isVisible({ timeout: 2_000 }).catch(() => false);
@@ -104,9 +104,11 @@ test.describe("Home > Search deep", () => {
 
     await input.fill("");
     await page.waitForTimeout(500);
-    // dropdown should close (query < 2 chars → hidden unless recents exist)
+    // query is empty → dropdown hides (unless recents exist)
     const resultsDropdown = page.locator(DROPDOWN);
-    await expect(resultsDropdown).not.toBeVisible({ timeout: 2_000 });
+    // either dropdown closed or recents shown
+    const stillShowing = await resultsDropdown.isVisible({ timeout: 1_000 }).catch(() => false);
+    expect(stillShowing).toBe(false);
   });
 
   test("Ctrl+K focuses search input", async ({ page }) => {
@@ -131,7 +133,7 @@ test.describe("Home > Search deep", () => {
     test.skip(!(await input.isVisible({ timeout: 2_000 }).catch(() => false)), "No search input");
 
     await input.click();
-    await input.fill("zzzzxxxxxqqqqqnonsense12345");
+    await input.pressSequentially("zzzqqq123", { delay: 30 });
     await page.waitForTimeout(1_500);
     const emptyState = page.locator(DROPDOWN_EMPTY);
     const dropdown = page.locator(DROPDOWN);
@@ -154,7 +156,7 @@ test.describe("Home > Search deep", () => {
 
     // first do a search to create a recent entry
     await input.click();
-    await input.fill("test");
+    await input.pressSequentially("test", { delay: 50 });
     await page.waitForTimeout(500);
     await page.keyboard.press("Enter");
     await page.waitForTimeout(1_000);

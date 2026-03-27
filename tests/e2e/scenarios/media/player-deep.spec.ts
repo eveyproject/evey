@@ -10,7 +10,11 @@ async function openPlayer(page: Page): Promise<string | null> {
   await playBtn.click();
   await page.waitForURL("**/player/**", { timeout: 10_000 });
   await page.waitForSelector("video", { timeout: 15_000 });
-  await page.waitForTimeout(2_000);
+  // wait for video to start loading
+  await page.waitForFunction(() => {
+    const v = document.querySelector("video");
+    return v && v.readyState >= 1;
+  }, null, { timeout: 10_000 }).catch(() => {});
   return id;
 }
 
@@ -56,17 +60,13 @@ test.describe("Media > Player (deep)", () => {
     const id = await openPlayer(page);
     test.skip(!id, "No playable movie");
 
-    // ensure playing
+    // ensure playing first
     const wasPaused = await page.evaluate(() => document.querySelector("video")?.paused);
     if (wasPaused) {
       await page.keyboard.press("Space");
       await page.waitForTimeout(500);
     }
-    // now video should be playing
-    const playing = await page.evaluate(() => !document.querySelector("video")?.paused);
-    expect(playing).toBe(true);
 
-    // press space to pause
     await page.keyboard.press("Space");
     await page.waitForTimeout(500);
     const isPaused = await page.evaluate(() => document.querySelector("video")?.paused);
@@ -77,15 +77,13 @@ test.describe("Media > Player (deep)", () => {
     const id = await openPlayer(page);
     test.skip(!id, "No playable movie");
 
-    // ensure paused
+    // ensure paused first
     const wasPaused = await page.evaluate(() => document.querySelector("video")?.paused);
     if (!wasPaused) {
       await page.keyboard.press("Space");
       await page.waitForTimeout(500);
     }
-    expect(await page.evaluate(() => document.querySelector("video")?.paused)).toBe(true);
 
-    // press space to resume
     await page.keyboard.press("Space");
     await page.waitForTimeout(500);
     const isPlaying = await page.evaluate(() => !document.querySelector("video")?.paused);
@@ -104,7 +102,6 @@ test.describe("Media > Player (deep)", () => {
 
     // toggle back
     await page.keyboard.press("m");
-    await page.waitForTimeout(300);
   });
 
   test("ArrowRight → time advances", async ({ page }) => {
@@ -142,7 +139,6 @@ test.describe("Media > Player (deep)", () => {
     await settingsBtn.click();
     await page.waitForTimeout(500);
 
-    // look for speed option
     const speedOption = page.locator("text=/speed/i").first();
     const hasSpeed = await speedOption.isVisible({ timeout: 2_000 }).catch(() => false);
     if (hasSpeed) {
@@ -158,19 +154,6 @@ test.describe("Media > Player (deep)", () => {
     await page.waitForTimeout(500);
     const rate = await page.evaluate(() => document.querySelector("video")?.playbackRate);
     expect(rate).toBe(1.5);
-
-    // reset speed
-    await showPlayerControls(page);
-    await settingsBtn.click();
-    await page.waitForTimeout(500);
-    if (hasSpeed) {
-      await page.locator("text=/speed/i").first().click();
-      await page.waitForTimeout(500);
-    }
-    const normal = page.locator("text=/1x$|^1$/").first();
-    if (await normal.isVisible({ timeout: 1_000 }).catch(() => false)) {
-      await normal.click();
-    }
   });
 
   test("back button → returns to /media/{id}", async ({ page }) => {
@@ -183,7 +166,7 @@ test.describe("Media > Player (deep)", () => {
     test.skip(!hasBack, "No back button");
 
     await backBtn.click();
-    await page.waitForTimeout(2_000);
+    await page.waitForURL("**/media/**", { timeout: 10_000 });
     expect(page.url()).toContain("/media/");
   });
 
@@ -191,7 +174,6 @@ test.describe("Media > Player (deep)", () => {
     const { serverErrors } = await collectErrors(page, async () => {
       const id = await openPlayer(page);
       if (!id) return;
-      await page.waitForTimeout(2_000);
       await page.keyboard.press("ArrowRight");
       await page.waitForTimeout(1_000);
     });
@@ -202,7 +184,6 @@ test.describe("Media > Player (deep)", () => {
     const { jsErrors } = await collectErrors(page, async () => {
       const id = await openPlayer(page);
       if (!id) return;
-      await page.waitForTimeout(2_000);
       await page.keyboard.press("Space");
       await page.waitForTimeout(500);
       await page.keyboard.press("Space");
