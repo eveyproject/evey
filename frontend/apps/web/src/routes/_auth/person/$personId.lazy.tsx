@@ -111,7 +111,12 @@ function PersonPage() {
           {(person?.birthday || person?.placeOfBirth) && (
             <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-[var(--text-muted)] mt-2">
               {person.birthday && (
-                <span>{person.birthday}{person.deathday ? ` — ${person.deathday}` : ""}</span>
+                <span>
+                  {new Date(person.birthday).toLocaleDateString(undefined, { year: "numeric", month: "long", day: "numeric" })}
+                  {person.deathday
+                    ? ` — ${new Date(person.deathday).toLocaleDateString(undefined, { year: "numeric", month: "long", day: "numeric" })}`
+                    : ` (${Math.floor((Date.now() - new Date(person.birthday).getTime()) / 31557600000)})`}
+                </span>
               )}
               {person.placeOfBirth && <span>{person.placeOfBirth}</span>}
             </div>
