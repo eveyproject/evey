@@ -21,27 +21,43 @@ export async function getToken(page: Page): Promise<string> {
   });
 }
 
+/** Fetch JSON with retry on 429 */
+async function fetchWithRetry(page: Page, url: string, token: string, retries = 3): Promise<{ ok: boolean; data: unknown }> {
+  for (let i = 0; i < retries; i++) {
+    const result = await page.evaluate(async ({ u, tk }) => {
+      const res = await fetch(u, { headers: { Authorization: `Bearer ${tk}` } });
+      if (res.status === 429) return { ok: false, status: 429, data: null };
+      if (!res.ok) return { ok: false, status: res.status, data: null };
+      return { ok: true, status: res.status, data: await res.json() };
+    }, { u: url, tk: token });
+    if (result.ok) return { ok: true, data: result.data };
+    if (result.status === 429) {
+      await page.waitForTimeout(1500 * (i + 1));
+      continue;
+    }
+    return { ok: false, data: null };
+  }
+  return { ok: false, data: null };
+}
+
 /** Fetch a list of valid media IDs from the API (movies + series) */
 export async function fetchMediaIds(page: Page, limit = 50): Promise<string[]> {
   const token = await getToken(page);
-  const ids = await page.evaluate(async ({ tk, lim }) => {
-    const res = await fetch(`/api/v1/media?pagination.pageSize=${lim}&type=MEDIA_ITEM_TYPE_MOVIE`, {
-      headers: { Authorization: `Bearer ${tk}` },
-    });
-    if (!res.ok) return [];
-    const data = await res.json();
-    return (data.items ?? []).map((i: { id?: string }) => i.id).filter(Boolean) as string[];
-  }, { tk: token, lim: limit });
-  if (ids.length > 0) return ids;
+  // small delay to let SPA initial requests settle
+  await page.waitForTimeout(500);
+  const movieResult = await fetchWithRetry(page, `/api/v1/media?pagination.pageSize=${limit}&type=MEDIA_ITEM_TYPE_MOVIE`, token);
+  if (movieResult.ok) {
+    const items = (movieResult.data as { items?: { id?: string }[] })?.items ?? [];
+    const ids = items.map((i) => i.id).filter(Boolean) as string[];
+    if (ids.length > 0) return ids;
+  }
   // fallback: try series
-  return page.evaluate(async ({ tk, lim }) => {
-    const res = await fetch(`/api/v1/media?pagination.pageSize=${lim}&type=MEDIA_ITEM_TYPE_SERIES`, {
-      headers: { Authorization: `Bearer ${tk}` },
-    });
-    if (!res.ok) return [];
-    const data = await res.json();
-    return (data.items ?? []).map((i: { id?: string }) => i.id).filter(Boolean) as string[];
-  }, { tk: token, lim: limit });
+  const seriesResult = await fetchWithRetry(page, `/api/v1/media?pagination.pageSize=${limit}&type=MEDIA_ITEM_TYPE_SERIES`, token);
+  if (seriesResult.ok) {
+    const items = (seriesResult.data as { items?: { id?: string }[] })?.items ?? [];
+    return items.map((i) => i.id).filter(Boolean) as string[];
+  }
+  return [];
 }
 
 /** Pick a random valid media ID via API */
@@ -55,12 +71,11 @@ export async function pickRandomMediaId(page: Page): Promise<string | null> {
 export async function gotoRandomMedia(page: Page): Promise<string | null> {
   const ids = await fetchMediaIds(page);
   if (ids.length === 0) return null;
-  // try up to 3 random IDs in case some are stale/inaccessible
-  for (let attempt = 0; attempt < Math.min(3, ids.length); attempt++) {
-    const idx = Math.floor(Math.random() * ids.length);
-    const id = ids[idx];
+  // shuffle and try IDs until one loads
+  const shuffled = [...ids].sort(() => Math.random() - 0.5);
+  for (const id of shuffled.slice(0, 5)) {
     await goto(page, `/media/${id}`);
-    const found = await page.waitForSelector('[data-testid="media-detail"]', { timeout: 10_000 }).catch(() => null);
+    const found = await page.waitForSelector('[data-testid="media-detail"]', { timeout: 8_000 }).catch(() => null);
     if (found) return id;
   }
   return null;
@@ -69,20 +84,16 @@ export async function gotoRandomMedia(page: Page): Promise<string | null> {
 /** Navigate to a random MOVIE detail (has file → playable) */
 export async function gotoRandomMovie(page: Page): Promise<string | null> {
   const token = await getToken(page);
-  const ids = await page.evaluate(async ({ tk }) => {
-    const res = await fetch("/api/v1/media?pagination.pageSize=50&type=MEDIA_ITEM_TYPE_MOVIE", {
-      headers: { Authorization: `Bearer ${tk}` },
-    });
-    if (!res.ok) return [];
-    const data = await res.json();
-    return (data.items ?? []).filter((i: { id?: string; filePath?: string }) => i.id && i.filePath).map((i: { id: string }) => i.id) as string[];
-  }, { tk: token });
+  await page.waitForTimeout(500);
+  const result = await fetchWithRetry(page, "/api/v1/media?pagination.pageSize=50&type=MEDIA_ITEM_TYPE_MOVIE", token);
+  if (!result.ok) return null;
+  const items = (result.data as { items?: { id?: string; filePath?: string }[] })?.items ?? [];
+  const ids = items.filter((i) => i.id && i.filePath).map((i) => i.id!) as string[];
   if (ids.length === 0) return null;
-  for (let attempt = 0; attempt < Math.min(3, ids.length); attempt++) {
-    const idx = Math.floor(Math.random() * ids.length);
-    const id = ids[idx];
+  const shuffled = [...ids].sort(() => Math.random() - 0.5);
+  for (const id of shuffled.slice(0, 5)) {
     await goto(page, `/media/${id}`);
-    const found = await page.waitForSelector('[data-testid="media-detail"]', { timeout: 10_000 }).catch(() => null);
+    const found = await page.waitForSelector('[data-testid="media-detail"]', { timeout: 8_000 }).catch(() => null);
     if (found) return id;
   }
   return null;
