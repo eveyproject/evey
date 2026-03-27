@@ -256,8 +256,8 @@ export const MediaCard = memo(function MediaCard({
     void qc.invalidateQueries({ queryKey: ["/api/v1/feeds/resume-playback"] });
     void qc.invalidateQueries({ queryKey: ["/api/v1/playback"] });
   }, [item.id, qc]);
-  const markWatched = usePlaybackServiceMarkAsWatched({ mutation: { onSuccess: invalidateItem } });
-  const markUnwatched = usePlaybackServiceMarkAsUnwatched({ mutation: { onSuccess: invalidateItem } });
+  const markWatched = usePlaybackServiceMarkAsWatched({ mutation: { onSuccess: () => { setWatchedLocal(true); toast.success(t("media.contextMenu.markedWatched")); invalidateItem(); } } });
+  const markUnwatched = usePlaybackServiceMarkAsUnwatched({ mutation: { onSuccess: () => { setWatchedLocal(false); toast.success(t("media.contextMenu.markedUnwatched")); invalidateItem(); } } });
 
   const poster = useMemo(() => {
     const artworkPosterUrl = item.artwork?.find((a) => a.type === "ARTWORK_TYPE_PRIMARY")?.url ?? null;
@@ -276,7 +276,9 @@ export const MediaCard = memo(function MediaCard({
       ? Math.min(100, Math.max(0, Math.round(progressPercent)))
       : undefined;
 
-  const watched = isWatched || (pct !== undefined && pct >= WATCHED_THRESHOLD_PCT);
+  const watchedFromProps = isWatched || (pct !== undefined && pct >= WATCHED_THRESHOLD_PCT);
+  const [watchedLocal, setWatchedLocal] = useState<boolean | null>(null);
+  const watched = watchedLocal ?? watchedFromProps;
 
   const linkTo = href ?? "/media/$mediaId";
   const linkParams = href ? undefined : { mediaId: item.id ?? "" };
