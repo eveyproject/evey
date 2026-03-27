@@ -317,6 +317,29 @@ export const MediaCard = memo(function MediaCard({
     setCtxMenu({ x: e.clientX, y: e.clientY });
   }, [item.id]);
 
+  // Long-press for mobile context menu
+  const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const longPressTriggered = useRef(false);
+  const handleTouchStart = useCallback((e: React.TouchEvent) => {
+    if (!item.id) return;
+    longPressTriggered.current = false;
+    const touch = e.touches[0];
+    const x = touch.clientX;
+    const y = touch.clientY;
+    longPressTimer.current = setTimeout(() => {
+      longPressTriggered.current = true;
+      setShowPreview(false);
+      setCtxMenu({ x, y });
+    }, 600);
+  }, [item.id]);
+  const handleTouchEnd = useCallback((e: React.TouchEvent) => {
+    if (longPressTimer.current) clearTimeout(longPressTimer.current);
+    if (longPressTriggered.current) e.preventDefault();
+  }, []);
+  const handleTouchMove = useCallback(() => {
+    if (longPressTimer.current) clearTimeout(longPressTimer.current);
+  }, []);
+
   const handleSelectionClick = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
     onSelect?.(item.id!, !selected);
@@ -351,7 +374,13 @@ export const MediaCard = memo(function MediaCard({
       onFocus={handleFocus}
       onBlur={handleBlur}
       onContextMenu={handleContextMenu}
-      onClick={(onSelect && selectionMode) ? handleSelectionClick : undefined}
+      onTouchStart={handleTouchStart}
+      onTouchEnd={handleTouchEnd}
+      onTouchMove={handleTouchMove}
+      onClick={(e) => {
+        if (longPressTriggered.current) { e.preventDefault(); longPressTriggered.current = false; return; }
+        if (onSelect && selectionMode) { handleSelectionClick(e); }
+      }}
     >
       {showPreview && <HoverPreview item={item} />}
 
