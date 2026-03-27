@@ -6,12 +6,26 @@ import (
 	"github.com/gravity-zero/evey/internal/domain/library"
 )
 
+type PersonDetailsFetcher interface {
+	GetPersonDetails(ctx context.Context, name string) (*PersonDetailsResult, error)
+}
+
+type PersonDetailsResult struct {
+	Biography    string
+	Birthday     string
+	Deathday     string
+	PlaceOfBirth string
+	KnownFor     string
+	ThumbURL     string
+}
+
 type QueryService struct {
-	libraries   library.LibraryQueryRepo
-	mediaItems  library.MediaItemQueryRepo
-	streams     library.MediaStreamRepository
-	search      library.SearchIndex
-	people      library.PersonRepository
+	libraries     library.LibraryQueryRepo
+	mediaItems    library.MediaItemQueryRepo
+	streams       library.MediaStreamRepository
+	search        library.SearchIndex
+	people        library.PersonRepository
+	personFetcher PersonDetailsFetcher
 }
 
 func NewQueryService(
@@ -33,11 +47,35 @@ func (s *QueryService) WithPeople(people library.PersonRepository) *QueryService
 	return s
 }
 
+func (s *QueryService) WithPersonFetcher(fetcher PersonDetailsFetcher) *QueryService {
+	s.personFetcher = fetcher
+	return s
+}
+
 func (s *QueryService) GetPerson(ctx context.Context, id string) (*library.Person, error) {
 	if s.people == nil {
 		return nil, nil
 	}
-	return s.people.GetByID(ctx, id)
+	person, err := s.people.GetByID(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	// Lazy-fetch bio from TMDB if empty
+	if person.Biography == "" && s.personFetcher != nil {
+		details, fetchErr := s.personFetcher.GetPersonDetails(ctx, person.Name)
+		if fetchErr == nil && details != nil && details.Biography != "" {
+			person.Biography = details.Biography
+			person.Birthday = details.Birthday
+			person.Deathday = details.Deathday
+			person.PlaceOfBirth = details.PlaceOfBirth
+			person.KnownFor = details.KnownFor
+			if details.ThumbURL != "" && person.ThumbPath == nil {
+				person.ThumbPath = &details.ThumbURL
+			}
+			_ = s.people.Update(ctx, person)
+		}
+	}
+	return person, nil
 }
 
 func (s *QueryService) GetLibrary(ctx context.Context, id string) (*library.Library, error) {

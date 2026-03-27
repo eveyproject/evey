@@ -25,6 +25,11 @@ interface PersonInfo {
   name?: string;
   thumbUrl?: string;
   providerIds?: Record<string, string>;
+  biography?: string;
+  birthday?: string;
+  deathday?: string;
+  placeOfBirth?: string;
+  knownFor?: string;
 }
 
 function useGetPerson(id: string) {
@@ -103,8 +108,22 @@ function PersonPage() {
                 : t("media.person.titleCount_plural", { count: items.length })}
             </p>
           )}
+          {(person?.birthday || person?.placeOfBirth) && (
+            <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-[var(--text-muted)] mt-2">
+              {person.birthday && (
+                <span>{person.birthday}{person.deathday ? ` — ${person.deathday}` : ""}</span>
+              )}
+              {person.placeOfBirth && <span>{person.placeOfBirth}</span>}
+            </div>
+          )}
         </div>
       </div>
+
+      {person?.biography && (
+        <p className="text-sm leading-relaxed text-[var(--text-secondary)] mb-8 max-w-3xl">
+          {person.biography}
+        </p>
+      )}
 
       {isLoading && (
         <div className="flex justify-center py-16">

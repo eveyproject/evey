@@ -30,6 +30,16 @@ func (r *FakePersonRepository) Create(_ context.Context, person *library.Person)
 	return nil
 }
 
+func (r *FakePersonRepository) Update(_ context.Context, person *library.Person) error {
+	if r.Err != nil {
+		return r.Err
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.items[person.ID] = person
+	return nil
+}
+
 func (r *FakePersonRepository) GetByID(_ context.Context, id string) (*library.Person, error) {
 	if r.Err != nil {
 		return nil, r.Err

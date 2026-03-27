@@ -589,6 +589,73 @@ func parseDate(s string) *time.Time {
 	return &t
 }
 
+// PersonDetails contains biographical info from TMDB.
+type PersonDetails struct {
+	TMDBID       int
+	Name         string
+	Biography    string
+	Birthday     string
+	Deathday     string
+	PlaceOfBirth string
+	KnownFor     string
+	ThumbURL     string
+}
+
+type tmdbPersonSearchResult struct {
+	Results []struct {
+		ID   int    `json:"id"`
+		Name string `json:"name"`
+	} `json:"results"`
+}
+
+type tmdbPersonDetail struct {
+	ID                 int    `json:"id"`
+	Name               string `json:"name"`
+	Biography          string `json:"biography"`
+	Birthday           string `json:"birthday"`
+	Deathday           string `json:"deathday"`
+	PlaceOfBirth       string `json:"place_of_birth"`
+	KnownForDepartment string `json:"known_for_department"`
+	ProfilePath        string `json:"profile_path"`
+}
+
+// GetPersonDetails searches TMDB for a person by name and returns biographical info.
+func (p *TMDBProvider) GetPersonDetails(ctx context.Context, name string) (*PersonDetails, error) {
+	searchURL := fmt.Sprintf("%s/search/person?query=%s&language=%s", p.baseURL, url.QueryEscape(name), p.language)
+	body, err := p.doRequestWithRetry(ctx, searchURL)
+	if err != nil {
+		return nil, fmt.Errorf("tmdb search person: %w", err)
+	}
+	var searchResp tmdbPersonSearchResult
+	if err := json.Unmarshal(body, &searchResp); err != nil {
+		return nil, fmt.Errorf("tmdb decode search person: %w", err)
+	}
+	if len(searchResp.Results) == 0 {
+		return nil, nil
+	}
+	tmdbID := searchResp.Results[0].ID
+
+	detailURL := fmt.Sprintf("%s/person/%d?language=%s", p.baseURL, tmdbID, p.language)
+	body, err = p.doRequestWithRetry(ctx, detailURL)
+	if err != nil {
+		return nil, fmt.Errorf("tmdb get person detail: %w", err)
+	}
+	var detail tmdbPersonDetail
+	if err := json.Unmarshal(body, &detail); err != nil {
+		return nil, fmt.Errorf("tmdb decode person detail: %w", err)
+	}
+	return &PersonDetails{
+		TMDBID:       detail.ID,
+		Name:         detail.Name,
+		Biography:    detail.Biography,
+		Birthday:     detail.Birthday,
+		Deathday:     detail.Deathday,
+		PlaceOfBirth: detail.PlaceOfBirth,
+		KnownFor:     detail.KnownForDepartment,
+		ThumbURL:     profileURL(detail.ProfilePath),
+	}, nil
+}
+
 // TMDb API response types
 
 type tmdbSearchResponse struct {
@@ -661,12 +728,14 @@ type tmdbCredits struct {
 }
 
 type tmdbCastMember struct {
+	ID          int    `json:"id"`
 	Name        string `json:"name"`
 	Character   string `json:"character"`
 	ProfilePath string `json:"profile_path"`
 }
 
 type tmdbCrewMember struct {
+	ID          int    `json:"id"`
 	Name        string `json:"name"`
 	Job         string `json:"job"`
 	ProfilePath string `json:"profile_path"`

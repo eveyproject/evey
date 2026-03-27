@@ -154,10 +154,15 @@ func (s *MediaStream) GetColorSpace() *string  { return s.ColorSpace }
 func (s *MediaStream) GetHDRType() *string     { return s.HDRType }
 
 type Person struct {
-	ID          string
-	Name        string
-	ProviderIDs map[string]string
-	ThumbPath   *string
+	ID           string
+	Name         string
+	ProviderIDs  map[string]string
+	ThumbPath    *string
+	Biography    string
+	Birthday     string
+	Deathday     string
+	PlaceOfBirth string
+	KnownFor     string
 }
 
 type MediaPerson struct {

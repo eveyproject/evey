@@ -25,29 +25,29 @@ func (r *PersonRepository) Create(ctx context.Context, person *library.Person) e
 		return err
 	}
 	_, err = r.db.ExecContext(ctx,
-		`INSERT INTO people (id, name, provider_ids, thumb_path)
-		 VALUES ($1,$2,$3,$4)
+		`INSERT INTO people (id, name, provider_ids, thumb_path, biography, birthday, deathday, place_of_birth, known_for)
+		 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
 		 ON CONFLICT (name) DO NOTHING`,
-		person.ID, person.Name, providerJSON, person.ThumbPath,
+		person.ID, person.Name, providerJSON, person.ThumbPath, person.Biography, person.Birthday, person.Deathday, person.PlaceOfBirth, person.KnownFor,
 	)
 	return err
 }
 
 func (r *PersonRepository) GetByID(ctx context.Context, id string) (*library.Person, error) {
 	return r.scanPerson(r.db.QueryRowContext(ctx,
-		`SELECT id, name, provider_ids, thumb_path
+		`SELECT id, name, provider_ids, thumb_path, biography, birthday, deathday, place_of_birth, known_for
 		 FROM people WHERE id = $1`, id))
 }
 
 func (r *PersonRepository) GetByName(ctx context.Context, name string) (*library.Person, error) {
 	return r.scanPerson(r.db.QueryRowContext(ctx,
-		`SELECT id, name, provider_ids, thumb_path
+		`SELECT id, name, provider_ids, thumb_path, biography, birthday, deathday, place_of_birth, known_for
 		 FROM people WHERE name = $1`, name))
 }
 
 func (r *PersonRepository) List(ctx context.Context) ([]*library.Person, error) {
 	rows, err := r.db.QueryContext(ctx,
-		`SELECT id, name, provider_ids, thumb_path
+		`SELECT id, name, provider_ids, thumb_path, biography, birthday, deathday, place_of_birth, known_for
 		 FROM people ORDER BY name`)
 	if err != nil {
 		return nil, err
@@ -58,7 +58,7 @@ func (r *PersonRepository) List(ctx context.Context) ([]*library.Person, error) 
 	for rows.Next() {
 		person := &library.Person{}
 		var providerJSON []byte
-		if err := rows.Scan(&person.ID, &person.Name, &providerJSON, &person.ThumbPath); err != nil {
+		if err := rows.Scan(&person.ID, &person.Name, &providerJSON, &person.ThumbPath, &person.Biography, &person.Birthday, &person.Deathday, &person.PlaceOfBirth, &person.KnownFor); err != nil {
 			return nil, err
 		}
 		if err := json.Unmarshal(providerJSON, &person.ProviderIDs); err != nil {
@@ -69,10 +69,23 @@ func (r *PersonRepository) List(ctx context.Context) ([]*library.Person, error) 
 	return result, rows.Err()
 }
 
+func (r *PersonRepository) Update(ctx context.Context, person *library.Person) error {
+	providerJSON, err := json.Marshal(person.ProviderIDs)
+	if err != nil {
+		return err
+	}
+	_, err = r.db.ExecContext(ctx,
+		`UPDATE people SET thumb_path=$2, biography=$3, birthday=$4, deathday=$5, place_of_birth=$6, known_for=$7, provider_ids=$8
+		 WHERE id=$1`,
+		person.ID, person.ThumbPath, person.Biography, person.Birthday, person.Deathday, person.PlaceOfBirth, person.KnownFor, providerJSON,
+	)
+	return err
+}
+
 func (r *PersonRepository) scanPerson(row *sql.Row) (*library.Person, error) {
 	person := &library.Person{}
 	var providerJSON []byte
-	err := row.Scan(&person.ID, &person.Name, &providerJSON, &person.ThumbPath)
+	err := row.Scan(&person.ID, &person.Name, &providerJSON, &person.ThumbPath, &person.Biography, &person.Birthday, &person.Deathday, &person.PlaceOfBirth, &person.KnownFor)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, shared.ErrNotFound
 	}

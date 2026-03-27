@@ -351,4 +351,9 @@ message GetPersonResponse {
   string name = 2;
   string thumb_url = 3;
   map<string, string> provider_ids = 4;
+  string biography = 5;
+  string birthday = 6;
+  string deathday = 7;
+  string place_of_birth = 8;
+  string known_for = 9;
 }

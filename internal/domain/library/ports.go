@@ -56,6 +56,7 @@ type ChapterRepository interface {
 
 type PersonRepository interface {
 	Create(ctx context.Context, person *Person) error
+	Update(ctx context.Context, person *Person) error
 	GetByID(ctx context.Context, id string) (*Person, error)
 	GetByName(ctx context.Context, name string) (*Person, error)
 	List(ctx context.Context) ([]*Person, error)

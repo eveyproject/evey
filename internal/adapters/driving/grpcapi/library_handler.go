@@ -295,8 +295,13 @@ func (h *libraryHandler) GetPerson(ctx context.Context, req *eveyv1.GetPersonReq
 		return nil, status.Errorf(codes.NotFound, "person not found")
 	}
 	resp := &eveyv1.GetPersonResponse{
-		Id:   person.ID,
-		Name: person.Name,
+		Id:           person.ID,
+		Name:         person.Name,
+		Biography:    person.Biography,
+		Birthday:     person.Birthday,
+		Deathday:     person.Deathday,
+		PlaceOfBirth: person.PlaceOfBirth,
+		KnownFor:     person.KnownFor,
 	}
 	if person.ThumbPath != nil && *person.ThumbPath != "" {
 		resp.ThumbUrl = *person.ThumbPath
