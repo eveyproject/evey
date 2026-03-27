@@ -1,5 +1,5 @@
 import { Film, Monitor, Music, Folder, ChevronRight } from "lucide-react";
-import { createLazyFileRoute, Link } from "@tanstack/react-router";
+import { createLazyFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { useLibraryServiceListLibraries, useLibraryServiceListMediaItems } from "@evey/api";
 import type { V1Library, V1LibraryType } from "@evey/api";
@@ -122,6 +122,7 @@ function LibraryCard({ library }: { library: V1Library }) {
 
 function LibraryIndex() {
   const { t } = useTranslation();
+  const navigate = useNavigate();
   const { data, isLoading } = useLibraryServiceListLibraries();
   const libraries = data?.libraries ?? [];
 
@@ -156,7 +157,7 @@ function LibraryIndex() {
             description={t("media.library.noLibrariesDesc")}
             action={{
               label: t("media.library.goToAdmin"),
-              onClick: () => { window.location.href = "/admin/libraries"; },
+              onClick: () => void navigate({ to: "/admin/libraries" }),
             }}
           />
         </div>

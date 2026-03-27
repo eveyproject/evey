@@ -671,7 +671,7 @@ function LibraryPage() {
                 }
                 action={
                   !hasActiveFilters
-                    ? { label: t("media.library.goToAdmin"), onClick: () => { window.location.href = "/admin/libraries"; } }
+                    ? { label: t("media.library.goToAdmin"), onClick: () => void navigate({ to: "/admin/libraries" }) }
                     : undefined
                 }
               />
