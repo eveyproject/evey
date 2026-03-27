@@ -143,9 +143,10 @@ describe("MediaCard", () => {
     expect(screen.getByTestId("watched-badge")).toBeInTheDocument();
   });
 
-  it("does not show watched badge when progressPercent < 95", () => {
+  it("watched badge is not highlighted when progressPercent < 95", () => {
     render(<MediaCard item={baseItem} showProgress progressPercent={80} />, { wrapper: Wrapper });
-    expect(screen.queryByTestId("watched-badge")).not.toBeInTheDocument();
+    const badge = screen.getByTestId("watched-badge");
+    expect(badge.className).not.toContain("bg-[var(--color-success)]");
   });
 
   it("shows resolution badge", () => {

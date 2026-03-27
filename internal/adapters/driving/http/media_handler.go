@@ -160,13 +160,19 @@ func downloadHandler(tokens TokenVerifier, libSvc MediaItemGetter, baseURL strin
 			return
 		}
 
-		// Bearer JWT (native apps)
+		// Bearer JWT (header or query param for browser downloads)
 		authHeader := r.Header.Get("Authorization")
-		if !strings.HasPrefix(authHeader, "Bearer ") {
+		tokenStr := ""
+		if strings.HasPrefix(authHeader, "Bearer ") {
+			tokenStr = authHeader[7:]
+		} else if qp := r.URL.Query().Get("token"); qp != "" {
+			tokenStr = qp
+		}
+		if tokenStr == "" {
 			http.Error(w, `{"message":"unauthenticated"}`, http.StatusUnauthorized)
 			return
 		}
-		claims, err := tokens.ValidateAccessToken(authHeader[7:])
+		claims, err := tokens.ValidateAccessToken(tokenStr)
 		if err != nil {
 			http.Error(w, `{"message":"forbidden"}`, http.StatusForbidden)
 			return

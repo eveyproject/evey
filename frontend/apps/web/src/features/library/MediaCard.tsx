@@ -185,7 +185,8 @@ const CardContextMenu = memo(function CardContextMenu({
     {
       label: t("media.contextMenu.download"),
       onClick: () => {
-        window.open(`/api/v1/media/${mediaId}/download`, "_blank");
+        const tk = useAuthStore.getState().accessToken;
+        window.open(`/api/v1/media/${mediaId}/download${tk ? `?token=${encodeURIComponent(tk)}` : ""}`, "_blank");
         onClose();
       },
     },
@@ -243,10 +244,14 @@ export const MediaCard = memo(function MediaCard({
   onSelect,
   lite = false,
 }: MediaCardProps) {
+  const { t } = useTranslation();
   const [imgLoaded, setImgLoaded] = useState(false);
   const hoverTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [showPreview, setShowPreview] = useState(false);
   const accessToken = useAuthStore((s) => s.accessToken);
+  const profileId = useAuthStore((s) => s.profileId);
+  const markWatched = usePlaybackServiceMarkAsWatched();
+  const markUnwatched = usePlaybackServiceMarkAsUnwatched();
 
   const poster = useMemo(() => {
     const artworkPosterUrl = item.artwork?.find((a) => a.type === "ARTWORK_TYPE_PRIMARY")?.url ?? null;
@@ -367,7 +372,7 @@ export const MediaCard = memo(function MediaCard({
     <Link
       to={linkTo}
       params={linkParams as never}
-      className={`group block flex-shrink-0 w-32 sm:w-40 relative${selected ? " ring-2 ring-[var(--accent)] rounded-[var(--radius-md)]" : ""}`}
+      className={`group block flex-shrink-0 w-36 sm:w-44 relative${selected ? " ring-2 ring-[var(--accent)] rounded-[var(--radius-md)]" : ""}`}
       data-testid="media-card"
       onMouseEnter={handleMouseEnter}
       onMouseLeave={handleMouseLeave}
@@ -425,21 +430,26 @@ export const MediaCard = memo(function MediaCard({
           </span>
         )}
 
-        {watched && (
-          <span
-            className="absolute z-badge flex items-center justify-center"
-            style={{
-              top: "0.5rem",
-              right: showYear && item.year !== undefined ? "3.5rem" : "0.5rem",
-              width: "20px",
-              height: "20px",
-              borderRadius: "50%",
-              backgroundColor: "var(--color-success)",
-            }}
+        {item.id && (
+          <button
+            type="button"
+            className={`absolute z-badge bottom-2 right-2 flex items-center justify-center w-6 h-6 rounded-full backdrop-blur-[4px] transition-colors-fast ${
+              watched
+                ? "bg-[var(--color-success)] text-white"
+                : "bg-black/40 text-white/50 opacity-0 group-hover:opacity-100"
+            }`}
             data-testid="watched-badge"
+            title={watched ? t("media.contextMenu.markUnwatched") : t("media.contextMenu.markWatched")}
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              if (!profileId) return;
+              if (watched) markUnwatched.mutate({ mediaItemId: item.id!, params: { profileId } });
+              else markWatched.mutate({ mediaItemId: item.id!, params: { profileId } });
+            }}
           >
-            <Check size={12} className="text-[var(--filter-active-text)]" strokeWidth={3} />
-          </span>
+            <Check size={14} strokeWidth={3} />
+          </button>
         )}
 
         {item.communityRating != null && item.communityRating > 0 && (

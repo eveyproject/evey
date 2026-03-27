@@ -32,6 +32,7 @@ export const useAuthStore = create<AuthState>()(
         set({
           accessToken: access,
           isAdmin: claims?.is_admin === true,
+          profileId: typeof claims?.profile_id === "string" ? claims.profile_id : null,
         });
       },
       setProfile: (profileId) => set({ profileId }),

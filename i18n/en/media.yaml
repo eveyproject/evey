@@ -208,6 +208,7 @@ contextMenu:
   download: Download
   markWatched: Mark as watched
   markUnwatched: Mark as unwatched
+  noProfileSelected: No profile selected
   markedWatched: Marked as watched
   markedUnwatched: Marked as unwatched
   markError: "Failed to mark as {{status}}"
