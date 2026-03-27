@@ -4,6 +4,10 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MediaCard } from "./MediaCard";
 
+vi.mock("@/hooks/useWatchedMap", () => ({
+  useWatchedMap: () => new Map(),
+}));
+
 vi.mock("@tanstack/react-router", () => ({
   Link: ({
     children,

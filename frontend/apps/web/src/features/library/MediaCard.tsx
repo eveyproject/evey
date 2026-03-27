@@ -10,6 +10,7 @@ import { FavoriteButton } from "./FavoriteButton";
 import { StarRatingBadge } from "./StarRating";
 import { useIsFavorite, useToggleFavorite } from "@/hooks/useFavorite";
 import { AddToPlaylistModal } from "../playlist/AddToPlaylistModal";
+import { useWatchedMap } from "@/hooks/useWatchedMap";
 import { AddToCollectionModal } from "../collection/AddToCollectionModal";
 import { typeLabel } from "@/utils/typeLabel";
 
@@ -254,7 +255,7 @@ export const MediaCard = memo(function MediaCard({
   const invalidateItem = useCallback(() => {
     if (item.id) void qc.invalidateQueries({ queryKey: [`/api/v1/media/${item.id}`] });
     void qc.invalidateQueries({ queryKey: ["/api/v1/feeds/resume-playback"] });
-    void qc.invalidateQueries({ queryKey: ["/api/v1/playback"] });
+    void qc.invalidateQueries({ queryKey: ["/api/v1/playback/history"] });
   }, [item.id, qc]);
   const markWatched = usePlaybackServiceMarkAsWatched({ mutation: { onSuccess: () => { setWatchedLocal(true); toast.success(t("media.contextMenu.markedWatched")); invalidateItem(); } } });
   const markUnwatched = usePlaybackServiceMarkAsUnwatched({ mutation: { onSuccess: () => { setWatchedLocal(false); toast.success(t("media.contextMenu.markedUnwatched")); invalidateItem(); } } });
@@ -276,7 +277,9 @@ export const MediaCard = memo(function MediaCard({
       ? Math.min(100, Math.max(0, Math.round(progressPercent)))
       : undefined;
 
-  const watchedFromProps = isWatched || (pct !== undefined && pct >= WATCHED_THRESHOLD_PCT);
+  const watchedMap = useWatchedMap();
+  const watchedFromData = item.id ? watchedMap.get(item.id) === true : false;
+  const watchedFromProps = isWatched || watchedFromData || (pct !== undefined && pct >= WATCHED_THRESHOLD_PCT);
   const [watchedLocal, setWatchedLocal] = useState<boolean | null>(null);
   const watched = watchedLocal ?? watchedFromProps;
 
