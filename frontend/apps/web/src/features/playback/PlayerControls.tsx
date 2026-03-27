@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { ArrowLeft, SkipBack, SkipForward, Pause, Play, Minimize, Maximize, PictureInPicture, PictureInPicture2 } from "lucide-react";
+import { ArrowLeft, SkipBack, SkipForward, Pause, Play, Minimize, Maximize, PictureInPicture, PictureInPicture2, ChevronFirst, ChevronLast } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import type { AudioStream } from "./AudioTrackSelector";
 import type { SubtitleStream } from "./SubtitleSelector";
@@ -332,6 +332,31 @@ export function PlayerControls({
     else if (videoRef.current) videoRef.current.currentTime = timeSec;
   };
 
+  const currentChapterIndex = chapters.findIndex(
+    (ch) => absoluteTime * 1000 >= ch.startTimeMs && absoluteTime * 1000 < ch.endTimeMs,
+  );
+  const currentChapter = currentChapterIndex >= 0 ? chapters[currentChapterIndex] : null;
+
+  function skipToNextChapter() {
+    const nextIdx = currentChapterIndex >= 0 ? currentChapterIndex + 1 : 0;
+    if (nextIdx < chapters.length) handleChapterSeek(chapters[nextIdx].startTimeMs / 1000);
+  }
+
+  function skipToPrevChapter() {
+    // If >3s into current chapter, restart it; otherwise go to previous
+    const threshold = 3;
+    if (currentChapterIndex > 0 && currentChapter) {
+      const elapsed = absoluteTime - currentChapter.startTimeMs / 1000;
+      if (elapsed > threshold) {
+        handleChapterSeek(currentChapter.startTimeMs / 1000);
+      } else {
+        handleChapterSeek(chapters[currentChapterIndex - 1].startTimeMs / 1000);
+      }
+    } else if (currentChapter) {
+      handleChapterSeek(currentChapter.startTimeMs / 1000);
+    }
+  }
+
   return (
     <div
       className="absolute inset-0"
@@ -375,6 +400,13 @@ export function PlayerControls({
           onChapterSeek={handleChapterSeek}
         />
 
+        {/* current chapter label */}
+        {currentChapter && (
+          <div className="text-xs truncate px-1" style={{ color: "var(--text-muted)" }}>
+            {currentChapter.title}
+          </div>
+        )}
+
         <div className="flex items-center gap-2 sm:gap-3">
           {/* previous episode */}
           {prevEpisode && onEpisodeChange && (
@@ -385,6 +417,17 @@ export function PlayerControls({
               title={prevEpisode.title ? `E${prevEpisode.indexNumber} - ${prevEpisode.title}` : undefined}
             >
               <SkipBack size={22} fill="currentColor" />
+            </button>
+          )}
+
+          {/* previous chapter */}
+          {chapters.length > 0 && currentChapterIndex > 0 && (
+            <button
+              onClick={skipToPrevChapter}
+              aria-label={t("player.controls.chapters")}
+              className="text-white hover:text-[var(--accent)] transition-colors-fast p-1"
+            >
+              <ChevronFirst size={22} />
             </button>
           )}
 
@@ -427,6 +470,17 @@ export function PlayerControls({
               <text x="12" y="15.5" textAnchor="middle" fontSize="7" fontWeight="bold" fill="currentColor">{skipForwardSeconds}</text>
             </svg>
           </button>
+
+          {/* next chapter */}
+          {chapters.length > 0 && currentChapterIndex >= 0 && currentChapterIndex < chapters.length - 1 && (
+            <button
+              onClick={skipToNextChapter}
+              aria-label={t("player.controls.chapters")}
+              className="text-white hover:text-[var(--accent)] transition-colors-fast p-1"
+            >
+              <ChevronLast size={22} />
+            </button>
+          )}
 
           {/* next episode */}
           {episodes && episodes.length > 0 && onEpisodeChange && (() => {
