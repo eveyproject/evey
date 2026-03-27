@@ -146,6 +146,9 @@ func (h *libraryHandler) ListMediaItems(ctx context.Context, req *eveyv1.ListMed
 	if req.ParentId != "" {
 		filter.ParentID = &req.ParentId
 	}
+	if req.PersonId != "" {
+		filter.PersonID = &req.PersonId
+	}
 	if req.LibraryId != "" {
 		if ok, accessErr := h.checkLibraryAccess(ctx, req.LibraryId); !ok {
 			if accessErr != nil {
@@ -193,6 +196,16 @@ func (h *libraryHandler) ListMediaItems(ctx context.Context, req *eveyv1.ListMed
 		}
 	}
 
+	// When filtering by person, include cast info so the frontend can show roles
+	var castMap map[string][]library.CastMember
+	if req.PersonId != "" && len(ids) > 0 {
+		var castErr error
+		castMap, castErr = h.query.GetCastForItems(ctx, ids)
+		if castErr != nil {
+			slog.Warn("batch get cast for person filter", slog.Any("err", castErr))
+		}
+	}
+
 	for _, item := range items {
 		if len(pf.blockedTags) > 0 && ratings.HasBlockedTag(item.Tags, pf.blockedTags) {
 			continue
@@ -200,6 +213,9 @@ func (h *libraryHandler) ListMediaItems(ctx context.Context, req *eveyv1.ListMed
 		pb := mediaItemToProto(item)
 		for _, a := range artworkMap[item.ID] {
 			pb.Artwork = append(pb.Artwork, artworkRecordToProto(a))
+		}
+		for _, cm := range castMap[item.ID] {
+			pb.People = append(pb.People, castMemberToProto(cm))
 		}
 		resp.Items = append(resp.Items, pb)
 	}
@@ -263,6 +279,30 @@ func (h *libraryHandler) SearchMedia(ctx context.Context, req *eveyv1.SearchMedi
 			mi.Year = int32(*hit.Year)
 		}
 		resp.Items = append(resp.Items, mi)
+	}
+	return resp, nil
+}
+
+func (h *libraryHandler) GetPerson(ctx context.Context, req *eveyv1.GetPersonRequest) (*eveyv1.GetPersonResponse, error) {
+	if req.Id == "" {
+		return nil, status.Errorf(codes.InvalidArgument, "id is required")
+	}
+	person, err := h.query.GetPerson(ctx, req.Id)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "get person: %v", err)
+	}
+	if person == nil {
+		return nil, status.Errorf(codes.NotFound, "person not found")
+	}
+	resp := &eveyv1.GetPersonResponse{
+		Id:   person.ID,
+		Name: person.Name,
+	}
+	if person.ThumbPath != nil && *person.ThumbPath != "" {
+		resp.ThumbUrl = *person.ThumbPath
+	}
+	if len(person.ProviderIDs) > 0 {
+		resp.ProviderIds = person.ProviderIDs
 	}
 	return resp, nil
 }

@@ -34,7 +34,7 @@ export const FeedSection = memo(function FeedSection({ title, children, isLoadin
       >
         {title}
       </h2>
-      <div className="overflow-x-auto pb-2" style={{ scrollbarWidth: "thin" }}>
+      <div className="overflow-x-auto pb-2 scrollbar-thin">
         <div className="flex gap-4 w-max">
           {isLoading
             ? Array.from({ length: 5 }).map((_, i) => (

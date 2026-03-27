@@ -11,6 +11,7 @@ type QueryService struct {
 	mediaItems  library.MediaItemQueryRepo
 	streams     library.MediaStreamRepository
 	search      library.SearchIndex
+	people      library.PersonRepository
 }
 
 func NewQueryService(
@@ -25,6 +26,18 @@ func NewQueryService(
 		streams:    streams,
 		search:     search,
 	}
+}
+
+func (s *QueryService) WithPeople(people library.PersonRepository) *QueryService {
+	s.people = people
+	return s
+}
+
+func (s *QueryService) GetPerson(ctx context.Context, id string) (*library.Person, error) {
+	if s.people == nil {
+		return nil, nil
+	}
+	return s.people.GetByID(ctx, id)
 }
 
 func (s *QueryService) GetLibrary(ctx context.Context, id string) (*library.Library, error) {

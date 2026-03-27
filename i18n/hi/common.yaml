@@ -102,6 +102,15 @@ notifications:
   noNotifications: "कोई सूचना नहीं"
   allCaughtUp: "सब देख लिया।"
   justNow: "अभी"
+  minutesAgo: "{{count}}मि॰ पहले"
+  hoursAgo: "{{count}}घं॰ पहले"
+  daysAgo: "{{count}}दि॰ पहले"
+  newMovie: "नई फ़िल्म: {{name}}"
+  newEpisode: "नया एपिसोड: {{name}}"
+  newSeason: "नया सीज़न: {{name}}"
+  newSeries: "नई सीरीज़: {{name}}"
+  newAlbum: "नया एल्बम: {{name}}"
+  backupFailed: "निर्धारित बैकअप विफल"
 watchHistory:
   title: "देखने का इतिहास"
 nav:

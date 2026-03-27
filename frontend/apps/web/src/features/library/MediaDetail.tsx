@@ -102,13 +102,12 @@ export function MediaDetail({ item, onMetadataUpdated, initialEdit }: MediaDetai
       <div className="flex gap-6 mt-6">
         <div className="flex-shrink-0 w-48 hidden md:block">
           <div
-            className="w-48 overflow-hidden"
-            style={{ borderRadius: "var(--radius-md)", aspectRatio: "2/3", backgroundColor: "var(--surface-raised)" }}
+            className="w-48 overflow-hidden rounded-[var(--radius-md)] aspect-[2/3] bg-[var(--surface-raised)]"
           >
             {posterUrl ? (
               <img src={posterUrl} alt={item.title ?? ""} fetchPriority="high" className="w-full h-full object-cover" data-testid="media-poster" onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }} />
             ) : (
-              <div className="w-full h-full flex items-center justify-center text-3xl font-bold" style={{ color: "var(--text-muted)" }}>
+              <div className="w-full h-full flex items-center justify-center text-3xl font-bold text-[var(--text-muted)]">
                 {item.title?.[0]?.toUpperCase() ?? "?"}
               </div>
             )}

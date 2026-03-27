@@ -44,8 +44,7 @@ function CollectionDetailPage() {
                 className="w-full h-full object-cover"
               />
               <div
-                className="absolute inset-0"
-                style={{ background: "linear-gradient(to top, var(--overlay-bg-strong) 0%, transparent 60%)" }}
+                className="absolute inset-0 gradient-collection-fade"
               />
               <div className="absolute bottom-4 left-4 right-4">
                 <h1 className="text-3xl font-bold text-white">{col.name}</h1>

@@ -26,6 +26,7 @@ settings:
   normal: Normal
   uploadSubtitle: "Subir subtítulo…"
   "off": Desactivado
+  brightness: Brillo
 subtitleStyle:
   size: Tamaño
   textColor: Color del texto

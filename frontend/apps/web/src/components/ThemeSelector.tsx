@@ -46,7 +46,7 @@ export function ThemeSelector() {
 
   return (
     <div className="flex flex-col gap-2">
-      <label className="text-sm font-medium" style={{ color: "var(--text-muted)" }}>Theme</label>
+      <label className="text-sm font-medium text-[var(--text-muted)]">Theme</label>
       <div className="flex gap-2 flex-wrap">
         {(Object.keys(themes) as ThemeName[]).map((name) => (
           <button

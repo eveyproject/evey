@@ -26,6 +26,7 @@ settings:
   normal: "सामान्य"
   uploadSubtitle: "उपशीर्षक अपलोड करें…"
   "off": "बंद"
+  brightness: "चमक"
 subtitleStyle:
   size: "आकार"
   textColor: "टेक्स्ट रंग"

@@ -10,6 +10,7 @@ vi.mock("@tanstack/react-router", () => ({
   Link: ({ children, to, ...rest }: { children: React.ReactNode; to: string; [k: string]: unknown }) => (
     <a href={to} {...rest}>{children}</a>
   ),
+  useNavigate: () => vi.fn(),
 }));
 
 vi.mock("@evey/api", () => ({

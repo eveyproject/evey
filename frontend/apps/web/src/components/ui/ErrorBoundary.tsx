@@ -26,8 +26,7 @@ export class ErrorBoundary extends Component<Props, State> {
 
     return (
       <div
-        className="min-h-screen flex flex-col items-center justify-center gap-6 p-8 bg-[var(--bg,#111)] text-[var(--text,#ccc)]"
-        style={{ fontFamily: "var(--font-family, system-ui, -apple-system, sans-serif)" }}
+        className="min-h-screen flex flex-col items-center justify-center gap-6 p-8 bg-[var(--bg,#111)] text-[var(--text,#ccc)] font-[var(--font-family,system-ui,-apple-system,sans-serif)]"
       >
         <div className="w-16 h-16 rounded-full bg-[var(--error-bg-subtle)] flex items-center justify-center">
           <TriangleAlert size={32} stroke="var(--color-danger, #ef4444)" strokeWidth={1.5} />

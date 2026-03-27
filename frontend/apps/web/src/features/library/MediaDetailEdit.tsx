@@ -80,7 +80,7 @@ function ArtworkPicker({ mediaItemId }: { mediaItemId: string }) {
       {posters.length > 1 && (
         <div>
           <p className="text-xs font-medium mb-2 text-[var(--text-muted)]">{t("media.detail.poster")}</p>
-          <div className="flex gap-2 overflow-x-auto pb-1" style={{ scrollbarWidth: "thin" }}>
+          <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-thin">
             {posters.map((a, i) => (
               <button
                 key={a.id}
@@ -103,7 +103,7 @@ function ArtworkPicker({ mediaItemId }: { mediaItemId: string }) {
       {backdrops.length > 1 && (
         <div>
           <p className="text-xs font-medium mb-2 text-[var(--text-muted)]">{t("media.detail.backdrop")}</p>
-          <div className="flex gap-2 overflow-x-auto pb-1" style={{ scrollbarWidth: "thin" }}>
+          <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-thin">
             {backdrops.map((a, i) => (
               <button
                 key={a.id}

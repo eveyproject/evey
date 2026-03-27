@@ -28,6 +28,7 @@ type ListMediaItemsFilter struct {
 	Limit          int
 	Offset         int
 	AllowedRatings []string // parental control: if set, only items with official_rating in this list (or empty rating) are returned
+	PersonID       *string  // filter to items featuring this person
 }
 
 type MediaItemRepository interface {

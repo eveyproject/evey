@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { Link, useRouterState } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { useAuthStore } from "@evey/store";
@@ -33,13 +33,7 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
   const isAdmin = useAuthStore((s) => s.isAdmin);
   const isOnAdmin = pathname === "/admin" || pathname.startsWith("/admin/");
 
-  const [collapsed, setCollapsed] = useState(() => {
-    try {
-      return localStorage.getItem(COLLAPSED_KEY) === "true";
-    } catch {
-      return false;
-    }
-  });
+  const [collapsed, setCollapsed] = useState(true);
 
   const toggleCollapsed = useCallback(() => {
     setCollapsed((prev) => {
@@ -49,7 +43,10 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
     });
   }, []);
 
-  // On mobile overlay, never show collapsed
+  useEffect(() => {
+    if (isOnAdmin) setCollapsed(false);
+  }, [isOnAdmin]);
+
   const isMobile = !!onNavigate;
   const isCollapsed = isMobile ? false : collapsed;
 

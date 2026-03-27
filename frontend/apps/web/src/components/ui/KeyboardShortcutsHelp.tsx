@@ -21,7 +21,7 @@ export function KeyboardShortcutsHelp({ open, onClose }: Props) {
       <div className="flex flex-col gap-2">
         {shortcuts.map(({ key, desc }) => (
           <div key={key} className="flex items-center justify-between py-1.5">
-            <span className="text-sm" style={{ color: "var(--text-muted)" }}>
+            <span className="text-sm text-[var(--text-muted)]">
               {desc}
             </span>
             <kbd className="inline-flex items-center px-2 py-0.5 rounded text-xs font-mono font-medium bg-[var(--surface-raised)] border border-[var(--border)] text-[var(--text)]">
@@ -30,7 +30,7 @@ export function KeyboardShortcutsHelp({ open, onClose }: Props) {
           </div>
         ))}
       </div>
-      <p className="text-xs mt-4" style={{ color: "var(--text-muted)" }}>
+      <p className="text-xs mt-4 text-[var(--text-muted)]">
         Shortcuts are disabled while typing in an input field.
       </p>
     </Modal>

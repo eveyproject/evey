@@ -26,6 +26,7 @@ settings:
   normal: "正常"
   uploadSubtitle: "上传字幕…"
   "off": "关闭"
+  brightness: "亮度"
 subtitleStyle:
   size: "大小"
   textColor: "文字颜色"

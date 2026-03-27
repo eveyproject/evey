@@ -51,8 +51,7 @@ function AuditPage() {
       <PageHeader title={t("admin.audit.title")} />
 
       <div
-        className="flex flex-wrap items-end gap-3 p-4 rounded-[var(--radius-lg)]"
-        style={{ backgroundColor: "var(--surface)", border: "1px solid var(--border)" }}
+        className="flex flex-wrap items-end gap-3 p-4 rounded-[var(--radius-lg)] bg-[var(--surface)] border border-[var(--border)]"
       >
         <Input
           label={t("admin.audit.action")}

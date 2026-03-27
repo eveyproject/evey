@@ -108,7 +108,7 @@ func (s *CommandService) handleMediaItemAdded(parentCtx context.Context, ev shar
 	s.dedupe[dedupeKey] = time.Now()
 	s.mu.Unlock()
 
-	notifType, title := typeAndTitle(e.Type, e.Title, e.SeriesTitle)
+	notifType, title, pushTitle := typeAndTitle(e.Type, e.Title, e.SeriesTitle)
 	if notifType == "" {
 		return
 	}
@@ -203,7 +203,7 @@ func (s *CommandService) handleMediaItemAdded(parentCtx context.Context, ev shar
 				slog.Warn("webpush: get subscriptions failed", slog.String("profileID", n.ProfileID), slog.Any("err", err))
 			} else {
 				for _, sub := range subs {
-					if err := s.push.Send(ctx, sub, n.Title, n.Message, nil); err != nil {
+					if err := s.push.Send(ctx, sub, pushTitle, n.Message, nil); err != nil {
 						slog.Warn("webpush: send failed", slog.String("profileID", n.ProfileID), slog.String("endpoint", sub.Endpoint), slog.Any("err", err))
 					}
 				}

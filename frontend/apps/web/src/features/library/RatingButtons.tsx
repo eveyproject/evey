@@ -15,26 +15,19 @@ export function RatingButtons({ mediaId }: RatingButtonsProps) {
     setRating.mutate(rating === value ? 0 : value);
   };
 
-  const btnStyle = (active: boolean, activeColor: string) => ({
-    padding: "6px",
-    borderRadius: "9999px",
-    backgroundColor: active ? activeColor : "var(--btn-overlay-inactive-bg)",
-    color: active ? "var(--overlay-text)" : "var(--overlay-text-muted)",
-    backdropFilter: "blur(4px)",
-    border: "none",
-    cursor: "pointer",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    transition: "transform 0.15s, background-color 0.15s",
-  });
+  const btnClass = (active: boolean, activeBg: string) =>
+    `p-1.5 rounded-full border-none cursor-pointer flex items-center justify-center backdrop-blur-[4px] transition-[transform,background-color] duration-150 ${
+      active
+        ? `${activeBg} text-[var(--overlay-text)]`
+        : "bg-[var(--btn-overlay-inactive-bg)] text-[var(--overlay-text-muted)]"
+    }`;
 
   return (
-    <div style={{ display: "flex", gap: "6px" }}>
+    <div className="flex gap-1.5">
       <button
         type="button"
         onClick={() => handleClick(1)}
-        style={btnStyle(rating === 1, "var(--color-success)")}
+        className={btnClass(rating === 1, "bg-[var(--color-success)]")}
         title={rating === 1 ? t("media.rating.removeLike") : t("media.rating.like")}
       >
         <ThumbsUp size={20} />
@@ -42,7 +35,7 @@ export function RatingButtons({ mediaId }: RatingButtonsProps) {
       <button
         type="button"
         onClick={() => handleClick(-1)}
-        style={btnStyle(rating === -1, "var(--color-danger)")}
+        className={btnClass(rating === -1, "bg-[var(--color-danger)]")}
         title={rating === -1 ? t("media.rating.removeDislike") : t("media.rating.dislike")}
       >
         <ThumbsDown size={20} />

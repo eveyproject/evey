@@ -356,12 +356,7 @@ export const MediaCard = memo(function MediaCard({
       {showPreview && <HoverPreview item={item} />}
 
       <div
-        className="relative w-full overflow-hidden transition-all duration-200 ease-out group-hover:scale-[1.03] group-focus-within:scale-[1.03]"
-        style={{
-          aspectRatio: "2/3",
-          borderRadius: "var(--radius-md)",
-          boxShadow: "var(--shadow-md)",
-        }}
+        className="relative w-full overflow-hidden transition-all duration-200 ease-out group-hover:scale-[1.03] group-focus-within:scale-[1.03] aspect-[2/3] rounded-[var(--radius-md)] shadow-[var(--shadow-md)]"
       >
         {poster ? (
           <img

@@ -24,22 +24,15 @@ export function BulkActionBar({
 }: BulkActionBarProps) {
   return (
     <div
-      className="fixed bottom-0 left-0 right-0 z-overlay flex items-center gap-2 px-4 py-3 flex-wrap shadow-2xl"
-      style={{
-        backgroundColor: "var(--surface)",
-        borderTop: "1px solid var(--accent)",
-        transform: count > 0 ? "translateY(0)" : "translateY(100%)",
-        transition: "transform 0.25s ease",
-      }}
+      className={`fixed bottom-0 left-0 right-0 z-overlay flex items-center gap-2 px-4 py-3 flex-wrap shadow-2xl bg-[var(--surface)] border-t border-[var(--accent)] transition-transform duration-250 ease-out ${count > 0 ? "translate-y-0" : "translate-y-full"}`}
       aria-live="polite"
     >
       <span
-        className="text-sm font-semibold px-2 py-0.5 rounded-full"
-        style={{ backgroundColor: "var(--accent)", color: "var(--filter-active-text)" }}
+        className="text-sm font-semibold px-2 py-0.5 rounded-full bg-[var(--accent)] text-[var(--filter-active-text)]"
       >
         {count}
       </span>
-      <span className="text-sm mr-1" style={{ color: "var(--text-muted)" }}>selected</span>
+      <span className="text-sm mr-1 text-[var(--text-muted)]">selected</span>
 
       <Button variant="secondary" onClick={onMarkWatched} loading={markWatchedPending} disabled={count === 0}>
         Mark watched
@@ -57,8 +50,7 @@ export function BulkActionBar({
       <button
         type="button"
         onClick={onClear}
-        className="ml-auto flex items-center justify-center w-7 h-7 rounded-full transition-colors-fast hover:bg-[var(--surface-raised)]"
-        style={{ color: "var(--text-muted)" }}
+        className="ml-auto flex items-center justify-center w-7 h-7 rounded-full transition-colors-fast hover:bg-[var(--surface-raised)] text-[var(--text-muted)]"
         aria-label="Clear selection"
       >
         <X size={16} />

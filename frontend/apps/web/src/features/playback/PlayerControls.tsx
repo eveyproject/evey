@@ -53,6 +53,9 @@ interface PlayerControlsProps {
   closePanelRef?: React.MutableRefObject<(() => void) | null>;
   onActionFlash?: (action: "play" | "pause") => void;
   streamToken?: string;
+  brightness?: number;
+  onBrightnessChange?: (value: number) => void;
+  controlsToggleRef?: React.MutableRefObject<(() => void) | null>;
 }
 
 export function PlayerControls({
@@ -93,6 +96,9 @@ export function PlayerControls({
   closePanelRef,
   onActionFlash,
   streamToken,
+  brightness = 1,
+  onBrightnessChange,
+  controlsToggleRef,
 }: PlayerControlsProps) {
   const { t } = useTranslation();
   const [visible, setVisible] = useState(true);
@@ -116,6 +122,7 @@ export function PlayerControls({
     if (closePanelRef) closePanelRef.current = () => setOpenPanel(null);
     return () => { if (closePanelRef) closePanelRef.current = null; };
   }, [closePanelRef]);
+
   const [isPip, setIsPip] = useState(false);
   const hideTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const clickTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -130,6 +137,20 @@ export function PlayerControls({
     if (hideTimer.current) clearTimeout(hideTimer.current);
     hideTimer.current = setTimeout(() => setVisible(false), 3000);
   }, []);
+
+  useEffect(() => {
+    if (controlsToggleRef) controlsToggleRef.current = () => {
+      setVisible((v) => {
+        if (v) {
+          if (hideTimer.current) clearTimeout(hideTimer.current);
+          return false;
+        }
+        scheduleHide();
+        return true;
+      });
+    };
+    return () => { if (controlsToggleRef) controlsToggleRef.current = null; };
+  }, [controlsToggleRef, scheduleHide]);
 
   const resetHideTimer = useCallback(() => {
     setVisible(true);
@@ -269,7 +290,7 @@ export function PlayerControls({
   function toggleFullscreen() {
     const video = videoRef.current;
     if (!video) return;
-    const container = video.parentElement;
+    const container = video.closest("[data-player-container]") as HTMLElement | null;
     if (!container) return;
     if (!document.fullscreenElement) {
       void container.requestFullscreen();
@@ -320,8 +341,8 @@ export function PlayerControls({
     >
       {/* top bar */}
       <div
-        className={`absolute top-0 left-0 right-0 flex items-center gap-3 px-4 py-3 transition-opacity-fast duration-300 ${visible ? "opacity-100" : "opacity-0 pointer-events-none"}`}
-        style={{ background: "linear-gradient(to bottom, var(--overlay-bg-strong), transparent)" }}
+        className={`absolute top-0 left-0 right-0 flex items-center gap-3 py-3 transition-opacity-fast duration-300 ${visible ? "opacity-100" : "opacity-0 pointer-events-none"}`}
+        style={{ background: "linear-gradient(to bottom, var(--overlay-bg-strong), transparent)", paddingLeft: "max(1rem, env(safe-area-inset-left, 1rem))", paddingRight: "max(1rem, env(safe-area-inset-right, 1rem))" }}
         data-controls
       >
         <button
@@ -336,8 +357,8 @@ export function PlayerControls({
 
       {/* bottom controls */}
       <div
-        className={`absolute bottom-0 left-0 right-0 px-4 pb-4 pt-8 flex flex-col gap-2 transition-opacity-fast duration-300 ${visible ? "opacity-100" : "opacity-0 pointer-events-none"}`}
-        style={{ background: "linear-gradient(to top, var(--overlay-bg-strong), transparent)" }}
+        className={`absolute bottom-0 left-0 right-0 pt-8 flex flex-col gap-2 transition-opacity-fast duration-300 ${visible ? "opacity-100" : "opacity-0 pointer-events-none"}`}
+        style={{ background: "linear-gradient(to top, var(--overlay-bg-strong), transparent)", paddingBottom: "max(1rem, env(safe-area-inset-bottom, 1rem))", paddingLeft: "max(1rem, env(safe-area-inset-left, 1rem))", paddingRight: "max(1rem, env(safe-area-inset-right, 1rem))" }}
         data-controls
       >
         {/* seek bar */}
@@ -484,6 +505,8 @@ export function PlayerControls({
             onExternalSubtitle={onExternalSubtitle}
             subtitleStyle={subtitleStyle}
             onSubtitleStyleChange={onSubtitleStyleChange}
+            brightness={brightness}
+            onBrightnessChange={onBrightnessChange}
           />
 
           {/* Picture-in-Picture */}

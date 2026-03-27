@@ -57,7 +57,7 @@ export function Select({
         </select>
         <ChevronDown className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--text-muted)]" size={16} />
       </div>
-      {error && <span className="text-xs" style={{ color: "var(--color-danger)" }}>{error}</span>}
+      {error && <span className="text-xs text-[var(--color-danger)]">{error}</span>}
     </div>
   );
 }

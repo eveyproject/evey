@@ -26,6 +26,7 @@ settings:
   normal: Normal
   uploadSubtitle: "Upload subtitle\u2026"
   "off": "Off"
+  brightness: Brightness
 subtitleStyle:
   size: Size
   textColor: Text Color

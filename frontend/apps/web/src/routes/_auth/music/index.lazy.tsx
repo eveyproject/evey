@@ -164,26 +164,35 @@ function NowPlayingBar({
   useEffect(() => {
     const audio = audioRef.current;
     if (!audio) return;
-    audio.play().then(() => setIsPlaying(true)).catch((e) => {
-      setIsPlaying(false);
-      if (e.name !== "AbortError") console.warn("Autoplay blocked:", e.message);
-    });
+    const tryPlay = async () => {
+      try {
+        await audio.play();
+        setIsPlaying(true);
+      } catch (e: unknown) {
+        setIsPlaying(false);
+        if (e instanceof DOMException && e.name !== "AbortError") console.warn("Autoplay blocked:", e.message);
+      }
+    };
+    tryPlay();
   }, [playing.ID]);
 
   useEffect(() => {
     if (audioRef.current) audioRef.current.volume = volume;
   }, [volume]);
 
-  function togglePlay() {
+  async function togglePlay() {
     const audio = audioRef.current;
     if (!audio) return;
     if (isPlaying) {
       audio.pause();
       setIsPlaying(false);
     } else {
-      audio.play().then(() => setIsPlaying(true)).catch((e) => {
-        if (e.name !== "AbortError") console.warn("Autoplay blocked:", e.message);
-      });
+      try {
+        await audio.play();
+        setIsPlaying(true);
+      } catch (e: unknown) {
+        if (e instanceof DOMException && e.name !== "AbortError") console.warn("Autoplay blocked:", e.message);
+      }
     }
   }
 
@@ -233,7 +242,7 @@ function NowPlayingBar({
           <button
             onClick={playPrev}
             disabled={currentIndex <= 0}
-            style={{ background: "none", border: "none", cursor: currentIndex <= 0 ? "default" : "pointer", opacity: currentIndex <= 0 ? 0.3 : 1, color: "var(--text)" }}
+            className="bg-transparent border-none text-[var(--text)] disabled:opacity-30 disabled:cursor-default cursor-pointer"
             aria-label="Previous"
           >
             <SkipBack size={18} />
@@ -248,7 +257,7 @@ function NowPlayingBar({
           <button
             onClick={playNext}
             disabled={currentIndex >= queue.length - 1}
-            style={{ background: "none", border: "none", cursor: currentIndex >= queue.length - 1 ? "default" : "pointer", opacity: currentIndex >= queue.length - 1 ? 0.3 : 1, color: "var(--text)" }}
+            className="bg-transparent border-none text-[var(--text)] disabled:opacity-30 disabled:cursor-default cursor-pointer"
             aria-label="Next"
           >
             <SkipForward size={18} />
@@ -337,16 +346,12 @@ function MusicPage() {
     deleteTrackMutation.mutate(id);
   }
 
-  const tabStyle = (active: boolean): React.CSSProperties => ({
-    padding: "6px 16px",
-    borderRadius: "var(--radius-sm)",
-    border: "none",
-    cursor: "pointer",
-    fontSize: "0.875rem",
-    fontWeight: active ? 600 : 400,
-    backgroundColor: active ? "var(--accent)" : "transparent",
-    color: active ? "var(--filter-active-text)" : "var(--text-secondary)",
-  });
+  const tabClass = (active: boolean) =>
+    `px-4 py-1.5 rounded-[var(--radius-sm)] border-none cursor-pointer text-sm transition-colors-fast ${
+      active
+        ? "font-semibold bg-[var(--accent)] text-[var(--filter-active-text)]"
+        : "font-normal bg-transparent text-[var(--text-secondary)]"
+    }`;
 
   if (libLoading) {
     return (
@@ -386,7 +391,7 @@ function MusicPage() {
 
       <div className="flex gap-2 mb-6">
         {(["tracks", "albums", "artists"] as Tab[]).map((tabKey) => (
-          <button key={tabKey} style={tabStyle(tab === tabKey)} onClick={() => setTab(tabKey)}>
+          <button key={tabKey} className={tabClass(tab === tabKey)} onClick={() => setTab(tabKey)}>
             {t(`media.music.${tabKey}`)}
           </button>
         ))}
@@ -484,18 +489,13 @@ function TracksTab({
               <tr
                 key={track.ID}
                 onClick={() => onPlay(track)}
-                style={{
-                  cursor: "pointer",
-                  borderBottom: "1px solid var(--border)",
-                  backgroundColor: isActive ? "var(--surface-raised)" : undefined,
-                }}
-                className="hover:bg-[var(--surface-raised)]"
+                className={`cursor-pointer border-b border-[var(--border)] hover:bg-[var(--surface-raised)] ${isActive ? "bg-[var(--surface-raised)]" : ""}`}
               >
                 <td className="px-3 py-2 text-[var(--text-muted)]">{page * TRACKS_PAGE_SIZE + i + 1}</td>
                 <td className="px-1 py-2">
                   <TrackArt trackID={track.ID} size={36} />
                 </td>
-                <td className="px-3 py-2 font-medium" style={{ color: isActive ? "var(--accent)" : "var(--text)" }}>{track.Title || "—"}</td>
+                <td className={`px-3 py-2 font-medium ${isActive ? "text-[var(--accent)]" : "text-[var(--text)]"}`}>{track.Title || "—"}</td>
                 <td className="px-3 py-2 text-[var(--text-secondary)]">{track.Artist || "—"}</td>
                 <td className="px-3 py-2 text-[var(--text-secondary)]">{track.Album || "—"}</td>
                 <td className="px-3 py-2 text-[var(--text-muted)] text-right">
@@ -522,15 +522,7 @@ function TracksTab({
           <button
             onClick={() => setPage((p) => Math.max(0, p - 1))}
             disabled={page === 0}
-            style={{
-              padding: "6px 16px",
-              borderRadius: "var(--radius-sm)",
-              border: "1px solid var(--border)",
-              backgroundColor: "var(--surface-raised)",
-              color: page === 0 ? "var(--text-muted)" : "var(--text)",
-              cursor: page === 0 ? "default" : "pointer",
-              opacity: page === 0 ? 0.5 : 1,
-            }}
+            className="px-4 py-1.5 rounded-[var(--radius-sm)] border border-[var(--border)] bg-[var(--surface-raised)] text-[var(--text)] disabled:text-[var(--text-muted)] disabled:cursor-default disabled:opacity-50 cursor-pointer"
           >
             {t("common.previous")}
           </button>
@@ -540,15 +532,7 @@ function TracksTab({
           <button
             onClick={() => setPage((p) => Math.min(totalPages - 1, p + 1))}
             disabled={page === totalPages - 1}
-            style={{
-              padding: "6px 16px",
-              borderRadius: "var(--radius-sm)",
-              border: "1px solid var(--border)",
-              backgroundColor: "var(--surface-raised)",
-              color: page === totalPages - 1 ? "var(--text-muted)" : "var(--text)",
-              cursor: page === totalPages - 1 ? "default" : "pointer",
-              opacity: page === totalPages - 1 ? 0.5 : 1,
-            }}
+            className="px-4 py-1.5 rounded-[var(--radius-sm)] border border-[var(--border)] bg-[var(--surface-raised)] text-[var(--text)] disabled:text-[var(--text-muted)] disabled:cursor-default disabled:opacity-50 cursor-pointer"
           >
             {t("common.next")}
           </button>

@@ -40,19 +40,23 @@ describe("Sidebar", () => {
     localStorage.clear();
   });
 
-  it("renders main navigation links", () => {
+  it("renders main navigation links (collapsed by default)", () => {
     renderWithQueryClient(<Sidebar />);
-    expect(screen.getByRole("link", { name: /home/i })).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: /libraries/i })).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: /favorites/i })).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: /music/i })).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: /photos/i })).toBeInTheDocument();
+    const links = screen.getAllByRole("link");
+    const hrefs = links.map((l) => l.getAttribute("href"));
+    expect(hrefs).toContain("/home");
+    expect(hrefs).toContain("/library");
+    expect(hrefs).toContain("/favorites");
+    expect(hrefs).toContain("/music");
+    expect(hrefs).toContain("/photos");
   });
 
   it("shows Admin link when user is admin", () => {
     mockIsAdmin = true;
     renderWithQueryClient(<Sidebar />);
-    expect(screen.getByRole("link", { name: /admin/i })).toBeInTheDocument();
+    const links = screen.getAllByRole("link");
+    const hrefs = links.map((l) => l.getAttribute("href"));
+    expect(hrefs).toContain("/admin");
   });
 
   it("does not show Admin link for non-admin", () => {
@@ -61,8 +65,8 @@ describe("Sidebar", () => {
     expect(screen.queryByRole("link", { name: /^admin$/i })).not.toBeInTheDocument();
   });
 
-  it("shows Evey logo link", () => {
-    renderWithQueryClient(<Sidebar />);
+  it("shows Evey logo link when expanded", () => {
+    renderWithQueryClient(<Sidebar onNavigate={vi.fn()} />);
     expect(screen.getByRole("link", { name: "Evey" })).toBeInTheDocument();
   });
 
@@ -84,9 +88,9 @@ describe("Sidebar", () => {
     const user = userEvent.setup();
     renderWithQueryClient(<Sidebar />);
     const nav = screen.getByRole("navigation");
-    expect(nav).toHaveClass("w-56");
-    await user.click(screen.getByRole("button", { name: /collapse sidebar/i }));
     expect(nav).toHaveClass("w-16");
+    await user.click(screen.getByRole("button", { name: /expand sidebar/i }));
+    expect(nav).toHaveClass("w-56");
   });
 
   it("calls onNavigate when a nav link is clicked (mobile)", async () => {

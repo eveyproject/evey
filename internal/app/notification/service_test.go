@@ -565,7 +565,7 @@ func TestNotificationService_SeasonNotification_NoSeriesTitle(t *testing.T) {
 	notifs, err := repo.ListByProfile(ctx, "p1", false, 0, 0)
 	require.NoError(t, err)
 	require.Len(t, notifs, 1)
-	assert.Equal(t, "New Season: Season 2", notifs[0].Title)
+	assert.Equal(t, "new_season:Season 2", notifs[0].Title)
 }
 
 func TestNotificationService_SeriesNotification(t *testing.T) {
@@ -594,7 +594,7 @@ func TestNotificationService_SeriesNotification(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, notifs, 1)
 	assert.Equal(t, notifdom.TypeNewSeries, notifs[0].Type)
-	assert.Equal(t, "New Series: The Wire", notifs[0].Title)
+	assert.Equal(t, "new_series:The Wire", notifs[0].Title)
 }
 
 func TestNotificationService_EpisodeNotification_NoSeriesTitle(t *testing.T) {
@@ -622,7 +622,7 @@ func TestNotificationService_EpisodeNotification_NoSeriesTitle(t *testing.T) {
 	notifs, err := repo.ListByProfile(ctx, "p1", false, 0, 0)
 	require.NoError(t, err)
 	require.Len(t, notifs, 1)
-	assert.Equal(t, "New Episode: Pilot", notifs[0].Title)
+	assert.Equal(t, "new_episode:Pilot", notifs[0].Title)
 }
 
 func TestNotificationService_RelevantLevel_MatchingGenres_CreatesNotification(t *testing.T) {

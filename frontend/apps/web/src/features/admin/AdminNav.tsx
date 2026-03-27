@@ -123,8 +123,7 @@ export function AdminNav({ collapsed = false, onNavigate }: AdminNavProps) {
               <button
                 type="button"
                 onClick={() => toggleSection(section.titleKey)}
-                className="w-full flex items-center justify-between px-2 py-1.5 cursor-pointer rounded-[var(--radius-sm)] transition-colors-fast hover:bg-[var(--surface-raised)]"
-                style={{ color: "var(--text-muted)" }}
+                className="w-full flex items-center justify-between px-2 py-1.5 cursor-pointer rounded-[var(--radius-sm)] transition-colors-fast hover:bg-[var(--surface-raised)] text-[var(--text-muted)]"
               >
                 <span
                   className="text-[11px] font-semibold uppercase tracking-wider select-none"

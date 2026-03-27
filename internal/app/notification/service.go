@@ -15,28 +15,24 @@ type ProfileLister interface {
 	GetAll(ctx context.Context) ([]*user.Profile, error)
 }
 
-func typeAndTitle(mediaType, title, seriesTitle string) (notification.Type, string) {
+func typeAndTitle(mediaType, title, seriesTitle string) (notification.Type, string, string) {
+	label := title
+	if seriesTitle != "" && (mediaType == "episode" || mediaType == "season") {
+		label = seriesTitle + " — " + title
+	}
 	switch mediaType {
 	case "movie":
-		return notification.TypeNewMovie, "New Movie: " + title
+		return notification.TypeNewMovie, "new_movie:" + label, "New Movie: " + label
 	case "episode":
-		label := title
-		if seriesTitle != "" {
-			label = seriesTitle + " — " + title
-		}
-		return notification.TypeNewEpisode, "New Episode: " + label
+		return notification.TypeNewEpisode, "new_episode:" + label, "New Episode: " + label
 	case "season":
-		label := title
-		if seriesTitle != "" {
-			label = seriesTitle + " — " + title
-		}
-		return notification.TypeNewSeason, "New Season: " + label
+		return notification.TypeNewSeason, "new_season:" + label, "New Season: " + label
 	case "series":
-		return notification.TypeNewSeries, "New Series: " + title
+		return notification.TypeNewSeries, "new_series:" + label, "New Series: " + label
 	case "album":
-		return notification.TypeNewAlbum, "New Album: " + title
+		return notification.TypeNewAlbum, "new_album:" + label, "New Album: " + label
 	}
-	return "", ""
+	return "", "", ""
 }
 
 func levelForType(cfg *notification.Settings, t notification.Type) notification.Level {

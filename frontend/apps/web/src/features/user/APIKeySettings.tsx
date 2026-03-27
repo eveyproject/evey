@@ -168,7 +168,7 @@ export function APIKeySettings() {
             <p className="text-xs text-[var(--text-muted)] mb-1 font-medium">{createdKey?.name}</p>
             <p className="font-mono text-sm break-all text-[var(--text)]">{createdKey?.key}</p>
           </div>
-          <div className="rounded-[var(--radius-md)] px-3 py-2 text-xs" style={{ backgroundColor: "var(--badge-warning-bg)", borderColor: "var(--toast-warning-border)", borderWidth: "1px", borderStyle: "solid", color: "var(--badge-warning-text)" }}>
+          <div className="rounded-[var(--radius-md)] px-3 py-2 text-xs bg-[var(--badge-warning-bg)] border border-[var(--toast-warning-border)] text-[var(--badge-warning-text)]">
             {t("auth.apiKeys.saveWarning")}
           </div>
           <div className="flex justify-end gap-2">

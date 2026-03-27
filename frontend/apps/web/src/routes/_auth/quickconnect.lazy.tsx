@@ -55,8 +55,7 @@ function QuickConnectPage() {
         <Card className="w-full max-w-sm p-8 text-center">
           <div className="flex flex-col items-center gap-4">
             <div
-              className="w-12 h-12 rounded-full flex items-center justify-center"
-              style={{ backgroundColor: "var(--color-success)", color: "white" }}
+              className="w-12 h-12 rounded-full flex items-center justify-center bg-[var(--color-success)] text-white"
             >
               ✓
             </div>
@@ -77,8 +76,7 @@ function QuickConnectPage() {
       <Card className="w-full max-w-sm p-8">
         <div className="flex flex-col items-center gap-6">
           <div
-            className="w-12 h-12 rounded-[var(--radius-md)] flex items-center justify-center"
-            style={{ backgroundColor: "var(--accent)" }}
+            className="w-12 h-12 rounded-[var(--radius-md)] flex items-center justify-center bg-[var(--accent)]"
           >
             <QrCode size={24} className="text-[var(--filter-active-text)]" />
           </div>

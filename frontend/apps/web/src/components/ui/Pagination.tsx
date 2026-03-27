@@ -47,8 +47,7 @@ export function Pagination({ page, totalPages, onPageChange }: PaginationProps) 
         p === "ellipsis" ? (
           <span
             key={`e${i}`}
-            className="inline-flex items-center justify-center min-w-[2rem] h-8 text-sm"
-            style={{ color: "var(--text-muted)" }}
+            className="inline-flex items-center justify-center min-w-[2rem] h-8 text-sm text-[var(--text-muted)]"
           >
             ...
           </span>

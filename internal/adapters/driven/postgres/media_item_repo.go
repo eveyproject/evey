@@ -186,6 +186,12 @@ func (r *MediaItemRepository) buildWhereClause(f library.ListMediaItemsFilter) (
 		}
 		conditions = append(conditions, "(official_rating = '' OR official_rating IS NULL OR official_rating = ANY(ARRAY["+strings.Join(placeholders, ",")+"]))")
 	}
+	if f.PersonID != nil {
+		conditions = append(conditions, fmt.Sprintf("media_items.id IN (SELECT media_item_id FROM media_people WHERE person_id = $%d)", argIdx))
+		args = append(args, *f.PersonID)
+		argIdx++
+	}
+	_ = argIdx
 	where := ""
 	if len(conditions) > 0 {
 		where = " WHERE " + strings.Join(conditions, " AND ")

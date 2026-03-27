@@ -14,6 +14,7 @@ import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/Button";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Modal } from "@/components/ui/Modal";
+import { translateNotificationTitle, useRelativeTime } from "@/features/user/notificationUtils";
 
 type Notification = {
   id?: string;
@@ -32,18 +33,6 @@ export const Route = createLazyFileRoute("/_auth/profile/notifications")({
   component: NotificationsPage,
 });
 
-function relativeTime(iso: string | undefined): string {
-  if (!iso) return "";
-  const diff = Date.now() - new Date(iso).getTime();
-  const mins = Math.floor(diff / 60000);
-  if (mins < 1) return "Just now";
-  if (mins < 60) return `${mins}m ago`;
-  const hours = Math.floor(mins / 60);
-  if (hours < 24) return `${hours}h ago`;
-  const days = Math.floor(hours / 24);
-  if (days < 7) return `${days}d ago`;
-  return new Date(iso).toLocaleDateString(undefined, { month: "short", day: "numeric" });
-}
 
 const TYPE_ICON_COLORS: Record<string, string> = {
   library_new: "var(--accent)",
@@ -60,6 +49,7 @@ function NotifIcon({ type }: { type?: string }) {
 
 function NotificationRow({ notif }: { notif: Notification }) {
   const { t } = useTranslation();
+  const relativeTime = useRelativeTime();
   const qc = useQueryClient();
   const invalidate = () => {
     void qc.invalidateQueries({ queryKey: getNotificationServiceListNotificationsQueryKey() });
@@ -80,7 +70,7 @@ function NotificationRow({ notif }: { notif: Notification }) {
       </div>
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2 mb-0.5">
-          <p className="text-sm font-medium text-[var(--text)] truncate">{notif.title}</p>
+          <p className="text-sm font-medium text-[var(--text)] truncate">{translateNotificationTitle(t, notif.title)}</p>
           {!isRead && (
             <span className="w-2 h-2 rounded-full bg-[var(--accent)] shrink-0" />
           )}

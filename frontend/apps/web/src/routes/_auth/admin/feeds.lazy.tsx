@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { createLazyFileRoute } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
-import { useFeedServiceGetAdminFeedConfigs } from "@evey/api";
+import { useFeedServiceGetAdminFeedConfigs, useLibraryServiceListLibraries } from "@evey/api";
 import { toast } from "@evey/store";
 import { eveyFetch } from "@evey/api";
 import { useQueryClient } from "@tanstack/react-query";
@@ -26,8 +26,12 @@ const FEED_LABEL_KEYS: Record<string, string> = {
   collections: "common.feeds.labels.collections",
 };
 
-function feedLabel(t: (k: string) => string, feedType: string): string {
-  if (feedType.startsWith("library:")) return feedType.replace("library:", "Library: ");
+function feedLabel(t: (k: string) => string, feedType: string, libraryNames: Map<string, string>): string {
+  if (feedType.startsWith("library:")) {
+    const libId = feedType.slice("library:".length);
+    const name = libraryNames.get(libId);
+    return name ?? feedType;
+  }
   return FEED_LABEL_KEYS[feedType] ? t(FEED_LABEL_KEYS[feedType]) : feedType;
 }
 
@@ -35,6 +39,10 @@ function AdminFeedsPage() {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
   const { data, isLoading } = useFeedServiceGetAdminFeedConfigs();
+  const { data: librariesData } = useLibraryServiceListLibraries();
+  const libraryNames = new Map(
+    (librariesData?.libraries ?? []).map((l) => [l.id!, l.name ?? l.id!]),
+  );
   const [rows, setRows] = useState<FeedRow[]>([]);
   const [saving, setSaving] = useState(false);
   const [dragIdx, setDragIdx] = useState<number | null>(null);
@@ -145,7 +153,7 @@ function AdminFeedsPage() {
             <GripVertical size={16} className="cursor-grab active:cursor-grabbing text-[var(--text-muted)]" />
 
             <span className="text-sm font-medium select-none" style={{ color: row.enabled ? "var(--text)" : "var(--text-muted)" }}>
-              {feedLabel(t, row.feedType)}
+              {feedLabel(t, row.feedType, libraryNames)}
             </span>
 
             <div className="flex justify-center">

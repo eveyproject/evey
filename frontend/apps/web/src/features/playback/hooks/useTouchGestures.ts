@@ -7,7 +7,22 @@ interface UseTouchGesturesArgs {
   seekRef: React.MutableRefObject<(absoluteTimeSec: number) => void>;
   skipFwdRef: React.MutableRefObject<number>;
   skipBwdRef: React.MutableRefObject<number>;
-  showActionFlash: (action: "play" | "pause") => void;
+  onToggleFullscreen: () => void;
+  onSingleTap: () => void;
+}
+
+const BRIGHTNESS_KEY = "evey-player-brightness";
+const SWIPE_THRESHOLD = 15;
+const MIN_BRIGHTNESS = 0.2;
+const MAX_BRIGHTNESS = 1.5;
+const SENSITIVITY = 0.004; // per pixel of vertical movement
+
+function loadBrightness(): number {
+  try {
+    const v = localStorage.getItem(BRIGHTNESS_KEY);
+    if (v) return Math.max(MIN_BRIGHTNESS, Math.min(MAX_BRIGHTNESS, Number(v)));
+  } catch {}
+  return 1;
 }
 
 export function useTouchGestures({
@@ -17,7 +32,8 @@ export function useTouchGestures({
   seekRef,
   skipFwdRef,
   skipBwdRef,
-  showActionFlash,
+  onToggleFullscreen,
+  onSingleTap,
 }: UseTouchGesturesArgs) {
   const touchStartRef = useRef<{ x: number; y: number; time: number } | null>(null);
   const lastTapRef = useRef<{ x: number; time: number } | null>(null);
@@ -25,65 +41,127 @@ export function useTouchGestures({
   const [seekFlash, setSeekFlash] = useState<"left" | "right" | null>(null);
   const seekFlashTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // Swipe gesture state
+  const swipeActiveRef = useRef<"volume" | "brightness" | null>(null);
+  const swipeStartVolumeRef = useRef(1);
+  const swipeStartBrightnessRef = useRef(1);
+  const [brightness, setBrightness] = useState(loadBrightness);
+  const brightnessRef = useRef(loadBrightness());
+  const [swipeIndicator, setSwipeIndicator] = useState<{ type: "volume" | "brightness"; value: number } | null>(null);
+
   const handleTouchStart = useCallback((e: React.TouchEvent) => {
     const t = e.touches[0];
     touchStartRef.current = { x: t.clientX, y: t.clientY, time: Date.now() };
+    swipeActiveRef.current = null;
+    const video = videoRef.current;
+    swipeStartVolumeRef.current = video?.volume ?? 1;
+    swipeStartBrightnessRef.current = brightnessRef.current;
+  }, []);
+
+  const handleTouchMove = useCallback((e: React.TouchEvent) => {
+    const start = touchStartRef.current;
+    if (!start) return;
+    const t = e.touches[0];
+    const dx = t.clientX - start.x;
+    const dy = start.y - t.clientY; // positive = swipe up
+
+    // Determine swipe direction on first significant movement
+    if (!swipeActiveRef.current) {
+      if (Math.abs(dy) < SWIPE_THRESHOLD) return;
+      if (Math.abs(dx) > Math.abs(dy)) return; // horizontal swipe, ignore
+
+      const el = e.currentTarget as HTMLElement;
+      const rect = el.getBoundingClientRect();
+      const relX = (t.clientX - rect.left) / rect.width;
+
+      if (relX > 0.6) {
+        swipeActiveRef.current = "volume";
+      } else if (relX < 0.4) {
+        swipeActiveRef.current = "brightness";
+      } else {
+        return; // middle zone — no gesture
+      }
+    }
+
+    e.preventDefault();
+
+    if (swipeActiveRef.current === "volume") {
+      const video = videoRef.current;
+      if (!video) return;
+      const newVol = Math.max(0, Math.min(1, swipeStartVolumeRef.current + dy * SENSITIVITY));
+      video.volume = newVol;
+      setSwipeIndicator({ type: "volume", value: newVol });
+    } else if (swipeActiveRef.current === "brightness") {
+      const newBri = Math.max(MIN_BRIGHTNESS, Math.min(MAX_BRIGHTNESS, swipeStartBrightnessRef.current + dy * SENSITIVITY));
+      brightnessRef.current = newBri;
+      setBrightness(newBri);
+      setSwipeIndicator({ type: "brightness", value: newBri });
+    }
   }, []);
 
   const handleTouchEnd = useCallback((e: React.TouchEvent) => {
     const start = touchStartRef.current;
     if (!start) return;
     touchStartRef.current = null;
+
+    // If a swipe gesture was active, finalize and dismiss indicator
+    if (swipeActiveRef.current) {
+      if (swipeActiveRef.current === "brightness") {
+        try { localStorage.setItem(BRIGHTNESS_KEY, String(brightnessRef.current)); } catch {}
+      }
+      swipeActiveRef.current = null;
+      setSwipeIndicator(null);
+      e.preventDefault();
+      return;
+    }
+
     e.preventDefault();
     const t = e.changedTouches[0];
     const dx = t.clientX - start.x;
     const dy = t.clientY - start.y;
-    const dt = Date.now() - start.time;
 
-    const el = e.currentTarget as HTMLElement;
-    const rect = el.getBoundingClientRect();
-    const isRightSide = t.clientX > rect.width * 0.6;
-    if (Math.abs(dy) > 30 && Math.abs(dy) > Math.abs(dx) && dt < 500) {
-      if (isRightSide) {
-        const video = videoRef.current;
-        if (video) {
-          video.volume = Math.max(0, Math.min(1, video.volume + (dy < 0 ? 0.1 : -0.1)));
-        }
-        return;
-      }
-    }
-
+    // Tap detection (small movement)
     const isSmallMove = Math.abs(dx) < 20 && Math.abs(dy) < 20;
+    const dt = Date.now() - start.time;
     if (!isSmallMove || dt > 300) {
       lastTapRef.current = null;
       return;
     }
+
+    const el = e.currentTarget as HTMLElement;
+    const rect = el.getBoundingClientRect();
     const now = Date.now();
     const last = lastTapRef.current;
     if (last && now - last.time < 400) {
+      // Double tap
       if (singleTapTimer.current) { clearTimeout(singleTapTimer.current); singleTapTimer.current = null; }
-      const isLeft = t.clientX < rect.width / 2;
       lastTapRef.current = null;
-      const pos = positionRef.current;
-      const video = videoRef.current;
-      if (!video) return;
-      const dur = knownDurationSecRef.current > 0 ? knownDurationSecRef.current : (video.duration && isFinite(video.duration)) ? video.duration : 0;
-      const target = isLeft
-        ? Math.max(0, pos - skipBwdRef.current)
-        : Math.min(dur || pos + skipFwdRef.current, pos + skipFwdRef.current);
-      seekRef.current(target);
-      setSeekFlash(isLeft ? "left" : "right");
-      if (seekFlashTimerRef.current) clearTimeout(seekFlashTimerRef.current);
-      seekFlashTimerRef.current = setTimeout(() => setSeekFlash(null), 600);
+      const relX = (t.clientX - rect.left) / rect.width;
+      if (relX > 0.35 && relX < 0.65) {
+        // Center zone → fullscreen
+        onToggleFullscreen();
+      } else {
+        // Side zones → seek
+        const isLeft = relX < 0.35;
+        const pos = positionRef.current;
+        const video = videoRef.current;
+        if (!video) return;
+        const dur = knownDurationSecRef.current > 0 ? knownDurationSecRef.current : (video.duration && isFinite(video.duration)) ? video.duration : 0;
+        const target = isLeft
+          ? Math.max(0, pos - skipBwdRef.current)
+          : Math.min(dur || pos + skipFwdRef.current, pos + skipFwdRef.current);
+        seekRef.current(target);
+        setSeekFlash(isLeft ? "left" : "right");
+        if (seekFlashTimerRef.current) clearTimeout(seekFlashTimerRef.current);
+        seekFlashTimerRef.current = setTimeout(() => setSeekFlash(null), 600);
+      }
     } else {
+      // Single tap → toggle controls visibility
       lastTapRef.current = { x: t.clientX, time: now };
       if (singleTapTimer.current) clearTimeout(singleTapTimer.current);
       singleTapTimer.current = setTimeout(() => {
         singleTapTimer.current = null;
-        const video = videoRef.current;
-        if (!video) return;
-        if (video.paused) { video.play().catch(() => {}); showActionFlash("play"); }
-        else { video.pause(); showActionFlash("pause"); }
+        onSingleTap();
       }, 300);
     }
   }, []);
@@ -96,7 +174,13 @@ export function useTouchGestures({
     video.volume = Math.min(1, Math.max(0, video.volume + delta));
   }, []);
 
-  // Cleanup timers on unmount
+  const setBrightnessValue = useCallback((value: number) => {
+    const clamped = Math.max(MIN_BRIGHTNESS, Math.min(MAX_BRIGHTNESS, value));
+    brightnessRef.current = clamped;
+    setBrightness(clamped);
+    try { localStorage.setItem(BRIGHTNESS_KEY, String(clamped)); } catch {}
+  }, []);
+
   const cleanupTimers = useCallback(() => {
     if (seekFlashTimerRef.current) clearTimeout(seekFlashTimerRef.current);
     if (singleTapTimer.current) clearTimeout(singleTapTimer.current);
@@ -104,7 +188,11 @@ export function useTouchGestures({
 
   return {
     seekFlash,
+    brightness,
+    setBrightnessValue,
+    swipeIndicator,
     handleTouchStart,
+    handleTouchMove,
     handleTouchEnd,
     handleWheel,
     cleanupTimers,

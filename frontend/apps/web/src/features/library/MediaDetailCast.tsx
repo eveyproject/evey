@@ -72,7 +72,7 @@ export function CastCarousel({ people, title }: { people: V1MediaPerson[]; title
           </div>
         )}
       </div>
-      <div ref={scrollRef} className="flex gap-4 overflow-x-auto pb-2" style={{ scrollbarWidth: "thin", scrollBehavior: "smooth" }}>
+      <div ref={scrollRef} className="flex gap-4 overflow-x-auto pb-2 scrollbar-thin">
         {people.map((person) => (
           <CastCard key={person.id ?? person.name} person={person} />
         ))}

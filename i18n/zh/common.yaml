@@ -102,6 +102,15 @@ notifications:
   noNotifications: "没有通知"
   allCaughtUp: "已全部查看。"
   justNow: "刚刚"
+  minutesAgo: "{{count}}分钟前"
+  hoursAgo: "{{count}}小时前"
+  daysAgo: "{{count}}天前"
+  newMovie: "新电影：{{name}}"
+  newEpisode: "新剧集：{{name}}"
+  newSeason: "新季：{{name}}"
+  newSeries: "新剧：{{name}}"
+  newAlbum: "新专辑：{{name}}"
+  backupFailed: "计划备份失败"
 watchHistory:
   title: "观看历史"
 nav:

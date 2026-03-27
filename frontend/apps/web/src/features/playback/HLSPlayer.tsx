@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { RotateCcw, RotateCw, Play, Pause, Loader, TriangleAlert } from "lucide-react";
+import { RotateCcw, RotateCw, Play, Pause, Loader, TriangleAlert, Volume2, Sun } from "lucide-react";
 import Hls from "hls.js";
 import type { V1StreamInfo } from "@evey/api";
 import type { AudioStream } from "./AudioTrackSelector";
@@ -87,7 +87,9 @@ export function HLSPlayer({
 }: HLSPlayerProps) {
   const { t } = useTranslation();
   const videoRef = useRef<HTMLVideoElement | null>(null);
+  const containerRef = useRef<HTMLDivElement | null>(null);
   const hlsRef = useRef<InstanceType<typeof Hls> | null>(null);
+  const controlsToggleRef = useRef<(() => void) | null>(null);
   const positionRef = useRef(startPositionMs / 1000);
   const knownDurationSecRef = useRef(knownDurationMs ? knownDurationMs / 1000 : 0);
   knownDurationSecRef.current = knownDurationMs ? knownDurationMs / 1000 : 0;
@@ -213,9 +215,35 @@ export function HLSPlayer({
     videoRef, transcodeOffsetRef, knownDurationSecRef,
   });
 
-  const { seekFlash, handleTouchStart, handleTouchEnd, handleWheel, cleanupTimers } = useTouchGestures({
-    videoRef, positionRef, knownDurationSecRef, seekRef, skipFwdRef, skipBwdRef, showActionFlash,
+  const toggleFullscreen = useCallback(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    if (!document.fullscreenElement) void el.requestFullscreen();
+    else void document.exitFullscreen();
+  }, []);
+
+  const handleSingleTap = useCallback(() => {
+    if (controlsToggleRef.current) controlsToggleRef.current();
+  }, []);
+
+  const { seekFlash, brightness, setBrightnessValue, swipeIndicator, handleTouchStart, handleTouchMove, handleTouchEnd, handleWheel, cleanupTimers } = useTouchGestures({
+    videoRef, positionRef, knownDurationSecRef, seekRef, skipFwdRef, skipBwdRef, onToggleFullscreen: toggleFullscreen, onSingleTap: handleSingleTap,
   });
+
+  // Auto-fullscreen on landscape rotation (touch devices)
+  useEffect(() => {
+    if (!("ontouchstart" in window) || typeof window.matchMedia !== "function") return;
+    const mql = window.matchMedia("(orientation: landscape)");
+    const handler = (e: MediaQueryListEvent) => {
+      const container = containerRef.current;
+      if (!container) return;
+      if (e.matches && !document.fullscreenElement) {
+        void container.requestFullscreen().catch(() => {});
+      }
+    };
+    mql.addEventListener("change", handler);
+    return () => mql.removeEventListener("change", handler);
+  }, []);
 
   // Cleanup timers on unmount
   useEffect(() => {
@@ -293,12 +321,15 @@ export function HLSPlayer({
 
   return (
     <div
-      className="absolute inset-0 bg-black"
+      ref={containerRef}
+      data-player-container
+      className="absolute inset-0 w-full h-full bg-black"
       onTouchStart={handleTouchStart}
+      onTouchMove={handleTouchMove}
       onTouchEnd={handleTouchEnd}
       onWheel={handleWheel}
     >
-      <video ref={(el) => { videoRef.current = el; onVideoRef?.(el); }} className="w-full h-full" playsInline />
+      <video ref={(el) => { videoRef.current = el; onVideoRef?.(el); }} className="w-full h-full" playsInline style={brightness !== 1 ? { filter: `brightness(${brightness})` } : undefined} />
       {seekFlash === "left" && (
         <div className="absolute left-0 top-0 bottom-0 w-1/2 flex items-center justify-center pointer-events-none" style={{ zIndex: 6 }}>
           <div className="rounded-full bg-white/20 w-16 h-16 flex items-center justify-center">
@@ -310,6 +341,23 @@ export function HLSPlayer({
         <div className="absolute right-0 top-0 bottom-0 w-1/2 flex items-center justify-center pointer-events-none" style={{ zIndex: 6 }}>
           <div className="rounded-full bg-white/20 w-16 h-16 flex items-center justify-center">
             <RotateCw size={32} className="text-white" />
+          </div>
+        </div>
+      )}
+      {swipeIndicator && (
+        <div
+          className={`absolute top-0 bottom-0 w-16 flex items-center justify-center pointer-events-none ${swipeIndicator.type === "volume" ? "right-4" : "left-4"}`}
+          style={{ zIndex: 6 }}
+        >
+          <div className="flex flex-col items-center gap-2 rounded-xl bg-black/60 px-3 py-4 backdrop-blur-sm">
+            {swipeIndicator.type === "volume" ? <Volume2 size={20} className="text-white" /> : <Sun size={20} className="text-white" />}
+            <div className="w-1 h-24 rounded-full bg-white/20 relative overflow-hidden">
+              <div
+                className="absolute bottom-0 left-0 right-0 rounded-full bg-white"
+                style={{ height: `${Math.round((swipeIndicator.type === "volume" ? swipeIndicator.value : (swipeIndicator.value - 0.2) / 1.3) * 100)}%` }}
+              />
+            </div>
+            <span className="text-white text-xs font-medium">{Math.round(swipeIndicator.value * 100)}%</span>
           </div>
         </div>
       )}
@@ -428,8 +476,11 @@ export function HLSPlayer({
         }}
         onPanelOpenChange={(anyOpen) => { anyPanelOpenRef.current = anyOpen; }}
         closePanelRef={closePanelRef}
+        controlsToggleRef={controlsToggleRef}
         onActionFlash={showActionFlash}
         streamToken={streamToken}
+        brightness={brightness}
+        onBrightnessChange={setBrightnessValue}
       />
       {showShortcuts && <KeyboardShortcutsOverlay onClose={() => setShowShortcuts(false)} skipForwardSeconds={skipFwd} skipBackwardSeconds={skipBwd} />}
     </div>

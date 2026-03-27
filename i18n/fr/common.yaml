@@ -102,6 +102,15 @@ notifications:
   noNotifications: "Aucune notification"
   allCaughtUp: "Vous êtes à jour."
   justNow: "À l'instant"
+  minutesAgo: "il y a {{count}}min"
+  hoursAgo: "il y a {{count}}h"
+  daysAgo: "il y a {{count}}j"
+  newMovie: "Nouveau film : {{name}}"
+  newEpisode: "Nouvel épisode : {{name}}"
+  newSeason: "Nouvelle saison : {{name}}"
+  newSeries: "Nouvelle série : {{name}}"
+  newAlbum: "Nouvel album : {{name}}"
+  backupFailed: "Échec de la sauvegarde planifiée"
 watchHistory:
   title: "Historique de lecture"
 nav:

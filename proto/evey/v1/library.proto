@@ -56,6 +56,12 @@ service LibraryService {
       get: "/api/v1/media/search"
     };
   }
+
+  rpc GetPerson(GetPersonRequest) returns (GetPersonResponse) {
+    option (google.api.http) = {
+      get: "/api/v1/people/{id}"
+    };
+  }
 }
 
 message Library {
@@ -312,6 +318,7 @@ message ListMediaItemsRequest {
   MediaSortField sort_field = 6;
   SortOrder sort_order = 7;
   PaginationRequest pagination = 8;
+  string person_id = 9;
 }
 
 message ListMediaItemsResponse {
@@ -333,4 +340,15 @@ message SearchMediaRequest {
 message SearchMediaResponse {
   repeated MediaItem items = 1;
   int32 total_hits = 2;
+}
+
+message GetPersonRequest {
+  string id = 1;
+}
+
+message GetPersonResponse {
+  string id = 1;
+  string name = 2;
+  string thumb_url = 3;
+  map<string, string> provider_ids = 4;
 }

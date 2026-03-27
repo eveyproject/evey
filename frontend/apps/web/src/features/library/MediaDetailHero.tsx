@@ -27,8 +27,8 @@ export function MediaDetailHero({
   const { t } = useTranslation();
 
   return (
-    <div className="relative w-full overflow-hidden -mx-4 sm:-mx-6 -mt-4 sm:-mt-6 mb-0" style={{ height: "clamp(260px, 50vw, 420px)" }}>
-      <div className="absolute top-0 left-0 right-0 z-raised px-4 sm:px-6 pt-4 sm:pt-5" style={{ background: `linear-gradient(to bottom, var(--overlay-scrim) 0%, var(--overlay-chip-bg) 60%, transparent 100%)`, textShadow: `0 1px 6px var(--overlay-scrim)` }}>
+    <div className="relative w-full overflow-hidden -mx-4 sm:-mx-6 -mt-4 sm:-mt-6 mb-0 h-[clamp(260px,50vw,420px)]">
+      <div className="absolute top-0 left-0 right-0 z-raised px-4 sm:px-6 pt-4 sm:pt-5 gradient-hero-scrim">
         <BackButton fallback="/library" className="mb-1 !text-white hover:!text-white/80" />
         <Breadcrumbs items={breadcrumbItems} />
       </div>
@@ -37,18 +37,8 @@ export function MediaDetailHero({
       ) : (
         <div className="w-full h-full bg-[var(--surface)]" />
       )}
-      <div
-        className="absolute inset-0"
-        style={{
-          background: "linear-gradient(to top, var(--bg) 0%, var(--bg) 2%, transparent 100%)",
-        }}
-      />
-      <div
-        className="absolute inset-0"
-        style={{
-          background: "linear-gradient(to top, var(--bg) 0%, var(--overlay-bg) 40%, var(--overlay-border-subtle) 70%, transparent 100%)",
-        }}
-      />
+      <div className="absolute inset-0 gradient-hero-fade" />
+      <div className="absolute inset-0 gradient-hero-overlay" />
       <div className="absolute bottom-0 left-0 right-0 px-4 sm:px-6 pb-4 sm:pb-6">
         <div className="flex items-center gap-2 mb-2 flex-wrap">
           {item.officialRating && (

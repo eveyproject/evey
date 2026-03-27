@@ -74,7 +74,7 @@ export function LibraryForm({ onSuccess }: LibraryFormProps) {
       />
 
       <div className="flex flex-col gap-2">
-        <span className="text-sm font-medium" style={{ color: "var(--text-muted)" }}>
+        <span className="text-sm font-medium text-[var(--text-muted)]">
           {t("admin.libraries.paths")}
           {mediaDirs.length === 0 && (
             <span className="ml-2 text-xs font-normal">

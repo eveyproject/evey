@@ -1210,6 +1210,7 @@
   "player.settings.normal": "Normal",
   "player.settings.uploadSubtitle": "Upload subtitle\\u2026",
   "player.settings.off": "Off",
+  "player.settings.brightness": "Brightness",
   "player.subtitleStyle.size": "Size",
   "player.subtitleStyle.textColor": "Text Color",
   "player.subtitleStyle.background": "Background",

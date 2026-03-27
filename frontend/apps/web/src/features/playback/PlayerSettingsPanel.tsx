@@ -92,6 +92,8 @@ export interface SettingsPanelProps {
   onExternalSubtitle?: (blobUrl: string, label: string) => void;
   subtitleStyle?: SubtitleStyle;
   onSubtitleStyleChange?: (patch: Partial<SubtitleStyle>) => void;
+  brightness?: number;
+  onBrightnessChange?: (value: number) => void;
 }
 
 export function SettingsPanel({
@@ -113,6 +115,8 @@ export function SettingsPanel({
   onExternalSubtitle,
   subtitleStyle,
   onSubtitleStyleChange,
+  brightness = 1,
+  onBrightnessChange,
 }: SettingsPanelProps) {
   const { t } = useTranslation();
   const QUALITY_OPTIONS = useQualityOptions();
@@ -256,6 +260,26 @@ export function SettingsPanel({
                     <span>{t("player.settings.subtitleStyle")}</span>
                     <ChevronRightIcon />
                   </button>
+                </>
+              )}
+
+              {onBrightnessChange && (
+                <>
+                  <div className="mx-3 my-1" style={{ borderTop: "1px solid var(--border)" }} />
+                  <div className="px-4 py-2">
+                    <div className="flex items-center justify-between mb-1.5">
+                      <span className="text-xs font-semibold uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>{t("player.settings.brightness")}</span>
+                      <span className="text-xs" style={{ color: "var(--text-muted)" }}>{Math.round(brightness * 100)}%</span>
+                    </div>
+                    <input
+                      type="range"
+                      min="20"
+                      max="150"
+                      value={Math.round(brightness * 100)}
+                      onChange={(e) => onBrightnessChange(Number(e.target.value) / 100)}
+                      className="w-full h-1 rounded-full appearance-none cursor-pointer accent-[var(--accent)] bg-white/20"
+                    />
+                  </div>
                 </>
               )}
             </>

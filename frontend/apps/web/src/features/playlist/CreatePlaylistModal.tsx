@@ -93,7 +93,7 @@ export function CreatePlaylistModal({ open, onClose }: Props) {
         {type === "smart" && (
           <div className="space-y-3">
             <div className="flex items-center justify-between">
-              <span className="text-sm font-medium" style={{ color: "var(--text)" }}>{t("media.playlist.rules")}</span>
+              <span className="text-sm font-medium text-[var(--text)]">{t("media.playlist.rules")}</span>
               <Button type="button" variant="secondary" onClick={addRule}>
                 {t("media.playlist.addRule")}
               </Button>
@@ -121,8 +121,7 @@ export function CreatePlaylistModal({ open, onClose }: Props) {
                 <button
                   type="button"
                   onClick={() => removeRule(i)}
-                  className="p-2 rounded hover:bg-[var(--surface-raised)] transition-colors-fast"
-                  style={{ color: "var(--text-muted)" }}
+                  className="p-2 rounded hover:bg-[var(--surface-raised)] transition-colors-fast text-[var(--text-muted)]"
                 >
                   <X size={16} />
                 </button>

@@ -32,8 +32,7 @@ function PlaylistCard({ playlist, onDelete }: { playlist: Playlist; onDelete: ()
   const { t } = useTranslation();
   return (
     <div
-      className="group p-5 transition-all duration-200"
-      style={{ backgroundColor: "var(--surface)", border: "1px solid var(--border)", borderRadius: "var(--radius-lg)" }}
+      className="group p-5 transition-all duration-200 bg-[var(--surface)] border border-[var(--border)] rounded-[var(--radius-lg)]"
       onMouseEnter={(e) => {
         (e.currentTarget as HTMLElement).style.borderColor = "var(--accent)";
       }}

@@ -200,8 +200,7 @@ export const MediaSlider = memo(function MediaSlider({
           onMouseMove={handleMouseMove}
           onMouseUp={stopDrag}
           onMouseLeave={stopDrag}
-          className="flex gap-4 overflow-x-auto pb-2 -mx-1 px-1 snap-x snap-mandatory cursor-grab"
-          style={{ scrollbarWidth: "none" }}
+          className="flex gap-4 overflow-x-auto pb-2 -mx-1 px-1 snap-x snap-mandatory cursor-grab scrollbar-none"
         >
           {isLoading
             ? Array.from({ length: skeletonCount }).map((_, i) => <SkeletonCard key={i} />)

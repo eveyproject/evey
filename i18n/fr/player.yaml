@@ -26,6 +26,7 @@ settings:
   normal: Normal
   uploadSubtitle: "Téléverser un sous-titre…"
   "off": Désactivé
+  brightness: Luminosité
 subtitleStyle:
   size: Taille
   textColor: Couleur du texte

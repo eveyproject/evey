@@ -13,8 +13,7 @@ export function Checkbox({ label, checked, onChange, disabled, className = "", i
   return (
     <label
       htmlFor={inputId}
-      className={`inline-flex items-center gap-2 cursor-pointer select-none text-sm ${disabled ? "opacity-50 cursor-not-allowed" : ""} ${className}`}
-      style={{ color: "var(--text)" }}
+      className={`inline-flex items-center gap-2 cursor-pointer select-none text-sm text-[var(--text)] ${disabled ? "opacity-50 cursor-not-allowed" : ""} ${className}`}
     >
       <input
         id={inputId}

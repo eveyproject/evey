@@ -151,3 +151,37 @@ button:disabled, [aria-disabled="true"] { cursor: not-allowed; }
 }
 .toast-enter { animation: toast-slide-in 0.3s ease-out; }
 .toast-exit { animation: toast-fade-out 0.3s ease-out forwards; }
+
+/* Player fullscreen container */
+[data-player-container]:fullscreen {
+  width: 100vw !important;
+  height: 100vh !important;
+  position: fixed !important;
+  inset: 0 !important;
+}
+
+/* Hero overlay gradients */
+.gradient-hero-scrim {
+  background: linear-gradient(to bottom, var(--overlay-scrim) 0%, var(--overlay-chip-bg) 60%, transparent 100%);
+  text-shadow: 0 1px 6px var(--overlay-scrim);
+}
+.gradient-hero-fade {
+  background: linear-gradient(to top, var(--bg) 0%, var(--bg) 2%, transparent 100%);
+}
+.gradient-hero-overlay {
+  background: linear-gradient(to top, var(--bg) 0%, var(--overlay-bg) 40%, var(--overlay-border-subtle) 70%, transparent 100%);
+}
+.gradient-collection-fade {
+  background: linear-gradient(to top, var(--overlay-bg-strong) 0%, transparent 60%);
+}
+.gradient-auth-page {
+  background: linear-gradient(135deg, var(--bg) 0%, var(--bg-gradient-mid) 50%, var(--bg) 100%);
+}
+
+@utility scrollbar-none {
+  scrollbar-width: none;
+}
+@utility scrollbar-thin {
+  scrollbar-width: thin;
+  scroll-behavior: smooth;
+}

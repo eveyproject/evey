@@ -18,8 +18,7 @@ export function MediaDetailFileInfo({ item }: { item: V1MediaItem }) {
   return (
     <div className="mt-10">
       <button
-        className="flex items-center gap-2 text-sm font-semibold mb-3"
-        style={{ color: "var(--text-muted)" }}
+        className="flex items-center gap-2 text-sm font-semibold mb-3 text-[var(--text-muted)]"
         onClick={() => setFileInfoOpen((v) => !v)}
       >
         <ChevronRight
@@ -32,7 +31,7 @@ export function MediaDetailFileInfo({ item }: { item: V1MediaItem }) {
       {fileInfoOpen && (
         <div className="space-y-2">
           {item.filePath && (
-            <div className="text-xs font-mono truncate" style={{ color: "var(--text-muted)" }}>{item.filePath}</div>
+            <div className="text-xs font-mono truncate text-[var(--text-muted)]">{item.filePath}</div>
           )}
           <div className="flex gap-4 flex-wrap">
             {item.fileSize && <Badge variant="default">{formatFileSize(item.fileSize)}</Badge>}

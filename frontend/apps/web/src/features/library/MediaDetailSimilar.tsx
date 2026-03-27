@@ -28,8 +28,8 @@ export function SimilarSection({ item }: { item: V1MediaItem }) {
 
   return (
     <div className="mt-10">
-      <h2 className="text-lg font-semibold mb-4" style={{ color: "var(--text)" }}>{t("media.detail.similarTitles")}</h2>
-      <div className="flex gap-4 overflow-x-auto pb-2" style={{ scrollbarWidth: "thin" }}>
+      <h2 className="text-lg font-semibold mb-4 text-[var(--text)]">{t("media.detail.similarTitles")}</h2>
+      <div className="flex gap-4 overflow-x-auto pb-2 scrollbar-thin">
         {cards.map((c) => (
           <MediaCard key={c.id} item={c} lite />
         ))}

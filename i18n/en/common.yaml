@@ -73,6 +73,15 @@ notifications:
   noNotifications: No notifications
   allCaughtUp: "You're all caught up."
   justNow: Just now
+  minutesAgo: "{{count}}m ago"
+  hoursAgo: "{{count}}h ago"
+  daysAgo: "{{count}}d ago"
+  newMovie: "New Movie: {{name}}"
+  newEpisode: "New Episode: {{name}}"
+  newSeason: "New Season: {{name}}"
+  newSeries: "New Series: {{name}}"
+  newAlbum: "New Album: {{name}}"
+  backupFailed: "Scheduled Backup Failed"
 noNotifications: No notifications
 aria:
   closeMenu: Close menu
