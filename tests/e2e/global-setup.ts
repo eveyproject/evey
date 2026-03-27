@@ -39,7 +39,7 @@ export default async function globalSetup() {
     localStorage.setItem("evey-auth", JSON.stringify({
       state: {
         accessToken: data.accessToken,
-        profileId: null,
+        profileId: typeof payload.profile_id === "string" ? payload.profile_id : null,
         isAdmin: payload.is_admin === true,
       },
       version: 0,
