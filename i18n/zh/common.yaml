@@ -144,6 +144,7 @@ feeds:
   resetDefaults: "恢复默认"
   labels:
     resume_playback: "继续播放"
+    next_up: "接下来"
     next_episode: "下一集"
     recommended: "推荐"
     most_popular: "最受欢迎"

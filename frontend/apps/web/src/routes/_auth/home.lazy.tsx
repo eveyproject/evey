@@ -22,6 +22,7 @@ import { CollectionCard } from "../../features/collection/CollectionCard";
 import { useMostPopular } from "@/hooks/usePopular";
 import { PluginSlot } from "@/features/plugins/PluginSlot";
 import { CustomizePanel } from "@/features/home/CustomizePanel";
+import { NextUpRow } from "@/features/home/NextUpRow";
 
 export const Route = createLazyFileRoute("/_auth/home")({
   component: HomePage,
@@ -317,13 +318,14 @@ const CollectionsSection = memo(function CollectionsSection() {
 
 const SECTION_REGISTRY: Record<string, FC> = {
   resume_playback: ResumePlaybackSlider,
+  next_up: NextUpRow,
   collections: CollectionsSection,
   recommended: RecommendedSlider,
   most_popular: MostPopularSlider,
 };
 
 const FALLBACK_ORDER = [
-  "resume_playback", "collections",
+  "resume_playback", "next_up", "collections",
   "recommended", "most_popular",
 ];
 

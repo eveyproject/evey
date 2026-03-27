@@ -144,6 +144,7 @@ feeds:
   resetDefaults: "डिफ़ॉल्ट रीसेट करें"
   labels:
     resume_playback: "प्लेबैक फिर से शुरू करें"
+    next_up: "आगे देखें"
     next_episode: "अगला एपिसोड"
     recommended: "अनुशंसित"
     most_popular: "सबसे लोकप्रिय"

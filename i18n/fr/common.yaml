@@ -144,6 +144,7 @@ feeds:
   resetDefaults: "Réinitialiser"
   labels:
     resume_playback: "Reprendre la lecture"
+    next_up: "À suivre"
     next_episode: "Épisode suivant"
     recommended: "Recommandés"
     most_popular: "Les plus populaires"

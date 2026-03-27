@@ -144,6 +144,7 @@ feeds:
   resetDefaults: Reset to Defaults
   labels:
     resume_playback: Resume Playback
+    next_up: Up Next
     next_episode: Next Episode
     recommended: Recommended
     most_popular: Most Popular
