@@ -11,7 +11,7 @@ test.describe("Home > Search deep", () => {
   test("type query → dropdown appears with results", async ({ page }) => {
     await goto(page, "/home");
     const input = page.locator(SEARCH_INPUT).first();
-    test.skip(!(await input.isVisible({ timeout: 2_000 }).catch(() => false)), "No search input");
+    test.skip(!(await input.waitFor({ state: "visible", timeout: 5_000 }).then(() => true).catch(() => false)), "No search input");
 
     await input.click();
     await input.pressSequentially("the", { delay: 50 });
@@ -24,7 +24,7 @@ test.describe("Home > Search deep", () => {
   test("each result has title text", async ({ page }) => {
     await goto(page, "/home");
     const input = page.locator(SEARCH_INPUT).first();
-    test.skip(!(await input.isVisible({ timeout: 2_000 }).catch(() => false)), "No search input");
+    test.skip(!(await input.waitFor({ state: "visible", timeout: 5_000 }).then(() => true).catch(() => false)), "No search input");
 
     await input.click();
     await input.pressSequentially("the", { delay: 50 });
@@ -42,7 +42,7 @@ test.describe("Home > Search deep", () => {
   test("click result → navigates to /media/{id}", async ({ page }) => {
     await goto(page, "/home");
     const input = page.locator(SEARCH_INPUT).first();
-    test.skip(!(await input.isVisible({ timeout: 2_000 }).catch(() => false)), "No search input");
+    test.skip(!(await input.waitFor({ state: "visible", timeout: 5_000 }).then(() => true).catch(() => false)), "No search input");
 
     await input.click();
     await input.pressSequentially("the", { delay: 50 });
@@ -58,7 +58,7 @@ test.describe("Home > Search deep", () => {
   test("keyboard: ArrowDown → Enter → navigates", async ({ page }) => {
     await goto(page, "/home");
     const input = page.locator(SEARCH_INPUT).first();
-    test.skip(!(await input.isVisible({ timeout: 2_000 }).catch(() => false)), "No search input");
+    test.skip(!(await input.waitFor({ state: "visible", timeout: 5_000 }).then(() => true).catch(() => false)), "No search input");
 
     await input.click();
     await input.pressSequentially("the", { delay: 50 });
@@ -76,7 +76,7 @@ test.describe("Home > Search deep", () => {
   test("Escape closes dropdown", async ({ page }) => {
     await goto(page, "/home");
     const input = page.locator(SEARCH_INPUT).first();
-    test.skip(!(await input.isVisible({ timeout: 2_000 }).catch(() => false)), "No search input");
+    test.skip(!(await input.waitFor({ state: "visible", timeout: 5_000 }).then(() => true).catch(() => false)), "No search input");
 
     await input.click();
     await input.pressSequentially("the", { delay: 50 });
@@ -93,7 +93,7 @@ test.describe("Home > Search deep", () => {
   test("clear input → dropdown closes", async ({ page }) => {
     await goto(page, "/home");
     const input = page.locator(SEARCH_INPUT).first();
-    test.skip(!(await input.isVisible({ timeout: 2_000 }).catch(() => false)), "No search input");
+    test.skip(!(await input.waitFor({ state: "visible", timeout: 5_000 }).then(() => true).catch(() => false)), "No search input");
 
     await input.click();
     await input.pressSequentially("the", { delay: 50 });
@@ -130,7 +130,7 @@ test.describe("Home > Search deep", () => {
   test("search with no results → empty dropdown message", async ({ page }) => {
     await goto(page, "/home");
     const input = page.locator(SEARCH_INPUT).first();
-    test.skip(!(await input.isVisible({ timeout: 2_000 }).catch(() => false)), "No search input");
+    test.skip(!(await input.waitFor({ state: "visible", timeout: 5_000 }).then(() => true).catch(() => false)), "No search input");
 
     await input.click();
     await input.pressSequentially("zzzqqq123", { delay: 30 });
@@ -152,7 +152,7 @@ test.describe("Home > Search deep", () => {
   test("empty query shows recent searches if any", async ({ page }) => {
     await goto(page, "/home");
     const input = page.locator(SEARCH_INPUT).first();
-    test.skip(!(await input.isVisible({ timeout: 2_000 }).catch(() => false)), "No search input");
+    test.skip(!(await input.waitFor({ state: "visible", timeout: 5_000 }).then(() => true).catch(() => false)), "No search input");
 
     // first do a search to create a recent entry
     await input.click();

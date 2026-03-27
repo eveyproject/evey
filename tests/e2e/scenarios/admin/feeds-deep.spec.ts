@@ -16,7 +16,9 @@ test.describe("Admin > Feeds deep", () => {
 
   test("toggle feed off → save → home verifies fewer sections", async ({ page }) => {
     await goto(page, "/home");
-    await page.waitForTimeout(2_000);
+    // wait for feed headings to render (they load from API)
+    await page.locator("h2, h3").first().waitFor({ state: "visible", timeout: 10_000 }).catch(() => {});
+    await page.waitForTimeout(1_000);
     const beforeCount = await page.locator("h2, h3").count();
     test.skip(beforeCount === 0, "No feed sections on home");
 
