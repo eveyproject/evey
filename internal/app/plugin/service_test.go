@@ -65,3 +65,46 @@ func TestUpdatePluginConfig_NotFound(t *testing.T) {
 	err := svc.UpdatePluginConfig(context.Background(), "plg-nope", map[string]any{})
 	assert.ErrorIs(t, err, appplugin.ErrPluginNotFound)
 }
+
+// ─── ListPlugins ────────────────────────────────────────────────────────────
+
+func TestListPlugins(t *testing.T) {
+	svc, pluginRepo := newTestQueryService()
+	ctx := context.Background()
+	require.NoError(t, pluginRepo.Create(ctx, &plugindomain.Plugin{ID: "plg-a", Name: "alpha"}))
+	require.NoError(t, pluginRepo.Create(ctx, &plugindomain.Plugin{ID: "plg-b", Name: "beta"}))
+
+	list, err := svc.ListPlugins(ctx)
+	require.NoError(t, err)
+	assert.Len(t, list, 2)
+}
+
+func TestListPlugins_Empty(t *testing.T) {
+	svc, _ := newTestQueryService()
+	list, err := svc.ListPlugins(context.Background())
+	require.NoError(t, err)
+	assert.Empty(t, list)
+}
+
+// ─── ListRuntimes ───────────────────────────────────────────────────────────
+
+func TestListRuntimes(t *testing.T) {
+	pluginRepo := plgfakes.NewFakePluginRepository()
+	runtimeRepo := plgfakes.NewFakePluginRuntimeRepository()
+	svc := appplugin.NewQueryService(pluginRepo, runtimeRepo)
+	ctx := context.Background()
+
+	require.NoError(t, runtimeRepo.Create(ctx, &plugindomain.PluginRuntime{ID: "rt-1", Language: "go", Version: "1.22"}))
+	require.NoError(t, runtimeRepo.Create(ctx, &plugindomain.PluginRuntime{ID: "rt-2", Language: "nodejs", Version: "20"}))
+
+	list, err := svc.ListRuntimes(ctx)
+	require.NoError(t, err)
+	assert.Len(t, list, 2)
+}
+
+func TestListRuntimes_Empty(t *testing.T) {
+	svc, _ := newTestQueryService()
+	list, err := svc.ListRuntimes(context.Background())
+	require.NoError(t, err)
+	assert.Empty(t, list)
+}

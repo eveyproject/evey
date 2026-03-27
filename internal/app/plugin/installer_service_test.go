@@ -254,6 +254,43 @@ func TestUninstallPlugin_RemovesDir(t *testing.T) {
 	assert.Error(t, err, "plugin should be deleted from repo")
 }
 
+func TestUninstallPlugin_StoppedNoDir(t *testing.T) {
+	svc, pluginRepo, _, _, _, _ := newTestInstallerService()
+	ctx := context.Background()
+	require.NoError(t, pluginRepo.Create(ctx, &plugindomain.Plugin{
+		ID: "plg-nodir", Name: "no-dir", Language: "go",
+		Status: string(plugindomain.Stopped), Enabled: true,
+		InstallDir: "",
+	}))
+
+	err := svc.UninstallPlugin(ctx, "plg-nodir")
+	require.NoError(t, err)
+
+	_, err = pluginRepo.GetByID(ctx, "plg-nodir")
+	assert.Error(t, err)
+}
+
+func TestUninstallPlugin_DeleteFails(t *testing.T) {
+	pluginRepo := plgfakes.NewFakePluginRepository()
+	runner := plgfakes.NewFakePluginRunner()
+	parser := plgfakes.NewFakeManifestParser()
+	bus := sharedfakes.NewFakeEventBus()
+	pluginFS := plgfakes.NewFakePluginFileSystem()
+	svc := appplugin.NewInstallerService(pluginRepo, runner, parser, bus).
+		WithPluginDir("/tmp/test-plugins").
+		WithFileSystem(pluginFS)
+
+	ctx := context.Background()
+	require.NoError(t, pluginRepo.Create(ctx, &plugindomain.Plugin{
+		ID: "plg-delfail", Name: "del-fail", Language: "go",
+		Status: string(plugindomain.Stopped), Enabled: true,
+	}))
+	pluginRepo.Err = errors.New("db error")
+
+	err := svc.UninstallPlugin(ctx, "plg-delfail")
+	require.Error(t, err)
+}
+
 // ─── Preview ────────────────────────────────────────────────────────────────
 
 func TestPreviewPlugin(t *testing.T) {

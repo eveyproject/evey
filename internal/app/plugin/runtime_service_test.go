@@ -134,7 +134,35 @@ func TestStopPlugin_InvalidatesPermissions(t *testing.T) {
 	assert.Error(t, pc.CheckPermission("plg-inv", "api.library"))
 }
 
+func TestStartPlugin_EmptyInstallDir_Rebuilt(t *testing.T) {
+	svc, pluginRepo, _, _ := newTestRuntimeService()
+	ctx := context.Background()
+	require.NoError(t, pluginRepo.Create(ctx, &plugindomain.Plugin{
+		ID: "plg-nodir", Name: "no-dir", Language: "go",
+		Status: string(plugindomain.Stopped), Enabled: true,
+		InstallDir: "",
+	}))
+
+	err := svc.StartPlugin(ctx, "plg-nodir")
+	require.NoError(t, err)
+
+	p, _ := pluginRepo.GetByID(ctx, "plg-nodir")
+	assert.Equal(t, "/tmp/test-plugins/plg-nodir", p.InstallDir)
+}
+
 // ─── Enable / Disable ───────────────────────────────────────────────────────
+
+func TestEnablePlugin_NotFound(t *testing.T) {
+	svc, _, _, _ := newTestRuntimeService()
+	err := svc.EnablePlugin(context.Background(), "plg-nope")
+	assert.ErrorIs(t, err, appplugin.ErrPluginNotFound)
+}
+
+func TestDisablePlugin_NotFound(t *testing.T) {
+	svc, _, _, _ := newTestRuntimeService()
+	err := svc.DisablePlugin(context.Background(), "plg-nope")
+	assert.ErrorIs(t, err, appplugin.ErrPluginNotFound)
+}
 
 func TestEnablePlugin(t *testing.T) {
 	svc, pluginRepo, _, _ := newTestRuntimeService()
@@ -288,6 +316,50 @@ func TestAutoStartPlugins_RebuildsMissingFields(t *testing.T) {
 	assert.Equal(t, "./rebuilt-entry", p.Entrypoint)
 }
 
+func TestAutoStartPlugins_StartFails_SetsErrorStatus(t *testing.T) {
+	pluginRepo := plgfakes.NewFakePluginRepository()
+	runner := plgfakes.NewFakePluginRunner()
+	parser := plgfakes.NewFakeManifestParser()
+	bus := sharedfakes.NewFakeEventBus()
+	svc := appplugin.NewRuntimeService(pluginRepo, plgfakes.NewFakePluginRuntimeRepository(), runner, parser, bus).
+		WithPluginDir("/tmp/test-plugins")
+
+	ctx := context.Background()
+	require.NoError(t, pluginRepo.Create(ctx, &plugindomain.Plugin{
+		ID: "plg-as-fail", Name: "auto-fail", Language: "go",
+		Status: string(plugindomain.Running), Enabled: true,
+		InstallDir: "/tmp/test-plugins/plg-as-fail",
+	}))
+	runner.Err = errors.New("runner down")
+
+	svc.AutoStartPlugins(ctx)
+
+	p, err := pluginRepo.GetByID(ctx, "plg-as-fail")
+	require.NoError(t, err)
+	assert.Equal(t, string(plugindomain.Error), p.Status)
+	assert.Equal(t, "runner down", p.ErrorMessage)
+}
+
+func TestAutoStartPlugins_InitializingStatus(t *testing.T) {
+	pluginRepo := plgfakes.NewFakePluginRepository()
+	runner := plgfakes.NewFakePluginRunner()
+	parser := plgfakes.NewFakeManifestParser()
+	bus := sharedfakes.NewFakeEventBus()
+	svc := appplugin.NewRuntimeService(pluginRepo, plgfakes.NewFakePluginRuntimeRepository(), runner, parser, bus)
+
+	ctx := context.Background()
+	require.NoError(t, pluginRepo.Create(ctx, &plugindomain.Plugin{
+		ID: "plg-init", Name: "init-plugin", Language: "go",
+		Status: string(plugindomain.Initializing), Enabled: true,
+		InstallDir: "/tmp/test-plugins/plg-init",
+	}))
+
+	svc.AutoStartPlugins(ctx)
+
+	healthy, _ := runner.Health(ctx, "plg-init")
+	assert.True(t, healthy, "initializing+enabled plugin should be started")
+}
+
 func TestAutoStartPlugins_LoadsPermissions(t *testing.T) {
 	pluginRepo := plgfakes.NewFakePluginRepository()
 	runner := plgfakes.NewFakePluginRunner()
@@ -308,4 +380,85 @@ func TestAutoStartPlugins_LoadsPermissions(t *testing.T) {
 	svc.AutoStartPlugins(ctx)
 
 	assert.NoError(t, pc.CheckPermission("plg-apl", "api.library"))
+}
+
+// ─── HandleIPCResult ────────────────────────────────────────────────────────
+
+func TestHandleIPCResult_Success(t *testing.T) {
+	svc, pluginRepo, _, _ := newTestRuntimeService()
+	ctx := context.Background()
+	require.NoError(t, pluginRepo.Create(ctx, &plugindomain.Plugin{
+		ID: "plg-ipc", Name: "ipc-ok", Status: string(plugindomain.Initializing),
+	}))
+
+	svc.HandleIPCResult("plg-ipc", nil)
+
+	p, err := pluginRepo.GetByID(ctx, "plg-ipc")
+	require.NoError(t, err)
+	assert.Equal(t, "running", p.Status)
+	assert.Empty(t, p.ErrorMessage)
+}
+
+func TestHandleIPCResult_Error(t *testing.T) {
+	svc, pluginRepo, _, _ := newTestRuntimeService()
+	ctx := context.Background()
+	require.NoError(t, pluginRepo.Create(ctx, &plugindomain.Plugin{
+		ID: "plg-ipc-err", Name: "ipc-fail", Status: string(plugindomain.Initializing),
+	}))
+
+	svc.HandleIPCResult("plg-ipc-err", errors.New("ipc timeout"))
+
+	p, err := pluginRepo.GetByID(ctx, "plg-ipc-err")
+	require.NoError(t, err)
+	assert.Equal(t, "error", p.Status)
+	assert.Equal(t, "ipc timeout", p.ErrorMessage)
+}
+
+func TestHandleIPCResult_NotFound(t *testing.T) {
+	svc, _, _, _ := newTestRuntimeService()
+	svc.HandleIPCResult("plg-ghost", nil) // should not panic
+}
+
+// ─── AddRuntime / RemoveRuntime ─────────────────────────────────────────────
+
+func TestAddRuntime(t *testing.T) {
+	pluginRepo := plgfakes.NewFakePluginRepository()
+	runtimeRepo := plgfakes.NewFakePluginRuntimeRepository()
+	runner := plgfakes.NewFakePluginRunner()
+	parser := plgfakes.NewFakeManifestParser()
+	bus := sharedfakes.NewFakeEventBus()
+	svc := appplugin.NewRuntimeService(pluginRepo, runtimeRepo, runner, parser, bus)
+
+	ctx := context.Background()
+	rt := &plugindomain.PluginRuntime{ID: "rt-1", Language: "go", Version: "1.22"}
+	require.NoError(t, svc.AddRuntime(ctx, rt))
+
+	list, err := runtimeRepo.List(ctx)
+	require.NoError(t, err)
+	assert.Len(t, list, 1)
+	assert.Equal(t, "rt-1", list[0].ID)
+}
+
+func TestRemoveRuntime(t *testing.T) {
+	pluginRepo := plgfakes.NewFakePluginRepository()
+	runtimeRepo := plgfakes.NewFakePluginRuntimeRepository()
+	runner := plgfakes.NewFakePluginRunner()
+	parser := plgfakes.NewFakeManifestParser()
+	bus := sharedfakes.NewFakeEventBus()
+	svc := appplugin.NewRuntimeService(pluginRepo, runtimeRepo, runner, parser, bus)
+
+	ctx := context.Background()
+	require.NoError(t, runtimeRepo.Create(ctx, &plugindomain.PluginRuntime{ID: "rt-del", Language: "nodejs", Version: "20"}))
+
+	require.NoError(t, svc.RemoveRuntime(ctx, "rt-del"))
+
+	list, err := runtimeRepo.List(ctx)
+	require.NoError(t, err)
+	assert.Empty(t, list)
+}
+
+func TestRemoveRuntime_NotFound(t *testing.T) {
+	svc, _, _, _ := newTestRuntimeService()
+	err := svc.RemoveRuntime(context.Background(), "rt-ghost")
+	assert.Error(t, err)
 }
