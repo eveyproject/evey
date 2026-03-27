@@ -43,8 +43,8 @@ func (s *CommandService) DeleteRating(ctx context.Context, mediaItemID, profileI
 	if err := s.repo.Delete(ctx, mediaItemID, profileID); err != nil {
 		return err
 	}
-	if pubErr := s.bus.Publish(ctx, rating.RatingDeleted{MediaID: mediaItemID, UserID: profileID, OccurredAt: time.Now()}); pubErr != nil {
-		slog.Warn("rating: RatingDeleted publish failed", slog.String("mediaID", mediaItemID), slog.Any("err", pubErr))
+	if pubErr := s.bus.Publish(ctx, rating.RatingRemoved{MediaID: mediaItemID, UserID: profileID, OccurredAt: time.Now()}); pubErr != nil {
+		slog.Warn("rating: RatingRemoved publish failed", slog.String("mediaID", mediaItemID), slog.Any("err", pubErr))
 	}
 	return nil
 }

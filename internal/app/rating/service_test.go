@@ -155,7 +155,7 @@ func TestDeleteRating_PublishesEvent(t *testing.T) {
 	if len(events) != 1 {
 		t.Fatalf("expected 1 event after delete, got %d", len(events))
 	}
-	if events[0].EventName() != "rating.deleted" {
+	if events[0].EventName() != "rating.removed" {
 		t.Errorf("unexpected event name %q", events[0].EventName())
 	}
 }
