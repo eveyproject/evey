@@ -144,6 +144,7 @@ person:
   producer: निर्माता
   composer: संगीतकार
   guestStar: अतिथि कलाकार
+  yearsOld: वर्ष
 detail:
   notFound: मीडिया आइटम नहीं मिला।
   play: चलाएं

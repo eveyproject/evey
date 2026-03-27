@@ -144,6 +144,7 @@ person:
   producer: Producer
   composer: Composer
   guestStar: Guest Star
+  yearsOld: years old
 detail:
   notFound: Media item not found.
   play: Play

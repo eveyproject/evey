@@ -144,6 +144,7 @@ person:
   producer: 制片人
   composer: 作曲
   guestStar: 特邀嘉宾
+  yearsOld: 岁
 detail:
   notFound: 未找到媒体项。
   play: 播放

@@ -144,6 +144,7 @@ person:
   producer: Producteur
   composer: Compositeur
   guestStar: Guest star
+  yearsOld: ans
 detail:
   notFound: Élément multimédia introuvable.
   play: Lecture
