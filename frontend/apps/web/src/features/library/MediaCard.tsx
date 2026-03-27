@@ -250,8 +250,14 @@ export const MediaCard = memo(function MediaCard({
   const [showPreview, setShowPreview] = useState(false);
   const accessToken = useAuthStore((s) => s.accessToken);
   const profileId = useAuthStore((s) => s.profileId);
-  const markWatched = usePlaybackServiceMarkAsWatched();
-  const markUnwatched = usePlaybackServiceMarkAsUnwatched();
+  const qc = useQueryClient();
+  const invalidateItem = useCallback(() => {
+    if (item.id) void qc.invalidateQueries({ queryKey: [`/api/v1/media/${item.id}`] });
+    void qc.invalidateQueries({ queryKey: ["/api/v1/feeds/resume-playback"] });
+    void qc.invalidateQueries({ queryKey: ["/api/v1/playback"] });
+  }, [item.id, qc]);
+  const markWatched = usePlaybackServiceMarkAsWatched({ mutation: { onSuccess: invalidateItem } });
+  const markUnwatched = usePlaybackServiceMarkAsUnwatched({ mutation: { onSuccess: invalidateItem } });
 
   const poster = useMemo(() => {
     const artworkPosterUrl = item.artwork?.find((a) => a.type === "ARTWORK_TYPE_PRIMARY")?.url ?? null;
