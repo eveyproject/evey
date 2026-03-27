@@ -25,9 +25,9 @@ const ENTRY_POINTS = [
 ];
 
 for (let i = 0; i < RUNS; i++) {
-  const entry = ENTRY_POINTS[Math.floor(Math.random() * ENTRY_POINTS.length)];
+  const entry = ENTRY_POINTS[i % ENTRY_POINTS.length];
 
-  test(`monkey #${i + 1} — start:${entry} (${STEPS_PER_RUN} steps)`, async ({ page }) => {
+  test(`monkey #${i + 1} — start:${entry}`, async ({ page }) => {
     const result = await runMonkey(page, entry, STEPS_PER_RUN);
 
     // Log steps for debugging on failure
