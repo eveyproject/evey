@@ -5,19 +5,24 @@ import {
   useFeedServiceGetFeedConfig,
   useFeedServiceUpdateProfileFeedConfig,
   useFeedServiceResetProfileFeedConfig,
+  useLibraryServiceListLibraries,
 } from "@evey/api";
 import { useAuthStore } from "@evey/store";
 import { X, GripVertical, RotateCcw } from "lucide-react";
 
 const FEED_LABEL_KEYS: Record<string, string> = {
   resume_playback: "common.feeds.labels.resume_playback",
+  next_up: "common.feeds.labels.next_up",
   recommended: "common.feeds.labels.recommended",
   most_popular: "common.feeds.labels.most_popular",
   collections: "common.feeds.labels.collections",
 };
 
-function feedLabel(t: (k: string) => string, feedType: string): string {
-  if (feedType.startsWith("library:")) return feedType.replace("library:", "Library: ");
+function feedLabel(t: (k: string) => string, feedType: string, libraryNames: Map<string, string>): string {
+  if (feedType.startsWith("library:")) {
+    const libId = feedType.slice("library:".length);
+    return libraryNames.get(libId) ?? feedType;
+  }
   return FEED_LABEL_KEYS[feedType] ? t(FEED_LABEL_KEYS[feedType]) : feedType;
 }
 
@@ -33,6 +38,10 @@ export function CustomizePanel({ open, onClose }: { open: boolean; onClose: () =
   const queryClient = useQueryClient();
   const panelRef = useRef<HTMLDivElement>(null);
   const { data } = useFeedServiceGetFeedConfig({ profileId: profileId ?? undefined });
+  const { data: librariesData } = useLibraryServiceListLibraries();
+  const libraryNames = new Map(
+    (librariesData?.libraries ?? []).map((l) => [l.id!, l.name ?? l.id!]),
+  );
   const updateMutation = useFeedServiceUpdateProfileFeedConfig();
   const resetMutation = useFeedServiceResetProfileFeedConfig();
 
@@ -159,10 +168,12 @@ export function CustomizePanel({ open, onClose }: { open: boolean; onClose: () =
                 className="flex-1 text-sm select-none"
                 style={{ color: row.enabled ? "var(--text)" : "var(--text-muted)" }}
               >
-                {feedLabel(t, row.feedType)}
+                {feedLabel(t, row.feedType, libraryNames)}
               </span>
 
               <button
+                role="switch"
+                aria-checked={row.enabled}
                 onClick={() => toggle(i)}
                 className="w-9 h-5 rounded-full transition-colors-fast relative flex-shrink-0"
                 style={{ backgroundColor: row.enabled ? "var(--accent)" : "var(--surface-raised)" }}

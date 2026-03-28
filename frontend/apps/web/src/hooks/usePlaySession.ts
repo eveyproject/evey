@@ -6,6 +6,7 @@ import {
   playbackServiceStartStream,
 } from "@evey/api";
 import type { V1StreamInfo, V1WatchProgress } from "@evey/api";
+import { usePlayerStore } from "@evey/store";
 import { getBrowserCapabilities } from "@/utils/codec";
 import { useStreamToken } from "./useStreamToken";
 
@@ -114,7 +115,10 @@ export function usePlaySession(mediaId: string): PlaySessionResult {
   }, []);
 
   useEffect(() => {
-    return () => stopSession();
+    return () => {
+      const mode = usePlayerStore.getState().mode;
+      if (mode !== "mini") stopSession();
+    };
   }, [stopSession]);
 
   return {

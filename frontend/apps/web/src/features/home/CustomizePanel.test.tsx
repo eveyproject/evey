@@ -7,11 +7,15 @@ import { CustomizePanel } from "./CustomizePanel";
 const mockMutate = vi.fn();
 const mockResetMutate = vi.fn();
 let mockFeedData: { configs: Array<{ feedType: string; enabled: boolean; displayOrder: number }> } | undefined;
+let mockLibrariesData: { libraries: Array<{ id: string; name: string }> } = {
+  libraries: [{ id: "lib-1", name: "Movies" }, { id: "lib-2", name: "TV Shows" }],
+};
 
 vi.mock("@evey/api", () => ({
   useFeedServiceGetFeedConfig: () => ({ data: mockFeedData }),
   useFeedServiceUpdateProfileFeedConfig: () => ({ mutate: mockMutate }),
   useFeedServiceResetProfileFeedConfig: () => ({ mutate: mockResetMutate }),
+  useLibraryServiceListLibraries: () => ({ data: mockLibrariesData }),
 }));
 
 vi.mock("@evey/store", () => ({
@@ -65,12 +69,12 @@ describe("CustomizePanel", () => {
     expect(screen.getByText("Most Popular")).toBeInTheDocument();
   });
 
-  it("renders library feed with Library: prefix", () => {
+  it("renders library feed with library name", () => {
     mockFeedData = {
-      configs: [{ feedType: "library:Movies", enabled: true, displayOrder: 0 }],
+      configs: [{ feedType: "library:lib-1", enabled: true, displayOrder: 0 }],
     };
     renderPanel();
-    expect(screen.getByText("Library: Movies")).toBeInTheDocument();
+    expect(screen.getByText("Movies")).toBeInTheDocument();
   });
 
   it("renders unknown feed type as-is", () => {

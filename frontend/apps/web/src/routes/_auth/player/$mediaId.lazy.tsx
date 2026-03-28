@@ -14,7 +14,7 @@ import { SyncPlayBar } from "@/features/syncplay/SyncPlayBar";
 import { PluginSlot } from "@/features/plugins/PluginSlot";
 import { useParentalGate, markUnlocked } from "@/hooks/useParentalGate";
 import { ParentalPINDialog } from "@/components/ParentalPINDialog";
-import { useAuthStore } from "@evey/store";
+import { useAuthStore, usePlayerStore } from "@evey/store";
 
 const IMAGE_SUBTITLE_CODECS = new Set([
   "pgssub", "hdmv_pgs_subtitle", "dvd_subtitle", "dvbsub", "xsub",
@@ -75,6 +75,7 @@ function PlayerPageInner({ mediaId }: { mediaId: string }) {
   const [showShareDialog, setShowShareDialog] = useState(false);
   const [shareRoomId, setShareRoomId] = useState<string | null>(null);
   const videoRef = useRef<HTMLVideoElement | null>(null);
+  const playerStore = usePlayerStore();
   const { streamInfo, sessionId, streamToken, fetchStreamToken, isLoading, isError, progress, stopSession } = usePlaySession(mediaId);
   const [loadingTimedOut, setLoadingTimedOut] = useState(false);
   useEffect(() => {
@@ -82,6 +83,27 @@ function PlayerPageInner({ mediaId }: { mediaId: string }) {
     const timer = setTimeout(() => setLoadingTimedOut(true), 30_000);
     return () => clearTimeout(timer);
   }, [isLoading]);
+
+  // Sync store with session state
+  useEffect(() => {
+    playerStore.play(mediaId);
+    return () => {
+      const state = usePlayerStore.getState();
+      if (state.mode === "full" && state.isActive) {
+        playerStore.setMode("mini");
+      }
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mediaId]);
+
+  useEffect(() => {
+    if (sessionId) playerStore.setSessionId(sessionId);
+  }, [sessionId, playerStore]);
+
+  useEffect(() => {
+    playerStore.setStopSessionFn(stopSession);
+    return () => playerStore.setStopSessionFn(null);
+  }, [stopSession, playerStore]);
 
   const handleStreamTokenRefresh = useCallback(() => fetchStreamToken(mediaId), [fetchStreamToken, mediaId]);
 
@@ -117,10 +139,14 @@ function PlayerPageInner({ mediaId }: { mediaId: string }) {
     enabled: !!mediaId,
   });
 
+  useEffect(() => {
+    if (mediaItem?.title) playerStore.play(mediaId, mediaItem.title);
+  }, [mediaItem?.title, mediaId, playerStore]);
+
   const handleClose = useCallback(() => {
-    stopSession();
+    playerStore.stop();
     router.history.back();
-  }, [stopSession, router]);
+  }, [playerStore, router]);
 
   const audioStreams: AudioStream[] =
     streamInfo?.mediaStreams
@@ -189,7 +215,7 @@ function PlayerPageInner({ mediaId }: { mediaId: string }) {
     .map((ep) => ({ id: ep.id!, title: ep.title ?? `Episode ${ep.indexNumber}`, indexNumber: ep.indexNumber }));
 
   function handleEpisodeChange(episodeId: string) {
-    stopSession();
+    playerStore.stop();
     void router.navigate({ to: "/player/$mediaId", params: { mediaId: episodeId } });
   }
 
@@ -291,7 +317,7 @@ function PlayerPageInner({ mediaId }: { mediaId: string }) {
             onEpisodeChange={handleEpisodeChange}
             chapters={chapters}
             seriesId={isEpisode ? seriesId : undefined}
-            onVideoRef={(el) => { videoRef.current = el; }}
+            onVideoRef={(el) => { videoRef.current = el; playerStore.setVideoElement(el); }}
           />
         )}
         {showShareDialog && shareRoomId && (
