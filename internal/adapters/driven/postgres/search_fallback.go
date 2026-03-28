@@ -67,7 +67,7 @@ func (s *SQLSearchFallback) Search(ctx context.Context, query string, filters ma
 	}
 
 	dataSQL := fmt.Sprintf(
-		"SELECT id, title, year, type, genres, official_rating FROM media_items WHERE %s ORDER BY %s LIMIT %d",
+		"SELECT id, library_id, title, year, type, genres, official_rating FROM media_items WHERE %s ORDER BY %s LIMIT %d",
 		where, orderClause, limit,
 	)
 	rows, err := s.db.QueryContext(ctx, dataSQL, args...)
@@ -81,7 +81,7 @@ func (s *SQLSearchFallback) Search(ctx context.Context, query string, filters ma
 		var h library.SearchHit
 		var genresJSON []byte
 		var year sql.NullInt32
-		if err := rows.Scan(&h.ID, &h.Title, &year, &h.Type, &genresJSON, &h.OfficialRating); err != nil {
+		if err := rows.Scan(&h.ID, &h.LibraryID, &h.Title, &year, &h.Type, &genresJSON, &h.OfficialRating); err != nil {
 			return nil, 0, fmt.Errorf("search scan: %w", err)
 		}
 		if year.Valid {

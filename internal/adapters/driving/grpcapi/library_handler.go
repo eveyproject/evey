@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"slices"
 	"strings"
 
 	eveyv1 "github.com/gravity-zero/evey/gen/evey/v1"
@@ -265,11 +266,15 @@ func (h *libraryHandler) SearchMedia(ctx context.Context, req *eveyv1.SearchMedi
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "search media: %v", err)
 	}
+	allowedIDs, _ := h.getAllowedLibraryIDs(ctx)
 	pf := h.resolveParentalFilter(ctx)
 	resp := &eveyv1.SearchMediaResponse{
 		TotalHits: int32(total),
 	}
 	for _, hit := range hits {
+		if allowedIDs != nil && !slices.Contains(allowedIDs, hit.LibraryID) {
+			continue
+		}
 		if pf.maxRating != "" && !ratings.IsAllowed(hit.OfficialRating, pf.maxRating) {
 			continue
 		}

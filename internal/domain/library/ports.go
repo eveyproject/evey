@@ -130,6 +130,7 @@ type ScanScheduleRepository interface {
 
 type SearchHit struct {
 	ID               string
+	LibraryID        string
 	Title            string
 	Year             *int
 	Type             string

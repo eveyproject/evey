@@ -199,7 +199,7 @@ func (a *SearchAdapter) Search(ctx context.Context, query string, filters map[st
 	}
 	req := &ms.SearchRequest{
 		Limit:                 limit,
-		AttributesToRetrieve:  []string{"id", "title", "year", "type", "genres"},
+		AttributesToRetrieve:  []string{"id", "library_id", "title", "year", "type", "genres"},
 		AttributesToHighlight: []string{"title"},
 		HighlightPreTag:       "<mark>",
 		HighlightPostTag:      "</mark>",
@@ -221,6 +221,7 @@ func (a *SearchAdapter) Search(ctx context.Context, query string, filters map[st
 	for _, hit := range resp.Hits {
 		var doc struct {
 			ID             string   `json:"id"`
+			LibraryID      string   `json:"library_id"`
 			Title          string   `json:"title"`
 			Year           *int     `json:"year"`
 			Type           string   `json:"type"`
@@ -233,6 +234,7 @@ func (a *SearchAdapter) Search(ctx context.Context, query string, filters map[st
 		}
 		h := library.SearchHit{
 			ID:             doc.ID,
+			LibraryID:      doc.LibraryID,
 			Title:          doc.Title,
 			Year:           doc.Year,
 			Type:           doc.Type,

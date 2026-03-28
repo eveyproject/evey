@@ -50,13 +50,26 @@ func TestCheckLibraryAccess_UserAllowed(t *testing.T) {
 	}
 }
 
-func TestCheckLibraryAccess_NilChecker(t *testing.T) {
+func TestCheckLibraryAccess_NilChecker_DeniesNonAdmin(t *testing.T) {
 	ctx := context.Background()
 	w := httptest.NewRecorder()
 	claims := &domainuser.Claims{UserID: "u1", IsAdmin: false}
 	ok := checkLibraryAccess(ctx, w, claims, "lib-x", nil)
+	if ok {
+		t.Error("nil checker should deny non-admin")
+	}
+	if w.Code != http.StatusForbidden {
+		t.Errorf("expected 403, got %d", w.Code)
+	}
+}
+
+func TestCheckLibraryAccess_NilChecker_AllowsAdmin(t *testing.T) {
+	ctx := context.Background()
+	w := httptest.NewRecorder()
+	claims := &domainuser.Claims{UserID: "u1", IsAdmin: true}
+	ok := checkLibraryAccess(ctx, w, claims, "lib-x", nil)
 	if !ok {
-		t.Error("nil checker should allow all")
+		t.Error("nil checker should allow admin")
 	}
 }
 

@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"log/slog"
+	"slices"
 
 	eveyv1 "github.com/gravity-zero/evey/gen/evey/v1"
 	appactivity "github.com/gravity-zero/evey/internal/app/activity"
@@ -26,13 +27,14 @@ import (
 
 type playbackHandler struct {
 	eveyv1.UnimplementedPlaybackServiceServer
-	cmd         *appplayback.CommandService
-	query       *appplayback.QueryService
-	librarySvc  *applibrary.QueryService
-	activitySvc *appactivity.CommandService
-	profiles    user.ProfileRepository
-	translator  *eveyi18n.Translator
-	hlsManager  *apptranscoding.HLSManager
+	cmd            *appplayback.CommandService
+	query          *appplayback.QueryService
+	librarySvc     *applibrary.QueryService
+	activitySvc    *appactivity.CommandService
+	profiles       user.ProfileRepository
+	libraryAccess  user.LibraryAccessRepository
+	translator     *eveyi18n.Translator
+	hlsManager     *apptranscoding.HLSManager
 }
 
 func (h *playbackHandler) audit(ctx context.Context, userID, action, resourceType string, resourceID *string, details map[string]any) {
@@ -61,6 +63,9 @@ func (h *playbackHandler) audit(ctx context.Context, userID, action, resourceTyp
 }
 
 func (h *playbackHandler) GetStreamInfo(ctx context.Context, req *eveyv1.GetStreamInfoRequest) (*eveyv1.StreamInfo, error) {
+	if err := h.requireMediaAccess(ctx, req.MediaItemId); err != nil {
+		return nil, err
+	}
 	item, err := h.librarySvc.GetMediaItem(ctx, req.MediaItemId)
 	if err != nil {
 		return nil, status.Errorf(codes.NotFound, "media item not found: %v", err)
@@ -126,6 +131,9 @@ func (h *playbackHandler) StartStream(ctx context.Context, req *eveyv1.StartStre
 	}
 	profileID, err := resolveProfileID(claims, req.ProfileId)
 	if err != nil {
+		return nil, err
+	}
+	if err := h.requireMediaAccess(ctx, req.MediaItemId); err != nil {
 		return nil, err
 	}
 	if h.profiles != nil {
@@ -216,6 +224,9 @@ func (h *playbackHandler) GetWatchProgress(ctx context.Context, req *eveyv1.GetW
 	if err != nil {
 		return nil, err
 	}
+	if err := h.requireMediaAccess(ctx, req.MediaItemId); err != nil {
+		return &eveyv1.WatchProgress{}, nil
+	}
 	wp, err := h.query.GetWatchProgress(ctx, profileID, req.MediaItemId)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -250,8 +261,14 @@ func (h *playbackHandler) GetWatchHistory(ctx context.Context, req *eveyv1.GetWa
 		slog.Error("get watch history", slog.Any("err", err))
 		return nil, status.Errorf(codes.Internal, "internal error")
 	}
+	allowedIDs, _ := h.getAllowedLibraryIDs(ctx)
 	resp := &eveyv1.GetWatchHistoryResponse{}
 	for _, wp := range items {
+		if allowedIDs != nil {
+			if mi, mErr := h.librarySvc.GetMediaItem(ctx, wp.MediaItemID); mErr != nil || !slices.Contains(allowedIDs, mi.LibraryID) {
+				continue
+			}
+		}
 		resp.Items = append(resp.Items, watchProgressToProto(wp))
 	}
 	return resp, nil
@@ -275,8 +292,14 @@ func (h *playbackHandler) GetResumeItems(ctx context.Context, req *eveyv1.GetRes
 		slog.Error("get resume items", slog.Any("err", err))
 		return nil, status.Errorf(codes.Internal, "internal error")
 	}
+	allowedIDs, _ := h.getAllowedLibraryIDs(ctx)
 	resp := &eveyv1.GetResumeItemsResponse{}
 	for _, wp := range items {
+		if allowedIDs != nil {
+			if mi, mErr := h.librarySvc.GetMediaItem(ctx, wp.MediaItemID); mErr != nil || !slices.Contains(allowedIDs, mi.LibraryID) {
+				continue
+			}
+		}
 		resp.Progress = append(resp.Progress, watchProgressToProto(wp))
 	}
 	return resp, nil
@@ -309,8 +332,12 @@ func (h *playbackHandler) GetNextUp(ctx context.Context, req *eveyv1.GetNextUpRe
 		slog.Error("get media items for next up", slog.Any("err", err))
 		return nil, status.Errorf(codes.Internal, "internal error")
 	}
+	allowedIDs, _ := h.getAllowedLibraryIDs(ctx)
 	byID := make(map[string]*library.MediaItem, len(mediaItems))
 	for _, mi := range mediaItems {
+		if allowedIDs != nil && !slices.Contains(allowedIDs, mi.LibraryID) {
+			continue
+		}
 		byID[mi.ID] = mi
 	}
 	resp := &eveyv1.GetNextUpResponse{}
@@ -329,6 +356,9 @@ func (h *playbackHandler) MarkAsWatched(ctx context.Context, req *eveyv1.MarkAsW
 	}
 	profileID, err := resolveProfileID(claims, req.ProfileId)
 	if err != nil {
+		return nil, err
+	}
+	if err := h.requireMediaAccess(ctx, req.MediaItemId); err != nil {
 		return nil, err
 	}
 	if err := h.cmd.MarkAsWatched(ctx, profileID, req.MediaItemId); err != nil {
@@ -350,6 +380,9 @@ func (h *playbackHandler) MarkAsUnwatched(ctx context.Context, req *eveyv1.MarkA
 	if err != nil {
 		return nil, err
 	}
+	if err := h.requireMediaAccess(ctx, req.MediaItemId); err != nil {
+		return nil, err
+	}
 	if err := h.cmd.MarkAsUnwatched(ctx, profileID, req.MediaItemId); err != nil {
 		if errors.Is(err, appplayback.ErrProfileNotFound) {
 			return nil, h.translator.TranslatedError(ctx, codes.NotFound, "errors.auth.profile_not_found")
@@ -358,6 +391,36 @@ func (h *playbackHandler) MarkAsUnwatched(ctx context.Context, req *eveyv1.MarkA
 		return nil, status.Errorf(codes.Internal, "internal error")
 	}
 	return &eveyv1.MarkAsUnwatchedResponse{}, nil
+}
+
+func (h *playbackHandler) requireMediaAccess(ctx context.Context, mediaItemID string) error {
+	claims := interceptors.ClaimsFromContext(ctx)
+	if claims == nil {
+		return status.Errorf(codes.Unauthenticated, "unauthenticated")
+	}
+	if claims.IsAdmin || h.libraryAccess == nil {
+		return nil
+	}
+	item, err := h.librarySvc.GetMediaItem(ctx, mediaItemID)
+	if err != nil {
+		return h.translator.TranslatedError(ctx, codes.NotFound, "errors.media.not_found")
+	}
+	ok, _ := h.libraryAccess.HasAccess(ctx, claims.UserID, item.LibraryID)
+	if !ok {
+		return h.translator.TranslatedError(ctx, codes.NotFound, "errors.media.not_found")
+	}
+	return nil
+}
+
+func (h *playbackHandler) getAllowedLibraryIDs(ctx context.Context) ([]string, error) {
+	if h.libraryAccess == nil {
+		return nil, nil
+	}
+	claims := interceptors.ClaimsFromContext(ctx)
+	if claims == nil || claims.IsAdmin {
+		return nil, nil
+	}
+	return h.libraryAccess.GetByUserID(ctx, claims.UserID)
 }
 
 func (h *playbackHandler) isBlockedByParental(ctx context.Context, profileID, mediaItemID string) (bool, string) {
