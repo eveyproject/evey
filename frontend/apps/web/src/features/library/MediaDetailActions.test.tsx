@@ -17,6 +17,7 @@ vi.mock("@tanstack/react-router", () => ({
 vi.mock("@evey/api", () => ({
   usePlaybackServiceMarkAsWatched: () => ({ mutate: vi.fn(), isPending: false }),
   usePlaybackServiceMarkAsUnwatched: () => ({ mutate: vi.fn(), isPending: false }),
+  usePlaybackServiceGetWatchProgress: () => ({ data: undefined }),
   useLibraryServiceListMediaItems: () => ({ data: undefined }),
   useLibraryServiceGetMediaItem: () => ({ data: undefined }),
 }));

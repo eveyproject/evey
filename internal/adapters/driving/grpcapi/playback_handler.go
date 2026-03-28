@@ -32,6 +32,7 @@ type playbackHandler struct {
 	activitySvc *appactivity.CommandService
 	profiles    user.ProfileRepository
 	translator  *eveyi18n.Translator
+	hlsManager  *apptranscoding.HLSManager
 }
 
 func (h *playbackHandler) audit(ctx context.Context, userID, action, resourceType string, resourceID *string, details map[string]any) {
@@ -161,18 +162,21 @@ func (h *playbackHandler) StopStream(ctx context.Context, req *eveyv1.StopStream
 	if err != nil {
 		return nil, err
 	}
+	sess, sessErr := h.cmd.GetSession(ctx, req.SessionId)
 	if !claims.IsAdmin {
-		session, err := h.cmd.GetSession(ctx, req.SessionId)
-		if err != nil {
+		if sessErr != nil {
 			return nil, h.translator.TranslatedError(ctx, codes.NotFound, "errors.playback.session_not_found")
 		}
-		if session.ProfileID != claims.ProfileID {
+		if sess.ProfileID != claims.ProfileID {
 			return nil, h.translator.TranslatedError(ctx, codes.PermissionDenied, "errors.playback.cannot_stop_other_session")
 		}
 	}
 	if err := h.cmd.StopStream(ctx, req.SessionId); err != nil {
 		slog.Error("stop stream", slog.Any("err", err))
 		return nil, status.Errorf(codes.Internal, "internal error")
+	}
+	if sessErr == nil && sess != nil && h.hlsManager != nil {
+		h.hlsManager.RemoveSession(sess.MediaItemID)
 	}
 	sid := req.SessionId
 	h.audit(ctx, claims.UserID, "stop_stream", "session", &sid, nil)

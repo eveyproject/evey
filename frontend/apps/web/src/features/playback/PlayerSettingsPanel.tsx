@@ -94,6 +94,7 @@ export interface SettingsPanelProps {
   onSubtitleStyleChange?: (patch: Partial<SubtitleStyle>) => void;
   brightness?: number;
   onBrightnessChange?: (value: number) => void;
+  availableQualities?: number[];
 }
 
 export function SettingsPanel({
@@ -117,9 +118,13 @@ export function SettingsPanel({
   onSubtitleStyleChange,
   brightness = 1,
   onBrightnessChange,
+  availableQualities,
 }: SettingsPanelProps) {
   const { t } = useTranslation();
-  const QUALITY_OPTIONS = useQualityOptions();
+  const allQualityOptions = useQualityOptions();
+  const QUALITY_OPTIONS = availableQualities
+    ? allQualityOptions.filter((q) => q.value === 0 || availableQualities.includes(q.value))
+    : allQualityOptions;
   const subtitleFontSize = subtitleStyle?.fontSize ?? 100;
   const subtitleColor = subtitleStyle?.color ?? "#ffffff";
   const subtitleFontFamily = subtitleStyle?.fontFamily ?? "";

@@ -61,8 +61,7 @@ test.describe("Media Detail — movie", () => {
     expect(text!.trim().length).toBeGreaterThan(10);
   });
 
-  // skip: backend bug — watch_progress FK constraint on profile_id
-  test.skip("mark watched toggles state", async ({ page }) => {
+  test("mark watched toggles state", async ({ page }) => {
     const detail = page.locator('[data-testid="media-detail"]');
     await expect(detail).toBeVisible({ timeout: 15_000 });
 
@@ -70,10 +69,16 @@ test.describe("Media Detail — movie", () => {
     const unwatchedBtn = page.locator('[data-testid="mark-unwatched-btn"]');
     await expect(watchedBtn).toBeVisible({ timeout: 10_000 });
 
-    await watchedBtn.click();
+    await Promise.all([
+      page.waitForResponse((r) => r.url().includes("/api/v1/playback/") && r.request().method() === "POST", { timeout: 10_000 }),
+      watchedBtn.click(),
+    ]);
     await expect(unwatchedBtn).toBeVisible({ timeout: 15_000 });
 
-    await unwatchedBtn.click();
+    await Promise.all([
+      page.waitForResponse((r) => r.url().includes("/api/v1/playback/") && r.request().method() === "POST", { timeout: 10_000 }),
+      unwatchedBtn.click(),
+    ]);
     await expect(watchedBtn).toBeVisible({ timeout: 15_000 });
   });
 

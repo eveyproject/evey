@@ -76,7 +76,8 @@ type ServerConfig struct {
 	TrustedProxies    []string
 	RealIPHeader      string
 	ForwardedProto    bool
-	LoginRateLimitMax int
+	LoginRateLimitMax  int
+	GlobalRateLimitMax int
 }
 
 type DBConfig struct {
@@ -167,7 +168,8 @@ func Load() (*Config, error) {
 			TrustedProxies:    envStrSlice("EVEY_TRUSTED_PROXIES", []string{"127.0.0.1/32", "::1/128"}),
 			RealIPHeader:      envStr("EVEY_REAL_IP_HEADER", "X-Forwarded-For"),
 			ForwardedProto:    envBool("EVEY_FORWARDED_PROTO", false),
-			LoginRateLimitMax: envInt("EVEY_RATELIMIT_LOGIN_MAX", 10),
+			LoginRateLimitMax:  envInt("EVEY_RATELIMIT_LOGIN_MAX", 10),
+			GlobalRateLimitMax: envInt("EVEY_RATELIMIT_GLOBAL_MAX", 300),
 		},
 		DB: DBConfig{
 			Host:         envStr("EVEY_DB_HOST", "localhost"),

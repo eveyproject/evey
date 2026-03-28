@@ -105,7 +105,7 @@ export function useTranscodePlayback({
       if (!data.fatal) return;
       if (import.meta.env.DEV) console.warn("[player] HLS fatal error:", data.type, data.details, data.response?.code);
       retries++;
-      if (retries > 10) {
+      if (retries > 20) {
         setFatalError(true);
         return;
       }
@@ -122,7 +122,8 @@ export function useTranscodePlayback({
           setTranscodeStartTime(seekPos);
           return;
         }
-        setTimeout(() => hls.startLoad(), 2000);
+        const delay = Math.min(2000 * Math.pow(1.5, retries - 1), 15000);
+        setTimeout(() => hls.startLoad(), delay);
       } else if (data.type === Hls.ErrorTypes.MEDIA_ERROR) {
         hls.recoverMediaError();
       } else {

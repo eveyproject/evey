@@ -4,10 +4,15 @@ import { describe, it, expect, vi } from "vitest";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { ContinueWatchingRow } from "./ContinueWatchingRow";
 
+vi.mock("@/hooks/useWatchedMap", () => ({
+  useWatchedMap: () => new Map(),
+}));
+
 vi.mock("@evey/api", () => ({
   usePlaybackServiceGetResumeItems: vi.fn(),
   usePlaybackServiceMarkAsWatched: () => ({ mutate: vi.fn() }),
   usePlaybackServiceMarkAsUnwatched: () => ({ mutate: vi.fn() }),
+  usePlaybackServiceGetWatchProgress: () => ({ data: undefined }),
 }));
 
 vi.mock("@tanstack/react-router", () => ({

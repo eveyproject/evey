@@ -161,6 +161,14 @@ export function TopBar() {
         e.preventDefault();
         inputRef.current?.focus();
         setDropdownOpen(true);
+        return;
+      }
+      if (e.key === "/" && !e.metaKey && !e.ctrlKey && !e.altKey) {
+        const tag = (e.target as HTMLElement)?.tagName;
+        if (tag === "INPUT" || tag === "TEXTAREA" || (e.target as HTMLElement)?.isContentEditable) return;
+        e.preventDefault();
+        inputRef.current?.focus();
+        setDropdownOpen(true);
       }
     };
     window.addEventListener("keydown", handler);

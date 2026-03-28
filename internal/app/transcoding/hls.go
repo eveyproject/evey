@@ -112,7 +112,7 @@ func NewHLSManager(shutdownCtx context.Context, cacheDir string, maxConcurrent i
 func FilterProfiles(profiles []transcoding.HLSProfile, sourceWidth, sourceHeight int) []transcoding.HLSProfile {
 	var filtered []transcoding.HLSProfile
 	for _, p := range profiles {
-		if p.Width <= sourceWidth && p.Height <= sourceHeight {
+		if p.Height <= sourceHeight {
 			filtered = append(filtered, p)
 		}
 	}
@@ -248,6 +248,23 @@ func (m *HLSManager) RestartFromPosition(userID, mediaItemID, filePath string, s
 		m.mu.Unlock()
 	}
 	return m.GetOrCreate(userID, mediaItemID, filePath, sourceWidth, sourceHeight, maxUserStreams, audioTrackIndex, subtitleTrackIndex, subtitleCodec, streams, hdrSupported, audioNormalize, startSec, videoDecision, audioDecision)
+}
+
+func (m *HLSManager) RemoveSession(mediaItemID string) {
+	m.mu.Lock()
+	session, ok := m.sessions[mediaItemID]
+	if !ok {
+		m.mu.Unlock()
+		return
+	}
+	delete(m.sessions, mediaItemID)
+	m.userSessions[session.UserID]--
+	if m.userSessions[session.UserID] <= 0 {
+		delete(m.userSessions, session.UserID)
+	}
+	m.mu.Unlock()
+	session.stop()
+	slog.Info("hls: session removed", slog.String("media_id", mediaItemID))
 }
 
 func (m *HLSManager) ActiveSessionCount() int {

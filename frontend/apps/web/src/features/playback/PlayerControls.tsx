@@ -56,6 +56,7 @@ interface PlayerControlsProps {
   brightness?: number;
   onBrightnessChange?: (value: number) => void;
   controlsToggleRef?: React.MutableRefObject<(() => void) | null>;
+  availableQualities?: number[];
 }
 
 export function PlayerControls({
@@ -99,6 +100,7 @@ export function PlayerControls({
   brightness = 1,
   onBrightnessChange,
   controlsToggleRef,
+  availableQualities,
 }: PlayerControlsProps) {
   const { t } = useTranslation();
   const [visible, setVisible] = useState(true);
@@ -561,6 +563,7 @@ export function PlayerControls({
             onSubtitleStyleChange={onSubtitleStyleChange}
             brightness={brightness}
             onBrightnessChange={onBrightnessChange}
+            availableQualities={availableQualities}
           />
 
           {/* Picture-in-Picture */}

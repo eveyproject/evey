@@ -76,6 +76,12 @@ function PlayerPageInner({ mediaId }: { mediaId: string }) {
   const [shareRoomId, setShareRoomId] = useState<string | null>(null);
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const { streamInfo, sessionId, streamToken, fetchStreamToken, isLoading, isError, progress, stopSession } = usePlaySession(mediaId);
+  const [loadingTimedOut, setLoadingTimedOut] = useState(false);
+  useEffect(() => {
+    if (!isLoading) { setLoadingTimedOut(false); return; }
+    const timer = setTimeout(() => setLoadingTimedOut(true), 30_000);
+    return () => clearTimeout(timer);
+  }, [isLoading]);
 
   const handleStreamTokenRefresh = useCallback(() => fetchStreamToken(mediaId), [fetchStreamToken, mediaId]);
 
@@ -243,7 +249,23 @@ function PlayerPageInner({ mediaId }: { mediaId: string }) {
             </div>
           </div>
         ) : isLoading || !streamInfo || !sessionId || !streamToken ? (
-          <Spinner />
+          <div className="flex flex-col items-center gap-4">
+            {loadingTimedOut ? (
+              <>
+                <TriangleAlert size={48} style={{ color: "var(--color-danger)" }} strokeWidth={1.5} />
+                <p className="text-lg font-medium text-white">{t("player.failedToStart")}</p>
+                <div className="flex gap-3">
+                  <button onClick={() => window.location.reload()} className="px-4 py-2 rounded text-sm font-medium" style={{ backgroundColor: "var(--overlay-btn-hover-bg)" }}>{t("player.retry")}</button>
+                  <button onClick={handleClose} className="px-4 py-2 rounded text-sm font-medium" style={{ backgroundColor: "var(--overlay-btn-bg)" }}>{t("player.goBack")}</button>
+                </div>
+              </>
+            ) : (
+              <>
+                <Spinner />
+                <button onClick={handleClose} className="mt-4 px-4 py-2 rounded text-sm font-medium text-white/70 hover:text-white" style={{ backgroundColor: "var(--overlay-btn-bg)" }} data-testid="player-loading-back">{t("player.goBack")}</button>
+              </>
+            )}
+          </div>
         ) : (
           <HLSPlayer
             key={mediaId}

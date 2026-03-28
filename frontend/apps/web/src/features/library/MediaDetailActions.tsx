@@ -6,7 +6,9 @@ import type { V1MediaItem, V1MediaPerson } from "@evey/api";
 import {
   usePlaybackServiceMarkAsWatched,
   usePlaybackServiceMarkAsUnwatched,
+  usePlaybackServiceGetWatchProgress,
 } from "@evey/api";
+import { useQueryClient } from "@tanstack/react-query";
 import { toast, useAuthStore } from "@evey/store";
 import { ParentalPINDialog } from "@/components/ParentalPINDialog";
 import { useParentalGate, markUnlocked } from "@/hooks/useParentalGate";
@@ -45,22 +47,34 @@ export function MediaDetailActions({
   streamToken,
 }: MediaDetailActionsProps) {
   const { t } = useTranslation();
-  const [watched, setWatched] = useState(false);
+  const [watchedOverride, setWatchedOverride] = useState<boolean | null>(null);
   const [playlistModalOpen, setPlaylistModalOpen] = useState(false);
   const [pinDialogOpen, setPinDialogOpen] = useState(false);
   const [pendingPlayId, setPendingPlayId] = useState<string | null>(null);
   const profileId = useAuthStore((s) => s.profileId);
   const navigate = useNavigate();
+  const qc = useQueryClient();
   const { needsPin } = useParentalGate(item.officialRating);
+
+  const { data: progress } = usePlaybackServiceGetWatchProgress(item.id!, undefined, {
+    query: { enabled: !!item.id, retry: false },
+  });
+  const watched = watchedOverride ?? (progress?.played === true);
+
+  const invalidateWatched = () => {
+    if (item.id) void qc.invalidateQueries({ queryKey: [`/api/v1/playback/${item.id}/progress`] });
+    void qc.invalidateQueries({ queryKey: ["/api/v1/playback/history"] });
+    void qc.invalidateQueries({ queryKey: ["/api/v1/feeds/resume-playback"] });
+  };
 
   const markWatched = usePlaybackServiceMarkAsWatched({
     mutation: {
-      onSuccess: () => { setWatched(true); toast.success(t("media.detail.markedWatched")); },
+      onSuccess: () => { setWatchedOverride(true); invalidateWatched(); toast.success(t("media.detail.markedWatched")); },
     },
   });
   const markUnwatched = usePlaybackServiceMarkAsUnwatched({
     mutation: {
-      onSuccess: () => { setWatched(false); toast.success(t("media.detail.markedUnwatched")); },
+      onSuccess: () => { setWatchedOverride(false); invalidateWatched(); toast.success(t("media.detail.markedUnwatched")); },
     },
   });
 

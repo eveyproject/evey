@@ -93,6 +93,7 @@ test.describe("Search > Navigation", () => {
 
   test("Ctrl+K focuses search", async ({ page }) => {
     await goto(page, "/home");
+    await page.waitForSelector('[data-testid="topbar-search-input"]', { timeout: 10_000 });
     await page.keyboard.press("Control+k");
     await page.waitForTimeout(300);
     const focused = await page.evaluate(() => document.activeElement?.getAttribute("data-testid"));
@@ -101,6 +102,7 @@ test.describe("Search > Navigation", () => {
 
   test("/ key focuses search", async ({ page }) => {
     await goto(page, "/home");
+    await page.waitForSelector('[data-testid="topbar-search-input"]', { timeout: 10_000 });
     await page.keyboard.press("/");
     await page.waitForTimeout(300);
     const focused = await page.evaluate(() => document.activeElement?.getAttribute("data-testid"));

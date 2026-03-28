@@ -47,13 +47,14 @@ test.describe("Media > Watched toggle", () => {
     test.skip(!id, "No media found");
     const watchBtn = page.locator('[data-testid="mark-watched-btn"]');
     if (await watchBtn.isVisible({ timeout: 3_000 }).catch(() => false)) {
-      await watchBtn.click();
-      await page.waitForTimeout(1_500);
+      await Promise.all([
+        page.waitForResponse((r) => r.url().includes("/api/v1/playback/") && r.request().method() === "POST", { timeout: 10_000 }).catch(() => null),
+        watchBtn.click(),
+      ]);
     }
     await page.reload({ waitUntil: "domcontentloaded" });
     await page.waitForSelector('[data-testid="media-detail"]', { timeout: 10_000 });
-    const unwatchVisible = await page.locator('[data-testid="mark-unwatched-btn"]').isVisible({ timeout: 3_000 }).catch(() => false);
-    expect(unwatchVisible).toBe(true);
+    await expect(page.locator('[data-testid="mark-unwatched-btn"]')).toBeVisible({ timeout: 10_000 });
 
     // cleanup
     await page.locator('[data-testid="mark-unwatched-btn"]').click().catch(() => {});

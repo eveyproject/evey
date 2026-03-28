@@ -9,7 +9,14 @@ vi.mock("@tanstack/react-router", () => ({
   ),
 }));
 
+vi.mock("@/hooks/useWatchedMap", () => ({
+  useWatchedMap: () => new Map(),
+}));
+
 vi.mock("@evey/api", () => ({
+  usePlaybackServiceGetWatchProgress: () => ({ data: undefined }),
+  usePlaybackServiceMarkAsWatched: () => ({ mutate: vi.fn() }),
+  usePlaybackServiceMarkAsUnwatched: () => ({ mutate: vi.fn() }),
   useFeedServiceRecommended: () => ({
     data: {
       items: [

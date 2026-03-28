@@ -481,6 +481,7 @@ export function HLSPlayer({
         streamToken={streamToken}
         brightness={brightness}
         onBrightnessChange={setBrightnessValue}
+        availableQualities={hlsLevelsRef.current.map((l) => l.height)}
       />
       {showShortcuts && <KeyboardShortcutsOverlay onClose={() => setShowShortcuts(false)} skipForwardSeconds={skipFwd} skipBackwardSeconds={skipBwd} />}
     </div>
