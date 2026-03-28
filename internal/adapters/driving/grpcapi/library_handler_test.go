@@ -7,8 +7,11 @@ import (
 	eveyv1 "github.com/gravity-zero/evey/gen/evey/v1"
 	"github.com/gravity-zero/evey/internal/adapters/driving/grpcapi/interceptors"
 	applibrary "github.com/gravity-zero/evey/internal/app/library"
+	"github.com/gravity-zero/evey/internal/app/metadata"
 	"github.com/gravity-zero/evey/internal/domain/library"
 	libfakes "github.com/gravity-zero/evey/internal/domain/library/fakes"
+	domainmetadata "github.com/gravity-zero/evey/internal/domain/metadata"
+	metafakes "github.com/gravity-zero/evey/internal/domain/metadata/fakes"
 	sharedfakes "github.com/gravity-zero/evey/internal/domain/shared/fakes"
 	"github.com/gravity-zero/evey/internal/domain/user"
 	userfakes "github.com/gravity-zero/evey/internal/domain/user/fakes"
@@ -241,4 +244,77 @@ func TestLibraryHandler_SearchMedia(t *testing.T) {
 	for _, item := range resp.Items {
 		assert.Contains(t, item.Title, "Matrix")
 	}
+}
+
+func TestApplyOverridesToItem(t *testing.T) {
+	year := 2010
+	rating := 7.5
+	item := &library.MediaItem{
+		ID:              "mi-1",
+		Title:           "Original Title",
+		OriginalTitle:   "Titre Original",
+		Overview:        "Old overview",
+		Year:            &year,
+		CommunityRating: &rating,
+		Genres:          []string{"Drama"},
+	}
+
+	overrides := []*domainmetadata.MetadataOverride{
+		{FieldName: "title", CustomValue: "New Title"},
+		{FieldName: "original_title", CustomValue: "Nouveau Titre"},
+		{FieldName: "overview", CustomValue: "New overview"},
+		{FieldName: "year", CustomValue: "2024"},
+		{FieldName: "community_rating", CustomValue: "9.1"},
+		{FieldName: "genres", CustomValue: "Action, Sci-Fi"},
+	}
+
+	applyOverridesToItem(item, overrides)
+
+	assert.Equal(t, "New Title", item.Title)
+	assert.Equal(t, "Nouveau Titre", item.OriginalTitle)
+	assert.Equal(t, "New overview", item.Overview)
+	assert.Equal(t, 2024, *item.Year)
+	assert.InDelta(t, 9.1, *item.CommunityRating, 0.01)
+	assert.Equal(t, []string{"Action", "Sci-Fi"}, item.Genres)
+}
+
+func TestApplyOverridesToItem_EmptyValueSkipped(t *testing.T) {
+	item := &library.MediaItem{Title: "Keep This"}
+	overrides := []*domainmetadata.MetadataOverride{
+		{FieldName: "title", CustomValue: ""},
+	}
+	applyOverridesToItem(item, overrides)
+	assert.Equal(t, "Keep This", item.Title)
+}
+
+func TestApplyOverridesToItem_NilOverrides(t *testing.T) {
+	item := &library.MediaItem{Title: "Keep This"}
+	applyOverridesToItem(item, nil)
+	assert.Equal(t, "Keep This", item.Title)
+}
+
+func TestLibraryHandler_GetMediaItem_WithOverrides(t *testing.T) {
+	h, _, mediaQuery, _, _, _ := newTestLibraryHandler()
+	ctx := adminCtx()
+
+	mediaQuery.Seed(&library.MediaItem{
+		ID:        "mi-1",
+		LibraryID: "lib-1",
+		Title:     "Original",
+		Type:      "movie",
+	})
+
+	overrideRepo := metafakes.NewFakeMetadataOverrideRepository()
+	artworkRepo := metafakes.NewFakeArtworkRepository()
+	metaSvc := metadata.NewQueryService(overrideRepo, artworkRepo, nil)
+	h.metadataSvc = metaSvc
+
+	overrideRepo.Set(ctx, &domainmetadata.MetadataOverride{
+		ID: "mo-1", MediaItemID: "mi-1", FieldName: "title", CustomValue: "Overridden Title",
+	})
+
+	resp, err := h.GetMediaItem(ctx, &eveyv1.GetMediaItemRequest{Id: "mi-1"})
+
+	require.NoError(t, err)
+	assert.Equal(t, "Overridden Title", resp.Title)
 }

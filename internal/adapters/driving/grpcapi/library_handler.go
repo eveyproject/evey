@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"strings"
 
 	eveyv1 "github.com/gravity-zero/evey/gen/evey/v1"
 	applibrary "github.com/gravity-zero/evey/internal/app/library"
@@ -107,6 +108,11 @@ func (h *libraryHandler) GetMediaItem(ctx context.Context, req *eveyv1.GetMediaI
 			slog.Warn("parental check", slog.Any("err", parentalErr))
 		}
 		return nil, h.translator.TranslatedError(ctx, codes.PermissionDenied, "errors.library.parental_restricted")
+	}
+	if h.metadataSvc != nil {
+		if overrides, oErr := h.metadataSvc.ListOverrides(ctx, req.Id); oErr == nil {
+			applyOverridesToItem(item, overrides)
+		}
 	}
 	pb := mediaItemToProto(item)
 	if h.metadataSvc != nil {
@@ -400,5 +406,41 @@ func (h *libraryHandler) checkLibraryAccess(ctx context.Context, libraryID strin
 		return true, nil
 	}
 	return h.libraryAccess.HasAccess(ctx, claims.UserID, libraryID)
+}
+
+func applyOverridesToItem(item *library.MediaItem, overrides []*domainmetadata.MetadataOverride) {
+	for _, o := range overrides {
+		v, _ := o.CustomValue.(string)
+		if v == "" {
+			continue
+		}
+		switch o.FieldName {
+		case "title":
+			item.Title = v
+		case "original_title":
+			item.OriginalTitle = v
+		case "overview":
+			item.Overview = v
+		case "year":
+			var y int
+			if _, err := fmt.Sscanf(v, "%d", &y); err == nil {
+				item.Year = &y
+			}
+		case "genres":
+			parts := strings.Split(v, ",")
+			genres := make([]string, 0, len(parts))
+			for _, p := range parts {
+				if g := strings.TrimSpace(p); g != "" {
+					genres = append(genres, g)
+				}
+			}
+			item.Genres = genres
+		case "community_rating":
+			var r float64
+			if _, err := fmt.Sscanf(v, "%f", &r); err == nil {
+				item.CommunityRating = &r
+			}
+		}
+	}
 }
 
