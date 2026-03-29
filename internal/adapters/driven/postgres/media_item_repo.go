@@ -14,6 +14,18 @@ import (
 	"github.com/gravity-zero/evey/internal/domain/shared"
 )
 
+const mediaItemColumns = `id, library_id, parent_id, type, title, sort_title, original_title, overview, tagline,
+	 file_path, file_size, file_fingerprint, mod_time, duration_ms, bitrate, container_format, index_number, community_rating,
+	 official_rating, premiere_date, year, provider_ids, genres, studios, tags, trailers, ratings, added_at, updated_at`
+
+const mediaItemColumnsPrefixed = `media_items.id, media_items.library_id, media_items.parent_id, media_items.type,
+	 media_items.title, media_items.sort_title, media_items.original_title, media_items.overview, media_items.tagline,
+	 media_items.file_path, media_items.file_size, media_items.file_fingerprint, media_items.mod_time,
+	 media_items.duration_ms, media_items.bitrate, media_items.container_format, media_items.index_number,
+	 media_items.community_rating, media_items.official_rating, media_items.premiere_date, media_items.year,
+	 media_items.provider_ids, media_items.genres, media_items.studios, media_items.tags, media_items.trailers,
+	 media_items.ratings, media_items.added_at, media_items.updated_at`
+
 type MediaItemRepository struct {
 	db *sql.DB
 }
@@ -89,34 +101,22 @@ func (r *MediaItemRepository) Create(ctx context.Context, item *library.MediaIte
 
 func (r *MediaItemRepository) GetByID(ctx context.Context, id string) (*library.MediaItem, error) {
 	return r.scanMediaItem(r.db.QueryRowContext(ctx,
-		`SELECT id, library_id, parent_id, type, title, sort_title, original_title, overview, tagline,
-		 file_path, file_size, file_fingerprint, mod_time, duration_ms, bitrate, container_format, index_number, community_rating,
-		 official_rating, premiere_date, year, provider_ids, genres, studios, tags, trailers, ratings, added_at, updated_at
-		 FROM media_items WHERE id = $1`, id))
+		fmt.Sprintf("SELECT %s FROM media_items WHERE id = $1", mediaItemColumns), id))
 }
 
 func (r *MediaItemRepository) GetByFilePath(ctx context.Context, path string) (*library.MediaItem, error) {
 	return r.scanMediaItem(r.db.QueryRowContext(ctx,
-		`SELECT id, library_id, parent_id, type, title, sort_title, original_title, overview, tagline,
-		 file_path, file_size, file_fingerprint, mod_time, duration_ms, bitrate, container_format, index_number, community_rating,
-		 official_rating, premiere_date, year, provider_ids, genres, studios, tags, trailers, ratings, added_at, updated_at
-		 FROM media_items WHERE file_path = $1`, path))
+		fmt.Sprintf("SELECT %s FROM media_items WHERE file_path = $1", mediaItemColumns), path))
 }
 
 func (r *MediaItemRepository) GetByFileFingerprint(ctx context.Context, fingerprint string) (*library.MediaItem, error) {
 	return r.scanMediaItem(r.db.QueryRowContext(ctx,
-		`SELECT id, library_id, parent_id, type, title, sort_title, original_title, overview, tagline,
-		 file_path, file_size, file_fingerprint, mod_time, duration_ms, bitrate, container_format, index_number, community_rating,
-		 official_rating, premiere_date, year, provider_ids, genres, studios, tags, trailers, ratings, added_at, updated_at
-		 FROM media_items WHERE file_fingerprint = $1`, fingerprint))
+		fmt.Sprintf("SELECT %s FROM media_items WHERE file_fingerprint = $1", mediaItemColumns), fingerprint))
 }
 
 func (r *MediaItemRepository) GetByLibraryTypeTitle(ctx context.Context, libraryID, itemType, title, parentID string) (*library.MediaItem, error) {
 	return r.scanMediaItem(r.db.QueryRowContext(ctx,
-		`SELECT id, library_id, parent_id, type, title, sort_title, original_title, overview, tagline,
-		 file_path, file_size, file_fingerprint, mod_time, duration_ms, bitrate, container_format, index_number, community_rating,
-		 official_rating, premiere_date, year, provider_ids, genres, studios, tags, trailers, ratings, added_at, updated_at
-		 FROM media_items WHERE library_id = $1 AND type = $2 AND title = $3 AND ($4 = '' OR parent_id = $4) LIMIT 1`, libraryID, itemType, title, parentID))
+		fmt.Sprintf("SELECT %s FROM media_items WHERE library_id = $1 AND type = $2 AND title = $3 AND ($4 = '' OR parent_id = $4) LIMIT 1", mediaItemColumns), libraryID, itemType, title, parentID))
 }
 
 func (r *MediaItemRepository) buildWhereClause(f library.ListMediaItemsFilter) (string, []any) {
@@ -208,10 +208,7 @@ func (r *MediaItemRepository) Count(ctx context.Context, f library.ListMediaItem
 
 func (r *MediaItemRepository) List(ctx context.Context, f library.ListMediaItemsFilter) ([]*library.MediaItem, error) {
 	where, args := r.buildWhereClause(f)
-	query := `SELECT id, library_id, parent_id, type, title, sort_title, original_title, overview, tagline,
-		 file_path, file_size, file_fingerprint, mod_time, duration_ms, bitrate, container_format, index_number, community_rating,
-		 official_rating, premiere_date, year, provider_ids, genres, studios, tags, trailers, ratings, added_at, updated_at
-		 FROM media_items` + where
+	query := fmt.Sprintf("SELECT %s FROM media_items", mediaItemColumns) + where
 
 	sortField := "sort_title"
 	if f.SortField != "" {
@@ -225,16 +222,9 @@ func (r *MediaItemRepository) List(ctx context.Context, f library.ListMediaItems
 	}
 	if sortField == "added_at" {
 		// Rewrite: use LEFT JOIN instead of correlated subquery for series added_at
-		query = `SELECT media_items.id, media_items.library_id, media_items.parent_id, media_items.type,
-		 media_items.title, media_items.sort_title, media_items.original_title, media_items.overview, media_items.tagline,
-		 media_items.file_path, media_items.file_size, media_items.file_fingerprint, media_items.mod_time,
-		 media_items.duration_ms, media_items.bitrate, media_items.container_format, media_items.index_number,
-		 media_items.community_rating, media_items.official_rating, media_items.premiere_date, media_items.year,
-		 media_items.provider_ids, media_items.genres, media_items.studios, media_items.tags, media_items.trailers,
-		 media_items.ratings, media_items.added_at, media_items.updated_at
-		 FROM media_items
+		query = fmt.Sprintf(`SELECT %s FROM media_items
 		 LEFT JOIN (
-			SELECT s.parent_id AS series_id, MAX(e.added_at) AS max_added
+			SELECT s.parent_id AS series_id, MAX(e.added_at) AS max_added`, mediaItemColumnsPrefixed) + `
 			FROM media_items e
 			INNER JOIN media_items s ON s.id = e.parent_id
 			WHERE e.type = 'episode'
@@ -375,10 +365,7 @@ const listByLibraryIDMaxRows = 10000
 
 func (r *MediaItemRepository) ListByLibraryID(ctx context.Context, libraryID string) ([]*library.MediaItem, error) {
 	rows, err := r.db.QueryContext(ctx,
-		`SELECT id, library_id, parent_id, type, title, sort_title, original_title, overview, tagline,
-		 file_path, file_size, file_fingerprint, mod_time, duration_ms, bitrate, container_format, index_number, community_rating,
-		 official_rating, premiere_date, year, provider_ids, genres, studios, tags, trailers, ratings, added_at, updated_at
-		 FROM media_items WHERE library_id = $1 LIMIT $2`, libraryID, listByLibraryIDMaxRows)
+		fmt.Sprintf("SELECT %s FROM media_items WHERE library_id = $1 LIMIT $2", mediaItemColumns), libraryID, listByLibraryIDMaxRows)
 	if err != nil {
 		return nil, err
 	}
