@@ -17,6 +17,7 @@ type FakeMetadataProvider struct {
 	SearchResults   map[string][]metadata.MetadataResult
 	ByProviderID    map[string]*metadata.MetadataResult
 	EpisodeDetails  map[string]*metadata.MetadataResult // key: "seriesID:season:episode"
+	SeasonDetails   map[string]*metadata.MetadataResult // key: "seriesID:season"
 	ExternalLookups map[string]*metadata.MetadataResult // key: "provider:id"
 	Err             error
 }
@@ -27,6 +28,7 @@ func NewFakeMetadataProvider(name string) *FakeMetadataProvider {
 		SearchResults:   make(map[string][]metadata.MetadataResult),
 		ByProviderID:    make(map[string]*metadata.MetadataResult),
 		EpisodeDetails:  make(map[string]*metadata.MetadataResult),
+		SeasonDetails:   make(map[string]*metadata.MetadataResult),
 		ExternalLookups: make(map[string]*metadata.MetadataResult),
 	}
 }
@@ -63,6 +65,20 @@ func (p *FakeMetadataProvider) GetEpisodeDetails(_ context.Context, seriesID str
 	defer p.mu.RUnlock()
 	key := seriesID + ":" + itoa(seasonNum) + ":" + itoa(episodeNum)
 	r, ok := p.EpisodeDetails[key]
+	if !ok {
+		return nil, ErrNotFound
+	}
+	return r, nil
+}
+
+func (p *FakeMetadataProvider) GetSeasonDetails(_ context.Context, seriesID string, seasonNum int) (*metadata.MetadataResult, error) {
+	if p.Err != nil {
+		return nil, p.Err
+	}
+	p.mu.RLock()
+	defer p.mu.RUnlock()
+	key := seriesID + ":" + itoa(seasonNum)
+	r, ok := p.SeasonDetails[key]
 	if !ok {
 		return nil, ErrNotFound
 	}
