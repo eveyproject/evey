@@ -76,9 +76,10 @@ export function TrickplayPreview({ mediaId, hoverTime, mediaType, streamToken }:
     if (!mediaId || !hasTrickplay || fetchedIds.has(mediaId)) return;
     fetchedIds.add(mediaId);
 
-    eveyFetchRaw({ url: `/api/v1/media/${mediaId}/trickplay`, method: "GET" })
-      .then((res) => res.text())
-      .then((text) => {
+    (async () => {
+      try {
+        const res = await eveyFetchRaw({ url: `/api/v1/media/${mediaId}/trickplay`, method: "GET" });
+        const text = await res.text();
         const parsed = parseVTT(text);
         cueCache.set(mediaId, parsed);
         setCues(parsed);
@@ -92,10 +93,10 @@ export function TrickplayPreview({ mediaId, hoverTime, mediaType, streamToken }:
             imageCache.current.set(url, img);
           }
         }
-      })
-      .catch(() => {
+      } catch {
         cueCache.set(mediaId, []);
-      });
+      }
+    })();
   }, [mediaId, hasTrickplay]);
 
   if (!hasTrickplay || !loaded || hoverTime === null) return null;
