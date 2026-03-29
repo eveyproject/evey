@@ -177,32 +177,36 @@ func (s *CommandService) CleanupStaleSessions(ctx context.Context, maxAge time.D
 }
 
 func (s *CommandService) StartCleanup(ctx context.Context) {
+	s.StartCleanupWithInterval(ctx, 30*time.Minute, 2*time.Hour)
+}
+
+func (s *CommandService) StartCleanupWithInterval(ctx context.Context, interval, maxAge time.Duration) {
 	go func() {
 		defer func() {
 			if r := recover(); r != nil {
 				slog.Error("panic in playback cleanup", slog.Any("recover", r))
 			}
 		}()
-		if n, err := s.sessions.CloseStale(ctx, 2*time.Hour); err != nil {
-			slog.Warn("stale session cleanup", slog.Any("err", err))
-		} else if n > 0 {
-			slog.Info("cleaned stale sessions", slog.Int("count", n))
-		}
-		ticker := time.NewTicker(30 * time.Minute)
+		s.runCleanup(ctx, maxAge)
+		ticker := time.NewTicker(interval)
 		defer ticker.Stop()
 		for {
 			select {
 			case <-ctx.Done():
 				return
 			case <-ticker.C:
-				if n, err := s.sessions.CloseStale(ctx, 2*time.Hour); err != nil {
-					slog.Warn("stale session cleanup", slog.Any("err", err))
-				} else if n > 0 {
-					slog.Info("cleaned stale sessions", slog.Int("count", n))
-				}
+				s.runCleanup(ctx, maxAge)
 			}
 		}
 	}()
+}
+
+func (s *CommandService) runCleanup(ctx context.Context, maxAge time.Duration) {
+	if n, err := s.sessions.CloseStale(ctx, maxAge); err != nil {
+		slog.Warn("stale session cleanup", slog.Any("err", err))
+	} else if n > 0 {
+		slog.Info("cleaned stale sessions", slog.Int("count", n))
+	}
 }
 
 func (s *CommandService) MarkAsUnwatched(ctx context.Context, profileID, mediaItemID string) error {

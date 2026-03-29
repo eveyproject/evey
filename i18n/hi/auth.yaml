@@ -91,6 +91,9 @@ settings:
     authorize: "डिवाइस अधिकृत करें"
     authorized: "डिवाइस सफलतापूर्वक अधिकृत"
     invalidCode: "कोड अमान्य या समाप्त"
+    scanLabel: "क्विक कनेक्ट"
+    scanInstruction: "साइन इन करने के लिए लॉग-इन डिवाइस से स्कैन करें"
+    expiresIn: "{{seconds}}s में समाप्त"
   playback:
     bitrateTitle: "स्ट्रीमिंग बिटरेट सीमा"
     bitrateDesc: "ट्रांसकोड स्ट्रीम के लिए अधिकतम बिटरेट। सीधे प्लेबैक को प्रभावित नहीं करता।"

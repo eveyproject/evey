@@ -91,6 +91,9 @@ settings:
     authorize: Authorize Device
     authorized: Device authorized successfully
     invalidCode: Invalid or expired code
+    scanLabel: Quick Connect
+    scanInstruction: Scan with a logged-in device to sign in
+    expiresIn: "Expires in {{seconds}}s"
   playback:
     bitrateTitle: Streaming Bitrate Limit
     bitrateDesc: Maximum bitrate for transcoded streams. Does not affect direct play.

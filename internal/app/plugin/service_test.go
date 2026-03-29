@@ -25,14 +25,17 @@ func TestGetPluginConfig(t *testing.T) {
 	ctx := context.Background()
 	require.NoError(t, pluginRepo.Create(ctx, &plugindomain.Plugin{
 		ID: "plg-cfg", Name: "config-plugin",
-		Config: map[string]any{"theme": "dark", "limit": 10},
-		Status: string(plugindomain.Stopped),
+		Config:       map[string]any{"theme": "dark", "limit": 10},
+		ConfigSchema: map[string]any{"theme": map[string]any{"type": "select", "options": []string{"light", "dark"}}},
+		Status:       string(plugindomain.Stopped),
 	}))
 
-	cfg, err := svc.GetPluginConfig(ctx, "plg-cfg")
+	result, err := svc.GetPluginConfig(ctx, "plg-cfg")
 	require.NoError(t, err)
-	assert.Equal(t, "dark", cfg["theme"])
-	assert.Equal(t, 10, cfg["limit"])
+	assert.Equal(t, "dark", result.Config["theme"])
+	assert.Equal(t, 10, result.Config["limit"])
+	assert.NotNil(t, result.ConfigSchema)
+	assert.Equal(t, "select", result.ConfigSchema["theme"].(map[string]any)["type"])
 }
 
 func TestGetPluginConfig_NotFound(t *testing.T) {

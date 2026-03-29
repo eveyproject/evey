@@ -5,11 +5,13 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"log/slog"
 	"math"
 	"os"
 	"path/filepath"
 	"runtime"
+	"strconv"
 	"strings"
 	"time"
 
@@ -372,25 +374,36 @@ func (h *adminHandler) ListPlugins(ctx context.Context, _ *eveyv1.ListPluginsReq
 }
 
 func (h *adminHandler) GetPluginConfig(ctx context.Context, req *eveyv1.GetPluginConfigRequest) (*eveyv1.PluginConfig, error) {
-	cfg, err := h.pluginQuery.GetPluginConfig(ctx, req.PluginId)
+	result, err := h.pluginQuery.GetPluginConfig(ctx, req.PluginId)
 	if err != nil {
 		return nil, status.Errorf(codes.NotFound, "get config: %v", err)
 	}
 	values := make(map[string]string)
-	for k, v := range cfg {
+	for k, v := range result.Config {
 		values[k] = stringFromInterface(v)
 	}
-	return &eveyv1.PluginConfig{
+	resp := &eveyv1.PluginConfig{
 		PluginId: req.PluginId,
 		Values:   values,
-	}, nil
+	}
+	if len(result.ConfigSchema) > 0 {
+		schemaJSON, err := json.Marshal(result.ConfigSchema)
+		if err == nil {
+			resp.ConfigSchemaJson = string(schemaJSON)
+		}
+	}
+	return resp, nil
 }
 
 func (h *adminHandler) UpdatePluginConfig(ctx context.Context, req *eveyv1.UpdatePluginConfigRequest) (*eveyv1.PluginConfig, error) {
-	cfg := make(map[string]any)
-	for k, v := range req.Values {
-		cfg[k] = v
+	result, err := h.pluginQuery.GetPluginConfig(ctx, req.PluginId)
+	if err != nil {
+		return nil, status.Errorf(codes.NotFound, "get plugin: %v", err)
 	}
+	if err := validateConfigValues(req.Values, result.ConfigSchema); err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "%v", err)
+	}
+	cfg := coerceConfigValues(req.Values, result.ConfigSchema)
 	if err := h.pluginRuntime.UpdatePluginConfig(ctx, req.PluginId, cfg); err != nil {
 		return nil, status.Errorf(codes.Internal, "update config: %v", err)
 	}
@@ -478,10 +491,24 @@ func stringFromInterface(v any) string {
 	if v == nil {
 		return ""
 	}
-	if s, ok := v.(string); ok {
-		return s
+	switch val := v.(type) {
+	case string:
+		return val
+	case bool:
+		if val {
+			return "true"
+		}
+		return "false"
+	case float64:
+		if val == float64(int64(val)) {
+			return strconv.FormatInt(int64(val), 10)
+		}
+		return strconv.FormatFloat(val, 'f', -1, 64)
+	case int:
+		return strconv.Itoa(val)
+	default:
+		return fmt.Sprintf("%v", val)
 	}
-	return ""
 }
 
 func (h *adminHandler) acquireHeavyOp() bool {

@@ -91,6 +91,9 @@ settings:
     authorize: "Autorizar dispositivo"
     authorized: "Dispositivo autorizado correctamente"
     invalidCode: "Código inválido o expirado"
+    scanLabel: "Conexión rápida"
+    scanInstruction: "Escanea con un dispositivo conectado para iniciar sesión"
+    expiresIn: "Expira en {{seconds}}s"
   playback:
     bitrateTitle: "Límite de bitrate de streaming"
     bitrateDesc: "Bitrate máximo para streams transcodificados. No afecta la reproducción directa."

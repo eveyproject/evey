@@ -1,4 +1,5 @@
 import { useEffect, useState, useRef } from "react";
+import { useTranslation } from "react-i18next";
 import QRCode from "react-qr-code";
 import { useUserServiceInitiateQuickConnect, useUserServiceCheckQuickConnect } from "@evey/api";
 import { useAuthStore } from "@evey/store";
@@ -12,6 +13,7 @@ export function QuickConnect() {
   const [enabled, setEnabled] = useState(true);
   const [secondsLeft, setSecondsLeft] = useState(REFRESH_INTERVAL_S);
   const codeSetAt = useRef<number>(0);
+  const { t } = useTranslation();
   const { setTokens } = useAuthStore();
   const navigate = useNavigate();
 
@@ -71,7 +73,7 @@ export function QuickConnect() {
 
   return (
     <div className="mt-8 flex flex-col items-center gap-3">
-      <p className="text-[var(--text-muted)] text-xs uppercase tracking-widest">Quick Connect</p>
+      <p className="text-[var(--text-muted)] text-xs uppercase tracking-widest">{t("auth.settings.quickConnect.scanLabel")}</p>
       <div
         className="bg-white p-3 rounded-[var(--radius-md)]"
         style={{ width: 140, height: 140 }}
@@ -88,11 +90,11 @@ export function QuickConnect() {
         <p className="font-mono text-lg tracking-widest text-[var(--text)]">{code.slice(-6).toUpperCase()}</p>
       ) : null}
       <p className="text-[var(--text-muted)] text-xs text-center max-w-[200px]">
-        Scan with a logged-in device to sign in
+        {t("auth.settings.quickConnect.scanInstruction")}
       </p>
       {code && (
         <p className="text-[var(--text-muted)] text-xs">
-          Expires in {secondsLeft}s
+          {t("auth.settings.quickConnect.expiresIn", { seconds: secondsLeft })}
         </p>
       )}
     </div>

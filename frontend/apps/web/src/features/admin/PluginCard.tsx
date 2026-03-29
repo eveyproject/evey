@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { Link } from "@tanstack/react-router";
 import { useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
@@ -6,6 +6,9 @@ import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
+import { Select } from "@/components/ui/Select";
+import { Textarea } from "@/components/ui/Textarea";
+import { Checkbox } from "@/components/ui/Checkbox";
 import { Spinner } from "@/components/ui/Spinner";
 import {
   useAdminServiceGetPluginConfig,
@@ -44,11 +47,22 @@ interface ConfigFieldSchema {
   type?: string;
   description?: string;
   default?: unknown;
+  required?: boolean;
+  options?: string[];
+  min?: number;
+  max?: number;
 }
 
-interface PluginConfigPanelProps {
-  pluginId: string;
-  configSchema?: Record<string, ConfigFieldSchema>;
+function validateField(key: string, value: string, schema: ConfigFieldSchema): string | undefined {
+  if (schema.required && value.trim() === "") return `${key} is required`;
+  if ((schema.type === "integer" || schema.type === "number") && value !== "") {
+    const n = Number(value);
+    if (isNaN(n)) return `${key} must be a number`;
+    if (schema.type === "integer" && !Number.isInteger(n)) return `${key} must be an integer`;
+    if (schema.min !== undefined && n < schema.min) return `${key} must be >= ${schema.min}`;
+    if (schema.max !== undefined && n > schema.max) return `${key} must be <= ${schema.max}`;
+  }
+  return undefined;
 }
 
 function SchemaField({
@@ -56,58 +70,127 @@ function SchemaField({
   schema,
   value,
   onChange,
+  error,
 }: {
   fieldKey: string;
   schema: ConfigFieldSchema;
   value: string;
   onChange: (val: string) => void;
+  error?: string;
 }) {
-  if (schema.type === "boolean") {
-    return (
-      <label className="flex items-center gap-2 text-sm text-[var(--text)]">
-        <input
-          type="checkbox"
-          checked={value === "true"}
-          onChange={(e) => onChange(String(e.target.checked))}
-          className="rounded"
-        />
-        <span>{fieldKey}</span>
-        {schema.description && (
-          <span className="text-xs text-[var(--text-muted)]">{schema.description}</span>
-        )}
-      </label>
-    );
+  const label = fieldKey + (schema.required ? " *" : "");
+
+  const description = schema.description ? (
+    <span className="text-xs text-[var(--text-muted)]">{schema.description}</span>
+  ) : null;
+
+  switch (schema.type) {
+    case "boolean":
+      return (
+        <div className="flex flex-col gap-1">
+          <Checkbox
+            label={label}
+            checked={value === "true"}
+            onChange={(checked) => onChange(String(checked))}
+          />
+          {description}
+        </div>
+      );
+
+    case "select":
+      return (
+        <div className="flex flex-col gap-1">
+          <Select
+            label={label}
+            value={value}
+            onChange={onChange}
+            options={(schema.options ?? []).map((o) => ({ value: o, label: o }))}
+            error={error}
+          />
+          {description}
+        </div>
+      );
+
+    case "text":
+      return (
+        <div className="flex flex-col gap-1">
+          <Textarea
+            label={label}
+            value={value}
+            onChange={(e) => onChange(e.target.value)}
+          />
+          {description}
+          {error && <span className="text-xs text-[var(--color-danger)]">{error}</span>}
+        </div>
+      );
+
+    case "password":
+      return (
+        <div className="flex flex-col gap-1">
+          <Input
+            label={label}
+            type="password"
+            value={value}
+            onChange={(e) => onChange(e.target.value)}
+            error={error}
+          />
+          {description}
+        </div>
+      );
+
+    case "integer":
+    case "number":
+      return (
+        <div className="flex flex-col gap-1">
+          <Input
+            label={label}
+            type="number"
+            value={value}
+            onChange={(e) => onChange(e.target.value)}
+            min={schema.min}
+            max={schema.max}
+            step={schema.type === "integer" ? 1 : "any"}
+            error={error}
+          />
+          {description}
+        </div>
+      );
+
+    case "string":
+    default:
+      return (
+        <div className="flex flex-col gap-1">
+          <Input
+            label={label}
+            value={value}
+            onChange={(e) => onChange(e.target.value)}
+            error={error}
+          />
+          {description}
+        </div>
+      );
   }
-  if (schema.type === "integer" || schema.type === "number") {
-    return (
-      <Input
-        label={fieldKey}
-        type="number"
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-      />
-    );
-  }
-  return (
-    <Input
-      label={fieldKey}
-      value={value}
-      onChange={(e) => onChange(e.target.value)}
-    />
-  );
 }
 
-function PluginConfigPanel({ pluginId, configSchema }: PluginConfigPanelProps) {
+function PluginConfigPanel({ pluginId }: { pluginId: string }) {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
   const { data, isLoading } = useAdminServiceGetPluginConfig(pluginId);
   const [edits, setEdits] = useState<Record<string, string>>({});
+  const [errors, setErrors] = useState<Record<string, string>>({});
+
+  const configSchema: Record<string, ConfigFieldSchema> | undefined = useMemo(() => {
+    if (!data?.configSchemaJson) return undefined;
+    try { return JSON.parse(data.configSchemaJson); }
+    catch { return undefined; }
+  }, [data?.configSchemaJson]);
 
   const updateConfig = useAdminServiceUpdatePluginConfig({
     mutation: {
       onSuccess: () => {
         queryClient.invalidateQueries({ queryKey: ["/api/v1/admin/plugins", pluginId, "config"] });
         setEdits({});
+        setErrors({});
         toast.success(t("admin.plugin.configSaved"));
       },
       onError: (err: Error) => toast.error(err.message || t("admin.plugin.configSaveFailed")),
@@ -138,6 +221,21 @@ function PluginConfigPanel({ pluginId, configSchema }: PluginConfigPanelProps) {
   const isDirty = Object.keys(edits).length > 0;
 
   function handleSave() {
+    if (configSchema) {
+      const newErrors: Record<string, string> = {};
+      for (const key of keys) {
+        const schema = configSchema[key];
+        if (schema) {
+          const err = validateField(key, current[key] ?? "", schema);
+          if (err) newErrors[key] = err;
+        }
+      }
+      if (Object.keys(newErrors).length > 0) {
+        setErrors(newErrors);
+        return;
+      }
+    }
+    setErrors({});
     updateConfig.mutate({ pluginId, data: { values: current } });
   }
 
@@ -152,7 +250,15 @@ function PluginConfigPanel({ pluginId, configSchema }: PluginConfigPanelProps) {
               fieldKey={key}
               schema={schema}
               value={current[key] ?? String(schema.default ?? "")}
-              onChange={(val) => setEdits((prev) => ({ ...prev, [key]: val }))}
+              onChange={(val) => {
+                setEdits((prev) => ({ ...prev, [key]: val }));
+                setErrors((prev) => {
+                  const next = { ...prev };
+                  delete next[key];
+                  return next;
+                });
+              }}
+              error={errors[key]}
             />
           );
         }

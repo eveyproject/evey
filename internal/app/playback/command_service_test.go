@@ -421,11 +421,32 @@ func TestStartCleanup_RunsInitialCleanup(t *testing.T) {
 	sr.Create(ctx, stale)
 
 	cancelCtx, cancel := context.WithCancel(ctx)
-	cmd.StartCleanup(cancelCtx)
+	cmd.StartCleanupWithInterval(cancelCtx, 10*time.Millisecond, 2*time.Hour)
 	time.Sleep(50 * time.Millisecond)
 	cancel()
 
 	stored, _ := sr.GetByID(ctx, "s-stale")
+	assert.NotNil(t, stored.EndedAt)
+}
+
+func TestStartCleanup_TickerCleansNewStale(t *testing.T) {
+	t.Parallel()
+	cmd, _, sr, ur, pfr, _ := setupCmd()
+	ctx := context.Background()
+	seedUserProfile(ctx, ur, pfr, nil)
+
+	cancelCtx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	cmd.StartCleanupWithInterval(cancelCtx, 20*time.Millisecond, 1*time.Hour)
+	time.Sleep(10 * time.Millisecond)
+
+	sr.Create(ctx, &playback.PlaySession{
+		ID: "s-late", ProfileID: "p1", MediaItemID: "m1",
+		StartedAt: time.Now().Add(-2 * time.Hour),
+	})
+	time.Sleep(60 * time.Millisecond)
+
+	stored, _ := sr.GetByID(ctx, "s-late")
 	assert.NotNil(t, stored.EndedAt)
 }
 

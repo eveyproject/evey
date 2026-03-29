@@ -35,12 +35,20 @@ func (s *QueryService) ListPlugins(ctx context.Context) ([]*plugin.Plugin, error
 	return s.plugins.List(ctx)
 }
 
-func (s *QueryService) GetPluginConfig(ctx context.Context, id string) (map[string]any, error) {
+type PluginConfigWithSchema struct {
+	Config       map[string]any
+	ConfigSchema map[string]any
+}
+
+func (s *QueryService) GetPluginConfig(ctx context.Context, id string) (*PluginConfigWithSchema, error) {
 	p, err := s.plugins.GetByID(ctx, id)
 	if err != nil {
 		return nil, ErrPluginNotFound
 	}
-	return p.Config, nil
+	return &PluginConfigWithSchema{
+		Config:       p.Config,
+		ConfigSchema: p.ConfigSchema,
+	}, nil
 }
 
 func (s *QueryService) ListRuntimes(ctx context.Context) ([]*plugin.PluginRuntime, error) {

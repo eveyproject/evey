@@ -277,6 +277,7 @@ enum PluginState {
 message PluginConfig {
   string plugin_id = 1;
   map<string, string> values = 2;
+  string config_schema_json = 3;
 }
 
 message PluginLogEntry {
