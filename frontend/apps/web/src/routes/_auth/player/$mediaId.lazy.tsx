@@ -75,7 +75,6 @@ function PlayerPageInner({ mediaId }: { mediaId: string }) {
   const [showShareDialog, setShowShareDialog] = useState(false);
   const [shareRoomId, setShareRoomId] = useState<string | null>(null);
   const videoRef = useRef<HTMLVideoElement | null>(null);
-  const playerStore = usePlayerStore();
   const { streamInfo, sessionId, streamToken, fetchStreamToken, isLoading, isError, progress, stopSession } = usePlaySession(mediaId);
   const [loadingTimedOut, setLoadingTimedOut] = useState(false);
   useEffect(() => {
@@ -86,24 +85,24 @@ function PlayerPageInner({ mediaId }: { mediaId: string }) {
 
   // Sync store with session state
   useEffect(() => {
-    playerStore.play(mediaId);
+    usePlayerStore.getState().play(mediaId);
     return () => {
       const state = usePlayerStore.getState();
       if (state.mode === "full" && state.isActive) {
-        playerStore.setMode("mini");
+        state.setMode("mini");
       }
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mediaId]);
 
   useEffect(() => {
-    if (sessionId) playerStore.setSessionId(sessionId);
-  }, [sessionId, playerStore]);
+    if (sessionId) usePlayerStore.getState().setSessionId(sessionId);
+  }, [sessionId]);
 
   useEffect(() => {
-    playerStore.setStopSessionFn(stopSession);
-    return () => playerStore.setStopSessionFn(null);
-  }, [stopSession, playerStore]);
+    usePlayerStore.getState().setStopSessionFn(stopSession);
+    return () => usePlayerStore.getState().setStopSessionFn(null);
+  }, [stopSession]);
 
   const handleStreamTokenRefresh = useCallback(() => fetchStreamToken(mediaId), [fetchStreamToken, mediaId]);
 
@@ -140,13 +139,13 @@ function PlayerPageInner({ mediaId }: { mediaId: string }) {
   });
 
   useEffect(() => {
-    if (mediaItem?.title) playerStore.play(mediaId, mediaItem.title);
-  }, [mediaItem?.title, mediaId, playerStore]);
+    if (mediaItem?.title) usePlayerStore.getState().play(mediaId, mediaItem.title);
+  }, [mediaItem?.title, mediaId]);
 
   const handleClose = useCallback(() => {
-    playerStore.stop();
+    usePlayerStore.getState().stop();
     router.history.back();
-  }, [playerStore, router]);
+  }, [router]);
 
   const audioStreams: AudioStream[] =
     streamInfo?.mediaStreams
@@ -215,7 +214,7 @@ function PlayerPageInner({ mediaId }: { mediaId: string }) {
     .map((ep) => ({ id: ep.id!, title: ep.title ?? `Episode ${ep.indexNumber}`, indexNumber: ep.indexNumber }));
 
   function handleEpisodeChange(episodeId: string) {
-    playerStore.stop();
+    usePlayerStore.getState().stop();
     void router.navigate({ to: "/player/$mediaId", params: { mediaId: episodeId } });
   }
 
@@ -317,7 +316,7 @@ function PlayerPageInner({ mediaId }: { mediaId: string }) {
             onEpisodeChange={handleEpisodeChange}
             chapters={chapters}
             seriesId={isEpisode ? seriesId : undefined}
-            onVideoRef={(el) => { videoRef.current = el; playerStore.setVideoElement(el); }}
+            onVideoRef={(el) => { videoRef.current = el; usePlayerStore.getState().setVideoElement(el); }}
           />
         )}
         {showShareDialog && shareRoomId && (
