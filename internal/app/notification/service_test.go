@@ -3,6 +3,7 @@ package notification_test
 import (
 	"context"
 	"errors"
+	"fmt"
 	"testing"
 	"time"
 
@@ -196,6 +197,9 @@ func TestNotificationService_EpisodeNotification(t *testing.T) {
 		OccurredAt:  time.Now(),
 	})
 
+	// Episode with SeriesTitle is batched — flush to emit notification
+	svc.FlushBatches()
+
 	notifs, err := repo.ListByProfile(ctx, "p1", false, 0, 0)
 	require.NoError(t, err)
 	require.Len(t, notifs, 1)
@@ -224,6 +228,8 @@ func TestNotificationService_AlbumNotification(t *testing.T) {
 		Type:        "album",
 		OccurredAt:  time.Now(),
 	})
+
+	svc.FlushBatches()
 
 	notifs, err := repo.ListByProfile(ctx, "p1", false, 0, 0)
 	require.NoError(t, err)
@@ -533,6 +539,8 @@ func TestNotificationService_SeasonNotification(t *testing.T) {
 		OccurredAt:  time.Now(),
 	})
 
+	svc.FlushBatches()
+
 	notifs, err := repo.ListByProfile(ctx, "p1", false, 0, 0)
 	require.NoError(t, err)
 	require.Len(t, notifs, 1)
@@ -562,6 +570,8 @@ func TestNotificationService_SeasonNotification_NoSeriesTitle(t *testing.T) {
 		OccurredAt:  time.Now(),
 	})
 
+	svc.FlushBatches()
+
 	notifs, err := repo.ListByProfile(ctx, "p1", false, 0, 0)
 	require.NoError(t, err)
 	require.Len(t, notifs, 1)
@@ -589,6 +599,8 @@ func TestNotificationService_SeriesNotification(t *testing.T) {
 		Type:        "series",
 		OccurredAt:  time.Now(),
 	})
+
+	svc.FlushBatches()
 
 	notifs, err := repo.ListByProfile(ctx, "p1", false, 0, 0)
 	require.NoError(t, err)
@@ -1030,4 +1042,282 @@ func TestNotificationService_CleanupExpired(t *testing.T) {
 	require.NoError(t, err)
 	assert.Len(t, notifs, 1)
 	assert.Equal(t, "valid", notifs[0].ID)
+}
+
+func TestNotificationService_Batch_SeriesWithSeasonsAndEpisodes(t *testing.T) {
+	t.Parallel()
+	repo := notiffakes.NewFakeNotificationRepository()
+	settings := notiffakes.NewFakeSettingsRepository()
+	analyzer := notiffakes.NewFakeWatchHistoryAnalyzer()
+	profileRepo := userfakes.NewFakeProfileRepository()
+	bus := sharedfakes.NewFakeEventBus()
+
+	ctx := context.Background()
+	_ = profileRepo.Create(ctx, &user.Profile{ID: "p1", UserID: "u1", Name: "Alice"})
+
+	svc := appnotification.NewCommandService(repo, settings, analyzer, profileRepo, bus)
+	svc.Register()
+
+	// Simulate scan: series + 2 seasons + 5 episodes
+	bus.Publish(ctx, libevent.MediaItemAdded{
+		MediaItemID: "sr1", LibraryID: "lib1",
+		Title: "Breaking Bad", SeriesTitle: "Breaking Bad",
+		Type: "series", OccurredAt: time.Now(),
+	})
+	for i := range 2 {
+		bus.Publish(ctx, libevent.MediaItemAdded{
+			MediaItemID: fmt.Sprintf("sn%d", i), LibraryID: "lib1",
+			Title: fmt.Sprintf("Season %d", i+1), SeriesTitle: "Breaking Bad",
+			Type: "season", OccurredAt: time.Now(),
+		})
+	}
+	for i := range 5 {
+		bus.Publish(ctx, libevent.MediaItemAdded{
+			MediaItemID: fmt.Sprintf("ep%d", i), LibraryID: "lib1",
+			Title: fmt.Sprintf("S01E%02d", i+1), SeriesTitle: "Breaking Bad",
+			Type: "episode", OccurredAt: time.Now(),
+		})
+	}
+
+	svc.FlushBatches()
+
+	notifs, err := repo.ListByProfile(ctx, "p1", false, 0, 0)
+	require.NoError(t, err)
+	require.Len(t, notifs, 1, "should produce exactly 1 notification for series + seasons + episodes")
+	assert.Equal(t, notifdom.TypeNewSeries, notifs[0].Type)
+	assert.Contains(t, notifs[0].Title, "Breaking Bad")
+	assert.Contains(t, notifs[0].Title, "2 seasons")
+	assert.Contains(t, notifs[0].Title, "5 episodes")
+}
+
+func TestNotificationService_Batch_EpisodesOnly_MultipleAmalgamated(t *testing.T) {
+	t.Parallel()
+	repo := notiffakes.NewFakeNotificationRepository()
+	settings := notiffakes.NewFakeSettingsRepository()
+	analyzer := notiffakes.NewFakeWatchHistoryAnalyzer()
+	profileRepo := userfakes.NewFakeProfileRepository()
+	bus := sharedfakes.NewFakeEventBus()
+
+	ctx := context.Background()
+	_ = profileRepo.Create(ctx, &user.Profile{ID: "p1", UserID: "u1", Name: "Alice"})
+
+	svc := appnotification.NewCommandService(repo, settings, analyzer, profileRepo, bus)
+	svc.Register()
+
+	// 3 episodes from same series, no series event
+	for i := range 3 {
+		bus.Publish(ctx, libevent.MediaItemAdded{
+			MediaItemID: fmt.Sprintf("ep%d", i), LibraryID: "lib1",
+			Title: fmt.Sprintf("S02E%02d", i+1), SeriesTitle: "The Wire",
+			Type: "episode", OccurredAt: time.Now(),
+		})
+	}
+
+	svc.FlushBatches()
+
+	notifs, err := repo.ListByProfile(ctx, "p1", false, 0, 0)
+	require.NoError(t, err)
+	require.Len(t, notifs, 1, "multiple episodes should amalgamate into 1 notification")
+	assert.Equal(t, notifdom.TypeNewEpisode, notifs[0].Type)
+	assert.Contains(t, notifs[0].Title, "The Wire")
+	assert.Contains(t, notifs[0].Title, "3 episodes")
+}
+
+func TestNotificationService_Batch_SingleEpisode_NormalNotification(t *testing.T) {
+	t.Parallel()
+	repo := notiffakes.NewFakeNotificationRepository()
+	settings := notiffakes.NewFakeSettingsRepository()
+	analyzer := notiffakes.NewFakeWatchHistoryAnalyzer()
+	profileRepo := userfakes.NewFakeProfileRepository()
+	bus := sharedfakes.NewFakeEventBus()
+
+	ctx := context.Background()
+	_ = profileRepo.Create(ctx, &user.Profile{ID: "p1", UserID: "u1", Name: "Alice"})
+
+	svc := appnotification.NewCommandService(repo, settings, analyzer, profileRepo, bus)
+	svc.Register()
+
+	bus.Publish(ctx, libevent.MediaItemAdded{
+		MediaItemID: "ep1", LibraryID: "lib1",
+		Title: "Pilot", SeriesTitle: "Breaking Bad",
+		Type: "episode", OccurredAt: time.Now(),
+	})
+
+	svc.FlushBatches()
+
+	notifs, err := repo.ListByProfile(ctx, "p1", false, 0, 0)
+	require.NoError(t, err)
+	require.Len(t, notifs, 1)
+	assert.Equal(t, notifdom.TypeNewEpisode, notifs[0].Type)
+	assert.Contains(t, notifs[0].Title, "Breaking Bad")
+	assert.Contains(t, notifs[0].Title, "Pilot")
+}
+
+func TestNotificationService_Batch_MovieNotBatched(t *testing.T) {
+	t.Parallel()
+	repo := notiffakes.NewFakeNotificationRepository()
+	settings := notiffakes.NewFakeSettingsRepository()
+	analyzer := notiffakes.NewFakeWatchHistoryAnalyzer()
+	profileRepo := userfakes.NewFakeProfileRepository()
+	bus := sharedfakes.NewFakeEventBus()
+
+	ctx := context.Background()
+	_ = profileRepo.Create(ctx, &user.Profile{ID: "p1", UserID: "u1", Name: "Alice"})
+
+	svc := appnotification.NewCommandService(repo, settings, analyzer, profileRepo, bus)
+	svc.Register()
+
+	bus.Publish(ctx, libevent.MediaItemAdded{
+		MediaItemID: "m1", LibraryID: "lib1",
+		Title: "Inception", Type: "movie", OccurredAt: time.Now(),
+	})
+
+	// Movie should be immediate — no flush needed
+	notifs, err := repo.ListByProfile(ctx, "p1", false, 0, 0)
+	require.NoError(t, err)
+	require.Len(t, notifs, 1)
+	assert.Equal(t, notifdom.TypeNewMovie, notifs[0].Type)
+}
+
+func TestNotificationService_Batch_DifferentSeries_SeparateNotifications(t *testing.T) {
+	t.Parallel()
+	repo := notiffakes.NewFakeNotificationRepository()
+	settings := notiffakes.NewFakeSettingsRepository()
+	analyzer := notiffakes.NewFakeWatchHistoryAnalyzer()
+	profileRepo := userfakes.NewFakeProfileRepository()
+	bus := sharedfakes.NewFakeEventBus()
+
+	ctx := context.Background()
+	_ = profileRepo.Create(ctx, &user.Profile{ID: "p1", UserID: "u1", Name: "Alice"})
+
+	svc := appnotification.NewCommandService(repo, settings, analyzer, profileRepo, bus)
+	svc.Register()
+
+	// 2 episodes from series A, 1 from series B
+	bus.Publish(ctx, libevent.MediaItemAdded{
+		MediaItemID: "ep1", LibraryID: "lib1",
+		Title: "S01E01", SeriesTitle: "The Wire",
+		Type: "episode", OccurredAt: time.Now(),
+	})
+	bus.Publish(ctx, libevent.MediaItemAdded{
+		MediaItemID: "ep2", LibraryID: "lib1",
+		Title: "S01E02", SeriesTitle: "The Wire",
+		Type: "episode", OccurredAt: time.Now(),
+	})
+	bus.Publish(ctx, libevent.MediaItemAdded{
+		MediaItemID: "ep3", LibraryID: "lib1",
+		Title: "S01E01", SeriesTitle: "Breaking Bad",
+		Type: "episode", OccurredAt: time.Now(),
+	})
+
+	svc.FlushBatches()
+
+	notifs, err := repo.ListByProfile(ctx, "p1", false, 0, 0)
+	require.NoError(t, err)
+	require.Len(t, notifs, 2, "different series should produce separate notifications")
+}
+
+func TestNotificationService_Batch_SeasonWithEpisodes(t *testing.T) {
+	t.Parallel()
+	repo := notiffakes.NewFakeNotificationRepository()
+	settings := notiffakes.NewFakeSettingsRepository()
+	analyzer := notiffakes.NewFakeWatchHistoryAnalyzer()
+	profileRepo := userfakes.NewFakeProfileRepository()
+	bus := sharedfakes.NewFakeEventBus()
+
+	ctx := context.Background()
+	_ = profileRepo.Create(ctx, &user.Profile{ID: "p1", UserID: "u1", Name: "Alice"})
+
+	svc := appnotification.NewCommandService(repo, settings, analyzer, profileRepo, bus)
+	svc.Register()
+
+	// New season added to existing series (no series event)
+	bus.Publish(ctx, libevent.MediaItemAdded{
+		MediaItemID: "sn1", LibraryID: "lib1",
+		Title: "Season 4", SeriesTitle: "Breaking Bad",
+		Type: "season", OccurredAt: time.Now(),
+	})
+	for i := range 3 {
+		bus.Publish(ctx, libevent.MediaItemAdded{
+			MediaItemID: fmt.Sprintf("ep%d", i), LibraryID: "lib1",
+			Title: fmt.Sprintf("S04E%02d", i+1), SeriesTitle: "Breaking Bad",
+			Type: "episode", OccurredAt: time.Now(),
+		})
+	}
+
+	svc.FlushBatches()
+
+	notifs, err := repo.ListByProfile(ctx, "p1", false, 0, 0)
+	require.NoError(t, err)
+	require.Len(t, notifs, 1, "season + episodes should produce 1 notification")
+	assert.Equal(t, notifdom.TypeNewSeason, notifs[0].Type)
+	assert.Contains(t, notifs[0].Title, "Breaking Bad")
+	assert.Contains(t, notifs[0].Title, "Season 4")
+	assert.Contains(t, notifs[0].Title, "3 episodes")
+}
+
+func TestNotificationService_Batch_ImageNotification_Ignored(t *testing.T) {
+	t.Parallel()
+	repo := notiffakes.NewFakeNotificationRepository()
+	settings := notiffakes.NewFakeSettingsRepository()
+	analyzer := notiffakes.NewFakeWatchHistoryAnalyzer()
+	profileRepo := userfakes.NewFakeProfileRepository()
+	bus := sharedfakes.NewFakeEventBus()
+
+	ctx := context.Background()
+	_ = profileRepo.Create(ctx, &user.Profile{ID: "p1", UserID: "u1", Name: "Alice"})
+
+	svc := appnotification.NewCommandService(repo, settings, analyzer, profileRepo, bus)
+	svc.Register()
+
+	bus.Publish(ctx, libevent.MediaItemAdded{
+		MediaItemID: "img1", LibraryID: "lib1",
+		Title: "vacation.jpg", Type: "photo", OccurredAt: time.Now(),
+	})
+	bus.Publish(ctx, libevent.MediaItemAdded{
+		MediaItemID: "img2", LibraryID: "lib1",
+		Title: "sunset.png", Type: "image", OccurredAt: time.Now(),
+	})
+
+	svc.FlushBatches()
+
+	notifs, err := repo.ListByProfile(ctx, "p1", false, 0, 0)
+	require.NoError(t, err)
+	assert.Empty(t, notifs, "images should never produce notifications")
+}
+
+func TestNotificationService_Batch_TimerFlushes(t *testing.T) {
+	t.Parallel()
+	repo := notiffakes.NewFakeNotificationRepository()
+	settings := notiffakes.NewFakeSettingsRepository()
+	analyzer := notiffakes.NewFakeWatchHistoryAnalyzer()
+	profileRepo := userfakes.NewFakeProfileRepository()
+	bus := sharedfakes.NewFakeEventBus()
+
+	ctx := context.Background()
+	_ = profileRepo.Create(ctx, &user.Profile{ID: "p1", UserID: "u1", Name: "Alice"})
+
+	svc := appnotification.NewCommandService(repo, settings, analyzer, profileRepo, bus)
+	svc.WithBatchDelay(50 * time.Millisecond)
+	svc.Register()
+
+	bus.Publish(ctx, libevent.MediaItemAdded{
+		MediaItemID: "ep1", LibraryID: "lib1",
+		Title: "S01E01", SeriesTitle: "Lost",
+		Type: "episode", OccurredAt: time.Now(),
+	})
+	bus.Publish(ctx, libevent.MediaItemAdded{
+		MediaItemID: "ep2", LibraryID: "lib1",
+		Title: "S01E02", SeriesTitle: "Lost",
+		Type: "episode", OccurredAt: time.Now(),
+	})
+
+	// Wait for timer to fire
+	time.Sleep(150 * time.Millisecond)
+
+	notifs, err := repo.ListByProfile(ctx, "p1", false, 0, 0)
+	require.NoError(t, err)
+	require.Len(t, notifs, 1, "timer should auto-flush batch")
+	assert.Contains(t, notifs[0].Title, "Lost")
+	assert.Contains(t, notifs[0].Title, "2 episodes")
 }

@@ -15,20 +15,31 @@ import (
 	"github.com/gravity-zero/evey/internal/domain/shared"
 )
 
+type batchEntry struct {
+	seriesEvent *libevent.MediaItemAdded
+	seasons     []libevent.MediaItemAdded
+	episodes    []libevent.MediaItemAdded
+	timer       *time.Timer
+}
+
 type CommandService struct {
 	repo     notification.Repository
 	settings notification.SettingsRepository
 	analyzer notification.WatchHistoryAnalyzer
 	profiles ProfileLister
 	events   shared.EventBus
-	push notification.PushSender
-	subs notification.PushSubscriptionRepository
+	push     notification.PushSender
+	subs     notification.PushSubscriptionRepository
 
-	mu       sync.Mutex
-	dedupe   map[string]time.Time
-	done     chan struct{}
-	stopOnce sync.Once
+	mu         sync.Mutex
+	dedupe     map[string]time.Time
+	batches    map[string]*batchEntry
+	batchDelay time.Duration
+	done       chan struct{}
+	stopOnce   sync.Once
 }
+
+const defaultBatchDelay = 5 * time.Second
 
 func NewCommandService(
 	repo notification.Repository,
@@ -38,14 +49,21 @@ func NewCommandService(
 	events shared.EventBus,
 ) *CommandService {
 	return &CommandService{
-		repo:     repo,
-		settings: settings,
-		analyzer: analyzer,
-		profiles: profiles,
-		events:   events,
-		dedupe:   make(map[string]time.Time),
-		done:     make(chan struct{}),
+		repo:       repo,
+		settings:   settings,
+		analyzer:   analyzer,
+		profiles:   profiles,
+		events:     events,
+		dedupe:     make(map[string]time.Time),
+		batches:    make(map[string]*batchEntry),
+		batchDelay: defaultBatchDelay,
+		done:       make(chan struct{}),
 	}
+}
+
+func (s *CommandService) WithBatchDelay(d time.Duration) *CommandService {
+	s.batchDelay = d
+	return s
 }
 
 func (s *CommandService) Register() {
@@ -89,13 +107,40 @@ func (s *CommandService) Start(ctx context.Context) {
 
 func (s *CommandService) Stop() {
 	s.stopOnce.Do(func() { close(s.done) })
+	s.mu.Lock()
+	for _, b := range s.batches {
+		if b.timer != nil {
+			b.timer.Stop()
+		}
+	}
+	s.mu.Unlock()
 }
 
-func (s *CommandService) handleMediaItemAdded(parentCtx context.Context, ev shared.Event) {
-	ctx, cancel := context.WithTimeout(parentCtx, 30*time.Second)
-	defer cancel()
+// FlushBatches forces all pending batches to flush immediately. Useful for tests.
+func (s *CommandService) FlushBatches() {
+	s.mu.Lock()
+	keys := make([]string, 0, len(s.batches))
+	for k, b := range s.batches {
+		if b.timer != nil {
+			b.timer.Stop()
+		}
+		keys = append(keys, k)
+	}
+	s.mu.Unlock()
+
+	for _, k := range keys {
+		s.flushBatch(k)
+	}
+}
+
+func (s *CommandService) handleMediaItemAdded(_ context.Context, ev shared.Event) {
 	e, ok := ev.(libevent.MediaItemAdded)
 	if !ok {
+		return
+	}
+
+	// Skip image types entirely
+	if e.Type == "photo" || e.Type == "image" {
 		return
 	}
 
@@ -106,11 +151,148 @@ func (s *CommandService) handleMediaItemAdded(parentCtx context.Context, ev shar
 		return
 	}
 	s.dedupe[dedupeKey] = time.Now()
+
+	// Series-related types with a series title get batched
+	if isBatchable(e) {
+		s.bufferSeriesEvent(e)
+		s.mu.Unlock()
+		return
+	}
+
+	// Albums get batched by album title (tracks amalgamated)
+	if e.Type == "album" || (e.Type == "track" && e.SeriesTitle != "") {
+		s.bufferSeriesEvent(e)
+		s.mu.Unlock()
+		return
+	}
 	s.mu.Unlock()
 
-	notifType, title, pushTitle := typeAndTitle(e.Type, e.Title, e.SeriesTitle)
+	s.emitNotifications(e.Type, e.Title, e.SeriesTitle, e.MediaItemID, e.Genres, "")
+}
+
+func isBatchable(e libevent.MediaItemAdded) bool {
+	switch e.Type {
+	case "series", "season":
+		return true
+	case "episode":
+		return e.SeriesTitle != ""
+	}
+	return false
+}
+
+func (s *CommandService) batchKey(e libevent.MediaItemAdded) string {
+	// Albums use their own title as key, series use SeriesTitle
+	if e.Type == "album" || e.Type == "track" {
+		key := e.SeriesTitle
+		if key == "" {
+			key = e.Title
+		}
+		return fmt.Sprintf("album:%s:%s", e.LibraryID, key)
+	}
+	key := e.SeriesTitle
+	if key == "" {
+		key = e.Title
+	}
+	return fmt.Sprintf("series:%s:%s", e.LibraryID, key)
+}
+
+// bufferSeriesEvent collects related events and flushes after batchDelay.
+// Caller must hold s.mu.
+func (s *CommandService) bufferSeriesEvent(e libevent.MediaItemAdded) {
+	key := s.batchKey(e)
+	batch, exists := s.batches[key]
+	if !exists {
+		batch = &batchEntry{}
+		s.batches[key] = batch
+	}
+
+	switch e.Type {
+	case "series", "album":
+		batch.seriesEvent = &e
+	case "season":
+		batch.seasons = append(batch.seasons, e)
+	case "episode", "track":
+		batch.episodes = append(batch.episodes, e)
+	}
+
+	// Reset timer on each new event
+	if batch.timer != nil {
+		batch.timer.Stop()
+	}
+	batch.timer = time.AfterFunc(s.batchDelay, func() {
+		s.flushBatch(key)
+	})
+}
+
+func (s *CommandService) flushBatch(key string) {
+	s.mu.Lock()
+	batch, exists := s.batches[key]
+	if !exists {
+		s.mu.Unlock()
+		return
+	}
+	delete(s.batches, key)
+	s.mu.Unlock()
+
+	seasonCount := len(batch.seasons)
+	episodeCount := len(batch.episodes)
+
+	// Full series (series event present)
+	if batch.seriesEvent != nil {
+		if batch.seriesEvent.Type == "album" {
+			title, pushTitle := batchedAlbumTitle(batch.seriesEvent.Title, episodeCount)
+			s.emitNotifications("album", title, "", batch.seriesEvent.MediaItemID, batch.seriesEvent.Genres, pushTitle)
+			return
+		}
+		title, pushTitle := batchedSeriesTitle(batch.seriesEvent.Title, seasonCount, episodeCount)
+		s.emitNotifications("series", title, "", batch.seriesEvent.MediaItemID, batch.seriesEvent.Genres, pushTitle)
+		return
+	}
+
+	// Seasons without series event (e.g. new season added to existing series)
+	if seasonCount > 0 && episodeCount > 0 {
+		season := batch.seasons[0]
+		seriesTitle := season.SeriesTitle
+		if seriesTitle == "" {
+			seriesTitle = season.Title
+		}
+		title, pushTitle := batchedSeasonTitle(seriesTitle, season.Title, episodeCount)
+		s.emitNotifications("season", title, "", season.MediaItemID, season.Genres, pushTitle)
+		return
+	}
+
+	// Season(s) alone — emit each one
+	if seasonCount > 0 {
+		for _, season := range batch.seasons {
+			s.emitNotifications(season.Type, season.Title, season.SeriesTitle, season.MediaItemID, season.Genres, "")
+		}
+		return
+	}
+
+	// Just episodes
+	if episodeCount == 1 {
+		ep := batch.episodes[0]
+		s.emitNotifications(ep.Type, ep.Title, ep.SeriesTitle, ep.MediaItemID, ep.Genres, "")
+		return
+	}
+
+	if episodeCount > 1 {
+		first := batch.episodes[0]
+		title, pushTitle := batchedEpisodesTitle(first.SeriesTitle, episodeCount)
+		s.emitNotifications("episode", title, "", first.MediaItemID, first.Genres, pushTitle)
+	}
+}
+
+func (s *CommandService) emitNotifications(mediaType, title, seriesTitle, mediaItemID string, genres []string, pushTitleOverride string) {
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	notifType, notifTitle, pushTitle := typeAndTitle(mediaType, title, seriesTitle)
 	if notifType == "" {
 		return
+	}
+	if pushTitleOverride != "" {
+		pushTitle = pushTitleOverride
 	}
 
 	profiles, err := s.profiles.GetAll(ctx)
@@ -131,7 +313,6 @@ func (s *CommandService) handleMediaItemAdded(parentCtx context.Context, ev shar
 		return
 	}
 
-	// Pre-fetch favorite genres for profiles needing relevance check (avoids N+1)
 	var relevanceIDs []string
 	for _, p := range profiles {
 		cfg := allSettings[p.ID]
@@ -139,16 +320,15 @@ func (s *CommandService) handleMediaItemAdded(parentCtx context.Context, ev shar
 			continue
 		}
 		lvl := levelForType(cfg, notifType)
-		if (lvl == notification.LevelRelevant || lvl == notification.LevelHighlyRelevant) && len(e.Genres) > 0 {
+		if (lvl == notification.LevelRelevant || lvl == notification.LevelHighlyRelevant) && len(genres) > 0 {
 			relevanceIDs = append(relevanceIDs, p.ID)
 		}
 	}
 	var favoritesByProfile map[string][]string
 	if len(relevanceIDs) > 0 {
-		var batchErr error
-		favoritesByProfile, batchErr = s.analyzer.GetFavoriteGenresBatch(ctx, relevanceIDs, 3)
-		if batchErr != nil {
-			slog.Warn("notification: batch get favorite genres failed", slog.Any("err", batchErr))
+		favoritesByProfile, err = s.analyzer.GetFavoriteGenresBatch(ctx, relevanceIDs, 3)
+		if err != nil {
+			slog.Warn("notification: batch get favorite genres failed", slog.Any("err", err))
 			return
 		}
 	}
@@ -164,7 +344,7 @@ func (s *CommandService) handleMediaItemAdded(parentCtx context.Context, ev shar
 			continue
 		}
 		if lvl == notification.LevelRelevant || lvl == notification.LevelHighlyRelevant {
-			if len(e.Genres) == 0 {
+			if len(genres) == 0 {
 				continue
 			}
 			favs := favoritesByProfile[p.ID]
@@ -173,7 +353,7 @@ func (s *CommandService) handleMediaItemAdded(parentCtx context.Context, ev shar
 				favSet[g] = true
 			}
 			score := 0
-			for _, g := range e.Genres {
+			for _, g := range genres {
 				if favSet[g] {
 					score++
 				}
@@ -186,25 +366,25 @@ func (s *CommandService) handleMediaItemAdded(parentCtx context.Context, ev shar
 			ID:          uuid.New().String(),
 			ProfileID:   p.ID,
 			Type:        notifType,
-			Title:       title,
+			Title:       notifTitle,
 			Message:     "",
-			MediaItemID: e.MediaItemID,
+			MediaItemID: mediaItemID,
 			Level:       lvl,
 			CreatedAt:   time.Now(),
 			ExpiresAt:   &expires,
 		}
-		if err := s.repo.Create(ctx, n); err != nil {
-			slog.Warn("create notification failed", slog.String("profileID", p.ID), slog.Any("err", err))
+		if createErr := s.repo.Create(ctx, n); createErr != nil {
+			slog.Warn("create notification failed", slog.String("profileID", p.ID), slog.Any("err", createErr))
 			continue
 		}
 		if s.push != nil && s.subs != nil {
-			subs, err := s.subs.GetByProfile(ctx, n.ProfileID)
-			if err != nil {
-				slog.Warn("webpush: get subscriptions failed", slog.String("profileID", n.ProfileID), slog.Any("err", err))
+			subs, subErr := s.subs.GetByProfile(ctx, n.ProfileID)
+			if subErr != nil {
+				slog.Warn("webpush: get subscriptions failed", slog.String("profileID", n.ProfileID), slog.Any("err", subErr))
 			} else {
 				for _, sub := range subs {
-					if err := s.push.Send(ctx, sub, pushTitle, n.Message, nil); err != nil {
-						slog.Warn("webpush: send failed", slog.String("profileID", n.ProfileID), slog.String("endpoint", sub.Endpoint), slog.Any("err", err))
+					if sendErr := s.push.Send(ctx, sub, pushTitle, n.Message, nil); sendErr != nil {
+						slog.Warn("webpush: send failed", slog.String("profileID", n.ProfileID), slog.String("endpoint", sub.Endpoint), slog.Any("err", sendErr))
 					}
 				}
 			}
@@ -217,8 +397,8 @@ func (s *CommandService) handleMediaItemAdded(parentCtx context.Context, ev shar
 			MediaItemID:    n.MediaItemID,
 			OccurredAt:     n.CreatedAt,
 		}
-		if err := s.events.Publish(ctx, evt); err != nil {
-			slog.Warn("publish notification.created", slog.Any("err", err))
+		if pubErr := s.events.Publish(ctx, evt); pubErr != nil {
+			slog.Warn("publish notification.created", slog.Any("err", pubErr))
 		}
 	}
 }
