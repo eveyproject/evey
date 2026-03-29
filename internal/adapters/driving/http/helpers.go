@@ -3,6 +3,7 @@ package httpapi
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -204,24 +205,38 @@ func apiCacheMiddleware(next http.Handler) http.Handler {
 	})
 }
 
+var errUnauthenticated = fmt.Errorf("unauthenticated")
+var errForbidden = fmt.Errorf("forbidden")
+
+// extractAdminClaims extracts a Bearer token (header or query param) and validates admin access.
+func extractAdminClaims(r *http.Request, verifier TokenVerifier) (*domainuser.Claims, error) {
+	token := extractBearerToken(r)
+	if token == "" {
+		return nil, errUnauthenticated
+	}
+	claims, err := verifier.ValidateAccessToken(token)
+	if err != nil {
+		return nil, errUnauthenticated
+	}
+	if !claims.IsAdmin {
+		return nil, errForbidden
+	}
+	return claims, nil
+}
+
 type adminCtxKeyType struct{}
 
 var adminClaimsKey = adminCtxKeyType{}
 
 func requireAdmin(tokenGen TokenVerifier, next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		token := extractBearerToken(r)
-		if token == "" {
-			http.Error(w, "unauthorized", http.StatusUnauthorized)
-			return
-		}
-		claims, err := tokenGen.ValidateAccessToken(token)
+		claims, err := extractAdminClaims(r, tokenGen)
 		if err != nil {
-			http.Error(w, "unauthorized", http.StatusUnauthorized)
-			return
-		}
-		if !claims.IsAdmin {
-			http.Error(w, "forbidden", http.StatusForbidden)
+			if errors.Is(err, errForbidden) {
+				http.Error(w, "forbidden", http.StatusForbidden)
+			} else {
+				http.Error(w, "unauthorized", http.StatusUnauthorized)
+			}
 			return
 		}
 		ctx := context.WithValue(r.Context(), adminClaimsKey, claims)

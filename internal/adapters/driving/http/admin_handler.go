@@ -3,6 +3,7 @@ package httpapi
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -44,38 +45,26 @@ type adminHandler struct {
 }
 
 func (h *adminHandler) requireAdmin(r *http.Request) bool {
-	header := r.Header.Get("Authorization")
-	if !strings.HasPrefix(header, "Bearer ") {
-		return false
-	}
-	claims, err := h.tokenGen.ValidateAccessToken(strings.TrimPrefix(header, "Bearer "))
-	return err == nil && claims.IsAdmin
+	_, err := extractAdminClaims(r, h.tokenGen)
+	return err == nil
 }
 
 func (h *adminHandler) requireAdminWithResponse(w http.ResponseWriter, r *http.Request) bool {
-	header := r.Header.Get("Authorization")
-	if !strings.HasPrefix(header, "Bearer ") {
+	_, err := extractAdminClaims(r, h.tokenGen)
+	if err == nil {
+		return true
+	}
+	if errors.Is(err, errUnauthenticated) {
 		http.Error(w, `{"message":"unauthenticated"}`, http.StatusUnauthorized)
-		return false
-	}
-	claims, err := h.tokenGen.ValidateAccessToken(strings.TrimPrefix(header, "Bearer "))
-	if err != nil || !claims.IsAdmin {
+	} else {
 		http.Error(w, `{"message":"forbidden"}`, http.StatusForbidden)
-		return false
 	}
-	return true
+	return false
 }
 
 func (h *adminHandler) adminCheckWithQueryToken(r *http.Request) bool {
-	tok := strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer ")
-	if tok == "" {
-		tok = r.URL.Query().Get("token")
-	}
-	if tok == "" {
-		return false
-	}
-	claims, err := h.tokenGen.ValidateAccessToken(tok)
-	return err == nil && claims.IsAdmin
+	_, err := extractAdminClaims(r, h.tokenGen)
+	return err == nil
 }
 
 // --- media routes ---
@@ -380,14 +369,7 @@ func (h *adminHandler) handleStreamLogs(w http.ResponseWriter, r *http.Request) 
 // --- system stats ---
 
 func (h *adminHandler) handleSystemStats(w http.ResponseWriter, r *http.Request) {
-	header := r.Header.Get("Authorization")
-	if !strings.HasPrefix(header, "Bearer ") {
-		http.Error(w, `{"message":"unauthenticated"}`, http.StatusUnauthorized)
-		return
-	}
-	claims, err := h.tokenGen.ValidateAccessToken(strings.TrimPrefix(header, "Bearer "))
-	if err != nil || !claims.IsAdmin {
-		http.Error(w, `{"message":"forbidden"}`, http.StatusForbidden)
+	if !h.requireAdminWithResponse(w, r) {
 		return
 	}
 
