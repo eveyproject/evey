@@ -1,9 +1,10 @@
+import { memo } from "react";
 import { useTranslation } from "react-i18next";
 import { useFeedServiceRecentlyAdded } from "@evey/api";
 import { FeedSection } from "./FeedSection";
 import { MediaCard } from "../library/MediaCard";
 
-export function RecentlyAddedRow() {
+export const RecentlyAddedRow = memo(function RecentlyAddedRow() {
   const { t } = useTranslation();
   const { data, isLoading } = useFeedServiceRecentlyAdded();
   const items = data?.items ?? [];
@@ -23,4 +24,4 @@ export function RecentlyAddedRow() {
       ))}
     </FeedSection>
   );
-}
+});

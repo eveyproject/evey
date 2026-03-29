@@ -1,9 +1,10 @@
+import { memo } from "react";
 import { useTranslation } from "react-i18next";
 import { usePlaybackServiceGetNextUp } from "@evey/api";
 import { MediaSlider } from "./MediaSlider";
 import { MediaCard } from "../library/MediaCard";
 
-export function NextUpRow() {
+export const NextUpRow = memo(function NextUpRow() {
   const { t } = useTranslation();
   const { data, isLoading } = usePlaybackServiceGetNextUp({ limit: 20 });
   const items = data?.items ?? [];
@@ -17,4 +18,4 @@ export function NextUpRow() {
       ))}
     </MediaSlider>
   );
-}
+});

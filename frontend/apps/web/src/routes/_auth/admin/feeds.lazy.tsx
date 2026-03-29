@@ -162,6 +162,8 @@ function AdminFeedsPage() {
                 onClick={() => toggle(i)}
                 className="w-10 h-5 rounded-full transition-colors-fast relative"
                 style={{ backgroundColor: row.enabled ? "var(--accent)" : "var(--surface-raised)" }}
+                role="switch"
+                aria-checked={row.enabled}
                 aria-label={row.enabled ? t("common.disable") : t("common.enable")}
               >
                 <span

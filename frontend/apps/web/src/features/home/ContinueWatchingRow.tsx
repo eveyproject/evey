@@ -1,10 +1,10 @@
-import { useMemo } from "react";
+import { memo, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { usePlaybackServiceGetResumeItems } from "@evey/api";
 import { FeedSection } from "./FeedSection";
 import { MediaCard } from "../library/MediaCard";
 
-export function ContinueWatchingRow() {
+export const ContinueWatchingRow = memo(function ContinueWatchingRow() {
   const { t } = useTranslation();
   const { data, isLoading } = usePlaybackServiceGetResumeItems();
   const items = data?.items ?? [];
@@ -36,4 +36,4 @@ export function ContinueWatchingRow() {
       ))}
     </FeedSection>
   );
-}
+});
