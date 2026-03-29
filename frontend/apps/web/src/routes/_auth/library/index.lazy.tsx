@@ -61,7 +61,7 @@ function LibraryItemCount({ libraryId }: { libraryId: string }) {
   if (total === undefined) return null;
   return (
     <span className="text-sm text-[var(--text-muted)]">
-      {total === 1 ? t("common.item", { count: total }) : t("common.items", { count: total })}
+      {t("common.item", { count: total })}
     </span>
   );
 }

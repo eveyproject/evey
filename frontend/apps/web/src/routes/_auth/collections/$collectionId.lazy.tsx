@@ -83,7 +83,7 @@ function CollectionDetailPage() {
           )}
 
           <p className="text-xs mb-4 text-[var(--text-muted)]">
-            {total === 1 ? t("common.item", { count: total }) : t("common.items", { count: total })}
+            {t("common.item", { count: total })}
           </p>
         </>
       )}

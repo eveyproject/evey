@@ -119,7 +119,7 @@ function PlaylistDetail() {
             ))}
           </div>
           <div className="px-4 py-2 text-xs text-[var(--text-muted)] border-t border-[var(--border)]">
-            {items.length === 1 ? t("common.item", { count: items.length }) : t("common.items", { count: items.length })}
+            {t("common.item", { count: items.length })}
           </div>
         </div>
       )}

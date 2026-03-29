@@ -50,8 +50,8 @@ unableToLoadNotifications: Impossible de charger les notifications
 viewAllNotifications: Voir toutes les notifications
 markAllRead: Tout marquer comme lu
 noNotifications: Aucune notification
-items: "{{count}} éléments"
-item: "{{count}} élément"
+item_one: "{{count}} élément"
+item_other: "{{count}} éléments"
 filtered: "(filtré)"
 noItemsMatch: "Aucun élément ne correspond au filtre actuel."
 errorBoundary:
