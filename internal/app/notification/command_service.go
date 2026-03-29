@@ -20,6 +20,7 @@ type batchEntry struct {
 	seasons     []libevent.MediaItemAdded
 	episodes    []libevent.MediaItemAdded
 	timer       *time.Timer
+	createdAt   time.Time
 }
 
 type CommandService struct {
@@ -39,7 +40,10 @@ type CommandService struct {
 	stopOnce   sync.Once
 }
 
-const defaultBatchDelay = 5 * time.Second
+const (
+	defaultBatchDelay = 5 * time.Second
+	maxBatchEntries   = 1000
+)
 
 func NewCommandService(
 	repo notification.Repository,
@@ -202,7 +206,23 @@ func (s *CommandService) bufferSeriesEvent(e libevent.MediaItemAdded) {
 	key := s.batchKey(e)
 	batch, exists := s.batches[key]
 	if !exists {
-		batch = &batchEntry{}
+		if len(s.batches) >= maxBatchEntries {
+			var oldestKey string
+			var oldestTime time.Time
+			for k, b := range s.batches {
+				created := b.createdAt
+				if oldestKey == "" || created.Before(oldestTime) {
+					oldestKey = k
+					oldestTime = created
+				}
+			}
+			if ob := s.batches[oldestKey]; ob != nil && ob.timer != nil {
+				ob.timer.Stop()
+			}
+			delete(s.batches, oldestKey)
+			slog.Warn("notification batch map full, evicted oldest entry", slog.String("key", oldestKey))
+		}
+		batch = &batchEntry{createdAt: time.Now()}
 		s.batches[key] = batch
 	}
 
