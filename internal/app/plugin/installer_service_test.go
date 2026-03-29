@@ -303,6 +303,59 @@ func TestCompareSemver(t *testing.T) {
 	}
 }
 
+func TestCompareSemver_EdgeCases(t *testing.T) {
+	tests := []struct {
+		name string
+		a, b string
+		want int
+	}{
+		{"patch upgrade", "1.0.0", "1.0.1", -1},
+		{"minor upgrade", "1.0.0", "1.1.0", -1},
+		{"major upgrade", "1.0.0", "2.0.0", -1},
+		{"ordering chain", "1.0.1", "1.1.0", -1},
+		{"large versions", "100.200.300", "100.200.301", -1},
+		{"pre-release ignored both sides", "1.0.0-alpha", "1.0.0-beta", 0},
+		{"downgrade patch", "1.0.2", "1.0.1", 1},
+		{"downgrade minor", "1.2.0", "1.1.0", 1},
+		{"downgrade major", "3.0.0", "2.0.0", 1},
+		{"zero versions", "0.0.0", "0.0.0", 0},
+		{"zero to one", "0.0.0", "0.0.1", -1},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := appplugin.CompareSemver(tt.a, tt.b)
+			assert.Equal(t, tt.want, got, "CompareSemver(%q, %q)", tt.a, tt.b)
+		})
+	}
+}
+
+func TestInstallPlugin_UpgradePatchBump(t *testing.T) {
+	svc, _, _, parser, _, _ := newTestInstallerService()
+	parser.Result = goManifestVersioned("patch-bump", "1.0.0")
+
+	_, err := svc.InstallPlugin(context.Background(), tmpZip(t, "v1.0.0"))
+	require.NoError(t, err)
+
+	parser.Result = goManifestVersioned("patch-bump", "1.0.1")
+	p, err := svc.InstallPlugin(context.Background(), tmpZip(t, "v1.0.1"))
+	require.NoError(t, err)
+	assert.Equal(t, "1.0.1", p.Version)
+}
+
+func TestInstallPlugin_UpgradeWithPreRelease(t *testing.T) {
+	svc, _, _, parser, _, _ := newTestInstallerService()
+	parser.Result = goManifestVersioned("pre-rel", "1.0.0")
+
+	_, err := svc.InstallPlugin(context.Background(), tmpZip(t, "v1"))
+	require.NoError(t, err)
+
+	// Pre-release label is stripped for comparison, so 2.0.0-rc.1 > 1.0.0
+	parser.Result = goManifestVersioned("pre-rel", "2.0.0-rc.1")
+	p, err := svc.InstallPlugin(context.Background(), tmpZip(t, "v2rc1"))
+	require.NoError(t, err)
+	assert.Equal(t, "2.0.0-rc.1", p.Version)
+}
+
 // --- Uninstall ---
 
 func TestUninstallRemovesDir(t *testing.T) {

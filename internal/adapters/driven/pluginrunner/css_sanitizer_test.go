@@ -184,6 +184,198 @@ func TestSanitizeCSS_ComplexValidCSS(t *testing.T) {
 	}
 }
 
+func TestSanitizeCSS_URLQuoteVariants(t *testing.T) {
+	tests := []struct {
+		name    string
+		input   string
+		removed bool
+	}{
+		{"single quotes", `div { background: url('https://evil.com/img.png'); }`, true},
+		{"double quotes", `div { background: url("https://evil.com/img.png"); }`, true},
+		{"no quotes", `div { background: url(https://evil.com/img.png); }`, true},
+		{"spaces around url", `div { background: url( https://evil.com/img.png ); }`, true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			out, warns := SanitizeCSS([]byte(tt.input))
+			if tt.removed {
+				if containsString(out, "evil.com") {
+					t.Errorf("external URL not removed: %s", out)
+				}
+				if len(warns) == 0 {
+					t.Error("expected warnings")
+				}
+			}
+		})
+	}
+}
+
+func TestSanitizeCSS_CaseInsensitiveURL(t *testing.T) {
+	input := []byte(`div { background: URL(HTTPS://EVIL.COM/img.png); }`)
+	out, warns := SanitizeCSS(input)
+	if containsString(out, "EVIL.COM") {
+		t.Errorf("case-insensitive URL not removed: %s", out)
+	}
+	if len(warns) == 0 {
+		t.Error("expected warnings")
+	}
+}
+
+func TestSanitizeCSS_MixedSafeAndUnsafeURL(t *testing.T) {
+	input := []byte(`.card {
+  background: url(../images/local.png);
+  border-image: url(https://evil.com/border.png);
+  cursor: url(data:image/png;base64,abc123);
+}`)
+	out, warns := SanitizeCSS(input)
+	if containsString(out, "evil.com") {
+		t.Errorf("external URL not removed: %s", out)
+	}
+	if !containsString(out, "../images/local.png") {
+		t.Error("relative path was removed")
+	}
+	if !containsString(out, "data:image/png") {
+		t.Error("data URL was removed")
+	}
+	if len(warns) == 0 {
+		t.Error("expected warnings for external URL")
+	}
+}
+
+func TestSanitizeCSS_ImportVariants(t *testing.T) {
+	tests := []struct {
+		name  string
+		input string
+	}{
+		{"url import", `@import url("https://evil.com/spy.css");`},
+		{"double quote import", `@import "https://evil.com/spy.css";`},
+		{"single quote import", `@import 'https://evil.com/spy.css';`},
+		{"url no quotes", `@import url(https://evil.com/spy.css);`},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			out, warns := SanitizeCSS([]byte(tt.input))
+			if containsString(out, "@import") {
+				t.Errorf("@import not removed: %s", out)
+			}
+			if len(warns) == 0 {
+				t.Error("expected warnings for @import removal")
+			}
+		})
+	}
+}
+
+func TestSanitizeCSS_LargeCSS(t *testing.T) {
+	var sb []byte
+	for i := 0; i < 10000; i++ {
+		sb = append(sb, []byte(`.class-`+string(rune('a'+i%26))+` { color: red; margin: 10px; }`+"\n")...)
+	}
+	out, warns := SanitizeCSS(sb)
+	if len(out) != len(sb) {
+		t.Errorf("large clean CSS was modified: input len %d, output len %d", len(sb), len(out))
+	}
+	if len(warns) != 0 {
+		t.Errorf("unexpected warnings on large clean CSS: %v", warns)
+	}
+}
+
+func TestSanitizeCSS_UnicodeEscapeBypass(t *testing.T) {
+	// \75\72\6c is "url" in CSS unicode escapes — regex-based sanitizer
+	// won't catch this; document as known limitation
+	input := []byte(`div { background: \75\72\6c(https://evil.com/img.png); }`)
+	_, _ = SanitizeCSS(input)
+	// NOTE: CSS unicode escapes are a known limitation of regex-based sanitization.
+	// A full CSS parser would be needed to handle these.
+}
+
+func TestSanitizeCSS_URLInsideMediaQuery(t *testing.T) {
+	input := []byte(`@media (min-width: 768px) {
+  .hero { background: url(https://evil.com/hero.png); }
+}`)
+	out, warns := SanitizeCSS(input)
+	if containsString(out, "evil.com") {
+		t.Errorf("URL inside @media not removed: %s", out)
+	}
+	if len(warns) == 0 {
+		t.Error("expected warnings")
+	}
+	if !containsString(out, "@media") {
+		t.Error("@media rule itself was removed")
+	}
+}
+
+func TestSanitizeCSS_URLInsideSupports(t *testing.T) {
+	input := []byte(`@supports (display: grid) {
+  .grid { background: url(https://evil.com/grid.png); }
+}`)
+	out, warns := SanitizeCSS(input)
+	if containsString(out, "evil.com") {
+		t.Errorf("URL inside @supports not removed: %s", out)
+	}
+	if len(warns) == 0 {
+		t.Error("expected warnings")
+	}
+	if !containsString(out, "@supports") {
+		t.Error("@supports rule itself was removed")
+	}
+}
+
+func TestSanitizeCSS_DataURLPreserved(t *testing.T) {
+	tests := []struct {
+		name  string
+		input string
+	}{
+		{"png base64", `div { background: url(data:image/png;base64,iVBOR...); }`},
+		{"svg inline", `div { background: url(data:image/svg+xml,%3Csvg%3E%3C/svg%3E); }`},
+		{"font woff2", `@font-face { src: url(data:font/woff2;base64,d09G...); }`},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			out, warns := SanitizeCSS([]byte(tt.input))
+			if string(out) != tt.input {
+				t.Errorf("data URL modified:\ngot:  %s\nwant: %s", out, tt.input)
+			}
+			if len(warns) != 0 {
+				t.Errorf("unexpected warnings: %v", warns)
+			}
+		})
+	}
+}
+
+func TestSanitizeCSS_RelativePathPreserved(t *testing.T) {
+	tests := []struct {
+		name  string
+		input string
+	}{
+		{"parent dir", `div { background: url(../images/bg.png); }`},
+		{"font file", `@font-face { src: url(../fonts/foo.woff2); }`},
+		{"current dir", `div { background: url(./images/bg.png); }`},
+		{"bare filename", `div { background: url(icon.svg); }`},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			out, warns := SanitizeCSS([]byte(tt.input))
+			if string(out) != tt.input {
+				t.Errorf("relative path modified:\ngot:  %s\nwant: %s", out, tt.input)
+			}
+			if len(warns) != 0 {
+				t.Errorf("unexpected warnings: %v", warns)
+			}
+		})
+	}
+}
+
+func TestSanitizeCSS_JavascriptURLCaseInsensitive(t *testing.T) {
+	input := []byte(`div { background: url(JAVASCRIPT:alert(1)); }`)
+	out, warns := SanitizeCSS(input)
+	if containsString(out, "JAVASCRIPT") {
+		t.Errorf("case-insensitive javascript URL not removed: %s", out)
+	}
+	if len(warns) == 0 {
+		t.Error("expected warnings")
+	}
+}
+
 func containsString(b []byte, s string) bool {
 	return len(b) > 0 && len(s) > 0 && string(b) != "" && contains(string(b), s)
 }

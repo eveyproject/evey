@@ -286,23 +286,64 @@ func TestParseDir_NotFound(t *testing.T) {
 }
 
 func TestParse_ValidSemver(t *testing.T) {
-	valid := []string{"1.0.0", "0.1.0", "10.20.30", "1.0.0-beta.1", "1.0.0-rc.1"}
+	valid := []string{
+		"1.0.0", "0.1.0", "10.20.30",
+		"1.0.0-alpha", "1.0.0-beta.1", "1.0.0-rc.1",
+		"0.0.0", "999.999.999",
+		"1.0.0-0.3.7", "1.0.0-x.7.z.92",
+	}
 	parser := NewManifestParser()
 	for _, v := range valid {
-		yml := "name: test\nversion: \"" + v + "\"\nlanguage: go\nentrypoint: ./plugin\n"
-		zipPath := createTestZip(t, "plugin.yaml", yml)
-		_, err := parser.Parse(zipPath)
-		assert.NoError(t, err, "version %q should be valid", v)
+		t.Run(v, func(t *testing.T) {
+			yml := "name: test\nversion: \"" + v + "\"\nlanguage: go\nentrypoint: ./plugin\n"
+			zipPath := createTestZip(t, "plugin.yaml", yml)
+			_, err := parser.Parse(zipPath)
+			assert.NoError(t, err, "version %q should be valid", v)
+		})
 	}
 }
 
 func TestParse_InvalidSemver(t *testing.T) {
-	invalid := []string{"1.0", "1", "v1.0.0", "1.0.0.0", "abc", "1.0.x", "01.0.0"}
+	invalid := []string{
+		"1.0", "1", "v1.0.0", "1.0.0.0", "abc", "1.0.x",
+		"01.0.0", "0.01.0", "0.0.01",
+		"", " 1.0.0", "1.0.0 ", "1.0.0-", "1.0.0+build",
+	}
 	parser := NewManifestParser()
 	for _, v := range invalid {
-		yml := "name: test\nversion: \"" + v + "\"\nlanguage: go\nentrypoint: ./plugin\n"
-		zipPath := createTestZip(t, "plugin.yaml", yml)
-		_, err := parser.Parse(zipPath)
-		assert.ErrorContains(t, err, "not valid semver", "version %q should be rejected", v)
+		t.Run("reject_"+v, func(t *testing.T) {
+			yml := "name: test\nversion: \"" + v + "\"\nlanguage: go\nentrypoint: ./plugin\n"
+			zipPath := createTestZip(t, "plugin.yaml", yml)
+			_, err := parser.Parse(zipPath)
+			if v == "" {
+				assert.ErrorContains(t, err, "version is required", "empty version should fail required check")
+			} else {
+				assert.ErrorContains(t, err, "not valid semver", "version %q should be rejected", v)
+			}
+		})
+	}
+}
+
+func TestSemverRegex_Directly(t *testing.T) {
+	tests := []struct {
+		version string
+		valid   bool
+	}{
+		{"1.0.0", true},
+		{"0.0.1", true},
+		{"1.0.0-alpha", true},
+		{"1.0.0-alpha.1", true},
+		{"01.0.0", false},
+		{"0.01.0", false},
+		{"0.0.01", false},
+		{"1.0", false},
+		{"v1.0.0", false},
+		{"1.0.0.0", false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.version, func(t *testing.T) {
+			got := semverRe.MatchString(tt.version)
+			assert.Equal(t, tt.valid, got, "semverRe.MatchString(%q)", tt.version)
+		})
 	}
 }
