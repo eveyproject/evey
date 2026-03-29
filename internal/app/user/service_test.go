@@ -4,6 +4,7 @@ import (
 	"context"
 	"sync"
 	"testing"
+	"time"
 
 	appuser "github.com/gravity-zero/evey/internal/app/user"
 	domainuser "github.com/gravity-zero/evey/internal/domain/user"
@@ -22,7 +23,7 @@ func newAuthSvc() (*appuser.CommandService, *userfakes.FakeUserRepository, *user
 	hasher := userfakes.NewFakePasswordHasher()
 	tokenGen := userfakes.NewFakeTokenGenerator()
 	bus := sharedfakes.NewFakeEventBus()
-	svc := appuser.NewCommandService(userRepo, profileRepo, rtRepo, roleRepo, userRoleRepo, hasher, tokenGen, bus)
+	svc := appuser.NewCommandService(userRepo, profileRepo, rtRepo, roleRepo, userRoleRepo, hasher, tokenGen, bus, 7*24*time.Hour, userfakes.NewFakeQuickConnectRepository())
 	return svc, userRepo, profileRepo, hasher, bus
 }
 
@@ -161,7 +162,7 @@ func TestLogin_DuplicateRefreshTokenRetries(t *testing.T) {
 		collideCount: 1,
 	}
 
-	svc := appuser.NewCommandService(userRepo, profileRepo, rtRepo, roleRepo, userRoleRepo, hasher, tokenGen, bus)
+	svc := appuser.NewCommandService(userRepo, profileRepo, rtRepo, roleRepo, userRoleRepo, hasher, tokenGen, bus, 7*24*time.Hour, userfakes.NewFakeQuickConnectRepository())
 
 	hash, _ := hasher.Hash("pass")
 	_ = userRepo.Create(context.Background(), &domainuser.User{
@@ -194,7 +195,7 @@ func TestLogin_DuplicateRefreshTokenExhausted(t *testing.T) {
 		collideCount: 100,
 	}
 
-	svc := appuser.NewCommandService(userRepo, profileRepo, rtRepo, roleRepo, userRoleRepo, hasher, tokenGen, bus)
+	svc := appuser.NewCommandService(userRepo, profileRepo, rtRepo, roleRepo, userRoleRepo, hasher, tokenGen, bus, 7*24*time.Hour, userfakes.NewFakeQuickConnectRepository())
 
 	hash, _ := hasher.Hash("pass")
 	_ = userRepo.Create(context.Background(), &domainuser.User{

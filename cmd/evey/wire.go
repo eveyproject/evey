@@ -171,6 +171,7 @@ func buildServices(ctx context.Context, cfg *config.Config, db *sql.DB, rootLog 
 		r.User, r.Profile, r.RefreshToken,
 		r.Role, r.UserRole,
 		hasher, tokenGen, bus,
+		7*24*time.Hour, r.QuickConnect,
 	)
 	userAuthSvc.InitSetupState(context.Background())
 	userSvc := appuser.NewUserService(r.User, r.Profile, r.RefreshToken, hasher, bus)
@@ -183,7 +184,7 @@ func buildServices(ctx context.Context, cfg *config.Config, db *sql.DB, rootLog 
 		oidcSvc, oidcErr = appuser.NewOIDCService(
 			context.Background(), cfg,
 			r.User, r.Profile, r.RefreshToken, r.UserRole,
-			tokenGen, bus,
+			tokenGen, bus, 7*24*time.Hour,
 		)
 		if oidcErr != nil {
 			return nil, fmt.Errorf("oidc init: %w", oidcErr)

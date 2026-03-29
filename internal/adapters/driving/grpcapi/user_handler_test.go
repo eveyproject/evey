@@ -4,6 +4,7 @@ import (
 	"context"
 	"strings"
 	"testing"
+	"time"
 
 	eveyv1 "github.com/gravity-zero/evey/gen/evey/v1"
 	appactivity "github.com/gravity-zero/evey/internal/app/activity"
@@ -46,6 +47,7 @@ func setupUserHandler() *testUserEnv {
 		userRepo, profileRepo, refreshRepo,
 		roleRepo, userRoleRepo,
 		hasher, tokenGen, events,
+		7*24*time.Hour, userfakes.NewFakeQuickConnectRepository(),
 	)
 	userSvc := appuser.NewUserService(userRepo, profileRepo, refreshRepo, hasher, events)
 	access := appuser.NewAccessService(userRepo, apiKeyRepo, inviteRepo, qcRepo, hasher, events)

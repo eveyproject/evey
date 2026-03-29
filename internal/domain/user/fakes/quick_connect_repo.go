@@ -4,6 +4,7 @@ import (
 	"context"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/gravity-zero/evey/internal/domain/user"
 )
@@ -85,5 +86,19 @@ func (r *FakeQuickConnectRepository) DeleteExpired(_ context.Context) error {
 	if r.Err != nil {
 		return r.Err
 	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	now := time.Now()
+	for code, req := range r.items {
+		if req.ExpiresAt.Before(now) {
+			delete(r.items, code)
+		}
+	}
 	return nil
+}
+
+func (r *FakeQuickConnectRepository) Count() int {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	return len(r.items)
 }

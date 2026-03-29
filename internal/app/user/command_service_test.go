@@ -35,7 +35,8 @@ func newAuthTestDeps() *authTestDeps {
 	tokens := ufakes.NewFakeTokenGenerator()
 	events := fakes.NewFakeEventBus()
 
-	svc := NewCommandService(users, profiles, refreshTkns, roles, userRoles, hasher, tokens, events)
+	qc := ufakes.NewFakeQuickConnectRepository()
+	svc := NewCommandService(users, profiles, refreshTkns, roles, userRoles, hasher, tokens, events, 7*24*time.Hour, qc)
 	return &authTestDeps{users, profiles, refreshTkns, roles, userRoles, hasher, tokens, events, svc}
 }
 
@@ -858,7 +859,7 @@ func TestRefreshToken_NewRefreshGenError(t *testing.T) {
 	events := fakes.NewFakeEventBus()
 	tokenGen := &failOnNewRefreshGen{inner: ufakes.NewFakeTokenGenerator()}
 
-	svc := NewCommandService(users, profiles, refreshTkns, roles, userRoles, hasher, tokenGen, events)
+	svc := NewCommandService(users, profiles, refreshTkns, roles, userRoles, hasher, tokenGen, events, 7*24*time.Hour, ufakes.NewFakeQuickConnectRepository())
 	ctx := context.Background()
 
 	_ = users.Create(ctx, &user.User{ID: "u1", Username: "alice", PasswordHash: "hashed:pw", Enabled: true})
@@ -917,7 +918,7 @@ func TestRefreshToken_NewRTStoreError(t *testing.T) {
 	tokenGen := ufakes.NewFakeTokenGenerator()
 	events := fakes.NewFakeEventBus()
 
-	svc := NewCommandService(users, profiles, rtRepo, roles, userRoles, hasher, tokenGen, events)
+	svc := NewCommandService(users, profiles, rtRepo, roles, userRoles, hasher, tokenGen, events, 7*24*time.Hour, ufakes.NewFakeQuickConnectRepository())
 	ctx := context.Background()
 
 	_ = users.Create(ctx, &user.User{ID: "u1", Username: "alice", PasswordHash: "hashed:pw", Enabled: true})
@@ -937,10 +938,53 @@ func TestRefreshToken_NewRTStoreError(t *testing.T) {
 
 // --- StartCleanup ---
 
-func TestStartCleanup_RunsAndStops(t *testing.T) {
+func TestStartCleanup_RunsInitialCleanup(t *testing.T) {
 	d := newAuthTestDeps()
-	qc := ufakes.NewFakeQuickConnectRepository()
 	ctx, cancel := context.WithCancel(context.Background())
-	d.svc.StartCleanup(ctx, qc)
+	defer cancel()
+
+	_ = d.refreshTkns.Create(ctx, &user.RefreshToken{
+		ID: "rt-exp", UserID: "u1", TokenHash: "h-exp",
+		ExpiresAt: time.Now().Add(-1 * time.Hour), CreatedAt: time.Now(),
+	})
+	if d.refreshTkns.Count() != 1 {
+		t.Fatal("expected 1 token seeded")
+	}
+
+	d.svc.StartCleanupWithInterval(ctx, 50*time.Millisecond)
+	time.Sleep(100 * time.Millisecond)
+
+	if d.refreshTkns.Count() != 0 {
+		t.Fatalf("expected expired token deleted, got %d", d.refreshTkns.Count())
+	}
+}
+
+func TestStartCleanup_TickerCleansAgain(t *testing.T) {
+	d := newAuthTestDeps()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	d.svc.StartCleanupWithInterval(ctx, 50*time.Millisecond)
+	time.Sleep(80 * time.Millisecond)
+
+	_ = d.refreshTkns.Create(ctx, &user.RefreshToken{
+		ID: "rt-exp2", UserID: "u1", TokenHash: "h-exp2",
+		ExpiresAt: time.Now().Add(-1 * time.Hour), CreatedAt: time.Now(),
+	})
+	if d.refreshTkns.Count() != 1 {
+		t.Fatal("expected 1 token seeded")
+	}
+
+	time.Sleep(80 * time.Millisecond)
+	if d.refreshTkns.Count() != 0 {
+		t.Fatalf("expected ticker to clean expired token, got %d", d.refreshTkns.Count())
+	}
+}
+
+func TestStartCleanup_StopsOnCancel(t *testing.T) {
+	d := newAuthTestDeps()
+	ctx, cancel := context.WithCancel(context.Background())
+	d.svc.StartCleanup(ctx)
 	cancel()
+	time.Sleep(20 * time.Millisecond)
 }

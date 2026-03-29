@@ -17,16 +17,18 @@ import (
 
 // CommandService handles auth, setup and token management.
 type CommandService struct {
-	users       user.UserRepository
-	profiles    user.ProfileRepository
-	refreshTkns user.RefreshTokenRepository
-	roles       user.RoleRepository
-	userRoles   user.UserRoleRepository
-	hasher      user.PasswordHasher
-	tokens      user.TokenGenerator
-	events      shared.EventBus
-	setupMu     sync.Mutex
-	setupDone   bool
+	users           user.UserRepository
+	profiles        user.ProfileRepository
+	refreshTkns     user.RefreshTokenRepository
+	roles           user.RoleRepository
+	userRoles       user.UserRoleRepository
+	hasher          user.PasswordHasher
+	tokens          user.TokenGenerator
+	events          shared.EventBus
+	quickConnect    user.QuickConnectRepository
+	refreshTokenTTL time.Duration
+	setupMu         sync.Mutex
+	setupDone       bool
 }
 
 func NewCommandService(
@@ -38,16 +40,20 @@ func NewCommandService(
 	hasher user.PasswordHasher,
 	tokens user.TokenGenerator,
 	events shared.EventBus,
+	refreshTokenTTL time.Duration,
+	quickConnect user.QuickConnectRepository,
 ) *CommandService {
 	return &CommandService{
-		users:       users,
-		profiles:    profiles,
-		refreshTkns: refreshTkns,
-		roles:       roles,
-		userRoles:   userRoles,
-		hasher:      hasher,
-		tokens:      tokens,
-		events:      events,
+		users:           users,
+		profiles:        profiles,
+		refreshTkns:     refreshTkns,
+		roles:           roles,
+		userRoles:       userRoles,
+		hasher:          hasher,
+		tokens:          tokens,
+		events:          events,
+		refreshTokenTTL: refreshTokenTTL,
+		quickConnect:    quickConnect,
 	}
 }
 
@@ -302,7 +308,7 @@ func (s *CommandService) RefreshToken(ctx context.Context, token string) (string
 		ID:        id.New("rt-"),
 		UserID:    u.ID,
 		TokenHash: hex.EncodeToString(nh[:]),
-		ExpiresAt: time.Now().Add(7 * 24 * time.Hour),
+		ExpiresAt: time.Now().Add(s.refreshTokenTTL),
 		CreatedAt: time.Now(),
 	}
 	if err := s.refreshTkns.Create(ctx, newRT); err != nil {
@@ -333,7 +339,7 @@ func (s *CommandService) generateAndStoreRefreshToken(ctx context.Context, userI
 			ID:        id.New("rt-"),
 			UserID:    userID,
 			TokenHash: hex.EncodeToString(h[:]),
-			ExpiresAt: time.Now().Add(7 * 24 * time.Hour),
+			ExpiresAt: time.Now().Add(s.refreshTokenTTL),
 			CreatedAt: time.Now(),
 		}
 		err = s.refreshTkns.Create(ctx, rt)
@@ -347,27 +353,36 @@ func (s *CommandService) generateAndStoreRefreshToken(ctx context.Context, userI
 	return "", errors.New("store refresh token: duplicate hash after retries")
 }
 
-func (s *CommandService) StartCleanup(ctx context.Context, quickConnect user.QuickConnectRepository) {
+func (s *CommandService) StartCleanup(ctx context.Context) {
+	s.StartCleanupWithInterval(ctx, 1*time.Hour)
+}
+
+func (s *CommandService) StartCleanupWithInterval(ctx context.Context, interval time.Duration) {
 	go func() {
 		defer func() {
 			if r := recover(); r != nil {
 				slog.Error("panic in user cleanup", slog.Any("recover", r))
 			}
 		}()
-		ticker := time.NewTicker(1 * time.Hour)
+		s.runCleanup(ctx)
+		ticker := time.NewTicker(interval)
 		defer ticker.Stop()
 		for {
 			select {
 			case <-ctx.Done():
 				return
 			case <-ticker.C:
-				if err := s.refreshTkns.DeleteExpired(ctx); err != nil {
-					slog.Warn("refresh token cleanup", slog.Any("err", err))
-				}
-				if err := quickConnect.DeleteExpired(ctx); err != nil {
-					slog.Warn("quick connect cleanup", slog.Any("err", err))
-				}
+				s.runCleanup(ctx)
 			}
 		}
 	}()
+}
+
+func (s *CommandService) runCleanup(ctx context.Context) {
+	if err := s.refreshTkns.DeleteExpired(ctx); err != nil {
+		slog.Warn("refresh token cleanup", slog.Any("err", err))
+	}
+	if err := s.quickConnect.DeleteExpired(ctx); err != nil {
+		slog.Warn("quick connect cleanup", slog.Any("err", err))
+	}
 }

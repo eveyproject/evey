@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"sync"
+	"time"
 
 	"github.com/gravity-zero/evey/internal/domain/shared"
 	"github.com/gravity-zero/evey/internal/domain/user"
@@ -105,5 +106,19 @@ func (r *FakeRefreshTokenRepository) DeleteExpired(_ context.Context) error {
 	if r.Err != nil {
 		return r.Err
 	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	now := time.Now()
+	for id, t := range r.items {
+		if t.ExpiresAt.Before(now) {
+			delete(r.items, id)
+		}
+	}
 	return nil
+}
+
+func (r *FakeRefreshTokenRepository) Count() int {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	return len(r.items)
 }

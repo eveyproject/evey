@@ -37,6 +37,7 @@ type OIDCService struct {
 	stateSecret         []byte
 	issuer              string
 	allowedEmailDomains []string
+	refreshTokenTTL     time.Duration
 }
 
 func NewOIDCService(
@@ -48,6 +49,7 @@ func NewOIDCService(
 	userRoles domainuser.UserRoleRepository,
 	tokens domainuser.TokenGenerator,
 	events shared.EventBus,
+	refreshTokenTTL time.Duration,
 ) (*OIDCService, error) {
 	if !cfg.OIDC.Enabled {
 		return nil, ErrOIDCDisabled
@@ -86,6 +88,7 @@ func NewOIDCService(
 		stateSecret:         h[:],
 		issuer:              cfg.OIDC.Issuer,
 		allowedEmailDomains: cfg.OIDC.AllowedEmailDomains,
+		refreshTokenTTL:     refreshTokenTTL,
 	}, nil
 }
 
@@ -299,7 +302,7 @@ func (s *OIDCService) generateAndStoreRefreshToken(ctx context.Context, userID s
 			ID:        id.New("rt-"),
 			UserID:    userID,
 			TokenHash: hex.EncodeToString(h[:]),
-			ExpiresAt: time.Now().Add(7 * 24 * time.Hour),
+			ExpiresAt: time.Now().Add(s.refreshTokenTTL),
 			CreatedAt: time.Now(),
 		}
 		if err := s.refreshTkns.Create(ctx, rt); err == nil {
