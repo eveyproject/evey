@@ -1,0 +1,19 @@
+unleash:
+  dry-run: false
+  tags: ""
+  output: text
+  timeout-coefficient: 10
+  threshold:
+    efficacy: 60
+  mutants:
+    arithmetic-base: true
+    conditionals-boundary: true
+    conditionals-negation: true
+    increment-decrement: true
+    invert-assignments: true
+    invert-bitwise: true
+    invert-booleans: true
+    invert-logical: true
+    invert-loopctrl: true
+    invert-negatives: true
+    remove-self-assignments: true
