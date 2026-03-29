@@ -327,7 +327,8 @@ func buildServices(ctx context.Context, cfg *config.Config, db *sql.DB, rootLog 
 	}
 
 	feedCmdSvc := appfeed.NewCommandService(r.FeedConfigCmd, r.FeedConfigQuery).WithEventBus(bus)
-	feedQuerySvc := appfeed.NewQueryService(r.FeedConfigQuery, r.FeedQuerier, r.WatchHistoryAnalyzer)
+	cachedAnalyzer := appfeed.NewCachedAnalyzer(r.WatchHistoryAnalyzer, 5*time.Minute).WithEventBus(bus)
+	feedQuerySvc := appfeed.NewQueryService(r.FeedConfigQuery, r.FeedQuerier, cachedAnalyzer)
 
 	// Ensure all existing libraries have feed configs (covers libs created before event system)
 	if libs, libErr := r.Library.List(ctx); libErr == nil {
