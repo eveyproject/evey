@@ -5,6 +5,8 @@ import (
 	"database/sql"
 	"fmt"
 	"log/slog"
+	"net"
+	"net/http"
 	"os"
 	"path/filepath"
 	"runtime/debug"
@@ -103,13 +105,22 @@ func buildServices(ctx context.Context, cfg *config.Config, db *sql.DB, rootLog 
 	if langEntry, err2 := r.ServerCfg.Get(context.Background(), "metadata.language"); err2 == nil && langEntry.Value != "" {
 		cfg.Metadata.Language = langEntry.Value
 	}
+	metadataHTTP := &http.Client{
+		Timeout: 30 * time.Second,
+		Transport: &http.Transport{
+			MaxIdleConns:        100,
+			MaxIdleConnsPerHost: 10,
+			IdleConnTimeout:     90 * time.Second,
+			DialContext:         (&net.Dialer{Timeout: 10 * time.Second}).DialContext,
+		},
+	}
 	tmdbKey := resolveAPIKey(r.ServerCfg, "api.tmdb_key", "EVEY_TMDB_API_KEY")
-	tmdbProvider := metadataadapter.NewTMDBProvider(tmdbKey, cfg.Metadata.Language, nil)
-	imdbProvider := metadataadapter.NewIMDBAPIProvider(nil)
-	tvmazeProvider := metadataadapter.NewTVMazeProvider(nil)
+	tmdbProvider := metadataadapter.NewTMDBProvider(tmdbKey, cfg.Metadata.Language, metadataHTTP)
+	imdbProvider := metadataadapter.NewIMDBAPIProvider(metadataHTTP)
+	tvmazeProvider := metadataadapter.NewTVMazeProvider(metadataHTTP)
 	omdbKey := resolveAPIKey(r.ServerCfg, "api.omdb_key", "EVEY_OMDB_API_KEY")
-	omdbProvider := metadataadapter.NewOMDbProvider(omdbKey, nil)
-	artworkDownloader := metadataadapter.NewArtworkHTTPDownloader(nil)
+	omdbProvider := metadataadapter.NewOMDbProvider(omdbKey, metadataHTTP)
+	artworkDownloader := metadataadapter.NewArtworkHTTPDownloader(metadataHTTP)
 	pluginLogDir := filepath.Join(cfg.Log.Dir, "plugins")
 	pluginRetention := cfg.Log.PluginRetentionDays
 	if pluginRetention <= 0 {
@@ -336,7 +347,7 @@ func buildServices(ctx context.Context, cfg *config.Config, db *sql.DB, rootLog 
 	// --- Subtitle service ---
 	var subtitleSvc *appsubtitle.Service
 	if osAPIKey := resolveAPIKey(r.ServerCfg, "api.opensubtitles_key", "EVEY_OPENSUBTITLES_API_KEY"); osAPIKey != "" {
-		osClient := opensubtitles.New(osAPIKey, os.Getenv("EVEY_OPENSUBTITLES_USERNAME"), os.Getenv("EVEY_OPENSUBTITLES_PASSWORD"))
+		osClient := opensubtitles.New(osAPIKey, os.Getenv("EVEY_OPENSUBTITLES_USERNAME"), os.Getenv("EVEY_OPENSUBTITLES_PASSWORD"), metadataHTTP)
 		subtitleSvc = appsubtitle.NewService(r.Subtitle, osClient, opensubtitles.NewLibraryMediaGetter(libQuerySvc))
 		rootLog.Info("opensubtitles integration enabled")
 	}
