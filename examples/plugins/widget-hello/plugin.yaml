@@ -1,0 +1,11 @@
+name: hello-widget
+version: 1.0.0
+description: Simple hello-world widget demonstrating the postMessage bridge
+author: evey-examples
+language: nodejs
+entrypoint: widget.bundle.js
+capabilities:
+  - ui.extension
+ui_widgets:
+  - slot: home.section
+    src: widget.bundle.js

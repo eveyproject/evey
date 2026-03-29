@@ -1,0 +1,55 @@
+name: config-demo
+version: 1.0.0
+description: Demonstrates every config_schema field type
+author: evey-examples
+language: nodejs
+entrypoint: main.js
+capabilities:
+  - ui.extension
+ui_widgets:
+  - slot: admin.section
+    src: widget.bundle.js
+config_schema:
+  api_key:
+    type: password
+    label: API Key
+    required: true
+    description: Secret key for external service
+  display_name:
+    type: string
+    label: Display Name
+    required: true
+    default: My Plugin
+    description: Name shown in the UI
+  enabled:
+    type: boolean
+    label: Enable Feature
+    default: true
+  max_results:
+    type: integer
+    label: Max Results
+    min: 1
+    max: 100
+    default: 25
+  score_threshold:
+    type: number
+    label: Score Threshold
+    default: 0.75
+    description: Minimum match score (0-1)
+  language:
+    type: select
+    label: Language
+    default: en
+    options:
+      - value: en
+        label: English
+      - value: fr
+        label: French
+      - value: de
+        label: German
+      - value: ja
+        label: Japanese
+  notes:
+    type: text
+    label: Notes
+    description: Free-form notes (multiline)

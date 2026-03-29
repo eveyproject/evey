@@ -1,0 +1,8 @@
+name: dark-blue-theme
+version: 1.0.0
+description: Dark blue color theme for Evey
+author: evey-examples
+language: css
+entrypoint: theme.css
+capabilities:
+  - ui.theme
