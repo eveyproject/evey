@@ -15,7 +15,11 @@ func (h *mediaServe) handleArtwork(w http.ResponseWriter, r *http.Request) {
 	artType := r.PathValue("artType")
 
 	var artItem *library.MediaItem
-	if _, ok := StreamTokenFromContext(r.Context()); ok {
+	if st, ok := StreamTokenFromContext(r.Context()); ok {
+		if st.MediaItemID != mediaID {
+			http.Error(w, `{"message":"forbidden"}`, http.StatusForbidden)
+			return
+		}
 		item, err := h.libSvc.GetMediaItem(r.Context(), mediaID)
 		if err != nil {
 			http.NotFound(w, r)

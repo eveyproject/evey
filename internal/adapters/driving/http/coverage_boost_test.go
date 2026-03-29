@@ -248,6 +248,29 @@ func TestMediaArtwork_IDOR_403(t *testing.T) {
 	}
 }
 
+func TestMediaArtwork_StreamToken_WrongMediaID_403(t *testing.T) {
+	h := mediaHandler(
+		&fakeTokenVerifier{claims: testClaims(false)},
+		&fakeMediaItemGetter{item: testMediaItem("lib1")},
+		&fakeArtworkRepo{records: map[string][]*domainmeta.ArtworkRecord{}},
+		"http://localhost",
+		allowAll(),
+	)
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/media/m1/artwork/poster", nil)
+	req.SetPathValue("id", "m1")
+	req.SetPathValue("artType", "poster")
+	ctx := context.WithValue(req.Context(), streamTokenCtxKey, &shared.StreamToken{
+		UserID:      "u1",
+		MediaItemID: "other-media",
+	})
+	req = req.WithContext(ctx)
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, req)
+	if w.Code != http.StatusForbidden {
+		t.Errorf("expected 403 for wrong media_id, got %d", w.Code)
+	}
+}
+
 // --- chaptersHandler ---
 
 func TestChaptersHandler_NoAuth_401(t *testing.T) {
