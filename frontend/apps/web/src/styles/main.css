@@ -61,8 +61,8 @@
 
 body {
   margin: 0;
-  background-color: var(--bg, #0c1220);
-  color: var(--text, #f1f5f9);
+  background-color: var(--bg);
+  color: var(--text);
   font-family: var(--font-family, 'Inter', system-ui, -apple-system, sans-serif);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
