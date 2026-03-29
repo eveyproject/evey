@@ -9,11 +9,13 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
 
+	"github.com/gravity-zero/evey/internal/adapters/driven/pluginrunner"
 	"github.com/gravity-zero/evey/internal/domain/plugin"
 	"github.com/gravity-zero/evey/internal/domain/shared"
 	"github.com/gravity-zero/evey/internal/pkg/id"
@@ -138,6 +140,19 @@ func (s *InstallerService) InstallPlugin(ctx context.Context, zipPath string) (*
 			return nil, fmt.Errorf("extract plugin: %w", err)
 		}
 		p.InstallDir = installDir
+	}
+
+	if p.InstallDir != "" && slices.Contains(p.Capabilities, "ui.theme") {
+		themePath := filepath.Join(p.InstallDir, "theme.css")
+		if raw, readErr := os.ReadFile(themePath); readErr == nil {
+			sanitized, warns := pluginrunner.SanitizeCSS(raw)
+			if len(warns) > 0 {
+				slog.Warn("css sanitizer cleaned theme at install", slog.String("pluginID", p.ID), slog.Any("warnings", warns))
+				if writeErr := os.WriteFile(themePath, sanitized, 0o644); writeErr != nil {
+					slog.Warn("write sanitized theme.css", slog.String("pluginID", p.ID), slog.Any("err", writeErr))
+				}
+			}
+		}
 	}
 
 	if p.InstallDir != "" && s.fs != nil {

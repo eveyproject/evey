@@ -11,6 +11,7 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/gravity-zero/evey/internal/adapters/driven/pluginrunner"
 	appplugin "github.com/gravity-zero/evey/internal/app/plugin"
 	domainplugin "github.com/gravity-zero/evey/internal/domain/plugin"
 	"github.com/gravity-zero/evey/internal/pkg/auth"
@@ -105,9 +106,14 @@ func (h *pluginAssetHandler) handleThemeCSS(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
+	sanitized, warnings := pluginrunner.SanitizeCSS(data)
+	if len(warnings) > 0 {
+		slog.Warn("css sanitizer removed rules", slog.String("plugin", pluginID), slog.Any("warnings", warnings))
+	}
+
 	w.Header().Set("Content-Type", "text/css")
 	w.Header().Set("Cache-Control", "public, max-age=3600")
-	if _, err := w.Write(data); err != nil {
+	if _, err := w.Write(sanitized); err != nil {
 		return
 	}
 }
