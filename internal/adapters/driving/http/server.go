@@ -87,6 +87,7 @@ type HTTPServer struct {
 
 	// Activity
 	ActivityQuerySvc *appactivity.QueryService
+	ActivityCmdSvc   *appactivity.CommandService
 
 	// Collections / Playlists / Favorites
 	CollectionSvc *appcollection.Service
@@ -226,13 +227,13 @@ func (s *HTTPServer) RegisterRoutes(mux *http.ServeMux, gwMux http.Handler) {
 	}
 
 	registerFeedRoutes(mux, s.FeedCmdSvc, s.FeedQuerySvc, s.TokenGen)
-	registerAdminRoutes(mux, s.MetadataCmdSvc, s.MetadataQuerySvc, s.TokenGen, s.AdminHeavyRL, s.ServerCtx)
-	registerUserAdminRoutes(mux, s.UserSvc, s.UserQuerySvc, s.TokenGen)
+	registerAdminRoutes(mux, s.MetadataCmdSvc, s.MetadataQuerySvc, s.TokenGen, s.AdminHeavyRL, s.ServerCtx, s.ActivityCmdSvc)
+	registerUserAdminRoutes(mux, s.UserSvc, s.UserQuerySvc, s.TokenGen, s.ActivityCmdSvc)
 	registerFavoriteRoutes(mux, s.FavoriteSvc, s.LibQuerySvc, s.TokenGen)
 	registerPhotoRoutes(mux, s.PhotoSvc, s.TokenGen, s.LibraryAccessRepo, s.LibQuerySvc, s.ServerCtx)
 	registerMetadataOverrideRoutes(mux, s.MetadataCmdSvc, s.MetadataQuerySvc, s.TokenGen)
-	registerTranscodeCacheRoutes(mux, s.TranscodingSvc, s.TokenGen, s.LibQuerySvc)
-	registerTranscodeProfileRoutes(mux, s.TranscodingSvc, s.TokenGen)
+	registerTranscodeCacheRoutes(mux, s.TranscodingSvc, s.TokenGen, s.LibQuerySvc, s.ActivityCmdSvc)
+	registerTranscodeProfileRoutes(mux, s.TranscodingSvc, s.TokenGen, s.ActivityCmdSvc)
 	registerCollectionRoutes(mux, s.CollectionSvc, s.TokenGen)
 	registerScheduleRoutes(mux, s.Scheduler, s.TokenGen)
 	registerLibraryAccessRoutes(mux, s.LibraryAccessRepo, s.LibQuerySvc, s.TokenGen)
@@ -252,7 +253,7 @@ func (s *HTTPServer) RegisterRoutes(mux *http.ServeMux, gwMux http.Handler) {
 	registerAnalyticsRoutes(mux, s.ActivityQuerySvc, s.TokenGen)
 	registerFilterRoutes(mux, s.LibQuerySvc, s.TokenGen, s.LibraryAccessRepo)
 	registerSystemStatsRoute(mux, s.StartTime, s.TokenGen)
-	registerServerConfigRoutes(mux, s.ServerCfgRepo, s.TokenGen)
+	registerServerConfigRoutes(mux, s.ServerCfgRepo, s.TokenGen, s.ActivityCmdSvc)
 	registerLogsRoute(mux, s.LogDir, s.TokenGen)
 	registerAvailableRuntimesRoute(mux, s.TokenGen)
 	registerMusicRoutes(mux, s.MusicSvc, s.TokenGen, s.LibraryAccessRepo, s.LibQuerySvc)

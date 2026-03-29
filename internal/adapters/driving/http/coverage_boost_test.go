@@ -674,7 +674,7 @@ func newServerConfigMux(t *testing.T) (*http.ServeMux, string, string) {
 	gen, adminTok, userTok := genTokens(t)
 	cfgRepo := sharedfakes.NewFakeServerConfigRepository()
 	mux := http.NewServeMux()
-	registerServerConfigRoutes(mux, cfgRepo, gen)
+	registerServerConfigRoutes(mux, cfgRepo, gen, nil)
 	return mux, adminTok, userTok
 }
 
@@ -788,7 +788,7 @@ func newTranscodeCacheMux(t *testing.T) (*http.ServeMux, string, string) {
 	svc := apptranscoding.NewService(transcoder, hw, jobRepo, profileRepo, bus, 0)
 	svc.WithCacheStore(cache)
 	mux := http.NewServeMux()
-	registerTranscodeCacheRoutes(mux, svc, gen, &fakeMediaItemGetter{})
+	registerTranscodeCacheRoutes(mux, svc, gen, &fakeMediaItemGetter{}, nil)
 	return mux, adminTok, userTok
 }
 
@@ -2312,7 +2312,7 @@ func newUserAdminMux(t *testing.T) (*http.ServeMux, string, string) {
 	userQuery := appuser.NewQueryService(userRepo, profileRepo, apiKeyRepo, inviteRepo, qcRepo)
 
 	mux := http.NewServeMux()
-	registerUserAdminRoutes(mux, userSvc, userQuery, gen)
+	registerUserAdminRoutes(mux, userSvc, userQuery, gen, nil)
 	return mux, adminTok, userTok
 }
 
@@ -2602,7 +2602,7 @@ func newAdminMediaMux(t *testing.T) (*http.ServeMux, string, string) {
 	metaQuery := appmetadata.NewQueryService(metaOverrides, metaArtwork, []domainmeta.MetadataProvider{provider})
 	rl := ratelimit.New(100)
 	mux := http.NewServeMux()
-	registerAdminRoutes(mux, metaCmd, metaQuery, gen, rl, context.Background())
+	registerAdminRoutes(mux, metaCmd, metaQuery, gen, rl, context.Background(), nil)
 	return mux, adminTok, userTok
 }
 

@@ -14,9 +14,11 @@ import (
 	"sync"
 	"time"
 
+	appactivity "github.com/gravity-zero/evey/internal/app/activity"
 	appmetadata "github.com/gravity-zero/evey/internal/app/metadata"
 	apptranscoding "github.com/gravity-zero/evey/internal/app/transcoding"
 	appuser "github.com/gravity-zero/evey/internal/app/user"
+	"github.com/gravity-zero/evey/internal/domain/activity"
 	"github.com/gravity-zero/evey/internal/pkg/runtimedetect"
 	domainshared "github.com/gravity-zero/evey/internal/domain/shared"
 	domaintranscoding "github.com/gravity-zero/evey/internal/domain/transcoding"
@@ -26,22 +28,47 @@ import (
 )
 
 type adminHandler struct {
-	tokenGen     *auth.JWTGenerator
-	metaCmd      *appmetadata.CommandService
-	metaQuery    *appmetadata.QueryService
-	heavyRL      *ratelimit.Limiter
-	userSvc      *appuser.UserService
-	userQuery    *appuser.QueryService
-	logDir       string
-	startTime    time.Time
-	cfgRepo      domainshared.ServerConfigRepository
-	transcodeSvc *apptranscoding.Service
-	mediaGetter  MediaItemGetter
-	serverCtx    context.Context
+	tokenGen       *auth.JWTGenerator
+	metaCmd        *appmetadata.CommandService
+	metaQuery      *appmetadata.QueryService
+	heavyRL        *ratelimit.Limiter
+	userSvc        *appuser.UserService
+	userQuery      *appuser.QueryService
+	activityCmdSvc *appactivity.CommandService
+	logDir         string
+	startTime      time.Time
+	cfgRepo        domainshared.ServerConfigRepository
+	transcodeSvc   *apptranscoding.Service
+	mediaGetter    MediaItemGetter
+	serverCtx      context.Context
 
 	statsMu      sync.Mutex
 	cachedMS     goruntime.MemStats
 	cacheExpires time.Time
+}
+
+func (h *adminHandler) audit(r *http.Request, action, resourceType string, resourceID *string, details map[string]any) {
+	if h.activityCmdSvc == nil {
+		return
+	}
+	claims, err := extractAdminClaims(r, h.tokenGen)
+	if err != nil {
+		return
+	}
+	ip := r.RemoteAddr
+	ua := r.UserAgent()
+	e := &activity.AuditLogEntry{
+		UserID:       claims.UserID,
+		Action:       action,
+		ResourceType: resourceType,
+		ResourceID:   resourceID,
+		Details:      details,
+		ClientIP:     &ip,
+		UserAgent:    &ua,
+	}
+	if err := h.activityCmdSvc.CreateAuditEntry(r.Context(), e); err != nil {
+		slog.Warn("audit log failed", slog.String("action", action), slog.Any("err", err))
+	}
 }
 
 func (h *adminHandler) requireAdmin(r *http.Request) bool {
@@ -173,6 +200,7 @@ func (h *adminHandler) handleRefreshAll(w http.ResponseWriter, r *http.Request) 
 		http.Error(w, `{"message":"too many requests"}`, http.StatusTooManyRequests)
 		return
 	}
+	h.audit(r, "refresh_all_metadata", "metadata", nil, nil)
 	go func() {
 		defer func() {
 			if r := recover(); r != nil {
@@ -232,6 +260,7 @@ func (h *adminHandler) handleSetBitrateLimit(w http.ResponseWriter, r *http.Requ
 		http.Error(w, `{"message":"internal error"}`, http.StatusInternalServerError)
 		return
 	}
+	h.audit(r, "set_bitrate_limit", "user", &userID, map[string]any{"max_bitrate_kbps": body.MaxBitrateKbps})
 	w.Header().Set("Content-Type", "application/json")
 	if err := json.NewEncoder(w).Encode(map[string]any{"max_bitrate_kbps": body.MaxBitrateKbps}); err != nil {
 		slog.Warn("json encode failed", slog.Any("err", err))
@@ -439,6 +468,7 @@ func (h *adminHandler) handleSetServerConfig(w http.ResponseWriter, r *http.Requ
 		http.Error(w, `{"message":"internal error"}`, http.StatusInternalServerError)
 		return
 	}
+	h.audit(r, "set_server_config", "server_config", &key, map[string]any{"key": key})
 	w.WriteHeader(http.StatusNoContent)
 }
 
@@ -451,6 +481,7 @@ func (h *adminHandler) handleDeleteServerConfig(w http.ResponseWriter, r *http.R
 		http.Error(w, `{"message":"not found"}`, http.StatusNotFound)
 		return
 	}
+	h.audit(r, "delete_server_config", "server_config", &key, map[string]any{"key": key})
 	w.WriteHeader(http.StatusNoContent)
 }
 
@@ -495,6 +526,7 @@ func (h *adminHandler) handleCreateTranscodeProfile(w http.ResponseWriter, r *ht
 		http.Error(w, `{"message":"internal error"}`, http.StatusInternalServerError)
 		return
 	}
+	h.audit(r, "create_transcode_profile", "transcode_profile", &p.ID, map[string]any{"name": p.Name})
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
 	if err := json.NewEncoder(w).Encode(p); err != nil {
@@ -530,6 +562,7 @@ func (h *adminHandler) handleUpdateTranscodeProfile(w http.ResponseWriter, r *ht
 		http.Error(w, `{"message":"internal error"}`, http.StatusInternalServerError)
 		return
 	}
+	h.audit(r, "update_transcode_profile", "transcode_profile", &p.ID, map[string]any{"name": p.Name})
 	w.Header().Set("Content-Type", "application/json")
 	if err := json.NewEncoder(w).Encode(p); err != nil {
 		slog.Warn("json encode failed", slog.Any("err", err))
@@ -541,11 +574,13 @@ func (h *adminHandler) handleDeleteTranscodeProfile(w http.ResponseWriter, r *ht
 		http.Error(w, `{"message":"forbidden"}`, http.StatusForbidden)
 		return
 	}
-	if err := h.transcodeSvc.DeleteProfile(r.Context(), r.PathValue("id")); err != nil {
+	profileID := r.PathValue("id")
+	if err := h.transcodeSvc.DeleteProfile(r.Context(), profileID); err != nil {
 		slog.Error("delete transcode profile", slog.Any("err", err))
 		http.Error(w, `{"message":"internal error"}`, http.StatusInternalServerError)
 		return
 	}
+	h.audit(r, "delete_transcode_profile", "transcode_profile", &profileID, nil)
 	w.WriteHeader(http.StatusNoContent)
 }
 
@@ -595,6 +630,7 @@ func (h *adminHandler) handleClearTranscodeCache(w http.ResponseWriter, r *http.
 		http.Error(w, `{"message":"internal error"}`, http.StatusInternalServerError)
 		return
 	}
+	h.audit(r, "clear_transcode_cache", "transcode_cache", nil, nil)
 	w.WriteHeader(http.StatusNoContent)
 }
 
@@ -621,14 +657,14 @@ func (h *adminHandler) handleDeleteTranscodeCacheFile(w http.ResponseWriter, r *
 
 // --- register functions (preserve existing signatures) ---
 
-func registerAdminRoutes(mux *http.ServeMux, metaCmd *appmetadata.CommandService, metaQuery *appmetadata.QueryService, tokenGen *auth.JWTGenerator, heavyRL *ratelimit.Limiter, serverCtx context.Context) {
-	h := &adminHandler{tokenGen: tokenGen, metaCmd: metaCmd, metaQuery: metaQuery, heavyRL: heavyRL, serverCtx: serverCtx}
+func registerAdminRoutes(mux *http.ServeMux, metaCmd *appmetadata.CommandService, metaQuery *appmetadata.QueryService, tokenGen *auth.JWTGenerator, heavyRL *ratelimit.Limiter, serverCtx context.Context, actCmdSvc *appactivity.CommandService) {
+	h := &adminHandler{tokenGen: tokenGen, metaCmd: metaCmd, metaQuery: metaQuery, heavyRL: heavyRL, serverCtx: serverCtx, activityCmdSvc: actCmdSvc}
 	mux.HandleFunc("/api/v1/admin/media/", h.handleMedia)
 	mux.HandleFunc("POST /api/v1/admin/metadata/refresh-all", h.handleRefreshAll)
 }
 
-func registerUserAdminRoutes(mux *http.ServeMux, userSvc *appuser.UserService, userQuery *appuser.QueryService, tokenGen *auth.JWTGenerator) {
-	h := &adminHandler{tokenGen: tokenGen, userSvc: userSvc, userQuery: userQuery}
+func registerUserAdminRoutes(mux *http.ServeMux, userSvc *appuser.UserService, userQuery *appuser.QueryService, tokenGen *auth.JWTGenerator, actCmdSvc *appactivity.CommandService) {
+	h := &adminHandler{tokenGen: tokenGen, userSvc: userSvc, userQuery: userQuery, activityCmdSvc: actCmdSvc}
 	mux.HandleFunc("GET /api/v1/admin/users/{id}/bitrate-limit", h.handleGetBitrateLimit)
 	mux.HandleFunc("PATCH /api/v1/admin/users/{id}/bitrate-limit", h.handleSetBitrateLimit)
 }
@@ -644,22 +680,22 @@ func registerSystemStatsRoute(mux *http.ServeMux, startTime time.Time, tokenGen 
 	mux.HandleFunc("GET /api/v1/admin/system/stats", h.handleSystemStats)
 }
 
-func registerServerConfigRoutes(mux *http.ServeMux, cfgRepo domainshared.ServerConfigRepository, tokenGen *auth.JWTGenerator) {
-	h := &adminHandler{tokenGen: tokenGen, cfgRepo: cfgRepo}
+func registerServerConfigRoutes(mux *http.ServeMux, cfgRepo domainshared.ServerConfigRepository, tokenGen *auth.JWTGenerator, actCmdSvc *appactivity.CommandService) {
+	h := &adminHandler{tokenGen: tokenGen, cfgRepo: cfgRepo, activityCmdSvc: actCmdSvc}
 	mux.HandleFunc("GET /api/v1/admin/server-config", h.handleListServerConfig)
 	mux.HandleFunc("PUT /api/v1/admin/server-config/{key}", h.handleSetServerConfig)
 	mux.HandleFunc("DELETE /api/v1/admin/server-config/{key}", h.handleDeleteServerConfig)
 }
 
-func registerTranscodeProfileRoutes(mux *http.ServeMux, transcodeSvc *apptranscoding.Service, tokenGen *auth.JWTGenerator) {
-	h := &adminHandler{tokenGen: tokenGen, transcodeSvc: transcodeSvc}
+func registerTranscodeProfileRoutes(mux *http.ServeMux, transcodeSvc *apptranscoding.Service, tokenGen *auth.JWTGenerator, actCmdSvc *appactivity.CommandService) {
+	h := &adminHandler{tokenGen: tokenGen, transcodeSvc: transcodeSvc, activityCmdSvc: actCmdSvc}
 	mux.HandleFunc("POST /api/v1/admin/transcoding/profiles", h.handleCreateTranscodeProfile)
 	mux.HandleFunc("PUT /api/v1/admin/transcoding/profiles/{id}", h.handleUpdateTranscodeProfile)
 	mux.HandleFunc("DELETE /api/v1/admin/transcoding/profiles/{id}", h.handleDeleteTranscodeProfile)
 }
 
-func registerTranscodeCacheRoutes(mux *http.ServeMux, transcodeSvc *apptranscoding.Service, tokenGen *auth.JWTGenerator, mediaGetter MediaItemGetter) {
-	h := &adminHandler{tokenGen: tokenGen, transcodeSvc: transcodeSvc, mediaGetter: mediaGetter}
+func registerTranscodeCacheRoutes(mux *http.ServeMux, transcodeSvc *apptranscoding.Service, tokenGen *auth.JWTGenerator, mediaGetter MediaItemGetter, actCmdSvc *appactivity.CommandService) {
+	h := &adminHandler{tokenGen: tokenGen, transcodeSvc: transcodeSvc, mediaGetter: mediaGetter, activityCmdSvc: actCmdSvc}
 	mux.HandleFunc("GET /api/v1/admin/transcode-cache", h.handleGetTranscodeCache)
 	mux.HandleFunc("DELETE /api/v1/admin/transcode-cache", h.handleClearTranscodeCache)
 	mux.HandleFunc("DELETE /api/v1/admin/transcode-cache/{filename}", h.handleDeleteTranscodeCacheFile)

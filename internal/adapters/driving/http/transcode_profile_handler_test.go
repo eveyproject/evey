@@ -34,7 +34,7 @@ func newTranscodeProfileTestMux(t *testing.T) (*http.ServeMux, *auth.JWTGenerato
 	svc := apptranscoding.NewService(transcoder, hwDetector, jobRepo, profileRepo, bus, 0)
 
 	mux := http.NewServeMux()
-	registerTranscodeProfileRoutes(mux, svc, tokenGen)
+	registerTranscodeProfileRoutes(mux, svc, tokenGen, nil)
 	return mux, tokenGen, profileRepo
 }
 
