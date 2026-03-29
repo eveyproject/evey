@@ -1,0 +1,220 @@
+package grpcapi
+
+import (
+	eveyv1 "github.com/gravity-zero/evey/gen/evey/v1"
+	"github.com/gravity-zero/evey/internal/domain/library"
+)
+
+var libraryTypeToProto = map[string]eveyv1.LibraryType{
+	"movie":  eveyv1.LibraryType_LIBRARY_TYPE_MOVIES,
+	"tvshow": eveyv1.LibraryType_LIBRARY_TYPE_SHOWS,
+	"music":  eveyv1.LibraryType_LIBRARY_TYPE_MUSIC,
+	"photo":  eveyv1.LibraryType_LIBRARY_TYPE_PHOTOS,
+	"book":   eveyv1.LibraryType_LIBRARY_TYPE_BOOKS,
+}
+
+var libraryTypeFromProto = map[eveyv1.LibraryType]string{
+	eveyv1.LibraryType_LIBRARY_TYPE_MOVIES: "movie",
+	eveyv1.LibraryType_LIBRARY_TYPE_SHOWS:  "tvshow",
+	eveyv1.LibraryType_LIBRARY_TYPE_MUSIC:  "music",
+	eveyv1.LibraryType_LIBRARY_TYPE_PHOTOS: "photo",
+	eveyv1.LibraryType_LIBRARY_TYPE_BOOKS:  "book",
+}
+
+func libraryToProto(lib *library.Library) *eveyv1.Library {
+	return &eveyv1.Library{
+		Id:                 lib.ID,
+		Name:               lib.Name,
+		Type:               libraryTypeToProto[lib.Type],
+		Paths:              lib.Paths,
+		ScanOnStartup:      lib.ScanOnStartup,
+		RealtimeMonitoring: lib.RealtimeMonitoring,
+		CreatedAt:          toTimestamppb(lib.CreatedAt),
+		UpdatedAt:          toTimestamppb(lib.UpdatedAt),
+	}
+}
+
+var mediaItemTypeToProto = map[string]eveyv1.MediaItemType{
+	"movie":   eveyv1.MediaItemType_MEDIA_ITEM_TYPE_MOVIE,
+	"series":  eveyv1.MediaItemType_MEDIA_ITEM_TYPE_SERIES,
+	"season":  eveyv1.MediaItemType_MEDIA_ITEM_TYPE_SEASON,
+	"episode": eveyv1.MediaItemType_MEDIA_ITEM_TYPE_EPISODE,
+	"album":   eveyv1.MediaItemType_MEDIA_ITEM_TYPE_ALBUM,
+	"artist":  eveyv1.MediaItemType_MEDIA_ITEM_TYPE_ARTIST,
+	"track":   eveyv1.MediaItemType_MEDIA_ITEM_TYPE_TRACK,
+	"photo":   eveyv1.MediaItemType_MEDIA_ITEM_TYPE_PHOTO,
+	"book":    eveyv1.MediaItemType_MEDIA_ITEM_TYPE_BOOK,
+}
+
+var mediaItemTypeFromProto = map[eveyv1.MediaItemType]string{
+	eveyv1.MediaItemType_MEDIA_ITEM_TYPE_MOVIE:   "movie",
+	eveyv1.MediaItemType_MEDIA_ITEM_TYPE_SERIES:  "series",
+	eveyv1.MediaItemType_MEDIA_ITEM_TYPE_SEASON:  "season",
+	eveyv1.MediaItemType_MEDIA_ITEM_TYPE_EPISODE: "episode",
+	eveyv1.MediaItemType_MEDIA_ITEM_TYPE_ALBUM:   "album",
+	eveyv1.MediaItemType_MEDIA_ITEM_TYPE_ARTIST:  "artist",
+	eveyv1.MediaItemType_MEDIA_ITEM_TYPE_TRACK:   "track",
+	eveyv1.MediaItemType_MEDIA_ITEM_TYPE_PHOTO:   "photo",
+	eveyv1.MediaItemType_MEDIA_ITEM_TYPE_BOOK:    "book",
+}
+
+func mediaItemToProto(item *library.MediaItem) *eveyv1.MediaItem {
+	pb := &eveyv1.MediaItem{
+		Id:              item.ID,
+		LibraryId:       item.LibraryID,
+		ParentId:        item.ParentID,
+		Type:            mediaItemTypeToProto[item.Type],
+		Title:           item.Title,
+		SortTitle:       item.SortTitle,
+		OriginalTitle:   item.OriginalTitle,
+		Overview:        item.Overview,
+		Tagline:         item.Tagline,
+		FilePath:        item.FilePath,
+		FileSize:        item.FileSize,
+		ContainerFormat: item.ContainerFormat,
+		DurationMs:      item.DurationMs,
+		Bitrate:         item.Bitrate,
+		OfficialRating:  item.OfficialRating,
+		ProviderIds:     item.ProviderIDs,
+		Genres:          item.Genres,
+		Studios:         item.Studios,
+		Tags:            item.Tags,
+		CreatedAt:       toTimestamppb(item.AddedAt),
+		UpdatedAt:       toTimestamppb(item.UpdatedAt),
+		PremiereDate:    toTimestamppbPtr(item.PremiereDate),
+	}
+	if item.IndexNumber != nil {
+		pb.IndexNumber = int32(*item.IndexNumber)
+	}
+	if item.CommunityRating != nil {
+		pb.CommunityRating = *item.CommunityRating
+	}
+	if item.Year != nil {
+		pb.Year = int32(*item.Year)
+	}
+	for _, t := range item.Trailers {
+		pb.Trailers = append(pb.Trailers, trailerToProto(t))
+	}
+	for source, value := range item.Ratings {
+		pb.Ratings = append(pb.Ratings, ratingToProto(source, value))
+	}
+	return pb
+}
+
+func trailerToProto(t library.Trailer) *eveyv1.Trailer {
+	return &eveyv1.Trailer{
+		Site:             t.Site,
+		Key:              t.Key,
+		Language:         t.Language,
+		Official:         t.Official,
+		Type:             t.Type,
+		UseSubtitles:     t.UseSubtitles,
+		SubtitleLanguage: t.SubtitleLanguage,
+	}
+}
+
+var ratingMaxValues = map[string]float64{
+	"imdb":       10,
+	"tmdb":       10,
+	"rt":         100,
+	"metacritic": 100,
+}
+
+func ratingToProto(source string, value float64) *eveyv1.Rating {
+	maxValue := ratingMaxValues[source]
+	if maxValue == 0 {
+		maxValue = 10
+	}
+	return &eveyv1.Rating{
+		Source:   source,
+		Value:    value,
+		MaxValue: maxValue,
+	}
+}
+
+var personRoleToProto = map[string]eveyv1.PersonType{
+	"actor":    eveyv1.PersonType_PERSON_TYPE_ACTOR,
+	"director": eveyv1.PersonType_PERSON_TYPE_DIRECTOR,
+	"writer":   eveyv1.PersonType_PERSON_TYPE_WRITER,
+	"producer": eveyv1.PersonType_PERSON_TYPE_PRODUCER,
+}
+
+func castMemberToProto(cm library.CastMember) *eveyv1.MediaPerson {
+	pb := &eveyv1.MediaPerson{
+		Id:        cm.PersonID,
+		Name:      cm.PersonName,
+		Role:      cm.RoleType,
+		Type:      personRoleToProto[cm.RoleType],
+		SortOrder: int32(cm.SortOrder),
+	}
+	if cm.CharacterName != nil {
+		pb.Role = *cm.CharacterName
+	}
+	if cm.ThumbPath != nil {
+		pb.ThumbUrl = *cm.ThumbPath
+	}
+	return pb
+}
+
+var mediaSortFieldFromProto = map[eveyv1.MediaSortField]string{
+	eveyv1.MediaSortField_MEDIA_SORT_FIELD_TITLE:         "title",
+	eveyv1.MediaSortField_MEDIA_SORT_FIELD_YEAR:          "year",
+	eveyv1.MediaSortField_MEDIA_SORT_FIELD_RATING:        "rating",
+	eveyv1.MediaSortField_MEDIA_SORT_FIELD_DATE_ADDED:    "date_added",
+	eveyv1.MediaSortField_MEDIA_SORT_FIELD_PREMIERE_DATE: "premiere_date",
+}
+
+var sortOrderFromProto = map[eveyv1.SortOrder]string{
+	eveyv1.SortOrder_SORT_ORDER_ASC:  "asc",
+	eveyv1.SortOrder_SORT_ORDER_DESC: "desc",
+}
+
+var streamTypeToProto = map[string]eveyv1.MediaStreamType{
+	"video":      eveyv1.MediaStreamType_MEDIA_STREAM_TYPE_VIDEO,
+	"audio":      eveyv1.MediaStreamType_MEDIA_STREAM_TYPE_AUDIO,
+	"subtitle":   eveyv1.MediaStreamType_MEDIA_STREAM_TYPE_SUBTITLE,
+	"attachment": eveyv1.MediaStreamType_MEDIA_STREAM_TYPE_ATTACHMENT,
+}
+
+func mediaStreamToProto(s *library.MediaStream) *eveyv1.MediaStream {
+	pb := &eveyv1.MediaStream{
+		Index:         int32(s.StreamIndex),
+		Type:          streamTypeToProto[s.StreamType],
+		Codec:         s.Codec,
+		CodecLongName: s.CodecLongName,
+		Language:      s.Language,
+		Title:         s.Title,
+		IsDefault:     s.IsDefault,
+		IsForced:      s.IsForced,
+		IsExternal:    s.IsExternal,
+		Profile:       s.Profile,
+	}
+	if s.Width != nil {
+		pb.Width = int32(*s.Width)
+	}
+	if s.Height != nil {
+		pb.Height = int32(*s.Height)
+	}
+	if s.Framerate != nil {
+		pb.FrameRate = *s.Framerate
+	}
+	if s.ColorSpace != nil {
+		pb.ColorSpace = *s.ColorSpace
+	}
+	if s.Channels != nil {
+		pb.Channels = int32(*s.Channels)
+	}
+	if s.SampleRate != nil {
+		pb.SampleRate = int32(*s.SampleRate)
+	}
+	if s.BitDepth != nil {
+		pb.BitDepth = int32(*s.BitDepth)
+	}
+	if s.Bitrate != nil {
+		pb.Bitrate = *s.Bitrate
+	}
+	if s.ExternalPath != nil {
+		pb.ExternalPath = *s.ExternalPath
+	}
+	return pb
+}
