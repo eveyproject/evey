@@ -36,6 +36,8 @@ plugin:
   configSaveFailed: "保存配置失败"
   subprocess: "子进程"
   sandboxed: "沙箱"
+  sandboxedWidget: "沙箱小部件"
+  widgetLoadError: "小部件加载失败"
   state:
     running: "运行中"
     starting: "启动中…"

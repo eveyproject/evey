@@ -36,6 +36,8 @@ plugin:
   configSaveFailed: "कॉन्फ़िग सहेजने में विफल"
   subprocess: "सबप्रोसेस"
   sandboxed: "सैंडबॉक्स्ड"
+  sandboxedWidget: "सैंडबॉक्स्ड विजेट"
+  widgetLoadError: "विजेट लोड करने में विफल"
   state:
     running: "चल रहा है"
     starting: "शुरू हो रहा है…"

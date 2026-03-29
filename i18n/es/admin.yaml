@@ -36,6 +36,8 @@ plugin:
   configSaveFailed: Error al guardar la config
   subprocess: Subproceso
   sandboxed: Aislado
+  sandboxedWidget: Widget aislado
+  widgetLoadError: Error al cargar el widget
   state:
     running: En ejecución
     starting: "Iniciando…"

@@ -37,6 +37,8 @@ plugin:
   configSaveFailed: Failed to save config
   subprocess: Subprocess
   sandboxed: Sandboxed
+  sandboxedWidget: Sandboxed widget
+  widgetLoadError: Widget failed to load
   state:
     running: Running
     starting: "Starting..."

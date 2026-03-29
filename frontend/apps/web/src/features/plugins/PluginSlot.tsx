@@ -1,8 +1,8 @@
-import { Component, useEffect, useState, type ReactNode } from "react";
+import { Component, type ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { eveyFetch } from "@evey/api";
 import { useAuthStore } from "@evey/store";
-import { loadPlugin, getPluginsForSlot } from "./plugin-registry";
+import { PluginIframe } from "./PluginIframe";
 
 interface UIWidget {
   slot: string;
@@ -48,7 +48,6 @@ interface PluginSlotProps {
 }
 
 export function PluginSlot({ name, context }: PluginSlotProps) {
-  const [ready, setReady] = useState(false);
   const isAuthenticated = useAuthStore((s) => !!s.accessToken);
 
   const { data } = useQuery<ListPluginsResponse>({
@@ -59,53 +58,30 @@ export function PluginSlot({ name, context }: PluginSlotProps) {
     enabled: isAuthenticated,
   });
 
-  useEffect(() => {
-    let cancelled = false;
+  const plugins = data?.plugins ?? [];
+  const matches: { pluginId: string; widgetUrl: string }[] = [];
 
-    async function load() {
-      try {
-        const plugins = data?.plugins ?? [];
-        const promises: Promise<void>[] = [];
-
-        for (const plugin of plugins) {
-          if (!plugin.enabled || !plugin.id) continue;
-          for (const widget of plugin.uiWidgets ?? []) {
-            if (widget.slot === name) {
-              promises.push(
-                loadPlugin(plugin.id, widget.slot, `/api/v1/plugins/${plugin.id}/widget.js`)
-              );
-            }
-          }
-        }
-
-        await Promise.allSettled(promises);
-      } catch {
-        // silently fail — plugins are optional
+  for (const plugin of plugins) {
+    if (!plugin.enabled || !plugin.id) continue;
+    for (const widget of plugin.uiWidgets ?? []) {
+      if (widget.slot === name) {
+        matches.push({
+          pluginId: plugin.id,
+          widgetUrl: `/api/v1/plugins/${plugin.id}/widget.js`,
+        });
       }
-      if (!cancelled) setReady(true);
     }
+  }
 
-    if (data !== undefined) {
-      void load();
-    }
-    return () => { cancelled = true; };
-  }, [name, data]);
-
-  if (!ready) return null;
-
-  const widgets = getPluginsForSlot(name);
-  if (widgets.length === 0) return null;
+  if (matches.length === 0) return null;
 
   return (
     <>
-      {widgets.map((w) => {
-        const Widget = w.component;
-        return (
-          <PluginErrorBoundary key={w.pluginId} pluginId={w.pluginId}>
-            <Widget {...(context ?? {})} />
-          </PluginErrorBoundary>
-        );
-      })}
+      {matches.map((m) => (
+        <PluginErrorBoundary key={m.pluginId} pluginId={m.pluginId}>
+          <PluginIframe pluginId={m.pluginId} src={m.widgetUrl} context={context} />
+        </PluginErrorBoundary>
+      ))}
     </>
   );
 }

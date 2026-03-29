@@ -36,6 +36,8 @@ plugin:
   configSaveFailed: "Échec de la sauvegarde de la config"
   subprocess: Sous-processus
   sandboxed: Isolé
+  sandboxedWidget: Widget isolé
+  widgetLoadError: "Échec du chargement du widget"
   state:
     running: "En cours d'exécution"
     starting: "Démarrage…"
