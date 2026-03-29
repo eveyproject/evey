@@ -1,0 +1,487 @@
+# Plugin System
+
+## Overview
+
+Evey plugins extend the server with metadata providers, media processing, webhooks, notifications, UI widgets, and CSS themes. Plugins run as isolated subprocesses communicating with the host via gRPC over Unix domain sockets.
+
+### Architecture
+
+```
++------------------+      gRPC (Unix socket)      +------------------+
+|   Evey Server    | <--------------------------> |   Plugin Process  |
+|                  |   /tmp/evey/plugins/{id}/    |                  |
+|  HostService     |   plugin.sock                |  PluginService   |
+|  (serves RPCs)   |                              |  (implements)    |
++------------------+                              +------------------+
+        |                                                  |
+        v                                                  v
++------------------+                              +------------------+
+|  Permission      |                              |  SDK stubs       |
+|  Checker         |                              |  (Python/Node.js)|
++------------------+                              +------------------+
+        |
+        v
++------------------+     iframe sandbox           +------------------+
+|  Frontend        | <--------------------------> |  Widget JS       |
+|  PluginSlot      |   postMessage bridge         |  (in srcdoc)     |
++------------------+                              +------------------+
+```
+
+**What plugins can do:**
+
+| Capability | Description |
+|---|---|
+| `metadata.provider` | Provide metadata for media items |
+| `media.read` | Read media items, streams, chapters, subtitles |
+| `media.write` | Update metadata fields and provider IDs |
+| `webhook.receiver` | Receive and handle webhook events |
+| `notification.sender` | Send notifications to users |
+| `ui.extension` | Render widgets in the frontend via iframe slots |
+| `ui.theme` | Inject CSS themes (no subprocess needed) |
+
+## Creating a Plugin
+
+### Manifest (`plugin.yaml`)
+
+Every plugin ZIP must contain a `plugin.yaml` (or `plugin.yml`) at root level.
+
+```yaml
+name: my-plugin
+version: 1.2.0
+description: Short description of what this plugin does
+author: Your Name
+language: python3       # python3, node, go, rust, css
+entrypoint: python3 main.py
+min_evey_version: 0.1.0
+
+capabilities:
+  - metadata.provider
+  - ui.extension
+
+permissions:
+  - media.read
+  - api.library
+  - network
+
+config_schema:
+  api_key:
+    type: password
+    description: API key for the external service
+    required: true
+  language:
+    type: select
+    description: Preferred language
+    default: en
+    options:
+      - en
+      - fr
+      - de
+  max_results:
+    type: integer
+    description: Maximum results per query
+    default: 25
+    min: 1
+    max: 100
+  enable_cache:
+    type: boolean
+    description: Enable response caching
+    default: true
+
+ui_widgets:
+  - slot: media.detail.sidebar
+    src: widget.bundle.js
+```
+
+### Required fields
+
+| Field | Description |
+|---|---|
+| `name` | Unique plugin identifier |
+| `version` | Semver (X.Y.Z or X.Y.Z-label) |
+| `entrypoint` | Command to start the plugin process |
+| `language` | Runtime language identifier |
+
+### Optional fields
+
+| Field | Description |
+|---|---|
+| `description` | Human-readable description |
+| `author` | Plugin author |
+| `min_evey_version` | Minimum compatible Evey version |
+| `capabilities` | List of declared capabilities |
+| `permissions` | List of required permissions |
+| `config_schema` | Map of config field definitions |
+| `ui_widgets` | List of UI widget declarations |
+
+### Supported Languages
+
+- **Python** (`python3`) -- pre-generated gRPC stubs provided via SDK
+- **Node.js** (`node`) -- proto file loaded at runtime via `@grpc/proto-loader`
+- **Go** (`go`) -- compiled binary, no interpreter needed
+- **Rust** (`rust`) -- compiled binary
+- **CSS** (`css`) -- static theme, no subprocess (runs as `ui.theme` capability)
+
+### Config Schema Types
+
+| Type | Extra fields |
+|---|---|
+| `string` | `min`, `max` (length), `default` |
+| `text` | Multi-line string. `min`, `max` |
+| `password` | Masked input. `min`, `max` |
+| `boolean` | `default` (true/false) |
+| `integer` | `min`, `max`, `default` |
+| `number` | `min`, `max`, `default` |
+| `select` | `options` (list of values), `default` |
+
+All types support: `description`, `required`, `default`.
+
+### UI Widgets
+
+Widgets are JavaScript bundles rendered inside sandboxed iframes. Declare them in `ui_widgets`:
+
+```yaml
+ui_widgets:
+  - slot: home.section
+    src: widget.bundle.js
+```
+
+The widget JS is served at `GET /api/v1/plugins/{id}/widget.js` (requires auth). Inside the iframe, the `window.evey` bridge is injected automatically.
+
+### CSS Themes
+
+Themes use `language: css` and capability `ui.theme`. Place a `theme.css` file in the ZIP root. The CSS is sanitized at install time and again at serve time. Theme CSS is loaded into the page as a `<link>` stylesheet.
+
+```yaml
+name: my-dark-theme
+version: 1.0.0
+language: css
+entrypoint: theme.css
+capabilities:
+  - ui.theme
+```
+
+The theme overrides CSS custom properties (variables) on `:root`. All `:root` variables from the host app are forwarded into widget iframes.
+
+**Allowed:** standard CSS properties, custom properties, selectors, media queries, animations.
+
+**Blocked by sanitizer:**
+- `@import` -- removed entirely
+- `url()` with external URLs (`http://`, `//`) -- replaced with `none`
+- `url()` with `javascript:` -- replaced with `none`
+- `expression()` -- replaced with `none`
+- `-moz-binding` -- removed
+- `behavior` -- removed
+
+## Plugin Versioning
+
+### Semver requirement
+
+Versions must match `X.Y.Z` or `X.Y.Z-label` (e.g. `1.2.3`, `2.0.0-beta`). The manifest parser rejects invalid versions.
+
+### SHA256 hash verification
+
+Every plugin ZIP is hashed with SHA256 at install time. The hash is stored in the database (`source_hash` field) and returned in the preview endpoint. Admins can verify integrity by comparing the hash against the original distribution:
+
+```bash
+sha256sum my-plugin.zip
+```
+
+### Update flow
+
+Upload a ZIP with the **same `name`** and a **higher semver version**. The installer:
+1. Compares versions -- rejects if new version <= current
+2. Uninstalls the old version (stops process, removes files, deletes DB record)
+3. Installs the new version from scratch
+
+## Security Model
+
+### Backend process isolation
+
+1. **Seccomp BPF** -- A shared library (`libevey-sandbox.so`) is injected via `LD_PRELOAD`. The BPF filter blocks `execve` and `execveat` syscalls, returning `EPERM`. This prevents plugins from spawning child processes. Plugins with the `subprocess` permission skip this filter.
+
+2. **Privilege dropping** -- When Evey runs as root, plugin processes are started as `evey-plugin` (UID/GID 1001) via `SysProcAttr.Credential`. The `PR_SET_NO_NEW_PRIVS` flag prevents privilege escalation.
+
+3. **Process group isolation** -- Each plugin runs in its own process group (`Setpgid: true`) with `Pdeathsig: SIGTERM` so it dies if the host crashes.
+
+4. **Socket isolation** -- Each plugin gets its own socket directory at `/tmp/evey/plugins/{id}/`, chowned to the plugin user.
+
+5. **Entrypoint validation** -- Resolved via `EvalSymlinks`, checked against allowed plugin directories, must be a file with execute permission, path traversal (`..`) is rejected.
+
+6. **Minimal environment** -- Plugins receive a stripped `PATH`, `HOME=/tmp`, and only Evey-specific env vars (`EVEY_PLUGIN_ID`, `EVEY_PLUGIN_SOCK`, `EVEY_HOST_SOCK`).
+
+### Permission model
+
+Permissions are declared in the manifest and enforced at runtime via a gRPC interceptor on the HostService. Each RPC method maps to one or more required permissions. The `PermissionChecker` caches permissions in memory and verifies them on every call.
+
+### Static analysis
+
+Before installation, the analyzer scans all non-binary files for suspicious patterns:
+
+**Critical (blocks install):**
+- Shell execution (`os.system`, `subprocess`, `exec()`, `child_process`)
+- Reverse/bind shells
+- Sensitive file access (`/etc/passwd`, `/etc/shadow`, `.ssh/`)
+- Dynamic code execution (`eval()`, `exec()`, `compile()`)
+- Privilege escalation (`setuid`, `chmod 4777`, `sudo`)
+- Crypto mining indicators (`stratum+tcp`, `xmrig`, `coinhive`)
+- Runtime package installation (`pip install`, `npm install`, `curl | sh`)
+- Dynamic imports / sandbox escape (`__import__`, `vm.runIn`, `new Function`)
+- Native code execution (`ctypes.CDLL`, `ffi.Library`)
+- String concatenation evasion (obfuscated imports)
+- Signals to PID 1
+
+**Warning (logged but allowed):**
+- Outbound network connections (`requests.get`, `fetch`, `net.Dial`)
+- Recursive file deletion
+- Symlink creation
+- Base64 decoding
+- Hex-encoded strings
+- Unvendored dependency manifests
+- Non-HTTP URL schemes (`wss://`, `ssh://`, `ftp://`)
+- JWT/private key file references, `.env.*` references
+
+The analyzer also extracts all URLs (literal, template, concatenated) for audit.
+
+### CSS sanitizer
+
+Theme CSS is sanitized both at install time and at serve time. See "Blocked by sanitizer" in the CSS Themes section above.
+
+### Frontend iframe sandbox
+
+UI widgets run inside `<iframe sandbox="allow-scripts">`. This means:
+- No access to parent DOM
+- No navigation of the top frame
+- No form submission
+- No popups
+- No same-origin access
+- Scripts are allowed (needed for widget logic)
+
+Communication uses `postMessage` via the bridge API.
+
+### Trusted mode
+
+Plugins that declare the `subprocess` permission skip the seccomp BPF filter (`LD_PRELOAD` is not set). This is an escape hatch for plugins that need to spawn child processes (e.g., calling FFmpeg). Use with caution -- only install trusted plugins with this permission.
+
+## Host API Reference
+
+Plugins call HostService RPCs via gRPC over Unix socket (`EVEY_HOST_SOCK`). The plugin must send its ID in the `x-plugin-id` metadata header.
+
+### Media RPCs
+
+| RPC | Description | Required permission |
+|---|---|---|
+| `GetMediaItem` | Get a single media item by ID | `api.library` or `media.read` |
+| `ListMediaItems` | List media items (filter by library, type, parent) | `api.library` or `media.read` |
+| `SearchMedia` | Full-text search across media | `api.library` or `media.read` |
+| `GetMediaStreams` | Get video/audio/subtitle streams for an item | `api.library` or `media.read` |
+| `GetChapters` | Get chapters for a media item | `api.library` or `media.read` |
+| `GetSubtitles` | Get subtitle tracks for a media item | `api.library` or `media.read` |
+
+### Metadata RPCs
+
+| RPC | Description | Required permission |
+|---|---|---|
+| `UpdateMetadata` | Update fields and provider IDs on a media item | `api.metadata` or `media.write` |
+
+### User RPCs
+
+| RPC | Description | Required permission |
+|---|---|---|
+| `GetUserPreferences` | Get user/profile preferences | `api.user` |
+
+### Notification RPCs
+
+| RPC | Description | Required permission |
+|---|---|---|
+| `SendNotification` | Send a notification to a user (title, body, url, image) | `notification.sender` |
+
+### Always-allowed RPCs (no permission check)
+
+| RPC | Description |
+|---|---|
+| `EmitEvent` | Emit a custom event to the host event bus |
+| `Log` | Write a log entry (debug, info, warn, error) |
+| `GetConfig` | Read a plugin config value by key |
+| `SetConfig` | Write a plugin config value |
+
+### Host-to-Plugin RPCs (PluginService)
+
+These are implemented by the plugin and called by the host:
+
+| RPC | Description |
+|---|---|
+| `Initialize` | Called after process start with plugin ID, config, host version |
+| `Shutdown` | Called before stopping the plugin process |
+| `OnEvent` | Delivers events the plugin subscribed to |
+| `HealthCheck` | Periodic health check |
+| `GetCapabilities` | Query plugin capabilities and API version |
+
+## Installation
+
+### Upload via admin UI
+
+`POST /api/v1/admin/plugins/upload` (admin-only, multipart form, field `plugin`).
+
+Max upload size: 100 MB.
+
+### Supported format
+
+ZIP archive with `plugin.yaml` at root level.
+
+### Preview endpoint
+
+`POST /api/v1/admin/plugins/preview` (admin-only, same format as upload).
+
+Returns manifest info + static analysis report without installing. Response includes:
+- name, version, description, author, language, entrypoint
+- permissions, capabilities
+- `source_hash` (SHA256)
+- `analysis` object: `safe`, `issues[]`, `total_files_scanned`
+
+### Install sequence
+
+1. Parse `plugin.yaml` from ZIP
+2. Check if plugin with same name exists -- if so, require higher version and uninstall old
+3. Compute SHA256 hash of ZIP
+4. Extract ZIP to `/data/plugins/{plugin-id}/`
+5. If `ui.theme` capability: sanitize `theme.css`
+6. Copy SDK stubs for the plugin language
+7. Chown plugin directory to `evey-plugin` user (if root)
+8. Run static analysis -- **block install if any CRITICAL finding**
+9. Save plugin record to database
+10. Start plugin subprocess (or mark as Running for CSS-only plugins)
+11. Connect IPC and call `Initialize` RPC
+12. Load permissions into the checker cache
+13. Publish `PluginInstalled` event
+
+### Uninstall
+
+1. Stop the plugin process (gRPC `Shutdown` then SIGTERM, fallback SIGKILL after 5s)
+2. Invalidate cached permissions
+3. Remove plugin directory
+4. Delete database record
+5. Publish `PluginUninstalled` event
+
+## Configuration
+
+### Config schema in manifest
+
+Define config fields under `config_schema` in `plugin.yaml`. Each key is a config field name, the value is an object with `type`, `description`, `required`, `default`, and type-specific constraints.
+
+### Dynamic forms in admin UI
+
+The admin UI renders a form based on the config schema. Field types map to input components (text input, password, checkbox, number input, select dropdown, textarea).
+
+### Getting/setting config via Host API
+
+From the plugin process:
+
+```
+GetConfig(key="api_key") -> { value: "sk-xxx", found: true }
+SetConfig(key="cache_ttl", value="3600") -> {}
+```
+
+Config is stored per-plugin in the database and passed to the plugin at `Initialize`.
+
+## Available Plugin Slots
+
+| Slot name | Location | Description |
+|---|---|---|
+| `home.section` | Home page | Section below existing content |
+| `player.overlay` | Video player | Overlay on top of the player |
+| `admin.section` | Admin panel | Custom admin section |
+| `login.background` | Login page | Background customization |
+| `sidebar.bottom` | Sidebar | Widget at sidebar bottom |
+| `media.detail.sidebar` | Media detail page | Sidebar widget on detail view |
+
+Usage in frontend: `<PluginSlot name="home.section" context={{ mediaId }} />`
+
+The `PluginSlot` component queries the plugin list, finds widgets matching the slot name, and renders each in a sandboxed `PluginIframe`.
+
+## SDK
+
+### Available SDKs
+
+| Language | Directory | Contents |
+|---|---|---|
+| Python | `sdk/python/` | `plugin_api_pb2.py`, `plugin_api_pb2_grpc.py` (pre-generated stubs) |
+| Node.js | `sdk/nodejs/` | `plugin_api.proto` (loaded at runtime via `@grpc/proto-loader`) |
+| Dart | `sdk/dart/` | Proto stubs |
+| Java | `sdk/java/` | Proto stubs |
+| PHP | `sdk/php/` | Proto stubs |
+| Ruby | `sdk/ruby/` | Proto stubs |
+| Swift | `sdk/swift/` | Proto stubs |
+
+SDK stubs are auto-copied into the plugin directory at install time.
+
+### Python example
+
+```python
+import grpc
+import plugin_api_pb2 as pb
+import plugin_api_pb2_grpc as rpc
+import os
+
+sock = os.environ["EVEY_HOST_SOCK"]
+channel = grpc.insecure_channel(f"unix://{sock}")
+host = rpc.HostServiceStub(channel)
+
+metadata = [("x-plugin-id", os.environ["EVEY_PLUGIN_ID"])]
+resp = host.GetMediaItem(pb.GetMediaItemRequest(id="mid-123"), metadata=metadata)
+print(resp.title)
+```
+
+### Node.js example
+
+```js
+const protoLoader = require("@grpc/proto-loader");
+const grpc = require("@grpc/grpc-js");
+const pkgDef = protoLoader.loadSync("plugin_api.proto", { keepCase: true });
+const proto = grpc.loadPackageDefinition(pkgDef).plugin.v1;
+
+const sock = process.env.EVEY_HOST_SOCK;
+const client = new proto.HostService(`unix://${sock}`, grpc.credentials.createInsecure());
+const metadata = new grpc.Metadata();
+metadata.set("x-plugin-id", process.env.EVEY_PLUGIN_ID);
+
+client.GetMediaItem({ id: "mid-123" }, metadata, (err, resp) => {
+  console.log(resp.title);
+});
+```
+
+### Widget bridge API (frontend)
+
+Inside widget iframes, `window.evey` is available:
+
+```typescript
+interface EveyBridge {
+  navigate(path: string): void;
+  toast(level: "success" | "error" | "info", message: string): void;
+  resize(height: number): void;
+  onInit(callback: (data: { context: Record<string, unknown>; locale: string; theme: string }) => void): void;
+}
+```
+
+**Lifecycle:**
+1. Widget loads, bridge script sends `ready` message to parent
+2. Parent responds with `init` message containing `context`, `locale`, `theme`
+3. Widget calls `window.evey.onInit(cb)` to receive init data
+
+**Example widget:**
+
+```js
+window.evey.onInit(({ context, locale, theme }) => {
+  const div = document.createElement("div");
+  div.textContent = `Media: ${context.mediaId}, Theme: ${theme}`;
+  document.body.appendChild(div);
+  window.evey.resize(div.offsetHeight);
+});
+```
+
+### Known Capabilities
+
+`metadata.provider`, `media.read`, `media.write`, `webhook.receiver`, `notification.sender`, `ui.extension`, `ui.theme`
+
+### Known Permissions
+
+`network`, `filesystem`, `media.read`, `media.write`, `api.library`, `api.user`, `api.metadata`, `notification.sender`, `subprocess`
