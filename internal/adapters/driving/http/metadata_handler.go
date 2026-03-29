@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"log/slog"
 	"net/http"
-	"strings"
 	"time"
 
 	appmetadata "github.com/gravity-zero/evey/internal/app/metadata"
@@ -15,12 +14,8 @@ import (
 
 func registerMetadataOverrideRoutes(mux *http.ServeMux, metaCmd *appmetadata.CommandService, metaQuery *appmetadata.QueryService, tokenGen *auth.JWTGenerator) {
 	requireAdminLocal := func(r *http.Request) bool {
-		h := r.Header.Get("Authorization")
-		if !strings.HasPrefix(h, "Bearer ") {
-			return false
-		}
-		claims, err := tokenGen.ValidateAccessToken(strings.TrimPrefix(h, "Bearer "))
-		return err == nil && claims.IsAdmin
+		claims, ok := extractClaims(r, tokenGen)
+		return ok && claims.IsAdmin
 	}
 
 	mux.HandleFunc("PUT /api/v1/media/{id}/metadata", func(w http.ResponseWriter, r *http.Request) {

@@ -26,12 +26,12 @@ func browseDirsHandler(tokens TokenVerifier) http.HandlerFunc {
 }
 
 func (h *browseHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	authHeader := r.Header.Get("Authorization")
-	if len(authHeader) < 8 || authHeader[:7] != "Bearer " {
+	token := extractBearerToken(r)
+	if token == "" {
 		http.Error(w, `{"message":"unauthenticated"}`, http.StatusUnauthorized)
 		return
 	}
-	claims, err := h.tokens.ValidateAccessToken(authHeader[7:])
+	claims, err := h.tokens.ValidateAccessToken(token)
 	if err != nil || !claims.IsAdmin {
 		http.Error(w, `{"message":"forbidden"}`, http.StatusForbidden)
 		return

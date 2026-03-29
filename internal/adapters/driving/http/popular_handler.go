@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"log/slog"
 	"net/http"
-	"strings"
 
 	appactivity "github.com/gravity-zero/evey/internal/app/activity"
 	applibrary "github.com/gravity-zero/evey/internal/app/library"
@@ -13,12 +12,7 @@ import (
 
 func registerPopularRoute(mux *http.ServeMux, activityQuery *appactivity.QueryService, libQuery *applibrary.QueryService, tokenGen *auth.JWTGenerator) {
 	mux.HandleFunc("GET /api/v1/popular", func(w http.ResponseWriter, r *http.Request) {
-		h := r.Header.Get("Authorization")
-		if !strings.HasPrefix(h, "Bearer ") {
-			http.Error(w, `{"message":"unauthenticated"}`, http.StatusUnauthorized)
-			return
-		}
-		if _, err := tokenGen.ValidateAccessToken(h[7:]); err != nil {
+		if _, ok := extractClaims(r, tokenGen); !ok {
 			http.Error(w, `{"message":"unauthenticated"}`, http.StatusUnauthorized)
 			return
 		}

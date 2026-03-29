@@ -5,30 +5,16 @@ import (
 	"log/slog"
 	"net/http"
 	"strconv"
-	"strings"
 	"time"
 
 	appfavorite "github.com/gravity-zero/evey/internal/app/favorite"
 	applibrary "github.com/gravity-zero/evey/internal/app/library"
-	domainuser "github.com/gravity-zero/evey/internal/domain/user"
 	"github.com/gravity-zero/evey/internal/pkg/auth"
 )
 
 func registerFavoriteRoutes(mux *http.ServeMux, favSvc *appfavorite.Service, libQuery *applibrary.QueryService, tokenGen *auth.JWTGenerator) {
-	extractClaims := func(r *http.Request) (*domainuser.Claims, bool) {
-		h := r.Header.Get("Authorization")
-		if !strings.HasPrefix(h, "Bearer ") {
-			return nil, false
-		}
-		claims, err := tokenGen.ValidateAccessToken(h[7:])
-		if err != nil {
-			return nil, false
-		}
-		return claims, true
-	}
-
 	mux.HandleFunc("POST /api/v1/favorites/{media_id}", func(w http.ResponseWriter, r *http.Request) {
-		claims, ok := extractClaims(r)
+		claims, ok := extractClaims(r, tokenGen)
 		if !ok {
 			http.Error(w, `{"message":"unauthenticated"}`, http.StatusUnauthorized)
 			return
@@ -46,7 +32,7 @@ func registerFavoriteRoutes(mux *http.ServeMux, favSvc *appfavorite.Service, lib
 	})
 
 	mux.HandleFunc("GET /api/v1/favorites", func(w http.ResponseWriter, r *http.Request) {
-		claims, ok := extractClaims(r)
+		claims, ok := extractClaims(r, tokenGen)
 		if !ok {
 			http.Error(w, `{"message":"unauthenticated"}`, http.StatusUnauthorized)
 			return
@@ -105,7 +91,7 @@ func registerFavoriteRoutes(mux *http.ServeMux, favSvc *appfavorite.Service, lib
 	})
 
 	mux.HandleFunc("GET /api/v1/favorites/{media_id}", func(w http.ResponseWriter, r *http.Request) {
-		claims, ok := extractClaims(r)
+		claims, ok := extractClaims(r, tokenGen)
 		if !ok {
 			http.Error(w, `{"message":"unauthenticated"}`, http.StatusUnauthorized)
 			return

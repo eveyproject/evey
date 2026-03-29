@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"log/slog"
 	"net/http"
-	"strings"
 
 	apprating "github.com/gravity-zero/evey/internal/app/rating"
 	domainlibrary "github.com/gravity-zero/evey/internal/domain/library"
@@ -31,18 +30,6 @@ type ratingHandler struct {
 	libChecker  LibraryAccessChecker
 }
 
-func (h *ratingHandler) extractClaims(r *http.Request) (*domainuser.Claims, bool) {
-	hdr := r.Header.Get("Authorization")
-	if !strings.HasPrefix(hdr, "Bearer ") {
-		return nil, false
-	}
-	claims, err := h.tokenGen.ValidateAccessToken(hdr[7:])
-	if err != nil {
-		return nil, false
-	}
-	return claims, true
-}
-
 func (h *ratingHandler) checkMediaAccess(ctx context.Context, w http.ResponseWriter, claims *domainuser.Claims, mediaID string) bool {
 	item, err := h.mediaGetter.GetMediaItem(ctx, mediaID)
 	if err != nil || item == nil {
@@ -53,7 +40,7 @@ func (h *ratingHandler) checkMediaAccess(ctx context.Context, w http.ResponseWri
 }
 
 func (h *ratingHandler) putRate(w http.ResponseWriter, r *http.Request) {
-	claims, ok := h.extractClaims(r)
+	claims, ok := extractClaims(r, h.tokenGen)
 	if !ok {
 		http.Error(w, `{"message":"unauthenticated"}`, http.StatusUnauthorized)
 		return
@@ -89,7 +76,7 @@ func (h *ratingHandler) putRate(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *ratingHandler) getMyRating(w http.ResponseWriter, r *http.Request) {
-	claims, ok := h.extractClaims(r)
+	claims, ok := extractClaims(r, h.tokenGen)
 	if !ok {
 		http.Error(w, `{"message":"unauthenticated"}`, http.StatusUnauthorized)
 		return
@@ -132,18 +119,6 @@ type starRatingHandler struct {
 	libChecker  LibraryAccessChecker
 }
 
-func (h *starRatingHandler) extractClaims(r *http.Request) (*domainuser.Claims, bool) {
-	hdr := r.Header.Get("Authorization")
-	if !strings.HasPrefix(hdr, "Bearer ") {
-		return nil, false
-	}
-	claims, err := h.tokenGen.ValidateAccessToken(hdr[7:])
-	if err != nil {
-		return nil, false
-	}
-	return claims, true
-}
-
 func (h *starRatingHandler) checkMediaAccess(ctx context.Context, w http.ResponseWriter, claims *domainuser.Claims, mediaID string) bool {
 	item, err := h.mediaGetter.GetMediaItem(ctx, mediaID)
 	if err != nil || item == nil {
@@ -154,7 +129,7 @@ func (h *starRatingHandler) checkMediaAccess(ctx context.Context, w http.Respons
 }
 
 func (h *starRatingHandler) postRating(w http.ResponseWriter, r *http.Request) {
-	claims, ok := h.extractClaims(r)
+	claims, ok := extractClaims(r, h.tokenGen)
 	if !ok {
 		http.Error(w, `{"message":"unauthenticated"}`, http.StatusUnauthorized)
 		return
@@ -182,7 +157,7 @@ func (h *starRatingHandler) postRating(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *starRatingHandler) getRating(w http.ResponseWriter, r *http.Request) {
-	claims, ok := h.extractClaims(r)
+	claims, ok := extractClaims(r, h.tokenGen)
 	if !ok {
 		http.Error(w, `{"message":"unauthenticated"}`, http.StatusUnauthorized)
 		return
@@ -210,7 +185,7 @@ func (h *starRatingHandler) getRating(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *starRatingHandler) deleteRating(w http.ResponseWriter, r *http.Request) {
-	claims, ok := h.extractClaims(r)
+	claims, ok := extractClaims(r, h.tokenGen)
 	if !ok {
 		http.Error(w, `{"message":"unauthenticated"}`, http.StatusUnauthorized)
 		return
@@ -228,7 +203,7 @@ func (h *starRatingHandler) deleteRating(w http.ResponseWriter, r *http.Request)
 }
 
 func (h *starRatingHandler) getAggregate(w http.ResponseWriter, r *http.Request) {
-	claims, ok := h.extractClaims(r)
+	claims, ok := extractClaims(r, h.tokenGen)
 	if !ok {
 		http.Error(w, `{"message":"unauthenticated"}`, http.StatusUnauthorized)
 		return

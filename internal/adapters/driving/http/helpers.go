@@ -206,6 +206,19 @@ func apiCacheMiddleware(next http.Handler) http.Handler {
 	})
 }
 
+// extractClaims extracts a Bearer token and validates it, returning claims.
+func extractClaims(r *http.Request, verifier TokenVerifier) (*domainuser.Claims, bool) {
+	token := extractBearerToken(r)
+	if token == "" {
+		return nil, false
+	}
+	claims, err := verifier.ValidateAccessToken(token)
+	if err != nil {
+		return nil, false
+	}
+	return claims, true
+}
+
 var errUnauthenticated = fmt.Errorf("unauthenticated")
 var errForbidden = fmt.Errorf("forbidden")
 

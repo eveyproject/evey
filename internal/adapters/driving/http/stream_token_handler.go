@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"log/slog"
 	"net/http"
-	"strings"
 
 	appmedia "github.com/gravity-zero/evey/internal/app/media"
 	"github.com/gravity-zero/evey/internal/pkg/auth"
@@ -12,14 +11,9 @@ import (
 
 func streamTokenHandler(tokenGen *auth.JWTGenerator, store *appmedia.StreamTokenStore, libAccess LibraryAccessChecker, mediaGetter mediaLibraryGetter) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		authHeader := r.Header.Get("Authorization")
-		if !strings.HasPrefix(authHeader, "Bearer ") {
+		claims, ok := extractClaims(r, tokenGen)
+		if !ok {
 			http.Error(w, `{"message":"unauthenticated"}`, http.StatusUnauthorized)
-			return
-		}
-		claims, err := tokenGen.ValidateAccessToken(authHeader[7:])
-		if err != nil {
-			http.Error(w, `{"message":"invalid token"}`, http.StatusUnauthorized)
 			return
 		}
 
