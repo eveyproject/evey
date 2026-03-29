@@ -7,6 +7,7 @@ import type { AudioStream } from "./AudioTrackSelector";
 import type { SubtitleStream } from "./SubtitleSelector";
 import { PlayerControls } from "./PlayerControls";
 import type { EpisodeNavItem, SeasonNavItem } from "./PlayerControls";
+import { PlayerProvider } from "./PlayerContext";
 import { ProgressReporter } from "./ProgressReporter";
 import { NextEpisodeOverlay } from "./NextEpisodeOverlay";
 import { SkipIntroButton } from "./SkipIntroButton";
@@ -411,78 +412,81 @@ export function HLSPlayer({
           onCancel={() => {}}
         />
       )}
-      <PlayerControls
+      <PlayerProvider
         videoRef={videoRef}
         knownDurationSec={knownDurationMs ? knownDurationMs / 1000 : undefined}
         audioStreams={audioStreams}
         subtitleStreams={subtitleStreams}
         title={title}
-        onClose={onClose}
         currentAudioIndex={currentAudioIndex}
-        onAudioChange={handleAudioChange}
         currentQuality={currentQuality}
-        onQualityChange={handleQualityChange}
         autoQuality={autoQuality}
-        onAutoQualityToggle={handleAutoQualityToggle}
         autoQualityLabel={autoQualityLabel}
         currentSubtitleTrackIndex={currentSubtitle}
-        onSubtitleChange={(trackIndex) => {
-          const prevBurnIn = selectedBurnInTrack;
-          const nextSub = trackIndex !== null ? subtitleStreams.find((st) => st.trackIndex === trackIndex) : null;
-          const nextBurnIn = nextSub?.burnIn ? trackIndex : null;
-
-          setCurrentSubtitle(trackIndex);
-
-          if (transcodeMode && prevBurnIn !== nextBurnIn) {
-            setTranscodeStartTime(positionRef.current);
-          }
-
-          if (trackIndex === null) {
-            setPreferredSubtitleLang(null);
-            if (seriesId) {
-              const cur = getSeriesTrackPrefs(seriesId) ?? {};
-              setSeriesTrackPrefs(seriesId, { ...cur, subtitleLang: null });
-            }
-          } else {
-            const s = subtitleStreams.find((st) => st.trackIndex === trackIndex);
-            const lang = s?.language ?? s?.title ?? null;
-            setPreferredSubtitleLang(lang);
-            if (seriesId) {
-              const cur = getSeriesTrackPrefs(seriesId) ?? {};
-              setSeriesTrackPrefs(seriesId, { ...cur, subtitleLang: lang });
-            }
-          }
-        }}
         playbackSpeed={playbackSpeed}
-        onSpeedChange={setPlaybackSpeed}
         seasons={seasons}
         currentSeasonId={currentSeasonId}
         episodes={episodes}
         currentEpisodeId={currentEpisodeId}
-        onSeasonChange={onSeasonChange}
-        onEpisodeChange={onEpisodeChange}
         chapters={chapters}
         mediaId={mediaId}
         mediaType={mediaType}
-        onSeekRequest={handleSeekRequest}
         transcodeOffset={transcodeOffsetRef.current}
         skipForwardSeconds={skipFwd}
         skipBackwardSeconds={skipBwd}
         subtitleStyle={subtitleStyle}
-        onSubtitleStyleChange={updateSubtitleStyle}
-        onExternalSubtitle={(blobUrl, label) => {
-          setCurrentSubtitle(null);
-          setExternalSubUrl({ url: blobUrl, label });
-        }}
-        onPanelOpenChange={(anyOpen) => { anyPanelOpenRef.current = anyOpen; }}
-        closePanelRef={closePanelRef}
-        controlsToggleRef={controlsToggleRef}
-        onActionFlash={showActionFlash}
         streamToken={streamToken}
         brightness={brightness}
-        onBrightnessChange={setBrightnessValue}
         availableQualities={hlsLevelsRef.current.map((l) => l.height)}
-      />
+      >
+        <PlayerControls
+          onClose={onClose}
+          onAudioChange={handleAudioChange}
+          onQualityChange={handleQualityChange}
+          onAutoQualityToggle={handleAutoQualityToggle}
+          onSubtitleChange={(trackIndex) => {
+            const prevBurnIn = selectedBurnInTrack;
+            const nextSub = trackIndex !== null ? subtitleStreams.find((st) => st.trackIndex === trackIndex) : null;
+            const nextBurnIn = nextSub?.burnIn ? trackIndex : null;
+
+            setCurrentSubtitle(trackIndex);
+
+            if (transcodeMode && prevBurnIn !== nextBurnIn) {
+              setTranscodeStartTime(positionRef.current);
+            }
+
+            if (trackIndex === null) {
+              setPreferredSubtitleLang(null);
+              if (seriesId) {
+                const cur = getSeriesTrackPrefs(seriesId) ?? {};
+                setSeriesTrackPrefs(seriesId, { ...cur, subtitleLang: null });
+              }
+            } else {
+              const s = subtitleStreams.find((st) => st.trackIndex === trackIndex);
+              const lang = s?.language ?? s?.title ?? null;
+              setPreferredSubtitleLang(lang);
+              if (seriesId) {
+                const cur = getSeriesTrackPrefs(seriesId) ?? {};
+                setSeriesTrackPrefs(seriesId, { ...cur, subtitleLang: lang });
+              }
+            }
+          }}
+          onSpeedChange={setPlaybackSpeed}
+          onSeasonChange={onSeasonChange}
+          onEpisodeChange={onEpisodeChange}
+          onSeekRequest={handleSeekRequest}
+          onSubtitleStyleChange={updateSubtitleStyle}
+          onExternalSubtitle={(blobUrl, label) => {
+            setCurrentSubtitle(null);
+            setExternalSubUrl({ url: blobUrl, label });
+          }}
+          onPanelOpenChange={(anyOpen) => { anyPanelOpenRef.current = anyOpen; }}
+          closePanelRef={closePanelRef}
+          controlsToggleRef={controlsToggleRef}
+          onActionFlash={showActionFlash}
+          onBrightnessChange={setBrightnessValue}
+        />
+      </PlayerProvider>
       {showShortcuts && <KeyboardShortcutsOverlay onClose={() => setShowShortcuts(false)} skipForwardSeconds={skipFwd} skipBackwardSeconds={skipBwd} />}
     </div>
   );

@@ -2,6 +2,7 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, it, expect, vi } from "vitest";
 import { PlayerControls } from "./PlayerControls";
+import { PlayerProvider } from "./PlayerContext";
 import type { SubtitleStream } from "./SubtitleSelector";
 
 vi.mock("@/components/ui/Select", () => ({
@@ -26,22 +27,32 @@ const subtitleStreams: SubtitleStream[] = [
   { index: 1, trackIndex: 1, language: "fra", title: "French" },
 ];
 
-const defaultProps = {
-  videoRef: createVideoRef(),
-  audioStreams: [],
-  subtitleStreams,
-  currentAudioIndex: 0,
-  onAudioChange: vi.fn(),
-  currentQuality: 0,
-  onQualityChange: vi.fn(),
-  currentSubtitleTrackIndex: null,
-  onSubtitleChange: vi.fn(),
-};
+function renderControls(overrides: Record<string, unknown> = {}) {
+  const videoRef = createVideoRef();
+  const { currentSubtitleTrackIndex, onSubtitleChange, onAudioChange, onQualityChange, ...providerOverrides } = overrides;
+  return render(
+    <PlayerProvider
+      videoRef={videoRef}
+      audioStreams={[]}
+      subtitleStreams={subtitleStreams}
+      currentAudioIndex={0}
+      currentQuality={0}
+      currentSubtitleTrackIndex={(currentSubtitleTrackIndex as number | null) ?? null}
+      {...providerOverrides}
+    >
+      <PlayerControls
+        onAudioChange={(onAudioChange as (i: number) => void) ?? vi.fn()}
+        onQualityChange={(onQualityChange as (q: number) => void) ?? vi.fn()}
+        onSubtitleChange={(onSubtitleChange as (t: number | null) => void) ?? vi.fn()}
+      />
+    </PlayerProvider>,
+  );
+}
 
 describe("SubtitleSelector", () => {
   it("renders subtitle submenu entry in settings panel", async () => {
     const user = userEvent.setup();
-    render(<PlayerControls {...defaultProps} />);
+    renderControls();
 
     await user.click(screen.getByRole("button", { name: "Settings" }));
 
@@ -50,7 +61,7 @@ describe("SubtitleSelector", () => {
 
   it("renders available subtitle tracks in subtitles submenu", async () => {
     const user = userEvent.setup();
-    render(<PlayerControls {...defaultProps} />);
+    renderControls();
 
     await user.click(screen.getByRole("button", { name: "Settings" }));
     await user.click(screen.getByText("Subtitles"));
@@ -63,7 +74,7 @@ describe("SubtitleSelector", () => {
   it("calls onSubtitleChange with trackIndex when subtitle selected", async () => {
     const user = userEvent.setup();
     const onSubtitleChange = vi.fn();
-    render(<PlayerControls {...defaultProps} onSubtitleChange={onSubtitleChange} />);
+    renderControls({ onSubtitleChange });
 
     await user.click(screen.getByRole("button", { name: "Settings" }));
     await user.click(screen.getByText("Subtitles"));
@@ -75,13 +86,7 @@ describe("SubtitleSelector", () => {
   it("calls onSubtitleChange with null when Off selected", async () => {
     const user = userEvent.setup();
     const onSubtitleChange = vi.fn();
-    render(
-      <PlayerControls
-        {...defaultProps}
-        currentSubtitleTrackIndex={0}
-        onSubtitleChange={onSubtitleChange}
-      />,
-    );
+    renderControls({ currentSubtitleTrackIndex: 0, onSubtitleChange });
 
     await user.click(screen.getByRole("button", { name: "Settings" }));
     await user.click(screen.getByText("Subtitles"));
