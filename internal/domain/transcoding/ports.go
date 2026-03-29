@@ -3,6 +3,9 @@ package transcoding
 import (
 	"context"
 
+	// library.MediaStream is used in HLSProcessOpts. Duplicating it here would
+	// be worse: the struct has 20+ fields, is referenced in 24 files, and
+	// transcoding inherently depends on stream metadata (codec, resolution, HDR).
 	"github.com/gravity-zero/evey/internal/domain/library"
 )
 
