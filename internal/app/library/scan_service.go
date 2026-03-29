@@ -70,6 +70,25 @@ func (s *ScanService) WithSubtitleScanner(sc library.ExternalSubtitleScanner) {
 	s.subScanner = sc
 }
 
+type scanRef struct {
+	ID              string
+	FileSize        int64
+	ModTime         time.Time
+	FileFingerprint string
+	FilePath        string
+}
+
+type scanIndex struct {
+	byPath        map[string]*scanRef
+	byFingerprint map[string]*scanRef
+}
+
+type scanWork struct {
+	file      library.ScannedFile
+	parentID  string
+	showTitle string
+}
+
 func (s *ScanService) ScanLibrary(ctx context.Context, libraryID string) (added, updated int, err error) {
 	s.scanMu.Lock()
 	if s.scanning[libraryID] {
@@ -84,33 +103,54 @@ func (s *ScanService) ScanLibrary(ctx context.Context, libraryID string) (added,
 		s.scanMu.Unlock()
 	}()
 
-	var lib *library.Library
-	lib, err = s.libQueries.GetByID(ctx, libraryID)
+	lib, err := s.libQueries.GetByID(ctx, libraryID)
 	if err != nil {
 		return 0, 0, fmt.Errorf("get library: %w", err)
 	}
 
-	evtScanStarted := library.LibraryScanStarted{
+	s.publishScanStarted(ctx, libraryID)
+
+	idx, err := s.loadScanIndex(ctx, libraryID)
+	if err != nil {
+		return 0, 0, err
+	}
+
+	seenPaths, toProcess, tvAdded, tvUpdated, err := s.scanDirectories(ctx, lib, idx)
+	if err != nil {
+		return 0, 0, err
+	}
+	added += tvAdded
+	updated += tvUpdated
+
+	a, u := s.processNewItems(ctx, libraryID, toProcess)
+	added += a
+	updated += u
+
+	removed := s.processDeletedItems(ctx, libraryID, seenPaths)
+
+	s.finalizeScan(ctx, lib, libraryID, added, updated, removed)
+	return added, updated, nil
+}
+
+func (s *ScanService) publishScanStarted(ctx context.Context, libraryID string) {
+	evt := library.LibraryScanStarted{
 		LibraryID:  libraryID,
 		OccurredAt: time.Now(),
 	}
-	if publishErr := s.events.Publish(ctx, evtScanStarted); publishErr != nil {
-		slog.Warn("publish event", slog.String("event", evtScanStarted.EventName()), slog.Any("err", publishErr))
+	if err := s.events.Publish(ctx, evt); err != nil {
+		slog.Warn("publish event", slog.String("event", evt.EventName()), slog.Any("err", err))
 	}
+}
 
+func (s *ScanService) loadScanIndex(ctx context.Context, libraryID string) (*scanIndex, error) {
 	summaries, err := s.mediaItems.ListScanSummaries(ctx, libraryID)
 	if err != nil {
-		return 0, 0, fmt.Errorf("list existing items: %w", err)
+		return nil, fmt.Errorf("list existing items: %w", err)
 	}
-	type scanRef struct {
-		ID              string
-		FileSize        int64
-		ModTime         time.Time
-		FileFingerprint string
-		FilePath        string
+	idx := &scanIndex{
+		byPath:        make(map[string]*scanRef, len(summaries)),
+		byFingerprint: make(map[string]*scanRef, len(summaries)),
 	}
-	byPath := make(map[string]*scanRef, len(summaries))
-	byFingerprint := make(map[string]*scanRef, len(summaries))
 	for i := range summaries {
 		ref := &scanRef{
 			ID:              summaries[i].ID,
@@ -119,71 +159,78 @@ func (s *ScanService) ScanLibrary(ctx context.Context, libraryID string) (added,
 			FileFingerprint: summaries[i].FileFingerprint,
 			FilePath:        summaries[i].FilePath,
 		}
-		byPath[ref.FilePath] = ref
+		idx.byPath[ref.FilePath] = ref
 		if ref.FileFingerprint != "" {
-			byFingerprint[ref.FileFingerprint] = ref
+			idx.byFingerprint[ref.FileFingerprint] = ref
 		}
 	}
+	return idx, nil
+}
 
-	seenPaths := make(map[string]struct{})
-	type scanWork struct {
-		file      library.ScannedFile
-		parentID  string
-		showTitle string
-	}
-	var toProcess []scanWork
+func (s *ScanService) scanDirectories(ctx context.Context, lib *library.Library, idx *scanIndex) (seenPaths map[string]struct{}, toProcess []scanWork, added, updated int, err error) {
+	seenPaths = make(map[string]struct{})
 
 	for _, path := range lib.Paths {
-		var files []library.ScannedFile
-		files, err = s.scanner.Scan(ctx, path)
-		if err != nil {
-			return 0, 0, fmt.Errorf("scan path %s: %w", path, err)
+		files, scanErr := s.scanner.Scan(ctx, path)
+		if scanErr != nil {
+			return nil, nil, 0, 0, fmt.Errorf("scan path %s: %w", path, scanErr)
 		}
 
 		if lib.Type == "tvshow" {
 			for _, f := range files {
 				seenPaths[f.Path] = struct{}{}
 			}
-			a, u, e := s.scanTVShowFiles(ctx, libraryID, files)
+			a, u, e := s.scanTVShowFiles(ctx, lib.ID, files)
 			if e != nil {
-				return 0, 0, e
+				return nil, nil, 0, 0, e
 			}
 			added += a
 			updated += u
 			continue
 		}
 
+		work, u := s.detectChanges(ctx, files, idx)
 		for _, f := range files {
 			seenPaths[f.Path] = struct{}{}
-
-			if ex := byPath[f.Path]; ex != nil {
-				if ex.FileSize == f.Size && ex.ModTime.Equal(f.ModTime) && ex.FileFingerprint == f.Fingerprint {
-					continue
-				}
-			}
-
-			if byPath[f.Path] == nil && f.Fingerprint != "" {
-				if moved := byFingerprint[f.Fingerprint]; moved != nil {
-					fullItem, getErr := s.mediaItems.GetByID(ctx, moved.ID)
-					if getErr != nil {
-						slog.Warn("get moved item", slog.String("id", moved.ID), slog.Any("err", getErr))
-					} else {
-						fullItem.FilePath = f.Path
-						fullItem.ModTime = f.ModTime
-						fullItem.UpdatedAt = time.Now()
-						if updateErr := s.mediaItems.Update(ctx, fullItem); updateErr != nil {
-							slog.Warn("update moved item path", slog.String("id", moved.ID), slog.Any("err", updateErr))
-						}
-					}
-					updated++
-					continue
-				}
-			}
-
-			toProcess = append(toProcess, scanWork{file: f})
 		}
+		toProcess = append(toProcess, work...)
+		updated += u
 	}
+	return seenPaths, toProcess, added, updated, nil
+}
 
+func (s *ScanService) detectChanges(ctx context.Context, files []library.ScannedFile, idx *scanIndex) (toProcess []scanWork, moved int) {
+	for _, f := range files {
+		if ex := idx.byPath[f.Path]; ex != nil {
+			if ex.FileSize == f.Size && ex.ModTime.Equal(f.ModTime) && ex.FileFingerprint == f.Fingerprint {
+				continue
+			}
+		}
+
+		if idx.byPath[f.Path] == nil && f.Fingerprint != "" {
+			if ref := idx.byFingerprint[f.Fingerprint]; ref != nil {
+				fullItem, getErr := s.mediaItems.GetByID(ctx, ref.ID)
+				if getErr != nil {
+					slog.Warn("get moved item", slog.String("id", ref.ID), slog.Any("err", getErr))
+				} else {
+					fullItem.FilePath = f.Path
+					fullItem.ModTime = f.ModTime
+					fullItem.UpdatedAt = time.Now()
+					if updateErr := s.mediaItems.Update(ctx, fullItem); updateErr != nil {
+						slog.Warn("update moved item path", slog.String("id", ref.ID), slog.Any("err", updateErr))
+					}
+				}
+				moved++
+				continue
+			}
+		}
+
+		toProcess = append(toProcess, scanWork{file: f})
+	}
+	return toProcess, moved
+}
+
+func (s *ScanService) processNewItems(ctx context.Context, libraryID string, toProcess []scanWork) (added, updated int) {
 	var addedAtomic, updatedAtomic atomic.Int64
 	sem := make(chan struct{}, runtime.NumCPU())
 	var wg sync.WaitGroup
@@ -208,31 +255,34 @@ func (s *ScanService) ScanLibrary(ctx context.Context, libraryID string) (added,
 		}(w)
 	}
 	wg.Wait()
-	added += int(addedAtomic.Load())
-	updated += int(updatedAtomic.Load())
+	return int(addedAtomic.Load()), int(updatedAtomic.Load())
+}
 
+func (s *ScanService) processDeletedItems(ctx context.Context, libraryID string, seenPaths map[string]struct{}) int {
 	removed, removeErr := s.removeOrphanedItems(ctx, libraryID, seenPaths)
 	if removeErr != nil {
 		slog.Warn("orphan cleanup failed", slog.String("libraryID", libraryID), slog.Any("err", removeErr))
 	}
+	return removed
+}
 
+func (s *ScanService) finalizeScan(ctx context.Context, lib *library.Library, libraryID string, added, updated, removed int) {
 	now := time.Now()
 	lib.LastScannedAt = &now
 	if err := s.libraries.Update(ctx, lib); err != nil {
 		slog.Warn("update library last scanned failed", slog.String("libraryID", libraryID), slog.Any("err", err))
 	}
 
-	evtScanCompleted := library.LibraryScanCompleted{
+	evt := library.LibraryScanCompleted{
 		LibraryID:    libraryID,
 		ItemsAdded:   added,
 		ItemsUpdated: updated,
 		ItemsRemoved: removed,
 		OccurredAt:   now,
 	}
-	if publishErr := s.events.Publish(ctx, evtScanCompleted); publishErr != nil {
-		slog.Warn("publish event", slog.String("event", evtScanCompleted.EventName()), slog.Any("err", publishErr))
+	if err := s.events.Publish(ctx, evt); err != nil {
+		slog.Warn("publish event", slog.String("event", evt.EventName()), slog.Any("err", err))
 	}
-	return added, updated, nil
 }
 
 func (s *ScanService) removeOrphanedItems(ctx context.Context, libraryID string, seenPaths map[string]struct{}) (int, error) {
