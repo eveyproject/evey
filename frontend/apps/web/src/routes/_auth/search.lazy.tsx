@@ -8,7 +8,7 @@ import { toast } from "@evey/store";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { MediaGridSkeleton } from "@/components/ui/Skeleton";
 import { MediaGrid } from "@/features/library/MediaGrid";
-import { MediaCard } from "@/features/library/MediaCard";
+import { MediaCardWithModals as MediaCard } from "@/features/library/MediaCardWithModals";
 import { useRecentSearches } from "@/hooks/useRecentSearches";
 import { useDebounce } from "@/hooks/useDebounce";
 import { FilterChip } from "@/components/ui/FilterChip";

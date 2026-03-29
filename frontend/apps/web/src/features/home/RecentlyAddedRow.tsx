@@ -2,7 +2,7 @@ import { memo } from "react";
 import { useTranslation } from "react-i18next";
 import { useFeedServiceRecentlyAdded } from "@evey/api";
 import { FeedSection } from "./FeedSection";
-import { MediaCard } from "../library/MediaCard";
+import { MediaCardWithModals as MediaCard } from "../library/MediaCardWithModals";
 
 export const RecentlyAddedRow = memo(function RecentlyAddedRow() {
   const { t } = useTranslation();

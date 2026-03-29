@@ -2,7 +2,7 @@ import { memo } from "react";
 import { useTranslation } from "react-i18next";
 import { useFeedServiceRecommended } from "@evey/api";
 import { FeedSection } from "./FeedSection";
-import { MediaCard } from "../library/MediaCard";
+import { MediaCardWithModals as MediaCard } from "../library/MediaCardWithModals";
 
 export const RecommendedRow = memo(function RecommendedRow() {
   const { t } = useTranslation();

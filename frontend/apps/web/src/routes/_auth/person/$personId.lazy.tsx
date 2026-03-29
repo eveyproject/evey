@@ -5,7 +5,7 @@ import { useQuery } from "@tanstack/react-query";
 import { BackButton } from "@/components/ui/BackButton";
 import { Badge } from "@/components/ui/Badge";
 import { Spinner } from "@/components/ui/Spinner";
-import { MediaCard } from "@/features/library/MediaCard";
+import { MediaCardWithModals as MediaCard } from "@/features/library/MediaCardWithModals";
 
 export const Route = createLazyFileRoute("/_auth/person/$personId")({
   component: PersonPage,

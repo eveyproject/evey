@@ -9,9 +9,7 @@ import { toast, useAuthStore } from "@evey/store";
 import { FavoriteButton } from "./FavoriteButton";
 import { StarRatingBadge } from "./StarRating";
 import { useIsFavorite, useToggleFavorite } from "@/hooks/useFavorite";
-import { AddToPlaylistModal } from "../playlist/AddToPlaylistModal";
 import { useWatchedMap } from "@/hooks/useWatchedMap";
-import { AddToCollectionModal } from "../collection/AddToCollectionModal";
 import { typeLabel } from "@/utils/typeLabel";
 
 const WATCHED_THRESHOLD_PCT = 95;
@@ -46,6 +44,8 @@ export interface MediaCardProps {
   onSelect?: (id: string, selected: boolean) => void;
   /** Skip per-card API calls (favorite, star rating) to reduce HTTP requests in lists */
   lite?: boolean;
+  onRequestAddToPlaylist?: (mediaId: string) => void;
+  onRequestAddToCollection?: (mediaId: string) => void;
 }
 
 export { typeLabel };
@@ -296,6 +296,8 @@ export const MediaCard = memo(function MediaCard({
   selectionMode = false,
   onSelect,
   lite = false,
+  onRequestAddToPlaylist,
+  onRequestAddToCollection,
 }: MediaCardProps) {
   const { t } = useTranslation();
   const [imgLoaded, setImgLoaded] = useState(false);
@@ -345,8 +347,6 @@ export const MediaCard = memo(function MediaCard({
   const linkParams = href ? undefined : { mediaId: item.id ?? "" };
 
   const [ctxMenu, setCtxMenu] = useState<{ x: number; y: number } | null>(null);
-  const [playlistModalOpen, setPlaylistModalOpen] = useState(false);
-  const [collectionModalOpen, setCollectionModalOpen] = useState(false);
   const menuBtnRef = useRef<HTMLButtonElement>(null);
   const hasPreviewData = !!(item.overview || item.communityRating || (item.genres && item.genres.length > 0));
 
@@ -423,19 +423,13 @@ export const MediaCard = memo(function MediaCard({
 
   return (
     <div className="relative">
-    {item.id && playlistModalOpen && (
-      <AddToPlaylistModal open={playlistModalOpen} onClose={() => setPlaylistModalOpen(false)} mediaItemId={item.id} />
-    )}
-    {item.id && collectionModalOpen && (
-      <AddToCollectionModal open={collectionModalOpen} onClose={() => setCollectionModalOpen(false)} mediaItemIds={[item.id]} />
-    )}
     {ctxMenu && item.id && (
       <CardContextMenu
         mediaId={item.id}
         position={ctxMenu}
         onClose={() => setCtxMenu(null)}
-        onAddToPlaylist={() => setPlaylistModalOpen(true)}
-        onAddToCollection={() => setCollectionModalOpen(true)}
+        onAddToPlaylist={() => item.id && onRequestAddToPlaylist?.(item.id)}
+        onAddToCollection={() => item.id && onRequestAddToCollection?.(item.id)}
       />
     )}
     <Link
