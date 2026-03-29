@@ -5,12 +5,15 @@ import (
 	"fmt"
 	"image"
 	_ "image/jpeg"
+	_ "image/png"
 	"log/slog"
 	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
 	"time"
+
+	_ "golang.org/x/image/webp"
 
 	domainuser "github.com/gravity-zero/evey/internal/domain/user"
 )
@@ -71,10 +74,18 @@ func trickplayManifestHandler(tokenGen TokenVerifier, libSvc TrickplayGetter, ba
 			}
 		}
 
+		// Detect sprite format: prefer .webp, fall back to .jpg (old caches)
+		spriteExt := ".webp"
+		if manifest.ImagePath != "" {
+			if _, err := os.Stat(filepath.Join(manifest.ImagePath, "trickplay_001.webp")); err != nil {
+				spriteExt = ".jpg"
+			}
+		}
+
 		// Compute actual tile height from first sprite image (ffmpeg scale=-1 preserves aspect ratio)
 		tileH := manifest.Width * 9 / 16 // fallback 16:9
 		if manifest.ImagePath != "" && manifest.TileWidth > 0 && manifest.TileHeight > 0 {
-			firstSprite := filepath.Join(manifest.ImagePath, "trickplay_001.jpg")
+			firstSprite := filepath.Join(manifest.ImagePath, "trickplay_001"+spriteExt)
 			if f, openErr := os.Open(firstSprite); openErr == nil {
 				defer f.Close()
 				if cfg, _, decErr := image.DecodeConfig(f); decErr == nil && cfg.Width > 0 && cfg.Height > 0 {
@@ -98,7 +109,7 @@ func trickplayManifestHandler(tokenGen TokenVerifier, libSvc TrickplayGetter, ba
 				col*manifest.Width, row*tileH,
 				manifest.Width, tileH,
 			)
-			imageFile := fmt.Sprintf("trickplay_%03d.jpg", imageIdx+1)
+			imageFile := fmt.Sprintf("trickplay_%03d%s", imageIdx+1, spriteExt)
 			imageURL := fmt.Sprintf("/api/v1/media/%s/trickplay/%s", mediaID, imageFile)
 			fmt.Fprintf(w, "%s --> %s\n%s#xywh=%s\n\n",
 				formatVTTTime(startSec), formatVTTTime(endSec),
@@ -164,8 +175,19 @@ func trickplayImageHandler(tokenGen TokenVerifier, libSvc TrickplayGetter, baseU
 			return
 		}
 		if _, err := os.Stat(imagePath); err != nil {
-			http.Error(w, `{"message":"image not found"}`, http.StatusNotFound)
-			return
+			// Backward compat: try .jpg if .webp not found (or vice versa)
+			alt := imagePath
+			switch {
+			case strings.HasSuffix(imagePath, ".webp"):
+				alt = strings.TrimSuffix(imagePath, ".webp") + ".jpg"
+			case strings.HasSuffix(imagePath, ".jpg"):
+				alt = strings.TrimSuffix(imagePath, ".jpg") + ".webp"
+			}
+			if _, err := os.Stat(alt); err != nil {
+				http.Error(w, `{"message":"image not found"}`, http.StatusNotFound)
+				return
+			}
+			imagePath = alt
 		}
 		setCORSHeaders(w, r, baseURL)
 		serveFileWithCache(w, r, imagePath)

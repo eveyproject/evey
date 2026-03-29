@@ -109,9 +109,9 @@ func TestTrickplayImageHandler_Unauthenticated(t *testing.T) {
 		&fakeLibraryAccessChecker{allowed: true},
 		&fakeMediaItemGetter{item: testMediaItem("lib1")},
 	)
-	req := httptest.NewRequest(http.MethodGet, "/api/v1/media/m1/trickplay/trickplay_001.jpg", nil)
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/media/m1/trickplay/trickplay_001.webp", nil)
 	req.SetPathValue("id", "m1")
-	req.SetPathValue("image", "trickplay_001.jpg")
+	req.SetPathValue("image", "trickplay_001.webp")
 	w := httptest.NewRecorder()
 	h.ServeHTTP(w, req)
 	if w.Code != http.StatusUnauthorized {
@@ -127,9 +127,9 @@ func TestTrickplayImageHandler_IDOR_Forbidden(t *testing.T) {
 		&fakeLibraryAccessChecker{allowed: false},
 		&fakeMediaItemGetter{item: testMediaItem("lib1")},
 	)
-	req := httptest.NewRequest(http.MethodGet, "/api/v1/media/m1/trickplay/trickplay_001.jpg", nil)
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/media/m1/trickplay/trickplay_001.webp", nil)
 	req.SetPathValue("id", "m1")
-	req.SetPathValue("image", "trickplay_001.jpg")
+	req.SetPathValue("image", "trickplay_001.webp")
 	req.Header.Set("Authorization", "Bearer token")
 	w := httptest.NewRecorder()
 	h.ServeHTTP(w, req)

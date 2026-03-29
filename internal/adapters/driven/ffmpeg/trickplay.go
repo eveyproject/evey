@@ -102,14 +102,13 @@ func (g *TrickplayGenerator) Generate(ctx context.Context, filePath, outputDir s
 					slog.Error("panic recovered in trickplay frame extract", "error", r, "stack", debug.Stack())
 				}
 			}()
-			out := filepath.Join(thumbDir, fmt.Sprintf("thumb_%05d.jpg", idx))
+			out := filepath.Join(thumbDir, fmt.Sprintf("thumb_%05d.png", idx))
 			cmd := exec.CommandContext(ctx, "nice", "-n", "19", g.binary,
 				"-threads", "1",
 				"-ss", fmt.Sprintf("%.3f", t),
 				"-i", filePath,
 				"-frames:v", "1",
 				"-vf", fmt.Sprintf("scale=%d:-1", width),
-				"-q:v", "8",
 				"-y", out,
 			)
 			if b, runErr := cmd.CombinedOutput(); runErr != nil {
@@ -128,7 +127,7 @@ func (g *TrickplayGenerator) Generate(ctx context.Context, filePath, outputDir s
 	defer cf.Close()
 	existing := 0
 	for i := range timestamps {
-		p := filepath.Join(thumbDir, fmt.Sprintf("thumb_%05d.jpg", i))
+		p := filepath.Join(thumbDir, fmt.Sprintf("thumb_%05d.png", i))
 		if _, statErr := os.Stat(p); statErr == nil {
 			fmt.Fprintf(cf, "file '%s'\nduration 1\n", p)
 			existing++
@@ -141,7 +140,7 @@ func (g *TrickplayGenerator) Generate(ctx context.Context, filePath, outputDir s
 
 	// Tile thumbnails into sprite sheets.
 	// -r 1 forces 1fps so each concat entry (duration 1) = exactly 1 frame for the tile filter.
-	outputPattern := filepath.Join(outputDir, "trickplay_%03d.jpg")
+	outputPattern := filepath.Join(outputDir, "trickplay_%03d.webp")
 	tileCmd := exec.CommandContext(ctx, "nice", "-n", "19", g.binary,
 		"-threads", "1",
 		"-f", "concat",
@@ -149,7 +148,8 @@ func (g *TrickplayGenerator) Generate(ctx context.Context, filePath, outputDir s
 		"-r", "1",
 		"-i", concatPath,
 		"-vf", fmt.Sprintf("tile=%dx%d", tileWidth, tileHeight),
-		"-q:v", "8",
+		"-c:v", "libwebp",
+		"-quality", "75",
 		"-y", outputPattern,
 	)
 	if out, runErr := tileCmd.CombinedOutput(); runErr != nil {
@@ -158,7 +158,7 @@ func (g *TrickplayGenerator) Generate(ctx context.Context, filePath, outputDir s
 
 	imageCount := 0
 	for i := 1; ; i++ {
-		p := filepath.Join(outputDir, fmt.Sprintf("trickplay_%03d.jpg", i))
+		p := filepath.Join(outputDir, fmt.Sprintf("trickplay_%03d.webp", i))
 		if _, statErr := os.Stat(p); statErr != nil {
 			break
 		}
