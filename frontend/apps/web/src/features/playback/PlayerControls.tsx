@@ -1,9 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ArrowLeft, SkipBack, SkipForward, Pause, Play, Minimize, Maximize, PictureInPicture, PictureInPicture2, ChevronFirst, ChevronLast } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import type { AudioStream } from "./AudioTrackSelector";
-import type { SubtitleStream } from "./SubtitleSelector";
-import type { Chapter } from "@/hooks/useChapters";
 import type { SubtitleStyle } from "@/hooks/usePlaybackPrefs";
 import { formatTime } from "./playerUtils";
 import { PlayerProgressBar } from "./PlayerProgressBar";
@@ -12,105 +9,60 @@ import { ChaptersPanel } from "./PlayerChaptersPanel";
 import { EpisodesPanel } from "./PlayerEpisodesPanel";
 import type { EpisodeNavItem, SeasonNavItem } from "./PlayerEpisodesPanel";
 import { SettingsPanel } from "./PlayerSettingsPanel";
+import { usePlayerContext } from "./PlayerContext";
 
 export type { EpisodeNavItem, SeasonNavItem };
 
 interface PlayerControlsProps {
-  videoRef: React.RefObject<HTMLVideoElement | null>;
-  knownDurationSec?: number;
-  audioStreams: AudioStream[];
-  subtitleStreams: SubtitleStream[];
-  title?: string;
   onClose?: () => void;
-  currentAudioIndex: number;
   onAudioChange: (index: number) => void;
-  currentQuality: number;
   onQualityChange: (quality: number) => void;
-  currentSubtitleTrackIndex: number | null;
   onSubtitleChange: (trackIndex: number | null) => void;
-  playbackSpeed?: number;
   onSpeedChange?: (speed: number) => void;
-  seasons?: SeasonNavItem[];
-  currentSeasonId?: string;
-  episodes?: EpisodeNavItem[];
-  currentEpisodeId?: string;
   onSeasonChange?: (id: string) => void;
   onEpisodeChange?: (id: string) => void;
-  chapters?: Chapter[];
-  mediaId?: string;
-  mediaType?: string;
   onSeekRequest?: (absoluteTimeSec: number) => void;
-  transcodeOffset?: number;
-  autoQuality?: boolean;
   onAutoQualityToggle?: (auto: boolean) => void;
-  autoQualityLabel?: string;
-  skipForwardSeconds?: number;
-  skipBackwardSeconds?: number;
   onExternalSubtitle?: (blobUrl: string, label: string) => void;
-  subtitleStyle?: SubtitleStyle;
   onSubtitleStyleChange?: (patch: Partial<SubtitleStyle>) => void;
   onPanelOpenChange?: (anyOpen: boolean) => void;
   closePanelRef?: React.MutableRefObject<(() => void) | null>;
   onActionFlash?: (action: "play" | "pause") => void;
-  streamToken?: string;
-  brightness?: number;
   onBrightnessChange?: (value: number) => void;
   controlsToggleRef?: React.MutableRefObject<(() => void) | null>;
-  availableQualities?: number[];
 }
 
 export function PlayerControls({
-  videoRef,
-  knownDurationSec,
-  audioStreams,
-  subtitleStreams,
-  title,
   onClose,
-  currentAudioIndex,
   onAudioChange,
-  currentQuality,
   onQualityChange,
-  currentSubtitleTrackIndex,
   onSubtitleChange,
-  playbackSpeed = 1,
   onSpeedChange,
-  seasons = [],
-  currentSeasonId = "",
-  episodes = [],
-  currentEpisodeId = "",
   onSeasonChange,
   onEpisodeChange,
-  chapters = [],
-  mediaId,
-  mediaType,
   onSeekRequest,
-  transcodeOffset = 0,
-  autoQuality = false,
   onAutoQualityToggle,
-  autoQualityLabel,
-  skipForwardSeconds = 10,
-  skipBackwardSeconds = 10,
   onExternalSubtitle,
-  subtitleStyle,
   onSubtitleStyleChange,
   onPanelOpenChange,
   closePanelRef,
   onActionFlash,
-  streamToken,
-  brightness = 1,
   onBrightnessChange,
   controlsToggleRef,
-  availableQualities,
 }: PlayerControlsProps) {
   const { t } = useTranslation();
+  const ctx = usePlayerContext();
+  const {
+    videoRef, playing, volume, muted, fullscreen, isPip,
+    effectiveDuration, absoluteTime, bufferedEnd, transcodeOffset,
+    audioStreams, subtitleStreams, currentAudioIndex, currentQuality,
+    currentSubtitleTrackIndex, playbackSpeed, autoQuality, autoQualityLabel,
+    availableQualities, chapters, mediaId, mediaType, streamToken,
+    title, brightness, skipForwardSeconds, skipBackwardSeconds,
+    seasons, currentSeasonId, episodes, currentEpisodeId, subtitleStyle,
+  } = ctx;
+
   const [visible, setVisible] = useState(true);
-  const [playing, setPlaying] = useState(false);
-  const [currentTime, setCurrentTime] = useState(0);
-  const [duration, setDuration] = useState(0);
-  const [bufferedEnd, setBufferedEnd] = useState(0);
-  const [volume, setVolume] = useState(1);
-  const [muted, setMuted] = useState(false);
-  const [fullscreen, setFullscreen] = useState(false);
   const [openPanel, setOpenPanel] = useState<"settings" | "episodes" | "chapters" | null>(null);
   const settingsOpen = openPanel === "settings";
   const episodesOpen = openPanel === "episodes";
@@ -125,15 +77,8 @@ export function PlayerControls({
     return () => { if (closePanelRef) closePanelRef.current = null; };
   }, [closePanelRef]);
 
-  const [isPip, setIsPip] = useState(false);
   const hideTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const clickTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  // In fMP4 transcode mode, video.duration reports only buffered amount (e.g. 11s for a 2h movie).
-  // Always prefer knownDurationSec from the DB when available.
-  const effectiveDuration = (knownDurationSec && knownDurationSec > 0)
-    ? knownDurationSec
-    : (duration && isFinite(duration) && duration > 0) ? duration : 0;
 
   const scheduleHide = useCallback(() => {
     if (hideTimer.current) clearTimeout(hideTimer.current);
@@ -175,69 +120,12 @@ export function PlayerControls({
     };
   }, [scheduleHide]);
 
-  useEffect(() => {
-    const video = videoRef.current;
-    if (!video) return;
-
-    function onPlay() { setPlaying(true); }
-    function onPause() { setPlaying(false); }
-    let lastTimeUpdate = 0;
-    function onTimeUpdate() {
-      const now = performance.now();
-      if (now - lastTimeUpdate < 250) return;
-      lastTimeUpdate = now;
-      setCurrentTime(video!.currentTime);
-    }
-    function onDurationChange() {
-      const d = video!.duration;
-      if (d && isFinite(d) && d > 0) setDuration(d);
-    }
-    function onVolumeChange() { setVolume(video!.volume); setMuted(video!.muted); }
-    function onFullscreenChange() { setFullscreen(!!document.fullscreenElement); }
-    function onEnterPip() { setIsPip(true); }
-    function onLeavePip() { setIsPip(false); }
-    function onProgress() {
-      const b = video!.buffered;
-      if (b.length > 0) setBufferedEnd(b.end(b.length - 1));
-    }
-
-    video.addEventListener("play", onPlay);
-    video.addEventListener("pause", onPause);
-    video.addEventListener("timeupdate", onTimeUpdate);
-    video.addEventListener("durationchange", onDurationChange);
-    video.addEventListener("volumechange", onVolumeChange);
-    video.addEventListener("progress", onProgress);
-    video.addEventListener("enterpictureinpicture", onEnterPip);
-    video.addEventListener("leavepictureinpicture", onLeavePip);
-    document.addEventListener("fullscreenchange", onFullscreenChange);
-
-    setPlaying(!video.paused);
-    setCurrentTime(video.currentTime);
-    const d = video.duration;
-    if (d && isFinite(d) && d > 0) setDuration(d);
-    setVolume(video.volume);
-
-    return () => {
-      video.removeEventListener("play", onPlay);
-      video.removeEventListener("pause", onPause);
-      video.removeEventListener("timeupdate", onTimeUpdate);
-      video.removeEventListener("durationchange", onDurationChange);
-      video.removeEventListener("volumechange", onVolumeChange);
-      video.removeEventListener("progress", onProgress);
-      video.removeEventListener("enterpictureinpicture", onEnterPip);
-      video.removeEventListener("leavepictureinpicture", onLeavePip);
-      document.removeEventListener("fullscreenchange", onFullscreenChange);
-    };
-  }, [videoRef]);
-
   function togglePlay() {
     const video = videoRef.current;
     if (!video) return;
     if (video.paused) void video.play();
     else video.pause();
   }
-
-  const absoluteTime = transcodeOffset + currentTime;
 
   function handleSeek(e: React.ChangeEvent<HTMLInputElement>) {
     const targetAbsolute = Number(e.target.value);
@@ -345,7 +233,6 @@ export function PlayerControls({
   }
 
   function skipToPrevChapter() {
-    // If >3s into current chapter, restart it; otherwise go to previous
     const threshold = 3;
     if (currentChapterIndex > 0 && currentChapter) {
       const elapsed = absoluteTime - currentChapter.startTimeMs / 1000;

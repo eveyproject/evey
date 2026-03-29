@@ -2,6 +2,7 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, it, expect, vi } from "vitest";
 import { PlayerControls } from "./PlayerControls";
+import { PlayerProvider } from "./PlayerContext";
 
 vi.mock("@/components/ui/Select", () => ({
   Select: () => null,
@@ -20,34 +21,43 @@ function createVideoRef() {
   return { current: video };
 }
 
-const defaultProps = {
-  videoRef: createVideoRef(),
-  audioStreams: [],
-  subtitleStreams: [],
-  currentAudioIndex: 0,
+const defaultCallbacks = {
   onAudioChange: vi.fn(),
-  currentQuality: 0,
   onQualityChange: vi.fn(),
-  currentSubtitleTrackIndex: null,
   onSubtitleChange: vi.fn(),
 };
 
+function renderWithProvider(callbackOverrides = {}, providerOverrides = {}) {
+  const videoRef = createVideoRef();
+  return render(
+    <PlayerProvider
+      videoRef={videoRef}
+      audioStreams={[]}
+      subtitleStreams={[]}
+      currentAudioIndex={0}
+      currentQuality={0}
+      currentSubtitleTrackIndex={null}
+      {...providerOverrides}
+    >
+      <PlayerControls {...defaultCallbacks} {...callbackOverrides} />
+    </PlayerProvider>,
+  );
+}
+
 describe("PlayerControls", () => {
   it("renders play/pause button", () => {
-    render(<PlayerControls {...defaultProps} />);
+    renderWithProvider();
     expect(screen.getByRole("button", { name: "Play" })).toBeInTheDocument();
   });
 
   it("renders volume slider", () => {
-    render(<PlayerControls {...defaultProps} />);
+    renderWithProvider();
     expect(screen.getByRole("slider", { name: "Volume" })).toBeInTheDocument();
   });
 
   it("opens settings panel on settings button click", async () => {
     const user = userEvent.setup();
-    render(
-      <PlayerControls {...defaultProps} onSpeedChange={vi.fn()} />,
-    );
+    renderWithProvider({ onSpeedChange: vi.fn() });
     const settingsBtn = screen.getByRole("button", { name: "Settings" });
     await user.click(settingsBtn);
     expect(screen.getByText("Quality")).toBeInTheDocument();
@@ -55,9 +65,7 @@ describe("PlayerControls", () => {
 
   it("shows playback speed selector in settings submenu", async () => {
     const user = userEvent.setup();
-    render(
-      <PlayerControls {...defaultProps} playbackSpeed={1} onSpeedChange={vi.fn()} />,
-    );
+    renderWithProvider({ onSpeedChange: vi.fn() }, { playbackSpeed: 1 });
     await user.click(screen.getByRole("button", { name: "Settings" }));
     expect(screen.getByText("Speed")).toBeInTheDocument();
     await user.click(screen.getByText("Speed"));
@@ -66,7 +74,7 @@ describe("PlayerControls", () => {
   });
 
   it("renders fullscreen button", () => {
-    render(<PlayerControls {...defaultProps} />);
+    renderWithProvider();
     expect(screen.getByRole("button", { name: "Fullscreen" })).toBeInTheDocument();
   });
 });

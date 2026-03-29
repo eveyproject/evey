@@ -2,6 +2,7 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, it, expect, vi } from "vitest";
 import { PlayerControls } from "./PlayerControls";
+import { PlayerProvider } from "./PlayerContext";
 import type { AudioStream } from "./AudioTrackSelector";
 
 vi.mock("@/components/ui/Select", () => ({
@@ -26,22 +27,32 @@ const audioStreams: AudioStream[] = [
   { index: 1, trackIndex: 1, language: "fra", title: "French" },
 ];
 
-const defaultProps = {
-  videoRef: createVideoRef(),
-  audioStreams,
-  subtitleStreams: [],
-  currentAudioIndex: 0,
-  onAudioChange: vi.fn(),
-  currentQuality: 0,
-  onQualityChange: vi.fn(),
-  currentSubtitleTrackIndex: null,
-  onSubtitleChange: vi.fn(),
-};
+function renderControls(overrides: Record<string, unknown> = {}) {
+  const videoRef = createVideoRef();
+  const { onAudioChange, onQualityChange, onSubtitleChange, ...providerOverrides } = overrides;
+  return render(
+    <PlayerProvider
+      videoRef={videoRef}
+      audioStreams={audioStreams}
+      subtitleStreams={[]}
+      currentAudioIndex={0}
+      currentQuality={0}
+      currentSubtitleTrackIndex={null}
+      {...providerOverrides}
+    >
+      <PlayerControls
+        onAudioChange={(onAudioChange as (i: number) => void) ?? vi.fn()}
+        onQualityChange={(onQualityChange as (q: number) => void) ?? vi.fn()}
+        onSubtitleChange={(onSubtitleChange as (t: number | null) => void) ?? vi.fn()}
+      />
+    </PlayerProvider>,
+  );
+}
 
 describe("AudioTrackSelector", () => {
   it("renders audio submenu entry in settings panel", async () => {
     const user = userEvent.setup();
-    render(<PlayerControls {...defaultProps} />);
+    renderControls();
 
     await user.click(screen.getByRole("button", { name: "Settings" }));
 
@@ -50,7 +61,7 @@ describe("AudioTrackSelector", () => {
 
   it("renders available audio tracks in audio submenu", async () => {
     const user = userEvent.setup();
-    render(<PlayerControls {...defaultProps} />);
+    renderControls();
 
     await user.click(screen.getByRole("button", { name: "Settings" }));
     await user.click(screen.getByText("Audio"));
@@ -64,7 +75,7 @@ describe("AudioTrackSelector", () => {
   it("calls onAudioChange with selected track index", async () => {
     const user = userEvent.setup();
     const onAudioChange = vi.fn();
-    render(<PlayerControls {...defaultProps} onAudioChange={onAudioChange} />);
+    renderControls({ onAudioChange });
 
     await user.click(screen.getByRole("button", { name: "Settings" }));
     await user.click(screen.getByText("Audio"));
