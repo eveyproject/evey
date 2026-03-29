@@ -18,6 +18,7 @@ require (
 	github.com/stretchr/testify v1.11.1
 	github.com/testcontainers/testcontainers-go v0.40.0
 	golang.org/x/crypto v0.46.0
+	golang.org/x/image v0.38.0
 	golang.org/x/net v0.48.0
 	golang.org/x/oauth2 v0.36.0
 	golang.org/x/time v0.15.0
@@ -89,7 +90,6 @@ require (
 	go.opentelemetry.io/proto/otlp v1.9.0 // indirect
 	go.uber.org/atomic v1.7.0 // indirect
 	go.yaml.in/yaml/v2 v2.4.2 // indirect
-	golang.org/x/image v0.38.0 // indirect
 	golang.org/x/sys v0.41.0 // indirect
 	golang.org/x/text v0.35.0 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20260217215200-42d3e9bedb6d // indirect
