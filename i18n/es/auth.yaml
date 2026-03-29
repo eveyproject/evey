@@ -25,6 +25,7 @@ setup:
     shows: Series
     music: Música
     photos: Fotos
+signingIn: "Iniciando sesión\u2026"
 login:
   signIn: "Iniciar sesión"
   signInToAccount: "Inicia sesión en tu cuenta"

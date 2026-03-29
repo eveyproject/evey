@@ -208,6 +208,7 @@ contextMenu:
   download: डाउनलोड
   markWatched: देखा हुआ चिह्नित करें
   markUnwatched: नहीं देखा चिह्नित करें
+  noProfileSelected: No profile selected # TODO: translate
   markedWatched: देखा हुआ चिह्नित किया
   markedUnwatched: नहीं देखा चिह्नित किया
   markError: "{{status}} चिह्नित करने में विफल"
@@ -254,6 +255,7 @@ syncplay:
   connecting: "कनेक्ट हो रहा है..."
   leave: छोड़ें
   shareLink: लिंक शेयर करें
+  copyCode: कोड कॉपी करें
   watchTogetherRoom: साथ में देखें कमरा
   watchingWith: "{{names}} के साथ देख रहे हैं"
   watchingWithMore: "{{names}} +{{count}} और के साथ देख रहे हैं"
@@ -314,6 +316,7 @@ search:
   searchLibrary: अपनी मीडिया लाइब्रेरी खोजें
   searchLibraryDesc: अपनी फ़िल्मों, सीरीज़ और अन्य में खोजने के लिए कम से कम 2 अक्षर टाइप करें।
   clearSearch: खोज साफ़ करें
+  filterByType: प्रकार से फ़िल्टर करें
   filters: फ़िल्टर
   clearFilters: फ़िल्टर साफ़ करें
   genre: शैली

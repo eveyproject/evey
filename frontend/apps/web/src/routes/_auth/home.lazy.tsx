@@ -31,7 +31,7 @@ export const Route = createLazyFileRoute("/_auth/home")({
 const HERO_COUNT = 5;
 const HERO_INTERVAL = 8000;
 
-function HeroBanner() {
+const HeroBanner = memo(function HeroBanner() {
   const { t } = useTranslation();
   const accessToken = useAuthStore((s) => s.accessToken);
   const { data, isLoading } = useFeedServiceRecentlyAdded(undefined, { query: { staleTime: 5 * 60_000 } });
@@ -209,7 +209,7 @@ function HeroBanner() {
       )}
     </div>
   );
-}
+});
 
 const LibrarySlider = memo(function LibrarySlider({ libraryId, name, libraryType }: { libraryId: string; name: string; libraryType?: string }) {
   const typeFilter = libraryType === "LIBRARY_TYPE_SHOWS"

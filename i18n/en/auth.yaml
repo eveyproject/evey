@@ -25,6 +25,7 @@ setup:
     shows: Shows
     music: Music
     photos: Photos
+signingIn: "Signing in\u2026"
 login:
   signIn: Sign in
   signInToAccount: Sign in to your account

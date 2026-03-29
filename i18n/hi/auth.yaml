@@ -25,6 +25,7 @@ setup:
     shows: "शो"
     music: "संगीत"
     photos: "फ़ोटो"
+signingIn: "साइन इन हो रहा है\u2026"
 login:
   signIn: "साइन इन"
   signInToAccount: "अपने खाते में साइन इन करें"

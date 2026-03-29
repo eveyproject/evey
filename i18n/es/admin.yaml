@@ -15,6 +15,7 @@ nav:
   integrations: Integraciones
   plugins: Plugins
   webhooks: Webhooks
+  apiKeys: API Keys # TODO: translate
   monitoring: Monitoreo
   analytics: Analítica
   activity: Actividad
@@ -32,6 +33,7 @@ plugin:
   configuration: Configuración
   noConfig: No hay claves de config definidas.
   configSaved: Config guardada
+  configSaveFailed: Error al guardar la config
   subprocess: Subproceso
   sandboxed: Aislado
   state:
@@ -75,6 +77,8 @@ plugins:
   blockedByAnalysis: "Plugin bloqueado por el análisis de seguridad"
   previewFailed: "Error en la vista previa"
   installFailed: "Error en la instalación"
+  availableRuntimes: Available Runtimes # TODO: translate
+  noRuntimes: No plugin runtimes detected # TODO: translate
 
 dashboard:
   title: "Panel"
@@ -397,6 +401,19 @@ serverConfig:
   noEntriesDesc: "Añade entradas clave-valor a continuación."
   show: "Mostrar"
   hide: "Ocultar"
+  apiKeys: # TODO: translate
+    title: API Keys
+    description: Configure API keys for metadata providers. Keys set here override environment variables.
+    tmdb: TMDB API Key
+    tmdbLink: Get a free key at themoviedb.org
+    omdb: OMDB API Key
+    omdbLink: Get a free key at omdbapi.com
+    opensubtitles: OpenSubtitles API Key
+    opensubtitlesLink: Get a key at opensubtitles.com
+    resetToDefault: Reset to default
+    saved: API key saved
+    usingDefault: Using default key
+    usingCustom: Using custom key
 
 remoteAccess:
   title: "Acceso remoto"

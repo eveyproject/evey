@@ -34,6 +34,7 @@ plugin:
   configuration: Configuration
   noConfig: No config keys defined.
   configSaved: Config saved
+  configSaveFailed: Failed to save config
   subprocess: Subprocess
   sandboxed: Sandboxed
   state:
