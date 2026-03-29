@@ -74,8 +74,12 @@ func (t *Transcoder) Start(ctx context.Context, job *transcoding.TranscodeJob) (
 			t.jobs.Delete(job.ID)
 		}()
 		scanner := bufio.NewScanner(stderr)
+		scanner.Buffer(make([]byte, 64*1024), 64*1024)
 		scanner.Split(scanFFmpegLines)
 		for scanner.Scan() {
+			if jobCtx.Err() != nil {
+				return
+			}
 			line := scanner.Text()
 			if p, ok := ParseProgress(line, job.ID, job.DurationMs); ok {
 				rj.mu.Lock()
