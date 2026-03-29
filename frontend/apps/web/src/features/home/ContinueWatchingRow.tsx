@@ -2,7 +2,7 @@ import { memo, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { usePlaybackServiceGetResumeItems } from "@evey/api";
 import { FeedSection } from "./FeedSection";
-import { MediaCard } from "../library/MediaCard";
+import { MediaCardWithModals as MediaCard } from "../library/MediaCardWithModals";
 
 export const ContinueWatchingRow = memo(function ContinueWatchingRow() {
   const { t } = useTranslation();

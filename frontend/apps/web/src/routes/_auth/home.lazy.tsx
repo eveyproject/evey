@@ -14,7 +14,7 @@ import {
 import { useAuthStore } from "@evey/store";
 import { useTranslation } from "react-i18next";
 import { MediaSlider } from "../../features/home/MediaSlider";
-import { MediaCard } from "../../features/library/MediaCard";
+import { MediaCardWithModals as MediaCard } from "../../features/library/MediaCardWithModals";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { slugify } from "@/utils/slugify";
 import { useCollections } from "../../features/collection/api";

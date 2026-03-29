@@ -5,7 +5,7 @@ import { usePlaybackServiceMarkAsWatched, usePlaybackServiceMarkAsUnwatched } fr
 import { useTranslation } from "react-i18next";
 import { useFavoritesList } from "@/hooks/useFavorite";
 import { MediaGrid } from "@/features/library/MediaGrid";
-import { MediaCard } from "@/features/library/MediaCard";
+import { MediaCardWithModals as MediaCard } from "@/features/library/MediaCardWithModals";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { MediaGridSkeleton } from "@/components/ui/Skeleton";
 import { BulkActionBar } from "@/components/BulkActionBar";

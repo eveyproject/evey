@@ -1,7 +1,7 @@
 import { useTranslation } from "react-i18next";
 import type { V1MediaItem } from "@evey/api";
 import { useFeedServiceSimilarItems, useLibraryServiceListMediaItems } from "@evey/api";
-import { MediaCard } from "./MediaCard";
+import { MediaCardWithModals as MediaCard } from "./MediaCardWithModals";
 
 export function SimilarSection({ item }: { item: V1MediaItem }) {
   const { t } = useTranslation();

@@ -2,7 +2,7 @@ import { memo } from "react";
 import { useTranslation } from "react-i18next";
 import { usePlaybackServiceGetNextUp } from "@evey/api";
 import { MediaSlider } from "./MediaSlider";
-import { MediaCard } from "../library/MediaCard";
+import { MediaCardWithModals as MediaCard } from "../library/MediaCardWithModals";
 
 export const NextUpRow = memo(function NextUpRow() {
   const { t } = useTranslation();

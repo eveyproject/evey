@@ -22,7 +22,8 @@ import { Input } from "@/components/ui/Input";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { MediaGridSkeleton } from "@/components/ui/Skeleton";
 import { MediaGrid } from "@/features/library/MediaGrid";
-import { MediaCard, typeLabel } from "@/features/library/MediaCard";
+import { MediaCardWithModals as MediaCard } from "@/features/library/MediaCardWithModals";
+import { typeLabel } from "@/features/library/MediaCard";
 import {
   LibraryFilterToggle,
   LibraryFiltersPanel,

@@ -4,7 +4,7 @@ import { createLazyFileRoute } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { useCollection, useDeleteCollection } from "@/features/collection/api";
 import { MediaGrid } from "@/features/library/MediaGrid";
-import { MediaCard } from "@/features/library/MediaCard";
+import { MediaCardWithModals as MediaCard } from "@/features/library/MediaCardWithModals";
 import { Button } from "@/components/ui/Button";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Pagination } from "@/components/ui/Pagination";
