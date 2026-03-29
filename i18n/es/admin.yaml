@@ -36,6 +36,12 @@ plugin:
   configSaveFailed: Error al guardar la config
   subprocess: Subproceso
   sandboxed: Aislado
+  hash: "Hash"
+  hashCopied: "Hash copiado"
+  verified: "Verificado"
+  updateAvailable: "Actualización disponible"
+  versionHigher: "La versión {{new}} reemplaza a {{current}}"
+  versionRejected: "La versión {{new}} no es superior a {{current}}"
   state:
     running: En ejecución
     starting: "Iniciando…"

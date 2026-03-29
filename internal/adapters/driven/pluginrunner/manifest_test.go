@@ -284,3 +284,25 @@ func TestParseDir_NotFound(t *testing.T) {
 	_, err := parser.ParseDir(dir)
 	assert.ErrorContains(t, err, "read manifest from dir")
 }
+
+func TestParse_ValidSemver(t *testing.T) {
+	valid := []string{"1.0.0", "0.1.0", "10.20.30", "1.0.0-beta.1", "1.0.0-rc.1"}
+	parser := NewManifestParser()
+	for _, v := range valid {
+		yml := "name: test\nversion: \"" + v + "\"\nlanguage: go\nentrypoint: ./plugin\n"
+		zipPath := createTestZip(t, "plugin.yaml", yml)
+		_, err := parser.Parse(zipPath)
+		assert.NoError(t, err, "version %q should be valid", v)
+	}
+}
+
+func TestParse_InvalidSemver(t *testing.T) {
+	invalid := []string{"1.0", "1", "v1.0.0", "1.0.0.0", "abc", "1.0.x", "01.0.0"}
+	parser := NewManifestParser()
+	for _, v := range invalid {
+		yml := "name: test\nversion: \"" + v + "\"\nlanguage: go\nentrypoint: ./plugin\n"
+		zipPath := createTestZip(t, "plugin.yaml", yml)
+		_, err := parser.Parse(zipPath)
+		assert.ErrorContains(t, err, "not valid semver", "version %q should be rejected", v)
+	}
+}

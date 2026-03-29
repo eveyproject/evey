@@ -36,6 +36,12 @@ plugin:
   configSaveFailed: "保存配置失败"
   subprocess: "子进程"
   sandboxed: "沙箱"
+  hash: "哈希值"
+  hashCopied: "哈希值已复制"
+  verified: "已验证"
+  updateAvailable: "有可用更新"
+  versionHigher: "版本 {{new}} 替换 {{current}}"
+  versionRejected: "版本 {{new}} 不高于 {{current}}"
   state:
     running: "运行中"
     starting: "启动中…"

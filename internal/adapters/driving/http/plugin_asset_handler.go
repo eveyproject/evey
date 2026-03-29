@@ -302,6 +302,7 @@ func registerPluginPreviewRoute(mux *http.ServeMux, tokenGen *auth.JWTGenerator,
 			Entrypoint   string        `json:"entrypoint"`
 			Permissions  []string      `json:"permissions"`
 			Capabilities []string      `json:"capabilities"`
+			SourceHash   string        `json:"source_hash"`
 			Analysis     *analysisResp `json:"analysis,omitempty"`
 		}{
 			Name:         preview.Name,
@@ -312,6 +313,7 @@ func registerPluginPreviewRoute(mux *http.ServeMux, tokenGen *auth.JWTGenerator,
 			Entrypoint:   preview.Entrypoint,
 			Permissions:  perms,
 			Capabilities: caps,
+			SourceHash:   preview.SourceHash,
 		}
 
 		if preview.Analysis != nil {

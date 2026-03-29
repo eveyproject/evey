@@ -6,10 +6,13 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"regexp"
 
 	"github.com/gravity-zero/evey/internal/domain/plugin"
 	"gopkg.in/yaml.v3"
 )
+
+var semverRe = regexp.MustCompile(`^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(-[0-9A-Za-z.-]+)?$`)
 
 type YAMLManifestParser struct{}
 
@@ -93,6 +96,9 @@ func validateManifest(m *plugin.PluginManifest) error {
 	}
 	if m.Version == "" {
 		return fmt.Errorf("manifest: version is required")
+	}
+	if !semverRe.MatchString(m.Version) {
+		return fmt.Errorf("manifest: version %q is not valid semver (expected X.Y.Z or X.Y.Z-label)", m.Version)
 	}
 	if m.Entrypoint == "" {
 		return fmt.Errorf("manifest: entrypoint is required")

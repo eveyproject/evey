@@ -33,6 +33,7 @@ type Plugin struct {
 	UIWidgets    []UIWidget
 	ConfigSchema map[string]any
 	Config       map[string]any
+	SourceHash   string
 	Enabled      bool
 	Status       string
 	ErrorMessage string

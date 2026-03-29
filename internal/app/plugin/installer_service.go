@@ -2,10 +2,14 @@ package plugin
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
+	"io"
 	"log/slog"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -79,6 +83,7 @@ type PluginPreview struct {
 	Permissions  []string
 	Capabilities []string
 	Analysis     *plugin.AnalysisReport
+	SourceHash   string
 }
 
 func (s *InstallerService) InstallPlugin(ctx context.Context, zipPath string) (*plugin.Plugin, error) {
@@ -92,7 +97,20 @@ func (s *InstallerService) InstallPlugin(ctx context.Context, zipPath string) (*
 
 	existing, getErr := s.plugins.GetByName(ctx, manifest.Name)
 	if getErr == nil && existing != nil {
-		return nil, fmt.Errorf("plugin %q already installed (id: %s)", manifest.Name, existing.ID)
+		cmp := CompareSemver(manifest.Version, existing.Version)
+		if cmp <= 0 {
+			return nil, fmt.Errorf("plugin already installed at version %s, new version must be higher", existing.Version)
+		}
+		if err := s.UninstallPlugin(ctx, existing.ID); err != nil {
+			return nil, fmt.Errorf("uninstall old version: %w", err)
+		}
+		slog.Info("upgrading plugin", slog.String("name", manifest.Name),
+			slog.String("from", existing.Version), slog.String("to", manifest.Version))
+	}
+
+	sourceHash, hashErr := hashFile(zipPath)
+	if hashErr != nil {
+		return nil, fmt.Errorf("hash plugin file: %w", hashErr)
 	}
 
 	p := &plugin.Plugin{
@@ -107,6 +125,7 @@ func (s *InstallerService) InstallPlugin(ctx context.Context, zipPath string) (*
 		Permissions:  manifest.Permissions,
 		ConfigSchema: manifest.ConfigSchema,
 		Config:       make(map[string]any),
+		SourceHash:   sourceHash,
 		Enabled:      true,
 		Status:       string(plugin.Stopped),
 		InstalledAt:  time.Now(),
@@ -182,6 +201,10 @@ func (s *InstallerService) PreviewPlugin(_ context.Context, zipPath string) (*Pl
 	if err != nil {
 		return nil, fmt.Errorf("parse manifest: %w", err)
 	}
+	sourceHash, hashErr := hashFile(zipPath)
+	if hashErr != nil {
+		return nil, fmt.Errorf("hash plugin file: %w", hashErr)
+	}
 	preview := &PluginPreview{
 		Name:         manifest.Name,
 		Version:      manifest.Version,
@@ -191,6 +214,7 @@ func (s *InstallerService) PreviewPlugin(_ context.Context, zipPath string) (*Pl
 		Entrypoint:   manifest.Entrypoint,
 		Permissions:  manifest.Permissions,
 		Capabilities: manifest.Capabilities,
+		SourceHash:   sourceHash,
 	}
 	if s.installer != nil && s.analyzer != nil && s.fs != nil {
 		tmpDir, tmpErr := s.fs.MkdirTemp("", "evey-plugin-preview-*")
@@ -245,4 +269,49 @@ func (s *InstallerService) UninstallPlugin(ctx context.Context, id string) error
 // isStaticPlugin returns true for plugins that don't need a subprocess (CSS themes).
 func isStaticPlugin(p *plugin.Plugin) bool {
 	return strings.EqualFold(p.Language, "css")
+}
+
+func hashFile(path string) (string, error) {
+	f, err := os.Open(path)
+	if err != nil {
+		return "", err
+	}
+	defer f.Close()
+	h := sha256.New()
+	if _, err := io.Copy(h, f); err != nil {
+		return "", err
+	}
+	return hex.EncodeToString(h.Sum(nil)), nil
+}
+
+// CompareSemver compares two semver strings (X.Y.Z). Returns -1, 0, or 1.
+// Pre-release labels are ignored for numeric comparison.
+func CompareSemver(a, b string) int {
+	pa := parseSemverParts(a)
+	pb := parseSemverParts(b)
+	for i := range 3 {
+		if pa[i] < pb[i] {
+			return -1
+		}
+		if pa[i] > pb[i] {
+			return 1
+		}
+	}
+	return 0
+}
+
+func parseSemverParts(v string) [3]int {
+	// strip pre-release label
+	if idx := strings.IndexByte(v, '-'); idx >= 0 {
+		v = v[:idx]
+	}
+	parts := strings.SplitN(v, ".", 3)
+	var result [3]int
+	for i := range 3 {
+		if i < len(parts) {
+			n, _ := strconv.Atoi(parts[i])
+			result[i] = n
+		}
+	}
+	return result
 }

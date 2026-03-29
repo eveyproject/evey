@@ -36,6 +36,12 @@ plugin:
   configSaveFailed: "Échec de la sauvegarde de la config"
   subprocess: Sous-processus
   sandboxed: Isolé
+  hash: "Empreinte"
+  hashCopied: "Empreinte copiée"
+  verified: "Vérifié"
+  updateAvailable: "Mise à jour disponible"
+  versionHigher: "La version {{new}} remplace {{current}}"
+  versionRejected: "La version {{new}} n'est pas supérieure à {{current}}"
   state:
     running: "En cours d'exécution"
     starting: "Démarrage…"

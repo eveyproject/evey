@@ -37,6 +37,12 @@ plugin:
   configSaveFailed: Failed to save config
   subprocess: Subprocess
   sandboxed: Sandboxed
+  hash: "Hash"
+  hashCopied: "Hash copied"
+  verified: "Verified"
+  updateAvailable: "Update available"
+  versionHigher: "Version {{new}} replaces {{current}}"
+  versionRejected: "Version {{new}} is not higher than {{current}}"
   state:
     running: Running
     starting: "Starting..."

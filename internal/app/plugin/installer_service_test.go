@@ -2,7 +2,10 @@ package plugin_test
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
+	"os"
 	"sync"
 	"testing"
 
@@ -34,10 +37,29 @@ func newTestInstallerService() (*appplugin.InstallerService, *plgfakes.FakePlugi
 	return svc, pluginRepo, runner, parser, installer, analyzer
 }
 
+func tmpZip(t *testing.T, content string) string {
+	t.Helper()
+	f, err := os.CreateTemp(t.TempDir(), "plugin-*.zip")
+	require.NoError(t, err)
+	_, err = f.WriteString(content)
+	require.NoError(t, err)
+	require.NoError(t, f.Close())
+	return f.Name()
+}
+
 func goManifest(name string) *plugindomain.PluginManifest {
 	return &plugindomain.PluginManifest{
 		Name:       name,
 		Version:    "1.0.0",
+		Language:   "go",
+		Entrypoint: "./plugin",
+	}
+}
+
+func goManifestVersioned(name, version string) *plugindomain.PluginManifest {
+	return &plugindomain.PluginManifest{
+		Name:       name,
+		Version:    version,
 		Language:   "go",
 		Entrypoint: "./plugin",
 	}
@@ -51,7 +73,7 @@ func cssManifest(name string) *plugindomain.PluginManifest {
 	}
 }
 
-// ─── Install ────────────────────────────────────────────────────────────────
+// --- Install ---
 
 func TestInstallPlugin(t *testing.T) {
 	svc, _, _, parser, _, _ := newTestInstallerService()
@@ -59,7 +81,7 @@ func TestInstallPlugin(t *testing.T) {
 	parser.Result.Description = "A test plugin"
 	parser.Result.Author = "tester"
 
-	p, err := svc.InstallPlugin(context.Background(), "/tmp/plugin.zip")
+	p, err := svc.InstallPlugin(context.Background(), tmpZip(t, "fake"))
 	require.NoError(t, err)
 	assert.Equal(t, "test-plugin", p.Name)
 	assert.Equal(t, string(plugindomain.Initializing), p.Status)
@@ -70,12 +92,13 @@ func TestInstallPluginExtractsZip(t *testing.T) {
 	svc, _, _, parser, installer, _ := newTestInstallerService()
 	parser.Result = goManifest("test-plugin")
 
-	p, err := svc.InstallPlugin(context.Background(), "/tmp/plugin.zip")
+	zip := tmpZip(t, "fake")
+	p, err := svc.InstallPlugin(context.Background(), zip)
 	require.NoError(t, err)
 	assert.NotEmpty(t, p.InstallDir)
 	assert.Contains(t, p.InstallDir, "/tmp/test-plugins/")
 
-	destDir, ok := installer.Extracted["/tmp/plugin.zip"]
+	destDir, ok := installer.Extracted[zip]
 	require.True(t, ok)
 	assert.Equal(t, p.InstallDir, destDir)
 }
@@ -88,28 +111,28 @@ func TestInstallPluginBlocksUnsafe(t *testing.T) {
 		Issues: []string{"contains os/exec"},
 	}
 
-	_, err := svc.InstallPlugin(context.Background(), "/tmp/plugin.zip")
+	_, err := svc.InstallPlugin(context.Background(), tmpZip(t, "fake"))
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "plugin blocked")
 }
 
-func TestInstallPlugin_DuplicateName(t *testing.T) {
+func TestInstallPlugin_DuplicateName_SameVersion(t *testing.T) {
 	svc, _, _, parser, _, _ := newTestInstallerService()
 	parser.Result = goManifest("dup-plugin")
 
-	_, err := svc.InstallPlugin(context.Background(), "/tmp/a.zip")
+	_, err := svc.InstallPlugin(context.Background(), tmpZip(t, "fake1"))
 	require.NoError(t, err)
 
-	_, err = svc.InstallPlugin(context.Background(), "/tmp/b.zip")
+	_, err = svc.InstallPlugin(context.Background(), tmpZip(t, "fake2"))
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "already installed")
+	assert.Contains(t, err.Error(), "already installed at version")
 }
 
 func TestInstallPlugin_ParseError(t *testing.T) {
 	svc, _, _, parser, _, _ := newTestInstallerService()
 	parser.Err = errors.New("bad manifest")
 
-	_, err := svc.InstallPlugin(context.Background(), "/tmp/bad.zip")
+	_, err := svc.InstallPlugin(context.Background(), tmpZip(t, "fake"))
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "parse manifest")
 }
@@ -119,7 +142,7 @@ func TestInstallPlugin_DBCreateFails_CleansUpFiles(t *testing.T) {
 	parser.Result = goManifest("fail-create")
 	pluginRepo.Err = errors.New("db down")
 
-	_, err := svc.InstallPlugin(context.Background(), "/tmp/plugin.zip")
+	_, err := svc.InstallPlugin(context.Background(), tmpZip(t, "fake"))
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "db down")
 }
@@ -129,7 +152,7 @@ func TestInstallPlugin_StartFails_ReturnsPluginWithError(t *testing.T) {
 	parser.Result = goManifest("start-fail")
 	runner.Err = errors.New("runner crashed")
 
-	p, err := svc.InstallPlugin(context.Background(), "/tmp/plugin.zip")
+	p, err := svc.InstallPlugin(context.Background(), tmpZip(t, "fake"))
 	require.NoError(t, err)
 	assert.Equal(t, string(plugindomain.Error), p.Status)
 	assert.Equal(t, "runner crashed", p.ErrorMessage)
@@ -139,7 +162,7 @@ func TestInstallPlugin_CSSTheme_NoStart(t *testing.T) {
 	svc, _, runner, parser, _, _ := newTestInstallerService()
 	parser.Result = cssManifest("my-theme")
 
-	p, err := svc.InstallPlugin(context.Background(), "/tmp/theme.zip")
+	p, err := svc.InstallPlugin(context.Background(), tmpZip(t, "fake"))
 	require.NoError(t, err)
 
 	healthy, _ := runner.Health(context.Background(), p.ID)
@@ -150,7 +173,7 @@ func TestInstallPlugin_CSSTheme_StatusRunning(t *testing.T) {
 	svc, _, _, parser, _, _ := newTestInstallerService()
 	parser.Result = cssManifest("my-theme")
 
-	p, err := svc.InstallPlugin(context.Background(), "/tmp/theme.zip")
+	p, err := svc.InstallPlugin(context.Background(), tmpZip(t, "fake"))
 	require.NoError(t, err)
 	assert.Equal(t, string(plugindomain.Running), p.Status)
 }
@@ -159,7 +182,7 @@ func TestInstallPlugin_SetsInitializingStatus(t *testing.T) {
 	svc, _, _, parser, _, _ := newTestInstallerService()
 	parser.Result = goManifest("normal-plugin")
 
-	p, err := svc.InstallPlugin(context.Background(), "/tmp/plugin.zip")
+	p, err := svc.InstallPlugin(context.Background(), tmpZip(t, "fake"))
 	require.NoError(t, err)
 	assert.Equal(t, string(plugindomain.Initializing), p.Status)
 }
@@ -172,7 +195,7 @@ func TestInstallPlugin_LoadsPermissions(t *testing.T) {
 	parser.Result = goManifest("perm-plugin")
 	parser.Result.Permissions = []string{"api.library", "api.media"}
 
-	p, err := svc.InstallPlugin(context.Background(), "/tmp/plugin.zip")
+	p, err := svc.InstallPlugin(context.Background(), tmpZip(t, "fake"))
 	require.NoError(t, err)
 
 	assert.NoError(t, pc.CheckPermission(p.ID, "api.library"))
@@ -180,13 +203,113 @@ func TestInstallPlugin_LoadsPermissions(t *testing.T) {
 	assert.Error(t, pc.CheckPermission(p.ID, "api.admin"))
 }
 
-// ─── Uninstall ──────────────────────────────────────────────────────────────
+// --- Hash ---
+
+func TestInstallPlugin_StoresSourceHash(t *testing.T) {
+	svc, _, _, parser, _, _ := newTestInstallerService()
+	parser.Result = goManifest("hash-plugin")
+
+	zip := tmpZip(t, "deterministic-content")
+	p, err := svc.InstallPlugin(context.Background(), zip)
+	require.NoError(t, err)
+
+	data, readErr := os.ReadFile(zip)
+	require.NoError(t, readErr)
+	h := sha256.Sum256(data)
+	expected := hex.EncodeToString(h[:])
+
+	assert.Equal(t, expected, p.SourceHash)
+	assert.Len(t, p.SourceHash, 64)
+}
+
+// --- Update (same name, higher version) ---
+
+func TestInstallPlugin_UpgradeHigherVersion(t *testing.T) {
+	svc, pluginRepo, _, parser, _, _ := newTestInstallerService()
+	parser.Result = goManifestVersioned("upgrade-me", "1.0.0")
+
+	_, err := svc.InstallPlugin(context.Background(), tmpZip(t, "v1"))
+	require.NoError(t, err)
+
+	parser.Result = goManifestVersioned("upgrade-me", "2.0.0")
+	p, err := svc.InstallPlugin(context.Background(), tmpZip(t, "v2"))
+	require.NoError(t, err)
+	assert.Equal(t, "2.0.0", p.Version)
+
+	all, _ := pluginRepo.List(context.Background())
+	assert.Len(t, all, 1, "old version should be uninstalled")
+	assert.Equal(t, "2.0.0", all[0].Version)
+}
+
+func TestInstallPlugin_UpgradeLowerVersionRejected(t *testing.T) {
+	svc, _, _, parser, _, _ := newTestInstallerService()
+	parser.Result = goManifestVersioned("downgrade-me", "2.0.0")
+
+	_, err := svc.InstallPlugin(context.Background(), tmpZip(t, "v2"))
+	require.NoError(t, err)
+
+	parser.Result = goManifestVersioned("downgrade-me", "1.0.0")
+	_, err = svc.InstallPlugin(context.Background(), tmpZip(t, "v1"))
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "already installed at version 2.0.0")
+}
+
+func TestInstallPlugin_UpgradeSameVersionRejected(t *testing.T) {
+	svc, _, _, parser, _, _ := newTestInstallerService()
+	parser.Result = goManifestVersioned("same-ver", "1.0.0")
+
+	_, err := svc.InstallPlugin(context.Background(), tmpZip(t, "v1a"))
+	require.NoError(t, err)
+
+	parser.Result = goManifestVersioned("same-ver", "1.0.0")
+	_, err = svc.InstallPlugin(context.Background(), tmpZip(t, "v1b"))
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "already installed at version 1.0.0")
+}
+
+func TestInstallPlugin_UpgradeMinorBump(t *testing.T) {
+	svc, _, _, parser, _, _ := newTestInstallerService()
+	parser.Result = goManifestVersioned("minor-bump", "1.0.0")
+
+	_, err := svc.InstallPlugin(context.Background(), tmpZip(t, "v1.0.0"))
+	require.NoError(t, err)
+
+	parser.Result = goManifestVersioned("minor-bump", "1.1.0")
+	p, err := svc.InstallPlugin(context.Background(), tmpZip(t, "v1.1.0"))
+	require.NoError(t, err)
+	assert.Equal(t, "1.1.0", p.Version)
+}
+
+// --- Semver comparison ---
+
+func TestCompareSemver(t *testing.T) {
+	tests := []struct {
+		a, b string
+		want int
+	}{
+		{"1.0.0", "1.0.0", 0},
+		{"2.0.0", "1.0.0", 1},
+		{"1.0.0", "2.0.0", -1},
+		{"1.1.0", "1.0.0", 1},
+		{"1.0.1", "1.0.0", 1},
+		{"1.0.0", "1.0.1", -1},
+		{"10.0.0", "9.0.0", 1},
+		{"1.0.0-beta.1", "1.0.0", 0},
+		{"2.0.0-rc.1", "1.9.9", 1},
+	}
+	for _, tt := range tests {
+		got := appplugin.CompareSemver(tt.a, tt.b)
+		assert.Equal(t, tt.want, got, "CompareSemver(%q, %q)", tt.a, tt.b)
+	}
+}
+
+// --- Uninstall ---
 
 func TestUninstallRemovesDir(t *testing.T) {
 	svc, pluginRepo, _, parser, _, _ := newTestInstallerService()
 	parser.Result = goManifest("test-plugin")
 
-	p, err := svc.InstallPlugin(context.Background(), "/tmp/plugin.zip")
+	p, err := svc.InstallPlugin(context.Background(), tmpZip(t, "fake"))
 	require.NoError(t, err)
 
 	_, err = pluginRepo.GetByID(context.Background(), p.ID)
@@ -291,7 +414,7 @@ func TestUninstallPlugin_DeleteFails(t *testing.T) {
 	require.Error(t, err)
 }
 
-// ─── Preview ────────────────────────────────────────────────────────────────
+// --- Preview ---
 
 func TestPreviewPlugin(t *testing.T) {
 	svc, _, _, parser, _, analyzer := newTestInstallerService()
@@ -311,12 +434,14 @@ func TestPreviewPlugin(t *testing.T) {
 		FileCount: 3,
 	}
 
-	preview, err := svc.PreviewPlugin(context.Background(), "/tmp/plugin.zip")
+	preview, err := svc.PreviewPlugin(context.Background(), tmpZip(t, "fake"))
 	require.NoError(t, err)
 	assert.Equal(t, "preview-plugin", preview.Name)
 	assert.Equal(t, "2.0.0", preview.Version)
 	assert.Equal(t, []string{"api.library"}, preview.Permissions)
 	assert.Equal(t, []string{"media.read"}, preview.Capabilities)
+	assert.NotEmpty(t, preview.SourceHash, "preview should include source hash")
+	assert.Len(t, preview.SourceHash, 64)
 	require.NotNil(t, preview.Analysis)
 	assert.True(t, preview.Analysis.Safe)
 	assert.Equal(t, 3, preview.Analysis.FileCount)
@@ -326,7 +451,7 @@ func TestPreviewPlugin_ParseError(t *testing.T) {
 	svc, _, _, parser, _, _ := newTestInstallerService()
 	parser.Err = assert.AnError
 
-	_, err := svc.PreviewPlugin(context.Background(), "/tmp/bad.zip")
+	_, err := svc.PreviewPlugin(context.Background(), tmpZip(t, "bad"))
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "parse manifest")
 }
@@ -341,7 +466,7 @@ func TestPreviewPlugin_WithAnalysis(t *testing.T) {
 		URLs:      []plugindomain.ExtractedURL{{URL: "http://example.com", File: "main.go", Line: 10, Type: "literal"}},
 	}
 
-	preview, err := svc.PreviewPlugin(context.Background(), "/tmp/plugin.zip")
+	preview, err := svc.PreviewPlugin(context.Background(), tmpZip(t, "fake"))
 	require.NoError(t, err)
 	require.NotNil(t, preview.Analysis)
 	assert.True(t, preview.Analysis.Safe)
@@ -350,7 +475,7 @@ func TestPreviewPlugin_WithAnalysis(t *testing.T) {
 	assert.Len(t, preview.Analysis.URLs, 1)
 }
 
-// ─── Concurrent ─────────────────────────────────────────────────────────────
+// --- Concurrent ---
 
 func TestInstallPlugin_ConcurrentSameName(t *testing.T) {
 	svc, _, _, parser, _, _ := newTestInstallerService()
@@ -358,12 +483,13 @@ func TestInstallPlugin_ConcurrentSameName(t *testing.T) {
 
 	var wg sync.WaitGroup
 	errs := make([]error, 2)
+	zips := [2]string{tmpZip(t, "fake1"), tmpZip(t, "fake2")}
 
 	for i := range 2 {
 		wg.Add(1)
 		go func(idx int) {
 			defer wg.Done()
-			_, errs[idx] = svc.InstallPlugin(context.Background(), "/tmp/plugin.zip")
+			_, errs[idx] = svc.InstallPlugin(context.Background(), zips[idx])
 		}(i)
 	}
 	wg.Wait()
