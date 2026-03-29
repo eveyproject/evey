@@ -73,15 +73,40 @@ func TestNewHLSManager(t *testing.T) {
 	assert.False(t, ok)
 }
 
-func TestGetOrCreate_MaxConcurrent(t *testing.T) {
+func TestGetOrCreate_MaxConcurrent_QueueTimeout(t *testing.T) {
 	m, _ := newTestManager(t, 1)
+	m.SetQueueTimeout(50 * time.Millisecond)
 
 	_, err := m.GetOrCreate("user1", "media1", "/a.mkv", 1920, 1080, 0, 0, -1, "", nil, false, false, 0, "copy", "transcode")
 	require.NoError(t, err)
 
 	_, err = m.GetOrCreate("user1", "media2", "/b.mkv", 1920, 1080, 0, 0, -1, "", nil, false, false, 0, "copy", "transcode")
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "max concurrent")
+	assert.Contains(t, err.Error(), "too many concurrent sessions")
+}
+
+func TestGetOrCreate_MaxConcurrent_QueueSuccess(t *testing.T) {
+	m, _ := newTestManager(t, 1)
+	m.SetQueueTimeout(2 * time.Second)
+
+	_, err := m.GetOrCreate("user1", "media1", "/a.mkv", 1920, 1080, 0, 0, -1, "", nil, false, false, 0, "copy", "transcode")
+	require.NoError(t, err)
+
+	done := make(chan error, 1)
+	go func() {
+		_, err := m.GetOrCreate("user2", "media2", "/b.mkv", 1920, 1080, 0, 0, -1, "", nil, false, false, 0, "copy", "transcode")
+		done <- err
+	}()
+
+	time.Sleep(50 * time.Millisecond)
+	m.RemoveSession("media1")
+
+	select {
+	case err := <-done:
+		require.NoError(t, err, "queued session should succeed after slot freed")
+	case <-time.After(3 * time.Second):
+		t.Fatal("queued session did not complete in time")
+	}
 }
 
 func TestGetOrCreate_ReturnsSameSession(t *testing.T) {

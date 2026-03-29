@@ -89,6 +89,8 @@ type HLSManager struct {
 	userSessions  map[string]int
 	cacheDir      string
 	maxConcurrent int
+	sem           chan struct{} // buffered semaphore for concurrency control
+	queueTimeout  time.Duration
 	shutdownCtx   context.Context
 	stopCleanup   chan struct{}
 	cleanupOnce   sync.Once
@@ -96,17 +98,55 @@ type HLSManager struct {
 }
 
 func NewHLSManager(shutdownCtx context.Context, cacheDir string, maxConcurrent int, process transcoding.HLSProcess) *HLSManager {
+	var sem chan struct{}
+	if maxConcurrent > 0 {
+		sem = make(chan struct{}, maxConcurrent)
+	}
 	m := &HLSManager{
 		sessions:      make(map[string]*HLSSession),
 		userSessions:  make(map[string]int),
 		cacheDir:      cacheDir,
 		maxConcurrent: maxConcurrent,
+		sem:           sem,
+		queueTimeout:  10 * time.Second,
 		shutdownCtx:   shutdownCtx,
 		stopCleanup:   make(chan struct{}),
 		process:       process,
 	}
 	go m.cleanupLoop()
 	return m
+}
+
+func (m *HLSManager) acquireSemaphore() error {
+	if m.sem == nil {
+		return nil
+	}
+	select {
+	case m.sem <- struct{}{}:
+		return nil
+	default:
+	}
+	slog.Info("hls: session queued, waiting for slot", slog.Int("max", m.maxConcurrent))
+	timer := time.NewTimer(m.queueTimeout)
+	defer timer.Stop()
+	select {
+	case m.sem <- struct{}{}:
+		return nil
+	case <-timer.C:
+		return fmt.Errorf("too many concurrent sessions, try again")
+	case <-m.shutdownCtx.Done():
+		return m.shutdownCtx.Err()
+	}
+}
+
+func (m *HLSManager) releaseSemaphore() {
+	if m.sem == nil {
+		return
+	}
+	select {
+	case <-m.sem:
+	default:
+	}
 }
 
 func FilterProfiles(profiles []transcoding.HLSProfile, sourceWidth, sourceHeight int) []transcoding.HLSProfile {
@@ -128,18 +168,29 @@ func (m *HLSManager) countByUser(userID string) int {
 
 func (m *HLSManager) GetOrCreate(userID, mediaItemID, filePath string, sourceWidth, sourceHeight, maxUserStreams, audioTrackIndex, subtitleTrackIndex int, subtitleCodec string, streams []*library.MediaStream, hdrSupported, audioNormalize bool, startSec float64, videoDecision, audioDecision string) (*HLSSession, error) {
 	m.mu.Lock()
-	defer m.mu.Unlock()
-
 	if session, ok := m.sessions[mediaItemID]; ok {
 		session.MarkAccess()
+		m.mu.Unlock()
+		return session, nil
+	}
+	m.mu.Unlock()
+
+	if err := m.acquireSemaphore(); err != nil {
+		return nil, err
+	}
+
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	// Re-check: session may have been created while waiting
+	if session, ok := m.sessions[mediaItemID]; ok {
+		session.MarkAccess()
+		m.releaseSemaphore()
 		return session, nil
 	}
 
-	active := len(m.sessions)
-	if m.maxConcurrent > 0 && active >= m.maxConcurrent {
-		return nil, fmt.Errorf("max concurrent HLS sessions reached (%d)", m.maxConcurrent)
-	}
 	if maxUserStreams > 0 && m.countByUser(userID) >= maxUserStreams {
+		m.releaseSemaphore()
 		return nil, fmt.Errorf("max streams per user reached (%d)", maxUserStreams)
 	}
 
@@ -244,6 +295,7 @@ func (m *HLSManager) RestartFromPosition(userID, mediaItemID, filePath string, s
 		}
 		m.mu.Unlock()
 		old.stop()
+		m.releaseSemaphore()
 	} else {
 		m.mu.Unlock()
 	}
@@ -264,6 +316,7 @@ func (m *HLSManager) RemoveSession(mediaItemID string) {
 	}
 	m.mu.Unlock()
 	session.stop()
+	m.releaseSemaphore()
 	slog.Info("hls: session removed", slog.String("media_id", mediaItemID))
 }
 
@@ -288,6 +341,7 @@ func (m *HLSManager) CleanupAll() {
 	m.mu.Unlock()
 	for _, s := range toStop {
 		s.stop()
+		m.releaseSemaphore()
 	}
 }
 
@@ -325,6 +379,7 @@ func (m *HLSManager) cleanupStale(maxIdle time.Duration) {
 	m.mu.Unlock()
 	for _, s := range toStop {
 		s.stop()
+		m.releaseSemaphore()
 	}
 }
 
