@@ -89,7 +89,7 @@ export function StarRatingBadge({ mediaId }: { mediaId: string }) {
   if (rating === 0) return null;
   return (
     <span
-      className="absolute z-badge flex items-center gap-0.5 text-[10px] font-bold px-1 py-0.5 leading-none top-2 left-[2.25rem] bg-[var(--overlay-bg-strong)] text-[var(--accent)] rounded-[var(--radius-sm)]"
+      className="absolute z-badge flex items-center gap-0.5 text-xs font-bold px-1 py-0.5 leading-none top-2 left-[2.25rem] bg-[var(--overlay-bg-strong)] text-[var(--accent)] rounded-[var(--radius-sm)]"
       title={`Your rating: ${rating}/5`}
     >
       <Star size={10} fill="currentColor" strokeWidth={0} />

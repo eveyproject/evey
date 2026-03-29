@@ -103,20 +103,20 @@ function VirtualLogList({ lines, live, noMatchText }: { lines: ParsedLine[]; liv
               className="flex gap-2 items-center px-1 rounded hover:bg-[var(--log-hover-bg)] transition-colors-fast"
             >
               {line.time && (
-                <span className="flex-shrink-0 text-[11px] text-[var(--text-muted)]">
+                <span className="flex-shrink-0 text-xs text-[var(--text-muted)]">
                   {line.time.substring(11, 19)}
                 </span>
               )}
               {line.level && (
                 <span
-                  className="flex-shrink-0 uppercase font-bold text-[10px] w-[26px] text-center px-0.5 rounded"
+                  className="flex-shrink-0 uppercase font-bold text-xs w-[26px] text-center px-0.5 rounded"
                   style={{ color: levelColor(line.level), border: `1px solid ${levelColor(line.level)}33` }}
                 >
                   {line.level.substring(0, 4)}
                 </span>
               )}
               {line.component && (
-                <span className="flex-shrink-0 text-[10px] px-1 rounded text-[var(--text-secondary)] bg-[var(--surface-raised)]">
+                <span className="flex-shrink-0 text-xs px-1 rounded text-[var(--text-secondary)] bg-[var(--surface-raised)]">
                   {line.component}
                 </span>
               )}

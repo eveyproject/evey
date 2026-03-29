@@ -80,7 +80,7 @@ const HoverPreview = memo(function HoverPreview({ item }: { item: MediaCardItem 
           {item.genres.slice(0, 3).map((g) => (
             <span
               key={g}
-              className="text-[10px] px-1.5 py-0.5 rounded-full bg-[var(--surface-raised)] text-[var(--text-muted)]"
+              className="text-xs px-1.5 py-0.5 rounded-full bg-[var(--surface-raised)] text-[var(--text-muted)]"
             >
               {g}
             </span>
@@ -507,7 +507,7 @@ export const MediaCard = memo(function MediaCard({
 
         {item.communityRating != null && item.communityRating > 0 && (
           <span
-            className="absolute z-badge flex items-center gap-0.5 text-[10px] font-bold px-1 py-0.5 leading-none"
+            className="absolute z-badge flex items-center gap-0.5 text-xs font-bold px-1 py-0.5 leading-none"
             style={{
               bottom: hasProgressBar ? "0.75rem" : "0.5rem",
               right: "0.5rem",
@@ -528,7 +528,7 @@ export const MediaCard = memo(function MediaCard({
           >
             {resolution && (
               <span
-                className="text-[10px] font-bold px-1.5 py-0.5 leading-none"
+                className="text-xs font-bold px-1.5 py-0.5 leading-none"
                 style={{
                   backgroundColor: "var(--overlay-bg-strong)",
                   color: "var(--overlay-text)",
@@ -541,7 +541,7 @@ export const MediaCard = memo(function MediaCard({
             )}
             {isHdr && (
               <span
-                className="text-[10px] font-bold px-1.5 py-0.5 leading-none"
+                className="text-xs font-bold px-1.5 py-0.5 leading-none"
                 style={{
                   backgroundColor: "var(--badge-hdr-bg)",
                   color: "var(--badge-hdr-text)",

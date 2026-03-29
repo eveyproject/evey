@@ -74,7 +74,7 @@ export function NotificationBell() {
         {countError && !open ? (
           <span className="absolute -top-1 -right-1 w-2 h-2 bg-[var(--text-muted)] rounded-full" aria-label={t("common.unableToLoadNotifications")} />
         ) : count > 0 ? (
-          <span className="absolute -top-1.5 -right-1.5 w-4 h-4 text-[10px] rounded-full flex items-center justify-center font-medium bg-[var(--color-danger)] text-[var(--filter-active-text)]">
+          <span className="absolute -top-1.5 -right-1.5 w-4 h-4 text-xs rounded-full flex items-center justify-center font-medium bg-[var(--color-danger)] text-[var(--filter-active-text)]">
             {count > 9 ? "9+" : count}
           </span>
         ) : null}
