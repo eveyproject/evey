@@ -143,20 +143,18 @@ type PlaybackConfig struct {
 	SkipBackwardSeconds int
 }
 
-// WarnValidate logs warnings for insecure or suspicious config values.
-// It never returns an error — the app should still start.
-func (c *Config) WarnValidate() {
-	// OPS-NEW-004: Meilisearch master key
+// WarnValidate validates config, returning an error for critical security issues
+// and logging warnings for non-critical ones.
+func (c *Config) WarnValidate() error {
 	k := c.Meilisearch.APIKey
 	if k == "" || k == "changeme" || k == "change-me-generate-a-random-secret" || len(k) < 16 {
-		slog.Warn("meilisearch API key is weak or default — change EVEY_MEILI_API_KEY",
-			slog.String("current", k))
+		return fmt.Errorf("meilisearch API key is weak or default — set EVEY_MEILI_API_KEY to a strong secret (>= 16 chars)")
 	}
 
-	// OPS-NEW-002: OIDC client secret
 	if c.OIDC.Enabled && c.OIDC.Issuer != "" && c.OIDC.ClientSecret == "" {
 		slog.Warn("OIDC enabled but client secret is empty — set EVEY_OIDC_CLIENT_SECRET")
 	}
+	return nil
 }
 
 func Load() (*Config, error) {

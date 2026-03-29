@@ -42,7 +42,9 @@ func run() error {
 	rootLog := eveylogger.New(logCfg)
 	slog.SetDefault(rootLog)
 
-	cfg.WarnValidate()
+	if err := cfg.WarnValidate(); err != nil {
+		return fmt.Errorf("config validation: %w", err)
+	}
 
 	db, err := openDB(cfg)
 	if err != nil {
