@@ -32,6 +32,7 @@ plugin:
   configuration: Configuración
   noConfig: No hay claves de config definidas.
   configSaved: Config guardada
+  configSaveFailed: Error al guardar la config
   subprocess: Subproceso
   sandboxed: Aislado
   state:

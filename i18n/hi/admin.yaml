@@ -32,6 +32,7 @@ plugin:
   configuration: "कॉन्फ़िगरेशन"
   noConfig: "कोई कॉन्फ़िग की परिभाषित नहीं।"
   configSaved: "कॉन्फ़िग सहेजा गया"
+  configSaveFailed: "कॉन्फ़िग सहेजने में विफल"
   subprocess: "सबप्रोसेस"
   sandboxed: "सैंडबॉक्स्ड"
   state:

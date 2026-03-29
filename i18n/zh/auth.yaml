@@ -25,6 +25,7 @@ setup:
     shows: "电视剧"
     music: "音乐"
     photos: "照片"
+signingIn: "登录中\u2026"
 login:
   signIn: "登录"
   signInToAccount: "登录到您的账户"

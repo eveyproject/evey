@@ -254,6 +254,7 @@ syncplay:
   connecting: "Conectando..."
   leave: Salir
   shareLink: Compartir enlace
+  copyCode: Copiar código
   watchTogetherRoom: Sala Ver juntos
   watchingWith: "Viendo con: {{names}}"
   watchingWithMore: "Viendo con: {{names}} +{{count}} más"
@@ -314,6 +315,7 @@ search:
   searchLibrary: Busca en tu biblioteca multimedia
   searchLibraryDesc: Escribe al menos 2 caracteres para buscar en tus películas, series y más.
   clearSearch: Borrar búsqueda
+  filterByType: Filtrar por tipo
   filters: Filtros
   clearFilters: Borrar filtros
   genre: Género

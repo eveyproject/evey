@@ -32,6 +32,7 @@ plugin:
   configuration: "配置"
   noConfig: "未定义配置项。"
   configSaved: "配置已保存"
+  configSaveFailed: "保存配置失败"
   subprocess: "子进程"
   sandboxed: "沙箱"
   state:

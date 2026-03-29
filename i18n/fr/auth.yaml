@@ -25,6 +25,7 @@ setup:
     shows: Séries
     music: Musique
     photos: Photos
+signingIn: "Connexion en cours\u2026"
 login:
   signIn: "Se connecter"
   signInToAccount: "Connectez-vous à votre compte"

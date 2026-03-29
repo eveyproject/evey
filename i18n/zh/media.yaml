@@ -254,6 +254,7 @@ syncplay:
   connecting: "连接中..."
   leave: 离开
   shareLink: 分享链接
+  copyCode: 复制代码
   watchTogetherRoom: 一起看房间
   watchingWith: "正在与 {{names}} 一起观看"
   watchingWithMore: "正在与 {{names}} +{{count}} 人一起观看"
@@ -314,6 +315,7 @@ search:
   searchLibrary: 搜索您的媒体库
   searchLibraryDesc: 输入至少 2 个字符以搜索所有电影、剧集等。
   clearSearch: 清除搜索
+  filterByType: 按类型筛选
   filters: 筛选
   clearFilters: 清除筛选
   genre: 类型
