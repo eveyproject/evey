@@ -1,0 +1,10 @@
+name: webhook-example
+version: 1.0.0
+description: Example webhook receiver plugin
+author: evey-examples
+language: python
+entrypoint: main.py
+capabilities:
+  - webhook.receiver
+permissions:
+  - media.read

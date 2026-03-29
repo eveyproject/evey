@@ -1,0 +1,45 @@
+/*
+ * Dark Blue Theme for Evey
+ *
+ * Available CSS custom properties (defined in Evey's base stylesheet):
+ *   --bg              Main background color
+ *   --bg-secondary    Secondary/card background
+ *   --surface         Surface/elevated element background
+ *   --surface-hover   Surface on hover
+ *   --text            Primary text color
+ *   --text-secondary  Secondary/muted text
+ *   --accent          Primary accent color (buttons, links, active states)
+ *   --accent-hover    Accent on hover
+ *   --accent-subtle   Low-opacity accent for backgrounds
+ *   --border          Border color
+ *   --shadow          Box shadow color
+ *   --success         Success/positive color
+ *   --warning         Warning color
+ *   --error           Error/destructive color
+ *   --radius          Default border radius
+ *   --radius-lg       Large border radius
+ */
+
+:root {
+  --bg: #0b1120;
+  --bg-secondary: #111a2e;
+  --surface: #162032;
+  --surface-hover: #1c2a42;
+  --text: #e2e8f0;
+  --text-secondary: #8899b4;
+  --accent: #3b82f6;
+  --accent-hover: #60a5fa;
+  --accent-subtle: rgba(59, 130, 246, 0.12);
+  --border: #1e3050;
+  --shadow: rgba(0, 0, 0, 0.4);
+  --success: #22c55e;
+  --warning: #f59e0b;
+  --error: #ef4444;
+  --radius: 8px;
+  --radius-lg: 14px;
+}
+
+::selection {
+  background: var(--accent);
+  color: var(--bg);
+}
