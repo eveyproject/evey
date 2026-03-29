@@ -33,14 +33,18 @@ type Client struct {
 	token string
 }
 
-func New(apiKey, username, password string) *Client {
+func New(apiKey, username, password string, httpClient ...*http.Client) *Client {
+	var c *http.Client
+	if len(httpClient) > 0 && httpClient[0] != nil {
+		c = httpClient[0]
+	} else {
+		c = &http.Client{Timeout: requestTimeout}
+	}
 	return &Client{
-		apiKey:   apiKey,
-		username: username,
-		password: password,
-		httpClient: &http.Client{
-			Timeout: requestTimeout,
-		},
+		apiKey:     apiKey,
+		username:   username,
+		password:   password,
+		httpClient: c,
 	}
 }
 
