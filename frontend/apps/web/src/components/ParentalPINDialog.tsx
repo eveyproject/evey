@@ -60,10 +60,11 @@ export function ParentalPINDialog({ open, onClose, onVerified, profileId }: Pare
       </p>
       <form onSubmit={(e) => void handleSubmit(e)} className="flex flex-col gap-4">
         <div className="flex flex-col gap-1">
-          <label className="text-sm font-medium" style={{ color: "var(--text)" }}>
+          <label htmlFor="parental-pin-input" className="text-sm font-medium" style={{ color: "var(--text)" }}>
             {t("common:parental.pinLabel")}
           </label>
           <input
+            id="parental-pin-input"
             ref={inputRef}
             type="password"
             inputMode="numeric"

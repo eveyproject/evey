@@ -481,6 +481,8 @@ export const MediaCard = memo(function MediaCard({
           />
         ) : null}
         <div
+          role="img"
+          aria-label={item.title || "Media poster"}
           className="absolute inset-0 items-center justify-center text-2xl font-bold bg-[var(--surface-raised)] text-[var(--text-muted)]"
           style={{
             display: poster ? "none" : "flex",
