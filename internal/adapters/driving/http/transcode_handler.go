@@ -229,12 +229,8 @@ type hlsMasterServe struct {
 	bitrateGetter       UserBitrateGetter
 }
 
-func hlsMasterHandler(tokenGen TokenVerifier, libSvc MediaStreamsGetter, hlsManager *apptranscoding.HLSManager, libraryAccess LibraryAccessChecker, userMaxStreams UserMaxStreamsGetter, audioNormalizeGetter func(ctx context.Context) bool, bitrateGetter UserBitrateGetter) http.HandlerFunc {
-	h := &hlsMasterServe{
-		tokens: tokenGen, libSvc: libSvc, hlsManager: hlsManager,
-		libraryAccess: libraryAccess, userMaxStreams: userMaxStreams,
-		audioNormalizeGetter: audioNormalizeGetter, bitrateGetter: bitrateGetter,
-	}
+func hlsMasterHandler(deps hlsMasterServe) http.HandlerFunc {
+	h := deps
 	return h.serveHTTP
 }
 
@@ -508,11 +504,8 @@ type transcodeAnalysis struct {
 	streams             []*domainlibrary.MediaStream
 }
 
-func transcodeHandler(tokenGen TokenVerifier, libSvc MediaStreamsGetter, baseURL string, libraryAccess LibraryAccessChecker, throttle *apptranscoding.TranscodeThrottle, userMaxStreams UserMaxStreamsGetter) http.HandlerFunc {
-	h := &transcodeServe{
-		tokens: tokenGen, libSvc: libSvc, baseURL: baseURL,
-		libraryAccess: libraryAccess, throttle: throttle, userMaxStreams: userMaxStreams,
-	}
+func transcodeHandler(deps transcodeServe) http.HandlerFunc {
+	h := deps
 	return h.serveHTTP
 }
 
