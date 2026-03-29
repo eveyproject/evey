@@ -231,6 +231,8 @@ func (s *ScanService) detectChanges(ctx context.Context, files []library.Scanned
 }
 
 func (s *ScanService) processNewItems(ctx context.Context, libraryID string, toProcess []scanWork) (added, updated int) {
+	const workerTimeout = 30 * time.Second
+
 	var addedAtomic, updatedAtomic atomic.Int64
 	sem := make(chan struct{}, runtime.NumCPU())
 	var wg sync.WaitGroup
@@ -245,7 +247,9 @@ func (s *ScanService) processNewItems(ctx context.Context, libraryID string, toP
 					slog.Error("panic recovered in scan worker", "error", r, "stack", debug.Stack())
 				}
 			}()
-			a, u, e := s.upsertMediaFile(ctx, libraryID, w.parentID, w.file, w.showTitle)
+			workerCtx, cancel := context.WithTimeout(ctx, workerTimeout)
+			defer cancel()
+			a, u, e := s.upsertMediaFile(workerCtx, libraryID, w.parentID, w.file, w.showTitle)
 			if e != nil {
 				slog.Warn("upsert media file", slog.String("path", w.file.Path), slog.Any("err", e))
 				return
