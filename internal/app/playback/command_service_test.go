@@ -439,3 +439,58 @@ func TestMarkAsWatched_UpsertError(t *testing.T) {
 	err := cmd.MarkAsWatched(ctx, "p1", "m1")
 	assert.Error(t, err)
 }
+
+func TestMarkAsWatched_ProfileNotFound(t *testing.T) {
+	t.Parallel()
+	cmd, _, _, _, _, _ := setupCmd()
+	err := cmd.MarkAsWatched(context.Background(), "nonexistent", "m1")
+	assert.ErrorIs(t, err, appplayback.ErrProfileNotFound)
+}
+
+func TestReportProgress_HappyPath(t *testing.T) {
+	t.Parallel()
+	cmd, pr, _, _, pfr, _ := setupCmd()
+	ctx := context.Background()
+	pfr.Create(ctx, &user.Profile{ID: "p1", UserID: "u1"})
+
+	require.NoError(t, cmd.ReportProgress(ctx, "p1", "m1", 12000, true))
+
+	wp, err := pr.GetByProfileAndMedia(ctx, "p1", "m1")
+	require.NoError(t, err)
+	assert.Equal(t, int64(12000), wp.PositionMs)
+	assert.True(t, wp.Completed)
+	assert.Equal(t, "p1", wp.ProfileID)
+	assert.Equal(t, "m1", wp.MediaItemID)
+}
+
+func TestMarkAsUnwatched_UpsertError(t *testing.T) {
+	t.Parallel()
+	cmd, pr, _, _, pfr, _ := setupCmd()
+	ctx := context.Background()
+	pfr.Create(ctx, &user.Profile{ID: "p1", UserID: "u1"})
+
+	pr.Err = errors.New("db error")
+	err := cmd.MarkAsUnwatched(ctx, "p1", "m1")
+	assert.Error(t, err)
+}
+
+func TestReportProgress_UpsertError(t *testing.T) {
+	t.Parallel()
+	cmd, pr, _, _, pfr, _ := setupCmd()
+	ctx := context.Background()
+	pfr.Create(ctx, &user.Profile{ID: "p1", UserID: "u1"})
+
+	pr.Err = errors.New("db error")
+	err := cmd.ReportProgress(ctx, "p1", "m1", 5000, false)
+	assert.Error(t, err)
+}
+
+func TestStartStream_ProfileNotFound(t *testing.T) {
+	t.Parallel()
+	cmd, _, _, ur, _, _ := setupCmd()
+	ctx := context.Background()
+	ur.Create(ctx, &user.User{ID: "u1", Username: "alice", Enabled: true})
+
+	err := cmd.StartStream(ctx, &playback.PlaySession{ID: "s1", ProfileID: "p1", MediaItemID: "m1"}, "u1")
+	assert.ErrorIs(t, err, appplayback.ErrProfileNotFound)
+}
