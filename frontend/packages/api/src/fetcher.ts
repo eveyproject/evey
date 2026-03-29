@@ -4,6 +4,11 @@
 let getToken: (() => string | null) | null = null;
 let updateTokens: ((access: string) => void) | null = null;
 
+function getCSRFToken(): string {
+  const match = document.cookie.match(/(?:^|;\s*)_csrf=([^;]*)/);
+  return match ? match[1] : "";
+}
+
 export function setTokenProvider(fn: () => string | null) { getToken = fn; }
 export function setTokensUpdater(fn: (access: string) => void) {
   updateTokens = (token) => { refreshFailed = false; fn(token); };
@@ -27,10 +32,13 @@ export function _resetFetcherState() { refreshPromise = null; refreshFailed = fa
 async function attemptRefresh(): Promise<string> {
   if (!refreshPromise) {
     refreshPromise = (async () => {
+      const csrfToken = getCSRFToken();
+      const refreshHeaders: Record<string, string> = { "Content-Type": "application/json" };
+      if (csrfToken) refreshHeaders["X-CSRF-Token"] = csrfToken;
       const res = await fetch("/api/v1/auth/refresh", {
         method: "POST",
         credentials: "include",
-        headers: { "Content-Type": "application/json" },
+        headers: refreshHeaders,
         body: JSON.stringify({}),
       });
       if (!res.ok) throw Object.assign(new Error("refresh failed"), { httpStatus: res.status });
@@ -95,6 +103,11 @@ export async function eveyFetchRaw(request: RawFetcherRequest): Promise<Response
   const token = getToken?.();
   const headers: Record<string, string> = { ...(request.headers ?? {}) };
   if (token) headers["Authorization"] = `Bearer ${token}`;
+  const method = request.method.toUpperCase();
+  if (method === "POST" || method === "PUT" || method === "PATCH" || method === "DELETE") {
+    const csrf = getCSRFToken();
+    if (csrf) headers["X-CSRF-Token"] = csrf;
+  }
 
   const doFetch = (authToken: string | undefined) =>
     fetch(request.url, {
@@ -111,6 +124,11 @@ export async function eveyFetch<T>(request: FetcherRequest): Promise<T> {
   const token = getToken?.();
   const headers: Record<string, string> = { ...(request.headers ?? {}) };
   if (token) headers["Authorization"] = `Bearer ${token}`;
+  const method = request.method.toUpperCase();
+  if (method === "POST" || method === "PUT" || method === "PATCH" || method === "DELETE") {
+    const csrf = getCSRFToken();
+    if (csrf) headers["X-CSRF-Token"] = csrf;
+  }
 
   let url = request.url;
   if (request.params) {
