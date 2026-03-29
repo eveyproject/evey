@@ -196,7 +196,7 @@ export const SearchDropdown = memo(function SearchDropdown({
                     {item.id ? (
                       <img
                         src={`/api/v1/media/${item.id}/artwork/poster?token=${encodeURIComponent(accessToken)}`}
-                        alt=""
+                        alt={item.title || "Media poster"}
                         className="w-full h-full object-cover"
                         onError={(e) => {
                           e.currentTarget.style.display = "none";
