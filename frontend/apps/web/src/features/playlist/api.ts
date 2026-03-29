@@ -31,7 +31,10 @@ export interface PlaylistItem {
 export function usePlaylistList() {
   return useQuery({
     queryKey: ["playlists"],
-    queryFn: () => eveyFetch<{ playlists: Playlist[] }>({ url: "/api/v1/playlists", method: "GET" }).then((r) => r.playlists ?? []),
+    queryFn: async () => {
+      const r = await eveyFetch<{ playlists: Playlist[] }>({ url: "/api/v1/playlists", method: "GET" });
+      return r.playlists ?? [];
+    },
     staleTime: 5 * 60_000,
   });
 }

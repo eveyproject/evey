@@ -18,12 +18,17 @@ export function LibraryForm({ onSuccess }: LibraryFormProps) {
   const [mediaDirs, setMediaDirs] = useState<string[]>([]);
 
   useEffect(() => {
-    eveyFetch<{ name: string; path: string }[]>({
-      url: "/api/v1/admin/fs/browse",
-      method: "GET",
-    })
-      .then((dirs) => setMediaDirs(dirs.map((d) => d.path)))
-      .catch(() => setMediaDirs([]));
+    (async () => {
+      try {
+        const dirs = await eveyFetch<{ name: string; path: string }[]>({
+          url: "/api/v1/admin/fs/browse",
+          method: "GET",
+        });
+        setMediaDirs(dirs.map((d) => d.path));
+      } catch {
+        setMediaDirs([]);
+      }
+    })();
   }, []);
 
   const createLib = useLibraryServiceCreateLibrary({

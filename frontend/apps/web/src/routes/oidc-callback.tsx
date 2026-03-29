@@ -26,14 +26,15 @@ function OIDCCallbackPage() {
       void navigate({ to: "/login", search: { oidc_error: "1" } });
       return;
     }
-    eveyFetch<{ accessToken: string }>({ url: "/api/v1/auth/oidc/session", method: "GET" })
-      .then(({ accessToken }) => {
+    (async () => {
+      try {
+        const { accessToken } = await eveyFetch<{ accessToken: string }>({ url: "/api/v1/auth/oidc/session", method: "GET" });
         setTokens(accessToken);
         void navigate({ to: "/home" });
-      })
-      .catch(() => {
+      } catch {
         void navigate({ to: "/login" });
-      });
+      }
+    })();
   }, [oidc_error, setTokens, navigate]);
 
   return (

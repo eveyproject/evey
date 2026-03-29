@@ -82,26 +82,28 @@ export function usePlaySession(mediaId: string): PlaySessionResult {
         ? "PLAY_METHOD_DIRECT_STREAM"
         : "PLAY_METHOD_TRANSCODE";
 
-    fetchStreamToken(mediaId).then((token) => {
-      streamTokenRef.current = token;
-      return playbackServiceStartStream({
-        mediaItemId: mediaId,
-        playMethod,
-        deviceId: "web-browser",
-        deviceName: "Web Browser",
-        clientName: "Evey Web",
-        startPositionMs: "0",
-      });
-    }).then((session) => {
-      if (session.id) {
-        sessionIdRef.current = session.id;
-        setSessionId(session.id);
+    (async () => {
+      try {
+        const token = await fetchStreamToken(mediaId);
+        streamTokenRef.current = token;
+        const session = await playbackServiceStartStream({
+          mediaItemId: mediaId,
+          playMethod,
+          deviceId: "web-browser",
+          deviceName: "Web Browser",
+          clientName: "Evey Web",
+          startPositionMs: "0",
+        });
+        if (session.id) {
+          sessionIdRef.current = session.id;
+          setSessionId(session.id);
+        }
+      } catch {
+        setStartError(true);
+      } finally {
+        setStarting(false);
       }
-    }).catch(() => {
-      setStartError(true);
-    }).finally(() => {
-      setStarting(false);
-    });
+    })();
     // eslint-disable-next-line react-hooks/exhaustive-deps -- fire-once per mediaId via startedRef guard; rawStreamInfo may be undefined on first run (defaults to TRANSCODE, server resolves actual method)
   }, [mediaId]);
 

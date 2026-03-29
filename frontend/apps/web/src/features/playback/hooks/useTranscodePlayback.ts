@@ -111,10 +111,15 @@ export function useTranscodePlayback({
       }
       if (data.type === Hls.ErrorTypes.NETWORK_ERROR) {
         if (data.response?.code === 401) {
-          onStreamTokenRefreshRef.current().then((newToken) => {
-            streamTokenRef.current = newToken;
-            hls.startLoad();
-          }).catch(() => setFatalError(true));
+          (async () => {
+            try {
+              const newToken = await onStreamTokenRefreshRef.current();
+              streamTokenRef.current = newToken;
+              hls.startLoad();
+            } catch {
+              setFatalError(true);
+            }
+          })();
           return;
         }
         const seekPos = transcodeOffsetRef.current + (video.currentTime || 0);

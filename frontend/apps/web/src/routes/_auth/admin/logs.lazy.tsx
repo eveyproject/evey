@@ -154,13 +154,17 @@ function LogsPage() {
 
   useEffect(() => {
     setLoading(true);
-    eveyFetch<{ lines: string[] }>({ url: "/api/v1/admin/logs?lines=200", method: "GET" })
-      .then((data) => {
+    (async () => {
+      try {
+        const data = await eveyFetch<{ lines: string[] }>({ url: "/api/v1/admin/logs?lines=200", method: "GET" });
         const parsed = (data.lines ?? []).map(parseLine);
         setLines(parsed);
-      })
-      .catch(() => {})
-      .finally(() => setLoading(false));
+      } catch {
+        // initial log fetch failed, keep empty
+      } finally {
+        setLoading(false);
+      }
+    })();
   }, []);
 
   useEffect(() => {
