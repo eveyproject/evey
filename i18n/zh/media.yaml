@@ -208,6 +208,7 @@ contextMenu:
   download: 下载
   markWatched: 标记为已看
   markUnwatched: 标记为未看
+  noProfileSelected: No profile selected # TODO: translate
   markedWatched: 已标记为已看
   markedUnwatched: 已标记为未看
   markError: "标记为{{status}}失败"

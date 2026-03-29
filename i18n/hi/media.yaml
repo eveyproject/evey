@@ -208,6 +208,7 @@ contextMenu:
   download: डाउनलोड
   markWatched: देखा हुआ चिह्नित करें
   markUnwatched: नहीं देखा चिह्नित करें
+  noProfileSelected: No profile selected # TODO: translate
   markedWatched: देखा हुआ चिह्नित किया
   markedUnwatched: नहीं देखा चिह्नित किया
   markError: "{{status}} चिह्नित करने में विफल"

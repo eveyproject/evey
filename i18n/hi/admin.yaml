@@ -15,6 +15,7 @@ nav:
   integrations: "इंटिग्रेशन"
   plugins: "प्लगइन"
   webhooks: Webhooks
+  apiKeys: API Keys # TODO: translate
   monitoring: "निगरानी"
   analytics: "एनालिटिक्स"
   activity: "गतिविधि"
@@ -76,6 +77,8 @@ plugins:
   blockedByAnalysis: "सुरक्षा विश्लेषण द्वारा प्लगइन अवरुद्ध"
   previewFailed: "पूर्वावलोकन विफल"
   installFailed: "इंस्टॉल विफल"
+  availableRuntimes: Available Runtimes # TODO: translate
+  noRuntimes: No plugin runtimes detected # TODO: translate
 
 dashboard:
   title: "डैशबोर्ड"
@@ -398,6 +401,19 @@ serverConfig:
   noEntriesDesc: "नीचे कुंजी-मान प्रविष्टियां जोड़ें।"
   show: "दिखाएं"
   hide: "छुपाएं"
+  apiKeys: # TODO: translate
+    title: API Keys
+    description: Configure API keys for metadata providers. Keys set here override environment variables.
+    tmdb: TMDB API Key
+    tmdbLink: Get a free key at themoviedb.org
+    omdb: OMDB API Key
+    omdbLink: Get a free key at omdbapi.com
+    opensubtitles: OpenSubtitles API Key
+    opensubtitlesLink: Get a key at opensubtitles.com
+    resetToDefault: Reset to default
+    saved: API key saved
+    usingDefault: Using default key
+    usingCustom: Using custom key
 
 remoteAccess:
   title: "रिमोट एक्सेस"

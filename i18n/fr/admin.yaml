@@ -15,6 +15,7 @@ nav:
   integrations: Intégrations
   plugins: Plugins
   webhooks: Webhooks
+  apiKeys: "Clés API"
   monitoring: Surveillance
   analytics: Analytique
   activity: Activité
@@ -76,6 +77,8 @@ plugins:
   blockedByAnalysis: "Plugin bloqué par l'analyse de sécurité"
   previewFailed: "Échec de l'aperçu"
   installFailed: "Échec de l'installation"
+  availableRuntimes: Available Runtimes # TODO: translate
+  noRuntimes: No plugin runtimes detected # TODO: translate
 
 dashboard:
   title: "Tableau de bord"

@@ -208,6 +208,7 @@ contextMenu:
   download: Télécharger
   markWatched: Marquer comme vu
   markUnwatched: Marquer comme non vu
+  noProfileSelected: "Aucun profil sélectionné"
   markedWatched: Marqué comme vu
   markedUnwatched: Marqué comme non vu
   markError: "Échec du marquage comme {{status}}"
