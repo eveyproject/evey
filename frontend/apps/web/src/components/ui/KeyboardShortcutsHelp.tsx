@@ -1,14 +1,7 @@
+import { useTranslation } from "react-i18next";
 import { Modal } from "./Modal";
 
 const isMac = /Mac|iPhone|iPad/.test(navigator.userAgent);
-
-const shortcuts = [
-  { key: "/", desc: "Focus search" },
-  { key: isMac ? "⌘K" : "Ctrl+K", desc: "Focus search" },
-  { key: "Esc", desc: "Close modal / blur input" },
-  { key: "h", desc: "Go to Home" },
-  { key: "?", desc: "Toggle this help" },
-];
 
 interface Props {
   open: boolean;
@@ -16,8 +9,18 @@ interface Props {
 }
 
 export function KeyboardShortcutsHelp({ open, onClose }: Props) {
+  const { t } = useTranslation();
+
+  const shortcuts = [
+    { key: "/", desc: t("common:shortcuts.focusSearch") },
+    { key: isMac ? "⌘K" : "Ctrl+K", desc: t("common:shortcuts.focusSearch") },
+    { key: "Esc", desc: t("common:shortcuts.closeModal") },
+    { key: "h", desc: t("common:shortcuts.goHome") },
+    { key: "?", desc: t("common:shortcuts.toggleHelp") },
+  ];
+
   return (
-    <Modal open={open} onClose={onClose} title="Keyboard Shortcuts">
+    <Modal open={open} onClose={onClose} title={t("common:shortcuts.title")}>
       <div className="flex flex-col gap-2">
         {shortcuts.map(({ key, desc }) => (
           <div key={key} className="flex items-center justify-between py-1.5">
@@ -31,7 +34,7 @@ export function KeyboardShortcutsHelp({ open, onClose }: Props) {
         ))}
       </div>
       <p className="text-xs mt-4 text-[var(--text-muted)]">
-        Shortcuts are disabled while typing in an input field.
+        {t("common:shortcuts.disabledHint")}
       </p>
     </Modal>
   );

@@ -133,6 +133,19 @@ nav:
   adminNav: Admin navigation
   userMenu: User menu
   homeFeeds: Home Feeds
+shortcuts:
+  title: Keyboard Shortcuts
+  focusSearch: Focus search
+  closeModal: Close modal / blur input
+  goHome: Go to Home
+  toggleHelp: Toggle this help
+  disabledHint: Shortcuts are disabled while typing in an input field.
+parental:
+  restrictedContent: Restricted Content
+  pinRequired: This content requires parental PIN verification.
+  pinLabel: "PIN (4 digits)"
+  pinIncorrect: Incorrect PIN
+  validate: Validate
 feeds:
   title: Homepage Sections
   section: Section

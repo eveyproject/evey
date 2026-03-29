@@ -133,6 +133,19 @@ nav:
   adminNav: "Navigation administration"
   userMenu: "Menu utilisateur"
   homeFeeds: "Flux d'accueil"
+shortcuts:
+  title: Raccourcis clavier
+  focusSearch: Rechercher
+  closeModal: "Fermer la modale / quitter le champ"
+  goHome: "Aller à l'accueil"
+  toggleHelp: "Afficher/masquer l'aide"
+  disabledHint: "Les raccourcis sont désactivés pendant la saisie dans un champ."
+parental:
+  restrictedContent: Contenu restreint
+  pinRequired: "Ce contenu nécessite la vérification du PIN parental."
+  pinLabel: "PIN (4 chiffres)"
+  pinIncorrect: PIN incorrect
+  validate: Valider
 feeds:
   title: "Sections de la page d'accueil"
   section: Section

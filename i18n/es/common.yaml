@@ -133,6 +133,19 @@ nav:
   adminNav: "Navegación de administración"
   userMenu: "Menú de usuario"
   homeFeeds: "Feeds de inicio"
+shortcuts:
+  title: Atajos de teclado
+  focusSearch: Enfocar búsqueda
+  closeModal: Cerrar modal / desenfocar campo
+  goHome: Ir al inicio
+  toggleHelp: Mostrar/ocultar ayuda
+  disabledHint: "Los atajos están desactivados mientras se escribe en un campo."
+parental:
+  restrictedContent: Contenido restringido
+  pinRequired: "Este contenido requiere verificación del PIN parental."
+  pinLabel: "PIN (4 dígitos)"
+  pinIncorrect: PIN incorrecto
+  validate: Validar
 feeds:
   title: "Secciones de la página de inicio"
   section: Sección
