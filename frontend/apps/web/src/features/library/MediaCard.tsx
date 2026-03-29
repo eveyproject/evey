@@ -323,6 +323,12 @@ export const MediaCard = memo(function MediaCard({
     );
   }, [posterSrc, item.artwork, item.id, accessToken]);
 
+  const posterSrcSet = useMemo(() => {
+    if (!poster) return undefined;
+    const sep = poster.includes("?") ? "&" : "?";
+    return `${poster}${sep}w=200 200w, ${poster}${sep}w=300 300w, ${poster}${sep}w=400 400w`;
+  }, [poster]);
+
   const initial = item.title ? item.title[0].toUpperCase() : "?";
   const pct =
     progressPercent !== undefined
@@ -458,8 +464,11 @@ export const MediaCard = memo(function MediaCard({
         {poster ? (
           <img
             src={poster}
+            srcSet={posterSrcSet}
+            sizes="(max-width: 640px) 150px, (max-width: 1024px) 200px, 250px"
             alt={item.title ?? ""}
             loading="lazy"
+            decoding="async"
             className="w-full h-full object-cover transition-opacity-fast duration-300"
             style={{ opacity: imgLoaded ? 1 : 0 }}
             onLoad={() => setImgLoaded(true)}
