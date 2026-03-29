@@ -200,8 +200,23 @@ export function PluginCard({ plugin, onEnable, onDisable, onUninstall }: PluginC
           <span className="font-semibold truncate text-[var(--text)]">
             {plugin.name}
           </span>
-          <span className="text-xs text-[var(--text-muted)]">
+          <span className="text-xs text-[var(--text-muted)] flex items-center gap-1.5">
             v{plugin.version} — {plugin.language}
+            {plugin.sourceHash && (
+              <button
+                type="button"
+                className="font-mono text-[10px] px-1.5 py-0.5 rounded bg-[var(--surface-raised)] hover:bg-[var(--surface-hover)] transition-colors-fast cursor-pointer"
+                title={plugin.sourceHash}
+                onClick={async () => {
+                  try {
+                    await navigator.clipboard.writeText(plugin.sourceHash!);
+                    toast.success(t("admin.plugin.hashCopied"));
+                  } catch { /* clipboard not available */ }
+                }}
+              >
+                {plugin.sourceHash.slice(0, 8)}
+              </button>
+            )}
           </span>
         </div>
         <div className="flex items-center gap-2 shrink-0">

@@ -1,0 +1,1 @@
+ALTER TABLE plugins ADD COLUMN source_hash TEXT NOT NULL DEFAULT '';

@@ -36,6 +36,12 @@ plugin:
   configSaveFailed: "कॉन्फ़िग सहेजने में विफल"
   subprocess: "सबप्रोसेस"
   sandboxed: "सैंडबॉक्स्ड"
+  hash: "हैश"
+  hashCopied: "हैश कॉपी हो गया"
+  verified: "सत्यापित"
+  updateAvailable: "अपडेट उपलब्ध"
+  versionHigher: "संस्करण {{new}} ने {{current}} को बदल दिया"
+  versionRejected: "संस्करण {{new}}, {{current}} से ऊपर नहीं है"
   state:
     running: "चल रहा है"
     starting: "शुरू हो रहा है…"

@@ -26,6 +26,7 @@ func pluginToProto(p *plugin.Plugin) *eveyv1.Plugin {
 		InstalledAt:  toTimestamppb(p.InstalledAt),
 		Permissions:  p.Permissions,
 		Capabilities: p.Capabilities,
+		SourceHash:   p.SourceHash,
 	}
 }
 
