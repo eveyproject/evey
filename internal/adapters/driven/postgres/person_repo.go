@@ -48,7 +48,7 @@ func (r *PersonRepository) GetByName(ctx context.Context, name string) (*library
 func (r *PersonRepository) List(ctx context.Context) ([]*library.Person, error) {
 	rows, err := r.db.QueryContext(ctx,
 		`SELECT id, name, provider_ids, thumb_path, biography, birthday, deathday, place_of_birth, known_for
-		 FROM people ORDER BY name`)
+		 FROM people ORDER BY name LIMIT 10000`)
 	if err != nil {
 		return nil, err
 	}

@@ -104,7 +104,8 @@ func (r *PhotoRepository) GetAlbums(ctx context.Context, libraryID string) ([]ph
 	rows, err := r.db.QueryContext(ctx, `
 		SELECT album, library_id, COUNT(*) as photo_count, MIN(id) as cover_photo_id
 		FROM photos WHERE library_id = $1 AND album != ''
-		GROUP BY album, library_id ORDER BY album`, libraryID,
+		GROUP BY album, library_id ORDER BY album
+		LIMIT 10000`, libraryID,
 	)
 	if err != nil {
 		return nil, err
@@ -141,7 +142,8 @@ func (r *PhotoRepository) ListAllByLibrary(ctx context.Context, libraryID string
 	rows, err := r.db.QueryContext(ctx, `
 		SELECT id, library_id, title, file_path, file_size, file_hash, mod_time, mime_type, width, height,
 		       taken_at, latitude, longitude, camera_model, album, created_at, updated_at
-		FROM photos WHERE library_id = $1`, libraryID,
+		FROM photos WHERE library_id = $1
+		LIMIT 10000`, libraryID,
 	)
 	if err != nil {
 		return nil, err

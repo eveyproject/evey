@@ -154,7 +154,8 @@ func (r *MusicTrackRepository) GetAlbums(ctx context.Context, libraryID string) 
 		       MIN(year), COUNT(*), SUM(duration), MIN(cover_art_url)
 		FROM music_tracks WHERE library_id=$1
 		GROUP BY album, COALESCE(NULLIF(album_artist,''), artist)
-		ORDER BY album`, libraryID)
+		ORDER BY album
+		LIMIT 10000`, libraryID)
 	if err != nil {
 		return nil, err
 	}
@@ -175,7 +176,8 @@ func (r *MusicTrackRepository) GetArtists(ctx context.Context, libraryID string)
 	rows, err := r.db.QueryContext(ctx, `
 		SELECT COALESCE(NULLIF(album_artist,''), artist), COUNT(*), COUNT(DISTINCT album)
 		FROM music_tracks WHERE library_id=$1
-		GROUP BY 1 ORDER BY 1`, libraryID)
+		GROUP BY 1 ORDER BY 1
+		LIMIT 10000`, libraryID)
 	if err != nil {
 		return nil, err
 	}
@@ -198,7 +200,8 @@ func (r *MusicTrackRepository) ListAllByLibrary(ctx context.Context, libraryID s
 		       year, track_number, disk_number, duration, file_path,
 		       file_size, file_hash, mod_time, mime_type, bitrate, sample_rate, channels,
 		       genre, cover_art_url, created_at, updated_at
-		FROM music_tracks WHERE library_id=$1`, libraryID)
+		FROM music_tracks WHERE library_id=$1
+		LIMIT 10000`, libraryID)
 	if err != nil {
 		return nil, err
 	}
