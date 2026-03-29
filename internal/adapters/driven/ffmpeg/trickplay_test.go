@@ -25,7 +25,7 @@ func makeFakeProbeScript(t *testing.T, duration float64) string {
 
 // makeFakeFfmpegScript creates a fake ffmpeg that:
 //   - In thumbnail mode (-ss flag present): creates the file passed after -y.
-//   - In tile mode (-f concat): creates trickplay_001.jpg in the output dir.
+//   - In tile mode (-f concat): creates trickplay_001.webp in the output dir.
 func makeFakeFfmpegScript(t *testing.T) string {
 	t.Helper()
 	f, err := os.CreateTemp("", "fake-ffmpeg-trickplay-*.sh")
@@ -44,10 +44,10 @@ if [ "$is_thumb" = "1" ]; then
     prev="$arg"
   done
 else
-  # Tile step: last arg is output pattern, create trickplay_001.jpg.
+  # Tile step: last arg is output pattern, create trickplay_001.webp.
   for outpat; do true; done
   outdir=$(dirname "$outpat")
-  touch "$outdir/trickplay_001.jpg"
+  touch "$outdir/trickplay_001.webp"
 fi
 exit 0
 `)
