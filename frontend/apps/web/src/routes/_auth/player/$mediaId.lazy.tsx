@@ -8,6 +8,7 @@ import { usePlaySession } from "@/hooks/usePlaySession";
 import { useChapters } from "@/hooks/useChapters";
 import { HLSPlayer } from "@/features/playback/HLSPlayer";
 import { Spinner } from "@/components/ui/Spinner";
+import { Button } from "@/components/ui/Button";
 import type { AudioStream, SubtitleStream } from "@/features/playback/HLSPlayer";
 import { useSyncPlay } from "@/features/syncplay/useSyncPlay";
 import { SyncPlayBar } from "@/features/syncplay/SyncPlayBar";
@@ -257,20 +258,12 @@ function PlayerPageInner({ mediaId }: { mediaId: string }) {
             <TriangleAlert size={48} style={{ color: "var(--color-danger)" }} strokeWidth={1.5} />
             <p className="text-lg font-medium">{t("player.failedToStart")}</p>
             <div className="flex gap-3">
-              <button
-                onClick={() => window.location.reload()}
-                className="px-4 py-2 rounded text-sm font-medium"
-                style={{ backgroundColor: "var(--overlay-btn-hover-bg)" }}
-              >
+              <Button variant="overlay-accent" onClick={() => window.location.reload()}>
                 {t("player.retry")}
-              </button>
-              <button
-                onClick={handleClose}
-                className="px-4 py-2 rounded text-sm font-medium"
-                style={{ backgroundColor: "var(--overlay-btn-bg)" }}
-              >
+              </Button>
+              <Button variant="overlay" onClick={handleClose}>
                 {t("player.goBack")}
-              </button>
+              </Button>
             </div>
           </div>
         ) : isLoading || !streamInfo || !sessionId || !streamToken ? (
@@ -280,14 +273,14 @@ function PlayerPageInner({ mediaId }: { mediaId: string }) {
                 <TriangleAlert size={48} style={{ color: "var(--color-danger)" }} strokeWidth={1.5} />
                 <p className="text-lg font-medium text-white">{t("player.failedToStart")}</p>
                 <div className="flex gap-3">
-                  <button onClick={() => window.location.reload()} className="px-4 py-2 rounded text-sm font-medium" style={{ backgroundColor: "var(--overlay-btn-hover-bg)" }}>{t("player.retry")}</button>
-                  <button onClick={handleClose} className="px-4 py-2 rounded text-sm font-medium" style={{ backgroundColor: "var(--overlay-btn-bg)" }}>{t("player.goBack")}</button>
+                  <Button variant="overlay-accent" onClick={() => window.location.reload()}>{t("player.retry")}</Button>
+                  <Button variant="overlay" onClick={handleClose}>{t("player.goBack")}</Button>
                 </div>
               </>
             ) : (
               <>
                 <Spinner />
-                <button onClick={handleClose} className="mt-4 px-4 py-2 rounded text-sm font-medium text-white/70 hover:text-white" style={{ backgroundColor: "var(--overlay-btn-bg)" }} data-testid="player-loading-back">{t("player.goBack")}</button>
+                <Button variant="overlay" className="mt-4" onClick={handleClose} data-testid="player-loading-back">{t("player.goBack")}</Button>
               </>
             )}
           </div>
@@ -339,20 +332,12 @@ function PlayerPageInner({ mediaId }: { mediaId: string }) {
                 {shareUrl}
               </div>
               <div className="flex gap-3">
-                <button
-                  onClick={() => void navigator.clipboard.writeText(shareUrl)}
-                  className="flex-1 py-2 rounded font-medium text-sm hover:opacity-80 transition-opacity-fast"
-                  style={{ background: "var(--overlay-btn-bg)" }}
-                >
+                <Button variant="overlay" className="flex-1" onClick={() => void navigator.clipboard.writeText(shareUrl)}>
                   {t("player.copyLink")}
-                </button>
-                <button
-                  onClick={() => setShowShareDialog(false)}
-                  className="flex-1 py-2 rounded font-medium text-sm hover:opacity-80 transition-opacity-fast"
-                  style={{ background: "var(--overlay-border-subtle)" }}
-                >
+                </Button>
+                <Button variant="overlay-accent" className="flex-1" onClick={() => setShowShareDialog(false)}>
                   {t("player.close")}
-                </button>
+                </Button>
               </div>
             </div>
           </div>

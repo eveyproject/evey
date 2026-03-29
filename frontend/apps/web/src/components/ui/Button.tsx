@@ -1,6 +1,6 @@
 import { type ButtonHTMLAttributes } from "react";
 
-type Variant = "primary" | "secondary" | "ghost" | "danger";
+type Variant = "primary" | "secondary" | "ghost" | "danger" | "overlay" | "overlay-accent";
 
 interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   variant?: Variant;
@@ -12,6 +12,8 @@ const variantClasses: Record<Variant, string> = {
   secondary: "bg-[var(--surface-raised)] hover:bg-[var(--border)] text-[var(--text)]",
   ghost: "bg-transparent hover:bg-[var(--surface-raised)] text-[var(--text-muted)]",
   danger: "bg-[var(--danger-bg)] hover:bg-[var(--danger-hover)] text-[var(--filter-active-text)]",
+  overlay: "bg-[var(--overlay-btn-bg)] hover:bg-[var(--overlay-btn-hover-bg)] text-white",
+  "overlay-accent": "bg-[var(--overlay-btn-hover-bg)] hover:bg-[var(--overlay-btn-bg)] text-white",
 };
 
 export function Button({

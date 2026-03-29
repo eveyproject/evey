@@ -126,7 +126,7 @@ export function AdminNav({ collapsed = false, onNavigate }: AdminNavProps) {
                 className="w-full flex items-center justify-between px-2 py-1.5 cursor-pointer rounded-[var(--radius-sm)] transition-colors-fast hover:bg-[var(--surface-raised)] text-[var(--text-muted)]"
               >
                 <span
-                  className="text-[11px] font-semibold uppercase tracking-wider select-none"
+                  className="text-xs font-semibold uppercase tracking-wider select-none"
                 >
                   {sectionTitle}
                 </span>
@@ -150,7 +150,7 @@ export function AdminNav({ collapsed = false, onNavigate }: AdminNavProps) {
                       key={href}
                       to={href}
                       onClick={onNavigate}
-                      className={`flex items-center gap-2.5 px-2 py-1.5 text-[13px] rounded-[var(--radius-sm)] transition-colors-fast ${collapsed ? "justify-center" : ""} ${active ? "" : "hover:bg-[var(--surface-raised)]"}`}
+                      className={`flex items-center gap-2.5 px-2 py-1.5 text-sm rounded-[var(--radius-sm)] transition-colors-fast ${collapsed ? "justify-center" : ""} ${active ? "" : "hover:bg-[var(--surface-raised)]"}`}
                       style={{
                         backgroundColor: active ? "var(--accent)" : undefined,
                         color: active ? "white" : "var(--text)",
