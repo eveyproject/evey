@@ -4,6 +4,8 @@ import (
 	"context"
 	"log/slog"
 	"net/http"
+	"os"
+	"strings"
 
 	"github.com/gravity-zero/evey/internal/domain/library"
 	domainmeta "github.com/gravity-zero/evey/internal/domain/metadata"
@@ -59,9 +61,19 @@ func (h *mediaServe) handleArtwork(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	wantsWebP := strings.Contains(r.Header.Get("Accept"), "image/webp")
+	w.Header().Set("Vary", "Accept")
+
 	for _, rec := range records {
 		if artType == "" || rec.Type == artType {
 			if rec.LocalPath != nil && *rec.LocalPath != "" {
+				if wantsWebP {
+					if webp := h.resolveWebP(r.Context(), rec); webp != "" {
+						w.Header().Set("Content-Type", "image/webp")
+						serveFileWithCache(w, r, webp)
+						return
+					}
+				}
 				serveFileWithCache(w, r, *rec.LocalPath)
 				return
 			}
@@ -117,6 +129,33 @@ func (h *mediaServe) findArtworkRecords(ctx context.Context, mediaID, artType, p
 		}
 		nextParentID = parent.ParentID
 	}
+}
+
+func (h *mediaServe) resolveWebP(ctx context.Context, rec *domainmeta.ArtworkRecord) string {
+	if rec.WebPPath != nil && *rec.WebPPath != "" {
+		if _, err := os.Stat(*rec.WebPPath); err == nil {
+			return *rec.WebPPath
+		}
+	}
+	if h.imgConverter == nil || rec.LocalPath == nil || *rec.LocalPath == "" {
+		return ""
+	}
+	ext := ""
+	if idx := strings.LastIndex(*rec.LocalPath, "."); idx >= 0 {
+		ext = (*rec.LocalPath)[idx:]
+	}
+	webpPath := strings.TrimSuffix(*rec.LocalPath, ext) + ".webp"
+	if err := h.imgConverter.ConvertToWebP(ctx, *rec.LocalPath, webpPath, 80); err != nil {
+		slog.Warn("webp convert", slog.String("src", *rec.LocalPath), slog.Any("err", err))
+		return ""
+	}
+	rec.WebPPath = &webpPath
+	if h.artworkWriter != nil {
+		if err := h.artworkWriter.UpdateWebPPath(ctx, rec.ID, webpPath); err != nil {
+			slog.Warn("save webp path", slog.Any("err", err))
+		}
+	}
+	return webpPath
 }
 
 func selectArtworkHandler(tokens TokenVerifier, artworkRepo ArtworkRepo, libSvc MediaItemGetter, libraryAccess LibraryAccessChecker) http.HandlerFunc {

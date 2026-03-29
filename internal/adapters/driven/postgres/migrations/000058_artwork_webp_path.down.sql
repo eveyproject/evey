@@ -1,0 +1,1 @@
+ALTER TABLE artwork DROP COLUMN IF EXISTS webp_path;

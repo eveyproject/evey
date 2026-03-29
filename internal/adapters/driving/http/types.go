@@ -79,11 +79,17 @@ type AllTrickplayGenerator interface {
 type ArtworkRepo interface {
 	GetByMediaItem(ctx context.Context, mediaItemID string) ([]*domainmeta.ArtworkRecord, error)
 	UpdateSortOrder(ctx context.Context, id string, sortOrder int) error
+	UpdateWebPPath(ctx context.Context, id string, webpPath string) error
 }
 
 // ArtworkReader reads artwork records (read-only subset).
 type ArtworkReader interface {
 	GetByMediaItem(ctx context.Context, mediaItemID string) ([]*domainmeta.ArtworkRecord, error)
+}
+
+// ImageConverter converts images to WebP.
+type ImageConverter interface {
+	ConvertToWebP(ctx context.Context, srcPath, dstPath string, quality int) error
 }
 
 // LibraryLister lists all libraries.

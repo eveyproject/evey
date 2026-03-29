@@ -97,6 +97,18 @@ func (r *FakeArtworkRepository) GetByPerson(_ context.Context, personID string) 
 	return result, nil
 }
 
+func (r *FakeArtworkRepository) UpdateWebPPath(_ context.Context, id string, webpPath string) error {
+	if r.Err != nil {
+		return r.Err
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if a, ok := r.items[id]; ok {
+		a.WebPPath = &webpPath
+	}
+	return nil
+}
+
 func (r *FakeArtworkRepository) Delete(_ context.Context, id string) error {
 	if r.Err != nil {
 		return r.Err

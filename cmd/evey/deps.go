@@ -118,8 +118,9 @@ type appDeps struct {
 	engagement engagementDeps
 	auth       authDeps
 	repos      repoDeps
-	cfgStore     *httpapi.ServerConfigStore
-	backupSvc    *appbackup.Service
-	translator   *eveyi18n.Translator
-	searchHealth httpapi.SearchHealthChecker
+	cfgStore       *httpapi.ServerConfigStore
+	backupSvc      *appbackup.Service
+	translator     *eveyi18n.Translator
+	searchHealth   httpapi.SearchHealthChecker
+	imageConverter httpapi.ImageConverter
 }

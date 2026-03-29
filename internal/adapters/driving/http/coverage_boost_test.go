@@ -63,6 +63,8 @@ func (f *fakeArtworkRepo) GetByMediaItem(_ context.Context, mediaItemID string) 
 
 func (f *fakeArtworkRepo) UpdateSortOrder(_ context.Context, _ string, _ int) error { return nil }
 
+func (f *fakeArtworkRepo) UpdateWebPPath(_ context.Context, _ string, _ string) error { return nil }
+
 type fakeChaptersGetter struct {
 	chapters []*domainlibrary.Chapter
 	err      error

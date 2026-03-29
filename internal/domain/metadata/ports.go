@@ -23,8 +23,13 @@ type ArtworkRepository interface {
 	GetByMediaItem(ctx context.Context, mediaItemID string) ([]*ArtworkRecord, error)
 	GetByMediaItems(ctx context.Context, mediaItemIDs []string) (map[string][]*ArtworkRecord, error)
 	GetByPerson(ctx context.Context, personID string) ([]*ArtworkRecord, error)
+	UpdateWebPPath(ctx context.Context, id string, webpPath string) error
 	Delete(ctx context.Context, id string) error
 	DeleteByMediaItemID(ctx context.Context, mediaItemID string) error
+}
+
+type ImageConverter interface {
+	ConvertToWebP(ctx context.Context, srcPath, dstPath string, quality int) error
 }
 
 type ArtworkDownloader interface {

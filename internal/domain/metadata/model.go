@@ -80,6 +80,7 @@ type ArtworkRecord struct {
 	Provider    string
 	SourceURL   *string
 	LocalPath   *string
+	WebPPath    *string
 	Width       *int
 	Height      *int
 	Language    *string

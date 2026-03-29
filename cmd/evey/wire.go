@@ -96,6 +96,7 @@ func buildServices(ctx context.Context, cfg *config.Config, db *sql.DB, rootLog 
 	transcoder := ffmpeg.NewTranscoder("ffmpeg", cfg.Transcoding.CacheDir)
 	hwDetector := ffmpeg.NewHWDetector("ffmpeg")
 	trickplayGen := ffmpeg.NewTrickplayGenerator("ffmpeg", "ffprobe")
+	imageConverter := ffmpeg.NewImageConverter("ffmpeg")
 	ebmlReader := ebml.NewReader()
 	ebmlWriter := ebml.NewWriter("ffmpeg")
 	bus := eventbus.New()
@@ -427,10 +428,11 @@ func buildServices(ctx context.Context, cfg *config.Config, db *sql.DB, rootLog 
 			pluginRepo:        r.Plugin,
 			quickConnectRepo:  r.QuickConnect,
 		},
-		cfgStore:     httpapi.NewServerConfigStore(r.ServerCfg),
-		backupSvc:    backupSvc,
-		translator:   translator,
-		searchHealth: searchHealth,
+		cfgStore:       httpapi.NewServerConfigStore(r.ServerCfg),
+		backupSvc:      backupSvc,
+		translator:     translator,
+		searchHealth:   searchHealth,
+		imageConverter: imageConverter,
 	}, nil
 }
 

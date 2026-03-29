@@ -1,6 +1,7 @@
 package httpapi
 
 import (
+	"context"
 	"fmt"
 	"log/slog"
 	"mime"
@@ -80,12 +81,31 @@ type mediaServe struct {
 	tokens        TokenVerifier
 	libSvc        MediaItemGetter
 	artworkRepo   ArtworkReader
+	artworkWriter ArtworkWebPWriter
+	imgConverter  ImageConverter
 	baseURL       string
 	libraryAccess LibraryAccessChecker
 }
 
-func mediaHandler(tokens TokenVerifier, libSvc MediaItemGetter, artworkRepo ArtworkReader, baseURL string, libraryAccess LibraryAccessChecker) http.HandlerFunc {
+// ArtworkWebPWriter updates the WebP path on an artwork record.
+type ArtworkWebPWriter interface {
+	UpdateWebPPath(ctx context.Context, id string, webpPath string) error
+}
+
+type mediaServeOption func(*mediaServe)
+
+func withImageConverter(conv ImageConverter, writer ArtworkWebPWriter) mediaServeOption {
+	return func(h *mediaServe) {
+		h.imgConverter = conv
+		h.artworkWriter = writer
+	}
+}
+
+func mediaHandler(tokens TokenVerifier, libSvc MediaItemGetter, artworkRepo ArtworkReader, baseURL string, libraryAccess LibraryAccessChecker, opts ...mediaServeOption) http.HandlerFunc {
 	h := &mediaServe{tokens: tokens, libSvc: libSvc, artworkRepo: artworkRepo, baseURL: baseURL, libraryAccess: libraryAccess}
+	for _, o := range opts {
+		o(h)
+	}
 	return func(w http.ResponseWriter, r *http.Request) {
 		artType := r.PathValue("artType")
 		if artType != "" {

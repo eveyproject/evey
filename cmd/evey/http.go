@@ -87,6 +87,7 @@ func buildHTTPHandler(gwMux http.Handler, deps *appDeps, cfg *config.Config, sta
 		PushSubRepo:    deps.repos.pushSubRepo,
 		VAPIDPublicKey: resolveVAPIDPublicKey(deps.repos.serverCfgRepo, cfg),
 
+		ImageConverter:    deps.imageConverter,
 		ArtworkRepo:       deps.repos.artworkRepo,
 		LibraryAccessRepo: deps.repos.libraryAccessRepo,
 		ServerCfgRepo:     deps.repos.serverCfgRepo,

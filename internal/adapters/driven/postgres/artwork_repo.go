@@ -19,9 +19,9 @@ func NewArtworkRepository(db *sql.DB) *ArtworkRepository {
 
 func (r *ArtworkRepository) Create(ctx context.Context, a *metadata.ArtworkRecord) error {
 	_, err := r.db.ExecContext(ctx,
-		`INSERT INTO artwork (id, media_item_id, person_id, type, provider, source_url, local_path, width, height, language, sort_order)
-		 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)`,
-		a.ID, a.MediaItemID, a.PersonID, a.Type, a.Provider, a.SourceURL, a.LocalPath, a.Width, a.Height, a.Language, a.SortOrder,
+		`INSERT INTO artwork (id, media_item_id, person_id, type, provider, source_url, local_path, webp_path, width, height, language, sort_order)
+		 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)`,
+		a.ID, a.MediaItemID, a.PersonID, a.Type, a.Provider, a.SourceURL, a.LocalPath, a.WebPPath, a.Width, a.Height, a.Language, a.SortOrder,
 	)
 	return err
 }
@@ -31,21 +31,21 @@ func (r *ArtworkRepository) CreateBatch(ctx context.Context, records []*metadata
 		return nil
 	}
 	vals := make([]string, 0, len(records))
-	args := make([]any, 0, len(records)*11)
+	args := make([]any, 0, len(records)*12)
 	for i, a := range records {
-		base := i * 11
-		vals = append(vals, fmt.Sprintf("($%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d)",
-			base+1, base+2, base+3, base+4, base+5, base+6, base+7, base+8, base+9, base+10, base+11))
-		args = append(args, a.ID, a.MediaItemID, a.PersonID, a.Type, a.Provider, a.SourceURL, a.LocalPath, a.Width, a.Height, a.Language, a.SortOrder)
+		base := i * 12
+		vals = append(vals, fmt.Sprintf("($%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d)",
+			base+1, base+2, base+3, base+4, base+5, base+6, base+7, base+8, base+9, base+10, base+11, base+12))
+		args = append(args, a.ID, a.MediaItemID, a.PersonID, a.Type, a.Provider, a.SourceURL, a.LocalPath, a.WebPPath, a.Width, a.Height, a.Language, a.SortOrder)
 	}
-	q := `INSERT INTO artwork (id, media_item_id, person_id, type, provider, source_url, local_path, width, height, language, sort_order) VALUES ` + strings.Join(vals, ",")
+	q := `INSERT INTO artwork (id, media_item_id, person_id, type, provider, source_url, local_path, webp_path, width, height, language, sort_order) VALUES ` + strings.Join(vals, ",")
 	_, err := r.db.ExecContext(ctx, q, args...)
 	return err
 }
 
 func (r *ArtworkRepository) GetByMediaItem(ctx context.Context, mediaItemID string) ([]*metadata.ArtworkRecord, error) {
 	rows, err := r.db.QueryContext(ctx,
-		`SELECT id, media_item_id, person_id, type, provider, source_url, local_path, width, height, language, sort_order
+		`SELECT id, media_item_id, person_id, type, provider, source_url, local_path, webp_path, width, height, language, sort_order
 		 FROM artwork WHERE media_item_id = $1 ORDER BY sort_order`, mediaItemID)
 	if err != nil {
 		return nil, err
@@ -65,7 +65,7 @@ func (r *ArtworkRepository) GetByMediaItems(ctx context.Context, mediaItemIDs []
 		args[i] = id
 	}
 	rows, err := r.db.QueryContext(ctx,
-		`SELECT id, media_item_id, person_id, type, provider, source_url, local_path, width, height, language, sort_order
+		`SELECT id, media_item_id, person_id, type, provider, source_url, local_path, webp_path, width, height, language, sort_order
 		 FROM artwork WHERE media_item_id IN (`+strings.Join(placeholders, ",")+`) ORDER BY media_item_id, sort_order`, args...)
 	if err != nil {
 		return nil, err
@@ -84,7 +84,7 @@ func (r *ArtworkRepository) GetByMediaItems(ctx context.Context, mediaItemIDs []
 
 func (r *ArtworkRepository) GetByPerson(ctx context.Context, personID string) ([]*metadata.ArtworkRecord, error) {
 	rows, err := r.db.QueryContext(ctx,
-		`SELECT id, media_item_id, person_id, type, provider, source_url, local_path, width, height, language, sort_order
+		`SELECT id, media_item_id, person_id, type, provider, source_url, local_path, webp_path, width, height, language, sort_order
 		 FROM artwork WHERE person_id = $1 ORDER BY sort_order`, personID)
 	if err != nil {
 		return nil, err
@@ -95,6 +95,11 @@ func (r *ArtworkRepository) GetByPerson(ctx context.Context, personID string) ([
 
 func (r *ArtworkRepository) UpdateSortOrder(ctx context.Context, id string, sortOrder int) error {
 	_, err := r.db.ExecContext(ctx, `UPDATE artwork SET sort_order = $1 WHERE id = $2`, sortOrder, id)
+	return err
+}
+
+func (r *ArtworkRepository) UpdateWebPPath(ctx context.Context, id string, webpPath string) error {
+	_, err := r.db.ExecContext(ctx, `UPDATE artwork SET webp_path = $1 WHERE id = $2`, webpPath, id)
 	return err
 }
 
@@ -113,7 +118,7 @@ func (r *ArtworkRepository) scanArtworkRows(rows *sql.Rows) ([]*metadata.Artwork
 	for rows.Next() {
 		a := &metadata.ArtworkRecord{}
 		if err := rows.Scan(&a.ID, &a.MediaItemID, &a.PersonID, &a.Type, &a.Provider,
-			&a.SourceURL, &a.LocalPath, &a.Width, &a.Height, &a.Language, &a.SortOrder); err != nil {
+			&a.SourceURL, &a.LocalPath, &a.WebPPath, &a.Width, &a.Height, &a.Language, &a.SortOrder); err != nil {
 			return nil, err
 		}
 		result = append(result, a)

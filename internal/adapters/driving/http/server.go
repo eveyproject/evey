@@ -117,6 +117,9 @@ type HTTPServer struct {
 	PushSubRepo    notification.PushSubscriptionRepository
 	VAPIDPublicKey string
 
+	// Image conversion (optional)
+	ImageConverter ImageConverter
+
 	// Repos / accessors
 	ArtworkRepo       ArtworkRepo
 	LibraryAccessRepo domainuser.LibraryAccessRepository
@@ -168,7 +171,11 @@ func (s *HTTPServer) RegisterRoutes(mux *http.ServeMux, gwMux http.Handler) {
 
 	mux.HandleFunc("GET /api/v1/admin/fs/browse", requireAdmin(s.TokenGen, browseDirsHandler(s.TokenGen)))
 
-	mh := mediaHandler(s.TokenGen, s.LibQuerySvc, s.ArtworkRepo, s.BaseURL, s.LibraryAccessRepo)
+	var mhOpts []mediaServeOption
+	if s.ImageConverter != nil {
+		mhOpts = append(mhOpts, withImageConverter(s.ImageConverter, s.ArtworkRepo))
+	}
+	mh := mediaHandler(s.TokenGen, s.LibQuerySvc, s.ArtworkRepo, s.BaseURL, s.LibraryAccessRepo, mhOpts...)
 	mux.HandleFunc("GET /api/v1/media/{id}/stream", mh)
 	mux.HandleFunc("GET /api/v1/media/{id}/artwork/{artType}", mh)
 	mux.HandleFunc("POST /api/v1/media/{id}/stream", mh)
