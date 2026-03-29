@@ -49,8 +49,8 @@ copyKey: Copy Key
 unableToLoadNotifications: Unable to load notifications
 viewAllNotifications: View all notifications
 markAllRead: Mark all read
-items: "{{count}} items"
-item: "{{count}} item"
+item_one: "{{count}} item"
+item_other: "{{count}} items"
 filtered: "(filtered)"
 noItemsMatch: No items match the current filter.
 errorBoundary:

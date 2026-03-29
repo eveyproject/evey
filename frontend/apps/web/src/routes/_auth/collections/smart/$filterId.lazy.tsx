@@ -80,7 +80,7 @@ function SmartFilterPage() {
           )}
           {!isLoading && (
             <p className="text-sm mt-2 text-[var(--text-muted)]">
-              {total === 1 ? t("common.item", { count: total }) : t("common.items", { count: total })}
+              {t("common.item", { count: total })}
             </p>
           )}
         </div>
@@ -131,7 +131,7 @@ function SmartFilterPage() {
             ))}
           </div>
           <div className="px-4 py-2 text-xs text-[var(--text-muted)] border-t border-[var(--border)]">
-            {items.length === 1 ? t("common.item", { count: items.length }) : t("common.items", { count: items.length })}
+            {t("common.item", { count: items.length })}
           </div>
         </div>
       )}

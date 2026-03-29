@@ -264,7 +264,7 @@ function SessionsPage() {
       ) : (
         <>
           <p className="text-sm text-[var(--text-muted)]">
-            {t("admin.sessions.activeCount", { count: sessions.length, word: sessions.length === 1 ? t("admin.sessions.session") : t("admin.sessions.sessions") })}
+            {t("admin.sessions.activeCount", { count: sessions.length })}
           </p>
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
             {sessions.map((session) => (
