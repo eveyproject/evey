@@ -133,6 +133,19 @@ nav:
   adminNav: "एडमिन नेविगेशन"
   userMenu: "उपयोगकर्ता मेनू"
   homeFeeds: "होम फ़ीड्स"
+shortcuts:
+  title: "कीबोर्ड शॉर्टकट"
+  focusSearch: "खोज पर फ़ोकस करें"
+  closeModal: "मोडल बंद करें / इनपुट से बाहर"
+  goHome: "होम पर जाएं"
+  toggleHelp: "यह सहायता दिखाएं/छिपाएं"
+  disabledHint: "इनपुट फ़ील्ड में टाइप करते समय शॉर्टकट अक्षम हैं।"
+parental:
+  restrictedContent: "प्रतिबंधित सामग्री"
+  pinRequired: "इस सामग्री के लिए अभिभावकीय PIN सत्यापन आवश्यक है।"
+  pinLabel: "PIN (4 अंक)"
+  pinIncorrect: "गलत PIN"
+  validate: "सत्यापित करें"
 feeds:
   title: "होम पेज अनुभाग"
   section: अनुभाग

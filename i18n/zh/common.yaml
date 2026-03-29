@@ -133,6 +133,19 @@ nav:
   adminNav: "管理导航"
   userMenu: "用户菜单"
   homeFeeds: "首页信息流"
+shortcuts:
+  title: "键盘快捷键"
+  focusSearch: "聚焦搜索"
+  closeModal: "关闭弹窗 / 取消聚焦"
+  goHome: "前往首页"
+  toggleHelp: "显示/隐藏帮助"
+  disabledHint: "在输入框中输入时快捷键已禁用。"
+parental:
+  restrictedContent: "受限内容"
+  pinRequired: "此内容需要家长PIN验证。"
+  pinLabel: "PIN（4位数字）"
+  pinIncorrect: "PIN不正确"
+  validate: "验证"
 feeds:
   title: "首页板块"
   section: 板块

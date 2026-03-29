@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from "react";
+import { useTranslation } from "react-i18next";
 import { Modal } from "@/components/ui/Modal";
 import { Button } from "@/components/ui/Button";
 
@@ -10,6 +11,7 @@ interface ParentalPINDialogProps {
 }
 
 export function ParentalPINDialog({ open, onClose, onVerified, profileId }: ParentalPINDialogProps) {
+  const { t } = useTranslation();
   const [pin, setPin] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -38,12 +40,12 @@ export function ParentalPINDialog({ open, onClose, onVerified, profileId }: Pare
       if (result.valid) {
         onVerified();
       } else {
-        setError("PIN incorrect");
+        setError(t("common:parental.pinIncorrect"));
         setPin("");
         inputRef.current?.focus();
       }
     } catch {
-      setError("PIN incorrect");
+      setError(t("common:parental.pinIncorrect"));
       setPin("");
       inputRef.current?.focus();
     } finally {
@@ -52,14 +54,14 @@ export function ParentalPINDialog({ open, onClose, onVerified, profileId }: Pare
   }
 
   return (
-    <Modal open={open} onClose={onClose} title="Contenu restreint">
+    <Modal open={open} onClose={onClose} title={t("common:parental.restrictedContent")}>
       <p className="text-sm mb-4" style={{ color: "var(--text-muted)" }}>
-        Ce contenu nécessite la vérification du PIN parental.
+        {t("common:parental.pinRequired")}
       </p>
       <form onSubmit={(e) => void handleSubmit(e)} className="flex flex-col gap-4">
         <div className="flex flex-col gap-1">
           <label className="text-sm font-medium" style={{ color: "var(--text)" }}>
-            PIN (4 chiffres)
+            {t("common:parental.pinLabel")}
           </label>
           <input
             ref={inputRef}
@@ -92,10 +94,10 @@ export function ParentalPINDialog({ open, onClose, onVerified, profileId }: Pare
         </div>
         <div className="flex gap-3">
           <Button type="submit" variant="primary" loading={loading} disabled={pin.length < 4} data-testid="pin-submit">
-            Valider
+            {t("common:parental.validate")}
           </Button>
           <Button type="button" variant="secondary" onClick={onClose} data-testid="pin-cancel">
-            Annuler
+            {t("common:cancel")}
           </Button>
         </div>
       </form>
