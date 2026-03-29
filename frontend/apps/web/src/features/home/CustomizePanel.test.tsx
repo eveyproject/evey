@@ -88,9 +88,7 @@ describe("CustomizePanel", () => {
   it("toggle calls updateMutation with flipped enabled", async () => {
     const user = userEvent.setup();
     renderPanel();
-    const toggleButtons = screen.getAllByRole("button").filter(
-      (btn) => btn.classList.contains("rounded-full"),
-    );
+    const toggleButtons = screen.getAllByRole("switch");
     await user.click(toggleButtons[0]);
     expect(mockMutate).toHaveBeenCalledWith(
       { feedType: "resume_playback", data: { enabled: false, displayOrder: 0 } },
@@ -101,9 +99,7 @@ describe("CustomizePanel", () => {
   it("toggle disabled row calls updateMutation with enabled=true", async () => {
     const user = userEvent.setup();
     renderPanel();
-    const toggleButtons = screen.getAllByRole("button").filter(
-      (btn) => btn.classList.contains("rounded-full"),
-    );
+    const toggleButtons = screen.getAllByRole("switch");
     await user.click(toggleButtons[1]);
     expect(mockMutate).toHaveBeenCalledWith(
       { feedType: "recommended", data: { enabled: true, displayOrder: 1 } },
