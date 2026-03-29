@@ -42,6 +42,8 @@ plugin:
   updateAvailable: "Actualización disponible"
   versionHigher: "La versión {{new}} reemplaza a {{current}}"
   versionRejected: "La versión {{new}} no es superior a {{current}}"
+  sandboxedWidget: Widget aislado
+  widgetLoadError: Error al cargar el widget
   state:
     running: En ejecución
     starting: "Iniciando…"

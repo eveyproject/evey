@@ -42,6 +42,8 @@ plugin:
   updateAvailable: "अपडेट उपलब्ध"
   versionHigher: "संस्करण {{new}} ने {{current}} को बदल दिया"
   versionRejected: "संस्करण {{new}}, {{current}} से ऊपर नहीं है"
+  sandboxedWidget: "सैंडबॉक्स्ड विजेट"
+  widgetLoadError: "विजेट लोड करने में विफल"
   state:
     running: "चल रहा है"
     starting: "शुरू हो रहा है…"

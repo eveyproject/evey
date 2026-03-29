@@ -43,6 +43,8 @@ plugin:
   updateAvailable: "Update available"
   versionHigher: "Version {{new}} replaces {{current}}"
   versionRejected: "Version {{new}} is not higher than {{current}}"
+  sandboxedWidget: Sandboxed widget
+  widgetLoadError: Widget failed to load
   state:
     running: Running
     starting: "Starting..."

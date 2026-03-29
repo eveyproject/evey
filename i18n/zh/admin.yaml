@@ -42,6 +42,8 @@ plugin:
   updateAvailable: "有可用更新"
   versionHigher: "版本 {{new}} 替换 {{current}}"
   versionRejected: "版本 {{new}} 不高于 {{current}}"
+  sandboxedWidget: "沙箱小部件"
+  widgetLoadError: "小部件加载失败"
   state:
     running: "运行中"
     starting: "启动中…"

@@ -212,6 +212,8 @@
   "admin.plugin.logs": "Logs",
   "admin.plugin.noConfig": "No config keys defined.",
   "admin.plugin.sandboxed": "Sandboxed",
+  "admin.plugin.sandboxedWidget": "Sandboxed widget",
+  "admin.plugin.widgetLoadError": "Widget failed to load",
   "admin.plugin.state.error": "Error",
   "admin.plugin.state.installed": "Installed",
   "admin.plugin.state.running": "Running",
