@@ -7,7 +7,6 @@ import (
 	"errors"
 	"log/slog"
 	"net/http"
-	"strings"
 
 	appuser "github.com/gravity-zero/evey/internal/app/user"
 	"github.com/gravity-zero/evey/internal/domain/notification"
@@ -140,20 +139,9 @@ type pushHandler struct {
 	vapidPubKey string
 }
 
-func (h *pushHandler) extractClaims(r *http.Request) (*domainuser.Claims, bool) {
-	hdr := r.Header.Get("Authorization")
-	if !strings.HasPrefix(hdr, "Bearer ") {
-		return nil, false
-	}
-	claims, err := h.tokenGen.ValidateAccessToken(hdr[7:])
-	if err != nil {
-		return nil, false
-	}
-	return claims, true
-}
 
 func (h *pushHandler) register(w http.ResponseWriter, r *http.Request) {
-	claims, ok := h.extractClaims(r)
+	claims, ok := extractClaims(r, h.tokenGen)
 	if !ok {
 		http.Error(w, `{"message":"unauthenticated"}`, http.StatusUnauthorized)
 		return
@@ -212,7 +200,7 @@ func (h *pushHandler) register(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *pushHandler) unregister(w http.ResponseWriter, r *http.Request) {
-	claims, ok := h.extractClaims(r)
+	claims, ok := extractClaims(r, h.tokenGen)
 	if !ok {
 		http.Error(w, `{"message":"unauthenticated"}`, http.StatusUnauthorized)
 		return
@@ -236,7 +224,7 @@ func (h *pushHandler) unregister(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *pushHandler) listSubscriptions(w http.ResponseWriter, r *http.Request) {
-	claims, ok := h.extractClaims(r)
+	claims, ok := extractClaims(r, h.tokenGen)
 	if !ok {
 		http.Error(w, `{"message":"unauthenticated"}`, http.StatusUnauthorized)
 		return
@@ -265,7 +253,7 @@ func (h *pushHandler) listSubscriptions(w http.ResponseWriter, r *http.Request) 
 }
 
 func (h *pushHandler) deleteSubscription(w http.ResponseWriter, r *http.Request) {
-	claims, ok := h.extractClaims(r)
+	claims, ok := extractClaims(r, h.tokenGen)
 	if !ok {
 		http.Error(w, `{"message":"unauthenticated"}`, http.StatusUnauthorized)
 		return
@@ -289,7 +277,7 @@ func (h *pushHandler) deleteSubscription(w http.ResponseWriter, r *http.Request)
 }
 
 func (h *pushHandler) getConsent(w http.ResponseWriter, r *http.Request) {
-	claims, ok := h.extractClaims(r)
+	claims, ok := extractClaims(r, h.tokenGen)
 	if !ok {
 		http.Error(w, `{"message":"unauthenticated"}`, http.StatusUnauthorized)
 		return
@@ -306,7 +294,7 @@ func (h *pushHandler) getConsent(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *pushHandler) updateConsent(w http.ResponseWriter, r *http.Request) {
-	claims, ok := h.extractClaims(r)
+	claims, ok := extractClaims(r, h.tokenGen)
 	if !ok {
 		http.Error(w, `{"message":"unauthenticated"}`, http.StatusUnauthorized)
 		return
@@ -370,20 +358,8 @@ type parentalHandler struct {
 	pinRL       *ratelimit.Limiter
 }
 
-func (h *parentalHandler) extractClaims(r *http.Request) (*domainuser.Claims, bool) {
-	hdr := r.Header.Get("Authorization")
-	if len(hdr) < 8 || hdr[:7] != "Bearer " {
-		return nil, false
-	}
-	claims, err := h.tokenGen.ValidateAccessToken(hdr[7:])
-	if err != nil {
-		return nil, false
-	}
-	return claims, true
-}
-
 func (h *parentalHandler) getSettings(w http.ResponseWriter, r *http.Request) {
-	claims, ok := h.extractClaims(r)
+	claims, ok := extractClaims(r, h.tokenGen)
 	if !ok {
 		http.Error(w, `{"message":"unauthenticated"}`, http.StatusUnauthorized)
 		return
@@ -420,7 +396,7 @@ func (h *parentalHandler) getSettings(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *parentalHandler) updateSettings(w http.ResponseWriter, r *http.Request) {
-	claims, ok := h.extractClaims(r)
+	claims, ok := extractClaims(r, h.tokenGen)
 	if !ok {
 		http.Error(w, `{"message":"unauthenticated"}`, http.StatusUnauthorized)
 		return
@@ -491,7 +467,7 @@ func (h *parentalHandler) updateSettings(w http.ResponseWriter, r *http.Request)
 }
 
 func (h *parentalHandler) verifyPIN(w http.ResponseWriter, r *http.Request) {
-	claims, ok := h.extractClaims(r)
+	claims, ok := extractClaims(r, h.tokenGen)
 	if !ok {
 		http.Error(w, `{"message":"unauthenticated"}`, http.StatusUnauthorized)
 		return

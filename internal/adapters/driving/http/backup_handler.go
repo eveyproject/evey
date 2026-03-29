@@ -6,7 +6,6 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
-	"strings"
 	"time"
 
 	appbackup "github.com/gravity-zero/evey/internal/app/backup"
@@ -16,12 +15,8 @@ import (
 
 func registerBackupRoutes(mux *http.ServeMux, svc *appbackup.Service, tokenGen *auth.JWTGenerator, heavyRL *ratelimit.Limiter) {
 	requireAdminLocal := func(r *http.Request) bool {
-		h := r.Header.Get("Authorization")
-		if !strings.HasPrefix(h, "Bearer ") {
-			return false
-		}
-		claims, err := tokenGen.ValidateAccessToken(strings.TrimPrefix(h, "Bearer "))
-		return err == nil && claims.IsAdmin
+		claims, ok := extractClaims(r, tokenGen)
+		return ok && claims.IsAdmin
 	}
 
 	mux.HandleFunc("POST /api/v1/admin/backups", func(w http.ResponseWriter, r *http.Request) {

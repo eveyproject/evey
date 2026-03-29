@@ -26,20 +26,9 @@ func registerPlaylistRoutes(mux *http.ServeMux, svc *appplaylist.Service, tokenG
 	mux.HandleFunc("/api/v1/playlists/", h.routeByID)
 }
 
-func (h *playlistHandler) extractClaims(r *http.Request) (*domainuser.Claims, bool) {
-	hdr := r.Header.Get("Authorization")
-	if !strings.HasPrefix(hdr, "Bearer ") {
-		return nil, false
-	}
-	claims, err := h.tokenGen.ValidateAccessToken(hdr[7:])
-	if err != nil {
-		return nil, false
-	}
-	return claims, true
-}
 
 func (h *playlistHandler) list(w http.ResponseWriter, r *http.Request) {
-	claims, ok := h.extractClaims(r)
+	claims, ok := extractClaims(r, h.tokenGen)
 	if !ok {
 		http.Error(w, `{"message":"unauthenticated"}`, http.StatusUnauthorized)
 		return
@@ -81,7 +70,7 @@ func (h *playlistHandler) list(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *playlistHandler) create(w http.ResponseWriter, r *http.Request) {
-	claims, ok := h.extractClaims(r)
+	claims, ok := extractClaims(r, h.tokenGen)
 	if !ok {
 		http.Error(w, `{"message":"unauthenticated"}`, http.StatusUnauthorized)
 		return
@@ -126,7 +115,7 @@ func (h *playlistHandler) create(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *playlistHandler) routeByID(w http.ResponseWriter, r *http.Request) {
-	claims, ok := h.extractClaims(r)
+	claims, ok := extractClaims(r, h.tokenGen)
 	if !ok {
 		http.Error(w, `{"message":"unauthenticated"}`, http.StatusUnauthorized)
 		return

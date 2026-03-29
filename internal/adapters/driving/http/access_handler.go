@@ -23,12 +23,8 @@ const RemoteAccessConfigKey = remoteAccessConfigKey
 
 func registerLibraryAccessRoutes(mux *http.ServeMux, accessRepo domainuser.LibraryAccessRepository, libQuery *applibrary.QueryService, tokenGen *auth.JWTGenerator) {
 	requireAdminLocal := func(r *http.Request) bool {
-		h := r.Header.Get("Authorization")
-		if !strings.HasPrefix(h, "Bearer ") {
-			return false
-		}
-		claims, err := tokenGen.ValidateAccessToken(strings.TrimPrefix(h, "Bearer "))
-		return err == nil && claims.IsAdmin
+		claims, ok := extractClaims(r, tokenGen)
+		return ok && claims.IsAdmin
 	}
 
 	mux.HandleFunc("GET /api/v1/admin/users/{userId}/library-access", func(w http.ResponseWriter, r *http.Request) {
@@ -114,12 +110,8 @@ func registerRemoteAccessRoutes(mux *http.ServeMux, cfg *config.Config, tokenGen
 	var mu sync.RWMutex
 
 	requireAdminLocal := func(r *http.Request) bool {
-		h := r.Header.Get("Authorization")
-		if !strings.HasPrefix(h, "Bearer ") {
-			return false
-		}
-		claims, err := tokenGen.ValidateAccessToken(strings.TrimPrefix(h, "Bearer "))
-		return err == nil && claims.IsAdmin
+		claims, ok := extractClaims(r, tokenGen)
+		return ok && claims.IsAdmin
 	}
 
 	encodeRA := func(w http.ResponseWriter) {
@@ -210,20 +202,12 @@ func registerRemoteAccessRoutes(mux *http.ServeMux, cfg *config.Config, tokenGen
 
 func registerPlaybackSettingsRoutes(mux *http.ServeMux, cfg *config.Config, tokenGen *auth.JWTGenerator) {
 	requireAuth := func(r *http.Request) bool {
-		h := r.Header.Get("Authorization")
-		if !strings.HasPrefix(h, "Bearer ") {
-			return false
-		}
-		_, err := tokenGen.ValidateAccessToken(strings.TrimPrefix(h, "Bearer "))
-		return err == nil
+		_, ok := extractClaims(r, tokenGen)
+		return ok
 	}
 	requireAdminLocal := func(r *http.Request) bool {
-		h := r.Header.Get("Authorization")
-		if !strings.HasPrefix(h, "Bearer ") {
-			return false
-		}
-		claims, err := tokenGen.ValidateAccessToken(strings.TrimPrefix(h, "Bearer "))
-		return err == nil && claims.IsAdmin
+		claims, ok := extractClaims(r, tokenGen)
+		return ok && claims.IsAdmin
 	}
 
 	mux.HandleFunc("GET /api/v1/playback-settings", func(w http.ResponseWriter, r *http.Request) {
@@ -271,12 +255,8 @@ func registerPlaybackSettingsRoutes(mux *http.ServeMux, cfg *config.Config, toke
 
 func registerScheduleRoutes(mux *http.ServeMux, scheduler *applibrary.Scheduler, tokenGen *auth.JWTGenerator) {
 	requireAdminLocal := func(r *http.Request) bool {
-		h := r.Header.Get("Authorization")
-		if !strings.HasPrefix(h, "Bearer ") {
-			return false
-		}
-		claims, err := tokenGen.ValidateAccessToken(strings.TrimPrefix(h, "Bearer "))
-		return err == nil && claims.IsAdmin
+		claims, ok := extractClaims(r, tokenGen)
+		return ok && claims.IsAdmin
 	}
 
 	mux.HandleFunc("GET /api/v1/libraries/{id}/schedule", func(w http.ResponseWriter, r *http.Request) {

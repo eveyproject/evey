@@ -26,21 +26,13 @@ func registerCollectionRoutes(mux *http.ServeMux, svc *appcollection.Service, to
 }
 
 func (h *collectionHandler) requireAuth(r *http.Request) bool {
-	hdr := r.Header.Get("Authorization")
-	if !strings.HasPrefix(hdr, "Bearer ") {
-		return false
-	}
-	_, err := h.tokenGen.ValidateAccessToken(strings.TrimPrefix(hdr, "Bearer "))
-	return err == nil
+	_, ok := extractClaims(r, h.tokenGen)
+	return ok
 }
 
-func (h *collectionHandler) requireAdmin(r *http.Request) bool {
-	hdr := r.Header.Get("Authorization")
-	if !strings.HasPrefix(hdr, "Bearer ") {
-		return false
-	}
-	claims, err := h.tokenGen.ValidateAccessToken(strings.TrimPrefix(hdr, "Bearer "))
-	return err == nil && claims.IsAdmin
+func (h *collectionHandler) requireAdminCheck(r *http.Request) bool {
+	claims, ok := extractClaims(r, h.tokenGen)
+	return ok && claims.IsAdmin
 }
 
 type collectionRuleDTO struct {
@@ -56,7 +48,7 @@ type smartCollectionRequest struct {
 }
 
 func (h *collectionHandler) create(w http.ResponseWriter, r *http.Request) {
-	if !h.requireAdmin(r) {
+	if !h.requireAdminCheck(r) {
 		http.Error(w, `{"message":"forbidden"}`, http.StatusForbidden)
 		return
 	}
@@ -215,7 +207,7 @@ func (h *collectionHandler) getByID(w http.ResponseWriter, r *http.Request, id s
 }
 
 func (h *collectionHandler) update(w http.ResponseWriter, r *http.Request, id string) {
-	if !h.requireAdmin(r) {
+	if !h.requireAdminCheck(r) {
 		http.Error(w, `{"message":"forbidden"}`, http.StatusForbidden)
 		return
 	}
@@ -245,7 +237,7 @@ func (h *collectionHandler) update(w http.ResponseWriter, r *http.Request, id st
 }
 
 func (h *collectionHandler) delete(w http.ResponseWriter, r *http.Request, id string) {
-	if !h.requireAdmin(r) {
+	if !h.requireAdminCheck(r) {
 		http.Error(w, `{"message":"forbidden"}`, http.StatusForbidden)
 		return
 	}
