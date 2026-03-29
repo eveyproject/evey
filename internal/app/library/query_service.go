@@ -7,26 +7,13 @@ import (
 	"github.com/gravity-zero/evey/internal/domain/library"
 )
 
-type PersonDetailsFetcher interface {
-	GetPersonDetails(ctx context.Context, name string) (*PersonDetailsResult, error)
-}
-
-type PersonDetailsResult struct {
-	Biography    string
-	Birthday     string
-	Deathday     string
-	PlaceOfBirth string
-	KnownFor     string
-	ThumbURL     string
-}
-
 type QueryService struct {
 	libraries     library.LibraryQueryRepo
 	mediaItems    library.MediaItemQueryRepo
 	streams       library.MediaStreamRepository
 	search        library.SearchIndex
 	people        library.PersonRepository
-	personFetcher PersonDetailsFetcher
+	personFetcher library.PersonDetailsFetcher
 }
 
 func NewQueryService(
@@ -48,7 +35,7 @@ func (s *QueryService) WithPeople(people library.PersonRepository) *QueryService
 	return s
 }
 
-func (s *QueryService) WithPersonFetcher(fetcher PersonDetailsFetcher) *QueryService {
+func (s *QueryService) WithPersonFetcher(fetcher library.PersonDetailsFetcher) *QueryService {
 	s.personFetcher = fetcher
 	return s
 }

@@ -203,3 +203,16 @@ type TrickplayResult struct {
 type TrickplayGenerator interface {
 	Generate(ctx context.Context, filePath string, outputDir string, interval, width, tileWidth, tileHeight, maxWorkers int) (*TrickplayResult, error)
 }
+
+type PersonDetailsResult struct {
+	Biography    string
+	Birthday     string
+	Deathday     string
+	PlaceOfBirth string
+	KnownFor     string
+	ThumbURL     string
+}
+
+type PersonDetailsFetcher interface {
+	GetPersonDetails(ctx context.Context, name string) (*PersonDetailsResult, error)
+}

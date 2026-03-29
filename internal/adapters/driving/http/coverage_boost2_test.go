@@ -2183,12 +2183,12 @@ func TestHLSSegmentHandler_IDOR_403(t *testing.T) {
 // ============================================================
 
 func TestTranscodeHandler_NoAuth_401(t *testing.T) {
-	h := transcodeHandler(
-		&fakeTokenVerifier{err: errTest},
-		&fakeMediaStreamsGetter{},
-		"http://localhost",
-		allowAll(), nil, nil,
-	)
+	h := transcodeHandler(transcodeServe{
+		tokens: &fakeTokenVerifier{err: errTest},
+		libSvc: &fakeMediaStreamsGetter{},
+		baseURL: "http://localhost",
+		libraryAccess: allowAll(),
+	})
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/media/m1/transcode", nil)
 	req.SetPathValue("id", "m1")
 	w := httptest.NewRecorder()
@@ -2199,12 +2199,12 @@ func TestTranscodeHandler_NoAuth_401(t *testing.T) {
 }
 
 func TestTranscodeHandler_InvalidToken_403(t *testing.T) {
-	h := transcodeHandler(
-		&fakeTokenVerifier{err: errTest},
-		&fakeMediaStreamsGetter{},
-		"http://localhost",
-		allowAll(), nil, nil,
-	)
+	h := transcodeHandler(transcodeServe{
+		tokens: &fakeTokenVerifier{err: errTest},
+		libSvc: &fakeMediaStreamsGetter{},
+		baseURL: "http://localhost",
+		libraryAccess: allowAll(),
+	})
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/media/m1/transcode", nil)
 	req.SetPathValue("id", "m1")
 	req.Header.Set("Authorization", "Bearer bad")
@@ -2216,12 +2216,12 @@ func TestTranscodeHandler_InvalidToken_403(t *testing.T) {
 }
 
 func TestTranscodeHandler_NotFound_404(t *testing.T) {
-	h := transcodeHandler(
-		&fakeTokenVerifier{claims: testClaims(false)},
-		&fakeMediaStreamsGetter{itemErr: errTest},
-		"http://localhost",
-		allowAll(), nil, nil,
-	)
+	h := transcodeHandler(transcodeServe{
+		tokens: &fakeTokenVerifier{claims: testClaims(false)},
+		libSvc: &fakeMediaStreamsGetter{itemErr: errTest},
+		baseURL: "http://localhost",
+		libraryAccess: allowAll(),
+	})
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/media/m1/transcode", nil)
 	req.SetPathValue("id", "m1")
 	req.Header.Set("Authorization", "Bearer tok")
@@ -2233,12 +2233,12 @@ func TestTranscodeHandler_NotFound_404(t *testing.T) {
 }
 
 func TestTranscodeHandler_IDOR_403(t *testing.T) {
-	h := transcodeHandler(
-		&fakeTokenVerifier{claims: testClaims(false)},
-		&fakeMediaStreamsGetter{item: &domainlibrary.MediaItem{ID: "m1", LibraryID: "lib-x", FilePath: "/a"}},
-		"http://localhost",
-		denyAll(), nil, nil,
-	)
+	h := transcodeHandler(transcodeServe{
+		tokens: &fakeTokenVerifier{claims: testClaims(false)},
+		libSvc: &fakeMediaStreamsGetter{item: &domainlibrary.MediaItem{ID: "m1", LibraryID: "lib-x", FilePath: "/a"}},
+		baseURL: "http://localhost",
+		libraryAccess: denyAll(),
+	})
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/media/m1/transcode", nil)
 	req.SetPathValue("id", "m1")
 	req.Header.Set("Authorization", "Bearer tok")
@@ -2250,12 +2250,12 @@ func TestTranscodeHandler_IDOR_403(t *testing.T) {
 }
 
 func TestTranscodeHandler_QueryToken(t *testing.T) {
-	h := transcodeHandler(
-		&fakeTokenVerifier{claims: testClaims(false)},
-		&fakeMediaStreamsGetter{itemErr: errTest},
-		"http://localhost",
-		allowAll(), nil, nil,
-	)
+	h := transcodeHandler(transcodeServe{
+		tokens: &fakeTokenVerifier{claims: testClaims(false)},
+		libSvc: &fakeMediaStreamsGetter{itemErr: errTest},
+		baseURL: "http://localhost",
+		libraryAccess: allowAll(),
+	})
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/media/m1/transcode?token=tok", nil)
 	req.SetPathValue("id", "m1")
 	w := httptest.NewRecorder()
@@ -2270,12 +2270,12 @@ func TestTranscodeHandler_MaxStreams_429(t *testing.T) {
 	maxStreams := 1
 	fakeMaxStreams := &fakeUserMaxStreams{max: &maxStreams}
 	throttle.Acquire("u1", 0) // occupy one slot
-	h := transcodeHandler(
-		&fakeTokenVerifier{claims: testClaims(false)},
-		&fakeMediaStreamsGetter{item: &domainlibrary.MediaItem{ID: "m1", LibraryID: "lib1", FilePath: "/a"}},
-		"http://localhost",
-		allowAll(), throttle, fakeMaxStreams,
-	)
+	h := transcodeHandler(transcodeServe{
+		tokens: &fakeTokenVerifier{claims: testClaims(false)},
+		libSvc: &fakeMediaStreamsGetter{item: &domainlibrary.MediaItem{ID: "m1", LibraryID: "lib1", FilePath: "/a"}},
+		baseURL: "http://localhost",
+		libraryAccess: allowAll(), throttle: throttle, userMaxStreams: fakeMaxStreams,
+	})
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/media/m1/transcode", nil)
 	req.SetPathValue("id", "m1")
 	req.Header.Set("Authorization", "Bearer tok")
@@ -2300,11 +2300,11 @@ func (f *fakeUserMaxStreams) GetMaxStreams(_ context.Context, _ string) *int {
 // ============================================================
 
 func TestHLSMasterHandler_NoAuth_401(t *testing.T) {
-	h := hlsMasterHandler(
-		&fakeTokenVerifier{err: errTest},
-		&fakeMediaStreamsGetter{},
-		nil, allowAll(), nil, nil, nil,
-	)
+	h := hlsMasterHandler(hlsMasterServe{
+		tokens: &fakeTokenVerifier{err: errTest},
+		libSvc: &fakeMediaStreamsGetter{},
+		libraryAccess: allowAll(),
+	})
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/media/m1/master.m3u8", nil)
 	req.SetPathValue("id", "m1")
 	w := httptest.NewRecorder()
@@ -2315,11 +2315,11 @@ func TestHLSMasterHandler_NoAuth_401(t *testing.T) {
 }
 
 func TestHLSMasterHandler_InvalidToken_403(t *testing.T) {
-	h := hlsMasterHandler(
-		&fakeTokenVerifier{err: errTest},
-		&fakeMediaStreamsGetter{},
-		nil, allowAll(), nil, nil, nil,
-	)
+	h := hlsMasterHandler(hlsMasterServe{
+		tokens: &fakeTokenVerifier{err: errTest},
+		libSvc: &fakeMediaStreamsGetter{},
+		libraryAccess: allowAll(),
+	})
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/media/m1/master.m3u8", nil)
 	req.SetPathValue("id", "m1")
 	req.Header.Set("Authorization", "Bearer bad")
@@ -2331,11 +2331,11 @@ func TestHLSMasterHandler_InvalidToken_403(t *testing.T) {
 }
 
 func TestHLSMasterHandler_NotFound_404(t *testing.T) {
-	h := hlsMasterHandler(
-		&fakeTokenVerifier{claims: testClaims(false)},
-		&fakeMediaStreamsGetter{itemErr: errTest},
-		nil, allowAll(), nil, nil, nil,
-	)
+	h := hlsMasterHandler(hlsMasterServe{
+		tokens: &fakeTokenVerifier{claims: testClaims(false)},
+		libSvc: &fakeMediaStreamsGetter{itemErr: errTest},
+		libraryAccess: allowAll(),
+	})
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/media/m1/master.m3u8", nil)
 	req.SetPathValue("id", "m1")
 	req.Header.Set("Authorization", "Bearer tok")
@@ -2347,11 +2347,11 @@ func TestHLSMasterHandler_NotFound_404(t *testing.T) {
 }
 
 func TestHLSMasterHandler_IDOR_403(t *testing.T) {
-	h := hlsMasterHandler(
-		&fakeTokenVerifier{claims: testClaims(false)},
-		&fakeMediaStreamsGetter{item: &domainlibrary.MediaItem{ID: "m1", LibraryID: "lib-x", FilePath: "/a"}},
-		nil, denyAll(), nil, nil, nil,
-	)
+	h := hlsMasterHandler(hlsMasterServe{
+		tokens: &fakeTokenVerifier{claims: testClaims(false)},
+		libSvc: &fakeMediaStreamsGetter{item: &domainlibrary.MediaItem{ID: "m1", LibraryID: "lib-x", FilePath: "/a"}},
+		libraryAccess: denyAll(),
+	})
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/media/m1/master.m3u8", nil)
 	req.SetPathValue("id", "m1")
 	req.Header.Set("Authorization", "Bearer tok")

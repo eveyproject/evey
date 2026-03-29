@@ -177,7 +177,10 @@ func (s *HTTPServer) RegisterRoutes(mux *http.ServeMux, gwMux http.Handler) {
 	mux.HandleFunc("POST /api/v1/media/{id}/stream-token", streamTokenHandler(s.TokenGen, s.StreamTokenStore, s.LibraryAccessRepo, s.LibQuerySvc))
 
 	transcodeThrottle := apptranscoding.NewTranscodeThrottle()
-	mux.HandleFunc("GET /api/v1/media/{id}/transcode", transcodeHandler(s.TokenGen, s.LibQuerySvc, s.BaseURL, s.LibraryAccessRepo, transcodeThrottle, s.UserMaxStreams))
+	mux.HandleFunc("GET /api/v1/media/{id}/transcode", transcodeHandler(transcodeServe{
+		tokens: s.TokenGen, libSvc: s.LibQuerySvc, baseURL: s.BaseURL,
+		libraryAccess: s.LibraryAccessRepo, throttle: transcodeThrottle, userMaxStreams: s.UserMaxStreams,
+	}))
 	mux.HandleFunc("GET /api/v1/media/{id}/subtitle/{track}", subtitleHandler(s.TokenGen, s.LibQuerySvc, s.BaseURL, s.LibraryAccessRepo))
 	mux.HandleFunc("GET /api/v1/media/{id}/chapters", chaptersHandler(s.TokenGen, s.LibCmdSvc, s.BaseURL, s.LibraryAccessRepo, s.LibQuerySvc))
 	mux.HandleFunc("GET /api/v1/media/{id}/trickplay", trickplayManifestHandler(s.TokenGen, s.LibCmdSvc, s.BaseURL, s.LibraryAccessRepo, s.LibQuerySvc))
@@ -185,7 +188,11 @@ func (s *HTTPServer) RegisterRoutes(mux *http.ServeMux, gwMux http.Handler) {
 	mux.HandleFunc("POST /api/v1/admin/media/{id}/trickplay/generate", requireAdmin(s.TokenGen, ratelimit.MiddlewareFunc(s.AdminHeavyRL, trickplayGenerateHandler(s.TokenGen, s.LibCmdSvc, s.ServerCtx))))
 	mux.HandleFunc("POST /api/v1/admin/trickplay/generate-all", requireAdmin(s.TokenGen, ratelimit.MiddlewareFunc(s.AdminHeavyRL, trickplayGenerateAllHandler(s.TokenGen, s.LibCmdSvc))))
 	mux.HandleFunc("GET /api/v1/media/{id}/playback-info", playbackInfoHandler(s.TokenGen, s.LibQuerySvc, s.LibraryAccessRepo))
-	mux.HandleFunc("GET /api/v1/media/{id}/hls/master.m3u8", hlsMasterHandler(s.TokenGen, s.LibQuerySvc, s.HLSManager, s.LibraryAccessRepo, s.UserMaxStreams, s.AudioNormalizeGetter, s.UserBitrate))
+	mux.HandleFunc("GET /api/v1/media/{id}/hls/master.m3u8", hlsMasterHandler(hlsMasterServe{
+		tokens: s.TokenGen, libSvc: s.LibQuerySvc, hlsManager: s.HLSManager,
+		libraryAccess: s.LibraryAccessRepo, userMaxStreams: s.UserMaxStreams,
+		audioNormalizeGetter: s.AudioNormalizeGetter, bitrateGetter: s.UserBitrate,
+	}))
 	hlsMediaCache := NewCachedMediaItemGetter(s.LibQuerySvc)
 	hlsAccessCache := NewCachedLibraryAccessChecker(s.LibraryAccessRepo)
 	mux.HandleFunc("GET /api/v1/media/{id}/hls/{file}", hlsSegmentHandler(s.TokenGen, hlsMediaCache, s.HLSManager, hlsAccessCache))
