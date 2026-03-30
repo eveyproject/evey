@@ -1,11 +1,162 @@
-import { View, Text } from "react-native";
+import { useState } from "react";
+import {
+  View,
+  Text,
+  TextInput,
+  FlatList,
+  Image,
+  TouchableOpacity,
+  ActivityIndicator,
+  StyleSheet,
+} from "react-native";
+import { useRouter } from "expo-router";
+import { useLibraryServiceSearchMedia } from "@evey/api";
+import type { V1MediaItem } from "@evey/api";
 import { useTheme } from "../../../src/providers/ThemeProvider";
+import { useDebounce } from "../../../src/hooks/useDebounce";
+
+function getPoster(item: V1MediaItem): string | undefined {
+  return item.artwork?.find((a) => a.type === "ARTWORK_TYPE_PRIMARY")?.url;
+}
+
+function formatType(type?: string): string {
+  if (!type) return "";
+  return type.replace("MEDIA_ITEM_TYPE_", "").toLowerCase();
+}
 
 export default function SearchScreen() {
   const theme = useTheme();
+  const router = useRouter();
+  const [query, setQuery] = useState("");
+  const debouncedQuery = useDebounce(query, 300);
+
+  const { data, isLoading } = useLibraryServiceSearchMedia(
+    { query: debouncedQuery, limit: 30 },
+    { query: { enabled: debouncedQuery.length > 0 } },
+  );
+
+  const items = data?.items ?? [];
+
+  const renderItem = ({ item }: { item: V1MediaItem }) => {
+    const poster = getPoster(item);
+    return (
+      <TouchableOpacity
+        style={[
+          styles.row,
+          {
+            backgroundColor: theme.colors.surface,
+            borderRadius: theme.radii.md,
+          },
+        ]}
+        activeOpacity={0.7}
+        onPress={() => router.push(`/media/${item.id}`)}
+      >
+        {poster ? (
+          <Image
+            source={{ uri: poster }}
+            style={[styles.thumb, { borderRadius: theme.radii.sm }]}
+            resizeMode="cover"
+          />
+        ) : (
+          <View
+            style={[
+              styles.thumb,
+              {
+                borderRadius: theme.radii.sm,
+                backgroundColor: theme.colors.surfaceRaised,
+                justifyContent: "center",
+                alignItems: "center",
+              },
+            ]}
+          >
+            <Text style={{ color: theme.colors.textMuted, fontSize: 10 }}>
+              ?
+            </Text>
+          </View>
+        )}
+        <View style={styles.info}>
+          <Text
+            style={[styles.title, { color: theme.colors.text }]}
+            numberOfLines={1}
+          >
+            {item.title}
+          </Text>
+          <Text style={[styles.meta, { color: theme.colors.textMuted }]}>
+            {[item.year, formatType(item.type)].filter(Boolean).join(" · ")}
+          </Text>
+        </View>
+      </TouchableOpacity>
+    );
+  };
+
   return (
-    <View style={{ flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: theme.colors.bg }}>
-      <Text style={{ color: theme.colors.text, fontSize: 18 }}>Search</Text>
+    <View style={[styles.container, { backgroundColor: theme.colors.bg }]}>
+      <TextInput
+        style={[
+          styles.input,
+          {
+            backgroundColor: theme.colors.surface,
+            color: theme.colors.text,
+            borderRadius: theme.radii.md,
+            marginTop: theme.spacing.xl,
+          },
+        ]}
+        placeholder="Search for movies, shows, and more"
+        placeholderTextColor={theme.colors.textMuted}
+        value={query}
+        onChangeText={setQuery}
+        autoCapitalize="none"
+        autoCorrect={false}
+        returnKeyType="search"
+      />
+
+      {isLoading && debouncedQuery.length > 0 ? (
+        <View style={styles.center}>
+          <ActivityIndicator color={theme.colors.accent} />
+        </View>
+      ) : debouncedQuery.length === 0 ? (
+        <View style={styles.center}>
+          <Text style={{ color: theme.colors.textMuted, fontSize: 15 }}>
+            Search for movies, shows, and more
+          </Text>
+        </View>
+      ) : items.length === 0 ? (
+        <View style={styles.center}>
+          <Text style={{ color: theme.colors.textMuted }}>No results</Text>
+        </View>
+      ) : (
+        <FlatList
+          data={items}
+          keyExtractor={(item) => item.id ?? ""}
+          renderItem={renderItem}
+          contentContainerStyle={{ padding: theme.spacing.md }}
+          ItemSeparatorComponent={() => (
+            <View style={{ height: theme.spacing.sm }} />
+          )}
+          keyboardShouldPersistTaps="handled"
+        />
+      )}
     </View>
   );
 }
+
+const styles = StyleSheet.create({
+  container: { flex: 1 },
+  center: { flex: 1, justifyContent: "center", alignItems: "center" },
+  input: {
+    marginHorizontal: 16,
+    marginBottom: 8,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    fontSize: 16,
+  },
+  row: {
+    flexDirection: "row",
+    alignItems: "center",
+    padding: 10,
+  },
+  thumb: { width: 48, height: 72, marginRight: 12 },
+  info: { flex: 1 },
+  title: { fontSize: 15, fontWeight: "600" },
+  meta: { fontSize: 12, marginTop: 2 },
+});
