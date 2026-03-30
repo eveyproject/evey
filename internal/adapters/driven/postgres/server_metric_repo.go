@@ -32,7 +32,7 @@ func (r *ServerMetricRepository) GetByTimeRange(ctx context.Context, from, to ti
 		`SELECT id, cpu_percent, memory_used_bytes, memory_total_bytes, active_streams, active_transcodes,
 		 bandwidth_bps, storage_used_bytes, storage_total_bytes, recorded_at
 		 FROM server_metrics WHERE recorded_at >= $1 AND recorded_at <= $2
-		 ORDER BY recorded_at`, from, to)
+		 ORDER BY recorded_at LIMIT 10000`, from, to)
 	if err != nil {
 		return nil, err
 	}
