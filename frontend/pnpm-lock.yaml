@@ -41,9 +41,15 @@ importers:
       expo-file-system:
         specifier: 55.0.10
         version: 55.0.10(expo@55.0.9)(react-native@0.83.1(@babel/core@7.29.0)(@react-native/metro-config@0.84.1(@babel/core@7.29.0))(@types/react@19.1.0)(react@19.2.4))
+      expo-image:
+        specifier: ~55.0.6
+        version: 55.0.6(expo@55.0.9)(react-native@0.83.1(@babel/core@7.29.0)(@react-native/metro-config@0.84.1(@babel/core@7.29.0))(@types/react@19.1.0)(react@19.2.4))(react@19.2.4)
       expo-router:
         specifier: 55.0.4
         version: 55.0.4(f74104e7ba8635d7f0e5d6b43d64c164)
+      expo-screen-orientation:
+        specifier: 55.0.9
+        version: 55.0.9(expo@55.0.9)(react-native@0.83.1(@babel/core@7.29.0)(@react-native/metro-config@0.84.1(@babel/core@7.29.0))(@types/react@19.1.0)(react@19.2.4))
       expo-secure-store:
         specifier: 55.0.8
         version: 55.0.8(expo@55.0.9)
@@ -3293,6 +3299,12 @@ packages:
         optional: true
       react-server-dom-webpack:
         optional: true
+
+  expo-screen-orientation@55.0.9:
+    resolution: {integrity: sha512-eWCBhSV+oCmAJKbG5x/pS8Go76vJmq0Q1uRYYsk+8JaOQvl6HDS7O4yofH5Oq8ic3IZ4Qxjnheisqwf08M4xnA==}
+    peerDependencies:
+      expo: '*'
+      react-native: '*'
 
   expo-secure-store@55.0.8:
     resolution: {integrity: sha512-8w9tQe8U6oRo5YIzqCqVhRrOnfoODNDoitBtLXEx+zS6WLUnkRq5kH7ViJuOgiM7PzLr9pvAliRiDOKyvFbTuQ==}
@@ -9541,6 +9553,11 @@ snapshots:
       - '@types/react-dom'
       - expo-font
       - supports-color
+
+  expo-screen-orientation@55.0.9(expo@55.0.9)(react-native@0.83.1(@babel/core@7.29.0)(@react-native/metro-config@0.84.1(@babel/core@7.29.0))(@types/react@19.1.0)(react@19.2.4)):
+    dependencies:
+      expo: 55.0.9(@babel/core@7.29.0)(@expo/dom-webview@55.0.3)(@expo/metro-runtime@55.0.6)(expo-router@55.0.4)(react-dom@19.2.4(react@19.2.4))(react-native@0.83.1(@babel/core@7.29.0)(@react-native/metro-config@0.84.1(@babel/core@7.29.0))(@types/react@19.1.0)(react@19.2.4))(react@19.2.4)(typescript@5.7.3)
+      react-native: 0.83.1(@babel/core@7.29.0)(@react-native/metro-config@0.84.1(@babel/core@7.29.0))(@types/react@19.1.0)(react@19.2.4)
 
   expo-secure-store@55.0.8(expo@55.0.9):
     dependencies:

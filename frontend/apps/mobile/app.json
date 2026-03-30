@@ -5,7 +5,10 @@
     "version": "1.0.0",
     "orientation": "default",
     "scheme": "evey",
-    "platforms": ["ios", "android"],
+    "platforms": [
+      "ios",
+      "android"
+    ],
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.evey.app"
@@ -16,6 +19,11 @@
         "backgroundColor": "#111827"
       }
     },
-    "plugins": ["expo-router", "expo-video", "expo-secure-store"]
+    "plugins": [
+      "expo-router",
+      "expo-video",
+      "expo-secure-store",
+      "expo-image"
+    ]
   }
 }

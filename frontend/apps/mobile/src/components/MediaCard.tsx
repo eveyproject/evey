@@ -1,5 +1,6 @@
 import { memo, useEffect, useState } from "react";
-import { View, Text, Image, Pressable, Dimensions } from "react-native";
+import { View, Text, Pressable, Dimensions } from "react-native";
+import { Image } from "expo-image";
 import type { V1MediaItem } from "@evey/api";
 import { useTheme } from "../providers/ThemeProvider";
 import { getServerUrl } from "../lib/server-config";
@@ -40,7 +41,8 @@ export const MediaCard = memo(function MediaCard({ item, onPress, width, watchPe
           <Image
             source={{ uri: imageUri }}
             style={{ width: cardWidth, height: cardHeight }}
-            resizeMode="cover"
+            contentFit="cover"
+            transition={200}
           />
         )}
         {watchPercent != null && watchPercent > 0 && (

@@ -1,5 +1,7 @@
-import { ScrollView, View, ActivityIndicator, RefreshControl } from "react-native";
+import { ScrollView, View, RefreshControl } from "react-native";
+import { Skeleton } from "../../../src/components/Skeleton";
 import { useCallback, useMemo, useState } from "react";
+import { Dimensions } from "react-native";
 import { router } from "expo-router";
 import {
   usePlaybackServiceGetResumeItems,
@@ -45,9 +47,23 @@ export default function HomeScreen() {
   }
 
   if (isLoading && !refreshing) {
+    const skeletonW = Dimensions.get("window").width * 0.3;
+    const skeletonH = skeletonW * 1.5;
     return (
-      <View style={{ flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: theme.colors.bg }}>
-        <ActivityIndicator color={theme.colors.accent} size="large" />
+      <View style={{ flex: 1, backgroundColor: theme.colors.bg, paddingTop: theme.spacing.lg }}>
+        {Array.from({ length: 3 }).map((_, row) => (
+          <View key={row} style={{ marginBottom: theme.spacing.lg }}>
+            <Skeleton width={120} height={18} borderRadius={4} style={{ marginLeft: theme.spacing.md, marginBottom: theme.spacing.sm }} />
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: theme.spacing.md }}>
+              {Array.from({ length: 3 }).map((_, col) => (
+                <View key={col} style={{ marginRight: theme.spacing.sm }}>
+                  <Skeleton width={skeletonW} height={skeletonH} borderRadius={theme.radii.md} />
+                  <Skeleton width={skeletonW * 0.7} height={13} borderRadius={4} style={{ marginTop: 4 }} />
+                </View>
+              ))}
+            </ScrollView>
+          </View>
+        ))}
       </View>
     );
   }

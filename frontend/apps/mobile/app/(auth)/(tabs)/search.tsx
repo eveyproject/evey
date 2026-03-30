@@ -4,11 +4,11 @@ import {
   Text,
   TextInput,
   FlatList,
-  Image,
   TouchableOpacity,
-  ActivityIndicator,
   StyleSheet,
 } from "react-native";
+import { Image } from "expo-image";
+import { Skeleton } from "../../../src/components/Skeleton";
 import { useRouter } from "expo-router";
 import { useLibraryServiceSearchMedia } from "@evey/api";
 import type { V1MediaItem } from "@evey/api";
@@ -55,7 +55,8 @@ export default function SearchScreen() {
           <Image
             source={{ uri: poster }}
             style={[styles.thumb, { borderRadius: theme.radii.sm }]}
-            resizeMode="cover"
+            contentFit="cover"
+            transition={200}
           />
         ) : (
           <View
@@ -111,8 +112,16 @@ export default function SearchScreen() {
       />
 
       {isLoading && debouncedQuery.length > 0 ? (
-        <View style={styles.center}>
-          <ActivityIndicator color={theme.colors.accent} />
+        <View style={{ padding: theme.spacing.md }}>
+          {Array.from({ length: 6 }).map((_, i) => (
+            <View key={i} style={{ flexDirection: "row", alignItems: "center", padding: 10, marginBottom: theme.spacing.sm }}>
+              <Skeleton width={48} height={72} borderRadius={theme.radii.sm} />
+              <View style={{ flex: 1, marginLeft: 12 }}>
+                <Skeleton width="70%" height={15} borderRadius={4} />
+                <Skeleton width="40%" height={12} borderRadius={4} style={{ marginTop: 6 }} />
+              </View>
+            </View>
+          ))}
         </View>
       ) : debouncedQuery.length === 0 ? (
         <View style={styles.center}>

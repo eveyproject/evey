@@ -3,13 +3,13 @@ import {
   View,
   Text,
   ScrollView,
-  Image,
   Pressable,
   Dimensions,
-  ActivityIndicator,
   FlatList,
   StyleSheet,
 } from "react-native";
+import { Image } from "expo-image";
+import { Skeleton } from "../../../src/components/Skeleton";
 import { useLocalSearchParams, router } from "expo-router";
 import {
   useLibraryServiceGetMediaItem,
@@ -58,6 +58,8 @@ function CastCard({ person, serverUrl }: { person: V1MediaPerson; serverUrl: str
         <Image
           source={{ uri: person.thumbUrl }}
           style={{ width: 64, height: 64, borderRadius: 32, backgroundColor: theme.colors.surface }}
+          contentFit="cover"
+          transition={200}
         />
       ) : (
         <View style={{ width: 64, height: 64, borderRadius: 32, backgroundColor: theme.colors.surface, justifyContent: "center", alignItems: "center" }}>
@@ -90,6 +92,8 @@ function EpisodeRow({ item, serverUrl, theme }: { item: V1MediaItem; serverUrl: 
       <Image
         source={{ uri: item.id ? artworkUrl(serverUrl, item.id, "primary") : undefined }}
         style={{ width: 120, height: 68, borderRadius: theme.radii.sm, backgroundColor: theme.colors.surface }}
+        contentFit="cover"
+        transition={200}
       />
       <View style={{ flex: 1, marginLeft: theme.spacing.sm, justifyContent: "center" }}>
         <Text style={{ color: theme.colors.text, fontSize: 14, fontWeight: "600" }} numberOfLines={1}>
@@ -167,8 +171,14 @@ export default function MediaDetailScreen() {
 
   if (isLoading || !media) {
     return (
-      <View style={{ flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: theme.colors.bg }}>
-        <ActivityIndicator size="large" color={theme.colors.accent} />
+      <View style={{ flex: 1, backgroundColor: theme.colors.bg }}>
+        <Skeleton width={SCREEN_WIDTH} height={HERO_HEIGHT} borderRadius={0} />
+        <View style={{ paddingHorizontal: theme.spacing.md, marginTop: theme.spacing.md }}>
+          <Skeleton width={SCREEN_WIDTH * 0.6} height={24} borderRadius={theme.radii.sm} />
+          <Skeleton width={SCREEN_WIDTH * 0.4} height={14} borderRadius={theme.radii.sm} style={{ marginTop: theme.spacing.sm }} />
+          <Skeleton width={SCREEN_WIDTH - theme.spacing.md * 2} height={44} borderRadius={theme.radii.md} style={{ marginTop: theme.spacing.md }} />
+          <Skeleton width={SCREEN_WIDTH - theme.spacing.md * 2} height={60} borderRadius={theme.radii.sm} style={{ marginTop: theme.spacing.md }} />
+        </View>
       </View>
     );
   }
@@ -188,7 +198,8 @@ export default function MediaDetailScreen() {
           <Image
             source={{ uri: artworkUrl(serverUrl, id, "backdrop") }}
             style={{ width: SCREEN_WIDTH, height: HERO_HEIGHT }}
-            resizeMode="cover"
+            contentFit="cover"
+            transition={300}
           />
         ) : (
           <View style={{ width: SCREEN_WIDTH, height: HERO_HEIGHT, backgroundColor: theme.colors.surface }} />

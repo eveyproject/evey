@@ -3,12 +3,13 @@ import {
   View,
   Text,
   FlatList,
-  Image,
   TouchableOpacity,
   ActivityIndicator,
   Dimensions,
   StyleSheet,
 } from "react-native";
+import { Image } from "expo-image";
+import { Skeleton } from "../../../src/components/Skeleton";
 import { useLocalSearchParams, useRouter, Stack } from "expo-router";
 import {
   useLibraryServiceGetLibrary,
@@ -100,7 +101,8 @@ export default function LibraryDetailScreen() {
                   borderRadius: theme.radii.sm,
                 },
               ]}
-              resizeMode="cover"
+              contentFit="cover"
+              transition={200}
             />
           ) : (
             <View
@@ -142,8 +144,13 @@ export default function LibraryDetailScreen() {
         }}
       />
       {isLoading && page === 1 ? (
-        <View style={styles.center}>
-          <ActivityIndicator color={theme.colors.accent} size="large" />
+        <View style={{ flexDirection: "row", flexWrap: "wrap", paddingTop: SPACING }}>
+          {Array.from({ length: 9 }).map((_, i) => (
+            <View key={i} style={{ marginLeft: SPACING, marginBottom: SPACING, alignItems: "center", width: ITEM_WIDTH }}>
+              <Skeleton width={ITEM_WIDTH} height={POSTER_HEIGHT} borderRadius={theme.radii.sm} />
+              <Skeleton width={ITEM_WIDTH * 0.7} height={12} borderRadius={4} style={{ marginTop: 6 }} />
+            </View>
+          ))}
         </View>
       ) : (
         <FlatList
