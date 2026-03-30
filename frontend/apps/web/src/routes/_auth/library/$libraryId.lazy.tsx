@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback } from "react";
+import { useState, useEffect, useMemo, useCallback, memo } from "react";
 import { ArrowUpNarrowWide, ArrowDownWideNarrow, Folder, List, LayoutGrid, Star, ChevronRight } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { createLazyFileRoute, Link, useNavigate } from "@tanstack/react-router";
@@ -143,7 +143,7 @@ function ViewToggleButton({
   );
 }
 
-function ListRow({ item }: { item: Record<string, unknown> }) {
+const ListRow = memo(function ListRow({ item }: { item: Record<string, unknown> }) {
   const accessToken = useAuthStore((s) => s.accessToken);
   const title = (item.title as string) ?? "";
   const year = item.year as number | undefined;
@@ -193,7 +193,7 @@ function ListRow({ item }: { item: Record<string, unknown> }) {
       </span>
     </Link>
   );
-}
+});
 
 function BulkPlaylistModal({
   open,
