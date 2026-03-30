@@ -150,11 +150,26 @@ function PreviewPanel({
       {preview.permissions?.includes("subprocess") && <SubprocessWarning />}
 
       {preview.analysis?.issues && preview.analysis.issues.length > 0 && (
-        <div className="flex flex-col gap-1 text-xs text-[var(--text-muted)]">
-          <span className="font-semibold">{t("admin.plugins.staticAnalysis")}</span>
-          {preview.analysis.issues.map((issue, i) => (
-            <span key={i}>{issue}</span>
-          ))}
+        <div className="flex flex-col gap-1.5 text-xs">
+          <span className="font-semibold text-[var(--text-muted)]">{t("admin.plugins.staticAnalysis")}</span>
+          {preview.analysis.issues.map((issue, i) => {
+            const isCritical = issue.startsWith("[CRITICAL]");
+            const isWarning = issue.startsWith("[WARNING]");
+            return (
+              <span
+                key={i}
+                className={
+                  isCritical
+                    ? "text-[var(--badge-error-text,#fca5a5)]"
+                    : isWarning
+                      ? "text-[var(--badge-warning-text,#fde047)]"
+                      : "text-[var(--text-muted)]"
+                }
+              >
+                {issue}
+              </span>
+            );
+          })}
         </div>
       )}
 
@@ -323,9 +338,20 @@ function InstallPluginForm({ onSuccess }: { onSuccess: () => void }) {
                 {error}
               </p>
               {blockedIssues.length > 0 && (
-                <ul className="flex flex-col gap-1 text-xs list-disc pl-4 text-[var(--text-muted)]">
+                <ul className="flex flex-col gap-1 text-xs list-disc pl-4">
                   {blockedIssues.map((issue, i) => (
-                    <li key={i}>{issue}</li>
+                    <li
+                      key={i}
+                      className={
+                        issue.startsWith("[CRITICAL]")
+                          ? "text-[var(--badge-error-text,#fca5a5)]"
+                          : issue.startsWith("[WARNING]")
+                            ? "text-[var(--badge-warning-text,#fde047)]"
+                            : "text-[var(--text-muted)]"
+                      }
+                    >
+                      {issue}
+                    </li>
                   ))}
                 </ul>
               )}
@@ -457,7 +483,7 @@ function PluginsPage() {
         </div>
       )}
 
-      <Modal open={showModal} onClose={() => setShowModal(false)} title={t("admin.plugins.installPlugin")} size="lg">
+      <Modal open={showModal} onClose={() => setShowModal(false)} title={t("admin.plugins.installPlugin")} size="xl">
         <InstallPluginForm onSuccess={handleInstallSuccess} />
       </Modal>
 

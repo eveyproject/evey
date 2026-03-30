@@ -3,13 +3,13 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { ThemeProvider, isPluginTheme, pluginNameFromTheme, pluginThemeName } from "./ThemeProvider";
 
 let mockTheme = "default";
+let mockPluginId: string | null = null;
 const mockApplyThemeToDOM = vi.fn();
 const mockUnloadAllPluginThemes = vi.fn();
 const mockLoadPluginTheme = vi.fn();
-const mockGetPluginIdForTheme = vi.fn();
 
 vi.mock("@evey/store", () => ({
-  useThemeStore: () => ({ theme: mockTheme, customVars: undefined }),
+  useThemeStore: () => ({ theme: mockTheme, pluginId: mockPluginId, customVars: undefined }),
 }));
 
 vi.mock("@evey/theme", () => ({
@@ -22,13 +22,10 @@ vi.mock("@/features/plugins/theme-loader", () => ({
   unloadAllPluginThemes: () => mockUnloadAllPluginThemes(),
 }));
 
-vi.mock("./ThemeSelector", () => ({
-  getPluginIdForTheme: (...args: unknown[]) => mockGetPluginIdForTheme(...args),
-}));
-
 describe("ThemeProvider", () => {
   beforeEach(() => {
     mockTheme = "default";
+    mockPluginId = null;
     vi.clearAllMocks();
     document.documentElement.removeAttribute("data-theme");
   });
@@ -47,7 +44,7 @@ describe("ThemeProvider", () => {
 
   it("applies plugin theme with data-theme attribute", () => {
     mockTheme = "plugin:my-theme";
-    mockGetPluginIdForTheme.mockReturnValue("plugin-123");
+    mockPluginId = "plugin-123";
     render(<ThemeProvider><span>child</span></ThemeProvider>);
     expect(document.documentElement.getAttribute("data-theme")).toBe("my-theme");
     expect(mockLoadPluginTheme).toHaveBeenCalledWith("plugin-123");

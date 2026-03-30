@@ -30,19 +30,9 @@ function usePluginThemes() {
   });
 }
 
-// Store plugin ID → name mapping for the theme loader
-const pluginThemeMap = new Map<string, string>();
-
-export function getPluginIdForTheme(pluginName: string): string | undefined {
-  return pluginThemeMap.get(pluginName);
-}
-
 export function ThemeSelector() {
   const { theme, setTheme } = useThemeStore();
   const { data: pluginThemes } = usePluginThemes();
-
-  // Keep the ID mapping up to date
-  pluginThemes?.forEach((pt) => pluginThemeMap.set(pt.name, pt.id));
 
   return (
     <div className="flex flex-col gap-2">
@@ -66,7 +56,7 @@ export function ThemeSelector() {
           return (
             <button
               key={pt.id}
-              onClick={() => setTheme(themeKey)}
+              onClick={() => setTheme(themeKey, pt.id)}
               className={`px-3 py-1.5 rounded-[var(--radius-md)] text-sm transition-colors-fast ${
                 theme === themeKey
                   ? "bg-[var(--accent)] text-[var(--filter-active-text)]"
