@@ -1,0 +1,15 @@
+serverConnect:
+  title: Conectar al servidor
+  connect: Conectar
+  connectionFailed: Conexion fallida
+  unreachable: No se puede alcanzar el servidor
+settings:
+  server: Servidor
+  changeServer: Cambiar servidor
+  disconnectConfirm: Desconectar de este servidor?
+  disconnect: Desconectar
+  signOut: Cerrar sesion
+  signOutConfirm: Estas seguro?
+  about: Acerca de
+  appVersion: Version de la app
+  serverVersion: Version del servidor

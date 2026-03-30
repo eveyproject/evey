@@ -1,16 +1,18 @@
 import { useState } from "react";
 import { View, Text, TextInput, Pressable, Alert } from "react-native";
 import { router } from "expo-router";
+import { useTranslation } from "react-i18next";
 import { useTheme } from "../src/providers/ThemeProvider";
 
 export default function ForgotPassword() {
   const theme = useTheme();
+  const { t } = useTranslation();
   const [email, setEmail] = useState("");
 
   function handleSubmit() {
     if (!email.trim()) return;
     // TODO: call password reset API
-    Alert.alert("Sent", "If an account exists, a reset link was sent.", [
+    Alert.alert(t("auth.forgotPassword.checkEmail"), t("auth.forgotPassword.emailSent"), [
       { text: "OK", onPress: () => router.back() },
     ]);
   }
@@ -18,10 +20,10 @@ export default function ForgotPassword() {
   return (
     <View style={{ flex: 1, justifyContent: "center", padding: theme.spacing.xl, backgroundColor: theme.colors.bg }}>
       <Text style={{ fontSize: 24, fontWeight: "bold", color: theme.colors.text, marginBottom: theme.spacing.lg }}>
-        Reset Password
+        {t("auth.forgotPassword.title")}
       </Text>
       <TextInput
-        placeholder="Email address"
+        placeholder={t("auth.forgotPassword.email")}
         placeholderTextColor={theme.colors.textMuted}
         value={email}
         onChangeText={setEmail}
@@ -46,7 +48,7 @@ export default function ForgotPassword() {
           alignItems: "center",
         }}
       >
-        <Text style={{ color: "#fff", fontWeight: "600", fontSize: 16 }}>Send Reset Link</Text>
+        <Text style={{ color: "#fff", fontWeight: "600", fontSize: 16 }}>{t("auth.forgotPassword.submit")}</Text>
       </Pressable>
     </View>
   );
