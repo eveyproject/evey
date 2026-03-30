@@ -29,6 +29,7 @@ type adminSystemDelegate struct {
 	startTime      time.Time
 	ffmpegPath     string
 	translator     *eveyi18n.Translator
+	smtpConfigured bool
 }
 
 func (d *adminSystemDelegate) GetSetupStatus(ctx context.Context, _ *eveyv1.GetSetupStatusRequest) (*eveyv1.SetupStatusResponse, error) {
@@ -51,13 +52,15 @@ func (d *adminSystemDelegate) GetSystemInfo(ctx context.Context, _ *eveyv1.GetSy
 	}
 
 	info := &eveyv1.SystemInfo{
-		Version:       d.version,
-		Os:            runtime.GOOS,
-		Arch:          runtime.GOARCH,
-		GoVersion:     runtime.Version(),
-		SetupComplete: admins > 0,
-		UptimeSeconds: uptimeSecs,
-		FfmpegVersion: sysinfo.FFmpegVersion(d.ffmpegPath),
+		Version:                  d.version,
+		Os:                       runtime.GOOS,
+		Arch:                     runtime.GOARCH,
+		GoVersion:                runtime.Version(),
+		SetupComplete:            admins > 0,
+		UptimeSeconds:            uptimeSecs,
+		FfmpegVersion:            sysinfo.FFmpegVersion(d.ffmpegPath),
+		PasswordRecoveryEnabled:  d.userCmd.IsPasswordRecoveryEnabled(ctx),
+		SmtpConfigured:           d.smtpConfigured,
 	}
 
 	if d.transcodingSvc != nil {

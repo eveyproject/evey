@@ -70,6 +70,7 @@ type GRPCServer struct {
 	serverCfgHndlr  *serverConfigHandler
 	translator      *eveyi18n.Translator
 	serverCtx       context.Context
+	smtpConfigured  bool
 }
 
 func (s *GRPCServer) SetServerConfigHandler(h *serverConfigHandler) {
@@ -97,6 +98,10 @@ func (s *GRPCServer) SetServerCtx(ctx context.Context) {
 
 func (s *GRPCServer) SetTranslator(t *eveyi18n.Translator) {
 	s.translator = t
+}
+
+func (s *GRPCServer) SetSMTPConfigured(v bool) {
+	s.smtpConfigured = v
 }
 
 func NewGRPCServer(
@@ -205,6 +210,7 @@ func (s *GRPCServer) RegisterServices() {
 		heavyOpSemaphore: make(chan struct{}, 1),
 		translator:       s.translator,
 		serverCtx:        srvCtx,
+		smtpConfigured:   s.smtpConfigured,
 	})
 	eveyv1.RegisterActivityServiceServer(s.server, &activityHandler{svc: s.activityQuery, translator: s.translator})
 	eveyv1.RegisterNotificationServiceServer(s.server, &notificationHandler{cmd: s.notifCmd, query: s.notifQuery})

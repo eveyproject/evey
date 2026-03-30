@@ -34,9 +34,34 @@ login:
   invalidCredentials: Invalid username or password
   passwordTooShort: Password must be at least 8 characters
   loginFailed: Login failed. Please try again.
+  accountLocked: Too many failed attempts. Try again later.
   ssoFailed: SSO sign-in failed. Please try again.
   or: or
   signInWithSSO: Sign in with SSO
+  forgotPassword: Forgot your password?
+forgotPassword:
+  title: Reset Password
+  description: Enter your email address and we'll send you a reset link.
+  email: Email
+  submit: Send Reset Link
+  backToLogin: Back to sign in
+  checkEmail: Check Your Email
+  emailSent: If an account exists with that email, we've sent a password reset link.
+resetPassword:
+  title: Set New Password
+  description: Choose a new password for your account.
+  newPassword: New password
+  confirmPassword: Confirm password
+  submit: Reset Password
+  backToLogin: Back to sign in
+  invalidLink: This reset link is invalid or missing.
+  success: Password Reset!
+  successDescription: Your password has been changed. You can now sign in.
+  goToLogin: Go to Sign In
+  tokenExpired: This reset link has expired. Please request a new one.
+  passwordTooShort: Password must be at least 8 characters.
+  mismatch: Passwords do not match.
+  failed: Password reset failed. Please try again.
 register:
   createAccount: Create Account
   createAccountBtn: Create account

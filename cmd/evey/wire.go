@@ -176,7 +176,7 @@ func buildServices(ctx context.Context, cfg *config.Config, db *sql.DB, rootLog 
 	)
 	userAuthSvc.InitSetupState(context.Background())
 	userSvc := appuser.NewUserService(r.User, r.Profile, r.RefreshToken, hasher, bus)
-	userAccessSvc := appuser.NewAccessService(r.User, r.APIKey, r.InviteLink, r.QuickConnect, hasher, bus)
+	userAccessSvc := appuser.NewAccessService(r.User, r.APIKey, r.InviteLink, r.QuickConnect, hasher, bus).WithProfiles(r.Profile)
 	userQuerySvc := appuser.NewQueryService(r.User, r.Profile, r.APIKey, r.InviteLink, r.QuickConnect)
 
 	var oidcSvc *appuser.OIDCService
@@ -325,11 +325,14 @@ func buildServices(ctx context.Context, cfg *config.Config, db *sql.DB, rootLog 
 		rootLog.Info("Web Push (VAPID) notifications enabled")
 	}
 
-	if cfg.SMTP.Host != "" {
+	smtpConfigured := cfg.SMTP.Host != ""
+	if smtpConfigured {
 		smtpSender := email.NewSMTPSender(cfg.SMTP.Host, cfg.SMTP.Port, cfg.SMTP.Username, cfg.SMTP.Password, cfg.SMTP.From, cfg.SMTP.TLS)
 		email.NewNotificationEmailer(smtpSender, r.Profile, r.User).Register(bus)
+		email.NewPasswordResetEmailer(smtpSender, cfg.Server.BaseURL).Register(bus)
 		rootLog.Info("SMTP email notifications enabled", slog.String("host", cfg.SMTP.Host))
 	}
+	userAuthSvc.WithPasswordReset(r.PasswordResetToken, r.ServerCfg, smtpConfigured)
 
 	feedCmdSvc := appfeed.NewCommandService(r.FeedConfigCmd, r.FeedConfigQuery).WithEventBus(bus)
 	cachedAnalyzer := appfeed.NewCachedAnalyzer(r.WatchHistoryAnalyzer, 5*time.Minute).WithEventBus(bus)

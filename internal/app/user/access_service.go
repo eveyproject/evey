@@ -13,6 +13,7 @@ import (
 
 type AccessService struct {
 	users        user.UserRepository
+	profiles     user.ProfileRepository
 	apiKeys      user.APIKeyRepository
 	invites      user.InviteLinkRepository
 	quickConnect user.QuickConnectRepository
@@ -36,6 +37,11 @@ func NewAccessService(
 		hasher:       hasher,
 		events:       events,
 	}
+}
+
+func (s *AccessService) WithProfiles(profiles user.ProfileRepository) *AccessService {
+	s.profiles = profiles
+	return s
 }
 
 func (s *AccessService) CreateInviteLink(ctx context.Context, link *user.InviteLink) error {
@@ -86,6 +92,24 @@ func (s *AccessService) RegisterWithInvite(ctx context.Context, token, username,
 	evtInviteCreated := user.UserCreated{UserID: u.ID, Username: u.Username, OccurredAt: time.Now()}
 	if err := s.events.Publish(ctx, evtInviteCreated); err != nil {
 		slog.Warn("publish event", slog.String("event", evtInviteCreated.EventName()), slog.Any("err", err))
+	}
+
+	if s.profiles != nil {
+		p := &user.Profile{
+			ID:        id.New("prf-"),
+			UserID:    u.ID,
+			Name:      u.Username,
+			IsDefault: true,
+			CreatedAt: time.Now(),
+		}
+		if pErr := s.profiles.Create(ctx, p); pErr != nil {
+			slog.Warn("auto-create profile", slog.String("userID", u.ID), slog.Any("err", pErr))
+		} else {
+			evtProfile := user.ProfileCreated{ProfileID: p.ID, UserID: p.UserID, Name: p.Name, OccurredAt: time.Now()}
+			if err := s.events.Publish(ctx, evtProfile); err != nil {
+				slog.Warn("publish event", slog.String("event", evtProfile.EventName()), slog.Any("err", err))
+			}
+		}
 	}
 	return u, nil
 }

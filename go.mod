@@ -1,6 +1,6 @@
 module github.com/gravity-zero/evey
 
-go 1.25.8
+go 1.26.1
 
 require (
 	github.com/SherClockHolmes/webpush-go v1.4.0

@@ -82,3 +82,13 @@ type APIKeyRevoked struct {
 }
 
 func (e APIKeyRevoked) EventName() string { return "user.apikey.revoked" }
+
+type PasswordResetRequested struct {
+	UserID     string
+	Email      string
+	ResetToken string // raw token for email sending
+	ExpiresAt  time.Time
+	OccurredAt time.Time
+}
+
+func (e PasswordResetRequested) EventName() string { return "user.password.reset_requested" }

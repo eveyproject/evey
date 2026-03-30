@@ -39,6 +39,12 @@ func (r *UserRepository) GetByUsername(ctx context.Context, username string) (*u
 		 FROM users WHERE username = $1`, username))
 }
 
+func (r *UserRepository) GetByEmail(ctx context.Context, email string) (*user.User, error) {
+	return r.scanUser(r.db.QueryRowContext(ctx,
+		`SELECT id, username, email, password_hash, is_admin, enabled, oidc_subject, oidc_issuer, max_streams, max_bitrate_kbps, push_consent, created_at, updated_at
+		 FROM users WHERE email = $1`, email))
+}
+
 func (r *UserRepository) GetByOIDCSubject(ctx context.Context, issuer, subject string) (*user.User, error) {
 	return r.scanUser(r.db.QueryRowContext(ctx,
 		`SELECT id, username, email, password_hash, is_admin, enabled, oidc_subject, oidc_issuer, max_streams, max_bitrate_kbps, push_consent, created_at, updated_at

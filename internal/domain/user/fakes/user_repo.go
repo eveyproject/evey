@@ -114,6 +114,20 @@ func (r *FakeUserRepository) Delete(_ context.Context, id string) error {
 	return nil
 }
 
+func (r *FakeUserRepository) GetByEmail(_ context.Context, email string) (*user.User, error) {
+	if r.Err != nil {
+		return nil, r.Err
+	}
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	for _, u := range r.items {
+		if u.Email == email {
+			return u, nil
+		}
+	}
+	return nil, ErrNotFound
+}
+
 func (r *FakeUserRepository) GetByOIDCSubject(_ context.Context, issuer, subject string) (*user.User, error) {
 	if r.Err != nil {
 		return nil, r.Err

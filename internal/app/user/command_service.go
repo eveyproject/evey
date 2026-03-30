@@ -2,6 +2,7 @@ package user
 
 import (
 	"context"
+	"crypto/rand"
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
@@ -20,13 +21,17 @@ type CommandService struct {
 	users           user.UserRepository
 	profiles        user.ProfileRepository
 	refreshTkns     user.RefreshTokenRepository
+	resetTokens     user.PasswordResetTokenRepository
 	roles           user.RoleRepository
 	userRoles       user.UserRoleRepository
 	hasher          user.PasswordHasher
 	tokens          user.TokenGenerator
 	events          shared.EventBus
 	quickConnect    user.QuickConnectRepository
+	serverCfg       shared.ServerConfigRepository
+	smtpConfigured  bool
 	refreshTokenTTL time.Duration
+	loginAttempts   *loginAttemptLimiter
 	setupMu         sync.Mutex
 	setupDone       bool
 }
@@ -54,7 +59,15 @@ func NewCommandService(
 		events:          events,
 		refreshTokenTTL: refreshTokenTTL,
 		quickConnect:    quickConnect,
+		loginAttempts:   newLoginAttemptLimiter(5, 15*time.Minute),
 	}
+}
+
+func (s *CommandService) WithPasswordReset(resetTokens user.PasswordResetTokenRepository, serverCfg shared.ServerConfigRepository, smtpConfigured bool) *CommandService {
+	s.resetTokens = resetTokens
+	s.serverCfg = serverCfg
+	s.smtpConfigured = smtpConfigured
+	return s
 }
 
 func (s *CommandService) InitSetupState(ctx context.Context) {
@@ -127,8 +140,13 @@ func (s *CommandService) Setup(ctx context.Context, username, password, email st
 }
 
 func (s *CommandService) Login(ctx context.Context, username, password string) (accessToken, refreshToken string, err error) {
+	if s.loginAttempts.isLocked(username) {
+		return "", "", ErrAccountLocked
+	}
+
 	u, err := s.users.GetByUsername(ctx, username)
 	if err != nil {
+		s.loginAttempts.record(username)
 		return "", "", ErrInvalidCredentials
 	}
 	if !u.CanLogin() {
@@ -137,8 +155,10 @@ func (s *CommandService) Login(ctx context.Context, username, password string) (
 
 	ok, err := s.hasher.Verify(password, u.PasswordHash)
 	if err != nil || !ok {
+		s.loginAttempts.record(username)
 		return "", "", ErrInvalidCredentials
 	}
+	s.loginAttempts.reset(username)
 
 	roles, err := s.userRoles.GetRolesByUserID(ctx, u.ID)
 	if err != nil {
@@ -385,4 +405,179 @@ func (s *CommandService) runCleanup(ctx context.Context) {
 	if err := s.quickConnect.DeleteExpired(ctx); err != nil {
 		slog.Warn("quick connect cleanup", slog.Any("err", err))
 	}
+	if s.resetTokens != nil {
+		if err := s.resetTokens.DeleteExpired(ctx); err != nil {
+			slog.Warn("password reset token cleanup", slog.Any("err", err))
+		}
+	}
+}
+
+func (s *CommandService) IsPasswordRecoveryEnabled(ctx context.Context) bool {
+	if !s.smtpConfigured || s.serverCfg == nil {
+		return false
+	}
+	entry, err := s.serverCfg.Get(ctx, "auth.password_recovery_enabled")
+	if err != nil {
+		return false
+	}
+	return entry.Value == "true"
+}
+
+const passwordResetTokenTTL = 30 * time.Minute
+
+func (s *CommandService) RequestPasswordReset(ctx context.Context, email string) error {
+	if !s.IsPasswordRecoveryEnabled(ctx) {
+		return ErrPasswordRecoveryDisabled
+	}
+	if s.resetTokens == nil {
+		return ErrPasswordRecoveryDisabled
+	}
+
+	u, err := s.users.GetByEmail(ctx, email)
+	if err != nil {
+		return nil // no leak
+	}
+	if !u.Enabled {
+		return nil
+	}
+
+	if err := s.resetTokens.DeleteByUserID(ctx, u.ID); err != nil {
+		slog.Warn("cleanup old reset tokens", slog.String("userID", u.ID), slog.Any("err", err))
+	}
+
+	rawToken := make([]byte, 32)
+	if _, err := rand.Read(rawToken); err != nil {
+		return fmt.Errorf("generate reset token: %w", err)
+	}
+	rawHex := hex.EncodeToString(rawToken)
+	h := sha256.Sum256([]byte(rawHex))
+
+	t := &user.PasswordResetToken{
+		ID:        id.New("prt-"),
+		UserID:    u.ID,
+		TokenHash: hex.EncodeToString(h[:]),
+		ExpiresAt: time.Now().Add(passwordResetTokenTTL),
+		CreatedAt: time.Now(),
+	}
+	if err := s.resetTokens.Create(ctx, t); err != nil {
+		return fmt.Errorf("store reset token: %w", err)
+	}
+
+	evt := user.PasswordResetRequested{
+		UserID:     u.ID,
+		Email:      u.Email,
+		ResetToken: rawHex,
+		ExpiresAt:  t.ExpiresAt,
+		OccurredAt: time.Now(),
+	}
+	if err := s.events.Publish(ctx, evt); err != nil {
+		slog.Warn("publish event", slog.String("event", evt.EventName()), slog.Any("err", err))
+	}
+	return nil
+}
+
+func (s *CommandService) ResetPassword(ctx context.Context, rawToken, newPassword string) error {
+	if s.resetTokens == nil {
+		return ErrResetTokenInvalid
+	}
+
+	h := sha256.Sum256([]byte(rawToken))
+	hash := hex.EncodeToString(h[:])
+
+	t, err := s.resetTokens.GetByTokenHash(ctx, hash)
+	if err != nil {
+		return ErrResetTokenInvalid
+	}
+	if !t.IsValid() {
+		return ErrResetTokenInvalid
+	}
+
+	if len(newPassword) < 8 {
+		return ErrPasswordTooShort
+	}
+
+	u, err := s.users.GetByID(ctx, t.UserID)
+	if err != nil {
+		return ErrResetTokenInvalid
+	}
+
+	newHash, err := s.hasher.Hash(newPassword)
+	if err != nil {
+		return fmt.Errorf("hash password: %w", err)
+	}
+	u.PasswordHash = newHash
+	u.UpdatedAt = time.Now()
+	if err := s.users.Update(ctx, u); err != nil {
+		return err
+	}
+
+	if err := s.resetTokens.MarkUsed(ctx, t.ID); err != nil {
+		slog.Warn("mark reset token used", slog.Any("err", err))
+	}
+	if err := s.refreshTkns.DeleteByUserID(ctx, u.ID); err != nil {
+		slog.Warn("delete refresh tokens after password reset", slog.Any("err", err))
+	}
+
+	evt := user.PasswordChanged{UserID: u.ID, OccurredAt: time.Now()}
+	if err := s.events.Publish(ctx, evt); err != nil {
+		slog.Warn("publish event", slog.String("event", evt.EventName()), slog.Any("err", err))
+	}
+	return nil
+}
+
+// loginAttemptLimiter tracks failed login attempts per username.
+type loginAttemptLimiter struct {
+	mu       sync.Mutex
+	attempts map[string]*attemptEntry
+	maxFails int
+	window   time.Duration
+}
+
+type attemptEntry struct {
+	count    int
+	lockedAt time.Time
+}
+
+func newLoginAttemptLimiter(maxFails int, window time.Duration) *loginAttemptLimiter {
+	return &loginAttemptLimiter{
+		attempts: make(map[string]*attemptEntry),
+		maxFails: maxFails,
+		window:   window,
+	}
+}
+
+func (l *loginAttemptLimiter) record(username string) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	e, ok := l.attempts[username]
+	if !ok || time.Since(e.lockedAt) > l.window {
+		e = &attemptEntry{}
+		l.attempts[username] = e
+	}
+	e.count++
+	if e.count >= l.maxFails {
+		e.lockedAt = time.Now()
+	}
+}
+
+func (l *loginAttemptLimiter) isLocked(username string) bool {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	e, ok := l.attempts[username]
+	if !ok {
+		return false
+	}
+	if e.count >= l.maxFails && time.Since(e.lockedAt) < l.window {
+		return true
+	}
+	if time.Since(e.lockedAt) >= l.window {
+		delete(l.attempts, username)
+	}
+	return false
+}
+
+func (l *loginAttemptLimiter) reset(username string) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	delete(l.attempts, username)
 }

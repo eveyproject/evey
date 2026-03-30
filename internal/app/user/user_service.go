@@ -8,6 +8,7 @@ import (
 
 	"github.com/gravity-zero/evey/internal/domain/shared"
 	"github.com/gravity-zero/evey/internal/domain/user"
+	"github.com/gravity-zero/evey/internal/pkg/id"
 )
 
 type UserService struct {
@@ -57,6 +58,22 @@ func (s *UserService) CreateUser(ctx context.Context, callerIsAdmin bool, u *use
 	evtUserCreated := user.UserCreated{UserID: u.ID, Username: u.Username, IsAdmin: u.IsAdmin, OccurredAt: time.Now()}
 	if err := s.events.Publish(ctx, evtUserCreated); err != nil {
 		slog.Warn("publish event", slog.String("event", evtUserCreated.EventName()), slog.Any("err", err))
+	}
+
+	p := &user.Profile{
+		ID:        id.New("prf-"),
+		UserID:    u.ID,
+		Name:      u.Username,
+		IsDefault: true,
+		CreatedAt: time.Now(),
+	}
+	if pErr := s.profiles.Create(ctx, p); pErr != nil {
+		slog.Warn("auto-create profile", slog.String("userID", u.ID), slog.Any("err", pErr))
+	} else {
+		evtProfile := user.ProfileCreated{ProfileID: p.ID, UserID: p.UserID, Name: p.Name, OccurredAt: time.Now()}
+		if err := s.events.Publish(ctx, evtProfile); err != nil {
+			slog.Warn("publish event", slog.String("event", evtProfile.EventName()), slog.Any("err", err))
+		}
 	}
 	return nil
 }

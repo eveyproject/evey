@@ -48,6 +48,7 @@ func buildGRPCServer(deps *appDeps, cfg *config.Config, rootLog *slog.Logger, lo
 	grpcSrv.SetLogDir(logDir)
 	grpcSrv.SetServerCtx(serverCtx)
 	grpcSrv.SetServerConfigHandler(grpcapi.NewServerConfigHandler(deps.repos.serverCfgRepo))
+	grpcSrv.SetSMTPConfigured(cfg.SMTP.Host != "")
 	grpcSrv.RegisterServices()
 	return grpcSrv
 }

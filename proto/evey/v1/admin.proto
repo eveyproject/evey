@@ -170,6 +170,8 @@ message SystemInfo {
   string go_version = 7;
   string server_id = 8;
   bool setup_complete = 9;
+  bool password_recovery_enabled = 10;
+  bool smtp_configured = 11;
 }
 
 message ServerConfig {

@@ -106,8 +106,8 @@ func TestAdminSetupWizard(t *testing.T) {
 }
 
 func TestAdminGetDashboard(t *testing.T) {
-	h := newTestAdminHandler()
-	resp, err := h.GetDashboard(context.Background(), &eveyv1.GetDashboardRequest{})
+	d := newTestSystemDelegate()
+	resp, err := d.GetDashboard(context.Background(), &eveyv1.GetDashboardRequest{})
 	if err != nil {
 		t.Fatalf("GetDashboard: %v", err)
 	}

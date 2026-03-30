@@ -35,6 +35,16 @@ services:
       retries: 5
     restart: unless-stopped
 
+  mailcatcher:
+    container_name: evey-mailcatcher
+    profiles: [dev]
+    image: sj26/mailcatcher:latest
+    ports:
+      - "1080:1080"
+    expose:
+      - "1025"
+    restart: unless-stopped
+
   # ── Dev ──
   evey:
     container_name: evey-server

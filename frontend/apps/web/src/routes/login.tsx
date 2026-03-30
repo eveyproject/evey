@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Play } from "lucide-react";
-import { createFileRoute, redirect, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, redirect, useNavigate, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useUserServiceLogin, eveyFetch } from "@evey/api";
 import { useAuthStore } from "@evey/store";
@@ -46,6 +46,12 @@ function LoginPage() {
   const oidcConfig = useQuery<{ enabled: boolean }>({
     queryKey: ["oidc-config"],
     queryFn: () => eveyFetch<{ enabled: boolean }>({ url: "/api/v1/auth/oidc/config", method: "GET" }),
+    staleTime: 60 * 1000,
+  });
+
+  const systemInfo = useQuery<{ passwordRecoveryEnabled?: boolean }>({
+    queryKey: ["system-info-recovery"],
+    queryFn: () => eveyFetch<{ passwordRecoveryEnabled?: boolean }>({ url: "/api/v1/admin/system", method: "GET" }),
     staleTime: 60 * 1000,
   });
 
@@ -110,6 +116,13 @@ function LoginPage() {
           <Button type="submit" loading={login.isPending} className="w-full mt-2" data-testid="login-submit">
             {t("auth.login.signIn")}
           </Button>
+          {systemInfo.data?.passwordRecoveryEnabled && (
+            <div className="text-center mt-2">
+              <Link to="/forgot-password" className="text-sm text-[var(--accent)] hover:underline">
+                {t("auth.login.forgotPassword")}
+              </Link>
+            </div>
+          )}
         </form>
         {oidcConfig.data?.enabled && (
           <>

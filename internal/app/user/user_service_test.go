@@ -63,8 +63,11 @@ func TestCreateUser_Happy(t *testing.T) {
 	}
 
 	evts := d.events.PublishedEvents()
-	if len(evts) != 1 || evts[0].EventName() != "user.created" {
+	if len(evts) < 1 || evts[0].EventName() != "user.created" {
 		t.Fatal("expected user.created event")
+	}
+	if len(evts) < 2 || evts[1].EventName() != "user.profile.created" {
+		t.Fatal("expected user.profile.created event from auto-profile")
 	}
 }
 

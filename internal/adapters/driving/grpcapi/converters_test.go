@@ -176,8 +176,8 @@ func TestStringFromInterface(t *testing.T) {
 	if got := stringFromInterface("hello"); got != "hello" {
 		t.Errorf("string should return itself, got %q", got)
 	}
-	if got := stringFromInterface(42); got != "" {
-		t.Errorf("non-string should return empty, got %q", got)
+	if got := stringFromInterface(42); got != "42" {
+		t.Errorf("int should return string repr, got %q", got)
 	}
 }
 

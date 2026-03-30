@@ -67,6 +67,7 @@ type adminHandler struct {
 	heavyOpSemaphore chan struct{} // capacity 1; non-blocking acquire guards heavy ops
 	translator       *eveyi18n.Translator
 	serverCtx        context.Context
+	smtpConfigured   bool
 }
 
 func (h *adminHandler) GetSetupStatus(ctx context.Context, _ *eveyv1.GetSetupStatusRequest) (*eveyv1.SetupStatusResponse, error) {
@@ -89,13 +90,15 @@ func (h *adminHandler) GetSystemInfo(ctx context.Context, _ *eveyv1.GetSystemInf
 	}
 
 	info := &eveyv1.SystemInfo{
-		Version:        h.version,
-		Os:             runtime.GOOS,
-		Arch:           runtime.GOARCH,
-		GoVersion:      runtime.Version(),
-		SetupComplete:  admins > 0,
-		UptimeSeconds:  uptimeSecs,
-		FfmpegVersion:  sysinfo.FFmpegVersion(h.ffmpegPath),
+		Version:                  h.version,
+		Os:                       runtime.GOOS,
+		Arch:                     runtime.GOARCH,
+		GoVersion:                runtime.Version(),
+		SetupComplete:            admins > 0,
+		UptimeSeconds:            uptimeSecs,
+		FfmpegVersion:            sysinfo.FFmpegVersion(h.ffmpegPath),
+		PasswordRecoveryEnabled:  h.userCmd.IsPasswordRecoveryEnabled(ctx),
+		SmtpConfigured:           h.smtpConfigured,
 	}
 
 	if h.transcodingSvc != nil {

@@ -196,3 +196,16 @@ func (k *APIKeyModel) HasPermission(perm string) bool {
 	}
 	return false
 }
+
+type PasswordResetToken struct {
+	ID        string
+	UserID    string
+	TokenHash string
+	ExpiresAt time.Time
+	Used      bool
+	CreatedAt time.Time
+}
+
+func (t *PasswordResetToken) IsValid() bool {
+	return !t.Used && time.Now().Before(t.ExpiresAt)
+}

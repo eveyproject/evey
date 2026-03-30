@@ -14,20 +14,6 @@ import (
 	userfakes "github.com/gravity-zero/evey/internal/domain/user/fakes"
 )
 
-func newTestAdminHandler() *adminHandler {
-	systemDel := newTestSystemDelegate()
-	pluginDel := newTestPluginDelegate()
-	return &adminHandler{
-		system:    systemDel,
-		plugin:    pluginDel,
-		scheduler: &adminSchedulerDelegate{},
-		media:     &adminMediaDelegate{},
-		audit: &adminAuditDelegate{
-			activitySvc: systemDel.activitySvc,
-		},
-	}
-}
-
 func newTestSystemDelegate() *adminSystemDelegate {
 	events := sharedfakes.NewFakeEventBus()
 	roles := userfakes.NewFakeRoleRepository()

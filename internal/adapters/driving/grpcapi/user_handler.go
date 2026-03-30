@@ -529,3 +529,27 @@ func (h *userHandler) RevokeAPIKey(ctx context.Context, req *eveyv1.RevokeAPIKey
 	}
 	return &eveyv1.RevokeAPIKeyResponse{}, nil
 }
+
+func (h *userHandler) RequestPasswordReset(_ context.Context, req *eveyv1.RequestPasswordResetRequest) (*eveyv1.RequestPasswordResetResponse, error) {
+	ctx := context.Background()
+	if err := h.auth.RequestPasswordReset(ctx, req.Email); err != nil {
+		slog.Warn("request password reset", slog.Any("err", err))
+	}
+	return &eveyv1.RequestPasswordResetResponse{}, nil
+}
+
+func (h *userHandler) ResetPassword(_ context.Context, req *eveyv1.ResetPasswordRequest) (*eveyv1.ResetPasswordResponse, error) {
+	ctx := context.Background()
+	if err := h.auth.ResetPassword(ctx, req.Token, req.NewPassword); err != nil {
+		switch {
+		case err == appuser.ErrResetTokenInvalid:
+			return nil, status.Errorf(codes.InvalidArgument, "invalid or expired reset token")
+		case err == appuser.ErrPasswordTooShort:
+			return nil, status.Errorf(codes.InvalidArgument, "password must be at least 8 characters")
+		default:
+			slog.Error("reset password", slog.Any("err", err))
+			return nil, status.Errorf(codes.Internal, "internal error")
+		}
+	}
+	return &eveyv1.ResetPasswordResponse{}, nil
+}

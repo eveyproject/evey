@@ -9,6 +9,7 @@ type UserRepository interface {
 	Create(ctx context.Context, u *User) error
 	GetByID(ctx context.Context, id string) (*User, error)
 	GetByUsername(ctx context.Context, username string) (*User, error)
+	GetByEmail(ctx context.Context, email string) (*User, error)
 	GetByOIDCSubject(ctx context.Context, issuer, subject string) (*User, error)
 	List(ctx context.Context) ([]*User, error)
 	Update(ctx context.Context, u *User) error
@@ -77,6 +78,14 @@ type LibraryAccessRepository interface {
 	GetByUserID(ctx context.Context, userID string) ([]string, error)
 	HasAccess(ctx context.Context, userID, libraryID string) (bool, error)
 	ListUsersWithRestrictions(ctx context.Context) (map[string][]string, error)
+}
+
+type PasswordResetTokenRepository interface {
+	Create(ctx context.Context, t *PasswordResetToken) error
+	GetByTokenHash(ctx context.Context, hash string) (*PasswordResetToken, error)
+	MarkUsed(ctx context.Context, id string) error
+	DeleteByUserID(ctx context.Context, userID string) error
+	DeleteExpired(ctx context.Context) error
 }
 
 type PasswordHasher interface {
