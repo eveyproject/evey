@@ -65,7 +65,12 @@ function PushNotificationSection() {
 
   useEffect(() => {
     if (!supported) return;
-    isPushSubscribed().then(setEnabled);
+    (async () => {
+      try {
+        const subscribed = await isPushSubscribed();
+        setEnabled(subscribed);
+      } catch { /* push check failed, leave disabled */ }
+    })();
   }, [supported]);
 
   if (!supported) {

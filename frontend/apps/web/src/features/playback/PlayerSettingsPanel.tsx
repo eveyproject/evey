@@ -348,15 +348,16 @@ export function SettingsPanel({
                     type="file"
                     accept=".srt,.vtt,.ass,.ssa"
                     className="hidden"
-                    onChange={(e) => {
+                    onChange={async (e) => {
                       const file = e.target.files?.[0];
                       if (!file) return;
                       const name = file.name;
-                      void loadSubtitleFile(file).then((url) => {
+                      try {
+                        const url = await loadSubtitleFile(file);
                         onExternalSubtitle(url, name);
                         setMenu("main");
                         if (open) onToggle();
-                      });
+                      } catch { /* subtitle load failed */ }
                       e.target.value = "";
                     }}
                   />
