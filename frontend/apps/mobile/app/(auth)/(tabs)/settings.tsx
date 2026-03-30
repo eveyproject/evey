@@ -1,4 +1,3 @@
-import { useEffect, useState } from "react";
 import { View, Text, ScrollView, Pressable, Alert, StyleSheet } from "react-native";
 import { router } from "expo-router";
 import Constants from "expo-constants";
@@ -6,7 +5,8 @@ import { useTranslation } from "react-i18next";
 import { useUserServiceGetCurrentUser, useAdminServiceGetSystemInfo } from "@evey/api";
 import { useAuthStore, useThemeStore, useLocaleStore } from "@evey/store";
 import { useTheme } from "../../../src/providers/ThemeProvider";
-import { getServerUrl, clearServerUrl } from "../../../src/lib/server-config";
+import { useServerUrlNullable } from "../../../src/hooks/useServerUrl";
+import { clearServerUrl } from "../../../src/lib/server-config";
 import { supportedLanguages } from "../../../src/i18n";
 
 const THEME_OPTIONS = [
@@ -26,14 +26,10 @@ export default function SettingsScreen() {
   const currentTheme = useThemeStore((s) => s.theme);
   const setTheme = useThemeStore((s) => s.setTheme);
   const setLocale = useLocaleStore((s) => s.setLocale);
-  const [serverUrl, setServerUrl] = useState<string | null>(null);
+  const serverUrl = useServerUrlNullable();
 
   const { data: user } = useUserServiceGetCurrentUser();
   const { data: systemInfo } = useAdminServiceGetSystemInfo();
-
-  useEffect(() => {
-    getServerUrl().then(setServerUrl);
-  }, []);
 
   async function handleChangeServer() {
     Alert.alert(t("mobile.settings.changeServer"), t("mobile.settings.disconnectConfirm"), [

@@ -18,7 +18,7 @@ export function useProgressReporter(
         sessionId,
         positionMs: String(Math.round(positionMs)),
         isPaused: false,
-      }).catch(() => {});
+      }).catch((err) => console.warn("progress report failed:", err));
     }, INTERVAL_MS);
 
     return () => {

@@ -18,7 +18,7 @@ import {
 } from "@evey/api";
 import type { V1MediaItem, V1MediaPerson } from "@evey/api";
 import { useTheme } from "../../../src/providers/ThemeProvider";
-import { getServerUrl } from "../../../src/lib/server-config";
+import { useServerUrl } from "../../../src/hooks/useServerUrl";
 import { artworkUrl } from "../../../src/lib/artwork";
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
@@ -117,12 +117,8 @@ function EpisodeRow({ item, serverUrl, theme }: { item: V1MediaItem; serverUrl: 
 export default function MediaDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const theme = useTheme();
-  const [serverUrl, setServerUrl] = useState("");
+  const serverUrl = useServerUrl();
   const [selectedSeason, setSelectedSeason] = useState<string | null>(null);
-
-  useEffect(() => {
-    getServerUrl().then((url) => url && setServerUrl(url));
-  }, []);
 
   const { data: media, isLoading } = useLibraryServiceGetMediaItem(id ?? "");
 

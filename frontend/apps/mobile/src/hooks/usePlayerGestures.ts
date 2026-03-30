@@ -4,7 +4,7 @@ import type { GestureResponderEvent, PanResponderGestureState } from "react-nati
 
 const DOUBLE_TAP_DELAY = 300;
 const SWIPE_THRESHOLD = 20;
-const VOLUME_SENSITIVITY = 0.005;
+const SWIPE_SENSITIVITY = 0.005;
 const LEFT_ZONE = 0.35;
 const RIGHT_ZONE = 0.65;
 
@@ -69,9 +69,8 @@ export function usePlayerGestures({
 
           if (swipeActiveRef.current === "volume") {
             const dy = -gs.dy;
-            const delta = dy * VOLUME_SENSITIVITY;
-            const clampedDelta = Math.max(-1, Math.min(1, delta));
-            cumulativeDeltaRef.current = clampedDelta;
+            cumulativeDeltaRef.current += dy * SWIPE_SENSITIVITY;
+            const clampedDelta = Math.max(-1, Math.min(1, cumulativeDeltaRef.current));
             onVolumeChange(clampedDelta);
             setVolumeIndicator(clampedDelta);
           }

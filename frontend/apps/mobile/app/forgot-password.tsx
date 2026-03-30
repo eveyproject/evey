@@ -1,20 +1,44 @@
 import { useState } from "react";
-import { View, Text, TextInput, Pressable, Alert } from "react-native";
+import { View, Text, TextInput, Pressable, ActivityIndicator } from "react-native";
 import { router } from "expo-router";
 import { useTranslation } from "react-i18next";
+import { useUserServiceRequestPasswordReset } from "@evey/api";
 import { useTheme } from "../src/providers/ThemeProvider";
 
 export default function ForgotPassword() {
   const theme = useTheme();
   const { t } = useTranslation();
   const [email, setEmail] = useState("");
+  const [sent, setSent] = useState(false);
+
+  const requestReset = useUserServiceRequestPasswordReset({
+    mutation: {
+      onSuccess: () => setSent(true),
+      onError: () => setSent(true),
+    },
+  });
 
   function handleSubmit() {
     if (!email.trim()) return;
-    // TODO: call password reset API
-    Alert.alert(t("auth.forgotPassword.checkEmail"), t("auth.forgotPassword.emailSent"), [
-      { text: "OK", onPress: () => router.back() },
-    ]);
+    requestReset.mutate({ data: { email } });
+  }
+
+  if (sent) {
+    return (
+      <View style={{ flex: 1, justifyContent: "center", padding: theme.spacing.xl, backgroundColor: theme.colors.bg }}>
+        <Text style={{ fontSize: 20, fontWeight: "bold", color: theme.colors.text, marginBottom: theme.spacing.md, textAlign: "center" }}>
+          {t("auth.forgotPassword.checkEmail")}
+        </Text>
+        <Text style={{ color: theme.colors.textMuted, fontSize: 14, textAlign: "center", marginBottom: theme.spacing.lg }}>
+          {t("auth.forgotPassword.emailSent")}
+        </Text>
+        <Pressable onPress={() => router.back()}>
+          <Text style={{ color: theme.colors.accent, textAlign: "center", fontSize: 14 }}>
+            {t("auth.forgotPassword.backToLogin")}
+          </Text>
+        </Pressable>
+      </View>
+    );
   }
 
   return (
@@ -41,14 +65,20 @@ export default function ForgotPassword() {
       />
       <Pressable
         onPress={handleSubmit}
+        disabled={requestReset.isPending}
         style={{
           backgroundColor: theme.colors.accent,
           borderRadius: theme.radii.md,
           padding: theme.spacing.md,
           alignItems: "center",
+          opacity: requestReset.isPending ? 0.7 : 1,
         }}
       >
-        <Text style={{ color: "#fff", fontWeight: "600", fontSize: 16 }}>{t("auth.forgotPassword.submit")}</Text>
+        {requestReset.isPending ? (
+          <ActivityIndicator color="#fff" />
+        ) : (
+          <Text style={{ color: "#fff", fontWeight: "600", fontSize: 16 }}>{t("auth.forgotPassword.submit")}</Text>
+        )}
       </Pressable>
     </View>
   );
