@@ -2,22 +2,23 @@ package syncplay
 
 import (
 	"crypto/rand"
+	"fmt"
 	"math/big"
 	"time"
 )
 
 const codeAlphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
 
-func GenerateCode() string {
+func GenerateCode() (string, error) {
 	b := make([]byte, 6)
 	for i := range b {
 		n, err := rand.Int(rand.Reader, big.NewInt(int64(len(codeAlphabet))))
 		if err != nil {
-			panic("crypto/rand failed: " + err.Error())
+			return "", fmt.Errorf("crypto/rand failed: %w", err)
 		}
 		b[i] = codeAlphabet[n.Int64()]
 	}
-	return string(b)
+	return string(b), nil
 }
 
 type Room struct {

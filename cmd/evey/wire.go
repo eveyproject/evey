@@ -222,13 +222,16 @@ func buildServices(ctx context.Context, cfg *config.Config, db *sql.DB, rootLog 
 	permChecker := appplugin.NewPermissionChecker(r.Plugin)
 
 	pluginFS := filesystem.NewPluginFileSystem()
+	cssSanitizer := pluginrunner.NewCSSSanitizer()
 	pluginInstallerSvc := appplugin.NewInstallerService(r.Plugin, pluginRunner, manifestParser, bus).
 		WithInstaller(pluginInstaller).
 		WithAnalyzer(pluginAnalyzer).
 		WithPermissionChecker(permChecker).
-		WithFileSystem(pluginFS)
+		WithFileSystem(pluginFS).
+		WithCSSSanitizer(cssSanitizer)
 	pluginRuntimeSvc := appplugin.NewRuntimeService(r.Plugin, r.PluginRuntime, pluginRunner, manifestParser, bus).
-		WithPermissionChecker(permChecker)
+		WithPermissionChecker(permChecker).
+		WithShutdownCtx(ctx)
 	pluginRunner.WithIPCCallback(pluginRuntimeSvc.HandleIPCResult)
 	pluginQuerySvc := appplugin.NewQueryService(r.Plugin, r.PluginRuntime)
 

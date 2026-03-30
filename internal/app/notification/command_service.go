@@ -32,12 +32,13 @@ type CommandService struct {
 	push     notification.PushSender
 	subs     notification.PushSubscriptionRepository
 
-	mu         sync.Mutex
-	dedupe     map[string]time.Time
-	batches    map[string]*batchEntry
-	batchDelay time.Duration
-	done       chan struct{}
-	stopOnce   sync.Once
+	mu          sync.Mutex
+	dedupe      map[string]time.Time
+	batches     map[string]*batchEntry
+	batchDelay  time.Duration
+	done        chan struct{}
+	stopOnce    sync.Once
+	shutdownCtx context.Context
 }
 
 const (
@@ -82,6 +83,7 @@ func (s *CommandService) WithPush(push notification.PushSender, subs notificatio
 }
 
 func (s *CommandService) Start(ctx context.Context) {
+	s.shutdownCtx = ctx
 	go func() {
 		defer func() {
 			if r := recover(); r != nil {
@@ -304,7 +306,11 @@ func (s *CommandService) flushBatch(key string) {
 }
 
 func (s *CommandService) emitNotifications(mediaType, title, seriesTitle, mediaItemID string, genres []string, pushTitleOverride string) {
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	parent := s.shutdownCtx
+	if parent == nil {
+		parent = context.Background()
+	}
+	ctx, cancel := context.WithTimeout(parent, 30*time.Second)
 	defer cancel()
 
 	notifType, notifTitle, pushTitle := typeAndTitle(mediaType, title, seriesTitle)

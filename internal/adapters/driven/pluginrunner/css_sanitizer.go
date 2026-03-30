@@ -14,6 +14,15 @@ var (
 	reBehavior      = regexp.MustCompile(`(?i)\bbehavior\s*:[^;}"]+[;}]?`)
 )
 
+// RegexCSSSanitizer implements plugin.CSSSanitizer using regex-based rules.
+type RegexCSSSanitizer struct{}
+
+func NewCSSSanitizer() *RegexCSSSanitizer { return &RegexCSSSanitizer{} }
+
+func (r *RegexCSSSanitizer) SanitizeCSS(input []byte) ([]byte, []string) {
+	return SanitizeCSS(input)
+}
+
 // SanitizeCSS removes dangerous CSS constructs that could be used for
 // data exfiltration or code execution. Returns sanitized CSS and warnings.
 func SanitizeCSS(input []byte) ([]byte, []string) {

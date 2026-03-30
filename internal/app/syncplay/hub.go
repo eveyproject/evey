@@ -2,6 +2,7 @@ package syncplay
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"github.com/gravity-zero/evey/internal/domain/syncplay"
@@ -17,9 +18,13 @@ func NewHub(repo syncplay.RoomRepository) *Hub {
 }
 
 func (h *Hub) CreateRoom(ctx context.Context, hostID, mediaID, name string) (*syncplay.Room, error) {
+	code, err := syncplay.GenerateCode()
+	if err != nil {
+		return nil, fmt.Errorf("generate room code: %w", err)
+	}
 	room := &syncplay.Room{
 		ID:        id.New("room-"),
-		Code:      syncplay.GenerateCode(),
+		Code:      code,
 		Name:      name,
 		HostID:    hostID,
 		MediaID:   mediaID,

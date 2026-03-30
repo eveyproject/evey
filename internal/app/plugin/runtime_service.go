@@ -18,6 +18,7 @@ type RuntimeService struct {
 	events      shared.EventBus
 	permChecker *PermissionChecker
 	pluginDir   string
+	shutdownCtx context.Context
 }
 
 func NewRuntimeService(
@@ -44,6 +45,11 @@ func (s *RuntimeService) WithPermissionChecker(pc *PermissionChecker) *RuntimeSe
 
 func (s *RuntimeService) WithPluginDir(dir string) *RuntimeService {
 	s.pluginDir = dir
+	return s
+}
+
+func (s *RuntimeService) WithShutdownCtx(ctx context.Context) *RuntimeService {
+	s.shutdownCtx = ctx
 	return s
 }
 
@@ -192,7 +198,11 @@ func (s *RuntimeService) UpdatePluginConfig(ctx context.Context, id string, conf
 }
 
 func (s *RuntimeService) HandleIPCResult(pluginID string, ipcErr error) {
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	parent := s.shutdownCtx
+	if parent == nil {
+		parent = context.Background()
+	}
+	ctx, cancel := context.WithTimeout(parent, 10*time.Second)
 	defer cancel()
 
 	p, getErr := s.plugins.GetByID(ctx, pluginID)

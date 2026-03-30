@@ -47,6 +47,11 @@ type WidgetCompiler interface {
 	CompileWidget(srcPath, outPath string) error
 }
 
+// CSSSanitizer removes dangerous CSS constructs from plugin themes.
+type CSSSanitizer interface {
+	SanitizeCSS(input []byte) ([]byte, []string)
+}
+
 // PluginFileSystem abstracts filesystem operations for plugin install/uninstall.
 type PluginFileSystem interface {
 	RemoveAll(path string) error

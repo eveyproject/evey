@@ -15,23 +15,23 @@ import (
 	"sync"
 	"time"
 
-	"github.com/gravity-zero/evey/internal/adapters/driven/pluginrunner"
 	"github.com/gravity-zero/evey/internal/domain/plugin"
 	"github.com/gravity-zero/evey/internal/domain/shared"
 	"github.com/gravity-zero/evey/internal/pkg/id"
 )
 
 type InstallerService struct {
-	plugins     plugin.PluginRepository
-	runner      plugin.PluginRunner
-	parser      plugin.ManifestParser
-	events      shared.EventBus
-	installer   plugin.PluginInstaller
-	analyzer    plugin.PluginAnalyzer
-	fs          plugin.PluginFileSystem
-	permChecker *PermissionChecker
-	pluginDir   string
-	installMu   sync.Mutex
+	plugins      plugin.PluginRepository
+	runner       plugin.PluginRunner
+	parser       plugin.ManifestParser
+	events       shared.EventBus
+	installer    plugin.PluginInstaller
+	analyzer     plugin.PluginAnalyzer
+	fs           plugin.PluginFileSystem
+	cssSanitizer plugin.CSSSanitizer
+	permChecker  *PermissionChecker
+	pluginDir    string
+	installMu    sync.Mutex
 }
 
 func NewInstallerService(
@@ -71,6 +71,11 @@ func (s *InstallerService) WithPluginDir(dir string) *InstallerService {
 
 func (s *InstallerService) WithFileSystem(fs plugin.PluginFileSystem) *InstallerService {
 	s.fs = fs
+	return s
+}
+
+func (s *InstallerService) WithCSSSanitizer(cs plugin.CSSSanitizer) *InstallerService {
+	s.cssSanitizer = cs
 	return s
 }
 
@@ -142,10 +147,10 @@ func (s *InstallerService) InstallPlugin(ctx context.Context, zipPath string) (*
 		p.InstallDir = installDir
 	}
 
-	if p.InstallDir != "" && slices.Contains(p.Capabilities, "ui.theme") {
+	if p.InstallDir != "" && slices.Contains(p.Capabilities, "ui.theme") && s.cssSanitizer != nil {
 		themePath := filepath.Join(p.InstallDir, "theme.css")
 		if raw, readErr := os.ReadFile(themePath); readErr == nil {
-			sanitized, warns := pluginrunner.SanitizeCSS(raw)
+			sanitized, warns := s.cssSanitizer.SanitizeCSS(raw)
 			if len(warns) > 0 {
 				slog.Warn("css sanitizer cleaned theme at install", slog.String("pluginID", p.ID), slog.Any("warnings", warns))
 				if writeErr := os.WriteFile(themePath, sanitized, 0o644); writeErr != nil {

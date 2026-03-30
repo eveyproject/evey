@@ -8,7 +8,10 @@ import (
 
 func TestGenerateCode(t *testing.T) {
 	t.Parallel()
-	code := syncplay.GenerateCode()
+	code, err := syncplay.GenerateCode()
+	if err != nil {
+		t.Fatalf("GenerateCode() error: %v", err)
+	}
 	if len(code) != 6 {
 		t.Errorf("code length = %d, want 6", len(code))
 	}
@@ -23,7 +26,10 @@ func TestGenerateCode_Unique(t *testing.T) {
 	t.Parallel()
 	seen := make(map[string]bool)
 	for range 100 {
-		code := syncplay.GenerateCode()
+		code, err := syncplay.GenerateCode()
+		if err != nil {
+			t.Fatalf("GenerateCode() error: %v", err)
+		}
 		if seen[code] {
 			t.Fatalf("duplicate code %q in 100 iterations", code)
 		}
