@@ -65,6 +65,7 @@ func newTestOIDCSvc(t *testing.T) *appuser.OIDCService {
 		userfakes.NewFakeUserRoleRepository(userfakes.NewFakeRoleRepository()),
 		userfakes.NewFakeTokenGenerator(),
 		nil,
+		24*time.Hour,
 	)
 	if err != nil {
 		t.Fatalf("NewOIDCService: %v", err)

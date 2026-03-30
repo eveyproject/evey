@@ -9,10 +9,11 @@ import (
 
 	appfavorite "github.com/gravity-zero/evey/internal/app/favorite"
 	applibrary "github.com/gravity-zero/evey/internal/app/library"
+	"github.com/gravity-zero/evey/internal/domain/library"
 	"github.com/gravity-zero/evey/internal/pkg/auth"
 )
 
-func registerFavoriteRoutes(mux *http.ServeMux, favSvc *appfavorite.Service, libQuery *applibrary.QueryService, tokenGen *auth.JWTGenerator) {
+func registerFavoriteRoutes(mux *http.ServeMux, favSvc *appfavorite.Service, libQuery *applibrary.QueryService, tokenGen *auth.JWTGenerator, libraryAccess LibraryAccessChecker) {
 	mux.HandleFunc("POST /api/v1/favorites/{media_id}", func(w http.ResponseWriter, r *http.Request) {
 		claims, ok := extractClaims(r, tokenGen)
 		if !ok {
@@ -20,6 +21,14 @@ func registerFavoriteRoutes(mux *http.ServeMux, favSvc *appfavorite.Service, lib
 			return
 		}
 		mediaID := r.PathValue("media_id")
+		mi, err := libQuery.GetMediaItem(r.Context(), mediaID)
+		if err != nil {
+			http.Error(w, `{"message":"not found"}`, http.StatusNotFound)
+			return
+		}
+		if !checkLibraryAccess(r.Context(), w, claims, mi.LibraryID, libraryAccess) {
+			return
+		}
 		isFav, err := favSvc.Toggle(r.Context(), claims.ProfileID, mediaID)
 		if err != nil {
 			http.Error(w, `{"message":"internal error"}`, http.StatusInternalServerError)
@@ -72,18 +81,30 @@ func registerFavoriteRoutes(mux *http.ServeMux, favSvc *appfavorite.Service, lib
 		if err != nil {
 			slog.Warn("fetch media items for favorites", slog.Any("err", err))
 		}
-		byID := make(map[string]*struct{ title, typ string; year *int; rating *float64 }, len(mediaItems))
+		byID := make(map[string]*library.MediaItem, len(mediaItems))
 		for _, mi := range mediaItems {
-			byID[mi.ID] = &struct{ title, typ string; year *int; rating *float64 }{mi.Title, mi.Type, mi.Year, mi.CommunityRating}
+			byID[mi.ID] = mi
 		}
+		// filter out items from inaccessible libraries
+		filtered := items[:0]
 		for i, f := range favs {
-			if mi, ok := byID[f.MediaItemID]; ok {
-				items[i].Title = mi.title
-				items[i].Type = mi.typ
-				items[i].Year = mi.year
-				items[i].CommunityRating = mi.rating
+			mi, ok := byID[f.MediaItemID]
+			if !ok {
+				continue
 			}
+			if !claims.IsAdmin {
+				hasAccess, aErr := libraryAccess.HasAccess(r.Context(), claims.UserID, mi.LibraryID)
+				if aErr != nil || !hasAccess {
+					continue
+				}
+			}
+			items[i].Title = mi.Title
+			items[i].Type = mi.Type
+			items[i].Year = mi.Year
+			items[i].CommunityRating = mi.CommunityRating
+			filtered = append(filtered, items[i])
 		}
+		items = filtered
 		w.Header().Set("Content-Type", "application/json")
 		if err := json.NewEncoder(w).Encode(map[string]any{"items": items}); err != nil {
 			slog.Warn("json encode failed", slog.Any("err", err))
@@ -97,6 +118,14 @@ func registerFavoriteRoutes(mux *http.ServeMux, favSvc *appfavorite.Service, lib
 			return
 		}
 		mediaID := r.PathValue("media_id")
+		mi, err := libQuery.GetMediaItem(r.Context(), mediaID)
+		if err != nil {
+			http.Error(w, `{"message":"not found"}`, http.StatusNotFound)
+			return
+		}
+		if !checkLibraryAccess(r.Context(), w, claims, mi.LibraryID, libraryAccess) {
+			return
+		}
 		isFav, err := favSvc.IsFavorite(r.Context(), claims.ProfileID, mediaID)
 		if err != nil {
 			http.Error(w, `{"message":"internal error"}`, http.StatusInternalServerError)

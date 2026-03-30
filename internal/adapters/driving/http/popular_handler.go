@@ -10,9 +10,10 @@ import (
 	"github.com/gravity-zero/evey/internal/pkg/auth"
 )
 
-func registerPopularRoute(mux *http.ServeMux, activityQuery *appactivity.QueryService, libQuery *applibrary.QueryService, tokenGen *auth.JWTGenerator) {
+func registerPopularRoute(mux *http.ServeMux, activityQuery *appactivity.QueryService, libQuery *applibrary.QueryService, tokenGen *auth.JWTGenerator, libraryAccess LibraryAccessChecker) {
 	mux.HandleFunc("GET /api/v1/popular", func(w http.ResponseWriter, r *http.Request) {
-		if _, ok := extractClaims(r, tokenGen); !ok {
+		claims, ok := extractClaims(r, tokenGen)
+		if !ok {
 			http.Error(w, `{"message":"unauthenticated"}`, http.StatusUnauthorized)
 			return
 		}
@@ -32,24 +33,41 @@ func registerPopularRoute(mux *http.ServeMux, activityQuery *appactivity.QuerySe
 		for i, p := range popular {
 			ids[i] = p.MediaItemID
 		}
-		typeByID := make(map[string]string, len(ids))
+		type miInfo struct {
+			typ       string
+			libraryID string
+		}
+		infoByID := make(map[string]miInfo, len(ids))
 		if len(ids) > 0 {
 			mis, merr := libQuery.GetMediaItemsByIDs(r.Context(), ids)
 			if merr != nil {
 				slog.Warn("popular: batch fetch media items", slog.Any("err", merr))
 			}
 			for _, mi := range mis {
-				typeByID[mi.ID] = mi.Type
+				infoByID[mi.ID] = miInfo{typ: mi.Type, libraryID: mi.LibraryID}
 			}
 		}
-		results := make([]popItem, len(popular))
-		for i, p := range popular {
-			results[i] = popItem{
+		var results []popItem
+		for _, p := range popular {
+			info, exists := infoByID[p.MediaItemID]
+			if !exists {
+				continue
+			}
+			if !claims.IsAdmin {
+				hasAccess, aErr := libraryAccess.HasAccess(r.Context(), claims.UserID, info.libraryID)
+				if aErr != nil || !hasAccess {
+					continue
+				}
+			}
+			results = append(results, popItem{
 				MediaItemID: p.MediaItemID,
 				Title:       p.Title,
 				PlayCount:   p.PlayCount,
-				Type:        typeByID[p.MediaItemID],
-			}
+				Type:        info.typ,
+			})
+		}
+		if results == nil {
+			results = []popItem{}
 		}
 		w.Header().Set("Content-Type", "application/json")
 		if err := json.NewEncoder(w).Encode(map[string]any{"items": results}); err != nil {

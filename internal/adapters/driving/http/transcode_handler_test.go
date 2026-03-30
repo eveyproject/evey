@@ -10,7 +10,13 @@ import (
 )
 
 func newTranscodeServe(tv TokenVerifier, libSvc MediaStreamsGetter, la LibraryAccessChecker) http.HandlerFunc {
-	return transcodeHandler(tv, libSvc, "http://localhost", la, apptranscoding.NewTranscodeThrottle(), nil)
+	return transcodeHandler(transcodeServe{
+		tokens:        tv,
+		libSvc:        libSvc,
+		baseURL:       "http://localhost",
+		libraryAccess: la,
+		throttle:      apptranscoding.NewTranscodeThrottle(),
+	})
 }
 
 func TestTranscodeServe_NoAuth_401(t *testing.T) {
