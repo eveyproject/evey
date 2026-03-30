@@ -31,6 +31,7 @@ export function FavoriteButton({ mediaId, size = "md", className = "" }: Favorit
         backdropFilter: "blur(4px)",
       }}
       title={isFav ? t("media.contextMenu.removeFromFavorites") : t("media.contextMenu.addToFavorites")}
+      aria-label={isFav ? t("media.contextMenu.removeFromFavorites") : t("media.contextMenu.addToFavorites")}
       data-testid={isFav ? "favorite-btn-active" : "favorite-btn"}
     >
       <Heart size={iconPixels} fill={isFav ? "currentColor" : "none"} strokeWidth={2} />

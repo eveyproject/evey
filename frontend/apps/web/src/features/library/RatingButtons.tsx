@@ -29,6 +29,7 @@ export function RatingButtons({ mediaId }: RatingButtonsProps) {
         onClick={() => handleClick(1)}
         className={btnClass(rating === 1, "bg-[var(--color-success)]")}
         title={rating === 1 ? t("media.rating.removeLike") : t("media.rating.like")}
+        aria-label={rating === 1 ? t("media.rating.removeLike") : t("media.rating.like")}
       >
         <ThumbsUp size={20} />
       </button>
@@ -37,6 +38,7 @@ export function RatingButtons({ mediaId }: RatingButtonsProps) {
         onClick={() => handleClick(-1)}
         className={btnClass(rating === -1, "bg-[var(--color-danger)]")}
         title={rating === -1 ? t("media.rating.removeDislike") : t("media.rating.dislike")}
+        aria-label={rating === -1 ? t("media.rating.removeDislike") : t("media.rating.dislike")}
       >
         <ThumbsDown size={20} />
       </button>
