@@ -17,9 +17,11 @@ interface StreamTokenResponse {
 export interface PlaySessionResult {
   streamUrl: string | null;
   sessionId: string | null;
+  streamInfo: V1StreamInfo | null;
   isLoading: boolean;
   isError: boolean;
   stopSession: () => void;
+  restartWithTracks: (audioIndex?: number, subtitleIndex?: number) => void;
 }
 
 async function fetchStreamToken(mediaId: string): Promise<string> {
@@ -48,42 +50,51 @@ function buildStreamUrl(
 export function usePlaySession(mediaId: string): PlaySessionResult {
   const [streamUrl, setStreamUrl] = useState<string | null>(null);
   const [sessionId, setSessionId] = useState<string | null>(null);
+  const [streamInfo, setStreamInfo] = useState<V1StreamInfo | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isError, setIsError] = useState(false);
   const sessionIdRef = useRef<string | null>(null);
   const startedRef = useRef(false);
   const stoppedRef = useRef(false);
+  const tokenRef = useRef<string | null>(null);
+  const serverUrlRef = useRef<string>("");
 
-  useEffect(() => {
-    if (!mediaId || startedRef.current) return;
-    startedRef.current = true;
-    stoppedRef.current = false;
-
-    (async () => {
+  const startStream = useCallback(
+    async (audioStreamIndex?: number, subtitleStreamIndex?: number) => {
       try {
-        const serverUrl = (await getServerUrl()) ?? "";
+        const serverUrl = serverUrlRef.current || ((await getServerUrl()) ?? "");
+        serverUrlRef.current = serverUrl;
         const screen = Dimensions.get("screen");
 
-        const streamInfo = await playbackServiceGetStreamInfo(mediaId, {
+        const info = await playbackServiceGetStreamInfo(mediaId, {
           supportedCodecs: ["h264", "hevc", "aac"],
           supportedContainers: ["mp4", "hls"],
           maxWidth: Math.round(screen.width * (screen.scale ?? 1)),
           maxHeight: Math.round(screen.height * (screen.scale ?? 1)),
+          audioStreamIndex,
+          subtitleStreamIndex,
         });
 
-        const token = await fetchStreamToken(mediaId);
-        const url = buildStreamUrl(serverUrl, mediaId, streamInfo, token);
+        let token = tokenRef.current;
+        if (!token) {
+          token = await fetchStreamToken(mediaId);
+          tokenRef.current = token;
+        }
+        const url = buildStreamUrl(serverUrl, mediaId, info, token);
 
         const session = await playbackServiceStartStream({
           mediaItemId: mediaId,
-          playMethod: streamInfo.playMethod ?? "PLAY_METHOD_TRANSCODE",
+          playMethod: info.playMethod ?? "PLAY_METHOD_TRANSCODE",
           deviceId: "evey-mobile",
           deviceName: "Evey Mobile",
           clientName: "Evey Mobile",
           startPositionMs: "0",
+          audioStreamIndex,
+          subtitleStreamIndex,
         });
 
         if (!stoppedRef.current) {
+          setStreamInfo(info);
           setStreamUrl(url);
           if (session.id) {
             sessionIdRef.current = session.id;
@@ -95,8 +106,16 @@ export function usePlaySession(mediaId: string): PlaySessionResult {
       } finally {
         setIsLoading(false);
       }
-    })();
-  }, [mediaId]);
+    },
+    [mediaId],
+  );
+
+  useEffect(() => {
+    if (!mediaId || startedRef.current) return;
+    startedRef.current = true;
+    stoppedRef.current = false;
+    startStream();
+  }, [mediaId, startStream]);
 
   const stopSession = useCallback(() => {
     if (stoppedRef.current) return;
@@ -107,9 +126,23 @@ export function usePlaySession(mediaId: string): PlaySessionResult {
     }
   }, []);
 
+  const restartWithTracks = useCallback(
+    (audioIndex?: number, subtitleIndex?: number) => {
+      const sid = sessionIdRef.current;
+      if (sid) {
+        playbackServiceStopStream({ sessionId: sid }).catch(() => {});
+        sessionIdRef.current = null;
+      }
+      stoppedRef.current = false;
+      setIsLoading(true);
+      startStream(audioIndex, subtitleIndex);
+    },
+    [startStream],
+  );
+
   useEffect(() => {
     return () => stopSession();
   }, [stopSession]);
 
-  return { streamUrl, sessionId, isLoading, isError, stopSession };
+  return { streamUrl, sessionId, streamInfo, isLoading, isError, stopSession, restartWithTracks };
 }

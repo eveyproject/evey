@@ -18,6 +18,12 @@ import { usePlaySession } from "../../../src/hooks/usePlaySession";
 import { useProgressReporter } from "../../../src/hooks/useProgressReporter";
 import { usePlayerGestures } from "../../../src/hooks/usePlayerGestures";
 import { useNextEpisode } from "../../../src/hooks/useNextEpisode";
+import { AudioTrackPicker, type AudioStream } from "../../../src/components/AudioTrackPicker";
+import { SubtitlePicker, isImageSubtitle, type SubtitleStream } from "../../../src/components/SubtitlePicker";
+
+const IMAGE_SUBTITLE_CODECS = new Set([
+  "pgssub", "hdmv_pgs_subtitle", "dvd_subtitle", "dvbsub", "xsub",
+]);
 
 const CONTROLS_TIMEOUT = 3000;
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("screen");
@@ -39,9 +45,53 @@ export default function PlayerScreen() {
   const mediaId = id ?? "";
 
   const { data: media } = useLibraryServiceGetMediaItem(mediaId);
-  const { streamUrl, sessionId, isLoading, isError, stopSession } = usePlaySession(mediaId);
+  const { streamUrl, sessionId, streamInfo, isLoading, isError, stopSession, restartWithTracks } =
+    usePlaySession(mediaId);
 
   const [showControls, setShowControls] = useState(true);
+  const [showAudioPicker, setShowAudioPicker] = useState(false);
+  const [showSubtitlePicker, setShowSubtitlePicker] = useState(false);
+  const [selectedAudioIndex, setSelectedAudioIndex] = useState<number>(0);
+  const [selectedSubtitleIndex, setSelectedSubtitleIndex] = useState<number | null>(null);
+
+  const audioStreams: AudioStream[] = useMemo(
+    () =>
+      streamInfo?.mediaStreams
+        ?.filter((s) => s.type === "MEDIA_STREAM_TYPE_AUDIO")
+        .map((s, i) => ({
+          index: s.index ?? 0,
+          trackIndex: i,
+          language: s.language,
+          title: s.title,
+          isDefault: s.isDefault,
+          channels: s.channels,
+        })) ?? [],
+    [streamInfo],
+  );
+
+  const subtitleStreams: SubtitleStream[] = useMemo(
+    () =>
+      streamInfo?.mediaStreams
+        ?.filter((s) => s.type === "MEDIA_STREAM_TYPE_SUBTITLE")
+        .map((s, i) => ({
+          index: s.index ?? 0,
+          trackIndex: i,
+          language: s.language,
+          title: s.title,
+          isDefault: s.isDefault,
+          isForced: s.isForced,
+          codec: s.codec,
+          burnIn: IMAGE_SUBTITLE_CODECS.has(s.codec?.toLowerCase() ?? ""),
+        })) ?? [],
+    [streamInfo],
+  );
+
+  // Set initial selected audio index from default stream
+  useEffect(() => {
+    const def = audioStreams.find((s) => s.isDefault);
+    if (def) setSelectedAudioIndex(def.index);
+    else if (audioStreams.length > 0) setSelectedAudioIndex(audioStreams[0].index);
+  }, [audioStreams]);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
@@ -188,6 +238,26 @@ export default function PlayerScreen() {
 
   useProgressReporter(sessionId, getPositionMs);
 
+  const handleAudioSelect = useCallback(
+    (index: number) => {
+      setSelectedAudioIndex(index);
+      restartWithTracks(index, selectedSubtitleIndex ?? undefined);
+    },
+    [restartWithTracks, selectedSubtitleIndex],
+  );
+
+  const handleSubtitleSelect = useCallback(
+    (index: number | null) => {
+      setSelectedSubtitleIndex(index);
+      if (index === null) {
+        restartWithTracks(selectedAudioIndex, undefined);
+      } else {
+        restartWithTracks(selectedAudioIndex, index);
+      }
+    },
+    [restartWithTracks, selectedAudioIndex],
+  );
+
   const handleBack = useCallback(() => {
     stopSession();
     router.back();
@@ -298,7 +368,26 @@ export default function PlayerScreen() {
               <Text style={styles.title} numberOfLines={1}>
                 {media?.title ?? ""}
               </Text>
-              <View style={{ width: 40 }} />
+              <View style={styles.topBarRight}>
+                {audioStreams.length > 1 && (
+                  <Pressable
+                    onPress={() => setShowAudioPicker(true)}
+                    hitSlop={8}
+                    style={styles.trackButton}
+                  >
+                    <Text style={styles.trackButtonText}>{"\u266B"}</Text>
+                  </Pressable>
+                )}
+                {subtitleStreams.length > 0 && (
+                  <Pressable
+                    onPress={() => setShowSubtitlePicker(true)}
+                    hitSlop={8}
+                    style={styles.trackButton}
+                  >
+                    <Text style={styles.trackButtonText}>CC</Text>
+                  </Pressable>
+                )}
+              </View>
             </View>
 
             <View style={styles.centerControls}>
@@ -333,6 +422,22 @@ export default function PlayerScreen() {
           </View>
         )}
       </View>
+
+      <AudioTrackPicker
+        visible={showAudioPicker}
+        onClose={() => setShowAudioPicker(false)}
+        streams={audioStreams}
+        currentIndex={selectedAudioIndex}
+        onSelect={handleAudioSelect}
+      />
+
+      <SubtitlePicker
+        visible={showSubtitlePicker}
+        onClose={() => setShowSubtitlePicker(false)}
+        streams={subtitleStreams}
+        currentIndex={selectedSubtitleIndex}
+        onSelect={handleSubtitleSelect}
+      />
     </View>
   );
 }
@@ -556,5 +661,25 @@ const styles = StyleSheet.create({
     height: "100%",
     backgroundColor: "#fff",
     borderRadius: 2,
+  },
+  topBarRight: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    minWidth: 40,
+    justifyContent: "flex-end",
+  },
+  trackButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: "rgba(255,255,255,0.15)",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  trackButtonText: {
+    color: "#fff",
+    fontSize: 14,
+    fontWeight: "700",
   },
 });
