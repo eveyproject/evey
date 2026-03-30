@@ -424,6 +424,10 @@ func (h *parentalHandler) updateSettings(w http.ResponseWriter, r *http.Request)
 	}
 
 	if profile.Parental != nil && profile.Parental.PINHash != "" {
+		if !h.pinRL.Allow(profileID) {
+			http.Error(w, `{"message":"too many attempts"}`, http.StatusTooManyRequests)
+			return
+		}
 		valid, err := h.hasher.Verify(body.CurrentPIN, profile.Parental.PINHash)
 		if err != nil || !valid {
 			http.Error(w, `{"message":"invalid current PIN"}`, http.StatusForbidden)
