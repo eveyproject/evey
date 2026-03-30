@@ -4,7 +4,18 @@
 let getToken: (() => string | null) | null = null;
 let updateTokens: ((access: string) => void) | null = null;
 
+let baseURL = "";
+export function setBaseURL(url: string) { baseURL = url; }
+
+let onUnauthorized: (() => void) | null = null;
+export function setUnauthorizedHandler(fn: () => void) { onUnauthorized = fn; }
+
+type RefreshFn = () => Promise<{ accessToken: string } | null>;
+let customRefreshFn: RefreshFn | null = null;
+export function setRefreshHandler(fn: RefreshFn) { customRefreshFn = fn; }
+
 function getCSRFToken(): string {
+  if (typeof document === "undefined") return "";
   const match = document.cookie.match(/(?:^|;\s*)_csrf=([^;]*)/);
   return match ? match[1] : "";
 }
@@ -29,13 +40,28 @@ let refreshFailed = false;
 /** Reset module state — for tests only */
 export function _resetFetcherState() { refreshPromise = null; refreshFailed = false; }
 
+function resolveURL(url: string): string {
+  return baseURL ? `${baseURL}${url}` : url;
+}
+
+function fireUnauthorized() {
+  if (onUnauthorized) { onUnauthorized(); return; }
+  if (typeof window !== "undefined") window.dispatchEvent(new Event("evey:unauthorized"));
+}
+
 async function attemptRefresh(): Promise<string> {
   if (!refreshPromise) {
     refreshPromise = (async () => {
+      if (customRefreshFn) {
+        const result = await customRefreshFn();
+        if (!result) throw Object.assign(new Error("refresh failed"), { httpStatus: 401 });
+        updateTokens?.(result.accessToken);
+        return result.accessToken;
+      }
       const csrfToken = getCSRFToken();
       const refreshHeaders: Record<string, string> = { "Content-Type": "application/json" };
       if (csrfToken) refreshHeaders["X-CSRF-Token"] = csrfToken;
-      const res = await fetch("/api/v1/auth/refresh", {
+      const res = await fetch(resolveURL("/api/v1/auth/refresh"), {
         method: "POST",
         credentials: "include",
         headers: refreshHeaders,
@@ -67,7 +93,7 @@ async function fetchWithRefresh(
 
   if (response.status === 401 && !url.includes("/auth/refresh")) {
     if (refreshFailed) {
-      window.dispatchEvent(new Event("evey:unauthorized"));
+      fireUnauthorized();
       throw Object.assign(new Error("Unauthorized"), { httpStatus: 401 });
     }
     try {
@@ -76,13 +102,13 @@ async function fetchWithRefresh(
       response = await doFetch(newToken);
     } catch {
       refreshFailed = true;
-      window.dispatchEvent(new Event("evey:unauthorized"));
+      fireUnauthorized();
       throw Object.assign(new Error("Unauthorized"), { httpStatus: 401 });
     }
   }
 
   if (response.status === 401) {
-    window.dispatchEvent(new Event("evey:unauthorized"));
+    fireUnauthorized();
   }
 
   if (!response.ok) {
@@ -109,15 +135,16 @@ export async function eveyFetchRaw(request: RawFetcherRequest): Promise<Response
     if (csrf) headers["X-CSRF-Token"] = csrf;
   }
 
+  const fullURL = resolveURL(request.url);
   const doFetch = (authToken: string | undefined) =>
-    fetch(request.url, {
+    fetch(fullURL, {
       method: request.method,
       headers: authToken ? { ...headers, Authorization: `Bearer ${authToken}` } : headers,
       body: request.body,
       signal: request.signal,
     });
 
-  return fetchWithRefresh(request.url, doFetch, token ?? undefined);
+  return fetchWithRefresh(fullURL, doFetch, token ?? undefined);
 }
 
 export async function eveyFetch<T>(request: FetcherRequest): Promise<T> {
@@ -130,7 +157,7 @@ export async function eveyFetch<T>(request: FetcherRequest): Promise<T> {
     if (csrf) headers["X-CSRF-Token"] = csrf;
   }
 
-  let url = request.url;
+  let url = resolveURL(request.url);
   if (request.params) {
     const qs = new URLSearchParams(
       Object.entries(request.params)
