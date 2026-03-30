@@ -10,6 +10,7 @@ import {
 import { Image } from "expo-image";
 import { Skeleton } from "../../../src/components/Skeleton";
 import { useRouter } from "expo-router";
+import { useTranslation } from "react-i18next";
 import { useLibraryServiceSearchMedia } from "@evey/api";
 import type { V1MediaItem } from "@evey/api";
 import { useTheme } from "../../../src/providers/ThemeProvider";
@@ -27,6 +28,7 @@ function formatType(type?: string): string {
 export default function SearchScreen() {
   const theme = useTheme();
   const router = useRouter();
+  const { t } = useTranslation();
   const [query, setQuery] = useState("");
   const debouncedQuery = useDebounce(query, 300);
 
@@ -102,7 +104,7 @@ export default function SearchScreen() {
             marginTop: theme.spacing.xl,
           },
         ]}
-        placeholder="Search for movies, shows, and more"
+        placeholder={t("media.search.placeholder")}
         placeholderTextColor={theme.colors.textMuted}
         value={query}
         onChangeText={setQuery}
@@ -126,12 +128,12 @@ export default function SearchScreen() {
       ) : debouncedQuery.length === 0 ? (
         <View style={styles.center}>
           <Text style={{ color: theme.colors.textMuted, fontSize: 15 }}>
-            Search for movies, shows, and more
+            {t("media.search.searchLibrary")}
           </Text>
         </View>
       ) : items.length === 0 ? (
         <View style={styles.center}>
-          <Text style={{ color: theme.colors.textMuted }}>No results</Text>
+          <Text style={{ color: theme.colors.textMuted }}>{t("media.search.noResults")}</Text>
         </View>
       ) : (
         <FlatList

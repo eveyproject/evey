@@ -5,12 +5,19 @@ import { SafeAreaProvider } from "react-native-safe-area-context";
 import { queryClient } from "../src/lib/query-client";
 import { ThemeProvider } from "../src/providers/ThemeProvider";
 import { initFetcher } from "../src/lib/fetcher-setup";
+import { getServerUrl } from "../src/lib/server-config";
+import { initI18n } from "../src/i18n";
 
 export default function RootLayout() {
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
-    initFetcher().then(() => setReady(true));
+    async function bootstrap() {
+      await initFetcher();
+      const serverUrl = await getServerUrl();
+      if (serverUrl) await initI18n(serverUrl);
+    }
+    bootstrap().then(() => setReady(true));
   }, []);
 
   if (!ready) return null;

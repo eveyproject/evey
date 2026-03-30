@@ -3,6 +3,7 @@ import { Skeleton } from "../../../src/components/Skeleton";
 import { useCallback, useMemo, useState } from "react";
 import { Dimensions } from "react-native";
 import { router } from "expo-router";
+import { useTranslation } from "react-i18next";
 import {
   usePlaybackServiceGetResumeItems,
   usePlaybackServiceGetNextUp,
@@ -14,6 +15,7 @@ import { MediaRow } from "../../../src/components/MediaRow";
 
 export default function HomeScreen() {
   const theme = useTheme();
+  const { t } = useTranslation();
 
   const resume = usePlaybackServiceGetResumeItems({ limit: 20 });
   const nextUp = usePlaybackServiceGetNextUp({ limit: 20 });
@@ -75,18 +77,18 @@ export default function HomeScreen() {
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.colors.accent} />}
     >
       <MediaRow
-        title="Continue Watching"
+        title={t("media.home.continueWatching")}
         items={resume.data?.items ?? []}
         onItemPress={handleItemPress}
         watchPercents={watchPercents}
       />
       <MediaRow
-        title="Next Up"
+        title={t("media.home.upNext")}
         items={nextUp.data?.items ?? []}
         onItemPress={handleItemPress}
       />
       <MediaRow
-        title="Recently Added"
+        title={t("media.home.recentlyAdded")}
         items={recentlyAdded.data?.items ?? []}
         onItemPress={handleItemPress}
       />

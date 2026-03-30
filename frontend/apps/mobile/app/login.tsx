@@ -1,12 +1,14 @@
 import { useState } from "react";
 import { View, Text, TextInput, Pressable, ActivityIndicator, Alert } from "react-native";
 import { router } from "expo-router";
+import { useTranslation } from "react-i18next";
 import { useUserServiceLogin } from "@evey/api";
 import { useAuthStore } from "@evey/store";
 import { useTheme } from "../src/providers/ThemeProvider";
 
 export default function Login() {
   const theme = useTheme();
+  const { t } = useTranslation();
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const setTokens = useAuthStore((s) => s.setTokens);
@@ -20,7 +22,10 @@ export default function Login() {
         }
       },
       onError: (err) => {
-        Alert.alert("Login failed", err instanceof Error ? err.message : "Invalid credentials");
+        Alert.alert(
+          t("auth.login.loginFailed"),
+          err instanceof Error ? err.message : t("auth.login.invalidCredentials"),
+        );
       },
     },
   });
@@ -43,10 +48,10 @@ export default function Login() {
   return (
     <View style={{ flex: 1, justifyContent: "center", padding: theme.spacing.xl, backgroundColor: theme.colors.bg }}>
       <Text style={{ fontSize: 24, fontWeight: "bold", color: theme.colors.text, marginBottom: theme.spacing.lg }}>
-        Sign In
+        {t("auth.login.signIn")}
       </Text>
       <TextInput
-        placeholder="Username"
+        placeholder={t("auth.login.username")}
         placeholderTextColor={theme.colors.textMuted}
         value={username}
         onChangeText={setUsername}
@@ -55,7 +60,7 @@ export default function Login() {
         style={inputStyle}
       />
       <TextInput
-        placeholder="Password"
+        placeholder={t("auth.login.password")}
         placeholderTextColor={theme.colors.textMuted}
         value={password}
         onChangeText={setPassword}
@@ -75,11 +80,11 @@ export default function Login() {
         {isPending ? (
           <ActivityIndicator color={theme.colors.text} />
         ) : (
-          <Text style={{ color: "#fff", fontWeight: "600", fontSize: 16 }}>Sign In</Text>
+          <Text style={{ color: "#fff", fontWeight: "600", fontSize: 16 }}>{t("auth.login.signIn")}</Text>
         )}
       </Pressable>
       <Pressable onPress={() => router.push("/forgot-password")} style={{ marginTop: theme.spacing.md }}>
-        <Text style={{ color: theme.colors.accent, textAlign: "center" }}>Forgot password?</Text>
+        <Text style={{ color: theme.colors.accent, textAlign: "center" }}>{t("auth.login.forgotPassword")}</Text>
       </Pressable>
     </View>
   );

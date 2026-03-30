@@ -1,0 +1,15 @@
+serverConnect:
+  title: Connect to Server
+  connect: Connect
+  connectionFailed: Connection failed
+  unreachable: Unable to reach server
+settings:
+  server: Server
+  changeServer: Change server
+  disconnectConfirm: Disconnect from this server?
+  disconnect: Disconnect
+  signOut: Sign out
+  signOutConfirm: Are you sure?
+  about: About
+  appVersion: App version
+  serverVersion: Server version
