@@ -64,7 +64,11 @@ func batchUpdateFeedConfig(svc *appfeed.CommandService) http.HandlerFunc {
 		}
 
 		if err := svc.BatchUpdateAdminConfigs(r.Context(), cfgs); err != nil {
-			http.Error(w, `{"message":"`+err.Error()+`"}`, http.StatusBadRequest)
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusBadRequest)
+			if encErr := json.NewEncoder(w).Encode(map[string]string{"message": err.Error()}); encErr != nil {
+				slog.Error("encode feed config error", slog.Any("err", encErr))
+			}
 			return
 		}
 		w.WriteHeader(http.StatusNoContent)

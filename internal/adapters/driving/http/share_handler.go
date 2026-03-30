@@ -58,14 +58,16 @@ func shareCreateHandler(shareSvc *appmedia.ShareService, mediaGetter mediaLibrar
 
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusCreated)
-		json.NewEncoder(w).Encode(map[string]any{
+		if err := json.NewEncoder(w).Encode(map[string]any{
 			"id":        link.ID,
 			"token":     link.Token,
 			"mediaId":   link.MediaItemID,
 			"expiresAt": link.ExpiresAt,
 			"maxViews":  link.MaxViews,
 			"url":       "/share/" + link.Token,
-		})
+		}); err != nil {
+			slog.Error("encode share create response", slog.Any("err", err))
+		}
 	}
 }
 
@@ -100,7 +102,9 @@ func shareListAllHandler(shareSvc *appmedia.ShareService) http.HandlerFunc {
 			})
 		}
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(result)
+		if err := json.NewEncoder(w).Encode(result); err != nil {
+			slog.Error("encode share list response", slog.Any("err", err))
+		}
 	}
 }
 
@@ -135,12 +139,15 @@ func shareValidateHandler(shareSvc *appmedia.ShareService, mediaGetter mediaLibr
 		}
 
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]any{
-			"mediaId":   item.ID,
-			"title":     item.Title,
-			"filePath":  item.FilePath,
-			"streamUrl": "/api/v1/media/" + item.ID + "/stream",
-		})
+		if err := json.NewEncoder(w).Encode(map[string]any{
+			"mediaId":    item.ID,
+			"title":      item.Title,
+			"mediaType":  item.Type,
+			"durationMs": item.DurationMs,
+			"streamUrl":  "/api/v1/media/" + item.ID + "/stream",
+		}); err != nil {
+			slog.Error("encode share validate response", slog.Any("err", err))
+		}
 	}
 }
 
