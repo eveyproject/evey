@@ -345,15 +345,15 @@ function HomePage() {
   const hasContent = (recentlyAdded?.items ?? []).length > 0 || libraries.length > 0;
   const isLoading = librariesLoading || recentLoading;
 
-  const sections = useMemo(() => {
+  const allSections = useMemo(() => {
     const configs = feedConfig?.configs;
     if (!configs || configs.length === 0 || feedConfigError) {
       return FALLBACK_ORDER.map((ft, i) => ({ feedType: ft, enabled: true, displayOrder: i }));
     }
-    return [...configs]
-      .sort((a, b) => (a.displayOrder ?? 0) - (b.displayOrder ?? 0))
-      .filter((c) => c.enabled);
+    return [...configs].sort((a, b) => (a.displayOrder ?? 0) - (b.displayOrder ?? 0));
   }, [feedConfig, feedConfigError]);
+
+  const sections = useMemo(() => allSections.filter((c) => c.enabled), [allSections]);
 
   return (
     <div className="animate-fade-in" data-testid="home-page">
@@ -393,7 +393,7 @@ function HomePage() {
               return Component ? <Component key={ft} /> : null;
             })}
             {libraries
-              .filter((lib) => lib.id && !sections.some((s) => s.feedType === `library:${lib.id}`))
+              .filter((lib) => lib.id && !allSections.some((s) => s.feedType === `library:${lib.id}`))
               .map((lib) => (
                 <LibrarySlider key={lib.id} libraryId={lib.id!} name={lib.name ?? t("media.home.library")} libraryType={lib.type} />
               ))}

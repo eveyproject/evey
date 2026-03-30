@@ -317,10 +317,8 @@ export function DashboardStats({ info }: DashboardStatsProps) {
 
       <QuickActions />
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <RecentActivity />
-        <PopularMedia />
-      </div>
+      <RecentActivity />
+      <PopularMedia />
     </div>
   );
 }
