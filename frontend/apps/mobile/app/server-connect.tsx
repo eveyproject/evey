@@ -46,6 +46,8 @@ export default function ServerConnect() {
         autoCapitalize="none"
         autoCorrect={false}
         keyboardType="url"
+        accessible={true}
+        accessibilityLabel="Server URL"
         style={{
           backgroundColor: theme.colors.surface,
           color: theme.colors.text,
@@ -59,6 +61,9 @@ export default function ServerConnect() {
       <Pressable
         onPress={handleConnect}
         disabled={loading}
+        accessible={true}
+        accessibilityLabel="Connect to server"
+        accessibilityRole="button"
         style={{
           backgroundColor: theme.colors.accent,
           borderRadius: theme.radii.md,

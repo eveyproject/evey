@@ -83,7 +83,7 @@ export default function SettingsScreen() {
           <Text style={s.label}>URL</Text>
           <Text style={s.value} numberOfLines={1}>{serverUrl ?? "..."}</Text>
         </View>
-        <Pressable style={s.row} onPress={handleChangeServer}>
+        <Pressable style={s.row} onPress={handleChangeServer} accessible={true} accessibilityLabel={t("mobile.settings.changeServer")} accessibilityRole="button">
           <Text style={s.labelDestructive}>{t("mobile.settings.changeServer")}</Text>
           <ChevronRight color={theme.colors.textMuted} />
         </Pressable>
@@ -96,7 +96,7 @@ export default function SettingsScreen() {
           <Text style={s.label}>{t("auth.login.username")}</Text>
           <Text style={s.value}>{user?.username ?? "..."}</Text>
         </View>
-        <Pressable style={s.row} onPress={handleSignOut}>
+        <Pressable style={s.row} onPress={handleSignOut} accessible={true} accessibilityLabel={t("mobile.settings.signOut")} accessibilityRole="button">
           <Text style={s.labelDestructive}>{t("mobile.settings.signOut")}</Text>
           <ChevronRight color={theme.colors.textMuted} />
         </Pressable>
@@ -106,7 +106,7 @@ export default function SettingsScreen() {
       <Text style={s.sectionTitle}>{t("common.language")}</Text>
       <View style={s.section}>
         {supportedLanguages.map((lang) => (
-          <Pressable key={lang.code} style={s.row} onPress={() => handleLanguageChange(lang.code)}>
+          <Pressable key={lang.code} style={s.row} onPress={() => handleLanguageChange(lang.code)} accessible={true} accessibilityLabel={lang.label} accessibilityRole="button">
             <Text style={s.label}>{lang.label}</Text>
             {currentLang === lang.code && (
               <Text style={{ color: theme.colors.accent, fontSize: 16, fontWeight: "600" }}>✓</Text>
@@ -119,7 +119,7 @@ export default function SettingsScreen() {
       <Text style={s.sectionTitle}>{t("auth.settings.tabs.appearance")}</Text>
       <View style={s.section}>
         {THEME_OPTIONS.map((opt) => (
-          <Pressable key={opt.value} style={s.row} onPress={() => setTheme(opt.value)}>
+          <Pressable key={opt.value} style={s.row} onPress={() => setTheme(opt.value)} accessible={true} accessibilityLabel={`${opt.label} theme`} accessibilityRole="button">
             <Text style={s.label}>{opt.label}</Text>
             {currentTheme === opt.value && (
               <Text style={{ color: theme.colors.accent, fontSize: 16, fontWeight: "600" }}>✓</Text>

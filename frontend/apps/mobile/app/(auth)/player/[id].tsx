@@ -362,7 +362,7 @@ export default function PlayerScreen() {
         {showControls && (
           <View style={styles.overlay} pointerEvents="box-none">
             <View style={styles.topBar}>
-              <Pressable onPress={handleBack} hitSlop={16}>
+              <Pressable onPress={handleBack} hitSlop={16} accessible={true} accessibilityLabel="Go back" accessibilityRole="button">
                 <Text style={styles.backButton}>{"<"}</Text>
               </Pressable>
               <Text style={styles.title} numberOfLines={1}>
@@ -374,6 +374,9 @@ export default function PlayerScreen() {
                     onPress={() => setShowAudioPicker(true)}
                     hitSlop={8}
                     style={styles.trackButton}
+                    accessible={true}
+                    accessibilityLabel="Audio tracks"
+                    accessibilityRole="button"
                   >
                     <Text style={styles.trackButtonText}>{"\u266B"}</Text>
                   </Pressable>
@@ -383,6 +386,9 @@ export default function PlayerScreen() {
                     onPress={() => setShowSubtitlePicker(true)}
                     hitSlop={8}
                     style={styles.trackButton}
+                    accessible={true}
+                    accessibilityLabel="Subtitles"
+                    accessibilityRole="button"
                   >
                     <Text style={styles.trackButtonText}>CC</Text>
                   </Pressable>
@@ -391,13 +397,13 @@ export default function PlayerScreen() {
             </View>
 
             <View style={styles.centerControls}>
-              <Pressable onPress={() => seekBy(-10)} hitSlop={16} style={styles.seekButton}>
+              <Pressable onPress={() => seekBy(-10)} hitSlop={16} style={styles.seekButton} accessible={true} accessibilityLabel="Seek backward 10 seconds" accessibilityRole="button">
                 <Text style={styles.seekText}>-10</Text>
               </Pressable>
-              <Pressable onPress={togglePlayPause} hitSlop={16} style={styles.playButton}>
+              <Pressable onPress={togglePlayPause} hitSlop={16} style={styles.playButton} accessible={true} accessibilityLabel={isPlaying ? "Pause" : "Play"} accessibilityRole="button">
                 <Text style={styles.playButtonText}>{isPlaying ? "||" : "\u25B6"}</Text>
               </Pressable>
-              <Pressable onPress={() => seekBy(10)} hitSlop={16} style={styles.seekButton}>
+              <Pressable onPress={() => seekBy(10)} hitSlop={16} style={styles.seekButton} accessible={true} accessibilityLabel="Seek forward 10 seconds" accessibilityRole="button">
                 <Text style={styles.seekText}>+10</Text>
               </Pressable>
             </View>
@@ -406,6 +412,9 @@ export default function PlayerScreen() {
               <Text style={styles.timeText}>{formatTime(currentTime)}</Text>
               <Pressable
                 style={styles.seekBarContainer}
+                accessible={true}
+                accessibilityRole="adjustable"
+                accessibilityLabel="Seek slider"
                 onPress={(e) => {
                   const x = e.nativeEvent.locationX;
                   const width = PLAYER_WIDTH - 160;

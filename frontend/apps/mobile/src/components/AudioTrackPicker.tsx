@@ -43,6 +43,9 @@ export function AudioTrackPicker({
               onSelect(s.index);
               onClose();
             }}
+            accessible={true}
+            accessibilityLabel={formatLabel(s)}
+            accessibilityRole="button"
           >
             <Text style={[styles.label, active && styles.activeLabel]}>
               {formatLabel(s)}

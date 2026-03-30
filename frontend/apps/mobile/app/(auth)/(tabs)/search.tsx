@@ -52,6 +52,9 @@ export default function SearchScreen() {
         ]}
         activeOpacity={0.7}
         onPress={() => router.push(`/media/${item.id}`)}
+        accessible={true}
+        accessibilityLabel={item.title}
+        accessibilityRole="button"
       >
         {poster ? (
           <Image
@@ -111,6 +114,8 @@ export default function SearchScreen() {
         autoCapitalize="none"
         autoCorrect={false}
         returnKeyType="search"
+        accessible={true}
+        accessibilityLabel="Search media"
       />
 
       {isLoading && debouncedQuery.length > 0 ? (

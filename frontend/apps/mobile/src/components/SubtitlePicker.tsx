@@ -41,6 +41,9 @@ export function SubtitlePicker({
           onSelect(null);
           onClose();
         }}
+        accessible={true}
+        accessibilityLabel="None"
+        accessibilityRole="button"
       >
         <Text style={[styles.label, currentIndex === null && styles.activeLabel]}>
           None
@@ -57,6 +60,9 @@ export function SubtitlePicker({
               onSelect(s.index);
               onClose();
             }}
+            accessible={true}
+            accessibilityLabel={formatLabel(s)}
+            accessibilityRole="button"
           >
             <View style={styles.labelRow}>
               <Text style={[styles.label, active && styles.activeLabel]}>

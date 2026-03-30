@@ -29,7 +29,7 @@ export const MediaCard = memo(function MediaCard({ item, onPress, width, watchPe
   const imageUri = serverUrl ? `${serverUrl}/api/v1/media/${item.id}/artwork/primary` : undefined;
 
   return (
-    <Pressable onPress={onPress} style={{ width: cardWidth, marginRight: theme.spacing.sm }}>
+    <Pressable onPress={onPress} style={{ width: cardWidth, marginRight: theme.spacing.sm }} accessible={true} accessibilityLabel={item.title} accessibilityRole="button">
       <View style={{
         width: cardWidth,
         height: cardHeight,

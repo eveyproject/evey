@@ -29,6 +29,8 @@ export default function ForgotPassword() {
         onChangeText={setEmail}
         autoCapitalize="none"
         keyboardType="email-address"
+        accessible={true}
+        accessibilityLabel="Email address"
         style={{
           backgroundColor: theme.colors.surface,
           color: theme.colors.text,
@@ -41,6 +43,9 @@ export default function ForgotPassword() {
       />
       <Pressable
         onPress={handleSubmit}
+        accessible={true}
+        accessibilityLabel="Send reset link"
+        accessibilityRole="button"
         style={{
           backgroundColor: theme.colors.accent,
           borderRadius: theme.radii.md,

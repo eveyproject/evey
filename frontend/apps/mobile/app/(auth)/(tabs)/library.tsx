@@ -42,6 +42,9 @@ export default function LibraryScreen() {
       ]}
       activeOpacity={0.7}
       onPress={() => router.push(`/library/${item.id}`)}
+      accessible={true}
+      accessibilityLabel={item.name}
+      accessibilityRole="button"
     >
       <Text style={styles.icon}>{getTypeIcon(item.type)}</Text>
       <View style={{ flex: 1 }}>

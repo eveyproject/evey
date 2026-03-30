@@ -58,6 +58,8 @@ export default function Login() {
         autoCapitalize="none"
         autoCorrect={false}
         style={inputStyle}
+        accessible={true}
+        accessibilityLabel="Username"
       />
       <TextInput
         placeholder={t("auth.login.password")}
@@ -66,10 +68,15 @@ export default function Login() {
         onChangeText={setPassword}
         secureTextEntry
         style={inputStyle}
+        accessible={true}
+        accessibilityLabel="Password"
       />
       <Pressable
         onPress={handleLogin}
         disabled={isPending}
+        accessible={true}
+        accessibilityLabel="Sign in"
+        accessibilityRole="button"
         style={{
           backgroundColor: theme.colors.accent,
           borderRadius: theme.radii.md,

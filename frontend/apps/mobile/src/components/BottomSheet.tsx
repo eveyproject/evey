@@ -41,7 +41,7 @@ export function BottomSheet({ visible, onClose, title, children }: BottomSheetPr
 
   return (
     <Modal visible={visible} transparent animationType="none" onRequestClose={onClose}>
-      <Pressable style={styles.backdrop} onPress={onClose}>
+      <Pressable style={styles.backdrop} onPress={onClose} accessible={true} accessibilityLabel="Close" accessibilityRole="button">
         <View />
       </Pressable>
       <Animated.View style={[styles.sheet, { transform: [{ translateY }] }]}>
