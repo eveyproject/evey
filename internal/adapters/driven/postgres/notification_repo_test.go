@@ -2,6 +2,7 @@ package postgres_test
 
 import (
 	"context"
+	"database/sql"
 	"testing"
 	"time"
 
@@ -12,9 +13,20 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func seedNotifProfile(t *testing.T, db *sql.DB, profileID, userID string) {
+	t.Helper()
+	ctx := context.Background()
+	userRepo := postgres.NewUserRepository(db)
+	profileRepo := postgres.NewProfileRepository(db)
+	require.NoError(t, userRepo.Create(ctx, newTestUser(userID)))
+	require.NoError(t, profileRepo.Create(ctx, newTestProfile(profileID, userID)))
+}
+
 func TestNotificationRepo_CRUD(t *testing.T) {
 	db, cleanup := testhelpers.StartPostgres(t)
 	defer cleanup()
+
+	seedNotifProfile(t, db, "profile-a", "notif-u1")
 
 	repo := postgres.NewNotificationRepository(db)
 	ctx := context.Background()
@@ -63,6 +75,8 @@ func TestNotificationRepo_MarkAllRead(t *testing.T) {
 	db, cleanup := testhelpers.StartPostgres(t)
 	defer cleanup()
 
+	seedNotifProfile(t, db, "pA", "notif-u2")
+
 	repo := postgres.NewNotificationRepository(db)
 	ctx := context.Background()
 
@@ -83,6 +97,8 @@ func TestNotificationRepo_MarkAllRead(t *testing.T) {
 func TestNotificationRepo_CleanupExpired(t *testing.T) {
 	db, cleanup := testhelpers.StartPostgres(t)
 	defer cleanup()
+
+	seedNotifProfile(t, db, "pB", "notif-u3")
 
 	repo := postgres.NewNotificationRepository(db)
 	ctx := context.Background()

@@ -54,10 +54,10 @@ func (r *TrickplayRepository) Delete(ctx context.Context, mediaItemID string) er
 
 func (r *TrickplayRepository) ListMissingMediaItemIDs(ctx context.Context) ([]string, error) {
 	rows, err := r.db.QueryContext(ctx,
-		`SELECT id FROM media_items
-		 WHERE file_path != ''
-		   AND type IN ('movie', 'episode')
-		   AND id NOT IN (SELECT media_item_id FROM trickplay_manifests)`)
+		`SELECT id FROM media_items mi
+		 WHERE mi.file_path != ''
+		   AND mi.type IN ('movie', 'episode')
+		   AND NOT EXISTS (SELECT 1 FROM trickplay_manifests tm WHERE tm.media_item_id = mi.id)`)
 	if err != nil {
 		return nil, err
 	}

@@ -2,6 +2,7 @@ package postgres_test
 
 import (
 	"context"
+	"database/sql"
 	"testing"
 	"time"
 
@@ -12,9 +13,24 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func seedSyncplayDeps(t *testing.T, db *sql.DB, profileID, userID, libraryID, mediaID string) {
+	t.Helper()
+	ctx := context.Background()
+	userRepo := postgres.NewUserRepository(db)
+	profileRepo := postgres.NewProfileRepository(db)
+	libRepo := postgres.NewLibraryRepository(db)
+	itemRepo := postgres.NewMediaItemRepository(db)
+	require.NoError(t, userRepo.Create(ctx, newTestUser(userID)))
+	require.NoError(t, profileRepo.Create(ctx, newTestProfile(profileID, userID)))
+	require.NoError(t, libRepo.Create(ctx, newTestLibrary(libraryID)))
+	require.NoError(t, itemRepo.Create(ctx, newTestMediaItem(mediaID, libraryID)))
+}
+
 func TestSyncPlayRoomRepo_Create_Get(t *testing.T) {
 	db, cleanup := testhelpers.StartPostgres(t)
 	defer cleanup()
+
+	seedSyncplayDeps(t, db, "host-u1", "sp-user1", "sp-lib1", "media-1")
 
 	repo := postgres.NewSyncPlayRoomRepo(db)
 	ctx := context.Background()
@@ -42,6 +58,8 @@ func TestSyncPlayRoomRepo_GetByCode(t *testing.T) {
 	db, cleanup := testhelpers.StartPostgres(t)
 	defer cleanup()
 
+	seedSyncplayDeps(t, db, "host-u2", "sp-user2", "sp-lib2", "media-2")
+
 	repo := postgres.NewSyncPlayRoomRepo(db)
 	ctx := context.Background()
 
@@ -66,6 +84,8 @@ func TestSyncPlayRoomRepo_GetByCode(t *testing.T) {
 func TestSyncPlayRoomRepo_AddMember_RemoveMember(t *testing.T) {
 	db, cleanup := testhelpers.StartPostgres(t)
 	defer cleanup()
+
+	seedSyncplayDeps(t, db, "host-u3", "sp-user3", "sp-lib3", "media-3")
 
 	repo := postgres.NewSyncPlayRoomRepo(db)
 	ctx := context.Background()
@@ -99,6 +119,8 @@ func TestSyncPlayRoomRepo_UpdateState(t *testing.T) {
 	db, cleanup := testhelpers.StartPostgres(t)
 	defer cleanup()
 
+	seedSyncplayDeps(t, db, "host-u4", "sp-user4", "sp-lib4", "media-4")
+
 	repo := postgres.NewSyncPlayRoomRepo(db)
 	ctx := context.Background()
 
@@ -126,6 +148,8 @@ func TestSyncPlayRoomRepo_UpdateState(t *testing.T) {
 func TestSyncPlayRoomRepo_Delete(t *testing.T) {
 	db, cleanup := testhelpers.StartPostgres(t)
 	defer cleanup()
+
+	seedSyncplayDeps(t, db, "host-u5", "sp-user5", "sp-lib5", "media-5")
 
 	repo := postgres.NewSyncPlayRoomRepo(db)
 	ctx := context.Background()
