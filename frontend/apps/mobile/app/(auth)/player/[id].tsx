@@ -11,10 +11,13 @@ import {
 import { useLocalSearchParams, router } from "expo-router";
 import { useVideoPlayer, VideoView } from "expo-video";
 import * as ScreenOrientation from "expo-screen-orientation";
+import { Audio } from "expo-av";
 import { useLibraryServiceGetMediaItem } from "@evey/api";
 import { useTheme } from "../../../src/providers/ThemeProvider";
 import { usePlaySession } from "../../../src/hooks/usePlaySession";
 import { useProgressReporter } from "../../../src/hooks/useProgressReporter";
+import { usePlayerGestures } from "../../../src/hooks/usePlayerGestures";
+import { useNextEpisode } from "../../../src/hooks/useNextEpisode";
 
 const CONTROLS_TIMEOUT = 3000;
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("screen");
@@ -42,6 +45,8 @@ export default function PlayerScreen() {
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
+  const [volume, setVolume] = useState(1);
+  const volumeBaseRef = useRef(1);
   const hideTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const videoSource = useMemo(() => {
@@ -78,7 +83,10 @@ export default function PlayerScreen() {
     };
   }, [player]);
 
-  // Lock to landscape on mount
+  useEffect(() => {
+    Audio.setAudioModeAsync({ playsInSilentModeIOS: true });
+  }, []);
+
   useEffect(() => {
     ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.LANDSCAPE);
     return () => {
@@ -86,12 +94,10 @@ export default function PlayerScreen() {
     };
   }, []);
 
-  // Stop session on unmount
   useEffect(() => {
     return () => stopSession();
   }, [stopSession]);
 
-  // Auto-hide controls
   const resetHideTimer = useCallback(() => {
     if (hideTimerRef.current) clearTimeout(hideTimerRef.current);
     setShowControls(true);
@@ -133,6 +139,49 @@ export default function PlayerScreen() {
     [player, duration, resetHideTimer],
   );
 
+  const seekBy = useCallback(
+    (seconds: number) => {
+      if (!player) return;
+      player.seekBy(seconds);
+      resetHideTimer();
+    },
+    [player, resetHideTimer],
+  );
+
+  const handleVolumeChange = useCallback(
+    (delta: number) => {
+      if (!player) return;
+      const newVol = Math.max(0, Math.min(1, volumeBaseRef.current + delta));
+      player.volume = newVol;
+      setVolume(newVol);
+    },
+    [player],
+  );
+
+  const { panResponder, seekFlash, volumeIndicator, cleanup } = usePlayerGestures({
+    onSeekBy: seekBy,
+    onTogglePlayPause: togglePlayPause,
+    onToggleControls: toggleControls,
+    onVolumeChange: handleVolumeChange,
+  });
+
+  useEffect(() => cleanup, [cleanup]);
+
+  const handleNavigateEpisode = useCallback(
+    (episodeId: string) => {
+      stopSession();
+      router.replace(`/(auth)/player/${episodeId}`);
+    },
+    [stopSession],
+  );
+
+  const nextEp = useNextEpisode({
+    media,
+    currentTime,
+    duration,
+    onNavigate: handleNavigateEpisode,
+  });
+
   const getPositionMs = useCallback(() => {
     return (player?.currentTime ?? 0) * 1000;
   }, [player]);
@@ -166,12 +215,13 @@ export default function PlayerScreen() {
   }
 
   const progress = duration > 0 ? currentTime / duration : 0;
+  const volumePct = Math.round(volume * 100);
 
   return (
     <View style={[styles.container, { backgroundColor: "#000" }]}>
       <StatusBar hidden />
 
-      <Pressable onPress={toggleControls} style={styles.playerWrapper}>
+      <View style={styles.playerWrapper} {...panResponder.panHandlers}>
         <VideoView
           player={player}
           style={styles.video}
@@ -179,9 +229,68 @@ export default function PlayerScreen() {
           contentFit="contain"
         />
 
+        {/* Seek flash */}
+        {seekFlash && (
+          <View
+            style={[
+              styles.seekFlash,
+              seekFlash === "left" ? styles.seekFlashLeft : styles.seekFlashRight,
+            ]}
+          >
+            <Text style={styles.seekFlashText}>
+              {seekFlash === "left" ? "\u00AB 10" : "10 \u00BB"}
+            </Text>
+          </View>
+        )}
+
+        {/* Volume indicator */}
+        {volumeIndicator !== null && (
+          <View style={styles.volumeIndicator}>
+            <Text style={styles.volumeIcon}>{"\u266A"}</Text>
+            <View style={styles.volumeBarBg}>
+              <View style={[styles.volumeBarFill, { height: `${volumePct}%` }]} />
+            </View>
+            <Text style={styles.volumeText}>{volumePct}</Text>
+          </View>
+        )}
+
+        {/* Next episode overlay */}
+        {nextEp.visible && nextEp.nextEpisode && (
+          <View style={styles.nextEpOverlay}>
+            <Text style={styles.nextEpLabel}>
+              {nextEp.ended
+                ? `Next in ${Math.max(nextEp.countdown, 0)}s`
+                : "Up Next"}
+            </Text>
+            <Text style={styles.nextEpTitle} numberOfLines={1}>
+              {nextEp.nextEpisode.indexNumber != null
+                ? `Ep. ${nextEp.nextEpisode.indexNumber}`
+                : "Next Episode"}
+              {nextEp.nextEpisode.title ? ` \u2014 ${nextEp.nextEpisode.title}` : ""}
+            </Text>
+            <View style={styles.nextEpButtons}>
+              <Pressable onPress={nextEp.playNow} style={styles.nextEpPlayBtn}>
+                <Text style={styles.nextEpPlayText}>Play Now</Text>
+              </Pressable>
+              <Pressable onPress={nextEp.cancel} style={styles.nextEpCancelBtn}>
+                <Text style={styles.nextEpCancelText}>Cancel</Text>
+              </Pressable>
+            </View>
+            {nextEp.ended && (
+              <View style={styles.nextEpProgressBg}>
+                <View
+                  style={[
+                    styles.nextEpProgressFill,
+                    { width: `${((5 - Math.max(nextEp.countdown, 0)) / 5) * 100}%` },
+                  ]}
+                />
+              </View>
+            )}
+          </View>
+        )}
+
         {showControls && (
-          <View style={styles.overlay}>
-            {/* Top bar: back + title */}
+          <View style={styles.overlay} pointerEvents="box-none">
             <View style={styles.topBar}>
               <Pressable onPress={handleBack} hitSlop={16}>
                 <Text style={styles.backButton}>{"<"}</Text>
@@ -192,20 +301,18 @@ export default function PlayerScreen() {
               <View style={{ width: 40 }} />
             </View>
 
-            {/* Center play/pause */}
             <View style={styles.centerControls}>
-              <Pressable onPress={() => player?.seekBy(-10)} hitSlop={16} style={styles.seekButton}>
+              <Pressable onPress={() => seekBy(-10)} hitSlop={16} style={styles.seekButton}>
                 <Text style={styles.seekText}>-10</Text>
               </Pressable>
               <Pressable onPress={togglePlayPause} hitSlop={16} style={styles.playButton}>
                 <Text style={styles.playButtonText}>{isPlaying ? "||" : "\u25B6"}</Text>
               </Pressable>
-              <Pressable onPress={() => player?.seekBy(10)} hitSlop={16} style={styles.seekButton}>
+              <Pressable onPress={() => seekBy(10)} hitSlop={16} style={styles.seekButton}>
                 <Text style={styles.seekText}>+10</Text>
               </Pressable>
             </View>
 
-            {/* Bottom bar: time + seek bar */}
             <View style={styles.bottomBar}>
               <Text style={styles.timeText}>{formatTime(currentTime)}</Text>
               <Pressable
@@ -225,7 +332,7 @@ export default function PlayerScreen() {
             </View>
           </View>
         )}
-      </Pressable>
+      </View>
     </View>
   );
 }
@@ -327,5 +434,127 @@ const styles = StyleSheet.create({
   },
   seekBarFill: {
     backgroundColor: "#fff",
+  },
+  seekFlash: {
+    position: "absolute",
+    top: 0,
+    bottom: 0,
+    width: "35%",
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "rgba(255,255,255,0.08)",
+  },
+  seekFlashLeft: {
+    left: 0,
+    borderTopRightRadius: 80,
+    borderBottomRightRadius: 80,
+  },
+  seekFlashRight: {
+    right: 0,
+    borderTopLeftRadius: 80,
+    borderBottomLeftRadius: 80,
+  },
+  seekFlashText: {
+    color: "#fff",
+    fontSize: 24,
+    fontWeight: "700",
+  },
+  volumeIndicator: {
+    position: "absolute",
+    right: 40,
+    top: "25%",
+    height: "50%",
+    width: 36,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(0,0,0,0.6)",
+    borderRadius: 18,
+    paddingVertical: 8,
+  },
+  volumeIcon: {
+    color: "#fff",
+    fontSize: 16,
+    marginBottom: 6,
+  },
+  volumeBarBg: {
+    flex: 1,
+    width: 4,
+    backgroundColor: "rgba(255,255,255,0.3)",
+    borderRadius: 2,
+    overflow: "hidden",
+    justifyContent: "flex-end",
+  },
+  volumeBarFill: {
+    width: "100%",
+    backgroundColor: "#fff",
+    borderRadius: 2,
+  },
+  volumeText: {
+    color: "#fff",
+    fontSize: 11,
+    marginTop: 4,
+    fontWeight: "600",
+  },
+  nextEpOverlay: {
+    position: "absolute",
+    bottom: 80,
+    right: 16,
+    backgroundColor: "rgba(0,0,0,0.85)",
+    borderRadius: 12,
+    padding: 14,
+    maxWidth: 260,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.15)",
+  },
+  nextEpLabel: {
+    color: "rgba(255,255,255,0.6)",
+    fontSize: 11,
+    textTransform: "uppercase",
+    letterSpacing: 1,
+    marginBottom: 4,
+  },
+  nextEpTitle: {
+    color: "#fff",
+    fontSize: 14,
+    fontWeight: "600",
+    marginBottom: 10,
+  },
+  nextEpButtons: {
+    flexDirection: "row",
+    gap: 8,
+  },
+  nextEpPlayBtn: {
+    backgroundColor: "#fff",
+    paddingHorizontal: 14,
+    paddingVertical: 6,
+    borderRadius: 6,
+  },
+  nextEpPlayText: {
+    color: "#000",
+    fontSize: 13,
+    fontWeight: "600",
+  },
+  nextEpCancelBtn: {
+    backgroundColor: "rgba(255,255,255,0.15)",
+    paddingHorizontal: 14,
+    paddingVertical: 6,
+    borderRadius: 6,
+  },
+  nextEpCancelText: {
+    color: "#fff",
+    fontSize: 13,
+    fontWeight: "600",
+  },
+  nextEpProgressBg: {
+    marginTop: 8,
+    height: 3,
+    borderRadius: 2,
+    backgroundColor: "rgba(255,255,255,0.2)",
+    overflow: "hidden",
+  },
+  nextEpProgressFill: {
+    height: "100%",
+    backgroundColor: "#fff",
+    borderRadius: 2,
   },
 });
