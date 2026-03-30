@@ -74,7 +74,8 @@ export function useNextEpisode({
   useEffect(() => {
     if (countdown <= 0 && nextEpisode && !cancelled) {
       if (intervalRef.current) clearInterval(intervalRef.current);
-      onNavigate(nextEpisode.id!);
+      if (!nextEpisode?.id) return;
+      onNavigate(nextEpisode.id);
     }
   }, [countdown, nextEpisode, cancelled, onNavigate]);
 

@@ -17,7 +17,9 @@ export default function RootLayout() {
       const serverUrl = await getServerUrl();
       if (serverUrl) await initI18n(serverUrl);
     }
-    bootstrap().then(() => setReady(true));
+    bootstrap()
+      .catch((err) => console.error("bootstrap failed:", err))
+      .finally(() => setReady(true));
   }, []);
 
   if (!ready) return null;

@@ -1,9 +1,9 @@
-import { memo, useEffect, useState } from "react";
+import { memo } from "react";
 import { View, Text, Pressable, Dimensions } from "react-native";
 import { Image } from "expo-image";
 import type { V1MediaItem } from "@evey/api";
 import { useTheme } from "../providers/ThemeProvider";
-import { getServerUrl } from "../lib/server-config";
+import { useServerUrl } from "../hooks/useServerUrl";
 import { ProgressBar } from "./ProgressBar";
 
 interface MediaCardProps {
@@ -20,11 +20,7 @@ export const MediaCard = memo(function MediaCard({ item, onPress, width, watchPe
   const theme = useTheme();
   const cardWidth = width ?? DEFAULT_WIDTH;
   const cardHeight = cardWidth * POSTER_RATIO;
-  const [serverUrl, setUrl] = useState("");
-
-  useEffect(() => {
-    getServerUrl().then((u) => setUrl(u ?? ""));
-  }, []);
+  const serverUrl = useServerUrl();
 
   const imageUri = serverUrl ? `${serverUrl}/api/v1/media/${item.id}/artwork/primary` : undefined;
 

@@ -9,6 +9,9 @@ import {
 import type { V1StreamInfo } from "@evey/api";
 import { getServerUrl } from "../lib/server-config";
 
+const DEVICE_ID = "evey-mobile";
+const DEVICE_NAME = "Evey Mobile";
+
 interface StreamTokenResponse {
   token: string;
   mediaId: string;
@@ -85,9 +88,9 @@ export function usePlaySession(mediaId: string): PlaySessionResult {
         const session = await playbackServiceStartStream({
           mediaItemId: mediaId,
           playMethod: info.playMethod ?? "PLAY_METHOD_TRANSCODE",
-          deviceId: "evey-mobile",
-          deviceName: "Evey Mobile",
-          clientName: "Evey Mobile",
+          deviceId: DEVICE_ID,
+          deviceName: DEVICE_NAME,
+          clientName: DEVICE_NAME,
           startPositionMs: "0",
           audioStreamIndex,
           subtitleStreamIndex,
@@ -122,7 +125,9 @@ export function usePlaySession(mediaId: string): PlaySessionResult {
     stoppedRef.current = true;
     const sid = sessionIdRef.current;
     if (sid) {
-      playbackServiceStopStream({ sessionId: sid }).catch(() => {});
+      playbackServiceStopStream({ sessionId: sid }).catch((err) =>
+        console.warn("stop session failed:", err),
+      );
     }
   }, []);
 
@@ -130,7 +135,9 @@ export function usePlaySession(mediaId: string): PlaySessionResult {
     (audioIndex?: number, subtitleIndex?: number) => {
       const sid = sessionIdRef.current;
       if (sid) {
-        playbackServiceStopStream({ sessionId: sid }).catch(() => {});
+        playbackServiceStopStream({ sessionId: sid }).catch((err) =>
+          console.warn("stop before restart failed:", err),
+        );
         sessionIdRef.current = null;
       }
       stoppedRef.current = false;
