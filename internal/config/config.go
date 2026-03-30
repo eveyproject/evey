@@ -148,7 +148,7 @@ type PlaybackConfig struct {
 func (c *Config) WarnValidate() error {
 	k := c.Meilisearch.APIKey
 	if k == "" || k == "changeme" || k == "change-me-generate-a-random-secret" || len(k) < 16 {
-		return fmt.Errorf("meilisearch API key is weak or default — set EVEY_MEILI_API_KEY to a strong secret (>= 16 chars)")
+		return fmt.Errorf("meilisearch API key is weak or default — set MEILI_MASTER_KEY to a strong secret (>= 16 chars)")
 	}
 
 	if c.OIDC.Enabled && c.OIDC.Issuer != "" && c.OIDC.ClientSecret == "" {
@@ -181,7 +181,7 @@ func Load() (*Config, error) {
 		},
 		Meilisearch: MeilisearchConfig{
 			URL:    envStr("EVEY_MEILI_URL", "http://localhost:7700"),
-			APIKey: envStr("EVEY_MEILI_API_KEY", "changeme"),
+			APIKey: envStr("MEILI_MASTER_KEY", "changeme"),
 		},
 		JWT: JWTConfig{
 			PrivateKeyPath:  envStr("EVEY_JWT_PRIVATE_KEY_PATH", "/data/jwt.key"),
