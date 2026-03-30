@@ -15,7 +15,7 @@ import { SyncPlayBar } from "@/features/syncplay/SyncPlayBar";
 import { PluginSlot } from "@/features/plugins/PluginSlot";
 import { useParentalGate, markUnlocked } from "@/hooks/useParentalGate";
 import { ParentalPINDialog } from "@/components/ParentalPINDialog";
-import { useAuthStore, usePlayerStore } from "@evey/store";
+import { useAuthStore, usePlayerStore, setPlayerCleanup } from "@evey/store";
 
 const IMAGE_SUBTITLE_CODECS = new Set([
   "pgssub", "hdmv_pgs_subtitle", "dvd_subtitle", "dvbsub", "xsub",
@@ -309,7 +309,15 @@ function PlayerPageInner({ mediaId }: { mediaId: string }) {
             onEpisodeChange={handleEpisodeChange}
             chapters={chapters}
             seriesId={isEpisode ? seriesId : undefined}
-            onVideoRef={(el) => { videoRef.current = el; usePlayerStore.getState().setVideoElement(el); }}
+            onVideoRef={(el) => {
+              videoRef.current = el;
+              usePlayerStore.getState().setVideoElement(el);
+              if (el) {
+                setPlayerCleanup(() => { el.pause(); el.removeAttribute("src"); el.load(); });
+              } else {
+                setPlayerCleanup(null);
+              }
+            }}
           />
         )}
         {showShareDialog && shareRoomId && (

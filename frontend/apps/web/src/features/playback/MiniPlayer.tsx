@@ -8,7 +8,8 @@ function clamp(val: number, min: number, max: number) {
 }
 
 export function MiniPlayer() {
-  const { mediaId, mediaTitle, videoElement, stop, setMode } = usePlayerStore();
+  const { mediaId, mediaTitle, videoElement: _videoEl, stop, setMode } = usePlayerStore();
+  const videoElement = _videoEl as HTMLVideoElement | null;
   const navigate = useNavigate();
   const containerRef = useRef<HTMLDivElement>(null);
   const videoContainerRef = useRef<HTMLDivElement>(null);
