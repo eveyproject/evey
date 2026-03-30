@@ -1,0 +1,63 @@
+import { memo, useEffect, useState } from "react";
+import { View, Text, Image, Pressable, Dimensions } from "react-native";
+import type { V1MediaItem } from "@evey/api";
+import { useTheme } from "../providers/ThemeProvider";
+import { getServerUrl } from "../lib/server-config";
+import { ProgressBar } from "./ProgressBar";
+
+interface MediaCardProps {
+  item: V1MediaItem;
+  onPress?: () => void;
+  width?: number;
+  watchPercent?: number;
+}
+
+const POSTER_RATIO = 1.5;
+const DEFAULT_WIDTH = Dimensions.get("window").width * 0.3;
+
+export const MediaCard = memo(function MediaCard({ item, onPress, width, watchPercent }: MediaCardProps) {
+  const theme = useTheme();
+  const cardWidth = width ?? DEFAULT_WIDTH;
+  const cardHeight = cardWidth * POSTER_RATIO;
+  const [serverUrl, setUrl] = useState("");
+
+  useEffect(() => {
+    getServerUrl().then((u) => setUrl(u ?? ""));
+  }, []);
+
+  const imageUri = serverUrl ? `${serverUrl}/api/v1/media/${item.id}/artwork/primary` : undefined;
+
+  return (
+    <Pressable onPress={onPress} style={{ width: cardWidth, marginRight: theme.spacing.sm }}>
+      <View style={{
+        width: cardWidth,
+        height: cardHeight,
+        borderRadius: theme.radii.md,
+        backgroundColor: theme.colors.surface,
+        overflow: "hidden",
+      }}>
+        {imageUri && (
+          <Image
+            source={{ uri: imageUri }}
+            style={{ width: cardWidth, height: cardHeight }}
+            resizeMode="cover"
+          />
+        )}
+        {watchPercent != null && watchPercent > 0 && (
+          <View style={{ position: "absolute", bottom: 0, left: 0, right: 0, padding: 4 }}>
+            <ProgressBar percent={watchPercent} />
+          </View>
+        )}
+      </View>
+      <Text
+        numberOfLines={1}
+        style={{ color: theme.colors.text, fontSize: 13, marginTop: 4 }}
+      >
+        {item.title}
+      </Text>
+      {item.year != null && (
+        <Text style={{ color: theme.colors.textMuted, fontSize: 11 }}>{item.year}</Text>
+      )}
+    </Pressable>
+  );
+});
