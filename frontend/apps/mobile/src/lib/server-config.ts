@@ -10,3 +10,7 @@ export async function setServerUrl(url: string): Promise<void> {
   const normalized = url.replace(/\/+$/, "");
   await SecureStore.setItemAsync(SERVER_URL_KEY, normalized);
 }
+
+export async function clearServerUrl(): Promise<void> {
+  await SecureStore.deleteItemAsync(SERVER_URL_KEY);
+}
