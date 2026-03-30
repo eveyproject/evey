@@ -58,7 +58,7 @@ func (r *PlaylistRepository) GetByID(ctx context.Context, id string) (*playlist.
 func (r *PlaylistRepository) List(ctx context.Context, userID string) ([]*playlist.Playlist, error) {
 	rows, err := r.db.QueryContext(ctx,
 		`SELECT id, name, description, user_id, type, rules, sort_by, sort_order, created_at, updated_at
-		 FROM playlists WHERE user_id = $1 ORDER BY created_at DESC`, userID,
+		 FROM playlists WHERE user_id = $1 ORDER BY created_at DESC LIMIT 1000`, userID,
 	)
 	if err != nil {
 		return nil, err

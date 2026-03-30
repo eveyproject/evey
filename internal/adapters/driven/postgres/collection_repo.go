@@ -135,7 +135,7 @@ func (r *CollectionRepository) GetByTmdbID(ctx context.Context, tmdbID int) (*li
 func (r *CollectionRepository) List(ctx context.Context) ([]*library.Collection, error) {
 	rows, err := r.db.QueryContext(ctx,
 		`SELECT id, name, overview, tmdb_id, poster_url, backdrop_url, rules, sort_by, created_at, updated_at
-		 FROM collections ORDER BY name`)
+		 FROM collections ORDER BY name LIMIT 1000`)
 	if err != nil {
 		return nil, err
 	}

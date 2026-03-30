@@ -52,7 +52,7 @@ func (r *WebhookRepository) GetByID(ctx context.Context, id string) (*webhook.Co
 
 func (r *WebhookRepository) List(ctx context.Context) ([]*webhook.Config, error) {
 	rows, err := r.db.QueryContext(ctx,
-		`SELECT id, name, url, events, secret, headers, enabled, created_at FROM webhook_configs ORDER BY created_at DESC`)
+		`SELECT id, name, url, events, secret, headers, enabled, created_at FROM webhook_configs ORDER BY created_at DESC LIMIT 1000`)
 	if err != nil {
 		return nil, err
 	}

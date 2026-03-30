@@ -382,9 +382,26 @@ func (r *MediaItemRepository) ListByLibraryID(ctx context.Context, libraryID str
 }
 
 func (r *MediaItemRepository) ListScanSummaries(ctx context.Context, libraryID string) ([]library.MediaItemScanRow, error) {
+	const batchSize = 5000
+	var result []library.MediaItemScanRow
+	for offset := 0; ; offset += batchSize {
+		batch, err := r.listScanSummariesBatch(ctx, libraryID, batchSize, offset)
+		if err != nil {
+			return nil, err
+		}
+		result = append(result, batch...)
+		if len(batch) < batchSize {
+			break
+		}
+	}
+	return result, nil
+}
+
+func (r *MediaItemRepository) listScanSummariesBatch(ctx context.Context, libraryID string, limit, offset int) ([]library.MediaItemScanRow, error) {
 	rows, err := r.db.QueryContext(ctx,
 		`SELECT id, file_path, file_fingerprint, file_size, mod_time
-		 FROM media_items WHERE library_id = $1`, libraryID)
+		 FROM media_items WHERE library_id = $1 ORDER BY id LIMIT $2 OFFSET $3`,
+		libraryID, limit, offset)
 	if err != nil {
 		return nil, err
 	}
@@ -408,8 +425,25 @@ func (r *MediaItemRepository) ListScanSummaries(ctx context.Context, libraryID s
 }
 
 func (r *MediaItemRepository) ListContainerInfo(ctx context.Context, libraryID string) ([]library.MediaItemContainerRow, error) {
+	const batchSize = 5000
+	var result []library.MediaItemContainerRow
+	for offset := 0; ; offset += batchSize {
+		batch, err := r.listContainerInfoBatch(ctx, libraryID, batchSize, offset)
+		if err != nil {
+			return nil, err
+		}
+		result = append(result, batch...)
+		if len(batch) < batchSize {
+			break
+		}
+	}
+	return result, nil
+}
+
+func (r *MediaItemRepository) listContainerInfoBatch(ctx context.Context, libraryID string, limit, offset int) ([]library.MediaItemContainerRow, error) {
 	rows, err := r.db.QueryContext(ctx,
-		`SELECT id, parent_id, type FROM media_items WHERE library_id = $1`, libraryID)
+		`SELECT id, parent_id, type FROM media_items WHERE library_id = $1 ORDER BY id LIMIT $2 OFFSET $3`,
+		libraryID, limit, offset)
 	if err != nil {
 		return nil, err
 	}
