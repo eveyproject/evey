@@ -625,7 +625,7 @@ function LibraryPage() {
           {isLoading && items.length === 0 ? (
             <MediaGridSkeleton />
           ) : viewMode === "grid" ? (
-            <MediaGrid>
+            <MediaGrid onEndReached={hasMore && !hasActiveFilters ? () => setPage((p) => p + 1) : undefined}>
               {displayItems.map((item) => (
                 <MediaCard
                   key={item.id}
@@ -676,14 +676,6 @@ function LibraryPage() {
                     : undefined
                 }
               />
-            </div>
-          )}
-
-          {hasMore && !isLoading && !hasActiveFilters && (
-            <div className="flex justify-center mt-8">
-              <Button variant="secondary" onClick={() => setPage((p) => p + 1)}>
-                {t("media.library.loadMore", { current: items.length, total: totalItems })}
-              </Button>
             </div>
           )}
 
