@@ -29,13 +29,20 @@ func csrfMiddleware(httpsOnly bool, next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.Method {
 		case http.MethodPost, http.MethodPut, http.MethodPatch, http.MethodDelete:
+			header := r.Header.Get(csrfHeaderName)
+
+			// No CSRF header = non-browser client (mobile/API) → skip CSRF
+			// RN fetch may forward cookies automatically but never sets X-CSRF-Token
+			if header == "" {
+				break
+			}
+
 			cookie, err := r.Cookie(csrfCookieName)
 			if err != nil || cookie.Value == "" {
 				http.Error(w, `{"message":"csrf token missing"}`, http.StatusForbidden)
 				return
 			}
-			header := r.Header.Get(csrfHeaderName)
-			if header == "" || header != cookie.Value {
+			if header != cookie.Value {
 				slog.Warn("csrf token mismatch", slog.String("path", r.URL.Path))
 				http.Error(w, `{"message":"csrf token invalid"}`, http.StatusForbidden)
 				return

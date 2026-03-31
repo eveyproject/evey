@@ -36,17 +36,42 @@ func TestCSRFMiddleware_GET_SetsToken(t *testing.T) {
 	}
 }
 
-func TestCSRFMiddleware_POST_NoCookie_Forbidden(t *testing.T) {
+func TestCSRFMiddleware_POST_NoCookieNoHeader_SkipCSRF(t *testing.T) {
+	called := false
 	next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		t.Error("next should not be called")
+		called = true
+		w.WriteHeader(http.StatusOK)
 	})
 	h := csrfMiddleware(false, next)
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/auth/login", nil)
 	w := httptest.NewRecorder()
 	h.ServeHTTP(w, req)
 
-	if w.Code != http.StatusForbidden {
-		t.Fatalf("expected 403, got %d", w.Code)
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200 (mobile/API skip), got %d", w.Code)
+	}
+	if !called {
+		t.Error("next handler should have been called for non-browser client")
+	}
+}
+
+func TestCSRFMiddleware_POST_CookieButNoHeader_SkipCSRF(t *testing.T) {
+	called := false
+	next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		called = true
+		w.WriteHeader(http.StatusOK)
+	})
+	h := csrfMiddleware(false, next)
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/auth/login", nil)
+	req.AddCookie(&http.Cookie{Name: csrfCookieName, Value: "abc123"})
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200 (no CSRF header = mobile/API), got %d", w.Code)
+	}
+	if !called {
+		t.Error("next should be called when no X-CSRF-Token header")
 	}
 }
 
@@ -88,31 +113,61 @@ func TestCSRFMiddleware_POST_MatchingToken_OK(t *testing.T) {
 	}
 }
 
-func TestCSRFMiddleware_DELETE_RequiresToken(t *testing.T) {
+func TestCSRFMiddleware_DELETE_NoCookieNoHeader_SkipCSRF(t *testing.T) {
+	called := false
 	next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		t.Error("next should not be called")
+		called = true
+		w.WriteHeader(http.StatusOK)
 	})
 	h := csrfMiddleware(false, next)
 	req := httptest.NewRequest(http.MethodDelete, "/api/v1/something", nil)
 	w := httptest.NewRecorder()
 	h.ServeHTTP(w, req)
 
-	if w.Code != http.StatusForbidden {
-		t.Fatalf("expected 403, got %d", w.Code)
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200 (mobile/API skip), got %d", w.Code)
+	}
+	if !called {
+		t.Error("next should be called for non-browser client")
 	}
 }
 
-func TestCSRFMiddleware_PUT_RequiresToken(t *testing.T) {
+func TestCSRFMiddleware_DELETE_WithCookie_NoHeader_SkipCSRF(t *testing.T) {
+	called := false
 	next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		t.Error("next should not be called")
+		called = true
+		w.WriteHeader(http.StatusOK)
+	})
+	h := csrfMiddleware(false, next)
+	req := httptest.NewRequest(http.MethodDelete, "/api/v1/something", nil)
+	req.AddCookie(&http.Cookie{Name: csrfCookieName, Value: "abc123"})
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200 (no header = skip), got %d", w.Code)
+	}
+	if !called {
+		t.Error("next should be called")
+	}
+}
+
+func TestCSRFMiddleware_PUT_NoCookieNoHeader_SkipCSRF(t *testing.T) {
+	called := false
+	next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		called = true
+		w.WriteHeader(http.StatusOK)
 	})
 	h := csrfMiddleware(false, next)
 	req := httptest.NewRequest(http.MethodPut, "/api/v1/something", nil)
 	w := httptest.NewRecorder()
 	h.ServeHTTP(w, req)
 
-	if w.Code != http.StatusForbidden {
-		t.Fatalf("expected 403, got %d", w.Code)
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200 (mobile/API skip), got %d", w.Code)
+	}
+	if !called {
+		t.Error("next should be called for non-browser client")
 	}
 }
 
@@ -133,14 +188,14 @@ func TestCSRFMiddleware_GET_ExistingCookie_NoNewCookie(t *testing.T) {
 	}
 }
 
-func TestCSRFMiddleware_POST_EmptyCookieValue_Forbidden(t *testing.T) {
+func TestCSRFMiddleware_POST_EmptyCookieValue_WithHeader_Forbidden(t *testing.T) {
 	next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		t.Error("next should not be called")
 	})
 	h := csrfMiddleware(false, next)
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/auth/login", nil)
 	req.AddCookie(&http.Cookie{Name: csrfCookieName, Value: ""})
-	req.Header.Set(csrfHeaderName, "")
+	req.Header.Set(csrfHeaderName, "some-token")
 	w := httptest.NewRecorder()
 	h.ServeHTTP(w, req)
 
@@ -149,9 +204,11 @@ func TestCSRFMiddleware_POST_EmptyCookieValue_Forbidden(t *testing.T) {
 	}
 }
 
-func TestCSRFMiddleware_POST_NoHeader_Forbidden(t *testing.T) {
+func TestCSRFMiddleware_POST_CookieNoHeader_SkipCSRF2(t *testing.T) {
+	called := false
 	next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		t.Error("next should not be called")
+		called = true
+		w.WriteHeader(http.StatusOK)
 	})
 	h := csrfMiddleware(false, next)
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/auth/login", nil)
@@ -159,7 +216,10 @@ func TestCSRFMiddleware_POST_NoHeader_Forbidden(t *testing.T) {
 	w := httptest.NewRecorder()
 	h.ServeHTTP(w, req)
 
-	if w.Code != http.StatusForbidden {
-		t.Fatalf("expected 403, got %d", w.Code)
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200 (no header = skip CSRF), got %d", w.Code)
+	}
+	if !called {
+		t.Error("next should be called")
 	}
 }
