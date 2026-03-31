@@ -1,8 +1,9 @@
-import { View, Text, ScrollView, Pressable, Alert, StyleSheet } from "react-native";
+import { useState } from "react";
+import { View, Text, ScrollView, Pressable, Alert, TextInput, ActivityIndicator, StyleSheet } from "react-native";
 import { router } from "expo-router";
 import Constants from "expo-constants";
 import { useTranslation } from "react-i18next";
-import { useUserServiceGetCurrentUser, useAdminServiceGetSystemInfo } from "@evey/api";
+import { useUserServiceGetCurrentUser, useAdminServiceGetSystemInfo, useUserServiceAuthorizeQuickConnect } from "@evey/api";
 import { useAuthStore, useThemeStore, useLocaleStore } from "@evey/store";
 import { useTheme } from "../../../src/providers/ThemeProvider";
 import { useServerUrlNullable } from "../../../src/hooks/useServerUrl";
@@ -28,8 +29,30 @@ export default function SettingsScreen() {
   const setLocale = useLocaleStore((s) => s.setLocale);
   const serverUrl = useServerUrlNullable();
 
+  const [qcCode, setQcCode] = useState("");
+  const [qcSuccess, setQcSuccess] = useState(false);
+
   const { data: user } = useUserServiceGetCurrentUser();
   const { data: systemInfo } = useAdminServiceGetSystemInfo();
+
+  const authorizeQc = useUserServiceAuthorizeQuickConnect({
+    mutation: {
+      onSuccess: () => {
+        setQcSuccess(true);
+        setQcCode("");
+        setTimeout(() => setQcSuccess(false), 3000);
+      },
+      onError: () => {
+        Alert.alert(t("auth.settings.quickConnect.invalidCode"));
+      },
+    },
+  });
+
+  function handleAuthorizeQc() {
+    const trimmed = qcCode.trim().toUpperCase();
+    if (!trimmed) return;
+    authorizeQc.mutate({ data: { code: trimmed } });
+  }
 
   async function handleChangeServer() {
     Alert.alert(t("mobile.settings.changeServer"), t("mobile.settings.disconnectConfirm"), [
@@ -122,6 +145,72 @@ export default function SettingsScreen() {
             )}
           </Pressable>
         ))}
+      </View>
+
+      {/* Quick Connect */}
+      <Text style={s.sectionTitle}>{t("auth.settings.quickConnect.title")}</Text>
+      <View style={s.section}>
+        <View style={{ paddingHorizontal: theme.spacing.md, paddingTop: 14 }}>
+          <Text style={{ color: theme.colors.textMuted, fontSize: 13, marginBottom: theme.spacing.sm }}>
+            {t("auth.settings.quickConnect.description")}
+          </Text>
+        </View>
+        <View style={[s.row, { gap: theme.spacing.sm }]}>
+          <TextInput
+            placeholder="A1B2C3"
+            placeholderTextColor={theme.colors.textMuted}
+            value={qcCode}
+            onChangeText={(v) => setQcCode(v.toUpperCase())}
+            autoCapitalize="characters"
+            autoCorrect={false}
+            maxLength={6}
+            style={{
+              flex: 1,
+              backgroundColor: theme.colors.bg,
+              color: theme.colors.text,
+              borderRadius: theme.radii.md,
+              padding: theme.spacing.sm,
+              fontFamily: "monospace",
+              letterSpacing: 4,
+              fontSize: 18,
+              textAlign: "center",
+              borderWidth: 1,
+              borderColor: theme.colors.border,
+            }}
+            accessible={true}
+            accessibilityLabel={t("auth.settings.quickConnect.codeLabel")}
+          />
+          <Pressable
+            onPress={handleAuthorizeQc}
+            disabled={authorizeQc.isPending || qcCode.trim().length < 4}
+            accessible={true}
+            accessibilityLabel={t("auth.settings.quickConnect.authorize")}
+            accessibilityRole="button"
+            style={{
+              backgroundColor: qcCode.trim().length < 4 ? theme.colors.border : theme.colors.accent,
+              borderRadius: theme.radii.md,
+              paddingVertical: theme.spacing.sm,
+              paddingHorizontal: theme.spacing.md,
+              alignItems: "center",
+              justifyContent: "center",
+            }}
+          >
+            {authorizeQc.isPending ? (
+              <ActivityIndicator color={theme.colors.text} size="small" />
+            ) : (
+              <Text style={{ color: "#fff", fontWeight: "600", fontSize: 14 }}>
+                {t("auth.settings.quickConnect.authorize")}
+              </Text>
+            )}
+          </Pressable>
+        </View>
+        {qcSuccess && (
+          <View style={{ paddingHorizontal: theme.spacing.md, paddingBottom: 14 }}>
+            <Text style={{ color: theme.colors.accent, fontSize: 13 }}>
+              {t("auth.settings.quickConnect.authorized")}
+            </Text>
+          </View>
+        )}
       </View>
 
       {/* About */}

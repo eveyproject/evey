@@ -93,6 +93,28 @@ export default function Login() {
       <Pressable onPress={() => router.push("/forgot-password")} style={{ marginTop: theme.spacing.md }}>
         <Text style={{ color: theme.colors.accent, textAlign: "center" }}>{t("auth.login.forgotPassword")}</Text>
       </Pressable>
+
+      <View style={{ marginTop: theme.spacing.xl, alignItems: "center" }}>
+        <View style={{ width: "80%", height: 1, backgroundColor: theme.colors.border, marginBottom: theme.spacing.lg }} />
+        <Pressable
+          onPress={() => router.push("/quick-connect")}
+          accessible={true}
+          accessibilityLabel="Quick Connect"
+          accessibilityRole="button"
+          style={{
+            borderWidth: 1,
+            borderColor: theme.colors.border,
+            borderRadius: theme.radii.md,
+            padding: theme.spacing.md,
+            alignItems: "center",
+            width: "100%",
+          }}
+        >
+          <Text style={{ color: theme.colors.text, fontWeight: "600", fontSize: 16 }}>
+            {t("auth.settings.quickConnect.title")}
+          </Text>
+        </Pressable>
+      </View>
     </View>
   );
 }
