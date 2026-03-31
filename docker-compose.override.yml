@@ -1,0 +1,85 @@
+# Dev overrides — automatically merged by docker compose
+# Prod servers: don't include this file, or use: docker compose -f docker-compose.yml up -d
+services:
+  postgres:
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+
+  meilisearch:
+    ports:
+      - "${MEILI_PORT:-7700}:7700"
+
+  mailcatcher:
+    container_name: evey-mailcatcher
+    image: sj26/mailcatcher:latest
+    ports:
+      - "1080:1080"
+    expose:
+      - "1025"
+    restart: unless-stopped
+
+  # Override evey: local build with Air hot-reload instead of registry image
+  evey:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.dev
+    image: evey-dev
+    deploy: {}
+    env_file: .env.dev
+    environment:
+      EVEY_LOG_DEV_MODE: "true"
+      EVEY_LOG_LEVEL: debug
+    volumes:
+      - .:/app
+      - evey-data:/data
+      - evey-cache:/cache
+      - /path/to/movies:/media
+      - /path/to/series:/media2
+    healthcheck:
+      start_period: 60s
+      retries: 10
+
+  # Vite dev server with HMR
+  web:
+    container_name: evey-web
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.web.dev
+    ports:
+      - "${WEB_PORT:-5173}:${WEB_PORT:-5173}"
+    environment:
+      VITE_API_TARGET: "http://evey:${EVEY_HTTP_PORT:-9091}"
+      VITE_HMR_HOST: evey.test
+      VITE_HMR_PORT: "443"
+      VITE_HMR_PROTOCOL: wss
+      VITE_ALLOWED_HOSTS: evey.test
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+      - /app/apps/web/node_modules
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:${WEB_PORT:-5173}"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 30s
+    depends_on:
+      evey:
+        condition: service_healthy
+
+  # Dev Caddy with local TLS + HMR proxy (overrides prod caddy)
+  caddy:
+    profiles: []
+    image: caddy:2.9-alpine
+    volumes:
+      - ./docker/Caddyfile.dev:/etc/caddy/Caddyfile
+      - caddy-data:/data
+      - caddy-config:/config
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+      start_period: 20s
+    depends_on:
+      - web

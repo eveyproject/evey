@@ -1,9 +1,10 @@
 .PHONY: proto-gen plugin-sdk build test lint clean \
 	migrate-up migrate-down setup dev dev-down dev-logs \
-	docker-build docker-up docker-down frontend-typecheck
+	prod prod-down infra frontend-typecheck
 
 BINARY=evey
 DC=docker compose --env-file .env.dev
+DC_PROD=docker compose -f docker-compose.yml
 
 # ── Build ──────────────────────────────────────────────────────────────────────
 
@@ -38,7 +39,7 @@ build:
 	go build -o bin/$(BINARY) ./cmd/evey
 
 test:
-	go test ./...
+	go test $(shell go list ./... | grep -v /gen/) -race -count=1 -timeout=300s
 
 lint:
 	golangci-lint run ./...
@@ -54,7 +55,7 @@ migrate-up:
 migrate-down:
 	go run ./cmd/migrate down
 
-# ── Dev ────────────────────────────────────────────────────────────────────────
+# ── Dev (uses docker-compose.yml + docker-compose.override.yml) ───────────────
 
 setup:
 	@echo "→ Adding evey.test to WSL /etc/hosts..."
@@ -81,18 +82,15 @@ dev-logs:
 # ── Infra only (run backend/frontend locally) ─────────────────────────────────
 
 infra:
-	$(DC) up postgres meilisearch
+	$(DC) up postgres meilisearch -d
 
-# ── Prod ───────────────────────────────────────────────────────────────────────
+# ── Prod (uses docker-compose.yml only — no override) ─────────────────────────
 
-docker-build:
-	docker build -t evey:latest .
+prod:
+	$(DC_PROD) up -d
 
-docker-up:
-	$(DC) --profile prod up -d
-
-docker-down:
-	$(DC) --profile prod down
+prod-down:
+	$(DC_PROD) down
 
 # ── Frontend ───────────────────────────────────────────────────────────────────
 

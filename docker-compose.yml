@@ -1,5 +1,5 @@
 services:
-  # ── Infrastructure (always) ──
+  # ── Infrastructure ──
   postgres:
     container_name: evey-postgres
     image: postgres:16-alpine
@@ -24,8 +24,8 @@ services:
     environment:
       MEILI_MASTER_KEY: ${MEILI_MASTER_KEY:?MEILI_MASTER_KEY must be set in .env}
       MEILI_NO_ANALYTICS: "true"
-    ports:
-      - "${MEILI_PORT:-7700}:7700"
+    expose:
+      - "7700"
     volumes:
       - meili-data:/meili_data
     healthcheck:
@@ -35,111 +35,10 @@ services:
       retries: 5
     restart: unless-stopped
 
-  mailcatcher:
-    container_name: evey-mailcatcher
-    profiles: [dev]
-    image: sj26/mailcatcher:latest
-    ports:
-      - "1080:1080"
-    expose:
-      - "1025"
-    restart: unless-stopped
-
-  # ── Dev ──
+  # ── Evey backend (registry image) ──
   evey:
     container_name: evey-server
-    profiles: [dev]
-    build:
-      context: .
-      dockerfile: docker/Dockerfile.dev
-    logging:
-      driver: "json-file"
-      options:
-        max-size: "100m"
-        max-file: "10"
-    ports:
-      - "${EVEY_SERVER_PORT:-9090}:${EVEY_SERVER_PORT:-9090}"
-      - "${EVEY_HTTP_PORT:-9091}:${EVEY_HTTP_PORT:-9091}"
-    env_file: .env.dev
-    environment:
-      EVEY_DB_HOST: postgres
-      EVEY_MEILI_URL: http://meilisearch:7700
-      EVEY_JWT_PRIVATE_KEY_PATH: /data/jwt.key
-      EVEY_TRANSCODING_CACHE_DIR: /data/transcode
-      EVEY_TRICKPLAY_CACHE_DIR: /cache/trickplay
-      EVEY_LOG_DEV_MODE: "true"
-      EVEY_LOG_LEVEL: debug
-    volumes:
-      - .:/app
-      - evey-data:/data
-      - evey-cache:/cache
-      - /path/to/movies:/media
-      - /path/to/series:/media2
-    healthcheck:
-      test: ["CMD", "curl", "-sf", "http://localhost:${EVEY_HTTP_PORT:-9091}/healthz"]
-      interval: 10s
-      timeout: 5s
-      retries: 10
-      start_period: 60s
-    depends_on:
-      postgres:
-        condition: service_healthy
-      meilisearch:
-        condition: service_healthy
-
-  web:
-    container_name: evey-web
-    profiles: [dev]
-    build:
-      context: .
-      dockerfile: docker/Dockerfile.web.dev
-    ports:
-      - "${WEB_PORT:-5173}:${WEB_PORT:-5173}"
-    environment:
-      VITE_API_TARGET: "http://evey:${EVEY_HTTP_PORT:-9091}"
-      VITE_HMR_HOST: evey.test
-      VITE_HMR_PORT: "443"
-      VITE_HMR_PROTOCOL: wss
-      VITE_ALLOWED_HOSTS: evey.test
-    volumes:
-      - ./frontend:/app
-      - /app/node_modules
-      - /app/apps/web/node_modules
-    healthcheck:
-      test: ["CMD", "wget", "-q", "--spider", "http://localhost:${WEB_PORT:-5173}"]
-      interval: 10s
-      timeout: 3s
-      retries: 5
-      start_period: 30s
-    depends_on:
-      evey:
-        condition: service_healthy
-
-  caddy:
-    container_name: evey-caddy
-    profiles: [dev]
-    image: caddy:2.9-alpine
-    ports:
-      - "80:80"
-      - "443:443"
-    volumes:
-      - ./docker/Caddyfile.dev:/etc/caddy/Caddyfile
-      - caddy-data:/data
-      - caddy-config:/config
-    healthcheck:
-      test: ["CMD", "wget", "-q", "--spider", "http://localhost"]
-      interval: 10s
-      timeout: 3s
-      retries: 3
-      start_period: 20s
-    depends_on:
-      - web
-
-  # ── Prod ──
-  evey-prod:
-    container_name: evey-server-prod
-    profiles: [prod]
-    build: .
+    image: ${DOCKERHUB_USERNAME:-evey}/evey:${EVEY_VERSION:-latest}
     deploy:
       resources:
         limits:
@@ -150,17 +49,18 @@ services:
       options:
         max-size: "100m"
         max-file: "10"
-    env_file:
-      - path: .env
-        required: false
-    expose:
-      - "${EVEY_SERVER_PORT:-9090}"
+    ports:
+      - "${EVEY_HTTP_PORT:-9091}:${EVEY_HTTP_PORT:-9091}"
+      - "${EVEY_SERVER_PORT:-9090}:${EVEY_SERVER_PORT:-9090}"
     environment:
       EVEY_DB_HOST: postgres
       EVEY_MEILI_URL: http://meilisearch:7700
       EVEY_JWT_PRIVATE_KEY_PATH: /data/jwt.key
       EVEY_TRANSCODING_CACHE_DIR: /data/transcode
       EVEY_TRICKPLAY_CACHE_DIR: /cache/trickplay
+    env_file:
+      - path: .env
+        required: false
     volumes:
       - evey-data:/data
       - evey-cache:/cache
@@ -178,9 +78,10 @@ services:
         condition: service_healthy
     restart: unless-stopped
 
-  caddy-prod:
-    container_name: evey-caddy-prod
-    profiles: [prod]
+  # ── Caddy (optional — admins can use their own reverse proxy) ──
+  caddy:
+    container_name: evey-caddy
+    profiles: [caddy]
     build:
       context: .
       dockerfile: docker/Dockerfile.caddy
@@ -193,7 +94,7 @@ services:
       - caddy-data:/data
       - caddy-config:/config
     depends_on:
-      evey-prod:
+      evey:
         condition: service_healthy
     restart: unless-stopped
 
