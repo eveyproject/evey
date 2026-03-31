@@ -38,7 +38,7 @@ services:
   # ── Evey backend (registry image) ──
   evey:
     container_name: evey-server
-    image: ${DOCKERHUB_USERNAME:-evey}/evey:${EVEY_VERSION:-latest}
+    image: gravityz/evey:${EVEY_VERSION:-latest}
     deploy:
       resources:
         limits:

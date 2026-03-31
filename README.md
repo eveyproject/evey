@@ -1,287 +1,107 @@
 # Evey
 
-Self-hosted media server with gRPC + REST API, plugin system, and hardware-accelerated transcoding.
-
-## Architecture
-
-Hexagonal (ports & adapters):
-
-```
-cmd/evey/
-  main.go               — wiring
-
-internal/
-  domain/               — business models + port interfaces
-  app/                  — use-case services (pure Go, no framework)
-  adapters/
-    driven/             — repos (postgres), metadata (TMDB), filesystem, ffmpeg, ebml, meili
-    driving/            — gRPC handlers, plugin host API
-  config/               — env-based config
-
-gen/evey/v1/            — generated gRPC + grpc-gateway stubs
-gen/plugin/v1/          — generated plugin API stubs
-proto/                  — .proto sources
-plugins/                — example plugins (Python, Node.js)
-```
+A self-hosted media server for movies, TV shows, music, and photos.
 
 ## Quick Start
 
-### Prerequisites
-
-- Go 1.22+
-- PostgreSQL 15+
-- ffmpeg (for transcoding)
-- (optional) Meilisearch (for search)
-
-### Run
-
 ```bash
-# Copy and edit environment
+# 1. Get the compose file and config template
+curl -O https://raw.githubusercontent.com/gravity-zero/evey/master/docker-compose.yml
+curl -O https://raw.githubusercontent.com/gravity-zero/evey/master/.env.example
 cp .env.example .env
 
-# Apply migrations
-psql $EVEY_DB_DSN -f internal/adapters/driven/postgres/migrations/000001_init.up.sql
-psql $EVEY_DB_DSN -f internal/adapters/driven/postgres/migrations/000002_transcode_profiles.up.sql
-psql $EVEY_DB_DSN -f internal/adapters/driven/postgres/migrations/000003_profile_languages.up.sql
+# 2. Edit .env — at minimum:
+#    EVEY_DB_PASSWORD=<strong-password>
+#    MEILI_MASTER_KEY=<random-32-char-string>
+#    MEDIA_DIR=/path/to/your/media
 
-go run ./cmd/evey
+# 3. Start
+docker compose up -d
+
+# 4. Open http://<your-ip>:9091 and create your admin account
 ```
 
-### Environment Variables
+That's it. Evey pulls from Docker Hub, starts Postgres and Meilisearch, and is ready in ~30 seconds.
 
-| Variable | Default | Description |
-|---|---|---|
-| `EVEY_SERVER_PORT` | `8080` | HTTP + gRPC-gateway port |
-| `EVEY_DB_HOST` | `localhost` | PostgreSQL host |
-| `EVEY_DB_PORT` | `5432` | PostgreSQL port |
-| `EVEY_DB_USER` | `evey` | PostgreSQL user |
-| `EVEY_DB_PASSWORD` | `evey` | PostgreSQL password |
-| `EVEY_DB_NAME` | `evey` | PostgreSQL database |
-| `EVEY_JWT_PRIVATE_KEY_PATH` | `jwt.key` | Path to RSA private key (PEM) |
-| `EVEY_TMDB_API_KEY` | — | TMDB API key (Bearer token) |
-| `EVEY_METADATA_LANGUAGE` | `en` | ISO 639-1 language for TMDB metadata |
-| `EVEY_TRANSCODING_MAX_CONCURRENT` | `2` | Max parallel transcode jobs |
-| `EVEY_TRANSCODING_HW_ACCEL_ENABLED` | `false` | Enable HW acceleration |
-| `EVEY_MEILI_URL` | `http://localhost:7700` | Meilisearch URL |
-| `EVEY_OIDC_ENABLED` | `false` | Enable OIDC SSO |
+## Requirements
 
-## API
+- Docker Engine 24+ and Docker Compose v2+
+- 2 GB RAM minimum (4 GB+ recommended for transcoding)
+- A media library on disk
 
-The server exposes gRPC on port `9090` and REST (grpc-gateway) on port `8080`.
+## What You Get
 
-All REST endpoints are under `/api/v1/`. Authentication uses Bearer JWT tokens.
+| Service | Port | Description |
+|---------|------|-------------|
+| **evey** | 9091 | REST API, streaming, transcoding |
+| **postgres** | internal | Database |
+| **meilisearch** | internal | Full-text search |
 
-### Services
+Port 9091 is the only port you need to expose. Add a reverse proxy for HTTPS.
 
-| Service | gRPC package | REST prefix |
-|---|---|---|
-| AdminService | `evey.v1.AdminService` | `/api/v1/admin/` |
-| UserService | `evey.v1.UserService` | `/api/v1/users/` |
-| LibraryService | `evey.v1.LibraryService` | `/api/v1/libraries/` |
-| PlaybackService | `evey.v1.PlaybackService` | `/api/v1/playback/` |
-| TranscodingService | `evey.v1.TranscodingService` | `/api/v1/transcoding/` |
-| MKVService | `evey.v1.MKVService` | `/api/v1/mkv/` |
-| MetadataService | `evey.v1.MetadataService` | `/api/v1/metadata/` |
-| ActivityService | `evey.v1.ActivityService` | `/api/v1/activity/` |
+## HTTPS & Reverse Proxy
 
-### Authentication
+Evey does not handle HTTPS. Use a reverse proxy in front of it. See [docs/reverse-proxy.md](docs/reverse-proxy.md) for ready-to-use configs:
 
-```http
-POST /api/v1/users/login
-Content-Type: application/json
+- [Caddy](docs/reverse-proxy.md#caddy) (easiest, auto HTTPS)
+- [Nginx](docs/reverse-proxy.md#nginx)
+- [Traefik](docs/reverse-proxy.md#traefik)
+- [Nginx Proxy Manager](docs/reverse-proxy.md#nginx-proxy-manager)
 
-{"username": "admin", "password": "secret"}
+**Bundled Caddy** (optional):
+```bash
+# Set your domain
+echo 'EVEY_DOMAIN=media.example.com' >> .env
+
+# Start with Caddy
+docker compose --profile caddy up -d
 ```
 
-Response: `{"access_token": "...", "refresh_token": "..."}`
+## First Setup
 
-Use `Authorization: Bearer <access_token>` on all subsequent requests.
+1. Open your Evey URL
+2. Create your admin account (username, password, email)
+3. Go to **Admin > Libraries** and add a media folder
+4. Wait for the scan to finish
+5. Start watching
 
-### Setup (first run)
-
-```http
-POST /api/v1/admin/setup
-Content-Type: application/json
-
-{"admin_username": "admin", "admin_password": "secret", "admin_email": "admin@example.com"}
-```
-
-### Library
-
-```http
-# Create library
-POST /api/v1/libraries
-{"name": "Movies", "type": "LIBRARY_TYPE_MOVIES", "paths": ["/media/movies"]}
-
-# List libraries
-GET /api/v1/libraries
-
-# Scan library
-POST /api/v1/libraries/{id}/scan
-
-# List media items
-GET /api/v1/libraries/{library_id}/items?type=movie&limit=50&offset=0
-```
-
-### Playback
-
-```http
-# Start session
-POST /api/v1/playback/sessions
-{"profile_id": "...", "media_item_id": "...", "device_name": "Browser", "play_method": "PLAY_METHOD_DIRECT_PLAY"}
-
-# Update progress
-PUT /api/v1/playback/sessions/{id}/progress
-{"position_ms": 120000}
-
-# Stop session
-DELETE /api/v1/playback/sessions/{id}
-```
-
-### Metadata
-
-```http
-# Search metadata
-GET /api/v1/metadata/search?query=Inception&type=movie
-
-# Refresh metadata for a media item
-POST /api/v1/metadata/items/{media_item_id}/refresh
-{"provider_id": "27205", "provider_name": "tmdb", "media_type": "movie"}
-
-# Get artwork
-GET /api/v1/metadata/items/{media_item_id}/artwork
-
-# List configured providers
-GET /api/v1/metadata/providers
-```
-
-### Transcoding
-
-```http
-# Start transcode job
-POST /api/v1/transcoding/jobs
-{"media_item_id": "...", "profile_id": "..."}
-
-# Check job status
-GET /api/v1/transcoding/jobs/{id}
-
-# List transcode profiles
-GET /api/v1/transcoding/profiles
-```
-
-### Users & Profiles
-
-```http
-# Create user (admin only)
-POST /api/v1/users
-{"username": "bob", "password": "pass", "email": "bob@example.com"}
-
-# Create profile
-POST /api/v1/users/{user_id}/profiles
-{"name": "Kids", "max_rating": "PG"}
-
-# Update profile language preferences
-PUT /api/v1/users/{user_id}/profiles/{profile_id}
-{"preferences": {"audio_languages": "fr,en", "subtitle_languages": "fr"}}
-```
-
-## i18n / Localization
-
-### Server-level metadata language
-
-Set `EVEY_METADATA_LANGUAGE=fr` to fetch all TMDB metadata (titles, overviews) in French.
-
-TMDB returns localized titles and overviews when the language is supported. The server stores whatever TMDB returns in `media_items.title` and `media_items.overview`.
-
-### Per-profile audio/subtitle preferences
-
-Each profile has ordered fallback lists:
-- `audio_languages` — e.g. `["fr", "en"]` plays French audio, falls back to English
-- `subtitle_languages` — e.g. `["fr"]` shows French subtitles when available
-
-These are stored as `TEXT[]` in PostgreSQL and serialized into the `preferences` map in the API response as comma-separated strings (`"audio_languages": "fr,en"`).
-
-## Plugin System
-
-Plugins extend Evey via gRPC over Unix sockets.
-
-### How it works
-
-1. Evey starts a `HostService` gRPC server on `/tmp/evey/plugins/evey-host.sock`
-2. Each plugin process is launched with environment variables:
-   - `EVEY_PLUGIN_ID` — unique plugin ID
-   - `EVEY_PLUGIN_SOCK` — Unix socket path where the plugin must listen (PluginService)
-   - `EVEY_HOST_SOCK` — host service socket path
-3. The plugin listens on `EVEY_PLUGIN_SOCK` and serves `PluginService` (host→plugin calls)
-4. The plugin connects to `EVEY_HOST_SOCK` and calls `HostService` (plugin→host calls), always sending `x-plugin-id` in gRPC metadata
-
-### Plugin manifest (`plugin.yaml`)
-
-```yaml
-name: my-plugin
-version: 1.0.0
-description: My plugin description
-author: Author Name
-language: python          # python | nodejs | go | ...
-entrypoint: python main.py
-min_evey_version: 0.1.0
-capabilities:
-  - media.read            # can read library items
-  - metadata.provider     # can provide metadata
-  - notification.sender   # can emit events
-permissions:
-  - media.read
-  - api.library
-  - api.metadata
-config_schema:
-  api_key:
-    type: string
-    required: false
-```
-
-**Known capabilities:** `metadata.provider`, `media.read`, `media.write`, `webhook.receiver`, `notification.sender`, `ui.extension`
-
-**Known permissions:** `network`, `filesystem`, `media.read`, `media.write`, `api.library`, `api.user`, `api.metadata`
-
-### Installing a plugin
-
-```http
-POST /api/v1/admin/plugins/install
-{"source": "/path/to/plugin.zip"}
-```
-
-The zip must contain `plugin.yaml` at the root.
-
-### Example plugins
-
-- [`plugins/python-example/`](plugins/python-example/) — Python plugin
-- [`plugins/nodejs-example/`](plugins/nodejs-example/) — Node.js plugin
-
-See each directory for setup instructions.
-
-## Development
-
-### Running tests
+## Updating
 
 ```bash
-# Unit tests (fast, no external deps)
-go test ./internal/...
-
-# Integration tests (requires Docker for testcontainers)
-go test ./internal/adapters/driven/postgres/... -timeout 180s
+docker compose pull
+docker compose up -d
 ```
 
-### Regenerating protos
+To pin a specific version:
+```env
+EVEY_VERSION=v0.1.0-beta.1
+```
+
+## Health Check
 
 ```bash
-buf generate
+curl http://localhost:9091/healthz
+# {"status":"ok","db":"ok","meilisearch":"ok","version":"0.1.0","uptime_seconds":3600}
 ```
 
-### Code structure conventions
+## Mobile & TV Apps
 
-- Domain models in `internal/domain/<name>/model.go`
-- Port interfaces in `internal/domain/<name>/ports.go`
-- In-memory fakes for testing in `internal/domain/<name>/fakes/`
-- PostgreSQL adapters in `internal/adapters/driven/postgres/`
-- gRPC handlers in `internal/adapters/driving/grpcapi/`
-- All converter functions (domain ↔ proto) in `internal/adapters/driving/grpcapi/converters.go`
+Evey has apps for Android and Android TV. Connect by entering your server URL.
+
+**Quick Connect**: display a code on your TV, enter it on your phone — no need to type passwords with a remote.
+
+## Documentation
+
+| Topic | Link |
+|-------|------|
+| Configuration reference | [docs/configuration.md](docs/configuration.md) |
+| Reverse proxy setup | [docs/reverse-proxy.md](docs/reverse-proxy.md) |
+| Hardware transcoding | [docs/transcoding.md](docs/transcoding.md) |
+| Backups | [docs/backups.md](docs/backups.md) |
+| Email notifications | [docs/notifications.md](docs/notifications.md) |
+| SSO / OIDC | [docs/oidc.md](docs/oidc.md) |
+| Plugins | [docs/plugins.md](docs/plugins.md) |
+
+## License
+
+MIT
