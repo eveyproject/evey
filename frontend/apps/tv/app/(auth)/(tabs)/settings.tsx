@@ -111,6 +111,33 @@ export default function SettingsScreen() {
         </Pressable>
       </View>
 
+      {/* Watch History */}
+      <Text style={[styles.sectionTitle, { color: theme.colors.textMuted }]}>Activity</Text>
+      <View style={[styles.section, { backgroundColor: theme.colors.surface }]}>
+        <Pressable
+          style={rowStyle("watch-history")}
+          onPress={() => router.push("/(auth)/history")}
+          onFocus={() => setFocusedItem("watch-history")}
+          onBlur={() => setFocusedItem(null)}
+          accessible={true}
+          accessibilityLabel="Watch History"
+          accessibilityRole="button"
+        >
+          <Text style={[styles.label, { color: theme.colors.text }]}>Watch History</Text>
+        </Pressable>
+        <Pressable
+          style={rowStyle("notifications")}
+          onPress={() => router.push("/(auth)/notifications")}
+          onFocus={() => setFocusedItem("notifications")}
+          onBlur={() => setFocusedItem(null)}
+          accessible={true}
+          accessibilityLabel="Notifications"
+          accessibilityRole="button"
+        >
+          <Text style={[styles.label, { color: theme.colors.text }]}>Notifications</Text>
+        </Pressable>
+      </View>
+
       {/* Language */}
       <Text style={[styles.sectionTitle, { color: theme.colors.textMuted }]}>Language</Text>
       <View style={[styles.section, { backgroundColor: theme.colors.surface }]}>

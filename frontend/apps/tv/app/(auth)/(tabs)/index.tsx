@@ -6,6 +6,7 @@ import {
   usePlaybackServiceGetResumeItems,
   usePlaybackServiceGetNextUp,
   useLibraryServiceListMediaItems,
+  useNotificationServiceGetUnreadCount,
 } from "@evey/api";
 import type { V1MediaItem } from "@evey/api";
 import { useTheme } from "../../../src/providers/ThemeProvider";
@@ -112,6 +113,9 @@ export default function HomeScreen() {
   const serverUrl = useServerUrl();
   const authHeaders = useAuthHeaders();
 
+  const { data: unreadData } = useNotificationServiceGetUnreadCount();
+  const unreadCount = unreadData?.count ?? 0;
+
   const resume = usePlaybackServiceGetResumeItems({ limit: 20 });
   const nextUp = usePlaybackServiceGetNextUp({ limit: 20 });
   const recentlyAdded = useLibraryServiceListMediaItems({
@@ -142,6 +146,16 @@ export default function HomeScreen() {
 
   return (
     <ScrollView style={{ flex: 1, backgroundColor: theme.colors.bg }} contentContainerStyle={{ paddingVertical: 32 }}>
+      {unreadCount > 0 && (
+        <FocusableCard
+          onPress={() => router.push("/(auth)/notifications")}
+          style={styles.notifBanner}
+        >
+          <Text style={{ color: theme.colors.accent, fontSize: 20, fontWeight: "600" }}>
+            {unreadCount} unread notification{unreadCount !== 1 ? "s" : ""}
+          </Text>
+        </FocusableCard>
+      )}
       <MediaRow
         title={t("media.home.continueWatching")}
         items={resume.data?.items ?? []}
@@ -170,6 +184,12 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
+  },
+  notifBanner: {
+    marginHorizontal: 24,
+    marginBottom: 16,
+    paddingVertical: 12,
+    paddingHorizontal: 24,
   },
   rowContainer: {
     marginBottom: 32,

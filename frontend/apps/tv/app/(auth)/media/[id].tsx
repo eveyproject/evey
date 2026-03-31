@@ -8,12 +8,13 @@ import {
   usePlaybackServiceMarkAsWatched,
   usePlaybackServiceMarkAsUnwatched,
 } from "@evey/api";
-import type { V1MediaItem } from "@evey/api";
+import type { V1MediaItem, V1MediaPerson } from "@evey/api";
 import { useAuthStore } from "@evey/store";
 import { useQueryClient } from "@tanstack/react-query";
 import { useTheme } from "../../../src/providers/ThemeProvider";
 import { useIsFavorite, useToggleFavorite } from "../../../src/hooks/useFavorite";
 import { FocusableCard } from "../../../src/components/FocusableCard";
+import { AddToPlaylistSheet } from "../../../src/components/AddToPlaylistSheet";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 
@@ -57,6 +58,7 @@ export default function MediaDetailScreen() {
   const { data: isFavorite } = useIsFavorite(id);
   const toggleFavorite = useToggleFavorite(id);
 
+  const [playlistSheetOpen, setPlaylistSheetOpen] = useState(false);
   const [watchedOverride, setWatchedOverride] = useState<boolean | null>(null);
   const watched = watchedOverride ?? (watchProgress?.played === true);
 
@@ -79,6 +81,9 @@ export default function MediaDetailScreen() {
 
   const isSeries = isSeriesType(media?.type);
   const isSeason = isSeasonType(media?.type);
+
+  const people = media?.people ?? [];
+  const actors = people.filter((p: V1MediaPerson) => p.type === "PERSON_TYPE_ACTOR" || p.type === "PERSON_TYPE_GUEST_STAR");
 
   const { data: childrenData } = useLibraryServiceListMediaItems(
     { parentId: id, "pagination.pageSize": 100 },
@@ -209,6 +214,24 @@ export default function MediaDetailScreen() {
             </Text>
           </Pressable>
         )}
+
+        <Pressable
+          onPress={() => setPlaylistSheetOpen(true)}
+          onFocus={() => setFocusedBtn("playlist")}
+          onBlur={() => setFocusedBtn(null)}
+          accessible={true}
+          accessibilityLabel="Add to playlist"
+          accessibilityRole="button"
+          style={[
+            styles.actionBtn,
+            {
+              backgroundColor: theme.colors.surface,
+              borderColor: focusedBtn === "playlist" ? theme.colors.accent : "transparent",
+            },
+          ]}
+        >
+          <Text style={[styles.actionText, { color: theme.colors.text }]}>+ Playlist</Text>
+        </Pressable>
       </View>
 
       {/* Overview */}
@@ -271,7 +294,47 @@ export default function MediaDetailScreen() {
         </View>
       )}
 
+      {/* Cast */}
+      {actors.length > 0 && (
+        <View style={{ marginTop: 32 }}>
+          <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>Cast</Text>
+          <FlatList
+            horizontal
+            data={actors}
+            keyExtractor={(p) => p.id ?? p.name ?? ""}
+            showsHorizontalScrollIndicator={false}
+            renderItem={({ item: person }) => (
+              <FocusableCard
+                onPress={() => person.id && router.push(`/(auth)/person/${person.id}`)}
+                style={styles.castCard}
+              >
+                <View style={[styles.castAvatar, { backgroundColor: theme.colors.surface }]}>
+                  <Text style={{ color: theme.colors.textMuted, fontSize: 28 }}>?</Text>
+                </View>
+                <Text style={{ color: theme.colors.text, fontSize: 16, marginTop: 6, textAlign: "center" }} numberOfLines={1}>
+                  {person.name}
+                </Text>
+                {person.role ? (
+                  <Text style={{ color: theme.colors.textMuted, fontSize: 14, textAlign: "center" }} numberOfLines={1}>
+                    {person.role}
+                  </Text>
+                ) : null}
+              </FocusableCard>
+            )}
+            ItemSeparatorComponent={() => <View style={{ width: 12 }} />}
+          />
+        </View>
+      )}
+
       <View style={{ height: 64 }} />
+
+      {id ? (
+        <AddToPlaylistSheet
+          visible={playlistSheetOpen}
+          mediaItemId={id}
+          onClose={() => setPlaylistSheetOpen(false)}
+        />
+      ) : null}
     </ScrollView>
   );
 }
@@ -311,4 +374,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     borderBottomWidth: StyleSheet.hairlineWidth,
   },
+  castCard: { width: 120, alignItems: "center" },
+  castAvatar: { width: 80, height: 80, borderRadius: 40, justifyContent: "center", alignItems: "center" },
 });

@@ -39,6 +39,7 @@ export default function PlayerScreen() {
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
+  const [playbackSpeed, setPlaybackSpeed] = useState(1);
   const hideTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const videoSource = useMemo(() => {
@@ -108,6 +109,17 @@ export default function PlayerScreen() {
     [player, resetHideTimer],
   );
 
+  const SPEEDS = [0.5, 0.75, 1, 1.25, 1.5, 2] as const;
+  const cycleSpeed = useCallback(() => {
+    setPlaybackSpeed((prev) => {
+      const idx = SPEEDS.indexOf(prev as (typeof SPEEDS)[number]);
+      const next = SPEEDS[(idx + 1) % SPEEDS.length];
+      if (player) player.playbackRate = next;
+      return next;
+    });
+    resetHideTimer();
+  }, [player, resetHideTimer]);
+
   const handleBack = useCallback(() => {
     stopSession();
     router.back();
@@ -124,7 +136,9 @@ export default function PlayerScreen() {
       seekBy(-SEEK_STEP);
     } else if (type === "right") {
       seekBy(SEEK_STEP);
-    } else if (type === "up" || type === "down") {
+    } else if (type === "up") {
+      cycleSpeed();
+    } else if (type === "down") {
       resetHideTimer();
     } else if (type === "menu" || type === "back") {
       if (showControls) handleBack();
@@ -175,6 +189,9 @@ export default function PlayerScreen() {
             <Text style={styles.mediaTitle} numberOfLines={1}>
               {media?.title ?? ""}
             </Text>
+            <View style={styles.speedBadge}>
+              <Text style={styles.speedText}>{playbackSpeed}x</Text>
+            </View>
           </View>
 
           {/* Center play/pause indicator */}
@@ -223,11 +240,27 @@ const styles = StyleSheet.create({
   topBar: {
     paddingTop: 24,
     paddingHorizontal: 40,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
   },
   mediaTitle: {
     color: "#fff",
     fontSize: 24,
     fontWeight: "600",
+    flex: 1,
+  },
+  speedBadge: {
+    backgroundColor: "rgba(255,255,255,0.2)",
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+    borderRadius: 12,
+    marginLeft: 16,
+  },
+  speedText: {
+    color: "#fff",
+    fontSize: 16,
+    fontWeight: "700",
   },
   centerControls: {
     flexDirection: "row",

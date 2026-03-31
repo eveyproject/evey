@@ -1,0 +1,208 @@
+import { View, Text, FlatList, ActivityIndicator, StyleSheet } from "react-native";
+import { router } from "expo-router";
+import { useTranslation } from "react-i18next";
+import { useQueryClient } from "@tanstack/react-query";
+import {
+  useNotificationServiceListNotifications,
+  useNotificationServiceMarkRead,
+  useNotificationServiceMarkAllRead,
+  getNotificationServiceListNotificationsQueryKey,
+  getNotificationServiceGetUnreadCountQueryKey,
+} from "@evey/api";
+import type { V1Notification } from "@evey/api";
+import { useTheme } from "../../src/providers/ThemeProvider";
+import { FocusableCard } from "../../src/components/FocusableCard";
+
+const TITLE_KEYS: Record<string, string> = {
+  new_movie: "common.notifications.newMovie",
+  new_episode: "common.notifications.newEpisode",
+  new_season: "common.notifications.newSeason",
+  new_series: "common.notifications.newSeries",
+  new_album: "common.notifications.newAlbum",
+  backup_failed: "common.notifications.backupFailed",
+};
+
+function translateTitle(
+  t: (k: string, opts?: Record<string, unknown>) => string,
+  raw: string | undefined,
+): string {
+  if (!raw) return "";
+  const colonIdx = raw.indexOf(":");
+  if (colonIdx === -1) return raw;
+  const key = raw.slice(0, colonIdx);
+  const i18nKey = TITLE_KEYS[key];
+  if (!i18nKey) return raw;
+  const name = raw.slice(colonIdx + 1);
+  return t(i18nKey, { name });
+}
+
+function relativeTime(
+  t: (k: string, opts?: Record<string, unknown>) => string,
+  iso: string | undefined,
+): string {
+  if (!iso) return "";
+  const diff = Date.now() - new Date(iso).getTime();
+  const mins = Math.floor(diff / 60000);
+  if (mins < 1) return t("common.notifications.justNow");
+  if (mins < 60) return t("common.notifications.minutesAgo", { count: mins });
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return t("common.notifications.hoursAgo", { count: hours });
+  const days = Math.floor(hours / 24);
+  if (days < 7) return t("common.notifications.daysAgo", { count: days });
+  return new Date(iso).toLocaleDateString(undefined, { month: "short", day: "numeric" });
+}
+
+export default function NotificationsScreen() {
+  const theme = useTheme();
+  const { t } = useTranslation();
+  const qc = useQueryClient();
+
+  const { data, isLoading } = useNotificationServiceListNotifications({ limit: 50 });
+  const notifications = data?.notifications ?? [];
+
+  const invalidateAll = () => {
+    void qc.invalidateQueries({ queryKey: getNotificationServiceListNotificationsQueryKey() });
+    void qc.invalidateQueries({ queryKey: getNotificationServiceGetUnreadCountQueryKey() });
+  };
+
+  const markRead = useNotificationServiceMarkRead({
+    mutation: { onSuccess: invalidateAll },
+  });
+
+  const markAllRead = useNotificationServiceMarkAllRead({
+    mutation: { onSuccess: invalidateAll },
+  });
+
+  const hasUnread = notifications.some((n) => !n.readAt);
+
+  function handleTap(n: V1Notification) {
+    if (!n.readAt && n.id) {
+      markRead.mutate({ id: n.id });
+    }
+    if (n.mediaItemId) {
+      router.push(`/media/${n.mediaItemId}`);
+    }
+  }
+
+  if (isLoading) {
+    return (
+      <View style={[styles.center, { backgroundColor: theme.colors.bg }]}>
+        <ActivityIndicator color={theme.colors.accent} size="large" />
+      </View>
+    );
+  }
+
+  return (
+    <View style={[styles.container, { backgroundColor: theme.colors.bg }]}>
+      <View style={styles.headerRow}>
+        <Text style={[styles.header, { color: theme.colors.text }]}>{t("common.notifications.title")}</Text>
+        {hasUnread && (
+          <FocusableCard
+            onPress={() => markAllRead.mutate({ data: {} })}
+            style={[styles.markAllBtn, { backgroundColor: theme.colors.surface }]}
+          >
+            <Text style={{ color: theme.colors.accent, fontSize: 18, fontWeight: "600" }}>Mark all read</Text>
+          </FocusableCard>
+        )}
+      </View>
+
+      {notifications.length === 0 ? (
+        <View style={styles.center}>
+          <Text style={{ color: theme.colors.textMuted, fontSize: 22 }}>{t("common.noNotifications")}</Text>
+        </View>
+      ) : (
+        <FlatList
+          data={notifications}
+          keyExtractor={(item) => item.id ?? ""}
+          contentContainerStyle={{ paddingHorizontal: 24, paddingBottom: 64 }}
+          ItemSeparatorComponent={() => <View style={{ height: 4 }} />}
+          renderItem={({ item, index }) => (
+            <NotificationItem
+              item={item}
+              t={t}
+              theme={theme}
+              isFirst={index === 0}
+              onPress={() => handleTap(item)}
+            />
+          )}
+        />
+      )}
+    </View>
+  );
+}
+
+function NotificationItem({
+  item,
+  t,
+  theme,
+  isFirst,
+  onPress,
+}: {
+  item: V1Notification;
+  t: (k: string, opts?: Record<string, unknown>) => string;
+  theme: ReturnType<typeof useTheme>;
+  isFirst?: boolean;
+  onPress: () => void;
+}) {
+  const isUnread = !item.readAt;
+
+  return (
+    <FocusableCard
+      onPress={onPress}
+      hasTVPreferredFocus={isFirst}
+      style={[
+        styles.row,
+        {
+          backgroundColor: theme.colors.surface,
+          borderRadius: theme.radii.md,
+          opacity: isUnread ? 1 : 0.6,
+        },
+      ]}
+    >
+      <View
+        style={[
+          styles.iconCircle,
+          { backgroundColor: isUnread ? theme.colors.accent + "20" : theme.colors.surfaceRaised },
+        ]}
+      >
+        <Text style={{ color: isUnread ? theme.colors.accent : theme.colors.textMuted, fontSize: 20 }}>
+          {"\u25CF"}
+        </Text>
+      </View>
+      <View style={{ flex: 1, gap: 4 }}>
+        <Text
+          style={{
+            color: theme.colors.text,
+            fontSize: 20,
+            fontWeight: isUnread ? "600" : "400",
+          }}
+          numberOfLines={1}
+        >
+          {translateTitle(t, item.title)}
+        </Text>
+        {item.message && (
+          <Text style={{ color: theme.colors.textMuted, fontSize: 16 }} numberOfLines={1}>
+            {item.message}
+          </Text>
+        )}
+        <Text style={{ color: theme.colors.textMuted, fontSize: 14 }}>
+          {relativeTime(t, item.createdAt)}
+        </Text>
+      </View>
+      {isUnread && (
+        <View style={[styles.unreadDot, { backgroundColor: theme.colors.accent }]} />
+      )}
+    </FocusableCard>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: { flex: 1 },
+  center: { flex: 1, justifyContent: "center", alignItems: "center" },
+  headerRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 24, paddingTop: 32, paddingBottom: 16 },
+  header: { fontSize: 36, fontWeight: "700" },
+  markAllBtn: { paddingHorizontal: 20, paddingVertical: 12, borderRadius: 8 },
+  row: { flexDirection: "row", alignItems: "center", padding: 20, gap: 16 },
+  iconCircle: { width: 48, height: 48, borderRadius: 24, justifyContent: "center", alignItems: "center" },
+  unreadDot: { width: 12, height: 12, borderRadius: 6 },
+});

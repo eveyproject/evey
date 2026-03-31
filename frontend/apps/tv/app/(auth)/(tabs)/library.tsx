@@ -56,6 +56,22 @@ export default function LibraryScreen() {
   return (
     <View style={[styles.container, { backgroundColor: theme.colors.bg }]}>
       <Text style={[styles.header, { color: theme.colors.text }]}>Libraries</Text>
+
+      <View style={styles.linkRow}>
+        <FocusableCard
+          onPress={() => router.push("/(auth)/collections")}
+          style={[styles.linkCard, { backgroundColor: theme.colors.surface, borderRadius: theme.radii.md }]}
+        >
+          <Text style={[styles.linkText, { color: theme.colors.accent }]}>Collections</Text>
+        </FocusableCard>
+        <FocusableCard
+          onPress={() => router.push("/(auth)/playlists")}
+          style={[styles.linkCard, { backgroundColor: theme.colors.surface, borderRadius: theme.radii.md }]}
+        >
+          <Text style={[styles.linkText, { color: theme.colors.accent }]}>Playlists</Text>
+        </FocusableCard>
+      </View>
+
       <FlatList
         data={libraries}
         keyExtractor={(item) => item.id ?? ""}
@@ -76,4 +92,7 @@ const styles = StyleSheet.create({
   },
   name: { fontSize: 24, fontWeight: "600" },
   type: { fontSize: 18, marginTop: 4 },
+  linkRow: { flexDirection: "row", gap: 16, paddingHorizontal: 24, paddingTop: 16 },
+  linkCard: { paddingVertical: 16, paddingHorizontal: 32 },
+  linkText: { fontSize: 22, fontWeight: "600" },
 });
