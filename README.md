@@ -6,11 +6,13 @@ Self-hosted media server for movies, TV shows, music, and photos.
 
 ```bash
 cp .env.example .env
-# Edit .env: set EVEY_DB_PASSWORD, MEILI_MASTER_KEY, and MEDIA_DIR
+# Edit .env — set your database password, search key, and media path
 docker compose up -d
 ```
 
-Open `http://<your-ip>:9091`, create your admin account, add a library. Done.
+Open `http://<your-ip>:9091`, create your account, add a library. That's it.
+
+Migrations run automatically. A JWT signing key is generated on first start in the `evey-data` volume — keep that volume safe.
 
 ## Update
 
@@ -18,89 +20,92 @@ Open `http://<your-ip>:9091`, create your admin account, add a library. Done.
 docker compose pull && docker compose up -d
 ```
 
+Pin a specific version if you want:
+```env
+EVEY_VERSION=v0.1.0-beta.1
+```
+
 ## HTTPS
 
-Evey doesn't handle HTTPS. Put a reverse proxy in front. The bundled Caddy option:
+Evey doesn't handle HTTPS. Put a reverse proxy in front. Quickest option — the bundled Caddy:
 
 ```bash
-# Add EVEY_DOMAIN=media.example.com to .env
+# Add to .env
+EVEY_DOMAIN=media.example.com
+
 docker compose --profile caddy up -d
 ```
 
-Or use your own Nginx/Traefik/etc. See [docs/reverse-proxy.md](docs/reverse-proxy.md).
-
-## Apps
-
-Android and Android TV apps connect to your server URL. Use **Quick Connect** to log in on TV without typing passwords.
+Or bring your own Nginx/Traefik. See [docs/reverse-proxy.md](docs/reverse-proxy.md) and the ready-to-use configs in [`examples/`](examples/).
 
 ## Configuration
 
-Everything is in `.env`. The essentials:
+Everything goes in `.env`. You only need three things to start:
 
-| Variable | What it does |
-|----------|--------------|
-| `EVEY_DB_PASSWORD` | Database password |
-| `MEILI_MASTER_KEY` | Search engine key (generate: `openssl rand -hex 16`) |
-| `MEDIA_DIR` | Path to your media on the host |
-| `EVEY_SERVER_BASE_URL` | Your public URL (for links, SSO, password reset) |
+```env
+EVEY_DB_PASSWORD=<strong-password>
+MEILI_MASTER_KEY=<run: openssl rand -hex 16>
+MEDIA_DIR=/path/to/your/media
+```
 
 Full reference: [docs/configuration.md](docs/configuration.md)
 
+## Volumes
+
+| Volume | What's inside | Can you delete it? |
+|--------|--------------|-------------------|
+| `postgres-data` | Database | No — you lose all data |
+| `evey-data` | JWT key, logs, backups | No — you lose your signing key |
+| `evey-plugins` | Installed plugins | No — you lose your plugins |
+| `meili-data` | Search index | Yes — rebuilt on next scan |
+| `evey-cache` | Transcode + trickplay cache | Yes — regenerated on demand |
+| `caddy-data` | TLS certificates | Depends — Caddy re-requests them |
+
+## Apps
+
+Android and Android TV apps connect to your server URL. Use **Quick Connect** to log in on TV — type the code on your phone instead of wrestling with a remote.
+
 ## Features
 
-- Adaptive HLS transcoding with optional [hardware acceleration](docs/transcoding.md) (VAAPI, NVENC, QSV)
-- [SSO/OIDC](docs/oidc.md) with any provider (Keycloak, Authentik, Google...)
-- [Email notifications](docs/notifications.md) for new media, with password recovery
-- [Automatic backups](docs/backups.md) with configurable retention
-- [Plugin system](docs/plugins.md) for themes, metadata providers, and widgets
+- Adaptive HLS transcoding with [hardware acceleration](docs/transcoding.md) (VAAPI, NVENC, QSV)
+- [SSO/OIDC](docs/oidc.md) — Keycloak, Authentik, Google, anything OIDC-compliant
+- [Email notifications](docs/notifications.md) + password recovery
+- [Automatic backups](docs/backups.md)
+- [Plugins & themes](docs/plugins.md) — sandboxed with seccomp
 - Multi-profile with parental controls
-- SyncPlay (watch together)
+- SyncPlay — watch together in sync
 
 ## Plugins & Themes
 
-Evey supports plugins for themes, custom metadata providers, and UI widgets. Plugins run sandboxed with seccomp and process isolation.
+You can extend Evey with plugins: themes, metadata providers, UI widgets. They run sandboxed.
 
-- Install plugins from the admin panel (ZIP upload)
-- Create your own: see [docs/plugins.md](docs/plugins.md) and [examples](examples/)
-
-Quick theme example:
+Quick CSS theme:
 ```yaml
 # plugin.yaml
-name: my-dark-theme
+name: my-theme
 version: 1.0.0
 language: css
 capabilities: [ui.theme]
 entrypoint: theme.css
 ```
-
 ```css
 /* theme.css */
-:root {
-  --bg: #0a0a0a;
-  --surface: #1a1a1a;
-  --accent: #e11d48;
-  --text: #fafafa;
-}
+:root { --bg: #0a0a0a; --accent: #e11d48; --text: #fafafa; }
 ```
 
-ZIP it, upload in Admin > Plugins. See [docs/plugins.md](docs/plugins.md) for the full spec.
+ZIP it, upload in Admin > Plugins. Full spec and examples: [docs/plugins.md](docs/plugins.md)
 
 ## Docs
 
-- [Configuration](docs/configuration.md)
-- [Reverse Proxy](docs/reverse-proxy.md) (Caddy, Nginx, Traefik, NPM)
-- [Transcoding](docs/transcoding.md)
-- [Backups](docs/backups.md)
-- [Notifications](docs/notifications.md)
-- [SSO / OIDC](docs/oidc.md)
-- [Plugins](docs/plugins.md)
-
-## Health Check
-
-```
-GET /healthz
-{"status":"ok","db":"ok","meilisearch":"ok","version":"0.1.0","uptime_seconds":3600}
-```
+| | |
+|---|---|
+| [Configuration](docs/configuration.md) | All env variables |
+| [Reverse Proxy](docs/reverse-proxy.md) | Caddy, Nginx, Traefik |
+| [Transcoding](docs/transcoding.md) | Hardware acceleration |
+| [Backups](docs/backups.md) | Schedule & restore |
+| [Notifications](docs/notifications.md) | SMTP & push |
+| [SSO / OIDC](docs/oidc.md) | Single sign-on |
+| [Plugins](docs/plugins.md) | Build your own |
 
 ## License
 

@@ -1,5 +1,50 @@
 services:
-  # ── Infrastructure ──
+
+  evey:
+    container_name: evey-server
+    image: gravityz/evey:${EVEY_VERSION:-latest}
+    deploy:
+      resources:
+        limits:
+          memory: ${EVEY_MEMORY_LIMIT:-4g}
+          cpus: '${EVEY_CPU_LIMIT:-4}'
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "100m"
+        max-file: "10"
+    ports:
+      - "${EVEY_HTTP_PORT:-9091}:${EVEY_HTTP_PORT:-9091}"
+    environment:
+      EVEY_DB_HOST: postgres
+      EVEY_MEILI_URL: http://meilisearch:7700
+      EVEY_JWT_PRIVATE_KEY_PATH: /data/jwt.key
+      EVEY_TRANSCODING_CACHE_DIR: /cache/transcode
+      EVEY_TRICKPLAY_CACHE_DIR: /cache/trickplay
+      EVEY_LOG_DIR: /data/logs
+      EVEY_BACKUP_DIR: /data/backups
+    env_file:
+      - path: .env
+        required: false
+    volumes:
+      - evey-data:/data            # keys, logs, backups
+      - evey-plugins:/data/plugins # plugin files (survives updates)
+      - evey-cache:/cache          # transcode + trickplay cache (expendable)
+      - ${MEDIA_DIR:-/media}:/media:ro
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:${EVEY_HTTP_PORT:-9091}/healthz"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    depends_on:
+      postgres:
+        condition: service_healthy
+      meilisearch:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # ── Database ──
   postgres:
     container_name: evey-postgres
     image: postgres:16-alpine
@@ -10,7 +55,7 @@ services:
     expose:
       - "5432"
     volumes:
-      - ${POSTGRES_DATA_DIR:-~/.evey/postgres-data}:/var/lib/postgresql/data
+      - postgres-data:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${EVEY_DB_USER:-evey}"]
       interval: 5s
@@ -18,6 +63,7 @@ services:
       retries: 5
     restart: unless-stopped
 
+  # ── Search ──
   meilisearch:
     container_name: evey-meilisearch
     image: getmeili/meilisearch:v1.12
@@ -35,50 +81,7 @@ services:
       retries: 5
     restart: unless-stopped
 
-  # ── Evey backend (registry image) ──
-  evey:
-    container_name: evey-server
-    image: gravityz/evey:${EVEY_VERSION:-latest}
-    deploy:
-      resources:
-        limits:
-          memory: 4g
-          cpus: '4'
-    logging:
-      driver: "json-file"
-      options:
-        max-size: "100m"
-        max-file: "10"
-    ports:
-      - "${EVEY_HTTP_PORT:-9091}:${EVEY_HTTP_PORT:-9091}"
-      - "${EVEY_SERVER_PORT:-9090}:${EVEY_SERVER_PORT:-9090}"
-    environment:
-      EVEY_DB_HOST: postgres
-      EVEY_MEILI_URL: http://meilisearch:7700
-      EVEY_JWT_PRIVATE_KEY_PATH: /data/jwt.key
-      EVEY_TRANSCODING_CACHE_DIR: /data/transcode
-      EVEY_TRICKPLAY_CACHE_DIR: /cache/trickplay
-    env_file:
-      - path: .env
-        required: false
-    volumes:
-      - evey-data:/data
-      - evey-cache:/cache
-      - ${MEDIA_DIR:-/media}:/media:ro
-    healthcheck:
-      test: ["CMD", "curl", "-sf", "http://localhost:${EVEY_HTTP_PORT:-9091}/healthz"]
-      interval: 10s
-      timeout: 5s
-      retries: 3
-      start_period: 10s
-    depends_on:
-      postgres:
-        condition: service_healthy
-      meilisearch:
-        condition: service_healthy
-    restart: unless-stopped
-
-  # ── Caddy (optional — admins can use their own reverse proxy) ──
+  # ── Reverse proxy (optional — use your own if you prefer) ──
   caddy:
     container_name: evey-caddy
     profiles: [caddy]
@@ -99,8 +102,10 @@ services:
     restart: unless-stopped
 
 volumes:
-  meili-data:
-  evey-data:
-  evey-cache:
-  caddy-data:
-  caddy-config:
+  postgres-data:    # database
+  meili-data:       # search index
+  evey-data:        # keys, logs, backups
+  evey-plugins:     # installed plugins
+  evey-cache:       # transcode + trickplay (safe to delete)
+  caddy-data:       # certificates
+  caddy-config:     # caddy state
