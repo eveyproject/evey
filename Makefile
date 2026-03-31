@@ -1,10 +1,9 @@
 .PHONY: proto-gen plugin-sdk build test lint clean \
 	migrate-up migrate-down setup dev dev-down dev-logs \
-	prod prod-down infra frontend-typecheck
+	infra frontend-typecheck
 
 BINARY=evey
 DC=docker compose --env-file .env.dev
-DC_PROD=docker compose -f docker-compose.yml
 
 # ── Build ──────────────────────────────────────────────────────────────────────
 
@@ -83,14 +82,6 @@ dev-logs:
 
 infra:
 	$(DC) up postgres meilisearch -d
-
-# ── Prod (uses docker-compose.yml only — no override) ─────────────────────────
-
-prod:
-	$(DC_PROD) up -d
-
-prod-down:
-	$(DC_PROD) down
 
 # ── Frontend ───────────────────────────────────────────────────────────────────
 
