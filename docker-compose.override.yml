@@ -32,6 +32,7 @@ services:
     volumes:
       - .:/app
       - evey-data:/data
+      - ./plugins:/data/plugins
       - evey-cache:/cache
       - /path/to/movies:/media
       - /path/to/series:/media2
