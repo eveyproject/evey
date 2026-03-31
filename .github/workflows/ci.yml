@@ -6,23 +6,20 @@ on:
   pull_request:
     branches: [main, master]
 
-env:
-  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
-
 jobs:
   backend:
     name: Backend — test & build
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@v6
         with:
           go-version-file: go.mod
           cache: true
 
       - name: install buf
-        uses: bufbuild/buf-setup-action@v1
+        uses: bufbuild/buf-setup-action@v2
         with:
           version: "1.47.2"
           github_token: ${{ secrets.GITHUB_TOKEN }}
@@ -49,9 +46,9 @@ jobs:
     name: Frontend — typecheck & build
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
           node-version: "22"
 
@@ -62,7 +59,7 @@ jobs:
         run: corepack prepare pnpm@10.6.5 --activate
 
       - name: install buf
-        uses: bufbuild/buf-setup-action@v1
+        uses: bufbuild/buf-setup-action@v2
         with:
           version: "1.47.2"
           github_token: ${{ secrets.GITHUB_TOKEN }}
