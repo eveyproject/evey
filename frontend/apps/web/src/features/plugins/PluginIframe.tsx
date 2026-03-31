@@ -82,6 +82,7 @@ export function PluginIframe({ pluginId, src: _src, context }: PluginIframeProps
     (e: MessageEvent) => {
       const iframe = iframeRef.current;
       if (!iframe || e.source !== iframe.contentWindow) return;
+      if (e.origin !== "null" && e.origin !== window.location.origin) return;
 
       const data = e.data as Record<string, unknown>;
       if (!data || typeof data.type !== "string") return;

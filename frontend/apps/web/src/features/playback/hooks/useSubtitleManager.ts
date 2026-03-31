@@ -96,7 +96,9 @@ export function useSubtitleManager({
       document.head.appendChild(styleElRef.current);
     }
     const { fontSize, color, fontFamily, bgColor, bgOpacity, shadow } = subtitleStyle;
-    const fontFamilyRule = fontFamily ? `font-family: ${fontFamily};` : "";
+    // Only allow alphanumeric, spaces, commas, quotes, hyphens — prevents CSS injection
+    const safeFontFamily = fontFamily && /^[a-zA-Z0-9\s,"'-]+$/.test(fontFamily) ? fontFamily : "";
+    const fontFamilyRule = safeFontFamily ? `font-family: ${safeFontFamily};` : "";
     const opacity = bgOpacity / 100;
     const r = parseInt(bgColor.slice(1, 3), 16);
     const g = parseInt(bgColor.slice(3, 5), 16);
