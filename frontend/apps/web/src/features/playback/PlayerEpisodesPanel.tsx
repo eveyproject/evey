@@ -31,12 +31,11 @@ export function EpisodesPanel({ seasons, currentSeasonId, episodes, currentEpiso
       </button>
       {open && (
         <div
-          className="absolute bottom-full mb-2 right-0 w-72 rounded-[var(--radius-md)] shadow-xl overflow-hidden z-badge"
-          style={{ backgroundColor: "var(--surface)", border: "1px solid var(--border)" }}
+          className="absolute bottom-full mb-2 right-0 w-72 rounded-[var(--radius-md)] shadow-xl overflow-hidden z-badge bg-[var(--surface)] border border-[var(--border)]"
           onClick={(e) => e.stopPropagation()}
         >
           {seasons.length > 1 && (
-            <div className="px-3 py-2" style={{ borderBottom: "1px solid var(--border)" }}>
+            <div className="px-3 py-2 border-b border-[var(--border)]">
               <Select
                 value={currentSeasonId}
                 onChange={onSeasonChange}
@@ -52,10 +51,9 @@ export function EpisodesPanel({ seasons, currentSeasonId, episodes, currentEpiso
               <button
                 key={ep.id}
                 onClick={() => { onEpisodeChange(ep.id); onToggle(); }}
-                className="flex items-center gap-2 w-full px-4 py-2 text-sm hover:bg-[var(--surface-raised)] transition-colors-fast text-left"
-                style={{ color: ep.id === currentEpisodeId ? "var(--accent)" : "var(--text)" }}
+                className={`flex items-center gap-2 w-full px-4 py-2 text-sm hover:bg-[var(--surface-raised)] transition-colors-fast text-left ${ep.id === currentEpisodeId ? "text-[var(--accent)]" : "text-[var(--text)]"}`}
               >
-                <span className="w-8 flex-shrink-0 font-mono text-xs" style={{ color: "var(--text-muted)" }}>
+                <span className="w-8 flex-shrink-0 font-mono text-xs text-[var(--text-muted)]">
                   E{ep.indexNumber ?? "?"}
                 </span>
                 <span className="flex-1 truncate">{ep.title}</span>

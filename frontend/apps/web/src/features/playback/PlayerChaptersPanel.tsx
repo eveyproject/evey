@@ -27,11 +27,10 @@ export function ChaptersPanel({ chapters, currentTimeSec, onSeek, open, onToggle
       </button>
       {open && (
         <div
-          className="absolute bottom-full mb-2 right-0 w-72 rounded-[var(--radius-md)] shadow-xl overflow-hidden z-badge"
-          style={{ backgroundColor: "var(--surface)", border: "1px solid var(--border)" }}
+          className="absolute bottom-full mb-2 right-0 w-72 rounded-[var(--radius-md)] shadow-xl overflow-hidden z-badge bg-[var(--surface)] border border-[var(--border)]"
           onClick={(e) => e.stopPropagation()}
         >
-          <div className="px-3 pt-2 pb-1 text-xs font-semibold uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>
+          <div className="px-3 pt-2 pb-1 text-xs font-semibold uppercase tracking-wider text-[var(--text-muted)]">
             {t("player.controls.chapters")}
           </div>
           <div className="max-h-72 overflow-y-auto">
@@ -42,10 +41,9 @@ export function ChaptersPanel({ chapters, currentTimeSec, onSeek, open, onToggle
                 <button
                   key={i}
                   onClick={() => { onSeek(startSec); onToggle(); }}
-                  className="flex items-center gap-2 w-full px-4 py-2 text-sm hover:bg-[var(--surface-raised)] transition-colors-fast text-left"
-                  style={{ color: isActive ? "var(--accent)" : "var(--text)" }}
+                  className={`flex items-center gap-2 w-full px-4 py-2 text-sm hover:bg-[var(--surface-raised)] transition-colors-fast text-left ${isActive ? "text-[var(--accent)]" : "text-[var(--text)]"}`}
                 >
-                  <span className="w-12 flex-shrink-0 font-mono text-xs" style={{ color: "var(--text-muted)" }}>
+                  <span className="w-12 flex-shrink-0 font-mono text-xs text-[var(--text-muted)]">
                     {formatTime(startSec)}
                   </span>
                   <span className="flex-1 truncate">{ch.title || t("media.chapter", { number: i + 1 })}</span>

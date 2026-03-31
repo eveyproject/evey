@@ -77,10 +77,9 @@ export function NextEpisodeOverlay({
     : t("player.nextEpisodeOverlay.nextEpisode");
 
   return (
-    <div className="absolute bottom-24 right-4 z-float rounded-lg p-4 max-w-xs animate-in fade-in slide-in-from-right"
-      style={{ backgroundColor: "var(--overlay-scrim)", border: "1px solid var(--border)" }}
+    <div className="absolute bottom-24 right-4 z-float rounded-lg p-4 max-w-xs animate-in fade-in slide-in-from-right bg-[var(--overlay-scrim)] border border-[var(--border)]"
     >
-      <p className="text-xs uppercase tracking-wider mb-1" style={{ color: "var(--text-muted)" }}>
+      <p className="text-xs uppercase tracking-wider mb-1 text-[var(--text-muted)]">
         {ended ? t("player.nextEpisodeOverlay.nextIn", { seconds: Math.max(countdown, 0) }) : t("player.nextEpisodeOverlay.upNext")}
       </p>
       <p className="text-sm font-medium text-white mb-3 truncate">
@@ -89,27 +88,22 @@ export function NextEpisodeOverlay({
       <div className="flex gap-2">
         <button
           onClick={handlePlayNow}
-          className="px-3 py-1.5 rounded text-sm font-medium text-black transition-colors-fast"
-          style={{ backgroundColor: "var(--accent)" }}
+          className="px-3 py-1.5 rounded text-sm font-medium text-black transition-colors-fast bg-[var(--accent)]"
         >
           {t("player.nextEpisodeOverlay.playNow")}
         </button>
         <button
           onClick={handleCancel}
-          className="px-3 py-1.5 rounded text-sm font-medium text-white transition-colors-fast hover:bg-white/20"
-          style={{ backgroundColor: "var(--overlay-border-subtle)" }}
+          className="px-3 py-1.5 rounded text-sm font-medium text-white transition-colors-fast hover:bg-white/20 bg-[var(--overlay-border-subtle)]"
         >
           {t("common.cancel")}
         </button>
       </div>
       {ended && (
-        <div className="mt-2 h-0.5 rounded-full overflow-hidden" style={{ backgroundColor: "var(--overlay-btn-bg)" }}>
+        <div className="mt-2 h-0.5 rounded-full overflow-hidden bg-[var(--overlay-btn-bg)]">
           <div
-            className="h-full rounded-full transition-all duration-1000 ease-linear"
-            style={{
-              backgroundColor: "var(--accent)",
-              width: `${((COUNTDOWN_SEC - Math.max(countdown, 0)) / COUNTDOWN_SEC) * 100}%`,
-            }}
+            className="h-full rounded-full transition-all duration-1000 ease-linear bg-[var(--accent)]"
+            style={{ width: `${((COUNTDOWN_SEC - Math.max(countdown, 0)) / COUNTDOWN_SEC) * 100}%` }}
           />
         </div>
       )}
