@@ -37,7 +37,8 @@ func (r *FakeTranscodeJobRepository) GetByID(_ context.Context, id string) (*tra
 	if !ok {
 		return nil, ErrNotFound
 	}
-	return j, nil
+	copy := *j
+	return &copy, nil
 }
 
 func (r *FakeTranscodeJobRepository) Update(_ context.Context, job *transcoding.TranscodeJob) error {

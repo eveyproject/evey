@@ -35,6 +35,7 @@ type processEntry struct {
 	sockPath string
 	pluginID string
 	ipc      *ipcClient
+	done     chan struct{} // closed when cmd.Wait() returns in Start goroutine
 }
 
 // OnIPCResult is called after IPC Initialize completes (success or failure).
@@ -237,6 +238,7 @@ func (r *Runner) Start(parentCtx context.Context, p *plugin.Plugin) error {
 		cancel:   cancel,
 		sockPath: sock,
 		pluginID: p.ID,
+		done:     make(chan struct{}),
 	}
 
 	// Try to connect IPC client (non-blocking — plugin may not create socket immediately)
@@ -247,6 +249,7 @@ func (r *Runner) Start(parentCtx context.Context, p *plugin.Plugin) error {
 	r.mu.Unlock()
 
 	go func() {
+		defer close(entry.done)
 		defer func() {
 			if rv := recover(); rv != nil {
 				slog.Error("panic in plugin runner", slog.Any("recover", rv), slog.String("plugin", p.ID))
@@ -349,17 +352,14 @@ func (r *Runner) Stop(ctx context.Context, pluginID string) error {
 		slog.Warn("send SIGTERM to plugin", slog.Any("err", err))
 	}
 
-	done := make(chan error, 1)
-	go func() { done <- entry.cmd.Wait() }()
-
 	select {
-	case <-done:
+	case <-entry.done:
 	case <-time.After(shutdownTimeout):
 		if err := entry.cmd.Process.Signal(syscall.SIGKILL); err != nil {
 			slog.Warn("send SIGKILL to plugin", slog.Any("err", err))
 		}
 		select {
-		case <-done:
+		case <-entry.done:
 		case <-time.After(killTimeout):
 		}
 	}

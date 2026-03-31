@@ -3,6 +3,7 @@ package library_test
 import (
 	"context"
 	"log/slog"
+	"sync"
 	"testing"
 	"time"
 
@@ -15,13 +16,24 @@ import (
 )
 
 type fakeScannerForScheduler struct {
+	mu        sync.Mutex
 	called    []string
 	returnErr error
 }
 
 func (f *fakeScannerForScheduler) ScanLibrary(_ context.Context, libraryID string) (int, int, error) {
+	f.mu.Lock()
 	f.called = append(f.called, libraryID)
+	f.mu.Unlock()
 	return 1, 0, f.returnErr
+}
+
+func (f *fakeScannerForScheduler) getCalled() []string {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	cp := make([]string, len(f.called))
+	copy(cp, f.called)
+	return cp
 }
 
 func TestNextCronTime_EveryHour(t *testing.T) {
@@ -331,8 +343,8 @@ func TestScheduler_Tick_TriggersOverdueScans(t *testing.T) {
 
 	time.Sleep(50 * time.Millisecond)
 
-	assert.Contains(t, scanner.called, "lib-overdue")
-	assert.NotContains(t, scanner.called, "lib-future")
+	assert.Contains(t, scanner.getCalled(), "lib-overdue")
+	assert.NotContains(t, scanner.getCalled(), "lib-future")
 }
 
 func TestScheduler_Tick_SkipsDisabledSchedules(t *testing.T) {
@@ -353,7 +365,7 @@ func TestScheduler_Tick_SkipsDisabledSchedules(t *testing.T) {
 	sched.Tick(ctx)
 	time.Sleep(50 * time.Millisecond)
 
-	assert.Empty(t, scanner.called)
+	assert.Empty(t, scanner.getCalled())
 }
 
 func TestScheduler_Tick_NilNextRunAt(t *testing.T) {
@@ -373,7 +385,7 @@ func TestScheduler_Tick_NilNextRunAt(t *testing.T) {
 	sched.Tick(ctx)
 	time.Sleep(50 * time.Millisecond)
 
-	assert.Empty(t, scanner.called)
+	assert.Empty(t, scanner.getCalled())
 }
 
 func TestScheduler_RunStopsOnCancel(t *testing.T) {

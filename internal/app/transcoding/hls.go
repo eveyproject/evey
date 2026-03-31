@@ -73,11 +73,16 @@ func (s *HLSSession) WaitReady(ctx context.Context) error {
 }
 
 func (s *HLSSession) stop() {
-	if s.handle != nil {
-		if err := s.handle.Stop(); err != nil {
+	s.mu.Lock()
+	h := s.handle
+	s.mu.Unlock()
+	if h != nil {
+		if err := h.Stop(); err != nil {
 			slog.Warn("hls: stop handle failed", slog.String("media_id", s.MediaItemID), slog.Any("err", err))
 		}
 	}
+	// Wait for startSession goroutine to finish before removing files
+	<-s.done
 	if err := os.RemoveAll(s.OutputDir); err != nil {
 		slog.Warn("hls: remove output dir failed", slog.String("dir", s.OutputDir), slog.Any("err", err))
 	}

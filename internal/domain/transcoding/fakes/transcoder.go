@@ -44,11 +44,9 @@ func (t *FakeTranscoder) Start(_ context.Context, job *transcoding.TranscodeJob)
 func (t *FakeTranscoder) Stop(_ context.Context, jobID string) error {
 	t.mu.Lock()
 	defer t.mu.Unlock()
-	job, ok := t.jobs[jobID]
-	if !ok {
+	if _, ok := t.jobs[jobID]; !ok {
 		return ErrNotFound
 	}
-	job.Status = string(transcoding.Cancelled)
 	return nil
 }
 
