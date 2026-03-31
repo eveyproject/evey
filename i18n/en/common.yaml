@@ -53,6 +53,15 @@ item_one: "{{count}} item"
 item_other: "{{count}} items"
 filtered: "(filtered)"
 noItemsMatch: No items match the current filter.
+showLess: Show less
+readMore: Read more
+noPoster: No poster
+noItems: No items
+noCollections: No collections
+playlists: Playlists
+collections: Collections
+loadError: Failed to load
+retry: Retry
 errorBoundary:
   title: Something went wrong
   description: An unexpected error occurred. Please try reloading the page. If the problem persists, go back to the home page.

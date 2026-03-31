@@ -161,3 +161,12 @@ feeds:
     recommended: "अनुशंसित"
     most_popular: "सबसे लोकप्रिय"
     collections: "संग्रह"
+showLess: कम दिखाएं
+readMore: और पढ़ें
+noPoster: कोई पोस्टर नहीं
+noItems: कोई आइटम नहीं
+noCollections: कोई संग्रह नहीं
+playlists: प्लेलिस्ट
+collections: संग्रह
+loadError: लोड करने में विफल
+retry: पुनः प्रयास करें

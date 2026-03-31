@@ -161,3 +161,12 @@ feeds:
     recommended: "推荐"
     most_popular: "最受欢迎"
     collections: "合集"
+showLess: 收起
+readMore: 阅读更多
+noPoster: 无海报
+noItems: 没有项目
+noCollections: 没有合集
+playlists: 播放列表
+collections: 合集
+loadError: 加载失败
+retry: 重试

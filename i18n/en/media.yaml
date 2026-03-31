@@ -18,6 +18,7 @@ home:
   library: Library
 favorites:
   title: Favorites
+  empty: No favorites yet
   searchPlaceholder: "Search\u2026"
   all: All
   movies: Movies
@@ -131,6 +132,7 @@ library:
   subtitleLanguage: Subtitle Language
   noFilterOptions: No filter options available for this library yet.
 person:
+  filmography: Filmography
   notFound: Person not found.
   unknown: Unknown
   titleCount: "{{count}} title"
@@ -269,6 +271,7 @@ playlist:
   createPlaylist: Create Playlist
   newPlaylist: "+ New Playlist"
   noPlaylists: No playlists yet.
+  notFound: Playlist not found
   addTitle: Add to Playlist
   addSuccess: "Added to playlist"
   addError: Failed to add to playlist

@@ -162,3 +162,12 @@ feeds:
     recommended: "Recommandés"
     most_popular: "Les plus populaires"
     collections: Collections
+showLess: Voir moins
+readMore: Lire la suite
+noPoster: Pas d'affiche
+noItems: Aucun élément
+noCollections: Aucune collection
+playlists: Playlists
+collections: Collections
+loadError: Échec du chargement
+retry: Réessayer
