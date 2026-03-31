@@ -1,0 +1,18 @@
+# Example: Evey behind Traefik
+# Merge with the main docker-compose.yml:
+#   docker compose -f docker-compose.yml -f examples/traefik/docker-compose.traefik.yml up -d
+
+services:
+  evey:
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.evey.rule=Host(`media.example.com`)"
+      - "traefik.http.routers.evey.entrypoints=websecure"
+      - "traefik.http.routers.evey.tls.certresolver=letsencrypt"
+      - "traefik.http.services.evey.loadbalancer.server.port=9091"
+    networks:
+      - proxy
+
+networks:
+  proxy:
+    external: true

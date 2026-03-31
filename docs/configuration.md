@@ -1,126 +1,111 @@
-# Configuration Reference
+# Configuration
 
-All configuration is done via environment variables in `.env`.
+All configuration is in `.env`. Copy `.env.example` to `.env` and edit.
 
-## Required
+## Must Set
 
-| Variable | Example | Description |
-|----------|---------|-------------|
-| `EVEY_DB_PASSWORD` | `s3cureP@ss` | PostgreSQL password |
-| `MEILI_MASTER_KEY` | `aBcDeFgH12345678` | Meilisearch master key (min 16 chars). Generate with `openssl rand -hex 16` |
-| `MEDIA_DIR` | `/mnt/media` | Host path to your media files. Mounted read-only inside the container |
+```env
+EVEY_DB_PASSWORD=<strong-password>
+MEILI_MASTER_KEY=<run: openssl rand -hex 16>
+MEDIA_DIR=/path/to/your/media
+```
 
-## Server
+## Recommended
 
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `EVEY_SERVER_BASE_URL` | `http://localhost:9091` | Public URL of your instance. Used for generating links, OIDC callbacks, and password reset emails |
-| `EVEY_SERVER_NAME` | `Evey` | Server display name |
-| `EVEY_HTTP_PORT` | `9091` | HTTP API port |
-| `EVEY_SERVER_PORT` | `9090` | gRPC port (internal, plugins only) |
-| `EVEY_VERSION` | `latest` | Docker image tag to use |
+```env
+EVEY_SERVER_BASE_URL=https://media.example.com  # your public URL
+EVEY_TMDB_API_KEY=<your-tmdb-key>               # better metadata (free at themoviedb.org)
+```
 
-## Database
+## All Variables
 
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `EVEY_DB_USER` | `evey` | PostgreSQL username |
-| `EVEY_DB_PASSWORD` | `evey` | PostgreSQL password |
-| `EVEY_DB_NAME` | `evey` | Database name |
-| `EVEY_DB_SSLMODE` | `disable` | SSL mode (`disable`, `require`, `verify-full`) |
-| `POSTGRES_DATA_DIR` | `~/.evey/postgres-data` | Host path for database storage |
+### Server
+```env
+EVEY_HTTP_PORT=9091                    # HTTP API port
+EVEY_SERVER_NAME=Evey                  # display name
+EVEY_VERSION=latest                    # Docker image tag (latest, v0.1.0-beta.1, etc.)
+```
 
-## Authentication
+### Database
+```env
+EVEY_DB_USER=evey
+EVEY_DB_PASSWORD=changeme
+EVEY_DB_NAME=evey
+EVEY_DB_SSLMODE=disable               # disable, require, verify-full
+POSTGRES_DATA_DIR=~/.evey/postgres-data
+```
 
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `EVEY_JWT_ACCESS_TTL` | `15m` | Access token lifetime |
-| `EVEY_JWT_REFRESH_TTL` | `168h` | Refresh token lifetime (7 days) |
-| `EVEY_RATELIMIT_LOGIN_MAX` | `10` | Max login attempts per minute per IP |
+Migrations run automatically on startup.
 
-## Transcoding
+### Authentication
+```env
+EVEY_JWT_ACCESS_TTL=15m
+EVEY_JWT_REFRESH_TTL=168h              # 7 days
+EVEY_RATELIMIT_LOGIN_MAX=10            # per IP per minute
+```
 
-See [transcoding.md](transcoding.md) for hardware acceleration setup.
+### Libraries
+```env
+EVEY_LIBRARY_SCAN_INTERVAL=6h          # rescan interval
+EVEY_LIBRARY_WATCHER_ENABLED=true      # realtime file watching
+```
 
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `EVEY_TRANSCODING_MAX_CONCURRENT` | `2` | Max simultaneous transcode jobs |
-| `EVEY_TRANSCODING_CACHE_MAX_GB` | `50` | Max transcode cache size in GB |
-| `EVEY_TRANSCODING_HW_ACCEL_ENABLED` | `false` | Enable hardware acceleration |
+### Transcoding
+```env
+EVEY_TRANSCODING_MAX_CONCURRENT=2
+EVEY_TRANSCODING_HW_ACCEL_ENABLED=false
+```
 
-## Library
+See [transcoding.md](transcoding.md) for hardware setup.
 
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `EVEY_LIBRARY_SCAN_INTERVAL` | `6h` | Automatic rescan interval |
-| `EVEY_LIBRARY_WATCHER_ENABLED` | `true` | Watch for file changes in real time |
-| `EVEY_LIBRARY_PERIODIC_SCAN_INTERVAL` | `2m` | Fallback scan interval when inotify fails |
+### Playback
+```env
+EVEY_PLAYBACK_MAX_STREAMS=0            # 0 = unlimited
+```
 
-## Playback
-
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `EVEY_PLAYBACK_MAX_STREAMS` | `0` | Max concurrent streams per user (0 = unlimited) |
-
-## SMTP (Email Notifications)
+### Email (SMTP)
+```env
+EVEY_SMTP_HOST=smtp.example.com
+EVEY_SMTP_PORT=587
+EVEY_SMTP_USERNAME=
+EVEY_SMTP_PASSWORD=
+EVEY_SMTP_FROM=noreply@example.com
+EVEY_SMTP_TLS=starttls                 # starttls, ssl, none
+```
 
 See [notifications.md](notifications.md).
 
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `EVEY_SMTP_HOST` | | SMTP server hostname. Empty = email disabled |
-| `EVEY_SMTP_PORT` | `587` | SMTP port |
-| `EVEY_SMTP_USERNAME` | | SMTP username |
-| `EVEY_SMTP_PASSWORD` | | SMTP password |
-| `EVEY_SMTP_FROM` | | Sender address (e.g. `noreply@example.com`) |
-| `EVEY_SMTP_TLS` | `starttls` | TLS mode: `none`, `starttls`, `ssl` |
-
-## OIDC / SSO
+### SSO (OIDC)
+```env
+EVEY_OIDC_ENABLED=false
+EVEY_OIDC_ISSUER=https://auth.example.com
+EVEY_OIDC_CLIENT_ID=evey
+EVEY_OIDC_CLIENT_SECRET=
+EVEY_OIDC_ALLOWED_EMAIL_DOMAINS=       # comma-separated, empty = all
+```
 
 See [oidc.md](oidc.md).
 
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `EVEY_OIDC_ENABLED` | `false` | Enable OIDC authentication |
-| `EVEY_OIDC_ISSUER` | | OIDC provider URL |
-| `EVEY_OIDC_CLIENT_ID` | | Client ID |
-| `EVEY_OIDC_CLIENT_SECRET` | | Client secret |
-| `EVEY_OIDC_ALLOWED_EMAIL_DOMAINS` | | Comma-separated domain allowlist. Empty = all domains |
-
-## Metadata Providers
-
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `EVEY_TMDB_API_KEY` | | TMDB API key (recommended for movie/show metadata) |
-| `EVEY_OMDB_API_KEY` | | OMDb API key |
-| `EVEY_METADATA_LANGUAGE` | `en` | Preferred metadata language (ISO 639-1) |
-
-## Backups
+### Backups
+```env
+EVEY_BACKUP_INTERVAL_HOURS=0           # 0 = disabled, 24 = daily
+EVEY_BACKUP_RETENTION_DAYS=30
+```
 
 See [backups.md](backups.md).
 
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `EVEY_BACKUP_DIR` | `/data/backups` | Backup storage directory |
-| `EVEY_BACKUP_INTERVAL_HOURS` | `0` | Auto-backup interval (0 = disabled) |
-| `EVEY_BACKUP_RETENTION_DAYS` | `30` | Delete backups older than this |
-
-## Logging
-
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `EVEY_LOG_LEVEL` | `info` | Log level: `debug`, `info`, `warn`, `error` |
-| `EVEY_LOG_DIR` | `/data/logs` | Log directory |
-| `EVEY_LOG_MAX_SIZE_MB` | `50` | Max log file size before rotation |
-| `EVEY_LOG_RETENTION_DAYS` | `90` | Delete logs older than this |
-
-## Reverse Proxy
+### Reverse Proxy
+```env
+EVEY_TRUSTED_PROXIES=172.16.0.0/12
+EVEY_REAL_IP_HEADER=X-Forwarded-For
+EVEY_FORWARDED_PROTO=true
+EVEY_DOMAIN=media.example.com          # only for bundled Caddy
+```
 
 See [reverse-proxy.md](reverse-proxy.md).
 
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `EVEY_TRUSTED_PROXIES` | `127.0.0.1/32,::1/128` | CIDR list of trusted proxy IPs |
-| `EVEY_REAL_IP_HEADER` | `X-Forwarded-For` | Header containing the real client IP |
-| `EVEY_FORWARDED_PROTO` | `false` | Trust `X-Forwarded-Proto` for HTTPS detection |
-| `EVEY_DOMAIN` | `localhost` | Domain for the bundled Caddy reverse proxy |
+### Logging
+```env
+EVEY_LOG_LEVEL=info                    # debug, info, warn, error
+EVEY_LOG_RETENTION_DAYS=90
+```
