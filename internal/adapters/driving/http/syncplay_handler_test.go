@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync"
 	"testing"
 
 	appsyncplay "github.com/gravity-zero/evey/internal/app/syncplay"
@@ -49,6 +50,7 @@ func TestSyncPlayIDOR_CreateRoomAllowed(t *testing.T) {
 
 // fakeSyncPlayRepo is a minimal in-memory RoomRepository for HTTP handler tests.
 type fakeSyncPlayRepo struct {
+	mu    sync.Mutex
 	rooms map[string]*domainsyncplay.Room
 }
 
@@ -57,23 +59,33 @@ func newFakeSyncPlayRepo() *fakeSyncPlayRepo {
 }
 
 func (r *fakeSyncPlayRepo) Create(_ context.Context, room *domainsyncplay.Room) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
 	r.rooms[room.ID] = room
 	return nil
 }
 
 func (r *fakeSyncPlayRepo) Get(_ context.Context, id string) (*domainsyncplay.Room, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
 	room, ok := r.rooms[id]
 	if !ok {
-		return nil, http.ErrNoCookie // sentinel error
+		return nil, http.ErrNoCookie
 	}
 	cp := *room
+	cp.Members = make([]domainsyncplay.Member, len(room.Members))
+	copy(cp.Members, room.Members)
 	return &cp, nil
 }
 
 func (r *fakeSyncPlayRepo) GetByCode(_ context.Context, code string) (*domainsyncplay.Room, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
 	for _, room := range r.rooms {
 		if room.Code == code {
 			cp := *room
+			cp.Members = make([]domainsyncplay.Member, len(room.Members))
+			copy(cp.Members, room.Members)
 			return &cp, nil
 		}
 	}
@@ -81,6 +93,8 @@ func (r *fakeSyncPlayRepo) GetByCode(_ context.Context, code string) (*domainsyn
 }
 
 func (r *fakeSyncPlayRepo) AddMember(_ context.Context, roomID string, member domainsyncplay.Member) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
 	room, ok := r.rooms[roomID]
 	if !ok {
 		return http.ErrNoCookie
@@ -90,11 +104,13 @@ func (r *fakeSyncPlayRepo) AddMember(_ context.Context, roomID string, member do
 }
 
 func (r *fakeSyncPlayRepo) RemoveMember(_ context.Context, roomID, userID string) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
 	room, ok := r.rooms[roomID]
 	if !ok {
 		return http.ErrNoCookie
 	}
-	filtered := room.Members[:0]
+	filtered := make([]domainsyncplay.Member, 0, len(room.Members))
 	for _, m := range room.Members {
 		if m.UserID != userID {
 			filtered = append(filtered, m)
@@ -105,6 +121,8 @@ func (r *fakeSyncPlayRepo) RemoveMember(_ context.Context, roomID, userID string
 }
 
 func (r *fakeSyncPlayRepo) UpdateState(_ context.Context, roomID string, state domainsyncplay.PlaybackState) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
 	room, ok := r.rooms[roomID]
 	if !ok {
 		return http.ErrNoCookie
