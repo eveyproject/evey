@@ -19,7 +19,7 @@ jobs:
           cache: true
 
       - name: install buf
-        uses: bufbuild/buf-setup-action@v2
+        uses: bufbuild/buf-setup-action@v1
         with:
           version: "1.47.2"
           github_token: ${{ secrets.GITHUB_TOKEN }}
@@ -59,7 +59,7 @@ jobs:
         run: corepack prepare pnpm@10.6.5 --activate
 
       - name: install buf
-        uses: bufbuild/buf-setup-action@v2
+        uses: bufbuild/buf-setup-action@v1
         with:
           version: "1.47.2"
           github_token: ${{ secrets.GITHUB_TOKEN }}
