@@ -1,0 +1,209 @@
+import { useState, useCallback } from "react";
+import { View, Text, ScrollView, Pressable, StyleSheet } from "react-native";
+import { router } from "expo-router";
+import { useTranslation } from "react-i18next";
+import { useUserServiceGetCurrentUser, useAdminServiceGetSystemInfo } from "@evey/api";
+import { useAuthStore, useThemeStore, useLocaleStore } from "@evey/store";
+import { useTheme } from "../../../src/providers/ThemeProvider";
+import { useServerUrlNullable } from "../../../src/hooks/useServerUrl";
+import { clearServerUrl } from "../../../src/lib/server-config";
+import { supportedLanguages } from "../../../src/i18n";
+
+const THEME_OPTIONS = [
+  { label: "Dark", value: "default" },
+  { label: "Light", value: "light-default" },
+  { label: "AMOLED", value: "amoled" },
+] as const;
+
+export default function SettingsScreen() {
+  const theme = useTheme();
+  const { t, i18n } = useTranslation();
+  const logout = useAuthStore((s) => s.logout);
+  const currentTheme = useThemeStore((s) => s.theme);
+  const setTheme = useThemeStore((s) => s.setTheme);
+  const setLocale = useLocaleStore((s) => s.setLocale);
+  const serverUrl = useServerUrlNullable();
+
+  const { data: user } = useUserServiceGetCurrentUser();
+  const { data: systemInfo } = useAdminServiceGetSystemInfo();
+
+  const [focusedItem, setFocusedItem] = useState<string | null>(null);
+  const currentLang = i18n.language;
+
+  function handleLanguageChange(code: string) {
+    setLocale(code);
+    i18n.changeLanguage(code);
+  }
+
+  function handleChangeServer() {
+    logout();
+    clearServerUrl().then(() => router.replace("/server-connect"));
+  }
+
+  function handleSignOut() {
+    logout();
+    router.replace("/login");
+  }
+
+  const rowStyle = useCallback(
+    (key: string) => [
+      styles.row,
+      {
+        backgroundColor: focusedItem === key ? theme.colors.accent + "33" : "transparent",
+        borderRadius: theme.radii.md,
+      },
+    ],
+    [focusedItem, theme],
+  );
+
+  return (
+    <ScrollView style={[styles.container, { backgroundColor: theme.colors.bg }]} contentContainerStyle={{ padding: 32 }}>
+      <Text style={[styles.header, { color: theme.colors.text }]}>Settings</Text>
+
+      {/* Server */}
+      <Text style={[styles.sectionTitle, { color: theme.colors.textMuted }]}>Server</Text>
+      <View style={[styles.section, { backgroundColor: theme.colors.surface }]}>
+        <View style={styles.infoRow}>
+          <Text style={[styles.label, { color: theme.colors.text }]}>URL</Text>
+          <Text style={[styles.value, { color: theme.colors.textMuted }]}>{serverUrl ?? "..."}</Text>
+        </View>
+        <Pressable
+          style={rowStyle("change-server")}
+          onPress={handleChangeServer}
+          onFocus={() => setFocusedItem("change-server")}
+          onBlur={() => setFocusedItem(null)}
+          accessible={true}
+          accessibilityLabel="Change server"
+          accessibilityRole="button"
+        >
+          <Text style={{ color: "#ef4444", fontSize: 20 }}>Change Server</Text>
+        </Pressable>
+      </View>
+
+      {/* Account */}
+      <Text style={[styles.sectionTitle, { color: theme.colors.textMuted }]}>Account</Text>
+      <View style={[styles.section, { backgroundColor: theme.colors.surface }]}>
+        <View style={styles.infoRow}>
+          <Text style={[styles.label, { color: theme.colors.text }]}>User</Text>
+          <Text style={[styles.value, { color: theme.colors.textMuted }]}>{user?.username ?? "..."}</Text>
+        </View>
+        <Pressable
+          style={rowStyle("switch-profile")}
+          onPress={() => router.push("/profile-select")}
+          onFocus={() => setFocusedItem("switch-profile")}
+          onBlur={() => setFocusedItem(null)}
+          accessible={true}
+          accessibilityLabel="Switch profile"
+          accessibilityRole="button"
+        >
+          <Text style={[styles.label, { color: theme.colors.text }]}>Switch Profile</Text>
+        </Pressable>
+        <Pressable
+          style={rowStyle("sign-out")}
+          onPress={handleSignOut}
+          onFocus={() => setFocusedItem("sign-out")}
+          onBlur={() => setFocusedItem(null)}
+          accessible={true}
+          accessibilityLabel="Sign out"
+          accessibilityRole="button"
+        >
+          <Text style={{ color: "#ef4444", fontSize: 20 }}>Sign Out</Text>
+        </Pressable>
+      </View>
+
+      {/* Language */}
+      <Text style={[styles.sectionTitle, { color: theme.colors.textMuted }]}>Language</Text>
+      <View style={[styles.section, { backgroundColor: theme.colors.surface }]}>
+        {supportedLanguages.map((lang) => (
+          <Pressable
+            key={lang.code}
+            style={rowStyle(`lang-${lang.code}`)}
+            onPress={() => handleLanguageChange(lang.code)}
+            onFocus={() => setFocusedItem(`lang-${lang.code}`)}
+            onBlur={() => setFocusedItem(null)}
+            accessible={true}
+            accessibilityLabel={lang.label}
+            accessibilityRole="button"
+          >
+            <Text style={[styles.label, { color: theme.colors.text }]}>{lang.label}</Text>
+            {currentLang === lang.code && (
+              <Text style={{ color: theme.colors.accent, fontSize: 22, fontWeight: "600" }}>OK</Text>
+            )}
+          </Pressable>
+        ))}
+      </View>
+
+      {/* Appearance */}
+      <Text style={[styles.sectionTitle, { color: theme.colors.textMuted }]}>Appearance</Text>
+      <View style={[styles.section, { backgroundColor: theme.colors.surface }]}>
+        {THEME_OPTIONS.map((opt) => (
+          <Pressable
+            key={opt.value}
+            style={rowStyle(`theme-${opt.value}`)}
+            onPress={() => setTheme(opt.value)}
+            onFocus={() => setFocusedItem(`theme-${opt.value}`)}
+            onBlur={() => setFocusedItem(null)}
+            accessible={true}
+            accessibilityLabel={`${opt.label} theme`}
+            accessibilityRole="button"
+          >
+            <Text style={[styles.label, { color: theme.colors.text }]}>{opt.label}</Text>
+            {currentTheme === opt.value && (
+              <Text style={{ color: theme.colors.accent, fontSize: 22, fontWeight: "600" }}>OK</Text>
+            )}
+          </Pressable>
+        ))}
+      </View>
+
+      {/* About */}
+      <Text style={[styles.sectionTitle, { color: theme.colors.textMuted }]}>About</Text>
+      <View style={[styles.section, { backgroundColor: theme.colors.surface }]}>
+        <View style={styles.infoRow}>
+          <Text style={[styles.label, { color: theme.colors.text }]}>Server Version</Text>
+          <Text style={[styles.value, { color: theme.colors.textMuted }]}>{systemInfo?.version ?? "-"}</Text>
+        </View>
+      </View>
+
+      <View style={{ height: 64 }} />
+    </ScrollView>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: { flex: 1 },
+  header: { fontSize: 36, fontWeight: "700", marginBottom: 24 },
+  sectionTitle: {
+    fontSize: 16,
+    fontWeight: "600",
+    textTransform: "uppercase",
+    marginTop: 24,
+    marginBottom: 8,
+  },
+  section: {
+    borderRadius: 12,
+    overflow: "hidden",
+    padding: 4,
+  },
+  row: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingVertical: 16,
+    paddingHorizontal: 20,
+  },
+  infoRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingVertical: 16,
+    paddingHorizontal: 20,
+  },
+  label: {
+    fontSize: 20,
+  },
+  value: {
+    fontSize: 18,
+    flexShrink: 1,
+    marginLeft: 16,
+  },
+});
