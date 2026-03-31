@@ -62,7 +62,10 @@ function isSeasonType(type?: string) {
 function CastCard({ person, serverUrl }: { person: V1MediaPerson; serverUrl: string }) {
   const theme = useTheme();
   return (
-    <View style={{ width: 80, marginRight: theme.spacing.sm, alignItems: "center" }}>
+    <Pressable
+      onPress={() => person.id && router.push(`/(auth)/person/${person.id}`)}
+      style={{ width: 80, marginRight: theme.spacing.sm, alignItems: "center" }}
+    >
       {person.thumbUrl ? (
         <Image
           source={{ uri: person.thumbUrl }}
@@ -83,7 +86,7 @@ function CastCard({ person, serverUrl }: { person: V1MediaPerson; serverUrl: str
           {person.role}
         </Text>
       ) : null}
-    </View>
+    </Pressable>
   );
 }
 

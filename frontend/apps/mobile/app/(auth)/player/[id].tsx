@@ -53,6 +53,7 @@ export default function PlayerScreen() {
   const [showSubtitlePicker, setShowSubtitlePicker] = useState(false);
   const [selectedAudioIndex, setSelectedAudioIndex] = useState<number>(0);
   const [selectedSubtitleIndex, setSelectedSubtitleIndex] = useState<number | null>(null);
+  const [playbackSpeed, setPlaybackSpeed] = useState(1);
 
   const audioStreams: AudioStream[] = useMemo(
     () =>
@@ -254,6 +255,17 @@ export default function PlayerScreen() {
     [restartWithTracks, selectedAudioIndex],
   );
 
+  const SPEEDS = [0.5, 0.75, 1, 1.25, 1.5, 2] as const;
+  const cycleSpeed = useCallback(() => {
+    setPlaybackSpeed((prev) => {
+      const idx = SPEEDS.indexOf(prev as (typeof SPEEDS)[number]);
+      const next = SPEEDS[(idx + 1) % SPEEDS.length];
+      if (player) player.playbackRate = next;
+      return next;
+    });
+    resetHideTimer();
+  }, [player, resetHideTimer]);
+
   const handleBack = useCallback(() => {
     stopSession();
     router.back();
@@ -365,6 +377,16 @@ export default function PlayerScreen() {
                 {media?.title ?? ""}
               </Text>
               <View style={styles.topBarRight}>
+                <Pressable
+                  onPress={cycleSpeed}
+                  hitSlop={8}
+                  style={styles.trackButton}
+                  accessible={true}
+                  accessibilityLabel="Playback speed"
+                  accessibilityRole="button"
+                >
+                  <Text style={styles.speedButtonText}>{playbackSpeed}x</Text>
+                </Pressable>
                 {audioStreams.length > 1 && (
                   <Pressable
                     onPress={() => setShowAudioPicker(true)}
@@ -685,6 +707,11 @@ const styles = StyleSheet.create({
   trackButtonText: {
     color: "#fff",
     fontSize: 14,
+    fontWeight: "700",
+  },
+  speedButtonText: {
+    color: "#fff",
+    fontSize: 12,
     fontWeight: "700",
   },
 });
