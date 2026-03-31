@@ -115,6 +115,10 @@ export default function SettingsScreen() {
           <Text style={s.label}>{t("auth.login.username")}</Text>
           <Text style={s.value}>{user?.username ?? "..."}</Text>
         </View>
+        <Pressable style={s.row} onPress={() => router.push("/profile-select")} accessible={true} accessibilityLabel={t("mobile.settings.switchProfile", "Switch Profile")} accessibilityRole="button">
+          <Text style={s.label}>{t("mobile.settings.switchProfile", "Switch Profile")}</Text>
+          <ChevronRight color={theme.colors.textMuted} />
+        </Pressable>
         <Pressable style={s.row} onPress={handleSignOut} accessible={true} accessibilityLabel={t("mobile.settings.signOut")} accessibilityRole="button">
           <Text style={s.labelDestructive}>{t("mobile.settings.signOut")}</Text>
           <ChevronRight color={theme.colors.textMuted} />

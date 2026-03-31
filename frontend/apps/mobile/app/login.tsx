@@ -18,7 +18,7 @@ export default function Login() {
       onSuccess: (data) => {
         if (data.accessToken) {
           setTokens(data.accessToken);
-          router.replace("/(auth)/(tabs)");
+          router.replace("/profile-select");
         }
       },
       onError: (err) => {
@@ -92,6 +92,11 @@ export default function Login() {
       </Pressable>
       <Pressable onPress={() => router.push("/forgot-password")} style={{ marginTop: theme.spacing.md }}>
         <Text style={{ color: theme.colors.accent, textAlign: "center" }}>{t("auth.login.forgotPassword")}</Text>
+      </Pressable>
+      <Pressable onPress={() => router.push("/register")} style={{ marginTop: theme.spacing.sm }}>
+        <Text style={{ color: theme.colors.accent, textAlign: "center" }}>
+          {t("mobile.auth.haveInvite", "Have an invite? Sign up")}
+        </Text>
       </Pressable>
 
       <View style={{ marginTop: theme.spacing.xl, alignItems: "center" }}>
