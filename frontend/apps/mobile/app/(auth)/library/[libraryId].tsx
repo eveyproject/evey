@@ -17,6 +17,7 @@ import {
 } from "@evey/api";
 import type { V1MediaItem } from "@evey/api";
 import { useTheme } from "../../../src/providers/ThemeProvider";
+import { useAuthHeaders } from "../../../src/hooks/useAuthenticatedImage";
 
 const NUM_COLUMNS = 3;
 const SPACING = 8;
@@ -38,6 +39,7 @@ export default function LibraryDetailScreen() {
   const [hasMore, setHasMore] = useState(true);
   const prevDataRef = useRef<unknown>(null);
 
+  const authHeaders = useAuthHeaders();
   const { data: library } = useLibraryServiceGetLibrary(libraryId ?? "");
 
   const { data, isLoading, isFetching, refetch } =
@@ -92,7 +94,7 @@ export default function LibraryDetailScreen() {
         >
           {poster ? (
             <Image
-              source={{ uri: poster }}
+              source={{ uri: poster, headers: authHeaders }}
               style={[
                 styles.poster,
                 {
@@ -130,7 +132,7 @@ export default function LibraryDetailScreen() {
         </TouchableOpacity>
       );
     },
-    [theme, router],
+    [theme, router, authHeaders],
   );
 
   return (

@@ -19,6 +19,7 @@ import {
 import type { V1MediaItem, V1MediaPerson } from "@evey/api";
 import { useTheme } from "../../../src/providers/ThemeProvider";
 import { useServerUrl } from "../../../src/hooks/useServerUrl";
+import { useAuthHeaders } from "../../../src/hooks/useAuthenticatedImage";
 import { artworkUrl } from "../../../src/lib/artwork";
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
@@ -78,7 +79,8 @@ function CastCard({ person, serverUrl }: { person: V1MediaPerson; serverUrl: str
   );
 }
 
-function EpisodeRow({ item, serverUrl, theme }: { item: V1MediaItem; serverUrl: string; theme: ReturnType<typeof useTheme> }) {
+function EpisodeRow({ item, serverUrl, theme, authHeaders }: { item: V1MediaItem; serverUrl: string; theme: ReturnType<typeof useTheme>; authHeaders?: { Authorization: string } }) {
+  const episodeUri = item.id ? artworkUrl(serverUrl, item.id, "primary") : undefined;
   return (
     <Pressable
       onPress={() => router.push(`/(auth)/media/${item.id}`)}
@@ -90,7 +92,7 @@ function EpisodeRow({ item, serverUrl, theme }: { item: V1MediaItem; serverUrl: 
       }}
     >
       <Image
-        source={{ uri: item.id ? artworkUrl(serverUrl, item.id, "primary") : undefined }}
+        source={episodeUri ? { uri: episodeUri, headers: authHeaders } : undefined}
         style={{ width: 120, height: 68, borderRadius: theme.radii.sm, backgroundColor: theme.colors.surface }}
         contentFit="cover"
         transition={200}
@@ -118,6 +120,7 @@ export default function MediaDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const theme = useTheme();
   const serverUrl = useServerUrl();
+  const authHeaders = useAuthHeaders();
   const [selectedSeason, setSelectedSeason] = useState<string | null>(null);
 
   const { data: media, isLoading } = useLibraryServiceGetMediaItem(id ?? "");
@@ -192,7 +195,7 @@ export default function MediaDetailScreen() {
       <View style={{ width: SCREEN_WIDTH, height: HERO_HEIGHT }}>
         {serverUrl && id ? (
           <Image
-            source={{ uri: artworkUrl(serverUrl, id, "backdrop") }}
+            source={{ uri: artworkUrl(serverUrl, id, "backdrop"), headers: authHeaders }}
             style={{ width: SCREEN_WIDTH, height: HERO_HEIGHT }}
             contentFit="cover"
             transition={300}
@@ -295,7 +298,7 @@ export default function MediaDetailScreen() {
               Episodes
             </Text>
             {episodes.map((ep) => (
-              <EpisodeRow key={ep.id} item={ep} serverUrl={serverUrl} theme={theme} />
+              <EpisodeRow key={ep.id} item={ep} serverUrl={serverUrl} theme={theme} authHeaders={authHeaders} />
             ))}
           </View>
         ) : null}

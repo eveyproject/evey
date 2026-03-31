@@ -10,8 +10,8 @@ import {
 } from "react-native";
 import { useLocalSearchParams, router } from "expo-router";
 import { useVideoPlayer, VideoView } from "expo-video";
+import { Ionicons } from "@expo/vector-icons";
 import * as ScreenOrientation from "expo-screen-orientation";
-import { Audio } from "expo-av";
 import { useLibraryServiceGetMediaItem } from "@evey/api";
 import { useTheme } from "../../../src/providers/ThemeProvider";
 import { usePlaySession } from "../../../src/hooks/usePlaySession";
@@ -132,10 +132,6 @@ export default function PlayerScreen() {
       playSub.remove();
     };
   }, [player]);
-
-  useEffect(() => {
-    Audio.setAudioModeAsync({ playsInSilentModeIOS: true });
-  }, []);
 
   useEffect(() => {
     ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.LANDSCAPE);
@@ -363,7 +359,7 @@ export default function PlayerScreen() {
           <View style={styles.overlay} pointerEvents="box-none">
             <View style={styles.topBar}>
               <Pressable onPress={handleBack} hitSlop={16} accessible={true} accessibilityLabel="Go back" accessibilityRole="button">
-                <Text style={styles.backButton}>{"<"}</Text>
+                <Ionicons name="chevron-back" size={28} color="#fff" />
               </Pressable>
               <Text style={styles.title} numberOfLines={1}>
                 {media?.title ?? ""}
@@ -378,7 +374,7 @@ export default function PlayerScreen() {
                     accessibilityLabel="Audio tracks"
                     accessibilityRole="button"
                   >
-                    <Text style={styles.trackButtonText}>{"\u266B"}</Text>
+                    <Ionicons name="volume-high" size={18} color="#fff" />
                   </Pressable>
                 )}
                 {subtitleStreams.length > 0 && (
@@ -390,7 +386,7 @@ export default function PlayerScreen() {
                     accessibilityLabel="Subtitles"
                     accessibilityRole="button"
                   >
-                    <Text style={styles.trackButtonText}>CC</Text>
+                    <Ionicons name="chatbubble-ellipses" size={18} color="#fff" />
                   </Pressable>
                 )}
               </View>
@@ -398,13 +394,13 @@ export default function PlayerScreen() {
 
             <View style={styles.centerControls}>
               <Pressable onPress={() => seekBy(-10)} hitSlop={16} style={styles.seekButton} accessible={true} accessibilityLabel="Seek backward 10 seconds" accessibilityRole="button">
-                <Text style={styles.seekText}>-10</Text>
+                <Ionicons name="play-back" size={24} color="#fff" />
               </Pressable>
               <Pressable onPress={togglePlayPause} hitSlop={16} style={styles.playButton} accessible={true} accessibilityLabel={isPlaying ? "Pause" : "Play"} accessibilityRole="button">
-                <Text style={styles.playButtonText}>{isPlaying ? "||" : "\u25B6"}</Text>
+                <Ionicons name={isPlaying ? "pause" : "play"} size={32} color="#fff" />
               </Pressable>
               <Pressable onPress={() => seekBy(10)} hitSlop={16} style={styles.seekButton} accessible={true} accessibilityLabel="Seek forward 10 seconds" accessibilityRole="button">
-                <Text style={styles.seekText}>+10</Text>
+                <Ionicons name="play-forward" size={24} color="#fff" />
               </Pressable>
             </View>
 

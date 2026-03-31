@@ -14,6 +14,7 @@ import { useTranslation } from "react-i18next";
 import { useLibraryServiceSearchMedia } from "@evey/api";
 import type { V1MediaItem } from "@evey/api";
 import { useTheme } from "../../../src/providers/ThemeProvider";
+import { useAuthHeaders } from "../../../src/hooks/useAuthenticatedImage";
 import { useDebounce } from "../../../src/hooks/useDebounce";
 
 function getPoster(item: V1MediaItem): string | undefined {
@@ -39,6 +40,8 @@ export default function SearchScreen() {
 
   const items = data?.items ?? [];
 
+  const authHeaders = useAuthHeaders();
+
   const renderItem = ({ item }: { item: V1MediaItem }) => {
     const poster = getPoster(item);
     return (
@@ -58,7 +61,7 @@ export default function SearchScreen() {
       >
         {poster ? (
           <Image
-            source={{ uri: poster }}
+            source={{ uri: poster, headers: authHeaders }}
             style={[styles.thumb, { borderRadius: theme.radii.sm }]}
             contentFit="cover"
             transition={200}

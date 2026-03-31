@@ -4,6 +4,7 @@ import { Image } from "expo-image";
 import type { V1MediaItem } from "@evey/api";
 import { useTheme } from "../providers/ThemeProvider";
 import { useServerUrl } from "../hooks/useServerUrl";
+import { useAuthenticatedImage } from "../hooks/useAuthenticatedImage";
 import { ProgressBar } from "./ProgressBar";
 
 interface MediaCardProps {
@@ -23,6 +24,7 @@ export const MediaCard = memo(function MediaCard({ item, onPress, width, watchPe
   const serverUrl = useServerUrl();
 
   const imageUri = serverUrl ? `${serverUrl}/api/v1/media/${item.id}/artwork/primary` : undefined;
+  const imageSource = useAuthenticatedImage(imageUri);
 
   return (
     <Pressable onPress={onPress} style={{ width: cardWidth, marginRight: theme.spacing.sm }} accessible={true} accessibilityLabel={item.title} accessibilityRole="button">
@@ -33,9 +35,9 @@ export const MediaCard = memo(function MediaCard({ item, onPress, width, watchPe
         backgroundColor: theme.colors.surface,
         overflow: "hidden",
       }}>
-        {imageUri && (
+        {imageSource && (
           <Image
-            source={{ uri: imageUri }}
+            source={imageSource}
             style={{ width: cardWidth, height: cardHeight }}
             contentFit="cover"
             transition={200}
