@@ -247,7 +247,8 @@ func (c *Client) Download(ctx context.Context, fileID int, destPath string) (str
 	}
 	defer f.Close()
 
-	if _, err := io.Copy(f, fileResp.Body); err != nil {
+	// Cap at 10MB to prevent DoS from oversized subtitle responses
+	if _, err := io.Copy(f, io.LimitReader(fileResp.Body, 10*1024*1024)); err != nil {
 		if removeErr := os.Remove(filePath); removeErr != nil {
 			slog.Warn("remove partial subtitle", slog.Any("err", removeErr))
 		}

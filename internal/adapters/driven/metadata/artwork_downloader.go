@@ -48,7 +48,8 @@ func (d *ArtworkHTTPDownloader) Download(ctx context.Context, url, destPath stri
 		return fmt.Errorf("create file: %w", err)
 	}
 
-	if _, err := io.Copy(f, resp.Body); err != nil {
+	// Cap at 50MB to prevent DoS from oversized artwork responses
+	if _, err := io.Copy(f, io.LimitReader(resp.Body, 50*1024*1024)); err != nil {
 		f.Close()
 		if removeErr := os.Remove(destPath); removeErr != nil {
 			slog.Warn("remove partial artwork", slog.Any("err", removeErr))

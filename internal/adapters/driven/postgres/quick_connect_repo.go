@@ -3,7 +3,9 @@ package postgres
 import (
 	"context"
 	"database/sql"
+	"errors"
 
+	"github.com/gravity-zero/evey/internal/domain/shared"
 	"github.com/gravity-zero/evey/internal/domain/user"
 )
 
@@ -31,6 +33,9 @@ func (r *QuickConnectRepository) GetByCode(ctx context.Context, code string) (*u
 		 FROM quick_connect_requests WHERE code = $1`, code,
 	).Scan(&req.ID, &req.Code, &req.Secret, &req.UserID, &req.DeviceName, &req.Status, &req.ExpiresAt, &req.CreatedAt)
 	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, shared.ErrNotFound
+		}
 		return nil, err
 	}
 	return req, nil
@@ -45,6 +50,9 @@ func (r *QuickConnectRepository) GetByShortCode(ctx context.Context, shortCode s
 		 ORDER BY created_at DESC LIMIT 1`, shortCode,
 	).Scan(&req.ID, &req.Code, &req.Secret, &req.UserID, &req.DeviceName, &req.Status, &req.ExpiresAt, &req.CreatedAt)
 	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, shared.ErrNotFound
+		}
 		return nil, err
 	}
 	return req, nil

@@ -17,8 +17,18 @@ func NewFeedQuerier(db *sql.DB) *FeedQuerier {
 	return &FeedQuerier{db: db}
 }
 
+const maxFeedLimit = 200
+
+func clampFeedLimit(limit int) int {
+	if limit <= 0 || limit > maxFeedLimit {
+		return 50
+	}
+	return limit
+}
+
 // ContinueWatching returns in-progress films and the next episode to watch per series.
 func (q *FeedQuerier) ContinueWatching(ctx context.Context, profileID string, limit int) ([]*feed.FeedItem, error) {
+	limit = clampFeedLimit(limit)
 	rows, err := q.db.QueryContext(ctx, `
 		WITH in_progress_movies AS (
 			SELECT mi.id, ''::text AS parent_id, mi.title, mi.type,
@@ -81,6 +91,7 @@ func (q *FeedQuerier) ContinueWatching(ctx context.Context, profileID string, li
 
 // ResumePlayback returns in-progress media AND next episodes per series, sorted by last user interaction.
 func (q *FeedQuerier) ResumePlayback(ctx context.Context, profileID string, limit int) ([]*feed.FeedItem, error) {
+	limit = clampFeedLimit(limit)
 	rows, err := q.db.QueryContext(ctx, `
 		WITH in_progress AS (
 			SELECT mi.id, COALESCE(mi.parent_id,'') AS parent_id, mi.title, mi.type,
@@ -131,6 +142,7 @@ func (q *FeedQuerier) ResumePlayback(ctx context.Context, profileID string, limi
 
 // NextEpisode returns the next unwatched episode per series where the user completed at least one episode.
 func (q *FeedQuerier) NextEpisode(ctx context.Context, profileID string, limit int) ([]*feed.FeedItem, error) {
+	limit = clampFeedLimit(limit)
 	rows, err := q.db.QueryContext(ctx, `
 		WITH watched_series AS (
 			SELECT DISTINCT s.parent_id AS series_id
