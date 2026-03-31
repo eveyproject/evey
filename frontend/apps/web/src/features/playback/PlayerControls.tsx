@@ -291,7 +291,7 @@ export function PlayerControls({
 
         {/* current chapter label */}
         {currentChapter && (
-          <div className="text-xs truncate px-1" style={{ color: "var(--text-muted)" }}>
+          <div className="text-xs truncate px-1 text-[var(--text-muted)]">
             {currentChapter.title}
           </div>
         )}

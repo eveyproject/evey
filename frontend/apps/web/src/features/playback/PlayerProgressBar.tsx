@@ -67,8 +67,7 @@ export function PlayerProgressBar({
               <TrickplayPreview mediaId={mediaId} hoverTime={seekHoverPos} mediaType={mediaType} streamToken={streamToken} />
             )}
             <div
-              className="px-2 py-1 rounded text-xs text-white mt-1 text-center"
-              style={{ backgroundColor: "var(--overlay-scrim)", maxWidth: 200 }}
+              className="px-2 py-1 rounded text-xs text-white mt-1 text-center bg-[var(--overlay-scrim)] max-w-[200px]"
             >
               {hoverChapter?.title && <div className="truncate">{hoverChapter.title}</div>}
               <div>{formatTime(seekHoverPos)}</div>
@@ -85,11 +84,8 @@ export function PlayerProgressBar({
       />
       {/* progress track */}
       <div
-        className="absolute left-0 h-1 rounded group-hover:h-1.5 transition-all"
-        style={{
-          width: effectiveDuration > 0 ? `${(absoluteTime / effectiveDuration) * 100}%` : "0%",
-          backgroundColor: "var(--accent)",
-        }}
+        className="absolute left-0 h-1 rounded group-hover:h-1.5 transition-all bg-[var(--accent)]"
+        style={{ width: effectiveDuration > 0 ? `${(absoluteTime / effectiveDuration) * 100}%` : "0%" }}
       />
       <ChapterMarkers
         chapters={chapters}

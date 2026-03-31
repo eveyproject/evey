@@ -332,14 +332,14 @@ export function HLSPlayer({
     >
       <video ref={(el) => { videoRef.current = el; onVideoRef?.(el); }} className="w-full h-full" playsInline style={brightness !== 1 ? { filter: `brightness(${brightness})` } : undefined} />
       {seekFlash === "left" && (
-        <div className="absolute left-0 top-0 bottom-0 w-1/2 flex items-center justify-center pointer-events-none" style={{ zIndex: 6 }}>
+        <div className="absolute left-0 top-0 bottom-0 w-1/2 flex items-center justify-center pointer-events-none z-[6]">
           <div className="rounded-full bg-white/20 w-16 h-16 flex items-center justify-center">
             <RotateCcw size={32} className="text-white" />
           </div>
         </div>
       )}
       {seekFlash === "right" && (
-        <div className="absolute right-0 top-0 bottom-0 w-1/2 flex items-center justify-center pointer-events-none" style={{ zIndex: 6 }}>
+        <div className="absolute right-0 top-0 bottom-0 w-1/2 flex items-center justify-center pointer-events-none z-[6]">
           <div className="rounded-full bg-white/20 w-16 h-16 flex items-center justify-center">
             <RotateCw size={32} className="text-white" />
           </div>
@@ -347,8 +347,7 @@ export function HLSPlayer({
       )}
       {swipeIndicator && (
         <div
-          className={`absolute top-0 bottom-0 w-16 flex items-center justify-center pointer-events-none ${swipeIndicator.type === "volume" ? "right-4" : "left-4"}`}
-          style={{ zIndex: 6 }}
+          className={`absolute top-0 bottom-0 w-16 flex items-center justify-center pointer-events-none z-[6] ${swipeIndicator.type === "volume" ? "right-4" : "left-4"}`}
         >
           <div className="flex flex-col items-center gap-2 rounded-xl bg-black/60 px-3 py-4 backdrop-blur-sm">
             {swipeIndicator.type === "volume" ? <Volume2 size={20} className="text-white" /> : <Sun size={20} className="text-white" />}
@@ -363,7 +362,7 @@ export function HLSPlayer({
         </div>
       )}
       {actionFlash && (
-        <div className="absolute inset-0 flex items-center justify-center pointer-events-none" style={{ zIndex: 6 }}>
+        <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-[6]">
           <div className="rounded-full bg-black/40 w-16 h-16 flex items-center justify-center animate-ping-once">
             {actionFlash === "play" ? (
               <Play size={32} className="text-white ml-1" fill="currentColor" />
@@ -374,7 +373,7 @@ export function HLSPlayer({
         </div>
       )}
       {isBuffering && (
-        <div className="absolute inset-0 flex items-center justify-center pointer-events-none" style={{ zIndex: 5 }}>
+        <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-[5]">
           <div className="flex flex-col items-center gap-2">
             <Loader size={40} className="animate-spin text-white/80" />
             <span className="text-white/80 text-sm font-medium">{t("player.buffering")}</span>
@@ -382,15 +381,14 @@ export function HLSPlayer({
         </div>
       )}
       {fatalError && (
-        <div className="absolute inset-0 flex items-center justify-center" style={{ zIndex: 10, background: "var(--overlay-bg-strong)" }}>
+        <div className="absolute inset-0 flex items-center justify-center z-[10] bg-[var(--overlay-bg-strong)]">
           <div className="flex flex-col items-center gap-4 text-white">
-            <TriangleAlert size={48} style={{ color: "var(--color-danger)" }} strokeWidth={1.5} />
+            <TriangleAlert size={48} className="text-[var(--color-danger)]" strokeWidth={1.5} />
             <p className="text-lg font-medium">{t("player.playbackFailed")}</p>
-            <p className="text-sm" style={{ color: "var(--overlay-text-muted)" }}>{t("player.unableToPlayAnyQuality")}</p>
+            <p className="text-sm text-[var(--overlay-text-muted)]">{t("player.unableToPlayAnyQuality")}</p>
             <button
               onClick={() => { setFatalError(false); window.location.reload(); }}
-              className="px-4 py-2 rounded text-sm font-medium"
-              style={{ backgroundColor: "var(--overlay-btn-hover-bg)" }}
+              className="px-4 py-2 rounded text-sm font-medium bg-[var(--overlay-btn-hover-bg)]"
             >
               {t("player.retry")}
             </button>

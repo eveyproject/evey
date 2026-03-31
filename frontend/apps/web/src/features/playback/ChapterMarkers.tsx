@@ -45,12 +45,10 @@ export function ChapterMarkers({ chapters, durationSec, currentTimeSec, onSeek }
             {/* separator line between chapters (skip first) */}
             {i > 0 && (
               <span
-                className="absolute left-0 top-0 bottom-0 flex items-center justify-center -translate-x-1/2"
-                style={{ width: 3 }}
+                className="absolute left-0 top-0 bottom-0 flex items-center justify-center -translate-x-1/2 w-[3px]"
               >
                 <span
-                  className="block rounded-full group-hover:scale-y-125 transition-all"
-                  style={{ width: 2, height: "80%", backgroundColor: "var(--overlay-chapter-marker)" }}
+                  className="block rounded-full group-hover:scale-y-125 transition-all w-[2px] h-[80%] bg-[var(--overlay-chapter-marker)]"
                 />
               </span>
             )}

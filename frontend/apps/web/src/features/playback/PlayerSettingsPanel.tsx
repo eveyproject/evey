@@ -62,11 +62,11 @@ async function loadSubtitleFile(file: File): Promise<string> {
 
 const CheckIcon = () => <Check size={14} />;
 
-const ChevronRightIcon = () => <ChevronRight size={14} style={{ color: "var(--text-muted)" }} />;
+const ChevronRightIcon = () => <ChevronRight size={14} className="text-[var(--text-muted)]" />;
 
 function SubMenuHeader({ label, onBack }: { label: string; onBack: () => void }) {
   return (
-    <button onClick={onBack} className="flex items-center gap-2 w-full px-3 pt-2 pb-1 text-xs font-semibold uppercase tracking-wider hover:bg-[var(--surface-raised)] transition-colors-fast" style={{ color: "var(--text-muted)" }}>
+    <button onClick={onBack} className="flex items-center gap-2 w-full px-3 pt-2 pb-1 text-xs font-semibold uppercase tracking-wider hover:bg-[var(--surface-raised)] transition-colors-fast text-[var(--text-muted)]">
       <ChevronLeft size={14} />
       {label}
     </button>
@@ -172,20 +172,18 @@ export function SettingsPanel({
 
       {open && (
         <div
-          className="absolute bottom-full mb-2 right-0 w-56 rounded-[var(--radius-md)] shadow-xl overflow-y-auto z-badge max-h-[80vh]"
-          style={{ backgroundColor: "var(--surface)", border: "1px solid var(--border)" }}
+          className="absolute bottom-full mb-2 right-0 w-56 rounded-[var(--radius-md)] shadow-xl overflow-y-auto z-badge max-h-[80vh] bg-[var(--surface)] border border-[var(--border)]"
           onClick={(e) => e.stopPropagation()}
         >
           {menu === "main" && (
             <>
-              <div className="px-3 pt-2 pb-1 text-xs font-semibold uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>
+              <div className="px-3 pt-2 pb-1 text-xs font-semibold uppercase tracking-wider text-[var(--text-muted)]">
                 {t("player.settings.quality")}
               </div>
               {onAutoQualityToggle && (
                 <button
                   onClick={() => select(() => onAutoQualityToggle(true))}
-                  className="flex items-center justify-between w-full px-4 py-2 text-sm hover:bg-[var(--surface-raised)] transition-colors-fast"
-                  style={{ color: autoQuality ? "var(--accent)" : "var(--text)" }}
+                  className={`flex items-center justify-between w-full px-4 py-2 text-sm hover:bg-[var(--surface-raised)] transition-colors-fast ${autoQuality ? "text-[var(--accent)]" : "text-[var(--text)]"}`}
                 >
                   <span>{t("player.settings.auto")}{autoQuality && autoQualityLabel ? ` (${autoQualityLabel})` : ""}</span>
                   {autoQuality && <CheckIcon />}
@@ -195,8 +193,7 @@ export function SettingsPanel({
                 <button
                   key={q.value}
                   onClick={() => select(() => { onAutoQualityToggle?.(false); onQualityChange(q.value); })}
-                  className="flex items-center justify-between w-full px-4 py-2 text-sm hover:bg-[var(--surface-raised)] transition-colors-fast"
-                  style={{ color: !autoQuality && q.value === currentQuality ? "var(--accent)" : "var(--text)" }}
+                  className={`flex items-center justify-between w-full px-4 py-2 text-sm hover:bg-[var(--surface-raised)] transition-colors-fast ${!autoQuality && q.value === currentQuality ? "text-[var(--accent)]" : "text-[var(--text)]"}`}
                 >
                   <span>{q.label}</span>
                   {!autoQuality && q.value === currentQuality && <CheckIcon />}
@@ -205,15 +202,14 @@ export function SettingsPanel({
 
               {audioStreams.length > 0 && (
                 <>
-                  <div className="mx-3 my-1" style={{ borderTop: "1px solid var(--border)" }} />
+                  <div className="mx-3 my-1 border-t border-[var(--border)]" />
                   <button
                     onClick={() => setMenu("audio")}
-                    className="flex items-center justify-between w-full px-4 py-2 text-sm hover:bg-[var(--surface-raised)] transition-colors-fast"
-                    style={{ color: "var(--text)" }}
+                    className="flex items-center justify-between w-full px-4 py-2 text-sm hover:bg-[var(--surface-raised)] transition-colors-fast text-[var(--text)]"
                   >
                     <span>{t("player.settings.audio")}</span>
                     <span className="flex items-center gap-1">
-                      <span className="text-xs" style={{ color: "var(--text-muted)" }}>{currentAudioLabel}</span>
+                      <span className="text-xs text-[var(--text-muted)]">{currentAudioLabel}</span>
                       <ChevronRightIcon />
                     </span>
                   </button>
@@ -222,15 +218,14 @@ export function SettingsPanel({
 
               {subtitleStreams.length > 0 && (
                 <>
-                  <div className="mx-3 my-1" style={{ borderTop: "1px solid var(--border)" }} />
+                  <div className="mx-3 my-1 border-t border-[var(--border)]" />
                   <button
                     onClick={() => setMenu("subtitles")}
-                    className="flex items-center justify-between w-full px-4 py-2 text-sm hover:bg-[var(--surface-raised)] transition-colors-fast"
-                    style={{ color: "var(--text)" }}
+                    className="flex items-center justify-between w-full px-4 py-2 text-sm hover:bg-[var(--surface-raised)] transition-colors-fast text-[var(--text)]"
                   >
                     <span>{t("player.settings.subtitles")}</span>
                     <span className="flex items-center gap-1">
-                      <span className="text-xs" style={{ color: "var(--text-muted)" }}>{currentSubLabel}</span>
+                      <span className="text-xs text-[var(--text-muted)]">{currentSubLabel}</span>
                       <ChevronRightIcon />
                     </span>
                   </button>
@@ -239,15 +234,14 @@ export function SettingsPanel({
 
               {onSpeedChange && (
                 <>
-                  <div className="mx-3 my-1" style={{ borderTop: "1px solid var(--border)" }} />
+                  <div className="mx-3 my-1 border-t border-[var(--border)]" />
                   <button
                     onClick={() => setMenu("speed")}
-                    className="flex items-center justify-between w-full px-4 py-2 text-sm hover:bg-[var(--surface-raised)] transition-colors-fast"
-                    style={{ color: "var(--text)" }}
+                    className="flex items-center justify-between w-full px-4 py-2 text-sm hover:bg-[var(--surface-raised)] transition-colors-fast text-[var(--text)]"
                   >
                     <span>{t("player.settings.speed")}</span>
                     <span className="flex items-center gap-1">
-                      <span className="text-xs" style={{ color: "var(--text-muted)" }}>{currentSpeedLabel}</span>
+                      <span className="text-xs text-[var(--text-muted)]">{currentSpeedLabel}</span>
                       <ChevronRightIcon />
                     </span>
                   </button>
@@ -256,11 +250,10 @@ export function SettingsPanel({
 
               {onSubtitleStyleChange && (
                 <>
-                  <div className="mx-3 my-1" style={{ borderTop: "1px solid var(--border)" }} />
+                  <div className="mx-3 my-1 border-t border-[var(--border)]" />
                   <button
                     onClick={() => setMenu("subtitle-style")}
-                    className="flex items-center justify-between w-full px-4 py-2 text-sm hover:bg-[var(--surface-raised)] transition-colors-fast"
-                    style={{ color: "var(--text)" }}
+                    className="flex items-center justify-between w-full px-4 py-2 text-sm hover:bg-[var(--surface-raised)] transition-colors-fast text-[var(--text)]"
                   >
                     <span>{t("player.settings.subtitleStyle")}</span>
                     <ChevronRightIcon />
@@ -270,11 +263,11 @@ export function SettingsPanel({
 
               {onBrightnessChange && (
                 <>
-                  <div className="mx-3 my-1" style={{ borderTop: "1px solid var(--border)" }} />
+                  <div className="mx-3 my-1 border-t border-[var(--border)]" />
                   <div className="px-4 py-2">
                     <div className="flex items-center justify-between mb-1.5">
-                      <span className="text-xs font-semibold uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>{t("player.settings.brightness")}</span>
-                      <span className="text-xs" style={{ color: "var(--text-muted)" }}>{Math.round(brightness * 100)}%</span>
+                      <span className="text-xs font-semibold uppercase tracking-wider text-[var(--text-muted)]">{t("player.settings.brightness")}</span>
+                      <span className="text-xs text-[var(--text-muted)]">{Math.round(brightness * 100)}%</span>
                     </div>
                     <input
                       type="range"
@@ -299,8 +292,7 @@ export function SettingsPanel({
                   <button
                     key={s.index}
                     onClick={() => select(() => onAudioChange(s.index))}
-                    className="flex items-center justify-between w-full px-4 py-2 text-sm hover:bg-[var(--surface-raised)] transition-colors-fast"
-                    style={{ color: s.index === currentAudioIndex ? "var(--accent)" : "var(--text)" }}
+                    className={`flex items-center justify-between w-full px-4 py-2 text-sm hover:bg-[var(--surface-raised)] transition-colors-fast ${s.index === currentAudioIndex ? "text-[var(--accent)]" : "text-[var(--text)]"}`}
                   >
                     <span>{label}</span>
                     {s.index === currentAudioIndex && <CheckIcon />}
@@ -315,8 +307,7 @@ export function SettingsPanel({
               <SubMenuHeader label={t("player.settings.subtitles")} onBack={() => setMenu("main")} />
               <button
                 onClick={() => select(() => onSubtitleChange(null))}
-                className="flex items-center justify-between w-full px-4 py-2 text-sm hover:bg-[var(--surface-raised)] transition-colors-fast"
-                style={{ color: currentSubtitleTrackIndex === null ? "var(--accent)" : "var(--text)" }}
+                className={`flex items-center justify-between w-full px-4 py-2 text-sm hover:bg-[var(--surface-raised)] transition-colors-fast ${currentSubtitleTrackIndex === null ? "text-[var(--accent)]" : "text-[var(--text)]"}`}
               >
                 <span>{t("player.settings.off")}</span>
                 {currentSubtitleTrackIndex === null && <CheckIcon />}
@@ -327,8 +318,7 @@ export function SettingsPanel({
                   <button
                     key={s.index}
                     onClick={() => select(() => onSubtitleChange(s.trackIndex))}
-                    className="flex items-center justify-between w-full px-4 py-2 text-sm hover:bg-[var(--surface-raised)] transition-colors-fast"
-                    style={{ color: s.trackIndex === currentSubtitleTrackIndex ? "var(--accent)" : "var(--text)" }}
+                    className={`flex items-center justify-between w-full px-4 py-2 text-sm hover:bg-[var(--surface-raised)] transition-colors-fast ${s.trackIndex === currentSubtitleTrackIndex ? "text-[var(--accent)]" : "text-[var(--text)]"}`}
                   >
                     <span>
                       {label}
@@ -342,7 +332,7 @@ export function SettingsPanel({
               })}
               {onExternalSubtitle && (
                 <>
-                  <div className="mx-3 my-1" style={{ borderTop: "1px solid var(--border)" }} />
+                  <div className="mx-3 my-1 border-t border-[var(--border)]" />
                   <input
                     ref={extSubInputRef}
                     type="file"
@@ -363,8 +353,7 @@ export function SettingsPanel({
                   />
                   <button
                     onClick={() => extSubInputRef.current?.click()}
-                    className="flex items-center gap-2 w-full px-4 py-2 text-sm hover:bg-[var(--surface-raised)] transition-colors-fast"
-                    style={{ color: "var(--text)" }}
+                    className="flex items-center gap-2 w-full px-4 py-2 text-sm hover:bg-[var(--surface-raised)] transition-colors-fast text-[var(--text)]"
                   >
                     <Upload size={16} className="flex-shrink-0" />
                     {t("player.settings.uploadSubtitle")}
@@ -381,8 +370,7 @@ export function SettingsPanel({
                 <button
                   key={s}
                   onClick={() => select(() => onSpeedChange(s))}
-                  className="flex items-center justify-between w-full px-4 py-2 text-sm hover:bg-[var(--surface-raised)] transition-colors-fast"
-                  style={{ color: s === playbackSpeed ? "var(--accent)" : "var(--text)" }}
+                  className={`flex items-center justify-between w-full px-4 py-2 text-sm hover:bg-[var(--surface-raised)] transition-colors-fast ${s === playbackSpeed ? "text-[var(--accent)]" : "text-[var(--text)]"}`}
                 >
                   <span>{s === 1 ? t("player.settings.normal") : `${s}x`}</span>
                   {s === playbackSpeed && <CheckIcon />}
@@ -396,10 +384,10 @@ export function SettingsPanel({
               <SubMenuHeader label={t("player.settings.subtitleStyle")} onBack={() => setMenu("main")} />
               <div className="px-4 py-2">
                 <div className="flex items-center justify-between mb-1">
-                  <span className="text-xs font-semibold uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>
+                  <span className="text-xs font-semibold uppercase tracking-wider text-[var(--text-muted)]">
                     {t("player.subtitleStyle.size")}
                   </span>
-                  <span className="text-xs" style={{ color: "var(--text-muted)" }}>{subtitleFontSize}%</span>
+                  <span className="text-xs text-[var(--text-muted)]">{subtitleFontSize}%</span>
                 </div>
                 <input
                   type="range"
@@ -413,7 +401,7 @@ export function SettingsPanel({
                 />
               </div>
               <div className="px-4 py-2">
-                <span className="text-xs font-semibold uppercase tracking-wider block mb-2" style={{ color: "var(--text-muted)" }}>
+                <span className="text-xs font-semibold uppercase tracking-wider block mb-2 text-[var(--text-muted)]">
                   {t("player.subtitleStyle.textColor")}
                 </span>
                 <div className="flex gap-2">
@@ -434,10 +422,10 @@ export function SettingsPanel({
               </div>
               <div className="px-4 py-2">
                 <div className="flex items-center justify-between mb-1">
-                  <span className="text-xs font-semibold uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>
+                  <span className="text-xs font-semibold uppercase tracking-wider text-[var(--text-muted)]">
                     {t("player.subtitleStyle.background")}
                   </span>
-                  <span className="text-xs" style={{ color: "var(--text-muted)" }}>{subtitleBgOpacity}%</span>
+                  <span className="text-xs text-[var(--text-muted)]">{subtitleBgOpacity}%</span>
                 </div>
                 <div className="flex gap-2 mb-2">
                   {SUBTITLE_BG_COLORS.map((c) => (
@@ -466,14 +454,13 @@ export function SettingsPanel({
                 />
               </div>
               <div className="px-4 py-2">
-                <span className="text-xs font-semibold uppercase tracking-wider block mb-2" style={{ color: "var(--text-muted)" }}>
+                <span className="text-xs font-semibold uppercase tracking-wider block mb-2 text-[var(--text-muted)]">
                   {t("player.subtitleStyle.font")}
                 </span>
                 <select
                   value={subtitleFontFamily}
                   onChange={(e) => onSubtitleStyleChange({ fontFamily: e.target.value })}
-                  className="w-full text-sm px-2 py-1 rounded"
-                  style={{ backgroundColor: "var(--surface-raised)", color: "var(--text)", border: "1px solid var(--border)" }}
+                  className="w-full text-sm px-2 py-1 rounded bg-[var(--surface-raised)] text-[var(--text)] border border-[var(--border)]"
                 >
                   {SUBTITLE_FONTS.map((f) => (
                     <option key={f.value} value={f.value}>{t(f.labelKey)}</option>
@@ -481,7 +468,7 @@ export function SettingsPanel({
                 </select>
               </div>
               <div className="px-4 py-2">
-                <span className="text-xs font-semibold uppercase tracking-wider block mb-2" style={{ color: "var(--text-muted)" }}>
+                <span className="text-xs font-semibold uppercase tracking-wider block mb-2 text-[var(--text-muted)]">
                   {t("player.subtitleStyle.position")}
                 </span>
                 <div className="flex gap-2">
@@ -489,12 +476,7 @@ export function SettingsPanel({
                     <button
                       key={pos}
                       onClick={() => onSubtitleStyleChange({ position: pos })}
-                      className="flex-1 text-xs py-1 rounded transition-colors-fast"
-                      style={{
-                        backgroundColor: subtitlePosition === pos ? "var(--accent)" : "var(--surface-raised)",
-                        color: subtitlePosition === pos ? "var(--filter-active-text)" : "var(--text)",
-                        border: "1px solid var(--border)",
-                      }}
+                      className={`flex-1 text-xs py-1 rounded transition-colors-fast border border-[var(--border)] ${subtitlePosition === pos ? "bg-[var(--accent)] text-[var(--filter-active-text)]" : "bg-[var(--surface-raised)] text-[var(--text)]"}`}
                     >
                       {t(`player.subtitleStyle.${pos}`)}
                     </button>
@@ -504,15 +486,10 @@ export function SettingsPanel({
               <div className="px-4 py-2">
                 <button
                   onClick={() => onSubtitleStyleChange({ shadow: !subtitleShadow })}
-                  className="flex items-center gap-2 text-xs w-full"
-                  style={{ color: "var(--text)" }}
+                  className="flex items-center gap-2 text-xs w-full text-[var(--text)]"
                 >
                   <span
-                    className="w-4 h-4 rounded border flex items-center justify-center flex-shrink-0"
-                    style={{
-                      backgroundColor: subtitleShadow ? "var(--accent)" : "transparent",
-                      borderColor: subtitleShadow ? "var(--accent)" : "var(--border)",
-                    }}
+                    className={`w-4 h-4 rounded border flex items-center justify-center flex-shrink-0 ${subtitleShadow ? "bg-[var(--accent)] border-[var(--accent)]" : "bg-transparent border-[var(--border)]"}`}
                   >
                     {subtitleShadow && (
                       <svg width="10" height="10" viewBox="0 0 24 24" fill="white">
@@ -520,7 +497,7 @@ export function SettingsPanel({
                       </svg>
                     )}
                   </span>
-                  <span className="font-semibold uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>{t("player.subtitleStyle.textShadow")}</span>
+                  <span className="font-semibold uppercase tracking-wider text-[var(--text-muted)]">{t("player.subtitleStyle.textShadow")}</span>
                 </button>
               </div>
             </>

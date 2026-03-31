@@ -38,32 +38,25 @@ export function KeyboardShortcutsOverlay({ onClose, skipBackwardSeconds = 10, sk
 
   return (
     <div
-      className="absolute inset-0 z-overlay flex items-center justify-center"
-      style={{ backgroundColor: "var(--overlay-bg-strong)" }}
+      className="absolute inset-0 z-overlay flex items-center justify-center bg-[var(--overlay-bg-strong)]"
       onClick={onClose}
     >
       <div
-        className="w-full max-w-md rounded-[var(--radius-md)] p-6 shadow-2xl"
-        style={{ backgroundColor: "var(--surface)", border: "1px solid var(--border)" }}
+        className="w-full max-w-md rounded-[var(--radius-md)] p-6 shadow-2xl bg-[var(--surface)] border border-[var(--border)]"
         onClick={(e) => e.stopPropagation()}
       >
-        <h2 className="text-lg font-semibold mb-4" style={{ color: "var(--text)" }}>
+        <h2 className="text-lg font-semibold mb-4 text-[var(--text)]">
           {t("player.shortcuts.title")}
         </h2>
         <div className="grid grid-cols-[auto_1fr] gap-x-6 gap-y-2">
           {shortcuts.map(([key, action]) => (
             <div key={key} className="contents">
               <kbd
-                className="px-2 py-0.5 rounded text-xs font-mono text-right"
-                style={{
-                  backgroundColor: "var(--surface-raised)",
-                  color: "var(--text)",
-                  border: "1px solid var(--border)",
-                }}
+                className="px-2 py-0.5 rounded text-xs font-mono text-right bg-[var(--surface-raised)] text-[var(--text)] border border-[var(--border)]"
               >
                 {key}
               </kbd>
-              <span className="text-sm" style={{ color: "var(--text-muted)" }}>
+              <span className="text-sm text-[var(--text-muted)]">
                 {action}
               </span>
             </div>
