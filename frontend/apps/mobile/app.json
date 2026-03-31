@@ -4,6 +4,7 @@
     "slug": "evey",
     "version": "1.0.0",
     "orientation": "default",
+    "userInterfaceStyle": "automatic",
     "scheme": "evey",
     "platforms": [
       "ios",
