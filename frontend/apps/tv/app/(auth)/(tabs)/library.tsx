@@ -1,5 +1,6 @@
 import { View, Text, FlatList, ActivityIndicator, StyleSheet } from "react-native";
 import { useRouter } from "expo-router";
+import { useTranslation } from "react-i18next";
 import { useLibraryServiceListLibraries } from "@evey/api";
 import { useTheme } from "../../../src/providers/ThemeProvider";
 import type { V1Library, V1LibraryType } from "@evey/api";
@@ -19,6 +20,7 @@ function getTypeLabel(type?: V1LibraryType): string {
 
 export default function LibraryScreen() {
   const theme = useTheme();
+  const { t } = useTranslation();
   const router = useRouter();
   const { data, isLoading, isError } = useLibraryServiceListLibraries();
 
@@ -62,13 +64,13 @@ export default function LibraryScreen() {
           onPress={() => router.push("/(auth)/collections")}
           style={[styles.linkCard, { backgroundColor: theme.colors.surface, borderRadius: theme.radii.md }]}
         >
-          <Text style={[styles.linkText, { color: theme.colors.accent }]}>Collections</Text>
+          <Text style={[styles.linkText, { color: theme.colors.accent }]}>{t("common.collections")}</Text>
         </FocusableCard>
         <FocusableCard
           onPress={() => router.push("/(auth)/playlists")}
           style={[styles.linkCard, { backgroundColor: theme.colors.surface, borderRadius: theme.radii.md }]}
         >
-          <Text style={[styles.linkText, { color: theme.colors.accent }]}>Playlists</Text>
+          <Text style={[styles.linkText, { color: theme.colors.accent }]}>{t("common.playlists")}</Text>
         </FocusableCard>
       </View>
 

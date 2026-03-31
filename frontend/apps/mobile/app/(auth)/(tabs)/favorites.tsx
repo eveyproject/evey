@@ -4,6 +4,7 @@ import {
   Text,
   FlatList,
   TouchableOpacity,
+  Pressable,
   ActivityIndicator,
   Dimensions,
   StyleSheet,
@@ -11,6 +12,7 @@ import {
 import { Image } from "expo-image";
 import { Skeleton } from "../../../src/components/Skeleton";
 import { useRouter } from "expo-router";
+import { useTranslation } from "react-i18next";
 import { useTheme } from "../../../src/providers/ThemeProvider";
 import { useAuthHeaders } from "../../../src/hooks/useAuthenticatedImage";
 import { useServerUrl } from "../../../src/hooks/useServerUrl";
@@ -24,10 +26,11 @@ const POSTER_HEIGHT = ITEM_WIDTH * 1.5;
 
 export default function FavoritesScreen() {
   const theme = useTheme();
+  const { t } = useTranslation();
   const router = useRouter();
   const authHeaders = useAuthHeaders();
   const serverUrl = useServerUrl();
-  const { data: favorites, isLoading, refetch } = useFavoritesList(200);
+  const { data: favorites, isLoading, isError, isRefetching, refetch } = useFavoritesList(200);
 
   const renderItem = useCallback(
     ({ item }: { item: FavoriteItem }) => {
@@ -58,7 +61,7 @@ export default function FavoritesScreen() {
                 alignItems: "center",
               }}
             >
-              <Text style={{ color: theme.colors.textMuted, fontSize: 12 }}>No poster</Text>
+              <Text style={{ color: theme.colors.textMuted, fontSize: 12 }}>{t("common.noPoster")}</Text>
             </View>
           )}
           <Text style={[styles.title, { color: theme.colors.text }]} numberOfLines={2}>
@@ -72,8 +75,19 @@ export default function FavoritesScreen() {
         </TouchableOpacity>
       );
     },
-    [theme, router, authHeaders, serverUrl],
+    [theme, router, authHeaders, serverUrl, t],
   );
+
+  if (isError) {
+    return (
+      <View style={{ flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: theme.colors.bg }}>
+        <Text style={{ color: theme.colors.textMuted, marginBottom: 12 }}>{t("common.loadError")}</Text>
+        <Pressable onPress={() => refetch()}>
+          <Text style={{ color: theme.colors.accent }}>{t("common.retry")}</Text>
+        </Pressable>
+      </View>
+    );
+  }
 
   if (isLoading) {
     return (
@@ -104,11 +118,11 @@ export default function FavoritesScreen() {
         renderItem={renderItem}
         numColumns={NUM_COLUMNS}
         contentContainerStyle={{ paddingTop: SPACING }}
-        refreshing={false}
+        refreshing={isRefetching}
         onRefresh={refetch}
         ListEmptyComponent={
           <View style={styles.empty}>
-            <Text style={{ color: theme.colors.textMuted, fontSize: 16 }}>No favorites yet</Text>
+            <Text style={{ color: theme.colors.textMuted, fontSize: 16 }}>{t("media.favorites.empty")}</Text>
           </View>
         }
       />

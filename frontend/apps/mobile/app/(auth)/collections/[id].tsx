@@ -4,11 +4,13 @@ import {
   Text,
   FlatList,
   TouchableOpacity,
+  Pressable,
   Dimensions,
   StyleSheet,
 } from "react-native";
 import { Image } from "expo-image";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
+import { useTranslation } from "react-i18next";
 import { Skeleton } from "../../../src/components/Skeleton";
 import { useTheme } from "../../../src/providers/ThemeProvider";
 import { useServerUrl } from "../../../src/hooks/useServerUrl";
@@ -25,11 +27,12 @@ const POSTER_HEIGHT = ITEM_WIDTH * 1.5;
 export default function CollectionDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const theme = useTheme();
+  const { t } = useTranslation();
   const router = useRouter();
   const serverUrl = useServerUrl();
   const authHeaders = useAuthHeaders();
 
-  const { data, isLoading } = useCollection(id ?? "");
+  const { data, isLoading, isError, refetch } = useCollection(id ?? "");
   const col = data?.collection;
   const items = data?.items ?? [];
 
@@ -60,7 +63,7 @@ export default function CollectionDetailScreen() {
                 alignItems: "center",
               }}
             >
-              <Text style={{ color: theme.colors.textMuted, fontSize: 12 }}>No poster</Text>
+              <Text style={{ color: theme.colors.textMuted, fontSize: 12 }}>{t("common.noPoster")}</Text>
             </View>
           )}
           <Text
@@ -72,7 +75,7 @@ export default function CollectionDetailScreen() {
         </TouchableOpacity>
       );
     },
-    [theme, router, serverUrl, authHeaders],
+    [theme, router, serverUrl, authHeaders, t],
   );
 
   return (
@@ -85,7 +88,14 @@ export default function CollectionDetailScreen() {
           headerTintColor: theme.colors.text,
         }}
       />
-      {isLoading ? (
+      {isError ? (
+        <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
+          <Text style={{ color: theme.colors.textMuted, marginBottom: 12 }}>{t("common.loadError")}</Text>
+          <Pressable onPress={() => refetch()}>
+            <Text style={{ color: theme.colors.accent }}>{t("common.retry")}</Text>
+          </Pressable>
+        </View>
+      ) : isLoading ? (
         <View style={styles.skeletonGrid}>
           {Array.from({ length: 9 }).map((_, i) => (
             <View key={i} style={{ marginLeft: SPACING, marginBottom: SPACING, alignItems: "center", width: ITEM_WIDTH }}>
@@ -103,7 +113,7 @@ export default function CollectionDetailScreen() {
           contentContainerStyle={{ paddingTop: SPACING }}
           ListEmptyComponent={
             <View style={styles.center}>
-              <Text style={{ color: theme.colors.textMuted }}>No items in this collection</Text>
+              <Text style={{ color: theme.colors.textMuted }}>{t("common.noItems")}</Text>
             </View>
           }
         />

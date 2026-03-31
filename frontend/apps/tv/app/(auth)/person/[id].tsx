@@ -2,6 +2,7 @@ import { useState } from "react";
 import { View, Text, ScrollView, ActivityIndicator, StyleSheet, Dimensions } from "react-native";
 import { useLocalSearchParams, router } from "expo-router";
 import { useQuery } from "@tanstack/react-query";
+import { useTranslation } from "react-i18next";
 import { eveyFetch, useLibraryServiceListMediaItems } from "@evey/api";
 import type { V1MediaItem } from "@evey/api";
 import { useTheme } from "../../../src/providers/ThemeProvider";
@@ -36,6 +37,7 @@ function useGetPerson(id: string) {
 export default function PersonDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const theme = useTheme();
+  const { t } = useTranslation();
   const [bioExpanded, setBioExpanded] = useState(false);
 
   const personId = id ?? "";
@@ -93,7 +95,7 @@ export default function PersonDetailScreen() {
             {person.biography}
           </Text>
           <Text style={{ color: theme.colors.accent, fontSize: 16, marginTop: 8 }}>
-            {bioExpanded ? "Show less" : "Read more"}
+            {bioExpanded ? t("common.showLess") : t("common.readMore")}
           </Text>
         </FocusableCard>
       ) : null}
@@ -108,7 +110,7 @@ export default function PersonDetailScreen() {
       {!isLoading && items.length > 0 ? (
         <>
           <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>
-            Filmography ({items.length})
+            {t("media.person.filmography")} ({items.length})
           </Text>
           <View style={styles.grid}>
             {items.map((item, index) => (
@@ -148,7 +150,7 @@ export default function PersonDetailScreen() {
 
       {!isLoading && items.length === 0 && !personLoading ? (
         <Text style={{ color: theme.colors.textMuted, textAlign: "center", paddingVertical: 40, fontSize: 20 }}>
-          No filmography found
+          {t("media.person.noFilmography")}
         </Text>
       ) : null}
 

@@ -8,6 +8,7 @@ import {
 } from "react-native";
 import { Image } from "expo-image";
 import { Stack, useRouter } from "expo-router";
+import { useTranslation } from "react-i18next";
 import { Skeleton } from "../../../src/components/Skeleton";
 import { useTheme } from "../../../src/providers/ThemeProvider";
 import { useCollections, type Collection } from "../../../src/api/collections";
@@ -79,6 +80,7 @@ function CollectionCard({
 
 export default function CollectionsScreen() {
   const theme = useTheme();
+  const { t } = useTranslation();
   const router = useRouter();
   const { data, isLoading, refetch } = useCollections();
 
@@ -120,7 +122,7 @@ export default function CollectionsScreen() {
           )}
           ListEmptyComponent={
             <View style={styles.center}>
-              <Text style={{ color: theme.colors.textMuted }}>No collections</Text>
+              <Text style={{ color: theme.colors.textMuted }}>{t("common.noCollections")}</Text>
             </View>
           }
         />

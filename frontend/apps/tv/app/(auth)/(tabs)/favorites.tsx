@@ -1,6 +1,7 @@
 import { useCallback } from "react";
-import { View, Text, FlatList, StyleSheet, ActivityIndicator } from "react-native";
+import { View, Text, FlatList, Pressable, StyleSheet, ActivityIndicator } from "react-native";
 import { useRouter } from "expo-router";
+import { useTranslation } from "react-i18next";
 import { useTheme } from "../../../src/providers/ThemeProvider";
 import { useServerUrl } from "../../../src/hooks/useServerUrl";
 import { useFavoritesList, type FavoriteItem } from "../../../src/hooks/useFavorite";
@@ -12,9 +13,10 @@ const POSTER_HEIGHT = CARD_WIDTH * 1.5;
 
 export default function FavoritesScreen() {
   const theme = useTheme();
+  const { t } = useTranslation();
   const router = useRouter();
   const serverUrl = useServerUrl();
-  const { data: favorites, isLoading, refetch } = useFavoritesList(200);
+  const { data: favorites, isLoading, isError, refetch } = useFavoritesList(200);
 
   const renderItem = useCallback(
     ({ item, index }: { item: FavoriteItem; index: number }) => (
@@ -39,6 +41,17 @@ export default function FavoritesScreen() {
     [theme, router],
   );
 
+  if (isError) {
+    return (
+      <View style={{ flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: theme.colors.bg }}>
+        <Text style={{ color: theme.colors.textMuted, fontSize: 22, marginBottom: 12 }}>{t("common.loadError")}</Text>
+        <Pressable onPress={() => refetch()}>
+          <Text style={{ color: theme.colors.accent, fontSize: 20 }}>{t("common.retry")}</Text>
+        </Pressable>
+      </View>
+    );
+  }
+
   if (isLoading) {
     return (
       <View style={[styles.center, { backgroundColor: theme.colors.bg }]}>
@@ -59,7 +72,7 @@ export default function FavoritesScreen() {
         columnWrapperStyle={{ gap: 16, marginBottom: 16 }}
         ListEmptyComponent={
           <View style={styles.center}>
-            <Text style={{ color: theme.colors.textMuted, fontSize: 22 }}>No favorites yet</Text>
+            <Text style={{ color: theme.colors.textMuted, fontSize: 22 }}>{t("media.favorites.empty")}</Text>
           </View>
         }
       />

@@ -10,6 +10,7 @@ import {
 import { Image } from "expo-image";
 import { useLocalSearchParams, router } from "expo-router";
 import { useQuery } from "@tanstack/react-query";
+import { useTranslation } from "react-i18next";
 import { eveyFetch, useLibraryServiceListMediaItems } from "@evey/api";
 import type { V1MediaItem } from "@evey/api";
 import { useTheme } from "../../../src/providers/ThemeProvider";
@@ -43,6 +44,7 @@ function useGetPerson(id: string) {
 export default function PersonDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const theme = useTheme();
+  const { t } = useTranslation();
   const serverUrl = useServerUrl();
   const authHeaders = useAuthHeaders();
   const [bioExpanded, setBioExpanded] = useState(false);
@@ -149,7 +151,7 @@ export default function PersonDetailScreen() {
             {person.biography}
           </Text>
           <Text style={{ color: theme.colors.accent, fontSize: 13, marginTop: 4 }}>
-            {bioExpanded ? "Show less" : "Read more"}
+            {bioExpanded ? t("common.showLess") : t("common.readMore")}
           </Text>
         </Pressable>
       ) : null}
@@ -166,7 +168,7 @@ export default function PersonDetailScreen() {
             marginBottom: theme.spacing.sm,
           }}
         >
-          Filmography ({items.length})
+          {t("media.person.filmography")} ({items.length})
         </Text>
       ) : null}
 
@@ -210,7 +212,7 @@ export default function PersonDetailScreen() {
             fontSize: 14,
           }}
         >
-          No filmography found
+          {t("media.person.noFilmography")}
         </Text>
       ) : null}
 

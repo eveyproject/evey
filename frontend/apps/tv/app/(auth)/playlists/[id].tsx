@@ -1,5 +1,6 @@
 import { View, Text, FlatList, ActivityIndicator, StyleSheet } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
+import { useTranslation } from "react-i18next";
 import { useTheme } from "../../../src/providers/ThemeProvider";
 import { usePlaylistDetail, type PlaylistItem } from "../../../src/api/playlists";
 import { FocusableCard } from "../../../src/components/FocusableCard";
@@ -7,6 +8,7 @@ import { FocusableCard } from "../../../src/components/FocusableCard";
 export default function PlaylistDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const theme = useTheme();
+  const { t } = useTranslation();
   const router = useRouter();
 
   const { data: playlist, isLoading, isError } = usePlaylistDetail(id ?? "");
@@ -22,7 +24,7 @@ export default function PlaylistDetailScreen() {
   if (isError || !playlist) {
     return (
       <View style={[styles.center, { backgroundColor: theme.colors.bg }]}>
-        <Text style={{ color: theme.colors.textMuted, fontSize: 22 }}>Playlist not found</Text>
+        <Text style={{ color: theme.colors.textMuted, fontSize: 22 }}>{t("media.playlists.notFound")}</Text>
       </View>
     );
   }
@@ -50,7 +52,7 @@ export default function PlaylistDetailScreen() {
         )}
         ListEmptyComponent={
           <View style={styles.center}>
-            <Text style={{ color: theme.colors.textMuted, fontSize: 22 }}>No items in this playlist</Text>
+            <Text style={{ color: theme.colors.textMuted, fontSize: 22 }}>{t("common.noItems")}</Text>
           </View>
         }
         ListFooterComponent={

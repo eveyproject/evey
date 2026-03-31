@@ -35,9 +35,10 @@ export default function SettingsScreen() {
     i18n.changeLanguage(code);
   }
 
-  function handleChangeServer() {
+  async function handleChangeServer() {
     logout();
-    clearServerUrl().then(() => router.replace("/server-connect"));
+    await clearServerUrl();
+    router.replace("/server-connect");
   }
 
   function handleSignOut() {
@@ -58,7 +59,7 @@ export default function SettingsScreen() {
 
   return (
     <ScrollView style={[styles.container, { backgroundColor: theme.colors.bg }]} contentContainerStyle={{ padding: 32 }}>
-      <Text style={[styles.header, { color: theme.colors.text }]}>Settings</Text>
+      <Text style={[styles.header, { color: theme.colors.text }]}>{t("common.settings")}</Text>
 
       {/* Server */}
       <Text style={[styles.sectionTitle, { color: theme.colors.textMuted }]}>Server</Text>
@@ -76,7 +77,7 @@ export default function SettingsScreen() {
           accessibilityLabel="Change server"
           accessibilityRole="button"
         >
-          <Text style={{ color: "#ef4444", fontSize: 20 }}>Change Server</Text>
+          <Text style={{ color: "#ef4444", fontSize: 20 }}>{t("settings.changeServer")}</Text>
         </Pressable>
       </View>
 
@@ -107,7 +108,7 @@ export default function SettingsScreen() {
           accessibilityLabel="Sign out"
           accessibilityRole="button"
         >
-          <Text style={{ color: "#ef4444", fontSize: 20 }}>Sign Out</Text>
+          <Text style={{ color: "#ef4444", fontSize: 20 }}>{t("settings.signOut")}</Text>
         </Pressable>
       </View>
 

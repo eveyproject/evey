@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { View, Text, FlatList, ActivityIndicator, StyleSheet } from "react-native";
+import { View, Text, FlatList, Pressable, ActivityIndicator, StyleSheet } from "react-native";
 import { useLocalSearchParams, useRouter, Stack } from "expo-router";
+import { useTranslation } from "react-i18next";
 import { useLibraryServiceGetLibrary, useLibraryServiceListMediaItems } from "@evey/api";
 import type { V1MediaItem } from "@evey/api";
 import { useTheme } from "../../../src/providers/ThemeProvider";
@@ -14,6 +15,7 @@ const PAGE_SIZE = 30;
 export default function LibraryDetailScreen() {
   const { libraryId } = useLocalSearchParams<{ libraryId: string }>();
   const theme = useTheme();
+  const { t } = useTranslation();
   const router = useRouter();
   const [page, setPage] = useState(1);
   const [allItems, setAllItems] = useState<V1MediaItem[]>([]);
@@ -22,7 +24,7 @@ export default function LibraryDetailScreen() {
 
   const { data: library } = useLibraryServiceGetLibrary(libraryId ?? "");
 
-  const { data, isLoading, isFetching } = useLibraryServiceListMediaItems(
+  const { data, isLoading, isError, isFetching, refetch } = useLibraryServiceListMediaItems(
     {
       libraryId,
       "pagination.page": page,
@@ -76,7 +78,14 @@ export default function LibraryDetailScreen() {
           headerTintColor: theme.colors.text,
         }}
       />
-      {isLoading && page === 1 ? (
+      {isError ? (
+        <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
+          <Text style={{ color: theme.colors.textMuted, fontSize: 22, marginBottom: 12 }}>{t("common.loadError")}</Text>
+          <Pressable onPress={() => refetch()}>
+            <Text style={{ color: theme.colors.accent, fontSize: 20 }}>{t("common.retry")}</Text>
+          </Pressable>
+        </View>
+      ) : isLoading && page === 1 ? (
         <View style={styles.center}>
           <ActivityIndicator color={theme.colors.accent} size="large" />
         </View>
@@ -97,7 +106,7 @@ export default function LibraryDetailScreen() {
           }
           ListEmptyComponent={
             <View style={styles.center}>
-              <Text style={{ color: theme.colors.textMuted, fontSize: 22 }}>No items</Text>
+              <Text style={{ color: theme.colors.textMuted, fontSize: 22 }}>{t("common.noItems")}</Text>
             </View>
           }
         />

@@ -4,6 +4,7 @@ import {
   Text,
   FlatList,
   TouchableOpacity,
+  Pressable,
   ActivityIndicator,
   Dimensions,
   StyleSheet,
@@ -11,6 +12,7 @@ import {
 import { Image } from "expo-image";
 import { Skeleton } from "../../../src/components/Skeleton";
 import { useLocalSearchParams, useRouter, Stack } from "expo-router";
+import { useTranslation } from "react-i18next";
 import {
   useLibraryServiceGetLibrary,
   useLibraryServiceListMediaItems,
@@ -33,6 +35,7 @@ function getPoster(item: V1MediaItem): string | undefined {
 export default function LibraryDetailScreen() {
   const { libraryId } = useLocalSearchParams<{ libraryId: string }>();
   const theme = useTheme();
+  const { t } = useTranslation();
   const router = useRouter();
   const [page, setPage] = useState(1);
   const [allItems, setAllItems] = useState<V1MediaItem[]>([]);
@@ -42,7 +45,7 @@ export default function LibraryDetailScreen() {
   const authHeaders = useAuthHeaders();
   const { data: library } = useLibraryServiceGetLibrary(libraryId ?? "");
 
-  const { data, isLoading, isFetching, refetch } =
+  const { data, isLoading, isError, isFetching, refetch } =
     useLibraryServiceListMediaItems(
       {
         libraryId,
@@ -119,7 +122,7 @@ export default function LibraryDetailScreen() {
               ]}
             >
               <Text style={{ color: theme.colors.textMuted, fontSize: 12 }}>
-                No poster
+                {t("common.noPoster")}
               </Text>
             </View>
           )}
@@ -132,7 +135,7 @@ export default function LibraryDetailScreen() {
         </TouchableOpacity>
       );
     },
-    [theme, router, authHeaders],
+    [theme, router, authHeaders, t],
   );
 
   return (
@@ -145,7 +148,14 @@ export default function LibraryDetailScreen() {
           headerTintColor: theme.colors.text,
         }}
       />
-      {isLoading && page === 1 ? (
+      {isError ? (
+        <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
+          <Text style={{ color: theme.colors.textMuted, marginBottom: 12 }}>{t("common.loadError")}</Text>
+          <Pressable onPress={() => refetch()}>
+            <Text style={{ color: theme.colors.accent }}>{t("common.retry")}</Text>
+          </Pressable>
+        </View>
+      ) : isLoading && page === 1 ? (
         <View style={{ flexDirection: "row", flexWrap: "wrap", paddingTop: SPACING }}>
           {Array.from({ length: 9 }).map((_, i) => (
             <View key={i} style={{ marginLeft: SPACING, marginBottom: SPACING, alignItems: "center", width: ITEM_WIDTH }}>
@@ -176,7 +186,7 @@ export default function LibraryDetailScreen() {
           ListEmptyComponent={
             <View style={styles.center}>
               <Text style={{ color: theme.colors.textMuted }}>
-                No items in this library
+                {t("common.noItems")}
               </Text>
             </View>
           }

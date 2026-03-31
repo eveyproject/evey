@@ -8,6 +8,7 @@ import {
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
+import { useTranslation } from "react-i18next";
 import { useTheme } from "../../../src/providers/ThemeProvider";
 import { usePlaylistDetail, type PlaylistItem } from "../../../src/api/playlists";
 
@@ -52,6 +53,7 @@ function PlaylistItemRow({
 export default function PlaylistDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const theme = useTheme();
+  const { t } = useTranslation();
   const router = useRouter();
 
   const { data: playlist, isLoading, isError } = usePlaylistDetail(id ?? "");
@@ -83,7 +85,7 @@ export default function PlaylistDetailScreen() {
             headerTintColor: theme.colors.text,
           }}
         />
-        <Text style={{ color: theme.colors.textMuted }}>Playlist not found</Text>
+        <Text style={{ color: theme.colors.textMuted }}>{t("media.playlists.notFound")}</Text>
       </View>
     );
   }
@@ -117,7 +119,7 @@ export default function PlaylistDetailScreen() {
         )}
         ListEmptyComponent={
           <View style={styles.center}>
-            <Text style={{ color: theme.colors.textMuted }}>No items in this playlist</Text>
+            <Text style={{ color: theme.colors.textMuted }}>{t("common.noItems")}</Text>
           </View>
         }
         ListFooterComponent={

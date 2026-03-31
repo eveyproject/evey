@@ -1,6 +1,7 @@
 import { useCallback } from "react";
-import { View, Text, FlatList, ActivityIndicator, StyleSheet } from "react-native";
+import { View, Text, FlatList, Pressable, ActivityIndicator, StyleSheet } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
+import { useTranslation } from "react-i18next";
 import { useTheme } from "../../../src/providers/ThemeProvider";
 import { useCollection, type CollectionItem } from "../../../src/api/collections";
 import { FocusableCard } from "../../../src/components/FocusableCard";
@@ -10,9 +11,10 @@ const NUM_COLUMNS = 5;
 export default function CollectionDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const theme = useTheme();
+  const { t } = useTranslation();
   const router = useRouter();
 
-  const { data, isLoading } = useCollection(id ?? "");
+  const { data, isLoading, isError, refetch } = useCollection(id ?? "");
   const col = data?.collection;
   const items = data?.items ?? [];
 
@@ -24,7 +26,7 @@ export default function CollectionDetailScreen() {
         style={[styles.card, { backgroundColor: theme.colors.surface, borderRadius: theme.radii.md }]}
       >
         <View style={[styles.poster, { backgroundColor: theme.colors.surfaceRaised, borderRadius: theme.radii.sm }]}>
-          <Text style={{ color: theme.colors.textMuted, fontSize: 14 }}>No poster</Text>
+          <Text style={{ color: theme.colors.textMuted, fontSize: 14 }}>{t("common.noPoster")}</Text>
         </View>
         <Text style={[styles.title, { color: theme.colors.text }]} numberOfLines={2}>
           {item.title}
@@ -34,8 +36,19 @@ export default function CollectionDetailScreen() {
         ) : null}
       </FocusableCard>
     ),
-    [theme, router],
+    [theme, router, t],
   );
+
+  if (isError) {
+    return (
+      <View style={{ flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: theme.colors.bg }}>
+        <Text style={{ color: theme.colors.textMuted, fontSize: 22, marginBottom: 12 }}>{t("common.loadError")}</Text>
+        <Pressable onPress={() => refetch()}>
+          <Text style={{ color: theme.colors.accent, fontSize: 20 }}>{t("common.retry")}</Text>
+        </Pressable>
+      </View>
+    );
+  }
 
   if (isLoading) {
     return (
@@ -57,7 +70,7 @@ export default function CollectionDetailScreen() {
         ItemSeparatorComponent={() => <View style={{ height: 16 }} />}
         ListEmptyComponent={
           <View style={styles.center}>
-            <Text style={{ color: theme.colors.textMuted, fontSize: 22 }}>No items in this collection</Text>
+            <Text style={{ color: theme.colors.textMuted, fontSize: 22 }}>{t("common.noItems")}</Text>
           </View>
         }
       />

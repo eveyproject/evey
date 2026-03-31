@@ -1,11 +1,13 @@
 import { View, Text, FlatList, ActivityIndicator, StyleSheet } from "react-native";
 import { useRouter } from "expo-router";
+import { useTranslation } from "react-i18next";
 import { useTheme } from "../../../src/providers/ThemeProvider";
 import { usePlaylistList, type Playlist } from "../../../src/api/playlists";
 import { FocusableCard } from "../../../src/components/FocusableCard";
 
 export default function PlaylistsScreen() {
   const theme = useTheme();
+  const { t } = useTranslation();
   const router = useRouter();
   const { data: playlists, isLoading } = usePlaylistList();
 
@@ -19,7 +21,7 @@ export default function PlaylistsScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: theme.colors.bg }]}>
-      <Text style={[styles.header, { color: theme.colors.text }]}>Playlists</Text>
+      <Text style={[styles.header, { color: theme.colors.text }]}>{t("common.playlists")}</Text>
       <FlatList
         data={playlists ?? []}
         keyExtractor={(item) => item.id}

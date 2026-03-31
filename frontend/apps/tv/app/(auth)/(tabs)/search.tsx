@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { View, Text, TextInput, FlatList, ActivityIndicator, StyleSheet } from "react-native";
+import { View, Text, TextInput, FlatList, Pressable, ActivityIndicator, StyleSheet } from "react-native";
 import { useRouter } from "expo-router";
 import { useTranslation } from "react-i18next";
 import { useLibraryServiceSearchMedia } from "@evey/api";
@@ -21,7 +21,7 @@ export default function SearchScreen() {
   const [inputFocused, setInputFocused] = useState(false);
   const debouncedQuery = useDebounce(query, 300);
 
-  const { data, isLoading } = useLibraryServiceSearchMedia(
+  const { data, isLoading, isError, refetch } = useLibraryServiceSearchMedia(
     { query: debouncedQuery, limit: 30 },
     { query: { enabled: debouncedQuery.length > 0 } },
   );
@@ -42,7 +42,7 @@ export default function SearchScreen() {
           {item.title}
         </Text>
         <Text style={[styles.meta, { color: theme.colors.textMuted }]}>
-          {[item.year, formatType(item.type)].filter(Boolean).join(" . ")}
+          {[item.year, formatType(item.type)].filter(Boolean).join(" \u00B7 ")}
         </Text>
       </View>
     </FocusableCard>
@@ -73,7 +73,14 @@ export default function SearchScreen() {
         accessibilityLabel="Search media"
       />
 
-      {isLoading && debouncedQuery.length > 0 ? (
+      {isError && debouncedQuery.length > 0 ? (
+        <View style={styles.center}>
+          <Text style={{ color: theme.colors.textMuted, fontSize: 22, marginBottom: 12 }}>{t("common.loadError")}</Text>
+          <Pressable onPress={() => refetch()}>
+            <Text style={{ color: theme.colors.accent, fontSize: 20 }}>{t("common.retry")}</Text>
+          </Pressable>
+        </View>
+      ) : isLoading && debouncedQuery.length > 0 ? (
         <View style={styles.center}>
           <ActivityIndicator color={theme.colors.accent} size="large" />
         </View>

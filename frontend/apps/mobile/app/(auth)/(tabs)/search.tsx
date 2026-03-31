@@ -5,6 +5,7 @@ import {
   TextInput,
   FlatList,
   TouchableOpacity,
+  Pressable,
   StyleSheet,
 } from "react-native";
 import { Image } from "expo-image";
@@ -33,7 +34,7 @@ export default function SearchScreen() {
   const [query, setQuery] = useState("");
   const debouncedQuery = useDebounce(query, 300);
 
-  const { data, isLoading } = useLibraryServiceSearchMedia(
+  const { data, isLoading, isError, refetch } = useLibraryServiceSearchMedia(
     { query: debouncedQuery, limit: 30 },
     { query: { enabled: debouncedQuery.length > 0 } },
   );
@@ -121,7 +122,14 @@ export default function SearchScreen() {
         accessibilityLabel="Search media"
       />
 
-      {isLoading && debouncedQuery.length > 0 ? (
+      {isError && debouncedQuery.length > 0 ? (
+        <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
+          <Text style={{ color: theme.colors.textMuted, marginBottom: 12 }}>{t("common.loadError")}</Text>
+          <Pressable onPress={() => refetch()}>
+            <Text style={{ color: theme.colors.accent }}>{t("common.retry")}</Text>
+          </Pressable>
+        </View>
+      ) : isLoading && debouncedQuery.length > 0 ? (
         <View style={{ padding: theme.spacing.md }}>
           {Array.from({ length: 6 }).map((_, i) => (
             <View key={i} style={{ flexDirection: "row", alignItems: "center", padding: 10, marginBottom: theme.spacing.sm }}>
