@@ -1,8 +1,0 @@
-name: malicious-theme-test
-version: 1.0.0
-description: Test theme with dangerous CSS patterns (for sanitizer testing)
-author: evey-examples
-language: css
-entrypoint: theme.css
-capabilities:
-  - ui.theme
