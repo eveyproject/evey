@@ -47,8 +47,15 @@ func StartShared() func() {
 	if err != nil {
 		panic(fmt.Sprintf("open db: %v", err))
 	}
-	if err := db.Ping(); err != nil {
-		panic(fmt.Sprintf("ping db: %v", err))
+	// Retry ping — port may be listening before Postgres is fully ready
+	for range 30 {
+		if err = db.Ping(); err == nil {
+			break
+		}
+		time.Sleep(500 * time.Millisecond)
+	}
+	if err != nil {
+		panic(fmt.Sprintf("ping db after retries: %v", err))
 	}
 	if err := postgres.RunMigrations(db); err != nil {
 		panic(fmt.Sprintf("run migrations: %v", err))
