@@ -65,6 +65,7 @@ frontend/apps/web/tsconfig.tsbuildinfo
 # Plugin ZIPs (dist/ contains release-ready zips, root zips are dev artifacts)
 *.zip
 !plugins/dist/*.zip
+!tests/plugins/*.zip
 
 # E2E test artifacts
 tests/e2e/.e2e-start-time
