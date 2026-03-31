@@ -6,21 +6,28 @@ import {
   Pressable,
   Dimensions,
   FlatList,
+  ActivityIndicator,
   StyleSheet,
 } from "react-native";
 import { Image } from "expo-image";
+import { Ionicons } from "@expo/vector-icons";
 import { Skeleton } from "../../../src/components/Skeleton";
 import { useLocalSearchParams, router } from "expo-router";
 import {
   useLibraryServiceGetMediaItem,
   useLibraryServiceListMediaItems,
   usePlaybackServiceGetWatchProgress,
+  usePlaybackServiceMarkAsWatched,
+  usePlaybackServiceMarkAsUnwatched,
 } from "@evey/api";
 import type { V1MediaItem, V1MediaPerson } from "@evey/api";
+import { useAuthStore } from "@evey/store";
+import { useQueryClient } from "@tanstack/react-query";
 import { useTheme } from "../../../src/providers/ThemeProvider";
 import { useServerUrl } from "../../../src/hooks/useServerUrl";
 import { useAuthHeaders } from "../../../src/hooks/useAuthenticatedImage";
 import { artworkUrl } from "../../../src/lib/artwork";
+import { useIsFavorite, useToggleFavorite } from "../../../src/hooks/useFavorite";
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
 const HERO_HEIGHT = SCREEN_HEIGHT * 0.4;
@@ -126,6 +133,31 @@ export default function MediaDetailScreen() {
   const { data: media, isLoading } = useLibraryServiceGetMediaItem(id ?? "");
 
   const { data: watchProgress } = usePlaybackServiceGetWatchProgress(id ?? "");
+  const profileId = useAuthStore((s) => s.profileId);
+  const qc = useQueryClient();
+
+  const { data: isFavorite } = useIsFavorite(id);
+  const toggleFavorite = useToggleFavorite(id);
+
+  const [watchedOverride, setWatchedOverride] = useState<boolean | null>(null);
+  const watched = watchedOverride ?? (watchProgress?.played === true);
+
+  const invalidateWatched = useCallback(() => {
+    if (id) void qc.invalidateQueries({ queryKey: [`/api/v1/playback/${id}/progress`] });
+    void qc.invalidateQueries({ queryKey: ["/api/v1/playback/history"] });
+    void qc.invalidateQueries({ queryKey: ["/api/v1/feeds/resume-playback"] });
+  }, [id, qc]);
+
+  const markWatched = usePlaybackServiceMarkAsWatched({
+    mutation: {
+      onSuccess: () => { setWatchedOverride(true); invalidateWatched(); },
+    },
+  });
+  const markUnwatched = usePlaybackServiceMarkAsUnwatched({
+    mutation: {
+      onSuccess: () => { setWatchedOverride(false); invalidateWatched(); },
+    },
+  });
 
   // Fetch seasons for series
   const isSeries = isSeriesType(media?.type);
@@ -248,6 +280,70 @@ export default function MediaDetailScreen() {
             {hasProgress ? `Resume from ${formatProgress(resumeMs)}` : "Play"}
           </Text>
         </Pressable>
+
+        {/* Action buttons */}
+        <View style={{ flexDirection: "row", gap: theme.spacing.md, marginTop: theme.spacing.md }}>
+          {/* Favorite toggle */}
+          <Pressable
+            onPress={() => toggleFavorite.mutate()}
+            disabled={toggleFavorite.isPending}
+            style={{
+              flexDirection: "row",
+              alignItems: "center",
+              backgroundColor: theme.colors.surface,
+              borderRadius: theme.radii.md,
+              paddingVertical: theme.spacing.sm,
+              paddingHorizontal: theme.spacing.md,
+              opacity: toggleFavorite.isPending ? 0.5 : 1,
+            }}
+          >
+            <Ionicons
+              name={isFavorite ? "heart" : "heart-outline"}
+              size={20}
+              color={isFavorite ? theme.colors.accent : theme.colors.text}
+            />
+            <Text style={{ color: theme.colors.text, fontSize: 13, fontWeight: "600", marginLeft: 6 }}>
+              {isFavorite ? "Favorited" : "Favorite"}
+            </Text>
+          </Pressable>
+
+          {/* Watched toggle */}
+          {!isSeries && !isSeason && (
+            <Pressable
+              onPress={() => {
+                if (!profileId) return;
+                if (watched) {
+                  markUnwatched.mutate({ mediaItemId: id!, params: { profileId } });
+                } else {
+                  markWatched.mutate({ mediaItemId: id!, params: { profileId } });
+                }
+              }}
+              disabled={markWatched.isPending || markUnwatched.isPending}
+              style={{
+                flexDirection: "row",
+                alignItems: "center",
+                backgroundColor: theme.colors.surface,
+                borderRadius: theme.radii.md,
+                paddingVertical: theme.spacing.sm,
+                paddingHorizontal: theme.spacing.md,
+                opacity: (markWatched.isPending || markUnwatched.isPending) ? 0.5 : 1,
+              }}
+            >
+              {(markWatched.isPending || markUnwatched.isPending) ? (
+                <ActivityIndicator size={18} color={theme.colors.text} />
+              ) : (
+                <Ionicons
+                  name={watched ? "checkmark-circle" : "checkmark-circle-outline"}
+                  size={20}
+                  color={watched ? theme.colors.accent : theme.colors.text}
+                />
+              )}
+              <Text style={{ color: theme.colors.text, fontSize: 13, fontWeight: "600", marginLeft: 6 }}>
+                {watched ? "Watched" : "Mark watched"}
+              </Text>
+            </Pressable>
+          )}
+        </View>
 
         {/* Overview */}
         {media.overview ? (
