@@ -28,6 +28,7 @@ import { useServerUrl } from "../../../src/hooks/useServerUrl";
 import { useAuthHeaders } from "../../../src/hooks/useAuthenticatedImage";
 import { artworkUrl } from "../../../src/lib/artwork";
 import { useIsFavorite, useToggleFavorite } from "../../../src/hooks/useFavorite";
+import { AddToPlaylistSheet } from "../../../src/components/AddToPlaylistSheet";
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
 const HERO_HEIGHT = SCREEN_HEIGHT * 0.4;
@@ -139,6 +140,7 @@ export default function MediaDetailScreen() {
   const { data: isFavorite } = useIsFavorite(id);
   const toggleFavorite = useToggleFavorite(id);
 
+  const [playlistSheetOpen, setPlaylistSheetOpen] = useState(false);
   const [watchedOverride, setWatchedOverride] = useState<boolean | null>(null);
   const watched = watchedOverride ?? (watchProgress?.played === true);
 
@@ -343,6 +345,24 @@ export default function MediaDetailScreen() {
               </Text>
             </Pressable>
           )}
+
+          {/* Add to Playlist */}
+          <Pressable
+            onPress={() => setPlaylistSheetOpen(true)}
+            style={{
+              flexDirection: "row",
+              alignItems: "center",
+              backgroundColor: theme.colors.surface,
+              borderRadius: theme.radii.md,
+              paddingVertical: theme.spacing.sm,
+              paddingHorizontal: theme.spacing.md,
+            }}
+          >
+            <Ionicons name="add" size={20} color={theme.colors.text} />
+            <Text style={{ color: theme.colors.text, fontSize: 13, fontWeight: "600", marginLeft: 6 }}>
+              Playlist
+            </Text>
+          </Pressable>
         </View>
 
         {/* Overview */}
@@ -418,6 +438,14 @@ export default function MediaDetailScreen() {
         {/* Bottom spacing */}
         <View style={{ height: theme.spacing.xl * 2 }} />
       </View>
+
+      {id ? (
+        <AddToPlaylistSheet
+          visible={playlistSheetOpen}
+          mediaItemId={id}
+          onClose={() => setPlaylistSheetOpen(false)}
+        />
+      ) : null}
     </ScrollView>
   );
 }

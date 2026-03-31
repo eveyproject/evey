@@ -115,6 +115,10 @@ export default function SettingsScreen() {
           <Text style={s.label}>{t("auth.login.username")}</Text>
           <Text style={s.value}>{user?.username ?? "..."}</Text>
         </View>
+        <Pressable style={s.row} onPress={() => router.push("/history")} accessible={true} accessibilityLabel={t("auth.watchHistory.title", "Watch History")} accessibilityRole="button">
+          <Text style={s.label}>{t("auth.watchHistory.title", "Watch History")}</Text>
+          <ChevronRight color={theme.colors.textMuted} />
+        </Pressable>
         <Pressable style={s.row} onPress={() => router.push("/profile-select")} accessible={true} accessibilityLabel={t("mobile.settings.switchProfile", "Switch Profile")} accessibilityRole="button">
           <Text style={s.label}>{t("mobile.settings.switchProfile", "Switch Profile")}</Text>
           <ChevronRight color={theme.colors.textMuted} />

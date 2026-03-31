@@ -90,6 +90,27 @@ export default function LibraryScreen() {
       >
         Libraries
       </Text>
+
+      {/* Quick links */}
+      <View style={{ flexDirection: "row", paddingHorizontal: theme.spacing.md, gap: theme.spacing.sm, marginTop: theme.spacing.md, marginBottom: theme.spacing.sm }}>
+        <TouchableOpacity
+          style={[styles.quickLink, { backgroundColor: theme.colors.surface, borderRadius: theme.radii.md }]}
+          activeOpacity={0.7}
+          onPress={() => router.push("/collections")}
+        >
+          <Text style={styles.quickLinkIcon}>📂</Text>
+          <Text style={[styles.quickLinkText, { color: theme.colors.text }]}>Collections</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.quickLink, { backgroundColor: theme.colors.surface, borderRadius: theme.radii.md }]}
+          activeOpacity={0.7}
+          onPress={() => router.push("/playlists")}
+        >
+          <Text style={styles.quickLinkIcon}>🎵</Text>
+          <Text style={[styles.quickLinkText, { color: theme.colors.text }]}>Playlists</Text>
+        </TouchableOpacity>
+      </View>
+
       <FlatList
         data={libraries}
         keyExtractor={(item) => item.id ?? ""}
@@ -117,4 +138,7 @@ const styles = StyleSheet.create({
   icon: { fontSize: 28, marginRight: 14 },
   name: { fontSize: 17, fontWeight: "600" },
   type: { fontSize: 13, marginTop: 2 },
+  quickLink: { flex: 1, flexDirection: "row", alignItems: "center", padding: 14 },
+  quickLinkIcon: { fontSize: 20, marginRight: 10 },
+  quickLinkText: { fontSize: 15, fontWeight: "600" },
 });
