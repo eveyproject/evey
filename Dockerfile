@@ -9,9 +9,11 @@ RUN go mod download
 
 RUN go install github.com/bufbuild/buf/cmd/buf@v1.47.2
 
+ARG VERSION=dev
+
 COPY . .
 RUN buf generate
-RUN CGO_ENABLED=0 go build -ldflags="-s -w" -o /evey ./cmd/evey
+RUN CGO_ENABLED=0 go build -ldflags="-s -w -X main.version=${VERSION}" -o /evey ./cmd/evey
 RUN gcc -shared -fPIC -nostartfiles -o /libevey-sandbox.so sandbox/sandbox.c
 
 FROM alpine:3.21.3
