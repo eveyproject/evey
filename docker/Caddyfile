@@ -10,12 +10,12 @@
 		Strict-Transport-Security "max-age=31536000; includeSubDomains"
 	}
 
-	# Long-running: transcode, stream, HLS, scan need no timeout + immediate flush
+	# Streaming endpoints need no timeout
 	@streaming {
 		path /api/v1/media/*/transcode /api/v1/media/*/hls/* /api/v1/media/*/stream /api/v1/libraries/*/scan
 	}
 	handle @streaming {
-		reverse_proxy evey-prod:9091 {
+		reverse_proxy evey:9091 {
 			transport http {
 				read_timeout 0
 				write_timeout 0
@@ -24,15 +24,10 @@
 		}
 	}
 
-	handle /api/* {
-		reverse_proxy evey-prod:9091 {
+	# Everything else goes to the backend (which serves both API and frontend)
+	handle {
+		reverse_proxy evey:9091 {
 			flush_interval -1
 		}
-	}
-
-	handle {
-		root * /srv
-		try_files {path} /index.html
-		file_server
 	}
 }

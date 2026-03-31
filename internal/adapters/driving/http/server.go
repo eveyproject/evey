@@ -4,6 +4,9 @@ import (
 	"context"
 	"net/http"
 	"net/url"
+	"os"
+	"path/filepath"
+	"strings"
 	"time"
 
 	appactivity "github.com/gravity-zero/evey/internal/app/activity"
@@ -157,6 +160,10 @@ type HTTPServer struct {
 	// User stream/bitrate adapters
 	UserMaxStreams UserMaxStreamsGetter
 	UserBitrate   UserBitrateGetter
+
+	// WebDir is the path to the built frontend dist (e.g. /srv).
+	// If set and the directory exists, the server serves the SPA from it.
+	WebDir string
 }
 
 // RegisterRoutes wires all HTTP routes onto mux.
@@ -300,10 +307,30 @@ func (s *HTTPServer) RegisterRoutes(mux *http.ServeMux, gwMux http.Handler) {
 	}
 
 	if gwMux != nil {
-		mux.Handle("/", ratelimit.Middleware(s.GlobalRL,
+		gwHandler := ratelimit.Middleware(s.GlobalRL,
 			"/api/v1/playback/progress",
 			"/api/v1/playback/start",
 			"/api/v1/playback/stop",
-		)(apiCacheMiddleware(gwMux)))
+		)(apiCacheMiddleware(gwMux))
+
+		webDirOK := false
+		if s.WebDir != "" {
+			if _, err := os.Stat(filepath.Join(s.WebDir, "index.html")); err == nil {
+				webDirOK = true
+			}
+		}
+		if webDirOK {
+			// Serve frontend SPA for non-API paths, API goes to gRPC gateway
+			spa := spaHandler(s.WebDir)
+			mux.Handle("/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if strings.HasPrefix(r.URL.Path, "/api/") {
+					gwHandler.ServeHTTP(w, r)
+					return
+				}
+				spa.ServeHTTP(w, r)
+			}))
+		} else {
+			mux.Handle("/", gwHandler)
+		}
 	}
 }

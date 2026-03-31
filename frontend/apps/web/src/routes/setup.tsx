@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Play } from "lucide-react";
 import { createFileRoute, isRedirect, redirect, useNavigate } from "@tanstack/react-router";
 import { eveyFetch, useAdminServiceSetupWizard, useLibraryServiceCreateLibrary } from "@evey/api";
@@ -36,6 +36,7 @@ interface AdminForm {
 interface LibraryForm {
   name: string;
   type: string;
+  paths: string[];
 }
 
 interface AdminErrors {
@@ -69,8 +70,24 @@ function SetupPage() {
   const [step, setStep] = useState(0);
   const [adminForm, setAdminForm] = useState<AdminForm>({ username: "", password: "", confirmPassword: "" });
   const [adminErrors, setAdminErrors] = useState<AdminErrors>({});
-  const [libraryForm, setLibraryForm] = useState<LibraryForm>({ name: "", type: "LIBRARY_TYPE_MOVIES" });
+  const [libraryForm, setLibraryForm] = useState<LibraryForm>({ name: "", type: "LIBRARY_TYPE_MOVIES", paths: [""] });
   const [libraryError, setLibraryError] = useState<string | undefined>();
+  const [mediaDirs, setMediaDirs] = useState<string[]>([]);
+
+  useEffect(() => {
+    if (step !== 2) return;
+    (async () => {
+      try {
+        const dirs = await eveyFetch<{ name: string; path: string }[]>({
+          url: "/api/v1/admin/fs/browse",
+          method: "GET",
+        });
+        setMediaDirs(dirs.map((d) => d.path));
+      } catch {
+        setMediaDirs([]);
+      }
+    })();
+  }, [step]);
   const [setupError, setSetupError] = useState<string | undefined>();
 
   const STEPS = [t("auth.setup.steps.welcome"), t("auth.setup.steps.admin"), t("auth.setup.steps.library")] as const;
@@ -146,8 +163,13 @@ function SetupPage() {
       return;
     }
     setLibraryError(undefined);
+    const validPaths = libraryForm.paths.filter((p) => p.trim() !== "" && p !== "__custom__");
+    if (validPaths.length === 0) {
+      setLibraryError(t("admin.libraries.pathRequired") || "At least one path is required");
+      return;
+    }
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    createLibrary.mutate({ data: { name: libraryForm.name, type: libraryForm.type as any } });
+    createLibrary.mutate({ data: { name: libraryForm.name, type: libraryForm.type as any, paths: validPaths } });
   };
 
   const logoIcon = (
@@ -281,6 +303,47 @@ function SetupPage() {
               value={libraryForm.type}
               onChange={(value) => setLibraryForm((prev) => ({ ...prev, type: value }))}
             />
+            <div className="flex flex-col gap-2">
+              <span className="text-sm font-medium text-[var(--text-muted)]">
+                {t("admin.libraries.paths")}
+              </span>
+              {libraryForm.paths.map((p, i) => (
+                <div key={i} className="flex gap-2 items-center">
+                  {mediaDirs.length > 0 && p !== "__custom__" ? (
+                    <Select
+                      value={p}
+                      onChange={(v) => {
+                        setLibraryForm((prev) => ({
+                          ...prev,
+                          paths: prev.paths.map((pp, idx) => (idx === i ? v : pp)),
+                        }));
+                        setLibraryError(undefined);
+                      }}
+                      placeholder={t("admin.libraries.selectDirectory")}
+                      options={[
+                        ...mediaDirs.map((d) => ({ value: d, label: d })),
+                        { value: "__custom__", label: t("admin.libraries.enterCustomPath") },
+                      ]}
+                      className="flex-1"
+                    />
+                  ) : (
+                    <Input
+                      placeholder="/media/movies"
+                      value={p === "__custom__" ? "" : p}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setLibraryForm((prev) => ({
+                          ...prev,
+                          paths: prev.paths.map((pp, idx) => (idx === i ? val : pp)),
+                        }));
+                        setLibraryError(undefined);
+                      }}
+                      className="flex-1"
+                    />
+                  )}
+                </div>
+              ))}
+            </div>
             <div className="flex gap-2 mt-2">
               <Button
                 type="button"

@@ -98,6 +98,7 @@ func buildHTTPHandler(gwMux http.Handler, deps *appDeps, cfg *config.Config, sta
 		PluginRepo: deps.repos.pluginRepo,
 		PluginSvc:  deps.engagement.pluginInstallerSvc,
 		PluginDir:  "/data/plugins",
+		WebDir:     cfg.Server.WebDir,
 
 		FeedCmdSvc:   deps.engagement.feedCmdSvc,
 		FeedQuerySvc: deps.engagement.feedQuerySvc,
