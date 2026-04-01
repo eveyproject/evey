@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"path/filepath"
 	"slices"
 	"strings"
 
@@ -84,6 +85,11 @@ func (h *libraryHandler) UpdateLibrary(ctx context.Context, req *eveyv1.UpdateLi
 		lib.Name = *req.Name
 	}
 	if len(req.Paths) > 0 {
+		for _, p := range req.Paths {
+			if !filepath.IsAbs(p) || !strings.HasPrefix(filepath.Clean(p), "/media") {
+				return nil, status.Errorf(codes.InvalidArgument, "invalid path: must be an absolute path under /media")
+			}
+		}
 		lib.Paths = req.Paths
 	}
 	if err := h.cmd.UpdateLibrary(ctx, lib); err != nil {

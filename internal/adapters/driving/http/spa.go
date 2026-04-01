@@ -22,9 +22,11 @@ func spaHandler(dir string) http.Handler {
 			return
 		}
 
-		// Try to serve the file directly
-		path := filepath.Join(dir, filepath.Clean(r.URL.Path))
-		if _, err := os.Stat(path); err == nil {
+		// Try to serve the file directly using the cleaned path
+		cleaned := filepath.Clean(r.URL.Path)
+		fullPath := filepath.Join(dir, cleaned)
+		if _, err := os.Stat(fullPath); err == nil {
+			r.URL.Path = cleaned
 			fileServer.ServeHTTP(w, r)
 			return
 		}
