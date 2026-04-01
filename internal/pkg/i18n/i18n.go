@@ -21,6 +21,14 @@ var supportedLocales = map[string]bool{
 	"en": true, "fr": true, "es": true, "zh": true, "hi": true,
 }
 
+func SupportedLocales() []string {
+	out := make([]string, 0, len(supportedLocales))
+	for l := range supportedLocales {
+		out = append(out, l)
+	}
+	return out
+}
+
 type Translator struct {
 	mu       sync.RWMutex
 	messages map[string]map[string]string // locale -> flat key -> message

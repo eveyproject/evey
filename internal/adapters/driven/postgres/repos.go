@@ -55,7 +55,9 @@ type Repos struct {
 	PlaylistItem         *PlaylistItemRepository
 	SmartPlaylist        *SmartPlaylistQuerier
 	Subtitle             *SubtitleRepository
-	PasswordResetToken   *PasswordResetTokenRepository
+	PasswordResetToken       *PasswordResetTokenRepository
+	MediaItemTranslation     *MediaItemTranslationRepository
+	PersonTranslation        *PersonTranslationRepository
 }
 
 func NewRepos(db *sql.DB) *Repos {
@@ -111,6 +113,8 @@ func NewRepos(db *sql.DB) *Repos {
 		PlaylistItem:         NewPlaylistItemRepository(db),
 		SmartPlaylist:        NewSmartPlaylistQuerier(db),
 		Subtitle:             NewSubtitleRepository(db),
-		PasswordResetToken:   NewPasswordResetTokenRepository(db),
+		PasswordResetToken:       NewPasswordResetTokenRepository(db),
+		MediaItemTranslation:     NewMediaItemTranslationRepository(db),
+		PersonTranslation:        NewPersonTranslationRepository(db),
 	}
 }

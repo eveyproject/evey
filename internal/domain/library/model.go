@@ -211,6 +211,20 @@ type Collection struct {
 	UpdatedAt   time.Time
 }
 
+type MediaItemTranslation struct {
+	MediaItemID string
+	Locale      string
+	Title       string
+	Overview    string
+	Tagline     string
+}
+
+type PersonTranslation struct {
+	PersonID  string
+	Locale    string
+	Biography string
+}
+
 type TrickplayManifest struct {
 	ID          string
 	MediaItemID string

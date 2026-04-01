@@ -25,15 +25,18 @@ type CollectionLinker interface {
 }
 
 type Enricher struct {
-	artwork       domainmetadata.ArtworkRepository
-	persons       domainlib.PersonRepository
-	mediaPersons  domainlib.MediaPersonRepository
-	mediaItems    domainlib.MediaItemRepository
-	search        domainlib.SearchIndex
-	primary       domainmetadata.MetadataProvider
-	supplementary []domainmetadata.MetadataProvider
-	collections   CollectionLinker
-	apiLimiter    *rate.Limiter
+	artwork              domainmetadata.ArtworkRepository
+	persons              domainlib.PersonRepository
+	mediaPersons         domainlib.MediaPersonRepository
+	mediaItems           domainlib.MediaItemRepository
+	search               domainlib.SearchIndex
+	primary              domainmetadata.MetadataProvider
+	supplementary        []domainmetadata.MetadataProvider
+	collections          CollectionLinker
+	apiLimiter           *rate.Limiter
+	mediaTranslations    domainlib.MediaItemTranslationRepository
+	personTranslations   domainlib.PersonTranslationRepository
+	translationLocales   []string
 }
 
 func NewEnricher(
@@ -57,6 +60,17 @@ func NewEnricher(
 		collections:   collections,
 		apiLimiter:    rate.NewLimiter(rate.Every(250*time.Millisecond), 1),
 	}
+}
+
+func (e *Enricher) WithTranslations(
+	mediaTranslations domainlib.MediaItemTranslationRepository,
+	personTranslations domainlib.PersonTranslationRepository,
+	locales []string,
+) *Enricher {
+	e.mediaTranslations = mediaTranslations
+	e.personTranslations = personTranslations
+	e.translationLocales = locales
+	return e
 }
 
 // EnrichItem applies a MetadataResult to a media item: updates the item,
@@ -251,6 +265,56 @@ func (e *Enricher) linkCollection(ctx context.Context, mediaItemID string, ref *
 	}
 }
 
+func (e *Enricher) enrichTranslations(ctx context.Context, item *domainlib.MediaItem, providerID, mediaType string) {
+	if e.mediaTranslations == nil || len(e.translationLocales) == 0 {
+		return
+	}
+	tmdb, ok := e.primary.(*TMDBProvider)
+	if !ok {
+		return
+	}
+	results, err := tmdb.FetchTranslations(ctx, providerID, mediaType, e.translationLocales)
+	if err != nil {
+		slog.Warn("fetch translations", slog.String("item", item.ID), slog.Any("err", err))
+		return
+	}
+	for locale, result := range results {
+		if err := e.mediaTranslations.Upsert(ctx, &domainlib.MediaItemTranslation{
+			MediaItemID: item.ID,
+			Locale:      locale,
+			Title:       result.Title,
+			Overview:    result.Overview,
+			Tagline:     result.Tagline,
+		}); err != nil {
+			slog.Warn("upsert media translation", slog.String("locale", locale), slog.Any("err", err))
+		}
+	}
+}
+
+func (e *Enricher) EnrichPersonTranslations(ctx context.Context, person *domainlib.Person, tmdbID int) {
+	if e.personTranslations == nil || len(e.translationLocales) == 0 {
+		return
+	}
+	tmdb, ok := e.primary.(*TMDBProvider)
+	if !ok {
+		return
+	}
+	bios, err := tmdb.FetchPersonTranslations(ctx, tmdbID, e.translationLocales)
+	if err != nil {
+		slog.Warn("fetch person translations", slog.String("person", person.ID), slog.Any("err", err))
+		return
+	}
+	for locale, bio := range bios {
+		if err := e.personTranslations.Upsert(ctx, &domainlib.PersonTranslation{
+			PersonID:  person.ID,
+			Locale:    locale,
+			Biography: bio,
+		}); err != nil {
+			slog.Warn("upsert person translation", slog.String("locale", locale), slog.Any("err", err))
+		}
+	}
+}
+
 func roleType(role string) string {
 	switch role {
 	case "Actor":
@@ -313,6 +377,11 @@ func (e *Enricher) AutoEnrichItem(ctx context.Context, item *domainlib.MediaItem
 	if err := e.EnrichItem(ctx, item, primary); err != nil && log != nil {
 		log.Warn("auto-enrich failed", slog.String("title", item.Title), slog.Any("err", err))
 		return
+	}
+
+	// 3b. Fetch and store translations in other locales
+	if tmdbID := primary.ProviderIDs["tmdb"]; tmdbID != "" {
+		e.enrichTranslations(ctx, item, tmdbID, mediaType)
 	}
 
 	// 4. Supplement with extra IDs, ratings from secondary providers

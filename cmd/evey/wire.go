@@ -163,7 +163,10 @@ func buildServices(ctx context.Context, cfg *config.Config, db *sql.DB, rootLog 
 	mediaItemCache := applibrary.NewCachedMediaItemQueryRepo(r.MediaItemQuery, 30*time.Second)
 	mediaItemCache.Register(bus)
 	personFetcher := metadataadapter.NewTMDBPersonFetcher(tmdbProvider)
-	libQuerySvc := applibrary.NewQueryService(r.Library, mediaItemCache, r.MediaStream, searchAdapter).WithPeople(r.Person).WithPersonFetcher(personFetcher)
+	libQuerySvc := applibrary.NewQueryService(r.Library, mediaItemCache, r.MediaStream, searchAdapter).
+		WithPeople(r.Person).
+		WithPersonFetcher(personFetcher).
+		WithTranslations(r.MediaItemTranslation, r.PersonTranslation, personFetcher, eveyi18n.SupportedLocales())
 
 	schedulerLog := eveylogger.NewWith(rootLog, "scheduler")
 	libScheduler := applibrary.NewScheduler(r.ScanSchedule, libCmdSvc, schedulerLog)
@@ -213,6 +216,7 @@ func buildServices(ctx context.Context, cfg *config.Config, db *sql.DB, rootLog 
 		[]metadata.MetadataProvider{omdbProvider, tvmazeProvider, imdbProvider},
 		collectionSvc,
 	)
+	enricher.WithTranslations(r.MediaItemTranslation, r.PersonTranslation, eveyi18n.SupportedLocales())
 	metadataCmdSvc.WithEnricher(enricher, r.MediaItem)
 
 	activityCmdSvc := appactivity.NewCommandService(r.LoginHistory, r.ServerMetric, r.AuditLog, bus)
