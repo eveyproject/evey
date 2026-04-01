@@ -376,24 +376,48 @@ func (h *hlsMasterServe) serveMaster(w http.ResponseWriter, r *http.Request, out
 	w.Header().Set("Cache-Control", "no-cache")
 
 	masterPath := filepath.Join(outputDir, "master.m3u8")
-	var maxBps int64
-	if h.bitrateGetter != nil {
-		if limitKbps, bitrateErr := h.bitrateGetter.GetUserBitrateLimit(r.Context(), userID); bitrateErr == nil && limitKbps > 0 {
-			maxBps = int64(limitKbps) * 1000
-		}
-	}
-	if maxBps <= 0 {
-		http.ServeFile(w, r, masterPath)
-		return
-	}
 	data, readErr := os.ReadFile(masterPath)
 	if readErr != nil {
 		slog.Error("hls: read master playlist", slog.Any("err", readErr))
 		http.Error(w, `{"message":"internal error"}`, http.StatusInternalServerError)
 		return
 	}
-	filtered := filterMasterPlaylist(string(data), maxBps)
-	_, _ = w.Write([]byte(filtered))
+
+	content := string(data)
+
+	var maxBps int64
+	if h.bitrateGetter != nil {
+		if limitKbps, bitrateErr := h.bitrateGetter.GetUserBitrateLimit(r.Context(), userID); bitrateErr == nil && limitKbps > 0 {
+			maxBps = int64(limitKbps) * 1000
+		}
+	}
+	if maxBps > 0 {
+		content = filterMasterPlaylist(content, maxBps)
+	}
+
+	// Inject auth token into segment URLs so native players (ExoPlayer, AVPlayer)
+	// can fetch segments without needing custom header injection
+	if tok := r.URL.Query().Get("token"); tok != "" {
+		content = injectTokenIntoPlaylist(content, tok)
+	}
+
+	_, _ = w.Write([]byte(content))
+}
+
+// injectTokenIntoPlaylist appends ?token= to relative .m3u8 and .ts references
+// in HLS playlists so native players can auth without custom headers.
+func injectTokenIntoPlaylist(content, token string) string {
+	var result strings.Builder
+	for _, line := range strings.Split(content, "\n") {
+		trimmed := strings.TrimSpace(line)
+		// Append token to relative segment/playlist references (not comments, not absolute URLs)
+		if trimmed != "" && !strings.HasPrefix(trimmed, "#") && !strings.HasPrefix(trimmed, "http") {
+			line = trimmed + "?token=" + token
+		}
+		result.WriteString(line)
+		result.WriteByte('\n')
+	}
+	return result.String()
 }
 
 func hlsSegmentHandler(tokenGen TokenVerifier, libSvc MediaItemGetter, hlsManager *apptranscoding.HLSManager, libraryAccess LibraryAccessChecker) http.HandlerFunc {
@@ -460,18 +484,32 @@ func hlsSegmentHandler(tokenGen TokenVerifier, libSvc MediaItemGetter, hlsManage
 			return
 		}
 
+		if s, ok := hlsManager.GetSession(mediaID); ok {
+			s.MarkAccess()
+		}
+
 		switch {
 		case strings.HasSuffix(file, ".m3u8"):
 			w.Header().Set("Content-Type", "application/vnd.apple.mpegurl")
 			w.Header().Set("Cache-Control", "no-cache")
+			// Inject token into sub-playlist so native players can fetch .ts segments
+			if tok := r.URL.Query().Get("token"); tok != "" {
+				data, readErr := os.ReadFile(filePath)
+				if readErr != nil {
+					http.Error(w, `{"message":"internal error"}`, http.StatusInternalServerError)
+					return
+				}
+				_, _ = w.Write([]byte(injectTokenIntoPlaylist(string(data), tok)))
+				return
+			}
+			http.ServeFile(w, r, filePath)
 		case strings.HasSuffix(file, ".ts"):
 			w.Header().Set("Content-Type", "video/mp2t")
 			w.Header().Set("Cache-Control", "no-cache")
+			http.ServeFile(w, r, filePath)
+		default:
+			http.ServeFile(w, r, filePath)
 		}
-		if s, ok := hlsManager.GetSession(mediaID); ok {
-			s.MarkAccess()
-		}
-		http.ServeFile(w, r, filePath)
 	}
 }
 
