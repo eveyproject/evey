@@ -218,6 +218,7 @@ func buildServices(ctx context.Context, cfg *config.Config, db *sql.DB, rootLog 
 	)
 	enricher.WithTranslations(r.MediaItemTranslation, r.PersonTranslation, eveyi18n.SupportedLocales())
 	metadataCmdSvc.WithEnricher(enricher, r.MediaItem)
+	metadataCmdSvc.WithMediaPersons(r.MediaPerson)
 
 	activityCmdSvc := appactivity.NewCommandService(r.LoginHistory, r.ServerMetric, r.AuditLog, bus)
 	activityQuerySvc := appactivity.NewQueryService(r.LoginHistory, r.ServerMetric, r.AuditLog, r.PlaySessionStats, r.PlayHistory).

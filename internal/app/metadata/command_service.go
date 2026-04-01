@@ -15,14 +15,15 @@ import (
 )
 
 type CommandService struct {
-	overrides  metadata.MetadataOverrideRepository
-	artwork    metadata.ArtworkRepository
-	downloader metadata.ArtworkDownloader
-	events     shared.EventBus
-	providers  []metadata.MetadataProvider
-	mediaItems library.MediaItemRepository
-	enricher   ItemEnricher
-	workerWg   sync.WaitGroup
+	overrides    metadata.MetadataOverrideRepository
+	artwork      metadata.ArtworkRepository
+	downloader   metadata.ArtworkDownloader
+	events       shared.EventBus
+	providers    []metadata.MetadataProvider
+	mediaItems   library.MediaItemRepository
+	mediaPersons library.MediaPersonRepository
+	enricher     ItemEnricher
+	workerWg     sync.WaitGroup
 }
 
 func NewCommandService(
@@ -44,6 +45,10 @@ func NewCommandService(
 func (s *CommandService) WithEnricher(enricher ItemEnricher, mediaItems library.MediaItemRepository) {
 	s.enricher = enricher
 	s.mediaItems = mediaItems
+}
+
+func (s *CommandService) WithMediaPersons(repo library.MediaPersonRepository) {
+	s.mediaPersons = repo
 }
 
 func (s *CommandService) RefreshMetadata(ctx context.Context, mediaItemID, providerID, providerName, mediaType string) (*metadata.MetadataResult, error) {
@@ -187,6 +192,26 @@ func deriveTitle(filePath, itemType string) string {
 	return strings.TrimSuffix(base, ext)
 }
 
+// deriveTitleFromChildren gets the series title from the top-level media directory
+// by looking at an episode's file path (e.g. /media2/It welcome to derry/S01/... → "It welcome to derry").
+func (s *CommandService) deriveTitleFromChildren(ctx context.Context, seriesID string) string {
+	seasonType := "season"
+	seasons, err := s.mediaItems.List(ctx, library.ListMediaItemsFilter{ParentID: &seriesID, Type: &seasonType, Limit: 1})
+	if err != nil || len(seasons) == 0 {
+		return ""
+	}
+	episodeType := "episode"
+	episodes, err := s.mediaItems.List(ctx, library.ListMediaItemsFilter{ParentID: &seasons[0].ID, Type: &episodeType, Limit: 1})
+	if err != nil || len(episodes) == 0 {
+		return ""
+	}
+	// Extract the series directory name: /media2/It welcome to derry/S01/file.mkv → "It welcome to derry"
+	fp := episodes[0].FilePath
+	dir := filepath.Dir(fp)     // /media2/It welcome to derry/S01
+	dir = filepath.Dir(dir)     // /media2/It welcome to derry
+	return filepath.Base(dir)   // It welcome to derry
+}
+
 // ResetItemMetadata clears enriched metadata fields, artwork, and overrides
 // so the auto-enricher will re-process the item on its next cycle.
 func (s *CommandService) ResetItemMetadata(ctx context.Context, mediaItemID string) error {
@@ -199,9 +224,13 @@ func (s *CommandService) ResetItemMetadata(ctx context.Context, mediaItemID stri
 	}
 
 	// Derive title from file path or directory name (strip enriched title)
-	// For series/seasons without file_path, keep the current title
 	if item.FilePath != "" {
 		item.Title = deriveTitle(item.FilePath, item.Type)
+	} else if item.Type == "series" && s.mediaItems != nil {
+		// For series without file_path, derive from episode paths
+		if dirName := s.deriveTitleFromChildren(ctx, item.ID); dirName != "" {
+			item.Title = dirName
+		}
 	}
 
 	item.Overview = ""
@@ -226,6 +255,11 @@ func (s *CommandService) ResetItemMetadata(ctx context.Context, mediaItemID stri
 	}
 	if err := s.overrides.DeleteByMediaItemID(ctx, mediaItemID); err != nil {
 		slog.Warn("reset: delete overrides", slog.Any("err", err))
+	}
+	if s.mediaPersons != nil {
+		if err := s.mediaPersons.DeleteByMediaItemID(ctx, mediaItemID); err != nil {
+			slog.Warn("reset: delete media persons", slog.Any("err", err))
+		}
 	}
 
 	// Trigger re-enrichment with background context (request ctx may be done)
