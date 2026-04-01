@@ -1,12 +1,13 @@
 import { useState, useEffect, useMemo } from "react";
 import { View, Text, TextInput, Pressable, ActivityIndicator, Alert, Linking } from "react-native";
-import { router, useLocalSearchParams } from "expo-router";
+import { router } from "expo-router";
 import { useTranslation } from "react-i18next";
 import { useQuery } from "@tanstack/react-query";
 import { useUserServiceLogin, eveyFetch } from "@evey/api";
 import { useAuthStore } from "@evey/store";
 import { useTheme } from "../src/providers/ThemeProvider";
 import { useServerUrl } from "../src/hooks/useServerUrl";
+import { setRefreshToken } from "../src/lib/refresh-token";
 
 export default function Login() {
   const theme = useTheme();
@@ -35,11 +36,12 @@ export default function Login() {
       }
       (async () => {
         try {
-          const { accessToken } = await eveyFetch<{ accessToken: string }>({
+          const data = await eveyFetch<{ accessToken: string; refreshToken?: string }>({
             url: "/api/v1/auth/oidc/session",
             method: "GET",
           });
-          setTokens(accessToken);
+          setTokens(data.accessToken);
+          if (data.refreshToken) await setRefreshToken(data.refreshToken);
           router.replace("/profile-select");
         } catch {
           Alert.alert(t("auth.login.ssoFailed", "SSO login failed"));
@@ -64,9 +66,10 @@ export default function Login() {
 
   const { mutate: login, isPending } = useUserServiceLogin({
     mutation: {
-      onSuccess: (data) => {
+      onSuccess: async (data) => {
         if (data.accessToken) {
           setTokens(data.accessToken);
+          if (data.refreshToken) await setRefreshToken(data.refreshToken);
           router.replace("/profile-select");
         }
       },
@@ -80,8 +83,10 @@ export default function Login() {
   });
 
   function handleLogin() {
-    if (!username.trim() || !password) return;
-    login({ data: { username: username.trim(), password } });
+    const u = username.trim();
+    const p = password.trim();
+    if (!u || !p) return;
+    login({ data: { username: u, password: p } });
   }
 
   const inputStyle = useMemo(() => ({
