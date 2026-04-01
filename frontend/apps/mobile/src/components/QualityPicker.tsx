@@ -8,13 +8,16 @@ export interface QualityOption {
   value: number;
 }
 
-const QUALITY_OPTIONS: QualityOption[] = [
-  { label: "Original", value: 0 },
-  { label: "1080p", value: 1080 },
-  { label: "720p", value: 720 },
-  { label: "480p", value: 480 },
-  { label: "360p", value: 360 },
-];
+function useQualityOptions(): QualityOption[] {
+  const { t } = useTranslation();
+  return [
+    { label: t("player.quality.original"), value: 0 },
+    { label: "1080p", value: 1080 },
+    { label: "720p", value: 720 },
+    { label: "480p", value: 480 },
+    { label: "360p", value: 360 },
+  ];
+}
 
 interface QualityPickerProps {
   visible: boolean;
@@ -31,6 +34,7 @@ export function QualityPicker({
 }: QualityPickerProps) {
   const { t } = useTranslation();
   const theme = useTheme();
+  const QUALITY_OPTIONS = useQualityOptions();
 
   return (
     <BottomSheet visible={visible} onClose={onClose} title={t("player.controls.quality")}>

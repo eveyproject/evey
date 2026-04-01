@@ -1,4 +1,5 @@
 import { View, Text, Pressable, StyleSheet } from "react-native";
+import { useTranslation } from "react-i18next";
 import { useTheme } from "../providers/ThemeProvider";
 import { BottomSheet } from "./BottomSheet";
 
@@ -34,9 +35,10 @@ export function SubtitlePicker({
   currentIndex,
   onSelect,
 }: SubtitlePickerProps) {
+  const { t } = useTranslation();
   const theme = useTheme();
   return (
-    <BottomSheet visible={visible} onClose={onClose} title="Subtitles">
+    <BottomSheet visible={visible} onClose={onClose} title={t("player.settings.subtitles")}>
       <Pressable
         style={styles.row}
         onPress={() => {
@@ -44,11 +46,11 @@ export function SubtitlePicker({
           onClose();
         }}
         accessible={true}
-        accessibilityLabel="None"
+        accessibilityLabel={t("player.settings.off")}
         accessibilityRole="button"
       >
         <Text style={[styles.label, { color: theme.colors.text }, currentIndex === null && { color: theme.colors.accent }]}>
-          None
+          {t("player.settings.off")}
         </Text>
         {currentIndex === null && <Text style={[styles.check, { color: theme.colors.accent }]}>{"\u2713"}</Text>}
       </Pressable>
@@ -83,7 +85,7 @@ export function SubtitlePicker({
                 )}
                 {s.burnIn && (
                   <View style={styles.badgeBurnIn}>
-                    <Text style={styles.badgeText}>Burn-in</Text>
+                    <Text style={styles.badgeText}>{t("media.burnIn")}</Text>
                   </View>
                 )}
               </View>

@@ -1,4 +1,5 @@
 import { View, Text, Pressable, StyleSheet } from "react-native";
+import { useTranslation } from "react-i18next";
 import { useTheme } from "../providers/ThemeProvider";
 import { BottomSheet } from "./BottomSheet";
 
@@ -32,9 +33,10 @@ export function AudioTrackPicker({
   currentIndex,
   onSelect,
 }: AudioTrackPickerProps) {
+  const { t } = useTranslation();
   const theme = useTheme();
   return (
-    <BottomSheet visible={visible} onClose={onClose} title="Audio">
+    <BottomSheet visible={visible} onClose={onClose} title={t("player.settings.audio")}>
       {streams.map((s) => {
         const active = s.index === currentIndex;
         return (
