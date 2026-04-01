@@ -22,7 +22,7 @@
     },
     "plugins": [
       "expo-router",
-      "expo-video",
+      ["expo-video", { "supportsPictureInPicture": true }],
       "expo-secure-store",
       "expo-image"
     ]

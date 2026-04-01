@@ -9,7 +9,7 @@ import {
   StyleSheet,
 } from "react-native";
 import { useLocalSearchParams, router } from "expo-router";
-import { useVideoPlayer, VideoView } from "expo-video";
+import { useVideoPlayer, VideoView, isPictureInPictureSupported } from "expo-video";
 import { Ionicons } from "@expo/vector-icons";
 import * as ScreenOrientation from "expo-screen-orientation";
 import { useLibraryServiceGetMediaItem } from "@evey/api";
@@ -18,8 +18,12 @@ import { usePlaySession } from "../../../src/hooks/usePlaySession";
 import { useProgressReporter } from "../../../src/hooks/useProgressReporter";
 import { usePlayerGestures } from "../../../src/hooks/usePlayerGestures";
 import { useNextEpisode } from "../../../src/hooks/useNextEpisode";
+import { useChapters } from "../../../src/hooks/useChapters";
 import { AudioTrackPicker, type AudioStream } from "../../../src/components/AudioTrackPicker";
 import { SubtitlePicker, isImageSubtitle, type SubtitleStream } from "../../../src/components/SubtitlePicker";
+import { QualityPicker } from "../../../src/components/QualityPicker";
+import { ChaptersPicker } from "../../../src/components/ChaptersPicker";
+import { SkipIntroOverlay } from "../../../src/components/SkipIntroOverlay";
 
 const IMAGE_SUBTITLE_CODECS = new Set([
   "pgssub", "hdmv_pgs_subtitle", "dvd_subtitle", "dvbsub", "xsub",
@@ -48,11 +52,18 @@ export default function PlayerScreen() {
   const { streamUrl, sessionId, streamInfo, isLoading, isError, stopSession, restartWithTracks } =
     usePlaySession(mediaId);
 
+  const { data: chapters = [] } = useChapters(mediaId);
+  const videoViewRef = useRef<VideoView>(null);
+  const pipSupported = useMemo(() => isPictureInPictureSupported(), []);
+
   const [showControls, setShowControls] = useState(true);
   const [showAudioPicker, setShowAudioPicker] = useState(false);
   const [showSubtitlePicker, setShowSubtitlePicker] = useState(false);
+  const [showQualityPicker, setShowQualityPicker] = useState(false);
+  const [showChaptersPicker, setShowChaptersPicker] = useState(false);
   const [selectedAudioIndex, setSelectedAudioIndex] = useState<number>(0);
   const [selectedSubtitleIndex, setSelectedSubtitleIndex] = useState<number | null>(null);
+  const [selectedQuality, setSelectedQuality] = useState(0);
   const [playbackSpeed, setPlaybackSpeed] = useState(1);
 
   const audioStreams: AudioStream[] = useMemo(
@@ -238,22 +249,58 @@ export default function PlayerScreen() {
   const handleAudioSelect = useCallback(
     (index: number) => {
       setSelectedAudioIndex(index);
-      restartWithTracks(index, selectedSubtitleIndex ?? undefined);
+      restartWithTracks(index, selectedSubtitleIndex ?? undefined, selectedQuality || undefined);
     },
-    [restartWithTracks, selectedSubtitleIndex],
+    [restartWithTracks, selectedSubtitleIndex, selectedQuality],
   );
 
   const handleSubtitleSelect = useCallback(
     (index: number | null) => {
       setSelectedSubtitleIndex(index);
       if (index === null) {
-        restartWithTracks(selectedAudioIndex, undefined);
+        restartWithTracks(selectedAudioIndex, undefined, selectedQuality || undefined);
       } else {
-        restartWithTracks(selectedAudioIndex, index);
+        restartWithTracks(selectedAudioIndex, index, selectedQuality || undefined);
       }
     },
-    [restartWithTracks, selectedAudioIndex],
+    [restartWithTracks, selectedAudioIndex, selectedQuality],
   );
+
+  const handleQualitySelect = useCallback(
+    (quality: number) => {
+      setSelectedQuality(quality);
+      restartWithTracks(
+        selectedAudioIndex,
+        selectedSubtitleIndex ?? undefined,
+        quality || undefined,
+      );
+    },
+    [restartWithTracks, selectedAudioIndex, selectedSubtitleIndex],
+  );
+
+  const handleChapterSeek = useCallback(
+    (timeSec: number) => {
+      if (!player) return;
+      player.currentTime = timeSec;
+      resetHideTimer();
+    },
+    [player, resetHideTimer],
+  );
+
+  const handleSkipIntro = useCallback(
+    (toSec: number) => {
+      if (!player) return;
+      player.currentTime = toSec;
+    },
+    [player],
+  );
+
+  const handlePip = useCallback(async () => {
+    if (!videoViewRef.current) return;
+    try {
+      await videoViewRef.current.startPictureInPicture();
+    } catch { /* PiP unavailable */ }
+  }, []);
 
   const SPEEDS = [0.5, 0.75, 1, 1.25, 1.5, 2] as const;
   const cycleSpeed = useCallback(() => {
@@ -301,10 +348,12 @@ export default function PlayerScreen() {
 
       <View style={styles.playerWrapper} {...panResponder.panHandlers}>
         <VideoView
+          ref={videoViewRef}
           player={player}
           style={styles.video}
           nativeControls={false}
           contentFit="contain"
+          allowsPictureInPicture={pipSupported}
         />
 
         {/* Seek flash */}
@@ -331,6 +380,13 @@ export default function PlayerScreen() {
             <Text style={styles.volumeText}>{volumePct}</Text>
           </View>
         )}
+
+        {/* Skip intro */}
+        <SkipIntroOverlay
+          filePath={media?.filePath}
+          currentTime={currentTime}
+          onSkip={handleSkipIntro}
+        />
 
         {/* Next episode overlay */}
         {nextEp.visible && nextEp.nextEpisode && (
@@ -387,6 +443,28 @@ export default function PlayerScreen() {
                 >
                   <Text style={styles.speedButtonText}>{playbackSpeed}x</Text>
                 </Pressable>
+                <Pressable
+                  onPress={() => setShowQualityPicker(true)}
+                  hitSlop={8}
+                  style={styles.trackButton}
+                  accessible={true}
+                  accessibilityLabel="Quality"
+                  accessibilityRole="button"
+                >
+                  <Ionicons name="settings-sharp" size={18} color="#fff" />
+                </Pressable>
+                {chapters.length > 0 && (
+                  <Pressable
+                    onPress={() => setShowChaptersPicker(true)}
+                    hitSlop={8}
+                    style={styles.trackButton}
+                    accessible={true}
+                    accessibilityLabel="Chapters"
+                    accessibilityRole="button"
+                  >
+                    <Ionicons name="book-outline" size={18} color="#fff" />
+                  </Pressable>
+                )}
                 {audioStreams.length > 1 && (
                   <Pressable
                     onPress={() => setShowAudioPicker(true)}
@@ -409,6 +487,18 @@ export default function PlayerScreen() {
                     accessibilityRole="button"
                   >
                     <Ionicons name="chatbubble-ellipses" size={18} color="#fff" />
+                  </Pressable>
+                )}
+                {pipSupported && (
+                  <Pressable
+                    onPress={handlePip}
+                    hitSlop={8}
+                    style={styles.trackButton}
+                    accessible={true}
+                    accessibilityLabel="Picture in Picture"
+                    accessibilityRole="button"
+                  >
+                    <Ionicons name="albums-outline" size={18} color="#fff" />
                   </Pressable>
                 )}
               </View>
@@ -443,6 +533,16 @@ export default function PlayerScreen() {
                   <View style={[styles.seekBarFill, { flex: progress }]} />
                   <View style={{ flex: 1 - progress }} />
                 </View>
+                {duration > 0 && chapters.map((ch, i) => {
+                  const pct = (ch.startTimeMs / 1000) / duration;
+                  if (pct <= 0 || pct >= 1) return null;
+                  return (
+                    <View
+                      key={i}
+                      style={[styles.chapterMarker, { left: `${pct * 100}%` }]}
+                    />
+                  );
+                })}
               </Pressable>
               <Text style={styles.timeText}>{formatTime(duration)}</Text>
             </View>
@@ -464,6 +564,21 @@ export default function PlayerScreen() {
         streams={subtitleStreams}
         currentIndex={selectedSubtitleIndex}
         onSelect={handleSubtitleSelect}
+      />
+
+      <QualityPicker
+        visible={showQualityPicker}
+        onClose={() => setShowQualityPicker(false)}
+        currentQuality={selectedQuality}
+        onSelect={handleQualitySelect}
+      />
+
+      <ChaptersPicker
+        visible={showChaptersPicker}
+        onClose={() => setShowChaptersPicker(false)}
+        chapters={chapters}
+        currentTimeMs={currentTime * 1000}
+        onSeek={handleChapterSeek}
       />
     </View>
   );
@@ -566,6 +681,15 @@ const styles = StyleSheet.create({
   },
   seekBarFill: {
     backgroundColor: "#fff",
+  },
+  chapterMarker: {
+    position: "absolute",
+    top: 12,
+    width: 3,
+    height: 8,
+    borderRadius: 1,
+    backgroundColor: "rgba(255,255,255,0.7)",
+    marginLeft: -1,
   },
   seekFlash: {
     position: "absolute",
