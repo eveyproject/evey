@@ -9,9 +9,12 @@ interface AuthenticatedImageSource {
 export function useAuthenticatedImage(uri: string | undefined): AuthenticatedImageSource | undefined {
   const token = useAuthStore((s) => s.accessToken);
 
+  // Pass token as query param — expo-image on Android doesn't always forward
+  // Authorization headers on redirects
   return useMemo(() => {
     if (!uri || !token) return undefined;
-    return { uri, headers: { Authorization: `Bearer ${token}` } };
+    const sep = uri.includes("?") ? "&" : "?";
+    return { uri: `${uri}${sep}token=${token}`, headers: { Authorization: `Bearer ${token}` } };
   }, [uri, token]);
 }
 
