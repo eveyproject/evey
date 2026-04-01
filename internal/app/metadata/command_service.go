@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 
@@ -168,6 +170,23 @@ func (s *CommandService) ResetOverrides(ctx context.Context, mediaItemID string)
 	return nil
 }
 
+// deriveTitle extracts a human-readable title from the file path.
+// For series: uses the top-level directory name.
+// For movies/episodes: uses the filename without extension.
+func deriveTitle(filePath, itemType string) string {
+	if filePath == "" {
+		return ""
+	}
+	if itemType == "series" || itemType == "season" {
+		// Use the directory name
+		return filepath.Base(filePath)
+	}
+	// Use filename without extension
+	base := filepath.Base(filePath)
+	ext := filepath.Ext(base)
+	return strings.TrimSuffix(base, ext)
+}
+
 // ResetItemMetadata clears enriched metadata fields, artwork, and overrides
 // so the auto-enricher will re-process the item on its next cycle.
 func (s *CommandService) ResetItemMetadata(ctx context.Context, mediaItemID string) error {
@@ -179,6 +198,12 @@ func (s *CommandService) ResetItemMetadata(ctx context.Context, mediaItemID stri
 		return fmt.Errorf("get media item: %w", err)
 	}
 
+	// Derive title from file path or directory name (strip enriched title)
+	// For series/seasons without file_path, keep the current title
+	if item.FilePath != "" {
+		item.Title = deriveTitle(item.FilePath, item.Type)
+	}
+
 	item.Overview = ""
 	item.Tagline = ""
 	item.OriginalTitle = ""
@@ -187,7 +212,10 @@ func (s *CommandService) ResetItemMetadata(ctx context.Context, mediaItemID stri
 	item.Genres = nil
 	item.Studios = nil
 	item.CommunityRating = nil
+	item.OfficialRating = ""
 	item.Trailers = nil
+	item.Year = nil
+	item.PremiereDate = nil
 	item.UpdatedAt = time.Now()
 
 	if err := s.mediaItems.Update(ctx, item); err != nil {
@@ -200,9 +228,9 @@ func (s *CommandService) ResetItemMetadata(ctx context.Context, mediaItemID stri
 		slog.Warn("reset: delete overrides", slog.Any("err", err))
 	}
 
-	// Trigger immediate re-enrichment if enricher supports it
+	// Trigger re-enrichment with background context (request ctx may be done)
 	if se, ok := s.enricher.(SingleItemEnricher); ok {
-		go se.AutoEnrichItem(ctx, item, slog.Default())
+		go se.AutoEnrichItem(context.Background(), item, slog.Default())
 	}
 
 	return nil
