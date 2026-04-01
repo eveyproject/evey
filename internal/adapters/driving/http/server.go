@@ -9,6 +9,7 @@ import (
 	appactivity "github.com/gravity-zero/evey/internal/app/activity"
 	appbackup "github.com/gravity-zero/evey/internal/app/backup"
 	appcollection "github.com/gravity-zero/evey/internal/app/collection"
+	appconfig "github.com/gravity-zero/evey/internal/app/config"
 	appfavorite "github.com/gravity-zero/evey/internal/app/favorite"
 	appfeed "github.com/gravity-zero/evey/internal/app/feed"
 	applibrary "github.com/gravity-zero/evey/internal/app/library"
@@ -123,6 +124,7 @@ type HTTPServer struct {
 	// Repos / accessors
 	ArtworkRepo       ArtworkRepo
 	LibraryAccessRepo domainuser.LibraryAccessRepository
+	ServerCfgSvc      *appconfig.Service
 	ServerCfgRepo     domainshared.ServerConfigRepository
 	ProfileRepo       domainuser.ProfileRepository
 	UserRepo          domainuser.UserRepository
@@ -267,7 +269,7 @@ func (s *HTTPServer) RegisterRoutes(mux *http.ServeMux, gwMux http.Handler) {
 	registerAnalyticsRoutes(mux, s.ActivityQuerySvc, s.TokenGen)
 	registerFilterRoutes(mux, s.LibQuerySvc, s.TokenGen, s.LibraryAccessRepo)
 	registerSystemStatsRoute(mux, s.StartTime, s.TokenGen)
-	registerServerConfigRoutes(mux, s.ServerCfgRepo, s.TokenGen, s.ActivityCmdSvc)
+	registerServerConfigRoutes(mux, s.ServerCfgSvc, s.TokenGen, s.ActivityCmdSvc)
 	registerLogsRoute(mux, s.LogDir, s.TokenGen)
 	registerAvailableRuntimesRoute(mux, s.TokenGen)
 	registerMusicRoutes(mux, s.MusicSvc, s.TokenGen, s.LibraryAccessRepo, s.LibQuerySvc)

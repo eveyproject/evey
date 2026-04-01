@@ -9,6 +9,7 @@ import (
 	"time"
 
 	httpapi "github.com/gravity-zero/evey/internal/adapters/driving/http"
+	appconfig "github.com/gravity-zero/evey/internal/app/config"
 	"github.com/gravity-zero/evey/internal/config"
 	"github.com/gravity-zero/evey/internal/domain/shared"
 	eveymetrics "github.com/gravity-zero/evey/internal/pkg/metrics"
@@ -90,6 +91,7 @@ func buildHTTPHandler(gwMux http.Handler, deps *appDeps, cfg *config.Config, sta
 		ImageConverter:    deps.imageConverter,
 		ArtworkRepo:       deps.repos.artworkRepo,
 		LibraryAccessRepo: deps.repos.libraryAccessRepo,
+		ServerCfgSvc:      appconfig.NewService(deps.repos.serverCfgRepo),
 		ServerCfgRepo:     deps.repos.serverCfgRepo,
 		ProfileRepo:       deps.repos.profileRepo,
 		UserRepo:          deps.repos.userRepo,

@@ -14,6 +14,7 @@ import (
 	"time"
 
 	appcollection "github.com/gravity-zero/evey/internal/app/collection"
+	appconfig "github.com/gravity-zero/evey/internal/app/config"
 	appmetadata "github.com/gravity-zero/evey/internal/app/metadata"
 	appmusic "github.com/gravity-zero/evey/internal/app/music"
 	appplaylist "github.com/gravity-zero/evey/internal/app/playlist"
@@ -675,8 +676,9 @@ func newServerConfigMux(t *testing.T) (*http.ServeMux, string, string) {
 	t.Helper()
 	gen, adminTok, userTok := genTokens(t)
 	cfgRepo := sharedfakes.NewFakeServerConfigRepository()
+	cfgSvc := appconfig.NewService(cfgRepo)
 	mux := http.NewServeMux()
-	registerServerConfigRoutes(mux, cfgRepo, gen, nil)
+	registerServerConfigRoutes(mux, cfgSvc, gen, nil)
 	return mux, adminTok, userTok
 }
 

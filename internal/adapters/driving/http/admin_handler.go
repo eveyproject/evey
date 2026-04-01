@@ -15,12 +15,12 @@ import (
 	"time"
 
 	appactivity "github.com/gravity-zero/evey/internal/app/activity"
+	appconfig "github.com/gravity-zero/evey/internal/app/config"
 	appmetadata "github.com/gravity-zero/evey/internal/app/metadata"
 	apptranscoding "github.com/gravity-zero/evey/internal/app/transcoding"
 	appuser "github.com/gravity-zero/evey/internal/app/user"
 	"github.com/gravity-zero/evey/internal/domain/activity"
 	"github.com/gravity-zero/evey/internal/pkg/runtimedetect"
-	domainshared "github.com/gravity-zero/evey/internal/domain/shared"
 	domaintranscoding "github.com/gravity-zero/evey/internal/domain/transcoding"
 	"github.com/gravity-zero/evey/internal/pkg/auth"
 	"github.com/gravity-zero/evey/internal/pkg/id"
@@ -37,7 +37,7 @@ type adminHandler struct {
 	activityCmdSvc *appactivity.CommandService
 	logDir         string
 	startTime      time.Time
-	cfgRepo        domainshared.ServerConfigRepository
+	cfgSvc         *appconfig.Service
 	transcodeSvc   *apptranscoding.Service
 	mediaGetter    MediaItemGetter
 	serverCtx      context.Context
@@ -432,7 +432,7 @@ func (h *adminHandler) handleListServerConfig(w http.ResponseWriter, r *http.Req
 	if !h.requireAdminWithResponse(w, r) {
 		return
 	}
-	entries, err := h.cfgRepo.List(r.Context())
+	entries, err := h.cfgSvc.List(r.Context())
 	if err != nil {
 		http.Error(w, `{"message":"internal error"}`, http.StatusInternalServerError)
 		return
@@ -464,7 +464,7 @@ func (h *adminHandler) handleSetServerConfig(w http.ResponseWriter, r *http.Requ
 		http.Error(w, `{"message":"invalid body"}`, http.StatusBadRequest)
 		return
 	}
-	if err := h.cfgRepo.Set(r.Context(), key, body.Value); err != nil {
+	if err := h.cfgSvc.Set(r.Context(), key, body.Value); err != nil {
 		http.Error(w, `{"message":"internal error"}`, http.StatusInternalServerError)
 		return
 	}
@@ -477,7 +477,7 @@ func (h *adminHandler) handleDeleteServerConfig(w http.ResponseWriter, r *http.R
 		return
 	}
 	key := r.PathValue("key")
-	if err := h.cfgRepo.Delete(r.Context(), key); err != nil {
+	if err := h.cfgSvc.Delete(r.Context(), key); err != nil {
 		http.Error(w, `{"message":"not found"}`, http.StatusNotFound)
 		return
 	}
@@ -680,8 +680,8 @@ func registerSystemStatsRoute(mux *http.ServeMux, startTime time.Time, tokenGen 
 	mux.HandleFunc("GET /api/v1/admin/system/stats", h.handleSystemStats)
 }
 
-func registerServerConfigRoutes(mux *http.ServeMux, cfgRepo domainshared.ServerConfigRepository, tokenGen *auth.JWTGenerator, actCmdSvc *appactivity.CommandService) {
-	h := &adminHandler{tokenGen: tokenGen, cfgRepo: cfgRepo, activityCmdSvc: actCmdSvc}
+func registerServerConfigRoutes(mux *http.ServeMux, cfgSvc *appconfig.Service, tokenGen *auth.JWTGenerator, actCmdSvc *appactivity.CommandService) {
+	h := &adminHandler{tokenGen: tokenGen, cfgSvc: cfgSvc, activityCmdSvc: actCmdSvc}
 	mux.HandleFunc("GET /api/v1/admin/server-config", h.handleListServerConfig)
 	mux.HandleFunc("PUT /api/v1/admin/server-config/{key}", h.handleSetServerConfig)
 	mux.HandleFunc("DELETE /api/v1/admin/server-config/{key}", h.handleDeleteServerConfig)

@@ -207,7 +207,7 @@ func buildServices(ctx context.Context, cfg *config.Config, db *sql.DB, rootLog 
 	metaProviders := []metadata.MetadataProvider{tmdbProvider, omdbProvider, tvmazeProvider, imdbProvider}
 	metadataCmdSvc := appmetadata.NewCommandService(r.MetadataOverride, r.Artwork, artworkDownloader, bus, metaProviders)
 	metadataQuerySvc := appmetadata.NewQueryService(r.MetadataOverride, r.Artwork, metaProviders)
-	enricher := metadataadapter.NewEnricher(
+	enricher := appmetadata.NewEnricher(
 		r.Artwork, r.Person, r.MediaPerson, r.MediaItem, searchAdapter,
 		tmdbProvider,
 		[]metadata.MetadataProvider{omdbProvider, tvmazeProvider, imdbProvider},
