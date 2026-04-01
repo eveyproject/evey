@@ -217,6 +217,7 @@ func buildServices(ctx context.Context, cfg *config.Config, db *sql.DB, rootLog 
 		collectionSvc,
 	)
 	enricher.WithTranslations(r.MediaItemTranslation, r.PersonTranslation, eveyi18n.SupportedLocales())
+	enricher.WithPersonFetcher(personFetcher)
 	metadataCmdSvc.WithEnricher(enricher, r.MediaItem)
 	metadataCmdSvc.WithMediaPersons(r.MediaPerson)
 
