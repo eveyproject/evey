@@ -301,13 +301,13 @@ func (p *TMDBProvider) FetchTranslations(ctx context.Context, providerID string,
 }
 
 // FetchPersonTranslations fetches biography in each locale for a person by TMDB ID.
-func (p *TMDBProvider) FetchPersonTranslations(ctx context.Context, tmdbID int, locales []string) (map[string]string, error) {
+func (p *TMDBProvider) FetchPersonTranslations(ctx context.Context, personID string, locales []string) (map[string]string, error) {
 	results := make(map[string]string)
 	for _, locale := range locales {
 		if locale == p.language {
 			continue
 		}
-		u := fmt.Sprintf("%s/person/%d?language=%s", p.baseURL, tmdbID, locale)
+		u := fmt.Sprintf("%s/person/%s?language=%s", p.baseURL, personID, locale)
 		body, err := p.doRequestWithRetry(ctx, u)
 		if err != nil {
 			continue

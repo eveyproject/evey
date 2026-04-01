@@ -47,3 +47,9 @@ type SeasonDetailProvider interface {
 type ExternalIDLookup interface {
 	LookupByExternalID(ctx context.Context, providerName, externalID string) (*MetadataResult, error)
 }
+
+// TranslationProvider fetches metadata in multiple locales.
+type TranslationProvider interface {
+	FetchTranslations(ctx context.Context, providerID string, mediaType string, locales []string) (map[string]MetadataResult, error)
+	FetchPersonTranslations(ctx context.Context, personName string, locales []string) (map[string]string, error)
+}

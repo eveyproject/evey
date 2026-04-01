@@ -8,6 +8,7 @@ import (
 	"maps"
 	"runtime/debug"
 	"slices"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -270,11 +271,11 @@ func (e *Enricher) enrichTranslations(ctx context.Context, item *domainlib.Media
 	if e.mediaTranslations == nil || len(e.translationLocales) == 0 {
 		return
 	}
-	tmdb, ok := e.primary.(*TMDBProvider)
+	tp, ok := e.primary.(domainmetadata.TranslationProvider)
 	if !ok {
 		return
 	}
-	results, err := tmdb.FetchTranslations(ctx, providerID, mediaType, e.translationLocales)
+	results, err := tp.FetchTranslations(ctx, providerID, mediaType, e.translationLocales)
 	if err != nil {
 		slog.Warn("fetch translations", slog.String("item", item.ID), slog.Any("err", err))
 		return
@@ -296,11 +297,11 @@ func (e *Enricher) EnrichPersonTranslations(ctx context.Context, person *domainl
 	if e.personTranslations == nil || len(e.translationLocales) == 0 {
 		return
 	}
-	tmdb, ok := e.primary.(*TMDBProvider)
+	tp, ok := e.primary.(domainmetadata.TranslationProvider)
 	if !ok {
 		return
 	}
-	bios, err := tmdb.FetchPersonTranslations(ctx, tmdbID, e.translationLocales)
+	bios, err := tp.FetchPersonTranslations(ctx, strconv.Itoa(tmdbID), e.translationLocales)
 	if err != nil {
 		slog.Warn("fetch person translations", slog.String("person", person.ID), slog.Any("err", err))
 		return

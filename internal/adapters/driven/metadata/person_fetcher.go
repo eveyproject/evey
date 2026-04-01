@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/url"
+	"strconv"
 
 	domainlibrary "github.com/gravity-zero/evey/internal/domain/library"
 )
@@ -46,5 +47,5 @@ func (f *TMDBPersonFetcher) FetchPersonTranslations(ctx context.Context, name st
 	if len(searchResp.Results) == 0 {
 		return nil, nil
 	}
-	return f.tmdb.FetchPersonTranslations(ctx, searchResp.Results[0].ID, locales)
+	return f.tmdb.FetchPersonTranslations(ctx, strconv.Itoa(searchResp.Results[0].ID), locales)
 }
