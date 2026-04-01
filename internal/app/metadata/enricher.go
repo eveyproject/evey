@@ -215,6 +215,26 @@ func (e *Enricher) upsertPeople(ctx context.Context, mediaItemID string, people 
 func (e *Enricher) findOrCreatePerson(ctx context.Context, p domainmetadata.PersonResult) (*domainlib.Person, error) {
 	person, err := e.persons.GetByName(ctx, p.Name)
 	if err == nil {
+		// Update provider ID + thumb if missing
+		updated := false
+		if p.ProviderID != "" && person.ProviderIDs["tmdb"] == "" {
+			if person.ProviderIDs == nil {
+				person.ProviderIDs = map[string]string{}
+			}
+			person.ProviderIDs["tmdb"] = p.ProviderID
+			updated = true
+		}
+		if p.ThumbURL != "" && person.ThumbPath == nil {
+			person.ThumbPath = &p.ThumbURL
+			updated = true
+		}
+		if updated {
+			_ = e.persons.Update(ctx, person)
+		}
+		// Fetch bio if missing and we have a TMDB ID
+		if person.Biography == "" && person.ProviderIDs["tmdb"] != "" {
+			e.fetchPersonBio(ctx, person)
+		}
 		return person, nil
 	}
 	if !errors.Is(err, shared.ErrNotFound) {
@@ -225,16 +245,68 @@ func (e *Enricher) findOrCreatePerson(ctx context.Context, p domainmetadata.Pers
 	if thumbPath != "" {
 		thumbPtr = &thumbPath
 	}
+	providerIDs := map[string]string{}
+	if p.ProviderID != "" {
+		providerIDs["tmdb"] = p.ProviderID
+	}
 	person = &domainlib.Person{
 		ID:          uuid.New().String(),
 		Name:        p.Name,
-		ProviderIDs: map[string]string{},
+		ProviderIDs: providerIDs,
 		ThumbPath:   thumbPtr,
 	}
 	if err := e.persons.Create(ctx, person); err != nil {
 		return nil, fmt.Errorf("create person: %w", err)
 	}
+	// Fetch bio for newly created person
+	if person.ProviderIDs["tmdb"] != "" {
+		e.fetchPersonBio(ctx, person)
+	}
 	return person, nil
+}
+
+// fetchPersonBio fetches biography from the primary provider and updates the person record.
+func (e *Enricher) fetchPersonBio(ctx context.Context, person *domainlib.Person) {
+	tp, ok := e.primary.(domainmetadata.TranslationProvider)
+	if !ok {
+		return
+	}
+	tmdbID := person.ProviderIDs["tmdb"]
+	if tmdbID == "" {
+		return
+	}
+	// Fetch bio in default language
+	bios, err := tp.FetchPersonTranslations(ctx, tmdbID, []string{""})
+	if err != nil {
+		return
+	}
+	// FetchPersonTranslations with empty locale returns nothing useful — use the person detail endpoint instead
+	// Fall back to fetching via the TMDB person detail
+	if fetcher, ok2 := e.primary.(personDetailFetcher); ok2 {
+		details, detErr := fetcher.GetPersonDetails(ctx, person.Name)
+		if detErr == nil && details != nil && details.Biography != "" {
+			person.Biography = details.Biography
+			if details.Birthday != "" {
+				person.Birthday = details.Birthday
+			}
+			if details.Deathday != "" {
+				person.Deathday = details.Deathday
+			}
+			if details.PlaceOfBirth != "" {
+				person.PlaceOfBirth = details.PlaceOfBirth
+			}
+			if details.KnownFor != "" {
+				person.KnownFor = details.KnownFor
+			}
+			_ = e.persons.Update(ctx, person)
+		}
+	}
+	_ = bios // not used directly — translations fetched separately
+}
+
+// personDetailFetcher is an optional capability for providers that can fetch person details.
+type personDetailFetcher interface {
+	GetPersonDetails(ctx context.Context, name string) (*domainlib.PersonDetailsResult, error)
 }
 
 func (e *Enricher) indexSearch(ctx context.Context, item *domainlib.MediaItem, people []domainmetadata.PersonResult) {

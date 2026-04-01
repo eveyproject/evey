@@ -526,18 +526,20 @@ func mapDetailPeople(credits *tmdbCredits) []domain.PersonResult {
 	var people []domain.PersonResult
 	for _, c := range credits.Cast {
 		people = append(people, domain.PersonResult{
-			Name:      c.Name,
-			Role:      "Actor",
-			Character: c.Character,
-			ThumbURL:  profileURL(c.ProfilePath),
+			Name:       c.Name,
+			Role:       "Actor",
+			Character:  c.Character,
+			ThumbURL:   profileURL(c.ProfilePath),
+			ProviderID: strconv.Itoa(c.ID),
 		})
 	}
 	for _, c := range credits.Crew {
 		if c.Job == "Director" {
 			people = append(people, domain.PersonResult{
-				Name:     c.Name,
-				Role:     "Director",
-				ThumbURL: profileURL(c.ProfilePath),
+				Name:       c.Name,
+				Role:       "Director",
+				ThumbURL:   profileURL(c.ProfilePath),
+				ProviderID: strconv.Itoa(c.ID),
 			})
 		}
 	}

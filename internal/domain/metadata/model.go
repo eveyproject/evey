@@ -50,10 +50,11 @@ type TrailerResult struct {
 }
 
 type PersonResult struct {
-	Name      string
-	Role      string
-	Character string
-	ThumbURL  string
+	Name       string
+	Role       string
+	Character  string
+	ThumbURL   string
+	ProviderID string // TMDB person ID (for fetching bio/translations)
 }
 
 type ArtworkResult struct {
