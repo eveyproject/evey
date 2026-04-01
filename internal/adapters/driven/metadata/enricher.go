@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"maps"
 	"runtime/debug"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -356,13 +357,19 @@ func (e *Enricher) AutoEnrichItem(ctx context.Context, item *domainlib.MediaItem
 		mediaType = "tv"
 	}
 
+	// For series, count episodes in S01 on disk to validate TMDB matches
+	var diskS01Episodes int
+	if mediaType == "tv" {
+		diskS01Episodes = e.countDiskEpisodesForSeason(ctx, item.ID, 1)
+	}
+
 	// 1. Try primary provider
-	primary := e.searchAndFetch(ctx, e.primary, item.Title, item.Year, mediaType, log)
+	primary := e.searchAndFetchBest(ctx, e.primary, item.Title, item.Year, mediaType, diskS01Episodes, log)
 
 	// 2. If primary failed, try supplementary as fallback
 	if primary == nil {
 		for _, sp := range e.supplementary {
-			primary = e.searchAndFetch(ctx, sp, item.Title, item.Year, mediaType, log)
+			primary = e.searchAndFetchBest(ctx, sp, item.Title, item.Year, mediaType, diskS01Episodes, log)
 			if primary != nil {
 				break
 			}
@@ -469,8 +476,38 @@ func mergeRatings(item *domainlib.MediaItem, src map[string]float64) bool {
 	return changed
 }
 
-// searchAndFetch searches a provider and fetches full details for the best match.
-func (e *Enricher) searchAndFetch(ctx context.Context, provider domainmetadata.MetadataProvider, title string, year *int, mediaType string, log *slog.Logger) *domainmetadata.MetadataResult {
+// countDiskEpisodesForSeason counts episodes on disk for a given season of a series.
+func (e *Enricher) countDiskEpisodesForSeason(ctx context.Context, seriesID string, seasonNum int) int {
+	if e.mediaItems == nil {
+		return 0
+	}
+	seasonType := "season"
+	seasons, err := e.mediaItems.List(ctx, domainlib.ListMediaItemsFilter{
+		ParentID: &seriesID,
+		Type:     &seasonType,
+	})
+	if err != nil {
+		return 0
+	}
+	for _, s := range seasons {
+		if s.IndexNumber != nil && *s.IndexNumber == seasonNum {
+			episodeType := "episode"
+			episodes, epErr := e.mediaItems.List(ctx, domainlib.ListMediaItemsFilter{
+				ParentID: &s.ID,
+				Type:     &episodeType,
+			})
+			if epErr != nil {
+				return 0
+			}
+			return len(episodes)
+		}
+	}
+	return 0
+}
+
+// searchAndFetchBest searches a provider and picks the best match, validating
+// against disk structure (episode counts) for series.
+func (e *Enricher) searchAndFetchBest(ctx context.Context, provider domainmetadata.MetadataProvider, title string, year *int, mediaType string, diskS01Episodes int, log *slog.Logger) *domainmetadata.MetadataResult {
 	results, err := provider.Search(ctx, title, year, mediaType)
 	if err != nil {
 		if log != nil {
@@ -482,12 +519,53 @@ func (e *Enricher) searchAndFetch(ctx context.Context, provider domainmetadata.M
 		return nil
 	}
 
-	best := pickBestMatch(results, title, year)
+	// For non-series or when we don't have disk episode info, use simple matching
+	if mediaType != "tv" || diskS01Episodes == 0 {
+		return e.fetchBestCandidate(ctx, provider, results, title, year, mediaType)
+	}
 
-	// Get the provider's own ID to fetch full details
+	// For series: fetch details for top candidates and validate episode counts
+	ranked := rankByTitle(results, title, year)
+	maxCandidates := 5
+	if len(ranked) < maxCandidates {
+		maxCandidates = len(ranked)
+	}
+
+	for _, candidate := range ranked[:maxCandidates] {
+		providerID := candidate.ProviderIDs[provider.Name()]
+		if providerID == "" {
+			continue
+		}
+		full, fetchErr := provider.GetByProviderID(ctx, providerID, mediaType)
+		if fetchErr != nil || full == nil {
+			continue
+		}
+		// Check if S01 episode count matches within tolerance
+		if tmdbS01, ok := full.SeasonEpisodeCounts[1]; ok {
+			if episodeCountMatches(diskS01Episodes, tmdbS01) {
+				if log != nil {
+					log.Debug("series match validated by S01 episode count",
+						slog.String("title", full.Title),
+						slog.Int("disk_episodes", diskS01Episodes),
+						slog.Int("tmdb_episodes", tmdbS01))
+				}
+				return full
+			}
+		}
+	}
+
+	// Fallback: return the best title match even without episode validation
+	if log != nil {
+		log.Debug("no series match validated by episode count, using best title match", slog.String("title", title))
+	}
+	return e.fetchBestCandidate(ctx, provider, results, title, year, mediaType)
+}
+
+// fetchBestCandidate picks the best title match and fetches full details.
+func (e *Enricher) fetchBestCandidate(ctx context.Context, provider domainmetadata.MetadataProvider, results []domainmetadata.MetadataResult, title string, year *int, mediaType string) *domainmetadata.MetadataResult {
+	best := pickBestMatch(results, title, year)
 	providerID := best.ProviderIDs[provider.Name()]
 	if providerID == "" {
-		// Try imdb ID for OMDb
 		if provider.Name() == "omdb" {
 			providerID = best.ProviderIDs["imdb"]
 		}
@@ -495,12 +573,72 @@ func (e *Enricher) searchAndFetch(ctx context.Context, provider domainmetadata.M
 			return &best
 		}
 	}
-
 	full, err := provider.GetByProviderID(ctx, providerID, mediaType)
 	if err != nil {
 		return &best
 	}
 	return full
+}
+
+// episodeCountMatches returns true if counts are within 20% tolerance
+// (some episodes may not have been downloaded yet).
+func episodeCountMatches(disk, tmdb int) bool {
+	if disk == 0 || tmdb == 0 {
+		return false
+	}
+	diff := disk - tmdb
+	if diff < 0 {
+		diff = -diff
+	}
+	// Allow 20% tolerance — user may not have all episodes
+	tolerance := float64(tmdb) * 0.2
+	if tolerance < 1 {
+		tolerance = 1
+	}
+	return float64(diff) <= tolerance
+}
+
+// rankByTitle sorts results by title similarity (best first).
+func rankByTitle(results []domainmetadata.MetadataResult, query string, year *int) []domainmetadata.MetadataResult {
+	type scored struct {
+		result domainmetadata.MetadataResult
+		score  float64
+	}
+	var items []scored
+	for _, r := range results {
+		s1 := titleSimilarity(query, r.Title)
+		s2 := titleSimilarity(query, r.OriginalTitle)
+		score := s1
+		if s2 > score {
+			score = s2
+		}
+		if year != nil && r.Year != nil && *r.Year == *year {
+			score += 0.3
+		}
+		items = append(items, scored{result: r, score: score})
+	}
+	slices.SortFunc(items, func(a, b scored) int {
+		if a.score != b.score {
+			if a.score > b.score {
+				return -1
+			}
+			return 1
+		}
+		if a.result.Popularity > b.result.Popularity {
+			return -1
+		}
+		return 1
+	})
+	out := make([]domainmetadata.MetadataResult, len(items))
+	for i, it := range items {
+		out[i] = it.result
+	}
+	return out
+}
+
+// searchAndFetch searches a provider and fetches full details for the best match (legacy, used by supplementary).
+func (e *Enricher) searchAndFetch(ctx context.Context, provider domainmetadata.MetadataProvider, title string, year *int, mediaType string, log *slog.Logger) *domainmetadata.MetadataResult {
+	return e.searchAndFetchBest(ctx, provider, title, year, mediaType, 0, log)
 }
 
 func (e *Enricher) autoEnrichSeason(ctx context.Context, item *domainlib.MediaItem, log *slog.Logger) {

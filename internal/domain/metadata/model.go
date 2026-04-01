@@ -35,6 +35,8 @@ type MetadataResult struct {
 	Trailers        []TrailerResult
 	Popularity      float64 // TMDB popularity score, used as tiebreaker
 	Collection      *CollectionRef
+	// TV series structure info (for match validation)
+	SeasonEpisodeCounts map[int]int // season_number → episode_count
 }
 
 type TrailerResult struct {

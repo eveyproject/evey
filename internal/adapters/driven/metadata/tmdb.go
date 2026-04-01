@@ -471,6 +471,14 @@ func mapDetailResult(d tmdbDetailResponse, mediaType string, serverLang string) 
 	}
 
 	result.Collection = mapDetailCollection(d.BelongsToCollection)
+
+	if len(d.Seasons) > 0 {
+		result.SeasonEpisodeCounts = make(map[int]int, len(d.Seasons))
+		for _, s := range d.Seasons {
+			result.SeasonEpisodeCounts[s.SeasonNumber] = s.EpisodeCount
+		}
+	}
+
 	return result
 }
 
@@ -758,6 +766,9 @@ type tmdbDetailResponse struct {
 	ReleaseDate          string           `json:"release_date"`
 	FirstAirDate         string           `json:"first_air_date"`
 	VoteAverage          float64          `json:"vote_average"`
+	NumberOfSeasons      int              `json:"number_of_seasons"`
+	NumberOfEpisodes     int              `json:"number_of_episodes"`
+	Seasons              []tmdbSeasonInfo `json:"seasons"`
 	Genres               []tmdbGenre      `json:"genres"`
 	ProductionCompanies  []tmdbCompany    `json:"production_companies"`
 	Credits             *tmdbCredits     `json:"credits"`
@@ -765,6 +776,11 @@ type tmdbDetailResponse struct {
 	Videos              *tmdbVideos      `json:"videos"`
 	ExternalIDs         *tmdbExternalIDs `json:"external_ids"`
 	BelongsToCollection *tmdbCollection  `json:"belongs_to_collection"`
+}
+
+type tmdbSeasonInfo struct {
+	SeasonNumber int `json:"season_number"`
+	EpisodeCount int `json:"episode_count"`
 }
 
 type tmdbExternalIDs struct {
