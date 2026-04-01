@@ -263,6 +263,66 @@ func (p *TMDBProvider) GetByProviderID(ctx context.Context, providerID string, m
 	return &result, nil
 }
 
+// FetchTranslations fetches title/overview/tagline in each locale, skipping the provider's default language.
+func (p *TMDBProvider) FetchTranslations(ctx context.Context, providerID string, mediaType string, locales []string) (map[string]domain.MetadataResult, error) {
+	results := make(map[string]domain.MetadataResult)
+	for _, locale := range locales {
+		if locale == p.language {
+			continue
+		}
+		endpoint, err := detailEndpoint(mediaType, providerID)
+		if err != nil {
+			return nil, err
+		}
+		params := url.Values{
+			"language": {locale},
+		}
+		u := fmt.Sprintf("%s%s?%s", p.baseURL, endpoint, params.Encode())
+		body, err := p.doRequestWithRetry(ctx, u)
+		if err != nil {
+			continue
+		}
+		var detail tmdbDetailResponse
+		if err := json.Unmarshal(body, &detail); err != nil {
+			continue
+		}
+		r := domain.MetadataResult{
+			Overview: detail.Overview,
+			Tagline:  detail.Tagline,
+		}
+		if mediaType == "tv" {
+			r.Title = detail.Name
+		} else {
+			r.Title = detail.Title
+		}
+		results[locale] = r
+	}
+	return results, nil
+}
+
+// FetchPersonTranslations fetches biography in each locale for a person by TMDB ID.
+func (p *TMDBProvider) FetchPersonTranslations(ctx context.Context, tmdbID int, locales []string) (map[string]string, error) {
+	results := make(map[string]string)
+	for _, locale := range locales {
+		if locale == p.language {
+			continue
+		}
+		u := fmt.Sprintf("%s/person/%d?language=%s", p.baseURL, tmdbID, locale)
+		body, err := p.doRequestWithRetry(ctx, u)
+		if err != nil {
+			continue
+		}
+		var detail tmdbPersonDetail
+		if err := json.Unmarshal(body, &detail); err != nil {
+			continue
+		}
+		if detail.Biography != "" {
+			results[locale] = detail.Biography
+		}
+	}
+	return results, nil
+}
+
 func (p *TMDBProvider) doRequestWithRetry(ctx context.Context, rawURL string) ([]byte, error) {
 	var lastErr error
 	for attempt := 0; attempt <= maxRetries; attempt++ {

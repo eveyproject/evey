@@ -8,12 +8,16 @@ import (
 )
 
 type QueryService struct {
-	libraries     library.LibraryQueryRepo
-	mediaItems    library.MediaItemQueryRepo
-	streams       library.MediaStreamRepository
-	search        library.SearchIndex
-	people        library.PersonRepository
-	personFetcher library.PersonDetailsFetcher
+	libraries            library.LibraryQueryRepo
+	mediaItems           library.MediaItemQueryRepo
+	streams              library.MediaStreamRepository
+	search               library.SearchIndex
+	people               library.PersonRepository
+	personFetcher        library.PersonDetailsFetcher
+	mediaTranslations    library.MediaItemTranslationRepository
+	personTranslations   library.PersonTranslationRepository
+	personTransFetcher   library.PersonTranslationFetcher
+	translationLocales   []string
 }
 
 func NewQueryService(
@@ -40,6 +44,33 @@ func (s *QueryService) WithPersonFetcher(fetcher library.PersonDetailsFetcher) *
 	return s
 }
 
+func (s *QueryService) WithTranslations(
+	mediaTranslations library.MediaItemTranslationRepository,
+	personTranslations library.PersonTranslationRepository,
+	personTransFetcher library.PersonTranslationFetcher,
+	locales []string,
+) *QueryService {
+	s.mediaTranslations = mediaTranslations
+	s.personTranslations = personTranslations
+	s.personTransFetcher = personTransFetcher
+	s.translationLocales = locales
+	return s
+}
+
+func (s *QueryService) GetMediaItemTranslation(ctx context.Context, mediaItemID, locale string) (*library.MediaItemTranslation, error) {
+	if s.mediaTranslations == nil {
+		return nil, nil
+	}
+	return s.mediaTranslations.GetByMediaItemAndLocale(ctx, mediaItemID, locale)
+}
+
+func (s *QueryService) GetPersonTranslation(ctx context.Context, personID, locale string) (*library.PersonTranslation, error) {
+	if s.personTranslations == nil {
+		return nil, nil
+	}
+	return s.personTranslations.GetByPersonAndLocale(ctx, personID, locale)
+}
+
 func (s *QueryService) GetPerson(ctx context.Context, id string) (*library.Person, error) {
 	if s.people == nil {
 		return nil, nil
@@ -62,6 +93,16 @@ func (s *QueryService) GetPerson(ctx context.Context, id string) (*library.Perso
 			}
 			if updateErr := s.people.Update(ctx, person); updateErr != nil {
 				slog.Warn("cache person bio failed", slog.String("personID", person.ID), slog.Any("err", updateErr))
+			}
+			// Fetch and store person translations
+			if s.personTransFetcher != nil && s.personTranslations != nil && len(s.translationLocales) > 0 {
+				if bios, bioErr := s.personTransFetcher.FetchPersonTranslations(ctx, person.Name, s.translationLocales); bioErr == nil {
+					for locale, bio := range bios {
+						_ = s.personTranslations.Upsert(ctx, &library.PersonTranslation{
+							PersonID: person.ID, Locale: locale, Biography: bio,
+						})
+					}
+				}
 			}
 		}
 	}

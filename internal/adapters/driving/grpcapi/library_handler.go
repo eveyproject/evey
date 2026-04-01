@@ -135,6 +135,21 @@ func (h *libraryHandler) GetMediaItem(ctx context.Context, req *eveyv1.GetMediaI
 			applyOverridesToItem(item, overrides)
 		}
 	}
+	// Overlay translated metadata if user locale != default
+	locale := eveyi18n.LocaleFromCtx(ctx)
+	if locale != "" && locale != eveyi18n.FallbackLocale {
+		if trans, tErr := h.query.GetMediaItemTranslation(ctx, req.Id, locale); tErr == nil && trans != nil {
+			if trans.Title != "" {
+				item.Title = trans.Title
+			}
+			if trans.Overview != "" {
+				item.Overview = trans.Overview
+			}
+			if trans.Tagline != "" {
+				item.Tagline = trans.Tagline
+			}
+		}
+	}
 	pb := mediaItemToProto(item)
 	if h.metadataSvc != nil {
 		if artworks, err := h.metadataSvc.GetArtwork(ctx, req.Id); err == nil {
@@ -324,6 +339,15 @@ func (h *libraryHandler) GetPerson(ctx context.Context, req *eveyv1.GetPersonReq
 	}
 	if person == nil {
 		return nil, status.Errorf(codes.NotFound, "person not found")
+	}
+	// Overlay translated biography if user locale != default
+	personLocale := eveyi18n.LocaleFromCtx(ctx)
+	if personLocale != "" && personLocale != eveyi18n.FallbackLocale {
+		if trans, tErr := h.query.GetPersonTranslation(ctx, person.ID, personLocale); tErr == nil && trans != nil {
+			if trans.Biography != "" {
+				person.Biography = trans.Biography
+			}
+		}
 	}
 	resp := &eveyv1.GetPersonResponse{
 		Id:           person.ID,

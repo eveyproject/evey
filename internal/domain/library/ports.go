@@ -204,6 +204,20 @@ type TrickplayGenerator interface {
 	Generate(ctx context.Context, filePath string, outputDir string, interval, width, tileWidth, tileHeight, maxWorkers int) (*TrickplayResult, error)
 }
 
+type MediaItemTranslationRepository interface {
+	Upsert(ctx context.Context, t *MediaItemTranslation) error
+	GetByMediaItemAndLocale(ctx context.Context, mediaItemID, locale string) (*MediaItemTranslation, error)
+	GetByMediaItem(ctx context.Context, mediaItemID string) ([]*MediaItemTranslation, error)
+	DeleteByMediaItem(ctx context.Context, mediaItemID string) error
+}
+
+type PersonTranslationRepository interface {
+	Upsert(ctx context.Context, t *PersonTranslation) error
+	GetByPersonAndLocale(ctx context.Context, personID, locale string) (*PersonTranslation, error)
+	GetByPerson(ctx context.Context, personID string) ([]*PersonTranslation, error)
+	DeleteByPerson(ctx context.Context, personID string) error
+}
+
 type PersonDetailsResult struct {
 	Biography    string
 	Birthday     string
@@ -215,4 +229,8 @@ type PersonDetailsResult struct {
 
 type PersonDetailsFetcher interface {
 	GetPersonDetails(ctx context.Context, name string) (*PersonDetailsResult, error)
+}
+
+type PersonTranslationFetcher interface {
+	FetchPersonTranslations(ctx context.Context, name string, locales []string) (map[string]string, error)
 }
