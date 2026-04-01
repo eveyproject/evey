@@ -81,6 +81,7 @@ func TestDefaultRBACConfig_AdminMethods(t *testing.T) {
 		"/evey.v1.UserService/RevokeAPIKey",
 		// LibraryService (admin-only)
 		"/evey.v1.LibraryService/CreateLibrary",
+		"/evey.v1.LibraryService/UpdateLibrary",
 		"/evey.v1.LibraryService/DeleteLibrary",
 		"/evey.v1.LibraryService/ScanLibrary",
 		// FeedService

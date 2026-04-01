@@ -59,6 +59,7 @@ func DefaultRBACConfig() RBACConfig {
 			"/evey.v1.UserService/ListAPIKeys":                              RoleAdmin,
 			"/evey.v1.UserService/RevokeAPIKey":                             RoleAdmin,
 			"/evey.v1.LibraryService/CreateLibrary":                         RoleAdmin,
+			"/evey.v1.LibraryService/UpdateLibrary":                         RoleAdmin,
 			"/evey.v1.LibraryService/DeleteLibrary":                         RoleAdmin,
 			"/evey.v1.LibraryService/ScanLibrary":                           RoleAdmin,
 			"/evey.v1.FeedService/GetAdminFeedConfigs":                      RoleAdmin,

@@ -72,6 +72,26 @@ func (h *libraryHandler) ListLibraries(ctx context.Context, _ *eveyv1.ListLibrar
 	return resp, nil
 }
 
+func (h *libraryHandler) UpdateLibrary(ctx context.Context, req *eveyv1.UpdateLibraryRequest) (*eveyv1.Library, error) {
+	if req.Id == "" {
+		return nil, status.Errorf(codes.InvalidArgument, "id is required")
+	}
+	lib, err := h.query.GetLibrary(ctx, req.Id)
+	if err != nil {
+		return nil, status.Errorf(codes.NotFound, "library not found: %v", err)
+	}
+	if req.Name != nil {
+		lib.Name = *req.Name
+	}
+	if len(req.Paths) > 0 {
+		lib.Paths = req.Paths
+	}
+	if err := h.cmd.UpdateLibrary(ctx, lib); err != nil {
+		return nil, status.Errorf(codes.Internal, "update library: %v", err)
+	}
+	return libraryToProto(lib), nil
+}
+
 func (h *libraryHandler) DeleteLibrary(ctx context.Context, req *eveyv1.DeleteLibraryRequest) (*eveyv1.DeleteLibraryResponse, error) {
 	if err := h.cmd.DeleteLibrary(ctx, req.Id); err != nil {
 		return nil, status.Errorf(codes.Internal, "delete library: %v", err)
