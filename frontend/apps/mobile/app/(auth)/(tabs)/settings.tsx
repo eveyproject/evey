@@ -42,10 +42,10 @@ export default function SettingsScreen() {
       onSuccess: () => {
         setNewPassword("");
         setConfirmPassword("");
-        Alert.alert(t("auth.settings.account.passwordUpdated", "Password updated"));
+        Alert.alert(t("auth.settings.account.passwordUpdated"));
       },
       onError: (err: Error) => {
-        Alert.alert(t("auth.settings.account.passwordFailed", "Failed"), err.message);
+        Alert.alert(t("auth.settings.account.passwordFailed"), err.message);
       },
     },
   });
@@ -117,7 +117,11 @@ export default function SettingsScreen() {
           <Text style={s.label}>URL</Text>
           <Text style={s.value} numberOfLines={1}>{serverUrl ?? "..."}</Text>
         </View>
-        <Pressable style={s.row} onPress={handleChangeServer} accessible={true} accessibilityLabel={t("mobile.settings.changeServer")} accessibilityRole="button">
+        <View style={s.row}>
+          <Text style={s.label}>{t("mobile.settings.serverVersion")}</Text>
+          <Text style={s.value}>{systemInfo?.version ?? "\u2014"}</Text>
+        </View>
+        <Pressable style={s.row} onPress={handleChangeServer} accessible accessibilityLabel={t("mobile.settings.changeServer")} accessibilityRole="button">
           <Text style={s.labelDestructive}>{t("mobile.settings.changeServer")}</Text>
           <ChevronRight color={theme.colors.textMuted} />
         </Pressable>
@@ -130,35 +134,39 @@ export default function SettingsScreen() {
           <Text style={s.label}>{t("auth.login.username")}</Text>
           <Text style={s.value}>{user?.username ?? "..."}</Text>
         </View>
-        <Pressable style={s.row} onPress={() => router.push("/history")} accessible={true} accessibilityLabel={t("auth.watchHistory.title", "Watch History")} accessibilityRole="button">
-          <Text style={s.label}>{t("auth.watchHistory.title", "Watch History")}</Text>
+        <View style={s.row}>
+          <Text style={s.label}>{t("auth.profile.email")}</Text>
+          <Text style={s.value}>{user?.email ?? "\u2014"}</Text>
+        </View>
+        <Pressable style={s.row} onPress={() => router.push("/history")} accessible accessibilityLabel={t("common.watchHistory.title")} accessibilityRole="button">
+          <Text style={s.label}>{t("common.watchHistory.title")}</Text>
           <ChevronRight color={theme.colors.textMuted} />
         </Pressable>
-        <Pressable style={s.row} onPress={() => router.push("/profile-select")} accessible={true} accessibilityLabel={t("mobile.settings.switchProfile", "Switch Profile")} accessibilityRole="button">
-          <Text style={s.label}>{t("mobile.settings.switchProfile", "Switch Profile")}</Text>
+        <Pressable style={s.row} onPress={() => router.push("/notifications")} accessible accessibilityLabel={t("common.notifications.title")} accessibilityRole="button">
+          <Text style={s.label}>{t("common.notifications.title")}</Text>
           <ChevronRight color={theme.colors.textMuted} />
         </Pressable>
-        <Pressable style={s.row} onPress={() => router.push("/settings/parental")} accessible={true} accessibilityLabel={t("auth.settings.tabs.parental", "Parental Controls")} accessibilityRole="button">
-          <Text style={s.label}>{t("auth.settings.tabs.parental", "Parental Controls")}</Text>
+        <Pressable style={s.row} onPress={() => router.push("/profile-select")} accessible accessibilityLabel={t("mobile.settings.switchProfile")} accessibilityRole="button">
+          <Text style={s.label}>{t("mobile.settings.switchProfile")}</Text>
           <ChevronRight color={theme.colors.textMuted} />
         </Pressable>
-        <Pressable style={s.row} onPress={handleSignOut} accessible={true} accessibilityLabel={t("mobile.settings.signOut")} accessibilityRole="button">
+        <Pressable style={s.row} onPress={handleSignOut} accessible accessibilityLabel={t("mobile.settings.signOut")} accessibilityRole="button">
           <Text style={s.labelDestructive}>{t("mobile.settings.signOut")}</Text>
           <ChevronRight color={theme.colors.textMuted} />
         </Pressable>
       </View>
 
       {/* Change Password */}
-      <Text style={s.sectionTitle}>{t("auth.settings.account.changePassword", "Change Password")}</Text>
+      <Text style={s.sectionTitle}>{t("auth.settings.account.changePassword")}</Text>
       <View style={s.section}>
         <View style={{ paddingHorizontal: theme.spacing.md, paddingTop: 14 }}>
           <Text style={{ color: theme.colors.textMuted, fontSize: 13, marginBottom: theme.spacing.sm }}>
-            {t("auth.settings.account.changePasswordDesc", "Set a new password for your account")}
+            {t("auth.settings.account.changePasswordDesc")}
           </Text>
         </View>
         <View style={{ paddingHorizontal: theme.spacing.md, paddingBottom: 14, gap: theme.spacing.sm }}>
           <TextInput
-            placeholder={t("auth.settings.account.newPassword", "New password")}
+            placeholder={t("auth.settings.account.newPassword")}
             placeholderTextColor={theme.colors.textMuted}
             value={newPassword}
             onChangeText={setNewPassword}
@@ -174,7 +182,7 @@ export default function SettingsScreen() {
             }}
           />
           <TextInput
-            placeholder={t("auth.settings.account.confirmPassword", "Confirm password")}
+            placeholder={t("auth.settings.account.confirmPassword")}
             placeholderTextColor={theme.colors.textMuted}
             value={confirmPassword}
             onChangeText={setConfirmPassword}
@@ -193,11 +201,11 @@ export default function SettingsScreen() {
             onPress={() => {
               if (!user?.id) return;
               if (newPassword !== confirmPassword) {
-                Alert.alert(t("auth.settings.account.passwordMismatch", "Passwords do not match"));
+                Alert.alert(t("auth.settings.account.passwordMismatch"));
                 return;
               }
               if (newPassword.length < 8) {
-                Alert.alert(t("auth.settings.account.passwordMin", "Password must be at least 8 characters"));
+                Alert.alert(t("auth.settings.account.passwordMin"));
                 return;
               }
               updateUser.mutate({ id: user.id, data: { password: newPassword } });
@@ -214,37 +222,73 @@ export default function SettingsScreen() {
               <ActivityIndicator color="#fff" size="small" />
             ) : (
               <Text style={{ color: "#fff", fontWeight: "600", fontSize: 14 }}>
-                {t("auth.settings.account.updatePassword", "Update Password")}
+                {t("auth.settings.account.updatePassword")}
               </Text>
             )}
           </Pressable>
         </View>
       </View>
 
-      {/* Language */}
-      <Text style={s.sectionTitle}>{t("common.language")}</Text>
+      {/* Appearance */}
+      <Text style={s.sectionTitle}>{t("auth.settings.tabs.appearance")}</Text>
       <View style={s.section}>
-        {supportedLanguages.map((lang) => (
-          <Pressable key={lang.code} style={s.row} onPress={() => handleLanguageChange(lang.code)} accessible={true} accessibilityLabel={lang.label} accessibilityRole="button">
-            <Text style={s.label}>{lang.label}</Text>
-            {currentLang === lang.code && (
-              <Text style={{ color: theme.colors.accent, fontSize: 16, fontWeight: "600" }}>✓</Text>
+        {THEME_OPTIONS.map((opt) => (
+          <Pressable key={opt.value} style={s.row} onPress={() => setTheme(opt.value)} accessible accessibilityLabel={`${opt.label} theme`} accessibilityRole="button">
+            <Text style={s.label}>{opt.label}</Text>
+            {currentTheme === opt.value && (
+              <Text style={{ color: theme.colors.accent, fontSize: 16, fontWeight: "600" }}>{"\u2713"}</Text>
             )}
           </Pressable>
         ))}
       </View>
 
-      {/* Appearance */}
-      <Text style={s.sectionTitle}>{t("auth.settings.tabs.appearance")}</Text>
+      {/* Language */}
+      <Text style={s.sectionTitle}>{t("common.language")}</Text>
       <View style={s.section}>
-        {THEME_OPTIONS.map((opt) => (
-          <Pressable key={opt.value} style={s.row} onPress={() => setTheme(opt.value)} accessible={true} accessibilityLabel={`${opt.label} theme`} accessibilityRole="button">
-            <Text style={s.label}>{opt.label}</Text>
-            {currentTheme === opt.value && (
-              <Text style={{ color: theme.colors.accent, fontSize: 16, fontWeight: "600" }}>✓</Text>
+        {supportedLanguages.map((lang) => (
+          <Pressable key={lang.code} style={s.row} onPress={() => handleLanguageChange(lang.code)} accessible accessibilityLabel={lang.label} accessibilityRole="button">
+            <Text style={s.label}>{lang.label}</Text>
+            {currentLang === lang.code && (
+              <Text style={{ color: theme.colors.accent, fontSize: 16, fontWeight: "600" }}>{"\u2713"}</Text>
             )}
           </Pressable>
         ))}
+      </View>
+
+      {/* Playback */}
+      <Text style={s.sectionTitle}>{t("auth.settings.tabs.playback")}</Text>
+      <View style={s.section}>
+        <Pressable style={s.row} onPress={() => router.push("/settings/playback")} accessible accessibilityLabel={t("auth.settings.playback.bitrateTitle")} accessibilityRole="button">
+          <Text style={s.label}>{t("auth.settings.playback.bitrateTitle")}</Text>
+          <ChevronRight color={theme.colors.textMuted} />
+        </Pressable>
+      </View>
+
+      {/* Notifications Settings */}
+      <Text style={s.sectionTitle}>{t("auth.settings.tabs.notifications")}</Text>
+      <View style={s.section}>
+        <Pressable style={s.row} onPress={() => router.push("/settings/notifications")} accessible accessibilityLabel={t("auth.settings.tabs.notifications")} accessibilityRole="button">
+          <Text style={s.label}>{t("auth.settings.tabs.notifications")}</Text>
+          <ChevronRight color={theme.colors.textMuted} />
+        </Pressable>
+      </View>
+
+      {/* Parental */}
+      <Text style={s.sectionTitle}>{t("auth.settings.tabs.parental")}</Text>
+      <View style={s.section}>
+        <Pressable style={s.row} onPress={() => router.push("/settings/parental")} accessible accessibilityLabel={t("auth.settings.tabs.parental")} accessibilityRole="button">
+          <Text style={s.label}>{t("auth.settings.tabs.parental")}</Text>
+          <ChevronRight color={theme.colors.textMuted} />
+        </Pressable>
+      </View>
+
+      {/* Devices */}
+      <Text style={s.sectionTitle}>{t("auth.devices.title")}</Text>
+      <View style={s.section}>
+        <Pressable style={s.row} onPress={() => router.push("/settings/devices")} accessible accessibilityLabel={t("auth.devices.title")} accessibilityRole="button">
+          <Text style={s.label}>{t("auth.devices.title")}</Text>
+          <ChevronRight color={theme.colors.textMuted} />
+        </Pressable>
       </View>
 
       {/* Quick Connect */}
@@ -277,13 +321,13 @@ export default function SettingsScreen() {
               borderWidth: 1,
               borderColor: theme.colors.border,
             }}
-            accessible={true}
+            accessible
             accessibilityLabel={t("auth.settings.quickConnect.codeLabel")}
           />
           <Pressable
             onPress={handleAuthorizeQc}
             disabled={authorizeQc.isPending || qcCode.trim().length < 4}
-            accessible={true}
+            accessible
             accessibilityLabel={t("auth.settings.quickConnect.authorize")}
             accessibilityRole="button"
             style={{
@@ -319,10 +363,6 @@ export default function SettingsScreen() {
         <View style={s.row}>
           <Text style={s.label}>{t("mobile.settings.appVersion")}</Text>
           <Text style={s.value}>{appVersion}</Text>
-        </View>
-        <View style={s.row}>
-          <Text style={s.label}>{t("mobile.settings.serverVersion")}</Text>
-          <Text style={s.value}>{systemInfo?.version ?? "—"}</Text>
         </View>
       </View>
     </ScrollView>
