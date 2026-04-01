@@ -225,6 +225,14 @@ func (s *CommandService) CreateLibrary(ctx context.Context, lib *library.Library
 	return nil
 }
 
+func (s *CommandService) UpdateLibrary(ctx context.Context, lib *library.Library) error {
+	lib.UpdatedAt = time.Now()
+	if err := s.libraries.Update(ctx, lib); err != nil {
+		return fmt.Errorf("update library: %w", err)
+	}
+	return nil
+}
+
 func (s *CommandService) DeleteLibrary(ctx context.Context, id string) error {
 	if err := s.libraries.Delete(ctx, id); err != nil {
 		return fmt.Errorf("delete library: %w", err)

@@ -216,6 +216,7 @@ function LibraryRow({ library, stats }: { library: V1Library; stats: LibraryStat
   const [scanDone, setScanDone] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [showSchedule, setShowSchedule] = useState(false);
+  const [showEdit, setShowEdit] = useState(false);
   const { data: schedule } = useSchedule(library.id!);
 
   const deleteLib = useLibraryServiceDeleteLibrary({
@@ -299,6 +300,9 @@ function LibraryRow({ library, stats }: { library: V1Library; stats: LibraryStat
               {scanDone ? t("admin.libraries.scanAgain") : t("admin.libraries.scan")}
             </Button>
           )}
+          <Button variant="secondary" onClick={() => setShowEdit(true)}>
+            {t("common.edit")}
+          </Button>
           <Button variant="secondary" onClick={() => setShowSchedule(true)}>
             {t("admin.libraries.schedule")}
           </Button>
@@ -311,6 +315,16 @@ function LibraryRow({ library, stats }: { library: V1Library; stats: LibraryStat
           </Button>
         </div>
       </td>
+      <Modal open={showEdit} onClose={() => setShowEdit(false)} title={t("admin.libraries.editLibrary")}>
+        <LibraryForm
+          library={library}
+          onSuccess={() => {
+            queryClient.invalidateQueries({ queryKey: ["/api/v1/libraries"] });
+            setShowEdit(false);
+            toast.success(t("admin.libraries.libraryUpdated", { name: library.name }));
+          }}
+        />
+      </Modal>
       <Modal open={showSchedule} onClose={() => setShowSchedule(false)} title={t("admin.libraries.scanScheduleTitle", { name: library.name })}>
         <ScheduleModal library={library} onClose={() => setShowSchedule(false)} />
       </Modal>

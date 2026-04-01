@@ -27,6 +27,13 @@ service LibraryService {
     };
   }
 
+  rpc UpdateLibrary(UpdateLibraryRequest) returns (Library) {
+    option (google.api.http) = {
+      patch: "/api/v1/libraries/{id}"
+      body: "*"
+    };
+  }
+
   rpc DeleteLibrary(DeleteLibraryRequest) returns (DeleteLibraryResponse) {
     option (google.api.http) = {
       delete: "/api/v1/libraries/{id}"
@@ -296,6 +303,12 @@ message ListLibrariesResponse {
 
 message DeleteLibraryRequest {
   string id = 1;
+}
+
+message UpdateLibraryRequest {
+  string id = 1;
+  optional string name = 2;
+  repeated string paths = 3;
 }
 
 message DeleteLibraryResponse {}

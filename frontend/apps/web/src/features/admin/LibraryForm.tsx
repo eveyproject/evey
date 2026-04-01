@@ -1,20 +1,22 @@
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { eveyFetch, useLibraryServiceCreateLibrary } from "@evey/api";
+import { eveyFetch, useLibraryServiceCreateLibrary, useLibraryServiceUpdateLibrary } from "@evey/api";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Select } from "@/components/ui/Select";
-import type { V1LibraryType } from "@evey/api";
+import type { V1Library, V1LibraryType } from "@evey/api";
 
 interface LibraryFormProps {
   onSuccess: () => void;
+  library?: V1Library;
 }
 
-export function LibraryForm({ onSuccess }: LibraryFormProps) {
+export function LibraryForm({ onSuccess, library }: LibraryFormProps) {
   const { t } = useTranslation();
-  const [name, setName] = useState("");
-  const [type, setType] = useState<V1LibraryType>("LIBRARY_TYPE_MOVIES");
-  const [paths, setPaths] = useState<string[]>([""]);
+  const isEdit = !!library;
+  const [name, setName] = useState(library?.name ?? "");
+  const [type, setType] = useState<V1LibraryType>((library?.type as V1LibraryType) ?? "LIBRARY_TYPE_MOVIES");
+  const [paths, setPaths] = useState<string[]>(library?.paths?.length ? library.paths : [""]);
   const [mediaDirs, setMediaDirs] = useState<string[]>([]);
 
   useEffect(() => {
@@ -35,6 +37,10 @@ export function LibraryForm({ onSuccess }: LibraryFormProps) {
     mutation: { onSuccess },
   });
 
+  const updateLib = useLibraryServiceUpdateLibrary({
+    mutation: { onSuccess },
+  });
+
   function addPath() {
     setPaths((prev) => [...prev, ""]);
   }
@@ -49,14 +55,20 @@ export function LibraryForm({ onSuccess }: LibraryFormProps) {
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    createLib.mutate({
-      data: {
-        name,
-        type,
-        paths: paths.filter((p) => p.trim() !== "" && p !== "__custom__"),
-      },
-    });
+    const cleanPaths = paths.filter((p) => p.trim() !== "" && p !== "__custom__");
+    if (isEdit) {
+      updateLib.mutate({
+        id: library.id!,
+        data: { name, paths: cleanPaths },
+      });
+    } else {
+      createLib.mutate({
+        data: { name, type, paths: cleanPaths },
+      });
+    }
   }
+
+  const isPending = isEdit ? updateLib.isPending : createLib.isPending;
 
   return (
     <form onSubmit={handleSubmit} className="flex flex-col gap-4">
@@ -67,16 +79,18 @@ export function LibraryForm({ onSuccess }: LibraryFormProps) {
         required
       />
 
-      <Select
-        label={t("admin.libraries.tableHeaders.type")}
-        value={type}
-        onChange={(v) => setType(v as V1LibraryType)}
-        options={[
-          { value: "LIBRARY_TYPE_MOVIES", label: t("admin.libraries.types.movies") },
-          { value: "LIBRARY_TYPE_SHOWS", label: t("admin.libraries.tvShows") },
-          { value: "LIBRARY_TYPE_MUSIC", label: t("admin.libraries.types.music") },
-        ]}
-      />
+      {!isEdit && (
+        <Select
+          label={t("admin.libraries.tableHeaders.type")}
+          value={type}
+          onChange={(v) => setType(v as V1LibraryType)}
+          options={[
+            { value: "LIBRARY_TYPE_MOVIES", label: t("admin.libraries.types.movies") },
+            { value: "LIBRARY_TYPE_SHOWS", label: t("admin.libraries.tvShows") },
+            { value: "LIBRARY_TYPE_MUSIC", label: t("admin.libraries.types.music") },
+          ]}
+        />
+      )}
 
       <div className="flex flex-col gap-2">
         <span className="text-sm font-medium text-[var(--text-muted)]">
@@ -126,10 +140,10 @@ export function LibraryForm({ onSuccess }: LibraryFormProps) {
       <div className="flex justify-end gap-2 pt-2">
         <Button
           type="submit"
-          loading={createLib.isPending}
+          loading={isPending}
           disabled={!name.trim() || paths.every((p) => !p.trim() || p === "__custom__")}
         >
-          {t("admin.libraries.createLibrary")}
+          {isEdit ? t("common.save") : t("admin.libraries.createLibrary")}
         </Button>
       </div>
     </form>

@@ -155,7 +155,10 @@ libraries:
   addLibrary: Add Library
   createLibrary: Create Library
   libraryCreated: Library created
+  libraryUpdated: "Library \"{{name}}\" updated"
   libraryDeleted: "Library \"{{name}}\" deleted"
+  editLibrary: Edit Library
+  failedUpdate: Failed to update library
   failedDelete: Failed to delete library
   scanStarted: Scan started
   failedScan: Failed to start scan
