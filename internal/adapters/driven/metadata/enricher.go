@@ -524,12 +524,19 @@ func (e *Enricher) searchAndFetchBest(ctx context.Context, provider domainmetada
 		return e.fetchBestCandidate(ctx, provider, results, title, year, mediaType)
 	}
 
-	// For series: fetch details for top candidates and validate episode counts
+	// For series: fetch details for top candidates and validate with combined
+	// title similarity + episode count matching
 	ranked := rankByTitle(results, title, year)
 	maxCandidates := 5
 	if len(ranked) < maxCandidates {
 		maxCandidates = len(ranked)
 	}
+
+	type validatedMatch struct {
+		result     *domainmetadata.MetadataResult
+		titleScore float64
+	}
+	var validated []validatedMatch
 
 	for _, candidate := range ranked[:maxCandidates] {
 		providerID := candidate.ProviderIDs[provider.Name()]
@@ -540,18 +547,34 @@ func (e *Enricher) searchAndFetchBest(ctx context.Context, provider domainmetada
 		if fetchErr != nil || full == nil {
 			continue
 		}
-		// Check if S01 episode count matches within tolerance
 		if tmdbS01, ok := full.SeasonEpisodeCounts[1]; ok {
 			if episodeCountMatches(diskS01Episodes, tmdbS01) {
-				if log != nil {
-					log.Debug("series match validated by S01 episode count",
-						slog.String("title", full.Title),
-						slog.Int("disk_episodes", diskS01Episodes),
-						slog.Int("tmdb_episodes", tmdbS01))
+				s1 := titleSimilarity(title, full.Title)
+				s2 := titleSimilarity(title, full.OriginalTitle)
+				best := s1
+				if s2 > best {
+					best = s2
 				}
-				return full
+				validated = append(validated, validatedMatch{result: full, titleScore: best})
 			}
 		}
+	}
+
+	if len(validated) > 0 {
+		// Pick the validated match with the highest title similarity
+		best := validated[0]
+		for _, v := range validated[1:] {
+			if v.titleScore > best.titleScore {
+				best = v
+			}
+		}
+		if log != nil {
+			log.Debug("series match validated by S01 episode count + title score",
+				slog.String("title", best.result.Title),
+				slog.Float64("title_score", best.titleScore),
+				slog.Int("disk_episodes", diskS01Episodes))
+		}
+		return best.result
 	}
 
 	// Fallback: return the best title match even without episode validation
