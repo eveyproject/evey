@@ -148,6 +148,9 @@ person:
 detail:
   notFound: मीडिया आइटम नहीं मिला।
   play: चलाएं
+  resume: फिर से शुरू करें
+  favorite: पसंदीदा
+  favorited: पसंदीदा में
   markWatched: देखा हुआ चिह्नित करें
   markUnwatched: नहीं देखा चिह्नित करें
   markedWatched: देखा हुआ चिह्नित किया
