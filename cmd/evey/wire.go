@@ -246,7 +246,7 @@ func buildServices(ctx context.Context, cfg *config.Config, db *sql.DB, rootLog 
 	pluginLogger.StartCleanup(ctx, &pluginIDLister{repo: r.Plugin})
 
 	// --- Filesystem watcher ---
-	_ = startWatcher(ctx, cfg, bus, r.Library, libCmdSvc, rootLog)
+	startWatcher(ctx, cfg, bus, r.Library, libCmdSvc, rootLog)
 
 	libCmdSvc.WithShutdownCtx(ctx)
 
@@ -347,7 +347,9 @@ func buildServices(ctx context.Context, cfg *config.Config, db *sql.DB, rootLog 
 	// Ensure all existing libraries have feed configs (covers libs created before event system)
 	if libs, libErr := r.Library.List(ctx); libErr == nil {
 		for _, lib := range libs {
-			_ = feedCmdSvc.EnsureLibraryFeedConfig(ctx, lib.ID, lib.Name)
+			if err := feedCmdSvc.EnsureLibraryFeedConfig(ctx, lib.ID, lib.Name); err != nil {
+				slog.Warn("ensure library feed config", slog.String("library", lib.ID), slog.Any("err", err))
+			}
 		}
 	}
 
