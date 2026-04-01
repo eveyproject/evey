@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import type { SubtitleStream } from "../SubtitleSelector";
 import { SPEED_OPTIONS } from "../constants";
 
@@ -39,6 +39,15 @@ export function usePlayerKeyboard({
   setShowShortcuts,
   showActionFlash,
 }: UsePlayerKeyboardArgs) {
+  const setPlaybackSpeedRef = useRef(setPlaybackSpeed);
+  setPlaybackSpeedRef.current = setPlaybackSpeed;
+  const setCurrentSubtitleRef = useRef(setCurrentSubtitle);
+  setCurrentSubtitleRef.current = setCurrentSubtitle;
+  const setShowShortcutsRef = useRef(setShowShortcuts);
+  setShowShortcutsRef.current = setShowShortcuts;
+  const showActionFlashRef = useRef(showActionFlash);
+  showActionFlashRef.current = showActionFlash;
+
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
       const video = videoRef.current;
@@ -58,10 +67,10 @@ export function usePlayerKeyboard({
           e.preventDefault();
           if (video.paused) {
             video.play().catch(() => {});
-            showActionFlash("play");
+            showActionFlashRef.current("play");
           } else {
             video.pause();
-            showActionFlash("pause");
+            showActionFlashRef.current("pause");
           }
           break;
         case "ArrowLeft":
@@ -98,8 +107,8 @@ export function usePlayerKeyboard({
           const subs = subtitleStreamsRef.current;
           const cur = currentSubtitleRef.current;
           if (subs.length === 0) break;
-          if (cur === null) setCurrentSubtitle(subs[0].trackIndex);
-          else setCurrentSubtitle(null);
+          if (cur === null) setCurrentSubtitleRef.current(subs[0].trackIndex);
+          else setCurrentSubtitleRef.current(null);
           break;
         }
         case "p":
@@ -111,14 +120,14 @@ export function usePlayerKeyboard({
         case "?":
           e.preventDefault();
           e.stopPropagation();
-          setShowShortcuts((p: boolean) => !p);
+          setShowShortcutsRef.current((p: boolean) => !p);
           break;
         case "<":
         case ",": {
           e.preventDefault();
           const curSpeed = playbackSpeedRef.current;
           const idx = SPEED_OPTIONS.indexOf(curSpeed);
-          if (idx > 0) setPlaybackSpeed(SPEED_OPTIONS[idx - 1]);
+          if (idx > 0) setPlaybackSpeedRef.current(SPEED_OPTIONS[idx - 1]);
           break;
         }
         case ">":
@@ -126,7 +135,7 @@ export function usePlayerKeyboard({
           e.preventDefault();
           const curSpeed = playbackSpeedRef.current;
           const idx = SPEED_OPTIONS.indexOf(curSpeed);
-          if (idx < SPEED_OPTIONS.length - 1) setPlaybackSpeed(SPEED_OPTIONS[idx + 1]);
+          if (idx < SPEED_OPTIONS.length - 1) setPlaybackSpeedRef.current(SPEED_OPTIONS[idx + 1]);
           break;
         }
         case "0": case "1": case "2": case "3": case "4":

@@ -96,12 +96,12 @@ func (s *ScanService) ScanLibrary(ctx context.Context, libraryID string) (added,
 		return 0, 0, fmt.Errorf("scan already in progress for library %s", libraryID)
 	}
 	s.scanning[libraryID] = true
-	s.scanMu.Unlock()
 	defer func() {
 		s.scanMu.Lock()
 		delete(s.scanning, libraryID)
 		s.scanMu.Unlock()
 	}()
+	s.scanMu.Unlock()
 
 	lib, err := s.libQueries.GetByID(ctx, libraryID)
 	if err != nil {

@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"fmt"
 	"log/slog"
 
 	"github.com/gravity-zero/evey/internal/domain/user"
@@ -44,7 +45,10 @@ func (r *ProfileRepository) Create(ctx context.Context, p *user.Profile) error {
 		pMaxRating, pq.Array(pBlockedTags), pPINHash, pEnabled,
 		locale, p.CreatedAt,
 	)
-	return err
+	if err != nil {
+		return fmt.Errorf("create profile: %w", err)
+	}
+	return nil
 }
 
 func (r *ProfileRepository) GetByID(ctx context.Context, id string) (*user.Profile, error) {
@@ -115,7 +119,10 @@ func (r *ProfileRepository) Update(ctx context.Context, p *user.Profile) error {
 		pMaxRating, pq.Array(pBlockedTags), pPINHash, pEnabled,
 		locale, p.ID,
 	)
-	return err
+	if err != nil {
+		return fmt.Errorf("update profile: %w", err)
+	}
+	return nil
 }
 
 func (r *ProfileRepository) GetAll(ctx context.Context) ([]*user.Profile, error) {
@@ -140,7 +147,10 @@ func (r *ProfileRepository) GetAll(ctx context.Context) ([]*user.Profile, error)
 
 func (r *ProfileRepository) Delete(ctx context.Context, id string) error {
 	_, err := r.db.ExecContext(ctx, `DELETE FROM profiles WHERE id = $1`, id)
-	return err
+	if err != nil {
+		return fmt.Errorf("delete profile: %w", err)
+	}
+	return nil
 }
 
 func scanProfile(rows *sql.Rows) (*user.Profile, error) {

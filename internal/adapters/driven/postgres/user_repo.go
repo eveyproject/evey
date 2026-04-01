@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"fmt"
 
 	"github.com/gravity-zero/evey/internal/domain/shared"
 	"github.com/gravity-zero/evey/internal/domain/user"
@@ -24,7 +25,10 @@ func (r *UserRepository) Create(ctx context.Context, u *user.User) error {
 		u.ID, u.Username, u.Email, u.PasswordHash, u.IsAdmin, u.Enabled,
 		u.OIDCSubject, u.OIDCIssuer, u.MaxStreams, u.MaxBitrateKbps, u.PushConsent, u.CreatedAt, u.UpdatedAt,
 	)
-	return err
+	if err != nil {
+		return fmt.Errorf("create user: %w", err)
+	}
+	return nil
 }
 
 func (r *UserRepository) GetByID(ctx context.Context, id string) (*user.User, error) {
@@ -79,18 +83,27 @@ func (r *UserRepository) Update(ctx context.Context, u *user.User) error {
 		u.Username, u.Email, u.PasswordHash, u.IsAdmin, u.Enabled,
 		u.OIDCSubject, u.OIDCIssuer, u.MaxStreams, u.MaxBitrateKbps, u.PushConsent, u.UpdatedAt, u.ID,
 	)
-	return err
+	if err != nil {
+		return fmt.Errorf("update user: %w", err)
+	}
+	return nil
 }
 
 func (r *UserRepository) Delete(ctx context.Context, id string) error {
 	_, err := r.db.ExecContext(ctx, `DELETE FROM users WHERE id = $1`, id)
-	return err
+	if err != nil {
+		return fmt.Errorf("delete user: %w", err)
+	}
+	return nil
 }
 
 func (r *UserRepository) CountAdmins(ctx context.Context) (int, error) {
 	var count int
 	err := r.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM users WHERE is_admin = TRUE`).Scan(&count)
-	return count, err
+	if err != nil {
+		return 0, fmt.Errorf("count admins: %w", err)
+	}
+	return count, nil
 }
 
 func (r *UserRepository) scanUser(row *sql.Row) (*user.User, error) {
