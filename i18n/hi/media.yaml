@@ -193,6 +193,9 @@ detail:
   viewOnTmdb: TMDB पर देखें
   idChangedWarning: "ID बदली — सहेजने पर प्रदाता से मेटाडेटा फिर से प्राप्त होगा"
   refreshMetadata: मेटाडेटा रिफ़्रेश करें
+  resetMetadata: मेटाडेटा रीसेट करें
+  metadataReset: "मेटाडेटा रीसेट हो गया — पुनः संवर्धन शुरू होगा"
+  resetMetadataFailed: मेटाडेटा रीसेट करने में विफल
   reEnrichedWithNewId: नई ID से फिर से प्राप्त किया
   metadataSaved: मेटाडेटा सहेजा गया
   failedToSave: सहेजने में विफल

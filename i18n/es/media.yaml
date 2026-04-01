@@ -193,6 +193,9 @@ detail:
   viewOnTmdb: Ver en TMDB
   idChangedWarning: "ID cambiado — al guardar se volverá a obtener los metadatos del proveedor"
   refreshMetadata: Actualizar metadatos
+  resetMetadata: Restablecer metadatos
+  metadataReset: "Metadatos restablecidos — el re-enriquecimiento comenzará"
+  resetMetadataFailed: Error al restablecer metadatos
   reEnrichedWithNewId: Re-enriquecido con nuevo ID
   metadataSaved: Metadatos guardados
   failedToSave: Error al guardar
