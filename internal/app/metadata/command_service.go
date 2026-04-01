@@ -168,6 +168,46 @@ func (s *CommandService) ResetOverrides(ctx context.Context, mediaItemID string)
 	return nil
 }
 
+// ResetItemMetadata clears enriched metadata fields, artwork, and overrides
+// so the auto-enricher will re-process the item on its next cycle.
+func (s *CommandService) ResetItemMetadata(ctx context.Context, mediaItemID string) error {
+	if s.mediaItems == nil {
+		return fmt.Errorf("media item repository not configured")
+	}
+	item, err := s.mediaItems.GetByID(ctx, mediaItemID)
+	if err != nil {
+		return fmt.Errorf("get media item: %w", err)
+	}
+
+	item.Overview = ""
+	item.Tagline = ""
+	item.OriginalTitle = ""
+	item.ProviderIDs = nil
+	item.Ratings = nil
+	item.Genres = nil
+	item.Studios = nil
+	item.CommunityRating = nil
+	item.Trailers = nil
+	item.UpdatedAt = time.Now()
+
+	if err := s.mediaItems.Update(ctx, item); err != nil {
+		return fmt.Errorf("update media item: %w", err)
+	}
+	if err := s.artwork.DeleteByMediaItemID(ctx, mediaItemID); err != nil {
+		slog.Warn("reset: delete artwork", slog.Any("err", err))
+	}
+	if err := s.overrides.DeleteByMediaItemID(ctx, mediaItemID); err != nil {
+		slog.Warn("reset: delete overrides", slog.Any("err", err))
+	}
+
+	// Trigger immediate re-enrichment if enricher supports it
+	if se, ok := s.enricher.(SingleItemEnricher); ok {
+		go se.AutoEnrichItem(ctx, item, slog.Default())
+	}
+
+	return nil
+}
+
 func (s *CommandService) DownloadArtwork(ctx context.Context, record *metadata.ArtworkRecord, destPath string) error {
 	if record.SourceURL == nil {
 		return fmt.Errorf("no source URL")

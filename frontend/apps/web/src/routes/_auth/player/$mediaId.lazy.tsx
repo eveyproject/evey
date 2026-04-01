@@ -84,13 +84,18 @@ function PlayerPageInner({ mediaId }: { mediaId: string }) {
     return () => clearTimeout(timer);
   }, [isLoading]);
 
-  // Sync store with session state
+  // Sync store with session state — only persist mini player if video is actively playing
   useEffect(() => {
     usePlayerStore.getState().play(mediaId);
     return () => {
       const state = usePlayerStore.getState();
       if (state.mode === "full" && state.isActive) {
-        state.setMode("mini");
+        const video = state.videoElement as HTMLVideoElement | null;
+        if (video && !video.paused && !video.ended && video.readyState > 2) {
+          state.setMode("mini");
+        } else {
+          state.stop();
+        }
       }
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps

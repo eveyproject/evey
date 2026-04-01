@@ -112,6 +112,8 @@ func (h *adminHandler) handleMedia(w http.ResponseWriter, r *http.Request) {
 	switch {
 	case action == "refresh-metadata" && r.Method == http.MethodPost:
 		h.handleRefreshMetadata(w, r, mediaItemID)
+	case action == "reset-metadata" && r.Method == http.MethodPost:
+		h.handleResetMetadata(w, r, mediaItemID)
 	case action == "search-metadata" && r.Method == http.MethodGet:
 		h.handleSearchMetadata(w, r)
 	default:
@@ -144,6 +146,20 @@ func (h *adminHandler) handleRefreshMetadata(w http.ResponseWriter, r *http.Requ
 		http.Error(w, "internal error", http.StatusInternalServerError)
 		return
 	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func (h *adminHandler) handleResetMetadata(w http.ResponseWriter, r *http.Request, mediaItemID string) {
+	if !h.heavyRL.Allow(ratelimit.ClientIP(r)) {
+		http.Error(w, `{"message":"too many requests"}`, http.StatusTooManyRequests)
+		return
+	}
+	if err := h.metaCmd.ResetItemMetadata(r.Context(), mediaItemID); err != nil {
+		slog.Error("reset metadata", slog.Any("err", err))
+		http.Error(w, `{"message":"internal error"}`, http.StatusInternalServerError)
+		return
+	}
+	h.audit(r, "reset_metadata", "media_item", &mediaItemID, nil)
 	w.WriteHeader(http.StatusNoContent)
 }
 

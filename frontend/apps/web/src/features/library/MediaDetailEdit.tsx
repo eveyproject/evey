@@ -151,6 +151,7 @@ export function MetadataEditPanel({
   });
   const [saving, setSaving] = useState(false);
   const [refreshStatus, setRefreshStatus] = useState<"idle" | "running" | "done" | "error">("idle");
+  const [resetting, setResetting] = useState(false);
   const setOverride = useMetadataServiceSetMetadataOverride();
   const removeOverride = useMetadataServiceRemoveMetadataOverride();
   const refresh = useMetadataServiceRefreshMetadata();
@@ -235,6 +236,25 @@ export function MetadataEditPanel({
     }
   }
 
+  async function handleResetMetadata() {
+    if (!item.id) return;
+    setResetting(true);
+    try {
+      await eveyFetch<void>({
+        url: `/api/v1/admin/media/${item.id}/reset-metadata`,
+        method: "POST",
+      });
+      queryClient.invalidateQueries({ queryKey: [`/api/v1/media/${item.id}`] });
+      queryClient.invalidateQueries({ queryKey: getMetadataServiceListMetadataOverridesQueryKey(item.id) });
+      toast.success(t("media.detail.metadataReset"));
+      onSave();
+    } catch {
+      toast.error(t("media.detail.resetMetadataFailed"));
+    } finally {
+      setResetting(false);
+    }
+  }
+
   function set(field: keyof EditForm) {
     return (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
       setForm((prev) => ({ ...prev, [field]: e.target.value }));
@@ -316,6 +336,9 @@ export function MetadataEditPanel({
         <Button type="submit" loading={saving}>{t("common.save")}</Button>
         <Button type="button" variant="secondary" loading={refreshStatus === "running"} onClick={handleRefresh}>
           {refreshStatus === "done" ? t("common.done") : refreshStatus === "error" ? t("common.error") : t("media.detail.refreshMetadata")}
+        </Button>
+        <Button type="button" variant="danger" loading={resetting} onClick={handleResetMetadata}>
+          {t("media.detail.resetMetadata")}
         </Button>
         <Button type="button" variant="secondary" onClick={onCancel}>{t("common.cancel")}</Button>
       </div>
