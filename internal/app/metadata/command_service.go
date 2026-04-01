@@ -212,8 +212,8 @@ func (s *CommandService) deriveTitleFromChildren(ctx context.Context, seriesID s
 	return filepath.Base(dir)   // It welcome to derry
 }
 
-// ResetItemMetadata clears enriched metadata fields, artwork, and overrides
-// so the auto-enricher will re-process the item on its next cycle.
+// ResetItemMetadata clears enriched metadata on an item and all its children
+// (seasons + episodes for series, episodes for seasons) then triggers re-enrichment.
 func (s *CommandService) ResetItemMetadata(ctx context.Context, mediaItemID string) error {
 	if s.mediaItems == nil {
 		return fmt.Errorf("media item repository not configured")
@@ -223,11 +223,28 @@ func (s *CommandService) ResetItemMetadata(ctx context.Context, mediaItemID stri
 		return fmt.Errorf("get media item: %w", err)
 	}
 
-	// Derive title from file path or directory name (strip enriched title)
+	// Reset the item itself
+	s.resetSingleItem(ctx, item)
+
+	// Cascade to children (series → seasons + episodes, season → episodes)
+	if item.Type == string(library.Series) || item.Type == string(library.Season) {
+		s.resetChildren(ctx, item.ID)
+	}
+
+	// Trigger re-enrichment with background context (request ctx may be done)
+	if se, ok := s.enricher.(SingleItemEnricher); ok {
+		go se.AutoEnrichItem(context.Background(), item, slog.Default())
+	}
+
+	return nil
+}
+
+// resetSingleItem clears enriched metadata fields, artwork, overrides, and cast for one item.
+func (s *CommandService) resetSingleItem(ctx context.Context, item *library.MediaItem) {
+	// Derive title from file path or directory name
 	if item.FilePath != "" {
 		item.Title = deriveTitle(item.FilePath, item.Type)
-	} else if item.Type == "series" && s.mediaItems != nil {
-		// For series without file_path, derive from episode paths
+	} else if item.Type == string(library.Series) {
 		if dirName := s.deriveTitleFromChildren(ctx, item.ID); dirName != "" {
 			item.Title = dirName
 		}
@@ -248,26 +265,35 @@ func (s *CommandService) ResetItemMetadata(ctx context.Context, mediaItemID stri
 	item.UpdatedAt = time.Now()
 
 	if err := s.mediaItems.Update(ctx, item); err != nil {
-		return fmt.Errorf("update media item: %w", err)
+		slog.Warn("reset: update item", slog.String("id", item.ID), slog.Any("err", err))
 	}
-	if err := s.artwork.DeleteByMediaItemID(ctx, mediaItemID); err != nil {
-		slog.Warn("reset: delete artwork", slog.Any("err", err))
+	if err := s.artwork.DeleteByMediaItemID(ctx, item.ID); err != nil {
+		slog.Warn("reset: delete artwork", slog.String("id", item.ID), slog.Any("err", err))
 	}
-	if err := s.overrides.DeleteByMediaItemID(ctx, mediaItemID); err != nil {
-		slog.Warn("reset: delete overrides", slog.Any("err", err))
+	if err := s.overrides.DeleteByMediaItemID(ctx, item.ID); err != nil {
+		slog.Warn("reset: delete overrides", slog.String("id", item.ID), slog.Any("err", err))
 	}
 	if s.mediaPersons != nil {
-		if err := s.mediaPersons.DeleteByMediaItemID(ctx, mediaItemID); err != nil {
-			slog.Warn("reset: delete media persons", slog.Any("err", err))
+		if err := s.mediaPersons.DeleteByMediaItemID(ctx, item.ID); err != nil {
+			slog.Warn("reset: delete media persons", slog.String("id", item.ID), slog.Any("err", err))
 		}
 	}
+}
 
-	// Trigger re-enrichment with background context (request ctx may be done)
-	if se, ok := s.enricher.(SingleItemEnricher); ok {
-		go se.AutoEnrichItem(context.Background(), item, slog.Default())
+// resetChildren resets all direct children and their children recursively.
+func (s *CommandService) resetChildren(ctx context.Context, parentID string) {
+	children, err := s.mediaItems.List(ctx, library.ListMediaItemsFilter{ParentID: &parentID})
+	if err != nil {
+		slog.Warn("reset: list children", slog.String("parentID", parentID), slog.Any("err", err))
+		return
 	}
-
-	return nil
+	for _, child := range children {
+		s.resetSingleItem(ctx, child)
+		// Recurse (series → seasons → episodes)
+		if child.Type == string(library.Season) {
+			s.resetChildren(ctx, child.ID)
+		}
+	}
 }
 
 func (s *CommandService) DownloadArtwork(ctx context.Context, record *metadata.ArtworkRecord, destPath string) error {
