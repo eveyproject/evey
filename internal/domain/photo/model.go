@@ -1,6 +1,9 @@
 package photo
 
-import "time"
+import (
+	"errors"
+	"time"
+)
 
 type Photo struct {
 	ID          string
@@ -20,6 +23,16 @@ type Photo struct {
 	Album       string
 	CreatedAt   time.Time
 	UpdatedAt   time.Time
+}
+
+func (p *Photo) Validate() error {
+	if p.LibraryID == "" {
+		return errors.New("photo requires a library ID")
+	}
+	if p.FilePath == "" {
+		return errors.New("photo requires a file path")
+	}
+	return nil
 }
 
 type Album struct {

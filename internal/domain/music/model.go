@@ -1,6 +1,9 @@
 package music
 
-import "time"
+import (
+	"errors"
+	"time"
+)
 
 type Track struct {
 	ID          string
@@ -25,6 +28,16 @@ type Track struct {
 	CoverArtURL string
 	CreatedAt   time.Time
 	UpdatedAt   time.Time
+}
+
+func (t *Track) Validate() error {
+	if t.Title == "" {
+		return errors.New("track requires a title")
+	}
+	if t.FilePath == "" {
+		return errors.New("track requires a file path")
+	}
+	return nil
 }
 
 type Album struct {
