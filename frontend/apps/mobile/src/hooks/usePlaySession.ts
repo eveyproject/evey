@@ -24,7 +24,7 @@ export interface PlaySessionResult {
   isLoading: boolean;
   isError: boolean;
   stopSession: () => void;
-  restartWithTracks: (audioIndex?: number, subtitleIndex?: number) => void;
+  restartWithTracks: (audioIndex?: number, subtitleIndex?: number, maxHeight?: number) => void;
 }
 
 async function fetchStreamToken(mediaId: string): Promise<string> {
@@ -63,17 +63,18 @@ export function usePlaySession(mediaId: string): PlaySessionResult {
   const serverUrlRef = useRef<string>("");
 
   const startStream = useCallback(
-    async (audioStreamIndex?: number, subtitleStreamIndex?: number) => {
+    async (audioStreamIndex?: number, subtitleStreamIndex?: number, maxHeight?: number) => {
       try {
         const serverUrl = serverUrlRef.current || ((await getServerUrl()) ?? "");
         serverUrlRef.current = serverUrl;
         const screen = Dimensions.get("screen");
+        const screenH = Math.round(screen.height * (screen.scale ?? 1));
 
         const info = await playbackServiceGetStreamInfo(mediaId, {
           supportedCodecs: ["h264", "hevc", "aac"],
           supportedContainers: ["mp4", "hls"],
           maxWidth: Math.round(screen.width * (screen.scale ?? 1)),
-          maxHeight: Math.round(screen.height * (screen.scale ?? 1)),
+          maxHeight: maxHeight && maxHeight > 0 ? Math.min(maxHeight, screenH) : screenH,
           audioStreamIndex,
           subtitleStreamIndex,
         });
@@ -132,7 +133,7 @@ export function usePlaySession(mediaId: string): PlaySessionResult {
   }, []);
 
   const restartWithTracks = useCallback(
-    (audioIndex?: number, subtitleIndex?: number) => {
+    (audioIndex?: number, subtitleIndex?: number, maxHeight?: number) => {
       const sid = sessionIdRef.current;
       if (sid) {
         playbackServiceStopStream({ sessionId: sid }).catch((err) =>
@@ -142,7 +143,7 @@ export function usePlaySession(mediaId: string): PlaySessionResult {
       }
       stoppedRef.current = false;
       setIsLoading(true);
-      startStream(audioIndex, subtitleIndex);
+      startStream(audioIndex, subtitleIndex, maxHeight);
     },
     [startStream],
   );
