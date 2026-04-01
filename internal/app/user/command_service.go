@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"strings"
 	"sync"
 	"time"
 
@@ -140,6 +141,8 @@ func (s *CommandService) Setup(ctx context.Context, username, password, email st
 }
 
 func (s *CommandService) Login(ctx context.Context, username, password string) (accessToken, refreshToken string, err error) {
+	username = strings.TrimSpace(username)
+	password = strings.TrimSpace(password)
 	if s.loginAttempts.isLocked(username) {
 		return "", "", ErrAccountLocked
 	}
