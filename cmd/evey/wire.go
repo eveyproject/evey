@@ -103,7 +103,7 @@ func buildServices(ctx context.Context, cfg *config.Config, db *sql.DB, rootLog 
 	hasher := auth.BcryptHasher{}
 
 	// DB value takes precedence over env var for metadata language
-	if langEntry, err2 := r.ServerCfg.Get(context.Background(), "metadata.language"); err2 == nil && langEntry.Value != "" {
+	if langEntry, err2 := r.ServerCfg.Get(ctx, "metadata.language"); err2 == nil && langEntry.Value != "" {
 		cfg.Metadata.Language = langEntry.Value
 	}
 	metadataHTTP := &http.Client{
@@ -115,11 +115,11 @@ func buildServices(ctx context.Context, cfg *config.Config, db *sql.DB, rootLog 
 			DialContext:         (&net.Dialer{Timeout: 10 * time.Second}).DialContext,
 		},
 	}
-	tmdbKey := resolveAPIKey(r.ServerCfg, "api.tmdb_key", "EVEY_TMDB_API_KEY")
+	tmdbKey := resolveAPIKey(ctx, r.ServerCfg, "api.tmdb_key", "EVEY_TMDB_API_KEY")
 	tmdbProvider := metadataadapter.NewTMDBProvider(tmdbKey, cfg.Metadata.Language, metadataHTTP)
 	imdbProvider := metadataadapter.NewIMDBAPIProvider(metadataHTTP)
 	tvmazeProvider := metadataadapter.NewTVMazeProvider(metadataHTTP)
-	omdbKey := resolveAPIKey(r.ServerCfg, "api.omdb_key", "EVEY_OMDB_API_KEY")
+	omdbKey := resolveAPIKey(ctx, r.ServerCfg, "api.omdb_key", "EVEY_OMDB_API_KEY")
 	omdbProvider := metadataadapter.NewOMDbProvider(omdbKey, metadataHTTP)
 	artworkDownloader := metadataadapter.NewArtworkHTTPDownloader(metadataHTTP)
 	pluginLogDir := filepath.Join(cfg.Log.Dir, "plugins")
@@ -177,7 +177,7 @@ func buildServices(ctx context.Context, cfg *config.Config, db *sql.DB, rootLog 
 		hasher, tokenGen, bus,
 		7*24*time.Hour, r.QuickConnect,
 	)
-	userAuthSvc.InitSetupState(context.Background())
+	userAuthSvc.InitSetupState(ctx)
 	userSvc := appuser.NewUserService(r.User, r.Profile, r.RefreshToken, hasher, bus)
 	userAccessSvc := appuser.NewAccessService(r.User, r.APIKey, r.InviteLink, r.QuickConnect, hasher, bus).WithProfiles(r.Profile)
 	userQuerySvc := appuser.NewQueryService(r.User, r.Profile, r.APIKey, r.InviteLink, r.QuickConnect)
@@ -186,7 +186,7 @@ func buildServices(ctx context.Context, cfg *config.Config, db *sql.DB, rootLog 
 	if cfg.OIDC.Enabled {
 		var oidcErr error
 		oidcSvc, oidcErr = appuser.NewOIDCService(
-			context.Background(), cfg,
+			ctx, cfg,
 			r.User, r.Profile, r.RefreshToken, r.UserRole,
 			tokenGen, bus, 7*24*time.Hour,
 		)
@@ -324,7 +324,7 @@ func buildServices(ctx context.Context, cfg *config.Config, db *sql.DB, rootLog 
 	notifCmdSvc.Register()
 	notifQuerySvc := appnotification.NewQueryService(r.Notification, r.NotificationSettings)
 
-	vapidPub, vapidPriv := resolveVAPIDKeys(r.ServerCfg, cfg)
+	vapidPub, vapidPriv := resolveVAPIDKeys(ctx, r.ServerCfg, cfg)
 	if vapidPub != "" && vapidPriv != "" {
 		wpSender := webpushadapter.NewSender(vapidPub, vapidPriv, cfg.VAPID.Subject)
 		notifCmdSvc.WithPush(wpSender, r.PushSubscription)
@@ -363,7 +363,7 @@ func buildServices(ctx context.Context, cfg *config.Config, db *sql.DB, rootLog 
 
 	// --- Subtitle service ---
 	var subtitleSvc *appsubtitle.Service
-	if osAPIKey := resolveAPIKey(r.ServerCfg, "api.opensubtitles_key", "EVEY_OPENSUBTITLES_API_KEY"); osAPIKey != "" {
+	if osAPIKey := resolveAPIKey(ctx, r.ServerCfg, "api.opensubtitles_key", "EVEY_OPENSUBTITLES_API_KEY"); osAPIKey != "" {
 		osClient := opensubtitles.New(osAPIKey, os.Getenv("EVEY_OPENSUBTITLES_USERNAME"), os.Getenv("EVEY_OPENSUBTITLES_PASSWORD"), metadataHTTP)
 		subtitleSvc = appsubtitle.NewService(r.Subtitle, osClient, opensubtitles.NewLibraryMediaGetter(libQuerySvc))
 		rootLog.Info("opensubtitles integration enabled")
@@ -474,14 +474,14 @@ func startWatcher(ctx context.Context, cfg *config.Config, bus shared.EventBus, 
 	return watcherSvc
 }
 
-func resolveAPIKey(cfgRepo shared.ServerConfigRepository, dbKey, envVar string) string {
+func resolveAPIKey(ctx context.Context, cfgRepo shared.ServerConfigRepository, dbKey, envVar string) string {
 	// 1. DB has it (set by admin via panel) → use it
-	if entry, err := cfgRepo.Get(context.Background(), dbKey); err == nil && entry.Value != "" {
+	if entry, err := cfgRepo.Get(ctx, dbKey); err == nil && entry.Value != "" {
 		return entry.Value
 	}
 	// 2. Env var fallback (docker/compose) → seed to DB so admin sees it
 	if v := os.Getenv(envVar); v != "" {
-		if setErr := cfgRepo.Set(context.Background(), dbKey, v); setErr != nil {
+		if setErr := cfgRepo.Set(ctx, dbKey, v); setErr != nil {
 			slog.Warn("seed api key to db", slog.String("key", dbKey), slog.Any("err", setErr))
 		}
 		return v
@@ -490,15 +490,15 @@ func resolveAPIKey(cfgRepo shared.ServerConfigRepository, dbKey, envVar string) 
 	return ""
 }
 
-func resolveVAPIDKeys(cfgRepo shared.ServerConfigRepository, cfg *config.Config) (string, string) {
+func resolveVAPIDKeys(ctx context.Context, cfgRepo shared.ServerConfigRepository, cfg *config.Config) (string, string) {
 	pub := cfg.VAPID.PublicKey
 	priv := cfg.VAPID.PrivateKey
 
 	if pub == "" || priv == "" {
-		if e, err := cfgRepo.Get(context.Background(), "vapid.public_key"); err == nil && e.Value != "" {
+		if e, err := cfgRepo.Get(ctx, "vapid.public_key"); err == nil && e.Value != "" {
 			pub = e.Value
 		}
-		if e, err := cfgRepo.Get(context.Background(), "vapid.private_key"); err == nil && e.Value != "" {
+		if e, err := cfgRepo.Get(ctx, "vapid.private_key"); err == nil && e.Value != "" {
 			priv = e.Value
 		}
 	}
@@ -510,10 +510,10 @@ func resolveVAPIDKeys(cfgRepo shared.ServerConfigRepository, cfg *config.Config)
 			return "", ""
 		}
 		pub, priv = genPub, genPriv
-		if err := cfgRepo.Set(context.Background(), "vapid.public_key", pub); err != nil {
+		if err := cfgRepo.Set(ctx, "vapid.public_key", pub); err != nil {
 			slog.Warn("store VAPID public key", slog.Any("err", err))
 		}
-		if err := cfgRepo.Set(context.Background(), "vapid.private_key", priv); err != nil {
+		if err := cfgRepo.Set(ctx, "vapid.private_key", priv); err != nil {
 			slog.Warn("store VAPID private key", slog.Any("err", err))
 		}
 		slog.Info("VAPID keys auto-generated and stored in DB")
