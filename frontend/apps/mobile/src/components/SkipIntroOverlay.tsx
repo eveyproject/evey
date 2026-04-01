@@ -1,8 +1,10 @@
 import { Pressable, Text, StyleSheet } from "react-native";
 import { useQuery } from "@tanstack/react-query";
+import { useTranslation } from "react-i18next";
 import { mKVServiceListChapters } from "@evey/api";
+import { useTheme } from "../providers/ThemeProvider";
 
-// matches "intro", "introduction", "opening", "op" (standalone or followed by space)
+// Matches "intro", "introduction", "opening", "op" (standalone or followed by space)
 const INTRO_PATTERNS = /^(intro|introduction|opening|op$|op\s)/i;
 
 interface SkipIntroOverlayProps {
@@ -12,6 +14,9 @@ interface SkipIntroOverlayProps {
 }
 
 export function SkipIntroOverlay({ filePath, currentTime, onSkip }: SkipIntroOverlayProps) {
+  const { t } = useTranslation();
+  const theme = useTheme();
+
   const { data } = useQuery({
     queryKey: ["/api/v1/mkv/chapters", filePath],
     queryFn: ({ signal }) => mKVServiceListChapters({ path: filePath }, signal),
@@ -33,13 +38,13 @@ export function SkipIntroOverlay({ filePath, currentTime, onSkip }: SkipIntroOve
 
   return (
     <Pressable
-      style={styles.button}
+      style={[styles.button, { borderColor: theme.colors.border }]}
       onPress={() => onSkip(endSec)}
       accessible={true}
-      accessibilityLabel="Skip Intro"
+      accessibilityLabel={t("player.skipIntro")}
       accessibilityRole="button"
     >
-      <Text style={styles.text}>Skip Intro</Text>
+      <Text style={[styles.text, { color: theme.colors.text }]}>{t("player.skipIntro")}</Text>
     </Pressable>
   );
 }
@@ -51,13 +56,11 @@ const styles = StyleSheet.create({
     right: 20,
     backgroundColor: "rgba(0,0,0,0.7)",
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.3)",
     borderRadius: 8,
     paddingHorizontal: 20,
     paddingVertical: 10,
   },
   text: {
-    color: "#fff",
     fontSize: 14,
     fontWeight: "600",
   },

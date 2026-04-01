@@ -1,5 +1,7 @@
-import { View, Text, Pressable, StyleSheet } from "react-native";
+import { Text, Pressable, StyleSheet } from "react-native";
+import { useTranslation } from "react-i18next";
 import { BottomSheet } from "./BottomSheet";
+import { useTheme } from "../providers/ThemeProvider";
 import type { Chapter } from "../hooks/useChapters";
 
 interface ChaptersPickerProps {
@@ -26,8 +28,11 @@ export function ChaptersPicker({
   currentTimeMs,
   onSeek,
 }: ChaptersPickerProps) {
+  const { t } = useTranslation();
+  const theme = useTheme();
+
   return (
-    <BottomSheet visible={visible} onClose={onClose} title="Chapters">
+    <BottomSheet visible={visible} onClose={onClose} title={t("player.controls.chapters")}>
       {chapters.map((ch, i) => {
         const startSec = ch.startTimeMs / 1000;
         const isActive =
@@ -36,23 +41,23 @@ export function ChaptersPicker({
         return (
           <Pressable
             key={i}
-            style={styles.row}
+            style={[styles.row, { borderBottomColor: theme.colors.border }]}
             onPress={() => {
               onSeek(startSec);
               onClose();
             }}
             accessible={true}
-            accessibilityLabel={ch.title || `Chapter ${i + 1}`}
+            accessibilityLabel={ch.title || `${t("media.chapter")} ${i + 1}`}
             accessibilityRole="button"
           >
-            <Text style={styles.timestamp}>{formatTime(startSec)}</Text>
+            <Text style={[styles.timestamp, { color: theme.colors.textMuted }]}>{formatTime(startSec)}</Text>
             <Text
-              style={[styles.label, isActive && styles.activeLabel]}
+              style={[styles.label, { color: theme.colors.text }, isActive && { color: theme.colors.accent }]}
               numberOfLines={1}
             >
-              {ch.title || `Chapter ${i + 1}`}
+              {ch.title || `${t("media.chapter")} ${i + 1}`}
             </Text>
-            {isActive && <Text style={styles.check}>{"\u2713"}</Text>}
+            {isActive && <Text style={[styles.check, { color: theme.colors.accent }]}>{"\u2713"}</Text>}
           </Pressable>
         );
       })}
@@ -66,25 +71,18 @@ const styles = StyleSheet.create({
     alignItems: "center",
     paddingVertical: 14,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: "rgba(255,255,255,0.08)",
     gap: 10,
   },
   timestamp: {
-    color: "rgba(255,255,255,0.5)",
     fontSize: 12,
     fontVariant: ["tabular-nums"],
     width: 52,
   },
   label: {
-    color: "#fff",
     fontSize: 15,
     flex: 1,
   },
-  activeLabel: {
-    color: "#60a5fa",
-  },
   check: {
-    color: "#60a5fa",
     fontSize: 18,
     fontWeight: "600",
     marginLeft: 12,

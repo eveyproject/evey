@@ -1,5 +1,7 @@
 import { View, Text, Pressable, StyleSheet } from "react-native";
+import { useTranslation } from "react-i18next";
 import { BottomSheet } from "./BottomSheet";
+import { useTheme } from "../providers/ThemeProvider";
 
 export interface QualityOption {
   label: string;
@@ -27,14 +29,17 @@ export function QualityPicker({
   currentQuality,
   onSelect,
 }: QualityPickerProps) {
+  const { t } = useTranslation();
+  const theme = useTheme();
+
   return (
-    <BottomSheet visible={visible} onClose={onClose} title="Quality">
+    <BottomSheet visible={visible} onClose={onClose} title={t("player.controls.quality")}>
       {QUALITY_OPTIONS.map((q) => {
         const active = q.value === currentQuality;
         return (
           <Pressable
             key={q.value}
-            style={styles.row}
+            style={[styles.row, { borderBottomColor: theme.colors.border }]}
             onPress={() => {
               onSelect(q.value);
               onClose();
@@ -43,10 +48,10 @@ export function QualityPicker({
             accessibilityLabel={q.label}
             accessibilityRole="button"
           >
-            <Text style={[styles.label, active && styles.activeLabel]}>
+            <Text style={[styles.label, { color: theme.colors.text }, active && { color: theme.colors.accent }]}>
               {q.label}
             </Text>
-            {active && <Text style={styles.check}>{"\u2713"}</Text>}
+            {active && <Text style={[styles.check, { color: theme.colors.accent }]}>{"\u2713"}</Text>}
           </Pressable>
         );
       })}
@@ -61,18 +66,12 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     paddingVertical: 14,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: "rgba(255,255,255,0.08)",
   },
   label: {
-    color: "#fff",
     fontSize: 15,
     flex: 1,
   },
-  activeLabel: {
-    color: "#60a5fa",
-  },
   check: {
-    color: "#60a5fa",
     fontSize: 18,
     fontWeight: "600",
     marginLeft: 12,
