@@ -67,6 +67,7 @@ type mediaDeps struct {
 type contentDeps struct {
 	metadataCmdSvc   *appmetadata.CommandService
 	metadataQuerySvc *appmetadata.QueryService
+	enricher         *appmetadata.Enricher
 	collectionSvc    *appcollection.Service
 	favoriteSvc      *appfavorite.Service
 	starRatingSvc    *apprating.Service

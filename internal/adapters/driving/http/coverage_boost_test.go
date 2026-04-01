@@ -2606,7 +2606,7 @@ func newAdminMediaMux(t *testing.T) (*http.ServeMux, string, string) {
 	metaQuery := appmetadata.NewQueryService(metaOverrides, metaArtwork, []domainmeta.MetadataProvider{provider})
 	rl := ratelimit.New(100)
 	mux := http.NewServeMux()
-	registerAdminRoutes(mux, metaCmd, metaQuery, gen, rl, context.Background(), nil)
+	registerAdminRoutes(mux, metaCmd, metaQuery, gen, rl, context.Background(), nil, nil)
 	return mux, adminTok, userTok
 }
 

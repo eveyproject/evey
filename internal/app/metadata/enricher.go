@@ -853,6 +853,33 @@ func (e *Enricher) episodeProviders() []episodeProvider {
 	return result
 }
 
+// EnrichAllPeopleBios fetches bios for all people missing biography data.
+func (e *Enricher) EnrichAllPeopleBios(ctx context.Context, log *slog.Logger) (int, error) {
+	all, err := e.persons.List(ctx)
+	if err != nil {
+		return 0, fmt.Errorf("list people: %w", err)
+	}
+	enriched := 0
+	for _, person := range all {
+		if ctx.Err() != nil {
+			break
+		}
+		if person.Biography != "" {
+			continue
+		}
+		e.fetchPersonBio(ctx, person)
+		if person.Biography != "" {
+			enriched++
+			if log != nil {
+				log.Debug("enriched person bio", slog.String("name", person.Name))
+			}
+		}
+		// Rate limit: ~2 requests/second to avoid TMDB throttling
+		time.Sleep(500 * time.Millisecond)
+	}
+	return enriched, nil
+}
+
 // AutoEnrichAll enriches all items concurrently (max 3 at a time)
 // with rate limiting to avoid 429s from external APIs.
 func (e *Enricher) AutoEnrichAll(ctx context.Context, items []*domainlib.MediaItem, log *slog.Logger) {

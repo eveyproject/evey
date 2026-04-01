@@ -163,6 +163,9 @@ type HTTPServer struct {
 	UserMaxStreams UserMaxStreamsGetter
 	UserBitrate   UserBitrateGetter
 
+	// People bio enrichment
+	BioEnricher appmetadata.PeopleBioEnricher
+
 	// WebDir is the path to the built frontend dist (e.g. /srv).
 	// If set and the directory exists, the server serves the SPA from it.
 	WebDir string
@@ -250,7 +253,7 @@ func (s *HTTPServer) RegisterRoutes(mux *http.ServeMux, gwMux http.Handler) {
 	}
 
 	registerFeedRoutes(mux, s.FeedCmdSvc, s.FeedQuerySvc, s.TokenGen)
-	registerAdminRoutes(mux, s.MetadataCmdSvc, s.MetadataQuerySvc, s.TokenGen, s.AdminHeavyRL, s.ServerCtx, s.ActivityCmdSvc)
+	registerAdminRoutes(mux, s.MetadataCmdSvc, s.MetadataQuerySvc, s.TokenGen, s.AdminHeavyRL, s.ServerCtx, s.ActivityCmdSvc, s.BioEnricher)
 	registerUserAdminRoutes(mux, s.UserSvc, s.UserQuerySvc, s.TokenGen, s.ActivityCmdSvc)
 	registerFavoriteRoutes(mux, s.FavoriteSvc, s.LibQuerySvc, s.TokenGen, s.LibraryAccessRepo)
 	registerPhotoRoutes(mux, s.PhotoSvc, s.TokenGen, s.LibraryAccessRepo, s.LibQuerySvc, s.ServerCtx)

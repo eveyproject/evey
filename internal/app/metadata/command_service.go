@@ -14,6 +14,11 @@ import (
 	"github.com/gravity-zero/evey/internal/domain/shared"
 )
 
+// PeopleBioEnricher enriches bios for people missing biography data.
+type PeopleBioEnricher interface {
+	EnrichAllPeopleBios(ctx context.Context, log *slog.Logger) (int, error)
+}
+
 type CommandService struct {
 	overrides    metadata.MetadataOverrideRepository
 	artwork      metadata.ArtworkRepository

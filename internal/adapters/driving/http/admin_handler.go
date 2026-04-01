@@ -40,6 +40,7 @@ type adminHandler struct {
 	cfgSvc         *appconfig.Service
 	transcodeSvc   *apptranscoding.Service
 	mediaGetter    MediaItemGetter
+	bioEnricher    appmetadata.PeopleBioEnricher
 	serverCtx      context.Context
 
 	statsMu      sync.Mutex
@@ -671,12 +672,34 @@ func (h *adminHandler) handleDeleteTranscodeCacheFile(w http.ResponseWriter, r *
 	w.WriteHeader(http.StatusNoContent)
 }
 
-// --- register functions (preserve existing signatures) ---
+func (h *adminHandler) handleEnrichPeople(w http.ResponseWriter, r *http.Request) {
+	if !h.requireAdminWithResponse(w, r) {
+		return
+	}
+	if h.bioEnricher == nil {
+		http.Error(w, `{"message":"enricher not configured"}`, http.StatusServiceUnavailable)
+		return
+	}
+	go func() {
+		count, err := h.bioEnricher.EnrichAllPeopleBios(h.serverCtx, slog.Default())
+		if err != nil {
+			slog.Error("enrich people bios", slog.Any("err", err))
+		} else {
+			slog.Info("enrich people bios completed", slog.Int("enriched", count))
+		}
+	}()
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusAccepted)
+	_, _ = w.Write([]byte(`{"message":"enrichment started"}`))
+}
 
-func registerAdminRoutes(mux *http.ServeMux, metaCmd *appmetadata.CommandService, metaQuery *appmetadata.QueryService, tokenGen *auth.JWTGenerator, heavyRL *ratelimit.Limiter, serverCtx context.Context, actCmdSvc *appactivity.CommandService) {
-	h := &adminHandler{tokenGen: tokenGen, metaCmd: metaCmd, metaQuery: metaQuery, heavyRL: heavyRL, serverCtx: serverCtx, activityCmdSvc: actCmdSvc}
+// --- register functions ---
+
+func registerAdminRoutes(mux *http.ServeMux, metaCmd *appmetadata.CommandService, metaQuery *appmetadata.QueryService, tokenGen *auth.JWTGenerator, heavyRL *ratelimit.Limiter, serverCtx context.Context, actCmdSvc *appactivity.CommandService, bioEnricher appmetadata.PeopleBioEnricher) {
+	h := &adminHandler{tokenGen: tokenGen, metaCmd: metaCmd, metaQuery: metaQuery, heavyRL: heavyRL, serverCtx: serverCtx, activityCmdSvc: actCmdSvc, bioEnricher: bioEnricher}
 	mux.HandleFunc("/api/v1/admin/media/", h.handleMedia)
 	mux.HandleFunc("POST /api/v1/admin/metadata/refresh-all", h.handleRefreshAll)
+	mux.HandleFunc("POST /api/v1/admin/metadata/enrich-people", ratelimit.MiddlewareFunc(heavyRL, h.handleEnrichPeople))
 }
 
 func registerUserAdminRoutes(mux *http.ServeMux, userSvc *appuser.UserService, userQuery *appuser.QueryService, tokenGen *auth.JWTGenerator, actCmdSvc *appactivity.CommandService) {

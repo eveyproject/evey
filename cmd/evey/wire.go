@@ -404,6 +404,7 @@ func buildServices(ctx context.Context, cfg *config.Config, db *sql.DB, rootLog 
 		content: contentDeps{
 			metadataCmdSvc:   metadataCmdSvc,
 			metadataQuerySvc: metadataQuerySvc,
+			enricher:         enricher,
 			collectionSvc:    collectionSvc,
 			favoriteSvc:      favoriteSvc,
 			starRatingSvc:    starRatingSvc,
