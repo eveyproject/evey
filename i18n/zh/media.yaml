@@ -148,6 +148,9 @@ person:
 detail:
   notFound: 未找到媒体项。
   play: 播放
+  resume: 继续播放
+  favorite: 收藏
+  favorited: 已收藏
   markWatched: 标记为已看
   markUnwatched: 标记为未看
   markedWatched: 已标记为已看

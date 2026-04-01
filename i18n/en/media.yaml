@@ -150,6 +150,9 @@ person:
 detail:
   notFound: Media item not found.
   play: Play
+  resume: Resume
+  favorite: Favorite
+  favorited: Favorited
   markWatched: Mark Watched
   markUnwatched: Mark Unwatched
   markedWatched: Marked as watched

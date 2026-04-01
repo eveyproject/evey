@@ -148,6 +148,9 @@ person:
 detail:
   notFound: Élément multimédia introuvable.
   play: Lecture
+  resume: Reprendre
+  favorite: Favori
+  favorited: En favoris
   markWatched: Marquer comme vu
   markUnwatched: Marquer comme non vu
   markedWatched: Marqué comme vu
