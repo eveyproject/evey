@@ -117,7 +117,13 @@ export default function CollectionsScreen() {
             <CollectionCard
               col={item}
               theme={theme}
-              onPress={() => router.push(`/collections/${item.id}`)}
+              onPress={() => {
+                if (item.rules && item.rules.length > 0) {
+                  router.push(`/collections/smart/${item.id}`);
+                } else {
+                  router.push(`/collections/${item.id}`);
+                }
+              }}
             />
           )}
           ListEmptyComponent={

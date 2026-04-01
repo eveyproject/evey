@@ -3,7 +3,7 @@ import { View, Text, ScrollView, Pressable, Alert, TextInput, ActivityIndicator,
 import { router } from "expo-router";
 import Constants from "expo-constants";
 import { useTranslation } from "react-i18next";
-import { useUserServiceGetCurrentUser, useAdminServiceGetSystemInfo, useUserServiceAuthorizeQuickConnect } from "@evey/api";
+import { useUserServiceGetCurrentUser, useAdminServiceGetSystemInfo, useUserServiceAuthorizeQuickConnect, useUserServiceUpdateUser } from "@evey/api";
 import { useAuthStore, useThemeStore, useLocaleStore } from "@evey/store";
 import { useTheme } from "../../../src/providers/ThemeProvider";
 import { useServerUrlNullable } from "../../../src/hooks/useServerUrl";
@@ -31,9 +31,24 @@ export default function SettingsScreen() {
 
   const [qcCode, setQcCode] = useState("");
   const [qcSuccess, setQcSuccess] = useState(false);
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
 
   const { data: user } = useUserServiceGetCurrentUser();
   const { data: systemInfo } = useAdminServiceGetSystemInfo();
+
+  const updateUser = useUserServiceUpdateUser({
+    mutation: {
+      onSuccess: () => {
+        setNewPassword("");
+        setConfirmPassword("");
+        Alert.alert(t("auth.settings.account.passwordUpdated", "Password updated"));
+      },
+      onError: (err: Error) => {
+        Alert.alert(t("auth.settings.account.passwordFailed", "Failed"), err.message);
+      },
+    },
+  });
 
   const authorizeQc = useUserServiceAuthorizeQuickConnect({
     mutation: {
@@ -123,10 +138,87 @@ export default function SettingsScreen() {
           <Text style={s.label}>{t("mobile.settings.switchProfile", "Switch Profile")}</Text>
           <ChevronRight color={theme.colors.textMuted} />
         </Pressable>
+        <Pressable style={s.row} onPress={() => router.push("/settings/parental")} accessible={true} accessibilityLabel={t("auth.settings.tabs.parental", "Parental Controls")} accessibilityRole="button">
+          <Text style={s.label}>{t("auth.settings.tabs.parental", "Parental Controls")}</Text>
+          <ChevronRight color={theme.colors.textMuted} />
+        </Pressable>
         <Pressable style={s.row} onPress={handleSignOut} accessible={true} accessibilityLabel={t("mobile.settings.signOut")} accessibilityRole="button">
           <Text style={s.labelDestructive}>{t("mobile.settings.signOut")}</Text>
           <ChevronRight color={theme.colors.textMuted} />
         </Pressable>
+      </View>
+
+      {/* Change Password */}
+      <Text style={s.sectionTitle}>{t("auth.settings.account.changePassword", "Change Password")}</Text>
+      <View style={s.section}>
+        <View style={{ paddingHorizontal: theme.spacing.md, paddingTop: 14 }}>
+          <Text style={{ color: theme.colors.textMuted, fontSize: 13, marginBottom: theme.spacing.sm }}>
+            {t("auth.settings.account.changePasswordDesc", "Set a new password for your account")}
+          </Text>
+        </View>
+        <View style={{ paddingHorizontal: theme.spacing.md, paddingBottom: 14, gap: theme.spacing.sm }}>
+          <TextInput
+            placeholder={t("auth.settings.account.newPassword", "New password")}
+            placeholderTextColor={theme.colors.textMuted}
+            value={newPassword}
+            onChangeText={setNewPassword}
+            secureTextEntry
+            autoComplete="new-password"
+            style={{
+              backgroundColor: theme.colors.bg,
+              color: theme.colors.text,
+              borderRadius: theme.radii.md,
+              padding: theme.spacing.sm,
+              borderWidth: 1,
+              borderColor: theme.colors.border,
+            }}
+          />
+          <TextInput
+            placeholder={t("auth.settings.account.confirmPassword", "Confirm password")}
+            placeholderTextColor={theme.colors.textMuted}
+            value={confirmPassword}
+            onChangeText={setConfirmPassword}
+            secureTextEntry
+            autoComplete="new-password"
+            style={{
+              backgroundColor: theme.colors.bg,
+              color: theme.colors.text,
+              borderRadius: theme.radii.md,
+              padding: theme.spacing.sm,
+              borderWidth: 1,
+              borderColor: theme.colors.border,
+            }}
+          />
+          <Pressable
+            onPress={() => {
+              if (!user?.id) return;
+              if (newPassword !== confirmPassword) {
+                Alert.alert(t("auth.settings.account.passwordMismatch", "Passwords do not match"));
+                return;
+              }
+              if (newPassword.length < 8) {
+                Alert.alert(t("auth.settings.account.passwordMin", "Password must be at least 8 characters"));
+                return;
+              }
+              updateUser.mutate({ id: user.id, data: { password: newPassword } });
+            }}
+            disabled={updateUser.isPending || newPassword.length < 8}
+            style={{
+              backgroundColor: newPassword.length < 8 ? theme.colors.border : theme.colors.accent,
+              borderRadius: theme.radii.md,
+              paddingVertical: theme.spacing.sm,
+              alignItems: "center",
+            }}
+          >
+            {updateUser.isPending ? (
+              <ActivityIndicator color="#fff" size="small" />
+            ) : (
+              <Text style={{ color: "#fff", fontWeight: "600", fontSize: 14 }}>
+                {t("auth.settings.account.updatePassword", "Update Password")}
+              </Text>
+            )}
+          </Pressable>
+        </View>
       </View>
 
       {/* Language */}

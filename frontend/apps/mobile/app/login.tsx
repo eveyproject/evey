@@ -1,17 +1,66 @@
-import { useState } from "react";
-import { View, Text, TextInput, Pressable, ActivityIndicator, Alert } from "react-native";
-import { router } from "expo-router";
+import { useState, useEffect } from "react";
+import { View, Text, TextInput, Pressable, ActivityIndicator, Alert, Linking } from "react-native";
+import { router, useLocalSearchParams } from "expo-router";
 import { useTranslation } from "react-i18next";
-import { useUserServiceLogin } from "@evey/api";
+import { useQuery } from "@tanstack/react-query";
+import { useUserServiceLogin, eveyFetch } from "@evey/api";
 import { useAuthStore } from "@evey/store";
 import { useTheme } from "../src/providers/ThemeProvider";
+import { useServerUrl } from "../src/hooks/useServerUrl";
 
 export default function Login() {
   const theme = useTheme();
   const { t } = useTranslation();
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
+  const [oidcLoading, setOidcLoading] = useState(false);
   const setTokens = useAuthStore((s) => s.setTokens);
+  const serverUrl = useServerUrl();
+
+  const oidcConfig = useQuery<{ enabled: boolean }>({
+    queryKey: ["oidc-config"],
+    queryFn: () => eveyFetch<{ enabled: boolean }>({ url: "/api/v1/auth/oidc/config", method: "GET" }),
+    staleTime: 60_000,
+  });
+
+  // Handle OIDC deep link callback (evey://oidc-callback)
+  useEffect(() => {
+    function handleUrl(event: { url: string }) {
+      if (!event.url.includes("oidc-callback")) return;
+      const url = new URL(event.url);
+      const oidcError = url.searchParams.get("oidc_error");
+      if (oidcError) {
+        Alert.alert(t("auth.login.ssoFailed", "SSO login failed"));
+        return;
+      }
+      (async () => {
+        try {
+          const { accessToken } = await eveyFetch<{ accessToken: string }>({
+            url: "/api/v1/auth/oidc/session",
+            method: "GET",
+          });
+          setTokens(accessToken);
+          router.replace("/profile-select");
+        } catch {
+          Alert.alert(t("auth.login.ssoFailed", "SSO login failed"));
+        }
+      })();
+    }
+    const sub = Linking.addEventListener("url", handleUrl);
+    return () => sub.remove();
+  }, [setTokens, t]);
+
+  async function handleOidcLogin() {
+    if (!serverUrl) return;
+    setOidcLoading(true);
+    try {
+      await Linking.openURL(`${serverUrl}/api/v1/auth/oidc/login?redirect_uri=${encodeURIComponent("evey://oidc-callback")}`);
+    } catch {
+      Alert.alert(t("auth.login.ssoFailed", "Could not open SSO login"));
+    } finally {
+      setOidcLoading(false);
+    }
+  }
 
   const { mutate: login, isPending } = useUserServiceLogin({
     mutation: {
@@ -119,6 +168,41 @@ export default function Login() {
             {t("auth.settings.quickConnect.title")}
           </Text>
         </Pressable>
+
+        {oidcConfig.data?.enabled && (
+          <>
+            <View style={{ flexDirection: "row", alignItems: "center", marginVertical: theme.spacing.md, width: "100%" }}>
+              <View style={{ flex: 1, height: 1, backgroundColor: theme.colors.border }} />
+              <Text style={{ color: theme.colors.textMuted, fontSize: 12, marginHorizontal: theme.spacing.sm }}>
+                {t("auth.login.or", "or")}
+              </Text>
+              <View style={{ flex: 1, height: 1, backgroundColor: theme.colors.border }} />
+            </View>
+            <Pressable
+              onPress={() => void handleOidcLogin()}
+              disabled={oidcLoading}
+              accessible={true}
+              accessibilityLabel="Sign in with SSO"
+              accessibilityRole="button"
+              style={{
+                borderWidth: 1,
+                borderColor: theme.colors.border,
+                borderRadius: theme.radii.md,
+                padding: theme.spacing.md,
+                alignItems: "center",
+                width: "100%",
+              }}
+            >
+              {oidcLoading ? (
+                <ActivityIndicator color={theme.colors.text} size="small" />
+              ) : (
+                <Text style={{ color: theme.colors.text, fontWeight: "600", fontSize: 16 }}>
+                  {t("auth.login.signInWithSSO", "Sign in with SSO")}
+                </Text>
+              )}
+            </Pressable>
+          </>
+        )}
       </View>
     </View>
   );
