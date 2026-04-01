@@ -21,7 +21,7 @@ import { usePlayerGestures } from "../../../src/hooks/usePlayerGestures";
 import { useNextEpisode } from "../../../src/hooks/useNextEpisode";
 import { useChapters } from "../../../src/hooks/useChapters";
 import { AudioTrackPicker, type AudioStream } from "../../../src/components/AudioTrackPicker";
-import { SubtitlePicker, isImageSubtitle, type SubtitleStream } from "../../../src/components/SubtitlePicker";
+import { SubtitlePicker, type SubtitleStream } from "../../../src/components/SubtitlePicker";
 import { QualityPicker } from "../../../src/components/QualityPicker";
 import { ChaptersPicker } from "../../../src/components/ChaptersPicker";
 import { SkipIntroOverlay } from "../../../src/components/SkipIntroOverlay";
@@ -51,7 +51,7 @@ export default function PlayerScreen() {
   const mediaId = id ?? "";
 
   const { data: media } = useLibraryServiceGetMediaItem(mediaId);
-  const { streamUrl, sessionId, streamInfo, isLoading, isError, stopSession, restartWithTracks } =
+  const { streamUrl, sessionId, streamInfo, isLoading, isError, stopSession, restartWithTracks, progress } =
     usePlaySession(mediaId);
 
   const { data: chapters = [] } = useChapters(mediaId);
@@ -122,8 +122,17 @@ export default function PlayerScreen() {
     };
   }, [streamUrl]);
 
+  const resumePositionSec = useMemo(() => {
+    if (!progress?.positionMs || progress.played) return 0;
+    const ms = Number(progress.positionMs);
+    return ms > 0 ? ms / 1000 : 0;
+  }, [progress]);
+
   const player = useVideoPlayer(videoSource, (p) => {
     p.timeUpdateEventInterval = 0.5;
+    if (resumePositionSec > 0) {
+      p.currentTime = resumePositionSec;
+    }
     p.play();
   });
 
@@ -246,7 +255,19 @@ export default function PlayerScreen() {
     return (player?.currentTime ?? 0) * 1000;
   }, [player]);
 
-  useProgressReporter(sessionId, getPositionMs);
+  const getIsPaused = useCallback(() => {
+    return !(player?.playing ?? false);
+  }, [player]);
+
+  const getVolume = useCallback(() => {
+    return player?.volume ?? 1;
+  }, [player]);
+
+  const getIsMuted = useCallback(() => {
+    return player?.muted ?? false;
+  }, [player]);
+
+  useProgressReporter(sessionId, getPositionMs, getIsPaused, getVolume, getIsMuted);
 
   const handleAudioSelect = useCallback(
     (index: number) => {
@@ -341,7 +362,7 @@ export default function PlayerScreen() {
     );
   }
 
-  const progress = duration > 0 ? currentTime / duration : 0;
+  const seekProgress = duration > 0 ? currentTime / duration : 0;
   const volumePct = Math.round(volume * 100);
 
   return (
@@ -395,21 +416,21 @@ export default function PlayerScreen() {
           <View style={styles.nextEpOverlay}>
             <Text style={styles.nextEpLabel}>
               {nextEp.ended
-                ? `Next in ${Math.max(nextEp.countdown, 0)}s`
-                : "Up Next"}
+                ? t("player.nextEpisodeOverlay.nextIn", { seconds: Math.max(nextEp.countdown, 0) })
+                : t("player.nextEpisodeOverlay.upNext")}
             </Text>
             <Text style={styles.nextEpTitle} numberOfLines={1}>
               {nextEp.nextEpisode.indexNumber != null
-                ? `Ep. ${nextEp.nextEpisode.indexNumber}`
-                : "Next Episode"}
+                ? t("player.nextEpisodeOverlay.episode", { number: nextEp.nextEpisode.indexNumber })
+                : t("player.nextEpisodeOverlay.nextEpisode")}
               {nextEp.nextEpisode.title ? ` \u2014 ${nextEp.nextEpisode.title}` : ""}
             </Text>
             <View style={styles.nextEpButtons}>
-              <Pressable onPress={nextEp.playNow} style={styles.nextEpPlayBtn}>
-                <Text style={styles.nextEpPlayText}>Play Now</Text>
+              <Pressable onPress={nextEp.playNow} style={[styles.nextEpPlayBtn, { backgroundColor: theme.colors.accent }]}>
+                <Text style={styles.nextEpPlayText}>{t("player.nextEpisodeOverlay.playNow")}</Text>
               </Pressable>
               <Pressable onPress={nextEp.cancel} style={styles.nextEpCancelBtn}>
-                <Text style={styles.nextEpCancelText}>Cancel</Text>
+                <Text style={styles.nextEpCancelText}>{t("common.cancel")}</Text>
               </Pressable>
             </View>
             {nextEp.ended && (
@@ -417,7 +438,7 @@ export default function PlayerScreen() {
                 <View
                   style={[
                     styles.nextEpProgressFill,
-                    { width: `${((5 - Math.max(nextEp.countdown, 0)) / 5) * 100}%` },
+                    { width: `${((5 - Math.max(nextEp.countdown, 0)) / 5) * 100}%`, backgroundColor: theme.colors.accent },
                   ]}
                 />
               </View>
@@ -428,7 +449,7 @@ export default function PlayerScreen() {
         {showControls && (
           <View style={styles.overlay} pointerEvents="box-none">
             <View style={styles.topBar}>
-              <Pressable onPress={handleBack} hitSlop={16} accessible={true} accessibilityLabel="Go back" accessibilityRole="button">
+              <Pressable onPress={handleBack} hitSlop={16} accessible={true} accessibilityLabel={t("common.back")} accessibilityRole="button">
                 <Ionicons name="chevron-back" size={28} color="#fff" />
               </Pressable>
               <Text style={styles.title} numberOfLines={1}>
@@ -440,7 +461,7 @@ export default function PlayerScreen() {
                   hitSlop={8}
                   style={styles.trackButton}
                   accessible={true}
-                  accessibilityLabel="Playback speed"
+                  accessibilityLabel={t("player.settings.speed")}
                   accessibilityRole="button"
                 >
                   <Text style={styles.speedButtonText}>{playbackSpeed}x</Text>
@@ -450,7 +471,7 @@ export default function PlayerScreen() {
                   hitSlop={8}
                   style={styles.trackButton}
                   accessible={true}
-                  accessibilityLabel="Quality"
+                  accessibilityLabel={t("player.controls.quality")}
                   accessibilityRole="button"
                 >
                   <Ionicons name="settings-sharp" size={18} color="#fff" />
@@ -461,7 +482,7 @@ export default function PlayerScreen() {
                     hitSlop={8}
                     style={styles.trackButton}
                     accessible={true}
-                    accessibilityLabel="Chapters"
+                    accessibilityLabel={t("player.controls.chapters")}
                     accessibilityRole="button"
                   >
                     <Ionicons name="book-outline" size={18} color="#fff" />
@@ -473,7 +494,7 @@ export default function PlayerScreen() {
                     hitSlop={8}
                     style={styles.trackButton}
                     accessible={true}
-                    accessibilityLabel="Audio tracks"
+                    accessibilityLabel={t("player.settings.audio")}
                     accessibilityRole="button"
                   >
                     <Ionicons name="volume-high" size={18} color="#fff" />
@@ -485,7 +506,7 @@ export default function PlayerScreen() {
                     hitSlop={8}
                     style={styles.trackButton}
                     accessible={true}
-                    accessibilityLabel="Subtitles"
+                    accessibilityLabel={t("player.settings.subtitles")}
                     accessibilityRole="button"
                   >
                     <Ionicons name="chatbubble-ellipses" size={18} color="#fff" />
@@ -497,7 +518,7 @@ export default function PlayerScreen() {
                     hitSlop={8}
                     style={styles.trackButton}
                     accessible={true}
-                    accessibilityLabel="Picture in Picture"
+                    accessibilityLabel={t("player.controls.pip")}
                     accessibilityRole="button"
                   >
                     <Ionicons name="albums-outline" size={18} color="#fff" />
@@ -507,13 +528,13 @@ export default function PlayerScreen() {
             </View>
 
             <View style={styles.centerControls}>
-              <Pressable onPress={() => seekBy(-10)} hitSlop={16} style={styles.seekButton} accessible={true} accessibilityLabel="Seek backward 10 seconds" accessibilityRole="button">
+              <Pressable onPress={() => seekBy(-10)} hitSlop={16} style={styles.seekButton} accessible={true} accessibilityLabel={t("player.controls.rewind", { seconds: 10 })} accessibilityRole="button">
                 <Ionicons name="play-back" size={24} color="#fff" />
               </Pressable>
-              <Pressable onPress={togglePlayPause} hitSlop={16} style={styles.playButton} accessible={true} accessibilityLabel={isPlaying ? "Pause" : "Play"} accessibilityRole="button">
+              <Pressable onPress={togglePlayPause} hitSlop={16} style={styles.playButton} accessible={true} accessibilityLabel={isPlaying ? t("player.controls.pause") : t("player.controls.play")} accessibilityRole="button">
                 <Ionicons name={isPlaying ? "pause" : "play"} size={32} color="#fff" />
               </Pressable>
-              <Pressable onPress={() => seekBy(10)} hitSlop={16} style={styles.seekButton} accessible={true} accessibilityLabel="Seek forward 10 seconds" accessibilityRole="button">
+              <Pressable onPress={() => seekBy(10)} hitSlop={16} style={styles.seekButton} accessible={true} accessibilityLabel={t("player.controls.forward", { seconds: 10 })} accessibilityRole="button">
                 <Ionicons name="play-forward" size={24} color="#fff" />
               </Pressable>
             </View>
@@ -524,7 +545,7 @@ export default function PlayerScreen() {
                 style={styles.seekBarContainer}
                 accessible={true}
                 accessibilityRole="adjustable"
-                accessibilityLabel="Seek slider"
+                accessibilityLabel={t("player.controls.seek")}
                 onPress={(e) => {
                   const x = e.nativeEvent.locationX;
                   const width = PLAYER_WIDTH - 160;
@@ -532,8 +553,8 @@ export default function PlayerScreen() {
                 }}
               >
                 <View style={styles.seekBarTrack}>
-                  <View style={[styles.seekBarFill, { flex: progress }]} />
-                  <View style={{ flex: 1 - progress }} />
+                  <View style={[styles.seekBarFill, { flex: seekProgress, backgroundColor: theme.colors.accent }]} />
+                  <View style={{ flex: 1 - seekProgress }} />
                 </View>
                 {duration > 0 && chapters.map((ch, i) => {
                   const pct = (ch.startTimeMs / 1000) / duration;
@@ -682,7 +703,6 @@ const styles = StyleSheet.create({
     overflow: "hidden",
   },
   seekBarFill: {
-    backgroundColor: "#fff",
   },
   chapterMarker: {
     position: "absolute",
@@ -782,7 +802,6 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   nextEpPlayBtn: {
-    backgroundColor: "#fff",
     paddingHorizontal: 14,
     paddingVertical: 6,
     borderRadius: 6,
@@ -812,7 +831,6 @@ const styles = StyleSheet.create({
   },
   nextEpProgressFill: {
     height: "100%",
-    backgroundColor: "#fff",
     borderRadius: 2,
   },
   topBarRight: {
