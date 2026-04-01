@@ -111,6 +111,10 @@ function HistoryItem({ item, onRemove, isPending }: {
   );
 }
 
+function historyKeyExtractor(item: V1WatchProgress) {
+  return item.id ?? item.mediaItemId ?? "";
+}
+
 export default function HistoryScreen() {
   const theme = useTheme();
   const { t } = useTranslation();
@@ -127,6 +131,17 @@ export default function HistoryScreen() {
       },
     },
   });
+
+  const renderHistoryItem = useCallback(
+    ({ item }: { item: V1WatchProgress }) => (
+      <HistoryItem
+        item={item}
+        onRemove={() => item.mediaItemId && unwatch.mutate({ mediaItemId: item.mediaItemId })}
+        isPending={unwatch.isPending}
+      />
+    ),
+    [unwatch],
+  );
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
@@ -186,18 +201,16 @@ export default function HistoryScreen() {
       ) : (
         <FlatList
           data={items}
-          keyExtractor={(item) => item.id ?? item.mediaItemId ?? ""}
-          renderItem={({ item }) => (
-            <HistoryItem
-              item={item}
-              onRemove={() => item.mediaItemId && unwatch.mutate({ mediaItemId: item.mediaItemId })}
-              isPending={unwatch.isPending}
-            />
-          )}
+          keyExtractor={historyKeyExtractor}
+          renderItem={renderHistoryItem}
           refreshControl={
             <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.colors.accent} />
           }
           contentContainerStyle={{ paddingBottom: theme.spacing.xl }}
+          initialNumToRender={10}
+          maxToRenderPerBatch={10}
+          windowSize={5}
+          removeClippedSubviews={true}
         />
       )}
     </View>

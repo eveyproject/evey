@@ -8,6 +8,14 @@ import { FocusableCard } from "../../../src/components/FocusableCard";
 
 const NUM_COLUMNS = 5;
 
+function tvColKeyExtractor(item: CollectionItem) {
+  return item.id;
+}
+
+function TVColSeparator() {
+  return <View style={{ height: 16 }} />;
+}
+
 export default function CollectionDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const theme = useTheme();
@@ -63,11 +71,15 @@ export default function CollectionDetailScreen() {
       <Text style={[styles.header, { color: theme.colors.text }]}>{col?.name ?? "Collection"}</Text>
       <FlatList
         data={items}
-        keyExtractor={(item) => item.id}
+        keyExtractor={tvColKeyExtractor}
         renderItem={renderItem}
         numColumns={NUM_COLUMNS}
         contentContainerStyle={{ padding: 24 }}
-        ItemSeparatorComponent={() => <View style={{ height: 16 }} />}
+        ItemSeparatorComponent={TVColSeparator}
+        initialNumToRender={10}
+        maxToRenderPerBatch={15}
+        windowSize={5}
+        removeClippedSubviews={true}
         ListEmptyComponent={
           <View style={styles.center}>
             <Text style={{ color: theme.colors.textMuted, fontSize: 22 }}>{t("common.noItems")}</Text>

@@ -10,7 +10,18 @@ import { FocusableCard } from "../../../src/components/FocusableCard";
 const NUM_COLUMNS = 5;
 const CARD_WIDTH = 200;
 const POSTER_HEIGHT = CARD_WIDTH * 1.5;
+const ROW_HEIGHT = POSTER_HEIGHT + 40 + 16;
 const PAGE_SIZE = 30;
+
+function tvLibKeyExtractor(item: V1MediaItem) {
+  return item.id ?? "";
+}
+
+const tvLibGetItemLayout = (_: unknown, index: number) => ({
+  length: ROW_HEIGHT,
+  offset: ROW_HEIGHT * Math.floor(index / NUM_COLUMNS),
+  index,
+});
 
 export default function LibraryDetailScreen() {
   const { libraryId } = useLocalSearchParams<{ libraryId: string }>();
@@ -92,13 +103,18 @@ export default function LibraryDetailScreen() {
       ) : (
         <FlatList
           data={allItems}
-          keyExtractor={(item) => item.id ?? ""}
+          keyExtractor={tvLibKeyExtractor}
           renderItem={renderItem}
           numColumns={NUM_COLUMNS}
           contentContainerStyle={{ padding: 24 }}
           columnWrapperStyle={{ gap: 16, marginBottom: 16 }}
           onEndReached={handleEndReached}
           onEndReachedThreshold={0.5}
+          getItemLayout={tvLibGetItemLayout}
+          initialNumToRender={10}
+          maxToRenderPerBatch={15}
+          windowSize={5}
+          removeClippedSubviews={true}
           ListFooterComponent={
             isFetching && page > 1 ? (
               <ActivityIndicator color={theme.colors.accent} style={{ marginVertical: 24 }} />

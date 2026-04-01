@@ -10,6 +10,17 @@ import { FocusableCard } from "../../../src/components/FocusableCard";
 const NUM_COLUMNS = 5;
 const CARD_WIDTH = 200;
 const POSTER_HEIGHT = CARD_WIDTH * 1.5;
+const ROW_HEIGHT = POSTER_HEIGHT + 40 + 16; // poster + text + gap
+
+function tvFavKeyExtractor(item: FavoriteItem) {
+  return item.mediaItemId;
+}
+
+const tvFavGetItemLayout = (_: unknown, index: number) => ({
+  length: ROW_HEIGHT,
+  offset: ROW_HEIGHT * Math.floor(index / NUM_COLUMNS),
+  index,
+});
 
 export default function FavoritesScreen() {
   const theme = useTheme();
@@ -65,11 +76,16 @@ export default function FavoritesScreen() {
       <Text style={[styles.header, { color: theme.colors.text }]}>Favorites</Text>
       <FlatList
         data={favorites ?? []}
-        keyExtractor={(item) => item.mediaItemId}
+        keyExtractor={tvFavKeyExtractor}
         renderItem={renderItem}
         numColumns={NUM_COLUMNS}
         contentContainerStyle={{ padding: 24 }}
         columnWrapperStyle={{ gap: 16, marginBottom: 16 }}
+        getItemLayout={tvFavGetItemLayout}
+        initialNumToRender={10}
+        maxToRenderPerBatch={15}
+        windowSize={5}
+        removeClippedSubviews={true}
         ListEmptyComponent={
           <View style={styles.center}>
             <Text style={{ color: theme.colors.textMuted, fontSize: 22 }}>{t("media.favorites.empty")}</Text>

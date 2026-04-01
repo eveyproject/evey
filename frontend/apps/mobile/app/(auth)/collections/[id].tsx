@@ -23,6 +23,17 @@ const SPACING = 8;
 const screenWidth = Dimensions.get("window").width;
 const ITEM_WIDTH = (screenWidth - SPACING * (NUM_COLUMNS + 1)) / NUM_COLUMNS;
 const POSTER_HEIGHT = ITEM_WIDTH * 1.5;
+const ROW_HEIGHT = POSTER_HEIGHT + 30 + SPACING;
+
+function colKeyExtractor(item: CollectionItem) {
+  return item.id;
+}
+
+const colGetItemLayout = (_: unknown, index: number) => ({
+  length: ROW_HEIGHT,
+  offset: ROW_HEIGHT * Math.floor(index / NUM_COLUMNS),
+  index,
+});
 
 export default function CollectionDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -107,10 +118,15 @@ export default function CollectionDetailScreen() {
       ) : (
         <FlatList
           data={items}
-          keyExtractor={(item) => item.id}
+          keyExtractor={colKeyExtractor}
           renderItem={renderItem}
           numColumns={NUM_COLUMNS}
           contentContainerStyle={{ paddingTop: SPACING }}
+          getItemLayout={colGetItemLayout}
+          initialNumToRender={9}
+          maxToRenderPerBatch={12}
+          windowSize={5}
+          removeClippedSubviews={true}
           ListEmptyComponent={
             <View style={styles.center}>
               <Text style={{ color: theme.colors.textMuted }}>{t("common.noItems")}</Text>

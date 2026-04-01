@@ -17,6 +17,21 @@ import { FocusableCard } from "../../../src/components/FocusableCard";
 
 const CARD_WIDTH = 220;
 const CARD_HEIGHT = 330;
+const CARD_TOTAL_WIDTH = CARD_WIDTH + 16; // card + separator
+
+const tvRowGetItemLayout = (_: unknown, index: number) => ({
+  length: CARD_TOTAL_WIDTH,
+  offset: CARD_TOTAL_WIDTH * index,
+  index,
+});
+
+function tvRowKeyExtractor(item: V1MediaItem) {
+  return item.id ?? "";
+}
+
+function RowSeparator() {
+  return <View style={{ width: 16 }} />;
+}
 
 function MediaCard({
   item,
@@ -89,7 +104,7 @@ function MediaRow({
       <FlatList
         horizontal
         data={items}
-        keyExtractor={(item) => item.id ?? ""}
+        keyExtractor={tvRowKeyExtractor}
         renderItem={({ item, index }) => (
           <MediaCard
             item={item}
@@ -101,7 +116,11 @@ function MediaRow({
         )}
         showsHorizontalScrollIndicator={false}
         contentContainerStyle={{ paddingHorizontal: 24 }}
-        ItemSeparatorComponent={() => <View style={{ width: 16 }} />}
+        ItemSeparatorComponent={RowSeparator}
+        getItemLayout={tvRowGetItemLayout}
+        initialNumToRender={5}
+        maxToRenderPerBatch={8}
+        windowSize={5}
       />
     </View>
   );

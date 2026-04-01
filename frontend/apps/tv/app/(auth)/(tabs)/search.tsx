@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import { View, Text, TextInput, FlatList, Pressable, ActivityIndicator, StyleSheet } from "react-native";
 import { useRouter } from "expo-router";
 import { useTranslation } from "react-i18next";
@@ -11,6 +11,14 @@ import { FocusableCard } from "../../../src/components/FocusableCard";
 function formatType(type?: string): string {
   if (!type) return "";
   return type.replace("MEDIA_ITEM_TYPE_", "").toLowerCase();
+}
+
+function tvSearchKeyExtractor(item: V1MediaItem) {
+  return item.id ?? "";
+}
+
+function TVSearchSeparator() {
+  return <View style={{ height: 12 }} />;
 }
 
 export default function SearchScreen() {
@@ -28,7 +36,7 @@ export default function SearchScreen() {
 
   const items = data?.items ?? [];
 
-  const renderItem = ({ item, index }: { item: V1MediaItem; index: number }) => (
+  const renderItem = useCallback(({ item, index }: { item: V1MediaItem; index: number }) => (
     <FocusableCard
       onPress={() => router.push(`/media/${item.id}`)}
       style={[styles.row, { backgroundColor: theme.colors.surface, borderRadius: theme.radii.md }]}
@@ -46,7 +54,7 @@ export default function SearchScreen() {
         </Text>
       </View>
     </FocusableCard>
-  );
+  ), [theme, router]);
 
   return (
     <View style={[styles.container, { backgroundColor: theme.colors.bg }]}>
@@ -97,10 +105,14 @@ export default function SearchScreen() {
       ) : (
         <FlatList
           data={items}
-          keyExtractor={(item) => item.id ?? ""}
+          keyExtractor={tvSearchKeyExtractor}
           renderItem={renderItem}
           contentContainerStyle={{ padding: 24 }}
-          ItemSeparatorComponent={() => <View style={{ height: 12 }} />}
+          ItemSeparatorComponent={TVSearchSeparator}
+          initialNumToRender={6}
+          maxToRenderPerBatch={10}
+          windowSize={5}
+          removeClippedSubviews={true}
         />
       )}
     </View>

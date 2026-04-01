@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import {
   View,
   Text,
@@ -27,6 +27,14 @@ function formatType(type?: string): string {
   return type.replace("MEDIA_ITEM_TYPE_", "").toLowerCase();
 }
 
+function searchKeyExtractor(item: V1MediaItem) {
+  return item.id ?? "";
+}
+
+function SearchSeparator() {
+  return <View style={styles.separator} />;
+}
+
 export default function SearchScreen() {
   const theme = useTheme();
   const router = useRouter();
@@ -43,7 +51,7 @@ export default function SearchScreen() {
 
   const authHeaders = useAuthHeaders();
 
-  const renderItem = ({ item }: { item: V1MediaItem }) => {
+  const renderItem = useCallback(({ item }: { item: V1MediaItem }) => {
     const poster = getPoster(item);
     return (
       <TouchableOpacity
@@ -97,7 +105,7 @@ export default function SearchScreen() {
         </View>
       </TouchableOpacity>
     );
-  };
+  }, [theme, router, authHeaders]);
 
   return (
     <View style={[styles.container, { backgroundColor: theme.colors.bg }]}>
@@ -154,13 +162,15 @@ export default function SearchScreen() {
       ) : (
         <FlatList
           data={items}
-          keyExtractor={(item) => item.id ?? ""}
+          keyExtractor={searchKeyExtractor}
           renderItem={renderItem}
           contentContainerStyle={{ padding: theme.spacing.md }}
-          ItemSeparatorComponent={() => (
-            <View style={{ height: theme.spacing.sm }} />
-          )}
+          ItemSeparatorComponent={SearchSeparator}
           keyboardShouldPersistTaps="handled"
+          initialNumToRender={8}
+          maxToRenderPerBatch={10}
+          windowSize={5}
+          removeClippedSubviews={true}
         />
       )}
     </View>
@@ -186,4 +196,5 @@ const styles = StyleSheet.create({
   info: { flex: 1 },
   title: { fontSize: 15, fontWeight: "600" },
   meta: { fontSize: 12, marginTop: 2 },
+  separator: { height: 8 },
 });

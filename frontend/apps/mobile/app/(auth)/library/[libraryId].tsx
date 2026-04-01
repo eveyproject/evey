@@ -26,7 +26,18 @@ const SPACING = 8;
 const screenWidth = Dimensions.get("window").width;
 const ITEM_WIDTH = (screenWidth - SPACING * (NUM_COLUMNS + 1)) / NUM_COLUMNS;
 const POSTER_HEIGHT = ITEM_WIDTH * 1.5;
+const ROW_HEIGHT = POSTER_HEIGHT + 30 + SPACING; // poster + text + margin
 const PAGE_SIZE = 30;
+
+function libraryKeyExtractor(item: V1MediaItem) {
+  return item.id ?? "";
+}
+
+const libraryGetItemLayout = (_: unknown, index: number) => ({
+  length: ROW_HEIGHT,
+  offset: ROW_HEIGHT * Math.floor(index / NUM_COLUMNS),
+  index,
+});
 
 function getPoster(item: V1MediaItem): string | undefined {
   return item.artwork?.find((a) => a.type === "ARTWORK_TYPE_PRIMARY")?.url;
@@ -167,7 +178,7 @@ export default function LibraryDetailScreen() {
       ) : (
         <FlatList
           data={allItems}
-          keyExtractor={(item) => item.id ?? ""}
+          keyExtractor={libraryKeyExtractor}
           renderItem={renderItem}
           numColumns={NUM_COLUMNS}
           contentContainerStyle={{ paddingTop: SPACING }}
@@ -175,6 +186,11 @@ export default function LibraryDetailScreen() {
           onRefresh={handleRefresh}
           onEndReached={handleEndReached}
           onEndReachedThreshold={0.5}
+          getItemLayout={libraryGetItemLayout}
+          initialNumToRender={9}
+          maxToRenderPerBatch={12}
+          windowSize={5}
+          removeClippedSubviews={true}
           ListFooterComponent={
             isFetching && page > 1 ? (
               <ActivityIndicator

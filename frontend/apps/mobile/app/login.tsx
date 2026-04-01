@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { View, Text, TextInput, Pressable, ActivityIndicator, Alert, Linking } from "react-native";
 import { router, useLocalSearchParams } from "expo-router";
 import { useTranslation } from "react-i18next";
@@ -84,7 +84,7 @@ export default function Login() {
     login({ data: { username: username.trim(), password } });
   }
 
-  const inputStyle = {
+  const inputStyle = useMemo(() => ({
     backgroundColor: theme.colors.surface,
     color: theme.colors.text,
     borderRadius: theme.radii.md,
@@ -92,7 +92,7 @@ export default function Login() {
     borderWidth: 1,
     borderColor: theme.colors.border,
     marginBottom: theme.spacing.md,
-  };
+  }), [theme]);
 
   return (
     <View style={{ flex: 1, justifyContent: "center", padding: theme.spacing.xl, backgroundColor: theme.colors.bg }}>

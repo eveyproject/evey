@@ -1,3 +1,4 @@
+import { useCallback } from "react";
 import { View, Text, FlatList, ActivityIndicator, StyleSheet } from "react-native";
 import { router } from "expo-router";
 import { useQueryClient } from "@tanstack/react-query";
@@ -29,6 +30,14 @@ function formatDate(iso: string | undefined): string {
   });
 }
 
+function tvHistoryKeyExtractor(item: V1WatchProgress) {
+  return item.id ?? item.mediaItemId ?? "";
+}
+
+function TVHistorySeparator() {
+  return <View style={{ height: 4 }} />;
+}
+
 export default function HistoryScreen() {
   const theme = useTheme();
   const qc = useQueryClient();
@@ -43,6 +52,20 @@ export default function HistoryScreen() {
       },
     },
   });
+
+  const renderHistoryItem = useCallback(
+    ({ item, index }: { item: V1WatchProgress; index: number }) => (
+      <HistoryItem
+        item={item}
+        theme={theme}
+        isFirst={index === 0}
+        onPress={() => item.mediaItemId && router.push(`/media/${item.mediaItemId}`)}
+        onRemove={() => item.mediaItemId && unwatch.mutate({ mediaItemId: item.mediaItemId })}
+        isPending={unwatch.isPending}
+      />
+    ),
+    [theme, unwatch, router],
+  );
 
   if (isLoading) {
     return (
@@ -63,19 +86,14 @@ export default function HistoryScreen() {
       ) : (
         <FlatList
           data={items}
-          keyExtractor={(item) => item.id ?? item.mediaItemId ?? ""}
+          keyExtractor={tvHistoryKeyExtractor}
           contentContainerStyle={{ paddingHorizontal: 24, paddingBottom: 64 }}
-          ItemSeparatorComponent={() => <View style={{ height: 4 }} />}
-          renderItem={({ item, index }) => (
-            <HistoryItem
-              item={item}
-              theme={theme}
-              isFirst={index === 0}
-              onPress={() => item.mediaItemId && router.push(`/media/${item.mediaItemId}`)}
-              onRemove={() => item.mediaItemId && unwatch.mutate({ mediaItemId: item.mediaItemId })}
-              isPending={unwatch.isPending}
-            />
-          )}
+          ItemSeparatorComponent={TVHistorySeparator}
+          renderItem={renderHistoryItem}
+          initialNumToRender={8}
+          maxToRenderPerBatch={10}
+          windowSize={5}
+          removeClippedSubviews={true}
         />
       )}
     </View>
