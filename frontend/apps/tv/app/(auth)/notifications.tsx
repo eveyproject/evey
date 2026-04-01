@@ -1,3 +1,4 @@
+import { useCallback } from "react";
 import { View, Text, FlatList, ActivityIndicator, StyleSheet } from "react-native";
 import { router } from "expo-router";
 import { useTranslation } from "react-i18next";
@@ -52,6 +53,14 @@ function relativeTime(
   return new Date(iso).toLocaleDateString(undefined, { month: "short", day: "numeric" });
 }
 
+function tvNotifKeyExtractor(item: V1Notification) {
+  return item.id ?? "";
+}
+
+function TVNotifSeparator() {
+  return <View style={{ height: 4 }} />;
+}
+
 export default function NotificationsScreen() {
   const theme = useTheme();
   const { t } = useTranslation();
@@ -75,14 +84,27 @@ export default function NotificationsScreen() {
 
   const hasUnread = notifications.some((n) => !n.readAt);
 
-  function handleTap(n: V1Notification) {
+  const handleTap = useCallback((n: V1Notification) => {
     if (!n.readAt && n.id) {
       markRead.mutate({ id: n.id });
     }
     if (n.mediaItemId) {
       router.push(`/media/${n.mediaItemId}`);
     }
-  }
+  }, [markRead, router]);
+
+  const renderNotifItem = useCallback(
+    ({ item, index }: { item: V1Notification; index: number }) => (
+      <NotificationItem
+        item={item}
+        t={t}
+        theme={theme}
+        isFirst={index === 0}
+        onPress={() => handleTap(item)}
+      />
+    ),
+    [handleTap, t, theme],
+  );
 
   if (isLoading) {
     return (
@@ -113,18 +135,14 @@ export default function NotificationsScreen() {
       ) : (
         <FlatList
           data={notifications}
-          keyExtractor={(item) => item.id ?? ""}
+          keyExtractor={tvNotifKeyExtractor}
           contentContainerStyle={{ paddingHorizontal: 24, paddingBottom: 64 }}
-          ItemSeparatorComponent={() => <View style={{ height: 4 }} />}
-          renderItem={({ item, index }) => (
-            <NotificationItem
-              item={item}
-              t={t}
-              theme={theme}
-              isFirst={index === 0}
-              onPress={() => handleTap(item)}
-            />
-          )}
+          ItemSeparatorComponent={TVNotifSeparator}
+          renderItem={renderNotifItem}
+          initialNumToRender={8}
+          maxToRenderPerBatch={10}
+          windowSize={5}
+          removeClippedSubviews={true}
         />
       )}
     </View>

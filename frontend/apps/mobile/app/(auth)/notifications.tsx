@@ -135,6 +135,10 @@ function NotificationItem({ item, onPress }: { item: V1Notification; onPress: ()
   );
 }
 
+function notifKeyExtractor(item: V1Notification) {
+  return item.id ?? "";
+}
+
 export default function NotificationsScreen() {
   const theme = useTheme();
   const { t } = useTranslation();
@@ -161,20 +165,27 @@ export default function NotificationsScreen() {
     mutation: { onSuccess: invalidateAll },
   });
 
-  const onRefresh = useCallback(async () => {
-    setRefreshing(true);
-    await refetch();
-    setRefreshing(false);
-  }, [refetch]);
-
-  function handleTap(n: V1Notification) {
+  const handleTap = useCallback((n: V1Notification) => {
     if (!n.readAt && n.id) {
       markRead.mutate({ id: n.id });
     }
     if (n.mediaItemId) {
       router.push(`/media/${n.mediaItemId}`);
     }
-  }
+  }, [markRead, router]);
+
+  const renderNotifItem = useCallback(
+    ({ item }: { item: V1Notification }) => (
+      <NotificationItem item={item} onPress={() => handleTap(item)} />
+    ),
+    [handleTap],
+  );
+
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await refetch();
+    setRefreshing(false);
+  }, [refetch]);
 
   function handleClearAll() {
     Alert.alert(
@@ -240,14 +251,16 @@ export default function NotificationsScreen() {
       ) : (
         <FlatList
           data={notifications}
-          keyExtractor={(item) => item.id ?? ""}
-          renderItem={({ item }) => (
-            <NotificationItem item={item} onPress={() => handleTap(item)} />
-          )}
+          keyExtractor={notifKeyExtractor}
+          renderItem={renderNotifItem}
           refreshControl={
             <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.colors.accent} />
           }
           contentContainerStyle={{ paddingBottom: theme.spacing.xl }}
+          initialNumToRender={10}
+          maxToRenderPerBatch={10}
+          windowSize={5}
+          removeClippedSubviews={true}
         />
       )}
     </View>

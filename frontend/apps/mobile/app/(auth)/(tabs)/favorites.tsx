@@ -23,6 +23,17 @@ const SPACING = 8;
 const screenWidth = Dimensions.get("window").width;
 const ITEM_WIDTH = (screenWidth - SPACING * (NUM_COLUMNS + 1)) / NUM_COLUMNS;
 const POSTER_HEIGHT = ITEM_WIDTH * 1.5;
+const ROW_HEIGHT = POSTER_HEIGHT + 30 + SPACING; // poster + text + margin
+
+function favKeyExtractor(item: FavoriteItem) {
+  return item.mediaItemId;
+}
+
+const favGetItemLayout = (_: unknown, index: number) => ({
+  length: ROW_HEIGHT,
+  offset: ROW_HEIGHT * Math.floor(index / NUM_COLUMNS),
+  index,
+});
 
 export default function FavoritesScreen() {
   const theme = useTheme();
@@ -114,12 +125,17 @@ export default function FavoritesScreen() {
       </Text>
       <FlatList
         data={favorites ?? []}
-        keyExtractor={(item) => item.mediaItemId}
+        keyExtractor={favKeyExtractor}
         renderItem={renderItem}
         numColumns={NUM_COLUMNS}
         contentContainerStyle={{ paddingTop: SPACING }}
         refreshing={isRefetching}
         onRefresh={refetch}
+        getItemLayout={favGetItemLayout}
+        initialNumToRender={9}
+        maxToRenderPerBatch={12}
+        windowSize={5}
+        removeClippedSubviews={true}
         ListEmptyComponent={
           <View style={styles.empty}>
             <Text style={{ color: theme.colors.textMuted, fontSize: 16 }}>{t("media.favorites.empty")}</Text>

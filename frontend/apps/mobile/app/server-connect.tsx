@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { View, Text, TextInput, Pressable, ActivityIndicator, Alert } from "react-native";
+import { useState, useMemo } from "react";
+import { View, Text, TextInput, Pressable, ActivityIndicator, Alert, StyleSheet } from "react-native";
 import { router } from "expo-router";
 import { setServerUrl } from "../src/lib/server-config";
 import { initFetcher } from "../src/lib/fetcher-setup";
@@ -10,6 +10,30 @@ export default function ServerConnect() {
   const theme = useTheme();
   const [url, setUrl] = useState("");
   const [loading, setLoading] = useState(false);
+
+  const inputStyle = useMemo(() => ({
+    backgroundColor: theme.colors.surface,
+    color: theme.colors.text,
+    borderRadius: theme.radii.md,
+    padding: theme.spacing.md,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    marginBottom: theme.spacing.md,
+  }), [theme]);
+
+  const containerStyle = useMemo(() => ({
+    flex: 1,
+    justifyContent: "center" as const,
+    padding: theme.spacing.xl,
+    backgroundColor: theme.colors.bg,
+  }), [theme]);
+
+  const buttonStyle = useMemo(() => ({
+    backgroundColor: theme.colors.accent,
+    borderRadius: theme.radii.md,
+    padding: theme.spacing.md,
+    alignItems: "center" as const,
+  }), [theme]);
 
   async function handleConnect() {
     const trimmed = url.trim().replace(/\/+$/, "");
@@ -34,8 +58,8 @@ export default function ServerConnect() {
   }
 
   return (
-    <View style={{ flex: 1, justifyContent: "center", padding: theme.spacing.xl, backgroundColor: theme.colors.bg }}>
-      <Text style={{ fontSize: 24, fontWeight: "bold", color: theme.colors.text, marginBottom: theme.spacing.lg }}>
+    <View style={containerStyle}>
+      <Text style={[scStyles.heading, { color: theme.colors.text, marginBottom: theme.spacing.lg }]}>
         Connect to Server
       </Text>
       <TextInput
@@ -48,15 +72,7 @@ export default function ServerConnect() {
         keyboardType="url"
         accessible={true}
         accessibilityLabel="Server URL"
-        style={{
-          backgroundColor: theme.colors.surface,
-          color: theme.colors.text,
-          borderRadius: theme.radii.md,
-          padding: theme.spacing.md,
-          borderWidth: 1,
-          borderColor: theme.colors.border,
-          marginBottom: theme.spacing.md,
-        }}
+        style={inputStyle}
       />
       <Pressable
         onPress={handleConnect}
@@ -64,12 +80,7 @@ export default function ServerConnect() {
         accessible={true}
         accessibilityLabel="Connect to server"
         accessibilityRole="button"
-        style={{
-          backgroundColor: theme.colors.accent,
-          borderRadius: theme.radii.md,
-          padding: theme.spacing.md,
-          alignItems: "center",
-        }}
+        style={buttonStyle}
       >
         {loading ? (
           <ActivityIndicator color={theme.colors.text} />
@@ -80,3 +91,7 @@ export default function ServerConnect() {
     </View>
   );
 }
+
+const scStyles = StyleSheet.create({
+  heading: { fontSize: 24, fontWeight: "bold" },
+});
