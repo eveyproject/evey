@@ -1,4 +1,5 @@
 import { View, Text, Pressable, StyleSheet } from "react-native";
+import { useTheme } from "../providers/ThemeProvider";
 import { BottomSheet } from "./BottomSheet";
 
 export interface SubtitleStream {
@@ -33,6 +34,7 @@ export function SubtitlePicker({
   currentIndex,
   onSelect,
 }: SubtitlePickerProps) {
+  const theme = useTheme();
   return (
     <BottomSheet visible={visible} onClose={onClose} title="Subtitles">
       <Pressable
@@ -45,10 +47,10 @@ export function SubtitlePicker({
         accessibilityLabel="None"
         accessibilityRole="button"
       >
-        <Text style={[styles.label, currentIndex === null && styles.activeLabel]}>
+        <Text style={[styles.label, { color: theme.colors.text }, currentIndex === null && { color: theme.colors.accent }]}>
           None
         </Text>
-        {currentIndex === null && <Text style={styles.check}>{"\u2713"}</Text>}
+        {currentIndex === null && <Text style={[styles.check, { color: theme.colors.accent }]}>{"\u2713"}</Text>}
       </Pressable>
       {streams.map((s) => {
         const active = s.index === currentIndex;
@@ -65,7 +67,7 @@ export function SubtitlePicker({
             accessibilityRole="button"
           >
             <View style={styles.labelRow}>
-              <Text style={[styles.label, active && styles.activeLabel]}>
+              <Text style={[styles.label, { color: theme.colors.text }, active && { color: theme.colors.accent }]}>
                 {formatLabel(s)}
               </Text>
               <View style={styles.badges}>
@@ -86,7 +88,7 @@ export function SubtitlePicker({
                 )}
               </View>
             </View>
-            {active && <Text style={styles.check}>{"\u2713"}</Text>}
+            {active && <Text style={[styles.check, { color: theme.colors.accent }]}>{"\u2713"}</Text>}
           </Pressable>
         );
       })}
@@ -118,11 +120,7 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   label: {
-    color: "#fff",
     fontSize: 15,
-  },
-  activeLabel: {
-    color: "#60a5fa",
   },
   badges: {
     flexDirection: "row",
@@ -146,7 +144,6 @@ const styles = StyleSheet.create({
     fontWeight: "500",
   },
   check: {
-    color: "#60a5fa",
     fontSize: 18,
     fontWeight: "600",
     marginLeft: 12,

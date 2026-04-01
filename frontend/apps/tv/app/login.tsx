@@ -134,7 +134,7 @@ export default function Login() {
           {t("auth.settings.quickConnect.title")}
         </Text>
         <Text style={[styles.qcHint, { color: theme.colors.textMuted }]}>
-          Recommended for TV
+          {t("auth.login.recommendedForTV")}
         </Text>
       </Pressable>
     </View>

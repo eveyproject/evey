@@ -57,7 +57,7 @@ export default function LibraryScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: theme.colors.bg }]}>
-      <Text style={[styles.header, { color: theme.colors.text }]}>Libraries</Text>
+      <Text style={[styles.header, { color: theme.colors.text }]}>{t("common.nav.libraries")}</Text>
 
       <View style={styles.linkRow}>
         <FocusableCard

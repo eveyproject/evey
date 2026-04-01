@@ -7,6 +7,7 @@ import {
   StyleSheet,
 } from "react-native";
 import { useRouter } from "expo-router";
+import { useTranslation } from "react-i18next";
 import { useLibraryServiceListLibraries } from "@evey/api";
 import { useTheme } from "../../../src/providers/ThemeProvider";
 import type { V1Library, V1LibraryType } from "@evey/api";
@@ -25,6 +26,7 @@ function getTypeIcon(type?: V1LibraryType): string {
 
 export default function LibraryScreen() {
   const theme = useTheme();
+  const { t } = useTranslation();
   const router = useRouter();
   const { data, isLoading, isError, refetch } =
     useLibraryServiceListLibraries();
@@ -88,7 +90,7 @@ export default function LibraryScreen() {
           { color: theme.colors.text, marginTop: theme.spacing.xl },
         ]}
       >
-        Libraries
+        {t("common.nav.libraries")}
       </Text>
 
       {/* Quick links */}
@@ -99,7 +101,7 @@ export default function LibraryScreen() {
           onPress={() => router.push("/collections")}
         >
           <Text style={styles.quickLinkIcon}>📂</Text>
-          <Text style={[styles.quickLinkText, { color: theme.colors.text }]}>Collections</Text>
+          <Text style={[styles.quickLinkText, { color: theme.colors.text }]}>{t("common.collections")}</Text>
         </TouchableOpacity>
         <TouchableOpacity
           style={[styles.quickLink, { backgroundColor: theme.colors.surface, borderRadius: theme.radii.md }]}
@@ -107,7 +109,7 @@ export default function LibraryScreen() {
           onPress={() => router.push("/playlists")}
         >
           <Text style={styles.quickLinkIcon}>🎵</Text>
-          <Text style={[styles.quickLinkText, { color: theme.colors.text }]}>Playlists</Text>
+          <Text style={[styles.quickLinkText, { color: theme.colors.text }]}>{t("common.playlists")}</Text>
         </TouchableOpacity>
       </View>
 

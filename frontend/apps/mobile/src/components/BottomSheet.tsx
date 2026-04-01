@@ -9,6 +9,7 @@ import {
   StyleSheet,
   Dimensions,
 } from "react-native";
+import { useTheme } from "../providers/ThemeProvider";
 
 const SCREEN_HEIGHT = Dimensions.get("screen").height;
 
@@ -20,6 +21,7 @@ interface BottomSheetProps {
 }
 
 export function BottomSheet({ visible, onClose, title, children }: BottomSheetProps) {
+  const theme = useTheme();
   const translateY = useRef(new Animated.Value(SCREEN_HEIGHT)).current;
 
   useEffect(() => {
@@ -44,9 +46,9 @@ export function BottomSheet({ visible, onClose, title, children }: BottomSheetPr
       <Pressable style={styles.backdrop} onPress={onClose} accessible={true} accessibilityLabel="Close" accessibilityRole="button">
         <View />
       </Pressable>
-      <Animated.View style={[styles.sheet, { transform: [{ translateY }] }]}>
+      <Animated.View style={[styles.sheet, { transform: [{ translateY }], backgroundColor: theme.colors.surface }]}>
         <View style={styles.handle} />
-        <Text style={styles.title}>{title}</Text>
+        <Text style={[styles.title, { color: theme.colors.text }]}>{title}</Text>
         <ScrollView style={styles.content} bounces={false}>
           {children}
         </ScrollView>
@@ -65,7 +67,6 @@ const styles = StyleSheet.create({
     bottom: 0,
     left: 0,
     right: 0,
-    backgroundColor: "#1a1a1a",
     borderTopLeftRadius: 16,
     borderTopRightRadius: 16,
     maxHeight: "60%",
@@ -81,7 +82,6 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   title: {
-    color: "#fff",
     fontSize: 16,
     fontWeight: "600",
     textAlign: "center",

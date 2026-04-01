@@ -6,6 +6,7 @@ import {
   StyleSheet,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import { useTranslation } from "react-i18next";
 import { Stack, useRouter } from "expo-router";
 import { Skeleton } from "../../../src/components/Skeleton";
 import { useTheme } from "../../../src/providers/ThemeProvider";
@@ -63,6 +64,7 @@ function PlaylistCard({
 
 export default function PlaylistsScreen() {
   const theme = useTheme();
+  const { t } = useTranslation();
   const router = useRouter();
   const { data: playlists, isLoading, refetch } = usePlaylistList();
 
@@ -71,7 +73,7 @@ export default function PlaylistsScreen() {
       <Stack.Screen
         options={{
           headerShown: true,
-          title: "Playlists",
+          title: t("common.playlists"),
           headerStyle: { backgroundColor: theme.colors.surface },
           headerTintColor: theme.colors.text,
         }}
@@ -101,7 +103,7 @@ export default function PlaylistsScreen() {
           )}
           ListEmptyComponent={
             <View style={styles.center}>
-              <Text style={{ color: theme.colors.textMuted }}>No playlists</Text>
+              <Text style={{ color: theme.colors.textMuted }}>{t("common.noPlaylists")}</Text>
             </View>
           }
         />

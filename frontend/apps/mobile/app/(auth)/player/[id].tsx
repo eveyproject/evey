@@ -12,6 +12,7 @@ import { useLocalSearchParams, router } from "expo-router";
 import { useVideoPlayer, VideoView, isPictureInPictureSupported } from "expo-video";
 import { Ionicons } from "@expo/vector-icons";
 import * as ScreenOrientation from "expo-screen-orientation";
+import { useTranslation } from "react-i18next";
 import { useLibraryServiceGetMediaItem } from "@evey/api";
 import { useTheme } from "../../../src/providers/ThemeProvider";
 import { usePlaySession } from "../../../src/hooks/usePlaySession";
@@ -46,6 +47,7 @@ function formatTime(seconds: number): string {
 export default function PlayerScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const theme = useTheme();
+  const { t } = useTranslation();
   const mediaId = id ?? "";
 
   const { data: media } = useLibraryServiceGetMediaItem(mediaId);
@@ -322,9 +324,9 @@ export default function PlayerScreen() {
     return (
       <View style={[styles.container, { backgroundColor: theme.colors.bg }]}>
         <StatusBar hidden />
-        <Text style={{ color: theme.colors.text, fontSize: 16 }}>Failed to load stream</Text>
+        <Text style={{ color: theme.colors.text, fontSize: 16 }}>{t("player.failedToLoadStream")}</Text>
         <Pressable onPress={handleBack} style={{ marginTop: 16 }}>
-          <Text style={{ color: theme.colors.accent, fontSize: 16 }}>Go back</Text>
+          <Text style={{ color: theme.colors.accent, fontSize: 16 }}>{t("player.goBack")}</Text>
         </Pressable>
       </View>
     );

@@ -59,8 +59,13 @@ noPoster: No poster
 noItems: No items
 noCollections: No collections
 playlists: Playlists
+noPlaylists: No playlists
+addToPlaylist: Add to Playlist
+noManualPlaylists: No manual playlists available
 collections: Collections
 loadError: Failed to load
+activity: Activity
+serverVersion: Server Version
 retry: Retry
 errorBoundary:
   title: Something went wrong

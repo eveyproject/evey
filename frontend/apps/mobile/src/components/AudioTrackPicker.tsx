@@ -1,4 +1,5 @@
 import { View, Text, Pressable, StyleSheet } from "react-native";
+import { useTheme } from "../providers/ThemeProvider";
 import { BottomSheet } from "./BottomSheet";
 
 export interface AudioStream {
@@ -31,6 +32,7 @@ export function AudioTrackPicker({
   currentIndex,
   onSelect,
 }: AudioTrackPickerProps) {
+  const theme = useTheme();
   return (
     <BottomSheet visible={visible} onClose={onClose} title="Audio">
       {streams.map((s) => {
@@ -47,10 +49,10 @@ export function AudioTrackPicker({
             accessibilityLabel={formatLabel(s)}
             accessibilityRole="button"
           >
-            <Text style={[styles.label, active && styles.activeLabel]}>
+            <Text style={[styles.label, { color: theme.colors.text }, active && { color: theme.colors.accent }]}>
               {formatLabel(s)}
             </Text>
-            {active && <Text style={styles.check}>{"\u2713"}</Text>}
+            {active && <Text style={[styles.check, { color: theme.colors.accent }]}>{"\u2713"}</Text>}
           </Pressable>
         );
       })}
@@ -68,15 +70,10 @@ const styles = StyleSheet.create({
     borderBottomColor: "rgba(255,255,255,0.08)",
   },
   label: {
-    color: "#fff",
     fontSize: 15,
     flex: 1,
   },
-  activeLabel: {
-    color: "#60a5fa",
-  },
   check: {
-    color: "#60a5fa",
     fontSize: 18,
     fontWeight: "600",
     marginLeft: 12,

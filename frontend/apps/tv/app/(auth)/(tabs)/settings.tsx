@@ -62,7 +62,7 @@ export default function SettingsScreen() {
       <Text style={[styles.header, { color: theme.colors.text }]}>{t("common.settings")}</Text>
 
       {/* Server */}
-      <Text style={[styles.sectionTitle, { color: theme.colors.textMuted }]}>Server</Text>
+      <Text style={[styles.sectionTitle, { color: theme.colors.textMuted }]}>{t("mobile.settings.server")}</Text>
       <View style={[styles.section, { backgroundColor: theme.colors.surface }]}>
         <View style={styles.infoRow}>
           <Text style={[styles.label, { color: theme.colors.text }]}>URL</Text>
@@ -74,15 +74,15 @@ export default function SettingsScreen() {
           onFocus={() => setFocusedItem("change-server")}
           onBlur={() => setFocusedItem(null)}
           accessible={true}
-          accessibilityLabel="Change server"
+          accessibilityLabel={t("mobile.settings.changeServer")}
           accessibilityRole="button"
         >
-          <Text style={{ color: "#ef4444", fontSize: 20 }}>{t("settings.changeServer")}</Text>
+          <Text style={{ color: theme.colors.textMuted, fontSize: 20 }}>{t("mobile.settings.changeServer")}</Text>
         </Pressable>
       </View>
 
       {/* Account */}
-      <Text style={[styles.sectionTitle, { color: theme.colors.textMuted }]}>Account</Text>
+      <Text style={[styles.sectionTitle, { color: theme.colors.textMuted }]}>{t("auth.settings.tabs.account")}</Text>
       <View style={[styles.section, { backgroundColor: theme.colors.surface }]}>
         <View style={styles.infoRow}>
           <Text style={[styles.label, { color: theme.colors.text }]}>User</Text>
@@ -94,10 +94,10 @@ export default function SettingsScreen() {
           onFocus={() => setFocusedItem("switch-profile")}
           onBlur={() => setFocusedItem(null)}
           accessible={true}
-          accessibilityLabel="Switch profile"
+          accessibilityLabel={t("mobile.settings.switchProfile")}
           accessibilityRole="button"
         >
-          <Text style={[styles.label, { color: theme.colors.text }]}>Switch Profile</Text>
+          <Text style={[styles.label, { color: theme.colors.text }]}>{t("mobile.settings.switchProfile")}</Text>
         </Pressable>
         <Pressable
           style={rowStyle("sign-out")}
@@ -105,15 +105,15 @@ export default function SettingsScreen() {
           onFocus={() => setFocusedItem("sign-out")}
           onBlur={() => setFocusedItem(null)}
           accessible={true}
-          accessibilityLabel="Sign out"
+          accessibilityLabel={t("mobile.settings.signOut")}
           accessibilityRole="button"
         >
-          <Text style={{ color: "#ef4444", fontSize: 20 }}>{t("settings.signOut")}</Text>
+          <Text style={{ color: theme.colors.textMuted, fontSize: 20 }}>{t("mobile.settings.signOut")}</Text>
         </Pressable>
       </View>
 
       {/* Watch History */}
-      <Text style={[styles.sectionTitle, { color: theme.colors.textMuted }]}>Activity</Text>
+      <Text style={[styles.sectionTitle, { color: theme.colors.textMuted }]}>{t("common.activity")}</Text>
       <View style={[styles.section, { backgroundColor: theme.colors.surface }]}>
         <Pressable
           style={rowStyle("watch-history")}
@@ -121,10 +121,10 @@ export default function SettingsScreen() {
           onFocus={() => setFocusedItem("watch-history")}
           onBlur={() => setFocusedItem(null)}
           accessible={true}
-          accessibilityLabel="Watch History"
+          accessibilityLabel={t("auth.watchHistory.title")}
           accessibilityRole="button"
         >
-          <Text style={[styles.label, { color: theme.colors.text }]}>Watch History</Text>
+          <Text style={[styles.label, { color: theme.colors.text }]}>{t("auth.watchHistory.title")}</Text>
         </Pressable>
         <Pressable
           style={rowStyle("notifications")}
@@ -132,15 +132,15 @@ export default function SettingsScreen() {
           onFocus={() => setFocusedItem("notifications")}
           onBlur={() => setFocusedItem(null)}
           accessible={true}
-          accessibilityLabel="Notifications"
+          accessibilityLabel={t("common.notifications.title")}
           accessibilityRole="button"
         >
-          <Text style={[styles.label, { color: theme.colors.text }]}>Notifications</Text>
+          <Text style={[styles.label, { color: theme.colors.text }]}>{t("common.notifications.title")}</Text>
         </Pressable>
       </View>
 
       {/* Language */}
-      <Text style={[styles.sectionTitle, { color: theme.colors.textMuted }]}>Language</Text>
+      <Text style={[styles.sectionTitle, { color: theme.colors.textMuted }]}>{t("common.language")}</Text>
       <View style={[styles.section, { backgroundColor: theme.colors.surface }]}>
         {supportedLanguages.map((lang) => (
           <Pressable
@@ -162,7 +162,7 @@ export default function SettingsScreen() {
       </View>
 
       {/* Appearance */}
-      <Text style={[styles.sectionTitle, { color: theme.colors.textMuted }]}>Appearance</Text>
+      <Text style={[styles.sectionTitle, { color: theme.colors.textMuted }]}>{t("auth.settings.tabs.appearance")}</Text>
       <View style={[styles.section, { backgroundColor: theme.colors.surface }]}>
         {THEME_OPTIONS.map((opt) => (
           <Pressable
@@ -184,10 +184,10 @@ export default function SettingsScreen() {
       </View>
 
       {/* About */}
-      <Text style={[styles.sectionTitle, { color: theme.colors.textMuted }]}>About</Text>
+      <Text style={[styles.sectionTitle, { color: theme.colors.textMuted }]}>{t("mobile.settings.about")}</Text>
       <View style={[styles.section, { backgroundColor: theme.colors.surface }]}>
         <View style={styles.infoRow}>
-          <Text style={[styles.label, { color: theme.colors.text }]}>Server Version</Text>
+          <Text style={[styles.label, { color: theme.colors.text }]}>{t("common.serverVersion")}</Text>
           <Text style={[styles.value, { color: theme.colors.textMuted }]}>{systemInfo?.version ?? "-"}</Text>
         </View>
       </View>

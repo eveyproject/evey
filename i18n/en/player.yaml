@@ -68,6 +68,7 @@ buffering: "Buffering\u2026"
 playbackFailed: Playback failed
 unableToPlayAnyQuality: Unable to play at any quality level
 failedToStart: Failed to start playback
+failedToLoadStream: Failed to load stream
 retry: Retry
 goBack: Go back
 shareDesc: "Share this link with friends to watch together:"

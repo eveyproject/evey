@@ -10,6 +10,7 @@ import {
   StyleSheet,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import { useTranslation } from "react-i18next";
 import { useTheme } from "../providers/ThemeProvider";
 import { usePlaylistList, useAddToPlaylist } from "../api/playlists";
 
@@ -21,6 +22,7 @@ interface Props {
 
 export function AddToPlaylistSheet({ visible, mediaItemId, onClose }: Props) {
   const theme = useTheme();
+  const { t } = useTranslation();
   const { data: playlists, isLoading } = usePlaylistList();
   const addTo = useAddToPlaylist();
   const [addedIds, setAddedIds] = useState<Set<string>>(new Set());
@@ -46,13 +48,13 @@ export function AddToPlaylistSheet({ visible, mediaItemId, onClose }: Props) {
           <View style={styles.handle}>
             <View style={[styles.handleBar, { backgroundColor: theme.colors.textMuted }]} />
           </View>
-          <Text style={[styles.title, { color: theme.colors.text }]}>Add to Playlist</Text>
+          <Text style={[styles.title, { color: theme.colors.text }]}>{t("common.addToPlaylist")}</Text>
 
           {isLoading ? (
             <ActivityIndicator color={theme.colors.accent} style={{ marginTop: 24 }} />
           ) : manualPlaylists.length === 0 ? (
             <Text style={[styles.empty, { color: theme.colors.textMuted }]}>
-              No manual playlists available
+              {t("common.noManualPlaylists")}
             </Text>
           ) : (
             <FlatList
