@@ -277,7 +277,11 @@ func (s *syncplayHandler) createRoom(w http.ResponseWriter, r *http.Request) {
 	if body.Name == "" {
 		body.Name = "Watch Together"
 	}
-	room, err := s.hub.CreateRoom(r.Context(), claims.UserID, body.MediaID, body.Name)
+	hostID := claims.ProfileID
+	if hostID == "" {
+		hostID = claims.UserID
+	}
+	room, err := s.hub.CreateRoom(r.Context(), hostID, body.MediaID, body.Name)
 	if err != nil {
 		slog.Error("syncplay create room", slog.Any("err", err))
 		http.Error(w, `{"message":"internal error"}`, http.StatusInternalServerError)
@@ -355,7 +359,7 @@ func (s *syncplayHandler) getRoom(w http.ResponseWriter, r *http.Request) {
 	if !checkLibraryAccess(r.Context(), w, claims, item.LibraryID, s.libChecker) {
 		return
 	}
-	isMember := room.HostID == claims.UserID
+	isMember := room.HostID == claims.ProfileID || room.HostID == claims.UserID
 	for _, m := range room.Members {
 		if m.UserID == claims.UserID {
 			isMember = true
@@ -385,7 +389,7 @@ func (s *syncplayHandler) getRoom(w http.ResponseWriter, r *http.Request) {
 			"positionMs": room.State.PositionMs,
 		},
 	}
-	if room.HostID == claims.UserID || claims.IsAdmin {
+	if room.HostID == claims.ProfileID || room.HostID == claims.UserID || claims.IsAdmin {
 		resp["code"] = room.Code
 	}
 	w.Header().Set("Content-Type", "application/json")
