@@ -1,5 +1,6 @@
 import { create } from "zustand";
-import { persist } from "zustand/middleware";
+import { createJSONStorage, persist } from "zustand/middleware";
+import { getZustandStorage } from "./storage";
 
 interface ThemeState {
   theme: string;
@@ -18,6 +19,6 @@ export const useThemeStore = create<ThemeState>()(
       setTheme: (theme, pluginId) => set({ theme, pluginId: pluginId ?? null, customVars: null }),
       setCustomVars: (customVars) => set({ customVars }),
     }),
-    { name: "evey-theme" }
+    { name: "evey-theme", storage: createJSONStorage(() => getZustandStorage()) }
   )
 );

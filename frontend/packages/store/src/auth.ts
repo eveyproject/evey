@@ -1,5 +1,6 @@
 import { create } from "zustand";
-import { persist } from "zustand/middleware";
+import { createJSONStorage, persist } from "zustand/middleware";
+import { getZustandStorage } from "./storage";
 
 function parseJwtPayload(token: string): Record<string, unknown> | null {
   try {
@@ -40,6 +41,7 @@ export const useAuthStore = create<AuthState>()(
     }),
     {
       name: "evey-auth",
+      storage: createJSONStorage(() => getZustandStorage()),
       partialize: (state) => ({ profileId: state.profileId }),
     }
   )
