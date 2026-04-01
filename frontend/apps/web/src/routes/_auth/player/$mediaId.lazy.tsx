@@ -228,8 +228,8 @@ function PlayerPageInner({ mediaId }: { mediaId: string }) {
       const roomId = await syncControls.createRoom(mediaId);
       setShareRoomId(roomId);
       setShowShareDialog(true);
-    } catch {
-      // ignore
+    } catch (err) {
+      if (import.meta.env.DEV) console.error("SyncPlay createRoom failed:", err);
     }
   }
 
