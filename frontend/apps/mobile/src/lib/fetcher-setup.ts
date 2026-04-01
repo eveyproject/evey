@@ -1,6 +1,8 @@
-import { setBaseURL, setTokenProvider, setTokensUpdater, setRefreshHandler } from "@evey/api";
+import { setBaseURL, setTokenProvider, setTokensUpdater, setRefreshHandler, setUnauthorizedHandler } from "@evey/api";
 import { useAuthStore } from "@evey/store";
+import { router } from "expo-router";
 import { getServerUrl } from "./server-config";
+import { getRefreshToken, setRefreshToken, clearRefreshToken } from "./refresh-token";
 
 export async function initFetcher() {
   const serverUrl = await getServerUrl();
@@ -9,19 +11,25 @@ export async function initFetcher() {
   setTokenProvider(() => useAuthStore.getState().accessToken);
   setTokensUpdater((access) => useAuthStore.getState().setTokens(access));
 
+  setUnauthorizedHandler(() => {
+    useAuthStore.getState().logout();
+    clearRefreshToken();
+    router.replace("/login");
+  });
+
   setRefreshHandler(async () => {
-    const token = useAuthStore.getState().accessToken;
-    if (!token) return null;
-    const res = await fetch(`${serverUrl}/api/v1/auth/refresh`, {
+    const refreshToken = await getRefreshToken();
+    if (!refreshToken) return null;
+    const base = await getServerUrl();
+    if (!base) return null;
+    const res = await fetch(`${base}/api/v1/auth/refresh`, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`,
-      },
-      body: JSON.stringify({}),
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ refreshToken }),
     });
     if (!res.ok) return null;
-    const data = (await res.json()) as { accessToken: string };
+    const data = (await res.json()) as { accessToken: string; refreshToken?: string };
+    if (data.refreshToken) await setRefreshToken(data.refreshToken);
     return { accessToken: data.accessToken };
   });
 }
