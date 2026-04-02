@@ -71,3 +71,8 @@ frontend/apps/web/tsconfig.tsbuildinfo
 tests/e2e/.e2e-start-time
 tests/e2e/.token-cache.json
 tests/e2e/test-results/
+tests/e2e/fixtures/media/
+test-results/
+
+# Expo
+frontend/apps/mobile/.expo/
