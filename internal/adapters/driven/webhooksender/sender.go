@@ -37,7 +37,7 @@ func (s *HTTPSender) Send(ctx context.Context, url string, headers map[string]st
 	if err != nil {
 		return 0, err
 	}
-	_, _ = io.Copy(io.Discard, resp.Body)
+	_, _ = io.Copy(io.Discard, io.LimitReader(resp.Body, 1<<20))
 	resp.Body.Close()
 	return resp.StatusCode, nil
 }
