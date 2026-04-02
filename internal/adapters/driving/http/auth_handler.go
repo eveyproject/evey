@@ -25,7 +25,7 @@ const (
 	refreshCookieMaxAge = 30 * 24 * 3600 // 30 days
 )
 
-func registerOIDCRoutes(mux *http.ServeMux, oidcSvc *appuser.OIDCService, httpsOnly bool) {
+func registerOIDCRoutes(mux *http.ServeMux, oidcSvc *appuser.OIDCService, httpsOnly bool, oidcLoginRL ...*ratelimit.Limiter) {
 	mux.HandleFunc("GET /api/v1/auth/oidc/config", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		if err := json.NewEncoder(w).Encode(map[string]any{"enabled": true}); err != nil {
@@ -33,7 +33,7 @@ func registerOIDCRoutes(mux *http.ServeMux, oidcSvc *appuser.OIDCService, httpsO
 		}
 	})
 
-	mux.HandleFunc("GET /api/v1/auth/oidc/login", func(w http.ResponseWriter, r *http.Request) {
+	oidcLoginHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		var nonceBuf [16]byte
 		if _, err := rand.Read(nonceBuf[:]); err != nil {
 			http.Error(w, "internal error", http.StatusInternalServerError)
@@ -43,6 +43,11 @@ func registerOIDCRoutes(mux *http.ServeMux, oidcSvc *appuser.OIDCService, httpsO
 		authURL := oidcSvc.AuthURL(nonce)
 		http.Redirect(w, r, authURL, http.StatusFound)
 	})
+	if len(oidcLoginRL) > 0 && oidcLoginRL[0] != nil {
+		mux.HandleFunc("GET /api/v1/auth/oidc/login", ratelimit.MiddlewareFunc(oidcLoginRL[0], oidcLoginHandler))
+	} else {
+		mux.HandleFunc("GET /api/v1/auth/oidc/login", oidcLoginHandler)
+	}
 
 	mux.HandleFunc("GET /api/v1/auth/oidc/callback", func(w http.ResponseWriter, r *http.Request) {
 		q := r.URL.Query()

@@ -149,9 +149,11 @@ type HTTPServer struct {
 	ServerCtx context.Context
 
 	// Rate limiters passed in from main
-	LoginRL      *ratelimit.Limiter
-	GlobalRL     *ratelimit.Limiter
-	AdminHeavyRL *ratelimit.Limiter
+	LoginRL          *ratelimit.Limiter
+	GlobalRL         *ratelimit.Limiter
+	AdminHeavyRL     *ratelimit.Limiter
+	PasswordResetRL  *ratelimit.Limiter
+	OIDCLoginRL      *ratelimit.Limiter
 
 	// i18n
 	Translator *i18n.Translator
@@ -221,6 +223,12 @@ func (s *HTTPServer) RegisterRoutes(mux *http.ServeMux, gwMux http.Handler) {
 		mux.HandleFunc("POST /api/v1/auth/login", ratelimit.MiddlewareFunc(s.LoginRL, func(w http.ResponseWriter, r *http.Request) {
 			r.Body = http.MaxBytesReader(w, r.Body, 1<<20)
 			authCookieMiddleware(gwMux, s.HTTPSOnly).ServeHTTP(w, r)
+		}))
+		mux.HandleFunc("POST /api/v1/auth/forgot-password", ratelimit.MiddlewareFunc(s.PasswordResetRL, func(w http.ResponseWriter, r *http.Request) {
+			gwMux.ServeHTTP(w, r)
+		}))
+		mux.HandleFunc("POST /api/v1/auth/reset-password", ratelimit.MiddlewareFunc(s.PasswordResetRL, func(w http.ResponseWriter, r *http.Request) {
+			gwMux.ServeHTTP(w, r)
 		}))
 		mux.HandleFunc("GET /api/v1/auth/quick-connect/{code}", func(w http.ResponseWriter, r *http.Request) {
 			authCookieMiddleware(gwMux, s.HTTPSOnly).ServeHTTP(w, r)
@@ -301,7 +309,7 @@ func (s *HTTPServer) RegisterRoutes(mux *http.ServeMux, gwMux http.Handler) {
 	mux.HandleFunc("DELETE /api/v1/admin/sessions/{id}", requireAdmin(s.TokenGen, killSessionHandler(s.TokenGen, s.PlaybackSvc)))
 
 	if s.OIDCSvc != nil {
-		registerOIDCRoutes(mux, s.OIDCSvc, s.HTTPSOnly)
+		registerOIDCRoutes(mux, s.OIDCSvc, s.HTTPSOnly, s.OIDCLoginRL)
 	} else {
 		mux.HandleFunc("GET /api/v1/auth/oidc/config", func(w http.ResponseWriter, _ *http.Request) {
 			w.Header().Set("Content-Type", "application/json")

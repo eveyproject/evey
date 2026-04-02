@@ -530,16 +530,14 @@ func (h *userHandler) RevokeAPIKey(ctx context.Context, req *eveyv1.RevokeAPIKey
 	return &eveyv1.RevokeAPIKeyResponse{}, nil
 }
 
-func (h *userHandler) RequestPasswordReset(_ context.Context, req *eveyv1.RequestPasswordResetRequest) (*eveyv1.RequestPasswordResetResponse, error) {
-	ctx := context.Background()
+func (h *userHandler) RequestPasswordReset(ctx context.Context, req *eveyv1.RequestPasswordResetRequest) (*eveyv1.RequestPasswordResetResponse, error) {
 	if err := h.auth.RequestPasswordReset(ctx, req.Email); err != nil {
 		slog.Warn("request password reset", slog.Any("err", err))
 	}
 	return &eveyv1.RequestPasswordResetResponse{}, nil
 }
 
-func (h *userHandler) ResetPassword(_ context.Context, req *eveyv1.ResetPasswordRequest) (*eveyv1.ResetPasswordResponse, error) {
-	ctx := context.Background()
+func (h *userHandler) ResetPassword(ctx context.Context, req *eveyv1.ResetPasswordRequest) (*eveyv1.ResetPasswordResponse, error) {
 	if err := h.auth.ResetPassword(ctx, req.Token, req.NewPassword); err != nil {
 		switch {
 		case err == appuser.ErrResetTokenInvalid:

@@ -23,11 +23,15 @@ func buildHTTPHandler(gwMux http.Handler, deps *appDeps, cfg *config.Config, sta
 	loginRL := ratelimit.New(cfg.Server.LoginRateLimitMax)
 	globalRL := ratelimit.New(cfg.Server.GlobalRateLimitMax)
 	adminHeavyRL := ratelimit.NewWithBurst(10, 10.0)
+	passwordResetRL := ratelimit.New(5)
+	oidcLoginRL := ratelimit.New(10)
 	go func() {
 		<-ctx.Done()
 		loginRL.Stop()
 		globalRL.Stop()
 		adminHeavyRL.Stop()
+		passwordResetRL.Stop()
+		oidcLoginRL.Stop()
 	}()
 
 	audioNormalizeGetter := func(ctx context.Context) bool {
@@ -109,9 +113,11 @@ func buildHTTPHandler(gwMux http.Handler, deps *appDeps, cfg *config.Config, sta
 		CfgStore: deps.cfgStore,
 		ServerCtx: ctx,
 
-		LoginRL:      loginRL,
-		GlobalRL:     globalRL,
-		AdminHeavyRL: adminHeavyRL,
+		LoginRL:         loginRL,
+		GlobalRL:        globalRL,
+		AdminHeavyRL:    adminHeavyRL,
+		PasswordResetRL: passwordResetRL,
+		OIDCLoginRL:     oidcLoginRL,
 
 		Translator:           deps.translator,
 		AudioNormalizeGetter: audioNormalizeGetter,
