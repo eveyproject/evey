@@ -11,8 +11,8 @@ RUN go install github.com/bufbuild/buf/cmd/buf@v1.47.2 \
     && go install github.com/grpc-ecosystem/grpc-gateway/v2/protoc-gen-grpc-gateway@v2.28.0 \
     && go install github.com/grpc-ecosystem/grpc-gateway/v2/protoc-gen-openapiv2@v2.28.0
 COPY proto/ proto/
-COPY buf.gen.yaml buf.gen.local.yaml buf.yaml ./
-RUN buf generate --template buf.gen.local.yaml
+COPY buf.gen.yaml buf.gen.local.yaml buf.yaml buf.lock ./
+RUN buf dep update && buf generate --template buf.gen.local.yaml
 
 # ── Stage 2: Build frontend ──
 FROM node:22-alpine AS frontend
