@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"os"
 	"strings"
 	"sync"
 	"testing"
@@ -158,7 +159,12 @@ func TestExtractTarGz_UnknownFilesIgnored(t *testing.T) {
 	if err != nil {
 		t.Fatalf("extractTarGz: %v", err)
 	}
-	if !bytes.Equal(a.dump, dump) {
+	defer os.Remove(a.dumpPath)
+	got, readErr := os.ReadFile(a.dumpPath)
+	if readErr != nil {
+		t.Fatalf("read dump temp file: %v", readErr)
+	}
+	if !bytes.Equal(got, dump) {
 		t.Fatal("dump mismatch")
 	}
 }

@@ -2,7 +2,6 @@ package backup
 
 import (
 	"archive/tar"
-	"bytes"
 	"compress/gzip"
 	"context"
 	"crypto/sha256"
@@ -113,17 +112,21 @@ func (s *Service) RestoreBackup(ctx context.Context, data io.Reader) error {
 	if extractErr != nil {
 		return fmt.Errorf("restore: %w", extractErr)
 	}
+	defer os.Remove(archive.dumpPath) //nolint:errcheck
 
-	dump := archive.dump
 	if archive.manifest.DumpSHA256 != "" {
-		hash := sha256.Sum256(dump)
-		got := hex.EncodeToString(hash[:])
-		if got != archive.manifest.DumpSHA256 {
+		if archive.dumpSHA256 != archive.manifest.DumpSHA256 {
 			return fmt.Errorf("restore: dump integrity check failed (sha256 mismatch)")
 		}
 	}
 
-	return s.dumper.RestoreTables(ctx, bytes.NewReader(dump))
+	f, err := os.Open(archive.dumpPath)
+	if err != nil {
+		return fmt.Errorf("restore: open dump temp file: %w", err)
+	}
+	defer f.Close()
+
+	return s.dumper.RestoreTables(ctx, f)
 }
 
 func (s *Service) DeleteBackup(ctx context.Context, backupID string) error {
@@ -194,7 +197,8 @@ func (s *Service) CleanupOldBackups(ctx context.Context, retentionDays int) erro
 type backupArchive struct {
 	manifestJSON []byte
 	manifest     *backup.BackupManifest
-	dump         []byte
+	dumpPath     string
+	dumpSHA256   string
 }
 
 func extractTarGz(r io.Reader) (*backupArchive, error) {
@@ -219,27 +223,43 @@ func extractTarGz(r io.Reader) (*backupArchive, error) {
 		if tarErr != nil {
 			return nil, fmt.Errorf("read tar: %w", tarErr)
 		}
-		content, readErr := io.ReadAll(tr)
-		if readErr != nil {
-			return nil, fmt.Errorf("read tar entry %s: %w", hdr.Name, readErr)
-		}
 		switch hdr.Name {
 		case "manifest.json":
+			content, readErr := io.ReadAll(tr)
+			if readErr != nil {
+				return nil, fmt.Errorf("read tar entry %s: %w", hdr.Name, readErr)
+			}
 			a.manifestJSON = content
 		case "dump.sql":
-			a.dump = content
+			tmp, tmpErr := os.CreateTemp("", "evey-restore-*.sql")
+			if tmpErr != nil {
+				return nil, fmt.Errorf("create temp file for dump: %w", tmpErr)
+			}
+			h := sha256.New()
+			if _, cpErr := io.Copy(io.MultiWriter(tmp, h), tr); cpErr != nil {
+				tmp.Close()
+				os.Remove(tmp.Name()) //nolint:errcheck
+				return nil, fmt.Errorf("read tar entry %s: %w", hdr.Name, cpErr)
+			}
+			tmp.Close()
+			a.dumpPath = tmp.Name()
+			a.dumpSHA256 = hex.EncodeToString(h.Sum(nil))
 		}
 	}
 
 	if a.manifestJSON == nil {
+		if a.dumpPath != "" {
+			os.Remove(a.dumpPath) //nolint:errcheck
+		}
 		return nil, fmt.Errorf("archive missing manifest.json")
 	}
-	if a.dump == nil {
+	if a.dumpPath == "" {
 		return nil, fmt.Errorf("archive missing dump.sql")
 	}
 
 	var m backup.BackupManifest
 	if err := json.Unmarshal(a.manifestJSON, &m); err != nil {
+		os.Remove(a.dumpPath) //nolint:errcheck
 		return nil, fmt.Errorf("parse manifest: %w", err)
 	}
 	a.manifest = &m
