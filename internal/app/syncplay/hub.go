@@ -2,19 +2,32 @@ package syncplay
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"log/slog"
+	"sync"
 	"time"
 
 	"github.com/gravity-zero/evey/internal/domain/syncplay"
 	"github.com/gravity-zero/evey/internal/pkg/id"
 )
 
+type connEntry struct {
+	sender   syncplay.MessageSender
+	username string
+}
+
 type Hub struct {
-	repo syncplay.RoomRepository
+	repo    syncplay.RoomRepository
+	mu      sync.RWMutex
+	conns   map[string]map[string]*connEntry // roomID → userID → entry
 }
 
 func NewHub(repo syncplay.RoomRepository) *Hub {
-	return &Hub{repo: repo}
+	return &Hub{
+		repo:  repo,
+		conns: make(map[string]map[string]*connEntry),
+	}
 }
 
 func (h *Hub) CreateRoom(ctx context.Context, hostID, mediaID, name string) (*syncplay.Room, error) {
@@ -68,8 +81,71 @@ func (h *Hub) LeaveRoom(ctx context.Context, roomID, userID string) error {
 	return nil
 }
 
-// HandleCommand processes a playback command (play/pause/seek) from a user.
-// Returns the updated command (with masked username) to broadcast to other members.
+// ConnectMember registers a WebSocket sender, adds the member to the room,
+// sends the current state to the new member, and broadcasts member_joined.
+func (h *Hub) ConnectMember(ctx context.Context, roomID, userID, username string, sender syncplay.MessageSender) (*syncplay.Room, error) {
+	if err := h.repo.AddMember(ctx, roomID, syncplay.Member{
+		UserID:   userID,
+		Username: username,
+		JoinedAt: time.Now().UTC(),
+	}); err != nil {
+		return nil, err
+	}
+
+	h.mu.Lock()
+	if h.conns[roomID] == nil {
+		h.conns[roomID] = make(map[string]*connEntry)
+	}
+	h.conns[roomID][userID] = &connEntry{sender: sender, username: username}
+	h.mu.Unlock()
+
+	room, err := h.repo.Get(ctx, roomID)
+	if err != nil {
+		return nil, err
+	}
+
+	stateMsg := syncplay.SyncCommand{
+		Type:       "state",
+		Playing:    room.State.Playing,
+		PositionMs: room.State.PositionMs,
+	}
+	if data, mErr := json.Marshal(stateMsg); mErr == nil {
+		_ = sender.SendMessage(data)
+	}
+
+	joinMsg := syncplay.SyncCommand{
+		Type:     "member_joined",
+		UserID:   userID,
+		Username: syncplay.MaskUsername(username),
+		RoomID:   roomID,
+	}
+	h.broadcast(roomID, userID, joinMsg)
+
+	return room, nil
+}
+
+// DisconnectMember removes the sender and broadcasts member_left.
+func (h *Hub) DisconnectMember(ctx context.Context, roomID, userID string) error {
+	h.mu.Lock()
+	if m := h.conns[roomID]; m != nil {
+		delete(m, userID)
+		if len(m) == 0 {
+			delete(h.conns, roomID)
+		}
+	}
+	h.mu.Unlock()
+
+	leaveMsg := syncplay.SyncCommand{
+		Type:   "member_left",
+		UserID: userID,
+		RoomID: roomID,
+	}
+	h.broadcast(roomID, userID, leaveMsg)
+
+	return h.repo.RemoveMember(ctx, roomID, userID)
+}
+
+// HandleCommand processes a playback command and broadcasts to other room members.
 func (h *Hub) HandleCommand(ctx context.Context, roomID, userID, username string, cmd syncplay.SyncCommand) (syncplay.SyncCommand, error) {
 	cmd.UserID = userID
 	cmd.Username = syncplay.MaskUsername(username)
@@ -94,23 +170,31 @@ func (h *Hub) HandleCommand(ctx context.Context, roomID, userID, username string
 		if err := h.repo.UpdateState(ctx, roomID, state); err != nil {
 			return cmd, err
 		}
+		h.broadcast(roomID, userID, cmd)
 	}
 	return cmd, nil
 }
 
-// ConnectMember adds a member to a room and returns the current state.
-func (h *Hub) ConnectMember(ctx context.Context, roomID, userID, username string) (*syncplay.Room, error) {
-	if err := h.repo.AddMember(ctx, roomID, syncplay.Member{
-		UserID:   userID,
-		Username: username,
-		JoinedAt: time.Now().UTC(),
-	}); err != nil {
-		return nil, err
+func (h *Hub) broadcast(roomID, senderUserID string, cmd syncplay.SyncCommand) {
+	data, err := json.Marshal(cmd)
+	if err != nil {
+		return
 	}
-	return h.repo.Get(ctx, roomID)
-}
 
-// DisconnectMember removes a member from a room.
-func (h *Hub) DisconnectMember(ctx context.Context, roomID, userID string) error {
-	return h.repo.RemoveMember(ctx, roomID, userID)
+	h.mu.RLock()
+	room := h.conns[roomID]
+	entries := make(map[string]*connEntry, len(room))
+	for uid, e := range room {
+		entries[uid] = e
+	}
+	h.mu.RUnlock()
+
+	for uid, e := range entries {
+		if uid == senderUserID {
+			continue
+		}
+		if err := e.sender.SendMessage(data); err != nil {
+			slog.Warn("syncplay: send failed", slog.String("room", roomID), slog.String("user", uid), slog.Any("err", err))
+		}
+	}
 }

@@ -12,12 +12,12 @@ func TestGenerateCode(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GenerateCode() error: %v", err)
 	}
-	if len(code) != 6 {
-		t.Errorf("code length = %d, want 6", len(code))
+	if len(code) != 5 {
+		t.Errorf("code length = %d, want 5", len(code))
 	}
 	for _, c := range code {
-		if (c < 'A' || c > 'Z') && (c < '2' || c > '9') {
-			t.Errorf("unexpected char %c in code %q", c, code)
+		if c < '0' || c > '9' {
+			t.Errorf("unexpected char %c in code %q, want digits only", c, code)
 		}
 	}
 }

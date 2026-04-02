@@ -2,12 +2,14 @@ package syncplay
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"sync"
 	"testing"
 	"time"
 
 	"github.com/gravity-zero/evey/internal/domain/syncplay"
+	"github.com/gravity-zero/evey/internal/domain/syncplay/fakes"
 )
 
 // fakeRoomRepo is an in-memory implementation of syncplay.RoomRepository.
@@ -114,8 +116,8 @@ func TestHub_CreateRoom_HasCode(t *testing.T) {
 	if err != nil {
 		t.Fatalf("CreateRoom: %v", err)
 	}
-	if len(room.Code) != 6 {
-		t.Errorf("Code length = %d, want 6", len(room.Code))
+	if len(room.Code) != 5 {
+		t.Errorf("Code length = %d, want 5", len(room.Code))
 	}
 }
 
@@ -143,7 +145,7 @@ func TestHub_GetRoomByCode_NotFound(t *testing.T) {
 	h := newTestHub()
 	ctx := context.Background()
 
-	_, err := h.GetRoomByCode(ctx, "ZZZZZZ")
+	_, err := h.GetRoomByCode(ctx, "99999")
 	if err == nil {
 		t.Error("expected error for nonexistent code")
 	}
@@ -590,8 +592,9 @@ func TestHub_ConnectMember_Success(t *testing.T) {
 	ctx := context.Background()
 
 	room, _ := h.CreateRoom(ctx, "host-1", "media-1", "Room")
+	sender := fakes.NewFakeMessageSender()
 
-	got, err := h.ConnectMember(ctx, room.ID, "user-2", "Alice")
+	got, err := h.ConnectMember(ctx, room.ID, "user-2", "Alice", sender)
 	if err != nil {
 		t.Fatalf("ConnectMember: %v", err)
 	}
@@ -608,6 +611,19 @@ func TestHub_ConnectMember_Success(t *testing.T) {
 	if !found {
 		t.Error("user-2 not found in members after ConnectMember")
 	}
+
+	// Should have received state message
+	msgs := sender.Received()
+	if len(msgs) == 0 {
+		t.Fatal("expected state message on connect")
+	}
+	var stateCmd syncplay.SyncCommand
+	if err := json.Unmarshal(msgs[0], &stateCmd); err != nil {
+		t.Fatalf("unmarshal state: %v", err)
+	}
+	if stateCmd.Type != "state" {
+		t.Errorf("first message type = %q, want %q", stateCmd.Type, "state")
+	}
 }
 
 func TestHub_ConnectMember_Idempotent(t *testing.T) {
@@ -616,8 +632,10 @@ func TestHub_ConnectMember_Idempotent(t *testing.T) {
 	ctx := context.Background()
 
 	room, _ := h.CreateRoom(ctx, "host-1", "media-1", "Room")
-	_, _ = h.ConnectMember(ctx, room.ID, "user-2", "Alice")
-	got, err := h.ConnectMember(ctx, room.ID, "user-2", "Alice")
+	s1 := fakes.NewFakeMessageSender()
+	s2 := fakes.NewFakeMessageSender()
+	_, _ = h.ConnectMember(ctx, room.ID, "user-2", "Alice", s1)
+	got, err := h.ConnectMember(ctx, room.ID, "user-2", "Alice", s2)
 	if err != nil {
 		t.Fatalf("ConnectMember second call: %v", err)
 	}
@@ -638,7 +656,7 @@ func TestHub_ConnectMember_NonexistentRoom(t *testing.T) {
 	h := newTestHub()
 	ctx := context.Background()
 
-	_, err := h.ConnectMember(ctx, "bad-room", "user-1", "Alice")
+	_, err := h.ConnectMember(ctx, "bad-room", "user-1", "Alice", fakes.NewFakeMessageSender())
 	if err == nil {
 		t.Error("expected error connecting to nonexistent room")
 	}
@@ -652,7 +670,7 @@ func TestHub_DisconnectMember_Success(t *testing.T) {
 	ctx := context.Background()
 
 	room, _ := h.CreateRoom(ctx, "host-1", "media-1", "Room")
-	_, _ = h.ConnectMember(ctx, room.ID, "user-2", "Alice")
+	_, _ = h.ConnectMember(ctx, room.ID, "user-2", "Alice", fakes.NewFakeMessageSender())
 
 	if err := h.DisconnectMember(ctx, room.ID, "user-2"); err != nil {
 		t.Fatalf("DisconnectMember: %v", err)
@@ -732,4 +750,96 @@ func TestHub_JoinRoom_SetsJoinedAt(t *testing.T) {
 		}
 	}
 	t.Error("user-2 not found in members")
+}
+
+func TestHub_HandleCommand_BroadcastsToOthers(t *testing.T) {
+	t.Parallel()
+	h := newTestHub()
+	ctx := context.Background()
+
+	room, _ := h.CreateRoom(ctx, "host-1", "media-1", "Room")
+	senderSender := fakes.NewFakeMessageSender()
+	otherSender := fakes.NewFakeMessageSender()
+	_, _ = h.ConnectMember(ctx, room.ID, "host-1", "Host", senderSender)
+	_, _ = h.ConnectMember(ctx, room.ID, "user-2", "Alice", otherSender)
+
+	// Clear connect messages
+	senderSender.Messages = nil
+	otherSender.Messages = nil
+
+	_, err := h.HandleCommand(ctx, room.ID, "host-1", "Host", syncplay.SyncCommand{
+		Type: "play", PositionMs: 1000,
+	})
+	if err != nil {
+		t.Fatalf("HandleCommand: %v", err)
+	}
+
+	// Sender should NOT receive broadcast
+	if len(senderSender.Received()) != 0 {
+		t.Errorf("sender got %d messages, want 0", len(senderSender.Received()))
+	}
+	// Other member should receive broadcast
+	msgs := otherSender.Received()
+	if len(msgs) != 1 {
+		t.Fatalf("other got %d messages, want 1", len(msgs))
+	}
+	var cmd syncplay.SyncCommand
+	if err := json.Unmarshal(msgs[0], &cmd); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if cmd.Type != "play" {
+		t.Errorf("cmd.Type = %q, want %q", cmd.Type, "play")
+	}
+}
+
+func TestHub_ConnectMember_BroadcastsJoin(t *testing.T) {
+	t.Parallel()
+	h := newTestHub()
+	ctx := context.Background()
+
+	room, _ := h.CreateRoom(ctx, "host-1", "media-1", "Room")
+	hostSender := fakes.NewFakeMessageSender()
+	_, _ = h.ConnectMember(ctx, room.ID, "host-1", "Host", hostSender)
+	hostSender.Messages = nil
+
+	newSender := fakes.NewFakeMessageSender()
+	_, _ = h.ConnectMember(ctx, room.ID, "user-2", "Alice", newSender)
+
+	// Host should get member_joined
+	msgs := hostSender.Received()
+	if len(msgs) != 1 {
+		t.Fatalf("host got %d messages, want 1 (member_joined)", len(msgs))
+	}
+	var cmd syncplay.SyncCommand
+	_ = json.Unmarshal(msgs[0], &cmd)
+	if cmd.Type != "member_joined" {
+		t.Errorf("type = %q, want member_joined", cmd.Type)
+	}
+	if cmd.UserID != "user-2" {
+		t.Errorf("userID = %q, want user-2", cmd.UserID)
+	}
+}
+
+func TestHub_DisconnectMember_BroadcastsLeave(t *testing.T) {
+	t.Parallel()
+	h := newTestHub()
+	ctx := context.Background()
+
+	room, _ := h.CreateRoom(ctx, "host-1", "media-1", "Room")
+	hostSender := fakes.NewFakeMessageSender()
+	_, _ = h.ConnectMember(ctx, room.ID, "host-1", "Host", hostSender)
+	_, _ = h.ConnectMember(ctx, room.ID, "user-2", "Alice", fakes.NewFakeMessageSender())
+	hostSender.Messages = nil
+
+	_ = h.DisconnectMember(ctx, room.ID, "user-2")
+
+	msgs := hostSender.Received()
+	if len(msgs) != 1 {
+		t.Fatalf("host got %d messages, want 1 (member_left)", len(msgs))
+	}
+	var cmd syncplay.SyncCommand
+	_ = json.Unmarshal(msgs[0], &cmd)
+	if cmd.Type != "member_left" {
+		t.Errorf("type = %q, want member_left", cmd.Type)
+	}
 }
