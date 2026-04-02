@@ -1,11 +1,28 @@
-# ── Stage 1: Build frontend ──
+# ── Stage 1: Generate protobuf (swagger JSON for orval + Go code for build) ──
+FROM golang:1.26.1-alpine AS protogen
+
+RUN apk add --no-cache gcc musl-dev linux-headers
+WORKDIR /src
+COPY go.mod go.sum ./
+RUN go mod download
+RUN go install github.com/bufbuild/buf/cmd/buf@v1.47.2
+COPY proto/ proto/
+COPY buf.gen.yaml buf.yaml ./
+RUN buf generate
+
+# ── Stage 2: Build frontend ──
 FROM node:22-alpine AS frontend
 
 WORKDIR /app
 COPY frontend/ .
-RUN npm install -g pnpm@10.6.5 && pnpm install && pnpm --filter web build
+COPY --from=protogen /src/gen/evey/v1/ /gen/evey/v1/
+RUN npm install -g pnpm@10.6.5 && pnpm install \
+    && cd packages/api \
+    && npx orval --config orval.config.ts \
+    && cd ../.. \
+    && pnpm --filter web build
 
-# ── Stage 2: Build backend ──
+# ── Stage 3: Build backend ──
 FROM golang:1.26.1-alpine AS builder
 
 RUN apk add --no-cache gcc musl-dev linux-headers
@@ -15,16 +32,14 @@ WORKDIR /src
 COPY go.mod go.sum ./
 RUN go mod download
 
-RUN go install github.com/bufbuild/buf/cmd/buf@v1.47.2
-
 ARG VERSION=dev
 
 COPY . .
-RUN buf generate
+COPY --from=protogen /src/gen/ gen/
 RUN CGO_ENABLED=0 go build -ldflags="-s -w -X main.version=${VERSION}" -o /evey ./cmd/evey
 RUN gcc -shared -fPIC -nostartfiles -o /libevey-sandbox.so sandbox/sandbox.c
 
-# ── Stage 3: Runtime ──
+# ── Stage 4: Runtime ──
 FROM alpine:3.21.3
 
 RUN apk add --no-cache ffmpeg ca-certificates unzip curl postgresql-client
