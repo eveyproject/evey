@@ -71,7 +71,7 @@ func (s *Service) StartTranscode(ctx context.Context, job *transcoding.Transcode
 	if s.maxConcurrent > 0 && running >= s.maxConcurrent {
 		job.Status = string(transcoding.Queued)
 		if err := s.jobs.Create(ctx, job); err != nil {
-			return err
+			return fmt.Errorf("Service.StartTranscode: %w", err)
 		}
 		return ErrMaxConcurrent
 	}
@@ -79,7 +79,7 @@ func (s *Service) StartTranscode(ctx context.Context, job *transcoding.Transcode
 	job.Status = string(transcoding.Running)
 	job.StartedAt = time.Now()
 	if err := s.jobs.Create(ctx, job); err != nil {
-		return err
+		return fmt.Errorf("Service.StartTranscode: %w", err)
 	}
 
 	if _, err := s.transcoder.Start(ctx, job); err != nil {
@@ -104,11 +104,11 @@ func (s *Service) StartTranscode(ctx context.Context, job *transcoding.Transcode
 
 func (s *Service) StopTranscode(ctx context.Context, jobID string) error {
 	if err := s.transcoder.Stop(ctx, jobID); err != nil {
-		return err
+		return fmt.Errorf("Service.StopTranscode: %w", err)
 	}
 	job, err := s.jobs.GetByID(ctx, jobID)
 	if err != nil {
-		return err
+		return fmt.Errorf("Service.StopTranscode: %w", err)
 	}
 	job.Status = string(transcoding.Cancelled)
 	now := time.Now()

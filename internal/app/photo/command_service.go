@@ -155,14 +155,14 @@ func (s *CommandService) ScanDirectory(ctx context.Context, libraryID, dir strin
 func (s *CommandService) DeletePhoto(ctx context.Context, photoID string) error {
 	p, err := s.repo.GetByID(ctx, photoID)
 	if err != nil {
-		return err
+		return fmt.Errorf("CommandService.DeletePhoto: %w", err)
 	}
 	libraryID := ""
 	if p != nil {
 		libraryID = p.LibraryID
 	}
 	if err := s.repo.Delete(ctx, photoID); err != nil {
-		return err
+		return fmt.Errorf("CommandService.DeletePhoto: %w", err)
 	}
 	if pubErr := s.bus.Publish(ctx, photo.PhotoRemoved{PhotoID: photoID, LibraryID: libraryID, OccurredAt: time.Now()}); pubErr != nil {
 		slog.Warn("photo: PhotoRemoved publish failed", slog.String("photoID", photoID), slog.Any("err", pubErr))

@@ -187,7 +187,7 @@ func (s *InstallerService) InstallPlugin(ctx context.Context, zipPath string) (*
 		if p.InstallDir != "" && s.fs != nil {
 			s.fs.RemoveAll(p.InstallDir) //nolint:errcheck
 		}
-		return nil, err
+		return nil, fmt.Errorf("InstallerService.InstallPlugin: %w", err)
 	}
 
 	if !isStaticPlugin(p) {
@@ -278,7 +278,7 @@ func (s *InstallerService) UninstallPlugin(ctx context.Context, id string) error
 	}
 
 	if err := s.plugins.Delete(ctx, id); err != nil {
-		return err
+		return fmt.Errorf("InstallerService.UninstallPlugin: %w", err)
 	}
 	evtUninstalled := plugin.PluginUninstalled{PluginID: id, OccurredAt: time.Now()}
 	if err := s.events.Publish(ctx, evtUninstalled); err != nil {

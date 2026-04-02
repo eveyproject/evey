@@ -2,6 +2,7 @@ package plugin
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"path/filepath"
 	"time"
@@ -79,7 +80,7 @@ func (s *RuntimeService) StartPlugin(ctx context.Context, id string) error {
 		if updateErr := s.plugins.Update(ctx, p); updateErr != nil {
 			slog.Warn("update plugin status failed", slog.String("pluginID", p.ID), slog.Any("err", updateErr))
 		}
-		return err
+		return fmt.Errorf("RuntimeService.StartPlugin: %w", err)
 	}
 	if s.permChecker != nil {
 		s.permChecker.LoadPermissions(p.ID, p.Permissions)
@@ -105,7 +106,7 @@ func (s *RuntimeService) StopPlugin(ctx context.Context, id string) error {
 		return ErrNotRunning
 	}
 	if err := s.runner.Stop(ctx, id); err != nil {
-		return err
+		return fmt.Errorf("RuntimeService.StopPlugin: %w", err)
 	}
 	if s.permChecker != nil {
 		s.permChecker.InvalidatePermissions(p.ID)

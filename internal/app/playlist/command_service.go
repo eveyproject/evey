@@ -55,7 +55,7 @@ func (s *CommandService) Update(ctx context.Context, pl *playlist.Playlist, user
 	}
 	existing, err := s.playlists.GetByID(ctx, pl.ID)
 	if err != nil {
-		return err
+		return fmt.Errorf("CommandService.Update: %w", err)
 	}
 	if !existing.IsOwner(userID) {
 		return ErrNotOwner
@@ -70,7 +70,7 @@ func (s *CommandService) Update(ctx context.Context, pl *playlist.Playlist, user
 func (s *CommandService) Delete(ctx context.Context, id, userID string) error {
 	existing, err := s.playlists.GetByID(ctx, id)
 	if err != nil {
-		return err
+		return fmt.Errorf("CommandService.Delete: %w", err)
 	}
 	if !existing.IsOwner(userID) {
 		return ErrNotOwner
@@ -81,7 +81,7 @@ func (s *CommandService) Delete(ctx context.Context, id, userID string) error {
 func (s *CommandService) AddItem(ctx context.Context, playlistID, mediaItemID, userID string) error {
 	pl, err := s.playlists.GetByID(ctx, playlistID)
 	if err != nil {
-		return err
+		return fmt.Errorf("CommandService.AddItem: %w", err)
 	}
 	if !pl.IsOwner(userID) {
 		return ErrNotOwner
@@ -122,7 +122,7 @@ func (s *CommandService) AddItem(ctx context.Context, playlistID, mediaItemID, u
 func (s *CommandService) RemoveItem(ctx context.Context, playlistID, mediaItemID, userID string) error {
 	pl, err := s.playlists.GetByID(ctx, playlistID)
 	if err != nil {
-		return err
+		return fmt.Errorf("CommandService.RemoveItem: %w", err)
 	}
 	if !pl.IsOwner(userID) {
 		return ErrNotOwner
@@ -136,7 +136,7 @@ func (s *CommandService) RemoveItem(ctx context.Context, playlistID, mediaItemID
 func (s *CommandService) ReorderItems(ctx context.Context, playlistID, userID string, mediaItemIDs []string) error {
 	pl, err := s.playlists.GetByID(ctx, playlistID)
 	if err != nil {
-		return err
+		return fmt.Errorf("CommandService.ReorderItems: %w", err)
 	}
 	if !pl.IsOwner(userID) {
 		return ErrNotOwner

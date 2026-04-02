@@ -2,6 +2,7 @@ package rating
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"time"
 
@@ -21,7 +22,7 @@ func NewCommandService(repo rating.Repository, bus shared.EventBus) *CommandServ
 func (s *CommandService) Rate(ctx context.Context, mediaItemID, profileID string, value int) error {
 	score, err := rating.NewRatingValue(value)
 	if err != nil {
-		return err
+		return fmt.Errorf("CommandService.Rate: %w", err)
 	}
 	now := time.Now()
 	if err := s.repo.Upsert(ctx, rating.Rating{
@@ -31,7 +32,7 @@ func (s *CommandService) Rate(ctx context.Context, mediaItemID, profileID string
 		CreatedAt:   now,
 		UpdatedAt:   now,
 	}); err != nil {
-		return err
+		return fmt.Errorf("CommandService.Rate: %w", err)
 	}
 	if pubErr := s.bus.Publish(ctx, rating.RatingSet{MediaID: mediaItemID, UserID: profileID, Score: score.Int(), OccurredAt: now}); pubErr != nil {
 		slog.Warn("rating: event publish failed", slog.String("mediaID", mediaItemID), slog.Any("err", pubErr))
@@ -41,7 +42,7 @@ func (s *CommandService) Rate(ctx context.Context, mediaItemID, profileID string
 
 func (s *CommandService) DeleteRating(ctx context.Context, mediaItemID, profileID string) error {
 	if err := s.repo.Delete(ctx, mediaItemID, profileID); err != nil {
-		return err
+		return fmt.Errorf("CommandService.DeleteRating: %w", err)
 	}
 	if pubErr := s.bus.Publish(ctx, rating.RatingRemoved{MediaID: mediaItemID, UserID: profileID, OccurredAt: time.Now()}); pubErr != nil {
 		slog.Warn("rating: RatingRemoved publish failed", slog.String("mediaID", mediaItemID), slog.Any("err", pubErr))

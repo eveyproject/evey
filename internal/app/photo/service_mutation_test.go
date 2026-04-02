@@ -581,7 +581,7 @@ func TestDeletePhoto_RepoGetByIDError(t *testing.T) {
 
 	err := svc.DeletePhoto(context.Background(), "photo-1")
 	require.Error(t, err)
-	assert.Equal(t, "get failed", err.Error())
+	assert.ErrorIs(t, err, repo.Err)
 }
 
 func TestDeletePhoto_NotFound_ReturnsNilPhoto(t *testing.T) {

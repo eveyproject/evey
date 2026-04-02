@@ -65,7 +65,7 @@ func (s *CommandService) UpdateAdminConfig(ctx context.Context, cfg *feed.AdminC
 		return fmt.Errorf("invalid admin feed config: %w", err)
 	}
 	if err := s.commands.UpsertAdminConfig(ctx, cfg); err != nil {
-		return err
+		return fmt.Errorf("CommandService.UpdateAdminConfig: %w", err)
 	}
 	s.publish(ctx, feed.FeedConfigChanged{FeedType: cfg.FeedType, OccurredAt: time.Now()})
 	return nil
@@ -78,7 +78,7 @@ func (s *CommandService) BatchUpdateAdminConfigs(ctx context.Context, cfgs []*fe
 		}
 	}
 	if err := s.commands.BatchUpsertAdminConfig(ctx, cfgs); err != nil {
-		return err
+		return fmt.Errorf("CommandService.BatchUpdateAdminConfigs: %w", err)
 	}
 	now := time.Now()
 	for _, cfg := range cfgs {
@@ -92,7 +92,7 @@ func (s *CommandService) UpdateProfileConfig(ctx context.Context, cfg *feed.Prof
 		return fmt.Errorf("invalid profile feed config: %w", err)
 	}
 	if err := s.commands.UpsertProfileConfig(ctx, cfg); err != nil {
-		return err
+		return fmt.Errorf("CommandService.UpdateProfileConfig: %w", err)
 	}
 	s.publish(ctx, feed.FeedConfigChanged{FeedType: cfg.FeedType, ProfileID: cfg.ProfileID, OccurredAt: time.Now()})
 	return nil
@@ -100,7 +100,7 @@ func (s *CommandService) UpdateProfileConfig(ctx context.Context, cfg *feed.Prof
 
 func (s *CommandService) ResetProfileConfig(ctx context.Context, profileID string, feedType feed.Type) error {
 	if err := s.commands.DeleteProfileConfig(ctx, profileID, feedType); err != nil {
-		return err
+		return fmt.Errorf("CommandService.ResetProfileConfig: %w", err)
 	}
 	s.publish(ctx, feed.FeedConfigRemoved{FeedType: feedType, ProfileID: profileID, OccurredAt: time.Now()})
 	return nil
@@ -109,7 +109,7 @@ func (s *CommandService) ResetProfileConfig(ctx context.Context, profileID strin
 func (s *CommandService) EnsureLibraryFeedConfig(ctx context.Context, libraryID, name string) error {
 	existing, err := s.queries.GetAdminConfig(ctx)
 	if err != nil {
-		return err
+		return fmt.Errorf("CommandService.EnsureLibraryFeedConfig: %w", err)
 	}
 	ft := feed.LibraryType(libraryID)
 	for _, c := range existing {
@@ -131,7 +131,7 @@ func (s *CommandService) EnsureLibraryFeedConfig(ctx context.Context, libraryID,
 		Params:       map[string]any{"libraryName": name},
 	}
 	if err := s.commands.UpsertAdminConfig(ctx, cfg); err != nil {
-		return err
+		return fmt.Errorf("CommandService.EnsureLibraryFeedConfig: %w", err)
 	}
 	s.publish(ctx, feed.FeedConfigChanged{FeedType: ft, OccurredAt: time.Now()})
 	return nil
@@ -140,7 +140,7 @@ func (s *CommandService) EnsureLibraryFeedConfig(ctx context.Context, libraryID,
 func (s *CommandService) DeleteLibraryFeedConfig(ctx context.Context, libraryID string) error {
 	ft := feed.LibraryType(libraryID)
 	if err := s.commands.DeleteAdminConfigByType(ctx, ft); err != nil {
-		return err
+		return fmt.Errorf("CommandService.DeleteLibraryFeedConfig: %w", err)
 	}
 	s.publish(ctx, feed.FeedConfigRemoved{FeedType: ft, OccurredAt: time.Now()})
 	return nil

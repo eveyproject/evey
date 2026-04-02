@@ -212,7 +212,7 @@ func TestDeleteTrack_GetByIDError(t *testing.T) {
 	cs := appmusic.NewCommandService(repo, sharedfakes.NewFakeEventBus(), nil, fakes.NewFakeMusicScanner())
 
 	err := cs.DeleteTrack(context.Background(), "t1")
-	if err == nil || err.Error() != "db error" {
+	if err == nil || !errors.Is(err, repo.Err) {
 		t.Fatalf("expected db error, got %v", err)
 	}
 }

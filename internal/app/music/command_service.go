@@ -143,14 +143,14 @@ func (s *CommandService) ScanDirectory(ctx context.Context, libraryID, dir strin
 func (s *CommandService) DeleteTrack(ctx context.Context, trackID string) error {
 	t, err := s.tracks.GetByID(ctx, trackID)
 	if err != nil {
-		return err
+		return fmt.Errorf("CommandService.DeleteTrack: %w", err)
 	}
 	libraryID := ""
 	if t != nil {
 		libraryID = t.LibraryID
 	}
 	if err := s.tracks.Delete(ctx, trackID); err != nil {
-		return err
+		return fmt.Errorf("CommandService.DeleteTrack: %w", err)
 	}
 	if pubErr := s.bus.Publish(ctx, music.TrackDeleted{TrackID: trackID, LibraryID: libraryID, OccurredAt: time.Now()}); pubErr != nil {
 		slog.Warn("music: TrackDeleted publish failed", slog.String("trackID", trackID), slog.Any("err", pubErr))
