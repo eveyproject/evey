@@ -27,16 +27,7 @@ EVEY_VERSION=v0.1.0-beta.1
 
 ## HTTPS
 
-Evey doesn't handle HTTPS. Put a reverse proxy in front. Quickest option — the bundled Caddy:
-
-```bash
-# Add to .env
-EVEY_DOMAIN=media.example.com
-
-docker compose --profile caddy up -d
-```
-
-Or bring your own Nginx/Traefik. See [docs/reverse-proxy.md](docs/reverse-proxy.md) and the ready-to-use configs in [`examples/`](examples/).
+Evey doesn't handle HTTPS itself. Put a reverse proxy in front (Caddy, Nginx, Traefik). See [docs/reverse-proxy.md](docs/reverse-proxy.md) for ready-to-use configs.
 
 ## Configuration
 
@@ -68,12 +59,17 @@ Android and Android TV apps connect to your server URL. Use **Quick Connect** to
 ## Features
 
 - Adaptive HLS transcoding with [hardware acceleration](docs/transcoding.md) (VAAPI, NVENC, QSV)
+- Android & Android TV apps (Expo/React Native)
+- Full-text search powered by Meilisearch
+- Multi-language metadata (TMDB/OMDb) + 6 UI languages (EN, FR, DE, ES, ZH, HI)
 - [SSO/OIDC](docs/oidc.md) — Keycloak, Authentik, Google, anything OIDC-compliant
 - [Email notifications](docs/notifications.md) + password recovery
 - [Automatic backups](docs/backups.md)
 - [Plugins & themes](docs/plugins.md) — sandboxed with seccomp
 - Multi-profile with parental controls
 - SyncPlay — watch together in sync
+- Webhooks for external integrations
+- Trickplay (seek thumbnails)
 
 ## Plugins & Themes
 
