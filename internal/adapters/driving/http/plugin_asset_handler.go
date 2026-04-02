@@ -15,6 +15,7 @@ import (
 	appplugin "github.com/gravity-zero/evey/internal/app/plugin"
 	domainplugin "github.com/gravity-zero/evey/internal/domain/plugin"
 	"github.com/gravity-zero/evey/internal/pkg/auth"
+	"github.com/gravity-zero/evey/internal/pkg/ratelimit"
 )
 
 type pluginManager interface {
@@ -155,8 +156,8 @@ func (h *pluginAssetHandler) handleListThemes(w http.ResponseWriter, r *http.Req
 	}
 }
 
-func registerPluginUploadRoute(mux *http.ServeMux, tokenGen *auth.JWTGenerator, svc pluginManager) {
-	mux.HandleFunc("POST /api/v1/admin/plugins/upload", func(w http.ResponseWriter, r *http.Request) {
+func registerPluginUploadRoute(mux *http.ServeMux, tokenGen *auth.JWTGenerator, svc pluginManager, writeRL *ratelimit.Limiter) {
+	mux.HandleFunc("POST /api/v1/admin/plugins/upload", ratelimit.MiddlewareFunc(writeRL, func(w http.ResponseWriter, r *http.Request) {
 		token := extractBearerToken(r)
 		if token == "" {
 			http.Error(w, `{"message":"unauthorized"}`, http.StatusUnauthorized)
@@ -231,11 +232,11 @@ func registerPluginUploadRoute(mux *http.ServeMux, tokenGen *auth.JWTGenerator, 
 		}); encErr != nil {
 			slog.Warn("encode plugin response", slog.Any("err", encErr))
 		}
-	})
+	}))
 }
 
-func registerPluginPreviewRoute(mux *http.ServeMux, tokenGen *auth.JWTGenerator, svc pluginManager) {
-	mux.HandleFunc("POST /api/v1/admin/plugins/preview", func(w http.ResponseWriter, r *http.Request) {
+func registerPluginPreviewRoute(mux *http.ServeMux, tokenGen *auth.JWTGenerator, svc pluginManager, writeRL *ratelimit.Limiter) {
+	mux.HandleFunc("POST /api/v1/admin/plugins/preview", ratelimit.MiddlewareFunc(writeRL, func(w http.ResponseWriter, r *http.Request) {
 		token := extractBearerToken(r)
 		if token == "" {
 			http.Error(w, `{"message":"unauthorized"}`, http.StatusUnauthorized)
@@ -338,7 +339,7 @@ func registerPluginPreviewRoute(mux *http.ServeMux, tokenGen *auth.JWTGenerator,
 		if encErr := json.NewEncoder(w).Encode(resp); encErr != nil {
 			slog.Warn("encode plugin preview", slog.Any("err", encErr))
 		}
-	})
+	}))
 }
 
 // extractBlockedIssues parses individual issues from the analyzer error message.

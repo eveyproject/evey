@@ -152,6 +152,7 @@ type HTTPServer struct {
 	LoginRL          *ratelimit.Limiter
 	GlobalRL         *ratelimit.Limiter
 	AdminHeavyRL     *ratelimit.Limiter
+	AdminWriteRL     *ratelimit.Limiter
 	PasswordResetRL  *ratelimit.Limiter
 	OIDCLoginRL      *ratelimit.Limiter
 
@@ -260,26 +261,26 @@ func (s *HTTPServer) RegisterRoutes(mux *http.ServeMux, gwMux http.Handler) {
 		})
 	}
 
-	registerFeedRoutes(mux, s.FeedCmdSvc, s.FeedQuerySvc, s.TokenGen)
-	registerAdminRoutes(mux, s.MetadataCmdSvc, s.MetadataQuerySvc, s.TokenGen, s.AdminHeavyRL, s.ServerCtx, s.ActivityCmdSvc, s.BioEnricher)
-	registerUserAdminRoutes(mux, s.UserSvc, s.UserQuerySvc, s.TokenGen, s.ActivityCmdSvc)
+	registerFeedRoutes(mux, s.FeedCmdSvc, s.FeedQuerySvc, s.TokenGen, s.AdminWriteRL)
+	registerAdminRoutes(mux, s.MetadataCmdSvc, s.MetadataQuerySvc, s.TokenGen, s.AdminHeavyRL, s.AdminWriteRL, s.ServerCtx, s.ActivityCmdSvc, s.BioEnricher)
+	registerUserAdminRoutes(mux, s.UserSvc, s.UserQuerySvc, s.TokenGen, s.AdminWriteRL, s.ActivityCmdSvc)
 	registerFavoriteRoutes(mux, s.FavoriteSvc, s.LibQuerySvc, s.TokenGen, s.LibraryAccessRepo)
 	registerPhotoRoutes(mux, s.PhotoSvc, s.TokenGen, s.LibraryAccessRepo, s.LibQuerySvc, s.ServerCtx)
 	registerMetadataOverrideRoutes(mux, s.MetadataCmdSvc, s.MetadataQuerySvc, s.TokenGen)
-	registerTranscodeCacheRoutes(mux, s.TranscodingSvc, s.TokenGen, s.LibQuerySvc, s.ActivityCmdSvc)
-	registerTranscodeProfileRoutes(mux, s.TranscodingSvc, s.TokenGen, s.ActivityCmdSvc)
+	registerTranscodeCacheRoutes(mux, s.TranscodingSvc, s.TokenGen, s.LibQuerySvc, s.ActivityCmdSvc, s.AdminWriteRL)
+	registerTranscodeProfileRoutes(mux, s.TranscodingSvc, s.TokenGen, s.ActivityCmdSvc, s.AdminWriteRL)
 	registerCollectionRoutes(mux, s.CollectionSvc, s.TokenGen)
 	registerScheduleRoutes(mux, s.Scheduler, s.TokenGen)
-	registerLibraryAccessRoutes(mux, s.LibraryAccessRepo, s.LibQuerySvc, s.TokenGen)
+	registerLibraryAccessRoutes(mux, s.LibraryAccessRepo, s.LibQuerySvc, s.TokenGen, s.AdminWriteRL)
 	registerPlaylistRoutes(mux, s.PlaylistSvc, s.TokenGen)
 
 	registerSyncPlayRoutes(mux, s.SyncPlayHub, s.TokenGen, s.LibQuerySvc, s.LibraryAccessRepo)
 	if s.ShareSvc != nil {
 		registerShareRoutes(mux, s.TokenGen, s.ShareSvc, s.LibQuerySvc, s.LibraryAccessRepo)
 	}
-	registerBackupRoutes(mux, s.BackupSvc, s.TokenGen, s.AdminHeavyRL)
-	registerRemoteAccessRoutes(mux, s.Cfg, s.TokenGen, s.CfgStore)
-	registerPlaybackSettingsRoutes(mux, s.Cfg, s.TokenGen)
+	registerBackupRoutes(mux, s.BackupSvc, s.TokenGen, s.AdminHeavyRL, s.AdminWriteRL)
+	registerRemoteAccessRoutes(mux, s.Cfg, s.TokenGen, s.CfgStore, s.AdminWriteRL)
+	registerPlaybackSettingsRoutes(mux, s.Cfg, s.TokenGen, s.AdminWriteRL)
 	registerParentalRoutes(mux, s.ProfileRepo, s.Hasher, s.TokenGen)
 	registerRatingRoutes(mux, s.UserRatingRepo, s.TokenGen, s.LibQuerySvc, s.LibraryAccessRepo)
 	registerStarRatingRoutes(mux, s.StarRatingSvc, s.TokenGen, s.LibQuerySvc, s.LibraryAccessRepo)
@@ -287,7 +288,7 @@ func (s *HTTPServer) RegisterRoutes(mux *http.ServeMux, gwMux http.Handler) {
 	registerAnalyticsRoutes(mux, s.ActivityQuerySvc, s.TokenGen)
 	registerFilterRoutes(mux, s.LibQuerySvc, s.TokenGen, s.LibraryAccessRepo)
 	registerSystemStatsRoute(mux, s.StartTime, s.TokenGen)
-	registerServerConfigRoutes(mux, s.ServerCfgSvc, s.TokenGen, s.ActivityCmdSvc)
+	registerServerConfigRoutes(mux, s.ServerCfgSvc, s.TokenGen, s.ActivityCmdSvc, s.AdminWriteRL)
 	registerLogsRoute(mux, s.LogDir, s.TokenGen)
 	registerAvailableRuntimesRoute(mux, s.TokenGen)
 	registerMusicRoutes(mux, s.MusicSvc, s.TokenGen, s.LibraryAccessRepo, s.LibQuerySvc)
@@ -300,13 +301,13 @@ func (s *HTTPServer) RegisterRoutes(mux *http.ServeMux, gwMux http.Handler) {
 	if s.PluginRepo != nil && s.PluginDir != "" {
 		registerPluginAssetRoutes(mux, s.TokenGen, s.PluginRepo, s.PluginDir)
 		if s.PluginSvc != nil {
-			registerPluginUploadRoute(mux, s.TokenGen, s.PluginSvc)
-			registerPluginPreviewRoute(mux, s.TokenGen, s.PluginSvc)
+			registerPluginUploadRoute(mux, s.TokenGen, s.PluginSvc, s.AdminWriteRL)
+			registerPluginPreviewRoute(mux, s.TokenGen, s.PluginSvc, s.AdminWriteRL)
 		}
 	}
 
 	mux.HandleFunc("GET /api/v1/admin/sessions/active", requireAdmin(s.TokenGen, activeSessionsHandler(s.TokenGen, s.PlaybackSvc)))
-	mux.HandleFunc("DELETE /api/v1/admin/sessions/{id}", requireAdmin(s.TokenGen, killSessionHandler(s.TokenGen, s.PlaybackSvc)))
+	mux.HandleFunc("DELETE /api/v1/admin/sessions/{id}", requireAdmin(s.TokenGen, ratelimit.MiddlewareFunc(s.AdminWriteRL, killSessionHandler(s.TokenGen, s.PlaybackSvc))))
 
 	if s.OIDCSvc != nil {
 		registerOIDCRoutes(mux, s.OIDCSvc, s.HTTPSOnly, s.OIDCLoginRL)

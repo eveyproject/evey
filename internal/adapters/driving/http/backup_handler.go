@@ -13,13 +13,13 @@ import (
 	"github.com/gravity-zero/evey/internal/pkg/ratelimit"
 )
 
-func registerBackupRoutes(mux *http.ServeMux, svc *appbackup.Service, tokenGen *auth.JWTGenerator, heavyRL *ratelimit.Limiter) {
+func registerBackupRoutes(mux *http.ServeMux, svc *appbackup.Service, tokenGen *auth.JWTGenerator, heavyRL, writeRL *ratelimit.Limiter) {
 	requireAdminLocal := func(r *http.Request) bool {
 		claims, ok := extractClaims(r, tokenGen)
 		return ok && claims.IsAdmin
 	}
 
-	mux.HandleFunc("POST /api/v1/admin/backups", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("POST /api/v1/admin/backups", ratelimit.MiddlewareFunc(writeRL, func(w http.ResponseWriter, r *http.Request) {
 		if !requireAdminLocal(r) {
 			http.Error(w, `{"message":"forbidden"}`, http.StatusForbidden)
 			return
@@ -42,7 +42,7 @@ func registerBackupRoutes(mux *http.ServeMux, svc *appbackup.Service, tokenGen *
 		}); encErr != nil {
 			slog.Warn("json encode failed", slog.Any("err", encErr))
 		}
-	})
+	}))
 
 	mux.HandleFunc("GET /api/v1/admin/backups", func(w http.ResponseWriter, r *http.Request) {
 		if !requireAdminLocal(r) {
@@ -94,7 +94,7 @@ func registerBackupRoutes(mux *http.ServeMux, svc *appbackup.Service, tokenGen *
 		}
 	})
 
-	mux.HandleFunc("POST /api/v1/admin/backups/restore", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("POST /api/v1/admin/backups/restore", ratelimit.MiddlewareFunc(writeRL, func(w http.ResponseWriter, r *http.Request) {
 		if !requireAdminLocal(r) {
 			http.Error(w, `{"message":"forbidden"}`, http.StatusForbidden)
 			return
@@ -120,9 +120,9 @@ func registerBackupRoutes(mux *http.ServeMux, svc *appbackup.Service, tokenGen *
 		if _, writeErr := w.Write([]byte(`{"ok":true}`)); writeErr != nil {
 			slog.Warn("write failed", slog.Any("err", writeErr))
 		}
-	})
+	}))
 
-	mux.HandleFunc("DELETE /api/v1/admin/backups/{id}", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("DELETE /api/v1/admin/backups/{id}", ratelimit.MiddlewareFunc(writeRL, func(w http.ResponseWriter, r *http.Request) {
 		if !requireAdminLocal(r) {
 			http.Error(w, `{"message":"forbidden"}`, http.StatusForbidden)
 			return
@@ -133,5 +133,5 @@ func registerBackupRoutes(mux *http.ServeMux, svc *appbackup.Service, tokenGen *
 			return
 		}
 		w.WriteHeader(http.StatusNoContent)
-	})
+	}))
 }

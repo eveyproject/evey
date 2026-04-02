@@ -9,13 +9,14 @@ import (
 	appfeed "github.com/gravity-zero/evey/internal/app/feed"
 	"github.com/gravity-zero/evey/internal/domain/feed"
 	"github.com/gravity-zero/evey/internal/pkg/auth"
+	"github.com/gravity-zero/evey/internal/pkg/ratelimit"
 )
 
-func registerFeedRoutes(mux *http.ServeMux, feedCmd *appfeed.CommandService, feedQuery *appfeed.QueryService, tokenGen *auth.JWTGenerator) {
+func registerFeedRoutes(mux *http.ServeMux, feedCmd *appfeed.CommandService, feedQuery *appfeed.QueryService, tokenGen *auth.JWTGenerator, writeRL *ratelimit.Limiter) {
 	if feedCmd == nil {
 		return
 	}
-	mux.HandleFunc("PUT /api/v1/admin/feeds/config", requireAdmin(tokenGen, batchUpdateFeedConfig(feedCmd)))
+	mux.HandleFunc("PUT /api/v1/admin/feeds/config", requireAdmin(tokenGen, ratelimit.MiddlewareFunc(writeRL, batchUpdateFeedConfig(feedCmd))))
 	mux.HandleFunc("GET /api/v1/feeds/resume-playback", feedAuthHandler(tokenGen, resumePlaybackHandler(feedQuery)))
 	mux.HandleFunc("GET /api/v1/feeds/next-episode", feedAuthHandler(tokenGen, nextEpisodeHandler(feedQuery)))
 }

@@ -23,6 +23,7 @@ func buildHTTPHandler(gwMux http.Handler, deps *appDeps, cfg *config.Config, sta
 	loginRL := ratelimit.New(cfg.Server.LoginRateLimitMax)
 	globalRL := ratelimit.New(cfg.Server.GlobalRateLimitMax)
 	adminHeavyRL := ratelimit.NewWithBurst(10, 10.0)
+	adminWriteRL := ratelimit.New(30)
 	passwordResetRL := ratelimit.New(5)
 	oidcLoginRL := ratelimit.New(10)
 	go func() {
@@ -30,6 +31,7 @@ func buildHTTPHandler(gwMux http.Handler, deps *appDeps, cfg *config.Config, sta
 		loginRL.Stop()
 		globalRL.Stop()
 		adminHeavyRL.Stop()
+		adminWriteRL.Stop()
 		passwordResetRL.Stop()
 		oidcLoginRL.Stop()
 	}()
@@ -116,6 +118,7 @@ func buildHTTPHandler(gwMux http.Handler, deps *appDeps, cfg *config.Config, sta
 		LoginRL:         loginRL,
 		GlobalRL:        globalRL,
 		AdminHeavyRL:    adminHeavyRL,
+		AdminWriteRL:    adminWriteRL,
 		PasswordResetRL: passwordResetRL,
 		OIDCLoginRL:     oidcLoginRL,
 

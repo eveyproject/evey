@@ -10,6 +10,7 @@ import (
 	"github.com/gravity-zero/evey/internal/domain/feed"
 	feedfakes "github.com/gravity-zero/evey/internal/domain/feed/fakes"
 	"github.com/gravity-zero/evey/internal/pkg/auth"
+	"github.com/gravity-zero/evey/internal/pkg/ratelimit"
 )
 
 func newFeedCmdService() *appfeed.CommandService {
@@ -41,7 +42,7 @@ func newFeedQueryServiceWithItems(items []*feed.FeedItem) *appfeed.QueryService 
 func feedMux(t *testing.T, tokenGen *auth.JWTGenerator, querySvc *appfeed.QueryService) *http.ServeMux {
 	t.Helper()
 	mux := http.NewServeMux()
-	registerFeedRoutes(mux, newFeedCmdService(), querySvc, tokenGen)
+	registerFeedRoutes(mux, newFeedCmdService(), querySvc, tokenGen, ratelimit.New(100))
 	return mux
 }
 

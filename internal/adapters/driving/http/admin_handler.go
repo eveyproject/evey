@@ -91,17 +91,17 @@ func (h *adminHandler) adminCheckWithQueryToken(r *http.Request) bool {
 
 // --- register functions ---
 
-func registerAdminRoutes(mux *http.ServeMux, metaCmd *appmetadata.CommandService, metaQuery *appmetadata.QueryService, tokenGen *auth.JWTGenerator, heavyRL *ratelimit.Limiter, serverCtx context.Context, actCmdSvc *appactivity.CommandService, bioEnricher appmetadata.PeopleBioEnricher) {
+func registerAdminRoutes(mux *http.ServeMux, metaCmd *appmetadata.CommandService, metaQuery *appmetadata.QueryService, tokenGen *auth.JWTGenerator, heavyRL, writeRL *ratelimit.Limiter, serverCtx context.Context, actCmdSvc *appactivity.CommandService, bioEnricher appmetadata.PeopleBioEnricher) {
 	h := &adminHandler{tokenGen: tokenGen, metaCmd: metaCmd, metaQuery: metaQuery, heavyRL: heavyRL, serverCtx: serverCtx, activityCmdSvc: actCmdSvc, bioEnricher: bioEnricher}
 	mux.HandleFunc("/api/v1/admin/media/", h.handleMedia)
-	mux.HandleFunc("POST /api/v1/admin/metadata/refresh-all", h.handleRefreshAll)
+	mux.HandleFunc("POST /api/v1/admin/metadata/refresh-all", ratelimit.MiddlewareFunc(writeRL, h.handleRefreshAll))
 	mux.HandleFunc("POST /api/v1/admin/metadata/enrich-people", ratelimit.MiddlewareFunc(heavyRL, h.handleEnrichPeople))
 }
 
-func registerUserAdminRoutes(mux *http.ServeMux, userSvc *appuser.UserService, userQuery *appuser.QueryService, tokenGen *auth.JWTGenerator, actCmdSvc *appactivity.CommandService) {
+func registerUserAdminRoutes(mux *http.ServeMux, userSvc *appuser.UserService, userQuery *appuser.QueryService, tokenGen *auth.JWTGenerator, writeRL *ratelimit.Limiter, actCmdSvc *appactivity.CommandService) {
 	h := &adminHandler{tokenGen: tokenGen, userSvc: userSvc, userQuery: userQuery, activityCmdSvc: actCmdSvc}
 	mux.HandleFunc("GET /api/v1/admin/users/{id}/bitrate-limit", h.handleGetBitrateLimit)
-	mux.HandleFunc("PATCH /api/v1/admin/users/{id}/bitrate-limit", h.handleSetBitrateLimit)
+	mux.HandleFunc("PATCH /api/v1/admin/users/{id}/bitrate-limit", ratelimit.MiddlewareFunc(writeRL, h.handleSetBitrateLimit))
 }
 
 func registerLogsRoute(mux *http.ServeMux, logDir string, tokenGen *auth.JWTGenerator) {
@@ -115,25 +115,25 @@ func registerSystemStatsRoute(mux *http.ServeMux, startTime time.Time, tokenGen 
 	mux.HandleFunc("GET /api/v1/admin/system/stats", h.handleSystemStats)
 }
 
-func registerServerConfigRoutes(mux *http.ServeMux, cfgSvc *appconfig.Service, tokenGen *auth.JWTGenerator, actCmdSvc *appactivity.CommandService) {
+func registerServerConfigRoutes(mux *http.ServeMux, cfgSvc *appconfig.Service, tokenGen *auth.JWTGenerator, actCmdSvc *appactivity.CommandService, writeRL *ratelimit.Limiter) {
 	h := &adminHandler{tokenGen: tokenGen, cfgSvc: cfgSvc, activityCmdSvc: actCmdSvc}
 	mux.HandleFunc("GET /api/v1/admin/server-config", h.handleListServerConfig)
-	mux.HandleFunc("PUT /api/v1/admin/server-config/{key}", h.handleSetServerConfig)
-	mux.HandleFunc("DELETE /api/v1/admin/server-config/{key}", h.handleDeleteServerConfig)
+	mux.HandleFunc("PUT /api/v1/admin/server-config/{key}", ratelimit.MiddlewareFunc(writeRL, h.handleSetServerConfig))
+	mux.HandleFunc("DELETE /api/v1/admin/server-config/{key}", ratelimit.MiddlewareFunc(writeRL, h.handleDeleteServerConfig))
 }
 
-func registerTranscodeProfileRoutes(mux *http.ServeMux, transcodeSvc *apptranscoding.Service, tokenGen *auth.JWTGenerator, actCmdSvc *appactivity.CommandService) {
+func registerTranscodeProfileRoutes(mux *http.ServeMux, transcodeSvc *apptranscoding.Service, tokenGen *auth.JWTGenerator, actCmdSvc *appactivity.CommandService, writeRL *ratelimit.Limiter) {
 	h := &adminHandler{tokenGen: tokenGen, transcodeSvc: transcodeSvc, activityCmdSvc: actCmdSvc}
-	mux.HandleFunc("POST /api/v1/admin/transcoding/profiles", h.handleCreateTranscodeProfile)
-	mux.HandleFunc("PUT /api/v1/admin/transcoding/profiles/{id}", h.handleUpdateTranscodeProfile)
-	mux.HandleFunc("DELETE /api/v1/admin/transcoding/profiles/{id}", h.handleDeleteTranscodeProfile)
+	mux.HandleFunc("POST /api/v1/admin/transcoding/profiles", ratelimit.MiddlewareFunc(writeRL, h.handleCreateTranscodeProfile))
+	mux.HandleFunc("PUT /api/v1/admin/transcoding/profiles/{id}", ratelimit.MiddlewareFunc(writeRL, h.handleUpdateTranscodeProfile))
+	mux.HandleFunc("DELETE /api/v1/admin/transcoding/profiles/{id}", ratelimit.MiddlewareFunc(writeRL, h.handleDeleteTranscodeProfile))
 }
 
-func registerTranscodeCacheRoutes(mux *http.ServeMux, transcodeSvc *apptranscoding.Service, tokenGen *auth.JWTGenerator, mediaGetter MediaItemGetter, actCmdSvc *appactivity.CommandService) {
+func registerTranscodeCacheRoutes(mux *http.ServeMux, transcodeSvc *apptranscoding.Service, tokenGen *auth.JWTGenerator, mediaGetter MediaItemGetter, actCmdSvc *appactivity.CommandService, writeRL *ratelimit.Limiter) {
 	h := &adminHandler{tokenGen: tokenGen, transcodeSvc: transcodeSvc, mediaGetter: mediaGetter, activityCmdSvc: actCmdSvc}
 	mux.HandleFunc("GET /api/v1/admin/transcode-cache", h.handleGetTranscodeCache)
-	mux.HandleFunc("DELETE /api/v1/admin/transcode-cache", h.handleClearTranscodeCache)
-	mux.HandleFunc("DELETE /api/v1/admin/transcode-cache/{filename}", h.handleDeleteTranscodeCacheFile)
+	mux.HandleFunc("DELETE /api/v1/admin/transcode-cache", ratelimit.MiddlewareFunc(writeRL, h.handleClearTranscodeCache))
+	mux.HandleFunc("DELETE /api/v1/admin/transcode-cache/{filename}", ratelimit.MiddlewareFunc(writeRL, h.handleDeleteTranscodeCacheFile))
 }
 
 func registerAvailableRuntimesRoute(mux *http.ServeMux, tokenGen *auth.JWTGenerator) {

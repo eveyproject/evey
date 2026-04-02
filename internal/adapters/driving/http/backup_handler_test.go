@@ -25,9 +25,10 @@ func newBackupTestMux(t *testing.T, isAdmin bool) (*http.ServeMux, string) {
 	dumper := backupfakes.NewFakeDatabaseDumper()
 	svc := appbackup.NewService(store, dumper, "1.0.0")
 	rl := ratelimit.New(100)
+	writeRL := ratelimit.New(100)
 
 	mux := http.NewServeMux()
-	registerBackupRoutes(mux, svc, gen, rl)
+	registerBackupRoutes(mux, svc, gen, rl, writeRL)
 	return mux, token
 }
 

@@ -678,7 +678,7 @@ func newServerConfigMux(t *testing.T) (*http.ServeMux, string, string) {
 	cfgRepo := sharedfakes.NewFakeServerConfigRepository()
 	cfgSvc := appconfig.NewService(cfgRepo)
 	mux := http.NewServeMux()
-	registerServerConfigRoutes(mux, cfgSvc, gen, nil)
+	registerServerConfigRoutes(mux, cfgSvc, gen, nil, ratelimit.New(100))
 	return mux, adminTok, userTok
 }
 
@@ -792,7 +792,7 @@ func newTranscodeCacheMux(t *testing.T) (*http.ServeMux, string, string) {
 	svc := apptranscoding.NewService(transcoder, hw, jobRepo, profileRepo, bus, 0)
 	apptranscoding.WithCacheStore(cache)(svc)
 	mux := http.NewServeMux()
-	registerTranscodeCacheRoutes(mux, svc, gen, &fakeMediaItemGetter{}, nil)
+	registerTranscodeCacheRoutes(mux, svc, gen, &fakeMediaItemGetter{}, nil, ratelimit.New(100))
 	return mux, adminTok, userTok
 }
 
@@ -1547,7 +1547,7 @@ func newRemoteAccessMux(t *testing.T) (*http.ServeMux, string, string) {
 	cfg := &config.Config{}
 	store := &fakeRemoteAccessStore{data: make(map[string]string)}
 	mux := http.NewServeMux()
-	registerRemoteAccessRoutes(mux, cfg, gen, store)
+	registerRemoteAccessRoutes(mux, cfg, gen, store, ratelimit.New(100))
 	return mux, adminTok, userTok
 }
 
@@ -1637,7 +1637,7 @@ func newPlaybackSettingsMux(t *testing.T) (*http.ServeMux, string, string) {
 	gen, adminTok, userTok := genTokens(t)
 	cfg := &config.Config{Playback: config.PlaybackConfig{SkipForwardSeconds: 30, SkipBackwardSeconds: 10}}
 	mux := http.NewServeMux()
-	registerPlaybackSettingsRoutes(mux, cfg, gen)
+	registerPlaybackSettingsRoutes(mux, cfg, gen, ratelimit.New(100))
 	return mux, adminTok, userTok
 }
 
@@ -2316,7 +2316,7 @@ func newUserAdminMux(t *testing.T) (*http.ServeMux, string, string) {
 	userQuery := appuser.NewQueryService(userRepo, profileRepo, apiKeyRepo, inviteRepo, qcRepo)
 
 	mux := http.NewServeMux()
-	registerUserAdminRoutes(mux, userSvc, userQuery, gen, nil)
+	registerUserAdminRoutes(mux, userSvc, userQuery, gen, ratelimit.New(100), nil)
 	return mux, adminTok, userTok
 }
 
@@ -2605,8 +2605,9 @@ func newAdminMediaMux(t *testing.T) (*http.ServeMux, string, string) {
 	metaCmd := appmetadata.NewCommandService(metaOverrides, metaArtwork, metaDownloader, bus, []domainmeta.MetadataProvider{provider})
 	metaQuery := appmetadata.NewQueryService(metaOverrides, metaArtwork, []domainmeta.MetadataProvider{provider})
 	rl := ratelimit.New(100)
+	writeRL := ratelimit.New(100)
 	mux := http.NewServeMux()
-	registerAdminRoutes(mux, metaCmd, metaQuery, gen, rl, context.Background(), nil, nil)
+	registerAdminRoutes(mux, metaCmd, metaQuery, gen, rl, writeRL, context.Background(), nil, nil)
 	return mux, adminTok, userTok
 }
 

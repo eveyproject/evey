@@ -16,6 +16,7 @@ import (
 	pluginfakes "github.com/gravity-zero/evey/internal/domain/plugin/fakes"
 	domainuser "github.com/gravity-zero/evey/internal/domain/user"
 	"github.com/gravity-zero/evey/internal/pkg/auth"
+	"github.com/gravity-zero/evey/internal/pkg/ratelimit"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -142,7 +143,7 @@ func setupPreviewTest(t *testing.T) (*http.ServeMux, string) {
 
 	svc := &stubPluginManager{}
 	mux := http.NewServeMux()
-	registerPluginPreviewRoute(mux, tokenGen, svc)
+	registerPluginPreviewRoute(mux, tokenGen, svc, ratelimit.New(100))
 	return mux, adminToken
 }
 

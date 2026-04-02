@@ -15,6 +15,7 @@ import (
 	sharedfakes "github.com/gravity-zero/evey/internal/domain/shared/fakes"
 	domainuser "github.com/gravity-zero/evey/internal/domain/user"
 	"github.com/gravity-zero/evey/internal/pkg/auth"
+	"github.com/gravity-zero/evey/internal/pkg/ratelimit"
 )
 
 func newTranscodeProfileTestMux(t *testing.T) (*http.ServeMux, *auth.JWTGenerator, *transcodingfakes.FakeTranscodeProfileRepository) {
@@ -34,7 +35,7 @@ func newTranscodeProfileTestMux(t *testing.T) (*http.ServeMux, *auth.JWTGenerato
 	svc := apptranscoding.NewService(transcoder, hwDetector, jobRepo, profileRepo, bus, 0)
 
 	mux := http.NewServeMux()
-	registerTranscodeProfileRoutes(mux, svc, tokenGen, nil)
+	registerTranscodeProfileRoutes(mux, svc, tokenGen, nil, ratelimit.New(100))
 	return mux, tokenGen, profileRepo
 }
 

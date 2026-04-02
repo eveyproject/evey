@@ -14,6 +14,7 @@ import (
 	"github.com/gravity-zero/evey/internal/config"
 	"github.com/gravity-zero/evey/internal/pkg/auth"
 	"github.com/gravity-zero/evey/internal/pkg/network"
+	"github.com/gravity-zero/evey/internal/pkg/ratelimit"
 )
 
 const remoteAccessConfigKey = "remote_access"
@@ -21,7 +22,7 @@ const remoteAccessConfigKey = "remote_access"
 // RemoteAccessConfigKey is the server config key for remote access settings.
 const RemoteAccessConfigKey = remoteAccessConfigKey
 
-func registerLibraryAccessRoutes(mux *http.ServeMux, accessRepo domainuser.LibraryAccessRepository, libQuery *applibrary.QueryService, tokenGen *auth.JWTGenerator) {
+func registerLibraryAccessRoutes(mux *http.ServeMux, accessRepo domainuser.LibraryAccessRepository, libQuery *applibrary.QueryService, tokenGen *auth.JWTGenerator, writeRL *ratelimit.Limiter) {
 	requireAdminLocal := func(r *http.Request) bool {
 		claims, ok := extractClaims(r, tokenGen)
 		return ok && claims.IsAdmin
@@ -62,7 +63,7 @@ func registerLibraryAccessRoutes(mux *http.ServeMux, accessRepo domainuser.Libra
 		}
 	})
 
-	mux.HandleFunc("PUT /api/v1/admin/users/{userId}/library-access", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("PUT /api/v1/admin/users/{userId}/library-access", ratelimit.MiddlewareFunc(writeRL, func(w http.ResponseWriter, r *http.Request) {
 		if !requireAdminLocal(r) {
 			http.Error(w, `{"message":"forbidden"}`, http.StatusForbidden)
 			return
@@ -88,9 +89,9 @@ func registerLibraryAccessRoutes(mux *http.ServeMux, accessRepo domainuser.Libra
 			}
 		}
 		w.WriteHeader(http.StatusNoContent)
-	})
+	}))
 
-	mux.HandleFunc("DELETE /api/v1/admin/users/{userId}/library-access", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("DELETE /api/v1/admin/users/{userId}/library-access", ratelimit.MiddlewareFunc(writeRL, func(w http.ResponseWriter, r *http.Request) {
 		if !requireAdminLocal(r) {
 			http.Error(w, `{"message":"forbidden"}`, http.StatusForbidden)
 			return
@@ -103,10 +104,10 @@ func registerLibraryAccessRoutes(mux *http.ServeMux, accessRepo domainuser.Libra
 			}
 		}
 		w.WriteHeader(http.StatusNoContent)
-	})
+	}))
 }
 
-func registerRemoteAccessRoutes(mux *http.ServeMux, cfg *config.Config, tokenGen *auth.JWTGenerator, store remoteAccessPersister) {
+func registerRemoteAccessRoutes(mux *http.ServeMux, cfg *config.Config, tokenGen *auth.JWTGenerator, store remoteAccessPersister, writeRL *ratelimit.Limiter) {
 	var mu sync.RWMutex
 
 	requireAdminLocal := func(r *http.Request) bool {
@@ -136,7 +137,7 @@ func registerRemoteAccessRoutes(mux *http.ServeMux, cfg *config.Config, tokenGen
 		encodeRA(w)
 	})
 
-	mux.HandleFunc("PUT /api/v1/admin/remote-access", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("PUT /api/v1/admin/remote-access", ratelimit.MiddlewareFunc(writeRL, func(w http.ResponseWriter, r *http.Request) {
 		if !requireAdminLocal(r) {
 			http.Error(w, `{"message":"forbidden"}`, http.StatusForbidden)
 			return
@@ -181,7 +182,7 @@ func registerRemoteAccessRoutes(mux *http.ServeMux, cfg *config.Config, tokenGen
 			}
 		}
 		encodeRA(w)
-	})
+	}))
 
 	mux.HandleFunc("GET /api/v1/admin/network-info", func(w http.ResponseWriter, r *http.Request) {
 		if !requireAdminLocal(r) {
@@ -200,7 +201,7 @@ func registerRemoteAccessRoutes(mux *http.ServeMux, cfg *config.Config, tokenGen
 	})
 }
 
-func registerPlaybackSettingsRoutes(mux *http.ServeMux, cfg *config.Config, tokenGen *auth.JWTGenerator) {
+func registerPlaybackSettingsRoutes(mux *http.ServeMux, cfg *config.Config, tokenGen *auth.JWTGenerator, writeRL *ratelimit.Limiter) {
 	requireAuth := func(r *http.Request) bool {
 		_, ok := extractClaims(r, tokenGen)
 		return ok
@@ -224,7 +225,7 @@ func registerPlaybackSettingsRoutes(mux *http.ServeMux, cfg *config.Config, toke
 		}
 	})
 
-	mux.HandleFunc("PUT /api/v1/admin/playback-settings", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("PUT /api/v1/admin/playback-settings", ratelimit.MiddlewareFunc(writeRL, func(w http.ResponseWriter, r *http.Request) {
 		if !requireAdminLocal(r) {
 			http.Error(w, `{"message":"forbidden"}`, http.StatusForbidden)
 			return
@@ -250,7 +251,7 @@ func registerPlaybackSettingsRoutes(mux *http.ServeMux, cfg *config.Config, toke
 		}); err != nil {
 			slog.Warn("json encode failed", slog.Any("err", err))
 		}
-	})
+	}))
 }
 
 func registerScheduleRoutes(mux *http.ServeMux, scheduler *applibrary.Scheduler, tokenGen *auth.JWTGenerator) {

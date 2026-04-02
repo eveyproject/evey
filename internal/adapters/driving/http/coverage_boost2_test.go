@@ -30,6 +30,7 @@ import (
 	subfakes "github.com/gravity-zero/evey/internal/domain/subtitle/fakes"
 	domainuser "github.com/gravity-zero/evey/internal/domain/user"
 	"github.com/gravity-zero/evey/internal/pkg/auth"
+	"github.com/gravity-zero/evey/internal/pkg/ratelimit"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -338,7 +339,7 @@ func newFeedTestMux(t *testing.T) (*http.ServeMux, string, string) {
 	querySvc := appfeed.NewQueryService(queryRepo, querier, analyzer)
 
 	mux := http.NewServeMux()
-	registerFeedRoutes(mux, cmdSvc, querySvc, gen)
+	registerFeedRoutes(mux, cmdSvc, querySvc, gen, ratelimit.New(100))
 	return mux, adminToken, userToken
 }
 
@@ -346,7 +347,7 @@ func TestFeedRoutes_NilCommandService(t *testing.T) {
 	key, _ := rsa.GenerateKey(rand.Reader, 2048)
 	gen := auth.NewJWTGenerator(key, time.Minute)
 	mux := http.NewServeMux()
-	registerFeedRoutes(mux, nil, nil, gen)
+	registerFeedRoutes(mux, nil, nil, gen, ratelimit.New(100))
 	// no routes registered, should 404
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/feeds/resume-playback", nil)
 	w := httptest.NewRecorder()
@@ -494,7 +495,7 @@ func TestFeedNextEpisode_Error_500(t *testing.T) {
 	cmdSvc := appfeed.NewCommandService(cmdRepo, queryRepo)
 	querySvc := appfeed.NewQueryService(queryRepo, querier, analyzer)
 	mux := http.NewServeMux()
-	registerFeedRoutes(mux, cmdSvc, querySvc, gen)
+	registerFeedRoutes(mux, cmdSvc, querySvc, gen, ratelimit.New(100))
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/feeds/next-episode", nil)
 	req.Header.Set("Authorization", "Bearer "+userToken)
@@ -517,7 +518,7 @@ func TestFeedResumePlayback_Error_500(t *testing.T) {
 	cmdSvc := appfeed.NewCommandService(cmdRepo, queryRepo)
 	querySvc := appfeed.NewQueryService(queryRepo, querier, analyzer)
 	mux := http.NewServeMux()
-	registerFeedRoutes(mux, cmdSvc, querySvc, gen)
+	registerFeedRoutes(mux, cmdSvc, querySvc, gen, ratelimit.New(100))
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/feeds/resume-playback", nil)
 	req.Header.Set("Authorization", "Bearer "+userToken)
@@ -2014,7 +2015,7 @@ func TestPluginUpload_NoAuth_401(t *testing.T) {
 	gen := auth.NewJWTGenerator(key, time.Minute)
 	svc := &stubPluginManager{}
 	mux := http.NewServeMux()
-	registerPluginUploadRoute(mux, gen, svc)
+	registerPluginUploadRoute(mux, gen, svc, ratelimit.New(100))
 
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/admin/plugins/upload", nil)
 	w := httptest.NewRecorder()
@@ -2030,7 +2031,7 @@ func TestPluginUpload_NonAdmin_403(t *testing.T) {
 	userToken, _ := gen.GenerateAccessToken(domainuser.Claims{UserID: "u1", IsAdmin: false})
 	svc := &stubPluginManager{}
 	mux := http.NewServeMux()
-	registerPluginUploadRoute(mux, gen, svc)
+	registerPluginUploadRoute(mux, gen, svc, ratelimit.New(100))
 
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/admin/plugins/upload", nil)
 	req.Header.Set("Authorization", "Bearer "+userToken)
@@ -2047,7 +2048,7 @@ func TestPluginUpload_NoFile_400(t *testing.T) {
 	adminToken, _ := gen.GenerateAccessToken(domainuser.Claims{UserID: "a1", IsAdmin: true})
 	svc := &stubPluginManager{}
 	mux := http.NewServeMux()
-	registerPluginUploadRoute(mux, gen, svc)
+	registerPluginUploadRoute(mux, gen, svc, ratelimit.New(100))
 
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/admin/plugins/upload", nil)
 	req.Header.Set("Authorization", "Bearer "+adminToken)

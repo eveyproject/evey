@@ -13,6 +13,7 @@ import (
 	userfakes "github.com/gravity-zero/evey/internal/domain/user/fakes"
 	domainuser "github.com/gravity-zero/evey/internal/domain/user"
 	"github.com/gravity-zero/evey/internal/pkg/auth"
+	"github.com/gravity-zero/evey/internal/pkg/ratelimit"
 )
 
 func newAccessTestMux(t *testing.T, isAdmin bool) (*http.ServeMux, string) {
@@ -29,7 +30,7 @@ func newAccessTestMux(t *testing.T, isAdmin bool) (*http.ServeMux, string) {
 	libQuery := applibrary.NewQueryService(libQueryRepo, mediaItemRepo, streamRepo, searchIdx)
 
 	mux := http.NewServeMux()
-	registerLibraryAccessRoutes(mux, accessRepo, libQuery, gen)
+	registerLibraryAccessRoutes(mux, accessRepo, libQuery, gen, ratelimit.New(100))
 	return mux, token
 }
 
