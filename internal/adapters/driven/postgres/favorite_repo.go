@@ -3,6 +3,7 @@ package postgres
 import (
 	"context"
 	"database/sql"
+	"fmt"
 
 	"github.com/gravity-zero/evey/internal/domain/favorite"
 )
@@ -22,7 +23,10 @@ func (r *FavoriteRepository) Add(ctx context.Context, fav *favorite.Favorite) er
 		 ON CONFLICT (profile_id, media_item_id) DO NOTHING`,
 		fav.ID, fav.ProfileID, fav.MediaItemID, fav.CreatedAt,
 	)
-	return err
+	if err != nil {
+		return fmt.Errorf("FavoriteRepo.Add: %w", err)
+	}
+	return nil
 }
 
 func (r *FavoriteRepository) Remove(ctx context.Context, profileID, mediaItemID string) error {
@@ -30,7 +34,10 @@ func (r *FavoriteRepository) Remove(ctx context.Context, profileID, mediaItemID 
 		`DELETE FROM favorites WHERE profile_id = $1 AND media_item_id = $2`,
 		profileID, mediaItemID,
 	)
-	return err
+	if err != nil {
+		return fmt.Errorf("FavoriteRepo.Remove: %w", err)
+	}
+	return nil
 }
 
 func (r *FavoriteRepository) List(ctx context.Context, profileID string, limit, offset int) ([]*favorite.Favorite, error) {
@@ -41,18 +48,21 @@ func (r *FavoriteRepository) List(ctx context.Context, profileID string, limit, 
 		profileID, limit, offset,
 	)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("FavoriteRepo.List: %w", err)
 	}
 	defer rows.Close()
 	var result []*favorite.Favorite
 	for rows.Next() {
 		f := &favorite.Favorite{}
 		if err := rows.Scan(&f.ID, &f.ProfileID, &f.MediaItemID, &f.CreatedAt); err != nil {
-			return nil, err
+			return nil, fmt.Errorf("FavoriteRepo.List scan: %w", err)
 		}
 		result = append(result, f)
 	}
-	return result, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("FavoriteRepo.List rows: %w", err)
+	}
+	return result, nil
 }
 
 func (r *FavoriteRepository) IsFavorite(ctx context.Context, profileID, mediaItemID string) (bool, error) {
@@ -61,7 +71,10 @@ func (r *FavoriteRepository) IsFavorite(ctx context.Context, profileID, mediaIte
 		`SELECT EXISTS(SELECT 1 FROM favorites WHERE profile_id = $1 AND media_item_id = $2)`,
 		profileID, mediaItemID,
 	).Scan(&exists)
-	return exists, err
+	if err != nil {
+		return false, fmt.Errorf("FavoriteRepo.IsFavorite: %w", err)
+	}
+	return exists, nil
 }
 
 var _ favorite.Repository = (*FavoriteRepository)(nil)

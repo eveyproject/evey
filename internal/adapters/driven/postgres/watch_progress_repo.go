@@ -3,6 +3,7 @@ package postgres
 import (
 	"context"
 	"database/sql"
+	"fmt"
 
 	"github.com/gravity-zero/evey/internal/domain/playback"
 )
@@ -26,7 +27,10 @@ func (r *WatchProgressRepository) Upsert(ctx context.Context, wp *playback.Watch
 		   last_played_at = EXCLUDED.last_played_at`,
 		wp.ID, wp.ProfileID, wp.MediaItemID, wp.PositionMs, wp.Completed, wp.PlayCount, wp.LastPlayedAt,
 	)
-	return err
+	if err != nil {
+		return fmt.Errorf("WatchProgressRepo.Upsert: %w", err)
+	}
+	return nil
 }
 
 func (r *WatchProgressRepository) GetByProfileAndMedia(ctx context.Context, profileID, mediaItemID string) (*playback.WatchProgress, error) {
@@ -36,7 +40,7 @@ func (r *WatchProgressRepository) GetByProfileAndMedia(ctx context.Context, prof
 		 FROM watch_progress WHERE profile_id = $1 AND media_item_id = $2`, profileID, mediaItemID,
 	).Scan(&wp.ID, &wp.ProfileID, &wp.MediaItemID, &wp.PositionMs, &wp.Completed, &wp.PlayCount, &wp.LastPlayedAt)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("WatchProgressRepo.GetByProfileAndMedia: %w", err)
 	}
 	return wp, nil
 }
@@ -47,7 +51,7 @@ func (r *WatchProgressRepository) GetByProfile(ctx context.Context, profileID st
 		 FROM watch_progress WHERE profile_id = $1
 		 ORDER BY last_played_at DESC LIMIT $2 OFFSET $3`, profileID, limit, offset)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("WatchProgressRepo.GetByProfile: %w", err)
 	}
 	defer rows.Close()
 	return r.scanWatchProgressRows(rows)
@@ -59,7 +63,7 @@ func (r *WatchProgressRepository) GetResumeItems(ctx context.Context, profileID 
 		 FROM watch_progress WHERE profile_id = $1 AND completed = FALSE AND position_ms > 0
 		 ORDER BY last_played_at DESC LIMIT $2`, profileID, limit)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("WatchProgressRepo.GetResumeItems: %w", err)
 	}
 	defer rows.Close()
 	return r.scanWatchProgressRows(rows)
@@ -85,7 +89,7 @@ func (r *WatchProgressRepository) GetNextUp(ctx context.Context, profileID strin
 		 ORDER BY mi.parent_id, COALESCE(prev_wp.last_played_at, NOW()) DESC
 		 LIMIT $2`, profileID, limit)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("WatchProgressRepo.GetNextUp: %w", err)
 	}
 	defer rows.Close()
 	return r.scanWatchProgressRows(rows)
@@ -96,11 +100,14 @@ func (r *WatchProgressRepository) scanWatchProgressRows(rows *sql.Rows) ([]*play
 	for rows.Next() {
 		wp := &playback.WatchProgress{}
 		if err := rows.Scan(&wp.ID, &wp.ProfileID, &wp.MediaItemID, &wp.PositionMs, &wp.Completed, &wp.PlayCount, &wp.LastPlayedAt); err != nil {
-			return nil, err
+			return nil, fmt.Errorf("WatchProgressRepo.scanRows: %w", err)
 		}
 		result = append(result, wp)
 	}
-	return result, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("WatchProgressRepo.scanRows: %w", err)
+	}
+	return result, nil
 }
 
 var _ playback.ProgressCommandRepo = (*WatchProgressRepository)(nil)

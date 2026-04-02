@@ -26,14 +26,17 @@ func NewPlaylistRepository(db *sql.DB) *PlaylistRepository {
 func (r *PlaylistRepository) Create(ctx context.Context, pl *playlist.Playlist) error {
 	rulesJSON, err := json.Marshal(pl.Rules)
 	if err != nil {
-		return err
+		return fmt.Errorf("PlaylistRepo.Create marshal rules: %w", err)
 	}
 	_, err = r.db.ExecContext(ctx,
 		`INSERT INTO playlists (id, name, description, user_id, type, rules, sort_by, sort_order, created_at, updated_at)
 		 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
 		pl.ID, pl.Name, pl.Description, pl.UserID, pl.Type, rulesJSON, pl.SortBy, pl.SortOrder, pl.CreatedAt, pl.UpdatedAt,
 	)
-	return err
+	if err != nil {
+		return fmt.Errorf("PlaylistRepo.Create: %w", err)
+	}
+	return nil
 }
 
 func (r *PlaylistRepository) GetByID(ctx context.Context, id string) (*playlist.Playlist, error) {
@@ -47,7 +50,7 @@ func (r *PlaylistRepository) GetByID(ctx context.Context, id string) (*playlist.
 		return nil, shared.ErrNotFound
 	}
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("PlaylistRepo.GetByID: %w", err)
 	}
 	if err := json.Unmarshal(rulesJSON, &pl.Rules); err != nil {
 		slog.Warn("json unmarshal", slog.String("field", "rules"), slog.Any("err", err))
@@ -61,7 +64,7 @@ func (r *PlaylistRepository) List(ctx context.Context, userID string) ([]*playli
 		 FROM playlists WHERE user_id = $1 ORDER BY created_at DESC LIMIT 1000`, userID,
 	)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("PlaylistRepo.List: %w", err)
 	}
 	defer rows.Close()
 
@@ -70,31 +73,40 @@ func (r *PlaylistRepository) List(ctx context.Context, userID string) ([]*playli
 		pl := &playlist.Playlist{}
 		var rulesJSON []byte
 		if err := rows.Scan(&pl.ID, &pl.Name, &pl.Description, &pl.UserID, &pl.Type, &rulesJSON, &pl.SortBy, &pl.SortOrder, &pl.CreatedAt, &pl.UpdatedAt); err != nil {
-			return nil, err
+			return nil, fmt.Errorf("PlaylistRepo.List scan: %w", err)
 		}
 		if err := json.Unmarshal(rulesJSON, &pl.Rules); err != nil {
 			slog.Warn("json unmarshal", slog.String("field", "rules"), slog.Any("err", err))
 		}
 		result = append(result, pl)
 	}
-	return result, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("PlaylistRepo.List rows: %w", err)
+	}
+	return result, nil
 }
 
 func (r *PlaylistRepository) Update(ctx context.Context, pl *playlist.Playlist) error {
 	rulesJSON, err := json.Marshal(pl.Rules)
 	if err != nil {
-		return err
+		return fmt.Errorf("PlaylistRepo.Update marshal rules: %w", err)
 	}
 	_, err = r.db.ExecContext(ctx,
 		`UPDATE playlists SET name=$1, description=$2, rules=$3, sort_by=$4, sort_order=$5, updated_at=$6 WHERE id=$7`,
 		pl.Name, pl.Description, rulesJSON, pl.SortBy, pl.SortOrder, pl.UpdatedAt, pl.ID,
 	)
-	return err
+	if err != nil {
+		return fmt.Errorf("PlaylistRepo.Update: %w", err)
+	}
+	return nil
 }
 
 func (r *PlaylistRepository) Delete(ctx context.Context, id string) error {
 	_, err := r.db.ExecContext(ctx, `DELETE FROM playlists WHERE id = $1`, id)
-	return err
+	if err != nil {
+		return fmt.Errorf("PlaylistRepo.Delete: %w", err)
+	}
+	return nil
 }
 
 // PlaylistItemRepository
@@ -113,7 +125,10 @@ func (r *PlaylistItemRepository) Add(ctx context.Context, item *playlist.Playlis
 		 VALUES ($1,$2,$3,$4) ON CONFLICT DO NOTHING`,
 		item.PlaylistID, item.MediaItemID, item.SortOrder, item.AddedAt,
 	)
-	return err
+	if err != nil {
+		return fmt.Errorf("PlaylistItemRepo.Add: %w", err)
+	}
+	return nil
 }
 
 func (r *PlaylistItemRepository) Remove(ctx context.Context, playlistID, mediaItemID string) error {
@@ -122,7 +137,7 @@ func (r *PlaylistItemRepository) Remove(ctx context.Context, playlistID, mediaIt
 		playlistID, mediaItemID,
 	)
 	if err != nil {
-		return err
+		return fmt.Errorf("PlaylistItemRepo.Remove: %w", err)
 	}
 	n, err := res.RowsAffected()
 	if err != nil {
@@ -140,7 +155,7 @@ func (r *PlaylistItemRepository) GetByPlaylistID(ctx context.Context, playlistID
 		 FROM playlist_items WHERE playlist_id = $1 ORDER BY sort_order`, playlistID,
 	)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("PlaylistItemRepo.GetByPlaylistID: %w", err)
 	}
 	defer rows.Close()
 
@@ -148,17 +163,20 @@ func (r *PlaylistItemRepository) GetByPlaylistID(ctx context.Context, playlistID
 	for rows.Next() {
 		item := &playlist.PlaylistItem{}
 		if err := rows.Scan(&item.PlaylistID, &item.MediaItemID, &item.SortOrder, &item.AddedAt); err != nil {
-			return nil, err
+			return nil, fmt.Errorf("PlaylistItemRepo.GetByPlaylistID scan: %w", err)
 		}
 		result = append(result, item)
 	}
-	return result, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("PlaylistItemRepo.GetByPlaylistID rows: %w", err)
+	}
+	return result, nil
 }
 
 func (r *PlaylistItemRepository) Reorder(ctx context.Context, playlistID string, mediaItemIDs []string) error {
 	tx, err := r.db.BeginTx(ctx, nil)
 	if err != nil {
-		return err
+		return fmt.Errorf("PlaylistItemRepo.Reorder begin tx: %w", err)
 	}
 	defer tx.Rollback()
 
@@ -175,9 +193,12 @@ func (r *PlaylistItemRepository) Reorder(ctx context.Context, playlistID string,
 		FROM (VALUES ` + strings.Join(vals, ", ") + `) AS v(mid, new_order)
 		WHERE playlist_items.playlist_id = $1 AND playlist_items.media_item_id = v.mid`
 	if _, err := tx.ExecContext(ctx, query, args...); err != nil {
-		return err
+		return fmt.Errorf("PlaylistItemRepo.Reorder exec: %w", err)
 	}
-	return tx.Commit()
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("PlaylistItemRepo.Reorder commit: %w", err)
+	}
+	return nil
 }
 
 // SmartPlaylistQuerier implements rule-based SQL queries
@@ -234,7 +255,7 @@ func (q *SmartPlaylistQuerier) QueryByRules(ctx context.Context, rules []playlis
 
 	rows, err := q.db.QueryContext(ctx, query, args...)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("SmartPlaylistQuerier.QueryByRules: %w", err)
 	}
 	defer rows.Close()
 
@@ -308,7 +329,7 @@ func scanMediaItems(rows *sql.Rows) ([]*library.MediaItem, error) {
 			&item.AddedAt, &item.UpdatedAt,
 		)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("scanMediaItems: %w", err)
 		}
 		if parentID.Valid {
 			item.ParentID = parentID.String
@@ -330,7 +351,10 @@ func scanMediaItems(rows *sql.Rows) ([]*library.MediaItem, error) {
 		}
 		result = append(result, item)
 	}
-	return result, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("scanMediaItems rows: %w", err)
+	}
+	return result, nil
 }
 
 // Ensure interface compliance

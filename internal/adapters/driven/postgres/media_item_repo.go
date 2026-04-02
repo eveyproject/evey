@@ -37,7 +37,7 @@ func NewMediaItemRepository(db *sql.DB) *MediaItemRepository {
 func (r *MediaItemRepository) Create(ctx context.Context, item *library.MediaItem) error {
 	providerJSON, err := json.Marshal(item.ProviderIDs)
 	if err != nil {
-		return err
+		return fmt.Errorf("MediaItemRepo.Create marshal provider_ids: %w", err)
 	}
 	genres := item.Genres
 	if genres == nil {
@@ -45,15 +45,15 @@ func (r *MediaItemRepository) Create(ctx context.Context, item *library.MediaIte
 	}
 	genresJSON, err := json.Marshal(genres)
 	if err != nil {
-		return err
+		return fmt.Errorf("MediaItemRepo.Create marshal genres: %w", err)
 	}
 	studiosJSON, err := json.Marshal(item.Studios)
 	if err != nil {
-		return err
+		return fmt.Errorf("MediaItemRepo.Create marshal studios: %w", err)
 	}
 	tagsJSON, err := json.Marshal(item.Tags)
 	if err != nil {
-		return err
+		return fmt.Errorf("MediaItemRepo.Create marshal tags: %w", err)
 	}
 	trailers := item.Trailers
 	if trailers == nil {
@@ -61,7 +61,7 @@ func (r *MediaItemRepository) Create(ctx context.Context, item *library.MediaIte
 	}
 	trailersJSON, err := json.Marshal(trailers)
 	if err != nil {
-		return err
+		return fmt.Errorf("MediaItemRepo.Create marshal trailers: %w", err)
 	}
 	ratings := item.Ratings
 	if ratings == nil {
@@ -69,7 +69,7 @@ func (r *MediaItemRepository) Create(ctx context.Context, item *library.MediaIte
 	}
 	ratingsJSON, err := json.Marshal(ratings)
 	if err != nil {
-		return err
+		return fmt.Errorf("MediaItemRepo.Create marshal ratings: %w", err)
 	}
 
 	var parentID *string
@@ -96,7 +96,10 @@ func (r *MediaItemRepository) Create(ctx context.Context, item *library.MediaIte
 		item.PremiereDate, item.Year, providerJSON, genresJSON, studiosJSON, tagsJSON, trailersJSON, ratingsJSON,
 		item.AddedAt, item.UpdatedAt,
 	)
-	return err
+	if err != nil {
+		return fmt.Errorf("MediaItemRepo.Create: %w", err)
+	}
+	return nil
 }
 
 func (r *MediaItemRepository) GetByID(ctx context.Context, id string) (*library.MediaItem, error) {
@@ -203,7 +206,10 @@ func (r *MediaItemRepository) Count(ctx context.Context, f library.ListMediaItem
 	where, args := r.buildWhereClause(f)
 	var count int
 	err := r.db.QueryRowContext(ctx, "SELECT COUNT(*) FROM media_items"+where, args...).Scan(&count)
-	return count, err
+	if err != nil {
+		return 0, fmt.Errorf("MediaItemRepo.Count: %w", err)
+	}
+	return count, nil
 }
 
 func (r *MediaItemRepository) List(ctx context.Context, f library.ListMediaItemsFilter) ([]*library.MediaItem, error) {
@@ -248,7 +254,7 @@ func (r *MediaItemRepository) List(ctx context.Context, f library.ListMediaItems
 
 	rows, err := r.db.QueryContext(ctx, query, args...)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("MediaItemRepo.List: %w", err)
 	}
 	defer rows.Close()
 
@@ -256,17 +262,20 @@ func (r *MediaItemRepository) List(ctx context.Context, f library.ListMediaItems
 	for rows.Next() {
 		item, err := r.scanMediaItemFromRows(rows)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("MediaItemRepo.List scan: %w", err)
 		}
 		result = append(result, item)
 	}
-	return result, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("MediaItemRepo.List rows: %w", err)
+	}
+	return result, nil
 }
 
 func (r *MediaItemRepository) Update(ctx context.Context, item *library.MediaItem) error {
 	providerJSON, err := json.Marshal(item.ProviderIDs)
 	if err != nil {
-		return err
+		return fmt.Errorf("MediaItemRepo.Update marshal provider_ids: %w", err)
 	}
 	genres := item.Genres
 	if genres == nil {
@@ -274,15 +283,15 @@ func (r *MediaItemRepository) Update(ctx context.Context, item *library.MediaIte
 	}
 	genresJSON, err := json.Marshal(genres)
 	if err != nil {
-		return err
+		return fmt.Errorf("MediaItemRepo.Update marshal genres: %w", err)
 	}
 	studiosJSON, err := json.Marshal(item.Studios)
 	if err != nil {
-		return err
+		return fmt.Errorf("MediaItemRepo.Update marshal studios: %w", err)
 	}
 	tagsJSON, err := json.Marshal(item.Tags)
 	if err != nil {
-		return err
+		return fmt.Errorf("MediaItemRepo.Update marshal tags: %w", err)
 	}
 	trailers := item.Trailers
 	if trailers == nil {
@@ -290,7 +299,7 @@ func (r *MediaItemRepository) Update(ctx context.Context, item *library.MediaIte
 	}
 	trailersJSON, err := json.Marshal(trailers)
 	if err != nil {
-		return err
+		return fmt.Errorf("MediaItemRepo.Update marshal trailers: %w", err)
 	}
 	ratings := item.Ratings
 	if ratings == nil {
@@ -298,7 +307,7 @@ func (r *MediaItemRepository) Update(ctx context.Context, item *library.MediaIte
 	}
 	ratingsJSON, err := json.Marshal(ratings)
 	if err != nil {
-		return err
+		return fmt.Errorf("MediaItemRepo.Update marshal ratings: %w", err)
 	}
 
 	var parentID *string
@@ -325,12 +334,18 @@ func (r *MediaItemRepository) Update(ctx context.Context, item *library.MediaIte
 		item.PremiereDate, item.Year, providerJSON, genresJSON, studiosJSON, tagsJSON, trailersJSON, ratingsJSON,
 		item.UpdatedAt, item.ID,
 	)
-	return err
+	if err != nil {
+		return fmt.Errorf("MediaItemRepo.Update: %w", err)
+	}
+	return nil
 }
 
 func (r *MediaItemRepository) Delete(ctx context.Context, id string) error {
 	_, err := r.db.ExecContext(ctx, `DELETE FROM media_items WHERE id = $1`, id)
-	return err
+	if err != nil {
+		return fmt.Errorf("MediaItemRepo.Delete: %w", err)
+	}
+	return nil
 }
 
 func (r *MediaItemRepository) DeleteByIDs(ctx context.Context, ids []string) error {
@@ -338,7 +353,10 @@ func (r *MediaItemRepository) DeleteByIDs(ctx context.Context, ids []string) err
 		return nil
 	}
 	_, err := r.db.ExecContext(ctx, `DELETE FROM media_items WHERE id = ANY($1)`, pq.Array(ids))
-	return err
+	if err != nil {
+		return fmt.Errorf("MediaItemRepo.DeleteByIDs: %w", err)
+	}
+	return nil
 }
 
 func (r *MediaItemRepository) ListFilePaths(ctx context.Context, libraryID string) (map[string]string, error) {
@@ -347,18 +365,21 @@ func (r *MediaItemRepository) ListFilePaths(ctx context.Context, libraryID strin
 		libraryID,
 	)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("MediaItemRepo.ListFilePaths: %w", err)
 	}
 	defer rows.Close()
 	result := make(map[string]string)
 	for rows.Next() {
 		var id, path string
 		if err := rows.Scan(&id, &path); err != nil {
-			return nil, err
+			return nil, fmt.Errorf("MediaItemRepo.ListFilePaths scan: %w", err)
 		}
 		result[id] = path
 	}
-	return result, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("MediaItemRepo.ListFilePaths rows: %w", err)
+	}
+	return result, nil
 }
 
 const listByLibraryIDMaxRows = 10000
@@ -367,18 +388,21 @@ func (r *MediaItemRepository) ListByLibraryID(ctx context.Context, libraryID str
 	rows, err := r.db.QueryContext(ctx,
 		fmt.Sprintf("SELECT %s FROM media_items WHERE library_id = $1 LIMIT $2", mediaItemColumns), libraryID, listByLibraryIDMaxRows)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("MediaItemRepo.ListByLibraryID: %w", err)
 	}
 	defer rows.Close()
 	var result []*library.MediaItem
 	for rows.Next() {
 		item, err := r.scanMediaItemFromRows(rows)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("MediaItemRepo.ListByLibraryID scan: %w", err)
 		}
 		result = append(result, item)
 	}
-	return result, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("MediaItemRepo.ListByLibraryID rows: %w", err)
+	}
+	return result, nil
 }
 
 func (r *MediaItemRepository) ListScanSummaries(ctx context.Context, libraryID string) ([]library.MediaItemScanRow, error) {
@@ -387,7 +411,7 @@ func (r *MediaItemRepository) ListScanSummaries(ctx context.Context, libraryID s
 	for offset := 0; ; offset += batchSize {
 		batch, err := r.listScanSummariesBatch(ctx, libraryID, batchSize, offset)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("MediaItemRepo.ListScanSummaries: %w", err)
 		}
 		result = append(result, batch...)
 		if len(batch) < batchSize {
@@ -403,7 +427,7 @@ func (r *MediaItemRepository) listScanSummariesBatch(ctx context.Context, librar
 		 FROM media_items WHERE library_id = $1 ORDER BY id LIMIT $2 OFFSET $3`,
 		libraryID, limit, offset)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("MediaItemRepo.listScanSummariesBatch: %w", err)
 	}
 	defer rows.Close()
 	var result []library.MediaItemScanRow
@@ -411,7 +435,7 @@ func (r *MediaItemRepository) listScanSummariesBatch(ctx context.Context, librar
 		var row library.MediaItemScanRow
 		var filePath, fingerprint *string
 		if err := rows.Scan(&row.ID, &filePath, &fingerprint, &row.FileSize, &row.ModTime); err != nil {
-			return nil, err
+			return nil, fmt.Errorf("MediaItemRepo.listScanSummariesBatch scan: %w", err)
 		}
 		if filePath != nil {
 			row.FilePath = *filePath
@@ -421,7 +445,10 @@ func (r *MediaItemRepository) listScanSummariesBatch(ctx context.Context, librar
 		}
 		result = append(result, row)
 	}
-	return result, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("MediaItemRepo.listScanSummariesBatch rows: %w", err)
+	}
+	return result, nil
 }
 
 func (r *MediaItemRepository) ListContainerInfo(ctx context.Context, libraryID string) ([]library.MediaItemContainerRow, error) {
@@ -430,7 +457,7 @@ func (r *MediaItemRepository) ListContainerInfo(ctx context.Context, libraryID s
 	for offset := 0; ; offset += batchSize {
 		batch, err := r.listContainerInfoBatch(ctx, libraryID, batchSize, offset)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("MediaItemRepo.ListContainerInfo: %w", err)
 		}
 		result = append(result, batch...)
 		if len(batch) < batchSize {
@@ -445,7 +472,7 @@ func (r *MediaItemRepository) listContainerInfoBatch(ctx context.Context, librar
 		`SELECT id, parent_id, type FROM media_items WHERE library_id = $1 ORDER BY id LIMIT $2 OFFSET $3`,
 		libraryID, limit, offset)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("MediaItemRepo.listContainerInfoBatch: %w", err)
 	}
 	defer rows.Close()
 	var result []library.MediaItemContainerRow
@@ -453,14 +480,17 @@ func (r *MediaItemRepository) listContainerInfoBatch(ctx context.Context, librar
 		var row library.MediaItemContainerRow
 		var parentID *string
 		if err := rows.Scan(&row.ID, &parentID, &row.Type); err != nil {
-			return nil, err
+			return nil, fmt.Errorf("MediaItemRepo.listContainerInfoBatch scan: %w", err)
 		}
 		if parentID != nil {
 			row.ParentID = *parentID
 		}
 		result = append(result, row)
 	}
-	return result, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("MediaItemRepo.listContainerInfoBatch rows: %w", err)
+	}
+	return result, nil
 }
 
 func (r *MediaItemRepository) scanMediaItem(row *sql.Row) (*library.MediaItem, error) {
@@ -479,7 +509,7 @@ func (r *MediaItemRepository) scanMediaItem(row *sql.Row) (*library.MediaItem, e
 		return nil, shared.ErrNotFound
 	}
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("MediaItemRepo.scanMediaItem: %w", err)
 	}
 	if parentID != nil {
 		item.ParentID = *parentID
@@ -524,7 +554,7 @@ func (r *MediaItemRepository) scanMediaItemFromRows(rows *sql.Rows) (*library.Me
 		&item.AddedAt, &item.UpdatedAt,
 	)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("MediaItemRepo.scanMediaItemFromRows: %w", err)
 	}
 	if parentID != nil {
 		item.ParentID = *parentID

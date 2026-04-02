@@ -60,7 +60,7 @@ func (r *UserRepository) List(ctx context.Context) ([]*user.User, error) {
 		`SELECT id, username, email, password_hash, is_admin, enabled, oidc_subject, oidc_issuer, max_streams, max_bitrate_kbps, push_consent, created_at, updated_at
 		 FROM users ORDER BY username`)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("UserRepo.List: %w", err)
 	}
 	defer rows.Close()
 
@@ -69,11 +69,14 @@ func (r *UserRepository) List(ctx context.Context) ([]*user.User, error) {
 		u := &user.User{}
 		if err := rows.Scan(&u.ID, &u.Username, &u.Email, &u.PasswordHash, &u.IsAdmin, &u.Enabled,
 			&u.OIDCSubject, &u.OIDCIssuer, &u.MaxStreams, &u.MaxBitrateKbps, &u.PushConsent, &u.CreatedAt, &u.UpdatedAt); err != nil {
-			return nil, err
+			return nil, fmt.Errorf("UserRepo.List scan: %w", err)
 		}
 		result = append(result, u)
 	}
-	return result, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("UserRepo.List rows: %w", err)
+	}
+	return result, nil
 }
 
 func (r *UserRepository) Update(ctx context.Context, u *user.User) error {
@@ -114,7 +117,7 @@ func (r *UserRepository) scanUser(row *sql.Row) (*user.User, error) {
 		return nil, shared.ErrNotFound
 	}
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("UserRepo.scanUser: %w", err)
 	}
 	return u, nil
 }

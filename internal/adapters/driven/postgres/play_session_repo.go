@@ -28,7 +28,10 @@ func (r *PlaySessionRepository) Create(ctx context.Context, s *playback.PlaySess
 		s.PlayMethod, s.VideoCodec, s.AudioCodec, s.Resolution, s.BandwidthBps,
 		s.StartedAt, s.EndedAt, s.DurationMs, s.PositionMs,
 	)
-	return err
+	if err != nil {
+		return fmt.Errorf("PlaySessionRepo.Create: %w", err)
+	}
+	return nil
 }
 
 func (r *PlaySessionRepository) Update(ctx context.Context, s *playback.PlaySession) error {
@@ -41,7 +44,10 @@ func (r *PlaySessionRepository) Update(ctx context.Context, s *playback.PlaySess
 		s.VideoCodec, s.AudioCodec, s.Resolution, s.BandwidthBps,
 		s.EndedAt, s.DurationMs, s.PositionMs, s.ID,
 	)
-	return err
+	if err != nil {
+		return fmt.Errorf("PlaySessionRepo.Update: %w", err)
+	}
+	return nil
 }
 
 func (r *PlaySessionRepository) GetByID(ctx context.Context, id string) (*playback.PlaySession, error) {
@@ -54,7 +60,7 @@ func (r *PlaySessionRepository) GetByID(ctx context.Context, id string) (*playba
 		&s.VideoCodec, &s.AudioCodec, &s.Resolution, &s.BandwidthBps,
 		&s.StartedAt, &s.EndedAt, &s.DurationMs, &s.PositionMs)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("PlaySessionRepo.GetByID: %w", err)
 	}
 	return s, nil
 }
@@ -72,7 +78,7 @@ func (r *PlaySessionRepository) ListActiveSessions(ctx context.Context) ([]*play
 		   AND ps.updated_at > NOW() - INTERVAL '2 hours'
 		 ORDER BY ps.started_at DESC`)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("PlaySessionRepo.ListActiveSessions: %w", err)
 	}
 	defer rows.Close()
 
@@ -86,7 +92,7 @@ func (r *PlaySessionRepository) ListActiveSessions(ctx context.Context) ([]*play
 			&s.StartedAt, &s.DeviceName, &s.DeviceType, &s.ClientIP,
 			&s.PlayMethod, &s.VideoCodec, &s.AudioCodec, &s.Resolution, &s.BandwidthBps,
 		); err != nil {
-			return nil, err
+			return nil, fmt.Errorf("PlaySessionRepo.ListActiveSessions scan: %w", err)
 		}
 		if s.PlayMethod == string(playback.Transcode) {
 			info := fmt.Sprintf("%s -> %s", s.VideoCodec, "h264")
@@ -94,7 +100,10 @@ func (r *PlaySessionRepository) ListActiveSessions(ctx context.Context) ([]*play
 		}
 		result = append(result, s)
 	}
-	return result, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("PlaySessionRepo.ListActiveSessions rows: %w", err)
+	}
+	return result, nil
 }
 
 func (r *PlaySessionRepository) GetActiveByProfile(ctx context.Context, profileID string) ([]*playback.PlaySession, error) {
@@ -104,7 +113,7 @@ func (r *PlaySessionRepository) GetActiveByProfile(ctx context.Context, profileI
 		 FROM play_sessions WHERE profile_id = $1 AND ended_at IS NULL
 		 ORDER BY started_at DESC`, profileID)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("PlaySessionRepo.GetActiveByProfile: %w", err)
 	}
 	defer rows.Close()
 	return r.scanPlaySessionRows(rows)
@@ -149,7 +158,7 @@ func (r *PlaySessionRepository) GetHistory(ctx context.Context, f playback.PlayS
 
 	rows, err := r.db.QueryContext(ctx, query, args...)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("PlaySessionRepo.GetHistory: %w", err)
 	}
 	defer rows.Close()
 	return r.scanPlaySessionRows(rows)
@@ -161,7 +170,7 @@ func (r *PlaySessionRepository) CloseStale(ctx context.Context, olderThan time.D
 		`UPDATE play_sessions SET ended_at = NOW()
 		 WHERE ended_at IS NULL AND updated_at < $1`, cutoff)
 	if err != nil {
-		return 0, err
+		return 0, fmt.Errorf("PlaySessionRepo.CloseStale: %w", err)
 	}
 	n, err := res.RowsAffected()
 	if err != nil {
@@ -177,7 +186,10 @@ func (r *PlaySessionRepository) CountActiveByUser(ctx context.Context, userID st
 		 INNER JOIN profiles p ON p.id = ps.profile_id
 		 WHERE p.user_id = $1 AND ps.ended_at IS NULL`, userID,
 	).Scan(&count)
-	return count, err
+	if err != nil {
+		return 0, fmt.Errorf("PlaySessionRepo.CountActiveByUser: %w", err)
+	}
+	return count, nil
 }
 
 func (r *PlaySessionRepository) scanPlaySessionRows(rows *sql.Rows) ([]*playback.PlaySession, error) {
@@ -187,11 +199,14 @@ func (r *PlaySessionRepository) scanPlaySessionRows(rows *sql.Rows) ([]*playback
 		if err := rows.Scan(&s.ID, &s.ProfileID, &s.MediaItemID, &s.DeviceName, &s.DeviceType, &s.ClientIP, &s.PlayMethod,
 			&s.VideoCodec, &s.AudioCodec, &s.Resolution, &s.BandwidthBps,
 			&s.StartedAt, &s.EndedAt, &s.DurationMs, &s.PositionMs); err != nil {
-			return nil, err
+			return nil, fmt.Errorf("PlaySessionRepo.scanRows: %w", err)
 		}
 		result = append(result, s)
 	}
-	return result, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("PlaySessionRepo.scanRows: %w", err)
+	}
+	return result, nil
 }
 
 var _ playback.PlaySessionRepository = (*PlaySessionRepository)(nil)
