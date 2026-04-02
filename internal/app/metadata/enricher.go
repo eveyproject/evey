@@ -242,7 +242,9 @@ func (e *Enricher) findOrCreatePerson(ctx context.Context, p domainmetadata.Pers
 			updated = true
 		}
 		if updated {
-			_ = e.persons.Update(ctx, person)
+			if err := e.persons.Update(ctx, person); err != nil {
+				slog.Warn("update person failed", slog.String("personID", person.ID), slog.Any("err", err))
+			}
 		}
 		// Fetch bio if missing and we have a TMDB ID
 		if person.Biography == "" && person.ProviderIDs["tmdb"] != "" {
@@ -311,7 +313,9 @@ func (e *Enricher) fetchPersonBio(ctx context.Context, person *domainlib.Person)
 			if details.KnownFor != "" {
 				person.KnownFor = details.KnownFor
 			}
-			_ = e.persons.Update(ctx, person)
+			if err := e.persons.Update(ctx, person); err != nil {
+				slog.Warn("update person bio failed", slog.String("personID", person.ID), slog.Any("err", err))
+			}
 		}
 	}
 	_ = bios // not used directly — translations fetched separately

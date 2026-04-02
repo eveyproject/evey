@@ -104,9 +104,11 @@ func (s *QueryService) GetPerson(ctx context.Context, id string) (*library.Perso
 			if s.personTransFetcher != nil && s.personTranslations != nil && len(s.translationLocales) > 0 {
 				if bios, bioErr := s.personTransFetcher.FetchPersonTranslations(ctx, person.Name, s.translationLocales); bioErr == nil {
 					for locale, bio := range bios {
-						_ = s.personTranslations.Upsert(ctx, &library.PersonTranslation{
-							PersonID: person.ID, Locale: locale, Biography: bio,
-						})
+						if uErr := s.personTranslations.Upsert(ctx, &library.PersonTranslation{
+						PersonID: person.ID, Locale: locale, Biography: bio,
+					}); uErr != nil {
+						slog.Warn("upsert person translation failed", slog.String("personID", person.ID), slog.String("locale", locale), slog.Any("err", uErr))
+					}
 					}
 				}
 			}

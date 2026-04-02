@@ -110,7 +110,9 @@ func (h *Hub) ConnectMember(ctx context.Context, roomID, userID, username string
 		PositionMs: room.State.PositionMs,
 	}
 	if data, mErr := json.Marshal(stateMsg); mErr == nil {
-		_ = sender.SendMessage(data)
+		if err := sender.SendMessage(data); err != nil {
+			slog.Warn("send initial state failed", slog.String("roomID", roomID), slog.String("userID", userID), slog.Any("err", err))
+		}
 	}
 
 	joinMsg := syncplay.SyncCommand{
