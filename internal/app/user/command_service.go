@@ -564,7 +564,10 @@ func (l *loginAttemptLimiter) record(username string) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	e, ok := l.attempts[username]
-	if !ok || time.Since(e.lockedAt) > l.window {
+	if !ok {
+		e = &attemptEntry{}
+		l.attempts[username] = e
+	} else if !e.lockedAt.IsZero() && time.Since(e.lockedAt) > l.window {
 		e = &attemptEntry{}
 		l.attempts[username] = e
 	}
