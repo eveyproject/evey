@@ -17,6 +17,9 @@
   "pnpm": {
     "onlyBuiltDependencies": [
       "esbuild"
-    ]
+    ],
+    "overrides": {
+      "@types/react": "19.1.0"
+    }
   }
 }

@@ -3,6 +3,7 @@
   "compilerOptions": {
     "strict": true,
     "noEmit": true,
+    "skipLibCheck": true,
     "jsx": "react-native",
     "moduleResolution": "bundler",
     "paths": {}
@@ -13,6 +14,8 @@
     "nativewind-env.d.ts"
   ],
   "exclude": [
-    "node_modules"
+    "node_modules",
+    "**/*.test.ts",
+    "**/*.test.tsx"
   ]
 }

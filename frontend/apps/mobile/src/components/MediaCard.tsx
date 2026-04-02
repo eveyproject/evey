@@ -1,4 +1,4 @@
-import { memo } from "react";
+import React from "react";
 import { View, Text, Pressable, Dimensions } from "react-native";
 import { Image } from "expo-image";
 import type { V1MediaItem } from "@evey/api";
@@ -17,7 +17,7 @@ interface MediaCardProps {
 const POSTER_RATIO = 1.5;
 const DEFAULT_WIDTH = Dimensions.get("window").width * 0.3;
 
-export const MediaCard = memo(function MediaCard({ item, onPress, width, watchPercent }: MediaCardProps) {
+export function MediaCard({ item, onPress, width, watchPercent }: MediaCardProps) {
   const theme = useTheme();
   const cardWidth = width ?? DEFAULT_WIDTH;
   const cardHeight = cardWidth * POSTER_RATIO;
@@ -60,4 +60,4 @@ export const MediaCard = memo(function MediaCard({ item, onPress, width, watchPe
       )}
     </Pressable>
   );
-});
+}
