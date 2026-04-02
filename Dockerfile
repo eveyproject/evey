@@ -1,10 +1,14 @@
-# ── Stage 1: Generate protobuf (swagger JSON for orval + Go code for build) ──
-FROM golang:1.26.1-alpine AS protogen
+# ── Stage 1: Go modules (shared cache for protogen + builder) ──
+FROM golang:1.26.1-alpine AS gomod
 
 RUN apk add --no-cache gcc musl-dev linux-headers
 WORKDIR /src
 COPY go.mod go.sum ./
 RUN go mod download
+
+# ── Stage 2: Generate protobuf ──
+FROM gomod AS protogen
+
 RUN go install github.com/bufbuild/buf/cmd/buf@v1.47.2 \
     && go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.36.11 \
     && go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@v1.5.1 \
@@ -14,28 +18,28 @@ COPY proto/ proto/
 COPY buf.gen.yaml buf.gen.local.yaml buf.yaml buf.lock ./
 RUN buf dep update && buf generate --template buf.gen.local.yaml
 
-# ── Stage 2: Build frontend ──
+# ── Stage 3: Build frontend ──
 FROM node:22-alpine AS frontend
 
 WORKDIR /app
 ENV CI=true
+COPY frontend/package.json frontend/pnpm-lock.yaml frontend/.npmrc ./
+COPY frontend/apps/web/package.json apps/web/package.json
+COPY frontend/apps/mobile/package.json apps/mobile/package.json
+COPY frontend/apps/tv/package.json apps/tv/package.json
+COPY frontend/packages/api/package.json packages/api/package.json
+COPY frontend/packages/store/package.json packages/store/package.json
+COPY frontend/packages/theme/package.json packages/theme/package.json
+RUN npm install -g pnpm@10.33.0 && pnpm install --frozen-lockfile
 COPY frontend/ .
 COPY --from=protogen /src/gen/evey/v1/ /gen/evey/v1/
-RUN npm install -g pnpm@10.33.0 && pnpm install \
-    && cd packages/api \
+RUN cd packages/api \
     && npx orval --config orval.config.ts \
     && cd ../.. \
     && pnpm --filter web build
 
-# ── Stage 3: Build backend ──
-FROM golang:1.26.1-alpine AS builder
-
-RUN apk add --no-cache gcc musl-dev linux-headers
-
-WORKDIR /src
-
-COPY go.mod go.sum ./
-RUN go mod download
+# ── Stage 4: Build backend ──
+FROM gomod AS builder
 
 ARG VERSION=dev
 
@@ -44,7 +48,7 @@ COPY --from=protogen /src/gen/ gen/
 RUN CGO_ENABLED=0 go build -ldflags="-s -w -X main.version=${VERSION}" -o /evey ./cmd/evey
 RUN gcc -shared -fPIC -nostartfiles -o /libevey-sandbox.so sandbox/sandbox.c
 
-# ── Stage 4: Runtime ──
+# ── Stage 5: Runtime ──
 FROM alpine:3.21.3
 
 RUN apk add --no-cache ffmpeg ca-certificates unzip curl postgresql-client
