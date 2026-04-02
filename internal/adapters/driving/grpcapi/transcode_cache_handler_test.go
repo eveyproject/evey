@@ -25,7 +25,7 @@ func newTestTranscodeCacheHandler() (*transcodeCacheHandler, *tcfakes.FakeCacheS
 	events := sharedfakes.NewFakeEventBus()
 	svc := apptranscoding.NewService(transcoder, hwDetector, jobRepo, profileRepo, events, 5)
 	cacheStore := tcfakes.NewFakeCacheStore()
-	svc.WithCacheStore(cacheStore)
+	apptranscoding.WithCacheStore(cacheStore)(svc)
 	return &transcodeCacheHandler{svc: svc}, cacheStore
 }
 

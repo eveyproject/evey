@@ -10,34 +10,41 @@ import (
 	"github.com/gravity-zero/evey/internal/domain/shared"
 )
 
+type CommandServiceOption func(*CommandService)
+
+func CommandWithEventBus(bus shared.EventBus) CommandServiceOption {
+	return func(s *CommandService) {
+		bus.Subscribe("library.created", func(ctx context.Context, ev shared.Event) {
+			e, ok := ev.(library.LibraryCreated)
+			if !ok {
+				return
+			}
+			if err := s.EnsureLibraryFeedConfig(ctx, e.LibraryID, e.Name); err != nil {
+				slog.Warn("auto-create library feed config", slog.String("library", e.LibraryID), slog.Any("err", err))
+			}
+		})
+		bus.Subscribe("library.deleted", func(ctx context.Context, ev shared.Event) {
+			e, ok := ev.(library.LibraryDeleted)
+			if !ok {
+				return
+			}
+			if err := s.DeleteLibraryFeedConfig(ctx, e.LibraryID); err != nil {
+				slog.Warn("auto-delete library feed config", slog.String("library", e.LibraryID), slog.Any("err", err))
+			}
+		})
+	}
+}
+
 type CommandService struct {
 	commands feed.ConfigCommandRepo
 	queries  feed.ConfigQueryRepo
 }
 
-func NewCommandService(commands feed.ConfigCommandRepo, queries feed.ConfigQueryRepo) *CommandService {
-	return &CommandService{commands: commands, queries: queries}
-}
-
-func (s *CommandService) WithEventBus(bus shared.EventBus) *CommandService {
-	bus.Subscribe("library.created", func(ctx context.Context, ev shared.Event) {
-		e, ok := ev.(library.LibraryCreated)
-		if !ok {
-			return
-		}
-		if err := s.EnsureLibraryFeedConfig(ctx, e.LibraryID, e.Name); err != nil {
-			slog.Warn("auto-create library feed config", slog.String("library", e.LibraryID), slog.Any("err", err))
-		}
-	})
-	bus.Subscribe("library.deleted", func(ctx context.Context, ev shared.Event) {
-		e, ok := ev.(library.LibraryDeleted)
-		if !ok {
-			return
-		}
-		if err := s.DeleteLibraryFeedConfig(ctx, e.LibraryID); err != nil {
-			slog.Warn("auto-delete library feed config", slog.String("library", e.LibraryID), slog.Any("err", err))
-		}
-	})
+func NewCommandService(commands feed.ConfigCommandRepo, queries feed.ConfigQueryRepo, opts ...CommandServiceOption) *CommandService {
+	s := &CommandService{commands: commands, queries: queries}
+	for _, opt := range opts {
+		opt(s)
+	}
 	return s
 }
 

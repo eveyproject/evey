@@ -23,6 +23,12 @@ type Service struct {
 	maxConcurrent int
 }
 
+type Option func(*Service)
+
+func WithCacheStore(cs transcoding.CacheStore) Option {
+	return func(s *Service) { s.cache = cs }
+}
+
 func NewService(
 	transcoder transcoding.Transcoder,
 	hwDetector transcoding.HWDetector,
@@ -30,8 +36,9 @@ func NewService(
 	profiles transcoding.TranscodeProfileRepository,
 	events shared.EventBus,
 	maxConcurrent int,
+	opts ...Option,
 ) *Service {
-	return &Service{
+	s := &Service{
 		transcoder:    transcoder,
 		hwDetector:    hwDetector,
 		jobs:          jobs,
@@ -39,10 +46,10 @@ func NewService(
 		events:        events,
 		maxConcurrent: maxConcurrent,
 	}
-}
-
-func (s *Service) WithCacheStore(cs transcoding.CacheStore) {
-	s.cache = cs
+	for _, opt := range opts {
+		opt(s)
+	}
+	return s
 }
 
 func (s *Service) StartTranscode(ctx context.Context, job *transcoding.TranscodeJob) error {

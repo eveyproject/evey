@@ -23,12 +23,31 @@ type CachedAnalyzer struct {
 	cache map[string]genreCacheEntry // key: profileID:minCount
 }
 
-func NewCachedAnalyzer(inner notification.WatchHistoryAnalyzer, ttl time.Duration) *CachedAnalyzer {
-	return &CachedAnalyzer{
+type CachedAnalyzerOption func(*CachedAnalyzer)
+
+func CacheWithEventBus(bus shared.EventBus) CachedAnalyzerOption {
+	return func(c *CachedAnalyzer) {
+		invalidate := func(_ context.Context, _ shared.Event) {
+			c.Invalidate()
+			slog.Debug("genre cache invalidated")
+		}
+		bus.Subscribe("media.item.added", invalidate)
+		bus.Subscribe("media.item.updated", invalidate)
+		bus.Subscribe("media.item.removed", invalidate)
+		bus.Subscribe("library.scan.completed", invalidate)
+	}
+}
+
+func NewCachedAnalyzer(inner notification.WatchHistoryAnalyzer, ttl time.Duration, opts ...CachedAnalyzerOption) *CachedAnalyzer {
+	c := &CachedAnalyzer{
 		inner: inner,
 		ttl:   ttl,
 		cache: make(map[string]genreCacheEntry),
 	}
+	for _, opt := range opts {
+		opt(c)
+	}
+	return c
 }
 
 func (c *CachedAnalyzer) cacheKey(profileID string, minCount int) string {
@@ -102,18 +121,6 @@ func (c *CachedAnalyzer) Invalidate() {
 	c.mu.Lock()
 	c.cache = make(map[string]genreCacheEntry)
 	c.mu.Unlock()
-}
-
-func (c *CachedAnalyzer) WithEventBus(bus shared.EventBus) *CachedAnalyzer {
-	invalidate := func(_ context.Context, _ shared.Event) {
-		c.Invalidate()
-		slog.Debug("genre cache invalidated")
-	}
-	bus.Subscribe("media.item.added", invalidate)
-	bus.Subscribe("media.item.updated", invalidate)
-	bus.Subscribe("media.item.removed", invalidate)
-	bus.Subscribe("library.scan.completed", invalidate)
-	return c
 }
 
 var _ notification.WatchHistoryAnalyzer = (*CachedAnalyzer)(nil)

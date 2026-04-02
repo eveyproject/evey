@@ -261,7 +261,7 @@ func TestReEnrichWithoutOverrides_SkipsOverriddenItems(t *testing.T) {
 
 	mediaRepo := libfakes.NewFakeMediaItemRepository()
 	enricher := &fakeBulkEnricher{}
-	cmdSvc.WithEnricher(enricher, mediaRepo)
+	appmetadata.WithEnricher(enricher, mediaRepo)(cmdSvc)
 
 	ctx := context.Background()
 
@@ -295,7 +295,7 @@ func TestReEnrichWithoutOverrides_AllOverridden(t *testing.T) {
 
 	mediaRepo := libfakes.NewFakeMediaItemRepository()
 	enricher := &fakeBulkEnricher{}
-	cmdSvc.WithEnricher(enricher, mediaRepo)
+	appmetadata.WithEnricher(enricher, mediaRepo)(cmdSvc)
 	ctx := context.Background()
 
 	require.NoError(t, mediaRepo.Create(ctx, &library.MediaItem{ID: "item-1", Title: "A"}))
@@ -317,7 +317,7 @@ func TestReEnrichWithoutOverrides_NoItems(t *testing.T) {
 
 	mediaRepo := libfakes.NewFakeMediaItemRepository()
 	enricher := &fakeBulkEnricher{}
-	cmdSvc.WithEnricher(enricher, mediaRepo)
+	appmetadata.WithEnricher(enricher, mediaRepo)(cmdSvc)
 
 	refreshed, skipped := cmdSvc.ReEnrichWithoutOverrides(context.Background(), enricher)
 	assert.Equal(t, 0, refreshed)
@@ -353,7 +353,7 @@ func TestRefreshItemMetadata_NoEnricher(t *testing.T) {
 func TestRefreshItemMetadata_ItemNotFound(t *testing.T) {
 	cmdSvc, _, _, _ := newTestServices()
 	mediaRepo := libfakes.NewFakeMediaItemRepository()
-	cmdSvc.WithEnricher(&fakeItemEnricher{}, mediaRepo)
+	appmetadata.WithEnricher(&fakeItemEnricher{}, mediaRepo)(cmdSvc)
 
 	err := cmdSvc.RefreshItemMetadata(context.Background(), "missing", "123", "movie")
 	require.Error(t, err)
@@ -371,7 +371,7 @@ func TestRefreshItemMetadata_NoProviderResult(t *testing.T) {
 		[]metadata.MetadataProvider{provider},
 	)
 	mediaRepo := libfakes.NewFakeMediaItemRepository()
-	cmdSvc.WithEnricher(&fakeItemEnricher{}, mediaRepo)
+	appmetadata.WithEnricher(&fakeItemEnricher{}, mediaRepo)(cmdSvc)
 	ctx := context.Background()
 	require.NoError(t, mediaRepo.Create(ctx, &library.MediaItem{ID: "item-1", Title: "X"}))
 
@@ -393,7 +393,7 @@ func TestRefreshItemMetadata_Success(t *testing.T) {
 	)
 	mediaRepo := libfakes.NewFakeMediaItemRepository()
 	enricher := &fakeItemEnricher{}
-	cmdSvc.WithEnricher(enricher, mediaRepo)
+	appmetadata.WithEnricher(enricher, mediaRepo)(cmdSvc)
 	ctx := context.Background()
 	require.NoError(t, mediaRepo.Create(ctx, &library.MediaItem{ID: "item-1", Title: "Old"}))
 
@@ -418,7 +418,7 @@ func TestRefreshItemMetadata_EnrichError(t *testing.T) {
 		[]metadata.MetadataProvider{provider},
 	)
 	mediaRepo := libfakes.NewFakeMediaItemRepository()
-	cmdSvc.WithEnricher(&fakeItemEnricher{err: errors.New("enrich boom")}, mediaRepo)
+	appmetadata.WithEnricher(&fakeItemEnricher{err: errors.New("enrich boom")}, mediaRepo)(cmdSvc)
 	ctx := context.Background()
 	require.NoError(t, mediaRepo.Create(ctx, &library.MediaItem{ID: "item-1", Title: "Old"}))
 
@@ -450,7 +450,7 @@ func TestRefreshItemMetadataByIMDB_Success_PreferredProvider(t *testing.T) {
 	)
 	mediaRepo := libfakes.NewFakeMediaItemRepository()
 	enricher := &fakeItemEnricher{}
-	cmdSvc.WithEnricher(enricher, mediaRepo)
+	appmetadata.WithEnricher(enricher, mediaRepo)(cmdSvc)
 	ctx := context.Background()
 	require.NoError(t, mediaRepo.Create(ctx, &library.MediaItem{ID: "item-1", Title: "Old"}))
 
@@ -476,7 +476,7 @@ func TestRefreshItemMetadataByIMDB_FallbackToOtherProvider(t *testing.T) {
 	)
 	mediaRepo := libfakes.NewFakeMediaItemRepository()
 	enricher := &fakeItemEnricher{}
-	cmdSvc.WithEnricher(enricher, mediaRepo)
+	appmetadata.WithEnricher(enricher, mediaRepo)(cmdSvc)
 	ctx := context.Background()
 	require.NoError(t, mediaRepo.Create(ctx, &library.MediaItem{ID: "item-1", Title: "Old"}))
 
@@ -500,7 +500,7 @@ func TestRefreshItemMetadataByIMDB_NilProviderIDs(t *testing.T) {
 	)
 	mediaRepo := libfakes.NewFakeMediaItemRepository()
 	enricher := &fakeItemEnricher{}
-	cmdSvc.WithEnricher(enricher, mediaRepo)
+	appmetadata.WithEnricher(enricher, mediaRepo)(cmdSvc)
 	ctx := context.Background()
 	require.NoError(t, mediaRepo.Create(ctx, &library.MediaItem{ID: "item-1", Title: "Old"}))
 
@@ -520,7 +520,7 @@ func TestRefreshItemMetadataByIMDB_NoProviderResult(t *testing.T) {
 		[]metadata.MetadataProvider{metafakes.NewFakeMetadataProvider("tmdb")},
 	)
 	mediaRepo := libfakes.NewFakeMediaItemRepository()
-	cmdSvc.WithEnricher(&fakeItemEnricher{}, mediaRepo)
+	appmetadata.WithEnricher(&fakeItemEnricher{}, mediaRepo)(cmdSvc)
 	ctx := context.Background()
 	require.NoError(t, mediaRepo.Create(ctx, &library.MediaItem{ID: "item-1", Title: "Old"}))
 
@@ -609,7 +609,7 @@ func TestAutoRefreshAllItems_Success(t *testing.T) {
 	)
 	mediaRepo := libfakes.NewFakeMediaItemRepository()
 	enricher := &fakeBulkEnricher{}
-	cmdSvc.WithEnricher(enricher, mediaRepo)
+	appmetadata.WithEnricher(enricher, mediaRepo)(cmdSvc)
 	ctx := context.Background()
 
 	require.NoError(t, mediaRepo.Create(ctx, &library.MediaItem{ID: "item-1", Title: "A"}))
@@ -630,7 +630,7 @@ func TestAutoRefreshAllItems_EmptyRepo(t *testing.T) {
 	)
 	mediaRepo := libfakes.NewFakeMediaItemRepository()
 	enricher := &fakeBulkEnricher{}
-	cmdSvc.WithEnricher(enricher, mediaRepo)
+	appmetadata.WithEnricher(enricher, mediaRepo)(cmdSvc)
 
 	err := cmdSvc.AutoRefreshAllItems(context.Background())
 	require.NoError(t, err)
@@ -648,7 +648,7 @@ func TestAutoRefreshAllItems_ListError(t *testing.T) {
 	mediaRepo := libfakes.NewFakeMediaItemRepository()
 	mediaRepo.ErrList = errors.New("db down")
 	enricher := &fakeBulkEnricher{}
-	cmdSvc.WithEnricher(enricher, mediaRepo)
+	appmetadata.WithEnricher(enricher, mediaRepo)(cmdSvc)
 
 	err := cmdSvc.AutoRefreshAllItems(context.Background())
 	require.Error(t, err)
@@ -716,7 +716,7 @@ func TestStartEnrichmentWorker_BulkEnrich(t *testing.T) {
 	)
 	mediaRepo := libfakes.NewFakeMediaItemRepository()
 	enricher := &fakeBulkSingleEnricher{}
-	cmdSvc.WithEnricher(enricher, mediaRepo)
+	appmetadata.WithEnricher(enricher, mediaRepo)(cmdSvc)
 	ctx, cancel := context.WithCancel(context.Background())
 
 	require.NoError(t, mediaRepo.Create(ctx, &library.MediaItem{ID: "item-1", Title: "A"}))
@@ -741,7 +741,7 @@ func TestStartEnrichmentWorker_SingleEnrich_ViaEvent(t *testing.T) {
 	)
 	mediaRepo := libfakes.NewFakeMediaItemRepository()
 	enricher := &fakeBulkSingleEnricher{}
-	cmdSvc.WithEnricher(enricher, mediaRepo)
+	appmetadata.WithEnricher(enricher, mediaRepo)(cmdSvc)
 	ctx, cancel := context.WithCancel(context.Background())
 
 	require.NoError(t, mediaRepo.Create(ctx, &library.MediaItem{ID: "item-99", Title: "New Movie"}))
@@ -853,7 +853,7 @@ func TestRefreshItemMetadata_EventPublishError(t *testing.T) {
 		bus, []metadata.MetadataProvider{provider},
 	)
 	mediaRepo := libfakes.NewFakeMediaItemRepository()
-	cmdSvc.WithEnricher(&fakeItemEnricher{}, mediaRepo)
+	appmetadata.WithEnricher(&fakeItemEnricher{}, mediaRepo)(cmdSvc)
 	ctx := context.Background()
 	require.NoError(t, mediaRepo.Create(ctx, &library.MediaItem{ID: "item-1", Title: "Old"}))
 	err := cmdSvc.RefreshItemMetadata(ctx, "item-1", "tmdb-1", "movie")
@@ -872,7 +872,7 @@ func TestRefreshItemMetadataByIMDB_EventPublishError(t *testing.T) {
 		bus, []metadata.MetadataProvider{provider},
 	)
 	mediaRepo := libfakes.NewFakeMediaItemRepository()
-	cmdSvc.WithEnricher(&fakeItemEnricher{}, mediaRepo)
+	appmetadata.WithEnricher(&fakeItemEnricher{}, mediaRepo)(cmdSvc)
 	ctx := context.Background()
 	require.NoError(t, mediaRepo.Create(ctx, &library.MediaItem{ID: "item-1", Title: "Old"}))
 	err := cmdSvc.RefreshItemMetadataByIMDB(ctx, "item-1", "tt1", "movie")
@@ -888,7 +888,7 @@ func TestRefreshItemMetadataByIMDB_ItemNotFound(t *testing.T) {
 		bus, []metadata.MetadataProvider{metafakes.NewFakeMetadataProvider("tmdb")},
 	)
 	mediaRepo := libfakes.NewFakeMediaItemRepository()
-	cmdSvc.WithEnricher(&fakeItemEnricher{}, mediaRepo)
+	appmetadata.WithEnricher(&fakeItemEnricher{}, mediaRepo)(cmdSvc)
 	err := cmdSvc.RefreshItemMetadataByIMDB(context.Background(), "missing", "tt1", "movie")
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "get media item")
@@ -905,7 +905,7 @@ func TestRefreshItemMetadataByIMDB_EnrichError(t *testing.T) {
 		bus, []metadata.MetadataProvider{provider},
 	)
 	mediaRepo := libfakes.NewFakeMediaItemRepository()
-	cmdSvc.WithEnricher(&fakeItemEnricher{err: errors.New("enrich boom")}, mediaRepo)
+	appmetadata.WithEnricher(&fakeItemEnricher{err: errors.New("enrich boom")}, mediaRepo)(cmdSvc)
 	ctx := context.Background()
 	require.NoError(t, mediaRepo.Create(ctx, &library.MediaItem{ID: "item-1", Title: "Old"}))
 	err := cmdSvc.RefreshItemMetadataByIMDB(ctx, "item-1", "tt1", "movie")
@@ -926,7 +926,7 @@ func TestReEnrichWithoutOverrides_ListError(t *testing.T) {
 	mediaRepo := libfakes.NewFakeMediaItemRepository()
 	mediaRepo.ErrList = errors.New("db down")
 	enricher := &fakeBulkEnricher{}
-	cmdSvc.WithEnricher(enricher, mediaRepo)
+	appmetadata.WithEnricher(enricher, mediaRepo)(cmdSvc)
 
 	refreshed, skipped := cmdSvc.ReEnrichWithoutOverrides(context.Background(), enricher)
 	assert.Equal(t, 0, refreshed)
@@ -940,7 +940,7 @@ func TestReEnrichWithoutOverrides_OverrideCheckError(t *testing.T) {
 
 	mediaRepo := libfakes.NewFakeMediaItemRepository()
 	enricher := &fakeBulkEnricher{}
-	cmdSvc.WithEnricher(enricher, mediaRepo)
+	appmetadata.WithEnricher(enricher, mediaRepo)(cmdSvc)
 	ctx := context.Background()
 	require.NoError(t, mediaRepo.Create(ctx, &library.MediaItem{ID: "item-1", Title: "A"}))
 
@@ -966,7 +966,7 @@ func TestFetchFromProviders_PreferredNotInList(t *testing.T) {
 	)
 	mediaRepo := libfakes.NewFakeMediaItemRepository()
 	enricher := &fakeItemEnricher{}
-	cmdSvc.WithEnricher(enricher, mediaRepo)
+	appmetadata.WithEnricher(enricher, mediaRepo)(cmdSvc)
 	ctx := context.Background()
 	require.NoError(t, mediaRepo.Create(ctx, &library.MediaItem{ID: "item-1", Title: "Old"}))
 
@@ -992,7 +992,7 @@ func TestFetchFromProviders_PreferredErrorFallback(t *testing.T) {
 	)
 	mediaRepo := libfakes.NewFakeMediaItemRepository()
 	enricher := &fakeItemEnricher{}
-	cmdSvc.WithEnricher(enricher, mediaRepo)
+	appmetadata.WithEnricher(enricher, mediaRepo)(cmdSvc)
 	ctx := context.Background()
 	require.NoError(t, mediaRepo.Create(ctx, &library.MediaItem{ID: "item-1", Title: "Old"}))
 

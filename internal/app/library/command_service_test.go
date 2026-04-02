@@ -29,7 +29,22 @@ type cmdTestHarness struct {
 	bus        *sharedfakes.FakeEventBus
 }
 
-func newHarness() *cmdTestHarness {
+type harnessOpts struct {
+	chapterRepo library.ChapterRepository
+	ebmlReader  mkv.ContainerReader
+	configRepo  shared.ServerConfigRepository
+}
+
+func newHarnessWithOpts(opts *harnessOpts) *cmdTestHarness {
+	if opts == nil {
+		opts = &harnessOpts{}
+	}
+	if opts.chapterRepo == nil {
+		opts.chapterRepo = libfakes.NewFakeChapterRepository()
+	}
+	if opts.ebmlReader == nil {
+		opts.ebmlReader = mkvfakes.NewFakeContainerReader()
+	}
 	h := &cmdTestHarness{
 		libCmd:     libfakes.NewFakeLibraryCommandRepo(),
 		libQuery:   libfakes.NewFakeLibraryQueryRepo(),
@@ -44,8 +59,14 @@ func newHarness() *cmdTestHarness {
 		h.libCmd, h.libQuery, h.mediaItems, h.streams,
 		libfakes.NewFakePersonRepository(), libfakes.NewFakeMediaPersonRepository(),
 		h.scanner, h.prober, h.search, h.bus,
+		opts.chapterRepo, opts.ebmlReader,
+		libfakes.NewFakeTrickplayRepository(), libfakes.NewFakeTrickplayGenerator(), "/cache", opts.configRepo,
 	)
 	return h
+}
+
+func newHarness() *cmdTestHarness {
+	return newHarnessWithOpts(nil)
 }
 
 func newCmdSvcWithSearch() (*applib.CommandService, *libfakes.FakeLibraryCommandRepo, *libfakes.FakeLibraryQueryRepo, *libfakes.FakeMediaItemCommandRepo, *libfakes.FakeFileScanner, *sharedfakes.FakeEventBus, *libfakes.FakeSearchIndex, *libfakes.FakeMediaStreamRepository) {
@@ -59,7 +80,10 @@ func newCmdSvcWithSearch() (*applib.CommandService, *libfakes.FakeLibraryCommand
 	prober := libfakes.NewFakeStreamProber()
 	search := libfakes.NewFakeSearchIndex()
 	bus := sharedfakes.NewFakeEventBus()
-	svc := applib.NewCommandService(libCmdRepo, libQueryRepo, mediaRepo, streamRepo, personRepo, mediaPersonRepo, scanner, prober, search, bus)
+	svc := applib.NewCommandService(libCmdRepo, libQueryRepo, mediaRepo, streamRepo, personRepo, mediaPersonRepo, scanner, prober, search, bus,
+		libfakes.NewFakeChapterRepository(), mkvfakes.NewFakeContainerReader(),
+		libfakes.NewFakeTrickplayRepository(), libfakes.NewFakeTrickplayGenerator(), "/cache", nil,
+	)
 	return svc, libCmdRepo, libQueryRepo, mediaRepo, scanner, bus, search, streamRepo
 }
 
@@ -213,6 +237,8 @@ func TestScanLibrary_ConcurrentScanRejected(t *testing.T) {
 		h.libCmd, h.libQuery, h.mediaItems, h.streams,
 		libfakes.NewFakePersonRepository(), libfakes.NewFakeMediaPersonRepository(),
 		blockingScanner, h.prober, h.search, h.bus,
+		libfakes.NewFakeChapterRepository(), mkvfakes.NewFakeContainerReader(),
+		libfakes.NewFakeTrickplayRepository(), libfakes.NewFakeTrickplayGenerator(), "/cache", nil,
 	)
 
 	go func() {
@@ -677,10 +703,9 @@ func TestUpsertMediaFile_Changed_DifferentFingerprint(t *testing.T) {
 
 func TestExtractChapters_NonMKV_Skipped(t *testing.T) {
 	t.Parallel()
-	h := newHarness()
 	chapterRepo := libfakes.NewFakeChapterRepository()
 	reader := mkvfakes.NewFakeContainerReader()
-	h.svc.WithChapters(chapterRepo, reader)
+	h := newHarnessWithOpts(&harnessOpts{chapterRepo: chapterRepo, ebmlReader: reader})
 
 	lib := &library.Library{ID: "lib-1", Name: "Movies", Type: "movie", Paths: []string{"/movies"}}
 	h.libQuery.Seed(lib)
@@ -696,14 +721,13 @@ func TestExtractChapters_NonMKV_Skipped(t *testing.T) {
 
 func TestExtractChapters_MKV_NoChaptersInFile(t *testing.T) {
 	t.Parallel()
-	h := newHarness()
 	chapterRepo := libfakes.NewFakeChapterRepository()
 	reader := mkvfakes.NewFakeContainerReader()
 	reader.Containers["/movies/film.mkv"] = &mkv.Container{
 		Path:     "/movies/film.mkv",
 		Chapters: []mkv.Chapter{},
 	}
-	h.svc.WithChapters(chapterRepo, reader)
+	h := newHarnessWithOpts(&harnessOpts{chapterRepo: chapterRepo, ebmlReader: reader})
 
 	lib := &library.Library{ID: "lib-1", Name: "Movies", Type: "movie", Paths: []string{"/movies"}}
 	h.libQuery.Seed(lib)
@@ -719,7 +743,6 @@ func TestExtractChapters_MKV_NoChaptersInFile(t *testing.T) {
 
 func TestExtractChapters_MKV_ChaptersStored(t *testing.T) {
 	t.Parallel()
-	h := newHarness()
 	chapterRepo := libfakes.NewFakeChapterRepository()
 	reader := mkvfakes.NewFakeContainerReader()
 	reader.Containers["/movies/film.mkv"] = &mkv.Container{
@@ -729,7 +752,7 @@ func TestExtractChapters_MKV_ChaptersStored(t *testing.T) {
 			{ID: 2, Title: "Main", StartMs: 5000, EndMs: 100000},
 		},
 	}
-	h.svc.WithChapters(chapterRepo, reader)
+	h := newHarnessWithOpts(&harnessOpts{chapterRepo: chapterRepo, ebmlReader: reader})
 
 	lib := &library.Library{ID: "lib-1", Name: "Movies", Type: "movie", Paths: []string{"/movies"}}
 	h.libQuery.Seed(lib)
@@ -751,11 +774,10 @@ func TestExtractChapters_MKV_ChaptersStored(t *testing.T) {
 
 func TestExtractChapters_ReadError_NonFatal(t *testing.T) {
 	t.Parallel()
-	h := newHarness()
 	chapterRepo := libfakes.NewFakeChapterRepository()
 	reader := mkvfakes.NewFakeContainerReader()
 	reader.Err = errors.New("corrupt mkv")
-	h.svc.WithChapters(chapterRepo, reader)
+	h := newHarnessWithOpts(&harnessOpts{chapterRepo: chapterRepo, ebmlReader: reader})
 
 	lib := &library.Library{ID: "lib-1", Name: "Movies", Type: "movie", Paths: []string{"/movies"}}
 	h.libQuery.Seed(lib)
@@ -772,10 +794,9 @@ func TestExtractChapters_ReadError_NonFatal(t *testing.T) {
 
 func TestGetChapters_WithRepo_ReturnsChapters(t *testing.T) {
 	t.Parallel()
-	h := newHarness()
 	chapterRepo := libfakes.NewFakeChapterRepository()
 	reader := mkvfakes.NewFakeContainerReader()
-	h.svc.WithChapters(chapterRepo, reader)
+	h := newHarnessWithOpts(&harnessOpts{chapterRepo: chapterRepo, ebmlReader: reader})
 
 	chapterRepo.ReplaceBatch(context.Background(), "item-1", []*library.Chapter{
 		{ID: "ch-1", MediaItemID: "item-1", Title: "Ch1"},
@@ -993,6 +1014,8 @@ func TestProbeAndStoreStreams_NilProber(t *testing.T) {
 		libfakes.NewFakePersonRepository(), libfakes.NewFakeMediaPersonRepository(),
 		libfakes.NewFakeFileScanner(), nil, libfakes.NewFakeSearchIndex(),
 		sharedfakes.NewFakeEventBus(),
+		libfakes.NewFakeChapterRepository(), mkvfakes.NewFakeContainerReader(),
+		libfakes.NewFakeTrickplayRepository(), libfakes.NewFakeTrickplayGenerator(), "/cache", nil,
 	)
 	dur := svc.ProbeAndStoreStreams(context.Background(), "item-1", "/movies/film.mkv")
 	assert.Equal(t, int64(0), dur)
@@ -1219,11 +1242,17 @@ func TestScanTVShow_GetOrCreateItem_FindsByFingerprint(t *testing.T) {
 
 func TestGenerateTrickplay_GenError_Propagates(t *testing.T) {
 	t.Parallel()
-	h := newHarness()
-	trickplayRepo := libfakes.NewFakeTrickplayRepository()
 	trickplayGen := libfakes.NewFakeTrickplayGenerator()
 	trickplayGen.Err = errors.New("ffmpeg crash")
-	h.svc.WithTrickplay(trickplayRepo, trickplayGen, "/cache", nil)
+	h := newHarnessWithOpts(&harnessOpts{})
+	// override trickplay via fresh constructor
+	h.svc = applib.NewCommandService(
+		h.libCmd, h.libQuery, h.mediaItems, h.streams,
+		libfakes.NewFakePersonRepository(), libfakes.NewFakeMediaPersonRepository(),
+		h.scanner, h.prober, h.search, h.bus,
+		libfakes.NewFakeChapterRepository(), mkvfakes.NewFakeContainerReader(),
+		libfakes.NewFakeTrickplayRepository(), trickplayGen, "/cache", nil,
+	)
 
 	h.mediaItems.Create(context.Background(), &library.MediaItem{
 		ID: "m1", FilePath: "/movies/film.mkv",
@@ -1237,11 +1266,16 @@ func TestGenerateTrickplay_GenError_Propagates(t *testing.T) {
 
 func TestGenerateTrickplay_StoreError_Propagates(t *testing.T) {
 	t.Parallel()
-	h := newHarness()
 	trickplayRepo := libfakes.NewFakeTrickplayRepository()
 	trickplayRepo.Err = errors.New("db write failed")
-	trickplayGen := libfakes.NewFakeTrickplayGenerator()
-	h.svc.WithTrickplay(trickplayRepo, trickplayGen, "/cache", nil)
+	h := newHarnessWithOpts(&harnessOpts{})
+	h.svc = applib.NewCommandService(
+		h.libCmd, h.libQuery, h.mediaItems, h.streams,
+		libfakes.NewFakePersonRepository(), libfakes.NewFakeMediaPersonRepository(),
+		h.scanner, h.prober, h.search, h.bus,
+		libfakes.NewFakeChapterRepository(), mkvfakes.NewFakeContainerReader(),
+		trickplayRepo, libfakes.NewFakeTrickplayGenerator(), "/cache", nil,
+	)
 
 	h.mediaItems.Create(context.Background(), &library.MediaItem{
 		ID: "m1", FilePath: "/movies/film.mkv",
@@ -1252,35 +1286,23 @@ func TestGenerateTrickplay_StoreError_Propagates(t *testing.T) {
 	assert.Contains(t, err.Error(), "store trickplay manifest")
 }
 
-func TestGenerateAllMissingTrickplays_NotConfigured(t *testing.T) {
-	t.Parallel()
-	h := newHarness()
-	count, err := h.svc.GenerateAllMissingTrickplays(context.Background())
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "not configured")
-	assert.Equal(t, 0, count)
-}
-
 func TestGenerateAllMissingTrickplays_ListError(t *testing.T) {
 	t.Parallel()
-	h := newHarness()
 	trickplayRepo := libfakes.NewFakeTrickplayRepository()
 	trickplayRepo.Err = errors.New("db down")
-	trickplayGen := libfakes.NewFakeTrickplayGenerator()
-	h.svc.WithTrickplay(trickplayRepo, trickplayGen, "/cache", nil)
+	h := newHarnessWithOpts(&harnessOpts{})
+	h.svc = applib.NewCommandService(
+		h.libCmd, h.libQuery, h.mediaItems, h.streams,
+		libfakes.NewFakePersonRepository(), libfakes.NewFakeMediaPersonRepository(),
+		h.scanner, h.prober, h.search, h.bus,
+		libfakes.NewFakeChapterRepository(), mkvfakes.NewFakeContainerReader(),
+		trickplayRepo, libfakes.NewFakeTrickplayGenerator(), "/cache", nil,
+	)
 
 	count, err := h.svc.GenerateAllMissingTrickplays(context.Background())
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "list missing trickplays")
 	assert.Equal(t, 0, count)
-}
-
-func TestGetTrickplayManifest_NilRepo(t *testing.T) {
-	t.Parallel()
-	h := newHarness()
-	_, err := h.svc.GetTrickplayManifest(context.Background(), "any-id")
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "not configured")
 }
 
 // --- removeOrphanedItems ---
@@ -1338,7 +1360,7 @@ func TestRemoveOrphans_AlsoRemovesFromSearchIndex(t *testing.T) {
 func TestWithShutdownCtx_SetsContext(t *testing.T) {
 	t.Parallel()
 	h := newHarness()
-	h.svc.WithShutdownCtx(t.Context())
+	applib.WithShutdownCtx(t.Context())(h.svc)
 	// No panic = success; the shutdownCtx is used internally by GenerateAllMissingTrickplays
 }
 

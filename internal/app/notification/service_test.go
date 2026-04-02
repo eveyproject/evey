@@ -368,7 +368,7 @@ func TestNotificationService_WithPush_SendsToSubscriptions(t *testing.T) {
 	_ = subRepo.Upsert(ctx, "u1", "p1", "https://push.example.com/2", "key2", "auth2")
 
 	svc := appnotification.NewCommandService(repo, settings, analyzer, profileRepo, bus)
-	svc.WithPush(pushSender, subRepo)
+	appnotification.WithPush(pushSender, subRepo)(svc)
 	svc.Register()
 
 	bus.Publish(ctx, libevent.MediaItemAdded{
@@ -398,7 +398,7 @@ func TestNotificationService_WithPush_NoSubsNoPush(t *testing.T) {
 	_ = profileRepo.Create(ctx, &user.Profile{ID: "p1", UserID: "u1", Name: "Alice"})
 
 	svc := appnotification.NewCommandService(repo, settings, analyzer, profileRepo, bus)
-	svc.WithPush(pushSender, subRepo)
+	appnotification.WithPush(pushSender, subRepo)(svc)
 	svc.Register()
 
 	bus.Publish(ctx, libevent.MediaItemAdded{
@@ -437,7 +437,7 @@ func TestNotificationService_WithPush_DisabledLevel_NoPush(t *testing.T) {
 	})
 
 	svc := appnotification.NewCommandService(repo, settings, analyzer, profileRepo, bus)
-	svc.WithPush(pushSender, subRepo)
+	appnotification.WithPush(pushSender, subRepo)(svc)
 	svc.Register()
 
 	bus.Publish(ctx, libevent.MediaItemAdded{
@@ -467,7 +467,7 @@ func TestNotificationService_WithPush_PushSendError_DoesNotBlockNotification(t *
 	_ = subRepo.Upsert(ctx, "u1", "p1", "https://push.example.com/1", "key1", "auth1")
 
 	svc := appnotification.NewCommandService(repo, settings, analyzer, profileRepo, bus)
-	svc.WithPush(pushSender, subRepo)
+	appnotification.WithPush(pushSender, subRepo)(svc)
 	svc.Register()
 
 	bus.Publish(ctx, libevent.MediaItemAdded{
@@ -913,7 +913,7 @@ func TestNotificationService_BackupFailed_WithPush(t *testing.T) {
 	_ = subRepo.Upsert(ctx, "u1", "p1", "https://push.example.com/1", "key1", "auth1")
 
 	svc := appnotification.NewCommandService(repo, settings, analyzer, profileRepo, bus)
-	svc.WithPush(pushSender, subRepo)
+	appnotification.WithPush(pushSender, subRepo)(svc)
 	svc.Register()
 
 	bus.Publish(ctx, backup.BackupFailed{
@@ -1298,7 +1298,7 @@ func TestNotificationService_Batch_TimerFlushes(t *testing.T) {
 	_ = profileRepo.Create(ctx, &user.Profile{ID: "p1", UserID: "u1", Name: "Alice"})
 
 	svc := appnotification.NewCommandService(repo, settings, analyzer, profileRepo, bus)
-	svc.WithBatchDelay(50 * time.Millisecond)
+	appnotification.WithBatchDelay(50 * time.Millisecond)(svc)
 	svc.Register()
 
 	bus.Publish(ctx, libevent.MediaItemAdded{

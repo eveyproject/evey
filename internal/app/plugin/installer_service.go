@@ -34,48 +34,49 @@ type InstallerService struct {
 	installMu    sync.Mutex
 }
 
+type InstallerOption func(*InstallerService)
+
+func InstallerWithInstaller(installer plugin.PluginInstaller) InstallerOption {
+	return func(s *InstallerService) { s.installer = installer }
+}
+
+func InstallerWithAnalyzer(analyzer plugin.PluginAnalyzer) InstallerOption {
+	return func(s *InstallerService) { s.analyzer = analyzer }
+}
+
+func InstallerWithPermissionChecker(pc *PermissionChecker) InstallerOption {
+	return func(s *InstallerService) { s.permChecker = pc }
+}
+
+func InstallerWithPluginDir(dir string) InstallerOption {
+	return func(s *InstallerService) { s.pluginDir = dir }
+}
+
+func InstallerWithFileSystem(fs plugin.PluginFileSystem) InstallerOption {
+	return func(s *InstallerService) { s.fs = fs }
+}
+
+func InstallerWithCSSSanitizer(cs plugin.CSSSanitizer) InstallerOption {
+	return func(s *InstallerService) { s.cssSanitizer = cs }
+}
+
 func NewInstallerService(
 	plugins plugin.PluginRepository,
 	runner plugin.PluginRunner,
 	parser plugin.ManifestParser,
 	events shared.EventBus,
+	opts ...InstallerOption,
 ) *InstallerService {
-	return &InstallerService{
+	s := &InstallerService{
 		plugins:   plugins,
 		runner:    runner,
 		parser:    parser,
 		events:    events,
 		pluginDir: defaultPluginBaseDir,
 	}
-}
-
-func (s *InstallerService) WithInstaller(installer plugin.PluginInstaller) *InstallerService {
-	s.installer = installer
-	return s
-}
-
-func (s *InstallerService) WithAnalyzer(analyzer plugin.PluginAnalyzer) *InstallerService {
-	s.analyzer = analyzer
-	return s
-}
-
-func (s *InstallerService) WithPermissionChecker(pc *PermissionChecker) *InstallerService {
-	s.permChecker = pc
-	return s
-}
-
-func (s *InstallerService) WithPluginDir(dir string) *InstallerService {
-	s.pluginDir = dir
-	return s
-}
-
-func (s *InstallerService) WithFileSystem(fs plugin.PluginFileSystem) *InstallerService {
-	s.fs = fs
-	return s
-}
-
-func (s *InstallerService) WithCSSSanitizer(cs plugin.CSSSanitizer) *InstallerService {
-	s.cssSanitizer = cs
+	for _, opt := range opts {
+		opt(s)
+	}
 	return s
 }
 

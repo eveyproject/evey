@@ -28,11 +28,12 @@ func newTestInstallerService() (*appplugin.InstallerService, *plgfakes.FakePlugi
 
 	pluginFS := plgfakes.NewFakePluginFileSystem()
 
-	svc := appplugin.NewInstallerService(pluginRepo, runner, parser, bus).
-		WithInstaller(installer).
-		WithAnalyzer(analyzer).
-		WithPluginDir("/tmp/test-plugins").
-		WithFileSystem(pluginFS)
+	svc := appplugin.NewInstallerService(pluginRepo, runner, parser, bus,
+		appplugin.InstallerWithInstaller(installer),
+		appplugin.InstallerWithAnalyzer(analyzer),
+		appplugin.InstallerWithPluginDir("/tmp/test-plugins"),
+		appplugin.InstallerWithFileSystem(pluginFS),
+	)
 
 	return svc, pluginRepo, runner, parser, installer, analyzer
 }
@@ -190,7 +191,7 @@ func TestInstallPlugin_SetsInitializingStatus(t *testing.T) {
 func TestInstallPlugin_LoadsPermissions(t *testing.T) {
 	svc, pluginRepo, _, parser, _, _ := newTestInstallerService()
 	pc := appplugin.NewPermissionChecker(pluginRepo)
-	svc.WithPermissionChecker(pc)
+	appplugin.InstallerWithPermissionChecker(pc)(svc)
 
 	parser.Result = goManifest("perm-plugin")
 	parser.Result.Permissions = []string{"api.library", "api.media"}
@@ -399,7 +400,7 @@ func TestUninstallPlugin_StopsRunning(t *testing.T) {
 func TestUninstallPlugin_InvalidatesPermissions(t *testing.T) {
 	svc, pluginRepo, _, _, _, _ := newTestInstallerService()
 	pc := appplugin.NewPermissionChecker(pluginRepo)
-	svc.WithPermissionChecker(pc)
+	appplugin.InstallerWithPermissionChecker(pc)(svc)
 	ctx := context.Background()
 
 	require.NoError(t, pluginRepo.Create(ctx, &plugindomain.Plugin{
@@ -452,9 +453,10 @@ func TestUninstallPlugin_DeleteFails(t *testing.T) {
 	parser := plgfakes.NewFakeManifestParser()
 	bus := sharedfakes.NewFakeEventBus()
 	pluginFS := plgfakes.NewFakePluginFileSystem()
-	svc := appplugin.NewInstallerService(pluginRepo, runner, parser, bus).
-		WithPluginDir("/tmp/test-plugins").
-		WithFileSystem(pluginFS)
+	svc := appplugin.NewInstallerService(pluginRepo, runner, parser, bus,
+		appplugin.InstallerWithPluginDir("/tmp/test-plugins"),
+		appplugin.InstallerWithFileSystem(pluginFS),
+	)
 
 	ctx := context.Background()
 	require.NoError(t, pluginRepo.Create(ctx, &plugindomain.Plugin{

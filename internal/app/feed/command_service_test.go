@@ -148,7 +148,7 @@ func TestCommandService_WithEventBus_LibraryCreated(t *testing.T) {
 	queryRepo := fakes.NewFakeConfigQueryRepo()
 	bus := sharedfakes.NewFakeEventBus()
 	svc := appfeed.NewCommandService(cmdRepo, queryRepo)
-	svc.WithEventBus(bus)
+	appfeed.CommandWithEventBus(bus)(svc)
 
 	require.NoError(t, bus.Publish(context.Background(), library.LibraryCreated{
 		LibraryID: "lib-new",
@@ -166,7 +166,7 @@ func TestCommandService_WithEventBus_LibraryDeleted(t *testing.T) {
 	queryRepo := fakes.NewFakeConfigQueryRepo()
 	bus := sharedfakes.NewFakeEventBus()
 	svc := appfeed.NewCommandService(cmdRepo, queryRepo)
-	svc.WithEventBus(bus)
+	appfeed.CommandWithEventBus(bus)(svc)
 
 	ft := feed.LibraryType("lib-del")
 	cmdRepo.AdminConfigs[ft] = &feed.AdminConfig{FeedType: ft, Enabled: true}
@@ -183,7 +183,7 @@ func TestCommandService_WithEventBus_WrongEventTypeIgnored(t *testing.T) {
 	queryRepo := fakes.NewFakeConfigQueryRepo()
 	bus := sharedfakes.NewFakeEventBus()
 	svc := appfeed.NewCommandService(cmdRepo, queryRepo)
-	svc.WithEventBus(bus)
+	appfeed.CommandWithEventBus(bus)(svc)
 
 	_ = bus.Publish(context.Background(), library.LibraryDeleted{LibraryID: "x"})
 	// no panic = success; deleted handler runs on "library.deleted" not "library.created"

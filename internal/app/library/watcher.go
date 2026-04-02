@@ -32,13 +32,20 @@ type WatcherService struct {
 	ctx           context.Context
 }
 
+type WatcherOption func(*WatcherService)
+
+func WatcherWithEventBus(bus shared.EventBus) WatcherOption {
+	return func(ws *WatcherService) { ws.bus = bus }
+}
+
 func NewWatcherService(
 	watcher library.FileWatcher,
 	libraries library.LibraryRepository,
 	scanner LibraryScanner,
 	log *slog.Logger,
+	opts ...WatcherOption,
 ) *WatcherService {
-	return &WatcherService{
+	ws := &WatcherService{
 		watcher:    watcher,
 		libraries:  libraries,
 		scanner:    scanner,
@@ -46,10 +53,9 @@ func NewWatcherService(
 		pathToLib:  make(map[string]string),
 		failedLibs: make(map[string]bool),
 	}
-}
-
-func (ws *WatcherService) WithEventBus(bus shared.EventBus) *WatcherService {
-	ws.bus = bus
+	for _, opt := range opts {
+		opt(ws)
+	}
 	return ws
 }
 

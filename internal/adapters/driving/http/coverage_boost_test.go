@@ -790,7 +790,7 @@ func newTranscodeCacheMux(t *testing.T) (*http.ServeMux, string, string) {
 	bus := sharedfakes.NewFakeEventBus()
 	cache := transcodingfakes.NewFakeCacheStore()
 	svc := apptranscoding.NewService(transcoder, hw, jobRepo, profileRepo, bus, 0)
-	svc.WithCacheStore(cache)
+	apptranscoding.WithCacheStore(cache)(svc)
 	mux := http.NewServeMux()
 	registerTranscodeCacheRoutes(mux, svc, gen, &fakeMediaItemGetter{}, nil)
 	return mux, adminTok, userTok

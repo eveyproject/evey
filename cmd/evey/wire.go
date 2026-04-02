@@ -153,20 +153,19 @@ func buildServices(ctx context.Context, cfg *config.Config, db *sql.DB, rootLog 
 		r.Library, r.Library, r.MediaItem,
 		r.MediaStream, r.Person, r.MediaPerson,
 		scanner, prober, searchAdapter, bus,
+		r.Chapter, ebmlReader,
+		r.Trickplay, trickplayGen, cfg.Transcoding.TrickplayCacheDir, r.ServerCfg,
+		applibrary.WithShutdownCtx(ctx),
 	)
-	libCmdSvc.WithChapters(r.Chapter, ebmlReader)
 	libCmdSvc.WithSubtitleScanner(subScanner)
-	libCmdSvc.WithTrickplay(r.Trickplay, trickplayGen, cfg.Transcoding.TrickplayCacheDir, r.ServerCfg)
-	if err := libCmdSvc.Validate(); err != nil {
-		return nil, fmt.Errorf("library command service: %w", err)
-	}
 	mediaItemCache := applibrary.NewCachedMediaItemQueryRepo(r.MediaItemQuery, 30*time.Second)
 	mediaItemCache.Register(bus)
 	personFetcher := metadataadapter.NewTMDBPersonFetcher(tmdbProvider)
-	libQuerySvc := applibrary.NewQueryService(r.Library, mediaItemCache, r.MediaStream, searchAdapter).
-		WithPeople(r.Person).
-		WithPersonFetcher(personFetcher).
-		WithTranslations(r.MediaItemTranslation, r.PersonTranslation, personFetcher, eveyi18n.SupportedLocales())
+	libQuerySvc := applibrary.NewQueryService(r.Library, mediaItemCache, r.MediaStream, searchAdapter,
+		applibrary.WithPeople(r.Person),
+		applibrary.WithPersonFetcher(personFetcher),
+		applibrary.WithTranslations(r.MediaItemTranslation, r.PersonTranslation, personFetcher, eveyi18n.SupportedLocales()),
+	)
 
 	schedulerLog := eveylogger.NewWith(rootLog, "scheduler")
 	libScheduler := applibrary.NewScheduler(r.ScanSchedule, libCmdSvc, schedulerLog)
@@ -179,7 +178,7 @@ func buildServices(ctx context.Context, cfg *config.Config, db *sql.DB, rootLog 
 	)
 	userAuthSvc.InitSetupState(ctx)
 	userSvc := appuser.NewUserService(r.User, r.Profile, r.RefreshToken, hasher, bus)
-	userAccessSvc := appuser.NewAccessService(r.User, r.APIKey, r.InviteLink, r.QuickConnect, hasher, bus).WithProfiles(r.Profile)
+	userAccessSvc := appuser.NewAccessService(r.User, r.APIKey, r.InviteLink, r.QuickConnect, hasher, bus, appuser.WithProfiles(r.Profile))
 	userQuerySvc := appuser.NewQueryService(r.User, r.Profile, r.APIKey, r.InviteLink, r.QuickConnect)
 
 	var oidcSvc *appuser.OIDCService
@@ -201,43 +200,47 @@ func buildServices(ctx context.Context, cfg *config.Config, db *sql.DB, rootLog 
 	transcodingSvc := apptranscoding.NewService(
 		transcoder, hwDetector, r.TranscodeJob, r.TranscodeProfile,
 		bus, cfg.Transcoding.MaxConcurrent,
+		apptranscoding.WithCacheStore(filesystem.NewCacheStore(cfg.Transcoding.CacheDir)),
 	)
-	transcodingSvc.WithCacheStore(filesystem.NewCacheStore(cfg.Transcoding.CacheDir))
 
 	mkvSvc := appmkv.NewService(ebmlReader, ebmlWriter)
 	collectionSvc := appcollection.NewService(r.Collection, r.Collection, postgres.NewCollectionSmartQuerier(db), r.MediaItem)
 
 	metaProviders := []metadata.MetadataProvider{tmdbProvider, omdbProvider, tvmazeProvider, imdbProvider}
-	metadataCmdSvc := appmetadata.NewCommandService(r.MetadataOverride, r.Artwork, artworkDownloader, bus, metaProviders)
 	metadataQuerySvc := appmetadata.NewQueryService(r.MetadataOverride, r.Artwork, metaProviders)
 	enricher := appmetadata.NewEnricher(
 		r.Artwork, r.Person, r.MediaPerson, r.MediaItem, searchAdapter,
 		tmdbProvider,
 		[]metadata.MetadataProvider{omdbProvider, tvmazeProvider, imdbProvider},
 		collectionSvc,
+		appmetadata.EnricherWithTranslations(r.MediaItemTranslation, r.PersonTranslation, eveyi18n.SupportedLocales()),
+		appmetadata.EnricherWithPersonFetcher(personFetcher),
 	)
-	enricher.WithTranslations(r.MediaItemTranslation, r.PersonTranslation, eveyi18n.SupportedLocales())
-	enricher.WithPersonFetcher(personFetcher)
-	metadataCmdSvc.WithEnricher(enricher, r.MediaItem)
-	metadataCmdSvc.WithMediaPersons(r.MediaPerson)
+	metadataCmdSvc := appmetadata.NewCommandService(r.MetadataOverride, r.Artwork, artworkDownloader, bus, metaProviders,
+		appmetadata.WithEnricher(enricher, r.MediaItem),
+		appmetadata.WithMediaPersons(r.MediaPerson),
+	)
 
 	activityCmdSvc := appactivity.NewCommandService(r.LoginHistory, r.ServerMetric, r.AuditLog, bus)
-	activityQuerySvc := appactivity.NewQueryService(r.LoginHistory, r.ServerMetric, r.AuditLog, r.PlaySessionStats, r.PlayHistory).
-		WithAnalyticsReader(postgres.NewAnalyticsReader(db))
+	activityQuerySvc := appactivity.NewQueryService(r.LoginHistory, r.ServerMetric, r.AuditLog, r.PlaySessionStats, r.PlayHistory,
+		appactivity.WithAnalyticsReader(postgres.NewAnalyticsReader(db)),
+	)
 
 	permChecker := appplugin.NewPermissionChecker(r.Plugin)
 
 	pluginFS := filesystem.NewPluginFileSystem()
 	cssSanitizer := pluginrunner.NewCSSSanitizer()
-	pluginInstallerSvc := appplugin.NewInstallerService(r.Plugin, pluginRunner, manifestParser, bus).
-		WithInstaller(pluginInstaller).
-		WithAnalyzer(pluginAnalyzer).
-		WithPermissionChecker(permChecker).
-		WithFileSystem(pluginFS).
-		WithCSSSanitizer(cssSanitizer)
-	pluginRuntimeSvc := appplugin.NewRuntimeService(r.Plugin, r.PluginRuntime, pluginRunner, manifestParser, bus).
-		WithPermissionChecker(permChecker).
-		WithShutdownCtx(ctx)
+	pluginInstallerSvc := appplugin.NewInstallerService(r.Plugin, pluginRunner, manifestParser, bus,
+		appplugin.InstallerWithInstaller(pluginInstaller),
+		appplugin.InstallerWithAnalyzer(pluginAnalyzer),
+		appplugin.InstallerWithPermissionChecker(permChecker),
+		appplugin.InstallerWithFileSystem(pluginFS),
+		appplugin.InstallerWithCSSSanitizer(cssSanitizer),
+	)
+	pluginRuntimeSvc := appplugin.NewRuntimeService(r.Plugin, r.PluginRuntime, pluginRunner, manifestParser, bus,
+		appplugin.RuntimeWithPermissionChecker(permChecker),
+		appplugin.RuntimeWithShutdownCtx(ctx),
+	)
 	pluginRunner.WithIPCCallback(pluginRuntimeSvc.HandleIPCResult)
 	pluginQuerySvc := appplugin.NewQueryService(r.Plugin, r.PluginRuntime)
 
@@ -247,8 +250,6 @@ func buildServices(ctx context.Context, cfg *config.Config, db *sql.DB, rootLog 
 
 	// --- Filesystem watcher ---
 	startWatcher(ctx, cfg, bus, r.Library, libCmdSvc, rootLog)
-
-	libCmdSvc.WithShutdownCtx(ctx)
 
 	// --- Background workers ---
 	// Always run periodic scan for all libraries as a safety net.
@@ -320,16 +321,16 @@ func buildServices(ctx context.Context, cfg *config.Config, db *sql.DB, rootLog 
 	webhookSender := webhooksender.New()
 	webhookSvc := appwebhook.NewService(r.Webhook, r.WebhookDelivery, webhookSender, webhookLog, bus)
 
-	notifCmdSvc := appnotification.NewCommandService(r.Notification, r.NotificationSettings, r.WatchHistoryAnalyzer, r.Profile, bus)
-	notifCmdSvc.Register()
-	notifQuerySvc := appnotification.NewQueryService(r.Notification, r.NotificationSettings)
-
+	var notifOpts []appnotification.Option
 	vapidPub, vapidPriv := resolveVAPIDKeys(ctx, r.ServerCfg, cfg)
 	if vapidPub != "" && vapidPriv != "" {
 		wpSender := webpushadapter.NewSender(vapidPub, vapidPriv, cfg.VAPID.Subject)
-		notifCmdSvc.WithPush(wpSender, r.PushSubscription)
+		notifOpts = append(notifOpts, appnotification.WithPush(wpSender, r.PushSubscription))
 		rootLog.Info("Web Push (VAPID) notifications enabled")
 	}
+	notifCmdSvc := appnotification.NewCommandService(r.Notification, r.NotificationSettings, r.WatchHistoryAnalyzer, r.Profile, bus, notifOpts...)
+	notifCmdSvc.Register()
+	notifQuerySvc := appnotification.NewQueryService(r.Notification, r.NotificationSettings)
 
 	smtpConfigured := cfg.SMTP.Host != ""
 	if smtpConfigured {
@@ -338,10 +339,10 @@ func buildServices(ctx context.Context, cfg *config.Config, db *sql.DB, rootLog 
 		email.NewPasswordResetEmailer(smtpSender, cfg.Server.BaseURL).Register(bus)
 		rootLog.Info("SMTP email notifications enabled", slog.String("host", cfg.SMTP.Host))
 	}
-	userAuthSvc.WithPasswordReset(r.PasswordResetToken, r.ServerCfg, smtpConfigured)
+	appuser.WithPasswordReset(r.PasswordResetToken, r.ServerCfg, smtpConfigured)(userAuthSvc)
 
-	feedCmdSvc := appfeed.NewCommandService(r.FeedConfigCmd, r.FeedConfigQuery).WithEventBus(bus)
-	cachedAnalyzer := appfeed.NewCachedAnalyzer(r.WatchHistoryAnalyzer, 5*time.Minute).WithEventBus(bus)
+	feedCmdSvc := appfeed.NewCommandService(r.FeedConfigCmd, r.FeedConfigQuery, appfeed.CommandWithEventBus(bus))
+	cachedAnalyzer := appfeed.NewCachedAnalyzer(r.WatchHistoryAnalyzer, 5*time.Minute, appfeed.CacheWithEventBus(bus))
 	feedQuerySvc := appfeed.NewQueryService(r.FeedConfigQuery, r.FeedQuerier, cachedAnalyzer)
 
 	// Ensure all existing libraries have feed configs (covers libs created before event system)
@@ -372,7 +373,7 @@ func buildServices(ctx context.Context, cfg *config.Config, db *sql.DB, rootLog 
 	// --- Backup service ---
 	backupSvc := appbackup.NewService(filesystem.NewBackupStore(cfg.Backup.Dir),
 		postgres.NewDatabaseDumper(cfg.DB.Host, cfg.DB.Port, cfg.DB.User, cfg.DB.Password, cfg.DB.DBName, cfg.DB.SSLMode),
-		version).WithEventBus(bus)
+		version, appbackup.WithEventBus(bus))
 
 	syncPlayHub := appsyncplay.NewHub(postgres.NewSyncPlayRoomRepo(db))
 	streamTokenStore := appmedia.NewStreamTokenStore(appmedia.DefaultStreamTokenTTL)
@@ -460,8 +461,9 @@ func startWatcher(ctx context.Context, cfg *config.Config, bus shared.EventBus, 
 		rootLog.Warn("filesystem watcher init failed, realtime monitoring disabled", slog.Any("err", err))
 		return nil
 	}
-	watcherSvc := applibrary.NewWatcherService(fsWatcher, libraryRepo, libCmdSvc, eveylogger.NewWith(rootLog, "watcher")).
-		WithEventBus(bus)
+	watcherSvc := applibrary.NewWatcherService(fsWatcher, libraryRepo, libCmdSvc, eveylogger.NewWith(rootLog, "watcher"),
+		applibrary.WatcherWithEventBus(bus),
+	)
 	if err := watcherSvc.Start(ctx); err != nil {
 		rootLog.Warn("watcher start failed", slog.Any("err", err))
 		return nil

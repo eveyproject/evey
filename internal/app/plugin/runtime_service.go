@@ -21,14 +21,29 @@ type RuntimeService struct {
 	shutdownCtx context.Context
 }
 
+type RuntimeOption func(*RuntimeService)
+
+func RuntimeWithPermissionChecker(pc *PermissionChecker) RuntimeOption {
+	return func(s *RuntimeService) { s.permChecker = pc }
+}
+
+func RuntimeWithPluginDir(dir string) RuntimeOption {
+	return func(s *RuntimeService) { s.pluginDir = dir }
+}
+
+func RuntimeWithShutdownCtx(ctx context.Context) RuntimeOption {
+	return func(s *RuntimeService) { s.shutdownCtx = ctx }
+}
+
 func NewRuntimeService(
 	plugins plugin.PluginRepository,
 	runtimes plugin.PluginRuntimeRepository,
 	runner plugin.PluginRunner,
 	parser plugin.ManifestParser,
 	events shared.EventBus,
+	opts ...RuntimeOption,
 ) *RuntimeService {
-	return &RuntimeService{
+	s := &RuntimeService{
 		plugins:   plugins,
 		runtimes:  runtimes,
 		runner:    runner,
@@ -36,20 +51,9 @@ func NewRuntimeService(
 		events:    events,
 		pluginDir: defaultPluginBaseDir,
 	}
-}
-
-func (s *RuntimeService) WithPermissionChecker(pc *PermissionChecker) *RuntimeService {
-	s.permChecker = pc
-	return s
-}
-
-func (s *RuntimeService) WithPluginDir(dir string) *RuntimeService {
-	s.pluginDir = dir
-	return s
-}
-
-func (s *RuntimeService) WithShutdownCtx(ctx context.Context) *RuntimeService {
-	s.shutdownCtx = ctx
+	for _, opt := range opts {
+		opt(s)
+	}
 	return s
 }
 

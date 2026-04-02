@@ -19,8 +19,9 @@ func newTestRuntimeService() (*appplugin.RuntimeService, *plgfakes.FakePluginRep
 	parser := plgfakes.NewFakeManifestParser()
 	bus := sharedfakes.NewFakeEventBus()
 
-	svc := appplugin.NewRuntimeService(pluginRepo, plgfakes.NewFakePluginRuntimeRepository(), runner, parser, bus).
-		WithPluginDir("/tmp/test-plugins")
+	svc := appplugin.NewRuntimeService(pluginRepo, plgfakes.NewFakePluginRuntimeRepository(), runner, parser, bus,
+		appplugin.RuntimeWithPluginDir("/tmp/test-plugins"),
+	)
 
 	return svc, pluginRepo, runner, parser
 }
@@ -81,7 +82,7 @@ func TestStartPlugin_Failure_SetsErrorStatus(t *testing.T) {
 func TestStartPlugin_LoadsPermissions(t *testing.T) {
 	svc, pluginRepo, _, _ := newTestRuntimeService()
 	pc := appplugin.NewPermissionChecker(pluginRepo)
-	svc.WithPermissionChecker(pc)
+	appplugin.RuntimeWithPermissionChecker(pc)(svc)
 	ctx := context.Background()
 
 	require.NoError(t, pluginRepo.Create(ctx, &plugindomain.Plugin{
@@ -117,7 +118,7 @@ func TestStopPlugin_NotRunning(t *testing.T) {
 func TestStopPlugin_InvalidatesPermissions(t *testing.T) {
 	svc, pluginRepo, _, _ := newTestRuntimeService()
 	pc := appplugin.NewPermissionChecker(pluginRepo)
-	svc.WithPermissionChecker(pc)
+	appplugin.RuntimeWithPermissionChecker(pc)(svc)
 	ctx := context.Background()
 
 	require.NoError(t, pluginRepo.Create(ctx, &plugindomain.Plugin{
@@ -293,8 +294,9 @@ func TestAutoStartPlugins_RebuildsMissingFields(t *testing.T) {
 	runner := plgfakes.NewFakePluginRunner()
 	parser := plgfakes.NewFakeManifestParser()
 	bus := sharedfakes.NewFakeEventBus()
-	svc := appplugin.NewRuntimeService(pluginRepo, plgfakes.NewFakePluginRuntimeRepository(), runner, parser, bus).
-		WithPluginDir("/tmp/test-plugins")
+	svc := appplugin.NewRuntimeService(pluginRepo, plgfakes.NewFakePluginRuntimeRepository(), runner, parser, bus,
+		appplugin.RuntimeWithPluginDir("/tmp/test-plugins"),
+	)
 
 	parser.Result = &plugindomain.PluginManifest{
 		Name:       "rebuild",
@@ -321,8 +323,9 @@ func TestAutoStartPlugins_StartFails_SetsErrorStatus(t *testing.T) {
 	runner := plgfakes.NewFakePluginRunner()
 	parser := plgfakes.NewFakeManifestParser()
 	bus := sharedfakes.NewFakeEventBus()
-	svc := appplugin.NewRuntimeService(pluginRepo, plgfakes.NewFakePluginRuntimeRepository(), runner, parser, bus).
-		WithPluginDir("/tmp/test-plugins")
+	svc := appplugin.NewRuntimeService(pluginRepo, plgfakes.NewFakePluginRuntimeRepository(), runner, parser, bus,
+		appplugin.RuntimeWithPluginDir("/tmp/test-plugins"),
+	)
 
 	ctx := context.Background()
 	require.NoError(t, pluginRepo.Create(ctx, &plugindomain.Plugin{
@@ -366,8 +369,9 @@ func TestAutoStartPlugins_LoadsPermissions(t *testing.T) {
 	parser := plgfakes.NewFakeManifestParser()
 	bus := sharedfakes.NewFakeEventBus()
 	pc := appplugin.NewPermissionChecker(pluginRepo)
-	svc := appplugin.NewRuntimeService(pluginRepo, plgfakes.NewFakePluginRuntimeRepository(), runner, parser, bus).
-		WithPermissionChecker(pc)
+	svc := appplugin.NewRuntimeService(pluginRepo, plgfakes.NewFakePluginRuntimeRepository(), runner, parser, bus,
+		appplugin.RuntimeWithPermissionChecker(pc),
+	)
 
 	ctx := context.Background()
 	require.NoError(t, pluginRepo.Create(ctx, &plugindomain.Plugin{
