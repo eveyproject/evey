@@ -51,7 +51,7 @@ func (r *ShareLinkRepo) ListByUser(ctx context.Context, userID string) ([]*share
 func (r *ShareLinkRepo) ListAll(ctx context.Context) ([]*shared.ShareLink, error) {
 	rows, err := r.db.QueryContext(ctx,
 		`SELECT id, token, media_item_id, created_by, expires_at, max_views, view_count, created_at
-		 FROM share_links ORDER BY created_at DESC`)
+		 FROM share_links ORDER BY created_at DESC LIMIT 1000`)
 	if err != nil {
 		return nil, fmt.Errorf("list all share links: %w", err)
 	}

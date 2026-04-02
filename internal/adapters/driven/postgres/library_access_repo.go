@@ -65,7 +65,7 @@ func (r *LibraryAccessRepository) HasAccess(ctx context.Context, userID, library
 
 func (r *LibraryAccessRepository) ListUsersWithRestrictions(ctx context.Context) (map[string][]string, error) {
 	rows, err := r.db.QueryContext(ctx,
-		`SELECT user_id, library_id FROM library_access ORDER BY user_id, granted_at`)
+		`SELECT user_id, library_id FROM library_access ORDER BY user_id, granted_at LIMIT 1000`)
 	if err != nil {
 		return nil, err
 	}

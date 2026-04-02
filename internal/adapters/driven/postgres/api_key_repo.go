@@ -50,7 +50,7 @@ func (r *APIKeyRepository) GetByKeyHash(ctx context.Context, hash string) (*user
 func (r *APIKeyRepository) ListByUserID(ctx context.Context, userID string) ([]*user.APIKeyModel, error) {
 	rows, err := r.db.QueryContext(ctx,
 		`SELECT id, user_id, key_hash, name, permissions, last_used_at, expires_at, created_at
-		 FROM api_keys WHERE user_id = $1 ORDER BY created_at`, userID)
+		 FROM api_keys WHERE user_id = $1 ORDER BY created_at LIMIT 100`, userID)
 	if err != nil {
 		return nil, err
 	}

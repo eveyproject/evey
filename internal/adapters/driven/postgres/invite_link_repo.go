@@ -39,7 +39,7 @@ func (r *InviteLinkRepository) GetByToken(ctx context.Context, token string) (*u
 func (r *InviteLinkRepository) ListByCreator(ctx context.Context, creatorID string) ([]*user.InviteLink, error) {
 	rows, err := r.db.QueryContext(ctx,
 		`SELECT id, created_by, token, label, max_uses, used_count, is_admin, expires_at, created_at
-		 FROM invite_links WHERE created_by = $1 ORDER BY created_at`, creatorID)
+		 FROM invite_links WHERE created_by = $1 ORDER BY created_at LIMIT 500`, creatorID)
 	if err != nil {
 		return nil, err
 	}

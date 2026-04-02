@@ -113,16 +113,11 @@ func (r *WebhookDeliveryRepository) Create(ctx context.Context, d *webhook.Deliv
 
 func (r *WebhookDeliveryRepository) ListByWebhook(ctx context.Context, webhookID string, limit int) ([]*webhook.Delivery, error) {
 	q := `SELECT id, webhook_id, event, status_code, error, sent_at FROM webhook_deliveries WHERE webhook_id = $1 ORDER BY sent_at DESC`
-	if limit > 0 {
-		q += ` LIMIT $2`
-		rows, err := r.db.QueryContext(ctx, q, webhookID, limit)
-		if err != nil {
-			return nil, err
-		}
-		defer rows.Close()
-		return scanDeliveries(rows)
+	if limit <= 0 {
+		limit = 1000
 	}
-	rows, err := r.db.QueryContext(ctx, q, webhookID)
+	q += ` LIMIT $2`
+	rows, err := r.db.QueryContext(ctx, q, webhookID, limit)
 	if err != nil {
 		return nil, err
 	}
