@@ -112,12 +112,12 @@ func (s *ScanService) ScanLibrary(ctx context.Context, libraryID string) (added,
 
 	idx, err := s.loadScanIndex(ctx, libraryID)
 	if err != nil {
-		return 0, 0, err
+		return 0, 0, fmt.Errorf("ScanService.ScanLibrary: %w", err)
 	}
 
 	seenPaths, toProcess, tvAdded, tvUpdated, err := s.scanDirectories(ctx, lib, idx)
 	if err != nil {
-		return 0, 0, err
+		return 0, 0, fmt.Errorf("ScanService.ScanLibrary: %w", err)
 	}
 	added += tvAdded
 	updated += tvUpdated

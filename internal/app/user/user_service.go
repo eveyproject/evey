@@ -53,7 +53,7 @@ func (s *UserService) CreateUser(ctx context.Context, callerIsAdmin bool, u *use
 	u.CreatedAt = time.Now()
 	u.UpdatedAt = time.Now()
 	if err := s.users.Create(ctx, u); err != nil {
-		return err
+		return fmt.Errorf("UserService.CreateUser: %w", err)
 	}
 	evtUserCreated := user.UserCreated{UserID: u.ID, Username: u.Username, IsAdmin: u.IsAdmin, OccurredAt: time.Now()}
 	if err := s.events.Publish(ctx, evtUserCreated); err != nil {
@@ -80,17 +80,23 @@ func (s *UserService) CreateUser(ctx context.Context, callerIsAdmin bool, u *use
 
 func (s *UserService) UpdateUser(ctx context.Context, u *user.User) error {
 	u.UpdatedAt = time.Now()
-	return s.users.Update(ctx, u)
+	if err := s.users.Update(ctx, u); err != nil {
+		return fmt.Errorf("UserService.UpdateUser: %w", err)
+	}
+	return nil
 }
 
 func (s *UserService) SetUserBitrateLimit(ctx context.Context, userID string, maxBitrateKbps int) error {
 	u, err := s.users.GetByID(ctx, userID)
 	if err != nil {
-		return err
+		return fmt.Errorf("UserService.SetUserBitrateLimit: %w", err)
 	}
 	u.MaxBitrateKbps = maxBitrateKbps
 	u.UpdatedAt = time.Now()
-	return s.users.Update(ctx, u)
+	if err := s.users.Update(ctx, u); err != nil {
+		return fmt.Errorf("UserService.SetUserBitrateLimit: %w", err)
+	}
+	return nil
 }
 
 func (s *UserService) ChangePassword(ctx context.Context, userID, newPassword string) error {
@@ -99,7 +105,7 @@ func (s *UserService) ChangePassword(ctx context.Context, userID, newPassword st
 	}
 	u, err := s.users.GetByID(ctx, userID)
 	if err != nil {
-		return err
+		return fmt.Errorf("UserService.ChangePassword: %w", err)
 	}
 	hash, err := s.hasher.Hash(newPassword)
 	if err != nil {
@@ -108,7 +114,7 @@ func (s *UserService) ChangePassword(ctx context.Context, userID, newPassword st
 	u.PasswordHash = hash
 	u.UpdatedAt = time.Now()
 	if err := s.users.Update(ctx, u); err != nil {
-		return err
+		return fmt.Errorf("UserService.ChangePassword: %w", err)
 	}
 	evt := user.PasswordChanged{UserID: userID, OccurredAt: time.Now()}
 	if err := s.events.Publish(ctx, evt); err != nil {
@@ -120,7 +126,7 @@ func (s *UserService) ChangePassword(ctx context.Context, userID, newPassword st
 func (s *UserService) DeleteUser(ctx context.Context, userID string) error {
 	u, err := s.users.GetByID(ctx, userID)
 	if err != nil {
-		return err
+		return fmt.Errorf("UserService.DeleteUser: %w", err)
 	}
 	if u.IsAdmin {
 		count, err := s.users.CountAdmins(ctx)
@@ -132,7 +138,7 @@ func (s *UserService) DeleteUser(ctx context.Context, userID string) error {
 		}
 	}
 	if err := s.users.Delete(ctx, userID); err != nil {
-		return err
+		return fmt.Errorf("UserService.DeleteUser: %w", err)
 	}
 	if err := s.refreshTkns.DeleteByUserID(ctx, userID); err != nil {
 		slog.Warn("delete refresh tokens for deleted user failed", slog.String("userID", userID), slog.Any("err", err))
@@ -147,7 +153,7 @@ func (s *UserService) DeleteUser(ctx context.Context, userID string) error {
 func (s *UserService) DisableUser(ctx context.Context, userID string) error {
 	u, err := s.users.GetByID(ctx, userID)
 	if err != nil {
-		return err
+		return fmt.Errorf("UserService.DisableUser: %w", err)
 	}
 	if u.IsAdmin {
 		count, err := s.users.CountAdmins(ctx)
@@ -161,7 +167,7 @@ func (s *UserService) DisableUser(ctx context.Context, userID string) error {
 	u.Enabled = false
 	u.UpdatedAt = time.Now()
 	if err := s.users.Update(ctx, u); err != nil {
-		return err
+		return fmt.Errorf("UserService.DisableUser: %w", err)
 	}
 	if err := s.refreshTkns.DeleteByUserID(ctx, userID); err != nil {
 		slog.Warn("delete refresh tokens for disabled user failed", slog.String("userID", userID), slog.Any("err", err))
@@ -179,7 +185,7 @@ func (s *UserService) CreateProfile(ctx context.Context, p *user.Profile) error 
 	}
 	p.CreatedAt = time.Now()
 	if err := s.profiles.Create(ctx, p); err != nil {
-		return err
+		return fmt.Errorf("UserService.CreateProfile: %w", err)
 	}
 	evtProfileCreated := user.ProfileCreated{ProfileID: p.ID, UserID: p.UserID, Name: p.Name, OccurredAt: time.Now()}
 	if err := s.events.Publish(ctx, evtProfileCreated); err != nil {
@@ -189,16 +195,19 @@ func (s *UserService) CreateProfile(ctx context.Context, p *user.Profile) error 
 }
 
 func (s *UserService) UpdateProfile(ctx context.Context, p *user.Profile) error {
-	return s.profiles.Update(ctx, p)
+	if err := s.profiles.Update(ctx, p); err != nil {
+		return fmt.Errorf("UserService.UpdateProfile: %w", err)
+	}
+	return nil
 }
 
 func (s *UserService) DeleteProfile(ctx context.Context, profileID string) error {
 	p, err := s.profiles.GetByID(ctx, profileID)
 	if err != nil {
-		return err
+		return fmt.Errorf("UserService.DeleteProfile: %w", err)
 	}
 	if err := s.profiles.Delete(ctx, profileID); err != nil {
-		return err
+		return fmt.Errorf("UserService.DeleteProfile: %w", err)
 	}
 	evt := user.ProfileDeleted{ProfileID: profileID, UserID: p.UserID, OccurredAt: time.Now()}
 	if err := s.events.Publish(ctx, evt); err != nil {

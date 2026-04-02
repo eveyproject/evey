@@ -523,8 +523,8 @@ func TestWithEventBus_PublishesBackupFailedOnScheduledError(t *testing.T) {
 	if !ok {
 		t.Fatalf("expected BackupFailed event, got %T", bus.events[0])
 	}
-	if bf.Error != "db unreachable" {
-		t.Fatalf("expected error 'db unreachable', got %q", bf.Error)
+	if !strings.Contains(bf.Error, "db unreachable") {
+		t.Fatalf("expected error containing 'db unreachable', got %q", bf.Error)
 	}
 	if bf.EventName() != "backup.failed" {
 		t.Fatalf("expected event name 'backup.failed', got %q", bf.EventName())

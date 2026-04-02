@@ -2,6 +2,7 @@ package user
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/gravity-zero/evey/internal/domain/user"
 )
@@ -57,7 +58,7 @@ func (s *QueryService) ListAPIKeys(ctx context.Context, userID string) ([]*user.
 func (s *QueryService) GetUserBitrateLimit(ctx context.Context, userID string) (int, error) {
 	u, err := s.users.GetByID(ctx, userID)
 	if err != nil {
-		return 0, err
+		return 0, fmt.Errorf("QueryService.GetUserBitrateLimit: %w", err)
 	}
 	return u.MaxBitrateKbps, nil
 }

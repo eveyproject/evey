@@ -72,7 +72,7 @@ func NewService(store backup.BackupStore, dumper backup.DatabaseDumper, version 
 func (s *Service) CreateBackup(ctx context.Context) (*backup.BackupManifest, error) {
 	data, err := s.dumper.DumpTables(ctx, BackupTables)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("Service.CreateBackup: %w", err)
 	}
 
 	tmp, err := os.CreateTemp("", "evey-backup-*.sql")
@@ -87,7 +87,7 @@ func (s *Service) CreateBackup(ctx context.Context) (*backup.BackupManifest, err
 		return nil, fmt.Errorf("stream dump to temp: %w", err)
 	}
 	if _, err := tmp.Seek(0, io.SeekStart); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("Service.CreateBackup: %w", err)
 	}
 
 	m := &backup.BackupManifest{
@@ -99,7 +99,7 @@ func (s *Service) CreateBackup(ctx context.Context) (*backup.BackupManifest, err
 	}
 
 	if err := s.store.Create(ctx, m, tmp); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("Service.CreateBackup: %w", err)
 	}
 	return m, nil
 }
@@ -186,7 +186,7 @@ func (s *Service) CleanupOldBackups(ctx context.Context, retentionDays int) erro
 	}
 	list, err := s.store.List(ctx)
 	if err != nil {
-		return err
+		return fmt.Errorf("Service.CleanupOldBackups: %w", err)
 	}
 	cutoff := time.Now().UTC().AddDate(0, 0, -retentionDays)
 	for _, m := range list {

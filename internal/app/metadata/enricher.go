@@ -97,10 +97,10 @@ func (e *Enricher) EnrichItem(ctx context.Context, item *domainlib.MediaItem, re
 		return fmt.Errorf("update media item: %w", err)
 	}
 	if err := e.replaceArtwork(ctx, item.ID, result.Artwork); err != nil {
-		return err
+		return fmt.Errorf("Enricher.EnrichItem: %w", err)
 	}
 	if err := e.upsertPeople(ctx, item.ID, result.People); err != nil {
-		return err
+		return fmt.Errorf("Enricher.EnrichItem: %w", err)
 	}
 	e.indexSearch(ctx, item, result.People)
 	e.linkCollection(ctx, item.ID, result.Collection)
@@ -202,7 +202,7 @@ func (e *Enricher) upsertPeople(ctx context.Context, mediaItemID string, people 
 
 		person, err := e.findOrCreatePerson(ctx, p)
 		if err != nil {
-			return err
+			return fmt.Errorf("Enricher.upsertPeople: %w", err)
 		}
 
 		var charName *string

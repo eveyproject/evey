@@ -55,11 +55,17 @@ func (s *AccessService) CreateInviteLink(ctx context.Context, link *user.InviteL
 		return fmt.Errorf("invalid invite link: %w", err)
 	}
 	link.CreatedAt = time.Now()
-	return s.invites.Create(ctx, link)
+	if err := s.invites.Create(ctx, link); err != nil {
+		return fmt.Errorf("AccessService.CreateInviteLink: %w", err)
+	}
+	return nil
 }
 
 func (s *AccessService) RevokeInviteLink(ctx context.Context, inviteID string) error {
-	return s.invites.Delete(ctx, inviteID)
+	if err := s.invites.Delete(ctx, inviteID); err != nil {
+		return fmt.Errorf("AccessService.RevokeInviteLink: %w", err)
+	}
+	return nil
 }
 
 func (s *AccessService) RegisterWithInvite(ctx context.Context, token, username, password, email string) (*user.User, error) {
@@ -76,7 +82,7 @@ func (s *AccessService) RegisterWithInvite(ctx context.Context, token, username,
 
 	hash, err := s.hasher.Hash(password)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("AccessService.RegisterWithInvite: %w", err)
 	}
 
 	u := &user.User{
@@ -90,7 +96,7 @@ func (s *AccessService) RegisterWithInvite(ctx context.Context, token, username,
 		UpdatedAt:    time.Now(),
 	}
 	if err := s.users.Create(ctx, u); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("AccessService.RegisterWithInvite: %w", err)
 	}
 	if err := s.invites.IncrementUsedCount(ctx, invite.ID); err != nil {
 		slog.Warn("increment invite used count failed", slog.String("inviteID", invite.ID), slog.Any("err", err))
@@ -122,23 +128,32 @@ func (s *AccessService) RegisterWithInvite(ctx context.Context, token, username,
 
 func (s *AccessService) InitiateQuickConnect(ctx context.Context, req *user.QuickConnectRequest) error {
 	req.CreatedAt = time.Now()
-	return s.quickConnect.Create(ctx, req)
+	if err := s.quickConnect.Create(ctx, req); err != nil {
+		return fmt.Errorf("AccessService.InitiateQuickConnect: %w", err)
+	}
+	return nil
 }
 
 func (s *AccessService) AuthorizeQuickConnect(ctx context.Context, code string, userID string) error {
 	req, err := s.quickConnect.GetByCode(ctx, code)
 	if err != nil {
-		return err
+		return fmt.Errorf("AccessService.AuthorizeQuickConnect: %w", err)
 	}
-	return s.quickConnect.UpdateStatus(ctx, req.ID, "authorized", &userID)
+	if err := s.quickConnect.UpdateStatus(ctx, req.ID, "authorized", &userID); err != nil {
+		return fmt.Errorf("AccessService.AuthorizeQuickConnect: %w", err)
+	}
+	return nil
 }
 
 func (s *AccessService) AuthorizeByShortCode(ctx context.Context, shortCode string, userID string) error {
 	req, err := s.quickConnect.GetByShortCode(ctx, shortCode)
 	if err != nil {
-		return err
+		return fmt.Errorf("AccessService.AuthorizeByShortCode: %w", err)
 	}
-	return s.quickConnect.UpdateStatus(ctx, req.ID, "authorized", &userID)
+	if err := s.quickConnect.UpdateStatus(ctx, req.ID, "authorized", &userID); err != nil {
+		return fmt.Errorf("AccessService.AuthorizeByShortCode: %w", err)
+	}
+	return nil
 }
 
 func (s *AccessService) CreateAPIKey(ctx context.Context, key *user.APIKeyModel) error {
@@ -147,7 +162,7 @@ func (s *AccessService) CreateAPIKey(ctx context.Context, key *user.APIKeyModel)
 	}
 	key.CreatedAt = time.Now()
 	if err := s.apiKeys.Create(ctx, key); err != nil {
-		return err
+		return fmt.Errorf("AccessService.CreateAPIKey: %w", err)
 	}
 	evt := user.APIKeyCreated{KeyID: key.ID, UserID: key.UserID, Name: key.Name, OccurredAt: time.Now()}
 	if err := s.events.Publish(ctx, evt); err != nil {
@@ -158,7 +173,7 @@ func (s *AccessService) CreateAPIKey(ctx context.Context, key *user.APIKeyModel)
 
 func (s *AccessService) RevokeAPIKey(ctx context.Context, keyID string) error {
 	if err := s.apiKeys.Delete(ctx, keyID); err != nil {
-		return err
+		return fmt.Errorf("AccessService.RevokeAPIKey: %w", err)
 	}
 	evt := user.APIKeyRevoked{KeyID: keyID, OccurredAt: time.Now()}
 	if err := s.events.Publish(ctx, evt); err != nil {

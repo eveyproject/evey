@@ -246,7 +246,10 @@ func (s *CommandService) DeleteLibrary(ctx context.Context, id string) error {
 }
 
 func (s *CommandService) DeleteMediaItem(ctx context.Context, id string) error {
-	return s.mediaItems.Delete(ctx, id)
+	if err := s.mediaItems.Delete(ctx, id); err != nil {
+		return fmt.Errorf("CommandService.DeleteMediaItem: %w", err)
+	}
+	return nil
 }
 
 func (s *CommandService) GetMediaStreams(ctx context.Context, mediaItemID string) ([]*library.MediaStream, error) {

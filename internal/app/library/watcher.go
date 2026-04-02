@@ -2,6 +2,7 @@ package library
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"path/filepath"
 	"sync"
@@ -66,7 +67,7 @@ func (ws *WatcherService) Start(ctx context.Context) error {
 
 	libs, err := ws.libraries.List(ctx)
 	if err != nil {
-		return err
+		return fmt.Errorf("WatcherService.Start: %w", err)
 	}
 	for _, lib := range libs {
 		if !lib.RealtimeMonitoring || !lib.Enabled {

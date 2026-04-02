@@ -93,7 +93,7 @@ func (s *CommandService) StopStream(ctx context.Context, sessionID string) error
 	now := time.Now()
 	session.EndedAt = &now
 	if err := s.sessions.Update(ctx, session); err != nil {
-		return err
+		return fmt.Errorf("CommandService.StopStream: %w", err)
 	}
 	evtStopped := playback.PlaybackStopped{
 		SessionID:   sessionID,
@@ -124,7 +124,10 @@ func (s *CommandService) ReportProgressBySession(ctx context.Context, sessionID 
 		Completed:    false,
 		LastPlayedAt: time.Now(),
 	}
-	return s.progress.Upsert(ctx, wp)
+	if err := s.progress.Upsert(ctx, wp); err != nil {
+		return fmt.Errorf("CommandService.ReportProgressBySession: %w", err)
+	}
+	return nil
 }
 
 func (s *CommandService) ReportProgress(ctx context.Context, profileID, mediaItemID string, positionMs int64, completed bool) error {
@@ -139,7 +142,10 @@ func (s *CommandService) ReportProgress(ctx context.Context, profileID, mediaIte
 		Completed:    completed,
 		LastPlayedAt: time.Now(),
 	}
-	return s.progress.Upsert(ctx, wp)
+	if err := s.progress.Upsert(ctx, wp); err != nil {
+		return fmt.Errorf("CommandService.ReportProgress: %w", err)
+	}
+	return nil
 }
 
 func (s *CommandService) MarkAsWatched(ctx context.Context, profileID, mediaItemID string) error {
@@ -155,7 +161,7 @@ func (s *CommandService) MarkAsWatched(ctx context.Context, profileID, mediaItem
 		LastPlayedAt: time.Now(),
 	}
 	if err := s.progress.Upsert(ctx, wp); err != nil {
-		return err
+		return fmt.Errorf("CommandService.MarkAsWatched: %w", err)
 	}
 	evtWatched := playback.MediaMarkedWatched{
 		ProfileID:   profileID,
@@ -222,5 +228,8 @@ func (s *CommandService) MarkAsUnwatched(ctx context.Context, profileID, mediaIt
 		PlayCount:    0,
 		LastPlayedAt: time.Now(),
 	}
-	return s.progress.Upsert(ctx, wp)
+	if err := s.progress.Upsert(ctx, wp); err != nil {
+		return fmt.Errorf("CommandService.MarkAsUnwatched: %w", err)
+	}
+	return nil
 }

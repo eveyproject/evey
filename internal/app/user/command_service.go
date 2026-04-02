@@ -100,7 +100,7 @@ func (s *CommandService) Setup(ctx context.Context, username, password, email st
 	}
 	admins, err := s.users.CountAdmins(ctx)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("CommandService.Setup: %w", err)
 	}
 	if admins > 0 {
 		s.setupDone = true
@@ -123,7 +123,7 @@ func (s *CommandService) Setup(ctx context.Context, username, password, email st
 		UpdatedAt:    time.Now(),
 	}
 	if err := s.users.Create(ctx, u); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("CommandService.Setup: %w", err)
 	}
 	evtSetupCreated := user.UserCreated{UserID: u.ID, Username: u.Username, IsAdmin: true, OccurredAt: time.Now()}
 	if err := s.events.Publish(ctx, evtSetupCreated); err != nil {
@@ -206,7 +206,7 @@ func (s *CommandService) Login(ctx context.Context, username, password string) (
 
 	refreshToken, err = s.generateAndStoreRefreshToken(ctx, u.ID)
 	if err != nil {
-		return "", "", err
+		return "", "", fmt.Errorf("CommandService.Login: %w", err)
 	}
 
 	evtLogin := user.LoginSucceeded{UserID: u.ID, AuthMethod: "local", OccurredAt: time.Now()}
@@ -260,7 +260,7 @@ func (s *CommandService) GenerateTokensForUser(ctx context.Context, userID strin
 
 	refreshToken, err = s.generateAndStoreRefreshToken(ctx, u.ID)
 	if err != nil {
-		return "", "", err
+		return "", "", fmt.Errorf("CommandService.GenerateTokensForUser: %w", err)
 	}
 	return accessToken, refreshToken, nil
 }
@@ -294,7 +294,7 @@ func (s *CommandService) RefreshToken(ctx context.Context, token string) (string
 
 	u, err := s.users.GetByID(ctx, rt.UserID)
 	if err != nil {
-		return "", "", err
+		return "", "", fmt.Errorf("CommandService.RefreshToken: %w", err)
 	}
 
 	roles, err := s.userRoles.GetRolesByUserID(ctx, u.ID)
@@ -327,12 +327,12 @@ func (s *CommandService) RefreshToken(ctx context.Context, token string) (string
 		Permissions: perms,
 	})
 	if err != nil {
-		return "", "", err
+		return "", "", fmt.Errorf("CommandService.RefreshToken: %w", err)
 	}
 
 	newRefresh, err := s.tokens.GenerateRefreshToken()
 	if err != nil {
-		return "", "", err
+		return "", "", fmt.Errorf("CommandService.RefreshToken: %w", err)
 	}
 	nh := sha256.Sum256([]byte(newRefresh))
 	newRT := &user.RefreshToken{
@@ -343,14 +343,17 @@ func (s *CommandService) RefreshToken(ctx context.Context, token string) (string
 		CreatedAt: time.Now(),
 	}
 	if err := s.refreshTkns.Create(ctx, newRT); err != nil {
-		return "", "", err
+		return "", "", fmt.Errorf("CommandService.RefreshToken: %w", err)
 	}
 
 	return accessToken, newRefresh, nil
 }
 
 func (s *CommandService) Logout(ctx context.Context, userID string) error {
-	return s.refreshTkns.DeleteByUserID(ctx, userID)
+	if err := s.refreshTkns.DeleteByUserID(ctx, userID); err != nil {
+		return fmt.Errorf("CommandService.Logout: %w", err)
+	}
+	return nil
 }
 
 const maxRefreshTokenRetries = 3
@@ -519,7 +522,7 @@ func (s *CommandService) ResetPassword(ctx context.Context, rawToken, newPasswor
 	u.PasswordHash = newHash
 	u.UpdatedAt = time.Now()
 	if err := s.users.Update(ctx, u); err != nil {
-		return err
+		return fmt.Errorf("CommandService.ResetPassword: %w", err)
 	}
 
 	if err := s.resetTokens.MarkUsed(ctx, t.ID); err != nil {

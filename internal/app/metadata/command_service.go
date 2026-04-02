@@ -163,7 +163,7 @@ func (s *CommandService) fetchFromProviders(ctx context.Context, providerID, med
 func (s *CommandService) SetOverride(ctx context.Context, override *metadata.MetadataOverride) error {
 	override.CreatedAt = time.Now()
 	if err := s.overrides.Set(ctx, override); err != nil {
-		return err
+		return fmt.Errorf("CommandService.SetOverride: %w", err)
 	}
 	// Log-only: audit event — override already persisted above
 	evtOverride := metadata.MetadataOverrideSet{MediaItemID: override.MediaItemID, FieldName: override.FieldName, EditedBy: override.EditedBy, OccurredAt: time.Now()}
@@ -174,12 +174,15 @@ func (s *CommandService) SetOverride(ctx context.Context, override *metadata.Met
 }
 
 func (s *CommandService) RemoveOverride(ctx context.Context, id string) error {
-	return s.overrides.Delete(ctx, id)
+	if err := s.overrides.Delete(ctx, id); err != nil {
+		return fmt.Errorf("CommandService.RemoveOverride: %w", err)
+	}
+	return nil
 }
 
 func (s *CommandService) ResetOverrides(ctx context.Context, mediaItemID string) error {
 	if err := s.overrides.DeleteByMediaItemID(ctx, mediaItemID); err != nil {
-		return err
+		return fmt.Errorf("CommandService.ResetOverrides: %w", err)
 	}
 	// Log-only: audit event — overrides already deleted above
 	evtRemoved := metadata.MetadataOverrideRemoved{MediaItemID: mediaItemID, FieldName: "*", OccurredAt: time.Now()}

@@ -159,7 +159,7 @@ func (s *OIDCService) HandleCallback(ctx context.Context, code string) (accessTo
 
 	u, err := s.findOrCreateUser(ctx, claims.Sub, claims.Email, claims.PreferredUsername)
 	if err != nil {
-		return "", "", "", err
+		return "", "", "", fmt.Errorf("OIDCService.HandleCallback: %w", err)
 	}
 
 	roles, err := s.userRoles.GetRolesByUserID(ctx, u.ID)
@@ -197,7 +197,7 @@ func (s *OIDCService) HandleCallback(ctx context.Context, code string) (accessTo
 
 	refreshToken, err = s.generateAndStoreRefreshToken(ctx, u.ID)
 	if err != nil {
-		return "", "", "", err
+		return "", "", "", fmt.Errorf("OIDCService.HandleCallback: %w", err)
 	}
 
 	evt := domainuser.LoginSucceeded{UserID: u.ID, AuthMethod: "oidc", OccurredAt: time.Now()}
