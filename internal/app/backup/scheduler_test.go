@@ -182,7 +182,7 @@ func TestStartScheduler_TickerCreatesBackup(t *testing.T) {
 	dumper := fakes.NewFakeDatabaseDumper()
 	dumper.Err = errors.New("db down")
 	bus := newChannelEventBus()
-	svc := NewService(store, dumper, "1.0.0").WithEventBus(bus)
+	svc := NewService(store, dumper, "1.0.0", WithEventBus(bus))
 
 	// Simulate what the scheduler does on tick: CreateBackup + publish event
 	ctx := context.Background()
@@ -232,7 +232,7 @@ func TestStartScheduler_PublishError(t *testing.T) {
 	store := fakes.NewFakeBackupStore()
 	dumper := fakes.NewFakeDatabaseDumper()
 	dumper.Err = errors.New("db down")
-	svc := NewService(store, dumper, "1.0.0").WithEventBus(&failingEventBus{})
+	svc := NewService(store, dumper, "1.0.0", WithEventBus(&failingEventBus{}))
 
 	// Simulate scheduler publish error path
 	ctx := context.Background()

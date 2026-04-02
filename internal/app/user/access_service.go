@@ -21,6 +21,12 @@ type AccessService struct {
 	events       shared.EventBus
 }
 
+type AccessServiceOption func(*AccessService)
+
+func WithProfiles(profiles user.ProfileRepository) AccessServiceOption {
+	return func(s *AccessService) { s.profiles = profiles }
+}
+
 func NewAccessService(
 	users user.UserRepository,
 	apiKeys user.APIKeyRepository,
@@ -28,8 +34,9 @@ func NewAccessService(
 	quickConnect user.QuickConnectRepository,
 	hasher user.PasswordHasher,
 	events shared.EventBus,
+	opts ...AccessServiceOption,
 ) *AccessService {
-	return &AccessService{
+	s := &AccessService{
 		users:        users,
 		apiKeys:      apiKeys,
 		invites:      invites,
@@ -37,10 +44,9 @@ func NewAccessService(
 		hasher:       hasher,
 		events:       events,
 	}
-}
-
-func (s *AccessService) WithProfiles(profiles user.ProfileRepository) *AccessService {
-	s.profiles = profiles
+	for _, opt := range opts {
+		opt(s)
+	}
 	return s
 }
 

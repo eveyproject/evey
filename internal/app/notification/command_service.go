@@ -46,14 +46,28 @@ const (
 	maxBatchEntries   = 1000
 )
 
+type Option func(*CommandService)
+
+func WithPush(push notification.PushSender, subs notification.PushSubscriptionRepository) Option {
+	return func(s *CommandService) {
+		s.push = push
+		s.subs = subs
+	}
+}
+
+func WithBatchDelay(d time.Duration) Option {
+	return func(s *CommandService) { s.batchDelay = d }
+}
+
 func NewCommandService(
 	repo notification.Repository,
 	settings notification.SettingsRepository,
 	analyzer notification.WatchHistoryAnalyzer,
 	profiles ProfileLister,
 	events shared.EventBus,
+	opts ...Option,
 ) *CommandService {
-	return &CommandService{
+	s := &CommandService{
 		repo:       repo,
 		settings:   settings,
 		analyzer:   analyzer,
@@ -64,22 +78,15 @@ func NewCommandService(
 		batchDelay: defaultBatchDelay,
 		done:       make(chan struct{}),
 	}
-}
-
-func (s *CommandService) WithBatchDelay(d time.Duration) *CommandService {
-	s.batchDelay = d
+	for _, opt := range opts {
+		opt(s)
+	}
 	return s
 }
 
 func (s *CommandService) Register() {
 	s.events.Subscribe("media.item.added", s.handleMediaItemAdded)
 	s.events.Subscribe("backup.failed", s.handleBackupFailed)
-}
-
-func (s *CommandService) WithPush(push notification.PushSender, subs notification.PushSubscriptionRepository) *CommandService {
-	s.push = push
-	s.subs = subs
-	return s
 }
 
 func (s *CommandService) Start(ctx context.Context) {

@@ -259,8 +259,7 @@ func TestWithAnalyticsReader(t *testing.T) {
 		RecentActivity: []activity.RecentActivityEntry{},
 	}
 
-	result := querySvc.WithAnalyticsReader(reader)
-	assert.Same(t, querySvc, result)
+	appactivity.WithAnalyticsReader(reader)(querySvc)
 
 	data, err := querySvc.GetAnalytics(context.Background())
 	require.NoError(t, err)
@@ -382,7 +381,7 @@ func TestGetAnalytics(t *testing.T) {
 			_, querySvc, _, _, _, _, _ := newTestServices()
 
 			if tc.reader != nil {
-				querySvc.WithAnalyticsReader(tc.reader)
+				appactivity.WithAnalyticsReader(tc.reader)(querySvc)
 			}
 
 			data, err := querySvc.GetAnalytics(context.Background())

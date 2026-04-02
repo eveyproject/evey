@@ -36,7 +36,9 @@ func newPopularTestFixture(t *testing.T, claims domainuser.Claims) *popularTestF
 		activityfakes.NewFakeAuditLogRepository(),
 		statsReader,
 		activityfakes.NewFakePlayHistoryRepository(),
-	).WithAnalyticsReader(activityfakes.NewFakeAnalyticsReader())
+	,
+		appactivity.WithAnalyticsReader(activityfakes.NewFakeAnalyticsReader()),
+	)
 
 	mediaRepo := libfakes.NewFakeMediaItemQueryRepo()
 	libQuery := applibrary.NewQueryService(

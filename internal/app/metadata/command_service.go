@@ -19,6 +19,19 @@ type PeopleBioEnricher interface {
 	EnrichAllPeopleBios(ctx context.Context, log *slog.Logger) (int, error)
 }
 
+type CommandServiceOption func(*CommandService)
+
+func WithEnricher(enricher ItemEnricher, mediaItems library.MediaItemRepository) CommandServiceOption {
+	return func(s *CommandService) {
+		s.enricher = enricher
+		s.mediaItems = mediaItems
+	}
+}
+
+func WithMediaPersons(repo library.MediaPersonRepository) CommandServiceOption {
+	return func(s *CommandService) { s.mediaPersons = repo }
+}
+
 type CommandService struct {
 	overrides    metadata.MetadataOverrideRepository
 	artwork      metadata.ArtworkRepository
@@ -37,23 +50,19 @@ func NewCommandService(
 	downloader metadata.ArtworkDownloader,
 	events shared.EventBus,
 	providers []metadata.MetadataProvider,
+	opts ...CommandServiceOption,
 ) *CommandService {
-	return &CommandService{
+	s := &CommandService{
 		overrides:  overrides,
 		artwork:    artwork,
 		downloader: downloader,
 		events:     events,
 		providers:  providers,
 	}
-}
-
-func (s *CommandService) WithEnricher(enricher ItemEnricher, mediaItems library.MediaItemRepository) {
-	s.enricher = enricher
-	s.mediaItems = mediaItems
-}
-
-func (s *CommandService) WithMediaPersons(repo library.MediaPersonRepository) {
-	s.mediaPersons = repo
+	for _, opt := range opts {
+		opt(s)
+	}
+	return s
 }
 
 func (s *CommandService) RefreshMetadata(ctx context.Context, mediaItemID, providerID, providerName, mediaType string) (*metadata.MetadataResult, error) {

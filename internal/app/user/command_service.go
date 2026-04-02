@@ -48,8 +48,9 @@ func NewCommandService(
 	events shared.EventBus,
 	refreshTokenTTL time.Duration,
 	quickConnect user.QuickConnectRepository,
+	opts ...CommandServiceOption,
 ) *CommandService {
-	return &CommandService{
+	s := &CommandService{
 		users:           users,
 		profiles:        profiles,
 		refreshTkns:     refreshTkns,
@@ -62,13 +63,20 @@ func NewCommandService(
 		quickConnect:    quickConnect,
 		loginAttempts:   newLoginAttemptLimiter(5, 15*time.Minute),
 	}
+	for _, opt := range opts {
+		opt(s)
+	}
+	return s
 }
 
-func (s *CommandService) WithPasswordReset(resetTokens user.PasswordResetTokenRepository, serverCfg shared.ServerConfigRepository, smtpConfigured bool) *CommandService {
-	s.resetTokens = resetTokens
-	s.serverCfg = serverCfg
-	s.smtpConfigured = smtpConfigured
-	return s
+type CommandServiceOption func(*CommandService)
+
+func WithPasswordReset(resetTokens user.PasswordResetTokenRepository, serverCfg shared.ServerConfigRepository, smtpConfigured bool) CommandServiceOption {
+	return func(s *CommandService) {
+		s.resetTokens = resetTokens
+		s.serverCfg = serverCfg
+		s.smtpConfigured = smtpConfigured
+	}
 }
 
 func (s *CommandService) InitSetupState(ctx context.Context) {

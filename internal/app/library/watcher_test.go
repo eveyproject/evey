@@ -344,8 +344,7 @@ func TestWatcherService_WithEventBus_LibraryCreated(t *testing.T) {
 		Paths: []string{"/media/evt"}, Enabled: true, RealtimeMonitoring: true,
 	})
 
-	ws := applib.NewWatcherService(watcher, libRepo, scanner, log)
-	ws.WithEventBus(bus)
+	ws := applib.NewWatcherService(watcher, libRepo, scanner, log, applib.WatcherWithEventBus(bus))
 	err := ws.Start(ctx)
 	require.NoError(t, err)
 	defer ws.Stop()
@@ -368,8 +367,7 @@ func TestWatcherService_WithEventBus_LibraryDeleted(t *testing.T) {
 		Paths: []string{"/media/del"}, Enabled: true, RealtimeMonitoring: true,
 	})
 
-	ws := applib.NewWatcherService(watcher, libRepo, scanner, log)
-	ws.WithEventBus(bus)
+	ws := applib.NewWatcherService(watcher, libRepo, scanner, log, applib.WatcherWithEventBus(bus))
 	err := ws.Start(ctx)
 	require.NoError(t, err)
 	defer ws.Stop()

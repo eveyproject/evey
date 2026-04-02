@@ -17,7 +17,9 @@ func newTestActivityQuerySvc() *appactivity.QueryService {
 		activityfakes.NewFakeAuditLogRepository(),
 		activityfakes.NewFakePlaySessionStatsReader(),
 		activityfakes.NewFakePlayHistoryRepository(),
-	).WithAnalyticsReader(activityfakes.NewFakeAnalyticsReader())
+	,
+		appactivity.WithAnalyticsReader(activityfakes.NewFakeAnalyticsReader()),
+	)
 }
 
 func TestAnalytics_NoAuth_401(t *testing.T) {

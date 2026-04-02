@@ -42,6 +42,24 @@ type Enricher struct {
 	personFetcher        personDetailFetcher
 }
 
+type EnricherOption func(*Enricher)
+
+func EnricherWithPersonFetcher(f personDetailFetcher) EnricherOption {
+	return func(e *Enricher) { e.personFetcher = f }
+}
+
+func EnricherWithTranslations(
+	mediaTranslations domainlib.MediaItemTranslationRepository,
+	personTranslations domainlib.PersonTranslationRepository,
+	locales []string,
+) EnricherOption {
+	return func(e *Enricher) {
+		e.mediaTranslations = mediaTranslations
+		e.personTranslations = personTranslations
+		e.translationLocales = locales
+	}
+}
+
 func NewEnricher(
 	artwork domainmetadata.ArtworkRepository,
 	persons domainlib.PersonRepository,
@@ -51,8 +69,9 @@ func NewEnricher(
 	primary domainmetadata.MetadataProvider,
 	supplementary []domainmetadata.MetadataProvider,
 	collections CollectionLinker,
+	opts ...EnricherOption,
 ) *Enricher {
-	return &Enricher{
+	e := &Enricher{
 		artwork:       artwork,
 		persons:       persons,
 		mediaPersons:  mediaPersons,
@@ -63,21 +82,9 @@ func NewEnricher(
 		collections:   collections,
 		apiLimiter:    rate.NewLimiter(rate.Every(250*time.Millisecond), 1),
 	}
-}
-
-func (e *Enricher) WithPersonFetcher(f personDetailFetcher) *Enricher {
-	e.personFetcher = f
-	return e
-}
-
-func (e *Enricher) WithTranslations(
-	mediaTranslations domainlib.MediaItemTranslationRepository,
-	personTranslations domainlib.PersonTranslationRepository,
-	locales []string,
-) *Enricher {
-	e.mediaTranslations = mediaTranslations
-	e.personTranslations = personTranslations
-	e.translationLocales = locales
+	for _, opt := range opts {
+		opt(e)
+	}
 	return e
 }
 

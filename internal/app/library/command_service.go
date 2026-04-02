@@ -12,6 +12,16 @@ import (
 	"github.com/gravity-zero/evey/internal/domain/shared"
 )
 
+type CommandServiceOption func(*CommandService)
+
+func WithShutdownCtx(ctx context.Context) CommandServiceOption {
+	return func(s *CommandService) {
+		if s.trickplay != nil {
+			s.trickplay.WithShutdownCtx(ctx)
+		}
+	}
+}
+
 type CommandService struct {
 	libraries   library.LibraryCommandRepo
 	mediaItems  library.MediaItemCommandRepo
@@ -34,51 +44,39 @@ func NewCommandService(
 	prober library.StreamProber,
 	search library.SearchIndex,
 	events shared.EventBus,
+	chapters library.ChapterRepository,
+	ebmlReader mkv.ContainerReader,
+	trickplayRepo library.TrickplayRepository,
+	trickplayGen library.TrickplayGenerator,
+	trickplayCacheDir string,
+	trickplayConfigRepo shared.ServerConfigRepository,
+	opts ...CommandServiceOption,
 ) *CommandService {
 	scanSvc := NewScanService(
 		libraries, libQueries, mediaItems, mediaStreams,
 		persons, mediaPersons, scanner, prober, search, events,
 	)
-	return &CommandService{
+	metadata := NewMetadataExtractionService(chapters, ebmlReader, mediaStreams)
+	scanSvc.WithMetadataExtraction(metadata)
+	s := &CommandService{
 		libraries:   libraries,
 		mediaItems:  mediaItems,
 		mediaStreams: mediaStreams,
 		events:      events,
 		scan:        scanSvc,
+		metadata:    metadata,
+		trickplay:   NewTrickplayService(trickplayRepo, trickplayGen, trickplayCacheDir, mediaItems, events, trickplayConfigRepo),
 	}
-}
-
-func (s *CommandService) WithChapters(chapters library.ChapterRepository, reader mkv.ContainerReader) {
-	s.metadata = NewMetadataExtractionService(chapters, reader, s.mediaStreams)
-	s.scan.WithMetadataExtraction(s.metadata)
+	for _, opt := range opts {
+		opt(s)
+	}
+	return s
 }
 
 func (s *CommandService) WithSubtitleScanner(sc library.ExternalSubtitleScanner) {
 	s.scan.WithSubtitleScanner(sc)
 	if s.metadata != nil {
 		s.metadata.WithSubtitleScanner(sc)
-	}
-}
-
-func (s *CommandService) WithTrickplay(repo library.TrickplayRepository, gen library.TrickplayGenerator, cacheDir string, configRepo shared.ServerConfigRepository) {
-	s.trickplay = NewTrickplayService(repo, gen, cacheDir, s.mediaItems, s.events, configRepo)
-}
-
-// Validate returns an error if required With*() deps were not set.
-// Must be called after all With*() calls (e.g. from wire.go).
-func (s *CommandService) Validate() error {
-	if s.metadata == nil {
-		return fmt.Errorf("library.CommandService: WithChapters not called")
-	}
-	if s.trickplay == nil {
-		return fmt.Errorf("library.CommandService: WithTrickplay not called")
-	}
-	return nil
-}
-
-func (s *CommandService) WithShutdownCtx(ctx context.Context) {
-	if s.trickplay != nil {
-		s.trickplay.WithShutdownCtx(ctx)
 	}
 }
 

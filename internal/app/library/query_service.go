@@ -7,6 +7,30 @@ import (
 	"github.com/gravity-zero/evey/internal/domain/library"
 )
 
+type QueryServiceOption func(*QueryService)
+
+func WithPeople(people library.PersonRepository) QueryServiceOption {
+	return func(s *QueryService) { s.people = people }
+}
+
+func WithPersonFetcher(fetcher library.PersonDetailsFetcher) QueryServiceOption {
+	return func(s *QueryService) { s.personFetcher = fetcher }
+}
+
+func WithTranslations(
+	mediaTranslations library.MediaItemTranslationRepository,
+	personTranslations library.PersonTranslationRepository,
+	personTransFetcher library.PersonTranslationFetcher,
+	locales []string,
+) QueryServiceOption {
+	return func(s *QueryService) {
+		s.mediaTranslations = mediaTranslations
+		s.personTranslations = personTranslations
+		s.personTransFetcher = personTransFetcher
+		s.translationLocales = locales
+	}
+}
+
 type QueryService struct {
 	libraries            library.LibraryQueryRepo
 	mediaItems           library.MediaItemQueryRepo
@@ -25,35 +49,17 @@ func NewQueryService(
 	mediaItems library.MediaItemQueryRepo,
 	streams library.MediaStreamRepository,
 	search library.SearchIndex,
+	opts ...QueryServiceOption,
 ) *QueryService {
-	return &QueryService{
+	s := &QueryService{
 		libraries:  libraries,
 		mediaItems: mediaItems,
 		streams:    streams,
 		search:     search,
 	}
-}
-
-func (s *QueryService) WithPeople(people library.PersonRepository) *QueryService {
-	s.people = people
-	return s
-}
-
-func (s *QueryService) WithPersonFetcher(fetcher library.PersonDetailsFetcher) *QueryService {
-	s.personFetcher = fetcher
-	return s
-}
-
-func (s *QueryService) WithTranslations(
-	mediaTranslations library.MediaItemTranslationRepository,
-	personTranslations library.PersonTranslationRepository,
-	personTransFetcher library.PersonTranslationFetcher,
-	locales []string,
-) *QueryService {
-	s.mediaTranslations = mediaTranslations
-	s.personTranslations = personTranslations
-	s.personTransFetcher = personTransFetcher
-	s.translationLocales = locales
+	for _, opt := range opts {
+		opt(s)
+	}
 	return s
 }
 

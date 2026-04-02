@@ -504,7 +504,7 @@ func TestWithEventBus_PublishesBackupFailedOnScheduledError(t *testing.T) {
 	dumper := fakes.NewFakeDatabaseDumper()
 	dumper.Err = errors.New("db unreachable")
 	bus := &fakeEventCollector{}
-	svc := NewService(store, dumper, "1.0.0").WithEventBus(bus)
+	svc := NewService(store, dumper, "1.0.0", WithEventBus(bus))
 
 	ctx, cancel := context.WithCancel(context.Background())
 	// Manually call CreateBackup + event publish path (scheduler loop is hard to test)

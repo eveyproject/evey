@@ -154,7 +154,7 @@ func newSvcWithCache() (*apptranscode.Service, *tcfakes.FakeCacheStore) {
 	bus := sharedfakes.NewFakeEventBus()
 	cache := tcfakes.NewFakeCacheStore()
 	svc := apptranscode.NewService(tc, hw, jobRepo, profileRepo, bus, 2)
-	svc.WithCacheStore(cache)
+	apptranscode.WithCacheStore(cache)(svc)
 	return svc, cache
 }
 

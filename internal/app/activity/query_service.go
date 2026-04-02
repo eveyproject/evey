@@ -16,24 +16,30 @@ type QueryService struct {
 	analyticsReader activity.AnalyticsReader
 }
 
+type Option func(*QueryService)
+
+func WithAnalyticsReader(r activity.AnalyticsReader) Option {
+	return func(s *QueryService) { s.analyticsReader = r }
+}
+
 func NewQueryService(
 	loginHistory activity.LoginHistoryRepository,
 	metrics activity.ServerMetricRepository,
 	auditLog activity.AuditLogRepository,
 	statsReader activity.PlaySessionStatsReader,
 	playHistory activity.PlayHistoryRepository,
+	opts ...Option,
 ) *QueryService {
-	return &QueryService{
+	s := &QueryService{
 		loginHistory: loginHistory,
 		metrics:      metrics,
 		auditLog:     auditLog,
 		statsReader:  statsReader,
 		playHistory:  playHistory,
 	}
-}
-
-func (s *QueryService) WithAnalyticsReader(r activity.AnalyticsReader) *QueryService {
-	s.analyticsReader = r
+	for _, opt := range opts {
+		opt(s)
+	}
 	return s
 }
 

@@ -56,12 +56,17 @@ type Service struct {
 	events  shared.EventBus
 }
 
-func NewService(store backup.BackupStore, dumper backup.DatabaseDumper, version string) *Service {
-	return &Service{store: store, dumper: dumper, version: version}
+type Option func(*Service)
+
+func WithEventBus(bus shared.EventBus) Option {
+	return func(s *Service) { s.events = bus }
 }
 
-func (s *Service) WithEventBus(bus shared.EventBus) *Service {
-	s.events = bus
+func NewService(store backup.BackupStore, dumper backup.DatabaseDumper, version string, opts ...Option) *Service {
+	s := &Service{store: store, dumper: dumper, version: version}
+	for _, opt := range opts {
+		opt(s)
+	}
 	return s
 }
 
