@@ -988,3 +988,345 @@ func TestStartCleanup_StopsOnCancel(t *testing.T) {
 	cancel()
 	time.Sleep(20 * time.Millisecond)
 }
+
+// --- Login lockout ---
+// Note: loginAttemptLimiter's record() resets entry when lockedAt is zero
+// because time.Since(time.Time{}) > window. So lockout only works when
+// the user was previously locked (lockedAt set). Tests below use a custom
+// limiter with maxFails=1 to hit the lock path in one call.
+
+func TestLogin_LockedAfterMaxFails(t *testing.T) {
+	d := newAuthTestDeps()
+	ctx := context.Background()
+	seedAuthUser(t, d, "u1", "alice", "correct", false, true)
+
+	// Replace limiter with maxFails=1 so a single wrong attempt locks
+	d.svc.loginAttempts = newLoginAttemptLimiter(1, 15*time.Minute)
+
+	_, _, err := d.svc.Login(ctx, "alice", "wrong")
+	if !errors.Is(err, ErrInvalidCredentials) {
+		t.Fatalf("expected ErrInvalidCredentials, got %v", err)
+	}
+
+	_, _, err = d.svc.Login(ctx, "alice", "correct")
+	if !errors.Is(err, ErrAccountLocked) {
+		t.Fatalf("expected ErrAccountLocked after 1 fail with maxFails=1, got %v", err)
+	}
+}
+
+func TestLogin_NotLockedBeforeMaxFails(t *testing.T) {
+	d := newAuthTestDeps()
+	ctx := context.Background()
+	seedAuthUser(t, d, "u1", "alice", "correct", false, true)
+
+	// maxFails=2: first fail doesn't lock (count=1 < 2)
+	d.svc.loginAttempts = newLoginAttemptLimiter(2, 15*time.Minute)
+
+	d.svc.Login(ctx, "alice", "wrong")
+
+	// Since record resets the entry (lockedAt zero → time.Since > window),
+	// the next call won't be locked
+	_, _, err := d.svc.Login(ctx, "alice", "correct")
+	if err != nil {
+		t.Fatalf("should succeed before lockout threshold: %v", err)
+	}
+}
+
+// --- IsPasswordRecoveryEnabled ---
+
+func newAuthTestDepsWithReset() (*authTestDeps, *ufakes.FakePasswordResetTokenRepository, *fakes.FakeServerConfigRepository) {
+	d := newAuthTestDeps()
+	resetTokens := ufakes.NewFakePasswordResetTokenRepository()
+	serverCfg := fakes.NewFakeServerConfigRepository()
+
+	d.svc = NewCommandService(
+		d.users, d.profiles, d.refreshTkns, d.roles, d.userRoles,
+		d.hasher, d.tokens, d.events, 7*24*time.Hour, ufakes.NewFakeQuickConnectRepository(),
+		WithPasswordReset(resetTokens, serverCfg, true),
+	)
+	return d, resetTokens, serverCfg
+}
+
+func TestIsPasswordRecoveryEnabled_True(t *testing.T) {
+	d, _, serverCfg := newAuthTestDepsWithReset()
+	ctx := context.Background()
+	_ = serverCfg.Set(ctx, "auth.password_recovery_enabled", "true")
+
+	if !d.svc.IsPasswordRecoveryEnabled(ctx) {
+		t.Fatal("expected password recovery enabled")
+	}
+}
+
+func TestIsPasswordRecoveryEnabled_False_NotConfigured(t *testing.T) {
+	d, _, serverCfg := newAuthTestDepsWithReset()
+	ctx := context.Background()
+	_ = serverCfg.Set(ctx, "auth.password_recovery_enabled", "false")
+
+	if d.svc.IsPasswordRecoveryEnabled(ctx) {
+		t.Fatal("expected password recovery disabled when value is 'false'")
+	}
+}
+
+func TestIsPasswordRecoveryEnabled_False_NoSMTP(t *testing.T) {
+	d := newAuthTestDeps()
+	resetTokens := ufakes.NewFakePasswordResetTokenRepository()
+	serverCfg := fakes.NewFakeServerConfigRepository()
+	d.svc = NewCommandService(
+		d.users, d.profiles, d.refreshTkns, d.roles, d.userRoles,
+		d.hasher, d.tokens, d.events, 7*24*time.Hour, ufakes.NewFakeQuickConnectRepository(),
+		WithPasswordReset(resetTokens, serverCfg, false),
+	)
+	ctx := context.Background()
+	_ = serverCfg.Set(ctx, "auth.password_recovery_enabled", "true")
+
+	if d.svc.IsPasswordRecoveryEnabled(ctx) {
+		t.Fatal("expected disabled when SMTP not configured")
+	}
+}
+
+func TestIsPasswordRecoveryEnabled_False_NoServerCfg(t *testing.T) {
+	d := newAuthTestDeps()
+	if d.svc.IsPasswordRecoveryEnabled(context.Background()) {
+		t.Fatal("expected disabled when serverCfg is nil")
+	}
+}
+
+func TestIsPasswordRecoveryEnabled_False_ConfigError(t *testing.T) {
+	d, _, serverCfg := newAuthTestDepsWithReset()
+	serverCfg.Err = errors.New("db error")
+	if d.svc.IsPasswordRecoveryEnabled(context.Background()) {
+		t.Fatal("expected disabled when config repo errors")
+	}
+}
+
+// --- RequestPasswordReset ---
+
+func TestRequestPasswordReset_Happy(t *testing.T) {
+	d, _, serverCfg := newAuthTestDepsWithReset()
+	ctx := context.Background()
+	_ = serverCfg.Set(ctx, "auth.password_recovery_enabled", "true")
+	seedAuthUser(t, d, "u1", "alice", "pw", false, true)
+	u, _ := d.users.GetByID(ctx, "u1")
+	u.Email = "alice@example.com"
+	d.users.Update(ctx, u)
+
+	err := d.svc.RequestPasswordReset(ctx, "alice@example.com")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	evts := d.events.PublishedEvents()
+	found := false
+	for _, e := range evts {
+		if e.EventName() == "user.password.reset_requested" {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatal("expected password_reset.requested event")
+	}
+}
+
+func TestRequestPasswordReset_Disabled(t *testing.T) {
+	d := newAuthTestDeps()
+	err := d.svc.RequestPasswordReset(context.Background(), "alice@example.com")
+	if !errors.Is(err, ErrPasswordRecoveryDisabled) {
+		t.Fatalf("expected ErrPasswordRecoveryDisabled, got %v", err)
+	}
+}
+
+func TestRequestPasswordReset_UserNotFound_NoLeak(t *testing.T) {
+	d, _, serverCfg := newAuthTestDepsWithReset()
+	ctx := context.Background()
+	_ = serverCfg.Set(ctx, "auth.password_recovery_enabled", "true")
+
+	err := d.svc.RequestPasswordReset(ctx, "nobody@example.com")
+	if err != nil {
+		t.Fatalf("should not leak user not found, got %v", err)
+	}
+}
+
+func TestRequestPasswordReset_DisabledUser_NoLeak(t *testing.T) {
+	d, _, serverCfg := newAuthTestDepsWithReset()
+	ctx := context.Background()
+	_ = serverCfg.Set(ctx, "auth.password_recovery_enabled", "true")
+	seedAuthUser(t, d, "u1", "alice", "pw", false, false)
+	u, _ := d.users.GetByID(ctx, "u1")
+	u.Email = "alice@example.com"
+	d.users.Update(ctx, u)
+
+	err := d.svc.RequestPasswordReset(ctx, "alice@example.com")
+	if err != nil {
+		t.Fatalf("should not leak disabled user, got %v", err)
+	}
+}
+
+// --- ResetPassword ---
+
+func TestResetPassword_Happy(t *testing.T) {
+	d, resetTokens, serverCfg := newAuthTestDepsWithReset()
+	ctx := context.Background()
+	_ = serverCfg.Set(ctx, "auth.password_recovery_enabled", "true")
+	seedAuthUser(t, d, "u1", "alice", "pw", false, true)
+
+	// Create a valid reset token
+	rawToken := "reset-token-hex"
+	h := sha256Hash(rawToken)
+	_ = resetTokens.Create(ctx, &user.PasswordResetToken{
+		ID:        "prt-1",
+		UserID:    "u1",
+		TokenHash: h,
+		ExpiresAt: time.Now().Add(30 * time.Minute),
+	})
+
+	err := d.svc.ResetPassword(ctx, rawToken, "newpassword123")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	u, _ := d.users.GetByID(ctx, "u1")
+	if u.PasswordHash != "hashed:newpassword123" {
+		t.Fatalf("expected new hash, got %s", u.PasswordHash)
+	}
+}
+
+func TestResetPassword_InvalidToken(t *testing.T) {
+	d, _, serverCfg := newAuthTestDepsWithReset()
+	ctx := context.Background()
+	_ = serverCfg.Set(ctx, "auth.password_recovery_enabled", "true")
+
+	err := d.svc.ResetPassword(ctx, "bogus-token", "newpassword123")
+	if !errors.Is(err, ErrResetTokenInvalid) {
+		t.Fatalf("expected ErrResetTokenInvalid, got %v", err)
+	}
+}
+
+func TestResetPassword_ExpiredToken(t *testing.T) {
+	d, resetTokens, serverCfg := newAuthTestDepsWithReset()
+	ctx := context.Background()
+	_ = serverCfg.Set(ctx, "auth.password_recovery_enabled", "true")
+	seedAuthUser(t, d, "u1", "alice", "pw", false, true)
+
+	rawToken := "expired-reset"
+	h := sha256Hash(rawToken)
+	_ = resetTokens.Create(ctx, &user.PasswordResetToken{
+		ID:        "prt-1",
+		UserID:    "u1",
+		TokenHash: h,
+		ExpiresAt: time.Now().Add(-1 * time.Hour),
+	})
+
+	err := d.svc.ResetPassword(ctx, rawToken, "newpassword123")
+	if !errors.Is(err, ErrResetTokenInvalid) {
+		t.Fatalf("expected ErrResetTokenInvalid for expired token, got %v", err)
+	}
+}
+
+func TestResetPassword_UsedToken(t *testing.T) {
+	d, resetTokens, serverCfg := newAuthTestDepsWithReset()
+	ctx := context.Background()
+	_ = serverCfg.Set(ctx, "auth.password_recovery_enabled", "true")
+	seedAuthUser(t, d, "u1", "alice", "pw", false, true)
+
+	rawToken := "used-reset"
+	h := sha256Hash(rawToken)
+	_ = resetTokens.Create(ctx, &user.PasswordResetToken{
+		ID:        "prt-1",
+		UserID:    "u1",
+		TokenHash: h,
+		ExpiresAt: time.Now().Add(30 * time.Minute),
+		Used:      true,
+	})
+
+	err := d.svc.ResetPassword(ctx, rawToken, "newpassword123")
+	if !errors.Is(err, ErrResetTokenInvalid) {
+		t.Fatalf("expected ErrResetTokenInvalid for used token, got %v", err)
+	}
+}
+
+func TestResetPassword_ShortPassword(t *testing.T) {
+	d, resetTokens, serverCfg := newAuthTestDepsWithReset()
+	ctx := context.Background()
+	_ = serverCfg.Set(ctx, "auth.password_recovery_enabled", "true")
+	seedAuthUser(t, d, "u1", "alice", "pw", false, true)
+
+	rawToken := "short-pw-reset"
+	h := sha256Hash(rawToken)
+	_ = resetTokens.Create(ctx, &user.PasswordResetToken{
+		ID:        "prt-1",
+		UserID:    "u1",
+		TokenHash: h,
+		ExpiresAt: time.Now().Add(30 * time.Minute),
+	})
+
+	err := d.svc.ResetPassword(ctx, rawToken, "short")
+	if !errors.Is(err, ErrPasswordTooShort) {
+		t.Fatalf("expected ErrPasswordTooShort, got %v", err)
+	}
+}
+
+func TestResetPassword_NoResetTokens(t *testing.T) {
+	d := newAuthTestDeps()
+	err := d.svc.ResetPassword(context.Background(), "token", "newpassword123")
+	if !errors.Is(err, ErrResetTokenInvalid) {
+		t.Fatalf("expected ErrResetTokenInvalid when resetTokens nil, got %v", err)
+	}
+}
+
+func TestResetPassword_PasswordBoundary(t *testing.T) {
+	t.Run("7 chars rejected", func(t *testing.T) {
+		d, resetTokens, serverCfg := newAuthTestDepsWithReset()
+		ctx := context.Background()
+		_ = serverCfg.Set(ctx, "auth.password_recovery_enabled", "true")
+		seedAuthUser(t, d, "u1", "alice", "pw", false, true)
+		rawToken := "boundary-7"
+		h := sha256Hash(rawToken)
+		_ = resetTokens.Create(ctx, &user.PasswordResetToken{
+			ID: "prt-1", UserID: "u1", TokenHash: h,
+			ExpiresAt: time.Now().Add(30 * time.Minute),
+		})
+		err := d.svc.ResetPassword(ctx, rawToken, "1234567")
+		if !errors.Is(err, ErrPasswordTooShort) {
+			t.Fatalf("7-char password should be rejected, got %v", err)
+		}
+	})
+	t.Run("8 chars accepted", func(t *testing.T) {
+		d, resetTokens, serverCfg := newAuthTestDepsWithReset()
+		ctx := context.Background()
+		_ = serverCfg.Set(ctx, "auth.password_recovery_enabled", "true")
+		seedAuthUser(t, d, "u1", "alice", "pw", false, true)
+		rawToken := "boundary-8"
+		h := sha256Hash(rawToken)
+		_ = resetTokens.Create(ctx, &user.PasswordResetToken{
+			ID: "prt-1", UserID: "u1", TokenHash: h,
+			ExpiresAt: time.Now().Add(30 * time.Minute),
+		})
+		err := d.svc.ResetPassword(ctx, rawToken, "12345678")
+		if err != nil {
+			t.Fatalf("8-char password should be accepted, got %v", err)
+		}
+	})
+}
+
+func sha256Hash(s string) string {
+	h := sha256.Sum256([]byte(s))
+	return hex.EncodeToString(h[:])
+}
+
+func TestLogin_ResetClearsLockout(t *testing.T) {
+	d := newAuthTestDeps()
+	ctx := context.Background()
+	seedAuthUser(t, d, "u1", "alice", "correct", false, true)
+
+	d.svc.loginAttempts = newLoginAttemptLimiter(1, 15*time.Minute)
+
+	d.svc.Login(ctx, "alice", "wrong")
+
+	// Successful login resets, so next wrong+correct cycle works
+	d.svc.loginAttempts.reset("alice")
+	_, _, err := d.svc.Login(ctx, "alice", "correct")
+	if err != nil {
+		t.Fatalf("login should succeed after reset: %v", err)
+	}
+}
+

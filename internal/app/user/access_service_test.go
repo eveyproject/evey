@@ -479,3 +479,80 @@ func TestRevokeAPIKey_EventPublishError_NonFatal(t *testing.T) {
 		t.Fatalf("event error should be non-fatal, got %v", err)
 	}
 }
+
+// --- RegisterWithInvite with profiles ---
+
+func TestRegisterWithInvite_WithProfiles_CreatesDefaultProfile(t *testing.T) {
+	users := ufakes.NewFakeUserRepository()
+	apiKeys := ufakes.NewFakeAPIKeyRepository()
+	invites := ufakes.NewFakeInviteLinkRepository()
+	quickConnect := ufakes.NewFakeQuickConnectRepository()
+	hasher := ufakes.NewFakePasswordHasher()
+	profiles := ufakes.NewFakeProfileRepository()
+	events := fakes.NewFakeEventBus()
+
+	svc := NewAccessService(users, apiKeys, invites, quickConnect, hasher, events, WithProfiles(profiles))
+	ctx := context.Background()
+	_ = invites.Create(ctx, &user.InviteLink{ID: "inv1", Token: "tok"})
+
+	u, err := svc.RegisterWithInvite(ctx, "tok", "bob", "longpassword", "bob@b.com")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	profs, err := profiles.GetByUserID(ctx, u.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(profs) != 1 {
+		t.Fatalf("expected 1 profile, got %d", len(profs))
+	}
+	if !profs[0].IsDefault {
+		t.Fatal("expected default profile")
+	}
+	if profs[0].Name != "bob" {
+		t.Fatalf("expected profile name 'bob', got %s", profs[0].Name)
+	}
+
+	evts := events.PublishedEvents()
+	foundUserCreated := false
+	foundProfileCreated := false
+	for _, e := range evts {
+		switch e.EventName() {
+		case "user.created":
+			foundUserCreated = true
+		case "user.profile.created":
+			foundProfileCreated = true
+		}
+	}
+	if !foundUserCreated {
+		t.Fatal("expected user.created event")
+	}
+	if !foundProfileCreated {
+		t.Fatal("expected profile.created event with profiles enabled")
+	}
+}
+
+func TestRegisterWithInvite_WithProfiles_ProfileCreateError_NonFatal(t *testing.T) {
+	users := ufakes.NewFakeUserRepository()
+	apiKeys := ufakes.NewFakeAPIKeyRepository()
+	invites := ufakes.NewFakeInviteLinkRepository()
+	quickConnect := ufakes.NewFakeQuickConnectRepository()
+	hasher := ufakes.NewFakePasswordHasher()
+	profiles := ufakes.NewFakeProfileRepository()
+	events := fakes.NewFakeEventBus()
+
+	svc := NewAccessService(users, apiKeys, invites, quickConnect, hasher, events, WithProfiles(profiles))
+	ctx := context.Background()
+	_ = invites.Create(ctx, &user.InviteLink{ID: "inv1", Token: "tok"})
+	profiles.Err = errors.New("profile create fail")
+
+	u, err := svc.RegisterWithInvite(ctx, "tok", "bob", "longpassword", "bob@b.com")
+	if err != nil {
+		t.Fatalf("profile create error should be non-fatal, got %v", err)
+	}
+	if u == nil {
+		t.Fatal("expected user")
+	}
+}
+

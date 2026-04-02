@@ -565,3 +565,93 @@ func TestDeleteProfile_EventPublishError_NonFatal(t *testing.T) {
 		t.Fatalf("event error should be non-fatal, got %v", err)
 	}
 }
+
+// --- DeleteUser boundary: count <= 1 ---
+
+func TestDeleteUser_AdminBoundary_ExactlyOneAdmin(t *testing.T) {
+	d := newUserTestDeps()
+	ctx := context.Background()
+	seedUserSvcUser(t, d, "u1", "admin", "pw", true, true)
+
+	err := d.svc.DeleteUser(ctx, "u1")
+	if !errors.Is(err, ErrLastAdmin) {
+		t.Fatalf("exactly 1 admin should be blocked, got %v", err)
+	}
+}
+
+func TestDeleteUser_AdminBoundary_TwoAdmins(t *testing.T) {
+	d := newUserTestDeps()
+	ctx := context.Background()
+	seedUserSvcUser(t, d, "u1", "admin1", "pw", true, true)
+	seedUserSvcUser(t, d, "u2", "admin2", "pw", true, true)
+
+	err := d.svc.DeleteUser(ctx, "u1")
+	if err != nil {
+		t.Fatalf("2 admins should allow delete, got %v", err)
+	}
+}
+
+// --- DisableUser boundary: count <= 1 ---
+
+func TestDisableUser_AdminBoundary_ExactlyOneAdmin(t *testing.T) {
+	d := newUserTestDeps()
+	ctx := context.Background()
+	seedUserSvcUser(t, d, "u1", "admin", "pw", true, true)
+
+	err := d.svc.DisableUser(ctx, "u1")
+	if !errors.Is(err, ErrLastAdmin) {
+		t.Fatalf("exactly 1 admin should be blocked, got %v", err)
+	}
+}
+
+func TestDisableUser_AdminBoundary_TwoAdmins(t *testing.T) {
+	d := newUserTestDeps()
+	ctx := context.Background()
+	seedUserSvcUser(t, d, "u1", "admin1", "pw", true, true)
+	seedUserSvcUser(t, d, "u2", "admin2", "pw", true, true)
+
+	err := d.svc.DisableUser(ctx, "u1")
+	if err != nil {
+		t.Fatalf("2 admins should allow disable, got %v", err)
+	}
+}
+
+// --- CreateUser password boundary ---
+
+func TestCreateUser_PasswordBoundary(t *testing.T) {
+	t.Run("7 chars rejected", func(t *testing.T) {
+		d := newUserTestDeps()
+		err := d.svc.CreateUser(context.Background(), true, &user.User{ID: "u1", Username: "bob"}, "1234567")
+		if !errors.Is(err, ErrPasswordTooShort) {
+			t.Fatalf("7-char password should be rejected, got %v", err)
+		}
+	})
+	t.Run("8 chars accepted", func(t *testing.T) {
+		d := newUserTestDeps()
+		err := d.svc.CreateUser(context.Background(), true, &user.User{ID: "u1", Username: "bob"}, "12345678")
+		if errors.Is(err, ErrPasswordTooShort) {
+			t.Fatal("8-char password should be accepted")
+		}
+	})
+}
+
+// --- ChangePassword boundary ---
+
+func TestChangePassword_PasswordBoundary(t *testing.T) {
+	t.Run("7 chars rejected", func(t *testing.T) {
+		d := newUserTestDeps()
+		seedUserSvcUser(t, d, "u1", "alice", "pw", false, true)
+		err := d.svc.ChangePassword(context.Background(), "u1", "1234567")
+		if !errors.Is(err, ErrPasswordTooShort) {
+			t.Fatalf("7-char password should be rejected, got %v", err)
+		}
+	})
+	t.Run("8 chars accepted", func(t *testing.T) {
+		d := newUserTestDeps()
+		seedUserSvcUser(t, d, "u1", "alice", "pw", false, true)
+		err := d.svc.ChangePassword(context.Background(), "u1", "12345678")
+		if err != nil {
+			t.Fatalf("8-char password should be accepted, got %v", err)
+		}
+	})
+}
