@@ -8,7 +8,6 @@ import (
 	applibrary "github.com/gravity-zero/evey/internal/app/library"
 	"github.com/gravity-zero/evey/internal/domain/library"
 	libfakes "github.com/gravity-zero/evey/internal/domain/library/fakes"
-	sharedfakes "github.com/gravity-zero/evey/internal/domain/shared/fakes"
 	userfakes "github.com/gravity-zero/evey/internal/domain/user/fakes"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -20,15 +19,6 @@ func newTestLibraryAccessHandler() (*libraryAccessHandler, *userfakes.FakeLibrar
 	mediaQueryRepo := libfakes.NewFakeMediaItemQueryRepo()
 	streamRepo := libfakes.NewFakeMediaStreamRepository()
 	searchIdx := libfakes.NewFakeSearchIndex()
-	eventBus := sharedfakes.NewFakeEventBus()
-
-	libCmdRepo := libfakes.NewFakeLibraryCommandRepo()
-	mediaCmdRepo := libfakes.NewFakeMediaItemCommandRepo()
-	personRepo := libfakes.NewFakePersonRepository()
-	mediaPersonRepo := libfakes.NewFakeMediaPersonRepository()
-	scanner := libfakes.NewFakeFileScanner()
-	prober := libfakes.NewFakeStreamProber()
-	_ = applibrary.NewCommandService(libCmdRepo, libQueryRepo, mediaCmdRepo, streamRepo, personRepo, mediaPersonRepo, scanner, prober, searchIdx, eventBus)
 	querySvc := applibrary.NewQueryService(libQueryRepo, mediaQueryRepo, streamRepo, searchIdx)
 
 	h := &libraryAccessHandler{

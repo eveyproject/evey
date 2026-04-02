@@ -17,7 +17,6 @@ func newTestActivityQuerySvc() *appactivity.QueryService {
 		activityfakes.NewFakeAuditLogRepository(),
 		activityfakes.NewFakePlaySessionStatsReader(),
 		activityfakes.NewFakePlayHistoryRepository(),
-	,
 		appactivity.WithAnalyticsReader(activityfakes.NewFakeAnalyticsReader()),
 	)
 }

@@ -3,6 +3,7 @@
   "compilerOptions": {
     "strict": true,
     "noEmit": true,
+    "skipLibCheck": true,
     "jsx": "react-native",
     "moduleResolution": "bundler",
     "paths": {}

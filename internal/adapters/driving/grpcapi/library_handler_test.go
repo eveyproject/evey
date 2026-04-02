@@ -12,6 +12,7 @@ import (
 	libfakes "github.com/gravity-zero/evey/internal/domain/library/fakes"
 	domainmetadata "github.com/gravity-zero/evey/internal/domain/metadata"
 	metafakes "github.com/gravity-zero/evey/internal/domain/metadata/fakes"
+	mkvfakes "github.com/gravity-zero/evey/internal/domain/mkv/fakes"
 	sharedfakes "github.com/gravity-zero/evey/internal/domain/shared/fakes"
 	"github.com/gravity-zero/evey/internal/domain/user"
 	userfakes "github.com/gravity-zero/evey/internal/domain/user/fakes"
@@ -39,6 +40,9 @@ func newTestLibraryHandler() (*libraryHandler, *libfakes.FakeLibraryQueryRepo, *
 	cmdSvc := applibrary.NewCommandService(
 		libCmdRepo, libQueryRepo, mediaCmdRepo, streamRepo,
 		personRepo, mediaPersonRepo, scanner, prober, searchIdx, eventBus,
+		libfakes.NewFakeChapterRepository(), mkvfakes.NewFakeContainerReader(),
+		libfakes.NewFakeTrickplayRepository(), libfakes.NewFakeTrickplayGenerator(),
+		"/tmp/test-trickplay", sharedfakes.NewFakeServerConfigRepository(),
 	)
 	querySvc := applibrary.NewQueryService(libQueryRepo, mediaQueryRepo, streamRepo, searchIdx)
 
