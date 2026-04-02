@@ -5,10 +5,14 @@ RUN apk add --no-cache gcc musl-dev linux-headers
 WORKDIR /src
 COPY go.mod go.sum ./
 RUN go mod download
-RUN go install github.com/bufbuild/buf/cmd/buf@v1.47.2
+RUN go install github.com/bufbuild/buf/cmd/buf@v1.47.2 \
+    && go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.36.11 \
+    && go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@v1.5.1 \
+    && go install github.com/grpc-ecosystem/grpc-gateway/v2/protoc-gen-grpc-gateway@v2.28.0 \
+    && go install github.com/grpc-ecosystem/grpc-gateway/v2/protoc-gen-openapiv2@v2.28.0
 COPY proto/ proto/
-COPY buf.gen.yaml buf.yaml ./
-RUN buf generate
+COPY buf.gen.yaml buf.gen.local.yaml buf.yaml ./
+RUN buf generate --template buf.gen.local.yaml
 
 # ── Stage 2: Build frontend ──
 FROM node:22-alpine AS frontend
