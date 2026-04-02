@@ -1,5 +1,5 @@
-import { useState, useEffect, useMemo, useCallback, memo } from "react";
-import { ArrowUpNarrowWide, ArrowDownWideNarrow, Folder, List, LayoutGrid, Star, ChevronRight } from "lucide-react";
+import { useState, useEffect, useMemo, useCallback } from "react";
+import { Folder, ChevronRight } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { createLazyFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import {
@@ -8,8 +8,6 @@ import {
   usePlaybackServiceMarkAsWatched,
   usePlaybackServiceMarkAsUnwatched,
 } from "@evey/api";
-import { usePlaylistList, useAddToPlaylist } from "@/features/playlist/api";
-import { Modal } from "@/components/ui/Modal";
 import type {
   LibraryServiceListMediaItemsType,
   LibraryServiceListMediaItemsSortField,
@@ -23,7 +21,6 @@ import { EmptyState } from "@/components/ui/EmptyState";
 import { MediaGridSkeleton } from "@/components/ui/Skeleton";
 import { MediaGrid } from "@/features/library/MediaGrid";
 import { MediaCardWithModals as MediaCard } from "@/features/library/MediaCardWithModals";
-import { typeLabel } from "@/features/library/MediaCard";
 import {
   LibraryFilterToggle,
   LibraryFiltersPanel,
@@ -37,6 +34,9 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { eveyFetch } from "@evey/api";
 import { BulkActionBar } from "@/components/BulkActionBar";
 import { AddToCollectionModal } from "@/features/collection/AddToCollectionModal";
+import { SortOrderButton, ViewToggleButton } from "./LibraryToolbar";
+import { LibraryListView } from "./LibraryListView";
+import { BulkPlaylistModal } from "./BulkPlaylistModal";
 
 export const Route = createLazyFileRoute("/_auth/library/$libraryId")({
   component: LibraryPage,
@@ -93,156 +93,6 @@ function filterItemToMediaItem(item: FilterApiItem): V1MediaItem {
     communityRating: item.communityRating,
     libraryId: item.libraryId,
   };
-}
-
-function formatDuration(ms: string): string {
-  const totalMin = Math.round(parseInt(ms, 10) / 60000);
-  if (totalMin < 60) return `${totalMin}m`;
-  const h = Math.floor(totalMin / 60);
-  const m = totalMin % 60;
-  return m > 0 ? `${h}h ${m}m` : `${h}h`;
-}
-
-function SortOrderButton({
-  order,
-  onChange,
-}: {
-  order: LibraryServiceListMediaItemsSortOrder;
-  onChange: (o: LibraryServiceListMediaItemsSortOrder) => void;
-}) {
-  const isAsc = order === "SORT_ORDER_ASC";
-  return (
-    <button
-      type="button"
-      onClick={() => onChange(isAsc ? "SORT_ORDER_DESC" : "SORT_ORDER_ASC")}
-      className="p-2 rounded-[var(--radius-md)] bg-[var(--surface-raised)] border border-[var(--border)] text-[var(--text-muted)] hover:text-[var(--text)] hover:border-[var(--accent)] transition-colors-fast"
-      title={isAsc ? "Ascending" : "Descending"}
-    >
-      {isAsc ? <ArrowUpNarrowWide size={16} /> : <ArrowDownWideNarrow size={16} />}
-    </button>
-  );
-}
-
-function ViewToggleButton({
-  mode,
-  onChange,
-}: {
-  mode: "grid" | "list";
-  onChange: (m: "grid" | "list") => void;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={() => onChange(mode === "grid" ? "list" : "grid")}
-      className="p-2 rounded-[var(--radius-md)] bg-[var(--surface-raised)] border border-[var(--border)] text-[var(--text-muted)] hover:text-[var(--text)] hover:border-[var(--accent)] transition-colors-fast"
-      title={mode === "grid" ? "Switch to list view" : "Switch to grid view"}
-      data-testid="view-toggle"
-    >
-      {mode === "grid" ? <List size={16} /> : <LayoutGrid size={16} />}
-    </button>
-  );
-}
-
-const ListRow = memo(function ListRow({ item }: { item: Record<string, unknown> }) {
-  const accessToken = useAuthStore((s) => s.accessToken);
-  const title = (item.title as string) ?? "";
-  const year = item.year as number | undefined;
-  const rating = item.communityRating as number | undefined;
-  const type = item.type as string | undefined;
-  const id = item.id as string | undefined;
-  const durationMs = item.durationMs as string | undefined;
-  const poster = id ? (accessToken ? `/api/v1/media/${id}/artwork/poster?token=${encodeURIComponent(accessToken)}` : `/api/v1/media/${id}/artwork/poster`) : null;
-
-  return (
-    <Link
-      to="/media/$mediaId"
-      params={{ mediaId: id ?? "" }}
-      className="flex items-center gap-4 px-3 py-2 rounded-[var(--radius-md)] transition-colors-fast hover:bg-[var(--surface-raised)] border-b border-[var(--border)]"
-      data-testid="list-row"
-    >
-      <div
-        className="flex-shrink-0 w-7 h-10 rounded overflow-hidden bg-[var(--surface-raised)]"
-      >
-        {poster && (
-          <img src={poster} alt={title} className="w-full h-full object-cover" loading="lazy" />
-        )}
-      </div>
-      <span className="flex-1 min-w-0 text-sm font-medium truncate text-[var(--text)]">
-        {title}
-      </span>
-      <span className="hidden sm:block w-16 text-xs text-right flex-shrink-0 text-[var(--text-muted)]">
-        {year ?? "—"}
-      </span>
-      <span className="hidden md:flex items-center gap-1 w-16 text-xs flex-shrink-0 justify-end text-[var(--text-muted)]">
-        {rating != null && rating > 0 ? (
-          <>
-            <Star size={12} fill="currentColor" className="text-[var(--accent)]" />
-            {rating.toFixed(1)}
-          </>
-        ) : "—"}
-      </span>
-      {typeLabel(type) && (
-        <span
-          className="hidden lg:block text-xs px-1.5 py-0.5 flex-shrink-0 bg-[var(--surface-raised)] text-[var(--text-muted)] rounded-[var(--radius-sm)]"
-        >
-          {typeLabel(type)}
-        </span>
-      )}
-      <span className="hidden lg:block w-16 text-xs text-right flex-shrink-0 text-[var(--text-muted)]">
-        {durationMs ? formatDuration(durationMs) : "—"}
-      </span>
-    </Link>
-  );
-});
-
-function BulkPlaylistModal({
-  open,
-  mediaIds,
-  onClose,
-}: {
-  open: boolean;
-  mediaIds: string[];
-  onClose: () => void;
-}) {
-  const { t } = useTranslation();
-  const { data: playlists, isLoading } = usePlaylistList();
-  const addTo = useAddToPlaylist();
-  const manualPlaylists = (playlists ?? []).filter((p) => p.type === "manual");
-
-  async function handleAdd(playlistId: string, playlistName: string) {
-    try {
-      await Promise.all(mediaIds.map((id) => addTo.mutateAsync({ playlistId, mediaItemId: id })));
-      toast.success(t("media.library.itemsAddedToPlaylist", { count: mediaIds.length, name: playlistName }));
-      onClose();
-    } catch {
-      toast.error(t("media.library.failedAddPlaylist"));
-    }
-  }
-
-  return (
-    <Modal open={open} onClose={onClose} title={t("media.library.addToPlaylist")}>
-      {isLoading ? (
-        <div className="flex justify-center py-8">
-          <div className="w-6 h-6 border-2 rounded-full animate-spin border-[var(--border)] border-t-[var(--accent)]" />
-        </div>
-      ) : manualPlaylists.length === 0 ? (
-        <p className="text-sm text-center py-6 text-[var(--text-muted)]">{t("media.library.noPlaylists")}</p>
-      ) : (
-        <div className="space-y-1">
-          {manualPlaylists.map((pl) => (
-            <button
-              key={pl.id}
-              onClick={() => void handleAdd(pl.id, pl.name)}
-              disabled={addTo.isPending}
-              className="w-full flex items-center gap-3 px-4 py-3 rounded-[var(--radius-md)] text-left transition-colors-fast hover:bg-[var(--surface-raised)] text-[var(--text)]"
-            >
-              <span className="text-sm font-medium truncate">{pl.name}</span>
-            </button>
-          ))}
-        </div>
-      )}
-    </Modal>
-  );
 }
 
 function LibraryPage() {
@@ -339,7 +189,6 @@ function LibraryPage() {
   const libraryId = library?.id ?? "";
   const isShowLibrary = library?.type === "LIBRARY_TYPE_SHOWS";
 
-  // Set default type filter based on library type (only on first load when no URL param)
   useEffect(() => {
     if (!library || typeFilter !== undefined) return;
     if (library.type === "LIBRARY_TYPE_SHOWS") {
@@ -403,7 +252,6 @@ function LibraryPage() {
     : (regularData?.pagination?.totalItems ?? 0);
   const hasMore = items.length < totalItems && !hasServerFilters;
 
-  // Fetch a broader set for deriving genres + filter options (without pagination limit)
   const { data: metaData } = useLibraryServiceListMediaItems({
     libraryId,
     ...(typeFilter ? { type: typeFilter } : {}),
@@ -424,7 +272,6 @@ function LibraryPage() {
     [metaData?.items],
   );
 
-  // Client-side: text search + stream-level filters (year/rating now handled server-side when active)
   const localFiltered = useMemo(() => {
     let result = items;
     if (searchTerm.trim()) {
@@ -549,7 +396,6 @@ function LibraryPage() {
         />
       )}
 
-      {/* Bulk action bar (fixed bottom) */}
       {bulkMode && (
         <>
           <div
@@ -637,23 +483,7 @@ function LibraryPage() {
               ))}
             </MediaGrid>
           ) : (
-            <div
-              className="rounded-[var(--radius-md)] overflow-hidden bg-[var(--surface)] border border-[var(--border)]"
-            >
-              <div
-                className="flex items-center gap-4 px-3 py-2 text-xs font-semibold text-[var(--text-muted)] border-b border-[var(--border)]"
-              >
-                <span className="w-7 flex-shrink-0" />
-                <span className="flex-1 min-w-0">{t("media.library.titleSort")}</span>
-                <span className="hidden sm:block w-16 text-right flex-shrink-0">{t("media.library.year")}</span>
-                <span className="hidden md:block w-16 text-right flex-shrink-0">{t("media.library.ratingSort")}</span>
-                <span className="hidden lg:block w-12 flex-shrink-0">{t("media.library.type")}</span>
-                <span className="hidden lg:block w-16 text-right flex-shrink-0">{t("media.library.duration")}</span>
-              </div>
-              {displayItems.map((item) => (
-                <ListRow key={item.id} item={item as unknown as Record<string, unknown>} />
-              ))}
-            </div>
+            <LibraryListView items={displayItems} />
           )}
 
           {!isLoading && displayItems.length === 0 && (
