@@ -40,7 +40,7 @@ func (r *ShareLinkRepo) GetByToken(ctx context.Context, token string) (*shared.S
 func (r *ShareLinkRepo) ListByUser(ctx context.Context, userID string) ([]*shared.ShareLink, error) {
 	rows, err := r.db.QueryContext(ctx,
 		`SELECT id, token, media_item_id, created_by, expires_at, max_views, view_count, created_at
-		 FROM share_links WHERE created_by = $1 ORDER BY created_at DESC`, userID)
+		 FROM share_links WHERE created_by = $1 ORDER BY created_at DESC LIMIT 500`, userID)
 	if err != nil {
 		return nil, fmt.Errorf("list share links: %w", err)
 	}
