@@ -20,7 +20,7 @@ FROM node:22-alpine AS frontend
 WORKDIR /app
 COPY frontend/ .
 COPY --from=protogen /src/gen/evey/v1/ /gen/evey/v1/
-RUN npm install -g pnpm@10.6.5 && pnpm install \
+RUN npm install -g pnpm@10.33.0 && pnpm install \
     && cd packages/api \
     && npx orval --config orval.config.ts \
     && cd ../.. \
