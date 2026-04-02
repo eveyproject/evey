@@ -143,7 +143,7 @@ export function CustomizePanel({ open, onClose }: { open: boolean; onClose: () =
           <h2 className="text-base font-semibold text-[var(--text)]">
             {t("common.feeds.customizeTitle")}
           </h2>
-          <button onClick={onClose} className="p-1 rounded hover:opacity-80 text-[var(--text-muted)]">
+          <button onClick={onClose} className="p-1 rounded hover:opacity-80 text-[var(--text-muted)]" aria-label={t("common.aria.close")}>
             <X size={18} />
           </button>
         </div>

@@ -109,7 +109,8 @@ const HeroBanner = memo(function HeroBanner() {
             {seenSlides.has(idx) && (
               <img
                 src={backdropUrl}
-                alt={displayTitle}
+                alt=""
+                aria-hidden="true"
                 className="absolute inset-0 w-full h-full object-cover animate-ken-burns"
                 loading={isActive ? "eager" : "lazy"}
                 fetchPriority={isActive ? "high" : "low"}
