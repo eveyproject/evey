@@ -84,7 +84,6 @@ services:
   # ── Reverse proxy (optional — use your own if you prefer) ──
   caddy:
     container_name: evey-caddy
-    profiles: [caddy]
     build:
       context: .
       dockerfile: docker/Dockerfile.caddy
