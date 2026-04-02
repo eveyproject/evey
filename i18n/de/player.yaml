@@ -1,0 +1,91 @@
+controls:
+  play: Abspielen
+  pause: Pause
+  mute: Stummschalten
+  unmute: Ton aktivieren
+  fullscreen: Vollbild
+  exitFullscreen: Vollbild beenden
+  pip: Bild-in-Bild
+  exitPip: Bild-in-Bild beenden
+  settings: Einstellungen
+  episodes: Folgen
+  chapters: Kapitel
+  rewind: "{{seconds}}s zurückspulen"
+  forward: "{{seconds}}s vorspulen"
+  previousEpisode: Vorherige Folge
+  nextEpisode: Nächste Folge
+  seek: Suchen
+  volume: Lautstärke
+settings:
+  quality: Qualität
+  auto: Auto
+  audio: Audio
+  subtitles: Untertitel
+  speed: Geschwindigkeit
+  subtitleStyle: Untertitel-Stil
+  normal: Normal
+  uploadSubtitle: "Untertitel hochladen…"
+  "off": Aus
+  brightness: Helligkeit
+subtitleStyle:
+  size: Größe
+  textColor: Textfarbe
+  background: Hintergrund
+  font: Schriftart
+  position: Position
+  top: Oben
+  bottom: Unten
+  textShadow: Textschatten
+colors:
+  white: Weiß
+  yellow: Gelb
+  green: Grün
+  cyan: Cyan
+  orange: Orange
+bgColors:
+  black: Schwarz
+  darkGrey: Dunkelgrau
+  navy: Marineblau
+  none: Keiner
+fonts:
+  default: Standard
+  sansSerif: Sans-Serif
+  serif: Serif
+  monospace: Monospace
+  comicSans: Comic Sans
+quality:
+  original: Original
+nextEpisodeOverlay:
+  upNext: Als Nächstes
+  nextIn: "Nächste in {{seconds}}s"
+  playNow: Jetzt abspielen
+  episode: "Folge {{number}}"
+  nextEpisode: Nächste Folge
+skipIntro: Intro überspringen
+download: Herunterladen
+watchTogether: Zusammen schauen
+buffering: "Puffern…"
+playbackFailed: Wiedergabe fehlgeschlagen
+unableToPlayAnyQuality: Wiedergabe in keiner Qualitätsstufe möglich
+failedToStart: Wiedergabe konnte nicht gestartet werden
+failedToLoadStream: Stream konnte nicht geladen werden
+retry: Erneut versuchen
+goBack: Zurück
+shareDesc: "Teilen Sie diesen Link mit Freunden, um zusammen zu schauen:"
+copyLink: Link kopieren
+close: Schließen
+shortcuts:
+  title: Tastenkürzel
+  playPause: Abspielen / Pause
+  toggleFullscreen: Vollbild umschalten
+  toggleMute: Stummschalten umschalten
+  seekBack: "{{seconds}}s zurückspulen"
+  seekForward: "{{seconds}}s vorspulen"
+  volumeUp: Lauter
+  volumeDown: Leiser
+  seekPercent: "Zu 0%–90% springen"
+  toggleCaptions: Untertitel umschalten
+  decreaseSpeed: Geschwindigkeit verringern
+  increaseSpeed: Geschwindigkeit erhöhen
+  pip: Bild-in-Bild
+  showShortcuts: Tastenkürzel anzeigen

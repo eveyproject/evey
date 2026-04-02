@@ -1,0 +1,16 @@
+serverConnect:
+  title: Mit Server verbinden
+  connect: Verbinden
+  connectionFailed: Verbindung fehlgeschlagen
+  unreachable: Server nicht erreichbar
+settings:
+  server: Server
+  changeServer: Server wechseln
+  disconnectConfirm: Von diesem Server trennen?
+  disconnect: Trennen
+  signOut: Abmelden
+  signOutConfirm: Sind Sie sicher?
+  about: Über
+  appVersion: App-Version
+  serverVersion: Serverversion
+  switchProfile: Profil wechseln

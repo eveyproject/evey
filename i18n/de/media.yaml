@@ -1,0 +1,351 @@
+season: "Staffel {{number}}"
+episode: "F{{number}}"
+chapter: "Kapitel {{number}}"
+track: "Titel {{number}}"
+burnIn: "(eingebrannt)"
+home:
+  play: Abspielen
+  moreInfo: Mehr Infos
+  continueWatching: Weiterschauen
+  upNext: Als Nächstes
+  recentlyAdded: Kürzlich hinzugefügt
+  mostPopular: Am beliebtesten
+  recommendedForYou: Für Sie empfohlen
+  collections: Sammlungen
+  emptyLibrary: Ihre Bibliothek ist leer
+  emptyLibraryDesc: "Gehen Sie zu Verwaltung → Bibliotheken, um einen Medienordner hinzuzufügen."
+  goToLibraries: Zu den Bibliotheken
+  library: Bibliothek
+favorites:
+  title: Favoriten
+  empty: Noch keine Favoriten
+  searchPlaceholder: "Suchen…"
+  all: Alle
+  movies: Filme
+  series: Serien
+  recentlyAdded: Kürzlich hinzugefügt
+  titleAZ: "Titel A–Z"
+  titleZA: "Titel Z–A"
+  yearNewest: Jahr (neueste)
+  rating: Bewertung
+  yourRating: "Ihre Bewertung"
+  noFavorites: Noch keine Favoriten
+  noFavoritesDesc: Klicken Sie auf das Herz-Symbol eines Medienelements, um es zu den Favoriten hinzuzufügen.
+  addToPlaylist: Zur Playlist hinzufügen
+  noPlaylists: Noch keine Playlists.
+  failedAddPlaylist: Zur Playlist hinzufügen fehlgeschlagen
+  itemsAddedToPlaylist: "{{count}} Element(e) zu \"{{name}}\" hinzugefügt"
+  markedWatched: "{{count}} Element(e) als gesehen markiert"
+  markedUnwatched: "{{count}} Element(e) als ungesehen markiert"
+collections:
+  title: Sammlungen
+  newSmartCollection: Neue Smart-Sammlung
+  smartCollections: Smart-Sammlungen
+  tmdbCollections: TMDB-Sammlungen
+  noCollections: Noch keine Sammlungen
+  noCollectionsDesc: Sammlungen werden automatisch aus TMDB-Sagas erstellt.
+  deleteConfirm: Diese Sammlung löschen?
+  deleteSmartConfirm: Diese Smart-Sammlung löschen?
+  browseResults: "Ergebnisse durchsuchen →"
+  smart: Smart
+  noItems: Keine Elemente
+  noItemsDesc: Diese Sammlung enthält noch keine Medienelemente.
+  notFound: Sammlung nicht gefunden
+  notFoundDesc: Diese Smart-Sammlung existiert nicht mehr.
+  noRules: Diese Sammlung hat keine Regeln konfiguriert.
+  noRuleMatch: Keine Elemente entsprechen den aktuellen Regeln.
+  smartDeleted: Smart-Sammlung gelöscht
+  deleteFailed: Löschen fehlgeschlagen
+  noCollectionsAvailable: Keine Sammlungen verfügbar.
+  itemsAdded: "{{count}} Element(e) zu \"{{name}}\" hinzugefügt"
+  addFailed: Zur Sammlung hinzufügen fehlgeschlagen
+  adding: "Wird hinzugefügt…"
+  editSmartCollection: Smart-Sammlung bearbeiten
+  nameRequired: Name ist erforderlich
+  noRulesYet: Noch keine Regeln. Fügen Sie mindestens eine Regel hinzu, um Elemente zu filtern.
+  smartUpdated: Smart-Sammlung aktualisiert
+  smartCreated: Smart-Sammlung erstellt
+  smartSaveFailed: Smart-Sammlung konnte nicht gespeichert werden
+  saveChanges: Änderungen speichern
+library:
+  title: Bibliothek
+  libraries: Bibliotheken
+  movies: Filme
+  tvShows: TV-Serien
+  music: Musik
+  photos: Fotos
+  books: Bücher
+  noLibraries: Keine Bibliotheken konfiguriert
+  noLibrariesDesc: Fügen Sie im Admin-Panel eine Bibliothek hinzu, um Ihre Mediensammlung zu durchsuchen.
+  filterByName: "Nach Name filtern..."
+  series: Serien
+  seasons: Staffeln
+  episodes: Folgen
+  titleSort: Titel
+  year: Jahr
+  ratingSort: Bewertung
+  dateAdded: Hinzugefügt am
+  ascending: Aufsteigend
+  descending: Absteigend
+  switchToList: Zur Listenansicht wechseln
+  switchToGrid: Zur Rasteransicht wechseln
+  noItems: Keine Elemente gefunden
+  noItemsFiltered: Versuchen Sie, Ihre Filter oder Ihren Suchbegriff anzupassen.
+  noItemsType: Versuchen Sie einen anderen Filter oder scannen Sie die Bibliothek, um Inhalte hinzuzufügen.
+  noItemsEmpty: Diese Bibliothek ist leer. Starten Sie einen Scan, um Inhalte hinzuzufügen.
+  goToAdmin: Zur Verwaltung
+  loadMore: "Mehr laden ({{current}} von {{total}})"
+  selected: ausgewählt
+  addToFavorites: Zu Favoriten hinzufügen
+  addedToFavorites: "{{count}} Element(e) zu Favoriten hinzugefügt"
+  failedFavorites: Einige Elemente konnten nicht zu Favoriten hinzugefügt werden
+  duration: Dauer
+  type: Typ
+  addToPlaylist: Zur Playlist hinzufügen
+  noPlaylists: Noch keine Playlists.
+  failedAddPlaylist: Zur Playlist hinzufügen fehlgeschlagen
+  itemsAddedToPlaylist: "{{count}} Element(e) zu \"{{name}}\" hinzugefügt"
+  filters: Filter
+  clearAll: Alle löschen
+  resultCount: "{{count}} Ergebnis"
+  resultCount_plural: "{{count}} Ergebnisse"
+  yearLabel: Jahr
+  yearFrom: Von
+  yearTo: Bis
+  minRating: Min. Bewertung
+  minStars: "Min {{count}} Stern"
+  minStars_plural: "Min {{count}} Sterne"
+  clearRating: Löschen
+  typeAll: Alle
+  typeMovie: Film
+  typeShow: Serie
+  typeEpisode: Folge
+  typeTrack: Titel
+  typePhoto: Foto
+  typeLabel: Typ
+  genreText: "Genre (Text)"
+  genrePlaceholder: "z.B. Action"
+  genreLabel: Genre
+  resolution: Auflösung
+  videoCodec: Video-Codec
+  audioLanguage: Audiosprache
+  subtitleLanguage: Untertitelsprache
+  noFilterOptions: Für diese Bibliothek sind noch keine Filteroptionen verfügbar.
+person:
+  filmography: Filmografie
+  notFound: Person nicht gefunden.
+  unknown: Unbekannt
+  titleCount: "{{count}} Titel"
+  titleCount_plural: "{{count}} Titel"
+  noFilmography: Keine Filmografie für diese Person gefunden.
+  other: Sonstiges
+  asRole: "als {{role}}"
+  actor: Schauspieler
+  director: Regisseur
+  writer: Drehbuchautor
+  producer: Produzent
+  composer: Komponist
+  guestStar: Gaststar
+  yearsOld: Jahre alt
+detail:
+  notFound: Medienelement nicht gefunden.
+  play: Abspielen
+  resume: Fortsetzen
+  favorite: Favorit
+  favorited: Favorisiert
+  markWatched: Als gesehen markieren
+  markUnwatched: Als ungesehen markieren
+  markedWatched: Als gesehen markiert
+  markedUnwatched: Als ungesehen markiert
+  addToPlaylist: Zur Playlist hinzufügen
+  yourRating: "Ihre Bewertung"
+  editMetadata: Metadaten bearbeiten
+  cast: Besetzung
+  crew: Team
+  seasons: Staffeln
+  seasonCount: "{{count}} Staffel"
+  seasonCount_plural: "{{count}} Staffeln"
+  episodes: Folgen
+  episodeCount: "{{count}} Folge"
+  episodeCount_plural: "{{count}} Folgen"
+  ep: "{{count}} Fo."
+  similarTitles: Ähnliche Titel
+  fileInfo: Dateiinfo
+  director: "Regie: "
+  writer: "Drehbuch: "
+  studio: "Studio: "
+  trailer: Trailer
+  close: "Schließen"
+  unsupportedPlatform: "Nicht unterstützte Plattform: {{platform}}"
+  artworkUpdated: Artwork aktualisiert
+  artworkFailed: Artwork konnte nicht aktualisiert werden
+  poster: Poster
+  backdrop: Hintergrund
+  title: Titel
+  originalTitle: Originaltitel
+  year: Jahr
+  overview: Übersicht
+  genresLabel: "Genres (kommagetrennt)"
+  rating: Bewertung
+  overridden: Überschrieben
+  auto: Auto
+  resetToAuto: Auf Auto zurücksetzen
+  resetSuccess: "{{field}} auf Auto zurückgesetzt"
+  resetFailed: Zurücksetzen fehlgeschlagen
+  imdbId: IMDB-ID
+  tmdbId: TMDB-ID
+  viewOnImdb: Auf IMDB ansehen
+  viewOnTmdb: Auf TMDB ansehen
+  idChangedWarning: "ID geändert — beim Speichern werden Metadaten vom Anbieter neu abgerufen"
+  refreshMetadata: Metadaten aktualisieren
+  resetMetadata: Metadaten zurücksetzen
+  metadataReset: Metadaten zurückgesetzt — Neuanreicherung wird gestartet
+  resetMetadataFailed: Metadaten konnten nicht zurückgesetzt werden
+  reEnrichedWithNewId: Mit neuer ID neu angereichert
+  metadataSaved: Metadaten gespeichert
+  failedToSave: Speichern fehlgeschlagen
+  failedToSaveDot: Speichern fehlgeschlagen.
+  refreshFailed: Metadaten konnten nicht aktualisiert werden
+  noProfileSelected: Kein Profil ausgewählt
+contextMenu:
+  editMetadata: Metadaten bearbeiten
+  addToPlaylist: Zur Playlist hinzufügen
+  addToCollection: Zur Sammlung hinzufügen
+  addToFavorites: Zu Favoriten hinzufügen
+  removeFromFavorites: Aus Favoriten entfernen
+  download: Herunterladen
+  markWatched: Als gesehen markieren
+  markUnwatched: Als ungesehen markieren
+  noProfileSelected: Kein Profil ausgewählt
+  markedWatched: Als gesehen markiert
+  markedUnwatched: Als ungesehen markiert
+  markError: "Markierung als {{status}} fehlgeschlagen"
+music:
+  title: Musik
+  tracks: Titel
+  albums: Alben
+  artists: Künstler
+  searchPlaceholder: "Titel, Künstler, Alben suchen…"
+  loading: "Laden…"
+  noTracks: Keine Titel gefunden.
+  noTracksSearch: Keine Titel entsprechen Ihrer Suche.
+  noAlbums: Keine Alben gefunden.
+  noArtists: Keine Künstler gefunden.
+  noLibraries: Keine Musikbibliotheken gefunden. Fügen Sie eine im Admin-Panel hinzu.
+  trackDeleted: Titel gelöscht
+  failedDeleteTrack: Titel konnte nicht gelöscht werden
+  deleteTrackConfirm: Diesen Titel löschen? Dies kann nicht rückgängig gemacht werden.
+  deleteTrack: Titel löschen
+  trackCount: "{{count}} Titel"
+  trackCount_plural: "{{count}} Titel"
+  albumCount: "{{count}} Album"
+  albumCount_plural: "{{count}} Alben"
+photos:
+  title: Fotos
+  albums: Alben
+  allPhotos: Alle Fotos
+  noPhotos: Keine Fotos
+  noPhotosDesc: Keine Fotos in dieser Bibliothek gefunden.
+  noAlbums: Keine Alben
+  noAlbumsDesc: Keine Alben in dieser Bibliothek gefunden.
+  noPhotoLibraries: Keine Fotobibliotheken
+  noPhotoLibrariesDesc: Fügen Sie im Admin-Panel eine Fotobibliothek hinzu, um zu beginnen.
+  photoDeleted: Foto gelöscht
+  failedDeletePhoto: Foto konnte nicht gelöscht werden
+  deletePhotoConfirm: "\"{{title}}\" löschen? Dies kann nicht rückgängig gemacht werden."
+  photoCount: "{{count}} Foto"
+  photoCount_plural: "{{count}} Fotos"
+added: Hinzugefügt
+created: Erstellt
+updated: Aktualisiert
+syncplay:
+  connected: Verbunden
+  connecting: "Verbinden..."
+  leave: Verlassen
+  shareLink: Link teilen
+  copyCode: Code kopieren
+  watchTogetherRoom: Zusammen-schauen-Raum
+  watchingWith: "Schauen mit: {{names}}"
+  watchingWithMore: "Schauen mit: {{names}} +{{count}} weitere"
+playlist:
+  name: Name
+  description: Beschreibung
+  type: Typ
+  manual: Manuell
+  smart: Smart
+  createTitle: Playlist erstellen
+  createPlaylist: Playlist erstellen
+  newPlaylist: "+ Neue Playlist"
+  noPlaylists: Noch keine Playlists.
+  notFound: Playlist nicht gefunden
+  addTitle: Zur Playlist hinzufügen
+  addSuccess: "Zur Playlist hinzugefügt"
+  addError: Zur Playlist hinzufügen fehlgeschlagen
+  createSuccess: Playlist erstellt
+  createError: Playlist konnte nicht erstellt werden
+  rules: Regeln
+  addRule: Regel hinzufügen
+  field: Feld
+  op: Operator
+  value: Wert
+  playlists: Playlists
+  notFound: Playlist nicht gefunden.
+  noItems: Keine Elemente
+  noItemsSmart: Keine Medien entsprechen diesen Regeln.
+  noItemsManual: Fügen Sie Elemente von der Mediendetailseite hinzu.
+  removedFromPlaylist: Aus Playlist entfernt
+  failedRemove: Entfernen fehlgeschlagen
+  deleteConfirm: "\"{{name}}\" löschen?"
+  deleted: "\"{{name}}\" gelöscht"
+  deleteFailed: Löschen fehlgeschlagen
+  deletePlaylist: Playlist löschen
+  noPlaylistsDesc: Erstellen Sie eine Playlist, um Ihre Medien zu organisieren.
+  editRules: Regeln bearbeiten
+  saveRules: Regeln speichern
+  noRules: "Keine Regeln gesetzt. Klicken Sie auf \"Regeln bearbeiten\", um Regeln hinzuzufügen."
+  noRulesYet: Noch keine Regeln. Fügen Sie mindestens eine Regel hinzu, um Elemente zu filtern.
+  rulesSaved: Regeln gespeichert
+  rulesSaveFailed: Regeln konnten nicht gespeichert werden
+search:
+  searching: "Suche..."
+  noResults: Keine Ergebnisse
+  viewAllResults: "Alle {{count}} Ergebnisse anzeigen"
+  recentSearches: Letzte Suchen
+  clearAll: Alle löschen
+  searchFailed: Suche fehlgeschlagen
+  placeholder: "Filme, Serien suchen…"
+  all: Alle
+  movies: Filme
+  series: Serien
+  noResultsFor: "Keine Ergebnisse für „{{query}}""
+  noResultsDesc: Versuchen Sie einen anderen Suchbegriff, überprüfen Sie die Schreibweise oder ändern Sie den Filter.
+  resultCount: "{{count}} Ergebnis"
+  resultCount_plural: "{{count}} Ergebnisse"
+  resultFor: "für „{{query}}""
+  searchLibrary: Ihre Medienbibliothek durchsuchen
+  searchLibraryDesc: Geben Sie mindestens 2 Zeichen ein, um alle Ihre Filme, Serien und mehr zu durchsuchen.
+  clearSearch: Suche löschen
+  filterByType: Nach Typ filtern
+  filters: Filter
+  clearFilters: Filter löschen
+  genre: Genre
+  allGenres: Alle Genres
+  year: Jahr
+  fromYear: Von
+  toYear: Bis
+  sortBy: Sortieren nach
+  relevance: Relevanz
+  titleAZ: "Titel A–Z"
+  yearNewest: Jahr (neueste)
+  dateAdded: Hinzugefügt am
+streams:
+  audio: Audio
+  subtitles: Untertitel
+  default: Standard
+  forced: Erzwungen
+  external: Extern
+rating:
+  like: Gefällt mir
+  dislike: Gefällt mir nicht
+  removeLike: Gefällt mir entfernen
+  removeDislike: Gefällt mir nicht entfernen

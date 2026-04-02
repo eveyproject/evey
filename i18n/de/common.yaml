@@ -1,0 +1,178 @@
+back: Zurück
+save: Speichern
+cancel: Abbrechen
+create: Erstellen
+delete: Löschen
+enable: Aktivieren
+disable: Deaktivieren
+enabled: Aktiviert
+disabled: Deaktiviert
+skip: Überspringen
+continue: Weiter
+loading: "Laden…"
+error: Fehler
+unknown: Unbekannt
+settings: Einstellungen
+select: Auswählen
+selectAll: Alle auswählen
+deselectAll: Alle abwählen
+exit: Beenden
+search: Suchen
+or: oder
+previous: Zurück
+next: Weiter
+edit: Bearbeiten
+all: Alle
+add: Hinzufügen
+remove: Entfernen
+name: Name
+status: Status
+actions: Aktionen
+apply: Anwenden
+clear: Leeren
+test: Testen
+download: Herunterladen
+restore: Wiederherstellen
+revoke: Widerrufen
+refresh: Aktualisieren
+done: Fertig
+copied: "Kopiert!"
+seeAll: "Alle anzeigen →"
+scrollLeft: Nach links scrollen
+scrollRight: Nach rechts scrollen
+appearance: Darstellung
+appearanceDesc: "Wählen Sie Ihr Farbdesign und Ihre Sprache."
+language: Sprache
+languageDesc: Wählen Sie Ihre bevorzugte Sprache
+newKey: Neuer Schlüssel
+copyKey: Schlüssel kopieren
+unableToLoadNotifications: Benachrichtigungen konnten nicht geladen werden
+viewAllNotifications: Alle Benachrichtigungen anzeigen
+markAllRead: Alle als gelesen markieren
+item_one: "{{count}} Element"
+item_other: "{{count}} Elemente"
+filtered: "(gefiltert)"
+noItemsMatch: Keine Elemente entsprechen dem aktuellen Filter.
+showLess: Weniger anzeigen
+readMore: Mehr lesen
+noPoster: Kein Poster
+noItems: Keine Elemente
+noCollections: Keine Sammlungen
+playlists: Playlists
+noPlaylists: Keine Playlists
+addToPlaylist: Zur Playlist hinzufügen
+noManualPlaylists: Keine manuellen Playlists verfügbar
+collections: Sammlungen
+loadError: Laden fehlgeschlagen
+activity: Aktivität
+serverVersion: Serverversion
+retry: Erneut versuchen
+errorBoundary:
+  title: Etwas ist schiefgelaufen
+  description: Ein unerwarteter Fehler ist aufgetreten. Bitte laden Sie die Seite neu. Wenn das Problem weiterhin besteht, kehren Sie zur Startseite zurück.
+  tryAgain: Erneut versuchen
+  goHome: Zur Startseite
+routeError:
+  title: Etwas ist schiefgelaufen
+  description: Beim Laden dieser Seite ist ein Fehler aufgetreten. Sie können es erneut versuchen oder zur Startseite zurückkehren.
+  retry: Erneut versuchen
+  goHome: Zur Startseite
+notifications:
+  title: Benachrichtigungen
+  markRead: Als gelesen markieren
+  markAllRead: Alle als gelesen markieren
+  deleteAll: Alle löschen
+  deleteAllTitle: Alle Benachrichtigungen löschen
+  deleteAllConfirm: Dies löscht alle Ihre Benachrichtigungen dauerhaft. Diese Aktion kann nicht rückgängig gemacht werden.
+  noNotifications: Keine Benachrichtigungen
+  allCaughtUp: "Sie sind auf dem neuesten Stand."
+  justNow: Gerade eben
+  minutesAgo: "vor {{count}}min"
+  hoursAgo: "vor {{count}}h"
+  daysAgo: "vor {{count}}T"
+  newMovie: "Neuer Film: {{name}}"
+  newEpisode: "Neue Folge: {{name}}"
+  newSeason: "Neue Staffel: {{name}}"
+  newSeries: "Neue Serie: {{name}}"
+  newAlbum: "Neues Album: {{name}}"
+  backupFailed: "Geplante Sicherung fehlgeschlagen"
+noNotifications: Keine Benachrichtigungen
+aria:
+  closeMenu: Menü schließen
+  openMenu: Menü öffnen
+  bottomNav: Untere Navigation
+  options: Optionen
+  play: Abspielen
+  loading: Laden
+  breadcrumb: Brotkrümel-Navigation
+  pagination: Seitennummerierung
+  previousPage: Vorherige Seite
+  nextPage: Nächste Seite
+  reloadPage: Seite neu laden
+  goToHome: Zur Startseite
+  dismiss: Verwerfen
+  removeRule: Regel entfernen
+  clearSelection: Auswahl aufheben
+  close: Schließen
+  deletePhoto: Foto löschen
+  deleteCollection: Sammlung löschen
+  editFilter: Filter bearbeiten
+  deleteFilter: Filter löschen
+  closePlayer: Player schließen
+  subtitleFontSize: Untertitel-Schriftgröße
+  bgOpacity: Hintergrund-Deckkraft
+  operator: Operator
+  value: Wert
+  retryPage: Seite erneut laden
+  goToHomePage: Zur Startseite gehen
+watchHistory:
+  title: Wiedergabeverlauf
+nav:
+  home: Startseite
+  libraries: Bibliotheken
+  photos: Fotos
+  favorites: Favoriten
+  search: Suche
+  music: Musik
+  admin: Verwaltung
+  backToApp: Zurück zur App
+  profile: Profil
+  settings: Einstellungen
+  watchHistory: Wiedergabeverlauf
+  quickConnect: Schnellverbindung
+  signOut: Abmelden
+  expandSidebar: Seitenleiste erweitern
+  collapseSidebar: Seitenleiste einklappen
+  mainNav: Hauptnavigation
+  adminNav: Admin-Navigation
+  userMenu: Benutzermenü
+  homeFeeds: Startseiten-Feeds
+shortcuts:
+  title: Tastenkürzel
+  focusSearch: Suche fokussieren
+  closeModal: Modal schließen / Eingabe verlassen
+  goHome: Zur Startseite
+  toggleHelp: Hilfe ein-/ausblenden
+  disabledHint: Tastenkürzel sind deaktiviert, während Sie in einem Eingabefeld tippen.
+parental:
+  restrictedContent: Eingeschränkter Inhalt
+  pinRequired: Dieser Inhalt erfordert eine PIN-Überprüfung.
+  pinLabel: "PIN (4 Ziffern)"
+  pinIncorrect: Falsche PIN
+  validate: Bestätigen
+feeds:
+  title: Startseiten-Bereiche
+  section: Bereich
+  order: Reihenfolge
+  maxItems: Max. Elemente
+  saved: Feed-Konfiguration gespeichert
+  customize: Anpassen
+  customizeTitle: Startseite anpassen
+  resetDefaults: Zurücksetzen
+  labels:
+    resume_playback: Wiedergabe fortsetzen
+    next_up: Als Nächstes
+    next_episode: Nächste Folge
+    recommended: Empfohlen
+    most_popular: Am beliebtesten
+    collections: Sammlungen

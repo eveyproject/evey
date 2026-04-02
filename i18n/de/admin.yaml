@@ -1,0 +1,525 @@
+nav:
+  dashboardSystem: Dashboard & System
+  dashboard: Dashboard
+  nowPlaying: Aktuelle Wiedergabe
+  remoteAccess: Fernzugriff
+  serverConfig: Serverkonfiguration
+  systemHealth: Systemzustand
+  media: Medien
+  libraries: Bibliotheken
+  metadata: Metadaten
+  transcodeCache: Transkodierungs-Cache
+  transcodingProfiles: Transkodierungsprofile
+  usersAccess: Benutzer & Zugriff
+  users: Benutzer
+  integrations: Integrationen
+  plugins: Plugins
+  webhooks: Webhooks
+  apiKeys: API-Schlüssel
+  monitoring: Überwachung
+  analytics: Analysen
+  activity: Aktivität
+  auditLog: Audit-Protokoll
+  liveLogs: Live-Protokolle
+  maintenance: Wartung
+  backupRestore: Sicherung & Wiederherstellung
+
+plugin:
+  enabled: Aktiviert
+  disabled: Deaktiviert
+  config: Konfiguration
+  hideConfig: Konfiguration ausblenden
+  logs: Protokolle
+  uninstall: Deinstallieren
+  configuration: Konfiguration
+  noConfig: Keine Konfigurationsschlüssel definiert.
+  configSaved: Konfiguration gespeichert
+  configSaveFailed: Speichern der Konfiguration fehlgeschlagen
+  subprocess: Unterprozess
+  sandboxed: Sandboxed
+  hash: "Hash"
+  hashCopied: "Hash kopiert"
+  verified: "Verifiziert"
+  updateAvailable: "Update verfügbar"
+  versionHigher: "Version {{new}} ersetzt {{current}}"
+  versionRejected: "Version {{new}} ist nicht höher als {{current}}"
+  sandboxedWidget: Sandboxed-Widget
+  widgetLoadError: Widget konnte nicht geladen werden
+  state:
+    running: Läuft
+    starting: "Startet..."
+    error: Fehler
+    stopped: Gestoppt
+    installed: Installiert
+    unknown: Unbekannt
+
+plugins:
+  title: Plugins
+  installPlugin: Plugin installieren
+  uploadFile: Datei hochladen
+  fromUrl: Von URL
+  chooseFile: "Datei auswählen..."
+  previewInstall: Vorschau & Installieren
+  pluginFileZip: Plugin-Datei (.zip)
+  sourceUrl: Quell-URL
+  nameOptional: Name (optional)
+  urlSkipPreview: "Hinweis: URL-Installationen überspringen die Vorschau."
+  permissions: Berechtigungen
+  capabilities: Fähigkeiten
+  staticAnalysis: Statische Analyse
+  installAnyway: Trotzdem installieren
+  install: Installieren
+  subprocessRequired: Unterprozess-Berechtigung erforderlich
+  subprocessWarning: Dieses Plugin kann Systembefehle ausführen und die seccomp-Sandbox umgehen. Nur installieren, wenn Sie dem Autor vertrauen.
+  noPlugins: Keine Plugins installiert.
+  pluginEnabled: Plugin aktiviert
+  pluginDisabled: Plugin deaktiviert
+  pluginInstalled: Plugin installiert
+  pluginUninstalled: Plugin deinstalliert
+  failedEnable: Plugin konnte nicht aktiviert werden
+  failedDisable: Plugin konnte nicht deaktiviert werden
+  failedUninstall: Plugin konnte nicht deinstalliert werden
+  uninstallTitle: Plugin deinstallieren
+  uninstallConfirm: "Plugin \"{{name}}\" deinstallieren? Dies kann nicht rückgängig gemacht werden."
+  selectFileFirst: Bitte zuerst eine Plugin-Datei auswählen
+  fileMissing: "Datei fehlt — bitte erneut auswählen"
+  blockedByAnalysis: Plugin durch Sicherheitsanalyse blockiert
+  previewFailed: Vorschau fehlgeschlagen
+  installFailed: Installation fehlgeschlagen
+  availableRuntimes: Verfügbare Laufzeiten
+  noRuntimes: Keine Plugin-Laufzeiten erkannt
+
+dashboard:
+  title: Dashboard
+  systemInfo: Systeminformationen
+  version: Version
+  os: Betriebssystem
+  arch: Architektur
+  goVersion: Go-Version
+  ffmpeg: FFmpeg
+  uptime: Betriebszeit
+  autoRefresh: "Aktualisiert {{time}} · automatische Aktualisierung alle {{interval}}"
+
+users:
+  title: Benutzer
+  createUser: Benutzer erstellen
+  username: Benutzername
+  email: E-Mail
+  password: Passwort
+  admin: Administrator
+  role: Rolle
+  user: Benutzer
+  userCreated: Benutzer erstellt
+  userDeleted: "Benutzer \"{{name}}\" gelöscht"
+  userDisabled: Benutzer deaktiviert
+  userEnabled: Benutzer aktiviert
+  failedDeleteUser: Benutzer konnte nicht gelöscht werden
+  failedUpdateUser: Benutzer konnte nicht aktualisiert werden
+  deleteUserTitle: Benutzer löschen
+  deleteUserConfirm: "Benutzer \"{{name}}\" löschen? Dies kann nicht rückgängig gemacht werden."
+  libraryAccess: Bibliothekszugriff
+  libraryAccessTitle: "Bibliothekszugriff — {{name}}"
+  unrestricted: Uneingeschränkt
+  unrestrictedDesc: Dieser Benutzer hat Zugriff auf alle Bibliotheken (uneingeschränkt).
+  restrictedDesc: "Dieser Benutzer hat nur Zugriff auf {{count}} ausgewählte {{libraryWord}}."
+  libraryAccessUpdated: Bibliothekszugriff aktualisiert
+  failedLibraryAccess: Bibliothekszugriff konnte nicht aktualisiert werden
+  clearAllUnrestricted: Alle entfernen (uneingeschränkt)
+  bitrate: Bitrate
+  maxBitrateTitle: "Maximale Bitrate — {{name}}"
+  maxBitrateDesc: "Maximale Streaming-Bitrate für diesen Benutzer begrenzen. 0 = unbegrenzt."
+  maxBitrate: Maximale Bitrate
+  bitrateUpdated: Bitrate-Limit aktualisiert
+  failedBitrate: Bitrate-Limit konnte nicht aktualisiert werden
+  inviteLinks: Einladungslinks
+  createInviteLink: Einladungslink erstellen
+  code: Code
+  uses: Verwendungen
+  expires: Läuft ab
+  never: Nie
+  copyLink: Link kopieren
+  linkCopied: Link in Zwischenablage kopiert
+  revoke: Widerrufen
+  revokeInviteTitle: Einladung widerrufen
+  revokeInviteConfirm: Diesen Einladungslink widerrufen? Er wird nicht mehr verwendbar sein.
+  inviteRevoked: Einladungslink widerrufen
+  failedRevoke: Widerruf fehlgeschlagen
+  inviteCreated: Einladungslink erstellt
+  maxUsesLabel: Max. Verwendungen (leer = unbegrenzt)
+  expiresAtLabel: Ablaufdatum (optional)
+  noUsers: Keine Benutzer gefunden
+  noInvites: Keine Einladungslinks
+
+libraries:
+  title: Bibliotheken
+  addLibrary: Bibliothek hinzufügen
+  createLibrary: Bibliothek erstellen
+  libraryCreated: Bibliothek erstellt
+  libraryUpdated: "Bibliothek \"{{name}}\" aktualisiert"
+  libraryDeleted: "Bibliothek \"{{name}}\" gelöscht"
+  editLibrary: Bibliothek bearbeiten
+  failedUpdate: Bibliothek konnte nicht aktualisiert werden
+  failedDelete: Bibliothek konnte nicht gelöscht werden
+  scanStarted: Scan gestartet
+  failedScan: Scan konnte nicht gestartet werden
+  deleteTitle: Bibliothek löschen
+  deleteConfirm: "Bibliothek \"{{name}}\" löschen? Dies kann nicht rückgängig gemacht werden."
+  noLibraries: Keine Bibliotheken. Fügen Sie eine hinzu, um zu beginnen.
+  tableHeaders:
+    name: Name
+    type: Typ
+    paths: Pfade
+    items: Elemente
+    lastScanned: Letzter Scan
+    nextScan: Nächster Scan
+    actions: Aktionen
+  types:
+    movies: Filme
+    shows: Serien
+    music: Musik
+    library: Bibliothek
+  scan: Scannen
+  scanAgain: Erneut scannen
+  scanning: "Wird gescannt..."
+  schedule: Zeitplan
+  scanScheduleTitle: "Scan-Zeitplan — {{name}}"
+  scanFrequency: Scan-Häufigkeit
+  selectFrequency: "-- Häufigkeit wählen --"
+  cronExpression: Cron-Ausdruck
+  scheduleSaved: Zeitplan gespeichert
+  failedSchedule: Zeitplan konnte nicht gespeichert werden
+  scheduleRemoved: Zeitplan entfernt
+  failedRemoveSchedule: Zeitplan konnte nicht entfernt werden
+  lastRun: "Letzter Lauf: {{date}}"
+  nextRun: "Nächster Lauf: {{date}}"
+  presets:
+    every6h: Alle 6 Stunden
+    every12h: Alle 12 Stunden
+    daily3am: Täglich (3 Uhr)
+    weekly3am: Wöchentlich (Sonntag 3 Uhr)
+    customCron: "Benutzerdefinierter Cron..."
+  items: "{{count}} Elemente"
+  "off": Aus
+  paths: Pfade
+  pathsHint: "(vollständigen Pfad im Container eingeben, z.B. /media/movies)"
+  selectDirectory: "— Verzeichnis auswählen —"
+  enterCustomPath: "Benutzerdefinierten Pfad eingeben..."
+  addPath: "+ Pfad hinzufügen"
+  tvShows: TV-Serien
+
+sessions:
+  title: Aktuelle Wiedergabe
+  failedLoad: Sitzungen konnten nicht geladen werden
+  failedLoadDesc: Aktive Sitzungen konnten nicht abgerufen werden. Überprüfen Sie Ihre Verbindung und versuchen Sie es erneut.
+  noSessions: Keine aktiven Sitzungen
+  noSessionsDesc: Wenn Benutzer mit dem Streaming beginnen, werden ihre Sitzungen hier angezeigt.
+  activeCount_one: "{{count}} aktive Sitzung — aktualisiert alle 10s"
+  activeCount_other: "{{count}} aktive Sitzungen — aktualisiert alle 10s"
+  stopSession: Sitzung beenden
+  stop: Stoppen
+  sessionStopped: Sitzung beendet
+  failedStop: Sitzung konnte nicht beendet werden
+  elapsed: "vergangen"
+  video: "Video: {{codec}}"
+  audio: "Audio: {{codec}}"
+  directPlay: Direktwiedergabe
+  directStream: Direkter Stream
+  transcode: Transkodierung
+
+backup:
+  title: Sicherung & Wiederherstellung
+  createBackup: Sicherung erstellen
+  restoreFromFile: Aus Datei wiederherstellen
+  backupCreated: Sicherung erstellt
+  failedCreate: Sicherung konnte nicht erstellt werden
+  backupDeleted: Sicherung gelöscht
+  failedDeleteBackup: Sicherung konnte nicht gelöscht werden
+  noBackups: Keine Sicherungen
+  noBackupsDesc: Erstellen Sie eine Sicherung, um den Datenbankzustand zu speichern.
+  tableHeaders:
+    id: ID
+    date: Datum
+    version: Version
+    size: Größe
+    status: Status
+    actions: Aktionen
+  ready: Bereit
+  restoreBackupTitle: Sicherung wiederherstellen
+  restoreConfirm: "Sicherung vom {{date}} wiederherstellen? Dies überschreibt die aktuellen Daten und kann nicht rückgängig gemacht werden."
+  restoreCompleted: Wiederherstellung abgeschlossen
+  restoreFailed: Wiederherstellung fehlgeschlagen
+  deleteBackupTitle: Sicherung löschen
+  deleteConfirm: "Sicherung vom {{date}} löschen? Dies kann nicht rückgängig gemacht werden."
+  restoreFromFileTitle: Aus Datei wiederherstellen
+  restoreFromFileDesc: Laden Sie eine .tar.gz-Sicherungsdatei hoch. Dies überschreibt vorhandene Daten.
+  selectFileFirst: Bitte zuerst eine Sicherungsdatei auswählen
+
+webhooks:
+  title: Webhooks
+  createWebhook: Webhook erstellen
+  editWebhook: Webhook bearbeiten
+  webhookCreated: Webhook erstellt
+  webhookUpdated: Webhook aktualisiert
+  webhookDeleted: Webhook gelöscht
+  failedDelete: Webhook konnte nicht gelöscht werden
+  failedUpdate: Webhook konnte nicht aktualisiert werden
+  testPingSent: Test-Ping gesendet
+  testPingFailed: Test-Ping fehlgeschlagen
+  deleteTitle: Webhook löschen
+  deleteConfirm: "<strong>{{name}}</strong> löschen? Dies kann nicht rückgängig gemacht werden."
+  noWebhooks: Keine Webhooks konfiguriert.
+  tableHeaders:
+    nameUrl: Name / URL
+    events: Ereignisse
+    status: Status
+    created: Erstellt
+    actions: Aktionen
+  form:
+    name: Name
+    url: URL
+    secret: Secret (optional, für HMAC-Signierung)
+    events: Ereignisse
+    allEvents: Alle Ereignisse
+    enabled: Aktiviert
+    createWebhook: Webhook erstellen
+
+analytics:
+  title: Analysen
+  failedLoad: Analysen konnten nicht geladen werden
+  playsToday: Wiedergaben heute
+  playsThisWeek: Wiedergaben diese Woche
+  activeUsersToday: Aktive Benutzer heute
+  topMedia: Top 10 Medien — Letzte 30 Tage
+  recentActivity: Letzte Aktivität
+  noPlays: Keine Wiedergaben in den letzten 30 Tagen
+  noActivity: Keine aktuelle Aktivität
+  tableHeaders:
+    title: Titel
+    plays: Wiedergaben
+    totalWatchTime: Gesamte Wiedergabezeit
+    user: Benutzer
+    media: Medium
+    when: Wann
+
+activity:
+  title: Aktivität
+  tabs:
+    playHistory: Wiedergabeverlauf
+    loginHistory: Anmeldeverlauf
+    serverStats: Serverstatistiken
+  playHeaders:
+    title: Titel
+    device: Gerät
+    duration: Dauer
+    progress: Fortschritt
+    started: Gestartet
+  loginHeaders:
+    user: Benutzer
+    ip: IP
+    status: Status
+    userAgent: User Agent
+    timestamp: Zeitstempel
+  noPlayHistory: Kein Wiedergabeverlauf
+  noLoginHistory: Kein Anmeldeverlauf
+  ok: OK
+  failed: Fehlgeschlagen
+  totalEntries: "{{count}} Einträge insgesamt"
+  stats:
+    totalPlays: Gesamtwiedergaben
+    totalUsers: Benutzer gesamt
+    totalMedia: Medien gesamt
+    bandwidth: Bandbreite
+  popularMedia: Beliebte Medien
+  mostActiveUsers: Aktivste Benutzer
+  plays: "{{count}} Wiedergaben"
+
+audit:
+  title: Audit-Protokoll
+  action: Aktion
+  resourceType: Ressourcentyp
+  tableHeaders:
+    time: Zeit
+    user: Benutzer
+    action: Aktion
+    resource: Ressource
+    details: Details
+    ip: IP
+  noEntries: Keine Einträge gefunden
+  entries: "{{count}} Einträge"
+
+logs:
+  title: Live-Protokolle
+  live: Live
+  searchLogs: "Protokolle durchsuchen…"
+  component: "Komponente…"
+  noMatch: Keine Protokolleinträge entsprechen Ihrem Filter.
+
+metadata:
+  title: Metadaten
+  refreshAll: Alle aktualisieren
+  refreshStarted: Massenaktualisierung der Metadaten gestartet
+  failedRefresh: Aktualisierung konnte nicht gestartet werden
+  searchPlaceholder: "Medienelemente suchen..."
+  noResults: Keine Ergebnisse
+  noMedia: Keine Medienelemente gefunden
+  tryDifferent: Versuchen Sie einen anderen Suchbegriff.
+  editMetadata: Metadaten bearbeiten
+  titleLabel: Titel
+  overview: Übersicht
+  overviewPlaceholder: "Übersicht..."
+  year: Jahr
+  genres: Genres
+  addGenre: "Genre hinzufügen..."
+  searchTmdb: TMDB durchsuchen
+  hideTmdbSearch: TMDB-Suche ausblenden
+  noTmdbResults: Keine TMDB-Ergebnisse gefunden.
+  failedLoad: Element konnte nicht geladen werden.
+
+serverConfig:
+  title: Serverkonfiguration
+  subtitle: Schlüssel-Wert-Konfigurationseinträge in der Datenbank gespeichert.
+  languageRegion: Sprache & Region
+  languageRegionDesc: Metadatensprache für TMDB und andere Anbieter. Wird nach Serverneustart wirksam.
+  metadataLanguage: Metadatensprache
+  envDefault: "— Umgebungsstandard —"
+  languageUpdated: "Sprache aktualisiert — Server neu starten, um auf Metadaten anzuwenden"
+  configUpdated: Konfiguration aktualisiert
+  failedUpdate: Konfiguration konnte nicht aktualisiert werden
+  configDeleted: Konfigurationseintrag gelöscht
+  failedDeleteEntry: Eintrag konnte nicht gelöscht werden
+  emailSmtp: E-Mail / SMTP
+  emailSmtpDesc: Ausgehende E-Mails für Benachrichtigungen und Einladungen konfigurieren.
+  smtpHost: SMTP-Host
+  port: Port
+  smtpUsername: Benutzername
+  smtpPassword: Passwort
+  fromAddress: Absenderadresse
+  tlsMode: TLS-Modus
+  saveSmtp: SMTP-Einstellungen speichern
+  smtpSaved: SMTP-Einstellungen gespeichert
+  failedSmtp: "{{key}} konnte nicht gespeichert werden"
+  trickplayTitle: Trickplay-Vorschaubilder
+  trickplayDesc: Automatisch Zeitleisten-Vorschaubilder für Filme und Episoden generieren.
+  trickplayEnabled: Trickplay-Vorschaubilder aktivieren
+  trickplayAdaptiveCpu: "Adaptive CPU"
+  trickplayAdaptiveCpuDesc: "Schonender Modus (~25% CPU). Deaktivieren für schnellere Generierung (~50% CPU)."
+  tableHeaders:
+    key: Schlüssel
+    value: Wert
+    updated: Aktualisiert
+    actions: Aktionen
+  noEntries: Keine Konfigurationseinträge
+  noEntriesDesc: Fügen Sie unten Schlüssel-Wert-Einträge hinzu.
+  show: Anzeigen
+  hide: Ausblenden
+  apiKeys:
+    title: API-Schlüssel
+    description: API-Schlüssel für Metadatenanbieter konfigurieren. Hier gesetzte Schlüssel überschreiben Umgebungsvariablen.
+    tmdb: TMDB API-Schlüssel
+    tmdbLink: Kostenlosen Schlüssel auf themoviedb.org erhalten
+    omdb: OMDB API-Schlüssel
+    omdbLink: Kostenlosen Schlüssel auf omdbapi.com erhalten
+    opensubtitles: OpenSubtitles API-Schlüssel
+    opensubtitlesLink: Schlüssel auf opensubtitles.com erhalten
+    resetToDefault: Auf Standard zurücksetzen
+    saved: API-Schlüssel gespeichert
+    usingDefault: Verwendet Standardschlüssel
+    usingCustom: Verwendet benutzerdefinierten Schlüssel
+
+remoteAccess:
+  title: Fernzugriff
+  enableRemoteAccess: Fernzugriff aktivieren
+  externalUrl: Externe URL
+  lanNetworks: LAN-Netzwerke (CIDR, kommagetrennt)
+  maxRemoteBitrate: Max. Remote-Bitrate (Kbps, 0 = unbegrenzt)
+  saved: Fernzugriff-Einstellungen gespeichert
+  networkInterfaces: Server-Netzwerkschnittstellen
+  interface: Schnittstelle
+  address: Adresse
+
+systemHealth:
+  title: Systemzustand
+  autoRefresh: "Aktualisiert {{time}} · automatische Aktualisierung alle 5s"
+  cpuUsage: CPU-Auslastung
+  memoryUsage: Speicherauslastung
+  storage: Speicherplatz
+  activitySection: Aktivität
+  server: Server
+  serverInfo: Serverinformationen
+  used: "Belegt: {{size}}"
+  free: "Frei: {{size}}"
+  total: "Gesamt: {{size}}"
+  activeStreams: Aktive Streams
+  activeTranscodes: Aktive Transkodierungen
+  totalMedia: Medien gesamt
+  totalUsers: Benutzer gesamt
+  hwAcceleration: HW-Beschleunigung
+  serverId: Server-ID
+
+transcodeCache:
+  title: Transkodierungs-Cache
+  clearAll: Alle leeren
+  totalSize: Gesamtgröße
+  files: Dateien
+  cacheEmpty: Cache ist leer
+  cacheCleared: Cache geleert
+  failedClear: Cache konnte nicht geleert werden
+  deleted: "{{name}} gelöscht"
+  failedDeleteFile: Datei konnte nicht gelöscht werden
+  clearConfirmTitle: Transkodierungs-Cache leeren
+  clearConfirm: "Alle {{count}} zwischengespeicherten Dateien ({{size}}) löschen? Dies kann nicht rückgängig gemacht werden."
+  tableHeaders:
+    file: Datei
+    size: Größe
+    modified: Geändert
+
+transcodingProfiles:
+  title: Transkodierungsprofile
+  createProfile: Profil erstellen
+  editProfile: Profil bearbeiten
+  deleteProfile: Profil löschen
+  profileCreated: Profil erstellt
+  profileUpdated: Profil aktualisiert
+  profileDeleted: Profil gelöscht
+  failedSave: Profil konnte nicht gespeichert werden
+  failedDeleteProfile: Profil konnte nicht gelöscht werden
+  noProfiles: Keine Transkodierungsprofile gefunden.
+  deleteConfirm: "Profil <strong>{{name}}</strong> löschen? Dies kann nicht rückgängig gemacht werden."
+  default: Standard
+  form:
+    name: Name
+    maxResolution: Max. Auflösung
+    hwAccel: Hardware-Beschleunigung
+    videoCodec: Video-Codec
+    audioCodec: Audio-Codec
+    maxBitrate: Max. Video-Bitrate (kbps)
+    defaultProfile: Standardprofil
+  tableHeaders:
+    name: Name
+    resolution: Auflösung
+    videoCodec: Video-Codec
+    audioCodec: Audio-Codec
+    bitrate: Bitrate
+    hwAccel: HW-Beschl.
+
+dashboardStats:
+  movies: Filme
+  series: Serien
+  users: Benutzer
+  activeStreams: Aktive Streams
+  cpu: CPU
+  memory: Speicher
+  transcodes: Transkodierungen
+  totalMedia: Medien gesamt
+  storage: Speicherplatz
+  quickActions: Schnellaktionen
+  scanAllLibraries: Alle Bibliotheken scannen
+  manageLibraries: Bibliotheken verwalten
+  manageUsers: Benutzer verwalten
+  recentActivity: Letzte Aktivität
+  viewAll: Alle anzeigen
+  popularMedia: Beliebte Medien
+  viewers: "{{count}} Zuschauer"
+  scanStarted: Scan gestartet
+  scanFailed: Scan fehlgeschlagen
+  allScansTriggered: Alle Bibliotheksscans ausgelöst

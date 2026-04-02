@@ -50,6 +50,7 @@ unableToLoadNotifications: "无法加载通知"
 viewAllNotifications: "查看所有通知"
 markAllRead: "全部标记已读"
 noNotifications: "没有通知"
+item_one: "{{count}} 项"
 item_other: "{{count}} 项"
 filtered: "（已过滤）"
 noItemsMatch: "没有匹配当前过滤条件的项目。"
@@ -169,4 +170,9 @@ noCollections: 没有合集
 playlists: 播放列表
 collections: 合集
 loadError: 加载失败
+activity: 活动
+addToPlaylist: 添加到播放列表
+noManualPlaylists: 没有可用的手动播放列表
+noPlaylists: 没有播放列表
+serverVersion: 服务器版本
 retry: 重试

@@ -50,6 +50,7 @@ unableToLoadNotifications: "सूचनाएं लोड करने मे�
 viewAllNotifications: "सभी सूचनाएं देखें"
 markAllRead: "सभी पढ़ा हुआ चिह्नित करें"
 noNotifications: "कोई सूचना नहीं"
+item_one: "{{count}} आइटम"
 item_other: "{{count}} आइटम"
 filtered: "(फ़िल्टर किया गया)"
 noItemsMatch: "वर्तमान फ़िल्टर से कोई आइटम मेल नहीं खाता।"
@@ -169,4 +170,9 @@ noCollections: कोई संग्रह नहीं
 playlists: प्लेलिस्ट
 collections: संग्रह
 loadError: लोड करने में विफल
+activity: गतिविधि
+addToPlaylist: प्लेलिस्ट में जोड़ें
+noManualPlaylists: कोई मैन्युअल प्लेलिस्ट उपलब्ध नहीं
+noPlaylists: कोई प्लेलिस्ट नहीं
+serverVersion: सर्वर संस्करण
 retry: पुनः प्रयास करें

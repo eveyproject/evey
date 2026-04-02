@@ -170,4 +170,9 @@ noCollections: Sin colecciones
 playlists: Playlists
 collections: Colecciones
 loadError: Error al cargar
+activity: Actividad
+addToPlaylist: Agregar a playlist
+noManualPlaylists: No hay playlists manuales disponibles
+noPlaylists: Sin playlists
+serverVersion: Versión del servidor
 retry: Reintentar
