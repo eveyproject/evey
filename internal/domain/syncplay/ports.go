@@ -11,3 +11,7 @@ type RoomRepository interface {
 	UpdateState(ctx context.Context, roomID string, state PlaybackState) error
 	Delete(ctx context.Context, id string) error
 }
+
+type MessageSender interface {
+	SendMessage(data []byte) error
+}

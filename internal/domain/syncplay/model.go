@@ -7,18 +7,12 @@ import (
 	"time"
 )
 
-const codeAlphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
-
 func GenerateCode() (string, error) {
-	b := make([]byte, 6)
-	for i := range b {
-		n, err := rand.Int(rand.Reader, big.NewInt(int64(len(codeAlphabet))))
-		if err != nil {
-			return "", fmt.Errorf("crypto/rand failed: %w", err)
-		}
-		b[i] = codeAlphabet[n.Int64()]
+	n, err := rand.Int(rand.Reader, big.NewInt(90000))
+	if err != nil {
+		return "", fmt.Errorf("crypto/rand failed: %w", err)
 	}
-	return string(b), nil
+	return fmt.Sprintf("%d", 10000+n.Int64()), nil
 }
 
 type Room struct {
