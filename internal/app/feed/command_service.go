@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"time"
 
 	"github.com/gravity-zero/evey/internal/domain/feed"
 	"github.com/gravity-zero/evey/internal/domain/library"
@@ -14,6 +15,7 @@ type CommandServiceOption func(*CommandService)
 
 func CommandWithEventBus(bus shared.EventBus) CommandServiceOption {
 	return func(s *CommandService) {
+		s.bus = bus
 		bus.Subscribe("library.created", func(ctx context.Context, ev shared.Event) {
 			e, ok := ev.(library.LibraryCreated)
 			if !ok {
@@ -38,6 +40,7 @@ func CommandWithEventBus(bus shared.EventBus) CommandServiceOption {
 type CommandService struct {
 	commands feed.ConfigCommandRepo
 	queries  feed.ConfigQueryRepo
+	bus      shared.EventBus
 }
 
 func NewCommandService(commands feed.ConfigCommandRepo, queries feed.ConfigQueryRepo, opts ...CommandServiceOption) *CommandService {
@@ -48,11 +51,24 @@ func NewCommandService(commands feed.ConfigCommandRepo, queries feed.ConfigQuery
 	return s
 }
 
+func (s *CommandService) publish(ctx context.Context, ev shared.Event) {
+	if s.bus == nil {
+		return
+	}
+	if err := s.bus.Publish(ctx, ev); err != nil {
+		slog.Warn("publish feed event", slog.String("event", ev.EventName()), slog.Any("err", err))
+	}
+}
+
 func (s *CommandService) UpdateAdminConfig(ctx context.Context, cfg *feed.AdminConfig) error {
 	if err := cfg.Validate(); err != nil {
 		return fmt.Errorf("invalid admin feed config: %w", err)
 	}
-	return s.commands.UpsertAdminConfig(ctx, cfg)
+	if err := s.commands.UpsertAdminConfig(ctx, cfg); err != nil {
+		return err
+	}
+	s.publish(ctx, feed.FeedConfigChanged{FeedType: cfg.FeedType, OccurredAt: time.Now()})
+	return nil
 }
 
 func (s *CommandService) BatchUpdateAdminConfigs(ctx context.Context, cfgs []*feed.AdminConfig) error {
@@ -61,18 +77,33 @@ func (s *CommandService) BatchUpdateAdminConfigs(ctx context.Context, cfgs []*fe
 			return fmt.Errorf("invalid admin feed config %q: %w", cfg.FeedType, err)
 		}
 	}
-	return s.commands.BatchUpsertAdminConfig(ctx, cfgs)
+	if err := s.commands.BatchUpsertAdminConfig(ctx, cfgs); err != nil {
+		return err
+	}
+	now := time.Now()
+	for _, cfg := range cfgs {
+		s.publish(ctx, feed.FeedConfigChanged{FeedType: cfg.FeedType, OccurredAt: now})
+	}
+	return nil
 }
 
 func (s *CommandService) UpdateProfileConfig(ctx context.Context, cfg *feed.ProfileConfig) error {
 	if err := cfg.Validate(); err != nil {
 		return fmt.Errorf("invalid profile feed config: %w", err)
 	}
-	return s.commands.UpsertProfileConfig(ctx, cfg)
+	if err := s.commands.UpsertProfileConfig(ctx, cfg); err != nil {
+		return err
+	}
+	s.publish(ctx, feed.FeedConfigChanged{FeedType: cfg.FeedType, ProfileID: cfg.ProfileID, OccurredAt: time.Now()})
+	return nil
 }
 
 func (s *CommandService) ResetProfileConfig(ctx context.Context, profileID string, feedType feed.Type) error {
-	return s.commands.DeleteProfileConfig(ctx, profileID, feedType)
+	if err := s.commands.DeleteProfileConfig(ctx, profileID, feedType); err != nil {
+		return err
+	}
+	s.publish(ctx, feed.FeedConfigRemoved{FeedType: feedType, ProfileID: profileID, OccurredAt: time.Now()})
+	return nil
 }
 
 func (s *CommandService) EnsureLibraryFeedConfig(ctx context.Context, libraryID, name string) error {
@@ -92,15 +123,25 @@ func (s *CommandService) EnsureLibraryFeedConfig(ctx context.Context, libraryID,
 			maxOrder = c.DisplayOrder
 		}
 	}
-	return s.commands.UpsertAdminConfig(ctx, &feed.AdminConfig{
+	cfg := &feed.AdminConfig{
 		FeedType:     ft,
 		Enabled:      true,
 		DisplayOrder: maxOrder + 1,
 		MaxItems:     20,
 		Params:       map[string]any{"libraryName": name},
-	})
+	}
+	if err := s.commands.UpsertAdminConfig(ctx, cfg); err != nil {
+		return err
+	}
+	s.publish(ctx, feed.FeedConfigChanged{FeedType: ft, OccurredAt: time.Now()})
+	return nil
 }
 
 func (s *CommandService) DeleteLibraryFeedConfig(ctx context.Context, libraryID string) error {
-	return s.commands.DeleteAdminConfigByType(ctx, feed.LibraryType(libraryID))
+	ft := feed.LibraryType(libraryID)
+	if err := s.commands.DeleteAdminConfigByType(ctx, ft); err != nil {
+		return err
+	}
+	s.publish(ctx, feed.FeedConfigRemoved{FeedType: ft, OccurredAt: time.Now()})
+	return nil
 }
