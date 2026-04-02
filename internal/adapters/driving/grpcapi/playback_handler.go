@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"fmt"
 	"log/slog"
 	"slices"
 
@@ -64,7 +65,7 @@ func (h *playbackHandler) audit(ctx context.Context, userID, action, resourceTyp
 
 func (h *playbackHandler) GetStreamInfo(ctx context.Context, req *eveyv1.GetStreamInfoRequest) (*eveyv1.StreamInfo, error) {
 	if err := h.requireMediaAccess(ctx, req.MediaItemId); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("playbackHandler.GetStreamInfo: %w", err)
 	}
 	item, err := h.librarySvc.GetMediaItem(ctx, req.MediaItemId)
 	if err != nil {
@@ -127,14 +128,14 @@ func (h *playbackHandler) GetStreamInfo(ctx context.Context, req *eveyv1.GetStre
 func (h *playbackHandler) StartStream(ctx context.Context, req *eveyv1.StartStreamRequest) (*eveyv1.PlaySession, error) {
 	claims, err := requireClaims(ctx)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("playbackHandler.StartStream: %w", err)
 	}
 	profileID, err := resolveProfileID(claims, req.ProfileId)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("playbackHandler.StartStream: %w", err)
 	}
 	if err := h.requireMediaAccess(ctx, req.MediaItemId); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("playbackHandler.StartStream: %w", err)
 	}
 	if h.profiles != nil {
 		if blocked, _ := h.isBlockedByParental(ctx, profileID, req.MediaItemId); blocked {
@@ -168,7 +169,7 @@ func (h *playbackHandler) StartStream(ctx context.Context, req *eveyv1.StartStre
 func (h *playbackHandler) StopStream(ctx context.Context, req *eveyv1.StopStreamRequest) (*eveyv1.StopStreamResponse, error) {
 	claims, err := requireClaims(ctx)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("playbackHandler.StopStream: %w", err)
 	}
 	sess, sessErr := h.cmd.GetSession(ctx, req.SessionId)
 	if !claims.IsAdmin {
@@ -194,7 +195,7 @@ func (h *playbackHandler) StopStream(ctx context.Context, req *eveyv1.StopStream
 func (h *playbackHandler) ReportProgress(ctx context.Context, req *eveyv1.ReportProgressRequest) (*eveyv1.ReportProgressResponse, error) {
 	claims, err := requireClaims(ctx)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("playbackHandler.ReportProgress: %w", err)
 	}
 	if !claims.IsAdmin {
 		session, err := h.cmd.GetSession(ctx, req.SessionId)
@@ -218,11 +219,11 @@ func (h *playbackHandler) ReportProgress(ctx context.Context, req *eveyv1.Report
 func (h *playbackHandler) GetWatchProgress(ctx context.Context, req *eveyv1.GetWatchProgressRequest) (*eveyv1.WatchProgress, error) {
 	claims, err := requireClaims(ctx)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("playbackHandler.GetWatchProgress: %w", err)
 	}
 	profileID, err := resolveProfileID(claims, req.ProfileId)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("playbackHandler.GetWatchProgress: %w", err)
 	}
 	if err := h.requireMediaAccess(ctx, req.MediaItemId); err != nil {
 		return &eveyv1.WatchProgress{}, nil
@@ -241,11 +242,11 @@ func (h *playbackHandler) GetWatchProgress(ctx context.Context, req *eveyv1.GetW
 func (h *playbackHandler) GetWatchHistory(ctx context.Context, req *eveyv1.GetWatchHistoryRequest) (*eveyv1.GetWatchHistoryResponse, error) {
 	claims, err := requireClaims(ctx)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("playbackHandler.GetWatchHistory: %w", err)
 	}
 	profileID, err := resolveProfileID(claims, req.ProfileId)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("playbackHandler.GetWatchHistory: %w", err)
 	}
 	limit := int(req.Limit)
 	if limit <= 0 {
@@ -277,11 +278,11 @@ func (h *playbackHandler) GetWatchHistory(ctx context.Context, req *eveyv1.GetWa
 func (h *playbackHandler) GetResumeItems(ctx context.Context, req *eveyv1.GetResumeItemsRequest) (*eveyv1.GetResumeItemsResponse, error) {
 	claims, err := requireClaims(ctx)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("playbackHandler.GetResumeItems: %w", err)
 	}
 	profileID, err := resolveProfileID(claims, req.ProfileId)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("playbackHandler.GetResumeItems: %w", err)
 	}
 	limit := int(req.Limit)
 	if limit <= 0 {
@@ -308,11 +309,11 @@ func (h *playbackHandler) GetResumeItems(ctx context.Context, req *eveyv1.GetRes
 func (h *playbackHandler) GetNextUp(ctx context.Context, req *eveyv1.GetNextUpRequest) (*eveyv1.GetNextUpResponse, error) {
 	claims, err := requireClaims(ctx)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("playbackHandler.GetNextUp: %w", err)
 	}
 	profileID, err := resolveProfileID(claims, req.ProfileId)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("playbackHandler.GetNextUp: %w", err)
 	}
 	limit := int(req.Limit)
 	if limit <= 0 {
@@ -352,14 +353,14 @@ func (h *playbackHandler) GetNextUp(ctx context.Context, req *eveyv1.GetNextUpRe
 func (h *playbackHandler) MarkAsWatched(ctx context.Context, req *eveyv1.MarkAsWatchedRequest) (*eveyv1.MarkAsWatchedResponse, error) {
 	claims, err := requireClaims(ctx)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("playbackHandler.MarkAsWatched: %w", err)
 	}
 	profileID, err := resolveProfileID(claims, req.ProfileId)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("playbackHandler.MarkAsWatched: %w", err)
 	}
 	if err := h.requireMediaAccess(ctx, req.MediaItemId); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("playbackHandler.MarkAsWatched: %w", err)
 	}
 	if err := h.cmd.MarkAsWatched(ctx, profileID, req.MediaItemId); err != nil {
 		if errors.Is(err, appplayback.ErrProfileNotFound) {
@@ -374,14 +375,14 @@ func (h *playbackHandler) MarkAsWatched(ctx context.Context, req *eveyv1.MarkAsW
 func (h *playbackHandler) MarkAsUnwatched(ctx context.Context, req *eveyv1.MarkAsUnwatchedRequest) (*eveyv1.MarkAsUnwatchedResponse, error) {
 	claims, err := requireClaims(ctx)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("playbackHandler.MarkAsUnwatched: %w", err)
 	}
 	profileID, err := resolveProfileID(claims, req.ProfileId)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("playbackHandler.MarkAsUnwatched: %w", err)
 	}
 	if err := h.requireMediaAccess(ctx, req.MediaItemId); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("playbackHandler.MarkAsUnwatched: %w", err)
 	}
 	if err := h.cmd.MarkAsUnwatched(ctx, profileID, req.MediaItemId); err != nil {
 		if errors.Is(err, appplayback.ErrProfileNotFound) {

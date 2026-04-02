@@ -2,6 +2,7 @@ package grpcapi
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	eveyv1 "github.com/gravity-zero/evey/gen/evey/v1"
@@ -21,11 +22,11 @@ type activityHandler struct {
 func (h *activityHandler) GetPlayHistory(ctx context.Context, req *eveyv1.GetPlayHistoryRequest) (*eveyv1.GetPlayHistoryResponse, error) {
 	claims, err := requireClaims(ctx)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("activityHandler.GetPlayHistory: %w", err)
 	}
 	profileID, err := resolveProfileID(claims, req.ProfileId)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("activityHandler.GetPlayHistory: %w", err)
 	}
 	filter := activity.PlayHistoryFilter{
 		ProfileID:   profileID,
@@ -51,11 +52,11 @@ func (h *activityHandler) GetPlayHistory(ctx context.Context, req *eveyv1.GetPla
 func (h *activityHandler) GetUserStats(ctx context.Context, req *eveyv1.GetUserStatsRequest) (*eveyv1.UserStats, error) {
 	claims, err := requireClaims(ctx)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("activityHandler.GetUserStats: %w", err)
 	}
 	profileID, err := resolveProfileID(claims, req.ProfileId)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("activityHandler.GetUserStats: %w", err)
 	}
 	stats, err := h.svc.GetUserStats(ctx, profileID)
 	if err != nil {
@@ -96,7 +97,7 @@ func (h *activityHandler) GetServerStats(ctx context.Context, _ *eveyv1.GetServe
 func (h *activityHandler) GetLoginHistory(ctx context.Context, req *eveyv1.GetLoginHistoryRequest) (*eveyv1.GetLoginHistoryResponse, error) {
 	claims, err := requireClaims(ctx)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("activityHandler.GetLoginHistory: %w", err)
 	}
 	// Non-admin can only view their own login history
 	userID := req.UserId

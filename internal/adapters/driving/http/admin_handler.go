@@ -754,13 +754,13 @@ func registerAvailableRuntimesRoute(mux *http.ServeMux, tokenGen *auth.JWTGenera
 func tailFile(path string, n int) ([]string, error) {
 	f, err := os.Open(path)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("tailFile: %w", err)
 	}
 	defer f.Close()
 
 	stat, err := f.Stat()
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("tailFile: %w", err)
 	}
 
 	size := stat.Size()
@@ -772,7 +772,7 @@ func tailFile(path string, n int) ([]string, error) {
 	offset := size - readSize
 	buf := make([]byte, readSize)
 	if _, err := f.ReadAt(buf, offset); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("tailFile: %w", err)
 	}
 
 	rawLines := strings.Split(string(buf), "\n")

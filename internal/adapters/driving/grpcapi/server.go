@@ -2,6 +2,7 @@ package grpcapi
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"net"
 	"time"
@@ -232,7 +233,7 @@ func (s *GRPCServer) RegisterServices() {
 func (s *GRPCServer) Start(addr string) error {
 	lis, err := net.Listen("tcp", addr)
 	if err != nil {
-		return err
+		return fmt.Errorf("GRPCServer.Start: %w", err)
 	}
 	slog.Info("gRPC server listening", slog.String("addr", addr))
 	return s.server.Serve(lis)

@@ -3,6 +3,7 @@ package httpapi
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"strings"
@@ -86,7 +87,10 @@ func (s *wsSender) SendMessage(data []byte) error {
 	_ = s.ws.SetWriteDeadline(time.Now().Add(5 * time.Second))
 	err := websocket.Message.Send(s.ws, string(data))
 	_ = s.ws.SetWriteDeadline(time.Time{})
-	return err
+	if err != nil {
+		return fmt.Errorf("wsSender.SendMessage: %w", err)
+	}
+	return nil
 }
 
 func (s *syncplayHandler) wsHandler() http.Handler {

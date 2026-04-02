@@ -416,7 +416,7 @@ func (h *libraryHandler) isBlockedByParental(ctx context.Context, item *library.
 func (h *libraryHandler) filterLibrariesByAccess(ctx context.Context, libs []*library.Library) ([]*library.Library, error) {
 	allowedIDs, err := h.getAllowedLibraryIDs(ctx)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("libraryHandler.filterLibrariesByAccess: %w", err)
 	}
 	if allowedIDs == nil {
 		return libs, nil
@@ -444,7 +444,7 @@ func (h *libraryHandler) getAllowedLibraryIDs(ctx context.Context) ([]string, er
 	}
 	ids, err := h.libraryAccess.GetByUserID(ctx, claims.UserID)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("libraryHandler.getAllowedLibraryIDs: %w", err)
 	}
 	if ids == nil {
 		ids = []string{}

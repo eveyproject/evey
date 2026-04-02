@@ -137,7 +137,7 @@ func (h *userHandler) CreateUser(ctx context.Context, req *eveyv1.CreateUserRequ
 func (h *userHandler) UpdateUser(ctx context.Context, req *eveyv1.UpdateUserRequest) (*eveyv1.User, error) {
 	claims, err := requireClaims(ctx)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("userHandler.UpdateUser: %w", err)
 	}
 	if !claims.IsAdmin {
 		if req.Id != claims.UserID {
@@ -219,7 +219,7 @@ func (h *userHandler) ListUsers(ctx context.Context, _ *eveyv1.ListUsersRequest)
 func (h *userHandler) CreateProfile(ctx context.Context, req *eveyv1.CreateProfileRequest) (*eveyv1.Profile, error) {
 	claims, err := requireClaims(ctx)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("userHandler.CreateProfile: %w", err)
 	}
 	if !claims.IsAdmin && req.UserId != claims.UserID {
 		return nil, h.translator.TranslatedError(ctx, codes.PermissionDenied, "errors.user.cannot_create_profile_other")
@@ -246,7 +246,7 @@ func (h *userHandler) CreateProfile(ctx context.Context, req *eveyv1.CreateProfi
 func (h *userHandler) UpdateProfile(ctx context.Context, req *eveyv1.UpdateProfileRequest) (*eveyv1.Profile, error) {
 	claims, err := requireClaims(ctx)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("userHandler.UpdateProfile: %w", err)
 	}
 	if !claims.IsAdmin && req.Id != claims.ProfileID {
 		return nil, h.translator.TranslatedError(ctx, codes.PermissionDenied, "errors.user.cannot_update_profile_other")
@@ -285,7 +285,7 @@ func (h *userHandler) UpdateProfile(ctx context.Context, req *eveyv1.UpdateProfi
 func (h *userHandler) DeleteProfile(ctx context.Context, req *eveyv1.DeleteProfileRequest) (*eveyv1.DeleteProfileResponse, error) {
 	claims, err := requireClaims(ctx)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("userHandler.DeleteProfile: %w", err)
 	}
 	if !claims.IsAdmin && req.Id != claims.ProfileID {
 		return nil, h.translator.TranslatedError(ctx, codes.PermissionDenied, "errors.user.cannot_delete_profile_other")
@@ -300,7 +300,7 @@ func (h *userHandler) DeleteProfile(ctx context.Context, req *eveyv1.DeleteProfi
 func (h *userHandler) ListProfiles(ctx context.Context, req *eveyv1.ListProfilesRequest) (*eveyv1.ListProfilesResponse, error) {
 	claims, err := requireClaims(ctx)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("userHandler.ListProfiles: %w", err)
 	}
 	userID := req.UserId
 	if !claims.IsAdmin && userID != claims.UserID {
@@ -358,7 +358,7 @@ func (h *userHandler) ListInviteLinks(ctx context.Context, _ *eveyv1.ListInviteL
 func (h *userHandler) RevokeInviteLink(ctx context.Context, req *eveyv1.RevokeInviteLinkRequest) (*eveyv1.RevokeInviteLinkResponse, error) {
 	claims, err := requireClaims(ctx)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("userHandler.RevokeInviteLink: %w", err)
 	}
 	if !claims.IsAdmin {
 		links, err := h.query.ListInviteLinks(ctx, claims.UserID)
@@ -505,7 +505,7 @@ func (h *userHandler) ListAPIKeys(ctx context.Context, _ *eveyv1.ListAPIKeysRequ
 func (h *userHandler) RevokeAPIKey(ctx context.Context, req *eveyv1.RevokeAPIKeyRequest) (*eveyv1.RevokeAPIKeyResponse, error) {
 	claims, err := requireClaims(ctx)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("userHandler.RevokeAPIKey: %w", err)
 	}
 	if !claims.IsAdmin {
 		keys, err := h.query.ListAPIKeys(ctx, claims.UserID)

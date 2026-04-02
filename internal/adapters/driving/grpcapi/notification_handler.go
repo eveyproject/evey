@@ -2,6 +2,7 @@ package grpcapi
 
 import (
 	"context"
+	"fmt"
 
 	eveyv1 "github.com/gravity-zero/evey/gen/evey/v1"
 	appnotification "github.com/gravity-zero/evey/internal/app/notification"
@@ -19,11 +20,11 @@ type notificationHandler struct {
 func (h *notificationHandler) ListNotifications(ctx context.Context, req *eveyv1.ListNotificationsRequest) (*eveyv1.ListNotificationsResponse, error) {
 	claims, err := requireClaims(ctx)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("notificationHandler.ListNotifications: %w", err)
 	}
 	profileID, err := resolveProfileID(claims, req.ProfileId)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("notificationHandler.ListNotifications: %w", err)
 	}
 	items, err := h.query.List(ctx, profileID, req.UnreadOnly, int(req.Limit), int(req.Offset))
 	if err != nil {
@@ -38,7 +39,7 @@ func (h *notificationHandler) ListNotifications(ctx context.Context, req *eveyv1
 
 func (h *notificationHandler) MarkRead(ctx context.Context, req *eveyv1.MarkReadRequest) (*eveyv1.MarkReadResponse, error) {
 	if _, err := requireClaims(ctx); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("notificationHandler.MarkRead: %w", err)
 	}
 	if err := h.cmd.MarkRead(ctx, req.Id); err != nil {
 		return nil, status.Errorf(codes.Internal, "mark read: %v", err)
@@ -49,11 +50,11 @@ func (h *notificationHandler) MarkRead(ctx context.Context, req *eveyv1.MarkRead
 func (h *notificationHandler) MarkAllRead(ctx context.Context, req *eveyv1.MarkAllReadRequest) (*eveyv1.MarkAllReadResponse, error) {
 	claims, err := requireClaims(ctx)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("notificationHandler.MarkAllRead: %w", err)
 	}
 	profileID, err := resolveProfileID(claims, req.ProfileId)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("notificationHandler.MarkAllRead: %w", err)
 	}
 	if err := h.cmd.MarkAllRead(ctx, profileID); err != nil {
 		return nil, status.Errorf(codes.Internal, "mark all read: %v", err)
@@ -64,11 +65,11 @@ func (h *notificationHandler) MarkAllRead(ctx context.Context, req *eveyv1.MarkA
 func (h *notificationHandler) GetUnreadCount(ctx context.Context, req *eveyv1.GetUnreadCountRequest) (*eveyv1.GetUnreadCountResponse, error) {
 	claims, err := requireClaims(ctx)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("notificationHandler.GetUnreadCount: %w", err)
 	}
 	profileID, err := resolveProfileID(claims, req.ProfileId)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("notificationHandler.GetUnreadCount: %w", err)
 	}
 	count, err := h.query.UnreadCount(ctx, profileID)
 	if err != nil {
@@ -80,11 +81,11 @@ func (h *notificationHandler) GetUnreadCount(ctx context.Context, req *eveyv1.Ge
 func (h *notificationHandler) DeleteAllNotifications(ctx context.Context, req *eveyv1.DeleteAllNotificationsRequest) (*eveyv1.DeleteAllNotificationsResponse, error) {
 	claims, err := requireClaims(ctx)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("notificationHandler.DeleteAllNotifications: %w", err)
 	}
 	profileID, err := resolveProfileID(claims, req.ProfileId)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("notificationHandler.DeleteAllNotifications: %w", err)
 	}
 	if err := h.cmd.DeleteAll(ctx, profileID); err != nil {
 		return nil, status.Errorf(codes.Internal, "delete all: %v", err)
@@ -95,11 +96,11 @@ func (h *notificationHandler) DeleteAllNotifications(ctx context.Context, req *e
 func (h *notificationHandler) GetNotificationSettings(ctx context.Context, req *eveyv1.GetNotificationSettingsRequest) (*eveyv1.NotificationSettings, error) {
 	claims, err := requireClaims(ctx)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("notificationHandler.GetNotificationSettings: %w", err)
 	}
 	profileID, err := resolveProfileID(claims, req.ProfileId)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("notificationHandler.GetNotificationSettings: %w", err)
 	}
 	s, err := h.query.GetSettings(ctx, profileID)
 	if err != nil {
@@ -111,11 +112,11 @@ func (h *notificationHandler) GetNotificationSettings(ctx context.Context, req *
 func (h *notificationHandler) UpdateNotificationSettings(ctx context.Context, req *eveyv1.UpdateNotificationSettingsRequest) (*eveyv1.NotificationSettings, error) {
 	claims, err := requireClaims(ctx)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("notificationHandler.UpdateNotificationSettings: %w", err)
 	}
 	profileID, err := resolveProfileID(claims, req.ProfileId)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("notificationHandler.UpdateNotificationSettings: %w", err)
 	}
 	s := &notification.Settings{
 		ProfileID:   profileID,

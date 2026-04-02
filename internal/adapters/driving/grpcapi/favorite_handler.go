@@ -2,6 +2,7 @@ package grpcapi
 
 import (
 	"context"
+	"fmt"
 
 	eveyv1 "github.com/gravity-zero/evey/gen/evey/v1"
 	appfavorite "github.com/gravity-zero/evey/internal/app/favorite"
@@ -17,11 +18,11 @@ type favoriteHandler struct {
 func (h *favoriteHandler) ListFavorites(ctx context.Context, req *eveyv1.ListFavoritesRequest) (*eveyv1.ListFavoritesResponse, error) {
 	claims, err := requireClaims(ctx)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("favoriteHandler.ListFavorites: %w", err)
 	}
 	profileID, err := resolveProfileID(claims, req.ProfileId)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("favoriteHandler.ListFavorites: %w", err)
 	}
 	limit := int(req.Limit)
 	offset := int(req.Offset)
@@ -44,11 +45,11 @@ func (h *favoriteHandler) ListFavorites(ctx context.Context, req *eveyv1.ListFav
 func (h *favoriteHandler) AddFavorite(ctx context.Context, req *eveyv1.AddFavoriteRequest) (*eveyv1.AddFavoriteResponse, error) {
 	claims, err := requireClaims(ctx)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("favoriteHandler.AddFavorite: %w", err)
 	}
 	profileID, err := resolveProfileID(claims, req.ProfileId)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("favoriteHandler.AddFavorite: %w", err)
 	}
 	isFav, err := h.svc.Toggle(ctx, profileID, req.MediaItemId)
 	if err != nil {
@@ -60,11 +61,11 @@ func (h *favoriteHandler) AddFavorite(ctx context.Context, req *eveyv1.AddFavori
 func (h *favoriteHandler) RemoveFavorite(ctx context.Context, req *eveyv1.RemoveFavoriteRequest) (*eveyv1.RemoveFavoriteResponse, error) {
 	claims, err := requireClaims(ctx)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("favoriteHandler.RemoveFavorite: %w", err)
 	}
 	profileID, err := resolveProfileID(claims, req.ProfileId)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("favoriteHandler.RemoveFavorite: %w", err)
 	}
 	isFav, err := h.svc.IsFavorite(ctx, profileID, req.MediaItemId)
 	if err != nil {
@@ -81,11 +82,11 @@ func (h *favoriteHandler) RemoveFavorite(ctx context.Context, req *eveyv1.Remove
 func (h *favoriteHandler) IsFavorite(ctx context.Context, req *eveyv1.IsFavoriteRequest) (*eveyv1.IsFavoriteResponse, error) {
 	claims, err := requireClaims(ctx)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("favoriteHandler.IsFavorite: %w", err)
 	}
 	profileID, err := resolveProfileID(claims, req.ProfileId)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("favoriteHandler.IsFavorite: %w", err)
 	}
 	isFav, err := h.svc.IsFavorite(ctx, profileID, req.MediaItemId)
 	if err != nil {

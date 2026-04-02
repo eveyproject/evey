@@ -2,6 +2,7 @@ package grpcapi
 
 import (
 	"context"
+	"fmt"
 
 	eveyv1 "github.com/gravity-zero/evey/gen/evey/v1"
 	appfeed "github.com/gravity-zero/evey/internal/app/feed"
@@ -19,11 +20,11 @@ type feedHandler struct {
 func (h *feedHandler) GetFeedConfig(ctx context.Context, req *eveyv1.GetFeedConfigRequest) (*eveyv1.GetFeedConfigResponse, error) {
 	claims, err := requireClaims(ctx)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("feedHandler.GetFeedConfig: %w", err)
 	}
 	profileID, err := resolveProfileID(claims, req.ProfileId)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("feedHandler.GetFeedConfig: %w", err)
 	}
 	configs, err := h.queries.GetMergedConfig(ctx, profileID)
 	if err != nil {
@@ -39,11 +40,11 @@ func (h *feedHandler) GetFeedConfig(ctx context.Context, req *eveyv1.GetFeedConf
 func (h *feedHandler) ContinueWatching(ctx context.Context, req *eveyv1.ContinueWatchingRequest) (*eveyv1.FeedResponse, error) {
 	claims, err := requireClaims(ctx)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("feedHandler.ContinueWatching: %w", err)
 	}
 	profileID, err := resolveProfileID(claims, req.ProfileId)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("feedHandler.ContinueWatching: %w", err)
 	}
 	items, err := h.queries.ContinueWatching(ctx, profileID, int(req.Limit))
 	if err != nil {
@@ -63,11 +64,11 @@ func (h *feedHandler) RecentlyAdded(ctx context.Context, req *eveyv1.RecentlyAdd
 func (h *feedHandler) Recommended(ctx context.Context, req *eveyv1.RecommendedRequest) (*eveyv1.FeedResponse, error) {
 	claims, err := requireClaims(ctx)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("feedHandler.Recommended: %w", err)
 	}
 	profileID, err := resolveProfileID(claims, req.ProfileId)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("feedHandler.Recommended: %w", err)
 	}
 	items, err := h.queries.Recommended(ctx, profileID, int(req.Limit))
 	if err != nil {
@@ -79,11 +80,11 @@ func (h *feedHandler) Recommended(ctx context.Context, req *eveyv1.RecommendedRe
 func (h *feedHandler) SimilarItems(ctx context.Context, req *eveyv1.SimilarItemsRequest) (*eveyv1.FeedResponse, error) {
 	claims, err := requireClaims(ctx)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("feedHandler.SimilarItems: %w", err)
 	}
 	profileID, err := resolveProfileID(claims, req.ProfileId)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("feedHandler.SimilarItems: %w", err)
 	}
 	items, err := h.queries.SimilarItems(ctx, req.MediaItemId, profileID, int(req.Limit))
 	if err != nil {
@@ -120,11 +121,11 @@ func (h *feedHandler) UpdateAdminFeedConfig(ctx context.Context, req *eveyv1.Upd
 func (h *feedHandler) UpdateProfileFeedConfig(ctx context.Context, req *eveyv1.UpdateProfileFeedConfigRequest) (*eveyv1.ProfileFeedConfig, error) {
 	claims, err := requireClaims(ctx)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("feedHandler.UpdateProfileFeedConfig: %w", err)
 	}
 	profileID, err := resolveProfileID(claims, req.ProfileId)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("feedHandler.UpdateProfileFeedConfig: %w", err)
 	}
 	cfg := &feed.ProfileConfig{
 		ProfileID:    profileID,
@@ -150,11 +151,11 @@ func (h *feedHandler) UpdateProfileFeedConfig(ctx context.Context, req *eveyv1.U
 func (h *feedHandler) ResetProfileFeedConfig(ctx context.Context, req *eveyv1.ResetProfileFeedConfigRequest) (*eveyv1.ResetProfileFeedConfigResponse, error) {
 	claims, err := requireClaims(ctx)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("feedHandler.ResetProfileFeedConfig: %w", err)
 	}
 	profileID, err := resolveProfileID(claims, req.ProfileId)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("feedHandler.ResetProfileFeedConfig: %w", err)
 	}
 	if err := h.commands.ResetProfileConfig(ctx, profileID, feed.Type(req.FeedType)); err != nil {
 		return nil, status.Errorf(codes.Internal, "reset profile feed config: %v", err)

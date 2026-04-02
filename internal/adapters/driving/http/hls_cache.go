@@ -2,6 +2,7 @@ package httpapi
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	domainlibrary "github.com/gravity-zero/evey/internal/domain/library"
@@ -30,7 +31,7 @@ func (g *CachedMediaItemGetter) GetMediaItem(ctx context.Context, id string) (*d
 	}
 	item, err := g.inner.GetMediaItem(ctx, id)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("CachedMediaItemGetter.GetMediaItem: %w", err)
 	}
 	g.c.Set("media:"+id, item, hlsCacheTTL)
 	return item, nil
