@@ -308,6 +308,7 @@ func (s *CommandService) flushBatch(key string) {
 func (s *CommandService) emitNotifications(mediaType, title, seriesTitle, mediaItemID string, genres []string, pushTitleOverride string) {
 	parent := s.shutdownCtx
 	if parent == nil {
+		slog.Warn("notification: emitNotifications called before Start(); using background context")
 		parent = context.Background()
 	}
 	ctx, cancel := context.WithTimeout(parent, 30*time.Second)
