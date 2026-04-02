@@ -18,6 +18,7 @@ RUN buf generate --template buf.gen.local.yaml
 FROM node:22-alpine AS frontend
 
 WORKDIR /app
+ENV CI=true
 COPY frontend/ .
 COPY --from=protogen /src/gen/evey/v1/ /gen/evey/v1/
 RUN npm install -g pnpm@10.33.0 && pnpm install \
