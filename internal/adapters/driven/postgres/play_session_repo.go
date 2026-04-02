@@ -66,6 +66,8 @@ func (r *PlaySessionRepository) GetByID(ctx context.Context, id string) (*playba
 }
 
 func (r *PlaySessionRepository) ListActiveSessions(ctx context.Context) ([]*playback.ActiveSessionInfo, error) {
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
 	rows, err := r.db.QueryContext(ctx,
 		`SELECT ps.id, ps.profile_id, p.name, ps.media_item_id, mi.title, mi.type,
 		        COALESCE(mi.duration_ms, 0), COALESCE(ps.position_ms, 0),
@@ -120,6 +122,8 @@ func (r *PlaySessionRepository) GetActiveByProfile(ctx context.Context, profileI
 }
 
 func (r *PlaySessionRepository) GetHistory(ctx context.Context, f playback.PlaySessionFilter) ([]*playback.PlaySession, error) {
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
 	var conditions []string
 	var args []any
 	argIdx := 1

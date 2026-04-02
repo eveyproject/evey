@@ -20,6 +20,8 @@ func NewWatchHistoryAnalyzer(db *sql.DB) *WatchHistoryAnalyzer {
 
 // GetFavoriteGenres returns genres the profile has watched at least minCount times.
 func (a *WatchHistoryAnalyzer) GetFavoriteGenres(ctx context.Context, profileID string, minCount int) ([]string, error) {
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
 	rows, err := a.db.QueryContext(ctx, `
 		WITH recent_sessions AS (
 			SELECT media_item_id
@@ -57,6 +59,8 @@ func (a *WatchHistoryAnalyzer) GetFavoriteGenres(ctx context.Context, profileID 
 
 // GetFavoriteGenresBatch returns favorite genres for multiple profiles in a single query.
 func (a *WatchHistoryAnalyzer) GetFavoriteGenresBatch(ctx context.Context, profileIDs []string, minCount int) (map[string][]string, error) {
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
 	if len(profileIDs) == 0 {
 		return map[string][]string{}, nil
 	}
@@ -102,6 +106,8 @@ func (a *WatchHistoryAnalyzer) GetFavoriteGenresBatch(ctx context.Context, profi
 
 // HasWatchedSeries returns true if the profile has any completed episodes in the series.
 func (a *WatchHistoryAnalyzer) HasWatchedSeries(ctx context.Context, profileID, mediaItemID string) (bool, error) {
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
 	var count int
 	err := a.db.QueryRowContext(ctx, `
 		SELECT COUNT(*)
@@ -118,6 +124,8 @@ func (a *WatchHistoryAnalyzer) HasWatchedSeries(ctx context.Context, profileID, 
 
 // IsCurrentlyWatchingSeries returns true if the profile has an in-progress episode in the series.
 func (a *WatchHistoryAnalyzer) IsCurrentlyWatchingSeries(ctx context.Context, profileID, mediaItemID string) (bool, error) {
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
 	var count int
 	err := a.db.QueryRowContext(ctx, `
 		SELECT COUNT(*)
@@ -135,6 +143,8 @@ func (a *WatchHistoryAnalyzer) IsCurrentlyWatchingSeries(ctx context.Context, pr
 
 // CalculateRelevanceScore counts how many of the profile's favorite genres match the given genres.
 func (a *WatchHistoryAnalyzer) CalculateRelevanceScore(ctx context.Context, profileID string, genres []string) (int, error) {
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
 	if len(genres) == 0 {
 		return 0, nil
 	}

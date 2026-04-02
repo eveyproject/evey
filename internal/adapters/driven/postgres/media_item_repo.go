@@ -203,6 +203,8 @@ func (r *MediaItemRepository) buildWhereClause(f library.ListMediaItemsFilter) (
 }
 
 func (r *MediaItemRepository) Count(ctx context.Context, f library.ListMediaItemsFilter) (int, error) {
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
 	where, args := r.buildWhereClause(f)
 	var count int
 	err := r.db.QueryRowContext(ctx, "SELECT COUNT(*) FROM media_items"+where, args...).Scan(&count)
@@ -213,6 +215,8 @@ func (r *MediaItemRepository) Count(ctx context.Context, f library.ListMediaItem
 }
 
 func (r *MediaItemRepository) List(ctx context.Context, f library.ListMediaItemsFilter) ([]*library.MediaItem, error) {
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
 	where, args := r.buildWhereClause(f)
 	query := fmt.Sprintf("SELECT %s FROM media_items", mediaItemColumns) + where
 
@@ -385,6 +389,8 @@ func (r *MediaItemRepository) ListFilePaths(ctx context.Context, libraryID strin
 const listByLibraryIDMaxRows = 10000
 
 func (r *MediaItemRepository) ListByLibraryID(ctx context.Context, libraryID string) ([]*library.MediaItem, error) {
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
 	rows, err := r.db.QueryContext(ctx,
 		fmt.Sprintf("SELECT %s FROM media_items WHERE library_id = $1 LIMIT $2", mediaItemColumns), libraryID, listByLibraryIDMaxRows)
 	if err != nil {

@@ -19,6 +19,8 @@ func NewAnalyticsReader(db *sql.DB) *AnalyticsReader {
 }
 
 func (r *AnalyticsReader) GetAnalytics(ctx context.Context) (*activity.AnalyticsData, error) {
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
 	type result struct {
 		topMedia       []activity.TopMediaItem
 		recentActivity []activity.RecentActivityEntry
