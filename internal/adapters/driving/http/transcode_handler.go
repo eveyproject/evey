@@ -16,10 +16,8 @@ import (
 	"time"
 
 	apptranscoding "github.com/gravity-zero/evey/internal/app/transcoding"
-	domainlibrary "github.com/gravity-zero/evey/internal/domain/library"
 	domaintranscoding "github.com/gravity-zero/evey/internal/domain/transcoding"
 	domainuser "github.com/gravity-zero/evey/internal/domain/user"
-	"github.com/gravity-zero/evey/internal/pkg/hdr"
 )
 
 func chaptersHandler(tokenGen TokenVerifier, libSvc ChaptersGetter, baseURL string, libraryAccess LibraryAccessChecker, mediaGetter MediaItemGetter) http.HandlerFunc {
@@ -332,44 +330,6 @@ func (h *hlsMasterServe) serveHTTP(w http.ResponseWriter, r *http.Request) {
 	h.serveMaster(w, r, session.OutputDir, userID)
 }
 
-func (h *hlsMasterServe) resolveSourceDimensions(ctx context.Context, mediaID string) (int, int, []*domainlibrary.MediaStream) {
-	sourceWidth, sourceHeight := 1920, 1080
-	streams, err := h.libSvc.GetMediaStreams(ctx, mediaID)
-	if err != nil {
-		return sourceWidth, sourceHeight, nil
-	}
-	for _, s := range streams {
-		if s.StreamType == "video" && s.Width != nil && s.Height != nil {
-			sourceWidth = *s.Width
-			sourceHeight = *s.Height
-			break
-		}
-	}
-	return sourceWidth, sourceHeight, streams
-}
-
-func (h *hlsMasterServe) resolveSubtitle(r *http.Request, streams []*domainlibrary.MediaStream) (int, string) {
-	st := r.URL.Query().Get("subtitleTrack")
-	if st == "" || streams == nil {
-		return -1, ""
-	}
-	n, err := strconv.Atoi(st)
-	if err != nil || n < 0 {
-		return -1, ""
-	}
-	subIdx := 0
-	for _, s := range streams {
-		if s.StreamType != "subtitle" {
-			continue
-		}
-		if subIdx == n {
-			return n, s.Codec
-		}
-		subIdx++
-	}
-	return -1, ""
-}
-
 func (h *hlsMasterServe) serveMaster(w http.ResponseWriter, r *http.Request, outputDir, userID string) {
 	setCORSHeaders(w, r, "")
 	w.Header().Set("Content-Type", "application/vnd.apple.mpegurl")
@@ -524,24 +484,6 @@ type transcodeServe struct {
 	userMaxStreams UserMaxStreamsGetter
 }
 
-type transcodeParams struct {
-	audioTrack    int
-	videoScale    int
-	subtitleTrack int // -1 = no subtitle burn-in
-	remuxOnly     bool
-	startTimeSec  float64
-}
-
-type transcodeAnalysis struct {
-	needsVideoTranscode bool
-	needsAudioTranscode bool
-	needsToneMap        bool
-	burnInSubtitle      bool   // true when subtitle track requires burn-in (PGS/VobSub)
-	subtitleCodec       string // codec of the resolved subtitle stream
-	hdrInfo             *hdr.HDRInfo
-	streams             []*domainlibrary.MediaStream
-}
-
 func transcodeHandler(deps transcodeServe) http.HandlerFunc {
 	h := deps
 	return h.serveHTTP
@@ -644,140 +586,3 @@ func (h *transcodeServe) serveHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (h *transcodeServe) parseParams(r *http.Request) transcodeParams {
-	p := transcodeParams{subtitleTrack: -1}
-	if at := r.URL.Query().Get("audioTrack"); at != "" {
-		if n, err := strconv.Atoi(at); err == nil && n >= 0 {
-			p.audioTrack = n
-		}
-	}
-	if vs := r.URL.Query().Get("videoScale"); vs != "" {
-		if n, err := strconv.Atoi(vs); err == nil && n > 0 && n <= 4320 {
-			p.videoScale = n
-		}
-	}
-	if st := r.URL.Query().Get("subtitleTrack"); st != "" {
-		if n, err := strconv.Atoi(st); err == nil && n >= 0 {
-			p.subtitleTrack = n
-		}
-	}
-	p.remuxOnly = r.URL.Query().Get("remux") == "1"
-	if st := r.URL.Query().Get("startTime"); st != "" {
-		if f, err := strconv.ParseFloat(st, 64); err == nil && f > 0 {
-			p.startTimeSec = f
-		}
-	}
-	return p
-}
-
-func (h *transcodeServe) analyzeStreams(ctx context.Context, mediaID string, remuxOnly, clientSupportsHDR bool, subtitleTrack int) transcodeAnalysis {
-	a := transcodeAnalysis{needsAudioTranscode: true}
-
-	streams, err := h.libSvc.GetMediaStreams(ctx, mediaID)
-	if err != nil {
-		slog.Error("transcode: GetMediaStreams failed", slog.String("media_id", mediaID), slog.Any("err", err))
-		return a
-	}
-	a.streams = streams
-	for _, s := range streams {
-		slog.Debug("transcode: stream", slog.String("media_id", mediaID), slog.String("type", s.StreamType), slog.String("codec", s.Codec), slog.Bool("default", s.IsDefault))
-		if s.StreamType == "video" && s.Codec != "h264" && !remuxOnly {
-			a.needsVideoTranscode = true
-		}
-		if s.StreamType == "audio" && s.IsDefault {
-			switch s.Codec {
-			case "aac", "mp3", "opus":
-				a.needsAudioTranscode = false
-			}
-		}
-	}
-
-	if subtitleTrack >= 0 {
-		subIdx := 0
-		for _, s := range streams {
-			if s.StreamType != "subtitle" {
-				continue
-			}
-			if subIdx == subtitleTrack {
-				a.subtitleCodec = s.Codec
-				if apptranscoding.IsImageSubtitle(s.Codec) {
-					a.burnInSubtitle = true
-					a.needsVideoTranscode = true
-				}
-				break
-			}
-			subIdx++
-		}
-	}
-
-	hdrStreams := make([]hdr.VideoStream, len(streams))
-	for i, s := range streams {
-		hdrStreams[i] = s
-	}
-	a.hdrInfo = hdr.DetectHDR(hdrStreams)
-	a.needsToneMap = a.hdrInfo.IsHDR && !clientSupportsHDR
-	if a.needsToneMap {
-		a.needsVideoTranscode = true
-	}
-	return a
-}
-
-func (h *transcodeServe) buildFFmpegArgs(filePath string, p transcodeParams, a transcodeAnalysis) []string {
-	var args []string
-	if p.startTimeSec > 0 {
-		args = append(args, "-ss", fmt.Sprintf("%.3f", p.startTimeSec))
-	}
-	args = append(args, "-i", filePath)
-
-	if a.burnInSubtitle && p.subtitleTrack >= 0 {
-		var filters []string
-		switch {
-		case a.needsToneMap && !p.remuxOnly:
-			toneMapFilter := hdr.BuildToneMapFilter(a.hdrInfo, hdr.DefaultToneMapOptions())
-			filters = append(filters, fmt.Sprintf("[0:v]%s[vt]", toneMapFilter))
-			if p.videoScale > 0 {
-				filters = append(filters, fmt.Sprintf("[vt][0:s:%d]overlay,scale=-2:%d[vb]", p.subtitleTrack, p.videoScale))
-			} else {
-				filters = append(filters, fmt.Sprintf("[vt][0:s:%d]overlay[vb]", p.subtitleTrack))
-			}
-		case p.videoScale > 0:
-			filters = append(filters, fmt.Sprintf("[0:v][0:s:%d]overlay,scale=-2:%d[vb]", p.subtitleTrack, p.videoScale))
-		default:
-			filters = append(filters, fmt.Sprintf("[0:v][0:s:%d]overlay[vb]", p.subtitleTrack))
-		}
-		args = append(args, "-filter_complex", strings.Join(filters, ";"))
-		args = append(args, "-map", "[vb]")
-		args = append(args, "-map", fmt.Sprintf("0:a:%d", p.audioTrack))
-		args = append(args, "-c:v", "libx264", "-crf", "23", "-preset", "veryfast", "-threads", "2")
-	} else {
-		args = append(args, "-map", "0:v:0")
-		args = append(args, "-map", fmt.Sprintf("0:a:%d", p.audioTrack))
-
-		switch {
-		case a.needsToneMap && !p.remuxOnly:
-			toneMapFilter := hdr.BuildToneMapFilter(a.hdrInfo, hdr.DefaultToneMapOptions())
-			if p.videoScale > 0 {
-				args = append(args, "-vf", fmt.Sprintf("scale=-2:%d,%s", p.videoScale, toneMapFilter))
-			} else {
-				args = append(args, "-vf", toneMapFilter)
-			}
-			args = append(args, "-c:v", "libx264", "-crf", "23", "-preset", "veryfast", "-threads", "2")
-		case p.videoScale > 0:
-			args = append(args, "-vf", fmt.Sprintf("scale=-2:%d", p.videoScale), "-c:v", "libx264", "-crf", "23", "-preset", "veryfast", "-threads", "2")
-		case a.needsVideoTranscode:
-			args = append(args, "-c:v", "libx264", "-crf", "23", "-preset", "veryfast", "-tune", "zerolatency", "-threads", "0")
-		default:
-			args = append(args, "-c:v", "copy")
-		}
-	}
-
-	if a.needsAudioTranscode {
-		args = append(args, "-c:a", "aac", "-ac", "2", "-b:a", "192k")
-	} else {
-		args = append(args, "-c:a", "copy")
-	}
-	args = append(args, "-movflags", "frag_keyframe+empty_moov+default_base_moof",
-		"-frag_duration", "2000000",
-		"-f", "mp4", "-")
-	return args
-}
