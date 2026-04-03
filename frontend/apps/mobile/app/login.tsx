@@ -101,9 +101,17 @@ export default function Login() {
 
   return (
     <View style={{ flex: 1, justifyContent: "center", padding: theme.spacing.xl, backgroundColor: theme.colors.bg }}>
-      <Text style={{ fontSize: 24, fontWeight: "bold", color: theme.colors.text, marginBottom: theme.spacing.lg }}>
+      <Text style={{ fontSize: 24, fontWeight: "bold", color: theme.colors.text, marginBottom: 4 }}>
         {t("auth.login.signIn")}
       </Text>
+      {serverUrl && (
+        <Pressable onPress={() => router.push("/server-connect")} style={{ marginBottom: theme.spacing.lg, flexDirection: "row", alignItems: "center", gap: 4 }}>
+          <Text style={{ color: theme.colors.textMuted, fontSize: 12 }} numberOfLines={1}>
+            {serverUrl.replace(/^https?:\/\//, "")}
+          </Text>
+          <Text style={{ color: theme.colors.accent, fontSize: 12 }}>{t("common.change", "Change")}</Text>
+        </Pressable>
+      )}
       <TextInput
         placeholder={t("auth.login.username")}
         placeholderTextColor={theme.colors.textMuted}

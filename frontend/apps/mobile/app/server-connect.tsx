@@ -59,8 +59,14 @@ export default function ServerConnect() {
 
   return (
     <View style={containerStyle}>
-      <Text style={[scStyles.heading, { color: theme.colors.text, marginBottom: theme.spacing.lg }]}>
-        Connect to Server
+      <Text style={{ fontSize: 36, fontWeight: "800", color: theme.colors.accent, marginBottom: 8, letterSpacing: -1 }}>
+        Evey
+      </Text>
+      <Text style={[scStyles.heading, { color: theme.colors.text, marginBottom: 4, fontSize: 18 }]}>
+        Connect to your server
+      </Text>
+      <Text style={{ color: theme.colors.textMuted, fontSize: 13, marginBottom: theme.spacing.lg }}>
+        Enter the URL of your self-hosted Evey instance
       </Text>
       <TextInput
         placeholder="https://your-server.com"
