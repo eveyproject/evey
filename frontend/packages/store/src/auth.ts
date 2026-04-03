@@ -42,7 +42,7 @@ export const useAuthStore = create<AuthState>()(
     {
       name: "evey-auth",
       storage: createJSONStorage(() => getZustandStorage()),
-      partialize: (state) => ({ profileId: state.profileId }),
+      partialize: (state) => ({ profileId: state.profileId, accessToken: state.accessToken, isAdmin: state.isAdmin }),
     }
   )
 );
