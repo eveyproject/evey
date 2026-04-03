@@ -53,9 +53,11 @@ function PlaylistCard({
             {playlist.description}
           </Text>
         ) : null}
-        <Text style={[styles.meta, { color: theme.colors.textMuted }]}>
-          {playlist.type}
-        </Text>
+        {playlist.type?.includes("SMART") ? (
+          <View style={{ backgroundColor: theme.colors.accent, borderRadius: 4, paddingHorizontal: 5, paddingVertical: 1, alignSelf: "flex-start", marginTop: 2 }}>
+            <Text style={{ color: "#fff", fontSize: 10, fontWeight: "700" }}>SMART</Text>
+          </View>
+        ) : null}
       </View>
       <Ionicons name="chevron-forward" size={18} color={theme.colors.textMuted} />
     </TouchableOpacity>
