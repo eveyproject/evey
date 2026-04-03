@@ -12,6 +12,7 @@ import {
   StyleSheet,
 } from "react-native";
 import { Image } from "expo-image";
+import { Ionicons } from "@expo/vector-icons";
 import { Skeleton } from "../../../src/components/Skeleton";
 import { useLocalSearchParams, useRouter, Stack } from "expo-router";
 import { useTranslation } from "react-i18next";
@@ -77,6 +78,12 @@ function getPoster(item: V1MediaItem): string | undefined {
   return item.artwork?.find((a) => a.type === "ARTWORK_TYPE_PRIMARY")?.url;
 }
 
+function formatType(type?: string): string {
+  if (type === "MEDIA_ITEM_TYPE_MOVIE") return "Movie";
+  if (type === "MEDIA_ITEM_TYPE_SERIES") return "Series";
+  return "";
+}
+
 export default function LibraryDetailScreen() {
   const { libraryId } = useLocalSearchParams<{ libraryId: string }>();
   const theme = useTheme();
@@ -97,6 +104,11 @@ export default function LibraryDetailScreen() {
   const [searchText, setSearchText] = useState("");
   const debouncedSearch = useDebounce(searchText, 300);
   const [showFilters, setShowFilters] = useState(false);
+  const [yearMin, setYearMin] = useState("");
+  const [yearMax, setYearMax] = useState("");
+  const [ratingMin, setRatingMin] = useState("");
+  const [ratingMax, setRatingMax] = useState("");
+  const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
 
   const authHeaders = useAuthHeaders();
   const { data: library } = useLibraryServiceGetLibrary(libraryId ?? "");
@@ -141,14 +153,31 @@ export default function LibraryDetailScreen() {
 
   const totalItems = data?.pagination?.totalItems ?? 0;
 
-  // Client-side text filter
+  // Client-side text + year/rating filter
   const displayItems = useMemo(() => {
-    if (!debouncedSearch.trim()) return allItems;
-    const lower = debouncedSearch.toLowerCase();
-    return allItems.filter((item) =>
-      item.title?.toLowerCase().includes(lower),
-    );
-  }, [allItems, debouncedSearch]);
+    let items = allItems;
+    if (debouncedSearch.trim()) {
+      const lower = debouncedSearch.toLowerCase();
+      items = items.filter((item) => item.title?.toLowerCase().includes(lower));
+    }
+    if (yearMin) {
+      const min = parseInt(yearMin);
+      items = items.filter((item) => (item.year ?? 0) >= min);
+    }
+    if (yearMax) {
+      const max = parseInt(yearMax);
+      items = items.filter((item) => (item.year ?? 9999) <= max);
+    }
+    if (ratingMin) {
+      const min = parseFloat(ratingMin);
+      items = items.filter((item) => (item.communityRating ?? 0) >= min);
+    }
+    if (ratingMax) {
+      const max = parseFloat(ratingMax);
+      items = items.filter((item) => (item.communityRating ?? 10) <= max);
+    }
+    return items;
+  }, [allItems, debouncedSearch, yearMin, yearMax, ratingMin, ratingMax]);
 
   // Collect genres from loaded items
   const availableGenres = useMemo(() => {
@@ -238,6 +267,62 @@ export default function LibraryDetailScreen() {
     [theme, router, authHeaders, t],
   );
 
+  const renderListItem = useCallback(
+    ({ item }: { item: V1MediaItem }) => {
+      const poster = getPoster(item);
+      return (
+        <TouchableOpacity
+          style={[
+            styles.listRow,
+            {
+              backgroundColor: theme.colors.surface,
+              borderRadius: theme.radii.md,
+            },
+          ]}
+          activeOpacity={0.7}
+          onPress={() => router.push(`/media/${item.id}`)}
+        >
+          {poster ? (
+            <Image
+              source={{ uri: poster, headers: authHeaders }}
+              style={[styles.listThumb, { borderRadius: theme.radii.sm }]}
+              contentFit="cover"
+              transition={200}
+            />
+          ) : (
+            <View
+              style={[
+                styles.listThumb,
+                {
+                  borderRadius: theme.radii.sm,
+                  backgroundColor: theme.colors.surfaceRaised,
+                  justifyContent: "center",
+                  alignItems: "center",
+                },
+              ]}
+            >
+              <Text style={{ color: theme.colors.textMuted, fontSize: 10 }}>
+                ?
+              </Text>
+            </View>
+          )}
+          <View style={styles.listInfo}>
+            <Text
+              style={{ fontSize: 15, fontWeight: "600", color: theme.colors.text }}
+              numberOfLines={1}
+            >
+              {item.title}
+            </Text>
+            <Text style={{ fontSize: 12, marginTop: 2, color: theme.colors.textMuted }}>
+              {[item.year, formatType(item.type)].filter(Boolean).join(" · ")}
+            </Text>
+          </View>
+        </TouchableOpacity>
+      );
+    },
+    [theme, router, authHeaders],
+  );
+
   const isActiveSort = (f: LibraryServiceListMediaItemsSortField) =>
     sortField === f;
 
@@ -313,15 +398,35 @@ export default function LibraryDetailScreen() {
                 }}
               >
                 {t("media.library.filters")}
-                {genre ? " (1)" : ""}
+                {(() => {
+                  const c = (genre ? 1 : 0) + (yearMin || yearMax ? 1 : 0) + (ratingMin || ratingMax ? 1 : 0);
+                  return c ? ` (${c})` : "";
+                })()}
               </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[
+                styles.filterBtn,
+                {
+                  backgroundColor: theme.colors.surface,
+                  borderRadius: theme.radii.sm,
+                },
+              ]}
+              activeOpacity={0.7}
+              onPress={() => setViewMode((v) => (v === "grid" ? "list" : "grid"))}
+            >
+              <Ionicons
+                name={viewMode === "grid" ? "list" : "grid"}
+                size={18}
+                color={theme.colors.textMuted}
+              />
             </TouchableOpacity>
           </View>
 
           {/* Item count */}
           <View style={[styles.countRow, { paddingHorizontal: SPACING }]}>
             <Text style={[styles.countText, { color: theme.colors.textMuted }]}>
-              {debouncedSearch.trim()
+              {debouncedSearch.trim() || yearMin || yearMax || ratingMin || ratingMax
                 ? `${displayItems.length} / ${totalItems}`
                 : `${totalItems}`}{" "}
               {totalItems === 1 ? "item" : "items"}
@@ -504,44 +609,176 @@ export default function LibraryDetailScreen() {
                   </TouchableOpacity>
                 ))}
               </ScrollView>
+
+              {/* Year range */}
+              <Text
+                style={[
+                  styles.filterLabel,
+                  { color: theme.colors.textMuted, marginTop: 10 },
+                ]}
+              >
+                {t("media.search.year")}
+              </Text>
+              <View style={{ flexDirection: "row", gap: 8 }}>
+                <TextInput
+                  placeholder={t("media.search.fromYear")}
+                  placeholderTextColor={theme.colors.textMuted}
+                  value={yearMin}
+                  onChangeText={(v) => setYearMin(v.replace(/\D/g, ""))}
+                  keyboardType="number-pad"
+                  maxLength={4}
+                  style={{
+                    flex: 1,
+                    backgroundColor: theme.colors.bg,
+                    color: theme.colors.text,
+                    borderRadius: theme.radii.sm,
+                    paddingVertical: 8,
+                    paddingHorizontal: 10,
+                    fontSize: 13,
+                    borderWidth: 1,
+                    borderColor: theme.colors.border,
+                  }}
+                />
+                <TextInput
+                  placeholder={t("media.search.toYear")}
+                  placeholderTextColor={theme.colors.textMuted}
+                  value={yearMax}
+                  onChangeText={(v) => setYearMax(v.replace(/\D/g, ""))}
+                  keyboardType="number-pad"
+                  maxLength={4}
+                  style={{
+                    flex: 1,
+                    backgroundColor: theme.colors.bg,
+                    color: theme.colors.text,
+                    borderRadius: theme.radii.sm,
+                    paddingVertical: 8,
+                    paddingHorizontal: 10,
+                    fontSize: 13,
+                    borderWidth: 1,
+                    borderColor: theme.colors.border,
+                  }}
+                />
+              </View>
+
+              {/* Rating range */}
+              <Text
+                style={[
+                  styles.filterLabel,
+                  { color: theme.colors.textMuted, marginTop: 10 },
+                ]}
+              >
+                {t("media.library.ratingSort")}
+              </Text>
+              <View style={{ flexDirection: "row", gap: 8 }}>
+                <TextInput
+                  placeholder="0"
+                  placeholderTextColor={theme.colors.textMuted}
+                  value={ratingMin}
+                  onChangeText={(v) => setRatingMin(v.replace(/[^0-9.]/g, ""))}
+                  keyboardType="decimal-pad"
+                  maxLength={4}
+                  style={{
+                    flex: 1,
+                    backgroundColor: theme.colors.bg,
+                    color: theme.colors.text,
+                    borderRadius: theme.radii.sm,
+                    paddingVertical: 8,
+                    paddingHorizontal: 10,
+                    fontSize: 13,
+                    borderWidth: 1,
+                    borderColor: theme.colors.border,
+                  }}
+                />
+                <TextInput
+                  placeholder="10"
+                  placeholderTextColor={theme.colors.textMuted}
+                  value={ratingMax}
+                  onChangeText={(v) => setRatingMax(v.replace(/[^0-9.]/g, ""))}
+                  keyboardType="decimal-pad"
+                  maxLength={4}
+                  style={{
+                    flex: 1,
+                    backgroundColor: theme.colors.bg,
+                    color: theme.colors.text,
+                    borderRadius: theme.radii.sm,
+                    paddingVertical: 8,
+                    paddingHorizontal: 10,
+                    fontSize: 13,
+                    borderWidth: 1,
+                    borderColor: theme.colors.border,
+                  }}
+                />
+              </View>
             </View>
           )}
 
-          {/* Grid */}
+          {/* Grid / List */}
           {isLoading && page === 1 ? (
-            <View
-              style={{
-                flexDirection: "row",
-                flexWrap: "wrap",
-                paddingTop: SPACING,
-              }}
-            >
-              {Array.from({ length: 9 }).map((_, i) => (
-                <View
-                  key={i}
-                  style={{
-                    marginLeft: SPACING,
-                    marginBottom: SPACING,
-                    alignItems: "center",
-                    width: ITEM_WIDTH,
-                  }}
-                >
-                  <Skeleton
-                    width={ITEM_WIDTH}
-                    height={POSTER_HEIGHT}
-                    borderRadius={theme.radii.sm}
-                  />
-                  <Skeleton
-                    width={ITEM_WIDTH * 0.7}
-                    height={12}
-                    borderRadius={4}
-                    style={{ marginTop: 6 }}
-                  />
-                </View>
-              ))}
-            </View>
-          ) : (
+            viewMode === "grid" ? (
+              <View
+                style={{
+                  flexDirection: "row",
+                  flexWrap: "wrap",
+                  paddingTop: SPACING,
+                }}
+              >
+                {Array.from({ length: 9 }).map((_, i) => (
+                  <View
+                    key={i}
+                    style={{
+                      marginLeft: SPACING,
+                      marginBottom: SPACING,
+                      alignItems: "center",
+                      width: ITEM_WIDTH,
+                    }}
+                  >
+                    <Skeleton
+                      width={ITEM_WIDTH}
+                      height={POSTER_HEIGHT}
+                      borderRadius={theme.radii.sm}
+                    />
+                    <Skeleton
+                      width={ITEM_WIDTH * 0.7}
+                      height={12}
+                      borderRadius={4}
+                      style={{ marginTop: 6 }}
+                    />
+                  </View>
+                ))}
+              </View>
+            ) : (
+              <View style={{ padding: SPACING }}>
+                {Array.from({ length: 6 }).map((_, i) => (
+                  <View
+                    key={i}
+                    style={{
+                      flexDirection: "row",
+                      alignItems: "center",
+                      padding: 10,
+                      marginBottom: 8,
+                    }}
+                  >
+                    <Skeleton
+                      width={48}
+                      height={72}
+                      borderRadius={theme.radii.sm}
+                    />
+                    <View style={{ flex: 1, marginLeft: 12 }}>
+                      <Skeleton width="70%" height={15} borderRadius={4} />
+                      <Skeleton
+                        width="40%"
+                        height={12}
+                        borderRadius={4}
+                        style={{ marginTop: 6 }}
+                      />
+                    </View>
+                  </View>
+                ))}
+              </View>
+            )
+          ) : viewMode === "grid" ? (
             <FlatList
+              key="grid"
               data={displayItems}
               keyExtractor={libraryKeyExtractor}
               renderItem={renderItem}
@@ -567,7 +804,41 @@ export default function LibraryDetailScreen() {
               ListEmptyComponent={
                 <View style={styles.center}>
                   <Text style={{ color: theme.colors.textMuted }}>
-                    {genre || debouncedSearch.trim()
+                    {genre || debouncedSearch.trim() || yearMin || yearMax || ratingMin || ratingMax
+                      ? t("media.library.noItemsFiltered") || t("common.noItems")
+                      : t("common.noItems")}
+                  </Text>
+                </View>
+              }
+            />
+          ) : (
+            <FlatList
+              key="list"
+              data={displayItems}
+              keyExtractor={libraryKeyExtractor}
+              renderItem={renderListItem}
+              contentContainerStyle={{ padding: SPACING }}
+              ItemSeparatorComponent={() => <View style={{ height: 8 }} />}
+              refreshing={isFetching && page === 1}
+              onRefresh={handleRefresh}
+              onEndReached={handleEndReached}
+              onEndReachedThreshold={0.5}
+              initialNumToRender={10}
+              maxToRenderPerBatch={12}
+              windowSize={5}
+              removeClippedSubviews={true}
+              ListFooterComponent={
+                isFetching && page > 1 ? (
+                  <ActivityIndicator
+                    color={theme.colors.accent}
+                    style={{ marginVertical: 16 }}
+                  />
+                ) : null
+              }
+              ListEmptyComponent={
+                <View style={styles.center}>
+                  <Text style={{ color: theme.colors.textMuted }}>
+                    {genre || debouncedSearch.trim() || yearMin || yearMax || ratingMin || ratingMax
                       ? t("media.library.noItemsFiltered") || t("common.noItems")
                       : t("common.noItems")}
                   </Text>
@@ -636,4 +907,11 @@ const styles = StyleSheet.create({
     marginTop: 1,
     textAlign: "center",
   },
+  listRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    padding: 10,
+  },
+  listThumb: { width: 48, height: 72, marginRight: 12 },
+  listInfo: { flex: 1 },
 });
