@@ -56,6 +56,8 @@ export default function SearchScreen() {
     undefined,
   );
   const [genre, setGenre] = useState("");
+  const [yearMin, setYearMin] = useState("");
+  const [yearMax, setYearMax] = useState("");
   const [showFilters, setShowFilters] = useState(false);
   const [sortField, setSortField] = useState<SortField | undefined>(undefined);
   const [sortOrder, setSortOrder] = useState<SortOrder | undefined>(undefined);
@@ -92,6 +94,8 @@ export default function SearchScreen() {
       query: debouncedQuery,
       ...(typeFilter ? { type: typeFilter } : {}),
       ...(genre ? { genre } : {}),
+      ...(yearMin ? { yearMin: parseInt(yearMin) } : {}),
+      ...(yearMax ? { yearMax: parseInt(yearMax) } : {}),
       ...(sortField ? { sortField, sortOrder } : {}),
       limit: 40,
     },
@@ -101,13 +105,15 @@ export default function SearchScreen() {
   const items = data?.items ?? [];
   const totalHits = data?.totalHits ?? items.length;
   const hasQuery = debouncedQuery.length > 1;
-  const hasActiveFilters = !!typeFilter || !!genre || !!sortField;
+  const hasActiveFilters = !!typeFilter || !!genre || !!yearMin || !!yearMax || !!sortField;
 
   const authHeaders = useAuthHeaders();
 
   const clearAllFilters = useCallback(() => {
     setTypeFilter(undefined);
     setGenre("");
+    setYearMin("");
+    setYearMax("");
     setSortField(undefined);
     setSortOrder(undefined);
   }, []);
@@ -413,6 +419,51 @@ export default function SearchScreen() {
                   );
                 })}
               </ScrollView>
+
+              {/* Year range */}
+              <Text style={[styles.filterLabel, { color: theme.colors.textMuted, marginTop: 10 }]}>
+                {t("media.search.year")}
+              </Text>
+              <View style={{ flexDirection: "row", gap: 8 }}>
+                <TextInput
+                  placeholder={t("media.search.fromYear")}
+                  placeholderTextColor={theme.colors.textMuted}
+                  value={yearMin}
+                  onChangeText={(v) => setYearMin(v.replace(/\D/g, ""))}
+                  keyboardType="number-pad"
+                  maxLength={4}
+                  style={{
+                    flex: 1,
+                    backgroundColor: theme.colors.bg,
+                    color: theme.colors.text,
+                    borderRadius: theme.radii.sm,
+                    paddingVertical: 8,
+                    paddingHorizontal: 10,
+                    fontSize: 13,
+                    borderWidth: 1,
+                    borderColor: theme.colors.border,
+                  }}
+                />
+                <TextInput
+                  placeholder={t("media.search.toYear")}
+                  placeholderTextColor={theme.colors.textMuted}
+                  value={yearMax}
+                  onChangeText={(v) => setYearMax(v.replace(/\D/g, ""))}
+                  keyboardType="number-pad"
+                  maxLength={4}
+                  style={{
+                    flex: 1,
+                    backgroundColor: theme.colors.bg,
+                    color: theme.colors.text,
+                    borderRadius: theme.radii.sm,
+                    paddingVertical: 8,
+                    paddingHorizontal: 10,
+                    fontSize: 13,
+                    borderWidth: 1,
+                    borderColor: theme.colors.border,
+                  }}
+                />
+              </View>
             </View>
           )}
         </View>
