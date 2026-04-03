@@ -23,7 +23,7 @@ FROM node:22-alpine AS frontend
 
 WORKDIR /app
 ENV CI=true
-COPY frontend/package.json frontend/pnpm-lock.yaml frontend/.npmrc ./
+COPY frontend/package.json frontend/pnpm-lock.yaml frontend/.npmrc frontend/pnpm-workspace.yaml ./
 COPY frontend/apps/web/package.json apps/web/package.json
 COPY frontend/apps/mobile/package.json apps/mobile/package.json
 COPY frontend/apps/tv/package.json apps/tv/package.json

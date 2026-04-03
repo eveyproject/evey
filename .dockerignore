@@ -4,3 +4,6 @@ data/
 logs/
 *.pem
 .env
+**/node_modules
+**/.expo
+**/dist
