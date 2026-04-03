@@ -1,6 +1,7 @@
 import { View, Text, Pressable } from "react-native";
 import { Tabs, router } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
+import { useTranslation } from "react-i18next";
 import { useNotificationServiceGetUnreadCount } from "@evey/api";
 import { useTheme } from "../../../src/providers/ThemeProvider";
 
@@ -42,6 +43,7 @@ function NotificationBellButton() {
 
 export default function TabsLayout() {
   const theme = useTheme();
+  const { t } = useTranslation();
 
   return (
     <Tabs
@@ -58,7 +60,7 @@ export default function TabsLayout() {
       <Tabs.Screen
         name="index"
         options={{
-          title: "Home",
+          title: t("common.nav.home"),
           headerShown: true,
           headerStyle: { backgroundColor: theme.colors.bg },
           headerTitleStyle: { color: theme.colors.text },
@@ -66,10 +68,10 @@ export default function TabsLayout() {
           tabBarIcon: ({ color, size }) => <Ionicons name="home" size={size} color={color} />,
         }}
       />
-      <Tabs.Screen name="search" options={{ title: "Search", tabBarIcon: ({ color, size }) => <Ionicons name="search" size={size} color={color} /> }} />
-      <Tabs.Screen name="library" options={{ title: "Library", tabBarIcon: ({ color, size }) => <Ionicons name="library" size={size} color={color} /> }} />
-      <Tabs.Screen name="favorites" options={{ title: "Favorites", tabBarIcon: ({ color, size }) => <Ionicons name="heart" size={size} color={color} /> }} />
-      <Tabs.Screen name="settings" options={{ title: "Settings", tabBarIcon: ({ color, size }) => <Ionicons name="settings" size={size} color={color} /> }} />
+      <Tabs.Screen name="search" options={{ title: t("common.nav.search"), tabBarIcon: ({ color, size }) => <Ionicons name="search" size={size} color={color} /> }} />
+      <Tabs.Screen name="library" options={{ title: t("media.library.title"), tabBarIcon: ({ color, size }) => <Ionicons name="library" size={size} color={color} /> }} />
+      <Tabs.Screen name="favorites" options={{ title: t("media.favorites.title"), tabBarIcon: ({ color, size }) => <Ionicons name="heart" size={size} color={color} /> }} />
+      <Tabs.Screen name="settings" options={{ title: t("common.settings"), tabBarIcon: ({ color, size }) => <Ionicons name="settings" size={size} color={color} /> }} />
     </Tabs>
   );
 }

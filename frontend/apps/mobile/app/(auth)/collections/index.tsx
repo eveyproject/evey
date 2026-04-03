@@ -98,7 +98,7 @@ export default function CollectionsScreen() {
       <Stack.Screen
         options={{
           headerShown: true,
-          title: "Collections",
+          title: t("media.collections.title"),
           headerStyle: { backgroundColor: theme.colors.surface },
           headerTintColor: theme.colors.text,
         }}

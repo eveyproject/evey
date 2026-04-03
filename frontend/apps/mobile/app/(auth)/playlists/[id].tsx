@@ -64,7 +64,7 @@ export default function PlaylistDetailScreen() {
         <Stack.Screen
           options={{
             headerShown: true,
-            title: "Playlist",
+            title: t("common.playlists"),
             headerStyle: { backgroundColor: theme.colors.surface },
             headerTintColor: theme.colors.text,
           }}
@@ -80,7 +80,7 @@ export default function PlaylistDetailScreen() {
         <Stack.Screen
           options={{
             headerShown: true,
-            title: "Playlist",
+            title: t("common.playlists"),
             headerStyle: { backgroundColor: theme.colors.surface },
             headerTintColor: theme.colors.text,
           }}
