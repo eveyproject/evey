@@ -1,11 +1,12 @@
-import { useCallback } from "react";
+import { useCallback, useMemo, useState } from "react";
 import {
   View,
   Text,
   FlatList,
+  TextInput,
   TouchableOpacity,
   Pressable,
-  ActivityIndicator,
+  ScrollView,
   Dimensions,
   StyleSheet,
 } from "react-native";
@@ -16,6 +17,7 @@ import { useTranslation } from "react-i18next";
 import { useTheme } from "../../../src/providers/ThemeProvider";
 import { useAuthHeaders } from "../../../src/hooks/useAuthenticatedImage";
 import { useServerUrl } from "../../../src/hooks/useServerUrl";
+import { useDebounce } from "../../../src/hooks/useDebounce";
 import { useFavoritesList, type FavoriteItem } from "../../../src/hooks/useFavorite";
 
 const NUM_COLUMNS = 3;
@@ -24,6 +26,9 @@ const screenWidth = Dimensions.get("window").width;
 const ITEM_WIDTH = (screenWidth - SPACING * (NUM_COLUMNS + 1)) / NUM_COLUMNS;
 const POSTER_HEIGHT = ITEM_WIDTH * 1.5;
 const ROW_HEIGHT = POSTER_HEIGHT + 30 + SPACING; // poster + text + margin
+
+type SortKey = "addedAt" | "titleAsc" | "titleDesc" | "yearNewest" | "yearOldest";
+type TypeFilter = "all" | "MEDIA_ITEM_TYPE_MOVIE" | "MEDIA_ITEM_TYPE_SERIES";
 
 function favKeyExtractor(item: FavoriteItem) {
   return item.mediaItemId;
@@ -42,6 +47,58 @@ export default function FavoritesScreen() {
   const authHeaders = useAuthHeaders();
   const serverUrl = useServerUrl();
   const { data: favorites, isLoading, isError, isRefetching, refetch } = useFavoritesList(200);
+
+  const [searchText, setSearchText] = useState("");
+  const debouncedSearch = useDebounce(searchText, 300);
+  const [sortKey, setSortKey] = useState<SortKey>("addedAt");
+  const [typeFilter, setTypeFilter] = useState<TypeFilter>("all");
+
+  const sortOptions: Array<{ key: SortKey; label: string }> = [
+    { key: "addedAt", label: t("media.search.dateAdded") || "Date added" },
+    { key: "titleAsc", label: t("media.search.titleAZ") || "Title A-Z" },
+    { key: "titleDesc", label: t("media.favorites.titleZA") || "Title Z-A" },
+    { key: "yearNewest", label: t("media.search.yearNewest") || "Year newest" },
+    { key: "yearOldest", label: t("media.favorites.yearOldest") || "Year oldest" },
+  ];
+
+  const typeOptions: Array<{ key: TypeFilter; label: string }> = [
+    { key: "all", label: t("media.search.all") || "All" },
+    { key: "MEDIA_ITEM_TYPE_MOVIE", label: t("media.search.movies") || "Movies" },
+    { key: "MEDIA_ITEM_TYPE_SERIES", label: t("media.search.series") || "Series" },
+  ];
+
+  const displayItems = useMemo(() => {
+    let items = favorites ?? [];
+
+    if (typeFilter !== "all") {
+      items = items.filter((i) => i.type === typeFilter);
+    }
+
+    if (debouncedSearch.trim()) {
+      const lower = debouncedSearch.toLowerCase();
+      items = items.filter((i) => i.title?.toLowerCase().includes(lower));
+    }
+
+    const sorted = [...items];
+    switch (sortKey) {
+      case "addedAt":
+        sorted.sort((a, b) => (b.createdAt ?? "").localeCompare(a.createdAt ?? ""));
+        break;
+      case "titleAsc":
+        sorted.sort((a, b) => (a.title ?? "").localeCompare(b.title ?? ""));
+        break;
+      case "titleDesc":
+        sorted.sort((a, b) => (b.title ?? "").localeCompare(a.title ?? ""));
+        break;
+      case "yearNewest":
+        sorted.sort((a, b) => (b.year ?? 0) - (a.year ?? 0));
+        break;
+      case "yearOldest":
+        sorted.sort((a, b) => (a.year ?? 0) - (b.year ?? 0));
+        break;
+    }
+    return sorted;
+  }, [favorites, typeFilter, debouncedSearch, sortKey]);
 
   const renderItem = useCallback(
     ({ item }: { item: FavoriteItem }) => {
@@ -123,8 +180,71 @@ export default function FavoritesScreen() {
       <Text style={[styles.header, { color: theme.colors.text, marginTop: theme.spacing.xl }]}>
         {t("media.favorites.title")}
       </Text>
+
+      {/* Search input */}
+      <TextInput
+        style={[
+          styles.searchInput,
+          {
+            backgroundColor: theme.colors.surface,
+            color: theme.colors.text,
+            borderRadius: theme.radii.sm,
+          },
+        ]}
+        placeholder={t("media.library.filterByName") || "Search..."}
+        placeholderTextColor={theme.colors.textMuted}
+        value={searchText}
+        onChangeText={setSearchText}
+        autoCapitalize="none"
+        autoCorrect={false}
+      />
+
+      {/* Type filter chips */}
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chipRow}>
+        {typeOptions.map((opt) => (
+          <TouchableOpacity
+            key={opt.key}
+            style={[
+              styles.chip,
+              {
+                backgroundColor: typeFilter === opt.key ? theme.colors.accent : theme.colors.surfaceRaised,
+                borderRadius: theme.radii.sm,
+              },
+            ]}
+            activeOpacity={0.7}
+            onPress={() => setTypeFilter(opt.key)}
+          >
+            <Text style={{ color: typeFilter === opt.key ? "#fff" : theme.colors.text, fontSize: 13 }}>
+              {opt.label}
+            </Text>
+          </TouchableOpacity>
+        ))}
+      </ScrollView>
+
+      {/* Sort chips */}
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chipRow}>
+        {sortOptions.map((opt) => (
+          <TouchableOpacity
+            key={opt.key}
+            style={[
+              styles.chip,
+              {
+                backgroundColor: sortKey === opt.key ? theme.colors.accent : theme.colors.surfaceRaised,
+                borderRadius: theme.radii.sm,
+              },
+            ]}
+            activeOpacity={0.7}
+            onPress={() => setSortKey(opt.key)}
+          >
+            <Text style={{ color: sortKey === opt.key ? "#fff" : theme.colors.text, fontSize: 13 }}>
+              {opt.label}
+            </Text>
+          </TouchableOpacity>
+        ))}
+      </ScrollView>
+
       <FlatList
-        data={favorites ?? []}
+        data={displayItems}
         keyExtractor={favKeyExtractor}
         renderItem={renderItem}
         numColumns={NUM_COLUMNS}
@@ -149,6 +269,24 @@ export default function FavoritesScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1 },
   header: { fontSize: 28, fontWeight: "700", paddingHorizontal: 16 },
+  searchInput: {
+    marginHorizontal: SPACING,
+    marginTop: 8,
+    marginBottom: 4,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    fontSize: 14,
+  },
+  chipRow: {
+    paddingHorizontal: SPACING,
+    marginBottom: 4,
+    flexGrow: 0,
+  },
+  chip: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    marginRight: 6,
+  },
   gridItem: { alignItems: "center" },
   title: { fontSize: 12, fontWeight: "500", marginTop: 4, textAlign: "center" },
   empty: { flex: 1, justifyContent: "center", alignItems: "center", paddingTop: 80 },
