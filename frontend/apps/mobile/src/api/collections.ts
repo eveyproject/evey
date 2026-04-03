@@ -1,4 +1,4 @@
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { eveyFetch } from "@evey/api";
 
 export interface Collection {
@@ -56,5 +56,35 @@ export function useCollection(id: string, limit = 50, offset = 0) {
       }),
     enabled: !!id,
     staleTime: 5 * 60_000,
+  });
+}
+
+export function useCreateCollection() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (input: { name: string; description?: string }) =>
+      eveyFetch<{ id: string }>({ url: "/api/v1/collections", method: "POST", data: input }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["collections"] }),
+  });
+}
+
+export function useUpdateCollection() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, ...body }: { id: string; name: string; description?: string }) =>
+      eveyFetch<void>({ url: `/api/v1/collections/${id}`, method: "PUT", data: body }),
+    onSuccess: (_, vars) => {
+      qc.invalidateQueries({ queryKey: ["collections"] });
+      qc.invalidateQueries({ queryKey: ["collection", vars.id] });
+    },
+  });
+}
+
+export function useDeleteCollection() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) =>
+      eveyFetch<void>({ url: `/api/v1/collections/${id}`, method: "DELETE" }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["collections"] }),
   });
 }

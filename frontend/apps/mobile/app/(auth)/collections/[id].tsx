@@ -1,4 +1,4 @@
-import { useCallback } from "react";
+import { useCallback, useState } from "react";
 import {
   View,
   Text,
@@ -7,15 +7,27 @@ import {
   Pressable,
   Dimensions,
   StyleSheet,
+  Alert,
+  Modal,
+  TextInput,
+  ActivityIndicator,
+  KeyboardAvoidingView,
+  Platform,
 } from "react-native";
 import { Image } from "expo-image";
+import { Ionicons } from "@expo/vector-icons";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import { useTranslation } from "react-i18next";
 import { Skeleton } from "../../../src/components/Skeleton";
 import { useTheme } from "../../../src/providers/ThemeProvider";
 import { useServerUrl } from "../../../src/hooks/useServerUrl";
 import { useAuthHeaders } from "../../../src/hooks/useAuthenticatedImage";
-import { useCollection, type CollectionItem } from "../../../src/api/collections";
+import {
+  useCollection,
+  useUpdateCollection,
+  useDeleteCollection,
+  type CollectionItem,
+} from "../../../src/api/collections";
 import { artworkUrl } from "../../../src/lib/artwork";
 
 const NUM_COLUMNS = 3;
@@ -35,6 +47,94 @@ const colGetItemLayout = (_: unknown, index: number) => ({
   index,
 });
 
+function EditCollectionModal({
+  visible,
+  onClose,
+  theme,
+  initialName,
+  initialDescription,
+  collectionId,
+}: {
+  visible: boolean;
+  onClose: () => void;
+  theme: ReturnType<typeof useTheme>;
+  initialName: string;
+  initialDescription: string;
+  collectionId: string;
+}) {
+  const { t } = useTranslation();
+  const updateMut = useUpdateCollection();
+  const [name, setName] = useState(initialName);
+  const [description, setDescription] = useState(initialDescription);
+
+  function handleClose() {
+    setName(initialName);
+    setDescription(initialDescription);
+    onClose();
+  }
+
+  async function handleSave() {
+    if (!name.trim()) return;
+    try {
+      await updateMut.mutateAsync({ id: collectionId, name: name.trim(), description: description.trim() || undefined });
+      onClose();
+    } catch {
+      Alert.alert(t("common.error", "Error"), t("common.tryAgain", "Please try again."));
+    }
+  }
+
+  return (
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={handleClose}>
+      <KeyboardAvoidingView
+        style={styles.modalOverlay}
+        behavior={Platform.OS === "ios" ? "padding" : undefined}
+      >
+        <View style={[styles.modalContent, { backgroundColor: theme.colors.surface, borderRadius: theme.radii.md }]}>
+          <Text style={[styles.modalTitle, { color: theme.colors.text }]}>
+            {t("media.collections.editCollection", "Edit Collection")}
+          </Text>
+
+          <TextInput
+            style={[styles.input, { color: theme.colors.text, borderColor: theme.colors.surfaceRaised, backgroundColor: theme.colors.bg }]}
+            placeholderTextColor={theme.colors.textMuted}
+            placeholder={t("common.name", "Name")}
+            value={name}
+            onChangeText={setName}
+            autoFocus
+          />
+
+          <TextInput
+            style={[styles.input, styles.inputMultiline, { color: theme.colors.text, borderColor: theme.colors.surfaceRaised, backgroundColor: theme.colors.bg }]}
+            placeholderTextColor={theme.colors.textMuted}
+            placeholder={t("common.description", "Description")}
+            value={description}
+            onChangeText={setDescription}
+            multiline
+            numberOfLines={3}
+          />
+
+          <View style={styles.modalButtons}>
+            <TouchableOpacity onPress={handleClose} style={[styles.modalBtn, { backgroundColor: theme.colors.surfaceRaised }]}>
+              <Text style={{ color: theme.colors.text, fontWeight: "600" }}>{t("common.cancel", "Cancel")}</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={handleSave}
+              disabled={!name.trim() || updateMut.isPending}
+              style={[styles.modalBtn, { backgroundColor: theme.colors.accent, opacity: !name.trim() || updateMut.isPending ? 0.5 : 1 }]}
+            >
+              {updateMut.isPending ? (
+                <ActivityIndicator size="small" color="#fff" />
+              ) : (
+                <Text style={{ color: "#fff", fontWeight: "600" }}>{t("common.save", "Save")}</Text>
+              )}
+            </TouchableOpacity>
+          </View>
+        </View>
+      </KeyboardAvoidingView>
+    </Modal>
+  );
+}
+
 export default function CollectionDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const theme = useTheme();
@@ -44,8 +144,33 @@ export default function CollectionDetailScreen() {
   const authHeaders = useAuthHeaders();
 
   const { data, isLoading, isError, refetch } = useCollection(id ?? "");
+  const deleteMut = useDeleteCollection();
   const col = data?.collection;
   const items = data?.items ?? [];
+
+  const [editVisible, setEditVisible] = useState(false);
+
+  function confirmDelete() {
+    Alert.alert(
+      t("media.collections.deleteConfirm", "Delete this collection?"),
+      col?.name ?? "",
+      [
+        { text: t("common.cancel", "Cancel"), style: "cancel" },
+        {
+          text: t("common.delete", "Delete"),
+          style: "destructive",
+          onPress: async () => {
+            try {
+              await deleteMut.mutateAsync(id ?? "");
+              router.back();
+            } catch {
+              Alert.alert(t("common.error", "Error"), t("common.tryAgain", "Please try again."));
+            }
+          },
+        },
+      ],
+    );
+  }
 
   const renderItem = useCallback(
     ({ item }: { item: CollectionItem }) => {
@@ -97,6 +222,16 @@ export default function CollectionDetailScreen() {
           title: col?.name ?? t("media.collections.title"),
           headerStyle: { backgroundColor: theme.colors.surface },
           headerTintColor: theme.colors.text,
+          headerRight: () => (
+            <View style={{ flexDirection: "row", gap: 12, marginRight: 8 }}>
+              <TouchableOpacity onPress={() => setEditVisible(true)}>
+                <Ionicons name="pencil-outline" size={22} color={theme.colors.text} />
+              </TouchableOpacity>
+              <TouchableOpacity onPress={confirmDelete}>
+                <Ionicons name="trash-outline" size={22} color="#e57373" />
+              </TouchableOpacity>
+            </View>
+          ),
         }}
       />
       {isError ? (
@@ -134,6 +269,17 @@ export default function CollectionDetailScreen() {
           }
         />
       )}
+
+      {col && (
+        <EditCollectionModal
+          visible={editVisible}
+          onClose={() => setEditVisible(false)}
+          theme={theme}
+          initialName={col.name}
+          initialDescription={col.overview ?? ""}
+          collectionId={col.id}
+        />
+      )}
     </View>
   );
 }
@@ -144,4 +290,24 @@ const styles = StyleSheet.create({
   skeletonGrid: { flexDirection: "row", flexWrap: "wrap", paddingTop: SPACING },
   gridItem: { alignItems: "center" },
   title: { fontSize: 12, fontWeight: "500", marginTop: 4, textAlign: "center" },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.5)",
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 24,
+  },
+  modalContent: { width: "100%", maxWidth: 400, padding: 20 },
+  modalTitle: { fontSize: 18, fontWeight: "700", marginBottom: 16 },
+  input: {
+    borderWidth: 1,
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    fontSize: 15,
+    marginBottom: 12,
+  },
+  inputMultiline: { minHeight: 72, textAlignVertical: "top" },
+  modalButtons: { flexDirection: "row", justifyContent: "flex-end", gap: 10, marginTop: 4 },
+  modalBtn: { paddingHorizontal: 18, paddingVertical: 10, borderRadius: 8, alignItems: "center", justifyContent: "center" },
 });
