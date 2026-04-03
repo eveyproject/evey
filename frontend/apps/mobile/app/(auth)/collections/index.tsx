@@ -68,12 +68,19 @@ function CollectionCard({
           </Text>
         </View>
       )}
-      <Text
-        style={[styles.name, { color: theme.colors.text }]}
-        numberOfLines={2}
-      >
-        {col.name}
-      </Text>
+      <View style={{ flexDirection: "row", alignItems: "center", gap: 4, marginTop: 4 }}>
+        <Text
+          style={[styles.name, { color: theme.colors.text, flex: 1 }]}
+          numberOfLines={2}
+        >
+          {col.name}
+        </Text>
+        {col.rules && col.rules.length > 0 && (
+          <View style={{ backgroundColor: theme.colors.accent, borderRadius: 4, paddingHorizontal: 4, paddingVertical: 1 }}>
+            <Text style={{ color: "#fff", fontSize: 9, fontWeight: "700" }}>SMART</Text>
+          </View>
+        )}
+      </View>
     </TouchableOpacity>
   );
 }
