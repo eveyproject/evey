@@ -24,7 +24,13 @@
       "expo-router",
       ["expo-video", { "supportsPictureInPicture": true }],
       "expo-secure-store",
-      "expo-image"
+      "expo-image",
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Allow Evey to use the camera to scan Quick Connect QR codes."
+        }
+      ]
     ]
   }
 }

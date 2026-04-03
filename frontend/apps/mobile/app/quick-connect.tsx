@@ -1,16 +1,19 @@
 import { useEffect, useState, useRef, useCallback } from "react";
 import { View, Text, Pressable, ActivityIndicator } from "react-native";
+import QRCode from "react-native-qrcode-svg";
 import { router } from "expo-router";
 import { useTranslation } from "react-i18next";
 import { useUserServiceInitiateQuickConnect, useUserServiceCheckQuickConnect } from "@evey/api";
 import { useAuthStore } from "@evey/store";
 import { useTheme } from "../src/providers/ThemeProvider";
+import { useServerUrlNullable } from "../src/hooks/useServerUrl";
 
 const REFRESH_INTERVAL_S = 120;
 
 export default function QuickConnectScreen() {
   const theme = useTheme();
   const { t } = useTranslation();
+  const serverUrl = useServerUrlNullable();
   const [code, setCode] = useState<string | null>(null);
   const [enabled, setEnabled] = useState(true);
   const [secondsLeft, setSecondsLeft] = useState(REFRESH_INTERVAL_S);
@@ -74,6 +77,7 @@ export default function QuickConnectScreen() {
   }, [checkData, setTokens]);
 
   const displayCode = code ? code.slice(-6).toUpperCase() : null;
+  const qrValue = code && serverUrl ? `${serverUrl}/quickconnect?code=${code}` : null;
 
   return (
     <View style={{ flex: 1, justifyContent: "center", alignItems: "center", padding: theme.spacing.xl, backgroundColor: theme.colors.bg }}>
@@ -91,14 +95,20 @@ export default function QuickConnectScreen() {
         padding: theme.spacing.xl,
         alignItems: "center",
         minWidth: 200,
+        gap: theme.spacing.md,
       }}>
-        {displayCode ? (
-          <Text style={{ fontSize: 36, fontWeight: "bold", fontFamily: "monospace", letterSpacing: 8, color: theme.colors.text }}>
-            {displayCode}
-          </Text>
+        {qrValue ? (
+          <View style={{ backgroundColor: "#fff", padding: 12, borderRadius: 8 }}>
+            <QRCode value={qrValue} size={160} />
+          </View>
         ) : (
           <ActivityIndicator color={theme.colors.accent} size="large" />
         )}
+        {displayCode ? (
+          <Text style={{ fontSize: 32, fontWeight: "bold", fontFamily: "monospace", letterSpacing: 8, color: theme.colors.text }}>
+            {displayCode}
+          </Text>
+        ) : null}
       </View>
 
       {code && (

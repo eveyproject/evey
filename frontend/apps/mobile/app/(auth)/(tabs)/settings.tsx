@@ -301,6 +301,10 @@ export default function SettingsScreen() {
             {t("auth.settings.quickConnect.description")}
           </Text>
         </View>
+        <Pressable style={s.row} onPress={() => router.push("/qr-scan")} accessible accessibilityLabel={t("auth.settings.quickConnect.scanQr")} accessibilityRole="button">
+          <Text style={s.label}>{t("auth.settings.quickConnect.scanQr")}</Text>
+          <ChevronRight color={theme.colors.textMuted} />
+        </Pressable>
         <View style={[s.row, { gap: theme.spacing.sm }]}>
           <TextInput
             placeholder="A1B2C3"

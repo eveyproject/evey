@@ -116,6 +116,10 @@ settings:
     authorize: "Autoriser l'appareil"
     authorized: "Appareil autorisé avec succès"
     invalidCode: "Code invalide ou expiré"
+    scanQr: Scanner le QR code
+    scanHint: Pointez la caméra vers un QR code Quick Connect
+    cameraPermission: "L'accès à la caméra est nécessaire pour scanner les QR codes Quick Connect."
+    grantPermission: Autoriser l'accès à la caméra
     scanLabel: "Connexion rapide"
     scanInstruction: "Scannez avec un appareil connecté pour vous identifier"
     expiresIn: "Expire dans {{seconds}}s"
