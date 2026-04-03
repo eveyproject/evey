@@ -118,8 +118,28 @@ export default function QuickConnectScreen() {
       )}
 
       <Pressable
+        onPress={() => router.push("/(auth)/qr-scan")}
+        style={{
+          marginTop: theme.spacing.lg,
+          backgroundColor: theme.colors.accent,
+          borderRadius: theme.radii.md,
+          paddingVertical: 12,
+          paddingHorizontal: 24,
+          flexDirection: "row",
+          alignItems: "center",
+          gap: 8,
+        }}
+        accessible={true}
+        accessibilityLabel={t("auth.settings.quickConnect.scanQr")}
+        accessibilityRole="button"
+      >
+        <Text style={{ fontSize: 16 }}>📷</Text>
+        <Text style={{ color: "#fff", fontSize: 15, fontWeight: "600" }}>{t("auth.settings.quickConnect.scanQr") || "Scan QR Code"}</Text>
+      </Pressable>
+
+      <Pressable
         onPress={() => router.back()}
-        style={{ marginTop: theme.spacing.xl }}
+        style={{ marginTop: theme.spacing.md }}
         accessible={true}
         accessibilityLabel="Back to login"
         accessibilityRole="button"
