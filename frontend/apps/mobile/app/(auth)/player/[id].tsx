@@ -24,6 +24,7 @@ import { AudioTrackPicker, type AudioStream } from "../../../src/components/Audi
 import { SubtitlePicker, type SubtitleStream } from "../../../src/components/SubtitlePicker";
 import { QualityPicker } from "../../../src/components/QualityPicker";
 import { ChaptersPicker } from "../../../src/components/ChaptersPicker";
+import { StreamInfoPanel } from "../../../src/components/StreamInfoPanel";
 import { SkipIntroOverlay } from "../../../src/components/SkipIntroOverlay";
 
 const IMAGE_SUBTITLE_CODECS = new Set([
@@ -65,6 +66,7 @@ export default function PlayerScreen() {
   const [showSubtitlePicker, setShowSubtitlePicker] = useState(false);
   const [showQualityPicker, setShowQualityPicker] = useState(false);
   const [showChaptersPicker, setShowChaptersPicker] = useState(false);
+  const [showStreamInfo, setShowStreamInfo] = useState(false);
   const [selectedAudioIndex, setSelectedAudioIndex] = useState<number>(0);
   const [selectedSubtitleIndex, setSelectedSubtitleIndex] = useState<number | null>(null);
   const [selectedQuality, setSelectedQuality] = useState(0);
@@ -465,6 +467,16 @@ export default function PlayerScreen() {
               </Text>
               <View style={styles.topBarRight}>
                 <Pressable
+                  onPress={() => setShowStreamInfo(true)}
+                  hitSlop={8}
+                  style={styles.trackButton}
+                  accessible={true}
+                  accessibilityLabel={t("player.streamInfo.title", "Stream Info")}
+                  accessibilityRole="button"
+                >
+                  <Ionicons name="information-circle-outline" size={18} color="#fff" />
+                </Pressable>
+                <Pressable
                   onPress={cycleSpeed}
                   hitSlop={8}
                   style={styles.trackButton}
@@ -610,6 +622,12 @@ export default function PlayerScreen() {
         chapters={chapters}
         currentTimeMs={currentTime * 1000}
         onSeek={handleChapterSeek}
+      />
+
+      <StreamInfoPanel
+        visible={showStreamInfo}
+        onClose={() => setShowStreamInfo(false)}
+        streamInfo={streamInfo}
       />
     </View>
   );
