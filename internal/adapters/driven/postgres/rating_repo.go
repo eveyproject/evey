@@ -32,16 +32,22 @@ func (r *RatingRepository) Upsert(ctx context.Context, rt rating.Rating) error {
 
 func (r *RatingRepository) Get(ctx context.Context, mediaItemID, profileID string) (*rating.Rating, error) {
 	var rt rating.Rating
+	var value int
 	err := r.db.QueryRowContext(ctx, `
 		SELECT media_item_id, profile_id, value, created_at, updated_at
 		FROM media_ratings WHERE media_item_id = $1 AND profile_id = $2
-	`, mediaItemID, profileID).Scan(&rt.MediaItemID, &rt.ProfileID, &rt.Value, &rt.CreatedAt, &rt.UpdatedAt)
+	`, mediaItemID, profileID).Scan(&rt.MediaItemID, &rt.ProfileID, &value, &rt.CreatedAt, &rt.UpdatedAt)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, shared.ErrNotFound
 		}
 		return nil, err
 	}
+	rv, err := rating.NewRatingValue(value)
+	if err != nil {
+		return nil, err
+	}
+	rt.Value = rv
 	return &rt, nil
 }
 
