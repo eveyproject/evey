@@ -24,6 +24,19 @@ type SearchResult struct {
 	Hash     string
 }
 
+func (d *SubtitleDownload) Validate() error {
+	if d.MediaItemID == "" {
+		return errors.New("subtitle download requires a media item ID")
+	}
+	if d.Language == "" {
+		return errors.New("subtitle download requires a language")
+	}
+	if d.FilePath == "" {
+		return errors.New("subtitle download requires a file path")
+	}
+	return nil
+}
+
 func (r *SearchResult) Validate() error {
 	if r.FileName == "" {
 		return errors.New("search result requires a file name")
