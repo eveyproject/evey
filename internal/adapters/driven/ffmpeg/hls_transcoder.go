@@ -81,6 +81,9 @@ func (h *hlsHandle) run(ctx context.Context) {
 			close(h.ready)
 			return
 		}
+		if err := waitForSegment(ctx, h.opts.OutputDir, "stream_0", 10*time.Second, 100*time.Millisecond); err != nil {
+			slog.Warn("hls: first segment not yet ready, proceeding anyway", slog.Any("err", err))
+		}
 	} else {
 		masterPath := filepath.Join(h.opts.OutputDir, "master.m3u8")
 		if err := waitForFile(ctx, masterPath, 30*time.Second, 100*time.Millisecond); err != nil {
@@ -89,6 +92,9 @@ func (h *hlsHandle) run(ctx context.Context) {
 			_ = h.cmd.Wait()
 			close(h.ready)
 			return
+		}
+		if err := waitForSegment(ctx, h.opts.OutputDir, "stream_0", 10*time.Second, 100*time.Millisecond); err != nil {
+			slog.Warn("hls: first segment not yet ready, proceeding anyway", slog.Any("err", err))
 		}
 	}
 
@@ -349,6 +355,28 @@ func waitForFile(ctx context.Context, path string, timeout, interval time.Durati
 		case <-ticker.C:
 			if _, err := os.Stat(path); err == nil {
 				return nil
+			}
+		}
+	}
+}
+
+func waitForSegment(ctx context.Context, dir, streamPrefix string, timeout, interval time.Duration) error {
+	deadline := time.After(timeout)
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-deadline:
+			return fmt.Errorf("timeout waiting for first segment of %s", streamPrefix)
+		case <-ticker.C:
+			entries, _ := os.ReadDir(dir)
+			for _, e := range entries {
+				name := e.Name()
+				if len(name) > len(streamPrefix) && name[:len(streamPrefix)] == streamPrefix && (strings.HasSuffix(name, ".ts") || strings.HasSuffix(name, ".m4s")) {
+					return nil
+				}
 			}
 		}
 	}
