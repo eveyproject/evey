@@ -18,7 +18,7 @@ type localeKey struct{}
 const FallbackLocale = "en"
 
 var supportedLocales = map[string]bool{
-	"en": true, "fr": true, "es": true, "zh": true, "hi": true,
+	"en": true, "de": true, "es": true, "fr": true, "hi": true, "zh": true,
 }
 
 func SupportedLocales() []string {
