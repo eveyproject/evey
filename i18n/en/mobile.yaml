@@ -5,6 +5,9 @@ serverConnect:
   unreachable: Unable to reach server
 settings:
   server: Server
+  themeDark: Dark
+  themeLight: Light
+  themeAmoled: AMOLED
   changeServer: Change server
   disconnectConfirm: Disconnect from this server?
   disconnect: Disconnect

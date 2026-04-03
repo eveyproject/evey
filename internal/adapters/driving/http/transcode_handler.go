@@ -357,7 +357,7 @@ func (h *hlsMasterServe) serveMaster(w http.ResponseWriter, r *http.Request, out
 
 	// Inject auth token into segment URLs so native players (ExoPlayer, AVPlayer)
 	// can fetch segments without needing custom header injection
-	if tok := r.URL.Query().Get("token"); tok != "" {
+	if tok := RawTokenFromContext(r.Context()); tok != "" {
 		content = injectTokenIntoPlaylist(content, tok)
 	}
 
@@ -453,7 +453,7 @@ func hlsSegmentHandler(tokenGen TokenVerifier, libSvc MediaItemGetter, hlsManage
 			w.Header().Set("Content-Type", "application/vnd.apple.mpegurl")
 			w.Header().Set("Cache-Control", "no-cache")
 			// Inject token into sub-playlist so native players can fetch .ts segments
-			if tok := r.URL.Query().Get("token"); tok != "" {
+			if tok := RawTokenFromContext(r.Context()); tok != "" {
 				data, readErr := os.ReadFile(filePath)
 				if readErr != nil {
 					http.Error(w, `{"message":"internal error"}`, http.StatusInternalServerError)

@@ -410,7 +410,7 @@ export default function LibraryDetailScreen() {
                       fontSize: 13,
                     }}
                   >
-                    ↑ {t("common.ascending") || "A-Z"}
+                    ↑ {t("media.library.ascending") || "A-Z"}
                   </Text>
                 </TouchableOpacity>
                 <TouchableOpacity
@@ -436,7 +436,7 @@ export default function LibraryDetailScreen() {
                       fontSize: 13,
                     }}
                   >
-                    ↓ {t("common.descending") || "Z-A"}
+                    ↓ {t("media.library.descending") || "Z-A"}
                   </Text>
                 </TouchableOpacity>
               </View>

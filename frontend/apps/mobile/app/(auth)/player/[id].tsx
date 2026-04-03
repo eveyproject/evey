@@ -57,6 +57,8 @@ export default function PlayerScreen() {
   const { data: chapters = [] } = useChapters(mediaId);
   const videoViewRef = useRef<VideoView>(null);
   const pipSupported = useMemo(() => isPictureInPictureSupported(), []);
+  const mountedRef = useRef(true);
+  useEffect(() => { return () => { mountedRef.current = false; }; }, []);
 
   const [showControls, setShowControls] = useState(true);
   const [showAudioPicker, setShowAudioPicker] = useState(false);
@@ -139,15 +141,17 @@ export default function PlayerScreen() {
   useEffect(() => {
     if (!player) return;
     const timeSub = player.addListener("timeUpdate", (ev) => {
+      if (!mountedRef.current) return;
       setCurrentTime(ev.currentTime);
-      setDuration(player.duration);
+      try { setDuration(player.duration); } catch { /* released */ }
     });
     const statusSub = player.addListener("statusChange", () => {
-      setIsPlaying(player.playing);
-      setDuration(player.duration);
+      if (!mountedRef.current) return;
+      try { setIsPlaying(player.playing); setDuration(player.duration); } catch { /* released */ }
     });
     const playSub = player.addListener("playingChange", () => {
-      setIsPlaying(player.playing);
+      if (!mountedRef.current) return;
+      try { setIsPlaying(player.playing); } catch { /* released */ }
     });
     return () => {
       timeSub.remove();
@@ -252,19 +256,23 @@ export default function PlayerScreen() {
   });
 
   const getPositionMs = useCallback(() => {
-    return (player?.currentTime ?? 0) * 1000;
+    if (!mountedRef.current) return 0;
+    try { return (player?.currentTime ?? 0) * 1000; } catch { return 0; }
   }, [player]);
 
   const getIsPaused = useCallback(() => {
-    return !(player?.playing ?? false);
+    if (!mountedRef.current) return true;
+    try { return !(player?.playing ?? false); } catch { return true; }
   }, [player]);
 
   const getVolume = useCallback(() => {
-    return player?.volume ?? 1;
+    if (!mountedRef.current) return 1;
+    try { return player?.volume ?? 1; } catch { return 1; }
   }, [player]);
 
   const getIsMuted = useCallback(() => {
-    return player?.muted ?? false;
+    if (!mountedRef.current) return false;
+    try { return player?.muted ?? false; } catch { return false; }
   }, [player]);
 
   useProgressReporter(sessionId, getPositionMs, getIsPaused, getVolume, getIsMuted);
@@ -471,7 +479,7 @@ export default function PlayerScreen() {
                   hitSlop={8}
                   style={styles.trackButton}
                   accessible={true}
-                  accessibilityLabel={t("player.controls.quality")}
+                  accessibilityLabel={t("player.settings.quality")}
                   accessibilityRole="button"
                 >
                   <Ionicons name="settings-sharp" size={18} color="#fff" />

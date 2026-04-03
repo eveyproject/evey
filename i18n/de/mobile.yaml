@@ -4,6 +4,9 @@ serverConnect:
   connectionFailed: Verbindung fehlgeschlagen
   unreachable: Server nicht erreichbar
 settings:
+  themeDark: Dark
+  themeLight: Light
+  themeAmoled: AMOLED
   server: Server
   changeServer: Server wechseln
   disconnectConfirm: Von diesem Server trennen?

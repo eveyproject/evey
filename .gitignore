@@ -76,3 +76,7 @@ test-results/
 
 # Expo
 frontend/apps/mobile/.expo/
+
+# Dev scripts (local only)
+scripts/
+text

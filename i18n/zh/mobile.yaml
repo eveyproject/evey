@@ -4,6 +4,9 @@ serverConnect:
   connectionFailed: 连接失败
   unreachable: 无法连接到服务器
 settings:
+  themeDark: Dark
+  themeLight: Light
+  themeAmoled: AMOLED
   server: 服务器
   changeServer: 更换服务器
   disconnectConfirm: 断开与此服务器的连接？

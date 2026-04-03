@@ -4,6 +4,9 @@ serverConnect:
   connectionFailed: Conexion fallida
   unreachable: No se puede alcanzar el servidor
 settings:
+  themeDark: Dark
+  themeLight: Light
+  themeAmoled: AMOLED
   server: Servidor
   changeServer: Cambiar servidor
   disconnectConfirm: Desconectar de este servidor?

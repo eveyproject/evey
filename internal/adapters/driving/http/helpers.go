@@ -134,6 +134,9 @@ func tokenRedactMiddleware(store streamTokenValidator, next http.Handler) http.H
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		t := r.URL.Query().Get("token")
 		if t != "" {
+			ctx := context.WithValue(r.Context(), rawTokenCtxKey, t)
+			r = r.WithContext(ctx)
+
 			q := r.URL.Query()
 			q.Del("token")
 			r.URL.RawQuery = q.Encode()
@@ -158,13 +161,21 @@ func tokenRedactMiddleware(store streamTokenValidator, next http.Handler) http.H
 }
 
 type ctxKeyStreamToken struct{}
+type ctxKeyRawToken struct{}
 
 var streamTokenCtxKey = ctxKeyStreamToken{}
+var rawTokenCtxKey = ctxKeyRawToken{}
 
 // StreamTokenFromContext returns the resolved stream token if the request was authenticated via opaque token.
 func StreamTokenFromContext(ctx context.Context) (*shared.StreamToken, bool) {
 	st, ok := ctx.Value(streamTokenCtxKey).(*shared.StreamToken)
 	return st, ok
+}
+
+// RawTokenFromContext returns the original query-param token before the middleware stripped it.
+func RawTokenFromContext(ctx context.Context) string {
+	s, _ := ctx.Value(rawTokenCtxKey).(string)
+	return s
 }
 
 // SecurityHeadersMiddleware sets security-related response headers.

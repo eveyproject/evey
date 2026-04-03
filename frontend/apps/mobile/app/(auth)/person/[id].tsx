@@ -236,7 +236,7 @@ function PosterCard({
   authHeaders?: { Authorization: string };
   theme: ReturnType<typeof useTheme>;
 }) {
-  const uri = item.id ? artworkUrl(serverUrl, item.id, "primary") : undefined;
+  const uri = item.id ? artworkUrl(serverUrl, item.id, "poster") : undefined;
   return (
     <Pressable onPress={() => router.push(`/(auth)/media/${item.id}`)}>
       <Image

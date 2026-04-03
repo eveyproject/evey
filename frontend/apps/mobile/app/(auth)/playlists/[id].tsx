@@ -85,7 +85,7 @@ export default function PlaylistDetailScreen() {
             headerTintColor: theme.colors.text,
           }}
         />
-        <Text style={{ color: theme.colors.textMuted }}>{t("media.playlists.notFound")}</Text>
+        <Text style={{ color: theme.colors.textMuted }}>{t("media.playlist.notFound")}</Text>
       </View>
     );
   }

@@ -43,7 +43,7 @@ function HistoryItem({ item, onRemove, isPending }: {
   const theme = useTheme();
   const serverUrl = useServerUrl();
   const imageUri = item.mediaItemId
-    ? `${serverUrl}/api/v1/media/${item.mediaItemId}/artwork/primary`
+    ? `${serverUrl}/api/v1/media/${item.mediaItemId}/artwork/poster`
     : undefined;
   const imageSource = useAuthenticatedImage(imageUri);
   const pct = item.percentComplete ?? 0;

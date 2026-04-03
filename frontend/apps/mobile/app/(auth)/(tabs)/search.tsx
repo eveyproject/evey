@@ -17,7 +17,9 @@ import { useLibraryServiceSearchMedia } from "@evey/api";
 import type { V1MediaItem } from "@evey/api";
 import { useTheme } from "../../../src/providers/ThemeProvider";
 import { useAuthHeaders } from "../../../src/hooks/useAuthenticatedImage";
+import { useServerUrl } from "../../../src/hooks/useServerUrl";
 import { useDebounce } from "../../../src/hooks/useDebounce";
+import { artworkUrl } from "../../../src/lib/artwork";
 
 type MediaTypeFilter = "MEDIA_ITEM_TYPE_MOVIE" | "MEDIA_ITEM_TYPE_SERIES";
 type SortField = "MEDIA_SORT_FIELD_TITLE" | "MEDIA_SORT_FIELD_YEAR" | "MEDIA_SORT_FIELD_DATE_ADDED";
@@ -46,6 +48,7 @@ export default function SearchScreen() {
   const theme = useTheme();
   const router = useRouter();
   const { t } = useTranslation();
+  const serverUrl = useServerUrl();
   const [query, setQuery] = useState("");
   const debouncedQuery = useDebounce(query, 300);
 
@@ -120,7 +123,7 @@ export default function SearchScreen() {
 
   const renderItem = useCallback(
     ({ item }: { item: V1MediaItem }) => {
-      const poster = getPoster(item);
+      const poster = getPoster(item) ?? (serverUrl && item.id ? artworkUrl(serverUrl, item.id) : undefined);
       return (
         <TouchableOpacity
           style={[
@@ -176,7 +179,7 @@ export default function SearchScreen() {
         </TouchableOpacity>
       );
     },
-    [theme, router, authHeaders],
+    [theme, router, authHeaders, serverUrl],
   );
 
   return (

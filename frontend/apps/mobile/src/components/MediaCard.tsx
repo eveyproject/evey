@@ -23,7 +23,7 @@ export function MediaCard({ item, onPress, width, watchPercent }: MediaCardProps
   const cardHeight = cardWidth * POSTER_RATIO;
   const serverUrl = useServerUrl();
 
-  const imageUri = serverUrl ? `${serverUrl}/api/v1/media/${item.id}/artwork/primary` : undefined;
+  const imageUri = serverUrl ? `${serverUrl}/api/v1/media/${item.id}/artwork/poster` : undefined;
   const imageSource = useAuthenticatedImage(imageUri);
 
   return (

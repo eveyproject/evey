@@ -10,11 +10,8 @@ import { useServerUrlNullable } from "../../../src/hooks/useServerUrl";
 import { clearServerUrl } from "../../../src/lib/server-config";
 import { supportedLanguages } from "../../../src/i18n";
 
-const THEME_OPTIONS = [
-  { label: "Dark", value: "default" },
-  { label: "Light", value: "light-default" },
-  { label: "AMOLED", value: "amoled" },
-] as const;
+const THEME_VALUES = ["default", "light-default", "amoled"] as const;
+type ThemeValue = typeof THEME_VALUES[number];
 
 function ChevronRight({ color }: { color: string }) {
   return <Text style={{ color, fontSize: 18 }}>{"›"}</Text>;
@@ -25,6 +22,11 @@ export default function SettingsScreen() {
   const { t, i18n } = useTranslation();
   const logout = useAuthStore((s) => s.logout);
   const currentTheme = useThemeStore((s) => s.theme);
+  const themeOptions: { label: string; value: ThemeValue }[] = [
+    { label: t("mobile.settings.themeDark"), value: "default" },
+    { label: t("mobile.settings.themeLight"), value: "light-default" },
+    { label: t("mobile.settings.themeAmoled"), value: "amoled" },
+  ];
   const setTheme = useThemeStore((s) => s.setTheme);
   const setLocale = useLocaleStore((s) => s.setLocale);
   const serverUrl = useServerUrlNullable();
@@ -232,7 +234,7 @@ export default function SettingsScreen() {
       {/* Appearance */}
       <Text style={s.sectionTitle}>{t("auth.settings.tabs.appearance")}</Text>
       <View style={s.section}>
-        {THEME_OPTIONS.map((opt) => (
+        {themeOptions.map((opt) => (
           <Pressable key={opt.value} style={s.row} onPress={() => setTheme(opt.value)} accessible accessibilityLabel={`${opt.label} theme`} accessibilityRole="button">
             <Text style={s.label}>{opt.label}</Text>
             {currentTheme === opt.value && (

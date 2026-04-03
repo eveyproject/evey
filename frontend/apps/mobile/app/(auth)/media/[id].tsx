@@ -136,7 +136,7 @@ function CastCard({ person }: { person: V1MediaPerson }) {
 }
 
 function EpisodeRow({ item, serverUrl, theme, authHeaders }: { item: V1MediaItem; serverUrl: string; theme: ReturnType<typeof useTheme>; authHeaders?: { Authorization: string } }) {
-  const episodeUri = item.id ? artworkUrl(serverUrl, item.id, "primary") : undefined;
+  const episodeUri = item.id ? artworkUrl(serverUrl, item.id, "poster") : undefined;
   const { data: progress } = usePlaybackServiceGetWatchProgress(item.id ?? "", undefined, {
     query: { enabled: !!item.id, retry: false },
   });
@@ -505,7 +505,7 @@ export default function MediaDetailScreen() {
         <View style={{ flexDirection: "row", gap: theme.spacing.md }}>
           {serverUrl && id ? (
             <Image
-              source={{ uri: artworkUrl(serverUrl, id, "primary"), headers: authHeaders }}
+              source={{ uri: artworkUrl(serverUrl, id, "poster"), headers: authHeaders }}
               style={{
                 width: POSTER_WIDTH,
                 height: POSTER_HEIGHT,

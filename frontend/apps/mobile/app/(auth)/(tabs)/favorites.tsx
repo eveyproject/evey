@@ -46,7 +46,7 @@ export default function FavoritesScreen() {
   const renderItem = useCallback(
     ({ item }: { item: FavoriteItem }) => {
       const posterUri = serverUrl
-        ? `${serverUrl}/api/v1/media/${item.mediaItemId}/artwork/primary`
+        ? `${serverUrl}/api/v1/media/${item.mediaItemId}/artwork/poster`
         : undefined;
       return (
         <TouchableOpacity
@@ -104,7 +104,7 @@ export default function FavoritesScreen() {
     return (
       <View style={[styles.container, { backgroundColor: theme.colors.bg }]}>
         <Text style={[styles.header, { color: theme.colors.text, marginTop: theme.spacing.xl }]}>
-          Favorites
+          {t("media.favorites.title")}
         </Text>
         <View style={{ flexDirection: "row", flexWrap: "wrap", paddingTop: SPACING }}>
           {Array.from({ length: 9 }).map((_, i) => (
@@ -121,7 +121,7 @@ export default function FavoritesScreen() {
   return (
     <View style={[styles.container, { backgroundColor: theme.colors.bg }]}>
       <Text style={[styles.header, { color: theme.colors.text, marginTop: theme.spacing.xl }]}>
-        Favorites
+        {t("media.favorites.title")}
       </Text>
       <FlatList
         data={favorites ?? []}

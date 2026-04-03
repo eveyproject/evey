@@ -37,7 +37,7 @@ export function QualityPicker({
   const QUALITY_OPTIONS = useQualityOptions();
 
   return (
-    <BottomSheet visible={visible} onClose={onClose} title={t("player.controls.quality")}>
+    <BottomSheet visible={visible} onClose={onClose} title={t("player.settings.quality")}>
       {QUALITY_OPTIONS.map((q) => {
         const active = q.value === currentQuality;
         return (
