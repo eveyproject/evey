@@ -1,4 +1,4 @@
-import { ScrollView, View, RefreshControl, Text, Pressable, StyleSheet, Dimensions, SafeAreaView } from "react-native";
+import { ScrollView, View, RefreshControl, Text, Pressable, Modal, Switch, StyleSheet, Dimensions } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { Image } from "expo-image";
 import { Ionicons } from "@expo/vector-icons";
@@ -6,16 +6,18 @@ import { Skeleton } from "../../../src/components/Skeleton";
 import { useCallback, useMemo, useState, useEffect, useRef } from "react";
 import { router } from "expo-router";
 import { useTranslation } from "react-i18next";
-import { useQueries } from "@tanstack/react-query";
+import { useQueries, useQueryClient } from "@tanstack/react-query";
 import {
   usePlaybackServiceGetResumeItems,
   usePlaybackServiceGetNextUp,
   useFeedServiceRecentlyAdded,
   useFeedServiceRecommended,
+  useFeedServiceGetFeedConfig,
+  useFeedServiceUpdateProfileFeedConfig,
   getLibraryServiceGetMediaItemQueryOptions,
-  useNotificationServiceGetUnreadCount,
 } from "@evey/api";
-import type { V1MediaItem } from "@evey/api";
+import type { V1MediaItem, V1MergedFeedConfig } from "@evey/api";
+import { useAuthStore } from "@evey/store";
 import { useTheme } from "../../../src/providers/ThemeProvider";
 import { MediaRow } from "../../../src/components/MediaRow";
 import { useCollections } from "../../../src/api/collections";
@@ -215,9 +217,138 @@ const heroStyles = StyleSheet.create({
   },
 });
 
+const FEED_TYPES = [
+  "FEED_TYPE_RESUME_PLAYBACK",
+  "FEED_TYPE_NEXT_UP",
+  "FEED_TYPE_COLLECTIONS",
+  "FEED_TYPE_RECOMMENDED",
+  "FEED_TYPE_MOST_POPULAR",
+  "FEED_TYPE_RECENTLY_ADDED",
+] as const;
+
+const FEED_LABELS: Record<string, string> = {
+  FEED_TYPE_RESUME_PLAYBACK: "common.feeds.labels.resume_playback",
+  FEED_TYPE_NEXT_UP: "media.home.upNext",
+  FEED_TYPE_COLLECTIONS: "media.home.collections",
+  FEED_TYPE_RECOMMENDED: "media.home.recommendedForYou",
+  FEED_TYPE_MOST_POPULAR: "media.home.mostPopular",
+  FEED_TYPE_RECENTLY_ADDED: "media.home.recentlyAdded",
+};
+
+function FeedCustomizeModal({
+  visible,
+  onClose,
+  configs,
+  profileId,
+}: {
+  visible: boolean;
+  onClose: () => void;
+  configs: V1MergedFeedConfig[];
+  profileId: string;
+}) {
+  const theme = useTheme();
+  const { t } = useTranslation();
+  const qc = useQueryClient();
+  const updateFeed = useFeedServiceUpdateProfileFeedConfig();
+
+  const [local, setLocal] = useState<V1MergedFeedConfig[]>([]);
+
+  useEffect(() => {
+    if (visible) {
+      const sorted = [...configs].sort((a, b) => (a.displayOrder ?? 0) - (b.displayOrder ?? 0));
+      if (sorted.length === 0) {
+        setLocal(FEED_TYPES.map((ft, i) => ({ feedType: ft, enabled: true, displayOrder: i })));
+      } else {
+        setLocal(sorted);
+      }
+    }
+  }, [visible, configs]);
+
+  const toggle = (idx: number) => {
+    setLocal((prev) => prev.map((c, i) => (i === idx ? { ...c, enabled: !c.enabled } : c)));
+  };
+
+  const move = (idx: number, dir: -1 | 1) => {
+    const target = idx + dir;
+    if (target < 0 || target >= local.length) return;
+    setLocal((prev) => {
+      const arr = [...prev];
+      [arr[idx], arr[target]] = [arr[target], arr[idx]];
+      return arr.map((c, i) => ({ ...c, displayOrder: i }));
+    });
+  };
+
+  const save = async () => {
+    try {
+      for (const c of local) {
+        if (!c.feedType) continue;
+        await updateFeed.mutateAsync({
+          feedType: c.feedType,
+          data: { profileId, enabled: c.enabled, displayOrder: c.displayOrder },
+        });
+      }
+      await qc.invalidateQueries({ queryKey: ["/api/v1/feeds/config"] });
+      onClose();
+    } catch {}
+  };
+
+  return (
+    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+      <View style={[feedStyles.backdrop, { backgroundColor: "rgba(0,0,0,0.5)" }]}>
+        <View style={[feedStyles.sheet, { backgroundColor: theme.colors.surface, borderRadius: theme.radii.lg }]}>
+          <Text style={[feedStyles.sheetTitle, { color: theme.colors.text }]}>
+            {t("media.home.customizeFeed") || "Customize Feed"}
+          </Text>
+          <ScrollView style={{ maxHeight: 400 }}>
+            {local.map((c, i) => (
+              <View key={c.feedType} style={[feedStyles.row, { borderBottomColor: theme.colors.border }]}>
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                  <Pressable onPress={() => move(i, -1)} disabled={i === 0} hitSlop={8}>
+                    <Ionicons name="chevron-up" size={18} color={i === 0 ? theme.colors.border : theme.colors.textMuted} />
+                  </Pressable>
+                  <Pressable onPress={() => move(i, 1)} disabled={i === local.length - 1} hitSlop={8}>
+                    <Ionicons name="chevron-down" size={18} color={i === local.length - 1 ? theme.colors.border : theme.colors.textMuted} />
+                  </Pressable>
+                </View>
+                <Text style={[feedStyles.feedLabel, { color: theme.colors.text }]}>
+                  {t(FEED_LABELS[c.feedType ?? ""] ?? c.feedType ?? "")}
+                </Text>
+                <Switch
+                  value={c.enabled}
+                  onValueChange={() => toggle(i)}
+                  trackColor={{ true: theme.colors.accent, false: theme.colors.surfaceRaised }}
+                />
+              </View>
+            ))}
+          </ScrollView>
+          <View style={{ flexDirection: "row", gap: 8, marginTop: 16 }}>
+            <Pressable onPress={save} style={[feedStyles.saveBtn, { backgroundColor: theme.colors.accent, borderRadius: theme.radii.md, flex: 1 }]}>
+              <Text style={{ color: "#fff", fontWeight: "600", fontSize: 15 }}>{t("common.save") || "Save"}</Text>
+            </Pressable>
+            <Pressable onPress={onClose} style={[feedStyles.cancelBtn, { backgroundColor: theme.colors.surfaceRaised, borderRadius: theme.radii.md, flex: 1 }]}>
+              <Text style={{ color: theme.colors.text, fontWeight: "500", fontSize: 15 }}>{t("common.cancel") || "Cancel"}</Text>
+            </Pressable>
+          </View>
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
+const feedStyles = StyleSheet.create({
+  backdrop: { flex: 1, justifyContent: "flex-end" },
+  sheet: { padding: 20, paddingBottom: 32 },
+  sheetTitle: { fontSize: 18, fontWeight: "700", marginBottom: 16 },
+  row: { flexDirection: "row", alignItems: "center", paddingVertical: 12, borderBottomWidth: StyleSheet.hairlineWidth, gap: 12 },
+  feedLabel: { flex: 1, fontSize: 14, fontWeight: "500" },
+  saveBtn: { paddingVertical: 12, alignItems: "center" },
+  cancelBtn: { paddingVertical: 12, alignItems: "center" },
+});
+
 export default function HomeScreen() {
   const theme = useTheme();
   const { t } = useTranslation();
+  const profileId = useAuthStore((s) => s.profileId) ?? "";
 
   const resume = usePlaybackServiceGetResumeItems({ limit: 20 });
   const nextUp = usePlaybackServiceGetNextUp({ limit: 20 });
@@ -225,8 +356,19 @@ export default function HomeScreen() {
   const recommended = useFeedServiceRecommended({ limit: 20 });
   const popular = useMostPopular(20);
   const collections = useCollections();
+  const { data: feedConfigData } = useFeedServiceGetFeedConfig({ profileId });
 
   const [refreshing, setRefreshing] = useState(false);
+  const [showCustomize, setShowCustomize] = useState(false);
+
+  const feedConfigs = useMemo(() => {
+    const configs = feedConfigData?.configs ?? [];
+    if (configs.length === 0) {
+      return FEED_TYPES.map((ft, i) => ({ feedType: ft, enabled: true, displayOrder: i }));
+    }
+    return [...configs].sort((a, b) => (a.displayOrder ?? 0) - (b.displayOrder ?? 0));
+  }, [feedConfigData]);
+
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
     await Promise.all([
@@ -286,17 +428,30 @@ export default function HomeScreen() {
     router.push(`/media/${item.id}`);
   }
 
-  const { data: notifData } = useNotificationServiceGetUnreadCount();
-  const unreadCount = notifData?.count ?? 0;
+  function renderSection(feedType: string) {
+    switch (feedType) {
+      case "FEED_TYPE_RESUME_PLAYBACK":
+        return <MediaRow key={feedType} title={t("common.feeds.labels.resume_playback")} items={resume.data?.items ?? []} onItemPress={handleItemPress} watchPercents={watchPercents} />;
+      case "FEED_TYPE_NEXT_UP":
+        return <MediaRow key={feedType} title={t("media.home.upNext")} items={nextUp.data?.items ?? []} onItemPress={handleItemPress} />;
+      case "FEED_TYPE_COLLECTIONS":
+        return <CollectionRow key={feedType} title={t("media.home.collections")} collections={collections.data?.collections ?? []} />;
+      case "FEED_TYPE_RECOMMENDED":
+        return <MediaRow key={feedType} title={t("media.home.recommendedForYou")} items={recommendedItems} onItemPress={handleItemPress} />;
+      case "FEED_TYPE_MOST_POPULAR":
+        return <MediaRow key={feedType} title={t("media.home.mostPopular")} items={popularItems} onItemPress={handleItemPress} />;
+      case "FEED_TYPE_RECENTLY_ADDED":
+        return <MediaRow key={feedType} title={t("media.home.recentlyAdded")} items={recentItems} onItemPress={handleItemPress} />;
+      default:
+        return null;
+    }
+  }
 
   if (isLoading && !refreshing) {
     const skeletonW = SCREEN_WIDTH * 0.35;
     const skeletonH = skeletonW * 1.5;
     return (
       <View style={{ flex: 1, backgroundColor: theme.colors.bg }}>
-        <SafeAreaView style={{ backgroundColor: theme.colors.surface }}>
-          <HomeTopBar unreadCount={0} theme={theme} />
-        </SafeAreaView>
         <Skeleton width={SCREEN_WIDTH} height={HERO_HEIGHT} borderRadius={0} />
         <View style={{ paddingTop: theme.spacing.lg }}>
           {Array.from({ length: 4 }).map((_, row) => (
@@ -319,9 +474,6 @@ export default function HomeScreen() {
 
   return (
     <View style={{ flex: 1, backgroundColor: theme.colors.bg }}>
-      <SafeAreaView style={{ backgroundColor: theme.colors.surface }}>
-        <HomeTopBar unreadCount={unreadCount} theme={theme} />
-      </SafeAreaView>
       <ScrollView
         style={{ flex: 1 }}
         contentContainerStyle={{ paddingBottom: theme.spacing.xl }}
@@ -329,84 +481,23 @@ export default function HomeScreen() {
       >
         <HeroBanner />
         <View style={{ paddingTop: theme.spacing.md }}>
-          <MediaRow
-            title={t("common.feeds.labels.resume_playback")}
-            items={resume.data?.items ?? []}
-            onItemPress={handleItemPress}
-            watchPercents={watchPercents}
-          />
-          <MediaRow
-            title={t("media.home.upNext")}
-            items={nextUp.data?.items ?? []}
-            onItemPress={handleItemPress}
-          />
-          <CollectionRow
-            title={t("media.home.collections")}
-            collections={collections.data?.collections ?? []}
-          />
-          <MediaRow
-            title={t("media.home.recommendedForYou")}
-            items={recommendedItems}
-            onItemPress={handleItemPress}
-          />
-          <MediaRow
-            title={t("media.home.mostPopular")}
-            items={popularItems}
-            onItemPress={handleItemPress}
-          />
-          <MediaRow
-            title={t("media.home.recentlyAdded")}
-            items={recentItems}
-            onItemPress={handleItemPress}
-          />
+          <Pressable
+            onPress={() => setShowCustomize(true)}
+            style={{ alignSelf: "flex-end", marginRight: theme.spacing.md, marginBottom: theme.spacing.sm, flexDirection: "row", alignItems: "center", gap: 4 }}
+          >
+            <Ionicons name="options-outline" size={16} color={theme.colors.textMuted} />
+            <Text style={{ color: theme.colors.textMuted, fontSize: 12 }}>{t("media.home.customize") || "Customize"}</Text>
+          </Pressable>
+          {feedConfigs.filter((c) => c.enabled !== false).map((c) => renderSection(c.feedType ?? ""))}
         </View>
       </ScrollView>
+      <FeedCustomizeModal
+        visible={showCustomize}
+        onClose={() => setShowCustomize(false)}
+        configs={feedConfigData?.configs ?? []}
+        profileId={profileId}
+      />
     </View>
   );
 }
 
-function HomeTopBar({ unreadCount, theme }: { unreadCount: number; theme: ReturnType<typeof useTheme> }) {
-  return (
-    <View style={topBarStyles.container}>
-      <Text style={[topBarStyles.logo, { color: theme.colors.accent }]}>Evey</Text>
-      <Pressable
-        onPress={() => router.push("/notifications")}
-        style={topBarStyles.bell}
-        accessible
-        accessibilityLabel="Notifications"
-        accessibilityRole="button"
-      >
-        <Ionicons name="notifications-outline" size={22} color={theme.colors.text} />
-        {unreadCount > 0 && (
-          <View style={[topBarStyles.badge, { backgroundColor: theme.colors.accent }]}>
-            <Text style={topBarStyles.badgeText}>{unreadCount > 9 ? "9+" : unreadCount}</Text>
-          </View>
-        )}
-      </Pressable>
-    </View>
-  );
-}
-
-const topBarStyles = StyleSheet.create({
-  container: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-  },
-  logo: { fontSize: 22, fontWeight: "800", letterSpacing: -0.5 },
-  bell: { padding: 4 },
-  badge: {
-    position: "absolute",
-    top: -2,
-    right: -2,
-    minWidth: 16,
-    height: 16,
-    borderRadius: 8,
-    alignItems: "center",
-    justifyContent: "center",
-    paddingHorizontal: 3,
-  },
-  badgeText: { color: "#fff", fontSize: 10, fontWeight: "700" },
-});
