@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { eveyFetch } from "@evey/api";
+import { toast } from "@evey/store";
 
 export interface Playlist {
   id: string;
@@ -118,8 +119,44 @@ export function useAddToPlaylist() {
         method: "POST",
         data: { mediaItemId },
       }),
-    onSuccess: (_, vars) =>
-      qc.invalidateQueries({ queryKey: ["playlists", vars.playlistId] }),
+    onSuccess: (_, vars) => {
+      qc.invalidateQueries({ queryKey: ["playlists", vars.playlistId] });
+      toast.success("Added to playlist");
+    },
+    onError: () => toast.error("Failed to add to playlist"),
+  });
+}
+
+export function useCreatePlaylist() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (data: { name: string; description?: string; type: string }) =>
+      eveyFetch<{ playlist: { id: string } }>({
+        url: "/api/v1/playlists",
+        method: "POST",
+        data,
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["playlists"] });
+      toast.success("Playlist created");
+    },
+    onError: () => toast.error("Failed to create playlist"),
+  });
+}
+
+export function useDeletePlaylist() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) =>
+      eveyFetch<void>({
+        url: `/api/v1/playlists/${id}`,
+        method: "DELETE",
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["playlists"] });
+      toast.success("Playlist deleted");
+    },
+    onError: () => toast.error("Failed to delete playlist"),
   });
 }
 

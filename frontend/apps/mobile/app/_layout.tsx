@@ -6,6 +6,7 @@ import * as SecureStore from "expo-secure-store";
 import { setZustandStorage } from "@evey/store";
 import { queryClient } from "../src/lib/query-client";
 import { ThemeProvider } from "../src/providers/ThemeProvider";
+import { ToastContainer } from "../src/components/ToastContainer";
 import { initFetcher } from "../src/lib/fetcher-setup";
 import { getServerUrl } from "../src/lib/server-config";
 import { initI18n } from "../src/i18n";
@@ -38,6 +39,7 @@ export default function RootLayout() {
       <SafeAreaProvider>
         <ThemeProvider>
           <Stack screenOptions={{ headerShown: false }} />
+          <ToastContainer />
         </ThemeProvider>
       </SafeAreaProvider>
     </QueryClientProvider>

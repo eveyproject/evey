@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { eveyFetch } from "@evey/api";
+import { toast } from "@evey/store";
 
 export interface Collection {
   id: string;
@@ -64,7 +65,11 @@ export function useCreateCollection() {
   return useMutation({
     mutationFn: (input: { name: string; description?: string }) =>
       eveyFetch<{ id: string }>({ url: "/api/v1/collections", method: "POST", data: input }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["collections"] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["collections"] });
+      toast.success("Collection created");
+    },
+    onError: () => toast.error("Failed to create collection"),
   });
 }
 
@@ -76,7 +81,9 @@ export function useUpdateCollection() {
     onSuccess: (_, vars) => {
       qc.invalidateQueries({ queryKey: ["collections"] });
       qc.invalidateQueries({ queryKey: ["collection", vars.id] });
+      toast.success("Collection updated");
     },
+    onError: () => toast.error("Failed to update collection"),
   });
 }
 
@@ -85,6 +92,10 @@ export function useDeleteCollection() {
   return useMutation({
     mutationFn: (id: string) =>
       eveyFetch<void>({ url: `/api/v1/collections/${id}`, method: "DELETE" }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["collections"] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["collections"] });
+      toast.success("Collection deleted");
+    },
+    onError: () => toast.error("Failed to delete collection"),
   });
 }
