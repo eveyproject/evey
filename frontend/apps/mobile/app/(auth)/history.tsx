@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { View, Text, FlatList, Pressable, Alert, RefreshControl, StyleSheet } from "react-native";
 import { Image } from "expo-image";
 import { router } from "expo-router";
@@ -115,14 +115,31 @@ function historyKeyExtractor(item: V1WatchProgress) {
   return item.id ?? item.mediaItemId ?? "";
 }
 
+const PAGE_SIZE = 30;
+
 export default function HistoryScreen() {
   const theme = useTheme();
   const { t } = useTranslation();
   const qc = useQueryClient();
   const [refreshing, setRefreshing] = useState(false);
+  const [page, setPage] = useState(1);
+  const [allItems, setAllItems] = useState<V1WatchProgress[]>([]);
+  const [hasMore, setHasMore] = useState(true);
 
-  const { data, isLoading, refetch } = usePlaybackServiceGetWatchHistory({ limit: 50 });
-  const items = data?.items ?? [];
+  const { data, isLoading, isFetching, refetch } = usePlaybackServiceGetWatchHistory({ limit: PAGE_SIZE, offset: (page - 1) * PAGE_SIZE });
+
+  useEffect(() => {
+    if (!data?.items) return;
+    const newItems = data.items;
+    if (page === 1) {
+      setAllItems(newItems);
+    } else {
+      setAllItems((prev) => [...prev, ...newItems]);
+    }
+    setHasMore(newItems.length >= PAGE_SIZE);
+  }, [data, page]);
+
+  const items = allItems;
 
   const unwatch = usePlaybackServiceMarkAsUnwatched({
     mutation: {
@@ -145,9 +162,17 @@ export default function HistoryScreen() {
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
+    setPage(1);
+    setHasMore(true);
     await refetch();
     setRefreshing(false);
   }, [refetch]);
+
+  const handleEndReached = useCallback(() => {
+    if (!isFetching && hasMore) {
+      setPage((p) => p + 1);
+    }
+  }, [isFetching, hasMore]);
 
   function handleClear() {
     Alert.alert(
@@ -207,6 +232,8 @@ export default function HistoryScreen() {
             <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.colors.accent} />
           }
           contentContainerStyle={{ paddingBottom: theme.spacing.xl }}
+          onEndReached={handleEndReached}
+          onEndReachedThreshold={0.5}
           initialNumToRender={10}
           maxToRenderPerBatch={10}
           windowSize={5}

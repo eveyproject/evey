@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useRef } from "react";
 import {
   View,
   Text,
@@ -9,6 +9,7 @@ import {
   ScrollView,
   StyleSheet,
 } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
 import { Image } from "expo-image";
 import { Skeleton } from "../../../src/components/Skeleton";
 import { useRouter } from "expo-router";
@@ -20,6 +21,25 @@ import { useAuthHeaders } from "../../../src/hooks/useAuthenticatedImage";
 import { useServerUrl } from "../../../src/hooks/useServerUrl";
 import { useDebounce } from "../../../src/hooks/useDebounce";
 import { artworkUrl } from "../../../src/lib/artwork";
+import * as SecureStore from "expo-secure-store";
+
+const HISTORY_KEY = "evey-search-history";
+const MAX_HISTORY = 10;
+
+function loadSearchHistory(): string[] {
+  try {
+    const raw = SecureStore.getItem(HISTORY_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch {
+    return [];
+  }
+}
+
+function saveSearchHistory(history: string[]) {
+  try {
+    SecureStore.setItem(HISTORY_KEY, JSON.stringify(history.slice(0, MAX_HISTORY)));
+  } catch {}
+}
 
 type MediaTypeFilter = "MEDIA_ITEM_TYPE_MOVIE" | "MEDIA_ITEM_TYPE_SERIES";
 type SortField = "MEDIA_SORT_FIELD_TITLE" | "MEDIA_SORT_FIELD_YEAR" | "MEDIA_SORT_FIELD_DATE_ADDED";
@@ -51,6 +71,8 @@ export default function SearchScreen() {
   const serverUrl = useServerUrl();
   const [query, setQuery] = useState("");
   const debouncedQuery = useDebounce(query, 300);
+  const [searchHistory, setSearchHistory] = useState<string[]>(() => loadSearchHistory());
+  const lastSubmitted = useRef("");
 
   const [typeFilter, setTypeFilter] = useState<MediaTypeFilter | undefined>(
     undefined,
@@ -88,6 +110,30 @@ export default function SearchScreen() {
       order: "SORT_ORDER_DESC",
     },
   ];
+
+  const addToHistory = useCallback((q: string) => {
+    const trimmed = q.trim();
+    if (!trimmed || trimmed === lastSubmitted.current) return;
+    lastSubmitted.current = trimmed;
+    setSearchHistory((prev) => {
+      const filtered = prev.filter((h) => h !== trimmed);
+      const updated = [trimmed, ...filtered].slice(0, MAX_HISTORY);
+      saveSearchHistory(updated);
+      return updated;
+    });
+  }, []);
+
+  const clearHistory = useCallback(() => {
+    setSearchHistory([]);
+    saveSearchHistory([]);
+  }, []);
+
+  // Save to history when results load
+  const prevDebouncedRef = useRef("");
+  if (debouncedQuery.length > 1 && debouncedQuery !== prevDebouncedRef.current) {
+    prevDebouncedRef.current = debouncedQuery;
+    addToHistory(debouncedQuery);
+  }
 
   const { data, isLoading, isError, refetch } = useLibraryServiceSearchMedia(
     {
@@ -518,11 +564,35 @@ export default function SearchScreen() {
           ))}
         </View>
       ) : !hasQuery ? (
-        <View style={styles.center}>
-          <Text style={{ color: theme.colors.textMuted, fontSize: 15 }}>
-            {t("media.search.searchLibrary")}
-          </Text>
-        </View>
+        searchHistory.length > 0 ? (
+          <View style={{ paddingHorizontal: 16, paddingTop: 16 }}>
+            <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+              <Text style={{ color: theme.colors.text, fontSize: 16, fontWeight: "600" }}>
+                {t("media.search.recentSearches") || "Recent Searches"}
+              </Text>
+              <Pressable onPress={clearHistory}>
+                <Text style={{ color: theme.colors.accent, fontSize: 13 }}>{t("common.clearAll") || "Clear"}</Text>
+              </Pressable>
+            </View>
+            {searchHistory.map((h) => (
+              <Pressable
+                key={h}
+                onPress={() => setQuery(h)}
+                style={{ flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 10, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: theme.colors.border }}
+              >
+                <Ionicons name="time-outline" size={16} color={theme.colors.textMuted} />
+                <Text style={{ color: theme.colors.text, fontSize: 14, flex: 1 }}>{h}</Text>
+                <Ionicons name="arrow-up-outline" size={14} color={theme.colors.textMuted} style={{ transform: [{ rotate: "-45deg" }] }} />
+              </Pressable>
+            ))}
+          </View>
+        ) : (
+          <View style={styles.center}>
+            <Text style={{ color: theme.colors.textMuted, fontSize: 15 }}>
+              {t("media.search.searchLibrary")}
+            </Text>
+          </View>
+        )
       ) : items.length === 0 ? (
         <View style={styles.center}>
           <Text style={{ color: theme.colors.textMuted }}>
