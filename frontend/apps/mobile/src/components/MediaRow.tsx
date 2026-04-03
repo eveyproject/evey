@@ -1,14 +1,16 @@
 import { useCallback, useMemo } from "react";
-import { View, Text, FlatList, StyleSheet, Dimensions } from "react-native";
+import { View, Text, FlatList, StyleSheet, Dimensions, Pressable } from "react-native";
+import { router } from "expo-router";
 import type { V1MediaItem } from "@evey/api";
 import { useTheme } from "../providers/ThemeProvider";
 import { MediaCard } from "./MediaCard";
 
-const CARD_WIDTH = Dimensions.get("window").width * 0.3;
+const CARD_WIDTH = Dimensions.get("window").width * 0.35;
 const CARD_TOTAL_WIDTH = CARD_WIDTH + 8; // card width + marginRight (theme.spacing.sm ~8)
 
 interface MediaRowProps {
   title: string;
+  seeAllHref?: string;
   items: V1MediaItem[];
   onItemPress?: (item: V1MediaItem) => void;
   watchPercents?: Record<string, number>;
@@ -20,14 +22,13 @@ const getItemLayout = (_: unknown, index: number) => ({
   index,
 });
 
-export function MediaRow({ title, items, onItemPress, watchPercents }: MediaRowProps) {
+export function MediaRow({ title, seeAllHref, items, onItemPress, watchPercents }: MediaRowProps) {
   const theme = useTheme();
 
   const titleStyle = useMemo(() => ({
     color: theme.colors.text,
-    marginBottom: theme.spacing.sm,
     paddingHorizontal: theme.spacing.md,
-  }), [theme.colors.text, theme.spacing.sm, theme.spacing.md]);
+  }), [theme.colors.text, theme.spacing.md]);
 
   const contentStyle = useMemo(
     () => ({ paddingHorizontal: theme.spacing.md }),
@@ -49,9 +50,14 @@ export function MediaRow({ title, items, onItemPress, watchPercents }: MediaRowP
 
   return (
     <View style={{ marginBottom: theme.spacing.lg }}>
-      <Text style={[styles.rowTitle, titleStyle]}>
-        {title}
-      </Text>
+      <View style={[styles.rowHeader, { marginBottom: theme.spacing.sm }]}>
+        <Text style={[styles.rowTitle, titleStyle]}>{title}</Text>
+        {seeAllHref && (
+          <Pressable onPress={() => router.push(seeAllHref as never)} style={{ paddingHorizontal: theme.spacing.md }}>
+            <Text style={{ color: theme.colors.accent, fontSize: 13 }}>See all</Text>
+          </Pressable>
+        )}
+      </View>
       <FlatList
         horizontal
         data={items}
@@ -73,5 +79,6 @@ function keyExtractor(item: V1MediaItem) {
 }
 
 const styles = StyleSheet.create({
+  rowHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
   rowTitle: { fontSize: 18, fontWeight: "600" },
 });

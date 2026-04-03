@@ -5,7 +5,7 @@ import { useRouter } from "expo-router";
 import { useTheme } from "../providers/ThemeProvider";
 import type { Collection } from "../api/collections";
 
-const CARD_WIDTH = Dimensions.get("window").width * 0.3;
+const CARD_WIDTH = Dimensions.get("window").width * 0.35;
 const CARD_HEIGHT = CARD_WIDTH * 1.5;
 const CARD_TOTAL_WIDTH = CARD_WIDTH + 8;
 

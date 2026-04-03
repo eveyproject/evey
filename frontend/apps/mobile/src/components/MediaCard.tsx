@@ -15,7 +15,7 @@ interface MediaCardProps {
 }
 
 const POSTER_RATIO = 1.5;
-const DEFAULT_WIDTH = Dimensions.get("window").width * 0.3;
+const DEFAULT_WIDTH = Dimensions.get("window").width * 0.35;
 
 export function MediaCard({ item, onPress, width, watchPercent }: MediaCardProps) {
   const theme = useTheme();

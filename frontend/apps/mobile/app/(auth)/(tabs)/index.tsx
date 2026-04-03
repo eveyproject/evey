@@ -1,4 +1,5 @@
-import { ScrollView, View, RefreshControl, Text, Pressable, StyleSheet, Dimensions } from "react-native";
+import { ScrollView, View, RefreshControl, Text, Pressable, StyleSheet, Dimensions, SafeAreaView } from "react-native";
+import { LinearGradient } from "expo-linear-gradient";
 import { Image } from "expo-image";
 import { Ionicons } from "@expo/vector-icons";
 import { Skeleton } from "../../../src/components/Skeleton";
@@ -12,6 +13,7 @@ import {
   useFeedServiceRecentlyAdded,
   useFeedServiceRecommended,
   getLibraryServiceGetMediaItemQueryOptions,
+  useNotificationServiceGetUnreadCount,
 } from "@evey/api";
 import type { V1MediaItem } from "@evey/api";
 import { useTheme } from "../../../src/providers/ThemeProvider";
@@ -23,7 +25,8 @@ import { useAuthHeaders } from "../../../src/hooks/useAuthenticatedImage";
 import { useServerUrl } from "../../../src/hooks/useServerUrl";
 
 const SCREEN_WIDTH = Dimensions.get("window").width;
-const HERO_HEIGHT = Math.round(SCREEN_WIDTH * 0.56);
+const SCREEN_HEIGHT = Dimensions.get("window").height;
+const HERO_HEIGHT = Math.round(Math.max(SCREEN_HEIGHT * 0.45, 280));
 const HERO_INTERVAL = 8000;
 const HERO_COUNT = 5;
 
@@ -32,7 +35,7 @@ function HeroBanner() {
   const { t } = useTranslation();
   const authHeaders = useAuthHeaders();
   const serverUrl = useServerUrl();
-  const { data } = useFeedServiceRecentlyAdded(undefined, { query: { staleTime: 5 * 60_000 } });
+  const { data } = useFeedServiceRecentlyAdded({ daysWindow: 30, limit: 20 }, { query: { staleTime: 5 * 60_000 } });
   const candidates = (data?.items ?? []).filter((i) => !!i.mediaItemId).slice(0, HERO_COUNT);
   const heroIds = candidates.map((c) => c.mediaItemId!);
 
@@ -71,8 +74,22 @@ function HeroBanner() {
         contentFit="cover"
         transition={400}
       />
-      {/* Dark overlay for readability */}
-      <View style={heroStyles.overlay} pointerEvents="none" />
+      {/* Bottom gradient for text readability */}
+      <LinearGradient
+        colors={["transparent", "rgba(0,0,0,0.7)", "rgba(0,0,0,0.95)"]}
+        locations={[0.3, 0.7, 1]}
+        style={StyleSheet.absoluteFillObject}
+        pointerEvents="none"
+      />
+      {/* Left gradient (like web) */}
+      <LinearGradient
+        colors={["rgba(0,0,0,0.7)", "rgba(0,0,0,0.2)", "transparent"]}
+        locations={[0, 0.5, 1]}
+        start={{ x: 0, y: 0.5 }}
+        end={{ x: 0.6, y: 0.5 }}
+        style={StyleSheet.absoluteFillObject}
+        pointerEvents="none"
+      />
       {/* Content */}
       <View style={heroStyles.content}>
         <Text style={heroStyles.title} numberOfLines={2}>{displayTitle}</Text>
@@ -130,7 +147,7 @@ const heroStyles = StyleSheet.create({
   container: { width: "100%", overflow: "hidden" },
   overlay: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: "rgba(0,0,0,0.35)",
+    backgroundColor: "transparent",
   },
   content: {
     position: "absolute",
@@ -204,7 +221,7 @@ export default function HomeScreen() {
 
   const resume = usePlaybackServiceGetResumeItems({ limit: 20 });
   const nextUp = usePlaybackServiceGetNextUp({ limit: 20 });
-  const recentlyAdded = useFeedServiceRecentlyAdded();
+  const recentlyAdded = useFeedServiceRecentlyAdded({ daysWindow: 30, limit: 20 });
   const recommended = useFeedServiceRecommended({ limit: 20 });
   const popular = useMostPopular(20);
   const collections = useCollections();
@@ -269,74 +286,127 @@ export default function HomeScreen() {
     router.push(`/media/${item.id}`);
   }
 
+  const { data: notifData } = useNotificationServiceGetUnreadCount();
+  const unreadCount = notifData?.count ?? 0;
+
   if (isLoading && !refreshing) {
-    const skeletonW = SCREEN_WIDTH * 0.3;
+    const skeletonW = SCREEN_WIDTH * 0.35;
     const skeletonH = skeletonW * 1.5;
     return (
       <View style={{ flex: 1, backgroundColor: theme.colors.bg }}>
+        <SafeAreaView style={{ backgroundColor: theme.colors.surface }}>
+          <HomeTopBar unreadCount={0} theme={theme} />
+        </SafeAreaView>
         <Skeleton width={SCREEN_WIDTH} height={HERO_HEIGHT} borderRadius={0} />
         <View style={{ paddingTop: theme.spacing.lg }}>
-        {Array.from({ length: 5 }).map((_, row) => (
-          <View key={row} style={{ marginBottom: theme.spacing.lg }}>
-            <Skeleton width={120} height={18} borderRadius={4} style={{ marginLeft: theme.spacing.md, marginBottom: theme.spacing.sm }} />
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: theme.spacing.md }}>
-              {Array.from({ length: 3 }).map((_, col) => (
-                <View key={col} style={{ marginRight: theme.spacing.sm }}>
-                  <Skeleton width={skeletonW} height={skeletonH} borderRadius={theme.radii.md} />
-                  <Skeleton width={skeletonW * 0.7} height={13} borderRadius={4} style={{ marginTop: 4 }} />
-                </View>
-              ))}
-            </ScrollView>
-          </View>
-        ))}
+          {Array.from({ length: 4 }).map((_, row) => (
+            <View key={row} style={{ marginBottom: theme.spacing.lg }}>
+              <Skeleton width={140} height={18} borderRadius={4} style={{ marginLeft: theme.spacing.md, marginBottom: theme.spacing.sm }} />
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: theme.spacing.md }}>
+                {Array.from({ length: 4 }).map((_, col) => (
+                  <View key={col} style={{ marginRight: theme.spacing.sm }}>
+                    <Skeleton width={skeletonW} height={skeletonH} borderRadius={theme.radii.md} />
+                    <Skeleton width={skeletonW * 0.7} height={13} borderRadius={4} style={{ marginTop: 4 }} />
+                  </View>
+                ))}
+              </ScrollView>
+            </View>
+          ))}
         </View>
       </View>
     );
   }
 
   return (
-    <ScrollView
-      style={{ flex: 1, backgroundColor: theme.colors.bg }}
-      contentContainerStyle={{ paddingBottom: theme.spacing.xl }}
-      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.colors.accent} />}
-    >
-      <HeroBanner />
-      {/* Resume Playback — same as web resume_playback */}
-      <MediaRow
-        title={t("common.feeds.labels.resume_playback")}
-        items={resume.data?.items ?? []}
-        onItemPress={handleItemPress}
-        watchPercents={watchPercents}
-      />
-      {/* Next Up — same as web next_up */}
-      <MediaRow
-        title={t("media.home.upNext")}
-        items={nextUp.data?.items ?? []}
-        onItemPress={handleItemPress}
-      />
-      {/* Collections — same as web collections */}
-      <CollectionRow
-        title={t("media.home.collections")}
-        collections={collections.data?.collections ?? []}
-      />
-      {/* Recommended — same as web recommended */}
-      <MediaRow
-        title={t("media.home.recommendedForYou")}
-        items={recommendedItems}
-        onItemPress={handleItemPress}
-      />
-      {/* Most Popular — same as web most_popular */}
-      <MediaRow
-        title={t("media.home.mostPopular")}
-        items={popularItems}
-        onItemPress={handleItemPress}
-      />
-      {/* Recently Added — feed-based like web hero data */}
-      <MediaRow
-        title={t("media.home.recentlyAdded")}
-        items={recentItems}
-        onItemPress={handleItemPress}
-      />
-    </ScrollView>
+    <View style={{ flex: 1, backgroundColor: theme.colors.bg }}>
+      <SafeAreaView style={{ backgroundColor: theme.colors.surface }}>
+        <HomeTopBar unreadCount={unreadCount} theme={theme} />
+      </SafeAreaView>
+      <ScrollView
+        style={{ flex: 1 }}
+        contentContainerStyle={{ paddingBottom: theme.spacing.xl }}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.colors.accent} />}
+      >
+        <HeroBanner />
+        <View style={{ paddingTop: theme.spacing.md }}>
+          <MediaRow
+            title={t("common.feeds.labels.resume_playback")}
+            items={resume.data?.items ?? []}
+            onItemPress={handleItemPress}
+            watchPercents={watchPercents}
+          />
+          <MediaRow
+            title={t("media.home.upNext")}
+            items={nextUp.data?.items ?? []}
+            onItemPress={handleItemPress}
+          />
+          <CollectionRow
+            title={t("media.home.collections")}
+            collections={collections.data?.collections ?? []}
+          />
+          <MediaRow
+            title={t("media.home.recommendedForYou")}
+            items={recommendedItems}
+            onItemPress={handleItemPress}
+          />
+          <MediaRow
+            title={t("media.home.mostPopular")}
+            items={popularItems}
+            onItemPress={handleItemPress}
+          />
+          <MediaRow
+            title={t("media.home.recentlyAdded")}
+            items={recentItems}
+            onItemPress={handleItemPress}
+          />
+        </View>
+      </ScrollView>
+    </View>
   );
 }
+
+function HomeTopBar({ unreadCount, theme }: { unreadCount: number; theme: ReturnType<typeof useTheme> }) {
+  return (
+    <View style={topBarStyles.container}>
+      <Text style={[topBarStyles.logo, { color: theme.colors.accent }]}>Evey</Text>
+      <Pressable
+        onPress={() => router.push("/notifications")}
+        style={topBarStyles.bell}
+        accessible
+        accessibilityLabel="Notifications"
+        accessibilityRole="button"
+      >
+        <Ionicons name="notifications-outline" size={22} color={theme.colors.text} />
+        {unreadCount > 0 && (
+          <View style={[topBarStyles.badge, { backgroundColor: theme.colors.accent }]}>
+            <Text style={topBarStyles.badgeText}>{unreadCount > 9 ? "9+" : unreadCount}</Text>
+          </View>
+        )}
+      </Pressable>
+    </View>
+  );
+}
+
+const topBarStyles = StyleSheet.create({
+  container: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+  },
+  logo: { fontSize: 22, fontWeight: "800", letterSpacing: -0.5 },
+  bell: { padding: 4 },
+  badge: {
+    position: "absolute",
+    top: -2,
+    right: -2,
+    minWidth: 16,
+    height: 16,
+    borderRadius: 8,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 3,
+  },
+  badgeText: { color: "#fff", fontSize: 10, fontWeight: "700" },
+});

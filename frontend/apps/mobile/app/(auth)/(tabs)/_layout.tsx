@@ -1,45 +1,7 @@
-import { View, Text, Pressable } from "react-native";
-import { Tabs, router } from "expo-router";
+import { Tabs } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { useTranslation } from "react-i18next";
-import { useNotificationServiceGetUnreadCount } from "@evey/api";
 import { useTheme } from "../../../src/providers/ThemeProvider";
-
-function NotificationBellButton() {
-  const theme = useTheme();
-  const { data } = useNotificationServiceGetUnreadCount();
-  const count = data?.count ?? 0;
-
-  return (
-    <Pressable
-      onPress={() => router.push("/notifications")}
-      style={{ marginRight: theme.spacing.md }}
-      accessible
-      accessibilityLabel="Notifications"
-      accessibilityRole="button"
-    >
-      <Ionicons name="notifications-outline" size={22} color={theme.colors.text} />
-      {count > 0 && (
-        <View style={{
-          position: "absolute",
-          top: -4,
-          right: -6,
-          minWidth: 16,
-          height: 16,
-          borderRadius: 8,
-          backgroundColor: theme.colors.accent,
-          alignItems: "center",
-          justifyContent: "center",
-          paddingHorizontal: 3,
-        }}>
-          <Text style={{ color: "#fff", fontSize: 10, fontWeight: "700" }}>
-            {count > 9 ? "9+" : count}
-          </Text>
-        </View>
-      )}
-    </Pressable>
-  );
-}
 
 export default function TabsLayout() {
   const theme = useTheme();
@@ -52,19 +14,21 @@ export default function TabsLayout() {
         tabBarStyle: {
           backgroundColor: theme.colors.surface,
           borderTopColor: theme.colors.border,
+          borderTopWidth: 0.5,
+          height: 56,
+          paddingBottom: 8,
+          paddingTop: 6,
         },
         tabBarActiveTintColor: theme.colors.accent,
         tabBarInactiveTintColor: theme.colors.textMuted,
+        tabBarLabelStyle: { fontSize: 11, fontWeight: "500" },
       }}
     >
       <Tabs.Screen
         name="index"
         options={{
           title: t("common.nav.home"),
-          headerShown: true,
-          headerStyle: { backgroundColor: theme.colors.bg },
-          headerTitleStyle: { color: theme.colors.text },
-          headerRight: () => <NotificationBellButton />,
+          headerShown: false,
           tabBarIcon: ({ color, size }) => <Ionicons name="home" size={size} color={color} />,
         }}
       />
