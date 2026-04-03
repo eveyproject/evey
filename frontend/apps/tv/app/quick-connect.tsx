@@ -1,10 +1,12 @@
 import { useEffect, useState, useRef, useCallback } from "react";
 import { View, Text, Pressable, ActivityIndicator, StyleSheet } from "react-native";
+import QRCode from "react-native-qrcode-svg";
 import { router } from "expo-router";
 import { useTranslation } from "react-i18next";
 import { useUserServiceInitiateQuickConnect, useUserServiceCheckQuickConnect } from "@evey/api";
 import { useAuthStore } from "@evey/store";
 import { useTheme } from "../src/providers/ThemeProvider";
+import { useServerUrlNullable } from "../src/hooks/useServerUrl";
 
 const REFRESH_INTERVAL_S = 120;
 
@@ -71,7 +73,9 @@ export default function QuickConnectScreen() {
     }
   }, [checkData, setTokens]);
 
+  const serverUrl = useServerUrlNullable();
   const displayCode = code ? code.slice(-6).toUpperCase() : null;
+  const qrValue = code && serverUrl ? `${serverUrl}/quickconnect?code=${code}` : null;
 
   return (
     <View style={[styles.container, { backgroundColor: theme.colors.bg }]}>
@@ -84,13 +88,18 @@ export default function QuickConnectScreen() {
       </Text>
 
       <View style={[styles.codeBox, { backgroundColor: theme.colors.surface, borderRadius: theme.radii.md }]}>
+        {qrValue ? (
+          <View style={{ backgroundColor: "#fff", padding: 16, borderRadius: 8, marginBottom: 24 }}>
+            <QRCode value={qrValue} size={200} />
+          </View>
+        ) : (
+          <ActivityIndicator color={theme.colors.accent} size="large" style={{ marginBottom: 24 }} />
+        )}
         {displayCode ? (
           <Text style={[styles.code, { color: theme.colors.text }]}>
             {displayCode}
           </Text>
-        ) : (
-          <ActivityIndicator color={theme.colors.accent} size="large" />
-        )}
+        ) : null}
       </View>
 
       {code && (
