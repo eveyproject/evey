@@ -246,7 +246,7 @@ export default function LibraryDetailScreen() {
       <Stack.Screen
         options={{
           headerShown: true,
-          title: library?.name ?? "Library",
+          title: library?.name ?? t("media.library.title"),
           headerStyle: { backgroundColor: theme.colors.surface },
           headerTintColor: theme.colors.text,
         }}
