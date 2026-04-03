@@ -94,7 +94,7 @@ func TestParseLocale(t *testing.T) {
 		{"zh-CN", "zh"},
 		{"hi", "hi"},
 		{"es-MX,en;q=0.5", "es"},
-		{"de-DE", "en"}, // unsupported -> fallback
+		{"de-DE", "de"},
 		{"", "en"},
 	}
 	for _, tt := range tests {

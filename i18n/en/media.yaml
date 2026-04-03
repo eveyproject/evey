@@ -289,7 +289,6 @@ playlist:
   op: Operator
   value: Value
   playlists: Playlists
-  notFound: Playlist not found.
   noItems: No items
   noItemsSmart: No media matches these rules.
   noItemsManual: Add items from the media detail page.

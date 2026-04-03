@@ -317,11 +317,11 @@ search:
   all: Alle
   movies: Filme
   series: Serien
-  noResultsFor: "Keine Ergebnisse für „{{query}}""
+  noResultsFor: "Keine Ergebnisse für \"{{query}}\""
   noResultsDesc: Versuchen Sie einen anderen Suchbegriff, überprüfen Sie die Schreibweise oder ändern Sie den Filter.
   resultCount: "{{count}} Ergebnis"
   resultCount_plural: "{{count}} Ergebnisse"
-  resultFor: "für „{{query}}""
+  resultFor: "für \"{{query}}\""
   searchLibrary: Ihre Medienbibliothek durchsuchen
   searchLibraryDesc: Geben Sie mindestens 2 Zeichen ein, um alle Ihre Filme, Serien und mehr zu durchsuchen.
   clearSearch: Suche löschen
