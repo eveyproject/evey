@@ -122,3 +122,28 @@ export function useAddToPlaylist() {
       qc.invalidateQueries({ queryKey: ["playlists", vars.playlistId] }),
   });
 }
+
+export function useCreatePlaylist() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (data: { name: string; description?: string; type: string }) =>
+      eveyFetch<{ playlist: { id: string } }>({
+        url: "/api/v1/playlists",
+        method: "POST",
+        data,
+      }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["playlists"] }),
+  });
+}
+
+export function useDeletePlaylist() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) =>
+      eveyFetch<void>({
+        url: `/api/v1/playlists/${id}`,
+        method: "DELETE",
+      }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["playlists"] }),
+  });
+}

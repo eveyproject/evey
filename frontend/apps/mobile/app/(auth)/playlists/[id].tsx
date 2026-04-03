@@ -5,12 +5,13 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   StyleSheet,
+  Alert,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import { useTranslation } from "react-i18next";
 import { useTheme } from "../../../src/providers/ThemeProvider";
-import { usePlaylistDetail, type PlaylistItem } from "../../../src/api/playlists";
+import { usePlaylistDetail, useDeletePlaylist, type PlaylistItem } from "../../../src/api/playlists";
 
 function PlaylistItemRow({
   item,
@@ -55,8 +56,37 @@ export default function PlaylistDetailScreen() {
   const theme = useTheme();
   const { t } = useTranslation();
   const router = useRouter();
+  const deleteMutation = useDeletePlaylist();
 
   const { data: playlist, isLoading, isError } = usePlaylistDetail(id ?? "");
+
+  const confirmDelete = () => {
+    Alert.alert(
+      t("common.delete"),
+      t("media.playlist.confirmDelete", { name: playlist?.name }),
+      [
+        { text: t("common.cancel"), style: "cancel" },
+        {
+          text: t("common.delete"),
+          style: "destructive",
+          onPress: async () => {
+            try {
+              await deleteMutation.mutateAsync(id ?? "");
+              router.back();
+            } catch {
+              Alert.alert(t("common.error"), t("media.playlist.deleteError"));
+            }
+          },
+        },
+      ],
+    );
+  };
+
+  const headerRight = () => (
+    <TouchableOpacity onPress={confirmDelete} style={{ marginRight: 8 }} hitSlop={8}>
+      <Ionicons name="trash-outline" size={22} color={theme.colors.error ?? theme.colors.accent} />
+    </TouchableOpacity>
+  );
 
   if (isLoading) {
     return (
@@ -100,6 +130,7 @@ export default function PlaylistDetailScreen() {
           title: playlist.name,
           headerStyle: { backgroundColor: theme.colors.surface },
           headerTintColor: theme.colors.text,
+          headerRight,
         }}
       />
       {playlist.description ? (
