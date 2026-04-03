@@ -1,14 +1,17 @@
-import { ScrollView, View, RefreshControl } from "react-native";
+import { ScrollView, View, RefreshControl, Text, Pressable, StyleSheet, Dimensions } from "react-native";
+import { Image } from "expo-image";
+import { Ionicons } from "@expo/vector-icons";
 import { Skeleton } from "../../../src/components/Skeleton";
-import { useCallback, useMemo, useState } from "react";
-import { Dimensions } from "react-native";
+import { useCallback, useMemo, useState, useEffect, useRef } from "react";
 import { router } from "expo-router";
 import { useTranslation } from "react-i18next";
+import { useQueries } from "@tanstack/react-query";
 import {
   usePlaybackServiceGetResumeItems,
   usePlaybackServiceGetNextUp,
   useFeedServiceRecentlyAdded,
   useFeedServiceRecommended,
+  getLibraryServiceGetMediaItemQueryOptions,
 } from "@evey/api";
 import type { V1MediaItem } from "@evey/api";
 import { useTheme } from "../../../src/providers/ThemeProvider";
@@ -16,6 +19,184 @@ import { MediaRow } from "../../../src/components/MediaRow";
 import { useCollections } from "../../../src/api/collections";
 import { useMostPopular } from "../../../src/hooks/usePopular";
 import { CollectionRow } from "../../../src/components/CollectionRow";
+import { useAuthHeaders } from "../../../src/hooks/useAuthenticatedImage";
+import { useServerUrl } from "../../../src/hooks/useServerUrl";
+
+const SCREEN_WIDTH = Dimensions.get("window").width;
+const HERO_HEIGHT = Math.round(SCREEN_WIDTH * 0.56);
+const HERO_INTERVAL = 8000;
+const HERO_COUNT = 5;
+
+function HeroBanner() {
+  const theme = useTheme();
+  const { t } = useTranslation();
+  const authHeaders = useAuthHeaders();
+  const serverUrl = useServerUrl();
+  const { data } = useFeedServiceRecentlyAdded(undefined, { query: { staleTime: 5 * 60_000 } });
+  const candidates = (data?.items ?? []).filter((i) => !!i.mediaItemId).slice(0, HERO_COUNT);
+  const heroIds = candidates.map((c) => c.mediaItemId!);
+
+  const details = useQueries({
+    queries: heroIds.map((id) => ({
+      ...getLibraryServiceGetMediaItemQueryOptions(id),
+      staleTime: 5 * 60_000,
+    })),
+  });
+
+  const [activeIndex, setActiveIndex] = useState(0);
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  useEffect(() => {
+    if (heroIds.length <= 1) return;
+    timerRef.current = setInterval(() => {
+      setActiveIndex((prev) => (prev + 1) % heroIds.length);
+    }, HERO_INTERVAL);
+    return () => { if (timerRef.current) clearInterval(timerRef.current); };
+  }, [heroIds.length]);
+
+  if (heroIds.length === 0) return null;
+
+  const activeId = heroIds[activeIndex] ?? "";
+  const detail = details[activeIndex]?.data;
+  const backdropUrl = `${serverUrl}/api/v1/media/${activeId}/artwork/backdrop`;
+  const displayTitle = candidates[activeIndex]?.title ?? detail?.title ?? "";
+  const genres = (detail?.genres ?? []).slice(0, 3);
+  const overview = detail?.overview;
+
+  return (
+    <View style={[heroStyles.container, { height: HERO_HEIGHT }]}>
+      <Image
+        source={{ uri: backdropUrl, headers: authHeaders }}
+        style={StyleSheet.absoluteFillObject}
+        contentFit="cover"
+        transition={400}
+      />
+      {/* Dark overlay for readability */}
+      <View style={heroStyles.overlay} pointerEvents="none" />
+      {/* Content */}
+      <View style={heroStyles.content}>
+        <Text style={heroStyles.title} numberOfLines={2}>{displayTitle}</Text>
+        {genres.length > 0 && (
+          <Text style={[heroStyles.meta, { color: theme.colors.textMuted }]}>
+            {genres.join(" · ")}
+          </Text>
+        )}
+        {overview ? (
+          <Text style={[heroStyles.overview, { color: "rgba(255,255,255,0.8)" }]} numberOfLines={2}>
+            {overview}
+          </Text>
+        ) : null}
+        <View style={heroStyles.buttons}>
+          <Pressable
+            style={[heroStyles.playBtn, { backgroundColor: "#fff" }]}
+            onPress={() => activeId && router.push(`/media/${activeId}`)}
+            accessible
+            accessibilityRole="button"
+            accessibilityLabel={t("media.detail.play")}
+          >
+            <Ionicons name="play" size={18} color="#111" />
+            <Text style={{ color: "#111", fontWeight: "700", fontSize: 14 }}>{t("media.detail.play")}</Text>
+          </Pressable>
+          <Pressable
+            style={[heroStyles.infoBtn, { borderColor: "rgba(255,255,255,0.6)" }]}
+            onPress={() => activeId && router.push(`/media/${activeId}`)}
+            accessible
+            accessibilityRole="button"
+            accessibilityLabel={t("media.home.moreInfo")}
+          >
+            <Ionicons name="information-circle-outline" size={18} color="#fff" />
+            <Text style={{ color: "#fff", fontWeight: "600", fontSize: 14 }}>{t("media.home.moreInfo")}</Text>
+          </Pressable>
+        </View>
+      </View>
+      {/* Dots */}
+      {heroIds.length > 1 && (
+        <View style={heroStyles.dots}>
+          {heroIds.map((_, i) => (
+            <Pressable key={i} onPress={() => setActiveIndex(i)}>
+              <View style={[
+                heroStyles.dot,
+                i === activeIndex ? { backgroundColor: "#fff", width: 16 } : { backgroundColor: "rgba(255,255,255,0.4)" },
+              ]} />
+            </Pressable>
+          ))}
+        </View>
+      )}
+    </View>
+  );
+}
+
+const heroStyles = StyleSheet.create({
+  container: { width: "100%", overflow: "hidden" },
+  overlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "rgba(0,0,0,0.35)",
+  },
+  content: {
+    position: "absolute",
+    bottom: 40,
+    left: 16,
+    right: 16,
+  },
+  title: {
+    color: "#fff",
+    fontSize: 22,
+    fontWeight: "800",
+    textShadowColor: "rgba(0,0,0,0.8)",
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 4,
+  },
+  meta: {
+    fontSize: 12,
+    marginTop: 4,
+    textShadowColor: "rgba(0,0,0,0.8)",
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 4,
+  },
+  overview: {
+    fontSize: 12,
+    marginTop: 4,
+    lineHeight: 16,
+    textShadowColor: "rgba(0,0,0,0.8)",
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 4,
+  },
+  buttons: {
+    flexDirection: "row",
+    gap: 10,
+    marginTop: 12,
+  },
+  playBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: 6,
+  },
+  infoBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: 6,
+    borderWidth: 1,
+  },
+  dots: {
+    position: "absolute",
+    bottom: 12,
+    alignSelf: "center",
+    flexDirection: "row",
+    gap: 6,
+    alignItems: "center",
+  },
+  dot: {
+    height: 4,
+    width: 8,
+    borderRadius: 2,
+  },
+});
 
 export default function HomeScreen() {
   const theme = useTheme();
@@ -89,10 +270,12 @@ export default function HomeScreen() {
   }
 
   if (isLoading && !refreshing) {
-    const skeletonW = Dimensions.get("window").width * 0.3;
+    const skeletonW = SCREEN_WIDTH * 0.3;
     const skeletonH = skeletonW * 1.5;
     return (
-      <View style={{ flex: 1, backgroundColor: theme.colors.bg, paddingTop: theme.spacing.lg }}>
+      <View style={{ flex: 1, backgroundColor: theme.colors.bg }}>
+        <Skeleton width={SCREEN_WIDTH} height={HERO_HEIGHT} borderRadius={0} />
+        <View style={{ paddingTop: theme.spacing.lg }}>
         {Array.from({ length: 5 }).map((_, row) => (
           <View key={row} style={{ marginBottom: theme.spacing.lg }}>
             <Skeleton width={120} height={18} borderRadius={4} style={{ marginLeft: theme.spacing.md, marginBottom: theme.spacing.sm }} />
@@ -106,6 +289,7 @@ export default function HomeScreen() {
             </ScrollView>
           </View>
         ))}
+        </View>
       </View>
     );
   }
@@ -113,9 +297,10 @@ export default function HomeScreen() {
   return (
     <ScrollView
       style={{ flex: 1, backgroundColor: theme.colors.bg }}
-      contentContainerStyle={{ paddingTop: theme.spacing.lg, paddingBottom: theme.spacing.xl }}
+      contentContainerStyle={{ paddingBottom: theme.spacing.xl }}
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.colors.accent} />}
     >
+      <HeroBanner />
       {/* Resume Playback — same as web resume_playback */}
       <MediaRow
         title={t("common.feeds.labels.resume_playback")}
