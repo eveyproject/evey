@@ -51,9 +51,8 @@ function UserMenu({ theme, initial }: { theme: ReturnType<typeof useTheme>; init
         <Pressable style={styles.menuBackdrop} onPress={() => setOpen(false)} />
         <View style={[styles.menuDropdown, { backgroundColor: theme.colors.surfaceRaised, borderColor: theme.colors.border }]}>
           {[
-            { label: t("common.nav.profile"), icon: "person-outline", path: "/profile" },
             { label: t("common.nav.settings"), icon: "settings-outline", path: "/(auth)/(tabs)/settings" },
-            { label: t("common.nav.watchHistory"), icon: "time-outline", path: "/profile/history" },
+            { label: t("common.nav.watchHistory"), icon: "time-outline", path: "/history" },
             { label: t("common.nav.quickConnect"), icon: "qr-code-outline", path: "/quick-connect" },
             ...(isAdmin ? [{ label: t("common.nav.admin"), icon: "grid-outline", path: "/admin" }] : []),
           ].map((item) => (

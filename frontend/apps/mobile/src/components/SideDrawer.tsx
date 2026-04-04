@@ -125,7 +125,7 @@ export function SideDrawer() {
 
         {/* User section at bottom */}
         <View style={[styles.userSection, { borderTopColor: theme.colors.border }]}>
-          <Pressable onPress={() => navigate("/profile")} style={styles.userRow}>
+          <Pressable onPress={() => navigate("/(auth)/(tabs)/settings")} style={styles.userRow}>
             <View style={[styles.avatar, { backgroundColor: theme.colors.accent }]}>
               <Text style={styles.avatarText}>{initial}</Text>
             </View>

@@ -1,10 +1,12 @@
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import { View, Text, ScrollView, Pressable, Alert, TextInput, ActivityIndicator, StyleSheet } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import Constants from "expo-constants";
 import { useTranslation } from "react-i18next";
+import { useQueryClient } from "@tanstack/react-query";
 import { useUserServiceGetCurrentUser, useAdminServiceGetSystemInfo, useUserServiceAuthorizeQuickConnect, useUserServiceUpdateUser } from "@evey/api";
-import { useAuthStore, useThemeStore, useLocaleStore } from "@evey/store";
+import { useAuthStore, useThemeStore, useLocaleStore, toast } from "@evey/store";
 import { useTheme } from "../../../src/providers/ThemeProvider";
 import { useServerUrlNullable } from "../../../src/hooks/useServerUrl";
 import { clearServerUrl } from "../../../src/lib/server-config";
@@ -20,19 +22,21 @@ function ChevronRight({ color }: { color: string }) {
 export default function SettingsScreen() {
   const theme = useTheme();
   const { t, i18n } = useTranslation();
+  const qc = useQueryClient();
   const logout = useAuthStore((s) => s.logout);
+  const isAdmin = useAuthStore((s) => s.isAdmin);
   const currentTheme = useThemeStore((s) => s.theme);
-  const themeOptions: { label: string; value: ThemeValue }[] = [
-    { label: t("mobile.settings.themeDark"), value: "default" },
-    { label: t("mobile.settings.themeLight"), value: "light-default" },
-    { label: t("mobile.settings.themeAmoled"), value: "amoled" },
-  ];
   const setTheme = useThemeStore((s) => s.setTheme);
   const setLocale = useLocaleStore((s) => s.setLocale);
   const serverUrl = useServerUrlNullable();
 
   const [qcCode, setQcCode] = useState("");
   const [qcSuccess, setQcSuccess] = useState(false);
+
+  // Account editing
+  const [editingAccount, setEditingAccount] = useState(false);
+  const [editUsername, setEditUsername] = useState("");
+  const [editEmail, setEditEmail] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
 
@@ -44,10 +48,12 @@ export default function SettingsScreen() {
       onSuccess: () => {
         setNewPassword("");
         setConfirmPassword("");
-        Alert.alert(t("auth.settings.account.passwordUpdated"));
+        setEditingAccount(false);
+        toast.success(t("auth.settings.account.profileUpdated") || "Profile updated");
+        qc.invalidateQueries({ queryKey: ["/api/v1/users/me"] });
       },
       onError: (err: Error) => {
-        Alert.alert(t("auth.settings.account.passwordFailed"), err.message);
+        toast.error(err.message || "Update failed");
       },
     },
   });
@@ -59,11 +65,40 @@ export default function SettingsScreen() {
         setQcCode("");
         setTimeout(() => setQcSuccess(false), 3000);
       },
-      onError: () => {
-        Alert.alert(t("auth.settings.quickConnect.invalidCode"));
-      },
+      onError: () => Alert.alert(t("auth.settings.quickConnect.invalidCode")),
     },
   });
+
+  const startEditAccount = useCallback(() => {
+    setEditUsername(user?.username ?? "");
+    setEditEmail(user?.email ?? "");
+    setEditingAccount(true);
+  }, [user]);
+
+  const handleSaveAccount = useCallback(async () => {
+    if (!user?.id) return;
+    const data: Record<string, string> = {};
+    if (editUsername.trim() !== user.username) data.username = editUsername.trim();
+    if (editEmail.trim() !== (user.email ?? "")) data.email = editEmail.trim();
+    if (newPassword) {
+      if (newPassword !== confirmPassword) {
+        Alert.alert(t("auth.settings.account.passwordMismatch"));
+        return;
+      }
+      if (newPassword.length < 8) {
+        Alert.alert(t("auth.settings.account.passwordMin"));
+        return;
+      }
+      data.password = newPassword;
+    }
+    if (Object.keys(data).length === 0) {
+      setEditingAccount(false);
+      return;
+    }
+    try {
+      await updateUser.mutateAsync({ id: user.id, data });
+    } catch {}
+  }, [user, editUsername, editEmail, newPassword, confirmPassword, updateUser, t]);
 
   function handleAuthorizeQc() {
     const trimmed = qcCode.trim().toUpperCase();
@@ -74,29 +109,14 @@ export default function SettingsScreen() {
   async function handleChangeServer() {
     Alert.alert(t("mobile.settings.changeServer"), t("mobile.settings.disconnectConfirm"), [
       { text: t("common.cancel"), style: "cancel" },
-      {
-        text: t("mobile.settings.disconnect"),
-        style: "destructive",
-        onPress: async () => {
-          logout();
-          await clearServerUrl();
-          router.replace("/server-connect");
-        },
-      },
+      { text: t("mobile.settings.disconnect"), style: "destructive", onPress: async () => { logout(); await clearServerUrl(); router.replace("/server-connect"); } },
     ]);
   }
 
   async function handleSignOut() {
     Alert.alert(t("mobile.settings.signOut"), t("mobile.settings.signOutConfirm"), [
       { text: t("common.cancel"), style: "cancel" },
-      {
-        text: t("mobile.settings.signOut"),
-        style: "destructive",
-        onPress: () => {
-          logout();
-          router.replace("/login");
-        },
-      },
+      { text: t("mobile.settings.signOut"), style: "destructive", onPress: () => { logout(); router.replace("/login"); } },
     ]);
   }
 
@@ -105,141 +125,115 @@ export default function SettingsScreen() {
     i18n.changeLanguage(code);
   }
 
+  const themeOptions: { label: string; value: ThemeValue }[] = [
+    { label: t("mobile.settings.themeDark"), value: "default" },
+    { label: t("mobile.settings.themeLight"), value: "light-default" },
+    { label: t("mobile.settings.themeAmoled"), value: "amoled" },
+  ];
+
+  const initial = user?.username?.charAt(0).toUpperCase() ?? "U";
+  const memberSince = user?.createdAt
+    ? new Date(user.createdAt).toLocaleDateString(undefined, { year: "numeric", month: "long" })
+    : null;
   const appVersion = Constants.expoConfig?.version ?? "1.0.0";
   const currentLang = i18n.language;
-
-  const s = styles(theme);
+  const s = sStyles(theme);
 
   return (
     <ScrollView style={s.container} contentContainerStyle={{ paddingBottom: theme.spacing.xl }}>
-      {/* Server */}
-      <Text style={s.sectionTitle}>{t("mobile.settings.server")}</Text>
-      <View style={s.section}>
-        <View style={s.row}>
-          <Text style={s.label}>URL</Text>
-          <Text style={s.value} numberOfLines={1}>{serverUrl ?? "..."}</Text>
-        </View>
-        <View style={s.row}>
-          <Text style={s.label}>{t("mobile.settings.serverVersion")}</Text>
-          <Text style={s.value}>{systemInfo?.version ?? "\u2014"}</Text>
-        </View>
-        <Pressable style={s.row} onPress={handleChangeServer} accessible accessibilityLabel={t("mobile.settings.changeServer")} accessibilityRole="button">
-          <Text style={s.labelDestructive}>{t("mobile.settings.changeServer")}</Text>
-          <ChevronRight color={theme.colors.textMuted} />
-        </Pressable>
-      </View>
 
-      {/* Account */}
-      <Text style={s.sectionTitle}>{t("auth.settings.tabs.account")}</Text>
-      <View style={s.section}>
-        <View style={s.row}>
-          <Text style={s.label}>{t("auth.login.username")}</Text>
-          <Text style={s.value}>{user?.username ?? "..."}</Text>
-        </View>
-        <View style={s.row}>
-          <Text style={s.label}>{t("auth.profile.email")}</Text>
-          <Text style={s.value}>{user?.email ?? "\u2014"}</Text>
-        </View>
-        <Pressable style={s.row} onPress={() => router.push("/history")} accessible accessibilityLabel={t("common.watchHistory.title")} accessibilityRole="button">
-          <Text style={s.label}>{t("common.watchHistory.title")}</Text>
-          <ChevronRight color={theme.colors.textMuted} />
-        </Pressable>
-        <Pressable style={s.row} onPress={() => router.push("/notifications")} accessible accessibilityLabel={t("common.notifications.title")} accessibilityRole="button">
-          <Text style={s.label}>{t("common.notifications.title")}</Text>
-          <ChevronRight color={theme.colors.textMuted} />
-        </Pressable>
-        <Pressable style={s.row} onPress={() => router.push("/profile-select")} accessible accessibilityLabel={t("mobile.settings.switchProfile")} accessibilityRole="button">
-          <Text style={s.label}>{t("mobile.settings.switchProfile")}</Text>
-          <ChevronRight color={theme.colors.textMuted} />
-        </Pressable>
-        <Pressable style={s.row} onPress={handleSignOut} accessible accessibilityLabel={t("mobile.settings.signOut")} accessibilityRole="button">
-          <Text style={s.labelDestructive}>{t("mobile.settings.signOut")}</Text>
-          <ChevronRight color={theme.colors.textMuted} />
-        </Pressable>
-      </View>
-
-      {/* Change Password */}
-      <Text style={s.sectionTitle}>{t("auth.settings.account.changePassword")}</Text>
-      <View style={s.section}>
-        <View style={{ paddingHorizontal: theme.spacing.md, paddingTop: 14 }}>
-          <Text style={{ color: theme.colors.textMuted, fontSize: 13, marginBottom: theme.spacing.sm }}>
-            {t("auth.settings.account.changePasswordDesc")}
-          </Text>
-        </View>
-        <View style={{ paddingHorizontal: theme.spacing.md, paddingBottom: 14, gap: theme.spacing.sm }}>
-          <TextInput
-            placeholder={t("auth.settings.account.newPassword")}
-            placeholderTextColor={theme.colors.textMuted}
-            value={newPassword}
-            onChangeText={setNewPassword}
-            secureTextEntry
-            autoComplete="new-password"
-            style={{
-              backgroundColor: theme.colors.bg,
-              color: theme.colors.text,
-              borderRadius: theme.radii.md,
-              padding: theme.spacing.sm,
-              borderWidth: 1,
-              borderColor: theme.colors.border,
-            }}
-          />
-          <TextInput
-            placeholder={t("auth.settings.account.confirmPassword")}
-            placeholderTextColor={theme.colors.textMuted}
-            value={confirmPassword}
-            onChangeText={setConfirmPassword}
-            secureTextEntry
-            autoComplete="new-password"
-            style={{
-              backgroundColor: theme.colors.bg,
-              color: theme.colors.text,
-              borderRadius: theme.radii.md,
-              padding: theme.spacing.sm,
-              borderWidth: 1,
-              borderColor: theme.colors.border,
-            }}
-          />
-          <Pressable
-            onPress={() => {
-              if (!user?.id) return;
-              if (newPassword !== confirmPassword) {
-                Alert.alert(t("auth.settings.account.passwordMismatch"));
-                return;
-              }
-              if (newPassword.length < 8) {
-                Alert.alert(t("auth.settings.account.passwordMin"));
-                return;
-              }
-              updateUser.mutate({ id: user.id, data: { password: newPassword } });
-            }}
-            disabled={updateUser.isPending || newPassword.length < 8}
-            style={{
-              backgroundColor: newPassword.length < 8 ? theme.colors.border : theme.colors.accent,
-              borderRadius: theme.radii.md,
-              paddingVertical: theme.spacing.sm,
-              alignItems: "center",
-            }}
-          >
-            {updateUser.isPending ? (
-              <ActivityIndicator color="#fff" size="small" />
-            ) : (
-              <Text style={{ color: "#fff", fontWeight: "600", fontSize: 14 }}>
-                {t("auth.settings.account.updatePassword")}
-              </Text>
-            )}
+      {/* Profile card */}
+      <View style={[s.profileCard, { backgroundColor: theme.colors.surface, borderRadius: theme.radii.md, marginHorizontal: theme.spacing.md, marginTop: theme.spacing.lg }]}>
+        <View style={{ flexDirection: "row", alignItems: "center", gap: theme.spacing.md }}>
+          <View style={[s.avatar, { backgroundColor: theme.colors.accent }]}>
+            <Text style={s.avatarText}>{initial}</Text>
+          </View>
+          <View style={{ flex: 1 }}>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+              <Text style={{ color: theme.colors.text, fontSize: 18, fontWeight: "700" }}>{user?.username ?? "..."}</Text>
+              {isAdmin && (
+                <View style={{ backgroundColor: theme.colors.accent, borderRadius: 4, paddingHorizontal: 5, paddingVertical: 1 }}>
+                  <Text style={{ color: "#fff", fontSize: 9, fontWeight: "700" }}>ADMIN</Text>
+                </View>
+              )}
+            </View>
+            <Text style={{ color: theme.colors.textMuted, fontSize: 13 }}>{user?.email || "—"}</Text>
+            {memberSince && <Text style={{ color: theme.colors.textMuted, fontSize: 11, marginTop: 2 }}>{memberSince}</Text>}
+          </View>
+          <Pressable onPress={editingAccount ? () => setEditingAccount(false) : startEditAccount} hitSlop={8}>
+            <Ionicons name={editingAccount ? "close" : "pencil"} size={18} color={theme.colors.accent} />
           </Pressable>
         </View>
+
+        {/* Inline edit */}
+        {editingAccount && (
+          <View style={{ marginTop: theme.spacing.md, gap: theme.spacing.sm }}>
+            <TextInput
+              placeholder={t("auth.login.username")}
+              placeholderTextColor={theme.colors.textMuted}
+              value={editUsername}
+              onChangeText={setEditUsername}
+              autoCapitalize="none"
+              style={s.editInput}
+            />
+            <TextInput
+              placeholder={t("auth.profile.email")}
+              placeholderTextColor={theme.colors.textMuted}
+              value={editEmail}
+              onChangeText={setEditEmail}
+              keyboardType="email-address"
+              autoCapitalize="none"
+              style={s.editInput}
+            />
+            <TextInput
+              placeholder={t("auth.settings.account.newPassword") + " (" + (t("common.optional") || "optional") + ")"}
+              placeholderTextColor={theme.colors.textMuted}
+              value={newPassword}
+              onChangeText={setNewPassword}
+              secureTextEntry
+              style={s.editInput}
+            />
+            {newPassword.length > 0 && (
+              <TextInput
+                placeholder={t("auth.settings.account.confirmPassword")}
+                placeholderTextColor={theme.colors.textMuted}
+                value={confirmPassword}
+                onChangeText={setConfirmPassword}
+                secureTextEntry
+                style={s.editInput}
+              />
+            )}
+            <Pressable
+              onPress={handleSaveAccount}
+              disabled={updateUser.isPending}
+              style={[s.saveBtn, { backgroundColor: theme.colors.accent, borderRadius: theme.radii.md, opacity: updateUser.isPending ? 0.5 : 1 }]}
+            >
+              {updateUser.isPending ? (
+                <ActivityIndicator color="#fff" size="small" />
+              ) : (
+                <Text style={{ color: "#fff", fontWeight: "600", fontSize: 14 }}>{t("common.save") || "Save"}</Text>
+              )}
+            </Pressable>
+          </View>
+        )}
+      </View>
+
+      {/* Account shortcuts */}
+      <Text style={s.sectionTitle}>{t("auth.settings.tabs.account")}</Text>
+      <View style={s.section}>
+        <Pressable style={s.row} onPress={() => router.push("/history")}><Text style={s.label}>{t("common.watchHistory.title")}</Text><ChevronRight color={theme.colors.textMuted} /></Pressable>
+        <Pressable style={s.row} onPress={() => router.push("/notifications")}><Text style={s.label}>{t("common.notifications.title")}</Text><ChevronRight color={theme.colors.textMuted} /></Pressable>
+        <Pressable style={s.row} onPress={() => router.push("/profile-select")}><Text style={s.label}>{t("mobile.settings.switchProfile")}</Text><ChevronRight color={theme.colors.textMuted} /></Pressable>
+        <Pressable style={s.row} onPress={handleSignOut}><Text style={s.labelDestructive}>{t("mobile.settings.signOut")}</Text><ChevronRight color={theme.colors.textMuted} /></Pressable>
       </View>
 
       {/* Appearance */}
       <Text style={s.sectionTitle}>{t("auth.settings.tabs.appearance")}</Text>
       <View style={s.section}>
         {themeOptions.map((opt) => (
-          <Pressable key={opt.value} style={s.row} onPress={() => setTheme(opt.value)} accessible accessibilityLabel={`${opt.label} theme`} accessibilityRole="button">
+          <Pressable key={opt.value} style={s.row} onPress={() => setTheme(opt.value)}>
             <Text style={s.label}>{opt.label}</Text>
-            {currentTheme === opt.value && (
-              <Text style={{ color: theme.colors.accent, fontSize: 16, fontWeight: "600" }}>{"\u2713"}</Text>
-            )}
+            {currentTheme === opt.value && <Text style={{ color: theme.colors.accent, fontSize: 16, fontWeight: "600" }}>{"\u2713"}</Text>}
           </Pressable>
         ))}
       </View>
@@ -248,11 +242,9 @@ export default function SettingsScreen() {
       <Text style={s.sectionTitle}>{t("common.language")}</Text>
       <View style={s.section}>
         {supportedLanguages.map((lang) => (
-          <Pressable key={lang.code} style={s.row} onPress={() => handleLanguageChange(lang.code)} accessible accessibilityLabel={lang.label} accessibilityRole="button">
+          <Pressable key={lang.code} style={s.row} onPress={() => handleLanguageChange(lang.code)}>
             <Text style={s.label}>{lang.label}</Text>
-            {currentLang === lang.code && (
-              <Text style={{ color: theme.colors.accent, fontSize: 16, fontWeight: "600" }}>{"\u2713"}</Text>
-            )}
+            {currentLang === lang.code && <Text style={{ color: theme.colors.accent, fontSize: 16, fontWeight: "600" }}>{"\u2713"}</Text>}
           </Pressable>
         ))}
       </View>
@@ -260,46 +252,26 @@ export default function SettingsScreen() {
       {/* Playback */}
       <Text style={s.sectionTitle}>{t("auth.settings.tabs.playback")}</Text>
       <View style={s.section}>
-        <Pressable style={s.row} onPress={() => router.push("/settings/playback")} accessible accessibilityLabel={t("auth.settings.playback.bitrateTitle")} accessibilityRole="button">
-          <Text style={s.label}>{t("auth.settings.playback.bitrateTitle")}</Text>
-          <ChevronRight color={theme.colors.textMuted} />
-        </Pressable>
+        <Pressable style={s.row} onPress={() => router.push("/settings/playback")}><Text style={s.label}>{t("auth.settings.playback.bitrateTitle")}</Text><ChevronRight color={theme.colors.textMuted} /></Pressable>
       </View>
 
-      {/* Notifications Settings */}
+      {/* Notifications */}
       <Text style={s.sectionTitle}>{t("auth.settings.tabs.notifications")}</Text>
       <View style={s.section}>
-        <Pressable style={s.row} onPress={() => router.push("/settings/notifications")} accessible accessibilityLabel={t("auth.settings.tabs.notifications")} accessibilityRole="button">
-          <Text style={s.label}>{t("auth.settings.tabs.notifications")}</Text>
-          <ChevronRight color={theme.colors.textMuted} />
-        </Pressable>
+        <Pressable style={s.row} onPress={() => router.push("/settings/notifications")}><Text style={s.label}>{t("auth.settings.tabs.notifications")}</Text><ChevronRight color={theme.colors.textMuted} /></Pressable>
       </View>
 
       {/* Parental */}
       <Text style={s.sectionTitle}>{t("auth.settings.tabs.parental")}</Text>
       <View style={s.section}>
-        <Pressable style={s.row} onPress={() => router.push("/settings/parental")} accessible accessibilityLabel={t("auth.settings.tabs.parental")} accessibilityRole="button">
-          <Text style={s.label}>{t("auth.settings.tabs.parental")}</Text>
-          <ChevronRight color={theme.colors.textMuted} />
-        </Pressable>
+        <Pressable style={s.row} onPress={() => router.push("/settings/parental")}><Text style={s.label}>{t("auth.settings.tabs.parental")}</Text><ChevronRight color={theme.colors.textMuted} /></Pressable>
       </View>
 
-      {/* API Keys */}
-      <Text style={s.sectionTitle}>API Keys</Text>
+      {/* API Keys + Devices */}
+      <Text style={s.sectionTitle}>{t("auth.settings.tabs.security") || "Security"}</Text>
       <View style={s.section}>
-        <Pressable style={s.row} onPress={() => router.push("/admin/api-keys")} accessible accessibilityLabel="API Keys" accessibilityRole="button">
-          <Text style={s.label}>API Keys</Text>
-          <ChevronRight color={theme.colors.textMuted} />
-        </Pressable>
-      </View>
-
-      {/* Devices */}
-      <Text style={s.sectionTitle}>{t("auth.devices.title")}</Text>
-      <View style={s.section}>
-        <Pressable style={s.row} onPress={() => router.push("/settings/devices")} accessible accessibilityLabel={t("auth.devices.title")} accessibilityRole="button">
-          <Text style={s.label}>{t("auth.devices.title")}</Text>
-          <ChevronRight color={theme.colors.textMuted} />
-        </Pressable>
+        <Pressable style={s.row} onPress={() => router.push("/admin/api-keys")}><Text style={s.label}>API Keys</Text><ChevronRight color={theme.colors.textMuted} /></Pressable>
+        <Pressable style={s.row} onPress={() => router.push("/settings/devices")}><Text style={s.label}>{t("auth.devices.title")}</Text><ChevronRight color={theme.colors.textMuted} /></Pressable>
       </View>
 
       {/* Quick Connect */}
@@ -310,7 +282,7 @@ export default function SettingsScreen() {
             {t("auth.settings.quickConnect.description")}
           </Text>
         </View>
-        <Pressable style={s.row} onPress={() => router.push("/qr-scan")} accessible accessibilityLabel={t("auth.settings.quickConnect.scanQr")} accessibilityRole="button">
+        <Pressable style={s.row} onPress={() => router.push("/qr-scan")}>
           <Text style={s.label}>{t("auth.settings.quickConnect.scanQr")}</Text>
           <ChevronRight color={theme.colors.textMuted} />
         </Pressable>
@@ -323,73 +295,57 @@ export default function SettingsScreen() {
             autoCapitalize="characters"
             autoCorrect={false}
             maxLength={6}
-            style={{
-              flex: 1,
-              backgroundColor: theme.colors.bg,
-              color: theme.colors.text,
-              borderRadius: theme.radii.md,
-              padding: theme.spacing.sm,
-              fontFamily: "monospace",
-              letterSpacing: 4,
-              fontSize: 18,
-              textAlign: "center",
-              borderWidth: 1,
-              borderColor: theme.colors.border,
-            }}
-            accessible
-            accessibilityLabel={t("auth.settings.quickConnect.codeLabel")}
+            style={s.qcInput}
           />
           <Pressable
             onPress={handleAuthorizeQc}
             disabled={authorizeQc.isPending || qcCode.trim().length < 4}
-            accessible
-            accessibilityLabel={t("auth.settings.quickConnect.authorize")}
-            accessibilityRole="button"
-            style={{
-              backgroundColor: qcCode.trim().length < 4 ? theme.colors.border : theme.colors.accent,
-              borderRadius: theme.radii.md,
-              paddingVertical: theme.spacing.sm,
-              paddingHorizontal: theme.spacing.md,
-              alignItems: "center",
-              justifyContent: "center",
-            }}
+            style={{ backgroundColor: qcCode.trim().length < 4 ? theme.colors.border : theme.colors.accent, borderRadius: theme.radii.md, paddingVertical: theme.spacing.sm, paddingHorizontal: theme.spacing.md, alignItems: "center" }}
           >
-            {authorizeQc.isPending ? (
-              <ActivityIndicator color={theme.colors.text} size="small" />
-            ) : (
-              <Text style={{ color: "#fff", fontWeight: "600", fontSize: 14 }}>
-                {t("auth.settings.quickConnect.authorize")}
-              </Text>
-            )}
+            {authorizeQc.isPending ? <ActivityIndicator color="#fff" size="small" /> : <Text style={{ color: "#fff", fontWeight: "600", fontSize: 14 }}>{t("auth.settings.quickConnect.authorize")}</Text>}
           </Pressable>
         </View>
         {qcSuccess && (
           <View style={{ paddingHorizontal: theme.spacing.md, paddingBottom: 14 }}>
-            <Text style={{ color: theme.colors.accent, fontSize: 13 }}>
-              {t("auth.settings.quickConnect.authorized")}
-            </Text>
+            <Text style={{ color: theme.colors.accent, fontSize: 13 }}>{t("auth.settings.quickConnect.authorized")}</Text>
           </View>
         )}
+      </View>
+
+      {/* Server */}
+      <Text style={s.sectionTitle}>{t("mobile.settings.server")}</Text>
+      <View style={s.section}>
+        <View style={s.row}><Text style={s.label}>URL</Text><Text style={s.value} numberOfLines={1}>{serverUrl ?? "..."}</Text></View>
+        <View style={s.row}><Text style={s.label}>{t("mobile.settings.serverVersion")}</Text><Text style={s.value}>{systemInfo?.version ?? "\u2014"}</Text></View>
+        <Pressable style={s.row} onPress={handleChangeServer}><Text style={s.labelDestructive}>{t("mobile.settings.changeServer")}</Text><ChevronRight color={theme.colors.textMuted} /></Pressable>
       </View>
 
       {/* About */}
       <Text style={s.sectionTitle}>{t("mobile.settings.about")}</Text>
       <View style={s.section}>
-        <View style={s.row}>
-          <Text style={s.label}>{t("mobile.settings.appVersion")}</Text>
-          <Text style={s.value}>{appVersion}</Text>
-        </View>
+        <View style={s.row}><Text style={s.label}>{t("mobile.settings.appVersion")}</Text><Text style={s.value}>{appVersion}</Text></View>
       </View>
     </ScrollView>
   );
 }
 
-const styles = (t: ReturnType<typeof useTheme>) =>
+const sStyles = (t: ReturnType<typeof useTheme>) =>
   StyleSheet.create({
-    container: {
-      flex: 1,
+    container: { flex: 1, backgroundColor: t.colors.bg },
+    profileCard: { padding: t.spacing.md },
+    avatar: { width: 56, height: 56, borderRadius: 28, justifyContent: "center", alignItems: "center" },
+    avatarText: { color: "#fff", fontSize: 24, fontWeight: "700" },
+    editInput: {
       backgroundColor: t.colors.bg,
+      color: t.colors.text,
+      borderRadius: t.radii.md,
+      paddingHorizontal: t.spacing.sm + 4,
+      paddingVertical: t.spacing.sm,
+      fontSize: 15,
+      borderWidth: 1,
+      borderColor: t.colors.border,
     },
+    saveBtn: { paddingVertical: t.spacing.sm + 2, alignItems: "center" },
     sectionTitle: {
       color: t.colors.textMuted,
       fontSize: 13,
@@ -414,18 +370,20 @@ const styles = (t: ReturnType<typeof useTheme>) =>
       borderBottomWidth: StyleSheet.hairlineWidth,
       borderBottomColor: t.colors.border,
     },
-    label: {
+    label: { color: t.colors.text, fontSize: 16 },
+    labelDestructive: { color: "#ef4444", fontSize: 16 },
+    value: { color: t.colors.textMuted, fontSize: 15, flexShrink: 1, marginLeft: t.spacing.md },
+    qcInput: {
+      flex: 1,
+      backgroundColor: t.colors.bg,
       color: t.colors.text,
-      fontSize: 16,
-    },
-    labelDestructive: {
-      color: "#ef4444",
-      fontSize: 16,
-    },
-    value: {
-      color: t.colors.textMuted,
-      fontSize: 15,
-      flexShrink: 1,
-      marginLeft: t.spacing.md,
+      borderRadius: t.radii.md,
+      padding: t.spacing.sm,
+      fontFamily: "monospace",
+      letterSpacing: 4,
+      fontSize: 18,
+      textAlign: "center",
+      borderWidth: 1,
+      borderColor: t.colors.border,
     },
   });
