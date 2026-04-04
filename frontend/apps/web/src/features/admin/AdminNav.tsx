@@ -14,11 +14,9 @@ import {
   Key,
   BarChart3,
   TrendingUp,
-  FileText,
   Database,
   Cpu,
   SlidersHorizontal,
-  ScrollText,
   ChevronDown,
   Sliders,
   Rows3,
@@ -76,8 +74,6 @@ const sectionsDef: NavSection[] = [
     links: [
       { href: "/admin/analytics", labelKey: "admin.nav.analytics", icon: TrendingUp },
       { href: "/admin/activity", labelKey: "admin.nav.activity", icon: BarChart3 },
-      { href: "/admin/audit", labelKey: "admin.nav.auditLog", icon: FileText },
-      { href: "/admin/logs", labelKey: "admin.nav.liveLogs", icon: ScrollText },
     ],
   },
   {

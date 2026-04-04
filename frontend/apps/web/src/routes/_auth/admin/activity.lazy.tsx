@@ -4,21 +4,21 @@ import { createLazyFileRoute } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import {
   useActivityServiceGetPlayHistory,
-  useActivityServiceGetLoginHistory,
   useActivityServiceGetServerStats,
+  useAdminServiceGetAuditLog,
 } from "@evey/api";
 import { Spinner } from "@/components/ui/Spinner";
 import { Card } from "@/components/ui/Card";
-import { Badge } from "@/components/ui/Badge";
 import { Pagination } from "@/components/ui/Pagination";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { PageHeader } from "@/components/ui/PageHeader";
+import { AuditLogTable } from "@/features/admin/AuditLogTable";
 
 export const Route = createLazyFileRoute("/_auth/admin/activity")({
   component: ActivityPage,
 });
 
-type Tab = "play" | "logins" | "stats";
+type Tab = "play" | "audit" | "stats";
 
 function formatBytes(bytes?: string): string {
   const n = parseInt(bytes ?? "0");
@@ -139,16 +139,14 @@ function PlayHistoryTab() {
   );
 }
 
-function LoginHistoryTab() {
+function AuditTab() {
   const { t } = useTranslation();
   const PAGE_SIZE = 25;
-  const [page, setPage] = useState(1);
-  const { data, isLoading } = useActivityServiceGetLoginHistory({
-    "pagination.page": page,
-    "pagination.pageSize": PAGE_SIZE,
+  const [page, setPage] = useState(0);
+  const { data, isLoading } = useAdminServiceGetAuditLog({
+    limit: PAGE_SIZE,
+    offset: page * PAGE_SIZE,
   });
-  const entries = data?.entries ?? [];
-  const total = data?.pagination?.totalItems ?? 0;
 
   if (isLoading) {
     return (
@@ -159,67 +157,13 @@ function LoginHistoryTab() {
   }
 
   return (
-    <div className="flex flex-col gap-4">
-      <div
-        className="overflow-x-auto rounded-[var(--radius-lg)] border border-[var(--border)]"
-      >
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="bg-[var(--surface)] border-b border-[var(--border)]">
-              {[t("admin.activity.loginHeaders.user"), t("admin.activity.loginHeaders.ip"), t("admin.activity.loginHeaders.status"), t("admin.activity.loginHeaders.userAgent"), t("admin.activity.loginHeaders.timestamp")].map((h) => (
-                <th
-                  key={h}
-                  className="px-4 py-2 text-left font-medium text-[var(--text-muted)]"
-                >
-                  {h}
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {entries.length === 0 ? (
-              <tr>
-                <td colSpan={5}>
-                  <EmptyState icon={<Clock size={48} strokeWidth={1.5} />} title={t("admin.activity.noLoginHistory")} />
-                </td>
-              </tr>
-            ) : (
-              entries.map((e) => (
-                <tr key={e.id} className="border-b border-[var(--border)]">
-                  <td className="px-4 py-3 font-medium text-[var(--text)]">
-                    {e.username ?? "\u2014"}
-                  </td>
-                  <td className="px-4 py-3 font-mono text-xs text-[var(--text-muted)]">
-                    {e.ipAddress ?? "\u2014"}
-                  </td>
-                  <td className="px-4 py-3">
-                    {e.success ? (
-                      <Badge variant="success">{t("admin.activity.ok")}</Badge>
-                    ) : (
-                      <Badge variant="error">{t("admin.activity.failed")}</Badge>
-                    )}
-                  </td>
-                  <td className="px-4 py-3 text-xs max-w-xs truncate text-[var(--text-muted)]">
-                    {e.userAgent ?? "\u2014"}
-                  </td>
-                  <td className="px-4 py-3 text-xs text-[var(--text-muted)]">
-                    {formatDate(e.timestamp)}
-                  </td>
-                </tr>
-              ))
-            )}
-          </tbody>
-        </table>
-      </div>
-      <div className="flex items-center justify-between text-sm text-[var(--text-muted)]">
-        <span>{t("admin.activity.totalEntries", { count: total })}</span>
-        <Pagination
-          page={page}
-          totalPages={Math.max(1, Math.ceil(total / PAGE_SIZE))}
-          onPageChange={setPage}
-        />
-      </div>
-    </div>
+    <AuditLogTable
+      entries={data?.entries ?? []}
+      total={data?.total ?? 0}
+      page={page}
+      pageSize={PAGE_SIZE}
+      onPageChange={setPage}
+    />
   );
 }
 
@@ -309,7 +253,7 @@ function ActivityPage() {
 
   const tabs: Array<{ id: Tab; label: string }> = [
     { id: "play", label: t("admin.activity.tabs.playHistory") },
-    { id: "logins", label: t("admin.activity.tabs.loginHistory") },
+    { id: "audit", label: t("admin.audit.title") },
     { id: "stats", label: t("admin.activity.tabs.serverStats") },
   ];
 
@@ -334,7 +278,7 @@ function ActivityPage() {
       </div>
 
       {tab === "play" && <PlayHistoryTab />}
-      {tab === "logins" && <LoginHistoryTab />}
+      {tab === "audit" && <AuditTab />}
       {tab === "stats" && <StatsTab />}
     </div>
   );
