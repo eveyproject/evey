@@ -62,6 +62,9 @@ importers:
       expo-linear-gradient:
         specifier: 14.0.1
         version: 14.0.1(expo@55.0.9)(react-native@0.83.4(@babel/core@7.29.0)(@react-native/metro-config@0.84.1(@babel/core@7.29.0))(@types/react@19.1.0)(react@19.2.0))(react@19.2.0)
+      expo-local-authentication:
+        specifier: 55.0.11
+        version: 55.0.11(expo@55.0.9)
       expo-localization:
         specifier: 55.0.9
         version: 55.0.9(expo@55.0.9)(react@19.2.0)
@@ -3458,6 +3461,11 @@ packages:
     peerDependencies:
       react: '*'
       react-native: '*'
+
+  expo-local-authentication@55.0.11:
+    resolution: {integrity: sha512-GTvDbI0HlsHTvgFVNo4x7fN8a/DV3D2qczqpco31R6O/8qU/yHcn4dTsbsCCr5A/2rmbEO12Trwr+TihiXyIBg==}
+    peerDependencies:
+      expo: '*'
 
   expo-localization@55.0.9:
     resolution: {integrity: sha512-ABRg4wEt15OCp9/3XOLC4ltPVvXmJgeCKNTJ4Nb8N6byuHITJHvZ3PwcC2YGpTzlAqfGbcs3rJdfg1ObT54PJQ==}
@@ -8474,7 +8482,9 @@ snapshots:
       metro-runtime: 0.83.5
     transitivePeerDependencies:
       - '@babel/core'
+      - bufferutil
       - supports-color
+      - utf-8-validate
 
   '@react-native/normalize-colors@0.83.1': {}
 
@@ -10266,6 +10276,11 @@ snapshots:
       - expo
       - supports-color
       - typescript
+
+  expo-local-authentication@55.0.11(expo@55.0.9):
+    dependencies:
+      expo: 55.0.9(@babel/core@7.29.0)(@expo/dom-webview@55.0.3)(@expo/metro-runtime@55.0.6)(expo-router@55.0.8)(react-dom@19.2.0(react@19.2.0))(react-native@0.83.4(@babel/core@7.29.0)(@react-native/metro-config@0.84.1(@babel/core@7.29.0))(@types/react@19.1.0)(react@19.2.0))(react@19.2.0)(typescript@5.9.3)
+      invariant: 2.2.4
 
   expo-localization@55.0.9(expo@55.0.9)(react@19.2.0):
     dependencies:
