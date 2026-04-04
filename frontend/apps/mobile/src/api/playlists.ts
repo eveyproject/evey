@@ -160,6 +160,24 @@ export function useDeletePlaylist() {
   });
 }
 
+export function useUpdatePlaylist() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, ...body }: { id: string; name?: string; description?: string; rules?: { field: string; operator: string; value: string }[] }) =>
+      eveyFetch<void>({
+        url: `/api/v1/playlists/${id}`,
+        method: "PUT",
+        data: body,
+      }),
+    onSuccess: (_, vars) => {
+      qc.invalidateQueries({ queryKey: ["playlists", vars.id] });
+      qc.invalidateQueries({ queryKey: ["playlists"] });
+      toast.success("Playlist updated");
+    },
+    onError: () => toast.error("Failed to update playlist"),
+  });
+}
+
 export function useRemoveFromPlaylist() {
   const qc = useQueryClient();
   return useMutation({

@@ -13,7 +13,8 @@ import { Ionicons } from "@expo/vector-icons";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import { useTranslation } from "react-i18next";
 import { useTheme } from "../../../src/providers/ThemeProvider";
-import { usePlaylistDetail, useDeletePlaylist, useRemoveFromPlaylist, useReorderPlaylistItems, type PlaylistItem } from "../../../src/api/playlists";
+import { usePlaylistDetail, useDeletePlaylist, useRemoveFromPlaylist, useReorderPlaylistItems, useUpdatePlaylist, type PlaylistItem } from "../../../src/api/playlists";
+import { SmartRulesEditor, type SmartRule } from "../../../src/components/SmartRulesEditor";
 
 function PlaylistItemRow({
   item,
@@ -95,7 +96,10 @@ export default function PlaylistDetailScreen() {
   const reorderMutation = useReorderPlaylistItems();
 
   const { data: playlist, isLoading, isError } = usePlaylistDetail(id ?? "");
+  const updatePlaylist = useUpdatePlaylist();
   const isManual = playlist?.type === "manual";
+  const isSmart = playlist?.type?.includes("smart") ?? false;
+  const [showRulesEditor, setShowRulesEditor] = useState(false);
 
   const confirmDelete = () => {
     Alert.alert(
@@ -195,6 +199,17 @@ export default function PlaylistDetailScreen() {
           {playlist.description}
         </Text>
       ) : null}
+      {isSmart && (
+        <Pressable
+          onPress={() => setShowRulesEditor(true)}
+          style={{ flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 16, paddingVertical: 8 }}
+        >
+          <Ionicons name="options-outline" size={16} color={theme.colors.accent} />
+          <Text style={{ color: theme.colors.accent, fontSize: 13, fontWeight: "600" }}>
+            {t("media.playlist.editRules") || "Edit Rules"} ({playlist.rules?.length ?? 0})
+          </Text>
+        </Pressable>
+      )}
       <FlatList
         data={items}
         keyExtractor={(item) => item.media_item_id}
@@ -224,6 +239,19 @@ export default function PlaylistDetailScreen() {
           ) : null
         }
       />
+      {isSmart && (
+        <SmartRulesEditor
+          visible={showRulesEditor}
+          onClose={() => setShowRulesEditor(false)}
+          rules={(playlist.rules ?? []).map((r) => ({ field: r.field as SmartRule["field"], operator: (r.operator || "eq") as SmartRule["operator"], value: r.value }))}
+          onSave={async (newRules) => {
+            if (!id) return;
+            try {
+              await updatePlaylist.mutateAsync({ id, rules: newRules });
+            } catch {}
+          }}
+        />
+      )}
     </View>
   );
 }
