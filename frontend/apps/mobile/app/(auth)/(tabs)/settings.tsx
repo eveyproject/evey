@@ -46,7 +46,8 @@ export default function SettingsScreen() {
   const { data: profilesResp } = useUserServiceListProfiles(user?.id ?? "", { query: { enabled: !!user?.id } });
   const defaultProfile = profilesResp?.profiles?.find((p: any) => p.isDefault) ?? profilesResp?.profiles?.[0];
   const { data: systemInfo } = useAdminServiceGetSystemInfo();
-  const [avatarKey, setAvatarKey] = useState(0);
+  const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
+  const accessToken = useAuthStore((s) => s.accessToken);
 
   const updateUser = useUserServiceUpdateUser({
     mutation: {
@@ -123,7 +124,8 @@ export default function SettingsScreen() {
     } as any);
     try {
       await eveyFetchRaw({ url: `/api/v1/profiles/${defaultProfile.id}/avatar`, method: "POST", body: formData as any });
-      setAvatarKey((k) => k + 1);
+      setAvatarPreview(asset.uri);
+      if (user?.id) void qc.invalidateQueries({ queryKey: [`/api/v1/users/${user.id}/profiles`] });
       toast.success(t("auth.profile.avatarUpdated"));
     } catch {
       toast.error(t("auth.profile.avatarFailed"));
@@ -176,9 +178,15 @@ export default function SettingsScreen() {
       <View style={[s.profileCard, { backgroundColor: theme.colors.surface, borderRadius: theme.radii.md, marginHorizontal: theme.spacing.md, marginTop: theme.spacing.lg }]}>
         <View style={{ flexDirection: "row", alignItems: "center", gap: theme.spacing.md }}>
           <Pressable onPress={handleAvatarPick} style={[s.avatar, { backgroundColor: theme.colors.accent }]}>
-            {(defaultProfile as any)?.avatarPath ? (
+            {avatarPreview ? (
               <Image
-                source={{ uri: `${serverUrl}/api/v1/profiles/${defaultProfile?.id}/avatar?v=${avatarKey}` }}
+                source={{ uri: avatarPreview }}
+                style={{ width: 56, height: 56, borderRadius: 28 }}
+                contentFit="cover"
+              />
+            ) : (defaultProfile as any)?.avatarPath && serverUrl ? (
+              <Image
+                source={{ uri: `${serverUrl}/api/v1/profiles/${defaultProfile?.id}/avatar?token=${accessToken}` }}
                 style={{ width: 56, height: 56, borderRadius: 28 }}
                 contentFit="cover"
               />

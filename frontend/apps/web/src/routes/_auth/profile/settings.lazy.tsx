@@ -4,6 +4,7 @@ import { createLazyFileRoute } from "@tanstack/react-router";
 import { useState, useEffect, useRef } from "react";
 import { useUserServiceGetCurrentUser, useUserServiceUpdateUser, useUserServiceListProfiles, useUserServiceUpdateProfile } from "@evey/api";
 import { getUserServiceGetCurrentUserQueryKey, getUserServiceListProfilesQueryKey } from "@evey/api";
+import { useAuthStore } from "@evey/store";
 import { eveyFetch, eveyFetchRaw } from "@evey/api";
 import { useQueryClient, useMutation } from "@tanstack/react-query";
 import { toast } from "@evey/store";
@@ -45,8 +46,9 @@ function ProfileCard() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPwd, setConfirmPwd] = useState("");
-  const [avatarKey, setAvatarKey] = useState(0);
+  const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const accessToken = useAuthStore((s) => s.accessToken);
 
   const updateUser = useUserServiceUpdateUser({
     mutation: {
@@ -92,7 +94,8 @@ function ProfileCard() {
     formData.append("avatar", file);
     try {
       await eveyFetchRaw({ url: `/api/v1/profiles/${defaultProfile.id}/avatar`, method: "POST", body: formData });
-      setAvatarKey((k) => k + 1);
+      setAvatarPreview(URL.createObjectURL(file));
+      if (user?.id) void qc.invalidateQueries({ queryKey: getUserServiceListProfilesQueryKey(user.id) });
       toast.success(t("auth.profile.avatarUpdated"));
     } catch {
       toast.error(t("auth.profile.avatarFailed"));
@@ -104,9 +107,11 @@ function ProfileCard() {
     ? new Date(user.createdAt).toLocaleDateString(undefined, { year: "numeric", month: "long" })
     : null;
 
-  const avatarUrl = defaultProfile?.avatarPath
-    ? `/api/v1/profiles/${defaultProfile.id}/avatar?v=${avatarKey}`
-    : null;
+  const avatarUrl = avatarPreview
+    ? avatarPreview
+    : defaultProfile?.avatarPath && defaultProfile?.id
+      ? `/api/v1/profiles/${defaultProfile.id}/avatar?token=${accessToken}`
+      : null;
 
   return (
     <Card>

@@ -139,7 +139,11 @@ func avatarServeHandler(
 	dataDir string,
 ) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		// Accept bearer token from header OR query param (for <img src=...>)
 		token := extractBearerToken(r)
+		if token == "" {
+			token = r.URL.Query().Get("token")
+		}
 		if token == "" {
 			http.Error(w, `{"message":"unauthenticated"}`, http.StatusUnauthorized)
 			return
@@ -156,6 +160,7 @@ func avatarServeHandler(
 			return
 		}
 
+		w.Header().Set("Cache-Control", "private, max-age=3600")
 		fullPath := filepath.Join(dataDir, *profile.AvatarPath)
 		http.ServeFile(w, r, fullPath)
 	}
