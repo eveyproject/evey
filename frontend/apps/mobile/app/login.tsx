@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo } from "react";
 import { View, Text, TextInput, Pressable, ActivityIndicator, Alert, Linking } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import { useTranslation } from "react-i18next";
 import { useQuery } from "@tanstack/react-query";
@@ -8,6 +9,7 @@ import { useAuthStore } from "@evey/store";
 import { useTheme } from "../src/providers/ThemeProvider";
 import { useServerUrl } from "../src/hooks/useServerUrl";
 import { setRefreshToken } from "../src/lib/refresh-token";
+import { useBiometricAvailable, useBiometricEnabled, authenticateBiometric } from "../src/hooks/useBiometric";
 
 export default function Login() {
   const theme = useTheme();
@@ -16,7 +18,24 @@ export default function Login() {
   const [password, setPassword] = useState("");
   const [oidcLoading, setOidcLoading] = useState(false);
   const setTokens = useAuthStore((s) => s.setTokens);
+  const accessToken = useAuthStore((s) => s.accessToken);
   const serverUrl = useServerUrl();
+  const { available: biometricAvailable, biometricType } = useBiometricAvailable();
+  const { enabled: biometricEnabled } = useBiometricEnabled();
+  const canUseBiometric = biometricAvailable && biometricEnabled && !!accessToken;
+
+  useEffect(() => {
+    if (canUseBiometric) {
+      handleBiometricLogin();
+    }
+  }, [canUseBiometric]);
+
+  async function handleBiometricLogin() {
+    const success = await authenticateBiometric(t("mobile.auth.biometricPrompt") || "Unlock Evey");
+    if (success) {
+      router.replace("/profile-select");
+    }
+  }
 
   const oidcConfig = useQuery<{ enabled: boolean }>({
     queryKey: ["oidc-config"],
@@ -160,6 +179,18 @@ export default function Login() {
           {t("mobile.auth.haveInvite", "Have an invite? Sign up")}
         </Text>
       </Pressable>
+
+      {canUseBiometric && (
+        <Pressable
+          onPress={handleBiometricLogin}
+          style={{ marginTop: theme.spacing.md, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8 }}
+        >
+          <Ionicons name={biometricType === "face" ? "scan-outline" : "finger-print-outline"} size={20} color={theme.colors.accent} />
+          <Text style={{ color: theme.colors.accent, fontSize: 14, fontWeight: "600" }}>
+            {t("mobile.auth.unlockBiometric") || "Unlock with biometrics"}
+          </Text>
+        </Pressable>
+      )}
 
       <View style={{ marginTop: theme.spacing.xl, alignItems: "center" }}>
         <View style={{ width: "80%", height: 1, backgroundColor: theme.colors.border, marginBottom: theme.spacing.lg }} />

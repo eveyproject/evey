@@ -1,5 +1,5 @@
 import { useState, useCallback } from "react";
-import { View, Text, ScrollView, Pressable, Alert, TextInput, ActivityIndicator, StyleSheet } from "react-native";
+import { View, Text, ScrollView, Pressable, Alert, TextInput, Switch, ActivityIndicator, StyleSheet } from "react-native";
 import { Image } from "expo-image";
 import { Ionicons } from "@expo/vector-icons";
 import * as ImagePicker from "expo-image-picker";
@@ -9,6 +9,7 @@ import { useTranslation } from "react-i18next";
 import { useQueryClient } from "@tanstack/react-query";
 import { useUserServiceGetCurrentUser, useUserServiceListProfiles, useAdminServiceGetSystemInfo, useUserServiceAuthorizeQuickConnect, useUserServiceUpdateUser, eveyFetchRaw } from "@evey/api";
 import { useAuthStore, useThemeStore, useLocaleStore, toast } from "@evey/store";
+import { useBiometricAvailable, useBiometricEnabled } from "../../../src/hooks/useBiometric";
 import { useTheme } from "../../../src/providers/ThemeProvider";
 import { useServerUrlNullable } from "../../../src/hooks/useServerUrl";
 import { clearServerUrl } from "../../../src/lib/server-config";
@@ -34,6 +35,8 @@ export default function SettingsScreen() {
 
   const [qcCode, setQcCode] = useState("");
   const [qcSuccess, setQcSuccess] = useState(false);
+  const { available: biometricAvailable } = useBiometricAvailable();
+  const { enabled: biometricEnabled, toggle: toggleBiometric } = useBiometricEnabled();
 
   // Account editing
   const [editingAccount, setEditingAccount] = useState(false);
@@ -320,9 +323,15 @@ export default function SettingsScreen() {
         <Pressable style={s.row} onPress={() => router.push("/settings/parental")}><Text style={s.label}>{t("auth.settings.tabs.parental")}</Text><ChevronRight color={theme.colors.textMuted} /></Pressable>
       </View>
 
-      {/* API Keys + Devices */}
+      {/* Security */}
       <Text style={s.sectionTitle}>{t("auth.settings.tabs.security") || "Security"}</Text>
       <View style={s.section}>
+        {biometricAvailable && (
+          <View style={[s.row, { justifyContent: "space-between" }]}>
+            <Text style={s.label}>{t("mobile.settings.biometricLogin") || "Biometric login"}</Text>
+            <Switch value={biometricEnabled} onValueChange={toggleBiometric} trackColor={{ true: theme.colors.accent, false: theme.colors.surfaceRaised }} />
+          </View>
+        )}
         <Pressable style={s.row} onPress={() => router.push("/admin/api-keys")}><Text style={s.label}>API Keys</Text><ChevronRight color={theme.colors.textMuted} /></Pressable>
         <Pressable style={s.row} onPress={() => router.push("/settings/devices")}><Text style={s.label}>{t("auth.devices.title")}</Text><ChevronRight color={theme.colors.textMuted} /></Pressable>
       </View>
