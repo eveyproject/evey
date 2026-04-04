@@ -160,27 +160,34 @@ export function useDeletePlaylist() {
   });
 }
 
-export function useCreatePlaylist() {
+export function useRemoveFromPlaylist() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (data: { name: string; description?: string; type: string }) =>
-      eveyFetch<{ playlist: { id: string } }>({
-        url: "/api/v1/playlists",
-        method: "POST",
-        data,
+    mutationFn: ({ playlistId, mediaItemId }: { playlistId: string; mediaItemId: string }) =>
+      eveyFetch<void>({
+        url: `/api/v1/playlists/${playlistId}/items/${mediaItemId}`,
+        method: "DELETE",
       }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["playlists"] }),
+    onSuccess: (_, vars) => {
+      qc.invalidateQueries({ queryKey: ["playlists", vars.playlistId] });
+      toast.success("Removed from playlist");
+    },
+    onError: () => toast.error("Failed to remove item"),
   });
 }
 
-export function useDeletePlaylist() {
+export function useReorderPlaylistItems() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (id: string) =>
+    mutationFn: ({ playlistId, items }: { playlistId: string; items: { mediaItemId: string; sortOrder: number }[] }) =>
       eveyFetch<void>({
-        url: `/api/v1/playlists/${id}`,
-        method: "DELETE",
+        url: `/api/v1/playlists/${playlistId}/items/reorder`,
+        method: "PUT",
+        data: { items },
       }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["playlists"] }),
+    onSuccess: (_, vars) => {
+      qc.invalidateQueries({ queryKey: ["playlists", vars.playlistId] });
+    },
+    onError: () => toast.error("Failed to reorder"),
   });
 }

@@ -1,8 +1,10 @@
+import { useState, useCallback } from "react";
 import {
   View,
   Text,
   FlatList,
   TouchableOpacity,
+  Pressable,
   ActivityIndicator,
   StyleSheet,
   Alert,
@@ -11,16 +13,28 @@ import { Ionicons } from "@expo/vector-icons";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import { useTranslation } from "react-i18next";
 import { useTheme } from "../../../src/providers/ThemeProvider";
-import { usePlaylistDetail, useDeletePlaylist, type PlaylistItem } from "../../../src/api/playlists";
+import { usePlaylistDetail, useDeletePlaylist, useRemoveFromPlaylist, useReorderPlaylistItems, type PlaylistItem } from "../../../src/api/playlists";
 
 function PlaylistItemRow({
   item,
+  index,
+  total,
+  isManual,
   theme,
   onPress,
+  onMoveUp,
+  onMoveDown,
+  onRemove,
 }: {
   item: PlaylistItem;
+  index: number;
+  total: number;
+  isManual: boolean;
   theme: ReturnType<typeof useTheme>;
   onPress: () => void;
+  onMoveUp: () => void;
+  onMoveDown: () => void;
+  onRemove: () => void;
 }) {
   const typeLabel = item.type?.replace("MEDIA_ITEM_TYPE_", "").toLowerCase();
 
@@ -30,9 +44,24 @@ function PlaylistItemRow({
       activeOpacity={0.7}
       onPress={onPress}
     >
-      <Text style={[styles.order, { color: theme.colors.accent }]}>
-        {item.sort_order != null ? item.sort_order + 1 : "-"}
-      </Text>
+      {isManual && (
+        <View style={{ alignItems: "center", marginRight: 4, gap: 2 }}>
+          <Pressable onPress={onMoveUp} disabled={index === 0} hitSlop={6}>
+            <Ionicons name="chevron-up" size={16} color={index === 0 ? theme.colors.border : theme.colors.textMuted} />
+          </Pressable>
+          <Text style={[styles.order, { color: theme.colors.accent }]}>
+            {item.sort_order != null ? item.sort_order + 1 : index + 1}
+          </Text>
+          <Pressable onPress={onMoveDown} disabled={index === total - 1} hitSlop={6}>
+            <Ionicons name="chevron-down" size={16} color={index === total - 1 ? theme.colors.border : theme.colors.textMuted} />
+          </Pressable>
+        </View>
+      )}
+      {!isManual && (
+        <Text style={[styles.order, { color: theme.colors.accent }]}>
+          {item.sort_order != null ? item.sort_order + 1 : "-"}
+        </Text>
+      )}
       <View style={{ flex: 1 }}>
         <Text style={[styles.itemTitle, { color: theme.colors.text }]} numberOfLines={1}>
           {item.title ?? item.media_item_id}
@@ -46,6 +75,11 @@ function PlaylistItemRow({
           ) : null}
         </View>
       </View>
+      {isManual && (
+        <Pressable onPress={onRemove} hitSlop={8} style={{ padding: 4 }}>
+          <Ionicons name="close-circle-outline" size={18} color={theme.colors.textMuted} />
+        </Pressable>
+      )}
       <Ionicons name="chevron-forward" size={16} color={theme.colors.textMuted} />
     </TouchableOpacity>
   );
@@ -57,8 +91,11 @@ export default function PlaylistDetailScreen() {
   const { t } = useTranslation();
   const router = useRouter();
   const deleteMutation = useDeletePlaylist();
+  const removeMutation = useRemoveFromPlaylist();
+  const reorderMutation = useReorderPlaylistItems();
 
   const { data: playlist, isLoading, isError } = usePlaylistDetail(id ?? "");
+  const isManual = playlist?.type === "manual";
 
   const confirmDelete = () => {
     Alert.alert(
@@ -81,6 +118,26 @@ export default function PlaylistDetailScreen() {
       ],
     );
   };
+
+  const handleMove = useCallback(async (fromIdx: number, dir: -1 | 1) => {
+    if (!playlist?.items || !id) return;
+    const items = [...playlist.items];
+    const toIdx = fromIdx + dir;
+    if (toIdx < 0 || toIdx >= items.length) return;
+    [items[fromIdx], items[toIdx]] = [items[toIdx], items[fromIdx]];
+    const reordered = items.map((it, i) => ({ mediaItemId: it.media_item_id, sortOrder: i }));
+    try {
+      await reorderMutation.mutateAsync({ playlistId: id, items: reordered });
+    } catch {}
+  }, [playlist, id, reorderMutation]);
+
+  const handleRemove = useCallback((mediaItemId: string) => {
+    if (!id) return;
+    Alert.alert(t("common.remove") || "Remove", t("media.playlist.confirmRemoveItem") || "Remove from playlist?", [
+      { text: t("common.cancel"), style: "cancel" },
+      { text: t("common.remove") || "Remove", style: "destructive", onPress: () => removeMutation.mutate({ playlistId: id, mediaItemId }) },
+    ]);
+  }, [id, removeMutation, t]);
 
   const headerRight = () => (
     <TouchableOpacity onPress={confirmDelete} style={{ marginRight: 8 }} hitSlop={8}>
@@ -141,11 +198,17 @@ export default function PlaylistDetailScreen() {
       <FlatList
         data={items}
         keyExtractor={(item) => item.media_item_id}
-        renderItem={({ item }) => (
+        renderItem={({ item, index }) => (
           <PlaylistItemRow
             item={item}
+            index={index}
+            total={items.length}
+            isManual={isManual}
             theme={theme}
             onPress={() => router.push(`/media/${item.media_item_id}`)}
+            onMoveUp={() => handleMove(index, -1)}
+            onMoveDown={() => handleMove(index, 1)}
+            onRemove={() => handleRemove(item.media_item_id)}
           />
         )}
         ListEmptyComponent={
