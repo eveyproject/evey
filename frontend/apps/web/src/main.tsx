@@ -17,6 +17,14 @@ setTokenProvider(() => useAuthStore.getState().accessToken);
 setTokensUpdater((access) => useAuthStore.getState().setTokens(access));
 setLocaleProvider(() => useLocaleStore.getState().locale);
 
+// Sync locale store changes to i18next
+import i18n from "./i18n";
+useLocaleStore.subscribe((state) => {
+  if (state.locale && i18n.language !== state.locale) {
+    void i18n.changeLanguage(state.locale);
+  }
+});
+
 // Logout on 401 and redirect to login
 window.addEventListener("evey:unauthorized", () => {
   useAuthStore.getState().logout();

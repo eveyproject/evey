@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
 import { getZustandStorage } from "./storage";
+import { useLocaleStore } from "./locale";
 
 function parseJwtPayload(token: string): Record<string, unknown> | null {
   try {
@@ -35,6 +36,10 @@ export const useAuthStore = create<AuthState>()(
           isAdmin: claims?.is_admin === true,
           profileId: typeof claims?.profile_id === "string" ? claims.profile_id : null,
         });
+        // Sync locale from JWT to localeStore
+        if (typeof claims?.locale === "string" && claims.locale) {
+          useLocaleStore.getState().setLocale(claims.locale);
+        }
       },
       setProfile: (profileId) => set({ profileId }),
       logout: () => set({ accessToken: null, profileId: null, isAdmin: false }),
