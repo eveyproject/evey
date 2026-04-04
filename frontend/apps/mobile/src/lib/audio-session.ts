@@ -3,6 +3,9 @@ let configured = false;
 export async function configureAudioSession() {
   if (configured) return;
   try {
+    // Check if native module exists before importing
+    const { NativeModules } = require("react-native");
+    if (!NativeModules.ExponentAV) return;
     const { Audio } = require("expo-av");
     await Audio.setAudioModeAsync({
       allowsRecordingIOS: false,
@@ -13,6 +16,6 @@ export async function configureAudioSession() {
     });
     configured = true;
   } catch {
-    // expo-av not available (Expo Go) — silently skip
+    // not available — skip
   }
 }
