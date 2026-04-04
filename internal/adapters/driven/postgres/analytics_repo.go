@@ -52,7 +52,7 @@ func (r *AnalyticsReader) GetAnalytics(ctx context.Context) (*activity.Analytics
 			         ELSE mi.title
 			       END AS display_title,
 			       COUNT(*) AS play_count,
-			       COALESCE(SUM(ps.duration_ms) / 1000, 0) AS total_duration_seconds
+			       COALESCE(SUM(ps.duration_ms)::bigint / 1000, 0) AS total_duration_seconds
 			FROM play_sessions ps
 			INNER JOIN media_items mi ON mi.id = ps.media_item_id
 			LEFT JOIN media_items season ON season.id = mi.parent_id AND mi.type = 'episode'
