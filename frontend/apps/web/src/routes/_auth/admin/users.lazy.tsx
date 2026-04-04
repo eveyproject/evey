@@ -6,6 +6,7 @@ import { useTranslation } from "react-i18next";
 import {
   useUserServiceListUsers,
   useUserServiceCreateUser,
+  useUserServiceUpdateUser,
   useUserServiceDeleteUser,
   useUserServiceDisableUser,
   useUserServiceListInviteLinks,
@@ -290,12 +291,69 @@ function BitrateModal({
   );
 }
 
+function EditUserModal({ user, open, onClose }: { user: V1User; open: boolean; onClose: () => void }) {
+  const { t } = useTranslation();
+  const queryClient = useQueryClient();
+  const [username, setUsername] = useState(user.username ?? "");
+  const [email, setEmail] = useState(user.email ?? "");
+  const [password, setPassword] = useState("");
+  const [isAdmin, setIsAdmin] = useState(user.isAdmin ?? false);
+
+  useEffect(() => {
+    if (open) {
+      setUsername(user.username ?? "");
+      setEmail(user.email ?? "");
+      setPassword("");
+      setIsAdmin(user.isAdmin ?? false);
+    }
+  }, [open, user]);
+
+  const updateUser = useUserServiceUpdateUser({
+    mutation: {
+      onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: USERS_QUERY_KEY });
+        toast.success(t("admin.users.userUpdated") || "User updated");
+        onClose();
+      },
+      onError: (err: Error) => toast.error(err.message || t("admin.users.failedUpdateUser")),
+    },
+  });
+
+  function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!user.id) return;
+    const data: Record<string, unknown> = {};
+    if (username.trim() !== user.username) data.username = username.trim();
+    if (email.trim() !== (user.email ?? "")) data.email = email.trim();
+    if (password) data.password = password;
+    if (isAdmin !== user.isAdmin) data.isAdmin = isAdmin;
+    if (Object.keys(data).length === 0) { onClose(); return; }
+    updateUser.mutate({ id: user.id, data: data as any });
+  }
+
+  return (
+    <Modal open={open} onClose={onClose} title={t("admin.users.editUser") || "Edit User"}>
+      <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+        <Input label={t("admin.users.username")} value={username} onChange={(e) => setUsername(e.target.value)} required />
+        <Input label={t("admin.users.email")} type="email" value={email} onChange={(e) => setEmail(e.target.value)} />
+        <Input label={t("admin.users.newPassword") || "New password"} type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder={t("admin.users.leaveBlank") || "Leave blank to keep current"} />
+        <Checkbox label={t("admin.users.admin")} checked={isAdmin} onChange={setIsAdmin} />
+        <div className="flex justify-end gap-2 pt-2">
+          <Button variant="ghost" onClick={onClose}>{t("common.cancel")}</Button>
+          <Button type="submit" loading={updateUser.isPending}>{t("common.save")}</Button>
+        </div>
+      </form>
+    </Modal>
+  );
+}
+
 function UserRow({ user }: { user: V1User }) {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [showLibraryAccess, setShowLibraryAccess] = useState(false);
   const [showBitrate, setShowBitrate] = useState(false);
+  const [showEdit, setShowEdit] = useState(false);
 
   const deleteUser = useUserServiceDeleteUser({
     mutation: {
@@ -337,6 +395,12 @@ function UserRow({ user }: { user: V1User }) {
       </td>
       <td className="px-4 py-3 whitespace-nowrap">
         <div className="flex gap-2 flex-wrap">
+          <Button
+            variant="secondary"
+            onClick={() => setShowEdit(true)}
+          >
+            {t("common.edit") || "Edit"}
+          </Button>
           {!user.isAdmin && (
             <Button
               variant="secondary"
@@ -386,6 +450,7 @@ function UserRow({ user }: { user: V1User }) {
             </Button>
           </div>
         </Modal>
+        <EditUserModal user={user} open={showEdit} onClose={() => setShowEdit(false)} />
         {!user.isAdmin && (
           <LibraryAccessModal
             user={user}
