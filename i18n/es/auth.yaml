@@ -89,6 +89,9 @@ profile:
   memberSince: "Miembro desde {{date}}"
   profileUpdated: "Perfil actualizado"
   failedToUpdate: "Error al actualizar el perfil"
+  changeAvatar: "Cambiar avatar"
+  avatarUpdated: "Avatar actualizado"
+  avatarFailed: "Error al actualizar el avatar"
   nav:
     settings: "Ajustes"
     settingsDesc: "Tema, notificaciones, contraseña"

@@ -90,6 +90,9 @@ profile:
   memberSince: "Member since {{date}}"
   profileUpdated: Profile updated
   failedToUpdate: Failed to update profile
+  changeAvatar: Change avatar
+  avatarUpdated: Avatar updated
+  avatarFailed: Failed to update avatar
   nav:
     settings: Settings
     settingsDesc: "Theme, notifications, password"

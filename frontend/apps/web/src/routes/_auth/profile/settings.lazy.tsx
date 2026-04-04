@@ -93,9 +93,9 @@ function ProfileCard() {
     try {
       await eveyFetchRaw({ url: `/api/v1/profiles/${defaultProfile.id}/avatar`, method: "POST", body: formData });
       setAvatarKey((k) => k + 1);
-      toast.success("Avatar updated");
+      toast.success(t("auth.profile.avatarUpdated"));
     } catch {
-      toast.error("Failed to update avatar");
+      toast.error(t("auth.profile.avatarFailed"));
     }
   };
 
@@ -115,7 +115,7 @@ function ProfileCard() {
           <button
             onClick={handleAvatarClick}
             className="w-14 h-14 rounded-full bg-[var(--accent)] flex items-center justify-center text-[var(--filter-active-text)] text-xl font-bold shrink-0 relative group cursor-pointer overflow-hidden"
-            aria-label="Change avatar"
+            aria-label={t("auth.profile.changeAvatar")}
           >
             {avatarUrl ? (
               <img src={avatarUrl} alt="" className="w-full h-full object-cover" />

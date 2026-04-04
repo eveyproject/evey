@@ -90,6 +90,9 @@ profile:
   memberSince: "Mitglied seit {{date}}"
   profileUpdated: Profil aktualisiert
   failedToUpdate: Profil konnte nicht aktualisiert werden
+  changeAvatar: "Avatar ändern"
+  avatarUpdated: "Avatar aktualisiert"
+  avatarFailed: "Avatar konnte nicht aktualisiert werden"
   nav:
     settings: Einstellungen
     settingsDesc: "Design, Benachrichtigungen, Passwort"

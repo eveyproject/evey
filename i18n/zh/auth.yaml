@@ -89,6 +89,9 @@ profile:
   memberSince: "注册于 {{date}}"
   profileUpdated: "个人资料已更新"
   failedToUpdate: "更新个人资料失败"
+  changeAvatar: "更换头像"
+  avatarUpdated: "头像已更新"
+  avatarFailed: "更新头像失败"
   nav:
     settings: "设置"
     settingsDesc: "主题、通知、密码"

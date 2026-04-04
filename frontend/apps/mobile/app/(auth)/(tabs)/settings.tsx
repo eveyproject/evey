@@ -124,9 +124,9 @@ export default function SettingsScreen() {
     try {
       await eveyFetchRaw({ url: `/api/v1/profiles/${defaultProfile.id}/avatar`, method: "POST", body: formData as any });
       setAvatarKey((k) => k + 1);
-      toast.success("Avatar updated");
+      toast.success(t("auth.profile.avatarUpdated"));
     } catch {
-      toast.error("Failed to update avatar");
+      toast.error(t("auth.profile.avatarFailed"));
     }
   }, [defaultProfile]);
 

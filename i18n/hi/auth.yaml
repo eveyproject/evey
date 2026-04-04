@@ -89,6 +89,9 @@ profile:
   memberSince: "सदस्य {{date}} से"
   profileUpdated: "प्रोफ़ाइल अपडेट हुई"
   failedToUpdate: "प्रोफ़ाइल अपडेट करने में विफल"
+  changeAvatar: "अवतार बदलें"
+  avatarUpdated: "अवतार अपडेट किया गया"
+  avatarFailed: "अवतार अपडे�� करने में विफल"
   nav:
     settings: "सेटिंग्स"
     settingsDesc: "थीम, सूचनाएं, पासवर्ड"
