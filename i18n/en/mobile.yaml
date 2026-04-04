@@ -17,3 +17,7 @@ settings:
   appVersion: App version
   serverVersion: Server version
   switchProfile: Switch Profile
+  biometricLogin: Biometric login
+auth:
+  biometricPrompt: Unlock Evey
+  unlockBiometric: Unlock with biometrics

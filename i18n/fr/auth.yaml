@@ -111,6 +111,7 @@ settings:
     parental: "Contrôle parental"
     devices: "Appareils"
     apiKeys: "Clés API"
+    security: "Sécurité"
     quickConnect: "Connexion rapide"
   quickConnect:
     title: "Connexion rapide"

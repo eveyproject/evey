@@ -112,6 +112,7 @@ settings:
     parental: Parental
     devices: Devices
     apiKeys: API Keys
+    security: Security
     quickConnect: Quick Connect
   quickConnect:
     title: Quick Connect
