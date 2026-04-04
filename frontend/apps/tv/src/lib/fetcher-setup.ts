@@ -1,5 +1,5 @@
-import { setBaseURL, setTokenProvider, setTokensUpdater, setRefreshHandler } from "@evey/api";
-import { useAuthStore } from "@evey/store";
+import { setBaseURL, setTokenProvider, setTokensUpdater, setRefreshHandler, setLocaleProvider } from "@evey/api";
+import { useAuthStore, useLocaleStore } from "@evey/store";
 import { getServerUrl } from "./server-config";
 
 export async function initFetcher() {
@@ -8,6 +8,7 @@ export async function initFetcher() {
 
   setTokenProvider(() => useAuthStore.getState().accessToken);
   setTokensUpdater((access) => useAuthStore.getState().setTokens(access));
+  setLocaleProvider(() => useLocaleStore.getState().locale);
 
   setRefreshHandler(async () => {
     const token = useAuthStore.getState().accessToken;
