@@ -100,7 +100,9 @@ func avatarUploadHandler(
 		// Remove old avatar if exists (different extension)
 		if profile.AvatarPath != nil {
 			oldPath := filepath.Join(dataDir, *profile.AvatarPath)
-			_ = os.Remove(oldPath)
+			if err := os.Remove(oldPath); err != nil && !os.IsNotExist(err) {
+				slog.Warn("remove old avatar", slog.String("path", oldPath), slog.Any("err", err))
+			}
 		}
 
 		filename := fmt.Sprintf("%s%s", profileID, ext)
