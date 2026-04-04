@@ -1,7 +1,7 @@
-import { useState, useMemo } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { View, Text, TextInput, Pressable, ActivityIndicator, Alert, StyleSheet } from "react-native";
 import { router } from "expo-router";
-import { setServerUrl } from "../src/lib/server-config";
+import { setServerUrl, getServerUrl } from "../src/lib/server-config";
 import { initFetcher } from "../src/lib/fetcher-setup";
 import { initI18n } from "../src/i18n";
 import { useTheme } from "../src/providers/ThemeProvider";
@@ -10,6 +10,11 @@ export default function ServerConnect() {
   const theme = useTheme();
   const [url, setUrl] = useState("");
   const [loading, setLoading] = useState(false);
+
+  // Pre-fill with saved URL if any
+  useEffect(() => {
+    getServerUrl().then((saved) => { if (saved) setUrl(saved); });
+  }, []);
 
   const inputStyle = useMemo(() => ({
     backgroundColor: theme.colors.surface,

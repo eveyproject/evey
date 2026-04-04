@@ -1,8 +1,8 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { View, Text, TextInput, Pressable, ActivityIndicator, Alert, StyleSheet } from "react-native";
 import { router } from "expo-router";
 import { useTranslation } from "react-i18next";
-import { setServerUrl } from "../src/lib/server-config";
+import { setServerUrl, getServerUrl } from "../src/lib/server-config";
 import { initI18n } from "../src/i18n";
 import { useTheme } from "../src/providers/ThemeProvider";
 
@@ -11,6 +11,10 @@ export default function ServerConnect() {
   const { t } = useTranslation();
   const [url, setUrl] = useState("");
   const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    getServerUrl().then((saved) => { if (saved) setUrl(saved); });
+  }, []);
   const [inputFocused, setInputFocused] = useState(false);
   const [buttonFocused, setButtonFocused] = useState(false);
 

@@ -14,3 +14,15 @@ export async function setServerUrl(url: string): Promise<void> {
 export async function clearServerUrl(): Promise<void> {
   await SecureStore.deleteItemAsync(SERVER_URL_KEY);
 }
+
+export async function pingServer(url: string): Promise<boolean> {
+  try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 5000);
+    const res = await fetch(`${url}/healthz`, { signal: controller.signal });
+    clearTimeout(timeout);
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
