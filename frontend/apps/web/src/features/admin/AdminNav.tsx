@@ -48,7 +48,7 @@ const sectionsDef: NavSection[] = [
     titleKey: "admin.nav.media",
     links: [
       { href: "/admin/libraries", labelKey: "admin.nav.libraries", icon: Library },
-      { href: "/admin/transcode-cache", labelKey: "admin.nav.transcodeCache", icon: HardDrive },
+      { href: "/admin/transcode-cache", labelKey: "admin.nav.transcoding", icon: HardDrive },
     ],
   },
   {

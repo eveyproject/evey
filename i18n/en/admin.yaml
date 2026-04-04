@@ -8,6 +8,7 @@ nav:
   media: Media
   libraries: Libraries
   metadata: Metadata
+  transcoding: Transcoding
   transcodeCache: Transcode Cache
   transcodingProfiles: Transcoding Profiles
   usersAccess: Users & Access

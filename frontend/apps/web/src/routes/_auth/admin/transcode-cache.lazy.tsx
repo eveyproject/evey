@@ -1,13 +1,17 @@
-import { useState } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { Film } from "lucide-react";
 import { createLazyFileRoute } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { toast } from "@evey/store";
 import { eveyFetch } from "@evey/api";
+import { useAdminServiceGetSystemInfo } from "@evey/api";
 import { Spinner } from "@/components/ui/Spinner";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
+import { Select } from "@/components/ui/Select";
+import { Checkbox } from "@/components/ui/Checkbox";
+import { Input } from "@/components/ui/Input";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { Modal } from "@/components/ui/Modal";
@@ -47,6 +51,149 @@ function useCacheInfo() {
     queryKey: CACHE_QUERY_KEY,
     queryFn: () => eveyFetch<CacheInfo>({ url: "/api/v1/admin/transcode-cache", method: "GET" }),
   });
+}
+
+const HW_ACCEL_OPTIONS = [
+  { value: "none", label: "None (Software)" },
+  { value: "vaapi", label: "VAAPI (Intel/AMD)" },
+  { value: "nvenc", label: "NVENC (NVIDIA)" },
+  { value: "qsv", label: "QSV (Intel Quick Sync)" },
+];
+
+const HW_DECODE_CODECS = ["h264", "hevc", "vp9", "av1"];
+
+const CONFIG_QUERY_KEY = ["/api/v1/admin/server-config"];
+
+interface ConfigEntry { key: string; value: string }
+
+function useServerConfig() {
+  return useQuery<Record<string, string>>({
+    queryKey: CONFIG_QUERY_KEY,
+    queryFn: async () => {
+      const data = await eveyFetch<{ entries: ConfigEntry[] }>({ url: "/api/v1/admin/server-config", method: "GET" });
+      const map: Record<string, string> = {};
+      for (const e of data.entries ?? []) map[e.key] = e.value;
+      return map;
+    },
+  });
+}
+
+async function setConfigKey(key: string, value: string) {
+  await eveyFetch<void>({ url: `/api/v1/admin/server-config/${key}`, method: "PUT", data: { value } });
+}
+
+function TranscodingSettings() {
+  const { t } = useTranslation();
+  const qc = useQueryClient();
+  const { data: config, isLoading } = useServerConfig();
+  const { data: sysInfo } = useAdminServiceGetSystemInfo();
+
+  const [hwAccel, setHwAccel] = useState("none");
+  const [hwCodecs, setHwCodecs] = useState<Set<string>>(new Set());
+  const [maxConcurrent, setMaxConcurrent] = useState("2");
+  const [throttle, setThrottle] = useState(true);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    if (!config) return;
+    setHwAccel(config["transcoding.hw_accel_type"] ?? "none");
+    setHwCodecs(new Set((config["transcoding.hw_decode_codecs"] ?? "h264,hevc").split(",").filter(Boolean)));
+    setMaxConcurrent(config["transcoding.max_concurrent"] ?? "2");
+    setThrottle(config["transcoding.throttle"] !== "false");
+  }, [config]);
+
+  const toggleCodec = useCallback((codec: string) => {
+    setHwCodecs((prev) => {
+      const next = new Set(prev);
+      if (next.has(codec)) next.delete(codec); else next.add(codec);
+      return next;
+    });
+  }, []);
+
+  const handleSave = useCallback(async () => {
+    setSaving(true);
+    try {
+      await setConfigKey("transcoding.hw_accel_type", hwAccel);
+      await setConfigKey("transcoding.hw_decode_codecs", Array.from(hwCodecs).join(","));
+      await setConfigKey("transcoding.max_concurrent", maxConcurrent);
+      await setConfigKey("transcoding.throttle", throttle ? "true" : "false");
+      await qc.invalidateQueries({ queryKey: CONFIG_QUERY_KEY });
+      toast.success(t("admin.transcodeCache.settingsSaved") || "Transcoding settings saved");
+    } catch {
+      toast.error("Failed to save settings");
+    }
+    setSaving(false);
+  }, [hwAccel, hwCodecs, maxConcurrent, throttle, qc, t]);
+
+  const hwDevices = sysInfo?.hwDevices ?? [];
+
+  if (isLoading) return <div className="flex justify-center py-8"><Spinner size="md" /></div>;
+
+  return (
+    <Card>
+      <div className="p-5 flex flex-col gap-5">
+        <h3 className="text-sm font-semibold text-[var(--text)]">
+          {t("admin.transcodeCache.transcodingSettings") || "Transcoding Settings"}
+        </h3>
+
+        <Select
+          label={t("admin.transcodeCache.hwAccelType") || "Hardware acceleration"}
+          options={HW_ACCEL_OPTIONS}
+          value={hwAccel}
+          onChange={setHwAccel}
+        />
+
+        {hwDevices.length > 0 && (
+          <div className="flex flex-wrap gap-2">
+            {hwDevices.map((d, i) => (
+              <span key={i} className="text-xs px-2 py-1 rounded bg-[var(--surface-raised)] text-[var(--accent)]">
+                {d.type?.replace("HW_ACCEL_TYPE_", "")} - {d.name ?? "unknown"}
+              </span>
+            ))}
+          </div>
+        )}
+
+        {hwAccel !== "none" && (
+          <div>
+            <p className="text-xs font-medium uppercase tracking-wide mb-2 text-[var(--text-muted)]">
+              {t("admin.transcodeCache.hwDecodeCodecs") || "Hardware decode codecs"}
+            </p>
+            <div className="flex flex-wrap gap-3">
+              {HW_DECODE_CODECS.map((codec) => (
+                <Checkbox
+                  key={codec}
+                  label={codec.toUpperCase()}
+                  checked={hwCodecs.has(codec)}
+                  onChange={() => toggleCodec(codec)}
+                />
+              ))}
+            </div>
+          </div>
+        )}
+
+        <Input
+          label={t("admin.transcodeCache.maxConcurrent") || "Max concurrent transcodes"}
+          type="number"
+          min={1}
+          max={16}
+          value={maxConcurrent}
+          onChange={(e) => setMaxConcurrent(e.target.value)}
+        />
+
+        <Checkbox
+          label={t("admin.transcodeCache.throttle") || "Throttle transcodes when client buffer is full"}
+          checked={throttle}
+          onChange={setThrottle}
+        />
+
+        <div className="pt-2">
+          <Button onClick={handleSave} loading={saving}>
+            {t("common.save")}
+          </Button>
+        </div>
+      </div>
+    </Card>
+  );
 }
 
 function TranscodeCachePage() {
@@ -93,6 +240,8 @@ function TranscodeCachePage() {
           {t("admin.transcodeCache.clearAll")}
         </Button>
       ) : undefined} />
+
+      <TranscodingSettings />
 
       {isLoading ? (
         <div className="flex justify-center py-16">
