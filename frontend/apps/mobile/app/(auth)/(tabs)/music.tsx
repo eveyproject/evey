@@ -4,17 +4,21 @@ import {
   Text,
   FlatList,
   TouchableOpacity,
+  Pressable,
   ScrollView,
+  Modal,
   Dimensions,
   StyleSheet,
 } from "react-native";
 import { Image } from "expo-image";
+import { Ionicons } from "@expo/vector-icons";
 import { useQuery } from "@tanstack/react-query";
 import { eveyFetch } from "@evey/api";
 import { Skeleton } from "../../../src/components/Skeleton";
 import { useTheme } from "../../../src/providers/ThemeProvider";
 import { useAuthHeaders } from "../../../src/hooks/useAuthenticatedImage";
 import { useServerUrl } from "../../../src/hooks/useServerUrl";
+import { useMusicQueueStore, type QueueTrack } from "../../../src/stores/musicQueue";
 
 interface LibraryItem {
   id: string;
@@ -104,6 +108,24 @@ export default function MusicScreen() {
 
   const [tab, setTab] = useState<Tab>("tracks");
   const [selectedLibraryID, setSelectedLibraryID] = useState<string | undefined>(undefined);
+  const [showQueue, setShowQueue] = useState(false);
+
+  const queue = useMusicQueueStore((s) => s.queue);
+  const currentIndex = useMusicQueueStore((s) => s.currentIndex);
+  const setQueue = useMusicQueueStore((s) => s.setQueue);
+  const playTrack = useMusicQueueStore((s) => s.playTrack);
+  const removeFromQueue = useMusicQueueStore((s) => s.removeFromQueue);
+
+  const handlePlayTrack = useCallback((index: number) => {
+    const allTracks = (tracks ?? []).map((t): QueueTrack => ({
+      id: t.ID,
+      title: t.Title,
+      artist: t.Artist,
+      album: t.Album,
+      duration: t.Duration,
+    }));
+    setQueue(allTracks, index);
+  }, [tracks, setQueue]);
 
   const { data: libraries, isLoading: libLoading } = useMusicLibraries();
   const activeLibraryID = selectedLibraryID ?? libraries?.[0]?.id;
@@ -117,10 +139,13 @@ export default function MusicScreen() {
   );
 
   const renderTrack = useCallback(
-    ({ item, index }: { item: Track; index: number }) => (
+    ({ item, index }: { item: Track; index: number }) => {
+      const isCurrentTrack = currentIndex === index && queue.length > 0;
+      return (
       <TouchableOpacity
         activeOpacity={0.7}
-        style={[styles.trackRow, { borderBottomColor: theme.colors.surface }]}
+        onPress={() => handlePlayTrack(index)}
+        style={[styles.trackRow, { borderBottomColor: theme.colors.surface, backgroundColor: isCurrentTrack ? theme.colors.surface : "transparent" }]}
       >
         <View style={styles.trackIndex}>
           <Text style={{ color: theme.colors.textMuted, fontSize: 13 }}>{item.TrackNumber || index + 1}</Text>
@@ -135,8 +160,8 @@ export default function MusicScreen() {
           <Text style={{ color: theme.colors.textMuted, fontSize: 12 }}>{formatDuration(item.Duration)}</Text>
         )}
       </TouchableOpacity>
-    ),
-    [theme],
+    );},
+    [theme, currentIndex, queue, handlePlayTrack],
   );
 
   const renderAlbum = useCallback(
@@ -269,6 +294,17 @@ export default function MusicScreen() {
         ))}
       </View>
 
+      {/* Queue button */}
+      {queue.length > 0 && (
+        <Pressable
+          onPress={() => setShowQueue(true)}
+          style={{ flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: theme.spacing.md, paddingVertical: 6 }}
+        >
+          <Ionicons name="list" size={16} color={theme.colors.accent} />
+          <Text style={{ color: theme.colors.accent, fontSize: 13 }}>Queue ({queue.length})</Text>
+        </Pressable>
+      )}
+
       {/* Content */}
       {isLoading ? (
         <View style={{ paddingHorizontal: theme.spacing.md, marginTop: theme.spacing.lg }}>
@@ -331,6 +367,36 @@ export default function MusicScreen() {
           }
         />
       )}
+
+      {/* Queue modal */}
+      <Modal visible={showQueue} transparent animationType="slide" onRequestClose={() => setShowQueue(false)}>
+        <Pressable style={styles.queueBackdrop} onPress={() => setShowQueue(false)} />
+        <View style={[styles.queueSheet, { backgroundColor: theme.colors.surface, borderRadius: theme.radii.lg }]}>
+          <Text style={{ color: theme.colors.text, fontSize: 18, fontWeight: "700", marginBottom: 12 }}>Queue</Text>
+          <FlatList
+            data={queue}
+            keyExtractor={(item, i) => `${item.id}-${i}`}
+            style={{ maxHeight: 400 }}
+            renderItem={({ item, index }) => (
+              <Pressable
+                onPress={() => playTrack(index)}
+                style={[styles.queueRow, { backgroundColor: index === currentIndex ? theme.colors.surfaceRaised : "transparent", borderBottomColor: theme.colors.border }]}
+              >
+                <View style={{ flex: 1 }}>
+                  <Text style={{ color: theme.colors.text, fontSize: 14, fontWeight: index === currentIndex ? "700" : "400" }} numberOfLines={1}>
+                    {index === currentIndex ? "\u25B6 " : ""}{item.title}
+                  </Text>
+                  <Text style={{ color: theme.colors.textMuted, fontSize: 11 }}>{item.artist}</Text>
+                </View>
+                <Pressable onPress={() => removeFromQueue(index)} hitSlop={8}>
+                  <Ionicons name="close" size={16} color={theme.colors.textMuted} />
+                </Pressable>
+              </Pressable>
+            )}
+            ListEmptyComponent={<Text style={{ color: theme.colors.textMuted, textAlign: "center", paddingVertical: 24 }}>Queue empty</Text>}
+          />
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -359,4 +425,7 @@ const styles = StyleSheet.create({
   artistCard: { alignItems: "center", paddingVertical: 16, paddingHorizontal: 8 },
   artistAvatar: { borderRadius: 999, justifyContent: "center", alignItems: "center", marginBottom: 8 },
   artistName: { fontSize: 13, fontWeight: "600", textAlign: "center", marginBottom: 2 },
+  queueBackdrop: { ...StyleSheet.absoluteFillObject, backgroundColor: "rgba(0,0,0,0.5)" },
+  queueSheet: { position: "absolute", bottom: 0, left: 0, right: 0, padding: 20, paddingBottom: 32 },
+  queueRow: { flexDirection: "row", alignItems: "center", paddingVertical: 10, paddingHorizontal: 8, borderBottomWidth: StyleSheet.hairlineWidth, borderRadius: 6 },
 });

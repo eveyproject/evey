@@ -1,0 +1,66 @@
+import { create } from "zustand";
+
+export interface QueueTrack {
+  id: string;
+  title: string;
+  artist: string;
+  album: string;
+  duration: number;
+}
+
+interface MusicQueueState {
+  queue: QueueTrack[];
+  currentIndex: number;
+  isPlaying: boolean;
+
+  setQueue: (tracks: QueueTrack[], startIndex?: number) => void;
+  playTrack: (index: number) => void;
+  next: () => void;
+  previous: () => void;
+  togglePlay: () => void;
+  clear: () => void;
+  removeFromQueue: (index: number) => void;
+}
+
+export const useMusicQueueStore = create<MusicQueueState>()((set, get) => ({
+  queue: [],
+  currentIndex: -1,
+  isPlaying: false,
+
+  setQueue: (tracks, startIndex = 0) =>
+    set({ queue: tracks, currentIndex: startIndex, isPlaying: true }),
+
+  playTrack: (index) => {
+    const { queue } = get();
+    if (index >= 0 && index < queue.length) {
+      set({ currentIndex: index, isPlaying: true });
+    }
+  },
+
+  next: () => {
+    const { queue, currentIndex } = get();
+    if (currentIndex < queue.length - 1) {
+      set({ currentIndex: currentIndex + 1, isPlaying: true });
+    }
+  },
+
+  previous: () => {
+    const { currentIndex } = get();
+    if (currentIndex > 0) {
+      set({ currentIndex: currentIndex - 1, isPlaying: true });
+    }
+  },
+
+  togglePlay: () => set((s) => ({ isPlaying: !s.isPlaying })),
+
+  clear: () => set({ queue: [], currentIndex: -1, isPlaying: false }),
+
+  removeFromQueue: (index) => {
+    const { queue, currentIndex } = get();
+    const newQueue = queue.filter((_, i) => i !== index);
+    let newIndex = currentIndex;
+    if (index < currentIndex) newIndex--;
+    if (index === currentIndex) newIndex = Math.min(newIndex, newQueue.length - 1);
+    set({ queue: newQueue, currentIndex: newIndex >= 0 ? newIndex : -1, isPlaying: newQueue.length > 0 });
+  },
+}));
