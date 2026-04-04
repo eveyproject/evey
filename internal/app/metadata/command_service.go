@@ -284,7 +284,16 @@ func (s *CommandService) ResetItemMetadata(ctx context.Context, mediaItemID stri
 
 	// Trigger re-enrichment with background context (request ctx may be done)
 	if se, ok := s.enricher.(SingleItemEnricher); ok {
-		go se.AutoEnrichItem(context.Background(), item, slog.Default())
+		go func() {
+			defer func() {
+				if r := recover(); r != nil {
+					slog.Error("panic in metadata re-enrichment", slog.Any("recover", r))
+				}
+			}()
+			enrichCtx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+			defer cancel()
+			se.AutoEnrichItem(enrichCtx, item, slog.Default())
+		}()
 	}
 
 	return nil

@@ -45,7 +45,7 @@ func (h *Hub) CreateRoom(ctx context.Context, hostID, mediaID, name string) (*sy
 		State:     syncplay.PlaybackState{UpdatedAt: time.Now().UTC()},
 	}
 	if err := h.repo.Create(ctx, room); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("create room: %w", err)
 	}
 	return room, nil
 }
@@ -64,16 +64,19 @@ func (h *Hub) JoinRoom(ctx context.Context, roomID, userID, username string) err
 		Username: username,
 		JoinedAt: time.Now().UTC(),
 	}
-	return h.repo.AddMember(ctx, roomID, member)
+	if err := h.repo.AddMember(ctx, roomID, member); err != nil {
+		return fmt.Errorf("join room: %w", err)
+	}
+	return nil
 }
 
 func (h *Hub) LeaveRoom(ctx context.Context, roomID, userID string) error {
 	if err := h.repo.RemoveMember(ctx, roomID, userID); err != nil {
-		return err
+		return fmt.Errorf("leave room remove member: %w", err)
 	}
 	room, err := h.repo.Get(ctx, roomID)
 	if err != nil {
-		return err
+		return fmt.Errorf("leave room get room: %w", err)
 	}
 	if len(room.Members) == 0 {
 		return h.repo.Delete(ctx, roomID)
@@ -170,7 +173,7 @@ func (h *Hub) HandleCommand(ctx context.Context, roomID, userID, username string
 			}
 		}
 		if err := h.repo.UpdateState(ctx, roomID, state); err != nil {
-			return cmd, err
+			return cmd, fmt.Errorf("update room state: %w", err)
 		}
 		h.broadcast(roomID, userID, cmd)
 	}
