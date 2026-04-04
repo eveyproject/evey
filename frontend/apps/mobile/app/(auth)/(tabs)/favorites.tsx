@@ -11,9 +11,13 @@ import {
   StyleSheet,
 } from "react-native";
 import { Image } from "expo-image";
+import { Ionicons } from "@expo/vector-icons";
 import { Skeleton } from "../../../src/components/Skeleton";
 import { useRouter } from "expo-router";
 import { useTranslation } from "react-i18next";
+import { usePlaybackServiceMarkAsWatched, usePlaybackServiceMarkAsUnwatched } from "@evey/api";
+import { useAuthStore } from "@evey/store";
+import { toast } from "@evey/store";
 import { useTheme } from "../../../src/providers/ThemeProvider";
 import { useAuthHeaders } from "../../../src/hooks/useAuthenticatedImage";
 import { useServerUrl } from "../../../src/hooks/useServerUrl";
@@ -52,6 +56,33 @@ export default function FavoritesScreen() {
   const debouncedSearch = useDebounce(searchText, 300);
   const [sortKey, setSortKey] = useState<SortKey>("addedAt");
   const [typeFilter, setTypeFilter] = useState<TypeFilter>("all");
+  const [bulkMode, setBulkMode] = useState(false);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const profileId = useAuthStore((s) => s.profileId) ?? "";
+
+  const markWatched = usePlaybackServiceMarkAsWatched({ mutation: { onSuccess: () => toast.success("Marked watched") } });
+  const markUnwatched = usePlaybackServiceMarkAsUnwatched({ mutation: { onSuccess: () => toast.success("Marked unwatched") } });
+
+  const toggleSelect = useCallback((id: string) => {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      if (next.size === 0) setBulkMode(false);
+      return next;
+    });
+  }, []);
+
+  const exitBulk = useCallback(() => { setBulkMode(false); setSelected(new Set()); }, []);
+
+  const bulkMarkWatched = useCallback(async () => {
+    for (const id of selected) { try { await markWatched.mutateAsync({ mediaItemId: id, params: { profileId } }); } catch {} }
+    exitBulk();
+  }, [selected, markWatched, profileId, exitBulk]);
+
+  const bulkMarkUnwatched = useCallback(async () => {
+    for (const id of selected) { try { await markUnwatched.mutateAsync({ mediaItemId: id, params: { profileId } }); } catch {} }
+    exitBulk();
+  }, [selected, markUnwatched, profileId, exitBulk]);
 
   const sortOptions: Array<{ key: SortKey; label: string }> = [
     { key: "addedAt", label: t("media.search.dateAdded") || "Date added" },
@@ -105,12 +136,19 @@ export default function FavoritesScreen() {
       const posterUri = serverUrl
         ? `${serverUrl}/api/v1/media/${item.mediaItemId}/artwork/poster`
         : undefined;
+      const isSelected = bulkMode && selected.has(item.mediaItemId);
       return (
         <TouchableOpacity
-          style={[styles.gridItem, { width: ITEM_WIDTH, marginLeft: SPACING, marginBottom: SPACING }]}
+          style={[styles.gridItem, { width: ITEM_WIDTH, marginLeft: SPACING, marginBottom: SPACING, opacity: bulkMode && !isSelected ? 0.5 : 1 }]}
           activeOpacity={0.7}
-          onPress={() => router.push(`/media/${item.mediaItemId}`)}
+          onPress={() => bulkMode ? toggleSelect(item.mediaItemId) : router.push(`/media/${item.mediaItemId}`)}
+          onLongPress={() => !bulkMode && (setBulkMode(true), setSelected(new Set([item.mediaItemId])))}
         >
+          {isSelected && (
+            <View style={styles.checkmark}>
+              <Ionicons name="checkmark-circle" size={22} color={theme.colors.accent} />
+            </View>
+          )}
           {posterUri ? (
             <Image
               source={{ uri: posterUri, headers: authHeaders }}
@@ -143,7 +181,7 @@ export default function FavoritesScreen() {
         </TouchableOpacity>
       );
     },
-    [theme, router, authHeaders, serverUrl, t],
+    [theme, router, authHeaders, serverUrl, t, bulkMode, selected, toggleSelect],
   );
 
   if (isError) {
@@ -262,6 +300,22 @@ export default function FavoritesScreen() {
           </View>
         }
       />
+      {bulkMode && (
+        <View style={[styles.bulkBar, { backgroundColor: theme.colors.surfaceRaised, borderTopColor: theme.colors.border }]}>
+          <Text style={{ color: theme.colors.text, fontSize: 13, fontWeight: "600" }}>{selected.size} selected</Text>
+          <View style={{ flexDirection: "row", gap: 12 }}>
+            <Pressable onPress={bulkMarkWatched} style={styles.bulkBtn}>
+              <Ionicons name="checkmark-circle-outline" size={20} color={theme.colors.accent} />
+            </Pressable>
+            <Pressable onPress={bulkMarkUnwatched} style={styles.bulkBtn}>
+              <Ionicons name="eye-off-outline" size={20} color={theme.colors.textMuted} />
+            </Pressable>
+            <Pressable onPress={exitBulk} style={styles.bulkBtn}>
+              <Ionicons name="close" size={20} color="#ef4444" />
+            </Pressable>
+          </View>
+        </View>
+      )}
     </View>
   );
 }
@@ -290,4 +344,7 @@ const styles = StyleSheet.create({
   gridItem: { alignItems: "center" },
   title: { fontSize: 12, fontWeight: "500", marginTop: 4, textAlign: "center" },
   empty: { flex: 1, justifyContent: "center", alignItems: "center", paddingTop: 80 },
+  checkmark: { position: "absolute", top: 4, right: 4, zIndex: 1, backgroundColor: "rgba(0,0,0,0.5)", borderRadius: 12 },
+  bulkBar: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 16, paddingVertical: 10, borderTopWidth: StyleSheet.hairlineWidth },
+  bulkBtn: { alignItems: "center", gap: 2 },
 });

@@ -33,6 +33,20 @@ export function useToggleFavorite(mediaId: string | undefined) {
   });
 }
 
+export function useBulkFavorite() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (ids: string[]) => {
+      for (const id of ids) {
+        await eveyFetch<{ isFavorite: boolean }>({ url: `${favBaseUrl}/${id}`, method: "POST" });
+      }
+    },
+    onSettled: () => {
+      qc.invalidateQueries({ queryKey: ["favorites"] });
+    },
+  });
+}
+
 export interface FavoriteItem {
   mediaItemId: string;
   createdAt: string;

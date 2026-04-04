@@ -32,6 +32,8 @@ import { toast } from "@evey/store";
 import { useTheme } from "../../../src/providers/ThemeProvider";
 import { useAuthHeaders } from "../../../src/hooks/useAuthenticatedImage";
 import { useDebounce } from "../../../src/hooks/useDebounce";
+import { useBulkFavorite } from "../../../src/hooks/useFavorite";
+import { AddToPlaylistSheet } from "../../../src/components/AddToPlaylistSheet";
 
 const NUM_COLUMNS = 3;
 const SPACING = 8;
@@ -119,6 +121,8 @@ export default function LibraryDetailScreen() {
 
   const markWatched = usePlaybackServiceMarkAsWatched({ mutation: { onSuccess: () => toast.success("Marked watched") } });
   const markUnwatched = usePlaybackServiceMarkAsUnwatched({ mutation: { onSuccess: () => toast.success("Marked unwatched") } });
+  const bulkFavorite = useBulkFavorite();
+  const [showBulkPlaylist, setShowBulkPlaylist] = useState(false);
 
   const toggleSelect = useCallback((id: string) => {
     setSelected((prev) => {
@@ -153,6 +157,14 @@ export default function LibraryDetailScreen() {
     }
     exitBulk();
   }, [selected, markUnwatched, profileId, exitBulk]);
+
+  const bulkToggleFavorite = useCallback(async () => {
+    try {
+      await bulkFavorite.mutateAsync(Array.from(selected));
+      toast.success("Favorites toggled");
+    } catch {}
+    exitBulk();
+  }, [selected, bulkFavorite, exitBulk]);
 
   const authHeaders = useAuthHeaders();
   const { data: library } = useLibraryServiceGetLibrary(libraryId ?? "");
@@ -911,7 +923,7 @@ export default function LibraryDetailScreen() {
       {bulkMode && (
         <View style={[styles.bulkBar, { backgroundColor: theme.colors.surfaceRaised, borderTopColor: theme.colors.border }]}>
           <Text style={{ color: theme.colors.text, fontSize: 13, fontWeight: "600" }}>{selected.size} selected</Text>
-          <View style={{ flexDirection: "row", gap: 12 }}>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 12 }}>
             <Pressable onPress={bulkMarkWatched} style={styles.bulkBtn}>
               <Ionicons name="checkmark-circle-outline" size={20} color={theme.colors.accent} />
               <Text style={{ color: theme.colors.text, fontSize: 11 }}>Watched</Text>
@@ -920,12 +932,27 @@ export default function LibraryDetailScreen() {
               <Ionicons name="eye-off-outline" size={20} color={theme.colors.textMuted} />
               <Text style={{ color: theme.colors.text, fontSize: 11 }}>Unwatched</Text>
             </Pressable>
+            <Pressable onPress={bulkToggleFavorite} style={styles.bulkBtn}>
+              <Ionicons name="heart-outline" size={20} color={theme.colors.accent} />
+              <Text style={{ color: theme.colors.text, fontSize: 11 }}>Favorite</Text>
+            </Pressable>
+            <Pressable onPress={() => setShowBulkPlaylist(true)} style={styles.bulkBtn}>
+              <Ionicons name="add-circle-outline" size={20} color={theme.colors.accent} />
+              <Text style={{ color: theme.colors.text, fontSize: 11 }}>Playlist</Text>
+            </Pressable>
             <Pressable onPress={exitBulk} style={styles.bulkBtn}>
               <Ionicons name="close" size={20} color="#ef4444" />
               <Text style={{ color: theme.colors.text, fontSize: 11 }}>Cancel</Text>
             </Pressable>
-          </View>
+          </ScrollView>
         </View>
+      )}
+      {showBulkPlaylist && selected.size > 0 && (
+        <AddToPlaylistSheet
+          visible={showBulkPlaylist}
+          mediaItemId={Array.from(selected)[0]}
+          onClose={() => { setShowBulkPlaylist(false); exitBulk(); }}
+        />
       )}
     </View>
   );
