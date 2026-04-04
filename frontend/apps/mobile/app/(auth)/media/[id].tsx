@@ -33,6 +33,8 @@ import { useServerUrl } from "../../../src/hooks/useServerUrl";
 import { useAuthHeaders } from "../../../src/hooks/useAuthenticatedImage";
 import { artworkUrl } from "../../../src/lib/artwork";
 import { useIsFavorite, useToggleFavorite } from "../../../src/hooks/useFavorite";
+import { startDownload, getDownloadPath } from "../../../src/lib/downloads";
+import { toast } from "@evey/store";
 import { AddToPlaylistSheet } from "../../../src/components/AddToPlaylistSheet";
 import { useParentalGate } from "../../../src/hooks/useParentalGate";
 import { ParentalPINModal } from "../../../src/components/ParentalPINModal";
@@ -703,6 +705,33 @@ export default function MediaDetailScreen() {
               {t("media.detail.addToPlaylist")}
             </Text>
           </Pressable>
+          {!isSeries && !isSeason && (
+            <Pressable
+              onPress={async () => {
+                if (!id || !media?.title) return;
+                const existing = await getDownloadPath(id);
+                if (existing) { toast.info("Already downloaded"); return; }
+                toast.info("Download started");
+                try {
+                  await startDownload(id, media.title);
+                  toast.success("Download complete");
+                } catch { toast.error("Download failed"); }
+              }}
+              style={{
+                flexDirection: "row",
+                alignItems: "center",
+                backgroundColor: theme.colors.surface,
+                borderRadius: theme.radii.md,
+                paddingVertical: theme.spacing.sm,
+                paddingHorizontal: theme.spacing.md,
+              }}
+            >
+              <Ionicons name="download-outline" size={20} color={theme.colors.text} />
+              <Text style={{ color: theme.colors.text, fontSize: 13, fontWeight: "600", marginLeft: 6 }}>
+                {t("common.download") || "Download"}
+              </Text>
+            </Pressable>
+          )}
         </View>
 
         {/* Tagline */}
