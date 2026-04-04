@@ -2,7 +2,7 @@ setup:
   welcome: Bienvenue sur Evey
   description: "Configurons votre serveur multimédia. Cela ne prend qu'une minute."
   getStarted: Commencer
-  stepOf: "Étape {{current}} sur {{total}} — {{name}}"
+  stepOf: "Étape {{current}} sur {{total}} - {{name}}"
   steps:
     welcome: Bienvenue
     admin: Compte administrateur
@@ -163,11 +163,11 @@ settings:
       mismatch: "Les PIN ne correspondent pas"
     ratings:
       none: "Aucune restriction"
-      g: "G — Tous publics"
-      pg: "PG — Accord parental souhaitable"
-      pg13: "PG-13 — Accord parental recommandé"
-      r: "R — Restreint"
-      nc17: "NC-17 — Adultes uniquement"
+      g: "G - Tous publics"
+      pg: "PG - Accord parental souhaitable"
+      pg13: "PG-13 - Accord parental recommandé"
+      r: "R - Restreint"
+      nc17: "NC-17 - Adultes uniquement"
     bitrates:
       unlimited: "Illimité"
 apiKeys:
@@ -181,7 +181,7 @@ apiKeys:
   lastUsed: "Dernière utilisation"
   created: "Créée"
   keyCreatedTitle: "Clé API créée"
-  saveWarning: "Enregistrez cette clé maintenant — elle ne sera plus affichée."
+  saveWarning: "Enregistrez cette clé maintenant - elle ne sera plus affichée."
   noKeys: "Aucune clé API"
   createError: "Échec de la création de la clé API"
   revokeTitle: "Révoquer la clé API"

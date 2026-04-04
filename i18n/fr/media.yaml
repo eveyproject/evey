@@ -194,10 +194,10 @@ detail:
   tmdbId: ID TMDB
   viewOnImdb: Voir sur IMDB
   viewOnTmdb: Voir sur TMDB
-  idChangedWarning: "ID modifié — l'enregistrement récupérera les métadonnées du fournisseur"
+  idChangedWarning: "ID modifié - l'enregistrement récupérera les métadonnées du fournisseur"
   refreshMetadata: Actualiser les métadonnées
   resetMetadata: Réinitialiser les métadonnées
-  metadataReset: "Métadonnées réinitialisées — le ré-enrichissement va démarrer"
+  metadataReset: "Métadonnées réinitialisées - le ré-enrichissement va démarrer"
   resetMetadataFailed: "Échec de la réinitialisation des métadonnées"
   reEnrichedWithNewId: Ré-enrichi avec le nouvel ID
   metadataSaved: Métadonnées enregistrées

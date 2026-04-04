@@ -2,7 +2,7 @@ setup:
   welcome: Welcome to Evey
   description: Let's set up your media server. It only takes a minute.
   getStarted: Get Started
-  stepOf: "Step {{current}} of {{total}} — {{name}}"
+  stepOf: "Step {{current}} of {{total}} - {{name}}"
   steps:
     welcome: Welcome
     admin: Admin account
@@ -164,11 +164,11 @@ settings:
       mismatch: PINs do not match
     ratings:
       none: No restriction
-      g: "G — General Audiences"
-      pg: "PG — Parental Guidance"
-      pg13: "PG-13 — Parents Strongly Cautioned"
-      r: "R — Restricted"
-      nc17: "NC-17 — Adults Only"
+      g: "G - General Audiences"
+      pg: "PG - Parental Guidance"
+      pg13: "PG-13 - Parents Strongly Cautioned"
+      r: "R - Restricted"
+      nc17: "NC-17 - Adults Only"
     bitrates:
       unlimited: Unlimited
 apiKeys:
@@ -182,7 +182,7 @@ apiKeys:
   lastUsed: Last Used
   created: Created
   keyCreatedTitle: API Key Created
-  saveWarning: Save this key now — it won't be shown again.
+  saveWarning: Save this key now - it won't be shown again.
   noKeys: No API keys yet
   createError: Failed to create API key
   revokeTitle: Revoke API Key

@@ -4,11 +4,11 @@ new_movie:
 
 new_episode:
   title: "नया एपिसोड"
-  message: "{title} — नया एपिसोड उपलब्ध है"
+  message: "{title} - नया एपिसोड उपलब्ध है"
 
 new_season:
   title: "नया सीज़न"
-  message: "{title} — नया सीज़न उपलब्ध है"
+  message: "{title} - नया सीज़न उपलब्ध है"
 
 new_series:
   title: "नई सीरीज़"

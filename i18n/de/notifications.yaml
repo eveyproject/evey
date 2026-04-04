@@ -4,11 +4,11 @@ new_movie:
 
 new_episode:
   title: "Neue Folge"
-  message: "{title} — neue Folge verfügbar"
+  message: "{title} - neue Folge verfügbar"
 
 new_season:
   title: "Neue Staffel"
-  message: "{title} — neue Staffel verfügbar"
+  message: "{title} - neue Staffel verfügbar"
 
 new_series:
   title: "Neue Serie"

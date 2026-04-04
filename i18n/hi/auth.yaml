@@ -2,7 +2,7 @@ setup:
   welcome: "Evey में आपका स्वागत है"
   description: "आइए आपका मीडिया सर्वर सेटअप करें। बस एक मिनट लगेगा।"
   getStarted: "शुरू करें"
-  stepOf: "चरण {{current}} / {{total}} — {{name}}"
+  stepOf: "चरण {{current}} / {{total}} - {{name}}"
   steps:
     welcome: "स्वागत"
     admin: "एडमिन खाता"
@@ -163,11 +163,11 @@ settings:
       mismatch: "PIN मेल नहीं खाते"
     ratings:
       none: "कोई प्रतिबंध नहीं"
-      g: "G — सामान्य दर्शक"
-      pg: "PG — अभिभावक मार्गदर्शन"
-      pg13: "PG-13 — अभिभावक विशेष सावधानी"
-      r: "R — प्रतिबंधित"
-      nc17: "NC-17 — केवल वयस्क"
+      g: "G - सामान्य दर्शक"
+      pg: "PG - अभिभावक मार्गदर्शन"
+      pg13: "PG-13 - अभिभावक विशेष सावधानी"
+      r: "R - प्रतिबंधित"
+      nc17: "NC-17 - केवल वयस्क"
     bitrates:
       unlimited: "असीमित"
 apiKeys:
@@ -181,7 +181,7 @@ apiKeys:
   lastUsed: "अंतिम उपयोग"
   created: "बनाई गई"
   keyCreatedTitle: "API कुंजी बन गई"
-  saveWarning: "इस कुंजी को अभी सहेजें — यह दोबारा नहीं दिखाई जाएगी।"
+  saveWarning: "इस कुंजी को अभी सहेजें - यह दोबारा नहीं दिखाई जाएगी।"
   noKeys: "अभी कोई API कुंजी नहीं"
   createError: "API कुंजी बनाने में विफल"
   revokeTitle: "API कुंजी रद्द करें"

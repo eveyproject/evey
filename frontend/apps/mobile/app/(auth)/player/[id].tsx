@@ -433,7 +433,7 @@ export default function PlayerScreen() {
               {nextEp.nextEpisode.indexNumber != null
                 ? t("player.nextEpisodeOverlay.episode", { number: nextEp.nextEpisode.indexNumber })
                 : t("player.nextEpisodeOverlay.nextEpisode")}
-              {nextEp.nextEpisode.title ? ` \u2014 ${nextEp.nextEpisode.title}` : ""}
+              {nextEp.nextEpisode.title ? ` - ${nextEp.nextEpisode.title}` : ""}
             </Text>
             <View style={styles.nextEpButtons}>
               <Pressable onPress={nextEp.playNow} style={[styles.nextEpPlayBtn, { backgroundColor: theme.colors.accent }]}>

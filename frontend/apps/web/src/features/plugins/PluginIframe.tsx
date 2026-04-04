@@ -150,7 +150,7 @@ export function PluginIframe({ pluginId, src: _src, context }: PluginIframeProps
         overflow: "hidden",
         display: "block",
       }}
-      title={`${t("admin.plugin.sandboxedWidget")} — ${pluginId}`}
+      title={`${t("admin.plugin.sandboxedWidget")} - ${pluginId}`}
     />
   );
 }

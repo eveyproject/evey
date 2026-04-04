@@ -307,7 +307,7 @@ export function PluginCard({ plugin, onEnable, onDisable, onUninstall }: PluginC
             {plugin.name}
           </span>
           <span className="text-xs text-[var(--text-muted)] flex items-center gap-1.5">
-            v{plugin.version} — {plugin.language}
+            v{plugin.version} - {plugin.language}
             {plugin.sourceHash && (
               <button
                 type="button"

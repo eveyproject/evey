@@ -82,7 +82,7 @@ plugins:
   uninstallTitle: Plugin deinstallieren
   uninstallConfirm: "Plugin \"{{name}}\" deinstallieren? Dies kann nicht rückgängig gemacht werden."
   selectFileFirst: Bitte zuerst eine Plugin-Datei auswählen
-  fileMissing: "Datei fehlt — bitte erneut auswählen"
+  fileMissing: "Datei fehlt - bitte erneut auswählen"
   blockedByAnalysis: Plugin durch Sicherheitsanalyse blockiert
   previewFailed: Vorschau fehlgeschlagen
   installFailed: Installation fehlgeschlagen
@@ -118,7 +118,7 @@ users:
   deleteUserTitle: Benutzer löschen
   deleteUserConfirm: "Benutzer \"{{name}}\" löschen? Dies kann nicht rückgängig gemacht werden."
   libraryAccess: Bibliothekszugriff
-  libraryAccessTitle: "Bibliothekszugriff — {{name}}"
+  libraryAccessTitle: "Bibliothekszugriff - {{name}}"
   unrestricted: Uneingeschränkt
   unrestrictedDesc: Dieser Benutzer hat Zugriff auf alle Bibliotheken (uneingeschränkt).
   restrictedDesc: "Dieser Benutzer hat nur Zugriff auf {{count}} ausgewählte {{libraryWord}}."
@@ -126,7 +126,7 @@ users:
   failedLibraryAccess: Bibliothekszugriff konnte nicht aktualisiert werden
   clearAllUnrestricted: Alle entfernen (uneingeschränkt)
   bitrate: Bitrate
-  maxBitrateTitle: "Maximale Bitrate — {{name}}"
+  maxBitrateTitle: "Maximale Bitrate - {{name}}"
   maxBitrateDesc: "Maximale Streaming-Bitrate für diesen Benutzer begrenzen. 0 = unbegrenzt."
   maxBitrate: Maximale Bitrate
   bitrateUpdated: Bitrate-Limit aktualisiert
@@ -182,7 +182,7 @@ libraries:
   scanAgain: Erneut scannen
   scanning: "Wird gescannt..."
   schedule: Zeitplan
-  scanScheduleTitle: "Scan-Zeitplan — {{name}}"
+  scanScheduleTitle: "Scan-Zeitplan - {{name}}"
   scanFrequency: Scan-Häufigkeit
   selectFrequency: "-- Häufigkeit wählen --"
   cronExpression: Cron-Ausdruck
@@ -213,8 +213,8 @@ sessions:
   failedLoadDesc: Aktive Sitzungen konnten nicht abgerufen werden. Überprüfen Sie Ihre Verbindung und versuchen Sie es erneut.
   noSessions: Keine aktiven Sitzungen
   noSessionsDesc: Wenn Benutzer mit dem Streaming beginnen, werden ihre Sitzungen hier angezeigt.
-  activeCount_one: "{{count}} aktive Sitzung — aktualisiert alle 10s"
-  activeCount_other: "{{count}} aktive Sitzungen — aktualisiert alle 10s"
+  activeCount_one: "{{count}} aktive Sitzung - aktualisiert alle 10s"
+  activeCount_other: "{{count}} aktive Sitzungen - aktualisiert alle 10s"
   stopSession: Sitzung beenden
   stop: Stoppen
   sessionStopped: Sitzung beendet
@@ -289,7 +289,7 @@ analytics:
   playsToday: Wiedergaben heute
   playsThisWeek: Wiedergaben diese Woche
   activeUsersToday: Aktive Benutzer heute
-  topMedia: Top 10 Medien — Letzte 30 Tage
+  topMedia: Top 10 Medien - Letzte 30 Tage
   recentActivity: Letzte Aktivität
   noPlays: Keine Wiedergaben in den letzten 30 Tagen
   noActivity: Keine aktuelle Aktivität
@@ -382,7 +382,7 @@ serverConfig:
   languageRegionDesc: Metadatensprache für TMDB und andere Anbieter. Wird nach Serverneustart wirksam.
   metadataLanguage: Metadatensprache
   envDefault: "— Umgebungsstandard —"
-  languageUpdated: "Sprache aktualisiert — Server neu starten, um auf Metadaten anzuwenden"
+  languageUpdated: "Sprache aktualisiert - Server neu starten, um auf Metadaten anzuwenden"
   configUpdated: Konfiguration aktualisiert
   failedUpdate: Konfiguration konnte nicht aktualisiert werden
   configDeleted: Konfigurationseintrag gelöscht

@@ -82,7 +82,7 @@ plugins:
   uninstallTitle: Uninstall Plugin
   uninstallConfirm: "Uninstall plugin \"{{name}}\"? This cannot be undone."
   selectFileFirst: Select a plugin file first
-  fileMissing: "File missing — select again"
+  fileMissing: "File missing - select again"
   blockedByAnalysis: Plugin blocked by security analysis
   previewFailed: Preview failed
   installFailed: Install failed
@@ -118,7 +118,7 @@ users:
   deleteUserTitle: Delete User
   deleteUserConfirm: "Delete user \"{{name}}\"? This cannot be undone."
   libraryAccess: Library Access
-  libraryAccessTitle: "Library Access — {{name}}"
+  libraryAccessTitle: "Library Access - {{name}}"
   unrestricted: Unrestricted
   unrestrictedDesc: This user can access all libraries (unrestricted).
   restrictedDesc: "This user can only access {{count}} selected {{libraryWord}}."
@@ -126,7 +126,7 @@ users:
   failedLibraryAccess: Failed to update library access
   clearAllUnrestricted: Clear all (unrestricted)
   bitrate: Bitrate
-  maxBitrateTitle: "Max Bitrate — {{name}}"
+  maxBitrateTitle: "Max Bitrate - {{name}}"
   maxBitrateDesc: "Limit the maximum streaming bitrate for this user. 0 = unlimited."
   maxBitrate: Max Bitrate
   bitrateUpdated: Bitrate limit updated
@@ -182,7 +182,7 @@ libraries:
   scanAgain: Scan again
   scanning: "Scanning..."
   schedule: Schedule
-  scanScheduleTitle: "Scan Schedule — {{name}}"
+  scanScheduleTitle: "Scan Schedule - {{name}}"
   scanFrequency: Scan frequency
   selectFrequency: "-- select frequency --"
   cronExpression: Cron expression
@@ -213,8 +213,8 @@ sessions:
   failedLoadDesc: Could not fetch active sessions. Check your connection and try again.
   noSessions: No active sessions
   noSessionsDesc: When users start streaming, their sessions will appear here.
-  activeCount_one: "{{count}} active session — refreshes every 10s"
-  activeCount_other: "{{count}} active sessions — refreshes every 10s"
+  activeCount_one: "{{count}} active session - refreshes every 10s"
+  activeCount_other: "{{count}} active sessions - refreshes every 10s"
   stopSession: Stop session
   stop: Stop
   sessionStopped: Session stopped
@@ -289,7 +289,7 @@ analytics:
   playsToday: Plays Today
   playsThisWeek: Plays This Week
   activeUsersToday: Active Users Today
-  topMedia: Top 10 Media — Last 30 Days
+  topMedia: Top 10 Media - Last 30 Days
   recentActivity: Recent Activity
   noPlays: No plays in the last 30 days
   noActivity: No recent activity
@@ -382,7 +382,7 @@ serverConfig:
   languageRegionDesc: Metadata language used when fetching from TMDB and other providers. Takes effect after server restart.
   metadataLanguage: Metadata language
   envDefault: "— env default —"
-  languageUpdated: "Language updated — restart server to apply to metadata fetching"
+  languageUpdated: "Language updated - restart server to apply to metadata fetching"
   configUpdated: Config updated
   failedUpdate: Failed to update config
   configDeleted: Config entry deleted

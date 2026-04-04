@@ -2,7 +2,7 @@ setup:
   welcome: "欢迎使用 Evey"
   description: "让我们来设置您的媒体服务器。只需一分钟。"
   getStarted: "开始设置"
-  stepOf: "第 {{current}} 步，共 {{total}} 步 — {{name}}"
+  stepOf: "第 {{current}} 步，共 {{total}} 步 - {{name}}"
   steps:
     welcome: "欢迎"
     admin: "管理员账户"
@@ -163,11 +163,11 @@ settings:
       mismatch: "PIN 不匹配"
     ratings:
       none: "无限制"
-      g: "G — 普通观众"
-      pg: "PG — 家长指导"
-      pg13: "PG-13 — 家长特别注意"
-      r: "R — 限制级"
-      nc17: "NC-17 — 仅限成人"
+      g: "G - 普通观众"
+      pg: "PG - 家长指导"
+      pg13: "PG-13 - 家长特别注意"
+      r: "R - 限制级"
+      nc17: "NC-17 - 仅限成人"
     bitrates:
       unlimited: "无限制"
 apiKeys:

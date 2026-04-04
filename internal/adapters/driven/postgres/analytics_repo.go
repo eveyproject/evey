@@ -48,7 +48,7 @@ func (r *AnalyticsReader) GetAnalytics(ctx context.Context) (*activity.Analytics
 			           COALESCE(series.title, '') || ' — S' ||
 			           LPAD(COALESCE(season.index_number, 0)::text, 2, '0') || 'E' ||
 			           LPAD(COALESCE(mi.index_number, 0)::text, 2, '0') ||
-			           CASE WHEN mi.title != '' THEN ' — ' || mi.title ELSE '' END
+			           CASE WHEN mi.title != '' THEN ' - ' || mi.title ELSE '' END
 			         ELSE mi.title
 			       END AS display_title,
 			       COUNT(*) AS play_count,

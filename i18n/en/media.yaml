@@ -196,10 +196,10 @@ detail:
   tmdbId: TMDB ID
   viewOnImdb: View on IMDB
   viewOnTmdb: View on TMDB
-  idChangedWarning: "ID changed — saving will re-fetch metadata from the provider"
+  idChangedWarning: "ID changed - saving will re-fetch metadata from the provider"
   refreshMetadata: Refresh metadata
   resetMetadata: Reset metadata
-  metadataReset: Metadata reset — re-enrichment will start
+  metadataReset: Metadata reset - re-enrichment will start
   resetMetadataFailed: Failed to reset metadata
   reEnrichedWithNewId: Re-enriched with new ID
   metadataSaved: Metadata saved

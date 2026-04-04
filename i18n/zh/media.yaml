@@ -194,10 +194,10 @@ detail:
   tmdbId: TMDB ID
   viewOnImdb: 在 IMDB 查看
   viewOnTmdb: 在 TMDB 查看
-  idChangedWarning: "ID 已更改 — 保存将重新从提供商获取元数据"
+  idChangedWarning: "ID 已更改 - 保存将重新从提供商获取元数据"
   refreshMetadata: 刷新元数据
   resetMetadata: 重置元数据
-  metadataReset: "元数据已重置 — 将开始重新获取"
+  metadataReset: "元数据已重置 - 将开始重新获取"
   resetMetadataFailed: 重置元数据失败
   reEnrichedWithNewId: 已使用新 ID 重新获取
   metadataSaved: 元数据已保存
