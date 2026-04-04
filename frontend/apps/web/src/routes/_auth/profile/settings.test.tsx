@@ -18,6 +18,7 @@ vi.mock("@evey/api", () => ({
   getUserServiceGetCurrentUserQueryKey: () => ["/api/v1/users/me"],
   getUserServiceListProfilesQueryKey: (id: string) => ["/api/v1/users", id, "profiles"],
   eveyFetch: vi.fn(),
+  eveyFetchRaw: vi.fn(),
 }));
 
 vi.mock("@tanstack/react-query", async (importActual) => {
@@ -31,6 +32,15 @@ vi.mock("@tanstack/react-query", async (importActual) => {
 
 vi.mock("@evey/store", () => ({
   toast: { success: vi.fn(), error: vi.fn() },
+  useAuthStore: Object.assign(
+    (selector?: (s: Record<string, unknown>) => unknown) => {
+      const state = { accessToken: "fake-token", isAdmin: false };
+      return selector ? selector(state) : state;
+    },
+    { getState: () => ({ accessToken: "fake-token", isAdmin: false }) },
+  ),
+  useLocaleStore: (selector: (s: { locale: string; setLocale: () => void }) => unknown) =>
+    selector({ locale: "en", setLocale: vi.fn() }),
 }));
 
 vi.mock("@tanstack/react-router", () => ({
@@ -47,6 +57,10 @@ vi.mock("@/features/user/NotificationSettings", () => ({
 
 vi.mock("@/features/user/DeviceSettings", () => ({
   DeviceSettings: () => React.createElement("div", { "data-testid": "device-settings" }, "Device Settings"),
+}));
+
+vi.mock("@/features/user/QuickConnectSettings", () => ({
+  QuickConnectSettings: () => React.createElement("div", { "data-testid": "quickconnect-settings" }, "QuickConnect Settings"),
 }));
 
 function createWrapper() {
@@ -90,46 +104,15 @@ describe("SettingsPage", () => {
     expect(screen.getByRole("button", { name: /Appearance/i })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /Playback/i })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /Notifications/i })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /Account/i })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /Parental/i })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /Devices/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Quick Connect/i })).toBeInTheDocument();
   });
 
   it("shows Appearance tab content by default", async () => {
     const SettingsPage = await getSettingsPage();
     render(React.createElement(SettingsPage), { wrapper: createWrapper() });
     expect(screen.getByTestId("theme-settings")).toBeInTheDocument();
-  });
-
-  it("switching to Account tab shows Change Password form", async () => {
-    const SettingsPage = await getSettingsPage();
-    render(React.createElement(SettingsPage), { wrapper: createWrapper() });
-    fireEvent.click(screen.getByRole("button", { name: /Account/i }));
-    await waitFor(() => {
-      expect(screen.getByText(/Change Password/i)).toBeInTheDocument();
-    });
-  });
-
-  it("Account tab shows password validation error on mismatch", async () => {
-    const SettingsPage = await getSettingsPage();
-    render(React.createElement(SettingsPage), { wrapper: createWrapper() });
-    fireEvent.click(screen.getByRole("button", { name: /Account/i }));
-    await waitFor(() => expect(screen.getByLabelText(/New password/i)).toBeInTheDocument());
-    fireEvent.change(screen.getByLabelText(/New password/i), { target: { value: "password1" } });
-    fireEvent.change(screen.getByLabelText(/Confirm password/i), { target: { value: "different1" } });
-    fireEvent.click(screen.getByRole("button", { name: /Update password/i }));
-    await waitFor(() => expect(screen.getByText(/Passwords do not match/i)).toBeInTheDocument());
-  });
-
-  it("Account tab shows validation error for short password", async () => {
-    const SettingsPage = await getSettingsPage();
-    render(React.createElement(SettingsPage), { wrapper: createWrapper() });
-    fireEvent.click(screen.getByRole("button", { name: /Account/i }));
-    await waitFor(() => expect(screen.getByLabelText(/New password/i)).toBeInTheDocument());
-    fireEvent.change(screen.getByLabelText(/New password/i), { target: { value: "abc" } });
-    fireEvent.change(screen.getByLabelText(/Confirm password/i), { target: { value: "abc" } });
-    fireEvent.click(screen.getByRole("button", { name: /Update password/i }));
-    await waitFor(() => expect(screen.getByText("Password must be at least 8 characters")).toBeInTheDocument());
   });
 
   it("switching to Notifications tab shows notification settings", async () => {
@@ -157,5 +140,11 @@ describe("SettingsPage", () => {
     fireEvent.change(screen.getByLabelText(/Confirm PIN/i), { target: { value: "5678" } });
     fireEvent.click(screen.getByRole("button", { name: /Save PIN/i }));
     await waitFor(() => expect(screen.getByText(/PINs do not match/i)).toBeInTheDocument());
+  });
+
+  it("renders ProfileCard with user info", async () => {
+    const SettingsPage = await getSettingsPage();
+    render(React.createElement(SettingsPage), { wrapper: createWrapper() });
+    expect(screen.getByText("alice")).toBeInTheDocument();
   });
 });

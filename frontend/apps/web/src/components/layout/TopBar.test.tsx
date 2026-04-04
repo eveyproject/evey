@@ -29,6 +29,7 @@ vi.mock("@evey/api", () => ({
   useUserServiceGetCurrentUser: () => ({
     data: { username: "gravity" },
   }),
+  useUserServiceListProfiles: () => ({ data: { profiles: [] } }),
   useNotificationServiceGetUnreadCount: () => ({ data: { count: 3 } }),
   useNotificationServiceListNotifications: () => ({
     data: { notifications: [] },
@@ -61,7 +62,7 @@ describe("TopBar", () => {
   it("renders the search input", () => {
     renderTopBar();
     expect(screen.getByTestId("topbar-search-input")).toBeInTheDocument();
-    expect(screen.getByPlaceholderText("Search movies, series...")).toBeInTheDocument();
+    expect(screen.getByPlaceholderText("Search movies, series\u2026")).toBeInTheDocument();
   });
 
   it("Ctrl+K focuses the search input", async () => {
@@ -87,11 +88,11 @@ describe("TopBar", () => {
   it("user menu opens on avatar click and shows menu items", async () => {
     const user = userEvent.setup();
     renderTopBar();
-    expect(screen.queryByText("Profile")).not.toBeInTheDocument();
+    expect(screen.queryByText("Settings")).not.toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "User menu" }));
-    expect(screen.getByText("Profile")).toBeInTheDocument();
     expect(screen.getByText("Settings")).toBeInTheDocument();
     expect(screen.getByText("Watch History")).toBeInTheDocument();
+    expect(screen.getByText("Quick Connect")).toBeInTheDocument();
   });
 
   it("logout button is visible in user menu and calls logout + navigate", async () => {
@@ -108,9 +109,9 @@ describe("TopBar", () => {
     const user = userEvent.setup();
     renderTopBar();
     await user.click(screen.getByRole("button", { name: "User menu" }));
-    expect(screen.getByText("Profile")).toBeInTheDocument();
+    expect(screen.getByText("Settings")).toBeInTheDocument();
     await user.keyboard("{Escape}");
-    expect(screen.queryByText("Profile")).not.toBeInTheDocument();
+    expect(screen.queryByText("Settings")).not.toBeInTheDocument();
   });
 
   it("does not show Admin menu item when user is not admin", async () => {

@@ -85,8 +85,7 @@ describe("QuickConnect", () => {
       onSuccessCallback?.({ code: "TESTCODE1234" });
     });
 
-    // Should show "120" somewhere in the countdown
-    expect(screen.getByText(/Expires in 120s/)).toBeInTheDocument();
+    expect(screen.getByText(/expiresIn/)).toBeInTheDocument();
   });
 
   it("shows countdown when code is present", async () => {
@@ -97,13 +96,13 @@ describe("QuickConnect", () => {
       onSuccessCallback?.({ code: "TESTCODE1234" });
     });
 
-    expect(screen.getByText(/Expires in/)).toBeInTheDocument();
+    expect(screen.getByText(/expiresIn/)).toBeInTheDocument();
   });
 
   it("shows 'Scan with a logged-in device' instruction text", async () => {
     const { QuickConnect } = await import("./QuickConnect");
     render(<QuickConnect />);
-    expect(screen.getByText(/Scan with a logged-in device/)).toBeInTheDocument();
+    expect(screen.getByText(/scanInstruction/)).toBeInTheDocument();
   });
 
   it("does not show QR code initially (spinner shown)", async () => {
@@ -116,6 +115,6 @@ describe("QuickConnect", () => {
   it("does not show expiry text without code", async () => {
     const { QuickConnect } = await import("./QuickConnect");
     render(<QuickConnect />);
-    expect(screen.queryByText(/Expires in/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/expiresIn/)).not.toBeInTheDocument();
   });
 });

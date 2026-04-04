@@ -47,7 +47,7 @@ describe("PluginCard", () => {
       { wrapper: Wrapper },
     );
     expect(screen.getByText("My Plugin")).toBeInTheDocument();
-    expect(screen.getByText("v1.0.0 — go")).toBeInTheDocument();
+    expect(screen.getByText("v1.0.0 - go")).toBeInTheDocument();
   });
 
   it("renders description when present", () => {

@@ -8,6 +8,7 @@ const mockListInviteLinks = vi.fn();
 const mockCreateUser = vi.fn();
 const mockDeleteUser = vi.fn();
 const mockDisableUser = vi.fn();
+const mockUpdateUser = vi.fn();
 const mockCreateInviteLink = vi.fn();
 const mockRevokeInviteLink = vi.fn();
 const mockInvalidateQueries = vi.fn();
@@ -17,6 +18,7 @@ vi.mock("@evey/api", () => ({
   useUserServiceCreateUser: (...args: unknown[]) => mockCreateUser(...args),
   useUserServiceDeleteUser: (...args: unknown[]) => mockDeleteUser(...args),
   useUserServiceDisableUser: (...args: unknown[]) => mockDisableUser(...args),
+  useUserServiceUpdateUser: (...args: unknown[]) => mockUpdateUser(...args),
   useUserServiceListInviteLinks: (...args: unknown[]) => mockListInviteLinks(...args),
   useUserServiceCreateInviteLink: (...args: unknown[]) => mockCreateInviteLink(...args),
   useUserServiceRevokeInviteLink: (...args: unknown[]) => mockRevokeInviteLink(...args),
@@ -68,6 +70,7 @@ describe("UsersPage", () => {
     mockCreateUser.mockReturnValue({ mutate, isPending: false });
     mockDeleteUser.mockReturnValue({ mutate, isPending: false });
     mockDisableUser.mockReturnValue({ mutate, isPending: false });
+    mockUpdateUser.mockReturnValue({ mutate, isPending: false });
     mockCreateInviteLink.mockReturnValue({ mutate, isPending: false });
     mockRevokeInviteLink.mockReturnValue({ mutate, isPending: false });
   });

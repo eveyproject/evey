@@ -8,6 +8,7 @@ const mutateMock = vi.fn();
 
 vi.mock("@evey/api", () => ({
   useLibraryServiceCreateLibrary: () => ({ mutate: mutateMock, isPending: false }),
+  useLibraryServiceUpdateLibrary: () => ({ mutate: vi.fn(), isPending: false }),
   eveyFetch: vi.fn().mockRejectedValue(new Error("not found")),
 }));
 

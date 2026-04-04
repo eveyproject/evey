@@ -36,7 +36,7 @@ describe("KeyboardShortcutsHelp", () => {
 
   it("shows Keyboard Shortcuts title", () => {
     render(<KeyboardShortcutsHelp open onClose={vi.fn()} />);
-    expect(screen.getByRole("dialog", { name: "Keyboard Shortcuts" })).toBeInTheDocument();
+    expect(screen.getByRole("dialog", { name: "shortcuts.title" })).toBeInTheDocument();
   });
 
   it("lists known shortcut keys", () => {
@@ -49,9 +49,9 @@ describe("KeyboardShortcutsHelp", () => {
 
   it("shows shortcut descriptions", () => {
     render(<KeyboardShortcutsHelp open onClose={vi.fn()} />);
-    expect(screen.getAllByText("Focus search")).toHaveLength(2);
-    expect(screen.getByText("Go to Home")).toBeInTheDocument();
-    expect(screen.getByText("Toggle this help")).toBeInTheDocument();
+    expect(screen.getAllByText("shortcuts.focusSearch")).toHaveLength(2);
+    expect(screen.getByText("shortcuts.goHome")).toBeInTheDocument();
+    expect(screen.getByText("shortcuts.toggleHelp")).toBeInTheDocument();
   });
 
   it("calls onClose when close button clicked", async () => {
@@ -64,6 +64,6 @@ describe("KeyboardShortcutsHelp", () => {
 
   it("shows note about shortcuts disabled while typing", () => {
     render(<KeyboardShortcutsHelp open onClose={vi.fn()} />);
-    expect(screen.getByText(/disabled while typing/i)).toBeInTheDocument();
+    expect(screen.getByText(/shortcuts\.disabledHint/)).toBeInTheDocument();
   });
 });

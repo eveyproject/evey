@@ -43,6 +43,6 @@ describe("ChaptersPanel", () => {
   it("highlights active chapter based on currentTimeSec", () => {
     render(<ChaptersPanel {...defaultProps} open={true} currentTimeSec={90} />);
     const actOneBtn = screen.getByText("Act One").closest("button");
-    expect(actOneBtn?.style.color).toBe("var(--accent)");
+    expect(actOneBtn?.className).toContain("text-[var(--accent)]");
   });
 });

@@ -1,7 +1,26 @@
+import React from "react";
 import { renderWithQueryClient } from "@/test/test-utils";
-import { render, screen } from "@testing-library/react";
-import { describe, it, expect } from "vitest";
+import { screen } from "@testing-library/react";
+import { describe, it, expect, vi } from "vitest";
 import { MediaGrid } from "./MediaGrid";
+
+vi.mock("react-virtuoso", () => ({
+  VirtuosoGrid: ({ totalCount, itemContent, components }: {
+    totalCount: number;
+    itemContent: (index: number) => React.ReactNode;
+    components: { List: React.ComponentType<React.HTMLAttributes<HTMLDivElement>>; Item: React.ComponentType<React.HTMLAttributes<HTMLDivElement> & { children?: React.ReactNode }> };
+  }) => {
+    const List = components.List;
+    const Item = components.Item;
+    return (
+      <List>
+        {Array.from({ length: totalCount }, (_, i) => (
+          <Item key={i}>{itemContent(i)}</Item>
+        ))}
+      </List>
+    );
+  },
+}));
 
 describe("MediaGrid", () => {
   it("renders grid of children", () => {
