@@ -45,7 +45,7 @@ func (r *AnalyticsReader) GetAnalytics(ctx context.Context) (*activity.Analytics
 			SELECT ps.media_item_id,
 			       CASE
 			         WHEN mi.type = 'episode' THEN
-			           COALESCE(series.title, '') || ' — S' ||
+			           COALESCE(series.title, '') || ' - S' ||
 			           LPAD(COALESCE(season.index_number, 0)::text, 2, '0') || 'E' ||
 			           LPAD(COALESCE(mi.index_number, 0)::text, 2, '0') ||
 			           CASE WHEN mi.title != '' THEN ' - ' || mi.title ELSE '' END
