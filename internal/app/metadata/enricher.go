@@ -100,6 +100,14 @@ func (e *Enricher) EnrichItem(ctx context.Context, item *domainlib.MediaItem, re
 	}
 	e.indexSearch(ctx, item, result.People)
 	e.linkCollection(ctx, item.ID, result.Collection)
+	// Fetch translations for all supported locales
+	if tmdbID := item.ProviderIDs["tmdb"]; tmdbID != "" {
+		mediaType := "movie"
+		if item.Type == "series" || item.Type == "season" || item.Type == "episode" {
+			mediaType = "tv"
+		}
+		e.enrichTranslations(ctx, item, tmdbID, mediaType)
+	}
 	return nil
 }
 
