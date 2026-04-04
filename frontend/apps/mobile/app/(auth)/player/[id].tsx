@@ -26,6 +26,7 @@ import { QualityPicker } from "../../../src/components/QualityPicker";
 import { ChaptersPicker } from "../../../src/components/ChaptersPicker";
 import { StreamInfoPanel } from "../../../src/components/StreamInfoPanel";
 import { SkipIntroOverlay } from "../../../src/components/SkipIntroOverlay";
+import { TrickplayPreview } from "../../../src/components/TrickplayPreview";
 
 const IMAGE_SUBTITLE_CODECS = new Set([
   "pgssub", "hdmv_pgs_subtitle", "dvd_subtitle", "dvbsub", "xsub",
@@ -557,6 +558,10 @@ export default function PlayerScreen() {
               <Pressable onPress={() => seekBy(10)} hitSlop={16} style={styles.seekButton} accessible={true} accessibilityLabel={t("player.controls.forward", { seconds: 10 })} accessibilityRole="button">
                 <Ionicons name="play-forward" size={24} color="#fff" />
               </Pressable>
+            </View>
+
+            <View style={{ alignItems: "center", marginBottom: 4 }}>
+              <TrickplayPreview mediaId={mediaId} currentTime={currentTime} visible={showControls && duration > 0} />
             </View>
 
             <View style={styles.bottomBar}>
