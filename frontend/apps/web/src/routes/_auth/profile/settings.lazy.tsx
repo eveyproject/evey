@@ -1,4 +1,4 @@
-import { Palette, Play, Bell, Lock, Shield, Smartphone, QrCode } from "lucide-react";
+import { Palette, Play, Bell, Shield, Smartphone, QrCode, Pencil, X } from "lucide-react";
 import type React from "react";
 import { createLazyFileRoute } from "@tanstack/react-router";
 import { useState, useEffect, useRef } from "react";
@@ -22,17 +22,123 @@ export const Route = createLazyFileRoute("/_auth/profile/settings")({
   component: SettingsPage,
 });
 
-type Tab = "appearance" | "playback" | "notifications" | "account" | "parental" | "devices" | "quick-connect";
+type Tab = "appearance" | "playback" | "notifications" | "parental" | "devices" | "quick-connect";
 
 const TABS: { key: Tab; labelKey: string; icon: React.ReactNode }[] = [
   { key: "appearance", labelKey: "auth.settings.tabs.appearance", icon: <Palette size={16} strokeWidth={1.5} /> },
   { key: "playback", labelKey: "auth.settings.tabs.playback", icon: <Play size={16} strokeWidth={1.5} /> },
   { key: "notifications", labelKey: "auth.settings.tabs.notifications", icon: <Bell size={16} strokeWidth={1.5} /> },
-  { key: "account", labelKey: "auth.settings.tabs.account", icon: <Lock size={16} strokeWidth={1.5} /> },
   { key: "parental", labelKey: "auth.settings.tabs.parental", icon: <Shield size={16} strokeWidth={1.5} /> },
   { key: "devices", labelKey: "auth.settings.tabs.devices", icon: <Smartphone size={16} strokeWidth={1.5} /> },
   { key: "quick-connect", labelKey: "auth.settings.tabs.quickConnect", icon: <QrCode size={16} strokeWidth={1.5} /> },
 ];
+
+function ProfileCard() {
+  const { t } = useTranslation();
+  const qc = useQueryClient();
+  const { data: user } = useUserServiceGetCurrentUser();
+  const [editing, setEditing] = useState(false);
+  const [username, setUsername] = useState("");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [confirmPwd, setConfirmPwd] = useState("");
+
+  const updateUser = useUserServiceUpdateUser({
+    mutation: {
+      onSuccess: () => {
+        void qc.invalidateQueries({ queryKey: getUserServiceGetCurrentUserQueryKey() });
+        setEditing(false);
+        setPassword("");
+        setConfirmPwd("");
+        toast.success(t("auth.profile.profileUpdated"));
+      },
+      onError: (err: Error) => toast.error(err.message || t("auth.profile.failedToUpdate")),
+    },
+  });
+
+  const startEdit = () => {
+    setUsername(user?.username ?? "");
+    setEmail(user?.email ?? "");
+    setPassword("");
+    setConfirmPwd("");
+    setEditing(true);
+  };
+
+  const handleSave = () => {
+    if (!user?.id) return;
+    const data: Record<string, string> = {};
+    if (username.trim() !== user.username) data.username = username.trim();
+    if (email.trim() !== (user.email ?? "")) data.email = email.trim();
+    if (password) {
+      if (password !== confirmPwd) { toast.error(t("auth.settings.account.passwordMismatch")); return; }
+      if (password.length < 8) { toast.error(t("auth.settings.account.passwordMin")); return; }
+      data.password = password;
+    }
+    if (Object.keys(data).length === 0) { setEditing(false); return; }
+    updateUser.mutate({ id: user.id, data });
+  };
+
+  const initial = user?.username?.charAt(0).toUpperCase() ?? "U";
+  const memberSince = user?.createdAt
+    ? new Date(user.createdAt).toLocaleDateString(undefined, { year: "numeric", month: "long" })
+    : null;
+
+  return (
+    <Card>
+      <div className="p-6 flex flex-col gap-4">
+        <div className="flex items-center gap-4">
+          <div className="w-14 h-14 rounded-full bg-[var(--accent)] flex items-center justify-center text-[var(--filter-active-text)] text-xl font-bold shrink-0">
+            {initial}
+          </div>
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2">
+              <p className="text-lg font-semibold text-[var(--text)] truncate">{user?.username ?? "..."}</p>
+              {user?.isAdmin && (
+                <span className="text-xs bg-[var(--accent)] text-[var(--filter-active-text)] px-2 py-0.5 rounded-[var(--radius-sm)]">Admin</span>
+              )}
+            </div>
+            <p className="text-sm text-[var(--text-muted)] truncate">{user?.email || "—"}</p>
+            {memberSince && <p className="text-xs text-[var(--text-muted)] mt-0.5">{memberSince}</p>}
+          </div>
+          <button
+            onClick={editing ? () => setEditing(false) : startEdit}
+            className="p-2 rounded-[var(--radius-sm)] text-[var(--text-muted)] hover:text-[var(--accent)] hover:bg-[var(--surface-raised)] transition-colors-fast"
+            aria-label={editing ? "Cancel" : "Edit profile"}
+          >
+            {editing ? <X size={18} /> : <Pencil size={18} />}
+          </button>
+        </div>
+
+        {editing && (
+          <div className="flex flex-col gap-3 pt-4 border-t border-[var(--border)]">
+            <Input label={t("auth.profile.username")} value={username} onChange={(e) => setUsername(e.target.value)} />
+            <Input label={t("auth.profile.email")} value={email} onChange={(e) => setEmail(e.target.value)} />
+            <Input
+              label={t("auth.settings.account.newPassword") + " (" + (t("common.optional") || "optional") + ")"}
+              type="password"
+              autoComplete="new-password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+            />
+            {password.length > 0 && (
+              <Input
+                label={t("auth.settings.account.confirmPassword")}
+                type="password"
+                autoComplete="new-password"
+                value={confirmPwd}
+                onChange={(e) => setConfirmPwd(e.target.value)}
+              />
+            )}
+            <div className="flex gap-2">
+              <Button variant="primary" loading={updateUser.isPending} onClick={handleSave}>{t("auth.profile.save")}</Button>
+              <Button variant="ghost" onClick={() => setEditing(false)}>{t("auth.profile.cancel")}</Button>
+            </div>
+          </div>
+        )}
+      </div>
+    </Card>
+  );
+}
 
 function SettingsPage() {
   const { t } = useTranslation();
@@ -41,6 +147,8 @@ function SettingsPage() {
   return (
     <div className="px-6 py-8 max-w-2xl flex flex-col gap-6">
       <h1 className="text-2xl font-bold text-[var(--text)]">{t("auth.settings.title")}</h1>
+
+      <ProfileCard />
 
       <div className="flex gap-1 border-b border-[var(--border)]">
         {TABS.map((tb) => (
@@ -71,7 +179,6 @@ function SettingsPage() {
           )}
           {tab === "playback" && <PlaybackSection />}
           {tab === "notifications" && <NotificationSettings />}
-          {tab === "account" && <AccountSection />}
           {tab === "parental" && <ParentalSection />}
           {tab === "devices" && <DeviceSettings />}
           {tab === "quick-connect" && <QuickConnectSettings />}
@@ -153,78 +260,6 @@ function PlaybackSection() {
         onChange={handleChange}
         disabled={!defaultProfile}
       />
-    </div>
-  );
-}
-
-function AccountSection() {
-  const { t } = useTranslation();
-  const qc = useQueryClient();
-  const { data: user } = useUserServiceGetCurrentUser();
-
-  const [password, setPassword] = useState("");
-  const [confirm, setConfirm] = useState("");
-  const [error, setError] = useState("");
-
-  const updateUser = useUserServiceUpdateUser({
-    mutation: {
-      onSuccess: () => {
-        void qc.invalidateQueries({ queryKey: getUserServiceGetCurrentUserQueryKey() });
-        setPassword("");
-        setConfirm("");
-        setError("");
-        toast.success(t("auth.settings.account.passwordUpdated"));
-      },
-      onError: (err: Error) => toast.error(err.message || t("auth.settings.account.passwordFailed")),
-    },
-  });
-
-  const handleSubmit = () => {
-    if (!user?.id) return;
-    if (password !== confirm) {
-      setError(t("auth.settings.account.passwordMismatch"));
-      return;
-    }
-    if (password.length < 8) {
-      setError(t("auth.settings.account.passwordMin"));
-      return;
-    }
-    setError("");
-    updateUser.mutate({ id: user.id, data: { password } });
-  };
-
-  return (
-    <div className="flex flex-col gap-6">
-      <div>
-        <h3 className="text-sm font-semibold text-[var(--text)]">{t("auth.settings.account.changePassword")}</h3>
-        <p className="text-xs text-[var(--text-muted)] mt-1">{t("auth.settings.account.changePasswordDesc")}</p>
-      </div>
-      <div className="flex flex-col gap-3">
-        <Input
-          label={t("auth.settings.account.newPassword")}
-          type="password"
-          autoComplete="new-password"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          error={error}
-        />
-        <Input
-          label={t("auth.settings.account.confirmPassword")}
-          type="password"
-          autoComplete="new-password"
-          value={confirm}
-          onChange={(e) => setConfirm(e.target.value)}
-        />
-        <div>
-          <Button
-            variant="primary"
-            loading={updateUser.isPending}
-            onClick={handleSubmit}
-          >
-            {t("auth.settings.account.updatePassword")}
-          </Button>
-        </div>
-      </div>
     </div>
   );
 }
