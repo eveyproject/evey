@@ -59,14 +59,22 @@ func avatarUploadHandler(
 			return
 		}
 
-		file, header, err := r.FormFile("avatar")
+		file, _, err := r.FormFile("avatar")
 		if err != nil {
 			http.Error(w, `{"message":"missing avatar file"}`, http.StatusBadRequest)
 			return
 		}
 		defer file.Close()
 
-		ct := header.Header.Get("Content-Type")
+		// Detect real content type from file magic bytes
+		buf := make([]byte, 512)
+		n, _ := file.Read(buf)
+		ct := http.DetectContentType(buf[:n])
+		if _, err := file.Seek(0, 0); err != nil {
+			http.Error(w, `{"message":"internal error"}`, http.StatusInternalServerError)
+			return
+		}
+
 		if !strings.HasPrefix(ct, "image/") {
 			http.Error(w, `{"message":"file must be an image"}`, http.StatusBadRequest)
 			return
@@ -87,6 +95,12 @@ func avatarUploadHandler(
 			slog.Error("create avatar dir", slog.Any("err", err))
 			http.Error(w, `{"message":"internal error"}`, http.StatusInternalServerError)
 			return
+		}
+
+		// Remove old avatar if exists (different extension)
+		if profile.AvatarPath != nil {
+			oldPath := filepath.Join(dataDir, *profile.AvatarPath)
+			_ = os.Remove(oldPath)
 		}
 
 		filename := fmt.Sprintf("%s%s", profileID, ext)
