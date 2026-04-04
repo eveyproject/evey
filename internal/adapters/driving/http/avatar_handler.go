@@ -1,4 +1,4 @@
-package http
+package httpapi
 
 import (
 	"fmt"
@@ -9,7 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/gravity-zero/evey/internal/adapters/driving/auth"
+	"github.com/gravity-zero/evey/internal/pkg/auth"
 	domainuser "github.com/gravity-zero/evey/internal/domain/user"
 )
 
@@ -108,7 +108,7 @@ func avatarUploadHandler(
 
 		avatarPath := filepath.Join("avatars", filename)
 		profile.AvatarPath = &avatarPath
-		if err := profileRepo.Update(r.Context(), *profile); err != nil {
+		if err := profileRepo.Update(r.Context(), profile); err != nil {
 			slog.Error("update profile avatar", slog.Any("err", err))
 			http.Error(w, `{"message":"internal error"}`, http.StatusInternalServerError)
 			return
