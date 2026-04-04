@@ -2,7 +2,8 @@ import * as FileSystem from "expo-file-system";
 import { useAuthStore } from "@evey/store";
 import { getServerUrl } from "./server-config";
 
-const DOWNLOAD_DIR = `${FileSystem.documentDirectory}downloads/`;
+const docDir = (FileSystem as any).documentDirectory ?? (FileSystem as any).default?.documentDirectory ?? "";
+const DOWNLOAD_DIR = `${docDir}downloads/`;
 
 export interface DownloadedMedia {
   mediaItemId: string;
