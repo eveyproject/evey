@@ -6,7 +6,6 @@ import {
   PlayCircle,
   Globe,
   Library,
-  Tags,
   HardDrive,
   Users,
   Puzzle,
@@ -18,7 +17,6 @@ import {
   Cpu,
   SlidersHorizontal,
   ChevronDown,
-  Sliders,
   Rows3,
   type LucideIcon,
 } from "lucide-react";
@@ -50,9 +48,7 @@ const sectionsDef: NavSection[] = [
     titleKey: "admin.nav.media",
     links: [
       { href: "/admin/libraries", labelKey: "admin.nav.libraries", icon: Library },
-      { href: "/admin/metadata", labelKey: "admin.nav.metadata", icon: Tags },
       { href: "/admin/transcode-cache", labelKey: "admin.nav.transcodeCache", icon: HardDrive },
-      { href: "/admin/transcoding-profiles", labelKey: "admin.nav.transcodingProfiles", icon: Sliders },
     ],
   },
   {

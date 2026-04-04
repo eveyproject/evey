@@ -174,7 +174,7 @@ function ServerInfoPanel({ info }: { info: V1SystemInfo }) {
                 key={i}
                 className="inline-flex items-center gap-1 px-2 py-1 rounded text-xs font-medium bg-[var(--surface-raised)] text-[var(--accent)]"
               >
-                {d.type?.replace("HW_ACCEL_TYPE_", "") ?? "?"} — {d.name ?? "unknown"}
+                {d.type?.replace("HW_ACCEL_TYPE_", "") ?? "?"} - {d.name ?? "unknown"}
               </span>
             ))}
           </div>

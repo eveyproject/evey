@@ -49,12 +49,10 @@ export default function AdminDashboard() {
     { label: t("admin.users") || "Users", icon: "people-outline", path: "/admin/users" },
     { label: t("admin.libraries") || "Libraries", icon: "library-outline", path: "/admin/libraries" },
     { label: t("admin.sessions") || "Sessions", icon: "play-circle-outline", path: "/admin/sessions" },
-    { label: t("admin.logs") || "Logs", icon: "terminal-outline", path: "/admin/logs" },
-    { label: t("admin.audit") || "Audit", icon: "shield-checkmark-outline", path: "/admin/audit" },
-    { label: "Transcoding", icon: "swap-horizontal-outline", path: "/admin/transcoding" },
     { label: "Plugins", icon: "extension-puzzle-outline", path: "/admin/plugins" },
     { label: "API Keys", icon: "key-outline", path: "/admin/api-keys" },
     { label: "Server Config", icon: "server-outline", path: "/admin/server-config" },
+    { label: t("admin.backup.title") || "Database Backup", icon: "cloud-download-outline", path: "/admin/backup" },
   ];
 
   return (
