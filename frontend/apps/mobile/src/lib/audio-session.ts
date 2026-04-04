@@ -1,10 +1,9 @@
-import { Audio } from "expo-av";
-
 let configured = false;
 
 export async function configureAudioSession() {
   if (configured) return;
   try {
+    const { Audio } = require("expo-av");
     await Audio.setAudioModeAsync({
       allowsRecordingIOS: false,
       staysActiveInBackground: true,
@@ -13,7 +12,7 @@ export async function configureAudioSession() {
       playThroughEarpieceAndroid: false,
     });
     configured = true;
-  } catch (err) {
-    console.warn("Failed to configure audio session:", err);
+  } catch {
+    // expo-av not available (Expo Go) — silently skip
   }
 }
