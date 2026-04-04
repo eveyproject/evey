@@ -4,17 +4,22 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
 const mockGetPlayHistory = vi.fn();
-const mockGetLoginHistory = vi.fn();
 const mockGetServerStats = vi.fn();
+const mockGetAuditLog = vi.fn();
 
 vi.mock("@evey/api", () => ({
   useActivityServiceGetPlayHistory: (...args: unknown[]) => mockGetPlayHistory(...args),
-  useActivityServiceGetLoginHistory: (...args: unknown[]) => mockGetLoginHistory(...args),
   useActivityServiceGetServerStats: (...args: unknown[]) => mockGetServerStats(...args),
+  useAdminServiceGetAuditLog: (...args: unknown[]) => mockGetAuditLog(...args),
+  eveyFetch: vi.fn(),
 }));
 
 vi.mock("@tanstack/react-router", () => ({
   createLazyFileRoute: () => (opts: { component: React.ComponentType }) => opts,
+}));
+
+vi.mock("@/features/admin/AuditLogTable", () => ({
+  AuditLogTable: () => React.createElement("div", { "data-testid": "audit-table" }, "AuditTable"),
 }));
 
 function createWrapper() {
@@ -37,21 +42,12 @@ const mockPlayEntry = {
   startedAt: "2024-01-15T10:00:00Z",
 };
 
-const mockLoginEntry = {
-  id: "le-1",
-  username: "alice",
-  ipAddress: "192.168.1.10",
-  success: true,
-  userAgent: "Mozilla/5.0",
-  timestamp: "2024-01-15T10:00:00Z",
-};
-
 describe("ActivityPage", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockGetPlayHistory.mockReturnValue({ data: { entries: [], pagination: { totalItems: 0 } }, isLoading: false });
-    mockGetLoginHistory.mockReturnValue({ data: { entries: [], pagination: { totalItems: 0 } }, isLoading: false });
     mockGetServerStats.mockReturnValue({ data: undefined, isLoading: false });
+    mockGetAuditLog.mockReturnValue({ data: { entries: [], total: 0 }, isLoading: false });
   });
 
   it("renders Activity heading", async () => {
@@ -60,11 +56,11 @@ describe("ActivityPage", () => {
     expect(screen.getByText("Activity")).toBeInTheDocument();
   });
 
-  it("renders tab buttons", async () => {
+  it("renders tab buttons (Play History, Audit Log, Server Stats)", async () => {
     const ActivityPage = await getActivityPage();
     render(React.createElement(ActivityPage), { wrapper: createWrapper() });
     expect(screen.getByRole("button", { name: /Play History/i })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /Login History/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Audit Log/i })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /Server Stats/i })).toBeInTheDocument();
   });
 
@@ -85,39 +81,11 @@ describe("ActivityPage", () => {
     expect(screen.getByText("Chrome")).toBeInTheDocument();
   });
 
-  it("switching to Login History tab shows login entries", async () => {
-    mockGetLoginHistory.mockReturnValue({
-      data: { entries: [mockLoginEntry], pagination: { totalItems: 1 } },
-      isLoading: false,
-    });
+  it("switching to Audit tab shows audit table", async () => {
     const ActivityPage = await getActivityPage();
     render(React.createElement(ActivityPage), { wrapper: createWrapper() });
-    fireEvent.click(screen.getByRole("button", { name: /Login History/i }));
-    expect(screen.getByText("alice")).toBeInTheDocument();
-    expect(screen.getByText("192.168.1.10")).toBeInTheDocument();
-  });
-
-  it("login entry shows OK badge for successful login", async () => {
-    mockGetLoginHistory.mockReturnValue({
-      data: { entries: [mockLoginEntry], pagination: { totalItems: 1 } },
-      isLoading: false,
-    });
-    const ActivityPage = await getActivityPage();
-    render(React.createElement(ActivityPage), { wrapper: createWrapper() });
-    fireEvent.click(screen.getByRole("button", { name: /Login History/i }));
-    expect(screen.getByText("OK")).toBeInTheDocument();
-  });
-
-  it("login entry shows Failed badge for failed login", async () => {
-    const failedLogin = { ...mockLoginEntry, success: false };
-    mockGetLoginHistory.mockReturnValue({
-      data: { entries: [failedLogin], pagination: { totalItems: 1 } },
-      isLoading: false,
-    });
-    const ActivityPage = await getActivityPage();
-    render(React.createElement(ActivityPage), { wrapper: createWrapper() });
-    fireEvent.click(screen.getByRole("button", { name: /Login History/i }));
-    expect(screen.getByText("Failed")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /Audit Log/i }));
+    expect(screen.getByTestId("audit-table")).toBeInTheDocument();
   });
 
   it("switching to Server Stats tab renders stat cards", async () => {
@@ -130,7 +98,11 @@ describe("ActivityPage", () => {
     fireEvent.click(screen.getByRole("button", { name: /Server Stats/i }));
     expect(screen.getByText("Total Plays")).toBeInTheDocument();
     expect(screen.getByText("100")).toBeInTheDocument();
-    expect(screen.getByText("Total Users")).toBeInTheDocument();
-    expect(screen.getByText("5")).toBeInTheDocument();
+  });
+
+  it("renders export JSON button", async () => {
+    const ActivityPage = await getActivityPage();
+    render(React.createElement(ActivityPage), { wrapper: createWrapper() });
+    expect(screen.getByText("JSON")).toBeInTheDocument();
   });
 });
