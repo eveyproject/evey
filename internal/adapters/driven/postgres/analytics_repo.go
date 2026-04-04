@@ -42,13 +42,23 @@ func (r *AnalyticsReader) GetAnalytics(ctx context.Context) (*activity.Analytics
 			}
 		}()
 		rows, err := r.db.QueryContext(ctx, `
-			SELECT ps.media_item_id, mi.title,
+			SELECT ps.media_item_id,
+			       CASE
+			         WHEN mi.type = 'episode' THEN
+			           COALESCE(series.title, '') || ' — S' ||
+			           LPAD(COALESCE(season.index_number, 0)::text, 2, '0') || 'E' ||
+			           LPAD(COALESCE(mi.index_number, 0)::text, 2, '0') ||
+			           CASE WHEN mi.title != '' THEN ' — ' || mi.title ELSE '' END
+			         ELSE mi.title
+			       END AS display_title,
 			       COUNT(*) AS play_count,
 			       COALESCE(SUM(ps.duration_ms) / 1000, 0) AS total_duration_seconds
 			FROM play_sessions ps
 			INNER JOIN media_items mi ON mi.id = ps.media_item_id
+			LEFT JOIN media_items season ON season.id = mi.parent_id AND mi.type = 'episode'
+			LEFT JOIN media_items series ON series.id = season.parent_id AND mi.type = 'episode'
 			WHERE ps.started_at >= NOW() - INTERVAL '30 days'
-			GROUP BY ps.media_item_id, mi.title
+			GROUP BY ps.media_item_id, mi.title, mi.type, mi.index_number, mi.parent_id, season.index_number, season.parent_id, series.title
 			ORDER BY play_count DESC
 			LIMIT 10`)
 		if err != nil {

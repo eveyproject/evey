@@ -92,6 +92,8 @@ func (s *CommandService) StopStream(ctx context.Context, sessionID string) error
 	}
 	now := time.Now()
 	session.EndedAt = &now
+	durationMs := now.Sub(session.StartedAt).Milliseconds()
+	session.DurationMs = &durationMs
 	if err := s.sessions.Update(ctx, session); err != nil {
 		return fmt.Errorf("CommandService.StopStream: %w", err)
 	}
