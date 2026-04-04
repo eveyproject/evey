@@ -1,13 +1,15 @@
 import { View, Text, Pressable, StyleSheet, Modal } from "react-native";
+import { Image } from "expo-image";
 import { Stack, router } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import { useNotificationServiceGetUnreadCount, useUserServiceGetCurrentUser, eveyFetch } from "@evey/api";
+import { useNotificationServiceGetUnreadCount, useUserServiceGetCurrentUser, useUserServiceListProfiles, eveyFetch } from "@evey/api";
 import { useAuthStore } from "@evey/store";
 import { useTheme } from "../../../src/providers/ThemeProvider";
 import { useDrawer } from "../../../src/providers/DrawerProvider";
 import { HeaderSearch } from "../../../src/components/HeaderSearch";
+import { useServerUrl } from "../../../src/hooks/useServerUrl";
 
 function BurgerButton({ theme }: { theme: ReturnType<typeof useTheme> }) {
   const { toggle } = useDrawer();
@@ -18,7 +20,7 @@ function BurgerButton({ theme }: { theme: ReturnType<typeof useTheme> }) {
   );
 }
 
-function UserMenu({ theme, initial }: { theme: ReturnType<typeof useTheme>; initial: string }) {
+function UserMenu({ theme, initial, avatarUrl }: { theme: ReturnType<typeof useTheme>; initial: string; avatarUrl: string | null }) {
   const { t } = useTranslation();
   const [open, setOpen] = useState(false);
   const logout = useAuthStore((s) => s.logout);
@@ -40,11 +42,15 @@ function UserMenu({ theme, initial }: { theme: ReturnType<typeof useTheme>; init
     <>
       <Pressable
         onPress={() => setOpen(true)}
-        style={[styles.avatar, { backgroundColor: theme.colors.accent }]}
+        style={[styles.avatar, { backgroundColor: theme.colors.accent, overflow: "hidden" }]}
         accessibilityRole="button"
         accessibilityLabel={t("common.nav.userMenu")}
       >
-        <Text style={{ color: "#fff", fontSize: 13, fontWeight: "600" }}>{initial}</Text>
+        {avatarUrl ? (
+          <Image source={{ uri: avatarUrl }} style={{ width: 30, height: 30, borderRadius: 15 }} contentFit="cover" />
+        ) : (
+          <Text style={{ color: "#fff", fontSize: 13, fontWeight: "600" }}>{initial}</Text>
+        )}
       </Pressable>
 
       <Modal transparent visible={open} animationType="fade" onRequestClose={() => setOpen(false)}>
@@ -72,11 +78,17 @@ function UserMenu({ theme, initial }: { theme: ReturnType<typeof useTheme>; init
   );
 }
 
-function HeaderRight({ theme }: { theme: ReturnType<typeof useTheme> }) {
+function HeaderRight({ theme, serverUrl }: { theme: ReturnType<typeof useTheme>; serverUrl: string }) {
   const { data: notifData } = useNotificationServiceGetUnreadCount();
   const { data: currentUser } = useUserServiceGetCurrentUser();
+  const accessToken = useAuthStore((s) => s.accessToken);
+  const { data: profilesResp } = useUserServiceListProfiles(currentUser?.id ?? "", { query: { enabled: !!currentUser?.id } });
+  const defaultProfile = profilesResp?.profiles?.find((p: any) => p.isDefault) ?? profilesResp?.profiles?.[0];
   const count = notifData?.count ?? 0;
   const initial = currentUser?.username?.charAt(0).toUpperCase() ?? "U";
+  const avatarUrl = (defaultProfile as any)?.avatarPath && defaultProfile?.id && serverUrl
+    ? `${serverUrl}/api/v1/profiles/${defaultProfile.id}/avatar?token=${accessToken}`
+    : null;
 
   return (
     <View style={{ flexDirection: "row", alignItems: "center", gap: 4, marginRight: 8 }}>
@@ -88,20 +100,21 @@ function HeaderRight({ theme }: { theme: ReturnType<typeof useTheme> }) {
           </View>
         )}
       </Pressable>
-      <UserMenu theme={theme} initial={initial} />
+      <UserMenu theme={theme} initial={initial} avatarUrl={avatarUrl} />
     </View>
   );
 }
 
 export default function TabsLayout() {
   const theme = useTheme();
+  const serverUrl = useServerUrl();
 
   const sharedOptions = {
     headerStyle: { backgroundColor: theme.colors.surface },
     headerShadowVisible: false,
     headerLeft: () => <BurgerButton theme={theme} />,
     headerTitle: () => <HeaderSearch />,
-    headerRight: () => <HeaderRight theme={theme} />,
+    headerRight: () => <HeaderRight theme={theme} serverUrl={serverUrl} />,
     headerTitleContainerStyle: { flex: 1, paddingHorizontal: 8 },
   };
 

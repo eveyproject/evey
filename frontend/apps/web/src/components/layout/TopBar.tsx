@@ -4,13 +4,13 @@ import type React from "react";
 import { useNavigate, useRouterState } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { useAuthStore } from "@evey/store";
-import { useUserServiceGetCurrentUser, eveyFetch } from "@evey/api";
+import { useUserServiceGetCurrentUser, useUserServiceListProfiles, eveyFetch } from "@evey/api";
 import { Search, Settings, Clock, LayoutList, LogOut, QrCode } from "lucide-react";
 import { NotificationBell } from "@/features/user/NotificationBell";
 import { SearchDropdown } from "@/features/search/SearchDropdown";
 import { useRecentSearches } from "@/hooks/useRecentSearches";
 
-function UserMenu({ userInitial }: { userInitial: string }) {
+function UserMenu({ userInitial, avatarUrl }: { userInitial: string; avatarUrl: string | null }) {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const { logout } = useAuthStore();
@@ -63,12 +63,16 @@ function UserMenu({ userInitial }: { userInitial: string }) {
     <div ref={menuRef} className="relative">
       <button
         onClick={() => setOpen((v) => !v)}
-        className="w-8 h-8 rounded-full bg-[var(--accent)] flex items-center justify-center text-[var(--filter-active-text)] text-sm font-medium cursor-pointer hover:opacity-90 transition-opacity-fast"
+        className="w-8 h-8 rounded-full bg-[var(--accent)] flex items-center justify-center text-[var(--filter-active-text)] text-sm font-medium cursor-pointer hover:opacity-90 transition-opacity-fast overflow-hidden"
         aria-label={t("common.nav.userMenu")}
         aria-expanded={open}
         aria-haspopup="true"
       >
-        {userInitial}
+        {avatarUrl ? (
+          <img src={avatarUrl} alt="" className="w-full h-full object-cover" />
+        ) : (
+          userInitial
+        )}
       </button>
       {open && (
         <div className="absolute right-0 top-full mt-2 w-48 rounded-[var(--radius-md)] bg-[var(--surface-raised)] border border-[var(--border)] shadow-lg py-1 z-overlay animate-fade-in">
@@ -126,7 +130,13 @@ export function TopBar() {
   }, []);
 
   const { data: currentUser } = useUserServiceGetCurrentUser();
+  const accessToken = useAuthStore((s) => s.accessToken);
+  const { data: profilesResp } = useUserServiceListProfiles(currentUser?.id ?? "", { query: { enabled: !!currentUser?.id } });
+  const defaultProfile = profilesResp?.profiles?.find((p) => p.isDefault) ?? profilesResp?.profiles?.[0];
   const userInitial = currentUser?.username?.charAt(0).toUpperCase() ?? "U";
+  const userAvatarUrl = defaultProfile?.avatarPath && defaultProfile?.id
+    ? `/api/v1/profiles/${defaultProfile.id}/avatar?token=${accessToken}`
+    : null;
   const { recents, push: pushRecent, remove: removeRecent, clear: clearRecents } = useRecentSearches();
 
   const isOnSearch = location.pathname === "/search";
@@ -224,7 +234,7 @@ export function TopBar() {
       </div>
       <div className="flex items-center gap-3">
         <NotificationBell />
-        <UserMenu userInitial={userInitial} />
+        <UserMenu userInitial={userInitial} avatarUrl={userAvatarUrl} />
       </div>
     </header>
   );
