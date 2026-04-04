@@ -7,7 +7,7 @@ import { router } from "expo-router";
 import Constants from "expo-constants";
 import { useTranslation } from "react-i18next";
 import { useQueryClient } from "@tanstack/react-query";
-import { useUserServiceGetCurrentUser, useUserServiceListProfiles, useAdminServiceGetSystemInfo, useUserServiceAuthorizeQuickConnect, useUserServiceUpdateUser, eveyFetchRaw } from "@evey/api";
+import { useUserServiceGetCurrentUser, useUserServiceListProfiles, useUserServiceUpdateProfile, useAdminServiceGetSystemInfo, useUserServiceAuthorizeQuickConnect, useUserServiceUpdateUser, eveyFetch, eveyFetchRaw } from "@evey/api";
 import { useAuthStore, useThemeStore, useLocaleStore, toast } from "@evey/store";
 import { useBiometricAvailable, useBiometricEnabled } from "../../../src/hooks/useBiometric";
 import { useTheme } from "../../../src/providers/ThemeProvider";
@@ -35,6 +35,7 @@ export default function SettingsScreen() {
 
   const [qcCode, setQcCode] = useState("");
   const [qcSuccess, setQcSuccess] = useState(false);
+  const updateProfile = useUserServiceUpdateProfile();
   const { available: biometricAvailable } = useBiometricAvailable();
   const { enabled: biometricEnabled, toggle: toggleBiometric } = useBiometricEnabled();
 
@@ -155,9 +156,19 @@ export default function SettingsScreen() {
     ]);
   }
 
-  function handleLanguageChange(code: string) {
+  async function handleLanguageChange(code: string) {
+    // 1. Update UI
     setLocale(code);
-    i18n.changeLanguage(code);
+    void i18n.changeLanguage(code);
+    // 2. Update profile on server
+    if (defaultProfile?.id) {
+      try {
+        await updateProfile.mutateAsync({ id: defaultProfile.id, data: { locale: code } });
+        // 3. Refresh JWT to get new locale claim
+        const resp = await eveyFetch<{ accessToken?: string }>({ url: "/api/v1/auth/refresh", method: "POST", data: {} });
+        if (resp.accessToken) useAuthStore.getState().setTokens(resp.accessToken);
+      } catch {}
+    }
   }
 
   const themeOptions: { label: string; value: ThemeValue }[] = [
