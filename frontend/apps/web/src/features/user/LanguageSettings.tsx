@@ -1,8 +1,8 @@
 import { useTranslation } from "react-i18next";
 import { Select } from "@/components/ui/Select";
 import { supportedLanguages } from "@/i18n";
-import { useLocaleStore } from "@evey/store";
-import { useUserServiceGetCurrentUser, useUserServiceListProfiles, useUserServiceUpdateProfile, getUserServiceListProfilesQueryKey } from "@evey/api";
+import { useLocaleStore, useAuthStore } from "@evey/store";
+import { useUserServiceGetCurrentUser, useUserServiceListProfiles, useUserServiceUpdateProfile, getUserServiceListProfilesQueryKey, eveyFetch } from "@evey/api";
 import { useQueryClient } from "@tanstack/react-query";
 
 export function LanguageSettings() {
@@ -21,17 +21,20 @@ export function LanguageSettings() {
 
   const current = supportedLanguages.find((l) => i18n.language.startsWith(l.code))?.code ?? "en";
 
-  const handleChange = (code: string) => {
+  const handleChange = async (code: string) => {
     // 1. Update UI language
     void i18n.changeLanguage(code);
     // 2. Update locale store (sent as Accept-Language header)
     setLocale(code);
-    // 3. Update profile locale on server
+    // 3. Update profile locale on server + refresh JWT
     if (defaultProfile?.id) {
-      updateProfile.mutate(
-        { id: defaultProfile.id, data: { locale: code } },
-        { onSuccess: () => { if (user?.id) void qc.invalidateQueries({ queryKey: getUserServiceListProfilesQueryKey(user.id) }); } },
-      );
+      try {
+        await updateProfile.mutateAsync({ id: defaultProfile.id, data: { locale: code } });
+        if (user?.id) void qc.invalidateQueries({ queryKey: getUserServiceListProfilesQueryKey(user.id) });
+        // 4. Refresh token to get new JWT with updated locale
+        const resp = await eveyFetch<{ accessToken?: string }>({ url: "/api/v1/auth/refresh", method: "POST", data: {} });
+        if (resp.accessToken) useAuthStore.getState().setTokens(resp.accessToken);
+      } catch {}
     }
   };
 
