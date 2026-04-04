@@ -1,10 +1,9 @@
-import { Component, type ReactNode } from "react";
+import React, { Component } from "react";
 import { View, Text, Pressable, StyleSheet } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 
 interface Props {
-  children: ReactNode;
-  fallback?: ReactNode;
+  children: React.ReactNode;
 }
 
 interface State {
@@ -12,7 +11,7 @@ interface State {
   error: Error | null;
 }
 
-export class ErrorBoundary extends Component<Props, State> {
+class ErrorBoundaryInner extends Component<Props, State> {
   constructor(props: Props) {
     super(props);
     this.state = { hasError: false, error: null };
@@ -24,7 +23,6 @@ export class ErrorBoundary extends Component<Props, State> {
 
   render() {
     if (this.state.hasError) {
-      if (this.props.fallback) return this.props.fallback;
       return (
         <View style={styles.container}>
           <Ionicons name="alert-circle-outline" size={48} color="#ef4444" />
@@ -44,6 +42,11 @@ export class ErrorBoundary extends Component<Props, State> {
 
     return this.props.children;
   }
+}
+
+// Wrapper to avoid React 19 class component JSX type issues
+export function ErrorBoundary({ children }: { children: React.ReactNode }) {
+  return React.createElement(ErrorBoundaryInner, null, children);
 }
 
 const styles = StyleSheet.create({

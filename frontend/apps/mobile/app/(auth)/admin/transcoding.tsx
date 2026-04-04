@@ -50,10 +50,10 @@ export default function AdminTranscodingScreen() {
           )}
         </View>
         <Text style={{ color: theme.colors.textMuted, fontSize: 12 }}>
-          {[item.resolution, item.videoCodec, item.audioCodec, item.hwAccel !== "HW_ACCEL_TYPE_NONE" ? item.hwAccel?.replace("HW_ACCEL_TYPE_", "") : null].filter(Boolean).join(" · ")}
+          {[(item as any).resolution, item.videoCodec, item.audioCodec, item.hwAccel !== "HW_ACCEL_TYPE_NONE" ? item.hwAccel?.replace("HW_ACCEL_TYPE_", "") : null].filter(Boolean).join(" · ")}
         </Text>
-        {item.maxBitrateKbps ? (
-          <Text style={{ color: theme.colors.textMuted, fontSize: 11 }}>{item.maxBitrateKbps} kbps</Text>
+        {item.maxBitrate ? (
+          <Text style={{ color: theme.colors.textMuted, fontSize: 11 }}>{item.maxBitrate} kbps</Text>
         ) : null}
       </View>
       <Pressable onPress={() => handleDelete(item)} hitSlop={8}>

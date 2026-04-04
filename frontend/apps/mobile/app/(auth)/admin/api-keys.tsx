@@ -9,21 +9,16 @@ import {
   useUserServiceCreateAPIKey,
   useUserServiceRevokeAPIKey,
   getUserServiceListAPIKeysQueryKey,
-  useUserServiceGetCurrentUser,
 } from "@evey/api";
 import { toast } from "@evey/store";
 import { useTheme } from "../../../src/providers/ThemeProvider";
-import * as Clipboard from "expo-clipboard";
 
 export default function AdminAPIKeysScreen() {
   const theme = useTheme();
   const { t } = useTranslation();
   const qc = useQueryClient();
-  const { data: user } = useUserServiceGetCurrentUser();
-  const userId = user?.id ?? "";
-
-  const { data, isLoading, refetch } = useUserServiceListAPIKeys(userId, { query: { enabled: !!userId } });
-  const keys = data?.apiKeys ?? [];
+  const { data, isLoading, refetch } = useUserServiceListAPIKeys();
+  const keys = (data as any)?.apiKeys ?? [];
 
   const [showCreate, setShowCreate] = useState(false);
   const [keyName, setKeyName] = useState("");
@@ -31,11 +26,11 @@ export default function AdminAPIKeysScreen() {
 
   const createKey = useUserServiceCreateAPIKey({
     mutation: {
-      onSuccess: async (data) => {
-        const key = (data as any)?.key ?? (data as any)?.apiKey?.key;
+      onSuccess: async (resp: unknown) => {
+        const key = (resp as any)?.key ?? (resp as any)?.apiKey?.key;
         if (key) setNewKey(key);
         toast.success("API key created");
-        await qc.invalidateQueries({ queryKey: getUserServiceListAPIKeysQueryKey(userId) });
+        await qc.invalidateQueries({ queryKey: getUserServiceListAPIKeysQueryKey() });
       },
       onError: () => toast.error("Failed to create key"),
     },
@@ -45,26 +40,26 @@ export default function AdminAPIKeysScreen() {
     mutation: {
       onSuccess: async () => {
         toast.success("Key revoked");
-        await qc.invalidateQueries({ queryKey: getUserServiceListAPIKeysQueryKey(userId) });
+        await qc.invalidateQueries({ queryKey: getUserServiceListAPIKeysQueryKey() });
       },
     },
   });
 
   const handleCreate = useCallback(async () => {
-    if (!keyName.trim() || !userId) return;
+    if (!keyName.trim()) return;
     try {
-      await createKey.mutateAsync({ id: userId, data: { name: keyName.trim() } });
+      await createKey.mutateAsync({ data: { name: keyName.trim() } });
       setKeyName("");
       setShowCreate(false);
     } catch {}
-  }, [keyName, userId, createKey]);
+  }, [keyName, createKey]);
 
   const handleRevoke = useCallback((keyId: string, name: string) => {
     Alert.alert("Revoke Key", `Revoke "${name}"?`, [
       { text: "Cancel", style: "cancel" },
-      { text: "Revoke", style: "destructive", onPress: () => revokeKey.mutate({ id: userId, apiKeyId: keyId }) },
+      { text: "Revoke", style: "destructive", onPress: () => revokeKey.mutate({ id: keyId }) },
     ]);
-  }, [revokeKey, userId]);
+  }, [revokeKey]);
 
   return (
     <View style={{ flex: 1, backgroundColor: theme.colors.bg }}>
@@ -118,12 +113,9 @@ export default function AdminAPIKeysScreen() {
             <View style={[styles.keyModal, { backgroundColor: theme.colors.surface, borderRadius: theme.radii.lg }]}>
               <Text style={{ color: theme.colors.text, fontSize: 16, fontWeight: "700", marginBottom: 8 }}>New API Key</Text>
               <Text style={{ color: theme.colors.textMuted, fontSize: 12, marginBottom: 12 }}>Copy this key now. It won't be shown again.</Text>
-              <Pressable
-                onPress={async () => { await Clipboard.setStringAsync(newKey); toast.success("Copied"); }}
-                style={{ backgroundColor: theme.colors.bg, padding: 12, borderRadius: theme.radii.sm }}
-              >
+              <View style={{ backgroundColor: theme.colors.bg, padding: 12, borderRadius: theme.radii.sm }}>
                 <Text style={{ color: theme.colors.text, fontFamily: "monospace", fontSize: 12 }} selectable>{newKey}</Text>
-              </Pressable>
+              </View>
               <Pressable onPress={() => setNewKey(null)} style={{ marginTop: 16, alignSelf: "center" }}>
                 <Text style={{ color: theme.colors.accent, fontWeight: "600" }}>Done</Text>
               </Pressable>

@@ -116,6 +116,12 @@ export default function MusicScreen() {
   const playTrack = useMusicQueueStore((s) => s.playTrack);
   const removeFromQueue = useMusicQueueStore((s) => s.removeFromQueue);
 
+  const { data: libraries, isLoading: libLoading } = useMusicLibraries();
+  const activeLibraryID = selectedLibraryID ?? libraries?.[0]?.id;
+  const { data: tracks, isLoading: tracksLoading } = useMusicTracks(activeLibraryID);
+  const { data: albums, isLoading: albumsLoading } = useMusicAlbums(activeLibraryID);
+  const { data: artists, isLoading: artistsLoading } = useMusicArtists(activeLibraryID);
+
   const handlePlayTrack = useCallback((index: number) => {
     const allTracks = (tracks ?? []).map((t): QueueTrack => ({
       id: t.ID,
@@ -126,12 +132,6 @@ export default function MusicScreen() {
     }));
     setQueue(allTracks, index);
   }, [tracks, setQueue]);
-
-  const { data: libraries, isLoading: libLoading } = useMusicLibraries();
-  const activeLibraryID = selectedLibraryID ?? libraries?.[0]?.id;
-  const { data: tracks, isLoading: tracksLoading } = useMusicTracks(activeLibraryID);
-  const { data: albums, isLoading: albumsLoading } = useMusicAlbums(activeLibraryID);
-  const { data: artists, isLoading: artistsLoading } = useMusicArtists(activeLibraryID);
 
   const albumArtUri = useCallback(
     (albumID: string) => (serverUrl ? `${serverUrl}/api/v1/music/albums/${albumID}/artwork` : undefined),

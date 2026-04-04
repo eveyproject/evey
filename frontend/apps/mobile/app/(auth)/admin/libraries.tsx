@@ -43,8 +43,8 @@ export default function AdminLibrariesScreen() {
 
   const renderLibrary = useCallback(({ item }: { item: V1Library }) => {
     const icon = TYPE_ICONS[item.type ?? ""] ?? "folder-outline";
-    const lastScan = item.lastScannedAt
-      ? new Date(item.lastScannedAt).toLocaleDateString(undefined, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })
+    const lastScan = (item as any).lastScannedAt
+      ? new Date((item as any).lastScannedAt).toLocaleDateString(undefined, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })
       : "Never";
 
     return (

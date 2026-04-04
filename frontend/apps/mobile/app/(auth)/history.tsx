@@ -126,7 +126,7 @@ export default function HistoryScreen() {
   const [allItems, setAllItems] = useState<V1WatchProgress[]>([]);
   const [hasMore, setHasMore] = useState(true);
 
-  const { data, isLoading, isFetching, refetch } = usePlaybackServiceGetWatchHistory({ limit: PAGE_SIZE, offset: (page - 1) * PAGE_SIZE });
+  const { data, isLoading, isFetching, refetch } = usePlaybackServiceGetWatchHistory({ "pagination.page": page, "pagination.pageSize": PAGE_SIZE });
 
   useEffect(() => {
     if (!data?.items) return;

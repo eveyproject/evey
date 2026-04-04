@@ -16,7 +16,13 @@ import {
   useFeedServiceUpdateProfileFeedConfig,
   getLibraryServiceGetMediaItemQueryOptions,
 } from "@evey/api";
-import type { V1MediaItem, V1MergedFeedConfig } from "@evey/api";
+import type { V1MediaItem } from "@evey/api";
+
+interface FeedConfig {
+  feedType?: string;
+  enabled?: boolean;
+  displayOrder?: number;
+}
 import { useAuthStore } from "@evey/store";
 import { useTheme } from "../../../src/providers/ThemeProvider";
 import { MediaRow } from "../../../src/components/MediaRow";
@@ -243,7 +249,7 @@ function FeedCustomizeModal({
 }: {
   visible: boolean;
   onClose: () => void;
-  configs: V1MergedFeedConfig[];
+  configs: FeedConfig[];
   profileId: string;
 }) {
   const theme = useTheme();
@@ -251,7 +257,7 @@ function FeedCustomizeModal({
   const qc = useQueryClient();
   const updateFeed = useFeedServiceUpdateProfileFeedConfig();
 
-  const [local, setLocal] = useState<V1MergedFeedConfig[]>([]);
+  const [local, setLocal] = useState<FeedConfig[]>([]);
 
   useEffect(() => {
     if (visible) {

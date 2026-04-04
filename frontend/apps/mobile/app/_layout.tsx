@@ -36,6 +36,7 @@ export default function RootLayout() {
   if (!ready) return null;
 
   return (
+    // @ts-expect-error React 19 dual @types/react versions
     <ErrorBoundary>
       <QueryClientProvider client={queryClient}>
         <SafeAreaProvider>

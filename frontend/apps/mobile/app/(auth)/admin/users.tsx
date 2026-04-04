@@ -80,7 +80,7 @@ export default function AdminUsersScreen() {
 
   const handleToggleDisable = useCallback((user: V1User) => {
     if (!user.id) return;
-    disableUser.mutate({ id: user.id, params: { disabled: !user.disabled } });
+    disableUser.mutate({ id: user.id, params: { disabled: !(user as any).disabled } });
   }, [disableUser]);
 
   const renderUser = useCallback(({ item }: { item: V1User }) => (
@@ -96,7 +96,7 @@ export default function AdminUsersScreen() {
               <Text style={{ color: "#fff", fontSize: 9, fontWeight: "700" }}>ADMIN</Text>
             </View>
           )}
-          {item.disabled && (
+          {(item as any).disabled && (
             <View style={{ backgroundColor: theme.colors.textMuted, borderRadius: 4, paddingHorizontal: 4, paddingVertical: 1 }}>
               <Text style={{ color: "#fff", fontSize: 9, fontWeight: "700" }}>DISABLED</Text>
             </View>
@@ -105,7 +105,7 @@ export default function AdminUsersScreen() {
         <Text style={{ color: theme.colors.textMuted, fontSize: 12 }}>{item.email || "—"}</Text>
       </View>
       <Pressable onPress={() => handleToggleDisable(item)} hitSlop={8} style={{ padding: 4 }}>
-        <Ionicons name={item.disabled ? "eye-off-outline" : "eye-outline"} size={18} color={theme.colors.textMuted} />
+        <Ionicons name={(item as any).disabled ? "eye-off-outline" : "eye-outline"} size={18} color={theme.colors.textMuted} />
       </Pressable>
       <Pressable onPress={() => handleDelete(item)} hitSlop={8} style={{ padding: 4 }}>
         <Ionicons name="trash-outline" size={18} color="#ef4444" />
