@@ -1,7 +1,8 @@
-import { useState } from "react";
-import { Clock, Film } from "lucide-react";
+import { useState, useCallback } from "react";
+import { Clock, Film, Download } from "lucide-react";
 import { createLazyFileRoute } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
+import { eveyFetch } from "@evey/api";
 import {
   useActivityServiceGetPlayHistory,
   useActivityServiceGetServerStats,
@@ -247,9 +248,38 @@ function StatsTab() {
   );
 }
 
+function downloadJSON(data: unknown, filename: string) {
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
 function ActivityPage() {
   const { t } = useTranslation();
   const [tab, setTab] = useState<Tab>("play");
+  const [exporting, setExporting] = useState(false);
+
+  const handleExport = useCallback(async () => {
+    setExporting(true);
+    try {
+      const timestamp = new Date().toISOString().slice(0, 10);
+      if (tab === "play") {
+        const data = await eveyFetch<unknown>({ url: "/api/v1/activity/play-history?pagination.pageSize=10000", method: "GET" });
+        downloadJSON(data, `play-history-${timestamp}.json`);
+      } else if (tab === "audit") {
+        const data = await eveyFetch<unknown>({ url: "/api/v1/admin/audit?limit=10000", method: "GET" });
+        downloadJSON(data, `audit-log-${timestamp}.json`);
+      } else {
+        const data = await eveyFetch<unknown>({ url: "/api/v1/activity/stats", method: "GET" });
+        downloadJSON(data, `server-stats-${timestamp}.json`);
+      }
+    } catch { /* ignore */ }
+    setExporting(false);
+  }, [tab]);
 
   const tabs: Array<{ id: Tab; label: string }> = [
     { id: "play", label: t("admin.activity.tabs.playHistory") },
@@ -261,8 +291,9 @@ function ActivityPage() {
     <div className="flex flex-col gap-6">
       <PageHeader title={t("admin.activity.title")} />
 
-      <div className="flex gap-1 p-1 rounded-[var(--radius-md)] self-start bg-[var(--surface)] border border-[var(--border)]">
-        {tabs.map(({ id, label }) => (
+      <div className="flex items-center gap-3">
+        <div className="flex gap-1 p-1 rounded-[var(--radius-md)] bg-[var(--surface)] border border-[var(--border)]">
+          {tabs.map(({ id, label }) => (
           <button
             key={id}
             onClick={() => setTab(id)}
@@ -275,6 +306,16 @@ function ActivityPage() {
             {label}
           </button>
         ))}
+        </div>
+        <button
+          onClick={handleExport}
+          disabled={exporting}
+          className="flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-[var(--radius-sm)] text-[var(--text-muted)] hover:text-[var(--text)] hover:bg-[var(--surface)] transition-colors-fast disabled:opacity-50"
+          title={t("common.export") || "Export JSON"}
+        >
+          <Download size={14} />
+          JSON
+        </button>
       </div>
 
       {tab === "play" && <PlayHistoryTab />}

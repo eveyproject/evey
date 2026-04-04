@@ -12,6 +12,18 @@ interface AuditLogTableProps {
   pageSize: number;
 }
 
+function formatDetails(raw?: string): string {
+  if (!raw) return "";
+  try {
+    const obj = JSON.parse(raw);
+    return Object.entries(obj)
+      .map(([k, v]) => `${k.replace(/_/g, " ")}: ${v}`)
+      .join(", ");
+  } catch {
+    return raw;
+  }
+}
+
 export function AuditLogTable({
   entries,
   total = 0,
@@ -60,13 +72,13 @@ export function AuditLogTable({
                     {entry.username ?? entry.userId ?? "\u2014"}
                   </td>
                   <td className="px-4 py-2 whitespace-nowrap text-[var(--text)]">
-                    {entry.action ?? "\u2014"}
+                    {entry.action?.replace(/_/g, " ") ?? "\u2014"}
                   </td>
                   <td className="px-4 py-2 whitespace-nowrap text-[var(--text-muted)]">
-                    {entry.resourceType ? `${entry.resourceType}/${entry.resourceId ?? ""}` : "\u2014"}
+                    {entry.resourceType ? `${entry.resourceType}${entry.resourceId ? ` #${entry.resourceId.slice(0, 8)}` : ""}` : "\u2014"}
                   </td>
-                  <td className="px-4 py-2 max-w-xs truncate text-[var(--text-muted)]">
-                    {entry.details ?? "\u2014"}
+                  <td className="px-4 py-2 max-w-xs truncate text-[var(--text-muted)]" title={entry.details ?? ""}>
+                    {formatDetails(entry.details) || "\u2014"}
                   </td>
                   <td className="px-4 py-2 whitespace-nowrap text-[var(--text-muted)]">
                     {entry.ipAddress ?? "\u2014"}
