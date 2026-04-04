@@ -2,7 +2,7 @@ import { useState, useCallback } from "react";
 import { View, Text, ScrollView, Pressable, StyleSheet } from "react-native";
 import { router } from "expo-router";
 import { useTranslation } from "react-i18next";
-import { useUserServiceGetCurrentUser, useAdminServiceGetSystemInfo } from "@evey/api";
+import { useUserServiceGetCurrentUser, useUserServiceListProfiles, useUserServiceUpdateProfile, useAdminServiceGetSystemInfo, eveyFetch } from "@evey/api";
 import { useAuthStore, useThemeStore, useLocaleStore } from "@evey/store";
 import { useTheme } from "../../../src/providers/ThemeProvider";
 import { useServerUrlNullable } from "../../../src/hooks/useServerUrl";
@@ -25,14 +25,24 @@ export default function SettingsScreen() {
   const serverUrl = useServerUrlNullable();
 
   const { data: user } = useUserServiceGetCurrentUser();
+  const { data: profilesResp } = useUserServiceListProfiles(user?.id ?? "", { query: { enabled: !!user?.id } });
+  const defaultProfile = profilesResp?.profiles?.find((p: any) => p.isDefault) ?? profilesResp?.profiles?.[0];
+  const updateProfile = useUserServiceUpdateProfile();
   const { data: systemInfo } = useAdminServiceGetSystemInfo();
 
   const [focusedItem, setFocusedItem] = useState<string | null>(null);
   const currentLang = i18n.language;
 
-  function handleLanguageChange(code: string) {
+  async function handleLanguageChange(code: string) {
     setLocale(code);
-    i18n.changeLanguage(code);
+    void i18n.changeLanguage(code);
+    if (defaultProfile?.id) {
+      try {
+        await updateProfile.mutateAsync({ id: defaultProfile.id, data: { locale: code } });
+        const resp = await eveyFetch<{ accessToken?: string }>({ url: "/api/v1/auth/refresh", method: "POST", data: {} });
+        if (resp.accessToken) useAuthStore.getState().setTokens(resp.accessToken);
+      } catch {}
+    }
   }
 
   async function handleChangeServer() {
