@@ -38,6 +38,19 @@ interface Photo {
   Album: string;
 }
 
+interface PhotoDetail {
+  ID: string;
+  Title: string;
+  FilePath: string;
+  FileSize: number;
+  MimeType: string;
+  Width: number;
+  Height: number;
+  TakenAt: string;
+  CameraModel: string;
+  Album: string;
+}
+
 const NUM_PHOTO_COLS = 3;
 const NUM_ALBUM_COLS = 2;
 const SPACING = 2;
@@ -64,6 +77,21 @@ function useAlbums(libraryID: string | undefined) {
   });
 }
 
+function usePhotoDetail(photoId: string | undefined) {
+  return useQuery({
+    queryKey: ["photos", "detail", photoId],
+    queryFn: () => eveyFetch<PhotoDetail>({ url: `/api/v1/photos/${photoId}`, method: "GET" }),
+    enabled: !!photoId,
+    staleTime: 60_000,
+  });
+}
+
+function formatFileSize(bytes: number): string {
+  if (bytes >= 1_073_741_824) return `${(bytes / 1_073_741_824).toFixed(1)} GB`;
+  if (bytes >= 1_048_576) return `${(bytes / 1_048_576).toFixed(1)} MB`;
+  return `${(bytes / 1024).toFixed(0)} KB`;
+}
+
 function usePhotos(libraryID: string | undefined) {
   return useQuery({
     queryKey: ["photos", "list", libraryID],
@@ -86,6 +114,7 @@ export default function PhotosScreen() {
   const activeLibraryID = selectedLibraryID ?? libraries?.[0]?.id;
   const { data: albums, isLoading: albumsLoading } = useAlbums(activeLibraryID);
   const { data: photos, isLoading: photosLoading } = usePhotos(activeLibraryID);
+  const { data: photoDetail } = usePhotoDetail(lightboxPhoto?.ID);
 
   const photoUrl = useCallback(
     (id: string) => (serverUrl ? `${serverUrl}/api/v1/photos/${id}/original` : undefined),
@@ -254,6 +283,22 @@ export default function PhotosScreen() {
           {lightboxPhoto && (
             <View style={styles.lightboxMeta}>
               <Text style={styles.lightboxTitle} numberOfLines={1}>{lightboxPhoto.Title || lightboxPhoto.Album || ""}</Text>
+              {photoDetail && (
+                <View style={{ gap: 2, marginTop: 6, alignItems: "center" }}>
+                  {photoDetail.Width > 0 && photoDetail.Height > 0 && (
+                    <Text style={styles.lightboxInfo}>{photoDetail.Width} x {photoDetail.Height}</Text>
+                  )}
+                  {photoDetail.FileSize > 0 && (
+                    <Text style={styles.lightboxInfo}>{formatFileSize(photoDetail.FileSize)}</Text>
+                  )}
+                  {photoDetail.TakenAt && (
+                    <Text style={styles.lightboxInfo}>{new Date(photoDetail.TakenAt).toLocaleDateString(undefined, { year: "numeric", month: "long", day: "numeric", hour: "2-digit", minute: "2-digit" })}</Text>
+                  )}
+                  {photoDetail.CameraModel && (
+                    <Text style={styles.lightboxInfo}>{photoDetail.CameraModel}</Text>
+                  )}
+                </View>
+              )}
             </View>
           )}
         </Pressable>
@@ -302,5 +347,9 @@ const styles = StyleSheet.create({
     color: "#fff",
     fontSize: 14,
     fontWeight: "500",
+  },
+  lightboxInfo: {
+    color: "rgba(255,255,255,0.6)",
+    fontSize: 12,
   },
 });
