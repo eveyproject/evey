@@ -1,19 +1,35 @@
-import { useState, useEffect, useMemo } from "react";
-import { View, Text, TextInput, Pressable, ActivityIndicator, Alert, StyleSheet } from "react-native";
+import { useState, useEffect, useMemo, useCallback } from "react";
+import { View, Text, TextInput, Pressable, FlatList, ActivityIndicator, Alert, StyleSheet } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import { setServerUrl, getServerUrl } from "../src/lib/server-config";
 import { initFetcher } from "../src/lib/fetcher-setup";
 import { initI18n } from "../src/i18n";
 import { useTheme } from "../src/providers/ThemeProvider";
+import { scanLocalNetwork } from "../src/lib/network-scan";
 
 export default function ServerConnect() {
   const theme = useTheme();
   const [url, setUrl] = useState("");
   const [loading, setLoading] = useState(false);
+  const [scanning, setScanning] = useState(false);
+  const [discovered, setDiscovered] = useState<{ url: string; version?: string }[]>([]);
 
-  // Pre-fill with saved URL if any
   useEffect(() => {
     getServerUrl().then((saved) => { if (saved) setUrl(saved); });
+  }, []);
+
+  const handleScan = useCallback(async () => {
+    setScanning(true);
+    setDiscovered([]);
+    const found = new Set<string>();
+    await scanLocalNetwork((server) => {
+      if (!found.has(server.url)) {
+        found.add(server.url);
+        setDiscovered((prev) => [...prev, server]);
+      }
+    });
+    setScanning(false);
   }, []);
 
   const inputStyle = useMemo(() => ({
@@ -99,6 +115,48 @@ export default function ServerConnect() {
           <Text style={{ color: "#fff", fontWeight: "600", fontSize: 16 }}>Connect</Text>
         )}
       </Pressable>
+
+      <Pressable
+        onPress={handleScan}
+        disabled={scanning}
+        style={{ marginTop: theme.spacing.md, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6 }}
+      >
+        {scanning ? (
+          <ActivityIndicator color={theme.colors.accent} size="small" />
+        ) : (
+          <Ionicons name="wifi-outline" size={16} color={theme.colors.accent} />
+        )}
+        <Text style={{ color: theme.colors.accent, fontSize: 14 }}>
+          {scanning ? "Scanning..." : "Scan local network"}
+        </Text>
+      </Pressable>
+
+      {discovered.length > 0 && (
+        <View style={{ marginTop: theme.spacing.md }}>
+          <Text style={{ color: theme.colors.textMuted, fontSize: 12, marginBottom: theme.spacing.sm }}>
+            {discovered.length} server{discovered.length > 1 ? "s" : ""} found
+          </Text>
+          {discovered.map((s) => (
+            <Pressable
+              key={s.url}
+              onPress={() => setUrl(s.url)}
+              style={{
+                flexDirection: "row",
+                alignItems: "center",
+                gap: 8,
+                padding: theme.spacing.sm,
+                backgroundColor: theme.colors.surface,
+                borderRadius: theme.radii.sm,
+                marginBottom: 4,
+              }}
+            >
+              <Ionicons name="server-outline" size={16} color={theme.colors.accent} />
+              <Text style={{ color: theme.colors.text, fontSize: 14, flex: 1 }}>{s.url}</Text>
+              {s.version && <Text style={{ color: theme.colors.textMuted, fontSize: 11 }}>v{s.version}</Text>}
+            </Pressable>
+          ))}
+        </View>
+      )}
     </View>
   );
 }
