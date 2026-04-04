@@ -84,6 +84,13 @@ func (s *CommandService) RefreshMetadata(ctx context.Context, mediaItemID, provi
 	return nil, fmt.Errorf("provider %s not found", providerName)
 }
 
+func (s *CommandService) GetMediaItem(ctx context.Context, id string) (*library.MediaItem, error) {
+	if s.mediaItems == nil {
+		return nil, fmt.Errorf("media items repo not configured")
+	}
+	return s.mediaItems.GetByID(ctx, id)
+}
+
 func (s *CommandService) RefreshItemMetadata(ctx context.Context, mediaItemID, tmdbID, mediaType string) error {
 	if s.enricher == nil || s.mediaItems == nil {
 		return fmt.Errorf("enricher not configured")

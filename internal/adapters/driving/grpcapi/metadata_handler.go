@@ -35,9 +35,30 @@ func (h *metadataHandler) SearchMetadata(ctx context.Context, req *eveyv1.Search
 }
 
 func (h *metadataHandler) RefreshMetadata(req *eveyv1.RefreshMetadataRequest, stream eveyv1.MetadataService_RefreshMetadataServer) error {
-	_, err := h.cmd.RefreshMetadata(stream.Context(), req.MediaItemId, "", req.PreferredProvider, "")
-	if err != nil {
-		return status.Errorf(codes.Internal, "refresh metadata: %v", err)
+	ctx := stream.Context()
+	if req.PreferredProvider != "" {
+		_, err := h.cmd.RefreshMetadata(ctx, req.MediaItemId, "", req.PreferredProvider, "")
+		if err != nil {
+			return status.Errorf(codes.Internal, "refresh metadata: %v", err)
+		}
+	} else {
+		// Auto-detect: look up TMDB ID from the item and do a full re-enrich
+		item, err := h.cmd.GetMediaItem(ctx, req.MediaItemId)
+		if err != nil {
+			return status.Errorf(codes.Internal, "get item: %v", err)
+		}
+		tmdbID := item.ProviderIDs["tmdb"]
+		mediaType := "movie"
+		if item.Type == "series" || item.Type == "season" || item.Type == "episode" {
+			mediaType = "tv"
+		}
+		if tmdbID != "" {
+			if err := h.cmd.RefreshItemMetadata(ctx, req.MediaItemId, tmdbID, mediaType); err != nil {
+				return status.Errorf(codes.Internal, "refresh metadata: %v", err)
+			}
+		} else {
+			return status.Errorf(codes.FailedPrecondition, "no TMDB ID for this item")
+		}
 	}
 	return stream.Send(&eveyv1.RefreshMetadataProgress{
 		MediaItemId: req.MediaItemId,
