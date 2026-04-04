@@ -141,9 +141,9 @@ func (h *libraryHandler) GetMediaItem(ctx context.Context, req *eveyv1.GetMediaI
 			applyOverridesToItem(item, overrides)
 		}
 	}
-	// Overlay translated metadata if user locale != default
+	// Overlay translated metadata (always, including fallback locale — base title may be in another language)
 	locale := eveyi18n.LocaleFromCtx(ctx)
-	if locale != "" && locale != eveyi18n.FallbackLocale {
+	if locale != "" {
 		if trans, tErr := h.query.GetMediaItemTranslation(ctx, req.Id, locale); tErr == nil && trans != nil {
 			if trans.Title != "" {
 				item.Title = trans.Title
