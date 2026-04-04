@@ -24,6 +24,14 @@ func registerGateway(grpcAddr string) http.Handler {
 		runtime.WithMarshalerOption(runtime.MIMEWildcard, &runtime.JSONPb{
 			MarshalOptions: protojson.MarshalOptions{EmitUnpopulated: true},
 		}),
+		runtime.WithIncomingHeaderMatcher(func(key string) (string, bool) {
+			switch key {
+			case "Accept-Language", "X-Locale":
+				return key, true
+			default:
+				return runtime.DefaultHeaderMatcher(key)
+			}
+		}),
 	)
 	for _, fn := range []func(context.Context, *runtime.ServeMux, *grpc.ClientConn) error{
 		eveyv1.RegisterLibraryServiceHandler,

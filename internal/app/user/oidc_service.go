@@ -184,11 +184,18 @@ func (s *OIDCService) HandleCallback(ctx context.Context, code string) (accessTo
 		}
 	}
 
+	var oidcLocale string
+	if defaultProfileID != "" {
+		if prof, pErr := s.profiles.GetByID(ctx, defaultProfileID); pErr == nil && prof != nil {
+			oidcLocale = prof.Locale
+		}
+	}
 	accessToken, err = s.tokens.GenerateAccessToken(domainuser.Claims{
 		UserID:      u.ID,
 		Username:    u.Username,
 		IsAdmin:     u.IsAdmin,
 		ProfileID:   defaultProfileID,
+		Locale:      oidcLocale,
 		Permissions: perms,
 	})
 	if err != nil {

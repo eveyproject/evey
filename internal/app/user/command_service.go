@@ -192,12 +192,19 @@ func (s *CommandService) Login(ctx context.Context, username, password string) (
 			defaultProfileID = profs[0].ID
 		}
 	}
+	var profileLocale string
+	if defaultProfileID != "" {
+		if prof, pErr := s.profiles.GetByID(ctx, defaultProfileID); pErr == nil && prof != nil {
+			profileLocale = prof.Locale
+		}
+	}
 
 	accessToken, err = s.tokens.GenerateAccessToken(user.Claims{
 		UserID:      u.ID,
 		Username:    u.Username,
 		IsAdmin:     u.IsAdmin,
 		ProfileID:   defaultProfileID,
+		Locale:      profileLocale,
 		Permissions: perms,
 	})
 	if err != nil {
@@ -246,12 +253,19 @@ func (s *CommandService) GenerateTokensForUser(ctx context.Context, userID strin
 			defaultProfileID = profs[0].ID
 		}
 	}
+	var profileLocale string
+	if defaultProfileID != "" {
+		if prof, pErr := s.profiles.GetByID(ctx, defaultProfileID); pErr == nil && prof != nil {
+			profileLocale = prof.Locale
+		}
+	}
 
 	accessToken, err = s.tokens.GenerateAccessToken(user.Claims{
 		UserID:      u.ID,
 		Username:    u.Username,
 		IsAdmin:     u.IsAdmin,
 		ProfileID:   defaultProfileID,
+		Locale:      profileLocale,
 		Permissions: perms,
 	})
 	if err != nil {
@@ -319,11 +333,18 @@ func (s *CommandService) RefreshToken(ctx context.Context, token string) (string
 		}
 	}
 
+	var refreshLocale string
+	if defaultProfileID != "" {
+		if prof, pErr := s.profiles.GetByID(ctx, defaultProfileID); pErr == nil && prof != nil {
+			refreshLocale = prof.Locale
+		}
+	}
 	accessToken, err := s.tokens.GenerateAccessToken(user.Claims{
 		UserID:      u.ID,
 		Username:    u.Username,
 		IsAdmin:     u.IsAdmin,
 		ProfileID:   defaultProfileID,
+		Locale:      refreshLocale,
 		Permissions: perms,
 	})
 	if err != nil {

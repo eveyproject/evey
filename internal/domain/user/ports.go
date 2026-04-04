@@ -98,6 +98,7 @@ type Claims struct {
 	Username    string
 	IsAdmin     bool
 	ProfileID   string
+	Locale      string
 	Permissions []string
 }
 

@@ -32,6 +32,7 @@ func (g *JWTGenerator) GenerateAccessToken(claims user.Claims) (string, error) {
 		"username":    claims.Username,
 		"is_admin":    claims.IsAdmin,
 		"profile_id":  claims.ProfileID,
+		"locale":      claims.Locale,
 		"permissions": claims.Permissions,
 		"iat":         now.Unix(),
 		"exp":         now.Add(g.accessTTL).Unix(),
@@ -82,6 +83,9 @@ func (g *JWTGenerator) ValidateAccessToken(tokenStr string) (*user.Claims, error
 	}
 	if pid, ok := mapClaims["profile_id"].(string); ok {
 		claims.ProfileID = pid
+	}
+	if locale, ok := mapClaims["locale"].(string); ok {
+		claims.Locale = locale
 	}
 	if perms, ok := mapClaims["permissions"].([]any); ok {
 		for _, p := range perms {

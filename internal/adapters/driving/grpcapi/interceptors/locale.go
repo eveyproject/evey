@@ -28,10 +28,20 @@ func enrichLocale(ctx context.Context) context.Context {
 	if !ok {
 		return ctx
 	}
+	// Priority: explicit x-locale header > JWT locale claim > Accept-Language header
 	if vals := md.Get("x-locale"); len(vals) > 0 {
 		return i18n.ContextWithLocale(ctx, i18n.ParseLocale(vals[0]))
 	}
+	if vals := md.Get("grpcgateway-x-locale"); len(vals) > 0 {
+		return i18n.ContextWithLocale(ctx, i18n.ParseLocale(vals[0]))
+	}
+	if vals := md.Get("locale"); len(vals) > 0 {
+		return i18n.ContextWithLocale(ctx, i18n.ParseLocale(vals[0]))
+	}
 	if vals := md.Get("accept-language"); len(vals) > 0 {
+		return i18n.ContextWithLocale(ctx, i18n.ParseLocale(vals[0]))
+	}
+	if vals := md.Get("grpcgateway-accept-language"); len(vals) > 0 {
 		return i18n.ContextWithLocale(ctx, i18n.ParseLocale(vals[0]))
 	}
 	return ctx
