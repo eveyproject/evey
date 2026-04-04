@@ -1,5 +1,5 @@
 import { useState, useCallback } from "react";
-import { Clock, Film, Download } from "lucide-react";
+import { Film, Download } from "lucide-react";
 import { createLazyFileRoute } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { eveyFetch } from "@evey/api";
@@ -141,7 +141,6 @@ function PlayHistoryTab() {
 }
 
 function AuditTab() {
-  const { t } = useTranslation();
   const PAGE_SIZE = 25;
   const [page, setPage] = useState(0);
   const { data, isLoading } = useAdminServiceGetAuditLog({
