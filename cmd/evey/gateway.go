@@ -4,6 +4,7 @@ import (
 	"context"
 	"log/slog"
 	"net/http"
+	"strings"
 
 	eveyv1 "github.com/gravity-zero/evey/gen/evey/v1"
 	"github.com/gravity-zero/evey/internal/pkg/network"
@@ -25,9 +26,9 @@ func registerGateway(grpcAddr string) http.Handler {
 			MarshalOptions: protojson.MarshalOptions{EmitUnpopulated: true},
 		}),
 		runtime.WithIncomingHeaderMatcher(func(key string) (string, bool) {
-			switch key {
-			case "Accept-Language", "X-Locale":
-				return key, true
+			switch strings.ToLower(key) {
+			case "accept-language", "x-locale":
+				return strings.ToLower(key), true
 			default:
 				return runtime.DefaultHeaderMatcher(key)
 			}
