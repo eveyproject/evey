@@ -7,6 +7,7 @@ import { setZustandStorage } from "@evey/store";
 import { queryClient } from "../src/lib/query-client";
 import { ThemeProvider } from "../src/providers/ThemeProvider";
 import { ToastContainer } from "../src/components/ToastContainer";
+import { ErrorBoundary } from "../src/components/ErrorBoundary";
 import { initFetcher } from "../src/lib/fetcher-setup";
 import { getServerUrl } from "../src/lib/server-config";
 import { initI18n } from "../src/i18n";
@@ -35,13 +36,15 @@ export default function RootLayout() {
   if (!ready) return null;
 
   return (
-    <QueryClientProvider client={queryClient}>
-      <SafeAreaProvider>
-        <ThemeProvider>
-          <Stack screenOptions={{ headerShown: false }} />
-          <ToastContainer />
-        </ThemeProvider>
-      </SafeAreaProvider>
-    </QueryClientProvider>
+    <ErrorBoundary>
+      <QueryClientProvider client={queryClient}>
+        <SafeAreaProvider>
+          <ThemeProvider>
+            <Stack screenOptions={{ headerShown: false }} />
+            <ToastContainer />
+          </ThemeProvider>
+        </SafeAreaProvider>
+      </QueryClientProvider>
+    </ErrorBoundary>
   );
 }
