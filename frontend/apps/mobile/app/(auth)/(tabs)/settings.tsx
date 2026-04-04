@@ -284,6 +284,15 @@ export default function SettingsScreen() {
         </Pressable>
       </View>
 
+      {/* API Keys */}
+      <Text style={s.sectionTitle}>API Keys</Text>
+      <View style={s.section}>
+        <Pressable style={s.row} onPress={() => router.push("/admin/api-keys")} accessible accessibilityLabel="API Keys" accessibilityRole="button">
+          <Text style={s.label}>API Keys</Text>
+          <ChevronRight color={theme.colors.textMuted} />
+        </Pressable>
+      </View>
+
       {/* Devices */}
       <Text style={s.sectionTitle}>{t("auth.devices.title")}</Text>
       <View style={s.section}>
