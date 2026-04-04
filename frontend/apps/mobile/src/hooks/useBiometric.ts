@@ -1,5 +1,4 @@
 import { useState, useEffect, useCallback } from "react";
-// @ts-expect-error types available after pnpm install
 import * as LocalAuthentication from "expo-local-authentication";
 import * as SecureStore from "expo-secure-store";
 
