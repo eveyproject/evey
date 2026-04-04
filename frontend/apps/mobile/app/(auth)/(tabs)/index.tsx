@@ -224,21 +224,22 @@ const heroStyles = StyleSheet.create({
 });
 
 const FEED_TYPES = [
-  "FEED_TYPE_RESUME_PLAYBACK",
-  "FEED_TYPE_NEXT_UP",
-  "FEED_TYPE_COLLECTIONS",
-  "FEED_TYPE_RECOMMENDED",
-  "FEED_TYPE_MOST_POPULAR",
-  "FEED_TYPE_RECENTLY_ADDED",
+  "resume_playback",
+  "next_episode",
+  "collections",
+  "recommended",
+  "most_popular",
+  "recently_added",
 ] as const;
 
 const FEED_LABELS: Record<string, string> = {
-  FEED_TYPE_RESUME_PLAYBACK: "common.feeds.labels.resume_playback",
-  FEED_TYPE_NEXT_UP: "media.home.upNext",
-  FEED_TYPE_COLLECTIONS: "media.home.collections",
-  FEED_TYPE_RECOMMENDED: "media.home.recommendedForYou",
-  FEED_TYPE_MOST_POPULAR: "media.home.mostPopular",
-  FEED_TYPE_RECENTLY_ADDED: "media.home.recentlyAdded",
+  resume_playback: "common.feeds.labels.resume_playback",
+  continue_watching: "common.feeds.labels.resume_playback",
+  next_episode: "media.home.upNext",
+  collections: "media.home.collections",
+  recommended: "media.home.recommendedForYou",
+  most_popular: "media.home.mostPopular",
+  recently_added: "media.home.recentlyAdded",
 };
 
 function FeedCustomizeModal({
@@ -436,19 +437,24 @@ export default function HomeScreen() {
 
   function renderSection(feedType: string) {
     switch (feedType) {
-      case "FEED_TYPE_RESUME_PLAYBACK":
+      case "resume_playback":
+      case "continue_watching":
         return <MediaRow key={feedType} title={t("common.feeds.labels.resume_playback")} items={resume.data?.items ?? []} onItemPress={handleItemPress} watchPercents={watchPercents} />;
-      case "FEED_TYPE_NEXT_UP":
+      case "next_episode":
         return <MediaRow key={feedType} title={t("media.home.upNext")} items={nextUp.data?.items ?? []} onItemPress={handleItemPress} />;
-      case "FEED_TYPE_COLLECTIONS":
+      case "collections":
         return <CollectionRow key={feedType} title={t("media.home.collections")} collections={collections.data?.collections ?? []} />;
-      case "FEED_TYPE_RECOMMENDED":
+      case "recommended":
         return <MediaRow key={feedType} title={t("media.home.recommendedForYou")} items={recommendedItems} onItemPress={handleItemPress} />;
-      case "FEED_TYPE_MOST_POPULAR":
+      case "most_popular":
         return <MediaRow key={feedType} title={t("media.home.mostPopular")} items={popularItems} onItemPress={handleItemPress} />;
-      case "FEED_TYPE_RECENTLY_ADDED":
+      case "recently_added":
         return <MediaRow key={feedType} title={t("media.home.recentlyAdded")} items={recentItems} onItemPress={handleItemPress} />;
       default:
+        // Library-specific feeds (library:lib-xxx)
+        if (feedType.startsWith("library:")) {
+          return null; // TODO: render library-specific row
+        }
         return null;
     }
   }

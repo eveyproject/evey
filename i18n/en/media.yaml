@@ -12,6 +12,8 @@ home:
   mostPopular: Most Popular
   recommendedForYou: Recommended For You
   collections: Collections
+  customize: Customize
+  customizeFeed: Customize Feed
   emptyLibrary: Your library is empty
   emptyLibraryDesc: "Go to Admin \u2192 Libraries to add a media folder."
   goToLibraries: Go to Libraries
