@@ -360,6 +360,10 @@ func (e *Enricher) linkCollection(ctx context.Context, mediaItemID string, ref *
 	}
 }
 
+func (e *Enricher) EnrichTranslationsForItem(ctx context.Context, item *domainlib.MediaItem, providerID, mediaType string) {
+	e.enrichTranslations(ctx, item, providerID, mediaType)
+}
+
 func (e *Enricher) enrichTranslations(ctx context.Context, item *domainlib.MediaItem, providerID, mediaType string) {
 	if e.mediaTranslations == nil || len(e.translationLocales) == 0 {
 		return

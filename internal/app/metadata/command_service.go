@@ -84,6 +84,33 @@ func (s *CommandService) RefreshMetadata(ctx context.Context, mediaItemID, provi
 	return nil, fmt.Errorf("provider %s not found", providerName)
 }
 
+func (s *CommandService) RefreshAllTranslations(ctx context.Context, onProgress func(done, total int)) error {
+	if s.enricher == nil || s.mediaItems == nil {
+		return fmt.Errorf("enricher not configured")
+	}
+	items, err := s.mediaItems.List(ctx, library.ListMediaItemsFilter{})
+	if err != nil {
+		return fmt.Errorf("list all items: %w", err)
+	}
+	total := len(items)
+	for i, itemPtr := range items {
+		item := itemPtr
+		tmdbID, ok := item.ProviderIDs["tmdb"]
+		if !ok || tmdbID == "" {
+			continue
+		}
+		mediaType := "movie"
+		if item.Type == "series" || item.Type == "season" || item.Type == "episode" {
+			mediaType = "tv"
+		}
+		s.enricher.EnrichTranslationsForItem(ctx, item, tmdbID, mediaType)
+		if onProgress != nil {
+			onProgress(i+1, total)
+		}
+	}
+	return nil
+}
+
 func (s *CommandService) GetMediaItem(ctx context.Context, id string) (*library.MediaItem, error) {
 	if s.mediaItems == nil {
 		return nil, fmt.Errorf("media items repo not configured")

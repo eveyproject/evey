@@ -2,6 +2,7 @@ package httpapi
 
 import (
 	"context"
+	"log/slog"
 	"net/http"
 	"net/url"
 	"os"
@@ -285,6 +286,19 @@ func (s *HTTPServer) RegisterRoutes(mux *http.ServeMux, gwMux http.Handler) {
 	registerParentalRoutes(mux, s.ProfileRepo, s.Hasher, s.TokenGen)
 	if s.DataDir != "" {
 		registerAvatarRoutes(mux, s.ProfileRepo, s.TokenGen, s.DataDir)
+	}
+	if s.MetadataCmdSvc != nil {
+		mux.HandleFunc("POST /api/v1/admin/translations/refresh-all", requireAdmin(s.TokenGen, func(w http.ResponseWriter, r *http.Request) {
+			go func() {
+				if err := s.MetadataCmdSvc.RefreshAllTranslations(s.ServerCtx, nil); err != nil {
+					slog.Error("refresh all translations", slog.Any("err", err))
+				} else {
+					slog.Info("refresh all translations complete")
+				}
+			}()
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"status":"started"}`))
+		}))
 	}
 	registerRatingRoutes(mux, s.UserRatingRepo, s.TokenGen, s.LibQuerySvc, s.LibraryAccessRepo)
 	registerStarRatingRoutes(mux, s.StarRatingSvc, s.TokenGen, s.LibQuerySvc, s.LibraryAccessRepo)

@@ -248,6 +248,8 @@ func (f *fakeBulkEnricher) EnrichItem(_ context.Context, _ *library.MediaItem, _
 	return nil
 }
 
+func (f *fakeBulkEnricher) EnrichTranslationsForItem(_ context.Context, _ *library.MediaItem, _, _ string) {}
+
 func (f *fakeBulkEnricher) AutoEnrichAll(_ context.Context, items []*library.MediaItem, _ *slog.Logger) {
 	f.enrichedItems = append(f.enrichedItems, items...)
 }
@@ -334,6 +336,8 @@ type enrichPair struct {
 	item   *library.MediaItem
 	result *metadata.MetadataResult
 }
+
+func (f *fakeItemEnricher) EnrichTranslationsForItem(_ context.Context, _ *library.MediaItem, _, _ string) {}
 
 func (f *fakeItemEnricher) EnrichItem(_ context.Context, item *library.MediaItem, result *metadata.MetadataResult) error {
 	if f.err != nil {
@@ -693,6 +697,7 @@ type fakeBulkSingleEnricher struct {
 func (f *fakeBulkSingleEnricher) EnrichItem(_ context.Context, _ *library.MediaItem, _ *metadata.MetadataResult) error {
 	return nil
 }
+func (f *fakeBulkSingleEnricher) EnrichTranslationsForItem(_ context.Context, _ *library.MediaItem, _, _ string) {}
 
 func (f *fakeBulkSingleEnricher) AutoEnrichAll(_ context.Context, items []*library.MediaItem, _ *slog.Logger) {
 	f.mu.Lock()
