@@ -3,6 +3,8 @@
 
 let getToken: (() => string | null) | null = null;
 let updateTokens: ((access: string) => void) | null = null;
+let getLocale: (() => string) | null = null;
+export function setLocaleProvider(fn: () => string) { getLocale = fn; }
 
 let baseURL = "";
 export function setBaseURL(url: string) { baseURL = url; }
@@ -129,6 +131,8 @@ export async function eveyFetchRaw(request: RawFetcherRequest): Promise<Response
   const token = getToken?.();
   const headers: Record<string, string> = { ...(request.headers ?? {}) };
   if (token) headers["Authorization"] = `Bearer ${token}`;
+  const locale = getLocale?.();
+  if (locale) headers["Accept-Language"] = locale;
   const method = request.method.toUpperCase();
   if (method === "POST" || method === "PUT" || method === "PATCH" || method === "DELETE") {
     const csrf = getCSRFToken();
@@ -151,6 +155,8 @@ export async function eveyFetch<T>(request: FetcherRequest): Promise<T> {
   const token = getToken?.();
   const headers: Record<string, string> = { ...(request.headers ?? {}) };
   if (token) headers["Authorization"] = `Bearer ${token}`;
+  const locale = getLocale?.();
+  if (locale) headers["Accept-Language"] = locale;
   const method = request.method.toUpperCase();
   if (method === "POST" || method === "PUT" || method === "PATCH" || method === "DELETE") {
     const csrf = getCSRFToken();
