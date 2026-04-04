@@ -22,7 +22,7 @@ nav:
   auditLog: "Journal d'audit"
   liveLogs: Logs en direct
   maintenance: Maintenance
-  backupRestore: Sauvegarde et restauration
+  backupRestore: Sauvegarde BDD et restauration
 plugin:
   enabled: Activé
   disabled: Désactivé

@@ -22,7 +22,7 @@ nav:
   auditLog: Audit Log
   liveLogs: Live Logs
   maintenance: Maintenance
-  backupRestore: Backup & Restore
+  backupRestore: Database Backup
 
 plugin:
   enabled: Enabled
@@ -227,7 +227,7 @@ sessions:
   transcode: Transcode
 
 backup:
-  title: Backup & Restore
+  title: Database Backup & Restore
   createBackup: Create Backup
   restoreFromFile: Restore from File
   backupCreated: Backup created
