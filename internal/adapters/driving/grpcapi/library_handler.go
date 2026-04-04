@@ -143,11 +143,6 @@ func (h *libraryHandler) GetMediaItem(ctx context.Context, req *eveyv1.GetMediaI
 	}
 	// Overlay translated metadata if user locale != default
 	locale := eveyi18n.LocaleFromCtx(ctx)
-	if locale == eveyi18n.FallbackLocale {
-		if c := interceptors.ClaimsFromContext(ctx); c != nil && c.Locale != "" {
-			locale = c.Locale
-		}
-	}
 	if locale != "" && locale != eveyi18n.FallbackLocale {
 		if trans, tErr := h.query.GetMediaItemTranslation(ctx, req.Id, locale); tErr == nil && trans != nil {
 			if trans.Title != "" {
