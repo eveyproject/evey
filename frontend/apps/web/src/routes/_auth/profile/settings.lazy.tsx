@@ -4,7 +4,7 @@ import { createLazyFileRoute } from "@tanstack/react-router";
 import { useState, useEffect, useRef } from "react";
 import { useUserServiceGetCurrentUser, useUserServiceUpdateUser, useUserServiceListProfiles, useUserServiceUpdateProfile } from "@evey/api";
 import { getUserServiceGetCurrentUserQueryKey, getUserServiceListProfilesQueryKey } from "@evey/api";
-import { eveyFetch } from "@evey/api";
+import { eveyFetch, eveyFetchRaw } from "@evey/api";
 import { useQueryClient, useMutation } from "@tanstack/react-query";
 import { toast } from "@evey/store";
 import { useTranslation } from "react-i18next";
@@ -37,11 +37,16 @@ function ProfileCard() {
   const { t } = useTranslation();
   const qc = useQueryClient();
   const { data: user } = useUserServiceGetCurrentUser();
+  const { data: profilesResp } = useUserServiceListProfiles(user?.id ?? "", { query: { enabled: !!user?.id } });
+  const defaultProfile = profilesResp?.profiles?.find((p) => p.isDefault) ?? profilesResp?.profiles?.[0];
+
   const [editing, setEditing] = useState(false);
   const [username, setUsername] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPwd, setConfirmPwd] = useState("");
+  const [avatarKey, setAvatarKey] = useState(0);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const updateUser = useUserServiceUpdateUser({
     mutation: {
@@ -69,7 +74,7 @@ function ProfileCard() {
     const data: Record<string, string> = {};
     if (username.trim() !== user.username) data.username = username.trim();
     if (email.trim() !== (user.email ?? "")) data.email = email.trim();
-    if (password) {
+    if (password || confirmPwd) {
       if (password !== confirmPwd) { toast.error(t("auth.settings.account.passwordMismatch")); return; }
       if (password.length < 8) { toast.error(t("auth.settings.account.passwordMin")); return; }
       data.password = password;
@@ -78,18 +83,50 @@ function ProfileCard() {
     updateUser.mutate({ id: user.id, data });
   };
 
+  const handleAvatarClick = () => fileInputRef.current?.click();
+
+  const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !defaultProfile?.id) return;
+    const formData = new FormData();
+    formData.append("avatar", file);
+    try {
+      await eveyFetchRaw({ url: `/api/v1/profiles/${defaultProfile.id}/avatar`, method: "POST", body: formData });
+      setAvatarKey((k) => k + 1);
+      toast.success(t("auth.profile.avatarUpdated") || "Avatar updated");
+    } catch {
+      toast.error(t("auth.profile.avatarFailed") || "Failed to update avatar");
+    }
+  };
+
   const initial = user?.username?.charAt(0).toUpperCase() ?? "U";
   const memberSince = user?.createdAt
     ? new Date(user.createdAt).toLocaleDateString(undefined, { year: "numeric", month: "long" })
+    : null;
+
+  const avatarUrl = defaultProfile?.avatarPath
+    ? `/api/v1/profiles/${defaultProfile.id}/avatar?v=${avatarKey}`
     : null;
 
   return (
     <Card>
       <div className="p-6 flex flex-col gap-4">
         <div className="flex items-center gap-4">
-          <div className="w-14 h-14 rounded-full bg-[var(--accent)] flex items-center justify-center text-[var(--filter-active-text)] text-xl font-bold shrink-0">
-            {initial}
-          </div>
+          <button
+            onClick={handleAvatarClick}
+            className="w-14 h-14 rounded-full bg-[var(--accent)] flex items-center justify-center text-[var(--filter-active-text)] text-xl font-bold shrink-0 relative group cursor-pointer overflow-hidden"
+            aria-label={t("auth.profile.changeAvatar") || "Change avatar"}
+          >
+            {avatarUrl ? (
+              <img src={avatarUrl} alt="" className="w-full h-full object-cover" />
+            ) : (
+              initial
+            )}
+            <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+              <Pencil size={16} className="text-white" />
+            </div>
+          </button>
+          <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handleAvatarUpload} />
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2">
               <p className="text-lg font-semibold text-[var(--text)] truncate">{user?.username ?? "..."}</p>
@@ -113,23 +150,26 @@ function ProfileCard() {
           <div className="flex flex-col gap-3 pt-4 border-t border-[var(--border)]">
             <Input label={t("auth.profile.username")} value={username} onChange={(e) => setUsername(e.target.value)} />
             <Input label={t("auth.profile.email")} value={email} onChange={(e) => setEmail(e.target.value)} />
-            <Input
-              label={t("auth.settings.account.newPassword") + " (" + (t("common.optional") || "optional") + ")"}
-              type="password"
-              autoComplete="new-password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-            />
-            {password.length > 0 && (
-              <Input
-                label={t("auth.settings.account.confirmPassword")}
-                type="password"
-                autoComplete="new-password"
-                value={confirmPwd}
-                onChange={(e) => setConfirmPwd(e.target.value)}
-              />
-            )}
-            <div className="flex gap-2">
+            <div className="border-t border-[var(--border)] pt-3 mt-1">
+              <p className="text-xs text-[var(--text-muted)] mb-2">{t("auth.settings.account.changePasswordDesc")}</p>
+              <div className="flex flex-col gap-3">
+                <Input
+                  label={t("auth.settings.account.newPassword")}
+                  type="password"
+                  autoComplete="new-password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                />
+                <Input
+                  label={t("auth.settings.account.confirmPassword")}
+                  type="password"
+                  autoComplete="new-password"
+                  value={confirmPwd}
+                  onChange={(e) => setConfirmPwd(e.target.value)}
+                />
+              </div>
+            </div>
+            <div className="flex gap-2 pt-1">
               <Button variant="primary" loading={updateUser.isPending} onClick={handleSave}>{t("auth.profile.save")}</Button>
               <Button variant="ghost" onClick={() => setEditing(false)}>{t("auth.profile.cancel")}</Button>
             </div>

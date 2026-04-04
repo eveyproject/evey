@@ -105,6 +105,7 @@ func buildHTTPHandler(gwMux http.Handler, deps *appDeps, cfg *config.Config, sta
 
 		PluginRepo: deps.repos.pluginRepo,
 		PluginSvc:  deps.engagement.pluginInstallerSvc,
+		DataDir:     "/data",
 		PluginDir:   "/data/plugins",
 		WebDir:      cfg.Server.WebDir,
 		BioEnricher: deps.content.enricher,

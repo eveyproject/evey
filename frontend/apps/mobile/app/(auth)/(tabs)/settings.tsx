@@ -1,11 +1,13 @@
 import { useState, useCallback } from "react";
 import { View, Text, ScrollView, Pressable, Alert, TextInput, ActivityIndicator, StyleSheet } from "react-native";
+import { Image } from "expo-image";
 import { Ionicons } from "@expo/vector-icons";
+import * as ImagePicker from "expo-image-picker";
 import { router } from "expo-router";
 import Constants from "expo-constants";
 import { useTranslation } from "react-i18next";
 import { useQueryClient } from "@tanstack/react-query";
-import { useUserServiceGetCurrentUser, useAdminServiceGetSystemInfo, useUserServiceAuthorizeQuickConnect, useUserServiceUpdateUser } from "@evey/api";
+import { useUserServiceGetCurrentUser, useUserServiceListProfiles, useAdminServiceGetSystemInfo, useUserServiceAuthorizeQuickConnect, useUserServiceUpdateUser, eveyFetchRaw } from "@evey/api";
 import { useAuthStore, useThemeStore, useLocaleStore, toast } from "@evey/store";
 import { useTheme } from "../../../src/providers/ThemeProvider";
 import { useServerUrlNullable } from "../../../src/hooks/useServerUrl";
@@ -41,7 +43,10 @@ export default function SettingsScreen() {
   const [confirmPassword, setConfirmPassword] = useState("");
 
   const { data: user } = useUserServiceGetCurrentUser();
+  const { data: profilesResp } = useUserServiceListProfiles(user?.id ?? "", { query: { enabled: !!user?.id } });
+  const defaultProfile = profilesResp?.profiles?.find((p: any) => p.isDefault) ?? profilesResp?.profiles?.[0];
   const { data: systemInfo } = useAdminServiceGetSystemInfo();
+  const [avatarKey, setAvatarKey] = useState(0);
 
   const updateUser = useUserServiceUpdateUser({
     mutation: {
@@ -100,6 +105,31 @@ export default function SettingsScreen() {
     } catch {}
   }, [user, editUsername, editEmail, newPassword, confirmPassword, updateUser, t]);
 
+  const handleAvatarPick = useCallback(async () => {
+    if (!defaultProfile?.id) return;
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: true,
+      aspect: [1, 1],
+      quality: 0.8,
+    });
+    if (result.canceled || !result.assets?.[0]) return;
+    const asset = result.assets[0];
+    const formData = new FormData();
+    formData.append("avatar", {
+      uri: asset.uri,
+      type: asset.mimeType ?? "image/jpeg",
+      name: `avatar.${asset.mimeType?.split("/")[1] ?? "jpg"}`,
+    } as any);
+    try {
+      await eveyFetchRaw({ url: `/api/v1/profiles/${defaultProfile.id}/avatar`, method: "POST", body: formData as any });
+      setAvatarKey((k) => k + 1);
+      toast.success("Avatar updated");
+    } catch {
+      toast.error("Failed to update avatar");
+    }
+  }, [defaultProfile]);
+
   function handleAuthorizeQc() {
     const trimmed = qcCode.trim().toUpperCase();
     if (!trimmed) return;
@@ -145,9 +175,20 @@ export default function SettingsScreen() {
       {/* Profile card */}
       <View style={[s.profileCard, { backgroundColor: theme.colors.surface, borderRadius: theme.radii.md, marginHorizontal: theme.spacing.md, marginTop: theme.spacing.lg }]}>
         <View style={{ flexDirection: "row", alignItems: "center", gap: theme.spacing.md }}>
-          <View style={[s.avatar, { backgroundColor: theme.colors.accent }]}>
-            <Text style={s.avatarText}>{initial}</Text>
-          </View>
+          <Pressable onPress={handleAvatarPick} style={[s.avatar, { backgroundColor: theme.colors.accent }]}>
+            {(defaultProfile as any)?.avatarPath ? (
+              <Image
+                source={{ uri: `${serverUrl}/api/v1/profiles/${defaultProfile?.id}/avatar?v=${avatarKey}` }}
+                style={{ width: 56, height: 56, borderRadius: 28 }}
+                contentFit="cover"
+              />
+            ) : (
+              <Text style={s.avatarText}>{initial}</Text>
+            )}
+            <View style={s.avatarOverlay}>
+              <Ionicons name="camera" size={16} color="#fff" />
+            </View>
+          </Pressable>
           <View style={{ flex: 1 }}>
             <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
               <Text style={{ color: theme.colors.text, fontSize: 18, fontWeight: "700" }}>{user?.username ?? "..."}</Text>
@@ -185,15 +226,19 @@ export default function SettingsScreen() {
               autoCapitalize="none"
               style={s.editInput}
             />
-            <TextInput
-              placeholder={t("auth.settings.account.newPassword") + " (" + (t("common.optional") || "optional") + ")"}
-              placeholderTextColor={theme.colors.textMuted}
-              value={newPassword}
-              onChangeText={setNewPassword}
-              secureTextEntry
-              style={s.editInput}
-            />
-            {newPassword.length > 0 && (
+            <View style={{ borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: theme.colors.border, paddingTop: theme.spacing.sm, marginTop: theme.spacing.xs }}>
+              <Text style={{ color: theme.colors.textMuted, fontSize: 12, marginBottom: theme.spacing.sm }}>
+                {t("auth.settings.account.changePasswordDesc")}
+              </Text>
+              <TextInput
+                placeholder={t("auth.settings.account.newPassword")}
+                placeholderTextColor={theme.colors.textMuted}
+                value={newPassword}
+                onChangeText={setNewPassword}
+                secureTextEntry
+                style={s.editInput}
+              />
+              <View style={{ height: theme.spacing.sm }} />
               <TextInput
                 placeholder={t("auth.settings.account.confirmPassword")}
                 placeholderTextColor={theme.colors.textMuted}
@@ -202,7 +247,7 @@ export default function SettingsScreen() {
                 secureTextEntry
                 style={s.editInput}
               />
-            )}
+            </View>
             <Pressable
               onPress={handleSaveAccount}
               disabled={updateUser.isPending}
@@ -335,6 +380,7 @@ const sStyles = (t: ReturnType<typeof useTheme>) =>
     profileCard: { padding: t.spacing.md },
     avatar: { width: 56, height: 56, borderRadius: 28, justifyContent: "center", alignItems: "center" },
     avatarText: { color: "#fff", fontSize: 24, fontWeight: "700" },
+    avatarOverlay: { position: "absolute", bottom: 0, right: 0, width: 22, height: 22, borderRadius: 11, backgroundColor: "rgba(0,0,0,0.6)", justifyContent: "center", alignItems: "center" } as any,
     editInput: {
       backgroundColor: t.colors.bg,
       color: t.colors.text,

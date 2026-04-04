@@ -55,6 +55,7 @@ type HTTPServer struct {
 	Version   string
 	StartTime time.Time
 	LogDir    string
+	DataDir   string
 	HTTPSOnly bool
 
 	// DB is used for liveness checks; may be nil (check skipped).
@@ -282,6 +283,9 @@ func (s *HTTPServer) RegisterRoutes(mux *http.ServeMux, gwMux http.Handler) {
 	registerRemoteAccessRoutes(mux, s.Cfg, s.TokenGen, s.CfgStore, s.AdminWriteRL)
 	registerPlaybackSettingsRoutes(mux, s.Cfg, s.TokenGen, s.AdminWriteRL)
 	registerParentalRoutes(mux, s.ProfileRepo, s.Hasher, s.TokenGen)
+	if s.DataDir != "" {
+		registerAvatarRoutes(mux, s.ProfileRepo, s.TokenGen, s.DataDir)
+	}
 	registerRatingRoutes(mux, s.UserRatingRepo, s.TokenGen, s.LibQuerySvc, s.LibraryAccessRepo)
 	registerStarRatingRoutes(mux, s.StarRatingSvc, s.TokenGen, s.LibQuerySvc, s.LibraryAccessRepo)
 	registerPopularRoute(mux, s.ActivityQuerySvc, s.LibQuerySvc, s.TokenGen, s.LibraryAccessRepo)
