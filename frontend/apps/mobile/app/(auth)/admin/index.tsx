@@ -46,9 +46,9 @@ export default function AdminDashboard() {
   }, [refetchDash, refetchSys]);
 
   const navItems = [
-    { label: t("admin.users") || "Users", icon: "people-outline", path: "/admin/users" },
-    { label: t("admin.libraries") || "Libraries", icon: "library-outline", path: "/admin/libraries" },
-    { label: t("admin.sessions") || "Sessions", icon: "play-circle-outline", path: "/admin/sessions" },
+    { label: t("admin.users.title"), icon: "people-outline", path: "/admin/users" },
+    { label: t("admin.nav.libraries"), icon: "library-outline", path: "/admin/libraries" },
+    { label: t("admin.sessions.title"), icon: "play-circle-outline", path: "/admin/sessions" },
     { label: "Plugins", icon: "extension-puzzle-outline", path: "/admin/plugins" },
     { label: "API Keys", icon: "key-outline", path: "/admin/api-keys" },
     { label: "Server Config", icon: "server-outline", path: "/admin/server-config" },
@@ -64,7 +64,7 @@ export default function AdminDashboard() {
       <Stack.Screen
         options={{
           headerShown: true,
-          title: t("admin.dashboard") || "Admin",
+          title: t("admin.dashboard.title"),
           headerStyle: { backgroundColor: theme.colors.surface },
           headerTintColor: theme.colors.text,
         }}
@@ -72,14 +72,14 @@ export default function AdminDashboard() {
 
       {/* Stats grid */}
       <View style={styles.statsGrid}>
-        <StatCard label={t("admin.totalMedia") || "Media"} value={dashboard?.totalMediaItems ?? 0} icon="film-outline" theme={theme} />
-        <StatCard label={t("admin.totalUsers") || "Users"} value={dashboard?.totalUsers ?? 0} icon="people-outline" theme={theme} />
-        <StatCard label={t("admin.activeStreams") || "Streams"} value={dashboard?.activeStreams ?? 0} icon="play-outline" theme={theme} />
-        <StatCard label={t("admin.transcodes") || "Transcodes"} value={dashboard?.activeTranscodes ?? 0} icon="swap-horizontal-outline" theme={theme} />
+        <StatCard label={t("admin.systemHealth.totalMedia")} value={dashboard?.totalMediaItems ?? 0} icon="film-outline" theme={theme} />
+        <StatCard label={t("admin.systemHealth.totalUsers")} value={dashboard?.totalUsers ?? 0} icon="people-outline" theme={theme} />
+        <StatCard label={t("admin.systemHealth.activeStreams")} value={dashboard?.activeStreams ?? 0} icon="play-outline" theme={theme} />
+        <StatCard label={t("admin.systemHealth.activeTranscodes")} value={dashboard?.activeTranscodes ?? 0} icon="swap-horizontal-outline" theme={theme} />
       </View>
 
       {/* System info */}
-      <Text style={[styles.sectionTitle, { color: theme.colors.textMuted }]}>{t("admin.systemInfo") || "System"}</Text>
+      <Text style={[styles.sectionTitle, { color: theme.colors.textMuted }]}>{t("admin.systemHealth.serverInfo")}</Text>
       <View style={[styles.infoCard, { backgroundColor: theme.colors.surface, borderRadius: theme.radii.md, marginHorizontal: 16 }]}>
         {[
           { label: "Version", value: sysInfo?.version },
@@ -117,7 +117,7 @@ export default function AdminDashboard() {
       )}
 
       {/* Navigation */}
-      <Text style={[styles.sectionTitle, { color: theme.colors.textMuted }]}>{t("admin.manage") || "Manage"}</Text>
+      <Text style={[styles.sectionTitle, { color: theme.colors.textMuted }]}>{t("admin.nav.monitoring")}</Text>
       <View style={[styles.infoCard, { backgroundColor: theme.colors.surface, borderRadius: theme.radii.md, marginHorizontal: 16 }]}>
         {navItems.map((item) => (
           <Pressable key={item.path} onPress={() => router.push(item.path as never)} style={[styles.navRow, { borderBottomColor: theme.colors.border }]}>
