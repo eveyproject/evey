@@ -73,14 +73,43 @@ import (
 // activity.*, music.*, photo.*, mkv.*, metadata.*) are published but have no
 // bus subscribers — they are consumed by the webhook "*" catch-all only.
 
-// buildServices constructs all repos, infrastructure adapters, and application services.
-// It also starts the filesystem watcher if enabled, and subscribes to bus events.
-// ctx is used for watcher and OIDC init; the caller provides the signal context.
-func buildServices(ctx context.Context, cfg *config.Config, db *sql.DB, rootLog *slog.Logger) (*appDeps, error) {
-	// --- Repositories ---
+// infraDeps holds infrastructure adapters and low-level dependencies shared across app services.
+type infraDeps struct {
+	repos            *postgres.Repos
+	searchAdapter    library.SearchIndex
+	searchHealth     httpapi.SearchHealthChecker
+	scanner          *filesystem.Scanner
+	prober           *ffmpeg.Prober
+	transcoder       *ffmpeg.Transcoder
+	hwDetector       *ffmpeg.HWDetector
+	trickplayGen     *ffmpeg.TrickplayGenerator
+	imageConverter   *ffmpeg.ImageConverter
+	ebmlReader       *ebml.Reader
+	ebmlWriter       *ebml.Writer
+	bus              *eventbus.InMemoryEventBus
+	hasher           auth.BcryptHasher
+	tokenGen         *auth.JWTGenerator
+	translator       *eveyi18n.Translator
+	metadataHTTP     *http.Client
+	tmdbProvider     *metadataadapter.TMDBProvider
+	imdbProvider     *metadataadapter.IMDBAPIProvider
+	tvmazeProvider   *metadataadapter.TVMazeProvider
+	omdbProvider     *metadataadapter.OMDbProvider
+	artworkDL        *metadataadapter.ArtworkHTTPDownloader
+	personFetcher    *metadataadapter.TMDBPersonFetcher
+	pluginRunner     *pluginrunner.Runner
+	pluginLogger     *pluginrunner.PluginLogger
+	manifestParser   *pluginrunner.YAMLManifestParser
+	pluginInstaller  *pluginrunner.ZipInstaller
+	pluginAnalyzer   *pluginrunner.StaticAnalyzer
+	subScanner       *filesystem.SubtitleScanner
+	tmdbKey          string
+}
+
+// buildInfra creates repos, infrastructure adapters, and low-level dependencies.
+func buildInfra(ctx context.Context, cfg *config.Config, db *sql.DB, rootLog *slog.Logger) (*infraDeps, error) {
 	r := postgres.NewRepos(db)
 
-	// --- Infrastructure ---
 	sqlFallback := postgres.NewSQLSearchFallback(db)
 	var searchAdapter library.SearchIndex
 	var searchHealth httpapi.SearchHealthChecker
@@ -91,6 +120,7 @@ func buildServices(ctx context.Context, cfg *config.Config, db *sql.DB, rootLog 
 		searchAdapter = search.NewResilient(sa, sqlFallback)
 		searchHealth = sa
 	}
+
 	scanner := filesystem.NewScanner()
 	prober := ffmpeg.NewProber("ffprobe")
 	transcoder := ffmpeg.NewTranscoder("ffmpeg", cfg.Transcoding.CacheDir)
@@ -102,7 +132,6 @@ func buildServices(ctx context.Context, cfg *config.Config, db *sql.DB, rootLog 
 	bus := eventbus.New()
 	hasher := auth.BcryptHasher{}
 
-	// DB value takes precedence over env var for metadata language
 	if langEntry, err2 := r.ServerCfg.Get(ctx, "metadata.language"); err2 == nil && langEntry.Value != "" {
 		cfg.Metadata.Language = langEntry.Value
 	}
@@ -122,6 +151,8 @@ func buildServices(ctx context.Context, cfg *config.Config, db *sql.DB, rootLog 
 	omdbKey := resolveAPIKey(ctx, r.ServerCfg, "api.omdb_key", "EVEY_OMDB_API_KEY")
 	omdbProvider := metadataadapter.NewOMDbProvider(omdbKey, metadataHTTP)
 	artworkDownloader := metadataadapter.NewArtworkHTTPDownloader(metadataHTTP)
+	personFetcher := metadataadapter.NewTMDBPersonFetcher(tmdbProvider)
+
 	pluginLogDir := filepath.Join(cfg.Log.Dir, "plugins")
 	pluginRetention := cfg.Log.PluginRetentionDays
 	if pluginRetention <= 0 {
@@ -133,38 +164,73 @@ func buildServices(ctx context.Context, cfg *config.Config, db *sql.DB, rootLog 
 	pluginInstaller := pluginrunner.NewZipInstaller()
 	pluginAnalyzer := pluginrunner.NewStaticAnalyzer()
 
-	// --- i18n ---
 	translator, i18nErr := eveyi18n.NewFromDir("i18n")
 	if i18nErr != nil {
 		slog.Warn("i18n load failed, using defaults", slog.Any("err", i18nErr))
 		translator = eveyi18n.NewEmpty()
 	}
 
-	// --- JWT ---
 	privateKey, err := auth.LoadOrGenerateRSAKey(cfg.JWT.PrivateKeyPath)
 	if err != nil {
 		return nil, fmt.Errorf("jwt key: %w", err)
 	}
 	tokenGen := auth.NewJWTGenerator(privateKey, cfg.JWT.AccessTokenTTL)
 
-	// --- Application services ---
 	subScanner := filesystem.NewSubtitleScanner()
+
+	return &infraDeps{
+		repos:           r,
+		searchAdapter:   searchAdapter,
+		searchHealth:    searchHealth,
+		scanner:         scanner,
+		prober:          prober,
+		transcoder:      transcoder,
+		hwDetector:      hwDetector,
+		trickplayGen:    trickplayGen,
+		imageConverter:  imageConverter,
+		ebmlReader:      ebmlReader,
+		ebmlWriter:      ebmlWriter,
+		bus:             bus,
+		hasher:          hasher,
+		tokenGen:        tokenGen,
+		translator:      translator,
+		metadataHTTP:    metadataHTTP,
+		tmdbProvider:    tmdbProvider,
+		imdbProvider:    imdbProvider,
+		tvmazeProvider:  tvmazeProvider,
+		omdbProvider:    omdbProvider,
+		artworkDL:       artworkDownloader,
+		personFetcher:   personFetcher,
+		pluginRunner:    pluginRunner,
+		pluginLogger:    pluginLogger,
+		manifestParser:  manifestParser,
+		pluginInstaller: pluginInstaller,
+		pluginAnalyzer:  pluginAnalyzer,
+		subScanner:      subScanner,
+		tmdbKey:         tmdbKey,
+	}, nil
+}
+
+// buildAppServices creates all application-level services from infra dependencies.
+func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra *infraDeps, rootLog *slog.Logger) (*appDeps, error) {
+	r := infra.repos
+	bus := infra.bus
+
 	libCmdSvc := applibrary.NewCommandService(
 		r.Library, r.Library, r.MediaItem,
 		r.MediaStream, r.Person, r.MediaPerson,
-		scanner, prober, searchAdapter, bus,
-		r.Chapter, ebmlReader,
-		r.Trickplay, trickplayGen, cfg.Transcoding.TrickplayCacheDir, r.ServerCfg,
+		infra.scanner, infra.prober, infra.searchAdapter, bus,
+		r.Chapter, infra.ebmlReader,
+		r.Trickplay, infra.trickplayGen, cfg.Transcoding.TrickplayCacheDir, r.ServerCfg,
 		applibrary.WithShutdownCtx(ctx),
 	)
-	libCmdSvc.WithSubtitleScanner(subScanner)
+	libCmdSvc.WithSubtitleScanner(infra.subScanner)
 	mediaItemCache := applibrary.NewCachedMediaItemQueryRepo(r.MediaItemQuery, 30*time.Second)
 	mediaItemCache.Register(bus)
-	personFetcher := metadataadapter.NewTMDBPersonFetcher(tmdbProvider)
-	libQuerySvc := applibrary.NewQueryService(r.Library, mediaItemCache, r.MediaStream, searchAdapter,
+	libQuerySvc := applibrary.NewQueryService(r.Library, mediaItemCache, r.MediaStream, infra.searchAdapter,
 		applibrary.WithPeople(r.Person),
-		applibrary.WithPersonFetcher(personFetcher),
-		applibrary.WithTranslations(r.MediaItemTranslation, r.PersonTranslation, personFetcher, eveyi18n.SupportedLocales()),
+		applibrary.WithPersonFetcher(infra.personFetcher),
+		applibrary.WithTranslations(r.MediaItemTranslation, r.PersonTranslation, infra.personFetcher, eveyi18n.SupportedLocales()),
 	)
 
 	schedulerLog := eveylogger.NewWith(rootLog, "scheduler")
@@ -173,12 +239,12 @@ func buildServices(ctx context.Context, cfg *config.Config, db *sql.DB, rootLog 
 	userAuthSvc := appuser.NewCommandService(
 		r.User, r.Profile, r.RefreshToken,
 		r.Role, r.UserRole,
-		hasher, tokenGen, bus,
+		infra.hasher, infra.tokenGen, bus,
 		7*24*time.Hour, r.QuickConnect,
 	)
 	userAuthSvc.InitSetupState(ctx)
-	userSvc := appuser.NewUserService(r.User, r.Profile, r.RefreshToken, hasher, bus)
-	userAccessSvc := appuser.NewAccessService(r.User, r.APIKey, r.InviteLink, r.QuickConnect, hasher, bus, appuser.WithProfiles(r.Profile))
+	userSvc := appuser.NewUserService(r.User, r.Profile, r.RefreshToken, infra.hasher, bus)
+	userAccessSvc := appuser.NewAccessService(r.User, r.APIKey, r.InviteLink, r.QuickConnect, infra.hasher, bus, appuser.WithProfiles(r.Profile))
 	userQuerySvc := appuser.NewQueryService(r.User, r.Profile, r.APIKey, r.InviteLink, r.QuickConnect)
 
 	var oidcSvc *appuser.OIDCService
@@ -187,7 +253,7 @@ func buildServices(ctx context.Context, cfg *config.Config, db *sql.DB, rootLog 
 		oidcSvc, oidcErr = appuser.NewOIDCService(
 			ctx, cfg,
 			r.User, r.Profile, r.RefreshToken, r.UserRole,
-			tokenGen, bus, 7*24*time.Hour,
+			infra.tokenGen, bus, 7*24*time.Hour,
 		)
 		if oidcErr != nil {
 			return nil, fmt.Errorf("oidc init: %w", oidcErr)
@@ -198,25 +264,25 @@ func buildServices(ctx context.Context, cfg *config.Config, db *sql.DB, rootLog 
 	playbackSvc := appplayback.NewService(r.WatchProgress, r.WatchProgress, r.PlaySession, r.PlaySession, r.User, r.Profile, bus)
 
 	transcodingSvc := apptranscoding.NewService(
-		transcoder, hwDetector, r.TranscodeJob, r.TranscodeProfile,
+		infra.transcoder, infra.hwDetector, r.TranscodeJob, r.TranscodeProfile,
 		bus, cfg.Transcoding.MaxConcurrent,
 		apptranscoding.WithCacheStore(filesystem.NewCacheStore(cfg.Transcoding.CacheDir)),
 	)
 
-	mkvSvc := appmkv.NewService(ebmlReader, ebmlWriter)
+	mkvSvc := appmkv.NewService(infra.ebmlReader, infra.ebmlWriter)
 	collectionSvc := appcollection.NewService(r.Collection, r.Collection, postgres.NewCollectionSmartQuerier(db), r.MediaItem)
 
-	metaProviders := []metadata.MetadataProvider{tmdbProvider, omdbProvider, tvmazeProvider, imdbProvider}
+	metaProviders := []metadata.MetadataProvider{infra.tmdbProvider, infra.omdbProvider, infra.tvmazeProvider, infra.imdbProvider}
 	metadataQuerySvc := appmetadata.NewQueryService(r.MetadataOverride, r.Artwork, metaProviders)
 	enricher := appmetadata.NewEnricher(
-		r.Artwork, r.Person, r.MediaPerson, r.MediaItem, searchAdapter,
-		tmdbProvider,
-		[]metadata.MetadataProvider{omdbProvider, tvmazeProvider, imdbProvider},
+		r.Artwork, r.Person, r.MediaPerson, r.MediaItem, infra.searchAdapter,
+		infra.tmdbProvider,
+		[]metadata.MetadataProvider{infra.omdbProvider, infra.tvmazeProvider, infra.imdbProvider},
 		collectionSvc,
 		appmetadata.EnricherWithTranslations(r.MediaItemTranslation, r.PersonTranslation, eveyi18n.SupportedLocales()),
-		appmetadata.EnricherWithPersonFetcher(personFetcher),
+		appmetadata.EnricherWithPersonFetcher(infra.personFetcher),
 	)
-	metadataCmdSvc := appmetadata.NewCommandService(r.MetadataOverride, r.Artwork, artworkDownloader, bus, metaProviders,
+	metadataCmdSvc := appmetadata.NewCommandService(r.MetadataOverride, r.Artwork, infra.artworkDL, bus, metaProviders,
 		appmetadata.WithEnricher(enricher, r.MediaItem),
 		appmetadata.WithMediaPersons(r.MediaPerson),
 	)
@@ -227,95 +293,25 @@ func buildServices(ctx context.Context, cfg *config.Config, db *sql.DB, rootLog 
 	)
 
 	permChecker := appplugin.NewPermissionChecker(r.Plugin)
-
 	pluginFS := filesystem.NewPluginFileSystem()
 	cssSanitizer := pluginrunner.NewCSSSanitizer()
-	pluginInstallerSvc := appplugin.NewInstallerService(r.Plugin, pluginRunner, manifestParser, bus,
-		appplugin.InstallerWithInstaller(pluginInstaller),
-		appplugin.InstallerWithAnalyzer(pluginAnalyzer),
+	pluginInstallerSvc := appplugin.NewInstallerService(r.Plugin, infra.pluginRunner, infra.manifestParser, bus,
+		appplugin.InstallerWithInstaller(infra.pluginInstaller),
+		appplugin.InstallerWithAnalyzer(infra.pluginAnalyzer),
 		appplugin.InstallerWithPermissionChecker(permChecker),
 		appplugin.InstallerWithFileSystem(pluginFS),
 		appplugin.InstallerWithCSSSanitizer(cssSanitizer),
 	)
-	pluginRuntimeSvc := appplugin.NewRuntimeService(r.Plugin, r.PluginRuntime, pluginRunner, manifestParser, bus,
+	pluginRuntimeSvc := appplugin.NewRuntimeService(r.Plugin, r.PluginRuntime, infra.pluginRunner, infra.manifestParser, bus,
 		appplugin.RuntimeWithPermissionChecker(permChecker),
 		appplugin.RuntimeWithShutdownCtx(ctx),
 	)
-	pluginRunner.WithIPCCallback(pluginRuntimeSvc.HandleIPCResult)
+	infra.pluginRunner.WithIPCCallback(pluginRuntimeSvc.HandleIPCResult)
 	pluginQuerySvc := appplugin.NewQueryService(r.Plugin, r.PluginRuntime)
 
 	permInterceptor := appplugin.PluginPermissionInterceptor(permChecker)
-	pluginHostSrv := pluginhost.NewHostServer(r.MediaItemQuery, r.Plugin, bus, pluginLogger, permInterceptor)
-	pluginLogger.StartCleanup(ctx, &pluginIDLister{repo: r.Plugin})
-
-	// --- Filesystem watcher ---
-	startWatcher(ctx, cfg, bus, r.Library, libCmdSvc, rootLog)
-
-	// --- Background workers ---
-	// Always run periodic scan for all libraries as a safety net.
-	// On WSL2, inotify appears to succeed but never fires events,
-	// so we can't rely on failedLibs to detect broken watchers.
-	// Scanning an up-to-date library is a no-op (hash check).
-	rootLog.Info("periodic scan started for all libraries", slog.Duration("interval", cfg.Library.PeriodicScanInterval))
-	libCmdSvc.StartPeriodicScan(ctx, r.Library, cfg.Library.PeriodicScanInterval, nil)
-	if tmdbKey != "" {
-		metadataCmdSvc.StartEnrichmentWorker(ctx)
-	}
-	hlsTranscoder := ffmpeg.NewHLSTranscoder()
-	hlsMgr := apptranscoding.NewHLSManager(ctx, cfg.Transcoding.CacheDir+"/hls", cfg.Transcoding.MaxConcurrent, hlsTranscoder)
-	libCmdSvc.SetTrickplayActiveStreamChecker(hlsMgr)
-	libCmdSvc.StartTrickplayWorker(ctx)
-	libCmdSvc.StartBackgroundGeneration(ctx)
-
-	if rs, ok := searchAdapter.(*search.ResilientSearch); ok {
-		if sa, isMeili := rs.Primary().(*meili.SearchAdapter); isMeili {
-		go func() {
-			defer func() {
-				if r := recover(); r != nil {
-					slog.Error("panic recovered in meilisearch startup index", "error", r, "stack", debug.Stack())
-				}
-			}()
-			indexCtx, indexCancel := context.WithTimeout(ctx, 5*time.Minute)
-			defer indexCancel()
-			dbCount, err := r.MediaItem.Count(indexCtx, library.ListMediaItemsFilter{})
-			if err != nil {
-				slog.Warn("startup index: count db items", slog.Any("err", err))
-				return
-			}
-			meiliCount, err := sa.DocumentCount(indexCtx)
-			if err == nil && meiliCount == int64(dbCount) {
-				slog.Info("startup index: already up to date", slog.Int("items", dbCount))
-				return
-			}
-			const pageSize = 500
-			indexed := 0
-			offset := 0
-			for {
-				if indexCtx.Err() != nil {
-					slog.Warn("startup index: cancelled", slog.Int("indexed", indexed))
-					return
-				}
-				items, err := r.MediaItem.List(indexCtx, library.ListMediaItemsFilter{Limit: pageSize, Offset: offset})
-				if err != nil {
-					slog.Warn("startup index: list items", slog.Any("err", err))
-					return
-				}
-				if len(items) == 0 {
-					break
-				}
-				if err := searchAdapter.IndexMediaItemsBatch(indexCtx, items); err != nil {
-					slog.Warn("startup index batch", slog.Int("offset", offset), slog.Any("err", err))
-				}
-				indexed += len(items)
-				offset += len(items)
-				if len(items) < pageSize {
-					break
-				}
-			}
-			slog.Info("startup index complete", slog.Int("indexed", indexed))
-		}()
-		}
-	}
+	pluginHostSrv := pluginhost.NewHostServer(r.MediaItemQuery, r.Plugin, bus, infra.pluginLogger, permInterceptor)
+	infra.pluginLogger.StartCleanup(ctx, &pluginIDLister{repo: r.Plugin})
 
 	webhookLog := eveylogger.NewWith(rootLog, "webhook")
 	webhookSender := webhooksender.New()
@@ -345,7 +341,6 @@ func buildServices(ctx context.Context, cfg *config.Config, db *sql.DB, rootLog 
 	cachedAnalyzer := appfeed.NewCachedAnalyzer(r.WatchHistoryAnalyzer, 5*time.Minute, appfeed.CacheWithEventBus(bus))
 	feedQuerySvc := appfeed.NewQueryService(r.FeedConfigQuery, r.FeedQuerier, cachedAnalyzer)
 
-	// Ensure all existing libraries have feed configs (covers libs created before event system)
 	if libs, libErr := r.Library.List(ctx); libErr == nil {
 		for _, lib := range libs {
 			if err := feedCmdSvc.EnsureLibraryFeedConfig(ctx, lib.ID, lib.Name); err != nil {
@@ -362,15 +357,13 @@ func buildServices(ctx context.Context, cfg *config.Config, db *sql.DB, rootLog 
 	musicSvc := appmusic.NewService(r.MusicTrack, bus, r.Library, musicScanner)
 	playlistSvc := appplaylist.NewService(r.Playlist, r.PlaylistItem, r.SmartPlaylist)
 
-	// --- Subtitle service ---
 	var subtitleSvc *appsubtitle.Service
 	if osAPIKey := resolveAPIKey(ctx, r.ServerCfg, "api.opensubtitles_key", "EVEY_OPENSUBTITLES_API_KEY"); osAPIKey != "" {
-		osClient := opensubtitles.New(osAPIKey, os.Getenv("EVEY_OPENSUBTITLES_USERNAME"), os.Getenv("EVEY_OPENSUBTITLES_PASSWORD"), metadataHTTP)
+		osClient := opensubtitles.New(osAPIKey, os.Getenv("EVEY_OPENSUBTITLES_USERNAME"), os.Getenv("EVEY_OPENSUBTITLES_PASSWORD"), infra.metadataHTTP)
 		subtitleSvc = appsubtitle.NewService(r.Subtitle, osClient, opensubtitles.NewLibraryMediaGetter(libQuerySvc))
 		rootLog.Info("opensubtitles integration enabled")
 	}
 
-	// --- Backup service ---
 	backupSvc := appbackup.NewService(filesystem.NewBackupStore(cfg.Backup.Dir),
 		postgres.NewDatabaseDumper(cfg.DB.Host, cfg.DB.Port, cfg.DB.User, cfg.DB.Password, cfg.DB.DBName, cfg.DB.SSLMode),
 		version, appbackup.WithEventBus(bus))
@@ -379,6 +372,10 @@ func buildServices(ctx context.Context, cfg *config.Config, db *sql.DB, rootLog 
 	streamTokenStore := appmedia.NewStreamTokenStore(appmedia.DefaultStreamTokenTTL)
 	shareLinkRepo := postgres.NewShareLinkRepo(db)
 	shareSvc := appmedia.NewShareService(shareLinkRepo)
+
+	hlsTranscoder := ffmpeg.NewHLSTranscoder()
+	hlsMgr := apptranscoding.NewHLSManager(ctx, cfg.Transcoding.CacheDir+"/hls", cfg.Transcoding.MaxConcurrent, hlsTranscoder)
+	libCmdSvc.SetTrickplayActiveStreamChecker(hlsMgr)
 
 	return &appDeps{
 		library: libraryDeps{
@@ -394,13 +391,13 @@ func buildServices(ctx context.Context, cfg *config.Config, db *sql.DB, rootLog 
 			oidcSvc:   oidcSvc,
 		},
 		media: mediaDeps{
-			playbackSvc:    playbackSvc,
-			transcodingSvc: transcodingSvc,
-			hlsManager:     hlsMgr,
-			mkvSvc:         mkvSvc,
-			musicSvc:       musicSvc,
-			photoSvc:       photoSvc,
-			subtitleSvc:    subtitleSvc,
+			playbackSvc:      playbackSvc,
+			transcodingSvc:   transcodingSvc,
+			hlsManager:       hlsMgr,
+			mkvSvc:           mkvSvc,
+			musicSvc:         musicSvc,
+			photoSvc:         photoSvc,
+			subtitleSvc:      subtitleSvc,
 			syncPlayHub:      syncPlayHub,
 			streamTokenStore: streamTokenStore,
 			shareSvc:         shareSvc,
@@ -428,8 +425,8 @@ func buildServices(ctx context.Context, cfg *config.Config, db *sql.DB, rootLog 
 			pluginHostServer:   pluginHostSrv,
 		},
 		auth: authDeps{
-			tokenGen: tokenGen,
-			hasher:   hasher,
+			tokenGen: infra.tokenGen,
+			hasher:   infra.hasher,
 		},
 		repos: repoDeps{
 			artworkRepo:       r.Artwork,
@@ -446,10 +443,91 @@ func buildServices(ctx context.Context, cfg *config.Config, db *sql.DB, rootLog 
 		},
 		cfgStore:       httpapi.NewServerConfigStore(r.ServerCfg),
 		backupSvc:      backupSvc,
-		translator:     translator,
-		searchHealth:   searchHealth,
-		imageConverter: imageConverter,
+		translator:     infra.translator,
+		searchHealth:   infra.searchHealth,
+		imageConverter: infra.imageConverter,
 	}, nil
+}
+
+// buildEventWiring starts background workers, filesystem watcher, and event bus subscriptions.
+func buildEventWiring(ctx context.Context, cfg *config.Config, infra *infraDeps, deps *appDeps, rootLog *slog.Logger) {
+	r := infra.repos
+	bus := infra.bus
+
+	startWatcher(ctx, cfg, bus, r.Library, deps.library.cmdSvc, rootLog)
+
+	rootLog.Info("periodic scan started for all libraries", slog.Duration("interval", cfg.Library.PeriodicScanInterval))
+	deps.library.cmdSvc.StartPeriodicScan(ctx, r.Library, cfg.Library.PeriodicScanInterval, nil)
+	if infra.tmdbKey != "" {
+		deps.content.metadataCmdSvc.StartEnrichmentWorker(ctx)
+	}
+	deps.library.cmdSvc.StartTrickplayWorker(ctx)
+	deps.library.cmdSvc.StartBackgroundGeneration(ctx)
+
+	if rs, ok := infra.searchAdapter.(*search.ResilientSearch); ok {
+		if sa, isMeili := rs.Primary().(*meili.SearchAdapter); isMeili {
+		go func() {
+			defer func() {
+				if r := recover(); r != nil {
+					slog.Error("panic recovered in meilisearch startup index", "error", r, "stack", debug.Stack())
+				}
+			}()
+			indexCtx, indexCancel := context.WithTimeout(ctx, 5*time.Minute)
+			defer indexCancel()
+			dbCount, err := infra.repos.MediaItem.Count(indexCtx, library.ListMediaItemsFilter{})
+			if err != nil {
+				slog.Warn("startup index: count db items", slog.Any("err", err))
+				return
+			}
+			meiliCount, err := sa.DocumentCount(indexCtx)
+			if err == nil && meiliCount == int64(dbCount) {
+				slog.Info("startup index: already up to date", slog.Int("items", dbCount))
+				return
+			}
+			const pageSize = 500
+			indexed := 0
+			offset := 0
+			for {
+				if indexCtx.Err() != nil {
+					slog.Warn("startup index: cancelled", slog.Int("indexed", indexed))
+					return
+				}
+				items, err := infra.repos.MediaItem.List(indexCtx, library.ListMediaItemsFilter{Limit: pageSize, Offset: offset})
+				if err != nil {
+					slog.Warn("startup index: list items", slog.Any("err", err))
+					return
+				}
+				if len(items) == 0 {
+					break
+				}
+				if err := infra.searchAdapter.IndexMediaItemsBatch(indexCtx, items); err != nil {
+					slog.Warn("startup index batch", slog.Int("offset", offset), slog.Any("err", err))
+				}
+				indexed += len(items)
+				offset += len(items)
+				if len(items) < pageSize {
+					break
+				}
+			}
+			slog.Info("startup index complete", slog.Int("indexed", indexed))
+		}()
+		}
+	}
+}
+
+// buildServices constructs all repos, infrastructure adapters, and application services.
+// It also starts the filesystem watcher if enabled, and subscribes to bus events.
+func buildServices(ctx context.Context, cfg *config.Config, db *sql.DB, rootLog *slog.Logger) (*appDeps, error) {
+	infra, err := buildInfra(ctx, cfg, db, rootLog)
+	if err != nil {
+		return nil, err
+	}
+	deps, err := buildAppServices(ctx, cfg, db, infra, rootLog)
+	if err != nil {
+		return nil, err
+	}
+	buildEventWiring(ctx, cfg, infra, deps, rootLog)
+	return deps, nil
 }
 
 func startWatcher(ctx context.Context, cfg *config.Config, bus shared.EventBus, libraryRepo library.LibraryRepository, libCmdSvc applibrary.LibraryScanner, rootLog *slog.Logger) *applibrary.WatcherService {
@@ -477,18 +555,15 @@ func startWatcher(ctx context.Context, cfg *config.Config, bus shared.EventBus, 
 }
 
 func resolveAPIKey(ctx context.Context, cfgRepo shared.ServerConfigRepository, dbKey, envVar string) string {
-	// 1. DB has it (set by admin via panel) → use it
 	if entry, err := cfgRepo.Get(ctx, dbKey); err == nil && entry.Value != "" {
 		return entry.Value
 	}
-	// 2. Env var fallback (docker/compose) → seed to DB so admin sees it
 	if v := os.Getenv(envVar); v != "" {
 		if setErr := cfgRepo.Set(ctx, dbKey, v); setErr != nil {
 			slog.Warn("seed api key to db", slog.String("key", dbKey), slog.Any("err", setErr))
 		}
 		return v
 	}
-	// 3. Not configured — admin must set via panel
 	return ""
 }
 
