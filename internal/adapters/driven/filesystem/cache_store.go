@@ -86,13 +86,18 @@ func (s *CacheStore) GetCacheInfo(_ context.Context) (*transcoding.CacheInfo, er
 func dirStats(root string) (int64, time.Time) {
 	var total int64
 	var latest time.Time
-	if err := filepath.WalkDir(root, func(_ string, d fs.DirEntry, err error) error {
-		if err != nil || d.IsDir() {
-			return nil //nolint:nilerr
+	if err := filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			slog.Debug("dirStats: walk error", slog.String("path", path), slog.Any("err", err))
+			return nil
+		}
+		if d.IsDir() {
+			return nil
 		}
 		fi, err := d.Info()
 		if err != nil {
-			return nil //nolint:nilerr
+			slog.Debug("dirStats: stat error", slog.String("path", path), slog.Any("err", err))
+			return nil
 		}
 		total += fi.Size()
 		if fi.ModTime().After(latest) {

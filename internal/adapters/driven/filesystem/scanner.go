@@ -3,6 +3,7 @@ package filesystem
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
@@ -56,7 +57,8 @@ func (s *Scanner) Scan(ctx context.Context, root string) ([]library.ScannedFile,
 
 		info, err := d.Info()
 		if err != nil {
-			return nil //nolint:nilerr
+			slog.Debug("scan: stat error", slog.String("path", path), slog.Any("err", err))
+			return nil
 		}
 		parsed := (&FilenameParser{}).Parse(path)
 		// If no year from filename, try parent directory (e.g. "Show Name (2025)/")

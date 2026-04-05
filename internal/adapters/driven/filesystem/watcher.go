@@ -92,7 +92,8 @@ func (fw *FSWatcher) Watch(path string) error {
 func (fw *FSWatcher) watchRecursive(root string) error {
 	return filepath.WalkDir(root, func(path string, d os.DirEntry, err error) error {
 		if err != nil {
-			return nil //nolint:nilerr
+			slog.Debug("watcher: walk error", slog.String("path", path), slog.Any("err", err))
+			return nil
 		}
 		if d.IsDir() {
 			if d.Name() != "." && strings.HasPrefix(d.Name(), ".") {

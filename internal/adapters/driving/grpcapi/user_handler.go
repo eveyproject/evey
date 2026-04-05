@@ -198,7 +198,8 @@ func (h *userHandler) DisableUser(ctx context.Context, req *eveyv1.DisableUserRe
 	h.audit(ctx, callerID, "disable_user", "user", &req.Id, map[string]any{"target_user_id": req.Id})
 	u, err := h.users.GetByID(ctx, req.Id)
 	if err != nil {
-		return &eveyv1.User{Id: req.Id, Enabled: false}, nil //nolint:nilerr
+		slog.Warn("disable user: could not reload user", slog.String("user_id", req.Id), slog.Any("err", err))
+		return &eveyv1.User{Id: req.Id, Enabled: false}, nil
 	}
 	return userToProto(u), nil
 }
@@ -390,7 +391,8 @@ func (h *userHandler) RegisterWithInvite(ctx context.Context, req *eveyv1.Regist
 	}
 	access, refresh, loginErr := h.auth.Login(ctx, req.Username, req.Password)
 	if loginErr != nil {
-		return &eveyv1.AuthResponse{User: userToProto(u)}, nil //nolint:nilerr
+		slog.Warn("register with invite: auto-login failed", slog.String("username", req.Username), slog.Any("err", loginErr))
+		return &eveyv1.AuthResponse{User: userToProto(u)}, nil
 	}
 	return &eveyv1.AuthResponse{
 		AccessToken:  access,
