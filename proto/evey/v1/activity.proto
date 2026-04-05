@@ -38,6 +38,18 @@ service ActivityService {
       get: "/api/v1/activity/metrics"
     };
   }
+
+  rpc GetPopularMedia(GetPopularMediaRequest) returns (GetPopularMediaResponse) {
+    option (google.api.http) = {
+      get: "/api/v1/popular"
+    };
+  }
+
+  rpc GetAnalytics(GetAnalyticsRequest) returns (GetAnalyticsResponse) {
+    option (google.api.http) = {
+      get: "/api/v1/admin/analytics"
+    };
+  }
 }
 
 message PlayHistoryEntry {
@@ -185,4 +197,43 @@ message ListServerMetricsRequest {
 
 message ListServerMetricsResponse {
   repeated ServerMetric metrics = 1;
+}
+
+message PopularMediaItem {
+  string media_item_id = 1;
+  string title = 2;
+  string type = 3;
+  int32 play_count = 4;
+}
+
+message GetPopularMediaRequest {
+  int32 limit = 1;
+}
+
+message GetPopularMediaResponse {
+  repeated PopularMediaItem items = 1;
+}
+
+message AnalyticsTopMedia {
+  string media_item_id = 1;
+  string title = 2;
+  int32 play_count = 3;
+  int64 total_duration_seconds = 4;
+}
+
+message AnalyticsRecentActivity {
+  string user_id = 1;
+  string username = 2;
+  string media_title = 3;
+  google.protobuf.Timestamp played_at = 4;
+}
+
+message GetAnalyticsRequest {}
+
+message GetAnalyticsResponse {
+  repeated AnalyticsTopMedia top_media = 1;
+  repeated AnalyticsRecentActivity recent_activity = 2;
+  int32 total_plays_today = 3;
+  int32 total_plays_this_week = 4;
+  int32 active_users_today = 5;
 }

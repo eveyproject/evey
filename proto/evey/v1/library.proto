@@ -69,6 +69,31 @@ service LibraryService {
       get: "/api/v1/people/{id}"
     };
   }
+
+  rpc GetLibrarySchedule(GetLibraryScheduleRequest) returns (GetLibraryScheduleResponse) {
+    option (google.api.http) = {
+      get: "/api/v1/libraries/{id}/schedule"
+    };
+  }
+
+  rpc SetLibrarySchedule(SetLibraryScheduleRequest) returns (LibrarySchedule) {
+    option (google.api.http) = {
+      put: "/api/v1/libraries/{id}/schedule"
+      body: "*"
+    };
+  }
+
+  rpc DeleteLibrarySchedule(DeleteLibraryScheduleRequest) returns (DeleteLibraryScheduleResponse) {
+    option (google.api.http) = {
+      delete: "/api/v1/libraries/{id}/schedule"
+    };
+  }
+
+  rpc FilterMediaItems(FilterMediaItemsRequest) returns (FilterMediaItemsResponse) {
+    option (google.api.http) = {
+      get: "/api/v1/media/filter"
+    };
+  }
 }
 
 message Library {
@@ -369,4 +394,50 @@ message GetPersonResponse {
   string deathday = 7;
   string place_of_birth = 8;
   string known_for = 9;
+}
+
+message LibrarySchedule {
+  string library_id = 1;
+  string cron = 2;
+  bool enabled = 3;
+  google.protobuf.Timestamp last_run_at = 4;
+  google.protobuf.Timestamp next_run_at = 5;
+}
+
+message GetLibraryScheduleRequest {
+  string id = 1;
+}
+
+message GetLibraryScheduleResponse {
+  LibrarySchedule schedule = 1;
+}
+
+message SetLibraryScheduleRequest {
+  string id = 1;
+  string cron = 2;
+  bool enabled = 3;
+}
+
+message DeleteLibraryScheduleRequest {
+  string id = 1;
+}
+
+message DeleteLibraryScheduleResponse {}
+
+message FilterMediaItemsRequest {
+  string library_id = 1;
+  MediaItemType type = 2;
+  string genre = 3;
+  int32 year_from = 4;
+  int32 year_to = 5;
+  double min_rating = 6;
+  MediaSortField sort_field = 7;
+  SortOrder sort_order = 8;
+  int32 limit = 9;
+  int32 offset = 10;
+}
+
+message FilterMediaItemsResponse {
+  repeated MediaItem items = 1;
+  int32 total = 2;
 }
