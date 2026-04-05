@@ -25,13 +25,14 @@ import {
   setSubtitleStyle,
   type SubtitleStyle,
 } from "@/hooks/usePlaybackPrefs";
-import { getSelectedBurnInTrack, resolveDefaultAudio, resolveDefaultSubtitle } from "./hooks/hlsPlayerUtils";
+import { buildTranscodeHlsUrl, getSelectedBurnInTrack, resolveDefaultAudio, resolveDefaultSubtitle } from "./hooks/hlsPlayerUtils";
 import { useDirectPlayback } from "./hooks/useDirectPlayback";
 import { useTranscodePlayback } from "./hooks/useTranscodePlayback";
 import { useSubtitleManager } from "./hooks/useSubtitleManager";
 import { usePlayerKeyboard } from "./hooks/usePlayerKeyboard";
 import { useTouchGestures } from "./hooks/useTouchGestures";
 import { useOverlayTime } from "./hooks/useOverlayTime";
+import { useDLNA } from "@/hooks/useDLNA";
 
 export type { AudioStream, SubtitleStream, EpisodeNavItem, SeasonNavItem };
 
@@ -110,6 +111,29 @@ export function HLSPlayer({
   );
 
   const selectedBurnInTrack = getSelectedBurnInTrack(currentSubtitle, subtitleStreams);
+  const {
+    available: castAvailable, connected: castConnected, deviceName: castDeviceName,
+    castPlayback, startCast, stopCast, castPlayPause, castSeek, castSetVolume, castSetMuted,
+  } = useDLNA();
+
+  const handleCastToggle = useCallback(() => {
+    if (castConnected) {
+      stopCast();
+      return;
+    }
+    // Build a URL the Chromecast can fetch independently (absolute, with token)
+    let url: string;
+    if (streamInfo.directPlayUrl) {
+      // Direct play — append token if not already present
+      const hasToken = streamInfo.directPlayUrl.includes("token=");
+      url = hasToken ? streamInfo.directPlayUrl : `${streamInfo.directPlayUrl}${streamInfo.directPlayUrl.includes("?") ? "&" : "?"}token=${encodeURIComponent(streamTokenRef.current)}`;
+    } else {
+      // Transcode — use HLS master playlist
+      url = buildTranscodeHlsUrl(mediaId, streamTokenRef.current, currentTrackIndex, null, 0);
+    }
+    console.log("[Cast] handleCastToggle — url:", url, "mode:", streamInfo.directPlayUrl ? "direct" : "transcode");
+    startCast(url, title);
+  }, [castConnected, stopCast, startCast, streamInfo.directPlayUrl, title, mediaId, currentTrackIndex]);
 
   const [playbackSpeed, setPlaybackSpeed] = useState(1);
   const anyPanelOpenRef = useRef(false);
@@ -230,6 +254,20 @@ export function HLSPlayer({
   const { seekFlash, brightness, setBrightnessValue, swipeIndicator, handleTouchStart, handleTouchMove, handleTouchEnd, handleWheel, cleanupTimers } = useTouchGestures({
     videoRef, positionRef, knownDurationSecRef, seekRef, skipFwdRef, skipBwdRef, onToggleFullscreen: toggleFullscreen, onSingleTap: handleSingleTap,
   });
+
+  // Auto-pause local player when casting, resume when cast stops
+  const wasPlayingBeforeCast = useRef(false);
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video) return;
+    if (castConnected) {
+      wasPlayingBeforeCast.current = !video.paused;
+      if (!video.paused) video.pause();
+    } else if (wasPlayingBeforeCast.current) {
+      video.play().catch(() => {});
+      wasPlayingBeforeCast.current = false;
+    }
+  }, [castConnected]);
 
   // Auto-fullscreen on landscape rotation (touch devices)
   useEffect(() => {
@@ -483,6 +521,15 @@ export function HLSPlayer({
           controlsToggleRef={controlsToggleRef}
           onActionFlash={showActionFlash}
           onBrightnessChange={setBrightnessValue}
+          castAvailable={castAvailable}
+          castConnected={castConnected}
+          castDeviceName={castDeviceName}
+          castPlayback={castPlayback}
+          onCastToggle={handleCastToggle}
+          onCastPlayPause={castPlayPause}
+          onCastSeek={castSeek}
+          onCastSetVolume={castSetVolume}
+          onCastSetMuted={castSetMuted}
         />
       </PlayerProvider>
       {showShortcuts && <KeyboardShortcutsOverlay onClose={() => setShowShortcuts(false)} skipForwardSeconds={skipFwd} skipBackwardSeconds={skipBwd} />}

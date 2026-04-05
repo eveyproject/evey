@@ -448,6 +448,8 @@ func hlsSegmentHandler(tokenGen TokenVerifier, libSvc MediaItemGetter, hlsManage
 			s.MarkAccess()
 		}
 
+		setCORSHeaders(w, r, "")
+
 		switch {
 		case strings.HasSuffix(file, ".m3u8"):
 			w.Header().Set("Content-Type", "application/vnd.apple.mpegurl")

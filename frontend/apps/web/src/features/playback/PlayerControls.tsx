@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { ArrowLeft, SkipBack, SkipForward, Pause, Play, Minimize, Maximize, PictureInPicture, PictureInPicture2, ChevronFirst, ChevronLast } from "lucide-react";
+import { ArrowLeft, SkipBack, SkipForward, Pause, Play, Minimize, Maximize, PictureInPicture, PictureInPicture2, ChevronFirst, ChevronLast, Cast } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import type { SubtitleStyle } from "@/hooks/usePlaybackPrefs";
 import { formatTime } from "./playerUtils";
@@ -30,6 +30,15 @@ interface PlayerControlsProps {
   onActionFlash?: (action: "play" | "pause") => void;
   onBrightnessChange?: (value: number) => void;
   controlsToggleRef?: React.MutableRefObject<(() => void) | null>;
+  castAvailable?: boolean;
+  castConnected?: boolean;
+  castDeviceName?: string | null;
+  castPlayback?: { playerState: string | null; currentTime: number; duration: number; isPaused: boolean; isMediaLoaded: boolean; volume: number; isMuted: boolean };
+  onCastToggle?: () => void;
+  onCastPlayPause?: () => void;
+  onCastSeek?: (timeSec: number) => void;
+  onCastSetVolume?: (level: number) => void;
+  onCastSetMuted?: (muted: boolean) => void;
 }
 
 export function PlayerControls({
@@ -49,18 +58,35 @@ export function PlayerControls({
   onActionFlash,
   onBrightnessChange,
   controlsToggleRef,
+  castAvailable,
+  castConnected,
+  castDeviceName,
+  castPlayback,
+  onCastToggle,
+  onCastPlayPause,
+  onCastSeek,
+  onCastSetVolume,
+  onCastSetMuted,
 }: PlayerControlsProps) {
   const { t } = useTranslation();
   const ctx = usePlayerContext();
   const {
-    videoRef, playing, volume, muted, fullscreen, isPip,
-    effectiveDuration, absoluteTime, bufferedEnd, transcodeOffset,
+    videoRef, playing: localPlaying, volume: localVolume, muted: localMuted, fullscreen, isPip,
+    effectiveDuration: localDuration, absoluteTime: localTime, bufferedEnd, transcodeOffset,
     audioStreams, subtitleStreams, currentAudioIndex, currentQuality,
     currentSubtitleTrackIndex, playbackSpeed, autoQuality, autoQualityLabel,
     availableQualities, chapters, mediaId, mediaType, streamToken,
     title, brightness, skipForwardSeconds, skipBackwardSeconds,
     seasons, currentSeasonId, episodes, currentEpisodeId, subtitleStyle,
   } = ctx;
+
+  // When casting, use cast playback state instead of local video state
+  const isCasting = castConnected && castPlayback?.isMediaLoaded;
+  const playing = isCasting ? !castPlayback.isPaused : localPlaying;
+  const absoluteTime = isCasting ? castPlayback.currentTime : localTime;
+  const effectiveDuration = localDuration;
+  const volume = isCasting ? (castPlayback.volume ?? 1) : localVolume;
+  const muted = isCasting ? (castPlayback.isMuted ?? false) : localMuted;
 
   const [visible, setVisible] = useState(true);
   const [openPanel, setOpenPanel] = useState<"settings" | "episodes" | "chapters" | null>(null);
@@ -121,6 +147,10 @@ export function PlayerControls({
   }, [scheduleHide]);
 
   function togglePlay() {
+    if (castConnected && onCastPlayPause) {
+      onCastPlayPause();
+      return;
+    }
     const video = videoRef.current;
     if (!video) return;
     if (video.paused) void video.play();
@@ -129,7 +159,9 @@ export function PlayerControls({
 
   function handleSeek(e: React.ChangeEvent<HTMLInputElement>) {
     const targetAbsolute = Number(e.target.value);
-    if (onSeekRequest) {
+    if (isCasting && onCastSeek) {
+      onCastSeek(targetAbsolute);
+    } else if (onSeekRequest) {
       onSeekRequest(targetAbsolute);
     } else {
       const video = videoRef.current;
@@ -139,13 +171,15 @@ export function PlayerControls({
 
   function skipForward() {
     const target = Math.min(effectiveDuration, absoluteTime + skipForwardSeconds);
-    if (onSeekRequest) onSeekRequest(target);
+    if (isCasting && onCastSeek) onCastSeek(target);
+    else if (onSeekRequest) onSeekRequest(target);
     else if (videoRef.current) videoRef.current.currentTime += skipForwardSeconds;
   }
 
   function skipBackward() {
     const target = Math.max(0, absoluteTime - skipBackwardSeconds);
-    if (onSeekRequest) onSeekRequest(target);
+    if (isCasting && onCastSeek) onCastSeek(target);
+    else if (onSeekRequest) onSeekRequest(target);
     else if (videoRef.current) videoRef.current.currentTime -= skipBackwardSeconds;
   }
 
@@ -157,9 +191,14 @@ export function PlayerControls({
   })();
 
   function handleVolume(e: React.ChangeEvent<HTMLInputElement>) {
+    const val = Number(e.target.value);
+    if (isCasting && onCastSetVolume) {
+      onCastSetVolume(val);
+      return;
+    }
     const video = videoRef.current;
     if (!video) return;
-    video.volume = Number(e.target.value);
+    video.volume = val;
   }
 
   function togglePip() {
@@ -173,6 +212,10 @@ export function PlayerControls({
   }
 
   function toggleMute() {
+    if (isCasting && onCastSetMuted) {
+      onCastSetMuted(!muted);
+      return;
+    }
     const video = videoRef.current;
     if (video) video.muted = !video.muted;
   }
@@ -202,14 +245,19 @@ export function PlayerControls({
     } else {
       clickTimer.current = setTimeout(() => {
         clickTimer.current = null;
-        const video = videoRef.current;
-        if (video) {
-          if (video.paused) {
-            void video.play();
-            onActionFlash?.("play");
-          } else {
-            video.pause();
-            onActionFlash?.("pause");
+        if (isCasting && onCastPlayPause) {
+          onCastPlayPause();
+          onActionFlash?.(playing ? "pause" : "play");
+        } else {
+          const video = videoRef.current;
+          if (video) {
+            if (video.paused) {
+              void video.play();
+              onActionFlash?.("play");
+            } else {
+              video.pause();
+              onActionFlash?.("pause");
+            }
           }
         }
         resetHideTimer();
@@ -267,6 +315,12 @@ export function PlayerControls({
           <ArrowLeft size={24} />
         </button>
         {title && <span className="text-[var(--overlay-text)] text-sm font-medium truncate">{title}</span>}
+        {isCasting && castDeviceName && (
+          <span className="ml-auto flex items-center gap-1.5 text-[var(--accent)] text-xs font-medium">
+            <Cast size={14} />
+            {castDeviceName}
+          </span>
+        )}
       </div>
 
       {/* bottom controls */}
@@ -452,6 +506,18 @@ export function PlayerControls({
             onBrightnessChange={onBrightnessChange}
             availableQualities={availableQualities}
           />
+
+          {/* Cast */}
+          {castAvailable && onCastToggle && (
+            <button
+              onClick={onCastToggle}
+              aria-label={castConnected ? t("player.controls.stopCast") : t("player.controls.cast")}
+              title={castConnected && castDeviceName ? castDeviceName : undefined}
+              className={`transition-colors-fast p-1 focus:outline-none focus:ring-2 focus:ring-[var(--accent)] focus:ring-offset-1 rounded ${castConnected ? "text-[var(--accent)]" : "text-[var(--overlay-text)] hover:text-[var(--accent)]"}`}
+            >
+              <Cast size={20} />
+            </button>
+          )}
 
           {/* Picture-in-Picture */}
           {typeof document !== "undefined" && document.pictureInPictureEnabled && (

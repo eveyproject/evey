@@ -77,7 +77,10 @@ func setCORSHeaders(w http.ResponseWriter, r *http.Request, baseURL string) {
 		return
 	}
 	allowed := strings.TrimRight(baseURL, "/")
-	if strings.TrimRight(origin, "/") == allowed {
+	// Token-authenticated requests (e.g. Chromecast fetching HLS) are allowed
+	// from any origin — the token itself is the authorization proof.
+	rawTok := RawTokenFromContext(r.Context())
+	if rawTok != "" || strings.TrimRight(origin, "/") == allowed {
 		w.Header().Set("Access-Control-Allow-Origin", origin)
 		w.Header().Set("Access-Control-Allow-Credentials", "true")
 	}
