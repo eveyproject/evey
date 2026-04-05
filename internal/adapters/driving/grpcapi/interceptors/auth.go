@@ -18,6 +18,7 @@ import (
 )
 
 type claimsKey struct{}
+type apiKeyAuthKey struct{}
 
 type AuthInterceptor struct {
 	tokenGen   user.TokenGenerator
@@ -87,6 +88,14 @@ func (i *AuthInterceptor) enforceRBAC(ctx context.Context, method string) error 
 		return i.translatedErr(ctx, codes.PermissionDenied, "errors.auth.admin_access_required")
 	}
 
+	isAPIKey := IsAPIKeyAuth(ctx)
+
+	// Block API keys from internal methods (infra/ops/auth — browser-only)
+	if isAPIKey && authpkg.InternalMethods[method] {
+		slog.Warn("api key blocked on internal method", slog.String("method", method), slog.String("user", claims.UserID))
+		return i.translatedErr(ctx, codes.PermissionDenied, "errors.auth.internal_method")
+	}
+
 	role, exists := i.rbac.MethodRoles[method]
 	if exists && role == RoleAdmin {
 		if !claims.IsAdmin {
@@ -94,9 +103,8 @@ func (i *AuthInterceptor) enforceRBAC(ctx context.Context, method string) error 
 		}
 	}
 
-	// Enforce API key permissions: if the claims carry a restricted permission
-	// set (from an API key), verify the method's required permission is granted.
-	if len(claims.Permissions) > 0 {
+	// Enforce API key permissions: check the method's required permission is granted.
+	if isAPIKey && len(claims.Permissions) > 0 {
 		if requiredPerm, ok := authpkg.MethodPermissions[method]; ok {
 			if !claims.HasPermission(requiredPerm) {
 				slog.Warn("api key permission denied", slog.String("method", method), slog.String("required", requiredPerm))
@@ -165,7 +173,15 @@ func (i *AuthInterceptor) authenticateAPIKey(ctx context.Context, rawKey string)
 			slog.Warn("update api key last used", slog.String("keyID", key.ID), slog.Any("err", upErr))
 		}
 	}()
-	return context.WithValue(ctx, claimsKey{}, claims), nil
+	ctx = context.WithValue(ctx, claimsKey{}, claims)
+	ctx = context.WithValue(ctx, apiKeyAuthKey{}, true)
+	return ctx, nil
+}
+
+// IsAPIKeyAuth returns true if the request was authenticated via API key.
+func IsAPIKeyAuth(ctx context.Context) bool {
+	v, _ := ctx.Value(apiKeyAuthKey{}).(bool)
+	return v
 }
 
 func (i *AuthInterceptor) translatedErr(ctx context.Context, code codes.Code, key string) error {
