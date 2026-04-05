@@ -126,12 +126,6 @@ settings:
     scanLabel: "Conexión rápida"
     scanInstruction: "Escanea con un dispositivo conectado para iniciar sesión"
     expiresIn: "Expira en {{seconds}}s"
-  playback:
-    bitrateTitle: "Límite de bitrate de streaming"
-    bitrateDesc: "Bitrate máximo para streams transcodificados. No afecta la reproducción directa."
-    maxBitrate: "Bitrate máximo"
-    bitrateUpdated: "Límite de bitrate actualizado"
-    bitrateFailed: "Error al actualizar el límite de bitrate"
   account:
     changePassword: "Cambiar contraseña"
     changePasswordDesc: "Usa una contraseña segura de al menos 8 caracteres."

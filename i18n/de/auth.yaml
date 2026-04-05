@@ -127,12 +127,6 @@ settings:
     scanLabel: Schnellverbindung
     scanInstruction: Scannen Sie mit einem angemeldeten Gerät, um sich anzumelden
     expiresIn: "Läuft ab in {{seconds}}s"
-  playback:
-    bitrateTitle: Streaming-Bitrate-Limit
-    bitrateDesc: Maximale Bitrate für transkodierte Streams. Beeinflusst nicht die Direktwiedergabe.
-    maxBitrate: Max. Bitrate
-    bitrateUpdated: Bitrate-Limit aktualisiert
-    bitrateFailed: Bitrate-Limit konnte nicht aktualisiert werden
   account:
     changePassword: Passwort ändern
     changePasswordDesc: Verwenden Sie ein starkes Passwort mit mindestens 8 Zeichen.

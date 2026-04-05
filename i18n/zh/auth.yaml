@@ -126,12 +126,6 @@ settings:
     scanLabel: "快速连接"
     scanInstruction: "使用已登录的设备扫描以登录"
     expiresIn: "{{seconds}}秒后过期"
-  playback:
-    bitrateTitle: "流媒体码率限制"
-    bitrateDesc: "转码流的最大码率。不影响直接播放。"
-    maxBitrate: "最大码率"
-    bitrateUpdated: "码率限制已更新"
-    bitrateFailed: "更新码率限制失败"
   account:
     changePassword: "修改密码"
     changePasswordDesc: "请使用至少 8 个字符的强密码。"
