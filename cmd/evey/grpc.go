@@ -10,6 +10,7 @@ import (
 	"github.com/gravity-zero/evey/internal/adapters/driving/grpcapi/interceptors"
 	"github.com/gravity-zero/evey/internal/config"
 	eveylogger "github.com/gravity-zero/evey/internal/pkg/logger"
+	"github.com/gravity-zero/evey/internal/pkg/ratelimit"
 )
 
 func buildGRPCServer(deps *appDeps, cfg *config.Config, rootLog *slog.Logger, logDir string, serverCtx context.Context) *grpcapi.GRPCServer {
@@ -50,14 +51,16 @@ func buildGRPCServer(deps *appDeps, cfg *config.Config, rootLog *slog.Logger, lo
 	grpcSrv.SetServerCtx(serverCtx)
 	grpcSrv.SetServerConfigHandler(grpcapi.NewServerConfigHandler(deps.repos.serverCfgRepo))
 	grpcSrv.SetSMTPConfigured(cfg.SMTP.Host != "")
-<<<<<<< HEAD
 	grpcSrv.SetShareService(deps.media.shareSvc)
 	grpcSrv.SetSyncPlayHub(deps.media.syncPlayHub)
-=======
 	if deps.content.enricher != nil {
 		grpcSrv.SetBioEnricher(deps.content.enricher)
 	}
->>>>>>> worktree-agent-acf92ea4
+	grpcSrv.SetMusicService(deps.media.musicSvc)
+	grpcSrv.SetPhotoService(deps.media.photoSvc)
+	if deps.repos.pushSubRepo != nil {
+		grpcSrv.SetPushDeps(deps.repos.pushSubRepo, resolveVAPIDPublicKey(deps.repos.serverCfgRepo, cfg), ratelimit.New(10))
+	}
 	grpcSrv.RegisterServices()
 	return grpcSrv
 }

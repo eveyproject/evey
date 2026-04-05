@@ -118,6 +118,7 @@ message GetArtistsResponse {
 message SearchMusicRequest {
   string query = 1;
   int32 limit = 2;
+  string library_id = 3;
 }
 
 message SearchMusicResponse {

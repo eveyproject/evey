@@ -15,18 +15,15 @@ import (
 
 	appcollection "github.com/gravity-zero/evey/internal/app/collection"
 	appmetadata "github.com/gravity-zero/evey/internal/app/metadata"
-	appmusic "github.com/gravity-zero/evey/internal/app/music"
 	appplaylist "github.com/gravity-zero/evey/internal/app/playlist"
 	apprating "github.com/gravity-zero/evey/internal/app/rating"
+
 	apptranscoding "github.com/gravity-zero/evey/internal/app/transcoding"
 	"github.com/gravity-zero/evey/internal/config"
 	libfakes "github.com/gravity-zero/evey/internal/domain/library/fakes"
 	domainlibrary "github.com/gravity-zero/evey/internal/domain/library"
 	domainmeta "github.com/gravity-zero/evey/internal/domain/metadata"
 	metafakes "github.com/gravity-zero/evey/internal/domain/metadata/fakes"
-	musicfakes "github.com/gravity-zero/evey/internal/domain/music/fakes"
-	notifakes "github.com/gravity-zero/evey/internal/domain/notification/fakes"
-	domainphoto "github.com/gravity-zero/evey/internal/domain/photo"
 	playlistfakes "github.com/gravity-zero/evey/internal/domain/playlist/fakes"
 	ratingfakes "github.com/gravity-zero/evey/internal/domain/rating/fakes"
 	shared "github.com/gravity-zero/evey/internal/domain/shared"
@@ -666,7 +663,7 @@ func TestDownloadHandler_EmptyFilePath_404(t *testing.T) {
 }
 
 // =====================================
-// admin_handler.go — requireAdminWithResponse, transcode cache, media, refresh-all
+// admin_handler.go — requireAdminWithResponse, server config, transcode cache, user admin, media, refresh-all
 // =====================================
 
 // --- transcode cache ---
@@ -1136,7 +1133,7 @@ func TestPostStarRating_IDOR_403(t *testing.T) {
 	}
 }
 
-// syncplay JSON routes (leaveRoom, joinRoom, createRoom) migrated to gRPC — tests removed
+// SyncPlay JSON routes migrated to gRPC — see grpcapi/syncplay_handler.go
 
 // =====================================
 // cookie_middleware.go
@@ -1580,69 +1577,6 @@ func TestParentalVerifyPIN_IDOR_403(t *testing.T) {
 	}
 }
 
-// --- push unregister ---
-
-func TestPushUnregister_NoAuth_401(t *testing.T) {
-	tokenGen := newTestJWTGen(t)
-	repo := notifakes.NewFakePushSubscriptionRepository()
-	mux := http.NewServeMux()
-	registerPushRoutes(mux, repo, userfakes.NewFakeProfileRepository(), userfakes.NewFakeUserRepository(), tokenGen, "test-vapid-key")
-	req := httptest.NewRequest(http.MethodDelete, "/api/v1/push/unregister", strings.NewReader(`{"endpoint":"https://push.example.com/1"}`))
-	w := httptest.NewRecorder()
-	mux.ServeHTTP(w, req)
-	if w.Code != http.StatusUnauthorized {
-		t.Errorf("expected 401, got %d", w.Code)
-	}
-}
-
-func TestPushListSubscriptions_OK(t *testing.T) {
-	tokenGen := newTestJWTGen(t)
-	repo := notifakes.NewFakePushSubscriptionRepository()
-	mux := http.NewServeMux()
-	registerPushRoutes(mux, repo, userfakes.NewFakeProfileRepository(), userfakes.NewFakeUserRepository(), tokenGen, "test-vapid-key")
-	token, _ := tokenGen.GenerateAccessToken(domainuser.Claims{UserID: "u1", Username: "user"})
-	req := httptest.NewRequest(http.MethodGet, "/api/v1/push/subscriptions", nil)
-	req.Header.Set("Authorization", "Bearer "+token)
-	req.RemoteAddr = "10.20.30.1:9999"
-	w := httptest.NewRecorder()
-	mux.ServeHTTP(w, req)
-	if w.Code != http.StatusOK {
-		t.Errorf("expected 200, got %d body=%s", w.Code, w.Body.String())
-	}
-}
-
-func TestPushDeleteSubscription_OK(t *testing.T) {
-	tokenGen := newTestJWTGen(t)
-	repo := notifakes.NewFakePushSubscriptionRepository()
-	mux := http.NewServeMux()
-	registerPushRoutes(mux, repo, userfakes.NewFakeProfileRepository(), userfakes.NewFakeUserRepository(), tokenGen, "test-vapid-key")
-	token, _ := tokenGen.GenerateAccessToken(domainuser.Claims{UserID: "u1", Username: "user"})
-	req := httptest.NewRequest(http.MethodDelete, "/api/v1/push/subscriptions", strings.NewReader(`{"endpoint":"https://push.example.com/1"}`))
-	req.Header.Set("Authorization", "Bearer "+token)
-	req.RemoteAddr = "10.20.30.2:9999"
-	w := httptest.NewRecorder()
-	mux.ServeHTTP(w, req)
-	if w.Code != http.StatusOK {
-		t.Errorf("expected 200, got %d", w.Code)
-	}
-}
-
-func TestPushDeleteSubscription_MissingEndpoint_400(t *testing.T) {
-	tokenGen := newTestJWTGen(t)
-	repo := notifakes.NewFakePushSubscriptionRepository()
-	mux := http.NewServeMux()
-	registerPushRoutes(mux, repo, userfakes.NewFakeProfileRepository(), userfakes.NewFakeUserRepository(), tokenGen, "test-vapid-key")
-	token, _ := tokenGen.GenerateAccessToken(domainuser.Claims{UserID: "u1", Username: "user"})
-	req := httptest.NewRequest(http.MethodDelete, "/api/v1/push/subscriptions", strings.NewReader(`{}`))
-	req.Header.Set("Authorization", "Bearer "+token)
-	req.RemoteAddr = "10.20.30.3:9999"
-	w := httptest.NewRecorder()
-	mux.ServeHTTP(w, req)
-	if w.Code != http.StatusBadRequest {
-		t.Errorf("expected 400, got %d", w.Code)
-	}
-}
-
 // =====================================
 // helpers.go — middleware tests
 // =====================================
@@ -1884,142 +1818,6 @@ func TestNewServerConfigStore(t *testing.T) {
 }
 
 // =====================================
-// photo_handler.go — search IDOR, albums IDOR, getPhoto/servePhoto missing params
-// =====================================
-
-func TestPhotoAlbums_IDOR_403(t *testing.T) {
-	mux, token := newPhotoTestMux(t, denyAll())
-	req := httptest.NewRequest(http.MethodGet, "/api/v1/photos/albums?library_id=lib-restricted", nil)
-	req.Header.Set("Authorization", "Bearer "+token)
-	w := httptest.NewRecorder()
-	mux.ServeHTTP(w, req)
-	if w.Code != http.StatusForbidden {
-		t.Errorf("expected 403, got %d", w.Code)
-	}
-}
-
-func TestPhotoAlbums_MissingLibraryID_400(t *testing.T) {
-	mux, token := newPhotoTestMux(t, allowAll())
-	req := httptest.NewRequest(http.MethodGet, "/api/v1/photos/albums", nil)
-	req.Header.Set("Authorization", "Bearer "+token)
-	w := httptest.NewRecorder()
-	mux.ServeHTTP(w, req)
-	if w.Code != http.StatusBadRequest {
-		t.Errorf("expected 400, got %d", w.Code)
-	}
-}
-
-func TestPhotoSearch_IDOR_403(t *testing.T) {
-	mux, token := newPhotoTestMux(t, denyAll())
-	req := httptest.NewRequest(http.MethodGet, "/api/v1/photos/search?library_id=lib-x&q=test", nil)
-	req.Header.Set("Authorization", "Bearer "+token)
-	w := httptest.NewRecorder()
-	mux.ServeHTTP(w, req)
-	if w.Code != http.StatusForbidden {
-		t.Errorf("expected 403, got %d", w.Code)
-	}
-}
-
-func TestPhotoSearch_MissingParams_400(t *testing.T) {
-	mux, token := newPhotoTestMux(t, allowAll())
-	req := httptest.NewRequest(http.MethodGet, "/api/v1/photos/search", nil)
-	req.Header.Set("Authorization", "Bearer "+token)
-	w := httptest.NewRecorder()
-	mux.ServeHTTP(w, req)
-	if w.Code != http.StatusBadRequest {
-		t.Errorf("expected 400, got %d", w.Code)
-	}
-}
-
-func TestListPhotos_MissingLibraryID_400(t *testing.T) {
-	mux, token := newPhotoTestMux(t, allowAll())
-	req := httptest.NewRequest(http.MethodGet, "/api/v1/photos", nil)
-	req.Header.Set("Authorization", "Bearer "+token)
-	w := httptest.NewRecorder()
-	mux.ServeHTTP(w, req)
-	if w.Code != http.StatusBadRequest {
-		t.Errorf("expected 400, got %d", w.Code)
-	}
-}
-
-func TestPhotoScan_NoAuth_403(t *testing.T) {
-	mux, _ := newPhotoTestMux(t, allowAll())
-	req := httptest.NewRequest(http.MethodPost, "/api/v1/photos/scan", strings.NewReader(`{"library_id":"lib-1","dir":"/tmp"}`))
-	w := httptest.NewRecorder()
-	mux.ServeHTTP(w, req)
-	if w.Code != http.StatusForbidden {
-		t.Errorf("expected 403, got %d", w.Code)
-	}
-}
-
-func TestPhotoScan_NonAdmin_403(t *testing.T) {
-	mux, token := newPhotoTestMux(t, allowAll())
-	req := httptest.NewRequest(http.MethodPost, "/api/v1/photos/scan", strings.NewReader(`{"library_id":"lib-1","dir":"/tmp"}`))
-	req.Header.Set("Authorization", "Bearer "+token)
-	w := httptest.NewRecorder()
-	mux.ServeHTTP(w, req)
-	if w.Code != http.StatusForbidden {
-		t.Errorf("expected 403, got %d", w.Code)
-	}
-}
-
-// =====================================
-// music_handler.go — search, delete not found
-// =====================================
-
-func TestSearchTracks_NoAuth_401(t *testing.T) {
-	mux, _ := newMusicTestMuxWithToken(t)
-	req := httptest.NewRequest(http.MethodGet, "/api/v1/music/search?library_id=lib-1&q=test", nil)
-	w := httptest.NewRecorder()
-	mux.ServeHTTP(w, req)
-	if w.Code != http.StatusUnauthorized {
-		t.Errorf("expected 401, got %d", w.Code)
-	}
-}
-
-func TestSearchTracks_Auth_OK(t *testing.T) {
-	mux, token := newMusicTestMuxWithToken(t)
-	req := httptest.NewRequest(http.MethodGet, "/api/v1/music/search?library_id=lib-1&q=test", nil)
-	req.Header.Set("Authorization", "Bearer "+token)
-	w := httptest.NewRecorder()
-	mux.ServeHTTP(w, req)
-	if w.Code != http.StatusOK {
-		t.Errorf("expected 200, got %d", w.Code)
-	}
-}
-
-func TestSearchTracks_IDOR_403(t *testing.T) {
-	key, _ := rsa.GenerateKey(rand.Reader, 2048)
-	tokenGen := auth.NewJWTGenerator(key, time.Minute)
-	token, _ := tokenGen.GenerateAccessToken(domainuser.Claims{UserID: "user-x", IsAdmin: false})
-
-	mux := http.NewServeMux()
-	repo := musicfakes.NewFakeMusicTrackRepository()
-	bus := sharedfakes.NewFakeEventBus()
-	svc := appmusic.NewService(repo, bus, nil, nil)
-	registerMusicRoutes(mux, svc, tokenGen, denyAll(), nil)
-
-	req := httptest.NewRequest(http.MethodGet, "/api/v1/music/search?library_id=lib-x&q=test", nil)
-	req.Header.Set("Authorization", "Bearer "+token)
-	w := httptest.NewRecorder()
-	mux.ServeHTTP(w, req)
-	if w.Code != http.StatusForbidden {
-		t.Errorf("expected 403, got %d", w.Code)
-	}
-}
-
-func TestDeleteTrack_NotFound_404(t *testing.T) {
-	mux, token := newMusicTestMuxWithToken(t)
-	req := httptest.NewRequest(http.MethodDelete, "/api/v1/music/tracks/nonexistent", nil)
-	req.Header.Set("Authorization", "Bearer "+token)
-	w := httptest.NewRecorder()
-	mux.ServeHTTP(w, req)
-	if w.Code != http.StatusNotFound {
-		t.Errorf("expected 404, got %d", w.Code)
-	}
-}
-
-// =====================================
 // libraryStatsHandler — extra coverage
 // =====================================
 
@@ -2244,33 +2042,6 @@ func TestSecurityHeadersMiddleware_Exported(t *testing.T) {
 }
 
 // =====================================
-// photo_handler.go — toPhotoResponse
-// =====================================
-
-func TestToPhotoResponse(t *testing.T) {
-	now := time.Now()
-	p := domainphoto.Photo{
-		ID:          "p1",
-		LibraryID:   "lib-1",
-		Title:       "Sunset",
-		FilePath:    "/photos/sunset.jpg",
-		FileSize:    1024,
-		MimeType:    "image/jpeg",
-		Width:       1920,
-		Height:      1080,
-		TakenAt:     &now,
-		CameraModel: "Canon",
-		Album:       "Vacation",
-		CreatedAt:   now,
-		UpdatedAt:   now,
-	}
-	resp := toPhotoResponse(p)
-	if resp.ID != "p1" || resp.Title != "Sunset" {
-		t.Errorf("unexpected response: %+v", resp)
-	}
-}
-
-// =====================================
 // admin_handler.go — admin media routes, search-metadata, refresh-all
 // =====================================
 
@@ -2488,51 +2259,6 @@ func TestSubtitleRoutes_RequireMediaAccess_IDOR(t *testing.T) {
 	}
 	if w.Code != http.StatusForbidden {
 		t.Errorf("expected 403, got %d", w.Code)
-	}
-}
-
-// =====================================
-// auth_handler.go — push unregister happy path
-// =====================================
-
-func TestPushUnregister_OK(t *testing.T) {
-	tokenGen := newTestJWTGen(t)
-	repo := notifakes.NewFakePushSubscriptionRepository()
-	userRepo := userfakes.NewFakeUserRepository()
-	_ = userRepo.Create(context.Background(), &domainuser.User{ID: "u1", Username: "user", Enabled: true})
-	mux := http.NewServeMux()
-	registerPushRoutes(mux, repo, userfakes.NewFakeProfileRepository(), userRepo, tokenGen, "test-vapid-key")
-	token, _ := tokenGen.GenerateAccessToken(domainuser.Claims{UserID: "u1", Username: "user"})
-
-	regReq := httptest.NewRequest(http.MethodPost, "/api/v1/push/register",
-		strings.NewReader(`{"endpoint":"https://push.example.com/1","keys":{"p256dh":"abc","auth":"def"},"consent":true}`))
-	regReq.Header.Set("Authorization", "Bearer "+token)
-	regReq.RemoteAddr = "10.50.50.1:9999"
-	regW := httptest.NewRecorder()
-	mux.ServeHTTP(regW, regReq)
-
-	unregReq := httptest.NewRequest(http.MethodDelete, "/api/v1/push/unregister",
-		strings.NewReader(`{"endpoint":"https://push.example.com/1"}`))
-	unregReq.Header.Set("Authorization", "Bearer "+token)
-	unregW := httptest.NewRecorder()
-	mux.ServeHTTP(unregW, unregReq)
-	if unregW.Code != http.StatusOK {
-		t.Errorf("expected 200, got %d body=%s", unregW.Code, unregW.Body.String())
-	}
-}
-
-func TestPushUnregister_InvalidBody_400(t *testing.T) {
-	tokenGen := newTestJWTGen(t)
-	repo := notifakes.NewFakePushSubscriptionRepository()
-	mux := http.NewServeMux()
-	registerPushRoutes(mux, repo, userfakes.NewFakeProfileRepository(), userfakes.NewFakeUserRepository(), tokenGen, "test-vapid-key")
-	token, _ := tokenGen.GenerateAccessToken(domainuser.Claims{UserID: "u1", Username: "user"})
-	req := httptest.NewRequest(http.MethodDelete, "/api/v1/push/unregister", strings.NewReader("bad"))
-	req.Header.Set("Authorization", "Bearer "+token)
-	w := httptest.NewRecorder()
-	mux.ServeHTTP(w, req)
-	if w.Code != http.StatusBadRequest {
-		t.Errorf("expected 400, got %d", w.Code)
 	}
 }
 

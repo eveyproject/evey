@@ -9,7 +9,6 @@ import (
 	"time"
 
 	httpapi "github.com/gravity-zero/evey/internal/adapters/driving/http"
-	appconfig "github.com/gravity-zero/evey/internal/app/config"
 	appdlna "github.com/gravity-zero/evey/internal/app/dlna"
 	"github.com/gravity-zero/evey/internal/config"
 	"github.com/gravity-zero/evey/internal/domain/shared"
@@ -103,19 +102,8 @@ func buildHTTPHandler(gwMux http.Handler, deps *appDeps, cfg *config.Config, sta
 		DataDir:     "/data",
 		PluginDir:   "/data/plugins",
 		WebDir:      cfg.Server.WebDir,
-<<<<<<< HEAD
-		BioEnricher: deps.content.enricher,
-
-<<<<<<< HEAD
-=======
->>>>>>> worktree-agent-acf92ea4
-		FeedCmdSvc:   deps.engagement.feedCmdSvc,
-		FeedQuerySvc: deps.engagement.feedQuerySvc,
-
 		DLNASvc: appdlna.New(cfg.EffectiveBaseURL()),
 
-=======
->>>>>>> worktree-agent-a71afbdb
 		CfgStore: deps.cfgStore,
 		ServerCtx: ctx,
 

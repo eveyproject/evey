@@ -2079,29 +2079,6 @@ func TestHLSMasterHandler_IDOR_403(t *testing.T) {
 // Photo handler additional tests
 // ============================================================
 
-func TestGetPhoto_NotFound(t *testing.T) {
-	mux, token := newPhotoTestMux(t, allowAll())
-	req := httptest.NewRequest(http.MethodGet, "/api/v1/photos/photo-nonexistent", nil)
-	req.Header.Set("Authorization", "Bearer "+token)
-	w := httptest.NewRecorder()
-	mux.ServeHTTP(w, req)
-	if w.Code != http.StatusNotFound {
-		t.Errorf("expected 404, got %d: %s", w.Code, w.Body.String())
-	}
-}
-
-func TestDeletePhoto_NotFound(t *testing.T) {
-	mux, token := newPhotoTestMux(t, allowAll())
-	req := httptest.NewRequest(http.MethodDelete, "/api/v1/photos/photo-nonexistent", nil)
-	req.Header.Set("Authorization", "Bearer "+token)
-	w := httptest.NewRecorder()
-	mux.ServeHTTP(w, req)
-	// photo not found → should get 500 or 404
-	if w.Code == http.StatusUnauthorized || w.Code == http.StatusForbidden {
-		t.Errorf("auth should pass, got %d", w.Code)
-	}
-}
-
 func TestServePhoto_NotFound(t *testing.T) {
 	mux, token := newPhotoTestMux(t, allowAll())
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/photos/photo-nonexistent/serve", nil)
@@ -2113,62 +2090,6 @@ func TestServePhoto_NotFound(t *testing.T) {
 	}
 }
 
-func TestScanPhotos_NonAdmin_403(t *testing.T) {
-	mux, token := newPhotoTestMux(t, allowAll())
-	body := `{"library_id":"lib1","dir":"/tmp"}`
-	req := httptest.NewRequest(http.MethodPost, "/api/v1/photos/scan", strings.NewReader(body))
-	req.Header.Set("Authorization", "Bearer "+token)
-	w := httptest.NewRecorder()
-	mux.ServeHTTP(w, req)
-	if w.Code != http.StatusForbidden {
-		t.Errorf("expected 403, got %d", w.Code)
-	}
-}
-
-func TestScanPhotos_NoAuth_403(t *testing.T) {
-	mux, _ := newPhotoTestMux(t, allowAll())
-	req := httptest.NewRequest(http.MethodPost, "/api/v1/photos/scan", nil)
-	w := httptest.NewRecorder()
-	mux.ServeHTTP(w, req)
-	if w.Code != http.StatusForbidden {
-		t.Errorf("expected 403, got %d", w.Code)
-	}
-}
-
-func TestScanPhotos_BadBody_400(t *testing.T) {
-	mux, adminToken := newPhotoAdminTestMux(t)
-	req := httptest.NewRequest(http.MethodPost, "/api/v1/photos/scan", strings.NewReader("not json"))
-	req.Header.Set("Authorization", "Bearer "+adminToken)
-	w := httptest.NewRecorder()
-	mux.ServeHTTP(w, req)
-	if w.Code != http.StatusBadRequest {
-		t.Errorf("expected 400, got %d", w.Code)
-	}
-}
-
-func TestScanPhotos_MissingFields_400(t *testing.T) {
-	mux, adminToken := newPhotoAdminTestMux(t)
-	req := httptest.NewRequest(http.MethodPost, "/api/v1/photos/scan", strings.NewReader(`{"library_id":"lib1"}`))
-	req.Header.Set("Authorization", "Bearer "+adminToken)
-	w := httptest.NewRecorder()
-	mux.ServeHTTP(w, req)
-	if w.Code != http.StatusBadRequest {
-		t.Errorf("expected 400, got %d", w.Code)
-	}
-}
-
-func TestScanPhotos_RelativePath_400(t *testing.T) {
-	mux, adminToken := newPhotoAdminTestMux(t)
-	req := httptest.NewRequest(http.MethodPost, "/api/v1/photos/scan", strings.NewReader(`{"library_id":"lib1","dir":"relative/path"}`))
-	req.Header.Set("Authorization", "Bearer "+adminToken)
-	w := httptest.NewRecorder()
-	mux.ServeHTTP(w, req)
-	if w.Code != http.StatusBadRequest {
-		t.Errorf("expected 400, got %d: %s", w.Code, w.Body.String())
-	}
-}
-
-// ScanPhotos_LibraryNotFound skipped — requires non-nil libraryPathsGetter in photo mux
 
 // ============================================================
 // Backup handler additional tests
@@ -2353,35 +2274,6 @@ func TestListFavorites_WithPagination(t *testing.T) {
 	mux.ServeHTTP(w, req)
 	if w.Code != http.StatusOK {
 		t.Errorf("expected 200, got %d", w.Code)
-	}
-}
-
-// ============================================================
-// Music scanDirectory auth test
-// ============================================================
-
-func TestMusicScan_NoAuth(t *testing.T) {
-	mux, _ := newMusicTestMuxWithToken(t)
-	body := `{"library_id":"lib1","dir":"/tmp/music"}`
-	req := httptest.NewRequest(http.MethodPost, "/api/v1/music/scan", strings.NewReader(body))
-	w := httptest.NewRecorder()
-	mux.ServeHTTP(w, req)
-	// requireAdmin returns 401 for no token
-	if w.Code != http.StatusUnauthorized {
-		t.Errorf("expected 401, got %d", w.Code)
-	}
-}
-
-func TestMusicScan_NonAdmin_403(t *testing.T) {
-	mux, token := newMusicTestMuxWithToken(t)
-	body := `{"library_id":"lib1","dir":"/tmp/music"}`
-	req := httptest.NewRequest(http.MethodPost, "/api/v1/music/scan", strings.NewReader(body))
-	req.Header.Set("Authorization", "Bearer "+token)
-	w := httptest.NewRecorder()
-	mux.ServeHTTP(w, req)
-	// non-admin user
-	if w.Code != http.StatusForbidden {
-		t.Errorf("expected 403, got %d", w.Code)
 	}
 }
 

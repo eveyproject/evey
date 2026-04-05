@@ -27,9 +27,13 @@ import (
 	appplugin "github.com/gravity-zero/evey/internal/app/plugin"
 	apptranscoding "github.com/gravity-zero/evey/internal/app/transcoding"
 	appuser "github.com/gravity-zero/evey/internal/app/user"
+	appmusic "github.com/gravity-zero/evey/internal/app/music"
+	appphoto "github.com/gravity-zero/evey/internal/app/photo"
 	appwebhook "github.com/gravity-zero/evey/internal/app/webhook"
 	"github.com/gravity-zero/evey/internal/config"
+	"github.com/gravity-zero/evey/internal/domain/notification"
 	"github.com/gravity-zero/evey/internal/domain/user"
+	"github.com/gravity-zero/evey/internal/pkg/ratelimit"
 	eveyi18n "github.com/gravity-zero/evey/internal/pkg/i18n"
 	"google.golang.org/grpc"
 )
@@ -93,11 +97,13 @@ type GRPCServer struct {
 	translator      *eveyi18n.Translator
 	serverCtx       context.Context
 	smtpConfigured  bool
-<<<<<<< HEAD
 	shareSvc        *appmedia.ShareService
-=======
 	bioEnricher     appmetadata.PeopleBioEnricher
->>>>>>> worktree-agent-acf92ea4
+	music           *appmusic.Service
+	photo           *appphoto.Service
+	pushSubs        notification.PushSubscriptionRepository
+	vapidPubKey     string
+	pushRegisterRL  *ratelimit.Limiter
 }
 
 func (s *GRPCServer) SetServerConfigHandler(h *serverConfigHandler) {
@@ -131,17 +137,30 @@ func (s *GRPCServer) SetSMTPConfigured(v bool) {
 	s.smtpConfigured = v
 }
 
-<<<<<<< HEAD
 func (s *GRPCServer) SetShareService(svc *appmedia.ShareService) {
 	s.shareSvc = svc
 }
 
 func (s *GRPCServer) SetSyncPlayHub(hub *appsyncplay.Hub) {
 	s.syncplayHub = hub
-=======
+}
+
 func (s *GRPCServer) SetBioEnricher(e appmetadata.PeopleBioEnricher) {
 	s.bioEnricher = e
->>>>>>> worktree-agent-acf92ea4
+}
+
+func (s *GRPCServer) SetPushDeps(subs notification.PushSubscriptionRepository, vapidKey string, rl *ratelimit.Limiter) {
+	s.pushSubs = subs
+	s.vapidPubKey = vapidKey
+	s.pushRegisterRL = rl
+}
+
+func (s *GRPCServer) SetMusicService(svc *appmusic.Service) {
+	s.music = svc
+}
+
+func (s *GRPCServer) SetPhotoService(svc *appphoto.Service) {
+	s.photo = svc
 }
 
 func NewGRPCServer(
@@ -289,6 +308,18 @@ func (s *GRPCServer) RegisterServices() {
 	}
 	if s.serverCfgHndlr != nil {
 		eveyv1.RegisterServerConfigServiceServer(s.server, s.serverCfgHndlr)
+	}
+	if s.music != nil {
+		eveyv1.RegisterMusicServiceServer(s.server, &musicHandler{svc: s.music, libQuery: s.libQuery, libraryAccess: s.libraryAccess})
+	}
+	if s.photo != nil {
+		eveyv1.RegisterPhotoServiceServer(s.server, &photoHandler{svc: s.photo, libQuery: s.libQuery, libraryAccess: s.libraryAccess})
+	}
+	if s.pushSubs != nil {
+		eveyv1.RegisterPushServiceServer(s.server, &webPushHandler{
+			subs: s.pushSubs, profiles: s.profiles, users: s.users,
+			vapidPubKey: s.vapidPubKey, registerRL: s.pushRegisterRL,
+		})
 	}
 }
 

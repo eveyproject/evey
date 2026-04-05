@@ -131,16 +131,9 @@ type HTTPServer struct {
 	PluginSvc  pluginManager
 	PluginDir  string
 
-<<<<<<< HEAD
-	// Feed
-	FeedCmdSvc   *appfeed.CommandService
-	FeedQuerySvc *appfeed.QueryService
-
 	// DLNA
 	DLNASvc *appdlna.Service
 
-=======
->>>>>>> worktree-agent-a71afbdb
 	// Config store for remote access persistence
 	CfgStore remoteAccessPersister
 
@@ -267,13 +260,7 @@ func (s *HTTPServer) RegisterRoutes(mux *http.ServeMux, gwMux http.Handler) {
 		})
 	}
 
-<<<<<<< HEAD
-	registerAdminRoutes(mux, s.MetadataCmdSvc, s.MetadataQuerySvc, s.TokenGen, s.AdminHeavyRL, s.AdminWriteRL, s.ServerCtx, s.ActivityCmdSvc, s.BioEnricher)
-	registerUserAdminRoutes(mux, s.UserSvc, s.UserQuerySvc, s.TokenGen, s.AdminWriteRL, s.ActivityCmdSvc)
-=======
-	registerFeedRoutes(mux, s.FeedCmdSvc, s.FeedQuerySvc, s.TokenGen, s.AdminWriteRL)
 	registerAdminRoutes(mux, s.MetadataCmdSvc, s.MetadataQuerySvc, s.TokenGen, s.AdminHeavyRL, s.AdminWriteRL, s.ServerCtx, s.ActivityCmdSvc)
->>>>>>> worktree-agent-acf92ea4
 	registerFavoriteRoutes(mux, s.FavoriteSvc, s.LibQuerySvc, s.TokenGen, s.LibraryAccessRepo)
 	registerPhotoRoutes(mux, s.PhotoSvc, s.TokenGen, s.LibraryAccessRepo, s.LibQuerySvc, s.ServerCtx)
 	registerMetadataOverrideRoutes(mux, s.MetadataCmdSvc, s.MetadataQuerySvc, s.TokenGen)
@@ -306,27 +293,15 @@ func (s *HTTPServer) RegisterRoutes(mux *http.ServeMux, gwMux http.Handler) {
 			_, _ = w.Write([]byte(`{"status":"started"}`))
 		}))
 	}
-<<<<<<< HEAD
-	// Rating routes migrated to gRPC — see grpcapi/rating_handler.go
+	registerRatingRoutes(mux, s.UserRatingRepo, s.TokenGen, s.LibQuerySvc, s.LibraryAccessRepo)
+	registerStarRatingRoutes(mux, s.StarRatingSvc, s.TokenGen, s.LibQuerySvc, s.LibraryAccessRepo)
 	registerPopularRoute(mux, s.ActivityQuerySvc, s.LibQuerySvc, s.TokenGen, s.LibraryAccessRepo)
 	registerAnalyticsRoutes(mux, s.ActivityQuerySvc, s.TokenGen)
 	registerFilterRoutes(mux, s.LibQuerySvc, s.TokenGen, s.LibraryAccessRepo)
-<<<<<<< HEAD
-=======
-	registerRatingRoutes(mux, s.UserRatingRepo, s.TokenGen, s.LibQuerySvc, s.LibraryAccessRepo)
-	registerStarRatingRoutes(mux, s.StarRatingSvc, s.TokenGen, s.LibQuerySvc, s.LibraryAccessRepo)
-	// Popular route migrated to gRPC (ActivityService.GetPopularMedia)
-	// Analytics routes migrated to gRPC (ActivityService.GetAnalytics)
-	// Filter routes migrated to gRPC (LibraryService.FilterMediaItems)
->>>>>>> worktree-agent-a08d8e9c
-	registerSystemStatsRoute(mux, s.StartTime, s.TokenGen)
-	registerServerConfigRoutes(mux, s.ServerCfgSvc, s.TokenGen, s.ActivityCmdSvc, s.AdminWriteRL)
-=======
->>>>>>> worktree-agent-acf92ea4
 	registerLogsRoute(mux, s.LogDir, s.TokenGen)
 	registerAvailableRuntimesRoute(mux, s.TokenGen)
 	registerMusicRoutes(mux, s.MusicSvc, s.TokenGen, s.LibraryAccessRepo, s.LibQuerySvc)
-	registerPushRoutes(mux, s.PushSubRepo, s.ProfileRepo, s.UserRepo, s.TokenGen, s.VAPIDPublicKey)
+
 
 	if s.SubtitleSvc != nil {
 		registerSubtitleRoutes(mux, s.SubtitleSvc, s.TokenGen, s.LibQuerySvc, s.LibraryAccessRepo)
