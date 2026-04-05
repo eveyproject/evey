@@ -16,18 +16,64 @@ import (
 func buildGRPCServer(deps *appDeps, cfg *config.Config, rootLog *slog.Logger, logDir string, serverCtx context.Context) *grpcapi.GRPCServer {
 	authInterceptor := interceptors.NewAuthInterceptor(deps.auth.tokenGen).WithAPIKeys(deps.repos.apiKeyRepo, deps.repos.userRepo).WithTranslator(deps.translator)
 	grpcLog := eveylogger.NewWith(rootLog, "grpc")
-	grpcSrv := grpcapi.NewGRPCServer(
-		deps.library.cmdSvc, deps.library.querySvc, deps.user.authSvc, deps.user.userSvc, deps.user.accessSvc, deps.user.querySvc,
-		deps.media.playbackSvc.CommandService(), deps.media.playbackSvc.QueryService(),
-		deps.media.transcodingSvc,
-		deps.media.mkvSvc, deps.engagement.pluginInstallerSvc, deps.engagement.pluginRuntimeSvc, deps.engagement.pluginQuerySvc, deps.content.metadataCmdSvc, deps.content.metadataQuerySvc,
-		deps.engagement.activityCmdSvc, deps.engagement.activityQuerySvc,
-		deps.engagement.notifCmdSvc, deps.engagement.notifQuerySvc, deps.engagement.feedCmdSvc, deps.engagement.feedQuerySvc, deps.engagement.webhookSvc,
-		deps.content.collectionSvc, deps.content.playlistSvc, deps.content.favoriteSvc,
-		deps.repos.userRepo, deps.repos.profileRepo, deps.repos.libraryAccessRepo,
-		deps.backupSvc, cfg, deps.cfgStore,
-		version,
-		grpc.MaxRecvMsgSize(16 * 1024 * 1024),
+
+	grpcDeps := grpcapi.GRPCServerDeps{
+		LibCmd:          deps.library.cmdSvc,
+		LibQuery:        deps.library.querySvc,
+		UserAuth:        deps.user.authSvc,
+		UserSvc:         deps.user.userSvc,
+		UserAccess:      deps.user.accessSvc,
+		UserQuery:       deps.user.querySvc,
+		PlaybackCmd:     deps.media.playbackSvc.CommandService(),
+		PlaybackQuery:   deps.media.playbackSvc.QueryService(),
+		Transcoding:     deps.media.transcodingSvc,
+		Mkv:             deps.media.mkvSvc,
+		PluginInstaller: deps.engagement.pluginInstallerSvc,
+		PluginRuntime:   deps.engagement.pluginRuntimeSvc,
+		PluginQuery:     deps.engagement.pluginQuerySvc,
+		MetadataCmd:     deps.content.metadataCmdSvc,
+		MetadataQuery:   deps.content.metadataQuerySvc,
+		ActivityCmd:     deps.engagement.activityCmdSvc,
+		ActivityQuery:   deps.engagement.activityQuerySvc,
+		NotifCmd:        deps.engagement.notifCmdSvc,
+		NotifQuery:      deps.engagement.notifQuerySvc,
+		FeedCmd:         deps.engagement.feedCmdSvc,
+		FeedQuery:       deps.engagement.feedQuerySvc,
+		Webhook:         deps.engagement.webhookSvc,
+		Collection:      deps.content.collectionSvc,
+		Playlist:        deps.content.playlistSvc,
+		Favorite:        deps.content.favoriteSvc,
+		Users:           deps.repos.userRepo,
+		Profiles:        deps.repos.profileRepo,
+		LibraryAccess:   deps.repos.libraryAccessRepo,
+		Backup:          deps.backupSvc,
+		Cfg:             cfg,
+		CfgStore:        deps.cfgStore,
+		Version:         version,
+		HLSManager:      deps.media.hlsManager,
+		Scheduler:       deps.library.scheduler,
+		LogDir:          logDir,
+		ServerCtx:       serverCtx,
+		Translator:      deps.translator,
+		SMTPConfigured:  cfg.SMTP.Host != "",
+		ServerCfgRepo:   deps.repos.serverCfgRepo,
+		ShareSvc:        deps.media.shareSvc,
+		BioEnricher:     deps.content.enricher,
+		Music:           deps.media.musicSvc,
+		Photo:           deps.media.photoSvc,
+		SyncplayHub:     deps.media.syncPlayHub,
+		ThumbRating:     deps.repos.userRatingRepo,
+		StarRating:      deps.content.starRatingSvc,
+	}
+
+	if deps.repos.pushSubRepo != nil {
+		grpcDeps.PushSubs = deps.repos.pushSubRepo
+		grpcDeps.VAPIDPubKey = resolveVAPIDPublicKey(deps.repos.serverCfgRepo, cfg)
+		grpcDeps.PushRegisterRL = ratelimit.New(10)
+	}
+
+	grpcSrv := grpcapi.NewGRPCServer(grpcDeps,
+		grpc.MaxRecvMsgSize(16*1024*1024),
 		grpc.ChainUnaryInterceptor(
 			interceptors.ErrorSanitizerUnary(),
 			interceptors.LocaleUnary(),
@@ -43,23 +89,6 @@ func buildGRPCServer(deps *appDeps, cfg *config.Config, rootLog *slog.Logger, lo
 			authInterceptor.Stream(),
 		),
 	)
-	grpcSrv.SetTranslator(deps.translator)
-	grpcSrv.SetHLSManager(deps.media.hlsManager)
-	grpcSrv.SetScheduler(deps.library.scheduler)
-	grpcSrv.SetLogDir(logDir)
-	grpcSrv.SetServerCtx(serverCtx)
-	grpcSrv.SetServerConfigHandler(grpcapi.NewServerConfigHandler(deps.repos.serverCfgRepo))
-	grpcSrv.SetSMTPConfigured(cfg.SMTP.Host != "")
-	grpcSrv.SetShareService(deps.media.shareSvc)
-	grpcSrv.SetSyncPlayHub(deps.media.syncPlayHub)
-	if deps.content.enricher != nil {
-		grpcSrv.SetBioEnricher(deps.content.enricher)
-	}
-	grpcSrv.SetMusicService(deps.media.musicSvc)
-	grpcSrv.SetPhotoService(deps.media.photoSvc)
-	if deps.repos.pushSubRepo != nil {
-		grpcSrv.SetPushDeps(deps.repos.pushSubRepo, resolveVAPIDPublicKey(deps.repos.serverCfgRepo, cfg), ratelimit.New(10))
-	}
 	grpcSrv.RegisterServices()
 	return grpcSrv
 }
