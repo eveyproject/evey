@@ -12,6 +12,7 @@ import (
 	appbackup "github.com/gravity-zero/evey/internal/app/backup"
 	appcollection "github.com/gravity-zero/evey/internal/app/collection"
 	appfavorite "github.com/gravity-zero/evey/internal/app/favorite"
+	appsyncplay "github.com/gravity-zero/evey/internal/app/syncplay"
 	appfeed "github.com/gravity-zero/evey/internal/app/feed"
 	applibrary "github.com/gravity-zero/evey/internal/app/library"
 	appmetadata "github.com/gravity-zero/evey/internal/app/metadata"
@@ -66,6 +67,7 @@ type GRPCServer struct {
 	startTime     time.Time
 	ffmpegPath    string
 	backup          *appbackup.Service
+	syncplayHub     *appsyncplay.Hub
 	cfg             *config.Config
 	cfgStore        remoteAccessConfigStore
 	serverCfgHndlr  *serverConfigHandler
@@ -103,6 +105,10 @@ func (s *GRPCServer) SetTranslator(t *eveyi18n.Translator) {
 
 func (s *GRPCServer) SetSMTPConfigured(v bool) {
 	s.smtpConfigured = v
+}
+
+func (s *GRPCServer) SetSyncPlayHub(hub *appsyncplay.Hub) {
+	s.syncplayHub = hub
 }
 
 func NewGRPCServer(
@@ -225,6 +231,13 @@ func (s *GRPCServer) RegisterServices() {
 	eveyv1.RegisterRemoteAccessServiceServer(s.server, &remoteAccessHandler{cfg: s.cfg, store: s.cfgStore})
 	eveyv1.RegisterPlaybackSettingsServiceServer(s.server, &playbackSettingsHandler{cfg: s.cfg, translator: s.translator})
 	eveyv1.RegisterLibraryAccessServiceServer(s.server, &libraryAccessHandler{accessRepo: s.libraryAccess, libQuery: s.libQuery})
+	if s.syncplayHub != nil {
+		eveyv1.RegisterSyncPlayServiceServer(s.server, &syncplayHandler{
+			hub:           s.syncplayHub,
+			libQuery:      s.libQuery,
+			libraryAccess: s.libraryAccess,
+		})
+	}
 	if s.serverCfgHndlr != nil {
 		eveyv1.RegisterServerConfigServiceServer(s.server, s.serverCfgHndlr)
 	}
