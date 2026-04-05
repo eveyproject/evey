@@ -25,6 +25,7 @@ import (
 	appplaylist "github.com/gravity-zero/evey/internal/app/playlist"
 	apprating "github.com/gravity-zero/evey/internal/app/rating"
 	appsubtitle "github.com/gravity-zero/evey/internal/app/subtitle"
+	appdlna "github.com/gravity-zero/evey/internal/app/dlna"
 	appsyncplay "github.com/gravity-zero/evey/internal/app/syncplay"
 	apptranscoding "github.com/gravity-zero/evey/internal/app/transcoding"
 	appuser "github.com/gravity-zero/evey/internal/app/user"
@@ -52,7 +53,7 @@ type SearchHealthChecker interface {
 
 // HTTPServer holds shared dependencies for HTTP handlers.
 type HTTPServer struct {
-	BaseURL   string
+	BaseURL   func() string
 	Version   string
 	StartTime time.Time
 	LogDir    string
@@ -144,6 +145,9 @@ type HTTPServer struct {
 	FeedCmdSvc   *appfeed.CommandService
 	FeedQuerySvc *appfeed.QueryService
 
+	// DLNA
+	DLNASvc *appdlna.Service
+
 	// Config store for remote access persistence
 	CfgStore remoteAccessPersister
 
@@ -192,23 +196,23 @@ func (s *HTTPServer) RegisterRoutes(mux *http.ServeMux, gwMux http.Handler) {
 	if s.ImageConverter != nil {
 		mhOpts = append(mhOpts, withImageConverter(s.ImageConverter, s.ArtworkRepo))
 	}
-	mh := mediaHandler(s.TokenGen, s.LibQuerySvc, s.ArtworkRepo, s.BaseURL, s.LibraryAccessRepo, mhOpts...)
+	mh := mediaHandler(s.TokenGen, s.LibQuerySvc, s.ArtworkRepo, s.BaseURL(), s.LibraryAccessRepo, mhOpts...)
 	mux.HandleFunc("GET /api/v1/media/{id}/stream", mh)
 	mux.HandleFunc("GET /api/v1/media/{id}/artwork/{artType}", mh)
 	mux.HandleFunc("POST /api/v1/media/{id}/stream", mh)
 	mux.HandleFunc("POST /api/v1/media/{id}/artwork/{artworkId}/select", selectArtworkHandler(s.TokenGen, s.ArtworkRepo, s.LibQuerySvc, s.LibraryAccessRepo))
-	mux.HandleFunc("GET /api/v1/media/{id}/download", downloadHandler(s.TokenGen, s.LibQuerySvc, s.BaseURL, s.LibraryAccessRepo))
+	mux.HandleFunc("GET /api/v1/media/{id}/download", downloadHandler(s.TokenGen, s.LibQuerySvc, s.BaseURL(), s.LibraryAccessRepo))
 	mux.HandleFunc("POST /api/v1/media/{id}/stream-token", streamTokenHandler(s.TokenGen, s.StreamTokenStore, s.LibraryAccessRepo, s.LibQuerySvc))
 
 	transcodeThrottle := apptranscoding.NewTranscodeThrottle()
 	mux.HandleFunc("GET /api/v1/media/{id}/transcode", transcodeHandler(transcodeServe{
-		tokens: s.TokenGen, libSvc: s.LibQuerySvc, baseURL: s.BaseURL,
+		tokens: s.TokenGen, libSvc: s.LibQuerySvc, baseURL: s.BaseURL(),
 		libraryAccess: s.LibraryAccessRepo, throttle: transcodeThrottle, userMaxStreams: s.UserMaxStreams,
 	}))
-	mux.HandleFunc("GET /api/v1/media/{id}/subtitle/{track}", subtitleHandler(s.TokenGen, s.LibQuerySvc, s.BaseURL, s.LibraryAccessRepo))
-	mux.HandleFunc("GET /api/v1/media/{id}/chapters", chaptersHandler(s.TokenGen, s.LibCmdSvc, s.BaseURL, s.LibraryAccessRepo, s.LibQuerySvc))
-	mux.HandleFunc("GET /api/v1/media/{id}/trickplay", trickplayManifestHandler(s.TokenGen, s.LibCmdSvc, s.BaseURL, s.LibraryAccessRepo, s.LibQuerySvc))
-	mux.HandleFunc("GET /api/v1/media/{id}/trickplay/{image}", trickplayImageHandler(s.TokenGen, s.LibCmdSvc, s.BaseURL, s.LibraryAccessRepo, s.LibQuerySvc))
+	mux.HandleFunc("GET /api/v1/media/{id}/subtitle/{track}", subtitleHandler(s.TokenGen, s.LibQuerySvc, s.BaseURL(), s.LibraryAccessRepo))
+	mux.HandleFunc("GET /api/v1/media/{id}/chapters", chaptersHandler(s.TokenGen, s.LibCmdSvc, s.BaseURL(), s.LibraryAccessRepo, s.LibQuerySvc))
+	mux.HandleFunc("GET /api/v1/media/{id}/trickplay", trickplayManifestHandler(s.TokenGen, s.LibCmdSvc, s.BaseURL(), s.LibraryAccessRepo, s.LibQuerySvc))
+	mux.HandleFunc("GET /api/v1/media/{id}/trickplay/{image}", trickplayImageHandler(s.TokenGen, s.LibCmdSvc, s.BaseURL(), s.LibraryAccessRepo, s.LibQuerySvc))
 	mux.HandleFunc("POST /api/v1/admin/media/{id}/trickplay/generate", requireAdmin(s.TokenGen, ratelimit.MiddlewareFunc(s.AdminHeavyRL, trickplayGenerateHandler(s.TokenGen, s.LibCmdSvc, s.ServerCtx))))
 	mux.HandleFunc("POST /api/v1/admin/trickplay/generate-all", requireAdmin(s.TokenGen, ratelimit.MiddlewareFunc(s.AdminHeavyRL, trickplayGenerateAllHandler(s.TokenGen, s.LibCmdSvc))))
 	mux.HandleFunc("GET /api/v1/media/{id}/playback-info", playbackInfoHandler(s.TokenGen, s.LibQuerySvc, s.LibraryAccessRepo))
@@ -222,6 +226,14 @@ func (s *HTTPServer) RegisterRoutes(mux *http.ServeMux, gwMux http.Handler) {
 	mux.HandleFunc("GET /api/v1/media/{id}/hls/{file}", hlsSegmentHandler(s.TokenGen, hlsMediaCache, s.HLSManager, hlsAccessCache))
 	mux.HandleFunc("GET /api/v1/admin/library-stats", requireAdmin(s.TokenGen, libraryStatsHandler(s.TokenGen, s.LibQuerySvc)))
 
+	// DLNA
+	if s.DLNASvc != nil {
+		mux.HandleFunc("GET /api/v1/dlna/renderers", dlnaRenderersHandler(s.TokenGen, s.DLNASvc))
+		mux.HandleFunc("POST /api/v1/dlna/play", dlnaPlayHandler(s.TokenGen, s.DLNASvc))
+		mux.HandleFunc("POST /api/v1/dlna/stop", dlnaStopHandler(s.TokenGen, s.DLNASvc))
+		mux.HandleFunc("POST /api/v1/dlna/pause", dlnaPauseHandler(s.TokenGen, s.DLNASvc))
+	}
+
 	if gwMux != nil {
 		mux.HandleFunc("POST /api/v1/auth/login", ratelimit.MiddlewareFunc(s.LoginRL, func(w http.ResponseWriter, r *http.Request) {
 			r.Body = http.MaxBytesReader(w, r.Body, 1<<20)
@@ -233,13 +245,13 @@ func (s *HTTPServer) RegisterRoutes(mux *http.ServeMux, gwMux http.Handler) {
 		mux.HandleFunc("POST /api/v1/auth/reset-password", ratelimit.MiddlewareFunc(s.PasswordResetRL, func(w http.ResponseWriter, r *http.Request) {
 			gwMux.ServeHTTP(w, r)
 		}))
-		mux.HandleFunc("GET /api/v1/auth/quick-connect/{code}", func(w http.ResponseWriter, r *http.Request) {
+		mux.HandleFunc("GET /api/v1/auth/quick-connect/{code}", ratelimit.MiddlewareFunc(s.LoginRL, func(w http.ResponseWriter, r *http.Request) {
 			authCookieMiddleware(gwMux, s.HTTPSOnly).ServeHTTP(w, r)
-		})
-		mux.HandleFunc("POST /api/v1/auth/refresh", func(w http.ResponseWriter, r *http.Request) {
+		}))
+		mux.HandleFunc("POST /api/v1/auth/refresh", ratelimit.MiddlewareFunc(s.LoginRL, func(w http.ResponseWriter, r *http.Request) {
 			r = injectRefreshTokenFromCookie(r)
 			authCookieMiddleware(gwMux, s.HTTPSOnly).ServeHTTP(w, r)
-		})
+		}))
 		mux.HandleFunc("POST /api/v1/auth/logout", func(w http.ResponseWriter, r *http.Request) {
 			clearRefreshCookie(w, s.HTTPSOnly)
 			if s.OIDCSvc != nil {
@@ -249,7 +261,7 @@ func (s *HTTPServer) RegisterRoutes(mux *http.ServeMux, gwMux http.Handler) {
 
 					// RP-Initiated Logout: build end_session URL with id_token_hint
 					q := url.Values{}
-					q.Set("post_logout_redirect_uri", s.BaseURL+"/login")
+					q.Set("post_logout_redirect_uri", s.BaseURL()+"/login")
 					if c, err := r.Cookie(oidcIDTokenCookieName); err == nil && c.Value != "" {
 						q.Set("id_token_hint", c.Value)
 					}

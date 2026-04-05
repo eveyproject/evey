@@ -336,7 +336,7 @@ func buildServices(ctx context.Context, cfg *config.Config, db *sql.DB, rootLog 
 	if smtpConfigured {
 		smtpSender := email.NewSMTPSender(cfg.SMTP.Host, cfg.SMTP.Port, cfg.SMTP.Username, cfg.SMTP.Password, cfg.SMTP.From, cfg.SMTP.TLS)
 		email.NewNotificationEmailer(smtpSender, r.Profile, r.User).Register(bus)
-		email.NewPasswordResetEmailer(smtpSender, cfg.Server.BaseURL).Register(bus)
+		email.NewPasswordResetEmailer(smtpSender, cfg.EffectiveBaseURL()).Register(bus)
 		rootLog.Info("SMTP email notifications enabled", slog.String("host", cfg.SMTP.Host))
 	}
 	appuser.WithPasswordReset(r.PasswordResetToken, r.ServerCfg, smtpConfigured)(userAuthSvc)

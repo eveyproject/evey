@@ -10,6 +10,7 @@ import (
 
 	httpapi "github.com/gravity-zero/evey/internal/adapters/driving/http"
 	appconfig "github.com/gravity-zero/evey/internal/app/config"
+	appdlna "github.com/gravity-zero/evey/internal/app/dlna"
 	"github.com/gravity-zero/evey/internal/config"
 	"github.com/gravity-zero/evey/internal/domain/shared"
 	eveymetrics "github.com/gravity-zero/evey/internal/pkg/metrics"
@@ -42,7 +43,7 @@ func buildHTTPHandler(gwMux http.Handler, deps *appDeps, cfg *config.Config, sta
 	}
 
 	srv := &httpapi.HTTPServer{
-		BaseURL:   cfg.Server.BaseURL,
+		BaseURL:   cfg.EffectiveBaseURL,
 		Version:   version,
 		StartTime: startTime,
 		LogDir:    logDir,
@@ -112,6 +113,8 @@ func buildHTTPHandler(gwMux http.Handler, deps *appDeps, cfg *config.Config, sta
 
 		FeedCmdSvc:   deps.engagement.feedCmdSvc,
 		FeedQuerySvc: deps.engagement.feedQuerySvc,
+
+		DLNASvc: appdlna.New(cfg.EffectiveBaseURL()),
 
 		CfgStore: deps.cfgStore,
 		ServerCtx: ctx,
