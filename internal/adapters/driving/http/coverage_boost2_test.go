@@ -1,25 +1,21 @@
 package httpapi
 
 import (
-	"bytes"
 	"context"
 	"crypto/rand"
 	"crypto/rsa"
 	"encoding/json"
 	"errors"
-	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
 	"time"
 
-	applibrary "github.com/gravity-zero/evey/internal/app/library"
 	appmedia "github.com/gravity-zero/evey/internal/app/media"
 	appsubtitle "github.com/gravity-zero/evey/internal/app/subtitle"
 	apptranscoding "github.com/gravity-zero/evey/internal/app/transcoding"
 	domainlibrary "github.com/gravity-zero/evey/internal/domain/library"
-	libfakes "github.com/gravity-zero/evey/internal/domain/library/fakes"
 	"github.com/gravity-zero/evey/internal/domain/plugin"
 	"github.com/gravity-zero/evey/internal/domain/shared"
 	domainsubtitle "github.com/gravity-zero/evey/internal/domain/subtitle"
@@ -45,175 +41,6 @@ func (f *fakeSubtitleMediaGetter) GetMediaItem(_ context.Context, id string) (*d
 	return nil, errors.New("not found")
 }
 
-// ============================================================
-// Schedule handler tests
-// ============================================================
-
-func newScheduleTestMux(t *testing.T) (*http.ServeMux, string) {
-	t.Helper()
-	key, _ := rsa.GenerateKey(rand.Reader, 2048)
-	gen := auth.NewJWTGenerator(key, time.Minute)
-	adminToken, _ := gen.GenerateAccessToken(domainuser.Claims{UserID: "admin-1", IsAdmin: true})
-
-	schedRepo := libfakes.NewFakeScanScheduleRepository()
-	scanner := &fakeNoOpScanner{}
-	scheduler := applibrary.NewScheduler(schedRepo, scanner, slog.Default())
-
-	mux := http.NewServeMux()
-	registerScheduleRoutes(mux, scheduler, gen)
-	return mux, adminToken
-}
-
-type fakeNoOpScanner struct{}
-
-func (f *fakeNoOpScanner) ScanLibrary(_ context.Context, _ string) (int, int, error) {
-	return 0, 0, nil
-}
-
-func TestScheduleGet_NoAuth_403(t *testing.T) {
-	mux, _ := newScheduleTestMux(t)
-	req := httptest.NewRequest(http.MethodGet, "/api/v1/libraries/lib1/schedule", nil)
-	w := httptest.NewRecorder()
-	mux.ServeHTTP(w, req)
-	if w.Code != http.StatusForbidden {
-		t.Errorf("expected 403, got %d", w.Code)
-	}
-}
-
-func TestScheduleGet_NoSchedule_ReturnsNull(t *testing.T) {
-	mux, token := newScheduleTestMux(t)
-	req := httptest.NewRequest(http.MethodGet, "/api/v1/libraries/lib1/schedule", nil)
-	req.Header.Set("Authorization", "Bearer "+token)
-	w := httptest.NewRecorder()
-	mux.ServeHTTP(w, req)
-	if w.Code != http.StatusOK {
-		t.Fatalf("expected 200, got %d", w.Code)
-	}
-	if !strings.Contains(w.Body.String(), `"schedule":null`) {
-		t.Error("expected null schedule in response")
-	}
-}
-
-func TestSchedulePut_OK(t *testing.T) {
-	mux, token := newScheduleTestMux(t)
-	body := `{"cron":"0 * * * *","enabled":true}`
-	req := httptest.NewRequest(http.MethodPut, "/api/v1/libraries/lib1/schedule", strings.NewReader(body))
-	req.Header.Set("Authorization", "Bearer "+token)
-	w := httptest.NewRecorder()
-	mux.ServeHTTP(w, req)
-	if w.Code != http.StatusOK {
-		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
-	}
-	if !strings.Contains(w.Body.String(), "lib1") {
-		t.Error("expected libraryId in response")
-	}
-}
-
-func TestSchedulePut_NoAuth_403(t *testing.T) {
-	mux, _ := newScheduleTestMux(t)
-	body := `{"cron":"0 * * * *"}`
-	req := httptest.NewRequest(http.MethodPut, "/api/v1/libraries/lib1/schedule", strings.NewReader(body))
-	w := httptest.NewRecorder()
-	mux.ServeHTTP(w, req)
-	if w.Code != http.StatusForbidden {
-		t.Errorf("expected 403, got %d", w.Code)
-	}
-}
-
-func TestSchedulePut_EmptyCron_400(t *testing.T) {
-	mux, token := newScheduleTestMux(t)
-	body := `{"cron":"","enabled":true}`
-	req := httptest.NewRequest(http.MethodPut, "/api/v1/libraries/lib1/schedule", strings.NewReader(body))
-	req.Header.Set("Authorization", "Bearer "+token)
-	w := httptest.NewRecorder()
-	mux.ServeHTTP(w, req)
-	if w.Code != http.StatusBadRequest {
-		t.Errorf("expected 400, got %d", w.Code)
-	}
-}
-
-func TestSchedulePut_InvalidBody_400(t *testing.T) {
-	mux, token := newScheduleTestMux(t)
-	req := httptest.NewRequest(http.MethodPut, "/api/v1/libraries/lib1/schedule", strings.NewReader("not json"))
-	req.Header.Set("Authorization", "Bearer "+token)
-	w := httptest.NewRecorder()
-	mux.ServeHTTP(w, req)
-	if w.Code != http.StatusBadRequest {
-		t.Errorf("expected 400, got %d", w.Code)
-	}
-}
-
-func TestSchedulePut_InvalidCron_400(t *testing.T) {
-	mux, token := newScheduleTestMux(t)
-	body := `{"cron":"not a cron"}`
-	req := httptest.NewRequest(http.MethodPut, "/api/v1/libraries/lib1/schedule", strings.NewReader(body))
-	req.Header.Set("Authorization", "Bearer "+token)
-	w := httptest.NewRecorder()
-	mux.ServeHTTP(w, req)
-	if w.Code != http.StatusBadRequest {
-		t.Errorf("expected 400, got %d: %s", w.Code, w.Body.String())
-	}
-}
-
-func TestScheduleDelete_OK(t *testing.T) {
-	mux, token := newScheduleTestMux(t)
-	req := httptest.NewRequest(http.MethodDelete, "/api/v1/libraries/lib1/schedule", nil)
-	req.Header.Set("Authorization", "Bearer "+token)
-	w := httptest.NewRecorder()
-	mux.ServeHTTP(w, req)
-	if w.Code != http.StatusNoContent {
-		t.Errorf("expected 204, got %d", w.Code)
-	}
-}
-
-func TestScheduleDelete_NoAuth_403(t *testing.T) {
-	mux, _ := newScheduleTestMux(t)
-	req := httptest.NewRequest(http.MethodDelete, "/api/v1/libraries/lib1/schedule", nil)
-	w := httptest.NewRecorder()
-	mux.ServeHTTP(w, req)
-	if w.Code != http.StatusForbidden {
-		t.Errorf("expected 403, got %d", w.Code)
-	}
-}
-
-func TestScheduleGet_WithSchedule(t *testing.T) {
-	mux, token := newScheduleTestMux(t)
-	// create schedule
-	body := `{"cron":"0 * * * *","enabled":true}`
-	putReq := httptest.NewRequest(http.MethodPut, "/api/v1/libraries/lib1/schedule", strings.NewReader(body))
-	putReq.Header.Set("Authorization", "Bearer "+token)
-	pw := httptest.NewRecorder()
-	mux.ServeHTTP(pw, putReq)
-	if pw.Code != http.StatusOK {
-		t.Fatalf("put failed: %d", pw.Code)
-	}
-	// get
-	req := httptest.NewRequest(http.MethodGet, "/api/v1/libraries/lib1/schedule", nil)
-	req.Header.Set("Authorization", "Bearer "+token)
-	w := httptest.NewRecorder()
-	mux.ServeHTTP(w, req)
-	if w.Code != http.StatusOK {
-		t.Fatalf("expected 200, got %d", w.Code)
-	}
-	if !strings.Contains(w.Body.String(), `"cron"`) {
-		t.Error("expected cron in response")
-	}
-}
-
-func TestSchedulePut_DefaultEnabled(t *testing.T) {
-	mux, token := newScheduleTestMux(t)
-	body := `{"cron":"0 * * * *"}`
-	req := httptest.NewRequest(http.MethodPut, "/api/v1/libraries/lib1/schedule", strings.NewReader(body))
-	req.Header.Set("Authorization", "Bearer "+token)
-	w := httptest.NewRecorder()
-	mux.ServeHTTP(w, req)
-	if w.Code != http.StatusOK {
-		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
-	}
-	if !strings.Contains(w.Body.String(), `"enabled":true`) {
-		t.Error("expected enabled=true by default")
-	}
-}
 
 // ============================================================
 // Subtitle routes tests
@@ -1193,117 +1020,6 @@ func TestParseClientProfile_InvalidValues(t *testing.T) {
 }
 
 // ============================================================
-// Playlist addItem and reorder tests
-// ============================================================
-
-func TestPlaylistAddItem_OK(t *testing.T) {
-	mux, token := newPlaylistTestMux(t)
-	// create playlist
-	body, _ := json.Marshal(map[string]string{"name": "Test", "type": "manual"})
-	createReq := httptest.NewRequest(http.MethodPost, "/api/v1/playlists", bytes.NewReader(body))
-	createReq.Header.Set("Authorization", "Bearer "+token)
-	cw := httptest.NewRecorder()
-	mux.ServeHTTP(cw, createReq)
-	if cw.Code != http.StatusCreated {
-		t.Fatalf("create failed: %d", cw.Code)
-	}
-	var created map[string]any
-	json.NewDecoder(cw.Body).Decode(&created)
-	plID := created["id"].(string)
-
-	// add item
-	addBody, _ := json.Marshal(map[string]string{"mediaItemId": "media-1"})
-	addReq := httptest.NewRequest(http.MethodPost, "/api/v1/playlists/"+plID+"/items", bytes.NewReader(addBody))
-	addReq.Header.Set("Authorization", "Bearer "+token)
-	aw := httptest.NewRecorder()
-	mux.ServeHTTP(aw, addReq)
-	if aw.Code != http.StatusNoContent {
-		t.Errorf("expected 204, got %d: %s", aw.Code, aw.Body.String())
-	}
-}
-
-func TestPlaylistAddItem_InvalidBody_400(t *testing.T) {
-	mux, token := newPlaylistTestMux(t)
-	body, _ := json.Marshal(map[string]string{"name": "Test", "type": "manual"})
-	createReq := httptest.NewRequest(http.MethodPost, "/api/v1/playlists", bytes.NewReader(body))
-	createReq.Header.Set("Authorization", "Bearer "+token)
-	cw := httptest.NewRecorder()
-	mux.ServeHTTP(cw, createReq)
-	var created map[string]any
-	json.NewDecoder(cw.Body).Decode(&created)
-	plID := created["id"].(string)
-
-	addReq := httptest.NewRequest(http.MethodPost, "/api/v1/playlists/"+plID+"/items", strings.NewReader("not json"))
-	addReq.Header.Set("Authorization", "Bearer "+token)
-	aw := httptest.NewRecorder()
-	mux.ServeHTTP(aw, addReq)
-	if aw.Code != http.StatusBadRequest {
-		t.Errorf("expected 400, got %d", aw.Code)
-	}
-}
-
-func TestPlaylistReorder_OK(t *testing.T) {
-	mux, token := newPlaylistTestMux(t)
-	body, _ := json.Marshal(map[string]string{"name": "Test", "type": "manual"})
-	createReq := httptest.NewRequest(http.MethodPost, "/api/v1/playlists", bytes.NewReader(body))
-	createReq.Header.Set("Authorization", "Bearer "+token)
-	cw := httptest.NewRecorder()
-	mux.ServeHTTP(cw, createReq)
-	var created map[string]any
-	json.NewDecoder(cw.Body).Decode(&created)
-	plID := created["id"].(string)
-
-	reorderBody, _ := json.Marshal(map[string]any{"mediaItemIds": []string{"m1", "m2"}})
-	req := httptest.NewRequest(http.MethodPut, "/api/v1/playlists/"+plID+"/reorder", bytes.NewReader(reorderBody))
-	req.Header.Set("Authorization", "Bearer "+token)
-	w := httptest.NewRecorder()
-	mux.ServeHTTP(w, req)
-	if w.Code != http.StatusNoContent {
-		t.Errorf("expected 204, got %d: %s", w.Code, w.Body.String())
-	}
-}
-
-func TestPlaylistReorder_InvalidBody_400(t *testing.T) {
-	mux, token := newPlaylistTestMux(t)
-	body, _ := json.Marshal(map[string]string{"name": "Test", "type": "manual"})
-	createReq := httptest.NewRequest(http.MethodPost, "/api/v1/playlists", bytes.NewReader(body))
-	createReq.Header.Set("Authorization", "Bearer "+token)
-	cw := httptest.NewRecorder()
-	mux.ServeHTTP(cw, createReq)
-	var created map[string]any
-	json.NewDecoder(cw.Body).Decode(&created)
-	plID := created["id"].(string)
-
-	req := httptest.NewRequest(http.MethodPut, "/api/v1/playlists/"+plID+"/reorder", strings.NewReader("not json"))
-	req.Header.Set("Authorization", "Bearer "+token)
-	w := httptest.NewRecorder()
-	mux.ServeHTTP(w, req)
-	if w.Code != http.StatusBadRequest {
-		t.Errorf("expected 400, got %d", w.Code)
-	}
-}
-
-func TestPlaylistRemoveItem_NotFound(t *testing.T) {
-	mux, token := newPlaylistTestMux(t)
-	body, _ := json.Marshal(map[string]string{"name": "Test", "type": "manual"})
-	createReq := httptest.NewRequest(http.MethodPost, "/api/v1/playlists", bytes.NewReader(body))
-	createReq.Header.Set("Authorization", "Bearer "+token)
-	cw := httptest.NewRecorder()
-	mux.ServeHTTP(cw, createReq)
-	var created map[string]any
-	json.NewDecoder(cw.Body).Decode(&created)
-	plID := created["id"].(string)
-
-	req := httptest.NewRequest(http.MethodDelete, "/api/v1/playlists/"+plID+"/items/nonexistent", nil)
-	req.Header.Set("Authorization", "Bearer "+token)
-	w := httptest.NewRecorder()
-	mux.ServeHTTP(w, req)
-	if w.Code != http.StatusNotFound {
-		t.Errorf("expected 404, got %d", w.Code)
-	}
-}
-
-// ============================================================
 // Plugin handleListThemes test
 // ============================================================
 
@@ -1832,65 +1548,6 @@ func TestGetBackup_AfterCreate(t *testing.T) {
 	}
 	if w.Header().Get("Content-Type") != "application/gzip" {
 		t.Errorf("expected gzip content type, got %s", w.Header().Get("Content-Type"))
-	}
-}
-
-// ============================================================
-// Favorite handler additional tests
-// ============================================================
-
-func TestToggleFavorite_OK(t *testing.T) {
-	mux, token := newFavoriteTestMux(t)
-	req := httptest.NewRequest(http.MethodPost, "/api/v1/favorites/media-1", nil)
-	req.Header.Set("Authorization", "Bearer "+token)
-	w := httptest.NewRecorder()
-	mux.ServeHTTP(w, req)
-	if w.Code != http.StatusOK {
-		t.Errorf("expected 200, got %d: %s", w.Code, w.Body.String())
-	}
-	if !strings.Contains(w.Body.String(), "isFavorite") {
-		t.Error("expected isFavorite in response")
-	}
-}
-
-func TestCheckFavorite_NoAuth_401(t *testing.T) {
-	mux, _ := newFavoriteTestMux(t)
-	req := httptest.NewRequest(http.MethodGet, "/api/v1/favorites/media-1", nil)
-	w := httptest.NewRecorder()
-	mux.ServeHTTP(w, req)
-	if w.Code != http.StatusUnauthorized {
-		t.Errorf("expected 401, got %d", w.Code)
-	}
-}
-
-func TestCheckFavorite_OK(t *testing.T) {
-	mux, token := newFavoriteTestMux(t)
-	req := httptest.NewRequest(http.MethodGet, "/api/v1/favorites/media-1", nil)
-	req.Header.Set("Authorization", "Bearer "+token)
-	w := httptest.NewRecorder()
-	mux.ServeHTTP(w, req)
-	if w.Code != http.StatusOK {
-		t.Errorf("expected 200, got %d: %s", w.Code, w.Body.String())
-	}
-	if !strings.Contains(w.Body.String(), "isFavorite") {
-		t.Error("expected isFavorite in response")
-	}
-}
-
-func TestListFavorites_WithPagination(t *testing.T) {
-	mux, token := newFavoriteTestMux(t)
-	// toggle to add one favorite
-	toggleReq := httptest.NewRequest(http.MethodPost, "/api/v1/favorites/media-1", nil)
-	toggleReq.Header.Set("Authorization", "Bearer "+token)
-	tw := httptest.NewRecorder()
-	mux.ServeHTTP(tw, toggleReq)
-
-	req := httptest.NewRequest(http.MethodGet, "/api/v1/favorites?limit=10&offset=0", nil)
-	req.Header.Set("Authorization", "Bearer "+token)
-	w := httptest.NewRecorder()
-	mux.ServeHTTP(w, req)
-	if w.Code != http.StatusOK {
-		t.Errorf("expected 200, got %d", w.Code)
 	}
 }
 
