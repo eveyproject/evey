@@ -13,6 +13,7 @@ import (
 	appcollection "github.com/gravity-zero/evey/internal/app/collection"
 	appfavorite "github.com/gravity-zero/evey/internal/app/favorite"
 	appfeed "github.com/gravity-zero/evey/internal/app/feed"
+	appmedia "github.com/gravity-zero/evey/internal/app/media"
 	applibrary "github.com/gravity-zero/evey/internal/app/library"
 	appmetadata "github.com/gravity-zero/evey/internal/app/metadata"
 	appmkv "github.com/gravity-zero/evey/internal/app/mkv"
@@ -72,6 +73,7 @@ type GRPCServer struct {
 	translator      *eveyi18n.Translator
 	serverCtx       context.Context
 	smtpConfigured  bool
+	shareSvc        *appmedia.ShareService
 }
 
 func (s *GRPCServer) SetServerConfigHandler(h *serverConfigHandler) {
@@ -103,6 +105,10 @@ func (s *GRPCServer) SetTranslator(t *eveyi18n.Translator) {
 
 func (s *GRPCServer) SetSMTPConfigured(v bool) {
 	s.smtpConfigured = v
+}
+
+func (s *GRPCServer) SetShareService(svc *appmedia.ShareService) {
+	s.shareSvc = svc
 }
 
 func NewGRPCServer(
@@ -225,6 +231,9 @@ func (s *GRPCServer) RegisterServices() {
 	eveyv1.RegisterRemoteAccessServiceServer(s.server, &remoteAccessHandler{cfg: s.cfg, store: s.cfgStore})
 	eveyv1.RegisterPlaybackSettingsServiceServer(s.server, &playbackSettingsHandler{cfg: s.cfg, translator: s.translator})
 	eveyv1.RegisterLibraryAccessServiceServer(s.server, &libraryAccessHandler{accessRepo: s.libraryAccess, libQuery: s.libQuery})
+	if s.shareSvc != nil {
+		eveyv1.RegisterShareServiceServer(s.server, &shareHandler{svc: s.shareSvc, libQuery: s.libQuery, libraryAccess: s.libraryAccess})
+	}
 	if s.serverCfgHndlr != nil {
 		eveyv1.RegisterServerConfigServiceServer(s.server, s.serverCfgHndlr)
 	}

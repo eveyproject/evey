@@ -25,6 +25,7 @@ func DefaultRBACConfig() RBACConfig {
 			"/evey.v1.AdminService/GetSetupStatus":      true,
 			"/evey.v1.UserService/InitiateQuickConnect": true,
 			"/evey.v1.UserService/CheckQuickConnect":    true,
+			"/evey.v1.ShareService/ValidateShareLink":   true,
 		},
 		MethodRoles: map[string]Role{
 			"/evey.v1.AdminService/GetSystemInfo":                           RoleAdmin,
@@ -94,6 +95,9 @@ func DefaultRBACConfig() RBACConfig {
 			"/evey.v1.ServerConfigService/SetServerConfigEntry":             RoleAdmin,
 			"/evey.v1.ServerConfigService/ListServerConfigEntries":          RoleAdmin,
 			"/evey.v1.ServerConfigService/DeleteServerConfigEntry":          RoleAdmin,
+			"/evey.v1.ShareService/CreateShareLink":                         RoleAdmin,
+			"/evey.v1.ShareService/ListShareLinks":                          RoleAdmin,
+			"/evey.v1.ShareService/RevokeShareLink":                         RoleAdmin,
 		},
 	}
 }

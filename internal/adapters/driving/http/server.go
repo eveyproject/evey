@@ -68,7 +68,6 @@ type HTTPServer struct {
 	TokenGen         *auth.JWTGenerator
 	Cfg              *config.Config
 	StreamTokenStore *appmedia.StreamTokenStore
-	ShareSvc         *appmedia.ShareService
 
 	// Library
 	LibCmdSvc   *applibrary.CommandService
@@ -277,9 +276,6 @@ func (s *HTTPServer) RegisterRoutes(mux *http.ServeMux, gwMux http.Handler) {
 	registerPlaylistRoutes(mux, s.PlaylistSvc, s.TokenGen)
 
 	registerSyncPlayRoutes(mux, s.SyncPlayHub, s.TokenGen, s.LibQuerySvc, s.LibraryAccessRepo)
-	if s.ShareSvc != nil {
-		registerShareRoutes(mux, s.TokenGen, s.ShareSvc, s.LibQuerySvc, s.LibraryAccessRepo)
-	}
 	registerBackupRoutes(mux, s.BackupSvc, s.TokenGen, s.AdminHeavyRL, s.AdminWriteRL)
 	registerRemoteAccessRoutes(mux, s.Cfg, s.TokenGen, s.CfgStore, s.AdminWriteRL)
 	registerPlaybackSettingsRoutes(mux, s.Cfg, s.TokenGen, s.AdminWriteRL)
