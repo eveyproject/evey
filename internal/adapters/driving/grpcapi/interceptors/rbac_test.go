@@ -87,6 +87,7 @@ func TestDefaultRBACConfig_AdminMethods(t *testing.T) {
 		// FeedService
 		"/evey.v1.FeedService/GetAdminFeedConfigs",
 		"/evey.v1.FeedService/UpdateAdminFeedConfig",
+		"/evey.v1.FeedService/BatchUpdateAdminFeedConfigs",
 		// NotificationService
 		"/evey.v1.NotificationService/GetGlobalNotificationSettings",
 		"/evey.v1.NotificationService/UpdateGlobalNotificationSettings",

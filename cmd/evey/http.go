@@ -110,9 +110,6 @@ func buildHTTPHandler(gwMux http.Handler, deps *appDeps, cfg *config.Config, sta
 		WebDir:      cfg.Server.WebDir,
 		BioEnricher: deps.content.enricher,
 
-		FeedCmdSvc:   deps.engagement.feedCmdSvc,
-		FeedQuerySvc: deps.engagement.feedQuerySvc,
-
 		CfgStore: deps.cfgStore,
 		ServerCtx: ctx,
 

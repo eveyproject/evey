@@ -163,6 +163,62 @@ func (h *feedHandler) ResetProfileFeedConfig(ctx context.Context, req *eveyv1.Re
 	return &eveyv1.ResetProfileFeedConfigResponse{}, nil
 }
 
+func (h *feedHandler) ResumePlayback(ctx context.Context, req *eveyv1.ResumePlaybackRequest) (*eveyv1.FeedResponse, error) {
+	claims, err := requireClaims(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("feedHandler.ResumePlayback: %w", err)
+	}
+	profileID, err := resolveProfileID(claims, req.ProfileId)
+	if err != nil {
+		return nil, fmt.Errorf("feedHandler.ResumePlayback: %w", err)
+	}
+	limit := int(req.Limit)
+	if limit <= 0 {
+		limit = 20
+	}
+	items, err := h.queries.ResumePlayback(ctx, profileID, limit)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "resume playback: %v", err)
+	}
+	return feedItemsToResponse(items), nil
+}
+
+func (h *feedHandler) NextEpisode(ctx context.Context, req *eveyv1.NextEpisodeRequest) (*eveyv1.FeedResponse, error) {
+	claims, err := requireClaims(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("feedHandler.NextEpisode: %w", err)
+	}
+	profileID, err := resolveProfileID(claims, req.ProfileId)
+	if err != nil {
+		return nil, fmt.Errorf("feedHandler.NextEpisode: %w", err)
+	}
+	limit := int(req.Limit)
+	if limit <= 0 {
+		limit = 20
+	}
+	items, err := h.queries.NextEpisode(ctx, profileID, limit)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "next episode: %v", err)
+	}
+	return feedItemsToResponse(items), nil
+}
+
+func (h *feedHandler) BatchUpdateAdminFeedConfigs(ctx context.Context, req *eveyv1.BatchUpdateAdminFeedConfigsRequest) (*eveyv1.BatchUpdateAdminFeedConfigsResponse, error) {
+	cfgs := make([]*feed.AdminConfig, 0, len(req.Configs))
+	for _, c := range req.Configs {
+		cfgs = append(cfgs, &feed.AdminConfig{
+			FeedType:     feed.Type(c.FeedType),
+			Enabled:      c.Enabled,
+			DisplayOrder: int(c.DisplayOrder),
+			MaxItems:     int(c.MaxItems),
+		})
+	}
+	if err := h.commands.BatchUpdateAdminConfigs(ctx, cfgs); err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "batch update: %v", err)
+	}
+	return &eveyv1.BatchUpdateAdminFeedConfigsResponse{}, nil
+}
+
 func feedItemToProto(item *feed.FeedItem) *eveyv1.FeedItem {
 	return &eveyv1.FeedItem{
 		MediaItemId: item.MediaItemID,

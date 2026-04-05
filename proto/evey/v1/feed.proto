@@ -62,6 +62,25 @@ service FeedService {
       delete: "/api/v1/feeds/config/{feed_type}"
     };
   }
+
+  rpc ResumePlayback(ResumePlaybackRequest) returns (FeedResponse) {
+    option (google.api.http) = {
+      get: "/api/v1/feeds/resume-playback"
+    };
+  }
+
+  rpc NextEpisode(NextEpisodeRequest) returns (FeedResponse) {
+    option (google.api.http) = {
+      get: "/api/v1/feeds/next-episode"
+    };
+  }
+
+  rpc BatchUpdateAdminFeedConfigs(BatchUpdateAdminFeedConfigsRequest) returns (BatchUpdateAdminFeedConfigsResponse) {
+    option (google.api.http) = {
+      put: "/api/v1/admin/feeds/config"
+      body: "*"
+    };
+  }
 }
 
 message FeedItem {
@@ -156,3 +175,19 @@ message ResetProfileFeedConfigRequest {
 }
 
 message ResetProfileFeedConfigResponse {}
+
+message ResumePlaybackRequest {
+  string profile_id = 1;
+  int32 limit = 2;
+}
+
+message NextEpisodeRequest {
+  string profile_id = 1;
+  int32 limit = 2;
+}
+
+message BatchUpdateAdminFeedConfigsRequest {
+  repeated AdminFeedConfig configs = 1;
+}
+
+message BatchUpdateAdminFeedConfigsResponse {}
