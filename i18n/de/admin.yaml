@@ -4,6 +4,7 @@ nav:
   nowPlaying: Aktuelle Wiedergabe
   remoteAccess: Fernzugriff
   serverConfig: Serverkonfiguration
+  serverSettings: Servereinstellungen
   systemHealth: Systemzustand
   media: Medien
   libraries: Bibliotheken
@@ -523,3 +524,14 @@ dashboardStats:
   scanStarted: Scan gestartet
   scanFailed: Scan fehlgeschlagen
   allScansTriggered: Alle Bibliotheksscans ausgelöst
+
+serverSettings:
+  title: Servereinstellungen
+  serverName: Servername
+  maxConcurrentTranscodes: Max. gleichzeitige Transkodierungen
+  hwAccelEnabled: Hardwarebeschleunigung
+  loginRateLimit: Anmelde-Ratenlimit (Anf./Min.)
+  globalRateLimit: Globales Ratenlimit (Anf./Min.)
+  saved: Einstellungen gespeichert
+  usingDefault: "Standardwert:"
+  reset: Auf Standard zurücksetzen

@@ -4,6 +4,7 @@ nav:
   nowPlaying: Now Playing
   remoteAccess: Remote Access
   serverConfig: Server Config
+  serverSettings: Server Settings
   systemHealth: System Health
   media: Media
   libraries: Libraries
@@ -524,3 +525,14 @@ dashboardStats:
   scanStarted: Scan started
   scanFailed: Scan failed
   allScansTriggered: All library scans triggered
+
+serverSettings:
+  title: Server Settings
+  serverName: Server Name
+  maxConcurrentTranscodes: Max Concurrent Transcodes
+  hwAccelEnabled: Hardware Acceleration
+  loginRateLimit: Login Rate Limit (req/min)
+  globalRateLimit: Global Rate Limit (req/min)
+  saved: Settings saved
+  usingDefault: "Using default:"
+  reset: Reset to default

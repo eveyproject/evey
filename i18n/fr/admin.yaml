@@ -4,6 +4,7 @@ nav:
   nowPlaying: En cours de lecture
   remoteAccess: Accès distant
   serverConfig: Configuration du serveur
+  serverSettings: Paramètres du serveur
   systemHealth: Santé du système
   media: Médias
   libraries: Bibliothèques
@@ -519,3 +520,14 @@ dashboardStats:
   scanStarted: "Scan lancé"
   scanFailed: "Échec du scan"
   allScansTriggered: "Tous les scans de bibliothèques lancés"
+
+serverSettings:
+  title: "Paramètres du serveur"
+  serverName: "Nom du serveur"
+  maxConcurrentTranscodes: "Transcodages simultanés max."
+  hwAccelEnabled: "Accélération matérielle"
+  loginRateLimit: "Limite connexion (req/min)"
+  globalRateLimit: "Limite globale (req/min)"
+  saved: "Paramètres enregistrés"
+  usingDefault: "Valeur par défaut :"
+  reset: "Réinitialiser"

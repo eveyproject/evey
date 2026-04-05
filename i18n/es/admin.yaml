@@ -4,6 +4,7 @@ nav:
   nowPlaying: Reproduciendo ahora
   remoteAccess: Acceso remoto
   serverConfig: Configuración del servidor
+  serverSettings: Configuracion del servidor
   systemHealth: Estado del sistema
   media: Medios
   libraries: Bibliotecas
@@ -519,3 +520,14 @@ dashboardStats:
   scanStarted: "Escaneo iniciado"
   scanFailed: "Error en el escaneo"
   allScansTriggered: "Todos los escaneos de bibliotecas iniciados"
+
+serverSettings:
+  title: "Configuracion del servidor"
+  serverName: "Nombre del servidor"
+  maxConcurrentTranscodes: "Transcodificaciones simultaneas max."
+  hwAccelEnabled: "Aceleracion por hardware"
+  loginRateLimit: "Limite de inicio de sesion (sol./min)"
+  globalRateLimit: "Limite global (sol./min)"
+  saved: "Configuracion guardada"
+  usingDefault: "Valor predeterminado:"
+  reset: "Restablecer valor predeterminado"

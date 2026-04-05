@@ -4,6 +4,7 @@ nav:
   nowPlaying: "अभी चल रहा है"
   remoteAccess: "रिमोट एक्सेस"
   serverConfig: "सर्वर कॉन्फ़िग"
+  serverSettings: "सर्वर सेटिंग्स"
   systemHealth: "सिस्टम स्वास्थ्य"
   media: "मीडिया"
   libraries: "लाइब्रेरी"
@@ -519,3 +520,14 @@ dashboardStats:
   scanStarted: "स्कैन शुरू हुआ"
   scanFailed: "स्कैन विफल"
   allScansTriggered: "सभी लाइब्रेरी स्कैन शुरू हुए"
+
+serverSettings:
+  title: "सर्वर सेटिंग्स"
+  serverName: "सर्वर का नाम"
+  maxConcurrentTranscodes: "अधिकतम समवर्ती ट्रांसकोड"
+  hwAccelEnabled: "हार्डवेयर त्वरण"
+  loginRateLimit: "लॉगिन दर सीमा (अनु./मिनट)"
+  globalRateLimit: "वैश्विक दर सीमा (अनु./मिनट)"
+  saved: "सेटिंग्स सहेजी गईं"
+  usingDefault: "डिफ़ॉल्ट मान:"
+  reset: "डिफ़ॉल्ट पर रीसेट करें"

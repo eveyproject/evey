@@ -4,6 +4,7 @@ nav:
   nowPlaying: "正在播放"
   remoteAccess: "远程访问"
   serverConfig: "服务器配置"
+  serverSettings: "服务器设置"
   systemHealth: "系统健康"
   media: "媒体"
   libraries: "媒体库"
@@ -519,3 +520,14 @@ dashboardStats:
   scanStarted: "扫描已开始"
   scanFailed: "扫描失败"
   allScansTriggered: "所有媒体库扫描已触发"
+
+serverSettings:
+  title: "服务器设置"
+  serverName: "服务器名称"
+  maxConcurrentTranscodes: "最大并发转码数"
+  hwAccelEnabled: "硬件加速"
+  loginRateLimit: "登录速率限制（请求/分钟）"
+  globalRateLimit: "全局速率限制（请求/分钟）"
+  saved: "设置已保存"
+  usingDefault: "默认值："
+  reset: "重置为默认值"

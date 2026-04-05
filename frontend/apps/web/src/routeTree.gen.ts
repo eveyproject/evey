@@ -44,6 +44,7 @@ import { Route as AuthAdminTranscodingProfilesRouteImport } from './routes/_auth
 import { Route as AuthAdminTranscodeCacheRouteImport } from './routes/_auth/admin/transcode-cache'
 import { Route as AuthAdminSystemHealthRouteImport } from './routes/_auth/admin/system-health'
 import { Route as AuthAdminSessionsRouteImport } from './routes/_auth/admin/sessions'
+import { Route as AuthAdminServerSettingsRouteImport } from './routes/_auth/admin/server-settings'
 import { Route as AuthAdminServerConfigRouteImport } from './routes/_auth/admin/server-config'
 import { Route as AuthAdminRemoteAccessRouteImport } from './routes/_auth/admin/remote-access'
 import { Route as AuthAdminPluginsRouteImport } from './routes/_auth/admin/plugins'
@@ -287,6 +288,13 @@ const AuthAdminSessionsRoute = AuthAdminSessionsRouteImport.update({
 } as any).lazy(() =>
   import('./routes/_auth/admin/sessions.lazy').then((d) => d.Route),
 )
+const AuthAdminServerSettingsRoute = AuthAdminServerSettingsRouteImport.update({
+  id: '/server-settings',
+  path: '/server-settings',
+  getParentRoute: () => AuthAdminRoute,
+} as any).lazy(() =>
+  import('./routes/_auth/admin/server-settings.lazy').then((d) => d.Route),
+)
 const AuthAdminServerConfigRoute = AuthAdminServerConfigRouteImport.update({
   id: '/server-config',
   path: '/server-config',
@@ -407,6 +415,7 @@ export interface FileRoutesByFullPath {
   '/admin/plugins': typeof AuthAdminPluginsRoute
   '/admin/remote-access': typeof AuthAdminRemoteAccessRoute
   '/admin/server-config': typeof AuthAdminServerConfigRoute
+  '/admin/server-settings': typeof AuthAdminServerSettingsRoute
   '/admin/sessions': typeof AuthAdminSessionsRoute
   '/admin/system-health': typeof AuthAdminSystemHealthRoute
   '/admin/transcode-cache': typeof AuthAdminTranscodeCacheRoute
@@ -455,6 +464,7 @@ export interface FileRoutesByTo {
   '/admin/plugins': typeof AuthAdminPluginsRoute
   '/admin/remote-access': typeof AuthAdminRemoteAccessRoute
   '/admin/server-config': typeof AuthAdminServerConfigRoute
+  '/admin/server-settings': typeof AuthAdminServerSettingsRoute
   '/admin/sessions': typeof AuthAdminSessionsRoute
   '/admin/system-health': typeof AuthAdminSystemHealthRoute
   '/admin/transcode-cache': typeof AuthAdminTranscodeCacheRoute
@@ -506,6 +516,7 @@ export interface FileRoutesById {
   '/_auth/admin/plugins': typeof AuthAdminPluginsRoute
   '/_auth/admin/remote-access': typeof AuthAdminRemoteAccessRoute
   '/_auth/admin/server-config': typeof AuthAdminServerConfigRoute
+  '/_auth/admin/server-settings': typeof AuthAdminServerSettingsRoute
   '/_auth/admin/sessions': typeof AuthAdminSessionsRoute
   '/_auth/admin/system-health': typeof AuthAdminSystemHealthRoute
   '/_auth/admin/transcode-cache': typeof AuthAdminTranscodeCacheRoute
@@ -557,6 +568,7 @@ export interface FileRouteTypes {
     | '/admin/plugins'
     | '/admin/remote-access'
     | '/admin/server-config'
+    | '/admin/server-settings'
     | '/admin/sessions'
     | '/admin/system-health'
     | '/admin/transcode-cache'
@@ -605,6 +617,7 @@ export interface FileRouteTypes {
     | '/admin/plugins'
     | '/admin/remote-access'
     | '/admin/server-config'
+    | '/admin/server-settings'
     | '/admin/sessions'
     | '/admin/system-health'
     | '/admin/transcode-cache'
@@ -655,6 +668,7 @@ export interface FileRouteTypes {
     | '/_auth/admin/plugins'
     | '/_auth/admin/remote-access'
     | '/_auth/admin/server-config'
+    | '/_auth/admin/server-settings'
     | '/_auth/admin/sessions'
     | '/_auth/admin/system-health'
     | '/_auth/admin/transcode-cache'
@@ -938,6 +952,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthAdminSessionsRouteImport
       parentRoute: typeof AuthAdminRoute
     }
+    '/_auth/admin/server-settings': {
+      id: '/_auth/admin/server-settings'
+      path: '/server-settings'
+      fullPath: '/admin/server-settings'
+      preLoaderRoute: typeof AuthAdminServerSettingsRouteImport
+      parentRoute: typeof AuthAdminRoute
+    }
     '/_auth/admin/server-config': {
       id: '/_auth/admin/server-config'
       path: '/server-config'
@@ -1045,6 +1066,7 @@ interface AuthAdminRouteChildren {
   AuthAdminPluginsRoute: typeof AuthAdminPluginsRoute
   AuthAdminRemoteAccessRoute: typeof AuthAdminRemoteAccessRoute
   AuthAdminServerConfigRoute: typeof AuthAdminServerConfigRoute
+  AuthAdminServerSettingsRoute: typeof AuthAdminServerSettingsRoute
   AuthAdminSessionsRoute: typeof AuthAdminSessionsRoute
   AuthAdminSystemHealthRoute: typeof AuthAdminSystemHealthRoute
   AuthAdminTranscodeCacheRoute: typeof AuthAdminTranscodeCacheRoute
@@ -1067,6 +1089,7 @@ const AuthAdminRouteChildren: AuthAdminRouteChildren = {
   AuthAdminPluginsRoute: AuthAdminPluginsRoute,
   AuthAdminRemoteAccessRoute: AuthAdminRemoteAccessRoute,
   AuthAdminServerConfigRoute: AuthAdminServerConfigRoute,
+  AuthAdminServerSettingsRoute: AuthAdminServerSettingsRoute,
   AuthAdminSessionsRoute: AuthAdminSessionsRoute,
   AuthAdminSystemHealthRoute: AuthAdminSystemHealthRoute,
   AuthAdminTranscodeCacheRoute: AuthAdminTranscodeCacheRoute,
