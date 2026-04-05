@@ -16,3 +16,8 @@ settings:
   about: 关于
   appVersion: 应用版本
   serverVersion: 服务器版本
+  switchProfile: "切换配置文件"
+  biometricLogin: "生物识别登录"
+auth:
+  biometricPrompt: "解锁 Evey"
+  unlockBiometric: "使用生物识别解锁"

@@ -72,9 +72,9 @@ export default function AdminUsersScreen() {
   }, [newUsername, newEmail, newPassword, newIsAdmin, createUser]);
 
   const handleDelete = useCallback((user: V1User) => {
-    Alert.alert("Delete User", `Delete ${user.username}?`, [
+    Alert.alert(t("common.delete"), `${t("common.delete")} ${user.username}?`, [
       { text: t("common.cancel"), style: "cancel" },
-      { text: "Delete", style: "destructive", onPress: () => user.id && deleteUser.mutate({ id: user.id }) },
+      { text: t("common.delete"), style: "destructive", onPress: () => user.id && deleteUser.mutate({ id: user.id }) },
     ]);
   }, [deleteUser, t]);
 

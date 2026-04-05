@@ -2,24 +2,26 @@ import React, { useState, useCallback } from "react";
 import { View, Text, Pressable, StyleSheet } from "react-native";
 import { Slot, useRouter, usePathname } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
+import { useTranslation } from "react-i18next";
 import { useTheme } from "../../../src/providers/ThemeProvider";
 
 interface NavItem {
-  label: string;
+  labelKey: string;
   icon: keyof typeof Ionicons.glyphMap;
   path: string;
 }
 
 const NAV_ITEMS: NavItem[] = [
-  { label: "Home", icon: "home", path: "/(auth)/(tabs)" },
-  { label: "Search", icon: "search", path: "/(auth)/(tabs)/search" },
-  { label: "Library", icon: "library", path: "/(auth)/(tabs)/library" },
-  { label: "Favorites", icon: "heart", path: "/(auth)/(tabs)/favorites" },
-  { label: "Settings", icon: "settings", path: "/(auth)/(tabs)/settings" },
+  { labelKey: "common.nav.home", icon: "home", path: "/(auth)/(tabs)" },
+  { labelKey: "common.nav.search", icon: "search", path: "/(auth)/(tabs)/search" },
+  { labelKey: "common.nav.libraries", icon: "library", path: "/(auth)/(tabs)/library" },
+  { labelKey: "common.nav.favorites", icon: "heart", path: "/(auth)/(tabs)/favorites" },
+  { labelKey: "common.nav.settings", icon: "settings", path: "/(auth)/(tabs)/settings" },
 ];
 
 export default function TabsLayout() {
   const theme = useTheme();
+  const { t } = useTranslation();
   const router = useRouter();
   const pathname = usePathname();
   const [expanded, setExpanded] = useState(false);
@@ -68,7 +70,7 @@ export default function TabsLayout() {
                 onBlur={handleNavBlur}
                 hasTVPreferredFocus={index === 0}
                 accessible={true}
-                accessibilityLabel={item.label}
+                accessibilityLabel={t(item.labelKey)}
                 accessibilityRole="button"
                 style={[
                   styles.navButton,
@@ -88,7 +90,7 @@ export default function TabsLayout() {
                       { color: active || focused ? theme.colors.accent : theme.colors.textMuted },
                     ]}
                   >
-                    {item.label}
+                    {t(item.labelKey)}
                   </Text>
                 )}
               </Pressable>

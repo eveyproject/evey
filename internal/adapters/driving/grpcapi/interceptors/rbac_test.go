@@ -19,6 +19,7 @@ func TestDefaultRBACConfig_PublicMethods(t *testing.T) {
 		"/evey.v1.AdminService/GetSetupStatus",
 		"/evey.v1.UserService/InitiateQuickConnect",
 		"/evey.v1.UserService/CheckQuickConnect",
+		"/evey.v1.ShareService/ValidateShareLink",
 	}
 
 	require.Len(t, cfg.PublicMethods, len(expected), "public methods count mismatch — was a method added or removed?")
@@ -128,6 +129,10 @@ func TestDefaultRBACConfig_AdminMethods(t *testing.T) {
 		"/evey.v1.ServerConfigService/SetServerConfigEntry",
 		"/evey.v1.ServerConfigService/ListServerConfigEntries",
 		"/evey.v1.ServerConfigService/DeleteServerConfigEntry",
+		// ShareService
+		"/evey.v1.ShareService/CreateShareLink",
+		"/evey.v1.ShareService/ListShareLinks",
+		"/evey.v1.ShareService/RevokeShareLink",
 	}
 
 	require.Len(t, cfg.MethodRoles, len(expectedAdmin), "MethodRoles count mismatch — was a mapping added or removed?")
@@ -179,6 +184,7 @@ func TestDefaultRBACConfig_ServiceCoverage(t *testing.T) {
 		"PlaybackSettingsService",
 		"LibraryAccessService",
 		"ServerConfigService",
+		"ShareService",
 	}
 
 	for _, svc := range expectedServices {

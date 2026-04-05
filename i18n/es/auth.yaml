@@ -35,6 +35,7 @@ login:
   passwordTooShort: "La contraseña debe tener al menos 8 caracteres"
   loginFailed: "Error al iniciar sesión. Inténtalo de nuevo."
   accountLocked: "Demasiados intentos. Inténtalo más tarde."
+  recommendedForTV: "Recomendado para TV"
   ssoFailed: "Error de inicio de sesión con SSO. Inténtalo de nuevo."
   or: "o"
   signInWithSSO: "Iniciar sesión con SSO"
@@ -111,6 +112,7 @@ settings:
     parental: "Control parental"
     devices: "Dispositivos"
     apiKeys: "Claves API"
+    security: "Seguridad"
     quickConnect: "Conexión rápida"
   quickConnect:
     title: "Conexión rápida"

@@ -14,6 +14,7 @@ import {
   useFeedServiceRecommended,
   useFeedServiceGetFeedConfig,
   useFeedServiceUpdateProfileFeedConfig,
+  useLibraryServiceListLibraries,
   getLibraryServiceGetMediaItemQueryOptions,
 } from "@evey/api";
 import type { V1MediaItem } from "@evey/api";
@@ -247,11 +248,13 @@ function FeedCustomizeModal({
   onClose,
   configs,
   profileId,
+  libraryNames,
 }: {
   visible: boolean;
   onClose: () => void;
   configs: FeedConfig[];
   profileId: string;
+  libraryNames: Record<string, string>;
 }) {
   const theme = useTheme();
   const { t } = useTranslation();
@@ -271,8 +274,23 @@ function FeedCustomizeModal({
     }
   }, [visible, configs]);
 
+  const persist = useCallback(async (updated: FeedConfig[]) => {
+    for (const c of updated) {
+      if (!c.feedType) continue;
+      await updateFeed.mutateAsync({
+        feedType: c.feedType,
+        data: { profileId, enabled: c.enabled, displayOrder: c.displayOrder },
+      }).catch(() => {});
+    }
+    await qc.invalidateQueries({ queryKey: ["/api/v1/feeds/config"] });
+  }, [updateFeed, profileId, qc]);
+
   const toggle = (idx: number) => {
-    setLocal((prev) => prev.map((c, i) => (i === idx ? { ...c, enabled: !c.enabled } : c)));
+    setLocal((prev) => {
+      const next = prev.map((c, i) => (i === idx ? { ...c, enabled: !c.enabled } : c));
+      persist(next);
+      return next;
+    });
   };
 
   const move = (idx: number, dir: -1 | 1) => {
@@ -281,22 +299,18 @@ function FeedCustomizeModal({
     setLocal((prev) => {
       const arr = [...prev];
       [arr[idx], arr[target]] = [arr[target], arr[idx]];
-      return arr.map((c, i) => ({ ...c, displayOrder: i }));
+      const next = arr.map((c, i) => ({ ...c, displayOrder: i }));
+      persist(next);
+      return next;
     });
   };
 
-  const save = async () => {
-    try {
-      for (const c of local) {
-        if (!c.feedType) continue;
-        await updateFeed.mutateAsync({
-          feedType: c.feedType,
-          data: { profileId, enabled: c.enabled, displayOrder: c.displayOrder },
-        });
-      }
-      await qc.invalidateQueries({ queryKey: ["/api/v1/feeds/config"] });
-      onClose();
-    } catch {}
+  const feedLabel = (feedType: string) => {
+    if (feedType.startsWith("library:")) {
+      const libId = feedType.replace("library:", "");
+      return libraryNames[libId] || libId;
+    }
+    return t(FEED_LABELS[feedType] ?? feedType);
   };
 
   return (
@@ -318,7 +332,7 @@ function FeedCustomizeModal({
                   </Pressable>
                 </View>
                 <Text style={[feedStyles.feedLabel, { color: theme.colors.text }]}>
-                  {t(FEED_LABELS[c.feedType ?? ""] ?? c.feedType ?? "")}
+                  {feedLabel(c.feedType ?? "")}
                 </Text>
                 <Switch
                   value={c.enabled}
@@ -328,14 +342,9 @@ function FeedCustomizeModal({
               </View>
             ))}
           </ScrollView>
-          <View style={{ flexDirection: "row", gap: 8, marginTop: 16 }}>
-            <Pressable onPress={save} style={[feedStyles.saveBtn, { backgroundColor: theme.colors.accent, borderRadius: theme.radii.md, flex: 1 }]}>
-              <Text style={{ color: "#fff", fontWeight: "600", fontSize: 15 }}>{t("common.save") || "Save"}</Text>
-            </Pressable>
-            <Pressable onPress={onClose} style={[feedStyles.cancelBtn, { backgroundColor: theme.colors.surfaceRaised, borderRadius: theme.radii.md, flex: 1 }]}>
-              <Text style={{ color: theme.colors.text, fontWeight: "500", fontSize: 15 }}>{t("common.cancel") || "Cancel"}</Text>
-            </Pressable>
-          </View>
+          <Pressable onPress={onClose} style={[feedStyles.cancelBtn, { backgroundColor: theme.colors.surfaceRaised, borderRadius: theme.radii.md, marginTop: 16 }]}>
+            <Text style={{ color: theme.colors.text, fontWeight: "500", fontSize: 15 }}>{t("common.close") || "Close"}</Text>
+          </Pressable>
         </View>
       </View>
     </Modal>
@@ -364,6 +373,14 @@ export default function HomeScreen() {
   const popular = useMostPopular(20);
   const collections = useCollections();
   const { data: feedConfigData } = useFeedServiceGetFeedConfig({ profileId });
+  const { data: librariesData } = useLibraryServiceListLibraries();
+  const libraryNames = useMemo(() => {
+    const map: Record<string, string> = {};
+    for (const lib of librariesData?.libraries ?? []) {
+      if (lib.id && lib.name) map[lib.id] = lib.name;
+    }
+    return map;
+  }, [librariesData]);
 
   const [refreshing, setRefreshing] = useState(false);
   const [showCustomize, setShowCustomize] = useState(false);
@@ -508,6 +525,7 @@ export default function HomeScreen() {
         onClose={() => setShowCustomize(false)}
         configs={feedConfigData?.configs ?? []}
         profileId={profileId}
+        libraryNames={libraryNames}
       />
     </View>
   );

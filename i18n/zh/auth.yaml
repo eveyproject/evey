@@ -35,6 +35,7 @@ login:
   passwordTooShort: "密码至少需要 8 个字符"
   loginFailed: "登录失败，请重试。"
   accountLocked: "尝试次数过多，请稍后再试。"
+  recommendedForTV: "推荐用于电视"
   ssoFailed: "SSO 登录失败，请重试。"
   or: "或"
   signInWithSSO: "使用 SSO 登录"
@@ -111,6 +112,7 @@ settings:
     parental: "家长控制"
     devices: "设备"
     apiKeys: "API 密钥"
+    security: "安全"
     quickConnect: "快速连接"
   quickConnect:
     title: "快速连接"

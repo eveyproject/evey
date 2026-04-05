@@ -1,0 +1,85 @@
+syntax = "proto3";
+
+package evey.v1;
+
+import "google/api/annotations.proto";
+import "google/protobuf/timestamp.proto";
+
+option go_package = "github.com/gravity/evey/gen/evey/v1;eveyv1";
+
+service ShareService {
+  rpc CreateShareLink(CreateShareLinkRequest) returns (CreateShareLinkResponse) {
+    option (google.api.http) = {
+      post: "/api/v1/media/{media_item_id}/share"
+      body: "*"
+    };
+  }
+
+  rpc ListShareLinks(ListShareLinksRequest) returns (ListShareLinksResponse) {
+    option (google.api.http) = {
+      get: "/api/v1/admin/share-links"
+    };
+  }
+
+  rpc RevokeShareLink(RevokeShareLinkRequest) returns (RevokeShareLinkResponse) {
+    option (google.api.http) = {
+      delete: "/api/v1/share-links/{id}"
+    };
+  }
+
+  rpc ValidateShareLink(ValidateShareLinkRequest) returns (ValidateShareLinkResponse) {
+    option (google.api.http) = {
+      get: "/api/v1/share/{token}"
+    };
+  }
+}
+
+message ShareLinkProto {
+  string id = 1;
+  string token = 2;
+  string media_item_id = 3;
+  string created_by = 4;
+  google.protobuf.Timestamp expires_at = 5;
+  optional int32 max_views = 6;
+  int32 view_count = 7;
+  string url = 8;
+}
+
+message CreateShareLinkRequest {
+  string media_item_id = 1;
+  int32 duration_hours = 2;
+  optional int32 max_views = 3;
+}
+
+message CreateShareLinkResponse {
+  string id = 1;
+  string token = 2;
+  string media_id = 3;
+  google.protobuf.Timestamp expires_at = 4;
+  optional int32 max_views = 5;
+  string url = 6;
+}
+
+message ListShareLinksRequest {}
+
+message ListShareLinksResponse {
+  repeated ShareLinkProto items = 1;
+}
+
+message RevokeShareLinkRequest {
+  string id = 1;
+}
+
+message RevokeShareLinkResponse {}
+
+message ValidateShareLinkRequest {
+  string token = 1;
+}
+
+message ValidateShareLinkResponse {
+  string media_id = 1;
+  string title = 2;
+  string media_type = 3;
+  int64 duration_ms = 4;
+  string stream_url = 5;
+}

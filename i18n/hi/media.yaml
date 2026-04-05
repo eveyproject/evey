@@ -12,12 +12,15 @@ home:
   mostPopular: सबसे लोकप्रिय
   recommendedForYou: आपके लिए अनुशंसित
   collections: संग्रह
+  customize: "कस्टमाइज़"
+  customizeFeed: फ़ीड कस्टमाइज़ करें
   emptyLibrary: आपकी लाइब्रेरी खाली है
   emptyLibraryDesc: "मीडिया फ़ोल्डर जोड़ने के लिए एडमिन \u2192 लाइब्रेरी पर जाएं।"
   goToLibraries: लाइब्रेरी पर जाएं
   library: लाइब्रेरी
 favorites:
   title: पसंदीदा
+  empty: "अभी तक कोई पसंदीदा नहीं"
   searchPlaceholder: "खोजें\u2026"
   all: सभी
   movies: फ़िल्में
@@ -131,6 +134,7 @@ library:
   subtitleLanguage: उपशीर्षक भाषा
   noFilterOptions: इस लाइब्रेरी के लिए अभी कोई फ़िल्टर विकल्प उपलब्ध नहीं है।
 person:
+  filmography: "फ़िल्मोग्राफ़ी"
   notFound: व्यक्ति नहीं मिला।
   unknown: अज्ञात
   titleCount: "{{count}} शीर्षक"

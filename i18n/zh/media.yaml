@@ -12,12 +12,15 @@ home:
   mostPopular: 最受欢迎
   recommendedForYou: 为您推荐
   collections: 合集
+  customize: "自定义"
+  customizeFeed: 自定义首页
   emptyLibrary: 您的媒体库为空
   emptyLibraryDesc: "前往管理 \u2192 媒体库添加媒体文件夹。"
   goToLibraries: 前往媒体库
   library: 媒体库
 favorites:
   title: 收藏
+  empty: "暂无收藏"
   searchPlaceholder: "搜索\u2026"
   all: 全部
   movies: 电影
@@ -131,6 +134,7 @@ library:
   subtitleLanguage: 字幕语言
   noFilterOptions: 此媒体库暂无可用的筛选选项。
 person:
+  filmography: "作品列表"
   notFound: 未找到此人。
   unknown: 未知
   titleCount: "{{count}} 部作品"

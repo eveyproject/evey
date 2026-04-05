@@ -7,6 +7,10 @@ controls:
   exitFullscreen: Vollbild beenden
   pip: Bild-in-Bild
   exitPip: Bild-in-Bild beenden
+  cast: Streamen
+  stopCast: Streaming beenden
+  noDevices: Keine Geräte gefunden
+  castingTo: "Streamt auf"
   settings: Einstellungen
   episodes: Folgen
   chapters: Kapitel

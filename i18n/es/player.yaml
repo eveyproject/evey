@@ -7,6 +7,10 @@ controls:
   exitFullscreen: Salir de pantalla completa
   pip: "Imagen en imagen"
   exitPip: "Salir de imagen en imagen"
+  cast: Transmitir
+  stopCast: Detener transmisión
+  noDevices: No se encontraron dispositivos
+  castingTo: "Transmitiendo a"
   settings: Ajustes
   episodes: Episodios
   chapters: Capítulos

@@ -44,16 +44,19 @@ function PlaylistItemRow({
       style={[styles.row, { borderBottomColor: theme.colors.border }]}
       activeOpacity={0.7}
       onPress={onPress}
+      accessible={true}
+      accessibilityLabel={item.title ?? item.media_item_id}
+      accessibilityRole="button"
     >
       {isManual && (
         <View style={{ alignItems: "center", marginRight: 4, gap: 2 }}>
-          <Pressable onPress={onMoveUp} disabled={index === 0} hitSlop={6}>
+          <Pressable onPress={onMoveUp} disabled={index === 0} hitSlop={6} accessible={true} accessibilityLabel="Move up" accessibilityRole="button">
             <Ionicons name="chevron-up" size={16} color={index === 0 ? theme.colors.border : theme.colors.textMuted} />
           </Pressable>
           <Text style={[styles.order, { color: theme.colors.accent }]}>
             {item.sort_order != null ? item.sort_order + 1 : index + 1}
           </Text>
-          <Pressable onPress={onMoveDown} disabled={index === total - 1} hitSlop={6}>
+          <Pressable onPress={onMoveDown} disabled={index === total - 1} hitSlop={6} accessible={true} accessibilityLabel="Move down" accessibilityRole="button">
             <Ionicons name="chevron-down" size={16} color={index === total - 1 ? theme.colors.border : theme.colors.textMuted} />
           </Pressable>
         </View>
@@ -77,7 +80,7 @@ function PlaylistItemRow({
         </View>
       </View>
       {isManual && (
-        <Pressable onPress={onRemove} hitSlop={8} style={{ padding: 4 }}>
+        <Pressable onPress={onRemove} hitSlop={8} style={{ padding: 4 }} accessible={true} accessibilityLabel="Remove" accessibilityRole="button">
           <Ionicons name="close-circle-outline" size={18} color={theme.colors.textMuted} />
         </Pressable>
       )}
@@ -144,7 +147,7 @@ export default function PlaylistDetailScreen() {
   }, [id, removeMutation, t]);
 
   const headerRight = () => (
-    <TouchableOpacity onPress={confirmDelete} style={{ marginRight: 8 }} hitSlop={8}>
+    <TouchableOpacity onPress={confirmDelete} style={{ marginRight: 8 }} hitSlop={8} accessible={true} accessibilityLabel={t("common.delete")} accessibilityRole="button">
       <Ionicons name="trash-outline" size={22} color="#ef4444" />
     </TouchableOpacity>
   );
@@ -203,6 +206,9 @@ export default function PlaylistDetailScreen() {
         <Pressable
           onPress={() => setShowRulesEditor(true)}
           style={{ flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 16, paddingVertical: 8 }}
+          accessible={true}
+          accessibilityLabel={t("media.playlist.editRules") || "Edit Rules"}
+          accessibilityRole="button"
         >
           <Ionicons name="options-outline" size={16} color={theme.colors.accent} />
           <Text style={{ color: theme.colors.accent, fontSize: 13, fontWeight: "600" }}>

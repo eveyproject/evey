@@ -7,6 +7,10 @@ controls:
   exitFullscreen: Quitter le plein écran
   pip: "Image dans l'image"
   exitPip: "Quitter l'image dans l'image"
+  cast: Caster
+  stopCast: Arrêter la diffusion
+  noDevices: Aucun appareil trouvé
+  castingTo: Diffusion sur
   settings: Paramètres
   episodes: Épisodes
   chapters: Chapitres

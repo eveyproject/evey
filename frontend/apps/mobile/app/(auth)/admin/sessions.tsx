@@ -50,22 +50,22 @@ export default function AdminSessionsScreen() {
   const killSession = useMutation({
     mutationFn: (id: string) => eveyFetch({ url: `/api/v1/admin/sessions/${id}`, method: "DELETE" }),
     onSuccess: async () => {
-      toast.success("Session killed");
+      toast.success(t("admin.nowPlaying.sessionKilled", "Session killed"));
       await qc.invalidateQueries({ queryKey: ["admin", "sessions"] });
     },
   });
 
   const handleKill = useCallback((session: Session) => {
-    Alert.alert("Kill Session", `Kill ${session.username}'s session?`, [
+    Alert.alert(t("admin.nowPlaying.killSession", "Kill Session"), `${t("admin.nowPlaying.killSession", "Kill")} ${session.username}?`, [
       { text: t("common.cancel"), style: "cancel" },
-      { text: "Kill", style: "destructive", onPress: () => killSession.mutate(session.id) },
+      { text: t("admin.nowPlaying.killSession", "Kill"), style: "destructive", onPress: () => killSession.mutate(session.id) },
     ]);
   }, [killSession, t]);
 
   const renderSession = useCallback(({ item }: { item: Session }) => (
     <View style={[styles.card, { backgroundColor: theme.colors.surface, borderRadius: theme.radii.md }]}>
       <View style={{ flex: 1, gap: 2 }}>
-        <Text style={{ color: theme.colors.text, fontSize: 14, fontWeight: "600" }} numberOfLines={1}>{item.mediaTitle || "Unknown"}</Text>
+        <Text style={{ color: theme.colors.text, fontSize: 14, fontWeight: "600" }} numberOfLines={1}>{item.mediaTitle || t("common.unknown", "Unknown")}</Text>
         <Text style={{ color: theme.colors.textMuted, fontSize: 12 }}>{item.username} · {item.deviceName || item.clientIp}</Text>
         <View style={{ flexDirection: "row", gap: 8, marginTop: 2 }}>
           <Text style={{ color: theme.colors.textMuted, fontSize: 11 }}>{item.playMethod || "Direct"}</Text>

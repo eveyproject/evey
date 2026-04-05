@@ -69,7 +69,7 @@ export function SideDrawer() {
         ]}
       >
         {/* Logo */}
-        <Pressable onPress={() => navigate("/(auth)/(tabs)/")} style={styles.logoRow}>
+        <Pressable onPress={() => navigate("/(auth)/(tabs)/")} style={styles.logoRow} accessible={true} accessibilityLabel="Evey home" accessibilityRole="button">
           <Text style={[styles.logo, { color: theme.colors.accent }]}>Evey</Text>
         </Pressable>
 
@@ -86,6 +86,8 @@ export function SideDrawer() {
                   { borderLeftColor: active ? theme.colors.accent : "transparent" },
                   active && { backgroundColor: theme.colors.surfaceRaised },
                 ]}
+                accessible={true}
+                accessibilityLabel={t(item.labelKey)}
                 accessibilityRole="menuitem"
               >
                 <Ionicons
@@ -109,6 +111,8 @@ export function SideDrawer() {
                 { borderLeftColor: pathname.startsWith("/admin") ? theme.colors.accent : "transparent" },
                 pathname.startsWith("/admin") && { backgroundColor: theme.colors.surfaceRaised },
               ]}
+              accessible={true}
+              accessibilityLabel={t("common.nav.admin")}
               accessibilityRole="menuitem"
             >
               <Ionicons
@@ -125,7 +129,7 @@ export function SideDrawer() {
 
         {/* User section at bottom */}
         <View style={[styles.userSection, { borderTopColor: theme.colors.border }]}>
-          <Pressable onPress={() => navigate("/(auth)/(tabs)/settings")} style={styles.userRow}>
+          <Pressable onPress={() => navigate("/(auth)/(tabs)/settings")} style={styles.userRow} accessible={true} accessibilityLabel={currentUser?.username ?? "Settings"} accessibilityRole="button">
             <View style={[styles.avatar, { backgroundColor: theme.colors.accent }]}>
               <Text style={styles.avatarText}>{initial}</Text>
             </View>
@@ -139,7 +143,7 @@ export function SideDrawer() {
             </View>
             <Ionicons name="chevron-forward" size={16} color={theme.colors.textMuted} />
           </Pressable>
-          <Pressable onPress={handleLogout} style={styles.logoutRow} accessibilityRole="button">
+          <Pressable onPress={handleLogout} style={styles.logoutRow} accessible={true} accessibilityLabel={t("common.nav.signOut", "Sign out")} accessibilityRole="button">
             <Ionicons name="log-out-outline" size={18} color="#e57373" />
             <Text style={[styles.navLabel, { color: "#e57373" }]}>{t("common.nav.signOut", "Sign out")}</Text>
           </Pressable>

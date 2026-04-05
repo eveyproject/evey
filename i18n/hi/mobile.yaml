@@ -16,3 +16,8 @@ settings:
   about: जानकारी
   appVersion: ऐप संस्करण
   serverVersion: सर्वर संस्करण
+  switchProfile: "प्रोफ़ाइल बदलें"
+  biometricLogin: "बायोमेट्रिक लॉगिन"
+auth:
+  biometricPrompt: "Evey अनलॉक करें"
+  unlockBiometric: "बायोमेट्रिक से अनलॉक करें"

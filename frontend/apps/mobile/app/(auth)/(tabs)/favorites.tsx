@@ -143,6 +143,9 @@ export default function FavoritesScreen() {
           activeOpacity={0.7}
           onPress={() => bulkMode ? toggleSelect(item.mediaItemId) : router.push(`/media/${item.mediaItemId}`)}
           onLongPress={() => !bulkMode && (setBulkMode(true), setSelected(new Set([item.mediaItemId])))}
+          accessible={true}
+          accessibilityLabel={item.title ?? "Untitled"}
+          accessibilityRole="button"
         >
           {isSelected && (
             <View style={styles.checkmark}>
@@ -188,7 +191,7 @@ export default function FavoritesScreen() {
     return (
       <View style={{ flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: theme.colors.bg }}>
         <Text style={{ color: theme.colors.textMuted, marginBottom: 12 }}>{t("common.loadError")}</Text>
-        <Pressable onPress={() => refetch()}>
+        <Pressable onPress={() => refetch()} accessible={true} accessibilityLabel={t("common.retry")} accessibilityRole="button">
           <Text style={{ color: theme.colors.accent }}>{t("common.retry")}</Text>
         </Pressable>
       </View>
@@ -251,6 +254,9 @@ export default function FavoritesScreen() {
             ]}
             activeOpacity={0.7}
             onPress={() => setTypeFilter(opt.key)}
+            accessible={true}
+            accessibilityLabel={opt.label}
+            accessibilityRole="radio"
           >
             <Text style={{ color: typeFilter === opt.key ? "#fff" : theme.colors.text, fontSize: 13 }}>
               {opt.label}
@@ -273,6 +279,9 @@ export default function FavoritesScreen() {
             ]}
             activeOpacity={0.7}
             onPress={() => setSortKey(opt.key)}
+            accessible={true}
+            accessibilityLabel={opt.label}
+            accessibilityRole="radio"
           >
             <Text style={{ color: sortKey === opt.key ? "#fff" : theme.colors.text, fontSize: 13 }}>
               {opt.label}
@@ -304,13 +313,13 @@ export default function FavoritesScreen() {
         <View style={[styles.bulkBar, { backgroundColor: theme.colors.surfaceRaised, borderTopColor: theme.colors.border }]}>
           <Text style={{ color: theme.colors.text, fontSize: 13, fontWeight: "600" }}>{selected.size} selected</Text>
           <View style={{ flexDirection: "row", gap: 12 }}>
-            <Pressable onPress={bulkMarkWatched} style={styles.bulkBtn}>
+            <Pressable onPress={bulkMarkWatched} style={styles.bulkBtn} accessible={true} accessibilityLabel="Mark watched" accessibilityRole="button">
               <Ionicons name="checkmark-circle-outline" size={20} color={theme.colors.accent} />
             </Pressable>
-            <Pressable onPress={bulkMarkUnwatched} style={styles.bulkBtn}>
+            <Pressable onPress={bulkMarkUnwatched} style={styles.bulkBtn} accessible={true} accessibilityLabel="Mark unwatched" accessibilityRole="button">
               <Ionicons name="eye-off-outline" size={20} color={theme.colors.textMuted} />
             </Pressable>
-            <Pressable onPress={exitBulk} style={styles.bulkBtn}>
+            <Pressable onPress={exitBulk} style={styles.bulkBtn} accessible={true} accessibilityLabel="Exit selection" accessibilityRole="button">
               <Ionicons name="close" size={20} color="#ef4444" />
             </Pressable>
           </View>

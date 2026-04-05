@@ -54,7 +54,6 @@ func buildHTTPHandler(gwMux http.Handler, deps *appDeps, cfg *config.Config, sta
 		TokenGen:         deps.auth.tokenGen,
 		Cfg:              cfg,
 		StreamTokenStore: deps.media.streamTokenStore,
-		ShareSvc:         deps.media.shareSvc,
 
 		LibCmdSvc:   deps.library.cmdSvc,
 		LibQuerySvc: deps.library.querySvc,

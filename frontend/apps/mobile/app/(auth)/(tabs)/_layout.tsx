@@ -83,10 +83,10 @@ function HeaderRight({ theme, serverUrl }: { theme: ReturnType<typeof useTheme>;
   const { data: currentUser } = useUserServiceGetCurrentUser();
   const accessToken = useAuthStore((s) => s.accessToken);
   const { data: profilesResp } = useUserServiceListProfiles(currentUser?.id ?? "", { query: { enabled: !!currentUser?.id } });
-  const defaultProfile = profilesResp?.profiles?.find((p: any) => p.isDefault) ?? profilesResp?.profiles?.[0];
+  const defaultProfile = profilesResp?.profiles?.find((p) => p.isDefault) ?? profilesResp?.profiles?.[0];
   const count = notifData?.count ?? 0;
   const initial = currentUser?.username?.charAt(0).toUpperCase() ?? "U";
-  const avatarUrl = (defaultProfile as any)?.avatarPath && defaultProfile?.id && serverUrl
+  const avatarUrl = defaultProfile?.avatarPath && defaultProfile?.id && serverUrl && accessToken
     ? `${serverUrl}/api/v1/profiles/${defaultProfile.id}/avatar?token=${accessToken}`
     : null;
 

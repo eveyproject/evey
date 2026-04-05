@@ -55,9 +55,9 @@ export default function AdminAPIKeysScreen() {
   }, [keyName, createKey]);
 
   const handleRevoke = useCallback((keyId: string, name: string) => {
-    Alert.alert("Revoke Key", `Revoke "${name}"?`, [
-      { text: "Cancel", style: "cancel" },
-      { text: "Revoke", style: "destructive", onPress: () => revokeKey.mutate({ id: keyId }) },
+    Alert.alert(t("auth.apiKeys.revoke", "Revoke Key"), `${t("auth.apiKeys.revoke", "Revoke")} "${name}"?`, [
+      { text: t("common.cancel"), style: "cancel" },
+      { text: t("auth.apiKeys.revoke", "Revoke"), style: "destructive", onPress: () => revokeKey.mutate({ id: keyId }) },
     ]);
   }, [revokeKey]);
 
@@ -65,7 +65,7 @@ export default function AdminAPIKeysScreen() {
     <View style={{ flex: 1, backgroundColor: theme.colors.bg }}>
       <Stack.Screen options={{
         headerShown: true,
-        title: "API Keys",
+        title: t("admin.nav.apiKeys"),
         headerStyle: { backgroundColor: theme.colors.surface },
         headerTintColor: theme.colors.text,
         headerRight: () => (

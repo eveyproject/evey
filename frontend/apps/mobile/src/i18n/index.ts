@@ -6,10 +6,11 @@ import { useLocaleStore } from "@evey/store";
 
 export const supportedLanguages = [
   { code: "en", label: "English" },
-  { code: "zh", label: "中文" },
-  { code: "hi", label: "हिन्दी" },
+  { code: "de", label: "Deutsch" },
   { code: "es", label: "Español" },
   { code: "fr", label: "Français" },
+  { code: "hi", label: "हिन्दी" },
+  { code: "zh", label: "中文" },
 ] as const;
 
 function detectLanguage(): string {

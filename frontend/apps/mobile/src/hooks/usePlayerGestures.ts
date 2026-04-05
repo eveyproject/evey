@@ -13,11 +13,13 @@ interface UsePlayerGesturesArgs {
   onTogglePlayPause: () => void;
   onToggleControls: () => void;
   onVolumeChange: (delta: number) => void;
+  onBrightnessChange: (delta: number) => void;
 }
 
 export interface GestureOverlayState {
   seekFlash: "left" | "right" | null;
   volumeIndicator: number | null;
+  brightnessIndicator: number | null;
 }
 
 export function usePlayerGestures({
@@ -25,13 +27,15 @@ export function usePlayerGestures({
   onTogglePlayPause,
   onToggleControls,
   onVolumeChange,
+  onBrightnessChange,
 }: UsePlayerGesturesArgs) {
   const [seekFlash, setSeekFlash] = useState<"left" | "right" | null>(null);
   const [volumeIndicator, setVolumeIndicator] = useState<number | null>(null);
+  const [brightnessIndicator, setBrightnessIndicator] = useState<number | null>(null);
   const seekFlashTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastTapRef = useRef<{ x: number; time: number } | null>(null);
   const singleTapTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const swipeActiveRef = useRef<"volume" | null>(null);
+  const swipeActiveRef = useRef<"volume" | "brightness" | null>(null);
   const swipeStartYRef = useRef(0);
   const cumulativeDeltaRef = useRef(0);
 
@@ -63,16 +67,22 @@ export function usePlayerGestures({
             if (Math.abs(gs.dx) > Math.abs(gs.dy)) return;
             if (relX > 0.5) {
               swipeActiveRef.current = "volume";
+            } else {
+              swipeActiveRef.current = "brightness";
             }
             return;
           }
 
+          const dy = -gs.dy;
+          cumulativeDeltaRef.current += dy * SWIPE_SENSITIVITY;
+          const clampedDelta = Math.max(-1, Math.min(1, cumulativeDeltaRef.current));
+
           if (swipeActiveRef.current === "volume") {
-            const dy = -gs.dy;
-            cumulativeDeltaRef.current += dy * SWIPE_SENSITIVITY;
-            const clampedDelta = Math.max(-1, Math.min(1, cumulativeDeltaRef.current));
             onVolumeChange(clampedDelta);
             setVolumeIndicator(clampedDelta);
+          } else if (swipeActiveRef.current === "brightness") {
+            onBrightnessChange(clampedDelta);
+            setBrightnessIndicator(clampedDelta);
           }
         },
 
@@ -80,6 +90,7 @@ export function usePlayerGestures({
           if (swipeActiveRef.current) {
             swipeActiveRef.current = null;
             setVolumeIndicator(null);
+            setBrightnessIndicator(null);
             return;
           }
 
@@ -128,5 +139,5 @@ export function usePlayerGestures({
     if (singleTapTimer.current) clearTimeout(singleTapTimer.current);
   }, []);
 
-  return { panResponder, seekFlash, volumeIndicator, cleanup };
+  return { panResponder, seekFlash, volumeIndicator, brightnessIndicator, cleanup };
 }

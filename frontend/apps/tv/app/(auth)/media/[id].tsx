@@ -10,6 +10,7 @@ import {
 } from "@evey/api";
 import type { V1MediaItem, V1MediaPerson } from "@evey/api";
 import { useAuthStore } from "@evey/store";
+import { useTranslation } from "react-i18next";
 import { useQueryClient } from "@tanstack/react-query";
 import { useTheme } from "../../../src/providers/ThemeProvider";
 import { useIsFavorite, useToggleFavorite } from "../../../src/hooks/useFavorite";
@@ -47,6 +48,7 @@ function isSeasonType(type?: string) {
 export default function MediaDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const theme = useTheme();
+  const { t } = useTranslation();
   const [selectedSeason, setSelectedSeason] = useState<string | null>(null);
   const [focusedBtn, setFocusedBtn] = useState<string | null>(null);
 
@@ -149,7 +151,7 @@ export default function MediaDetailScreen() {
           onBlur={() => setFocusedBtn(null)}
           hasTVPreferredFocus={true}
           accessible={true}
-          accessibilityLabel={hasProgress ? "Resume" : "Play"}
+          accessibilityLabel={hasProgress ? t("media.resume", "Resume") : t("player.controls.play")}
           accessibilityRole="button"
           style={[
             styles.playButton,
@@ -160,7 +162,7 @@ export default function MediaDetailScreen() {
           ]}
         >
           <Text style={styles.playText}>
-            {hasProgress ? `Resume from ${formatProgress(resumeMs)}` : "Play"}
+            {hasProgress ? `${t("media.resume", "Resume")} ${formatProgress(resumeMs)}` : t("player.controls.play")}
           </Text>
         </Pressable>
 

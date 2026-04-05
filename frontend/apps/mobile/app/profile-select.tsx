@@ -1,15 +1,19 @@
 import { useEffect } from "react";
 import { View, Text, Pressable, ActivityIndicator, ScrollView, StyleSheet } from "react-native";
+import { Image } from "expo-image";
 import { router } from "expo-router";
 import { useTranslation } from "react-i18next";
 import { useUserServiceGetCurrentUser, useUserServiceListProfiles } from "@evey/api";
 import { useAuthStore } from "@evey/store";
 import { useTheme } from "../src/providers/ThemeProvider";
+import { useServerUrl } from "../src/hooks/useServerUrl";
 
 export default function ProfileSelect() {
   const theme = useTheme();
   const { t } = useTranslation();
   const setProfile = useAuthStore((s) => s.setProfile);
+  const accessToken = useAuthStore((s) => s.accessToken);
+  const serverUrl = useServerUrl();
 
   const { data: user } = useUserServiceGetCurrentUser();
   const userId = user?.id;
@@ -57,8 +61,16 @@ export default function ProfileSelect() {
               accessibilityLabel={profile.name}
               accessibilityRole="button"
             >
-              <View style={[s.avatar, { backgroundColor: theme.colors.accent }]}>
-                <Text style={s.avatarText}>{initial}</Text>
+              <View style={[s.avatar, { backgroundColor: theme.colors.accent, overflow: "hidden" }]}>
+                {profile.avatarPath && serverUrl && accessToken ? (
+                  <Image
+                    source={{ uri: `${serverUrl}/api/v1/profiles/${profile.id}/avatar?token=${accessToken}` }}
+                    style={{ width: 64, height: 64, borderRadius: 32 }}
+                    contentFit="cover"
+                  />
+                ) : (
+                  <Text style={s.avatarText}>{initial}</Text>
+                )}
               </View>
               <Text style={s.profileName} numberOfLines={1}>{profile.name}</Text>
             </Pressable>

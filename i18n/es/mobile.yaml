@@ -16,3 +16,8 @@ settings:
   about: Acerca de
   appVersion: Version de la app
   serverVersion: Version del servidor
+  switchProfile: "Cambiar perfil"
+  biometricLogin: "Inicio de sesión biométrico"
+auth:
+  biometricPrompt: "Desbloquear Evey"
+  unlockBiometric: "Desbloquear con biometría"

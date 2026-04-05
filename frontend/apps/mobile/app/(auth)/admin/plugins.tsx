@@ -50,9 +50,9 @@ export default function AdminPluginsScreen() {
   }, [enablePlugin, disablePlugin]);
 
   const handleUninstall = useCallback((plugin: Plugin) => {
-    Alert.alert("Uninstall Plugin", `Uninstall "${plugin.name}"?`, [
-      { text: "Cancel", style: "cancel" },
-      { text: "Uninstall", style: "destructive", onPress: () => uninstallPlugin.mutate({ id: plugin.id }) },
+    Alert.alert(t("admin.plugin.uninstall"), `${t("admin.plugin.uninstall")} "${plugin.name}"?`, [
+      { text: t("common.cancel"), style: "cancel" },
+      { text: t("admin.plugin.uninstall"), style: "destructive", onPress: () => uninstallPlugin.mutate({ id: plugin.id }) },
     ]);
   }, [uninstallPlugin]);
 
@@ -85,7 +85,7 @@ export default function AdminPluginsScreen() {
     <View style={{ flex: 1, backgroundColor: theme.colors.bg }}>
       <Stack.Screen options={{
         headerShown: true,
-        title: "Plugins",
+        title: t("admin.plugins.title"),
         headerStyle: { backgroundColor: theme.colors.surface },
         headerTintColor: theme.colors.text,
       }} />
@@ -104,7 +104,7 @@ export default function AdminPluginsScreen() {
           ListEmptyComponent={
             <View style={{ alignItems: "center", paddingTop: 60 }}>
               <Ionicons name="extension-puzzle-outline" size={48} color={theme.colors.textMuted} />
-              <Text style={{ color: theme.colors.textMuted, marginTop: 12 }}>No plugins installed</Text>
+              <Text style={{ color: theme.colors.textMuted, marginTop: 12 }}>{t("admin.plugins.noPlugins", "No plugins installed")}</Text>
             </View>
           }
         />

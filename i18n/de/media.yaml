@@ -12,6 +12,8 @@ home:
   mostPopular: Am beliebtesten
   recommendedForYou: Für Sie empfohlen
   collections: Sammlungen
+  customize: Anpassen
+  customizeFeed: Feed anpassen
   emptyLibrary: Ihre Bibliothek ist leer
   emptyLibraryDesc: "Gehen Sie zu Verwaltung → Bibliotheken, um einen Medienordner hinzuzufügen."
   goToLibraries: Zu den Bibliotheken
@@ -289,7 +291,6 @@ playlist:
   op: Operator
   value: Wert
   playlists: Playlists
-  notFound: Playlist nicht gefunden.
   noItems: Keine Elemente
   noItemsSmart: Keine Medien entsprechen diesen Regeln.
   noItemsManual: Fügen Sie Elemente von der Mediendetailseite hinzu.

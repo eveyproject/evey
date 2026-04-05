@@ -61,6 +61,7 @@ function HistoryItem({ item, onRemove, isPending }: {
         backgroundColor: theme.colors.surface,
       }}
       accessible
+      accessibilityLabel={item.mediaItemId ?? "History item"}
       accessibilityRole="button"
     >
       <View style={{

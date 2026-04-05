@@ -85,6 +85,7 @@ function NotificationItem({ item, onPress }: { item: V1Notification; onPress: ()
         opacity: isUnread ? 1 : 0.6,
       }}
       accessible
+      accessibilityLabel={translateTitle(t, item.title)}
       accessibilityRole="button"
     >
       <View style={{

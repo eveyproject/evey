@@ -45,7 +45,7 @@ export default function ParentalSettingsScreen() {
           void qc.invalidateQueries({ queryKey: [`/api/v1/users/${user.id}/profiles`] });
         }
       },
-      onError: (err: Error) => Alert.alert("Error", err.message),
+      onError: (err: Error) => Alert.alert(t("common.error", "Error"), err.message),
     },
   });
 

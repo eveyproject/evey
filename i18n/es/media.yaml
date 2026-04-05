@@ -12,12 +12,15 @@ home:
   mostPopular: Más popular
   recommendedForYou: Recomendado para ti
   collections: Colecciones
+  customize: Personalizar
+  customizeFeed: Personalizar portada
   emptyLibrary: Tu biblioteca está vacía
   emptyLibraryDesc: "Ve a Administración \u2192 Bibliotecas para añadir una carpeta multimedia."
   goToLibraries: Ir a Bibliotecas
   library: Biblioteca
 favorites:
   title: Favoritos
+  empty: "Aún no hay favoritos"
   searchPlaceholder: "Buscar\u2026"
   all: Todo
   movies: Películas
@@ -131,6 +134,7 @@ library:
   subtitleLanguage: Idioma de subtítulos
   noFilterOptions: No hay opciones de filtro disponibles para esta biblioteca.
 person:
+  filmography: Filmografía
   notFound: Persona no encontrada.
   unknown: Desconocido
   titleCount: "{{count}} título"

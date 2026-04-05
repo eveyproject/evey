@@ -112,6 +112,7 @@ settings:
     parental: Kindersicherung
     devices: Geräte
     apiKeys: API-Schlüssel
+    security: Sicherheit
     quickConnect: Schnellverbindung
   quickConnect:
     title: Schnellverbindung

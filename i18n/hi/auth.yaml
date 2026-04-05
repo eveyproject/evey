@@ -35,6 +35,7 @@ login:
   passwordTooShort: "पासवर्ड कम से कम 8 अक्षरों का होना चाहिए"
   loginFailed: "लॉगिन विफल। कृपया पुनः प्रयास करें।"
   accountLocked: "बहुत अधिक प्रयास। कृपया बाद में पुनः प्रयास करें।"
+  recommendedForTV: "TV के लिए अनुशंसित"
   ssoFailed: "SSO साइन इन विफल। कृपया पुनः प्रयास करें।"
   or: "या"
   signInWithSSO: "SSO से साइन इन करें"
@@ -111,6 +112,7 @@ settings:
     parental: "अभिभावक नियंत्रण"
     devices: "डिवाइस"
     apiKeys: "API कुंजियां"
+    security: "सुरक्षा"
     quickConnect: "क्विक कनेक्ट"
   quickConnect:
     title: "क्विक कनेक्ट"

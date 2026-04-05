@@ -17,3 +17,7 @@ settings:
   appVersion: App-Version
   serverVersion: Serverversion
   switchProfile: Profil wechseln
+  biometricLogin: "Biometrische Anmeldung"
+auth:
+  biometricPrompt: "Evey entsperren"
+  unlockBiometric: "Mit Biometrie entsperren"

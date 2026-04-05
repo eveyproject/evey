@@ -53,7 +53,7 @@ export function MediaRow({ title, seeAllHref, items, onItemPress, watchPercents 
       <View style={[styles.rowHeader, { marginBottom: theme.spacing.sm }]}>
         <Text style={[styles.rowTitle, titleStyle]}>{title}</Text>
         {seeAllHref && (
-          <Pressable onPress={() => router.push(seeAllHref as never)} style={{ paddingHorizontal: theme.spacing.md }}>
+          <Pressable onPress={() => router.push(seeAllHref as never)} style={{ paddingHorizontal: theme.spacing.md }} accessible={true} accessibilityLabel="See all" accessibilityRole="button">
             <Text style={{ color: theme.colors.accent, fontSize: 13 }}>See all</Text>
           </Pressable>
         )}

@@ -106,6 +106,9 @@ function CastCard({ person }: { person: V1MediaPerson }) {
     <Pressable
       onPress={() => person.id && router.push(`/(auth)/person/${person.id}`)}
       style={{ width: 80, marginRight: theme.spacing.sm, alignItems: "center" }}
+      accessible={true}
+      accessibilityLabel={person.name ?? "Person"}
+      accessibilityRole="button"
     >
       {person.thumbUrl ? (
         <Image
@@ -155,6 +158,9 @@ function EpisodeRow({ item, serverUrl, theme, authHeaders }: { item: V1MediaItem
         borderBottomWidth: StyleSheet.hairlineWidth,
         borderBottomColor: theme.colors.border,
       }}
+      accessible={true}
+      accessibilityLabel={item.title ?? "Episode"}
+      accessibilityRole="button"
     >
       <View style={{ width: 120, height: 68, borderRadius: theme.radii.sm, backgroundColor: theme.colors.surface, overflow: "hidden" }}>
         <Image
@@ -220,6 +226,9 @@ function TrailerButton({ trailer }: { trailer: V1Trailer }) {
         borderWidth: StyleSheet.hairlineWidth,
         borderColor: theme.colors.border,
       }}
+      accessible={true}
+      accessibilityLabel={t("media.detail.trailer")}
+      accessibilityRole="link"
     >
       <Ionicons name="play" size={14} color={theme.colors.text} />
       <Text style={{ color: theme.colors.text, fontSize: 13, fontWeight: "500" }}>
@@ -287,6 +296,9 @@ function FileInfoSection({ item }: { item: V1MediaItem }) {
       <Pressable
         onPress={() => setOpen((v) => !v)}
         style={{ flexDirection: "row", alignItems: "center", gap: 6, marginBottom: theme.spacing.sm }}
+        accessible={true}
+        accessibilityLabel={t("media.detail.fileInfo")}
+        accessibilityRole="button"
       >
         <Ionicons
           name={open ? "chevron-down" : "chevron-forward"}
@@ -573,14 +585,14 @@ export default function MediaDetailScreen() {
             {/* Provider badges: IMDb, TMDB */}
             <View style={{ flexDirection: "row", gap: 6, marginTop: 4 }}>
               {media.providerIds?.imdb ? (
-                <Pressable onPress={() => Linking.openURL(`https://www.imdb.com/title/${media.providerIds!.imdb}/`)}>
+                <Pressable onPress={() => Linking.openURL(`https://www.imdb.com/title/${media.providerIds!.imdb}/`)} accessible={true} accessibilityLabel="IMDb" accessibilityRole="link">
                   <View style={{ backgroundColor: "#f5c518", borderRadius: 3, paddingHorizontal: 5, paddingVertical: 2 }}>
                     <Text style={{ color: "#000", fontSize: 10, fontWeight: "800" }}>IMDb</Text>
                   </View>
                 </Pressable>
               ) : null}
               {media.providerIds?.tmdb ? (
-                <Pressable onPress={() => Linking.openURL(`https://www.themoviedb.org/${media.type === "MEDIA_ITEM_TYPE_MOVIE" ? "movie" : "tv"}/${media.providerIds!.tmdb}`)}>
+                <Pressable onPress={() => Linking.openURL(`https://www.themoviedb.org/${media.type === "MEDIA_ITEM_TYPE_MOVIE" ? "movie" : "tv"}/${media.providerIds!.tmdb}`)} accessible={true} accessibilityLabel="TMDB" accessibilityRole="link">
                   <View style={{ backgroundColor: "#01b4e4", borderRadius: 3, paddingHorizontal: 5, paddingVertical: 2 }}>
                     <Text style={{ color: "#fff", fontSize: 10, fontWeight: "800" }}>TMDB</Text>
                   </View>
@@ -619,6 +631,9 @@ export default function MediaDetailScreen() {
             gap: 8,
             marginTop: theme.spacing.md,
           }}
+          accessible={true}
+          accessibilityLabel={hasProgress ? t("media.detail.resume") : t("media.detail.play")}
+          accessibilityRole="button"
         >
           <Ionicons name="play" size={18} color="#fff" />
           <Text style={{ color: "#fff", fontWeight: "700", fontSize: 16 }}>
@@ -642,6 +657,9 @@ export default function MediaDetailScreen() {
               paddingHorizontal: theme.spacing.md,
               opacity: toggleFavorite.isPending ? 0.5 : 1,
             }}
+            accessible={true}
+            accessibilityLabel={isFavorite ? t("media.detail.favorited") : t("media.detail.favorite")}
+            accessibilityRole="button"
           >
             <Ionicons
               name={isFavorite ? "heart" : "heart-outline"}
@@ -673,6 +691,9 @@ export default function MediaDetailScreen() {
                 paddingHorizontal: theme.spacing.md,
                 opacity: (markWatched.isPending || markUnwatched.isPending) ? 0.5 : 1,
               }}
+              accessible={true}
+              accessibilityLabel={watched ? t("media.detail.markUnwatched") : t("media.detail.markWatched")}
+              accessibilityRole="button"
             >
               {(markWatched.isPending || markUnwatched.isPending) ? (
                 <ActivityIndicator size={18} color={theme.colors.text} />
@@ -699,6 +720,9 @@ export default function MediaDetailScreen() {
               paddingVertical: theme.spacing.sm,
               paddingHorizontal: theme.spacing.md,
             }}
+            accessible={true}
+            accessibilityLabel={t("media.detail.addToPlaylist")}
+            accessibilityRole="button"
           >
             <Ionicons name="add" size={20} color={theme.colors.text} />
             <Text style={{ color: theme.colors.text, fontSize: 13, fontWeight: "600", marginLeft: 6 }}>
@@ -725,6 +749,9 @@ export default function MediaDetailScreen() {
                 paddingVertical: theme.spacing.sm,
                 paddingHorizontal: theme.spacing.md,
               }}
+              accessible={true}
+              accessibilityLabel={t("common.download") || "Download"}
+              accessibilityRole="button"
             >
               <Ionicons name="download-outline" size={20} color={theme.colors.text} />
               <Text style={{ color: theme.colors.text, fontSize: 13, fontWeight: "600", marginLeft: 6 }}>
@@ -804,6 +831,9 @@ export default function MediaDetailScreen() {
                       borderRadius: theme.radii.md,
                       backgroundColor: active ? theme.colors.accent : theme.colors.surface,
                     }}
+                    accessible={true}
+                    accessibilityLabel={label}
+                    accessibilityRole="tab"
                   >
                     <Text style={{ color: active ? "#fff" : theme.colors.text, fontSize: 13, fontWeight: "600" }}>
                       {label}

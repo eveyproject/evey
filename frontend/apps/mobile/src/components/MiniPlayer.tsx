@@ -26,6 +26,9 @@ export function MiniPlayer() {
     <Pressable
       style={[styles.container, { backgroundColor: theme.colors.surfaceRaised, borderTopColor: theme.colors.border }]}
       onPress={() => router.push(`/(auth)/player/${mediaId}`)}
+      accessible={true}
+      accessibilityLabel={mediaTitle ?? "Now Playing"}
+      accessibilityRole="button"
     >
       {artworkUri ? (
         <Image
@@ -43,7 +46,7 @@ export function MiniPlayer() {
           {mediaTitle ?? "Now Playing"}
         </Text>
       </View>
-      <Pressable onPress={stop} hitSlop={12} style={styles.closeBtn}>
+      <Pressable onPress={stop} hitSlop={12} style={styles.closeBtn} accessible={true} accessibilityLabel="Stop playback" accessibilityRole="button">
         <Ionicons name="close" size={20} color={theme.colors.textMuted} />
       </Pressable>
     </Pressable>

@@ -7,6 +7,10 @@ controls:
   exitFullscreen: Exit fullscreen
   pip: Picture-in-Picture
   exitPip: Exit Picture-in-Picture
+  cast: Cast
+  stopCast: Stop casting
+  noDevices: No devices found
+  castingTo: Casting to
   settings: Settings
   episodes: Episodes
   chapters: Chapters

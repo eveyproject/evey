@@ -14,18 +14,26 @@
       "supportsTablet": true,
       "bundleIdentifier": "com.evey.app",
       "infoPlist": {
-        "UIBackgroundModes": ["audio"]
+        "UIBackgroundModes": [
+          "audio"
+        ]
       }
     },
     "android": {
       "package": "com.evey.app",
       "adaptiveIcon": {
         "backgroundColor": "#111827"
-      }
+      },
     },
     "plugins": [
+      "./plugins/withCleartextTraffic",
       "expo-router",
-      ["expo-video", { "supportsPictureInPicture": true }],
+      [
+        "expo-video",
+        {
+          "supportsPictureInPicture": true
+        }
+      ],
       "expo-secure-store",
       "expo-image",
       [
@@ -33,7 +41,9 @@
         {
           "cameraPermission": "Allow Evey to use the camera to scan Quick Connect QR codes."
         }
-      ]
+      ],
+      "expo-localization",
+      "react-native-google-cast"
     ]
   }
 }
