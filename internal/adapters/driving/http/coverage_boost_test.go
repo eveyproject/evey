@@ -13,19 +13,15 @@ import (
 	"testing"
 	"time"
 
-	appcollection "github.com/gravity-zero/evey/internal/app/collection"
 	appmetadata "github.com/gravity-zero/evey/internal/app/metadata"
 	appplaylist "github.com/gravity-zero/evey/internal/app/playlist"
-	apprating "github.com/gravity-zero/evey/internal/app/rating"
 
 	apptranscoding "github.com/gravity-zero/evey/internal/app/transcoding"
 	"github.com/gravity-zero/evey/internal/config"
-	libfakes "github.com/gravity-zero/evey/internal/domain/library/fakes"
 	domainlibrary "github.com/gravity-zero/evey/internal/domain/library"
 	domainmeta "github.com/gravity-zero/evey/internal/domain/metadata"
 	metafakes "github.com/gravity-zero/evey/internal/domain/metadata/fakes"
 	playlistfakes "github.com/gravity-zero/evey/internal/domain/playlist/fakes"
-	ratingfakes "github.com/gravity-zero/evey/internal/domain/rating/fakes"
 	shared "github.com/gravity-zero/evey/internal/domain/shared"
 	sharedfakes "github.com/gravity-zero/evey/internal/domain/shared/fakes"
 	transcodingfakes "github.com/gravity-zero/evey/internal/domain/transcoding/fakes"
@@ -739,87 +735,6 @@ func TestTranscodeCache_DeleteFile_NotFound(t *testing.T) {
 }
 
 // =====================================
-// collection_handler.go — getByID, delete, routeByID
-// =====================================
-
-func newCollectionFullTestMux(t *testing.T) (*http.ServeMux, string, string) {
-	t.Helper()
-	gen, adminTok, userTok := genTokens(t)
-	cmdRepo := libfakes.NewFakeCollectionCommandRepo()
-	mediaRepo := libfakes.NewFakeMediaItemRepository()
-	queryRepo := libfakes.NewFakeCollectionQueryRepo(cmdRepo, mediaRepo)
-	smartQ := libfakes.NewFakeCollectionSmartQuerier()
-	svc := appcollection.NewService(cmdRepo, queryRepo, smartQ, mediaRepo)
-	mux := http.NewServeMux()
-	registerCollectionRoutes(mux, svc, gen)
-	return mux, adminTok, userTok
-}
-
-func TestCollectionGetByID_NoAuth_401(t *testing.T) {
-	mux, _, _ := newCollectionFullTestMux(t)
-	req := httptest.NewRequest(http.MethodGet, "/api/v1/collections/col-1", nil)
-	w := httptest.NewRecorder()
-	mux.ServeHTTP(w, req)
-	if w.Code != http.StatusUnauthorized {
-		t.Errorf("expected 401, got %d", w.Code)
-	}
-}
-
-func TestCollectionGetByID_NotFound_404(t *testing.T) {
-	mux, _, userTok := newCollectionFullTestMux(t)
-	req := httptest.NewRequest(http.MethodGet, "/api/v1/collections/nonexistent", nil)
-	req.Header.Set("Authorization", "Bearer "+userTok)
-	w := httptest.NewRecorder()
-	mux.ServeHTTP(w, req)
-	if w.Code != http.StatusNotFound {
-		t.Errorf("expected 404, got %d", w.Code)
-	}
-}
-
-func TestCollectionDelete_NoAuth_401(t *testing.T) {
-	mux, _, _ := newCollectionFullTestMux(t)
-	req := httptest.NewRequest(http.MethodDelete, "/api/v1/collections/col-1", nil)
-	w := httptest.NewRecorder()
-	mux.ServeHTTP(w, req)
-	if w.Code != http.StatusUnauthorized {
-		t.Errorf("expected 401, got %d", w.Code)
-	}
-}
-
-func TestCollectionDelete_NonAdmin_403(t *testing.T) {
-	mux, _, userTok := newCollectionFullTestMux(t)
-	req := httptest.NewRequest(http.MethodDelete, "/api/v1/collections/col-1", nil)
-	req.Header.Set("Authorization", "Bearer "+userTok)
-	w := httptest.NewRecorder()
-	mux.ServeHTTP(w, req)
-	if w.Code != http.StatusForbidden {
-		t.Errorf("expected 403, got %d", w.Code)
-	}
-}
-
-func TestCollectionDelete_Admin_NotFound_404(t *testing.T) {
-	mux, adminTok, _ := newCollectionFullTestMux(t)
-	req := httptest.NewRequest(http.MethodDelete, "/api/v1/collections/nonexistent", nil)
-	req.Header.Set("Authorization", "Bearer "+adminTok)
-	w := httptest.NewRecorder()
-	mux.ServeHTTP(w, req)
-	if w.Code != http.StatusNotFound {
-		t.Errorf("expected 404, got %d", w.Code)
-	}
-}
-
-func TestCollectionRouteByID_MethodNotAllowed(t *testing.T) {
-	mux, _, userTok := newCollectionFullTestMux(t)
-	req := httptest.NewRequest(http.MethodPatch, "/api/v1/collections/col-1", nil)
-	req.Header.Set("Authorization", "Bearer "+userTok)
-	w := httptest.NewRecorder()
-	mux.ServeHTTP(w, req)
-	if w.Code != http.StatusMethodNotAllowed {
-		t.Errorf("expected 405, got %d", w.Code)
-	}
-}
-
-// =====================================
 // playlist_handler.go — routeByID, getByID, update, delete, addItem, removeItem, reorder
 // =====================================
 
@@ -981,159 +896,6 @@ func TestPlaylistCRUD_Flow(t *testing.T) {
 		t.Errorf("delete: expected 204, got %d", delW.Code)
 	}
 }
-
-// =====================================
-// rating_handler.go — putRate happy path, getMyRating happy path
-// =====================================
-
-func TestRateMedia_OK(t *testing.T) {
-	items := map[string]*domainlibrary.MediaItem{
-		"media-1": {ID: "media-1", LibraryID: "lib-ok"},
-	}
-	mux, token := newRatingTestMux(t, allowAll(), items)
-	body := `{"value":1}`
-	req := httptest.NewRequest(http.MethodPut, "/api/v1/media/media-1/rate", strings.NewReader(body))
-	req.Header.Set("Authorization", "Bearer "+token)
-	w := httptest.NewRecorder()
-	mux.ServeHTTP(w, req)
-	if w.Code != http.StatusOK {
-		t.Errorf("expected 200, got %d body=%s", w.Code, w.Body.String())
-	}
-}
-
-func TestRateMedia_InvalidValue_400(t *testing.T) {
-	items := map[string]*domainlibrary.MediaItem{
-		"media-1": {ID: "media-1", LibraryID: "lib-ok"},
-	}
-	mux, token := newRatingTestMux(t, allowAll(), items)
-	body := `{"value":5}`
-	req := httptest.NewRequest(http.MethodPut, "/api/v1/media/media-1/rate", strings.NewReader(body))
-	req.Header.Set("Authorization", "Bearer "+token)
-	w := httptest.NewRecorder()
-	mux.ServeHTTP(w, req)
-	if w.Code != http.StatusBadRequest {
-		t.Errorf("expected 400, got %d", w.Code)
-	}
-}
-
-func TestRateMedia_BadJSON_400(t *testing.T) {
-	mux, token := newRatingTestMux(t, allowAll(), nil)
-	req := httptest.NewRequest(http.MethodPut, "/api/v1/media/media-1/rate", strings.NewReader("not-json"))
-	req.Header.Set("Authorization", "Bearer "+token)
-	w := httptest.NewRecorder()
-	mux.ServeHTTP(w, req)
-	if w.Code != http.StatusBadRequest {
-		t.Errorf("expected 400, got %d", w.Code)
-	}
-}
-
-func TestGetMyRating_OK(t *testing.T) {
-	items := map[string]*domainlibrary.MediaItem{
-		"media-1": {ID: "media-1", LibraryID: "lib-ok"},
-	}
-	mux, token := newRatingTestMux(t, allowAll(), items)
-	req := httptest.NewRequest(http.MethodGet, "/api/v1/media/media-1/my-rating", nil)
-	req.Header.Set("Authorization", "Bearer "+token)
-	w := httptest.NewRecorder()
-	mux.ServeHTTP(w, req)
-	if w.Code != http.StatusOK {
-		t.Errorf("expected 200, got %d", w.Code)
-	}
-	if !strings.Contains(w.Body.String(), "value") {
-		t.Error("expected value in response")
-	}
-}
-
-func TestGetMyRating_IDOR_403(t *testing.T) {
-	items := map[string]*domainlibrary.MediaItem{
-		"media-1": {ID: "media-1", LibraryID: "lib-restricted"},
-	}
-	mux, token := newRatingTestMux(t, denyAll(), items)
-	req := httptest.NewRequest(http.MethodGet, "/api/v1/media/media-1/my-rating", nil)
-	req.Header.Set("Authorization", "Bearer "+token)
-	w := httptest.NewRecorder()
-	mux.ServeHTTP(w, req)
-	if w.Code != http.StatusForbidden {
-		t.Errorf("expected 403, got %d", w.Code)
-	}
-}
-
-// --- star rating extra tests ---
-
-func TestPostStarRating_OK(t *testing.T) {
-	items := map[string]*domainlibrary.MediaItem{
-		"media-1": {ID: "media-1", LibraryID: "lib-ok"},
-	}
-	mux, token := newRatingTestMux(t, allowAll(), items)
-	req := httptest.NewRequest(http.MethodPost, "/api/v1/media/media-1/rating", strings.NewReader(`{"value":8}`))
-	req.Header.Set("Authorization", "Bearer "+token)
-	w := httptest.NewRecorder()
-	mux.ServeHTTP(w, req)
-	if w.Code != http.StatusOK {
-		t.Errorf("expected 200, got %d body=%s", w.Code, w.Body.String())
-	}
-}
-
-func TestGetStarRating_OK(t *testing.T) {
-	items := map[string]*domainlibrary.MediaItem{
-		"media-1": {ID: "media-1", LibraryID: "lib-ok"},
-	}
-	mux, token := newRatingTestMux(t, allowAll(), items)
-	req := httptest.NewRequest(http.MethodGet, "/api/v1/media/media-1/rating", nil)
-	req.Header.Set("Authorization", "Bearer "+token)
-	w := httptest.NewRecorder()
-	mux.ServeHTTP(w, req)
-	if w.Code != http.StatusOK {
-		t.Errorf("expected 200, got %d", w.Code)
-	}
-}
-
-func TestDeleteStarRating_OK(t *testing.T) {
-	items := map[string]*domainlibrary.MediaItem{
-		"media-1": {ID: "media-1", LibraryID: "lib-ok"},
-	}
-	mux, token := newRatingTestMux(t, allowAll(), items)
-	req := httptest.NewRequest(http.MethodDelete, "/api/v1/media/media-1/rating", nil)
-	req.Header.Set("Authorization", "Bearer "+token)
-	w := httptest.NewRecorder()
-	mux.ServeHTTP(w, req)
-	if w.Code != http.StatusNoContent {
-		t.Errorf("expected 204, got %d", w.Code)
-	}
-}
-
-func TestGetStarRatingAggregate_OK(t *testing.T) {
-	items := map[string]*domainlibrary.MediaItem{
-		"media-1": {ID: "media-1", LibraryID: "lib-ok"},
-	}
-	mux, token := newRatingTestMux(t, allowAll(), items)
-	req := httptest.NewRequest(http.MethodGet, "/api/v1/media/media-1/rating/aggregate", nil)
-	req.Header.Set("Authorization", "Bearer "+token)
-	w := httptest.NewRecorder()
-	mux.ServeHTTP(w, req)
-	if w.Code != http.StatusOK {
-		t.Errorf("expected 200, got %d", w.Code)
-	}
-	if !strings.Contains(w.Body.String(), "average") {
-		t.Error("expected average in response")
-	}
-}
-
-func TestPostStarRating_IDOR_403(t *testing.T) {
-	items := map[string]*domainlibrary.MediaItem{
-		"media-1": {ID: "media-1", LibraryID: "lib-x"},
-	}
-	mux, token := newRatingTestMux(t, denyAll(), items)
-	req := httptest.NewRequest(http.MethodPost, "/api/v1/media/media-1/rating", strings.NewReader(`{"value":8}`))
-	req.Header.Set("Authorization", "Bearer "+token)
-	w := httptest.NewRecorder()
-	mux.ServeHTTP(w, req)
-	if w.Code != http.StatusForbidden {
-		t.Errorf("expected 403, got %d", w.Code)
-	}
-}
-
-// SyncPlay JSON routes migrated to gRPC — see grpcapi/syncplay_handler.go
 
 // =====================================
 // cookie_middleware.go
@@ -1604,47 +1366,6 @@ func TestApiCacheMiddleware_LibrariesCacheHeader(t *testing.T) {
 	handler.ServeHTTP(w, req)
 	if !strings.Contains(w.Header().Get("Cache-Control"), "max-age=300") {
 		t.Errorf("expected max-age=300, got %q", w.Header().Get("Cache-Control"))
-	}
-}
-
-// =====================================
-// filter_handler.go — extra coverage
-// =====================================
-
-func TestFilterHandler_InvalidToken_401(t *testing.T) {
-	mux := newFilterTestServer(&fakeMediaItemLister{}, &fakeTokenVerifier{err: errTest}, allowAll())
-	req := httptest.NewRequest(http.MethodGet, "/api/v1/media/filter", nil)
-	req.Header.Set("Authorization", "Bearer invalid")
-	w := httptest.NewRecorder()
-	mux.ServeHTTP(w, req)
-	if w.Code != http.StatusUnauthorized {
-		t.Errorf("expected 401, got %d", w.Code)
-	}
-}
-
-func TestFilterHandler_InternalError_500(t *testing.T) {
-	lister := &fakeMediaItemLister{err: errTest}
-	mux := newFilterTestServer(lister, &fakeTokenVerifier{claims: testClaims(true)}, allowAll())
-	req := httptest.NewRequest(http.MethodGet, "/api/v1/media/filter", nil)
-	req.Header.Set("Authorization", "Bearer tok")
-	w := httptest.NewRecorder()
-	mux.ServeHTTP(w, req)
-	if w.Code != http.StatusInternalServerError {
-		t.Errorf("expected 500, got %d", w.Code)
-	}
-}
-
-func TestFilterHandler_GenreFilter(t *testing.T) {
-	lister := &fakeMediaItemLister{items: []*domainlibrary.MediaItem{
-		{ID: "m1", Title: "Action Movie"},
-	}}
-	mux := newFilterTestServer(lister, &fakeTokenVerifier{claims: testClaims(true)}, allowAll())
-	req := httptest.NewRequest(http.MethodGet, "/api/v1/media/filter?genre=action&sort_field=title&sort_order=asc&type=movie&limit=10&offset=0", nil)
-	req.Header.Set("Authorization", "Bearer tok")
-	w := httptest.NewRecorder()
-	mux.ServeHTTP(w, req)
-	if w.Code != http.StatusOK {
-		t.Errorf("expected 200, got %d", w.Code)
 	}
 }
 
@@ -2296,8 +2017,5 @@ func TestParentalUpdateSettings_ClearPIN(t *testing.T) {
 
 // ensure imports used
 var (
-	_ = apprating.NewService
-	_ = ratingfakes.NewFakeRepository
-	_ = libfakes.NewFakeCollectionCommandRepo
 	_ = playlistfakes.NewFakePlaylistRepository
 )

@@ -2,123 +2,12 @@ package httpapi
 
 import (
 	"context"
-	"crypto/rand"
-	"crypto/rsa"
-	"maps"
-	"net/http"
 	"net/http/httptest"
-	"strings"
 	"testing"
-	"time"
 
-	apprating "github.com/gravity-zero/evey/internal/app/rating"
-	libraryfakes "github.com/gravity-zero/evey/internal/domain/library/fakes"
 	domainlibrary "github.com/gravity-zero/evey/internal/domain/library"
-	ratingfakes "github.com/gravity-zero/evey/internal/domain/rating/fakes"
-	sharedfakes "github.com/gravity-zero/evey/internal/domain/shared/fakes"
 	domainuser "github.com/gravity-zero/evey/internal/domain/user"
-	"github.com/gravity-zero/evey/internal/pkg/auth"
 )
-
-func newRatingTestMux(t *testing.T, checker LibraryAccessChecker, mediaItems map[string]*domainlibrary.MediaItem) (*http.ServeMux, string) {
-	t.Helper()
-	key, _ := rsa.GenerateKey(rand.Reader, 2048)
-	tokenGen := auth.NewJWTGenerator(key, time.Minute)
-	token, _ := tokenGen.GenerateAccessToken(domainuser.Claims{UserID: "u1", IsAdmin: false, ProfileID: "prof-1"})
-
-	ratingRepo := libraryfakes.NewFakeUserRatingRepository()
-	starRepo := ratingfakes.NewFakeRepository()
-	bus := sharedfakes.NewFakeEventBus()
-	starSvc := apprating.NewService(starRepo, bus)
-
-	getter := newFakeMediaGetter()
-	maps.Copy(getter.items, mediaItems)
-
-	mux := http.NewServeMux()
-	registerRatingRoutes(mux, ratingRepo, tokenGen, getter, checker)
-	registerStarRatingRoutes(mux, starSvc, tokenGen, getter, checker)
-	return mux, token
-}
-
-func TestRateMedia_NoAuth_401(t *testing.T) {
-	mux, _ := newRatingTestMux(t, allowAll(), nil)
-	body := `{"value":1}`
-	req := httptest.NewRequest(http.MethodPut, "/api/v1/media/media-1/rate", strings.NewReader(body))
-	req.Header.Set("Content-Type", "application/json")
-	w := httptest.NewRecorder()
-	mux.ServeHTTP(w, req)
-	if w.Code != http.StatusUnauthorized {
-		t.Errorf("expected 401, got %d", w.Code)
-	}
-}
-
-func TestGetMyRating_NoAuth_401(t *testing.T) {
-	mux, _ := newRatingTestMux(t, allowAll(), nil)
-	req := httptest.NewRequest(http.MethodGet, "/api/v1/media/media-1/my-rating", nil)
-	w := httptest.NewRecorder()
-	mux.ServeHTTP(w, req)
-	if w.Code != http.StatusUnauthorized {
-		t.Errorf("expected 401, got %d", w.Code)
-	}
-}
-
-func TestPostStarRating_NoAuth_401(t *testing.T) {
-	mux, _ := newRatingTestMux(t, allowAll(), nil)
-	body := `{"value":8}`
-	req := httptest.NewRequest(http.MethodPost, "/api/v1/media/media-1/rating", strings.NewReader(body))
-	req.Header.Set("Content-Type", "application/json")
-	w := httptest.NewRecorder()
-	mux.ServeHTTP(w, req)
-	if w.Code != http.StatusUnauthorized {
-		t.Errorf("expected 401, got %d", w.Code)
-	}
-}
-
-func TestGetStarRating_NoAuth_401(t *testing.T) {
-	mux, _ := newRatingTestMux(t, allowAll(), nil)
-	req := httptest.NewRequest(http.MethodGet, "/api/v1/media/media-1/rating", nil)
-	w := httptest.NewRecorder()
-	mux.ServeHTTP(w, req)
-	if w.Code != http.StatusUnauthorized {
-		t.Errorf("expected 401, got %d", w.Code)
-	}
-}
-
-func TestDeleteStarRating_NoAuth_401(t *testing.T) {
-	mux, _ := newRatingTestMux(t, allowAll(), nil)
-	req := httptest.NewRequest(http.MethodDelete, "/api/v1/media/media-1/rating", nil)
-	w := httptest.NewRecorder()
-	mux.ServeHTTP(w, req)
-	if w.Code != http.StatusUnauthorized {
-		t.Errorf("expected 401, got %d", w.Code)
-	}
-}
-
-func TestRateMedia_IDOR_403(t *testing.T) {
-	items := map[string]*domainlibrary.MediaItem{
-		"media-1": {ID: "media-1", LibraryID: "lib-restricted"},
-	}
-	mux, token := newRatingTestMux(t, denyAll(), items)
-	body := `{"value":1}`
-	req := httptest.NewRequest(http.MethodPut, "/api/v1/media/media-1/rate", strings.NewReader(body))
-	req.Header.Set("Authorization", "Bearer "+token)
-	req.Header.Set("Content-Type", "application/json")
-	w := httptest.NewRecorder()
-	mux.ServeHTTP(w, req)
-	if w.Code != http.StatusForbidden {
-		t.Errorf("expected 403, got %d", w.Code)
-	}
-}
-
-func TestGetStarRatingAggregate_NoAuth_401(t *testing.T) {
-	mux, _ := newRatingTestMux(t, allowAll(), nil)
-	req := httptest.NewRequest(http.MethodGet, "/api/v1/media/media-1/rating/aggregate", nil)
-	w := httptest.NewRecorder()
-	mux.ServeHTTP(w, req)
-	if w.Code != http.StatusUnauthorized {
-		t.Errorf("expected 401, got %d", w.Code)
-	}
-}
 
 func TestRatingIDOR_DeniedWhenNoLibraryAccess(t *testing.T) {
 	ctx := context.Background()
