@@ -19,7 +19,6 @@ import (
 	appmusic "github.com/gravity-zero/evey/internal/app/music"
 	appplaylist "github.com/gravity-zero/evey/internal/app/playlist"
 	apprating "github.com/gravity-zero/evey/internal/app/rating"
-	appsyncplay "github.com/gravity-zero/evey/internal/app/syncplay"
 	apptranscoding "github.com/gravity-zero/evey/internal/app/transcoding"
 	appuser "github.com/gravity-zero/evey/internal/app/user"
 	"github.com/gravity-zero/evey/internal/config"
@@ -1245,131 +1244,7 @@ func TestPostStarRating_IDOR_403(t *testing.T) {
 	}
 }
 
-// =====================================
-// syncplay_handler.go — leaveRoom, joinRoom
-// =====================================
-
-func TestSyncPlayLeaveRoom_NoAuth_401(t *testing.T) {
-	mux, _, _ := newSyncPlayTestMux(t)
-	req := httptest.NewRequest(http.MethodDelete, "/api/v1/syncplay/rooms/room-1/leave", nil)
-	w := httptest.NewRecorder()
-	mux.ServeHTTP(w, req)
-	if w.Code != http.StatusUnauthorized {
-		t.Errorf("expected 401, got %d", w.Code)
-	}
-}
-
-func TestSyncPlayLeaveRoom_OK(t *testing.T) {
-	tokenGen := newTestJWTGen(t)
-	repo := newFakeSyncPlayRepo()
-	hub := appsyncplay.NewHub(repo)
-	mediaGetter := newFakeMediaGetter()
-	mediaGetter.items["media-1"] = &domainlibrary.MediaItem{ID: "media-1", LibraryID: "lib-1"}
-	mux := http.NewServeMux()
-	registerSyncPlayRoutes(mux, hub, tokenGen, mediaGetter, allowAll())
-
-	hostClaims := domainuser.Claims{UserID: "host-1", Username: "Host", IsAdmin: false}
-	hostToken, _ := tokenGen.GenerateAccessToken(hostClaims)
-
-	// Create room
-	createReq := httptest.NewRequest(http.MethodPost, "/api/v1/syncplay/rooms", strings.NewReader(`{"mediaId":"media-1"}`))
-	createReq.Header.Set("Content-Type", "application/json")
-	createReq.Header.Set("Authorization", "Bearer "+hostToken)
-	createW := httptest.NewRecorder()
-	mux.ServeHTTP(createW, createReq)
-	var createResp map[string]any
-	_ = json.NewDecoder(createW.Body).Decode(&createResp)
-	roomID := createResp["id"].(string)
-
-	// Leave room
-	leaveReq := httptest.NewRequest(http.MethodDelete, "/api/v1/syncplay/rooms/"+roomID+"/leave", nil)
-	leaveReq.Header.Set("Authorization", "Bearer "+hostToken)
-	leaveW := httptest.NewRecorder()
-	mux.ServeHTTP(leaveW, leaveReq)
-	if leaveW.Code != http.StatusNoContent {
-		t.Errorf("expected 204, got %d", leaveW.Code)
-	}
-}
-
-func TestSyncPlayJoinRoom_NoAuth_401(t *testing.T) {
-	mux, _, _ := newSyncPlayTestMux(t)
-	req := httptest.NewRequest(http.MethodPost, "/api/v1/syncplay/rooms/room-1/join", nil)
-	w := httptest.NewRecorder()
-	mux.ServeHTTP(w, req)
-	if w.Code != http.StatusUnauthorized {
-		t.Errorf("expected 401, got %d", w.Code)
-	}
-}
-
-func TestSyncPlayJoinRoom_NotFound_404(t *testing.T) {
-	tokenGen := newTestJWTGen(t)
-	repo := newFakeSyncPlayRepo()
-	hub := appsyncplay.NewHub(repo)
-	mux := http.NewServeMux()
-	registerSyncPlayRoutes(mux, hub, tokenGen, newFakeMediaGetter(), allowAll())
-
-	token, _ := tokenGen.GenerateAccessToken(domainuser.Claims{UserID: "u1", Username: "U", IsAdmin: false})
-	req := httptest.NewRequest(http.MethodPost, "/api/v1/syncplay/rooms/nonexistent/join", nil)
-	req.Header.Set("Authorization", "Bearer "+token)
-	w := httptest.NewRecorder()
-	mux.ServeHTTP(w, req)
-	if w.Code != http.StatusNotFound {
-		t.Errorf("expected 404, got %d", w.Code)
-	}
-}
-
-func TestSyncPlayCreateRoom_BadBody_400(t *testing.T) {
-	tokenGen := newTestJWTGen(t)
-	repo := newFakeSyncPlayRepo()
-	hub := appsyncplay.NewHub(repo)
-	mux := http.NewServeMux()
-	registerSyncPlayRoutes(mux, hub, tokenGen, newFakeMediaGetter(), allowAll())
-
-	token, _ := tokenGen.GenerateAccessToken(domainuser.Claims{UserID: "u1", Username: "U", IsAdmin: false})
-	req := httptest.NewRequest(http.MethodPost, "/api/v1/syncplay/rooms", strings.NewReader(`{"mediaId":""}`))
-	req.Header.Set("Authorization", "Bearer "+token)
-	w := httptest.NewRecorder()
-	mux.ServeHTTP(w, req)
-	if w.Code != http.StatusBadRequest {
-		t.Errorf("expected 400, got %d", w.Code)
-	}
-}
-
-func TestSyncPlayCreateRoom_MediaNotFound_404(t *testing.T) {
-	tokenGen := newTestJWTGen(t)
-	repo := newFakeSyncPlayRepo()
-	hub := appsyncplay.NewHub(repo)
-	mux := http.NewServeMux()
-	registerSyncPlayRoutes(mux, hub, tokenGen, newFakeMediaGetter(), allowAll())
-
-	token, _ := tokenGen.GenerateAccessToken(domainuser.Claims{UserID: "u1", Username: "U", IsAdmin: false})
-	req := httptest.NewRequest(http.MethodPost, "/api/v1/syncplay/rooms", strings.NewReader(`{"mediaId":"not-found"}`))
-	req.Header.Set("Authorization", "Bearer "+token)
-	w := httptest.NewRecorder()
-	mux.ServeHTTP(w, req)
-	if w.Code != http.StatusNotFound {
-		t.Errorf("expected 404, got %d", w.Code)
-	}
-}
-
-func TestSyncPlayCreateRoom_IDOR_403(t *testing.T) {
-	tokenGen := newTestJWTGen(t)
-	repo := newFakeSyncPlayRepo()
-	hub := appsyncplay.NewHub(repo)
-	mediaGetter := newFakeMediaGetter()
-	mediaGetter.items["m1"] = &domainlibrary.MediaItem{ID: "m1", LibraryID: "restricted"}
-	mux := http.NewServeMux()
-	registerSyncPlayRoutes(mux, hub, tokenGen, mediaGetter, denyAll())
-
-	token, _ := tokenGen.GenerateAccessToken(domainuser.Claims{UserID: "u1", Username: "U", IsAdmin: false})
-	req := httptest.NewRequest(http.MethodPost, "/api/v1/syncplay/rooms", strings.NewReader(`{"mediaId":"m1"}`))
-	req.Header.Set("Authorization", "Bearer "+token)
-	w := httptest.NewRecorder()
-	mux.ServeHTTP(w, req)
-	if w.Code != http.StatusForbidden {
-		t.Errorf("expected 403, got %d", w.Code)
-	}
-}
+// syncplay JSON routes (leaveRoom, joinRoom, createRoom) migrated to gRPC — tests removed
 
 // =====================================
 // cookie_middleware.go

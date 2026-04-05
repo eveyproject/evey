@@ -11,14 +11,12 @@ import (
 
 	appsyncplay "github.com/gravity-zero/evey/internal/app/syncplay"
 	domainlibrary "github.com/gravity-zero/evey/internal/domain/library"
-	domainuser "github.com/gravity-zero/evey/internal/domain/user"
 	domainsyncplay "github.com/gravity-zero/evey/internal/domain/syncplay"
+	domainuser "github.com/gravity-zero/evey/internal/domain/user"
 	"golang.org/x/net/websocket"
 )
 
 func TestSyncPlayIDOR_CreateRoomDenied(t *testing.T) {
-	// Verifies that a user without library access can't create a syncplay room
-	// for a media item they shouldn't access.
 	ctx := context.Background()
 	w := httptest.NewRecorder()
 
@@ -149,392 +147,17 @@ func newSyncPlayTestMux(t *testing.T) (*http.ServeMux, *appsyncplay.Hub, *fakeSy
 	return mux, hub, repo
 }
 
-func TestSyncPlayRoomCreate_NoAuth_401(t *testing.T) {
-	t.Parallel()
-	mux, _, _ := newSyncPlayTestMux(t)
-
-	body := `{"mediaId":"media-1","name":"Movie Night"}`
-	req := httptest.NewRequest(http.MethodPost, "/api/v1/syncplay/rooms", strings.NewReader(body))
-	req.Header.Set("Content-Type", "application/json")
-	w := httptest.NewRecorder()
-	mux.ServeHTTP(w, req)
-
-	if w.Code != http.StatusUnauthorized {
-		t.Errorf("expected 401, got %d", w.Code)
-	}
-}
-
-func TestSyncPlayRoomCreate_InvalidToken_401(t *testing.T) {
-	t.Parallel()
-	mux, _, _ := newSyncPlayTestMux(t)
-
-	body := `{"mediaId":"media-1","name":"Movie Night"}`
-	req := httptest.NewRequest(http.MethodPost, "/api/v1/syncplay/rooms", strings.NewReader(body))
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Authorization", "Bearer invalid.token")
-	w := httptest.NewRecorder()
-	mux.ServeHTTP(w, req)
-
-	if w.Code != http.StatusUnauthorized {
-		t.Errorf("expected 401, got %d", w.Code)
-	}
-}
-
-func TestSyncPlayRoomCreate_Success(t *testing.T) {
-	t.Parallel()
-	tokenGen := newTestJWTGen(t)
-	repo := newFakeSyncPlayRepo()
-	hub := appsyncplay.NewHub(repo)
-	mediaGetter := newFakeMediaGetter()
-	mediaGetter.items["media-1"] = &domainlibrary.MediaItem{ID: "media-1", LibraryID: "lib-1"}
-
-	mux := http.NewServeMux()
-	registerSyncPlayRoutes(mux, hub, tokenGen, mediaGetter, allowAll())
-
-	claims := domainuser.Claims{UserID: "host-1", Username: "Alice", IsAdmin: false}
-	token, err := tokenGen.GenerateAccessToken(claims)
+// createTestRoom creates a room via hub.CreateRoom (no HTTP POST needed after gRPC migration).
+func createTestRoom(t *testing.T, hub *appsyncplay.Hub, hostID, mediaID string) *domainsyncplay.Room {
+	t.Helper()
+	room, err := hub.CreateRoom(context.Background(), hostID, mediaID, "TestRoom")
 	if err != nil {
-		t.Fatalf("GenerateAccessToken: %v", err)
+		t.Fatalf("hub.CreateRoom: %v", err)
 	}
-
-	body := `{"mediaId":"media-1","name":"Movie Night"}`
-	req := httptest.NewRequest(http.MethodPost, "/api/v1/syncplay/rooms", strings.NewReader(body))
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Authorization", "Bearer "+token)
-	w := httptest.NewRecorder()
-	mux.ServeHTTP(w, req)
-
-	if w.Code != http.StatusCreated {
-		t.Errorf("expected 201, got %d; body: %s", w.Code, w.Body.String())
-	}
-	var resp map[string]any
-	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
-		t.Fatalf("decode response: %v", err)
-	}
-	if resp["id"] == "" || resp["id"] == nil {
-		t.Error("response should contain room id")
-	}
-	if resp["mediaId"] != "media-1" {
-		t.Errorf("mediaId = %v, want media-1", resp["mediaId"])
-	}
+	return room
 }
 
-func TestSyncPlayRoomGet_NotFound_404(t *testing.T) {
-	t.Parallel()
-	tokenGen := newTestJWTGen(t)
-	repo := newFakeSyncPlayRepo()
-	hub := appsyncplay.NewHub(repo)
-	mux := http.NewServeMux()
-	registerSyncPlayRoutes(mux, hub, tokenGen, newFakeMediaGetter(), allowAll())
-
-	claims := domainuser.Claims{UserID: "user-1", Username: "Alice", IsAdmin: false}
-	token, err := tokenGen.GenerateAccessToken(claims)
-	if err != nil {
-		t.Fatalf("GenerateAccessToken: %v", err)
-	}
-
-	req := httptest.NewRequest(http.MethodGet, "/api/v1/syncplay/rooms/nonexistent-room", nil)
-	req.Header.Set("Authorization", "Bearer "+token)
-	w := httptest.NewRecorder()
-	mux.ServeHTTP(w, req)
-
-	if w.Code != http.StatusNotFound {
-		t.Errorf("expected 404, got %d", w.Code)
-	}
-}
-
-func TestSyncPlayRoomGet_NoAuth_401(t *testing.T) {
-	t.Parallel()
-	mux, _, _ := newSyncPlayTestMux(t)
-
-	req := httptest.NewRequest(http.MethodGet, "/api/v1/syncplay/rooms/some-room-id", nil)
-	w := httptest.NewRecorder()
-	mux.ServeHTTP(w, req)
-
-	if w.Code != http.StatusUnauthorized {
-		t.Errorf("expected 401, got %d", w.Code)
-	}
-}
-
-func TestSyncPlayRoomGet_Forbidden_NonMember(t *testing.T) {
-	t.Parallel()
-	tokenGen := newTestJWTGen(t)
-	repo := newFakeSyncPlayRepo()
-	hub := appsyncplay.NewHub(repo)
-	mediaGetter := newFakeMediaGetter()
-	mediaGetter.items["media-1"] = &domainlibrary.MediaItem{ID: "media-1", LibraryID: "lib-1"}
-	mux := http.NewServeMux()
-	registerSyncPlayRoutes(mux, hub, tokenGen, mediaGetter, allowAll())
-
-	// Create room as host-1
-	hostClaims := domainuser.Claims{UserID: "host-1", Username: "Host", IsAdmin: false}
-	hostToken, err := tokenGen.GenerateAccessToken(hostClaims)
-	if err != nil {
-		t.Fatalf("GenerateAccessToken: %v", err)
-	}
-	createBody := `{"mediaId":"media-1","name":"Private Room"}`
-	createReq := httptest.NewRequest(http.MethodPost, "/api/v1/syncplay/rooms", strings.NewReader(createBody))
-	createReq.Header.Set("Content-Type", "application/json")
-	createReq.Header.Set("Authorization", "Bearer "+hostToken)
-	createW := httptest.NewRecorder()
-	mux.ServeHTTP(createW, createReq)
-	if createW.Code != http.StatusCreated {
-		t.Fatalf("room creation failed: %d", createW.Code)
-	}
-	var createResp map[string]any
-	_ = json.NewDecoder(createW.Body).Decode(&createResp)
-	roomID := createResp["id"].(string)
-
-	// Attacker tries to GET room without being a member
-	attackerClaims := domainuser.Claims{UserID: "attacker", Username: "Evil", IsAdmin: false}
-	attackerToken, _ := tokenGen.GenerateAccessToken(attackerClaims)
-	getReq := httptest.NewRequest(http.MethodGet, "/api/v1/syncplay/rooms/"+roomID, nil)
-	getReq.Header.Set("Authorization", "Bearer "+attackerToken)
-	getW := httptest.NewRecorder()
-	mux.ServeHTTP(getW, getReq)
-
-	if getW.Code != http.StatusForbidden {
-		t.Errorf("expected 403, got %d", getW.Code)
-	}
-}
-
-func TestSyncPlayJoinByCode_Success(t *testing.T) {
-	t.Parallel()
-	tokenGen := newTestJWTGen(t)
-	repo := newFakeSyncPlayRepo()
-	hub := appsyncplay.NewHub(repo)
-	mediaGetter := newFakeMediaGetter()
-	mediaGetter.items["media-1"] = &domainlibrary.MediaItem{ID: "media-1", LibraryID: "lib-1"}
-	mux := http.NewServeMux()
-	registerSyncPlayRoutes(mux, hub, tokenGen, mediaGetter, allowAll())
-
-	// Create room as host
-	hostClaims := domainuser.Claims{UserID: "host-1", Username: "Host", IsAdmin: false}
-	hostToken, _ := tokenGen.GenerateAccessToken(hostClaims)
-	createReq := httptest.NewRequest(http.MethodPost, "/api/v1/syncplay/rooms",
-		strings.NewReader(`{"mediaId":"media-1","name":"Room"}`))
-	createReq.Header.Set("Content-Type", "application/json")
-	createReq.Header.Set("Authorization", "Bearer "+hostToken)
-	createW := httptest.NewRecorder()
-	mux.ServeHTTP(createW, createReq)
-	if createW.Code != http.StatusCreated {
-		t.Fatalf("room creation failed: %d", createW.Code)
-	}
-	var createResp map[string]any
-	_ = json.NewDecoder(createW.Body).Decode(&createResp)
-	code := createResp["code"].(string)
-
-	// Join by code as another user
-	guestClaims := domainuser.Claims{UserID: "guest-1", Username: "Guest", IsAdmin: false}
-	guestToken, _ := tokenGen.GenerateAccessToken(guestClaims)
-	joinBody := `{"code":"` + code + `"}`
-	joinReq := httptest.NewRequest(http.MethodPost, "/api/v1/syncplay/join", strings.NewReader(joinBody))
-	joinReq.Header.Set("Content-Type", "application/json")
-	joinReq.Header.Set("Authorization", "Bearer "+guestToken)
-	joinW := httptest.NewRecorder()
-	mux.ServeHTTP(joinW, joinReq)
-
-	if joinW.Code != http.StatusOK {
-		t.Errorf("expected 200, got %d; body: %s", joinW.Code, joinW.Body.String())
-	}
-	var joinResp map[string]any
-	_ = json.NewDecoder(joinW.Body).Decode(&joinResp)
-	if joinResp["roomId"] == nil || joinResp["roomId"] == "" {
-		t.Error("response should contain roomId")
-	}
-	if joinResp["wsUrl"] == nil || joinResp["wsUrl"] == "" {
-		t.Error("response should contain wsUrl")
-	}
-	if joinResp["mediaId"] == nil || joinResp["mediaId"] == "" {
-		t.Error("response should contain mediaId")
-	}
-}
-
-func TestSyncPlayJoinByCode_InvalidCode_404(t *testing.T) {
-	t.Parallel()
-	tokenGen := newTestJWTGen(t)
-	repo := newFakeSyncPlayRepo()
-	hub := appsyncplay.NewHub(repo)
-	mediaGetter := newFakeMediaGetter()
-	mux := http.NewServeMux()
-	registerSyncPlayRoutes(mux, hub, tokenGen, mediaGetter, allowAll())
-
-	claims := domainuser.Claims{UserID: "user-1", Username: "User", IsAdmin: false}
-	token, _ := tokenGen.GenerateAccessToken(claims)
-
-	joinReq := httptest.NewRequest(http.MethodPost, "/api/v1/syncplay/join",
-		strings.NewReader(`{"code":"ZZZZZZ"}`))
-	joinReq.Header.Set("Content-Type", "application/json")
-	joinReq.Header.Set("Authorization", "Bearer "+token)
-	joinW := httptest.NewRecorder()
-	mux.ServeHTTP(joinW, joinReq)
-
-	if joinW.Code != http.StatusNotFound {
-		t.Errorf("expected 404, got %d", joinW.Code)
-	}
-}
-
-func TestSyncPlayJoinByCode_NoAuth_401(t *testing.T) {
-	t.Parallel()
-	tokenGen := newTestJWTGen(t)
-	repo := newFakeSyncPlayRepo()
-	hub := appsyncplay.NewHub(repo)
-	mux := http.NewServeMux()
-	registerSyncPlayRoutes(mux, hub, tokenGen, newFakeMediaGetter(), allowAll())
-
-	joinReq := httptest.NewRequest(http.MethodPost, "/api/v1/syncplay/join",
-		strings.NewReader(`{"code":"ABC123"}`))
-	joinReq.Header.Set("Content-Type", "application/json")
-	joinW := httptest.NewRecorder()
-	mux.ServeHTTP(joinW, joinReq)
-
-	if joinW.Code != http.StatusUnauthorized {
-		t.Errorf("expected 401, got %d", joinW.Code)
-	}
-}
-
-func TestSyncPlayJoinByCode_EmptyCode_400(t *testing.T) {
-	t.Parallel()
-	tokenGen := newTestJWTGen(t)
-	repo := newFakeSyncPlayRepo()
-	hub := appsyncplay.NewHub(repo)
-	mediaGetter := newFakeMediaGetter()
-	mux := http.NewServeMux()
-	registerSyncPlayRoutes(mux, hub, tokenGen, mediaGetter, allowAll())
-
-	claims := domainuser.Claims{UserID: "user-1", Username: "User", IsAdmin: false}
-	token, _ := tokenGen.GenerateAccessToken(claims)
-
-	joinReq := httptest.NewRequest(http.MethodPost, "/api/v1/syncplay/join",
-		strings.NewReader(`{"code":""}`))
-	joinReq.Header.Set("Content-Type", "application/json")
-	joinReq.Header.Set("Authorization", "Bearer "+token)
-	joinW := httptest.NewRecorder()
-	mux.ServeHTTP(joinW, joinReq)
-
-	if joinW.Code != http.StatusBadRequest {
-		t.Errorf("expected 400, got %d", joinW.Code)
-	}
-}
-
-func TestSyncPlayJoinByCode_LibraryAccessDenied_403(t *testing.T) {
-	t.Parallel()
-	tokenGen := newTestJWTGen(t)
-	repo := newFakeSyncPlayRepo()
-	hub := appsyncplay.NewHub(repo)
-	mediaGetter := newFakeMediaGetter()
-	mediaGetter.items["media-1"] = &domainlibrary.MediaItem{ID: "media-1", LibraryID: "lib-1"}
-
-	// Create with allowAll, then test join with denyAll
-	allowMux := http.NewServeMux()
-	registerSyncPlayRoutes(allowMux, hub, tokenGen, mediaGetter, allowAll())
-
-	hostClaims := domainuser.Claims{UserID: "host-1", Username: "Host", IsAdmin: false}
-	hostToken, _ := tokenGen.GenerateAccessToken(hostClaims)
-	createReq := httptest.NewRequest(http.MethodPost, "/api/v1/syncplay/rooms",
-		strings.NewReader(`{"mediaId":"media-1","name":"Room"}`))
-	createReq.Header.Set("Content-Type", "application/json")
-	createReq.Header.Set("Authorization", "Bearer "+hostToken)
-	createW := httptest.NewRecorder()
-	allowMux.ServeHTTP(createW, createReq)
-	var createResp map[string]any
-	_ = json.NewDecoder(createW.Body).Decode(&createResp)
-	code := createResp["code"].(string)
-
-	// Now use denyAll mux for join
-	denyMux := http.NewServeMux()
-	registerSyncPlayRoutes(denyMux, hub, tokenGen, mediaGetter, denyAll())
-
-	attackerClaims := domainuser.Claims{UserID: "attacker", Username: "Evil", IsAdmin: false}
-	attackerToken, _ := tokenGen.GenerateAccessToken(attackerClaims)
-	joinReq := httptest.NewRequest(http.MethodPost, "/api/v1/syncplay/join",
-		strings.NewReader(`{"code":"`+code+`"}`))
-	joinReq.Header.Set("Content-Type", "application/json")
-	joinReq.Header.Set("Authorization", "Bearer "+attackerToken)
-	joinW := httptest.NewRecorder()
-	denyMux.ServeHTTP(joinW, joinReq)
-
-	if joinW.Code != http.StatusForbidden {
-		t.Errorf("expected 403, got %d; body: %s", joinW.Code, joinW.Body.String())
-	}
-}
-
-func TestSyncPlayGetRoom_LibraryAccessDenied_403(t *testing.T) {
-	t.Parallel()
-	tokenGen := newTestJWTGen(t)
-	repo := newFakeSyncPlayRepo()
-	hub := appsyncplay.NewHub(repo)
-	mediaGetter := newFakeMediaGetter()
-	mediaGetter.items["media-1"] = &domainlibrary.MediaItem{ID: "media-1", LibraryID: "lib-restricted"}
-
-	// Create room with allowAll so creation succeeds
-	allowMux := http.NewServeMux()
-	registerSyncPlayRoutes(allowMux, hub, tokenGen, mediaGetter, allowAll())
-
-	hostClaims := domainuser.Claims{UserID: "host-1", Username: "Host", IsAdmin: false}
-	hostToken, _ := tokenGen.GenerateAccessToken(hostClaims)
-	createReq := httptest.NewRequest(http.MethodPost, "/api/v1/syncplay/rooms",
-		strings.NewReader(`{"mediaId":"media-1","name":"Room"}`))
-	createReq.Header.Set("Content-Type", "application/json")
-	createReq.Header.Set("Authorization", "Bearer "+hostToken)
-	createW := httptest.NewRecorder()
-	allowMux.ServeHTTP(createW, createReq)
-	if createW.Code != http.StatusCreated {
-		t.Fatalf("room creation failed: %d", createW.Code)
-	}
-	var createResp map[string]any
-	_ = json.NewDecoder(createW.Body).Decode(&createResp)
-	roomID := createResp["id"].(string)
-
-	// GET room with denyAll — even the host should be denied
-	denyMux := http.NewServeMux()
-	registerSyncPlayRoutes(denyMux, hub, tokenGen, mediaGetter, denyAll())
-
-	getReq := httptest.NewRequest(http.MethodGet, "/api/v1/syncplay/rooms/"+roomID, nil)
-	getReq.Header.Set("Authorization", "Bearer "+hostToken)
-	getW := httptest.NewRecorder()
-	denyMux.ServeHTTP(getW, getReq)
-
-	if getW.Code != http.StatusForbidden {
-		t.Errorf("expected 403 when library access denied, got %d; body: %s", getW.Code, getW.Body.String())
-	}
-}
-
-func TestSyncPlayGetRoom_LibraryAccessAllowed_200(t *testing.T) {
-	t.Parallel()
-	tokenGen := newTestJWTGen(t)
-	repo := newFakeSyncPlayRepo()
-	hub := appsyncplay.NewHub(repo)
-	mediaGetter := newFakeMediaGetter()
-	mediaGetter.items["media-1"] = &domainlibrary.MediaItem{ID: "media-1", LibraryID: "lib-1"}
-	mux := http.NewServeMux()
-	registerSyncPlayRoutes(mux, hub, tokenGen, mediaGetter, allowAll())
-
-	hostClaims := domainuser.Claims{UserID: "host-1", Username: "Host", IsAdmin: false}
-	hostToken, _ := tokenGen.GenerateAccessToken(hostClaims)
-
-	createReq := httptest.NewRequest(http.MethodPost, "/api/v1/syncplay/rooms",
-		strings.NewReader(`{"mediaId":"media-1","name":"Room"}`))
-	createReq.Header.Set("Content-Type", "application/json")
-	createReq.Header.Set("Authorization", "Bearer "+hostToken)
-	createW := httptest.NewRecorder()
-	mux.ServeHTTP(createW, createReq)
-	if createW.Code != http.StatusCreated {
-		t.Fatalf("room creation failed: %d", createW.Code)
-	}
-	var createResp map[string]any
-	_ = json.NewDecoder(createW.Body).Decode(&createResp)
-	roomID := createResp["id"].(string)
-
-	getReq := httptest.NewRequest(http.MethodGet, "/api/v1/syncplay/rooms/"+roomID, nil)
-	getReq.Header.Set("Authorization", "Bearer "+hostToken)
-	getW := httptest.NewRecorder()
-	mux.ServeHTTP(getW, getReq)
-
-	if getW.Code != http.StatusOK {
-		t.Errorf("expected 200, got %d; body: %s", getW.Code, getW.Body.String())
-	}
-}
+// --- JSON routes migrated to gRPC — tests removed ---
 
 func TestSyncPlayWS_LibraryAccessDenied_403(t *testing.T) {
 	t.Parallel()
@@ -544,30 +167,13 @@ func TestSyncPlayWS_LibraryAccessDenied_403(t *testing.T) {
 	mediaGetter := newFakeMediaGetter()
 	mediaGetter.items["media-1"] = &domainlibrary.MediaItem{ID: "media-1", LibraryID: "lib-restricted"}
 
-	// Create room with allowAll
-	allowMux := http.NewServeMux()
-	registerSyncPlayRoutes(allowMux, hub, tokenGen, mediaGetter, allowAll())
+	room := createTestRoom(t, hub, "host-ws", "media-1")
 
-	hostClaims := domainuser.Claims{UserID: "host-ws", Username: "Host", IsAdmin: false}
-	hostToken, _ := tokenGen.GenerateAccessToken(hostClaims)
-	createReq := httptest.NewRequest(http.MethodPost, "/api/v1/syncplay/rooms",
-		strings.NewReader(`{"mediaId":"media-1","name":"Room"}`))
-	createReq.Header.Set("Content-Type", "application/json")
-	createReq.Header.Set("Authorization", "Bearer "+hostToken)
-	createW := httptest.NewRecorder()
-	allowMux.ServeHTTP(createW, createReq)
-	if createW.Code != http.StatusCreated {
-		t.Fatalf("room creation failed: %d", createW.Code)
-	}
-	var createResp map[string]any
-	_ = json.NewDecoder(createW.Body).Decode(&createResp)
-	roomID := createResp["id"].(string)
-
-	// WS connect with denyAll — host should be denied at library access check
 	denyMux := http.NewServeMux()
 	registerSyncPlayRoutes(denyMux, hub, tokenGen, mediaGetter, denyAll())
 
-	wsReq := httptest.NewRequest(http.MethodGet, "/api/v1/syncplay/rooms/"+roomID+"/ws", nil)
+	hostToken, _ := tokenGen.GenerateAccessToken(domainuser.Claims{UserID: "host-ws", Username: "Host", IsAdmin: false})
+	wsReq := httptest.NewRequest(http.MethodGet, "/api/v1/syncplay/rooms/"+room.ID+"/ws", nil)
 	wsReq.Header.Set("Authorization", "Bearer "+hostToken)
 	wsW := httptest.NewRecorder()
 	denyMux.ServeHTTP(wsW, wsReq)
@@ -576,10 +182,6 @@ func TestSyncPlayWS_LibraryAccessDenied_403(t *testing.T) {
 		t.Errorf("expected 403 when library access denied on WS, got %d", wsW.Code)
 	}
 }
-
-// WebSocket auth tests (TEST-NEW-3)
-// The pre-upgrade HTTP middleware returns 401/403 before the WS handshake,
-// so plain HTTP requests suffice to test auth rejection.
 
 func TestSyncPlayWS_NoToken_401(t *testing.T) {
 	t.Parallel()
@@ -618,29 +220,11 @@ func TestSyncPlayWS_NonMember_403(t *testing.T) {
 	mux := http.NewServeMux()
 	registerSyncPlayRoutes(mux, hub, tokenGen, mediaGetter, allowAll())
 
-	// Create a room as host-1.
-	hostClaims := domainuser.Claims{UserID: "host-1", Username: "Host", IsAdmin: false}
-	hostToken, err := tokenGen.GenerateAccessToken(hostClaims)
-	if err != nil {
-		t.Fatalf("GenerateAccessToken: %v", err)
-	}
-	createReq := httptest.NewRequest(http.MethodPost, "/api/v1/syncplay/rooms",
-		strings.NewReader(`{"mediaId":"media-1","name":"Room"}`))
-	createReq.Header.Set("Content-Type", "application/json")
-	createReq.Header.Set("Authorization", "Bearer "+hostToken)
-	createW := httptest.NewRecorder()
-	mux.ServeHTTP(createW, createReq)
-	if createW.Code != http.StatusCreated {
-		t.Fatalf("room creation failed: %d %s", createW.Code, createW.Body.String())
-	}
-	var createResp map[string]any
-	_ = json.NewDecoder(createW.Body).Decode(&createResp)
-	roomID := createResp["id"].(string)
+	room := createTestRoom(t, hub, "host-1", "media-1")
 
-	// Attacker (not a member, not the host) tries to connect via WS.
 	attackerClaims := domainuser.Claims{UserID: "attacker", Username: "Evil", IsAdmin: false}
 	attackerToken, _ := tokenGen.GenerateAccessToken(attackerClaims)
-	wsReq := httptest.NewRequest(http.MethodGet, "/api/v1/syncplay/rooms/"+roomID+"/ws", nil)
+	wsReq := httptest.NewRequest(http.MethodGet, "/api/v1/syncplay/rooms/"+room.ID+"/ws", nil)
 	wsReq.Header.Set("Authorization", "Bearer "+attackerToken)
 	wsW := httptest.NewRecorder()
 	mux.ServeHTTP(wsW, wsReq)
@@ -660,41 +244,23 @@ func TestSyncPlayWS_ValidHostToken_NotRejectedByAuth(t *testing.T) {
 	mux := http.NewServeMux()
 	registerSyncPlayRoutes(mux, hub, tokenGen, mediaGetter, allowAll())
 
-	// Use a real test server so the websocket upgrader has a proper hijackable conn.
 	srv := httptest.NewServer(mux)
 	defer srv.Close()
 
-	// Create room as host-1 via the test server.
 	hostClaims := domainuser.Claims{UserID: "host-1", Username: "Host", IsAdmin: false}
 	hostToken, err := tokenGen.GenerateAccessToken(hostClaims)
 	if err != nil {
 		t.Fatalf("GenerateAccessToken: %v", err)
 	}
-	createReq, _ := http.NewRequest(http.MethodPost, srv.URL+"/api/v1/syncplay/rooms",
-		strings.NewReader(`{"mediaId":"media-1","name":"Room"}`))
-	createReq.Header.Set("Content-Type", "application/json")
-	createReq.Header.Set("Authorization", "Bearer "+hostToken)
-	createResp, err := http.DefaultClient.Do(createReq)
-	if err != nil {
-		t.Fatalf("create room: %v", err)
-	}
-	defer createResp.Body.Close()
-	if createResp.StatusCode != http.StatusCreated {
-		t.Fatalf("room creation failed: %d", createResp.StatusCode)
-	}
-	var createBody map[string]any
-	_ = json.NewDecoder(createResp.Body).Decode(&createBody)
-	roomID := createBody["id"].(string)
 
-	// Attempt a real WebSocket connection as the host.
-	// The pre-upgrade middleware should pass (host is a member), resulting in 101.
-	wsURL := "ws" + strings.TrimPrefix(srv.URL, "http") + "/api/v1/syncplay/rooms/" + roomID + "/ws"
+	room := createTestRoom(t, hub, "host-1", "media-1")
+
+	wsURL := "ws" + strings.TrimPrefix(srv.URL, "http") + "/api/v1/syncplay/rooms/" + room.ID + "/ws"
 	origin := srv.URL
 	ws, resp, err := dialWS(wsURL, origin, hostToken)
 	if err == nil {
 		ws.Close()
 	}
-	// Either success (101) or a non-auth error is acceptable; 401/403 must not occur.
 	if resp != nil {
 		if resp.StatusCode == http.StatusUnauthorized {
 			t.Error("valid host token must not be rejected with 401")
@@ -705,8 +271,6 @@ func TestSyncPlayWS_ValidHostToken_NotRejectedByAuth(t *testing.T) {
 	}
 }
 
-// TestSyncPlayWS_StateOnJoin verifies that the server immediately sends the current
-// room state as the first message when a member connects via WebSocket.
 func TestSyncPlayWS_StateOnJoin(t *testing.T) {
 	t.Parallel()
 	tokenGen := newTestJWTGen(t)
@@ -725,34 +289,15 @@ func TestSyncPlayWS_StateOnJoin(t *testing.T) {
 		t.Fatalf("GenerateAccessToken: %v", err)
 	}
 
-	// Create room.
-	createReq, _ := http.NewRequest(http.MethodPost, srv.URL+"/api/v1/syncplay/rooms",
-		strings.NewReader(`{"mediaId":"media-1","name":"StateRoom"}`))
-	createReq.Header.Set("Content-Type", "application/json")
-	createReq.Header.Set("Authorization", "Bearer "+hostToken)
-	createResp, err := http.DefaultClient.Do(createReq)
-	if err != nil {
-		t.Fatalf("create room: %v", err)
-	}
-	defer createResp.Body.Close()
-	if createResp.StatusCode != http.StatusCreated {
-		t.Fatalf("room creation failed: %d", createResp.StatusCode)
-	}
-	var createBody map[string]any
-	if decErr := json.NewDecoder(createResp.Body).Decode(&createBody); decErr != nil {
-		t.Fatalf("decode create response: %v", decErr)
-	}
-	roomID := createBody["id"].(string)
+	room := createTestRoom(t, hub, "host-state", "media-1")
 
-	// Connect via WebSocket as host.
-	wsURL := "ws" + strings.TrimPrefix(srv.URL, "http") + "/api/v1/syncplay/rooms/" + roomID + "/ws"
+	wsURL := "ws" + strings.TrimPrefix(srv.URL, "http") + "/api/v1/syncplay/rooms/" + room.ID + "/ws"
 	ws, _, err := dialWS(wsURL, srv.URL, hostToken)
 	if err != nil {
 		t.Fatalf("ws dial: %v", err)
 	}
 	defer ws.Close()
 
-	// First message must be type="state".
 	var raw string
 	if err := websocket.Message.Receive(ws.Conn, &raw); err != nil {
 		t.Fatalf("receive state msg: %v", err)
@@ -766,7 +311,6 @@ func TestSyncPlayWS_StateOnJoin(t *testing.T) {
 	}
 }
 
-// TestSyncPlayWS_PlayPauseSeek verifies play/pause/seek messages are broadcast.
 func TestSyncPlayWS_PlayPauseSeek(t *testing.T) {
 	t.Parallel()
 	tokenGen := newTestJWTGen(t)
@@ -790,59 +334,37 @@ func TestSyncPlayWS_PlayPauseSeek(t *testing.T) {
 		t.Fatalf("GenerateAccessToken: %v", err)
 	}
 
-	// Create room as host.
-	createReq, _ := http.NewRequest(http.MethodPost, srv.URL+"/api/v1/syncplay/rooms",
-		strings.NewReader(`{"mediaId":"media-1","name":"PlayRoom"}`))
-	createReq.Header.Set("Content-Type", "application/json")
-	createReq.Header.Set("Authorization", "Bearer "+hostToken)
-	createResp, err := http.DefaultClient.Do(createReq)
-	if err != nil {
-		t.Fatalf("create room: %v", err)
+	room := createTestRoom(t, hub, "host-play", "media-1")
+
+	// Add guest as member via hub
+	if err := hub.JoinRoom(context.Background(), room.ID, "guest-play", "Guest"); err != nil {
+		t.Fatalf("hub.JoinRoom: %v", err)
 	}
-	defer createResp.Body.Close()
-	var createBody map[string]any
-	_ = json.NewDecoder(createResp.Body).Decode(&createBody)
-	roomID := createBody["id"].(string)
 
-	// Join room as guest via HTTP join endpoint so guest is a member.
-	joinReq, _ := http.NewRequest(http.MethodPost, srv.URL+"/api/v1/syncplay/rooms/"+roomID+"/join", nil)
-	joinReq.Header.Set("Authorization", "Bearer "+guestToken)
-	joinResp, err := http.DefaultClient.Do(joinReq)
-	if err != nil {
-		t.Fatalf("join room: %v", err)
-	}
-	joinResp.Body.Close()
+	wsURL := "ws" + strings.TrimPrefix(srv.URL, "http") + "/api/v1/syncplay/rooms/" + room.ID + "/ws"
 
-	wsURL := "ws" + strings.TrimPrefix(srv.URL, "http") + "/api/v1/syncplay/rooms/" + roomID + "/ws"
-
-	// Connect host.
 	hostWS, _, err := dialWS(wsURL, srv.URL, hostToken)
 	if err != nil {
 		t.Fatalf("host ws dial: %v", err)
 	}
 	defer hostWS.Close()
 
-	// Drain host's own state message.
 	var stateRaw string
 	_ = websocket.Message.Receive(hostWS.Conn, &stateRaw)
 
-	// Connect guest.
 	guestWS, _, err := dialWS(wsURL, srv.URL, guestToken)
 	if err != nil {
 		t.Fatalf("guest ws dial: %v", err)
 	}
 	defer guestWS.Close()
 
-	// Drain guest's state message.
 	_ = websocket.Message.Receive(guestWS.Conn, &stateRaw)
 
-	// Host sends "play".
 	playMsg := `{"type":"play","positionMs":1000}`
 	if err := websocket.Message.Send(hostWS.Conn, playMsg); err != nil {
 		t.Fatalf("send play: %v", err)
 	}
 
-	// Guest should receive the play broadcast (skip member_joined messages first).
 	for {
 		var raw string
 		if err := websocket.Message.Receive(guestWS.Conn, &raw); err != nil {
@@ -851,7 +373,7 @@ func TestSyncPlayWS_PlayPauseSeek(t *testing.T) {
 		var cmd domainsyncplay.SyncCommand
 		_ = json.Unmarshal([]byte(raw), &cmd)
 		if cmd.Type == "member_joined" {
-			continue // skip, drain
+			continue
 		}
 		if cmd.Type != "play" {
 			t.Errorf("expected play broadcast, got %q", cmd.Type)
@@ -863,8 +385,6 @@ func TestSyncPlayWS_PlayPauseSeek(t *testing.T) {
 	}
 }
 
-// TestSyncPlayWS_SubprotocolToken verifies that the token passed as a
-// Sec-WebSocket-Protocol subprotocol ("Bearer.<token>") is accepted.
 func TestSyncPlayWS_SubprotocolToken_Auth(t *testing.T) {
 	t.Parallel()
 	tokenGen := newTestJWTGen(t)
@@ -881,14 +401,11 @@ func TestSyncPlayWS_SubprotocolToken_Auth(t *testing.T) {
 		t.Fatalf("GenerateAccessToken: %v", err)
 	}
 
-	// Build a request where Authorization header is absent but token is in
-	// Sec-WebSocket-Protocol (simulates browser WebSocket API limitation).
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/syncplay/rooms/no-such-room/ws", nil)
 	req.Header.Set("Sec-WebSocket-Protocol", "Bearer."+hostToken)
 	w := httptest.NewRecorder()
 	mux.ServeHTTP(w, req)
 
-	// Room does not exist → 404, but auth (401) must NOT occur.
 	if w.Code == http.StatusUnauthorized {
 		t.Error("subprotocol bearer token should not be rejected with 401")
 	}
@@ -904,7 +421,6 @@ func dialWS(url, origin, token string) (*wsDialConn, *http.Response, error) {
 	cfg.Header = http.Header{"Authorization": {"Bearer " + token}}
 	ws, err := websocket.DialConfig(cfg)
 	if err != nil {
-		// Extract status from error string if available.
 		return nil, nil, err
 	}
 	return &wsDialConn{ws}, &http.Response{StatusCode: http.StatusSwitchingProtocols}, nil
