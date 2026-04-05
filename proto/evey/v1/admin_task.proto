@@ -1,0 +1,68 @@
+syntax = "proto3";
+
+package evey.v1;
+
+import "google/api/annotations.proto";
+import "google/protobuf/timestamp.proto";
+
+option go_package = "github.com/gravity/evey/gen/evey/v1;eveyv1";
+
+service AdminTaskService {
+  rpc ListScheduledTasks(ListScheduledTasksRequest) returns (ListScheduledTasksResponse) {
+    option (google.api.http) = {
+      get: "/api/v1/admin/tasks"
+    };
+  }
+
+  rpc UpdateScheduledTask(UpdateScheduledTaskRequest) returns (ScheduledTask) {
+    option (google.api.http) = {
+      patch: "/api/v1/admin/tasks/{id}"
+      body: "*"
+    };
+  }
+
+  rpc RunScheduledTask(RunScheduledTaskRequest) returns (RunScheduledTaskResponse) {
+    option (google.api.http) = {
+      post: "/api/v1/admin/tasks/{id}/run"
+    };
+  }
+}
+
+enum TaskState {
+  TASK_STATE_UNSPECIFIED = 0;
+  TASK_STATE_IDLE = 1;
+  TASK_STATE_RUNNING = 2;
+  TASK_STATE_COMPLETED = 3;
+  TASK_STATE_FAILED = 4;
+}
+
+message ScheduledTask {
+  string id = 1;
+  string name = 2;
+  string description = 3;
+  string cron_expression = 4;
+  bool enabled = 5;
+  TaskState state = 6;
+  double progress_percent = 7;
+  google.protobuf.Timestamp last_run_at = 8;
+  google.protobuf.Timestamp next_run_at = 9;
+  string last_error = 10;
+}
+
+message ListScheduledTasksRequest {}
+
+message ListScheduledTasksResponse {
+  repeated ScheduledTask tasks = 1;
+}
+
+message UpdateScheduledTaskRequest {
+  string id = 1;
+  optional string cron_expression = 2;
+  optional bool enabled = 3;
+}
+
+message RunScheduledTaskRequest {
+  string id = 1;
+}
+
+message RunScheduledTaskResponse {}

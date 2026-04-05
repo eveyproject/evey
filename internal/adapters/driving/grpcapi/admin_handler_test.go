@@ -14,7 +14,7 @@ import (
 	userfakes "github.com/gravity-zero/evey/internal/domain/user/fakes"
 )
 
-func newTestSystemDelegate() *adminSystemDelegate {
+func newTestSystemHandler() *adminSystemHandler {
 	events := sharedfakes.NewFakeEventBus()
 	roles := userfakes.NewFakeRoleRepository()
 	userRepo := userfakes.NewFakeUserRepository()
@@ -42,7 +42,7 @@ func newTestSystemDelegate() *adminSystemDelegate {
 		activityfakes.NewFakePlaySessionStatsReader(),
 		activityfakes.NewFakePlayHistoryRepository(),
 	)
-	return &adminSystemDelegate{
+	return &adminSystemHandler{
 		userCmd:     userCmd,
 		userQuery:   userQuery,
 		activitySvc: activitySvc,
@@ -50,13 +50,13 @@ func newTestSystemDelegate() *adminSystemDelegate {
 	}
 }
 
-func newTestPluginDelegate() *adminPluginDelegate {
+func newTestPluginHandler() *adminPluginHandler {
 	events := sharedfakes.NewFakeEventBus()
 	pluginRepo := pluginfakes.NewFakePluginRepository()
 	pluginRuntimeRepo := pluginfakes.NewFakePluginRuntimeRepository()
 	pluginRunner := pluginfakes.NewFakePluginRunner()
 	pluginParser := pluginfakes.NewFakeManifestParser()
-	return &adminPluginDelegate{
+	return &adminPluginHandler{
 		pluginInstaller: appplugin.NewInstallerService(pluginRepo, pluginRunner, pluginParser, events),
 		pluginRuntime:   appplugin.NewRuntimeService(pluginRepo, pluginRuntimeRepo, pluginRunner, pluginParser, events),
 		pluginQuery:     appplugin.NewQueryService(pluginRepo, pluginRuntimeRepo),

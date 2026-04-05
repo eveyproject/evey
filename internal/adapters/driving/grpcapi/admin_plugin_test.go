@@ -11,7 +11,7 @@ import (
 )
 
 func TestAdminListPluginRuntimes(t *testing.T) {
-	d := newTestPluginDelegate()
+	d := newTestPluginHandler()
 	resp, err := d.ListPluginRuntimes(context.Background(), &eveyv1.ListPluginRuntimesRequest{})
 	if err != nil {
 		t.Fatalf("ListPluginRuntimes: %v", err)
@@ -22,7 +22,7 @@ func TestAdminListPluginRuntimes(t *testing.T) {
 }
 
 func TestAdminAddPluginRuntime(t *testing.T) {
-	d := newTestPluginDelegate()
+	d := newTestPluginHandler()
 	resp, err := d.AddPluginRuntime(context.Background(), &eveyv1.AddPluginRuntimeRequest{
 		Name:     "python3",
 		Language: "python",
@@ -37,7 +37,7 @@ func TestAdminAddPluginRuntime(t *testing.T) {
 }
 
 func TestAdminRemovePluginRuntime(t *testing.T) {
-	d := newTestPluginDelegate()
+	d := newTestPluginHandler()
 	d.AddPluginRuntime(context.Background(), &eveyv1.AddPluginRuntimeRequest{
 		Name: "python3", Language: "python", Version: "3.11",
 	})
@@ -48,7 +48,7 @@ func TestAdminRemovePluginRuntime(t *testing.T) {
 }
 
 func TestAdminListPlugins(t *testing.T) {
-	d := newTestPluginDelegate()
+	d := newTestPluginHandler()
 	resp, err := d.ListPlugins(context.Background(), &eveyv1.ListPluginsRequest{})
 	if err != nil {
 		t.Fatalf("ListPlugins: %v", err)
@@ -59,7 +59,7 @@ func TestAdminListPlugins(t *testing.T) {
 }
 
 func TestAdminEnablePlugin(t *testing.T) {
-	d := newTestPluginDelegate()
+	d := newTestPluginHandler()
 	_, err := d.EnablePlugin(context.Background(), &eveyv1.EnablePluginRequest{Id: "nonexistent"})
 	if err == nil {
 		t.Error("expected error for nonexistent plugin")
@@ -67,7 +67,7 @@ func TestAdminEnablePlugin(t *testing.T) {
 }
 
 func TestAdminDisablePlugin(t *testing.T) {
-	d := newTestPluginDelegate()
+	d := newTestPluginHandler()
 	_, err := d.DisablePlugin(context.Background(), &eveyv1.DisablePluginRequest{Id: "nonexistent"})
 	if err == nil {
 		t.Error("expected error for nonexistent plugin")
@@ -75,7 +75,7 @@ func TestAdminDisablePlugin(t *testing.T) {
 }
 
 func TestAdminGetPluginConfig(t *testing.T) {
-	d := newTestPluginDelegate()
+	d := newTestPluginHandler()
 	_, err := d.GetPluginConfig(context.Background(), &eveyv1.GetPluginConfigRequest{PluginId: "nonexistent"})
 	if err == nil {
 		t.Error("expected error for nonexistent plugin config")
@@ -83,7 +83,7 @@ func TestAdminGetPluginConfig(t *testing.T) {
 }
 
 func TestAdminUpdatePluginConfig(t *testing.T) {
-	d := newTestPluginDelegate()
+	d := newTestPluginHandler()
 	_, err := d.UpdatePluginConfig(context.Background(), &eveyv1.UpdatePluginConfigRequest{
 		PluginId: "nonexistent",
 		Values:   map[string]string{"key": "value"},
@@ -94,7 +94,7 @@ func TestAdminUpdatePluginConfig(t *testing.T) {
 }
 
 func TestAdminGetPluginLogs_NoLogDir(t *testing.T) {
-	d := newTestPluginDelegate()
+	d := newTestPluginHandler()
 	resp, err := d.GetPluginLogs(context.Background(), &eveyv1.GetPluginLogsRequest{PluginId: "p1"})
 	if err != nil {
 		t.Fatalf("GetPluginLogs: %v", err)
@@ -116,7 +116,7 @@ func TestAdminGetPluginLogs_WithFile(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	d := newTestPluginDelegate()
+	d := newTestPluginHandler()
 	d.logDir = tmpDir
 
 	resp, err := d.GetPluginLogs(context.Background(), &eveyv1.GetPluginLogsRequest{PluginId: "p1"})
@@ -151,7 +151,7 @@ func TestAdminGetPluginLogs_LevelFilter(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	d := newTestPluginDelegate()
+	d := newTestPluginHandler()
 	d.logDir = tmpDir
 
 	resp, err := d.GetPluginLogs(context.Background(), &eveyv1.GetPluginLogsRequest{PluginId: "p2", Level: "ERROR"})
@@ -180,7 +180,7 @@ func TestAdminGetPluginLogs_Pagination(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	d := newTestPluginDelegate()
+	d := newTestPluginHandler()
 	d.logDir = tmpDir
 
 	resp, err := d.GetPluginLogs(context.Background(), &eveyv1.GetPluginLogsRequest{PluginId: "p3", Offset: 2, Limit: 2})

@@ -10,11 +10,12 @@ import (
 	"google.golang.org/grpc/status"
 )
 
-type adminAuditDelegate struct {
+type adminSessionHandler struct {
+	eveyv1.UnimplementedAdminSessionServiceServer
 	activitySvc *appactivity.QueryService
 }
 
-func (d *adminAuditDelegate) GetAuditLog(ctx context.Context, req *eveyv1.GetAuditLogRequest) (*eveyv1.GetAuditLogResponse, error) {
+func (d *adminSessionHandler) GetAuditLog(ctx context.Context, req *eveyv1.GetAuditLogRequest) (*eveyv1.GetAuditLogResponse, error) {
 	filter := activity.AuditLogFilter{
 		Limit:  int(req.Limit),
 		Offset: int(req.Offset),

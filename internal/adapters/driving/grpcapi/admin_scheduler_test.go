@@ -19,7 +19,7 @@ func newTestScheduler() (*applibrary.Scheduler, *libraryfakes.FakeScanScheduleRe
 
 func TestAdminListScheduledTasks_Empty(t *testing.T) {
 	scheduler, _ := newTestScheduler()
-	d := &adminSchedulerDelegate{scheduler: scheduler}
+	d := &adminTaskHandler{scheduler: scheduler}
 
 	resp, err := d.ListScheduledTasks(context.Background(), &eveyv1.ListScheduledTasksRequest{})
 	if err != nil {
@@ -32,7 +32,7 @@ func TestAdminListScheduledTasks_Empty(t *testing.T) {
 
 func TestAdminListScheduledTasks_WithData(t *testing.T) {
 	scheduler, schedRepo := newTestScheduler()
-	d := &adminSchedulerDelegate{scheduler: scheduler}
+	d := &adminTaskHandler{scheduler: scheduler}
 
 	schedRepo.Upsert(context.Background(), &domainlibrary.ScanSchedule{
 		LibraryID:      "lib-1",
@@ -56,7 +56,7 @@ func TestAdminListScheduledTasks_WithData(t *testing.T) {
 
 func TestAdminUpdateScheduledTask_Success(t *testing.T) {
 	scheduler, schedRepo := newTestScheduler()
-	d := &adminSchedulerDelegate{scheduler: scheduler}
+	d := &adminTaskHandler{scheduler: scheduler}
 
 	schedRepo.Upsert(context.Background(), &domainlibrary.ScanSchedule{
 		LibraryID:      "lib-1",
@@ -84,7 +84,7 @@ func TestAdminUpdateScheduledTask_Success(t *testing.T) {
 
 func TestAdminUpdateScheduledTask_NotFound(t *testing.T) {
 	scheduler, _ := newTestScheduler()
-	d := &adminSchedulerDelegate{scheduler: scheduler}
+	d := &adminTaskHandler{scheduler: scheduler}
 
 	_, err := d.UpdateScheduledTask(context.Background(), &eveyv1.UpdateScheduledTaskRequest{
 		Id: "nonexistent",
@@ -96,7 +96,7 @@ func TestAdminUpdateScheduledTask_NotFound(t *testing.T) {
 
 func TestAdminRunScheduledTask(t *testing.T) {
 	scanner := &fakeLibraryScanner{}
-	d := &adminSchedulerDelegate{libScanner: scanner}
+	d := &adminTaskHandler{libScanner: scanner}
 
 	resp, err := d.RunScheduledTask(context.Background(), &eveyv1.RunScheduledTaskRequest{
 		Id: "lib-1",
@@ -110,7 +110,7 @@ func TestAdminRunScheduledTask(t *testing.T) {
 }
 
 func TestAdminListScheduledTasks_NilScheduler(t *testing.T) {
-	d := &adminSchedulerDelegate{}
+	d := &adminTaskHandler{}
 	resp, err := d.ListScheduledTasks(context.Background(), &eveyv1.ListScheduledTasksRequest{})
 	if err != nil {
 		t.Fatalf("expected no error, got %v", err)
@@ -121,7 +121,7 @@ func TestAdminListScheduledTasks_NilScheduler(t *testing.T) {
 }
 
 func TestAdminRunScheduledTask_NilScanner(t *testing.T) {
-	d := &adminSchedulerDelegate{}
+	d := &adminTaskHandler{}
 	_, err := d.RunScheduledTask(context.Background(), &eveyv1.RunScheduledTaskRequest{Id: "lib-1"})
 	if err == nil {
 		t.Error("expected error for nil scanner")

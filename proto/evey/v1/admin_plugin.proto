@@ -1,0 +1,191 @@
+syntax = "proto3";
+
+package evey.v1;
+
+import "google/api/annotations.proto";
+import "google/protobuf/timestamp.proto";
+
+option go_package = "github.com/gravity/evey/gen/evey/v1;eveyv1";
+
+service AdminPluginService {
+  rpc ListPluginRuntimes(ListPluginRuntimesRequest) returns (ListPluginRuntimesResponse) {
+    option (google.api.http) = {
+      get: "/api/v1/admin/plugin-runtimes"
+    };
+  }
+
+  rpc AddPluginRuntime(AddPluginRuntimeRequest) returns (PluginRuntime) {
+    option (google.api.http) = {
+      post: "/api/v1/admin/plugin-runtimes"
+      body: "*"
+    };
+  }
+
+  rpc RemovePluginRuntime(RemovePluginRuntimeRequest) returns (RemovePluginRuntimeResponse) {
+    option (google.api.http) = {
+      delete: "/api/v1/admin/plugin-runtimes/{id}"
+    };
+  }
+
+  rpc InstallPlugin(InstallPluginRequest) returns (Plugin) {
+    option (google.api.http) = {
+      post: "/api/v1/admin/plugins/install"
+      body: "*"
+    };
+  }
+
+  rpc UninstallPlugin(UninstallPluginRequest) returns (UninstallPluginResponse) {
+    option (google.api.http) = {
+      delete: "/api/v1/admin/plugins/{id}"
+    };
+  }
+
+  rpc EnablePlugin(EnablePluginRequest) returns (Plugin) {
+    option (google.api.http) = {
+      post: "/api/v1/admin/plugins/{id}/enable"
+    };
+  }
+
+  rpc DisablePlugin(DisablePluginRequest) returns (Plugin) {
+    option (google.api.http) = {
+      post: "/api/v1/admin/plugins/{id}/disable"
+    };
+  }
+
+  rpc ListPlugins(ListPluginsRequest) returns (ListPluginsResponse) {
+    option (google.api.http) = {
+      get: "/api/v1/admin/plugins"
+    };
+  }
+
+  rpc GetPluginConfig(GetPluginConfigRequest) returns (PluginConfig) {
+    option (google.api.http) = {
+      get: "/api/v1/admin/plugins/{plugin_id}/config"
+    };
+  }
+
+  rpc UpdatePluginConfig(UpdatePluginConfigRequest) returns (PluginConfig) {
+    option (google.api.http) = {
+      put: "/api/v1/admin/plugins/{plugin_id}/config"
+      body: "*"
+    };
+  }
+
+  rpc GetPluginLogs(GetPluginLogsRequest) returns (GetPluginLogsResponse) {
+    option (google.api.http) = {
+      get: "/api/v1/admin/plugins/{plugin_id}/logs"
+    };
+  }
+}
+
+message PluginRuntime {
+  string id = 1;
+  string name = 2;
+  string language = 3;
+  string version = 4;
+  string binary_path = 5;
+  bool available = 6;
+}
+
+message Plugin {
+  string id = 1;
+  string name = 2;
+  string description = 3;
+  string version = 4;
+  string author = 5;
+  string language = 6;
+  bool enabled = 7;
+  PluginState state = 8;
+  string entry_point = 9;
+  google.protobuf.Timestamp installed_at = 10;
+  repeated string permissions = 11;
+  repeated string capabilities = 12;
+  string source_hash = 13;
+}
+
+enum PluginState {
+  PLUGIN_STATE_UNSPECIFIED = 0;
+  PLUGIN_STATE_INSTALLED = 1;
+  PLUGIN_STATE_RUNNING = 2;
+  PLUGIN_STATE_STOPPED = 3;
+  PLUGIN_STATE_ERROR = 4;
+  PLUGIN_STATE_INITIALIZING = 5;
+}
+
+message PluginConfig {
+  string plugin_id = 1;
+  map<string, string> values = 2;
+  string config_schema_json = 3;
+}
+
+message PluginLogEntry {
+  string level = 1;
+  string message = 2;
+  map<string, string> fields = 3;
+  google.protobuf.Timestamp timestamp = 4;
+}
+
+message ListPluginRuntimesRequest {}
+
+message ListPluginRuntimesResponse {
+  repeated PluginRuntime runtimes = 1;
+}
+
+message AddPluginRuntimeRequest {
+  string name = 1;
+  string language = 2;
+  string version = 3;
+  string binary_path = 4;
+}
+
+message RemovePluginRuntimeRequest {
+  string id = 1;
+}
+
+message RemovePluginRuntimeResponse {}
+
+message InstallPluginRequest {
+  string source = 1;
+  string name = 2;
+}
+
+message UninstallPluginRequest {
+  string id = 1;
+}
+
+message UninstallPluginResponse {}
+
+message EnablePluginRequest {
+  string id = 1;
+}
+
+message DisablePluginRequest {
+  string id = 1;
+}
+
+message ListPluginsRequest {}
+
+message ListPluginsResponse {
+  repeated Plugin plugins = 1;
+}
+
+message GetPluginConfigRequest {
+  string plugin_id = 1;
+}
+
+message UpdatePluginConfigRequest {
+  string plugin_id = 1;
+  map<string, string> values = 2;
+}
+
+message GetPluginLogsRequest {
+  string plugin_id = 1;
+  string level = 2;
+  int32 limit = 3;
+  int32 offset = 4;
+}
+
+message GetPluginLogsResponse {
+  repeated PluginLogEntry entries = 1;
+  int32 total = 2;
+}

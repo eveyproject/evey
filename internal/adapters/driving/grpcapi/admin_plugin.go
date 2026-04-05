@@ -18,14 +18,15 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
-type adminPluginDelegate struct {
+type adminPluginHandler struct {
+	eveyv1.UnimplementedAdminPluginServiceServer
 	pluginInstaller *appplugin.InstallerService
 	pluginRuntime   *appplugin.RuntimeService
 	pluginQuery     *appplugin.QueryService
 	logDir          string
 }
 
-func (d *adminPluginDelegate) ListPluginRuntimes(ctx context.Context, _ *eveyv1.ListPluginRuntimesRequest) (*eveyv1.ListPluginRuntimesResponse, error) {
+func (d *adminPluginHandler) ListPluginRuntimes(ctx context.Context, _ *eveyv1.ListPluginRuntimesRequest) (*eveyv1.ListPluginRuntimesResponse, error) {
 	runtimes, err := d.pluginQuery.ListRuntimes(ctx)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "list runtimes: %v", err)
@@ -37,7 +38,7 @@ func (d *adminPluginDelegate) ListPluginRuntimes(ctx context.Context, _ *eveyv1.
 	return resp, nil
 }
 
-func (d *adminPluginDelegate) AddPluginRuntime(ctx context.Context, req *eveyv1.AddPluginRuntimeRequest) (*eveyv1.PluginRuntime, error) {
+func (d *adminPluginHandler) AddPluginRuntime(ctx context.Context, req *eveyv1.AddPluginRuntimeRequest) (*eveyv1.PluginRuntime, error) {
 	rt := &plugin.PluginRuntime{
 		ID:       req.Name,
 		Language: req.Language,
@@ -49,14 +50,14 @@ func (d *adminPluginDelegate) AddPluginRuntime(ctx context.Context, req *eveyv1.
 	return pluginRuntimeToProto(rt), nil
 }
 
-func (d *adminPluginDelegate) RemovePluginRuntime(ctx context.Context, req *eveyv1.RemovePluginRuntimeRequest) (*eveyv1.RemovePluginRuntimeResponse, error) {
+func (d *adminPluginHandler) RemovePluginRuntime(ctx context.Context, req *eveyv1.RemovePluginRuntimeRequest) (*eveyv1.RemovePluginRuntimeResponse, error) {
 	if err := d.pluginRuntime.RemoveRuntime(ctx, req.Id); err != nil {
 		return nil, status.Errorf(codes.Internal, "remove runtime: %v", err)
 	}
 	return &eveyv1.RemovePluginRuntimeResponse{}, nil
 }
 
-func (d *adminPluginDelegate) InstallPlugin(ctx context.Context, req *eveyv1.InstallPluginRequest) (*eveyv1.Plugin, error) {
+func (d *adminPluginHandler) InstallPlugin(ctx context.Context, req *eveyv1.InstallPluginRequest) (*eveyv1.Plugin, error) {
 	p, err := d.pluginInstaller.InstallPlugin(ctx, req.Source)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "install plugin: %v", err)
@@ -64,28 +65,28 @@ func (d *adminPluginDelegate) InstallPlugin(ctx context.Context, req *eveyv1.Ins
 	return pluginToProto(p), nil
 }
 
-func (d *adminPluginDelegate) UninstallPlugin(ctx context.Context, req *eveyv1.UninstallPluginRequest) (*eveyv1.UninstallPluginResponse, error) {
+func (d *adminPluginHandler) UninstallPlugin(ctx context.Context, req *eveyv1.UninstallPluginRequest) (*eveyv1.UninstallPluginResponse, error) {
 	if err := d.pluginInstaller.UninstallPlugin(ctx, req.Id); err != nil {
 		return nil, status.Errorf(codes.Internal, "uninstall plugin: %v", err)
 	}
 	return &eveyv1.UninstallPluginResponse{}, nil
 }
 
-func (d *adminPluginDelegate) EnablePlugin(ctx context.Context, req *eveyv1.EnablePluginRequest) (*eveyv1.Plugin, error) {
+func (d *adminPluginHandler) EnablePlugin(ctx context.Context, req *eveyv1.EnablePluginRequest) (*eveyv1.Plugin, error) {
 	if err := d.pluginRuntime.EnablePlugin(ctx, req.Id); err != nil {
 		return nil, status.Errorf(codes.Internal, "enable plugin: %v", err)
 	}
 	return &eveyv1.Plugin{Id: req.Id, Enabled: true}, nil
 }
 
-func (d *adminPluginDelegate) DisablePlugin(ctx context.Context, req *eveyv1.DisablePluginRequest) (*eveyv1.Plugin, error) {
+func (d *adminPluginHandler) DisablePlugin(ctx context.Context, req *eveyv1.DisablePluginRequest) (*eveyv1.Plugin, error) {
 	if err := d.pluginRuntime.DisablePlugin(ctx, req.Id); err != nil {
 		return nil, status.Errorf(codes.Internal, "disable plugin: %v", err)
 	}
 	return &eveyv1.Plugin{Id: req.Id, Enabled: false}, nil
 }
 
-func (d *adminPluginDelegate) ListPlugins(ctx context.Context, _ *eveyv1.ListPluginsRequest) (*eveyv1.ListPluginsResponse, error) {
+func (d *adminPluginHandler) ListPlugins(ctx context.Context, _ *eveyv1.ListPluginsRequest) (*eveyv1.ListPluginsResponse, error) {
 	plugins, err := d.pluginQuery.ListPlugins(ctx)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "list plugins: %v", err)
@@ -97,7 +98,7 @@ func (d *adminPluginDelegate) ListPlugins(ctx context.Context, _ *eveyv1.ListPlu
 	return resp, nil
 }
 
-func (d *adminPluginDelegate) GetPluginConfig(ctx context.Context, req *eveyv1.GetPluginConfigRequest) (*eveyv1.PluginConfig, error) {
+func (d *adminPluginHandler) GetPluginConfig(ctx context.Context, req *eveyv1.GetPluginConfigRequest) (*eveyv1.PluginConfig, error) {
 	result, err := d.pluginQuery.GetPluginConfig(ctx, req.PluginId)
 	if err != nil {
 		return nil, status.Errorf(codes.NotFound, "get config: %v", err)
@@ -119,7 +120,7 @@ func (d *adminPluginDelegate) GetPluginConfig(ctx context.Context, req *eveyv1.G
 	return resp, nil
 }
 
-func (d *adminPluginDelegate) UpdatePluginConfig(ctx context.Context, req *eveyv1.UpdatePluginConfigRequest) (*eveyv1.PluginConfig, error) {
+func (d *adminPluginHandler) UpdatePluginConfig(ctx context.Context, req *eveyv1.UpdatePluginConfigRequest) (*eveyv1.PluginConfig, error) {
 	result, err := d.pluginQuery.GetPluginConfig(ctx, req.PluginId)
 	if err != nil {
 		return nil, status.Errorf(codes.NotFound, "get plugin: %v", err)
@@ -137,7 +138,7 @@ func (d *adminPluginDelegate) UpdatePluginConfig(ctx context.Context, req *eveyv
 	}, nil
 }
 
-func (d *adminPluginDelegate) GetPluginLogs(_ context.Context, req *eveyv1.GetPluginLogsRequest) (*eveyv1.GetPluginLogsResponse, error) {
+func (d *adminPluginHandler) GetPluginLogs(_ context.Context, req *eveyv1.GetPluginLogsRequest) (*eveyv1.GetPluginLogsResponse, error) {
 	if d.logDir == "" || req.PluginId == "" {
 		return &eveyv1.GetPluginLogsResponse{}, nil
 	}

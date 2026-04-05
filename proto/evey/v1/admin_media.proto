@@ -1,0 +1,45 @@
+syntax = "proto3";
+
+package evey.v1;
+
+import "google/api/annotations.proto";
+
+option go_package = "github.com/gravity/evey/gen/evey/v1;eveyv1";
+
+service AdminMediaService {
+  rpc RefreshAllMetadata(RefreshAllMetadataRequest) returns (RefreshAllMetadataResponse) {
+    option (google.api.http) = {
+      post: "/api/v1/admin/media/refresh-metadata"
+    };
+  }
+
+  rpc GenerateAllTrickplays(GenerateAllTrickplaysRequest) returns (GenerateAllTrickplaysResponse) {
+    option (google.api.http) = {
+      post: "/api/v1/admin/trickplay/generate-all"
+    };
+  }
+
+  rpc DeleteMediaItem(DeleteMediaItemRequest) returns (DeleteMediaItemResponse) {
+    option (google.api.http) = {
+      delete: "/api/v1/admin/media/{id}"
+    };
+  }
+}
+
+message RefreshAllMetadataRequest {}
+
+message RefreshAllMetadataResponse {
+  int32 refreshed = 1;
+}
+
+message GenerateAllTrickplaysRequest {}
+
+message GenerateAllTrickplaysResponse {
+  int32 generated = 1;
+}
+
+message DeleteMediaItemRequest {
+  string id = 1;
+}
+
+message DeleteMediaItemResponse {}

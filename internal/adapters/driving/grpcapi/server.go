@@ -190,28 +190,39 @@ func (s *GRPCServer) RegisterServices() {
 	if srvCtx == nil {
 		srvCtx = context.Background()
 	}
-	eveyv1.RegisterAdminServiceServer(s.server, &adminHandler{
-		userCmd:          s.userAuth,
-		userQuery:        s.userQuery,
-		transcodingSvc:   s.transcoding,
-		activitySvc:      s.activityQuery,
-		pluginInstaller:  s.pluginInstaller,
-		pluginRuntime:    s.pluginRuntime,
-		pluginQuery:      s.pluginQuery,
-		hlsManager:       s.hlsManager,
-		libLister:        s.libQuery,
-		scheduler:        s.scheduler,
-		libScanner:       s.libCmd,
-		libCmd:           s.libCmd,
+	eveyv1.RegisterAdminSystemServiceServer(s.server, &adminSystemHandler{
+		userCmd:        s.userAuth,
+		userQuery:      s.userQuery,
+		transcodingSvc: s.transcoding,
+		activitySvc:    s.activityQuery,
+		hlsManager:     s.hlsManager,
+		libLister:      s.libQuery,
+		version:        s.version,
+		startTime:      s.startTime,
+		ffmpegPath:     s.ffmpegPath,
+		translator:     s.translator,
+		smtpConfigured: s.smtpConfigured,
+	})
+	eveyv1.RegisterAdminPluginServiceServer(s.server, &adminPluginHandler{
+		pluginInstaller: s.pluginInstaller,
+		pluginRuntime:   s.pluginRuntime,
+		pluginQuery:     s.pluginQuery,
+		logDir:          s.logDir,
+	})
+	eveyv1.RegisterAdminTaskServiceServer(s.server, &adminTaskHandler{
+		scheduler:  s.scheduler,
+		libScanner: s.libCmd,
+		serverCtx:  srvCtx,
+		translator: s.translator,
+	})
+	eveyv1.RegisterAdminMediaServiceServer(s.server, &adminMediaHandler{
 		metadataCmd:      s.metadataCmd,
-		logDir:           s.logDir,
-		version:          s.version,
-		startTime:        s.startTime,
-		ffmpegPath:       s.ffmpegPath,
+		libCmd:           s.libCmd,
 		heavyOpSemaphore: make(chan struct{}, 1),
 		translator:       s.translator,
-		serverCtx:        srvCtx,
-		smtpConfigured:   s.smtpConfigured,
+	})
+	eveyv1.RegisterAdminSessionServiceServer(s.server, &adminSessionHandler{
+		activitySvc: s.activityQuery,
 	})
 	eveyv1.RegisterActivityServiceServer(s.server, &activityHandler{svc: s.activityQuery, translator: s.translator})
 	eveyv1.RegisterNotificationServiceServer(s.server, &notificationHandler{cmd: s.notifCmd, query: s.notifQuery})

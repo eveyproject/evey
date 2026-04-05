@@ -8,8 +8,8 @@ import (
 )
 
 func TestAdminGetAuditLog(t *testing.T) {
-	d := newTestSystemDelegate()
-	audit := &adminAuditDelegate{activitySvc: d.activitySvc}
+	d := newTestSystemHandler()
+	audit := &adminSessionHandler{activitySvc: d.activitySvc}
 	resp, err := audit.GetAuditLog(context.Background(), &eveyv1.GetAuditLogRequest{Limit: 10})
 	if err != nil {
 		t.Fatalf("GetAuditLog: %v", err)
@@ -20,8 +20,8 @@ func TestAdminGetAuditLog(t *testing.T) {
 }
 
 func TestAdminGetAuditLog_WithFilters(t *testing.T) {
-	d := newTestSystemDelegate()
-	audit := &adminAuditDelegate{activitySvc: d.activitySvc}
+	d := newTestSystemHandler()
+	audit := &adminSessionHandler{activitySvc: d.activitySvc}
 	resp, err := audit.GetAuditLog(context.Background(), &eveyv1.GetAuditLogRequest{
 		Limit:        10,
 		UserId:       "u-1",

@@ -12,14 +12,15 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
-type adminSchedulerDelegate struct {
+type adminTaskHandler struct {
+	eveyv1.UnimplementedAdminTaskServiceServer
 	scheduler  adminScheduler
 	libScanner adminLibraryScanner
 	serverCtx  context.Context
 	translator *eveyi18n.Translator
 }
 
-func (d *adminSchedulerDelegate) ListScheduledTasks(ctx context.Context, _ *eveyv1.ListScheduledTasksRequest) (*eveyv1.ListScheduledTasksResponse, error) {
+func (d *adminTaskHandler) ListScheduledTasks(ctx context.Context, _ *eveyv1.ListScheduledTasksRequest) (*eveyv1.ListScheduledTasksResponse, error) {
 	if d.scheduler == nil {
 		return &eveyv1.ListScheduledTasksResponse{}, nil
 	}
@@ -47,7 +48,7 @@ func (d *adminSchedulerDelegate) ListScheduledTasks(ctx context.Context, _ *evey
 	return resp, nil
 }
 
-func (d *adminSchedulerDelegate) UpdateScheduledTask(ctx context.Context, req *eveyv1.UpdateScheduledTaskRequest) (*eveyv1.ScheduledTask, error) {
+func (d *adminTaskHandler) UpdateScheduledTask(ctx context.Context, req *eveyv1.UpdateScheduledTaskRequest) (*eveyv1.ScheduledTask, error) {
 	if d.scheduler == nil {
 		return nil, d.translator.TranslatedError(ctx, codes.Unimplemented, "errors.admin.scheduler_not_available")
 	}
@@ -90,7 +91,7 @@ func (d *adminSchedulerDelegate) UpdateScheduledTask(ctx context.Context, req *e
 	return task, nil
 }
 
-func (d *adminSchedulerDelegate) RunScheduledTask(ctx context.Context, req *eveyv1.RunScheduledTaskRequest) (*eveyv1.RunScheduledTaskResponse, error) {
+func (d *adminTaskHandler) RunScheduledTask(ctx context.Context, req *eveyv1.RunScheduledTaskRequest) (*eveyv1.RunScheduledTaskResponse, error) {
 	if d.libScanner == nil {
 		return nil, d.translator.TranslatedError(ctx, codes.Unimplemented, "errors.admin.scanner_not_available")
 	}

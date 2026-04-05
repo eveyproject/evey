@@ -12,7 +12,7 @@ import (
 )
 
 func TestAdminGetSetupStatus_NoAdmins(t *testing.T) {
-	d := newTestSystemDelegate()
+	d := newTestSystemHandler()
 	resp, err := d.GetSetupStatus(context.Background(), &eveyv1.GetSetupStatusRequest{})
 	if err != nil {
 		t.Fatalf("GetSetupStatus: %v", err)
@@ -23,7 +23,7 @@ func TestAdminGetSetupStatus_NoAdmins(t *testing.T) {
 }
 
 func TestAdminGetSystemInfo(t *testing.T) {
-	d := newTestSystemDelegate()
+	d := newTestSystemHandler()
 	resp, err := d.GetSystemInfo(context.Background(), &eveyv1.GetSystemInfoRequest{})
 	if err != nil {
 		t.Fatalf("GetSystemInfo: %v", err)
@@ -40,7 +40,7 @@ func TestAdminGetSystemInfo(t *testing.T) {
 }
 
 func TestAdminGetSystemInfo_WithTranscoding(t *testing.T) {
-	d := newTestSystemDelegate()
+	d := newTestSystemHandler()
 	hwDetector := transcodingfakes.NewFakeHWDetector()
 	events := sharedfakes.NewFakeEventBus()
 	d.transcodingSvc = apptranscoding.NewService(nil, hwDetector, nil, nil, events, 1)
@@ -53,7 +53,7 @@ func TestAdminGetSystemInfo_WithTranscoding(t *testing.T) {
 }
 
 func TestAdminGetServerConfig(t *testing.T) {
-	d := newTestSystemDelegate()
+	d := newTestSystemHandler()
 	resp, err := d.GetServerConfig(context.Background(), &eveyv1.GetServerConfigRequest{})
 	if err != nil {
 		t.Fatalf("GetServerConfig: %v", err)
@@ -64,7 +64,7 @@ func TestAdminGetServerConfig(t *testing.T) {
 }
 
 func TestAdminUpdateServerConfig(t *testing.T) {
-	d := newTestSystemDelegate()
+	d := newTestSystemHandler()
 	vals := map[string]string{"key": "value"}
 	resp, err := d.UpdateServerConfig(context.Background(), &eveyv1.UpdateServerConfigRequest{Values: vals})
 	if err != nil {
@@ -76,7 +76,7 @@ func TestAdminUpdateServerConfig(t *testing.T) {
 }
 
 func TestAdminSetupWizard(t *testing.T) {
-	d := newTestSystemDelegate()
+	d := newTestSystemHandler()
 	resp, err := d.SetupWizard(context.Background(), &eveyv1.SetupWizardRequest{
 		AdminUsername: "admin",
 		AdminPassword: "password123",
@@ -106,7 +106,7 @@ func TestAdminSetupWizard(t *testing.T) {
 }
 
 func TestAdminGetDashboard(t *testing.T) {
-	d := newTestSystemDelegate()
+	d := newTestSystemHandler()
 	resp, err := d.GetDashboard(context.Background(), &eveyv1.GetDashboardRequest{})
 	if err != nil {
 		t.Fatalf("GetDashboard: %v", err)
@@ -126,7 +126,7 @@ func TestAdminGetDashboard(t *testing.T) {
 }
 
 func TestAdminGetDashboard_WithHLSManager(t *testing.T) {
-	d := newTestSystemDelegate()
+	d := newTestSystemHandler()
 	tmpDir := t.TempDir()
 	hls := apptranscoding.NewHLSManager(context.Background(), tmpDir, 5, &transcodingfakes.HLSProcess{})
 	defer hls.CleanupAll()
@@ -142,7 +142,7 @@ func TestAdminGetDashboard_WithHLSManager(t *testing.T) {
 }
 
 func TestAdminGetDashboard_WithLibLister(t *testing.T) {
-	d := newTestSystemDelegate()
+	d := newTestSystemHandler()
 	d.libLister = &fakeAdminLibLister{
 		libs: []*domainlibrary.Library{
 			{ID: "lib-1", Paths: []string{"/tmp"}},

@@ -15,8 +15,8 @@ func TestDefaultRBACConfig_PublicMethods(t *testing.T) {
 		"/evey.v1.UserService/Login",
 		"/evey.v1.UserService/RefreshToken",
 		"/evey.v1.UserService/RegisterWithInvite",
-		"/evey.v1.AdminService/SetupWizard",
-		"/evey.v1.AdminService/GetSetupStatus",
+		"/evey.v1.AdminSystemService/SetupWizard",
+		"/evey.v1.AdminSystemService/GetSetupStatus",
 		"/evey.v1.UserService/InitiateQuickConnect",
 		"/evey.v1.UserService/CheckQuickConnect",
 	}
@@ -45,26 +45,33 @@ func TestDefaultRBACConfig_AdminMethods(t *testing.T) {
 	cfg := interceptors.DefaultRBACConfig()
 
 	expectedAdmin := []string{
-		// AdminService
-		"/evey.v1.AdminService/GetSystemInfo",
-		"/evey.v1.AdminService/GetServerConfig",
-		"/evey.v1.AdminService/UpdateServerConfig",
-		"/evey.v1.AdminService/GetDashboard",
-		"/evey.v1.AdminService/ListScheduledTasks",
-		"/evey.v1.AdminService/UpdateScheduledTask",
-		"/evey.v1.AdminService/RunScheduledTask",
-		"/evey.v1.AdminService/GetAuditLog",
-		"/evey.v1.AdminService/ListPluginRuntimes",
-		"/evey.v1.AdminService/AddPluginRuntime",
-		"/evey.v1.AdminService/RemovePluginRuntime",
-		"/evey.v1.AdminService/InstallPlugin",
-		"/evey.v1.AdminService/UninstallPlugin",
-		"/evey.v1.AdminService/EnablePlugin",
-		"/evey.v1.AdminService/DisablePlugin",
-		"/evey.v1.AdminService/ListPlugins",
-		"/evey.v1.AdminService/GetPluginConfig",
-		"/evey.v1.AdminService/UpdatePluginConfig",
-		"/evey.v1.AdminService/GetPluginLogs",
+		// AdminSystemService
+		"/evey.v1.AdminSystemService/GetSystemInfo",
+		"/evey.v1.AdminSystemService/GetServerConfig",
+		"/evey.v1.AdminSystemService/UpdateServerConfig",
+		"/evey.v1.AdminSystemService/GetDashboard",
+		// AdminTaskService
+		"/evey.v1.AdminTaskService/ListScheduledTasks",
+		"/evey.v1.AdminTaskService/UpdateScheduledTask",
+		"/evey.v1.AdminTaskService/RunScheduledTask",
+		// AdminSessionService
+		"/evey.v1.AdminSessionService/GetAuditLog",
+		// AdminPluginService
+		"/evey.v1.AdminPluginService/ListPluginRuntimes",
+		"/evey.v1.AdminPluginService/AddPluginRuntime",
+		"/evey.v1.AdminPluginService/RemovePluginRuntime",
+		"/evey.v1.AdminPluginService/InstallPlugin",
+		"/evey.v1.AdminPluginService/UninstallPlugin",
+		"/evey.v1.AdminPluginService/EnablePlugin",
+		"/evey.v1.AdminPluginService/DisablePlugin",
+		"/evey.v1.AdminPluginService/ListPlugins",
+		"/evey.v1.AdminPluginService/GetPluginConfig",
+		"/evey.v1.AdminPluginService/UpdatePluginConfig",
+		"/evey.v1.AdminPluginService/GetPluginLogs",
+		// AdminMediaService
+		"/evey.v1.AdminMediaService/RefreshAllMetadata",
+		"/evey.v1.AdminMediaService/GenerateAllTrickplays",
+		"/evey.v1.AdminMediaService/DeleteMediaItem",
 		// WebhookService
 		"/evey.v1.WebhookService/CreateWebhook",
 		"/evey.v1.WebhookService/ListWebhooks",
@@ -163,7 +170,11 @@ func TestDefaultRBACConfig_ServiceCoverage(t *testing.T) {
 	}
 
 	expectedServices := []string{
-		"AdminService",
+		"AdminSystemService",
+		"AdminPluginService",
+		"AdminTaskService",
+		"AdminMediaService",
+		"AdminSessionService",
 		"UserService",
 		"WebhookService",
 		"LibraryService",
