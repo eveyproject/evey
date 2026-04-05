@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strconv"
 	"syscall"
 	"time"
 
@@ -68,6 +69,31 @@ func run() error {
 	if raw, err2 := deps.cfgStore.Get(ctx, httpapi.RemoteAccessConfigKey); err2 == nil && raw != "" {
 		if err := json.Unmarshal([]byte(raw), &cfg.RemoteAccess); err != nil {
 			slog.Warn("unmarshal remote access config", slog.Any("err", err))
+		}
+	}
+
+	// load server settings overrides from DB
+	if v, err2 := deps.cfgStore.Get(ctx, "server.name"); err2 == nil && v != "" {
+		cfg.Server.Name = v
+	}
+	if v, err2 := deps.cfgStore.Get(ctx, "transcoding.max_concurrent"); err2 == nil && v != "" {
+		if n, err3 := strconv.Atoi(v); err3 == nil {
+			cfg.Transcoding.MaxConcurrent = n
+		}
+	}
+	if v, err2 := deps.cfgStore.Get(ctx, "transcoding.hw_accel_enabled"); err2 == nil && v != "" {
+		if b, err3 := strconv.ParseBool(v); err3 == nil {
+			cfg.Transcoding.HWAccelEnabled = b
+		}
+	}
+	if v, err2 := deps.cfgStore.Get(ctx, "ratelimit.login_max"); err2 == nil && v != "" {
+		if n, err3 := strconv.Atoi(v); err3 == nil {
+			cfg.Server.LoginRateLimitMax = n
+		}
+	}
+	if v, err2 := deps.cfgStore.Get(ctx, "ratelimit.global_max"); err2 == nil && v != "" {
+		if n, err3 := strconv.Atoi(v); err3 == nil {
+			cfg.Server.GlobalRateLimitMax = n
 		}
 	}
 

@@ -153,6 +153,11 @@ func (s *Service) DeleteProfile(ctx context.Context, id string) error {
 	return s.profiles.Delete(ctx, id)
 }
 
+func (s *Service) SetMaxConcurrent(n int) {
+	s.maxConcurrent = n
+	slog.Info("transcoding: updated max concurrent", slog.Int("max", n))
+}
+
 func (s *Service) DetectHardware(ctx context.Context) ([]transcoding.HWDevice, error) {
 	return s.hwDetector.DetectDevices(ctx)
 }

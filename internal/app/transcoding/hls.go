@@ -122,6 +122,18 @@ func NewHLSManager(shutdownCtx context.Context, cacheDir string, maxConcurrent i
 	return m
 }
 
+func (m *HLSManager) SetMaxConcurrent(n int) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.maxConcurrent = n
+	if n > 0 {
+		m.sem = make(chan struct{}, n)
+	} else {
+		m.sem = nil
+	}
+	slog.Info("hls: updated max concurrent", slog.Int("max", n))
+}
+
 func (m *HLSManager) acquireSemaphore() error {
 	if m.sem == nil {
 		return nil

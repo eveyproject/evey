@@ -55,14 +55,6 @@ type RemoteAccessConfig struct {
 	MaxRemoteBitrateKbps int
 }
 
-// EffectiveBaseURL returns RemoteAccess.ExternalURL if set, otherwise Server.BaseURL.
-func (c *Config) EffectiveBaseURL() string {
-	if c.RemoteAccess.ExternalURL != "" {
-		return c.RemoteAccess.ExternalURL
-	}
-	return c.Server.BaseURL
-}
-
 type MetadataConfig struct {
 	Language string // ISO 639-1, default "en"
 }
@@ -151,6 +143,17 @@ type PlaybackConfig struct {
 	SkipForwardSeconds  int
 	SkipBackwardSeconds int
 }
+
+func (c *Config) EffectiveBaseURL() string {
+	if c.RemoteAccess.ExternalURL != "" {
+		return c.RemoteAccess.ExternalURL
+	}
+	return c.Server.BaseURL
+}
+
+func (c *Config) EffectiveServerName() string       { return c.Server.Name }
+func (c *Config) EffectiveMaxConcurrent() int        { return c.Transcoding.MaxConcurrent }
+func (c *Config) EffectiveHWAccelEnabled() bool      { return c.Transcoding.HWAccelEnabled }
 
 // WarnValidate validates config, returning an error for critical security issues
 // and logging warnings for non-critical ones.

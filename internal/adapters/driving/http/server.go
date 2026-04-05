@@ -25,7 +25,6 @@ import (
 	appplaylist "github.com/gravity-zero/evey/internal/app/playlist"
 	apprating "github.com/gravity-zero/evey/internal/app/rating"
 	appsubtitle "github.com/gravity-zero/evey/internal/app/subtitle"
-	appdlna "github.com/gravity-zero/evey/internal/app/dlna"
 	appsyncplay "github.com/gravity-zero/evey/internal/app/syncplay"
 	apptranscoding "github.com/gravity-zero/evey/internal/app/transcoding"
 	appuser "github.com/gravity-zero/evey/internal/app/user"
@@ -145,9 +144,6 @@ type HTTPServer struct {
 	FeedCmdSvc   *appfeed.CommandService
 	FeedQuerySvc *appfeed.QueryService
 
-	// DLNA
-	DLNASvc *appdlna.Service
-
 	// Config store for remote access persistence
 	CfgStore remoteAccessPersister
 
@@ -226,14 +222,6 @@ func (s *HTTPServer) RegisterRoutes(mux *http.ServeMux, gwMux http.Handler) {
 	mux.HandleFunc("GET /api/v1/media/{id}/hls/{file}", hlsSegmentHandler(s.TokenGen, hlsMediaCache, s.HLSManager, hlsAccessCache))
 	mux.HandleFunc("GET /api/v1/admin/library-stats", requireAdmin(s.TokenGen, libraryStatsHandler(s.TokenGen, s.LibQuerySvc)))
 
-	// DLNA
-	if s.DLNASvc != nil {
-		mux.HandleFunc("GET /api/v1/dlna/renderers", dlnaRenderersHandler(s.TokenGen, s.DLNASvc))
-		mux.HandleFunc("POST /api/v1/dlna/play", dlnaPlayHandler(s.TokenGen, s.DLNASvc))
-		mux.HandleFunc("POST /api/v1/dlna/stop", dlnaStopHandler(s.TokenGen, s.DLNASvc))
-		mux.HandleFunc("POST /api/v1/dlna/pause", dlnaPauseHandler(s.TokenGen, s.DLNASvc))
-	}
-
 	if gwMux != nil {
 		mux.HandleFunc("POST /api/v1/auth/login", ratelimit.MiddlewareFunc(s.LoginRL, func(w http.ResponseWriter, r *http.Request) {
 			r.Body = http.MaxBytesReader(w, r.Body, 1<<20)
@@ -245,13 +233,13 @@ func (s *HTTPServer) RegisterRoutes(mux *http.ServeMux, gwMux http.Handler) {
 		mux.HandleFunc("POST /api/v1/auth/reset-password", ratelimit.MiddlewareFunc(s.PasswordResetRL, func(w http.ResponseWriter, r *http.Request) {
 			gwMux.ServeHTTP(w, r)
 		}))
-		mux.HandleFunc("GET /api/v1/auth/quick-connect/{code}", ratelimit.MiddlewareFunc(s.LoginRL, func(w http.ResponseWriter, r *http.Request) {
+		mux.HandleFunc("GET /api/v1/auth/quick-connect/{code}", func(w http.ResponseWriter, r *http.Request) {
 			authCookieMiddleware(gwMux, s.HTTPSOnly).ServeHTTP(w, r)
-		}))
-		mux.HandleFunc("POST /api/v1/auth/refresh", ratelimit.MiddlewareFunc(s.LoginRL, func(w http.ResponseWriter, r *http.Request) {
+		})
+		mux.HandleFunc("POST /api/v1/auth/refresh", func(w http.ResponseWriter, r *http.Request) {
 			r = injectRefreshTokenFromCookie(r)
 			authCookieMiddleware(gwMux, s.HTTPSOnly).ServeHTTP(w, r)
-		}))
+		})
 		mux.HandleFunc("POST /api/v1/auth/logout", func(w http.ResponseWriter, r *http.Request) {
 			clearRefreshCookie(w, s.HTTPSOnly)
 			if s.OIDCSvc != nil {
@@ -294,6 +282,7 @@ func (s *HTTPServer) RegisterRoutes(mux *http.ServeMux, gwMux http.Handler) {
 	}
 	registerBackupRoutes(mux, s.BackupSvc, s.TokenGen, s.AdminHeavyRL, s.AdminWriteRL)
 	registerRemoteAccessRoutes(mux, s.Cfg, s.TokenGen, s.CfgStore, s.AdminWriteRL)
+	registerServerSettingsRoutes(mux, s.Cfg, s.CfgStore, s.TokenGen, s.TranscodingSvc, s.HLSManager, s.LoginRL, s.GlobalRL, s.AdminWriteRL)
 	registerPlaybackSettingsRoutes(mux, s.Cfg, s.TokenGen, s.AdminWriteRL)
 	registerParentalRoutes(mux, s.ProfileRepo, s.Hasher, s.TokenGen)
 	if s.DataDir != "" {

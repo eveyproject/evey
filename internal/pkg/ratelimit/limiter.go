@@ -46,6 +46,14 @@ func NewWithBurst(burstSize int, refilledPerMinute float64) *Limiter {
 	return l
 }
 
+func (l *Limiter) SetLimit(requestsPerMinute int) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	l.rate = float64(requestsPerMinute) / 60.0
+	l.burst = requestsPerMinute
+	slog.Info("ratelimit: updated limit", slog.Int("rpm", requestsPerMinute))
+}
+
 func (l *Limiter) Stop() {
 	close(l.done)
 }
