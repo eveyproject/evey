@@ -15,7 +15,6 @@ import (
 	appcollection "github.com/gravity-zero/evey/internal/app/collection"
 	appconfig "github.com/gravity-zero/evey/internal/app/config"
 	appfavorite "github.com/gravity-zero/evey/internal/app/favorite"
-	appfeed "github.com/gravity-zero/evey/internal/app/feed"
 	applibrary "github.com/gravity-zero/evey/internal/app/library"
 	appmedia "github.com/gravity-zero/evey/internal/app/media"
 	appmetadata "github.com/gravity-zero/evey/internal/app/metadata"
@@ -140,6 +139,7 @@ type HTTPServer struct {
 	PluginSvc  pluginManager
 	PluginDir  string
 
+<<<<<<< HEAD
 	// Feed
 	FeedCmdSvc   *appfeed.CommandService
 	FeedQuerySvc *appfeed.QueryService
@@ -147,6 +147,8 @@ type HTTPServer struct {
 	// DLNA
 	DLNASvc *appdlna.Service
 
+=======
+>>>>>>> worktree-agent-a71afbdb
 	// Config store for remote access persistence
 	CfgStore remoteAccessPersister
 
@@ -276,7 +278,6 @@ func (s *HTTPServer) RegisterRoutes(mux *http.ServeMux, gwMux http.Handler) {
 		})
 	}
 
-	registerFeedRoutes(mux, s.FeedCmdSvc, s.FeedQuerySvc, s.TokenGen, s.AdminWriteRL)
 	registerAdminRoutes(mux, s.MetadataCmdSvc, s.MetadataQuerySvc, s.TokenGen, s.AdminHeavyRL, s.AdminWriteRL, s.ServerCtx, s.ActivityCmdSvc, s.BioEnricher)
 	registerUserAdminRoutes(mux, s.UserSvc, s.UserQuerySvc, s.TokenGen, s.AdminWriteRL, s.ActivityCmdSvc)
 	registerFavoriteRoutes(mux, s.FavoriteSvc, s.LibQuerySvc, s.TokenGen, s.LibraryAccessRepo)

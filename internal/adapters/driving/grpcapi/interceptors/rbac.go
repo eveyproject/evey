@@ -65,6 +65,7 @@ func DefaultRBACConfig() RBACConfig {
 			"/evey.v1.LibraryService/ScanLibrary":                           RoleAdmin,
 			"/evey.v1.FeedService/GetAdminFeedConfigs":                      RoleAdmin,
 			"/evey.v1.FeedService/UpdateAdminFeedConfig":                    RoleAdmin,
+			"/evey.v1.FeedService/BatchUpdateAdminFeedConfigs":             RoleAdmin,
 			"/evey.v1.NotificationService/GetGlobalNotificationSettings":    RoleAdmin,
 			"/evey.v1.NotificationService/UpdateGlobalNotificationSettings": RoleAdmin,
 			"/evey.v1.ActivityService/GetServerStats":                       RoleAdmin,

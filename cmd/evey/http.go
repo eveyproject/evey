@@ -110,11 +110,14 @@ func buildHTTPHandler(gwMux http.Handler, deps *appDeps, cfg *config.Config, sta
 		WebDir:      cfg.Server.WebDir,
 		BioEnricher: deps.content.enricher,
 
+<<<<<<< HEAD
 		FeedCmdSvc:   deps.engagement.feedCmdSvc,
 		FeedQuerySvc: deps.engagement.feedQuerySvc,
 
 		DLNASvc: appdlna.New(cfg.EffectiveBaseURL()),
 
+=======
+>>>>>>> worktree-agent-a71afbdb
 		CfgStore: deps.cfgStore,
 		ServerCtx: ctx,
 
