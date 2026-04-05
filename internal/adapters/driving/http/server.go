@@ -183,7 +183,9 @@ type HTTPServer struct {
 // RegisterRoutes wires all HTTP routes onto mux.
 // gwMux is the grpc-gateway handler (may be nil if gateway failed).
 func (s *HTTPServer) RegisterRoutes(mux *http.ServeMux, gwMux http.Handler) {
-	mux.Handle("GET /metrics", eveymetrics.Handler())
+	mux.Handle("GET /metrics", requireAdmin(s.TokenGen, func(w http.ResponseWriter, r *http.Request) {
+		eveymetrics.Handler().ServeHTTP(w, r)
+	}))
 	mux.HandleFunc("/healthz", s.healthzHandler)
 
 	if s.Translator != nil {
