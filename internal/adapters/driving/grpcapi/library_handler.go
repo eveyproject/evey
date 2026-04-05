@@ -30,6 +30,7 @@ type libraryHandler struct {
 	libraryAccess user.LibraryAccessRepository
 	profiles      user.ProfileRepository
 	translator    *eveyi18n.Translator
+	scheduler     *applibrary.Scheduler
 }
 
 func (h *libraryHandler) CreateLibrary(ctx context.Context, req *eveyv1.CreateLibraryRequest) (*eveyv1.Library, error) {
@@ -461,6 +462,130 @@ func (h *libraryHandler) checkLibraryAccess(ctx context.Context, libraryID strin
 		return true, nil
 	}
 	return h.libraryAccess.HasAccess(ctx, claims.UserID, libraryID)
+}
+
+func (h *libraryHandler) GetLibrarySchedule(ctx context.Context, req *eveyv1.GetLibraryScheduleRequest) (*eveyv1.GetLibraryScheduleResponse, error) {
+	claims, err := requireClaims(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if !claims.IsAdmin {
+		return nil, status.Error(codes.PermissionDenied, "admin only")
+	}
+	if h.scheduler == nil {
+		return &eveyv1.GetLibraryScheduleResponse{}, nil
+	}
+	sched, err := h.scheduler.GetSchedule(ctx, req.Id)
+	if err != nil {
+		return &eveyv1.GetLibraryScheduleResponse{}, nil
+	}
+	return &eveyv1.GetLibraryScheduleResponse{
+		Schedule: scheduleToProto(sched),
+	}, nil
+}
+
+func (h *libraryHandler) SetLibrarySchedule(ctx context.Context, req *eveyv1.SetLibraryScheduleRequest) (*eveyv1.LibrarySchedule, error) {
+	claims, err := requireClaims(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if !claims.IsAdmin {
+		return nil, status.Error(codes.PermissionDenied, "admin only")
+	}
+	if h.scheduler == nil {
+		return nil, status.Error(codes.Unimplemented, "scheduler not available")
+	}
+	if req.Cron == "" {
+		return nil, status.Error(codes.InvalidArgument, "cron expression required")
+	}
+	sched, err := h.scheduler.SetSchedule(ctx, req.Id, req.Cron, req.Enabled)
+	if err != nil {
+		if strings.HasPrefix(err.Error(), "invalid cron") {
+			return nil, status.Errorf(codes.InvalidArgument, "invalid cron expression: %v", err)
+		}
+		return nil, status.Errorf(codes.Internal, "set schedule: %v", err)
+	}
+	return scheduleToProto(sched), nil
+}
+
+func (h *libraryHandler) DeleteLibrarySchedule(ctx context.Context, req *eveyv1.DeleteLibraryScheduleRequest) (*eveyv1.DeleteLibraryScheduleResponse, error) {
+	claims, err := requireClaims(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if !claims.IsAdmin {
+		return nil, status.Error(codes.PermissionDenied, "admin only")
+	}
+	if h.scheduler != nil {
+		if delErr := h.scheduler.DeleteSchedule(ctx, req.Id); delErr != nil {
+			slog.Warn("delete schedule", slog.Any("err", delErr))
+		}
+	}
+	return &eveyv1.DeleteLibraryScheduleResponse{}, nil
+}
+
+func (h *libraryHandler) FilterMediaItems(ctx context.Context, req *eveyv1.FilterMediaItemsRequest) (*eveyv1.FilterMediaItemsResponse, error) {
+	if _, err := requireClaims(ctx); err != nil {
+		return nil, err
+	}
+	filter := library.ListMediaItemsFilter{
+		SortField: mediaSortFieldFromProto[req.SortField],
+		SortOrder: sortOrderFromProto[req.SortOrder],
+		Limit:     int(req.Limit),
+		Offset:    int(req.Offset),
+		MinRating: float64(req.MinRating),
+		YearFrom:  int(req.YearFrom),
+		YearTo:    int(req.YearTo),
+	}
+	if req.LibraryId != "" {
+		if ok, accessErr := h.checkLibraryAccess(ctx, req.LibraryId); !ok {
+			if accessErr != nil {
+				slog.Warn("check library access", slog.Any("err", accessErr))
+			}
+			return &eveyv1.FilterMediaItemsResponse{}, nil
+		}
+		filter.LibraryID = &req.LibraryId
+	} else {
+		if ids, idErr := h.getAllowedLibraryIDs(ctx); idErr == nil && ids != nil {
+			filter.LibraryIDs = ids
+		}
+	}
+	if req.Type != eveyv1.MediaItemType_MEDIA_ITEM_TYPE_UNSPECIFIED {
+		t := mediaItemTypeFromProto[req.Type]
+		filter.Type = &t
+	}
+	if req.Genre != "" {
+		filter.Genres = []string{req.Genre}
+	}
+
+	total, err := h.query.CountMediaItems(ctx, filter)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "count: %v", err)
+	}
+	items, err := h.query.ListMediaItems(ctx, filter)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "list: %v", err)
+	}
+	resp := &eveyv1.FilterMediaItemsResponse{Total: int32(total)}
+	for _, item := range items {
+		resp.Items = append(resp.Items, mediaItemToProto(item))
+	}
+	return resp, nil
+}
+
+func scheduleToProto(s *library.ScanSchedule) *eveyv1.LibrarySchedule {
+	pb := &eveyv1.LibrarySchedule{
+		LibraryId: s.LibraryID,
+		Cron:      s.CronExpression,
+		Enabled:   s.Enabled,
+	}
+	if s.LastRunAt != nil {
+		pb.LastRunAt = toTimestamppbPtr(s.LastRunAt)
+	}
+	if s.NextRunAt != nil {
+		pb.NextRunAt = toTimestamppbPtr(s.NextRunAt)
+	}
+	return pb
 }
 
 func applyOverridesToItem(item *library.MediaItem, overrides []*domainmetadata.MetadataOverride) {

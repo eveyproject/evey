@@ -272,7 +272,7 @@ func (s *HTTPServer) RegisterRoutes(mux *http.ServeMux, gwMux http.Handler) {
 	registerTranscodeCacheRoutes(mux, s.TranscodingSvc, s.TokenGen, s.LibQuerySvc, s.ActivityCmdSvc, s.AdminWriteRL)
 	registerTranscodeProfileRoutes(mux, s.TranscodingSvc, s.TokenGen, s.ActivityCmdSvc, s.AdminWriteRL)
 	registerCollectionRoutes(mux, s.CollectionSvc, s.TokenGen)
-	registerScheduleRoutes(mux, s.Scheduler, s.TokenGen)
+	// Schedule routes migrated to gRPC (LibraryService.{Get,Set,Delete}LibrarySchedule)
 	registerLibraryAccessRoutes(mux, s.LibraryAccessRepo, s.LibQuerySvc, s.TokenGen, s.AdminWriteRL)
 	registerPlaylistRoutes(mux, s.PlaylistSvc, s.TokenGen)
 
@@ -302,9 +302,9 @@ func (s *HTTPServer) RegisterRoutes(mux *http.ServeMux, gwMux http.Handler) {
 	}
 	registerRatingRoutes(mux, s.UserRatingRepo, s.TokenGen, s.LibQuerySvc, s.LibraryAccessRepo)
 	registerStarRatingRoutes(mux, s.StarRatingSvc, s.TokenGen, s.LibQuerySvc, s.LibraryAccessRepo)
-	registerPopularRoute(mux, s.ActivityQuerySvc, s.LibQuerySvc, s.TokenGen, s.LibraryAccessRepo)
-	registerAnalyticsRoutes(mux, s.ActivityQuerySvc, s.TokenGen)
-	registerFilterRoutes(mux, s.LibQuerySvc, s.TokenGen, s.LibraryAccessRepo)
+	// Popular route migrated to gRPC (ActivityService.GetPopularMedia)
+	// Analytics routes migrated to gRPC (ActivityService.GetAnalytics)
+	// Filter routes migrated to gRPC (LibraryService.FilterMediaItems)
 	registerSystemStatsRoute(mux, s.StartTime, s.TokenGen)
 	registerServerConfigRoutes(mux, s.ServerCfgSvc, s.TokenGen, s.ActivityCmdSvc, s.AdminWriteRL)
 	registerLogsRoute(mux, s.LogDir, s.TokenGen)
