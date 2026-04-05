@@ -8,7 +8,7 @@ import (
 )
 
 func TestAdminAcquireReleaseHeavyOp(t *testing.T) {
-	d := &adminMediaDelegate{heavyOpSemaphore: make(chan struct{}, 1)}
+	d := &adminMediaHandler{heavyOpSemaphore: make(chan struct{}, 1)}
 
 	if !d.acquireHeavyOp() {
 		t.Error("first acquire should succeed")
@@ -24,7 +24,7 @@ func TestAdminAcquireReleaseHeavyOp(t *testing.T) {
 }
 
 func TestAdminAcquireHeavyOp_NilSemaphore(t *testing.T) {
-	d := &adminMediaDelegate{}
+	d := &adminMediaHandler{}
 	if !d.acquireHeavyOp() {
 		t.Error("nil semaphore should always succeed")
 	}
@@ -32,7 +32,7 @@ func TestAdminAcquireHeavyOp_NilSemaphore(t *testing.T) {
 }
 
 func TestAdminRefreshAllMetadata_NilService(t *testing.T) {
-	d := &adminMediaDelegate{}
+	d := &adminMediaHandler{}
 	_, err := d.RefreshAllMetadata(context.Background(), &eveyv1.RefreshAllMetadataRequest{})
 	if err == nil {
 		t.Error("expected error for nil metadataCmd")
@@ -40,7 +40,7 @@ func TestAdminRefreshAllMetadata_NilService(t *testing.T) {
 }
 
 func TestAdminGenerateAllTrickplays_NilService(t *testing.T) {
-	d := &adminMediaDelegate{}
+	d := &adminMediaHandler{}
 	_, err := d.GenerateAllTrickplays(context.Background(), &eveyv1.GenerateAllTrickplaysRequest{})
 	if err == nil {
 		t.Error("expected error for nil libCmd")
@@ -48,7 +48,7 @@ func TestAdminGenerateAllTrickplays_NilService(t *testing.T) {
 }
 
 func TestAdminDeleteMediaItem_NilService(t *testing.T) {
-	d := &adminMediaDelegate{}
+	d := &adminMediaHandler{}
 	_, err := d.DeleteMediaItem(context.Background(), &eveyv1.DeleteMediaItemRequest{Id: "m-1"})
 	if err == nil {
 		t.Error("expected error for nil libCmd")

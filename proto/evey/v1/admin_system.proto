@@ -1,0 +1,113 @@
+syntax = "proto3";
+
+package evey.v1;
+
+import "google/api/annotations.proto";
+import "evey/v1/transcoding.proto";
+
+option go_package = "github.com/gravity/evey/gen/evey/v1;eveyv1";
+
+service AdminSystemService {
+  rpc GetSystemInfo(GetSystemInfoRequest) returns (SystemInfo) {
+    option (google.api.http) = {
+      get: "/api/v1/admin/system"
+    };
+  }
+
+  rpc GetSetupStatus(GetSetupStatusRequest) returns (SetupStatusResponse) {
+    option (google.api.http) = {
+      get: "/api/v1/setup/status"
+    };
+  }
+
+  rpc GetServerConfig(GetServerConfigRequest) returns (ServerConfig) {
+    option (google.api.http) = {
+      get: "/api/v1/admin/config"
+    };
+  }
+
+  rpc UpdateServerConfig(UpdateServerConfigRequest) returns (ServerConfig) {
+    option (google.api.http) = {
+      put: "/api/v1/admin/config"
+      body: "*"
+    };
+  }
+
+  rpc SetupWizard(SetupWizardRequest) returns (SetupWizardResponse) {
+    option (google.api.http) = {
+      post: "/api/v1/admin/setup"
+      body: "*"
+    };
+  }
+
+  rpc GetDashboard(GetDashboardRequest) returns (DashboardInfo) {
+    option (google.api.http) = {
+      get: "/api/v1/admin/dashboard"
+    };
+  }
+}
+
+message SystemInfo {
+  string version = 1;
+  string os = 2;
+  string arch = 3;
+  string ffmpeg_version = 4;
+  repeated HWDevice hw_devices = 5;
+  int64 uptime_seconds = 6;
+  string go_version = 7;
+  string server_id = 8;
+  bool setup_complete = 9;
+  bool password_recovery_enabled = 10;
+  bool smtp_configured = 11;
+}
+
+message ServerConfig {
+  map<string, string> values = 1;
+}
+
+message SetupWizardRequest {
+  string admin_username = 1;
+  string admin_password = 2;
+  string admin_email = 3;
+  string server_name = 4;
+  string base_url = 5;
+}
+
+message SetupWizardResponse {
+  string access_token = 1;
+  string refresh_token = 2;
+  string server_id = 3;
+}
+
+message DashboardInfo {
+  int32 active_streams = 1;
+  int32 active_transcodes = 2;
+  double cpu_percent = 3;
+  double memory_percent = 4;
+  repeated StorageInfo storage = 5;
+  int32 total_media_items = 6;
+  int32 total_users = 7;
+}
+
+message StorageInfo {
+  string path = 1;
+  int64 total_bytes = 2;
+  int64 used_bytes = 3;
+  int64 free_bytes = 4;
+}
+
+message GetSystemInfoRequest {}
+
+message GetSetupStatusRequest {}
+
+message SetupStatusResponse {
+  bool setup_complete = 1;
+}
+
+message GetServerConfigRequest {}
+
+message UpdateServerConfigRequest {
+  map<string, string> values = 1;
+}
+
+message GetDashboardRequest {}

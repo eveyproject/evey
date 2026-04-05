@@ -1,29 +1,12 @@
 package grpcapi
 
 import (
-	"bufio"
 	"context"
-	"encoding/json"
-	"errors"
 	"fmt"
-	"log/slog"
-	"math"
-	"os"
-	"path/filepath"
-	"runtime"
 	"strconv"
-	"strings"
-	"time"
 
-	eveyv1 "github.com/gravity-zero/evey/gen/evey/v1"
-	appactivity "github.com/gravity-zero/evey/internal/app/activity"
-	applibrary "github.com/gravity-zero/evey/internal/app/library"
-	appmetadata "github.com/gravity-zero/evey/internal/app/metadata"
-	appplugin "github.com/gravity-zero/evey/internal/app/plugin"
-	apptranscoding "github.com/gravity-zero/evey/internal/app/transcoding"
-	appuser "github.com/gravity-zero/evey/internal/app/user"
-	"github.com/gravity-zero/evey/internal/domain/activity"
 	domainlibrary "github.com/gravity-zero/evey/internal/domain/library"
+<<<<<<< HEAD
 	domainplayback "github.com/gravity-zero/evey/internal/domain/playback"
 	"github.com/gravity-zero/evey/internal/domain/plugin"
 	eveyi18n "github.com/gravity-zero/evey/internal/pkg/i18n"
@@ -31,6 +14,8 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/timestamppb"
+=======
+>>>>>>> worktree-agent-a3eac80b
 )
 
 type adminLibraryLister interface {
@@ -46,6 +31,7 @@ type adminLibraryScanner interface {
 	ScanLibrary(ctx context.Context, libraryID string) (added, updated int, err error)
 }
 
+<<<<<<< HEAD
 type adminSessionProvider interface {
 	GetActiveSessions(ctx context.Context) ([]*domainplayback.ActiveSessionInfo, error)
 	StopStream(ctx context.Context, sessionID string) error
@@ -500,6 +486,8 @@ func (h *adminHandler) GetPluginLogs(_ context.Context, req *eveyv1.GetPluginLog
 	return &eveyv1.GetPluginLogsResponse{Entries: all, Total: total}, nil
 }
 
+=======
+>>>>>>> worktree-agent-a3eac80b
 func stringFromInterface(v any) string {
 	if v == nil {
 		return ""
@@ -522,61 +510,4 @@ func stringFromInterface(v any) string {
 	default:
 		return fmt.Sprintf("%v", val)
 	}
-}
-
-func (h *adminHandler) acquireHeavyOp() bool {
-	if h.heavyOpSemaphore == nil {
-		return true
-	}
-	select {
-	case h.heavyOpSemaphore <- struct{}{}:
-		return true
-	default:
-		return false
-	}
-}
-
-func (h *adminHandler) releaseHeavyOp() {
-	if h.heavyOpSemaphore != nil {
-		<-h.heavyOpSemaphore
-	}
-}
-
-func (h *adminHandler) RefreshAllMetadata(ctx context.Context, _ *eveyv1.RefreshAllMetadataRequest) (*eveyv1.RefreshAllMetadataResponse, error) {
-	if h.metadataCmd == nil {
-		return nil, h.translator.TranslatedError(ctx, codes.Unimplemented, "errors.admin.service_not_configured")
-	}
-	if !h.acquireHeavyOp() {
-		return nil, h.translator.TranslatedError(ctx, codes.ResourceExhausted, "errors.admin.heavy_op_running")
-	}
-	defer h.releaseHeavyOp()
-	if err := h.metadataCmd.AutoRefreshAllItems(ctx); err != nil {
-		return nil, status.Errorf(codes.Internal, "refresh all metadata: %v", err)
-	}
-	return &eveyv1.RefreshAllMetadataResponse{}, nil
-}
-
-func (h *adminHandler) GenerateAllTrickplays(ctx context.Context, _ *eveyv1.GenerateAllTrickplaysRequest) (*eveyv1.GenerateAllTrickplaysResponse, error) {
-	if h.libCmd == nil {
-		return nil, h.translator.TranslatedError(ctx, codes.Unimplemented, "errors.admin.service_not_configured")
-	}
-	if !h.acquireHeavyOp() {
-		return nil, h.translator.TranslatedError(ctx, codes.ResourceExhausted, "errors.admin.heavy_op_running")
-	}
-	defer h.releaseHeavyOp()
-	n, err := h.libCmd.GenerateAllMissingTrickplays(ctx)
-	if err != nil {
-		return nil, status.Errorf(codes.Internal, "generate all trickplays: %v", err)
-	}
-	return &eveyv1.GenerateAllTrickplaysResponse{Generated: int32(n)}, nil
-}
-
-func (h *adminHandler) DeleteMediaItem(ctx context.Context, req *eveyv1.DeleteMediaItemRequest) (*eveyv1.DeleteMediaItemResponse, error) {
-	if h.libCmd == nil {
-		return nil, h.translator.TranslatedError(ctx, codes.Unimplemented, "errors.admin.service_not_configured")
-	}
-	if err := h.libCmd.DeleteMediaItem(ctx, req.Id); err != nil {
-		return nil, status.Errorf(codes.Internal, "delete media item: %v", err)
-	}
-	return &eveyv1.DeleteMediaItemResponse{}, nil
 }

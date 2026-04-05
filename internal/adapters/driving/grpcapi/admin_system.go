@@ -18,7 +18,8 @@ import (
 	"google.golang.org/grpc/status"
 )
 
-type adminSystemDelegate struct {
+type adminSystemHandler struct {
+	eveyv1.UnimplementedAdminSystemServiceServer
 	userCmd        *appuser.CommandService
 	userQuery      *appuser.QueryService
 	transcodingSvc *apptranscoding.Service
@@ -32,7 +33,7 @@ type adminSystemDelegate struct {
 	smtpConfigured bool
 }
 
-func (d *adminSystemDelegate) GetSetupStatus(ctx context.Context, _ *eveyv1.GetSetupStatusRequest) (*eveyv1.SetupStatusResponse, error) {
+func (d *adminSystemHandler) GetSetupStatus(ctx context.Context, _ *eveyv1.GetSetupStatusRequest) (*eveyv1.SetupStatusResponse, error) {
 	admins, err := d.userQuery.CountAdmins(ctx)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "count admins: %v", err)
@@ -40,7 +41,7 @@ func (d *adminSystemDelegate) GetSetupStatus(ctx context.Context, _ *eveyv1.GetS
 	return &eveyv1.SetupStatusResponse{SetupComplete: admins > 0}, nil
 }
 
-func (d *adminSystemDelegate) GetSystemInfo(ctx context.Context, _ *eveyv1.GetSystemInfoRequest) (*eveyv1.SystemInfo, error) {
+func (d *adminSystemHandler) GetSystemInfo(ctx context.Context, _ *eveyv1.GetSystemInfoRequest) (*eveyv1.SystemInfo, error) {
 	admins, adminErr := d.userQuery.CountAdmins(ctx)
 	if adminErr != nil {
 		slog.Warn("count admins", slog.Any("err", adminErr))
@@ -77,15 +78,15 @@ func (d *adminSystemDelegate) GetSystemInfo(ctx context.Context, _ *eveyv1.GetSy
 	return info, nil
 }
 
-func (d *adminSystemDelegate) GetServerConfig(_ context.Context, _ *eveyv1.GetServerConfigRequest) (*eveyv1.ServerConfig, error) {
+func (d *adminSystemHandler) GetServerConfig(_ context.Context, _ *eveyv1.GetServerConfigRequest) (*eveyv1.ServerConfig, error) {
 	return &eveyv1.ServerConfig{Values: map[string]string{}}, nil
 }
 
-func (d *adminSystemDelegate) UpdateServerConfig(_ context.Context, req *eveyv1.UpdateServerConfigRequest) (*eveyv1.ServerConfig, error) {
+func (d *adminSystemHandler) UpdateServerConfig(_ context.Context, req *eveyv1.UpdateServerConfigRequest) (*eveyv1.ServerConfig, error) {
 	return &eveyv1.ServerConfig{Values: req.Values}, nil
 }
 
-func (d *adminSystemDelegate) SetupWizard(ctx context.Context, req *eveyv1.SetupWizardRequest) (*eveyv1.SetupWizardResponse, error) {
+func (d *adminSystemHandler) SetupWizard(ctx context.Context, req *eveyv1.SetupWizardRequest) (*eveyv1.SetupWizardResponse, error) {
 	u, err := d.userCmd.Setup(ctx, req.AdminUsername, req.AdminPassword, req.AdminEmail)
 	if err != nil {
 		if errors.Is(err, appuser.ErrSetupDone) {
@@ -104,7 +105,7 @@ func (d *adminSystemDelegate) SetupWizard(ctx context.Context, req *eveyv1.Setup
 	}, nil
 }
 
-func (d *adminSystemDelegate) GetDashboard(ctx context.Context, _ *eveyv1.GetDashboardRequest) (*eveyv1.DashboardInfo, error) {
+func (d *adminSystemHandler) GetDashboard(ctx context.Context, _ *eveyv1.GetDashboardRequest) (*eveyv1.DashboardInfo, error) {
 	stats, err := d.activitySvc.GetServerStats(ctx)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "get server stats: %v", err)

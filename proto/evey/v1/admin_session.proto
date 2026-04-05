@@ -1,0 +1,43 @@
+syntax = "proto3";
+
+package evey.v1;
+
+import "google/api/annotations.proto";
+import "google/protobuf/timestamp.proto";
+
+option go_package = "github.com/gravity/evey/gen/evey/v1;eveyv1";
+
+service AdminSessionService {
+  rpc GetAuditLog(GetAuditLogRequest) returns (GetAuditLogResponse) {
+    option (google.api.http) = {
+      get: "/api/v1/admin/audit-log"
+    };
+  }
+}
+
+message AuditLogEntry {
+  string id = 1;
+  string user_id = 2;
+  string username = 3;
+  string action = 4;
+  string resource_type = 5;
+  string resource_id = 6;
+  string details = 7;
+  string ip_address = 8;
+  google.protobuf.Timestamp created_at = 9;
+}
+
+message GetAuditLogRequest {
+  string user_id = 1;
+  string action = 2;
+  string resource_type = 3;
+  google.protobuf.Timestamp from = 4;
+  google.protobuf.Timestamp to = 5;
+  int32 limit = 6;
+  int32 offset = 7;
+}
+
+message GetAuditLogResponse {
+  repeated AuditLogEntry entries = 1;
+  int32 total = 2;
+}

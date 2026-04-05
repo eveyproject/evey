@@ -110,7 +110,7 @@ func TestAuthInterceptor_AdminOnly_NonAdmin(t *testing.T) {
 		return "ok", nil
 	}
 
-	info := &grpc.UnaryServerInfo{FullMethod: "/evey.v1.AdminService/GetAuditLog"}
+	info := &grpc.UnaryServerInfo{FullMethod: "/evey.v1.AdminSessionService/GetAuditLog"}
 	_, err := interceptor(ctxWithToken(token), nil, info, adminHandler)
 
 	require.Error(t, err)
@@ -136,7 +136,7 @@ func TestAuthInterceptor_AdminOnly_Admin(t *testing.T) {
 		return "ok", nil
 	}
 
-	info := &grpc.UnaryServerInfo{FullMethod: "/evey.v1.AdminService/GetAuditLog"}
+	info := &grpc.UnaryServerInfo{FullMethod: "/evey.v1.AdminSessionService/GetAuditLog"}
 	resp, err := interceptor(ctxWithToken(token), nil, info, adminHandler)
 
 	require.NoError(t, err)
@@ -260,7 +260,7 @@ func TestAuthInterceptor_CustomRBACConfig(t *testing.T) {
 		token, _ := tokenGen.GenerateAccessToken(user.Claims{
 			UserID: "u2", Username: "user", IsAdmin: false,
 		})
-		info := &grpc.UnaryServerInfo{FullMethod: "/evey.v1.AdminService/GetAuditLog"}
+		info := &grpc.UnaryServerInfo{FullMethod: "/evey.v1.AdminSessionService/GetAuditLog"}
 		_, err := unary(ctxWithToken(token), nil, info, nopHandler)
 		require.NoError(t, err)
 	})
@@ -342,7 +342,7 @@ func TestAuthInterceptor_Stream_AdminBlocked(t *testing.T) {
 	md := metadata.Pairs("authorization", "Bearer "+token)
 	ctx := metadata.NewIncomingContext(context.Background(), md)
 
-	info := &grpc.StreamServerInfo{FullMethod: "/evey.v1.AdminService/GetAuditLog"}
+	info := &grpc.StreamServerInfo{FullMethod: "/evey.v1.AdminSessionService/GetAuditLog"}
 	err := interceptor(nil, &fakeServerStream{ctx: ctx}, info, func(srv any, stream grpc.ServerStream) error {
 		return nil
 	})

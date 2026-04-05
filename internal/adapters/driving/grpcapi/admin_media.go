@@ -11,14 +11,15 @@ import (
 	"google.golang.org/grpc/status"
 )
 
-type adminMediaDelegate struct {
+type adminMediaHandler struct {
+	eveyv1.UnimplementedAdminMediaServiceServer
 	metadataCmd      *appmetadata.CommandService
 	libCmd           *applibrary.CommandService
 	heavyOpSemaphore chan struct{}
 	translator       *eveyi18n.Translator
 }
 
-func (d *adminMediaDelegate) acquireHeavyOp() bool {
+func (d *adminMediaHandler) acquireHeavyOp() bool {
 	if d.heavyOpSemaphore == nil {
 		return true
 	}
@@ -30,13 +31,13 @@ func (d *adminMediaDelegate) acquireHeavyOp() bool {
 	}
 }
 
-func (d *adminMediaDelegate) releaseHeavyOp() {
+func (d *adminMediaHandler) releaseHeavyOp() {
 	if d.heavyOpSemaphore != nil {
 		<-d.heavyOpSemaphore
 	}
 }
 
-func (d *adminMediaDelegate) RefreshAllMetadata(ctx context.Context, _ *eveyv1.RefreshAllMetadataRequest) (*eveyv1.RefreshAllMetadataResponse, error) {
+func (d *adminMediaHandler) RefreshAllMetadata(ctx context.Context, _ *eveyv1.RefreshAllMetadataRequest) (*eveyv1.RefreshAllMetadataResponse, error) {
 	if d.metadataCmd == nil {
 		return nil, d.translator.TranslatedError(ctx, codes.Unimplemented, "errors.admin.service_not_configured")
 	}
@@ -50,7 +51,7 @@ func (d *adminMediaDelegate) RefreshAllMetadata(ctx context.Context, _ *eveyv1.R
 	return &eveyv1.RefreshAllMetadataResponse{}, nil
 }
 
-func (d *adminMediaDelegate) GenerateAllTrickplays(ctx context.Context, _ *eveyv1.GenerateAllTrickplaysRequest) (*eveyv1.GenerateAllTrickplaysResponse, error) {
+func (d *adminMediaHandler) GenerateAllTrickplays(ctx context.Context, _ *eveyv1.GenerateAllTrickplaysRequest) (*eveyv1.GenerateAllTrickplaysResponse, error) {
 	if d.libCmd == nil {
 		return nil, d.translator.TranslatedError(ctx, codes.Unimplemented, "errors.admin.service_not_configured")
 	}
@@ -65,7 +66,7 @@ func (d *adminMediaDelegate) GenerateAllTrickplays(ctx context.Context, _ *eveyv
 	return &eveyv1.GenerateAllTrickplaysResponse{Generated: int32(n)}, nil
 }
 
-func (d *adminMediaDelegate) DeleteMediaItem(ctx context.Context, req *eveyv1.DeleteMediaItemRequest) (*eveyv1.DeleteMediaItemResponse, error) {
+func (d *adminMediaHandler) DeleteMediaItem(ctx context.Context, req *eveyv1.DeleteMediaItemRequest) (*eveyv1.DeleteMediaItemResponse, error) {
 	if d.libCmd == nil {
 		return nil, d.translator.TranslatedError(ctx, codes.Unimplemented, "errors.admin.service_not_configured")
 	}
