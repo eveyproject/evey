@@ -13,6 +13,7 @@ import { useLocalSearchParams, router } from "expo-router";
 import { useVideoPlayer, VideoView, isPictureInPictureSupported } from "expo-video";
 import { Ionicons } from "@expo/vector-icons";
 import * as ScreenOrientation from "expo-screen-orientation";
+import { getCastBaseUrl } from "../../../src/lib/server-config";
 import { useTranslation } from "react-i18next";
 import { useLibraryServiceGetMediaItem } from "@evey/api";
 import { useTheme } from "../../../src/providers/ThemeProvider";
@@ -189,14 +190,23 @@ export default function PlayerScreen() {
   const castLoadMedia = useCallback(async (client: any) => {
     if (!streamUrl || !media?.title) return;
     muteLocalPlayer();
-    console.log("[Cast] loadMedia URL:", streamUrl);
-    const isHls = streamUrl.includes("m3u8");
+    // Use cast base URL if configured (e.g. different network than server)
+    let castUrl = streamUrl;
+    try {
+      const castBase = await getCastBaseUrl();
+      if (castBase) {
+        const parsed = new URL(streamUrl);
+        castUrl = `${castBase}${parsed.pathname}${parsed.search}`;
+      }
+    } catch { /* use original */ }
+    console.log("[Cast] loadMedia URL:", castUrl);
+    const isHls = castUrl.includes("m3u8");
     try {
       await client.loadMedia({
         autoplay: true,
         mediaInfo: {
           contentId: mediaId,
-          contentUrl: streamUrl,
+          contentUrl: castUrl,
           contentType: isHls ? "application/x-mpegurl" : "video/mp4",
           streamType: "buffered",
           metadata: { type: "movie", title: media.title },
