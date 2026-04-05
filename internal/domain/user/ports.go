@@ -102,6 +102,15 @@ type Claims struct {
 	Permissions []string
 }
 
+func (c *Claims) HasPermission(perm string) bool {
+	for _, p := range c.Permissions {
+		if p == perm || p == "*" {
+			return true
+		}
+	}
+	return false
+}
+
 type TokenGenerator interface {
 	GenerateAccessToken(claims Claims) (string, error)
 	GenerateRefreshToken() (string, error)

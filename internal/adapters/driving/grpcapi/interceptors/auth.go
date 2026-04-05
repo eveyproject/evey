@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	authpkg "github.com/gravity-zero/evey/internal/pkg/auth"
 	"github.com/gravity-zero/evey/internal/domain/user"
 	eveyi18n "github.com/gravity-zero/evey/internal/pkg/i18n"
 	"google.golang.org/grpc"
@@ -81,16 +82,29 @@ func (i *AuthInterceptor) Stream() grpc.StreamServerInterceptor {
 }
 
 func (i *AuthInterceptor) enforceRBAC(ctx context.Context, method string) error {
-	role, exists := i.rbac.MethodRoles[method]
-	if !exists {
-		return nil
+	claims := ClaimsFromContext(ctx)
+	if claims == nil {
+		return i.translatedErr(ctx, codes.PermissionDenied, "errors.auth.admin_access_required")
 	}
-	if role == RoleAdmin {
-		claims := ClaimsFromContext(ctx)
-		if claims == nil || !claims.IsAdmin {
+
+	role, exists := i.rbac.MethodRoles[method]
+	if exists && role == RoleAdmin {
+		if !claims.IsAdmin {
 			return i.translatedErr(ctx, codes.PermissionDenied, "errors.auth.admin_access_required")
 		}
 	}
+
+	// Enforce API key permissions: if the claims carry a restricted permission
+	// set (from an API key), verify the method's required permission is granted.
+	if len(claims.Permissions) > 0 {
+		if requiredPerm, ok := authpkg.MethodPermissions[method]; ok {
+			if !claims.HasPermission(requiredPerm) {
+				slog.Warn("api key permission denied", slog.String("method", method), slog.String("required", requiredPerm))
+				return i.translatedErr(ctx, codes.PermissionDenied, "errors.auth.insufficient_permissions")
+			}
+		}
+	}
+
 	return nil
 }
 
