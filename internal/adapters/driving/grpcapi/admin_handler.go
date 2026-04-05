@@ -24,6 +24,7 @@ import (
 	appuser "github.com/gravity-zero/evey/internal/app/user"
 	"github.com/gravity-zero/evey/internal/domain/activity"
 	domainlibrary "github.com/gravity-zero/evey/internal/domain/library"
+	domainplayback "github.com/gravity-zero/evey/internal/domain/playback"
 	"github.com/gravity-zero/evey/internal/domain/plugin"
 	eveyi18n "github.com/gravity-zero/evey/internal/pkg/i18n"
 	"github.com/gravity-zero/evey/internal/pkg/sysinfo"
@@ -45,12 +46,19 @@ type adminLibraryScanner interface {
 	ScanLibrary(ctx context.Context, libraryID string) (added, updated int, err error)
 }
 
+type adminSessionProvider interface {
+	GetActiveSessions(ctx context.Context) ([]*domainplayback.ActiveSessionInfo, error)
+	StopStream(ctx context.Context, sessionID string) error
+}
+
 type adminHandler struct {
 	eveyv1.UnimplementedAdminServiceServer
 	userCmd          *appuser.CommandService
 	userQuery        *appuser.QueryService
+	userSvc          *appuser.UserService
 	transcodingSvc   *apptranscoding.Service
 	activitySvc      *appactivity.QueryService
+	activityCmd      *appactivity.CommandService
 	pluginInstaller  *appplugin.InstallerService
 	pluginRuntime    *appplugin.RuntimeService
 	pluginQuery      *appplugin.QueryService
@@ -68,6 +76,8 @@ type adminHandler struct {
 	translator       *eveyi18n.Translator
 	serverCtx        context.Context
 	smtpConfigured   bool
+	bioEnricher      appmetadata.PeopleBioEnricher
+	sessionProvider  adminSessionProvider
 }
 
 func (h *adminHandler) GetSetupStatus(ctx context.Context, _ *eveyv1.GetSetupStatusRequest) (*eveyv1.SetupStatusResponse, error) {

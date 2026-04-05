@@ -158,6 +158,43 @@ service AdminService {
       get: "/api/v1/admin/plugins/{plugin_id}/logs"
     };
   }
+
+  rpc GetSystemStats(GetSystemStatsRequest) returns (SystemStats) {
+    option (google.api.http) = {
+      get: "/api/v1/admin/system/stats"
+    };
+  }
+
+  rpc EnrichPeopleBios(EnrichPeopleBiosRequest) returns (EnrichPeopleBiosResponse) {
+    option (google.api.http) = {
+      post: "/api/v1/admin/metadata/enrich-people"
+    };
+  }
+
+  rpc GetActiveSessions(GetActiveSessionsRequest) returns (GetActiveSessionsResponse) {
+    option (google.api.http) = {
+      get: "/api/v1/admin/sessions/active"
+    };
+  }
+
+  rpc KillSession(KillSessionRequest) returns (KillSessionResponse) {
+    option (google.api.http) = {
+      delete: "/api/v1/admin/sessions/{session_id}"
+    };
+  }
+
+  rpc GetUserBitrateLimit(GetUserBitrateLimitRequest) returns (GetUserBitrateLimitResponse) {
+    option (google.api.http) = {
+      get: "/api/v1/admin/users/{user_id}/bitrate-limit"
+    };
+  }
+
+  rpc SetUserBitrateLimit(SetUserBitrateLimitRequest) returns (SetUserBitrateLimitResponse) {
+    option (google.api.http) = {
+      patch: "/api/v1/admin/users/{user_id}/bitrate-limit"
+      body: "*"
+    };
+  }
 }
 
 message SystemInfo {
@@ -419,4 +456,82 @@ message GetPluginLogsRequest {
 message GetPluginLogsResponse {
   repeated PluginLogEntry entries = 1;
   int32 total = 2;
+}
+
+// --- System stats ---
+
+message GetSystemStatsRequest {}
+
+message SystemStats {
+  int32 goroutines = 1;
+  uint64 mem_alloc_bytes = 2;
+  uint64 mem_sys_bytes = 3;
+  uint32 num_gc = 4;
+  int64 uptime_seconds = 5;
+  string go_version = 6;
+  string os = 7;
+  string arch = 8;
+  int32 num_cpu = 9;
+}
+
+// --- Enrich people bios ---
+
+message EnrichPeopleBiosRequest {}
+
+message EnrichPeopleBiosResponse {
+  string message = 1;
+}
+
+// --- Active sessions ---
+
+message GetActiveSessionsRequest {}
+
+message ActiveSession {
+  string session_id = 1;
+  string profile_name = 2;
+  string media_title = 3;
+  string media_type = 4;
+  string media_item_id = 5;
+  double progress = 6;
+  int64 duration_ms = 7;
+  int64 position_ms = 8;
+  google.protobuf.Timestamp started_at = 9;
+  string device_name = 10;
+  string device_type = 11;
+  string client_ip = 12;
+  string play_method = 13;
+  string video_codec = 14;
+  string audio_codec = 15;
+  string resolution = 16;
+  int64 bandwidth_bps = 17;
+  optional string transcode_info = 18;
+}
+
+message GetActiveSessionsResponse {
+  repeated ActiveSession sessions = 1;
+}
+
+message KillSessionRequest {
+  string session_id = 1;
+}
+
+message KillSessionResponse {}
+
+// --- User bitrate limit ---
+
+message GetUserBitrateLimitRequest {
+  string user_id = 1;
+}
+
+message GetUserBitrateLimitResponse {
+  int32 max_bitrate_kbps = 1;
+}
+
+message SetUserBitrateLimitRequest {
+  string user_id = 1;
+  int32 max_bitrate_kbps = 2;
+}
+
+message SetUserBitrateLimitResponse {
+  int32 max_bitrate_kbps = 1;
 }

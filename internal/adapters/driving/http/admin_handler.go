@@ -6,15 +6,10 @@ import (
 	"errors"
 	"log/slog"
 	"net/http"
-	goruntime "runtime"
-	"sync"
-	"time"
 
 	appactivity "github.com/gravity-zero/evey/internal/app/activity"
-	appconfig "github.com/gravity-zero/evey/internal/app/config"
 	appmetadata "github.com/gravity-zero/evey/internal/app/metadata"
 	apptranscoding "github.com/gravity-zero/evey/internal/app/transcoding"
-	appuser "github.com/gravity-zero/evey/internal/app/user"
 	"github.com/gravity-zero/evey/internal/domain/activity"
 	"github.com/gravity-zero/evey/internal/pkg/auth"
 	"github.com/gravity-zero/evey/internal/pkg/ratelimit"
@@ -26,20 +21,11 @@ type adminHandler struct {
 	metaCmd        *appmetadata.CommandService
 	metaQuery      *appmetadata.QueryService
 	heavyRL        *ratelimit.Limiter
-	userSvc        *appuser.UserService
-	userQuery      *appuser.QueryService
 	activityCmdSvc *appactivity.CommandService
 	logDir         string
-	startTime      time.Time
-	cfgSvc         *appconfig.Service
 	transcodeSvc   *apptranscoding.Service
 	mediaGetter    MediaItemGetter
-	bioEnricher    appmetadata.PeopleBioEnricher
 	serverCtx      context.Context
-
-	statsMu      sync.Mutex
-	cachedMS     goruntime.MemStats
-	cacheExpires time.Time
 }
 
 func (h *adminHandler) audit(r *http.Request, action, resourceType string, resourceID *string, details map[string]any) {
@@ -91,35 +77,16 @@ func (h *adminHandler) adminCheckWithQueryToken(r *http.Request) bool {
 
 // --- register functions ---
 
-func registerAdminRoutes(mux *http.ServeMux, metaCmd *appmetadata.CommandService, metaQuery *appmetadata.QueryService, tokenGen *auth.JWTGenerator, heavyRL, writeRL *ratelimit.Limiter, serverCtx context.Context, actCmdSvc *appactivity.CommandService, bioEnricher appmetadata.PeopleBioEnricher) {
-	h := &adminHandler{tokenGen: tokenGen, metaCmd: metaCmd, metaQuery: metaQuery, heavyRL: heavyRL, serverCtx: serverCtx, activityCmdSvc: actCmdSvc, bioEnricher: bioEnricher}
+func registerAdminRoutes(mux *http.ServeMux, metaCmd *appmetadata.CommandService, metaQuery *appmetadata.QueryService, tokenGen *auth.JWTGenerator, heavyRL, writeRL *ratelimit.Limiter, serverCtx context.Context, actCmdSvc *appactivity.CommandService) {
+	h := &adminHandler{tokenGen: tokenGen, metaCmd: metaCmd, metaQuery: metaQuery, heavyRL: heavyRL, serverCtx: serverCtx, activityCmdSvc: actCmdSvc}
 	mux.HandleFunc("/api/v1/admin/media/", h.handleMedia)
 	mux.HandleFunc("POST /api/v1/admin/metadata/refresh-all", ratelimit.MiddlewareFunc(writeRL, h.handleRefreshAll))
-	mux.HandleFunc("POST /api/v1/admin/metadata/enrich-people", ratelimit.MiddlewareFunc(heavyRL, h.handleEnrichPeople))
-}
-
-func registerUserAdminRoutes(mux *http.ServeMux, userSvc *appuser.UserService, userQuery *appuser.QueryService, tokenGen *auth.JWTGenerator, writeRL *ratelimit.Limiter, actCmdSvc *appactivity.CommandService) {
-	h := &adminHandler{tokenGen: tokenGen, userSvc: userSvc, userQuery: userQuery, activityCmdSvc: actCmdSvc}
-	mux.HandleFunc("GET /api/v1/admin/users/{id}/bitrate-limit", h.handleGetBitrateLimit)
-	mux.HandleFunc("PATCH /api/v1/admin/users/{id}/bitrate-limit", ratelimit.MiddlewareFunc(writeRL, h.handleSetBitrateLimit))
 }
 
 func registerLogsRoute(mux *http.ServeMux, logDir string, tokenGen *auth.JWTGenerator) {
 	h := &adminHandler{tokenGen: tokenGen, logDir: logDir}
 	mux.HandleFunc("GET /api/v1/admin/logs", h.handleGetLogs)
 	mux.HandleFunc("GET /api/v1/admin/logs/stream", h.handleStreamLogs)
-}
-
-func registerSystemStatsRoute(mux *http.ServeMux, startTime time.Time, tokenGen *auth.JWTGenerator) {
-	h := &adminHandler{tokenGen: tokenGen, startTime: startTime}
-	mux.HandleFunc("GET /api/v1/admin/system/stats", h.handleSystemStats)
-}
-
-func registerServerConfigRoutes(mux *http.ServeMux, cfgSvc *appconfig.Service, tokenGen *auth.JWTGenerator, actCmdSvc *appactivity.CommandService, writeRL *ratelimit.Limiter) {
-	h := &adminHandler{tokenGen: tokenGen, cfgSvc: cfgSvc, activityCmdSvc: actCmdSvc}
-	mux.HandleFunc("GET /api/v1/admin/server-config", h.handleListServerConfig)
-	mux.HandleFunc("PUT /api/v1/admin/server-config/{key}", ratelimit.MiddlewareFunc(writeRL, h.handleSetServerConfig))
-	mux.HandleFunc("DELETE /api/v1/admin/server-config/{key}", ratelimit.MiddlewareFunc(writeRL, h.handleDeleteServerConfig))
 }
 
 func registerTranscodeProfileRoutes(mux *http.ServeMux, transcodeSvc *apptranscoding.Service, tokenGen *auth.JWTGenerator, actCmdSvc *appactivity.CommandService, writeRL *ratelimit.Limiter) {

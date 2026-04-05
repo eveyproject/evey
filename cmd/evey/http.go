@@ -9,7 +9,6 @@ import (
 	"time"
 
 	httpapi "github.com/gravity-zero/evey/internal/adapters/driving/http"
-	appconfig "github.com/gravity-zero/evey/internal/app/config"
 	"github.com/gravity-zero/evey/internal/config"
 	"github.com/gravity-zero/evey/internal/domain/shared"
 	eveymetrics "github.com/gravity-zero/evey/internal/pkg/metrics"
@@ -59,11 +58,7 @@ func buildHTTPHandler(gwMux http.Handler, deps *appDeps, cfg *config.Config, sta
 		LibQuerySvc: deps.library.querySvc,
 		Scheduler:   deps.library.scheduler,
 
-		UserSvc:      deps.user.userSvc,
-		UserQuerySvc: deps.user.querySvc,
-		OIDCSvc:      deps.user.oidcSvc,
-
-		PlaybackSvc: deps.media.playbackSvc,
+		OIDCSvc: deps.user.oidcSvc,
 
 		TranscodingSvc: deps.media.transcodingSvc,
 		HLSManager:     deps.media.hlsManager,
@@ -97,7 +92,6 @@ func buildHTTPHandler(gwMux http.Handler, deps *appDeps, cfg *config.Config, sta
 		ImageConverter:    deps.imageConverter,
 		ArtworkRepo:       deps.repos.artworkRepo,
 		LibraryAccessRepo: deps.repos.libraryAccessRepo,
-		ServerCfgSvc:      appconfig.NewService(deps.repos.serverCfgRepo),
 		ServerCfgRepo:     deps.repos.serverCfgRepo,
 		ProfileRepo:       deps.repos.profileRepo,
 		UserRepo:          deps.repos.userRepo,
@@ -108,8 +102,6 @@ func buildHTTPHandler(gwMux http.Handler, deps *appDeps, cfg *config.Config, sta
 		DataDir:     "/data",
 		PluginDir:   "/data/plugins",
 		WebDir:      cfg.Server.WebDir,
-		BioEnricher: deps.content.enricher,
-
 		FeedCmdSvc:   deps.engagement.feedCmdSvc,
 		FeedQuerySvc: deps.engagement.feedQuerySvc,
 

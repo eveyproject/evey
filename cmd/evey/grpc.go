@@ -49,6 +49,9 @@ func buildGRPCServer(deps *appDeps, cfg *config.Config, rootLog *slog.Logger, lo
 	grpcSrv.SetServerCtx(serverCtx)
 	grpcSrv.SetServerConfigHandler(grpcapi.NewServerConfigHandler(deps.repos.serverCfgRepo))
 	grpcSrv.SetSMTPConfigured(cfg.SMTP.Host != "")
+	if deps.content.enricher != nil {
+		grpcSrv.SetBioEnricher(deps.content.enricher)
+	}
 	grpcSrv.RegisterServices()
 	return grpcSrv
 }

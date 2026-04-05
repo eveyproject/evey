@@ -62,7 +62,6 @@ func newAdminTestMux(t *testing.T) (mux *http.ServeMux, adminToken, userToken st
 		t.Fatal(err)
 	}
 	registerLogsRoute(mux, logDir, gen)
-	registerSystemStatsRoute(mux, time.Now(), gen)
 	return mux, adminToken, userToken
 }
 
@@ -136,42 +135,3 @@ func TestAdminLogsStream_NonAdmin_Forbidden(t *testing.T) {
 	}
 }
 
-// --- GET /api/v1/admin/system/stats ---
-
-func TestAdminSystemStats_NoAuth_Unauthorized(t *testing.T) {
-	mux, _, _ := newAdminTestMux(t)
-	req := httptest.NewRequest(http.MethodGet, "/api/v1/admin/system/stats", nil)
-	w := httptest.NewRecorder()
-	mux.ServeHTTP(w, req)
-	if w.Code != http.StatusUnauthorized {
-		t.Errorf("expected 401, got %d", w.Code)
-	}
-}
-
-func TestAdminSystemStats_NonAdmin_Forbidden(t *testing.T) {
-	mux, _, userToken := newAdminTestMux(t)
-	req := httptest.NewRequest(http.MethodGet, "/api/v1/admin/system/stats", nil)
-	req.Header.Set("Authorization", "Bearer "+userToken)
-	w := httptest.NewRecorder()
-	mux.ServeHTTP(w, req)
-	if w.Code != http.StatusForbidden {
-		t.Errorf("expected 403, got %d", w.Code)
-	}
-}
-
-func TestAdminSystemStats_Admin_OK(t *testing.T) {
-	mux, adminToken, _ := newAdminTestMux(t)
-	req := httptest.NewRequest(http.MethodGet, "/api/v1/admin/system/stats", nil)
-	req.Header.Set("Authorization", "Bearer "+adminToken)
-	w := httptest.NewRecorder()
-	mux.ServeHTTP(w, req)
-	if w.Code != http.StatusOK {
-		t.Errorf("expected 200, got %d", w.Code)
-	}
-	body := w.Body.String()
-	for _, key := range []string{"goroutines", "memAllocBytes", "uptimeSeconds", "goVersion"} {
-		if !strings.Contains(body, key) {
-			t.Errorf("expected %q in response body", key)
-		}
-	}
-}

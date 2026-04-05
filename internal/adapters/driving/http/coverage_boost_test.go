@@ -14,14 +14,12 @@ import (
 	"time"
 
 	appcollection "github.com/gravity-zero/evey/internal/app/collection"
-	appconfig "github.com/gravity-zero/evey/internal/app/config"
 	appmetadata "github.com/gravity-zero/evey/internal/app/metadata"
 	appmusic "github.com/gravity-zero/evey/internal/app/music"
 	appplaylist "github.com/gravity-zero/evey/internal/app/playlist"
 	apprating "github.com/gravity-zero/evey/internal/app/rating"
 	appsyncplay "github.com/gravity-zero/evey/internal/app/syncplay"
 	apptranscoding "github.com/gravity-zero/evey/internal/app/transcoding"
-	appuser "github.com/gravity-zero/evey/internal/app/user"
 	"github.com/gravity-zero/evey/internal/config"
 	libfakes "github.com/gravity-zero/evey/internal/domain/library/fakes"
 	domainlibrary "github.com/gravity-zero/evey/internal/domain/library"
@@ -669,114 +667,8 @@ func TestDownloadHandler_EmptyFilePath_404(t *testing.T) {
 }
 
 // =====================================
-// admin_handler.go — requireAdminWithResponse, server config, transcode cache, user admin, media, refresh-all
+// admin_handler.go — requireAdminWithResponse, transcode cache, media, refresh-all
 // =====================================
-
-func newServerConfigMux(t *testing.T) (*http.ServeMux, string, string) {
-	t.Helper()
-	gen, adminTok, userTok := genTokens(t)
-	cfgRepo := sharedfakes.NewFakeServerConfigRepository()
-	cfgSvc := appconfig.NewService(cfgRepo)
-	mux := http.NewServeMux()
-	registerServerConfigRoutes(mux, cfgSvc, gen, nil, ratelimit.New(100))
-	return mux, adminTok, userTok
-}
-
-func TestServerConfig_List_NoAuth_401(t *testing.T) {
-	mux, _, _ := newServerConfigMux(t)
-	req := httptest.NewRequest(http.MethodGet, "/api/v1/admin/server-config", nil)
-	w := httptest.NewRecorder()
-	mux.ServeHTTP(w, req)
-	if w.Code != http.StatusUnauthorized {
-		t.Errorf("expected 401, got %d", w.Code)
-	}
-}
-
-func TestServerConfig_List_NonAdmin_403(t *testing.T) {
-	mux, _, userTok := newServerConfigMux(t)
-	req := httptest.NewRequest(http.MethodGet, "/api/v1/admin/server-config", nil)
-	req.Header.Set("Authorization", "Bearer "+userTok)
-	w := httptest.NewRecorder()
-	mux.ServeHTTP(w, req)
-	if w.Code != http.StatusForbidden {
-		t.Errorf("expected 403, got %d", w.Code)
-	}
-}
-
-func TestServerConfig_List_Admin_200(t *testing.T) {
-	mux, adminTok, _ := newServerConfigMux(t)
-	req := httptest.NewRequest(http.MethodGet, "/api/v1/admin/server-config", nil)
-	req.Header.Set("Authorization", "Bearer "+adminTok)
-	w := httptest.NewRecorder()
-	mux.ServeHTTP(w, req)
-	if w.Code != http.StatusOK {
-		t.Errorf("expected 200, got %d", w.Code)
-	}
-}
-
-func TestServerConfig_Set_Admin_204(t *testing.T) {
-	mux, adminTok, _ := newServerConfigMux(t)
-	body := `{"value":"test-val"}`
-	req := httptest.NewRequest(http.MethodPut, "/api/v1/admin/server-config/test-key", strings.NewReader(body))
-	req.Header.Set("Authorization", "Bearer "+adminTok)
-	w := httptest.NewRecorder()
-	mux.ServeHTTP(w, req)
-	if w.Code != http.StatusNoContent {
-		t.Errorf("expected 204, got %d", w.Code)
-	}
-}
-
-func TestServerConfig_Set_NonAdmin_403(t *testing.T) {
-	mux, _, userTok := newServerConfigMux(t)
-	body := `{"value":"test-val"}`
-	req := httptest.NewRequest(http.MethodPut, "/api/v1/admin/server-config/test-key", strings.NewReader(body))
-	req.Header.Set("Authorization", "Bearer "+userTok)
-	w := httptest.NewRecorder()
-	mux.ServeHTTP(w, req)
-	if w.Code != http.StatusForbidden {
-		t.Errorf("expected 403, got %d", w.Code)
-	}
-}
-
-func TestServerConfig_Set_BadBody_400(t *testing.T) {
-	mux, adminTok, _ := newServerConfigMux(t)
-	req := httptest.NewRequest(http.MethodPut, "/api/v1/admin/server-config/k", strings.NewReader("not-json"))
-	req.Header.Set("Authorization", "Bearer "+adminTok)
-	w := httptest.NewRecorder()
-	mux.ServeHTTP(w, req)
-	if w.Code != http.StatusBadRequest {
-		t.Errorf("expected 400, got %d", w.Code)
-	}
-}
-
-func TestServerConfig_Delete_Admin_204(t *testing.T) {
-	mux, adminTok, _ := newServerConfigMux(t)
-	// Set first
-	setReq := httptest.NewRequest(http.MethodPut, "/api/v1/admin/server-config/del-key", strings.NewReader(`{"value":"v"}`))
-	setReq.Header.Set("Authorization", "Bearer "+adminTok)
-	setW := httptest.NewRecorder()
-	mux.ServeHTTP(setW, setReq)
-
-	req := httptest.NewRequest(http.MethodDelete, "/api/v1/admin/server-config/del-key", nil)
-	req.Header.Set("Authorization", "Bearer "+adminTok)
-	w := httptest.NewRecorder()
-	mux.ServeHTTP(w, req)
-	if w.Code != http.StatusNoContent {
-		t.Errorf("expected 204, got %d", w.Code)
-	}
-}
-
-func TestServerConfig_Delete_NonExistent_204or404(t *testing.T) {
-	mux, adminTok, _ := newServerConfigMux(t)
-	req := httptest.NewRequest(http.MethodDelete, "/api/v1/admin/server-config/missing", nil)
-	req.Header.Set("Authorization", "Bearer "+adminTok)
-	w := httptest.NewRecorder()
-	mux.ServeHTTP(w, req)
-	// fake repo may return error (404) or succeed (204)
-	if w.Code != http.StatusNotFound && w.Code != http.StatusNoContent {
-		t.Errorf("expected 404 or 204, got %d", w.Code)
-	}
-}
 
 // --- transcode cache ---
 
@@ -2298,93 +2190,6 @@ func TestLibraryStatsHandler_QueryToken(t *testing.T) {
 }
 
 // =====================================
-// admin_handler.go — user admin routes (bitrate), media routes, refresh-all
-// =====================================
-
-func newUserAdminMux(t *testing.T) (*http.ServeMux, string, string) {
-	t.Helper()
-	gen, adminTok, userTok := genTokens(t)
-	userRepo := userfakes.NewFakeUserRepository()
-	profileRepo := userfakes.NewFakeProfileRepository()
-	refreshRepo := userfakes.NewFakeRefreshTokenRepository()
-	hasher := userfakes.NewFakePasswordHasher()
-	apiKeyRepo := userfakes.NewFakeAPIKeyRepository()
-	inviteRepo := userfakes.NewFakeInviteLinkRepository()
-	qcRepo := userfakes.NewFakeQuickConnectRepository()
-
-	userSvc := appuser.NewUserService(userRepo, profileRepo, refreshRepo, hasher, nil)
-	userQuery := appuser.NewQueryService(userRepo, profileRepo, apiKeyRepo, inviteRepo, qcRepo)
-
-	mux := http.NewServeMux()
-	registerUserAdminRoutes(mux, userSvc, userQuery, gen, ratelimit.New(100), nil)
-	return mux, adminTok, userTok
-}
-
-func TestGetBitrateLimit_NoAuth_403(t *testing.T) {
-	mux, _, _ := newUserAdminMux(t)
-	req := httptest.NewRequest(http.MethodGet, "/api/v1/admin/users/u1/bitrate-limit", nil)
-	w := httptest.NewRecorder()
-	mux.ServeHTTP(w, req)
-	if w.Code != http.StatusForbidden {
-		t.Errorf("expected 403, got %d", w.Code)
-	}
-}
-
-func TestGetBitrateLimit_NonAdmin_403(t *testing.T) {
-	mux, _, userTok := newUserAdminMux(t)
-	req := httptest.NewRequest(http.MethodGet, "/api/v1/admin/users/u1/bitrate-limit", nil)
-	req.Header.Set("Authorization", "Bearer "+userTok)
-	w := httptest.NewRecorder()
-	mux.ServeHTTP(w, req)
-	if w.Code != http.StatusForbidden {
-		t.Errorf("expected 403, got %d", w.Code)
-	}
-}
-
-func TestSetBitrateLimit_NoAuth_403(t *testing.T) {
-	mux, _, _ := newUserAdminMux(t)
-	req := httptest.NewRequest(http.MethodPatch, "/api/v1/admin/users/u1/bitrate-limit", strings.NewReader(`{"max_bitrate_kbps":5000}`))
-	w := httptest.NewRecorder()
-	mux.ServeHTTP(w, req)
-	if w.Code != http.StatusForbidden {
-		t.Errorf("expected 403, got %d", w.Code)
-	}
-}
-
-func TestSetBitrateLimit_NonAdmin_403(t *testing.T) {
-	mux, _, userTok := newUserAdminMux(t)
-	req := httptest.NewRequest(http.MethodPatch, "/api/v1/admin/users/u1/bitrate-limit", strings.NewReader(`{"max_bitrate_kbps":5000}`))
-	req.Header.Set("Authorization", "Bearer "+userTok)
-	w := httptest.NewRecorder()
-	mux.ServeHTTP(w, req)
-	if w.Code != http.StatusForbidden {
-		t.Errorf("expected 403, got %d", w.Code)
-	}
-}
-
-func TestSetBitrateLimit_BadBody_400(t *testing.T) {
-	mux, adminTok, _ := newUserAdminMux(t)
-	req := httptest.NewRequest(http.MethodPatch, "/api/v1/admin/users/u1/bitrate-limit", strings.NewReader("bad"))
-	req.Header.Set("Authorization", "Bearer "+adminTok)
-	w := httptest.NewRecorder()
-	mux.ServeHTTP(w, req)
-	if w.Code != http.StatusBadRequest {
-		t.Errorf("expected 400, got %d", w.Code)
-	}
-}
-
-func TestSetBitrateLimit_NegativeValue_400(t *testing.T) {
-	mux, adminTok, _ := newUserAdminMux(t)
-	req := httptest.NewRequest(http.MethodPatch, "/api/v1/admin/users/u1/bitrate-limit", strings.NewReader(`{"max_bitrate_kbps":-1}`))
-	req.Header.Set("Authorization", "Bearer "+adminTok)
-	w := httptest.NewRecorder()
-	mux.ServeHTTP(w, req)
-	if w.Code != http.StatusBadRequest {
-		t.Errorf("expected 400, got %d", w.Code)
-	}
-}
-
-// =====================================
 // helpers.go — exported middleware functions, tokenRedactMiddleware, securityHeaders
 // =====================================
 
@@ -2607,7 +2412,7 @@ func newAdminMediaMux(t *testing.T) (*http.ServeMux, string, string) {
 	rl := ratelimit.New(100)
 	writeRL := ratelimit.New(100)
 	mux := http.NewServeMux()
-	registerAdminRoutes(mux, metaCmd, metaQuery, gen, rl, writeRL, context.Background(), nil, nil)
+	registerAdminRoutes(mux, metaCmd, metaQuery, gen, rl, writeRL, context.Background(), nil)
 	return mux, adminTok, userTok
 }
 

@@ -18,6 +18,7 @@ import (
 	appmkv "github.com/gravity-zero/evey/internal/app/mkv"
 	appnotification "github.com/gravity-zero/evey/internal/app/notification"
 	appplayback "github.com/gravity-zero/evey/internal/app/playback"
+	domainplayback "github.com/gravity-zero/evey/internal/domain/playback"
 	appplaylist "github.com/gravity-zero/evey/internal/app/playlist"
 	appplugin "github.com/gravity-zero/evey/internal/app/plugin"
 	apptranscoding "github.com/gravity-zero/evey/internal/app/transcoding"
@@ -28,6 +29,19 @@ import (
 	eveyi18n "github.com/gravity-zero/evey/internal/pkg/i18n"
 	"google.golang.org/grpc"
 )
+
+type playbackSessionAdapter struct {
+	cmd   *appplayback.CommandService
+	query *appplayback.QueryService
+}
+
+func (a *playbackSessionAdapter) GetActiveSessions(ctx context.Context) ([]*domainplayback.ActiveSessionInfo, error) {
+	return a.query.GetActiveSessions(ctx)
+}
+
+func (a *playbackSessionAdapter) StopStream(ctx context.Context, sessionID string) error {
+	return a.cmd.StopStream(ctx, sessionID)
+}
 
 type GRPCServer struct {
 	server        *grpc.Server
@@ -72,6 +86,7 @@ type GRPCServer struct {
 	translator      *eveyi18n.Translator
 	serverCtx       context.Context
 	smtpConfigured  bool
+	bioEnricher     appmetadata.PeopleBioEnricher
 }
 
 func (s *GRPCServer) SetServerConfigHandler(h *serverConfigHandler) {
@@ -103,6 +118,10 @@ func (s *GRPCServer) SetTranslator(t *eveyi18n.Translator) {
 
 func (s *GRPCServer) SetSMTPConfigured(v bool) {
 	s.smtpConfigured = v
+}
+
+func (s *GRPCServer) SetBioEnricher(e appmetadata.PeopleBioEnricher) {
+	s.bioEnricher = e
 }
 
 func NewGRPCServer(
@@ -190,11 +209,17 @@ func (s *GRPCServer) RegisterServices() {
 	if srvCtx == nil {
 		srvCtx = context.Background()
 	}
+	var sessProvider adminSessionProvider
+	if s.playbackCmd != nil && s.playbackQuery != nil {
+		sessProvider = &playbackSessionAdapter{cmd: s.playbackCmd, query: s.playbackQuery}
+	}
 	eveyv1.RegisterAdminServiceServer(s.server, &adminHandler{
 		userCmd:          s.userAuth,
 		userQuery:        s.userQuery,
+		userSvc:          s.userSvc,
 		transcodingSvc:   s.transcoding,
 		activitySvc:      s.activityQuery,
+		activityCmd:      s.activityCmd,
 		pluginInstaller:  s.pluginInstaller,
 		pluginRuntime:    s.pluginRuntime,
 		pluginQuery:      s.pluginQuery,
@@ -212,6 +237,8 @@ func (s *GRPCServer) RegisterServices() {
 		translator:       s.translator,
 		serverCtx:        srvCtx,
 		smtpConfigured:   s.smtpConfigured,
+		bioEnricher:      s.bioEnricher,
+		sessionProvider:  sessProvider,
 	})
 	eveyv1.RegisterActivityServiceServer(s.server, &activityHandler{svc: s.activityQuery, translator: s.translator})
 	eveyv1.RegisterNotificationServiceServer(s.server, &notificationHandler{cmd: s.notifCmd, query: s.notifQuery})
