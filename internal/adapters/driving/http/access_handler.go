@@ -122,6 +122,7 @@ func registerRemoteAccessRoutes(mux *http.ServeMux, cfg *config.Config, tokenGen
 		if err := json.NewEncoder(w).Encode(map[string]any{
 			"enabled":              cfg.RemoteAccess.Enabled,
 			"externalUrl":          cfg.RemoteAccess.ExternalURL,
+			"serverBaseUrl":        cfg.Server.BaseURL,
 			"lanNetworks":          cfg.RemoteAccess.LANNetworks,
 			"maxRemoteBitrateKbps": cfg.RemoteAccess.MaxRemoteBitrateKbps,
 		}); err != nil {

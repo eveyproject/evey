@@ -17,6 +17,7 @@ export const Route = createLazyFileRoute("/_auth/admin/remote-access")({
 interface RemoteAccessConfig {
   enabled: boolean;
   externalUrl: string;
+  serverBaseUrl: string;
   lanNetworks: string[];
   maxRemoteBitrateKbps: number;
 }
@@ -137,13 +138,18 @@ function RemoteAccessPage() {
 
               <Input
                 label={t("admin.remoteAccess.externalUrl")}
-                placeholder="https://evey.example.com"
+                placeholder={data?.serverBaseUrl || "https://evey.example.com"}
                 value={externalUrl}
                 onChange={(e) => {
                   setExternalUrl(e.target.value);
                   setDirty(true);
                 }}
               />
+              {!externalUrl && data?.serverBaseUrl && (
+                <p className="text-xs text-[var(--text-muted)] -mt-2">
+                  {t("admin.remoteAccess.usingDefault", "Using default:")} {data.serverBaseUrl}
+                </p>
+              )}
 
               <Input
                 label={t("admin.remoteAccess.lanNetworks")}
