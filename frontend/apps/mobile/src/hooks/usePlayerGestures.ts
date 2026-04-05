@@ -3,8 +3,8 @@ import { PanResponder, Dimensions } from "react-native";
 import type { GestureResponderEvent, PanResponderGestureState } from "react-native";
 
 const DOUBLE_TAP_DELAY = 300;
-const SWIPE_THRESHOLD = 20;
-const SWIPE_SENSITIVITY = 0.005;
+const SWIPE_THRESHOLD = 15;
+const SENSITIVITY = 0.004;
 const LEFT_ZONE = 0.35;
 const RIGHT_ZONE = 0.65;
 
@@ -12,8 +12,10 @@ interface UsePlayerGesturesArgs {
   onSeekBy: (seconds: number) => void;
   onTogglePlayPause: () => void;
   onToggleControls: () => void;
-  onVolumeChange: (delta: number) => void;
-  onBrightnessChange: (delta: number) => void;
+  onVolumeChange: (absoluteValue: number) => void;
+  onBrightnessChange: (absoluteValue: number) => void;
+  getVolume: () => number;
+  getBrightness: () => number;
 }
 
 export interface GestureOverlayState {
@@ -28,6 +30,8 @@ export function usePlayerGestures({
   onToggleControls,
   onVolumeChange,
   onBrightnessChange,
+  getVolume,
+  getBrightness,
 }: UsePlayerGesturesArgs) {
   const [seekFlash, setSeekFlash] = useState<"left" | "right" | null>(null);
   const [volumeIndicator, setVolumeIndicator] = useState<number | null>(null);
@@ -36,8 +40,8 @@ export function usePlayerGestures({
   const lastTapRef = useRef<{ x: number; time: number } | null>(null);
   const singleTapTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const swipeActiveRef = useRef<"volume" | "brightness" | null>(null);
-  const swipeStartYRef = useRef(0);
-  const cumulativeDeltaRef = useRef(0);
+  const swipeStartVolumeRef = useRef(1);
+  const swipeStartBrightnessRef = useRef(1);
 
   const flashSeek = useCallback((side: "left" | "right") => {
     setSeekFlash(side);
@@ -52,10 +56,10 @@ export function usePlayerGestures({
         onMoveShouldSetPanResponder: (_, gs) =>
           Math.abs(gs.dy) > SWIPE_THRESHOLD && Math.abs(gs.dy) > Math.abs(gs.dx),
 
-        onPanResponderGrant: (evt: GestureResponderEvent) => {
+        onPanResponderGrant: () => {
           swipeActiveRef.current = null;
-          swipeStartYRef.current = evt.nativeEvent.pageY;
-          cumulativeDeltaRef.current = 0;
+          swipeStartVolumeRef.current = getVolume();
+          swipeStartBrightnessRef.current = getBrightness();
         },
 
         onPanResponderMove: (evt: GestureResponderEvent, gs: PanResponderGestureState) => {
@@ -65,24 +69,24 @@ export function usePlayerGestures({
           if (!swipeActiveRef.current) {
             if (Math.abs(gs.dy) < SWIPE_THRESHOLD) return;
             if (Math.abs(gs.dx) > Math.abs(gs.dy)) return;
-            if (relX > 0.5) {
+            if (relX > 0.6) {
               swipeActiveRef.current = "volume";
-            } else {
+            } else if (relX < 0.4) {
               swipeActiveRef.current = "brightness";
             }
             return;
           }
 
-          const dy = -gs.dy;
-          cumulativeDeltaRef.current += dy * SWIPE_SENSITIVITY;
-          const clampedDelta = Math.max(-1, Math.min(1, cumulativeDeltaRef.current));
+          const dy = -gs.dy; // positive = swipe up
 
           if (swipeActiveRef.current === "volume") {
-            onVolumeChange(clampedDelta);
-            setVolumeIndicator(clampedDelta);
+            const newVol = Math.max(0, Math.min(1, swipeStartVolumeRef.current + dy * SENSITIVITY));
+            onVolumeChange(newVol);
+            setVolumeIndicator(newVol);
           } else if (swipeActiveRef.current === "brightness") {
-            onBrightnessChange(clampedDelta);
-            setBrightnessIndicator(clampedDelta);
+            const newBri = Math.max(0, Math.min(1, swipeStartBrightnessRef.current + dy * SENSITIVITY));
+            onBrightnessChange(newBri);
+            setBrightnessIndicator(newBri);
           }
         },
 
@@ -105,7 +109,6 @@ export function usePlayerGestures({
           const last = lastTapRef.current;
 
           if (last && now - last.time < DOUBLE_TAP_DELAY) {
-            // Double tap
             if (singleTapTimer.current) {
               clearTimeout(singleTapTimer.current);
               singleTapTimer.current = null;
@@ -131,7 +134,7 @@ export function usePlayerGestures({
           }
         },
       }),
-    [onSeekBy, onTogglePlayPause, onToggleControls, onVolumeChange, flashSeek],
+    [onSeekBy, onTogglePlayPause, onToggleControls, onVolumeChange, onBrightnessChange, getVolume, getBrightness, flashSeek],
   );
 
   const cleanup = useCallback(() => {

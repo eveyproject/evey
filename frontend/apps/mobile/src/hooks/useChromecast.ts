@@ -1,10 +1,18 @@
 let gc: any = null;
-try { gc = require("react-native-google-cast"); } catch { /* not installed */ }
+let nativeAvailable = false;
+try {
+  gc = require("react-native-google-cast");
+  // Verify native module is actually linked (not just JS stub)
+  const ctx = gc?.default ?? gc?.CastContext;
+  ctx?.getCastState?.();
+  nativeAvailable = true;
+} catch { /* not installed or native module missing */ }
 
-export const CastContext = gc?.default ?? gc?.CastContext ?? null;
-export const CastButtonNative = gc?.CastButton ?? null;
-export const useCastStateHook = gc?.useCastState ?? (() => null);
-export const useRemoteMediaClientHook = gc?.useRemoteMediaClient ?? (() => null);
-export const useMediaStatusHook = gc?.useMediaStatus ?? (() => null);
-export const MediaStreamType = gc?.MediaStreamType ?? { BUFFERED: "buffered" };
-export const CastStateEnum = gc?.CastState ?? { CONNECTED: "connected" };
+const safe = nativeAvailable ? gc : null;
+export const CastContext = safe?.default ?? safe?.CastContext ?? null;
+export const CastButtonNative = safe?.CastButton ?? null;
+export const useCastStateHook = safe?.useCastState ?? (() => null);
+export const useRemoteMediaClientHook = safe?.useRemoteMediaClient ?? (() => null);
+export const useMediaStatusHook = safe?.useMediaStatus ?? (() => null);
+export const MediaStreamType = safe?.MediaStreamType ?? { BUFFERED: "buffered" };
+export const CastStateEnum = safe?.CastState ?? { CONNECTED: "connected" };

@@ -18,6 +18,8 @@ function setup() {
     onToggleControls: vi.fn(),
     onVolumeChange: vi.fn(),
     onBrightnessChange: vi.fn(),
+    getVolume: vi.fn(() => 0.5),
+    getBrightness: vi.fn(() => 0.5),
   };
   const { result } = renderHook(() => usePlayerGestures(cbs));
   const config = (result.current.panResponder as any)._config;

@@ -45,7 +45,7 @@ function parseVTT(text: string): TrickplayCue[] {
   return cues;
 }
 
-const SCALE = 2;
+const SCALE = 1;
 const cueCache = new Map<string, TrickplayCue[]>();
 
 interface Props {

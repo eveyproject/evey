@@ -58,7 +58,7 @@ export default function PlayerScreen() {
   const mediaId = id ?? "";
 
   const { data: media } = useLibraryServiceGetMediaItem(mediaId);
-  const { streamUrl, sessionId, streamInfo, isLoading, isError, stopSession, restartWithTracks, progress } =
+  const { streamUrl, sessionId, streamInfo, isLoading, isError, stopSession, restartWithTracks, restartAtPosition, transcodeOffset, progress } =
     usePlaySession(mediaId);
 
   const { data: chapters = [] } = useChapters(mediaId);
@@ -120,6 +120,7 @@ export default function PlayerScreen() {
   const [duration, setDuration] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
   const [volume, setVolume] = useState(1);
+  const [seekTouchX, setSeekTouchX] = useState<number | null>(null);
   const volumeBaseRef = useRef(1);
   const hideTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -150,7 +151,7 @@ export default function PlayerScreen() {
     if (!player) return;
     const timeSub = player.addListener("timeUpdate", (ev) => {
       if (!mountedRef.current) return;
-      setCurrentTime(ev.currentTime);
+      setCurrentTime(ev.currentTime + transcodeOffset);
       try { setDuration(player.duration); } catch { /* released */ }
     });
     const statusSub = player.addListener("statusChange", () => {
@@ -289,14 +290,31 @@ export default function PlayerScreen() {
   const knownDuration = media?.durationMs ? Number(media.durationMs) / 1000 : 0;
   const effectiveDuration = knownDuration > 0 ? knownDuration : duration;
 
+  const isTranscode = streamInfo?.playMethod === "PLAY_METHOD_TRANSCODE";
+
+  const seekPreview = useCallback(
+    (pct: number) => {
+      const d = knownDuration > 0 ? knownDuration : duration;
+      if (d <= 0) return;
+      setCurrentTime(pct * d);
+      resetHideTimer();
+    },
+    [duration, knownDuration, resetHideTimer],
+  );
+
   const seekTo = useCallback(
     (pct: number) => {
       const d = knownDuration > 0 ? knownDuration : duration;
-      if (!player || d <= 0) return;
-      player.currentTime = pct * d;
+      if (d <= 0) return;
+      const targetSec = pct * d;
+      if (isTranscode) {
+        restartAtPosition(targetSec);
+      } else if (player) {
+        player.currentTime = targetSec;
+      }
       resetHideTimer();
     },
-    [player, duration, knownDuration, resetHideTimer],
+    [player, duration, knownDuration, resetHideTimer, isTranscode, restartAtPosition],
   );
 
   const seekBy = useCallback(
@@ -309,27 +327,29 @@ export default function PlayerScreen() {
   );
 
   const handleVolumeChange = useCallback(
-    (delta: number) => {
+    (value: number) => {
       if (!player) return;
-      const newVol = Math.max(0, Math.min(1, volumeBaseRef.current + delta));
-      player.volume = newVol;
-      setVolume(newVol);
+      player.volume = value;
+      volumeBaseRef.current = value;
+      setVolume(value);
     },
     [player],
   );
 
   const brightnessBaseRef = useRef(1);
   const handleBrightnessChange = useCallback(
-    async (delta: number) => {
+    async (value: number) => {
       try {
         const Brightness = require("expo-brightness");
-        const newVal = Math.max(0, Math.min(1, brightnessBaseRef.current + delta));
-        await Brightness.setBrightnessAsync(newVal);
-        brightnessBaseRef.current = newVal;
+        await Brightness.setBrightnessAsync(value);
+        brightnessBaseRef.current = value;
       } catch { /* expo-brightness not available */ }
     },
     [],
   );
+
+  const getGestureVolume = useCallback(() => volumeBaseRef.current, []);
+  const getGestureBrightness = useCallback(() => brightnessBaseRef.current, []);
 
   const { panResponder, seekFlash, volumeIndicator, brightnessIndicator, cleanup } = usePlayerGestures({
     onSeekBy: seekBy,
@@ -337,6 +357,8 @@ export default function PlayerScreen() {
     onToggleControls: toggleControls,
     onVolumeChange: handleVolumeChange,
     onBrightnessChange: handleBrightnessChange,
+    getVolume: getGestureVolume,
+    getBrightness: getGestureBrightness,
   });
 
   useEffect(() => cleanup, [cleanup]);
@@ -358,8 +380,8 @@ export default function PlayerScreen() {
 
   const getPositionMs = useCallback(() => {
     if (!mountedRef.current) return 0;
-    try { return (player?.currentTime ?? 0) * 1000; } catch { return 0; }
-  }, [player]);
+    try { return ((player?.currentTime ?? 0) + transcodeOffset) * 1000; } catch { return 0; }
+  }, [player, transcodeOffset]);
 
   const getIsPaused = useCallback(() => {
     if (!mountedRef.current) return true;
@@ -561,9 +583,9 @@ export default function PlayerScreen() {
           <View style={styles.volumeIndicator}>
             <Text style={styles.volumeIcon}>{"\u266A"}</Text>
             <View style={styles.volumeBarBg}>
-              <View style={[styles.volumeBarFill, { height: `${volumePct}%` }]} />
+              <View style={[styles.volumeBarFill, { height: `${Math.round(volumeIndicator * 100)}%` }]} />
             </View>
-            <Text style={styles.volumeText}>{volumePct}</Text>
+            <Text style={styles.volumeText}>{Math.round(volumeIndicator * 100)}</Text>
           </View>
         )}
 
@@ -572,9 +594,9 @@ export default function PlayerScreen() {
           <View style={styles.brightnessIndicator}>
             <Text style={styles.volumeIcon}>{"\u2600"}</Text>
             <View style={styles.volumeBarBg}>
-              <View style={[styles.volumeBarFill, { height: `${Math.round(Math.max(0, Math.min(1, brightnessBaseRef.current)) * 100)}%` }]} />
+              <View style={[styles.volumeBarFill, { height: `${Math.round(brightnessIndicator * 100)}%` }]} />
             </View>
-            <Text style={styles.volumeText}>{Math.round(Math.max(0, Math.min(1, brightnessBaseRef.current)) * 100)}</Text>
+            <Text style={styles.volumeText}>{Math.round(brightnessIndicator * 100)}</Text>
           </View>
         )}
 
@@ -622,7 +644,7 @@ export default function PlayerScreen() {
 
         {showControls && (
           <View style={styles.overlay} pointerEvents="box-none">
-            <View style={[styles.topBar, { paddingTop: Math.max(16, insets.top), paddingLeft: Math.max(20, insets.left), paddingRight: Math.max(20, insets.right) }]}>
+            <View style={[styles.topBar, { top: 0, paddingTop: Math.max(16, insets.top), paddingLeft: Math.max(20, insets.left), paddingRight: Math.max(20, insets.right) }]}>
               <Pressable onPress={handleBack} hitSlop={16} accessible={true} accessibilityLabel={t("common.back")} accessibilityRole="button">
                 <Ionicons name="chevron-back" size={28} color="#fff" />
               </Pressable>
@@ -726,24 +748,8 @@ export default function PlayerScreen() {
               </View>
             </View>
 
-            <View style={styles.centerControls}>
-              <Pressable onPress={() => seekBy(-10)} hitSlop={16} style={styles.seekButton} accessible={true} accessibilityLabel={t("player.controls.rewind", { seconds: 10 })} accessibilityRole="button">
-                <Ionicons name="play-back" size={24} color="#fff" />
-              </Pressable>
-              <Pressable onPress={togglePlayPause} hitSlop={16} style={styles.playButton} accessible={true} accessibilityLabel={isPlaying ? t("player.controls.pause") : t("player.controls.play")} accessibilityRole="button">
-                <Ionicons name={isPlaying ? "pause" : "play"} size={32} color="#fff" />
-              </Pressable>
-              <Pressable onPress={() => seekBy(10)} hitSlop={16} style={styles.seekButton} accessible={true} accessibilityLabel={t("player.controls.forward", { seconds: 10 })} accessibilityRole="button">
-                <Ionicons name="play-forward" size={24} color="#fff" />
-              </Pressable>
-            </View>
-
-            <View style={{ alignItems: "center", marginBottom: 4 }}>
-              <TrickplayPreview mediaId={mediaId} currentTime={currentTime} visible={showControls && effectiveDuration > 0} />
-            </View>
-
-            <View style={[styles.bottomBar, { paddingBottom: Math.max(20, insets.bottom), paddingLeft: Math.max(20, insets.left), paddingRight: Math.max(20, insets.right) }]}>
-              <Text style={styles.timeText}>{formatTime(currentTime)}</Text>
+            <View style={[styles.bottomControls, { paddingBottom: Math.max(20, insets.bottom), paddingLeft: Math.max(20, insets.left), paddingRight: Math.max(20, insets.right) }]}>
+              {/* Seek bar */}
               <View
                 style={styles.seekBarContainer}
                 accessible={true}
@@ -753,13 +759,25 @@ export default function PlayerScreen() {
                 onMoveShouldSetResponder={() => true}
                 onResponderGrant={(e) => {
                   const x = e.nativeEvent.locationX;
-                  seekTo(Math.max(0, Math.min(1, x / (screenW - insets.left - insets.right - 104))));
+                  setSeekTouchX(x);
+                  seekPreview(Math.max(0, Math.min(1, x / (screenW - insets.left - insets.right - 40))));
                 }}
                 onResponderMove={(e) => {
                   const x = e.nativeEvent.locationX;
-                  seekTo(Math.max(0, Math.min(1, x / (screenW - insets.left - insets.right - 104))));
+                  setSeekTouchX(x);
+                  seekPreview(Math.max(0, Math.min(1, x / (screenW - insets.left - insets.right - 40))));
+                }}
+                onResponderRelease={(e) => {
+                  const x = e.nativeEvent.locationX;
+                  seekTo(Math.max(0, Math.min(1, x / (screenW - insets.left - insets.right - 40))));
+                  setSeekTouchX(null);
                 }}
               >
+                {seekTouchX != null && (
+                  <View style={{ position: "absolute", bottom: "50%", left: seekTouchX, transform: [{ translateX: -80 }] }}>
+                    <TrickplayPreview mediaId={mediaId} currentTime={currentTime} visible={showControls && effectiveDuration > 0} />
+                  </View>
+                )}
                 <View style={styles.seekBarTrack}>
                   <View style={[styles.seekBarFill, { flex: seekProgress, backgroundColor: theme.colors.accent }]} />
                   <View style={{ flex: 1 - seekProgress }} />
@@ -776,7 +794,21 @@ export default function PlayerScreen() {
                   );
                 })}
               </View>
-              <Text style={styles.timeText}>{formatTime(effectiveDuration)}</Text>
+
+              {/* Controls row */}
+              <View style={[styles.controlsRow, { marginTop: 4 }]}>
+                <Pressable onPress={() => seekBy(-10)} hitSlop={12} style={styles.controlBtn} accessible={true} accessibilityLabel={t("player.controls.rewind", { seconds: 10 })} accessibilityRole="button">
+                  <Ionicons name="play-back" size={20} color="#fff" />
+                </Pressable>
+                <Pressable onPress={togglePlayPause} hitSlop={12} style={styles.controlBtn} accessible={true} accessibilityLabel={isPlaying ? t("player.controls.pause") : t("player.controls.play")} accessibilityRole="button">
+                  <Ionicons name={isPlaying ? "pause" : "play"} size={24} color="#fff" />
+                </Pressable>
+                <Pressable onPress={() => seekBy(10)} hitSlop={12} style={styles.controlBtn} accessible={true} accessibilityLabel={t("player.controls.forward", { seconds: 10 })} accessibilityRole="button">
+                  <Ionicons name="play-forward" size={20} color="#fff" />
+                </Pressable>
+                <Text style={styles.timeText}>{formatTime(currentTime)} / {formatTime(effectiveDuration)}</Text>
+                <View style={{ flex: 1 }} />
+              </View>
             </View>
           </View>
         )}
@@ -837,15 +869,22 @@ const styles = StyleSheet.create({
     height: "100%",
   },
   overlay: {
-    ...StyleSheet.absoluteFillObject,
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
     backgroundColor: "rgba(0,0,0,0.4)",
-    justifyContent: "space-between",
   },
   topBar: {
+    position: "absolute",
+    left: 0,
+    right: 0,
     flexDirection: "row",
     alignItems: "center",
     paddingTop: 16,
     paddingHorizontal: 20,
+    zIndex: 2,
   },
   backButton: {
     color: "#fff",
@@ -860,43 +899,21 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     textAlign: "center",
   },
-  centerControls: {
-    flexDirection: "row",
-    justifyContent: "center",
-    alignItems: "center",
-    gap: 40,
-  },
-  seekButton: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: "rgba(255,255,255,0.2)",
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  seekText: {
-    color: "#fff",
-    fontSize: 14,
-    fontWeight: "600",
-  },
-  playButton: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
-    backgroundColor: "rgba(255,255,255,0.25)",
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  playButtonText: {
-    color: "#fff",
-    fontSize: 28,
-  },
-  bottomBar: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingBottom: 20,
+  bottomControls: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    bottom: 0,
     paddingHorizontal: 20,
-    gap: 12,
+    zIndex: 2,
+  },
+  controlsRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 16,
+  },
+  controlBtn: {
+    padding: 4,
   },
   timeText: {
     color: "#fff",
@@ -909,6 +926,7 @@ const styles = StyleSheet.create({
     flex: 1,
     height: 32,
     justifyContent: "center",
+    overflow: "visible",
   },
   seekBarTrack: {
     height: 4,

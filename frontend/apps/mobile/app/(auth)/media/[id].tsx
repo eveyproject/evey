@@ -1,14 +1,14 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import {
   View,
   Text,
   ScrollView,
   Pressable,
-  Dimensions,
   FlatList,
   ActivityIndicator,
   StyleSheet,
   Linking,
+  Dimensions,
 } from "react-native";
 import { Image } from "expo-image";
 import { Ionicons } from "@expo/vector-icons";
@@ -16,6 +16,7 @@ import { Skeleton } from "../../../src/components/Skeleton";
 import { ProgressBar } from "../../../src/components/ProgressBar";
 import { MediaCard } from "../../../src/components/MediaCard";
 import { useLocalSearchParams, router } from "expo-router";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useTranslation } from "react-i18next";
 import {
   useLibraryServiceGetMediaItem,
@@ -39,8 +40,6 @@ import { AddToPlaylistSheet } from "../../../src/components/AddToPlaylistSheet";
 import { useParentalGate } from "../../../src/hooks/useParentalGate";
 import { ParentalPINModal } from "../../../src/components/ParentalPINModal";
 
-const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
-const HERO_HEIGHT = SCREEN_HEIGHT * 0.4;
 const POSTER_WIDTH = 100;
 const POSTER_HEIGHT = POSTER_WIDTH * 1.5;
 
@@ -241,6 +240,7 @@ function TrailerButton({ trailer }: { trailer: V1Trailer }) {
 function SimilarSection({ item }: { item: V1MediaItem }) {
   const { t } = useTranslation();
   const theme = useTheme();
+  const screenW = Dimensions.get("window").width;
   const { data: similarData } = useFeedServiceSimilarItems(item.id ?? "");
   const firstGenre = item.genres?.[0];
   const hasSimilar = (similarData?.items?.length ?? 0) > 0;
@@ -273,7 +273,7 @@ function SimilarSection({ item }: { item: V1MediaItem }) {
           <MediaCard
             item={c}
             onPress={() => c.id && router.push(`/(auth)/media/${c.id}`)}
-            width={SCREEN_WIDTH * 0.28}
+            width={screenW * 0.28}
           />
         )}
         showsHorizontalScrollIndicator={false}
@@ -366,6 +366,22 @@ export default function MediaDetailScreen() {
   const theme = useTheme();
   const serverUrl = useServerUrl();
   const authHeaders = useAuthHeaders();
+  const insets = useSafeAreaInsets();
+  const [screenW, setScreenW] = useState(() => Dimensions.get("window").width);
+  const [screenH, setScreenH] = useState(() => Dimensions.get("window").height);
+  const dimsTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => {
+    const sub = Dimensions.addEventListener("change", ({ window }) => {
+      if (dimsTimer.current) clearTimeout(dimsTimer.current);
+      dimsTimer.current = setTimeout(() => {
+        setScreenW(window.width);
+        setScreenH(window.height);
+      }, 300);
+    });
+    return () => { sub.remove(); if (dimsTimer.current) clearTimeout(dimsTimer.current); };
+  }, []);
+  const isLandscape = screenW > screenH;
+  const heroHeight = isLandscape ? screenH * 0.55 : screenH * 0.4;
   const [selectedSeason, setSelectedSeason] = useState<string | null>(null);
 
   const { data: media, isLoading } = useLibraryServiceGetMediaItem(id ?? "");
@@ -469,12 +485,12 @@ export default function MediaDetailScreen() {
   if (isLoading || !media) {
     return (
       <View style={{ flex: 1, backgroundColor: theme.colors.bg }}>
-        <Skeleton width={SCREEN_WIDTH} height={HERO_HEIGHT} borderRadius={0} />
+        <Skeleton width={screenW} height={heroHeight} borderRadius={0} />
         <View style={{ paddingHorizontal: theme.spacing.md, marginTop: theme.spacing.md }}>
-          <Skeleton width={SCREEN_WIDTH * 0.6} height={24} borderRadius={theme.radii.sm} />
-          <Skeleton width={SCREEN_WIDTH * 0.4} height={14} borderRadius={theme.radii.sm} style={{ marginTop: theme.spacing.sm }} />
-          <Skeleton width={SCREEN_WIDTH - theme.spacing.md * 2} height={44} borderRadius={theme.radii.md} style={{ marginTop: theme.spacing.md }} />
-          <Skeleton width={SCREEN_WIDTH - theme.spacing.md * 2} height={60} borderRadius={theme.radii.sm} style={{ marginTop: theme.spacing.md }} />
+          <Skeleton width={screenW * 0.6} height={24} borderRadius={theme.radii.sm} />
+          <Skeleton width={screenW * 0.4} height={14} borderRadius={theme.radii.sm} style={{ marginTop: theme.spacing.sm }} />
+          <Skeleton width={screenW - theme.spacing.md * 2} height={44} borderRadius={theme.radii.md} style={{ marginTop: theme.spacing.md }} />
+          <Skeleton width={screenW - theme.spacing.md * 2} height={60} borderRadius={theme.radii.sm} style={{ marginTop: theme.spacing.md }} />
         </View>
       </View>
     );
@@ -491,30 +507,43 @@ export default function MediaDetailScreen() {
   }).slice(0, 3);
 
   return (
-    <ScrollView style={{ flex: 1, backgroundColor: theme.colors.bg }}>
+    <ScrollView style={{ flex: 1, backgroundColor: theme.colors.bg }} contentContainerStyle={{ paddingLeft: insets.left, paddingRight: insets.right, paddingBottom: insets.bottom }}>
       {/* Hero backdrop */}
-      <View style={{ width: SCREEN_WIDTH, height: HERO_HEIGHT }}>
+      <View style={{ width: "100%", height: heroHeight }}>
         {serverUrl && id ? (
           <Image
             source={{ uri: artworkUrl(serverUrl, id, "backdrop"), headers: authHeaders }}
-            style={{ width: SCREEN_WIDTH, height: HERO_HEIGHT }}
+            style={{ width: "100%", height: "100%" }}
             contentFit="cover"
             transition={300}
           />
         ) : (
-          <View style={{ width: SCREEN_WIDTH, height: HERO_HEIGHT, backgroundColor: theme.colors.surface }} />
+          <View style={{ width: "100%", height: "100%", backgroundColor: theme.colors.surface }} />
         )}
         {/* Gradient overlay (stacked opacity layers) */}
-        <View style={{ position: "absolute", bottom: 0, left: 0, right: 0, height: HERO_HEIGHT * 0.6 }}>
+        <View style={{ position: "absolute", bottom: 0, left: 0, right: 0, height: heroHeight * 0.6 }}>
           <View style={{ flex: 1, backgroundColor: theme.colors.bg, opacity: 0.2 }} />
           <View style={{ flex: 1, backgroundColor: theme.colors.bg, opacity: 0.5 }} />
           <View style={{ flex: 1, backgroundColor: theme.colors.bg, opacity: 0.8 }} />
           <View style={{ flex: 1, backgroundColor: theme.colors.bg, opacity: 1 }} />
         </View>
+        {/* Back button */}
+        <Pressable
+          onPress={() => router.back()}
+          hitSlop={12}
+          accessible={true}
+          accessibilityLabel={t("common.back")}
+          accessibilityRole="button"
+          style={{ position: "absolute", top: insets.top + 8, left: insets.left + 8, width: 36, height: 36, borderRadius: 18, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "center", alignItems: "center" }}
+        >
+          <Ionicons name="chevron-back" size={22} color="#fff" />
+        </Pressable>
       </View>
 
       {/* Content overlapping hero */}
-      <View style={{ paddingHorizontal: theme.spacing.md, marginTop: -POSTER_HEIGHT * 0.5 }}>
+      <View style={{ paddingHorizontal: theme.spacing.md, marginTop: -POSTER_HEIGHT * 0.5, ...(isLandscape ? { flexDirection: "row", gap: theme.spacing.lg } : {}) }}>
+        {/* Left column (landscape) / full width (portrait) */}
+        <View style={isLandscape ? { flex: 3 } : {}}>
         {/* Poster + title row */}
         <View style={{ flexDirection: "row", gap: theme.spacing.md }}>
           {serverUrl && id ? (
@@ -760,7 +789,10 @@ export default function MediaDetailScreen() {
             </Pressable>
           )}
         </View>
+        </View>{/* end left column */}
 
+        {/* Right column (landscape) / continues below (portrait) */}
+        <View style={isLandscape ? { flex: 7 } : {}}>
         {/* Tagline */}
         {media.tagline ? (
           <Text style={{ color: theme.colors.textMuted, fontSize: 13, fontStyle: "italic", marginTop: theme.spacing.md }}>
@@ -897,6 +929,7 @@ export default function MediaDetailScreen() {
 
         {/* Bottom spacing */}
         <View style={{ height: theme.spacing.xl * 2 }} />
+        </View>{/* end right column */}
       </View>
 
       {id ? (

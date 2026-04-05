@@ -25,6 +25,8 @@ export interface PlaySessionResult {
   isError: boolean;
   stopSession: () => void;
   restartWithTracks: (audioIndex?: number, subtitleIndex?: number, maxHeight?: number) => void;
+  restartAtPosition: (positionSec: number) => void;
+  transcodeOffset: number;
   progress: V1WatchProgress | null;
 }
 
@@ -41,6 +43,7 @@ function buildStreamUrl(
   mediaId: string,
   streamInfo: V1StreamInfo,
   token: string,
+  startSec?: number,
 ): string {
   if (streamInfo.playMethod === "PLAY_METHOD_DIRECT_PLAY") {
     return `${serverUrl}/api/v1/media/${mediaId}/stream?token=${token}`;
@@ -48,7 +51,9 @@ function buildStreamUrl(
   if (streamInfo.playMethod === "PLAY_METHOD_DIRECT_STREAM") {
     return `${serverUrl}/api/v1/media/${mediaId}/transcode?token=${token}&remux=1`;
   }
-  return `${serverUrl}/api/v1/media/${mediaId}/hls/master.m3u8?token=${token}`;
+  const params = new URLSearchParams({ token });
+  if (startSec && startSec > 0) params.set("startSec", String(Math.floor(startSec)));
+  return `${serverUrl}/api/v1/media/${mediaId}/hls/master.m3u8?${params.toString()}`;
 }
 
 export function usePlaySession(mediaId: string): PlaySessionResult {
@@ -58,14 +63,16 @@ export function usePlaySession(mediaId: string): PlaySessionResult {
   const [progress, setProgress] = useState<V1WatchProgress | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isError, setIsError] = useState(false);
+  const [transcodeOffset, setTranscodeOffset] = useState(0);
   const sessionIdRef = useRef<string | null>(null);
   const startedRef = useRef(false);
   const stoppedRef = useRef(false);
   const tokenRef = useRef<string | null>(null);
   const serverUrlRef = useRef<string>("");
+  const streamInfoRef = useRef<V1StreamInfo | null>(null);
 
   const startStream = useCallback(
-    async (audioStreamIndex?: number, subtitleStreamIndex?: number, maxHeight?: number) => {
+    async (audioStreamIndex?: number, subtitleStreamIndex?: number, maxHeight?: number, startSec?: number) => {
       try {
         const serverUrl = serverUrlRef.current || ((await getServerUrl()) ?? "");
         serverUrlRef.current = serverUrl;
@@ -94,9 +101,9 @@ export function usePlaySession(mediaId: string): PlaySessionResult {
           token = await fetchStreamToken(mediaId);
           tokenRef.current = token;
         }
-        const url = buildStreamUrl(serverUrl, mediaId, info, token);
+        const url = buildStreamUrl(serverUrl, mediaId, info, token, startSec);
 
-        const startPosMs = wp?.positionMs && !wp.played ? wp.positionMs : "0";
+        const startPosMs = startSec ? String(Math.floor(startSec * 1000)) : (wp?.positionMs && !wp.played ? wp.positionMs : "0");
         const session = await playbackServiceStartStream({
           mediaItemId: mediaId,
           playMethod: info.playMethod ?? "PLAY_METHOD_TRANSCODE",
@@ -109,8 +116,10 @@ export function usePlaySession(mediaId: string): PlaySessionResult {
         });
 
         if (!stoppedRef.current) {
+          streamInfoRef.current = info;
           setStreamInfo(info);
           setStreamUrl(url);
+          setTranscodeOffset(startSec ?? 0);
           if (session.id) {
             sessionIdRef.current = session.id;
             setSessionId(session.id);
@@ -159,9 +168,27 @@ export function usePlaySession(mediaId: string): PlaySessionResult {
     [startStream],
   );
 
+  const restartAtPosition = useCallback(
+    (positionSec: number) => {
+      if (streamInfoRef.current?.playMethod === "PLAY_METHOD_DIRECT_PLAY") return;
+      const sid = sessionIdRef.current;
+      if (sid) {
+        playbackServiceStopStream({ sessionId: sid }).catch((err) =>
+          console.warn("stop before seek restart failed:", err),
+        );
+        sessionIdRef.current = null;
+      }
+      stoppedRef.current = false;
+      setStreamUrl(null);
+      setIsLoading(true);
+      startStream(undefined, undefined, undefined, positionSec);
+    },
+    [startStream],
+  );
+
   useEffect(() => {
     return () => stopSession();
   }, [stopSession]);
 
-  return { streamUrl, sessionId, streamInfo, isLoading, isError, stopSession, restartWithTracks, progress };
+  return { streamUrl, sessionId, streamInfo, isLoading, isError, stopSession, restartWithTracks, restartAtPosition, transcodeOffset, progress };
 }
