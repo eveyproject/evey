@@ -4,14 +4,16 @@ import {
   Text,
   Pressable,
   ActivityIndicator,
-  Dimensions,
   StatusBar,
   StyleSheet,
+  useWindowDimensions,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useLocalSearchParams, router } from "expo-router";
 import { useVideoPlayer, VideoView, isPictureInPictureSupported } from "expo-video";
 import { Ionicons } from "@expo/vector-icons";
 import * as ScreenOrientation from "expo-screen-orientation";
+import * as SecureStore from "expo-secure-store";
 import { useTranslation } from "react-i18next";
 import { useLibraryServiceGetMediaItem } from "@evey/api";
 import { useTheme } from "../../../src/providers/ThemeProvider";
@@ -27,15 +29,16 @@ import { ChaptersPicker } from "../../../src/components/ChaptersPicker";
 import { StreamInfoPanel } from "../../../src/components/StreamInfoPanel";
 import { SkipIntroOverlay } from "../../../src/components/SkipIntroOverlay";
 import { TrickplayPreview } from "../../../src/components/TrickplayPreview";
+import {
+  CastContext, CastButtonNative, useCastStateHook, useRemoteMediaClientHook,
+  useMediaStatusHook, CastStateEnum,
+} from "../../../src/hooks/useChromecast";
 
 const IMAGE_SUBTITLE_CODECS = new Set([
   "pgssub", "hdmv_pgs_subtitle", "dvd_subtitle", "dvbsub", "xsub",
 ]);
 
 const CONTROLS_TIMEOUT = 3000;
-const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("screen");
-const PLAYER_WIDTH = Math.max(SCREEN_WIDTH, SCREEN_HEIGHT);
-const PLAYER_HEIGHT = Math.min(SCREEN_WIDTH, SCREEN_HEIGHT);
 
 function formatTime(seconds: number): string {
   const s = Math.max(0, Math.floor(seconds));
@@ -50,6 +53,8 @@ export default function PlayerScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const theme = useTheme();
   const { t } = useTranslation();
+  const { width: screenW, height: screenH } = useWindowDimensions();
+  const insets = useSafeAreaInsets();
   const mediaId = id ?? "";
 
   const { data: media } = useLibraryServiceGetMediaItem(mediaId);
@@ -163,8 +168,83 @@ export default function PlayerScreen() {
     };
   }, [player]);
 
+  const castState = useCastStateHook();
+  const castClient = useRemoteMediaClientHook();
+  const castMediaStatus = useMediaStatusHook();
+  const castConnected = castState === CastStateEnum.CONNECTED;
+  const castCurrentTime = castMediaStatus?.streamPosition ?? 0;
+  const castDuration = castMediaStatus?.mediaInfo?.streamDuration ?? (media?.durationMs ? Number(media.durationMs) / 1000 : 0);
+  const castIsPlaying = castMediaStatus?.playerState === 2; // MediaPlayerState.PLAYING
+
+  const muteLocalPlayer = useCallback(() => {
+    if (!player) return;
+    try { player.pause(); } catch { /* released */ }
+    try { player.volume = 0; } catch { /* released */ }
+  }, [player]);
+
+  const unmuteLocalPlayer = useCallback(() => {
+    if (!player) return;
+    try { player.volume = volume; } catch { /* released */ }
+  }, [player, volume]);
+
+  const castLoadMedia = useCallback(async (client: any) => {
+    if (!streamUrl || !media?.title) return;
+    muteLocalPlayer();
+    // Replace server URL with cast-friendly URL if configured
+    let castUrl = streamUrl;
+    try {
+      const castBase = await SecureStore.getItemAsync("cast_base_url");
+      if (castBase) {
+        const url = new URL(streamUrl);
+        castUrl = `${castBase.replace(/\/+$/, "")}${url.pathname}${url.search}`;
+      }
+    } catch { /* use original URL */ }
+    console.log("[Cast] loadMedia URL:", castUrl);
+    const isHls = castUrl.includes("m3u8");
+    try {
+      await client.loadMedia({
+        autoplay: true,
+        mediaInfo: {
+          contentId: mediaId,
+          contentUrl: castUrl,
+          contentType: isHls ? "application/x-mpegurl" : "video/mp4",
+          streamType: "buffered",
+          metadata: { type: "movie", title: media.title },
+        },
+        startTime: currentTime,
+      });
+    } catch (e) { console.warn("[CAST] loadMedia failed:", e); }
+  }, [streamUrl, media?.title, mediaId, currentTime, muteLocalPlayer]);
+
+  const handleCast = useCallback(async () => {
+    if (!CastContext) return;
+    if (castConnected && castClient) {
+      await castLoadMedia(castClient);
+    } else {
+      muteLocalPlayer();
+      CastContext.showCastDialog?.();
+    }
+  }, [castConnected, castClient, castLoadMedia, muteLocalPlayer]);
+
+  // Auto-load when cast client becomes available after dialog
+  const castLoadedForMedia = useRef<string | null>(null);
   useEffect(() => {
-    ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.LANDSCAPE);
+    if (!castClient || !castConnected || !streamUrl) return;
+    if (castLoadedForMedia.current === streamUrl) return;
+    castLoadedForMedia.current = streamUrl;
+    castLoadMedia(castClient);
+  }, [castClient, castConnected, streamUrl, castLoadMedia]);
+
+  // Unmute local player when cast disconnects
+  useEffect(() => {
+    if (!castConnected) {
+      castLoadedForMedia.current = null;
+      unmuteLocalPlayer();
+    }
+  }, [castConnected, unmuteLocalPlayer]);
+
+  useEffect(() => {
+    ScreenOrientation.unlockAsync();
     return () => {
       ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.DEFAULT);
     };
@@ -206,13 +286,17 @@ export default function PlayerScreen() {
     resetHideTimer();
   }, [player, resetHideTimer]);
 
+  const knownDuration = media?.durationMs ? Number(media.durationMs) / 1000 : 0;
+  const effectiveDuration = knownDuration > 0 ? knownDuration : duration;
+
   const seekTo = useCallback(
     (pct: number) => {
-      if (!player || duration <= 0) return;
-      player.currentTime = pct * duration;
+      const d = knownDuration > 0 ? knownDuration : duration;
+      if (!player || d <= 0) return;
+      player.currentTime = pct * d;
       resetHideTimer();
     },
-    [player, duration, resetHideTimer],
+    [player, duration, knownDuration, resetHideTimer],
   );
 
   const seekBy = useCallback(
@@ -234,11 +318,25 @@ export default function PlayerScreen() {
     [player],
   );
 
-  const { panResponder, seekFlash, volumeIndicator, cleanup } = usePlayerGestures({
+  const brightnessBaseRef = useRef(1);
+  const handleBrightnessChange = useCallback(
+    async (delta: number) => {
+      try {
+        const Brightness = require("expo-brightness");
+        const newVal = Math.max(0, Math.min(1, brightnessBaseRef.current + delta));
+        await Brightness.setBrightnessAsync(newVal);
+        brightnessBaseRef.current = newVal;
+      } catch { /* expo-brightness not available */ }
+    },
+    [],
+  );
+
+  const { panResponder, seekFlash, volumeIndicator, brightnessIndicator, cleanup } = usePlayerGestures({
     onSeekBy: seekBy,
     onTogglePlayPause: togglePlayPause,
     onToggleControls: toggleControls,
     onVolumeChange: handleVolumeChange,
+    onBrightnessChange: handleBrightnessChange,
   });
 
   useEffect(() => cleanup, [cleanup]);
@@ -254,7 +352,7 @@ export default function PlayerScreen() {
   const nextEp = useNextEpisode({
     media,
     currentTime,
-    duration,
+    duration: effectiveDuration,
     onNavigate: handleNavigateEpisode,
   });
 
@@ -373,14 +471,68 @@ export default function PlayerScreen() {
     );
   }
 
-  const seekProgress = duration > 0 ? currentTime / duration : 0;
+  const seekProgress = effectiveDuration > 0 ? currentTime / effectiveDuration : 0;
   const volumePct = Math.round(volume * 100);
+
+  // Casting mode: show controller instead of local player
+  if (castConnected) {
+    const castProgress = castDuration > 0 ? castCurrentTime / castDuration : 0;
+    return (
+      <View style={[styles.container, { backgroundColor: "#000" }]}>
+        <StatusBar hidden />
+        <View style={{ flex: 1, justifyContent: "center", alignItems: "center", padding: 40 }}>
+          <Ionicons name="tv" size={64} color={theme.colors.accent} />
+          <Text style={{ color: "#fff", fontSize: 20, fontWeight: "700", marginTop: 20 }}>
+            {t("player.controls.castingTo", "Casting to")}
+          </Text>
+          <Text style={{ color: theme.colors.accent, fontSize: 16, marginTop: 4 }}>
+            {media?.title ?? ""}
+          </Text>
+
+          {/* Timeline */}
+          <View style={{ width: "100%", marginTop: 32, paddingHorizontal: 8 }}>
+            <View style={{ height: 4, borderRadius: 2, backgroundColor: "rgba(255,255,255,0.2)", overflow: "hidden" }}>
+              <View style={{ height: "100%", borderRadius: 2, backgroundColor: theme.colors.accent, width: `${Math.min(100, castProgress * 100)}%` }} />
+            </View>
+            <View style={{ flexDirection: "row", justifyContent: "space-between", marginTop: 6 }}>
+              <Text style={{ color: "rgba(255,255,255,0.7)", fontSize: 12 }}>{formatTime(castCurrentTime)}</Text>
+              <Text style={{ color: "rgba(255,255,255,0.7)", fontSize: 12 }}>{formatTime(castDuration)}</Text>
+            </View>
+          </View>
+
+          {/* Controls */}
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 32, marginTop: 24 }}>
+            <Pressable onPress={() => castClient?.seek?.({ position: Math.max(0, castCurrentTime - 10) })}>
+              <Ionicons name="play-back" size={32} color="#fff" />
+            </Pressable>
+            <Pressable onPress={() => {
+              if (castIsPlaying) castClient?.pause?.();
+              else castClient?.play?.();
+            }}>
+              <Ionicons name={castIsPlaying ? "pause" : "play"} size={48} color="#fff" />
+            </Pressable>
+            <Pressable onPress={() => castClient?.seek?.({ position: castCurrentTime + 10 })}>
+              <Ionicons name="play-forward" size={32} color="#fff" />
+            </Pressable>
+          </View>
+          {CastButtonNative && (
+            <View style={{ marginTop: 32 }}>
+              <CastButtonNative style={{ width: 48, height: 48, tintColor: theme.colors.accent }} />
+            </View>
+          )}
+          <Pressable onPress={handleBack} style={{ marginTop: 24 }}>
+            <Text style={{ color: theme.colors.textMuted, fontSize: 14 }}>{t("player.goBack")}</Text>
+          </Pressable>
+        </View>
+      </View>
+    );
+  }
 
   return (
     <View style={[styles.container, { backgroundColor: "#000" }]}>
       <StatusBar hidden />
 
-      <View style={styles.playerWrapper} {...panResponder.panHandlers}>
+      <View style={{ width: screenW, height: screenH }} {...panResponder.panHandlers}>
         <VideoView
           ref={videoViewRef}
           player={player}
@@ -412,6 +564,17 @@ export default function PlayerScreen() {
               <View style={[styles.volumeBarFill, { height: `${volumePct}%` }]} />
             </View>
             <Text style={styles.volumeText}>{volumePct}</Text>
+          </View>
+        )}
+
+        {/* Brightness indicator */}
+        {brightnessIndicator !== null && (
+          <View style={styles.brightnessIndicator}>
+            <Text style={styles.volumeIcon}>{"\u2600"}</Text>
+            <View style={styles.volumeBarBg}>
+              <View style={[styles.volumeBarFill, { height: `${Math.round(Math.max(0, Math.min(1, brightnessBaseRef.current)) * 100)}%` }]} />
+            </View>
+            <Text style={styles.volumeText}>{Math.round(Math.max(0, Math.min(1, brightnessBaseRef.current)) * 100)}</Text>
           </View>
         )}
 
@@ -459,7 +622,7 @@ export default function PlayerScreen() {
 
         {showControls && (
           <View style={styles.overlay} pointerEvents="box-none">
-            <View style={styles.topBar}>
+            <View style={[styles.topBar, { paddingTop: Math.max(16, insets.top), paddingLeft: Math.max(20, insets.left), paddingRight: Math.max(20, insets.right) }]}>
               <Pressable onPress={handleBack} hitSlop={16} accessible={true} accessibilityLabel={t("common.back")} accessibilityRole="button">
                 <Ionicons name="chevron-back" size={28} color="#fff" />
               </Pressable>
@@ -545,6 +708,21 @@ export default function PlayerScreen() {
                     <Ionicons name="albums-outline" size={18} color="#fff" />
                   </Pressable>
                 )}
+                {CastContext && (
+                  <>
+                    {CastButtonNative && <CastButtonNative style={{ width: 0, height: 0, opacity: 0 }} />}
+                    <Pressable
+                      onPress={handleCast}
+                      hitSlop={8}
+                      style={styles.trackButton}
+                      accessible={true}
+                      accessibilityLabel={castConnected ? t("player.controls.stopCast") : t("player.controls.cast")}
+                      accessibilityRole="button"
+                    >
+                      <Ionicons name="tv-outline" size={18} color={castConnected ? theme.colors.accent : "#fff"} />
+                    </Pressable>
+                  </>
+                )}
               </View>
             </View>
 
@@ -561,28 +739,34 @@ export default function PlayerScreen() {
             </View>
 
             <View style={{ alignItems: "center", marginBottom: 4 }}>
-              <TrickplayPreview mediaId={mediaId} currentTime={currentTime} visible={showControls && duration > 0} />
+              <TrickplayPreview mediaId={mediaId} currentTime={currentTime} visible={showControls && effectiveDuration > 0} />
             </View>
 
-            <View style={styles.bottomBar}>
+            <View style={[styles.bottomBar, { paddingBottom: Math.max(20, insets.bottom), paddingLeft: Math.max(20, insets.left), paddingRight: Math.max(20, insets.right) }]}>
               <Text style={styles.timeText}>{formatTime(currentTime)}</Text>
-              <Pressable
+              <View
                 style={styles.seekBarContainer}
                 accessible={true}
                 accessibilityRole="adjustable"
                 accessibilityLabel={t("player.controls.seek")}
-                onPress={(e) => {
+                onStartShouldSetResponder={() => true}
+                onMoveShouldSetResponder={() => true}
+                onResponderGrant={(e) => {
                   const x = e.nativeEvent.locationX;
-                  const width = PLAYER_WIDTH - 160;
-                  if (width > 0) seekTo(Math.max(0, Math.min(1, x / width)));
+                  seekTo(Math.max(0, Math.min(1, x / (screenW - insets.left - insets.right - 104))));
+                }}
+                onResponderMove={(e) => {
+                  const x = e.nativeEvent.locationX;
+                  seekTo(Math.max(0, Math.min(1, x / (screenW - insets.left - insets.right - 104))));
                 }}
               >
                 <View style={styles.seekBarTrack}>
                   <View style={[styles.seekBarFill, { flex: seekProgress, backgroundColor: theme.colors.accent }]} />
                   <View style={{ flex: 1 - seekProgress }} />
                 </View>
-                {duration > 0 && chapters.map((ch, i) => {
-                  const pct = (ch.startTimeMs / 1000) / duration;
+                <View style={[styles.seekThumb, { left: `${seekProgress * 100}%`, backgroundColor: theme.colors.accent }]} />
+                {effectiveDuration > 0 && chapters.map((ch, i) => {
+                  const pct = (ch.startTimeMs / 1000) / effectiveDuration;
                   if (pct <= 0 || pct >= 1) return null;
                   return (
                     <View
@@ -591,8 +775,8 @@ export default function PlayerScreen() {
                     />
                   );
                 })}
-              </Pressable>
-              <Text style={styles.timeText}>{formatTime(duration)}</Text>
+              </View>
+              <Text style={styles.timeText}>{formatTime(effectiveDuration)}</Text>
             </View>
           </View>
         )}
@@ -634,6 +818,7 @@ export default function PlayerScreen() {
         onClose={() => setShowStreamInfo(false)}
         streamInfo={streamInfo}
       />
+
     </View>
   );
 }
@@ -645,8 +830,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   playerWrapper: {
-    width: PLAYER_WIDTH,
-    height: PLAYER_HEIGHT,
+    flex: 1,
   },
   video: {
     width: "100%",
@@ -735,6 +919,14 @@ const styles = StyleSheet.create({
   },
   seekBarFill: {
   },
+  seekThumb: {
+    position: "absolute",
+    top: 10,
+    width: 14,
+    height: 14,
+    borderRadius: 7,
+    marginLeft: -7,
+  },
   chapterMarker: {
     position: "absolute",
     top: 12,
@@ -767,6 +959,18 @@ const styles = StyleSheet.create({
     color: "#fff",
     fontSize: 24,
     fontWeight: "700",
+  },
+  brightnessIndicator: {
+    position: "absolute",
+    left: 40,
+    top: "25%",
+    height: "50%",
+    width: 36,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(0,0,0,0.6)",
+    borderRadius: 18,
+    paddingVertical: 8,
   },
   volumeIndicator: {
     position: "absolute",
