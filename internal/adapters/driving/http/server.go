@@ -13,14 +13,12 @@ import (
 	appactivity "github.com/gravity-zero/evey/internal/app/activity"
 	appbackup "github.com/gravity-zero/evey/internal/app/backup"
 	appcollection "github.com/gravity-zero/evey/internal/app/collection"
-	appconfig "github.com/gravity-zero/evey/internal/app/config"
 	appfavorite "github.com/gravity-zero/evey/internal/app/favorite"
 	applibrary "github.com/gravity-zero/evey/internal/app/library"
 	appmedia "github.com/gravity-zero/evey/internal/app/media"
 	appmetadata "github.com/gravity-zero/evey/internal/app/metadata"
 	appmusic "github.com/gravity-zero/evey/internal/app/music"
 	appphoto "github.com/gravity-zero/evey/internal/app/photo"
-	appplayback "github.com/gravity-zero/evey/internal/app/playback"
 	appplaylist "github.com/gravity-zero/evey/internal/app/playlist"
 	apprating "github.com/gravity-zero/evey/internal/app/rating"
 	appsubtitle "github.com/gravity-zero/evey/internal/app/subtitle"
@@ -75,12 +73,7 @@ type HTTPServer struct {
 	Scheduler   *applibrary.Scheduler
 
 	// User
-	UserSvc      *appuser.UserService
-	UserQuerySvc *appuser.QueryService
-	OIDCSvc      *appuser.OIDCService
-
-	// Playback
-	PlaybackSvc *appplayback.Service
+	OIDCSvc *appuser.OIDCService
 
 	// Transcoding
 	TranscodingSvc *apptranscoding.Service
@@ -128,7 +121,6 @@ type HTTPServer struct {
 	// Repos / accessors
 	ArtworkRepo       ArtworkRepo
 	LibraryAccessRepo domainuser.LibraryAccessRepository
-	ServerCfgSvc      *appconfig.Service
 	ServerCfgRepo     domainshared.ServerConfigRepository
 	ProfileRepo       domainuser.ProfileRepository
 	UserRepo          domainuser.UserRepository
@@ -172,9 +164,6 @@ type HTTPServer struct {
 	// User stream/bitrate adapters
 	UserMaxStreams UserMaxStreamsGetter
 	UserBitrate   UserBitrateGetter
-
-	// People bio enrichment
-	BioEnricher appmetadata.PeopleBioEnricher
 
 	// WebDir is the path to the built frontend dist (e.g. /srv).
 	// If set and the directory exists, the server serves the SPA from it.
@@ -278,8 +267,13 @@ func (s *HTTPServer) RegisterRoutes(mux *http.ServeMux, gwMux http.Handler) {
 		})
 	}
 
+<<<<<<< HEAD
 	registerAdminRoutes(mux, s.MetadataCmdSvc, s.MetadataQuerySvc, s.TokenGen, s.AdminHeavyRL, s.AdminWriteRL, s.ServerCtx, s.ActivityCmdSvc, s.BioEnricher)
 	registerUserAdminRoutes(mux, s.UserSvc, s.UserQuerySvc, s.TokenGen, s.AdminWriteRL, s.ActivityCmdSvc)
+=======
+	registerFeedRoutes(mux, s.FeedCmdSvc, s.FeedQuerySvc, s.TokenGen, s.AdminWriteRL)
+	registerAdminRoutes(mux, s.MetadataCmdSvc, s.MetadataQuerySvc, s.TokenGen, s.AdminHeavyRL, s.AdminWriteRL, s.ServerCtx, s.ActivityCmdSvc)
+>>>>>>> worktree-agent-acf92ea4
 	registerFavoriteRoutes(mux, s.FavoriteSvc, s.LibQuerySvc, s.TokenGen, s.LibraryAccessRepo)
 	registerPhotoRoutes(mux, s.PhotoSvc, s.TokenGen, s.LibraryAccessRepo, s.LibQuerySvc, s.ServerCtx)
 	registerMetadataOverrideRoutes(mux, s.MetadataCmdSvc, s.MetadataQuerySvc, s.TokenGen)
@@ -317,6 +311,7 @@ func (s *HTTPServer) RegisterRoutes(mux *http.ServeMux, gwMux http.Handler) {
 	registerPopularRoute(mux, s.ActivityQuerySvc, s.LibQuerySvc, s.TokenGen, s.LibraryAccessRepo)
 	registerAnalyticsRoutes(mux, s.ActivityQuerySvc, s.TokenGen)
 	registerFilterRoutes(mux, s.LibQuerySvc, s.TokenGen, s.LibraryAccessRepo)
+<<<<<<< HEAD
 =======
 	registerRatingRoutes(mux, s.UserRatingRepo, s.TokenGen, s.LibQuerySvc, s.LibraryAccessRepo)
 	registerStarRatingRoutes(mux, s.StarRatingSvc, s.TokenGen, s.LibQuerySvc, s.LibraryAccessRepo)
@@ -326,6 +321,8 @@ func (s *HTTPServer) RegisterRoutes(mux *http.ServeMux, gwMux http.Handler) {
 >>>>>>> worktree-agent-a08d8e9c
 	registerSystemStatsRoute(mux, s.StartTime, s.TokenGen)
 	registerServerConfigRoutes(mux, s.ServerCfgSvc, s.TokenGen, s.ActivityCmdSvc, s.AdminWriteRL)
+=======
+>>>>>>> worktree-agent-acf92ea4
 	registerLogsRoute(mux, s.LogDir, s.TokenGen)
 	registerAvailableRuntimesRoute(mux, s.TokenGen)
 	registerMusicRoutes(mux, s.MusicSvc, s.TokenGen, s.LibraryAccessRepo, s.LibQuerySvc)
@@ -343,8 +340,6 @@ func (s *HTTPServer) RegisterRoutes(mux *http.ServeMux, gwMux http.Handler) {
 		}
 	}
 
-	mux.HandleFunc("GET /api/v1/admin/sessions/active", requireAdmin(s.TokenGen, activeSessionsHandler(s.TokenGen, s.PlaybackSvc)))
-	mux.HandleFunc("DELETE /api/v1/admin/sessions/{id}", requireAdmin(s.TokenGen, ratelimit.MiddlewareFunc(s.AdminWriteRL, killSessionHandler(s.TokenGen, s.PlaybackSvc))))
 
 	if s.OIDCSvc != nil {
 		registerOIDCRoutes(mux, s.OIDCSvc, s.HTTPSOnly, s.OIDCLoginRL)

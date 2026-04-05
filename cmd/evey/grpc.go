@@ -50,8 +50,14 @@ func buildGRPCServer(deps *appDeps, cfg *config.Config, rootLog *slog.Logger, lo
 	grpcSrv.SetServerCtx(serverCtx)
 	grpcSrv.SetServerConfigHandler(grpcapi.NewServerConfigHandler(deps.repos.serverCfgRepo))
 	grpcSrv.SetSMTPConfigured(cfg.SMTP.Host != "")
+<<<<<<< HEAD
 	grpcSrv.SetShareService(deps.media.shareSvc)
 	grpcSrv.SetSyncPlayHub(deps.media.syncPlayHub)
+=======
+	if deps.content.enricher != nil {
+		grpcSrv.SetBioEnricher(deps.content.enricher)
+	}
+>>>>>>> worktree-agent-acf92ea4
 	grpcSrv.RegisterServices()
 	return grpcSrv
 }

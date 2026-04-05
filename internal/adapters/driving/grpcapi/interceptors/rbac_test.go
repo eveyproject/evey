@@ -130,10 +130,20 @@ func TestDefaultRBACConfig_AdminMethods(t *testing.T) {
 		"/evey.v1.ServerConfigService/SetServerConfigEntry",
 		"/evey.v1.ServerConfigService/ListServerConfigEntries",
 		"/evey.v1.ServerConfigService/DeleteServerConfigEntry",
+<<<<<<< HEAD
 		// ShareService
 		"/evey.v1.ShareService/CreateShareLink",
 		"/evey.v1.ShareService/ListShareLinks",
 		"/evey.v1.ShareService/RevokeShareLink",
+=======
+		// Admin extras (migrated from HTTP)
+		"/evey.v1.AdminService/GetSystemStats",
+		"/evey.v1.AdminService/EnrichPeopleBios",
+		"/evey.v1.AdminService/GetActiveSessions",
+		"/evey.v1.AdminService/KillSession",
+		"/evey.v1.AdminService/GetUserBitrateLimit",
+		"/evey.v1.AdminService/SetUserBitrateLimit",
+>>>>>>> worktree-agent-acf92ea4
 	}
 
 	require.Len(t, cfg.MethodRoles, len(expectedAdmin), "MethodRoles count mismatch — was a mapping added or removed?")
