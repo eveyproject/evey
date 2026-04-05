@@ -12,6 +12,7 @@ import (
 	appbackup "github.com/gravity-zero/evey/internal/app/backup"
 	appcollection "github.com/gravity-zero/evey/internal/app/collection"
 	appfavorite "github.com/gravity-zero/evey/internal/app/favorite"
+	appsyncplay "github.com/gravity-zero/evey/internal/app/syncplay"
 	appfeed "github.com/gravity-zero/evey/internal/app/feed"
 	appmedia "github.com/gravity-zero/evey/internal/app/media"
 	apprating "github.com/gravity-zero/evey/internal/app/rating"
@@ -71,6 +72,7 @@ type GRPCServer struct {
 	startTime     time.Time
 	ffmpegPath    string
 	backup          *appbackup.Service
+	syncplayHub     *appsyncplay.Hub
 	cfg             *config.Config
 	cfgStore        remoteAccessConfigStore
 	serverCfgHndlr  *serverConfigHandler
@@ -113,6 +115,10 @@ func (s *GRPCServer) SetSMTPConfigured(v bool) {
 
 func (s *GRPCServer) SetShareService(svc *appmedia.ShareService) {
 	s.shareSvc = svc
+}
+
+func (s *GRPCServer) SetSyncPlayHub(hub *appsyncplay.Hub) {
+	s.syncplayHub = hub
 }
 
 func NewGRPCServer(
@@ -242,6 +248,13 @@ func (s *GRPCServer) RegisterServices() {
 	eveyv1.RegisterLibraryAccessServiceServer(s.server, &libraryAccessHandler{accessRepo: s.libraryAccess, libQuery: s.libQuery})
 	if s.shareSvc != nil {
 		eveyv1.RegisterShareServiceServer(s.server, &shareHandler{svc: s.shareSvc, libQuery: s.libQuery, libraryAccess: s.libraryAccess})
+	}
+	if s.syncplayHub != nil {
+		eveyv1.RegisterSyncPlayServiceServer(s.server, &syncplayHandler{
+			hub:           s.syncplayHub,
+			libQuery:      s.libQuery,
+			libraryAccess: s.libraryAccess,
+		})
 	}
 	if s.serverCfgHndlr != nil {
 		eveyv1.RegisterServerConfigServiceServer(s.server, s.serverCfgHndlr)

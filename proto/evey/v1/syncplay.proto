@@ -1,0 +1,104 @@
+syntax = "proto3";
+
+package evey.v1;
+
+import "google/api/annotations.proto";
+
+option go_package = "github.com/gravity/evey/gen/evey/v1;eveyv1";
+
+service SyncPlayService {
+  rpc CreateRoom(CreateSyncPlayRoomRequest) returns (CreateSyncPlayRoomResponse) {
+    option (google.api.http) = {
+      post: "/api/v1/syncplay/rooms"
+      body: "*"
+    };
+  }
+
+  rpc JoinByCode(JoinSyncPlayByCodeRequest) returns (JoinSyncPlayByCodeResponse) {
+    option (google.api.http) = {
+      post: "/api/v1/syncplay/join"
+      body: "*"
+    };
+  }
+
+  rpc GetRoom(GetSyncPlayRoomRequest) returns (GetSyncPlayRoomResponse) {
+    option (google.api.http) = {
+      get: "/api/v1/syncplay/rooms/{room_id}"
+    };
+  }
+
+  rpc JoinRoom(JoinSyncPlayRoomRequest) returns (JoinSyncPlayRoomResponse) {
+    option (google.api.http) = {
+      post: "/api/v1/syncplay/rooms/{room_id}/join"
+      body: "*"
+    };
+  }
+
+  rpc LeaveRoom(LeaveSyncPlayRoomRequest) returns (LeaveSyncPlayRoomResponse) {
+    option (google.api.http) = {
+      delete: "/api/v1/syncplay/rooms/{room_id}/leave"
+    };
+  }
+}
+
+message SyncPlayMember {
+  string user_id = 1;
+  string username = 2;
+}
+
+message SyncPlayState {
+  bool playing = 1;
+  int64 position_ms = 2;
+}
+
+message CreateSyncPlayRoomRequest {
+  string media_id = 1;
+  string name = 2;
+}
+
+message CreateSyncPlayRoomResponse {
+  string id = 1;
+  string code = 2;
+  string name = 3;
+  string media_id = 4;
+  string host_id = 5;
+}
+
+message JoinSyncPlayByCodeRequest {
+  string code = 1;
+}
+
+message JoinSyncPlayByCodeResponse {
+  string room_id = 1;
+  string media_id = 2;
+  string ws_url = 3;
+}
+
+message GetSyncPlayRoomRequest {
+  string room_id = 1;
+}
+
+message GetSyncPlayRoomResponse {
+  string id = 1;
+  string name = 2;
+  string media_id = 3;
+  string host_id = 4;
+  repeated SyncPlayMember members = 5;
+  SyncPlayState state = 6;
+  string code = 7;
+}
+
+message JoinSyncPlayRoomRequest {
+  string room_id = 1;
+}
+
+message JoinSyncPlayRoomResponse {
+  string room_id = 1;
+  string ws_url = 2;
+}
+
+message LeaveSyncPlayRoomRequest {
+  string room_id = 1;
+}
+
+message LeaveSyncPlayRoomResponse {}

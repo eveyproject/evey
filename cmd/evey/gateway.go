@@ -55,6 +55,7 @@ func registerGateway(grpcAddr string) http.Handler {
 		eveyv1.RegisterPlaybackSettingsServiceHandler,
 		eveyv1.RegisterLibraryAccessServiceHandler,
 		eveyv1.RegisterServerConfigServiceHandler,
+		eveyv1.RegisterSyncPlayServiceHandler,
 	} {
 		if err := fn(ctx, mux, conn); err != nil {
 			slog.Error("gateway register failed", slog.Any("err", err))
