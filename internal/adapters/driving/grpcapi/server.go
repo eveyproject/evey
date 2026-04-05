@@ -13,6 +13,8 @@ import (
 	appcollection "github.com/gravity-zero/evey/internal/app/collection"
 	appfavorite "github.com/gravity-zero/evey/internal/app/favorite"
 	appfeed "github.com/gravity-zero/evey/internal/app/feed"
+	domainlibrary "github.com/gravity-zero/evey/internal/domain/library"
+	apprating "github.com/gravity-zero/evey/internal/app/rating"
 	applibrary "github.com/gravity-zero/evey/internal/app/library"
 	appmetadata "github.com/gravity-zero/evey/internal/app/metadata"
 	appmkv "github.com/gravity-zero/evey/internal/app/mkv"
@@ -56,6 +58,8 @@ type GRPCServer struct {
 	collection    *appcollection.Service
 	playlist      *appplaylist.Service
 	favorite      *appfavorite.Service
+	thumbRating   domainlibrary.UserRatingRepository
+	starRating    *apprating.Service
 	users         user.UserRepository
 	profiles      user.ProfileRepository
 	libraryAccess user.LibraryAccessRepository
@@ -131,6 +135,8 @@ func NewGRPCServer(
 	collection *appcollection.Service,
 	playlist *appplaylist.Service,
 	favorite *appfavorite.Service,
+	thumbRating domainlibrary.UserRatingRepository,
+	starRating *apprating.Service,
 	users user.UserRepository,
 	profiles user.ProfileRepository,
 	libraryAccess user.LibraryAccessRepository,
@@ -167,6 +173,8 @@ func NewGRPCServer(
 		collection:    collection,
 		playlist:      playlist,
 		favorite:      favorite,
+		thumbRating:   thumbRating,
+		starRating:    starRating,
 		users:         users,
 		profiles:      profiles,
 		libraryAccess: libraryAccess,
@@ -220,6 +228,7 @@ func (s *GRPCServer) RegisterServices() {
 	eveyv1.RegisterCollectionServiceServer(s.server, &collectionHandler{svc: s.collection})
 	eveyv1.RegisterPlaylistServiceServer(s.server, &playlistHandler{svc: s.playlist, translator: s.translator})
 	eveyv1.RegisterFavoriteServiceServer(s.server, &favoriteHandler{svc: s.favorite})
+	eveyv1.RegisterRatingServiceServer(s.server, &ratingHandler{thumbRepo: s.thumbRating, starSvc: s.starRating, libQuery: s.libQuery, libraryAccess: s.libraryAccess})
 	eveyv1.RegisterTranscodeCacheServiceServer(s.server, &transcodeCacheHandler{svc: s.transcoding})
 	eveyv1.RegisterBackupServiceServer(s.server, &backupHandler{svc: s.backup})
 	eveyv1.RegisterRemoteAccessServiceServer(s.server, &remoteAccessHandler{cfg: s.cfg, store: s.cfgStore})

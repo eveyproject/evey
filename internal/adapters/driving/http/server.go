@@ -300,8 +300,7 @@ func (s *HTTPServer) RegisterRoutes(mux *http.ServeMux, gwMux http.Handler) {
 			_, _ = w.Write([]byte(`{"status":"started"}`))
 		}))
 	}
-	registerRatingRoutes(mux, s.UserRatingRepo, s.TokenGen, s.LibQuerySvc, s.LibraryAccessRepo)
-	registerStarRatingRoutes(mux, s.StarRatingSvc, s.TokenGen, s.LibQuerySvc, s.LibraryAccessRepo)
+	// Rating routes migrated to gRPC — see grpcapi/rating_handler.go
 	registerPopularRoute(mux, s.ActivityQuerySvc, s.LibQuerySvc, s.TokenGen, s.LibraryAccessRepo)
 	registerAnalyticsRoutes(mux, s.ActivityQuerySvc, s.TokenGen)
 	registerFilterRoutes(mux, s.LibQuerySvc, s.TokenGen, s.LibraryAccessRepo)
