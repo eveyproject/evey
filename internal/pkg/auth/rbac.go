@@ -78,8 +78,8 @@ var MethodPermissions = map[string]string{
 	"/evey.v1.ActivityService/GetHistory":         PermActivityRead,
 	"/evey.v1.ActivityService/GetUserStats":       PermActivityRead,
 	// Plugin
-	"/evey.v1.AdminService/InstallPlugin":         PermPluginInstall,
-	"/evey.v1.AdminService/UninstallPlugin":       PermPluginManage,
+	"/evey.v1.AdminPluginService/InstallPlugin":    PermPluginInstall,
+	"/evey.v1.AdminPluginService/UninstallPlugin":  PermPluginManage,
 }
 
 // InternalMethods lists methods that can ONLY be called via JWT (browser/app).
@@ -106,36 +106,39 @@ var InternalMethods = map[string]bool{
 	"/evey.v1.UserService/ListAPIKeys":              true,
 	"/evey.v1.UserService/RevokeAPIKey":             true,
 
-	// Admin / Infrastructure
-	"/evey.v1.AdminService/SetupWizard":             true,
-	"/evey.v1.AdminService/GetSetupStatus":          true,
-	"/evey.v1.AdminService/GetSystemInfo":           true,
-	"/evey.v1.AdminService/GetServerConfig":         true,
-	"/evey.v1.AdminService/UpdateServerConfig":      true,
-	"/evey.v1.AdminService/GetDashboard":            true,
-	"/evey.v1.AdminService/ListScheduledTasks":      true,
-	"/evey.v1.AdminService/UpdateScheduledTask":     true,
-	"/evey.v1.AdminService/RunScheduledTask":        true,
-	"/evey.v1.AdminService/GetAuditLog":             true,
-	"/evey.v1.AdminService/GetSystemStats":          true,
-	"/evey.v1.AdminService/EnrichPeopleBios":        true,
-	"/evey.v1.AdminService/GetActiveSessions":       true,
-	"/evey.v1.AdminService/KillSession":             true,
-	"/evey.v1.AdminService/GetUserBitrateLimit":     true,
-	"/evey.v1.AdminService/SetUserBitrateLimit":     true,
+	// AdminSystemService
+	"/evey.v1.AdminSystemService/SetupWizard":        true,
+	"/evey.v1.AdminSystemService/GetSetupStatus":     true,
+	"/evey.v1.AdminSystemService/GetSystemInfo":      true,
+	"/evey.v1.AdminSystemService/GetServerConfig":    true,
+	"/evey.v1.AdminSystemService/UpdateServerConfig": true,
+	"/evey.v1.AdminSystemService/GetDashboard":       true,
 
-	// Plugin management (infra, not plugin API itself)
-	"/evey.v1.AdminService/ListPluginRuntimes":      true,
-	"/evey.v1.AdminService/AddPluginRuntime":        true,
-	"/evey.v1.AdminService/RemovePluginRuntime":     true,
-	"/evey.v1.AdminService/InstallPlugin":           true,
-	"/evey.v1.AdminService/UninstallPlugin":         true,
-	"/evey.v1.AdminService/EnablePlugin":            true,
-	"/evey.v1.AdminService/DisablePlugin":           true,
-	"/evey.v1.AdminService/ListPlugins":             true,
-	"/evey.v1.AdminService/GetPluginConfig":         true,
-	"/evey.v1.AdminService/UpdatePluginConfig":      true,
-	"/evey.v1.AdminService/GetPluginLogs":           true,
+	// AdminTaskService
+	"/evey.v1.AdminTaskService/ListScheduledTasks":   true,
+	"/evey.v1.AdminTaskService/UpdateScheduledTask":  true,
+	"/evey.v1.AdminTaskService/RunScheduledTask":     true,
+
+	// AdminSessionService
+	"/evey.v1.AdminSessionService/GetAuditLog":       true,
+
+	// AdminMediaService
+	"/evey.v1.AdminMediaService/EnrichPeopleBios":    true,
+	"/evey.v1.AdminMediaService/GetUserBitrateLimit": true,
+	"/evey.v1.AdminMediaService/SetUserBitrateLimit": true,
+
+	// AdminPluginService
+	"/evey.v1.AdminPluginService/ListPluginRuntimes":  true,
+	"/evey.v1.AdminPluginService/AddPluginRuntime":    true,
+	"/evey.v1.AdminPluginService/RemovePluginRuntime": true,
+	"/evey.v1.AdminPluginService/InstallPlugin":       true,
+	"/evey.v1.AdminPluginService/UninstallPlugin":     true,
+	"/evey.v1.AdminPluginService/EnablePlugin":        true,
+	"/evey.v1.AdminPluginService/DisablePlugin":       true,
+	"/evey.v1.AdminPluginService/ListPlugins":         true,
+	"/evey.v1.AdminPluginService/GetPluginConfig":     true,
+	"/evey.v1.AdminPluginService/UpdatePluginConfig":  true,
+	"/evey.v1.AdminPluginService/GetPluginLogs":       true,
 
 	// Library infra (create/delete/scan)
 	"/evey.v1.LibraryService/CreateLibrary":         true,

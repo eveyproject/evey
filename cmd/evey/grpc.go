@@ -24,7 +24,6 @@ func buildGRPCServer(deps *appDeps, cfg *config.Config, rootLog *slog.Logger, lo
 		deps.engagement.activityCmdSvc, deps.engagement.activityQuerySvc,
 		deps.engagement.notifCmdSvc, deps.engagement.notifQuerySvc, deps.engagement.feedCmdSvc, deps.engagement.feedQuerySvc, deps.engagement.webhookSvc,
 		deps.content.collectionSvc, deps.content.playlistSvc, deps.content.favoriteSvc,
-		deps.repos.userRatingRepo, deps.content.starRatingSvc,
 		deps.repos.userRepo, deps.repos.profileRepo, deps.repos.libraryAccessRepo,
 		deps.backupSvc, cfg, deps.cfgStore,
 		version,

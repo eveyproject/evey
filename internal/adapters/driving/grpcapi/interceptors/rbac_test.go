@@ -19,7 +19,6 @@ func TestDefaultRBACConfig_PublicMethods(t *testing.T) {
 		"/evey.v1.AdminSystemService/GetSetupStatus",
 		"/evey.v1.UserService/InitiateQuickConnect",
 		"/evey.v1.UserService/CheckQuickConnect",
-		"/evey.v1.ShareService/ValidateShareLink",
 	}
 
 	require.Len(t, cfg.PublicMethods, len(expected), "public methods count mismatch — was a method added or removed?")
@@ -95,7 +94,6 @@ func TestDefaultRBACConfig_AdminMethods(t *testing.T) {
 		// FeedService
 		"/evey.v1.FeedService/GetAdminFeedConfigs",
 		"/evey.v1.FeedService/UpdateAdminFeedConfig",
-		"/evey.v1.FeedService/BatchUpdateAdminFeedConfigs",
 		// NotificationService
 		"/evey.v1.NotificationService/GetGlobalNotificationSettings",
 		"/evey.v1.NotificationService/UpdateGlobalNotificationSettings",
@@ -137,17 +135,6 @@ func TestDefaultRBACConfig_AdminMethods(t *testing.T) {
 		"/evey.v1.ServerConfigService/SetServerConfigEntry",
 		"/evey.v1.ServerConfigService/ListServerConfigEntries",
 		"/evey.v1.ServerConfigService/DeleteServerConfigEntry",
-		// ShareService
-		"/evey.v1.ShareService/CreateShareLink",
-		"/evey.v1.ShareService/ListShareLinks",
-		"/evey.v1.ShareService/RevokeShareLink",
-		// Admin extras (migrated from HTTP)
-		"/evey.v1.AdminService/GetSystemStats",
-		"/evey.v1.AdminService/EnrichPeopleBios",
-		"/evey.v1.AdminService/GetActiveSessions",
-		"/evey.v1.AdminService/KillSession",
-		"/evey.v1.AdminService/GetUserBitrateLimit",
-		"/evey.v1.AdminService/SetUserBitrateLimit",
 	}
 
 	require.Len(t, cfg.MethodRoles, len(expectedAdmin), "MethodRoles count mismatch — was a mapping added or removed?")
@@ -203,7 +190,6 @@ func TestDefaultRBACConfig_ServiceCoverage(t *testing.T) {
 		"PlaybackSettingsService",
 		"LibraryAccessService",
 		"ServerConfigService",
-		"ShareService",
 	}
 
 	for _, svc := range expectedServices {

@@ -12,44 +12,30 @@ import (
 	appbackup "github.com/gravity-zero/evey/internal/app/backup"
 	appcollection "github.com/gravity-zero/evey/internal/app/collection"
 	appfavorite "github.com/gravity-zero/evey/internal/app/favorite"
-	appsyncplay "github.com/gravity-zero/evey/internal/app/syncplay"
 	appfeed "github.com/gravity-zero/evey/internal/app/feed"
-	appmedia "github.com/gravity-zero/evey/internal/app/media"
-	apprating "github.com/gravity-zero/evey/internal/app/rating"
-	domainlibrary "github.com/gravity-zero/evey/internal/domain/library"
 	applibrary "github.com/gravity-zero/evey/internal/app/library"
 	appmetadata "github.com/gravity-zero/evey/internal/app/metadata"
 	appmkv "github.com/gravity-zero/evey/internal/app/mkv"
 	appnotification "github.com/gravity-zero/evey/internal/app/notification"
 	appplayback "github.com/gravity-zero/evey/internal/app/playback"
-	domainplayback "github.com/gravity-zero/evey/internal/domain/playback"
 	appplaylist "github.com/gravity-zero/evey/internal/app/playlist"
 	appplugin "github.com/gravity-zero/evey/internal/app/plugin"
 	apptranscoding "github.com/gravity-zero/evey/internal/app/transcoding"
 	appuser "github.com/gravity-zero/evey/internal/app/user"
+	appmedia "github.com/gravity-zero/evey/internal/app/media"
 	appmusic "github.com/gravity-zero/evey/internal/app/music"
 	appphoto "github.com/gravity-zero/evey/internal/app/photo"
+	apprating "github.com/gravity-zero/evey/internal/app/rating"
+	appsyncplay "github.com/gravity-zero/evey/internal/app/syncplay"
 	appwebhook "github.com/gravity-zero/evey/internal/app/webhook"
 	"github.com/gravity-zero/evey/internal/config"
+	domainlibrary "github.com/gravity-zero/evey/internal/domain/library"
 	"github.com/gravity-zero/evey/internal/domain/notification"
 	"github.com/gravity-zero/evey/internal/domain/user"
-	"github.com/gravity-zero/evey/internal/pkg/ratelimit"
 	eveyi18n "github.com/gravity-zero/evey/internal/pkg/i18n"
+	"github.com/gravity-zero/evey/internal/pkg/ratelimit"
 	"google.golang.org/grpc"
 )
-
-type playbackSessionAdapter struct {
-	cmd   *appplayback.CommandService
-	query *appplayback.QueryService
-}
-
-func (a *playbackSessionAdapter) GetActiveSessions(ctx context.Context) ([]*domainplayback.ActiveSessionInfo, error) {
-	return a.query.GetActiveSessions(ctx)
-}
-
-func (a *playbackSessionAdapter) StopStream(ctx context.Context, sessionID string) error {
-	return a.cmd.StopStream(ctx, sessionID)
-}
 
 type GRPCServer struct {
 	server        *grpc.Server
@@ -78,8 +64,6 @@ type GRPCServer struct {
 	collection    *appcollection.Service
 	playlist      *appplaylist.Service
 	favorite      *appfavorite.Service
-	thumbRating   domainlibrary.UserRatingRepository
-	starRating    *apprating.Service
 	users         user.UserRepository
 	profiles      user.ProfileRepository
 	libraryAccess user.LibraryAccessRepository
@@ -90,7 +74,6 @@ type GRPCServer struct {
 	startTime     time.Time
 	ffmpegPath    string
 	backup          *appbackup.Service
-	syncplayHub     *appsyncplay.Hub
 	cfg             *config.Config
 	cfgStore        remoteAccessConfigStore
 	serverCfgHndlr  *serverConfigHandler
@@ -104,6 +87,9 @@ type GRPCServer struct {
 	pushSubs        notification.PushSubscriptionRepository
 	vapidPubKey     string
 	pushRegisterRL  *ratelimit.Limiter
+	syncplayHub     *appsyncplay.Hub
+	thumbRating     domainlibrary.UserRatingRepository
+	starRating      *apprating.Service
 }
 
 func (s *GRPCServer) SetServerConfigHandler(h *serverConfigHandler) {
@@ -133,34 +119,14 @@ func (s *GRPCServer) SetTranslator(t *eveyi18n.Translator) {
 	s.translator = t
 }
 
-func (s *GRPCServer) SetSMTPConfigured(v bool) {
-	s.smtpConfigured = v
-}
-
-func (s *GRPCServer) SetShareService(svc *appmedia.ShareService) {
-	s.shareSvc = svc
-}
-
-func (s *GRPCServer) SetSyncPlayHub(hub *appsyncplay.Hub) {
-	s.syncplayHub = hub
-}
-
-func (s *GRPCServer) SetBioEnricher(e appmetadata.PeopleBioEnricher) {
-	s.bioEnricher = e
-}
-
+func (s *GRPCServer) SetSMTPConfigured(v bool) { s.smtpConfigured = v }
+func (s *GRPCServer) SetShareService(svc *appmedia.ShareService) { s.shareSvc = svc }
+func (s *GRPCServer) SetBioEnricher(e appmetadata.PeopleBioEnricher) { s.bioEnricher = e }
+func (s *GRPCServer) SetMusicService(svc *appmusic.Service) { s.music = svc }
+func (s *GRPCServer) SetPhotoService(svc *appphoto.Service) { s.photo = svc }
+func (s *GRPCServer) SetSyncPlayHub(hub *appsyncplay.Hub) { s.syncplayHub = hub }
 func (s *GRPCServer) SetPushDeps(subs notification.PushSubscriptionRepository, vapidKey string, rl *ratelimit.Limiter) {
-	s.pushSubs = subs
-	s.vapidPubKey = vapidKey
-	s.pushRegisterRL = rl
-}
-
-func (s *GRPCServer) SetMusicService(svc *appmusic.Service) {
-	s.music = svc
-}
-
-func (s *GRPCServer) SetPhotoService(svc *appphoto.Service) {
-	s.photo = svc
+	s.pushSubs = subs; s.vapidPubKey = vapidKey; s.pushRegisterRL = rl
 }
 
 func NewGRPCServer(
@@ -189,8 +155,6 @@ func NewGRPCServer(
 	collection *appcollection.Service,
 	playlist *appplaylist.Service,
 	favorite *appfavorite.Service,
-	thumbRating domainlibrary.UserRatingRepository,
-	starRating *apprating.Service,
 	users user.UserRepository,
 	profiles user.ProfileRepository,
 	libraryAccess user.LibraryAccessRepository,
@@ -227,8 +191,6 @@ func NewGRPCServer(
 		collection:    collection,
 		playlist:      playlist,
 		favorite:      favorite,
-		thumbRating:   thumbRating,
-		starRating:    starRating,
 		users:         users,
 		profiles:      profiles,
 		libraryAccess: libraryAccess,
@@ -242,7 +204,7 @@ func NewGRPCServer(
 }
 
 func (s *GRPCServer) RegisterServices() {
-	eveyv1.RegisterLibraryServiceServer(s.server, &libraryHandler{cmd: s.libCmd, query: s.libQuery, metadataSvc: s.metadataQuery, libraryAccess: s.libraryAccess, profiles: s.profiles, translator: s.translator, scheduler: s.scheduler})
+	eveyv1.RegisterLibraryServiceServer(s.server, &libraryHandler{cmd: s.libCmd, query: s.libQuery, metadataSvc: s.metadataQuery, libraryAccess: s.libraryAccess, profiles: s.profiles, translator: s.translator})
 	eveyv1.RegisterUserServiceServer(s.server, &userHandler{auth: s.userAuth, userSvc: s.userSvc, access: s.userAccess, query: s.userQuery, users: s.users, activitySvc: s.activityCmd, translator: s.translator})
 	eveyv1.RegisterPlaybackServiceServer(s.server, &playbackHandler{cmd: s.playbackCmd, query: s.playbackQuery, librarySvc: s.libQuery, activitySvc: s.activityCmd, profiles: s.profiles, libraryAccess: s.libraryAccess, translator: s.translator, hlsManager: s.hlsManager})
 	eveyv1.RegisterTranscodingServiceServer(s.server, &transcodingHandler{svc: s.transcoding, profiles: s.profiles})
@@ -252,27 +214,6 @@ func (s *GRPCServer) RegisterServices() {
 	if srvCtx == nil {
 		srvCtx = context.Background()
 	}
-<<<<<<< HEAD
-	var sessProvider adminSessionProvider
-	if s.playbackCmd != nil && s.playbackQuery != nil {
-		sessProvider = &playbackSessionAdapter{cmd: s.playbackCmd, query: s.playbackQuery}
-	}
-	eveyv1.RegisterAdminServiceServer(s.server, &adminHandler{
-		userCmd:          s.userAuth,
-		userQuery:        s.userQuery,
-		userSvc:          s.userSvc,
-		transcodingSvc:   s.transcoding,
-		activitySvc:      s.activityQuery,
-		activityCmd:      s.activityCmd,
-		pluginInstaller:  s.pluginInstaller,
-		pluginRuntime:    s.pluginRuntime,
-		pluginQuery:      s.pluginQuery,
-		hlsManager:       s.hlsManager,
-		libLister:        s.libQuery,
-		scheduler:        s.scheduler,
-		libScanner:       s.libCmd,
-		libCmd:           s.libCmd,
-=======
 	eveyv1.RegisterAdminSystemServiceServer(s.server, &adminSystemHandler{
 		userCmd:        s.userAuth,
 		userQuery:      s.userQuery,
@@ -299,47 +240,34 @@ func (s *GRPCServer) RegisterServices() {
 		translator: s.translator,
 	})
 	eveyv1.RegisterAdminMediaServiceServer(s.server, &adminMediaHandler{
->>>>>>> worktree-agent-a3eac80b
 		metadataCmd:      s.metadataCmd,
 		libCmd:           s.libCmd,
 		heavyOpSemaphore: make(chan struct{}, 1),
 		translator:       s.translator,
-<<<<<<< HEAD
-		serverCtx:        srvCtx,
-		smtpConfigured:   s.smtpConfigured,
-		bioEnricher:      s.bioEnricher,
-		sessionProvider:  sessProvider,
-=======
 	})
 	eveyv1.RegisterAdminSessionServiceServer(s.server, &adminSessionHandler{
 		activitySvc: s.activityQuery,
->>>>>>> worktree-agent-a3eac80b
 	})
-	eveyv1.RegisterActivityServiceServer(s.server, &activityHandler{svc: s.activityQuery, libQuery: s.libQuery, libraryAccess: s.libraryAccess, translator: s.translator})
+	eveyv1.RegisterActivityServiceServer(s.server, &activityHandler{svc: s.activityQuery, translator: s.translator})
 	eveyv1.RegisterNotificationServiceServer(s.server, &notificationHandler{cmd: s.notifCmd, query: s.notifQuery})
 	eveyv1.RegisterFeedServiceServer(s.server, &feedHandler{commands: s.feedCmd, queries: s.feedQuery})
 	eveyv1.RegisterWebhookServiceServer(s.server, &webhookHandler{svc: s.webhook})
 	eveyv1.RegisterCollectionServiceServer(s.server, &collectionHandler{svc: s.collection})
 	eveyv1.RegisterPlaylistServiceServer(s.server, &playlistHandler{svc: s.playlist, translator: s.translator})
 	eveyv1.RegisterFavoriteServiceServer(s.server, &favoriteHandler{svc: s.favorite})
-	eveyv1.RegisterRatingServiceServer(s.server, &ratingHandler{thumbRepo: s.thumbRating, starSvc: s.starRating, libQuery: s.libQuery, libraryAccess: s.libraryAccess})
 	eveyv1.RegisterTranscodeCacheServiceServer(s.server, &transcodeCacheHandler{svc: s.transcoding})
 	eveyv1.RegisterBackupServiceServer(s.server, &backupHandler{svc: s.backup})
 	eveyv1.RegisterRemoteAccessServiceServer(s.server, &remoteAccessHandler{cfg: s.cfg, store: s.cfgStore})
 	eveyv1.RegisterPlaybackSettingsServiceServer(s.server, &playbackSettingsHandler{cfg: s.cfg, translator: s.translator})
 	eveyv1.RegisterLibraryAccessServiceServer(s.server, &libraryAccessHandler{accessRepo: s.libraryAccess, libQuery: s.libQuery})
+	if s.serverCfgHndlr != nil {
+		eveyv1.RegisterServerConfigServiceServer(s.server, s.serverCfgHndlr)
+	}
 	if s.shareSvc != nil {
 		eveyv1.RegisterShareServiceServer(s.server, &shareHandler{svc: s.shareSvc, libQuery: s.libQuery, libraryAccess: s.libraryAccess})
 	}
 	if s.syncplayHub != nil {
-		eveyv1.RegisterSyncPlayServiceServer(s.server, &syncplayHandler{
-			hub:           s.syncplayHub,
-			libQuery:      s.libQuery,
-			libraryAccess: s.libraryAccess,
-		})
-	}
-	if s.serverCfgHndlr != nil {
-		eveyv1.RegisterServerConfigServiceServer(s.server, s.serverCfgHndlr)
+		eveyv1.RegisterSyncPlayServiceServer(s.server, &syncplayHandler{hub: s.syncplayHub, libQuery: s.libQuery, libraryAccess: s.libraryAccess})
 	}
 	if s.music != nil {
 		eveyv1.RegisterMusicServiceServer(s.server, &musicHandler{svc: s.music, libQuery: s.libQuery, libraryAccess: s.libraryAccess})
@@ -348,11 +276,9 @@ func (s *GRPCServer) RegisterServices() {
 		eveyv1.RegisterPhotoServiceServer(s.server, &photoHandler{svc: s.photo, libQuery: s.libQuery, libraryAccess: s.libraryAccess})
 	}
 	if s.pushSubs != nil {
-		eveyv1.RegisterPushServiceServer(s.server, &webPushHandler{
-			subs: s.pushSubs, profiles: s.profiles, users: s.users,
-			vapidPubKey: s.vapidPubKey, registerRL: s.pushRegisterRL,
-		})
+		eveyv1.RegisterPushServiceServer(s.server, &webPushHandler{subs: s.pushSubs, profiles: s.profiles, users: s.users, vapidPubKey: s.vapidPubKey, registerRL: s.pushRegisterRL})
 	}
+	eveyv1.RegisterRatingServiceServer(s.server, &ratingHandler{thumbRepo: s.thumbRating, starSvc: s.starRating, libQuery: s.libQuery, libraryAccess: s.libraryAccess})
 }
 
 func (s *GRPCServer) Start(addr string) error {
