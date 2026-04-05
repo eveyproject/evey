@@ -131,7 +131,7 @@ func (r *ProfileRepository) Update(ctx context.Context, p *user.Profile) error {
 func (r *ProfileRepository) GetAll(ctx context.Context) ([]*user.Profile, error) {
 	rows, err := r.db.QueryContext(ctx,
 		`SELECT id, user_id, name, avatar_path, preferences, max_rating, is_default, audio_languages, subtitle_languages, max_bitrate_kbps, parental_max_rating, parental_blocked_tags, parental_pin_hash, parental_enabled, locale, created_at
-		 FROM profiles ORDER BY user_id, is_default DESC, name`)
+		 FROM profiles ORDER BY user_id, is_default DESC, name LIMIT 1000`)
 	if err != nil {
 		return nil, fmt.Errorf("ProfileRepo.GetAll: %w", err)
 	}

@@ -24,7 +24,7 @@ func (r *TranscodeProfileRepository) GetByID(ctx context.Context, id string) (*t
 func (r *TranscodeProfileRepository) List(ctx context.Context) ([]*transcoding.TranscodeProfile, error) {
 	rows, err := r.db.QueryContext(ctx,
 		`SELECT id, name, video_codec, audio_codec, container, max_width, max_height, video_bitrate, audio_bitrate, preset
-		 FROM transcode_profiles ORDER BY name`)
+		 FROM transcode_profiles ORDER BY name LIMIT 100`)
 	if err != nil {
 		return nil, err
 	}

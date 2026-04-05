@@ -108,7 +108,7 @@ func NewFeedProfileConfigRepository(db *sql.DB) *FeedProfileConfigRepository {
 
 func (r *FeedProfileConfigRepository) GetByProfile(ctx context.Context, profileID string) ([]*feed.ProfileConfig, error) {
 	rows, err := r.db.QueryContext(ctx,
-		`SELECT feed_type, enabled, display_order, max_items, params FROM feed_profile_config WHERE profile_id = $1`, profileID)
+		`SELECT feed_type, enabled, display_order, max_items, params FROM feed_profile_config WHERE profile_id = $1 ORDER BY display_order LIMIT 100`, profileID)
 	if err != nil {
 		return nil, err
 	}

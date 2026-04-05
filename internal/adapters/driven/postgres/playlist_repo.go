@@ -249,9 +249,10 @@ func (q *SmartPlaylistQuerier) QueryByRules(ctx context.Context, rules []playlis
 	}
 	query += fmt.Sprintf(" ORDER BY %s %s NULLS LAST", col, dir)
 
-	if limit > 0 {
-		query += fmt.Sprintf(" LIMIT %d", limit)
+	if limit <= 0 {
+		limit = 500
 	}
+	query += fmt.Sprintf(" LIMIT %d", limit)
 
 	rows, err := q.db.QueryContext(ctx, query, args...)
 	if err != nil {

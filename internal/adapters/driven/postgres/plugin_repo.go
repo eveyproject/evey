@@ -63,7 +63,7 @@ func (r *PluginRepository) List(ctx context.Context) ([]*plugin.Plugin, error) {
 	rows, err := r.db.QueryContext(ctx,
 		`SELECT id, name, version, description, author, language, entrypoint, install_dir,
 		 capabilities, permissions, config_schema, config, enabled, status, error_message, installed_at, updated_at, source_hash
-		 FROM plugins ORDER BY name`)
+		 FROM plugins ORDER BY name LIMIT 1000`)
 	if err != nil {
 		return nil, err
 	}

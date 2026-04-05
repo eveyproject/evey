@@ -33,16 +33,11 @@ func (r *NotificationRepository) ListByProfile(ctx context.Context, profileID st
 		q += ` AND read_at IS NULL`
 	}
 	q += ` ORDER BY created_at DESC`
-	if limit > 0 {
-		q += ` LIMIT $2 OFFSET $3`
-		rows, err := r.db.QueryContext(ctx, q, profileID, limit, offset)
-		if err != nil {
-			return nil, err
-		}
-		defer rows.Close()
-		return scanNotifications(rows)
+	if limit <= 0 {
+		limit = 200
 	}
-	rows, err := r.db.QueryContext(ctx, q, profileID)
+	q += ` LIMIT $2 OFFSET $3`
+	rows, err := r.db.QueryContext(ctx, q, profileID, limit, offset)
 	if err != nil {
 		return nil, err
 	}

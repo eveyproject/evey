@@ -35,7 +35,7 @@ func (r *MediaItemQueryRepoAdapter) GetByIDs(ctx context.Context, ids []string) 
 		`SELECT id, library_id, parent_id, type, title, sort_title, original_title, overview, tagline,
 		 file_path, file_size, file_fingerprint, mod_time, duration_ms, bitrate, container_format, index_number, community_rating,
 		 official_rating, premiere_date, year, provider_ids, genres, studios, tags, trailers, ratings, added_at, updated_at
-		 FROM media_items WHERE id = ANY($1)`, pq.Array(ids))
+		 FROM media_items WHERE id = ANY($1) ORDER BY sort_title`, pq.Array(ids))
 	if err != nil {
 		return nil, err
 	}

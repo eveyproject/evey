@@ -57,7 +57,9 @@ func (r *TrickplayRepository) ListMissingMediaItemIDs(ctx context.Context) ([]st
 		`SELECT id FROM media_items mi
 		 WHERE mi.file_path != ''
 		   AND mi.type IN ('movie', 'episode')
-		   AND NOT EXISTS (SELECT 1 FROM trickplay_manifests tm WHERE tm.media_item_id = mi.id)`)
+		   AND NOT EXISTS (SELECT 1 FROM trickplay_manifests tm WHERE tm.media_item_id = mi.id)
+		 ORDER BY mi.added_at DESC
+		 LIMIT 10000`)
 	if err != nil {
 		return nil, err
 	}

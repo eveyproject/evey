@@ -71,7 +71,7 @@ func (r *ScanScheduleRepository) List(ctx context.Context) ([]*library.ScanSched
 func (r *ScanScheduleRepository) ListEnabled(ctx context.Context) ([]*library.ScanSchedule, error) {
 	rows, err := r.db.QueryContext(ctx,
 		`SELECT library_id, cron_expression, enabled, last_run_at, next_run_at, created_at, updated_at
-		 FROM scan_schedules WHERE enabled = TRUE`)
+		 FROM scan_schedules WHERE enabled = TRUE ORDER BY library_id LIMIT 1000`)
 	if err != nil {
 		return nil, err
 	}

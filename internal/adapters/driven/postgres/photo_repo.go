@@ -143,6 +143,7 @@ func (r *PhotoRepository) ListAllByLibrary(ctx context.Context, libraryID string
 		SELECT id, library_id, title, file_path, file_size, file_hash, mod_time, mime_type, width, height,
 		       taken_at, latitude, longitude, camera_model, album, created_at, updated_at
 		FROM photos WHERE library_id = $1
+		ORDER BY taken_at DESC NULLS LAST, created_at DESC
 		LIMIT 10000`, libraryID,
 	)
 	if err != nil {

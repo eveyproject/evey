@@ -39,7 +39,7 @@ func (r *PluginRuntimeRepository) GetByLanguageAndVersion(ctx context.Context, l
 func (r *PluginRuntimeRepository) ListByLanguage(ctx context.Context, language string) ([]*plugin.PluginRuntime, error) {
 	rows, err := r.db.QueryContext(ctx,
 		`SELECT id, language, version, status, notes, tested_at
-		 FROM plugin_runtimes WHERE language = $1 ORDER BY version`, language)
+		 FROM plugin_runtimes WHERE language = $1 ORDER BY version LIMIT 100`, language)
 	if err != nil {
 		return nil, err
 	}
@@ -50,7 +50,7 @@ func (r *PluginRuntimeRepository) ListByLanguage(ctx context.Context, language s
 func (r *PluginRuntimeRepository) List(ctx context.Context) ([]*plugin.PluginRuntime, error) {
 	rows, err := r.db.QueryContext(ctx,
 		`SELECT id, language, version, status, notes, tested_at
-		 FROM plugin_runtimes ORDER BY language, version`)
+		 FROM plugin_runtimes ORDER BY language, version LIMIT 1000`)
 	if err != nil {
 		return nil, err
 	}

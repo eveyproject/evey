@@ -48,6 +48,7 @@ func (r *PersonTranslationRepository) GetByPerson(ctx context.Context, personID 
 		SELECT person_id, locale, biography
 		FROM person_translations
 		WHERE person_id = $1
+		ORDER BY locale
 	`, personID)
 	if err != nil {
 		return nil, err

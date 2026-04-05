@@ -52,7 +52,7 @@ func (r *LibraryRepository) GetByID(ctx context.Context, id string) (*library.Li
 func (r *LibraryRepository) List(ctx context.Context) ([]*library.Library, error) {
 	rows, err := r.db.QueryContext(ctx,
 		`SELECT id, name, type, paths, scan_interval_minutes, enabled, last_scanned_at, created_at, updated_at
-		 FROM libraries ORDER BY name`)
+		 FROM libraries ORDER BY name LIMIT 1000`)
 	if err != nil {
 		return nil, fmt.Errorf("LibraryRepo.List: %w", err)
 	}

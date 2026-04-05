@@ -58,7 +58,7 @@ func (r *UserRepository) GetByOIDCSubject(ctx context.Context, issuer, subject s
 func (r *UserRepository) List(ctx context.Context) ([]*user.User, error) {
 	rows, err := r.db.QueryContext(ctx,
 		`SELECT id, username, email, password_hash, is_admin, enabled, oidc_subject, oidc_issuer, max_streams, max_bitrate_kbps, push_consent, created_at, updated_at
-		 FROM users ORDER BY username`)
+		 FROM users ORDER BY username LIMIT 1000`)
 	if err != nil {
 		return nil, fmt.Errorf("UserRepo.List: %w", err)
 	}

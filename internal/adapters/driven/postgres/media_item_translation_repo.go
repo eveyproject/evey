@@ -48,6 +48,7 @@ func (r *MediaItemTranslationRepository) GetByMediaItem(ctx context.Context, med
 		SELECT media_item_id, locale, title, overview, tagline
 		FROM media_item_translations
 		WHERE media_item_id = $1
+		ORDER BY locale
 	`, mediaItemID)
 	if err != nil {
 		return nil, err

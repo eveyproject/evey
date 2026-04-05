@@ -43,6 +43,7 @@ func (r *PushSubscriptionRepository) GetByProfile(ctx context.Context, profileID
 	rows, err := r.db.QueryContext(ctx, `
 		SELECT id, user_id, profile_id, endpoint, p256dh, auth, created_at, updated_at
 		FROM push_subscriptions WHERE profile_id = $1
+		ORDER BY created_at DESC
 	`, profileID)
 	if err != nil {
 		return nil, err

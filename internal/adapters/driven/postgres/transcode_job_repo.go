@@ -69,7 +69,7 @@ func (r *TranscodeJobRepository) ListByMediaItem(ctx context.Context, mediaItemI
 		 resolution_in, resolution_out, bitrate_in, bitrate_out, speed, status, error_message,
 		 started_at, ended_at, duration_ms
 		 FROM transcode_sessions WHERE media_item_id = $1
-		 ORDER BY started_at DESC`, mediaItemID)
+		 ORDER BY started_at DESC LIMIT 100`, mediaItemID)
 	if err != nil {
 		return nil, err
 	}

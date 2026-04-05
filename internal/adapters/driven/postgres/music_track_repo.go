@@ -100,7 +100,8 @@ func (r *MusicTrackRepository) ListByAlbum(ctx context.Context, album, artist st
 		       file_size, file_hash, mod_time, mime_type, bitrate, sample_rate, channels,
 		       genre, cover_art_url, created_at, updated_at
 		FROM music_tracks WHERE album=$1 AND album_artist=$2
-		ORDER BY disk_number, track_number`, album, artist)
+		ORDER BY disk_number, track_number
+		LIMIT 1000`, album, artist)
 	if err != nil {
 		return nil, err
 	}
@@ -201,6 +202,7 @@ func (r *MusicTrackRepository) ListAllByLibrary(ctx context.Context, libraryID s
 		       file_size, file_hash, mod_time, mime_type, bitrate, sample_rate, channels,
 		       genre, cover_art_url, created_at, updated_at
 		FROM music_tracks WHERE library_id=$1
+		ORDER BY album_artist, album, disk_number, track_number
 		LIMIT 10000`, libraryID)
 	if err != nil {
 		return nil, err

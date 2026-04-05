@@ -392,7 +392,7 @@ func (r *MediaItemRepository) ListByLibraryID(ctx context.Context, libraryID str
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	rows, err := r.db.QueryContext(ctx,
-		fmt.Sprintf("SELECT %s FROM media_items WHERE library_id = $1 LIMIT $2", mediaItemColumns), libraryID, listByLibraryIDMaxRows)
+		fmt.Sprintf("SELECT %s FROM media_items WHERE library_id = $1 ORDER BY added_at DESC LIMIT $2", mediaItemColumns), libraryID, listByLibraryIDMaxRows)
 	if err != nil {
 		return nil, fmt.Errorf("MediaItemRepo.ListByLibraryID: %w", err)
 	}

@@ -45,7 +45,7 @@ func (r *RoleRepository) GetByName(ctx context.Context, name string) (*user.Role
 func (r *RoleRepository) List(ctx context.Context) ([]*user.Role, error) {
 	rows, err := r.db.QueryContext(ctx,
 		`SELECT id, name, description, permissions, is_system
-		 FROM roles ORDER BY name`)
+		 FROM roles ORDER BY name LIMIT 1000`)
 	if err != nil {
 		return nil, err
 	}
