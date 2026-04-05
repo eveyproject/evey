@@ -276,7 +276,7 @@ func (s *GRPCServer) RegisterServices() {
 		eveyv1.RegisterPhotoServiceServer(s.server, &photoHandler{svc: s.photo, libQuery: s.libQuery, libraryAccess: s.libraryAccess})
 	}
 	if s.pushSubs != nil {
-		eveyv1.RegisterPushServiceServer(s.server, &webPushHandler{subs: s.pushSubs, profiles: s.profiles, users: s.users, vapidPubKey: s.vapidPubKey, registerRL: s.pushRegisterRL})
+		eveyv1.RegisterPushServiceServer(s.server, &webPushHandler{subs: s.pushSubs, profiles: s.profiles, users: s.users, vapidPubKey: s.vapidPubKey})
 	}
 	eveyv1.RegisterRatingServiceServer(s.server, &ratingHandler{thumbRepo: s.thumbRating, starSvc: s.starRating, libQuery: s.libQuery, libraryAccess: s.libraryAccess})
 }
