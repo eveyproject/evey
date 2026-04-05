@@ -106,7 +106,6 @@ settings:
   title: Settings
   tabs:
     appearance: Appearance
-    playback: Playback
     notifications: Notifications
     account: Account
     parental: Parental
@@ -128,12 +127,6 @@ settings:
     scanLabel: Quick Connect
     scanInstruction: Scan with a logged-in device to sign in
     expiresIn: "Expires in {{seconds}}s"
-  playback:
-    bitrateTitle: Streaming Bitrate Limit
-    bitrateDesc: Maximum bitrate for transcoded streams. Does not affect direct play.
-    maxBitrate: Max bitrate
-    bitrateUpdated: Bitrate limit updated
-    bitrateFailed: Failed to update bitrate limit
   account:
     changePassword: Change Password
     changePasswordDesc: Use a strong password with at least 8 characters.

@@ -128,12 +128,6 @@ settings:
     scanLabel: "क्विक कनेक्ट"
     scanInstruction: "साइन इन करने के लिए लॉग-इन डिवाइस से स्कैन करें"
     expiresIn: "{{seconds}}s में समाप्त"
-  playback:
-    bitrateTitle: "स्ट्रीमिंग बिटरेट सीमा"
-    bitrateDesc: "ट्रांसकोड स्ट्रीम के लिए अधिकतम बिटरेट। सीधे प्लेबैक को प्रभावित नहीं करता।"
-    maxBitrate: "अधिकतम बिटरेट"
-    bitrateUpdated: "बिटरेट सीमा अपडेट हुई"
-    bitrateFailed: "बिटरेट सीमा अपडेट करने में विफल"
   account:
     changePassword: "पासवर्ड बदलें"
     changePasswordDesc: "कम से कम 8 अक्षरों का मजबूत पासवर्ड उपयोग करें।"

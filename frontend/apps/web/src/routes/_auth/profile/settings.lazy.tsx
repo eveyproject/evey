@@ -1,12 +1,12 @@
-import { Palette, Play, Bell, Shield, Smartphone, QrCode, Pencil, X } from "lucide-react";
+import { Palette, Bell, Shield, Smartphone, QrCode, Pencil, X } from "lucide-react";
 import type React from "react";
 import { createLazyFileRoute } from "@tanstack/react-router";
 import { useState, useEffect, useRef } from "react";
 import { useUserServiceGetCurrentUser, useUserServiceUpdateUser, useUserServiceListProfiles, useUserServiceUpdateProfile } from "@evey/api";
 import { getUserServiceGetCurrentUserQueryKey, getUserServiceListProfilesQueryKey } from "@evey/api";
 import { useAuthStore } from "@evey/store";
-import { eveyFetch, eveyFetchRaw } from "@evey/api";
-import { useQueryClient, useMutation } from "@tanstack/react-query";
+import { eveyFetchRaw } from "@evey/api";
+import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "@evey/store";
 import { useTranslation } from "react-i18next";
 import { Card } from "@/components/ui/Card";
@@ -23,11 +23,10 @@ export const Route = createLazyFileRoute("/_auth/profile/settings")({
   component: SettingsPage,
 });
 
-type Tab = "appearance" | "playback" | "notifications" | "parental" | "devices" | "quick-connect";
+type Tab = "appearance" | "notifications" | "parental" | "devices" | "quick-connect";
 
 const TABS: { key: Tab; labelKey: string; icon: React.ReactNode }[] = [
   { key: "appearance", labelKey: "auth.settings.tabs.appearance", icon: <Palette size={16} strokeWidth={1.5} /> },
-  { key: "playback", labelKey: "auth.settings.tabs.playback", icon: <Play size={16} strokeWidth={1.5} /> },
   { key: "notifications", labelKey: "auth.settings.tabs.notifications", icon: <Bell size={16} strokeWidth={1.5} /> },
   { key: "parental", labelKey: "auth.settings.tabs.parental", icon: <Shield size={16} strokeWidth={1.5} /> },
   { key: "devices", labelKey: "auth.settings.tabs.devices", icon: <Smartphone size={16} strokeWidth={1.5} /> },
@@ -222,89 +221,12 @@ function SettingsPage() {
               </div>
             </>
           )}
-          {tab === "playback" && <PlaybackSection />}
           {tab === "notifications" && <NotificationSettings />}
           {tab === "parental" && <ParentalSection />}
           {tab === "devices" && <DeviceSettings />}
           {tab === "quick-connect" && <QuickConnectSettings />}
         </div>
       </Card>
-    </div>
-  );
-}
-
-const BITRATE_OPTIONS = [
-  { value: "0", label: "Unlimited" },
-  { value: "2000", label: "2 Mbps" },
-  { value: "4000", label: "4 Mbps" },
-  { value: "8000", label: "8 Mbps" },
-  { value: "10000", label: "10 Mbps" },
-  { value: "15000", label: "15 Mbps" },
-  { value: "20000", label: "20 Mbps" },
-  { value: "40000", label: "40 Mbps" },
-];
-
-function PlaybackSection() {
-  const { t } = useTranslation();
-  const qc = useQueryClient();
-  const { data: user } = useUserServiceGetCurrentUser();
-  const { data: profilesResp } = useUserServiceListProfiles(user?.id ?? "", {
-    query: { enabled: !!user?.id },
-  });
-
-  const profiles = profilesResp?.profiles;
-  const defaultProfile = profiles?.find((p) => p.isDefault) ?? profiles?.[0];
-
-  const [bitrate, setBitrate] = useState("0");
-
-  useEffect(() => {
-    if (defaultProfile?.preferences?.max_bitrate_kbps) {
-      setBitrate(defaultProfile.preferences.max_bitrate_kbps);
-    }
-  }, [defaultProfile]);
-
-  const updateProfile = useMutation({
-    mutationFn: (bitrateKbps: string) =>
-      eveyFetch({
-        url: `/api/v1/profiles/${defaultProfile?.id}`,
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        data: {
-          preferences: {
-            ...defaultProfile?.preferences,
-            max_bitrate_kbps: bitrateKbps,
-          },
-        },
-      }),
-    onSuccess: () => {
-      if (user?.id) {
-        void qc.invalidateQueries({ queryKey: getUserServiceListProfilesQueryKey(user.id) });
-      }
-      toast.success(t("auth.settings.playback.bitrateUpdated"));
-    },
-    onError: (err: Error) => toast.error(err.message || t("auth.settings.playback.bitrateFailed")),
-  });
-
-  const handleChange = (value: string) => {
-    setBitrate(value);
-    updateProfile.mutate(value);
-  };
-
-  return (
-    <div className="flex flex-col gap-6">
-      <div>
-        <h3 className="text-sm font-semibold text-[var(--text)]">{t("auth.settings.playback.bitrateTitle")}</h3>
-        <p className="text-xs text-[var(--text-muted)] mt-1">
-          {t("auth.settings.playback.bitrateDesc")}
-        </p>
-      </div>
-      <Select
-        label={t("auth.settings.playback.maxBitrate")}
-        options={BITRATE_OPTIONS}
-        value={bitrate}
-        onChange={handleChange}
-        disabled={!defaultProfile}
-      />
     </div>
   );
 }
