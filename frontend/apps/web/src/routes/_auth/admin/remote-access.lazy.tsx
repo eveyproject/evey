@@ -116,7 +116,9 @@ function RemoteAccessPage() {
                   role="switch"
                   aria-checked={enabled}
                   onClick={() => {
-                    setEnabled(!enabled);
+                    const next = !enabled;
+                    setEnabled(next);
+                    if (!next) setExternalUrl("");
                     setDirty(true);
                   }}
                   className="relative inline-flex h-6 w-11 items-center rounded-full transition-colors-fast"
