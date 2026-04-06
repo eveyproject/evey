@@ -209,6 +209,10 @@ detail:
   failedToSaveDot: Speichern fehlgeschlagen.
   refreshFailed: Metadaten konnten nicht aktualisiert werden
   noProfileSelected: Kein Profil ausgewählt
+  alreadyDownloaded: Bereits heruntergeladen
+  downloadStarted: Download gestartet
+  downloadComplete: Download abgeschlossen
+  downloadFailed: Download fehlgeschlagen
 contextMenu:
   editMetadata: Metadaten bearbeiten
   addToPlaylist: Zur Playlist hinzufügen

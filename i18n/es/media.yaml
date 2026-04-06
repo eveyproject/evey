@@ -209,6 +209,10 @@ detail:
   failedToSaveDot: Error al guardar.
   refreshFailed: Error al actualizar metadatos
   noProfileSelected: Ningún perfil seleccionado
+  alreadyDownloaded: Ya descargado
+  downloadStarted: Descarga iniciada
+  downloadComplete: Descarga completada
+  downloadFailed: Error en la descarga
 contextMenu:
   editMetadata: Editar metadatos
   addToPlaylist: Agregar a lista de reproducción

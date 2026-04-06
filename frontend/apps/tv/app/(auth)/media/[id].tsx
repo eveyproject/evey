@@ -172,7 +172,7 @@ export default function MediaDetailScreen() {
           onFocus={() => setFocusedBtn("fav")}
           onBlur={() => setFocusedBtn(null)}
           accessible={true}
-          accessibilityLabel={isFavorite ? "Remove favorite" : "Add favorite"}
+          accessibilityLabel={isFavorite ? t("media.detail.favorited") : t("media.detail.favorite")}
           accessibilityRole="button"
           style={[
             styles.actionBtn,
@@ -183,7 +183,7 @@ export default function MediaDetailScreen() {
           ]}
         >
           <Text style={[styles.actionText, { color: isFavorite ? theme.colors.accent : theme.colors.text }]}>
-            {isFavorite ? "Favorited" : "Favorite"}
+            {isFavorite ? t("media.detail.favorited") : t("media.detail.favorite")}
           </Text>
         </Pressable>
 
@@ -201,7 +201,7 @@ export default function MediaDetailScreen() {
             onFocus={() => setFocusedBtn("watched")}
             onBlur={() => setFocusedBtn(null)}
             accessible={true}
-            accessibilityLabel={watched ? "Mark unwatched" : "Mark watched"}
+            accessibilityLabel={watched ? t("media.detail.markUnwatched") : t("media.detail.markWatched")}
             accessibilityRole="button"
             style={[
               styles.actionBtn,
@@ -212,7 +212,7 @@ export default function MediaDetailScreen() {
             ]}
           >
             <Text style={[styles.actionText, { color: watched ? theme.colors.accent : theme.colors.text }]}>
-              {watched ? "Watched" : "Mark watched"}
+              {watched ? t("media.detail.markUnwatched") : t("media.detail.markWatched")}
             </Text>
           </Pressable>
         )}
@@ -222,7 +222,7 @@ export default function MediaDetailScreen() {
           onFocus={() => setFocusedBtn("playlist")}
           onBlur={() => setFocusedBtn(null)}
           accessible={true}
-          accessibilityLabel="Add to playlist"
+          accessibilityLabel={t("media.detail.addToPlaylist")}
           accessibilityRole="button"
           style={[
             styles.actionBtn,
@@ -232,7 +232,7 @@ export default function MediaDetailScreen() {
             },
           ]}
         >
-          <Text style={[styles.actionText, { color: theme.colors.text }]}>+ Playlist</Text>
+          <Text style={[styles.actionText, { color: theme.colors.text }]}>{t("media.detail.addToPlaylist")}</Text>
         </Pressable>
       </View>
 
@@ -274,7 +274,7 @@ export default function MediaDetailScreen() {
       {/* Episodes */}
       {(isSeries || isSeason) && episodes.length > 0 && (
         <View style={{ marginTop: 24 }}>
-          <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>Episodes</Text>
+          <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>{t("media.detail.episodes")}</Text>
           {episodes.map((ep, index) => (
             <FocusableCard
               key={ep.id}
@@ -299,7 +299,7 @@ export default function MediaDetailScreen() {
       {/* Cast */}
       {actors.length > 0 && (
         <View style={{ marginTop: 32 }}>
-          <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>Cast</Text>
+          <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>{t("media.detail.cast")}</Text>
           <FlatList
             horizontal
             data={actors}

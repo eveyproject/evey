@@ -209,6 +209,10 @@ detail:
   failedToSaveDot: "Échec de l'enregistrement."
   refreshFailed: "Échec de l'actualisation des métadonnées"
   noProfileSelected: Aucun profil sélectionné
+  alreadyDownloaded: Déjà téléchargé
+  downloadStarted: Téléchargement lancé
+  downloadComplete: Téléchargement terminé
+  downloadFailed: Échec du téléchargement
 contextMenu:
   editMetadata: Modifier les métadonnées
   addToPlaylist: Ajouter à la liste de lecture

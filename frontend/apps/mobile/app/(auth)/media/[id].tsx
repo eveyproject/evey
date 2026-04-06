@@ -763,12 +763,12 @@ export default function MediaDetailScreen() {
               onPress={async () => {
                 if (!id || !media?.title) return;
                 const existing = await getDownloadPath(id);
-                if (existing) { toast.info("Already downloaded"); return; }
-                toast.info("Download started");
+                if (existing) { toast.info(t("media.detail.alreadyDownloaded")); return; }
+                toast.info(t("media.detail.downloadStarted"));
                 try {
                   await startDownload(id, media.title);
-                  toast.success("Download complete");
-                } catch { toast.error("Download failed"); }
+                  toast.success(t("media.detail.downloadComplete"));
+                } catch { toast.error(t("media.detail.downloadFailed")); }
               }}
               style={{
                 flexDirection: "row",

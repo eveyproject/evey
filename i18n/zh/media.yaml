@@ -209,6 +209,10 @@ detail:
   failedToSaveDot: 保存失败。
   refreshFailed: 刷新元数据失败
   noProfileSelected: 未选择配置文件
+  alreadyDownloaded: 已下载
+  downloadStarted: 开始下载
+  downloadComplete: 下载完成
+  downloadFailed: 下载失败
 contextMenu:
   editMetadata: 编辑元数据
   addToPlaylist: 添加到播放列表

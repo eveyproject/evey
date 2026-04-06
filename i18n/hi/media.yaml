@@ -209,6 +209,10 @@ detail:
   failedToSaveDot: सहेजने में विफल।
   refreshFailed: मेटाडेटा रिफ़्रेश करने में विफल
   noProfileSelected: कोई प्रोफ़ाइल चयनित नहीं
+  alreadyDownloaded: पहले से डाउनलोड किया गया
+  downloadStarted: डाउनलोड शुरू हुआ
+  downloadComplete: डाउनलोड पूरा हुआ
+  downloadFailed: डाउनलोड विफल
 contextMenu:
   editMetadata: मेटाडेटा संपादित करें
   addToPlaylist: प्लेलिस्ट में जोड़ें

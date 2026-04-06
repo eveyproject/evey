@@ -209,6 +209,10 @@ detail:
   failedToSaveDot: Failed to save.
   refreshFailed: Failed to refresh metadata
   noProfileSelected: No profile selected
+  alreadyDownloaded: Already downloaded
+  downloadStarted: Download started
+  downloadComplete: Download complete
+  downloadFailed: Download failed
 contextMenu:
   editMetadata: Edit metadata
   addToPlaylist: Add to Playlist
