@@ -52,6 +52,8 @@ export default function AdminDashboard() {
     { label: "Plugins", icon: "extension-puzzle-outline", path: "/admin/plugins" },
     { label: "API Keys", icon: "key-outline", path: "/admin/api-keys" },
     { label: "Server Config", icon: "server-outline", path: "/admin/server-config" },
+    { label: t("admin.serverSettings.title"), icon: "settings-outline", path: "/admin/server-settings" },
+    { label: t("admin.analytics.title"), icon: "bar-chart-outline", path: "/admin/analytics" },
     { label: t("admin.backup.title") || "Database Backup", icon: "cloud-download-outline", path: "/admin/backup" },
   ];
 
