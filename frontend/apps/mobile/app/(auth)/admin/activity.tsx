@@ -1,0 +1,324 @@
+import { View, Text, FlatList, Pressable, ActivityIndicator, StyleSheet } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
+import { Stack } from "expo-router";
+import { useState, useCallback } from "react";
+import { useTranslation } from "react-i18next";
+import {
+  useActivityServiceGetPlayHistory,
+  useActivityServiceGetServerStats,
+  useAdminSessionServiceGetAuditLog,
+} from "@evey/api";
+// Types from generated schemas — not re-exported from @evey/api index
+interface PlayEntry {
+  id?: string;
+  mediaTitle?: string;
+  durationMs?: string;
+  positionMs?: string;
+  deviceName?: string;
+  clientName?: string;
+  startedAt?: string;
+}
+interface AuditEntry {
+  id?: string;
+  username?: string;
+  action?: string;
+  resourceType?: string;
+  details?: string;
+  createdAt?: string;
+}
+import { useTheme } from "../../../src/providers/ThemeProvider";
+
+type Tab = "play" | "audit" | "stats";
+
+function formatBytes(bytes?: string): string {
+  const n = parseInt(bytes ?? "0");
+  if (n > 1e12) return `${(n / 1e12).toFixed(1)} TB`;
+  if (n > 1e9) return `${(n / 1e9).toFixed(1)} GB`;
+  if (n > 1e6) return `${(n / 1e6).toFixed(1)} MB`;
+  return `${n} B`;
+}
+
+function formatMs(ms?: string): string {
+  const n = parseInt(ms ?? "0");
+  if (!n) return "0m";
+  const h = Math.floor(n / 3600000);
+  const m = Math.floor((n % 3600000) / 60000);
+  if (h > 0) return `${h}h ${m}m`;
+  return `${m}m`;
+}
+
+function timeAgo(d?: string): string {
+  if (!d) return "—";
+  const diff = Date.now() - new Date(d).getTime();
+  const mins = Math.floor(diff / 60000);
+  if (mins < 1) return "just now";
+  if (mins < 60) return `${mins}m ago`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `${hrs}h ago`;
+  const days = Math.floor(hrs / 24);
+  return `${days}d ago`;
+}
+
+function PlayHistoryTab() {
+  const theme = useTheme();
+  const { t } = useTranslation();
+  const PAGE_SIZE = 25;
+  const [page, setPage] = useState(1);
+
+  const { data, isLoading, refetch } = useActivityServiceGetPlayHistory({
+    "pagination.page": page,
+    "pagination.pageSize": PAGE_SIZE,
+  });
+  const entries = data?.entries ?? [];
+  const total = data?.pagination?.totalItems ?? 0;
+  const hasMore = page * PAGE_SIZE < total;
+
+  const renderItem = useCallback(({ item }: { item: PlayEntry }) => {
+    const pos = parseInt(item.positionMs ?? "0");
+    const dur = parseInt(item.durationMs ?? "1");
+    const pct = dur > 0 ? Math.round((pos / dur) * 100) : 0;
+
+    return (
+      <View style={[styles.card, { backgroundColor: theme.colors.surface, borderRadius: theme.radii.md }]}>
+        <View style={{ flex: 1, gap: 4 }}>
+          <Text style={{ color: theme.colors.text, fontSize: 14, fontWeight: "600" }} numberOfLines={1}>
+            {item.mediaTitle ?? "—"}
+          </Text>
+          <Text style={{ color: theme.colors.textMuted, fontSize: 12 }}>
+            {item.deviceName ?? item.clientName ?? "—"} · {timeAgo(item.startedAt)}
+          </Text>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginTop: 2 }}>
+            <View style={[styles.progressBar, { backgroundColor: theme.colors.border }]}>
+              <View style={[styles.progressFill, { width: `${pct}%`, backgroundColor: theme.colors.accent }]} />
+            </View>
+            <Text style={{ color: theme.colors.textMuted, fontSize: 11, width: 32, textAlign: "right" }}>{pct}%</Text>
+            <Text style={{ color: theme.colors.textMuted, fontSize: 11 }}>{formatMs(item.durationMs)}</Text>
+          </View>
+        </View>
+      </View>
+    );
+  }, [theme]);
+
+  const loadMore = useCallback(() => {
+    if (hasMore) setPage((p) => p + 1);
+  }, [hasMore]);
+
+  return (
+    <FlatList
+      data={entries}
+      keyExtractor={(item) => item.id ?? Math.random().toString()}
+      renderItem={renderItem}
+      contentContainerStyle={{ padding: 16, gap: 8 }}
+      refreshing={isLoading}
+      onRefresh={refetch}
+      onEndReached={loadMore}
+      onEndReachedThreshold={0.5}
+      ListFooterComponent={hasMore ? <ActivityIndicator color={theme.colors.accent} style={{ paddingVertical: 16 }} /> : null}
+      ListEmptyComponent={
+        isLoading ? null : (
+          <View style={{ alignItems: "center", paddingTop: 60 }}>
+            <Ionicons name="film-outline" size={48} color={theme.colors.textMuted} />
+            <Text style={{ color: theme.colors.textMuted, marginTop: 12 }}>{t("admin.activity.noPlayHistory", "No play history")}</Text>
+          </View>
+        )
+      }
+    />
+  );
+}
+
+function AuditLogTab() {
+  const theme = useTheme();
+  const PAGE_SIZE = 25;
+  const [page, setPage] = useState(0);
+
+  const { data, isLoading, refetch } = useAdminSessionServiceGetAuditLog({
+    limit: PAGE_SIZE,
+    offset: page * PAGE_SIZE,
+  });
+  const entries = data?.entries ?? [];
+  const total = data?.total ?? 0;
+  const hasMore = (page + 1) * PAGE_SIZE < total;
+
+  const renderItem = useCallback(({ item }: { item: AuditEntry }) => (
+    <View style={[styles.card, { backgroundColor: theme.colors.surface, borderRadius: theme.radii.md }]}>
+      <View style={{ flex: 1, gap: 2 }}>
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+          <View style={[styles.badge, { backgroundColor: theme.colors.accent + "20" }]}>
+            <Text style={{ color: theme.colors.accent, fontSize: 11, fontWeight: "600" }}>{item.action ?? "—"}</Text>
+          </View>
+          <Text style={{ color: theme.colors.textMuted, fontSize: 11 }}>{timeAgo(item.createdAt)}</Text>
+        </View>
+        <Text style={{ color: theme.colors.text, fontSize: 13, marginTop: 4 }} numberOfLines={2}>
+          {item.username ?? "system"}{item.resourceType ? ` · ${item.resourceType}` : ""}
+        </Text>
+        {item.details ? (
+          <Text style={{ color: theme.colors.textMuted, fontSize: 12, marginTop: 2 }} numberOfLines={2}>{item.details}</Text>
+        ) : null}
+      </View>
+    </View>
+  ), [theme]);
+
+  const loadMore = useCallback(() => {
+    if (hasMore) setPage((p) => p + 1);
+  }, [hasMore]);
+
+  return (
+    <FlatList
+      data={entries}
+      keyExtractor={(item) => item.id ?? Math.random().toString()}
+      renderItem={renderItem}
+      contentContainerStyle={{ padding: 16, gap: 8 }}
+      refreshing={isLoading}
+      onRefresh={refetch}
+      onEndReached={loadMore}
+      onEndReachedThreshold={0.5}
+      ListFooterComponent={hasMore ? <ActivityIndicator color={theme.colors.accent} style={{ paddingVertical: 16 }} /> : null}
+      ListEmptyComponent={
+        isLoading ? null : (
+          <View style={{ alignItems: "center", paddingTop: 60 }}>
+            <Ionicons name="document-text-outline" size={48} color={theme.colors.textMuted} />
+            <Text style={{ color: theme.colors.textMuted, marginTop: 12 }}>No audit log entries</Text>
+          </View>
+        )
+      }
+    />
+  );
+}
+
+function StatsTab() {
+  const theme = useTheme();
+  const { t } = useTranslation();
+  const { data, isLoading, refetch } = useActivityServiceGetServerStats();
+
+  if (isLoading) {
+    return (
+      <View style={{ alignItems: "center", paddingTop: 60 }}>
+        <ActivityIndicator color={theme.colors.accent} />
+      </View>
+    );
+  }
+
+  const cards: Array<{ label: string; value: string | number; icon: string }> = [
+    { label: t("admin.activity.stats.totalPlays", "Total Plays"), value: data?.totalPlays ?? 0, icon: "play-outline" },
+    { label: t("admin.activity.stats.totalUsers", "Users"), value: data?.totalUsers ?? 0, icon: "people-outline" },
+    { label: t("admin.activity.stats.totalMedia", "Media Items"), value: data?.totalMediaItems ?? 0, icon: "film-outline" },
+    { label: t("admin.activity.stats.bandwidth", "Bandwidth"), value: formatBytes(data?.totalBandwidthBytes), icon: "cloud-download-outline" },
+  ];
+
+  return (
+    <FlatList
+      data={[1]}
+      keyExtractor={() => "stats"}
+      refreshing={false}
+      onRefresh={refetch}
+      renderItem={() => (
+        <View style={{ padding: 16, gap: 16 }}>
+          <View style={styles.statsGrid}>
+            {cards.map((card) => (
+              <View key={card.label} style={[styles.statCard, { backgroundColor: theme.colors.surface, borderRadius: theme.radii.md }]}>
+                <Ionicons name={card.icon as never} size={24} color={theme.colors.accent} />
+                <Text style={[styles.statValue, { color: theme.colors.text }]}>{card.value}</Text>
+                <Text style={[styles.statLabel, { color: theme.colors.textMuted }]}>{card.label}</Text>
+              </View>
+            ))}
+          </View>
+
+          {data?.popularMedia && data.popularMedia.length > 0 && (
+            <View style={[styles.section, { backgroundColor: theme.colors.surface, borderRadius: theme.radii.md }]}>
+              <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>
+                {t("admin.activity.popularMedia", "Popular Media")}
+              </Text>
+              {data.popularMedia.map((m) => (
+                <View key={m.mediaItemId} style={[styles.listRow, { borderBottomColor: theme.colors.border }]}>
+                  <Text style={{ color: theme.colors.text, fontSize: 13, flex: 1 }} numberOfLines={1}>{m.title ?? "—"}</Text>
+                  <Text style={{ color: theme.colors.textMuted, fontSize: 12 }}>
+                    {t("admin.activity.plays", { count: m.playCount ?? 0, defaultValue: "{{count}} plays" })}
+                  </Text>
+                </View>
+              ))}
+            </View>
+          )}
+
+          {data?.activeUsers && data.activeUsers.length > 0 && (
+            <View style={[styles.section, { backgroundColor: theme.colors.surface, borderRadius: theme.radii.md }]}>
+              <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>
+                {t("admin.activity.mostActiveUsers", "Most Active Users")}
+              </Text>
+              {data.activeUsers.map((u) => (
+                <View key={u.userId} style={[styles.listRow, { borderBottomColor: theme.colors.border }]}>
+                  <Text style={{ color: theme.colors.text, fontSize: 13, flex: 1 }}>{u.username}</Text>
+                  <Text style={{ color: theme.colors.textMuted, fontSize: 12 }}>
+                    {u.playCount} · {formatMs(u.totalWatchTimeMs)}
+                  </Text>
+                </View>
+              ))}
+            </View>
+          )}
+        </View>
+      )}
+    />
+  );
+}
+
+export default function AdminActivityScreen() {
+  const theme = useTheme();
+  const { t } = useTranslation();
+  const [tab, setTab] = useState<Tab>("play");
+
+  const tabs: Array<{ id: Tab; label: string }> = [
+    { id: "play", label: t("admin.activity.tabs.playHistory", "Play History") },
+    { id: "audit", label: t("admin.audit.title", "Audit Log") },
+    { id: "stats", label: t("admin.activity.tabs.serverStats", "Stats") },
+  ];
+
+  return (
+    <View style={{ flex: 1, backgroundColor: theme.colors.bg }}>
+      <Stack.Screen options={{
+        headerShown: true,
+        title: t("admin.activity.title", "Activity"),
+        headerStyle: { backgroundColor: theme.colors.surface },
+        headerTintColor: theme.colors.text,
+      }} />
+
+      <View style={[styles.tabBar, { backgroundColor: theme.colors.surface, borderBottomColor: theme.colors.border }]}>
+        {tabs.map(({ id, label }) => (
+          <Pressable
+            key={id}
+            onPress={() => setTab(id)}
+            style={[
+              styles.tabBtn,
+              {
+                backgroundColor: tab === id ? theme.colors.accent : "transparent",
+                borderRadius: theme.radii.sm,
+              },
+            ]}
+          >
+            <Text style={{ color: tab === id ? "#fff" : theme.colors.textMuted, fontSize: 13, fontWeight: "600" }}>
+              {label}
+            </Text>
+          </Pressable>
+        ))}
+      </View>
+
+      {tab === "play" && <PlayHistoryTab />}
+      {tab === "audit" && <AuditLogTab />}
+      {tab === "stats" && <StatsTab />}
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  tabBar: { flexDirection: "row", padding: 8, gap: 4, borderBottomWidth: StyleSheet.hairlineWidth },
+  tabBtn: { flex: 1, paddingVertical: 8, alignItems: "center" },
+  card: { padding: 14, gap: 4 },
+  badge: { paddingHorizontal: 8, paddingVertical: 2, borderRadius: 4 },
+  progressBar: { flex: 1, height: 4, borderRadius: 2, overflow: "hidden" },
+  progressFill: { height: 4, borderRadius: 2 },
+  statsGrid: { flexDirection: "row", flexWrap: "wrap", gap: 12 },
+  statCard: { flex: 1, minWidth: "45%", padding: 16, alignItems: "center", gap: 4 },
+  statValue: { fontSize: 28, fontWeight: "700" },
+  statLabel: { fontSize: 12, textAlign: "center" },
+  section: { overflow: "hidden", padding: 16 },
+  sectionTitle: { fontSize: 15, fontWeight: "600", marginBottom: 12 },
+  listRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingVertical: 10, borderBottomWidth: StyleSheet.hairlineWidth },
+});

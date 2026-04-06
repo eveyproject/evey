@@ -49,6 +49,7 @@ export default function AdminDashboard() {
     { label: t("admin.users.title"), icon: "people-outline", path: "/admin/users" },
     { label: t("admin.nav.libraries"), icon: "library-outline", path: "/admin/libraries" },
     { label: t("admin.sessions.title"), icon: "play-circle-outline", path: "/admin/sessions" },
+    { label: t("admin.activity.title") || "Activity", icon: "analytics-outline", path: "/admin/activity" },
     { label: "Plugins", icon: "extension-puzzle-outline", path: "/admin/plugins" },
     { label: "API Keys", icon: "key-outline", path: "/admin/api-keys" },
     { label: "Server Config", icon: "server-outline", path: "/admin/server-config" },
