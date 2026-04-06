@@ -58,6 +58,8 @@ export default function AdminDashboard() {
     { label: "Transcoding Profiles", icon: "swap-horizontal-outline", path: "/admin/transcoding" },
     { label: t("common.feeds.title"), icon: "grid-outline", path: "/admin/feeds" },
     { label: t("admin.remoteAccess.title"), icon: "globe-outline", path: "/admin/remote-access" },
+    { label: t("admin.serverSettings.title"), icon: "settings-outline", path: "/admin/server-settings" },
+    { label: t("admin.analytics.title"), icon: "bar-chart-outline", path: "/admin/analytics" },
     { label: t("admin.backup.title") || "Database Backup", icon: "cloud-download-outline", path: "/admin/backup" },
     { label: t("admin.nav.logs", "Logs"), icon: "document-text-outline", path: "/admin/logs" },
     { label: t("admin.webhooks.title", "Webhooks"), icon: "link-outline", path: "/admin/webhooks" },
