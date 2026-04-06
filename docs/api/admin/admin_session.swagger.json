@@ -85,6 +85,58 @@
           "AdminSessionService"
         ]
       }
+    },
+    "/api/v1/admin/sessions/active": {
+      "get": {
+        "operationId": "AdminSessionService_ListActiveSessions",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1ListActiveSessionsResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "tags": [
+          "AdminSessionService"
+        ]
+      }
+    },
+    "/api/v1/admin/sessions/{sessionId}": {
+      "delete": {
+        "operationId": "AdminSessionService_KillSession",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1KillSessionResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "sessionId",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "AdminSessionService"
+        ]
+      }
     }
   },
   "definitions": {
@@ -113,6 +165,70 @@
             "type": "object",
             "$ref": "#/definitions/protobufAny"
           }
+        }
+      }
+    },
+    "v1ActiveSession": {
+      "type": "object",
+      "properties": {
+        "sessionId": {
+          "type": "string"
+        },
+        "profileName": {
+          "type": "string"
+        },
+        "mediaTitle": {
+          "type": "string"
+        },
+        "mediaType": {
+          "type": "string"
+        },
+        "mediaItemId": {
+          "type": "string"
+        },
+        "progress": {
+          "type": "number",
+          "format": "double"
+        },
+        "durationMs": {
+          "type": "string",
+          "format": "int64"
+        },
+        "positionMs": {
+          "type": "string",
+          "format": "int64"
+        },
+        "startedAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "deviceName": {
+          "type": "string"
+        },
+        "deviceType": {
+          "type": "string"
+        },
+        "clientIp": {
+          "type": "string"
+        },
+        "playMethod": {
+          "type": "string"
+        },
+        "videoCodec": {
+          "type": "string"
+        },
+        "audioCodec": {
+          "type": "string"
+        },
+        "resolution": {
+          "type": "string"
+        },
+        "bandwidthBps": {
+          "type": "string",
+          "format": "int64"
+        },
+        "transcodeInfo": {
+          "type": "string"
         }
       }
     },
@@ -162,6 +278,21 @@
         "total": {
           "type": "integer",
           "format": "int32"
+        }
+      }
+    },
+    "v1KillSessionResponse": {
+      "type": "object"
+    },
+    "v1ListActiveSessionsResponse": {
+      "type": "object",
+      "properties": {
+        "sessions": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/v1ActiveSession"
+          }
         }
       }
     }
