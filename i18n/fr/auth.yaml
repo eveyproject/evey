@@ -114,6 +114,11 @@ settings:
     apiKeys: "Clés API"
     security: "Sécurité"
     quickConnect: "Connexion rapide"
+  playback:
+    bitrateTitle: "Débit maximum en streaming"
+    bitrateDesc: "Limiter le débit maximum lors du streaming. Des valeurs plus basses consomment moins de bande passante."
+    subtitleLanguage: "Langue des sous-titres par défaut"
+    audioLanguage: "Langue audio par défaut"
   quickConnect:
     title: "Connexion rapide"
     description: "Entrez le code affiché sur l'appareil que vous souhaitez connecter."

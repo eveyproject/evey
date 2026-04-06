@@ -114,6 +114,11 @@ settings:
     apiKeys: "API 密钥"
     security: "安全"
     quickConnect: "快速连接"
+  playback:
+    bitrateTitle: "最大流媒体比特率"
+    bitrateDesc: "限制流媒体播放时的最大比特率。较低的值占用更少的带宽。"
+    subtitleLanguage: "默认字幕语言"
+    audioLanguage: "默认音频语言"
   quickConnect:
     title: "快速连接"
     description: "输入您要登录的设备上显示的代码。"

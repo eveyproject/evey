@@ -114,6 +114,11 @@ settings:
     apiKeys: "API कुंजियां"
     security: "सुरक्षा"
     quickConnect: "क्विक कनेक्ट"
+  playback:
+    bitrateTitle: "अधिकतम स्ट्रीमिंग बिटरेट"
+    bitrateDesc: "स्ट्रीमिंग करते समय अधिकतम बिटरेट सीमित करें। कम मान कम बैंडविड्थ का उपयोग करते हैं।"
+    subtitleLanguage: "डिफ़ॉल्ट उपशीर्षक भाषा"
+    audioLanguage: "डिफ़ॉल्ट ऑडियो भाषा"
   quickConnect:
     title: "क्विक कनेक्ट"
     description: "जिस डिवाइस में साइन इन करना है, उस पर दिखाया गया कोड दर्ज करें।"

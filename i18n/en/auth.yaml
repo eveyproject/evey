@@ -106,6 +106,7 @@ settings:
   title: Settings
   tabs:
     appearance: Appearance
+    playback: Playback
     notifications: Notifications
     account: Account
     parental: Parental
@@ -113,6 +114,11 @@ settings:
     apiKeys: API Keys
     security: Security
     quickConnect: Quick Connect
+  playback:
+    bitrateTitle: Max Streaming Bitrate
+    bitrateDesc: Limit the maximum bitrate when streaming. Lower values use less bandwidth.
+    subtitleLanguage: Default Subtitle Language
+    audioLanguage: Default Audio Language
   quickConnect:
     title: Quick Connect
     description: Enter the code displayed on the device you want to sign in to.

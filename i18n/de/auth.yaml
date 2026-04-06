@@ -114,6 +114,11 @@ settings:
     apiKeys: API-Schlüssel
     security: Sicherheit
     quickConnect: Schnellverbindung
+  playback:
+    bitrateTitle: Maximale Streaming-Bitrate
+    bitrateDesc: Maximale Bitrate beim Streaming begrenzen. Niedrigere Werte verbrauchen weniger Bandbreite.
+    subtitleLanguage: Standard-Untertitelsprache
+    audioLanguage: Standard-Audiosprache
   quickConnect:
     title: Schnellverbindung
     description: Geben Sie den Code ein, der auf dem Gerät angezeigt wird, das Sie anmelden möchten.
