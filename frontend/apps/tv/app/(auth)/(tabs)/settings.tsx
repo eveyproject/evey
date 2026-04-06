@@ -2,7 +2,7 @@ import { useState, useCallback } from "react";
 import { View, Text, ScrollView, Pressable, StyleSheet } from "react-native";
 import { router } from "expo-router";
 import { useTranslation } from "react-i18next";
-import { useUserServiceGetCurrentUser, useUserServiceListProfiles, useUserServiceUpdateProfile, useAdminServiceGetSystemInfo, eveyFetch } from "@evey/api";
+import { useUserServiceGetCurrentUser, useUserServiceListProfiles, useUserServiceUpdateProfile, useAdminSystemServiceGetSystemInfo, eveyFetch } from "@evey/api";
 import { useAuthStore, useThemeStore, useLocaleStore } from "@evey/store";
 import { useTheme } from "../../../src/providers/ThemeProvider";
 import { useServerUrlNullable } from "../../../src/hooks/useServerUrl";
@@ -28,7 +28,7 @@ export default function SettingsScreen() {
   const { data: profilesResp } = useUserServiceListProfiles(user?.id ?? "", { query: { enabled: !!user?.id } });
   const defaultProfile = profilesResp?.profiles?.find((p: any) => p.isDefault) ?? profilesResp?.profiles?.[0];
   const updateProfile = useUserServiceUpdateProfile();
-  const { data: systemInfo } = useAdminServiceGetSystemInfo();
+  const { data: systemInfo } = useAdminSystemServiceGetSystemInfo();
 
   const [focusedItem, setFocusedItem] = useState<string | null>(null);
   const currentLang = i18n.language;
