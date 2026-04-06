@@ -32,7 +32,7 @@ export default function PlayerScreen() {
   const mediaId = id ?? "";
 
   const { data: media } = useLibraryServiceGetMediaItem(mediaId);
-  const { streamUrl, sessionId, streamInfo, isLoading, isError, stopSession } =
+  const { streamUrl, sessionId, streamInfo, isLoading, isError, stopSession, restartAtPosition, transcodeOffset } =
     usePlaySession(mediaId);
 
   const [showControls, setShowControls] = useState(true);
@@ -59,12 +59,12 @@ export default function PlayerScreen() {
   useEffect(() => {
     if (!player) return;
     const timeSub = player.addListener("timeUpdate", (ev) => {
-      setCurrentTime(ev.currentTime);
-      setDuration(player.duration);
+      setCurrentTime(ev.currentTime + transcodeOffset);
+      setDuration(player.duration + transcodeOffset);
     });
     const statusSub = player.addListener("statusChange", () => {
       setIsPlaying(player.playing);
-      setDuration(player.duration);
+      setDuration(player.duration + transcodeOffset);
     });
     const playSub = player.addListener("playingChange", () => {
       setIsPlaying(player.playing);
@@ -74,7 +74,7 @@ export default function PlayerScreen() {
       statusSub.remove();
       playSub.remove();
     };
-  }, [player]);
+  }, [player, transcodeOffset]);
 
   useEffect(() => {
     return () => stopSession();
@@ -100,13 +100,20 @@ export default function PlayerScreen() {
     resetHideTimer();
   }, [player, resetHideTimer]);
 
+  const isTranscode = streamInfo?.playMethod === "PLAY_METHOD_TRANSCODE";
+
   const seekBy = useCallback(
     (seconds: number) => {
       if (!player) return;
-      player.seekBy(seconds);
+      if (isTranscode) {
+        const newPos = transcodeOffset + (player.currentTime ?? 0) + seconds;
+        restartAtPosition(Math.max(0, newPos));
+      } else {
+        player.seekBy(seconds);
+      }
       resetHideTimer();
     },
-    [player, resetHideTimer],
+    [player, resetHideTimer, isTranscode, transcodeOffset, restartAtPosition],
   );
 
   const SPEEDS = [0.5, 0.75, 1, 1.25, 1.5, 2] as const;
@@ -147,8 +154,8 @@ export default function PlayerScreen() {
   });
 
   const getPositionMs = useCallback(() => {
-    return (player?.currentTime ?? 0) * 1000;
-  }, [player]);
+    return (transcodeOffset + (player?.currentTime ?? 0)) * 1000;
+  }, [player, transcodeOffset]);
 
   useProgressReporter(sessionId, getPositionMs);
 
