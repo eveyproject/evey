@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { Play } from "lucide-react";
 import { createFileRoute, isRedirect, redirect, useNavigate } from "@tanstack/react-router";
-import { eveyFetch, useAdminServiceSetupWizard, useLibraryServiceCreateLibrary } from "@evey/api";
+import { eveyFetch, useAdminSystemServiceSetupWizard, useLibraryServiceCreateLibrary } from "@evey/api";
 import { useAuthStore } from "@evey/store";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/Button";
@@ -107,7 +107,7 @@ function SetupPage() {
     return errors;
   }
 
-  const setup = useAdminServiceSetupWizard({
+  const setup = useAdminSystemServiceSetupWizard({
     mutation: {
       onSuccess: (data) => {
         if (data.accessToken) setTokens(data.accessToken);

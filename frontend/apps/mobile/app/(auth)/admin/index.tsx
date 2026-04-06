@@ -4,8 +4,8 @@ import { Stack, useRouter } from "expo-router";
 import { useState, useCallback } from "react";
 import { useTranslation } from "react-i18next";
 import {
-  useAdminServiceGetDashboard,
-  useAdminServiceGetSystemInfo,
+  useAdminSystemServiceGetDashboard,
+  useAdminSystemServiceGetSystemInfo,
 } from "@evey/api";
 import { useTheme } from "../../../src/providers/ThemeProvider";
 
@@ -36,8 +36,8 @@ export default function AdminDashboard() {
   const router = useRouter();
   const [refreshing, setRefreshing] = useState(false);
 
-  const { data: dashboard, refetch: refetchDash } = useAdminServiceGetDashboard({ query: { refetchInterval: 10_000 } });
-  const { data: sysInfo, refetch: refetchSys } = useAdminServiceGetSystemInfo();
+  const { data: dashboard, refetch: refetchDash } = useAdminSystemServiceGetDashboard({ query: { refetchInterval: 10_000 } });
+  const { data: sysInfo, refetch: refetchSys } = useAdminSystemServiceGetSystemInfo();
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);

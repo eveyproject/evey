@@ -1,6 +1,6 @@
 import { createLazyFileRoute } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
-import { useAdminServiceGetDashboard, useAdminServiceGetSystemInfo } from "@evey/api";
+import { useAdminSystemServiceGetDashboard, useAdminSystemServiceGetSystemInfo } from "@evey/api";
 import { Spinner } from "@/components/ui/Spinner";
 import { DashboardStats } from "@/features/admin/DashboardStats";
 import { PageHeader } from "@/components/ui/PageHeader";
@@ -11,7 +11,7 @@ export const Route = createLazyFileRoute("/_auth/admin/")({
 
 function SystemInfoCard() {
   const { t } = useTranslation();
-  const { data: sysData, isLoading } = useAdminServiceGetSystemInfo();
+  const { data: sysData, isLoading } = useAdminSystemServiceGetSystemInfo();
 
   if (isLoading) {
     return (
@@ -57,7 +57,7 @@ function SystemInfoCard() {
 
 function AdminDashboard() {
   const { t } = useTranslation();
-  const { data: dashData, isLoading: dashLoading, dataUpdatedAt } = useAdminServiceGetDashboard({
+  const { data: dashData, isLoading: dashLoading, dataUpdatedAt } = useAdminSystemServiceGetDashboard({
     query: { refetchInterval: 10_000, refetchIntervalInBackground: false },
   });
 

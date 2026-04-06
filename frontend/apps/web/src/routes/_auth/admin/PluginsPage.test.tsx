@@ -15,13 +15,13 @@ const mockUninstallPlugin = vi.fn();
 const mockInstallPlugin = vi.fn();
 
 vi.mock("@evey/api", () => ({
-  useAdminServiceListPlugins: vi.fn(() => ({ data: undefined, isLoading: true })),
-  useAdminServiceEnablePlugin: vi.fn(() => ({ mutate: mockEnablePlugin, isPending: false })),
-  useAdminServiceDisablePlugin: vi.fn(() => ({ mutate: mockDisablePlugin, isPending: false })),
-  useAdminServiceUninstallPlugin: vi.fn(() => ({ mutate: mockUninstallPlugin, isPending: false })),
-  useAdminServiceInstallPlugin: vi.fn(() => ({ mutate: mockInstallPlugin, isPending: false })),
-  useAdminServiceGetPluginConfig: vi.fn(() => ({ data: { values: {} }, isLoading: false })),
-  useAdminServiceUpdatePluginConfig: vi.fn(() => ({ mutate: vi.fn(), isPending: false })),
+  useAdminPluginServiceListPlugins: vi.fn(() => ({ data: undefined, isLoading: true })),
+  useAdminPluginServiceEnablePlugin: vi.fn(() => ({ mutate: mockEnablePlugin, isPending: false })),
+  useAdminPluginServiceDisablePlugin: vi.fn(() => ({ mutate: mockDisablePlugin, isPending: false })),
+  useAdminPluginServiceUninstallPlugin: vi.fn(() => ({ mutate: mockUninstallPlugin, isPending: false })),
+  useAdminPluginServiceInstallPlugin: vi.fn(() => ({ mutate: mockInstallPlugin, isPending: false })),
+  useAdminPluginServiceGetPluginConfig: vi.fn(() => ({ data: { values: {} }, isLoading: false })),
+  useAdminPluginServiceUpdatePluginConfig: vi.fn(() => ({ mutate: vi.fn(), isPending: false })),
 }));
 
 vi.mock("@evey/store", () => ({
@@ -83,8 +83,8 @@ describe("PluginsPage", () => {
   });
 
   it("shows empty state when no plugins installed", async () => {
-    const { useAdminServiceListPlugins } = await import("@evey/api");
-    vi.mocked(useAdminServiceListPlugins).mockReturnValue({ data: { plugins: [] }, isLoading: false } as ReturnType<typeof useAdminServiceListPlugins>);
+    const { useAdminPluginServiceListPlugins } = await import("@evey/api");
+    vi.mocked(useAdminPluginServiceListPlugins).mockReturnValue({ data: { plugins: [] }, isLoading: false } as ReturnType<typeof useAdminPluginServiceListPlugins>);
     const mod = await import("./plugins.lazy");
     const PluginsPage = (mod.Route as unknown as { component: React.ComponentType }).component;
     render(React.createElement(PluginsPage), { wrapper: createWrapper() });
@@ -92,8 +92,8 @@ describe("PluginsPage", () => {
   });
 
   it("renders plugin names", async () => {
-    const { useAdminServiceListPlugins } = await import("@evey/api");
-    vi.mocked(useAdminServiceListPlugins).mockReturnValue({ data: { plugins: mockPlugins as never }, isLoading: false } as ReturnType<typeof useAdminServiceListPlugins>);
+    const { useAdminPluginServiceListPlugins } = await import("@evey/api");
+    vi.mocked(useAdminPluginServiceListPlugins).mockReturnValue({ data: { plugins: mockPlugins as never }, isLoading: false } as ReturnType<typeof useAdminPluginServiceListPlugins>);
     const mod = await import("./plugins.lazy");
     const PluginsPage = (mod.Route as unknown as { component: React.ComponentType }).component;
     render(React.createElement(PluginsPage), { wrapper: createWrapper() });
@@ -102,8 +102,8 @@ describe("PluginsPage", () => {
   });
 
   it("Install Plugin button opens modal", async () => {
-    const { useAdminServiceListPlugins } = await import("@evey/api");
-    vi.mocked(useAdminServiceListPlugins).mockReturnValue({ data: { plugins: [] }, isLoading: false } as ReturnType<typeof useAdminServiceListPlugins>);
+    const { useAdminPluginServiceListPlugins } = await import("@evey/api");
+    vi.mocked(useAdminPluginServiceListPlugins).mockReturnValue({ data: { plugins: [] }, isLoading: false } as ReturnType<typeof useAdminPluginServiceListPlugins>);
     const mod = await import("./plugins.lazy");
     const PluginsPage = (mod.Route as unknown as { component: React.ComponentType }).component;
     render(React.createElement(PluginsPage), { wrapper: createWrapper() });
@@ -112,8 +112,8 @@ describe("PluginsPage", () => {
   });
 
   it("plugin description is rendered", async () => {
-    const { useAdminServiceListPlugins } = await import("@evey/api");
-    vi.mocked(useAdminServiceListPlugins).mockReturnValue({ data: { plugins: mockPlugins as never }, isLoading: false } as ReturnType<typeof useAdminServiceListPlugins>);
+    const { useAdminPluginServiceListPlugins } = await import("@evey/api");
+    vi.mocked(useAdminPluginServiceListPlugins).mockReturnValue({ data: { plugins: mockPlugins as never }, isLoading: false } as ReturnType<typeof useAdminPluginServiceListPlugins>);
     const mod = await import("./plugins.lazy");
     const PluginsPage = (mod.Route as unknown as { component: React.ComponentType }).component;
     render(React.createElement(PluginsPage), { wrapper: createWrapper() });

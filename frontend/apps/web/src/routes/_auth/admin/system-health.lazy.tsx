@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { createLazyFileRoute } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
-import { useAdminServiceGetDashboard, useAdminServiceGetSystemInfo } from "@evey/api";
+import { useAdminSystemServiceGetDashboard, useAdminSystemServiceGetSystemInfo } from "@evey/api";
 import { Spinner } from "@/components/ui/Spinner";
 import { PageHeader } from "@/components/ui/PageHeader";
 import type { V1DashboardInfo, V1SystemInfo } from "@evey/api";
@@ -209,10 +209,10 @@ function DashboardPanel({ info }: { info: V1DashboardInfo; }) {
 
 function SystemHealthPage() {
   const { t } = useTranslation();
-  const { data: dashData, isLoading: dashLoading, dataUpdatedAt } = useAdminServiceGetDashboard({
+  const { data: dashData, isLoading: dashLoading, dataUpdatedAt } = useAdminSystemServiceGetDashboard({
     query: { refetchInterval: 5_000, refetchIntervalInBackground: false },
   });
-  const { data: sysData, isLoading: sysLoading } = useAdminServiceGetSystemInfo();
+  const { data: sysData, isLoading: sysLoading } = useAdminSystemServiceGetSystemInfo();
 
   const cpuHistory = useRef<number[]>([]);
   const memHistory = useRef<number[]>([]);

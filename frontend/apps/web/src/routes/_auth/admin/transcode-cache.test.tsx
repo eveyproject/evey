@@ -19,7 +19,7 @@ vi.mock("@tanstack/react-query", async (importActual) => {
 
 vi.mock("@evey/api", () => ({
   eveyFetch: (...args: unknown[]) => mockEveyFetch(...args),
-  useAdminServiceGetSystemInfo: () => ({ data: undefined }),
+  useAdminSystemServiceGetSystemInfo: () => ({ data: undefined }),
 }));
 
 vi.mock("@evey/store", () => ({

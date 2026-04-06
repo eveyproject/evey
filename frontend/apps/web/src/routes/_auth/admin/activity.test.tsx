@@ -10,7 +10,7 @@ const mockGetAuditLog = vi.fn();
 vi.mock("@evey/api", () => ({
   useActivityServiceGetPlayHistory: (...args: unknown[]) => mockGetPlayHistory(...args),
   useActivityServiceGetServerStats: (...args: unknown[]) => mockGetServerStats(...args),
-  useAdminServiceGetAuditLog: (...args: unknown[]) => mockGetAuditLog(...args),
+  useAdminSessionServiceGetAuditLog: (...args: unknown[]) => mockGetAuditLog(...args),
   eveyFetch: vi.fn(),
 }));
 

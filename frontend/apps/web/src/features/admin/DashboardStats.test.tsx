@@ -27,7 +27,7 @@ vi.mock("@evey/api", () => ({
     }
     return { data: undefined };
   },
-  useAdminServiceGetAuditLog: () => ({ data: { entries: [] }, isLoading: false }),
+  useAdminSessionServiceGetAuditLog: () => ({ data: { entries: [] }, isLoading: false }),
   useLibraryServiceListLibraries: () => ({ data: { libraries: [] } }),
   useLibraryServiceScanLibrary: () => ({ mutateAsync: vi.fn() }),
   useActivityServiceGetServerStats: () => ({ data: { popularMedia: [] } }),

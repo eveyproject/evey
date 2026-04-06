@@ -5,11 +5,11 @@ import { Stack } from "expo-router";
 import { useTranslation } from "react-i18next";
 import { useQueryClient } from "@tanstack/react-query";
 import {
-  useAdminServiceListPlugins,
-  useAdminServiceEnablePlugin,
-  useAdminServiceDisablePlugin,
-  useAdminServiceUninstallPlugin,
-  getAdminServiceListPluginsQueryKey,
+  useAdminPluginServiceListPlugins,
+  useAdminPluginServiceEnablePlugin,
+  useAdminPluginServiceDisablePlugin,
+  useAdminPluginServiceUninstallPlugin,
+  getAdminPluginServiceListPluginsQueryKey,
 } from "@evey/api";
 import { toast } from "@evey/store";
 import { useTheme } from "../../../src/providers/ThemeProvider";
@@ -28,17 +28,17 @@ export default function AdminPluginsScreen() {
   const { t } = useTranslation();
   const qc = useQueryClient();
 
-  const { data, isLoading, refetch } = useAdminServiceListPlugins();
+  const { data, isLoading, refetch } = useAdminPluginServiceListPlugins();
   const plugins: Plugin[] = (data?.plugins ?? []) as Plugin[];
 
-  const enablePlugin = useAdminServiceEnablePlugin({
-    mutation: { onSuccess: () => { toast.success("Plugin enabled"); qc.invalidateQueries({ queryKey: getAdminServiceListPluginsQueryKey() }); } },
+  const enablePlugin = useAdminPluginServiceEnablePlugin({
+    mutation: { onSuccess: () => { toast.success("Plugin enabled"); qc.invalidateQueries({ queryKey: getAdminPluginServiceListPluginsQueryKey() }); } },
   });
-  const disablePlugin = useAdminServiceDisablePlugin({
-    mutation: { onSuccess: () => { toast.success("Plugin disabled"); qc.invalidateQueries({ queryKey: getAdminServiceListPluginsQueryKey() }); } },
+  const disablePlugin = useAdminPluginServiceDisablePlugin({
+    mutation: { onSuccess: () => { toast.success("Plugin disabled"); qc.invalidateQueries({ queryKey: getAdminPluginServiceListPluginsQueryKey() }); } },
   });
-  const uninstallPlugin = useAdminServiceUninstallPlugin({
-    mutation: { onSuccess: () => { toast.success("Plugin uninstalled"); qc.invalidateQueries({ queryKey: getAdminServiceListPluginsQueryKey() }); } },
+  const uninstallPlugin = useAdminPluginServiceUninstallPlugin({
+    mutation: { onSuccess: () => { toast.success("Plugin uninstalled"); qc.invalidateQueries({ queryKey: getAdminPluginServiceListPluginsQueryKey() }); } },
   });
 
   const handleToggle = useCallback((plugin: Plugin) => {

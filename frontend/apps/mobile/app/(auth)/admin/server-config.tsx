@@ -4,9 +4,9 @@ import { Stack } from "expo-router";
 import { useTranslation } from "react-i18next";
 import { useQueryClient } from "@tanstack/react-query";
 import {
-  useAdminServiceGetServerConfig,
-  useAdminServiceUpdateServerConfig,
-  getAdminServiceGetServerConfigQueryKey,
+  useAdminSystemServiceGetServerConfig,
+  useAdminSystemServiceUpdateServerConfig,
+  getAdminSystemServiceGetServerConfigQueryKey,
 } from "@evey/api";
 import { toast } from "@evey/store";
 import { useTheme } from "../../../src/providers/ThemeProvider";
@@ -16,7 +16,7 @@ export default function AdminServerConfigScreen() {
   const { t } = useTranslation();
   const qc = useQueryClient();
 
-  const { data: config, isLoading } = useAdminServiceGetServerConfig();
+  const { data: config, isLoading } = useAdminSystemServiceGetServerConfig();
   const [serverName, setServerName] = useState("");
   const [baseUrl, setBaseUrl] = useState("");
 
@@ -27,11 +27,11 @@ export default function AdminServerConfigScreen() {
     }
   }, [config]);
 
-  const updateConfig = useAdminServiceUpdateServerConfig({
+  const updateConfig = useAdminSystemServiceUpdateServerConfig({
     mutation: {
       onSuccess: async () => {
         toast.success("Config saved");
-        await qc.invalidateQueries({ queryKey: getAdminServiceGetServerConfigQueryKey() });
+        await qc.invalidateQueries({ queryKey: getAdminSystemServiceGetServerConfigQueryKey() });
       },
       onError: () => toast.error("Failed to save"),
     },

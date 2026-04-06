@@ -10,7 +10,7 @@ const mockSetTokens = vi.fn();
 
 vi.mock("@evey/api", () => ({
   eveyFetch: vi.fn().mockResolvedValue({ setupComplete: false }),
-  useAdminServiceSetupWizard: vi.fn(() => ({ mutate: mockSetupMutate, isPending: false })),
+  useAdminSystemServiceSetupWizard: vi.fn(() => ({ mutate: mockSetupMutate, isPending: false })),
   useLibraryServiceCreateLibrary: vi.fn(() => ({ mutate: mockCreateLibraryMutate, isPending: false })),
 }));
 

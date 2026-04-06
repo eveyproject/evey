@@ -13,6 +13,7 @@ import { useLocalSearchParams, router } from "expo-router";
 import { useVideoPlayer, VideoView, isPictureInPictureSupported } from "expo-video";
 import { Ionicons } from "@expo/vector-icons";
 import * as ScreenOrientation from "expo-screen-orientation";
+import * as NavigationBar from "expo-navigation-bar";
 import { getCastBaseUrl } from "../../../src/lib/server-config";
 import { useTranslation } from "react-i18next";
 import { useLibraryServiceGetMediaItem } from "@evey/api";
@@ -363,6 +364,15 @@ export default function PlayerScreen() {
 
   useEffect(() => cleanup, [cleanup]);
 
+  useEffect(() => {
+    NavigationBar.setVisibilityAsync(showControls ? "visible" : "hidden");
+  }, [showControls]);
+
+  useEffect(() => {
+    NavigationBar.setVisibilityAsync("hidden");
+    return () => { NavigationBar.setVisibilityAsync("visible"); };
+  }, []);
+
   const handleNavigateEpisode = useCallback(
     (episodeId: string) => {
       stopSession();
@@ -555,14 +565,16 @@ export default function PlayerScreen() {
       <StatusBar hidden />
 
       <View style={{ width: screenW, height: screenH }} {...panResponder.panHandlers}>
-        <VideoView
-          ref={videoViewRef}
-          player={player}
-          style={styles.video}
-          nativeControls={false}
-          contentFit="contain"
-          allowsPictureInPicture={pipSupported}
-        />
+        <View pointerEvents="none" style={styles.video}>
+          <VideoView
+            ref={videoViewRef}
+            player={player}
+            style={styles.video}
+            nativeControls={false}
+            contentFit="contain"
+            allowsPictureInPicture={pipSupported}
+          />
+        </View>
 
         {/* Seek flash */}
         {seekFlash && (

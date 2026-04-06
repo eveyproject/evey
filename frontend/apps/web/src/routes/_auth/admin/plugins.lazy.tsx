@@ -4,11 +4,11 @@ import { createLazyFileRoute } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import {
-  useAdminServiceListPlugins,
-  useAdminServiceEnablePlugin,
-  useAdminServiceDisablePlugin,
-  useAdminServiceUninstallPlugin,
-  useAdminServiceInstallPlugin,
+  useAdminPluginServiceListPlugins,
+  useAdminPluginServiceEnablePlugin,
+  useAdminPluginServiceDisablePlugin,
+  useAdminPluginServiceUninstallPlugin,
+  useAdminPluginServiceInstallPlugin,
   eveyFetch,
   eveyFetchRaw,
 } from "@evey/api";
@@ -199,7 +199,7 @@ function InstallPluginForm({ onSuccess }: { onSuccess: () => void }) {
   const fileRef = useRef<HTMLInputElement>(null);
   const [source, setSource] = useState("");
   const [name, setName] = useState("");
-  const installPlugin = useAdminServiceInstallPlugin({ mutation: { onSuccess } });
+  const installPlugin = useAdminPluginServiceInstallPlugin({ mutation: { onSuccess } });
 
   function getFile(): File | null {
     return fileRef.current?.files?.[0] ?? null;
@@ -401,26 +401,26 @@ function PluginsPage() {
   const [showModal, setShowModal] = useState(false);
   const [uninstallTarget, setUninstallTarget] = useState<{ id: string; name: string } | null>(null);
   const queryClient = useQueryClient();
-  const { data, isLoading } = useAdminServiceListPlugins();
+  const { data, isLoading } = useAdminPluginServiceListPlugins();
   const plugins = data?.plugins ?? [];
   const { data: runtimesData } = useAvailableRuntimes();
   const runtimes = runtimesData?.runtimes ?? [];
 
   const invalidate = () => queryClient.invalidateQueries({ queryKey: PLUGINS_QUERY_KEY });
 
-  const enablePlugin = useAdminServiceEnablePlugin({
+  const enablePlugin = useAdminPluginServiceEnablePlugin({
     mutation: {
       onSuccess: () => { invalidate(); toast.success(t("admin.plugins.pluginEnabled")); },
       onError: (err: Error) => toast.error(err.message || t("admin.plugins.failedEnable")),
     },
   });
-  const disablePlugin = useAdminServiceDisablePlugin({
+  const disablePlugin = useAdminPluginServiceDisablePlugin({
     mutation: {
       onSuccess: () => { invalidate(); toast.success(t("admin.plugins.pluginDisabled")); },
       onError: (err: Error) => toast.error(err.message || t("admin.plugins.failedDisable")),
     },
   });
-  const uninstallPlugin = useAdminServiceUninstallPlugin({
+  const uninstallPlugin = useAdminPluginServiceUninstallPlugin({
     mutation: {
       onSuccess: () => { invalidate(); toast.success(t("admin.plugins.pluginUninstalled")); },
       onError: (err: Error) => toast.error(err.message || t("admin.plugins.failedUninstall")),

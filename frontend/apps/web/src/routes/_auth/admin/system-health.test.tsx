@@ -7,8 +7,8 @@ const mockGetDashboard = vi.fn();
 const mockGetSystemInfo = vi.fn();
 
 vi.mock("@evey/api", () => ({
-  useAdminServiceGetDashboard: (...args: unknown[]) => mockGetDashboard(...args),
-  useAdminServiceGetSystemInfo: (...args: unknown[]) => mockGetSystemInfo(...args),
+  useAdminSystemServiceGetDashboard: (...args: unknown[]) => mockGetDashboard(...args),
+  useAdminSystemServiceGetSystemInfo: (...args: unknown[]) => mockGetSystemInfo(...args),
 }));
 
 vi.mock("@tanstack/react-router", () => ({

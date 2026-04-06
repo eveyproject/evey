@@ -4,7 +4,7 @@ import { Link } from "@tanstack/react-router";
 import { useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import {
-  useAdminServiceGetAuditLog,
+  useAdminSessionServiceGetAuditLog,
   useLibraryServiceListLibraries,
   useLibraryServiceScanLibrary,
   useLibraryServiceListMediaItems,
@@ -128,7 +128,7 @@ function QuickActions() {
 
 function RecentActivity() {
   const { t } = useTranslation();
-  const { data, isLoading } = useAdminServiceGetAuditLog({ limit: 8, offset: 0 });
+  const { data, isLoading } = useAdminSessionServiceGetAuditLog({ limit: 8, offset: 0 });
   const entries = data?.entries ?? [];
 
   if (isLoading) {

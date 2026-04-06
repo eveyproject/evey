@@ -1,9 +1,13 @@
 import { useEffect, useState, useRef } from "react";
 import { View, StyleSheet } from "react-native";
 import { Image } from "expo-image";
+import * as FileSystem from "expo-file-system";
 import { eveyFetchRaw } from "@evey/api";
 import { useServerUrl } from "../hooks/useServerUrl";
 import { useAuthHeaders } from "../hooks/useAuthenticatedImage";
+
+const cacheDir = (FileSystem as any).cacheDirectory ?? (FileSystem as any).default?.cacheDirectory ?? "";
+const TRICKPLAY_CACHE_DIR = `${cacheDir}trickplay/`;
 
 interface TrickplayCue {
   startTime: number;
@@ -46,7 +50,24 @@ function parseVTT(text: string): TrickplayCue[] {
 }
 
 const SCALE = 1;
-const cueCache = new Map<string, TrickplayCue[]>();
+const memCache = new Map<string, TrickplayCue[]>();
+
+async function readCachedCues(mediaId: string): Promise<TrickplayCue[] | null> {
+  try {
+    const path = `${TRICKPLAY_CACHE_DIR}${mediaId}.json`;
+    const info = await FileSystem.getInfoAsync(path);
+    if (!info.exists) return null;
+    const json = await FileSystem.readAsStringAsync(path);
+    return JSON.parse(json);
+  } catch { return null; }
+}
+
+async function writeCachedCues(mediaId: string, cues: TrickplayCue[]): Promise<void> {
+  try {
+    await FileSystem.makeDirectoryAsync(TRICKPLAY_CACHE_DIR, { intermediates: true });
+    await FileSystem.writeAsStringAsync(`${TRICKPLAY_CACHE_DIR}${mediaId}.json`, JSON.stringify(cues));
+  } catch { /* best effort */ }
+}
 
 interface Props {
   mediaId: string;
@@ -57,21 +78,28 @@ interface Props {
 export function TrickplayPreview({ mediaId, currentTime, visible }: Props) {
   const serverUrl = useServerUrl();
   const authHeaders = useAuthHeaders();
-  const [cues, setCues] = useState<TrickplayCue[]>(() => cueCache.get(mediaId) ?? []);
+  const [cues, setCues] = useState<TrickplayCue[]>(() => memCache.get(mediaId) ?? []);
   const fetched = useRef(false);
 
   useEffect(() => {
     if (!mediaId || fetched.current) return;
     fetched.current = true;
     (async () => {
+      const cached = memCache.get(mediaId) ?? await readCachedCues(mediaId);
+      if (cached && cached.length > 0) {
+        memCache.set(mediaId, cached);
+        setCues(cached);
+        return;
+      }
       try {
         const res = await eveyFetchRaw({ url: `/api/v1/media/${mediaId}/trickplay`, method: "GET" });
         const text = await res.text();
         const parsed = parseVTT(text);
-        cueCache.set(mediaId, parsed);
+        memCache.set(mediaId, parsed);
         setCues(parsed);
+        writeCachedCues(mediaId, parsed);
       } catch {
-        cueCache.set(mediaId, []);
+        memCache.set(mediaId, []);
       }
     })();
   }, [mediaId]);

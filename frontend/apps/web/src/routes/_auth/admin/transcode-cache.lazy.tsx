@@ -5,7 +5,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { toast } from "@evey/store";
 import { eveyFetch } from "@evey/api";
-import { useAdminServiceGetSystemInfo } from "@evey/api";
+import { useAdminSystemServiceGetSystemInfo } from "@evey/api";
 import { Spinner } from "@/components/ui/Spinner";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
@@ -86,7 +86,7 @@ function TranscodingSettings() {
   const { t } = useTranslation();
   const qc = useQueryClient();
   const { data: config, isLoading } = useServerConfig();
-  const { data: sysInfo } = useAdminServiceGetSystemInfo();
+  const { data: sysInfo } = useAdminSystemServiceGetSystemInfo();
 
   const [hwAccel, setHwAccel] = useState("none");
   const [hwCodecs, setHwCodecs] = useState<Set<string>>(new Set());

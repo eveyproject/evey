@@ -6,7 +6,7 @@ import { eveyFetch } from "@evey/api";
 import {
   useActivityServiceGetPlayHistory,
   useActivityServiceGetServerStats,
-  useAdminServiceGetAuditLog,
+  useAdminSessionServiceGetAuditLog,
 } from "@evey/api";
 import { Spinner } from "@/components/ui/Spinner";
 import { Card } from "@/components/ui/Card";
@@ -143,7 +143,7 @@ function PlayHistoryTab() {
 function AuditTab() {
   const PAGE_SIZE = 25;
   const [page, setPage] = useState(0);
-  const { data, isLoading } = useAdminServiceGetAuditLog({
+  const { data, isLoading } = useAdminSessionServiceGetAuditLog({
     limit: PAGE_SIZE,
     offset: page * PAGE_SIZE,
   });

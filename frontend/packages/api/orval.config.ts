@@ -4,7 +4,8 @@ const swaggerDir = "../../../gen/evey/v1";
 
 const services = [
   "library", "user", "playback", "transcoding", "mkv",
-  "metadata", "admin", "activity", "notification", "feed", "webhook",
+  "metadata", "admin_media", "admin_plugin", "admin_session", "admin_system", "admin_task",
+  "activity", "notification", "feed", "webhook",
 ];
 
 export default defineConfig(

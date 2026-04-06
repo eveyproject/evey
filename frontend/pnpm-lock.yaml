@@ -74,6 +74,9 @@ importers:
       expo-localization:
         specifier: 55.0.11
         version: 55.0.11(expo@55.0.11)(react@19.2.0)
+      expo-navigation-bar:
+        specifier: 55.0.10
+        version: 55.0.10(expo@55.0.11)(react-native@0.83.4(@babel/core@7.29.0)(@react-native/metro-config@0.84.1(@babel/core@7.29.0))(@types/react@19.2.14)(react@19.2.0))(react@19.2.0)
       expo-router:
         specifier: 55.0.10
         version: 55.0.10(01c0906bb2246127b50d60f3bab9607e)
@@ -3680,6 +3683,13 @@ packages:
   expo-modules-core@55.0.20:
     resolution: {integrity: sha512-XqWPvB9eWuUvEQclu0eLbsqNDg3J3KFlQo1l3qodqqzIWno5wM3eRJCycmSwWAFPeTDMk7CxeD2JNFxOJ5Nd8w==}
     peerDependencies:
+      react: 19.2.0
+      react-native: '*'
+
+  expo-navigation-bar@55.0.10:
+    resolution: {integrity: sha512-guIBTYMl5fVStKFmEsWRwUP7O044A0oYYgDLc4mCUXiuzs12jJscUmVztQFBTvALS9AzyQMQZs7ISLGiw74F/g==}
+    peerDependencies:
+      expo: '*'
       react: 19.2.0
       react-native: '*'
 
@@ -8775,7 +8785,9 @@ snapshots:
       metro-runtime: 0.83.5
     transitivePeerDependencies:
       - '@babel/core'
+      - bufferutil
       - supports-color
+      - utf-8-validate
     optional: true
 
   '@react-native/normalize-colors@0.83.1': {}
@@ -10707,6 +10719,16 @@ snapshots:
       invariant: 2.2.4
       react: 19.2.0
       react-native: 0.83.4(@babel/core@7.29.0)(@react-native/metro-config@0.84.1(@babel/core@7.29.0))(@types/react@19.2.14)(react@19.2.0)
+
+  expo-navigation-bar@55.0.10(expo@55.0.11)(react-native@0.83.4(@babel/core@7.29.0)(@react-native/metro-config@0.84.1(@babel/core@7.29.0))(@types/react@19.2.14)(react@19.2.0))(react@19.2.0):
+    dependencies:
+      debug: 4.4.3
+      expo: 55.0.11(@babel/core@7.29.0)(@expo/dom-webview@55.0.3)(@expo/metro-runtime@55.0.6)(expo-router@55.0.10)(react-dom@19.2.0(react@19.2.0))(react-native@0.83.4(@babel/core@7.29.0)(@react-native/metro-config@0.84.1(@babel/core@7.29.0))(@types/react@19.2.14)(react@19.2.0))(react@19.2.0)(typescript@5.9.3)
+      react: 19.2.0
+      react-native: 0.83.4(@babel/core@7.29.0)(@react-native/metro-config@0.84.1(@babel/core@7.29.0))(@types/react@19.2.14)(react@19.2.0)
+      react-native-is-edge-to-edge: 1.3.1(react-native@0.83.4(@babel/core@7.29.0)(@react-native/metro-config@0.84.1(@babel/core@7.29.0))(@types/react@19.2.14)(react@19.2.0))(react@19.2.0)
+    transitivePeerDependencies:
+      - supports-color
 
   expo-router@55.0.10(01c0906bb2246127b50d60f3bab9607e):
     dependencies:

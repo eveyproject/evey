@@ -20,7 +20,7 @@ services:
       EVEY_MEILI_URL: http://meilisearch:7700
       EVEY_JWT_PRIVATE_KEY_PATH: /data/jwt.key
       EVEY_TRANSCODING_CACHE_DIR: /cache/transcode
-      EVEY_TRICKPLAY_CACHE_DIR: /cache/trickplay
+      EVEY_TRICKPLAY_CACHE_DIR: /data/trickplay
       EVEY_LOG_DIR: /data/logs
       EVEY_BACKUP_DIR: /data/backups
     env_file:

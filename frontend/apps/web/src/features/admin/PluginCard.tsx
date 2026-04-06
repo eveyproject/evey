@@ -11,8 +11,8 @@ import { Textarea } from "@/components/ui/Textarea";
 import { Checkbox } from "@/components/ui/Checkbox";
 import { Spinner } from "@/components/ui/Spinner";
 import {
-  useAdminServiceGetPluginConfig,
-  useAdminServiceUpdatePluginConfig,
+  useAdminPluginServiceGetPluginConfig,
+  useAdminPluginServiceUpdatePluginConfig,
 } from "@evey/api";
 import { toast } from "@evey/store";
 import type { V1Plugin, V1PluginState } from "@evey/api";
@@ -175,7 +175,7 @@ function SchemaField({
 function PluginConfigPanel({ pluginId }: { pluginId: string }) {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
-  const { data, isLoading } = useAdminServiceGetPluginConfig(pluginId);
+  const { data, isLoading } = useAdminPluginServiceGetPluginConfig(pluginId);
   const [edits, setEdits] = useState<Record<string, string>>({});
   const [errors, setErrors] = useState<Record<string, string>>({});
 
@@ -185,7 +185,7 @@ function PluginConfigPanel({ pluginId }: { pluginId: string }) {
     catch { return undefined; }
   }, [data?.configSchemaJson]);
 
-  const updateConfig = useAdminServiceUpdatePluginConfig({
+  const updateConfig = useAdminPluginServiceUpdatePluginConfig({
     mutation: {
       onSuccess: () => {
         queryClient.invalidateQueries({ queryKey: ["/api/v1/admin/plugins", pluginId, "config"] });
