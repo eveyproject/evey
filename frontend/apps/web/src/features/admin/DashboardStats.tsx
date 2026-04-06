@@ -1,20 +1,23 @@
 import { useState } from "react";
-import { Film, Monitor, Users, Zap, Cpu, MemoryStick, HardDrive, Search, Folder } from "lucide-react";
+import { Film, Monitor, Users, Zap, Cpu, MemoryStick, HardDrive, Search, Folder, Play } from "lucide-react";
 import { Link } from "@tanstack/react-router";
 import { useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import {
   useAdminSessionServiceGetAuditLog,
+  useAdminSessionServiceListActiveSessions,
   useLibraryServiceListLibraries,
   useLibraryServiceScanLibrary,
   useLibraryServiceListMediaItems,
   useActivityServiceGetServerStats,
 } from "@evey/api";
+import type { V1ActiveSession } from "@evey/api";
 import { toast } from "@evey/store";
 import type { V1DashboardInfo } from "@evey/api";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
 import { Spinner } from "@/components/ui/Spinner";
+import { EmptyState } from "@/components/ui/EmptyState";
 
 function getUsageColor(pct: number): string {
   if (pct > 85) return "var(--color-danger)";
@@ -63,6 +66,126 @@ function StatCard({ icon, label, value, valueColor }: StatCardProps) {
           {label}
         </span>
       </div>
+    </div>
+  );
+}
+
+function formatMs(ms: number): string {
+  if (!ms) return "0:00";
+  const totalSec = Math.floor(ms / 1000);
+  const h = Math.floor(totalSec / 3600);
+  const m = Math.floor((totalSec % 3600) / 60);
+  const s = totalSec % 60;
+  if (h > 0) return `${h}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
+  return `${m}:${String(s).padStart(2, "0")}`;
+}
+
+function usePlayMethodLabel() {
+  const { t } = useTranslation();
+  return (method: string): string => {
+    switch (method) {
+      case "direct_play": return t("admin.sessions.directPlay");
+      case "direct_stream": return t("admin.sessions.directStream");
+      case "transcode": return t("admin.sessions.transcode");
+      default: return method;
+    }
+  };
+}
+
+function NowPlayingCard({ session }: { session: V1ActiveSession }) {
+  const playMethodLabel = usePlayMethodLabel();
+  const progress = Math.min(100, Math.max(0, session.progress ?? 0));
+  const positionMs = parseInt(session.positionMs ?? "0");
+  const durationMs = parseInt(session.durationMs ?? "0");
+
+  return (
+    <div className="flex flex-col gap-2 p-4 rounded-[var(--radius-lg)] bg-[var(--surface)] border border-[var(--border)]">
+      <div className="flex items-center gap-3">
+        <div className="flex items-center justify-center w-8 h-8 rounded-full shrink-0 bg-[var(--accent)] text-white">
+          <span className="text-xs font-bold">
+            {(session.profileName ?? "?").charAt(0).toUpperCase()}
+          </span>
+        </div>
+        <div className="min-w-0 flex-1">
+          <p className="text-sm font-semibold truncate text-[var(--text)]">
+            {session.mediaTitle}
+          </p>
+          <p className="text-xs truncate text-[var(--text-muted)]">
+            {session.profileName}
+            {session.deviceName ? ` - ${session.deviceName}` : ""}
+          </p>
+        </div>
+        <div className="flex items-center gap-2 shrink-0">
+          <Badge variant={session.playMethod === "transcode" ? "warning" : "success"}>
+            {playMethodLabel(session.playMethod ?? "")}
+          </Badge>
+          {session.resolution && (
+            <span className="text-xs font-medium text-[var(--text-muted)]">
+              {session.resolution}
+            </span>
+          )}
+        </div>
+      </div>
+      <div>
+        <div className="h-1.5 rounded-full bg-[var(--border)]">
+          <div
+            className="h-1.5 rounded-full transition-all duration-500 bg-[var(--accent)]"
+            style={{ width: `${progress}%` }}
+          />
+        </div>
+        <div className="flex justify-between text-xs mt-1 text-[var(--text-muted)]">
+          <span>{formatMs(positionMs)}</span>
+          <span>{durationMs > 0 ? formatMs(durationMs) : "--"}</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function NowPlaying() {
+  const { t } = useTranslation();
+  const { data, isLoading } = useAdminSessionServiceListActiveSessions({
+    query: { refetchInterval: 10_000, refetchIntervalInBackground: false },
+  });
+  const sessions = data?.sessions ?? [];
+
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-3">
+        <div className="flex items-center gap-2">
+          <Play size={18} strokeWidth={2} className="text-[var(--accent)]" />
+          <h3 className="text-sm font-semibold text-[var(--text)]">
+            {t("admin.dashboardStats.nowPlaying")}
+          </h3>
+          {sessions.length > 0 && (
+            <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-[var(--accent)] text-white">
+              {sessions.length}
+            </span>
+          )}
+        </div>
+        <Link
+          to="/admin/sessions"
+          className="text-xs font-medium hover:underline text-[var(--accent)]"
+        >
+          {t("admin.dashboardStats.viewAll")}
+        </Link>
+      </div>
+      {isLoading ? (
+        <div className="flex justify-center py-6">
+          <Spinner size="md" />
+        </div>
+      ) : sessions.length === 0 ? (
+        <EmptyState
+          icon={<Film size={40} strokeWidth={1.5} />}
+          title={t("admin.dashboardStats.noActivePlayback")}
+        />
+      ) : (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+          {sessions.map((s) => (
+            <NowPlayingCard key={s.sessionId} session={s} />
+          ))}
+        </div>
+      )}
     </div>
   );
 }
@@ -259,6 +382,8 @@ export function DashboardStats({ info }: DashboardStatsProps) {
 
   return (
     <div className="flex flex-col gap-8">
+      <NowPlaying />
+
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
         <StatCard icon={<MovieIcon />} label={t("admin.dashboardStats.movies")} value={movieCount} />
         <StatCard icon={<SeriesIcon />} label={t("admin.dashboardStats.series")} value={seriesCount} />
