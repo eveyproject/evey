@@ -52,6 +52,7 @@ export default function AdminDashboard() {
     { label: "Plugins", icon: "extension-puzzle-outline", path: "/admin/plugins" },
     { label: "API Keys", icon: "key-outline", path: "/admin/api-keys" },
     { label: "Server Config", icon: "server-outline", path: "/admin/server-config" },
+    { label: t("admin.transcodeCache.title") || "Transcode Cache", icon: "film-outline", path: "/admin/transcode-cache" },
     { label: t("admin.backup.title") || "Database Backup", icon: "cloud-download-outline", path: "/admin/backup" },
   ];
 
