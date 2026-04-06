@@ -54,6 +54,7 @@ export default function AdminDashboard() {
     { label: "API Keys", icon: "key-outline", path: "/admin/api-keys" },
     { label: "Server Config", icon: "server-outline", path: "/admin/server-config" },
     { label: t("admin.systemHealth.title"), icon: "pulse-outline", path: "/admin/system-health" },
+    { label: t("admin.transcodeCache.title") || "Transcode Cache", icon: "film-outline", path: "/admin/transcode-cache" },
     { label: t("admin.backup.title") || "Database Backup", icon: "cloud-download-outline", path: "/admin/backup" },
   ];
 
