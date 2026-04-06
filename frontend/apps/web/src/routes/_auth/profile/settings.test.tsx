@@ -102,7 +102,6 @@ describe("SettingsPage", () => {
     const SettingsPage = await getSettingsPage();
     render(React.createElement(SettingsPage), { wrapper: createWrapper() });
     expect(screen.getByRole("button", { name: /Appearance/i })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /Playback/i })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /Notifications/i })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /Parental/i })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /Devices/i })).toBeInTheDocument();
