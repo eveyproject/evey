@@ -1,5 +1,5 @@
 import * as FileSystem from "expo-file-system";
-import { useAuthStore } from "@evey/store";
+import { eveyFetch } from "@evey/api";
 import { getServerUrl } from "./server-config";
 
 const docDir = (FileSystem as any).documentDirectory ?? (FileSystem as any).default?.documentDirectory ?? "";
@@ -47,16 +47,19 @@ export async function startDownload(
 ): Promise<string> {
   await ensureDir();
   const serverUrl = await getServerUrl();
-  const token = useAuthStore.getState().accessToken;
-  if (!serverUrl || !token) throw new Error("Not authenticated");
+  if (!serverUrl) throw new Error("Not authenticated");
 
-  const streamUrl = `${serverUrl}/api/v1/playback/${mediaItemId}/stream?direct=true`;
+  const { token } = await eveyFetch<{ token: string; mediaId: string }>({
+    url: `/api/v1/media/${mediaItemId}/stream-token`,
+    method: "POST",
+  });
+  const streamUrl = `${serverUrl}/api/v1/media/${mediaItemId}/stream?token=${token}`;
   const destPath = `${DOWNLOAD_DIR}${mediaItemId}.mp4`;
 
   const downloadResumable = FileSystem.createDownloadResumable(
     streamUrl,
     destPath,
-    { headers: { Authorization: `Bearer ${token}` } },
+    {},
     (downloadProgress) => {
       const pct = downloadProgress.totalBytesWritten / downloadProgress.totalBytesExpectedToWrite;
       onProgress?.(pct);
