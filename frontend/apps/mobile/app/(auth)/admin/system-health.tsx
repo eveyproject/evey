@@ -1,0 +1,201 @@
+import { View, Text, ScrollView, RefreshControl, Pressable, StyleSheet } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
+import { Stack } from "expo-router";
+import { useState, useCallback } from "react";
+import { useTranslation } from "react-i18next";
+import {
+  useAdminSystemServiceGetDashboard,
+  useAdminSystemServiceGetSystemInfo,
+} from "@evey/api";
+import { useTheme } from "../../../src/providers/ThemeProvider";
+
+function formatUptime(seconds?: string): string {
+  if (!seconds) return "—";
+  const s = parseInt(seconds, 10);
+  const d = Math.floor(s / 86400);
+  const h = Math.floor((s % 86400) / 3600);
+  const m = Math.floor((s % 3600) / 60);
+  if (d > 0) return `${d}d ${h}h ${m}m`;
+  if (h > 0) return `${h}h ${m}m`;
+  if (m > 0) return `${m}m ${s % 60}s`;
+  return `${s}s`;
+}
+
+function formatBytes(bytes?: string): string {
+  const n = parseInt(bytes ?? "0");
+  if (n > 1e12) return `${(n / 1e12).toFixed(2)} TB`;
+  if (n > 1e9) return `${(n / 1e9).toFixed(1)} GB`;
+  if (n > 1e6) return `${(n / 1e6).toFixed(1)} MB`;
+  return `${n} B`;
+}
+
+function getUsageColor(pct: number): string {
+  if (pct > 85) return "#ef4444";
+  if (pct > 70) return "#eab308";
+  return "#22c55e";
+}
+
+function ProgressBar({ pct, color }: { pct: number; color: string }) {
+  return (
+    <View style={[styles.progressTrack, { backgroundColor: color + "33" }]}>
+      <View style={[styles.progressFill, { width: `${Math.min(100, pct)}%`, backgroundColor: color }]} />
+    </View>
+  );
+}
+
+export default function SystemHealthScreen() {
+  const theme = useTheme();
+  const { t } = useTranslation();
+  const [refreshing, setRefreshing] = useState(false);
+  const [serverInfoOpen, setServerInfoOpen] = useState(false);
+
+  const { data: dashboard, refetch: refetchDash } = useAdminSystemServiceGetDashboard({
+    query: { refetchInterval: 5_000, refetchIntervalInBackground: false },
+  });
+  const { data: sysInfo, refetch: refetchSys } = useAdminSystemServiceGetSystemInfo();
+
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await Promise.all([refetchDash(), refetchSys()]);
+    setRefreshing(false);
+  }, [refetchDash, refetchSys]);
+
+  const cpuPct = Math.min(100, Math.max(0, dashboard?.cpuPercent ?? 0));
+  const memPct = Math.min(100, Math.max(0, dashboard?.memoryPercent ?? 0));
+
+  const activityItems = [
+    { label: t("admin.systemHealth.activeStreams"), value: dashboard?.activeStreams ?? 0, icon: "play-outline" as const },
+    { label: t("admin.systemHealth.activeTranscodes"), value: dashboard?.activeTranscodes ?? 0, icon: "swap-horizontal-outline" as const },
+    { label: t("admin.systemHealth.totalMedia"), value: dashboard?.totalMediaItems ?? 0, icon: "film-outline" as const },
+    { label: t("admin.systemHealth.totalUsers"), value: dashboard?.totalUsers ?? 0, icon: "people-outline" as const },
+  ];
+
+  const serverInfoRows = [
+    { label: t("admin.dashboard.version", "Version"), value: sysInfo?.version },
+    { label: t("admin.dashboard.os", "OS"), value: sysInfo?.os ? `${sysInfo.os}/${sysInfo.arch}` : undefined },
+    { label: "Go", value: sysInfo?.goVersion },
+    { label: t("admin.dashboard.ffmpeg", "FFmpeg"), value: sysInfo?.ffmpegVersion },
+    { label: t("admin.dashboard.uptime", "Uptime"), value: formatUptime(sysInfo?.uptimeSeconds) },
+    { label: t("admin.systemHealth.serverId", "Server ID"), value: sysInfo?.serverId },
+  ];
+
+  return (
+    <ScrollView
+      style={{ flex: 1, backgroundColor: theme.colors.bg }}
+      contentContainerStyle={{ paddingBottom: 40 }}
+      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.colors.accent} />}
+    >
+      <Stack.Screen
+        options={{
+          headerShown: true,
+          title: t("admin.systemHealth.title"),
+          headerStyle: { backgroundColor: theme.colors.surface },
+          headerTintColor: theme.colors.text,
+        }}
+      />
+
+      {/* Metrics */}
+      <Text style={[styles.sectionTitle, { color: theme.colors.textMuted }]}>
+        {t("admin.systemHealth.cpuUsage")} / {t("admin.systemHealth.memoryUsage")}
+      </Text>
+      <View style={[styles.card, { backgroundColor: theme.colors.surface, borderRadius: theme.radii.md, marginHorizontal: 16 }]}>
+        <View style={styles.metricRow}>
+          <Text style={{ color: theme.colors.textMuted, fontSize: 13 }}>{t("admin.systemHealth.cpuUsage")}</Text>
+          <Text style={{ color: getUsageColor(cpuPct), fontSize: 13, fontWeight: "700" }}>{cpuPct.toFixed(1)}%</Text>
+        </View>
+        <ProgressBar pct={cpuPct} color={getUsageColor(cpuPct)} />
+
+        <View style={[styles.metricRow, { marginTop: 16 }]}>
+          <Text style={{ color: theme.colors.textMuted, fontSize: 13 }}>{t("admin.systemHealth.memoryUsage")}</Text>
+          <Text style={{ color: getUsageColor(memPct), fontSize: 13, fontWeight: "700" }}>{memPct.toFixed(1)}%</Text>
+        </View>
+        <ProgressBar pct={memPct} color={getUsageColor(memPct)} />
+      </View>
+
+      {/* Activity */}
+      <Text style={[styles.sectionTitle, { color: theme.colors.textMuted }]}>
+        {t("admin.systemHealth.activitySection", "Activity")}
+      </Text>
+      <View style={styles.activityGrid}>
+        {activityItems.map((item) => (
+          <View key={item.label} style={[styles.statCard, { backgroundColor: theme.colors.surface, borderRadius: theme.radii.md }]}>
+            <Ionicons name={item.icon} size={22} color={theme.colors.accent} />
+            <Text style={{ color: theme.colors.text, fontSize: 24, fontWeight: "700" }}>{item.value}</Text>
+            <Text style={{ color: theme.colors.textMuted, fontSize: 11, textAlign: "center" }}>{item.label}</Text>
+          </View>
+        ))}
+      </View>
+
+      {/* Storage */}
+      {dashboard?.storage && dashboard.storage.length > 0 && (
+        <>
+          <Text style={[styles.sectionTitle, { color: theme.colors.textMuted }]}>
+            {t("admin.systemHealth.storage")}
+          </Text>
+          <View style={{ marginHorizontal: 16, gap: 8 }}>
+            {dashboard.storage.map((s, i) => {
+              const used = parseInt(s.usedBytes ?? "0");
+              const total = parseInt(s.totalBytes ?? "1");
+              const pct = total > 0 ? Math.round((used / total) * 100) : 0;
+              const color = getUsageColor(pct);
+              return (
+                <View key={i} style={[styles.card, { backgroundColor: theme.colors.surface, borderRadius: theme.radii.md }]}>
+                  <View style={styles.metricRow}>
+                    <Text style={{ color: theme.colors.text, fontSize: 13, fontFamily: "monospace" }} numberOfLines={1}>{s.path ?? ""}</Text>
+                    <Text style={{ color, fontSize: 13, fontWeight: "700" }}>{pct}%</Text>
+                  </View>
+                  <ProgressBar pct={pct} color={color} />
+                  <View style={[styles.metricRow, { marginTop: 6 }]}>
+                    <Text style={{ color: theme.colors.textMuted, fontSize: 11 }}>
+                      {t("admin.systemHealth.used", { size: formatBytes(s.usedBytes) })}
+                    </Text>
+                    <Text style={{ color: theme.colors.textMuted, fontSize: 11 }}>
+                      {t("admin.systemHealth.total", { size: formatBytes(s.totalBytes) })}
+                    </Text>
+                  </View>
+                </View>
+              );
+            })}
+          </View>
+        </>
+      )}
+
+      {/* Server Info (collapsible) */}
+      <Text style={[styles.sectionTitle, { color: theme.colors.textMuted }]}>
+        {t("admin.systemHealth.serverInfo")}
+      </Text>
+      <View style={[styles.card, { backgroundColor: theme.colors.surface, borderRadius: theme.radii.md, marginHorizontal: 16 }]}>
+        <Pressable onPress={() => setServerInfoOpen((o) => !o)} style={styles.collapseHeader}>
+          <Text style={{ color: theme.colors.text, fontSize: 14, fontWeight: "600", flex: 1 }}>
+            {t("admin.systemHealth.serverInfo")}
+          </Text>
+          <Ionicons name={serverInfoOpen ? "chevron-up" : "chevron-down"} size={18} color={theme.colors.textMuted} />
+        </Pressable>
+        {serverInfoOpen && (
+          <View>
+            {serverInfoRows.map((row) =>
+              row.value ? (
+                <View key={row.label} style={[styles.infoRow, { borderTopColor: theme.colors.border }]}>
+                  <Text style={{ color: theme.colors.textMuted, fontSize: 13 }}>{row.label}</Text>
+                  <Text style={{ color: theme.colors.text, fontSize: 13, flex: 1, textAlign: "right" }} numberOfLines={1}>{row.value}</Text>
+                </View>
+              ) : null
+            )}
+          </View>
+        )}
+      </View>
+    </ScrollView>
+  );
+}
+
+const styles = StyleSheet.create({
+  sectionTitle: { fontSize: 13, fontWeight: "600", textTransform: "uppercase", marginTop: 20, marginBottom: 8, marginHorizontal: 16 },
+  card: { padding: 16, overflow: "hidden" },
+  metricRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
+  progressTrack: { height: 8, borderRadius: 4, marginTop: 6 },
+  progressFill: { height: 8, borderRadius: 4 },
+  activityGrid: { flexDirection: "row", flexWrap: "wrap", paddingHorizontal: 16, gap: 12 },
+  statCard: { flex: 1, minWidth: "45%", padding: 16, alignItems: "center", gap: 4 },
+  collapseHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+  infoRow: { flexDirection: "row", justifyContent: "space-between", paddingVertical: 10, borderTopWidth: StyleSheet.hairlineWidth },
+});
