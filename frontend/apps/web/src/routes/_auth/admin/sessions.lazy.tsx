@@ -1,9 +1,14 @@
 import { useState } from "react";
 import { Film, Monitor, Play, Square } from "lucide-react";
 import { createLazyFileRoute } from "@tanstack/react-router";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
-import { eveyFetch } from "@evey/api";
+import {
+  useAdminSessionServiceListActiveSessions,
+  useAdminSessionServiceKillSession,
+  getAdminSessionServiceListActiveSessionsQueryKey,
+} from "@evey/api";
+import type { V1ActiveSession } from "@evey/api";
 import { toast } from "@evey/store";
 import { Spinner } from "@/components/ui/Spinner";
 import { PageHeader } from "@/components/ui/PageHeader";
@@ -14,60 +19,6 @@ import { EmptyState } from "@/components/ui/EmptyState";
 export const Route = createLazyFileRoute("/_auth/admin/sessions")({
   component: SessionsPage,
 });
-
-interface ActiveSession {
-  sessionId: string;
-  profileName: string;
-  mediaTitle: string;
-  mediaType: string;
-  mediaItemId: string;
-  progress: number;
-  durationMs: number;
-  positionMs: number;
-  startedAt: string;
-  deviceName: string;
-  deviceType: string;
-  clientIp: string;
-  playMethod: string;
-  videoCodec: string;
-  audioCodec: string;
-  resolution: string;
-  bandwidthBps: number;
-  transcodeInfo?: string;
-}
-
-function useActiveSessions() {
-  return useQuery<ActiveSession[]>({
-    queryKey: ["admin", "sessions", "active"],
-    queryFn: async () => {
-      const res = await eveyFetch<{ sessions: ActiveSession[] }>({
-        url: "/api/v1/admin/sessions/active",
-        method: "GET",
-      });
-      return res.sessions ?? [];
-    },
-    refetchInterval: 10_000,
-    refetchIntervalInBackground: false,
-  });
-}
-
-function useKillSession() {
-  const { t } = useTranslation();
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: async (sessionId: string) => {
-      await eveyFetch<void>({
-        url: `/api/v1/admin/sessions/${sessionId}`,
-        method: "DELETE",
-      });
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["admin", "sessions", "active"] });
-      toast.success(t("admin.sessions.sessionStopped"));
-    },
-    onError: (err: Error) => toast.error(err.message || t("admin.sessions.failedStop")),
-  });
-}
 
 function formatMs(ms: number): string {
   if (!ms) return "0:00";
@@ -106,15 +57,27 @@ const DeviceIcon = () => <Monitor size={16} strokeWidth={1.5} />;
 const PlayIcon = () => <Play size={20} strokeWidth={2} />;
 const StopIcon = () => <Square size={16} strokeWidth={2} />;
 
-function SessionCard({ session }: { session: ActiveSession }) {
+function SessionCard({ session }: { session: V1ActiveSession }) {
   const { t } = useTranslation();
-  const killSession = useKillSession();
+  const queryClient = useQueryClient();
+  const killSession = useAdminSessionServiceKillSession({
+    mutation: {
+      onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: getAdminSessionServiceListActiveSessionsQueryKey() });
+        toast.success(t("admin.sessions.sessionStopped"));
+      },
+      onError: (err: Error) => toast.error(err.message || t("admin.sessions.failedStop")),
+    },
+  });
   const playMethodLabel = usePlayMethodLabel();
   const [confirming, setConfirming] = useState(false);
 
-  const progress = Math.min(100, Math.max(0, session.progress));
-  const remaining = session.durationMs > 0
-    ? formatMs(Math.max(0, session.durationMs - session.positionMs))
+  const progress = Math.min(100, Math.max(0, session.progress ?? 0));
+  const durationMs = parseInt(session.durationMs ?? "0");
+  const positionMs = parseInt(session.positionMs ?? "0");
+  const bandwidthBps = parseInt(session.bandwidthBps ?? "0");
+  const remaining = durationMs > 0
+    ? formatMs(Math.max(0, durationMs - positionMs))
     : null;
 
   return (
@@ -128,7 +91,7 @@ function SessionCard({ session }: { session: ActiveSession }) {
               className="flex items-center justify-center w-10 h-10 rounded-full shrink-0 bg-[var(--accent)] text-white"
             >
               <span className="text-sm font-bold">
-                {session.profileName.charAt(0).toUpperCase()}
+                {(session.profileName ?? "?").charAt(0).toUpperCase()}
               </span>
             </div>
             <div className="min-w-0">
@@ -156,7 +119,7 @@ function SessionCard({ session }: { session: ActiveSession }) {
                 className="!px-2 !py-1 text-xs"
                 loading={killSession.isPending}
                 onClick={() => {
-                  killSession.mutate(session.sessionId);
+                  killSession.mutate({ sessionId: session.sessionId ?? "" });
                   setConfirming(false);
                 }}
               >
@@ -181,7 +144,7 @@ function SessionCard({ session }: { session: ActiveSession }) {
             </p>
             <div className="flex items-center gap-2 flex-wrap">
               <Badge variant={session.playMethod === "transcode" ? "warning" : "success"}>
-                {playMethodLabel(session.playMethod)}
+                {playMethodLabel(session.playMethod ?? "")}
               </Badge>
               {session.resolution && (
                 <span className="text-xs text-[var(--text-muted)]">
@@ -199,9 +162,9 @@ function SessionCard({ session }: { session: ActiveSession }) {
 
         <div>
           <div className="flex justify-between text-xs mb-1 text-[var(--text-muted)]">
-            <span>{formatMs(session.positionMs)}</span>
+            <span>{formatMs(positionMs)}</span>
             <span>
-              {remaining ? `-${remaining}` : `${formatElapsed(session.startedAt)} ${t("admin.sessions.elapsed")}`}
+              {remaining ? `-${remaining}` : `${formatElapsed(session.startedAt ?? "")} ${t("admin.sessions.elapsed")}`}
             </span>
           </div>
           <div className="h-1.5 rounded-full bg-[var(--border)]">
@@ -228,8 +191,8 @@ function SessionCard({ session }: { session: ActiveSession }) {
           {session.audioCodec && (
             <span>{t("admin.sessions.audio", { codec: session.audioCodec })}</span>
           )}
-          {session.bandwidthBps > 0 && (
-            <span>{formatBandwidth(session.bandwidthBps)}</span>
+          {bandwidthBps > 0 && (
+            <span>{formatBandwidth(bandwidthBps)}</span>
           )}
         </div>
       </div>
@@ -239,7 +202,10 @@ function SessionCard({ session }: { session: ActiveSession }) {
 
 function SessionsPage() {
   const { t } = useTranslation();
-  const { data: sessions, isLoading, isError } = useActiveSessions();
+  const { data, isLoading, isError } = useAdminSessionServiceListActiveSessions({
+    query: { refetchInterval: 10_000, refetchIntervalInBackground: false },
+  });
+  const sessions = data?.sessions ?? [];
 
   return (
     <div className="flex flex-col gap-6">
@@ -255,7 +221,7 @@ function SessionsPage() {
           title={t("admin.sessions.failedLoad")}
           description={t("admin.sessions.failedLoadDesc")}
         />
-      ) : !sessions || sessions.length === 0 ? (
+      ) : sessions.length === 0 ? (
         <EmptyState
           icon={<Film size={48} strokeWidth={1.5} />}
           title={t("admin.sessions.noSessions")}

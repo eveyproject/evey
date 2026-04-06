@@ -92,6 +92,8 @@
   "admin.dashboardStats.manageUsers": "Manage Users",
   "admin.dashboardStats.memory": "Memory",
   "admin.dashboardStats.movies": "Movies",
+  "admin.dashboardStats.noActivePlayback": "No active playback",
+  "admin.dashboardStats.nowPlaying": "Now Playing",
   "admin.dashboardStats.popularMedia": "Popular Media",
   "admin.dashboardStats.quickActions": "Quick Actions",
   "admin.dashboardStats.recentActivity": "Recent Activity",

@@ -525,6 +525,8 @@ dashboardStats:
   scanStarted: Scan started
   scanFailed: Scan failed
   allScansTriggered: All library scans triggered
+  nowPlaying: Now Playing
+  noActivePlayback: No active playback
 
 serverSettings:
   title: Server Settings
