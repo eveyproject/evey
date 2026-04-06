@@ -16,6 +16,14 @@ vi.mock("../hooks/useAuthenticatedImage", () => ({
   useAuthHeaders: () => ({ Authorization: "Bearer tok" }),
 }));
 
+vi.mock("expo-file-system", () => ({
+  cacheDirectory: "/tmp/cache/",
+  getInfoAsync: vi.fn().mockResolvedValue({ exists: false }),
+  readAsStringAsync: vi.fn().mockResolvedValue("[]"),
+  makeDirectoryAsync: vi.fn().mockResolvedValue(undefined),
+  writeAsStringAsync: vi.fn().mockResolvedValue(undefined),
+}));
+
 vi.mock("expo-image", () => ({
   Image: (props: Record<string, unknown>) =>
     React.createElement("img", { "data-testid": "trickplay-img", src: (props.source as { uri: string })?.uri }),

@@ -11,6 +11,9 @@ export default defineConfig({
       "react-native": resolve(__dirname, "./src/test/__mocks__/react-native.ts"),
     },
   },
+  define: {
+    __DEV__: true,
+  },
   test: {
     globals: true,
     environment: "jsdom",
