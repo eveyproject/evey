@@ -52,6 +52,9 @@ export default function AdminDashboard() {
     { label: "Plugins", icon: "extension-puzzle-outline", path: "/admin/plugins" },
     { label: "API Keys", icon: "key-outline", path: "/admin/api-keys" },
     { label: "Server Config", icon: "server-outline", path: "/admin/server-config" },
+    { label: "Transcoding Profiles", icon: "swap-horizontal-outline", path: "/admin/transcoding" },
+    { label: t("common.feeds.title"), icon: "grid-outline", path: "/admin/feeds" },
+    { label: t("admin.remoteAccess.title"), icon: "globe-outline", path: "/admin/remote-access" },
     { label: t("admin.backup.title") || "Database Backup", icon: "cloud-download-outline", path: "/admin/backup" },
   ];
 
