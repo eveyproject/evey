@@ -19,8 +19,8 @@ vi.mock("expo-file-system", () => ({
   },
 }));
 
-vi.mock("@evey/store", () => ({
-  useAuthStore: { getState: () => ({ accessToken: "test-token" }) },
+vi.mock("@evey/api", () => ({
+  eveyFetch: vi.fn().mockResolvedValue({ token: "stream-tok-123", mediaId: "m3" }),
 }));
 
 vi.mock("./server-config", () => ({
@@ -29,6 +29,9 @@ vi.mock("./server-config", () => ({
 
 import * as FileSystem from "expo-file-system";
 const fsMock = FileSystem as unknown as Record<string, ReturnType<typeof vi.fn>>;
+
+import { eveyFetch } from "@evey/api";
+const eveyFetchMock = eveyFetch as ReturnType<typeof vi.fn>;
 
 import { getDownloads, startDownload, deleteDownload, getDownloadPath, getTotalDownloadSize } from "./downloads";
 
@@ -66,10 +69,14 @@ describe("startDownload", () => {
 
     const path = await startDownload("m3", "Movie 3");
 
+    expect(eveyFetchMock).toHaveBeenCalledWith({
+      url: "/api/v1/media/m3/stream-token",
+      method: "POST",
+    });
     expect(fsMock.createDownloadResumable).toHaveBeenCalledWith(
-      "https://evey.test/api/v1/playback/m3/stream?direct=true",
+      "https://evey.test/api/v1/media/m3/stream?token=stream-tok-123",
       expect.stringContaining("m3.mp4"),
-      { headers: { Authorization: "Bearer test-token" } },
+      {},
       expect.any(Function),
     );
     expect(path).toContain("m3.mp4");
