@@ -1,13 +1,16 @@
 import { View, Text, ScrollView, RefreshControl, Pressable, StyleSheet } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { Stack } from "expo-router";
-import { useState, useCallback } from "react";
+import { useState, useCallback, useRef, useEffect } from "react";
 import { useTranslation } from "react-i18next";
+import { LineChart } from "react-native-gifted-charts";
 import {
   useAdminSystemServiceGetDashboard,
   useAdminSystemServiceGetSystemInfo,
 } from "@evey/api";
 import { useTheme } from "../../../src/providers/ThemeProvider";
+
+const HISTORY_SIZE = 30;
 
 function formatUptime(seconds?: string): string {
   if (!seconds) return "—";
@@ -63,6 +66,16 @@ export default function SystemHealthScreen() {
   const cpuPct = Math.min(100, Math.max(0, dashboard?.cpuPercent ?? 0));
   const memPct = Math.min(100, Math.max(0, dashboard?.memoryPercent ?? 0));
 
+  const cpuHistory = useRef<number[]>([]);
+  const memHistory = useRef<number[]>([]);
+  useEffect(() => {
+    cpuHistory.current = [...cpuHistory.current.slice(-(HISTORY_SIZE - 1)), cpuPct];
+    memHistory.current = [...memHistory.current.slice(-(HISTORY_SIZE - 1)), memPct];
+  }, [cpuPct, memPct]);
+
+  const cpuData = cpuHistory.current.map((v) => ({ value: v }));
+  const memData = memHistory.current.map((v) => ({ value: v }));
+
   const activityItems = [
     { label: t("admin.systemHealth.activeStreams"), value: dashboard?.activeStreams ?? 0, icon: "play-outline" as const },
     { label: t("admin.systemHealth.activeTranscodes"), value: dashboard?.activeTranscodes ?? 0, icon: "swap-horizontal-outline" as const },
@@ -104,12 +117,56 @@ export default function SystemHealthScreen() {
           <Text style={{ color: getUsageColor(cpuPct), fontSize: 13, fontWeight: "700" }}>{cpuPct.toFixed(1)}%</Text>
         </View>
         <ProgressBar pct={cpuPct} color={getUsageColor(cpuPct)} />
+        {cpuData.length > 1 && (
+          <View style={{ marginTop: 8 }}>
+            <LineChart
+              data={cpuData}
+              width={260}
+              height={50}
+              hideDataPoints
+              hideYAxisText
+              hideAxesAndRules
+              color={getUsageColor(cpuPct)}
+              thickness={2}
+              curved
+              maxValue={100}
+              areaChart
+              startFillColor={getUsageColor(cpuPct)}
+              endFillColor="transparent"
+              startOpacity={0.3}
+              endOpacity={0}
+              isAnimated={false}
+            />
+          </View>
+        )}
 
         <View style={[styles.metricRow, { marginTop: 16 }]}>
           <Text style={{ color: theme.colors.textMuted, fontSize: 13 }}>{t("admin.systemHealth.memoryUsage")}</Text>
           <Text style={{ color: getUsageColor(memPct), fontSize: 13, fontWeight: "700" }}>{memPct.toFixed(1)}%</Text>
         </View>
         <ProgressBar pct={memPct} color={getUsageColor(memPct)} />
+        {memData.length > 1 && (
+          <View style={{ marginTop: 8 }}>
+            <LineChart
+              data={memData}
+              width={260}
+              height={50}
+              hideDataPoints
+              hideYAxisText
+              hideAxesAndRules
+              color={getUsageColor(memPct)}
+              thickness={2}
+              curved
+              maxValue={100}
+              areaChart
+              startFillColor={getUsageColor(memPct)}
+              endFillColor="transparent"
+              startOpacity={0.3}
+              endOpacity={0}
+              isAnimated={false}
+            />
+          </View>
+        )}
       </View>
 
       {/* Activity */}

@@ -39,6 +39,7 @@
     "react": "19.2.0",
     "react-i18next": "16.5.8",
     "react-native": "0.83.4",
+    "react-native-gifted-charts": "1.4.76",
     "react-native-google-cast": "4.9.1",
     "react-native-qrcode-svg": "6.3.21",
     "react-native-reanimated": "4.2.1",
