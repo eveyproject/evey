@@ -33,7 +33,7 @@ import (
 	apptranscoding "github.com/gravity-zero/evey/internal/app/transcoding"
 	appuser "github.com/gravity-zero/evey/internal/app/user"
 	appwebhook "github.com/gravity-zero/evey/internal/app/webhook"
-	"github.com/gravity-zero/evey/internal/adapters/driven/ebml"
+	mkvgoadapter "github.com/gravity-zero/evey/internal/adapters/driven/mkvgo"
 	"github.com/gravity-zero/evey/internal/adapters/driven/email"
 	webpushadapter "github.com/gravity-zero/evey/internal/adapters/driven/webpush"
 	"github.com/gravity-zero/evey/internal/adapters/driven/ffmpeg"
@@ -84,8 +84,7 @@ type infraDeps struct {
 	hwDetector       *ffmpeg.HWDetector
 	trickplayGen     *ffmpeg.TrickplayGenerator
 	imageConverter   *ffmpeg.ImageConverter
-	ebmlReader       *ebml.Reader
-	ebmlWriter       *ebml.Writer
+	mkvAdapter       *mkvgoadapter.Adapter
 	bus              *eventbus.InMemoryEventBus
 	hasher           auth.BcryptHasher
 	tokenGen         *auth.JWTGenerator
@@ -127,8 +126,7 @@ func buildInfra(ctx context.Context, cfg *config.Config, db *sql.DB, rootLog *sl
 	hwDetector := ffmpeg.NewHWDetector("ffmpeg")
 	trickplayGen := ffmpeg.NewTrickplayGenerator("ffmpeg", "ffprobe")
 	imageConverter := ffmpeg.NewImageConverter("ffmpeg")
-	ebmlReader := ebml.NewReader()
-	ebmlWriter := ebml.NewWriter("ffmpeg")
+	mkvAdapter := mkvgoadapter.New()
 	bus := eventbus.New()
 	hasher := auth.BcryptHasher{}
 
@@ -188,8 +186,7 @@ func buildInfra(ctx context.Context, cfg *config.Config, db *sql.DB, rootLog *sl
 		hwDetector:      hwDetector,
 		trickplayGen:    trickplayGen,
 		imageConverter:  imageConverter,
-		ebmlReader:      ebmlReader,
-		ebmlWriter:      ebmlWriter,
+		mkvAdapter:      mkvAdapter,
 		bus:             bus,
 		hasher:          hasher,
 		tokenGen:        tokenGen,
@@ -220,7 +217,7 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 		r.Library, r.Library, r.MediaItem,
 		r.MediaStream, r.Person, r.MediaPerson,
 		infra.scanner, infra.prober, infra.searchAdapter, bus,
-		r.Chapter, infra.ebmlReader,
+		r.Chapter, infra.mkvAdapter,
 		r.Trickplay, infra.trickplayGen, cfg.Transcoding.TrickplayCacheDir, r.ServerCfg,
 		applibrary.WithShutdownCtx(ctx),
 	)
@@ -269,7 +266,7 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 		apptranscoding.WithCacheStore(filesystem.NewCacheStore(cfg.Transcoding.CacheDir)),
 	)
 
-	mkvSvc := appmkv.NewService(infra.ebmlReader, infra.ebmlWriter)
+	mkvSvc := appmkv.NewService(infra.mkvAdapter, infra.mkvAdapter)
 	collectionSvc := appcollection.NewService(r.Collection, r.Collection, postgres.NewCollectionSmartQuerier(db), r.MediaItem)
 
 	metaProviders := []metadata.MetadataProvider{infra.tmdbProvider, infra.omdbProvider, infra.tvmazeProvider, infra.imdbProvider}
