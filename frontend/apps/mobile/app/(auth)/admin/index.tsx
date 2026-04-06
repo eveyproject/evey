@@ -56,6 +56,9 @@ export default function AdminDashboard() {
     { label: t("admin.systemHealth.title"), icon: "pulse-outline", path: "/admin/system-health" },
     { label: t("admin.transcodeCache.title") || "Transcode Cache", icon: "film-outline", path: "/admin/transcode-cache" },
     { label: t("admin.backup.title") || "Database Backup", icon: "cloud-download-outline", path: "/admin/backup" },
+    { label: t("admin.nav.logs", "Logs"), icon: "document-text-outline", path: "/admin/logs" },
+    { label: t("admin.webhooks.title", "Webhooks"), icon: "link-outline", path: "/admin/webhooks" },
+    { label: t("admin.metadata.title", "Metadata"), icon: "cloud-outline", path: "/admin/metadata" },
   ];
 
   return (
