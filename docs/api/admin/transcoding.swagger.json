@@ -1,0 +1,677 @@
+{
+  "swagger": "2.0",
+  "info": {
+    "title": "evey/v1/transcoding.proto",
+    "version": "version not set"
+  },
+  "tags": [
+    {
+      "name": "TranscodingService"
+    }
+  ],
+  "consumes": [
+    "application/json"
+  ],
+  "produces": [
+    "application/json"
+  ],
+  "paths": {
+    "/api/v1/transcoding/active": {
+      "get": {
+        "operationId": "TranscodingService_ListActiveTranscodes",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1ListActiveTranscodesResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "tags": [
+          "TranscodingService"
+        ]
+      }
+    },
+    "/api/v1/transcoding/hardware": {
+      "get": {
+        "operationId": "TranscodingService_DetectHardware",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1DetectHardwareResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "tags": [
+          "TranscodingService"
+        ]
+      }
+    },
+    "/api/v1/transcoding/profiles": {
+      "get": {
+        "operationId": "TranscodingService_ListTranscodeProfiles",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1ListTranscodeProfilesResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "tags": [
+          "TranscodingService"
+        ]
+      },
+      "post": {
+        "operationId": "TranscodingService_CreateTranscodeProfile",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1TranscodeProfile"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/v1CreateTranscodeProfileRequest"
+            }
+          }
+        ],
+        "tags": [
+          "TranscodingService"
+        ]
+      }
+    },
+    "/api/v1/transcoding/profiles/{id}": {
+      "delete": {
+        "operationId": "TranscodingService_DeleteTranscodeProfile",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1DeleteTranscodeProfileResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "TranscodingService"
+        ]
+      },
+      "put": {
+        "operationId": "TranscodingService_UpdateTranscodeProfile",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1TranscodeProfile"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/TranscodingServiceUpdateTranscodeProfileBody"
+            }
+          }
+        ],
+        "tags": [
+          "TranscodingService"
+        ]
+      }
+    },
+    "/api/v1/transcoding/start": {
+      "post": {
+        "operationId": "TranscodingService_StartTranscode",
+        "responses": {
+          "200": {
+            "description": "A successful response.(streaming responses)",
+            "schema": {
+              "type": "object",
+              "properties": {
+                "result": {
+                  "$ref": "#/definitions/v1TranscodeProgress"
+                },
+                "error": {
+                  "$ref": "#/definitions/rpcStatus"
+                }
+              },
+              "title": "Stream result of v1TranscodeProgress"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/v1StartTranscodeRequest"
+            }
+          }
+        ],
+        "tags": [
+          "TranscodingService"
+        ]
+      }
+    },
+    "/api/v1/transcoding/{jobId}": {
+      "get": {
+        "operationId": "TranscodingService_GetTranscodeStatus",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1TranscodeJob"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "jobId",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "TranscodingService"
+        ]
+      }
+    },
+    "/api/v1/transcoding/{jobId}/stop": {
+      "post": {
+        "operationId": "TranscodingService_StopTranscode",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1StopTranscodeResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "jobId",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "TranscodingService"
+        ]
+      }
+    }
+  },
+  "definitions": {
+    "TranscodingServiceUpdateTranscodeProfileBody": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "videoBitrateKbps": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "audioBitrateKbps": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "maxWidth": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "maxHeight": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "videoCodec": {
+          "type": "string"
+        },
+        "audioCodec": {
+          "type": "string"
+        }
+      }
+    },
+    "protobufAny": {
+      "type": "object",
+      "properties": {
+        "@type": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": {}
+    },
+    "rpcStatus": {
+      "type": "object",
+      "properties": {
+        "code": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "message": {
+          "type": "string"
+        },
+        "details": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/protobufAny"
+          }
+        }
+      }
+    },
+    "v1CreateTranscodeProfileRequest": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "videoBitrateKbps": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "audioBitrateKbps": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "maxWidth": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "maxHeight": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "videoCodec": {
+          "type": "string"
+        },
+        "audioCodec": {
+          "type": "string"
+        }
+      }
+    },
+    "v1DeleteTranscodeProfileResponse": {
+      "type": "object"
+    },
+    "v1DetectHardwareResponse": {
+      "type": "object",
+      "properties": {
+        "devices": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/v1HWDevice"
+          }
+        }
+      }
+    },
+    "v1HWAccelType": {
+      "type": "string",
+      "enum": [
+        "HW_ACCEL_TYPE_NONE",
+        "HW_ACCEL_TYPE_VAAPI",
+        "HW_ACCEL_TYPE_NVENC",
+        "HW_ACCEL_TYPE_QSV"
+      ],
+      "default": "HW_ACCEL_TYPE_NONE"
+    },
+    "v1HWDevice": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "$ref": "#/definitions/v1HWAccelType"
+        },
+        "name": {
+          "type": "string"
+        },
+        "devicePath": {
+          "type": "string"
+        },
+        "supportedCodecs": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "supportedDecoders": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "supportedEncoders": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "v1ListActiveTranscodesResponse": {
+      "type": "object",
+      "properties": {
+        "jobs": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/v1TranscodeJob"
+          }
+        }
+      }
+    },
+    "v1ListTranscodeProfilesResponse": {
+      "type": "object",
+      "properties": {
+        "profiles": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/v1TranscodeProfile"
+          }
+        }
+      }
+    },
+    "v1StartTranscodeRequest": {
+      "type": "object",
+      "properties": {
+        "mediaItemId": {
+          "type": "string"
+        },
+        "sessionId": {
+          "type": "string"
+        },
+        "videoCodec": {
+          "type": "string"
+        },
+        "audioCodec": {
+          "type": "string"
+        },
+        "container": {
+          "type": "string"
+        },
+        "width": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "height": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "bitrate": {
+          "type": "string",
+          "format": "int64"
+        },
+        "hwAccel": {
+          "$ref": "#/definitions/v1HWAccelType"
+        },
+        "startTimeMs": {
+          "type": "string",
+          "format": "int64"
+        },
+        "audioStreamIndex": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "subtitleStreamIndex": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "profileId": {
+          "type": "string"
+        }
+      }
+    },
+    "v1StopTranscodeResponse": {
+      "type": "object"
+    },
+    "v1TranscodeJob": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "mediaItemId": {
+          "type": "string"
+        },
+        "sessionId": {
+          "type": "string"
+        },
+        "state": {
+          "$ref": "#/definitions/v1TranscodeState"
+        },
+        "inputPath": {
+          "type": "string"
+        },
+        "outputPath": {
+          "type": "string"
+        },
+        "videoCodec": {
+          "type": "string"
+        },
+        "audioCodec": {
+          "type": "string"
+        },
+        "container": {
+          "type": "string"
+        },
+        "width": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "height": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "bitrate": {
+          "type": "string",
+          "format": "int64"
+        },
+        "hwAccel": {
+          "$ref": "#/definitions/v1HWAccelType"
+        },
+        "progressPercent": {
+          "type": "number",
+          "format": "double"
+        },
+        "fps": {
+          "type": "number",
+          "format": "double"
+        },
+        "speed": {
+          "type": "number",
+          "format": "double"
+        },
+        "outputSize": {
+          "type": "string",
+          "format": "int64"
+        },
+        "startedAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "completedAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "error": {
+          "type": "string"
+        }
+      }
+    },
+    "v1TranscodeProfile": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "videoCodec": {
+          "type": "string"
+        },
+        "audioCodec": {
+          "type": "string"
+        },
+        "container": {
+          "type": "string"
+        },
+        "maxWidth": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "maxHeight": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "maxBitrate": {
+          "type": "string",
+          "format": "int64"
+        },
+        "audioChannels": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "audioBitrate": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "hwAccel": {
+          "$ref": "#/definitions/v1HWAccelType"
+        },
+        "isDefault": {
+          "type": "boolean"
+        }
+      }
+    },
+    "v1TranscodeProgress": {
+      "type": "object",
+      "properties": {
+        "jobId": {
+          "type": "string"
+        },
+        "state": {
+          "$ref": "#/definitions/v1TranscodeState"
+        },
+        "percent": {
+          "type": "number",
+          "format": "double"
+        },
+        "fps": {
+          "type": "number",
+          "format": "double"
+        },
+        "speed": {
+          "type": "number",
+          "format": "double"
+        },
+        "bitrate": {
+          "type": "string",
+          "format": "int64"
+        },
+        "etaMs": {
+          "type": "string",
+          "format": "int64"
+        },
+        "outputSize": {
+          "type": "string",
+          "format": "int64"
+        },
+        "error": {
+          "type": "string"
+        }
+      }
+    },
+    "v1TranscodeState": {
+      "type": "string",
+      "enum": [
+        "TRANSCODE_STATE_UNSPECIFIED",
+        "TRANSCODE_STATE_QUEUED",
+        "TRANSCODE_STATE_RUNNING",
+        "TRANSCODE_STATE_COMPLETED",
+        "TRANSCODE_STATE_FAILED",
+        "TRANSCODE_STATE_CANCELLED"
+      ],
+      "default": "TRANSCODE_STATE_UNSPECIFIED"
+    }
+  }
+}

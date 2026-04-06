@@ -1,0 +1,405 @@
+{
+  "swagger": "2.0",
+  "info": {
+    "title": "evey/v1/admin_system.proto",
+    "version": "version not set"
+  },
+  "tags": [
+    {
+      "name": "AdminSystemService"
+    }
+  ],
+  "consumes": [
+    "application/json"
+  ],
+  "produces": [
+    "application/json"
+  ],
+  "paths": {
+    "/api/v1/admin/config": {
+      "get": {
+        "operationId": "AdminSystemService_GetServerConfig",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1ServerConfig"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "tags": [
+          "AdminSystemService"
+        ]
+      },
+      "put": {
+        "operationId": "AdminSystemService_UpdateServerConfig",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1ServerConfig"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/v1UpdateServerConfigRequest"
+            }
+          }
+        ],
+        "tags": [
+          "AdminSystemService"
+        ]
+      }
+    },
+    "/api/v1/admin/dashboard": {
+      "get": {
+        "operationId": "AdminSystemService_GetDashboard",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1DashboardInfo"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "tags": [
+          "AdminSystemService"
+        ]
+      }
+    },
+    "/api/v1/admin/setup": {
+      "post": {
+        "operationId": "AdminSystemService_SetupWizard",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1SetupWizardResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/v1SetupWizardRequest"
+            }
+          }
+        ],
+        "tags": [
+          "AdminSystemService"
+        ]
+      }
+    },
+    "/api/v1/admin/system": {
+      "get": {
+        "operationId": "AdminSystemService_GetSystemInfo",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1SystemInfo"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "tags": [
+          "AdminSystemService"
+        ]
+      }
+    },
+    "/api/v1/setup/status": {
+      "get": {
+        "operationId": "AdminSystemService_GetSetupStatus",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1SetupStatusResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "tags": [
+          "AdminSystemService"
+        ]
+      }
+    }
+  },
+  "definitions": {
+    "protobufAny": {
+      "type": "object",
+      "properties": {
+        "@type": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": {}
+    },
+    "rpcStatus": {
+      "type": "object",
+      "properties": {
+        "code": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "message": {
+          "type": "string"
+        },
+        "details": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/protobufAny"
+          }
+        }
+      }
+    },
+    "v1DashboardInfo": {
+      "type": "object",
+      "properties": {
+        "activeStreams": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "activeTranscodes": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "cpuPercent": {
+          "type": "number",
+          "format": "double"
+        },
+        "memoryPercent": {
+          "type": "number",
+          "format": "double"
+        },
+        "storage": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/v1StorageInfo"
+          }
+        },
+        "totalMediaItems": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "totalUsers": {
+          "type": "integer",
+          "format": "int32"
+        }
+      }
+    },
+    "v1HWAccelType": {
+      "type": "string",
+      "enum": [
+        "HW_ACCEL_TYPE_NONE",
+        "HW_ACCEL_TYPE_VAAPI",
+        "HW_ACCEL_TYPE_NVENC",
+        "HW_ACCEL_TYPE_QSV"
+      ],
+      "default": "HW_ACCEL_TYPE_NONE"
+    },
+    "v1HWDevice": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "$ref": "#/definitions/v1HWAccelType"
+        },
+        "name": {
+          "type": "string"
+        },
+        "devicePath": {
+          "type": "string"
+        },
+        "supportedCodecs": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "supportedDecoders": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "supportedEncoders": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "v1ServerConfig": {
+      "type": "object",
+      "properties": {
+        "values": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "v1SetupStatusResponse": {
+      "type": "object",
+      "properties": {
+        "setupComplete": {
+          "type": "boolean"
+        }
+      }
+    },
+    "v1SetupWizardRequest": {
+      "type": "object",
+      "properties": {
+        "adminUsername": {
+          "type": "string"
+        },
+        "adminPassword": {
+          "type": "string"
+        },
+        "adminEmail": {
+          "type": "string"
+        },
+        "serverName": {
+          "type": "string"
+        },
+        "baseUrl": {
+          "type": "string"
+        }
+      }
+    },
+    "v1SetupWizardResponse": {
+      "type": "object",
+      "properties": {
+        "accessToken": {
+          "type": "string"
+        },
+        "refreshToken": {
+          "type": "string"
+        },
+        "serverId": {
+          "type": "string"
+        }
+      }
+    },
+    "v1StorageInfo": {
+      "type": "object",
+      "properties": {
+        "path": {
+          "type": "string"
+        },
+        "totalBytes": {
+          "type": "string",
+          "format": "int64"
+        },
+        "usedBytes": {
+          "type": "string",
+          "format": "int64"
+        },
+        "freeBytes": {
+          "type": "string",
+          "format": "int64"
+        }
+      }
+    },
+    "v1SystemInfo": {
+      "type": "object",
+      "properties": {
+        "version": {
+          "type": "string"
+        },
+        "os": {
+          "type": "string"
+        },
+        "arch": {
+          "type": "string"
+        },
+        "ffmpegVersion": {
+          "type": "string"
+        },
+        "hwDevices": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/v1HWDevice"
+          }
+        },
+        "uptimeSeconds": {
+          "type": "string",
+          "format": "int64"
+        },
+        "goVersion": {
+          "type": "string"
+        },
+        "serverId": {
+          "type": "string"
+        },
+        "setupComplete": {
+          "type": "boolean"
+        },
+        "passwordRecoveryEnabled": {
+          "type": "boolean"
+        },
+        "smtpConfigured": {
+          "type": "boolean"
+        }
+      }
+    },
+    "v1UpdateServerConfigRequest": {
+      "type": "object",
+      "properties": {
+        "values": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  }
+}

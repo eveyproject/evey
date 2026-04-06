@@ -1,0 +1,216 @@
+{
+  "swagger": "2.0",
+  "info": {
+    "title": "evey/v1/parental.proto",
+    "version": "version not set"
+  },
+  "tags": [
+    {
+      "name": "ParentalService"
+    }
+  ],
+  "consumes": [
+    "application/json"
+  ],
+  "produces": [
+    "application/json"
+  ],
+  "paths": {
+    "/api/v1/profiles/{profileId}/parental": {
+      "get": {
+        "operationId": "ParentalService_GetParentalSettings",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1GetParentalSettingsResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "profileId",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "ParentalService"
+        ]
+      },
+      "put": {
+        "operationId": "ParentalService_UpdateParentalSettings",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1UpdateParentalSettingsResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "profileId",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/ParentalServiceUpdateParentalSettingsBody"
+            }
+          }
+        ],
+        "tags": [
+          "ParentalService"
+        ]
+      }
+    },
+    "/api/v1/profiles/{profileId}/parental/verify-pin": {
+      "post": {
+        "operationId": "ParentalService_VerifyPin",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1VerifyPinResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "profileId",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/ParentalServiceVerifyPinBody"
+            }
+          }
+        ],
+        "tags": [
+          "ParentalService"
+        ]
+      }
+    }
+  },
+  "definitions": {
+    "ParentalServiceUpdateParentalSettingsBody": {
+      "type": "object",
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        },
+        "maxRating": {
+          "type": "string"
+        },
+        "blockedTags": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "currentPin": {
+          "type": "string"
+        },
+        "newPin": {
+          "type": "string"
+        }
+      }
+    },
+    "ParentalServiceVerifyPinBody": {
+      "type": "object",
+      "properties": {
+        "pin": {
+          "type": "string"
+        }
+      }
+    },
+    "protobufAny": {
+      "type": "object",
+      "properties": {
+        "@type": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": {}
+    },
+    "rpcStatus": {
+      "type": "object",
+      "properties": {
+        "code": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "message": {
+          "type": "string"
+        },
+        "details": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/protobufAny"
+          }
+        }
+      }
+    },
+    "v1GetParentalSettingsResponse": {
+      "type": "object",
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        },
+        "maxRating": {
+          "type": "string"
+        },
+        "blockedTags": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "hasPin": {
+          "type": "boolean"
+        }
+      }
+    },
+    "v1UpdateParentalSettingsResponse": {
+      "type": "object"
+    },
+    "v1VerifyPinResponse": {
+      "type": "object",
+      "properties": {
+        "valid": {
+          "type": "boolean"
+        }
+      }
+    }
+  }
+}

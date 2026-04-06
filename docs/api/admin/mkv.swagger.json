@@ -1,0 +1,849 @@
+{
+  "swagger": "2.0",
+  "info": {
+    "title": "evey/v1/mkv.proto",
+    "version": "version not set"
+  },
+  "tags": [
+    {
+      "name": "MKVService"
+    }
+  ],
+  "consumes": [
+    "application/json"
+  ],
+  "produces": [
+    "application/json"
+  ],
+  "paths": {
+    "/api/v1/mkv/attachments": {
+      "get": {
+        "operationId": "MKVService_ListAttachments",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1ListAttachmentsResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "path",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "MKVService"
+        ]
+      }
+    },
+    "/api/v1/mkv/attachments/extract": {
+      "post": {
+        "operationId": "MKVService_ExtractAttachment",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1ExtractAttachmentResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/v1ExtractAttachmentRequest"
+            }
+          }
+        ],
+        "tags": [
+          "MKVService"
+        ]
+      }
+    },
+    "/api/v1/mkv/chapters": {
+      "get": {
+        "operationId": "MKVService_ListChapters",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1ListChaptersResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "path",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "MKVService"
+        ]
+      }
+    },
+    "/api/v1/mkv/demux": {
+      "post": {
+        "operationId": "MKVService_DemuxContainer",
+        "responses": {
+          "200": {
+            "description": "A successful response.(streaming responses)",
+            "schema": {
+              "type": "object",
+              "properties": {
+                "result": {
+                  "$ref": "#/definitions/v1DemuxProgress"
+                },
+                "error": {
+                  "$ref": "#/definitions/rpcStatus"
+                }
+              },
+              "title": "Stream result of v1DemuxProgress"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/v1DemuxContainerRequest"
+            }
+          }
+        ],
+        "tags": [
+          "MKVService"
+        ]
+      }
+    },
+    "/api/v1/mkv/info": {
+      "get": {
+        "operationId": "MKVService_GetContainerInfo",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1Container"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "path",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "MKVService"
+        ]
+      }
+    },
+    "/api/v1/mkv/mux": {
+      "post": {
+        "operationId": "MKVService_MuxContainer",
+        "responses": {
+          "200": {
+            "description": "A successful response.(streaming responses)",
+            "schema": {
+              "type": "object",
+              "properties": {
+                "result": {
+                  "$ref": "#/definitions/v1MuxProgress"
+                },
+                "error": {
+                  "$ref": "#/definitions/rpcStatus"
+                }
+              },
+              "title": "Stream result of v1MuxProgress"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/v1MuxContainerRequest"
+            }
+          }
+        ],
+        "tags": [
+          "MKVService"
+        ]
+      }
+    },
+    "/api/v1/mkv/tracks": {
+      "get": {
+        "operationId": "MKVService_ListTracks",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1ListMkvTracksResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "path",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "MKVService"
+        ]
+      }
+    },
+    "/api/v1/mkv/tracks/add": {
+      "post": {
+        "operationId": "MKVService_AddTrack",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1AddTrackResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/v1AddTrackRequest"
+            }
+          }
+        ],
+        "tags": [
+          "MKVService"
+        ]
+      }
+    },
+    "/api/v1/mkv/tracks/extract": {
+      "post": {
+        "operationId": "MKVService_ExtractTrack",
+        "responses": {
+          "200": {
+            "description": "A successful response.(streaming responses)",
+            "schema": {
+              "type": "object",
+              "properties": {
+                "result": {
+                  "$ref": "#/definitions/v1ExtractDataChunk"
+                },
+                "error": {
+                  "$ref": "#/definitions/rpcStatus"
+                }
+              },
+              "title": "Stream result of v1ExtractDataChunk"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/v1ExtractTrackRequest"
+            }
+          }
+        ],
+        "tags": [
+          "MKVService"
+        ]
+      }
+    },
+    "/api/v1/mkv/tracks/remove": {
+      "post": {
+        "operationId": "MKVService_RemoveTrack",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1RemoveTrackResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/v1RemoveTrackRequest"
+            }
+          }
+        ],
+        "tags": [
+          "MKVService"
+        ]
+      }
+    }
+  },
+  "definitions": {
+    "protobufAny": {
+      "type": "object",
+      "properties": {
+        "@type": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": {}
+    },
+    "rpcStatus": {
+      "type": "object",
+      "properties": {
+        "code": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "message": {
+          "type": "string"
+        },
+        "details": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/protobufAny"
+          }
+        }
+      }
+    },
+    "v1AddTrackRequest": {
+      "type": "object",
+      "properties": {
+        "containerPath": {
+          "type": "string"
+        },
+        "trackPath": {
+          "type": "string"
+        },
+        "type": {
+          "$ref": "#/definitions/v1TrackType"
+        },
+        "language": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "isDefault": {
+          "type": "boolean"
+        },
+        "isForced": {
+          "type": "boolean"
+        }
+      }
+    },
+    "v1AddTrackResponse": {
+      "type": "object",
+      "properties": {
+        "trackId": {
+          "type": "integer",
+          "format": "int32"
+        }
+      }
+    },
+    "v1Attachment": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "name": {
+          "type": "string"
+        },
+        "mimeType": {
+          "type": "string"
+        },
+        "size": {
+          "type": "string",
+          "format": "int64"
+        },
+        "description": {
+          "type": "string"
+        }
+      }
+    },
+    "v1Chapter": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        },
+        "startMs": {
+          "type": "string",
+          "format": "int64"
+        },
+        "endMs": {
+          "type": "string",
+          "format": "int64"
+        },
+        "language": {
+          "type": "string"
+        }
+      }
+    },
+    "v1Container": {
+      "type": "object",
+      "properties": {
+        "path": {
+          "type": "string"
+        },
+        "info": {
+          "$ref": "#/definitions/v1ContainerInfo"
+        },
+        "tracks": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/v1MkvTrack"
+          }
+        },
+        "chapters": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/v1Chapter"
+          }
+        },
+        "attachments": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/v1Attachment"
+          }
+        },
+        "tags": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/v1Tag"
+          }
+        },
+        "durationMs": {
+          "type": "string",
+          "format": "int64"
+        }
+      }
+    },
+    "v1ContainerInfo": {
+      "type": "object",
+      "properties": {
+        "format": {
+          "type": "string"
+        },
+        "muxingApp": {
+          "type": "string"
+        },
+        "writingApp": {
+          "type": "string"
+        },
+        "fileSize": {
+          "type": "string",
+          "format": "int64"
+        },
+        "durationMs": {
+          "type": "string",
+          "format": "int64"
+        },
+        "bitrate": {
+          "type": "string",
+          "format": "int64"
+        },
+        "title": {
+          "type": "string"
+        },
+        "date": {
+          "type": "string"
+        }
+      }
+    },
+    "v1DemuxContainerRequest": {
+      "type": "object",
+      "properties": {
+        "path": {
+          "type": "string"
+        },
+        "outputDir": {
+          "type": "string"
+        },
+        "trackIds": {
+          "type": "array",
+          "items": {
+            "type": "integer",
+            "format": "int32"
+          }
+        }
+      }
+    },
+    "v1DemuxProgress": {
+      "type": "object",
+      "properties": {
+        "percent": {
+          "type": "number",
+          "format": "double"
+        },
+        "tracksExtracted": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "totalTracks": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "currentTrack": {
+          "type": "string"
+        },
+        "error": {
+          "type": "string"
+        }
+      }
+    },
+    "v1ExtractAttachmentRequest": {
+      "type": "object",
+      "properties": {
+        "path": {
+          "type": "string"
+        },
+        "attachmentId": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "outputPath": {
+          "type": "string"
+        }
+      }
+    },
+    "v1ExtractAttachmentResponse": {
+      "type": "object",
+      "properties": {
+        "outputPath": {
+          "type": "string"
+        },
+        "size": {
+          "type": "string",
+          "format": "int64"
+        }
+      }
+    },
+    "v1ExtractDataChunk": {
+      "type": "object",
+      "properties": {
+        "data": {
+          "type": "string",
+          "format": "byte"
+        },
+        "offset": {
+          "type": "string",
+          "format": "int64"
+        },
+        "totalSize": {
+          "type": "string",
+          "format": "int64"
+        }
+      }
+    },
+    "v1ExtractTrackRequest": {
+      "type": "object",
+      "properties": {
+        "path": {
+          "type": "string"
+        },
+        "trackId": {
+          "type": "integer",
+          "format": "int32"
+        }
+      }
+    },
+    "v1ListAttachmentsResponse": {
+      "type": "object",
+      "properties": {
+        "attachments": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/v1Attachment"
+          }
+        }
+      }
+    },
+    "v1ListChaptersResponse": {
+      "type": "object",
+      "properties": {
+        "chapters": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/v1Chapter"
+          }
+        }
+      }
+    },
+    "v1ListMkvTracksResponse": {
+      "type": "object",
+      "properties": {
+        "tracks": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/v1MkvTrack"
+          }
+        }
+      }
+    },
+    "v1MkvTrack": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "type": {
+          "$ref": "#/definitions/v1TrackType"
+        },
+        "codec": {
+          "type": "string"
+        },
+        "language": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "isDefault": {
+          "type": "boolean"
+        },
+        "isForced": {
+          "type": "boolean"
+        },
+        "isEnabled": {
+          "type": "boolean"
+        },
+        "width": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "height": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "frameRate": {
+          "type": "number",
+          "format": "double"
+        },
+        "pixelFormat": {
+          "type": "string"
+        },
+        "channels": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "sampleRate": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "bitDepth": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "bitrate": {
+          "type": "string",
+          "format": "int64"
+        }
+      }
+    },
+    "v1MuxContainerRequest": {
+      "type": "object",
+      "properties": {
+        "outputPath": {
+          "type": "string"
+        },
+        "inputs": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/v1MuxInput"
+          }
+        },
+        "chapters": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/v1Chapter"
+          }
+        },
+        "tags": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/v1Tag"
+          }
+        },
+        "title": {
+          "type": "string"
+        }
+      }
+    },
+    "v1MuxInput": {
+      "type": "object",
+      "properties": {
+        "path": {
+          "type": "string"
+        },
+        "trackIds": {
+          "type": "array",
+          "items": {
+            "type": "integer",
+            "format": "int32"
+          }
+        }
+      }
+    },
+    "v1MuxProgress": {
+      "type": "object",
+      "properties": {
+        "percent": {
+          "type": "number",
+          "format": "double"
+        },
+        "bytesWritten": {
+          "type": "string",
+          "format": "int64"
+        },
+        "phase": {
+          "type": "string"
+        },
+        "error": {
+          "type": "string"
+        }
+      }
+    },
+    "v1RemoveTrackRequest": {
+      "type": "object",
+      "properties": {
+        "containerPath": {
+          "type": "string"
+        },
+        "trackId": {
+          "type": "integer",
+          "format": "int32"
+        }
+      }
+    },
+    "v1RemoveTrackResponse": {
+      "type": "object"
+    },
+    "v1Tag": {
+      "type": "object",
+      "properties": {
+        "targetType": {
+          "type": "string"
+        },
+        "targetTypeValue": {
+          "type": "string",
+          "format": "int64"
+        },
+        "name": {
+          "type": "string"
+        },
+        "value": {
+          "type": "string"
+        },
+        "language": {
+          "type": "string"
+        }
+      }
+    },
+    "v1TrackType": {
+      "type": "string",
+      "enum": [
+        "TRACK_TYPE_UNSPECIFIED",
+        "TRACK_TYPE_VIDEO",
+        "TRACK_TYPE_AUDIO",
+        "TRACK_TYPE_SUBTITLE"
+      ],
+      "default": "TRACK_TYPE_UNSPECIFIED"
+    }
+  }
+}

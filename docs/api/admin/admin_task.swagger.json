@@ -1,0 +1,215 @@
+{
+  "swagger": "2.0",
+  "info": {
+    "title": "evey/v1/admin_task.proto",
+    "version": "version not set"
+  },
+  "tags": [
+    {
+      "name": "AdminTaskService"
+    }
+  ],
+  "consumes": [
+    "application/json"
+  ],
+  "produces": [
+    "application/json"
+  ],
+  "paths": {
+    "/api/v1/admin/tasks": {
+      "get": {
+        "operationId": "AdminTaskService_ListScheduledTasks",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1ListScheduledTasksResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "tags": [
+          "AdminTaskService"
+        ]
+      }
+    },
+    "/api/v1/admin/tasks/{id}": {
+      "patch": {
+        "operationId": "AdminTaskService_UpdateScheduledTask",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1ScheduledTask"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/AdminTaskServiceUpdateScheduledTaskBody"
+            }
+          }
+        ],
+        "tags": [
+          "AdminTaskService"
+        ]
+      }
+    },
+    "/api/v1/admin/tasks/{id}/run": {
+      "post": {
+        "operationId": "AdminTaskService_RunScheduledTask",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1RunScheduledTaskResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "AdminTaskService"
+        ]
+      }
+    }
+  },
+  "definitions": {
+    "AdminTaskServiceUpdateScheduledTaskBody": {
+      "type": "object",
+      "properties": {
+        "cronExpression": {
+          "type": "string"
+        },
+        "enabled": {
+          "type": "boolean"
+        }
+      }
+    },
+    "protobufAny": {
+      "type": "object",
+      "properties": {
+        "@type": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": {}
+    },
+    "rpcStatus": {
+      "type": "object",
+      "properties": {
+        "code": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "message": {
+          "type": "string"
+        },
+        "details": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/protobufAny"
+          }
+        }
+      }
+    },
+    "v1ListScheduledTasksResponse": {
+      "type": "object",
+      "properties": {
+        "tasks": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/v1ScheduledTask"
+          }
+        }
+      }
+    },
+    "v1RunScheduledTaskResponse": {
+      "type": "object"
+    },
+    "v1ScheduledTask": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "cronExpression": {
+          "type": "string"
+        },
+        "enabled": {
+          "type": "boolean"
+        },
+        "state": {
+          "$ref": "#/definitions/v1TaskState"
+        },
+        "progressPercent": {
+          "type": "number",
+          "format": "double"
+        },
+        "lastRunAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "nextRunAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "lastError": {
+          "type": "string"
+        }
+      }
+    },
+    "v1TaskState": {
+      "type": "string",
+      "enum": [
+        "TASK_STATE_UNSPECIFIED",
+        "TASK_STATE_IDLE",
+        "TASK_STATE_RUNNING",
+        "TASK_STATE_COMPLETED",
+        "TASK_STATE_FAILED"
+      ],
+      "default": "TASK_STATE_UNSPECIFIED"
+    }
+  }
+}

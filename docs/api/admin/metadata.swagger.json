@@ -1,0 +1,673 @@
+{
+  "swagger": "2.0",
+  "info": {
+    "title": "evey/v1/metadata.proto",
+    "version": "version not set"
+  },
+  "tags": [
+    {
+      "name": "MetadataService"
+    }
+  ],
+  "consumes": [
+    "application/json"
+  ],
+  "produces": [
+    "application/json"
+  ],
+  "paths": {
+    "/api/v1/metadata/overrides": {
+      "post": {
+        "operationId": "MetadataService_SetMetadataOverride",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1MetadataOverride"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/v1SetMetadataOverrideRequest"
+            }
+          }
+        ],
+        "tags": [
+          "MetadataService"
+        ]
+      }
+    },
+    "/api/v1/metadata/overrides/{id}": {
+      "delete": {
+        "operationId": "MetadataService_RemoveMetadataOverride",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1RemoveMetadataOverrideResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "MetadataService"
+        ]
+      }
+    },
+    "/api/v1/metadata/providers": {
+      "get": {
+        "operationId": "MetadataService_GetMetadataProviders",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1GetMetadataProvidersResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "tags": [
+          "MetadataService"
+        ]
+      }
+    },
+    "/api/v1/metadata/search": {
+      "get": {
+        "operationId": "MetadataService_SearchMetadata",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1SearchMetadataResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "query",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "type",
+            "in": "query",
+            "required": false,
+            "type": "string",
+            "enum": [
+              "MEDIA_ITEM_TYPE_UNSPECIFIED",
+              "MEDIA_ITEM_TYPE_MOVIE",
+              "MEDIA_ITEM_TYPE_SERIES",
+              "MEDIA_ITEM_TYPE_SEASON",
+              "MEDIA_ITEM_TYPE_EPISODE",
+              "MEDIA_ITEM_TYPE_ALBUM",
+              "MEDIA_ITEM_TYPE_ARTIST",
+              "MEDIA_ITEM_TYPE_TRACK",
+              "MEDIA_ITEM_TYPE_PHOTO",
+              "MEDIA_ITEM_TYPE_BOOK"
+            ],
+            "default": "MEDIA_ITEM_TYPE_UNSPECIFIED"
+          },
+          {
+            "name": "year",
+            "in": "query",
+            "required": false,
+            "type": "integer",
+            "format": "int32"
+          },
+          {
+            "name": "provider",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "type": "integer",
+            "format": "int32"
+          }
+        ],
+        "tags": [
+          "MetadataService"
+        ]
+      }
+    },
+    "/api/v1/metadata/{mediaItemId}": {
+      "delete": {
+        "operationId": "MetadataService_DeleteMetadata",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1DeleteMetadataResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "mediaItemId",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "MetadataService"
+        ]
+      },
+      "put": {
+        "operationId": "MetadataService_UpdateMetadata",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1UpdateMetadataResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "mediaItemId",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/MetadataServiceUpdateMetadataBody"
+            }
+          }
+        ],
+        "tags": [
+          "MetadataService"
+        ]
+      }
+    },
+    "/api/v1/metadata/{mediaItemId}/artwork": {
+      "get": {
+        "operationId": "MetadataService_GetArtwork",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1GetArtworkResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "mediaItemId",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "type",
+            "in": "query",
+            "required": false,
+            "type": "string",
+            "enum": [
+              "ARTWORK_TYPE_UNSPECIFIED",
+              "ARTWORK_TYPE_PRIMARY",
+              "ARTWORK_TYPE_BACKDROP",
+              "ARTWORK_TYPE_BANNER",
+              "ARTWORK_TYPE_THUMB",
+              "ARTWORK_TYPE_LOGO",
+              "ARTWORK_TYPE_DISC"
+            ],
+            "default": "ARTWORK_TYPE_UNSPECIFIED"
+          },
+          {
+            "name": "provider",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "MetadataService"
+        ]
+      }
+    },
+    "/api/v1/metadata/{mediaItemId}/overrides": {
+      "get": {
+        "operationId": "MetadataService_ListMetadataOverrides",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1ListMetadataOverridesResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "mediaItemId",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "MetadataService"
+        ]
+      }
+    },
+    "/api/v1/metadata/{mediaItemId}/refresh": {
+      "post": {
+        "operationId": "MetadataService_RefreshMetadata",
+        "responses": {
+          "200": {
+            "description": "A successful response.(streaming responses)",
+            "schema": {
+              "type": "object",
+              "properties": {
+                "result": {
+                  "$ref": "#/definitions/v1RefreshMetadataProgress"
+                },
+                "error": {
+                  "$ref": "#/definitions/rpcStatus"
+                }
+              },
+              "title": "Stream result of v1RefreshMetadataProgress"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "mediaItemId",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "replaceAll",
+            "in": "query",
+            "required": false,
+            "type": "boolean"
+          },
+          {
+            "name": "preferredProvider",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "MetadataService"
+        ]
+      }
+    }
+  },
+  "definitions": {
+    "MetadataServiceUpdateMetadataBody": {
+      "type": "object",
+      "properties": {
+        "title": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "year": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "genres": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "protobufAny": {
+      "type": "object",
+      "properties": {
+        "@type": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": {}
+    },
+    "rpcStatus": {
+      "type": "object",
+      "properties": {
+        "code": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "message": {
+          "type": "string"
+        },
+        "details": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/protobufAny"
+          }
+        }
+      }
+    },
+    "v1Artwork": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "type": {
+          "$ref": "#/definitions/v1ArtworkType"
+        },
+        "url": {
+          "type": "string"
+        },
+        "provider": {
+          "type": "string"
+        },
+        "language": {
+          "type": "string"
+        },
+        "width": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "height": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "isSelected": {
+          "type": "boolean"
+        }
+      }
+    },
+    "v1ArtworkType": {
+      "type": "string",
+      "enum": [
+        "ARTWORK_TYPE_UNSPECIFIED",
+        "ARTWORK_TYPE_PRIMARY",
+        "ARTWORK_TYPE_BACKDROP",
+        "ARTWORK_TYPE_BANNER",
+        "ARTWORK_TYPE_THUMB",
+        "ARTWORK_TYPE_LOGO",
+        "ARTWORK_TYPE_DISC"
+      ],
+      "default": "ARTWORK_TYPE_UNSPECIFIED"
+    },
+    "v1DeleteMetadataResponse": {
+      "type": "object"
+    },
+    "v1GetArtworkResponse": {
+      "type": "object",
+      "properties": {
+        "artwork": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/v1Artwork"
+          }
+        }
+      }
+    },
+    "v1GetMetadataProvidersResponse": {
+      "type": "object",
+      "properties": {
+        "providers": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/v1MetadataProvider"
+          }
+        }
+      }
+    },
+    "v1ListMetadataOverridesResponse": {
+      "type": "object",
+      "properties": {
+        "overrides": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/v1MetadataOverride"
+          }
+        }
+      }
+    },
+    "v1MediaItemType": {
+      "type": "string",
+      "enum": [
+        "MEDIA_ITEM_TYPE_UNSPECIFIED",
+        "MEDIA_ITEM_TYPE_MOVIE",
+        "MEDIA_ITEM_TYPE_SERIES",
+        "MEDIA_ITEM_TYPE_SEASON",
+        "MEDIA_ITEM_TYPE_EPISODE",
+        "MEDIA_ITEM_TYPE_ALBUM",
+        "MEDIA_ITEM_TYPE_ARTIST",
+        "MEDIA_ITEM_TYPE_TRACK",
+        "MEDIA_ITEM_TYPE_PHOTO",
+        "MEDIA_ITEM_TYPE_BOOK"
+      ],
+      "default": "MEDIA_ITEM_TYPE_UNSPECIFIED"
+    },
+    "v1MetadataOverride": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "mediaItemId": {
+          "type": "string"
+        },
+        "fieldName": {
+          "type": "string"
+        },
+        "customValue": {
+          "type": "string"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      }
+    },
+    "v1MetadataProvider": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "enabled": {
+          "type": "boolean"
+        },
+        "priority": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "supportedTypes": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/v1MediaItemType"
+          }
+        },
+        "settings": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "v1MetadataResult": {
+      "type": "object",
+      "properties": {
+        "provider": {
+          "type": "string"
+        },
+        "providerId": {
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        },
+        "originalTitle": {
+          "type": "string"
+        },
+        "overview": {
+          "type": "string"
+        },
+        "year": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "posterUrl": {
+          "type": "string"
+        },
+        "backdropUrl": {
+          "type": "string"
+        },
+        "rating": {
+          "type": "number",
+          "format": "double"
+        },
+        "genres": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "type": {
+          "$ref": "#/definitions/v1MediaItemType"
+        }
+      }
+    },
+    "v1RefreshMetadataProgress": {
+      "type": "object",
+      "properties": {
+        "mediaItemId": {
+          "type": "string"
+        },
+        "phase": {
+          "type": "string"
+        },
+        "provider": {
+          "type": "string"
+        },
+        "percent": {
+          "type": "number",
+          "format": "double"
+        },
+        "error": {
+          "type": "string"
+        }
+      }
+    },
+    "v1RemoveMetadataOverrideResponse": {
+      "type": "object"
+    },
+    "v1SearchMetadataResponse": {
+      "type": "object",
+      "properties": {
+        "results": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/v1MetadataResult"
+          }
+        }
+      }
+    },
+    "v1SetMetadataOverrideRequest": {
+      "type": "object",
+      "properties": {
+        "mediaItemId": {
+          "type": "string"
+        },
+        "fieldName": {
+          "type": "string"
+        },
+        "customValue": {
+          "type": "string"
+        }
+      }
+    },
+    "v1UpdateMetadataResponse": {
+      "type": "object"
+    }
+  }
+}

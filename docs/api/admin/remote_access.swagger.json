@@ -1,0 +1,189 @@
+{
+  "swagger": "2.0",
+  "info": {
+    "title": "evey/v1/remote_access.proto",
+    "version": "version not set"
+  },
+  "tags": [
+    {
+      "name": "RemoteAccessService"
+    }
+  ],
+  "consumes": [
+    "application/json"
+  ],
+  "produces": [
+    "application/json"
+  ],
+  "paths": {
+    "/api/v1/admin/network-info": {
+      "get": {
+        "operationId": "RemoteAccessService_GetNetworkInfo",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1NetworkInfo"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "tags": [
+          "RemoteAccessService"
+        ]
+      }
+    },
+    "/api/v1/admin/remote-access": {
+      "get": {
+        "operationId": "RemoteAccessService_GetRemoteAccess",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1RemoteAccessConfig"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "tags": [
+          "RemoteAccessService"
+        ]
+      },
+      "put": {
+        "operationId": "RemoteAccessService_UpdateRemoteAccess",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1RemoteAccessConfig"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/v1UpdateRemoteAccessRequest"
+            }
+          }
+        ],
+        "tags": [
+          "RemoteAccessService"
+        ]
+      }
+    }
+  },
+  "definitions": {
+    "protobufAny": {
+      "type": "object",
+      "properties": {
+        "@type": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": {}
+    },
+    "rpcStatus": {
+      "type": "object",
+      "properties": {
+        "code": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "message": {
+          "type": "string"
+        },
+        "details": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/protobufAny"
+          }
+        }
+      }
+    },
+    "v1NetworkInfo": {
+      "type": "object",
+      "properties": {
+        "interfaces": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/v1NetworkInterface"
+          }
+        }
+      }
+    },
+    "v1NetworkInterface": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "address": {
+          "type": "string"
+        }
+      }
+    },
+    "v1RemoteAccessConfig": {
+      "type": "object",
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        },
+        "externalUrl": {
+          "type": "string"
+        },
+        "lanNetworks": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "maxRemoteBitrateKbps": {
+          "type": "integer",
+          "format": "int32"
+        }
+      }
+    },
+    "v1UpdateRemoteAccessRequest": {
+      "type": "object",
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        },
+        "externalUrl": {
+          "type": "string"
+        },
+        "lanNetworks": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "maxRemoteBitrateKbps": {
+          "type": "integer",
+          "format": "int32"
+        }
+      }
+    }
+  }
+}

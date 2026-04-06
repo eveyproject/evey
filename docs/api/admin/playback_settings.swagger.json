@@ -1,0 +1,130 @@
+{
+  "swagger": "2.0",
+  "info": {
+    "title": "evey/v1/playback_settings.proto",
+    "version": "version not set"
+  },
+  "tags": [
+    {
+      "name": "PlaybackSettingsService"
+    }
+  ],
+  "consumes": [
+    "application/json"
+  ],
+  "produces": [
+    "application/json"
+  ],
+  "paths": {
+    "/api/v1/admin/playback-settings": {
+      "put": {
+        "operationId": "PlaybackSettingsService_UpdatePlaybackSettings",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1PlaybackSettings"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/v1UpdatePlaybackSettingsRequest"
+            }
+          }
+        ],
+        "tags": [
+          "PlaybackSettingsService"
+        ]
+      }
+    },
+    "/api/v1/playback-settings": {
+      "get": {
+        "operationId": "PlaybackSettingsService_GetPlaybackSettings",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1PlaybackSettings"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "tags": [
+          "PlaybackSettingsService"
+        ]
+      }
+    }
+  },
+  "definitions": {
+    "protobufAny": {
+      "type": "object",
+      "properties": {
+        "@type": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": {}
+    },
+    "rpcStatus": {
+      "type": "object",
+      "properties": {
+        "code": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "message": {
+          "type": "string"
+        },
+        "details": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/protobufAny"
+          }
+        }
+      }
+    },
+    "v1PlaybackSettings": {
+      "type": "object",
+      "properties": {
+        "skipForwardSeconds": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "skipBackwardSeconds": {
+          "type": "integer",
+          "format": "int32"
+        }
+      }
+    },
+    "v1UpdatePlaybackSettingsRequest": {
+      "type": "object",
+      "properties": {
+        "skipForwardSeconds": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "skipBackwardSeconds": {
+          "type": "integer",
+          "format": "int32"
+        }
+      }
+    }
+  }
+}
