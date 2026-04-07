@@ -82,7 +82,7 @@ export function ParentalPINModal({ visible, onClose, onVerified, profileId }: Pa
               {
                 backgroundColor: theme.colors.bg,
                 color: theme.colors.text,
-                borderColor: error ? "#ef4444" : theme.colors.border,
+                borderColor: error ? theme.colors.error : theme.colors.border,
                 borderRadius: theme.radii.md,
               },
             ]}
@@ -91,7 +91,7 @@ export function ParentalPINModal({ visible, onClose, onVerified, profileId }: Pa
             autoComplete="off"
           />
 
-          {error && <Text style={styles.error}>{error}</Text>}
+          {error && <Text style={[styles.error, { color: theme.colors.error }]}>{error}</Text>}
 
           <View style={styles.buttons}>
             <Pressable
@@ -106,9 +106,9 @@ export function ParentalPINModal({ visible, onClose, onVerified, profileId }: Pa
               ]}
             >
               {loading ? (
-                <ActivityIndicator color="#fff" size="small" />
+                <ActivityIndicator color={theme.colors.text} size="small" />
               ) : (
-                <Text style={styles.btnText}>
+                <Text style={[styles.btnText, { color: theme.colors.text }]}>
                   {t("common:parental.validate", "Verify")}
                 </Text>
               )}
@@ -163,7 +163,6 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   error: {
-    color: "#ef4444",
     fontSize: 13,
     textAlign: "center",
     marginBottom: 8,
@@ -180,7 +179,6 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   btnText: {
-    color: "#fff",
     fontWeight: "600",
     fontSize: 15,
   },
