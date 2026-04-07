@@ -37,6 +37,10 @@ func (s *ShareService) Create(ctx context.Context, mediaItemID, createdBy string
 	return link, nil
 }
 
+func (s *ShareService) GetByID(ctx context.Context, id string) (*shared.ShareLink, error) {
+	return s.repo.GetByID(ctx, id)
+}
+
 func (s *ShareService) Validate(ctx context.Context, token string) (*shared.ShareLink, error) {
 	link, err := s.repo.GetByToken(ctx, token)
 	if err != nil {

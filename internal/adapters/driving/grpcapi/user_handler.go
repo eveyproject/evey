@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"log/slog"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/gravity-zero/evey/internal/config"
@@ -274,6 +275,9 @@ func (h *userHandler) UpdateProfile(ctx context.Context, req *eveyv1.UpdateProfi
 		p.Name = *req.Name
 	}
 	if req.AvatarPath != nil {
+		if strings.Contains(*req.AvatarPath, "..") || !strings.HasPrefix(*req.AvatarPath, "avatars/") {
+			return nil, status.Error(codes.InvalidArgument, "invalid avatar path")
+		}
 		p.AvatarPath = req.AvatarPath
 	}
 	if req.MaxRating != nil {

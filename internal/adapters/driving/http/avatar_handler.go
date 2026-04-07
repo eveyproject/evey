@@ -164,6 +164,12 @@ func avatarServeHandler(
 
 		w.Header().Set("Cache-Control", "private, max-age=3600")
 		fullPath := filepath.Join(dataDir, *profile.AvatarPath)
+		absData, _ := filepath.Abs(dataDir)
+		absPath, _ := filepath.Abs(fullPath)
+		if !strings.HasPrefix(absPath, absData+string(filepath.Separator)) {
+			http.Error(w, `{"message":"forbidden"}`, http.StatusForbidden)
+			return
+		}
 		http.ServeFile(w, r, fullPath)
 	}
 }
