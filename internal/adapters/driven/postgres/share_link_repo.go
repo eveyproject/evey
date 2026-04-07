@@ -30,6 +30,13 @@ func (r *ShareLinkRepo) Create(ctx context.Context, link *shared.ShareLink) erro
 	return nil
 }
 
+func (r *ShareLinkRepo) GetByID(ctx context.Context, id string) (*shared.ShareLink, error) {
+	row := r.db.QueryRowContext(ctx,
+		`SELECT id, token, media_item_id, created_by, expires_at, max_views, view_count, created_at
+		 FROM share_links WHERE id = $1`, id)
+	return scanShareLink(row)
+}
+
 func (r *ShareLinkRepo) GetByToken(ctx context.Context, token string) (*shared.ShareLink, error) {
 	row := r.db.QueryRowContext(ctx,
 		`SELECT id, token, media_item_id, created_by, expires_at, max_views, view_count, created_at

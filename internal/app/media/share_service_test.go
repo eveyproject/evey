@@ -20,6 +20,15 @@ func (r *fakeShareLinkRepo) Create(_ context.Context, link *shared.ShareLink) er
 	return nil
 }
 
+func (r *fakeShareLinkRepo) GetByID(_ context.Context, id string) (*shared.ShareLink, error) {
+	for _, l := range r.links {
+		if l.ID == id {
+			return l, nil
+		}
+	}
+	return nil, shared.ErrNotFound
+}
+
 func (r *fakeShareLinkRepo) GetByToken(_ context.Context, token string) (*shared.ShareLink, error) {
 	for _, l := range r.links {
 		if l.Token == token {

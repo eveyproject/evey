@@ -9,6 +9,7 @@ import (
 	"github.com/gravity-zero/evey/internal/adapters/driving/grpcapi/interceptors"
 	applibrary "github.com/gravity-zero/evey/internal/app/library"
 	appmedia "github.com/gravity-zero/evey/internal/app/media"
+	"github.com/gravity-zero/evey/internal/domain/shared"
 	"github.com/gravity-zero/evey/internal/domain/user"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -66,7 +67,17 @@ func (h *shareHandler) CreateShareLink(ctx context.Context, req *eveyv1.CreateSh
 }
 
 func (h *shareHandler) ListShareLinks(ctx context.Context, _ *eveyv1.ListShareLinksRequest) (*eveyv1.ListShareLinksResponse, error) {
-	links, err := h.svc.ListAll(ctx)
+	claims, err := requireClaims(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	var links []*shared.ShareLink
+	if claims.IsAdmin {
+		links, err = h.svc.ListAll(ctx)
+	} else {
+		links, err = h.svc.List(ctx, claims.UserID)
+	}
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "list share links: %v", err)
 	}
@@ -91,6 +102,19 @@ func (h *shareHandler) ListShareLinks(ctx context.Context, _ *eveyv1.ListShareLi
 }
 
 func (h *shareHandler) RevokeShareLink(ctx context.Context, req *eveyv1.RevokeShareLinkRequest) (*eveyv1.RevokeShareLinkResponse, error) {
+	claims, err := requireClaims(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	link, err := h.svc.GetByID(ctx, req.Id)
+	if err != nil {
+		return nil, status.Error(codes.NotFound, "share link not found")
+	}
+	if !claims.IsAdmin && link.CreatedBy != claims.UserID {
+		return nil, status.Error(codes.PermissionDenied, "cannot revoke another user's share link")
+	}
+
 	if err := h.svc.Revoke(ctx, req.Id); err != nil {
 		return nil, status.Error(codes.NotFound, "share link not found")
 	}
