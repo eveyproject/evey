@@ -1,5 +1,6 @@
 import { useState, useRef, useCallback, useEffect } from "react";
 import { useNavigate } from "@tanstack/react-router";
+import { useTranslation } from "react-i18next";
 import { Play, Pause, X, Maximize } from "lucide-react";
 import { usePlayerStore } from "@evey/store";
 
@@ -8,6 +9,7 @@ function clamp(val: number, min: number, max: number) {
 }
 
 export function MiniPlayer() {
+  const { t } = useTranslation();
   const { mediaId, mediaTitle, videoElement: _videoEl, stop, setMode } = usePlayerStore();
   const videoElement = _videoEl as HTMLVideoElement | null;
   const navigate = useNavigate();
@@ -136,7 +138,7 @@ export function MiniPlayer() {
         <button
           onClick={togglePlay}
           className="p-1 rounded hover:opacity-80 text-[var(--text)]"
-          aria-label={playing ? "Pause" : "Play"}
+          aria-label={playing ? t("common.aria.pause") : t("common.aria.play")}
         >
           {playing ? <Pause size={16} /> : <Play size={16} />}
         </button>
@@ -156,7 +158,7 @@ export function MiniPlayer() {
         <button
           onClick={expand}
           className="p-1 rounded hover:opacity-80 text-[var(--text-muted)]"
-          aria-label="Expand"
+          aria-label={t("common.aria.expand")}
         >
           <Maximize size={14} />
         </button>
@@ -164,7 +166,7 @@ export function MiniPlayer() {
         <button
           onClick={close}
           className="p-1 rounded hover:opacity-80 text-[var(--text-muted)]"
-          aria-label="Close"
+          aria-label={t("common.aria.close")}
         >
           <X size={14} />
         </button>

@@ -126,6 +126,10 @@ aria:
   value: Value
   retryPage: Retry loading page
   goToHomePage: Go to home page
+  skipToContent: Skip to content
+  expand: Expand
+  select: Select
+  deselect: Deselect
 watchHistory:
   title: Watch History
 userStats:

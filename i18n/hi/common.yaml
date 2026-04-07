@@ -93,6 +93,10 @@ aria:
   value: "मान"
   retryPage: "पृष्ठ पुनः लोड करें"
   goToHomePage: "होम पेज पर जाएं"
+  skipToContent: "सामग्री पर जाएं"
+  expand: "विस्तार करें"
+  select: "चुनें"
+  deselect: "अचयनित करें"
 notifications:
   title: "सूचनाएं"
   markRead: "पढ़ा हुआ चिह्नित करें"

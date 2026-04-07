@@ -93,6 +93,10 @@ aria:
   value: Valor
   retryPage: "Reintentar carga"
   goToHomePage: "Ir a la página de inicio"
+  skipToContent: "Saltar al contenido"
+  expand: "Expandir"
+  select: "Seleccionar"
+  deselect: "Deseleccionar"
 notifications:
   title: "Notificaciones"
   markRead: "Marcar como leída"

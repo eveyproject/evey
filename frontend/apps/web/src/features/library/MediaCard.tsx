@@ -322,7 +322,7 @@ export const MediaCard = memo(function MediaCard({
 
         {item.id && (onSelect || selectionMode) ? (
           <button
-            aria-label={selected ? "Deselect" : "Select"}
+            aria-label={selected ? t("common.aria.deselect") : t("common.aria.select")}
             onClick={(e) => { e.preventDefault(); e.stopPropagation(); onSelect?.(item.id!, !selected); }}
             className={`absolute top-2 left-2 z-badge flex items-center justify-center w-5 h-5 rounded transition-colors-fast${selectionMode && !selected ? " opacity-0 group-hover:opacity-100 group-focus-within:opacity-100" : ""}`}
             style={{
