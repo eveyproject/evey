@@ -30,6 +30,7 @@ COPY frontend/apps/tv/package.json apps/tv/package.json
 COPY frontend/packages/api/package.json packages/api/package.json
 COPY frontend/packages/store/package.json packages/store/package.json
 COPY frontend/packages/theme/package.json packages/theme/package.json
+COPY frontend/patches/ patches/
 RUN npm install -g pnpm@10.33.0 && pnpm install --frozen-lockfile
 COPY frontend/ .
 COPY --from=protogen /src/gen/evey/v1/ /gen/evey/v1/
