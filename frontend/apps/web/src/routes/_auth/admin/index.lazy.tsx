@@ -58,14 +58,14 @@ function SystemInfoCard() {
 function AdminDashboard() {
   const { t } = useTranslation();
   const { data: dashData, isLoading: dashLoading, dataUpdatedAt } = useAdminSystemServiceGetDashboard({
-    query: { refetchInterval: 10_000, refetchIntervalInBackground: false },
+    query: { refetchInterval: 3_000, refetchIntervalInBackground: false },
   });
 
   return (
     <div className="flex flex-col gap-8">
       <PageHeader title={t("admin.dashboard.title")} actions={dataUpdatedAt > 0 ? (
         <p className="text-xs text-[var(--text-muted)]">
-          {t("admin.dashboard.autoRefresh", { time: new Date(dataUpdatedAt).toLocaleTimeString(), interval: "10s" })}
+          {t("admin.dashboard.autoRefresh", { time: new Date(dataUpdatedAt).toLocaleTimeString(), interval: "3s" })}
         </p>
       ) : undefined} />
       {dashLoading ? (

@@ -143,7 +143,14 @@ func buildInfra(ctx context.Context, cfg *config.Config, db *sql.DB, rootLog *sl
 		},
 	}
 	tmdbKey := resolveAPIKey(ctx, r.ServerCfg, "api.tmdb_key", "EVEY_TMDB_API_KEY")
-	tmdbProvider := metadataadapter.NewTMDBProvider(tmdbKey, cfg.Metadata.Language, metadataHTTP)
+	serverCfgForLang := r.ServerCfg
+	defaultLang := cfg.Metadata.Language
+	tmdbProvider := metadataadapter.NewTMDBProviderWithGetter(tmdbKey, func() string {
+		if entry, err2 := serverCfgForLang.Get(context.Background(), "metadata.language"); err2 == nil && entry.Value != "" {
+			return entry.Value
+		}
+		return defaultLang
+	}, metadataHTTP)
 	imdbProvider := metadataadapter.NewIMDBAPIProvider(metadataHTTP)
 	tvmazeProvider := metadataadapter.NewTVMazeProvider(metadataHTTP)
 	omdbKey := resolveAPIKey(ctx, r.ServerCfg, "api.omdb_key", "EVEY_OMDB_API_KEY")
@@ -443,6 +450,7 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 		translator:     infra.translator,
 		searchHealth:   infra.searchHealth,
 		imageConverter: infra.imageConverter,
+		frameExtractor: infra.trickplayGen,
 	}, nil
 }
 

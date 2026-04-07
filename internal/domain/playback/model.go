@@ -39,6 +39,7 @@ type PlaySession struct {
 	EndedAt      *time.Time
 	DurationMs   *int64
 	PositionMs   *int64
+	IsPaused     bool
 }
 
 func (s *PlaySession) Validate() error {
@@ -70,6 +71,10 @@ type ActiveSessionInfo struct {
 	Resolution    string
 	BandwidthBps  int64
 	TranscodeInfo *string
+	SeriesTitle   string
+	SeasonNumber  int
+	EpisodeNumber int
+	IsPaused      bool
 }
 
 func (a *ActiveSessionInfo) ProgressPercent() float64 {

@@ -170,3 +170,24 @@ func (g *TrickplayGenerator) Generate(ctx context.Context, filePath, outputDir s
 		ImageCount: imageCount,
 	}, nil
 }
+
+// ExtractFrame extracts a single JPEG frame at the given position (seconds).
+// Returns the raw JPEG bytes. Uses -ss before -i for fast seeking.
+func (g *TrickplayGenerator) ExtractFrame(ctx context.Context, filePath string, positionSec float64, width int) ([]byte, error) {
+	ss := fmt.Sprintf("%.3f", positionSec)
+	cmd := exec.CommandContext(ctx, g.binary,
+		"-ss", ss,
+		"-i", filePath,
+		"-frames:v", "1",
+		"-vf", fmt.Sprintf("scale=%d:-1", width),
+		"-f", "image2",
+		"-c:v", "mjpeg",
+		"-q:v", "3",
+		"-y", "pipe:1",
+	)
+	out, err := cmd.Output()
+	if err != nil {
+		return nil, fmt.Errorf("ffmpeg extract frame at %ss: %w", ss, err)
+	}
+	return out, nil
+}

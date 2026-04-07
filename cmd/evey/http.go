@@ -118,6 +118,7 @@ func buildHTTPHandler(gwMux http.Handler, deps *appDeps, cfg *config.Config, sta
 		AudioNormalizeGetter: audioNormalizeGetter,
 		UserMaxStreams:        httpapi.NewUserMaxStreamsAdapter(deps.repos.userRepo),
 		UserBitrate:          httpapi.NewUserBitrateAdapter(deps.user.querySvc),
+		FrameExtractor:       deps.frameExtractor,
 	}
 
 	srv.RegisterRoutes(mux, gwMux)

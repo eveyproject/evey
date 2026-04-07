@@ -110,9 +110,9 @@ func (s *TrickplayService) GenerateTrickplay(ctx context.Context, mediaItemID st
 	}
 
 	interval := 15
-	width := 120
-	tileWidth := 10
-	tileHeight := 10
+	width := 320
+	tileWidth := 5
+	tileHeight := 5
 
 	outputDir := fmt.Sprintf("%s/%s", s.trickplayCacheDir, mediaItemID)
 

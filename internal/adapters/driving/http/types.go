@@ -75,6 +75,11 @@ type AllTrickplayGenerator interface {
 	GenerateAllMissingTrickplays(ctx context.Context) (int, error)
 }
 
+// FrameExtractor extracts a single video frame at a given position.
+type FrameExtractor interface {
+	ExtractFrame(ctx context.Context, filePath string, positionSec float64, width int) ([]byte, error)
+}
+
 // ArtworkRepo reads and updates artwork records.
 type ArtworkRepo interface {
 	GetByMediaItem(ctx context.Context, mediaItemID string) ([]*domainmeta.ArtworkRecord, error)

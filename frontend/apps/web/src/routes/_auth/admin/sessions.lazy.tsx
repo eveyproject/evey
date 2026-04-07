@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { Film, Monitor, Play, Square } from "lucide-react";
+import { useState, useEffect } from "react";
+import { Film, Monitor, Square } from "lucide-react";
 import { createLazyFileRoute } from "@tanstack/react-router";
 import { useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
@@ -15,6 +15,7 @@ import { PageHeader } from "@/components/ui/PageHeader";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
 import { EmptyState } from "@/components/ui/EmptyState";
+import { AdminTrickplayThumbnail } from "@/features/admin/AdminTrickplayThumbnail";
 
 export const Route = createLazyFileRoute("/_auth/admin/sessions")({
   component: SessionsPage,
@@ -54,8 +55,19 @@ function usePlayMethodLabel() {
 }
 
 const DeviceIcon = () => <Monitor size={16} strokeWidth={1.5} />;
-const PlayIcon = () => <Play size={20} strokeWidth={2} />;
 const StopIcon = () => <Square size={16} strokeWidth={2} />;
+
+function ProfileAvatar({ profileName, size = 40 }: { profileName?: string; size?: number }) {
+  const initial = (profileName ?? "?").charAt(0).toUpperCase();
+  return (
+    <div
+      className="rounded-full shrink-0 bg-[var(--accent)] text-white flex items-center justify-center overflow-hidden"
+      style={{ width: size, height: size, fontSize: size * 0.4 }}
+    >
+      <span className="font-bold">{initial}</span>
+    </div>
+  );
+}
 
 function SessionCard({ session }: { session: V1ActiveSession }) {
   const { t } = useTranslation();
@@ -84,16 +96,52 @@ function SessionCard({ session }: { session: V1ActiveSession }) {
     <div
       className="rounded-[var(--radius-lg)] overflow-hidden bg-[var(--surface)] border border-[var(--border)]"
     >
-      <div className="p-4 flex flex-col gap-3">
+      <AdminTrickplayThumbnail
+        mediaId={session.mediaItemId ?? ""}
+        positionMs={parseInt(session.positionMs ?? "0")}
+        mediaType={session.mediaType}
+        fullWidth
+      />
+      <div className="px-4 pt-1.5 pb-1">
+        <div className="h-1.5 rounded-full bg-[var(--border)]">
+          <div
+            className="h-1.5 rounded-full transition-all duration-500 bg-[var(--accent)]"
+            style={{ width: `${progress}%` }}
+          />
+        </div>
+        <div className="flex justify-between text-xs mt-1 text-[var(--text-muted)]">
+          <span>{formatMs(positionMs)}</span>
+          <span>
+            {remaining ? `-${remaining}` : `${formatElapsed(session.startedAt ?? "")} ${t("admin.sessions.elapsed")}`}
+          </span>
+        </div>
+      </div>
+
+      <div className="px-4 pb-4 flex flex-col gap-3">
+        <div>
+          <p className="text-sm font-semibold truncate text-[var(--text)]">
+            {session.mediaTitle}
+          </p>
+          <div className="flex items-center gap-2 flex-wrap mt-1">
+            <Badge variant={session.playMethod === "transcode" ? "warning" : "success"}>
+              {playMethodLabel(session.playMethod ?? "")}
+            </Badge>
+            {session.resolution && (
+              <span className="text-xs text-[var(--text-muted)]">
+                {session.resolution}
+              </span>
+            )}
+            {session.transcodeInfo && (
+              <span className="text-xs text-[var(--text-muted)]">
+                {session.transcodeInfo}
+              </span>
+            )}
+          </div>
+        </div>
+
         <div className="flex items-start justify-between gap-3">
           <div className="flex items-center gap-3 min-w-0">
-            <div
-              className="flex items-center justify-center w-10 h-10 rounded-full shrink-0 bg-[var(--accent)] text-white"
-            >
-              <span className="text-sm font-bold">
-                {(session.profileName ?? "?").charAt(0).toUpperCase()}
-              </span>
-            </div>
+            <ProfileAvatar profileName={session.profileName} />
             <div className="min-w-0">
               <p className="text-sm font-semibold truncate text-[var(--text)]">
                 {session.profileName}
@@ -136,47 +184,6 @@ function SessionCard({ session }: { session: V1ActiveSession }) {
           )}
         </div>
 
-        <div className="flex items-center gap-2">
-          <PlayIcon />
-          <div className="min-w-0 flex-1">
-            <p className="text-sm font-medium truncate text-[var(--text)]">
-              {session.mediaTitle}
-            </p>
-            <div className="flex items-center gap-2 flex-wrap">
-              <Badge variant={session.playMethod === "transcode" ? "warning" : "success"}>
-                {playMethodLabel(session.playMethod ?? "")}
-              </Badge>
-              {session.resolution && (
-                <span className="text-xs text-[var(--text-muted)]">
-                  {session.resolution}
-                </span>
-              )}
-              {session.transcodeInfo && (
-                <span className="text-xs text-[var(--text-muted)]">
-                  {session.transcodeInfo}
-                </span>
-              )}
-            </div>
-          </div>
-        </div>
-
-        <div>
-          <div className="flex justify-between text-xs mb-1 text-[var(--text-muted)]">
-            <span>{formatMs(positionMs)}</span>
-            <span>
-              {remaining ? `-${remaining}` : `${formatElapsed(session.startedAt ?? "")} ${t("admin.sessions.elapsed")}`}
-            </span>
-          </div>
-          <div className="h-1.5 rounded-full bg-[var(--border)]">
-            <div
-              className="h-1.5 rounded-full transition-all duration-500 bg-[var(--accent)]"
-              style={{
-                width: `${progress}%`,
-              }}
-            />
-          </div>
-        </div>
-
         <div className="flex items-center gap-4 flex-wrap text-xs text-[var(--text-muted)]">
           {session.deviceName && (
             <span className="flex items-center gap-1">
@@ -200,10 +207,27 @@ function SessionCard({ session }: { session: V1ActiveSession }) {
   );
 }
 
+const REFRESH_INTERVAL = 3_000;
+
+function RefreshStatus({ dataUpdatedAt, intervalMs }: { dataUpdatedAt: number; intervalMs: number }) {
+  const { t } = useTranslation();
+  const [, setTick] = useState(0);
+  useEffect(() => {
+    const id = setInterval(() => setTick((n) => n + 1), 1000);
+    return () => clearInterval(id);
+  }, []);
+  const updatedAt = dataUpdatedAt ? new Date(dataUpdatedAt).toLocaleTimeString() : "";
+  return (
+    <span className="text-xs text-[var(--text-muted)]">
+      {t("admin.sessions.refreshStatus", { time: updatedAt, seconds: Math.round(intervalMs / 1000) })}
+    </span>
+  );
+}
+
 function SessionsPage() {
   const { t } = useTranslation();
-  const { data, isLoading, isError } = useAdminSessionServiceListActiveSessions({
-    query: { refetchInterval: 10_000, refetchIntervalInBackground: false },
+  const { data, isLoading, isError, dataUpdatedAt } = useAdminSessionServiceListActiveSessions({
+    query: { refetchInterval: REFRESH_INTERVAL, refetchIntervalInBackground: false },
   });
   const sessions = data?.sessions ?? [];
 
@@ -229,9 +253,12 @@ function SessionsPage() {
         />
       ) : (
         <>
-          <p className="text-sm text-[var(--text-muted)]">
-            {t("admin.sessions.activeCount", { count: sessions.length })}
-          </p>
+          <div className="flex items-center justify-between">
+            <p className="text-sm text-[var(--text-muted)]">
+              {t("admin.sessions.activeCount", { count: sessions.length })}
+            </p>
+            <RefreshStatus dataUpdatedAt={dataUpdatedAt} intervalMs={REFRESH_INTERVAL} />
+          </div>
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
             {sessions.map((session) => (
               <SessionCard key={session.sessionId} session={session} />

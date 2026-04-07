@@ -124,4 +124,5 @@ type appDeps struct {
 	translator     *eveyi18n.Translator
 	searchHealth   httpapi.SearchHealthChecker
 	imageConverter httpapi.ImageConverter
+	frameExtractor httpapi.FrameExtractor
 }

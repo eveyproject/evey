@@ -154,6 +154,7 @@ func (s *GRPCServer) RegisterServices() {
 		activitySvc: d.ActivityQuery,
 		playbackCmd: d.PlaybackCmd,
 		playbackQry: d.PlaybackQuery,
+		hlsManager:  d.HLSManager,
 	})
 	eveyv1.RegisterActivityServiceServer(s.server, &activityHandler{svc: d.ActivityQuery, translator: d.Translator})
 	eveyv1.RegisterNotificationServiceServer(s.server, &notificationHandler{cmd: d.NotifCmd, query: d.NotifQuery})

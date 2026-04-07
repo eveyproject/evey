@@ -2,6 +2,7 @@ package grpcapi
 
 import (
 	"context"
+	"time"
 
 	eveyv1 "github.com/gravity-zero/evey/gen/evey/v1"
 	appactivity "github.com/gravity-zero/evey/internal/app/activity"
@@ -12,11 +13,17 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
+// HLSSessionRemover can kill an active HLS transcode by media item ID.
+type HLSSessionRemover interface {
+	RemoveSession(mediaItemID string)
+}
+
 type adminSessionHandler struct {
 	eveyv1.UnimplementedAdminSessionServiceServer
 	activitySvc *appactivity.QueryService
 	playbackCmd *appplayback.CommandService
 	playbackQry *appplayback.QueryService
+	hlsManager  HLSSessionRemover
 }
 
 func (d *adminSessionHandler) GetAuditLog(ctx context.Context, req *eveyv1.GetAuditLogRequest) (*eveyv1.GetAuditLogResponse, error) {
@@ -53,6 +60,7 @@ func (d *adminSessionHandler) ListActiveSessions(ctx context.Context, _ *eveyv1.
 	for _, s := range sessions {
 		as := &eveyv1.ActiveSession{
 			SessionId:    s.SessionID,
+			ProfileId:    s.ProfileID,
 			ProfileName:  s.ProfileName,
 			MediaTitle:   s.MediaTitle,
 			MediaType:    s.MediaType,
@@ -68,7 +76,11 @@ func (d *adminSessionHandler) ListActiveSessions(ctx context.Context, _ *eveyv1.
 			VideoCodec:   s.VideoCodec,
 			AudioCodec:   s.AudioCodec,
 			Resolution:   s.Resolution,
-			BandwidthBps: s.BandwidthBps,
+			BandwidthBps:  s.BandwidthBps,
+			SeriesTitle:   s.SeriesTitle,
+			SeasonNumber:  int32(s.SeasonNumber),
+			EpisodeNumber: int32(s.EpisodeNumber),
+			IsPaused:      s.IsPaused,
 		}
 		if s.TranscodeInfo != nil {
 			as.TranscodeInfo = *s.TranscodeInfo
@@ -82,8 +94,33 @@ func (d *adminSessionHandler) KillSession(ctx context.Context, req *eveyv1.KillS
 	if req.SessionId == "" {
 		return nil, status.Error(codes.InvalidArgument, "session_id required")
 	}
-	if err := d.playbackCmd.StopStream(ctx, req.SessionId); err != nil {
-		return nil, status.Errorf(codes.Internal, "kill session: %v", err)
+	session, err := d.playbackCmd.GetSession(ctx, req.SessionId)
+	if err != nil {
+		return nil, status.Errorf(codes.NotFound, "session not found: %v", err)
 	}
+	// Send stop command so the player closes gracefully
+	_ = d.playbackCmd.SetRemoteCommand(ctx, req.SessionId, "stop")
+	// Defer the actual kill to give the player time to receive the command
+	mediaItemID := session.MediaItemID
+	sessionID := req.SessionId
+	hlsMgr := d.hlsManager
+	cmdSvc := d.playbackCmd
+	go func() {
+		time.Sleep(5 * time.Second)
+		_ = cmdSvc.StopStream(context.Background(), sessionID)
+		if hlsMgr != nil {
+			hlsMgr.RemoveSession(mediaItemID)
+		}
+	}()
 	return &eveyv1.KillSessionResponse{}, nil
+}
+
+func (d *adminSessionHandler) SendSessionCommand(ctx context.Context, req *eveyv1.SendSessionCommandRequest) (*eveyv1.SendSessionCommandResponse, error) {
+	if req.SessionId == "" || req.Command == "" {
+		return nil, status.Error(codes.InvalidArgument, "session_id and command required")
+	}
+	if err := d.playbackCmd.SetRemoteCommand(ctx, req.SessionId, req.Command); err != nil {
+		return nil, status.Errorf(codes.Internal, "send command: %v", err)
+	}
+	return &eveyv1.SendSessionCommandResponse{}, nil
 }

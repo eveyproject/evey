@@ -38,11 +38,11 @@ func (r *PlaySessionRepository) Update(ctx context.Context, s *playback.PlaySess
 	_, err := r.db.ExecContext(ctx,
 		`UPDATE play_sessions SET device_name=$1, device_type=$2, client_ip=$3, play_method=$4,
 		 video_codec=$5, audio_codec=$6, resolution=$7, bandwidth_bps=$8, ended_at=$9, duration_ms=$10, position_ms=$11,
-		 updated_at=NOW()
-		 WHERE id=$12`,
+		 is_paused=$12, updated_at=NOW()
+		 WHERE id=$13`,
 		s.DeviceName, s.DeviceType, s.ClientIP, s.PlayMethod,
 		s.VideoCodec, s.AudioCodec, s.Resolution, s.BandwidthBps,
-		s.EndedAt, s.DurationMs, s.PositionMs, s.ID,
+		s.EndedAt, s.DurationMs, s.PositionMs, s.IsPaused, s.ID,
 	)
 	if err != nil {
 		return fmt.Errorf("PlaySessionRepo.Update: %w", err)
@@ -54,11 +54,11 @@ func (r *PlaySessionRepository) GetByID(ctx context.Context, id string) (*playba
 	s := &playback.PlaySession{}
 	err := r.db.QueryRowContext(ctx,
 		`SELECT id, profile_id, media_item_id, device_name, device_type, client_ip, play_method,
-		 video_codec, audio_codec, resolution, bandwidth_bps, started_at, ended_at, duration_ms, position_ms
+		 video_codec, audio_codec, resolution, bandwidth_bps, started_at, ended_at, duration_ms, position_ms, is_paused
 		 FROM play_sessions WHERE id = $1`, id,
 	).Scan(&s.ID, &s.ProfileID, &s.MediaItemID, &s.DeviceName, &s.DeviceType, &s.ClientIP, &s.PlayMethod,
 		&s.VideoCodec, &s.AudioCodec, &s.Resolution, &s.BandwidthBps,
-		&s.StartedAt, &s.EndedAt, &s.DurationMs, &s.PositionMs)
+		&s.StartedAt, &s.EndedAt, &s.DurationMs, &s.PositionMs, &s.IsPaused)
 	if err != nil {
 		return nil, fmt.Errorf("PlaySessionRepo.GetByID: %w", err)
 	}
@@ -72,12 +72,16 @@ func (r *PlaySessionRepository) ListActiveSessions(ctx context.Context) ([]*play
 		`SELECT ps.id, ps.profile_id, p.name, ps.media_item_id, mi.title, mi.type,
 		        COALESCE(mi.duration_ms, 0), COALESCE(ps.position_ms, 0),
 		        ps.started_at, ps.device_name, ps.device_type, ps.client_ip,
-		        ps.play_method, ps.video_codec, ps.audio_codec, ps.resolution, ps.bandwidth_bps
+		        ps.play_method, ps.video_codec, ps.audio_codec, ps.resolution, ps.bandwidth_bps,
+		        COALESCE(series.title, ''), COALESCE(season.index_number, 0), COALESCE(mi.index_number, 0),
+		        ps.is_paused
 		 FROM play_sessions ps
 		 INNER JOIN profiles p ON p.id = ps.profile_id
 		 INNER JOIN media_items mi ON mi.id = ps.media_item_id
+		 LEFT JOIN media_items season ON mi.parent_id = season.id AND mi.type = 'episode'
+		 LEFT JOIN media_items series ON season.parent_id = series.id AND season.type = 'season'
 		 WHERE ps.ended_at IS NULL
-		   AND ps.updated_at > NOW() - INTERVAL '2 hours'
+		   AND ps.updated_at > NOW() - INTERVAL '5 minutes'
 		 ORDER BY ps.started_at DESC`)
 	if err != nil {
 		return nil, fmt.Errorf("PlaySessionRepo.ListActiveSessions: %w", err)
@@ -93,6 +97,7 @@ func (r *PlaySessionRepository) ListActiveSessions(ctx context.Context) ([]*play
 			&s.DurationMs, &s.PositionMs,
 			&s.StartedAt, &s.DeviceName, &s.DeviceType, &s.ClientIP,
 			&s.PlayMethod, &s.VideoCodec, &s.AudioCodec, &s.Resolution, &s.BandwidthBps,
+			&s.SeriesTitle, &s.SeasonNumber, &s.EpisodeNumber, &s.IsPaused,
 		); err != nil {
 			return nil, fmt.Errorf("PlaySessionRepo.ListActiveSessions scan: %w", err)
 		}
@@ -181,6 +186,27 @@ func (r *PlaySessionRepository) CloseStale(ctx context.Context, olderThan time.D
 		slog.Warn("rows affected", slog.Any("err", err))
 	}
 	return int(n), nil
+}
+
+func (r *PlaySessionRepository) SetRemoteCommand(ctx context.Context, sessionID, command string) error {
+	_, err := r.db.ExecContext(ctx,
+		`UPDATE play_sessions SET remote_command = $1 WHERE id = $2 AND ended_at IS NULL`, command, sessionID)
+	if err != nil {
+		return fmt.Errorf("PlaySessionRepo.SetRemoteCommand: %w", err)
+	}
+	return nil
+}
+
+func (r *PlaySessionRepository) ConsumeRemoteCommand(ctx context.Context, sessionID string) (string, error) {
+	var cmd string
+	err := r.db.QueryRowContext(ctx,
+		`WITH old AS (SELECT remote_command FROM play_sessions WHERE id = $1 AND remote_command != '')
+		 UPDATE play_sessions SET remote_command = '' WHERE id = $1 AND remote_command != ''
+		 RETURNING (SELECT remote_command FROM old)`, sessionID).Scan(&cmd)
+	if err != nil {
+		return "", nil
+	}
+	return cmd, nil
 }
 
 func (r *PlaySessionRepository) CountActiveByUser(ctx context.Context, userID string) (int, error) {

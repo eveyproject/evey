@@ -25,6 +25,13 @@ service AdminSessionService {
       delete: "/api/v1/admin/sessions/{session_id}"
     };
   }
+
+  rpc SendSessionCommand(SendSessionCommandRequest) returns (SendSessionCommandResponse) {
+    option (google.api.http) = {
+      post: "/api/v1/admin/sessions/{session_id}/command"
+      body: "*"
+    };
+  }
 }
 
 message AuditLogEntry {
@@ -37,6 +44,7 @@ message AuditLogEntry {
   string details = 7;
   string ip_address = 8;
   google.protobuf.Timestamp created_at = 9;
+  string resource_name = 10;
 }
 
 message ActiveSession {
@@ -58,6 +66,11 @@ message ActiveSession {
   string resolution = 16;
   int64 bandwidth_bps = 17;
   string transcode_info = 18;
+  string profile_id = 19;
+  string series_title = 20;
+  int32 season_number = 21;
+  int32 episode_number = 22;
+  bool is_paused = 23;
 }
 
 message ListActiveSessionsRequest {}
@@ -86,3 +99,10 @@ message GetAuditLogResponse {
   repeated AuditLogEntry entries = 1;
   int32 total = 2;
 }
+
+message SendSessionCommandRequest {
+  string session_id = 1;
+  string command = 2; // "pause", "play"
+}
+
+message SendSessionCommandResponse {}
