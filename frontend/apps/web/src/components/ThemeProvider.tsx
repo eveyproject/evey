@@ -21,17 +21,19 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   // Reset theme if the active plugin was uninstalled
   useEffect(() => {
     if (!pluginId) return;
-    eveyFetch<ListPluginsResponse>({ url: "/api/v1/admin/plugins", method: "GET" })
-      .then((res) => {
+    const checkPlugin = async () => {
+      try {
+        const res = await eveyFetch<ListPluginsResponse>({ url: "/api/v1/admin/plugins", method: "GET" });
         const installed = res.plugins ?? [];
         if (!installed.some((p) => p.id === pluginId)) {
           setTheme("default");
         }
-      })
-      .catch(() => {
-        // non-admin or network error — ignore
-      });
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+      } catch {
+        // non-admin or network error
+      }
+    };
+    checkPlugin();
+  }, [pluginId, setTheme]);
 
   useEffect(() => {
     unloadAllPluginThemes();
