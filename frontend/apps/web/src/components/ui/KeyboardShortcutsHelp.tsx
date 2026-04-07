@@ -12,15 +12,15 @@ export function KeyboardShortcutsHelp({ open, onClose }: Props) {
   const { t } = useTranslation();
 
   const shortcuts = [
-    { key: "/", desc: t("common:shortcuts.focusSearch") },
-    { key: isMac ? "⌘K" : "Ctrl+K", desc: t("common:shortcuts.focusSearch") },
-    { key: "Esc", desc: t("common:shortcuts.closeModal") },
-    { key: "h", desc: t("common:shortcuts.goHome") },
-    { key: "?", desc: t("common:shortcuts.toggleHelp") },
+    { key: "/", desc: t("common.shortcuts.focusSearch") },
+    { key: isMac ? "⌘K" : "Ctrl+K", desc: t("common.shortcuts.focusSearch") },
+    { key: "Esc", desc: t("common.shortcuts.closeModal") },
+    { key: "h", desc: t("common.shortcuts.goHome") },
+    { key: "?", desc: t("common.shortcuts.toggleHelp") },
   ];
 
   return (
-    <Modal open={open} onClose={onClose} title={t("common:shortcuts.title")}>
+    <Modal open={open} onClose={onClose} title={t("common.shortcuts.title")}>
       <div className="flex flex-col gap-2">
         {shortcuts.map(({ key, desc }) => (
           <div key={key} className="flex items-center justify-between py-1.5">
@@ -34,7 +34,7 @@ export function KeyboardShortcutsHelp({ open, onClose }: Props) {
         ))}
       </div>
       <p className="text-xs mt-4 text-[var(--text-muted)]">
-        {t("common:shortcuts.disabledHint")}
+        {t("common.shortcuts.disabledHint")}
       </p>
     </Modal>
   );

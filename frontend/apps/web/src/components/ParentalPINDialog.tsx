@@ -40,12 +40,12 @@ export function ParentalPINDialog({ open, onClose, onVerified, profileId }: Pare
       if (result.valid) {
         onVerified();
       } else {
-        setError(t("common:parental.pinIncorrect"));
+        setError(t("common.parental.pinIncorrect"));
         setPin("");
         inputRef.current?.focus();
       }
     } catch {
-      setError(t("common:parental.pinIncorrect"));
+      setError(t("common.parental.pinIncorrect"));
       setPin("");
       inputRef.current?.focus();
     } finally {
@@ -54,14 +54,14 @@ export function ParentalPINDialog({ open, onClose, onVerified, profileId }: Pare
   }
 
   return (
-    <Modal open={open} onClose={onClose} title={t("common:parental.restrictedContent")}>
+    <Modal open={open} onClose={onClose} title={t("common.parental.restrictedContent")}>
       <p className="text-sm mb-4" style={{ color: "var(--text-muted)" }}>
-        {t("common:parental.pinRequired")}
+        {t("common.parental.pinRequired")}
       </p>
       <form onSubmit={(e) => void handleSubmit(e)} className="flex flex-col gap-4">
         <div className="flex flex-col gap-1">
           <label htmlFor="parental-pin-input" className="text-sm font-medium" style={{ color: "var(--text)" }}>
-            {t("common:parental.pinLabel")}
+            {t("common.parental.pinLabel")}
           </label>
           <input
             id="parental-pin-input"
@@ -95,10 +95,10 @@ export function ParentalPINDialog({ open, onClose, onVerified, profileId }: Pare
         </div>
         <div className="flex gap-3">
           <Button type="submit" variant="primary" loading={loading} disabled={pin.length < 4} data-testid="pin-submit">
-            {t("common:parental.validate")}
+            {t("common.parental.validate")}
           </Button>
           <Button type="button" variant="secondary" onClick={onClose} data-testid="pin-cancel">
-            {t("common:cancel")}
+            {t("common.cancel")}
           </Button>
         </div>
       </form>

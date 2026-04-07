@@ -42,12 +42,12 @@ export function ParentalPINModal({ visible, onClose, onVerified, profileId }: Pa
         markUnlocked(profileId);
         onVerified();
       } else {
-        setError(t("common:parental.pinIncorrect", "Incorrect PIN"));
+        setError(t("common.parental.pinIncorrect", "Incorrect PIN"));
         setPin("");
         inputRef.current?.focus();
       }
     } catch {
-      setError(t("common:parental.pinIncorrect", "Incorrect PIN"));
+      setError(t("common.parental.pinIncorrect", "Incorrect PIN"));
       setPin("");
       inputRef.current?.focus();
     } finally {
@@ -60,10 +60,10 @@ export function ParentalPINModal({ visible, onClose, onVerified, profileId }: Pa
       <View style={styles.backdrop}>
         <View style={[styles.dialog, { backgroundColor: theme.colors.surface, borderRadius: theme.radii.lg }]}>
           <Text style={[styles.title, { color: theme.colors.text }]}>
-            {t("common:parental.restrictedContent", "Restricted Content")}
+            {t("common.parental.restrictedContent", "Restricted Content")}
           </Text>
           <Text style={[styles.desc, { color: theme.colors.textMuted }]}>
-            {t("common:parental.pinRequired", "Enter your parental PIN to continue")}
+            {t("common.parental.pinRequired", "Enter your parental PIN to continue")}
           </Text>
 
           <TextInput
@@ -109,7 +109,7 @@ export function ParentalPINModal({ visible, onClose, onVerified, profileId }: Pa
                 <ActivityIndicator color={theme.colors.text} size="small" />
               ) : (
                 <Text style={[styles.btnText, { color: theme.colors.text }]}>
-                  {t("common:parental.validate", "Verify")}
+                  {t("common.parental.validate", "Verify")}
                 </Text>
               )}
             </Pressable>
