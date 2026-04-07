@@ -73,7 +73,7 @@ function playMethodLabel(method: string, t: (k: string) => string): string {
 function SessionCard({ session, theme, t, onKill, onCommand }: {
   session: ActiveSession;
   theme: ReturnType<typeof useTheme>;
-  t: (k: string, d?: string) => string;
+  t: (k: string, d?: string | Record<string, unknown>) => string;
   onKill: (s: ActiveSession) => void;
   onCommand: (sessionId: string, command: string) => void;
 }) {
@@ -280,7 +280,7 @@ export default function AdminSessionsScreen() {
     <SessionCard
       session={item}
       theme={theme}
-      t={t}
+      t={t as never}
       onKill={handleKill}
       onCommand={handleCommand}
     />
@@ -307,7 +307,7 @@ export default function AdminSessionsScreen() {
               <Text style={{ color: theme.colors.textMuted, fontSize: 12 }}>
                 {t("admin.sessions.activeCount", { count: sessions.length })}
               </Text>
-              <RefreshStatus dataUpdatedAt={dataUpdatedAt} theme={theme} t={t} />
+              <RefreshStatus dataUpdatedAt={dataUpdatedAt} theme={theme} t={t as never} />
             </View>
           ) : null
         }
