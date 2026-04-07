@@ -31,7 +31,7 @@ services:
       EVEY_LOG_LEVEL: debug
     volumes:
       - .:/app
-      - evey-data:/data
+      - ./evey-data:/data
       - ./plugins:/data/plugins
       - evey-cache:/cache
       - /path/to/movies:/media
@@ -73,8 +73,8 @@ services:
     image: caddy:2.9-alpine
     volumes:
       - ./docker/Caddyfile.dev:/etc/caddy/Caddyfile
-      - caddy-data:/data
-      - caddy-config:/config
+      - ./caddy-data:/data
+      - ./caddy-config:/config
     healthcheck:
       test: ["CMD", "wget", "-q", "--spider", "http://localhost"]
       interval: 10s

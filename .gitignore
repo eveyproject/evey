@@ -32,6 +32,13 @@ testdata/*.mp4
 testdata/*.avi
 testdata/*.ts
 
+# Docker — data locale (bind mounts, ne pas versionner)
+evey-data/
+postgres-data/
+meili-data/
+caddy-data/
+caddy-config/
+
 # Docker — fichiers locaux non versionnés
 docker/docker-compose.media.yml
 docker/postgres-data/

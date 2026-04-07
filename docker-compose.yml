@@ -27,9 +27,9 @@ services:
       - path: .env
         required: false
     volumes:
-      - evey-data:/data            # keys, logs, backups
-      - evey-plugins:/data/plugins # plugin files (survives updates)
-      - evey-cache:/cache          # transcode + trickplay cache (expendable)
+      - ./evey-data:/data          # keys, logs, backups, avatars
+      - ./evey-data/plugins:/data/plugins # plugin files
+      - evey-cache:/cache           # transcode + trickplay cache (expendable)
       - ${MEDIA_DIR:-/media}:/media:ro
     healthcheck:
       test: ["CMD", "curl", "-sf", "http://localhost:${EVEY_HTTP_PORT:-9091}/healthz"]
@@ -55,7 +55,7 @@ services:
     expose:
       - "5432"
     volumes:
-      - postgres-data:/var/lib/postgresql/data
+      - ./postgres-data:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${EVEY_DB_USER:-evey}"]
       interval: 5s
@@ -73,7 +73,7 @@ services:
     expose:
       - "7700"
     volumes:
-      - meili-data:/meili_data
+      - ./meili-data:/meili_data
     healthcheck:
       test: ["CMD", "curl", "-sf", "http://localhost:7700/health"]
       interval: 5s
@@ -93,18 +93,12 @@ services:
     environment:
       EVEY_DOMAIN: ${EVEY_DOMAIN:-localhost}
     volumes:
-      - caddy-data:/data
-      - caddy-config:/config
+      - ./caddy-data:/data
+      - ./caddy-config:/config
     depends_on:
       evey:
         condition: service_healthy
     restart: unless-stopped
 
 volumes:
-  postgres-data:    # database
-  meili-data:       # search index
-  evey-data:        # keys, logs, backups
-  evey-plugins:     # installed plugins
-  evey-cache:       # transcode + trickplay (safe to delete)
-  caddy-data:       # certificates
-  caddy-config:     # caddy state
+  evey-cache:  # transcode + trickplay cache (safe to prune)

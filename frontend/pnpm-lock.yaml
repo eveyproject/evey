@@ -10,6 +10,11 @@ overrides:
   react-dom: 19.2.0
   react-native-worklets: 0.7.1
 
+patchedDependencies:
+  gifted-charts-core@0.1.59:
+    hash: 71230c78c9dd9d64fd3d50e1138d74fb1e05c69e4f7415a4df4deb46f2e1e654
+    path: patches/gifted-charts-core@0.1.59.patch
+
 importers:
 
   .:
@@ -277,6 +282,9 @@ importers:
       react-dom:
         specifier: 19.2.0
         version: 19.2.0(react@19.2.0)
+      react-gifted-charts:
+        specifier: 0.0.12
+        version: 0.0.12(@react-spring/web@9.7.5(react-dom@19.2.0(react@19.2.0))(react@19.2.0))(react-native@0.83.4(@babel/core@7.29.0)(@react-native/metro-config@0.84.1(@babel/core@7.29.0))(@types/react@19.2.14)(react@19.2.0))(react@19.2.0)
       react-i18next:
         specifier: 16.5.8
         version: 16.5.8(i18next@25.8.18(typescript@5.7.3))(react-dom@19.2.0(react@19.2.0))(react-native@0.83.4(@babel/core@7.29.0)(@react-native/metro-config@0.84.1(@babel/core@7.29.0))(@types/react@19.2.14)(react@19.2.0))(react@19.2.0)(typescript@5.7.3)
@@ -2107,6 +2115,33 @@ packages:
 
   '@react-navigation/routers@7.5.3':
     resolution: {integrity: sha512-1tJHg4KKRJuQ1/EvJxatrMef3NZXEPzwUIUZ3n1yJ2t7Q97siwRtbynRpQG9/69ebbtiZ8W3ScOZF/OmhvM4Rg==}
+
+  '@react-spring/animated@9.7.5':
+    resolution: {integrity: sha512-Tqrwz7pIlsSDITzxoLS3n/v/YCUHQdOIKtOJf4yL6kYVSDTSmVK1LI1Q3M/uu2Sx4X3pIWF3xLUhlsA6SPNTNg==}
+    peerDependencies:
+      react: 19.2.0
+
+  '@react-spring/core@9.7.5':
+    resolution: {integrity: sha512-rmEqcxRcu7dWh7MnCcMXLvrf6/SDlSokLaLTxiPlAYi11nN3B5oiCUAblO72o+9z/87j2uzxa2Inm8UbLjXA+w==}
+    peerDependencies:
+      react: 19.2.0
+
+  '@react-spring/rafz@9.7.5':
+    resolution: {integrity: sha512-5ZenDQMC48wjUzPAm1EtwQ5Ot3bLIAwwqP2w2owG5KoNdNHpEJV263nGhCeKKmuA3vG2zLLOdu3or6kuDjA6Aw==}
+
+  '@react-spring/shared@9.7.5':
+    resolution: {integrity: sha512-wdtoJrhUeeyD/PP/zo+np2s1Z820Ohr/BbuVYv+3dVLW7WctoiN7std8rISoYoHpUXtbkpesSKuPIw/6U1w1Pw==}
+    peerDependencies:
+      react: 19.2.0
+
+  '@react-spring/types@9.7.5':
+    resolution: {integrity: sha512-HVj7LrZ4ReHWBimBvu2SKND3cDVUPWKLqRTmWe/fNY6o1owGOX0cAHbdPDTMelgBlVbrTKrre6lFkhqGZErK/g==}
+
+  '@react-spring/web@9.7.5':
+    resolution: {integrity: sha512-lmvqGwpe+CSttsWNZVr+Dg62adtKhauGwLyGE/RRyZ8AAMLgb9x3NDMA5RMElXo+IMyTkPp7nxTB8ZQlmhb6JQ==}
+    peerDependencies:
+      react: 19.2.0
+      react-dom: 19.2.0
 
   '@rolldown/pluginutils@1.0.0-beta.9':
     resolution: {integrity: sha512-e9MeMtVWo186sgvFFJOPGy7/d2j2mZhLJIdVW0C/xDluuOvymEATqz6zKsP0ZmXGzQtqlyjz5sC1sYQUoJG98w==}
@@ -4008,6 +4043,12 @@ packages:
     resolution: {integrity: sha512-VilgtJj/ALgGY77fiLam5iD336eSWi96Q15JSAG1zi8NRBysm3LXKdGnHb4m5cuyxvOLQQKWpBZAT6ni4FI2iQ==}
     engines: {node: '>=6'}
 
+  gifted-charts-core@0.1.59:
+    resolution: {integrity: sha512-yFqqhsXLAgBSSYmk2+/6DO4XMtipKNpDsjIftLtNxoCGFvmMTTgEqXJL4yr4GPX1jo3TFDPnFW1Fvmjr95C6eA==}
+    peerDependencies:
+      react: 19.2.0
+      react-native: '*'
+
   gifted-charts-core@0.1.80:
     resolution: {integrity: sha512-sAHsi25+S8xe7gReodbmtj85AKMasGRGZ2fNNr+zLo7ioB8ovSbpsmGd8cS1B0VJ+JDlgIVVyoRx39RGawVwAQ==}
     peerDependencies:
@@ -5381,6 +5422,11 @@ packages:
     engines: {node: '>=10'}
     peerDependencies:
       react: 19.2.0
+
+  react-gifted-charts@0.0.12:
+    resolution: {integrity: sha512-YUSt310wAlBK9qpBCcGW+Z2EI4VvrqTgX0Pm0pp4lqDnNJjjDBfjwcWa+kinXzC1Y2HybVj/fTeCxYYQyFTlgA==}
+    peerDependencies:
+      '@react-spring/web': ^9.7.4
 
   react-i18next@16.5.8:
     resolution: {integrity: sha512-2ABeHHlakxVY+LSirD+OiERxFL6+zip0PaHo979bgwzeHg27Sqc82xxXWIrSFmfWX0ZkrvXMHwhsi/NGUf5VQg==}
@@ -8922,6 +8968,38 @@ snapshots:
     dependencies:
       nanoid: 3.3.11
 
+  '@react-spring/animated@9.7.5(react@19.2.0)':
+    dependencies:
+      '@react-spring/shared': 9.7.5(react@19.2.0)
+      '@react-spring/types': 9.7.5
+      react: 19.2.0
+
+  '@react-spring/core@9.7.5(react@19.2.0)':
+    dependencies:
+      '@react-spring/animated': 9.7.5(react@19.2.0)
+      '@react-spring/shared': 9.7.5(react@19.2.0)
+      '@react-spring/types': 9.7.5
+      react: 19.2.0
+
+  '@react-spring/rafz@9.7.5': {}
+
+  '@react-spring/shared@9.7.5(react@19.2.0)':
+    dependencies:
+      '@react-spring/rafz': 9.7.5
+      '@react-spring/types': 9.7.5
+      react: 19.2.0
+
+  '@react-spring/types@9.7.5': {}
+
+  '@react-spring/web@9.7.5(react-dom@19.2.0(react@19.2.0))(react@19.2.0)':
+    dependencies:
+      '@react-spring/animated': 9.7.5(react@19.2.0)
+      '@react-spring/core': 9.7.5(react@19.2.0)
+      '@react-spring/shared': 9.7.5(react@19.2.0)
+      '@react-spring/types': 9.7.5
+      react: 19.2.0
+      react-dom: 19.2.0(react@19.2.0)
+
   '@rolldown/pluginutils@1.0.0-beta.9': {}
 
   '@rollup/rollup-android-arm-eabi@4.59.0':
@@ -11147,6 +11225,11 @@ snapshots:
 
   getenv@2.0.0: {}
 
+  gifted-charts-core@0.1.59(patch_hash=71230c78c9dd9d64fd3d50e1138d74fb1e05c69e4f7415a4df4deb46f2e1e654)(react-native@0.83.4(@babel/core@7.29.0)(@react-native/metro-config@0.84.1(@babel/core@7.29.0))(@types/react@19.2.14)(react@19.2.0))(react@19.2.0):
+    dependencies:
+      react: 19.2.0
+      react-native: 0.83.4(@babel/core@7.29.0)(@react-native/metro-config@0.84.1(@babel/core@7.29.0))(@types/react@19.2.14)(react@19.2.0)
+
   gifted-charts-core@0.1.80(react-native-svg@15.15.3(react-native@0.83.4(@babel/core@7.29.0)(@react-native/metro-config@0.84.1(@babel/core@7.29.0))(@types/react@19.2.14)(react@19.2.0))(react@19.2.0))(react-native@0.83.4(@babel/core@7.29.0)(@react-native/metro-config@0.84.1(@babel/core@7.29.0))(@types/react@19.2.14)(react@19.2.0))(react@19.2.0):
     dependencies:
       react: 19.2.0
@@ -12719,6 +12802,14 @@ snapshots:
   react-freeze@1.0.4(react@19.2.0):
     dependencies:
       react: 19.2.0
+
+  react-gifted-charts@0.0.12(@react-spring/web@9.7.5(react-dom@19.2.0(react@19.2.0))(react@19.2.0))(react-native@0.83.4(@babel/core@7.29.0)(@react-native/metro-config@0.84.1(@babel/core@7.29.0))(@types/react@19.2.14)(react@19.2.0))(react@19.2.0):
+    dependencies:
+      '@react-spring/web': 9.7.5(react-dom@19.2.0(react@19.2.0))(react@19.2.0)
+      gifted-charts-core: 0.1.59(patch_hash=71230c78c9dd9d64fd3d50e1138d74fb1e05c69e4f7415a4df4deb46f2e1e654)(react-native@0.83.4(@babel/core@7.29.0)(@react-native/metro-config@0.84.1(@babel/core@7.29.0))(@types/react@19.2.14)(react@19.2.0))(react@19.2.0)
+    transitivePeerDependencies:
+      - react
+      - react-native
 
   react-i18next@16.5.8(i18next@25.8.18(typescript@5.7.3))(react-dom@19.2.0(react@19.2.0))(react-native@0.83.4(@babel/core@7.29.0)(@react-native/metro-config@0.84.1(@babel/core@7.29.0))(@types/react@19.2.14)(react@19.2.0))(react@19.2.0)(typescript@5.7.3):
     dependencies:
