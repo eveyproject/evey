@@ -108,7 +108,7 @@ func (h *shareHandler) RevokeShareLink(ctx context.Context, req *eveyv1.RevokeSh
 	}
 
 	link, err := h.svc.GetByID(ctx, req.Id)
-	if err != nil {
+	if err != nil || link == nil {
 		return nil, status.Error(codes.NotFound, "share link not found")
 	}
 	if !claims.IsAdmin && link.CreatedBy != claims.UserID {

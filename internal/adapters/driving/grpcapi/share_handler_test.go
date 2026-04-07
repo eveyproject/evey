@@ -196,8 +196,9 @@ func TestShareHandler_ListShareLinks_Success(t *testing.T) {
 	resp, err := env.handler.ListShareLinks(ctx, &eveyv1.ListShareLinksRequest{})
 
 	require.NoError(t, err)
-	// ListAll returns all links (no user filtering in current impl)
-	assert.Len(t, resp.Items, 2)
+	// Non-admin only sees own links
+	assert.Len(t, resp.Items, 1)
+	assert.Equal(t, "link-1", resp.Items[0].Id)
 }
 
 func TestShareHandler_ListShareLinks_WithMaxViews(t *testing.T) {
@@ -263,7 +264,7 @@ func TestShareHandler_RevokeShareLink_NotFound(t *testing.T) {
 	assert.Equal(t, codes.NotFound, status.Code(err))
 }
 
-func TestShareHandler_RevokeShareLink_AnyUserCanRevokeAnyLink(t *testing.T) {
+func TestShareHandler_RevokeShareLink_OwnershipCheck(t *testing.T) {
 	t.Parallel()
 	env := newShareTestEnv()
 
@@ -272,10 +273,15 @@ func TestShareHandler_RevokeShareLink_AnyUserCanRevokeAnyLink(t *testing.T) {
 		CreatedBy: "user-1", ExpiresAt: time.Now().Add(24 * time.Hour),
 	})
 
-	// user-2 can revoke user-1's link (no ownership check in current impl)
+	// non-admin user-2 cannot revoke user-1's link
 	ctxUser2 := ctxWithClaims("user-2", "profile-2", false)
 	_, err := env.handler.RevokeShareLink(ctxUser2, &eveyv1.RevokeShareLinkRequest{Id: "link-1"})
+	require.Error(t, err)
+	assert.Equal(t, codes.PermissionDenied, status.Code(err))
 
+	// admin can revoke any link
+	ctxAdmin := ctxWithClaims("admin-1", "profile-admin", true)
+	_, err = env.handler.RevokeShareLink(ctxAdmin, &eveyv1.RevokeShareLinkRequest{Id: "link-1"})
 	require.NoError(t, err)
 }
 
