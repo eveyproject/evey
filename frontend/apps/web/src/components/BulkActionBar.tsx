@@ -24,7 +24,7 @@ export function BulkActionBar({
 }: BulkActionBarProps) {
   return (
     <div
-      className={`fixed bottom-0 left-0 right-0 z-overlay flex items-center gap-2 px-4 py-3 flex-wrap shadow-2xl bg-[var(--surface)] border-t border-[var(--accent)] transition-transform duration-250 ease-out ${count > 0 ? "translate-y-0" : "translate-y-full"}`}
+      className={`fixed bottom-0 left-0 right-0 z-overlay flex items-center gap-2 px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] flex-wrap shadow-2xl bg-[var(--surface)] border-t border-[var(--accent)] transition-transform duration-250 ease-out ${count > 0 ? "translate-y-0" : "translate-y-full"}`}
       aria-live="polite"
     >
       <span

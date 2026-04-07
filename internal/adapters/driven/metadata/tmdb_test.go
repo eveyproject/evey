@@ -704,7 +704,7 @@ func TestSearch_CacheHit(t *testing.T) {
 
 func TestNewTMDBProvider_Defaults(t *testing.T) {
 	p := NewTMDBProvider("key", "", nil)
-	assert.Equal(t, "en", p.language)
+	assert.Equal(t, "en", p.language())
 	assert.NotNil(t, p.httpClient)
 }
 

@@ -27,7 +27,7 @@ export function MediaDetailHero({
   const { t } = useTranslation();
 
   return (
-    <div className="relative w-full overflow-hidden -mx-4 sm:-mx-6 -mt-4 sm:-mt-6 mb-0 h-[clamp(260px,50vw,420px)]">
+    <div className="relative w-full overflow-hidden -mx-4 sm:-mx-6 -mt-4 sm:-mt-6 mb-0 h-[clamp(200px,50vw,420px)] sm:h-[clamp(260px,50vw,420px)]">
       <div className="absolute top-0 left-0 right-0 z-raised px-4 sm:px-6 pt-4 sm:pt-5 gradient-hero-scrim">
         <BackButton fallback="/library" className="mb-1 !text-white hover:!text-white/80" />
         <Breadcrumbs items={breadcrumbItems} />

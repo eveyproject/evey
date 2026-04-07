@@ -33,7 +33,7 @@ export function Pagination({ page, totalPages, onPageChange }: PaginationProps) 
   const pages = getPageNumbers(page, totalPages);
 
   return (
-    <nav className="flex items-center gap-1" aria-label={t("common.aria.pagination")}>
+    <nav className="flex items-center gap-1 flex-wrap" aria-label={t("common.aria.pagination")}>
       <button
         className={`${btnBase} bg-transparent hover:bg-[var(--surface-raised)] text-[var(--text-muted)]`}
         disabled={page <= 1}

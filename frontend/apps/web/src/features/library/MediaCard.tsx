@@ -230,7 +230,7 @@ export const MediaCard = memo(function MediaCard({
           <img
             src={poster}
             srcSet={posterSrcSet}
-            sizes="(max-width: 640px) 150px, (max-width: 1024px) 200px, 250px"
+            sizes="(max-width: 640px) 144px, (max-width: 1024px) 176px, 200px"
             alt={item.title ?? ""}
             loading="lazy"
             decoding="async"

@@ -98,7 +98,7 @@ export function WebhookForm({ onSuccess, existing }: WebhookFormProps) {
           <span className="text-sm" style={{ color: "var(--text)" }}>{t("admin.webhooks.form.allEvents")}</span>
         </label>
         {!allEvents && (
-          <div className="grid grid-cols-2 gap-1.5 pl-2">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 pl-2">
             {EVENT_TYPES.map((evt) => (
               <label key={evt} className="flex items-center gap-2 cursor-pointer select-none">
                 <input

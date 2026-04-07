@@ -15,6 +15,7 @@ import (
 	httpapi "github.com/gravity-zero/evey/internal/adapters/driving/http"
 	"github.com/gravity-zero/evey/internal/config"
 	eveylogger "github.com/gravity-zero/evey/internal/pkg/logger"
+	"github.com/gravity-zero/evey/internal/pkg/quickconnecthub"
 )
 
 // version is set at build time via -ldflags "-X main.version=..."
@@ -99,7 +100,8 @@ func run() error {
 
 	startMetricsCollector(ctx, db, deps.media.hlsManager, deps.repos.mediaItemRepo)
 
-	grpcSrv := buildGRPCServer(deps, cfg, rootLog, logCfg.Dir, ctx)
+	qcHub := quickconnecthub.New()
+	grpcSrv := buildGRPCServer(deps, cfg, rootLog, logCfg.Dir, ctx, qcHub)
 	defer deps.media.hlsManager.CleanupAll()
 
 	grpcAddr := fmt.Sprintf(":%d", cfg.Server.Port)
@@ -108,7 +110,7 @@ func run() error {
 	gwMux := registerGateway(grpcAddr)
 	var httpSrv *http.Server
 	if gwMux != nil {
-		handler, err := buildHTTPHandler(gwMux, deps, cfg, startTime, logCfg.Dir, ctx)
+		handler, err := buildHTTPHandler(gwMux, deps, cfg, startTime, logCfg.Dir, ctx, qcHub)
 		if err != nil {
 			return err
 		}

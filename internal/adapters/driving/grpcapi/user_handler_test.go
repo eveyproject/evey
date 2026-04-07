@@ -9,6 +9,7 @@ import (
 	eveyv1 "github.com/gravity-zero/evey/gen/evey/v1"
 	appactivity "github.com/gravity-zero/evey/internal/app/activity"
 	appuser "github.com/gravity-zero/evey/internal/app/user"
+	"github.com/gravity-zero/evey/internal/config"
 	activityfakes "github.com/gravity-zero/evey/internal/domain/activity/fakes"
 	sharedfakes "github.com/gravity-zero/evey/internal/domain/shared/fakes"
 	"github.com/gravity-zero/evey/internal/domain/user"
@@ -67,6 +68,7 @@ func setupUserHandler() *testUserEnv {
 		query:       query,
 		users:       userRepo,
 		activitySvc: actSvc,
+		cfg:         &config.Config{JWT: config.JWTConfig{RefreshTokenLongTTL: 180 * 24 * time.Hour}},
 	}
 
 	return &testUserEnv{

@@ -198,7 +198,7 @@ export function TopBar() {
       }}
     >
       <div className="flex-1">
-        <div className="relative w-full max-w-80">
+        <div className="relative w-full max-w-[60vw] sm:max-w-80">
           <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[var(--text-muted)] pointer-events-none z-raised" size={16} />
           <input
             ref={inputRef}

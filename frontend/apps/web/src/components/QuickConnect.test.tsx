@@ -11,8 +11,15 @@ vi.mock("@evey/api", () => ({
     onSuccessCallback = opts.mutation.onSuccess;
     return { mutate: mockInitiateMutate };
   },
-  useUserServiceCheckQuickConnect: vi.fn(() => ({ data: undefined })),
 }));
+
+// Mock EventSource (SSE)
+class MockEventSource {
+  onmessage: ((e: MessageEvent) => void) | null = null;
+  onerror: (() => void) | null = null;
+  close = vi.fn();
+}
+vi.stubGlobal("EventSource", MockEventSource);
 
 vi.mock("@evey/store", () => ({
   useAuthStore: () => ({ setTokens: vi.fn() }),

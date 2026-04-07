@@ -3,7 +3,7 @@ import { View, Text, Pressable, ActivityIndicator, StyleSheet } from "react-nati
 import QRCode from "react-native-qrcode-svg";
 import { router } from "expo-router";
 import { useTranslation } from "react-i18next";
-import { useUserServiceInitiateQuickConnect, useUserServiceCheckQuickConnect } from "@evey/api";
+import { useUserServiceInitiateQuickConnect } from "@evey/api";
 import { useAuthStore } from "@evey/store";
 import { useTheme } from "../src/providers/ThemeProvider";
 import { useServerUrlNullable } from "../src/hooks/useServerUrl";
@@ -14,7 +14,6 @@ export default function QuickConnectScreen() {
   const theme = useTheme();
   const { t } = useTranslation();
   const [code, setCode] = useState<string | null>(null);
-  const [enabled, setEnabled] = useState(true);
   const [secondsLeft, setSecondsLeft] = useState(REFRESH_INTERVAL_S);
   const codeSetAt = useRef(0);
   const setTokens = useAuthStore((s) => s.setTokens);
@@ -29,14 +28,6 @@ export default function QuickConnectScreen() {
           setSecondsLeft(REFRESH_INTERVAL_S);
         }
       },
-    },
-  });
-
-  const { data: checkData } = useUserServiceCheckQuickConnect(code ?? "", {
-    query: {
-      enabled: !!code && enabled,
-      refetchInterval: 3000,
-      refetchIntervalInBackground: true,
     },
   });
 
@@ -65,15 +56,26 @@ export default function QuickConnectScreen() {
     return () => clearInterval(id);
   }, []);
 
-  useEffect(() => {
-    if (checkData?.authorized && checkData.auth?.accessToken) {
-      setEnabled(false);
-      setTokens(checkData.auth.accessToken);
-      router.replace("/(auth)/(tabs)");
-    }
-  }, [checkData, setTokens]);
-
+  // SSE: wait for authorization
   const serverUrl = useServerUrlNullable();
+  useEffect(() => {
+    if (!code || !serverUrl) return;
+    const url = `${serverUrl}/api/v1/auth/quick-connect/${code}/events`;
+    const es = new EventSource(url);
+    es.onmessage = (e: MessageEvent) => {
+      const data = JSON.parse(e.data) as { event: string; accessToken?: string };
+      if (data.event === "authorized" && data.accessToken) {
+        setTokens(data.accessToken);
+        es.close();
+        router.replace("/(auth)/(tabs)");
+      } else if (data.event === "expired" || data.event === "error") {
+        es.close();
+      }
+    };
+    es.onerror = () => es.close();
+    return () => es.close();
+  }, [code, serverUrl, setTokens]);
+
   const displayCode = code ? code.slice(-6).toUpperCase() : null;
   const qrValue = code && serverUrl ? `${serverUrl}/quickconnect?code=${code}` : null;
 

@@ -19,10 +19,18 @@ vi.mock("@tanstack/react-query", async (importActual) => {
 
 vi.mock("@evey/api", () => ({
   eveyFetch: vi.fn(),
+  useAdminSessionServiceListActiveSessions: () => {
+    const result = mockUseQuery();
+    const sessions = Array.isArray(result.data) ? result.data : [];
+    return { ...result, data: result.data != null ? { sessions } : undefined };
+  },
+  useAdminSessionServiceKillSession: () => mockUseMutation(),
+  getAdminSessionServiceListActiveSessionsQueryKey: () => ["/api/v1/admin/sessions"],
 }));
 
 vi.mock("@evey/store", () => ({
   toast: { success: vi.fn(), error: vi.fn() },
+  useAuthStore: (fn: (s: { accessToken: string }) => unknown) => fn({ accessToken: "test-token" }),
 }));
 
 vi.mock("@tanstack/react-router", () => ({

@@ -148,7 +148,7 @@ func (s *CommandService) Setup(ctx context.Context, username, password, email st
 	return u, nil
 }
 
-func (s *CommandService) Login(ctx context.Context, username, password string) (accessToken, refreshToken string, err error) {
+func (s *CommandService) Login(ctx context.Context, username, password string, ttlOverride ...time.Duration) (accessToken, refreshToken string, err error) {
 	username = strings.TrimSpace(username)
 	password = strings.TrimSpace(password)
 	if s.loginAttempts.isLocked(username) {
@@ -211,7 +211,7 @@ func (s *CommandService) Login(ctx context.Context, username, password string) (
 		return "", "", fmt.Errorf("generate access token: %w", err)
 	}
 
-	refreshToken, err = s.generateAndStoreRefreshToken(ctx, u.ID)
+	refreshToken, err = s.generateAndStoreRefreshToken(ctx, u.ID, ttlOverride...)
 	if err != nil {
 		return "", "", fmt.Errorf("CommandService.Login: %w", err)
 	}
@@ -223,7 +223,7 @@ func (s *CommandService) Login(ctx context.Context, username, password string) (
 	return accessToken, refreshToken, nil
 }
 
-func (s *CommandService) GenerateTokensForUser(ctx context.Context, userID string) (accessToken, refreshToken string, err error) {
+func (s *CommandService) GenerateTokensForUser(ctx context.Context, userID string, ttlOverride ...time.Duration) (accessToken, refreshToken string, err error) {
 	u, err := s.users.GetByID(ctx, userID)
 	if err != nil {
 		return "", "", fmt.Errorf("user not found: %w", err)
@@ -272,14 +272,14 @@ func (s *CommandService) GenerateTokensForUser(ctx context.Context, userID strin
 		return "", "", fmt.Errorf("generate access token: %w", err)
 	}
 
-	refreshToken, err = s.generateAndStoreRefreshToken(ctx, u.ID)
+	refreshToken, err = s.generateAndStoreRefreshToken(ctx, u.ID, ttlOverride...)
 	if err != nil {
 		return "", "", fmt.Errorf("CommandService.GenerateTokensForUser: %w", err)
 	}
 	return accessToken, refreshToken, nil
 }
 
-func (s *CommandService) RefreshToken(ctx context.Context, token string) (string, string, error) {
+func (s *CommandService) RefreshToken(ctx context.Context, token string, ttlOverride ...time.Duration) (string, string, error) {
 	h := sha256.Sum256([]byte(token))
 	hash := hex.EncodeToString(h[:])
 
@@ -351,19 +351,8 @@ func (s *CommandService) RefreshToken(ctx context.Context, token string) (string
 		return "", "", fmt.Errorf("CommandService.RefreshToken: %w", err)
 	}
 
-	newRefresh, err := s.tokens.GenerateRefreshToken()
+	newRefresh, err := s.generateAndStoreRefreshToken(ctx, u.ID, ttlOverride...)
 	if err != nil {
-		return "", "", fmt.Errorf("CommandService.RefreshToken: %w", err)
-	}
-	nh := sha256.Sum256([]byte(newRefresh))
-	newRT := &user.RefreshToken{
-		ID:        id.New("rt-"),
-		UserID:    u.ID,
-		TokenHash: hex.EncodeToString(nh[:]),
-		ExpiresAt: time.Now().Add(s.refreshTokenTTL),
-		CreatedAt: time.Now(),
-	}
-	if err := s.refreshTkns.Create(ctx, newRT); err != nil {
 		return "", "", fmt.Errorf("CommandService.RefreshToken: %w", err)
 	}
 
@@ -379,9 +368,13 @@ func (s *CommandService) Logout(ctx context.Context, userID string) error {
 
 const maxRefreshTokenRetries = 3
 
-func (s *CommandService) generateAndStoreRefreshToken(ctx context.Context, userID string) (string, error) {
+func (s *CommandService) generateAndStoreRefreshToken(ctx context.Context, userID string, ttlOverride ...time.Duration) (string, error) {
 	if err := s.refreshTkns.DeleteByUserID(ctx, userID); err != nil {
 		slog.Warn("cleanup old refresh tokens", slog.String("userID", userID), slog.Any("err", err))
+	}
+	ttl := s.refreshTokenTTL
+	if len(ttlOverride) > 0 && ttlOverride[0] > 0 {
+		ttl = ttlOverride[0]
 	}
 	for range maxRefreshTokenRetries {
 		token, err := s.tokens.GenerateRefreshToken()
@@ -394,7 +387,7 @@ func (s *CommandService) generateAndStoreRefreshToken(ctx context.Context, userI
 			ID:        id.New("rt-"),
 			UserID:    userID,
 			TokenHash: hex.EncodeToString(h[:]),
-			ExpiresAt: time.Now().Add(s.refreshTokenTTL),
+			ExpiresAt: time.Now().Add(ttl),
 			CreatedAt: time.Now(),
 		}
 		err = s.refreshTkns.Create(ctx, rt)

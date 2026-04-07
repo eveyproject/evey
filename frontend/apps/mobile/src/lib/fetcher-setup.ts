@@ -1,4 +1,4 @@
-import { setBaseURL, setTokenProvider, setTokensUpdater, setRefreshHandler, setUnauthorizedHandler, setLocaleProvider } from "@evey/api";
+import { setBaseURL, setTokenProvider, setTokensUpdater, setRefreshHandler, setUnauthorizedHandler, setLocaleProvider, setExtraHeaders } from "@evey/api";
 import { useAuthStore, useLocaleStore } from "@evey/store";
 import { router } from "expo-router";
 import { getServerUrl } from "./server-config";
@@ -7,6 +7,7 @@ import { getRefreshToken, setRefreshToken, clearRefreshToken } from "./refresh-t
 export async function initFetcher() {
   const serverUrl = await getServerUrl();
   if (serverUrl) setBaseURL(serverUrl);
+  setExtraHeaders({ "X-Persistent-Session": "true" });
 
   setTokenProvider(() => useAuthStore.getState().accessToken);
   setTokensUpdater((access) => useAuthStore.getState().setTokens(access));
@@ -25,7 +26,7 @@ export async function initFetcher() {
     if (!base) return null;
     const res = await fetch(`${base}/api/v1/auth/refresh`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", "X-Persistent-Session": "true" },
       body: JSON.stringify({ refreshToken }),
     });
     if (!res.ok) return null;

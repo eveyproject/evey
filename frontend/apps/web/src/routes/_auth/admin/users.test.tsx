@@ -22,6 +22,7 @@ vi.mock("@evey/api", () => ({
   useUserServiceListInviteLinks: (...args: unknown[]) => mockListInviteLinks(...args),
   useUserServiceCreateInviteLink: (...args: unknown[]) => mockCreateInviteLink(...args),
   useUserServiceRevokeInviteLink: (...args: unknown[]) => mockRevokeInviteLink(...args),
+  useLibraryServiceListLibraries: () => ({ data: { libraries: [] }, isLoading: false }),
 }));
 
 vi.mock("@tanstack/react-query", async (importActual) => {

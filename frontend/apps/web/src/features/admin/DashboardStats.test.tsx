@@ -28,13 +28,19 @@ vi.mock("@evey/api", () => ({
     return { data: undefined };
   },
   useAdminSessionServiceGetAuditLog: () => ({ data: { entries: [] }, isLoading: false }),
+  useAdminSessionServiceListActiveSessions: () => ({ data: { sessions: [] }, isLoading: false }),
+  useAdminSessionServiceKillSession: () => ({ mutate: vi.fn(), isPending: false }),
+  useAdminSessionServiceSendSessionCommand: () => ({ mutate: vi.fn(), isPending: false }),
+  getAdminSessionServiceListActiveSessionsQueryKey: () => ["/api/v1/admin/sessions"],
   useLibraryServiceListLibraries: () => ({ data: { libraries: [] } }),
   useLibraryServiceScanLibrary: () => ({ mutateAsync: vi.fn() }),
   useActivityServiceGetServerStats: () => ({ data: { popularMedia: [] } }),
+  useActivityServiceGetAnalytics: () => ({ data: { dailyPlays: [], hourlyPlays: [] } }),
 }));
 
 vi.mock("@evey/store", () => ({
   toast: { success: vi.fn(), error: vi.fn() },
+  useAuthStore: (fn: (s: { accessToken: string }) => unknown) => fn({ accessToken: "test-token" }),
 }));
 
 function createWrapper() {

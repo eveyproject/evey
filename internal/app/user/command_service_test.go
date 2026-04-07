@@ -1330,3 +1330,53 @@ func TestLogin_ResetClearsLockout(t *testing.T) {
 	}
 }
 
+func TestLogin_WithLongTTL(t *testing.T) {
+	d := newAuthTestDeps()
+	ctx := context.Background()
+	seedAuthUser(t, d, "u1", "alice", "pw", false, true)
+
+	longTTL := 180 * 24 * time.Hour
+	access, refresh, err := d.svc.Login(ctx, "alice", "pw", longTTL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if access == "" || refresh == "" {
+		t.Fatal("expected non-empty tokens")
+	}
+}
+
+func TestRefreshToken_WithLongTTL(t *testing.T) {
+	d := newAuthTestDeps()
+	ctx := context.Background()
+	seedAuthUser(t, d, "u1", "alice", "pw", false, true)
+
+	_, refresh, err := d.svc.Login(ctx, "alice", "pw")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	longTTL := 180 * 24 * time.Hour
+	newAccess, newRefresh, err := d.svc.RefreshToken(ctx, refresh, longTTL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if newAccess == "" || newRefresh == "" {
+		t.Fatal("expected non-empty tokens")
+	}
+}
+
+func TestGenerateTokensForUser_WithLongTTL(t *testing.T) {
+	d := newAuthTestDeps()
+	ctx := context.Background()
+	seedAuthUser(t, d, "u1", "alice", "pw", false, true)
+
+	longTTL := 180 * 24 * time.Hour
+	access, refresh, err := d.svc.GenerateTokensForUser(ctx, "u1", longTTL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if access == "" || refresh == "" {
+		t.Fatal("expected non-empty tokens")
+	}
+}
+

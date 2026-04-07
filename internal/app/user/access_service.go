@@ -134,26 +134,26 @@ func (s *AccessService) InitiateQuickConnect(ctx context.Context, req *user.Quic
 	return nil
 }
 
-func (s *AccessService) AuthorizeQuickConnect(ctx context.Context, code string, userID string) error {
+func (s *AccessService) AuthorizeQuickConnect(ctx context.Context, code string, userID string) (fullCode string, err error) {
 	req, err := s.quickConnect.GetByCode(ctx, code)
 	if err != nil {
-		return fmt.Errorf("AccessService.AuthorizeQuickConnect: %w", err)
+		return "", fmt.Errorf("AccessService.AuthorizeQuickConnect: %w", err)
 	}
 	if err := s.quickConnect.UpdateStatus(ctx, req.ID, "authorized", &userID); err != nil {
-		return fmt.Errorf("AccessService.AuthorizeQuickConnect: %w", err)
+		return "", fmt.Errorf("AccessService.AuthorizeQuickConnect: %w", err)
 	}
-	return nil
+	return req.Code, nil
 }
 
-func (s *AccessService) AuthorizeByShortCode(ctx context.Context, shortCode string, userID string) error {
+func (s *AccessService) AuthorizeByShortCode(ctx context.Context, shortCode string, userID string) (fullCode string, err error) {
 	req, err := s.quickConnect.GetByShortCode(ctx, shortCode)
 	if err != nil {
-		return fmt.Errorf("AccessService.AuthorizeByShortCode: %w", err)
+		return "", fmt.Errorf("AccessService.AuthorizeByShortCode: %w", err)
 	}
 	if err := s.quickConnect.UpdateStatus(ctx, req.ID, "authorized", &userID); err != nil {
-		return fmt.Errorf("AccessService.AuthorizeByShortCode: %w", err)
+		return "", fmt.Errorf("AccessService.AuthorizeByShortCode: %w", err)
 	}
-	return nil
+	return req.Code, nil
 }
 
 func (s *AccessService) CreateAPIKey(ctx context.Context, key *user.APIKeyModel) error {

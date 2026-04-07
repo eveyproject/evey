@@ -52,7 +52,7 @@ export const MediaSlider = memo(function MediaSlider({
   const dragStartX = useRef(0);
   const dragScrollLeft = useRef(0);
 
-  const CARD_WIDTH = 160; // matches Tailwind w-40
+  const CARD_WIDTH = window.innerWidth < 640 ? 128 : 160;
 
   const checkOverflow = useCallback(() => {
     const el = scrollRef.current;

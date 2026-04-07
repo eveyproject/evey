@@ -14,10 +14,11 @@ import (
 	"github.com/gravity-zero/evey/internal/domain/shared"
 	eveymetrics "github.com/gravity-zero/evey/internal/pkg/metrics"
 	"github.com/gravity-zero/evey/internal/pkg/network"
+	"github.com/gravity-zero/evey/internal/pkg/quickconnecthub"
 	"github.com/gravity-zero/evey/internal/pkg/ratelimit"
 )
 
-func buildHTTPHandler(gwMux http.Handler, deps *appDeps, cfg *config.Config, startTime time.Time, logDir string, ctx context.Context) (http.Handler, error) {
+func buildHTTPHandler(gwMux http.Handler, deps *appDeps, cfg *config.Config, startTime time.Time, logDir string, ctx context.Context, qcHub *quickconnecthub.Hub) (http.Handler, error) {
 	mux := http.NewServeMux()
 
 	loginRL := ratelimit.New(cfg.Server.LoginRateLimitMax)
@@ -58,7 +59,10 @@ func buildHTTPHandler(gwMux http.Handler, deps *appDeps, cfg *config.Config, sta
 		LibQuerySvc: deps.library.querySvc,
 		Scheduler:   deps.library.scheduler,
 
-		OIDCSvc: deps.user.oidcSvc,
+		OIDCSvc:         deps.user.oidcSvc,
+		UserAuthSvc:     deps.user.authSvc,
+		UserQuerySvc:    deps.user.querySvc,
+		QuickConnectHub: qcHub,
 
 		TranscodingSvc: deps.media.transcodingSvc,
 		HLSManager:     deps.media.hlsManager,

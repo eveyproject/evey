@@ -56,6 +56,8 @@ func TestDefaultRBACConfig_AdminMethods(t *testing.T) {
 		"/evey.v1.AdminTaskService/RunScheduledTask",
 		// AdminSessionService
 		"/evey.v1.AdminSessionService/GetAuditLog",
+		"/evey.v1.AdminSessionService/ListActiveSessions",
+		"/evey.v1.AdminSessionService/KillSession",
 		// AdminPluginService
 		"/evey.v1.AdminPluginService/ListPluginRuntimes",
 		"/evey.v1.AdminPluginService/AddPluginRuntime",

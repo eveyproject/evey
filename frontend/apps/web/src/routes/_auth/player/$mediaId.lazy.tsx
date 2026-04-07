@@ -332,7 +332,7 @@ function PlayerPageInner({ mediaId }: { mediaId: string }) {
             onClick={() => setShowShareDialog(false)}
           >
             <div
-              className="rounded-xl p-6 text-white flex flex-col gap-4 max-w-sm w-full mx-4"
+              className="rounded-xl p-4 sm:p-6 text-white flex flex-col gap-4 max-w-sm w-full mx-4 max-h-[90vh] overflow-y-auto"
               style={{ background: "var(--bg-gradient-mid)", border: "1px solid var(--overlay-border-subtle)" }}
               onClick={(e) => e.stopPropagation()}
             >

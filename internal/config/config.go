@@ -105,9 +105,10 @@ type MeilisearchConfig struct {
 }
 
 type JWTConfig struct {
-	PrivateKeyPath  string
-	AccessTokenTTL  time.Duration
-	RefreshTokenTTL time.Duration
+	PrivateKeyPath      string
+	AccessTokenTTL      time.Duration
+	RefreshTokenTTL     time.Duration
+	RefreshTokenLongTTL time.Duration
 }
 
 type TranscodingConfig struct {
@@ -197,9 +198,10 @@ func Load() (*Config, error) {
 			APIKey: envStr("MEILI_MASTER_KEY", "changeme"),
 		},
 		JWT: JWTConfig{
-			PrivateKeyPath:  envStr("EVEY_JWT_PRIVATE_KEY_PATH", "/data/jwt.key"),
-			AccessTokenTTL:  envDuration("EVEY_JWT_ACCESS_TTL", 15*time.Minute),
-			RefreshTokenTTL: envDuration("EVEY_JWT_REFRESH_TTL", 7*24*time.Hour),
+			PrivateKeyPath:      envStr("EVEY_JWT_PRIVATE_KEY_PATH", "/data/jwt.key"),
+			AccessTokenTTL:      envDuration("EVEY_JWT_ACCESS_TTL", 15*time.Minute),
+			RefreshTokenTTL:     envDuration("EVEY_JWT_REFRESH_TTL", 7*24*time.Hour),
+			RefreshTokenLongTTL: envDuration("EVEY_JWT_REFRESH_LONG_TTL", 180*24*time.Hour),
 		},
 		Transcoding: TranscodingConfig{
 			MaxConcurrent:     envInt("EVEY_TRANSCODING_MAX_CONCURRENT", 2),

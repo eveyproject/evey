@@ -1,10 +1,11 @@
-import { setBaseURL, setTokenProvider, setTokensUpdater, setRefreshHandler, setLocaleProvider } from "@evey/api";
+import { setBaseURL, setTokenProvider, setTokensUpdater, setRefreshHandler, setLocaleProvider, setExtraHeaders } from "@evey/api";
 import { useAuthStore, useLocaleStore } from "@evey/store";
 import { getServerUrl } from "./server-config";
 
 export async function initFetcher() {
   const serverUrl = await getServerUrl();
   if (serverUrl) setBaseURL(serverUrl);
+  setExtraHeaders({ "X-Persistent-Session": "true" });
 
   setTokenProvider(() => useAuthStore.getState().accessToken);
   setTokensUpdater((access) => useAuthStore.getState().setTokens(access));
@@ -17,6 +18,7 @@ export async function initFetcher() {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
+        "X-Persistent-Session": "true",
         Authorization: `Bearer ${token}`,
       },
       body: JSON.stringify({}),

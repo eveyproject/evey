@@ -214,7 +214,7 @@ function NowPlayingBar({
 
   return (
     <div
-      className="fixed bottom-0 left-0 right-0 flex items-center gap-4 px-6 py-3 bg-[var(--surface)] border-t border-[var(--border)] z-overlay"
+      className="fixed bottom-0 left-0 right-0 flex items-center gap-2 sm:gap-4 px-3 sm:px-6 py-3 bg-[var(--surface)] border-t border-[var(--border)] z-overlay"
     >
       <audio
         ref={audioRef}
@@ -228,7 +228,7 @@ function NowPlayingBar({
       />
 
       {/* Album art + info */}
-      <div className="flex items-center gap-3 min-w-0 w-[200px]">
+      <div className="flex items-center gap-3 min-w-0 w-[120px] sm:w-[200px]">
         <TrackArt trackID={playing.ID} size={48} />
         <div className="min-w-0">
           <p className="font-medium truncate text-sm text-[var(--text)]">{playing.Title || "—"}</p>
@@ -263,7 +263,7 @@ function NowPlayingBar({
             <SkipForward size={18} />
           </button>
         </div>
-        <div className="flex items-center gap-2 w-full max-w-[400px]">
+        <div className="flex items-center gap-2 w-full max-w-[200px] sm:max-w-[400px]">
           <span className="text-[0.7rem] text-[var(--text-muted)] min-w-8 text-right">
             {formatDuration(currentTime)}
           </span>
@@ -283,7 +283,7 @@ function NowPlayingBar({
       </div>
 
       {/* Volume */}
-      <div className="flex items-center gap-2 min-w-[100px]">
+      <div className="hidden sm:flex items-center gap-2 min-w-[100px]">
         <Volume2 size={16} className="text-[var(--text-muted)]" />
         <input
           type="range"
@@ -370,7 +370,7 @@ function MusicPage() {
   }
 
   return (
-    <div className="flex-1 p-6" style={{ paddingBottom: playing ? 120 : undefined }}>
+    <div className={`flex-1 p-6 ${playing ? "pb-[120px] sm:pb-[80px]" : ""}`}>
       <div className="flex flex-col sm:flex-row sm:items-center gap-4 mb-4">
         <h1 className="text-2xl font-bold text-[var(--text)]">
           {t("media.music.title")}

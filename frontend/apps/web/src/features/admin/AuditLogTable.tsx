@@ -45,14 +45,12 @@ export function AuditLogTable({
         <table className="w-full text-sm">
           <thead>
             <tr className="bg-[var(--surface)] border-b border-[var(--border)]">
-              {[t("admin.audit.tableHeaders.time"), t("admin.audit.tableHeaders.user"), t("admin.audit.tableHeaders.action"), t("admin.audit.tableHeaders.resource"), t("admin.audit.tableHeaders.details"), t("admin.audit.tableHeaders.ip")].map((h) => (
-                <th
-                  key={h}
-                  className="px-4 py-2 text-left font-medium text-[var(--text-muted)]"
-                >
-                  {h}
-                </th>
-              ))}
+              <th className="px-4 py-2 text-left font-medium text-[var(--text-muted)]">{t("admin.audit.tableHeaders.time")}</th>
+              <th className="px-4 py-2 text-left font-medium text-[var(--text-muted)] hidden sm:table-cell">{t("admin.audit.tableHeaders.user")}</th>
+              <th className="px-4 py-2 text-left font-medium text-[var(--text-muted)]">{t("admin.audit.tableHeaders.action")}</th>
+              <th className="px-4 py-2 text-left font-medium text-[var(--text-muted)] hidden md:table-cell">{t("admin.audit.tableHeaders.resource")}</th>
+              <th className="px-4 py-2 text-left font-medium text-[var(--text-muted)] hidden lg:table-cell">{t("admin.audit.tableHeaders.details")}</th>
+              <th className="px-4 py-2 text-left font-medium text-[var(--text-muted)] hidden md:table-cell">{t("admin.audit.tableHeaders.ip")}</th>
             </tr>
           </thead>
           <tbody>
@@ -71,21 +69,21 @@ export function AuditLogTable({
                   <td className="px-4 py-2 whitespace-nowrap text-[var(--text-muted)]">
                     {entry.createdAt ? new Date(entry.createdAt).toLocaleString() : "-"}
                   </td>
-                  <td className="px-4 py-2 whitespace-nowrap text-[var(--text)]">
+                  <td className="px-4 py-2 whitespace-nowrap text-[var(--text)] hidden sm:table-cell">
                     {entry.username ?? entry.userId ?? "-"}
                   </td>
                   <td className="px-4 py-2 whitespace-nowrap text-[var(--text)]">
                     {entry.action?.replace(/_/g, " ") ?? "-"}
                   </td>
-                  <td className="px-4 py-2 whitespace-nowrap text-[var(--text-muted)]">
+                  <td className="px-4 py-2 whitespace-nowrap text-[var(--text-muted)] hidden md:table-cell">
                     {entry.resourceType
                       ? `${entry.resourceType.replace(/_/g, " ")}${entry.resourceName ? `: ${entry.resourceName}` : ""}`
                       : "-"}
                   </td>
-                  <td className="px-4 py-2 text-[var(--text-muted)]">
+                  <td className="px-4 py-2 text-[var(--text-muted)] hidden lg:table-cell">
                     {formatDetails(entry.details) || "-"}
                   </td>
-                  <td className="px-4 py-2 whitespace-nowrap text-[var(--text-muted)]">
+                  <td className="px-4 py-2 whitespace-nowrap text-[var(--text-muted)] hidden md:table-cell">
                     {entry.ipAddress ?? "-"}
                   </td>
                 </tr>

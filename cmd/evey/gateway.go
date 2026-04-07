@@ -27,7 +27,7 @@ func registerGateway(grpcAddr string) http.Handler {
 		}),
 		runtime.WithIncomingHeaderMatcher(func(key string) (string, bool) {
 			switch strings.ToLower(key) {
-			case "accept-language", "x-locale":
+			case "accept-language", "x-locale", "x-persistent-session":
 				return strings.ToLower(key), true
 			default:
 				return runtime.DefaultHeaderMatcher(key)

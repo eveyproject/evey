@@ -8,6 +8,10 @@ export function setLocaleProvider(fn: () => string) { getLocale = fn; }
 
 let baseURL = "";
 export function setBaseURL(url: string) { baseURL = url; }
+export function getBaseURL(): string { return baseURL; }
+
+let extraHeaders: Record<string, string> = {};
+export function setExtraHeaders(headers: Record<string, string>) { extraHeaders = headers; }
 
 let onUnauthorized: (() => void) | null = null;
 export function setUnauthorizedHandler(fn: () => void) { onUnauthorized = fn; }
@@ -129,7 +133,7 @@ async function fetchWithRefresh(
 
 export async function eveyFetchRaw(request: RawFetcherRequest): Promise<Response> {
   const token = getToken?.();
-  const headers: Record<string, string> = { ...(request.headers ?? {}) };
+  const headers: Record<string, string> = { ...extraHeaders, ...(request.headers ?? {}) };
   if (token) headers["Authorization"] = `Bearer ${token}`;
   const locale = getLocale?.();
   if (locale) headers["Accept-Language"] = locale;
@@ -153,7 +157,7 @@ export async function eveyFetchRaw(request: RawFetcherRequest): Promise<Response
 
 export async function eveyFetch<T>(request: FetcherRequest): Promise<T> {
   const token = getToken?.();
-  const headers: Record<string, string> = { ...(request.headers ?? {}) };
+  const headers: Record<string, string> = { ...extraHeaders, ...(request.headers ?? {}) };
   if (token) headers["Authorization"] = `Bearer ${token}`;
   const locale = getLocale?.();
   if (locale) headers["Accept-Language"] = locale;

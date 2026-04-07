@@ -11,6 +11,8 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/gravity-zero/evey/internal/config"
+
 	eveyv1 "github.com/gravity-zero/evey/gen/evey/v1"
 	"github.com/gravity-zero/evey/internal/adapters/driving/grpcapi/interceptors"
 	appactivity "github.com/gravity-zero/evey/internal/app/activity"
@@ -19,6 +21,7 @@ import (
 	"github.com/gravity-zero/evey/internal/domain/user"
 	"github.com/gravity-zero/evey/internal/pkg/id"
 	eveyi18n "github.com/gravity-zero/evey/internal/pkg/i18n"
+	"github.com/gravity-zero/evey/internal/pkg/quickconnecthub"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -29,9 +32,11 @@ type userHandler struct {
 	userSvc     *appuser.UserService
 	access      *appuser.AccessService
 	query       *appuser.QueryService
-	users       user.UserRepository
-	activitySvc *appactivity.CommandService
-	translator  *eveyi18n.Translator
+	users           user.UserRepository
+	activitySvc     *appactivity.CommandService
+	translator      *eveyi18n.Translator
+	quickConnectHub *quickconnecthub.Hub
+	cfg             *config.Config
 }
 
 func (h *userHandler) audit(ctx context.Context, userID, action, resourceType string, resourceID *string, details map[string]any) {
@@ -62,8 +67,15 @@ func (h *userHandler) audit(ctx context.Context, userID, action, resourceType st
 	}
 }
 
+func (h *userHandler) refreshTTLOverride(ctx context.Context) []time.Duration {
+	if interceptors.PersistentSessionFromCtx(ctx) {
+		return []time.Duration{h.cfg.JWT.RefreshTokenLongTTL}
+	}
+	return nil
+}
+
 func (h *userHandler) Login(ctx context.Context, req *eveyv1.LoginRequest) (*eveyv1.AuthResponse, error) {
-	access, refresh, err := h.auth.Login(ctx, req.Username, req.Password)
+	access, refresh, err := h.auth.Login(ctx, req.Username, req.Password, h.refreshTTLOverride(ctx)...)
 	if err != nil {
 		slog.Warn("login failed", slog.String("username", req.Username), slog.Any("err", err))
 		h.audit(ctx, "", "login", "user", nil, map[string]any{"username": req.Username, "status": "failed"})
@@ -85,7 +97,7 @@ func (h *userHandler) Login(ctx context.Context, req *eveyv1.LoginRequest) (*eve
 }
 
 func (h *userHandler) RefreshToken(ctx context.Context, req *eveyv1.RefreshTokenRequest) (*eveyv1.AuthResponse, error) {
-	access, newRefresh, err := h.auth.RefreshToken(ctx, req.RefreshToken)
+	access, newRefresh, err := h.auth.RefreshToken(ctx, req.RefreshToken, h.refreshTTLOverride(ctx)...)
 	if err != nil {
 		return nil, h.translator.TranslatedError(ctx, codes.Unauthenticated, "errors.auth.invalid_credentials")
 	}
@@ -424,15 +436,19 @@ func (h *userHandler) AuthorizeQuickConnect(ctx context.Context, req *eveyv1.Aut
 		return nil, h.translator.TranslatedError(ctx, codes.Unauthenticated, "errors.auth.unauthenticated")
 	}
 	code := req.Code
+	var fullCode string
 	var err error
 	if len(code) <= 10 {
-		err = h.access.AuthorizeByShortCode(ctx, code, claims.UserID)
+		fullCode, err = h.access.AuthorizeByShortCode(ctx, code, claims.UserID)
 	} else {
-		err = h.access.AuthorizeQuickConnect(ctx, code, claims.UserID)
+		fullCode, err = h.access.AuthorizeQuickConnect(ctx, code, claims.UserID)
 	}
 	if err != nil {
 		slog.Error("authorize quick connect", slog.Any("err", err))
 		return nil, h.translator.TranslatedError(ctx, codes.NotFound, "errors.user.invalid_expired_code")
+	}
+	if h.quickConnectHub != nil {
+		h.quickConnectHub.Notify(fullCode)
 	}
 	return &eveyv1.AuthorizeQuickConnectResponse{}, nil
 }
@@ -445,7 +461,7 @@ func (h *userHandler) CheckQuickConnect(ctx context.Context, req *eveyv1.CheckQu
 	authorized := qc.Status == string(user.Authorized)
 	resp := &eveyv1.CheckQuickConnectResponse{Authorized: authorized}
 	if authorized && qc.UserID != nil {
-		access, refresh, err := h.auth.GenerateTokensForUser(ctx, *qc.UserID)
+		access, refresh, err := h.auth.GenerateTokensForUser(ctx, *qc.UserID, h.refreshTTLOverride(ctx)...)
 		if err != nil {
 			slog.Error("generate tokens for quick connect", slog.Any("err", err))
 			return nil, status.Errorf(codes.Internal, "internal error")

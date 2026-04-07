@@ -26,6 +26,7 @@ import (
 	appsyncplay "github.com/gravity-zero/evey/internal/app/syncplay"
 	apptranscoding "github.com/gravity-zero/evey/internal/app/transcoding"
 	appuser "github.com/gravity-zero/evey/internal/app/user"
+	"github.com/gravity-zero/evey/internal/pkg/quickconnecthub"
 	"github.com/gravity-zero/evey/internal/config"
 	domainlibrary "github.com/gravity-zero/evey/internal/domain/library"
 	"github.com/gravity-zero/evey/internal/domain/notification"
@@ -73,7 +74,10 @@ type HTTPServer struct {
 	Scheduler   *applibrary.Scheduler
 
 	// User
-	OIDCSvc *appuser.OIDCService
+	OIDCSvc         *appuser.OIDCService
+	UserAuthSvc     *appuser.CommandService
+	UserQuerySvc    *appuser.QueryService
+	QuickConnectHub *quickconnecthub.Hub
 
 	// Transcoding
 	TranscodingSvc *apptranscoding.Service
@@ -237,6 +241,9 @@ func (s *HTTPServer) RegisterRoutes(mux *http.ServeMux, gwMux http.Handler) {
 		mux.HandleFunc("GET /api/v1/auth/quick-connect/{code}", ratelimit.MiddlewareFunc(s.LoginRL, func(w http.ResponseWriter, r *http.Request) {
 			authCookieMiddleware(gwMux, s.HTTPSOnly).ServeHTTP(w, r)
 		}))
+		if s.QuickConnectHub != nil {
+			mux.HandleFunc("GET /api/v1/auth/quick-connect/{code}/events", quickConnectSSEHandler(s.QuickConnectHub, &qcCheckerAdapter{query: s.UserQuerySvc, auth: s.UserAuthSvc, cfg: s.Cfg}))
+		}
 		mux.HandleFunc("POST /api/v1/auth/refresh", ratelimit.MiddlewareFunc(s.LoginRL, func(w http.ResponseWriter, r *http.Request) {
 			r = injectRefreshTokenFromCookie(r)
 			authCookieMiddleware(gwMux, s.HTTPSOnly).ServeHTTP(w, r)

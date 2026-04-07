@@ -122,7 +122,7 @@ function Lightbox({ photos, index, onClose, onPrev, onNext, onDelete }: Lightbox
       {index > 0 && (
         <button
           onClick={(e) => { e.stopPropagation(); onPrev(); }}
-          className="absolute left-4 top-1/2 -translate-y-1/2 transition-colors-fast z-raised p-2 rounded-full bg-black/40 hover:bg-black/60 text-[var(--overlay-text)]"
+          className="absolute left-2 sm:left-4 top-1/2 -translate-y-1/2 transition-colors-fast z-raised p-3 sm:p-2 rounded-full bg-black/40 hover:bg-black/60 text-[var(--overlay-text)]"
           aria-label="Previous"
         >
           <ChevronLeft size={28} />
@@ -132,7 +132,7 @@ function Lightbox({ photos, index, onClose, onPrev, onNext, onDelete }: Lightbox
       {index < photos.length - 1 && (
         <button
           onClick={(e) => { e.stopPropagation(); onNext(); }}
-          className="absolute right-4 top-1/2 -translate-y-1/2 transition-colors-fast z-raised p-2 rounded-full bg-black/40 hover:bg-black/60 text-[var(--overlay-text)]"
+          className="absolute right-2 sm:right-4 top-1/2 -translate-y-1/2 transition-colors-fast z-raised p-3 sm:p-2 rounded-full bg-black/40 hover:bg-black/60 text-[var(--overlay-text)]"
           aria-label="Next"
         >
           <ChevronRight size={28} />

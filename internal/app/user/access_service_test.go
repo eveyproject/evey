@@ -353,9 +353,12 @@ func TestAuthorizeQuickConnect_Happy(t *testing.T) {
 	ctx := context.Background()
 	_ = d.quickConnect.Create(ctx, &user.QuickConnectRequest{ID: "qc1", Code: "ABC", Status: "pending"})
 
-	err := d.svc.AuthorizeQuickConnect(ctx, "ABC", "u1")
+	fullCode, err := d.svc.AuthorizeQuickConnect(ctx, "ABC", "u1")
 	if err != nil {
 		t.Fatal(err)
+	}
+	if fullCode != "ABC" {
+		t.Fatalf("expected full code ABC, got %s", fullCode)
 	}
 	req, _ := d.quickConnect.GetByCode(ctx, "ABC")
 	if req.Status != "authorized" {
@@ -365,7 +368,7 @@ func TestAuthorizeQuickConnect_Happy(t *testing.T) {
 
 func TestAuthorizeQuickConnect_NotFound(t *testing.T) {
 	d := newAccessTestDeps()
-	err := d.svc.AuthorizeQuickConnect(context.Background(), "NOPE", "u1")
+	_, err := d.svc.AuthorizeQuickConnect(context.Background(), "NOPE", "u1")
 	if err == nil {
 		t.Fatal("expected error")
 	}
@@ -378,9 +381,12 @@ func TestAuthorizeByShortCode_Happy(t *testing.T) {
 	ctx := context.Background()
 	_ = d.quickConnect.Create(ctx, &user.QuickConnectRequest{ID: "qc1", Code: "qc-code-aabbccdd11223344", Status: "pending"})
 
-	err := d.svc.AuthorizeByShortCode(ctx, "223344", "u1")
+	fullCode, err := d.svc.AuthorizeByShortCode(ctx, "223344", "u1")
 	if err != nil {
 		t.Fatal(err)
+	}
+	if fullCode != "qc-code-aabbccdd11223344" {
+		t.Fatalf("expected full code, got %s", fullCode)
 	}
 	req, _ := d.quickConnect.GetByCode(ctx, "qc-code-aabbccdd11223344")
 	if req.Status != "authorized" {
@@ -390,7 +396,7 @@ func TestAuthorizeByShortCode_Happy(t *testing.T) {
 
 func TestAuthorizeByShortCode_NotFound(t *testing.T) {
 	d := newAccessTestDeps()
-	err := d.svc.AuthorizeByShortCode(context.Background(), "XXXXXX", "u1")
+	_, err := d.svc.AuthorizeByShortCode(context.Background(), "XXXXXX", "u1")
 	if err == nil {
 		t.Fatal("expected error")
 	}

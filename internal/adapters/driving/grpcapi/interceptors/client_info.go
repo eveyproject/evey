@@ -13,6 +13,7 @@ import (
 type userAgentKey struct{}
 type deviceNameKey struct{}
 type clientIPKey struct{}
+type persistentSessionKey struct{}
 
 // ClientInfoUnary extracts user-agent, x-device-name, and client IP from gRPC metadata into context.
 func ClientInfoUnary() grpc.UnaryServerInterceptor {
@@ -39,6 +40,9 @@ func enrichClientInfo(ctx context.Context) context.Context {
 	}
 	if vals := md.Get("x-device-name"); len(vals) > 0 {
 		ctx = context.WithValue(ctx, deviceNameKey{}, vals[0])
+	}
+	if vals := md.Get("x-persistent-session"); len(vals) > 0 && strings.EqualFold(vals[0], "true") {
+		ctx = context.WithValue(ctx, persistentSessionKey{}, true)
 	}
 	ctx = context.WithValue(ctx, clientIPKey{}, resolveClientIP(ctx, md))
 	return ctx
@@ -74,5 +78,10 @@ func DeviceNameFromCtx(ctx context.Context) string {
 
 func ClientIPFromCtx(ctx context.Context) string {
 	v, _ := ctx.Value(clientIPKey{}).(string)
+	return v
+}
+
+func PersistentSessionFromCtx(ctx context.Context) bool {
+	v, _ := ctx.Value(persistentSessionKey{}).(bool)
 	return v
 }

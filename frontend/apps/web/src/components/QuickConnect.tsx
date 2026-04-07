@@ -1,7 +1,7 @@
 import { useEffect, useState, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import QRCode from "react-qr-code";
-import { useUserServiceInitiateQuickConnect, useUserServiceCheckQuickConnect } from "@evey/api";
+import { useUserServiceInitiateQuickConnect } from "@evey/api";
 import { useAuthStore } from "@evey/store";
 import { useNavigate } from "@tanstack/react-router";
 import { Spinner } from "@/components/ui/Spinner";
@@ -10,7 +10,6 @@ const REFRESH_INTERVAL_S = 120;
 
 export function QuickConnect() {
   const [code, setCode] = useState<string | null>(null);
-  const [enabled, setEnabled] = useState(true);
   const [secondsLeft, setSecondsLeft] = useState(REFRESH_INTERVAL_S);
   const codeSetAt = useRef<number>(0);
   const { t } = useTranslation();
@@ -29,27 +28,19 @@ export function QuickConnect() {
     },
   });
 
-  const { data: checkData } = useUserServiceCheckQuickConnect(code ?? "", {
-    query: {
-      enabled: !!code && enabled,
-      refetchInterval: 3000,
-      refetchIntervalInBackground: true,
-    },
-  });
-
   useEffect(() => {
     initiate.mutate();
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- fire-once on mount; initiate.mutate identity changes every render
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- fire-once on mount
   }, []);
 
-  // Auto-refresh code every 30s
+  // Auto-refresh code every REFRESH_INTERVAL_S
   useEffect(() => {
     const id = setInterval(() => {
       setCode(null);
       initiate.mutate();
     }, REFRESH_INTERVAL_S * 1000);
     return () => clearInterval(id);
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- fire-once on mount; initiate.mutate identity changes every render
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- fire-once on mount
   }, []);
 
   // Countdown ticker
@@ -61,13 +52,24 @@ export function QuickConnect() {
     return () => clearInterval(id);
   }, []);
 
+  // SSE: wait for authorization
   useEffect(() => {
-    if (checkData?.authorized && checkData.auth?.accessToken) {
-      setEnabled(false);
-      setTokens(checkData.auth.accessToken);
-      void navigate({ to: "/home" });
-    }
-  }, [checkData, setTokens, navigate]);
+    if (!code) return;
+    const url = `/api/v1/auth/quick-connect/${code}/events`;
+    const es = new EventSource(url);
+    es.onmessage = (e) => {
+      const data = JSON.parse(e.data) as { event: string; accessToken?: string; refreshToken?: string };
+      if (data.event === "authorized" && data.accessToken) {
+        setTokens(data.accessToken);
+        es.close();
+        void navigate({ to: "/home" });
+      } else if (data.event === "expired" || data.event === "error") {
+        es.close();
+      }
+    };
+    es.onerror = () => es.close();
+    return () => es.close();
+  }, [code, setTokens, navigate]);
 
   const qrValue = code ? `${window.location.origin}/quickconnect?code=${code}` : "";
 

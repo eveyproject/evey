@@ -153,4 +153,39 @@ func TestContextAccessors_EmptyContext(t *testing.T) {
 	assert.Empty(t, interceptors.UserAgentFromCtx(ctx))
 	assert.Empty(t, interceptors.DeviceNameFromCtx(ctx))
 	assert.Empty(t, interceptors.ClientIPFromCtx(ctx))
+	assert.False(t, interceptors.PersistentSessionFromCtx(ctx))
+}
+
+func TestClientInfoUnary_PersistentSession(t *testing.T) {
+	interceptor := interceptors.ClientInfoUnary()
+	md := metadata.Pairs("x-persistent-session", "true")
+	ctx := metadata.NewIncomingContext(context.Background(), md)
+
+	var captured context.Context
+	handler := func(ctx context.Context, req any) (any, error) {
+		captured = ctx
+		return "ok", nil
+	}
+
+	info := &grpc.UnaryServerInfo{FullMethod: "/test/Method"}
+	_, err := interceptor(ctx, nil, info, handler)
+	require.NoError(t, err)
+	assert.True(t, interceptors.PersistentSessionFromCtx(captured))
+}
+
+func TestClientInfoUnary_PersistentSession_Absent(t *testing.T) {
+	interceptor := interceptors.ClientInfoUnary()
+	md := metadata.Pairs("user-agent", "EveyWeb/1.0")
+	ctx := metadata.NewIncomingContext(context.Background(), md)
+
+	var captured context.Context
+	handler := func(ctx context.Context, req any) (any, error) {
+		captured = ctx
+		return "ok", nil
+	}
+
+	info := &grpc.UnaryServerInfo{FullMethod: "/test/Method"}
+	_, err := interceptor(ctx, nil, info, handler)
+	require.NoError(t, err)
+	assert.False(t, interceptors.PersistentSessionFromCtx(captured))
 }

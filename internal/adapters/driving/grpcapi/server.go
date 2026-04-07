@@ -34,6 +34,7 @@ import (
 	"github.com/gravity-zero/evey/internal/domain/shared"
 	"github.com/gravity-zero/evey/internal/domain/user"
 	eveyi18n "github.com/gravity-zero/evey/internal/pkg/i18n"
+	"github.com/gravity-zero/evey/internal/pkg/quickconnecthub"
 	"github.com/gravity-zero/evey/internal/pkg/ratelimit"
 	"google.golang.org/grpc"
 )
@@ -87,8 +88,9 @@ type GRPCServerDeps struct {
 	VAPIDPubKey    string
 	PushRegisterRL *ratelimit.Limiter
 	SyncplayHub    *appsyncplay.Hub     // optional
-	ThumbRating    domainlibrary.UserRatingRepository
-	StarRating     *apprating.Service
+	ThumbRating      domainlibrary.UserRatingRepository
+	StarRating       *apprating.Service
+	QuickConnectHub  *quickconnecthub.Hub
 }
 
 type GRPCServer struct {
@@ -110,7 +112,7 @@ func NewGRPCServer(deps GRPCServerDeps, opts ...grpc.ServerOption) *GRPCServer {
 func (s *GRPCServer) RegisterServices() {
 	d := &s.deps
 	eveyv1.RegisterLibraryServiceServer(s.server, &libraryHandler{cmd: d.LibCmd, query: d.LibQuery, metadataSvc: d.MetadataQuery, libraryAccess: d.LibraryAccess, profiles: d.Profiles, translator: d.Translator})
-	eveyv1.RegisterUserServiceServer(s.server, &userHandler{auth: d.UserAuth, userSvc: d.UserSvc, access: d.UserAccess, query: d.UserQuery, users: d.Users, activitySvc: d.ActivityCmd, translator: d.Translator})
+	eveyv1.RegisterUserServiceServer(s.server, &userHandler{auth: d.UserAuth, userSvc: d.UserSvc, access: d.UserAccess, query: d.UserQuery, users: d.Users, activitySvc: d.ActivityCmd, translator: d.Translator, quickConnectHub: d.QuickConnectHub, cfg: d.Cfg})
 	eveyv1.RegisterPlaybackServiceServer(s.server, &playbackHandler{cmd: d.PlaybackCmd, query: d.PlaybackQuery, librarySvc: d.LibQuery, activitySvc: d.ActivityCmd, profiles: d.Profiles, libraryAccess: d.LibraryAccess, translator: d.Translator, hlsManager: d.HLSManager})
 	eveyv1.RegisterTranscodingServiceServer(s.server, &transcodingHandler{svc: d.Transcoding, profiles: d.Profiles})
 	eveyv1.RegisterMKVServiceServer(s.server, &mkvHandler{svc: d.Mkv})

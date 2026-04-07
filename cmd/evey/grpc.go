@@ -10,10 +10,11 @@ import (
 	"github.com/gravity-zero/evey/internal/adapters/driving/grpcapi/interceptors"
 	"github.com/gravity-zero/evey/internal/config"
 	eveylogger "github.com/gravity-zero/evey/internal/pkg/logger"
+	"github.com/gravity-zero/evey/internal/pkg/quickconnecthub"
 	"github.com/gravity-zero/evey/internal/pkg/ratelimit"
 )
 
-func buildGRPCServer(deps *appDeps, cfg *config.Config, rootLog *slog.Logger, logDir string, serverCtx context.Context) *grpcapi.GRPCServer {
+func buildGRPCServer(deps *appDeps, cfg *config.Config, rootLog *slog.Logger, logDir string, serverCtx context.Context, qcHub *quickconnecthub.Hub) *grpcapi.GRPCServer {
 	authInterceptor := interceptors.NewAuthInterceptor(deps.auth.tokenGen).WithAPIKeys(deps.repos.apiKeyRepo, deps.repos.userRepo).WithTranslator(deps.translator)
 	grpcLog := eveylogger.NewWith(rootLog, "grpc")
 
@@ -64,6 +65,7 @@ func buildGRPCServer(deps *appDeps, cfg *config.Config, rootLog *slog.Logger, lo
 		SyncplayHub:     deps.media.syncPlayHub,
 		ThumbRating:     deps.repos.userRatingRepo,
 		StarRating:      deps.content.starRatingSvc,
+		QuickConnectHub: qcHub,
 	}
 
 	if deps.repos.pushSubRepo != nil {

@@ -11,7 +11,13 @@ vi.mock("@tanstack/react-query", async (importActual) => {
   const actual = await importActual<typeof import("@tanstack/react-query")>();
   return {
     ...actual,
-    useQuery: (...args: unknown[]) => mockUseQuery(...args),
+    useQuery: (...args: unknown[]) => {
+      const opts = args[0] as { queryKey?: string[] } | undefined;
+      if (opts?.queryKey?.[0]?.includes("server-settings")) {
+        return { data: undefined, isLoading: true };
+      }
+      return mockUseQuery(...args);
+    },
     useMutation: (...args: unknown[]) => mockUseMutation(...args),
     useQueryClient: () => ({ invalidateQueries: mockInvalidateQueries }),
   };

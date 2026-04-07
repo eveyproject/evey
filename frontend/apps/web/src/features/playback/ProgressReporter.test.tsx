@@ -2,16 +2,15 @@ import React from "react";
 import { render } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
-const mockMutate = vi.fn();
-const mockReportProgress = {
-  mutate: mockMutate,
-  isPending: false,
-  isError: false,
-};
+const mockReportProgress = vi.fn().mockResolvedValue({});
 
 vi.mock("@evey/api", () => ({
   eveyFetch: vi.fn(),
-  usePlaybackServiceReportProgress: () => mockReportProgress,
+  playbackServiceReportProgress: (...args: unknown[]) => mockReportProgress(...args),
+}));
+
+vi.mock("@evey/store", () => ({
+  toast: { success: vi.fn(), error: vi.fn(), info: vi.fn() },
 }));
 
 function createVideoRef(overrides: Partial<HTMLVideoElement> = {}) {
@@ -28,8 +27,7 @@ describe("ProgressReporter", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.useFakeTimers();
-    mockReportProgress.isPending = false;
-    mockReportProgress.isError = false;
+    mockReportProgress.mockResolvedValue({});
   });
 
   afterEach(() => {
@@ -47,7 +45,7 @@ describe("ProgressReporter", () => {
     expect(container.firstChild).toBeNull();
   });
 
-  it("reports progress every 10 seconds when video is playing", async () => {
+  it("reports progress every 3 seconds when video is playing", async () => {
     const { ProgressReporter } = await import("./ProgressReporter");
     const videoRef = createVideoRef();
 
@@ -55,68 +53,79 @@ describe("ProgressReporter", () => {
       React.createElement(ProgressReporter, { sessionId: "sess1", videoRef }),
     );
 
-    vi.advanceTimersByTime(10_000);
-    expect(mockMutate).toHaveBeenCalledTimes(1);
-    expect(mockMutate).toHaveBeenCalledWith({
-      data: {
-        sessionId: "sess1",
-        positionMs: "42000",
-        isPaused: false,
-        isMuted: false,
-        volumeLevel: 80,
-      },
+    await vi.advanceTimersByTimeAsync(3_000);
+    expect(mockReportProgress).toHaveBeenCalledTimes(1);
+    expect(mockReportProgress).toHaveBeenCalledWith({
+      sessionId: "sess1",
+      positionMs: "42000",
+      isPaused: false,
+      isMuted: false,
+      volumeLevel: 80,
     });
 
-    vi.advanceTimersByTime(10_000);
-    expect(mockMutate).toHaveBeenCalledTimes(2);
+    await vi.advanceTimersByTimeAsync(3_000);
+    expect(mockReportProgress).toHaveBeenCalledTimes(2);
   });
 
-  it("does not report when video is paused", async () => {
+  it("does not report when videoRef.current is null", async () => {
     const { ProgressReporter } = await import("./ProgressReporter");
-    const videoRef = createVideoRef();
-    Object.defineProperty(videoRef.current, "paused", { value: true, writable: true });
+    const videoRef = { current: null };
 
     render(
       React.createElement(ProgressReporter, { sessionId: "sess1", videoRef }),
     );
 
-    vi.advanceTimersByTime(30_000);
-    expect(mockMutate).not.toHaveBeenCalled();
+    await vi.advanceTimersByTimeAsync(9_000);
+    expect(mockReportProgress).not.toHaveBeenCalled();
   });
 
   it("skips tick when a request is already pending", async () => {
     const { ProgressReporter } = await import("./ProgressReporter");
-    mockReportProgress.isPending = true;
+    let resolveFirst: () => void;
+    mockReportProgress.mockImplementationOnce(() => new Promise<Record<string, never>>((r) => { resolveFirst = () => r({}); }));
 
     const videoRef = createVideoRef();
     render(
       React.createElement(ProgressReporter, { sessionId: "sess1", videoRef }),
     );
 
-    vi.advanceTimersByTime(10_000);
-    expect(mockMutate).not.toHaveBeenCalled();
+    await vi.advanceTimersByTimeAsync(3_000);
+    expect(mockReportProgress).toHaveBeenCalledTimes(1);
+
+    await vi.advanceTimersByTimeAsync(3_000);
+    expect(mockReportProgress).toHaveBeenCalledTimes(1);
+
+    resolveFirst!();
+    await vi.advanceTimersByTimeAsync(0);
+
+    await vi.advanceTimersByTimeAsync(3_000);
+    expect(mockReportProgress).toHaveBeenCalledTimes(2);
   });
 
   it("backs off after consecutive errors — only reports every 3rd tick", async () => {
     const { ProgressReporter } = await import("./ProgressReporter");
-    mockReportProgress.isError = true;
+    mockReportProgress.mockRejectedValue(new Error("network"));
 
     const videoRef = createVideoRef();
     render(
       React.createElement(ProgressReporter, { sessionId: "sess1", videoRef }),
     );
 
-    // tick 1: errorCount becomes 1, 1%3 !== 0, skip
-    vi.advanceTimersByTime(10_000);
-    expect(mockMutate).toHaveBeenCalledTimes(0);
+    // tick 1: calls, rejects, errorCount becomes 1
+    await vi.advanceTimersByTimeAsync(3_000);
+    expect(mockReportProgress).toHaveBeenCalledTimes(1);
 
-    // tick 2: errorCount becomes 2, 2%3 !== 0, skip
-    vi.advanceTimersByTime(10_000);
-    expect(mockMutate).toHaveBeenCalledTimes(0);
+    // tick 2: errorCount=1, 1%3 !== 0, skip (errorCount becomes 2)
+    await vi.advanceTimersByTimeAsync(3_000);
+    expect(mockReportProgress).toHaveBeenCalledTimes(1);
 
-    // tick 3: errorCount becomes 3, 3%3 === 0, report
-    vi.advanceTimersByTime(10_000);
-    expect(mockMutate).toHaveBeenCalledTimes(1);
+    // tick 3: errorCount=2, 2%3 !== 0, skip (errorCount becomes 3)
+    await vi.advanceTimersByTimeAsync(3_000);
+    expect(mockReportProgress).toHaveBeenCalledTimes(1);
+
+    // tick 4: errorCount=3, 3%3 === 0, report
+    await vi.advanceTimersByTimeAsync(3_000);
+    expect(mockReportProgress).toHaveBeenCalledTimes(2);
   });
 
   it("clears interval on unmount", async () => {
