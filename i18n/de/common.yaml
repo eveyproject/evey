@@ -26,10 +26,13 @@ all: Alle
 add: Hinzufügen
 remove: Entfernen
 name: Name
+"no": "Nein"
 status: Status
 actions: Aktionen
 apply: Anwenden
 clear: Leeren
+close: "Schließen"
+confirm: "Bestätigen"
 test: Testen
 download: Herunterladen
 restore: Wiederherstellen
@@ -48,6 +51,7 @@ newKey: Neuer Schlüssel
 copyKey: Schlüssel kopieren
 unableToLoadNotifications: Benachrichtigungen konnten nicht geladen werden
 viewAllNotifications: Alle Benachrichtigungen anzeigen
+"yes": "Ja"
 markAllRead: Alle als gelesen markieren
 item_one: "{{count}} Element"
 item_other: "{{count}} Elemente"

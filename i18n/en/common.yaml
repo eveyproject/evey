@@ -26,10 +26,13 @@ all: All
 add: Add
 remove: Remove
 name: Name
+"no": "No"
 status: Status
 actions: Actions
 apply: Apply
 clear: Clear
+close: Close
+confirm: Confirm
 test: Test
 download: Download
 restore: Restore
@@ -48,6 +51,7 @@ newKey: New Key
 copyKey: Copy Key
 unableToLoadNotifications: Unable to load notifications
 viewAllNotifications: View all notifications
+"yes": "Yes"
 markAllRead: Mark all read
 item_one: "{{count}} item"
 item_other: "{{count}} items"

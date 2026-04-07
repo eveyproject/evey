@@ -26,10 +26,13 @@ all: "Tout"
 add: Ajouter
 remove: Supprimer
 name: Nom
+"no": "Non"
 status: Statut
 actions: Actions
 apply: Appliquer
 clear: Effacer
+close: Fermer
+confirm: Confirmer
 test: Tester
 download: Télécharger
 restore: Restaurer
@@ -48,6 +51,7 @@ newKey: Nouvelle clé
 copyKey: Copier la clé
 unableToLoadNotifications: Impossible de charger les notifications
 viewAllNotifications: Voir toutes les notifications
+"yes": "Oui"
 markAllRead: Tout marquer comme lu
 noNotifications: Aucune notification
 item_one: "{{count}} élément"
