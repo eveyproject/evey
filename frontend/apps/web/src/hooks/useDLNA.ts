@@ -32,9 +32,16 @@ let sdkLoaded = false;
 let sdkReady = false;
 const readyCallbacks: Array<() => void> = [];
 
+const isMobileBrowser = /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent);
+
 function ensureCastSdk() {
   if (sdkLoaded) return;
   sdkLoaded = true;
+
+  if (isMobileBrowser) {
+    console.log(TAG, "Mobile browser detected — skipping Cast SDK (unsupported)");
+    return;
+  }
   console.log(TAG, "Injecting Cast sender SDK script...");
 
   (window as any).__onGCastApiAvailable = (isAvailable: boolean) => {
