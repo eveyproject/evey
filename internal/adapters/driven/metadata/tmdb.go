@@ -17,11 +17,30 @@ import (
 type TMDBProvider struct {
 	apiKey      string
 	baseURL     string
-	language    string // ISO 639-1, e.g. "en", "fr"
+	languageFn  func() string
 	httpClient  *http.Client
 	searchCache *cache.TTLCache[[]domain.MetadataResult]
 	detailCache *cache.TTLCache[domain.MetadataResult]
 	stopCleanup func()
+}
+
+func (p *TMDBProvider) language() string { return p.languageFn() }
+
+func NewTMDBProviderWithGetter(apiKey string, languageFn func() string, httpClient *http.Client) *TMDBProvider {
+	if httpClient == nil {
+		httpClient = &http.Client{Timeout: 30 * time.Second}
+	}
+	sc, stopSC := cache.New[[]domain.MetadataResult](10 * time.Minute)
+	dc, stopDC := cache.New[domain.MetadataResult](10 * time.Minute)
+	return &TMDBProvider{
+		apiKey:      apiKey,
+		baseURL:     defaultBaseURL,
+		languageFn:  languageFn,
+		httpClient:  httpClient,
+		searchCache: sc,
+		detailCache: dc,
+		stopCleanup: func() { stopSC(); stopDC() },
+	}
 }
 
 func NewTMDBProvider(apiKey string, language string, httpClient *http.Client) *TMDBProvider {
@@ -31,12 +50,13 @@ func NewTMDBProvider(apiKey string, language string, httpClient *http.Client) *T
 	if language == "" {
 		language = "en"
 	}
+	lang := language
 	sc, stopSC := cache.New[[]domain.MetadataResult](10 * time.Minute)
 	dc, stopDC := cache.New[domain.MetadataResult](10 * time.Minute)
 	return &TMDBProvider{
 		apiKey:      apiKey,
 		baseURL:     defaultBaseURL,
-		language:    language,
+		languageFn:  func() string { return lang },
 		httpClient:  httpClient,
 		searchCache: sc,
 		detailCache: dc,
@@ -86,7 +106,7 @@ func (p *TMDBProvider) searchPages(ctx context.Context, endpoint, query string, 
 		params := url.Values{
 			"query":    {query},
 			"page":     {strconv.Itoa(page)},
-			"language": {p.language},
+			"language": {p.language()},
 		}
 		if year != nil {
 			yearStr := strconv.Itoa(*year)
@@ -123,7 +143,7 @@ func (p *TMDBProvider) searchPages(ctx context.Context, endpoint, query string, 
 // GetEpisodeDetails fetches title, overview and still image for a specific episode.
 func (p *TMDBProvider) GetEpisodeDetails(ctx context.Context, seriesID string, seasonNum, episodeNum int) (*domain.MetadataResult, error) {
 	u := fmt.Sprintf("%s/tv/%s/season/%d/episode/%d?language=%s&append_to_response=images",
-		p.baseURL, seriesID, seasonNum, episodeNum, p.language)
+		p.baseURL, seriesID, seasonNum, episodeNum, p.language())
 	body, err := p.doRequestWithRetry(ctx, u)
 	if err != nil {
 		return nil, fmt.Errorf("tmdb episode request: %w", err)
@@ -167,7 +187,7 @@ func (p *TMDBProvider) GetEpisodeDetails(ctx context.Context, seriesID string, s
 // GetSeasonDetails fetches metadata for a specific season of a TV series.
 func (p *TMDBProvider) GetSeasonDetails(ctx context.Context, seriesID string, seasonNum int) (*domain.MetadataResult, error) {
 	u := fmt.Sprintf("%s/tv/%s/season/%d?language=%s&append_to_response=images",
-		p.baseURL, seriesID, seasonNum, p.language)
+		p.baseURL, seriesID, seasonNum, p.language())
 	body, err := p.doRequestWithRetry(ctx, u)
 	if err != nil {
 		return nil, fmt.Errorf("tmdb season request: %w", err)
@@ -218,9 +238,9 @@ func (p *TMDBProvider) GetByProviderID(ctx context.Context, providerID string, m
 
 	params := url.Values{
 		"append_to_response":     {"credits,keywords,images,external_ids,videos"},
-		"language":               {p.language},
-		"include_image_language": {p.language + ",en,null"},
-		"include_video_language": {p.language + ",en,null"},
+		"language":               {p.language()},
+		"include_image_language": {p.language() + ",en,null"},
+		"include_video_language": {p.language() + ",en,null"},
 	}
 	u := fmt.Sprintf("%s%s?%s", p.baseURL, endpoint, params.Encode())
 
@@ -234,7 +254,7 @@ func (p *TMDBProvider) GetByProviderID(ctx context.Context, providerID string, m
 		return nil, fmt.Errorf("tmdb detail unmarshal: %w", err)
 	}
 
-	result := mapDetailResult(detail, mediaType, p.language)
+	result := mapDetailResult(detail, mediaType, p.language())
 	p.detailCache.Set(cacheKey, result, cacheTTL)
 	return &result, nil
 }
@@ -243,7 +263,7 @@ func (p *TMDBProvider) GetByProviderID(ctx context.Context, providerID string, m
 func (p *TMDBProvider) FetchTranslations(ctx context.Context, providerID string, mediaType string, locales []string) (map[string]domain.MetadataResult, error) {
 	results := make(map[string]domain.MetadataResult)
 	for _, locale := range locales {
-		if locale == p.language {
+		if locale == p.language() {
 			continue
 		}
 		endpoint, err := detailEndpoint(mediaType, providerID)
@@ -280,7 +300,7 @@ func (p *TMDBProvider) FetchTranslations(ctx context.Context, providerID string,
 func (p *TMDBProvider) FetchPersonTranslations(ctx context.Context, personID string, locales []string) (map[string]string, error) {
 	results := make(map[string]string)
 	for _, locale := range locales {
-		if locale == p.language {
+		if locale == p.language() {
 			continue
 		}
 		u := fmt.Sprintf("%s/person/%s?language=%s", p.baseURL, personID, locale)
@@ -301,7 +321,7 @@ func (p *TMDBProvider) FetchPersonTranslations(ctx context.Context, personID str
 
 // GetPersonDetails searches TMDB for a person by name and returns biographical info.
 func (p *TMDBProvider) GetPersonDetails(ctx context.Context, name string) (*PersonDetails, error) {
-	searchURL := fmt.Sprintf("%s/search/person?query=%s&language=%s", p.baseURL, url.QueryEscape(name), p.language)
+	searchURL := fmt.Sprintf("%s/search/person?query=%s&language=%s", p.baseURL, url.QueryEscape(name), p.language())
 	body, err := p.doRequestWithRetry(ctx, searchURL)
 	if err != nil {
 		return nil, fmt.Errorf("tmdb search person: %w", err)
@@ -315,7 +335,7 @@ func (p *TMDBProvider) GetPersonDetails(ctx context.Context, name string) (*Pers
 	}
 	tmdbID := searchResp.Results[0].ID
 
-	detailURL := fmt.Sprintf("%s/person/%d?language=%s", p.baseURL, tmdbID, p.language)
+	detailURL := fmt.Sprintf("%s/person/%d?language=%s", p.baseURL, tmdbID, p.language())
 	body, err = p.doRequestWithRetry(ctx, detailURL)
 	if err != nil {
 		return nil, fmt.Errorf("tmdb get person detail: %w", err)

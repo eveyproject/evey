@@ -18,7 +18,6 @@ import {
   SlidersHorizontal,
   ChevronDown,
   Rows3,
-  Settings,
   type LucideIcon,
 } from "lucide-react";
 
@@ -41,7 +40,6 @@ const sectionsDef: NavSection[] = [
       { href: "/admin/sessions", labelKey: "admin.nav.nowPlaying", icon: PlayCircle },
       { href: "/admin/remote-access", labelKey: "admin.nav.remoteAccess", icon: Globe },
       { href: "/admin/server-config", labelKey: "admin.nav.serverConfig", icon: SlidersHorizontal },
-      { href: "/admin/server-settings", labelKey: "admin.nav.serverSettings", icon: Settings },
       { href: "/admin/feeds", labelKey: "common.nav.homeFeeds", icon: Rows3 },
       { href: "/admin/system-health", labelKey: "admin.nav.systemHealth", icon: Cpu },
     ],

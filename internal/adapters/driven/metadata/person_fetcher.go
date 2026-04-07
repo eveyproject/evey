@@ -35,7 +35,7 @@ func (f *TMDBPersonFetcher) GetPersonDetails(ctx context.Context, name string) (
 
 // FetchPersonTranslations searches TMDB for a person by name, then fetches biography in each locale.
 func (f *TMDBPersonFetcher) FetchPersonTranslations(ctx context.Context, name string, locales []string) (map[string]string, error) {
-	searchURL := fmt.Sprintf("%s/search/person?query=%s&language=%s", f.tmdb.baseURL, url.QueryEscape(name), f.tmdb.language)
+	searchURL := fmt.Sprintf("%s/search/person?query=%s&language=%s", f.tmdb.baseURL, url.QueryEscape(name), f.tmdb.language())
 	body, err := f.tmdb.doRequestWithRetry(ctx, searchURL)
 	if err != nil {
 		return nil, err
