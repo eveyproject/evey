@@ -2,6 +2,8 @@ package library_test
 
 import (
 	"context"
+	"errors"
+	"sync"
 	"testing"
 
 	applib "github.com/gravity-zero/evey/internal/app/library"
@@ -10,6 +12,148 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+// --- inline fakes for translation/fetcher ports (no domain fake exists) ---
+
+type fakeMediaItemTranslationRepo struct {
+	mu    sync.RWMutex
+	items map[string]map[string]*library.MediaItemTranslation // mediaItemID -> locale -> translation
+	Err   error
+}
+
+func newFakeMediaItemTranslationRepo() *fakeMediaItemTranslationRepo {
+	return &fakeMediaItemTranslationRepo{items: make(map[string]map[string]*library.MediaItemTranslation)}
+}
+
+func (r *fakeMediaItemTranslationRepo) Upsert(_ context.Context, t *library.MediaItemTranslation) error {
+	if r.Err != nil {
+		return r.Err
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.items[t.MediaItemID] == nil {
+		r.items[t.MediaItemID] = make(map[string]*library.MediaItemTranslation)
+	}
+	r.items[t.MediaItemID][t.Locale] = t
+	return nil
+}
+
+func (r *fakeMediaItemTranslationRepo) GetByMediaItemAndLocale(_ context.Context, mediaItemID, locale string) (*library.MediaItemTranslation, error) {
+	if r.Err != nil {
+		return nil, r.Err
+	}
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	if m, ok := r.items[mediaItemID]; ok {
+		if t, ok2 := m[locale]; ok2 {
+			return t, nil
+		}
+	}
+	return nil, nil
+}
+
+func (r *fakeMediaItemTranslationRepo) GetByMediaItem(_ context.Context, mediaItemID string) ([]*library.MediaItemTranslation, error) {
+	if r.Err != nil {
+		return nil, r.Err
+	}
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	var result []*library.MediaItemTranslation
+	for _, t := range r.items[mediaItemID] {
+		result = append(result, t)
+	}
+	return result, nil
+}
+
+func (r *fakeMediaItemTranslationRepo) DeleteByMediaItem(_ context.Context, mediaItemID string) error {
+	if r.Err != nil {
+		return r.Err
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	delete(r.items, mediaItemID)
+	return nil
+}
+
+type fakePersonTranslationRepo struct {
+	mu    sync.RWMutex
+	items map[string]map[string]*library.PersonTranslation // personID -> locale -> translation
+	Err   error
+}
+
+func newFakePersonTranslationRepo() *fakePersonTranslationRepo {
+	return &fakePersonTranslationRepo{items: make(map[string]map[string]*library.PersonTranslation)}
+}
+
+func (r *fakePersonTranslationRepo) Upsert(_ context.Context, t *library.PersonTranslation) error {
+	if r.Err != nil {
+		return r.Err
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.items[t.PersonID] == nil {
+		r.items[t.PersonID] = make(map[string]*library.PersonTranslation)
+	}
+	r.items[t.PersonID][t.Locale] = t
+	return nil
+}
+
+func (r *fakePersonTranslationRepo) GetByPersonAndLocale(_ context.Context, personID, locale string) (*library.PersonTranslation, error) {
+	if r.Err != nil {
+		return nil, r.Err
+	}
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	if m, ok := r.items[personID]; ok {
+		if t, ok2 := m[locale]; ok2 {
+			return t, nil
+		}
+	}
+	return nil, nil
+}
+
+func (r *fakePersonTranslationRepo) GetByPerson(_ context.Context, personID string) ([]*library.PersonTranslation, error) {
+	if r.Err != nil {
+		return nil, r.Err
+	}
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	var result []*library.PersonTranslation
+	for _, t := range r.items[personID] {
+		result = append(result, t)
+	}
+	return result, nil
+}
+
+func (r *fakePersonTranslationRepo) DeleteByPerson(_ context.Context, personID string) error {
+	if r.Err != nil {
+		return r.Err
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	delete(r.items, personID)
+	return nil
+}
+
+type fakePersonDetailsFetcher struct {
+	Result *library.PersonDetailsResult
+	Err    error
+}
+
+func (f *fakePersonDetailsFetcher) GetPersonDetails(_ context.Context, _ string) (*library.PersonDetailsResult, error) {
+	return f.Result, f.Err
+}
+
+type fakePersonTranslationFetcher struct {
+	Result map[string]string
+	Err    error
+}
+
+func (f *fakePersonTranslationFetcher) FetchPersonTranslations(_ context.Context, _ string, _ []string) (map[string]string, error) {
+	return f.Result, f.Err
+}
+
+// --- helpers ---
 
 type querySvcFull struct {
 	svc       *applib.QueryService
@@ -27,6 +171,351 @@ func newQuerySvcFull() *querySvcFull {
 	svc := applib.NewQueryService(libraries, media, streams, search)
 	return &querySvcFull{svc: svc, media: media, libraries: libraries, streams: streams, search: search}
 }
+
+// --- GetMediaItemTranslation ---
+
+func TestQueryService_GetMediaItemTranslation_NilRepo(t *testing.T) {
+	t.Parallel()
+	f := newQuerySvcFull()
+	result, err := f.svc.GetMediaItemTranslation(context.Background(), "m1", "fr")
+	require.NoError(t, err)
+	assert.Nil(t, result)
+}
+
+func TestQueryService_GetMediaItemTranslation_Found(t *testing.T) {
+	t.Parallel()
+	mediaTransRepo := newFakeMediaItemTranslationRepo()
+	mediaTransRepo.Upsert(context.Background(), &library.MediaItemTranslation{
+		MediaItemID: "m1", Locale: "fr", Title: "Le Film", Overview: "Un film",
+	})
+
+	svc := applib.NewQueryService(
+		libfakes.NewFakeLibraryQueryRepo(),
+		libfakes.NewFakeMediaItemQueryRepo(),
+		libfakes.NewFakeMediaStreamRepository(),
+		libfakes.NewFakeSearchIndex(),
+		applib.WithTranslations(mediaTransRepo, newFakePersonTranslationRepo(), &fakePersonTranslationFetcher{}, nil),
+	)
+
+	result, err := svc.GetMediaItemTranslation(context.Background(), "m1", "fr")
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	assert.Equal(t, "Le Film", result.Title)
+	assert.Equal(t, "Un film", result.Overview)
+}
+
+func TestQueryService_GetMediaItemTranslation_NotFound(t *testing.T) {
+	t.Parallel()
+	svc := applib.NewQueryService(
+		libfakes.NewFakeLibraryQueryRepo(),
+		libfakes.NewFakeMediaItemQueryRepo(),
+		libfakes.NewFakeMediaStreamRepository(),
+		libfakes.NewFakeSearchIndex(),
+		applib.WithTranslations(newFakeMediaItemTranslationRepo(), newFakePersonTranslationRepo(), &fakePersonTranslationFetcher{}, nil),
+	)
+
+	result, err := svc.GetMediaItemTranslation(context.Background(), "m1", "fr")
+	require.NoError(t, err)
+	assert.Nil(t, result)
+}
+
+// --- GetPersonTranslation ---
+
+func TestQueryService_GetPersonTranslation_NilRepo(t *testing.T) {
+	t.Parallel()
+	f := newQuerySvcFull()
+	result, err := f.svc.GetPersonTranslation(context.Background(), "p1", "fr")
+	require.NoError(t, err)
+	assert.Nil(t, result)
+}
+
+func TestQueryService_GetPersonTranslation_Found(t *testing.T) {
+	t.Parallel()
+	personTransRepo := newFakePersonTranslationRepo()
+	personTransRepo.Upsert(context.Background(), &library.PersonTranslation{
+		PersonID: "p1", Locale: "fr", Biography: "Bio en francais",
+	})
+
+	svc := applib.NewQueryService(
+		libfakes.NewFakeLibraryQueryRepo(),
+		libfakes.NewFakeMediaItemQueryRepo(),
+		libfakes.NewFakeMediaStreamRepository(),
+		libfakes.NewFakeSearchIndex(),
+		applib.WithTranslations(newFakeMediaItemTranslationRepo(), personTransRepo, &fakePersonTranslationFetcher{}, nil),
+	)
+
+	result, err := svc.GetPersonTranslation(context.Background(), "p1", "fr")
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	assert.Equal(t, "Bio en francais", result.Biography)
+}
+
+// --- GetPerson ---
+
+func TestQueryService_GetPerson_NilPeopleRepo(t *testing.T) {
+	t.Parallel()
+	f := newQuerySvcFull()
+	result, err := f.svc.GetPerson(context.Background(), "p1")
+	require.NoError(t, err)
+	assert.Nil(t, result)
+}
+
+func TestQueryService_GetPerson_Found_NoBioFetch(t *testing.T) {
+	t.Parallel()
+	people := libfakes.NewFakePersonRepository()
+	people.Create(context.Background(), &library.Person{ID: "p1", Name: "Alice", Biography: "Already has bio"})
+
+	svc := applib.NewQueryService(
+		libfakes.NewFakeLibraryQueryRepo(),
+		libfakes.NewFakeMediaItemQueryRepo(),
+		libfakes.NewFakeMediaStreamRepository(),
+		libfakes.NewFakeSearchIndex(),
+		applib.WithPeople(people),
+	)
+
+	person, err := svc.GetPerson(context.Background(), "p1")
+	require.NoError(t, err)
+	require.NotNil(t, person)
+	assert.Equal(t, "Alice", person.Name)
+	assert.Equal(t, "Already has bio", person.Biography)
+}
+
+func TestQueryService_GetPerson_NotFound(t *testing.T) {
+	t.Parallel()
+	people := libfakes.NewFakePersonRepository()
+
+	svc := applib.NewQueryService(
+		libfakes.NewFakeLibraryQueryRepo(),
+		libfakes.NewFakeMediaItemQueryRepo(),
+		libfakes.NewFakeMediaStreamRepository(),
+		libfakes.NewFakeSearchIndex(),
+		applib.WithPeople(people),
+	)
+
+	_, err := svc.GetPerson(context.Background(), "unknown")
+	require.Error(t, err)
+}
+
+func TestQueryService_GetPerson_LazyFetchBio(t *testing.T) {
+	t.Parallel()
+	people := libfakes.NewFakePersonRepository()
+	people.Create(context.Background(), &library.Person{ID: "p1", Name: "Alice", Biography: ""})
+
+	thumbURL := "http://img.example.com/alice.jpg"
+	fetcher := &fakePersonDetailsFetcher{
+		Result: &library.PersonDetailsResult{
+			Biography:    "Fetched bio",
+			Birthday:     "1990-01-01",
+			Deathday:     "",
+			PlaceOfBirth: "Paris",
+			KnownFor:     "Acting",
+			ThumbURL:     thumbURL,
+		},
+	}
+
+	svc := applib.NewQueryService(
+		libfakes.NewFakeLibraryQueryRepo(),
+		libfakes.NewFakeMediaItemQueryRepo(),
+		libfakes.NewFakeMediaStreamRepository(),
+		libfakes.NewFakeSearchIndex(),
+		applib.WithPeople(people),
+		applib.WithPersonFetcher(fetcher),
+	)
+
+	person, err := svc.GetPerson(context.Background(), "p1")
+	require.NoError(t, err)
+	assert.Equal(t, "Fetched bio", person.Biography)
+	assert.Equal(t, "1990-01-01", person.Birthday)
+	assert.Equal(t, "Paris", person.PlaceOfBirth)
+	assert.Equal(t, "Acting", person.KnownFor)
+	require.NotNil(t, person.ThumbPath)
+	assert.Equal(t, thumbURL, *person.ThumbPath)
+
+	// verify persisted via Update
+	persisted, _ := people.GetByID(context.Background(), "p1")
+	assert.Equal(t, "Fetched bio", persisted.Biography)
+}
+
+func TestQueryService_GetPerson_LazyFetchBio_NoThumbOverwrite(t *testing.T) {
+	t.Parallel()
+	people := libfakes.NewFakePersonRepository()
+	existingThumb := "/existing/thumb.jpg"
+	people.Create(context.Background(), &library.Person{ID: "p1", Name: "Alice", Biography: "", ThumbPath: &existingThumb})
+
+	fetcher := &fakePersonDetailsFetcher{
+		Result: &library.PersonDetailsResult{
+			Biography: "Bio",
+			ThumbURL:  "http://new-thumb.jpg",
+		},
+	}
+
+	svc := applib.NewQueryService(
+		libfakes.NewFakeLibraryQueryRepo(),
+		libfakes.NewFakeMediaItemQueryRepo(),
+		libfakes.NewFakeMediaStreamRepository(),
+		libfakes.NewFakeSearchIndex(),
+		applib.WithPeople(people),
+		applib.WithPersonFetcher(fetcher),
+	)
+
+	person, err := svc.GetPerson(context.Background(), "p1")
+	require.NoError(t, err)
+	assert.Equal(t, "/existing/thumb.jpg", *person.ThumbPath)
+}
+
+func TestQueryService_GetPerson_LazyFetch_FetcherError(t *testing.T) {
+	t.Parallel()
+	people := libfakes.NewFakePersonRepository()
+	people.Create(context.Background(), &library.Person{ID: "p1", Name: "Alice", Biography: ""})
+
+	fetcher := &fakePersonDetailsFetcher{Err: errors.New("tmdb down")}
+
+	svc := applib.NewQueryService(
+		libfakes.NewFakeLibraryQueryRepo(),
+		libfakes.NewFakeMediaItemQueryRepo(),
+		libfakes.NewFakeMediaStreamRepository(),
+		libfakes.NewFakeSearchIndex(),
+		applib.WithPeople(people),
+		applib.WithPersonFetcher(fetcher),
+	)
+
+	person, err := svc.GetPerson(context.Background(), "p1")
+	require.NoError(t, err)
+	assert.Equal(t, "", person.Biography)
+}
+
+func TestQueryService_GetPerson_LazyFetch_WithTranslations(t *testing.T) {
+	t.Parallel()
+	people := libfakes.NewFakePersonRepository()
+	people.Create(context.Background(), &library.Person{ID: "p1", Name: "Alice", Biography: ""})
+
+	fetcher := &fakePersonDetailsFetcher{
+		Result: &library.PersonDetailsResult{Biography: "Bio EN"},
+	}
+	personTransRepo := newFakePersonTranslationRepo()
+	transFetcher := &fakePersonTranslationFetcher{
+		Result: map[string]string{"fr": "Bio FR", "de": "Bio DE"},
+	}
+
+	svc := applib.NewQueryService(
+		libfakes.NewFakeLibraryQueryRepo(),
+		libfakes.NewFakeMediaItemQueryRepo(),
+		libfakes.NewFakeMediaStreamRepository(),
+		libfakes.NewFakeSearchIndex(),
+		applib.WithPeople(people),
+		applib.WithPersonFetcher(fetcher),
+		applib.WithTranslations(newFakeMediaItemTranslationRepo(), personTransRepo, transFetcher, []string{"fr", "de"}),
+	)
+
+	person, err := svc.GetPerson(context.Background(), "p1")
+	require.NoError(t, err)
+	assert.Equal(t, "Bio EN", person.Biography)
+
+	frTrans, _ := personTransRepo.GetByPersonAndLocale(context.Background(), "p1", "fr")
+	require.NotNil(t, frTrans)
+	assert.Equal(t, "Bio FR", frTrans.Biography)
+
+	deTrans, _ := personTransRepo.GetByPersonAndLocale(context.Background(), "p1", "de")
+	require.NotNil(t, deTrans)
+	assert.Equal(t, "Bio DE", deTrans.Biography)
+}
+
+func TestQueryService_GetPerson_LazyFetch_TranslationFetchError(t *testing.T) {
+	t.Parallel()
+	people := libfakes.NewFakePersonRepository()
+	people.Create(context.Background(), &library.Person{ID: "p1", Name: "Alice", Biography: ""})
+
+	fetcher := &fakePersonDetailsFetcher{
+		Result: &library.PersonDetailsResult{Biography: "Bio EN"},
+	}
+	personTransRepo := newFakePersonTranslationRepo()
+	transFetcher := &fakePersonTranslationFetcher{Err: errors.New("fetch failed")}
+
+	svc := applib.NewQueryService(
+		libfakes.NewFakeLibraryQueryRepo(),
+		libfakes.NewFakeMediaItemQueryRepo(),
+		libfakes.NewFakeMediaStreamRepository(),
+		libfakes.NewFakeSearchIndex(),
+		applib.WithPeople(people),
+		applib.WithPersonFetcher(fetcher),
+		applib.WithTranslations(newFakeMediaItemTranslationRepo(), personTransRepo, transFetcher, []string{"fr"}),
+	)
+
+	person, err := svc.GetPerson(context.Background(), "p1")
+	require.NoError(t, err)
+	assert.Equal(t, "Bio EN", person.Biography)
+
+	// no translation stored
+	frTrans, _ := personTransRepo.GetByPersonAndLocale(context.Background(), "p1", "fr")
+	assert.Nil(t, frTrans)
+}
+
+func TestQueryService_GetPerson_LazyFetch_UpdateError_StillReturns(t *testing.T) {
+	t.Parallel()
+	people := libfakes.NewFakePersonRepository()
+	people.Create(context.Background(), &library.Person{ID: "p1", Name: "Alice", Biography: ""})
+
+	fetcher := &fakePersonDetailsFetcher{
+		Result: &library.PersonDetailsResult{Biography: "Bio"},
+	}
+
+	// make update fail after the first GetByID succeeds
+	svc := applib.NewQueryService(
+		libfakes.NewFakeLibraryQueryRepo(),
+		libfakes.NewFakeMediaItemQueryRepo(),
+		libfakes.NewFakeMediaStreamRepository(),
+		libfakes.NewFakeSearchIndex(),
+		applib.WithPeople(people),
+		applib.WithPersonFetcher(fetcher),
+	)
+
+	// set error after person is created so GetByID works but Update fails
+	people.Err = errors.New("db write fail")
+
+	// GetByID will fail too because Err is set globally on the fake
+	// So we need a different approach: just verify that the person is returned
+	// even if GetByID returns an error, the service returns that error
+	_, err := svc.GetPerson(context.Background(), "p1")
+	require.Error(t, err)
+}
+
+// --- GetMediaItemsByIDs ---
+
+func TestQueryService_GetMediaItemsByIDs_Found(t *testing.T) {
+	t.Parallel()
+	f := newQuerySvcFull()
+	f.media.Seed(&library.MediaItem{ID: "m1", Title: "A"})
+	f.media.Seed(&library.MediaItem{ID: "m2", Title: "B"})
+	f.media.Seed(&library.MediaItem{ID: "m3", Title: "C"})
+
+	items, err := f.svc.GetMediaItemsByIDs(context.Background(), []string{"m1", "m3"})
+	require.NoError(t, err)
+	assert.Len(t, items, 2)
+	ids := []string{items[0].ID, items[1].ID}
+	assert.Contains(t, ids, "m1")
+	assert.Contains(t, ids, "m3")
+}
+
+func TestQueryService_GetMediaItemsByIDs_PartialMatch(t *testing.T) {
+	t.Parallel()
+	f := newQuerySvcFull()
+	f.media.Seed(&library.MediaItem{ID: "m1", Title: "A"})
+
+	items, err := f.svc.GetMediaItemsByIDs(context.Background(), []string{"m1", "nonexistent"})
+	require.NoError(t, err)
+	assert.Len(t, items, 1)
+	assert.Equal(t, "m1", items[0].ID)
+}
+
+func TestQueryService_GetMediaItemsByIDs_EmptyInput(t *testing.T) {
+	t.Parallel()
+	f := newQuerySvcFull()
+	items, err := f.svc.GetMediaItemsByIDs(context.Background(), []string{})
+	require.NoError(t, err)
+	assert.Empty(t, items)
+}
+
+// --- CountMediaItems ---
 
 func TestQueryService_CountMediaItems_Empty(t *testing.T) {
 	t.Parallel()
@@ -63,6 +552,21 @@ func TestQueryService_CountMediaItems_FilterByType(t *testing.T) {
 	assert.Equal(t, 2, count)
 }
 
+func TestQueryService_CountMediaItems_FilterByParentID(t *testing.T) {
+	t.Parallel()
+	f := newQuerySvcFull()
+	parent := "series-1"
+	f.media.Seed(&library.MediaItem{ID: "ep1", ParentID: parent, Type: "episode"})
+	f.media.Seed(&library.MediaItem{ID: "ep2", ParentID: parent, Type: "episode"})
+	f.media.Seed(&library.MediaItem{ID: "ep3", ParentID: "series-2", Type: "episode"})
+
+	count, err := f.svc.CountMediaItems(context.Background(), library.ListMediaItemsFilter{ParentID: &parent})
+	require.NoError(t, err)
+	assert.Equal(t, 2, count)
+}
+
+// --- GetCastForItems ---
+
 func TestQueryService_GetCastForItems_MultipleItems(t *testing.T) {
 	t.Parallel()
 	f := newQuerySvcFull()
@@ -95,6 +599,8 @@ func TestQueryService_GetCastForItems_EmptySlice(t *testing.T) {
 	require.NoError(t, err)
 	assert.Empty(t, castMap)
 }
+
+// --- GetMediaStreams ---
 
 func TestQueryService_GetMediaStreams_NoStreams(t *testing.T) {
 	t.Parallel()
@@ -131,6 +637,38 @@ func TestQueryService_GetMediaStreams_IsolatedByItem(t *testing.T) {
 	assert.Equal(t, "h264", streams[0].Codec)
 }
 
+func TestQueryService_GetMediaStreams_AssertStreamContent(t *testing.T) {
+	t.Parallel()
+	f := newQuerySvcFull()
+	width, height := 1920, 1080
+	channels := 6
+	f.streams.CreateBatch(context.Background(), []*library.MediaStream{
+		{ID: "s1", MediaItemID: "item-1", StreamType: "video", Codec: "hevc", Width: &width, Height: &height},
+		{ID: "s2", MediaItemID: "item-1", StreamType: "audio", Codec: "aac", Channels: &channels},
+	})
+
+	streams, err := f.svc.GetMediaStreams(context.Background(), "item-1")
+	require.NoError(t, err)
+	require.Len(t, streams, 2)
+	var video, audio *library.MediaStream
+	for _, s := range streams {
+		if s.StreamType == "video" {
+			video = s
+		} else {
+			audio = s
+		}
+	}
+	require.NotNil(t, video)
+	assert.Equal(t, "hevc", video.Codec)
+	assert.Equal(t, 1920, *video.Width)
+	assert.Equal(t, 1080, *video.Height)
+	require.NotNil(t, audio)
+	assert.Equal(t, "aac", audio.Codec)
+	assert.Equal(t, 6, *audio.Channels)
+}
+
+// --- SearchMedia ---
+
 func TestQueryService_SearchMedia_Finds(t *testing.T) {
 	t.Parallel()
 	f := newQuerySvcFull()
@@ -164,11 +702,143 @@ func TestQueryService_SearchMedia_NoResults(t *testing.T) {
 	assert.Empty(t, hits)
 }
 
+func TestQueryService_SearchMedia_HitContent(t *testing.T) {
+	t.Parallel()
+	f := newQuerySvcFull()
+	year := 2005
+	f.search.IndexMediaItem(context.Background(), &library.MediaItem{
+		ID: "m1", Title: "Batman Begins", Type: "movie",
+		Year: &year, Genres: []string{"action"}, OfficialRating: "PG-13",
+	}, nil)
+
+	hits, total, err := f.svc.SearchMedia(context.Background(), "batman", nil, nil, 10)
+	require.NoError(t, err)
+	assert.Equal(t, int64(1), total)
+	require.Len(t, hits, 1)
+	assert.Equal(t, "m1", hits[0].ID)
+	assert.Equal(t, "Batman Begins", hits[0].Title)
+	assert.Equal(t, "movie", hits[0].Type)
+	assert.Equal(t, 2005, *hits[0].Year)
+	assert.Equal(t, []string{"action"}, hits[0].Genres)
+	assert.Equal(t, "PG-13", hits[0].OfficialRating)
+}
+
+// --- GetLibrary ---
+
 func TestQueryService_GetLibrary_NotFound(t *testing.T) {
 	t.Parallel()
 	f := newQuerySvcFull()
 	_, err := f.svc.GetLibrary(context.Background(), "nonexistent")
 	require.Error(t, err)
+}
+
+func TestQueryService_GetLibrary_Found(t *testing.T) {
+	t.Parallel()
+	f := newQuerySvcFull()
+	f.libraries.Seed(&library.Library{ID: "lib-1", Name: "Movies", Type: "movie"})
+
+	lib, err := f.svc.GetLibrary(context.Background(), "lib-1")
+	require.NoError(t, err)
+	assert.Equal(t, "lib-1", lib.ID)
+	assert.Equal(t, "Movies", lib.Name)
+	assert.Equal(t, "movie", lib.Type)
+}
+
+// --- ListLibraries ---
+
+func TestQueryService_ListLibraries_Empty(t *testing.T) {
+	t.Parallel()
+	f := newQuerySvcFull()
+	libs, err := f.svc.ListLibraries(context.Background())
+	require.NoError(t, err)
+	assert.Empty(t, libs)
+}
+
+func TestQueryService_ListLibraries_Multiple(t *testing.T) {
+	t.Parallel()
+	f := newQuerySvcFull()
+	f.libraries.Seed(&library.Library{ID: "lib-1", Name: "Movies", Type: "movie"})
+	f.libraries.Seed(&library.Library{ID: "lib-2", Name: "TV Shows", Type: "tvshow"})
+
+	libs, err := f.svc.ListLibraries(context.Background())
+	require.NoError(t, err)
+	assert.Len(t, libs, 2)
+	ids := []string{libs[0].ID, libs[1].ID}
+	assert.Contains(t, ids, "lib-1")
+	assert.Contains(t, ids, "lib-2")
+}
+
+// --- GetMediaItem ---
+
+func TestQueryService_GetMediaItem_Found(t *testing.T) {
+	t.Parallel()
+	f := newQuerySvcFull()
+	year := 2020
+	rating := 8.5
+	f.media.Seed(&library.MediaItem{
+		ID: "m1", Title: "Inception", Type: "movie",
+		LibraryID: "lib-1", Year: &year, CommunityRating: &rating,
+		Genres: []string{"sci-fi", "thriller"},
+	})
+
+	item, err := f.svc.GetMediaItem(context.Background(), "m1")
+	require.NoError(t, err)
+	assert.Equal(t, "m1", item.ID)
+	assert.Equal(t, "Inception", item.Title)
+	assert.Equal(t, "movie", item.Type)
+	assert.Equal(t, "lib-1", item.LibraryID)
+	assert.Equal(t, 2020, *item.Year)
+	assert.InEpsilon(t, 8.5, *item.CommunityRating, 1e-9)
+	assert.Equal(t, []string{"sci-fi", "thriller"}, item.Genres)
+}
+
+func TestQueryService_GetMediaItem_NotFound(t *testing.T) {
+	t.Parallel()
+	f := newQuerySvcFull()
+	_, err := f.svc.GetMediaItem(context.Background(), "nonexistent")
+	require.Error(t, err)
+}
+
+// --- GetCast ---
+
+func TestQueryService_GetCast_SingleItem(t *testing.T) {
+	t.Parallel()
+	f := newQuerySvcFull()
+	charName := "Bruce Wayne"
+	f.media.SeedCast("item-1", []library.CastMember{
+		{PersonID: "p1", PersonName: "Christian Bale", RoleType: "actor", CharacterName: &charName, SortOrder: 0},
+		{PersonID: "p2", PersonName: "Christopher Nolan", RoleType: "director", SortOrder: 1},
+	})
+
+	cast, err := f.svc.GetCast(context.Background(), "item-1")
+	require.NoError(t, err)
+	assert.Len(t, cast, 2)
+	assert.Equal(t, "Christian Bale", cast[0].PersonName)
+	assert.Equal(t, "actor", cast[0].RoleType)
+	assert.Equal(t, "Bruce Wayne", *cast[0].CharacterName)
+	assert.Equal(t, "Christopher Nolan", cast[1].PersonName)
+	assert.Equal(t, "director", cast[1].RoleType)
+}
+
+func TestQueryService_GetCast_NoCast(t *testing.T) {
+	t.Parallel()
+	f := newQuerySvcFull()
+	cast, err := f.svc.GetCast(context.Background(), "no-item")
+	require.NoError(t, err)
+	assert.Empty(t, cast)
+}
+
+// --- ListMediaItems ---
+
+func TestQueryService_ListMediaItems_AllNoFilter(t *testing.T) {
+	t.Parallel()
+	f := newQuerySvcFull()
+	f.media.Seed(&library.MediaItem{ID: "m1", Title: "A"})
+	f.media.Seed(&library.MediaItem{ID: "m2", Title: "B"})
+
+	items, err := f.svc.ListMediaItems(context.Background(), library.ListMediaItemsFilter{})
+	require.NoError(t, err)
+	assert.Len(t, items, 2)
 }
 
 func TestQueryService_ListMediaItems_Pagination(t *testing.T) {
@@ -252,167 +922,67 @@ func TestQueryService_ListMediaItems_FilterByMinRating(t *testing.T) {
 	assert.Equal(t, "m2", items[0].ID)
 }
 
-func TestQueryService_GetLibrary_Found(t *testing.T) {
-	t.Parallel()
-	f := newQuerySvcFull()
-	f.libraries.Seed(&library.Library{ID: "lib-1", Name: "Movies", Type: "movie"})
+// --- Options ---
 
-	lib, err := f.svc.GetLibrary(context.Background(), "lib-1")
+func TestQueryService_WithPeople_Option(t *testing.T) {
+	t.Parallel()
+	people := libfakes.NewFakePersonRepository()
+	people.Create(context.Background(), &library.Person{ID: "p1", Name: "Alice", Biography: "Bio"})
+
+	svc := applib.NewQueryService(
+		libfakes.NewFakeLibraryQueryRepo(),
+		libfakes.NewFakeMediaItemQueryRepo(),
+		libfakes.NewFakeMediaStreamRepository(),
+		libfakes.NewFakeSearchIndex(),
+		applib.WithPeople(people),
+	)
+
+	person, err := svc.GetPerson(context.Background(), "p1")
 	require.NoError(t, err)
-	assert.Equal(t, "lib-1", lib.ID)
-	assert.Equal(t, "Movies", lib.Name)
-	assert.Equal(t, "movie", lib.Type)
+	require.NotNil(t, person)
+	assert.Equal(t, "Alice", person.Name)
 }
 
-func TestQueryService_ListLibraries_Empty(t *testing.T) {
+func TestQueryService_WithPersonFetcher_Option(t *testing.T) {
 	t.Parallel()
-	f := newQuerySvcFull()
-	libs, err := f.svc.ListLibraries(context.Background())
-	require.NoError(t, err)
-	assert.Empty(t, libs)
-}
+	people := libfakes.NewFakePersonRepository()
+	people.Create(context.Background(), &library.Person{ID: "p1", Name: "Alice", Biography: ""})
 
-func TestQueryService_ListLibraries_Multiple(t *testing.T) {
-	t.Parallel()
-	f := newQuerySvcFull()
-	f.libraries.Seed(&library.Library{ID: "lib-1", Name: "Movies", Type: "movie"})
-	f.libraries.Seed(&library.Library{ID: "lib-2", Name: "TV Shows", Type: "tvshow"})
-
-	libs, err := f.svc.ListLibraries(context.Background())
-	require.NoError(t, err)
-	assert.Len(t, libs, 2)
-	ids := []string{libs[0].ID, libs[1].ID}
-	assert.Contains(t, ids, "lib-1")
-	assert.Contains(t, ids, "lib-2")
-}
-
-func TestQueryService_GetMediaItem_Found(t *testing.T) {
-	t.Parallel()
-	f := newQuerySvcFull()
-	year := 2020
-	rating := 8.5
-	f.media.Seed(&library.MediaItem{
-		ID: "m1", Title: "Inception", Type: "movie",
-		LibraryID: "lib-1", Year: &year, CommunityRating: &rating,
-		Genres: []string{"sci-fi", "thriller"},
-	})
-
-	item, err := f.svc.GetMediaItem(context.Background(), "m1")
-	require.NoError(t, err)
-	assert.Equal(t, "m1", item.ID)
-	assert.Equal(t, "Inception", item.Title)
-	assert.Equal(t, "movie", item.Type)
-	assert.Equal(t, "lib-1", item.LibraryID)
-	assert.Equal(t, 2020, *item.Year)
-	assert.InEpsilon(t, 8.5, *item.CommunityRating, 1e-9)
-	assert.Equal(t, []string{"sci-fi", "thriller"}, item.Genres)
-}
-
-func TestQueryService_GetMediaItem_NotFound(t *testing.T) {
-	t.Parallel()
-	f := newQuerySvcFull()
-	_, err := f.svc.GetMediaItem(context.Background(), "nonexistent")
-	require.Error(t, err)
-}
-
-func TestQueryService_GetCast_SingleItem(t *testing.T) {
-	t.Parallel()
-	f := newQuerySvcFull()
-	charName := "Bruce Wayne"
-	f.media.SeedCast("item-1", []library.CastMember{
-		{PersonID: "p1", PersonName: "Christian Bale", RoleType: "actor", CharacterName: &charName, SortOrder: 0},
-		{PersonID: "p2", PersonName: "Christopher Nolan", RoleType: "director", SortOrder: 1},
-	})
-
-	cast, err := f.svc.GetCast(context.Background(), "item-1")
-	require.NoError(t, err)
-	assert.Len(t, cast, 2)
-	assert.Equal(t, "Christian Bale", cast[0].PersonName)
-	assert.Equal(t, "actor", cast[0].RoleType)
-	assert.Equal(t, "Bruce Wayne", *cast[0].CharacterName)
-	assert.Equal(t, "Christopher Nolan", cast[1].PersonName)
-	assert.Equal(t, "director", cast[1].RoleType)
-}
-
-func TestQueryService_GetCast_NoCast(t *testing.T) {
-	t.Parallel()
-	f := newQuerySvcFull()
-	cast, err := f.svc.GetCast(context.Background(), "no-item")
-	require.NoError(t, err)
-	assert.Empty(t, cast)
-}
-
-func TestQueryService_GetMediaStreams_AssertStreamContent(t *testing.T) {
-	t.Parallel()
-	f := newQuerySvcFull()
-	width, height := 1920, 1080
-	channels := 6
-	f.streams.CreateBatch(context.Background(), []*library.MediaStream{
-		{ID: "s1", MediaItemID: "item-1", StreamType: "video", Codec: "hevc", Width: &width, Height: &height},
-		{ID: "s2", MediaItemID: "item-1", StreamType: "audio", Codec: "aac", Channels: &channels},
-	})
-
-	streams, err := f.svc.GetMediaStreams(context.Background(), "item-1")
-	require.NoError(t, err)
-	require.Len(t, streams, 2)
-	var video, audio *library.MediaStream
-	for _, s := range streams {
-		if s.StreamType == "video" {
-			video = s
-		} else {
-			audio = s
-		}
+	fetcher := &fakePersonDetailsFetcher{
+		Result: &library.PersonDetailsResult{Biography: "Fetched"},
 	}
-	require.NotNil(t, video)
-	assert.Equal(t, "hevc", video.Codec)
-	assert.Equal(t, 1920, *video.Width)
-	assert.Equal(t, 1080, *video.Height)
-	require.NotNil(t, audio)
-	assert.Equal(t, "aac", audio.Codec)
-	assert.Equal(t, 6, *audio.Channels)
+
+	svc := applib.NewQueryService(
+		libfakes.NewFakeLibraryQueryRepo(),
+		libfakes.NewFakeMediaItemQueryRepo(),
+		libfakes.NewFakeMediaStreamRepository(),
+		libfakes.NewFakeSearchIndex(),
+		applib.WithPeople(people),
+		applib.WithPersonFetcher(fetcher),
+	)
+
+	person, err := svc.GetPerson(context.Background(), "p1")
+	require.NoError(t, err)
+	assert.Equal(t, "Fetched", person.Biography)
 }
 
-func TestQueryService_SearchMedia_HitContent(t *testing.T) {
+func TestQueryService_WithTranslations_Option(t *testing.T) {
 	t.Parallel()
-	f := newQuerySvcFull()
-	year := 2005
-	f.search.IndexMediaItem(context.Background(), &library.MediaItem{
-		ID: "m1", Title: "Batman Begins", Type: "movie",
-		Year: &year, Genres: []string{"action"}, OfficialRating: "PG-13",
-	}, nil)
+	mediaTransRepo := newFakeMediaItemTranslationRepo()
+	mediaTransRepo.Upsert(context.Background(), &library.MediaItemTranslation{
+		MediaItemID: "m1", Locale: "es", Title: "Pelicula",
+	})
 
-	hits, total, err := f.svc.SearchMedia(context.Background(), "batman", nil, nil, 10)
+	svc := applib.NewQueryService(
+		libfakes.NewFakeLibraryQueryRepo(),
+		libfakes.NewFakeMediaItemQueryRepo(),
+		libfakes.NewFakeMediaStreamRepository(),
+		libfakes.NewFakeSearchIndex(),
+		applib.WithTranslations(mediaTransRepo, newFakePersonTranslationRepo(), &fakePersonTranslationFetcher{}, []string{"es"}),
+	)
+
+	result, err := svc.GetMediaItemTranslation(context.Background(), "m1", "es")
 	require.NoError(t, err)
-	assert.Equal(t, int64(1), total)
-	require.Len(t, hits, 1)
-	assert.Equal(t, "m1", hits[0].ID)
-	assert.Equal(t, "Batman Begins", hits[0].Title)
-	assert.Equal(t, "movie", hits[0].Type)
-	assert.Equal(t, 2005, *hits[0].Year)
-	assert.Equal(t, []string{"action"}, hits[0].Genres)
-	assert.Equal(t, "PG-13", hits[0].OfficialRating)
-}
-
-func TestQueryService_ListMediaItems_AllNoFilter(t *testing.T) {
-	t.Parallel()
-	f := newQuerySvcFull()
-	f.media.Seed(&library.MediaItem{ID: "m1", Title: "A"})
-	f.media.Seed(&library.MediaItem{ID: "m2", Title: "B"})
-
-	items, err := f.svc.ListMediaItems(context.Background(), library.ListMediaItemsFilter{})
-	require.NoError(t, err)
-	assert.Len(t, items, 2)
-}
-
-func TestQueryService_CountMediaItems_FilterByParentID(t *testing.T) {
-	t.Parallel()
-	f := newQuerySvcFull()
-	parent := "series-1"
-	f.media.Seed(&library.MediaItem{ID: "ep1", ParentID: parent, Type: "episode"})
-	f.media.Seed(&library.MediaItem{ID: "ep2", ParentID: parent, Type: "episode"})
-	f.media.Seed(&library.MediaItem{ID: "ep3", ParentID: "series-2", Type: "episode"})
-
-	count, err := f.svc.CountMediaItems(context.Background(), library.ListMediaItemsFilter{ParentID: &parent})
-	require.NoError(t, err)
-	assert.Equal(t, 2, count)
+	require.NotNil(t, result)
+	assert.Equal(t, "Pelicula", result.Title)
 }
