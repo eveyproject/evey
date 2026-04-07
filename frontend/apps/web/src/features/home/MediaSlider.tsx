@@ -1,4 +1,4 @@
-import { memo, useRef, useState, useEffect, useCallback } from "react";
+import { memo, useRef, useState, useEffect, useCallback, useSyncExternalStore } from "react";
 import type { ReactNode } from "react";
 import { Link } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
@@ -28,6 +28,15 @@ function SkeletonCard() {
   );
 }
 
+function subscribeToResize(cb: () => void) {
+  window.addEventListener("resize", cb);
+  return () => window.removeEventListener("resize", cb);
+}
+
+function getCardWidth() {
+  return window.innerWidth < 640 ? 128 : 160;
+}
+
 export const MediaSlider = memo(function MediaSlider({
   title,
   seeAllHref,
@@ -52,7 +61,7 @@ export const MediaSlider = memo(function MediaSlider({
   const dragStartX = useRef(0);
   const dragScrollLeft = useRef(0);
 
-  const CARD_WIDTH = window.innerWidth < 640 ? 128 : 160;
+  const CARD_WIDTH = useSyncExternalStore(subscribeToResize, getCardWidth);
 
   const checkOverflow = useCallback(() => {
     const el = scrollRef.current;
