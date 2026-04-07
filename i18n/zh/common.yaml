@@ -93,6 +93,10 @@ aria:
   value: "值"
   retryPage: "重试加载页面"
   goToHomePage: "前往首页"
+  skipToContent: "跳转到内容"
+  expand: "展开"
+  select: "选择"
+  deselect: "取消选择"
 notifications:
   title: "通知"
   markRead: "标记已读"

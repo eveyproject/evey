@@ -23,6 +23,13 @@ export function AuthLayout({ children }: AuthLayoutProps) {
 
   return (
     <div className="flex h-screen overflow-hidden">
+      <a
+        href="#main-content"
+        className="sr-only focus:not-sr-only focus:fixed focus:z-popover focus:top-2 focus:left-2 focus:px-4 focus:py-2 focus:rounded-[var(--radius-md)] focus:bg-[var(--accent)] focus:text-white focus:text-sm focus:font-medium"
+      >
+        {t("common.aria.skipToContent")}
+      </a>
+
       {/* Desktop sidebar */}
       <div className="hidden md:block">
         <Sidebar />
@@ -60,6 +67,7 @@ export function AuthLayout({ children }: AuthLayoutProps) {
           </div>
         </div>
         <main
+          id="main-content"
           key={location.pathname}
           className={`flex-1 min-h-0 overflow-y-auto animate-fade-in${isHome ? "" : " p-4 sm:p-6"}`}
         >

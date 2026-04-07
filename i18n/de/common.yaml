@@ -126,6 +126,10 @@ aria:
   value: Wert
   retryPage: Seite erneut laden
   goToHomePage: Zur Startseite gehen
+  skipToContent: Zum Inhalt springen
+  expand: Erweitern
+  select: Auswählen
+  deselect: Abwählen
 watchHistory:
   title: Wiedergabeverlauf
 userStats:
