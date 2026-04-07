@@ -1,9 +1,12 @@
 import React, { Component } from "react";
 import { View, Text, Pressable, StyleSheet } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import { useTheme } from "../providers/ThemeProvider";
+import type { ThemeTokens } from "@evey/theme";
 
 interface Props {
-  children: React.ReactNode;
+  children?: React.ReactNode;
+  theme: ThemeTokens;
 }
 
 interface State {
@@ -23,18 +26,19 @@ class ErrorBoundaryInner extends Component<Props, State> {
 
   render() {
     if (this.state.hasError) {
+      const { theme } = this.props;
       return (
-        <View style={styles.container}>
-          <Ionicons name="alert-circle-outline" size={48} color="#ef4444" />
-          <Text style={styles.title}>Something went wrong</Text>
-          <Text style={styles.message} numberOfLines={3}>
+        <View style={[styles.container, { backgroundColor: theme.colors.bg }]}>
+          <Ionicons name="alert-circle-outline" size={48} color={theme.colors.error} />
+          <Text style={[styles.title, { color: theme.colors.text }]}>Something went wrong</Text>
+          <Text style={[styles.message, { color: theme.colors.textMuted }]} numberOfLines={3}>
             {this.state.error?.message ?? "Unknown error"}
           </Text>
           <Pressable
             onPress={() => this.setState({ hasError: false, error: null })}
-            style={styles.retryBtn}
+            style={[styles.retryBtn, { backgroundColor: theme.colors.accent, borderRadius: theme.radii.md }]}
           >
-            <Text style={styles.retryText}>Try Again</Text>
+            <Text style={[styles.retryText, { color: theme.colors.text }]}>Try Again</Text>
           </Pressable>
         </View>
       );
@@ -44,15 +48,15 @@ class ErrorBoundaryInner extends Component<Props, State> {
   }
 }
 
-// Wrapper to avoid React 19 class component JSX type issues
 export function ErrorBoundary({ children }: { children: React.ReactNode }) {
-  return React.createElement(ErrorBoundaryInner, null, children);
+  const theme = useTheme();
+  return React.createElement(ErrorBoundaryInner, { theme }, children);
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, justifyContent: "center", alignItems: "center", padding: 24, backgroundColor: "#0c1220" },
-  title: { color: "#fff", fontSize: 18, fontWeight: "700", marginTop: 16 },
-  message: { color: "rgba(255,255,255,0.5)", fontSize: 13, textAlign: "center", marginTop: 8, maxWidth: 280 },
-  retryBtn: { marginTop: 20, backgroundColor: "#818cf8", borderRadius: 8, paddingVertical: 10, paddingHorizontal: 24 },
-  retryText: { color: "#fff", fontWeight: "600", fontSize: 15 },
+  container: { flex: 1, justifyContent: "center", alignItems: "center", padding: 24 },
+  title: { fontSize: 18, fontWeight: "700", marginTop: 16 },
+  message: { fontSize: 13, textAlign: "center", marginTop: 8, maxWidth: 280 },
+  retryBtn: { marginTop: 20, paddingVertical: 10, paddingHorizontal: 24 },
+  retryText: { fontWeight: "600", fontSize: 15 },
 });
