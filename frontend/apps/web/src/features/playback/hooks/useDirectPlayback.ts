@@ -50,7 +50,10 @@ export function useDirectPlayback({
     let hlsInstance: InstanceType<typeof Hls> | null = null;
 
     if (!isDirectPlay && !isDirectStream && streamInfo.transcodeUrl && Hls.isSupported()) {
-      hlsInstance = new Hls();
+      hlsInstance = new Hls({
+        maxBufferLength: 30,
+        maxMaxBufferLength: 60,
+      });
       hlsRef.current = hlsInstance;
       hlsInstance.loadSource(streamInfo.transcodeUrl);
       hlsInstance.attachMedia(video);
