@@ -9,6 +9,7 @@ nav:
   media: "媒体"
   libraries: "媒体库"
   metadata: "元数据"
+  transcoding: "转码"
   transcodeCache: "转码缓存"
   transcodingProfiles: "转码配置"
   usersAccess: "用户与访问"
@@ -16,7 +17,7 @@ nav:
   integrations: "集成"
   plugins: "插件"
   webhooks: Webhooks
-  apiKeys: API Keys # TODO: translate
+  apiKeys: "API 密钥"
   monitoring: "监控"
   analytics: "分析"
   activity: "活动"
@@ -86,8 +87,8 @@ plugins:
   blockedByAnalysis: "插件被安全分析拦截"
   previewFailed: "预览失败"
   installFailed: "安装失败"
-  availableRuntimes: Available Runtimes # TODO: translate
-  noRuntimes: No plugin runtimes detected # TODO: translate
+  availableRuntimes: "可用运行时"
+  noRuntimes: "未检测到插件运行时"
 
 dashboard:
   title: "仪表盘"
@@ -155,7 +156,10 @@ libraries:
   addLibrary: "添加媒体库"
   createLibrary: "创建媒体库"
   libraryCreated: "媒体库已创建"
+  libraryUpdated: "媒体库「{{name}}」已更新"
   libraryDeleted: "媒体库「{{name}}」已删除"
+  editLibrary: "编辑媒体库"
+  failedUpdate: "更新媒体库失败"
   failedDelete: "删除媒体库失败"
   scanStarted: "扫描已开始"
   failedScan: "启动扫描失败"
@@ -210,8 +214,8 @@ sessions:
   failedLoadDesc: "无法获取活跃会话。请检查连接后重试。"
   noSessions: "没有活跃会话"
   noSessionsDesc: "当用户开始播放时，会话将显示在此处。"
-  activeCount_one: "{{count}} 个活跃会话 - 每 10 秒刷新"
-  activeCount_other: "{{count}} 个活跃会话 - 每 10 秒刷新"
+  activeCount_one: "{{count}} 个活跃会话"
+  activeCount_other: "{{count}} 个活跃会话"
   stopSession: "停止会话"
   stop: "停止"
   sessionStopped: "会话已停止"
@@ -222,6 +226,10 @@ sessions:
   directPlay: "直接播放"
   directStream: "直接串流"
   transcode: "转码"
+  refreshStatus: "更新于 {{time}} - 每 {{seconds}} 秒自动刷新"
+  sendMessage: "发送消息"
+  messageSent: "消息已发送"
+  messagePlaceholder: "输入消息..."
 
 backup:
   title: "备份与恢复"
@@ -409,19 +417,19 @@ serverConfig:
   noEntriesDesc: "在下方添加键值条目。"
   show: "显示"
   hide: "隐藏"
-  apiKeys: # TODO: translate
-    title: API Keys
-    description: Configure API keys for metadata providers. Keys set here override environment variables.
-    tmdb: TMDB API Key
-    tmdbLink: Get a free key at themoviedb.org
-    omdb: OMDB API Key
-    omdbLink: Get a free key at omdbapi.com
-    opensubtitles: OpenSubtitles API Key
-    opensubtitlesLink: Get a key at opensubtitles.com
-    resetToDefault: Reset to default
-    saved: API key saved
-    usingDefault: Using default key
-    usingCustom: Using custom key
+  apiKeys:
+    title: "API 密钥"
+    description: "配置元数据提供商的 API 密钥。此处设置的密钥会覆盖环境变量。"
+    tmdb: "TMDB API 密钥"
+    tmdbLink: "在 themoviedb.org 获取免费密钥"
+    omdb: "OMDB API 密钥"
+    omdbLink: "在 omdbapi.com 获取免费密钥"
+    opensubtitles: "OpenSubtitles API 密钥"
+    opensubtitlesLink: "在 opensubtitles.com 获取密钥"
+    resetToDefault: "重置为默认值"
+    saved: "API 密钥已保存"
+    usingDefault: "使用默认密钥"
+    usingCustom: "使用自定义密钥"
 
 remoteAccess:
   title: "远程访问"
@@ -520,6 +528,18 @@ dashboardStats:
   scanStarted: "扫描已开始"
   scanFailed: "扫描失败"
   allScansTriggered: "所有媒体库扫描已触发"
+  nowPlaying: "正在播放"
+  noActivePlayback: "无活跃播放"
+  playActivity: "播放活动 (14天)"
+  plays: "播放次数"
+  watchTime: "观看时长"
+  contentBreakdown: "内容分布"
+  activeUsers: "活跃用户"
+  playMethodBreakdown: "播放方式 (30天)"
+  peakHours: "高峰时段 (30天)"
+  used: "已用"
+  free: "可用"
+  loginFailed: "登录失败"
 
 serverSettings:
   title: "服务器设置"

@@ -12,6 +12,7 @@ import {
   useUserServiceListInviteLinks,
   useUserServiceCreateInviteLink,
   useUserServiceRevokeInviteLink,
+  useLibraryServiceListLibraries,
 } from "@evey/api";
 import { toast } from "@evey/store";
 import { eveyFetch } from "@evey/api";
@@ -38,8 +39,38 @@ function CreateUserForm({ onSuccess }: { onSuccess: () => void }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [isAdmin, setIsAdmin] = useState(false);
+  const [selectedLibs, setSelectedLibs] = useState<Set<string>>(new Set());
 
-  const createUser = useUserServiceCreateUser({ mutation: { onSuccess } });
+  const { data: libData } = useLibraryServiceListLibraries();
+  const libraries = libData?.libraries ?? [];
+
+  const handleToggleLib = useCallback((id: string) => {
+    setSelectedLibs((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  }, []);
+
+  const createUser = useUserServiceCreateUser({
+    mutation: {
+      onSuccess: async (data) => {
+        const userId = data?.id;
+        if (userId && !isAdmin && selectedLibs.size > 0) {
+          try {
+            await eveyFetch<void>({
+              url: `/api/v1/admin/users/${userId}/library-access`,
+              method: "PUT",
+              data: { libraryIds: Array.from(selectedLibs) },
+            });
+          } catch {
+            toast.error(t("admin.users.failedLibraryAccess"));
+          }
+        }
+        onSuccess();
+      },
+    },
+  });
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -72,6 +103,37 @@ function CreateUserForm({ onSuccess }: { onSuccess: () => void }) {
         checked={isAdmin}
         onChange={setIsAdmin}
       />
+      {!isAdmin && libraries.length > 0 && (
+        <div className="flex flex-col gap-2">
+          <p className="text-sm font-medium text-[var(--text)]">
+            {t("admin.users.libraryAccessTitle", { name: "" }).replace(/\s*$/, "")}
+          </p>
+          <p className="text-sm text-[var(--text-muted)]">
+            {selectedLibs.size === 0
+              ? t("admin.users.unrestrictedDesc")
+              : t("admin.users.restrictedDesc", { count: selectedLibs.size, libraryWord: selectedLibs.size === 1 ? "library" : "libraries" })}
+          </p>
+          {selectedLibs.size === 0 && (
+            <Badge variant="success">{t("admin.users.unrestricted")}</Badge>
+          )}
+          <div className="flex flex-col gap-2">
+            {libraries.map((lib) => (
+              <div key={lib.id} className="px-3 py-2 rounded-[var(--radius-md)] hover:opacity-80 bg-[var(--surface)]">
+                <Checkbox
+                  label={lib.name ?? lib.id ?? ""}
+                  checked={selectedLibs.has(lib.id!)}
+                  onChange={() => handleToggleLib(lib.id!)}
+                />
+              </div>
+            ))}
+          </div>
+          {selectedLibs.size > 0 && (
+            <Button variant="ghost" onClick={() => setSelectedLibs(new Set())}>
+              {t("admin.users.clearAllUnrestricted")}
+            </Button>
+          )}
+        </div>
+      )}
       <div className="flex justify-end pt-2">
         <Button type="submit" loading={createUser.isPending} disabled={!username || !password}>
           {t("admin.users.createUser")}
@@ -298,6 +360,16 @@ function EditUserModal({ user, open, onClose }: { user: V1User; open: boolean; o
   const [email, setEmail] = useState(user.email ?? "");
   const [password, setPassword] = useState("");
   const [isAdmin, setIsAdmin] = useState(user.isAdmin ?? false);
+  const [selectedLibs, setSelectedLibs] = useState<Set<string>>(new Set());
+  const [saving, setSaving] = useState(false);
+
+  const { data: accessData, isLoading: accessLoading } = useQuery<LibraryAccessData>({
+    queryKey: ["/api/v1/admin/users", user.id, "library-access"],
+    queryFn: () => eveyFetch<LibraryAccessData>({ url: `/api/v1/admin/users/${user.id}/library-access`, method: "GET" }),
+    enabled: open && !isAdmin,
+  });
+
+  const libraries = accessData?.libraries ?? [];
 
   useEffect(() => {
     if (open) {
@@ -308,27 +380,67 @@ function EditUserModal({ user, open, onClose }: { user: V1User; open: boolean; o
     }
   }, [open, user]);
 
+  useEffect(() => {
+    if (accessData) {
+      setSelectedLibs(new Set(accessData.libraryIds));
+    }
+  }, [accessData]);
+
+  const handleToggleLib = useCallback((id: string) => {
+    setSelectedLibs((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  }, []);
+
   const updateUser = useUserServiceUpdateUser({
     mutation: {
-      onSuccess: () => {
-        queryClient.invalidateQueries({ queryKey: USERS_QUERY_KEY });
-        toast.success(t("admin.users.userUpdated") || "User updated");
-        onClose();
-      },
       onError: (err: Error) => toast.error(err.message || t("admin.users.failedUpdateUser")),
     },
   });
 
-  function handleSubmit(e: React.FormEvent) {
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!user.id) return;
-    const data: Record<string, unknown> = {};
-    if (username.trim() !== user.username) data.username = username.trim();
-    if (email.trim() !== (user.email ?? "")) data.email = email.trim();
-    if (password) data.password = password;
-    if (isAdmin !== user.isAdmin) data.isAdmin = isAdmin;
-    if (Object.keys(data).length === 0) { onClose(); return; }
-    updateUser.mutate({ id: user.id, data: data as any });
+    setSaving(true);
+
+    try {
+      const data: Record<string, unknown> = {};
+      if (username.trim() !== user.username) data.username = username.trim();
+      if (email.trim() !== (user.email ?? "")) data.email = email.trim();
+      if (password) data.password = password;
+      if (isAdmin !== user.isAdmin) data.isAdmin = isAdmin;
+
+      if (Object.keys(data).length > 0) {
+        await updateUser.mutateAsync({ id: user.id, data: data as any });
+      }
+
+      if (!isAdmin) {
+        const origIds = new Set(accessData?.libraryIds ?? []);
+        const changed = selectedLibs.size !== origIds.size || [...selectedLibs].some((id) => !origIds.has(id));
+        if (changed) {
+          if (selectedLibs.size === 0) {
+            await eveyFetch<void>({ url: `/api/v1/admin/users/${user.id}/library-access`, method: "DELETE" });
+          } else {
+            await eveyFetch<void>({
+              url: `/api/v1/admin/users/${user.id}/library-access`,
+              method: "PUT",
+              data: { libraryIds: Array.from(selectedLibs) },
+            });
+          }
+        }
+      }
+
+      queryClient.invalidateQueries({ queryKey: USERS_QUERY_KEY });
+      queryClient.invalidateQueries({ queryKey: ["/api/v1/admin/users", user.id, "library-access"] });
+      toast.success(t("admin.users.userUpdated") || "User updated");
+      onClose();
+    } catch (err: any) {
+      toast.error(err?.message || t("admin.users.failedUpdateUser"));
+    } finally {
+      setSaving(false);
+    }
   }
 
   return (
@@ -338,9 +450,46 @@ function EditUserModal({ user, open, onClose }: { user: V1User; open: boolean; o
         <Input label={t("admin.users.email")} type="email" value={email} onChange={(e) => setEmail(e.target.value)} />
         <Input label={t("admin.users.newPassword") || "New password"} type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder={t("admin.users.leaveBlank") || "Leave blank to keep current"} />
         <Checkbox label={t("admin.users.admin")} checked={isAdmin} onChange={setIsAdmin} />
+        {!isAdmin && (
+          accessLoading ? (
+            <div className="flex justify-center py-4">
+              <Spinner size="sm" />
+            </div>
+          ) : libraries.length > 0 ? (
+            <div className="flex flex-col gap-2">
+              <p className="text-sm font-medium text-[var(--text)]">
+                {t("admin.users.libraryAccessTitle", { name: "" }).replace(/\s*$/, "")}
+              </p>
+              <p className="text-sm text-[var(--text-muted)]">
+                {selectedLibs.size === 0
+                  ? t("admin.users.unrestrictedDesc")
+                  : t("admin.users.restrictedDesc", { count: selectedLibs.size, libraryWord: selectedLibs.size === 1 ? "library" : "libraries" })}
+              </p>
+              {selectedLibs.size === 0 && (
+                <Badge variant="success">{t("admin.users.unrestricted")}</Badge>
+              )}
+              <div className="flex flex-col gap-2">
+                {libraries.map((lib) => (
+                  <div key={lib.id} className="px-3 py-2 rounded-[var(--radius-md)] hover:opacity-80 bg-[var(--surface)]">
+                    <Checkbox
+                      label={lib.name}
+                      checked={selectedLibs.has(lib.id)}
+                      onChange={() => handleToggleLib(lib.id)}
+                    />
+                  </div>
+                ))}
+              </div>
+              {selectedLibs.size > 0 && (
+                <Button variant="ghost" onClick={() => setSelectedLibs(new Set())} type="button">
+                  {t("admin.users.clearAllUnrestricted")}
+                </Button>
+              )}
+            </div>
+          ) : null
+        )}
         <div className="flex justify-end gap-2 pt-2">
           <Button variant="ghost" onClick={onClose}>{t("common.cancel")}</Button>
-          <Button type="submit" loading={updateUser.isPending}>{t("common.save")}</Button>
+          <Button type="submit" loading={saving}>{t("common.save")}</Button>
         </div>
       </form>
     </Modal>

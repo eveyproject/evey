@@ -70,6 +70,7 @@ aria:
   bottomNav: Navegación inferior
   options: Opciones
   play: Reproducir
+  pause: Pausa
   loading: Cargando
   breadcrumb: Ruta de navegación
   pagination: Paginación
@@ -113,6 +114,17 @@ notifications:
   backupFailed: "Fallo en la copia de seguridad programada"
 watchHistory:
   title: "Historial de reproducción"
+userStats:
+  title: "Mis estadísticas"
+  noData: "Sin actividad de reproducción"
+  totalWatchTime: "Tiempo de visualización"
+  totalPlays: "Reproducciones totales"
+  uniqueItems: "Títulos únicos"
+  favoriteGenre: "Género favorito"
+  genreBreakdown: "Géneros"
+  monthlyActivity: "Actividad mensual"
+  mostPlayed: "Más reproducidos"
+  playsLabel: "reproducciones"
 nav:
   home: "Inicio"
   libraries: "Bibliotecas"
@@ -125,6 +137,7 @@ nav:
   profile: "Perfil"
   settings: "Ajustes"
   watchHistory: "Historial de reproducción"
+  myStats: "Mis estadísticas"
   quickConnect: "Conexión rápida"
   signOut: "Cerrar sesión"
   expandSidebar: "Expandir barra lateral"

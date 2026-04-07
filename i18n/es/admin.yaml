@@ -9,6 +9,7 @@ nav:
   media: Medios
   libraries: Bibliotecas
   metadata: Metadatos
+  transcoding: Transcodificación
   transcodeCache: Caché de transcodificación
   transcodingProfiles: Perfiles de transcodificación
   usersAccess: Usuarios y acceso
@@ -16,7 +17,7 @@ nav:
   integrations: Integraciones
   plugins: Plugins
   webhooks: Webhooks
-  apiKeys: API Keys # TODO: translate
+  apiKeys: "Claves API"
   monitoring: Monitoreo
   analytics: Analítica
   activity: Actividad
@@ -86,8 +87,8 @@ plugins:
   blockedByAnalysis: "Plugin bloqueado por el análisis de seguridad"
   previewFailed: "Error en la vista previa"
   installFailed: "Error en la instalación"
-  availableRuntimes: Available Runtimes # TODO: translate
-  noRuntimes: No plugin runtimes detected # TODO: translate
+  availableRuntimes: "Entornos de ejecución disponibles"
+  noRuntimes: "No se detectaron entornos de ejecución de plugins"
 
 dashboard:
   title: "Panel"
@@ -155,7 +156,10 @@ libraries:
   addLibrary: "Añadir biblioteca"
   createLibrary: "Crear biblioteca"
   libraryCreated: "Biblioteca creada"
+  libraryUpdated: "Biblioteca \"{{name}}\" actualizada"
   libraryDeleted: "Biblioteca \"{{name}}\" eliminada"
+  editLibrary: "Editar biblioteca"
+  failedUpdate: "Error al actualizar la biblioteca"
   failedDelete: "Error al eliminar la biblioteca"
   scanStarted: "Escaneo iniciado"
   failedScan: "Error al iniciar el escaneo"
@@ -210,8 +214,8 @@ sessions:
   failedLoadDesc: "No se pudieron obtener las sesiones activas. Verifica tu conexión e inténtalo de nuevo."
   noSessions: "Sin sesiones activas"
   noSessionsDesc: "Cuando los usuarios comiencen a transmitir, sus sesiones aparecerán aquí."
-  activeCount_one: "{{count}} sesión activa - se actualiza cada 10s"
-  activeCount_other: "{{count}} sesiones activas - se actualiza cada 10s"
+  activeCount_one: "{{count}} sesión activa"
+  activeCount_other: "{{count}} sesiones activas"
   stopSession: "Detener sesión"
   stop: "Detener"
   sessionStopped: "Sesión detenida"
@@ -222,6 +226,10 @@ sessions:
   directPlay: "Reproducción directa"
   directStream: "Stream directo"
   transcode: "Transcodificación"
+  refreshStatus: "Actualizado {{time}} - actualización automática cada {{seconds}}s"
+  sendMessage: "Enviar mensaje"
+  messageSent: "Mensaje enviado"
+  messagePlaceholder: "Escribe un mensaje..."
 
 backup:
   title: "Copia de seguridad y restauración"
@@ -409,19 +417,19 @@ serverConfig:
   noEntriesDesc: "Añade entradas clave-valor a continuación."
   show: "Mostrar"
   hide: "Ocultar"
-  apiKeys: # TODO: translate
-    title: API Keys
-    description: Configure API keys for metadata providers. Keys set here override environment variables.
-    tmdb: TMDB API Key
-    tmdbLink: Get a free key at themoviedb.org
-    omdb: OMDB API Key
-    omdbLink: Get a free key at omdbapi.com
-    opensubtitles: OpenSubtitles API Key
-    opensubtitlesLink: Get a key at opensubtitles.com
-    resetToDefault: Reset to default
-    saved: API key saved
-    usingDefault: Using default key
-    usingCustom: Using custom key
+  apiKeys:
+    title: "Claves API"
+    description: "Configura claves API para proveedores de metadatos. Las claves definidas aquí anulan las variables de entorno."
+    tmdb: "Clave API de TMDB"
+    tmdbLink: "Obtener una clave gratuita en themoviedb.org"
+    omdb: "Clave API de OMDB"
+    omdbLink: "Obtener una clave gratuita en omdbapi.com"
+    opensubtitles: "Clave API de OpenSubtitles"
+    opensubtitlesLink: "Obtener una clave en opensubtitles.com"
+    resetToDefault: "Restablecer valor predeterminado"
+    saved: "Clave API guardada"
+    usingDefault: "Usando clave predeterminada"
+    usingCustom: "Usando clave personalizada"
 
 remoteAccess:
   title: "Acceso remoto"
@@ -520,6 +528,18 @@ dashboardStats:
   scanStarted: "Escaneo iniciado"
   scanFailed: "Error en el escaneo"
   allScansTriggered: "Todos los escaneos de bibliotecas iniciados"
+  nowPlaying: "Reproduciendo ahora"
+  noActivePlayback: "Sin reproducción activa"
+  playActivity: "Actividad de reproducción (14 días)"
+  plays: "Reproducciones"
+  watchTime: "Tiempo de visualización"
+  contentBreakdown: "Distribución de contenido"
+  activeUsers: "Usuarios activos"
+  playMethodBreakdown: "Método de reproducción (30 días)"
+  peakHours: "Horas pico (30 días)"
+  used: "Usado"
+  free: "Libre"
+  loginFailed: "Error de inicio de sesión"
 
 serverSettings:
   title: "Configuracion del servidor"

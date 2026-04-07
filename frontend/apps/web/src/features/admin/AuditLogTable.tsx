@@ -12,11 +12,14 @@ interface AuditLogTableProps {
   pageSize: number;
 }
 
+const HIDDEN_DETAIL_KEYS = /(_id|_ids|^title|^method)$/;
+
 function formatDetails(raw?: string): string {
   if (!raw) return "";
   try {
     const obj = JSON.parse(raw);
     return Object.entries(obj)
+      .filter(([k]) => !HIDDEN_DETAIL_KEYS.test(k))
       .map(([k, v]) => `${k.replace(/_/g, " ")}: ${v}`)
       .join(", ");
   } catch {
@@ -66,22 +69,24 @@ export function AuditLogTable({
                   className="border-b border-[var(--border)] hover:bg-[var(--surface-raised)] transition-colors-fast"
                 >
                   <td className="px-4 py-2 whitespace-nowrap text-[var(--text-muted)]">
-                    {entry.createdAt ? new Date(entry.createdAt).toLocaleString() : "\u2014"}
+                    {entry.createdAt ? new Date(entry.createdAt).toLocaleString() : "-"}
                   </td>
                   <td className="px-4 py-2 whitespace-nowrap text-[var(--text)]">
-                    {entry.username ?? entry.userId ?? "\u2014"}
+                    {entry.username ?? entry.userId ?? "-"}
                   </td>
                   <td className="px-4 py-2 whitespace-nowrap text-[var(--text)]">
-                    {entry.action?.replace(/_/g, " ") ?? "\u2014"}
+                    {entry.action?.replace(/_/g, " ") ?? "-"}
                   </td>
                   <td className="px-4 py-2 whitespace-nowrap text-[var(--text-muted)]">
-                    {entry.resourceType ? `${entry.resourceType}${entry.resourceId ? ` #${entry.resourceId.slice(0, 8)}` : ""}` : "\u2014"}
+                    {entry.resourceType
+                      ? `${entry.resourceType.replace(/_/g, " ")}${entry.resourceName ? `: ${entry.resourceName}` : ""}`
+                      : "-"}
                   </td>
-                  <td className="px-4 py-2 max-w-xs truncate text-[var(--text-muted)]" title={entry.details ?? ""}>
-                    {formatDetails(entry.details) || "\u2014"}
+                  <td className="px-4 py-2 text-[var(--text-muted)]">
+                    {formatDetails(entry.details) || "-"}
                   </td>
                   <td className="px-4 py-2 whitespace-nowrap text-[var(--text-muted)]">
-                    {entry.ipAddress ?? "\u2014"}
+                    {entry.ipAddress ?? "-"}
                   </td>
                 </tr>
               ))

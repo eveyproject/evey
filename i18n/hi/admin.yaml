@@ -9,6 +9,7 @@ nav:
   media: "मीडिया"
   libraries: "लाइब्रेरी"
   metadata: "मेटाडेटा"
+  transcoding: "ट्रांसकोडिंग"
   transcodeCache: "ट्रांसकोड कैश"
   transcodingProfiles: "ट्रांसकोडिंग प्रोफाइल"
   usersAccess: "उपयोगकर्ता और एक्सेस"
@@ -16,7 +17,7 @@ nav:
   integrations: "इंटिग्रेशन"
   plugins: "प्लगइन"
   webhooks: Webhooks
-  apiKeys: API Keys # TODO: translate
+  apiKeys: "API कुंजियाँ"
   monitoring: "निगरानी"
   analytics: "एनालिटिक्स"
   activity: "गतिविधि"
@@ -86,8 +87,8 @@ plugins:
   blockedByAnalysis: "सुरक्षा विश्लेषण द्वारा प्लगइन अवरुद्ध"
   previewFailed: "पूर्वावलोकन विफल"
   installFailed: "इंस्टॉल विफल"
-  availableRuntimes: Available Runtimes # TODO: translate
-  noRuntimes: No plugin runtimes detected # TODO: translate
+  availableRuntimes: "उपलब्ध रनटाइम"
+  noRuntimes: "कोई प्लगइन रनटाइम नहीं मिला"
 
 dashboard:
   title: "डैशबोर्ड"
@@ -155,7 +156,10 @@ libraries:
   addLibrary: "लाइब्रेरी जोड़ें"
   createLibrary: "लाइब्रेरी बनाएं"
   libraryCreated: "लाइब्रेरी बनाई गई"
+  libraryUpdated: "लाइब्रेरी \"{{name}}\" अपडेट हुई"
   libraryDeleted: "लाइब्रेरी \"{{name}}\" मिटाई गई"
+  editLibrary: "लाइब्रेरी संपादित करें"
+  failedUpdate: "लाइब्रेरी अपडेट करने में विफल"
   failedDelete: "लाइब्रेरी मिटाने में विफल"
   scanStarted: "स्कैन शुरू हुआ"
   failedScan: "स्कैन शुरू करने में विफल"
@@ -210,8 +214,8 @@ sessions:
   failedLoadDesc: "सक्रिय सत्र प्राप्त नहीं हो सके। अपना कनेक्शन जांचें और पुनः प्रयास करें।"
   noSessions: "कोई सक्रिय सत्र नहीं"
   noSessionsDesc: "जब उपयोगकर्ता स्ट्रीमिंग शुरू करेंगे, उनके सत्र यहां दिखाई देंगे।"
-  activeCount_one: "{{count}} सक्रिय सत्र - हर 10 सेकंड रिफ्रेश"
-  activeCount_other: "{{count}} सक्रिय सत्र - हर 10 सेकंड रिफ्रेश"
+  activeCount_one: "{{count}} सक्रिय सत्र"
+  activeCount_other: "{{count}} सक्रिय सत्र"
   stopSession: "सत्र रोकें"
   stop: "रोकें"
   sessionStopped: "सत्र रोका गया"
@@ -222,6 +226,10 @@ sessions:
   directPlay: "डायरेक्ट प्ले"
   directStream: "डायरेक्ट स्ट्रीम"
   transcode: "ट्रांसकोड"
+  refreshStatus: "अपडेट {{time}} - हर {{seconds}}s ऑटो-रिफ्रेश"
+  sendMessage: "संदेश भेजें"
+  messageSent: "संदेश भेजा गया"
+  messagePlaceholder: "संदेश लिखें..."
 
 backup:
   title: "बैकअप और पुनर्स्थापना"
@@ -409,19 +417,19 @@ serverConfig:
   noEntriesDesc: "नीचे कुंजी-मान प्रविष्टियां जोड़ें।"
   show: "दिखाएं"
   hide: "छुपाएं"
-  apiKeys: # TODO: translate
-    title: API Keys
-    description: Configure API keys for metadata providers. Keys set here override environment variables.
-    tmdb: TMDB API Key
-    tmdbLink: Get a free key at themoviedb.org
-    omdb: OMDB API Key
-    omdbLink: Get a free key at omdbapi.com
-    opensubtitles: OpenSubtitles API Key
-    opensubtitlesLink: Get a key at opensubtitles.com
-    resetToDefault: Reset to default
-    saved: API key saved
-    usingDefault: Using default key
-    usingCustom: Using custom key
+  apiKeys:
+    title: "API कुंजियाँ"
+    description: "मेटाडेटा प्रदाताओं के लिए API कुंजियाँ कॉन्फ़िगर करें। यहाँ सेट की गई कुंजियाँ पर्यावरण चरों को ओवरराइड करती हैं।"
+    tmdb: "TMDB API कुंजी"
+    tmdbLink: "themoviedb.org पर मुफ्त कुंजी प्राप्त करें"
+    omdb: "OMDB API कुंजी"
+    omdbLink: "omdbapi.com पर मुफ्त कुंजी प्राप्त करें"
+    opensubtitles: "OpenSubtitles API कुंजी"
+    opensubtitlesLink: "opensubtitles.com पर कुंजी प्राप्त करें"
+    resetToDefault: "डिफ़ॉल्ट पर रीसेट करें"
+    saved: "API कुंजी सहेजी गई"
+    usingDefault: "डिफ़ॉल्ट कुंजी का उपयोग"
+    usingCustom: "कस्टम कुंजी का उपयोग"
 
 remoteAccess:
   title: "रिमोट एक्सेस"
@@ -520,6 +528,18 @@ dashboardStats:
   scanStarted: "स्कैन शुरू हुआ"
   scanFailed: "स्कैन विफल"
   allScansTriggered: "सभी लाइब्रेरी स्कैन शुरू हुए"
+  nowPlaying: "अभी चल रहा है"
+  noActivePlayback: "कोई सक्रिय प्लेबैक नहीं"
+  playActivity: "प्ले गतिविधि (14 दिन)"
+  plays: "प्ले"
+  watchTime: "देखने का समय"
+  contentBreakdown: "सामग्री वितरण"
+  activeUsers: "सक्रिय उपयोगकर्ता"
+  playMethodBreakdown: "प्ले विधि (30 दिन)"
+  peakHours: "पीक घंटे (30 दिन)"
+  used: "उपयोग किया"
+  free: "खाली"
+  loginFailed: "लॉगिन विफल"
 
 serverSettings:
   title: "सर्वर सेटिंग्स"

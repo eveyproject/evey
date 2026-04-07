@@ -9,6 +9,7 @@ nav:
   media: Médias
   libraries: Bibliothèques
   metadata: Métadonnées
+  transcoding: Transcodage
   transcodeCache: Cache de transcodage
   transcodingProfiles: Profils de transcodage
   usersAccess: Utilisateurs et accès
@@ -86,8 +87,8 @@ plugins:
   blockedByAnalysis: "Plugin bloqué par l'analyse de sécurité"
   previewFailed: "Échec de l'aperçu"
   installFailed: "Échec de l'installation"
-  availableRuntimes: Available Runtimes # TODO: translate
-  noRuntimes: No plugin runtimes detected # TODO: translate
+  availableRuntimes: "Environnements d'exécution disponibles"
+  noRuntimes: "Aucun environnement d'exécution de plugin détecté"
 
 dashboard:
   title: "Tableau de bord"
@@ -155,7 +156,10 @@ libraries:
   addLibrary: "Ajouter une bibliothèque"
   createLibrary: "Créer une bibliothèque"
   libraryCreated: "Bibliothèque créée"
+  libraryUpdated: "Bibliothèque \"{{name}}\" mise à jour"
   libraryDeleted: "Bibliothèque \"{{name}}\" supprimée"
+  editLibrary: "Modifier la bibliothèque"
+  failedUpdate: "Échec de la mise à jour de la bibliothèque"
   failedDelete: "Échec de la suppression de la bibliothèque"
   scanStarted: "Scan lancé"
   failedScan: "Échec du lancement du scan"
@@ -210,8 +214,8 @@ sessions:
   failedLoadDesc: "Impossible de récupérer les sessions actives. Vérifiez votre connexion et réessayez."
   noSessions: "Aucune session active"
   noSessionsDesc: "Lorsque les utilisateurs commenceront à diffuser, leurs sessions apparaîtront ici."
-  activeCount_one: "{{count}} session active - actualisation toutes les 10s"
-  activeCount_other: "{{count}} sessions actives - actualisation toutes les 10s"
+  activeCount_one: "{{count}} session active"
+  activeCount_other: "{{count}} sessions actives"
   stopSession: "Arrêter la session"
   stop: "Arrêter"
   sessionStopped: "Session arrêtée"
@@ -222,6 +226,10 @@ sessions:
   directPlay: "Lecture directe"
   directStream: "Stream direct"
   transcode: "Transcodage"
+  refreshStatus: "Mis à jour {{time}} - actualisation automatique toutes les {{seconds}}s"
+  sendMessage: "Envoyer un message"
+  messageSent: "Message envoyé"
+  messagePlaceholder: "Tapez un message..."
 
 backup:
   title: "Sauvegarde et restauration"
@@ -376,10 +384,10 @@ serverConfig:
   title: "Configuration du serveur"
   subtitle: "Entrées de configuration clé-valeur stockées dans la base de données."
   languageRegion: "Langue et région"
-  languageRegionDesc: "Langue des métadonnées utilisée pour récupérer les données de TMDB et d'autres fournisseurs. Prend effet après le redémarrage du serveur."
+  languageRegionDesc: "Langue des métadonnées utilisée pour récupérer les données de TMDB et d'autres fournisseurs."
   metadataLanguage: "Langue des métadonnées"
   envDefault: "— valeur par défaut de l'environnement —"
-  languageUpdated: "Langue mise à jour - redémarrez le serveur pour appliquer aux métadonnées"
+  languageUpdated: "Langue mise à jour"
   configUpdated: "Configuration mise à jour"
   failedUpdate: "Échec de la mise à jour de la configuration"
   configDeleted: "Entrée de configuration supprimée"
@@ -520,6 +528,18 @@ dashboardStats:
   scanStarted: "Scan lancé"
   scanFailed: "Échec du scan"
   allScansTriggered: "Tous les scans de bibliothèques lancés"
+  nowPlaying: "En cours de lecture"
+  noActivePlayback: "Aucune lecture en cours"
+  playActivity: "Activité de lecture (14 jours)"
+  plays: "Lectures"
+  watchTime: "Temps de visionnage"
+  contentBreakdown: "Répartition du contenu"
+  activeUsers: "Utilisateurs actifs"
+  playMethodBreakdown: "Méthode de lecture (30 jours)"
+  peakHours: "Heures de pointe (30 jours)"
+  used: "Utilisé"
+  free: "Libre"
+  loginFailed: "Echec de connexion"
 
 serverSettings:
   title: "Paramètres du serveur"

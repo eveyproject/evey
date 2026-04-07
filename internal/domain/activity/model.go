@@ -52,18 +52,25 @@ type ServerMetric struct {
 }
 
 type UserStats struct {
-	ProfileID        string
-	TotalWatchTimeMs int64
-	TotalPlayCount   int
-	GenreBreakdown   map[string]int64
-	MostPlayedItems  []MediaPlayCount
-	PlayCountByMonth map[string]int
+	ProfileID          string
+	TotalWatchTimeMs   int64
+	TotalPlayCount     int
+	UniqueItemsWatched int
+	GenreBreakdown     map[string]GenreStats
+	MostPlayedItems    []MediaPlayCount
+	PlayCountByMonth   map[string]int
+}
+
+type GenreStats struct {
+	TotalTimeMs int64
+	PlayCount   int
 }
 
 type MediaPlayCount struct {
-	MediaItemID string
-	Title       string
-	PlayCount   int
+	MediaItemID  string
+	Title        string
+	PlayCount    int
+	TotalTimeMs  int64
 }
 
 type AuditLogEntry struct {
@@ -73,6 +80,7 @@ type AuditLogEntry struct {
 	Action       string
 	ResourceType string
 	ResourceID   *string
+	ResourceName string // resolved by JOIN, not persisted
 	Details      map[string]any
 	ClientIP     *string
 	UserAgent    *string
@@ -102,10 +110,29 @@ type RecentActivityEntry struct {
 	PlayedAt   time.Time
 }
 
+type DailyPlayCount struct {
+	Date               string
+	PlayCount          int
+	WatchTimeSeconds   int64
+}
+
+type PlayMethodCount struct {
+	Method string
+	Count  int
+}
+
+type HourlyPlayCount struct {
+	Hour  int
+	Count int
+}
+
 type AnalyticsData struct {
 	TopMedia            []TopMediaItem
 	RecentActivity      []RecentActivityEntry
 	TotalPlaysToday     int
 	TotalPlaysThisWeek  int
 	ActiveUsersToday    int
+	DailyPlays          []DailyPlayCount
+	PlayMethods         []PlayMethodCount
+	HourlyPlays         []HourlyPlayCount
 }

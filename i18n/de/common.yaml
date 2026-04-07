@@ -103,6 +103,7 @@ aria:
   bottomNav: Untere Navigation
   options: Optionen
   play: Abspielen
+  pause: Pause
   loading: Laden
   breadcrumb: Brotkrümel-Navigation
   pagination: Seitennummerierung
@@ -127,6 +128,17 @@ aria:
   goToHomePage: Zur Startseite gehen
 watchHistory:
   title: Wiedergabeverlauf
+userStats:
+  title: Meine Statistiken
+  noData: Noch keine Wiedergabeaktivität
+  totalWatchTime: Wiedergabezeit
+  totalPlays: Wiedergaben gesamt
+  uniqueItems: Einzigartige Titel
+  favoriteGenre: Lieblingsgenre
+  genreBreakdown: Genres
+  monthlyActivity: Monatliche Aktivität
+  mostPlayed: Am meisten gespielt
+  playsLabel: Wiedergaben
 nav:
   home: Startseite
   libraries: Bibliotheken
@@ -139,6 +151,7 @@ nav:
   profile: Profil
   settings: Einstellungen
   watchHistory: Wiedergabeverlauf
+  myStats: Meine Statistiken
   quickConnect: Schnellverbindung
   signOut: Abmelden
   expandSidebar: Seitenleiste erweitern

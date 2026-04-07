@@ -408,7 +408,13 @@ export default function PlayerScreen() {
     try { return player?.muted ?? false; } catch { return false; }
   }, [player]);
 
-  useProgressReporter(sessionId, getPositionMs, getIsPaused, getVolume, getIsMuted);
+  const remoteCallbacks = useMemo(() => ({
+    onRemotePause: () => { try { player?.pause(); } catch { /* released */ } },
+    onRemotePlay: () => { try { player?.play(); } catch { /* released */ } },
+    onRemoteStop: () => { stopSession(); router.back(); },
+  }), [player, stopSession]);
+
+  useProgressReporter(sessionId, getPositionMs, getIsPaused, getVolume, getIsMuted, remoteCallbacks);
 
   const handleAudioSelect = useCallback(
     (index: number) => {

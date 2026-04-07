@@ -5,7 +5,7 @@ import { useNavigate, useRouterState } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { useAuthStore } from "@evey/store";
 import { useUserServiceGetCurrentUser, useUserServiceListProfiles, eveyFetch } from "@evey/api";
-import { Search, Settings, Clock, LayoutList, LogOut, QrCode } from "lucide-react";
+import { Search, Settings, Clock, LayoutList, LogOut, QrCode, BarChart3 } from "lucide-react";
 import { NotificationBell } from "@/features/user/NotificationBell";
 import { SearchDropdown } from "@/features/search/SearchDropdown";
 import { useRecentSearches } from "@/hooks/useRecentSearches";
@@ -51,6 +51,7 @@ function UserMenu({ userInitial, avatarUrl }: { userInitial: string; avatarUrl: 
     const base: { label: string; icon: React.ReactNode; action: () => void }[] = [
       { label: t("common.nav.settings"), icon: <Settings size={16} />, action: () => go("/profile/settings") },
       { label: t("common.nav.watchHistory"), icon: <Clock size={16} />, action: () => go("/profile/history") },
+      { label: t("common.nav.myStats"), icon: <BarChart3 size={16} />, action: () => go("/profile/stats") },
       { label: t("common.nav.quickConnect"), icon: <QrCode size={16} />, action: () => go("/quickconnect") },
     ];
     if (isAdmin) {

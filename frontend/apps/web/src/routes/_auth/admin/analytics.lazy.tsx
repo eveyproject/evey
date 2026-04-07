@@ -201,23 +201,23 @@ function AnalyticsPage() {
       ) : data ? (
         <>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            <StatCard label={t("admin.analytics.playsToday")} value={data.total_plays_today} />
-            <StatCard label={t("admin.analytics.playsThisWeek")} value={data.total_plays_this_week} />
-            <StatCard label={t("admin.analytics.activeUsersToday")} value={data.active_users_today} />
+            <StatCard label={t("admin.analytics.playsToday")} value={data.total_plays_today ?? 0} />
+            <StatCard label={t("admin.analytics.playsThisWeek")} value={data.total_plays_this_week ?? 0} />
+            <StatCard label={t("admin.analytics.activeUsersToday")} value={data.active_users_today ?? 0} />
           </div>
 
           <div>
             <h2 className="text-sm font-semibold uppercase tracking-wide mb-3 text-[var(--text-muted)]">
               {t("admin.analytics.topMedia")}
             </h2>
-            <TopMediaTable items={data.top_media} />
+            <TopMediaTable items={data.top_media ?? []} />
           </div>
 
           <div>
             <h2 className="text-sm font-semibold uppercase tracking-wide mb-3 text-[var(--text-muted)]">
               {t("admin.analytics.recentActivity")}
             </h2>
-            <RecentActivityTable entries={data.recent_activity} />
+            <RecentActivityTable entries={data.recent_activity ?? []} />
           </div>
         </>
       ) : null}

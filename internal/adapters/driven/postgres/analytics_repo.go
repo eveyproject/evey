@@ -27,12 +27,15 @@ func (r *AnalyticsReader) GetAnalytics(ctx context.Context) (*activity.Analytics
 		playsToday     int
 		playsWeek      int
 		activeToday    int
+		dailyPlays     []activity.DailyPlayCount
+		playMethods    []activity.PlayMethodCount
+		hourlyPlays    []activity.HourlyPlayCount
 		err            error
 	}
 
-	results := make([]result, 5)
+	results := make([]result, 8)
 	var wg sync.WaitGroup
-	wg.Add(5)
+	wg.Add(8)
 
 	go func() {
 		defer wg.Done()
@@ -151,6 +154,101 @@ func (r *AnalyticsReader) GetAnalytics(ctx context.Context) (*activity.Analytics
 		).Scan(&results[4].activeToday)
 	}()
 
+	go func() {
+		defer wg.Done()
+		defer func() {
+			if r := recover(); r != nil {
+				slog.Error("panic recovered in analytics daily plays", "error", r, "stack", debug.Stack())
+			}
+		}()
+		rows, err := r.db.QueryContext(ctx, `
+			SELECT d::date::text AS day,
+			       COUNT(ps.id) AS play_count,
+			       COALESCE(SUM(ps.duration_ms)::bigint / 1000, 0) AS watch_time_seconds
+			FROM generate_series(CURRENT_DATE - INTERVAL '13 days', CURRENT_DATE, '1 day') AS d
+			LEFT JOIN play_sessions ps ON ps.started_at::date = d::date
+			GROUP BY d
+			ORDER BY d`)
+		if err != nil {
+			results[5].err = err
+			return
+		}
+		defer rows.Close()
+		var items []activity.DailyPlayCount
+		for rows.Next() {
+			var item activity.DailyPlayCount
+			if scanErr := rows.Scan(&item.Date, &item.PlayCount, &item.WatchTimeSeconds); scanErr != nil {
+				results[5].err = scanErr
+				return
+			}
+			items = append(items, item)
+		}
+		results[5].err = rows.Err()
+		results[5].dailyPlays = items
+	}()
+
+	go func() {
+		defer wg.Done()
+		defer func() {
+			if r := recover(); r != nil {
+				slog.Error("panic recovered in analytics play methods", "error", r, "stack", debug.Stack())
+			}
+		}()
+		rows, err := r.db.QueryContext(ctx, `
+			SELECT play_method, COUNT(*) AS cnt
+			FROM play_sessions
+			WHERE started_at >= NOW() - INTERVAL '30 days'
+			GROUP BY play_method
+			ORDER BY cnt DESC`)
+		if err != nil {
+			results[6].err = err
+			return
+		}
+		defer rows.Close()
+		var items []activity.PlayMethodCount
+		for rows.Next() {
+			var item activity.PlayMethodCount
+			if scanErr := rows.Scan(&item.Method, &item.Count); scanErr != nil {
+				results[6].err = scanErr
+				return
+			}
+			items = append(items, item)
+		}
+		results[6].err = rows.Err()
+		results[6].playMethods = items
+	}()
+
+	go func() {
+		defer wg.Done()
+		defer func() {
+			if r := recover(); r != nil {
+				slog.Error("panic recovered in analytics hourly plays", "error", r, "stack", debug.Stack())
+			}
+		}()
+		rows, err := r.db.QueryContext(ctx, `
+			SELECT EXTRACT(HOUR FROM started_at)::int AS hour, COUNT(*) AS cnt
+			FROM play_sessions
+			WHERE started_at >= NOW() - INTERVAL '30 days'
+			GROUP BY hour
+			ORDER BY hour`)
+		if err != nil {
+			results[7].err = err
+			return
+		}
+		defer rows.Close()
+		var items []activity.HourlyPlayCount
+		for rows.Next() {
+			var item activity.HourlyPlayCount
+			if scanErr := rows.Scan(&item.Hour, &item.Count); scanErr != nil {
+				results[7].err = scanErr
+				return
+			}
+			items = append(items, item)
+		}
+		results[7].err = rows.Err()
+		results[7].hourlyPlays = items
+	}()
+
 	wg.Wait()
 
 	for _, res := range results {
@@ -168,12 +266,28 @@ func (r *AnalyticsReader) GetAnalytics(ctx context.Context) (*activity.Analytics
 		recent = []activity.RecentActivityEntry{}
 	}
 
+	daily := results[5].dailyPlays
+	if daily == nil {
+		daily = []activity.DailyPlayCount{}
+	}
+	methods := results[6].playMethods
+	if methods == nil {
+		methods = []activity.PlayMethodCount{}
+	}
+	hourly := results[7].hourlyPlays
+	if hourly == nil {
+		hourly = []activity.HourlyPlayCount{}
+	}
+
 	return &activity.AnalyticsData{
 		TopMedia:           top,
 		RecentActivity:     recent,
 		TotalPlaysToday:    results[2].playsToday,
 		TotalPlaysThisWeek: results[3].playsWeek,
 		ActiveUsersToday:   results[4].activeToday,
+		DailyPlays:         daily,
+		PlayMethods:        methods,
+		HourlyPlays:        hourly,
 	}, nil
 }
 

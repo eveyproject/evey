@@ -70,6 +70,7 @@ aria:
   bottomNav: Navigation inférieure
   options: Options
   play: Lire
+  pause: Pause
   loading: Chargement
   breadcrumb: Fil d'Ariane
   pagination: Pagination
@@ -113,6 +114,17 @@ notifications:
   backupFailed: "Échec de la sauvegarde planifiée"
 watchHistory:
   title: "Historique de lecture"
+userStats:
+  title: "Mes statistiques"
+  noData: "Aucune activité de lecture"
+  totalWatchTime: "Temps de visionnage"
+  totalPlays: "Lectures totales"
+  uniqueItems: "Titres uniques"
+  favoriteGenre: "Genre favori"
+  genreBreakdown: "Genres"
+  monthlyActivity: "Activité mensuelle"
+  mostPlayed: "Les plus regardés"
+  playsLabel: "lectures"
 nav:
   home: "Accueil"
   libraries: "Bibliothèques"
@@ -125,6 +137,7 @@ nav:
   profile: "Profil"
   settings: "Paramètres"
   watchHistory: "Historique de lecture"
+  myStats: "Mes stats"
   quickConnect: "Connexion rapide"
   signOut: "Se déconnecter"
   expandSidebar: "Agrandir la barre latérale"

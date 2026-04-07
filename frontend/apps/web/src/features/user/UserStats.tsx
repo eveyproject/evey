@@ -1,0 +1,211 @@
+import { useTranslation } from "react-i18next";
+import { Link } from "@tanstack/react-router";
+import { useActivityServiceGetUserStats } from "@evey/api";
+import { useAuthStore } from "@evey/store";
+import { BarChart, PieChart } from "react-gifted-charts";
+import { Spinner } from "@/components/ui/Spinner";
+import { EmptyState } from "@/components/ui/EmptyState";
+import { BarChart3 } from "lucide-react";
+
+const GENRE_COLORS = ["#6366f1", "#f59e0b", "#10b981", "#ef4444", "#8b5cf6", "#ec4899", "#14b8a6", "#f97316"];
+
+const GENRE_FR: Record<string, string> = {
+  Action: "Action",
+  Adventure: "Aventure",
+  Animation: "Animation",
+  Comedy: "Comédie",
+  Crime: "Crime",
+  Documentary: "Documentaire",
+  Drama: "Drame",
+  Family: "Famille",
+  Fantasy: "Fantaisie",
+  History: "Histoire",
+  Horror: "Horreur",
+  Music: "Musique",
+  Mystery: "Mystère",
+  Romance: "Romance",
+  "Science Fiction": "Science-Fiction",
+  "TV Movie": "Téléfilm",
+  Thriller: "Thriller",
+  War: "Guerre",
+  Western: "Western",
+};
+
+function translateGenre(genre: string, lang: string): string {
+  if (lang.startsWith("fr")) return GENRE_FR[genre] ?? genre;
+  return genre;
+}
+
+function useCssVar(name: string, fallback = "#888") {
+  return getComputedStyle(document.documentElement).getPropertyValue(name).trim() || fallback;
+}
+
+function formatWatchTime(ms: string | undefined): string {
+  const total = parseInt(ms ?? "0");
+  const h = Math.floor(total / 3600000);
+  const m = Math.floor((total % 3600000) / 60000);
+  if (h > 0) return `${h}h ${m}m`;
+  return `${m}m`;
+}
+
+function formatHours(ms: string | undefined): string {
+  const h = parseInt(ms ?? "0") / 3600000;
+  if (h >= 1) return `${Math.round(h * 10) / 10}h`;
+  const m = Math.round(parseInt(ms ?? "0") / 60000);
+  return `${m}m`;
+}
+
+function StatCard({ label, value }: { label: string; value: string | number }) {
+  return (
+    <div className="flex flex-col items-center justify-center p-5 rounded-[var(--radius-lg)] gap-1 bg-[var(--surface)] border border-[var(--border)]">
+      <span className="text-2xl font-bold text-[var(--text)]">{value}</span>
+      <span className="text-xs font-medium uppercase tracking-wide text-[var(--text-muted)]">{label}</span>
+    </div>
+  );
+}
+
+function buildMonthlyData(byMonth: { year?: number; month?: number; totalTimeMs?: string }[], accent: string) {
+  const now = new Date();
+  const result = [];
+  for (let i = 11; i >= 0; i--) {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    const y = d.getFullYear();
+    const m = d.getMonth() + 1;
+    const label = d.toLocaleDateString(undefined, { month: "short" });
+    const entry = byMonth.find((e) => e.year === y && e.month === m);
+    const hours = parseInt(entry?.totalTimeMs ?? "0") / 3600000;
+    result.push({ value: Math.round(hours * 10) / 10, label, frontColor: accent });
+  }
+  return result;
+}
+
+export function UserStats() {
+  const { t, i18n } = useTranslation();
+  const profileId = useAuthStore((s) => s.profileId);
+  const { data, isLoading } = useActivityServiceGetUserStats(profileId ?? "", undefined, {
+    query: { enabled: !!profileId },
+  });
+
+  if (isLoading) {
+    return (
+      <div className="flex justify-center py-16">
+        <Spinner size="lg" />
+      </div>
+    );
+  }
+
+  if (!data || (data.totalPlays ?? 0) === 0) {
+    return <EmptyState icon={<BarChart3 size={48} strokeWidth={1.5} />} title={t("common.userStats.noData")} />;
+  }
+
+  const accent = useCssVar("--accent", "#6366f1");
+  const textMuted = useCssVar("--text-muted");
+  const lang = i18n.language;
+
+  const genres = [...(data.genres ?? [])].sort((a, b) => parseInt(b.totalTimeMs ?? "0") - parseInt(a.totalTimeMs ?? "0"));
+  const pieData = genres.slice(0, 8).map((g, i) => ({
+    value: parseInt(g.totalTimeMs ?? "0"),
+    color: GENRE_COLORS[i % GENRE_COLORS.length],
+    text: translateGenre(g.genre ?? "", lang),
+    percent: Math.round(g.percent ?? 0),
+  }));
+
+  const monthBarData = buildMonthlyData(data.byMonth ?? [], accent);
+  const monthMax = Math.max(...monthBarData.map((d) => d.value), 0.1);
+
+  const mostPlayed = data.mostPlayed ?? [];
+  const favoriteGenre = genres.length > 0 ? translateGenre(genres[0].genre ?? "-", lang) : "-";
+
+  return (
+    <div className="flex flex-col gap-6">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+        <StatCard label={t("common.userStats.totalWatchTime")} value={formatWatchTime(data.totalWatchTimeMs)} />
+        <StatCard label={t("common.userStats.totalPlays")} value={data.totalPlays ?? 0} />
+        <StatCard label={t("common.userStats.uniqueItems")} value={data.uniqueItemsWatched ?? 0} />
+        <StatCard label={t("common.userStats.favoriteGenre")} value={favoriteGenre} />
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        {pieData.length > 0 && (
+          <div className="p-4 rounded-[var(--radius-lg)] bg-[var(--surface)] border border-[var(--border)]">
+            <h3 className="text-sm font-semibold mb-4 text-[var(--text)]">
+              {t("common.userStats.genreBreakdown")}
+            </h3>
+            <div className="flex items-center justify-center gap-6">
+              <PieChart
+                data={pieData}
+                radius={70}
+                innerRadius={40}
+                donut
+                showText={false}
+              />
+              <div className="flex flex-col gap-1.5">
+                {pieData.map((d) => (
+                  <div key={d.text} className="flex items-center gap-2 text-xs">
+                    <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: d.color }} />
+                    <span className="text-[var(--text)]">{d.text}</span>
+                    <span className="text-[var(--text-muted)]">{d.percent}%</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+
+        <div className="p-4 rounded-[var(--radius-lg)] bg-[var(--surface)] border border-[var(--border)]">
+          <h3 className="text-sm font-semibold mb-4 text-[var(--text)]">
+            {t("common.userStats.monthlyActivity")}
+          </h3>
+          <div className="overflow-x-auto">
+            <BarChart
+              data={monthBarData}
+              barWidth={24}
+              spacing={10}
+              roundedTop
+              noOfSections={4}
+              maxValue={Math.ceil(monthMax * 1.1) || 1}
+              yAxisTextStyle={{ color: textMuted, fontSize: 11 }}
+              xAxisLabelTextStyle={{ color: textMuted, fontSize: 10 }}
+              yAxisLabelSuffix="h"
+              hideRules
+              isAnimated
+              barBorderTopLeftRadius={4}
+              barBorderTopRightRadius={4}
+            />
+          </div>
+        </div>
+      </div>
+
+      {mostPlayed.length > 0 && (
+        <div>
+          <h3 className="text-sm font-semibold mb-3 text-[var(--text)]">
+            {t("common.userStats.mostPlayed")}
+          </h3>
+          <div className="flex flex-col gap-1">
+            {mostPlayed.map((m, i) => (
+              <Link
+                key={m.mediaItemId ?? i}
+                to="/media/$mediaId"
+                params={{ mediaId: m.mediaItemId ?? "" }}
+                className="flex items-center gap-3 px-3 py-2 rounded-[var(--radius-md)] hover:bg-[var(--surface-raised)] transition-colors-fast"
+              >
+                <span className="text-sm font-mono w-6 text-center text-[var(--accent)]">
+                  {i + 1}
+                </span>
+                <span className="text-sm flex-1 truncate text-[var(--text)]">
+                  {m.title ?? "Unknown"}
+                </span>
+                <span className="text-xs text-[var(--text-muted)]">
+                  {m.playCount ?? 0} {t("common.userStats.playsLabel")}
+                </span>
+                <span className="text-xs text-[var(--text-muted)]">
+                  {formatHours(m.totalTimeMs)}
+                </span>
+              </Link>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}

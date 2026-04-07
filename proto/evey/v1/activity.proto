@@ -230,10 +230,29 @@ message AnalyticsRecentActivity {
 
 message GetAnalyticsRequest {}
 
+message AnalyticsDailyPlayCount {
+  string date = 1;
+  int32 play_count = 2;
+  int64 watch_time_seconds = 3;
+}
+
+message AnalyticsPlayMethod {
+  string method = 1;
+  int32 count = 2;
+}
+
+message AnalyticsHourlyPlayCount {
+  int32 hour = 1;
+  int32 count = 2;
+}
+
 message GetAnalyticsResponse {
   repeated AnalyticsTopMedia top_media = 1;
   repeated AnalyticsRecentActivity recent_activity = 2;
   int32 total_plays_today = 3;
   int32 total_plays_this_week = 4;
   int32 active_users_today = 5;
+  repeated AnalyticsDailyPlayCount daily_plays = 6;
+  repeated AnalyticsPlayMethod play_methods = 7;
+  repeated AnalyticsHourlyPlayCount hourly_plays = 8;
 }

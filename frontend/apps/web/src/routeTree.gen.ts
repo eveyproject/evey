@@ -29,6 +29,7 @@ import { Route as AuthMusicIndexRouteImport } from './routes/_auth/music/index'
 import { Route as AuthLibraryIndexRouteImport } from './routes/_auth/library/index'
 import { Route as AuthCollectionsIndexRouteImport } from './routes/_auth/collections/index'
 import { Route as AuthAdminIndexRouteImport } from './routes/_auth/admin/index'
+import { Route as AuthProfileStatsRouteImport } from './routes/_auth/profile/stats'
 import { Route as AuthProfileSettingsRouteImport } from './routes/_auth/profile/settings'
 import { Route as AuthProfileNotificationsRouteImport } from './routes/_auth/profile/notifications'
 import { Route as AuthProfileHistoryRouteImport } from './routes/_auth/profile/history'
@@ -175,6 +176,13 @@ const AuthAdminIndexRoute = AuthAdminIndexRouteImport.update({
   getParentRoute: () => AuthAdminRoute,
 } as any).lazy(() =>
   import('./routes/_auth/admin/index.lazy').then((d) => d.Route),
+)
+const AuthProfileStatsRoute = AuthProfileStatsRouteImport.update({
+  id: '/profile/stats',
+  path: '/profile/stats',
+  getParentRoute: () => AuthRoute,
+} as any).lazy(() =>
+  import('./routes/_auth/profile/stats.lazy').then((d) => d.Route),
 )
 const AuthProfileSettingsRoute = AuthProfileSettingsRouteImport.update({
   id: '/profile/settings',
@@ -431,6 +439,7 @@ export interface FileRoutesByFullPath {
   '/profile/history': typeof AuthProfileHistoryRoute
   '/profile/notifications': typeof AuthProfileNotificationsRoute
   '/profile/settings': typeof AuthProfileSettingsRoute
+  '/profile/stats': typeof AuthProfileStatsRoute
   '/admin/': typeof AuthAdminIndexRoute
   '/collections/': typeof AuthCollectionsIndexRoute
   '/library/': typeof AuthLibraryIndexRoute
@@ -480,6 +489,7 @@ export interface FileRoutesByTo {
   '/profile/history': typeof AuthProfileHistoryRoute
   '/profile/notifications': typeof AuthProfileNotificationsRoute
   '/profile/settings': typeof AuthProfileSettingsRoute
+  '/profile/stats': typeof AuthProfileStatsRoute
   '/admin': typeof AuthAdminIndexRoute
   '/collections': typeof AuthCollectionsIndexRoute
   '/library': typeof AuthLibraryIndexRoute
@@ -532,6 +542,7 @@ export interface FileRoutesById {
   '/_auth/profile/history': typeof AuthProfileHistoryRoute
   '/_auth/profile/notifications': typeof AuthProfileNotificationsRoute
   '/_auth/profile/settings': typeof AuthProfileSettingsRoute
+  '/_auth/profile/stats': typeof AuthProfileStatsRoute
   '/_auth/admin/': typeof AuthAdminIndexRoute
   '/_auth/collections/': typeof AuthCollectionsIndexRoute
   '/_auth/library/': typeof AuthLibraryIndexRoute
@@ -584,6 +595,7 @@ export interface FileRouteTypes {
     | '/profile/history'
     | '/profile/notifications'
     | '/profile/settings'
+    | '/profile/stats'
     | '/admin/'
     | '/collections/'
     | '/library/'
@@ -633,6 +645,7 @@ export interface FileRouteTypes {
     | '/profile/history'
     | '/profile/notifications'
     | '/profile/settings'
+    | '/profile/stats'
     | '/admin'
     | '/collections'
     | '/library'
@@ -684,6 +697,7 @@ export interface FileRouteTypes {
     | '/_auth/profile/history'
     | '/_auth/profile/notifications'
     | '/_auth/profile/settings'
+    | '/_auth/profile/stats'
     | '/_auth/admin/'
     | '/_auth/collections/'
     | '/_auth/library/'
@@ -846,6 +860,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/admin/'
       preLoaderRoute: typeof AuthAdminIndexRouteImport
       parentRoute: typeof AuthAdminRoute
+    }
+    '/_auth/profile/stats': {
+      id: '/_auth/profile/stats'
+      path: '/profile/stats'
+      fullPath: '/profile/stats'
+      preLoaderRoute: typeof AuthProfileStatsRouteImport
+      parentRoute: typeof AuthRoute
     }
     '/_auth/profile/settings': {
       id: '/_auth/profile/settings'
@@ -1118,6 +1139,7 @@ interface AuthRouteChildren {
   AuthProfileHistoryRoute: typeof AuthProfileHistoryRoute
   AuthProfileNotificationsRoute: typeof AuthProfileNotificationsRoute
   AuthProfileSettingsRoute: typeof AuthProfileSettingsRoute
+  AuthProfileStatsRoute: typeof AuthProfileStatsRoute
   AuthCollectionsIndexRoute: typeof AuthCollectionsIndexRoute
   AuthLibraryIndexRoute: typeof AuthLibraryIndexRoute
   AuthMusicIndexRoute: typeof AuthMusicIndexRoute
@@ -1142,6 +1164,7 @@ const AuthRouteChildren: AuthRouteChildren = {
   AuthProfileHistoryRoute: AuthProfileHistoryRoute,
   AuthProfileNotificationsRoute: AuthProfileNotificationsRoute,
   AuthProfileSettingsRoute: AuthProfileSettingsRoute,
+  AuthProfileStatsRoute: AuthProfileStatsRoute,
   AuthCollectionsIndexRoute: AuthCollectionsIndexRoute,
   AuthLibraryIndexRoute: AuthLibraryIndexRoute,
   AuthMusicIndexRoute: AuthMusicIndexRoute,

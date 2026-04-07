@@ -70,6 +70,7 @@ aria:
   bottomNav: "नीचे नेविगेशन"
   options: "विकल्प"
   play: "चलाएं"
+  pause: "रोकें"
   loading: "लोड हो रहा है"
   breadcrumb: "ब्रेडक्रंब"
   pagination: "पृष्ठांकन"
@@ -113,6 +114,17 @@ notifications:
   backupFailed: "निर्धारित बैकअप विफल"
 watchHistory:
   title: "देखने का इतिहास"
+userStats:
+  title: "मेरे आँकड़े"
+  noData: "अभी तक कोई देखने की गतिविधि नहीं"
+  totalWatchTime: "देखने का समय"
+  totalPlays: "कुल प्ले"
+  uniqueItems: "अद्वितीय शीर्षक"
+  favoriteGenre: "पसंदीदा शैली"
+  genreBreakdown: "शैलियाँ"
+  monthlyActivity: "मासिक गतिविधि"
+  mostPlayed: "सबसे ज़्यादा देखे गए"
+  playsLabel: "प्ले"
 nav:
   home: "होम"
   libraries: "लाइब्रेरी"
@@ -125,6 +137,7 @@ nav:
   profile: "प्रोफ़ाइल"
   settings: "सेटिंग्स"
   watchHistory: "देखने का इतिहास"
+  myStats: "मेरे आँकड़े"
   quickConnect: "क्विक कनेक्ट"
   signOut: "साइन आउट"
   expandSidebar: "साइडबार विस्तारित करें"

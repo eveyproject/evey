@@ -65,6 +65,8 @@ func (h *userHandler) audit(ctx context.Context, userID, action, resourceType st
 func (h *userHandler) Login(ctx context.Context, req *eveyv1.LoginRequest) (*eveyv1.AuthResponse, error) {
 	access, refresh, err := h.auth.Login(ctx, req.Username, req.Password)
 	if err != nil {
+		slog.Warn("login failed", slog.String("username", req.Username), slog.Any("err", err))
+		h.audit(ctx, "", "login", "user", nil, map[string]any{"username": req.Username, "status": "failed"})
 		return nil, h.translator.TranslatedError(ctx, codes.Unauthenticated, "errors.auth.invalid_credentials")
 	}
 	u, userErr := h.users.GetByUsername(ctx, req.Username)
@@ -77,7 +79,7 @@ func (h *userHandler) Login(ctx context.Context, req *eveyv1.LoginRequest) (*eve
 	}
 	if u != nil {
 		resp.User = userToProto(u)
-		h.audit(ctx, u.ID, "login", "user", &u.ID, map[string]any{"username": u.Username})
+		h.audit(ctx, u.ID, "login", "user", &u.ID, map[string]any{"status": "success"})
 	}
 	return resp, nil
 }

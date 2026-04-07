@@ -103,6 +103,7 @@ aria:
   bottomNav: Bottom navigation
   options: Options
   play: Play
+  pause: Pause
   loading: Loading
   breadcrumb: Breadcrumb
   pagination: Pagination
@@ -127,6 +128,17 @@ aria:
   goToHomePage: Go to home page
 watchHistory:
   title: Watch History
+userStats:
+  title: My Stats
+  noData: No watch activity yet
+  totalWatchTime: Watch Time
+  totalPlays: Total Plays
+  uniqueItems: Unique Items
+  favoriteGenre: Favorite Genre
+  genreBreakdown: Genre Breakdown
+  monthlyActivity: Monthly Activity
+  mostPlayed: Most Played
+  playsLabel: plays
 nav:
   home: Home
   libraries: Libraries
@@ -139,6 +151,7 @@ nav:
   profile: Profile
   settings: Settings
   watchHistory: Watch History
+  myStats: My Stats
   quickConnect: Quick Connect
   signOut: Sign Out
   expandSidebar: Expand sidebar

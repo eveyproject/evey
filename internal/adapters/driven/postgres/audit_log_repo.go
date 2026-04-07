@@ -52,8 +52,32 @@ func (r *AuditLogRepository) List(ctx context.Context, f activity.AuditLogFilter
 		args = append(args, *f.ResourceType)
 	}
 
-	query := `SELECT a.id, a.user_id, COALESCE(u.username,'') AS username, a.action, a.resource_type, a.resource_id, a.details, a.client_ip, a.user_agent, a.device_name, a.created_at
-	           FROM audit_log a LEFT JOIN users u ON u.id = a.user_id`
+	query := `SELECT a.id, a.user_id, COALESCE(u.username,'') AS username, a.action, a.resource_type, a.resource_id,
+	           COALESCE(
+	             CASE a.resource_type
+	               WHEN 'user' THEN ru.username
+	               WHEN 'media' THEN CASE rm.type
+	                 WHEN 'episode' THEN
+	                   COALESCE(series.title, '') || ' - S' ||
+	                   LPAD(COALESCE(season.index_number, 0)::text, 2, '0') || 'E' ||
+	                   LPAD(COALESCE(rm.index_number, 0)::text, 2, '0')
+	                 ELSE rm.title END
+	               WHEN 'media_item' THEN CASE rm.type
+	                 WHEN 'episode' THEN
+	                   COALESCE(series.title, '') || ' - S' ||
+	                   LPAD(COALESCE(season.index_number, 0)::text, 2, '0') || 'E' ||
+	                   LPAD(COALESCE(rm.index_number, 0)::text, 2, '0')
+	                 ELSE rm.title END
+	               WHEN 'transcode_profile' THEN tp.name
+	             END, '') AS resource_name,
+	           a.details, a.client_ip, a.user_agent, a.device_name, a.created_at
+	           FROM audit_log a
+	           LEFT JOIN users u ON u.id = a.user_id
+	           LEFT JOIN users ru ON ru.id = a.resource_id AND a.resource_type = 'user'
+	           LEFT JOIN media_items rm ON rm.id = a.resource_id AND a.resource_type IN ('media', 'media_item')
+	           LEFT JOIN media_items season ON season.id = rm.parent_id AND rm.type = 'episode'
+	           LEFT JOIN media_items series ON series.id = season.parent_id AND rm.type = 'episode'
+	           LEFT JOIN transcode_profiles tp ON tp.id::text = a.resource_id AND a.resource_type = 'transcode_profile'`
 	if len(conditions) > 0 {
 		query += " WHERE " + strings.Join(conditions, " AND ")
 	}
@@ -78,7 +102,7 @@ func (r *AuditLogRepository) List(ctx context.Context, f activity.AuditLogFilter
 	for rows.Next() {
 		e := &activity.AuditLogEntry{}
 		var detailsJSON []byte
-		if err := rows.Scan(&e.ID, &e.UserID, &e.Username, &e.Action, &e.ResourceType, &e.ResourceID, &detailsJSON, &e.ClientIP, &e.UserAgent, &e.DeviceName, &e.CreatedAt); err != nil {
+		if err := rows.Scan(&e.ID, &e.UserID, &e.Username, &e.Action, &e.ResourceType, &e.ResourceID, &e.ResourceName, &detailsJSON, &e.ClientIP, &e.UserAgent, &e.DeviceName, &e.CreatedAt); err != nil {
 			return nil, err
 		}
 		if err := json.Unmarshal(detailsJSON, &e.Details); err != nil {

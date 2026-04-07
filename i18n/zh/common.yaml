@@ -70,6 +70,7 @@ aria:
   bottomNav: "底部导航"
   options: "选项"
   play: "播放"
+  pause: "暂停"
   loading: "加载中"
   breadcrumb: "面包屑导航"
   pagination: "分页"
@@ -113,6 +114,17 @@ notifications:
   backupFailed: "计划备份失败"
 watchHistory:
   title: "观看历史"
+userStats:
+  title: "我的统计"
+  noData: "暂无观看记录"
+  totalWatchTime: "观看时长"
+  totalPlays: "播放总数"
+  uniqueItems: "独立标题"
+  favoriteGenre: "最爱类型"
+  genreBreakdown: "类型分布"
+  monthlyActivity: "月度活动"
+  mostPlayed: "最常播放"
+  playsLabel: "次播放"
 nav:
   home: "首页"
   libraries: "媒体库"
@@ -125,6 +137,7 @@ nav:
   profile: "个人资料"
   settings: "设置"
   watchHistory: "观看历史"
+  myStats: "我的统计"
   quickConnect: "快速连接"
   signOut: "退出登录"
   expandSidebar: "展开侧栏"

@@ -170,10 +170,10 @@ func TestUserStats_GenreBreakdown(t *testing.T) {
 		ProfileID:        "p1",
 		TotalWatchTimeMs: 3_600_000, // 1 hour
 		TotalPlayCount:   5,
-		GenreBreakdown: map[string]int64{
-			"action":  1800000,
-			"sci-fi":  1200000,
-			"thriller": 600000,
+		GenreBreakdown: map[string]activity.GenreStats{
+			"action":   {TotalTimeMs: 1800000, PlayCount: 3},
+			"sci-fi":   {TotalTimeMs: 1200000, PlayCount: 2},
+			"thriller": {TotalTimeMs: 600000, PlayCount: 1},
 		},
 		MostPlayedItems: []activity.MediaPlayCount{
 			{MediaItemID: "m1", Title: "Inception", PlayCount: 3},
@@ -191,8 +191,8 @@ func TestUserStats_GenreBreakdown(t *testing.T) {
 	if len(stats.GenreBreakdown) != 3 {
 		t.Errorf("GenreBreakdown len = %d, want 3", len(stats.GenreBreakdown))
 	}
-	if stats.GenreBreakdown["action"] != 1800000 {
-		t.Errorf("action watch time = %d, want 1800000", stats.GenreBreakdown["action"])
+	if stats.GenreBreakdown["action"].TotalTimeMs != 1800000 {
+		t.Errorf("action watch time = %d, want 1800000", stats.GenreBreakdown["action"].TotalTimeMs)
 	}
 	if stats.MostPlayedItems[0].PlayCount < stats.MostPlayedItems[1].PlayCount {
 		t.Error("MostPlayedItems should be ordered by play count descending")

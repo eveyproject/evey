@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"strings"
 	"sync"
 	"time"
 
@@ -25,18 +26,22 @@ func NewPlaySessionStatsReader(db *sql.DB) *PlaySessionStatsReader {
 func (r *PlaySessionStatsReader) GetUserStats(ctx context.Context, profileID string) (*activity.UserStats, error) {
 	stats := &activity.UserStats{
 		ProfileID:        profileID,
-		GenreBreakdown:   make(map[string]int64),
+		GenreBreakdown:   make(map[string]activity.GenreStats),
 		PlayCountByMonth: make(map[string]int),
 	}
 
 	// Single round-trip: totals + genres + most-played + monthly breakdown
 	const q = `
 	WITH totals AS (
-		SELECT COALESCE(SUM(duration_ms), 0) AS total_ms, COUNT(*) AS total_count
+		SELECT COALESCE(SUM(duration_ms), 0) AS total_ms,
+		       COUNT(*) AS total_count,
+		       COUNT(DISTINCT media_item_id) AS unique_items
 		FROM play_sessions WHERE profile_id = $1
 	),
 	genres AS (
-		SELECT g.genre, COALESCE(SUM(ps.duration_ms), 0) AS total_ms
+		SELECT g.genre,
+		       COALESCE(SUM(ps.duration_ms), 0) AS total_ms,
+		       COUNT(*) AS play_count
 		FROM play_sessions ps
 		INNER JOIN media_items mi ON mi.id = ps.media_item_id,
 		jsonb_array_elements_text(mi.genres) AS g(genre)
@@ -45,7 +50,9 @@ func (r *PlaySessionStatsReader) GetUserStats(ctx context.Context, profileID str
 		ORDER BY total_ms DESC
 	),
 	most_played AS (
-		SELECT ps.media_item_id, mi.title, COUNT(*) AS play_count
+		SELECT ps.media_item_id, mi.title,
+		       COUNT(*) AS play_count,
+		       COALESCE(SUM(ps.duration_ms), 0) AS total_ms
 		FROM play_sessions ps
 		INNER JOIN media_items mi ON mi.id = ps.media_item_id
 		WHERE ps.profile_id = $1
@@ -59,11 +66,11 @@ func (r *PlaySessionStatsReader) GetUserStats(ctx context.Context, profileID str
 		GROUP BY month
 		ORDER BY month
 	)
-	SELECT 'T' AS kind, total_ms::TEXT, total_count::TEXT, '' FROM totals
+	SELECT 'T' AS kind, total_ms::TEXT, total_count::TEXT, unique_items::TEXT FROM totals
 	UNION ALL
-	SELECT 'G', genre, total_ms::TEXT, '' FROM genres
+	SELECT 'G', genre, total_ms::TEXT, play_count::TEXT FROM genres
 	UNION ALL
-	SELECT 'P', media_item_id, title, play_count::TEXT FROM most_played
+	SELECT 'P', media_item_id, title, play_count::TEXT || ':' || total_ms::TEXT FROM most_played
 	UNION ALL
 	SELECT 'M', month, cnt::TEXT, '' FROM monthly`
 
@@ -82,17 +89,26 @@ func (r *PlaySessionStatsReader) GetUserStats(ctx context.Context, profileID str
 		case "T":
 			fmt.Sscan(col1, &stats.TotalWatchTimeMs)
 			fmt.Sscan(col2, &stats.TotalPlayCount)
+			fmt.Sscan(col3, &stats.UniqueItemsWatched)
 		case "G":
 			var ms int64
+			var cnt int
 			fmt.Sscan(col2, &ms)
-			stats.GenreBreakdown[col1] = ms
+			fmt.Sscan(col3, &cnt)
+			stats.GenreBreakdown[col1] = activity.GenreStats{TotalTimeMs: ms, PlayCount: cnt}
 		case "P":
 			var cnt int
-			fmt.Sscan(col3, &cnt)
+			var totalMs int64
+			parts := strings.SplitN(col3, ":", 2)
+			fmt.Sscan(parts[0], &cnt)
+			if len(parts) > 1 {
+				fmt.Sscan(parts[1], &totalMs)
+			}
 			stats.MostPlayedItems = append(stats.MostPlayedItems, activity.MediaPlayCount{
 				MediaItemID: col1,
 				Title:       col2,
 				PlayCount:   cnt,
+				TotalTimeMs: totalMs,
 			})
 		case "M":
 			var cnt int

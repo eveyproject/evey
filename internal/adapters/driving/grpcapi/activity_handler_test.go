@@ -93,7 +93,7 @@ func TestActivityHandler_GetUserStats_Success(t *testing.T) {
 		ProfileID:        "profile-1",
 		TotalWatchTimeMs: 3600000,
 		TotalPlayCount:   15,
-		GenreBreakdown:   map[string]int64{"action": 1200000, "comedy": 2400000},
+		GenreBreakdown:   map[string]activity.GenreStats{"action": {TotalTimeMs: 1200000, PlayCount: 5}, "comedy": {TotalTimeMs: 2400000, PlayCount: 10}},
 		MostPlayedItems: []activity.MediaPlayCount{
 			{MediaItemID: "m1", Title: "Top Movie", PlayCount: 5},
 		},

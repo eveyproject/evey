@@ -63,6 +63,7 @@ func auditLogEntryToProto(e *activity.AuditLogEntry) *eveyv1.AuditLogEntry {
 		Username:     e.Username,
 		Action:       e.Action,
 		ResourceType: e.ResourceType,
+		ResourceName: e.ResourceName,
 		CreatedAt:    toTimestamppb(e.CreatedAt),
 	}
 	if e.ResourceID != nil {

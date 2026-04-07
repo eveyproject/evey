@@ -69,15 +69,27 @@ func (h *activityHandler) GetUserStats(ctx context.Context, req *eveyv1.GetUserS
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "get user stats: %v", err)
 	}
-	pb := &eveyv1.UserStats{
-		ProfileId:        stats.ProfileID,
-		TotalWatchTimeMs: stats.TotalWatchTimeMs,
-		TotalPlays:       int32(stats.TotalPlayCount),
+	totalGenreMs := int64(0)
+	for _, gs := range stats.GenreBreakdown {
+		totalGenreMs += gs.TotalTimeMs
 	}
-	for genre, ms := range stats.GenreBreakdown {
+
+	pb := &eveyv1.UserStats{
+		ProfileId:          stats.ProfileID,
+		TotalWatchTimeMs:   stats.TotalWatchTimeMs,
+		TotalPlays:         int32(stats.TotalPlayCount),
+		UniqueItemsWatched: int32(stats.UniqueItemsWatched),
+	}
+	for genre, gs := range stats.GenreBreakdown {
+		var pct float64
+		if totalGenreMs > 0 {
+			pct = float64(gs.TotalTimeMs) / float64(totalGenreMs) * 100
+		}
 		pb.Genres = append(pb.Genres, &eveyv1.GenreBreakdown{
 			Genre:       genre,
-			TotalTimeMs: ms,
+			TotalTimeMs: gs.TotalTimeMs,
+			PlayCount:   int32(gs.PlayCount),
+			Percent:     pct,
 		})
 	}
 	for _, mp := range stats.MostPlayedItems {
@@ -85,6 +97,16 @@ func (h *activityHandler) GetUserStats(ctx context.Context, req *eveyv1.GetUserS
 			MediaItemId: mp.MediaItemID,
 			Title:       mp.Title,
 			PlayCount:   int32(mp.PlayCount),
+			TotalTimeMs: mp.TotalTimeMs,
+		})
+	}
+	for monthStr, cnt := range stats.PlayCountByMonth {
+		var year, month int
+		fmt.Sscanf(monthStr, "%d-%d", &year, &month)
+		pb.ByMonth = append(pb.ByMonth, &eveyv1.MonthlyPlayCount{
+			Year:      int32(year),
+			Month:     int32(month),
+			PlayCount: int32(cnt),
 		})
 	}
 	return pb, nil
@@ -231,6 +253,25 @@ func (h *activityHandler) GetAnalytics(ctx context.Context, _ *eveyv1.GetAnalyti
 			Username:  entry.Username,
 			MediaTitle: entry.MediaTitle,
 			PlayedAt:  timestamppb.New(entry.PlayedAt),
+		})
+	}
+	for _, d := range data.DailyPlays {
+		resp.DailyPlays = append(resp.DailyPlays, &eveyv1.AnalyticsDailyPlayCount{
+			Date:             d.Date,
+			PlayCount:        int32(d.PlayCount),
+			WatchTimeSeconds: d.WatchTimeSeconds,
+		})
+	}
+	for _, m := range data.PlayMethods {
+		resp.PlayMethods = append(resp.PlayMethods, &eveyv1.AnalyticsPlayMethod{
+			Method: m.Method,
+			Count:  int32(m.Count),
+		})
+	}
+	for _, h := range data.HourlyPlays {
+		resp.HourlyPlays = append(resp.HourlyPlays, &eveyv1.AnalyticsHourlyPlayCount{
+			Hour:  int32(h.Hour),
+			Count: int32(h.Count),
 		})
 	}
 	return resp, nil
