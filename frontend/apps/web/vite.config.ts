@@ -18,6 +18,7 @@ export default defineConfig({
           vendor: ["react", "react-dom", "@tanstack/react-query", "@tanstack/react-router"],
           hls: ["hls.js"],
           i18n: ["i18next", "react-i18next", "i18next-http-backend", "i18next-browser-languagedetector"],
+          charts: ["react-gifted-charts"],
         },
       },
     },
