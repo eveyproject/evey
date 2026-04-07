@@ -145,7 +145,7 @@ func TestServiceWrapper_ReportProgressBySession(t *testing.T) {
 	err := svc.StartStream(ctx, &playback.PlaySession{ID: "s1", ProfileID: "p1", MediaItemID: "m1"}, "u1")
 	require.NoError(t, err)
 
-	err = svc.ReportProgressBySession(ctx, "s1", 50000)
+	err = svc.ReportProgressBySession(ctx, "s1", 50000, false)
 	require.NoError(t, err)
 }
 

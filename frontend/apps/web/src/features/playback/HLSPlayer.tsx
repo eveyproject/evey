@@ -433,7 +433,7 @@ export function HLSPlayer({
           </div>
         </div>
       )}
-      <ProgressReporter sessionId={sessionId} videoRef={videoRef} transcodeOffsetRef={transcodeOffsetRef} />
+      <ProgressReporter sessionId={sessionId} videoRef={videoRef} transcodeOffsetRef={transcodeOffsetRef} onRemoteStop={onClose} />
       <SkipIntroButton
         filePath={filePath}
         currentTime={overlayTime}

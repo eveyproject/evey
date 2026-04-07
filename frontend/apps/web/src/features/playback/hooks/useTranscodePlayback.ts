@@ -101,6 +101,7 @@ export function useTranscodePlayback({
     });
 
     let retries = 0;
+    let consecutive404 = 0;
     hls.on(Hls.Events.ERROR, (_, data) => {
       if (!data.fatal) return;
       if (import.meta.env.DEV) console.warn("[player] HLS fatal error:", data.type, data.details, data.response?.code);
@@ -122,9 +123,19 @@ export function useTranscodePlayback({
           })();
           return;
         }
-        const seekPos = transcodeOffsetRef.current + (video.currentTime || 0);
-        if (data.response?.code === 404 && seekPos > 0) {
-          setTranscodeStartTime(seekPos);
+        if (data.response?.code === 404) {
+          consecutive404++;
+          if (consecutive404 >= 2) {
+            hls.destroy();
+            video.removeAttribute("src");
+            video.load();
+            setFatalError(true);
+            return;
+          }
+          const seekPos = transcodeOffsetRef.current + (video.currentTime || 0);
+          if (seekPos > 0) {
+            setTranscodeStartTime(seekPos);
+          }
           return;
         }
         const delay = Math.min(2000 * Math.pow(1.5, retries - 1), 15000);
@@ -135,7 +146,7 @@ export function useTranscodePlayback({
         setFatalError(true);
       }
     });
-    hls.on(Hls.Events.FRAG_LOADED, () => { retries = 0; });
+    hls.on(Hls.Events.FRAG_LOADED, () => { retries = 0; consecutive404 = 0; });
 
     function onTimeUpdate() { positionRef.current = transcodeOffsetRef.current + video!.currentTime; }
     function handleEnded() { onEnded?.(); }

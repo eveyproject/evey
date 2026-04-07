@@ -130,7 +130,7 @@ func TestCommandService_ReportProgressBySession(t *testing.T) {
 
 	session := &playback.PlaySession{ID: "s1", ProfileID: "p1", MediaItemID: "m1"}
 	require.NoError(t, cmd.StartStream(ctx, session, "u1"))
-	require.NoError(t, cmd.ReportProgressBySession(ctx, "s1", 55000))
+	require.NoError(t, cmd.ReportProgressBySession(ctx, "s1", 55000, false))
 
 	wp, err := q.GetWatchProgress(ctx, "p1", "m1")
 	require.NoError(t, err)

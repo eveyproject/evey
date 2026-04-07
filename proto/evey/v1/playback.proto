@@ -159,7 +159,9 @@ message ReportProgressRequest {
   int32 volume_level = 5;
 }
 
-message ReportProgressResponse {}
+message ReportProgressResponse {
+  string remote_command = 1;
+}
 
 message GetWatchProgressRequest {
   string media_item_id = 1;

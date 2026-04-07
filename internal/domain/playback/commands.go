@@ -13,4 +13,6 @@ type SessionCommandRepo interface {
 	Create(ctx context.Context, session *PlaySession) error
 	Update(ctx context.Context, session *PlaySession) error
 	CloseStale(ctx context.Context, olderThan time.Duration) (int, error)
+	SetRemoteCommand(ctx context.Context, sessionID, command string) error
+	ConsumeRemoteCommand(ctx context.Context, sessionID string) (string, error)
 }

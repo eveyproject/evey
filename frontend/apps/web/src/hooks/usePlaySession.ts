@@ -6,7 +6,7 @@ import {
   playbackServiceStartStream,
 } from "@evey/api";
 import type { V1StreamInfo, V1WatchProgress } from "@evey/api";
-import { usePlayerStore } from "@evey/store";
+import { usePlayerStore, useAuthStore } from "@evey/store";
 import { getBrowserCapabilities } from "@/utils/codec";
 import { useStreamToken } from "./useStreamToken";
 
@@ -117,7 +117,24 @@ export function usePlaySession(mediaId: string): PlaySessionResult {
   }, []);
 
   useEffect(() => {
+    const handleUnload = () => {
+      const sid = sessionIdRef.current;
+      if (sid && !stopped.current) {
+        stopped.current = true;
+        const token = useAuthStore.getState().accessToken;
+        const headers: Record<string, string> = { "Content-Type": "application/json" };
+        if (token) headers["Authorization"] = `Bearer ${token}`;
+        fetch("/api/v1/playback/stop", {
+          method: "POST",
+          headers,
+          body: JSON.stringify({ sessionId: sid }),
+          keepalive: true,
+        }).catch(() => {});
+      }
+    };
+    window.addEventListener("pagehide", handleUnload);
     return () => {
+      window.removeEventListener("pagehide", handleUnload);
       const mode = usePlayerStore.getState().mode;
       if (mode !== "mini") stopSession();
     };

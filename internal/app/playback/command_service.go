@@ -109,12 +109,13 @@ func (s *CommandService) StopStream(ctx context.Context, sessionID string) error
 	return nil
 }
 
-func (s *CommandService) ReportProgressBySession(ctx context.Context, sessionID string, positionMs int64) error {
+func (s *CommandService) ReportProgressBySession(ctx context.Context, sessionID string, positionMs int64, isPaused bool) error {
 	session, err := s.sessionQueries.GetByID(ctx, sessionID)
 	if err != nil {
 		return ErrSessionNotFound
 	}
 	session.PositionMs = &positionMs
+	session.IsPaused = isPaused
 	if err := s.sessions.Update(ctx, session); err != nil {
 		return fmt.Errorf("update session position: %w", err)
 	}
@@ -180,12 +181,20 @@ func (s *CommandService) GetSession(ctx context.Context, sessionID string) (*pla
 	return s.sessionQueries.GetByID(ctx, sessionID)
 }
 
+func (s *CommandService) SetRemoteCommand(ctx context.Context, sessionID, command string) error {
+	return s.sessions.SetRemoteCommand(ctx, sessionID, command)
+}
+
+func (s *CommandService) ConsumeRemoteCommand(ctx context.Context, sessionID string) (string, error) {
+	return s.sessions.ConsumeRemoteCommand(ctx, sessionID)
+}
+
 func (s *CommandService) CleanupStaleSessions(ctx context.Context, maxAge time.Duration) (int, error) {
 	return s.sessions.CloseStale(ctx, maxAge)
 }
 
 func (s *CommandService) StartCleanup(ctx context.Context) {
-	s.StartCleanupWithInterval(ctx, 30*time.Minute, 2*time.Hour)
+	s.StartCleanupWithInterval(ctx, 2*time.Minute, 5*time.Minute)
 }
 
 func (s *CommandService) StartCleanupWithInterval(ctx context.Context, interval, maxAge time.Duration) {

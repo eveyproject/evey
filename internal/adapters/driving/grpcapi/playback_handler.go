@@ -206,14 +206,19 @@ func (h *playbackHandler) ReportProgress(ctx context.Context, req *eveyv1.Report
 			return nil, h.translator.TranslatedError(ctx, codes.PermissionDenied, "errors.playback.cannot_report_other_session")
 		}
 	}
-	if err := h.cmd.ReportProgressBySession(ctx, req.SessionId, req.PositionMs); err != nil {
+	// Consume remote command BEFORE updating the session (Update overwrites the row)
+	resp := &eveyv1.ReportProgressResponse{}
+	if cmd, cmdErr := h.cmd.ConsumeRemoteCommand(ctx, req.SessionId); cmdErr == nil && cmd != "" {
+		resp.RemoteCommand = cmd
+	}
+	if err := h.cmd.ReportProgressBySession(ctx, req.SessionId, req.PositionMs, req.IsPaused); err != nil {
 		if errors.Is(err, appplayback.ErrProfileNotFound) {
 			return nil, h.translator.TranslatedError(ctx, codes.NotFound, "errors.auth.profile_not_found")
 		}
 		slog.Error("report progress", slog.Any("err", err))
 		return nil, status.Errorf(codes.Internal, "internal error")
 	}
-	return &eveyv1.ReportProgressResponse{}, nil
+	return resp, nil
 }
 
 func (h *playbackHandler) GetWatchProgress(ctx context.Context, req *eveyv1.GetWatchProgressRequest) (*eveyv1.WatchProgress, error) {

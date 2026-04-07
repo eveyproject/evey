@@ -177,6 +177,20 @@ func (r *FakePlaySessionRepository) CloseStale(_ context.Context, olderThan time
 	return closed, nil
 }
 
+func (r *FakePlaySessionRepository) SetRemoteCommand(_ context.Context, sessionID, command string) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if s, ok := r.items[sessionID]; ok {
+		_ = s
+		_ = command
+	}
+	return r.Err
+}
+
+func (r *FakePlaySessionRepository) ConsumeRemoteCommand(_ context.Context, _ string) (string, error) {
+	return "", r.Err
+}
+
 func (r *FakePlaySessionRepository) CountActiveByUser(_ context.Context, userID string) (int, error) {
 	if r.Err != nil {
 		return 0, r.Err

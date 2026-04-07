@@ -50,8 +50,8 @@ func (s *Service) GetActiveSessions(ctx context.Context) ([]*playback.ActiveSess
 	return s.query.GetActiveSessions(ctx)
 }
 
-func (s *Service) ReportProgressBySession(ctx context.Context, sessionID string, positionMs int64) error {
-	return s.cmd.ReportProgressBySession(ctx, sessionID, positionMs)
+func (s *Service) ReportProgressBySession(ctx context.Context, sessionID string, positionMs int64, isPaused bool) error {
+	return s.cmd.ReportProgressBySession(ctx, sessionID, positionMs, isPaused)
 }
 
 func (s *Service) ReportProgress(ctx context.Context, profileID, mediaItemID string, positionMs int64, completed bool) error {

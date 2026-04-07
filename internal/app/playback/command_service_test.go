@@ -101,7 +101,7 @@ func TestReportProgressBySession_SessionNotFound(t *testing.T) {
 	cmd, _, _, _, _, _ := setupCmd()
 	ctx := context.Background()
 
-	err := cmd.ReportProgressBySession(ctx, "nonexistent", 5000)
+	err := cmd.ReportProgressBySession(ctx, "nonexistent", 5000, false)
 	assert.ErrorIs(t, err, appplayback.ErrSessionNotFound)
 }
 
@@ -238,7 +238,7 @@ func TestReportProgressBySession_UpdatesSessionPosition(t *testing.T) {
 	seedUserProfile(ctx, ur, pfr, nil)
 
 	require.NoError(t, cmd.StartStream(ctx, &playback.PlaySession{ID: "s1", ProfileID: "p1", MediaItemID: "m1"}, "u1"))
-	require.NoError(t, cmd.ReportProgressBySession(ctx, "s1", 42000))
+	require.NoError(t, cmd.ReportProgressBySession(ctx, "s1", 42000, false))
 
 	stored, err := sr.GetByID(ctx, "s1")
 	require.NoError(t, err)
@@ -391,7 +391,7 @@ func TestReportProgressBySession_UpdateError(t *testing.T) {
 	// delete the session so Update returns "not found" which wraps as "update session position"
 	// Actually, let's just set progress repo error to test the downstream call
 	pr.Err = errors.New("db error")
-	err := cmd.ReportProgressBySession(ctx, "s1", 5000)
+	err := cmd.ReportProgressBySession(ctx, "s1", 5000, false)
 	assert.Error(t, err)
 }
 
