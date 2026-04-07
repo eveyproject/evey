@@ -69,7 +69,7 @@ func TestBuildFFmpegArgs_ModeA_AllCopy(t *testing.T) {
 	assert.Contains(t, joined, "-c:a copy")
 }
 
-func TestBuildFFmpegArgs_ModeB_SingleTranscode(t *testing.T) {
+func TestBuildFFmpegArgs_ModeB_MultiVariant(t *testing.T) {
 	opts := transcoding.HLSProcessOpts{
 		OutputDir:     "/tmp/test",
 		FilePath:      "/f.mkv",
@@ -80,9 +80,8 @@ func TestBuildFFmpegArgs_ModeB_SingleTranscode(t *testing.T) {
 	args := ffmpeg.BuildFFmpegArgs(opts)
 	joined := strings.Join(args, " ")
 	assert.Contains(t, joined, "libx264")
-	assert.Contains(t, joined, "-c:a aac")
-	assert.NotContains(t, joined, "split=")
-	assert.NotContains(t, joined, "var_stream_map")
+	assert.Contains(t, joined, "split=")
+	assert.Contains(t, joined, "var_stream_map")
 }
 
 func TestBuildFFmpegArgs_MultiVariant(t *testing.T) {
@@ -153,11 +152,11 @@ func TestBuildFFmpegArgs_BurnIn(t *testing.T) {
 	assert.Contains(t, joined, "[vb]split=")
 }
 
-func TestBuildFFmpegArgs_SingleTranscode_AudioCopy(t *testing.T) {
+func TestBuildFFmpegArgs_SingleTranscode_OneProfile(t *testing.T) {
 	opts := transcoding.HLSProcessOpts{
 		OutputDir:     "/tmp/test",
 		FilePath:      "/f.mkv",
-		Profiles:      transcoding.DefaultHLSProfiles,
+		Profiles:      transcoding.DefaultHLSProfiles[:1],
 		VideoDecision: "transcode",
 		AudioDecision: "copy",
 	}
@@ -165,6 +164,7 @@ func TestBuildFFmpegArgs_SingleTranscode_AudioCopy(t *testing.T) {
 	joined := strings.Join(args, " ")
 	assert.Contains(t, joined, "-c:a copy")
 	assert.Contains(t, joined, "libx264")
+	assert.NotContains(t, joined, "var_stream_map")
 }
 
 func TestBuildFFmpegArgs_SingleTranscode_AudioNormalize(t *testing.T) {

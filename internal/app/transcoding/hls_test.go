@@ -266,7 +266,7 @@ func TestIsSingleStream(t *testing.T) {
 	assert.True(t, copy.IsSingleStream())
 
 	tc, _ := m.GetOrCreate("u", "ss-tc", "/f.mkv", 1920, 1080, 0, 0, -1, "", nil, false, false, 0, "transcode", "transcode")
-	assert.True(t, tc.IsSingleStream())
+	assert.False(t, tc.IsSingleStream())
 
 	multi, _ := m.GetOrCreate("u", "ss-multi", "/f.mkv", 1920, 1080, 0, 0, -1, "", nil, false, false, 0, "", "")
 	assert.False(t, multi.IsSingleStream())

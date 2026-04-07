@@ -47,7 +47,7 @@ type HLSSession struct {
 }
 
 func (s *HLSSession) IsSingleStream() bool {
-	return s.VideoDecision == "copy" || s.VideoDecision == "transcode"
+	return s.VideoDecision == "copy"
 }
 
 func (s *HLSSession) MarkAccess() {
