@@ -59,6 +59,20 @@ export default function PlayerScreen() {
   const mediaId = id ?? "";
 
   const { data: media } = useLibraryServiceGetMediaItem(mediaId);
+  const isEpisode = media?.type === "MEDIA_ITEM_TYPE_EPISODE";
+  const { data: parentItem } = useLibraryServiceGetMediaItem(
+    media?.parentId ?? "",
+    { query: { enabled: !!media?.parentId && isEpisode } } as never,
+  );
+  const episodeLabel = useMemo(() => {
+    if (!isEpisode) return null;
+    const s = parentItem?.indexNumber ?? 0;
+    const e = media?.indexNumber ?? 0;
+    if (s > 0 && e > 0) return `S${String(s).padStart(2, "0")}E${String(e).padStart(2, "0")}`;
+    if (e > 0) return `E${String(e).padStart(2, "0")}`;
+    return null;
+  }, [isEpisode, parentItem?.indexNumber, media?.indexNumber]);
+  const playerTitle = episodeLabel ? `${episodeLabel} - ${media?.title ?? ""}` : (media?.title ?? "");
   const { streamUrl, sessionId, streamInfo, isLoading, isError, stopSession, restartWithTracks, restartAtPosition, transcodeOffset, progress } =
     usePlaySession(mediaId);
 
@@ -524,7 +538,7 @@ export default function PlayerScreen() {
             {t("player.controls.castingTo", "Casting to")}
           </Text>
           <Text style={{ color: theme.colors.accent, fontSize: 16, marginTop: 4 }}>
-            {media?.title ?? ""}
+            {playerTitle}
           </Text>
 
           {/* Timeline */}
@@ -667,7 +681,7 @@ export default function PlayerScreen() {
                 <Ionicons name="chevron-back" size={28} color="#fff" />
               </Pressable>
               <Text style={styles.title} numberOfLines={1}>
-                {media?.title ?? ""}
+                {playerTitle}
               </Text>
               <View style={styles.topBarRight}>
                 <Pressable

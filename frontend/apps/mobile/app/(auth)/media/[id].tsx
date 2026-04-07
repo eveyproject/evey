@@ -78,6 +78,18 @@ function isSeasonType(type?: string) {
   return type === "MEDIA_ITEM_TYPE_SEASON";
 }
 
+function isEpisodeType(type?: string) {
+  return type === "MEDIA_ITEM_TYPE_EPISODE";
+}
+
+function formatEpisodeLabel(seasonIndex?: number, episodeIndex?: number): string | null {
+  const s = seasonIndex ?? 0;
+  const e = episodeIndex ?? 0;
+  if (s > 0 && e > 0) return `S${String(s).padStart(2, "0")}E${String(e).padStart(2, "0")}`;
+  if (e > 0) return `E${String(e).padStart(2, "0")}`;
+  return null;
+}
+
 function StarIcons({ rating }: { rating: number }) {
   const theme = useTheme();
   // rating out of 10, show 5 stars
@@ -422,6 +434,12 @@ export default function MediaDetailScreen() {
 
   const isSeries = isSeriesType(media?.type);
   const isSeason = isSeasonType(media?.type);
+  const isEpisode = isEpisodeType(media?.type);
+
+  const { data: parentItem } = useLibraryServiceGetMediaItem(
+    media?.parentId ?? "",
+    { query: { enabled: !!media?.parentId && isEpisode } } as never,
+  );
 
   const { data: childrenData } = useLibraryServiceListMediaItems(
     { parentId: id, "pagination.pageSize": 100 },
@@ -574,6 +592,14 @@ export default function MediaDetailScreen() {
           )}
 
           <View style={{ flex: 1, justifyContent: "flex-end" }}>
+            {isEpisode && (() => {
+              const epLabel = formatEpisodeLabel(parentItem?.indexNumber, media.indexNumber);
+              return epLabel ? (
+                <Text style={{ color: theme.colors.textMuted, fontSize: 13, fontWeight: "600", marginBottom: 2 }}>
+                  {epLabel}
+                </Text>
+              ) : null;
+            })()}
             <Text style={{ color: theme.colors.text, fontSize: 22, fontWeight: "bold" }}>
               {media.title}
             </Text>
