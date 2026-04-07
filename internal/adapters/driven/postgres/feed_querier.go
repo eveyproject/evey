@@ -28,6 +28,8 @@ func clampFeedLimit(limit int) int {
 
 // ContinueWatching returns in-progress films and the next episode to watch per series.
 func (q *FeedQuerier) ContinueWatching(ctx context.Context, profileID string, limit int) ([]*feed.FeedItem, error) {
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
 	limit = clampFeedLimit(limit)
 	rows, err := q.db.QueryContext(ctx, `
 		WITH in_progress_movies AS (
@@ -91,6 +93,8 @@ func (q *FeedQuerier) ContinueWatching(ctx context.Context, profileID string, li
 
 // ResumePlayback returns in-progress media AND next episodes per series, sorted by last user interaction.
 func (q *FeedQuerier) ResumePlayback(ctx context.Context, profileID string, limit int) ([]*feed.FeedItem, error) {
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
 	limit = clampFeedLimit(limit)
 	rows, err := q.db.QueryContext(ctx, `
 		WITH in_progress AS (
@@ -142,6 +146,8 @@ func (q *FeedQuerier) ResumePlayback(ctx context.Context, profileID string, limi
 
 // NextEpisode returns the next unwatched episode per series where the user completed at least one episode.
 func (q *FeedQuerier) NextEpisode(ctx context.Context, profileID string, limit int) ([]*feed.FeedItem, error) {
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
 	limit = clampFeedLimit(limit)
 	rows, err := q.db.QueryContext(ctx, `
 		WITH watched_series AS (
@@ -176,6 +182,8 @@ func (q *FeedQuerier) NextEpisode(ctx context.Context, profileID string, limit i
 
 // RecentlyAdded returns media items added within daysWindow days, most recent first.
 func (q *FeedQuerier) RecentlyAdded(ctx context.Context, daysWindow, limit int) ([]*feed.FeedItem, error) {
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
 	rows, err := q.db.QueryContext(ctx, `
 		SELECT id, COALESCE(parent_id,''), title, type, 0, effective_added::text
 		FROM (
@@ -207,6 +215,8 @@ func (q *FeedQuerier) RecentlyAdded(ctx context.Context, daysWindow, limit int) 
 
 // Recommended returns unwatched items matching the given genres, scored by match count.
 func (q *FeedQuerier) Recommended(ctx context.Context, profileID string, genres []string, limit int) ([]*feed.FeedItem, error) {
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
 	if len(genres) == 0 {
 		return nil, nil
 	}
@@ -242,6 +252,8 @@ func (q *FeedQuerier) Recommended(ctx context.Context, profileID string, genres 
 
 // SimilarItems returns unwatched items with similar genres/director to the given item.
 func (q *FeedQuerier) SimilarItems(ctx context.Context, mediaItemID, profileID string, limit int) ([]*feed.FeedItem, error) {
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
 	rows, err := q.db.QueryContext(ctx, `
 		WITH target AS (
 			SELECT CASE WHEN jsonb_typeof(genres) = 'array' THEN genres ELSE '[]'::jsonb END AS genres
