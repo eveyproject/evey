@@ -55,6 +55,15 @@ export function NotificationBell() {
     return () => document.removeEventListener("mousedown", handler);
   }, [open]);
 
+  useEffect(() => {
+    if (!open) return;
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setOpen(false);
+    };
+    document.addEventListener("keydown", handler);
+    return () => document.removeEventListener("keydown", handler);
+  }, [open]);
+
   function handleNotificationClick(n: Notification) {
     const url = notificationUrl(n);
     if (url) {
@@ -69,6 +78,8 @@ export function NotificationBell() {
         onClick={() => setOpen((v) => !v)}
         className="relative text-[var(--text-muted)] hover:text-[var(--text)] transition-colors-fast"
         aria-label={t("common.notifications.title")}
+        aria-haspopup="true"
+        aria-expanded={open}
       >
         <Bell size={20} strokeWidth={1.5} />
         {countError && !open ? (
