@@ -6,7 +6,8 @@
     "start": "expo start --tv",
     "android-tv": "expo run:android --device tv",
     "apple-tv": "expo run:ios --scheme tv",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run --config vitest.config.ts"
   },
   "dependencies": {
     "@evey/api": "workspace:*",
@@ -33,7 +34,12 @@
     "zustand": "5.0.3"
   },
   "devDependencies": {
+    "@testing-library/jest-dom": "6.9.1",
+    "@testing-library/react": "16.3.2",
     "@types/react": "19.1.0",
-    "typescript": "5.7.3"
+    "jsdom": "28.1.0",
+    "react-dom": "19.2.0",
+    "typescript": "5.7.3",
+    "vitest": "4.0.18"
   }
 }
