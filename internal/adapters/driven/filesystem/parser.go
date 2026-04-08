@@ -106,123 +106,133 @@ func ParseFilename(filename string) ParsedInfo {
 	ext := filepath.Ext(base)
 	name := strings.TrimSuffix(base, ext)
 
-	// Split including extension token, then drop the extension part.
-	allParts := SplitFilename(name)
-	// Remove empty tokens that may arise from consecutive separators.
-	parts := make([]string, 0, len(allParts))
-	for _, t := range allParts {
-		if t != "" {
-			parts = append(parts, t)
-		}
-	}
+	parts := filterEmpty(SplitFilename(name))
 
 	info := ParsedInfo{Type: "movie"}
 	if len(parts) == 0 {
 		return info
 	}
 
-	// --- Pass 1: detect metadata from parts, track first metadata index ---
-	firstMetaIdx := len(parts)
+	firstMetaIdx := detectMetadata(&info, parts)
+	extractTitle(&info, parts, firstMetaIdx)
+	extractCodecAudio(&info, name)
+	extractReleaseGroup(&info, name)
 
-	for i, raw := range parts {
-		lower := strings.ToLower(raw)
+	return info
+}
 
-		// Series SE — exact part match (S01E05 or 1x05)
-		if info.Season == nil {
-			if m := reSeriesPart.FindStringSubmatch(raw); len(m) == 3 {
-				s, _ := strconv.Atoi(m[1])
-				e, _ := strconv.Atoi(m[2])
-				info.Type = "series"
-				info.Season = &s
-				info.Episode = &e
-				info.SE = fmt.Sprintf("S%02dE%02d", s, e)
-				if i < firstMetaIdx {
-					firstMetaIdx = i
-				}
-				continue
-			}
-			if m := reSeasonX.FindStringSubmatch(raw); len(m) == 3 {
-				s, _ := strconv.Atoi(m[1])
-				e, _ := strconv.Atoi(m[2])
-				info.Type = "series"
-				info.Season = &s
-				info.Episode = &e
-				info.SE = fmt.Sprintf("S%02dE%02d", s, e)
-				if i < firstMetaIdx {
-					firstMetaIdx = i
-				}
-				continue
-			}
-		}
-
-		// Year (4-digit, 19xx or 20xx)
-		if info.Year == nil {
-			if m := reYear.FindStringSubmatch(raw); len(m) == 2 {
-				y, _ := strconv.Atoi(m[1])
-				info.Year = &y
-				if i < firstMetaIdx {
-					firstMetaIdx = i
-				}
-				continue
-			}
-		}
-
-		// Language (map-based, returns ISO code + preserves original tag)
-		if info.Language == "" {
-			if iso, ok := languageTags[lower]; ok {
-				info.Language = iso
-				info.LanguageTag = lower
-				if i < firstMetaIdx {
-					firstMetaIdx = i
-				}
-				continue
-			}
-		}
-
-		// Quality (list-based)
-		if info.Quality == "" {
-			if knownQualities[lower] {
-				info.Quality = lower
-				if i < firstMetaIdx {
-					firstMetaIdx = i
-				}
-				continue
-			}
+func filterEmpty(tokens []string) []string {
+	out := make([]string, 0, len(tokens))
+	for _, t := range tokens {
+		if t != "" {
+			out = append(out, t)
 		}
 	}
+	return out
+}
 
-	// --- Title extraction ---
-	// If the first metadata appears at index 0 (e.g., "1917.2019.1080p.mkv"),
-	// use the very first part as the title (mirrors normalize_video's UcFirst fallback).
+// detectMetadata scans parts for series info, year, language, quality.
+// Returns the index of the first metadata token found.
+func detectMetadata(info *ParsedInfo, parts []string) int {
+	firstMetaIdx := len(parts)
+	for i, raw := range parts {
+		lower := strings.ToLower(raw)
+		if info.Season == nil && tryExtractEpisode(info, raw, i, &firstMetaIdx) {
+			continue
+		}
+		if info.Year == nil && tryExtractYear(info, raw, i, &firstMetaIdx) {
+			continue
+		}
+		if info.Language == "" && tryExtractLanguage(info, lower, i, &firstMetaIdx) {
+			continue
+		}
+		if info.Quality == "" && tryExtractQuality(info, lower, i, &firstMetaIdx) {
+			continue
+		}
+	}
+	return firstMetaIdx
+}
+
+func tryExtractEpisode(info *ParsedInfo, raw string, idx int, firstMeta *int) bool {
+	for _, re := range []*regexp.Regexp{reSeriesPart, reSeasonX} {
+		if m := re.FindStringSubmatch(raw); len(m) == 3 {
+			s, _ := strconv.Atoi(m[1])
+			e, _ := strconv.Atoi(m[2])
+			info.Type = "series"
+			info.Season = &s
+			info.Episode = &e
+			info.SE = fmt.Sprintf("S%02dE%02d", s, e)
+			if idx < *firstMeta {
+				*firstMeta = idx
+			}
+			return true
+		}
+	}
+	return false
+}
+
+func tryExtractYear(info *ParsedInfo, raw string, idx int, firstMeta *int) bool {
+	if m := reYear.FindStringSubmatch(raw); len(m) == 2 {
+		y, _ := strconv.Atoi(m[1])
+		info.Year = &y
+		if idx < *firstMeta {
+			*firstMeta = idx
+		}
+		return true
+	}
+	return false
+}
+
+func tryExtractLanguage(info *ParsedInfo, lower string, idx int, firstMeta *int) bool {
+	if iso, ok := languageTags[lower]; ok {
+		info.Language = iso
+		info.LanguageTag = lower
+		if idx < *firstMeta {
+			*firstMeta = idx
+		}
+		return true
+	}
+	return false
+}
+
+func tryExtractQuality(info *ParsedInfo, lower string, idx int, firstMeta *int) bool {
+	if knownQualities[lower] {
+		info.Quality = lower
+		if idx < *firstMeta {
+			*firstMeta = idx
+		}
+		return true
+	}
+	return false
+}
+
+func extractTitle(info *ParsedInfo, parts []string, firstMetaIdx int) {
 	var titleParts []string
 	if firstMetaIdx > 0 {
 		titleParts = parts[:firstMetaIdx]
 	} else if len(parts) > 0 {
 		titleParts = parts[:1]
 	}
-
-	rawTitle := strings.Join(titleParts, " ")
-	rawTitle = strings.TrimRight(rawTitle, " ")
+	rawTitle := strings.TrimRight(strings.Join(titleParts, " "), " ")
 	info.Title = ucFirst(rawTitle)
 	info.CleanTitle = strings.ToLower(info.Title)
+}
 
-	// --- Codec & audio: regex on raw name (spans separator boundaries) ---
+func extractCodecAudio(info *ParsedInfo, name string) {
 	if m := reCodec.FindStringSubmatch(name); len(m) >= 2 {
 		info.Codec = normalizeCodec(m[1])
 	}
 	if m := reAudio.FindStringSubmatch(name); len(m) >= 2 {
 		info.Audio = strings.ToLower(m[1])
 	}
+}
 
-	// --- Release group: last hyphen-separated token at end of name ---
+func extractReleaseGroup(info *ParsedInfo, name string) {
 	if m := reGroup.FindStringSubmatch(name); len(m) >= 2 {
-		group := m[1]
-		if !isKnownTag(group) {
-			info.ReleaseGroup = group
+		if !isKnownTag(m[1]) {
+			info.ReleaseGroup = m[1]
 		}
 	}
-
-	return info
 }
 
 // ucFirst capitalises the first letter only (mirrors normalize_video's UcFirst).
