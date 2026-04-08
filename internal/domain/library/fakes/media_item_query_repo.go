@@ -75,8 +75,15 @@ func (r *FakeMediaItemQueryRepo) List(_ context.Context, filter library.ListMedi
 	}
 	allowedSet := allowedRatingsSet(filter.AllowedRatings)
 	var result []*library.MediaItem
+	libIDsSet := make(map[string]bool, len(filter.LibraryIDs))
+	for _, id := range filter.LibraryIDs {
+		libIDsSet[id] = true
+	}
 	for _, item := range r.items {
 		if filter.LibraryID != nil && item.LibraryID != *filter.LibraryID {
+			continue
+		}
+		if len(libIDsSet) > 0 && !libIDsSet[item.LibraryID] {
 			continue
 		}
 		if filter.ParentID != nil && item.ParentID != *filter.ParentID {
@@ -123,9 +130,16 @@ func (r *FakeMediaItemQueryRepo) Count(_ context.Context, filter library.ListMed
 		return 0, r.Err
 	}
 	allowedSet := allowedRatingsSet(filter.AllowedRatings)
+	countLibIDsSet := make(map[string]bool, len(filter.LibraryIDs))
+	for _, id := range filter.LibraryIDs {
+		countLibIDsSet[id] = true
+	}
 	count := 0
 	for _, item := range r.items {
 		if filter.LibraryID != nil && item.LibraryID != *filter.LibraryID {
+			continue
+		}
+		if len(countLibIDsSet) > 0 && !countLibIDsSet[item.LibraryID] {
 			continue
 		}
 		if filter.Type != nil && item.Type != *filter.Type {

@@ -297,6 +297,169 @@ func TestApplyOverridesToItem_NilOverrides(t *testing.T) {
 	assert.Equal(t, "Keep This", item.Title)
 }
 
+// --- IDOR / authorization tests ---
+
+func TestLibraryHandler_GetLibrary_NoAccessCheck(t *testing.T) {
+	// GetLibrary has NO authz check — any authenticated user can fetch any library.
+	// This test documents the current behavior (no IDOR protection on GetLibrary).
+	h, libQuery, _, _, libraryAccess, _ := newTestLibraryHandler()
+
+	libQuery.Seed(&library.Library{ID: "lib-1", Name: "Movies", Type: "movie"})
+	libQuery.Seed(&library.Library{ID: "lib-2", Name: "Private", Type: "movie"})
+
+	// user-2 only has access to lib-1
+	libraryAccess.Grant(context.Background(), "user-2", "lib-1")
+	ctx := userCtx("user-2", "profile-2")
+
+	// GetLibrary does NOT enforce access — documents missing check
+	resp, err := h.GetLibrary(ctx, &eveyv1.GetLibraryRequest{Id: "lib-2"})
+	require.NoError(t, err)
+	assert.Equal(t, "lib-2", resp.Id)
+}
+
+func TestLibraryHandler_GetMediaItem_IDOR_Denied(t *testing.T) {
+	h, _, mediaQuery, _, libraryAccess, _ := newTestLibraryHandler()
+
+	mediaQuery.Seed(&library.MediaItem{ID: "mi-1", LibraryID: "lib-secret", Title: "Secret Movie", Type: "movie"})
+
+	// user-2 has access to lib-1 only (creates restriction)
+	libraryAccess.Grant(context.Background(), "user-2", "lib-1")
+	ctx := userCtx("user-2", "profile-2")
+
+	_, err := h.GetMediaItem(ctx, &eveyv1.GetMediaItemRequest{Id: "mi-1"})
+	require.Error(t, err)
+	assert.Equal(t, codes.NotFound, status.Code(err))
+}
+
+func TestLibraryHandler_GetMediaItem_IDOR_Allowed(t *testing.T) {
+	h, _, mediaQuery, _, libraryAccess, _ := newTestLibraryHandler()
+
+	mediaQuery.Seed(&library.MediaItem{ID: "mi-1", LibraryID: "lib-1", Title: "Allowed Movie", Type: "movie"})
+
+	libraryAccess.Grant(context.Background(), "user-2", "lib-1")
+	ctx := userCtx("user-2", "profile-2")
+
+	resp, err := h.GetMediaItem(ctx, &eveyv1.GetMediaItemRequest{Id: "mi-1"})
+	require.NoError(t, err)
+	assert.Equal(t, "Allowed Movie", resp.Title)
+}
+
+func TestLibraryHandler_GetMediaItem_AdminBypassesAccess(t *testing.T) {
+	h, _, mediaQuery, _, libraryAccess, _ := newTestLibraryHandler()
+
+	mediaQuery.Seed(&library.MediaItem{ID: "mi-1", LibraryID: "lib-secret", Title: "Secret", Type: "movie"})
+
+	libraryAccess.Grant(context.Background(), "user-1", "lib-other")
+	ctx := adminCtx()
+
+	resp, err := h.GetMediaItem(ctx, &eveyv1.GetMediaItemRequest{Id: "mi-1"})
+	require.NoError(t, err)
+	assert.Equal(t, "Secret", resp.Title)
+}
+
+func TestLibraryHandler_ListMediaItems_IDOR_Denied(t *testing.T) {
+	h, _, mediaQuery, _, libraryAccess, _ := newTestLibraryHandler()
+
+	mediaQuery.Seed(&library.MediaItem{ID: "mi-1", LibraryID: "lib-secret", Title: "Secret", Type: "movie"})
+
+	libraryAccess.Grant(context.Background(), "user-2", "lib-1")
+	ctx := userCtx("user-2", "profile-2")
+
+	resp, err := h.ListMediaItems(ctx, &eveyv1.ListMediaItemsRequest{
+		LibraryId:  "lib-secret",
+		Pagination: &eveyv1.PaginationRequest{Page: 1, PageSize: 10},
+	})
+	require.NoError(t, err)
+	assert.Empty(t, resp.Items)
+}
+
+func TestLibraryHandler_ListMediaItems_IDOR_Allowed(t *testing.T) {
+	h, _, mediaQuery, _, libraryAccess, _ := newTestLibraryHandler()
+
+	mediaQuery.Seed(&library.MediaItem{ID: "mi-1", LibraryID: "lib-1", Title: "Allowed", Type: "movie"})
+
+	libraryAccess.Grant(context.Background(), "user-2", "lib-1")
+	ctx := userCtx("user-2", "profile-2")
+
+	resp, err := h.ListMediaItems(ctx, &eveyv1.ListMediaItemsRequest{
+		LibraryId:  "lib-1",
+		Pagination: &eveyv1.PaginationRequest{Page: 1, PageSize: 10},
+	})
+	require.NoError(t, err)
+	assert.Len(t, resp.Items, 1)
+	assert.Equal(t, "Allowed", resp.Items[0].Title)
+}
+
+func TestLibraryHandler_ListMediaItems_NoLibraryID_FiltersAccess(t *testing.T) {
+	h, _, mediaQuery, _, libraryAccess, _ := newTestLibraryHandler()
+
+	mediaQuery.Seed(&library.MediaItem{ID: "mi-1", LibraryID: "lib-1", Title: "Visible", Type: "movie"})
+	mediaQuery.Seed(&library.MediaItem{ID: "mi-2", LibraryID: "lib-secret", Title: "Hidden", Type: "movie"})
+
+	libraryAccess.Grant(context.Background(), "user-2", "lib-1")
+	ctx := userCtx("user-2", "profile-2")
+
+	resp, err := h.ListMediaItems(ctx, &eveyv1.ListMediaItemsRequest{
+		Pagination: &eveyv1.PaginationRequest{Page: 1, PageSize: 10},
+	})
+	require.NoError(t, err)
+	for _, item := range resp.Items {
+		assert.NotEqual(t, "lib-secret", item.LibraryId, "should not see items from restricted library")
+	}
+}
+
+func TestLibraryHandler_SearchMedia_IDOR_FiltersAccess(t *testing.T) {
+	h, _, _, searchIdx, libraryAccess, _ := newTestLibraryHandler()
+	ctx := context.Background()
+
+	searchIdx.IndexMediaItem(ctx, &library.MediaItem{
+		ID: "mi-1", LibraryID: "lib-1", Title: "Allowed Matrix", Type: "movie",
+	}, nil)
+	searchIdx.IndexMediaItem(ctx, &library.MediaItem{
+		ID: "mi-2", LibraryID: "lib-secret", Title: "Secret Matrix", Type: "movie",
+	}, nil)
+
+	libraryAccess.Grant(ctx, "user-2", "lib-1")
+	userCtx := userCtx("user-2", "profile-2")
+
+	resp, err := h.SearchMedia(userCtx, &eveyv1.SearchMediaRequest{Query: "Matrix", Limit: 10})
+	require.NoError(t, err)
+	assert.Len(t, resp.Items, 1)
+	assert.Equal(t, "mi-1", resp.Items[0].Id)
+}
+
+func TestLibraryHandler_FilterMediaItems_IDOR_Denied(t *testing.T) {
+	h, _, mediaQuery, _, libraryAccess, _ := newTestLibraryHandler()
+
+	mediaQuery.Seed(&library.MediaItem{ID: "mi-1", LibraryID: "lib-secret", Title: "Secret", Type: "movie"})
+
+	libraryAccess.Grant(context.Background(), "user-2", "lib-1")
+	ctx := userCtx("user-2", "profile-2")
+
+	resp, err := h.FilterMediaItems(ctx, &eveyv1.FilterMediaItemsRequest{
+		LibraryId: "lib-secret",
+		Limit:     10,
+	})
+	require.NoError(t, err)
+	assert.Empty(t, resp.Items)
+}
+
+func TestLibraryHandler_FilterMediaItems_IDOR_Allowed(t *testing.T) {
+	h, _, mediaQuery, _, libraryAccess, _ := newTestLibraryHandler()
+
+	mediaQuery.Seed(&library.MediaItem{ID: "mi-1", LibraryID: "lib-1", Title: "Allowed", Type: "movie"})
+
+	libraryAccess.Grant(context.Background(), "user-2", "lib-1")
+	ctx := userCtx("user-2", "profile-2")
+
+	resp, err := h.FilterMediaItems(ctx, &eveyv1.FilterMediaItemsRequest{
+		LibraryId: "lib-1",
+		Limit:     10,
+	})
+	require.NoError(t, err)
+	assert.Len(t, resp.Items, 1)
+}
+
 func TestLibraryHandler_GetMediaItem_WithOverrides(t *testing.T) {
 	h, _, mediaQuery, _, _, _ := newTestLibraryHandler()
 	ctx := adminCtx()
