@@ -2,7 +2,7 @@ import { describe, it, expect, vi } from "vitest";
 import { renderHook } from "@testing-library/react";
 
 vi.mock("@evey/store", () => ({
-  useAuthStore: vi.fn((selector: (s: { accessToken: string | null }) => unknown) =>
+  useAuthStore: vi.fn((selector: (s: any) => unknown) =>
     selector({ accessToken: null }),
   ),
 }));
@@ -13,7 +13,7 @@ import { useAuthStore } from "@evey/store";
 const mockUseAuthStore = vi.mocked(useAuthStore);
 
 function setToken(token: string | null) {
-  mockUseAuthStore.mockImplementation((selector: (s: { accessToken: string | null }) => unknown) =>
+  mockUseAuthStore.mockImplementation((selector: (s: any) => unknown) =>
     selector({ accessToken: token }),
   );
 }
