@@ -55,6 +55,12 @@ func (h *libraryHandler) GetLibrary(ctx context.Context, req *eveyv1.GetLibraryR
 	if err != nil {
 		return nil, status.Errorf(codes.NotFound, "library not found: %v", err)
 	}
+	if ok, accessErr := h.checkLibraryAccess(ctx, lib.ID); !ok {
+		if accessErr != nil {
+			slog.Warn("check library access", slog.Any("err", accessErr))
+		}
+		return nil, status.Errorf(codes.NotFound, "library not found")
+	}
 	return libraryToProto(lib), nil
 }
 
