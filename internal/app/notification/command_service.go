@@ -13,6 +13,7 @@ import (
 	libevent "github.com/gravity-zero/evey/internal/domain/library"
 	"github.com/gravity-zero/evey/internal/domain/notification"
 	"github.com/gravity-zero/evey/internal/domain/shared"
+	"github.com/gravity-zero/evey/internal/domain/user"
 )
 
 type batchEntry struct {
@@ -347,24 +348,9 @@ func (s *CommandService) emitNotifications(mediaType, title, seriesTitle, mediaI
 		return
 	}
 
-	var relevanceIDs []string
-	for _, p := range profiles {
-		cfg := allSettings[p.ID]
-		if cfg == nil {
-			continue
-		}
-		lvl := levelForType(cfg, notifType)
-		if (lvl == notification.LevelRelevant || lvl == notification.LevelHighlyRelevant) && len(genres) > 0 {
-			relevanceIDs = append(relevanceIDs, p.ID)
-		}
-	}
-	var favoritesByProfile map[string][]string
-	if len(relevanceIDs) > 0 {
-		favoritesByProfile, err = s.analyzer.GetFavoriteGenresBatch(ctx, relevanceIDs, 3)
-		if err != nil {
-			slog.Warn("notification: batch get favorite genres failed", slog.Any("err", err))
-			return
-		}
+	favoritesByProfile, err := s.fetchFavoriteGenres(ctx, profiles, allSettings, notifType, genres)
+	if err != nil {
+		return
 	}
 
 	expires := time.Now().AddDate(0, 0, defaultRetentionDays)
@@ -374,27 +360,8 @@ func (s *CommandService) emitNotifications(mediaType, title, seriesTitle, mediaI
 			continue
 		}
 		lvl := levelForType(cfg, notifType)
-		if lvl == notification.LevelDisabled {
+		if !shouldNotify(lvl, genres, favoritesByProfile[p.ID]) {
 			continue
-		}
-		if lvl == notification.LevelRelevant || lvl == notification.LevelHighlyRelevant {
-			if len(genres) == 0 {
-				continue
-			}
-			favs := favoritesByProfile[p.ID]
-			favSet := make(map[string]bool, len(favs))
-			for _, g := range favs {
-				favSet[g] = true
-			}
-			score := 0
-			for _, g := range genres {
-				if favSet[g] {
-					score++
-				}
-			}
-			if score == 0 {
-				continue
-			}
 		}
 		n := &notification.Notification{
 			ID:          uuid.New().String(),
@@ -407,32 +374,92 @@ func (s *CommandService) emitNotifications(mediaType, title, seriesTitle, mediaI
 			CreatedAt:   time.Now(),
 			ExpiresAt:   &expires,
 		}
-		if createErr := s.repo.Create(ctx, n); createErr != nil {
-			slog.Warn("create notification failed", slog.String("profileID", p.ID), slog.Any("err", createErr))
+		s.persistAndDispatch(ctx, n, pushTitle)
+	}
+}
+
+func (s *CommandService) fetchFavoriteGenres(
+	ctx context.Context,
+	profiles []*user.Profile,
+	allSettings map[string]*notification.Settings,
+	notifType notification.Type,
+	genres []string,
+) (map[string][]string, error) {
+	var relevanceIDs []string
+	for _, p := range profiles {
+		cfg := allSettings[p.ID]
+		if cfg == nil {
 			continue
 		}
-		if s.push != nil && s.subs != nil {
-			subs, subErr := s.subs.GetByProfile(ctx, n.ProfileID)
-			if subErr != nil {
-				slog.Warn("webpush: get subscriptions failed", slog.String("profileID", n.ProfileID), slog.Any("err", subErr))
-			} else {
-				for _, sub := range subs {
-					if sendErr := s.push.Send(ctx, sub, pushTitle, n.Message, nil); sendErr != nil {
-						slog.Warn("webpush: send failed", slog.String("profileID", n.ProfileID), slog.String("endpoint", sub.Endpoint), slog.Any("err", sendErr))
-					}
-				}
-			}
+		lvl := levelForType(cfg, notifType)
+		if (lvl == notification.LevelRelevant || lvl == notification.LevelHighlyRelevant) && len(genres) > 0 {
+			relevanceIDs = append(relevanceIDs, p.ID)
 		}
-		evt := notification.NotificationCreated{
-			NotificationID: n.ID,
-			ProfileID:      n.ProfileID,
-			Type:           n.Type,
-			Title:          n.Title,
-			MediaItemID:    n.MediaItemID,
-			OccurredAt:     n.CreatedAt,
+	}
+	if len(relevanceIDs) == 0 {
+		return nil, nil
+	}
+	favs, err := s.analyzer.GetFavoriteGenresBatch(ctx, relevanceIDs, 3)
+	if err != nil {
+		slog.Warn("notification: batch get favorite genres failed", slog.Any("err", err))
+		return nil, err
+	}
+	return favs, nil
+}
+
+func shouldNotify(lvl notification.Level, genres, favorites []string) bool {
+	if lvl == notification.LevelDisabled {
+		return false
+	}
+	if lvl != notification.LevelRelevant && lvl != notification.LevelHighlyRelevant {
+		return true
+	}
+	if len(genres) == 0 {
+		return false
+	}
+	favSet := make(map[string]bool, len(favorites))
+	for _, g := range favorites {
+		favSet[g] = true
+	}
+	for _, g := range genres {
+		if favSet[g] {
+			return true
 		}
-		if pubErr := s.events.Publish(ctx, evt); pubErr != nil {
-			slog.Warn("publish notification.created", slog.Any("err", pubErr))
+	}
+	return false
+}
+
+func (s *CommandService) persistAndDispatch(ctx context.Context, n *notification.Notification, pushTitle string) {
+	if createErr := s.repo.Create(ctx, n); createErr != nil {
+		slog.Warn("create notification failed", slog.String("profileID", n.ProfileID), slog.Any("err", createErr))
+		return
+	}
+	s.sendPush(ctx, n.ProfileID, pushTitle, n.Message)
+	evt := notification.NotificationCreated{
+		NotificationID: n.ID,
+		ProfileID:      n.ProfileID,
+		Type:           n.Type,
+		Title:          n.Title,
+		MediaItemID:    n.MediaItemID,
+		OccurredAt:     n.CreatedAt,
+	}
+	if pubErr := s.events.Publish(ctx, evt); pubErr != nil {
+		slog.Warn("publish notification.created", slog.Any("err", pubErr))
+	}
+}
+
+func (s *CommandService) sendPush(ctx context.Context, profileID, title, message string) {
+	if s.push == nil || s.subs == nil {
+		return
+	}
+	subs, err := s.subs.GetByProfile(ctx, profileID)
+	if err != nil {
+		slog.Warn("webpush: get subscriptions failed", slog.String("profileID", profileID), slog.Any("err", err))
+		return
+	}
+	for _, sub := range subs {
+		if sendErr := s.push.Send(ctx, sub, title, message, nil); sendErr != nil {
+			slog.Warn("webpush: send failed", slog.String("profileID", profileID), slog.String("endpoint", sub.Endpoint), slog.Any("err", sendErr))
 		}
 	}
 }
@@ -464,32 +491,7 @@ func (s *CommandService) handleBackupFailed(parentCtx context.Context, ev shared
 			CreatedAt: time.Now(),
 			ExpiresAt: &expires,
 		}
-		if err := s.repo.Create(ctx, n); err != nil {
-			slog.Warn("create backup failure notification", slog.String("profileID", p.ID), slog.Any("err", err))
-			continue
-		}
-		if s.push != nil && s.subs != nil {
-			subs, subErr := s.subs.GetByProfile(ctx, n.ProfileID)
-			if subErr != nil {
-				slog.Warn("webpush: get subscriptions for backup.failed", slog.String("profileID", n.ProfileID), slog.Any("err", subErr))
-			} else {
-				for _, sub := range subs {
-					if pushErr := s.push.Send(ctx, sub, n.Title, n.Message, nil); pushErr != nil {
-						slog.Warn("webpush: send backup.failed", slog.String("profileID", n.ProfileID), slog.Any("err", pushErr))
-					}
-				}
-			}
-		}
-		evt := notification.NotificationCreated{
-			NotificationID: n.ID,
-			ProfileID:      n.ProfileID,
-			Type:           n.Type,
-			Title:          n.Title,
-			OccurredAt:     n.CreatedAt,
-		}
-		if pubErr := s.events.Publish(ctx, evt); pubErr != nil {
-			slog.Warn("publish notification.created for backup.failed", slog.Any("err", pubErr))
-		}
+		s.persistAndDispatch(ctx, n, n.Title)
 	}
 }
 
