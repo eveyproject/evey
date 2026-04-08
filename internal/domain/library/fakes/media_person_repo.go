@@ -30,6 +30,18 @@ func (r *FakeMediaPersonRepository) Create(_ context.Context, mp *library.MediaP
 	return nil
 }
 
+func (r *FakeMediaPersonRepository) CreateBatch(_ context.Context, mps []*library.MediaPerson) error {
+	if r.Err != nil {
+		return r.Err
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	for _, mp := range mps {
+		r.items[mp.MediaItemID] = append(r.items[mp.MediaItemID], mp)
+	}
+	return nil
+}
+
 func (r *FakeMediaPersonRepository) DeleteByMediaItemID(_ context.Context, mediaItemID string) error {
 	if r.Err != nil {
 		return r.Err

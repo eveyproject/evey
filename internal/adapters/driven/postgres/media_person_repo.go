@@ -3,6 +3,8 @@ package postgres
 import (
 	"context"
 	"database/sql"
+	"fmt"
+	"strings"
 
 	"github.com/gravity-zero/evey/internal/domain/library"
 )
@@ -22,6 +24,26 @@ func (r *MediaPersonRepository) Create(ctx context.Context, mp *library.MediaPer
 		 ON CONFLICT (media_item_id, person_id, role_type) DO NOTHING`,
 		mp.MediaItemID, mp.PersonID, mp.RoleType, mp.CharacterName, mp.SortOrder,
 	)
+	return err
+}
+
+func (r *MediaPersonRepository) CreateBatch(ctx context.Context, mps []*library.MediaPerson) error {
+	if len(mps) == 0 {
+		return nil
+	}
+	const cols = 5
+	vals := make([]string, 0, len(mps))
+	args := make([]any, 0, len(mps)*cols)
+	for i, mp := range mps {
+		base := i * cols
+		vals = append(vals, fmt.Sprintf("($%d,$%d,$%d,$%d,$%d)",
+			base+1, base+2, base+3, base+4, base+5))
+		args = append(args, mp.MediaItemID, mp.PersonID, mp.RoleType, mp.CharacterName, mp.SortOrder)
+	}
+	q := `INSERT INTO media_people (media_item_id, person_id, role_type, character_name, sort_order) VALUES ` +
+		strings.Join(vals, ",") +
+		` ON CONFLICT (media_item_id, person_id, role_type) DO NOTHING`
+	_, err := r.db.ExecContext(ctx, q, args...)
 	return err
 }
 
