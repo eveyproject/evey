@@ -28,6 +28,7 @@ export function Select({
   ...props
 }: SelectProps) {
   const selectId = id ?? label?.toLowerCase().replace(/\s+/g, "-");
+  const errorId = error && selectId ? `${selectId}-error` : undefined;
   return (
     <div className="flex flex-col gap-1">
       {label && (
@@ -41,6 +42,8 @@ export function Select({
           value={value}
           onChange={(e) => onChange(e.target.value)}
           disabled={disabled}
+          aria-invalid={error ? true : undefined}
+          aria-describedby={errorId}
           {...props}
           className={`w-full appearance-none px-3 py-2 pr-8 rounded-[var(--radius-md)] bg-[var(--surface-raised)] border border-[var(--border)] text-[var(--text)] text-sm focus:outline-none focus:ring-2 focus:ring-[var(--accent)] focus:border-transparent disabled:opacity-50 disabled:cursor-not-allowed ${error ? "border-[var(--color-danger)]" : ""} ${className}`}
         >
@@ -57,7 +60,7 @@ export function Select({
         </select>
         <ChevronDown className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--text-muted)]" size={16} />
       </div>
-      {error && <span className="text-xs text-[var(--color-danger)]">{error}</span>}
+      {error && <span id={errorId} className="text-xs text-[var(--color-danger)]" role="alert">{error}</span>}
     </div>
   );
 }
