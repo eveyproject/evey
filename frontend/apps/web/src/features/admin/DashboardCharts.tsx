@@ -10,7 +10,7 @@ function useCssVar(name: string, fallback = "#888") {
   return getComputedStyle(document.documentElement).getPropertyValue(name).trim() || fallback;
 }
 
-const PIE_COLORS = ["#6366f1", "#f59e0b", "#10b981", "#ef4444", "#8b5cf6", "#ec4899", "#14b8a6", "#f97316"];
+import { CHART_COLORS } from "@/constants/chartColors";
 
 export function PlayActivityChart() {
   const { t } = useTranslation();
@@ -95,8 +95,8 @@ export function StorageDonut({ storage }: { storage: { path?: string; totalBytes
 
   if (!storage || storage.length === 0) return null;
 
-  const usedColor = PIE_COLORS[0];
-  const freeColor = PIE_COLORS[2];
+  const usedColor = CHART_COLORS[0];
+  const freeColor = CHART_COLORS[2];
 
   return (
     <div className="p-4 rounded-[var(--radius-lg)] bg-[var(--surface)] border border-[var(--border)]">
