@@ -103,6 +103,8 @@ export const SearchDropdown = memo(function SearchDropdown({
     return (
       <div
         ref={dropdownRef}
+        id="search-results"
+        role="listbox"
         data-testid="search-dropdown-recents"
         className="absolute left-0 right-0 top-full mt-1 rounded-[var(--radius-md)] border border-[var(--border)] shadow-xl z-overlay overflow-hidden animate-fade-in bg-[var(--surface-raised)]"
       >
@@ -122,7 +124,7 @@ export const SearchDropdown = memo(function SearchDropdown({
         </div>
         <ul className="py-1">
           {recents.map((r) => (
-            <li key={r} className="flex items-center gap-1 px-2">
+            <li key={r} role="option" className="flex items-center gap-1 px-2">
               <button
                 data-search-item
                 onClick={() => { onNavigateToSearch(r); onClose(); }}
@@ -150,6 +152,8 @@ export const SearchDropdown = memo(function SearchDropdown({
   return (
     <div
       ref={dropdownRef}
+      id="search-results"
+      role="listbox"
       data-testid="search-dropdown"
       className="absolute left-0 right-0 top-full mt-1 rounded-[var(--radius-md)] border border-[var(--border)] shadow-xl z-overlay overflow-hidden animate-fade-in bg-[var(--surface-raised)]"
     >
@@ -184,7 +188,7 @@ export const SearchDropdown = memo(function SearchDropdown({
         <>
           <ul className="py-1">
             {items.map((item) => (
-              <li key={item.id}>
+              <li key={item.id} role="option">
                 <button
                   data-search-item
                   onClick={() => goToItem(item.id ?? "")}

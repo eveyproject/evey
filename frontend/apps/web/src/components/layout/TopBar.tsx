@@ -203,6 +203,10 @@ export function TopBar() {
           <input
             ref={inputRef}
             type="search"
+            role="combobox"
+            aria-expanded={dropdownOpen && !isOnSearch}
+            aria-controls="search-results"
+            aria-autocomplete="list"
             placeholder={t("media.search.placeholder")}
             aria-label={t("common.search")}
             data-testid="topbar-search-input"
