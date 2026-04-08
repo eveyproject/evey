@@ -43,7 +43,7 @@ func setupPluginAssetTest(t *testing.T) (*http.ServeMux, string, *pluginfakes.Fa
 	require.NoError(t, os.WriteFile(filepath.Join(pluginDir, "widget.bundle.js"), []byte("export default function(){}"), 0o644))
 
 	mux := http.NewServeMux()
-	registerPluginAssetRoutes(mux, tokenGen, repo, dir)
+	registerPluginAssetRoutes(mux, tokenGen, repo, dir, func(data []byte) ([]byte, []string) { return data, nil })
 
 	token, err := tokenGen.GenerateAccessToken(domainuser.Claims{UserID: "user1", IsAdmin: false})
 	require.NoError(t, err)
