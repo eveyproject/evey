@@ -2,6 +2,7 @@ package media
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -19,7 +20,7 @@ func NewShareService(repo shared.ShareLinkRepository) *ShareService {
 
 func (s *ShareService) Create(ctx context.Context, mediaItemID, createdBy string, duration time.Duration, maxViews *int) (*shared.ShareLink, error) {
 	if duration <= 0 || duration > 72*time.Hour {
-		return nil, fmt.Errorf("share link duration must be between 0 and 72 hours")
+		return nil, errors.New("share link duration must be between 0 and 72 hours")
 	}
 	link := &shared.ShareLink{
 		ID:          uuid.New().String(),
@@ -43,10 +44,10 @@ func (s *ShareService) Validate(ctx context.Context, token string) (*shared.Shar
 		return nil, fmt.Errorf("share link not found: %w", err)
 	}
 	if link.IsExpired() {
-		return nil, fmt.Errorf("share link expired")
+		return nil, errors.New("share link expired")
 	}
 	if link.IsViewLimitReached() {
-		return nil, fmt.Errorf("share link view limit reached")
+		return nil, errors.New("share link view limit reached")
 	}
 	if err := s.repo.IncrementViewCount(ctx, token); err != nil {
 		return nil, err

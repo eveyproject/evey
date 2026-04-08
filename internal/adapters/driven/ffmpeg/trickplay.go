@@ -3,6 +3,7 @@ package ffmpeg
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 	"os"
@@ -135,7 +136,7 @@ func (g *TrickplayGenerator) Generate(ctx context.Context, filePath, outputDir s
 	}
 
 	if existing == 0 {
-		return nil, fmt.Errorf("no thumbnails extracted")
+		return nil, errors.New("no thumbnails extracted")
 	}
 
 	// Tile thumbnails into sprite sheets.

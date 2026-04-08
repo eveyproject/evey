@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/xml"
+	"errors"
 	"fmt"
 	"html"
 	"io"
@@ -179,7 +180,7 @@ func fetchDeviceDescription(ctx context.Context, location string) (*Renderer, er
 		}
 	}
 	if controlPath == "" {
-		return nil, fmt.Errorf("no AVTransport service found")
+		return nil, errors.New("no AVTransport service found")
 	}
 
 	controlURL, err := resolveURL(location, controlPath)

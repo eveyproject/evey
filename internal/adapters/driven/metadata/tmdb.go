@@ -3,6 +3,7 @@ package metadata
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -159,7 +160,7 @@ func (p *TMDBProvider) GetEpisodeDetails(ctx context.Context, seriesID string, s
 		return nil, fmt.Errorf("tmdb episode unmarshal: %w", err)
 	}
 	if ep.Name == "" {
-		return nil, fmt.Errorf("episode not found")
+		return nil, errors.New("episode not found")
 	}
 	result := &domain.MetadataResult{
 		Title:    ep.Name,
@@ -387,7 +388,7 @@ func (p *TMDBProvider) doRequestWithRetry(ctx context.Context, rawURL string) ([
 		}
 
 		if resp.StatusCode == http.StatusTooManyRequests {
-			lastErr = fmt.Errorf("rate limited (429)")
+			lastErr = errors.New("rate limited (429)")
 			wait := retryWait * time.Duration(attempt+1)
 			if ra := resp.Header.Get("Retry-After"); ra != "" {
 				if secs, err := strconv.Atoi(ra); err == nil {

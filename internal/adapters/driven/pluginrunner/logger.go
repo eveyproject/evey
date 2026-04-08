@@ -2,6 +2,7 @@ package pluginrunner
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -40,7 +41,7 @@ func (w *pluginLogWriter) Write(p []byte) (int, error) {
 		w.rotate(today)
 	}
 	if w.current == nil {
-		return 0, fmt.Errorf("no log file")
+		return 0, errors.New("no log file")
 	}
 	n, err := w.current.Write(p)
 	w.curSize += int64(n)

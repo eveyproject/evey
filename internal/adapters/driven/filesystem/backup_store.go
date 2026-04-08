@@ -5,6 +5,7 @@ import (
 	"compress/gzip"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -175,24 +176,24 @@ func (s *BackupStore) List(_ context.Context) ([]*backup.BackupManifest, error) 
 
 func (s *BackupStore) Get(_ context.Context, id string) (*backup.BackupManifest, io.ReadCloser, error) {
 	if strings.Contains(id, "/") || strings.Contains(id, "\\") || strings.Contains(id, "..") {
-		return nil, nil, fmt.Errorf("invalid backup id")
+		return nil, nil, errors.New("invalid backup id")
 	}
 	manifestPath := filepath.Join(s.dir, id+".json")
 	data, err := os.ReadFile(manifestPath)
 	if err != nil {
-		return nil, nil, fmt.Errorf("backup not found")
+		return nil, nil, errors.New("backup not found")
 	}
 	var m backup.BackupManifest
 	if unmarshalErr := json.Unmarshal(data, &m); unmarshalErr != nil {
-		return nil, nil, fmt.Errorf("corrupt manifest")
+		return nil, nil, errors.New("corrupt manifest")
 	}
 	archivePath, ok := s.resolveArchivePath(id)
 	if !ok {
-		return nil, nil, fmt.Errorf("backup archive not found")
+		return nil, nil, errors.New("backup archive not found")
 	}
 	f, openErr := os.Open(archivePath)
 	if openErr != nil {
-		return nil, nil, fmt.Errorf("backup archive not found")
+		return nil, nil, errors.New("backup archive not found")
 	}
 	if fi, statErr := os.Stat(archivePath); statErr == nil {
 		m.Size = fi.Size()
@@ -202,11 +203,11 @@ func (s *BackupStore) Get(_ context.Context, id string) (*backup.BackupManifest,
 
 func (s *BackupStore) Delete(_ context.Context, id string) error {
 	if strings.Contains(id, "/") || strings.Contains(id, "\\") || strings.Contains(id, "..") {
-		return fmt.Errorf("invalid backup id")
+		return errors.New("invalid backup id")
 	}
 	archivePath, ok := s.resolveArchivePath(id)
 	if !ok {
-		return fmt.Errorf("backup not found")
+		return errors.New("backup not found")
 	}
 	manifestPath := filepath.Join(s.dir, id+".json")
 	if err := os.Remove(archivePath); err != nil {

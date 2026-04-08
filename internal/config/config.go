@@ -1,6 +1,7 @@
 package config
 
 import (
+	"errors"
 	"fmt"
 	"log/slog"
 	"os"
@@ -161,7 +162,7 @@ func (c *Config) EffectiveHWAccelEnabled() bool      { return c.Transcoding.HWAc
 func (c *Config) WarnValidate() error {
 	k := c.Meilisearch.APIKey
 	if k == "" || k == "changeme" || k == "change-me-generate-a-random-secret" || len(k) < 16 {
-		return fmt.Errorf("meilisearch API key is weak or default — set MEILI_MASTER_KEY to a strong secret (>= 16 chars)")
+		return errors.New("meilisearch API key is weak or default — set MEILI_MASTER_KEY to a strong secret (>= 16 chars)")
 	}
 
 	if c.OIDC.Enabled && c.OIDC.Issuer != "" && c.OIDC.ClientSecret == "" {

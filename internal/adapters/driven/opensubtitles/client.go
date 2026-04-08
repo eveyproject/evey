@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -150,7 +151,7 @@ func (c *Client) Search(ctx context.Context, hash, title, language string) ([]su
 	defer resp.Body.Close()
 
 	if resp.StatusCode == http.StatusTooManyRequests {
-		return nil, fmt.Errorf("opensubtitles: rate limited")
+		return nil, errors.New("opensubtitles: rate limited")
 	}
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("opensubtitles search: status %d", resp.StatusCode)
@@ -213,7 +214,7 @@ func (c *Client) Download(ctx context.Context, fileID int, destPath string) (str
 	defer resp.Body.Close()
 
 	if resp.StatusCode == http.StatusTooManyRequests {
-		return "", fmt.Errorf("opensubtitles: rate limited")
+		return "", errors.New("opensubtitles: rate limited")
 	}
 	if resp.StatusCode != http.StatusOK {
 		return "", fmt.Errorf("opensubtitles download: status %d", resp.StatusCode)

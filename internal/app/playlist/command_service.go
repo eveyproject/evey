@@ -51,7 +51,7 @@ func (s *CommandService) Create(ctx context.Context, pl *playlist.Playlist) erro
 
 func (s *CommandService) Update(ctx context.Context, pl *playlist.Playlist, userID string) error {
 	if pl.Name == "" {
-		return fmt.Errorf("invalid playlist: playlist name is required")
+		return errors.New("invalid playlist: playlist name is required")
 	}
 	existing, err := s.playlists.GetByID(ctx, pl.ID)
 	if err != nil {

@@ -3,6 +3,7 @@ package metadata
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -184,7 +185,7 @@ func (p *TVMazeProvider) doRequest(ctx context.Context, rawURL string) ([]byte, 
 		return nil, err
 	}
 	if resp.StatusCode == http.StatusNotFound {
-		return nil, fmt.Errorf("tvmaze: not found")
+		return nil, errors.New("tvmaze: not found")
 	}
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("tvmaze status %d: %s", resp.StatusCode, string(body))

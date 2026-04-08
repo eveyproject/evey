@@ -2,6 +2,7 @@ package pluginrunner
 
 import (
 	"archive/zip"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -35,7 +36,7 @@ func (p *YAMLManifestParser) Parse(zipPath string) (*plugin.PluginManifest, erro
 		}
 	}
 	if manifestFile == nil {
-		return nil, fmt.Errorf("plugin.yaml not found in archive")
+		return nil, errors.New("plugin.yaml not found in archive")
 	}
 
 	rc, err := manifestFile.Open()
@@ -92,19 +93,19 @@ func (p *YAMLManifestParser) ParseDir(dir string) (*plugin.PluginManifest, error
 
 func validateManifest(m *plugin.PluginManifest) error {
 	if m.Name == "" {
-		return fmt.Errorf("manifest: name is required")
+		return errors.New("manifest: name is required")
 	}
 	if m.Version == "" {
-		return fmt.Errorf("manifest: version is required")
+		return errors.New("manifest: version is required")
 	}
 	if !semverRe.MatchString(m.Version) {
 		return fmt.Errorf("manifest: version %q is not valid semver (expected X.Y.Z or X.Y.Z-label)", m.Version)
 	}
 	if m.Entrypoint == "" {
-		return fmt.Errorf("manifest: entrypoint is required")
+		return errors.New("manifest: entrypoint is required")
 	}
 	if m.Language == "" {
-		return fmt.Errorf("manifest: language is required")
+		return errors.New("manifest: language is required")
 	}
 
 	for _, cap := range m.Capabilities {
