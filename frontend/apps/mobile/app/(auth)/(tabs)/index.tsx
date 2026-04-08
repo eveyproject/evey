@@ -15,6 +15,7 @@ import {
   useFeedServiceGetFeedConfig,
   useFeedServiceUpdateProfileFeedConfig,
   useLibraryServiceListLibraries,
+  useLibraryServiceListMediaItems,
   getLibraryServiceGetMediaItemQueryOptions,
 } from "@evey/api";
 import type { V1MediaItem } from "@evey/api";
@@ -223,6 +224,30 @@ const heroStyles = StyleSheet.create({
     borderRadius: 2,
   },
 });
+
+function LibraryFeedRow({ libraryId, name, libraryType, onItemPress }: { libraryId: string; name: string; libraryType?: string; onItemPress: (item: V1MediaItem) => void }) {
+  const typeFilter = libraryType === "LIBRARY_TYPE_SHOWS"
+    ? "MEDIA_ITEM_TYPE_SERIES"
+    : libraryType === "LIBRARY_TYPE_MOVIES"
+      ? "MEDIA_ITEM_TYPE_MOVIE"
+      : undefined;
+  const { data, isLoading } = useLibraryServiceListMediaItems({
+    libraryId,
+    ...(typeFilter ? { type: typeFilter as never } : {}),
+    "pagination.pageSize": 20,
+    sortField: "MEDIA_SORT_FIELD_DATE_ADDED" as never,
+    sortOrder: "SORT_ORDER_DESC" as never,
+  });
+
+  const items = useMemo(
+    () => (data?.items ?? []).filter((i): i is V1MediaItem => !!i.id),
+    [data?.items],
+  );
+
+  if (!isLoading && items.length === 0) return null;
+
+  return <MediaRow title={name} items={items} onItemPress={onItemPress} />;
+}
 
 const FEED_TYPES = [
   "resume_playback",
@@ -468,9 +493,11 @@ export default function HomeScreen() {
       case "recently_added":
         return <MediaRow key={feedType} title={t("media.home.recentlyAdded")} items={recentItems} onItemPress={handleItemPress} />;
       default:
-        // Library-specific feeds (library:lib-xxx)
         if (feedType.startsWith("library:")) {
-          return null; // TODO: render library-specific row
+          const libId = feedType.replace("library:", "");
+          const lib = (librariesData?.libraries ?? []).find((l) => l.id === libId);
+          if (!lib) return null;
+          return <LibraryFeedRow key={feedType} libraryId={libId} name={lib.name ?? ""} libraryType={lib.type} onItemPress={handleItemPress} />;
         }
         return null;
     }
@@ -518,6 +545,11 @@ export default function HomeScreen() {
             <Text style={{ color: theme.colors.textMuted, fontSize: 12 }}>{t("media.home.customize") || "Customize"}</Text>
           </Pressable>
           {feedConfigs.filter((c) => c.enabled !== false).map((c) => renderSection(c.feedType ?? ""))}
+          {(librariesData?.libraries ?? [])
+            .filter((lib) => lib.id && !feedConfigs.some((c) => c.feedType === `library:${lib.id}`))
+            .map((lib) => (
+              <LibraryFeedRow key={`library:${lib.id}`} libraryId={lib.id!} name={lib.name ?? ""} libraryType={lib.type} onItemPress={handleItemPress} />
+            ))}
         </View>
       </ScrollView>
       <FeedCustomizeModal
