@@ -11,11 +11,18 @@ interface DLNARenderer {
   controlUrl: string;
 }
 
+interface CastDevice {
+  uuid: string;
+  name: string;
+  addr: string;
+  port: number;
+}
+
 interface CastState {
   available: boolean;
   connected: boolean;
   deviceName: string | null;
-  mode: "chromecast" | "dlna" | null;
+  mode: "chromecast" | "cast" | "dlna" | null;
 }
 
 interface CastPlayback {
@@ -245,8 +252,37 @@ export function useDLNA() {
       }
     }
 
-    // DLNA fallback
+    // Server-side Cast (Chromecast via backend) + DLNA fallback
     try {
+      const castDevices = (await eveyFetch<CastDevice[]>({
+        url: "/api/v1/cast/devices",
+        method: "GET",
+      })) ?? [];
+
+      if (castDevices.length > 0) {
+        const device = castDevices[0];
+        const isHls = absoluteUrl.includes("m3u8");
+        await eveyFetch({
+          url: "/api/v1/cast/play",
+          method: "POST",
+          data: {
+            deviceUuid: device.uuid,
+            mediaUrl: absoluteUrl,
+            title: title ?? "",
+            contentType: isHls ? "application/x-mpegurl" : "video/mp4",
+          },
+        });
+        activeRenderer.current = device.uuid;
+        setState((prev) => ({
+          ...prev,
+          connected: true,
+          deviceName: device.name,
+          mode: "cast",
+        }));
+        return;
+      }
+
+      // DLNA fallback
       const renderers = (await eveyFetch<DLNARenderer[]>({
         url: "/api/v1/dlna/renderers",
         method: "GET",
@@ -266,7 +302,7 @@ export function useDLNA() {
         mode: "dlna",
       }));
     } catch (err) {
-      console.error(TAG, "DLNA fallback failed:", err);
+      console.error(TAG, "Cast/DLNA fallback failed:", err);
     }
   }, []);
 
@@ -279,6 +315,17 @@ export function useDLNA() {
       } catch (err) {
         console.error(TAG, "Error ending session:", err);
       }
+    } else if (state.mode === "cast" && activeRenderer.current) {
+      try {
+        await eveyFetch({
+          url: "/api/v1/cast/stop",
+          method: "POST",
+          data: { deviceUuid: activeRenderer.current },
+        });
+      } catch (err) {
+        console.error(TAG, "Cast stop failed:", err);
+      }
+      activeRenderer.current = null;
     } else if (state.mode === "dlna" && activeRenderer.current) {
       try {
         await eveyFetch({

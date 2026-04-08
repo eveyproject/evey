@@ -22,6 +22,7 @@ import (
 	appplaylist "github.com/gravity-zero/evey/internal/app/playlist"
 	apprating "github.com/gravity-zero/evey/internal/app/rating"
 	appsubtitle "github.com/gravity-zero/evey/internal/app/subtitle"
+	appcast "github.com/gravity-zero/evey/internal/app/chromecast"
 	appdlna "github.com/gravity-zero/evey/internal/app/dlna"
 	appsyncplay "github.com/gravity-zero/evey/internal/app/syncplay"
 	apptranscoding "github.com/gravity-zero/evey/internal/app/transcoding"
@@ -138,6 +139,9 @@ type HTTPServer struct {
 	// DLNA
 	DLNASvc *appdlna.Service
 
+	// Chromecast
+	CastSvc *appcast.Service
+
 	// Config store for remote access persistence
 	CfgStore remoteAccessPersister
 
@@ -225,6 +229,16 @@ func (s *HTTPServer) RegisterRoutes(mux *http.ServeMux, gwMux http.Handler) {
 		mux.HandleFunc("POST /api/v1/dlna/play", dlnaPlayHandler(s.TokenGen, s.DLNASvc))
 		mux.HandleFunc("POST /api/v1/dlna/stop", dlnaStopHandler(s.TokenGen, s.DLNASvc))
 		mux.HandleFunc("POST /api/v1/dlna/pause", dlnaPauseHandler(s.TokenGen, s.DLNASvc))
+	}
+
+	// Chromecast
+	if s.CastSvc != nil {
+		mux.HandleFunc("GET /api/v1/cast/devices", castDevicesHandler(s.TokenGen, s.CastSvc))
+		mux.HandleFunc("POST /api/v1/cast/play", castPlayHandler(s.TokenGen, s.CastSvc))
+		mux.HandleFunc("POST /api/v1/cast/stop", castStopHandler(s.TokenGen, s.CastSvc))
+		mux.HandleFunc("POST /api/v1/cast/pause", castPauseHandler(s.TokenGen, s.CastSvc))
+		mux.HandleFunc("POST /api/v1/cast/seek", castSeekHandler(s.TokenGen, s.CastSvc))
+		mux.HandleFunc("GET /api/v1/cast/status", castStatusHandler(s.TokenGen, s.CastSvc))
 	}
 
 	if gwMux != nil {

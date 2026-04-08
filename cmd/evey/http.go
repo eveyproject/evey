@@ -9,6 +9,7 @@ import (
 	"time"
 
 	httpapi "github.com/gravity-zero/evey/internal/adapters/driving/http"
+	appcast "github.com/gravity-zero/evey/internal/app/chromecast"
 	appdlna "github.com/gravity-zero/evey/internal/app/dlna"
 	"github.com/gravity-zero/evey/internal/config"
 	"github.com/gravity-zero/evey/internal/domain/shared"
@@ -107,6 +108,7 @@ func buildHTTPHandler(gwMux http.Handler, deps *appDeps, cfg *config.Config, sta
 		PluginDir:   "/data/plugins",
 		WebDir:      cfg.Server.WebDir,
 		DLNASvc: appdlna.New(cfg.EffectiveBaseURL()),
+		CastSvc: appcast.New(cfg.EffectiveBaseURL()),
 
 		CfgStore: deps.cfgStore,
 		ServerCtx: ctx,
