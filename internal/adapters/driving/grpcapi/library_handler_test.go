@@ -325,9 +325,7 @@ func TestApplyOverridesToItem_NilOverrides(t *testing.T) {
 
 // --- IDOR / authorization tests ---
 
-func TestLibraryHandler_GetLibrary_NoAccessCheck(t *testing.T) {
-	// GetLibrary has NO authz check — any authenticated user can fetch any library.
-	// This test documents the current behavior (no IDOR protection on GetLibrary).
+func TestLibraryHandler_GetLibrary_AccessDenied(t *testing.T) {
 	h, libQuery, _, _, libraryAccess, _ := newTestLibraryHandler()
 
 	libQuery.Seed(&library.Library{ID: "lib-1", Name: "Movies", Type: "movie"})
@@ -337,10 +335,10 @@ func TestLibraryHandler_GetLibrary_NoAccessCheck(t *testing.T) {
 	libraryAccess.Grant(context.Background(), "user-2", "lib-1")
 	ctx := userCtx("user-2", "profile-2")
 
-	// GetLibrary does NOT enforce access — documents missing check
-	resp, err := h.GetLibrary(ctx, &eveyv1.GetLibraryRequest{Id: "lib-2"})
-	require.NoError(t, err)
-	assert.Equal(t, "lib-2", resp.Id)
+	// GetLibrary denies access to lib-2
+	_, err := h.GetLibrary(ctx, &eveyv1.GetLibraryRequest{Id: "lib-2"})
+	require.Error(t, err)
+	assert.Equal(t, codes.NotFound, status.Code(err))
 }
 
 func TestLibraryHandler_GetMediaItem_IDOR_Denied(t *testing.T) {
