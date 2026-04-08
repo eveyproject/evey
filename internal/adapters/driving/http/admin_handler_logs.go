@@ -11,17 +11,67 @@ import (
 	"time"
 )
 
+func parseLineCount(r *http.Request, defaultN, maxN int) int {
+	v := r.URL.Query().Get("lines")
+	if v == "" {
+		return defaultN
+	}
+	n, err := strconv.Atoi(v)
+	if err != nil || n < 0 || n > maxN {
+		return defaultN
+	}
+	return n
+}
+
+func sseWriteLine(w http.ResponseWriter, line string) error {
+	_, err := fmt.Fprintf(w, "data: %s\n\n", line)
+	return err
+}
+
+func sseWritePing(w http.ResponseWriter) error {
+	_, err := fmt.Fprintf(w, ": ping\n\n")
+	return err
+}
+
+func readNewLogBytes(path string, lastSize int64, maxBytes int) ([]byte, int64, error) {
+	info, err := os.Stat(path)
+	if err != nil {
+		return nil, lastSize, err
+	}
+	newSize := info.Size()
+	if newSize < lastSize {
+		lastSize = 0
+	}
+	if newSize == lastSize {
+		return nil, lastSize, nil
+	}
+
+	f, err := os.Open(path)
+	if err != nil {
+		return nil, lastSize, err
+	}
+	defer f.Close()
+
+	if _, err := f.Seek(lastSize, 0); err != nil {
+		return nil, lastSize, err
+	}
+	buf := make([]byte, maxBytes)
+	n, readErr := f.Read(buf)
+	if readErr != nil && n == 0 {
+		return nil, lastSize, readErr
+	}
+	return buf[:n], lastSize + int64(n), nil
+}
+
 func (h *adminHandler) handleGetLogs(w http.ResponseWriter, r *http.Request) {
 	if !h.adminCheckWithQueryToken(r) {
 		http.Error(w, `{"message":"forbidden"}`, http.StatusForbidden)
 		return
 	}
 
-	lines := 200
-	if v := r.URL.Query().Get("lines"); v != "" {
-		if n, err2 := strconv.Atoi(v); err2 == nil && n > 0 && n <= 2000 {
-			lines = n
-		}
+	lines := parseLineCount(r, 200, 2000)
+	if lines == 0 {
+		lines = 200
 	}
 
 	logPath := h.logDir + "/evey.log"
@@ -53,33 +103,40 @@ func (h *adminHandler) handleStreamLogs(w http.ResponseWriter, r *http.Request) 
 	w.Header().Set("X-Accel-Buffering", "no")
 	w.Header().Set("Connection", "keep-alive")
 
-	lines := 200
-	if v := r.URL.Query().Get("lines"); v != "" {
-		if n, err2 := strconv.Atoi(v); err2 == nil && n >= 0 && n <= 2000 {
-			lines = n
-		}
-	}
-
+	lines := parseLineCount(r, 200, 2000)
 	logPath := h.logDir + "/evey.log"
 
-	var lastSize int64
-	if info, err := os.Stat(logPath); err == nil {
-		lastSize = info.Size()
-	}
+	lastSize := initialFileSize(logPath)
 
 	if lines > 0 {
-		initial, tailErr := tailFile(logPath, lines)
-		if tailErr != nil {
-			slog.Warn("tail log file", slog.Any("err", tailErr))
-		}
-		for _, l := range initial {
-			if l != "" {
-				fmt.Fprintf(w, "data: %s\n\n", l)
-			}
-		}
-		flusher.Flush()
+		h.sendInitialLines(w, flusher, logPath, lines)
 	}
 
+	h.followLog(w, flusher, r, logPath, lastSize)
+}
+
+func initialFileSize(path string) int64 {
+	info, err := os.Stat(path)
+	if err != nil {
+		return 0
+	}
+	return info.Size()
+}
+
+func (h *adminHandler) sendInitialLines(w http.ResponseWriter, flusher http.Flusher, logPath string, lines int) {
+	initial, err := tailFile(logPath, lines)
+	if err != nil {
+		slog.Warn("tail log file", slog.Any("err", err))
+	}
+	for _, l := range initial {
+		if l != "" {
+			_ = sseWriteLine(w, l)
+		}
+	}
+	flusher.Flush()
+}
+
+func (h *adminHandler) followLog(w http.ResponseWriter, flusher http.Flusher, r *http.Request, logPath string, lastSize int64) {
 	ticker := time.NewTicker(time.Second)
 	defer ticker.Stop()
 
@@ -90,44 +147,26 @@ func (h *adminHandler) handleStreamLogs(w http.ResponseWriter, r *http.Request) 
 		case <-r.Context().Done():
 			return
 		case <-ticker.C:
-			info, err := os.Stat(logPath)
+			buf, newLastSize, err := readNewLogBytes(logPath, lastSize, maxBytesPerTick)
+			lastSize = newLastSize
 			if err != nil {
 				continue
 			}
-			newSize := info.Size()
-			if newSize < lastSize {
-				lastSize = 0
-			}
-			if newSize == lastSize {
-				if _, writeErr := fmt.Fprintf(w, ": ping\n\n"); writeErr != nil {
-					slog.Debug("sse client gone", slog.Any("err", writeErr))
+
+			if buf == nil {
+				if err := sseWritePing(w); err != nil {
+					slog.Debug("sse client gone", slog.Any("err", err))
 					return
 				}
 				flusher.Flush()
 				continue
 			}
 
-			f, err := os.Open(logPath)
-			if err != nil {
-				continue
-			}
-			if _, seekErr := f.Seek(lastSize, 0); seekErr != nil {
-				f.Close()
-				continue
-			}
-			buf := make([]byte, maxBytesPerTick)
-			n, readErr := f.Read(buf)
-			f.Close()
-			if readErr != nil && n == 0 {
-				continue
-			}
-			lastSize += int64(n)
-
-			newLines := strings.Split(string(buf[:n]), "\n")
+			newLines := strings.Split(string(buf), "\n")
 			for _, l := range newLines {
 				if l != "" {
-					if _, writeErr := fmt.Fprintf(w, "data: %s\n\n", l); writeErr != nil {
-						slog.Debug("sse client gone", slog.Any("err", writeErr))
+					if err := sseWriteLine(w, l); err != nil {
+						slog.Debug("sse client gone", slog.Any("err", err))
 						return
 					}
 				}
