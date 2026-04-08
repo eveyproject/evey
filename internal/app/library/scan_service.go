@@ -468,11 +468,8 @@ func (s *ScanService) ProbeAndStoreStreams(ctx context.Context, mediaItemID, fil
 	result.Streams = append(result.Streams, extSubs...)
 	allStreams := result.Streams
 
-	if err := s.mediaStreams.DeleteByMediaItemID(ctx, mediaItemID); err != nil {
-		slog.Warn("delete media streams failed", slog.String("mediaItemID", mediaItemID), slog.Any("err", err))
-	}
-	if err := s.mediaStreams.CreateBatch(ctx, allStreams); err != nil {
-		slog.Warn("create media streams failed", slog.String("mediaItemID", mediaItemID), slog.Any("err", err))
+	if err := s.mediaStreams.ReplaceBatch(ctx, mediaItemID, allStreams); err != nil {
+		slog.Warn("replace media streams failed", slog.String("mediaItemID", mediaItemID), slog.Any("err", err))
 	}
 	return result.DurationMs
 }

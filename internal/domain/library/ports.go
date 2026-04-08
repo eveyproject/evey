@@ -45,6 +45,7 @@ type MediaItemRepository interface {
 
 type MediaStreamRepository interface {
 	CreateBatch(ctx context.Context, streams []*MediaStream) error
+	ReplaceBatch(ctx context.Context, mediaItemID string, streams []*MediaStream) error
 	GetByMediaItemID(ctx context.Context, mediaItemID string) ([]*MediaStream, error)
 	DeleteByMediaItemID(ctx context.Context, mediaItemID string) error
 }
