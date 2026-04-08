@@ -54,7 +54,7 @@ export function MediaGrid({ children, isLoading, onEndReached }: MediaGridProps)
     <VirtuosoGrid
       useWindowScroll
       totalCount={items.length}
-      overscan={400}
+      overscan={200}
       components={gridComponents}
       itemContent={(index) => items[index]}
       endReached={onEndReached}
