@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"strconv"
 	"strings"
 	"time"
 
@@ -23,6 +24,9 @@ import (
 
 var ErrOIDCDisabled = errors.New("OIDC not enabled")
 var ErrEmailDomainNotAllowed = errors.New("email domain not allowed")
+var ErrStateExpired = errors.New("OIDC state expired")
+
+const oidcStateTTL = 10 * time.Minute
 
 type OIDCService struct {
 	provider            *gooidc.Provider
@@ -104,23 +108,39 @@ func (s *OIDCService) EndSessionEndpoint() string {
 }
 
 // AuthURL returns the authorization URL. state is a random nonce from the caller.
+// The state encodes a unix timestamp for TTL enforcement: "ts|nonce.sig"
 func (s *OIDCService) AuthURL(state string) string {
-	sig := s.signState(state)
-	return s.oauth2Cfg.AuthCodeURL(state + "." + sig)
+	ts := strconv.FormatInt(time.Now().Unix(), 10)
+	payload := ts + "|" + state
+	sig := s.signState(payload)
+	return s.oauth2Cfg.AuthCodeURL(payload + "." + sig)
 }
 
 // ValidateState checks the signed state from the callback.
+// Expected format: "ts|nonce.sig". Rejects states older than oidcStateTTL.
 func (s *OIDCService) ValidateState(rawState string) (string, error) {
 	parts := strings.SplitN(rawState, ".", 2)
 	if len(parts) != 2 {
 		return "", errors.New("invalid state")
 	}
-	nonce, sig := parts[0], parts[1]
-	expected := s.signState(nonce)
+	payload, sig := parts[0], parts[1]
+	expected := s.signState(payload)
 	if !hmac.Equal([]byte(sig), []byte(expected)) {
 		return "", errors.New("state signature mismatch")
 	}
-	return nonce, nil
+
+	tsParts := strings.SplitN(payload, "|", 2)
+	if len(tsParts) != 2 {
+		return "", errors.New("invalid state")
+	}
+	tsUnix, err := strconv.ParseInt(tsParts[0], 10, 64)
+	if err != nil {
+		return "", errors.New("invalid state")
+	}
+	if time.Since(time.Unix(tsUnix, 0)) > oidcStateTTL {
+		return "", ErrStateExpired
+	}
+	return tsParts[1], nil
 }
 
 func (s *OIDCService) signState(nonce string) string {
