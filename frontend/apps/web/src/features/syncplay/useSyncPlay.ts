@@ -48,8 +48,13 @@ export function useSyncPlay(opts: UseSyncPlayOptions = {}): [SyncPlayState, Sync
   const myUserIdRef = useRef<string | null>(null);
   const optsRef = useRef(opts);
   optsRef.current = opts;
+  const leftVoluntarilyRef = useRef(false);
+  const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const reconnectAttemptRef = useRef(0);
 
   const connect = useCallback((roomId: string) => {
+    leftVoluntarilyRef.current = false;
+    reconnectAttemptRef.current = 0;
     if (wsRef.current) {
       wsRef.current.close();
       wsRef.current = null;
@@ -60,11 +65,17 @@ export function useSyncPlay(opts: UseSyncPlayOptions = {}): [SyncPlayState, Sync
     wsRef.current = ws;
 
     ws.onopen = () => {
+      reconnectAttemptRef.current = 0;
       setState((prev) => ({ ...prev, connected: true }));
     };
 
     ws.onclose = () => {
       setState((prev) => ({ ...prev, connected: false }));
+      if (!leftVoluntarilyRef.current && reconnectAttemptRef.current < 5) {
+        const delay = Math.min(1000 * Math.pow(2, reconnectAttemptRef.current), 30000);
+        reconnectAttemptRef.current += 1;
+        reconnectTimerRef.current = setTimeout(() => connect(roomId), delay);
+      }
     };
 
     ws.onmessage = (event: MessageEvent<string>) => {
@@ -111,6 +122,11 @@ export function useSyncPlay(opts: UseSyncPlayOptions = {}): [SyncPlayState, Sync
 
   useEffect(() => {
     return () => {
+      leftVoluntarilyRef.current = true;
+      if (reconnectTimerRef.current) {
+        clearTimeout(reconnectTimerRef.current);
+        reconnectTimerRef.current = null;
+      }
       wsRef.current?.close();
       wsRef.current = null;
     };
@@ -154,6 +170,11 @@ export function useSyncPlay(opts: UseSyncPlayOptions = {}): [SyncPlayState, Sync
   }, [connect]);
 
   const leaveRoom = useCallback(async (): Promise<void> => {
+    leftVoluntarilyRef.current = true;
+    if (reconnectTimerRef.current) {
+      clearTimeout(reconnectTimerRef.current);
+      reconnectTimerRef.current = null;
+    }
     const roomId = state.roomId;
     wsRef.current?.close();
     wsRef.current = null;
