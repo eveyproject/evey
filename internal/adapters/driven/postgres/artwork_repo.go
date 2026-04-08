@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/gravity-zero/evey/internal/domain/metadata"
+	"github.com/lib/pq"
 )
 
 type ArtworkRepository struct {
@@ -58,15 +59,9 @@ func (r *ArtworkRepository) GetByMediaItems(ctx context.Context, mediaItemIDs []
 	if len(mediaItemIDs) == 0 {
 		return map[string][]*metadata.ArtworkRecord{}, nil
 	}
-	placeholders := make([]string, len(mediaItemIDs))
-	args := make([]any, len(mediaItemIDs))
-	for i, id := range mediaItemIDs {
-		placeholders[i] = fmt.Sprintf("$%d", i+1)
-		args[i] = id
-	}
 	rows, err := r.db.QueryContext(ctx,
 		`SELECT id, media_item_id, person_id, type, provider, source_url, local_path, webp_path, width, height, language, sort_order
-		 FROM artwork WHERE media_item_id IN (`+strings.Join(placeholders, ",")+`) ORDER BY media_item_id, sort_order`, args...)
+		 FROM artwork WHERE media_item_id = ANY($1) ORDER BY media_item_id, sort_order`, pq.Array(mediaItemIDs))
 	if err != nil {
 		return nil, err
 	}
