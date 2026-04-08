@@ -69,6 +69,11 @@ collections:
   smartCreated: स्मार्ट संग्रह बनाया गया
   smartSaveFailed: स्मार्ट संग्रह सहेजने में विफल
   saveChanges: परिवर्तन सहेजें
+  created: संग्रह बनाया गया
+  createFailed: संग्रह बनाने में विफल
+  updated: संग्रह अपडेट किया गया
+  updateFailed: संग्रह अपडेट करने में विफल
+  deleted: संग्रह मिटाया गया
 library:
   title: लाइब्रेरी
   libraries: लाइब्रेरी
@@ -311,6 +316,10 @@ playlist:
   noRulesYet: अभी कोई नियम नहीं। आइटम फ़िल्टर करने के लिए कम से कम एक नियम जोड़ें।
   rulesSaved: नियम सहेजे गए
   rulesSaveFailed: नियम सहेजने में विफल
+  playlistDeleted: प्लेलिस्ट मिटाई गई
+  updated: प्लेलिस्ट अपडेट हुई
+  updateFailed: प्लेलिस्ट अपडेट करने में विफल
+  reorderFailed: पुनर्क्रम में विफल
 search:
   searching: "खोज रहे हैं..."
   noResults: कोई परिणाम नहीं

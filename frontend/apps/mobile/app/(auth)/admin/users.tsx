@@ -171,7 +171,7 @@ export default function AdminUsersScreen() {
             toast.error(t("admin.users.failedLibraryAccess"));
           }
         }
-        toast.success("User created");
+        toast.success(t("admin.users.userCreated"));
         setShowCreate(false);
         setNewUsername("");
         setNewEmail("");
@@ -180,24 +180,24 @@ export default function AdminUsersScreen() {
         setNewSelectedLibs(new Set());
         await qc.invalidateQueries({ queryKey: getUserServiceListUsersQueryKey() });
       },
-      onError: () => toast.error("Failed to create user"),
+      onError: () => toast.error(t("admin.users.failedCreateUser")),
     },
   });
 
   const deleteUser = useUserServiceDeleteUser({
     mutation: {
       onSuccess: async () => {
-        toast.success("User deleted");
+        toast.success(t("admin.users.userDeleted", { name: "" }));
         await qc.invalidateQueries({ queryKey: getUserServiceListUsersQueryKey() });
       },
-      onError: () => toast.error("Failed to delete user"),
+      onError: () => toast.error(t("admin.users.failedDeleteUser")),
     },
   });
 
   const disableUser = useUserServiceDisableUser({
     mutation: {
       onSuccess: async () => {
-        toast.success("User updated");
+        toast.success(t("admin.users.userUpdated"));
         await qc.invalidateQueries({ queryKey: getUserServiceListUsersQueryKey() });
       },
     },
@@ -287,7 +287,7 @@ export default function AdminUsersScreen() {
           onRefresh={refetch}
           ListEmptyComponent={
             <View style={{ alignItems: "center", paddingTop: 60 }}>
-              <Text style={{ color: theme.colors.textMuted }}>No users</Text>
+              <Text style={{ color: theme.colors.textMuted }}>{t("admin.users.noUsers")}</Text>
             </View>
           }
         />
@@ -296,13 +296,13 @@ export default function AdminUsersScreen() {
       <Modal visible={showCreate} transparent animationType="slide" onRequestClose={() => setShowCreate(false)}>
         <Pressable style={styles.backdrop} onPress={() => setShowCreate(false)} />
         <View style={[styles.sheet, { backgroundColor: theme.colors.surface, borderRadius: theme.radii.lg }]}>
-          <Text style={{ color: theme.colors.text, fontSize: 18, fontWeight: "700", marginBottom: 16 }}>Create User</Text>
+          <Text style={{ color: theme.colors.text, fontSize: 18, fontWeight: "700", marginBottom: 16 }}>{t("admin.users.createUser")}</Text>
           <ScrollView style={{ maxHeight: 420 }} showsVerticalScrollIndicator={false}>
-            <TextInput placeholder="Username *" placeholderTextColor={theme.colors.textMuted} value={newUsername} onChangeText={setNewUsername} autoCapitalize="none" style={[styles.input, { backgroundColor: theme.colors.bg, color: theme.colors.text, borderRadius: theme.radii.md }]} />
-            <TextInput placeholder="Email" placeholderTextColor={theme.colors.textMuted} value={newEmail} onChangeText={setNewEmail} keyboardType="email-address" autoCapitalize="none" style={[styles.input, { backgroundColor: theme.colors.bg, color: theme.colors.text, borderRadius: theme.radii.md }]} />
-            <TextInput placeholder="Password *" placeholderTextColor={theme.colors.textMuted} value={newPassword} onChangeText={setNewPassword} secureTextEntry style={[styles.input, { backgroundColor: theme.colors.bg, color: theme.colors.text, borderRadius: theme.radii.md }]} />
+            <TextInput placeholder={`${t("admin.users.username")} *`} placeholderTextColor={theme.colors.textMuted} value={newUsername} onChangeText={setNewUsername} autoCapitalize="none" style={[styles.input, { backgroundColor: theme.colors.bg, color: theme.colors.text, borderRadius: theme.radii.md }]} />
+            <TextInput placeholder={t("admin.users.email")} placeholderTextColor={theme.colors.textMuted} value={newEmail} onChangeText={setNewEmail} keyboardType="email-address" autoCapitalize="none" style={[styles.input, { backgroundColor: theme.colors.bg, color: theme.colors.text, borderRadius: theme.radii.md }]} />
+            <TextInput placeholder={`${t("admin.users.password")} *`} placeholderTextColor={theme.colors.textMuted} value={newPassword} onChangeText={setNewPassword} secureTextEntry style={[styles.input, { backgroundColor: theme.colors.bg, color: theme.colors.text, borderRadius: theme.radii.md }]} />
             <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
-              <Text style={{ color: theme.colors.text, fontSize: 15 }}>Admin</Text>
+              <Text style={{ color: theme.colors.text, fontSize: 15 }}>{t("admin.users.admin")}</Text>
               <Switch value={newIsAdmin} onValueChange={setNewIsAdmin} trackColor={{ true: theme.colors.accent }} />
             </View>
             {!newIsAdmin && libraries.length > 0 && (
@@ -345,7 +345,7 @@ export default function AdminUsersScreen() {
             )}
           </ScrollView>
           <Pressable onPress={handleCreate} disabled={createUser.isPending} style={[styles.createBtn, { backgroundColor: theme.colors.accent, borderRadius: theme.radii.md, opacity: createUser.isPending ? 0.5 : 1 }]}>
-            <Text style={{ color: "#fff", fontWeight: "600", fontSize: 15 }}>Create</Text>
+            <Text style={{ color: "#fff", fontWeight: "600", fontSize: 15 }}>{t("common.create")}</Text>
           </Pressable>
         </View>
       </Modal>

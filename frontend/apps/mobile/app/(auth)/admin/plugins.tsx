@@ -32,13 +32,13 @@ export default function AdminPluginsScreen() {
   const plugins: Plugin[] = (data?.plugins ?? []) as Plugin[];
 
   const enablePlugin = useAdminPluginServiceEnablePlugin({
-    mutation: { onSuccess: () => { toast.success("Plugin enabled"); qc.invalidateQueries({ queryKey: getAdminPluginServiceListPluginsQueryKey() }); } },
+    mutation: { onSuccess: () => { toast.success(t("admin.plugins.pluginEnabled")); qc.invalidateQueries({ queryKey: getAdminPluginServiceListPluginsQueryKey() }); } },
   });
   const disablePlugin = useAdminPluginServiceDisablePlugin({
-    mutation: { onSuccess: () => { toast.success("Plugin disabled"); qc.invalidateQueries({ queryKey: getAdminPluginServiceListPluginsQueryKey() }); } },
+    mutation: { onSuccess: () => { toast.success(t("admin.plugins.pluginDisabled")); qc.invalidateQueries({ queryKey: getAdminPluginServiceListPluginsQueryKey() }); } },
   });
   const uninstallPlugin = useAdminPluginServiceUninstallPlugin({
-    mutation: { onSuccess: () => { toast.success("Plugin uninstalled"); qc.invalidateQueries({ queryKey: getAdminPluginServiceListPluginsQueryKey() }); } },
+    mutation: { onSuccess: () => { toast.success(t("admin.plugins.pluginUninstalled")); qc.invalidateQueries({ queryKey: getAdminPluginServiceListPluginsQueryKey() }); } },
   });
 
   const handleToggle = useCallback((plugin: Plugin) => {

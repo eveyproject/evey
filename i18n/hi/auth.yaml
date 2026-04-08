@@ -184,6 +184,7 @@ apiKeys:
   keyCreatedTitle: "API कुंजी बन गई"
   saveWarning: "इस कुंजी को अभी सहेजें - यह दोबारा नहीं दिखाई जाएगी।"
   noKeys: "अभी कोई API कुंजी नहीं"
+  keyCreated: "API कुंजी बन गई"
   createError: "API कुंजी बनाने में विफल"
   revokeTitle: "API कुंजी रद्द करें"
   revokeConfirm: "यह API कुंजी रद्द करें? यह तुरंत काम करना बंद कर देगी।"

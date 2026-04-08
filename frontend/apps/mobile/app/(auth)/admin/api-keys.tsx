@@ -29,17 +29,17 @@ export default function AdminAPIKeysScreen() {
       onSuccess: async (resp: unknown) => {
         const key = (resp as any)?.key ?? (resp as any)?.apiKey?.key;
         if (key) setNewKey(key);
-        toast.success("API key created");
+        toast.success(t("auth.apiKeys.keyCreated"));
         await qc.invalidateQueries({ queryKey: getUserServiceListAPIKeysQueryKey() });
       },
-      onError: () => toast.error("Failed to create key"),
+      onError: () => toast.error(t("auth.apiKeys.createError")),
     },
   });
 
   const revokeKey = useUserServiceRevokeAPIKey({
     mutation: {
       onSuccess: async () => {
-        toast.success("Key revoked");
+        toast.success(t("auth.apiKeys.keyRevoked"));
         await qc.invalidateQueries({ queryKey: getUserServiceListAPIKeysQueryKey() });
       },
     },
@@ -89,7 +89,7 @@ export default function AdminAPIKeysScreen() {
           renderItem={({ item }: { item: any }) => (
             <View style={[styles.card, { backgroundColor: theme.colors.surface, borderRadius: theme.radii.md }]}>
               <View style={{ flex: 1, gap: 2 }}>
-                <Text style={{ color: theme.colors.text, fontSize: 14, fontWeight: "600" }}>{item.name ?? "Unnamed"}</Text>
+                <Text style={{ color: theme.colors.text, fontSize: 14, fontWeight: "600" }}>{item.name ?? t("common.unknown")}</Text>
                 <Text style={{ color: theme.colors.textMuted, fontSize: 11 }}>
                   {item.lastUsedAt ? `Last used: ${new Date(item.lastUsedAt).toLocaleDateString()}` : "Never used"}
                 </Text>
@@ -101,7 +101,7 @@ export default function AdminAPIKeysScreen() {
           )}
           ListEmptyComponent={
             <View style={{ alignItems: "center", paddingTop: 60 }}>
-              <Text style={{ color: theme.colors.textMuted }}>No API keys</Text>
+              <Text style={{ color: theme.colors.textMuted }}>{t("auth.apiKeys.noKeys")}</Text>
             </View>
           }
         />
@@ -111,13 +111,13 @@ export default function AdminAPIKeysScreen() {
         <Modal visible transparent animationType="fade" onRequestClose={() => setNewKey(null)}>
           <View style={styles.backdrop}>
             <View style={[styles.keyModal, { backgroundColor: theme.colors.surface, borderRadius: theme.radii.lg }]}>
-              <Text style={{ color: theme.colors.text, fontSize: 16, fontWeight: "700", marginBottom: 8 }}>New API Key</Text>
-              <Text style={{ color: theme.colors.textMuted, fontSize: 12, marginBottom: 12 }}>Copy this key now. It won't be shown again.</Text>
+              <Text style={{ color: theme.colors.text, fontSize: 16, fontWeight: "700", marginBottom: 8 }}>{t("auth.apiKeys.keyCreatedTitle")}</Text>
+              <Text style={{ color: theme.colors.textMuted, fontSize: 12, marginBottom: 12 }}>{t("auth.apiKeys.saveWarning")}</Text>
               <View style={{ backgroundColor: theme.colors.bg, padding: 12, borderRadius: theme.radii.sm }}>
                 <Text style={{ color: theme.colors.text, fontFamily: "monospace", fontSize: 12 }} selectable>{newKey}</Text>
               </View>
               <Pressable onPress={() => setNewKey(null)} style={{ marginTop: 16, alignSelf: "center" }}>
-                <Text style={{ color: theme.colors.accent, fontWeight: "600" }}>Done</Text>
+                <Text style={{ color: theme.colors.accent, fontWeight: "600" }}>{t("common.done")}</Text>
               </Pressable>
             </View>
           </View>
@@ -127,16 +127,16 @@ export default function AdminAPIKeysScreen() {
       <Modal visible={showCreate} transparent animationType="slide" onRequestClose={() => setShowCreate(false)}>
         <Pressable style={styles.backdrop} onPress={() => setShowCreate(false)} />
         <View style={[styles.sheet, { backgroundColor: theme.colors.surface, borderRadius: theme.radii.lg }]}>
-          <Text style={{ color: theme.colors.text, fontSize: 18, fontWeight: "700", marginBottom: 16 }}>Create API Key</Text>
+          <Text style={{ color: theme.colors.text, fontSize: 18, fontWeight: "700", marginBottom: 16 }}>{t("auth.apiKeys.newKeyTitle")}</Text>
           <TextInput
-            placeholder="Key name"
+            placeholder={t("auth.apiKeys.name")}
             placeholderTextColor={theme.colors.textMuted}
             value={keyName}
             onChangeText={setKeyName}
             style={[styles.input, { backgroundColor: theme.colors.bg, color: theme.colors.text, borderRadius: theme.radii.md }]}
           />
           <Pressable onPress={handleCreate} disabled={createKey.isPending} style={[styles.createBtn, { backgroundColor: theme.colors.accent, borderRadius: theme.radii.md }]}>
-            <Text style={{ color: "#fff", fontWeight: "600" }}>Create</Text>
+            <Text style={{ color: "#fff", fontWeight: "600" }}>{t("common.create")}</Text>
           </Pressable>
         </View>
       </Modal>

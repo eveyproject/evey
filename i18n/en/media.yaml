@@ -69,6 +69,11 @@ collections:
   smartCreated: Smart collection created
   smartSaveFailed: Failed to save smart collection
   saveChanges: Save changes
+  created: Collection created
+  createFailed: Failed to create collection
+  updated: Collection updated
+  updateFailed: Failed to update collection
+  deleted: Collection deleted
 library:
   title: Library
   libraries: Libraries
@@ -311,6 +316,10 @@ playlist:
   noRulesYet: No rules yet. Add at least one rule to filter items.
   rulesSaved: Rules saved
   rulesSaveFailed: Failed to save rules
+  playlistDeleted: Playlist deleted
+  updated: Playlist updated
+  updateFailed: Failed to update playlist
+  reorderFailed: Failed to reorder
 search:
   searching: "Searching..."
   noResults: No results

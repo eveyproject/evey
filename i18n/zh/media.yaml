@@ -69,6 +69,11 @@ collections:
   smartCreated: 智能合集已创建
   smartSaveFailed: 保存智能合集失败
   saveChanges: 保存修改
+  created: 合集已创建
+  createFailed: 创建合集失败
+  updated: 合集已更新
+  updateFailed: 更新合集失败
+  deleted: 合集已删除
 library:
   title: 媒体库
   libraries: 媒体库
@@ -311,6 +316,10 @@ playlist:
   noRulesYet: 暂无规则。添加至少一条规则来筛选项目。
   rulesSaved: 规则已保存
   rulesSaveFailed: 保存规则失败
+  playlistDeleted: 播放列表已删除
+  updated: 播放列表已更新
+  updateFailed: 更新播放列表失败
+  reorderFailed: 重新排序失败
 search:
   searching: "搜索中..."
   noResults: 没有结果
