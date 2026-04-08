@@ -246,9 +246,10 @@ export function useDLNA() {
           mode: "chromecast",
         }));
         return;
-      } catch (err: any) {
-        console.error(TAG, "Chromecast failed:", err?.code, err?.description);
-        if (err?.code === "cancel") return;
+      } catch (err: unknown) {
+        const e = err as { code?: string; description?: string };
+        console.error(TAG, "Chromecast failed:", e.code, e.description);
+        if (e.code === "cancel") return;
       }
     }
 

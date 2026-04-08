@@ -96,8 +96,8 @@ export function EditUserModal({ user, open, onClose }: { user: V1User; open: boo
       queryClient.invalidateQueries({ queryKey: ["/api/v1/admin/users", user.id, "library-access"] });
       toast.success(t("admin.users.userUpdated") || "User updated");
       onClose();
-    } catch (err: any) {
-      toast.error(err?.message || t("admin.users.failedUpdateUser"));
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : t("admin.users.failedUpdateUser"));
     } finally {
       setSaving(false);
     }
