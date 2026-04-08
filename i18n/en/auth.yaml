@@ -184,6 +184,7 @@ apiKeys:
   keyCreatedTitle: API Key Created
   saveWarning: Save this key now - it won't be shown again.
   noKeys: No API keys yet
+  keyCreated: API key created
   createError: Failed to create API key
   revokeTitle: Revoke API Key
   revokeConfirm: Revoke this API key? It will stop working immediately.

@@ -69,6 +69,11 @@ collections:
   smartCreated: Colección inteligente creada
   smartSaveFailed: Error al guardar la colección inteligente
   saveChanges: Guardar cambios
+  created: Colección creada
+  createFailed: Error al crear la colección
+  updated: Colección actualizada
+  updateFailed: Error al actualizar la colección
+  deleted: Colección eliminada
 library:
   title: Biblioteca
   libraries: Bibliotecas
@@ -311,6 +316,10 @@ playlist:
   noRulesYet: Sin reglas aún. Añade al menos una regla para filtrar elementos.
   rulesSaved: Reglas guardadas
   rulesSaveFailed: Error al guardar las reglas
+  playlistDeleted: Lista de reproducción eliminada
+  updated: Lista de reproducción actualizada
+  updateFailed: Error al actualizar la lista de reproducción
+  reorderFailed: Error al reordenar
 search:
   searching: "Buscando..."
   noResults: Sin resultados

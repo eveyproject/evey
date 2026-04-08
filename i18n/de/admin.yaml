@@ -116,7 +116,9 @@ users:
   userDisabled: Benutzer deaktiviert
   userEnabled: Benutzer aktiviert
   failedDeleteUser: Benutzer konnte nicht gelöscht werden
+  failedCreateUser: Benutzer konnte nicht erstellt werden
   failedUpdateUser: Benutzer konnte nicht aktualisiert werden
+  userUpdated: Benutzer aktualisiert
   deleteUserTitle: Benutzer löschen
   deleteUserConfirm: "Benutzer \"{{name}}\" löschen? Dies kann nicht rückgängig gemacht werden."
   libraryAccess: Bibliothekszugriff

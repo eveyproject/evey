@@ -184,6 +184,7 @@ apiKeys:
   keyCreatedTitle: API-Schlüssel erstellt
   saveWarning: Speichern Sie diesen Schlüssel jetzt - er wird nicht erneut angezeigt.
   noKeys: Noch keine API-Schlüssel
+  keyCreated: API-Schlüssel erstellt
   createError: API-Schlüssel konnte nicht erstellt werden
   revokeTitle: API-Schlüssel widerrufen
   revokeConfirm: Diesen API-Schlüssel widerrufen? Er wird sofort nicht mehr funktionieren.

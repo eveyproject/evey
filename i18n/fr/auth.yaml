@@ -184,6 +184,7 @@ apiKeys:
   keyCreatedTitle: "Clé API créée"
   saveWarning: "Enregistrez cette clé maintenant - elle ne sera plus affichée."
   noKeys: "Aucune clé API"
+  keyCreated: "Clé API créée"
   createError: "Échec de la création de la clé API"
   revokeTitle: "Révoquer la clé API"
   revokeConfirm: "Révoquer cette clé API ? Elle cessera de fonctionner immédiatement."

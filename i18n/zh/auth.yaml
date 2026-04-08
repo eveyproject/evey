@@ -184,6 +184,7 @@ apiKeys:
   keyCreatedTitle: "API 密钥已创建"
   saveWarning: "请立即保存此密钥——之后将无法再次查看。"
   noKeys: "暂无 API 密钥"
+  keyCreated: "API 密钥已创建"
   createError: "创建 API 密钥失败"
   revokeTitle: "撤销 API 密钥"
   revokeConfirm: "撤销此 API 密钥？它将立即停止工作。"

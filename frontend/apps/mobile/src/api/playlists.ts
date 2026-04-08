@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { eveyFetch } from "@evey/api";
 import { toast } from "@evey/store";
+import i18n from "../i18n";
 
 export interface Playlist {
   id: string;
@@ -121,9 +122,9 @@ export function useAddToPlaylist() {
       }),
     onSuccess: (_, vars) => {
       qc.invalidateQueries({ queryKey: ["playlists", vars.playlistId] });
-      toast.success("Added to playlist");
+      toast.success(i18n.t("media.playlist.addSuccess"));
     },
-    onError: () => toast.error("Failed to add to playlist"),
+    onError: () => toast.error(i18n.t("media.playlist.addError")),
   });
 }
 
@@ -138,9 +139,9 @@ export function useCreatePlaylist() {
       }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["playlists"] });
-      toast.success("Playlist created");
+      toast.success(i18n.t("media.playlist.createSuccess"));
     },
-    onError: () => toast.error("Failed to create playlist"),
+    onError: () => toast.error(i18n.t("media.playlist.createError")),
   });
 }
 
@@ -154,9 +155,9 @@ export function useDeletePlaylist() {
       }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["playlists"] });
-      toast.success("Playlist deleted");
+      toast.success(i18n.t("media.playlist.playlistDeleted"));
     },
-    onError: () => toast.error("Failed to delete playlist"),
+    onError: () => toast.error(i18n.t("media.playlist.deleteFailed")),
   });
 }
 
@@ -172,9 +173,9 @@ export function useUpdatePlaylist() {
     onSuccess: (_, vars) => {
       qc.invalidateQueries({ queryKey: ["playlists", vars.id] });
       qc.invalidateQueries({ queryKey: ["playlists"] });
-      toast.success("Playlist updated");
+      toast.success(i18n.t("media.playlist.updated"));
     },
-    onError: () => toast.error("Failed to update playlist"),
+    onError: () => toast.error(i18n.t("media.playlist.updateFailed")),
   });
 }
 
@@ -188,9 +189,9 @@ export function useRemoveFromPlaylist() {
       }),
     onSuccess: (_, vars) => {
       qc.invalidateQueries({ queryKey: ["playlists", vars.playlistId] });
-      toast.success("Removed from playlist");
+      toast.success(i18n.t("media.playlist.removedFromPlaylist"));
     },
-    onError: () => toast.error("Failed to remove item"),
+    onError: () => toast.error(i18n.t("media.playlist.failedRemove")),
   });
 }
 
@@ -206,6 +207,6 @@ export function useReorderPlaylistItems() {
     onSuccess: (_, vars) => {
       qc.invalidateQueries({ queryKey: ["playlists", vars.playlistId] });
     },
-    onError: () => toast.error("Failed to reorder"),
+    onError: () => toast.error(i18n.t("media.playlist.reorderFailed")),
   });
 }

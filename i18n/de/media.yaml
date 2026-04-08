@@ -69,6 +69,11 @@ collections:
   smartCreated: Smart-Sammlung erstellt
   smartSaveFailed: Smart-Sammlung konnte nicht gespeichert werden
   saveChanges: Änderungen speichern
+  created: Sammlung erstellt
+  createFailed: Sammlung konnte nicht erstellt werden
+  updated: Sammlung aktualisiert
+  updateFailed: Sammlung konnte nicht aktualisiert werden
+  deleted: Sammlung gelöscht
 library:
   title: Bibliothek
   libraries: Bibliotheken
@@ -311,6 +316,10 @@ playlist:
   noRulesYet: Noch keine Regeln. Fügen Sie mindestens eine Regel hinzu, um Elemente zu filtern.
   rulesSaved: Regeln gespeichert
   rulesSaveFailed: Regeln konnten nicht gespeichert werden
+  playlistDeleted: Playlist gelöscht
+  updated: Playlist aktualisiert
+  updateFailed: Playlist konnte nicht aktualisiert werden
+  reorderFailed: Neuordnung fehlgeschlagen
 search:
   searching: "Suche..."
   noResults: Keine Ergebnisse
