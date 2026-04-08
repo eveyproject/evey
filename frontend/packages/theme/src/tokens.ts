@@ -25,10 +25,10 @@ export const defaultTheme: ThemeTokens = {
     accent:       "#818cf8",
     accentHover:  "#6366f1",
     text:         "#f1f5f9",
-    textMuted:    "#64748b",
+    textMuted:    "#90a4bd",
     border:       "#1e293b",
   },
-  radii:   { sm: 4, md: 8, lg: 16 },
+  radii:   { sm: 6, md: 12, lg: 20 },
   spacing: { xs: 4, sm: 8, md: 16, lg: 24, xl: 32 },
 };
 
@@ -43,7 +43,7 @@ export const amoledTheme: ThemeTokens = {
     textMuted:    "#71717a",
     border:       "#1a1a1a",
   },
-  radii:   { sm: 4, md: 8, lg: 16 },
+  radii:   { sm: 6, md: 12, lg: 20 },
   spacing: { xs: 4, sm: 8, md: 16, lg: 24, xl: 32 },
 };
 
@@ -58,7 +58,7 @@ export const lightDefaultTheme: ThemeTokens = {
     textMuted:    "#94a3b8",
     border:       "#e2e8f0",
   },
-  radii:   { sm: 4, md: 8, lg: 16 },
+  radii:   { sm: 6, md: 12, lg: 20 },
   spacing: { xs: 4, sm: 8, md: 16, lg: 24, xl: 32 },
 };
 
@@ -73,7 +73,7 @@ export const lightBlueTheme: ThemeTokens = {
     textMuted:    "#94a3b8",
     border:       "#cbd5e1",
   },
-  radii:   { sm: 4, md: 8, lg: 16 },
+  radii:   { sm: 6, md: 12, lg: 20 },
   spacing: { xs: 4, sm: 8, md: 16, lg: 24, xl: 32 },
 };
 
