@@ -1,0 +1,1 @@
+DROP INDEX IF EXISTS idx_watch_progress_profile_media_completed;
