@@ -16,6 +16,9 @@ auth:
   missing_authorization: "प्राधिकरण हेडर अनुपलब्ध"
   missing_metadata: "अनुरोध मेटाडेटा अनुपलब्ध"
   admin_access_required: "एडमिन एक्सेस आवश्यक है"
+  insufficient_permissions: "अपर्याप्त अनुमतियाँ"
+  internal_method: "यह विधि केवल आंतरिक उपयोग के लिए है"
+  missing_key: "API कुंजी अनुपलब्ध"
   invalid_current_pin: "वर्तमान PIN अमान्य है"
   profile_not_found: "प्रोफ़ाइल नहीं मिली"
 

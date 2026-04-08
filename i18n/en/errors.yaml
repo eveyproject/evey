@@ -16,6 +16,9 @@ auth:
   missing_authorization: "Missing authorization header"
   missing_metadata: "Missing request metadata"
   admin_access_required: "Admin access required"
+  insufficient_permissions: "Insufficient permissions"
+  internal_method: "This method is for internal use only"
+  missing_key: "API key is missing"
   invalid_current_pin: "Invalid current PIN"
   profile_not_found: "Profile not found"
 

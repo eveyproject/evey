@@ -16,6 +16,9 @@ auth:
   missing_authorization: "缺少授权头"
   missing_metadata: "缺少请求元数据"
   admin_access_required: "需要管理员权限"
+  insufficient_permissions: "权限不足"
+  internal_method: "此方法仅供内部使用"
+  missing_key: "缺少API密钥"
   invalid_current_pin: "当前PIN码无效"
   profile_not_found: "未找到档案"
 

@@ -16,6 +16,9 @@ auth:
   missing_authorization: "En-tête d'autorisation manquant"
   missing_metadata: "Métadonnées de requête manquantes"
   admin_access_required: "Accès administrateur requis"
+  insufficient_permissions: "Permissions insuffisantes"
+  internal_method: "Cette méthode est réservée à un usage interne"
+  missing_key: "Clé API manquante"
   invalid_current_pin: "PIN actuel invalide"
   profile_not_found: "Profil introuvable"
 
