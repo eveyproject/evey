@@ -23,11 +23,14 @@ func NewFakeMusicScanner() *FakeMusicScanner {
 	}
 }
 
-func (f *FakeMusicScanner) WalkAudioFiles(_ context.Context, _ string, fn func(music.ScannedAudioFile) error) error {
+func (f *FakeMusicScanner) WalkAudioFiles(ctx context.Context, _ string, fn func(music.ScannedAudioFile) error) error {
 	if f.WalkErr != nil {
 		return f.WalkErr
 	}
 	for _, file := range f.Files {
+		if ctx.Err() != nil {
+			return ctx.Err()
+		}
 		if err := fn(file); err != nil {
 			return err
 		}

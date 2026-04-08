@@ -24,11 +24,14 @@ func NewFakePhotoScanner() *FakePhotoScanner {
 	}
 }
 
-func (f *FakePhotoScanner) WalkImageFiles(_ context.Context, _ string, fn func(photo.ScannedImageFile) error) error {
+func (f *FakePhotoScanner) WalkImageFiles(ctx context.Context, _ string, fn func(photo.ScannedImageFile) error) error {
 	if f.WalkErr != nil {
 		return f.WalkErr
 	}
 	for _, file := range f.Files {
+		if ctx.Err() != nil {
+			return ctx.Err()
+		}
 		if err := fn(file); err != nil {
 			return err
 		}
