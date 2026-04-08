@@ -66,7 +66,7 @@ describe("ParentalPINDialog", () => {
   it("renders dialog when open", () => {
     renderDialog();
     expect(screen.getByRole("dialog")).toBeTruthy();
-    expect(screen.getByText("parental.restrictedContent")).toBeTruthy();
+    expect(screen.getByText("Restricted Content")).toBeTruthy();
     expect(screen.getByTestId("pin-input")).toBeTruthy();
   });
 
@@ -111,7 +111,7 @@ describe("ParentalPINDialog", () => {
     fireEvent.click(screen.getByTestId("pin-submit"));
 
     await waitFor(() => expect(screen.getByTestId("pin-error")).toBeTruthy());
-    expect(screen.getByTestId("pin-error").textContent).toBe("parental.pinIncorrect");
+    expect(screen.getByTestId("pin-error").textContent).toBe("Incorrect PIN");
     expect(onVerified).not.toHaveBeenCalled();
   });
 
