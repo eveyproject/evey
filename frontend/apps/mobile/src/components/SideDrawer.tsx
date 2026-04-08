@@ -144,8 +144,8 @@ export function SideDrawer() {
             <Ionicons name="chevron-forward" size={16} color={theme.colors.textMuted} />
           </Pressable>
           <Pressable onPress={handleLogout} style={styles.logoutRow} accessible={true} accessibilityLabel={t("common.nav.signOut", "Sign out")} accessibilityRole="button">
-            <Ionicons name="log-out-outline" size={18} color="#e57373" />
-            <Text style={[styles.navLabel, { color: "#e57373" }]}>{t("common.nav.signOut", "Sign out")}</Text>
+            <Ionicons name="log-out-outline" size={18} color={theme.colors.error} />
+            <Text style={[styles.navLabel, { color: theme.colors.error }]}>{t("common.nav.signOut", "Sign out")}</Text>
           </Pressable>
         </View>
       </Animated.View>

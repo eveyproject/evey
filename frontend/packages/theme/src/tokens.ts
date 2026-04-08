@@ -13,6 +13,7 @@ export interface ThemeTokens {
     textMuted: string;
     border: string;
     error: string;
+    onAccent: string;
   };
   radii: { sm: number; md: number; lg: number };
   spacing: { xs: number; sm: number; md: number; lg: number; xl: number };
@@ -28,7 +29,8 @@ export const defaultTheme: ThemeTokens = {
     text:         "#f1f5f9",
     textMuted:    "#90a4bd",
     border:       "#1e293b",
-    error:        "#ef4444",
+    error:        "#e57373",
+    onAccent:     "#ffffff",
   },
   radii:   { sm: 6, md: 12, lg: 20 },
   spacing: { xs: 4, sm: 8, md: 16, lg: 24, xl: 32 },
@@ -44,7 +46,8 @@ export const amoledTheme: ThemeTokens = {
     text:         "#e4e4e7",
     textMuted:    "#71717a",
     border:       "#1a1a1a",
-    error:        "#ef4444",
+    error:        "#f87171",
+    onAccent:     "#ffffff",
   },
   radii:   { sm: 6, md: 12, lg: 20 },
   spacing: { xs: 4, sm: 8, md: 16, lg: 24, xl: 32 },
@@ -60,7 +63,8 @@ export const lightDefaultTheme: ThemeTokens = {
     text:         "#0f172a",
     textMuted:    "#94a3b8",
     border:       "#e2e8f0",
-    error:        "#dc2626",
+    error:        "#ef4444",
+    onAccent:     "#ffffff",
   },
   radii:   { sm: 6, md: 12, lg: 20 },
   spacing: { xs: 4, sm: 8, md: 16, lg: 24, xl: 32 },
@@ -77,6 +81,7 @@ export const lightBlueTheme: ThemeTokens = {
     textMuted:    "#94a3b8",
     border:       "#cbd5e1",
     error:        "#dc2626",
+    onAccent:     "#ffffff",
   },
   radii:   { sm: 6, md: 12, lg: 20 },
   spacing: { xs: 4, sm: 8, md: 16, lg: 24, xl: 32 },

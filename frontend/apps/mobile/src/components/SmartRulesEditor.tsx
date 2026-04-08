@@ -97,7 +97,7 @@ export function SmartRulesEditor({ visible, onClose, rules, onSave }: Props) {
                     onPress={() => updateRule(idx, defaultRule(f))}
                     style={[styles.chip, { backgroundColor: rule.field === f ? theme.colors.accent : theme.colors.surfaceRaised, borderRadius: theme.radii.sm }]}
                   >
-                    <Text style={{ color: rule.field === f ? "#fff" : theme.colors.text, fontSize: 12 }}>{FIELD_LABELS[f]}</Text>
+                    <Text style={{ color: rule.field === f ? theme.colors.onAccent : theme.colors.text, fontSize: 12 }}>{FIELD_LABELS[f]}</Text>
                   </Pressable>
                 ))}
               </ScrollView>
@@ -112,7 +112,7 @@ export function SmartRulesEditor({ visible, onClose, rules, onSave }: Props) {
                         onPress={() => updateRule(idx, { ...rule, operator: op.value })}
                         style={[styles.chip, { backgroundColor: rule.operator === op.value ? theme.colors.accent : theme.colors.surfaceRaised, borderRadius: theme.radii.sm }]}
                       >
-                        <Text style={{ color: rule.operator === op.value ? "#fff" : theme.colors.text, fontSize: 12 }}>{op.label}</Text>
+                        <Text style={{ color: rule.operator === op.value ? theme.colors.onAccent : theme.colors.text, fontSize: 12 }}>{op.label}</Text>
                       </Pressable>
                     ))}
                   </ScrollView>
@@ -136,7 +136,7 @@ export function SmartRulesEditor({ visible, onClose, rules, onSave }: Props) {
                         onPress={() => updateRule(idx, { ...rule, value: mt.value })}
                         style={[styles.chip, { backgroundColor: rule.value === mt.value ? theme.colors.accent : theme.colors.surfaceRaised, borderRadius: theme.radii.sm }]}
                       >
-                        <Text style={{ color: rule.value === mt.value ? "#fff" : theme.colors.text, fontSize: 12 }}>{mt.label}</Text>
+                        <Text style={{ color: rule.value === mt.value ? theme.colors.onAccent : theme.colors.text, fontSize: 12 }}>{mt.label}</Text>
                       </Pressable>
                     ))}
                   </ScrollView>
@@ -148,7 +148,7 @@ export function SmartRulesEditor({ visible, onClose, rules, onSave }: Props) {
                         onPress={() => updateRule(idx, { ...rule, value: g })}
                         style={[styles.chip, { backgroundColor: rule.value === g ? theme.colors.accent : theme.colors.surfaceRaised, borderRadius: theme.radii.sm }]}
                       >
-                        <Text style={{ color: rule.value === g ? "#fff" : theme.colors.text, fontSize: 12 }}>{g}</Text>
+                        <Text style={{ color: rule.value === g ? theme.colors.onAccent : theme.colors.text, fontSize: 12 }}>{g}</Text>
                       </Pressable>
                     ))}
                   </ScrollView>
@@ -163,7 +163,7 @@ export function SmartRulesEditor({ visible, onClose, rules, onSave }: Props) {
                 )}
 
                 <Pressable onPress={() => removeRule(idx)} hitSlop={8}>
-                  <Ionicons name="close-circle" size={20} color="#ef4444" />
+                  <Ionicons name="close-circle" size={20} color={theme.colors.error} />
                 </Pressable>
               </View>
             </View>
@@ -177,7 +177,7 @@ export function SmartRulesEditor({ visible, onClose, rules, onSave }: Props) {
 
         <View style={{ flexDirection: "row", gap: 8, marginTop: 16 }}>
           <Pressable onPress={handleSave} style={[styles.saveBtn, { backgroundColor: theme.colors.accent, borderRadius: theme.radii.md, flex: 1 }]}>
-            <Text style={{ color: "#fff", fontWeight: "600", fontSize: 15 }}>Save</Text>
+            <Text style={{ color: theme.colors.onAccent, fontWeight: "600", fontSize: 15 }}>Save</Text>
           </Pressable>
           <Pressable onPress={onClose} style={[styles.cancelBtn, { backgroundColor: theme.colors.surfaceRaised, borderRadius: theme.radii.md, flex: 1 }]}>
             <Text style={{ color: theme.colors.text, fontWeight: "500", fontSize: 15 }}>Cancel</Text>
