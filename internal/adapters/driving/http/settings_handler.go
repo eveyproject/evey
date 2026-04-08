@@ -27,6 +27,16 @@ type settingValue struct {
 	Source  string `json:"source"`
 }
 
+type settingDef struct {
+	jsonKey    string
+	cfgKey     string
+	defaultVal any
+	getter     func() any
+	// apply sets the config, returns the serialized value for persistence
+	apply      func() string
+	sideEffect func()
+}
+
 func registerServerSettingsRoutes(
 	mux *http.ServeMux,
 	cfg *config.Config,
@@ -39,15 +49,6 @@ func registerServerSettingsRoutes(
 	writeRL *ratelimit.Limiter,
 ) {
 	var mu sync.RWMutex
-
-	defaults := map[string]any{
-		cfgKeyServerName:       "Evey",
-		cfgKeyTranscodeMaxConc: 2,
-		cfgKeyTranscodeHWAccel: false,
-		cfgKeyRateLimitLogin:   10,
-		cfgKeyRateLimitGlobal:  300,
-	}
-
 	overridden := make(map[string]bool)
 
 	requireAdminLocal := func(r *http.Request) bool {
@@ -62,19 +63,34 @@ func registerServerSettingsRoutes(
 		return "default"
 	}
 
+	settings := []settingDef{
+		{jsonKey: "serverName", cfgKey: cfgKeyServerName, defaultVal: "Evey",
+			getter: func() any { return cfg.EffectiveServerName() }},
+		{jsonKey: "maxConcurrentTranscodes", cfgKey: cfgKeyTranscodeMaxConc, defaultVal: 2,
+			getter: func() any { return cfg.EffectiveMaxConcurrent() }},
+		{jsonKey: "hwAccelEnabled", cfgKey: cfgKeyTranscodeHWAccel, defaultVal: false,
+			getter: func() any { return cfg.EffectiveHWAccelEnabled() }},
+		{jsonKey: "loginRateLimit", cfgKey: cfgKeyRateLimitLogin, defaultVal: 10,
+			getter: func() any { return cfg.Server.LoginRateLimitMax }},
+		{jsonKey: "globalRateLimit", cfgKey: cfgKeyRateLimitGlobal, defaultVal: 300,
+			getter: func() any { return cfg.Server.GlobalRateLimitMax }},
+	}
+
+	buildResponse := func() map[string]settingValue {
+		resp := make(map[string]settingValue, len(settings))
+		for _, s := range settings {
+			resp[s.jsonKey] = settingValue{Value: s.getter(), Default: s.defaultVal, Source: source(s.cfgKey)}
+		}
+		return resp
+	}
+
 	mux.HandleFunc("GET /api/v1/admin/server-settings", func(w http.ResponseWriter, r *http.Request) {
 		if !requireAdminLocal(r) {
 			http.Error(w, `{"message":"forbidden"}`, http.StatusForbidden)
 			return
 		}
 		mu.RLock()
-		resp := map[string]settingValue{
-			"serverName":               {Value: cfg.EffectiveServerName(), Default: defaults[cfgKeyServerName], Source: source(cfgKeyServerName)},
-			"maxConcurrentTranscodes":  {Value: cfg.EffectiveMaxConcurrent(), Default: defaults[cfgKeyTranscodeMaxConc], Source: source(cfgKeyTranscodeMaxConc)},
-			"hwAccelEnabled":           {Value: cfg.EffectiveHWAccelEnabled(), Default: defaults[cfgKeyTranscodeHWAccel], Source: source(cfgKeyTranscodeHWAccel)},
-			"loginRateLimit":           {Value: cfg.Server.LoginRateLimitMax, Default: defaults[cfgKeyRateLimitLogin], Source: source(cfgKeyRateLimitLogin)},
-			"globalRateLimit":          {Value: cfg.Server.GlobalRateLimitMax, Default: defaults[cfgKeyRateLimitGlobal], Source: source(cfgKeyRateLimitGlobal)},
-		}
+		resp := buildResponse()
 		mu.RUnlock()
 
 		w.Header().Set("Content-Type", "application/json")
@@ -100,78 +116,88 @@ func registerServerSettingsRoutes(
 			return
 		}
 
+		updates := []settingDef{
+			{cfgKey: cfgKeyServerName,
+				apply: func() string {
+					if body.ServerName == nil {
+						return ""
+					}
+					cfg.Server.Name = *body.ServerName
+					return *body.ServerName
+				}},
+			{cfgKey: cfgKeyTranscodeMaxConc,
+				apply: func() string {
+					if body.MaxConcurrentTranscodes == nil {
+						return ""
+					}
+					cfg.Transcoding.MaxConcurrent = *body.MaxConcurrentTranscodes
+					return strconv.Itoa(*body.MaxConcurrentTranscodes)
+				},
+				sideEffect: func() {
+					if transcodingSvc != nil {
+						transcodingSvc.SetMaxConcurrent(*body.MaxConcurrentTranscodes)
+					}
+					if hlsMgr != nil {
+						hlsMgr.SetMaxConcurrent(*body.MaxConcurrentTranscodes)
+					}
+				}},
+			{cfgKey: cfgKeyTranscodeHWAccel,
+				apply: func() string {
+					if body.HWAccelEnabled == nil {
+						return ""
+					}
+					cfg.Transcoding.HWAccelEnabled = *body.HWAccelEnabled
+					return strconv.FormatBool(*body.HWAccelEnabled)
+				}},
+			{cfgKey: cfgKeyRateLimitLogin,
+				apply: func() string {
+					if body.LoginRateLimit == nil {
+						return ""
+					}
+					cfg.Server.LoginRateLimitMax = *body.LoginRateLimit
+					return strconv.Itoa(*body.LoginRateLimit)
+				},
+				sideEffect: func() {
+					if loginRL != nil {
+						loginRL.SetLimit(*body.LoginRateLimit)
+					}
+				}},
+			{cfgKey: cfgKeyRateLimitGlobal,
+				apply: func() string {
+					if body.GlobalRateLimit == nil {
+						return ""
+					}
+					cfg.Server.GlobalRateLimitMax = *body.GlobalRateLimit
+					return strconv.Itoa(*body.GlobalRateLimit)
+				},
+				sideEffect: func() {
+					if globalRL != nil {
+						globalRL.SetLimit(*body.GlobalRateLimit)
+					}
+				}},
+		}
+
 		mu.Lock()
-		if body.ServerName != nil {
-			cfg.Server.Name = *body.ServerName
-			overridden[cfgKeyServerName] = true
+		for _, u := range updates {
+			serialized := u.apply()
+			if serialized == "" {
+				continue
+			}
+			overridden[u.cfgKey] = true
 			if store != nil {
-				if err := store.Set(r.Context(), cfgKeyServerName, *body.ServerName); err != nil {
-					slog.Warn("persist server setting", slog.String("key", cfgKeyServerName), slog.Any("err", err))
+				if err := store.Set(r.Context(), u.cfgKey, serialized); err != nil {
+					slog.Warn("persist server setting", slog.String("key", u.cfgKey), slog.Any("err", err))
 				}
 			}
-		}
-		if body.MaxConcurrentTranscodes != nil {
-			n := *body.MaxConcurrentTranscodes
-			cfg.Transcoding.MaxConcurrent = n
-			overridden[cfgKeyTranscodeMaxConc] = true
-			if store != nil {
-				if err := store.Set(r.Context(), cfgKeyTranscodeMaxConc, strconv.Itoa(n)); err != nil {
-					slog.Warn("persist server setting", slog.String("key", cfgKeyTranscodeMaxConc), slog.Any("err", err))
-				}
-			}
-			if transcodingSvc != nil {
-				transcodingSvc.SetMaxConcurrent(n)
-			}
-			if hlsMgr != nil {
-				hlsMgr.SetMaxConcurrent(n)
-			}
-		}
-		if body.HWAccelEnabled != nil {
-			cfg.Transcoding.HWAccelEnabled = *body.HWAccelEnabled
-			overridden[cfgKeyTranscodeHWAccel] = true
-			if store != nil {
-				if err := store.Set(r.Context(), cfgKeyTranscodeHWAccel, strconv.FormatBool(*body.HWAccelEnabled)); err != nil {
-					slog.Warn("persist server setting", slog.String("key", cfgKeyTranscodeHWAccel), slog.Any("err", err))
-				}
-			}
-		}
-		if body.LoginRateLimit != nil {
-			n := *body.LoginRateLimit
-			cfg.Server.LoginRateLimitMax = n
-			overridden[cfgKeyRateLimitLogin] = true
-			if store != nil {
-				if err := store.Set(r.Context(), cfgKeyRateLimitLogin, strconv.Itoa(n)); err != nil {
-					slog.Warn("persist server setting", slog.String("key", cfgKeyRateLimitLogin), slog.Any("err", err))
-				}
-			}
-			if loginRL != nil {
-				loginRL.SetLimit(n)
-			}
-		}
-		if body.GlobalRateLimit != nil {
-			n := *body.GlobalRateLimit
-			cfg.Server.GlobalRateLimitMax = n
-			overridden[cfgKeyRateLimitGlobal] = true
-			if store != nil {
-				if err := store.Set(r.Context(), cfgKeyRateLimitGlobal, strconv.Itoa(n)); err != nil {
-					slog.Warn("persist server setting", slog.String("key", cfgKeyRateLimitGlobal), slog.Any("err", err))
-				}
-			}
-			if globalRL != nil {
-				globalRL.SetLimit(n)
+			if u.sideEffect != nil {
+				u.sideEffect()
 			}
 		}
 		mu.Unlock()
 
 		w.Header().Set("Content-Type", "application/json")
 		mu.RLock()
-		resp := map[string]settingValue{
-			"serverName":               {Value: cfg.EffectiveServerName(), Default: defaults[cfgKeyServerName], Source: source(cfgKeyServerName)},
-			"maxConcurrentTranscodes":  {Value: cfg.EffectiveMaxConcurrent(), Default: defaults[cfgKeyTranscodeMaxConc], Source: source(cfgKeyTranscodeMaxConc)},
-			"hwAccelEnabled":           {Value: cfg.EffectiveHWAccelEnabled(), Default: defaults[cfgKeyTranscodeHWAccel], Source: source(cfgKeyTranscodeHWAccel)},
-			"loginRateLimit":           {Value: cfg.Server.LoginRateLimitMax, Default: defaults[cfgKeyRateLimitLogin], Source: source(cfgKeyRateLimitLogin)},
-			"globalRateLimit":          {Value: cfg.Server.GlobalRateLimitMax, Default: defaults[cfgKeyRateLimitGlobal], Source: source(cfgKeyRateLimitGlobal)},
-		}
+		resp := buildResponse()
 		mu.RUnlock()
 		if err := json.NewEncoder(w).Encode(resp); err != nil {
 			slog.Warn("json encode failed", slog.Any("err", err))
