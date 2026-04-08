@@ -122,7 +122,7 @@ export const MediaCard = memo(function MediaCard({
   const menuBtnRef = useRef<HTMLButtonElement>(null);
   const hasPreviewData = !!(item.overview || item.communityRating || (item.genres && item.genres.length > 0));
 
-  const queryClient = useQueryClient();
+  const queryClient = qc;
 
   const prefetchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
