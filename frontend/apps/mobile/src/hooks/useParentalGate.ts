@@ -10,7 +10,7 @@ const RATING_SEVERITY: Record<string, number> = {
   "NC-17": 4,
 };
 
-function isRatingExceeded(contentRating: string | undefined, maxRating: string): boolean {
+export function isRatingExceeded(contentRating: string | undefined, maxRating: string): boolean {
   if (!contentRating || !maxRating) return false;
   const content = contentRating.trim().toUpperCase();
   const max = maxRating.trim().toUpperCase();
