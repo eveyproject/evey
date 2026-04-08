@@ -93,7 +93,7 @@ func (s *CommandService) Setup(ctx context.Context, username, password, email st
 		return nil, ErrSetupDone
 	}
 	if username == "" {
-		return nil, fmt.Errorf("username is required")
+		return nil, errors.New("username is required")
 	}
 	if len(password) < 8 {
 		return nil, ErrPasswordTooShort

@@ -7,6 +7,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -121,7 +122,7 @@ func (s *Service) RestoreBackup(ctx context.Context, data io.Reader) error {
 
 	if archive.manifest.DumpSHA256 != "" {
 		if archive.dumpSHA256 != archive.manifest.DumpSHA256 {
-			return fmt.Errorf("restore: dump integrity check failed (sha256 mismatch)")
+			return errors.New("restore: dump integrity check failed (sha256 mismatch)")
 		}
 	}
 
@@ -256,10 +257,10 @@ func extractTarGz(r io.Reader) (*backupArchive, error) {
 		if a.dumpPath != "" {
 			os.Remove(a.dumpPath) //nolint:errcheck
 		}
-		return nil, fmt.Errorf("archive missing manifest.json")
+		return nil, errors.New("archive missing manifest.json")
 	}
 	if a.dumpPath == "" {
-		return nil, fmt.Errorf("archive missing dump.sql")
+		return nil, errors.New("archive missing dump.sql")
 	}
 
 	var m backup.BackupManifest

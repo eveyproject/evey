@@ -57,7 +57,7 @@ func safeJoin(base, rel string) (string, error) {
 		return "", err
 	}
 	if abs != baseAbs && !strings.HasPrefix(abs, baseAbs+string(filepath.Separator)) {
-		return "", fmt.Errorf("path traversal detected")
+		return "", errors.New("path traversal detected")
 	}
 	return abs, nil
 }
@@ -239,8 +239,8 @@ func extractClaims(r *http.Request, verifier TokenVerifier) (*domainuser.Claims,
 	return claims, true
 }
 
-var errUnauthenticated = fmt.Errorf("unauthenticated")
-var errForbidden = fmt.Errorf("forbidden")
+var errUnauthenticated = errors.New("unauthenticated")
+var errForbidden = errors.New("forbidden")
 
 // extractAdminClaims extracts a Bearer token (header or query param) and validates admin access.
 func extractAdminClaims(r *http.Request, verifier TokenVerifier) (*domainuser.Claims, error) {

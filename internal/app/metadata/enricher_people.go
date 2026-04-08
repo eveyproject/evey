@@ -2,6 +2,7 @@ package metadata
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"time"
@@ -12,7 +13,7 @@ import (
 func (e *Enricher) EnrichAllPeopleBios(ctx context.Context, log *slog.Logger) (int, error) {
 	fetcher := e.personFetcher
 	if fetcher == nil {
-		return 0, fmt.Errorf("person fetcher not configured")
+		return 0, errors.New("person fetcher not configured")
 	}
 	all, err := e.persons.List(ctx)
 	if err != nil {

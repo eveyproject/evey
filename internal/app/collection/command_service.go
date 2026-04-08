@@ -2,6 +2,7 @@ package collection
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -67,10 +68,10 @@ func (s *CommandService) Upsert(ctx context.Context, tmdbID int, name, overview,
 
 func (s *CommandService) CreateSmart(ctx context.Context, name string, rules []library.CollectionRule, sortBy string) (*library.Collection, error) {
 	if name == "" {
-		return nil, fmt.Errorf("name is required")
+		return nil, errors.New("name is required")
 	}
 	if len(rules) == 0 {
-		return nil, fmt.Errorf("at least one rule is required")
+		return nil, errors.New("at least one rule is required")
 	}
 	if sortBy == "" {
 		sortBy = "added_at"
@@ -96,10 +97,10 @@ func (s *CommandService) UpdateSmart(ctx context.Context, id, name string, rules
 		return nil, err
 	}
 	if name == "" {
-		return nil, fmt.Errorf("name is required")
+		return nil, errors.New("name is required")
 	}
 	if len(rules) == 0 {
-		return nil, fmt.Errorf("at least one rule is required")
+		return nil, errors.New("at least one rule is required")
 	}
 	if sortBy == "" {
 		sortBy = "added_at"

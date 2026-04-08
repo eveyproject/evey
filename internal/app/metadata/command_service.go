@@ -2,6 +2,7 @@ package metadata
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"path/filepath"
@@ -86,7 +87,7 @@ func (s *CommandService) RefreshMetadata(ctx context.Context, mediaItemID, provi
 
 func (s *CommandService) RefreshAllTranslations(ctx context.Context, onProgress func(done, total int)) error {
 	if s.enricher == nil || s.mediaItems == nil {
-		return fmt.Errorf("enricher not configured")
+		return errors.New("enricher not configured")
 	}
 	items, err := s.mediaItems.List(ctx, library.ListMediaItemsFilter{})
 	if err != nil {
@@ -113,14 +114,14 @@ func (s *CommandService) RefreshAllTranslations(ctx context.Context, onProgress 
 
 func (s *CommandService) GetMediaItem(ctx context.Context, id string) (*library.MediaItem, error) {
 	if s.mediaItems == nil {
-		return nil, fmt.Errorf("media items repo not configured")
+		return nil, errors.New("media items repo not configured")
 	}
 	return s.mediaItems.GetByID(ctx, id)
 }
 
 func (s *CommandService) RefreshItemMetadata(ctx context.Context, mediaItemID, tmdbID, mediaType string) error {
 	if s.enricher == nil || s.mediaItems == nil {
-		return fmt.Errorf("enricher not configured")
+		return errors.New("enricher not configured")
 	}
 	item, err := s.mediaItems.GetByID(ctx, mediaItemID)
 	if err != nil {
@@ -142,7 +143,7 @@ func (s *CommandService) RefreshItemMetadata(ctx context.Context, mediaItemID, t
 
 func (s *CommandService) RefreshItemMetadataByIMDB(ctx context.Context, mediaItemID, imdbID, mediaType string) error {
 	if s.enricher == nil || s.mediaItems == nil {
-		return fmt.Errorf("enricher not configured")
+		return errors.New("enricher not configured")
 	}
 	item, err := s.mediaItems.GetByID(ctx, mediaItemID)
 	if err != nil {
@@ -267,7 +268,7 @@ func (s *CommandService) deriveTitleFromChildren(ctx context.Context, seriesID s
 // (seasons + episodes for series, episodes for seasons) then triggers re-enrichment.
 func (s *CommandService) ResetItemMetadata(ctx context.Context, mediaItemID string) error {
 	if s.mediaItems == nil {
-		return fmt.Errorf("media item repository not configured")
+		return errors.New("media item repository not configured")
 	}
 	item, err := s.mediaItems.GetByID(ctx, mediaItemID)
 	if err != nil {
@@ -358,7 +359,7 @@ func (s *CommandService) resetChildren(ctx context.Context, parentID string) {
 
 func (s *CommandService) DownloadArtwork(ctx context.Context, record *metadata.ArtworkRecord, destPath string) error {
 	if record.SourceURL == nil {
-		return fmt.Errorf("no source URL")
+		return errors.New("no source URL")
 	}
 	if err := s.downloader.Download(ctx, *record.SourceURL, destPath); err != nil {
 		return fmt.Errorf("download artwork: %w", err)
@@ -387,7 +388,7 @@ type SingleItemEnricher interface {
 func (s *CommandService) AutoRefreshAllItems(ctx context.Context) error {
 	be, ok := s.enricher.(BulkItemEnricher)
 	if !ok {
-		return fmt.Errorf("enricher does not support bulk refresh")
+		return errors.New("enricher does not support bulk refresh")
 	}
 	const pageSize = 500
 	for offset := 0; ; offset += pageSize {

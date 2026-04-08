@@ -2,6 +2,7 @@ package library
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"strconv"
@@ -158,7 +159,7 @@ func NextCronTime(expr string, from time.Time) (time.Time, error) {
 		}
 		return t, nil
 	}
-	return time.Time{}, fmt.Errorf("cron: no next run found within 2 years")
+	return time.Time{}, errors.New("cron: no next run found within 2 years")
 }
 
 func parseCronField(field string, min, max int) (map[int]bool, error) {
@@ -201,7 +202,7 @@ func parseCronField(field string, min, max int) (map[int]bool, error) {
 		result[val] = true
 	}
 	if len(result) == 0 {
-		return nil, fmt.Errorf("empty field")
+		return nil, errors.New("empty field")
 	}
 	return result, nil
 }

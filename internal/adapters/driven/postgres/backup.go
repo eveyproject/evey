@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -129,7 +130,7 @@ func (d *DatabaseDumper) validateBackup(data io.Reader) ([]byte, error) {
 			headerFound = true
 		}
 		if lineNum == 50 && !headerFound {
-			return nil, fmt.Errorf("restore: invalid file: missing pg_dump header")
+			return nil, errors.New("restore: invalid file: missing pg_dump header")
 		}
 
 		if dangerousLineRe.MatchString(line) {
@@ -143,10 +144,10 @@ func (d *DatabaseDumper) validateBackup(data io.Reader) ([]byte, error) {
 		return nil, fmt.Errorf("restore: scan backup: %w", err)
 	}
 	if lineNum == 0 {
-		return nil, fmt.Errorf("restore: invalid file: empty backup")
+		return nil, errors.New("restore: invalid file: empty backup")
 	}
 	if !headerFound {
-		return nil, fmt.Errorf("restore: invalid file: missing pg_dump header")
+		return nil, errors.New("restore: invalid file: missing pg_dump header")
 	}
 
 	return buf.Bytes(), nil

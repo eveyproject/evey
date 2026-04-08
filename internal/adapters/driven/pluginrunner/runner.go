@@ -2,6 +2,7 @@ package pluginrunner
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"os"
@@ -83,7 +84,7 @@ func isInterpreter(cmd string) bool {
 
 func (r *Runner) validateEntrypoint(entrypoint, installDir string) (string, error) {
 	if strings.Contains(entrypoint, "..") {
-		return "", fmt.Errorf("entrypoint must not contain '..'")
+		return "", errors.New("entrypoint must not contain '..'")
 	}
 
 	candidate := entrypoint
@@ -114,10 +115,10 @@ func (r *Runner) validateEntrypoint(entrypoint, installDir string) (string, erro
 		return "", fmt.Errorf("stat entrypoint: %w", err)
 	}
 	if info.IsDir() {
-		return "", fmt.Errorf("entrypoint is a directory")
+		return "", errors.New("entrypoint is a directory")
 	}
 	if info.Mode()&0o111 == 0 {
-		return "", fmt.Errorf("entrypoint is not executable")
+		return "", errors.New("entrypoint is not executable")
 	}
 
 	return resolved, nil

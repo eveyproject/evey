@@ -2,6 +2,7 @@ package urlvalidator
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net"
 	"net/url"
@@ -56,7 +57,7 @@ func ValidateExternalURL(rawURL string) error {
 	}
 	host := u.Hostname()
 	if host == "" {
-		return fmt.Errorf("empty host")
+		return errors.New("empty host")
 	}
 	blockedHosts := []string{"localhost", "metadata.google.internal", "100.100.100.200"}
 	for _, b := range blockedHosts {
@@ -86,7 +87,7 @@ func ValidateRedirectURL(rawURL string) error {
 	}
 	host := u.Hostname()
 	if host == "" {
-		return fmt.Errorf("empty host")
+		return errors.New("empty host")
 	}
 	if ip := net.ParseIP(host); ip != nil && isPrivateIP(ip) {
 		return fmt.Errorf("IP %s is private/internal", ip)
@@ -110,7 +111,7 @@ func ValidateWebhookURL(rawURL string) error {
 
 	host := u.Hostname()
 	if host == "" {
-		return fmt.Errorf("empty host")
+		return errors.New("empty host")
 	}
 
 	blockedHosts := []string{"localhost", "metadata.google.internal", "100.100.100.200"}

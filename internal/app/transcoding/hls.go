@@ -2,6 +2,7 @@ package transcoding
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"os"
@@ -150,7 +151,7 @@ func (m *HLSManager) acquireSemaphore() error {
 	case m.sem <- struct{}{}:
 		return nil
 	case <-timer.C:
-		return fmt.Errorf("too many concurrent sessions, try again")
+		return errors.New("too many concurrent sessions, try again")
 	case <-m.shutdownCtx.Done():
 		return m.shutdownCtx.Err()
 	}

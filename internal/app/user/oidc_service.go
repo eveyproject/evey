@@ -67,7 +67,7 @@ func NewOIDCService(
 		return nil, ErrOIDCDisabled
 	}
 	if cfg.ClientSecret == "" {
-		return nil, fmt.Errorf("OIDC: client secret must not be empty")
+		return nil, errors.New("OIDC: client secret must not be empty")
 	}
 	provider, err := gooidc.NewProvider(ctx, cfg.Issuer)
 	if err != nil {

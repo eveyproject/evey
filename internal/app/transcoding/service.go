@@ -178,7 +178,7 @@ func (s *Service) ClearCache(ctx context.Context) error {
 
 func (s *Service) DeleteCacheFile(ctx context.Context, filename string) error {
 	if s.cache == nil {
-		return fmt.Errorf("cache store not configured")
+		return errors.New("cache store not configured")
 	}
 	return s.cache.DeleteFile(ctx, filename)
 }

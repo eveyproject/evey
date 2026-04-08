@@ -2,6 +2,7 @@ package library
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"runtime/debug"
@@ -163,21 +164,21 @@ func (s *CommandService) StartPeriodicScan(ctx context.Context, libQueries libra
 
 func (s *CommandService) GenerateTrickplay(ctx context.Context, mediaItemID string) error {
 	if s.trickplay == nil {
-		return fmt.Errorf("trickplay not configured")
+		return errors.New("trickplay not configured")
 	}
 	return s.trickplay.GenerateTrickplay(ctx, mediaItemID)
 }
 
 func (s *CommandService) GetTrickplayManifest(ctx context.Context, mediaItemID string) (*library.TrickplayManifest, error) {
 	if s.trickplay == nil {
-		return nil, fmt.Errorf("trickplay not configured")
+		return nil, errors.New("trickplay not configured")
 	}
 	return s.trickplay.GetTrickplayManifest(ctx, mediaItemID)
 }
 
 func (s *CommandService) GenerateAllMissingTrickplays(ctx context.Context) (int, error) {
 	if s.trickplay == nil {
-		return 0, fmt.Errorf("trickplay not configured")
+		return 0, errors.New("trickplay not configured")
 	}
 	return s.trickplay.GenerateAllMissingTrickplays(ctx)
 }
