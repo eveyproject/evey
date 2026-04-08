@@ -3,7 +3,7 @@ import { usePlaybackServiceGetWatchHistory } from "@evey/api";
 
 export function useWatchedMap() {
   const { data } = usePlaybackServiceGetWatchHistory(
-    { limit: 5000 },
+    { limit: 500 },
     { query: { staleTime: 30_000 } },
   );
 
