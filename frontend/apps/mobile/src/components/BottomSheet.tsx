@@ -43,12 +43,12 @@ export function BottomSheet({ visible, onClose, title, children }: BottomSheetPr
 
   return (
     <Modal visible={visible} transparent animationType="none" onRequestClose={onClose}>
-      <Pressable style={styles.backdrop} onPress={onClose} accessible={true} accessibilityLabel="Close" accessibilityRole="button">
+      <Pressable style={[styles.backdrop, { backgroundColor: theme.colors.overlay }]} onPress={onClose} accessible={true} accessibilityLabel="Close" accessibilityRole="button">
         <View />
       </Pressable>
       <Animated.View style={[styles.sheet, { transform: [{ translateY }], backgroundColor: theme.colors.surface }]}>
-        <View style={styles.handle} />
-        <Text style={[styles.title, { color: theme.colors.text }]}>{title}</Text>
+        <View style={[styles.handle, { backgroundColor: theme.colors.textMuted }]} />
+        <Text style={[styles.title, { color: theme.colors.text, borderBottomColor: theme.colors.divider }]}>{title}</Text>
         <ScrollView style={styles.content} bounces={false}>
           {children}
         </ScrollView>
@@ -60,7 +60,6 @@ export function BottomSheet({ visible, onClose, title, children }: BottomSheetPr
 const styles = StyleSheet.create({
   backdrop: {
     flex: 1,
-    backgroundColor: "rgba(0,0,0,0.5)",
   },
   sheet: {
     position: "absolute",
@@ -76,7 +75,6 @@ const styles = StyleSheet.create({
     width: 36,
     height: 4,
     borderRadius: 2,
-    backgroundColor: "rgba(255,255,255,0.3)",
     alignSelf: "center",
     marginTop: 10,
     marginBottom: 8,
@@ -87,7 +85,6 @@ const styles = StyleSheet.create({
     textAlign: "center",
     paddingBottom: 12,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: "rgba(255,255,255,0.15)",
   },
   content: {
     paddingHorizontal: 16,

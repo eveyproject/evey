@@ -80,7 +80,7 @@ export function SmartRulesEditor({ visible, onClose, rules, onSave }: Props) {
 
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
-      <Pressable style={styles.backdrop} onPress={onClose} />
+      <Pressable style={[styles.backdrop, { backgroundColor: theme.colors.overlay }]} onPress={onClose} />
       <View style={[styles.sheet, { backgroundColor: theme.colors.surface, borderRadius: theme.radii.lg }]}>
         <Text style={[styles.title, { color: theme.colors.text }]}>
           {t("media.playlist.smartRules") || "Smart Rules"}
@@ -189,7 +189,7 @@ export function SmartRulesEditor({ visible, onClose, rules, onSave }: Props) {
 }
 
 const styles = StyleSheet.create({
-  backdrop: { ...StyleSheet.absoluteFillObject, backgroundColor: "rgba(0,0,0,0.5)" },
+  backdrop: { ...StyleSheet.absoluteFillObject },
   sheet: { position: "absolute", bottom: 0, left: 0, right: 0, padding: 20, paddingBottom: 32 },
   title: { fontSize: 18, fontWeight: "700", marginBottom: 16 },
   ruleRow: { paddingVertical: 10, borderBottomWidth: StyleSheet.hairlineWidth },

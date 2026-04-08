@@ -12,7 +12,7 @@ export function ProgressBar({ percent, color }: ProgressBarProps) {
   const clamped = Math.min(100, Math.max(0, percent));
 
   return (
-    <View style={{ height: 3, backgroundColor: "rgba(255,255,255,0.2)", borderRadius: 2 }}>
+    <View style={{ height: 3, backgroundColor: theme.colors.divider, borderRadius: 2 }}>
       <View style={{ height: 3, width: `${clamped}%`, backgroundColor: barColor, borderRadius: 2 }} />
     </View>
   );

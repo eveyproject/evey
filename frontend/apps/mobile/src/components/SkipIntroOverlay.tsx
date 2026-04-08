@@ -38,7 +38,7 @@ export function SkipIntroOverlay({ filePath, currentTime, onSkip }: SkipIntroOve
 
   return (
     <Pressable
-      style={[styles.button, { borderColor: theme.colors.border }]}
+      style={[styles.button, { borderColor: theme.colors.border, backgroundColor: theme.colors.overlay }]}
       onPress={() => onSkip(endSec)}
       accessible={true}
       accessibilityLabel={t("player.skipIntro")}
@@ -54,7 +54,6 @@ const styles = StyleSheet.create({
     position: "absolute",
     bottom: 100,
     right: 20,
-    backgroundColor: "rgba(0,0,0,0.7)",
     borderWidth: 1,
     borderRadius: 8,
     paddingHorizontal: 20,

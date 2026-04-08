@@ -71,7 +71,7 @@ export function HeaderSearch() {
       </View>
 
       {showDropdown && (
-        <View style={[styles.dropdown, { backgroundColor: theme.colors.surfaceRaised, borderColor: theme.colors.border }]}>
+        <View style={[styles.dropdown, { backgroundColor: theme.colors.surfaceRaised, borderColor: theme.colors.border, shadowColor: theme.colors.shadow }]}>
           {results.length === 0 ? (
             <View style={styles.emptyRow}>
               <Text style={{ color: theme.colors.textMuted, fontSize: 13 }}>{t("media.search.noResults", "No results")}</Text>
@@ -141,7 +141,6 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     overflow: "hidden",
     elevation: 8,
-    shadowColor: "#000",
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.15,
     shadowRadius: 8,

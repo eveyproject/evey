@@ -17,18 +17,18 @@ const ICON_MAP: Record<ToastType, keyof typeof Ionicons.glyphMap> = {
   warning: "warning",
 };
 
-const TYPE_COLORS: Record<ToastType, string> = {
-  success: "#22c55e",
-  error: "#ef4444",
-  info: "#818cf8",
-  warning: "#f59e0b",
-};
-
 function ToastItem({ toast }: { toast: Toast }) {
   const theme = useTheme();
   const remove = useToastStore((s) => s.removeToast);
   const opacity = useRef(new Animated.Value(0)).current;
   const translateY = useRef(new Animated.Value(-20)).current;
+
+  const typeColors: Record<ToastType, string> = {
+    success: theme.colors.success,
+    error: theme.colors.error,
+    info: theme.colors.info,
+    warning: theme.colors.warning,
+  };
 
   useEffect(() => {
     Animated.parallel([
@@ -46,7 +46,7 @@ function ToastItem({ toast }: { toast: Toast }) {
     return () => clearTimeout(timer);
   }, []);
 
-  const color = toast.type === "info" ? theme.colors.accent : TYPE_COLORS[toast.type];
+  const color = typeColors[toast.type];
 
   return (
     <Animated.View
@@ -55,6 +55,7 @@ function ToastItem({ toast }: { toast: Toast }) {
         {
           backgroundColor: theme.colors.surfaceRaised,
           borderLeftColor: color,
+          shadowColor: theme.colors.shadow,
           opacity,
           transform: [{ translateY }],
         },
@@ -103,7 +104,6 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     borderLeftWidth: 4,
     elevation: 6,
-    shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.3,
     shadowRadius: 4,

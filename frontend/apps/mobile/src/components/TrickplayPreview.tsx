@@ -1,6 +1,7 @@
 import { useEffect, useState, useRef } from "react";
 import { View, StyleSheet } from "react-native";
 import { Image } from "expo-image";
+import { useTheme } from "../providers/ThemeProvider";
 import * as FileSystem from "expo-file-system";
 import { eveyFetchRaw } from "@evey/api";
 import { useServerUrl } from "../hooks/useServerUrl";
@@ -76,6 +77,7 @@ interface Props {
 }
 
 export function TrickplayPreview({ mediaId, currentTime, visible }: Props) {
+  const theme = useTheme();
   const serverUrl = useServerUrl();
   const authHeaders = useAuthHeaders();
   const [cues, setCues] = useState<TrickplayCue[]>(() => memCache.get(mediaId) ?? []);
@@ -119,7 +121,7 @@ export function TrickplayPreview({ mediaId, currentTime, visible }: Props) {
   const imageUrl = serverUrl ? `${serverUrl}${cue.url}` : cue.url;
 
   return (
-    <View style={[styles.container, { width: thumbW, height: thumbH }]}>
+    <View style={[styles.container, { width: thumbW, height: thumbH, backgroundColor: theme.colors.overlay }]}>
       <Image
         source={{ uri: imageUrl, headers: authHeaders }}
         style={{
@@ -139,6 +141,5 @@ const styles = StyleSheet.create({
   container: {
     overflow: "hidden",
     borderRadius: 4,
-    backgroundColor: "rgba(0,0,0,0.8)",
   },
 });

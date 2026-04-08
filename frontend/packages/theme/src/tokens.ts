@@ -14,6 +14,12 @@ export interface ThemeTokens {
     border: string;
     error: string;
     onAccent: string;
+    overlay: string;
+    divider: string;
+    shadow: string;
+    success: string;
+    warning: string;
+    info: string;
   };
   radii: { sm: number; md: number; lg: number };
   spacing: { xs: number; sm: number; md: number; lg: number; xl: number };
@@ -31,6 +37,12 @@ export const defaultTheme: ThemeTokens = {
     border:       "#1e293b",
     error:        "#e57373",
     onAccent:     "#ffffff",
+    overlay:      "rgba(0,0,0,0.5)",
+    divider:      "rgba(255,255,255,0.08)",
+    shadow:       "#000",
+    success:      "#22c55e",
+    warning:      "#f59e0b",
+    info:         "#818cf8",
   },
   radii:   { sm: 6, md: 12, lg: 20 },
   spacing: { xs: 4, sm: 8, md: 16, lg: 24, xl: 32 },
@@ -48,6 +60,12 @@ export const amoledTheme: ThemeTokens = {
     border:       "#1a1a1a",
     error:        "#f87171",
     onAccent:     "#ffffff",
+    overlay:      "rgba(0,0,0,0.7)",
+    divider:      "rgba(255,255,255,0.06)",
+    shadow:       "#000",
+    success:      "#22c55e",
+    warning:      "#f59e0b",
+    info:         "#c4b5fd",
   },
   radii:   { sm: 6, md: 12, lg: 20 },
   spacing: { xs: 4, sm: 8, md: 16, lg: 24, xl: 32 },
@@ -65,6 +83,12 @@ export const lightDefaultTheme: ThemeTokens = {
     border:       "#e2e8f0",
     error:        "#ef4444",
     onAccent:     "#ffffff",
+    overlay:      "rgba(0,0,0,0.4)",
+    divider:      "rgba(0,0,0,0.08)",
+    shadow:       "#000",
+    success:      "#22c55e",
+    warning:      "#f59e0b",
+    info:         "#6366f1",
   },
   radii:   { sm: 6, md: 12, lg: 20 },
   spacing: { xs: 4, sm: 8, md: 16, lg: 24, xl: 32 },
@@ -82,6 +106,12 @@ export const lightBlueTheme: ThemeTokens = {
     border:       "#cbd5e1",
     error:        "#dc2626",
     onAccent:     "#ffffff",
+    overlay:      "rgba(0,0,0,0.4)",
+    divider:      "rgba(0,0,0,0.08)",
+    shadow:       "#000",
+    success:      "#22c55e",
+    warning:      "#f59e0b",
+    info:         "#3b82f6",
   },
   radii:   { sm: 6, md: 12, lg: 20 },
   spacing: { xs: 4, sm: 8, md: 16, lg: 24, xl: 32 },

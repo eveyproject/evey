@@ -26,7 +26,7 @@ export function CastPicker({ visible, onClose, onSelect, discover }: Props) {
 
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
-      <Pressable style={styles.backdrop} onPress={onClose}>
+      <Pressable style={[styles.backdrop, { backgroundColor: theme.colors.overlay }]} onPress={onClose}>
         <View style={[styles.sheet, { backgroundColor: theme.colors.surface, borderRadius: theme.radii.lg }]}>
           <Text style={[styles.title, { color: theme.colors.text }]}>
             {t("player.controls.cast")}
@@ -68,7 +68,7 @@ export function CastPicker({ visible, onClose, onSelect, discover }: Props) {
 }
 
 const styles = StyleSheet.create({
-  backdrop: { flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: "rgba(0,0,0,0.6)" },
+  backdrop: { flex: 1, justifyContent: "center", alignItems: "center" },
   sheet: { width: "80%", maxWidth: 340, padding: 20 },
   title: { fontSize: 17, fontWeight: "700", marginBottom: 12 },
   row: { flexDirection: "row", alignItems: "center", gap: 12, paddingVertical: 14, borderBottomWidth: StyleSheet.hairlineWidth },

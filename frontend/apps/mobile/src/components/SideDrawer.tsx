@@ -56,7 +56,7 @@ export function SideDrawer() {
 
   return (
     <Modal transparent animationType="none" visible={isOpen} onRequestClose={close}>
-      <Pressable style={styles.backdrop} onPress={close} />
+      <Pressable style={[styles.backdrop, { backgroundColor: theme.colors.overlay }]} onPress={close} />
       <Animated.View
         style={[
           styles.drawer,
@@ -131,7 +131,7 @@ export function SideDrawer() {
         <View style={[styles.userSection, { borderTopColor: theme.colors.border }]}>
           <Pressable onPress={() => navigate("/(auth)/(tabs)/settings")} style={styles.userRow} accessible={true} accessibilityLabel={currentUser?.username ?? "Settings"} accessibilityRole="button">
             <View style={[styles.avatar, { backgroundColor: theme.colors.accent }]}>
-              <Text style={styles.avatarText}>{initial}</Text>
+              <Text style={[styles.avatarText, { color: theme.colors.text }]}>{initial}</Text>
             </View>
             <View style={{ flex: 1 }}>
               <Text style={[styles.username, { color: theme.colors.text }]} numberOfLines={1}>
@@ -156,7 +156,6 @@ export function SideDrawer() {
 const styles = StyleSheet.create({
   backdrop: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: "rgba(0,0,0,0.5)",
   },
   drawer: {
     position: "absolute",
@@ -215,7 +214,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  avatarText: { color: "#fff", fontSize: 14, fontWeight: "600" },
+  avatarText: { fontSize: 14, fontWeight: "600" },
   username: { fontSize: 14, fontWeight: "500" },
   adminBadge: { fontSize: 11, fontWeight: "600", marginTop: 1 },
   logoutRow: {
