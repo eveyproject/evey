@@ -348,7 +348,7 @@ export const MediaCard = memo(function MediaCard({
             aria-label="Options"
             aria-haspopup="true"
             aria-expanded={ctxMenu !== null}
-            className="absolute top-2 right-2 z-badge opacity-0 group-hover:opacity-100 focus:opacity-100 p-1 rounded bg-black/60 text-[var(--overlay-text)]"
+            className="absolute top-2 right-2 z-badge opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 focus:opacity-100 p-1 rounded bg-black/60 text-[var(--overlay-text)]"
             style={{ lineHeight: 1 }}
             onClick={(e) => {
               e.preventDefault();
