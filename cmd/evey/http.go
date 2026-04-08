@@ -11,6 +11,7 @@ import (
 	httpapi "github.com/gravity-zero/evey/internal/adapters/driving/http"
 	appcast "github.com/gravity-zero/evey/internal/app/chromecast"
 	appdlna "github.com/gravity-zero/evey/internal/app/dlna"
+	"github.com/gravity-zero/evey/internal/adapters/driven/pluginrunner"
 	"github.com/gravity-zero/evey/internal/config"
 	"github.com/gravity-zero/evey/internal/domain/shared"
 	eveymetrics "github.com/gravity-zero/evey/internal/pkg/metrics"
@@ -102,8 +103,9 @@ func buildHTTPHandler(gwMux http.Handler, deps *appDeps, cfg *config.Config, sta
 		UserRepo:          deps.repos.userRepo,
 		Hasher:            deps.auth.hasher,
 
-		PluginRepo: deps.repos.pluginRepo,
-		PluginSvc:  deps.engagement.pluginInstallerSvc,
+		PluginRepo:   deps.repos.pluginRepo,
+		PluginSvc:    deps.engagement.pluginInstallerSvc,
+		CSSSanitizer: pluginrunner.SanitizeCSS,
 		DataDir:     "/data",
 		PluginDir:   "/data/plugins",
 		WebDir:      cfg.Server.WebDir,

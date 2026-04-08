@@ -11,7 +11,6 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/gravity-zero/evey/internal/adapters/driven/pluginrunner"
 	appplugin "github.com/gravity-zero/evey/internal/app/plugin"
 	domainplugin "github.com/gravity-zero/evey/internal/domain/plugin"
 	"github.com/gravity-zero/evey/internal/pkg/auth"
@@ -23,14 +22,17 @@ type pluginManager interface {
 	PreviewPlugin(ctx context.Context, zipPath string) (*appplugin.PluginPreview, error)
 }
 
+type cssSanitizer func(data []byte) (sanitized []byte, warnings []string)
+
 type pluginAssetHandler struct {
-	tokenGen  *auth.JWTGenerator
-	pluginDir string
-	repo      domainplugin.PluginRepository
+	tokenGen    *auth.JWTGenerator
+	pluginDir   string
+	repo        domainplugin.PluginRepository
+	sanitizeCSS cssSanitizer
 }
 
-func registerPluginAssetRoutes(mux *http.ServeMux, tokenGen *auth.JWTGenerator, repo domainplugin.PluginRepository, pluginDir string) {
-	h := &pluginAssetHandler{tokenGen: tokenGen, pluginDir: pluginDir, repo: repo}
+func registerPluginAssetRoutes(mux *http.ServeMux, tokenGen *auth.JWTGenerator, repo domainplugin.PluginRepository, pluginDir string, sanitize cssSanitizer) {
+	h := &pluginAssetHandler{tokenGen: tokenGen, pluginDir: pluginDir, repo: repo, sanitizeCSS: sanitize}
 	mux.HandleFunc("GET /api/v1/plugins/{id}/widget.js", h.handleWidgetJS)
 	mux.HandleFunc("GET /api/v1/plugins/{id}/theme.css", h.handleThemeCSS)
 	mux.HandleFunc("GET /api/v1/plugins/themes", h.handleListThemes)
@@ -107,7 +109,7 @@ func (h *pluginAssetHandler) handleThemeCSS(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	sanitized, warnings := pluginrunner.SanitizeCSS(data)
+	sanitized, warnings := h.sanitizeCSS(data)
 	if len(warnings) > 0 {
 		slog.Warn("css sanitizer removed rules", slog.String("plugin", pluginID), slog.Any("warnings", warnings))
 	}
