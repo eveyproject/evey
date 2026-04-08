@@ -2,9 +2,10 @@ package fakes
 
 import (
 	"context"
-	"errors"
 	"sync"
+	"time"
 
+	"github.com/gravity-zero/evey/internal/domain/shared"
 	"github.com/gravity-zero/evey/internal/domain/user"
 )
 
@@ -39,7 +40,7 @@ func (r *FakePasswordResetTokenRepository) GetByTokenHash(_ context.Context, has
 			return t, nil
 		}
 	}
-	return nil, errors.New("not found")
+	return nil, shared.ErrNotFound
 }
 
 func (r *FakePasswordResetTokenRepository) MarkUsed(_ context.Context, id string) error {
@@ -72,5 +73,25 @@ func (r *FakePasswordResetTokenRepository) DeleteExpired(_ context.Context) erro
 	if r.Err != nil {
 		return r.Err
 	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	now := time.Now()
+	for id, t := range r.items {
+		if t.ExpiresAt.Before(now) || t.Used {
+			delete(r.items, id)
+		}
+	}
 	return nil
+}
+
+func (r *FakePasswordResetTokenRepository) Len() int {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	return len(r.items)
+}
+
+func (r *FakePasswordResetTokenRepository) Get(id string) *user.PasswordResetToken {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	return r.items[id]
 }
