@@ -8,6 +8,7 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -191,8 +192,12 @@ func TestAuthURL_ContainsSignedState(t *testing.T) {
 	if url == "" {
 		t.Fatal("AuthURL returned empty string")
 	}
-	if !strings.Contains(url, "my-nonce.") {
-		t.Errorf("URL should contain nonce with signature separator, got %s", url)
+	if !strings.Contains(url, "my-nonce") {
+		t.Errorf("URL should contain nonce, got %s", url)
+	}
+	// state format: ts|nonce.sig — must contain pipe separator
+	if !strings.Contains(url, "%7C") && !strings.Contains(url, "|") {
+		t.Errorf("URL should contain timestamp pipe separator, got %s", url)
 	}
 }
 
@@ -201,8 +206,10 @@ func TestValidateState_ValidRoundTrip(t *testing.T) {
 	defer oidcSrv.close()
 	svc := buildOIDCService(t, oidcSrv)
 
-	signed := svc.signState("nonce123")
-	nonce, err := svc.ValidateState("nonce123." + signed)
+	ts := strconv.FormatInt(time.Now().Unix(), 10)
+	payload := ts + "|nonce123"
+	signed := svc.signState(payload)
+	nonce, err := svc.ValidateState(payload + "." + signed)
 	if err != nil {
 		t.Fatalf("ValidateState should succeed: %v", err)
 	}
@@ -230,7 +237,8 @@ func TestValidateState_WrongSignature(t *testing.T) {
 	defer oidcSrv.close()
 	svc := buildOIDCService(t, oidcSrv)
 
-	_, err := svc.ValidateState("nonce.wrong-signature")
+	ts := strconv.FormatInt(time.Now().Unix(), 10)
+	_, err := svc.ValidateState(ts + "|nonce.wrong-signature")
 	if err == nil {
 		t.Fatal("expected error for wrong signature")
 	}
@@ -247,10 +255,56 @@ func TestValidateState_DifferentSecretsFail(t *testing.T) {
 		s.stateSecret = []byte("different-secret-key-very-long!!")
 	})
 
-	sig := svc1.signState("nonce")
-	_, err := svc2.ValidateState("nonce." + sig)
+	ts := strconv.FormatInt(time.Now().Unix(), 10)
+	payload := ts + "|nonce"
+	sig := svc1.signState(payload)
+	_, err := svc2.ValidateState(payload + "." + sig)
 	if err == nil {
 		t.Fatal("expected mismatch with different secrets")
+	}
+}
+
+func TestValidateState_Expired(t *testing.T) {
+	oidcSrv := newTestOIDCServer(t)
+	defer oidcSrv.close()
+	svc := buildOIDCService(t, oidcSrv)
+
+	ts := strconv.FormatInt(time.Now().Add(-11*time.Minute).Unix(), 10)
+	payload := ts + "|nonce-old"
+	sig := svc.signState(payload)
+	_, err := svc.ValidateState(payload + "." + sig)
+	if !errors.Is(err, ErrStateExpired) {
+		t.Errorf("expected ErrStateExpired, got %v", err)
+	}
+}
+
+func TestValidateState_NotExpired(t *testing.T) {
+	oidcSrv := newTestOIDCServer(t)
+	defer oidcSrv.close()
+	svc := buildOIDCService(t, oidcSrv)
+
+	ts := strconv.FormatInt(time.Now().Add(-9*time.Minute).Unix(), 10)
+	payload := ts + "|nonce-fresh"
+	sig := svc.signState(payload)
+	nonce, err := svc.ValidateState(payload + "." + sig)
+	if err != nil {
+		t.Fatalf("expected valid state, got %v", err)
+	}
+	if nonce != "nonce-fresh" {
+		t.Errorf("got nonce %q, want %q", nonce, "nonce-fresh")
+	}
+}
+
+func TestValidateState_MissingTimestamp(t *testing.T) {
+	oidcSrv := newTestOIDCServer(t)
+	defer oidcSrv.close()
+	svc := buildOIDCService(t, oidcSrv)
+
+	// Old format without timestamp — should be rejected
+	sig := svc.signState("nonce-only")
+	_, err := svc.ValidateState("nonce-only." + sig)
+	if err == nil {
+		t.Fatal("expected error for state without timestamp")
 	}
 }
 
