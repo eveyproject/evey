@@ -2,12 +2,14 @@ package music_test
 
 import (
 	"context"
+	"crypto/sha256"
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
+	"time"
 
-	fsadapter "github.com/gravity-zero/evey/internal/adapters/driven/filesystem"
 	appmusic "github.com/gravity-zero/evey/internal/app/music"
 	"github.com/gravity-zero/evey/internal/domain/library"
 	libfakes "github.com/gravity-zero/evey/internal/domain/library/fakes"
@@ -16,15 +18,47 @@ import (
 	sharedfakes "github.com/gravity-zero/evey/internal/domain/shared/fakes"
 )
 
-func TestScanDirectory_NewTrack(t *testing.T) {
-	dir := t.TempDir()
-	// minimal MP3-like file: service will fail tag parse, but still upsert a minimal track
-	if err := os.WriteFile(filepath.Join(dir, "song.mp3"), []byte("ID3fake"), 0600); err != nil {
-		t.Fatal(err)
+var audioExts = map[string]string{
+	".mp3": "audio/mpeg", ".flac": "audio/flac",
+	".m4a": "audio/mp4", ".ogg": "audio/ogg",
+	".opus": "audio/ogg", ".wav": "audio/wav",
+	".aac": "audio/aac",
+}
+
+type fakeAudioFile struct {
+	relPath string
+	data    []byte
+}
+
+func musicScannerFromFiles(dir string, files []fakeAudioFile) *fakes.FakeMusicScanner {
+	s := fakes.NewFakeMusicScanner()
+	now := time.Now()
+	for _, f := range files {
+		fullPath := filepath.Join(dir, f.relPath)
+		ext := strings.ToLower(filepath.Ext(f.relPath))
+		mime, ok := audioExts[ext]
+		if !ok {
+			continue
+		}
+		s.Files = append(s.Files, music.ScannedAudioFile{
+			Path:     fullPath,
+			Size:     int64(len(f.data)),
+			ModTime:  now,
+			MimeType: mime,
+		})
+		s.FileData[fullPath] = f.data
+		h := sha256.Sum256(f.data)
+		s.Hashes[fullPath] = fmt.Sprintf("%x", h)
 	}
+	return s
+}
+
+func TestScanDirectory_NewTrack(t *testing.T) {
+	dir := "/fake/music"
+	scanner := musicScannerFromFiles(dir, []fakeAudioFile{{relPath: "song.mp3", data: []byte("ID3fake")}})
 
 	repo := fakes.NewFakeMusicTrackRepository()
-	svc := appmusic.NewService(repo, sharedfakes.NewFakeEventBus(), nil, fsadapter.NewMusicScanner())
+	svc := appmusic.NewService(repo, sharedfakes.NewFakeEventBus(), nil, scanner)
 
 	count, err := svc.ScanDirectory(context.Background(), "lib-1", dir)
 	if err != nil {
@@ -43,13 +77,11 @@ func TestScanDirectory_NewTrack(t *testing.T) {
 }
 
 func TestScanDirectory_SkipsNonAudio(t *testing.T) {
-	dir := t.TempDir()
-	if err := os.WriteFile(filepath.Join(dir, "readme.txt"), []byte("not audio"), 0600); err != nil {
-		t.Fatal(err)
-	}
+	dir := "/fake/music"
+	scanner := musicScannerFromFiles(dir, []fakeAudioFile{{relPath: "readme.txt", data: []byte("not audio")}})
 
 	repo := fakes.NewFakeMusicTrackRepository()
-	svc := appmusic.NewService(repo, sharedfakes.NewFakeEventBus(), nil, fsadapter.NewMusicScanner())
+	svc := appmusic.NewService(repo, sharedfakes.NewFakeEventBus(), nil, scanner)
 
 	count, err := svc.ScanDirectory(context.Background(), "lib-1", dir)
 	if err != nil {
@@ -61,14 +93,11 @@ func TestScanDirectory_SkipsNonAudio(t *testing.T) {
 }
 
 func TestScanDirectory_SkipsUnchanged(t *testing.T) {
-	dir := t.TempDir()
-	filePath := filepath.Join(dir, "track.mp3")
-	if err := os.WriteFile(filePath, []byte("ID3fake"), 0600); err != nil {
-		t.Fatal(err)
-	}
+	dir := "/fake/music"
+	scanner := musicScannerFromFiles(dir, []fakeAudioFile{{relPath: "track.mp3", data: []byte("ID3fake")}})
 
 	repo := fakes.NewFakeMusicTrackRepository()
-	svc := appmusic.NewService(repo, sharedfakes.NewFakeEventBus(), nil, fsadapter.NewMusicScanner())
+	svc := appmusic.NewService(repo, sharedfakes.NewFakeEventBus(), nil, scanner)
 
 	count1, err := svc.ScanDirectory(context.Background(), "lib-1", dir)
 	if err != nil {
@@ -96,15 +125,17 @@ func TestScanDirectory_SkipsUnchanged(t *testing.T) {
 }
 
 func TestScanDirectory_MultipleAudioExtensions(t *testing.T) {
-	dir := t.TempDir()
-	for _, name := range []string{"a.mp3", "b.flac", "c.ogg", "d.wav", "skip.pdf"} {
-		if err := os.WriteFile(filepath.Join(dir, name), []byte("data"), 0600); err != nil {
-			t.Fatal(err)
-		}
-	}
+	dir := "/fake/music"
+	scanner := musicScannerFromFiles(dir, []fakeAudioFile{
+		{relPath: "a.mp3", data: []byte("mp3data")},
+		{relPath: "b.flac", data: []byte("flacdata")},
+		{relPath: "c.ogg", data: []byte("oggdata")},
+		{relPath: "d.wav", data: []byte("wavdata")},
+		{relPath: "skip.pdf", data: []byte("pdfdata")},
+	})
 
 	repo := fakes.NewFakeMusicTrackRepository()
-	svc := appmusic.NewService(repo, sharedfakes.NewFakeEventBus(), nil, fsadapter.NewMusicScanner())
+	svc := appmusic.NewService(repo, sharedfakes.NewFakeEventBus(), nil, scanner)
 
 	count, err := svc.ScanDirectory(context.Background(), "lib-1", dir)
 	if err != nil {
@@ -116,14 +147,13 @@ func TestScanDirectory_MultipleAudioExtensions(t *testing.T) {
 }
 
 func TestDeleteTrack(t *testing.T) {
+	dir := "/fake/music"
+	scanner := musicScannerFromFiles(dir, []fakeAudioFile{{relPath: "song.mp3", data: []byte("ID3fake")}})
+
 	repo := fakes.NewFakeMusicTrackRepository()
-	svc := appmusic.NewService(repo, sharedfakes.NewFakeEventBus(), nil, fsadapter.NewMusicScanner())
+	svc := appmusic.NewService(repo, sharedfakes.NewFakeEventBus(), nil, scanner)
 	ctx := context.Background()
 
-	dir := t.TempDir()
-	if err := os.WriteFile(filepath.Join(dir, "song.mp3"), []byte("ID3fake"), 0600); err != nil {
-		t.Fatal(err)
-	}
 	if _, err := svc.ScanDirectory(ctx, "lib-1", dir); err != nil {
 		t.Fatal(err)
 	}
@@ -147,7 +177,7 @@ func TestDeleteTrack(t *testing.T) {
 
 func TestGetTrackArt_NotFound(t *testing.T) {
 	repo := fakes.NewFakeMusicTrackRepository()
-	svc := appmusic.NewService(repo, sharedfakes.NewFakeEventBus(), nil, fsadapter.NewMusicScanner())
+	svc := appmusic.NewService(repo, sharedfakes.NewFakeEventBus(), nil, fakes.NewFakeMusicScanner())
 	ctx := context.Background()
 
 	_, _, err := svc.GetTrackArt(ctx, "nonexistent")
@@ -161,7 +191,7 @@ func TestGetTrackArt_NotFound(t *testing.T) {
 
 func TestGetAlbums_Empty(t *testing.T) {
 	repo := fakes.NewFakeMusicTrackRepository()
-	svc := appmusic.NewService(repo, sharedfakes.NewFakeEventBus(), nil, fsadapter.NewMusicScanner())
+	svc := appmusic.NewService(repo, sharedfakes.NewFakeEventBus(), nil, fakes.NewFakeMusicScanner())
 
 	albums, err := svc.GetAlbums(context.Background(), "lib-1")
 	if err != nil {
@@ -173,16 +203,17 @@ func TestGetAlbums_Empty(t *testing.T) {
 }
 
 func TestGetAlbums_GroupsByAlbum(t *testing.T) {
+	dir := "/fake/music"
+	scanner := musicScannerFromFiles(dir, []fakeAudioFile{
+		{relPath: "t1.mp3", data: []byte("ID3fake1")},
+		{relPath: "t2.mp3", data: []byte("ID3fake2")},
+		{relPath: "t3.mp3", data: []byte("ID3fake3")},
+	})
+
 	repo := fakes.NewFakeMusicTrackRepository()
-	svc := appmusic.NewService(repo, sharedfakes.NewFakeEventBus(), nil, fsadapter.NewMusicScanner())
+	svc := appmusic.NewService(repo, sharedfakes.NewFakeEventBus(), nil, scanner)
 	ctx := context.Background()
 
-	dir := t.TempDir()
-	for _, name := range []string{"t1.mp3", "t2.mp3", "t3.mp3"} {
-		if err := os.WriteFile(filepath.Join(dir, name), []byte("ID3fake"), 0600); err != nil {
-			t.Fatal(err)
-		}
-	}
 	if _, err := svc.ScanDirectory(ctx, "lib-1", dir); err != nil {
 		t.Fatal(err)
 	}
@@ -226,7 +257,7 @@ func TestGetAlbums_GroupsByAlbum(t *testing.T) {
 
 func TestGetArtists_Empty(t *testing.T) {
 	repo := fakes.NewFakeMusicTrackRepository()
-	svc := appmusic.NewService(repo, sharedfakes.NewFakeEventBus(), nil, fsadapter.NewMusicScanner())
+	svc := appmusic.NewService(repo, sharedfakes.NewFakeEventBus(), nil, fakes.NewFakeMusicScanner())
 
 	artists, err := svc.GetArtists(context.Background(), "lib-1")
 	if err != nil {
@@ -238,17 +269,17 @@ func TestGetArtists_Empty(t *testing.T) {
 }
 
 func TestListTracks_Pagination(t *testing.T) {
+	dir := "/fake/music"
+	var ff []fakeAudioFile
+	for i := range 10 {
+		ff = append(ff, fakeAudioFile{relPath: "track" + string(rune('0'+i)) + ".mp3", data: append([]byte("ID3fake"), byte(i))})
+	}
+	scanner := musicScannerFromFiles(dir, ff)
+
 	repo := fakes.NewFakeMusicTrackRepository()
-	svc := appmusic.NewService(repo, sharedfakes.NewFakeEventBus(), nil, fsadapter.NewMusicScanner())
+	svc := appmusic.NewService(repo, sharedfakes.NewFakeEventBus(), nil, scanner)
 	ctx := context.Background()
 
-	dir := t.TempDir()
-	for i := range 10 {
-		name := filepath.Join(dir, "track"+string(rune('0'+i))+".mp3")
-		if err := os.WriteFile(name, []byte("ID3fake"), 0600); err != nil {
-			t.Fatal(err)
-		}
-	}
 	if _, err := svc.ScanDirectory(ctx, "lib-1", dir); err != nil {
 		t.Fatal(err)
 	}
@@ -266,16 +297,17 @@ func TestListTracks_Pagination(t *testing.T) {
 }
 
 func TestListTracks_EmptySearch(t *testing.T) {
+	dir := "/fake/music"
+	scanner := musicScannerFromFiles(dir, []fakeAudioFile{
+		{relPath: "a.mp3", data: []byte("ID3fakeA")},
+		{relPath: "b.mp3", data: []byte("ID3fakeB")},
+		{relPath: "c.mp3", data: []byte("ID3fakeC")},
+	})
+
 	repo := fakes.NewFakeMusicTrackRepository()
-	svc := appmusic.NewService(repo, sharedfakes.NewFakeEventBus(), nil, fsadapter.NewMusicScanner())
+	svc := appmusic.NewService(repo, sharedfakes.NewFakeEventBus(), nil, scanner)
 	ctx := context.Background()
 
-	dir := t.TempDir()
-	for _, name := range []string{"a.mp3", "b.mp3", "c.mp3"} {
-		if err := os.WriteFile(filepath.Join(dir, name), []byte("ID3fake"), 0600); err != nil {
-			t.Fatal(err)
-		}
-	}
 	if _, err := svc.ScanDirectory(ctx, "lib-1", dir); err != nil {
 		t.Fatal(err)
 	}
@@ -291,7 +323,7 @@ func TestListTracks_EmptySearch(t *testing.T) {
 
 func TestGetTrack_NotFound(t *testing.T) {
 	repo := fakes.NewFakeMusicTrackRepository()
-	svc := appmusic.NewService(repo, sharedfakes.NewFakeEventBus(), nil, fsadapter.NewMusicScanner())
+	svc := appmusic.NewService(repo, sharedfakes.NewFakeEventBus(), nil, fakes.NewFakeMusicScanner())
 
 	track, err := svc.GetTrack(context.Background(), "nonexistent")
 	if err != nil {
@@ -303,15 +335,14 @@ func TestGetTrack_NotFound(t *testing.T) {
 }
 
 func TestDeleteTrack_PublishesEvent(t *testing.T) {
+	dir := "/fake/music"
+	scanner := musicScannerFromFiles(dir, []fakeAudioFile{{relPath: "song.mp3", data: []byte("ID3fake")}})
+
 	repo := fakes.NewFakeMusicTrackRepository()
 	bus := sharedfakes.NewFakeEventBus()
-	svc := appmusic.NewService(repo, bus, nil, fsadapter.NewMusicScanner())
+	svc := appmusic.NewService(repo, bus, nil, scanner)
 	ctx := context.Background()
 
-	dir := t.TempDir()
-	if err := os.WriteFile(filepath.Join(dir, "song.mp3"), []byte("ID3fake"), 0600); err != nil {
-		t.Fatal(err)
-	}
 	if _, err := svc.ScanDirectory(ctx, "lib-1", dir); err != nil {
 		t.Fatal(err)
 	}
@@ -322,7 +353,7 @@ func TestDeleteTrack_PublishesEvent(t *testing.T) {
 	// clear scan events
 	trackID := tracks[0].ID
 	bus2 := sharedfakes.NewFakeEventBus()
-	svc2 := appmusic.NewService(repo, bus2, nil, fsadapter.NewMusicScanner())
+	svc2 := appmusic.NewService(repo, bus2, nil, fakes.NewFakeMusicScanner())
 
 	if err := svc2.DeleteTrack(ctx, trackID); err != nil {
 		t.Fatalf("DeleteTrack failed: %v", err)
@@ -340,16 +371,16 @@ func TestDeleteTrack_PublishesEvent(t *testing.T) {
 }
 
 func TestListTracks_SearchFilter(t *testing.T) {
+	dir := "/fake/music"
+	scanner := musicScannerFromFiles(dir, []fakeAudioFile{
+		{relPath: "beethoven.mp3", data: []byte("dataB")},
+		{relPath: "mozart.mp3", data: []byte("dataM")},
+	})
+
 	repo := fakes.NewFakeMusicTrackRepository()
-	svc := appmusic.NewService(repo, sharedfakes.NewFakeEventBus(), nil, fsadapter.NewMusicScanner())
+	svc := appmusic.NewService(repo, sharedfakes.NewFakeEventBus(), nil, scanner)
 	ctx := context.Background()
 
-	dir := t.TempDir()
-	for _, name := range []string{"beethoven.mp3", "mozart.mp3"} {
-		if err := os.WriteFile(filepath.Join(dir, name), []byte("data"), 0600); err != nil {
-			t.Fatal(err)
-		}
-	}
 	if _, err := svc.ScanDirectory(ctx, "lib-1", dir); err != nil {
 		t.Fatal(err)
 	}
@@ -365,11 +396,10 @@ func TestListTracks_SearchFilter(t *testing.T) {
 }
 
 func TestScanDirectory_EmptyDir(t *testing.T) {
-	dir := t.TempDir()
 	repo := fakes.NewFakeMusicTrackRepository()
-	svc := appmusic.NewService(repo, sharedfakes.NewFakeEventBus(), nil, fsadapter.NewMusicScanner())
+	svc := appmusic.NewService(repo, sharedfakes.NewFakeEventBus(), nil, fakes.NewFakeMusicScanner())
 
-	count, err := svc.ScanDirectory(context.Background(), "lib-1", dir)
+	count, err := svc.ScanDirectory(context.Background(), "lib-1", "/fake/empty")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -379,25 +409,23 @@ func TestScanDirectory_EmptyDir(t *testing.T) {
 }
 
 func TestScanDirectory_LibraryNotFound(t *testing.T) {
-	dir := t.TempDir()
 	repo := fakes.NewFakeMusicTrackRepository()
 	libRepo := libfakes.NewFakeLibraryQueryRepo()
-	svc := appmusic.NewService(repo, sharedfakes.NewFakeEventBus(), libRepo, fsadapter.NewMusicScanner())
+	svc := appmusic.NewService(repo, sharedfakes.NewFakeEventBus(), libRepo, fakes.NewFakeMusicScanner())
 
-	_, err := svc.ScanDirectory(context.Background(), "unknown-lib", dir)
+	_, err := svc.ScanDirectory(context.Background(), "unknown-lib", "/fake/dir")
 	if err == nil {
 		t.Fatal("expected error for unknown library, got nil")
 	}
 }
 
 func TestScanDirectory_LibraryFound(t *testing.T) {
-	dir := t.TempDir()
 	repo := fakes.NewFakeMusicTrackRepository()
 	libRepo := libfakes.NewFakeLibraryQueryRepo()
 	libRepo.Seed(&library.Library{ID: "lib-known"})
-	svc := appmusic.NewService(repo, sharedfakes.NewFakeEventBus(), libRepo, fsadapter.NewMusicScanner())
+	svc := appmusic.NewService(repo, sharedfakes.NewFakeEventBus(), libRepo, fakes.NewFakeMusicScanner())
 
-	count, err := svc.ScanDirectory(context.Background(), "lib-known", dir)
+	count, err := svc.ScanDirectory(context.Background(), "lib-known", "/fake/empty")
 	if err != nil {
 		t.Fatalf("unexpected error with known library: %v", err)
 	}
@@ -408,7 +436,7 @@ func TestScanDirectory_LibraryFound(t *testing.T) {
 
 func TestSearch_EmptyResults(t *testing.T) {
 	repo := fakes.NewFakeMusicTrackRepository()
-	svc := appmusic.NewService(repo, sharedfakes.NewFakeEventBus(), nil, fsadapter.NewMusicScanner())
+	svc := appmusic.NewService(repo, sharedfakes.NewFakeEventBus(), nil, fakes.NewFakeMusicScanner())
 
 	results, err := svc.Search(context.Background(), "nonexistent-query-xyz", 50)
 	if err != nil {
@@ -421,7 +449,7 @@ func TestSearch_EmptyResults(t *testing.T) {
 
 func TestSearch_ReturnsMatches(t *testing.T) {
 	repo := fakes.NewFakeMusicTrackRepository()
-	svc := appmusic.NewService(repo, sharedfakes.NewFakeEventBus(), nil, fsadapter.NewMusicScanner())
+	svc := appmusic.NewService(repo, sharedfakes.NewFakeEventBus(), nil, fakes.NewFakeMusicScanner())
 	ctx := context.Background()
 
 	if err := repo.Upsert(ctx, music.Track{ID: "t1", LibraryID: "lib-1", Title: "Symphony No.9", Artist: "Beethoven", FilePath: "/a/t1.mp3"}); err != nil {
@@ -442,7 +470,7 @@ func TestSearch_ReturnsMatches(t *testing.T) {
 
 func TestSearch_LimitApplied(t *testing.T) {
 	repo := fakes.NewFakeMusicTrackRepository()
-	svc := appmusic.NewService(repo, sharedfakes.NewFakeEventBus(), nil, fsadapter.NewMusicScanner())
+	svc := appmusic.NewService(repo, sharedfakes.NewFakeEventBus(), nil, fakes.NewFakeMusicScanner())
 	ctx := context.Background()
 
 	for i := range 10 {
@@ -469,7 +497,7 @@ func TestSearch_LimitApplied(t *testing.T) {
 
 func TestListTracks_LimitLarge(t *testing.T) {
 	repo := fakes.NewFakeMusicTrackRepository()
-	svc := appmusic.NewService(repo, sharedfakes.NewFakeEventBus(), nil, fsadapter.NewMusicScanner())
+	svc := appmusic.NewService(repo, sharedfakes.NewFakeEventBus(), nil, fakes.NewFakeMusicScanner())
 	ctx := context.Background()
 
 	// insert 3 tracks directly
@@ -501,7 +529,7 @@ func TestListTracks_LimitLarge(t *testing.T) {
 
 func TestGetAlbums_MultipleLibraries(t *testing.T) {
 	repo := fakes.NewFakeMusicTrackRepository()
-	svc := appmusic.NewService(repo, sharedfakes.NewFakeEventBus(), nil, fsadapter.NewMusicScanner())
+	svc := appmusic.NewService(repo, sharedfakes.NewFakeEventBus(), nil, fakes.NewFakeMusicScanner())
 	ctx := context.Background()
 
 	_ = repo.Upsert(ctx, music.Track{ID: "t1", LibraryID: "lib-A", Title: "Track1", Album: "AlbumX", FilePath: "/a/t1.mp3"})
@@ -528,7 +556,7 @@ func TestGetAlbums_MultipleLibraries(t *testing.T) {
 
 func TestDeleteTrack_NotFound(t *testing.T) {
 	repo := fakes.NewFakeMusicTrackRepository()
-	svc := appmusic.NewService(repo, sharedfakes.NewFakeEventBus(), nil, fsadapter.NewMusicScanner())
+	svc := appmusic.NewService(repo, sharedfakes.NewFakeEventBus(), nil, fakes.NewFakeMusicScanner())
 
 	// deleting a non-existent track: GetByID returns nil (no error), Delete is a no-op
 	err := svc.DeleteTrack(context.Background(), "nonexistent-id")
@@ -539,7 +567,7 @@ func TestDeleteTrack_NotFound(t *testing.T) {
 
 func TestScanDirectory_NonExistentDir(t *testing.T) {
 	repo := fakes.NewFakeMusicTrackRepository()
-	svc := appmusic.NewService(repo, sharedfakes.NewFakeEventBus(), nil, fsadapter.NewMusicScanner())
+	svc := appmusic.NewService(repo, sharedfakes.NewFakeEventBus(), nil, fakes.NewFakeMusicScanner())
 
 	// WalkDir on non-existent dir: callback receives the error and returns nil (skip),
 	// so WalkDir itself returns nil but count stays 0
@@ -553,14 +581,12 @@ func TestScanDirectory_NonExistentDir(t *testing.T) {
 }
 
 func TestScanDirectory_PublishesTrackScannedEvent(t *testing.T) {
-	dir := t.TempDir()
-	if err := os.WriteFile(filepath.Join(dir, "song.mp3"), []byte("ID3fake"), 0600); err != nil {
-		t.Fatal(err)
-	}
+	dir := "/fake/music"
+	scanner := musicScannerFromFiles(dir, []fakeAudioFile{{relPath: "song.mp3", data: []byte("ID3fake")}})
 
 	repo := fakes.NewFakeMusicTrackRepository()
 	bus := sharedfakes.NewFakeEventBus()
-	svc := appmusic.NewService(repo, bus, nil, fsadapter.NewMusicScanner())
+	svc := appmusic.NewService(repo, bus, nil, scanner)
 
 	count, err := svc.ScanDirectory(context.Background(), "lib-1", dir)
 	if err != nil {
@@ -597,14 +623,12 @@ func TestScanDirectory_PublishesTrackScannedEvent(t *testing.T) {
 }
 
 func TestScanDirectory_UpsertError(t *testing.T) {
-	dir := t.TempDir()
-	if err := os.WriteFile(filepath.Join(dir, "song.mp3"), []byte("ID3fake"), 0600); err != nil {
-		t.Fatal(err)
-	}
+	dir := "/fake/music"
+	scanner := musicScannerFromFiles(dir, []fakeAudioFile{{relPath: "song.mp3", data: []byte("ID3fake")}})
 
 	repo := fakes.NewFakeMusicTrackRepository()
 	repo.UpsertErr = fmt.Errorf("db down")
-	svc := appmusic.NewService(repo, sharedfakes.NewFakeEventBus(), nil, fsadapter.NewMusicScanner())
+	svc := appmusic.NewService(repo, sharedfakes.NewFakeEventBus(), nil, scanner)
 
 	count, err := svc.ScanDirectory(context.Background(), "lib-1", dir)
 	if err != nil {
@@ -617,14 +641,12 @@ func TestScanDirectory_UpsertError(t *testing.T) {
 }
 
 func TestScanDirectory_TrackFieldsCorrect(t *testing.T) {
-	dir := t.TempDir()
+	dir := "/fake/music"
+	scanner := musicScannerFromFiles(dir, []fakeAudioFile{{relPath: "mysong.flac", data: []byte("fLaC")}})
 	songPath := filepath.Join(dir, "mysong.flac")
-	if err := os.WriteFile(songPath, []byte("fLaC"), 0600); err != nil {
-		t.Fatal(err)
-	}
 
 	repo := fakes.NewFakeMusicTrackRepository()
-	svc := appmusic.NewService(repo, sharedfakes.NewFakeEventBus(), nil, fsadapter.NewMusicScanner())
+	svc := appmusic.NewService(repo, sharedfakes.NewFakeEventBus(), nil, scanner)
 
 	count, err := svc.ScanDirectory(context.Background(), "lib-42", dir)
 	if err != nil {
@@ -658,7 +680,7 @@ func TestScanDirectory_TrackFieldsCorrect(t *testing.T) {
 
 func TestGetTrack_ReturnsData(t *testing.T) {
 	repo := fakes.NewFakeMusicTrackRepository()
-	svc := appmusic.NewService(repo, sharedfakes.NewFakeEventBus(), nil, fsadapter.NewMusicScanner())
+	svc := appmusic.NewService(repo, sharedfakes.NewFakeEventBus(), nil, fakes.NewFakeMusicScanner())
 	ctx := context.Background()
 
 	want := music.Track{
@@ -697,7 +719,7 @@ func TestGetTrack_ReturnsData(t *testing.T) {
 func TestGetTrack_RepoError(t *testing.T) {
 	repo := fakes.NewFakeMusicTrackRepository()
 	repo.Err = fmt.Errorf("db error")
-	svc := appmusic.NewService(repo, sharedfakes.NewFakeEventBus(), nil, fsadapter.NewMusicScanner())
+	svc := appmusic.NewService(repo, sharedfakes.NewFakeEventBus(), nil, fakes.NewFakeMusicScanner())
 
 	_, err := svc.GetTrack(context.Background(), "trk-1")
 	if err == nil {
@@ -708,7 +730,7 @@ func TestGetTrack_RepoError(t *testing.T) {
 func TestDeleteTrack_RepoError(t *testing.T) {
 	repo := fakes.NewFakeMusicTrackRepository()
 	repo.Err = fmt.Errorf("db error")
-	svc := appmusic.NewService(repo, sharedfakes.NewFakeEventBus(), nil, fsadapter.NewMusicScanner())
+	svc := appmusic.NewService(repo, sharedfakes.NewFakeEventBus(), nil, fakes.NewFakeMusicScanner())
 
 	err := svc.DeleteTrack(context.Background(), "trk-1")
 	if err == nil {
@@ -726,7 +748,7 @@ func TestDeleteTrack_EventContainsCorrectFields(t *testing.T) {
 	})
 
 	bus := sharedfakes.NewFakeEventBus()
-	svc := appmusic.NewService(repo, bus, nil, fsadapter.NewMusicScanner())
+	svc := appmusic.NewService(repo, bus, nil, fakes.NewFakeMusicScanner())
 
 	if err := svc.DeleteTrack(ctx, "trk-99"); err != nil {
 		t.Fatal(err)
@@ -769,7 +791,7 @@ func TestStreamTrack_ReturnsPathAndMime(t *testing.T) {
 		FilePath: "/music/stream.flac", MimeType: "audio/flac",
 	})
 
-	svc := appmusic.NewService(repo, sharedfakes.NewFakeEventBus(), nil, fsadapter.NewMusicScanner())
+	svc := appmusic.NewService(repo, sharedfakes.NewFakeEventBus(), nil, fakes.NewFakeMusicScanner())
 	path, mime, err := svc.StreamTrack(ctx, "trk-s1")
 	if err != nil {
 		t.Fatal(err)
@@ -784,7 +806,7 @@ func TestStreamTrack_ReturnsPathAndMime(t *testing.T) {
 
 func TestStreamTrack_NotFound(t *testing.T) {
 	repo := fakes.NewFakeMusicTrackRepository()
-	svc := appmusic.NewService(repo, sharedfakes.NewFakeEventBus(), nil, fsadapter.NewMusicScanner())
+	svc := appmusic.NewService(repo, sharedfakes.NewFakeEventBus(), nil, fakes.NewFakeMusicScanner())
 
 	_, _, err := svc.StreamTrack(context.Background(), "nonexistent")
 	if err == nil {
@@ -798,7 +820,7 @@ func TestStreamTrack_NotFound(t *testing.T) {
 func TestStreamTrack_RepoError(t *testing.T) {
 	repo := fakes.NewFakeMusicTrackRepository()
 	repo.Err = fmt.Errorf("db error")
-	svc := appmusic.NewService(repo, sharedfakes.NewFakeEventBus(), nil, fsadapter.NewMusicScanner())
+	svc := appmusic.NewService(repo, sharedfakes.NewFakeEventBus(), nil, fakes.NewFakeMusicScanner())
 
 	_, _, err := svc.StreamTrack(context.Background(), "trk-1")
 	if err == nil {
@@ -809,7 +831,7 @@ func TestStreamTrack_RepoError(t *testing.T) {
 func TestListTracks_RepoError(t *testing.T) {
 	repo := fakes.NewFakeMusicTrackRepository()
 	repo.Err = fmt.Errorf("db error")
-	svc := appmusic.NewService(repo, sharedfakes.NewFakeEventBus(), nil, fsadapter.NewMusicScanner())
+	svc := appmusic.NewService(repo, sharedfakes.NewFakeEventBus(), nil, fakes.NewFakeMusicScanner())
 
 	_, _, err := svc.ListTracks(context.Background(), "lib-1", 50, 0, "")
 	if err == nil {
@@ -820,7 +842,7 @@ func TestListTracks_RepoError(t *testing.T) {
 func TestGetAlbums_RepoError(t *testing.T) {
 	repo := fakes.NewFakeMusicTrackRepository()
 	repo.Err = fmt.Errorf("db error")
-	svc := appmusic.NewService(repo, sharedfakes.NewFakeEventBus(), nil, fsadapter.NewMusicScanner())
+	svc := appmusic.NewService(repo, sharedfakes.NewFakeEventBus(), nil, fakes.NewFakeMusicScanner())
 
 	_, err := svc.GetAlbums(context.Background(), "lib-1")
 	if err == nil {
@@ -831,7 +853,7 @@ func TestGetAlbums_RepoError(t *testing.T) {
 func TestGetArtists_RepoError(t *testing.T) {
 	repo := fakes.NewFakeMusicTrackRepository()
 	repo.Err = fmt.Errorf("db error")
-	svc := appmusic.NewService(repo, sharedfakes.NewFakeEventBus(), nil, fsadapter.NewMusicScanner())
+	svc := appmusic.NewService(repo, sharedfakes.NewFakeEventBus(), nil, fakes.NewFakeMusicScanner())
 
 	_, err := svc.GetArtists(context.Background(), "lib-1")
 	if err == nil {
@@ -842,7 +864,7 @@ func TestGetArtists_RepoError(t *testing.T) {
 func TestSearch_RepoError(t *testing.T) {
 	repo := fakes.NewFakeMusicTrackRepository()
 	repo.Err = fmt.Errorf("db error")
-	svc := appmusic.NewService(repo, sharedfakes.NewFakeEventBus(), nil, fsadapter.NewMusicScanner())
+	svc := appmusic.NewService(repo, sharedfakes.NewFakeEventBus(), nil, fakes.NewFakeMusicScanner())
 
 	_, err := svc.Search(context.Background(), "query", 50)
 	if err == nil {
@@ -852,7 +874,7 @@ func TestSearch_RepoError(t *testing.T) {
 
 func TestGetArtists_ReturnsData(t *testing.T) {
 	repo := fakes.NewFakeMusicTrackRepository()
-	svc := appmusic.NewService(repo, sharedfakes.NewFakeEventBus(), nil, fsadapter.NewMusicScanner())
+	svc := appmusic.NewService(repo, sharedfakes.NewFakeEventBus(), nil, fakes.NewFakeMusicScanner())
 	ctx := context.Background()
 
 	_ = repo.Upsert(ctx, music.Track{ID: "t1", LibraryID: "lib-1", Title: "S1", Artist: "ArtistA", AlbumArtist: "ArtistA", Album: "AlbumX", FilePath: "/a/t1.mp3"})
@@ -879,16 +901,15 @@ func TestGetArtists_ReturnsData(t *testing.T) {
 }
 
 func TestScanDirectory_CancelledContext(t *testing.T) {
-	dir := t.TempDir()
+	dir := "/fake/music"
+	var ff []fakeAudioFile
 	for i := range 5 {
-		name := filepath.Join(dir, "t"+string(rune('0'+i))+".mp3")
-		if err := os.WriteFile(name, []byte("ID3fake"), 0600); err != nil {
-			t.Fatal(err)
-		}
+		ff = append(ff, fakeAudioFile{relPath: "t" + string(rune('0'+i)) + ".mp3", data: append([]byte("ID3fake"), byte(i))})
 	}
+	scanner := musicScannerFromFiles(dir, ff)
 
 	repo := fakes.NewFakeMusicTrackRepository()
-	svc := appmusic.NewService(repo, sharedfakes.NewFakeEventBus(), nil, fsadapter.NewMusicScanner())
+	svc := appmusic.NewService(repo, sharedfakes.NewFakeEventBus(), nil, scanner)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel() // cancel immediately
