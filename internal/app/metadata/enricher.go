@@ -197,6 +197,7 @@ func (e *Enricher) upsertPeople(ctx context.Context, mediaItemID string, people 
 		return fmt.Errorf("delete old media_people: %w", err)
 	}
 	seenPersons := make(map[string]bool)
+	batch := make([]*domainlib.MediaPerson, 0, len(people))
 	sortIdx := 0
 	for _, p := range people {
 		if seenPersons[p.Name] {
@@ -214,17 +215,17 @@ func (e *Enricher) upsertPeople(ctx context.Context, mediaItemID string, people 
 			c := p.Character
 			charName = &c
 		}
-		mp := &domainlib.MediaPerson{
+		batch = append(batch, &domainlib.MediaPerson{
 			MediaItemID:   mediaItemID,
 			PersonID:      person.ID,
 			RoleType:      roleType(p.Role),
 			CharacterName: charName,
 			SortOrder:     sortIdx,
-		}
+		})
 		sortIdx++
-		if createErr := e.mediaPersons.Create(ctx, mp); createErr != nil {
-			slog.Warn("create media person failed", slog.String("personID", person.ID), slog.String("mediaItemID", mediaItemID), slog.Any("err", createErr))
-		}
+	}
+	if err := e.mediaPersons.CreateBatch(ctx, batch); err != nil {
+		slog.Warn("batch create media persons failed", slog.String("mediaItemID", mediaItemID), slog.Any("err", err))
 	}
 	return nil
 }

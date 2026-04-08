@@ -64,6 +64,7 @@ type PersonRepository interface {
 
 type MediaPersonRepository interface {
 	Create(ctx context.Context, mp *MediaPerson) error
+	CreateBatch(ctx context.Context, mps []*MediaPerson) error
 	DeleteByMediaItemID(ctx context.Context, mediaItemID string) error
 	GetByMediaItemID(ctx context.Context, mediaItemID string) ([]*MediaPerson, error)
 }
