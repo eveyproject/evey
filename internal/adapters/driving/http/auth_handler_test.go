@@ -13,8 +13,6 @@ import (
 	"time"
 
 	appuser "github.com/gravity-zero/evey/internal/app/user"
-	"github.com/gravity-zero/evey/internal/config"
-
 	userfakes "github.com/gravity-zero/evey/internal/domain/user/fakes"
 	"github.com/gravity-zero/evey/internal/pkg/auth"
 )
@@ -46,17 +44,15 @@ func newMockOIDCServer(t *testing.T) *httptest.Server {
 func newTestOIDCSvc(t *testing.T) *appuser.OIDCService {
 	t.Helper()
 	oidcSrv := newMockOIDCServer(t)
-	cfg := &config.Config{
-		OIDC: config.OIDCConfig{
-			Enabled:      true,
-			Issuer:       oidcSrv.URL,
-			ClientID:     "test-client",
-			ClientSecret: "test-secret",
-			RedirectURL:  "http://localhost/callback",
-		},
+	oidcCfg := appuser.OIDCConfig{
+		Enabled:      true,
+		Issuer:       oidcSrv.URL,
+		ClientID:     "test-client",
+		ClientSecret: "test-secret",
+		RedirectURL:  "http://localhost/callback",
 	}
 	svc, err := appuser.NewOIDCService(
-		context.Background(), cfg,
+		context.Background(), oidcCfg,
 		userfakes.NewFakeUserRepository(),
 		userfakes.NewFakeProfileRepository(),
 		userfakes.NewFakeRefreshTokenRepository(),

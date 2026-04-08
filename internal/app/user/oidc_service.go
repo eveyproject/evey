@@ -16,7 +16,6 @@ import (
 	gooidc "github.com/coreos/go-oidc/v3/oidc"
 	"golang.org/x/oauth2"
 
-	"github.com/gravity-zero/evey/internal/config"
 	"github.com/gravity-zero/evey/internal/domain/shared"
 	domainuser "github.com/gravity-zero/evey/internal/domain/user"
 	"github.com/gravity-zero/evey/internal/pkg/id"
@@ -27,6 +26,15 @@ var ErrEmailDomainNotAllowed = errors.New("email domain not allowed")
 var ErrStateExpired = errors.New("OIDC state expired")
 
 const oidcStateTTL = 10 * time.Minute
+
+type OIDCConfig struct {
+	Enabled             bool
+	Issuer              string
+	ClientID            string
+	ClientSecret        string
+	RedirectURL         string
+	AllowedEmailDomains []string
+}
 
 type OIDCService struct {
 	provider            *gooidc.Provider
@@ -46,7 +54,7 @@ type OIDCService struct {
 
 func NewOIDCService(
 	ctx context.Context,
-	cfg *config.Config,
+	cfg OIDCConfig,
 	userRepo domainuser.UserRepository,
 	profiles domainuser.ProfileRepository,
 	refreshTkns domainuser.RefreshTokenRepository,
@@ -55,29 +63,29 @@ func NewOIDCService(
 	events shared.EventBus,
 	refreshTokenTTL time.Duration,
 ) (*OIDCService, error) {
-	if !cfg.OIDC.Enabled {
+	if !cfg.Enabled {
 		return nil, ErrOIDCDisabled
 	}
-	if cfg.OIDC.ClientSecret == "" {
+	if cfg.ClientSecret == "" {
 		return nil, fmt.Errorf("OIDC: client secret must not be empty")
 	}
-	provider, err := gooidc.NewProvider(ctx, cfg.OIDC.Issuer)
+	provider, err := gooidc.NewProvider(ctx, cfg.Issuer)
 	if err != nil {
 		return nil, fmt.Errorf("oidc provider discovery: %w", err)
 	}
 
 	oauth2Cfg := oauth2.Config{
-		ClientID:     cfg.OIDC.ClientID,
-		ClientSecret: cfg.OIDC.ClientSecret,
-		RedirectURL:  cfg.OIDC.RedirectURL,
+		ClientID:     cfg.ClientID,
+		ClientSecret: cfg.ClientSecret,
+		RedirectURL:  cfg.RedirectURL,
 		Endpoint:     provider.Endpoint(),
 		Scopes:       []string{gooidc.ScopeOpenID, "profile", "email"},
 	}
 
-	verifier := provider.Verifier(&gooidc.Config{ClientID: cfg.OIDC.ClientID})
+	verifier := provider.Verifier(&gooidc.Config{ClientID: cfg.ClientID})
 
 	// derive state signing secret from client secret
-	h := sha256.Sum256([]byte(cfg.OIDC.ClientSecret + "oidc-state"))
+	h := sha256.Sum256([]byte(cfg.ClientSecret + "oidc-state"))
 
 	return &OIDCService{
 		provider:            provider,
@@ -90,8 +98,8 @@ func NewOIDCService(
 		tokens:              tokens,
 		events:              events,
 		stateSecret:         h[:],
-		issuer:              cfg.OIDC.Issuer,
-		allowedEmailDomains: cfg.OIDC.AllowedEmailDomains,
+		issuer:              cfg.Issuer,
+		allowedEmailDomains: cfg.AllowedEmailDomains,
 		refreshTokenTTL:     refreshTokenTTL,
 	}, nil
 }
