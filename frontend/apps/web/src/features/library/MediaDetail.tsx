@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import type { V1MediaItem } from "@evey/api";
 import {
@@ -58,6 +58,12 @@ export function MediaDetail({ item, onMetadataUpdated, initialEdit }: MediaDetai
   const posterUrl = item.artwork?.find((a) => a.type === "ARTWORK_TYPE_PRIMARY")?.url
     ?? (item.id ? `/api/v1/media/${item.id}/artwork/poster${artTokenParam}` : undefined);
 
+  const posterSrcSet = useMemo(() => {
+    if (!posterUrl) return undefined;
+    const sep = posterUrl.includes("?") ? "&" : "?";
+    return `${posterUrl}${sep}w=200 200w, ${posterUrl}${sep}w=300 300w, ${posterUrl}${sep}w=400 400w`;
+  }, [posterUrl]);
+
   const duration = formatDuration(item.durationMs);
   const actors = item.people?.filter((p) => p.type === "PERSON_TYPE_ACTOR") ?? [];
   const directors = item.people?.filter((p) => p.type === "PERSON_TYPE_DIRECTOR") ?? [];
@@ -105,7 +111,7 @@ export function MediaDetail({ item, onMetadataUpdated, initialEdit }: MediaDetai
             className="w-48 overflow-hidden rounded-[var(--radius-md)] aspect-[2/3] bg-[var(--surface-raised)]"
           >
             {posterUrl ? (
-              <img src={posterUrl} alt={item.title ?? ""} fetchPriority="high" className="w-full h-full object-cover" data-testid="media-poster" onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }} />
+              <img src={posterUrl} srcSet={posterSrcSet} sizes="192px" alt={item.title ?? ""} fetchPriority="high" className="w-full h-full object-cover" data-testid="media-poster" onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }} />
             ) : (
               <div className="w-full h-full flex items-center justify-center text-3xl font-bold text-[var(--text-muted)]">
                 {item.title?.[0]?.toUpperCase() ?? "?"}

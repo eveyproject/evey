@@ -93,6 +93,8 @@ const HeroBanner = memo(function HeroBanner() {
         const detail = details[idx]?.data;
         const candidate = candidates[idx];
         const backdropUrl = accessToken ? `/api/v1/media/${id}/artwork/backdrop?token=${encodeURIComponent(accessToken)}` : `/api/v1/media/${id}/artwork/backdrop`;
+        const bdSep = backdropUrl.includes("?") ? "&" : "?";
+        const backdropSrcSet = `${backdropUrl}${bdSep}w=800 800w, ${backdropUrl}${bdSep}w=1280 1280w, ${backdropUrl}${bdSep}w=1920 1920w`;
         const displayTitle = candidate?.title ?? detail?.title ?? "";
         const overview = detail?.overview;
         const year = detail?.year;
@@ -109,6 +111,8 @@ const HeroBanner = memo(function HeroBanner() {
             {seenSlides.has(idx) && (
               <img
                 src={backdropUrl}
+                srcSet={backdropSrcSet}
+                sizes="100vw"
                 alt=""
                 aria-hidden="true"
                 className="absolute inset-0 w-full h-full object-cover animate-ken-burns"

@@ -1,3 +1,4 @@
+import { useMemo } from "react";
 import { Link } from "@tanstack/react-router";
 import type { V1MediaItem } from "@evey/api";
 import { useTranslation } from "react-i18next";
@@ -26,6 +27,12 @@ export function MediaDetailHero({
 }: MediaDetailHeroProps) {
   const { t } = useTranslation();
 
+  const backdropSrcSet = useMemo(() => {
+    if (!backdropUrl) return undefined;
+    const sep = backdropUrl.includes("?") ? "&" : "?";
+    return `${backdropUrl}${sep}w=800 800w, ${backdropUrl}${sep}w=1280 1280w, ${backdropUrl}${sep}w=1920 1920w`;
+  }, [backdropUrl]);
+
   return (
     <div className="relative w-full overflow-hidden -mx-4 sm:-mx-6 -mt-4 sm:-mt-6 mb-0 h-[clamp(200px,50vw,420px)] sm:h-[clamp(260px,50vw,420px)]">
       <div className="absolute top-0 left-0 right-0 z-raised px-4 sm:px-6 pt-4 sm:pt-5 gradient-hero-scrim">
@@ -33,7 +40,7 @@ export function MediaDetailHero({
         <Breadcrumbs items={breadcrumbItems} />
       </div>
       {backdropUrl ? (
-        <img src={backdropUrl} alt={item.title ?? ""} className="w-full h-full object-cover" data-testid="media-backdrop" onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }} />
+        <img src={backdropUrl} srcSet={backdropSrcSet} sizes="100vw" alt={item.title ?? ""} className="w-full h-full object-cover" data-testid="media-backdrop" onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }} />
       ) : (
         <div className="w-full h-full bg-[var(--surface)]" />
       )}
