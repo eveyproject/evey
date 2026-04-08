@@ -182,14 +182,20 @@ func RawTokenFromContext(ctx context.Context) string {
 }
 
 // SecurityHeadersMiddleware sets security-related response headers.
-func SecurityHeadersMiddleware(next http.Handler) http.Handler { return securityHeadersMiddleware(next) }
+// httpsOnly enables HSTS when the server is behind an HTTPS reverse proxy.
+func SecurityHeadersMiddleware(httpsOnly bool, next http.Handler) http.Handler {
+	return securityHeadersMiddleware(httpsOnly, next)
+}
 
-func securityHeadersMiddleware(next http.Handler) http.Handler {
+func securityHeadersMiddleware(httpsOnly bool, next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("X-Content-Type-Options", "nosniff")
 		w.Header().Set("X-Frame-Options", "DENY")
 		w.Header().Set("Referrer-Policy", "strict-origin-when-cross-origin")
 		w.Header().Set("Content-Security-Policy", "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self'; connect-src 'self' wss:")
+		if httpsOnly || r.TLS != nil {
+			w.Header().Set("Strict-Transport-Security", "max-age=63072000; includeSubDomains")
+		}
 		next.ServeHTTP(w, r)
 	})
 }

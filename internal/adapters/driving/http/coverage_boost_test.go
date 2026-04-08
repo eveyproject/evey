@@ -1319,7 +1319,7 @@ func TestSecurityHeadersMiddleware_Coverage(t *testing.T) {
 	inner := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	})
-	handler := securityHeadersMiddleware(inner)
+	handler := securityHeadersMiddleware(false, inner)
 	req := httptest.NewRequest(http.MethodGet, "/test", nil)
 	w := httptest.NewRecorder()
 	handler.ServeHTTP(w, req)
@@ -1446,7 +1446,7 @@ func TestSecurityHeadersMiddleware_Exported(t *testing.T) {
 	inner := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	})
-	handler := SecurityHeadersMiddleware(inner)
+	handler := SecurityHeadersMiddleware(false, inner)
 	req := httptest.NewRequest(http.MethodGet, "/test", nil)
 	w := httptest.NewRecorder()
 	handler.ServeHTTP(w, req)
