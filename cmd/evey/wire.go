@@ -255,7 +255,14 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 	if cfg.OIDC.Enabled {
 		var oidcErr error
 		oidcSvc, oidcErr = appuser.NewOIDCService(
-			ctx, cfg,
+			ctx, appuser.OIDCConfig{
+				Enabled:             cfg.OIDC.Enabled,
+				Issuer:              cfg.OIDC.Issuer,
+				ClientID:            cfg.OIDC.ClientID,
+				ClientSecret:        cfg.OIDC.ClientSecret,
+				RedirectURL:         cfg.OIDC.RedirectURL,
+				AllowedEmailDomains: cfg.OIDC.AllowedEmailDomains,
+			},
 			r.User, r.Profile, r.RefreshToken, r.UserRole,
 			infra.tokenGen, bus, 7*24*time.Hour,
 		)
