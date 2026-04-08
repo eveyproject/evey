@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	eveyv1 "github.com/gravity-zero/evey/gen/evey/v1"
+	appconfig "github.com/gravity-zero/evey/internal/app/config"
 	sharedfakes "github.com/gravity-zero/evey/internal/domain/shared/fakes"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -15,7 +16,7 @@ import (
 
 func newTestServerConfigHandler() (*serverConfigHandler, *sharedfakes.FakeServerConfigRepository) {
 	repo := sharedfakes.NewFakeServerConfigRepository()
-	return NewServerConfigHandler(repo), repo
+	return NewServerConfigHandler(appconfig.NewService(repo)), repo
 }
 
 func TestServerConfigHandler_GetEntry_EmptyKey(t *testing.T) {

@@ -55,6 +55,18 @@ func (s *QueryService) ListAPIKeys(ctx context.Context, userID string) ([]*user.
 	return s.apiKeys.ListByUserID(ctx, userID)
 }
 
+func (s *QueryService) GetUserByID(ctx context.Context, id string) (*user.User, error) {
+	return s.users.GetByID(ctx, id)
+}
+
+func (s *QueryService) GetUserByUsername(ctx context.Context, username string) (*user.User, error) {
+	return s.users.GetByUsername(ctx, username)
+}
+
+func (s *QueryService) GetProfileByID(ctx context.Context, profileID string) (*user.Profile, error) {
+	return s.profiles.GetByID(ctx, profileID)
+}
+
 func (s *QueryService) GetUserBitrateLimit(ctx context.Context, userID string) (int, error) {
 	u, err := s.users.GetByID(ctx, userID)
 	if err != nil {

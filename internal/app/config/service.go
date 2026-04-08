@@ -14,6 +14,10 @@ func NewService(repo shared.ServerConfigRepository) *Service {
 	return &Service{repo: repo}
 }
 
+func (s *Service) Get(ctx context.Context, key string) (*shared.ServerConfigEntry, error) {
+	return s.repo.Get(ctx, key)
+}
+
 func (s *Service) List(ctx context.Context) ([]*shared.ServerConfigEntry, error) {
 	return s.repo.List(ctx)
 }

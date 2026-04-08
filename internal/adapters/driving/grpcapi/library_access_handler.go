@@ -6,19 +6,19 @@ import (
 
 	eveyv1 "github.com/gravity-zero/evey/gen/evey/v1"
 	applibrary "github.com/gravity-zero/evey/internal/app/library"
-	domainuser "github.com/gravity-zero/evey/internal/domain/user"
+	appuser "github.com/gravity-zero/evey/internal/app/user"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
 
 type libraryAccessHandler struct {
 	eveyv1.UnimplementedLibraryAccessServiceServer
-	accessRepo domainuser.LibraryAccessRepository
+	userAccess *appuser.AccessService
 	libQuery   *applibrary.QueryService
 }
 
 func (h *libraryAccessHandler) GetUserLibraryAccess(ctx context.Context, req *eveyv1.GetUserLibraryAccessRequest) (*eveyv1.UserLibraryAccess, error) {
-	ids, err := h.accessRepo.GetByUserID(ctx, req.UserId)
+	ids, err := h.userAccess.GetLibraryAccessByUserID(ctx, req.UserId)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "get library access: %v", err)
 	}
@@ -37,17 +37,17 @@ func (h *libraryAccessHandler) GetUserLibraryAccess(ctx context.Context, req *ev
 }
 
 func (h *libraryAccessHandler) SetUserLibraryAccess(ctx context.Context, req *eveyv1.SetUserLibraryAccessRequest) (*eveyv1.SetUserLibraryAccessResponse, error) {
-	existing, err := h.accessRepo.GetByUserID(ctx, req.UserId)
+	existing, err := h.userAccess.GetLibraryAccessByUserID(ctx, req.UserId)
 	if err != nil {
 		slog.Warn("get existing library access", slog.String("user_id", req.UserId), slog.Any("err", err))
 	}
 	for _, id := range existing {
-		if err := h.accessRepo.Revoke(ctx, req.UserId, id); err != nil {
+		if err := h.userAccess.RevokeLibraryAccess(ctx, req.UserId, id); err != nil {
 			slog.Warn("revoke library access", slog.Any("err", err))
 		}
 	}
 	for _, id := range req.LibraryIds {
-		if err := h.accessRepo.Grant(ctx, req.UserId, id); err != nil {
+		if err := h.userAccess.GrantLibraryAccess(ctx, req.UserId, id); err != nil {
 			return nil, status.Errorf(codes.Internal, "grant library access: %v", err)
 		}
 	}
@@ -55,12 +55,12 @@ func (h *libraryAccessHandler) SetUserLibraryAccess(ctx context.Context, req *ev
 }
 
 func (h *libraryAccessHandler) RevokeAllUserLibraryAccess(ctx context.Context, req *eveyv1.RevokeAllUserLibraryAccessRequest) (*eveyv1.RevokeAllUserLibraryAccessResponse, error) {
-	existing, err := h.accessRepo.GetByUserID(ctx, req.UserId)
+	existing, err := h.userAccess.GetLibraryAccessByUserID(ctx, req.UserId)
 	if err != nil {
 		slog.Warn("get existing library access for revoke", slog.String("user_id", req.UserId), slog.Any("err", err))
 	}
 	for _, id := range existing {
-		if err := h.accessRepo.Revoke(ctx, req.UserId, id); err != nil {
+		if err := h.userAccess.RevokeLibraryAccess(ctx, req.UserId, id); err != nil {
 			slog.Warn("revoke library access", slog.Any("err", err))
 		}
 	}

@@ -550,3 +550,31 @@ func (s *CommandService) StartCleanup(ctx context.Context) {
 	}()
 }
 
+func (s *CommandService) UpsertPushSubscription(ctx context.Context, userID, profileID, endpoint, p256dh, auth string) error {
+	if s.subs == nil {
+		return nil
+	}
+	return s.subs.Upsert(ctx, userID, profileID, endpoint, p256dh, auth)
+}
+
+func (s *CommandService) DeletePushByEndpoint(ctx context.Context, userID, endpoint string) error {
+	if s.subs == nil {
+		return nil
+	}
+	return s.subs.DeleteByEndpoint(ctx, userID, endpoint)
+}
+
+func (s *CommandService) DeletePushByUser(ctx context.Context, userID string) error {
+	if s.subs == nil {
+		return nil
+	}
+	return s.subs.DeleteByUser(ctx, userID)
+}
+
+func (s *CommandService) ListPushSubscriptions(ctx context.Context, userID string) ([]notification.PushSubscription, error) {
+	if s.subs == nil {
+		return nil, nil
+	}
+	return s.subs.ListByUser(ctx, userID)
+}
+

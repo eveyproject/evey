@@ -9,8 +9,8 @@ import (
 	"github.com/gravity-zero/evey/internal/adapters/driving/grpcapi/interceptors"
 	applibrary "github.com/gravity-zero/evey/internal/app/library"
 	apprating "github.com/gravity-zero/evey/internal/app/rating"
+	appuser "github.com/gravity-zero/evey/internal/app/user"
 	domainlibrary "github.com/gravity-zero/evey/internal/domain/library"
-	domainuser "github.com/gravity-zero/evey/internal/domain/user"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/emptypb"
@@ -18,10 +18,9 @@ import (
 
 type ratingHandler struct {
 	eveyv1.UnimplementedRatingServiceServer
-	thumbRepo     domainlibrary.UserRatingRepository
-	starSvc       *apprating.Service
-	libQuery      *applibrary.QueryService
-	libraryAccess domainuser.LibraryAccessRepository
+	starSvc    *apprating.Service
+	libQuery   *applibrary.QueryService
+	userAccess *appuser.AccessService
 }
 
 func (h *ratingHandler) requireMediaAccess(ctx context.Context, mediaItemID string) error {
@@ -29,14 +28,14 @@ func (h *ratingHandler) requireMediaAccess(ctx context.Context, mediaItemID stri
 	if claims == nil {
 		return status.Error(codes.Unauthenticated, "unauthenticated")
 	}
-	if claims.IsAdmin || h.libraryAccess == nil {
+	if claims.IsAdmin || h.userAccess == nil {
 		return nil
 	}
 	item, err := h.libQuery.GetMediaItem(ctx, mediaItemID)
 	if err != nil || item == nil {
 		return status.Error(codes.NotFound, "not found")
 	}
-	ok, accessErr := h.libraryAccess.HasAccess(ctx, claims.UserID, item.LibraryID)
+	ok, accessErr := h.userAccess.HasLibraryAccess(ctx, claims.UserID, item.LibraryID)
 	if accessErr != nil || !ok {
 		return status.Error(codes.NotFound, "not found")
 	}
@@ -54,12 +53,12 @@ func (h *ratingHandler) PutThumbRating(ctx context.Context, req *eveyv1.PutThumb
 	if accessErr := h.requireMediaAccess(ctx, req.MediaItemId); accessErr != nil {
 		return nil, fmt.Errorf("ratingHandler.PutThumbRating: %w", accessErr)
 	}
-	rating := &domainlibrary.UserRating{
+	r := &domainlibrary.UserRating{
 		ProfileID:   claims.ProfileID,
 		MediaItemID: req.MediaItemId,
 		Value:       int(req.Value),
 	}
-	if upsertErr := h.thumbRepo.Upsert(ctx, rating); upsertErr != nil {
+	if upsertErr := h.starSvc.UpsertThumb(ctx, r); upsertErr != nil {
 		slog.Error("upsert thumb rating", slog.Any("err", upsertErr))
 		return nil, status.Error(codes.Internal, "internal error")
 	}
@@ -75,14 +74,14 @@ func (h *ratingHandler) GetMyThumbRating(ctx context.Context, req *eveyv1.GetMyT
 		return nil, fmt.Errorf("ratingHandler.GetMyThumbRating: %w", accessErr)
 	}
 	claims := interceptors.ClaimsFromContext(ctx)
-	rating, getErr := h.thumbRepo.Get(ctx, claims.ProfileID, req.MediaItemId)
+	thumbRating, getErr := h.starSvc.GetThumb(ctx, claims.ProfileID, req.MediaItemId)
 	if getErr != nil {
 		slog.Debug("get thumb rating not found", slog.Any("err", getErr))
 	}
-	if rating == nil {
+	if thumbRating == nil {
 		return &eveyv1.GetMyThumbRatingResponse{Value: 0}, nil
 	}
-	return &eveyv1.GetMyThumbRatingResponse{Value: int32(rating.Value)}, nil
+	return &eveyv1.GetMyThumbRatingResponse{Value: int32(thumbRating.Value)}, nil
 }
 
 func (h *ratingHandler) PostStarRating(ctx context.Context, req *eveyv1.PostStarRatingRequest) (*eveyv1.PostStarRatingResponse, error) {

@@ -11,7 +11,7 @@ import (
 	"github.com/gravity-zero/evey/internal/adapters/driving/grpcapi/interceptors"
 	applibrary "github.com/gravity-zero/evey/internal/app/library"
 	appmusic "github.com/gravity-zero/evey/internal/app/music"
-	"github.com/gravity-zero/evey/internal/domain/user"
+	appuser "github.com/gravity-zero/evey/internal/app/user"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/emptypb"
@@ -19,20 +19,20 @@ import (
 
 type musicHandler struct {
 	eveyv1.UnimplementedMusicServiceServer
-	svc           *appmusic.Service
-	libraryAccess user.LibraryAccessRepository
-	libQuery      *applibrary.QueryService
+	svc        *appmusic.Service
+	userAccess *appuser.AccessService
+	libQuery   *applibrary.QueryService
 }
 
 func (h *musicHandler) checkLibraryAccess(ctx context.Context, libraryID string) error {
-	if h.libraryAccess == nil {
+	if h.userAccess == nil {
 		return nil
 	}
 	claims := interceptors.ClaimsFromContext(ctx)
 	if claims == nil || claims.IsAdmin {
 		return nil
 	}
-	ok, err := h.libraryAccess.HasAccess(ctx, claims.UserID, libraryID)
+	ok, err := h.userAccess.HasLibraryAccess(ctx, claims.UserID, libraryID)
 	if err != nil {
 		return status.Errorf(codes.Internal, "check library access: %v", err)
 	}

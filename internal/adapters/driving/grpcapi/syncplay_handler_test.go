@@ -7,8 +7,10 @@ import (
 	eveyv1 "github.com/gravity-zero/evey/gen/evey/v1"
 	applibrary "github.com/gravity-zero/evey/internal/app/library"
 	appsyncplay "github.com/gravity-zero/evey/internal/app/syncplay"
+	appuser "github.com/gravity-zero/evey/internal/app/user"
 	"github.com/gravity-zero/evey/internal/domain/library"
 	libfakes "github.com/gravity-zero/evey/internal/domain/library/fakes"
+	sharedfakes "github.com/gravity-zero/evey/internal/domain/shared/fakes"
 	syncfakes "github.com/gravity-zero/evey/internal/domain/syncplay/fakes"
 	userfakes "github.com/gravity-zero/evey/internal/domain/user/fakes"
 	"github.com/stretchr/testify/assert"
@@ -35,11 +37,21 @@ func newSyncplayTestEnv() *syncplayTestEnv {
 	libQuery := applibrary.NewQueryService(libQueryRepo, mediaItemRepo, streamRepo, searchIdx)
 
 	libAccessRepo := userfakes.NewFakeLibraryAccessRepository()
+	bus := sharedfakes.NewFakeEventBus()
+	userAccess := appuser.NewAccessService(
+		userfakes.NewFakeUserRepository(),
+		userfakes.NewFakeAPIKeyRepository(),
+		userfakes.NewFakeInviteLinkRepository(),
+		userfakes.NewFakeQuickConnectRepository(),
+		userfakes.NewFakePasswordHasher(),
+		bus,
+		appuser.WithLibraryAccess(libAccessRepo),
+	)
 
 	h := &syncplayHandler{
-		hub:           hub,
-		libQuery:      libQuery,
-		libraryAccess: libAccessRepo,
+		hub:        hub,
+		libQuery:   libQuery,
+		userAccess: userAccess,
 	}
 	return &syncplayTestEnv{
 		handler:       h,

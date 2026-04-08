@@ -7,18 +7,18 @@ import (
 	eveyv1 "github.com/gravity-zero/evey/gen/evey/v1"
 	appsyncplay "github.com/gravity-zero/evey/internal/app/syncplay"
 	applibrary "github.com/gravity-zero/evey/internal/app/library"
+	appuser "github.com/gravity-zero/evey/internal/app/user"
 	"github.com/gravity-zero/evey/internal/adapters/driving/grpcapi/interceptors"
 	domainsyncplay "github.com/gravity-zero/evey/internal/domain/syncplay"
-	"github.com/gravity-zero/evey/internal/domain/user"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
 
 type syncplayHandler struct {
 	eveyv1.UnimplementedSyncPlayServiceServer
-	hub           *appsyncplay.Hub
-	libQuery      *applibrary.QueryService
-	libraryAccess user.LibraryAccessRepository
+	hub        *appsyncplay.Hub
+	libQuery   *applibrary.QueryService
+	userAccess *appuser.AccessService
 }
 
 func (h *syncplayHandler) requireMediaAccess(ctx context.Context, mediaID string) error {
@@ -26,14 +26,14 @@ func (h *syncplayHandler) requireMediaAccess(ctx context.Context, mediaID string
 	if claims == nil {
 		return status.Error(codes.Unauthenticated, "unauthenticated")
 	}
-	if claims.IsAdmin || h.libraryAccess == nil {
+	if claims.IsAdmin || h.userAccess == nil {
 		return nil
 	}
 	item, err := h.libQuery.GetMediaItem(ctx, mediaID)
 	if err != nil || item == nil {
 		return status.Error(codes.NotFound, "media not found")
 	}
-	ok, _ := h.libraryAccess.HasAccess(ctx, claims.UserID, item.LibraryID)
+	ok, _ := h.userAccess.HasLibraryAccess(ctx, claims.UserID, item.LibraryID)
 	if !ok {
 		return status.Error(codes.NotFound, "media not found")
 	}

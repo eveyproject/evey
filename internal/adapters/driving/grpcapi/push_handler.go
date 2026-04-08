@@ -5,8 +5,7 @@ import (
 	"log/slog"
 
 	eveyv1 "github.com/gravity-zero/evey/gen/evey/v1"
-	"github.com/gravity-zero/evey/internal/domain/notification"
-	"github.com/gravity-zero/evey/internal/domain/user"
+	appnotification "github.com/gravity-zero/evey/internal/app/notification"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -14,9 +13,7 @@ import (
 
 type webPushHandler struct {
 	eveyv1.UnimplementedPushServiceServer
-	subs        notification.PushSubscriptionRepository
-	profiles    user.ProfileRepository
-	users       user.UserRepository
+	notifCmd    *appnotification.CommandService
 	vapidPubKey string
 }
 
@@ -32,7 +29,7 @@ func (h *webPushHandler) RegisterWebPush(ctx context.Context, req *eveyv1.Regist
 	if req.Endpoint == "" || req.Keys == nil || req.Keys.P256Dh == "" || req.Keys.Auth == "" {
 		return nil, status.Error(codes.InvalidArgument, "endpoint and keys required")
 	}
-	if err := h.subs.Upsert(ctx, claims.UserID, claims.ProfileID, req.Endpoint, req.Keys.P256Dh, req.Keys.Auth); err != nil {
+	if err := h.notifCmd.UpsertPushSubscription(ctx, claims.UserID, claims.ProfileID, req.Endpoint, req.Keys.P256Dh, req.Keys.Auth); err != nil {
 		slog.Error("push: register web push", slog.Any("err", err))
 		return nil, status.Error(codes.Internal, "failed to register")
 	}
@@ -47,7 +44,7 @@ func (h *webPushHandler) UnregisterWebPush(ctx context.Context, req *eveyv1.Unre
 	if req.Endpoint == "" {
 		return nil, status.Error(codes.InvalidArgument, "endpoint required")
 	}
-	if err := h.subs.DeleteByEndpoint(ctx, claims.UserID, req.Endpoint); err != nil {
+	if err := h.notifCmd.DeletePushByEndpoint(ctx, claims.UserID, req.Endpoint); err != nil {
 		slog.Error("push: unregister web push", slog.Any("err", err))
 		return nil, status.Error(codes.Internal, "failed to unregister")
 	}
@@ -59,7 +56,7 @@ func (h *webPushHandler) ListWebPushSubscriptions(ctx context.Context, _ *eveyv1
 	if err != nil {
 		return nil, err
 	}
-	subs, err := h.subs.ListByUser(ctx, claims.UserID)
+	subs, err := h.notifCmd.ListPushSubscriptions(ctx, claims.UserID)
 	if err != nil {
 		slog.Error("push: list subscriptions", slog.Any("err", err))
 		return nil, status.Error(codes.Internal, "failed to list")
@@ -82,7 +79,7 @@ func (h *webPushHandler) DeleteWebPushSubscription(ctx context.Context, req *eve
 	if req.Endpoint == "" {
 		return nil, status.Error(codes.InvalidArgument, "endpoint required")
 	}
-	if err := h.subs.DeleteByEndpoint(ctx, claims.UserID, req.Endpoint); err != nil {
+	if err := h.notifCmd.DeletePushByEndpoint(ctx, claims.UserID, req.Endpoint); err != nil {
 		slog.Error("push: delete subscription", slog.Any("err", err))
 		return nil, status.Error(codes.Internal, "failed to delete")
 	}
@@ -94,7 +91,7 @@ func (h *webPushHandler) GetPushConsent(ctx context.Context, _ *eveyv1.GetPushCo
 	if err != nil {
 		return nil, err
 	}
-	subs, err := h.subs.ListByUser(ctx, claims.UserID)
+	subs, err := h.notifCmd.ListPushSubscriptions(ctx, claims.UserID)
 	if err != nil {
 		return nil, status.Error(codes.Internal, "failed to check consent")
 	}
@@ -107,7 +104,7 @@ func (h *webPushHandler) UpdatePushConsent(ctx context.Context, req *eveyv1.Upda
 		return nil, err
 	}
 	if !req.Consent {
-		_ = h.subs.DeleteByUser(ctx, claims.UserID)
+		_ = h.notifCmd.DeletePushByUser(ctx, claims.UserID)
 	}
 	return &eveyv1.UpdatePushConsentResponse{Ok: true}, nil
 }

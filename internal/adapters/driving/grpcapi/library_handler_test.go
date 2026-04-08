@@ -8,6 +8,7 @@ import (
 	"github.com/gravity-zero/evey/internal/adapters/driving/grpcapi/interceptors"
 	applibrary "github.com/gravity-zero/evey/internal/app/library"
 	"github.com/gravity-zero/evey/internal/app/metadata"
+	appuser "github.com/gravity-zero/evey/internal/app/user"
 	"github.com/gravity-zero/evey/internal/domain/library"
 	libfakes "github.com/gravity-zero/evey/internal/domain/library/fakes"
 	domainmetadata "github.com/gravity-zero/evey/internal/domain/metadata"
@@ -46,11 +47,22 @@ func newTestLibraryHandler() (*libraryHandler, *libfakes.FakeLibraryQueryRepo, *
 	)
 	querySvc := applibrary.NewQueryService(libQueryRepo, mediaQueryRepo, streamRepo, searchIdx)
 
+	userRepo := userfakes.NewFakeUserRepository()
+	apiKeyRepo := userfakes.NewFakeAPIKeyRepository()
+	inviteRepo := userfakes.NewFakeInviteLinkRepository()
+	qcRepo := userfakes.NewFakeQuickConnectRepository()
+	userAccess := appuser.NewAccessService(
+		userRepo, apiKeyRepo, inviteRepo, qcRepo,
+		userfakes.NewFakePasswordHasher(), eventBus,
+		appuser.WithLibraryAccess(libraryAccess),
+	)
+	userQuery := appuser.NewQueryService(userRepo, profiles, apiKeyRepo, inviteRepo, qcRepo)
+
 	h := &libraryHandler{
-		cmd:           cmdSvc,
-		query:         querySvc,
-		libraryAccess: libraryAccess,
-		profiles:      profiles,
+		cmd:        cmdSvc,
+		query:      querySvc,
+		userAccess: userAccess,
+		userQuery:  userQuery,
 	}
 	return h, libQueryRepo, mediaQueryRepo, searchIdx, libraryAccess, profiles
 }

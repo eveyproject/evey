@@ -5,9 +5,11 @@ import (
 	"testing"
 
 	eveyv1 "github.com/gravity-zero/evey/gen/evey/v1"
+	appuser "github.com/gravity-zero/evey/internal/app/user"
 	applibrary "github.com/gravity-zero/evey/internal/app/library"
 	"github.com/gravity-zero/evey/internal/domain/library"
 	libfakes "github.com/gravity-zero/evey/internal/domain/library/fakes"
+	sharedfakes "github.com/gravity-zero/evey/internal/domain/shared/fakes"
 	userfakes "github.com/gravity-zero/evey/internal/domain/user/fakes"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -21,8 +23,18 @@ func newTestLibraryAccessHandler() (*libraryAccessHandler, *userfakes.FakeLibrar
 	searchIdx := libfakes.NewFakeSearchIndex()
 	querySvc := applibrary.NewQueryService(libQueryRepo, mediaQueryRepo, streamRepo, searchIdx)
 
+	userAccess := appuser.NewAccessService(
+		userfakes.NewFakeUserRepository(),
+		userfakes.NewFakeAPIKeyRepository(),
+		userfakes.NewFakeInviteLinkRepository(),
+		userfakes.NewFakeQuickConnectRepository(),
+		userfakes.NewFakePasswordHasher(),
+		sharedfakes.NewFakeEventBus(),
+		appuser.WithLibraryAccess(accessRepo),
+	)
+
 	h := &libraryAccessHandler{
-		accessRepo: accessRepo,
+		userAccess: userAccess,
 		libQuery:   querySvc,
 	}
 	return h, accessRepo, libQueryRepo

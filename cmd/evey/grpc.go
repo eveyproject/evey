@@ -44,9 +44,6 @@ func buildGRPCServer(deps *appDeps, cfg *config.Config, rootLog *slog.Logger, lo
 		Collection:      deps.content.collectionSvc,
 		Playlist:        deps.content.playlistSvc,
 		Favorite:        deps.content.favoriteSvc,
-		Users:           deps.repos.userRepo,
-		Profiles:        deps.repos.profileRepo,
-		LibraryAccess:   deps.repos.libraryAccessRepo,
 		Backup:          deps.backupSvc,
 		Cfg:             cfg,
 		CfgStore:        deps.cfgStore,
@@ -57,19 +54,18 @@ func buildGRPCServer(deps *appDeps, cfg *config.Config, rootLog *slog.Logger, lo
 		ServerCtx:       serverCtx,
 		Translator:      deps.translator,
 		SMTPConfigured:  cfg.SMTP.Host != "",
-		ServerCfgRepo:   deps.repos.serverCfgRepo,
+		ServerCfgSvc:    deps.serverCfgSvc,
 		ShareSvc:        deps.media.shareSvc,
 		BioEnricher:     deps.content.enricher,
 		Music:           deps.media.musicSvc,
 		Photo:           deps.media.photoSvc,
 		SyncplayHub:     deps.media.syncPlayHub,
-		ThumbRating:     deps.repos.userRatingRepo,
 		StarRating:      deps.content.starRatingSvc,
 		QuickConnectHub: qcHub,
 	}
 
 	if deps.repos.pushSubRepo != nil {
-		grpcDeps.PushSubs = deps.repos.pushSubRepo
+		grpcDeps.PushEnabled = true
 		grpcDeps.VAPIDPubKey = resolveVAPIDPublicKey(deps.repos.serverCfgRepo, cfg)
 		grpcDeps.PushRegisterRL = ratelimit.New(10)
 	}

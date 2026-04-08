@@ -13,12 +13,12 @@ import (
 	applibrary "github.com/gravity-zero/evey/internal/app/library"
 	appplayback "github.com/gravity-zero/evey/internal/app/playback"
 	apptranscoding "github.com/gravity-zero/evey/internal/app/transcoding"
+	appuser "github.com/gravity-zero/evey/internal/app/user"
 	"github.com/gravity-zero/evey/internal/adapters/driving/grpcapi/interceptors"
 	"github.com/gravity-zero/evey/internal/domain/activity"
 	"github.com/gravity-zero/evey/internal/domain/library"
 	"github.com/gravity-zero/evey/internal/domain/playback"
 	"github.com/gravity-zero/evey/internal/domain/transcoding"
-	"github.com/gravity-zero/evey/internal/domain/user"
 	eveyi18n "github.com/gravity-zero/evey/internal/pkg/i18n"
 	"github.com/gravity-zero/evey/internal/pkg/id"
 	"github.com/gravity-zero/evey/internal/pkg/ratings"
@@ -32,8 +32,8 @@ type playbackHandler struct {
 	query          *appplayback.QueryService
 	librarySvc     *applibrary.QueryService
 	activitySvc    *appactivity.CommandService
-	profiles       user.ProfileRepository
-	libraryAccess  user.LibraryAccessRepository
+	userQuery      *appuser.QueryService
+	userAccess     *appuser.AccessService
 	translator     *eveyi18n.Translator
 	hlsManager     *apptranscoding.HLSManager
 }
@@ -137,7 +137,7 @@ func (h *playbackHandler) StartStream(ctx context.Context, req *eveyv1.StartStre
 	if err := h.requireMediaAccess(ctx, req.MediaItemId); err != nil {
 		return nil, fmt.Errorf("playbackHandler.StartStream: %w", err)
 	}
-	if h.profiles != nil {
+	if h.userQuery != nil {
 		if blocked, _ := h.isBlockedByParental(ctx, profileID, req.MediaItemId); blocked {
 			return nil, h.translator.TranslatedError(ctx, codes.PermissionDenied, "errors.playback.parental_blocked")
 		}
@@ -404,14 +404,14 @@ func (h *playbackHandler) requireMediaAccess(ctx context.Context, mediaItemID st
 	if claims == nil {
 		return status.Errorf(codes.Unauthenticated, "unauthenticated")
 	}
-	if claims.IsAdmin || h.libraryAccess == nil {
+	if claims.IsAdmin || h.userAccess == nil {
 		return nil
 	}
 	item, err := h.librarySvc.GetMediaItem(ctx, mediaItemID)
 	if err != nil {
 		return h.translator.TranslatedError(ctx, codes.NotFound, "errors.media.not_found")
 	}
-	ok, _ := h.libraryAccess.HasAccess(ctx, claims.UserID, item.LibraryID)
+	ok, _ := h.userAccess.HasLibraryAccess(ctx, claims.UserID, item.LibraryID)
 	if !ok {
 		return h.translator.TranslatedError(ctx, codes.NotFound, "errors.media.not_found")
 	}
@@ -419,18 +419,18 @@ func (h *playbackHandler) requireMediaAccess(ctx context.Context, mediaItemID st
 }
 
 func (h *playbackHandler) getAllowedLibraryIDs(ctx context.Context) ([]string, error) {
-	if h.libraryAccess == nil {
+	if h.userAccess == nil {
 		return nil, nil
 	}
 	claims := interceptors.ClaimsFromContext(ctx)
 	if claims == nil || claims.IsAdmin {
 		return nil, nil
 	}
-	return h.libraryAccess.GetByUserID(ctx, claims.UserID)
+	return h.userAccess.GetLibraryAccessByUserID(ctx, claims.UserID)
 }
 
 func (h *playbackHandler) isBlockedByParental(ctx context.Context, profileID, mediaItemID string) (bool, string) {
-	profile, err := h.profiles.GetByID(ctx, profileID)
+	profile, err := h.userQuery.GetProfileByID(ctx, profileID)
 	if err != nil || profile.Parental == nil || !profile.Parental.Enabled {
 		return false, ""
 	}

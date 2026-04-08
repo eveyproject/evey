@@ -12,19 +12,24 @@ import (
 )
 
 type AccessService struct {
-	users        user.UserRepository
-	profiles     user.ProfileRepository
-	apiKeys      user.APIKeyRepository
-	invites      user.InviteLinkRepository
-	quickConnect user.QuickConnectRepository
-	hasher       user.PasswordHasher
-	events       shared.EventBus
+	users         user.UserRepository
+	profiles      user.ProfileRepository
+	apiKeys       user.APIKeyRepository
+	invites       user.InviteLinkRepository
+	quickConnect  user.QuickConnectRepository
+	libraryAccess user.LibraryAccessRepository
+	hasher        user.PasswordHasher
+	events        shared.EventBus
 }
 
 type AccessServiceOption func(*AccessService)
 
 func WithProfiles(profiles user.ProfileRepository) AccessServiceOption {
 	return func(s *AccessService) { s.profiles = profiles }
+}
+
+func WithLibraryAccess(la user.LibraryAccessRepository) AccessServiceOption {
+	return func(s *AccessService) { s.libraryAccess = la }
 }
 
 func NewAccessService(
@@ -180,4 +185,20 @@ func (s *AccessService) RevokeAPIKey(ctx context.Context, keyID string) error {
 		slog.Warn("publish event", slog.String("event", evt.EventName()), slog.Any("err", err))
 	}
 	return nil
+}
+
+func (s *AccessService) HasLibraryAccess(ctx context.Context, userID, libraryID string) (bool, error) {
+	return s.libraryAccess.HasAccess(ctx, userID, libraryID)
+}
+
+func (s *AccessService) GetLibraryAccessByUserID(ctx context.Context, userID string) ([]string, error) {
+	return s.libraryAccess.GetByUserID(ctx, userID)
+}
+
+func (s *AccessService) GrantLibraryAccess(ctx context.Context, userID, libraryID string) error {
+	return s.libraryAccess.Grant(ctx, userID, libraryID)
+}
+
+func (s *AccessService) RevokeLibraryAccess(ctx context.Context, userID, libraryID string) error {
+	return s.libraryAccess.Revoke(ctx, userID, libraryID)
 }

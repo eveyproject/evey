@@ -8,6 +8,7 @@ import (
 	eveyv1 "github.com/gravity-zero/evey/gen/evey/v1"
 	applibrary "github.com/gravity-zero/evey/internal/app/library"
 	appphoto "github.com/gravity-zero/evey/internal/app/photo"
+	appuser "github.com/gravity-zero/evey/internal/app/user"
 	"github.com/gravity-zero/evey/internal/domain/photo"
 	libfakes "github.com/gravity-zero/evey/internal/domain/library/fakes"
 	photofakes "github.com/gravity-zero/evey/internal/domain/photo/fakes"
@@ -31,11 +32,20 @@ func newTestPhotoHandler() (*photoHandler, *photofakes.FakeRepository, *userfake
 
 	svc := appphoto.NewService(photoRepo, bus, libQueryRepo, scanner)
 	libQuery := applibrary.NewQueryService(libQueryRepo, libMediaQuery, libStreamRepo, libSearchIdx)
+	userAccess := appuser.NewAccessService(
+		userfakes.NewFakeUserRepository(),
+		userfakes.NewFakeAPIKeyRepository(),
+		userfakes.NewFakeInviteLinkRepository(),
+		userfakes.NewFakeQuickConnectRepository(),
+		userfakes.NewFakePasswordHasher(),
+		bus,
+		appuser.WithLibraryAccess(libraryAccess),
+	)
 
 	h := &photoHandler{
-		svc:           svc,
-		libraryAccess: libraryAccess,
-		libQuery:      libQuery,
+		svc:        svc,
+		userAccess: userAccess,
+		libQuery:   libQuery,
 	}
 	return h, photoRepo, libraryAccess, libQueryRepo
 }

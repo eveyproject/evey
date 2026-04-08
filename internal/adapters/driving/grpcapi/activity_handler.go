@@ -9,9 +9,9 @@ import (
 	eveyv1 "github.com/gravity-zero/evey/gen/evey/v1"
 	appactivity "github.com/gravity-zero/evey/internal/app/activity"
 	applibrary "github.com/gravity-zero/evey/internal/app/library"
+	appuser "github.com/gravity-zero/evey/internal/app/user"
 	"github.com/gravity-zero/evey/internal/adapters/driving/grpcapi/interceptors"
 	"github.com/gravity-zero/evey/internal/domain/activity"
-	"github.com/gravity-zero/evey/internal/domain/user"
 	eveyi18n "github.com/gravity-zero/evey/internal/pkg/i18n"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -20,10 +20,10 @@ import (
 
 type activityHandler struct {
 	eveyv1.UnimplementedActivityServiceServer
-	svc           *appactivity.QueryService
-	libQuery      *applibrary.QueryService
-	libraryAccess user.LibraryAccessRepository
-	translator    *eveyi18n.Translator
+	svc        *appactivity.QueryService
+	libQuery   *applibrary.QueryService
+	userAccess *appuser.AccessService
+	translator *eveyi18n.Translator
 }
 
 func (h *activityHandler) GetPlayHistory(ctx context.Context, req *eveyv1.GetPlayHistoryRequest) (*eveyv1.GetPlayHistoryResponse, error) {
@@ -209,8 +209,8 @@ func (h *activityHandler) GetPopularMedia(ctx context.Context, req *eveyv1.GetPo
 		if !exists {
 			continue
 		}
-		if !claims.IsAdmin && h.libraryAccess != nil {
-			hasAccess, aErr := h.libraryAccess.HasAccess(ctx, claims.UserID, info.libraryID)
+		if !claims.IsAdmin && h.userAccess != nil {
+			hasAccess, aErr := h.userAccess.HasLibraryAccess(ctx, claims.UserID, info.libraryID)
 			if aErr != nil || !hasAccess {
 				continue
 			}

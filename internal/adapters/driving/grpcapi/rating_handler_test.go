@@ -8,6 +8,7 @@ import (
 	"github.com/gravity-zero/evey/internal/adapters/driving/grpcapi/interceptors"
 	applibrary "github.com/gravity-zero/evey/internal/app/library"
 	apprating "github.com/gravity-zero/evey/internal/app/rating"
+	appuser "github.com/gravity-zero/evey/internal/app/user"
 	"github.com/gravity-zero/evey/internal/domain/library"
 	libfakes "github.com/gravity-zero/evey/internal/domain/library/fakes"
 	domainrating "github.com/gravity-zero/evey/internal/domain/rating"
@@ -84,13 +85,21 @@ func newRatingFixture() *ratingFixture {
 	libraryAccess := userfakes.NewFakeLibraryAccessRepository()
 
 	libQuery := applibrary.NewQueryService(libQueryRepo, mediaItems, nil, searchIdx)
-	starSvc := apprating.NewService(starRepo, bus)
+	starSvc := apprating.NewService(starRepo, bus, apprating.WithThumbRating(thumbRepo))
+	userAccess := appuser.NewAccessService(
+		userfakes.NewFakeUserRepository(),
+		userfakes.NewFakeAPIKeyRepository(),
+		userfakes.NewFakeInviteLinkRepository(),
+		userfakes.NewFakeQuickConnectRepository(),
+		userfakes.NewFakePasswordHasher(),
+		bus,
+		appuser.WithLibraryAccess(libraryAccess),
+	)
 
 	h := &ratingHandler{
-		thumbRepo:     thumbRepo,
-		starSvc:       starSvc,
-		libQuery:      libQuery,
-		libraryAccess: libraryAccess,
+		starSvc:    starSvc,
+		libQuery:   libQuery,
+		userAccess: userAccess,
 	}
 	return &ratingFixture{
 		handler:       h,

@@ -7,8 +7,8 @@ import (
 	eveyv1 "github.com/gravity-zero/evey/gen/evey/v1"
 	"github.com/gravity-zero/evey/internal/adapters/driving/grpcapi/interceptors"
 	apptranscoding "github.com/gravity-zero/evey/internal/app/transcoding"
+	appuser "github.com/gravity-zero/evey/internal/app/user"
 	"github.com/gravity-zero/evey/internal/domain/transcoding"
-	"github.com/gravity-zero/evey/internal/domain/user"
 	"github.com/gravity-zero/evey/internal/pkg/id"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -16,15 +16,15 @@ import (
 
 type transcodingHandler struct {
 	eveyv1.UnimplementedTranscodingServiceServer
-	svc      *apptranscoding.Service
-	profiles user.ProfileRepository
+	svc       *apptranscoding.Service
+	userQuery *appuser.QueryService
 }
 
 func (h *transcodingHandler) StartTranscode(req *eveyv1.StartTranscodeRequest, stream eveyv1.TranscodingService_StartTranscodeServer) error {
 	bitrateOut := req.Bitrate
-	if h.profiles != nil {
+	if h.userQuery != nil {
 		if claims := interceptors.ClaimsFromContext(stream.Context()); claims != nil && claims.ProfileID != "" {
-			if prof, err := h.profiles.GetByID(stream.Context(), claims.ProfileID); err == nil && prof.MaxBitrateKbps != nil {
+			if prof, err := h.userQuery.GetProfileByID(stream.Context(), claims.ProfileID); err == nil && prof.MaxBitrateKbps != nil {
 				capKbps := int64(*prof.MaxBitrateKbps) * 1000
 				if bitrateOut == 0 || bitrateOut > capKbps {
 					bitrateOut = capKbps

@@ -16,6 +16,7 @@ import (
 	appplayback "github.com/gravity-zero/evey/internal/app/playback"
 	appplaylist "github.com/gravity-zero/evey/internal/app/playlist"
 	appplugin "github.com/gravity-zero/evey/internal/app/plugin"
+	appconfig "github.com/gravity-zero/evey/internal/app/config"
 	apprating "github.com/gravity-zero/evey/internal/app/rating"
 	appsubtitle "github.com/gravity-zero/evey/internal/app/subtitle"
 	appsyncplay "github.com/gravity-zero/evey/internal/app/syncplay"
@@ -120,6 +121,7 @@ type appDeps struct {
 	auth       authDeps
 	repos      repoDeps
 	cfgStore       *httpapi.ServerConfigStore
+	serverCfgSvc   *appconfig.Service
 	backupSvc      *appbackup.Service
 	translator     *eveyi18n.Translator
 	searchHealth   httpapi.SearchHealthChecker

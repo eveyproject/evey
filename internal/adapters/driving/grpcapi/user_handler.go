@@ -33,7 +33,6 @@ type userHandler struct {
 	userSvc     *appuser.UserService
 	access      *appuser.AccessService
 	query       *appuser.QueryService
-	users           user.UserRepository
 	activitySvc     *appactivity.CommandService
 	translator      *eveyi18n.Translator
 	quickConnectHub *quickconnecthub.Hub
@@ -82,7 +81,7 @@ func (h *userHandler) Login(ctx context.Context, req *eveyv1.LoginRequest) (*eve
 		h.audit(ctx, "", "login", "user", nil, map[string]any{"username": req.Username, "status": "failed"})
 		return nil, h.translator.TranslatedError(ctx, codes.Unauthenticated, "errors.auth.invalid_credentials")
 	}
-	u, userErr := h.users.GetByUsername(ctx, req.Username)
+	u, userErr := h.query.GetUserByUsername(ctx, req.Username)
 	if userErr != nil {
 		slog.Warn("get user by username after login", slog.Any("err", userErr))
 	}
@@ -123,7 +122,7 @@ func (h *userHandler) GetCurrentUser(ctx context.Context, _ *eveyv1.GetCurrentUs
 	if claims == nil {
 		return nil, h.translator.TranslatedError(ctx, codes.Unauthenticated, "errors.auth.unauthenticated")
 	}
-	u, err := h.users.GetByID(ctx, claims.UserID)
+	u, err := h.query.GetUserByID(ctx, claims.UserID)
 	if err != nil {
 		return nil, status.Errorf(codes.NotFound, "%v", err)
 	}
@@ -162,7 +161,7 @@ func (h *userHandler) UpdateUser(ctx context.Context, req *eveyv1.UpdateUserRequ
 			return nil, h.translator.TranslatedError(ctx, codes.PermissionDenied, "errors.user.cannot_escalate_admin")
 		}
 	}
-	u, err := h.users.GetByID(ctx, req.Id)
+	u, err := h.query.GetUserByID(ctx, req.Id)
 	if err != nil {
 		return nil, status.Errorf(codes.NotFound, "%v", err)
 	}
@@ -211,7 +210,7 @@ func (h *userHandler) DisableUser(ctx context.Context, req *eveyv1.DisableUserRe
 		callerID = claims.UserID
 	}
 	h.audit(ctx, callerID, "disable_user", "user", &req.Id, map[string]any{"target_user_id": req.Id})
-	u, err := h.users.GetByID(ctx, req.Id)
+	u, err := h.query.GetUserByID(ctx, req.Id)
 	if err != nil {
 		slog.Warn("disable user: could not reload user", slog.String("user_id", req.Id), slog.Any("err", err))
 		return &eveyv1.User{Id: req.Id, Enabled: false}, nil

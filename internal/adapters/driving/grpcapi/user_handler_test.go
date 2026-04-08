@@ -66,7 +66,6 @@ func setupUserHandler() *testUserEnv {
 		userSvc:     userSvc,
 		access:      access,
 		query:       query,
-		users:       userRepo,
 		activitySvc: actSvc,
 		cfg:         &config.Config{JWT: config.JWTConfig{RefreshTokenLongTTL: 180 * 24 * time.Hour}},
 	}

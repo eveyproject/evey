@@ -9,8 +9,8 @@ import (
 	"github.com/gravity-zero/evey/internal/adapters/driving/grpcapi/interceptors"
 	applibrary "github.com/gravity-zero/evey/internal/app/library"
 	appmedia "github.com/gravity-zero/evey/internal/app/media"
+	appuser "github.com/gravity-zero/evey/internal/app/user"
 	"github.com/gravity-zero/evey/internal/domain/shared"
-	"github.com/gravity-zero/evey/internal/domain/user"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -19,7 +19,7 @@ type shareHandler struct {
 	eveyv1.UnimplementedShareServiceServer
 	svc           *appmedia.ShareService
 	libQuery      *applibrary.QueryService
-	libraryAccess user.LibraryAccessRepository
+	userAccess    *appuser.AccessService
 }
 
 func (h *shareHandler) CreateShareLink(ctx context.Context, req *eveyv1.CreateShareLinkRequest) (*eveyv1.CreateShareLinkResponse, error) {
@@ -145,12 +145,12 @@ func (h *shareHandler) ValidateShareLink(ctx context.Context, req *eveyv1.Valida
 }
 
 func (h *shareHandler) checkLibraryAccess(ctx context.Context, libraryID string) (bool, error) {
-	if h.libraryAccess == nil {
+	if h.userAccess == nil {
 		return true, nil
 	}
 	claims := interceptors.ClaimsFromContext(ctx)
 	if claims == nil || claims.IsAdmin {
 		return true, nil
 	}
-	return h.libraryAccess.HasAccess(ctx, claims.UserID, libraryID)
+	return h.userAccess.HasLibraryAccess(ctx, claims.UserID, libraryID)
 }

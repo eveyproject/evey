@@ -11,10 +11,10 @@ import (
 	eveyv1 "github.com/gravity-zero/evey/gen/evey/v1"
 	applibrary "github.com/gravity-zero/evey/internal/app/library"
 	appmetadata "github.com/gravity-zero/evey/internal/app/metadata"
+	appuser "github.com/gravity-zero/evey/internal/app/user"
 	"github.com/gravity-zero/evey/internal/adapters/driving/grpcapi/interceptors"
 	"github.com/gravity-zero/evey/internal/domain/library"
 	domainmetadata "github.com/gravity-zero/evey/internal/domain/metadata"
-	"github.com/gravity-zero/evey/internal/domain/user"
 	eveyi18n "github.com/gravity-zero/evey/internal/pkg/i18n"
 	"github.com/gravity-zero/evey/internal/pkg/id"
 	"github.com/gravity-zero/evey/internal/pkg/ratings"
@@ -27,8 +27,8 @@ type libraryHandler struct {
 	cmd           *applibrary.CommandService
 	query         *applibrary.QueryService
 	metadataSvc   *appmetadata.QueryService
-	libraryAccess user.LibraryAccessRepository
-	profiles      user.ProfileRepository
+	userAccess    *appuser.AccessService
+	userQuery     *appuser.QueryService
 	translator    *eveyi18n.Translator
 	scheduler     *applibrary.Scheduler
 }
@@ -387,14 +387,14 @@ type parentalFilter struct {
 }
 
 func (h *libraryHandler) resolveParentalFilter(ctx context.Context) parentalFilter {
-	if h.profiles == nil {
+	if h.userQuery == nil {
 		return parentalFilter{}
 	}
 	claims := interceptors.ClaimsFromContext(ctx)
 	if claims == nil || claims.ProfileID == "" {
 		return parentalFilter{}
 	}
-	profile, err := h.profiles.GetByID(ctx, claims.ProfileID)
+	profile, err := h.userQuery.GetProfileByID(ctx, claims.ProfileID)
 	if err != nil || profile.Parental == nil || !profile.Parental.Enabled {
 		return parentalFilter{}
 	}
@@ -442,14 +442,14 @@ func (h *libraryHandler) filterLibrariesByAccess(ctx context.Context, libs []*li
 }
 
 func (h *libraryHandler) getAllowedLibraryIDs(ctx context.Context) ([]string, error) {
-	if h.libraryAccess == nil {
+	if h.userAccess == nil {
 		return nil, nil
 	}
 	claims := interceptors.ClaimsFromContext(ctx)
 	if claims == nil || claims.IsAdmin {
 		return nil, nil
 	}
-	ids, err := h.libraryAccess.GetByUserID(ctx, claims.UserID)
+	ids, err := h.userAccess.GetLibraryAccessByUserID(ctx, claims.UserID)
 	if err != nil {
 		return nil, fmt.Errorf("libraryHandler.getAllowedLibraryIDs: %w", err)
 	}
@@ -460,14 +460,14 @@ func (h *libraryHandler) getAllowedLibraryIDs(ctx context.Context) ([]string, er
 }
 
 func (h *libraryHandler) checkLibraryAccess(ctx context.Context, libraryID string) (bool, error) {
-	if h.libraryAccess == nil {
+	if h.userAccess == nil {
 		return true, nil
 	}
 	claims := interceptors.ClaimsFromContext(ctx)
 	if claims == nil || claims.IsAdmin {
 		return true, nil
 	}
-	return h.libraryAccess.HasAccess(ctx, claims.UserID, libraryID)
+	return h.userAccess.HasLibraryAccess(ctx, claims.UserID, libraryID)
 }
 
 func (h *libraryHandler) GetLibrarySchedule(ctx context.Context, req *eveyv1.GetLibraryScheduleRequest) (*eveyv1.GetLibraryScheduleResponse, error) {

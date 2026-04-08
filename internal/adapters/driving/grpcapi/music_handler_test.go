@@ -8,6 +8,7 @@ import (
 	eveyv1 "github.com/gravity-zero/evey/gen/evey/v1"
 	applibrary "github.com/gravity-zero/evey/internal/app/library"
 	appmusic "github.com/gravity-zero/evey/internal/app/music"
+	appuser "github.com/gravity-zero/evey/internal/app/user"
 	"github.com/gravity-zero/evey/internal/domain/music"
 	libfakes "github.com/gravity-zero/evey/internal/domain/library/fakes"
 	musicfakes "github.com/gravity-zero/evey/internal/domain/music/fakes"
@@ -31,11 +32,20 @@ func newTestMusicHandler() (*musicHandler, *musicfakes.FakeMusicTrackRepository,
 
 	svc := appmusic.NewService(trackRepo, bus, libQueryRepo, scanner)
 	libQuery := applibrary.NewQueryService(libQueryRepo, libMediaQuery, libStreamRepo, libSearchIdx)
+	userAccess := appuser.NewAccessService(
+		userfakes.NewFakeUserRepository(),
+		userfakes.NewFakeAPIKeyRepository(),
+		userfakes.NewFakeInviteLinkRepository(),
+		userfakes.NewFakeQuickConnectRepository(),
+		userfakes.NewFakePasswordHasher(),
+		bus,
+		appuser.WithLibraryAccess(libraryAccess),
+	)
 
 	h := &musicHandler{
-		svc:           svc,
-		libraryAccess: libraryAccess,
-		libQuery:      libQuery,
+		svc:        svc,
+		userAccess: userAccess,
+		libQuery:   libQuery,
 	}
 	return h, trackRepo, libraryAccess, libQueryRepo
 }

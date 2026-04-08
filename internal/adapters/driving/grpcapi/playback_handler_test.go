@@ -9,6 +9,7 @@ import (
 	eveyv1 "github.com/gravity-zero/evey/gen/evey/v1"
 	applibrary "github.com/gravity-zero/evey/internal/app/library"
 	appplayback "github.com/gravity-zero/evey/internal/app/playback"
+	appuser "github.com/gravity-zero/evey/internal/app/user"
 	"github.com/gravity-zero/evey/internal/adapters/driving/grpcapi/interceptors"
 	"github.com/gravity-zero/evey/internal/domain/library"
 	libfakes "github.com/gravity-zero/evey/internal/domain/library/fakes"
@@ -51,11 +52,16 @@ func newTestPlaybackHandler() (*playbackHandler, *pbfakes.FakePlaySessionReposit
 	libQueryRepo := libfakes.NewFakeLibraryQueryRepo()
 	libQuerySvc := applibrary.NewQueryService(libQueryRepo, mediaQueryRepo, streamRepo, searchIdx)
 
+	apiKeyRepo := userfakes.NewFakeAPIKeyRepository()
+	inviteRepo := userfakes.NewFakeInviteLinkRepository()
+	qcRepo := userfakes.NewFakeQuickConnectRepository()
+	userQuery := appuser.NewQueryService(userRepo, profileRepo, apiKeyRepo, inviteRepo, qcRepo)
+
 	h := &playbackHandler{
 		cmd:        cmdSvc,
 		query:      querySvc,
 		librarySvc: libQuerySvc,
-		profiles:   profileRepo,
+		userQuery:  userQuery,
 	}
 	return h, sessionRepo, progressRepo, mediaQueryRepo, profileRepo, streamRepo
 }

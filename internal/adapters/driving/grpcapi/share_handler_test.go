@@ -8,6 +8,7 @@ import (
 	eveyv1 "github.com/gravity-zero/evey/gen/evey/v1"
 	applibrary "github.com/gravity-zero/evey/internal/app/library"
 	appmedia "github.com/gravity-zero/evey/internal/app/media"
+	appuser "github.com/gravity-zero/evey/internal/app/user"
 	"github.com/gravity-zero/evey/internal/domain/library"
 	libfakes "github.com/gravity-zero/evey/internal/domain/library/fakes"
 	"github.com/gravity-zero/evey/internal/domain/shared"
@@ -33,9 +34,19 @@ func newShareTestEnv() *shareTestEnv {
 	streamRepo := libfakes.NewFakeMediaStreamRepository()
 	searchIdx := libfakes.NewFakeSearchIndex()
 	libAccessRepo := userfakes.NewFakeLibraryAccessRepository()
+	bus := sharedfakes.NewFakeEventBus()
 
 	svc := appmedia.NewShareService(shareRepo)
 	libQuery := applibrary.NewQueryService(libQueryRepo, mediaItemRepo, streamRepo, searchIdx)
+	userAccess := appuser.NewAccessService(
+		userfakes.NewFakeUserRepository(),
+		userfakes.NewFakeAPIKeyRepository(),
+		userfakes.NewFakeInviteLinkRepository(),
+		userfakes.NewFakeQuickConnectRepository(),
+		userfakes.NewFakePasswordHasher(),
+		bus,
+		appuser.WithLibraryAccess(libAccessRepo),
+	)
 
 	mediaItemRepo.Seed(&library.MediaItem{
 		ID:         "media-1",
@@ -46,9 +57,9 @@ func newShareTestEnv() *shareTestEnv {
 	})
 
 	h := &shareHandler{
-		svc:           svc,
-		libQuery:      libQuery,
-		libraryAccess: libAccessRepo,
+		svc:        svc,
+		libQuery:   libQuery,
+		userAccess: userAccess,
 	}
 	return &shareTestEnv{
 		handler:       h,

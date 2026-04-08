@@ -15,6 +15,7 @@ import (
 	appactivity "github.com/gravity-zero/evey/internal/app/activity"
 	appbackup "github.com/gravity-zero/evey/internal/app/backup"
 	appcollection "github.com/gravity-zero/evey/internal/app/collection"
+	appconfig "github.com/gravity-zero/evey/internal/app/config"
 	appfavorite "github.com/gravity-zero/evey/internal/app/favorite"
 	appfeed "github.com/gravity-zero/evey/internal/app/feed"
 	applibrary "github.com/gravity-zero/evey/internal/app/library"
@@ -248,7 +249,7 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 	)
 	userAuthSvc.InitSetupState(ctx)
 	userSvc := appuser.NewUserService(r.User, r.Profile, r.RefreshToken, infra.hasher, bus)
-	userAccessSvc := appuser.NewAccessService(r.User, r.APIKey, r.InviteLink, r.QuickConnect, infra.hasher, bus, appuser.WithProfiles(r.Profile))
+	userAccessSvc := appuser.NewAccessService(r.User, r.APIKey, r.InviteLink, r.QuickConnect, infra.hasher, bus, appuser.WithProfiles(r.Profile), appuser.WithLibraryAccess(r.LibraryAccess))
 	userQuerySvc := appuser.NewQueryService(r.User, r.Profile, r.APIKey, r.InviteLink, r.QuickConnect)
 
 	var oidcSvc *appuser.OIDCService
@@ -363,7 +364,7 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 	favoriteSvc := appfavorite.NewService(r.Favorite)
 	photoScanner := filesystem.NewPhotoScanner()
 	photoSvc := appphoto.NewService(r.Photo, bus, r.Library, photoScanner)
-	starRatingSvc := apprating.NewService(r.Rating, bus)
+	starRatingSvc := apprating.NewService(r.Rating, bus, apprating.WithThumbRating(r.UserRating))
 	musicScanner := filesystem.NewMusicScanner()
 	musicSvc := appmusic.NewService(r.MusicTrack, bus, r.Library, musicScanner)
 	playlistSvc := appplaylist.NewService(r.Playlist, r.PlaylistItem, r.SmartPlaylist)
@@ -374,6 +375,8 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 		subtitleSvc = appsubtitle.NewService(r.Subtitle, osClient, opensubtitles.NewLibraryMediaGetter(libQuerySvc))
 		rootLog.Info("opensubtitles integration enabled")
 	}
+
+	serverCfgSvc := appconfig.NewService(r.ServerCfg)
 
 	backupSvc := appbackup.NewService(filesystem.NewBackupStore(cfg.Backup.Dir),
 		postgres.NewDatabaseDumper(cfg.DB.Host, cfg.DB.Port, cfg.DB.User, cfg.DB.Password, cfg.DB.DBName, cfg.DB.SSLMode),
@@ -453,6 +456,7 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 			quickConnectRepo:  r.QuickConnect,
 		},
 		cfgStore:       httpapi.NewServerConfigStore(r.ServerCfg),
+		serverCfgSvc:   serverCfgSvc,
 		backupSvc:      backupSvc,
 		translator:     infra.translator,
 		searchHealth:   infra.searchHealth,
