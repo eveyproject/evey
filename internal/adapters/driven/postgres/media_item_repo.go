@@ -231,15 +231,15 @@ func (r *MediaItemRepository) List(ctx context.Context, f library.ListMediaItems
 		sortOrder = "DESC"
 	}
 	if sortField == "added_at" {
-		// Rewrite: use LEFT JOIN instead of correlated subquery for series added_at
+		// LATERAL join: only compute max episode added_at per series row, not globally
 		query = fmt.Sprintf(`SELECT %s FROM media_items
-		 LEFT JOIN (
-			SELECT s.parent_id AS series_id, MAX(e.added_at) AS max_added`, mediaItemColumnsPrefixed) + `
-			FROM media_items e
-			INNER JOIN media_items s ON s.id = e.parent_id
-			WHERE e.type = 'episode'
-			GROUP BY s.parent_id
-		 ) ep_latest ON media_items.type = 'series' AND ep_latest.series_id = media_items.id` + where
+		 LEFT JOIN LATERAL (
+			SELECT MAX(ep.added_at) AS max_added
+			FROM media_items ep
+			WHERE ep.parent_id IN (
+				SELECT s.id FROM media_items s WHERE s.parent_id = media_items.id AND s.type = 'season'
+			) AND ep.type = 'episode'
+		 ) ep_latest ON media_items.type = 'series'`, mediaItemColumnsPrefixed) + where
 		query += fmt.Sprintf(` ORDER BY CASE WHEN media_items.type = 'series'
 		 THEN COALESCE(ep_latest.max_added, media_items.added_at)
 		 ELSE media_items.added_at END %s`, sortOrder)
