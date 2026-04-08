@@ -153,6 +153,13 @@ export const SearchDropdown = memo(function SearchDropdown({
       data-testid="search-dropdown"
       className="absolute left-0 right-0 top-full mt-1 rounded-[var(--radius-md)] border border-[var(--border)] shadow-xl z-overlay overflow-hidden animate-fade-in bg-[var(--surface-raised)]"
     >
+      <div role="status" aria-live="polite" className="sr-only">
+        {!isLoading && !isError && items.length > 0
+          ? t("media.search.resultCount", { count: items.length })
+          : !isLoading && !isError && items.length === 0 && trimmed.length > 1
+            ? t("media.search.noResults")
+            : null}
+      </div>
       {isLoading && (
         <div className="px-4 py-3 flex items-center gap-2">
           <div

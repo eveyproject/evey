@@ -1,5 +1,9 @@
 export function Skeleton({ className }: { className?: string }) {
-  return <div className={`animate-pulse rounded bg-[var(--surface-raised)] ${className ?? ""}`} />;
+  return (
+    <div aria-busy="true" className={`animate-pulse rounded bg-[var(--surface-raised)] ${className ?? ""}`}>
+      <span className="sr-only">Loading…</span>
+    </div>
+  );
 }
 
 export function MediaCardSkeleton() {
@@ -22,7 +26,7 @@ export function MediaCardSkeleton() {
 
 export function MediaGridSkeleton({ count = 12 }: { count?: number }) {
   return (
-    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
+    <div aria-busy="true" className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
       {Array.from({ length: count }).map((_, i) => (
         <MediaCardSkeleton key={i} />
       ))}
@@ -32,7 +36,7 @@ export function MediaGridSkeleton({ count = 12 }: { count?: number }) {
 
 export function MediaDetailSkeleton() {
   return (
-    <div className="animate-pulse">
+    <div aria-busy="true" className="animate-pulse">
       {/* Backdrop placeholder */}
       <div
         className="w-full -mx-6 -mt-6 mb-0 h-[420px] bg-[var(--surface)]"
@@ -64,7 +68,7 @@ export function MediaDetailSkeleton() {
 
 export function SliderRowSkeleton({ count = 6 }: { count?: number }) {
   return (
-    <div className="mb-8">
+    <div aria-busy="true" className="mb-8">
       <div className="flex items-center justify-between mb-3 px-1">
         <Skeleton className="h-5 w-40" />
       </div>
