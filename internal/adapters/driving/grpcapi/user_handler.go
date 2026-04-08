@@ -247,6 +247,9 @@ func (h *userHandler) CreateProfile(ctx context.Context, req *eveyv1.CreateProfi
 		Preferences: req.Preferences,
 	}
 	if req.AvatarPath != "" {
+		if strings.Contains(req.AvatarPath, "..") || !strings.HasPrefix(req.AvatarPath, "avatars/") {
+			return nil, status.Error(codes.InvalidArgument, "invalid avatar path")
+		}
 		p.AvatarPath = &req.AvatarPath
 	}
 	if req.MaxRating != "" {
