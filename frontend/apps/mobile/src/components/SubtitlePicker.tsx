@@ -40,7 +40,7 @@ export function SubtitlePicker({
   return (
     <BottomSheet visible={visible} onClose={onClose} title={t("player.settings.subtitles")}>
       <Pressable
-        style={styles.row}
+        style={[styles.row, { borderBottomColor: theme.colors.divider }]}
         onPress={() => {
           onSelect(null);
           onClose();
@@ -59,7 +59,7 @@ export function SubtitlePicker({
         return (
           <Pressable
             key={s.index}
-            style={styles.row}
+            style={[styles.row, { borderBottomColor: theme.colors.divider }]}
             onPress={() => {
               onSelect(s.index);
               onClose();
@@ -74,18 +74,18 @@ export function SubtitlePicker({
               </Text>
               <View style={styles.badges}>
                 {s.isForced && (
-                  <View style={styles.badge}>
-                    <Text style={styles.badgeText}>Forced</Text>
+                  <View style={[styles.badge, { backgroundColor: theme.colors.divider }]}>
+                    <Text style={[styles.badgeText, { color: theme.colors.textMuted }]}>Forced</Text>
                   </View>
                 )}
                 {s.isDefault && (
-                  <View style={styles.badge}>
-                    <Text style={styles.badgeText}>Default</Text>
+                  <View style={[styles.badge, { backgroundColor: theme.colors.divider }]}>
+                    <Text style={[styles.badgeText, { color: theme.colors.textMuted }]}>Default</Text>
                   </View>
                 )}
                 {s.burnIn && (
-                  <View style={styles.badgeBurnIn}>
-                    <Text style={styles.badgeText}>{t("media.burnIn")}</Text>
+                  <View style={[styles.badgeBurnIn, { backgroundColor: theme.colors.warning + "33" }]}>
+                    <Text style={[styles.badgeText, { color: theme.colors.textMuted }]}>{t("media.burnIn")}</Text>
                   </View>
                 )}
               </View>
@@ -113,7 +113,6 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     paddingVertical: 14,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: "rgba(255,255,255,0.08)",
   },
   labelRow: {
     flex: 1,
@@ -129,19 +128,16 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   badge: {
-    backgroundColor: "rgba(255,255,255,0.12)",
     paddingHorizontal: 6,
     paddingVertical: 2,
     borderRadius: 4,
   },
   badgeBurnIn: {
-    backgroundColor: "rgba(251,146,60,0.2)",
     paddingHorizontal: 6,
     paddingVertical: 2,
     borderRadius: 4,
   },
   badgeText: {
-    color: "rgba(255,255,255,0.6)",
     fontSize: 11,
     fontWeight: "500",
   },

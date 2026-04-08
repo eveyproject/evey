@@ -40,7 +40,7 @@ export function AddToPlaylistSheet({ visible, mediaItemId, onClose }: Props) {
 
   return (
     <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
-      <Pressable style={styles.backdrop} onPress={onClose}>
+      <Pressable style={[styles.backdrop, { backgroundColor: theme.colors.overlay }]} onPress={onClose}>
         <Pressable
           style={[styles.sheet, { backgroundColor: theme.colors.surface, borderTopLeftRadius: theme.radii.lg, borderTopRightRadius: theme.radii.lg }]}
           onPress={(e) => e.stopPropagation()}
@@ -98,7 +98,7 @@ export function AddToPlaylistSheet({ visible, mediaItemId, onClose }: Props) {
 }
 
 const styles = StyleSheet.create({
-  backdrop: { flex: 1, justifyContent: "flex-end", backgroundColor: "rgba(0,0,0,0.5)" },
+  backdrop: { flex: 1, justifyContent: "flex-end" },
   sheet: { paddingBottom: 34, paddingHorizontal: 16 },
   handle: { alignItems: "center", paddingVertical: 10 },
   handleBar: { width: 40, height: 4, borderRadius: 2, opacity: 0.4 },

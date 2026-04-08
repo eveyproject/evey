@@ -42,7 +42,7 @@ export function AudioTrackPicker({
         return (
           <Pressable
             key={s.index}
-            style={styles.row}
+            style={[styles.row, { borderBottomColor: theme.colors.divider }]}
             onPress={() => {
               onSelect(s.index);
               onClose();
@@ -69,7 +69,6 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     paddingVertical: 14,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: "rgba(255,255,255,0.08)",
   },
   label: {
     fontSize: 15,

@@ -57,7 +57,7 @@ export function ParentalPINModal({ visible, onClose, onVerified, profileId }: Pa
 
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
-      <View style={styles.backdrop}>
+      <View style={[styles.backdrop, { backgroundColor: theme.colors.overlay }]}>
         <View style={[styles.dialog, { backgroundColor: theme.colors.surface, borderRadius: theme.radii.lg }]}>
           <Text style={[styles.title, { color: theme.colors.text }]}>
             {t("common:parental.restrictedContent", "Restricted Content")}
@@ -131,7 +131,6 @@ export function ParentalPINModal({ visible, onClose, onVerified, profileId }: Pa
 const styles = StyleSheet.create({
   backdrop: {
     flex: 1,
-    backgroundColor: "rgba(0,0,0,0.6)",
     justifyContent: "center",
     alignItems: "center",
     padding: 32,

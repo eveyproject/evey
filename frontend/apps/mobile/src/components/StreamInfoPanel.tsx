@@ -40,7 +40,7 @@ function formatChannels(ch?: number): string {
 function InfoRow({ label, value }: { label: string; value: string }) {
   const theme = useTheme();
   return (
-    <View style={styles.row}>
+    <View style={[styles.row, { borderBottomColor: theme.colors.divider }]}>
       <Text style={[styles.label, { color: theme.colors.textMuted }]}>{label}</Text>
       <Text style={[styles.value, { color: theme.colors.text }]}>{value}</Text>
     </View>
@@ -56,6 +56,7 @@ function SectionHeader({ title }: { title: string }) {
 
 export function StreamInfoPanel({ visible, onClose, streamInfo }: StreamInfoPanelProps) {
   const { t } = useTranslation();
+  const theme = useTheme();
 
   if (!streamInfo) return null;
 
@@ -127,7 +128,7 @@ export function StreamInfoPanel({ visible, onClose, streamInfo }: StreamInfoPane
       {streamInfo.transcodeReasons && streamInfo.transcodeReasons.length > 0 && (
         <>
           <SectionHeader title={t("player.streamInfo.transcodeReasons", "Transcode Reasons")} />
-          <Text style={styles.reasons}>{streamInfo.transcodeReasons.join(", ")}</Text>
+          <Text style={[styles.reasons, { color: theme.colors.textMuted }]}>{streamInfo.transcodeReasons.join(", ")}</Text>
         </>
       )}
     </BottomSheet>
@@ -149,7 +150,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
     paddingVertical: 8,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: "rgba(255,255,255,0.08)",
   },
   label: {
     fontSize: 14,
@@ -162,7 +162,6 @@ const styles = StyleSheet.create({
     marginLeft: 12,
   },
   reasons: {
-    color: "rgba(255,255,255,0.6)",
     fontSize: 13,
     paddingVertical: 6,
   },
