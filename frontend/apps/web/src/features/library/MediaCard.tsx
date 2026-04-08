@@ -429,6 +429,7 @@ export const MediaCard = memo(function MediaCard({
         style={{ bottom: hasProgressBar ? "4.5rem" : "3.5rem", right: "0.5rem" }}
         data-testid="watched-badge"
         title={watched ? t("media.contextMenu.markUnwatched") : t("media.contextMenu.markWatched")}
+        aria-label={watched ? t("media.contextMenu.markUnwatched") : t("media.contextMenu.markWatched")}
         onClick={() => {
           if (!profileId) return;
           if (watched) markUnwatched.mutate({ mediaItemId: item.id!, params: { profileId } });
