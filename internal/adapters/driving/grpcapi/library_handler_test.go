@@ -113,6 +113,32 @@ func TestLibraryHandler_GetLibrary_NotFound(t *testing.T) {
 	assert.Equal(t, codes.NotFound, status.Code(err))
 }
 
+func TestLibraryHandler_GetLibrary_NoAccess(t *testing.T) {
+	h, libQuery, _, _, libraryAccess, _ := newTestLibraryHandler()
+
+	libQuery.Seed(&library.Library{ID: "lib-1", Name: "Movies", Type: "movie", Paths: []string{"/media/movies"}})
+	libraryAccess.Grant(context.Background(), "user-2", "lib-99")
+
+	ctx := userCtx("user-2", "profile-2")
+	_, err := h.GetLibrary(ctx, &eveyv1.GetLibraryRequest{Id: "lib-1"})
+
+	require.Error(t, err)
+	assert.Equal(t, codes.NotFound, status.Code(err))
+}
+
+func TestLibraryHandler_GetLibrary_AdminBypassAccess(t *testing.T) {
+	h, libQuery, _, _, libraryAccess, _ := newTestLibraryHandler()
+
+	libQuery.Seed(&library.Library{ID: "lib-1", Name: "Movies", Type: "movie", Paths: []string{"/media/movies"}})
+	libraryAccess.Grant(context.Background(), "user-2", "lib-99")
+
+	ctx := adminCtx()
+	resp, err := h.GetLibrary(ctx, &eveyv1.GetLibraryRequest{Id: "lib-1"})
+
+	require.NoError(t, err)
+	assert.Equal(t, "lib-1", resp.Id)
+}
+
 func TestLibraryHandler_ListLibraries(t *testing.T) {
 	h, libQuery, _, _, _, _ := newTestLibraryHandler()
 	ctx := adminCtx()
