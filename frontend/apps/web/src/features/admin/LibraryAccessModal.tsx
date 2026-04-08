@@ -1,0 +1,129 @@
+import { useState, useEffect, useCallback } from "react";
+import { useTranslation } from "react-i18next";
+import { useQuery } from "@tanstack/react-query";
+import { toast } from "@evey/store";
+import { eveyFetch } from "@evey/api";
+import type { V1User } from "@evey/api";
+import { Checkbox } from "@/components/ui/Checkbox";
+import { Spinner } from "@/components/ui/Spinner";
+import { Button } from "@/components/ui/Button";
+import { Badge } from "@/components/ui/Badge";
+import { Modal } from "@/components/ui/Modal";
+import type { LibraryAccessData } from "./users-constants";
+
+export function LibraryAccessModal({
+  user,
+  open,
+  onClose,
+}: {
+  user: V1User;
+  open: boolean;
+  onClose: () => void;
+}) {
+  const { t } = useTranslation();
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [saving, setSaving] = useState(false);
+
+  const { data, isLoading } = useQuery<LibraryAccessData>({
+    queryKey: ["/api/v1/admin/users", user.id, "library-access"],
+    queryFn: () => eveyFetch<LibraryAccessData>({ url: `/api/v1/admin/users/${user.id}/library-access`, method: "GET" }),
+    enabled: open,
+  });
+
+  useEffect(() => {
+    if (data) {
+      setSelected(new Set(data.libraryIds));
+    }
+  }, [data]);
+
+  const isUnrestricted = selected.size === 0;
+  const libraries = data?.libraries ?? [];
+
+  const handleToggle = useCallback((libId: string) => {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(libId)) {
+        next.delete(libId);
+      } else {
+        next.add(libId);
+      }
+      return next;
+    });
+  }, []);
+
+  async function handleSave() {
+    setSaving(true);
+    try {
+      if (selected.size === 0) {
+        await eveyFetch<void>({ url: `/api/v1/admin/users/${user.id}/library-access`, method: "DELETE" });
+      } else {
+        await eveyFetch<void>({
+          url: `/api/v1/admin/users/${user.id}/library-access`,
+          method: "PUT",
+          data: { libraryIds: Array.from(selected) },
+        });
+      }
+      toast.success(t("admin.users.libraryAccessUpdated"));
+      onClose();
+    } catch {
+      toast.error(t("admin.users.failedLibraryAccess"));
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <Modal open={open} onClose={onClose} title={t("admin.users.libraryAccessTitle", { name: user.username })}>
+      {isLoading ? (
+        <div className="flex justify-center py-8">
+          <Spinner size="md" />
+        </div>
+      ) : (
+        <div className="flex flex-col gap-4">
+          <p className="text-sm text-[var(--text-muted)]">
+            {isUnrestricted
+              ? t("admin.users.unrestrictedDesc")
+              : t("admin.users.restrictedDesc", { count: selected.size, libraryWord: selected.size === 1 ? "library" : "libraries" })}
+          </p>
+
+          {isUnrestricted && (
+            <Badge variant="success">{t("admin.users.unrestricted")}</Badge>
+          )}
+
+          <div className="flex flex-col gap-2">
+            {libraries.map((lib) => (
+              <div
+                key={lib.id}
+                className="px-3 py-2 rounded-[var(--radius-md)] hover:opacity-80 bg-[var(--surface)]"
+              >
+                <Checkbox
+                  label={lib.name}
+                  checked={selected.has(lib.id)}
+                  onChange={() => handleToggle(lib.id)}
+                />
+              </div>
+            ))}
+          </div>
+
+          {selected.size > 0 && (
+            <Button
+              variant="ghost"
+              onClick={() => setSelected(new Set())}
+            >
+              {t("admin.users.clearAllUnrestricted")}
+            </Button>
+          )}
+
+          <div className="flex justify-end gap-2 pt-2">
+            <Button variant="ghost" onClick={onClose}>
+              {t("common.cancel")}
+            </Button>
+            <Button onClick={handleSave} loading={saving}>
+              {t("common.save")}
+            </Button>
+          </div>
+        </div>
+      )}
+    </Modal>
+  );
+}
