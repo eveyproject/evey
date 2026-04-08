@@ -212,7 +212,7 @@ func TestWorkerPoolBoundedConcurrency(t *testing.T) {
 
 func TestWorkerPoolQueueFullDropsEvent(t *testing.T) {
 	t.Parallel()
-	bus := eventbus.NewWithPoolSize(1)
+	bus := eventbus.NewWithPoolSize(1, eventbus.WithQueueSize(64))
 	defer bus.Stop()
 
 	blocker := make(chan struct{})

@@ -42,19 +42,36 @@ type InMemoryEventBus struct {
 	wg     sync.WaitGroup
 }
 
-func New() *InMemoryEventBus {
-	return NewWithPoolSize(runtime.NumCPU() * 2)
+type Option func(*options)
+
+type options struct {
+	queueSize int
 }
 
-func NewWithPoolSize(workers int) *InMemoryEventBus {
+func WithQueueSize(n int) Option {
+	return func(o *options) {
+		if n > 0 {
+			o.queueSize = n
+		}
+	}
+}
+
+func New(opts ...Option) *InMemoryEventBus {
+	return NewWithPoolSize(runtime.NumCPU()*2, opts...)
+}
+
+func NewWithPoolSize(workers int, opts ...Option) *InMemoryEventBus {
 	if workers <= 0 {
 		workers = 1
 	}
-	queueSize := workers * 64
+	o := options{queueSize: workers * 256}
+	for _, fn := range opts {
+		fn(&o)
+	}
 	b := &InMemoryEventBus{
 		subs:  make(map[string][]subscription),
 		retry: DefaultRetryConfig,
-		queue: make(chan dispatchJob, queueSize),
+		queue: make(chan dispatchJob, o.queueSize),
 	}
 	for range workers {
 		b.wg.Add(1)
