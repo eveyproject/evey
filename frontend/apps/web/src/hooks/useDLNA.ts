@@ -51,14 +51,14 @@ function ensureCastSdk() {
   }
   console.log(TAG, "Injecting Cast sender SDK script...");
 
-  (window as any).__onGCastApiAvailable = (isAvailable: boolean) => {
+  window.__onGCastApiAvailable = (isAvailable: boolean) => {
     console.log(TAG, "__onGCastApiAvailable:", isAvailable);
     if (!isAvailable) {
       console.warn(TAG, "Cast SDK not available (requires Chrome/Chromium)");
       return;
     }
-    const cast = (window as any).cast;
-    const chrome = (window as any).chrome;
+    const cast = window.cast;
+    const chrome = window.chrome;
     if (!cast?.framework || !chrome?.cast) {
       console.error(TAG, "Cast framework missing despite isAvailable=true");
       return;
@@ -113,10 +113,10 @@ export function useDLNA() {
 
     const onReady = () => {
       chromecastReady.current = true;
-      const ctx = (window as any).cast?.framework?.CastContext?.getInstance();
+      const ctx = window.cast?.framework?.CastContext?.getInstance();
       if (!ctx) return;
 
-      const castFw = (window as any).cast.framework;
+      const castFw = window.cast.framework;
 
       ctx.addEventListener(castFw.CastContextEventType.CAST_STATE_CHANGED, (e: any) => {
         console.log(TAG, "CAST_STATE_CHANGED:", e.castState);
@@ -207,8 +207,8 @@ export function useDLNA() {
 
     if (chromecastReady.current) {
       try {
-        const cast = (window as any).cast;
-        const chrome = (window as any).chrome;
+        const cast = window.cast;
+        const chrome = window.chrome;
         const ctx = cast.framework.CastContext.getInstance();
 
         let session = ctx.getCurrentSession();
@@ -310,7 +310,7 @@ export function useDLNA() {
     console.log(TAG, "stopCast — mode:", state.mode);
     if (state.mode === "chromecast") {
       try {
-        const ctx = (window as any).cast?.framework?.CastContext?.getInstance();
+        const ctx = window.cast?.framework?.CastContext?.getInstance();
         ctx?.getCurrentSession()?.endSession(true);
       } catch (err) {
         console.error(TAG, "Error ending session:", err);
