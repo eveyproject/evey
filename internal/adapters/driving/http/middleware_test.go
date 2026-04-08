@@ -38,7 +38,7 @@ func TestTokenRedactMiddleware_DoesNotOverwriteHeader(t *testing.T) {
 
 func TestSecurityHeadersMiddleware(t *testing.T) {
 	next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {})
-	h := securityHeadersMiddleware(next)
+	h := securityHeadersMiddleware(false, next)
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
 	w := httptest.NewRecorder()
 	h.ServeHTTP(w, req)
