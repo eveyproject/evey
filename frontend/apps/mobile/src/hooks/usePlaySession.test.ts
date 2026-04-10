@@ -108,7 +108,8 @@ describe("usePlaySession integration", () => {
     await waitFor(() => expect(result.current.isLoading).toBe(false));
 
     expect(getStreamInfoMock).toHaveBeenCalledWith("m1", expect.objectContaining({
-      supportedCodecs: ["h264", "hevc", "aac"],
+      supportedCodecs: ["h264", "hevc", "vp9"],
+      supportedAudioCodecs: ["aac", "mp3", "opus", "flac", "ac3", "eac3"],
       supportedContainers: ["mp4", "hls"],
     }));
   });

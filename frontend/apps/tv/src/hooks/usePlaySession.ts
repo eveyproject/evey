@@ -12,6 +12,10 @@ import { getServerUrl } from "../lib/server-config";
 const DEVICE_ID = "evey-tv";
 const DEVICE_NAME = "Evey TV";
 
+const VIDEO_CODECS = ["h264", "hevc", "vp9"];
+const AUDIO_CODECS = ["aac", "mp3", "opus", "flac", "ac3", "eac3"];
+const CONTAINERS = ["mp4", "hls"];
+
 interface StreamTokenResponse {
   token: string;
   mediaId: string;
@@ -24,7 +28,7 @@ export interface PlaySessionResult {
   isLoading: boolean;
   isError: boolean;
   stopSession: () => void;
-  restartWithTracks: (audioIndex?: number, subtitleIndex?: number) => void;
+  restartWithTracks: (audioIndex?: number, subtitleIndex?: number, maxHeight?: number) => void;
   restartAtPosition: (positionSec: number) => void;
   transcodeOffset: number;
 }
@@ -35,6 +39,12 @@ async function fetchStreamToken(mediaId: string): Promise<string> {
     method: "POST",
   });
   return res.token;
+}
+
+function appendCodecParams(params: URLSearchParams): void {
+  params.set("videoCodecs", VIDEO_CODECS.join(","));
+  params.set("audioCodecs", AUDIO_CODECS.join(","));
+  params.set("containers", CONTAINERS.join(","));
 }
 
 function buildStreamUrl(
@@ -48,10 +58,13 @@ function buildStreamUrl(
     return `${serverUrl}/api/v1/media/${mediaId}/stream?token=${token}`;
   }
   if (streamInfo.playMethod === "PLAY_METHOD_DIRECT_STREAM") {
-    return `${serverUrl}/api/v1/media/${mediaId}/transcode?token=${token}&remux=1`;
+    const p = new URLSearchParams({ token, remux: "1" });
+    appendCodecParams(p);
+    return `${serverUrl}/api/v1/media/${mediaId}/transcode?${p.toString()}`;
   }
   const params = new URLSearchParams({ token });
   if (startSec && startSec > 0) params.set("startSec", String(Math.floor(startSec)));
+  appendCodecParams(params);
   return `${serverUrl}/api/v1/media/${mediaId}/hls/master.m3u8?${params.toString()}`;
 }
 
@@ -70,17 +83,19 @@ export function usePlaySession(mediaId: string): PlaySessionResult {
   const streamInfoRef = useRef<V1StreamInfo | null>(null);
 
   const startStream = useCallback(
-    async (audioStreamIndex?: number, subtitleStreamIndex?: number, startSec?: number) => {
+    async (audioStreamIndex?: number, subtitleStreamIndex?: number, maxHeight?: number, startSec?: number) => {
       try {
         const serverUrl = serverUrlRef.current || ((await getServerUrl()) ?? "");
         serverUrlRef.current = serverUrl;
         const screen = Dimensions.get("screen");
+        const screenH = Math.round(screen.height * (screen.scale ?? 1));
 
         const info = await playbackServiceGetStreamInfo(mediaId, {
-          supportedCodecs: ["h264", "hevc", "aac"],
-          supportedContainers: ["mp4", "hls"],
+          supportedCodecs: VIDEO_CODECS,
+          supportedAudioCodecs: AUDIO_CODECS,
+          supportedContainers: CONTAINERS,
           maxWidth: Math.round(screen.width * (screen.scale ?? 1)),
-          maxHeight: Math.round(screen.height * (screen.scale ?? 1)),
+          maxHeight: maxHeight && maxHeight > 0 ? Math.min(maxHeight, screenH) : screenH,
           audioStreamIndex,
           subtitleStreamIndex,
         });
@@ -142,7 +157,7 @@ export function usePlaySession(mediaId: string): PlaySessionResult {
   }, []);
 
   const restartWithTracks = useCallback(
-    (audioIndex?: number, subtitleIndex?: number) => {
+    (audioIndex?: number, subtitleIndex?: number, maxHeight?: number) => {
       const sid = sessionIdRef.current;
       if (sid) {
         playbackServiceStopStream({ sessionId: sid }).catch((err) =>
@@ -152,7 +167,7 @@ export function usePlaySession(mediaId: string): PlaySessionResult {
       }
       stoppedRef.current = false;
       setIsLoading(true);
-      startStream(audioIndex, subtitleIndex);
+      startStream(audioIndex, subtitleIndex, maxHeight);
     },
     [startStream],
   );
@@ -170,7 +185,7 @@ export function usePlaySession(mediaId: string): PlaySessionResult {
       stoppedRef.current = false;
       setStreamUrl(null);
       setIsLoading(true);
-      startStream(undefined, undefined, positionSec);
+      startStream(undefined, undefined, undefined, positionSec);
     },
     [startStream],
   );

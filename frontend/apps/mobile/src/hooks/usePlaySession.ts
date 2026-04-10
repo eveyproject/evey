@@ -12,6 +12,10 @@ import { getServerUrl } from "../lib/server-config";
 const DEVICE_ID = "evey-mobile";
 const DEVICE_NAME = "Evey Mobile";
 
+const VIDEO_CODECS = ["h264", "hevc", "vp9"];
+const AUDIO_CODECS = ["aac", "mp3", "opus", "flac", "ac3", "eac3"];
+const CONTAINERS = ["mp4", "hls"];
+
 interface StreamTokenResponse {
   token: string;
   mediaId: string;
@@ -38,6 +42,12 @@ async function fetchStreamToken(mediaId: string): Promise<string> {
   return res.token;
 }
 
+function appendCodecParams(params: URLSearchParams): void {
+  params.set("videoCodecs", VIDEO_CODECS.join(","));
+  params.set("audioCodecs", AUDIO_CODECS.join(","));
+  params.set("containers", CONTAINERS.join(","));
+}
+
 function buildStreamUrl(
   serverUrl: string,
   mediaId: string,
@@ -49,10 +59,13 @@ function buildStreamUrl(
     return `${serverUrl}/api/v1/media/${mediaId}/stream?token=${token}`;
   }
   if (streamInfo.playMethod === "PLAY_METHOD_DIRECT_STREAM") {
-    return `${serverUrl}/api/v1/media/${mediaId}/transcode?token=${token}&remux=1`;
+    const p = new URLSearchParams({ token, remux: "1" });
+    appendCodecParams(p);
+    return `${serverUrl}/api/v1/media/${mediaId}/transcode?${p.toString()}`;
   }
   const params = new URLSearchParams({ token });
   if (startSec && startSec > 0) params.set("startSec", String(Math.floor(startSec)));
+  appendCodecParams(params);
   return `${serverUrl}/api/v1/media/${mediaId}/hls/master.m3u8?${params.toString()}`;
 }
 
@@ -81,8 +94,9 @@ export function usePlaySession(mediaId: string): PlaySessionResult {
 
         const [info, wp] = await Promise.all([
           playbackServiceGetStreamInfo(mediaId, {
-            supportedCodecs: ["h264", "hevc", "aac"],
-            supportedContainers: ["mp4", "hls"],
+            supportedCodecs: VIDEO_CODECS,
+            supportedAudioCodecs: AUDIO_CODECS,
+            supportedContainers: CONTAINERS,
             maxWidth: Math.round(screen.width * (screen.scale ?? 1)),
             maxHeight: maxHeight && maxHeight > 0 ? Math.min(maxHeight, screenH) : screenH,
             audioStreamIndex,

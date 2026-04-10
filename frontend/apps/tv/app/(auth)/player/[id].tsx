@@ -12,6 +12,7 @@ const { useTVEventHandler } = require("react-native") as {
 import { useTheme } from "../../../src/providers/ThemeProvider";
 import { usePlaySession } from "../../../src/hooks/usePlaySession";
 import { useProgressReporter } from "../../../src/hooks/useProgressReporter";
+import { QualityPicker } from "../../../src/components/QualityPicker";
 
 const CONTROLS_TIMEOUT = 4000;
 const SEEK_STEP = 10;
@@ -32,10 +33,12 @@ export default function PlayerScreen() {
   const mediaId = id ?? "";
 
   const { data: media } = useLibraryServiceGetMediaItem(mediaId);
-  const { streamUrl, sessionId, streamInfo, isLoading, isError, stopSession, restartAtPosition, transcodeOffset } =
+  const { streamUrl, sessionId, streamInfo, isLoading, isError, stopSession, restartWithTracks, restartAtPosition, transcodeOffset } =
     usePlaySession(mediaId);
 
   const [showControls, setShowControls] = useState(true);
+  const [showQualityPicker, setShowQualityPicker] = useState(false);
+  const [selectedQuality, setSelectedQuality] = useState(0);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
@@ -127,6 +130,14 @@ export default function PlayerScreen() {
     resetHideTimer();
   }, [player, resetHideTimer]);
 
+  const handleQualitySelect = useCallback(
+    (quality: number) => {
+      setSelectedQuality(quality);
+      restartWithTracks(undefined, undefined, quality || undefined);
+    },
+    [restartWithTracks],
+  );
+
   const handleBack = useCallback(() => {
     stopSession();
     router.back();
@@ -137,6 +148,7 @@ export default function PlayerScreen() {
     if (!evt) return;
     const type = evt.eventType;
 
+    if (showQualityPicker) return;
     if (type === "select" || type === "playPause") {
       togglePlayPause();
     } else if (type === "left") {
@@ -146,7 +158,8 @@ export default function PlayerScreen() {
     } else if (type === "up") {
       cycleSpeed();
     } else if (type === "down") {
-      resetHideTimer();
+      if (showControls) setShowQualityPicker(true);
+      else resetHideTimer();
     } else if (type === "menu" || type === "back") {
       if (showControls) handleBack();
       else resetHideTimer();
@@ -189,6 +202,13 @@ export default function PlayerScreen() {
         contentFit="contain"
       />
 
+      <QualityPicker
+        visible={showQualityPicker}
+        currentQuality={selectedQuality}
+        onSelect={handleQualitySelect}
+        onClose={() => setShowQualityPicker(false)}
+      />
+
       {showControls && (
         <View style={styles.overlay} pointerEvents="box-none">
           {/* Top bar */}
@@ -196,8 +216,15 @@ export default function PlayerScreen() {
             <Text style={styles.mediaTitle} numberOfLines={1}>
               {media?.title ?? ""}
             </Text>
-            <View style={styles.speedBadge}>
-              <Text style={styles.speedText}>{playbackSpeed}x</Text>
+            <View style={styles.badgeRow}>
+              {selectedQuality > 0 && (
+                <View style={styles.speedBadge}>
+                  <Text style={styles.speedText}>{selectedQuality}p</Text>
+                </View>
+              )}
+              <View style={styles.speedBadge}>
+                <Text style={styles.speedText}>{playbackSpeed}x</Text>
+              </View>
             </View>
           </View>
 
@@ -257,12 +284,17 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     flex: 1,
   },
+  badgeRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginLeft: 16,
+  },
   speedBadge: {
     backgroundColor: "rgba(255,255,255,0.2)",
     paddingHorizontal: 12,
     paddingVertical: 4,
     borderRadius: 12,
-    marginLeft: 16,
   },
   speedText: {
     color: "#fff",
