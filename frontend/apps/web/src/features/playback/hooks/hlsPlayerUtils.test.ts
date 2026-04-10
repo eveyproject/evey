@@ -1,5 +1,15 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import type { SubtitleStream } from "../SubtitleSelector";
+
+vi.mock("@/utils/codec", () => ({
+  canPlayHevc: false,
+  getBrowserCapabilities: () => ({
+    videoCodecs: ["h264"],
+    audioCodecs: ["aac", "mp3", "opus"],
+    containers: ["mp4"],
+  }),
+}));
+
 import {
   getSelectedBurnInTrack,
   buildTranscodeHlsUrl,
@@ -39,9 +49,13 @@ describe("getSelectedBurnInTrack", () => {
 });
 
 describe("buildTranscodeHlsUrl", () => {
-  it("builds URL with token and audioTrack only", () => {
+  it("builds URL with token, audioTrack, and codec params", () => {
     const url = buildTranscodeHlsUrl("m1", "tok", 0, null, 0);
-    expect(url).toBe("/api/v1/media/m1/hls/master.m3u8?token=tok&audioTrack=0");
+    expect(url).toContain("token=tok");
+    expect(url).toContain("audioTrack=0");
+    expect(url).toContain("videoCodecs=h264");
+    expect(url).toContain("audioCodecs=aac%2Cmp3%2Copus");
+    expect(url).toContain("containers=mp4");
   });
 
   it("includes subtitleTrack when burn-in selected", () => {

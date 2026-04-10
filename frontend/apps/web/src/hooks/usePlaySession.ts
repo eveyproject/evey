@@ -8,6 +8,7 @@ import {
 import type { V1StreamInfo, V1WatchProgress } from "@evey/api";
 import { usePlayerStore, useAuthStore } from "@evey/store";
 import { getBrowserCapabilities } from "@/utils/codec";
+import { appendCodecParams } from "@/features/playback/hooks/hlsPlayerUtils";
 import { useStreamToken } from "./useStreamToken";
 
 export interface PlaySessionResult {
@@ -54,13 +55,21 @@ export function usePlaySession(mediaId: string): PlaySessionResult {
             ? `${rawStreamInfo.directPlayUrl ?? `/api/v1/media/${mediaId}/stream`}?token=${currentStreamToken}`
             : rawStreamInfo.directPlayUrl;
         } else if (rawStreamInfo.playMethod === "PLAY_METHOD_DIRECT_STREAM") {
-          url = currentStreamToken
-            ? `/api/v1/media/${mediaId}/transcode?token=${currentStreamToken}&remux=1`
-            : rawStreamInfo.transcodeUrl;
+          if (currentStreamToken) {
+            const p = new URLSearchParams({ token: currentStreamToken, remux: "1" });
+            appendCodecParams(p);
+            url = `/api/v1/media/${mediaId}/transcode?${p.toString()}`;
+          } else {
+            url = rawStreamInfo.transcodeUrl;
+          }
         } else {
-          url = currentStreamToken
-            ? `/api/v1/media/${mediaId}/hls/master.m3u8?token=${currentStreamToken}`
-            : rawStreamInfo.transcodeUrl;
+          if (currentStreamToken) {
+            const p = new URLSearchParams({ token: currentStreamToken });
+            appendCodecParams(p);
+            url = `/api/v1/media/${mediaId}/hls/master.m3u8?${p.toString()}`;
+          } else {
+            url = rawStreamInfo.transcodeUrl;
+          }
         }
         return { ...rawStreamInfo, directPlayUrl: url };
       })()

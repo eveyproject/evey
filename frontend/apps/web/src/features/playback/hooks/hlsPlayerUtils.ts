@@ -1,4 +1,5 @@
 import type { SubtitleStream } from "../SubtitleSelector";
+import { getBrowserCapabilities } from "@/utils/codec";
 
 export function getSelectedBurnInTrack(
   currentSubtitle: number | null,
@@ -7,6 +8,13 @@ export function getSelectedBurnInTrack(
   if (currentSubtitle === null) return null;
   const sub = subtitleStreams.find((s) => s.trackIndex === currentSubtitle);
   return sub?.burnIn ? currentSubtitle : null;
+}
+
+export function appendCodecParams(params: URLSearchParams): void {
+  const caps = getBrowserCapabilities();
+  if (caps.videoCodecs.length > 0) params.set("videoCodecs", caps.videoCodecs.join(","));
+  if (caps.audioCodecs.length > 0) params.set("audioCodecs", caps.audioCodecs.join(","));
+  if (caps.containers.length > 0) params.set("containers", caps.containers.join(","));
 }
 
 export function buildTranscodeHlsUrl(
@@ -21,6 +29,7 @@ export function buildTranscodeHlsUrl(
   params.set("audioTrack", String(audioTrack));
   if (selectedBurnInTrack !== null) params.set("subtitleTrack", String(selectedBurnInTrack));
   if (startSec > 0) params.set("startSec", String(startSec));
+  appendCodecParams(params);
   return `/api/v1/media/${mediaId}/hls/master.m3u8?${params.toString()}`;
 }
 

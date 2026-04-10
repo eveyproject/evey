@@ -5,9 +5,11 @@ import (
 	"log/slog"
 	"net/http"
 	"strconv"
+	"strings"
 
 	apptranscoding "github.com/gravity-zero/evey/internal/app/transcoding"
 	domainlibrary "github.com/gravity-zero/evey/internal/domain/library"
+	domaintranscoding "github.com/gravity-zero/evey/internal/domain/transcoding"
 	"github.com/gravity-zero/evey/internal/pkg/hdr"
 )
 
@@ -55,7 +57,7 @@ func (h *transcodeServe) parseParams(r *http.Request) transcodeParams {
 	return p
 }
 
-func (h *transcodeServe) analyzeStreams(ctx context.Context, mediaID string, remuxOnly, clientSupportsHDR bool, subtitleTrack int) transcodeAnalysis {
+func (h *transcodeServe) analyzeStreams(ctx context.Context, mediaID string, remuxOnly bool, client domaintranscoding.ClientProfile, subtitleTrack int) transcodeAnalysis {
 	a := transcodeAnalysis{needsAudioTranscode: true}
 
 	streams, err := h.libSvc.GetMediaStreams(ctx, mediaID)
@@ -66,12 +68,11 @@ func (h *transcodeServe) analyzeStreams(ctx context.Context, mediaID string, rem
 	a.streams = streams
 	for _, s := range streams {
 		slog.Debug("transcode: stream", slog.String("media_id", mediaID), slog.String("type", s.StreamType), slog.String("codec", s.Codec), slog.Bool("default", s.IsDefault))
-		if s.StreamType == "video" && s.Codec != "h264" && !remuxOnly {
+		if s.StreamType == "video" && !remuxOnly && !containsCodec(client.VideoCodecs, s.Codec) {
 			a.needsVideoTranscode = true
 		}
 		if s.StreamType == "audio" && s.IsDefault {
-			switch s.Codec {
-			case "aac", "mp3", "opus":
+			if containsCodec(client.AudioCodecs, s.Codec) {
 				a.needsAudioTranscode = false
 			}
 		}
@@ -100,7 +101,7 @@ func (h *transcodeServe) analyzeStreams(ctx context.Context, mediaID string, rem
 		hdrStreams[i] = s
 	}
 	a.hdrInfo = hdr.DetectHDR(hdrStreams)
-	a.needsToneMap = a.hdrInfo.IsHDR && !clientSupportsHDR
+	a.needsToneMap = a.hdrInfo.IsHDR && !client.SupportsHDR
 	if a.needsToneMap {
 		a.needsVideoTranscode = true
 	}
@@ -143,4 +144,31 @@ func (h *hlsMasterServe) resolveSubtitle(r *http.Request, streams []*domainlibra
 		subIdx++
 	}
 	return -1, ""
+}
+
+func parseClientCapabilities(r *http.Request, hdrSupported bool) domaintranscoding.ClientProfile {
+	client := domaintranscoding.DefaultWebProfile
+	if v := r.URL.Query().Get("videoCodecs"); v != "" {
+		client.VideoCodecs = strings.Split(v, ",")
+	}
+	if v := r.URL.Query().Get("audioCodecs"); v != "" {
+		client.AudioCodecs = strings.Split(v, ",")
+	}
+	if v := r.URL.Query().Get("containers"); v != "" {
+		client.Containers = strings.Split(v, ",")
+	}
+	if hdrSupported {
+		client.SupportsHDR = true
+	}
+	return client
+}
+
+func containsCodec(list []string, codec string) bool {
+	codec = strings.ToLower(codec)
+	for _, v := range list {
+		if strings.EqualFold(v, codec) {
+			return true
+		}
+	}
+	return false
 }

@@ -292,10 +292,7 @@ func (h *hlsMasterServe) serveHTTP(w http.ResponseWriter, r *http.Request) {
 	audioNormalize := h.audioNormalizeGetter != nil && h.audioNormalizeGetter(r.Context())
 
 	// Compute playback decision to determine video/audio copy vs transcode
-	client := domaintranscoding.DefaultWebProfile
-	if hdrSupported {
-		client.SupportsHDR = true
-	}
+	client := parseClientCapabilities(r, hdrSupported)
 	decision := apptranscoding.MakePlaybackDecision(mediaStreams, item.ContainerFormat, client, 0)
 	videoDecision := decision.VideoDecision
 	audioDecision := decision.AudioDecision
@@ -469,6 +466,10 @@ func hlsSegmentHandler(tokenGen TokenVerifier, libSvc MediaItemGetter, hlsManage
 			w.Header().Set("Content-Type", "video/mp2t")
 			w.Header().Set("Cache-Control", "no-cache")
 			http.ServeFile(w, r, filePath)
+		case strings.HasSuffix(file, ".m4s"), strings.HasSuffix(file, ".mp4"):
+			w.Header().Set("Content-Type", "video/mp4")
+			w.Header().Set("Cache-Control", "no-cache")
+			http.ServeFile(w, r, filePath)
 		default:
 			http.ServeFile(w, r, filePath)
 		}
@@ -542,7 +543,8 @@ func (h *transcodeServe) serveHTTP(w http.ResponseWriter, r *http.Request) {
 
 	params := h.parseParams(r)
 	clientSupportsHDR := r.URL.Query().Get("hdr") == "true"
-	analysis := h.analyzeStreams(r.Context(), mediaID, params.remuxOnly, clientSupportsHDR, params.subtitleTrack)
+	client := parseClientCapabilities(r, clientSupportsHDR)
+	analysis := h.analyzeStreams(r.Context(), mediaID, params.remuxOnly, client, params.subtitleTrack)
 
 	slog.Debug("transcode: decision", slog.String("media_id", mediaID), slog.Bool("needsVideoTranscode", analysis.needsVideoTranscode), slog.Bool("needsAudioTranscode", analysis.needsAudioTranscode), slog.Bool("remuxOnly", params.remuxOnly), slog.Bool("needsToneMap", analysis.needsToneMap))
 

@@ -17,7 +17,7 @@ export function getBrowserCapabilities(): BrowserCapabilities {
 
   const videoCodecs: string[] = [];
   if (canPlay('video/mp4; codecs="avc1.42E01E"')) videoCodecs.push("h264");
-  if (canPlay('video/mp4; codecs="hev1.1.6.L93.B0"') || canPlay('video/mp4; codecs="hvc1"')) videoCodecs.push("hevc");
+  if (canPlayHevc) videoCodecs.push("hevc");
   if (canPlay('video/webm; codecs="vp9"')) videoCodecs.push("vp9");
   if (canPlay('video/mp4; codecs="av01.0.00M.08"')) videoCodecs.push("av1");
 

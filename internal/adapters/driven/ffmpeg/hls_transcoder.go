@@ -156,6 +156,18 @@ func BuildFFmpegArgs(opts transcoding.HLSProcessOpts) []string {
 	return buildMultiVariantArgs(opts)
 }
 
+func needsFMP4Segments(streams []*library.MediaStream) bool {
+	for _, s := range streams {
+		if s.StreamType == "video" {
+			switch strings.ToLower(s.Codec) {
+			case "hevc", "h265", "av1", "vp9":
+				return true
+			}
+		}
+	}
+	return false
+}
+
 func buildCopyVideoArgs(opts transcoding.HLSProcessOpts) []string {
 	var args []string
 	if opts.StartSec > 0 {
@@ -174,13 +186,21 @@ func buildCopyVideoArgs(opts transcoding.HLSProcessOpts) []string {
 	} else {
 		args = append(args, "-c:a", "copy")
 	}
-	args = append(args,
-		"-f", "hls",
-		"-hls_time", "3",
-		"-hls_list_size", "0",
-		"-hls_segment_filename", filepath.Join(opts.OutputDir, "stream_0_%03d.ts"),
-		filepath.Join(opts.OutputDir, "stream_0.m3u8"),
-	)
+
+	useFMP4 := needsFMP4Segments(opts.Streams)
+	args = append(args, "-f", "hls", "-hls_time", "3", "-hls_list_size", "0")
+	if useFMP4 {
+		args = append(args,
+			"-hls_segment_type", "fmp4",
+			"-hls_fmp4_init_filename", "stream_0_init.mp4",
+			"-hls_segment_filename", filepath.Join(opts.OutputDir, "stream_0_%03d.m4s"),
+		)
+	} else {
+		args = append(args,
+			"-hls_segment_filename", filepath.Join(opts.OutputDir, "stream_0_%03d.ts"),
+		)
+	}
+	args = append(args, filepath.Join(opts.OutputDir, "stream_0.m3u8"))
 	return args
 }
 
@@ -300,7 +320,10 @@ func buildMultiVariantArgs(opts transcoding.HLSProcessOpts) []string {
 		args = append(args,
 			"-map", fmt.Sprintf("[o%d]", i),
 			fmt.Sprintf("-c:v:%d", i), "libx264",
+			fmt.Sprintf("-profile:v:%d", i), "high", fmt.Sprintf("-level:v:%d", i), "4.1",
 			fmt.Sprintf("-b:v:%d", i), fmt.Sprintf("%dk", p.VideoBitrate),
+			"-preset", "veryfast",
+			"-pix_fmt", "yuv420p",
 			"-map", fmt.Sprintf("0:a:%d", opts.AudioTrackIndex),
 			fmt.Sprintf("-c:a:%d", i), "aac", "-ac", "2",
 			fmt.Sprintf("-b:a:%d", i), fmt.Sprintf("%dk", p.AudioBitrate),

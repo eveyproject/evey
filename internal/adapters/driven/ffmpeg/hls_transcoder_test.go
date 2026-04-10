@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/gravity-zero/evey/internal/adapters/driven/ffmpeg"
+	"github.com/gravity-zero/evey/internal/domain/library"
 	"github.com/gravity-zero/evey/internal/domain/transcoding"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -98,6 +99,9 @@ func TestBuildFFmpegArgs_MultiVariant(t *testing.T) {
 	assert.Contains(t, joined, "[0:v]split=")
 	assert.Contains(t, joined, "var_stream_map")
 	assert.Contains(t, joined, "master.m3u8")
+	assert.Contains(t, joined, "-profile:v:0 high")
+	assert.Contains(t, joined, "-level:v:0 4.1")
+	assert.Contains(t, joined, "-pix_fmt yuv420p")
 }
 
 func TestBuildFFmpegArgs_SeekBeforeInput(t *testing.T) {
@@ -289,6 +293,45 @@ func TestIsImageSubtitle(t *testing.T) {
 	}
 	assert.False(t, ffmpeg.IsImageSubtitle("srt"), "srt is not image subtitle")
 	assert.False(t, ffmpeg.IsImageSubtitle("ass"), "ass is not image subtitle")
+}
+
+func TestBuildFFmpegArgs_HEVCCopy_UsesFMP4Segments(t *testing.T) {
+	opts := transcoding.HLSProcessOpts{
+		OutputDir:       "/tmp/test",
+		FilePath:        "/f.mkv",
+		Profiles:        transcoding.DefaultHLSProfiles,
+		VideoDecision:   "copy",
+		AudioDecision:   "copy",
+		AudioTrackIndex: 0,
+		Streams: []*library.MediaStream{
+			{StreamType: "video", Codec: "hevc"},
+			{StreamType: "audio", Codec: "eac3", IsDefault: true},
+		},
+	}
+	args := ffmpeg.BuildFFmpegArgs(opts)
+	joined := strings.Join(args, " ")
+	assert.Contains(t, joined, "-hls_segment_type fmp4")
+	assert.Contains(t, joined, ".m4s")
+	assert.NotContains(t, joined, "%03d.ts")
+}
+
+func TestBuildFFmpegArgs_H264Copy_UsesTSSegments(t *testing.T) {
+	opts := transcoding.HLSProcessOpts{
+		OutputDir:       "/tmp/test",
+		FilePath:        "/f.mkv",
+		Profiles:        transcoding.DefaultHLSProfiles,
+		VideoDecision:   "copy",
+		AudioDecision:   "copy",
+		AudioTrackIndex: 0,
+		Streams: []*library.MediaStream{
+			{StreamType: "video", Codec: "h264"},
+			{StreamType: "audio", Codec: "aac", IsDefault: true},
+		},
+	}
+	args := ffmpeg.BuildFFmpegArgs(opts)
+	joined := strings.Join(args, " ")
+	assert.Contains(t, joined, "%03d.ts")
+	assert.NotContains(t, joined, "-hls_segment_type fmp4")
 }
 
 // Integration test — requires ffmpeg binary

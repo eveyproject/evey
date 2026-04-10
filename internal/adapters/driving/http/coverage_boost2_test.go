@@ -13,6 +13,7 @@ import (
 	"time"
 
 	appmedia "github.com/gravity-zero/evey/internal/app/media"
+	domaintranscoding "github.com/gravity-zero/evey/internal/domain/transcoding"
 	appsubtitle "github.com/gravity-zero/evey/internal/app/subtitle"
 	apptranscoding "github.com/gravity-zero/evey/internal/app/transcoding"
 	domainlibrary "github.com/gravity-zero/evey/internal/domain/library"
@@ -746,7 +747,7 @@ func TestAnalyzeStreams_H264_AAC_DirectPlay(t *testing.T) {
 			{StreamType: "audio", Codec: "aac", IsDefault: true},
 		},
 	}}
-	a := h.analyzeStreams(context.Background(), "m1", false, false, -1)
+	a := h.analyzeStreams(context.Background(), "m1", false, domaintranscoding.DefaultWebProfile, -1)
 	if a.needsVideoTranscode {
 		t.Error("h264 should not need video transcode")
 	}
@@ -763,7 +764,7 @@ func TestAnalyzeStreams_HEVC_NeedsTranscode(t *testing.T) {
 			{StreamType: "audio", Codec: "aac", IsDefault: true},
 		},
 	}}
-	a := h.analyzeStreams(context.Background(), "m1", false, false, -1)
+	a := h.analyzeStreams(context.Background(), "m1", false, domaintranscoding.DefaultWebProfile, -1)
 	if !a.needsVideoTranscode {
 		t.Error("hevc should need video transcode")
 	}
@@ -777,7 +778,7 @@ func TestAnalyzeStreams_RemuxOnly_NoVideoTranscode(t *testing.T) {
 			{StreamType: "audio", Codec: "aac", IsDefault: true},
 		},
 	}}
-	a := h.analyzeStreams(context.Background(), "m1", true, false, -1)
+	a := h.analyzeStreams(context.Background(), "m1", true, domaintranscoding.DefaultWebProfile, -1)
 	if a.needsVideoTranscode {
 		t.Error("remux mode should not trigger video transcode")
 	}
@@ -791,7 +792,7 @@ func TestAnalyzeStreams_NonAACAudio_NeedsTranscode(t *testing.T) {
 			{StreamType: "audio", Codec: "dts", IsDefault: true},
 		},
 	}}
-	a := h.analyzeStreams(context.Background(), "m1", false, false, -1)
+	a := h.analyzeStreams(context.Background(), "m1", false, domaintranscoding.DefaultWebProfile, -1)
 	if !a.needsAudioTranscode {
 		t.Error("dts should need audio transcode")
 	}
@@ -805,7 +806,7 @@ func TestAnalyzeStreams_OpusAudio_NoCopy(t *testing.T) {
 			{StreamType: "audio", Codec: "opus", IsDefault: true},
 		},
 	}}
-	a := h.analyzeStreams(context.Background(), "m1", false, false, -1)
+	a := h.analyzeStreams(context.Background(), "m1", false, domaintranscoding.DefaultWebProfile, -1)
 	if a.needsAudioTranscode {
 		t.Error("opus should not need audio transcode")
 	}
@@ -819,7 +820,7 @@ func TestAnalyzeStreams_MP3Audio_NoCopy(t *testing.T) {
 			{StreamType: "audio", Codec: "mp3", IsDefault: true},
 		},
 	}}
-	a := h.analyzeStreams(context.Background(), "m1", false, false, -1)
+	a := h.analyzeStreams(context.Background(), "m1", false, domaintranscoding.DefaultWebProfile, -1)
 	if a.needsAudioTranscode {
 		t.Error("mp3 should not need audio transcode")
 	}
@@ -835,7 +836,7 @@ func TestAnalyzeStreams_SubtitleTrack(t *testing.T) {
 			{StreamType: "subtitle", Codec: "hdmv_pgs_subtitle"},
 		},
 	}}
-	a := h.analyzeStreams(context.Background(), "m1", false, false, 1)
+	a := h.analyzeStreams(context.Background(), "m1", false, domaintranscoding.DefaultWebProfile, 1)
 	if !a.burnInSubtitle {
 		t.Error("PGS subtitle should trigger burn-in")
 	}
@@ -856,7 +857,7 @@ func TestAnalyzeStreams_SubtitleTrack_SRT(t *testing.T) {
 			{StreamType: "subtitle", Codec: "srt"},
 		},
 	}}
-	a := h.analyzeStreams(context.Background(), "m1", false, false, 0)
+	a := h.analyzeStreams(context.Background(), "m1", false, domaintranscoding.DefaultWebProfile, 0)
 	if a.burnInSubtitle {
 		t.Error("SRT should not burn-in")
 	}
@@ -870,12 +871,75 @@ func TestAnalyzeStreams_StreamsError(t *testing.T) {
 		item: testMediaItem("lib1"),
 		sErr: errors.New("db error"),
 	}}
-	a := h.analyzeStreams(context.Background(), "m1", false, false, -1)
+	a := h.analyzeStreams(context.Background(), "m1", false, domaintranscoding.DefaultWebProfile, -1)
 	if a.streams != nil {
 		t.Error("expected nil streams on error")
 	}
 	if !a.needsAudioTranscode {
 		t.Error("default should be needsAudioTranscode=true")
+	}
+}
+
+func TestAnalyzeStreams_HEVC_EAC3_Firefox_TranscodeBoth(t *testing.T) {
+	h := &transcodeServe{libSvc: &fakeMediaStreamsGetter{
+		item: testMediaItem("lib1"),
+		streams: []*domainlibrary.MediaStream{
+			{StreamType: "video", Codec: "hevc"},
+			{StreamType: "audio", Codec: "eac3", IsDefault: true},
+		},
+	}}
+	firefox := domaintranscoding.ClientProfile{
+		VideoCodecs: []string{"h264", "vp9"},
+		AudioCodecs: []string{"aac", "mp3", "opus", "flac"},
+	}
+	a := h.analyzeStreams(context.Background(), "m1", false, firefox, -1)
+	if !a.needsVideoTranscode {
+		t.Error("HEVC should need transcode on Firefox")
+	}
+	if !a.needsAudioTranscode {
+		t.Error("EAC3 should need transcode on Firefox")
+	}
+}
+
+func TestAnalyzeStreams_HEVC_EAC3_Safari_CopyBoth(t *testing.T) {
+	h := &transcodeServe{libSvc: &fakeMediaStreamsGetter{
+		item: testMediaItem("lib1"),
+		streams: []*domainlibrary.MediaStream{
+			{StreamType: "video", Codec: "hevc"},
+			{StreamType: "audio", Codec: "eac3", IsDefault: true},
+		},
+	}}
+	safari := domaintranscoding.ClientProfile{
+		VideoCodecs: []string{"h264", "hevc", "vp9"},
+		AudioCodecs: []string{"aac", "mp3", "opus", "flac", "ac3", "eac3"},
+	}
+	a := h.analyzeStreams(context.Background(), "m1", false, safari, -1)
+	if a.needsVideoTranscode {
+		t.Error("HEVC should copy on Safari")
+	}
+	if a.needsAudioTranscode {
+		t.Error("EAC3 should copy on Safari")
+	}
+}
+
+func TestAnalyzeStreams_HEVC_EAC3_PartialSupport(t *testing.T) {
+	h := &transcodeServe{libSvc: &fakeMediaStreamsGetter{
+		item: testMediaItem("lib1"),
+		streams: []*domainlibrary.MediaStream{
+			{StreamType: "video", Codec: "hevc"},
+			{StreamType: "audio", Codec: "eac3", IsDefault: true},
+		},
+	}}
+	client := domaintranscoding.ClientProfile{
+		VideoCodecs: []string{"h264", "hevc"},
+		AudioCodecs: []string{"aac", "mp3", "opus"},
+	}
+	a := h.analyzeStreams(context.Background(), "m1", false, client, -1)
+	if a.needsVideoTranscode {
+		t.Error("HEVC should copy when client supports it")
+	}
+	if !a.needsAudioTranscode {
+		t.Error("EAC3 should transcode when client doesn't support it")
 	}
 }
 

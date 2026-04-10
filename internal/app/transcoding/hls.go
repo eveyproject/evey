@@ -187,11 +187,18 @@ func (m *HLSManager) countByUser(userID string) int {
 func (m *HLSManager) GetOrCreate(userID, mediaItemID, filePath string, sourceWidth, sourceHeight, maxUserStreams, audioTrackIndex, subtitleTrackIndex int, subtitleCodec string, streams []*library.MediaStream, hdrSupported, audioNormalize bool, startSec float64, videoDecision, audioDecision string) (*HLSSession, error) {
 	m.mu.Lock()
 	if session, ok := m.sessions[mediaItemID]; ok {
-		session.MarkAccess()
+		if session.VideoDecision == videoDecision && session.AudioDecision == audioDecision {
+			session.MarkAccess()
+			m.mu.Unlock()
+			return session, nil
+		}
+		// Decision mismatch (different client capabilities) — evict stale session
+		m.evictSessionLocked(session)
 		m.mu.Unlock()
-		return session, nil
+		session.stop()
+	} else {
+		m.mu.Unlock()
 	}
-	m.mu.Unlock()
 
 	if err := m.acquireSemaphore(); err != nil {
 		return nil, err
@@ -202,9 +209,13 @@ func (m *HLSManager) GetOrCreate(userID, mediaItemID, filePath string, sourceWid
 
 	// Re-check: session may have been created while waiting
 	if session, ok := m.sessions[mediaItemID]; ok {
-		session.MarkAccess()
-		m.releaseSemaphore()
-		return session, nil
+		if session.VideoDecision == videoDecision && session.AudioDecision == audioDecision {
+			session.MarkAccess()
+			m.releaseSemaphore()
+			return session, nil
+		}
+		m.evictSessionLocked(session)
+		session.stop()
 	}
 
 	if maxUserStreams > 0 && m.countByUser(userID) >= maxUserStreams {
@@ -214,6 +225,11 @@ func (m *HLSManager) GetOrCreate(userID, mediaItemID, filePath string, sourceWid
 
 	profiles := FilterProfiles(transcoding.DefaultHLSProfiles, sourceWidth, sourceHeight)
 	outputDir := filepath.Join(m.cacheDir, mediaItemID)
+
+	// Invalidate disk cache if decisions don't match
+	if !matchesCachedDecision(outputDir, videoDecision, audioDecision) {
+		_ = os.RemoveAll(outputDir)
+	}
 
 	now := time.Now()
 	session := &HLSSession{
@@ -248,9 +264,19 @@ func (m *HLSManager) GetOrCreate(userID, mediaItemID, filePath string, sourceWid
 		close(session.ready)
 		close(session.done)
 	} else {
+		writeCachedDecision(outputDir, videoDecision, audioDecision)
 		go m.startSession(session, filePath)
 	}
 	return session, nil
+}
+
+func (m *HLSManager) evictSessionLocked(session *HLSSession) {
+	delete(m.sessions, session.MediaItemID)
+	m.userSessions[session.UserID]--
+	if m.userSessions[session.UserID] <= 0 {
+		delete(m.userSessions, session.UserID)
+	}
+	_ = os.RemoveAll(filepath.Join(m.cacheDir, session.MediaItemID))
 }
 
 func (m *HLSManager) startSession(session *HLSSession, filePath string) {
@@ -417,4 +443,18 @@ func isTranscodeComplete(outputDir string, numStreams int) bool {
 		}
 	}
 	return true
+}
+
+const decisionFileName = ".decision"
+
+func writeCachedDecision(outputDir, videoDecision, audioDecision string) {
+	_ = os.WriteFile(filepath.Join(outputDir, decisionFileName), []byte(videoDecision+"\n"+audioDecision), 0644)
+}
+
+func matchesCachedDecision(outputDir, videoDecision, audioDecision string) bool {
+	data, err := os.ReadFile(filepath.Join(outputDir, decisionFileName))
+	if err != nil {
+		return false
+	}
+	return string(data) == videoDecision+"\n"+audioDecision
 }

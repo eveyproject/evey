@@ -220,3 +220,84 @@ func TestHDRClient_DirectPlay(t *testing.T) {
 	assert.Equal(t, "direct_play", d.PlayMethod)
 	assert.Empty(t, d.TranscodeReasons)
 }
+
+// Target video: "Seize ans" (03451ca1) — HEVC + EAC3, MKV container
+
+func hevcEac3Streams() []*library.MediaStream {
+	return []*library.MediaStream{
+		{StreamType: "video", Codec: "hevc", Width: intPtr(1920), Height: intPtr(1080), Bitrate: int64Ptr(4000000), IsDefault: true},
+		{StreamType: "audio", Codec: "eac3", Channels: intPtr(6), Bitrate: int64Ptr(640000), IsDefault: true},
+	}
+}
+
+func TestHEVC_EAC3_Firefox_TranscodeBoth(t *testing.T) {
+	// Firefox: no HEVC, no EAC3
+	firefox := transcoding.ClientProfile{
+		VideoCodecs:      []string{"h264", "vp9"},
+		AudioCodecs:      []string{"aac", "mp3", "opus", "flac"},
+		Containers:       []string{"mp4", "webm"},
+		MaxWidth:         3840,
+		MaxHeight:        2160,
+		MaxAudioChannels: 8,
+	}
+	d := apptranscode.MakePlaybackDecision(hevcEac3Streams(), "mkv", firefox, 0)
+
+	assert.Equal(t, "transcode", d.PlayMethod)
+	assert.Equal(t, "transcode", d.VideoDecision)
+	assert.Equal(t, "transcode", d.AudioDecision)
+	assert.Contains(t, d.TranscodeReasons, "video_codec_unsupported")
+	assert.Contains(t, d.TranscodeReasons, "audio_codec_unsupported")
+	assert.Equal(t, "h264", d.VideoCodec)
+	assert.Equal(t, "aac", d.AudioCodec)
+}
+
+func TestHEVC_EAC3_Safari_CopyBoth(t *testing.T) {
+	// Safari/Edge: supports HEVC + EAC3
+	safari := transcoding.ClientProfile{
+		VideoCodecs:      []string{"h264", "hevc", "vp9"},
+		AudioCodecs:      []string{"aac", "mp3", "opus", "flac", "ac3", "eac3"},
+		Containers:       []string{"mp4"},
+		MaxWidth:         3840,
+		MaxHeight:        2160,
+		MaxAudioChannels: 8,
+	}
+	d := apptranscode.MakePlaybackDecision(hevcEac3Streams(), "mkv", safari, 0)
+
+	// Container mismatch (mkv → mp4) but both codecs supported → direct stream (remux)
+	assert.Equal(t, "direct_stream", d.PlayMethod)
+	assert.Equal(t, "copy", d.VideoDecision)
+	assert.Equal(t, "copy", d.AudioDecision)
+	assert.Contains(t, d.TranscodeReasons, "container_incompatible")
+	assert.Equal(t, "mp4", d.Container)
+}
+
+func TestHEVC_EAC3_DefaultWebProfile_TranscodeBoth(t *testing.T) {
+	// DefaultWebProfile has no HEVC, no EAC3
+	d := apptranscode.MakePlaybackDecision(hevcEac3Streams(), "mkv", transcoding.DefaultWebProfile, 0)
+
+	assert.Equal(t, "transcode", d.PlayMethod)
+	assert.Equal(t, "transcode", d.VideoDecision)
+	assert.Equal(t, "transcode", d.AudioDecision)
+	assert.Contains(t, d.TranscodeReasons, "video_codec_unsupported")
+	assert.Contains(t, d.TranscodeReasons, "audio_codec_unsupported")
+}
+
+func TestHEVC_EAC3_PartialSupport_TranscodeAudioOnly(t *testing.T) {
+	// Client supports HEVC but not EAC3
+	client := transcoding.ClientProfile{
+		VideoCodecs:      []string{"h264", "hevc"},
+		AudioCodecs:      []string{"aac", "mp3", "opus"},
+		Containers:       []string{"mp4"},
+		MaxWidth:         3840,
+		MaxHeight:        2160,
+		MaxAudioChannels: 8,
+	}
+	d := apptranscode.MakePlaybackDecision(hevcEac3Streams(), "mkv", client, 0)
+
+	assert.Equal(t, "transcode", d.PlayMethod)
+	assert.Equal(t, "copy", d.VideoDecision)
+	assert.Equal(t, "transcode", d.AudioDecision)
+	assert.NotContains(t, d.TranscodeReasons, "video_codec_unsupported")
+	assert.Contains(t, d.TranscodeReasons, "audio_codec_unsupported")
+	assert.Equal(t, "aac", d.AudioCodec)
+}
