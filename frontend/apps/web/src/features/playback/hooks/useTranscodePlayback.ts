@@ -5,7 +5,6 @@ import { buildTranscodeHlsUrl } from "./hlsPlayerUtils";
 interface UseTranscodePlaybackArgs {
   videoRef: React.RefObject<HTMLVideoElement | null>;
   hlsRef: React.MutableRefObject<InstanceType<typeof Hls> | null>;
-  hlsLevelsRef: React.MutableRefObject<{ height: number }[]>;
   positionRef: React.MutableRefObject<number>;
   transcodeOffsetRef: React.MutableRefObject<number>;
   wasPausedRef: React.MutableRefObject<boolean>;
@@ -24,7 +23,6 @@ interface UseTranscodePlaybackArgs {
 export function useTranscodePlayback({
   videoRef,
   hlsRef,
-  hlsLevelsRef,
   positionRef,
   transcodeOffsetRef,
   wasPausedRef,
@@ -40,6 +38,7 @@ export function useTranscodePlayback({
   setFatalError,
 }: UseTranscodePlaybackArgs) {
   const [transcodeStartTime, setTranscodeStartTime] = useState(startPositionMs / 1000);
+  const [hlsLevels, setHlsLevels] = useState<number[]>([]);
 
   useEffect(() => {
     if (!transcodeMode) return;
@@ -96,7 +95,7 @@ export function useTranscodePlayback({
     hls.attachMedia(video);
 
     hls.on(Hls.Events.MANIFEST_PARSED, () => {
-      hlsLevelsRef.current = hls.levels.map((l) => ({ height: l.height }));
+      setHlsLevels(hls.levels.map((l) => l.height));
       video.play().catch(() => {});
     });
 
@@ -169,5 +168,5 @@ export function useTranscodePlayback({
   // eslint-disable-next-line react-hooks/exhaustive-deps -- streamTokenRef/onStreamTokenRefreshRef read imperatively; setFatalError/setIsBuffering/setTranscodeStartTime are stable setState
   }, [transcodeMode, mediaId, onEnded, currentTrackIndex, transcodeStartTime, selectedBurnInTrack]);
 
-  return { transcodeStartTime, setTranscodeStartTime };
+  return { transcodeStartTime, setTranscodeStartTime, hlsLevels };
 }

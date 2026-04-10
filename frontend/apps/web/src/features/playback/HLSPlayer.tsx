@@ -105,7 +105,6 @@ export function HLSPlayer({
   const [currentTrackIndex, setCurrentTrackIndex] = useState(defaultAudio?.trackIndex ?? 0);
   const [currentQuality, setCurrentQuality] = useState(0);
   const [autoQuality, setAutoQuality] = useState(true);
-  const hlsLevelsRef = useRef<{ height: number }[]>([]);
   const [currentSubtitle, setCurrentSubtitle] = useState<number | null>(() =>
     resolveDefaultSubtitle(subtitleStreams, seriesId, getSeriesTrackPrefs, getPreferredSubtitleLang),
   );
@@ -184,8 +183,8 @@ export function HLSPlayer({
     setTranscodeMode, setIsBuffering,
   });
 
-  const { transcodeStartTime, setTranscodeStartTime } = useTranscodePlayback({
-    videoRef, hlsRef, hlsLevelsRef, positionRef, transcodeOffsetRef,
+  const { transcodeStartTime, setTranscodeStartTime, hlsLevels } = useTranscodePlayback({
+    videoRef, hlsRef, positionRef, transcodeOffsetRef,
     wasPausedRef, streamTokenRef, onStreamTokenRefreshRef,
     transcodeMode, mediaId, currentTrackIndex, selectedBurnInTrack,
     startPositionMs, onEnded, setIsBuffering, setFatalError,
@@ -473,7 +472,7 @@ export function HLSPlayer({
         subtitleStyle={subtitleStyle}
         streamToken={streamToken}
         brightness={brightness}
-        availableQualities={hlsLevelsRef.current.map((l) => l.height)}
+        availableQualities={hlsLevels}
       >
         <PlayerControls
           onClose={onClose}

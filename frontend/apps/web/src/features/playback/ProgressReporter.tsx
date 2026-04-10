@@ -31,7 +31,6 @@ export function ProgressReporter({ sessionId, videoRef, transcodeOffsetRef, onRe
           volumeLevel: Math.round(video.volume * 100),
         });
         errorCountRef.current = 0;
-        if (import.meta.env.DEV) console.log("[progress-res]", JSON.stringify(res));
         if (res?.remoteCommand) {
           if (res.remoteCommand === "pause") {
             video.pause();
