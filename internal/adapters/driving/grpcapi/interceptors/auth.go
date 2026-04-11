@@ -103,13 +103,17 @@ func (i *AuthInterceptor) enforceRBAC(ctx context.Context, method string) error 
 		}
 	}
 
-	// Enforce API key permissions: check the method's required permission is granted.
-	if isAPIKey && len(claims.Permissions) > 0 {
-		if requiredPerm, ok := authpkg.MethodPermissions[method]; ok {
-			if !claims.HasPermission(requiredPerm) {
-				slog.Warn("api key permission denied", slog.String("method", method), slog.String("required", requiredPerm))
+	// Enforce API key permissions: empty permissions = deny-all.
+	if isAPIKey {
+		requiredPerm, hasMapping := authpkg.MethodPermissions[method]
+		if len(claims.Permissions) == 0 {
+			if hasMapping {
+				slog.Warn("api key permission denied (no permissions)", slog.String("method", method), slog.String("required", requiredPerm))
 				return i.translatedErr(ctx, codes.PermissionDenied, "errors.auth.insufficient_permissions")
 			}
+		} else if hasMapping && !claims.HasPermission(requiredPerm) {
+			slog.Warn("api key permission denied", slog.String("method", method), slog.String("required", requiredPerm))
+			return i.translatedErr(ctx, codes.PermissionDenied, "errors.auth.insufficient_permissions")
 		}
 	}
 

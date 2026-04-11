@@ -150,10 +150,11 @@ func TestAuthInterceptor_APIKey_Success(t *testing.T) {
 
 	rawKey := "evey_testkey123"
 	apiKeyRepo.Create(context.Background(), &user.APIKeyModel{
-		ID:      "ak-1",
-		UserID:  "usr-1",
-		KeyHash: apiKeyHash(rawKey),
-		Name:    "test",
+		ID:          "ak-1",
+		UserID:      "usr-1",
+		KeyHash:     apiKeyHash(rawKey),
+		Name:        "test",
+		Permissions: []string{auth.PermLibraryRead},
 	})
 	userRepo.Create(context.Background(), &user.User{
 		ID:       "usr-1",
@@ -398,10 +399,11 @@ func TestAuthInterceptor_APIKey_WithBearerPrefix(t *testing.T) {
 
 	rawKey := "evey_bearertest"
 	apiKeyRepo.Create(context.Background(), &user.APIKeyModel{
-		ID:      "ak-b",
-		UserID:  "usr-b",
-		KeyHash: apiKeyHash(rawKey),
-		Name:    "bearer-prefix",
+		ID:          "ak-b",
+		UserID:      "usr-b",
+		KeyHash:     apiKeyHash(rawKey),
+		Name:        "bearer-prefix",
+		Permissions: []string{auth.PermLibraryRead},
 	})
 	userRepo.Create(context.Background(), &user.User{
 		ID:       "usr-b",
