@@ -311,16 +311,16 @@ export default function FavoritesScreen() {
       />
       {bulkMode && (
         <View style={[styles.bulkBar, { backgroundColor: theme.colors.surfaceRaised, borderTopColor: theme.colors.border }]}>
-          <Text style={{ color: theme.colors.text, fontSize: 13, fontWeight: "600" }}>{selected.size} selected</Text>
+          <Text style={{ color: theme.colors.text, fontSize: 13, fontWeight: "600" }}>{t("common.selectedCount", "{{count}} selected", { count: selected.size })}</Text>
           <View style={{ flexDirection: "row", gap: 12 }}>
-            <Pressable onPress={bulkMarkWatched} style={styles.bulkBtn} accessible={true} accessibilityLabel="Mark watched" accessibilityRole="button">
+            <Pressable onPress={bulkMarkWatched} style={styles.bulkBtn} accessible={true} accessibilityLabel={t("media.library.markWatched", "Mark watched")} accessibilityRole="button">
               <Ionicons name="checkmark-circle-outline" size={20} color={theme.colors.accent} />
             </Pressable>
-            <Pressable onPress={bulkMarkUnwatched} style={styles.bulkBtn} accessible={true} accessibilityLabel="Mark unwatched" accessibilityRole="button">
+            <Pressable onPress={bulkMarkUnwatched} style={styles.bulkBtn} accessible={true} accessibilityLabel={t("media.library.markUnwatched", "Mark unwatched")} accessibilityRole="button">
               <Ionicons name="eye-off-outline" size={20} color={theme.colors.textMuted} />
             </Pressable>
-            <Pressable onPress={exitBulk} style={styles.bulkBtn} accessible={true} accessibilityLabel="Exit selection" accessibilityRole="button">
-              <Ionicons name="close" size={20} color="#ef4444" />
+            <Pressable onPress={exitBulk} style={styles.bulkBtn} accessible={true} accessibilityLabel={t("common.cancel")} accessibilityRole="button">
+              <Ionicons name="close" size={20} color={theme.colors.error} />
             </Pressable>
           </View>
         </View>

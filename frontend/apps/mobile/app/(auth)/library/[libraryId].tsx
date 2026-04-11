@@ -922,27 +922,27 @@ export default function LibraryDetailScreen() {
       {/* Bulk action bar */}
       {bulkMode && (
         <View style={[styles.bulkBar, { backgroundColor: theme.colors.surfaceRaised, borderTopColor: theme.colors.border }]}>
-          <Text style={{ color: theme.colors.text, fontSize: 13, fontWeight: "600" }}>{selected.size} selected</Text>
+          <Text style={{ color: theme.colors.text, fontSize: 13, fontWeight: "600" }}>{t("common.selectedCount", "{{count}} selected", { count: selected.size })}</Text>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 12 }}>
-            <Pressable onPress={bulkMarkWatched} style={styles.bulkBtn}>
+            <Pressable onPress={bulkMarkWatched} style={styles.bulkBtn} accessible accessibilityLabel={t("media.library.markWatched", "Mark watched")} accessibilityRole="button">
               <Ionicons name="checkmark-circle-outline" size={20} color={theme.colors.accent} />
-              <Text style={{ color: theme.colors.text, fontSize: 11 }}>Watched</Text>
+              <Text style={{ color: theme.colors.text, fontSize: 11 }}>{t("media.library.markWatched", "Watched")}</Text>
             </Pressable>
-            <Pressable onPress={bulkMarkUnwatched} style={styles.bulkBtn}>
+            <Pressable onPress={bulkMarkUnwatched} style={styles.bulkBtn} accessible accessibilityLabel={t("media.library.markUnwatched", "Mark unwatched")} accessibilityRole="button">
               <Ionicons name="eye-off-outline" size={20} color={theme.colors.textMuted} />
-              <Text style={{ color: theme.colors.text, fontSize: 11 }}>Unwatched</Text>
+              <Text style={{ color: theme.colors.text, fontSize: 11 }}>{t("media.library.markUnwatched", "Unwatched")}</Text>
             </Pressable>
-            <Pressable onPress={bulkToggleFavorite} style={styles.bulkBtn}>
+            <Pressable onPress={bulkToggleFavorite} style={styles.bulkBtn} accessible accessibilityLabel={t("media.favorites.toggleFavorite", "Favorite")} accessibilityRole="button">
               <Ionicons name="heart-outline" size={20} color={theme.colors.accent} />
-              <Text style={{ color: theme.colors.text, fontSize: 11 }}>Favorite</Text>
+              <Text style={{ color: theme.colors.text, fontSize: 11 }}>{t("media.favorites.toggleFavorite", "Favorite")}</Text>
             </Pressable>
-            <Pressable onPress={() => setShowBulkPlaylist(true)} style={styles.bulkBtn}>
+            <Pressable onPress={() => setShowBulkPlaylist(true)} style={styles.bulkBtn} accessible accessibilityLabel={t("media.detail.addToPlaylist", "Playlist")} accessibilityRole="button">
               <Ionicons name="add-circle-outline" size={20} color={theme.colors.accent} />
-              <Text style={{ color: theme.colors.text, fontSize: 11 }}>Playlist</Text>
+              <Text style={{ color: theme.colors.text, fontSize: 11 }}>{t("media.detail.addToPlaylist", "Playlist")}</Text>
             </Pressable>
-            <Pressable onPress={exitBulk} style={styles.bulkBtn}>
-              <Ionicons name="close" size={20} color="#ef4444" />
-              <Text style={{ color: theme.colors.text, fontSize: 11 }}>Cancel</Text>
+            <Pressable onPress={exitBulk} style={styles.bulkBtn} accessible accessibilityLabel={t("common.cancel")} accessibilityRole="button">
+              <Ionicons name="close" size={20} color={theme.colors.error} />
+              <Text style={{ color: theme.colors.text, fontSize: 11 }}>{t("common.cancel")}</Text>
             </Pressable>
           </ScrollView>
         </View>
