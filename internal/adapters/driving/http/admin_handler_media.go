@@ -39,6 +39,7 @@ func (h *adminHandler) handleRefreshMetadata(w http.ResponseWriter, r *http.Requ
 		http.Error(w, `{"message":"too many requests"}`, http.StatusTooManyRequests)
 		return
 	}
+	r.Body = http.MaxBytesReader(w, r.Body, 1<<20)
 	var body struct {
 		TmdbID    string `json:"tmdb_id"`
 		ImdbID    string `json:"imdb_id"`

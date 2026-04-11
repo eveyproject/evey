@@ -68,6 +68,7 @@ func registerLibraryAccessRoutes(mux *http.ServeMux, accessRepo domainuser.Libra
 			http.Error(w, `{"message":"forbidden"}`, http.StatusForbidden)
 			return
 		}
+		r.Body = http.MaxBytesReader(w, r.Body, 1<<20)
 		userID := r.PathValue("userId")
 		var body struct {
 			LibraryIDs []string `json:"libraryIds"`
@@ -143,6 +144,7 @@ func registerRemoteAccessRoutes(mux *http.ServeMux, cfg *config.Config, tokenGen
 			http.Error(w, `{"message":"forbidden"}`, http.StatusForbidden)
 			return
 		}
+		r.Body = http.MaxBytesReader(w, r.Body, 1<<20)
 		var body struct {
 			Enabled              *bool    `json:"enabled"`
 			ExternalURL          *string  `json:"externalUrl"`
@@ -235,6 +237,7 @@ func registerPlaybackSettingsRoutes(mux *http.ServeMux, cfg *config.Config, toke
 			http.Error(w, `{"message":"forbidden"}`, http.StatusForbidden)
 			return
 		}
+		r.Body = http.MaxBytesReader(w, r.Body, 1<<20)
 		var body struct {
 			SkipForwardSeconds  *int `json:"skipForwardSeconds"`
 			SkipBackwardSeconds *int `json:"skipBackwardSeconds"`
@@ -309,6 +312,7 @@ func registerScheduleRoutes(mux *http.ServeMux, scheduler *applibrary.Scheduler,
 			http.Error(w, `{"message":"forbidden"}`, http.StatusForbidden)
 			return
 		}
+		r.Body = http.MaxBytesReader(w, r.Body, 1<<20)
 		var body struct {
 			Cron    string `json:"cron"`
 			Enabled *bool  `json:"enabled"`

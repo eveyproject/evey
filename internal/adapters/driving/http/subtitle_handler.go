@@ -231,6 +231,7 @@ func (h *subtitleRoutes) download(w http.ResponseWriter, r *http.Request) {
 	if _, ok := h.requireMediaAccess(w, r, mediaID); !ok {
 		return
 	}
+	r.Body = http.MaxBytesReader(w, r.Body, 1<<20)
 	var body struct {
 		FileID   int    `json:"fileId"`
 		Language string `json:"language"`
@@ -257,7 +258,6 @@ func (h *subtitleRoutes) download(w http.ResponseWriter, r *http.Request) {
 		"mediaItemId":  sub.MediaItemID,
 		"language":     sub.Language,
 		"format":       sub.Format,
-		"filePath":     sub.FilePath,
 		"source":       sub.Source,
 		"downloadedAt": sub.DownloadedAt.UTC().Format(time.RFC3339),
 	}); err != nil {
@@ -281,7 +281,6 @@ func (h *subtitleRoutes) list(w http.ResponseWriter, r *http.Request) {
 		MediaItemID  string `json:"mediaItemId"`
 		Language     string `json:"language"`
 		Format       string `json:"format"`
-		FilePath     string `json:"filePath"`
 		Source       string `json:"source"`
 		DownloadedAt string `json:"downloadedAt"`
 	}
@@ -292,7 +291,6 @@ func (h *subtitleRoutes) list(w http.ResponseWriter, r *http.Request) {
 			MediaItemID:  s.MediaItemID,
 			Language:     s.Language,
 			Format:       s.Format,
-			FilePath:     s.FilePath,
 			Source:       s.Source,
 			DownloadedAt: s.DownloadedAt.UTC().Format(time.RFC3339),
 		})
