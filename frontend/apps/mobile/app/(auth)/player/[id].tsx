@@ -34,6 +34,9 @@ import {
   CastContext, CastButtonNative, useCastStateHook, useRemoteMediaClientHook,
   useMediaStatusHook, CastStateEnum,
 } from "../../../src/hooks/useChromecast";
+import { useSyncPlay } from "../../../src/hooks/useSyncPlay";
+import { SyncPlayBar } from "../../../src/components/SyncPlayBar";
+import { SyncPlayModal } from "../../../src/components/SyncPlayModal";
 
 const IMAGE_SUBTITLE_CODECS = new Set([
   "pgssub", "hdmv_pgs_subtitle", "dvd_subtitle", "dvbsub", "xsub",
@@ -138,6 +141,16 @@ export default function PlayerScreen() {
   const [seekTouchX, setSeekTouchX] = useState<number | null>(null);
   const volumeBaseRef = useRef(1);
   const hideTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [showSyncPlay, setShowSyncPlay] = useState(false);
+  const [syncCreating, setSyncCreating] = useState(false);
+  const [syncJoining, setSyncJoining] = useState(false);
+  const syncPlayRef = useRef<{ player: typeof player }>(null);
+
+  const syncPlay = useSyncPlay({
+    onPlay: (posMs) => { if (syncPlayRef.current?.player) { syncPlayRef.current.player.currentTime = posMs / 1000; syncPlayRef.current.player.play(); } },
+    onPause: (posMs) => { if (syncPlayRef.current?.player) { syncPlayRef.current.player.currentTime = posMs / 1000; syncPlayRef.current.player.pause(); } },
+    onSeek: (posMs) => { if (syncPlayRef.current?.player) { syncPlayRef.current.player.currentTime = posMs / 1000; } },
+  });
 
   const videoSource = useMemo(() => {
     if (!streamUrl) return null;
@@ -161,6 +174,8 @@ export default function PlayerScreen() {
     }
     p.play();
   });
+
+  useEffect(() => { syncPlayRef.current = { player } as any; }, [player]);
 
   useEffect(() => {
     if (!player) return;
@@ -296,11 +311,13 @@ export default function PlayerScreen() {
     if (!player) return;
     if (player.playing) {
       player.pause();
+      if (syncPlay.state.connected) syncPlay.sendPause(player.currentTime * 1000);
     } else {
       player.play();
+      if (syncPlay.state.connected) syncPlay.sendPlay(player.currentTime * 1000);
     }
     resetHideTimer();
-  }, [player, resetHideTimer]);
+  }, [player, resetHideTimer, syncPlay]);
 
   const knownDuration = media?.durationMs ? Number(media.durationMs) / 1000 : 0;
   const effectiveDuration = knownDuration > 0 ? knownDuration : duration;
@@ -327,9 +344,10 @@ export default function PlayerScreen() {
       } else if (player) {
         player.currentTime = targetSec;
       }
+      if (syncPlay.state.connected) syncPlay.sendSeek(targetSec * 1000);
       resetHideTimer();
     },
-    [player, duration, knownDuration, resetHideTimer, isTranscode, restartAtPosition],
+    [player, duration, knownDuration, resetHideTimer, isTranscode, restartAtPosition, syncPlay],
   );
 
   const seekBy = useCallback(
@@ -762,6 +780,16 @@ export default function PlayerScreen() {
                     <Ionicons name="albums-outline" size={18} color="#fff" />
                   </Pressable>
                 )}
+                <Pressable
+                  onPress={() => syncPlay.state.connected ? syncPlay.leaveRoom() : setShowSyncPlay(true)}
+                  hitSlop={8}
+                  style={styles.trackButton}
+                  accessible={true}
+                  accessibilityLabel={syncPlay.state.connected ? t("media.syncplay.leave", "Leave") : t("media.syncplay.title", "Watch Together")}
+                  accessibilityRole="button"
+                >
+                  <Ionicons name="people" size={18} color={syncPlay.state.connected ? theme.colors.accent : "#fff"} />
+                </Pressable>
                 {CastContext && (
                   <>
                     {CastButtonNative && <CastButtonNative style={{ width: 0, height: 0, opacity: 0 }} />}
@@ -844,6 +872,18 @@ export default function PlayerScreen() {
             </View>
           </View>
         )}
+
+        {syncPlay.state.connected && (
+          <View style={{ position: "absolute", bottom: 0, left: 0, right: 0 }}>
+            <SyncPlayBar
+              roomCode={syncPlay.state.roomCode}
+              isHost={syncPlay.state.isHost}
+              members={syncPlay.state.members}
+              connected={syncPlay.state.connected}
+              onLeave={syncPlay.leaveRoom}
+            />
+          </View>
+        )}
       </View>
 
       <AudioTrackPicker
@@ -881,6 +921,27 @@ export default function PlayerScreen() {
         visible={showStreamInfo}
         onClose={() => setShowStreamInfo(false)}
         streamInfo={streamInfo}
+      />
+
+      <SyncPlayModal
+        visible={showSyncPlay}
+        onClose={() => setShowSyncPlay(false)}
+        creating={syncCreating}
+        joining={syncJoining}
+        onCreateRoom={async () => {
+          setSyncCreating(true);
+          try {
+            await syncPlay.createRoom(mediaId);
+            setShowSyncPlay(false);
+          } catch {} finally { setSyncCreating(false); }
+        }}
+        onJoinRoom={async (code) => {
+          setSyncJoining(true);
+          try {
+            await syncPlay.joinByCode(code);
+            setShowSyncPlay(false);
+          } catch {} finally { setSyncJoining(false); }
+        }}
       />
 
     </View>
