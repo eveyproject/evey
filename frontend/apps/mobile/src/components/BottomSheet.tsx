@@ -1,4 +1,5 @@
 import { useEffect, useRef } from "react";
+import { useTranslation } from "react-i18next";
 import {
   View,
   Text,
@@ -21,6 +22,7 @@ interface BottomSheetProps {
 }
 
 export function BottomSheet({ visible, onClose, title, children }: BottomSheetProps) {
+  const { t } = useTranslation();
   const theme = useTheme();
   const translateY = useRef(new Animated.Value(SCREEN_HEIGHT)).current;
 
@@ -43,7 +45,7 @@ export function BottomSheet({ visible, onClose, title, children }: BottomSheetPr
 
   return (
     <Modal visible={visible} transparent animationType="none" onRequestClose={onClose}>
-      <Pressable style={[styles.backdrop, { backgroundColor: theme.colors.overlay }]} onPress={onClose} accessible={true} accessibilityLabel="Close" accessibilityRole="button">
+      <Pressable style={[styles.backdrop, { backgroundColor: theme.colors.overlay }]} onPress={onClose} accessible={true} accessibilityLabel={t("common.close", "Close")} accessibilityRole="button">
         <View />
       </Pressable>
       <Animated.View style={[styles.sheet, { transform: [{ translateY }], backgroundColor: theme.colors.surface }]}>

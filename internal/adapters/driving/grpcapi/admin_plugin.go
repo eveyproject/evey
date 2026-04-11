@@ -29,7 +29,7 @@ type adminPluginHandler struct {
 func (d *adminPluginHandler) ListPluginRuntimes(ctx context.Context, _ *eveyv1.ListPluginRuntimesRequest) (*eveyv1.ListPluginRuntimesResponse, error) {
 	runtimes, err := d.pluginQuery.ListRuntimes(ctx)
 	if err != nil {
-		return nil, status.Errorf(codes.Internal, "list runtimes: %v", err)
+		return nil, internalError("list runtimes", err)
 	}
 	resp := &eveyv1.ListPluginRuntimesResponse{}
 	for _, rt := range runtimes {
@@ -45,14 +45,14 @@ func (d *adminPluginHandler) AddPluginRuntime(ctx context.Context, req *eveyv1.A
 		Version:  req.Version,
 	}
 	if err := d.pluginRuntime.AddRuntime(ctx, rt); err != nil {
-		return nil, status.Errorf(codes.Internal, "add runtime: %v", err)
+		return nil, internalError("add runtime", err)
 	}
 	return pluginRuntimeToProto(rt), nil
 }
 
 func (d *adminPluginHandler) RemovePluginRuntime(ctx context.Context, req *eveyv1.RemovePluginRuntimeRequest) (*eveyv1.RemovePluginRuntimeResponse, error) {
 	if err := d.pluginRuntime.RemoveRuntime(ctx, req.Id); err != nil {
-		return nil, status.Errorf(codes.Internal, "remove runtime: %v", err)
+		return nil, internalError("remove runtime", err)
 	}
 	return &eveyv1.RemovePluginRuntimeResponse{}, nil
 }
@@ -60,28 +60,28 @@ func (d *adminPluginHandler) RemovePluginRuntime(ctx context.Context, req *eveyv
 func (d *adminPluginHandler) InstallPlugin(ctx context.Context, req *eveyv1.InstallPluginRequest) (*eveyv1.Plugin, error) {
 	p, err := d.pluginInstaller.InstallPlugin(ctx, req.Source)
 	if err != nil {
-		return nil, status.Errorf(codes.Internal, "install plugin: %v", err)
+		return nil, internalError("install plugin", err)
 	}
 	return pluginToProto(p), nil
 }
 
 func (d *adminPluginHandler) UninstallPlugin(ctx context.Context, req *eveyv1.UninstallPluginRequest) (*eveyv1.UninstallPluginResponse, error) {
 	if err := d.pluginInstaller.UninstallPlugin(ctx, req.Id); err != nil {
-		return nil, status.Errorf(codes.Internal, "uninstall plugin: %v", err)
+		return nil, internalError("uninstall plugin", err)
 	}
 	return &eveyv1.UninstallPluginResponse{}, nil
 }
 
 func (d *adminPluginHandler) EnablePlugin(ctx context.Context, req *eveyv1.EnablePluginRequest) (*eveyv1.Plugin, error) {
 	if err := d.pluginRuntime.EnablePlugin(ctx, req.Id); err != nil {
-		return nil, status.Errorf(codes.Internal, "enable plugin: %v", err)
+		return nil, internalError("enable plugin", err)
 	}
 	return &eveyv1.Plugin{Id: req.Id, Enabled: true}, nil
 }
 
 func (d *adminPluginHandler) DisablePlugin(ctx context.Context, req *eveyv1.DisablePluginRequest) (*eveyv1.Plugin, error) {
 	if err := d.pluginRuntime.DisablePlugin(ctx, req.Id); err != nil {
-		return nil, status.Errorf(codes.Internal, "disable plugin: %v", err)
+		return nil, internalError("disable plugin", err)
 	}
 	return &eveyv1.Plugin{Id: req.Id, Enabled: false}, nil
 }
@@ -89,7 +89,7 @@ func (d *adminPluginHandler) DisablePlugin(ctx context.Context, req *eveyv1.Disa
 func (d *adminPluginHandler) ListPlugins(ctx context.Context, _ *eveyv1.ListPluginsRequest) (*eveyv1.ListPluginsResponse, error) {
 	plugins, err := d.pluginQuery.ListPlugins(ctx)
 	if err != nil {
-		return nil, status.Errorf(codes.Internal, "list plugins: %v", err)
+		return nil, internalError("list plugins", err)
 	}
 	resp := &eveyv1.ListPluginsResponse{}
 	for _, p := range plugins {
@@ -130,7 +130,7 @@ func (d *adminPluginHandler) UpdatePluginConfig(ctx context.Context, req *eveyv1
 	}
 	cfg := coerceConfigValues(req.Values, result.ConfigSchema)
 	if err := d.pluginRuntime.UpdatePluginConfig(ctx, req.PluginId, cfg); err != nil {
-		return nil, status.Errorf(codes.Internal, "update config: %v", err)
+		return nil, internalError("update config", err)
 	}
 	return &eveyv1.PluginConfig{
 		PluginId: req.PluginId,
@@ -148,7 +148,7 @@ func (d *adminPluginHandler) GetPluginLogs(_ context.Context, req *eveyv1.GetPlu
 		if errors.Is(err, os.ErrNotExist) {
 			return &eveyv1.GetPluginLogsResponse{}, nil
 		}
-		return nil, status.Errorf(codes.Internal, "open log: %v", err)
+		return nil, internalError("open log", err)
 	}
 	defer f.Close()
 

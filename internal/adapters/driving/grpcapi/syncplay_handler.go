@@ -61,7 +61,7 @@ func (h *syncplayHandler) CreateRoom(ctx context.Context, req *eveyv1.CreateSync
 	}
 	room, err := h.hub.CreateRoom(ctx, hostID, req.MediaId, name)
 	if err != nil {
-		return nil, status.Errorf(codes.Internal, "create room: %v", err)
+		return nil, internalError("create room", err)
 	}
 	return &eveyv1.CreateSyncPlayRoomResponse{
 		Id:      room.ID,

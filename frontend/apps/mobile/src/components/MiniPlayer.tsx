@@ -2,12 +2,14 @@ import { View, Text, Pressable, StyleSheet } from "react-native";
 import { Image } from "expo-image";
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
+import { useTranslation } from "react-i18next";
 import { usePlayerStore } from "@evey/store";
 import { useTheme } from "../providers/ThemeProvider";
 import { useAuthHeaders } from "../hooks/useAuthenticatedImage";
 import { useServerUrl } from "../hooks/useServerUrl";
 
 export function MiniPlayer() {
+  const { t } = useTranslation();
   const theme = useTheme();
   const authHeaders = useAuthHeaders();
   const serverUrl = useServerUrl();
@@ -27,7 +29,7 @@ export function MiniPlayer() {
       style={[styles.container, { backgroundColor: theme.colors.surfaceRaised, borderTopColor: theme.colors.border }]}
       onPress={() => router.push(`/(auth)/player/${mediaId}`)}
       accessible={true}
-      accessibilityLabel={mediaTitle ?? "Now Playing"}
+      accessibilityLabel={mediaTitle ?? t("player.nowPlaying", "Now Playing")}
       accessibilityRole="button"
     >
       {artworkUri ? (
@@ -43,10 +45,10 @@ export function MiniPlayer() {
       )}
       <View style={styles.info}>
         <Text style={[styles.title, { color: theme.colors.text }]} numberOfLines={1}>
-          {mediaTitle ?? "Now Playing"}
+          {mediaTitle ?? t("player.nowPlaying", "Now Playing")}
         </Text>
       </View>
-      <Pressable onPress={stop} hitSlop={12} style={styles.closeBtn} accessible={true} accessibilityLabel="Stop playback" accessibilityRole="button">
+      <Pressable onPress={stop} hitSlop={12} style={styles.closeBtn} accessible={true} accessibilityLabel={t("player.stop", "Stop playback")} accessibilityRole="button">
         <Ionicons name="close" size={20} color={theme.colors.textMuted} />
       </Pressable>
     </Pressable>

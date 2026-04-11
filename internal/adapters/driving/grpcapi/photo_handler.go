@@ -35,7 +35,7 @@ func (h *photoHandler) checkLibraryAccess(ctx context.Context, libraryID string)
 	}
 	ok, err := h.userAccess.HasLibraryAccess(ctx, claims.UserID, libraryID)
 	if err != nil {
-		return status.Errorf(codes.Internal, "check library access: %v", err)
+		return internalError("check library access", err)
 	}
 	if !ok {
 		return status.Error(codes.PermissionDenied, "no access to library")
@@ -60,7 +60,7 @@ func (h *photoHandler) ListPhotos(ctx context.Context, req *eveyv1.ListPhotosReq
 	offset := int(req.Offset)
 	photos, total, err := h.svc.ListPhotos(ctx, req.LibraryId, limit, offset)
 	if err != nil {
-		return nil, status.Errorf(codes.Internal, "list photos: %v", err)
+		return nil, internalError("list photos", err)
 	}
 	resp := &eveyv1.ListPhotosResponse{Total: int32(total)}
 	for _, p := range photos {
@@ -75,7 +75,7 @@ func (h *photoHandler) GetPhoto(ctx context.Context, req *eveyv1.GetPhotoRequest
 	}
 	p, err := h.svc.GetPhoto(ctx, req.Id)
 	if err != nil {
-		return nil, status.Errorf(codes.Internal, "get photo: %v", err)
+		return nil, internalError("get photo", err)
 	}
 	if p == nil {
 		return nil, status.Error(codes.NotFound, "photo not found")
@@ -98,7 +98,7 @@ func (h *photoHandler) ListPhotoAlbums(ctx context.Context, req *eveyv1.ListPhot
 	}
 	albums, err := h.svc.GetAlbums(ctx, req.LibraryId)
 	if err != nil {
-		return nil, status.Errorf(codes.Internal, "list photo albums: %v", err)
+		return nil, internalError("list photo albums", err)
 	}
 	resp := &eveyv1.ListPhotoAlbumsResponse{}
 	for _, a := range albums {
@@ -128,7 +128,7 @@ func (h *photoHandler) SearchPhotos(ctx context.Context, req *eveyv1.SearchPhoto
 	}
 	photos, err := h.svc.Search(ctx, req.LibraryId, req.Query, limit)
 	if err != nil {
-		return nil, status.Errorf(codes.Internal, "search photos: %v", err)
+		return nil, internalError("search photos", err)
 	}
 	resp := &eveyv1.SearchPhotosResponse{}
 	for _, p := range photos {
@@ -197,7 +197,7 @@ func (h *photoHandler) DeletePhoto(ctx context.Context, req *eveyv1.DeletePhotoR
 	}
 	p, err := h.svc.GetPhoto(ctx, req.Id)
 	if err != nil {
-		return nil, status.Errorf(codes.Internal, "get photo: %v", err)
+		return nil, internalError("get photo", err)
 	}
 	if p == nil {
 		return nil, status.Error(codes.NotFound, "photo not found")
@@ -208,7 +208,7 @@ func (h *photoHandler) DeletePhoto(ctx context.Context, req *eveyv1.DeletePhotoR
 		}
 	}
 	if err := h.svc.DeletePhoto(ctx, req.Id); err != nil {
-		return nil, status.Errorf(codes.Internal, "delete photo: %v", err)
+		return nil, internalError("delete photo", err)
 	}
 	return &emptypb.Empty{}, nil
 }

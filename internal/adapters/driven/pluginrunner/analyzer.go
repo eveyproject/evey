@@ -3,6 +3,7 @@ package pluginrunner
 import (
 	"bufio"
 	"fmt"
+	"net/http"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -121,16 +122,39 @@ var depManifests = map[string]bool{
 	"composer.json": true, "Gemfile": true, "go.mod": true,
 }
 
-// Binary extensions to skip (scan everything else as text)
-var binaryExtensions = map[string]bool{
+// Executable binary extensions — emit a warning (cannot be statically analyzed)
+var executableExtensions = map[string]bool{
 	".so": true, ".dll": true, ".dylib": true, ".exe": true,
 	".bin": true, ".o": true, ".a": true, ".class": true, ".jar": true,
 	".pyc": true, ".pyo": true, ".wasm": true,
-	".png": true, ".jpg": true, ".jpeg": true, ".gif": true, ".ico": true, ".svg": true,
-	".woff": true, ".woff2": true, ".ttf": true, ".eot": true,
+}
+
+// Executable binary extensions — emit a warning (cannot be statically analyzed)
+var archiveExtensions = map[string]bool{
 	".zip": true, ".gz": true, ".tar": true, ".bz2": true, ".xz": true,
-	".mp3": true, ".mp4": true, ".wav": true, ".flac": true,
-	".pdf": true, ".doc": true, ".docx": true,
+}
+
+// Asset extensions mapped to expected MIME type prefixes.
+// DetectContentType returns "application/octet-stream" for unknown formats,
+// so we accept that as valid for font/audio/doc types it can't identify.
+var assetMIME = map[string][]string{
+	".png":  {"image/png"},
+	".jpg":  {"image/jpeg"},
+	".jpeg": {"image/jpeg"},
+	".gif":  {"image/gif"},
+	".ico":  {"image/"},
+	".svg":  {"text/xml", "text/plain", "image/svg"},
+	".woff": {"application/octet-stream", "font/"},
+	".woff2": {"application/octet-stream", "font/"},
+	".ttf":  {"application/octet-stream", "font/"},
+	".eot":  {"application/octet-stream", "font/"},
+	".mp3":  {"audio/", "application/octet-stream"},
+	".mp4":  {"video/", "application/octet-stream"},
+	".wav":  {"audio/", "application/octet-stream"},
+	".flac": {"audio/", "application/octet-stream"},
+	".pdf":  {"application/pdf"},
+	".doc":  {"application/octet-stream", "application/msword"},
+	".docx": {"application/octet-stream", "application/zip"},
 }
 
 // StaticAnalyzer implements the domain PluginAnalyzer interface.
@@ -211,7 +235,44 @@ func AnalyzePlugin(dir string) (*AnalysisReport, error) {
 		}
 
 		ext := strings.ToLower(filepath.Ext(path))
-		if binaryExtensions[ext] {
+		if expectedMIMEs, isAsset := assetMIME[ext]; isAsset {
+			if mimeErr := verifyAssetMIME(path, ext, expectedMIMEs); mimeErr != "" {
+				relPath, relErr := filepath.Rel(dir, path)
+				if relErr != nil {
+					relPath = path
+				}
+				report.TotalFilesScanned++
+				report.Findings = append(report.Findings, AnalysisFinding{
+					Severity:    SeverityWarning,
+					Category:    "mime_mismatch",
+					File:        relPath,
+					Line:        0,
+					Pattern:     ext,
+					Description: mimeErr,
+				})
+			}
+			return nil
+		}
+		if executableExtensions[ext] || archiveExtensions[ext] {
+			relPath, relErr := filepath.Rel(dir, path)
+			if relErr != nil {
+				relPath = path
+			}
+			report.TotalFilesScanned++
+			category := "compiled_binary"
+			desc := "compiled binary cannot be statically analyzed — runtime sandbox will enforce isolation"
+			if archiveExtensions[ext] {
+				category = "embedded_archive"
+				desc = "archive may contain unanalyzed code extractable at runtime"
+			}
+			report.Findings = append(report.Findings, AnalysisFinding{
+				Severity:    SeverityWarning,
+				Category:    category,
+				File:        relPath,
+				Line:        0,
+				Pattern:     ext,
+				Description: desc,
+			})
 			return nil
 		}
 
@@ -234,13 +295,37 @@ func AnalyzePlugin(dir string) (*AnalysisReport, error) {
 	}
 
 	for _, f := range report.Findings {
-		if f.Severity == SeverityCritical {
+		if f.Severity == SeverityCritical || f.Category == "mime_mismatch" {
 			report.Safe = false
 			break
 		}
 	}
 
 	return report, nil
+}
+
+// verifyAssetMIME reads the first 512 bytes and checks the detected MIME type
+// against expected prefixes. Returns an error description if mismatched, empty string if OK.
+func verifyAssetMIME(path, ext string, expected []string) string {
+	f, err := os.Open(path)
+	if err != nil {
+		return ""
+	}
+	defer f.Close()
+
+	buf := make([]byte, 512)
+	n, _ := f.Read(buf)
+	if n == 0 {
+		return ""
+	}
+
+	detected := http.DetectContentType(buf[:n])
+	for _, prefix := range expected {
+		if strings.HasPrefix(detected, prefix) {
+			return ""
+		}
+	}
+	return fmt.Sprintf("file extension %s does not match detected content type %q — possible disguised file", ext, detected)
 }
 
 func scanFile(path, relPath string) ([]AnalysisFinding, []ExtractedURL, error) {

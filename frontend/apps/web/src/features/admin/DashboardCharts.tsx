@@ -6,10 +6,7 @@ import {
 import { BarChart, PieChart } from "react-gifted-charts";
 import { formatBytes } from "./DashboardStatCard";
 
-function useCssVar(name: string, fallback = "#888") {
-  return getComputedStyle(document.documentElement).getPropertyValue(name).trim() || fallback;
-}
-
+import { useCssVar } from "@/hooks/useCssVar";
 import { CHART_COLORS } from "@/constants/chartColors";
 
 export function PlayActivityChart() {

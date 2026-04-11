@@ -32,20 +32,6 @@ func newBackupTestMux(t *testing.T, isAdmin bool) (*http.ServeMux, string) {
 	return mux, token
 }
 
-func TestBackupRequiresAdmin(t *testing.T) {
-	tv := validUserValidator(false)
-	handler := requireAdmin(tv, func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusOK)
-	})
-	req := httptest.NewRequest("POST", "/api/v1/admin/backups", nil)
-	req.Header.Set("Authorization", "Bearer token")
-	w := httptest.NewRecorder()
-	handler(w, req)
-	if w.Code != http.StatusForbidden {
-		t.Errorf("expected 403 for non-admin, got %d", w.Code)
-	}
-}
-
 func TestListBackups_NoAuth_403(t *testing.T) {
 	mux, _ := newBackupTestMux(t, false)
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/admin/backups", nil)

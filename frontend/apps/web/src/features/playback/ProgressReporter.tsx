@@ -12,6 +12,8 @@ interface ProgressReporterProps {
 export function ProgressReporter({ sessionId, videoRef, transcodeOffsetRef, onRemoteStop }: ProgressReporterProps) {
   const pendingRef = useRef(false);
   const errorCountRef = useRef(0);
+  const onRemoteStopRef = useRef(onRemoteStop);
+  onRemoteStopRef.current = onRemoteStop;
 
   useEffect(() => {
     const id = setInterval(async () => {
@@ -38,7 +40,7 @@ export function ProgressReporter({ sessionId, videoRef, transcodeOffsetRef, onRe
             video.play().catch(() => {});
           } else if (res.remoteCommand === "stop") {
             video.pause();
-            onRemoteStop?.();
+            onRemoteStopRef.current?.();
           } else if (res.remoteCommand.startsWith("message:")) {
             toast.info(res.remoteCommand.slice(8));
           }

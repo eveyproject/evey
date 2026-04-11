@@ -1,5 +1,6 @@
 import React, { useState, useCallback } from "react";
 import { Pressable, StyleSheet, type ViewStyle, type StyleProp } from "react-native";
+import { useTheme } from "../providers/ThemeProvider";
 
 interface FocusableCardProps {
   onPress?: () => void;
@@ -9,7 +10,7 @@ interface FocusableCardProps {
   hasTVPreferredFocus?: boolean;
 }
 
-export function FocusableCard({
+export const FocusableCard = React.memo(function FocusableCard({
   onPress,
   children,
   style,
@@ -17,6 +18,7 @@ export function FocusableCard({
   hasTVPreferredFocus,
 }: FocusableCardProps) {
   const [focused, setFocused] = useState(false);
+  const theme = useTheme();
 
   const handleFocus = useCallback(() => setFocused(true), []);
   const handleBlur = useCallback(() => setFocused(false), []);
@@ -30,7 +32,7 @@ export function FocusableCard({
       style={[
         styles.card,
         style,
-        focused && styles.focused,
+        focused && [styles.focused, { borderColor: theme.colors.accent }],
         focused && focusedStyle,
       ]}
       accessible={true}
@@ -39,7 +41,7 @@ export function FocusableCard({
       {children}
     </Pressable>
   );
-}
+});
 
 const styles = StyleSheet.create({
   card: {
@@ -48,7 +50,6 @@ const styles = StyleSheet.create({
     borderRadius: 8,
   },
   focused: {
-    borderColor: "#6366f1",
     transform: [{ scale: 1.05 }],
   },
 });

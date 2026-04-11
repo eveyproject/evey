@@ -256,13 +256,12 @@ func (h *playbackHandler) GetWatchHistory(ctx context.Context, req *eveyv1.GetWa
 	limit := int(req.Limit)
 	if limit <= 0 {
 		limit = 50
-	} else if limit > 500 {
-		limit = 500
+	} else if limit > maxPageSize {
+		limit = maxPageSize
 	}
 	offset := 0
 	if req.Pagination != nil {
-		offset = int((req.Pagination.Page - 1) * req.Pagination.PageSize)
-		limit = int(req.Pagination.PageSize)
+		limit, offset = clampPagination(req.Pagination.PageSize, req.Pagination.Page, limit)
 	}
 	items, err := h.query.GetWatchHistory(ctx, profileID, limit, offset)
 	if err != nil {

@@ -45,7 +45,7 @@ func (h *metadataHandler) SearchMetadata(ctx context.Context, req *eveyv1.Search
 	mediaType := mediaItemTypeFromProto[req.Type]
 	results, err := h.query.SearchMetadata(ctx, req.Query, mediaType)
 	if err != nil {
-		return nil, status.Errorf(codes.Internal, "search metadata: %v", err)
+		return nil, internalError("search metadata", err)
 	}
 	resp := &eveyv1.SearchMetadataResponse{}
 	limit := int(req.Limit)
@@ -63,13 +63,13 @@ func (h *metadataHandler) RefreshMetadata(req *eveyv1.RefreshMetadataRequest, st
 	if req.PreferredProvider != "" {
 		_, err := h.cmd.RefreshMetadata(ctx, req.MediaItemId, "", req.PreferredProvider, "")
 		if err != nil {
-			return status.Errorf(codes.Internal, "refresh metadata: %v", err)
+			return internalError("refresh metadata", err)
 		}
 	} else {
 		// Auto-detect: look up TMDB ID from the item and do a full re-enrich
 		item, err := h.cmd.GetMediaItem(ctx, req.MediaItemId)
 		if err != nil {
-			return status.Errorf(codes.Internal, "get item: %v", err)
+			return internalError("get item", err)
 		}
 		tmdbID := item.ProviderIDs["tmdb"]
 		mediaType := "movie"
@@ -78,7 +78,7 @@ func (h *metadataHandler) RefreshMetadata(req *eveyv1.RefreshMetadataRequest, st
 		}
 		if tmdbID != "" {
 			if err := h.cmd.RefreshItemMetadata(ctx, req.MediaItemId, tmdbID, mediaType); err != nil {
-				return status.Errorf(codes.Internal, "refresh metadata: %v", err)
+				return internalError("refresh metadata", err)
 			}
 		} else {
 			return status.Errorf(codes.FailedPrecondition, "no TMDB ID for this item")
@@ -97,7 +97,7 @@ func (h *metadataHandler) GetArtwork(ctx context.Context, req *eveyv1.GetArtwork
 	}
 	records, err := h.query.GetArtwork(ctx, req.MediaItemId)
 	if err != nil {
-		return nil, status.Errorf(codes.Internal, "get artwork: %v", err)
+		return nil, internalError("get artwork", err)
 	}
 	resp := &eveyv1.GetArtworkResponse{}
 	for _, r := range records {
@@ -114,14 +114,14 @@ func (h *metadataHandler) SetMetadataOverride(ctx context.Context, req *eveyv1.S
 		CustomValue: req.CustomValue,
 	}
 	if err := h.cmd.SetOverride(ctx, override); err != nil {
-		return nil, status.Errorf(codes.Internal, "set override: %v", err)
+		return nil, internalError("set override", err)
 	}
 	return metadataOverrideToProto(override), nil
 }
 
 func (h *metadataHandler) RemoveMetadataOverride(ctx context.Context, req *eveyv1.RemoveMetadataOverrideRequest) (*eveyv1.RemoveMetadataOverrideResponse, error) {
 	if err := h.cmd.RemoveOverride(ctx, req.Id); err != nil {
-		return nil, status.Errorf(codes.Internal, "remove override: %v", err)
+		return nil, internalError("remove override", err)
 	}
 	return &eveyv1.RemoveMetadataOverrideResponse{}, nil
 }
@@ -132,7 +132,7 @@ func (h *metadataHandler) ListMetadataOverrides(ctx context.Context, req *eveyv1
 	}
 	overrides, err := h.query.ListOverrides(ctx, req.MediaItemId)
 	if err != nil {
-		return nil, status.Errorf(codes.Internal, "list overrides: %v", err)
+		return nil, internalError("list overrides", err)
 	}
 	resp := &eveyv1.ListMetadataOverridesResponse{}
 	for _, o := range overrides {

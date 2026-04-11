@@ -34,7 +34,7 @@ func (h *musicHandler) checkLibraryAccess(ctx context.Context, libraryID string)
 	}
 	ok, err := h.userAccess.HasLibraryAccess(ctx, claims.UserID, libraryID)
 	if err != nil {
-		return status.Errorf(codes.Internal, "check library access: %v", err)
+		return internalError("check library access", err)
 	}
 	if !ok {
 		return status.Error(codes.PermissionDenied, "no access to library")
@@ -56,7 +56,7 @@ func (h *musicHandler) ListTracks(ctx context.Context, req *eveyv1.ListTracksReq
 	offset := int(req.Offset)
 	tracks, total, err := h.svc.ListTracks(ctx, req.LibraryId, limit, offset, req.Search)
 	if err != nil {
-		return nil, status.Errorf(codes.Internal, "list tracks: %v", err)
+		return nil, internalError("list tracks", err)
 	}
 	resp := &eveyv1.ListTracksResponse{Total: int32(total)}
 	for _, t := range tracks {
@@ -74,7 +74,7 @@ func (h *musicHandler) GetAlbums(ctx context.Context, req *eveyv1.GetAlbumsReque
 	}
 	albums, err := h.svc.GetAlbums(ctx, req.LibraryId)
 	if err != nil {
-		return nil, status.Errorf(codes.Internal, "get albums: %v", err)
+		return nil, internalError("get albums", err)
 	}
 	resp := &eveyv1.GetAlbumsResponse{}
 	for _, a := range albums {
@@ -100,7 +100,7 @@ func (h *musicHandler) GetArtists(ctx context.Context, req *eveyv1.GetArtistsReq
 	}
 	artists, err := h.svc.GetArtists(ctx, req.LibraryId)
 	if err != nil {
-		return nil, status.Errorf(codes.Internal, "get artists: %v", err)
+		return nil, internalError("get artists", err)
 	}
 	resp := &eveyv1.GetArtistsResponse{}
 	for _, a := range artists {
@@ -127,7 +127,7 @@ func (h *musicHandler) SearchMusic(ctx context.Context, req *eveyv1.SearchMusicR
 	}
 	tracks, err := h.svc.Search(ctx, req.Query, limit)
 	if err != nil {
-		return nil, status.Errorf(codes.Internal, "search music: %v", err)
+		return nil, internalError("search music", err)
 	}
 	resp := &eveyv1.SearchMusicResponse{}
 	for _, t := range tracks {
@@ -172,7 +172,7 @@ func (h *musicHandler) ScanMusicDirectory(ctx context.Context, req *eveyv1.ScanM
 	count, scanErr := h.svc.ScanDirectory(ctx, req.LibraryId, dir)
 	if scanErr != nil {
 		slog.Error("music scan", slog.Any("err", scanErr))
-		return nil, status.Errorf(codes.Internal, "scan error: %v", scanErr)
+		return nil, internalError("scan error", scanErr)
 	}
 	return &eveyv1.ScanMusicDirectoryResponse{Count: int32(count)}, nil
 }
@@ -184,7 +184,7 @@ func (h *musicHandler) DeleteTrack(ctx context.Context, req *eveyv1.DeleteTrackR
 	}
 	track, err := h.svc.GetTrack(ctx, req.Id)
 	if err != nil {
-		return nil, status.Errorf(codes.Internal, "get track: %v", err)
+		return nil, internalError("get track", err)
 	}
 	if track == nil {
 		return nil, status.Error(codes.NotFound, "track not found")
@@ -195,7 +195,7 @@ func (h *musicHandler) DeleteTrack(ctx context.Context, req *eveyv1.DeleteTrackR
 		}
 	}
 	if err := h.svc.DeleteTrack(ctx, req.Id); err != nil {
-		return nil, status.Errorf(codes.Internal, "delete track: %v", err)
+		return nil, internalError("delete track", err)
 	}
 	return &emptypb.Empty{}, nil
 }

@@ -4,6 +4,7 @@ import (
 	"context"
 	crypto_rand "crypto/rand"
 	"encoding/hex"
+	"log/slog"
 
 	"github.com/gravity-zero/evey/internal/adapters/driving/grpcapi/interceptors"
 	"github.com/gravity-zero/evey/internal/domain/user"
@@ -24,6 +25,30 @@ func requireClaims(ctx context.Context) (*user.Claims, error) {
 		return nil, status.Error(codes.Unauthenticated, "not authenticated")
 	}
 	return claims, nil
+}
+
+const maxPageSize = 500
+
+// clampPagination returns bounded (limit, offset) from pagination params.
+func clampPagination(pageSize, page int32, defaultLimit int) (int, int) {
+	limit := defaultLimit
+	if pageSize > 0 {
+		limit = int(pageSize)
+	}
+	if limit > maxPageSize {
+		limit = maxPageSize
+	}
+	offset := 0
+	if page > 1 {
+		offset = int(page-1) * limit
+	}
+	return limit, offset
+}
+
+// internalError logs the real error server-side and returns a generic message to the client.
+func internalError(op string, err error) error {
+	slog.Error(op, slog.Any("err", err))
+	return status.Error(codes.Internal, "internal error")
 }
 
 // resolveProfileID returns the profileId to use: if reqProfileID is provided and differs

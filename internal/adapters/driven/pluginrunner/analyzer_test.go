@@ -230,8 +230,17 @@ func TestAnalyzePlugin_SkipsBinaryFiles(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if report.TotalFilesScanned != 1 {
-		t.Errorf("expected 1 file scanned (.bin skipped), got %d", report.TotalFilesScanned)
+	if report.TotalFilesScanned != 2 {
+		t.Errorf("expected 2 files scanned (.bin counted with warning), got %d", report.TotalFilesScanned)
+	}
+	var found bool
+	for _, f := range report.Findings {
+		if f.Category == "compiled_binary" && f.File == "plugin.bin" {
+			found = true
+		}
+	}
+	if !found {
+		t.Error("expected compiled_binary warning for plugin.bin")
 	}
 }
 
@@ -447,20 +456,55 @@ func TestAnalyze_SkipsNodeModules_NoFindings(t *testing.T) {
 
 func TestAnalyze_SkipsBinaryExtensions(t *testing.T) {
 	dir := t.TempDir()
-	for _, ext := range []string{".so", ".dll", ".png"} {
+	for _, ext := range []string{".so", ".dll"} {
 		writeFile(t, dir, "lib"+ext, `eval("should not be scanned")`)
 	}
+	// Valid PNG magic bytes
+	writeFile(t, dir, "icon.png", string([]byte{0x89, 'P', 'N', 'G', 0x0D, 0x0A, 0x1A, 0x0A}))
 	writeFile(t, dir, "clean.py", `print("ok")`)
 
 	report, err := AnalyzePlugin(dir)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if report.TotalFilesScanned != 1 {
-		t.Errorf("expected 1 file scanned (.so/.dll/.png skipped), got %d", report.TotalFilesScanned)
+	// .so and .dll = executable (counted + warning), .png = valid asset (skipped), clean.py = scanned
+	if report.TotalFilesScanned != 3 {
+		t.Errorf("expected 3 files scanned (.png skipped, .so/.dll warned), got %d", report.TotalFilesScanned)
+	}
+	var binaryWarnings int
+	for _, f := range report.Findings {
+		if f.Category == "compiled_binary" {
+			binaryWarnings++
+		}
+	}
+	if binaryWarnings != 2 {
+		t.Errorf("expected 2 compiled_binary warnings (.so/.dll), got %d", binaryWarnings)
 	}
 	if !report.Safe {
-		t.Fatal("expected safe — binary files should be skipped")
+		t.Fatal("expected safe — compiled_binary is WARNING not CRITICAL")
+	}
+}
+
+func TestAnalyze_MIMEMismatch(t *testing.T) {
+	dir := t.TempDir()
+	// ELF binary disguised as .png
+	writeFile(t, dir, "evil.png", string([]byte{0x7f, 'E', 'L', 'F', 0, 0, 0, 0}))
+
+	report, err := AnalyzePlugin(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var found bool
+	for _, f := range report.Findings {
+		if f.Category == "mime_mismatch" && f.File == "evil.png" {
+			found = true
+		}
+	}
+	if !found {
+		t.Error("expected mime_mismatch finding for disguised .png")
+	}
+	if report.Safe {
+		t.Error("expected unsafe — mime_mismatch should mark report as not safe")
 	}
 }
 

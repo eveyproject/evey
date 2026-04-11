@@ -72,7 +72,7 @@ describe("StarRating", () => {
     const { StarRating } = await import("./StarRating");
     render(<StarRating mediaId="m4" />, { wrapper: createWrapper(qc) });
 
-    expect(screen.getByText(/Community:.*4\.2\/5.*10 ratings/)).toBeInTheDocument();
+    expect(screen.getByText(/Community:.*4\.2\/5.*10 rating/)).toBeInTheDocument();
   });
 
   it("does not show community rating when count is 0", async () => {

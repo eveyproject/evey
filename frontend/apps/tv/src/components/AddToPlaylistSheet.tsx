@@ -8,6 +8,7 @@ import {
   ActivityIndicator,
   StyleSheet,
 } from "react-native";
+import { useTranslation } from "react-i18next";
 import { useTheme } from "../providers/ThemeProvider";
 import { usePlaylistList, useAddToPlaylist } from "../api/playlists";
 import { FocusableCard } from "./FocusableCard";
@@ -19,6 +20,7 @@ interface Props {
 }
 
 export function AddToPlaylistSheet({ visible, mediaItemId, onClose }: Props) {
+  const { t } = useTranslation();
   const theme = useTheme();
   const { data: playlists, isLoading } = usePlaylistList();
   const addTo = useAddToPlaylist();
@@ -40,18 +42,18 @@ export function AddToPlaylistSheet({ visible, mediaItemId, onClose }: Props) {
 
   return (
     <Modal visible={visible} animationType="fade" transparent onRequestClose={onClose}>
-      <Pressable style={styles.backdrop} onPress={onClose}>
+      <Pressable style={[styles.backdrop, { backgroundColor: theme.colors.overlay }]} onPress={onClose}>
         <Pressable
           style={[styles.sheet, { backgroundColor: theme.colors.surface, borderRadius: 16 }]}
           onPress={(e) => e.stopPropagation()}
         >
-          <Text style={[styles.title, { color: theme.colors.text }]}>Add to Playlist</Text>
+          <Text style={[styles.title, { color: theme.colors.text }]}>{t("media.detail.addToPlaylist")}</Text>
 
           {isLoading ? (
             <ActivityIndicator color={theme.colors.accent} style={{ marginTop: 24 }} />
           ) : manualPlaylists.length === 0 ? (
             <Text style={[styles.empty, { color: theme.colors.textMuted }]}>
-              No manual playlists available
+              {t("playlist.noManualPlaylists", "No manual playlists available")}
             </Text>
           ) : (
             <FlatList
@@ -73,7 +75,7 @@ export function AddToPlaylistSheet({ visible, mediaItemId, onClose }: Props) {
                       {item.name}
                     </Text>
                     <Text style={{ color: added ? theme.colors.accent : theme.colors.textMuted, fontSize: 20 }}>
-                      {added ? "Added" : "+"}
+                      {added ? t("common.added", "Added") : "+"}
                     </Text>
                   </FocusableCard>
                 );
@@ -85,7 +87,7 @@ export function AddToPlaylistSheet({ visible, mediaItemId, onClose }: Props) {
             onPress={onClose}
             style={[styles.closeBtn, { backgroundColor: theme.colors.surfaceRaised }]}
           >
-            <Text style={[styles.closeBtnText, { color: theme.colors.text }]}>Close</Text>
+            <Text style={[styles.closeBtnText, { color: theme.colors.text }]}>{t("media.detail.close", "Close")}</Text>
           </FocusableCard>
         </Pressable>
       </Pressable>
@@ -94,7 +96,7 @@ export function AddToPlaylistSheet({ visible, mediaItemId, onClose }: Props) {
 }
 
 const styles = StyleSheet.create({
-  backdrop: { flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: "rgba(0,0,0,0.7)" },
+  backdrop: { flex: 1, justifyContent: "center", alignItems: "center" },
   sheet: { width: 500, padding: 32 },
   title: { fontSize: 28, fontWeight: "700", marginBottom: 16 },
   empty: { fontSize: 20, textAlign: "center", marginTop: 24 },

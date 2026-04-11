@@ -7,8 +7,6 @@ import (
 	eveyv1 "github.com/gravity-zero/evey/gen/evey/v1"
 	applibrary "github.com/gravity-zero/evey/internal/app/library"
 	appuser "github.com/gravity-zero/evey/internal/app/user"
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
 )
 
 type libraryAccessHandler struct {
@@ -20,7 +18,7 @@ type libraryAccessHandler struct {
 func (h *libraryAccessHandler) GetUserLibraryAccess(ctx context.Context, req *eveyv1.GetUserLibraryAccessRequest) (*eveyv1.UserLibraryAccess, error) {
 	ids, err := h.userAccess.GetLibraryAccessByUserID(ctx, req.UserId)
 	if err != nil {
-		return nil, status.Errorf(codes.Internal, "get library access: %v", err)
+		return nil, internalError("get library access", err)
 	}
 	if ids == nil {
 		ids = []string{}
@@ -48,7 +46,7 @@ func (h *libraryAccessHandler) SetUserLibraryAccess(ctx context.Context, req *ev
 	}
 	for _, id := range req.LibraryIds {
 		if err := h.userAccess.GrantLibraryAccess(ctx, req.UserId, id); err != nil {
-			return nil, status.Errorf(codes.Internal, "grant library access: %v", err)
+			return nil, internalError("grant library access", err)
 		}
 	}
 	return &eveyv1.SetUserLibraryAccessResponse{}, nil

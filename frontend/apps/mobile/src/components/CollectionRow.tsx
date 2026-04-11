@@ -20,7 +20,9 @@ const getItemLayout = (_: unknown, index: number) => ({
   index,
 });
 
-export function CollectionRow({ title, collections }: CollectionRowProps) {
+import React from "react";
+
+export const CollectionRow = React.memo(function CollectionRow({ title, collections }: CollectionRowProps) {
   const theme = useTheme();
   const router = useRouter();
 
@@ -118,7 +120,7 @@ export function CollectionRow({ title, collections }: CollectionRowProps) {
       />
     </View>
   );
-}
+});
 
 function keyExtractor(item: Collection) {
   return item.id;

@@ -18,12 +18,26 @@ afterEach(() => {
 
 function mockResponse(status: number, body?: unknown, headers?: Record<string, string>) {
   const hdrs = new Map(Object.entries(headers ?? {}));
+  const bodyStr = body !== undefined ? JSON.stringify(body) : "";
   return {
     ok: status >= 200 && status < 300,
     status,
     statusText: status === 200 ? "OK" : status === 204 ? "No Content" : status === 401 ? "Unauthorized" : "Error",
     headers: { get: (k: string) => hdrs.get(k) ?? null },
     json: body !== undefined ? () => Promise.resolve(body) : () => Promise.reject(new Error("no body")),
+    text: () => Promise.resolve(bodyStr),
+  };
+}
+
+function mockNDJSONResponse(lines: unknown[]) {
+  const body = lines.map((l) => JSON.stringify(l)).join("\n") + "\n";
+  return {
+    ok: true,
+    status: 200,
+    statusText: "OK",
+    headers: { get: () => null },
+    json: () => Promise.reject(new Error("use text() for NDJSON")),
+    text: () => Promise.resolve(body),
   };
 }
 
@@ -112,5 +126,35 @@ describe("eveyFetch", () => {
     const refreshCalls = fetchMock.mock.calls.filter(([url]) => (url as string).includes("/auth/refresh"));
     expect(refreshCalls).toHaveLength(1);
     expect(updater).toHaveBeenCalledTimes(1);
+  });
+
+  it("parses NDJSON streaming response (last line)", async () => {
+    fetchMock.mockResolvedValueOnce(
+      mockNDJSONResponse([
+        { result: { phase: "SCANNING", percent: 50 } },
+        { result: { phase: "COMPLETE", percent: 100, totalItems: 42 } },
+      ]),
+    );
+
+    const result = await eveyFetch<{ result: { phase: string; percent: number; totalItems?: number } }>({
+      url: "/api/v1/scan",
+      method: "POST",
+    });
+
+    expect(result?.result.phase).toBe("COMPLETE");
+    expect(result?.result.totalItems).toBe(42);
+  });
+
+  it("returns undefined for empty NDJSON response", async () => {
+    fetchMock.mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      statusText: "OK",
+      headers: { get: () => null },
+      text: () => Promise.resolve("\n\n"),
+    });
+
+    const result = await eveyFetch({ url: "/api/v1/empty", method: "GET" });
+    expect(result).toBeUndefined();
   });
 });

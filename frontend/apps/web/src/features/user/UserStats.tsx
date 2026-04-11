@@ -36,9 +36,7 @@ function translateGenre(genre: string, lang: string): string {
   return genre;
 }
 
-function useCssVar(name: string, fallback = "#888") {
-  return getComputedStyle(document.documentElement).getPropertyValue(name).trim() || fallback;
-}
+import { useCssVar } from "@/hooks/useCssVar";
 
 function formatWatchTime(ms: string | undefined): string {
   const total = parseInt(ms ?? "0");

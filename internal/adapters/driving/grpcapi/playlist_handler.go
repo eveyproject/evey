@@ -30,7 +30,7 @@ func (h *playlistHandler) ListPlaylists(ctx context.Context, req *eveyv1.ListPla
 	}
 	pls, err := h.svc.List(ctx, userID)
 	if err != nil {
-		return nil, status.Errorf(codes.Internal, "list playlists: %v", err)
+		return nil, internalError("list playlists", err)
 	}
 	resp := &eveyv1.ListPlaylistsResponse{}
 	for _, pl := range pls {
@@ -74,7 +74,7 @@ func (h *playlistHandler) CreatePlaylist(ctx context.Context, req *eveyv1.Create
 		SortOrder:   req.SortOrder,
 	}
 	if err := h.svc.Create(ctx, pl); err != nil {
-		return nil, status.Errorf(codes.Internal, "create playlist: %v", err)
+		return nil, internalError("create playlist", err)
 	}
 	return playlistToProto(pl), nil
 }
@@ -100,11 +100,11 @@ func (h *playlistHandler) UpdatePlaylist(ctx context.Context, req *eveyv1.Update
 		if errors.Is(updateErr, appplaylist.ErrNotOwner) {
 			return nil, h.translator.TranslatedError(ctx, codes.PermissionDenied, "errors.playlist.not_owner")
 		}
-		return nil, status.Errorf(codes.Internal, "update playlist: %v", updateErr)
+		return nil, internalError("update playlist", updateErr)
 	}
 	updated, err := h.svc.GetByID(ctx, req.Id, userID)
 	if err != nil {
-		return nil, status.Errorf(codes.Internal, "get updated playlist: %v", err)
+		return nil, internalError("get updated playlist", err)
 	}
 	return playlistToProto(updated), nil
 }
@@ -122,7 +122,7 @@ func (h *playlistHandler) DeletePlaylist(ctx context.Context, req *eveyv1.Delete
 		if errors.Is(err, appplaylist.ErrNotOwner) {
 			return nil, h.translator.TranslatedError(ctx, codes.PermissionDenied, "errors.playlist.not_owner")
 		}
-		return nil, status.Errorf(codes.Internal, "delete playlist: %v", err)
+		return nil, internalError("delete playlist", err)
 	}
 	return &eveyv1.DeletePlaylistResponse{}, nil
 }
@@ -141,7 +141,7 @@ func (h *playlistHandler) GetPlaylistItems(ctx context.Context, req *eveyv1.GetP
 		if errors.Is(err, appplaylist.ErrNotOwner) {
 			return nil, h.translator.TranslatedError(ctx, codes.PermissionDenied, "errors.playlist.not_owner")
 		}
-		return nil, status.Errorf(codes.Internal, "get playlist items: %v", err)
+		return nil, internalError("get playlist items", err)
 	}
 	resp := &eveyv1.GetPlaylistItemsResponse{}
 	for _, it := range plItems {
@@ -180,7 +180,7 @@ func (h *playlistHandler) AddPlaylistItem(ctx context.Context, req *eveyv1.AddPl
 		case errors.Is(err, appplaylist.ErrMaxItems):
 			return nil, h.translator.TranslatedError(ctx, codes.ResourceExhausted, "errors.playlist.limit_reached")
 		default:
-			return nil, status.Errorf(codes.Internal, "add playlist item: %v", err)
+			return nil, internalError("add playlist item", err)
 		}
 	}
 	return &eveyv1.AddPlaylistItemResponse{}, nil
@@ -201,7 +201,7 @@ func (h *playlistHandler) RemovePlaylistItem(ctx context.Context, req *eveyv1.Re
 		} else if errors.Is(err, appplaylist.ErrSmartItems) {
 			return nil, h.translator.TranslatedError(ctx, codes.FailedPrecondition, "errors.playlist.cannot_remove_smart")
 		}
-		return nil, status.Errorf(codes.Internal, "remove playlist item: %v", err)
+		return nil, internalError("remove playlist item", err)
 	}
 	return &eveyv1.RemovePlaylistItemResponse{}, nil
 }

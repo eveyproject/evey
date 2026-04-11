@@ -42,7 +42,7 @@ func (h *transcodingHandler) StartTranscode(req *eveyv1.StartTranscodeRequest, s
 		ResolutionOut: fmt.Sprintf("%dx%d", req.Width, req.Height),
 	}
 	if err := h.svc.StartTranscode(stream.Context(), job); err != nil {
-		return status.Errorf(codes.Internal, "start transcode: %v", err)
+		return internalError("start transcode", err)
 	}
 	return stream.Send(&eveyv1.TranscodeProgress{
 		JobId:   job.ID,
@@ -53,7 +53,7 @@ func (h *transcodingHandler) StartTranscode(req *eveyv1.StartTranscodeRequest, s
 
 func (h *transcodingHandler) StopTranscode(ctx context.Context, req *eveyv1.StopTranscodeRequest) (*eveyv1.StopTranscodeResponse, error) {
 	if err := h.svc.StopTranscode(ctx, req.JobId); err != nil {
-		return nil, status.Errorf(codes.Internal, "stop transcode: %v", err)
+		return nil, internalError("stop transcode", err)
 	}
 	return &eveyv1.StopTranscodeResponse{}, nil
 }
@@ -74,7 +74,7 @@ func (h *transcodingHandler) GetTranscodeStatus(ctx context.Context, req *eveyv1
 func (h *transcodingHandler) ListActiveTranscodes(ctx context.Context, _ *eveyv1.ListActiveTranscodesRequest) (*eveyv1.ListActiveTranscodesResponse, error) {
 	jobs, err := h.svc.ListActiveTranscodes(ctx)
 	if err != nil {
-		return nil, status.Errorf(codes.Internal, "list active: %v", err)
+		return nil, internalError("list active", err)
 	}
 	resp := &eveyv1.ListActiveTranscodesResponse{}
 	for _, j := range jobs {
@@ -86,7 +86,7 @@ func (h *transcodingHandler) ListActiveTranscodes(ctx context.Context, _ *eveyv1
 func (h *transcodingHandler) ListTranscodeProfiles(ctx context.Context, _ *eveyv1.ListTranscodeProfilesRequest) (*eveyv1.ListTranscodeProfilesResponse, error) {
 	profiles, err := h.svc.ListProfiles(ctx)
 	if err != nil {
-		return nil, status.Errorf(codes.Internal, "list profiles: %v", err)
+		return nil, internalError("list profiles", err)
 	}
 	resp := &eveyv1.ListTranscodeProfilesResponse{}
 	for _, p := range profiles {
@@ -98,7 +98,7 @@ func (h *transcodingHandler) ListTranscodeProfiles(ctx context.Context, _ *eveyv
 func (h *transcodingHandler) DetectHardware(ctx context.Context, _ *eveyv1.DetectHardwareRequest) (*eveyv1.DetectHardwareResponse, error) {
 	devices, err := h.svc.DetectHardware(ctx)
 	if err != nil {
-		return nil, status.Errorf(codes.Internal, "detect hardware: %v", err)
+		return nil, internalError("detect hardware", err)
 	}
 	resp := &eveyv1.DetectHardwareResponse{}
 	for _, d := range devices {

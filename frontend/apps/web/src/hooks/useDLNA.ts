@@ -111,14 +111,21 @@ export function useDLNA() {
   useEffect(() => {
     ensureCastSdk();
 
+    // Keep references to all handlers for cleanup
+    let ctxRef: any = null;
+    let rcRef: any = null;
+    let castFw: any = null;
+    const ctxHandlers: Array<[string, any]> = [];
+    const rcHandlers: Array<[string, any]> = [];
+
     const onReady = () => {
       chromecastReady.current = true;
       const ctx = window.cast?.framework?.CastContext?.getInstance();
       if (!ctx) return;
+      ctxRef = ctx;
+      castFw = window.cast.framework;
 
-      const castFw = window.cast.framework;
-
-      ctx.addEventListener(castFw.CastContextEventType.CAST_STATE_CHANGED, (e: any) => {
+      const onCastStateChanged = (e: any) => {
         console.log(TAG, "CAST_STATE_CHANGED:", e.castState);
         if (e.castState === "NOT_CONNECTED" || e.castState === "NO_DEVICES_AVAILABLE") {
           setState((prev) => {
@@ -129,9 +136,11 @@ export function useDLNA() {
           });
           setPlayback({ playerState: null, currentTime: 0, duration: 0, isPaused: true, isMediaLoaded: false, volume: 1, isMuted: false });
         }
-      });
+      };
+      ctx.addEventListener(castFw.CastContextEventType.CAST_STATE_CHANGED, onCastStateChanged);
+      ctxHandlers.push([castFw.CastContextEventType.CAST_STATE_CHANGED, onCastStateChanged]);
 
-      ctx.addEventListener(castFw.CastContextEventType.SESSION_STATE_CHANGED, (e: any) => {
+      const onSessionStateChanged = (e: any) => {
         console.log(TAG, "SESSION_STATE_CHANGED:", e.sessionState);
         const session = ctx.getCurrentSession();
         if (e.sessionState === "SESSION_STARTED" || e.sessionState === "SESSION_RESUMED") {
@@ -145,55 +154,81 @@ export function useDLNA() {
           setState((prev) => ({ ...prev, connected: false, deviceName: null, mode: null }));
           setPlayback({ playerState: null, currentTime: 0, duration: 0, isPaused: true, isMediaLoaded: false, volume: 1, isMuted: false });
         }
-      });
+      };
+      ctx.addEventListener(castFw.CastContextEventType.SESSION_STATE_CHANGED, onSessionStateChanged);
+      ctxHandlers.push([castFw.CastContextEventType.SESSION_STATE_CHANGED, onSessionStateChanged]);
 
-      // Remote player for playback state + controls
       const rp = new castFw.RemotePlayer();
       const rc = new castFw.RemotePlayerController(rp);
       remotePlayerRef.current = rp;
       controllerRef.current = rc;
+      rcRef = rc;
       const ev = castFw.RemotePlayerEventType;
 
-      rc.addEventListener(ev.PLAYER_STATE_CHANGED, () => {
+      const onPlayerState = () => {
         console.log(TAG, "PLAYER_STATE:", rp.playerState);
-        setPlayback((prev) => ({
-          ...prev,
-          playerState: rp.playerState,
-          isPaused: rp.isPaused,
-        }));
-      });
+        setPlayback((prev) => ({ ...prev, playerState: rp.playerState, isPaused: rp.isPaused }));
+      };
+      rc.addEventListener(ev.PLAYER_STATE_CHANGED, onPlayerState);
+      rcHandlers.push([ev.PLAYER_STATE_CHANGED, onPlayerState]);
+
       let lastLoggedTime = 0;
-      rc.addEventListener(ev.CURRENT_TIME_CHANGED, () => {
+      const onCurrentTime = () => {
         setPlayback((prev) => ({ ...prev, currentTime: rp.currentTime }));
         if (Math.floor(rp.currentTime) % 30 === 0 && Math.floor(rp.currentTime) !== lastLoggedTime) {
           lastLoggedTime = Math.floor(rp.currentTime);
           console.log(TAG, "CURRENT_TIME:", rp.currentTime);
         }
-      });
-      rc.addEventListener(ev.DURATION_CHANGED, () => {
-        setPlayback((prev) => ({ ...prev, duration: rp.duration }));
-      });
-      rc.addEventListener(ev.IS_MEDIA_LOADED_CHANGED, () => {
+      };
+      rc.addEventListener(ev.CURRENT_TIME_CHANGED, onCurrentTime);
+      rcHandlers.push([ev.CURRENT_TIME_CHANGED, onCurrentTime]);
+
+      const onDuration = () => setPlayback((prev) => ({ ...prev, duration: rp.duration }));
+      rc.addEventListener(ev.DURATION_CHANGED, onDuration);
+      rcHandlers.push([ev.DURATION_CHANGED, onDuration]);
+
+      const onMediaLoaded = () => {
         console.log(TAG, "IS_MEDIA_LOADED:", rp.isMediaLoaded, "duration:", rp.duration);
-        setPlayback((prev) => ({
-          ...prev,
-          isMediaLoaded: rp.isMediaLoaded,
-          duration: rp.duration,
-        }));
-      });
-      rc.addEventListener(ev.IS_PAUSED_CHANGED, () => {
-        setPlayback((prev) => ({ ...prev, isPaused: rp.isPaused }));
-      });
-      rc.addEventListener(ev.VOLUME_LEVEL_CHANGED, () => {
-        setPlayback((prev) => ({ ...prev, volume: rp.volumeLevel }));
-      });
-      rc.addEventListener(ev.IS_MUTED_CHANGED, () => {
-        setPlayback((prev) => ({ ...prev, isMuted: rp.isMuted }));
-      });
+        setPlayback((prev) => ({ ...prev, isMediaLoaded: rp.isMediaLoaded, duration: rp.duration }));
+      };
+      rc.addEventListener(ev.IS_MEDIA_LOADED_CHANGED, onMediaLoaded);
+      rcHandlers.push([ev.IS_MEDIA_LOADED_CHANGED, onMediaLoaded]);
+
+      const onPaused = () => setPlayback((prev) => ({ ...prev, isPaused: rp.isPaused }));
+      rc.addEventListener(ev.IS_PAUSED_CHANGED, onPaused);
+      rcHandlers.push([ev.IS_PAUSED_CHANGED, onPaused]);
+
+      const onVolume = () => setPlayback((prev) => ({ ...prev, volume: rp.volumeLevel }));
+      rc.addEventListener(ev.VOLUME_LEVEL_CHANGED, onVolume);
+      rcHandlers.push([ev.VOLUME_LEVEL_CHANGED, onVolume]);
+
+      const onMuted = () => setPlayback((prev) => ({ ...prev, isMuted: rp.isMuted }));
+      rc.addEventListener(ev.IS_MUTED_CHANGED, onMuted);
+      rcHandlers.push([ev.IS_MUTED_CHANGED, onMuted]);
     };
 
     if (sdkReady) onReady();
     else readyCallbacks.push(onReady);
+
+    return () => {
+      // Remove from pending callbacks if not yet fired
+      const idx = readyCallbacks.indexOf(onReady);
+      if (idx >= 0) readyCallbacks.splice(idx, 1);
+      // Remove CastContext listeners
+      if (ctxRef) {
+        for (const [type, handler] of ctxHandlers) {
+          ctxRef.removeEventListener(type, handler);
+        }
+      }
+      // Remove RemotePlayerController listeners
+      if (rcRef) {
+        for (const [type, handler] of rcHandlers) {
+          rcRef.removeEventListener(type, handler);
+        }
+      }
+      controllerRef.current = null;
+      remotePlayerRef.current = null;
+    };
   }, []);
 
   const startCast = useCallback(async (streamUrl: string, title?: string) => {

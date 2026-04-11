@@ -70,7 +70,7 @@ func (h *feedHandler) GetFeedConfig(ctx context.Context, req *eveyv1.GetFeedConf
 	}
 	configs, err := h.queries.GetMergedConfig(ctx, profileID)
 	if err != nil {
-		return nil, status.Errorf(codes.Internal, "get feed config: %v", err)
+		return nil, internalError("get feed config", err)
 	}
 	resp := &eveyv1.GetFeedConfigResponse{}
 	for _, c := range configs {
@@ -90,7 +90,7 @@ func (h *feedHandler) ContinueWatching(ctx context.Context, req *eveyv1.Continue
 	}
 	items, err := h.queries.ContinueWatching(ctx, profileID, int(req.Limit))
 	if err != nil {
-		return nil, status.Errorf(codes.Internal, "continue watching: %v", err)
+		return nil, internalError("continue watching", err)
 	}
 	return feedItemsToResponse(items), nil
 }
@@ -98,11 +98,11 @@ func (h *feedHandler) ContinueWatching(ctx context.Context, req *eveyv1.Continue
 func (h *feedHandler) RecentlyAdded(ctx context.Context, req *eveyv1.RecentlyAddedRequest) (*eveyv1.FeedResponse, error) {
 	items, err := h.queries.RecentlyAdded(ctx, int(req.DaysWindow), int(req.Limit))
 	if err != nil {
-		return nil, status.Errorf(codes.Internal, "recently added: %v", err)
+		return nil, internalError("recently added", err)
 	}
 	items, err = h.filterByLibraryAccess(ctx, items)
 	if err != nil {
-		return nil, status.Errorf(codes.Internal, "recently added: filter: %v", err)
+		return nil, internalError("recently added: filter", err)
 	}
 	return feedItemsToResponse(items), nil
 }
@@ -118,11 +118,11 @@ func (h *feedHandler) Recommended(ctx context.Context, req *eveyv1.RecommendedRe
 	}
 	items, err := h.queries.Recommended(ctx, profileID, int(req.Limit))
 	if err != nil {
-		return nil, status.Errorf(codes.Internal, "recommended: %v", err)
+		return nil, internalError("recommended", err)
 	}
 	items, err = h.filterByLibraryAccess(ctx, items)
 	if err != nil {
-		return nil, status.Errorf(codes.Internal, "recommended: filter: %v", err)
+		return nil, internalError("recommended: filter", err)
 	}
 	return feedItemsToResponse(items), nil
 }
@@ -138,11 +138,11 @@ func (h *feedHandler) SimilarItems(ctx context.Context, req *eveyv1.SimilarItems
 	}
 	items, err := h.queries.SimilarItems(ctx, req.MediaItemId, profileID, int(req.Limit))
 	if err != nil {
-		return nil, status.Errorf(codes.Internal, "similar items: %v", err)
+		return nil, internalError("similar items", err)
 	}
 	items, err = h.filterByLibraryAccess(ctx, items)
 	if err != nil {
-		return nil, status.Errorf(codes.Internal, "similar items: filter: %v", err)
+		return nil, internalError("similar items: filter", err)
 	}
 	return feedItemsToResponse(items), nil
 }
@@ -150,7 +150,7 @@ func (h *feedHandler) SimilarItems(ctx context.Context, req *eveyv1.SimilarItems
 func (h *feedHandler) GetAdminFeedConfigs(ctx context.Context, _ *eveyv1.GetAdminFeedConfigsRequest) (*eveyv1.GetAdminFeedConfigsResponse, error) {
 	configs, err := h.queries.GetAdminConfigs(ctx)
 	if err != nil {
-		return nil, status.Errorf(codes.Internal, "get admin feed configs: %v", err)
+		return nil, internalError("get admin feed configs", err)
 	}
 	resp := &eveyv1.GetAdminFeedConfigsResponse{}
 	for _, c := range configs {
@@ -167,7 +167,7 @@ func (h *feedHandler) UpdateAdminFeedConfig(ctx context.Context, req *eveyv1.Upd
 		MaxItems:     int(req.MaxItems),
 	}
 	if err := h.commands.UpdateAdminConfig(ctx, cfg); err != nil {
-		return nil, status.Errorf(codes.Internal, "update admin feed config: %v", err)
+		return nil, internalError("update admin feed config", err)
 	}
 	return adminConfigToProto(cfg), nil
 }
@@ -197,7 +197,7 @@ func (h *feedHandler) UpdateProfileFeedConfig(ctx context.Context, req *eveyv1.U
 		cfg.MaxItems = &v
 	}
 	if err := h.commands.UpdateProfileConfig(ctx, cfg); err != nil {
-		return nil, status.Errorf(codes.Internal, "update profile feed config: %v", err)
+		return nil, internalError("update profile feed config", err)
 	}
 	return profileConfigToProto(cfg), nil
 }
@@ -212,7 +212,7 @@ func (h *feedHandler) ResetProfileFeedConfig(ctx context.Context, req *eveyv1.Re
 		return nil, fmt.Errorf("feedHandler.ResetProfileFeedConfig: %w", err)
 	}
 	if err := h.commands.ResetProfileConfig(ctx, profileID, feed.Type(req.FeedType)); err != nil {
-		return nil, status.Errorf(codes.Internal, "reset profile feed config: %v", err)
+		return nil, internalError("reset profile feed config", err)
 	}
 	return &eveyv1.ResetProfileFeedConfigResponse{}, nil
 }
@@ -232,11 +232,11 @@ func (h *feedHandler) ResumePlayback(ctx context.Context, req *eveyv1.ResumePlay
 	}
 	items, err := h.queries.ResumePlayback(ctx, profileID, limit)
 	if err != nil {
-		return nil, status.Errorf(codes.Internal, "resume playback: %v", err)
+		return nil, internalError("resume playback", err)
 	}
 	items, err = h.filterByLibraryAccess(ctx, items)
 	if err != nil {
-		return nil, status.Errorf(codes.Internal, "resume playback: filter: %v", err)
+		return nil, internalError("resume playback: filter", err)
 	}
 	return feedItemsToResponse(items), nil
 }
@@ -256,11 +256,11 @@ func (h *feedHandler) NextEpisode(ctx context.Context, req *eveyv1.NextEpisodeRe
 	}
 	items, err := h.queries.NextEpisode(ctx, profileID, limit)
 	if err != nil {
-		return nil, status.Errorf(codes.Internal, "next episode: %v", err)
+		return nil, internalError("next episode", err)
 	}
 	items, err = h.filterByLibraryAccess(ctx, items)
 	if err != nil {
-		return nil, status.Errorf(codes.Internal, "next episode: filter: %v", err)
+		return nil, internalError("next episode: filter", err)
 	}
 	return feedItemsToResponse(items), nil
 }

@@ -19,7 +19,7 @@ type backupHandler struct {
 func (h *backupHandler) CreateBackup(ctx context.Context, _ *eveyv1.CreateBackupRequest) (*eveyv1.BackupManifest, error) {
 	m, err := h.svc.CreateBackup(ctx)
 	if err != nil {
-		return nil, status.Errorf(codes.Internal, "create backup: %v", err)
+		return nil, internalError("create backup", err)
 	}
 	return manifestToProto(m), nil
 }
@@ -27,7 +27,7 @@ func (h *backupHandler) CreateBackup(ctx context.Context, _ *eveyv1.CreateBackup
 func (h *backupHandler) ListBackups(ctx context.Context, _ *eveyv1.ListBackupsRequest) (*eveyv1.ListBackupsResponse, error) {
 	list, err := h.svc.ListBackups(ctx)
 	if err != nil {
-		return nil, status.Errorf(codes.Internal, "list backups: %v", err)
+		return nil, internalError("list backups", err)
 	}
 	resp := &eveyv1.ListBackupsResponse{}
 	for _, m := range list {

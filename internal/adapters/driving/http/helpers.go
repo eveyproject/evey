@@ -226,58 +226,6 @@ func apiCacheMiddleware(next http.Handler) http.Handler {
 	})
 }
 
-// extractClaims extracts a Bearer token and validates it, returning claims.
-func extractClaims(r *http.Request, verifier TokenVerifier) (*domainuser.Claims, bool) {
-	token := extractBearerToken(r)
-	if token == "" {
-		return nil, false
-	}
-	claims, err := verifier.ValidateAccessToken(token)
-	if err != nil {
-		return nil, false
-	}
-	return claims, true
-}
-
-var errUnauthenticated = errors.New("unauthenticated")
-var errForbidden = errors.New("forbidden")
-
-// extractAdminClaims extracts a Bearer token (header or query param) and validates admin access.
-func extractAdminClaims(r *http.Request, verifier TokenVerifier) (*domainuser.Claims, error) {
-	token := extractBearerToken(r)
-	if token == "" {
-		return nil, errUnauthenticated
-	}
-	claims, err := verifier.ValidateAccessToken(token)
-	if err != nil {
-		return nil, errUnauthenticated
-	}
-	if !claims.IsAdmin {
-		return nil, errForbidden
-	}
-	return claims, nil
-}
-
-type adminCtxKeyType struct{}
-
-var adminClaimsKey = adminCtxKeyType{}
-
-func requireAdmin(tokenGen TokenVerifier, next http.HandlerFunc) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		claims, err := extractAdminClaims(r, tokenGen)
-		if err != nil {
-			if errors.Is(err, errForbidden) {
-				http.Error(w, "forbidden", http.StatusForbidden)
-			} else {
-				http.Error(w, "unauthorized", http.StatusUnauthorized)
-			}
-			return
-		}
-		ctx := context.WithValue(r.Context(), adminClaimsKey, claims)
-		next(w, r.WithContext(ctx))
-	}
-}
-
 // discardResponseWriter swallows body writes; used to run a handler for side-effects only.
 type discardResponseWriter struct {
 	header http.Header

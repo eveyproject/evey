@@ -2,6 +2,7 @@ package grpcapi
 
 import (
 	"context"
+	"log/slog"
 	"time"
 
 	eveyv1 "github.com/gravity-zero/evey/gen/evey/v1"
@@ -42,7 +43,7 @@ func (d *adminSessionHandler) GetAuditLog(ctx context.Context, req *eveyv1.GetAu
 	}
 	entries, err := d.activitySvc.GetAuditLog(ctx, filter)
 	if err != nil {
-		return nil, status.Errorf(codes.Internal, "get audit log: %v", err)
+		return nil, internalError("get audit log", err)
 	}
 	resp := &eveyv1.GetAuditLogResponse{Total: int32(len(entries))}
 	for _, e := range entries {
@@ -54,7 +55,7 @@ func (d *adminSessionHandler) GetAuditLog(ctx context.Context, req *eveyv1.GetAu
 func (d *adminSessionHandler) ListActiveSessions(ctx context.Context, _ *eveyv1.ListActiveSessionsRequest) (*eveyv1.ListActiveSessionsResponse, error) {
 	sessions, err := d.playbackQry.GetActiveSessions(ctx)
 	if err != nil {
-		return nil, status.Errorf(codes.Internal, "list active sessions: %v", err)
+		return nil, internalError("list active sessions", err)
 	}
 	resp := &eveyv1.ListActiveSessionsResponse{}
 	for _, s := range sessions {
@@ -99,7 +100,9 @@ func (d *adminSessionHandler) KillSession(ctx context.Context, req *eveyv1.KillS
 		return nil, status.Errorf(codes.NotFound, "session not found: %v", err)
 	}
 	// Send stop command so the player closes gracefully
-	_ = d.playbackCmd.SetRemoteCommand(ctx, req.SessionId, "stop")
+	if err := d.playbackCmd.SetRemoteCommand(ctx, req.SessionId, "stop"); err != nil {
+		slog.Warn("set remote command failed", slog.String("session_id", req.SessionId), slog.Any("err", err))
+	}
 	// Defer the actual kill to give the player time to receive the command
 	mediaItemID := session.MediaItemID
 	sessionID := req.SessionId
@@ -107,7 +110,9 @@ func (d *adminSessionHandler) KillSession(ctx context.Context, req *eveyv1.KillS
 	cmdSvc := d.playbackCmd
 	go func() {
 		time.Sleep(5 * time.Second)
-		_ = cmdSvc.StopStream(context.Background(), sessionID)
+		if err := cmdSvc.StopStream(context.Background(), sessionID); err != nil {
+			slog.Warn("stop stream failed", slog.String("session_id", sessionID), slog.Any("err", err))
+		}
 		if hlsMgr != nil {
 			hlsMgr.RemoveSession(mediaItemID)
 		}
@@ -120,7 +125,7 @@ func (d *adminSessionHandler) SendSessionCommand(ctx context.Context, req *eveyv
 		return nil, status.Error(codes.InvalidArgument, "session_id and command required")
 	}
 	if err := d.playbackCmd.SetRemoteCommand(ctx, req.SessionId, req.Command); err != nil {
-		return nil, status.Errorf(codes.Internal, "send command: %v", err)
+		return nil, internalError("send command", err)
 	}
 	return &eveyv1.SendSessionCommandResponse{}, nil
 }

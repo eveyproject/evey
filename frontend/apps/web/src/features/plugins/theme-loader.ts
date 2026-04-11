@@ -11,12 +11,6 @@ export function loadPluginTheme(pluginId: string): void {
   document.head.appendChild(link);
 }
 
-export function unloadPluginTheme(pluginId: string): void {
-  const id = THEME_LINK_PREFIX + pluginId;
-  const el = document.getElementById(id);
-  if (el) el.remove();
-}
-
 export function unloadAllPluginThemes(): void {
   const links = document.querySelectorAll(`link[id^="${THEME_LINK_PREFIX}"]`);
   links.forEach((el) => el.remove());

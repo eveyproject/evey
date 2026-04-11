@@ -45,7 +45,7 @@ func (h *libraryHandler) CreateLibrary(ctx context.Context, req *eveyv1.CreateLi
 		ScanIntervalMinutes: 360,
 	}
 	if err := h.cmd.CreateLibrary(ctx, lib); err != nil {
-		return nil, status.Errorf(codes.Internal, "create library: %v", err)
+		return nil, internalError("create library", err)
 	}
 	return libraryToProto(lib), nil
 }
@@ -67,11 +67,11 @@ func (h *libraryHandler) GetLibrary(ctx context.Context, req *eveyv1.GetLibraryR
 func (h *libraryHandler) ListLibraries(ctx context.Context, _ *eveyv1.ListLibrariesRequest) (*eveyv1.ListLibrariesResponse, error) {
 	libs, err := h.query.ListLibraries(ctx)
 	if err != nil {
-		return nil, status.Errorf(codes.Internal, "list libraries: %v", err)
+		return nil, internalError("list libraries", err)
 	}
 	libs, err = h.filterLibrariesByAccess(ctx, libs)
 	if err != nil {
-		return nil, status.Errorf(codes.Internal, "filter libraries: %v", err)
+		return nil, internalError("filter libraries", err)
 	}
 	resp := &eveyv1.ListLibrariesResponse{}
 	for _, lib := range libs {
@@ -100,14 +100,14 @@ func (h *libraryHandler) UpdateLibrary(ctx context.Context, req *eveyv1.UpdateLi
 		lib.Paths = req.Paths
 	}
 	if err := h.cmd.UpdateLibrary(ctx, lib); err != nil {
-		return nil, status.Errorf(codes.Internal, "update library: %v", err)
+		return nil, internalError("update library", err)
 	}
 	return libraryToProto(lib), nil
 }
 
 func (h *libraryHandler) DeleteLibrary(ctx context.Context, req *eveyv1.DeleteLibraryRequest) (*eveyv1.DeleteLibraryResponse, error) {
 	if err := h.cmd.DeleteLibrary(ctx, req.Id); err != nil {
-		return nil, status.Errorf(codes.Internal, "delete library: %v", err)
+		return nil, internalError("delete library", err)
 	}
 	return &eveyv1.DeleteLibraryResponse{}, nil
 }
@@ -115,7 +115,7 @@ func (h *libraryHandler) DeleteLibrary(ctx context.Context, req *eveyv1.DeleteLi
 func (h *libraryHandler) ScanLibrary(req *eveyv1.ScanLibraryRequest, stream eveyv1.LibraryService_ScanLibraryServer) error {
 	added, updated, err := h.cmd.ScanLibrary(stream.Context(), req.Id)
 	if err != nil {
-		return status.Errorf(codes.Internal, "scan library: %v", err)
+		return internalError("scan library", err)
 	}
 	return stream.Send(&eveyv1.ScanProgress{
 		LibraryId:      req.Id,
@@ -217,19 +217,18 @@ func (h *libraryHandler) ListMediaItems(ctx context.Context, req *eveyv1.ListMed
 		}
 	}
 	if req.Pagination != nil {
-		filter.Limit = int(req.Pagination.PageSize)
-		filter.Offset = int((req.Pagination.Page - 1) * req.Pagination.PageSize)
+		filter.Limit, filter.Offset = clampPagination(req.Pagination.PageSize, req.Pagination.Page, 50)
 	}
 	pf := h.resolveParentalFilter(ctx)
 	filter.AllowedRatings = pf.allowedRatings
 
 	total, err := h.query.CountMediaItems(ctx, filter)
 	if err != nil {
-		return nil, status.Errorf(codes.Internal, "count media items: %v", err)
+		return nil, internalError("count media items", err)
 	}
 	items, err := h.query.ListMediaItems(ctx, filter)
 	if err != nil {
-		return nil, status.Errorf(codes.Internal, "list media items: %v", err)
+		return nil, internalError("list media items", err)
 	}
 	resp := &eveyv1.ListMediaItemsResponse{
 		Pagination: &eveyv1.PaginationResponse{
@@ -312,7 +311,7 @@ func (h *libraryHandler) SearchMedia(ctx context.Context, req *eveyv1.SearchMedi
 	}
 	hits, total, err := h.query.SearchMedia(ctx, req.Query, filters, sort, limit)
 	if err != nil {
-		return nil, status.Errorf(codes.Internal, "search media: %v", err)
+		return nil, internalError("search media", err)
 	}
 	allowedIDs, _ := h.getAllowedLibraryIDs(ctx)
 	pf := h.resolveParentalFilter(ctx)
@@ -348,7 +347,7 @@ func (h *libraryHandler) GetPerson(ctx context.Context, req *eveyv1.GetPersonReq
 	}
 	person, err := h.query.GetPerson(ctx, req.Id)
 	if err != nil {
-		return nil, status.Errorf(codes.Internal, "get person: %v", err)
+		return nil, internalError("get person", err)
 	}
 	if person == nil {
 		return nil, status.Errorf(codes.NotFound, "person not found")
@@ -509,7 +508,7 @@ func (h *libraryHandler) SetLibrarySchedule(ctx context.Context, req *eveyv1.Set
 		if strings.HasPrefix(err.Error(), "invalid cron") {
 			return nil, status.Errorf(codes.InvalidArgument, "invalid cron expression: %v", err)
 		}
-		return nil, status.Errorf(codes.Internal, "set schedule: %v", err)
+		return nil, internalError("set schedule", err)
 	}
 	return scheduleToProto(sched), nil
 }
@@ -566,11 +565,11 @@ func (h *libraryHandler) FilterMediaItems(ctx context.Context, req *eveyv1.Filte
 
 	total, err := h.query.CountMediaItems(ctx, filter)
 	if err != nil {
-		return nil, status.Errorf(codes.Internal, "count: %v", err)
+		return nil, internalError("count", err)
 	}
 	items, err := h.query.ListMediaItems(ctx, filter)
 	if err != nil {
-		return nil, status.Errorf(codes.Internal, "list: %v", err)
+		return nil, internalError("list", err)
 	}
 	resp := &eveyv1.FilterMediaItemsResponse{Total: int32(total)}
 	for _, item := range items {

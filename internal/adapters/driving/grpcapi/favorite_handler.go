@@ -5,14 +5,38 @@ import (
 	"fmt"
 
 	eveyv1 "github.com/gravity-zero/evey/gen/evey/v1"
+	"github.com/gravity-zero/evey/internal/adapters/driving/grpcapi/interceptors"
 	appfavorite "github.com/gravity-zero/evey/internal/app/favorite"
+	applibrary "github.com/gravity-zero/evey/internal/app/library"
+	appuser "github.com/gravity-zero/evey/internal/app/user"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
 
 type favoriteHandler struct {
 	eveyv1.UnimplementedFavoriteServiceServer
-	svc *appfavorite.Service
+	svc        *appfavorite.Service
+	libQuery   *applibrary.QueryService
+	userAccess *appuser.AccessService
+}
+
+func (h *favoriteHandler) requireMediaAccess(ctx context.Context, mediaItemID string) error {
+	claims := interceptors.ClaimsFromContext(ctx)
+	if claims == nil {
+		return status.Error(codes.Unauthenticated, "unauthenticated")
+	}
+	if claims.IsAdmin || h.userAccess == nil {
+		return nil
+	}
+	item, err := h.libQuery.GetMediaItem(ctx, mediaItemID)
+	if err != nil || item == nil {
+		return status.Error(codes.NotFound, "not found")
+	}
+	ok, accessErr := h.userAccess.HasLibraryAccess(ctx, claims.UserID, item.LibraryID)
+	if accessErr != nil || !ok {
+		return status.Error(codes.NotFound, "not found")
+	}
+	return nil
 }
 
 func (h *favoriteHandler) ListFavorites(ctx context.Context, req *eveyv1.ListFavoritesRequest) (*eveyv1.ListFavoritesResponse, error) {
@@ -28,7 +52,7 @@ func (h *favoriteHandler) ListFavorites(ctx context.Context, req *eveyv1.ListFav
 	offset := int(req.Offset)
 	favs, err := h.svc.List(ctx, profileID, limit, offset)
 	if err != nil {
-		return nil, status.Errorf(codes.Internal, "list favorites: %v", err)
+		return nil, internalError("list favorites", err)
 	}
 	resp := &eveyv1.ListFavoritesResponse{}
 	for _, f := range favs {
@@ -51,9 +75,12 @@ func (h *favoriteHandler) AddFavorite(ctx context.Context, req *eveyv1.AddFavori
 	if err != nil {
 		return nil, fmt.Errorf("favoriteHandler.AddFavorite: %w", err)
 	}
+	if accessErr := h.requireMediaAccess(ctx, req.MediaItemId); accessErr != nil {
+		return nil, fmt.Errorf("favoriteHandler.AddFavorite: %w", accessErr)
+	}
 	isFav, err := h.svc.Toggle(ctx, profileID, req.MediaItemId)
 	if err != nil {
-		return nil, status.Errorf(codes.Internal, "toggle favorite: %v", err)
+		return nil, internalError("toggle favorite", err)
 	}
 	return &eveyv1.AddFavoriteResponse{IsFavorite: isFav}, nil
 }
@@ -67,13 +94,16 @@ func (h *favoriteHandler) RemoveFavorite(ctx context.Context, req *eveyv1.Remove
 	if err != nil {
 		return nil, fmt.Errorf("favoriteHandler.RemoveFavorite: %w", err)
 	}
+	if accessErr := h.requireMediaAccess(ctx, req.MediaItemId); accessErr != nil {
+		return nil, fmt.Errorf("favoriteHandler.RemoveFavorite: %w", accessErr)
+	}
 	isFav, err := h.svc.IsFavorite(ctx, profileID, req.MediaItemId)
 	if err != nil {
-		return nil, status.Errorf(codes.Internal, "check favorite: %v", err)
+		return nil, internalError("check favorite", err)
 	}
 	if isFav {
 		if _, err := h.svc.Toggle(ctx, profileID, req.MediaItemId); err != nil {
-			return nil, status.Errorf(codes.Internal, "remove favorite: %v", err)
+			return nil, internalError("remove favorite", err)
 		}
 	}
 	return &eveyv1.RemoveFavoriteResponse{}, nil
@@ -88,9 +118,12 @@ func (h *favoriteHandler) IsFavorite(ctx context.Context, req *eveyv1.IsFavorite
 	if err != nil {
 		return nil, fmt.Errorf("favoriteHandler.IsFavorite: %w", err)
 	}
+	if accessErr := h.requireMediaAccess(ctx, req.MediaItemId); accessErr != nil {
+		return nil, fmt.Errorf("favoriteHandler.IsFavorite: %w", accessErr)
+	}
 	isFav, err := h.svc.IsFavorite(ctx, profileID, req.MediaItemId)
 	if err != nil {
-		return nil, status.Errorf(codes.Internal, "check favorite: %v", err)
+		return nil, internalError("check favorite", err)
 	}
 	return &eveyv1.IsFavoriteResponse{IsFavorite: isFav}, nil
 }

@@ -15,7 +15,6 @@ import (
 	eveyi18n "github.com/gravity-zero/evey/internal/pkg/i18n"
 	"github.com/gravity-zero/evey/internal/pkg/sysinfo"
 	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
 )
 
 type adminSystemHandler struct {
@@ -36,7 +35,7 @@ type adminSystemHandler struct {
 func (d *adminSystemHandler) GetSetupStatus(ctx context.Context, _ *eveyv1.GetSetupStatusRequest) (*eveyv1.SetupStatusResponse, error) {
 	admins, err := d.userQuery.CountAdmins(ctx)
 	if err != nil {
-		return nil, status.Errorf(codes.Internal, "count admins: %v", err)
+		return nil, internalError("count admins", err)
 	}
 	return &eveyv1.SetupStatusResponse{SetupComplete: admins > 0}, nil
 }
@@ -92,11 +91,11 @@ func (d *adminSystemHandler) SetupWizard(ctx context.Context, req *eveyv1.SetupW
 		if errors.Is(err, appuser.ErrSetupDone) {
 			return nil, d.translator.TranslatedError(ctx, codes.AlreadyExists, "errors.admin.setup_already_completed")
 		}
-		return nil, status.Errorf(codes.Internal, "setup: %v", err)
+		return nil, internalError("setup", err)
 	}
 	access, refresh, err := d.userCmd.Login(ctx, req.AdminUsername, req.AdminPassword)
 	if err != nil {
-		return nil, status.Errorf(codes.Internal, "login after setup: %v", err)
+		return nil, internalError("login after setup", err)
 	}
 	return &eveyv1.SetupWizardResponse{
 		AccessToken:  access,
@@ -108,7 +107,7 @@ func (d *adminSystemHandler) SetupWizard(ctx context.Context, req *eveyv1.SetupW
 func (d *adminSystemHandler) GetDashboard(ctx context.Context, _ *eveyv1.GetDashboardRequest) (*eveyv1.DashboardInfo, error) {
 	stats, err := d.activitySvc.GetServerStats(ctx)
 	if err != nil {
-		return nil, status.Errorf(codes.Internal, "get server stats: %v", err)
+		return nil, internalError("get server stats", err)
 	}
 
 	sys := sysinfo.Collect()

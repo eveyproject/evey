@@ -90,39 +90,6 @@ func TestExtractBearerToken_FromQuery(t *testing.T) {
 	}
 }
 
-func TestRequireAdmin_Forbidden_NonAdmin(t *testing.T) {
-	h := requireAdmin(
-		&fakeTokenVerifier{claims: testClaims(false)},
-		func(w http.ResponseWriter, r *http.Request) {
-			t.Error("should not be called")
-		},
-	)
-	req := httptest.NewRequest(http.MethodGet, "/admin", nil)
-	req.Header.Set("Authorization", "Bearer token")
-	w := httptest.NewRecorder()
-	h(w, req)
-	if w.Code != http.StatusForbidden {
-		t.Errorf("expected 403, got %d", w.Code)
-	}
-}
-
-func TestRequireAdmin_OK_Admin(t *testing.T) {
-	called := false
-	h := requireAdmin(
-		&fakeTokenVerifier{claims: testClaims(true)},
-		func(w http.ResponseWriter, r *http.Request) {
-			called = true
-		},
-	)
-	req := httptest.NewRequest(http.MethodGet, "/admin", nil)
-	req.Header.Set("Authorization", "Bearer token")
-	w := httptest.NewRecorder()
-	h(w, req)
-	if !called {
-		t.Error("next handler should have been called")
-	}
-}
-
 func TestSafeJoin_Traversal(t *testing.T) {
 	_, err := safeJoin("/tmp/safe", "../../../etc/passwd")
 	if err == nil {

@@ -42,12 +42,11 @@ func (h *activityHandler) GetPlayHistory(ctx context.Context, req *eveyv1.GetPla
 		To:          fromTimestamppbPtr(req.To),
 	}
 	if req.Pagination != nil {
-		filter.Limit = int(req.Pagination.PageSize)
-		filter.Offset = int((req.Pagination.Page - 1) * req.Pagination.PageSize)
+		filter.Limit, filter.Offset = clampPagination(req.Pagination.PageSize, req.Pagination.Page, 50)
 	}
 	entries, err := h.svc.GetPlayHistory(ctx, filter)
 	if err != nil {
-		return nil, status.Errorf(codes.Internal, "get play history: %v", err)
+		return nil, internalError("get play history", err)
 	}
 	resp := &eveyv1.GetPlayHistoryResponse{}
 	for _, e := range entries {
@@ -67,7 +66,7 @@ func (h *activityHandler) GetUserStats(ctx context.Context, req *eveyv1.GetUserS
 	}
 	stats, err := h.svc.GetUserStats(ctx, profileID)
 	if err != nil {
-		return nil, status.Errorf(codes.Internal, "get user stats: %v", err)
+		return nil, internalError("get user stats", err)
 	}
 	totalGenreMs := int64(0)
 	for _, gs := range stats.GenreBreakdown {
@@ -115,7 +114,7 @@ func (h *activityHandler) GetUserStats(ctx context.Context, req *eveyv1.GetUserS
 func (h *activityHandler) GetServerStats(ctx context.Context, _ *eveyv1.GetServerStatsRequest) (*eveyv1.ServerStats, error) {
 	stats, err := h.svc.GetServerStats(ctx)
 	if err != nil {
-		return nil, status.Errorf(codes.Internal, "get server stats: %v", err)
+		return nil, internalError("get server stats", err)
 	}
 	return &eveyv1.ServerStats{
 		TotalUsers:      int32(stats.TotalUsers),
@@ -135,15 +134,13 @@ func (h *activityHandler) GetLoginHistory(ctx context.Context, req *eveyv1.GetLo
 	} else if userID != claims.UserID && !claims.IsAdmin {
 		return nil, h.translator.TranslatedError(ctx, codes.PermissionDenied, "errors.activity.cannot_access_other_history")
 	}
-	limit := 50
-	offset := 0
+	limit, offset := 50, 0
 	if req.Pagination != nil {
-		limit = int(req.Pagination.PageSize)
-		offset = int((req.Pagination.Page - 1) * req.Pagination.PageSize)
+		limit, offset = clampPagination(req.Pagination.PageSize, req.Pagination.Page, 50)
 	}
 	entries, err := h.svc.GetLoginHistory(ctx, userID, limit, offset)
 	if err != nil {
-		return nil, status.Errorf(codes.Internal, "get login history: %v", err)
+		return nil, internalError("get login history", err)
 	}
 	resp := &eveyv1.GetLoginHistoryResponse{}
 	for _, e := range entries {
@@ -163,7 +160,7 @@ func (h *activityHandler) ListServerMetrics(ctx context.Context, req *eveyv1.Lis
 	}
 	metrics, err := h.svc.GetServerMetrics(ctx, from, to)
 	if err != nil {
-		return nil, status.Errorf(codes.Internal, "get metrics: %v", err)
+		return nil, internalError("get metrics", err)
 	}
 	resp := &eveyv1.ListServerMetricsResponse{}
 	for _, m := range metrics {
@@ -183,7 +180,7 @@ func (h *activityHandler) GetPopularMedia(ctx context.Context, req *eveyv1.GetPo
 	}
 	popular, err := h.svc.GetMostPopular(ctx, limit)
 	if err != nil {
-		return nil, status.Errorf(codes.Internal, "get popular: %v", err)
+		return nil, internalError("get popular", err)
 	}
 	ids := make([]string, len(popular))
 	for i, p := range popular {
@@ -232,7 +229,7 @@ func (h *activityHandler) GetAnalytics(ctx context.Context, _ *eveyv1.GetAnalyti
 	}
 	data, err := h.svc.GetAnalytics(ctx)
 	if err != nil {
-		return nil, status.Errorf(codes.Internal, "get analytics: %v", err)
+		return nil, internalError("get analytics", err)
 	}
 	resp := &eveyv1.GetAnalyticsResponse{
 		TotalPlaysToday:    int32(data.TotalPlaysToday),

@@ -6,8 +6,6 @@ import (
 	eveyv1 "github.com/gravity-zero/evey/gen/evey/v1"
 	appwebhook "github.com/gravity-zero/evey/internal/app/webhook"
 	"github.com/gravity-zero/evey/internal/domain/webhook"
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
 )
 
 type webhookHandler struct {
@@ -25,7 +23,7 @@ func (h *webhookHandler) CreateWebhook(ctx context.Context, req *eveyv1.CreateWe
 		Enabled: req.Enabled,
 	}
 	if err := h.svc.Create(ctx, cfg); err != nil {
-		return nil, status.Errorf(codes.Internal, "create webhook: %v", err)
+		return nil, internalError("create webhook", err)
 	}
 	return webhookConfigToProto(cfg), nil
 }
@@ -33,7 +31,7 @@ func (h *webhookHandler) CreateWebhook(ctx context.Context, req *eveyv1.CreateWe
 func (h *webhookHandler) ListWebhooks(ctx context.Context, _ *eveyv1.ListWebhooksRequest) (*eveyv1.ListWebhooksResponse, error) {
 	configs, err := h.svc.List(ctx)
 	if err != nil {
-		return nil, status.Errorf(codes.Internal, "list webhooks: %v", err)
+		return nil, internalError("list webhooks", err)
 	}
 	resp := &eveyv1.ListWebhooksResponse{}
 	for _, c := range configs {
@@ -53,14 +51,14 @@ func (h *webhookHandler) UpdateWebhook(ctx context.Context, req *eveyv1.UpdateWe
 		Enabled: req.Enabled,
 	}
 	if err := h.svc.Update(ctx, cfg); err != nil {
-		return nil, status.Errorf(codes.Internal, "update webhook: %v", err)
+		return nil, internalError("update webhook", err)
 	}
 	return webhookConfigToProto(cfg), nil
 }
 
 func (h *webhookHandler) DeleteWebhook(ctx context.Context, req *eveyv1.DeleteWebhookRequest) (*eveyv1.DeleteWebhookResponse, error) {
 	if err := h.svc.Delete(ctx, req.Id); err != nil {
-		return nil, status.Errorf(codes.Internal, "delete webhook: %v", err)
+		return nil, internalError("delete webhook", err)
 	}
 	return &eveyv1.DeleteWebhookResponse{}, nil
 }
@@ -68,7 +66,7 @@ func (h *webhookHandler) DeleteWebhook(ctx context.Context, req *eveyv1.DeleteWe
 func (h *webhookHandler) ListWebhookDeliveries(ctx context.Context, req *eveyv1.ListWebhookDeliveriesRequest) (*eveyv1.ListWebhookDeliveriesResponse, error) {
 	deliveries, err := h.svc.ListDeliveries(ctx, req.WebhookId, int(req.Limit))
 	if err != nil {
-		return nil, status.Errorf(codes.Internal, "list deliveries: %v", err)
+		return nil, internalError("list deliveries", err)
 	}
 	resp := &eveyv1.ListWebhookDeliveriesResponse{}
 	for _, d := range deliveries {
