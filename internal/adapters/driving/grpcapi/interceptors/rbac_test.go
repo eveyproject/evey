@@ -103,10 +103,14 @@ func TestDefaultRBACConfig_AdminMethods(t *testing.T) {
 		"/evey.v1.ActivityService/GetServerStats",
 		"/evey.v1.ActivityService/ListServerMetrics",
 		// MetadataService
+		"/evey.v1.MetadataService/SearchMetadata",
 		"/evey.v1.MetadataService/RefreshMetadata",
 		"/evey.v1.MetadataService/SetMetadataOverride",
 		"/evey.v1.MetadataService/RemoveMetadataOverride",
 		// MKVService
+		"/evey.v1.MKVService/GetContainerInfo",
+		"/evey.v1.MKVService/ListTracks",
+		"/evey.v1.MKVService/ExtractTrack",
 		"/evey.v1.MKVService/MuxContainer",
 		"/evey.v1.MKVService/DemuxContainer",
 		"/evey.v1.MKVService/AddTrack",
@@ -137,6 +141,8 @@ func TestDefaultRBACConfig_AdminMethods(t *testing.T) {
 		"/evey.v1.ServerConfigService/SetServerConfigEntry",
 		"/evey.v1.ServerConfigService/ListServerConfigEntries",
 		"/evey.v1.ServerConfigService/DeleteServerConfigEntry",
+		// CollectionService
+		"/evey.v1.CollectionService/DeleteCollection",
 	}
 
 	require.Len(t, cfg.MethodRoles, len(expectedAdmin), "MethodRoles count mismatch — was a mapping added or removed?")
