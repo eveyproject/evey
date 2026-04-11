@@ -2,7 +2,6 @@ package grpcapi
 
 import (
 	"context"
-	"database/sql"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -18,6 +17,7 @@ import (
 	"github.com/gravity-zero/evey/internal/domain/activity"
 	"github.com/gravity-zero/evey/internal/domain/library"
 	"github.com/gravity-zero/evey/internal/domain/playback"
+	"github.com/gravity-zero/evey/internal/domain/shared"
 	"github.com/gravity-zero/evey/internal/domain/transcoding"
 	eveyi18n "github.com/gravity-zero/evey/internal/pkg/i18n"
 	"github.com/gravity-zero/evey/internal/pkg/id"
@@ -235,7 +235,7 @@ func (h *playbackHandler) GetWatchProgress(ctx context.Context, req *eveyv1.GetW
 	}
 	wp, err := h.query.GetWatchProgress(ctx, profileID, req.MediaItemId)
 	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
+		if errors.Is(err, shared.ErrNotFound) {
 			return &eveyv1.WatchProgress{}, nil
 		}
 		slog.Error("get watch progress", slog.Any("err", err))

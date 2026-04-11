@@ -182,6 +182,9 @@ func (q *FeedQuerier) NextEpisode(ctx context.Context, profileID string, limit i
 
 // RecentlyAdded returns media items added within daysWindow days, most recent first.
 func (q *FeedQuerier) RecentlyAdded(ctx context.Context, daysWindow, limit int) ([]*feed.FeedItem, error) {
+	if daysWindow <= 0 {
+		daysWindow = 30
+	}
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	rows, err := q.db.QueryContext(ctx, `

@@ -3,6 +3,7 @@ package httpapi
 import (
 	"bytes"
 	"context"
+	"io"
 	"log/slog"
 	"net/http"
 	"os"
@@ -55,9 +56,16 @@ func (h *photoHandler) servePhoto(w http.ResponseWriter, r *http.Request) {
 		http.ServeContent(w, r, filepath.Base(p.FilePath), fi.ModTime(), f)
 		return
 	}
-	data, err := os.ReadFile(p.FilePath)
+	f2, err := os.Open(p.FilePath)
 	if err != nil {
 		http.Error(w, `{"message":"file not found"}`, http.StatusNotFound)
+		return
+	}
+	defer f2.Close()
+	const maxPhotoSize = 50 << 20 // 50 MB
+	data, err := io.ReadAll(io.LimitReader(f2, maxPhotoSize))
+	if err != nil {
+		http.Error(w, `{"message":"read error"}`, http.StatusInternalServerError)
 		return
 	}
 	if stripped := exifstrip.StripJPEGAppExif(data); stripped != nil {

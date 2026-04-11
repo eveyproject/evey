@@ -3,9 +3,11 @@ package postgres
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 
 	"github.com/gravity-zero/evey/internal/domain/playback"
+	"github.com/gravity-zero/evey/internal/domain/shared"
 )
 
 type WatchProgressRepository struct {
@@ -39,6 +41,9 @@ func (r *WatchProgressRepository) GetByProfileAndMedia(ctx context.Context, prof
 		`SELECT id, profile_id, media_item_id, position_ms, completed, play_count, last_played_at
 		 FROM watch_progress WHERE profile_id = $1 AND media_item_id = $2`, profileID, mediaItemID,
 	).Scan(&wp.ID, &wp.ProfileID, &wp.MediaItemID, &wp.PositionMs, &wp.Completed, &wp.PlayCount, &wp.LastPlayedAt)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, shared.ErrNotFound
+	}
 	if err != nil {
 		return nil, fmt.Errorf("WatchProgressRepo.GetByProfileAndMedia: %w", err)
 	}

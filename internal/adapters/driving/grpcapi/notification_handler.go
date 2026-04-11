@@ -5,7 +5,10 @@ import (
 	"fmt"
 
 	eveyv1 "github.com/gravity-zero/evey/gen/evey/v1"
+	"github.com/gravity-zero/evey/internal/adapters/driving/grpcapi/interceptors"
 	appnotification "github.com/gravity-zero/evey/internal/app/notification"
+	appuser "github.com/gravity-zero/evey/internal/app/user"
+	applibrary "github.com/gravity-zero/evey/internal/app/library"
 	"github.com/gravity-zero/evey/internal/domain/notification"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -13,8 +16,10 @@ import (
 
 type notificationHandler struct {
 	eveyv1.UnimplementedNotificationServiceServer
-	cmd   *appnotification.CommandService
-	query *appnotification.QueryService
+	cmd        *appnotification.CommandService
+	query      *appnotification.QueryService
+	userAccess *appuser.AccessService
+	libQuery   *applibrary.QueryService
 }
 
 func (h *notificationHandler) ListNotifications(ctx context.Context, req *eveyv1.ListNotificationsRequest) (*eveyv1.ListNotificationsResponse, error) {
@@ -30,18 +35,27 @@ func (h *notificationHandler) ListNotifications(ctx context.Context, req *eveyv1
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "list notifications: %v", err)
 	}
+	// Filter notifications by library access for non-admin users
+	allowed := h.allowedLibraryIDs(ctx)
 	resp := &eveyv1.ListNotificationsResponse{}
 	for _, n := range items {
+		if n.MediaItemID != "" && allowed != nil {
+			item, itemErr := h.libQuery.GetMediaItem(ctx, n.MediaItemID)
+			if itemErr != nil || !containsStr(allowed, item.LibraryID) {
+				continue
+			}
+		}
 		resp.Notifications = append(resp.Notifications, notificationToProto(n))
 	}
 	return resp, nil
 }
 
 func (h *notificationHandler) MarkRead(ctx context.Context, req *eveyv1.MarkReadRequest) (*eveyv1.MarkReadResponse, error) {
-	if _, err := requireClaims(ctx); err != nil {
+	claims, err := requireClaims(ctx)
+	if err != nil {
 		return nil, fmt.Errorf("notificationHandler.MarkRead: %w", err)
 	}
-	if err := h.cmd.MarkRead(ctx, req.Id); err != nil {
+	if err := h.cmd.MarkRead(ctx, req.Id, claims.ProfileID); err != nil {
 		return nil, status.Errorf(codes.Internal, "mark read: %v", err)
 	}
 	return &eveyv1.MarkReadResponse{}, nil
@@ -149,6 +163,27 @@ func (h *notificationHandler) UpdateGlobalNotificationSettings(ctx context.Conte
 		return nil, status.Errorf(codes.Internal, "update global settings: %v", err)
 	}
 	return settingsToProto(s), nil
+}
+
+func (h *notificationHandler) allowedLibraryIDs(ctx context.Context) []string {
+	if h.userAccess == nil {
+		return nil
+	}
+	claims := interceptors.ClaimsFromContext(ctx)
+	if claims == nil || claims.IsAdmin {
+		return nil
+	}
+	ids, _ := h.userAccess.GetLibraryAccessByUserID(ctx, claims.UserID)
+	return ids
+}
+
+func containsStr(ss []string, s string) bool {
+	for _, v := range ss {
+		if v == s {
+			return true
+		}
+	}
+	return false
 }
 
 func notificationToProto(n *notification.Notification) *eveyv1.Notification {

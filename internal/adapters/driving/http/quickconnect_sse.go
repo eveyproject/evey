@@ -21,8 +21,7 @@ type qcCheckerAdapter struct {
 	cfg   *config.Config
 }
 
-func (a *qcCheckerAdapter) checkAndGenerateTokens(code string, persistent bool) (string, string, bool, error) {
-	ctx := context.Background()
+func (a *qcCheckerAdapter) checkAndGenerateTokens(ctx context.Context, code string, persistent bool) (string, string, bool, error) {
 	qc, err := a.query.CheckQuickConnect(ctx, code)
 	if err != nil {
 		return "", "", false, err
@@ -86,7 +85,7 @@ func quickConnectSSEHandler(hub *quickconnecthub.Hub, checker *qcCheckerAdapter)
 				fmt.Fprintf(w, ": ping\n\n")
 				flusher.Flush()
 			case <-ch:
-				access, refresh, authorized, err := checker.checkAndGenerateTokens(code, persistent)
+				access, refresh, authorized, err := checker.checkAndGenerateTokens(r.Context(), code, persistent)
 				if err != nil || !authorized {
 					slog.Warn("quickconnect sse: check failed after notify", slog.Any("err", err))
 					fmt.Fprintf(w, "data: {\"event\":\"error\"}\n\n")
