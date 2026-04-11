@@ -3,9 +3,13 @@ package grpcapi
 import (
 	"context"
 	"fmt"
+	"slices"
 
 	eveyv1 "github.com/gravity-zero/evey/gen/evey/v1"
+	"github.com/gravity-zero/evey/internal/adapters/driving/grpcapi/interceptors"
 	appfeed "github.com/gravity-zero/evey/internal/app/feed"
+	applibrary "github.com/gravity-zero/evey/internal/app/library"
+	appuser "github.com/gravity-zero/evey/internal/app/user"
 	"github.com/gravity-zero/evey/internal/domain/feed"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -13,8 +17,46 @@ import (
 
 type feedHandler struct {
 	eveyv1.UnimplementedFeedServiceServer
-	commands *appfeed.CommandService
-	queries  *appfeed.QueryService
+	commands   *appfeed.CommandService
+	queries    *appfeed.QueryService
+	userAccess *appuser.AccessService
+	libQuery   *applibrary.QueryService
+}
+
+func (h *feedHandler) filterByLibraryAccess(ctx context.Context, items []*feed.FeedItem) ([]*feed.FeedItem, error) {
+	if h.userAccess == nil || h.libQuery == nil {
+		return items, nil
+	}
+	claims := interceptors.ClaimsFromContext(ctx)
+	if claims == nil || claims.IsAdmin {
+		return items, nil
+	}
+	allowedIDs, err := h.userAccess.GetLibraryAccessByUserID(ctx, claims.UserID)
+	if err != nil {
+		return nil, err
+	}
+	if allowedIDs == nil {
+		return items, nil
+	}
+	ids := make([]string, 0, len(items))
+	for _, item := range items {
+		ids = append(ids, item.MediaItemID)
+	}
+	mediaItems, err := h.libQuery.GetMediaItemsByIDs(ctx, ids)
+	if err != nil {
+		return nil, err
+	}
+	libByID := make(map[string]string, len(mediaItems))
+	for _, mi := range mediaItems {
+		libByID[mi.ID] = mi.LibraryID
+	}
+	filtered := items[:0]
+	for _, item := range items {
+		if libID, ok := libByID[item.MediaItemID]; ok && slices.Contains(allowedIDs, libID) {
+			filtered = append(filtered, item)
+		}
+	}
+	return filtered, nil
 }
 
 func (h *feedHandler) GetFeedConfig(ctx context.Context, req *eveyv1.GetFeedConfigRequest) (*eveyv1.GetFeedConfigResponse, error) {
@@ -58,6 +100,10 @@ func (h *feedHandler) RecentlyAdded(ctx context.Context, req *eveyv1.RecentlyAdd
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "recently added: %v", err)
 	}
+	items, err = h.filterByLibraryAccess(ctx, items)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "recently added: filter: %v", err)
+	}
 	return feedItemsToResponse(items), nil
 }
 
@@ -74,6 +120,10 @@ func (h *feedHandler) Recommended(ctx context.Context, req *eveyv1.RecommendedRe
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "recommended: %v", err)
 	}
+	items, err = h.filterByLibraryAccess(ctx, items)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "recommended: filter: %v", err)
+	}
 	return feedItemsToResponse(items), nil
 }
 
@@ -89,6 +139,10 @@ func (h *feedHandler) SimilarItems(ctx context.Context, req *eveyv1.SimilarItems
 	items, err := h.queries.SimilarItems(ctx, req.MediaItemId, profileID, int(req.Limit))
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "similar items: %v", err)
+	}
+	items, err = h.filterByLibraryAccess(ctx, items)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "similar items: filter: %v", err)
 	}
 	return feedItemsToResponse(items), nil
 }
@@ -180,6 +234,10 @@ func (h *feedHandler) ResumePlayback(ctx context.Context, req *eveyv1.ResumePlay
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "resume playback: %v", err)
 	}
+	items, err = h.filterByLibraryAccess(ctx, items)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "resume playback: filter: %v", err)
+	}
 	return feedItemsToResponse(items), nil
 }
 
@@ -199,6 +257,10 @@ func (h *feedHandler) NextEpisode(ctx context.Context, req *eveyv1.NextEpisodeRe
 	items, err := h.queries.NextEpisode(ctx, profileID, limit)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "next episode: %v", err)
+	}
+	items, err = h.filterByLibraryAccess(ctx, items)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "next episode: filter: %v", err)
 	}
 	return feedItemsToResponse(items), nil
 }
