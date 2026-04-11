@@ -7,7 +7,7 @@ export interface SyncPlayMember {
   username: string;
 }
 
-export interface SyncPlayState {
+interface SyncPlayState {
   roomId: string | null;
   roomCode: string | null;
   members: SyncPlayMember[];
@@ -15,7 +15,7 @@ export interface SyncPlayState {
   isHost: boolean;
 }
 
-export interface SyncPlayControls {
+interface SyncPlayControls {
   createRoom: (mediaId: string) => Promise<string>;
   joinRoom: (roomId: string) => Promise<void>;
   joinByCode: (code: string) => Promise<{ roomId: string; mediaId: string }>;

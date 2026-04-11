@@ -1,6 +1,7 @@
 import { useCallback, useMemo } from "react";
 import { View, Text, FlatList, StyleSheet, Dimensions, Pressable } from "react-native";
 import { router } from "expo-router";
+import { useTranslation } from "react-i18next";
 import type { V1MediaItem } from "@evey/api";
 import { useTheme } from "../providers/ThemeProvider";
 import { MediaCard } from "./MediaCard";
@@ -24,6 +25,7 @@ const getItemLayout = (_: unknown, index: number) => ({
 
 export function MediaRow({ title, seeAllHref, items, onItemPress, watchPercents }: MediaRowProps) {
   const theme = useTheme();
+  const { t } = useTranslation();
 
   const titleStyle = useMemo(() => ({
     color: theme.colors.text,
@@ -53,8 +55,8 @@ export function MediaRow({ title, seeAllHref, items, onItemPress, watchPercents 
       <View style={[styles.rowHeader, { marginBottom: theme.spacing.sm }]}>
         <Text style={[styles.rowTitle, titleStyle]}>{title}</Text>
         {seeAllHref && (
-          <Pressable onPress={() => router.push(seeAllHref as never)} style={{ paddingHorizontal: theme.spacing.md }} accessible={true} accessibilityLabel="See all" accessibilityRole="button">
-            <Text style={{ color: theme.colors.accent, fontSize: 13 }}>See all</Text>
+          <Pressable onPress={() => router.push(seeAllHref as never)} style={{ paddingHorizontal: theme.spacing.md }} accessible={true} accessibilityLabel={t("common.seeAll", "See all")} accessibilityRole="button">
+            <Text style={{ color: theme.colors.accent, fontSize: 13 }}>{t("common.seeAll", "See all")}</Text>
           </Pressable>
         )}
       </View>

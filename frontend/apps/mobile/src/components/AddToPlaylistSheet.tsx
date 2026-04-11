@@ -89,7 +89,7 @@ export function AddToPlaylistSheet({ visible, mediaItemId, onClose }: Props) {
             style={[styles.closeBtn, { backgroundColor: theme.colors.surfaceRaised, borderRadius: theme.radii.md }]}
             onPress={onClose}
           >
-            <Text style={[styles.closeBtnText, { color: theme.colors.text }]}>Close</Text>
+            <Text style={[styles.closeBtnText, { color: theme.colors.text }]}>{t("common.close", "Close")}</Text>
           </TouchableOpacity>
         </Pressable>
       </Pressable>

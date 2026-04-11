@@ -4,11 +4,12 @@ import { Ionicons } from "@expo/vector-icons";
 import { useTranslation } from "react-i18next";
 import { useTheme } from "../providers/ThemeProvider";
 import type { ThemeTokens } from "@evey/theme";
+import type { TFunction } from "i18next";
 
 interface Props {
   children?: React.ReactNode;
   theme: ThemeTokens;
-  t: (key: string) => string;
+  t: TFunction;
 }
 
 interface State {
@@ -28,19 +29,19 @@ class ErrorBoundaryInner extends Component<Props, State> {
 
   render() {
     if (this.state.hasError) {
-      const { theme } = this.props;
+      const { theme, t } = this.props;
       return (
         <View style={[styles.container, { backgroundColor: theme.colors.bg }]}>
           <Ionicons name="alert-circle-outline" size={48} color={theme.colors.error} />
-          <Text style={[styles.title, { color: theme.colors.text }]}>{this.props.t("common.errorBoundary.title")}</Text>
+          <Text style={[styles.title, { color: theme.colors.text }]}>{t("common.somethingWentWrong", "Something went wrong")}</Text>
           <Text style={[styles.message, { color: theme.colors.textMuted }]} numberOfLines={3}>
-            {this.state.error?.message ?? "Unknown error"}
+            {this.state.error?.message ?? t("common.unknownError", "Unknown error")}
           </Text>
           <Pressable
             onPress={() => this.setState({ hasError: false, error: null })}
             style={[styles.retryBtn, { backgroundColor: theme.colors.accent, borderRadius: theme.radii.md }]}
           >
-            <Text style={[styles.retryText, { color: theme.colors.text }]}>{this.props.t("common.errorBoundary.tryAgain")}</Text>
+            <Text style={[styles.retryText, { color: theme.colors.text }]}>{t("common.tryAgain", "Try Again")}</Text>
           </Pressable>
         </View>
       );

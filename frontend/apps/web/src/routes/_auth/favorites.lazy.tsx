@@ -185,12 +185,12 @@ function FavoritesPage() {
               className={searchInputClass}
               aria-label={t("media.favorites.searchPlaceholder")}
             />
-            <select className={selectClass} value={typeFilter} onChange={(e) => setTypeFilter(e.target.value as TypeFilter)}>
+            <select className={selectClass} value={typeFilter} onChange={(e) => setTypeFilter(e.target.value as TypeFilter)} aria-label={t("media.favorites.filterByType", "Filter by type")}>
               <option value="all">{t("media.favorites.all")}</option>
               <option value="MEDIA_ITEM_TYPE_MOVIE">{t("media.favorites.movies")}</option>
               <option value="MEDIA_ITEM_TYPE_SERIES">{t("media.favorites.series")}</option>
             </select>
-            <select className={selectClass} value={sort} onChange={(e) => setSort(e.target.value as SortKey)}>
+            <select className={selectClass} value={sort} onChange={(e) => setSort(e.target.value as SortKey)} aria-label={t("media.favorites.sortBy", "Sort by")}>
               <option value="dateAdded">{t("media.favorites.recentlyAdded")}</option>
               <option value="titleAZ">{t("media.favorites.titleAZ")}</option>
               <option value="titleZA">{t("media.favorites.titleZA")}</option>
@@ -206,6 +206,8 @@ function FavoritesPage() {
                 color: bulkMode ? "var(--filter-active-text)" : "var(--text-muted)",
                 borderColor: bulkMode ? "var(--accent)" : "var(--border)",
               }}
+              aria-label={t("common.select")}
+              aria-pressed={bulkMode}
             >
               {t("common.select")}
             </button>
@@ -214,6 +216,7 @@ function FavoritesPage() {
                 type="button"
                 onClick={() => selectAll(filtered.map((f) => f.mediaItemId))}
                 className="text-xs hover:underline text-[var(--accent)]"
+                aria-label={t("common.selectAll")}
               >
                 {t("common.selectAll")}
               </button>

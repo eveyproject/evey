@@ -322,7 +322,7 @@ function LibraryPage() {
           {library?.name ?? t("media.library.title")}
         </h1>
         <span className="text-sm text-[var(--text-muted)]" data-testid="library-item-count">
-          {displayCount} {displayCount === 1 ? "item" : "items"}
+          {t("common.itemCount", "{{count}} item", { count: displayCount })}
           {hasActiveFilters && ` ${t("common.filtered")}`}
         </span>
       </div>

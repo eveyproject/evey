@@ -78,7 +78,7 @@ export function StarRating({ mediaId }: StarRatingProps) {
       </div>
       {agg && agg.count > 0 && (
         <span className="text-xs text-[var(--text-muted)]">
-          Community: {agg.average.toFixed(1)}/5 ({agg.count} {agg.count === 1 ? "rating" : "ratings"})
+          {t("media.detail.communityRating", "Community: {{average}}/5 ({{count}} rating)", { average: agg.average.toFixed(1), count: agg.count })}
         </span>
       )}
     </div>

@@ -1,4 +1,5 @@
 import { X } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/Button";
 
 export interface BulkActionBarProps {
@@ -22,6 +23,7 @@ export function BulkActionBar({
   markWatchedPending,
   markUnwatchedPending,
 }: BulkActionBarProps) {
+  const { t } = useTranslation();
   return (
     <div
       className={`fixed bottom-0 left-0 right-0 z-overlay flex items-center gap-2 px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] flex-wrap shadow-2xl bg-[var(--surface)] border-t border-[var(--accent)] transition-transform duration-250 ease-out ${count > 0 ? "translate-y-0" : "translate-y-full"}`}
@@ -32,19 +34,19 @@ export function BulkActionBar({
       >
         {count}
       </span>
-      <span className="text-sm mr-1 text-[var(--text-muted)]">selected</span>
+      <span className="text-sm mr-1 text-[var(--text-muted)]">{t("media.library.selected", "selected")}</span>
 
       <Button variant="secondary" onClick={onMarkWatched} loading={markWatchedPending} disabled={count === 0}>
-        Mark watched
+        {t("media.library.markWatched", "Mark watched")}
       </Button>
       <Button variant="secondary" onClick={onMarkUnwatched} loading={markUnwatchedPending} disabled={count === 0}>
-        Mark unwatched
+        {t("media.library.markUnwatched", "Mark unwatched")}
       </Button>
       <Button variant="secondary" onClick={onAddToPlaylist} disabled={count === 0}>
-        Add to playlist
+        {t("media.library.addToPlaylist", "Add to playlist")}
       </Button>
       <Button variant="secondary" onClick={onAddToCollection} disabled={count === 0}>
-        Add to collection
+        {t("media.library.addToCollection", "Add to collection")}
       </Button>
 
       <button
