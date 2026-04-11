@@ -270,13 +270,30 @@ func (h *playbackHandler) GetWatchHistory(ctx context.Context, req *eveyv1.GetWa
 	}
 	allowedIDs, _ := h.getAllowedLibraryIDs(ctx)
 	resp := &eveyv1.GetWatchHistoryResponse{}
-	for _, wp := range items {
-		if allowedIDs != nil {
-			if mi, mErr := h.librarySvc.GetMediaItem(ctx, wp.MediaItemID); mErr != nil || !slices.Contains(allowedIDs, mi.LibraryID) {
-				continue
+	if allowedIDs != nil {
+		ids := make([]string, len(items))
+		for i, wp := range items {
+			ids[i] = wp.MediaItemID
+		}
+		mis, mErr := h.librarySvc.GetMediaItemsByIDs(ctx, ids)
+		if mErr != nil {
+			slog.Warn("watch history: batch fetch media items", slog.Any("err", mErr))
+		}
+		allowed := make(map[string]bool, len(mis))
+		for _, mi := range mis {
+			if slices.Contains(allowedIDs, mi.LibraryID) {
+				allowed[mi.ID] = true
 			}
 		}
-		resp.Items = append(resp.Items, watchProgressToProto(wp))
+		for _, wp := range items {
+			if allowed[wp.MediaItemID] {
+				resp.Items = append(resp.Items, watchProgressToProto(wp))
+			}
+		}
+	} else {
+		for _, wp := range items {
+			resp.Items = append(resp.Items, watchProgressToProto(wp))
+		}
 	}
 	return resp, nil
 }
@@ -301,13 +318,30 @@ func (h *playbackHandler) GetResumeItems(ctx context.Context, req *eveyv1.GetRes
 	}
 	allowedIDs, _ := h.getAllowedLibraryIDs(ctx)
 	resp := &eveyv1.GetResumeItemsResponse{}
-	for _, wp := range items {
-		if allowedIDs != nil {
-			if mi, mErr := h.librarySvc.GetMediaItem(ctx, wp.MediaItemID); mErr != nil || !slices.Contains(allowedIDs, mi.LibraryID) {
-				continue
+	if allowedIDs != nil {
+		ids := make([]string, len(items))
+		for i, wp := range items {
+			ids[i] = wp.MediaItemID
+		}
+		mis, mErr := h.librarySvc.GetMediaItemsByIDs(ctx, ids)
+		if mErr != nil {
+			slog.Warn("resume items: batch fetch media items", slog.Any("err", mErr))
+		}
+		allowed := make(map[string]bool, len(mis))
+		for _, mi := range mis {
+			if slices.Contains(allowedIDs, mi.LibraryID) {
+				allowed[mi.ID] = true
 			}
 		}
-		resp.Progress = append(resp.Progress, watchProgressToProto(wp))
+		for _, wp := range items {
+			if allowed[wp.MediaItemID] {
+				resp.Progress = append(resp.Progress, watchProgressToProto(wp))
+			}
+		}
+	} else {
+		for _, wp := range items {
+			resp.Progress = append(resp.Progress, watchProgressToProto(wp))
+		}
 	}
 	return resp, nil
 }
