@@ -19,6 +19,8 @@ func TestDefaultRBACConfig_PublicMethods(t *testing.T) {
 		"/evey.v1.AdminSystemService/GetSetupStatus",
 		"/evey.v1.UserService/InitiateQuickConnect",
 		"/evey.v1.UserService/CheckQuickConnect",
+		"/evey.v1.UserService/RequestPasswordReset",
+		"/evey.v1.UserService/ResetPassword",
 	}
 
 	require.Len(t, cfg.PublicMethods, len(expected), "public methods count mismatch — was a method added or removed?")
@@ -96,6 +98,7 @@ func TestDefaultRBACConfig_AdminMethods(t *testing.T) {
 		// FeedService
 		"/evey.v1.FeedService/GetAdminFeedConfigs",
 		"/evey.v1.FeedService/UpdateAdminFeedConfig",
+		"/evey.v1.FeedService/BatchUpdateAdminFeedConfigs",
 		// NotificationService
 		"/evey.v1.NotificationService/GetGlobalNotificationSettings",
 		"/evey.v1.NotificationService/UpdateGlobalNotificationSettings",
