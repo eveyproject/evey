@@ -1,12 +1,14 @@
 import React, { Component } from "react";
 import { View, Text, Pressable, StyleSheet } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import { useTranslation } from "react-i18next";
 import { useTheme } from "../providers/ThemeProvider";
 import type { ThemeTokens } from "@evey/theme";
 
 interface Props {
   children?: React.ReactNode;
   theme: ThemeTokens;
+  t: (key: string) => string;
 }
 
 interface State {
@@ -30,7 +32,7 @@ class ErrorBoundaryInner extends Component<Props, State> {
       return (
         <View style={[styles.container, { backgroundColor: theme.colors.bg }]}>
           <Ionicons name="alert-circle-outline" size={48} color={theme.colors.error} />
-          <Text style={[styles.title, { color: theme.colors.text }]}>Something went wrong</Text>
+          <Text style={[styles.title, { color: theme.colors.text }]}>{this.props.t("common.errorBoundary.title")}</Text>
           <Text style={[styles.message, { color: theme.colors.textMuted }]} numberOfLines={3}>
             {this.state.error?.message ?? "Unknown error"}
           </Text>
@@ -38,7 +40,7 @@ class ErrorBoundaryInner extends Component<Props, State> {
             onPress={() => this.setState({ hasError: false, error: null })}
             style={[styles.retryBtn, { backgroundColor: theme.colors.accent, borderRadius: theme.radii.md }]}
           >
-            <Text style={[styles.retryText, { color: theme.colors.text }]}>Try Again</Text>
+            <Text style={[styles.retryText, { color: theme.colors.text }]}>{this.props.t("common.errorBoundary.tryAgain")}</Text>
           </Pressable>
         </View>
       );
@@ -50,7 +52,8 @@ class ErrorBoundaryInner extends Component<Props, State> {
 
 export function ErrorBoundary({ children }: { children: React.ReactNode }) {
   const theme = useTheme();
-  return React.createElement(ErrorBoundaryInner, { theme }, children);
+  const { t } = useTranslation();
+  return React.createElement(ErrorBoundaryInner, { theme, t }, children);
 }
 
 const styles = StyleSheet.create({

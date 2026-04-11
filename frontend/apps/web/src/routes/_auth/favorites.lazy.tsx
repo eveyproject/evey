@@ -113,11 +113,15 @@ function FavoritesPage() {
     if (!profileId || count === 0) return;
     const ids = Array.from(selected);
     const fn = watched ? markWatched.mutateAsync : markUnwatched.mutateAsync;
-    await Promise.all(ids.map((mediaItemId) => fn({ mediaItemId, params: { profileId } })));
-    ids.forEach((id) => queryClient.invalidateQueries({ queryKey: [`/api/v1/media/${id}`] }));
-    toast.success(watched ? t("media.favorites.markedWatched", { count: ids.length }) : t("media.favorites.markedUnwatched", { count: ids.length }));
-    clear();
-    setBulkMode(false);
+    try {
+      await Promise.all(ids.map((mediaItemId) => fn({ mediaItemId, params: { profileId } })));
+      ids.forEach((id) => queryClient.invalidateQueries({ queryKey: [`/api/v1/media/${id}`] }));
+      toast.success(watched ? t("media.favorites.markedWatched", { count: ids.length }) : t("media.favorites.markedUnwatched", { count: ids.length }));
+      clear();
+      setBulkMode(false);
+    } catch {
+      toast.error(t("common.error"));
+    }
   }
 
   const filtered = useMemo(() => {
@@ -171,7 +175,7 @@ function FavoritesPage() {
         {!isLoading && favorites && favorites.length > 0 && (
           <div className="flex items-center gap-2 flex-wrap">
             <span className="text-sm text-[var(--text-muted)]">
-              {filtered.length} {filtered.length === 1 ? "item" : "items"}
+              {t("common.itemCount", { count: filtered.length })}
             </span>
             <input
               type="search"

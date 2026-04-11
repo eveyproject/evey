@@ -1313,5 +1313,7 @@
   "player.subtitleStyle.textShadow": "Text shadow",
   "player.subtitleStyle.top": "Top",
   "player.unableToPlayAnyQuality": "Unable to play at any quality level",
-  "player.watchTogether": "Watch Together"
+  "player.watchTogether": "Watch Together",
+  "common.itemCount_one": "{{count}} item",
+  "common.itemCount_other": "{{count}} items"
 }

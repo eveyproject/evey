@@ -130,7 +130,7 @@ export function HLSPlayer({
       // Transcode — use HLS master playlist
       url = buildTranscodeHlsUrl(mediaId, streamTokenRef.current, currentTrackIndex, null, 0);
     }
-    console.log("[Cast] handleCastToggle — url:", url, "mode:", streamInfo.directPlayUrl ? "direct" : "transcode");
+    if (import.meta.env.DEV) console.log("[Cast] handleCastToggle — url:", url, "mode:", streamInfo.directPlayUrl ? "direct" : "transcode");
     startCast(url, title);
   }, [castConnected, stopCast, startCast, streamInfo.directPlayUrl, title, mediaId, currentTrackIndex]);
 

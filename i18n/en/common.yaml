@@ -71,6 +71,8 @@ loadError: Failed to load
 activity: Activity
 serverVersion: Server Version
 retry: Retry
+itemCount_one: "{{count}} item"
+itemCount_other: "{{count}} items"
 errorBoundary:
   title: Something went wrong
   description: An unexpected error occurred. Please try reloading the page. If the problem persists, go back to the home page.
