@@ -106,7 +106,23 @@ func (fw *FSWatcher) watchRecursive(root string) error {
 }
 
 func (fw *FSWatcher) Unwatch(path string) error {
-	return fw.watcher.Remove(path)
+	// Remove root + all subdirectories (Watch adds them recursively)
+	var firstErr error
+	_ = filepath.WalkDir(path, func(p string, d os.DirEntry, err error) error {
+		if err != nil {
+			return nil
+		}
+		if d.IsDir() {
+			if rmErr := fw.watcher.Remove(p); rmErr != nil && firstErr == nil {
+				firstErr = rmErr
+			}
+		}
+		return nil
+	})
+	if firstErr != nil {
+		return firstErr
+	}
+	return nil
 }
 
 func (fw *FSWatcher) Events() <-chan library.FileEvent {

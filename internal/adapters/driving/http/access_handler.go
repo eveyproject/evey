@@ -178,12 +178,17 @@ func registerRemoteAccessRoutes(mux *http.ServeMux, cfg *config.Config, tokenGen
 func registerPlaybackSettingsRoutes(mux *http.ServeMux, cfg *config.Config, tokenGen *auth.JWTGenerator, writeRL *ratelimit.Limiter) {
 	authMw := httpAuthMiddleware(tokenGen)
 	admin := httpAdminMiddleware(tokenGen)
+	var mu sync.RWMutex
 
 	mux.HandleFunc("GET /api/v1/playback-settings", authMw(func(w http.ResponseWriter, r *http.Request) {
+		mu.RLock()
+		fwd := cfg.Playback.SkipForwardSeconds
+		bwd := cfg.Playback.SkipBackwardSeconds
+		mu.RUnlock()
 		w.Header().Set("Content-Type", "application/json")
 		if err := json.NewEncoder(w).Encode(map[string]any{
-			"skipForwardSeconds":  cfg.Playback.SkipForwardSeconds,
-			"skipBackwardSeconds": cfg.Playback.SkipBackwardSeconds,
+			"skipForwardSeconds":  fwd,
+			"skipBackwardSeconds": bwd,
 		}); err != nil {
 			slog.Warn("json encode failed", slog.Any("err", err))
 		}
@@ -198,16 +203,20 @@ func registerPlaybackSettingsRoutes(mux *http.ServeMux, cfg *config.Config, toke
 			http.Error(w, `{"message":"bad request"}`, http.StatusBadRequest)
 			return
 		}
+		mu.Lock()
 		if body.SkipForwardSeconds != nil && *body.SkipForwardSeconds > 0 {
 			cfg.Playback.SkipForwardSeconds = *body.SkipForwardSeconds
 		}
 		if body.SkipBackwardSeconds != nil && *body.SkipBackwardSeconds > 0 {
 			cfg.Playback.SkipBackwardSeconds = *body.SkipBackwardSeconds
 		}
+		fwd := cfg.Playback.SkipForwardSeconds
+		bwd := cfg.Playback.SkipBackwardSeconds
+		mu.Unlock()
 		w.Header().Set("Content-Type", "application/json")
 		if err := json.NewEncoder(w).Encode(map[string]any{
-			"skipForwardSeconds":  cfg.Playback.SkipForwardSeconds,
-			"skipBackwardSeconds": cfg.Playback.SkipBackwardSeconds,
+			"skipForwardSeconds":  fwd,
+			"skipBackwardSeconds": bwd,
 		}); err != nil {
 			slog.Warn("json encode failed", slog.Any("err", err))
 		}

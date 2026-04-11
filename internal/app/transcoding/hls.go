@@ -127,12 +127,9 @@ func (m *HLSManager) SetMaxConcurrent(n int) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.maxConcurrent = n
-	if n > 0 {
-		m.sem = make(chan struct{}, n)
-	} else {
-		m.sem = nil
-	}
-	slog.Info("hls: updated max concurrent", slog.Int("max", n))
+	// sem is NOT replaced — replacing would orphan goroutines blocked on the old channel.
+	// The new limit takes effect on next restart (setting is persisted to DB).
+	slog.Info("hls: max concurrent updated (effective after restart)", slog.Int("max", n))
 }
 
 func (m *HLSManager) acquireSemaphore() error {

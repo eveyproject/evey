@@ -124,8 +124,8 @@ func BuildFilterString(filters map[string]string) string {
 			field := strings.TrimSuffix(k, "_max")
 			parts = append(parts, fmt.Sprintf("%s <= %s", field, sanitizeNumeric(v)))
 		default:
-			escaped := strings.ReplaceAll(v, "'", "\\'")
-			escaped = strings.ReplaceAll(escaped, "\\", "\\\\")
+			escaped := strings.ReplaceAll(v, "\\", "\\\\")
+			escaped = strings.ReplaceAll(escaped, "'", "\\'")
 			parts = append(parts, fmt.Sprintf("%s = '%s'", k, escaped))
 		}
 	}

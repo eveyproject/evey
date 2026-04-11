@@ -328,18 +328,19 @@ func (r *Runner) Stop(ctx context.Context, pluginID string) error {
 		return fmt.Errorf("plugin %s not running", pluginID)
 	}
 	delete(r.processes, pluginID)
+	ipc := entry.ipc // capture under lock to avoid race with Start goroutine
 	r.mu.Unlock()
 
 	defer entry.cancel()
 
 	// Try gRPC Shutdown first
-	if entry.ipc != nil {
+	if ipc != nil {
 		shutdownCtx, shutdownCancel := context.WithTimeout(ctx, ipcCallTimeout)
-		if err := entry.ipc.Shutdown(shutdownCtx, "host requested shutdown"); err != nil {
+		if err := ipc.Shutdown(shutdownCtx, "host requested shutdown"); err != nil {
 			slog.Warn("plugin Shutdown RPC failed", slog.String("pluginID", pluginID), slog.Any("err", err))
 		}
 		shutdownCancel()
-		if err := entry.ipc.Close(); err != nil {
+		if err := ipc.Close(); err != nil {
 			slog.Warn("close plugin IPC", slog.Any("err", err))
 		}
 	}
