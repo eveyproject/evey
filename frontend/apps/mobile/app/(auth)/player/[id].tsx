@@ -7,6 +7,7 @@ import {
   StatusBar,
   StyleSheet,
   useWindowDimensions,
+  BackHandler,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useLocalSearchParams, router } from "expo-router";
@@ -279,6 +280,14 @@ export default function PlayerScreen() {
     return () => {
       ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.DEFAULT);
     };
+  }, []);
+
+  useEffect(() => {
+    const sub = BackHandler.addEventListener("hardwareBackPress", () => {
+      router.back();
+      return true;
+    });
+    return () => sub.remove();
   }, []);
 
   useEffect(() => {
