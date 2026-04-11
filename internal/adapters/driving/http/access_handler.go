@@ -23,16 +23,9 @@ const remoteAccessConfigKey = "remote_access"
 const RemoteAccessConfigKey = remoteAccessConfigKey
 
 func registerLibraryAccessRoutes(mux *http.ServeMux, accessRepo domainuser.LibraryAccessRepository, libQuery *applibrary.QueryService, tokenGen *auth.JWTGenerator, writeRL *ratelimit.Limiter) {
-	requireAdminLocal := func(r *http.Request) bool {
-		claims, ok := extractClaims(r, tokenGen)
-		return ok && claims.IsAdmin
-	}
+	admin := httpAdminMiddleware(tokenGen)
 
-	mux.HandleFunc("GET /api/v1/admin/users/{userId}/library-access", func(w http.ResponseWriter, r *http.Request) {
-		if !requireAdminLocal(r) {
-			http.Error(w, `{"message":"forbidden"}`, http.StatusForbidden)
-			return
-		}
+	mux.HandleFunc("GET /api/v1/admin/users/{userId}/library-access", admin(func(w http.ResponseWriter, r *http.Request) {
 		userID := r.PathValue("userId")
 		ids, err := accessRepo.GetByUserID(r.Context(), userID)
 		if err != nil {
@@ -61,14 +54,9 @@ func registerLibraryAccessRoutes(mux *http.ServeMux, accessRepo domainuser.Libra
 		}); err != nil {
 			slog.Warn("json encode failed", slog.Any("err", err))
 		}
-	})
+	}))
 
-	mux.HandleFunc("PUT /api/v1/admin/users/{userId}/library-access", ratelimit.MiddlewareFunc(writeRL, func(w http.ResponseWriter, r *http.Request) {
-		if !requireAdminLocal(r) {
-			http.Error(w, `{"message":"forbidden"}`, http.StatusForbidden)
-			return
-		}
-		r.Body = http.MaxBytesReader(w, r.Body, 1<<20)
+	mux.HandleFunc("PUT /api/v1/admin/users/{userId}/library-access", ratelimit.MiddlewareFunc(writeRL, admin(func(w http.ResponseWriter, r *http.Request) {
 		userID := r.PathValue("userId")
 		var body struct {
 			LibraryIDs []string `json:"libraryIds"`
@@ -90,13 +78,9 @@ func registerLibraryAccessRoutes(mux *http.ServeMux, accessRepo domainuser.Libra
 			}
 		}
 		w.WriteHeader(http.StatusNoContent)
-	}))
+	})))
 
-	mux.HandleFunc("DELETE /api/v1/admin/users/{userId}/library-access", ratelimit.MiddlewareFunc(writeRL, func(w http.ResponseWriter, r *http.Request) {
-		if !requireAdminLocal(r) {
-			http.Error(w, `{"message":"forbidden"}`, http.StatusForbidden)
-			return
-		}
+	mux.HandleFunc("DELETE /api/v1/admin/users/{userId}/library-access", ratelimit.MiddlewareFunc(writeRL, admin(func(w http.ResponseWriter, r *http.Request) {
 		userID := r.PathValue("userId")
 		existing, _ := accessRepo.GetByUserID(r.Context(), userID) //nolint:errcheck
 		for _, id := range existing {
@@ -105,16 +89,12 @@ func registerLibraryAccessRoutes(mux *http.ServeMux, accessRepo domainuser.Libra
 			}
 		}
 		w.WriteHeader(http.StatusNoContent)
-	}))
+	})))
 }
 
 func registerRemoteAccessRoutes(mux *http.ServeMux, cfg *config.Config, tokenGen *auth.JWTGenerator, store remoteAccessPersister, writeRL *ratelimit.Limiter) {
 	var mu sync.RWMutex
-
-	requireAdminLocal := func(r *http.Request) bool {
-		claims, ok := extractClaims(r, tokenGen)
-		return ok && claims.IsAdmin
-	}
+	admin := httpAdminMiddleware(tokenGen)
 
 	encodeRA := func(w http.ResponseWriter) {
 		mu.RLock()
@@ -131,20 +111,11 @@ func registerRemoteAccessRoutes(mux *http.ServeMux, cfg *config.Config, tokenGen
 		}
 	}
 
-	mux.HandleFunc("GET /api/v1/admin/remote-access", func(w http.ResponseWriter, r *http.Request) {
-		if !requireAdminLocal(r) {
-			http.Error(w, `{"message":"forbidden"}`, http.StatusForbidden)
-			return
-		}
+	mux.HandleFunc("GET /api/v1/admin/remote-access", admin(func(w http.ResponseWriter, r *http.Request) {
 		encodeRA(w)
-	})
+	}))
 
-	mux.HandleFunc("PUT /api/v1/admin/remote-access", ratelimit.MiddlewareFunc(writeRL, func(w http.ResponseWriter, r *http.Request) {
-		if !requireAdminLocal(r) {
-			http.Error(w, `{"message":"forbidden"}`, http.StatusForbidden)
-			return
-		}
-		r.Body = http.MaxBytesReader(w, r.Body, 1<<20)
+	mux.HandleFunc("PUT /api/v1/admin/remote-access", ratelimit.MiddlewareFunc(writeRL, admin(func(w http.ResponseWriter, r *http.Request) {
 		var body struct {
 			Enabled              *bool    `json:"enabled"`
 			ExternalURL          *string  `json:"externalUrl"`
@@ -189,13 +160,9 @@ func registerRemoteAccessRoutes(mux *http.ServeMux, cfg *config.Config, tokenGen
 			}
 		}
 		encodeRA(w)
-	}))
+	})))
 
-	mux.HandleFunc("GET /api/v1/admin/network-info", func(w http.ResponseWriter, r *http.Request) {
-		if !requireAdminLocal(r) {
-			http.Error(w, `{"message":"forbidden"}`, http.StatusForbidden)
-			return
-		}
+	mux.HandleFunc("GET /api/v1/admin/network-info", admin(func(w http.ResponseWriter, r *http.Request) {
 		ifaces, err := network.NetworkInterfaces()
 		if err != nil {
 			http.Error(w, `{"message":"internal error"}`, http.StatusInternalServerError)
@@ -205,24 +172,14 @@ func registerRemoteAccessRoutes(mux *http.ServeMux, cfg *config.Config, tokenGen
 		if err := json.NewEncoder(w).Encode(map[string]any{"interfaces": ifaces}); err != nil {
 			slog.Warn("json encode failed", slog.Any("err", err))
 		}
-	})
+	}))
 }
 
 func registerPlaybackSettingsRoutes(mux *http.ServeMux, cfg *config.Config, tokenGen *auth.JWTGenerator, writeRL *ratelimit.Limiter) {
-	requireAuth := func(r *http.Request) bool {
-		_, ok := extractClaims(r, tokenGen)
-		return ok
-	}
-	requireAdminLocal := func(r *http.Request) bool {
-		claims, ok := extractClaims(r, tokenGen)
-		return ok && claims.IsAdmin
-	}
+	authMw := httpAuthMiddleware(tokenGen)
+	admin := httpAdminMiddleware(tokenGen)
 
-	mux.HandleFunc("GET /api/v1/playback-settings", func(w http.ResponseWriter, r *http.Request) {
-		if !requireAuth(r) {
-			http.Error(w, `{"message":"unauthenticated"}`, http.StatusUnauthorized)
-			return
-		}
+	mux.HandleFunc("GET /api/v1/playback-settings", authMw(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		if err := json.NewEncoder(w).Encode(map[string]any{
 			"skipForwardSeconds":  cfg.Playback.SkipForwardSeconds,
@@ -230,14 +187,9 @@ func registerPlaybackSettingsRoutes(mux *http.ServeMux, cfg *config.Config, toke
 		}); err != nil {
 			slog.Warn("json encode failed", slog.Any("err", err))
 		}
-	})
+	}))
 
-	mux.HandleFunc("PUT /api/v1/admin/playback-settings", ratelimit.MiddlewareFunc(writeRL, func(w http.ResponseWriter, r *http.Request) {
-		if !requireAdminLocal(r) {
-			http.Error(w, `{"message":"forbidden"}`, http.StatusForbidden)
-			return
-		}
-		r.Body = http.MaxBytesReader(w, r.Body, 1<<20)
+	mux.HandleFunc("PUT /api/v1/admin/playback-settings", ratelimit.MiddlewareFunc(writeRL, admin(func(w http.ResponseWriter, r *http.Request) {
 		var body struct {
 			SkipForwardSeconds  *int `json:"skipForwardSeconds"`
 			SkipBackwardSeconds *int `json:"skipBackwardSeconds"`
@@ -259,20 +211,13 @@ func registerPlaybackSettingsRoutes(mux *http.ServeMux, cfg *config.Config, toke
 		}); err != nil {
 			slog.Warn("json encode failed", slog.Any("err", err))
 		}
-	}))
+	})))
 }
 
 func registerScheduleRoutes(mux *http.ServeMux, scheduler *applibrary.Scheduler, tokenGen *auth.JWTGenerator) {
-	requireAdminLocal := func(r *http.Request) bool {
-		claims, ok := extractClaims(r, tokenGen)
-		return ok && claims.IsAdmin
-	}
+	admin := httpAdminMiddleware(tokenGen)
 
-	mux.HandleFunc("GET /api/v1/libraries/{id}/schedule", func(w http.ResponseWriter, r *http.Request) {
-		if !requireAdminLocal(r) {
-			http.Error(w, `{"message":"forbidden"}`, http.StatusForbidden)
-			return
-		}
+	mux.HandleFunc("GET /api/v1/libraries/{id}/schedule", admin(func(w http.ResponseWriter, r *http.Request) {
 		sched, err := scheduler.GetSchedule(r.Context(), r.PathValue("id"))
 		if err != nil {
 			w.Header().Set("Content-Type", "application/json")
@@ -305,14 +250,9 @@ func registerScheduleRoutes(mux *http.ServeMux, scheduler *applibrary.Scheduler,
 		if err := json.NewEncoder(w).Encode(map[string]any{"schedule": out}); err != nil {
 			slog.Warn("json encode failed", slog.Any("err", err))
 		}
-	})
+	}))
 
-	mux.HandleFunc("PUT /api/v1/libraries/{id}/schedule", func(w http.ResponseWriter, r *http.Request) {
-		if !requireAdminLocal(r) {
-			http.Error(w, `{"message":"forbidden"}`, http.StatusForbidden)
-			return
-		}
-		r.Body = http.MaxBytesReader(w, r.Body, 1<<20)
+	mux.HandleFunc("PUT /api/v1/libraries/{id}/schedule", admin(func(w http.ResponseWriter, r *http.Request) {
 		var body struct {
 			Cron    string `json:"cron"`
 			Enabled *bool  `json:"enabled"`
@@ -354,16 +294,12 @@ func registerScheduleRoutes(mux *http.ServeMux, scheduler *applibrary.Scheduler,
 		if err := json.NewEncoder(w).Encode(map[string]any{"schedule": out}); err != nil {
 			slog.Warn("json encode failed", slog.Any("err", err))
 		}
-	})
+	}))
 
-	mux.HandleFunc("DELETE /api/v1/libraries/{id}/schedule", func(w http.ResponseWriter, r *http.Request) {
-		if !requireAdminLocal(r) {
-			http.Error(w, `{"message":"forbidden"}`, http.StatusForbidden)
-			return
-		}
+	mux.HandleFunc("DELETE /api/v1/libraries/{id}/schedule", admin(func(w http.ResponseWriter, r *http.Request) {
 		if err := scheduler.DeleteSchedule(r.Context(), r.PathValue("id")); err != nil {
 			slog.Warn("delete schedule", slog.Any("err", err))
 		}
 		w.WriteHeader(http.StatusNoContent)
-	})
+	}))
 }

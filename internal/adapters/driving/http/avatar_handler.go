@@ -21,26 +21,17 @@ func registerAvatarRoutes(
 	tokenGen *auth.JWTGenerator,
 	dataDir string,
 ) {
-	mux.HandleFunc("POST /api/v1/profiles/{profileId}/avatar", avatarUploadHandler(profileRepo, tokenGen, dataDir))
-	mux.HandleFunc("GET /api/v1/profiles/{profileId}/avatar", avatarServeHandler(profileRepo, tokenGen, dataDir))
+	authMw := httpAuthMiddleware(tokenGen)
+	mux.HandleFunc("POST /api/v1/profiles/{profileId}/avatar", authMw(avatarUploadHandler(profileRepo, dataDir)))
+	mux.HandleFunc("GET /api/v1/profiles/{profileId}/avatar", authMw(avatarServeHandler(profileRepo, dataDir)))
 }
 
 func avatarUploadHandler(
 	profileRepo domainuser.ProfileRepository,
-	tokenGen *auth.JWTGenerator,
 	dataDir string,
 ) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		token := extractBearerToken(r)
-		if token == "" {
-			http.Error(w, `{"message":"unauthenticated"}`, http.StatusUnauthorized)
-			return
-		}
-		claims, err := tokenGen.ValidateAccessToken(token)
-		if err != nil {
-			http.Error(w, `{"message":"unauthenticated"}`, http.StatusUnauthorized)
-			return
-		}
+		claims := HTTPClaimsFromContext(r.Context())
 
 		profileID := r.PathValue("profileId")
 		profile, err := profileRepo.GetByID(r.Context(), profileID)
@@ -137,24 +128,9 @@ func avatarUploadHandler(
 
 func avatarServeHandler(
 	profileRepo domainuser.ProfileRepository,
-	tokenGen *auth.JWTGenerator,
 	dataDir string,
 ) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		// Accept bearer token from header OR query param (for <img src=...>)
-		token := extractBearerToken(r)
-		if token == "" {
-			token = r.URL.Query().Get("token")
-		}
-		if token == "" {
-			http.Error(w, `{"message":"unauthenticated"}`, http.StatusUnauthorized)
-			return
-		}
-		if _, err := tokenGen.ValidateAccessToken(token); err != nil {
-			http.Error(w, `{"message":"unauthenticated"}`, http.StatusUnauthorized)
-			return
-		}
-
 		profileID := r.PathValue("profileId")
 		profile, err := profileRepo.GetByID(r.Context(), profileID)
 		if err != nil || profile == nil || profile.AvatarPath == nil {

@@ -20,11 +20,9 @@ func newTranscodeServe(tv TokenVerifier, libSvc MediaStreamsGetter, la LibraryAc
 }
 
 func TestTranscodeServe_NoAuth_401(t *testing.T) {
-	h := newTranscodeServe(
-		&fakeTokenVerifier{err: errTest},
-		&fakeMediaStreamsGetter{},
-		allowAll(),
-	)
+	verifier := &fakeTokenVerifier{err: errTest}
+	inner := newTranscodeServe(verifier, &fakeMediaStreamsGetter{}, allowAll())
+	h := httpAuthMiddleware(verifier)(inner)
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/media/m1/transcode", nil)
 	req.SetPathValue("id", "m1")
 	w := httptest.NewRecorder()
@@ -34,19 +32,17 @@ func TestTranscodeServe_NoAuth_401(t *testing.T) {
 	}
 }
 
-func TestTranscodeServe_InvalidToken_403(t *testing.T) {
-	h := newTranscodeServe(
-		&fakeTokenVerifier{err: errTest},
-		&fakeMediaStreamsGetter{},
-		allowAll(),
-	)
+func TestTranscodeServe_InvalidToken_401(t *testing.T) {
+	verifier := &fakeTokenVerifier{err: errTest}
+	inner := newTranscodeServe(verifier, &fakeMediaStreamsGetter{}, allowAll())
+	h := httpAuthMiddleware(verifier)(inner)
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/media/m1/transcode", nil)
 	req.SetPathValue("id", "m1")
 	req.Header.Set("Authorization", "Bearer bad")
 	w := httptest.NewRecorder()
 	h.ServeHTTP(w, req)
-	if w.Code != http.StatusForbidden {
-		t.Errorf("expected 403, got %d", w.Code)
+	if w.Code != http.StatusUnauthorized {
+		t.Errorf("expected 401, got %d", w.Code)
 	}
 }
 
@@ -58,7 +54,7 @@ func TestTranscodeHandler_MediaNotFound_404(t *testing.T) {
 	)
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/media/m1/transcode", nil)
 	req.SetPathValue("id", "m1")
-	req.Header.Set("Authorization", "Bearer token")
+	req = withHTTPClaims(req, testClaims(false))
 	w := httptest.NewRecorder()
 	h.ServeHTTP(w, req)
 	if w.Code != http.StatusNotFound {
@@ -74,7 +70,7 @@ func TestTranscodeHandler_IDOR_Forbidden(t *testing.T) {
 	)
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/media/m1/transcode", nil)
 	req.SetPathValue("id", "m1")
-	req.Header.Set("Authorization", "Bearer token")
+	req = withHTTPClaims(req, testClaims(false))
 	w := httptest.NewRecorder()
 	h.ServeHTTP(w, req)
 	if w.Code != http.StatusForbidden {
@@ -83,11 +79,9 @@ func TestTranscodeHandler_IDOR_Forbidden(t *testing.T) {
 }
 
 func TestPlaybackInfoHandler_NoAuth_401(t *testing.T) {
-	h := playbackInfoHandler(
-		&fakeTokenVerifier{err: errTest},
-		&fakeMediaStreamsGetter{},
-		allowAll(),
-	)
+	verifier := &fakeTokenVerifier{err: errTest}
+	inner := playbackInfoHandler(verifier, &fakeMediaStreamsGetter{}, allowAll())
+	h := httpAuthMiddleware(verifier)(inner)
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/media/m1/playback-info", nil)
 	req.SetPathValue("id", "m1")
 	w := httptest.NewRecorder()
@@ -105,7 +99,7 @@ func TestPlaybackInfoHandler_MediaNotFound_404(t *testing.T) {
 	)
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/media/m1/playback-info", nil)
 	req.SetPathValue("id", "m1")
-	req.Header.Set("Authorization", "Bearer token")
+	req = withHTTPClaims(req, testClaims(false))
 	w := httptest.NewRecorder()
 	h.ServeHTTP(w, req)
 	if w.Code != http.StatusNotFound {

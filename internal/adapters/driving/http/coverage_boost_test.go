@@ -95,12 +95,13 @@ func (f *fakeRemoteAccessStore) Set(_ context.Context, key, value string) error 
 // =====================================
 
 func TestMediaStream_NoAuth_401(t *testing.T) {
-	h := mediaHandler(
-		&fakeTokenVerifier{claims: testClaims(false)},
+	verifier := &fakeTokenVerifier{err: errTest}
+	h := httpAuthMiddleware(verifier)(mediaHandler(
+		verifier,
 		&fakeMediaItemGetter{item: testMediaItem("lib1")},
 		nil, "http://localhost",
 		allowAll(),
-	)
+	))
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/media/m1/stream", nil)
 	req.SetPathValue("id", "m1")
 	w := httptest.NewRecorder()
@@ -110,20 +111,21 @@ func TestMediaStream_NoAuth_401(t *testing.T) {
 	}
 }
 
-func TestMediaStream_InvalidToken_403(t *testing.T) {
-	h := mediaHandler(
-		&fakeTokenVerifier{err: errTest},
+func TestMediaStream_InvalidToken_401(t *testing.T) {
+	verifier := &fakeTokenVerifier{err: errTest}
+	h := httpAuthMiddleware(verifier)(mediaHandler(
+		verifier,
 		&fakeMediaItemGetter{item: testMediaItem("lib1")},
 		nil, "http://localhost",
 		allowAll(),
-	)
+	))
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/media/m1/stream", nil)
 	req.SetPathValue("id", "m1")
 	req.Header.Set("Authorization", "Bearer bad")
 	w := httptest.NewRecorder()
 	h.ServeHTTP(w, req)
-	if w.Code != http.StatusForbidden {
-		t.Errorf("expected 403, got %d", w.Code)
+	if w.Code != http.StatusUnauthorized {
+		t.Errorf("expected 401, got %d", w.Code)
 	}
 }
 
@@ -136,7 +138,7 @@ func TestMediaStream_NotFound_404(t *testing.T) {
 	)
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/media/m1/stream", nil)
 	req.SetPathValue("id", "m1")
-	req.Header.Set("Authorization", "Bearer tok")
+	req = withHTTPClaims(req, testClaims(false))
 	w := httptest.NewRecorder()
 	h.ServeHTTP(w, req)
 	if w.Code != http.StatusNotFound {
@@ -153,7 +155,7 @@ func TestMediaStream_IDOR_403(t *testing.T) {
 	)
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/media/m1/stream", nil)
 	req.SetPathValue("id", "m1")
-	req.Header.Set("Authorization", "Bearer tok")
+	req = withHTTPClaims(req, testClaims(false))
 	w := httptest.NewRecorder()
 	h.ServeHTTP(w, req)
 	if w.Code != http.StatusForbidden {
@@ -170,6 +172,7 @@ func TestMediaStream_TokenFromQueryParam(t *testing.T) {
 	)
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/media/m1/stream?token=valid-token", nil)
 	req.SetPathValue("id", "m1")
+	req = withHTTPClaims(req, testClaims(false))
 	w := httptest.NewRecorder()
 	h.ServeHTTP(w, req)
 	// file doesn't exist but auth passed
@@ -179,13 +182,14 @@ func TestMediaStream_TokenFromQueryParam(t *testing.T) {
 }
 
 func TestMediaArtwork_NoAuth_401(t *testing.T) {
-	h := mediaHandler(
-		&fakeTokenVerifier{claims: testClaims(false)},
+	verifier := &fakeTokenVerifier{err: errTest}
+	h := httpAuthMiddleware(verifier)(mediaHandler(
+		verifier,
 		&fakeMediaItemGetter{item: testMediaItem("lib1")},
 		&fakeArtworkRepo{records: map[string][]*domainmeta.ArtworkRecord{}},
 		"http://localhost",
 		allowAll(),
-	)
+	))
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/media/m1/artwork/poster", nil)
 	req.SetPathValue("id", "m1")
 	req.SetPathValue("artType", "poster")
@@ -207,7 +211,7 @@ func TestMediaArtwork_NotFound_404(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/media/m1/artwork/poster", nil)
 	req.SetPathValue("id", "m1")
 	req.SetPathValue("artType", "poster")
-	req.Header.Set("Authorization", "Bearer tok")
+	req = withHTTPClaims(req, testClaims(false))
 	w := httptest.NewRecorder()
 	h.ServeHTTP(w, req)
 	if w.Code != http.StatusNotFound {
@@ -226,7 +230,7 @@ func TestMediaArtwork_IDOR_403(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/media/m1/artwork/poster", nil)
 	req.SetPathValue("id", "m1")
 	req.SetPathValue("artType", "poster")
-	req.Header.Set("Authorization", "Bearer tok")
+	req = withHTTPClaims(req, testClaims(false))
 	w := httptest.NewRecorder()
 	h.ServeHTTP(w, req)
 	if w.Code != http.StatusForbidden {
@@ -260,13 +264,14 @@ func TestMediaArtwork_StreamToken_WrongMediaID_403(t *testing.T) {
 // --- chaptersHandler ---
 
 func TestChaptersHandler_NoAuth_401(t *testing.T) {
-	h := chaptersHandler(
-		&fakeTokenVerifier{err: errTest},
+	verifier := &fakeTokenVerifier{err: errTest}
+	h := httpAuthMiddleware(verifier)(chaptersHandler(
+		verifier,
 		&fakeChaptersGetter{},
 		"http://localhost",
 		allowAll(),
 		&fakeMediaItemGetter{item: testMediaItem("lib1")},
-	)
+	))
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/media/m1/chapters", nil)
 	req.SetPathValue("id", "m1")
 	w := httptest.NewRecorder()
@@ -276,21 +281,22 @@ func TestChaptersHandler_NoAuth_401(t *testing.T) {
 	}
 }
 
-func TestChaptersHandler_InvalidToken_403(t *testing.T) {
-	h := chaptersHandler(
-		&fakeTokenVerifier{err: errTest},
+func TestChaptersHandler_InvalidToken_401(t *testing.T) {
+	verifier := &fakeTokenVerifier{err: errTest}
+	h := httpAuthMiddleware(verifier)(chaptersHandler(
+		verifier,
 		&fakeChaptersGetter{},
 		"http://localhost",
 		allowAll(),
 		&fakeMediaItemGetter{item: testMediaItem("lib1")},
-	)
+	))
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/media/m1/chapters", nil)
 	req.SetPathValue("id", "m1")
 	req.Header.Set("Authorization", "Bearer bad")
 	w := httptest.NewRecorder()
 	h.ServeHTTP(w, req)
-	if w.Code != http.StatusForbidden {
-		t.Errorf("expected 403, got %d", w.Code)
+	if w.Code != http.StatusUnauthorized {
+		t.Errorf("expected 401, got %d", w.Code)
 	}
 }
 
@@ -304,7 +310,7 @@ func TestChaptersHandler_NotFound_404(t *testing.T) {
 	)
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/media/m1/chapters", nil)
 	req.SetPathValue("id", "m1")
-	req.Header.Set("Authorization", "Bearer tok")
+	req = withHTTPClaims(req, testClaims(false))
 	w := httptest.NewRecorder()
 	h.ServeHTTP(w, req)
 	if w.Code != http.StatusNotFound {
@@ -322,7 +328,7 @@ func TestChaptersHandler_IDOR_403(t *testing.T) {
 	)
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/media/m1/chapters", nil)
 	req.SetPathValue("id", "m1")
-	req.Header.Set("Authorization", "Bearer tok")
+	req = withHTTPClaims(req, testClaims(false))
 	w := httptest.NewRecorder()
 	h.ServeHTTP(w, req)
 	if w.Code != http.StatusForbidden {
@@ -342,7 +348,7 @@ func TestChaptersHandler_OK(t *testing.T) {
 	)
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/media/m1/chapters", nil)
 	req.SetPathValue("id", "m1")
-	req.Header.Set("Authorization", "Bearer tok")
+	req = withHTTPClaims(req, testClaims(false))
 	w := httptest.NewRecorder()
 	h.ServeHTTP(w, req)
 	if w.Code != http.StatusOK {
@@ -363,7 +369,7 @@ func TestChaptersHandler_ServiceError_500(t *testing.T) {
 	)
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/media/m1/chapters", nil)
 	req.SetPathValue("id", "m1")
-	req.Header.Set("Authorization", "Bearer tok")
+	req = withHTTPClaims(req, testClaims(false))
 	w := httptest.NewRecorder()
 	h.ServeHTTP(w, req)
 	if w.Code != http.StatusInternalServerError {
@@ -374,11 +380,12 @@ func TestChaptersHandler_ServiceError_500(t *testing.T) {
 // --- playbackInfoHandler ---
 
 func TestPlaybackInfo_NoAuth_401(t *testing.T) {
-	h := playbackInfoHandler(
-		&fakeTokenVerifier{err: errTest},
+	verifier := &fakeTokenVerifier{err: errTest}
+	h := httpAuthMiddleware(verifier)(playbackInfoHandler(
+		verifier,
 		&fakeMediaStreamsGetter{},
 		allowAll(),
-	)
+	))
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/media/m1/playback-info", nil)
 	req.SetPathValue("id", "m1")
 	w := httptest.NewRecorder()
@@ -388,19 +395,20 @@ func TestPlaybackInfo_NoAuth_401(t *testing.T) {
 	}
 }
 
-func TestPlaybackInfo_InvalidToken_403(t *testing.T) {
-	h := playbackInfoHandler(
-		&fakeTokenVerifier{err: errTest},
+func TestPlaybackInfo_InvalidToken_401(t *testing.T) {
+	verifier := &fakeTokenVerifier{err: errTest}
+	h := httpAuthMiddleware(verifier)(playbackInfoHandler(
+		verifier,
 		&fakeMediaStreamsGetter{},
 		allowAll(),
-	)
+	))
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/media/m1/playback-info", nil)
 	req.SetPathValue("id", "m1")
 	req.Header.Set("Authorization", "Bearer bad")
 	w := httptest.NewRecorder()
 	h.ServeHTTP(w, req)
-	if w.Code != http.StatusForbidden {
-		t.Errorf("expected 403, got %d", w.Code)
+	if w.Code != http.StatusUnauthorized {
+		t.Errorf("expected 401, got %d", w.Code)
 	}
 }
 
@@ -412,7 +420,7 @@ func TestPlaybackInfo_NotFound_404(t *testing.T) {
 	)
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/media/m1/playback-info", nil)
 	req.SetPathValue("id", "m1")
-	req.Header.Set("Authorization", "Bearer tok")
+	req = withHTTPClaims(req, testClaims(false))
 	w := httptest.NewRecorder()
 	h.ServeHTTP(w, req)
 	if w.Code != http.StatusNotFound {
@@ -428,7 +436,7 @@ func TestPlaybackInfo_IDOR_403(t *testing.T) {
 	)
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/media/m1/playback-info", nil)
 	req.SetPathValue("id", "m1")
-	req.Header.Set("Authorization", "Bearer tok")
+	req = withHTTPClaims(req, testClaims(false))
 	w := httptest.NewRecorder()
 	h.ServeHTTP(w, req)
 	if w.Code != http.StatusForbidden {
@@ -452,7 +460,7 @@ func TestPlaybackInfo_OK(t *testing.T) {
 	)
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/media/m1/playback-info", nil)
 	req.SetPathValue("id", "m1")
-	req.Header.Set("Authorization", "Bearer tok")
+	req = withHTTPClaims(req, testClaims(false))
 	w := httptest.NewRecorder()
 	h.ServeHTTP(w, req)
 	if w.Code != http.StatusOK {
@@ -471,7 +479,7 @@ func TestPlaybackInfo_StreamsError_500(t *testing.T) {
 	)
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/media/m1/playback-info", nil)
 	req.SetPathValue("id", "m1")
-	req.Header.Set("Authorization", "Bearer tok")
+	req = withHTTPClaims(req, testClaims(false))
 	w := httptest.NewRecorder()
 	h.ServeHTTP(w, req)
 	if w.Code != http.StatusInternalServerError {
@@ -482,12 +490,13 @@ func TestPlaybackInfo_StreamsError_500(t *testing.T) {
 // --- selectArtworkHandler ---
 
 func TestSelectArtwork_NoAuth_401(t *testing.T) {
-	h := selectArtworkHandler(
-		&fakeTokenVerifier{err: errTest},
+	verifier := &fakeTokenVerifier{err: errTest}
+	h := httpAdminMiddleware(verifier)(selectArtworkHandler(
+		verifier,
 		&fakeArtworkRepo{},
 		&fakeMediaItemGetter{item: testMediaItem("lib1")},
 		allowAll(),
-	)
+	))
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/media/m1/artwork/art1/select", nil)
 	req.SetPathValue("id", "m1")
 	req.SetPathValue("artworkId", "art1")
@@ -499,12 +508,13 @@ func TestSelectArtwork_NoAuth_401(t *testing.T) {
 }
 
 func TestSelectArtwork_NonAdmin_403(t *testing.T) {
-	h := selectArtworkHandler(
-		&fakeTokenVerifier{claims: testClaims(false)},
+	verifier := &fakeTokenVerifier{claims: testClaims(false)}
+	h := httpAdminMiddleware(verifier)(selectArtworkHandler(
+		verifier,
 		&fakeArtworkRepo{},
 		&fakeMediaItemGetter{item: testMediaItem("lib1")},
 		allowAll(),
-	)
+	))
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/media/m1/artwork/art1/select", nil)
 	req.SetPathValue("id", "m1")
 	req.SetPathValue("artworkId", "art1")
@@ -526,7 +536,7 @@ func TestSelectArtwork_MediaNotFound_404(t *testing.T) {
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/media/m1/artwork/art1/select", nil)
 	req.SetPathValue("id", "m1")
 	req.SetPathValue("artworkId", "art1")
-	req.Header.Set("Authorization", "Bearer tok")
+	req = withHTTPClaims(req, testClaims(true))
 	w := httptest.NewRecorder()
 	h.ServeHTTP(w, req)
 	if w.Code != http.StatusNotFound {
@@ -544,7 +554,7 @@ func TestSelectArtwork_NoRecords_404(t *testing.T) {
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/media/m1/artwork/art1/select", nil)
 	req.SetPathValue("id", "m1")
 	req.SetPathValue("artworkId", "art1")
-	req.Header.Set("Authorization", "Bearer tok")
+	req = withHTTPClaims(req, testClaims(true))
 	w := httptest.NewRecorder()
 	h.ServeHTTP(w, req)
 	if w.Code != http.StatusNotFound {
@@ -564,7 +574,7 @@ func TestSelectArtwork_ArtworkIDNotFound_404(t *testing.T) {
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/media/m1/artwork/art1/select", nil)
 	req.SetPathValue("id", "m1")
 	req.SetPathValue("artworkId", "art1")
-	req.Header.Set("Authorization", "Bearer tok")
+	req = withHTTPClaims(req, testClaims(true))
 	w := httptest.NewRecorder()
 	h.ServeHTTP(w, req)
 	if w.Code != http.StatusNotFound {
@@ -587,7 +597,7 @@ func TestSelectArtwork_OK(t *testing.T) {
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/media/m1/artwork/art1/select", nil)
 	req.SetPathValue("id", "m1")
 	req.SetPathValue("artworkId", "art1")
-	req.Header.Set("Authorization", "Bearer tok")
+	req = withHTTPClaims(req, testClaims(true))
 	w := httptest.NewRecorder()
 	h.ServeHTTP(w, req)
 	if w.Code != http.StatusOK {
@@ -597,20 +607,21 @@ func TestSelectArtwork_OK(t *testing.T) {
 
 // --- downloadHandler extra tests ---
 
-func TestDownloadHandler_InvalidToken_403(t *testing.T) {
-	h := downloadHandler(
-		&fakeTokenVerifier{err: errTest},
+func TestDownloadHandler_InvalidToken_401(t *testing.T) {
+	verifier := &fakeTokenVerifier{err: errTest}
+	h := httpAuthMiddleware(verifier)(downloadHandler(
+		verifier,
 		&fakeMediaItemGetter{item: testMediaItem("lib1")},
 		"http://localhost",
 		allowAll(),
-	)
+	))
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/media/m1/download", nil)
 	req.SetPathValue("id", "m1")
 	req.Header.Set("Authorization", "Bearer bad")
 	w := httptest.NewRecorder()
 	h.ServeHTTP(w, req)
-	if w.Code != http.StatusForbidden {
-		t.Errorf("expected 403, got %d", w.Code)
+	if w.Code != http.StatusUnauthorized {
+		t.Errorf("expected 401, got %d", w.Code)
 	}
 }
 
@@ -627,6 +638,7 @@ func TestDownloadHandler_StreamTokenContext(t *testing.T) {
 		Token: "tok", UserID: "u1", MediaItemID: "m1",
 	})
 	req = req.WithContext(ctx)
+	req = withHTTPClaims(req, testClaims(false))
 	w := httptest.NewRecorder()
 	h.ServeHTTP(w, req)
 	if w.Code == http.StatusUnauthorized {
@@ -643,7 +655,7 @@ func TestDownloadHandler_EmptyFilePath_404(t *testing.T) {
 	)
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/media/m1/download", nil)
 	req.SetPathValue("id", "m1")
-	req.Header.Set("Authorization", "Bearer tok")
+	req = withHTTPClaims(req, testClaims(false))
 	w := httptest.NewRecorder()
 	h.ServeHTTP(w, req)
 	if w.Code != http.StatusNotFound {
@@ -770,13 +782,13 @@ func newRemoteAccessMux(t *testing.T) (*http.ServeMux, string, string) {
 	return mux, adminTok, userTok
 }
 
-func TestRemoteAccess_Get_NoAuth_403(t *testing.T) {
+func TestRemoteAccess_Get_NoAuth_401(t *testing.T) {
 	mux, _, _ := newRemoteAccessMux(t)
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/admin/remote-access", nil)
 	w := httptest.NewRecorder()
 	mux.ServeHTTP(w, req)
-	if w.Code != http.StatusForbidden {
-		t.Errorf("expected 403, got %d", w.Code)
+	if w.Code != http.StatusUnauthorized {
+		t.Errorf("expected 401, got %d", w.Code)
 	}
 }
 
@@ -1235,17 +1247,18 @@ func TestNewServerConfigStore(t *testing.T) {
 // libraryStatsHandler — extra coverage
 // =====================================
 
-func TestLibraryStatsHandler_InvalidToken_403(t *testing.T) {
-	h := libraryStatsHandler(
-		&fakeTokenVerifier{err: errTest},
+func TestLibraryStatsHandler_InvalidToken_401(t *testing.T) {
+	verifier := &fakeTokenVerifier{err: errTest}
+	h := httpAuthMiddleware(verifier)(libraryStatsHandler(
+		verifier,
 		&fakeLibraryLister{},
-	)
+	))
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/media/library-stats", nil)
 	req.Header.Set("Authorization", "Bearer bad")
 	w := httptest.NewRecorder()
 	h.ServeHTTP(w, req)
-	if w.Code != http.StatusForbidden {
-		t.Errorf("expected 403, got %d", w.Code)
+	if w.Code != http.StatusUnauthorized {
+		t.Errorf("expected 401, got %d", w.Code)
 	}
 }
 
@@ -1255,7 +1268,6 @@ func TestLibraryStatsHandler_ServiceError_500(t *testing.T) {
 		&fakeLibraryLister{err: errTest},
 	)
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/media/library-stats", nil)
-	req.Header.Set("Authorization", "Bearer tok")
 	w := httptest.NewRecorder()
 	h.ServeHTTP(w, req)
 	if w.Code != http.StatusInternalServerError {
@@ -1336,12 +1348,13 @@ func TestSecurityHeadersMiddleware_Coverage(t *testing.T) {
 // =====================================
 
 func TestSubtitleHandler_NoAuth_401(t *testing.T) {
-	h := subtitleHandler(
-		&fakeTokenVerifier{err: errTest},
+	verifier := &fakeTokenVerifier{err: errTest}
+	h := httpAuthMiddleware(verifier)(subtitleHandler(
+		verifier,
 		&fakeMediaStreamsGetter{},
 		"http://localhost",
 		allowAll(),
-	)
+	))
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/media/m1/subtitle/0", nil)
 	req.SetPathValue("id", "m1")
 	req.SetPathValue("track", "0")
@@ -1352,21 +1365,22 @@ func TestSubtitleHandler_NoAuth_401(t *testing.T) {
 	}
 }
 
-func TestSubtitleHandler_InvalidToken_403(t *testing.T) {
-	h := subtitleHandler(
-		&fakeTokenVerifier{err: errTest},
+func TestSubtitleHandler_InvalidToken_401(t *testing.T) {
+	verifier := &fakeTokenVerifier{err: errTest}
+	h := httpAuthMiddleware(verifier)(subtitleHandler(
+		verifier,
 		&fakeMediaStreamsGetter{},
 		"http://localhost",
 		allowAll(),
-	)
+	))
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/media/m1/subtitle/0", nil)
 	req.SetPathValue("id", "m1")
 	req.SetPathValue("track", "0")
 	req.Header.Set("Authorization", "Bearer bad")
 	w := httptest.NewRecorder()
 	h.ServeHTTP(w, req)
-	if w.Code != http.StatusForbidden {
-		t.Errorf("expected 403, got %d", w.Code)
+	if w.Code != http.StatusUnauthorized {
+		t.Errorf("expected 401, got %d", w.Code)
 	}
 }
 
@@ -1380,7 +1394,7 @@ func TestSubtitleHandler_NotFound_404(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/media/m1/subtitle/0", nil)
 	req.SetPathValue("id", "m1")
 	req.SetPathValue("track", "0")
-	req.Header.Set("Authorization", "Bearer tok")
+	req = withHTTPClaims(req, testClaims(false))
 	w := httptest.NewRecorder()
 	h.ServeHTTP(w, req)
 	if w.Code != http.StatusNotFound {
@@ -1398,7 +1412,7 @@ func TestSubtitleHandler_IDOR_403(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/media/m1/subtitle/0", nil)
 	req.SetPathValue("id", "m1")
 	req.SetPathValue("track", "0")
-	req.Header.Set("Authorization", "Bearer tok")
+	req = withHTTPClaims(req, testClaims(false))
 	w := httptest.NewRecorder()
 	h.ServeHTTP(w, req)
 	if w.Code != http.StatusForbidden {
@@ -1416,6 +1430,7 @@ func TestSubtitleHandler_QueryToken(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/media/m1/subtitle/0?token=valid", nil)
 	req.SetPathValue("id", "m1")
 	req.SetPathValue("track", "0")
+	req = withHTTPClaims(req, testClaims(false))
 	w := httptest.NewRecorder()
 	h.ServeHTTP(w, req)
 	// item not found → 404 (not 401)

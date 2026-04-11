@@ -11,12 +11,7 @@ import (
 
 func streamTokenHandler(tokenGen *auth.JWTGenerator, store *appmedia.StreamTokenStore, libAccess LibraryAccessChecker, mediaGetter mediaLibraryGetter) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		claims, ok := extractClaims(r, tokenGen)
-		if !ok {
-			http.Error(w, `{"message":"unauthenticated"}`, http.StatusUnauthorized)
-			return
-		}
-
+		claims := HTTPClaimsFromContext(r.Context())
 		mediaID := r.PathValue("id")
 		item, err := mediaGetter.GetMediaItem(r.Context(), mediaID)
 		if err != nil || item == nil {

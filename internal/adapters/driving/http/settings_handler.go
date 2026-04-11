@@ -50,11 +50,7 @@ func registerServerSettingsRoutes(
 ) {
 	var mu sync.RWMutex
 	overridden := make(map[string]bool)
-
-	requireAdminLocal := func(r *http.Request) bool {
-		claims, ok := extractClaims(r, tokenGen)
-		return ok && claims.IsAdmin
-	}
+	admin := httpAdminMiddleware(tokenGen)
 
 	source := func(key string) string {
 		if overridden[key] {
@@ -84,11 +80,7 @@ func registerServerSettingsRoutes(
 		return resp
 	}
 
-	mux.HandleFunc("GET /api/v1/admin/server-settings", func(w http.ResponseWriter, r *http.Request) {
-		if !requireAdminLocal(r) {
-			http.Error(w, `{"message":"forbidden"}`, http.StatusForbidden)
-			return
-		}
+	mux.HandleFunc("GET /api/v1/admin/server-settings", admin(func(w http.ResponseWriter, r *http.Request) {
 		mu.RLock()
 		resp := buildResponse()
 		mu.RUnlock()
@@ -97,14 +89,9 @@ func registerServerSettingsRoutes(
 		if err := json.NewEncoder(w).Encode(resp); err != nil {
 			slog.Warn("json encode failed", slog.Any("err", err))
 		}
-	})
+	}))
 
-	mux.HandleFunc("PUT /api/v1/admin/server-settings", ratelimit.MiddlewareFunc(writeRL, func(w http.ResponseWriter, r *http.Request) {
-		if !requireAdminLocal(r) {
-			http.Error(w, `{"message":"forbidden"}`, http.StatusForbidden)
-			return
-		}
-		r.Body = http.MaxBytesReader(w, r.Body, 1<<20)
+	mux.HandleFunc("PUT /api/v1/admin/server-settings", ratelimit.MiddlewareFunc(writeRL, admin(func(w http.ResponseWriter, r *http.Request) {
 		var body struct {
 			ServerName              *string `json:"serverName"`
 			MaxConcurrentTranscodes *int    `json:"maxConcurrentTranscodes"`
@@ -203,5 +190,5 @@ func registerServerSettingsRoutes(
 		if err := json.NewEncoder(w).Encode(resp); err != nil {
 			slog.Warn("json encode failed", slog.Any("err", err))
 		}
-	}))
+	})))
 }

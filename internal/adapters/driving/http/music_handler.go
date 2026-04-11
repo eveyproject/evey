@@ -7,41 +7,23 @@ import (
 	"time"
 
 	appmusic "github.com/gravity-zero/evey/internal/app/music"
-	domainuser "github.com/gravity-zero/evey/internal/domain/user"
 	"github.com/gravity-zero/evey/internal/pkg/auth"
 )
 
 type musicHandler struct {
 	svc        *appmusic.Service
-	tokenGen   *auth.JWTGenerator
 	libChecker LibraryAccessChecker
 }
 
 func registerMusicRoutes(mux *http.ServeMux, svc *appmusic.Service, tokenGen *auth.JWTGenerator, libChecker LibraryAccessChecker, _ libraryPathsGetter) {
-	h := &musicHandler{svc: svc, tokenGen: tokenGen, libChecker: libChecker}
-	mux.HandleFunc("GET /api/v1/music/tracks/{id}/art", h.getTrackArt)
-	mux.HandleFunc("GET /api/v1/music/tracks/{id}/stream", h.streamTrack)
-}
-
-func (h *musicHandler) authenticatePlain(r *http.Request, w http.ResponseWriter) (*domainuser.Claims, bool) {
-	token := extractBearerToken(r)
-	if token == "" {
-		http.Error(w, "unauthorized", http.StatusUnauthorized)
-		return nil, false
-	}
-	claims, err := h.tokenGen.ValidateAccessToken(token)
-	if err != nil {
-		http.Error(w, "unauthorized", http.StatusUnauthorized)
-		return nil, false
-	}
-	return claims, true
+	authMw := httpAuthMiddleware(tokenGen)
+	h := &musicHandler{svc: svc, libChecker: libChecker}
+	mux.HandleFunc("GET /api/v1/music/tracks/{id}/art", authMw(h.getTrackArt))
+	mux.HandleFunc("GET /api/v1/music/tracks/{id}/stream", authMw(h.streamTrack))
 }
 
 func (h *musicHandler) getTrackArt(w http.ResponseWriter, r *http.Request) {
-	claims, ok := h.authenticatePlain(r, w)
-	if !ok {
-		return
-	}
+	claims := HTTPClaimsFromContext(r.Context())
 	id := r.PathValue("id")
 	track, err := h.svc.GetTrack(r.Context(), id)
 	if err != nil || track == nil {
@@ -69,10 +51,7 @@ func (h *musicHandler) getTrackArt(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *musicHandler) streamTrack(w http.ResponseWriter, r *http.Request) {
-	claims, ok := h.authenticatePlain(r, w)
-	if !ok {
-		return
-	}
+	claims := HTTPClaimsFromContext(r.Context())
 	id := r.PathValue("id")
 	track, err := h.svc.GetTrack(r.Context(), id)
 	if err != nil {

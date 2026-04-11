@@ -10,10 +10,6 @@ import (
 )
 
 func (h *adminHandler) handleMedia(w http.ResponseWriter, r *http.Request) {
-	if !h.requireAdmin(r) {
-		http.Error(w, "unauthorized", http.StatusUnauthorized)
-		return
-	}
 	parts := strings.Split(strings.TrimPrefix(r.URL.Path, "/api/v1/admin/media/"), "/")
 	if len(parts) < 2 {
 		http.NotFound(w, r)
@@ -39,7 +35,6 @@ func (h *adminHandler) handleRefreshMetadata(w http.ResponseWriter, r *http.Requ
 		http.Error(w, `{"message":"too many requests"}`, http.StatusTooManyRequests)
 		return
 	}
-	r.Body = http.MaxBytesReader(w, r.Body, 1<<20)
 	var body struct {
 		TmdbID    string `json:"tmdb_id"`
 		ImdbID    string `json:"imdb_id"`
@@ -122,10 +117,6 @@ func (h *adminHandler) handleSearchMetadata(w http.ResponseWriter, r *http.Reque
 }
 
 func (h *adminHandler) handleRefreshAll(w http.ResponseWriter, r *http.Request) {
-	if !h.requireAdmin(r) {
-		http.Error(w, `{"message":"forbidden"}`, http.StatusForbidden)
-		return
-	}
 	if !h.heavyRL.Allow(ratelimit.ClientIP(r)) {
 		http.Error(w, `{"message":"too many requests"}`, http.StatusTooManyRequests)
 		return

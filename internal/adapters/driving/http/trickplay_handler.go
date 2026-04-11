@@ -14,37 +14,18 @@ import (
 	"time"
 
 	_ "golang.org/x/image/webp"
-
-	domainuser "github.com/gravity-zero/evey/internal/domain/user"
 )
 
 func trickplayManifestHandler(tokenGen TokenVerifier, libSvc TrickplayGetter, baseURL string, libraryAccess LibraryAccessChecker, mediaGetter MediaItemGetter) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		mediaID := r.PathValue("id")
+		claims := HTTPClaimsFromContext(r.Context())
 
-		var jwtClaims *domainuser.Claims
 		if st, ok := StreamTokenFromContext(r.Context()); ok {
 			if st.MediaItemID != mediaID {
 				http.Error(w, `{"message":"forbidden"}`, http.StatusForbidden)
 				return
 			}
-		} else {
-			token := r.Header.Get("Authorization")
-			if strings.HasPrefix(token, "Bearer ") {
-				token = token[7:]
-			} else if t := r.URL.Query().Get("token"); t != "" {
-				token = t
-			}
-			if token == "" {
-				http.Error(w, `{"message":"unauthenticated"}`, http.StatusUnauthorized)
-				return
-			}
-			claims, err := tokenGen.ValidateAccessToken(token)
-			if err != nil {
-				http.Error(w, `{"message":"forbidden"}`, http.StatusForbidden)
-				return
-			}
-			jwtClaims = claims
 		}
 
 		item, err := mediaGetter.GetMediaItem(r.Context(), mediaID)
@@ -52,7 +33,7 @@ func trickplayManifestHandler(tokenGen TokenVerifier, libSvc TrickplayGetter, ba
 			http.Error(w, `{"message":"not found"}`, http.StatusNotFound)
 			return
 		}
-		if jwtClaims != nil && !checkLibraryAccess(r.Context(), w, jwtClaims, item.LibraryID, libraryAccess) {
+		if !checkLibraryAccess(r.Context(), w, claims, item.LibraryID, libraryAccess) {
 			return
 		}
 
@@ -130,29 +111,13 @@ func trickplayImageHandler(tokenGen TokenVerifier, libSvc TrickplayGetter, baseU
 	return func(w http.ResponseWriter, r *http.Request) {
 		mediaID := r.PathValue("id")
 		imageName := r.PathValue("image")
+		claims := HTTPClaimsFromContext(r.Context())
 
-		var jwtClaims *domainuser.Claims
 		if st, ok := StreamTokenFromContext(r.Context()); ok {
 			if st.MediaItemID != mediaID {
 				http.Error(w, `{"message":"forbidden"}`, http.StatusForbidden)
 				return
 			}
-		} else {
-			token := r.Header.Get("Authorization")
-			if strings.HasPrefix(token, "Bearer ") {
-				token = token[7:]
-			} else if t := r.URL.Query().Get("token"); t != "" {
-				token = t
-			} else {
-				http.Error(w, `{"message":"unauthenticated"}`, http.StatusUnauthorized)
-				return
-			}
-			claims, err := tokenGen.ValidateAccessToken(token)
-			if err != nil {
-				http.Error(w, `{"message":"forbidden"}`, http.StatusForbidden)
-				return
-			}
-			jwtClaims = claims
 		}
 
 		item, err := mediaGetter.GetMediaItem(r.Context(), mediaID)
@@ -160,7 +125,7 @@ func trickplayImageHandler(tokenGen TokenVerifier, libSvc TrickplayGetter, baseU
 			http.Error(w, `{"message":"not found"}`, http.StatusNotFound)
 			return
 		}
-		if jwtClaims != nil && !checkLibraryAccess(r.Context(), w, jwtClaims, item.LibraryID, libraryAccess) {
+		if !checkLibraryAccess(r.Context(), w, claims, item.LibraryID, libraryAccess) {
 			return
 		}
 
@@ -197,17 +162,6 @@ func trickplayImageHandler(tokenGen TokenVerifier, libSvc TrickplayGetter, baseU
 func trickplayGenerateHandler(tokenGen TokenVerifier, libSvc TrickplayGenerator, serverCtx context.Context) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		mediaID := r.PathValue("id")
-		token := r.Header.Get("Authorization")
-		if strings.HasPrefix(token, "Bearer ") {
-			token = token[7:]
-		} else if t := r.URL.Query().Get("token"); t != "" {
-			token = t
-		}
-		claims, err := tokenGen.ValidateAccessToken(token)
-		if err != nil || !claims.IsAdmin {
-			http.Error(w, `{"message":"forbidden"}`, http.StatusForbidden)
-			return
-		}
 		go func() {
 			defer func() {
 				if r := recover(); r != nil {
@@ -230,12 +184,6 @@ func trickplayGenerateHandler(tokenGen TokenVerifier, libSvc TrickplayGenerator,
 
 func trickplayGenerateAllHandler(tokenGen TokenVerifier, libSvc AllTrickplayGenerator) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		token := strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer ")
-		claims, err := tokenGen.ValidateAccessToken(token)
-		if err != nil || !claims.IsAdmin {
-			http.Error(w, `{"message":"forbidden"}`, http.StatusForbidden)
-			return
-		}
 		count, err := libSvc.GenerateAllMissingTrickplays(r.Context())
 		if err != nil {
 			http.Error(w, `{"message":"internal error"}`, http.StatusInternalServerError)

@@ -36,16 +36,17 @@ func TestFormatVTTTime(t *testing.T) {
 }
 
 func TestTrickplayManifestHandler_Unauthenticated(t *testing.T) {
-	h := trickplayManifestHandler(
-		&fakeTokenVerifier{err: errTest},
+	verifier := &fakeTokenVerifier{err: errTest}
+	inner := trickplayManifestHandler(
+		verifier,
 		&fakeTrickplayGetter{},
 		"http://localhost",
 		&fakeLibraryAccessChecker{allowed: true},
 		&fakeMediaItemGetter{item: testMediaItem("lib1")},
 	)
+	h := httpAuthMiddleware(verifier)(inner)
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/media/m1/trickplay.vtt", nil)
 	req.SetPathValue("id", "m1")
-	// no token provided
 	w := httptest.NewRecorder()
 	h.ServeHTTP(w, req)
 	if w.Code != http.StatusUnauthorized {
@@ -63,7 +64,7 @@ func TestTrickplayManifestHandler_IDOR_Forbidden(t *testing.T) {
 	)
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/media/m1/trickplay.vtt", nil)
 	req.SetPathValue("id", "m1")
-	req.Header.Set("Authorization", "Bearer token")
+	req = withHTTPClaims(req, testClaims(false))
 	w := httptest.NewRecorder()
 	h.ServeHTTP(w, req)
 	if w.Code != http.StatusForbidden {
@@ -90,7 +91,7 @@ func TestTrickplayManifestHandler_OK(t *testing.T) {
 	)
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/media/m1/trickplay.vtt", nil)
 	req.SetPathValue("id", "m1")
-	req.Header.Set("Authorization", "Bearer token")
+	req = withHTTPClaims(req, testClaims(false))
 	w := httptest.NewRecorder()
 	h.ServeHTTP(w, req)
 	if w.Code != http.StatusOK {
@@ -102,13 +103,15 @@ func TestTrickplayManifestHandler_OK(t *testing.T) {
 }
 
 func TestTrickplayImageHandler_Unauthenticated(t *testing.T) {
-	h := trickplayImageHandler(
-		&fakeTokenVerifier{err: errTest},
+	verifier := &fakeTokenVerifier{err: errTest}
+	inner := trickplayImageHandler(
+		verifier,
 		&fakeTrickplayGetter{},
 		"http://localhost",
 		&fakeLibraryAccessChecker{allowed: true},
 		&fakeMediaItemGetter{item: testMediaItem("lib1")},
 	)
+	h := httpAuthMiddleware(verifier)(inner)
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/media/m1/trickplay/trickplay_001.webp", nil)
 	req.SetPathValue("id", "m1")
 	req.SetPathValue("image", "trickplay_001.webp")
@@ -130,7 +133,7 @@ func TestTrickplayImageHandler_IDOR_Forbidden(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/media/m1/trickplay/trickplay_001.webp", nil)
 	req.SetPathValue("id", "m1")
 	req.SetPathValue("image", "trickplay_001.webp")
-	req.Header.Set("Authorization", "Bearer token")
+	req = withHTTPClaims(req, testClaims(false))
 	w := httptest.NewRecorder()
 	h.ServeHTTP(w, req)
 	if w.Code != http.StatusForbidden {
@@ -139,10 +142,9 @@ func TestTrickplayImageHandler_IDOR_Forbidden(t *testing.T) {
 }
 
 func TestTrickplayGenerateAllHandler_Forbidden(t *testing.T) {
-	h := trickplayGenerateAllHandler(
-		&fakeTokenVerifier{claims: testClaims(false)}, // not admin
-		&fakeTrickplayAllGenerator{count: 5},
-	)
+	verifier := &fakeTokenVerifier{claims: testClaims(false)}
+	inner := trickplayGenerateAllHandler(verifier, &fakeTrickplayAllGenerator{count: 5})
+	h := httpAdminMiddleware(verifier)(inner)
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/trickplay/generate-all", nil)
 	req.Header.Set("Authorization", "Bearer token")
 	w := httptest.NewRecorder()
@@ -167,7 +169,7 @@ func TestTrickplayGenerateAllHandler_AdminOK(t *testing.T) {
 		&fakeTrickplayAllGenerator{count: 3},
 	)
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/trickplay/generate-all", nil)
-	req.Header.Set("Authorization", "Bearer token")
+	req = withHTTPClaims(req, testClaims(true))
 	w := httptest.NewRecorder()
 	h.ServeHTTP(w, req)
 	if w.Code != http.StatusAccepted {

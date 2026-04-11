@@ -21,29 +21,13 @@ func subtitleHandler(tokenGen TokenVerifier, libSvc MediaStreamsGetter, baseURL 
 	return func(w http.ResponseWriter, r *http.Request) {
 		mediaID := r.PathValue("id")
 		trackStr := r.PathValue("track")
+		claims := HTTPClaimsFromContext(r.Context())
 
-		var jwtClaims *domainuser.Claims
 		if st, ok := StreamTokenFromContext(r.Context()); ok {
 			if st.MediaItemID != mediaID {
 				http.Error(w, `{"message":"forbidden"}`, http.StatusForbidden)
 				return
 			}
-		} else {
-			token := r.Header.Get("Authorization")
-			if strings.HasPrefix(token, "Bearer ") {
-				token = token[7:]
-			} else if t := r.URL.Query().Get("token"); t != "" {
-				token = t
-			} else {
-				http.Error(w, `{"message":"unauthenticated"}`, http.StatusUnauthorized)
-				return
-			}
-			claims, err := tokenGen.ValidateAccessToken(token)
-			if err != nil {
-				http.Error(w, `{"message":"forbidden"}`, http.StatusForbidden)
-				return
-			}
-			jwtClaims = claims
 		}
 		trackIndex, _ := strconv.Atoi(trackStr)
 		item, err := libSvc.GetMediaItem(r.Context(), mediaID)
@@ -51,7 +35,7 @@ func subtitleHandler(tokenGen TokenVerifier, libSvc MediaStreamsGetter, baseURL 
 			http.Error(w, `{"message":"not found"}`, http.StatusNotFound)
 			return
 		}
-		if jwtClaims != nil && !checkLibraryAccess(r.Context(), w, jwtClaims, item.LibraryID, libraryAccess) {
+		if !checkLibraryAccess(r.Context(), w, claims, item.LibraryID, libraryAccess) {
 			return
 		}
 
@@ -231,7 +215,6 @@ func (h *subtitleRoutes) download(w http.ResponseWriter, r *http.Request) {
 	if _, ok := h.requireMediaAccess(w, r, mediaID); !ok {
 		return
 	}
-	r.Body = http.MaxBytesReader(w, r.Body, 1<<20)
 	var body struct {
 		FileID   int    `json:"fileId"`
 		Language string `json:"language"`
@@ -258,6 +241,7 @@ func (h *subtitleRoutes) download(w http.ResponseWriter, r *http.Request) {
 		"mediaItemId":  sub.MediaItemID,
 		"language":     sub.Language,
 		"format":       sub.Format,
+		"filePath":     sub.FilePath,
 		"source":       sub.Source,
 		"downloadedAt": sub.DownloadedAt.UTC().Format(time.RFC3339),
 	}); err != nil {
@@ -281,6 +265,7 @@ func (h *subtitleRoutes) list(w http.ResponseWriter, r *http.Request) {
 		MediaItemID  string `json:"mediaItemId"`
 		Language     string `json:"language"`
 		Format       string `json:"format"`
+		FilePath     string `json:"filePath"`
 		Source       string `json:"source"`
 		DownloadedAt string `json:"downloadedAt"`
 	}
@@ -291,6 +276,7 @@ func (h *subtitleRoutes) list(w http.ResponseWriter, r *http.Request) {
 			MediaItemID:  s.MediaItemID,
 			Language:     s.Language,
 			Format:       s.Format,
+			FilePath:     s.FilePath,
 			Source:       s.Source,
 			DownloadedAt: s.DownloadedAt.UTC().Format(time.RFC3339),
 		})

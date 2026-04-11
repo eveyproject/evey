@@ -14,16 +14,9 @@ import (
 )
 
 func registerBackupRoutes(mux *http.ServeMux, svc *appbackup.Service, tokenGen *auth.JWTGenerator, heavyRL, writeRL *ratelimit.Limiter) {
-	requireAdminLocal := func(r *http.Request) bool {
-		claims, ok := extractClaims(r, tokenGen)
-		return ok && claims.IsAdmin
-	}
+	admin := httpAdminMiddleware(tokenGen)
 
-	mux.HandleFunc("POST /api/v1/admin/backups", ratelimit.MiddlewareFunc(writeRL, func(w http.ResponseWriter, r *http.Request) {
-		if !requireAdminLocal(r) {
-			http.Error(w, `{"message":"forbidden"}`, http.StatusForbidden)
-			return
-		}
+	mux.HandleFunc("POST /api/v1/admin/backups", ratelimit.MiddlewareFunc(writeRL, admin(func(w http.ResponseWriter, r *http.Request) {
 		m, err := svc.CreateBackup(r.Context())
 		if err != nil {
 			slog.Error("create backup failed", slog.Any("err", err))
@@ -42,13 +35,9 @@ func registerBackupRoutes(mux *http.ServeMux, svc *appbackup.Service, tokenGen *
 		}); encErr != nil {
 			slog.Warn("json encode failed", slog.Any("err", encErr))
 		}
-	}))
+	})))
 
-	mux.HandleFunc("GET /api/v1/admin/backups", func(w http.ResponseWriter, r *http.Request) {
-		if !requireAdminLocal(r) {
-			http.Error(w, `{"message":"forbidden"}`, http.StatusForbidden)
-			return
-		}
+	mux.HandleFunc("GET /api/v1/admin/backups", admin(func(w http.ResponseWriter, r *http.Request) {
 		list, err := svc.ListBackups(r.Context())
 		if err != nil {
 			http.Error(w, `{"message":"internal error"}`, http.StatusInternalServerError)
@@ -73,13 +62,9 @@ func registerBackupRoutes(mux *http.ServeMux, svc *appbackup.Service, tokenGen *
 		if encErr := json.NewEncoder(w).Encode(map[string]any{"backups": items}); encErr != nil {
 			slog.Warn("json encode failed", slog.Any("err", encErr))
 		}
-	})
+	}))
 
-	mux.HandleFunc("GET /api/v1/admin/backups/{id}", func(w http.ResponseWriter, r *http.Request) {
-		if !requireAdminLocal(r) {
-			http.Error(w, `{"message":"forbidden"}`, http.StatusForbidden)
-			return
-		}
+	mux.HandleFunc("GET /api/v1/admin/backups/{id}", admin(func(w http.ResponseWriter, r *http.Request) {
 		backupID := r.PathValue("id")
 		m, rc, err := svc.GetBackup(r.Context(), backupID)
 		if err != nil {
@@ -92,13 +77,9 @@ func registerBackupRoutes(mux *http.ServeMux, svc *appbackup.Service, tokenGen *
 		if _, cpErr := io.Copy(w, rc); cpErr != nil {
 			slog.Warn("backup download copy", slog.Any("err", cpErr))
 		}
-	})
+	}))
 
-	mux.HandleFunc("POST /api/v1/admin/backups/restore", ratelimit.MiddlewareFunc(writeRL, func(w http.ResponseWriter, r *http.Request) {
-		if !requireAdminLocal(r) {
-			http.Error(w, `{"message":"forbidden"}`, http.StatusForbidden)
-			return
-		}
+	mux.HandleFunc("POST /api/v1/admin/backups/restore", ratelimit.MiddlewareFunc(writeRL, admin(func(w http.ResponseWriter, r *http.Request) {
 		if !heavyRL.Allow(ratelimit.ClientIP(r)) {
 			http.Error(w, `{"message":"too many requests"}`, http.StatusTooManyRequests)
 			return
@@ -120,18 +101,14 @@ func registerBackupRoutes(mux *http.ServeMux, svc *appbackup.Service, tokenGen *
 		if _, writeErr := w.Write([]byte(`{"ok":true}`)); writeErr != nil {
 			slog.Warn("write failed", slog.Any("err", writeErr))
 		}
-	}))
+	})))
 
-	mux.HandleFunc("DELETE /api/v1/admin/backups/{id}", ratelimit.MiddlewareFunc(writeRL, func(w http.ResponseWriter, r *http.Request) {
-		if !requireAdminLocal(r) {
-			http.Error(w, `{"message":"forbidden"}`, http.StatusForbidden)
-			return
-		}
+	mux.HandleFunc("DELETE /api/v1/admin/backups/{id}", ratelimit.MiddlewareFunc(writeRL, admin(func(w http.ResponseWriter, r *http.Request) {
 		backupID := r.PathValue("id")
 		if err := svc.DeleteBackup(r.Context(), backupID); err != nil {
 			http.Error(w, `{"message":"backup not found"}`, http.StatusNotFound)
 			return
 		}
 		w.WriteHeader(http.StatusNoContent)
-	}))
+	})))
 }

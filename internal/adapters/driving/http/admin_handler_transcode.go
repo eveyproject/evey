@@ -24,12 +24,7 @@ type profileBody struct {
 }
 
 func (h *adminHandler) handleCreateTranscodeProfile(w http.ResponseWriter, r *http.Request) {
-	if !h.requireAdmin(r) {
-		http.Error(w, `{"message":"forbidden"}`, http.StatusForbidden)
-		return
-	}
-	r.Body = http.MaxBytesReader(w, r.Body, 1<<20)
-	var body profileBody
+var body profileBody
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		http.Error(w, `{"message":"bad request"}`, http.StatusBadRequest)
 		return
@@ -60,12 +55,7 @@ func (h *adminHandler) handleCreateTranscodeProfile(w http.ResponseWriter, r *ht
 }
 
 func (h *adminHandler) handleUpdateTranscodeProfile(w http.ResponseWriter, r *http.Request) {
-	if !h.requireAdmin(r) {
-		http.Error(w, `{"message":"forbidden"}`, http.StatusForbidden)
-		return
-	}
-	r.Body = http.MaxBytesReader(w, r.Body, 1<<20)
-	profileID := r.PathValue("id")
+profileID := r.PathValue("id")
 	var body profileBody
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		http.Error(w, `{"message":"bad request"}`, http.StatusBadRequest)
@@ -96,11 +86,7 @@ func (h *adminHandler) handleUpdateTranscodeProfile(w http.ResponseWriter, r *ht
 }
 
 func (h *adminHandler) handleDeleteTranscodeProfile(w http.ResponseWriter, r *http.Request) {
-	if !h.requireAdmin(r) {
-		http.Error(w, `{"message":"forbidden"}`, http.StatusForbidden)
-		return
-	}
-	profileID := r.PathValue("id")
+profileID := r.PathValue("id")
 	if err := h.transcodeSvc.DeleteProfile(r.Context(), profileID); err != nil {
 		slog.Error("delete transcode profile", slog.Any("err", err))
 		http.Error(w, `{"message":"internal error"}`, http.StatusInternalServerError)
@@ -111,11 +97,7 @@ func (h *adminHandler) handleDeleteTranscodeProfile(w http.ResponseWriter, r *ht
 }
 
 func (h *adminHandler) handleGetTranscodeCache(w http.ResponseWriter, r *http.Request) {
-	if !h.requireAdmin(r) {
-		http.Error(w, `{"message":"forbidden"}`, http.StatusForbidden)
-		return
-	}
-	info, err := h.transcodeSvc.GetCacheInfo(r.Context())
+info, err := h.transcodeSvc.GetCacheInfo(r.Context())
 	if err != nil {
 		http.Error(w, `{"message":"internal error"}`, http.StatusInternalServerError)
 		return
@@ -146,11 +128,7 @@ func (h *adminHandler) handleGetTranscodeCache(w http.ResponseWriter, r *http.Re
 }
 
 func (h *adminHandler) handleClearTranscodeCache(w http.ResponseWriter, r *http.Request) {
-	if !h.requireAdmin(r) {
-		http.Error(w, `{"message":"forbidden"}`, http.StatusForbidden)
-		return
-	}
-	if err := h.transcodeSvc.ClearCache(r.Context()); err != nil {
+if err := h.transcodeSvc.ClearCache(r.Context()); err != nil {
 		http.Error(w, `{"message":"internal error"}`, http.StatusInternalServerError)
 		return
 	}
@@ -159,11 +137,7 @@ func (h *adminHandler) handleClearTranscodeCache(w http.ResponseWriter, r *http.
 }
 
 func (h *adminHandler) handleDeleteTranscodeCacheFile(w http.ResponseWriter, r *http.Request) {
-	if !h.requireAdmin(r) {
-		http.Error(w, `{"message":"forbidden"}`, http.StatusForbidden)
-		return
-	}
-	filename := r.PathValue("filename")
+filename := r.PathValue("filename")
 	if err := h.transcodeSvc.DeleteCacheFile(r.Context(), filename); err != nil {
 		if strings.Contains(err.Error(), "not found") {
 			http.Error(w, `{"message":"file not found"}`, http.StatusNotFound)

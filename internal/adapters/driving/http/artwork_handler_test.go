@@ -11,6 +11,7 @@ import (
 	domainlibrary "github.com/gravity-zero/evey/internal/domain/library"
 	domainmeta "github.com/gravity-zero/evey/internal/domain/metadata"
 	shared "github.com/gravity-zero/evey/internal/domain/shared"
+	domainuser "github.com/gravity-zero/evey/internal/domain/user"
 )
 
 func TestArtwork_LocalFile_200(t *testing.T) {
@@ -34,7 +35,7 @@ func TestArtwork_LocalFile_200(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/media/m1/artwork/poster", nil)
 	req.SetPathValue("id", "m1")
 	req.SetPathValue("artType", "poster")
-	req.Header.Set("Authorization", "Bearer tok")
+	req = withHTTPClaims(req, testClaims(false))
 	w := httptest.NewRecorder()
 	h.ServeHTTP(w, req)
 
@@ -61,7 +62,7 @@ func TestArtwork_SourceURL_Redirect(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/media/m1/artwork/poster", nil)
 	req.SetPathValue("id", "m1")
 	req.SetPathValue("artType", "poster")
-	req.Header.Set("Authorization", "Bearer tok")
+	req = withHTTPClaims(req, testClaims(false))
 	w := httptest.NewRecorder()
 	h.ServeHTTP(w, req)
 
@@ -86,7 +87,7 @@ func TestArtwork_MediaNotFound_404(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/media/m1/artwork/poster", nil)
 	req.SetPathValue("id", "m1")
 	req.SetPathValue("artType", "poster")
-	req.Header.Set("Authorization", "Bearer tok")
+	req = withHTTPClaims(req, testClaims(false))
 	w := httptest.NewRecorder()
 	h.ServeHTTP(w, req)
 
@@ -120,6 +121,7 @@ func TestArtwork_StreamToken_OK(t *testing.T) {
 		UserID:      "u1",
 		MediaItemID: "m1",
 	})
+	ctx = context.WithValue(ctx, httpClaimsCtxKey{}, &domainuser.Claims{UserID: "u1"})
 	req = req.WithContext(ctx)
 	w := httptest.NewRecorder()
 	h.ServeHTTP(w, req)
@@ -130,13 +132,15 @@ func TestArtwork_StreamToken_OK(t *testing.T) {
 }
 
 func TestArtwork_NoAuth_401(t *testing.T) {
-	h := mediaHandler(
-		&fakeTokenVerifier{claims: testClaims(false)},
+	verifier := &fakeTokenVerifier{claims: testClaims(false)}
+	inner := mediaHandler(
+		verifier,
 		&fakeMediaItemGetter{item: &domainlibrary.MediaItem{ID: "m1", LibraryID: "lib1"}},
 		&fakeArtworkRepo{records: map[string][]*domainmeta.ArtworkRecord{}},
 		"http://localhost",
 		allowAll(),
 	)
+	h := httpAuthMiddleware(verifier)(inner)
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/media/m1/artwork/poster", nil)
 	req.SetPathValue("id", "m1")
@@ -161,7 +165,7 @@ func TestArtwork_IDOR_403(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/media/m1/artwork/poster", nil)
 	req.SetPathValue("id", "m1")
 	req.SetPathValue("artType", "poster")
-	req.Header.Set("Authorization", "Bearer tok")
+	req = withHTTPClaims(req, testClaims(false))
 	w := httptest.NewRecorder()
 	h.ServeHTTP(w, req)
 

@@ -64,12 +64,7 @@ func readNewLogBytes(path string, lastSize int64, maxBytes int) ([]byte, int64, 
 }
 
 func (h *adminHandler) handleGetLogs(w http.ResponseWriter, r *http.Request) {
-	if !h.adminCheckWithQueryToken(r) {
-		http.Error(w, `{"message":"forbidden"}`, http.StatusForbidden)
-		return
-	}
-
-	lines := parseLineCount(r, 200, 2000)
+lines := parseLineCount(r, 200, 2000)
 	if lines == 0 {
 		lines = 200
 	}
@@ -87,12 +82,7 @@ func (h *adminHandler) handleGetLogs(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *adminHandler) handleStreamLogs(w http.ResponseWriter, r *http.Request) {
-	if !h.adminCheckWithQueryToken(r) {
-		http.Error(w, `{"message":"forbidden"}`, http.StatusForbidden)
-		return
-	}
-
-	flusher, ok := w.(http.Flusher)
+flusher, ok := w.(http.Flusher)
 	if !ok {
 		http.Error(w, `{"message":"streaming unsupported"}`, http.StatusInternalServerError)
 		return

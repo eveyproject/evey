@@ -10,35 +10,17 @@ import (
 	"time"
 
 	appphoto "github.com/gravity-zero/evey/internal/app/photo"
-	domainuser "github.com/gravity-zero/evey/internal/domain/user"
 	"github.com/gravity-zero/evey/internal/pkg/auth"
 	"github.com/gravity-zero/evey/internal/pkg/exifstrip"
 )
 
 type photoHandler struct {
 	photoSvc   *appphoto.Service
-	tokenGen   *auth.JWTGenerator
 	libChecker LibraryAccessChecker
 }
 
-func (h *photoHandler) extractClaims(r *http.Request) (*domainuser.Claims, bool) {
-	hdr := r.Header.Get("Authorization")
-	if len(hdr) < 8 || hdr[:7] != "Bearer " {
-		return nil, false
-	}
-	claims, err := h.tokenGen.ValidateAccessToken(hdr[7:])
-	if err != nil {
-		return nil, false
-	}
-	return claims, true
-}
-
 func (h *photoHandler) servePhoto(w http.ResponseWriter, r *http.Request) {
-	claims, ok := h.extractClaims(r)
-	if !ok {
-		http.Error(w, `{"message":"unauthenticated"}`, http.StatusUnauthorized)
-		return
-	}
+	claims := HTTPClaimsFromContext(r.Context())
 	photoID := r.PathValue("id")
 	p, err := h.photoSvc.GetPhoto(r.Context(), photoID)
 	if err != nil {
@@ -85,10 +67,10 @@ func (h *photoHandler) servePhoto(w http.ResponseWriter, r *http.Request) {
 }
 
 func registerPhotoRoutes(mux *http.ServeMux, photoSvc *appphoto.Service, tokenGen *auth.JWTGenerator, libChecker LibraryAccessChecker, _ libraryPathsGetter, _ context.Context) {
+	authMw := httpAuthMiddleware(tokenGen)
 	h := &photoHandler{
 		photoSvc:   photoSvc,
-		tokenGen:   tokenGen,
 		libChecker: libChecker,
 	}
-	mux.HandleFunc("GET /api/v1/photos/{id}/serve", h.servePhoto)
+	mux.HandleFunc("GET /api/v1/photos/{id}/serve", authMw(h.servePhoto))
 }

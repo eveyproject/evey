@@ -54,12 +54,14 @@ func testMediaItem(libraryID string) *domainlibrary.MediaItem {
 // --- tests: downloadHandler ---
 
 func TestDownloadHandler_Unauthenticated(t *testing.T) {
-	h := downloadHandler(
-		&fakeTokenVerifier{claims: testClaims(false)},
+	verifier := &fakeTokenVerifier{claims: testClaims(false)}
+	inner := downloadHandler(
+		verifier,
 		&fakeMediaItemGetter{item: testMediaItem("lib1")},
 		"http://localhost",
 		&fakeLibraryAccessChecker{allowed: true},
 	)
+	h := httpAuthMiddleware(verifier)(inner)
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/media/m1/download", nil)
 	req.SetPathValue("id", "m1")
 	// no Authorization header
@@ -79,7 +81,7 @@ func TestDownloadHandler_IDOR_Forbidden(t *testing.T) {
 	)
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/media/m1/download", nil)
 	req.SetPathValue("id", "m1")
-	req.Header.Set("Authorization", "Bearer token")
+	req = withHTTPClaims(req, testClaims(false))
 	w := httptest.NewRecorder()
 	h.ServeHTTP(w, req)
 	if w.Code != http.StatusForbidden {
@@ -96,7 +98,7 @@ func TestDownloadHandler_Allowed_FileNotFound(t *testing.T) {
 	)
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/media/m1/download", nil)
 	req.SetPathValue("id", "m1")
-	req.Header.Set("Authorization", "Bearer token")
+	req = withHTTPClaims(req, testClaims(false))
 	w := httptest.NewRecorder()
 	h.ServeHTTP(w, req)
 	// file doesn't exist → 404, but NOT 403
@@ -108,10 +110,9 @@ func TestDownloadHandler_Allowed_FileNotFound(t *testing.T) {
 // --- tests: libraryStatsHandler ---
 
 func TestLibraryStatsHandler_Unauthenticated(t *testing.T) {
-	h := libraryStatsHandler(
-		&fakeTokenVerifier{err: errTest},
-		&fakeLibraryLister{},
-	)
+	verifier := &fakeTokenVerifier{err: errTest}
+	inner := libraryStatsHandler(verifier, &fakeLibraryLister{})
+	h := httpAdminMiddleware(verifier)(inner)
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/media/library-stats", nil)
 	w := httptest.NewRecorder()
 	h.ServeHTTP(w, req)
@@ -123,13 +124,13 @@ func TestLibraryStatsHandler_Unauthenticated(t *testing.T) {
 func TestLibraryStatsHandler_OK(t *testing.T) {
 	now := time.Now()
 	h := libraryStatsHandler(
-		&fakeTokenVerifier{claims: testClaims(false)},
+		&fakeTokenVerifier{claims: testClaims(true)},
 		&fakeLibraryLister{libs: []*domainlibrary.Library{
 			{ID: "lib1", LastScannedAt: &now},
 		}},
 	)
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/media/library-stats", nil)
-	req.Header.Set("Authorization", "Bearer token")
+	req = withHTTPClaims(req, testClaims(true))
 	w := httptest.NewRecorder()
 	h.ServeHTTP(w, req)
 	if w.Code != http.StatusOK {
@@ -207,6 +208,11 @@ func TestCheckLibraryAccess_User_Allowed(t *testing.T) {
 	if !ok {
 		t.Error("should be allowed")
 	}
+}
+
+// withHTTPClaims injects claims into request context (simulates middleware).
+func withHTTPClaims(r *http.Request, claims *domainuser.Claims) *http.Request {
+	return r.WithContext(context.WithValue(r.Context(), httpClaimsCtxKey{}, claims))
 }
 
 var errTest = &testError{"test error"}

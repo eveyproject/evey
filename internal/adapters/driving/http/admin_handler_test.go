@@ -72,8 +72,8 @@ func TestAdminLogs_NoAuth_Forbidden(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/admin/logs", nil)
 	w := httptest.NewRecorder()
 	mux.ServeHTTP(w, req)
-	if w.Code != http.StatusForbidden {
-		t.Errorf("expected 403, got %d", w.Code)
+	if w.Code != http.StatusUnauthorized {
+		t.Errorf("expected 401, got %d", w.Code)
 	}
 }
 
@@ -119,8 +119,8 @@ func TestAdminLogsStream_NoAuth_Forbidden(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/admin/logs/stream", nil)
 	w := httptest.NewRecorder()
 	mux.ServeHTTP(w, req)
-	if w.Code != http.StatusForbidden {
-		t.Errorf("expected 403, got %d", w.Code)
+	if w.Code != http.StatusUnauthorized {
+		t.Errorf("expected 401, got %d", w.Code)
 	}
 }
 

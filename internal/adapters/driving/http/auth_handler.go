@@ -137,16 +137,11 @@ func registerOIDCRoutes(mux *http.ServeMux, oidcSvc *appuser.OIDCService, httpsO
 type parentalHandler struct {
 	profileRepo domainuser.ProfileRepository
 	hasher      domainuser.PasswordHasher
-	tokenGen    *auth.JWTGenerator
 	pinRL       *ratelimit.Limiter
 }
 
 func (h *parentalHandler) getSettings(w http.ResponseWriter, r *http.Request) {
-	claims, ok := extractClaims(r, h.tokenGen)
-	if !ok {
-		http.Error(w, `{"message":"unauthenticated"}`, http.StatusUnauthorized)
-		return
-	}
+	claims := HTTPClaimsFromContext(r.Context())
 	profileID := r.PathValue("id")
 	if profileID != claims.ProfileID && !claims.IsAdmin {
 		http.Error(w, `{"message":"forbidden"}`, http.StatusForbidden)
@@ -179,17 +174,12 @@ func (h *parentalHandler) getSettings(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *parentalHandler) updateSettings(w http.ResponseWriter, r *http.Request) {
-	claims, ok := extractClaims(r, h.tokenGen)
-	if !ok {
-		http.Error(w, `{"message":"unauthenticated"}`, http.StatusUnauthorized)
-		return
-	}
+	claims := HTTPClaimsFromContext(r.Context())
 	profileID := r.PathValue("id")
 	if profileID != claims.ProfileID && !claims.IsAdmin {
 		http.Error(w, `{"message":"forbidden"}`, http.StatusForbidden)
 		return
 	}
-	r.Body = http.MaxBytesReader(w, r.Body, 1<<20)
 	var body struct {
 		MaxRating   *string  `json:"maxRating"`
 		BlockedTags []string `json:"blockedTags"`
@@ -255,17 +245,12 @@ func (h *parentalHandler) updateSettings(w http.ResponseWriter, r *http.Request)
 }
 
 func (h *parentalHandler) verifyPIN(w http.ResponseWriter, r *http.Request) {
-	claims, ok := extractClaims(r, h.tokenGen)
-	if !ok {
-		http.Error(w, `{"message":"unauthenticated"}`, http.StatusUnauthorized)
-		return
-	}
+	claims := HTTPClaimsFromContext(r.Context())
 	profileID := r.PathValue("id")
 	if !h.pinRL.Allow(profileID) {
 		http.Error(w, `{"message":"too many attempts"}`, http.StatusTooManyRequests)
 		return
 	}
-	r.Body = http.MaxBytesReader(w, r.Body, 1<<20)
 	var body struct {
 		PIN string `json:"pin"`
 	}
@@ -306,13 +291,13 @@ func registerParentalRoutes(
 	hasher domainuser.PasswordHasher,
 	tokenGen *auth.JWTGenerator,
 ) {
+	authMw := httpAuthMiddleware(tokenGen)
 	h := &parentalHandler{
 		profileRepo: profileRepo,
 		hasher:      hasher,
-		tokenGen:    tokenGen,
 		pinRL:       ratelimit.NewWithBurst(5, 5.0/15.0),
 	}
-	mux.HandleFunc("GET /api/v1/profiles/{id}/parental", h.getSettings)
-	mux.HandleFunc("PUT /api/v1/profiles/{id}/parental", h.updateSettings)
-	mux.HandleFunc("POST /api/v1/profiles/{id}/parental/verify-pin", h.verifyPIN)
+	mux.HandleFunc("GET /api/v1/profiles/{id}/parental", authMw(h.getSettings))
+	mux.HandleFunc("PUT /api/v1/profiles/{id}/parental", authMw(h.updateSettings))
+	mux.HandleFunc("POST /api/v1/profiles/{id}/parental/verify-pin", authMw(h.verifyPIN))
 }

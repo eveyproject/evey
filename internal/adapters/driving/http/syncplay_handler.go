@@ -11,7 +11,6 @@ import (
 
 	appsyncplay "github.com/gravity-zero/evey/internal/app/syncplay"
 	domainsyncplay "github.com/gravity-zero/evey/internal/domain/syncplay"
-	domainuser "github.com/gravity-zero/evey/internal/domain/user"
 	"github.com/gravity-zero/evey/internal/pkg/auth"
 	"golang.org/x/net/websocket"
 )
@@ -30,16 +29,8 @@ func registerSyncPlayRoutes(mux *http.ServeMux, hub *appsyncplay.Hub, tokenGen *
 		media:      mediaGetter,
 		libChecker: libChecker,
 	}
-	// JSON routes migrated to gRPC — only WebSocket stays as custom HTTP
-	mux.Handle("/api/v1/syncplay/rooms/{id}/ws", h.wsHandler())
-}
-
-func (s *syncplayHandler) validateToken(token string) (userID, username string, err error) {
-	claims, vErr := s.tokenGen.ValidateAccessToken(token)
-	if vErr != nil {
-		return "", "", vErr
-	}
-	return claims.UserID, claims.Username, nil
+	// WebSocket uses Sec-WebSocket-Protocol for auth — can't use standard middleware
+	mux.Handle("/api/v1/syncplay/rooms/{id}/ws", http.HandlerFunc(h.wsUpgradeHandler))
 }
 
 type wsCtxKey string
@@ -77,81 +68,75 @@ func (s *wsSender) SendMessage(data []byte) error {
 	return nil
 }
 
-func (s *syncplayHandler) wsHandler() http.Handler {
+func (s *syncplayHandler) wsUpgradeHandler(w http.ResponseWriter, r *http.Request) {
+	roomID := r.PathValue("id")
+	token := extractWSToken(r)
+	claims, vErr := s.tokenGen.ValidateAccessToken(token)
+	if vErr != nil {
+		slog.Warn("syncplay ws: invalid token", slog.String("room", roomID))
+		http.Error(w, `{"message":"unauthenticated"}`, http.StatusUnauthorized)
+		return
+	}
+
+	room, err := s.hub.GetRoom(r.Context(), roomID)
+	if err != nil {
+		http.Error(w, `{"message":"room not found"}`, http.StatusNotFound)
+		return
+	}
+	item, mErr := s.media.GetMediaItem(r.Context(), room.MediaID)
+	if mErr != nil || item == nil {
+		http.Error(w, `{"message":"not found"}`, http.StatusNotFound)
+		return
+	}
+	if !checkLibraryAccess(r.Context(), w, claims, item.LibraryID, s.libChecker) {
+		return
+	}
+	if !room.IsMember(claims.UserID) {
+		slog.Warn("syncplay ws: non-member attempt", slog.String("user", claims.UserID), slog.String("room", roomID))
+		http.Error(w, `{"message":"forbidden"}`, http.StatusForbidden)
+		return
+	}
+
+	ctx := context.WithValue(r.Context(), wsCtxUserID, claims.UserID)
+	ctx = context.WithValue(ctx, wsCtxUsername, claims.Username)
+
 	wsHandler := websocket.Handler(func(ws *websocket.Conn) {
-		r := ws.Request()
-		roomID := r.PathValue("id")
-		userID, _ := r.Context().Value(wsCtxUserID).(string)
-		username, _ := r.Context().Value(wsCtxUsername).(string)
-		ctx := r.Context()
+		wsR := ws.Request()
+		wsRoomID := wsR.PathValue("id")
+		userID, _ := wsR.Context().Value(wsCtxUserID).(string)
+		username, _ := wsR.Context().Value(wsCtxUsername).(string)
+		wsCtx := wsR.Context()
 
 		sender := &wsSender{ws: ws}
-		_, err := s.hub.ConnectMember(ctx, roomID, userID, username, sender)
-		if err != nil {
-			slog.Warn("syncplay ws: connect failed", slog.String("room", roomID), slog.Any("err", err))
+		_, connErr := s.hub.ConnectMember(wsCtx, wsRoomID, userID, username, sender)
+		if connErr != nil {
+			slog.Warn("syncplay ws: connect failed", slog.String("room", wsRoomID), slog.Any("err", connErr))
 			_ = ws.Close()
 			return
 		}
 		defer func() {
-			if dErr := s.hub.DisconnectMember(ctx, roomID, userID); dErr != nil {
-				slog.Error("syncplay: disconnect", slog.String("room", roomID), slog.Any("err", dErr))
+			if dErr := s.hub.DisconnectMember(wsCtx, wsRoomID, userID); dErr != nil {
+				slog.Error("syncplay: disconnect", slog.String("room", wsRoomID), slog.Any("err", dErr))
 			}
 		}()
 
 		const readDeadline = 60 * time.Second
 		for {
-			if err := ws.SetReadDeadline(time.Now().Add(readDeadline)); err != nil {
+			if rdErr := ws.SetReadDeadline(time.Now().Add(readDeadline)); rdErr != nil {
 				break
 			}
 			var raw string
-			if err := websocket.Message.Receive(ws, &raw); err != nil {
+			if recvErr := websocket.Message.Receive(ws, &raw); recvErr != nil {
 				break
 			}
 			var cmd domainsyncplay.SyncCommand
-			if err := json.Unmarshal([]byte(raw), &cmd); err != nil {
+			if umErr := json.Unmarshal([]byte(raw), &cmd); umErr != nil {
 				continue
 			}
-			if _, err := s.hub.HandleCommand(ctx, roomID, userID, username, cmd); err != nil {
-				slog.Error("syncplay: handle command", slog.String("room", roomID), slog.Any("err", err))
+			if _, cmdErr := s.hub.HandleCommand(wsCtx, wsRoomID, userID, username, cmd); cmdErr != nil {
+				slog.Error("syncplay: handle command", slog.String("room", wsRoomID), slog.Any("err", cmdErr))
 			}
 		}
 	})
-
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		roomID := r.PathValue("id")
-		token := extractWSToken(r)
-		userID, username, err := s.validateToken(token)
-		if err != nil {
-			slog.Warn("syncplay ws: invalid token", slog.String("room", roomID))
-			http.Error(w, `{"message":"unauthenticated"}`, http.StatusUnauthorized)
-			return
-		}
-
-		room, err := s.hub.GetRoom(r.Context(), roomID)
-		if err != nil {
-			http.Error(w, `{"message":"room not found"}`, http.StatusNotFound)
-			return
-		}
-		wsClaims, _ := s.tokenGen.ValidateAccessToken(token) //nolint:errcheck
-		if wsClaims == nil {
-			wsClaims = &domainuser.Claims{UserID: userID, Username: username}
-		}
-		item, mErr := s.media.GetMediaItem(r.Context(), room.MediaID)
-		if mErr != nil || item == nil {
-			http.Error(w, `{"message":"not found"}`, http.StatusNotFound)
-			return
-		}
-		if !checkLibraryAccess(r.Context(), w, wsClaims, item.LibraryID, s.libChecker) {
-			return
-		}
-		if !room.IsMember(userID) {
-			slog.Warn("syncplay ws: non-member attempt", slog.String("user", userID), slog.String("room", roomID))
-			http.Error(w, `{"message":"forbidden"}`, http.StatusForbidden)
-			return
-		}
-
-		ctx := context.WithValue(r.Context(), wsCtxUserID, userID)
-		ctx = context.WithValue(ctx, wsCtxUsername, username)
-		wsHandler.ServeHTTP(w, r.WithContext(ctx))
-	})
+	wsHandler.ServeHTTP(w, r.WithContext(ctx))
 }

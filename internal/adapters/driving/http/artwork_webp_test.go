@@ -11,6 +11,7 @@ import (
 	domainlibrary "github.com/gravity-zero/evey/internal/domain/library"
 	domainmeta "github.com/gravity-zero/evey/internal/domain/metadata"
 	shared "github.com/gravity-zero/evey/internal/domain/shared"
+	domainuser "github.com/gravity-zero/evey/internal/domain/user"
 )
 
 type fakeImageConverter struct {
@@ -62,7 +63,7 @@ func TestArtwork_WebP_AcceptHeader_ServesWebP(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/media/m1/artwork/poster", nil)
 	req.SetPathValue("id", "m1")
 	req.SetPathValue("artType", "poster")
-	req.Header.Set("Authorization", "Bearer tok")
+	req = withHTTPClaims(req, testClaims(false))
 	req.Header.Set("Accept", "image/webp,image/png,*/*")
 	w := httptest.NewRecorder()
 	h.ServeHTTP(w, req)
@@ -113,7 +114,7 @@ func TestArtwork_WebP_ExistingWebPPath(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/media/m1/artwork/poster", nil)
 	req.SetPathValue("id", "m1")
 	req.SetPathValue("artType", "poster")
-	req.Header.Set("Authorization", "Bearer tok")
+	req = withHTTPClaims(req, testClaims(false))
 	req.Header.Set("Accept", "image/webp")
 	w := httptest.NewRecorder()
 	h.ServeHTTP(w, req)
@@ -153,7 +154,7 @@ func TestArtwork_NoAcceptWebP_ServesOriginal(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/media/m1/artwork/poster", nil)
 	req.SetPathValue("id", "m1")
 	req.SetPathValue("artType", "poster")
-	req.Header.Set("Authorization", "Bearer tok")
+	req = withHTTPClaims(req, testClaims(false))
 	req.Header.Set("Accept", "image/jpeg")
 	w := httptest.NewRecorder()
 	h.ServeHTTP(w, req)
@@ -198,6 +199,7 @@ func TestArtwork_WebP_StreamToken(t *testing.T) {
 		UserID:      "u1",
 		MediaItemID: "m1",
 	})
+	ctx = context.WithValue(ctx, httpClaimsCtxKey{}, &domainuser.Claims{UserID: "u1"})
 	req = req.WithContext(ctx)
 	w := httptest.NewRecorder()
 	h.ServeHTTP(w, req)

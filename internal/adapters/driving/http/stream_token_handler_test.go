@@ -18,7 +18,6 @@ import (
 func TestStreamTokenHandler_CreateToken(t *testing.T) {
 	key, _ := rsa.GenerateKey(rand.Reader, 2048)
 	gen := auth.NewJWTGenerator(key, time.Minute)
-	userToken, _ := gen.GenerateAccessToken(domainuser.Claims{UserID: "u1", IsAdmin: false})
 
 	mg := newFakeMediaGetter()
 	mg.items["m1"] = &domainlibrary.MediaItem{ID: "m1", LibraryID: "lib1"}
@@ -27,7 +26,7 @@ func TestStreamTokenHandler_CreateToken(t *testing.T) {
 	h := streamTokenHandler(gen, store, allowAll(), mg)
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/media/m1/stream-token", nil)
 	req.SetPathValue("id", "m1")
-	req.Header.Set("Authorization", "Bearer "+userToken)
+	req = withHTTPClaims(req, &domainuser.Claims{UserID: "u1", IsAdmin: false})
 	w := httptest.NewRecorder()
 	h.ServeHTTP(w, req)
 
@@ -51,7 +50,8 @@ func TestStreamTokenHandler_InvalidToken_401(t *testing.T) {
 	gen := auth.NewJWTGenerator(key, time.Minute)
 	store := appmedia.NewStreamTokenStore(5 * time.Minute)
 
-	h := streamTokenHandler(gen, store, allowAll(), newFakeMediaGetter())
+	inner := streamTokenHandler(gen, store, allowAll(), newFakeMediaGetter())
+	h := httpAuthMiddleware(gen)(inner)
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/media/m1/stream-token", nil)
 	req.SetPathValue("id", "m1")
 	req.Header.Set("Authorization", "Bearer invalid-token")
@@ -68,7 +68,8 @@ func TestStreamTokenHandler_NoAuth_401(t *testing.T) {
 	gen := auth.NewJWTGenerator(key, time.Minute)
 	store := appmedia.NewStreamTokenStore(5 * time.Minute)
 
-	h := streamTokenHandler(gen, store, allowAll(), newFakeMediaGetter())
+	inner := streamTokenHandler(gen, store, allowAll(), newFakeMediaGetter())
+	h := httpAuthMiddleware(gen)(inner)
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/media/m1/stream-token", nil)
 	req.SetPathValue("id", "m1")
 	w := httptest.NewRecorder()
@@ -82,13 +83,12 @@ func TestStreamTokenHandler_NoAuth_401(t *testing.T) {
 func TestStreamTokenHandler_MediaNotFound_404(t *testing.T) {
 	key, _ := rsa.GenerateKey(rand.Reader, 2048)
 	gen := auth.NewJWTGenerator(key, time.Minute)
-	userToken, _ := gen.GenerateAccessToken(domainuser.Claims{UserID: "u1", IsAdmin: false})
 	store := appmedia.NewStreamTokenStore(5 * time.Minute)
 
 	h := streamTokenHandler(gen, store, allowAll(), newFakeMediaGetter())
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/media/m1/stream-token", nil)
 	req.SetPathValue("id", "m1")
-	req.Header.Set("Authorization", "Bearer "+userToken)
+	req = withHTTPClaims(req, &domainuser.Claims{UserID: "u1", IsAdmin: false})
 	w := httptest.NewRecorder()
 	h.ServeHTTP(w, req)
 
@@ -100,7 +100,6 @@ func TestStreamTokenHandler_MediaNotFound_404(t *testing.T) {
 func TestStreamTokenHandler_IDOR_403(t *testing.T) {
 	key, _ := rsa.GenerateKey(rand.Reader, 2048)
 	gen := auth.NewJWTGenerator(key, time.Minute)
-	userToken, _ := gen.GenerateAccessToken(domainuser.Claims{UserID: "u1", IsAdmin: false})
 	mg := newFakeMediaGetter()
 	mg.items["m1"] = &domainlibrary.MediaItem{ID: "m1", LibraryID: "lib-restricted"}
 	store := appmedia.NewStreamTokenStore(5 * time.Minute)
@@ -108,7 +107,7 @@ func TestStreamTokenHandler_IDOR_403(t *testing.T) {
 	h := streamTokenHandler(gen, store, denyAll(), mg)
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/media/m1/stream-token", nil)
 	req.SetPathValue("id", "m1")
-	req.Header.Set("Authorization", "Bearer "+userToken)
+	req = withHTTPClaims(req, &domainuser.Claims{UserID: "u1", IsAdmin: false})
 	w := httptest.NewRecorder()
 	h.ServeHTTP(w, req)
 

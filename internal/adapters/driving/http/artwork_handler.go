@@ -7,7 +7,6 @@ import (
 	"os"
 	"strings"
 
-	"github.com/gravity-zero/evey/internal/domain/library"
 	domainmeta "github.com/gravity-zero/evey/internal/domain/metadata"
 	"github.com/gravity-zero/evey/internal/pkg/urlvalidator"
 )
@@ -15,44 +14,22 @@ import (
 func (h *mediaServe) handleArtwork(w http.ResponseWriter, r *http.Request) {
 	mediaID := r.PathValue("id")
 	artType := r.PathValue("artType")
+	claims := HTTPClaimsFromContext(r.Context())
 
-	var artItem *library.MediaItem
 	if st, ok := StreamTokenFromContext(r.Context()); ok {
 		if st.MediaItemID != mediaID {
 			http.Error(w, `{"message":"forbidden"}`, http.StatusForbidden)
 			return
 		}
-		item, err := h.libSvc.GetMediaItem(r.Context(), mediaID)
-		if err != nil {
-			http.NotFound(w, r)
-			return
-		}
-		artItem = item
-	} else {
-		artAuthHeader := r.Header.Get("Authorization")
-		if len(artAuthHeader) < 8 {
-			if t := r.URL.Query().Get("token"); t != "" {
-				artAuthHeader = "Bearer " + t
-			}
-		}
-		if len(artAuthHeader) < 8 || artAuthHeader[:7] != "Bearer " {
-			http.Error(w, `{"message":"unauthenticated"}`, http.StatusUnauthorized)
-			return
-		}
-		artClaims, err := h.tokens.ValidateAccessToken(artAuthHeader[7:])
-		if err != nil {
-			http.Error(w, `{"message":"forbidden"}`, http.StatusForbidden)
-			return
-		}
-		item, err := h.libSvc.GetMediaItem(r.Context(), mediaID)
-		if err != nil {
-			http.NotFound(w, r)
-			return
-		}
-		if !checkLibraryAccess(r.Context(), w, artClaims, item.LibraryID, h.libraryAccess) {
-			return
-		}
-		artItem = item
+	}
+
+	artItem, err := h.libSvc.GetMediaItem(r.Context(), mediaID)
+	if err != nil {
+		http.NotFound(w, r)
+		return
+	}
+	if !checkLibraryAccess(r.Context(), w, claims, artItem.LibraryID, h.libraryAccess) {
+		return
 	}
 
 	records := h.findArtworkRecords(r.Context(), mediaID, artType, artItem.ParentID)
@@ -160,20 +137,7 @@ func (h *mediaServe) resolveWebP(ctx context.Context, rec *domainmeta.ArtworkRec
 
 func selectArtworkHandler(tokens TokenVerifier, artworkRepo ArtworkRepo, libSvc MediaItemGetter, libraryAccess LibraryAccessChecker) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		authHeader := r.Header.Get("Authorization")
-		if len(authHeader) < 8 || authHeader[:7] != "Bearer " {
-			http.Error(w, `{"message":"unauthenticated"}`, http.StatusUnauthorized)
-			return
-		}
-		claims, err := tokens.ValidateAccessToken(authHeader[7:])
-		if err != nil {
-			http.Error(w, `{"message":"forbidden"}`, http.StatusForbidden)
-			return
-		}
-		if !claims.IsAdmin {
-			http.Error(w, `{"message":"forbidden"}`, http.StatusForbidden)
-			return
-		}
+		claims := HTTPClaimsFromContext(r.Context())
 		mediaID := r.PathValue("id")
 		artworkID := r.PathValue("artworkId")
 		item, err := libSvc.GetMediaItem(r.Context(), mediaID)
