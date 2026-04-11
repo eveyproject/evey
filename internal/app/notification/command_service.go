@@ -495,8 +495,8 @@ func (s *CommandService) handleBackupFailed(parentCtx context.Context, ev shared
 	}
 }
 
-func (s *CommandService) MarkRead(ctx context.Context, id string) error {
-	return s.repo.MarkRead(ctx, id)
+func (s *CommandService) MarkRead(ctx context.Context, id, profileID string) error {
+	return s.repo.MarkRead(ctx, id, profileID)
 }
 
 func (s *CommandService) MarkAllRead(ctx context.Context, profileID string) error {

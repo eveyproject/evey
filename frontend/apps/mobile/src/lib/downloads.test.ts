@@ -74,7 +74,7 @@ describe("startDownload", () => {
       method: "POST",
     });
     expect(fsMock.createDownloadResumable).toHaveBeenCalledWith(
-      "https://evey.test/api/v1/media/m3/stream?token=stream-tok-123",
+      "https://evey.test/api/v1/media/m3/download?token=stream-tok-123",
       expect.stringContaining("m3.mp4"),
       {},
       expect.any(Function),

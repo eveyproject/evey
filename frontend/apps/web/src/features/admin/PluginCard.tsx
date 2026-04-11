@@ -357,7 +357,7 @@ export function PluginCard({ plugin, onEnable, onDisable, onUninstall }: PluginC
           {showConfig ? t("admin.plugin.hideConfig") : t("admin.plugin.config")}
         </Button>
         <Link
-          to="/admin/logs"
+          to="/admin/system-health"
           className="inline-flex items-center px-3 py-2 rounded-[var(--radius-md)] text-sm font-medium transition-colors-fast bg-transparent hover:bg-[var(--surface-raised)] text-[var(--text-muted)]"
         >
           {t("admin.plugin.logs")}

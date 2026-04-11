@@ -231,6 +231,53 @@ func TestMetadataResult_PeopleAndArtwork(t *testing.T) {
 	}
 }
 
+func TestMetadataOverride_Validate(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		o       metadata.MetadataOverride
+		wantErr bool
+	}{
+		{"valid", metadata.MetadataOverride{MediaItemID: "m1", FieldName: "title"}, false},
+		{"missing media item", metadata.MetadataOverride{FieldName: "title"}, true},
+		{"missing field name", metadata.MetadataOverride{MediaItemID: "m1"}, true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			err := tt.o.Validate()
+			if (err != nil) != tt.wantErr {
+				t.Errorf("Validate() err = %v, wantErr %v", err, tt.wantErr)
+			}
+		})
+	}
+}
+
+func TestArtworkRecord_Validate(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		a       metadata.ArtworkRecord
+		wantErr bool
+	}{
+		{"valid", metadata.ArtworkRecord{MediaItemID: "m1", Type: "poster", Provider: "tmdb"}, false},
+		{"missing media item", metadata.ArtworkRecord{Type: "poster", Provider: "tmdb"}, true},
+		{"missing type", metadata.ArtworkRecord{MediaItemID: "m1", Provider: "tmdb"}, true},
+		{"missing provider", metadata.ArtworkRecord{MediaItemID: "m1", Type: "poster"}, true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			err := tt.a.Validate()
+			if (err != nil) != tt.wantErr {
+				t.Errorf("Validate() err = %v, wantErr %v", err, tt.wantErr)
+			}
+		})
+	}
+}
+
 func TestArtworkRecord_OptionalFields(t *testing.T) {
 	t.Parallel()
 

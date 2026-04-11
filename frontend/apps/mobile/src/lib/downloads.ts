@@ -53,7 +53,7 @@ export async function startDownload(
     url: `/api/v1/media/${mediaItemId}/stream-token`,
     method: "POST",
   });
-  const streamUrl = `${serverUrl}/api/v1/media/${mediaItemId}/stream?token=${token}`;
+  const streamUrl = `${serverUrl}/api/v1/media/${mediaItemId}/download?token=${token}`;
   const destPath = `${DOWNLOAD_DIR}${mediaItemId}.mp4`;
 
   const downloadResumable = FileSystem.createDownloadResumable(

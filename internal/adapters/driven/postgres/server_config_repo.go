@@ -3,6 +3,7 @@ package postgres
 import (
 	"context"
 	"database/sql"
+	"errors"
 
 	"github.com/gravity-zero/evey/internal/domain/shared"
 )
@@ -21,6 +22,9 @@ func (r *ServerConfigRepository) Get(ctx context.Context, key string) (*shared.S
 		`SELECT key, value, updated_at FROM server_config WHERE key = $1`, key,
 	).Scan(&e.Key, &e.Value, &e.UpdatedAt)
 	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, shared.ErrNotFound
+		}
 		return nil, err
 	}
 	return e, nil

@@ -56,7 +56,7 @@ func TestNotificationRepo_CRUD(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, 1, count)
 
-	require.NoError(t, repo.MarkRead(ctx, n.ID))
+	require.NoError(t, repo.MarkRead(ctx, n.ID, "profile-a"))
 	count, err = repo.UnreadCount(ctx, "profile-a")
 	require.NoError(t, err)
 	assert.Equal(t, 0, count)

@@ -26,7 +26,7 @@ export function RecentActivity() {
           {t("admin.dashboardStats.recentActivity")}
         </h3>
         <Link
-          to="/admin/audit"
+          to="/admin/activity"
           className="text-xs font-medium hover:underline text-[var(--accent)]"
         >
           {t("admin.dashboardStats.viewAll")}

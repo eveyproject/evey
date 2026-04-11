@@ -1,6 +1,9 @@
 package metadata
 
-import "time"
+import (
+	"errors"
+	"time"
+)
 
 const (
 	ArtworkTypePoster   = "poster"
@@ -88,6 +91,29 @@ type ArtworkRecord struct {
 	Height      *int
 	Language    *string
 	SortOrder   int
+}
+
+func (o *MetadataOverride) Validate() error {
+	if o.MediaItemID == "" {
+		return errors.New("metadata override requires a media item ID")
+	}
+	if o.FieldName == "" {
+		return errors.New("metadata override requires a field name")
+	}
+	return nil
+}
+
+func (a *ArtworkRecord) Validate() error {
+	if a.MediaItemID == "" {
+		return errors.New("artwork record requires a media item ID")
+	}
+	if a.Type == "" {
+		return errors.New("artwork record requires a type")
+	}
+	if a.Provider == "" {
+		return errors.New("artwork record requires a provider")
+	}
+	return nil
 }
 
 type MetadataProviderConfig struct {

@@ -1,6 +1,7 @@
 package library
 
 import (
+	"errors"
 	"time"
 )
 
@@ -112,6 +113,19 @@ type MediaItemContainerRow struct {
 	ID       string
 	ParentID string
 	Type     string
+}
+
+func (m *MediaItem) Validate() error {
+	if m.LibraryID == "" {
+		return errors.New("media item requires a library ID")
+	}
+	if m.Type == "" {
+		return errors.New("media item requires a type")
+	}
+	if m.Title == "" {
+		return errors.New("media item requires a title")
+	}
+	return nil
 }
 
 func (m *MediaItem) HasFile() bool {

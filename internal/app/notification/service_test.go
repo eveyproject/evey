@@ -140,7 +140,7 @@ func TestNotificationService_MarkRead_UnreadCount(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, 2, count)
 
-	require.NoError(t, cmdSvc.MarkRead(ctx, "n1"))
+	require.NoError(t, cmdSvc.MarkRead(ctx, "n1", "p1"))
 	count, _ = querySvc.UnreadCount(ctx, "p1")
 	assert.Equal(t, 1, count)
 
@@ -344,7 +344,7 @@ func TestNotificationService_List_UnreadOnly(t *testing.T) {
 	n2 := &notifdom.Notification{ID: "n2", ProfileID: "p1", Title: "Unread", CreatedAt: time.Now()}
 	_ = repo.Create(ctx, n1)
 	_ = repo.Create(ctx, n2)
-	_ = repo.MarkRead(ctx, "n1")
+	_ = repo.MarkRead(ctx, "n1", "p1")
 
 	notifs, err := querySvc.List(ctx, "p1", true, 0, 0)
 	require.NoError(t, err)

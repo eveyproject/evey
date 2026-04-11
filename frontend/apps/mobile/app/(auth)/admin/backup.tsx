@@ -82,7 +82,7 @@ export default function AdminBackupScreen() {
         )}
       </View>
       <Pressable onPress={() => handleDelete(item)} hitSlop={8}>
-        <Ionicons name="trash-outline" size={20} color=theme.colors.error />
+        <Ionicons name="trash-outline" size={20} color={theme.colors.error} />
       </Pressable>
     </View>
   ), [theme, handleDelete]);

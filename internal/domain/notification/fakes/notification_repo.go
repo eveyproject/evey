@@ -60,7 +60,7 @@ func (r *FakeNotificationRepository) ListByProfile(_ context.Context, profileID 
 	return out, nil
 }
 
-func (r *FakeNotificationRepository) MarkRead(_ context.Context, id string) error {
+func (r *FakeNotificationRepository) MarkRead(_ context.Context, id, profileID string) error {
 	if r.Err != nil {
 		return r.Err
 	}
@@ -71,7 +71,7 @@ func (r *FakeNotificationRepository) MarkRead(_ context.Context, id string) erro
 	}
 	now := time.Now()
 	for _, n := range r.items {
-		if n.ID == id {
+		if n.ID == id && n.ProfileID == profileID {
 			n.ReadAt = &now
 			return nil
 		}

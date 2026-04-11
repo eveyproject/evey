@@ -254,7 +254,7 @@ export default function AdminUsersScreen() {
         <Ionicons name={(item as any).disabled ? "eye-off-outline" : "eye-outline"} size={18} color={theme.colors.textMuted} />
       </Pressable>
       <Pressable onPress={() => handleDelete(item)} hitSlop={8} style={{ padding: 4 }}>
-        <Ionicons name="trash-outline" size={18} color=theme.colors.error />
+        <Ionicons name="trash-outline" size={18} color={theme.colors.error} />
       </Pressable>
     </View>
   ), [theme, handleDelete, handleToggleDisable, setLibAccessUser]);

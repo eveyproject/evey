@@ -1,6 +1,9 @@
 package backup
 
-import "time"
+import (
+	"errors"
+	"time"
+)
 
 type BackupManifest struct {
 	ID         string    `json:"id"`
@@ -9,4 +12,14 @@ type BackupManifest struct {
 	Tables     []string  `json:"tables"`
 	Size       int64     `json:"size"`
 	DumpSHA256 string    `json:"dump_sha256,omitempty"`
+}
+
+func (m *BackupManifest) Validate() error {
+	if m.Version == "" {
+		return errors.New("backup manifest requires a version")
+	}
+	if len(m.Tables) == 0 {
+		return errors.New("backup manifest requires at least one table")
+	}
+	return nil
 }

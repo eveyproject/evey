@@ -2,7 +2,6 @@ package fakes
 
 import (
 	"context"
-	"database/sql"
 	"sync"
 	"time"
 
@@ -27,7 +26,7 @@ func (r *FakeServerConfigRepository) Get(_ context.Context, key string) (*shared
 	defer r.mu.RUnlock()
 	e, ok := r.items[key]
 	if !ok {
-		return nil, sql.ErrNoRows
+		return nil, shared.ErrNotFound
 	}
 	return e, nil
 }

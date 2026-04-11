@@ -2,11 +2,11 @@ package postgres_test
 
 import (
 	"context"
-	"database/sql"
 	"testing"
 
 	"github.com/gravity-zero/evey/internal/adapters/driven/postgres"
 	"github.com/gravity-zero/evey/internal/adapters/driven/postgres/testhelpers"
+	"github.com/gravity-zero/evey/internal/domain/shared"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -53,7 +53,7 @@ func TestServerConfigRepo_Delete(t *testing.T) {
 	require.NoError(t, repo.Delete(ctx, "delete.key"))
 
 	_, err := repo.Get(ctx, "delete.key")
-	assert.ErrorIs(t, err, sql.ErrNoRows)
+	assert.ErrorIs(t, err, shared.ErrNotFound)
 }
 
 func TestServerConfigRepo_List(t *testing.T) {

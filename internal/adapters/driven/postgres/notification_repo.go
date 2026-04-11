@@ -61,9 +61,9 @@ func scanNotifications(rows *sql.Rows) ([]*notification.Notification, error) {
 	return result, rows.Err()
 }
 
-func (r *NotificationRepository) MarkRead(ctx context.Context, id string) error {
+func (r *NotificationRepository) MarkRead(ctx context.Context, id, profileID string) error {
 	now := time.Now()
-	_, err := r.db.ExecContext(ctx, `UPDATE notifications SET read_at = $1 WHERE id = $2 AND read_at IS NULL`, now, id)
+	_, err := r.db.ExecContext(ctx, `UPDATE notifications SET read_at = $1 WHERE id = $2 AND profile_id = $3 AND read_at IS NULL`, now, id, profileID)
 	return err
 }
 

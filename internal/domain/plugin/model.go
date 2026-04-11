@@ -1,6 +1,9 @@
 package plugin
 
-import "time"
+import (
+	"errors"
+	"time"
+)
 
 type PluginStatus string
 
@@ -39,6 +42,29 @@ type Plugin struct {
 	ErrorMessage string
 	InstalledAt  time.Time
 	UpdatedAt    time.Time
+}
+
+func (p *Plugin) Validate() error {
+	if p.Name == "" {
+		return errors.New("plugin requires a name")
+	}
+	if p.Version == "" {
+		return errors.New("plugin requires a version")
+	}
+	return nil
+}
+
+func (m *PluginManifest) Validate() error {
+	if m.Name == "" {
+		return errors.New("manifest requires a name")
+	}
+	if m.Version == "" {
+		return errors.New("manifest requires a version")
+	}
+	if m.Entrypoint == "" {
+		return errors.New("manifest requires an entrypoint")
+	}
+	return nil
 }
 
 type UIWidget struct {

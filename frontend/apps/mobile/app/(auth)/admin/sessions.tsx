@@ -185,7 +185,7 @@ function SessionCard({ session, theme, t, onKill, onCommand }: {
             <Ionicons name="chatbubble-outline" size={20} color={theme.colors.textMuted} />
           </Pressable>
           <Pressable onPress={() => onKill(session)} hitSlop={8}>
-            <Ionicons name="stop-circle-outline" size={24} color=theme.colors.error />
+            <Ionicons name="stop-circle-outline" size={24} color={theme.colors.error} />
           </Pressable>
         </View>
       </View>

@@ -76,7 +76,7 @@ export default function AdminPluginsScreen() {
         trackColor={{ true: theme.colors.accent, false: theme.colors.surfaceRaised }}
       />
       <Pressable onPress={() => handleUninstall(item)} hitSlop={8} style={{ padding: 4 }}>
-        <Ionicons name="trash-outline" size={18} color=theme.colors.error />
+        <Ionicons name="trash-outline" size={18} color={theme.colors.error} />
       </Pressable>
     </View>
   ), [theme, handleToggle, handleUninstall]);

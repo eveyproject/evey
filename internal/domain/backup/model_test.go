@@ -31,6 +31,30 @@ func TestBackupManifest_Fields(t *testing.T) {
 	}
 }
 
+func TestBackupManifest_Validate(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		m       backup.BackupManifest
+		wantErr bool
+	}{
+		{"valid", backup.BackupManifest{Version: "1.0", Tables: []string{"users"}}, false},
+		{"missing version", backup.BackupManifest{Tables: []string{"users"}}, true},
+		{"no tables", backup.BackupManifest{Version: "1.0"}, true},
+		{"empty tables", backup.BackupManifest{Version: "1.0", Tables: []string{}}, true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			err := tt.m.Validate()
+			if (err != nil) != tt.wantErr {
+				t.Errorf("Validate() err = %v, wantErr %v", err, tt.wantErr)
+			}
+		})
+	}
+}
+
 func TestBackupEventNames(t *testing.T) {
 	t.Parallel()
 

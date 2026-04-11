@@ -1,6 +1,7 @@
 .PHONY: proto-gen plugin-sdk build test lint clean \
 	migrate-up migrate-down setup dev dev-down dev-logs \
-	infra frontend-typecheck
+	infra frontend-typecheck \
+	mobile-build mobile-install mobile
 
 BINARY=evey
 DC=docker compose --env-file .env.dev
@@ -87,3 +88,20 @@ infra:
 
 frontend-typecheck:
 	$(DC) run --rm web pnpm --filter web typecheck
+
+# ── Mobile ────────────────────────────────────────────────────────────────────
+
+ADB=$(HOME)/Applications/Android/Sdk/platform-tools/adb
+MOBILE_DIR=frontend/apps/mobile
+APK_PATH=$(MOBILE_DIR)/android/app/build/outputs/apk/release/app-release.apk
+
+mobile-build:
+	cd $(MOBILE_DIR)/android && ./gradlew assembleRelease --no-daemon
+
+mobile-install: $(APK_PATH)
+	$(ADB) uninstall com.evey.app 2>/dev/null || true
+	$(ADB) install $(APK_PATH)
+	$(ADB) reverse tcp:8080 tcp:8080
+	$(ADB) shell am start -n com.evey.app/.MainActivity
+
+mobile: mobile-build mobile-install

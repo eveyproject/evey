@@ -17,7 +17,7 @@ type PushSender interface {
 type Repository interface {
 	Create(ctx context.Context, n *Notification) error
 	ListByProfile(ctx context.Context, profileID string, unreadOnly bool, limit, offset int) ([]*Notification, error)
-	MarkRead(ctx context.Context, id string) error
+	MarkRead(ctx context.Context, id, profileID string) error
 	MarkAllRead(ctx context.Context, profileID string) error
 	UnreadCount(ctx context.Context, profileID string) (int, error)
 	DeleteAll(ctx context.Context, profileID string) error

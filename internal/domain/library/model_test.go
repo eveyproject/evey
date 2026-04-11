@@ -342,6 +342,30 @@ func TestMediaStream_Getters(t *testing.T) {
 	}
 }
 
+func TestMediaItem_Validate(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		item    library.MediaItem
+		wantErr bool
+	}{
+		{"valid", library.MediaItem{LibraryID: "lib1", Type: "movie", Title: "Test"}, false},
+		{"missing library", library.MediaItem{Type: "movie", Title: "Test"}, true},
+		{"missing type", library.MediaItem{LibraryID: "lib1", Title: "Test"}, true},
+		{"missing title", library.MediaItem{LibraryID: "lib1", Type: "movie"}, true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			err := tt.item.Validate()
+			if (err != nil) != tt.wantErr {
+				t.Errorf("Validate() err = %v, wantErr %v", err, tt.wantErr)
+			}
+		})
+	}
+}
+
 func TestUserRating_Values(t *testing.T) {
 	t.Parallel()
 
