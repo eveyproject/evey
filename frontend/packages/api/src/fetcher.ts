@@ -147,6 +147,7 @@ export async function eveyFetchRaw(request: RawFetcherRequest): Promise<Response
   const doFetch = (authToken: string | undefined) =>
     fetch(fullURL, {
       method: request.method,
+      credentials: "include" as const,
       headers: authToken ? { ...headers, Authorization: `Bearer ${authToken}` } : headers,
       body: request.body,
       signal: request.signal,
@@ -166,6 +167,9 @@ export async function eveyFetch<T>(request: FetcherRequest): Promise<T> {
     const csrf = getCSRFToken();
     if (csrf) headers["X-CSRF-Token"] = csrf;
   }
+  if (request.data !== undefined) {
+    headers["Content-Type"] = "application/json";
+  }
 
   let url = resolveURL(request.url);
   if (request.params) {
@@ -180,6 +184,7 @@ export async function eveyFetch<T>(request: FetcherRequest): Promise<T> {
   const doFetch = (authToken: string | undefined) =>
     fetch(url, {
       method: request.method,
+      credentials: "include" as const,
       headers: authToken ? { ...headers, Authorization: `Bearer ${authToken}` } : headers,
       body: request.data !== undefined ? JSON.stringify(request.data) : undefined,
       signal: request.signal,
