@@ -327,6 +327,9 @@ func IsEmailAllowed(email string, allowedDomains []string) bool {
 }
 
 func (s *OIDCService) generateAndStoreRefreshToken(ctx context.Context, userID string) (string, error) {
+	if err := s.refreshTkns.DeleteByUserID(ctx, userID); err != nil {
+		slog.Warn("oidc: purge old refresh tokens", slog.String("user_id", userID), slog.Any("err", err))
+	}
 	for range maxRefreshTokenRetries {
 		token, err := s.tokens.GenerateRefreshToken()
 		if err != nil {

@@ -77,8 +77,12 @@ func DefaultRBACConfig() RBACConfig {
 			"/evey.v1.ActivityService/GetServerStats":                       RoleAdmin,
 			"/evey.v1.ActivityService/ListServerMetrics":                    RoleAdmin,
 			"/evey.v1.MetadataService/RefreshMetadata":                      RoleAdmin,
+			"/evey.v1.MetadataService/SearchMetadata":                       RoleAdmin,
 			"/evey.v1.MetadataService/SetMetadataOverride":                  RoleAdmin,
 			"/evey.v1.MetadataService/RemoveMetadataOverride":               RoleAdmin,
+			"/evey.v1.MKVService/GetContainerInfo":                          RoleAdmin,
+			"/evey.v1.MKVService/ListTracks":                                RoleAdmin,
+			"/evey.v1.MKVService/ExtractTrack":                              RoleAdmin,
 			"/evey.v1.MKVService/MuxContainer":                              RoleAdmin,
 			"/evey.v1.MKVService/DemuxContainer":                            RoleAdmin,
 			"/evey.v1.MKVService/AddTrack":                                  RoleAdmin,
@@ -102,6 +106,7 @@ func DefaultRBACConfig() RBACConfig {
 			"/evey.v1.ServerConfigService/SetServerConfigEntry":             RoleAdmin,
 			"/evey.v1.ServerConfigService/ListServerConfigEntries":          RoleAdmin,
 			"/evey.v1.ServerConfigService/DeleteServerConfigEntry":          RoleAdmin,
+			"/evey.v1.CollectionService/DeleteCollection":                   RoleAdmin,
 		},
 	}
 }

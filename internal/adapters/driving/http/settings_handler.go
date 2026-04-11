@@ -104,6 +104,7 @@ func registerServerSettingsRoutes(
 			http.Error(w, `{"message":"forbidden"}`, http.StatusForbidden)
 			return
 		}
+		r.Body = http.MaxBytesReader(w, r.Body, 1<<20)
 		var body struct {
 			ServerName              *string `json:"serverName"`
 			MaxConcurrentTranscodes *int    `json:"maxConcurrentTranscodes"`

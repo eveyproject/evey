@@ -28,6 +28,7 @@ func (h *adminHandler) handleCreateTranscodeProfile(w http.ResponseWriter, r *ht
 		http.Error(w, `{"message":"forbidden"}`, http.StatusForbidden)
 		return
 	}
+	r.Body = http.MaxBytesReader(w, r.Body, 1<<20)
 	var body profileBody
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		http.Error(w, `{"message":"bad request"}`, http.StatusBadRequest)
@@ -63,6 +64,7 @@ func (h *adminHandler) handleUpdateTranscodeProfile(w http.ResponseWriter, r *ht
 		http.Error(w, `{"message":"forbidden"}`, http.StatusForbidden)
 		return
 	}
+	r.Body = http.MaxBytesReader(w, r.Body, 1<<20)
 	profileID := r.PathValue("id")
 	var body profileBody
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {

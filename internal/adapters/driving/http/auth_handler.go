@@ -189,6 +189,7 @@ func (h *parentalHandler) updateSettings(w http.ResponseWriter, r *http.Request)
 		http.Error(w, `{"message":"forbidden"}`, http.StatusForbidden)
 		return
 	}
+	r.Body = http.MaxBytesReader(w, r.Body, 1<<20)
 	var body struct {
 		MaxRating   *string  `json:"maxRating"`
 		BlockedTags []string `json:"blockedTags"`
@@ -264,6 +265,7 @@ func (h *parentalHandler) verifyPIN(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, `{"message":"too many attempts"}`, http.StatusTooManyRequests)
 		return
 	}
+	r.Body = http.MaxBytesReader(w, r.Body, 1<<20)
 	var body struct {
 		PIN string `json:"pin"`
 	}
