@@ -33,22 +33,43 @@ interface UseSyncPlayOptions {
 }
 
 export function useSyncPlay(opts: UseSyncPlayOptions = {}) {
-  const accessToken = useAuthStore((s) => s.accessToken);
   const serverUrl = useServerUrl();
   const [state, setState] = useState<SyncPlayState>({ roomId: null, roomCode: null, members: [], connected: false, isHost: false });
   const wsRef = useRef<WebSocket | null>(null);
   const optsRef = useRef(opts);
   optsRef.current = opts;
+  const leftVoluntarilyRef = useRef(false);
+  const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const reconnectAttemptRef = useRef(0);
+  const messageQueueRef = useRef<string[]>([]);
 
   const connect = useCallback((roomId: string) => {
+    leftVoluntarilyRef.current = false;
+    reconnectAttemptRef.current = 0;
     if (wsRef.current) { wsRef.current.close(); wsRef.current = null; }
+    const token = useAuthStore.getState().accessToken;
     const wsBase = serverUrl.replace(/^http/, "ws");
     const url = `${wsBase}/api/v1/syncplay/rooms/${roomId}/ws`;
-    const ws = new WebSocket(url, [`Bearer.${accessToken ?? ""}`]);
+    const ws = new WebSocket(url, [`Bearer.${token ?? ""}`]);
     wsRef.current = ws;
 
-    ws.onopen = () => setState((prev) => ({ ...prev, connected: true }));
-    ws.onclose = () => setState((prev) => ({ ...prev, connected: false }));
+    ws.onopen = () => {
+      reconnectAttemptRef.current = 0;
+      setState((prev) => ({ ...prev, connected: true }));
+      for (const queued of messageQueueRef.current) {
+        ws.send(queued);
+      }
+      messageQueueRef.current = [];
+    };
+
+    ws.onclose = () => {
+      setState((prev) => ({ ...prev, connected: false }));
+      if (!leftVoluntarilyRef.current && reconnectAttemptRef.current < 5) {
+        const delay = Math.min(1000 * Math.pow(2, reconnectAttemptRef.current), 30000);
+        reconnectAttemptRef.current += 1;
+        reconnectTimerRef.current = setTimeout(() => connect(roomId), delay);
+      }
+    };
 
     ws.onmessage = (event) => {
       let msg: SyncMessage;
@@ -85,13 +106,27 @@ export function useSyncPlay(opts: UseSyncPlayOptions = {}) {
           break;
       }
     };
-  }, [serverUrl, accessToken]);
+  }, [serverUrl]);
 
-  useEffect(() => () => { wsRef.current?.close(); }, []);
+  useEffect(() => {
+    return () => {
+      leftVoluntarilyRef.current = true;
+      if (reconnectTimerRef.current) {
+        clearTimeout(reconnectTimerRef.current);
+        reconnectTimerRef.current = null;
+      }
+      wsRef.current?.close();
+      wsRef.current = null;
+    };
+  }, []);
 
   const send = useCallback((type: string, positionMs: number) => {
-    if (wsRef.current?.readyState === WebSocket.OPEN) {
-      wsRef.current.send(JSON.stringify({ type, positionMs }));
+    const payload = JSON.stringify({ type, positionMs });
+    const ws = wsRef.current;
+    if (ws?.readyState === WebSocket.OPEN) {
+      ws.send(payload);
+    } else if (ws?.readyState === WebSocket.CONNECTING) {
+      messageQueueRef.current.push(payload);
     }
   }, []);
 
@@ -117,13 +152,19 @@ export function useSyncPlay(opts: UseSyncPlayOptions = {}) {
   }, [connect]);
 
   const leaveRoom = useCallback(async () => {
+    leftVoluntarilyRef.current = true;
+    if (reconnectTimerRef.current) {
+      clearTimeout(reconnectTimerRef.current);
+      reconnectTimerRef.current = null;
+    }
     if (wsRef.current) { wsRef.current.close(); wsRef.current = null; }
-    if (state.roomId) {
+    const roomId = state.roomId;
+    setState({ roomId: null, roomCode: null, members: [], connected: false, isHost: false });
+    if (roomId) {
       try {
-        await eveyFetch<void>({ url: `/api/v1/syncplay/rooms/${state.roomId}/leave`, method: "POST" });
+        await eveyFetch<void>({ url: `/api/v1/syncplay/rooms/${roomId}/leave`, method: "POST" });
       } catch {}
     }
-    setState({ roomId: null, roomCode: null, members: [], connected: false, isHost: false });
   }, [state.roomId]);
 
   return {
