@@ -173,11 +173,16 @@ export async function eveyFetch<T>(request: FetcherRequest): Promise<T> {
 
   let url = resolveURL(request.url);
   if (request.params) {
-    const qs = new URLSearchParams(
-      Object.entries(request.params)
-        .filter(([, v]) => v !== undefined && v !== null)
-        .map(([k, v]) => [k, String(v)])
-    ).toString();
+    const entries: [string, string][] = [];
+    for (const [k, v] of Object.entries(request.params)) {
+      if (v === undefined || v === null) continue;
+      if (Array.isArray(v)) {
+        for (const item of v) entries.push([k, String(item)]);
+      } else {
+        entries.push([k, String(v)]);
+      }
+    }
+    const qs = new URLSearchParams(entries).toString();
     if (qs) url = `${url}?${qs}`;
   }
 

@@ -77,6 +77,11 @@ export function usePlaySession(mediaId: string): PlaySessionResult {
   const [transcodeOffset, setTranscodeOffset] = useState(0);
   const sessionIdRef = useRef<string | null>(null);
   const startedRef = useRef(false);
+  const prevMediaIdRef = useRef(mediaId);
+  if (prevMediaIdRef.current !== mediaId) {
+    prevMediaIdRef.current = mediaId;
+    startedRef.current = false;
+  }
   const stoppedRef = useRef(false);
   const tokenRef = useRef<string | null>(null);
   const serverUrlRef = useRef<string>("");

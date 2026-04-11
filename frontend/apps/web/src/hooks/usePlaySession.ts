@@ -27,6 +27,11 @@ export function usePlaySession(mediaId: string): PlaySessionResult {
   const sessionIdRef = useRef<string | null>(null);
   const stopped = useRef(false);
   const startedRef = useRef(false);
+  const prevMediaIdRef = useRef(mediaId);
+  if (prevMediaIdRef.current !== mediaId) {
+    prevMediaIdRef.current = mediaId;
+    startedRef.current = false;
+  }
   const [starting, setStarting] = useState(false);
   const [startError, setStartError] = useState(false);
   const { streamToken, fetchStreamToken } = useStreamToken();
