@@ -109,7 +109,7 @@ func (s *GRPCServer) RegisterServices() {
 	eveyv1.RegisterPlaybackServiceServer(s.server, &playbackHandler{cmd: d.PlaybackCmd, query: d.PlaybackQuery, librarySvc: d.LibQuery, activitySvc: d.ActivityCmd, userQuery: d.UserQuery, userAccess: d.UserAccess, translator: d.Translator, hlsManager: d.HLSManager})
 	eveyv1.RegisterTranscodingServiceServer(s.server, &transcodingHandler{svc: d.Transcoding, userQuery: d.UserQuery})
 	eveyv1.RegisterMKVServiceServer(s.server, &mkvHandler{svc: d.Mkv})
-	eveyv1.RegisterMetadataServiceServer(s.server, &metadataHandler{cmd: d.MetadataCmd, query: d.MetadataQuery})
+	eveyv1.RegisterMetadataServiceServer(s.server, &metadataHandler{cmd: d.MetadataCmd, query: d.MetadataQuery, userAccess: d.UserAccess, libQuery: d.LibQuery})
 	srvCtx := d.ServerCtx
 	if srvCtx == nil {
 		srvCtx = context.Background()
@@ -153,7 +153,7 @@ func (s *GRPCServer) RegisterServices() {
 	})
 	eveyv1.RegisterActivityServiceServer(s.server, &activityHandler{svc: d.ActivityQuery, libQuery: d.LibQuery, userAccess: d.UserAccess, translator: d.Translator})
 	eveyv1.RegisterNotificationServiceServer(s.server, &notificationHandler{cmd: d.NotifCmd, query: d.NotifQuery})
-	eveyv1.RegisterFeedServiceServer(s.server, &feedHandler{commands: d.FeedCmd, queries: d.FeedQuery})
+	eveyv1.RegisterFeedServiceServer(s.server, &feedHandler{commands: d.FeedCmd, queries: d.FeedQuery, userAccess: d.UserAccess, libQuery: d.LibQuery})
 	eveyv1.RegisterWebhookServiceServer(s.server, &webhookHandler{svc: d.Webhook})
 	eveyv1.RegisterCollectionServiceServer(s.server, &collectionHandler{svc: d.Collection})
 	eveyv1.RegisterPlaylistServiceServer(s.server, &playlistHandler{svc: d.Playlist, translator: d.Translator})

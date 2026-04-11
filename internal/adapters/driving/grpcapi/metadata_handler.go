@@ -4,7 +4,10 @@ import (
 	"context"
 
 	eveyv1 "github.com/gravity-zero/evey/gen/evey/v1"
+	"github.com/gravity-zero/evey/internal/adapters/driving/grpcapi/interceptors"
+	applibrary "github.com/gravity-zero/evey/internal/app/library"
 	appmetadata "github.com/gravity-zero/evey/internal/app/metadata"
+	appuser "github.com/gravity-zero/evey/internal/app/user"
 	domainmetadata "github.com/gravity-zero/evey/internal/domain/metadata"
 	"github.com/gravity-zero/evey/internal/pkg/id"
 	"google.golang.org/grpc/codes"
@@ -13,8 +16,29 @@ import (
 
 type metadataHandler struct {
 	eveyv1.UnimplementedMetadataServiceServer
-	cmd   *appmetadata.CommandService
-	query *appmetadata.QueryService
+	cmd        *appmetadata.CommandService
+	query      *appmetadata.QueryService
+	userAccess *appuser.AccessService
+	libQuery   *applibrary.QueryService
+}
+
+func (h *metadataHandler) checkMediaItemAccess(ctx context.Context, mediaItemID string) error {
+	if h.userAccess == nil || h.libQuery == nil {
+		return nil
+	}
+	claims := interceptors.ClaimsFromContext(ctx)
+	if claims == nil || claims.IsAdmin {
+		return nil
+	}
+	item, err := h.libQuery.GetMediaItem(ctx, mediaItemID)
+	if err != nil || item == nil {
+		return status.Error(codes.NotFound, "not found")
+	}
+	ok, accessErr := h.userAccess.HasLibraryAccess(ctx, claims.UserID, item.LibraryID)
+	if accessErr != nil || !ok {
+		return status.Error(codes.NotFound, "not found")
+	}
+	return nil
 }
 
 func (h *metadataHandler) SearchMetadata(ctx context.Context, req *eveyv1.SearchMetadataRequest) (*eveyv1.SearchMetadataResponse, error) {
@@ -68,6 +92,9 @@ func (h *metadataHandler) RefreshMetadata(req *eveyv1.RefreshMetadataRequest, st
 }
 
 func (h *metadataHandler) GetArtwork(ctx context.Context, req *eveyv1.GetArtworkRequest) (*eveyv1.GetArtworkResponse, error) {
+	if err := h.checkMediaItemAccess(ctx, req.MediaItemId); err != nil {
+		return nil, err
+	}
 	records, err := h.query.GetArtwork(ctx, req.MediaItemId)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "get artwork: %v", err)
@@ -100,6 +127,9 @@ func (h *metadataHandler) RemoveMetadataOverride(ctx context.Context, req *eveyv
 }
 
 func (h *metadataHandler) ListMetadataOverrides(ctx context.Context, req *eveyv1.ListMetadataOverridesRequest) (*eveyv1.ListMetadataOverridesResponse, error) {
+	if err := h.checkMediaItemAccess(ctx, req.MediaItemId); err != nil {
+		return nil, err
+	}
 	overrides, err := h.query.ListOverrides(ctx, req.MediaItemId)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "list overrides: %v", err)
