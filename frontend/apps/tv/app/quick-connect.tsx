@@ -56,24 +56,46 @@ export default function QuickConnectScreen() {
     return () => clearInterval(id);
   }, []);
 
-  // SSE: wait for authorization
+  // SSE: wait for authorization (with exponential backoff reconnect)
   const serverUrl = useServerUrlNullable();
   useEffect(() => {
     if (!code || !serverUrl) return;
-    const url = `${serverUrl}/api/v1/auth/quick-connect/${code}/events`;
-    const es = new EventSource(url);
-    es.onmessage = (e: MessageEvent) => {
-      const data = JSON.parse(e.data) as { event: string; accessToken?: string };
-      if (data.event === "authorized" && data.accessToken) {
-        setTokens(data.accessToken);
-        es.close();
-        router.replace("/(auth)/(tabs)");
-      } else if (data.event === "expired" || data.event === "error") {
-        es.close();
-      }
+    let retries = 0;
+    const MAX_RETRIES = 3;
+    let es: EventSource | null = null;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    let cancelled = false;
+
+    function connect() {
+      if (cancelled) return;
+      const url = `${serverUrl}/api/v1/auth/quick-connect/${code}/events`;
+      es = new EventSource(url);
+      es.onmessage = (e: MessageEvent) => {
+        const data = JSON.parse(e.data) as { event: string; accessToken?: string };
+        if (data.event === "authorized" && data.accessToken) {
+          setTokens(data.accessToken);
+          es?.close();
+          router.replace("/(auth)/(tabs)");
+        } else if (data.event === "expired" || data.event === "error") {
+          es?.close();
+        }
+      };
+      es.onerror = () => {
+        es?.close();
+        if (!cancelled && retries < MAX_RETRIES) {
+          const delay = 1000 * Math.pow(2, retries);
+          retries++;
+          timer = setTimeout(connect, delay);
+        }
+      };
+    }
+
+    connect();
+    return () => {
+      cancelled = true;
+      es?.close();
+      if (timer) clearTimeout(timer);
     };
-    es.onerror = () => es.close();
-    return () => es.close();
   }, [code, serverUrl, setTokens]);
 
   const displayCode = code ? code.slice(-6).toUpperCase() : null;

@@ -8,6 +8,7 @@ interface FocusableCardProps {
   style?: StyleProp<ViewStyle>;
   focusedStyle?: StyleProp<ViewStyle>;
   hasTVPreferredFocus?: boolean;
+  accessibilityLabel?: string;
 }
 
 export const FocusableCard = React.memo(function FocusableCard({
@@ -16,6 +17,7 @@ export const FocusableCard = React.memo(function FocusableCard({
   style,
   focusedStyle,
   hasTVPreferredFocus,
+  accessibilityLabel,
 }: FocusableCardProps) {
   const [focused, setFocused] = useState(false);
   const theme = useTheme();
@@ -36,6 +38,7 @@ export const FocusableCard = React.memo(function FocusableCard({
         focused && focusedStyle,
       ]}
       accessible={true}
+      accessibilityLabel={accessibilityLabel}
       accessibilityRole="button"
     >
       {children}
