@@ -197,3 +197,5 @@ noManualPlaylists: 没有可用的手动播放列表
 noPlaylists: 没有播放列表
 serverVersion: 服务器版本
 retry: 重试
+itemCount_one: "{{count}} 项"
+itemCount_other: "{{count}} 项"

@@ -197,3 +197,5 @@ noManualPlaylists: No hay playlists manuales disponibles
 noPlaylists: Sin playlists
 serverVersion: Versión del servidor
 retry: Reintentar
+itemCount_one: "{{count}} elemento"
+itemCount_other: "{{count}} elementos"

@@ -71,6 +71,8 @@ loadError: Laden fehlgeschlagen
 activity: Aktivität
 serverVersion: Serverversion
 retry: Erneut versuchen
+itemCount_one: "{{count}} Element"
+itemCount_other: "{{count}} Elemente"
 errorBoundary:
   title: Etwas ist schiefgelaufen
   description: Ein unerwarteter Fehler ist aufgetreten. Bitte laden Sie die Seite neu. Wenn das Problem weiterhin besteht, kehren Sie zur Startseite zurück.

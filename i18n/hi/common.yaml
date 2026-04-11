@@ -197,3 +197,5 @@ noManualPlaylists: कोई मैन्युअल प्लेलिस्�
 noPlaylists: कोई प्लेलिस्ट नहीं
 serverVersion: सर्वर संस्करण
 retry: पुनः प्रयास करें
+itemCount_one: "{{count}} आइटम"
+itemCount_other: "{{count}} आइटम"
