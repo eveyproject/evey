@@ -39,7 +39,7 @@ let queryClientRef: QueryClient | null = null;
 // Proactive token refresh — refresh 2 min before expiry to avoid 401 retries
 let refreshTimer: ReturnType<typeof setTimeout> | null = null;
 function scheduleTokenRefresh() {
-  if (refreshTimer) clearTimeout(refreshTimer);
+  if (refreshTimer) { clearTimeout(refreshTimer); refreshTimer = null; }
   const token = useAuthStore.getState().accessToken;
   if (!token) return;
   try {

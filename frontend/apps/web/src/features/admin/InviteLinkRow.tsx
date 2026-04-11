@@ -25,10 +25,14 @@ export function InviteLinkRow({ link }: { link: V1InviteLink }) {
 
   const inviteUrl = link.code ? `${window.location.origin}/register?invite=${link.code}` : "\u2014";
 
-  function copyLink() {
+  async function copyLink() {
     if (link.code) {
-      navigator.clipboard.writeText(inviteUrl);
-      toast.success(t("admin.users.linkCopied"));
+      try {
+        await navigator.clipboard.writeText(inviteUrl);
+        toast.success(t("admin.users.linkCopied"));
+      } catch {
+        toast.error("Clipboard not available");
+      }
     }
   }
 

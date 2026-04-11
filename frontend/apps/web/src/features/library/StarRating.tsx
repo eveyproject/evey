@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useId, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Star } from "lucide-react";
 import { useStarRating, useRatingAggregate } from "@/hooks/useStarRating";
@@ -7,19 +7,20 @@ interface StarRatingProps {
   mediaId: string;
 }
 
-function StarIcon({ filled, half }: { filled: boolean; half?: boolean }) {
+function StarIcon({ filled, half, gradientId }: { filled: boolean; half?: boolean; gradientId?: string }) {
   if (half) {
+    const gid = gradientId ?? "half-fill";
     return (
       <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none">
         <defs>
-          <linearGradient id="half-fill">
+          <linearGradient id={gid}>
             <stop offset="50%" stopColor="var(--accent)" />
             <stop offset="50%" stopColor="transparent" />
           </linearGradient>
         </defs>
         <path
           d="M12 2l3.09 6.26L22 9.27l-5 4.87L18.18 21 12 17.77 5.82 21 7 14.14 2 9.27l6.91-1.01L12 2z"
-          fill="url(#half-fill)"
+          fill={`url(#${gid})`}
           stroke="var(--accent)"
           strokeWidth={1.5}
         />
@@ -38,6 +39,7 @@ function StarIcon({ filled, half }: { filled: boolean; half?: boolean }) {
 
 export function StarRating({ mediaId }: StarRatingProps) {
   const { t } = useTranslation();
+  const gradientId = useId();
   const { rating, setRating } = useStarRating(mediaId);
   const { data: agg } = useRatingAggregate(mediaId);
   const [hovered, setHovered] = useState(0);
@@ -64,7 +66,7 @@ export function StarRating({ mediaId }: StarRatingProps) {
               onClick={() => setRating(star)}
               className="transition-transform-fast hover:scale-110 focus:outline-none focus:scale-110 cursor-pointer text-[var(--accent)]"
             >
-              <StarIcon filled={star <= display} />
+              <StarIcon filled={star <= display} gradientId={gradientId} />
             </button>
           ))}
         </div>
