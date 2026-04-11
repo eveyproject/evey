@@ -88,6 +88,7 @@ export default function AdminRemoteAccessScreen() {
 
   return (
     <ScrollView
+      keyboardShouldPersistTaps="handled"
       style={{ flex: 1, backgroundColor: theme.colors.bg }}
       contentContainerStyle={{ paddingBottom: 40 }}
       refreshControl={<RefreshControl refreshing={false} onRefresh={onRefresh} tintColor={theme.colors.accent} />}

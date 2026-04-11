@@ -200,17 +200,24 @@ func (h *activityHandler) GetPopularMedia(ctx context.Context, req *eveyv1.GetPo
 			infoByID[mi.ID] = miInfo{typ: mi.Type, libraryID: mi.LibraryID}
 		}
 	}
+	var allowedLibs map[string]bool
+	if !claims.IsAdmin && h.userAccess != nil {
+		libIDs, aErr := h.userAccess.GetLibraryAccessByUserID(ctx, claims.UserID)
+		if aErr == nil && libIDs != nil {
+			allowedLibs = make(map[string]bool, len(libIDs))
+			for _, id := range libIDs {
+				allowedLibs[id] = true
+			}
+		}
+	}
 	resp := &eveyv1.GetPopularMediaResponse{}
 	for _, p := range popular {
 		info, exists := infoByID[p.MediaItemID]
 		if !exists {
 			continue
 		}
-		if !claims.IsAdmin && h.userAccess != nil {
-			hasAccess, aErr := h.userAccess.HasLibraryAccess(ctx, claims.UserID, info.libraryID)
-			if aErr != nil || !hasAccess {
-				continue
-			}
+		if allowedLibs != nil && !allowedLibs[info.libraryID] {
+			continue
 		}
 		resp.Items = append(resp.Items, &eveyv1.PopularMediaItem{
 			MediaItemId: p.MediaItemID,

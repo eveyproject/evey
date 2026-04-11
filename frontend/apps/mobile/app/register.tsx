@@ -63,9 +63,9 @@ export default function Register() {
 
   return (
     <ScrollView
+      keyboardShouldPersistTaps="handled"
       style={{ flex: 1, backgroundColor: theme.colors.bg }}
       contentContainerStyle={{ flexGrow: 1, justifyContent: "center", padding: theme.spacing.xl }}
-      keyboardShouldPersistTaps="handled"
     >
       <Text style={{ fontSize: 24, fontWeight: "bold", color: theme.colors.text, marginBottom: theme.spacing.sm }}>
         {t("auth.register.createAccount")}

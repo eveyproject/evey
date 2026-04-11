@@ -99,7 +99,7 @@ export default function ParentalSettingsScreen() {
   const s = styles(theme);
 
   return (
-    <ScrollView style={s.container} contentContainerStyle={{ paddingBottom: 40 }}>
+    <ScrollView keyboardShouldPersistTaps="handled" style={s.container} contentContainerStyle={{ paddingBottom: 40 }}>
       <Stack.Screen
         options={{
           headerShown: true,
