@@ -95,7 +95,7 @@ export default function AdminAPIKeysScreen() {
                 </Text>
               </View>
               <Pressable onPress={() => handleRevoke(item.id, item.name)} hitSlop={8}>
-                <Ionicons name="trash-outline" size={18} color="#ef4444" />
+                <Ionicons name="trash-outline" size={18} color=theme.colors.error />
               </Pressable>
             </View>
           )}

@@ -148,7 +148,7 @@ export default function PlaylistDetailScreen() {
 
   const headerRight = () => (
     <TouchableOpacity onPress={confirmDelete} style={{ marginRight: 8 }} hitSlop={8} accessible={true} accessibilityLabel={t("common.delete")} accessibilityRole="button">
-      <Ionicons name="trash-outline" size={22} color="#ef4444" />
+      <Ionicons name="trash-outline" size={22} color=theme.colors.error />
     </TouchableOpacity>
   );
 

@@ -136,13 +136,13 @@ export default function DevicesScreen() {
                 onPress={() => handleRevoke(d)}
                 disabled={revokeMutation.isPending}
                 style={{
-                  backgroundColor: "#ef444420",
+                  backgroundColor: theme.colors.error + "20",
                   borderRadius: theme.radii.sm,
                   paddingVertical: 6,
                   paddingHorizontal: 12,
                 }}
               >
-                <Text style={{ color: "#ef4444", fontSize: 13, fontWeight: "600" }}>
+                <Text style={{ color: theme.colors.error, fontSize: 13, fontWeight: "600" }}>
                   {t("common.revoke")}
                 </Text>
               </Pressable>

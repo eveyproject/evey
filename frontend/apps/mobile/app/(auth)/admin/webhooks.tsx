@@ -163,7 +163,7 @@ export default function AdminWebhooksScreen() {
                 trackColor={{ true: theme.colors.accent, false: theme.colors.surfaceRaised }}
               />
               <Pressable onPress={() => handleDelete(item)} hitSlop={8}>
-                <Ionicons name="trash-outline" size={18} color="#ef4444" />
+                <Ionicons name="trash-outline" size={18} color=theme.colors.error />
               </Pressable>
             </View>
           )}

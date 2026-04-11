@@ -130,7 +130,7 @@ export default function Register() {
       />
 
       {!!validationError && (
-        <Text style={{ color: "#ef4444", textAlign: "center", marginBottom: theme.spacing.md }}>
+        <Text style={{ color: theme.colors.error, textAlign: "center", marginBottom: theme.spacing.md }}>
           {validationError}
         </Text>
       )}

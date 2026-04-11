@@ -32,10 +32,10 @@ function formatBytes(bytes?: string): string {
   return `${n} B`;
 }
 
-function getUsageColor(pct: number): string {
-  if (pct > 85) return "#ef4444";
-  if (pct > 70) return "#eab308";
-  return "#22c55e";
+function getUsageColor(pct: number, theme: { colors: { error: string; warning: string; success: string } }): string {
+  if (pct > 85) return theme.colors.error;
+  if (pct > 70) return theme.colors.warning;
+  return theme.colors.success;
 }
 
 function ProgressBar({ pct, color }: { pct: number; color: string }) {
@@ -114,9 +114,9 @@ export default function SystemHealthScreen() {
       <View style={[styles.card, { backgroundColor: theme.colors.surface, borderRadius: theme.radii.md, marginHorizontal: 16 }]}>
         <View style={styles.metricRow}>
           <Text style={{ color: theme.colors.textMuted, fontSize: 13 }}>{t("admin.systemHealth.cpuUsage")}</Text>
-          <Text style={{ color: getUsageColor(cpuPct), fontSize: 13, fontWeight: "700" }}>{cpuPct.toFixed(1)}%</Text>
+          <Text style={{ color: getUsageColor(cpuPct, theme), fontSize: 13, fontWeight: "700" }}>{cpuPct.toFixed(1)}%</Text>
         </View>
-        <ProgressBar pct={cpuPct} color={getUsageColor(cpuPct)} />
+        <ProgressBar pct={cpuPct} color={getUsageColor(cpuPct, theme)} />
         {cpuData.length > 1 && (
           <View style={{ marginTop: 8 }}>
             <LineChart
@@ -126,12 +126,12 @@ export default function SystemHealthScreen() {
               hideDataPoints
               hideYAxisText
               hideAxesAndRules
-              color={getUsageColor(cpuPct)}
+              color={getUsageColor(cpuPct, theme)}
               thickness={2}
               curved
               maxValue={100}
               areaChart
-              startFillColor={getUsageColor(cpuPct)}
+              startFillColor={getUsageColor(cpuPct, theme)}
               endFillColor="transparent"
               startOpacity={0.3}
               endOpacity={0}
@@ -142,9 +142,9 @@ export default function SystemHealthScreen() {
 
         <View style={[styles.metricRow, { marginTop: 16 }]}>
           <Text style={{ color: theme.colors.textMuted, fontSize: 13 }}>{t("admin.systemHealth.memoryUsage")}</Text>
-          <Text style={{ color: getUsageColor(memPct), fontSize: 13, fontWeight: "700" }}>{memPct.toFixed(1)}%</Text>
+          <Text style={{ color: getUsageColor(memPct, theme), fontSize: 13, fontWeight: "700" }}>{memPct.toFixed(1)}%</Text>
         </View>
-        <ProgressBar pct={memPct} color={getUsageColor(memPct)} />
+        <ProgressBar pct={memPct} color={getUsageColor(memPct, theme)} />
         {memData.length > 1 && (
           <View style={{ marginTop: 8 }}>
             <LineChart
@@ -154,12 +154,12 @@ export default function SystemHealthScreen() {
               hideDataPoints
               hideYAxisText
               hideAxesAndRules
-              color={getUsageColor(memPct)}
+              color={getUsageColor(memPct, theme)}
               thickness={2}
               curved
               maxValue={100}
               areaChart
-              startFillColor={getUsageColor(memPct)}
+              startFillColor={getUsageColor(memPct, theme)}
               endFillColor="transparent"
               startOpacity={0.3}
               endOpacity={0}
@@ -194,7 +194,7 @@ export default function SystemHealthScreen() {
               const used = parseInt(s.usedBytes ?? "0");
               const total = parseInt(s.totalBytes ?? "1");
               const pct = total > 0 ? Math.round((used / total) * 100) : 0;
-              const color = getUsageColor(pct);
+              const color = getUsageColor(pct, theme);
               return (
                 <View key={i} style={[styles.card, { backgroundColor: theme.colors.surface, borderRadius: theme.radii.md }]}>
                   <View style={styles.metricRow}>

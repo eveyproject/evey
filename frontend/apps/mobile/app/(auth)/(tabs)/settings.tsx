@@ -452,7 +452,7 @@ const sStyles = (t: ReturnType<typeof useTheme>) =>
       borderBottomColor: t.colors.border,
     },
     label: { color: t.colors.text, fontSize: 16 },
-    labelDestructive: { color: "#ef4444", fontSize: 16 },
+    labelDestructive: { color: theme.colors.error, fontSize: 16 },
     value: { color: t.colors.textMuted, fontSize: 15, flexShrink: 1, marginLeft: t.spacing.md },
     qcInput: {
       flex: 1,
