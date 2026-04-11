@@ -13,11 +13,6 @@ const dlnaMaxBodySize = 4096
 
 func dlnaRenderersHandler(tokenGen TokenVerifier, dlnaSvc *appdlna.Service) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		_, ok := extractClaims(r, tokenGen)
-		if !ok {
-			http.Error(w, `{"message":"unauthenticated"}`, http.StatusUnauthorized)
-			return
-		}
 		renderers, err := dlnaSvc.Discover(r.Context())
 		if err != nil {
 			slog.Error("dlna discover", slog.Any("err", err))
@@ -36,11 +31,6 @@ func dlnaRenderersHandler(tokenGen TokenVerifier, dlnaSvc *appdlna.Service) http
 
 func dlnaPlayHandler(tokenGen TokenVerifier, dlnaSvc *appdlna.Service) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		_, ok := extractClaims(r, tokenGen)
-		if !ok {
-			http.Error(w, `{"message":"unauthenticated"}`, http.StatusUnauthorized)
-			return
-		}
 		var body struct {
 			RendererID string `json:"rendererId"`
 			MediaURL   string `json:"mediaUrl"`
@@ -66,11 +56,6 @@ func dlnaPlayHandler(tokenGen TokenVerifier, dlnaSvc *appdlna.Service) http.Hand
 
 func dlnaStopHandler(tokenGen TokenVerifier, dlnaSvc *appdlna.Service) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		_, ok := extractClaims(r, tokenGen)
-		if !ok {
-			http.Error(w, `{"message":"unauthenticated"}`, http.StatusUnauthorized)
-			return
-		}
 		var body struct {
 			RendererID string `json:"rendererId"`
 		}
@@ -94,11 +79,6 @@ func dlnaStopHandler(tokenGen TokenVerifier, dlnaSvc *appdlna.Service) http.Hand
 
 func dlnaPauseHandler(tokenGen TokenVerifier, dlnaSvc *appdlna.Service) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		_, ok := extractClaims(r, tokenGen)
-		if !ok {
-			http.Error(w, `{"message":"unauthenticated"}`, http.StatusUnauthorized)
-			return
-		}
 		var body struct {
 			RendererID string `json:"rendererId"`
 		}

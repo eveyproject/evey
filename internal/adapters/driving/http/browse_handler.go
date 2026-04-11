@@ -8,8 +8,7 @@ import (
 )
 
 type browseHandler struct {
-	tokens TokenVerifier
-	skip   map[string]bool
+	skip map[string]bool
 }
 
 type browseEntry struct {
@@ -19,24 +18,12 @@ type browseEntry struct {
 
 func browseDirsHandler(tokens TokenVerifier) http.HandlerFunc {
 	h := &browseHandler{
-		tokens: tokens,
-		skip:   map[string]bool{"cdrom": true, "floppy": true, "usb": true, "sr0": true, "proc": true, "sys": true, "dev": true},
+		skip: map[string]bool{"cdrom": true, "floppy": true, "usb": true, "sr0": true, "proc": true, "sys": true, "dev": true},
 	}
 	return h.ServeHTTP
 }
 
 func (h *browseHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	token := extractBearerToken(r)
-	if token == "" {
-		http.Error(w, `{"message":"unauthenticated"}`, http.StatusUnauthorized)
-		return
-	}
-	claims, err := h.tokens.ValidateAccessToken(token)
-	if err != nil || !claims.IsAdmin {
-		http.Error(w, `{"message":"forbidden"}`, http.StatusForbidden)
-		return
-	}
-
 	dir, ok := h.validatePath(w, r)
 	if !ok {
 		return

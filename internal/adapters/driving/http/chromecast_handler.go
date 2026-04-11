@@ -13,11 +13,6 @@ const castMaxBodySize = 4096
 
 func castDevicesHandler(tokenGen TokenVerifier, castSvc *appcast.Service) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		_, ok := extractClaims(r, tokenGen)
-		if !ok {
-			http.Error(w, `{"message":"unauthenticated"}`, http.StatusUnauthorized)
-			return
-		}
 		devices, err := castSvc.Discover(r.Context())
 		if err != nil {
 			slog.Error("chromecast discover", slog.Any("err", err))
@@ -36,11 +31,6 @@ func castDevicesHandler(tokenGen TokenVerifier, castSvc *appcast.Service) http.H
 
 func castPlayHandler(tokenGen TokenVerifier, castSvc *appcast.Service) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		_, ok := extractClaims(r, tokenGen)
-		if !ok {
-			http.Error(w, `{"message":"unauthenticated"}`, http.StatusUnauthorized)
-			return
-		}
 		var body struct {
 			DeviceUUID  string `json:"deviceUuid"`
 			MediaURL    string `json:"mediaUrl"`
@@ -67,11 +57,6 @@ func castPlayHandler(tokenGen TokenVerifier, castSvc *appcast.Service) http.Hand
 
 func castStopHandler(tokenGen TokenVerifier, castSvc *appcast.Service) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		_, ok := extractClaims(r, tokenGen)
-		if !ok {
-			http.Error(w, `{"message":"unauthenticated"}`, http.StatusUnauthorized)
-			return
-		}
 		var body struct {
 			DeviceUUID string `json:"deviceUuid"`
 		}
@@ -95,11 +80,6 @@ func castStopHandler(tokenGen TokenVerifier, castSvc *appcast.Service) http.Hand
 
 func castPauseHandler(tokenGen TokenVerifier, castSvc *appcast.Service) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		_, ok := extractClaims(r, tokenGen)
-		if !ok {
-			http.Error(w, `{"message":"unauthenticated"}`, http.StatusUnauthorized)
-			return
-		}
 		var body struct {
 			DeviceUUID string `json:"deviceUuid"`
 		}
@@ -123,11 +103,6 @@ func castPauseHandler(tokenGen TokenVerifier, castSvc *appcast.Service) http.Han
 
 func castSeekHandler(tokenGen TokenVerifier, castSvc *appcast.Service) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		_, ok := extractClaims(r, tokenGen)
-		if !ok {
-			http.Error(w, `{"message":"unauthenticated"}`, http.StatusUnauthorized)
-			return
-		}
 		var body struct {
 			DeviceUUID  string `json:"deviceUuid"`
 			PositionSec int    `json:"positionSec"`
@@ -152,11 +127,6 @@ func castSeekHandler(tokenGen TokenVerifier, castSvc *appcast.Service) http.Hand
 
 func castStatusHandler(tokenGen TokenVerifier, castSvc *appcast.Service) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		_, ok := extractClaims(r, tokenGen)
-		if !ok {
-			http.Error(w, `{"message":"unauthenticated"}`, http.StatusUnauthorized)
-			return
-		}
 		uuid := r.URL.Query().Get("deviceUuid")
 		if uuid == "" {
 			http.Error(w, `{"message":"deviceUuid required"}`, http.StatusBadRequest)
