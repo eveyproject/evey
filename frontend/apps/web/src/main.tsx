@@ -25,13 +25,16 @@ useLocaleStore.subscribe((state) => {
   }
 });
 
-// Logout on 401 and redirect to login
+// Logout on 401 and redirect to login (queryClient cleared lazily — defined below)
 window.addEventListener("evey:unauthorized", () => {
+  queryClientRef?.clear();
   useAuthStore.getState().logout();
+  localStorage.removeItem("evey-recent-searches");
   if (window.location.pathname !== "/login") {
     window.location.href = "/login";
   }
 });
+let queryClientRef: QueryClient | null = null;
 
 // Proactive token refresh — refresh 2 min before expiry to avoid 401 retries
 let refreshTimer: ReturnType<typeof setTimeout> | null = null;
@@ -73,7 +76,7 @@ if (import.meta.env.DEV) {
   };
 }
 
-const queryClient = new QueryClient({
+const queryClient = queryClientRef = new QueryClient({
   defaultOptions: {
     queries: {
       staleTime: 5 * 60 * 1000,
