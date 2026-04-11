@@ -635,6 +635,23 @@ func TestCreateUser_PasswordBoundary(t *testing.T) {
 	})
 }
 
+func TestChangePassword_RevokesRefreshTokens(t *testing.T) {
+	d := newUserTestDeps()
+	ctx := context.Background()
+	seedUserSvcUser(t, d, "u1", "alice", "pw", false, true)
+
+	_ = d.refreshTkns.Create(ctx, &user.RefreshToken{ID: "rt1", UserID: "u1"})
+	_ = d.refreshTkns.Create(ctx, &user.RefreshToken{ID: "rt2", UserID: "u1"})
+
+	err := d.svc.ChangePassword(ctx, "u1", "newpassword")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if d.refreshTkns.Count() != 0 {
+		t.Fatalf("expected refresh tokens revoked, got %d", d.refreshTkns.Count())
+	}
+}
+
 // --- ChangePassword boundary ---
 
 func TestChangePassword_PasswordBoundary(t *testing.T) {

@@ -302,13 +302,23 @@ func (s *CommandService) RefreshToken(ctx context.Context, token string, ttlOver
 		return "", "", ErrInvalidCredentials
 	}
 
-	if markErr := s.refreshTkns.MarkUsed(ctx, rt.ID); markErr != nil {
-		slog.Warn("mark refresh token used failed", slog.String("tokenID", rt.ID), slog.Any("err", markErr))
+	claimed, markErr := s.refreshTkns.MarkUsedIfNotUsed(ctx, rt.ID)
+	if markErr != nil {
+		return "", "", fmt.Errorf("CommandService.RefreshToken: %w", markErr)
+	}
+	if !claimed {
+		if delErr := s.refreshTkns.DeleteByUserID(ctx, rt.UserID); delErr != nil {
+			slog.Warn("delete refresh tokens by user failed", slog.String("userID", rt.UserID), slog.Any("err", delErr))
+		}
+		return "", "", ErrInvalidCredentials
 	}
 
 	u, err := s.users.GetByID(ctx, rt.UserID)
 	if err != nil {
 		return "", "", fmt.Errorf("CommandService.RefreshToken: %w", err)
+	}
+	if !u.Enabled {
+		return "", "", ErrUserDisabled
 	}
 
 	roles, err := s.userRoles.GetRolesByUserID(ctx, u.ID)

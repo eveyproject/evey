@@ -116,6 +116,9 @@ func (s *UserService) ChangePassword(ctx context.Context, userID, newPassword st
 	if err := s.users.Update(ctx, u); err != nil {
 		return fmt.Errorf("UserService.ChangePassword: %w", err)
 	}
+	if err := s.refreshTkns.DeleteByUserID(ctx, userID); err != nil {
+		slog.Warn("delete refresh tokens after password change", slog.String("userID", userID), slog.Any("err", err))
+	}
 	evt := user.PasswordChanged{UserID: userID, OccurredAt: time.Now()}
 	if err := s.events.Publish(ctx, evt); err != nil {
 		slog.Warn("publish event", slog.String("event", evt.EventName()), slog.Any("err", err))

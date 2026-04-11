@@ -29,7 +29,9 @@ type ProfileRepository interface {
 type RefreshTokenRepository interface {
 	Create(ctx context.Context, t *RefreshToken) error
 	GetByTokenHash(ctx context.Context, hash string) (*RefreshToken, error)
-	MarkUsed(ctx context.Context, id string) error
+	// MarkUsedIfNotUsed atomically marks the token used only if it was unused.
+	// Returns true if the token was claimed, false if it was already used.
+	MarkUsedIfNotUsed(ctx context.Context, id string) (bool, error)
 	DeleteByID(ctx context.Context, id string) error
 	DeleteByUserID(ctx context.Context, userID string) error
 	DeleteExpired(ctx context.Context) error

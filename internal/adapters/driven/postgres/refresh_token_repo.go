@@ -47,9 +47,16 @@ func (r *RefreshTokenRepository) GetByTokenHash(ctx context.Context, hash string
 	return t, nil
 }
 
-func (r *RefreshTokenRepository) MarkUsed(ctx context.Context, id string) error {
-	_, err := r.db.ExecContext(ctx, `UPDATE refresh_tokens SET used = TRUE WHERE id = $1`, id)
-	return err
+func (r *RefreshTokenRepository) MarkUsedIfNotUsed(ctx context.Context, id string) (bool, error) {
+	res, err := r.db.ExecContext(ctx, `UPDATE refresh_tokens SET used = TRUE WHERE id = $1 AND used = FALSE`, id)
+	if err != nil {
+		return false, err
+	}
+	n, err := res.RowsAffected()
+	if err != nil {
+		return false, err
+	}
+	return n > 0, nil
 }
 
 func (r *RefreshTokenRepository) DeleteByID(ctx context.Context, id string) error {

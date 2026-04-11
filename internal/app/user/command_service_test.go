@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
+	"sync"
 	"testing"
 	"time"
 
@@ -894,8 +895,8 @@ func (r *failOnSecondCreateRT) Create(ctx context.Context, t *user.RefreshToken)
 func (r *failOnSecondCreateRT) GetByTokenHash(ctx context.Context, hash string) (*user.RefreshToken, error) {
 	return r.inner.GetByTokenHash(ctx, hash)
 }
-func (r *failOnSecondCreateRT) MarkUsed(ctx context.Context, id string) error {
-	return r.inner.MarkUsed(ctx, id)
+func (r *failOnSecondCreateRT) MarkUsedIfNotUsed(ctx context.Context, id string) (bool, error) {
+	return r.inner.MarkUsedIfNotUsed(ctx, id)
 }
 func (r *failOnSecondCreateRT) DeleteByID(ctx context.Context, id string) error {
 	return r.inner.DeleteByID(ctx, id)
@@ -1377,6 +1378,61 @@ func TestGenerateTokensForUser_WithLongTTL(t *testing.T) {
 	}
 	if access == "" || refresh == "" {
 		t.Fatal("expected non-empty tokens")
+	}
+}
+
+// --- Security fixes ---
+
+func TestRefreshToken_TOCTOU_ConcurrentReplayRejected(t *testing.T) {
+	d := newAuthTestDeps()
+	ctx := context.Background()
+	seedAuthUser(t, d, "u1", "alice", "pw", false, true)
+
+	_, refresh, err := d.svc.Login(ctx, "alice", "pw")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	const goroutines = 10
+	results := make([]error, goroutines)
+	var wg sync.WaitGroup
+	wg.Add(goroutines)
+	for i := range goroutines {
+		go func(i int) {
+			defer wg.Done()
+			_, _, results[i] = d.svc.RefreshToken(ctx, refresh)
+		}(i)
+	}
+	wg.Wait()
+
+	successes := 0
+	for _, err := range results {
+		if err == nil {
+			successes++
+		}
+	}
+	if successes != 1 {
+		t.Fatalf("expected exactly 1 successful refresh, got %d", successes)
+	}
+}
+
+func TestRefreshToken_DisabledUserRejected(t *testing.T) {
+	d := newAuthTestDeps()
+	ctx := context.Background()
+	seedAuthUser(t, d, "u1", "alice", "pw", false, true)
+
+	_, refresh, err := d.svc.Login(ctx, "alice", "pw")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	u, _ := d.users.GetByID(ctx, "u1")
+	u.Enabled = false
+	_ = d.users.Update(ctx, u)
+
+	_, _, err = d.svc.RefreshToken(ctx, refresh)
+	if !errors.Is(err, ErrUserDisabled) {
+		t.Fatalf("expected ErrUserDisabled for disabled user, got %v", err)
 	}
 }
 
