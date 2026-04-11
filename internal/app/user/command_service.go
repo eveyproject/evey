@@ -568,18 +568,21 @@ type loginAttemptLimiter struct {
 	mu       sync.Mutex
 	attempts map[string]*attemptEntry
 	maxFails int
+	maxSize  int
 	window   time.Duration
 }
 
 type attemptEntry struct {
 	count    int
 	lockedAt time.Time
+	lastSeen time.Time
 }
 
 func newLoginAttemptLimiter(maxFails int, window time.Duration) *loginAttemptLimiter {
 	return &loginAttemptLimiter{
 		attempts: make(map[string]*attemptEntry),
 		maxFails: maxFails,
+		maxSize:  10000,
 		window:   window,
 	}
 }
@@ -587,17 +590,54 @@ func newLoginAttemptLimiter(maxFails int, window time.Duration) *loginAttemptLim
 func (l *loginAttemptLimiter) record(username string) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
+	now := time.Now()
+
+	if len(l.attempts) >= l.maxSize {
+		l.evictLocked(now)
+	}
+
 	e, ok := l.attempts[username]
 	if !ok {
 		e = &attemptEntry{}
 		l.attempts[username] = e
-	} else if !e.lockedAt.IsZero() && time.Since(e.lockedAt) > l.window {
+	} else if !e.lockedAt.IsZero() && now.Sub(e.lockedAt) > l.window {
 		e = &attemptEntry{}
 		l.attempts[username] = e
 	}
 	e.count++
+	e.lastSeen = now
 	if e.count >= l.maxFails {
-		e.lockedAt = time.Now()
+		e.lockedAt = now
+	}
+}
+
+// evictLocked removes expired entries, then oldest if still over cap. Caller holds mu.
+func (l *loginAttemptLimiter) evictLocked(now time.Time) {
+	// pass 1: remove expired
+	for k, e := range l.attempts {
+		if !e.lockedAt.IsZero() && now.Sub(e.lockedAt) > l.window {
+			delete(l.attempts, k)
+		} else if e.lockedAt.IsZero() && now.Sub(e.lastSeen) > l.window {
+			delete(l.attempts, k)
+		}
+	}
+	if len(l.attempts) < l.maxSize {
+		return
+	}
+	// pass 2: evict oldest entries until under cap
+	for len(l.attempts) >= l.maxSize {
+		oldestKey := ""
+		var oldestTime time.Time
+		for k, e := range l.attempts {
+			if oldestKey == "" || e.lastSeen.Before(oldestTime) {
+				oldestKey = k
+				oldestTime = e.lastSeen
+			}
+		}
+		if oldestKey == "" {
+			break
+		}
+		delete(l.attempts, oldestKey)
 	}
 }
 
