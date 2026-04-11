@@ -18,7 +18,22 @@ export class ErrorBoundary extends Component<Props, State> {
   }
 
   componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
-    console.error("ErrorBoundary caught:", error, errorInfo);
+    // Auto-reload once on ChunkLoadError (stale lazy chunks after deploy)
+    if (
+      error.name === "ChunkLoadError" ||
+      (error.message && /loading chunk|dynamically imported module/i.test(error.message))
+    ) {
+      const key = "evey_chunk_reload";
+      if (!sessionStorage.getItem(key)) {
+        sessionStorage.setItem(key, "1");
+        window.location.reload();
+        return;
+      }
+      sessionStorage.removeItem(key);
+    }
+    if (import.meta.env.DEV) {
+      console.error("ErrorBoundary caught:", error, errorInfo);
+    }
   }
 
   render() {

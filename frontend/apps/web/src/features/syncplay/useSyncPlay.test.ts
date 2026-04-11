@@ -4,9 +4,12 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 const eveyFetchFn = vi.fn();
 
 vi.mock("@evey/api", () => ({ eveyFetch: eveyFetchFn }));
+const storeState = { accessToken: "header.eyJzdWIiOiJ1c2VyLTEifQ.sig" };
 vi.mock("@evey/store", () => ({
-  useAuthStore: (fn: (s: { accessToken: string | null }) => unknown) =>
-    fn({ accessToken: "header.eyJzdWIiOiJ1c2VyLTEifQ.sig" }),
+  useAuthStore: Object.assign(
+    (fn: (s: { accessToken: string | null }) => unknown) => fn(storeState),
+    { getState: () => storeState },
+  ),
 }));
 
 // Fake WebSocket

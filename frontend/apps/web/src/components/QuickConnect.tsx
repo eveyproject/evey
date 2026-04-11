@@ -52,23 +52,47 @@ export function QuickConnect() {
     return () => clearInterval(id);
   }, []);
 
-  // SSE: wait for authorization
+  // SSE: wait for authorization with reconnect on error
   useEffect(() => {
     if (!code) return;
-    const url = `/api/v1/auth/quick-connect/${code}/events`;
-    const es = new EventSource(url);
-    es.onmessage = (e) => {
-      const data = JSON.parse(e.data) as { event: string; accessToken?: string; refreshToken?: string };
-      if (data.event === "authorized" && data.accessToken) {
-        setTokens(data.accessToken);
-        es.close();
-        void navigate({ to: "/home" });
-      } else if (data.event === "expired" || data.event === "error") {
-        es.close();
-      }
+    let attempt = 0;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    let closed = false;
+    let es: EventSource | null = null;
+
+    function connectSSE() {
+      if (closed) return;
+      const url = `/api/v1/auth/quick-connect/${code}/events`;
+      es = new EventSource(url);
+      es.onmessage = (e) => {
+        try {
+          const data = JSON.parse(e.data) as { event: string; accessToken?: string };
+          if (data.event === "authorized" && data.accessToken) {
+            setTokens(data.accessToken);
+            es?.close();
+            void navigate({ to: "/home" });
+          } else if (data.event === "expired" || data.event === "error") {
+            es?.close();
+          }
+        } catch { /* ignore malformed */ }
+      };
+      es.onerror = () => {
+        es?.close();
+        if (closed) return;
+        if (attempt < 3) {
+          const delay = 1000 * Math.pow(2, attempt); // 1s, 2s, 4s
+          attempt += 1;
+          timer = setTimeout(connectSSE, delay);
+        }
+      };
+    }
+    connectSSE();
+
+    return () => {
+      closed = true;
+      if (timer) clearTimeout(timer);
+      es?.close();
     };
-    es.onerror = () => es.close();
-    return () => es.close();
   }, [code, setTokens, navigate]);
 
   const qrValue = code ? `${window.location.origin}/quickconnect?code=${code}` : "";

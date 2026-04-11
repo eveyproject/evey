@@ -86,13 +86,13 @@ export function usePlaySession(mediaId: string): PlaySessionResult {
 
   useEffect(() => {
     stopped.current = false;
-    if (!mediaId || startedRef.current) return;
+    if (!mediaId || startedRef.current || !rawStreamInfo) return;
     startedRef.current = true;
     setStarting(true);
 
-    const playMethod = rawStreamInfo?.playMethod === "PLAY_METHOD_DIRECT_PLAY"
+    const playMethod = rawStreamInfo.playMethod === "PLAY_METHOD_DIRECT_PLAY"
       ? "PLAY_METHOD_DIRECT_PLAY"
-      : rawStreamInfo?.playMethod === "PLAY_METHOD_DIRECT_STREAM"
+      : rawStreamInfo.playMethod === "PLAY_METHOD_DIRECT_STREAM"
         ? "PLAY_METHOD_DIRECT_STREAM"
         : "PLAY_METHOD_TRANSCODE";
 
@@ -118,8 +118,8 @@ export function usePlaySession(mediaId: string): PlaySessionResult {
         setStarting(false);
       }
     })();
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- fire-once per mediaId via startedRef guard; rawStreamInfo may be undefined on first run (defaults to TRANSCODE, server resolves actual method)
-  }, [mediaId]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- fire-once per mediaId via startedRef guard; waits for rawStreamInfo to determine correct playMethod
+  }, [mediaId, rawStreamInfo]);
 
   const stopSession = useCallback(() => {
     if (stopped.current) return;

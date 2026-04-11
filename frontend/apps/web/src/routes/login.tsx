@@ -21,7 +21,15 @@ export const Route = createFileRoute("/login")({
   }),
   beforeLoad: () => {
     const { accessToken } = useAuthStore.getState();
-    if (accessToken) throw redirect({ to: "/home" });
+    if (accessToken) {
+      try {
+        const payload = JSON.parse(atob(accessToken.split(".")[1].replace(/-/g, "+").replace(/_/g, "/")));
+        if (payload.exp * 1000 > Date.now()) throw redirect({ to: "/home" });
+      } catch (e) {
+        if (e && typeof e === "object" && "to" in e) throw e; // re-throw redirect
+        // expired or malformed token — stay on login
+      }
+    }
   },
   component: LoginPage,
 });

@@ -51,22 +51,31 @@ export function useSyncPlay(opts: UseSyncPlayOptions = {}): [SyncPlayState, Sync
   const leftVoluntarilyRef = useRef(false);
   const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const reconnectAttemptRef = useRef(0);
+  const messageQueueRef = useRef<SyncMessage[]>([]);
 
   const connect = useCallback((roomId: string) => {
     leftVoluntarilyRef.current = false;
     reconnectAttemptRef.current = 0;
+    messageQueueRef.current = [];
     if (wsRef.current) {
       wsRef.current.close();
       wsRef.current = null;
     }
     const proto = window.location.protocol === "https:" ? "wss:" : "ws:";
     const url = `${proto}//${window.location.host}/api/v1/syncplay/rooms/${roomId}/ws`;
-    const ws = new WebSocket(url, [`Bearer.${accessToken ?? ""}`]);
+    // Read fresh token from store on each connect/reconnect
+    const freshToken = useAuthStore.getState().accessToken;
+    const ws = new WebSocket(url, [`Bearer.${freshToken ?? ""}`]);
     wsRef.current = ws;
 
     ws.onopen = () => {
       reconnectAttemptRef.current = 0;
       setState((prev) => ({ ...prev, connected: true }));
+      // Flush queued messages
+      const queued = messageQueueRef.current.splice(0);
+      for (const msg of queued) {
+        ws.send(JSON.stringify(msg));
+      }
     };
 
     ws.onclose = () => {
@@ -118,7 +127,8 @@ export function useSyncPlay(opts: UseSyncPlayOptions = {}): [SyncPlayState, Sync
           break;
       }
     };
-  }, [accessToken]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- token read fresh from store inside, not from closure
+  }, []);
 
   useEffect(() => {
     return () => {
@@ -189,7 +199,12 @@ export function useSyncPlay(opts: UseSyncPlayOptions = {}): [SyncPlayState, Sync
 
   const send = useCallback((msg: SyncMessage) => {
     const ws = wsRef.current;
-    if (!ws || ws.readyState !== WebSocket.OPEN) return;
+    if (!ws || ws.readyState !== WebSocket.OPEN) {
+      if (ws && ws.readyState === WebSocket.CONNECTING) {
+        messageQueueRef.current.push(msg);
+      }
+      return;
+    }
     ws.send(JSON.stringify(msg));
   }, []);
 
