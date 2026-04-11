@@ -31,6 +31,7 @@ import (
 	domainshared "github.com/gravity-zero/evey/internal/domain/shared"
 	domainuser "github.com/gravity-zero/evey/internal/domain/user"
 	"github.com/gravity-zero/evey/internal/pkg/auth"
+	"github.com/gravity-zero/evey/internal/pkg/eventbus"
 	eveyi18n "github.com/gravity-zero/evey/internal/pkg/i18n"
 )
 
@@ -120,6 +121,7 @@ type appDeps struct {
 	engagement engagementDeps
 	auth       authDeps
 	repos      repoDeps
+	bus            *eventbus.InMemoryEventBus
 	cfgStore       *httpapi.ServerConfigStore
 	serverCfgSvc   *appconfig.Service
 	backupSvc      *appbackup.Service

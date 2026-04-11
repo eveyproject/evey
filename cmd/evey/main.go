@@ -107,7 +107,7 @@ func run() error {
 	grpcAddr := fmt.Sprintf(":%d", cfg.Server.Port)
 	httpPort := cfg.Server.Port + 1
 
-	gwMux := registerGateway(grpcAddr)
+	gwMux, gwConn := registerGateway(grpcAddr)
 	var httpSrv *http.Server
 	if gwMux != nil {
 		handler, err := buildHTTPHandler(gwMux, deps, cfg, startTime, logCfg.Dir, ctx, qcHub)
@@ -162,7 +162,15 @@ func run() error {
 	}
 
 	deps.engagement.pluginHostServer.Stop()
+	deps.engagement.notifCmdSvc.Stop()
+	deps.bus.Stop()
+	deps.media.streamTokenStore.Stop()
 	grpcSrv.Stop()
+	if gwConn != nil {
+		if err := gwConn.Close(); err != nil {
+			slog.Warn("gateway conn close", slog.Any("err", err))
+		}
+	}
 	if httpSrv != nil {
 		shutdownCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer cancel()

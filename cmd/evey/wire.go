@@ -47,6 +47,7 @@ import (
 	"github.com/gravity-zero/evey/internal/adapters/driven/pluginrunner"
 	"github.com/gravity-zero/evey/internal/adapters/driven/postgres"
 	httpapi "github.com/gravity-zero/evey/internal/adapters/driving/http"
+	"github.com/gravity-zero/evey/internal/adapters/driving/grpcapi"
 	"github.com/gravity-zero/evey/internal/adapters/driving/pluginhost"
 	"github.com/gravity-zero/evey/internal/config"
 	"github.com/gravity-zero/evey/internal/domain/library"
@@ -321,7 +322,7 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 	infra.pluginRunner.WithIPCCallback(pluginRuntimeSvc.HandleIPCResult)
 	pluginQuerySvc := appplugin.NewQueryService(r.Plugin, r.PluginRuntime)
 
-	permInterceptor := appplugin.PluginPermissionInterceptor(permChecker)
+	permInterceptor := grpcapi.PluginPermissionInterceptor(permChecker)
 	pluginHostSrv := pluginhost.NewHostServer(r.MediaItemQuery, r.Plugin, bus, infra.pluginLogger, permInterceptor)
 	infra.pluginLogger.StartCleanup(ctx, &pluginIDLister{repo: r.Plugin})
 
@@ -392,6 +393,7 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 	libCmdSvc.SetTrickplayActiveStreamChecker(hlsMgr)
 
 	return &appDeps{
+		bus: bus,
 		library: libraryDeps{
 			cmdSvc:    libCmdSvc,
 			querySvc:  libQuerySvc,

@@ -14,11 +14,11 @@ import (
 	"google.golang.org/protobuf/encoding/protojson"
 )
 
-func registerGateway(grpcAddr string) http.Handler {
+func registerGateway(grpcAddr string) (http.Handler, *grpc.ClientConn) {
 	conn, err := grpc.NewClient(grpcAddr, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
 		slog.Error("grpc-gateway dial failed", slog.Any("err", err))
-		return nil
+		return nil, nil
 	}
 	ctx := context.Background()
 	mux := runtime.NewServeMux(
@@ -70,7 +70,7 @@ func registerGateway(grpcAddr string) http.Handler {
 			slog.Error("gateway register failed", slog.Any("err", err))
 		}
 	}
-	return mux
+	return mux, conn
 }
 
 func networkMiddleware(detector *network.Detector, remoteEnabled *bool) func(http.Handler) http.Handler {
