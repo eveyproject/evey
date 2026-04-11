@@ -161,7 +161,9 @@ func (s *GRPCServer) RegisterServices() {
 	eveyv1.RegisterTranscodeCacheServiceServer(s.server, &transcodeCacheHandler{svc: d.Transcoding})
 	eveyv1.RegisterBackupServiceServer(s.server, &backupHandler{svc: d.Backup})
 	eveyv1.RegisterRemoteAccessServiceServer(s.server, &remoteAccessHandler{cfg: d.Cfg, store: d.CfgStore})
-	eveyv1.RegisterPlaybackSettingsServiceServer(s.server, &playbackSettingsHandler{cfg: d.Cfg, translator: d.Translator})
+	pbh := &playbackSettingsHandler{cfg: d.Cfg, configSvc: d.ServerCfgSvc, translator: d.Translator}
+	pbh.initFromDB(d.ServerCtx)
+	eveyv1.RegisterPlaybackSettingsServiceServer(s.server, pbh)
 	eveyv1.RegisterLibraryAccessServiceServer(s.server, &libraryAccessHandler{userAccess: d.UserAccess, libQuery: d.LibQuery})
 	if d.ServerCfgSvc != nil {
 		h := NewServerConfigHandler(d.ServerCfgSvc)
