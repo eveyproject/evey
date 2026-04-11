@@ -178,7 +178,10 @@ type HTTPServer struct {
 // RegisterRoutes wires all HTTP routes onto mux.
 // gwMux is the grpc-gateway handler (may be nil if gateway failed).
 func (s *HTTPServer) RegisterRoutes(mux *http.ServeMux, gwMux http.Handler) {
-	mux.Handle("GET /metrics", requireAdmin(s.TokenGen, func(w http.ResponseWriter, r *http.Request) {
+	auth := httpAuthMiddleware(s.TokenGen)
+	admin := httpAdminMiddleware(s.TokenGen)
+
+	mux.HandleFunc("GET /metrics", admin(func(w http.ResponseWriter, r *http.Request) {
 		eveymetrics.Handler().ServeHTTP(w, r)
 	}))
 	mux.HandleFunc("/healthz", s.healthzHandler)
@@ -187,59 +190,59 @@ func (s *HTTPServer) RegisterRoutes(mux *http.ServeMux, gwMux http.Handler) {
 		mux.HandleFunc("GET /api/v1/i18n/{locale}", i18nHandler(s.Translator, s.Cfg.Log.DevMode))
 	}
 
-	mux.HandleFunc("GET /api/v1/admin/fs/browse", requireAdmin(s.TokenGen, browseDirsHandler(s.TokenGen)))
+	mux.HandleFunc("GET /api/v1/admin/fs/browse", admin(browseDirsHandler(s.TokenGen)))
 
 	var mhOpts []mediaServeOption
 	if s.ImageConverter != nil {
 		mhOpts = append(mhOpts, withImageConverter(s.ImageConverter, s.ArtworkRepo))
 	}
 	mh := mediaHandler(s.TokenGen, s.LibQuerySvc, s.ArtworkRepo, s.BaseURL(), s.LibraryAccessRepo, mhOpts...)
-	mux.HandleFunc("GET /api/v1/media/{id}/stream", mh)
-	mux.HandleFunc("GET /api/v1/media/{id}/artwork/{artType}", mh)
-	mux.HandleFunc("POST /api/v1/media/{id}/stream", mh)
-	mux.HandleFunc("POST /api/v1/media/{id}/artwork/{artworkId}/select", selectArtworkHandler(s.TokenGen, s.ArtworkRepo, s.LibQuerySvc, s.LibraryAccessRepo))
-	mux.HandleFunc("GET /api/v1/media/{id}/download", downloadHandler(s.TokenGen, s.LibQuerySvc, s.BaseURL(), s.LibraryAccessRepo))
-	mux.HandleFunc("POST /api/v1/media/{id}/stream-token", streamTokenHandler(s.TokenGen, s.StreamTokenStore, s.LibraryAccessRepo, s.LibQuerySvc))
+	mux.HandleFunc("GET /api/v1/media/{id}/stream", auth(mh))
+	mux.HandleFunc("GET /api/v1/media/{id}/artwork/{artType}", auth(mh))
+	mux.HandleFunc("POST /api/v1/media/{id}/stream", auth(mh))
+	mux.HandleFunc("POST /api/v1/media/{id}/artwork/{artworkId}/select", auth(selectArtworkHandler(s.TokenGen, s.ArtworkRepo, s.LibQuerySvc, s.LibraryAccessRepo)))
+	mux.HandleFunc("GET /api/v1/media/{id}/download", auth(downloadHandler(s.TokenGen, s.LibQuerySvc, s.BaseURL(), s.LibraryAccessRepo)))
+	mux.HandleFunc("POST /api/v1/media/{id}/stream-token", auth(streamTokenHandler(s.TokenGen, s.StreamTokenStore, s.LibraryAccessRepo, s.LibQuerySvc)))
 
 	transcodeThrottle := apptranscoding.NewTranscodeThrottle()
-	mux.HandleFunc("GET /api/v1/media/{id}/transcode", transcodeHandler(transcodeServe{
+	mux.HandleFunc("GET /api/v1/media/{id}/transcode", auth(transcodeHandler(transcodeServe{
 		tokens: s.TokenGen, libSvc: s.LibQuerySvc, baseURL: s.BaseURL(),
 		libraryAccess: s.LibraryAccessRepo, throttle: transcodeThrottle, userMaxStreams: s.UserMaxStreams,
-	}))
-	mux.HandleFunc("GET /api/v1/media/{id}/subtitle/{track}", subtitleHandler(s.TokenGen, s.LibQuerySvc, s.BaseURL(), s.LibraryAccessRepo))
-	mux.HandleFunc("GET /api/v1/media/{id}/chapters", chaptersHandler(s.TokenGen, s.LibCmdSvc, s.BaseURL(), s.LibraryAccessRepo, s.LibQuerySvc))
-	mux.HandleFunc("GET /api/v1/media/{id}/trickplay", trickplayManifestHandler(s.TokenGen, s.LibCmdSvc, s.BaseURL(), s.LibraryAccessRepo, s.LibQuerySvc))
-	mux.HandleFunc("GET /api/v1/media/{id}/trickplay/{image}", trickplayImageHandler(s.TokenGen, s.LibCmdSvc, s.BaseURL(), s.LibraryAccessRepo, s.LibQuerySvc))
-	mux.HandleFunc("GET /api/v1/media/{id}/snapshot", snapshotHandler(s.TokenGen, s.FrameExtractor, s.LibraryAccessRepo, s.LibQuerySvc, s.BaseURL()))
-	mux.HandleFunc("POST /api/v1/admin/media/{id}/trickplay/generate", requireAdmin(s.TokenGen, ratelimit.MiddlewareFunc(s.AdminHeavyRL, trickplayGenerateHandler(s.TokenGen, s.LibCmdSvc, s.ServerCtx))))
-	mux.HandleFunc("POST /api/v1/admin/trickplay/generate-all", requireAdmin(s.TokenGen, ratelimit.MiddlewareFunc(s.AdminHeavyRL, trickplayGenerateAllHandler(s.TokenGen, s.LibCmdSvc))))
-	mux.HandleFunc("GET /api/v1/media/{id}/playback-info", playbackInfoHandler(s.TokenGen, s.LibQuerySvc, s.LibraryAccessRepo))
-	mux.HandleFunc("GET /api/v1/media/{id}/hls/master.m3u8", hlsMasterHandler(hlsMasterServe{
+	})))
+	mux.HandleFunc("GET /api/v1/media/{id}/subtitle/{track}", auth(subtitleHandler(s.TokenGen, s.LibQuerySvc, s.BaseURL(), s.LibraryAccessRepo)))
+	mux.HandleFunc("GET /api/v1/media/{id}/chapters", auth(chaptersHandler(s.TokenGen, s.LibCmdSvc, s.BaseURL(), s.LibraryAccessRepo, s.LibQuerySvc)))
+	mux.HandleFunc("GET /api/v1/media/{id}/trickplay", auth(trickplayManifestHandler(s.TokenGen, s.LibCmdSvc, s.BaseURL(), s.LibraryAccessRepo, s.LibQuerySvc)))
+	mux.HandleFunc("GET /api/v1/media/{id}/trickplay/{image}", auth(trickplayImageHandler(s.TokenGen, s.LibCmdSvc, s.BaseURL(), s.LibraryAccessRepo, s.LibQuerySvc)))
+	mux.HandleFunc("GET /api/v1/media/{id}/snapshot", auth(snapshotHandler(s.TokenGen, s.FrameExtractor, s.LibraryAccessRepo, s.LibQuerySvc, s.BaseURL())))
+	mux.HandleFunc("POST /api/v1/admin/media/{id}/trickplay/generate", admin(ratelimit.MiddlewareFunc(s.AdminHeavyRL, trickplayGenerateHandler(s.TokenGen, s.LibCmdSvc, s.ServerCtx))))
+	mux.HandleFunc("POST /api/v1/admin/trickplay/generate-all", admin(ratelimit.MiddlewareFunc(s.AdminHeavyRL, trickplayGenerateAllHandler(s.TokenGen, s.LibCmdSvc))))
+	mux.HandleFunc("GET /api/v1/media/{id}/playback-info", auth(playbackInfoHandler(s.TokenGen, s.LibQuerySvc, s.LibraryAccessRepo)))
+	mux.HandleFunc("GET /api/v1/media/{id}/hls/master.m3u8", auth(hlsMasterHandler(hlsMasterServe{
 		tokens: s.TokenGen, libSvc: s.LibQuerySvc, hlsManager: s.HLSManager,
 		libraryAccess: s.LibraryAccessRepo, userMaxStreams: s.UserMaxStreams,
 		audioNormalizeGetter: s.AudioNormalizeGetter, bitrateGetter: s.UserBitrate,
-	}))
+	})))
 	hlsMediaCache := NewCachedMediaItemGetter(s.LibQuerySvc)
 	hlsAccessCache := NewCachedLibraryAccessChecker(s.LibraryAccessRepo)
-	mux.HandleFunc("GET /api/v1/media/{id}/hls/{file}", hlsSegmentHandler(s.TokenGen, hlsMediaCache, s.HLSManager, hlsAccessCache))
-	mux.HandleFunc("GET /api/v1/admin/library-stats", requireAdmin(s.TokenGen, libraryStatsHandler(s.TokenGen, s.LibQuerySvc)))
+	mux.HandleFunc("GET /api/v1/media/{id}/hls/{file}", auth(hlsSegmentHandler(s.TokenGen, hlsMediaCache, s.HLSManager, hlsAccessCache)))
+	mux.HandleFunc("GET /api/v1/admin/library-stats", admin(libraryStatsHandler(s.TokenGen, s.LibQuerySvc)))
 
 	// DLNA
 	if s.DLNASvc != nil {
-		mux.HandleFunc("GET /api/v1/dlna/renderers", dlnaRenderersHandler(s.TokenGen, s.DLNASvc))
-		mux.HandleFunc("POST /api/v1/dlna/play", dlnaPlayHandler(s.TokenGen, s.DLNASvc))
-		mux.HandleFunc("POST /api/v1/dlna/stop", dlnaStopHandler(s.TokenGen, s.DLNASvc))
-		mux.HandleFunc("POST /api/v1/dlna/pause", dlnaPauseHandler(s.TokenGen, s.DLNASvc))
+		mux.HandleFunc("GET /api/v1/dlna/renderers", auth(dlnaRenderersHandler(s.TokenGen, s.DLNASvc)))
+		mux.HandleFunc("POST /api/v1/dlna/play", auth(dlnaPlayHandler(s.TokenGen, s.DLNASvc)))
+		mux.HandleFunc("POST /api/v1/dlna/stop", auth(dlnaStopHandler(s.TokenGen, s.DLNASvc)))
+		mux.HandleFunc("POST /api/v1/dlna/pause", auth(dlnaPauseHandler(s.TokenGen, s.DLNASvc)))
 	}
 
 	// Chromecast
 	if s.CastSvc != nil {
-		mux.HandleFunc("GET /api/v1/cast/devices", castDevicesHandler(s.TokenGen, s.CastSvc))
-		mux.HandleFunc("POST /api/v1/cast/play", castPlayHandler(s.TokenGen, s.CastSvc))
-		mux.HandleFunc("POST /api/v1/cast/stop", castStopHandler(s.TokenGen, s.CastSvc))
-		mux.HandleFunc("POST /api/v1/cast/pause", castPauseHandler(s.TokenGen, s.CastSvc))
-		mux.HandleFunc("POST /api/v1/cast/seek", castSeekHandler(s.TokenGen, s.CastSvc))
-		mux.HandleFunc("GET /api/v1/cast/status", castStatusHandler(s.TokenGen, s.CastSvc))
+		mux.HandleFunc("GET /api/v1/cast/devices", auth(castDevicesHandler(s.TokenGen, s.CastSvc)))
+		mux.HandleFunc("POST /api/v1/cast/play", auth(castPlayHandler(s.TokenGen, s.CastSvc)))
+		mux.HandleFunc("POST /api/v1/cast/stop", auth(castStopHandler(s.TokenGen, s.CastSvc)))
+		mux.HandleFunc("POST /api/v1/cast/pause", auth(castPauseHandler(s.TokenGen, s.CastSvc)))
+		mux.HandleFunc("POST /api/v1/cast/seek", auth(castSeekHandler(s.TokenGen, s.CastSvc)))
+		mux.HandleFunc("GET /api/v1/cast/status", auth(castStatusHandler(s.TokenGen, s.CastSvc)))
 	}
 
 	if gwMux != nil {
@@ -298,7 +301,7 @@ func (s *HTTPServer) RegisterRoutes(mux *http.ServeMux, gwMux http.Handler) {
 		registerAvatarRoutes(mux, s.ProfileRepo, s.TokenGen, s.DataDir)
 	}
 	if s.MetadataCmdSvc != nil {
-		mux.HandleFunc("POST /api/v1/admin/translations/refresh-all", requireAdmin(s.TokenGen, func(w http.ResponseWriter, r *http.Request) {
+		mux.HandleFunc("POST /api/v1/admin/translations/refresh-all", admin(func(w http.ResponseWriter, r *http.Request) {
 			go func() {
 				if err := s.MetadataCmdSvc.RefreshAllTranslations(s.ServerCtx, nil); err != nil {
 					slog.Error("refresh all translations", slog.Any("err", err))
