@@ -256,6 +256,8 @@ func (h *playbackHandler) GetWatchHistory(ctx context.Context, req *eveyv1.GetWa
 	limit := int(req.Limit)
 	if limit <= 0 {
 		limit = 50
+	} else if limit > 500 {
+		limit = 500
 	}
 	offset := 0
 	if req.Pagination != nil {
