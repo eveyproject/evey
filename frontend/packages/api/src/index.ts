@@ -14,7 +14,22 @@ export * from "./generated/activity-service/activity-service";
 export * from "./generated/transcoding-service/transcoding-service";
 export * from "./generated/metadata-service/metadata-service";
 export * from "./generated/mkvservice/mkvservice";
+export * from "./generated/favorite-service/favorite-service";
+export * from "./generated/rating-service/rating-service";
+export * from "./generated/parental-service/parental-service";
+export * from "./generated/playback-settings-service/playback-settings-service";
+export * from "./generated/remote-access-service/remote-access-service";
+export * from "./generated/server-config-service/server-config-service";
+export * from "./generated/backup-service/backup-service";
+export * from "./generated/push-service/push-service";
+export * from "./generated/transcode-cache-service/transcode-cache-service";
+export * from "./generated/share-service/share-service";
 export * from "./generated/library-access-service/library-access-service";
+export * from "./generated/collection-service/collection-service";
+export * from "./generated/music-service/music-service";
+export * from "./generated/photo-service/photo-service";
+export * from "./generated/playlist-service/playlist-service";
+export * from "./generated/sync-play-service/sync-play-service";
 // Schema types
 export type { V1LoginRequest, V1AuthResponse, V1User, V1Profile, V1APIKey, V1InviteLink, UserServiceUpdateUserBody } from "./generated/user.schemas";
 export type { V1UserLibraryAccess, V1LibraryRef, LibraryAccessServiceSetUserLibraryAccessBody } from "./generated/library_access.schemas";
@@ -24,11 +39,16 @@ export { V1PluginState } from "./generated/admin_plugin.schemas";
 export type { V1ActiveSession, V1AuditLogEntry } from "./generated/admin_session.schemas";
 export type {
   V1Artwork, V1MediaItem, V1MediaPerson, V1Trailer, V1MediaStream,
-  V1Library, V1LibraryType,
+  V1Library,
   LibraryServiceListMediaItemsType, LibraryServiceListMediaItemsSortField, LibraryServiceListMediaItemsSortOrder,
 } from "./generated/library.schemas";
+export { V1LibraryType } from "./generated/library.schemas";
 export type { V1StreamInfo, V1WatchProgress } from "./generated/playback.schemas";
 export type { V1Notification } from "./generated/notification.schemas";
 export type { V1WebhookConfig } from "./generated/webhook.schemas";
 export type { V1TranscodeProfile } from "./generated/transcoding.schemas";
 export { V1HWAccelType } from "./generated/transcoding.schemas";
+export type { V1FavoriteProto } from "./generated/favorite.schemas";
+export type { V1ServerConfigEntry } from "./generated/server_config.schemas";
+export type { V1RemoteAccessConfig, V1UpdateRemoteAccessRequest } from "./generated/remote_access.schemas";
+export type { V1BackupManifest } from "./generated/backup.schemas";
