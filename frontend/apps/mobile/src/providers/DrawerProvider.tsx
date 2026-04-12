@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useCallback, useRef, useEffect } from "react";
+import React, { createContext, useContext, useState, useCallback, useMemo, useRef, useEffect } from "react";
 import { Animated } from "react-native";
 
 interface DrawerContextValue {
@@ -38,8 +38,13 @@ export function DrawerProvider({ children }: { children: React.ReactNode }) {
     if (isOpen) close(); else open();
   }, [isOpen, open, close]);
 
+  const value = useMemo(
+    () => ({ isOpen, open, close, toggle, translateX }),
+    [isOpen, open, close, toggle, translateX],
+  );
+
   return (
-    <DrawerContext.Provider value={{ isOpen, open, close, toggle, translateX }}>
+    <DrawerContext.Provider value={value}>
       {children}
     </DrawerContext.Provider>
   );

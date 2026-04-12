@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useRef, useState } from "react";
+import { createContext, useContext, useEffect, useMemo, useRef, useState } from "react";
 import type { AudioStream } from "./AudioTrackSelector";
 import type { SubtitleStream } from "./SubtitleSelector";
 import type { Chapter } from "@/hooks/useChapters";
@@ -184,7 +184,7 @@ export function PlayerProvider({
 
   const absoluteTime = transcodeOffset + currentTime;
 
-  const value: PlayerState = {
+  const value = useMemo<PlayerState>(() => ({
     videoRef,
     playing,
     currentTime,
@@ -220,7 +220,43 @@ export function PlayerProvider({
     episodes,
     currentEpisodeId,
     subtitleStyle,
-  };
+  }), [
+    videoRef,
+    playing,
+    currentTime,
+    duration,
+    bufferedEnd,
+    volume,
+    muted,
+    fullscreen,
+    isPip,
+    knownDurationSec,
+    transcodeOffset,
+    effectiveDuration,
+    absoluteTime,
+    audioStreams,
+    subtitleStreams,
+    currentAudioIndex,
+    currentQuality,
+    currentSubtitleTrackIndex,
+    playbackSpeed,
+    autoQuality,
+    autoQualityLabel,
+    availableQualities,
+    chapters,
+    mediaId,
+    mediaType,
+    streamToken,
+    title,
+    brightness,
+    skipForwardSeconds,
+    skipBackwardSeconds,
+    seasons,
+    currentSeasonId,
+    episodes,
+    currentEpisodeId,
+    subtitleStyle,
+  ]);
 
   return (
     <PlayerContext.Provider value={value}>
