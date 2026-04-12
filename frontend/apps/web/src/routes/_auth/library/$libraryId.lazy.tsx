@@ -31,7 +31,7 @@ import type { LibrarySearch } from "@/routes/_auth/library/$libraryId";
 import { slugify } from "@/utils/slugify";
 import { toast, useAuthStore } from "@evey/store";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { eveyFetch } from "@evey/api";
+import { eveyFetch, favoriteServiceAddFavorite } from "@evey/api";
 import { BulkActionBar } from "@/components/BulkActionBar";
 import { AddToCollectionModal } from "@/features/collection/AddToCollectionModal";
 import { SortOrderButton, ViewToggleButton } from "./LibraryToolbar";
@@ -170,7 +170,7 @@ function LibraryPage() {
     setBulkFavPending(true);
     const ids = Array.from(selectedIds);
     try {
-      await Promise.all(ids.map((id) => eveyFetch<unknown>({ url: `/api/v1/favorites/${id}`, method: "POST" })));
+      await Promise.all(ids.map((id) => favoriteServiceAddFavorite(id, {})));
       queryClient.invalidateQueries({ queryKey: ["favorites"] });
       toast.success(t("media.library.addedToFavorites", { count: ids.length }));
       setSelectedIds(new Set());

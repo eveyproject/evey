@@ -1,15 +1,15 @@
 import { useState, useEffect, useCallback, useRef, useMemo, memo, type FC } from "react";
 import { Folder, Play, Settings2 } from "lucide-react";
 import { createLazyFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { useQueries, useQuery } from "@tanstack/react-query";
+import { useQueries } from "@tanstack/react-query";
 import {
   useFeedServiceRecommended,
   useFeedServiceGetFeedConfig,
   useFeedServiceRecentlyAdded,
+  useFeedServiceResumePlayback,
   useLibraryServiceListLibraries,
   useLibraryServiceListMediaItems,
   libraryServiceGetMediaItem,
-  eveyFetch,
 } from "@evey/api";
 import { useAuthStore } from "@evey/store";
 import { useTranslation } from "react-i18next";
@@ -244,10 +244,7 @@ const LibrarySlider = memo(function LibrarySlider({ libraryId, name, libraryType
 
 const ResumePlaybackSlider = memo(function ResumePlaybackSlider() {
   const { t } = useTranslation();
-  const { data, isLoading } = useQuery<{ items?: { mediaItemId: string; title: string; type: string; positionMs: number }[] }>({
-    queryKey: ["/api/v1/feeds/resume-playback"],
-    queryFn: ({ signal }) => eveyFetch({ url: "/api/v1/feeds/resume-playback", method: "GET", signal }),
-  });
+  const { data, isLoading } = useFeedServiceResumePlayback();
   const items = data?.items ?? [];
   if (!isLoading && items.length === 0) return null;
 
