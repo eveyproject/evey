@@ -39,8 +39,14 @@ func StartShared() func() {
 		panic(fmt.Sprintf("start shared postgres container: %v", err))
 	}
 
-	host, _ := container.Host(ctx)
-	port, _ := container.MappedPort(ctx, "5432")
+	host, err := container.Host(ctx)
+	if err != nil {
+		panic(fmt.Sprintf("testhelpers: container.Host: %v", err))
+	}
+	port, err := container.MappedPort(ctx, "5432")
+	if err != nil {
+		panic(fmt.Sprintf("testhelpers: container.MappedPort: %v", err))
+	}
 
 	dsn := fmt.Sprintf("host=%s port=%s user=evey_test password=evey_test dbname=evey_test sslmode=disable", host, port.Port())
 	db, err := sql.Open("postgres", dsn)

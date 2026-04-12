@@ -17,6 +17,11 @@ import (
 	"github.com/gravity-zero/evey/internal/pkg/id"
 )
 
+const (
+	loginMaxAttempts   = 5
+	loginAttemptWindow = 15 * time.Minute
+)
+
 // CommandService handles auth, setup and token management.
 type CommandService struct {
 	users           user.UserRepository
@@ -61,7 +66,7 @@ func NewCommandService(
 		events:          events,
 		refreshTokenTTL: refreshTokenTTL,
 		quickConnect:    quickConnect,
-		loginAttempts:   newLoginAttemptLimiter(5, 15*time.Minute),
+		loginAttempts:   newLoginAttemptLimiter(loginMaxAttempts, loginAttemptWindow),
 	}
 	for _, opt := range opts {
 		opt(s)
