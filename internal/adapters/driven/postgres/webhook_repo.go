@@ -19,6 +19,8 @@ func NewWebhookRepository(db *sql.DB) *WebhookRepository {
 }
 
 func (r *WebhookRepository) Create(ctx context.Context, cfg *webhook.Config) error {
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
 	headersJSON, err := json.Marshal(cfg.Headers)
 	if err != nil {
 		return err
@@ -36,6 +38,8 @@ func (r *WebhookRepository) Create(ctx context.Context, cfg *webhook.Config) err
 }
 
 func (r *WebhookRepository) GetByID(ctx context.Context, id string) (*webhook.Config, error) {
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
 	cfg := &webhook.Config{}
 	var headersJSON []byte
 	err := r.db.QueryRowContext(ctx,
@@ -51,6 +55,8 @@ func (r *WebhookRepository) GetByID(ctx context.Context, id string) (*webhook.Co
 }
 
 func (r *WebhookRepository) List(ctx context.Context) ([]*webhook.Config, error) {
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
 	rows, err := r.db.QueryContext(ctx,
 		`SELECT id, name, url, events, secret, headers, enabled, created_at FROM webhook_configs ORDER BY created_at DESC LIMIT 1000`)
 	if err != nil {
@@ -74,6 +80,8 @@ func (r *WebhookRepository) List(ctx context.Context) ([]*webhook.Config, error)
 }
 
 func (r *WebhookRepository) Update(ctx context.Context, cfg *webhook.Config) error {
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
 	headersJSON, err := json.Marshal(cfg.Headers)
 	if err != nil {
 		return err
@@ -90,6 +98,8 @@ func (r *WebhookRepository) Update(ctx context.Context, cfg *webhook.Config) err
 }
 
 func (r *WebhookRepository) Delete(ctx context.Context, id string) error {
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
 	_, err := r.db.ExecContext(ctx, `DELETE FROM webhook_configs WHERE id = $1`, id)
 	return err
 }
@@ -103,6 +113,8 @@ func NewWebhookDeliveryRepository(db *sql.DB) *WebhookDeliveryRepository {
 }
 
 func (r *WebhookDeliveryRepository) Create(ctx context.Context, d *webhook.Delivery) error {
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
 	_, err := r.db.ExecContext(ctx,
 		`INSERT INTO webhook_deliveries (id, webhook_id, event, status_code, error, sent_at)
 		 VALUES ($1,$2,$3,$4,$5,$6)`,
@@ -112,6 +124,8 @@ func (r *WebhookDeliveryRepository) Create(ctx context.Context, d *webhook.Deliv
 }
 
 func (r *WebhookDeliveryRepository) ListByWebhook(ctx context.Context, webhookID string, limit int) ([]*webhook.Delivery, error) {
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
 	q := `SELECT id, webhook_id, event, status_code, error, sent_at FROM webhook_deliveries WHERE webhook_id = $1 ORDER BY sent_at DESC`
 	if limit <= 0 {
 		limit = 1000

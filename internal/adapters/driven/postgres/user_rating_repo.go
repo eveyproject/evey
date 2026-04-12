@@ -21,6 +21,8 @@ func NewUserRatingRepository(db *sql.DB) *UserRatingRepository {
 }
 
 func (r *UserRatingRepository) Upsert(ctx context.Context, rating *library.UserRating) error {
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
 	_, err := r.db.ExecContext(ctx, `
 		INSERT INTO user_ratings (profile_id, media_item_id, value, updated_at)
 		VALUES ($1, $2, $3, $4)
@@ -31,6 +33,8 @@ func (r *UserRatingRepository) Upsert(ctx context.Context, rating *library.UserR
 }
 
 func (r *UserRatingRepository) Get(ctx context.Context, profileID, mediaItemID string) (*library.UserRating, error) {
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
 	row := r.db.QueryRowContext(ctx, `
 		SELECT profile_id, media_item_id, value
 		FROM user_ratings
@@ -47,6 +51,8 @@ func (r *UserRatingRepository) Get(ctx context.Context, profileID, mediaItemID s
 }
 
 func (r *UserRatingRepository) GetForItems(ctx context.Context, profileID string, mediaItemIDs []string) (map[string]*library.UserRating, error) {
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
 	if len(mediaItemIDs) == 0 {
 		return map[string]*library.UserRating{}, nil
 	}

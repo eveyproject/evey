@@ -18,6 +18,8 @@ func NewSubtitleRepository(db *sql.DB) *SubtitleRepository {
 }
 
 func (r *SubtitleRepository) Save(ctx context.Context, sub *subtitle.SubtitleDownload) error {
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
 	_, err := r.db.ExecContext(ctx,
 		`INSERT INTO downloaded_subtitles (id, media_item_id, language, format, file_path, source, downloaded_at)
 		 VALUES ($1,$2,$3,$4,$5,$6,$7)
@@ -33,6 +35,8 @@ func (r *SubtitleRepository) Save(ctx context.Context, sub *subtitle.SubtitleDow
 }
 
 func (r *SubtitleRepository) GetByMediaItem(ctx context.Context, mediaItemID string) ([]*subtitle.SubtitleDownload, error) {
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
 	rows, err := r.db.QueryContext(ctx,
 		`SELECT id, media_item_id, language, format, file_path, source, downloaded_at
 		 FROM downloaded_subtitles WHERE media_item_id = $1
@@ -55,6 +59,8 @@ func (r *SubtitleRepository) GetByMediaItem(ctx context.Context, mediaItemID str
 }
 
 func (r *SubtitleRepository) Delete(ctx context.Context, id string) error {
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
 	res, err := r.db.ExecContext(ctx, `DELETE FROM downloaded_subtitles WHERE id = $1`, id)
 	if err != nil {
 		return err

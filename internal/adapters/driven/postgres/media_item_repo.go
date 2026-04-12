@@ -35,6 +35,8 @@ func NewMediaItemRepository(db *sql.DB) *MediaItemRepository {
 }
 
 func (r *MediaItemRepository) Create(ctx context.Context, item *library.MediaItem) error {
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
 	providerJSON, err := json.Marshal(item.ProviderIDs)
 	if err != nil {
 		return fmt.Errorf("MediaItemRepo.Create marshal provider_ids: %w", err)
@@ -103,21 +105,29 @@ func (r *MediaItemRepository) Create(ctx context.Context, item *library.MediaIte
 }
 
 func (r *MediaItemRepository) GetByID(ctx context.Context, id string) (*library.MediaItem, error) {
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
 	return r.scanMediaItem(r.db.QueryRowContext(ctx,
 		fmt.Sprintf("SELECT %s FROM media_items WHERE id = $1", mediaItemColumns), id))
 }
 
 func (r *MediaItemRepository) GetByFilePath(ctx context.Context, path string) (*library.MediaItem, error) {
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
 	return r.scanMediaItem(r.db.QueryRowContext(ctx,
 		fmt.Sprintf("SELECT %s FROM media_items WHERE file_path = $1", mediaItemColumns), path))
 }
 
 func (r *MediaItemRepository) GetByFileFingerprint(ctx context.Context, fingerprint string) (*library.MediaItem, error) {
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
 	return r.scanMediaItem(r.db.QueryRowContext(ctx,
 		fmt.Sprintf("SELECT %s FROM media_items WHERE file_fingerprint = $1", mediaItemColumns), fingerprint))
 }
 
 func (r *MediaItemRepository) GetByLibraryTypeTitle(ctx context.Context, libraryID, itemType, title, parentID string) (*library.MediaItem, error) {
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
 	return r.scanMediaItem(r.db.QueryRowContext(ctx,
 		fmt.Sprintf("SELECT %s FROM media_items WHERE library_id = $1 AND type = $2 AND title = $3 AND ($4 = '' OR parent_id = $4) LIMIT 1", mediaItemColumns), libraryID, itemType, title, parentID))
 }
@@ -277,6 +287,8 @@ func (r *MediaItemRepository) List(ctx context.Context, f library.ListMediaItems
 }
 
 func (r *MediaItemRepository) Update(ctx context.Context, item *library.MediaItem) error {
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
 	providerJSON, err := json.Marshal(item.ProviderIDs)
 	if err != nil {
 		return fmt.Errorf("MediaItemRepo.Update marshal provider_ids: %w", err)
@@ -345,6 +357,8 @@ func (r *MediaItemRepository) Update(ctx context.Context, item *library.MediaIte
 }
 
 func (r *MediaItemRepository) Delete(ctx context.Context, id string) error {
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
 	_, err := r.db.ExecContext(ctx, `DELETE FROM media_items WHERE id = $1`, id)
 	if err != nil {
 		return fmt.Errorf("MediaItemRepo.Delete: %w", err)
@@ -356,6 +370,8 @@ func (r *MediaItemRepository) DeleteByIDs(ctx context.Context, ids []string) err
 	if len(ids) == 0 {
 		return nil
 	}
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
 	_, err := r.db.ExecContext(ctx, `DELETE FROM media_items WHERE id = ANY($1)`, pq.Array(ids))
 	if err != nil {
 		return fmt.Errorf("MediaItemRepo.DeleteByIDs: %w", err)
@@ -364,6 +380,8 @@ func (r *MediaItemRepository) DeleteByIDs(ctx context.Context, ids []string) err
 }
 
 func (r *MediaItemRepository) ListFilePaths(ctx context.Context, libraryID string) (map[string]string, error) {
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
 	rows, err := r.db.QueryContext(ctx,
 		`SELECT id, file_path FROM media_items WHERE library_id = $1 AND file_path IS NOT NULL AND file_path <> ''`,
 		libraryID,
@@ -412,6 +430,8 @@ func (r *MediaItemRepository) ListByLibraryID(ctx context.Context, libraryID str
 }
 
 func (r *MediaItemRepository) ListScanSummaries(ctx context.Context, libraryID string) ([]library.MediaItemScanRow, error) {
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
 	const batchSize = 5000
 	var result []library.MediaItemScanRow
 	for offset := 0; ; offset += batchSize {
@@ -458,6 +478,8 @@ func (r *MediaItemRepository) listScanSummariesBatch(ctx context.Context, librar
 }
 
 func (r *MediaItemRepository) ListContainerInfo(ctx context.Context, libraryID string) ([]library.MediaItemContainerRow, error) {
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
 	const batchSize = 5000
 	var result []library.MediaItemContainerRow
 	for offset := 0; ; offset += batchSize {

@@ -24,6 +24,8 @@ func NewPlaySessionStatsReader(db *sql.DB) *PlaySessionStatsReader {
 }
 
 func (r *PlaySessionStatsReader) GetUserStats(ctx context.Context, profileID string) (*activity.UserStats, error) {
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
 	stats := &activity.UserStats{
 		ProfileID:        profileID,
 		GenreBreakdown:   make(map[string]activity.GenreStats),
@@ -122,6 +124,8 @@ func (r *PlaySessionStatsReader) GetUserStats(ctx context.Context, profileID str
 const serverStatsCacheDuration = 5 * time.Minute
 
 func (r *PlaySessionStatsReader) GetServerStats(ctx context.Context) (*activity.ServerStatsResult, error) {
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
 	r.serverStatsMu.Lock()
 	defer r.serverStatsMu.Unlock()
 
@@ -151,6 +155,8 @@ func (r *PlaySessionStatsReader) GetServerStats(ctx context.Context) (*activity.
 }
 
 func (r *PlaySessionStatsReader) GetMostPopular(ctx context.Context, limit int) ([]activity.MediaPlayCount, error) {
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
 	rows, err := r.db.QueryContext(ctx,
 		`SELECT ps.media_item_id, mi.title, COUNT(*) AS play_count
 		 FROM play_sessions ps

@@ -21,6 +21,8 @@ func NewRefreshTokenRepository(db *sql.DB) *RefreshTokenRepository {
 }
 
 func (r *RefreshTokenRepository) Create(ctx context.Context, t *user.RefreshToken) error {
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
 	_, err := r.db.ExecContext(ctx,
 		`INSERT INTO refresh_tokens (id, user_id, token_hash, device_name, client_ip, expires_at, created_at)
 		 VALUES ($1,$2,$3,$4,$5,$6,$7)`,
@@ -36,6 +38,8 @@ func (r *RefreshTokenRepository) Create(ctx context.Context, t *user.RefreshToke
 }
 
 func (r *RefreshTokenRepository) GetByTokenHash(ctx context.Context, hash string) (*user.RefreshToken, error) {
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
 	t := &user.RefreshToken{}
 	err := r.db.QueryRowContext(ctx,
 		`SELECT id, user_id, token_hash, device_name, client_ip, used, expires_at, created_at
@@ -48,6 +52,8 @@ func (r *RefreshTokenRepository) GetByTokenHash(ctx context.Context, hash string
 }
 
 func (r *RefreshTokenRepository) MarkUsedIfNotUsed(ctx context.Context, id string) (bool, error) {
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
 	res, err := r.db.ExecContext(ctx, `UPDATE refresh_tokens SET used = TRUE WHERE id = $1 AND used = FALSE`, id)
 	if err != nil {
 		return false, err
@@ -60,16 +66,22 @@ func (r *RefreshTokenRepository) MarkUsedIfNotUsed(ctx context.Context, id strin
 }
 
 func (r *RefreshTokenRepository) DeleteByID(ctx context.Context, id string) error {
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
 	_, err := r.db.ExecContext(ctx, `DELETE FROM refresh_tokens WHERE id = $1`, id)
 	return err
 }
 
 func (r *RefreshTokenRepository) DeleteByUserID(ctx context.Context, userID string) error {
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
 	_, err := r.db.ExecContext(ctx, `DELETE FROM refresh_tokens WHERE user_id = $1`, userID)
 	return err
 }
 
 func (r *RefreshTokenRepository) DeleteExpired(ctx context.Context) error {
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
 	_, err := r.db.ExecContext(ctx, `DELETE FROM refresh_tokens WHERE expires_at < NOW()`)
 	return err
 }

@@ -20,6 +20,8 @@ func NewMetadataOverrideRepository(db *sql.DB) *MetadataOverrideRepository {
 }
 
 func (r *MetadataOverrideRepository) Set(ctx context.Context, o *metadata.MetadataOverride) error {
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
 	valueJSON, err := json.Marshal(o.CustomValue)
 	if err != nil {
 		return err
@@ -37,6 +39,8 @@ func (r *MetadataOverrideRepository) Set(ctx context.Context, o *metadata.Metada
 }
 
 func (r *MetadataOverrideRepository) Get(ctx context.Context, id string) (*metadata.MetadataOverride, error) {
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
 	o := &metadata.MetadataOverride{}
 	var valueJSON []byte
 	err := r.db.QueryRowContext(ctx,
@@ -53,6 +57,8 @@ func (r *MetadataOverrideRepository) Get(ctx context.Context, id string) (*metad
 }
 
 func (r *MetadataOverrideRepository) GetByMediaItem(ctx context.Context, mediaItemID string) ([]*metadata.MetadataOverride, error) {
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
 	rows, err := r.db.QueryContext(ctx,
 		`SELECT id, media_item_id, field_name, custom_value, edited_by, created_at
 		 FROM metadata_overrides WHERE media_item_id = $1 ORDER BY field_name`, mediaItemID)
@@ -77,6 +83,8 @@ func (r *MetadataOverrideRepository) GetByMediaItem(ctx context.Context, mediaIt
 }
 
 func (r *MetadataOverrideRepository) ListOverriddenMediaItemIDs(ctx context.Context, mediaItemIDs []string) (map[string]bool, error) {
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
 	if len(mediaItemIDs) == 0 {
 		return make(map[string]bool), nil
 	}
@@ -107,11 +115,15 @@ func (r *MetadataOverrideRepository) ListOverriddenMediaItemIDs(ctx context.Cont
 }
 
 func (r *MetadataOverrideRepository) Delete(ctx context.Context, id string) error {
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
 	_, err := r.db.ExecContext(ctx, `DELETE FROM metadata_overrides WHERE id = $1`, id)
 	return err
 }
 
 func (r *MetadataOverrideRepository) DeleteByMediaItemID(ctx context.Context, mediaItemID string) error {
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
 	_, err := r.db.ExecContext(ctx, `DELETE FROM metadata_overrides WHERE media_item_id = $1`, mediaItemID)
 	return err
 }

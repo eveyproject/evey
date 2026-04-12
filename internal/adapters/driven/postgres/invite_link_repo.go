@@ -16,6 +16,8 @@ func NewInviteLinkRepository(db *sql.DB) *InviteLinkRepository {
 }
 
 func (r *InviteLinkRepository) Create(ctx context.Context, link *user.InviteLink) error {
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
 	_, err := r.db.ExecContext(ctx,
 		`INSERT INTO invite_links (id, created_by, token, label, max_uses, used_count, is_admin, expires_at, created_at)
 		 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
@@ -25,6 +27,8 @@ func (r *InviteLinkRepository) Create(ctx context.Context, link *user.InviteLink
 }
 
 func (r *InviteLinkRepository) GetByToken(ctx context.Context, token string) (*user.InviteLink, error) {
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
 	link := &user.InviteLink{}
 	err := r.db.QueryRowContext(ctx,
 		`SELECT id, created_by, token, label, max_uses, used_count, is_admin, expires_at, created_at
@@ -37,6 +41,8 @@ func (r *InviteLinkRepository) GetByToken(ctx context.Context, token string) (*u
 }
 
 func (r *InviteLinkRepository) ListByCreator(ctx context.Context, creatorID string) ([]*user.InviteLink, error) {
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
 	rows, err := r.db.QueryContext(ctx,
 		`SELECT id, created_by, token, label, max_uses, used_count, is_admin, expires_at, created_at
 		 FROM invite_links WHERE created_by = $1 ORDER BY created_at LIMIT 500`, creatorID)
@@ -57,12 +63,16 @@ func (r *InviteLinkRepository) ListByCreator(ctx context.Context, creatorID stri
 }
 
 func (r *InviteLinkRepository) IncrementUsedCount(ctx context.Context, id string) error {
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
 	_, err := r.db.ExecContext(ctx,
 		`UPDATE invite_links SET used_count = used_count + 1 WHERE id = $1`, id)
 	return err
 }
 
 func (r *InviteLinkRepository) Delete(ctx context.Context, id string) error {
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
 	_, err := r.db.ExecContext(ctx, `DELETE FROM invite_links WHERE id = $1`, id)
 	return err
 }

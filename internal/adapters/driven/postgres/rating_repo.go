@@ -20,6 +20,8 @@ func NewRatingRepository(db *sql.DB) *RatingRepository {
 }
 
 func (r *RatingRepository) Upsert(ctx context.Context, rt rating.Rating) error {
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
 	now := time.Now()
 	_, err := r.db.ExecContext(ctx, `
 		INSERT INTO media_ratings (media_item_id, profile_id, value, created_at, updated_at)
@@ -31,6 +33,8 @@ func (r *RatingRepository) Upsert(ctx context.Context, rt rating.Rating) error {
 }
 
 func (r *RatingRepository) Get(ctx context.Context, mediaItemID, profileID string) (*rating.Rating, error) {
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
 	var rt rating.Rating
 	var value int
 	err := r.db.QueryRowContext(ctx, `
@@ -52,6 +56,8 @@ func (r *RatingRepository) Get(ctx context.Context, mediaItemID, profileID strin
 }
 
 func (r *RatingRepository) Delete(ctx context.Context, mediaItemID, profileID string) error {
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
 	_, err := r.db.ExecContext(ctx, `
 		DELETE FROM media_ratings WHERE media_item_id = $1 AND profile_id = $2
 	`, mediaItemID, profileID)
@@ -59,6 +65,8 @@ func (r *RatingRepository) Delete(ctx context.Context, mediaItemID, profileID st
 }
 
 func (r *RatingRepository) GetAggregates(ctx context.Context, mediaItemIDs []string) (map[string]rating.Aggregate, error) {
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
 	if len(mediaItemIDs) == 0 {
 		return map[string]rating.Aggregate{}, nil
 	}

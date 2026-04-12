@@ -18,6 +18,8 @@ func NewLibraryRepository(db *sql.DB) *LibraryRepository {
 }
 
 func (r *LibraryRepository) Create(ctx context.Context, lib *library.Library) error {
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
 	pathsJSON, err := json.Marshal(lib.Paths)
 	if err != nil {
 		return fmt.Errorf("LibraryRepo.Create marshal paths: %w", err)
@@ -34,6 +36,8 @@ func (r *LibraryRepository) Create(ctx context.Context, lib *library.Library) er
 }
 
 func (r *LibraryRepository) GetByID(ctx context.Context, id string) (*library.Library, error) {
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
 	lib := &library.Library{}
 	var pathsJSON []byte
 	err := r.db.QueryRowContext(ctx,
@@ -50,6 +54,8 @@ func (r *LibraryRepository) GetByID(ctx context.Context, id string) (*library.Li
 }
 
 func (r *LibraryRepository) List(ctx context.Context) ([]*library.Library, error) {
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
 	rows, err := r.db.QueryContext(ctx,
 		`SELECT id, name, type, paths, scan_interval_minutes, enabled, last_scanned_at, created_at, updated_at
 		 FROM libraries ORDER BY name LIMIT 1000`)
@@ -77,6 +83,8 @@ func (r *LibraryRepository) List(ctx context.Context) ([]*library.Library, error
 }
 
 func (r *LibraryRepository) Update(ctx context.Context, lib *library.Library) error {
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
 	pathsJSON, err := json.Marshal(lib.Paths)
 	if err != nil {
 		return fmt.Errorf("LibraryRepo.Update marshal paths: %w", err)
@@ -93,6 +101,8 @@ func (r *LibraryRepository) Update(ctx context.Context, lib *library.Library) er
 }
 
 func (r *LibraryRepository) Delete(ctx context.Context, id string) error {
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
 	_, err := r.db.ExecContext(ctx, `DELETE FROM libraries WHERE id = $1`, id)
 	if err != nil {
 		return fmt.Errorf("LibraryRepo.Delete: %w", err)

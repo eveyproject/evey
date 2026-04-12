@@ -20,6 +20,8 @@ func NewProfileRepository(db *sql.DB) *ProfileRepository {
 }
 
 func (r *ProfileRepository) Create(ctx context.Context, p *user.Profile) error {
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
 	prefsJSON, err := json.Marshal(p.Preferences)
 	if err != nil {
 		return fmt.Errorf("ProfileRepo.Create marshal prefs: %w", err)
@@ -52,6 +54,8 @@ func (r *ProfileRepository) Create(ctx context.Context, p *user.Profile) error {
 }
 
 func (r *ProfileRepository) GetByID(ctx context.Context, id string) (*user.Profile, error) {
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
 	p := &user.Profile{}
 	var prefsJSON []byte
 	var pMaxRating, pPINHash string
@@ -75,6 +79,8 @@ func (r *ProfileRepository) GetByID(ctx context.Context, id string) (*user.Profi
 }
 
 func (r *ProfileRepository) GetByUserID(ctx context.Context, userID string) ([]*user.Profile, error) {
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
 	rows, err := r.db.QueryContext(ctx,
 		`SELECT id, user_id, name, avatar_path, preferences, max_rating, is_default, audio_languages, subtitle_languages, max_bitrate_kbps, parental_max_rating, parental_blocked_tags, parental_pin_hash, parental_enabled, locale, created_at
 		 FROM profiles WHERE user_id = $1 ORDER BY is_default DESC, name`, userID)
@@ -98,6 +104,8 @@ func (r *ProfileRepository) GetByUserID(ctx context.Context, userID string) ([]*
 }
 
 func (r *ProfileRepository) Update(ctx context.Context, p *user.Profile) error {
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
 	prefsJSON, err := json.Marshal(p.Preferences)
 	if err != nil {
 		return fmt.Errorf("ProfileRepo.Update marshal prefs: %w", err)
@@ -129,6 +137,8 @@ func (r *ProfileRepository) Update(ctx context.Context, p *user.Profile) error {
 }
 
 func (r *ProfileRepository) GetAll(ctx context.Context) ([]*user.Profile, error) {
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
 	rows, err := r.db.QueryContext(ctx,
 		`SELECT id, user_id, name, avatar_path, preferences, max_rating, is_default, audio_languages, subtitle_languages, max_bitrate_kbps, parental_max_rating, parental_blocked_tags, parental_pin_hash, parental_enabled, locale, created_at
 		 FROM profiles ORDER BY user_id, is_default DESC, name LIMIT 1000`)
@@ -152,6 +162,8 @@ func (r *ProfileRepository) GetAll(ctx context.Context) ([]*user.Profile, error)
 }
 
 func (r *ProfileRepository) Delete(ctx context.Context, id string) error {
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
 	_, err := r.db.ExecContext(ctx, `DELETE FROM profiles WHERE id = $1`, id)
 	if err != nil {
 		return fmt.Errorf("delete profile: %w", err)

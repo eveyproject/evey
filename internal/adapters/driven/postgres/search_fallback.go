@@ -31,6 +31,8 @@ func (s *SQLSearchFallback) RemoveMediaItem(_ context.Context, _ string) error {
 }
 
 func (s *SQLSearchFallback) Search(ctx context.Context, query string, filters map[string]string, sort []string, limit int64) ([]library.SearchHit, int64, error) {
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
 	q := strings.TrimSpace(query)
 	if q == "" {
 		return nil, 0, nil

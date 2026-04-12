@@ -19,6 +19,8 @@ func NewArtworkRepository(db *sql.DB) *ArtworkRepository {
 }
 
 func (r *ArtworkRepository) Create(ctx context.Context, a *metadata.ArtworkRecord) error {
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
 	_, err := r.db.ExecContext(ctx,
 		`INSERT INTO artwork (id, media_item_id, person_id, type, provider, source_url, local_path, webp_path, width, height, language, sort_order)
 		 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)`,
@@ -28,6 +30,8 @@ func (r *ArtworkRepository) Create(ctx context.Context, a *metadata.ArtworkRecor
 }
 
 func (r *ArtworkRepository) CreateBatch(ctx context.Context, records []*metadata.ArtworkRecord) error {
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
 	if len(records) == 0 {
 		return nil
 	}
@@ -45,6 +49,8 @@ func (r *ArtworkRepository) CreateBatch(ctx context.Context, records []*metadata
 }
 
 func (r *ArtworkRepository) GetByMediaItem(ctx context.Context, mediaItemID string) ([]*metadata.ArtworkRecord, error) {
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
 	rows, err := r.db.QueryContext(ctx,
 		`SELECT id, media_item_id, person_id, type, provider, source_url, local_path, webp_path, width, height, language, sort_order
 		 FROM artwork WHERE media_item_id = $1 ORDER BY sort_order`, mediaItemID)
@@ -56,6 +62,8 @@ func (r *ArtworkRepository) GetByMediaItem(ctx context.Context, mediaItemID stri
 }
 
 func (r *ArtworkRepository) GetByMediaItems(ctx context.Context, mediaItemIDs []string) (map[string][]*metadata.ArtworkRecord, error) {
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
 	if len(mediaItemIDs) == 0 {
 		return map[string][]*metadata.ArtworkRecord{}, nil
 	}
@@ -78,6 +86,8 @@ func (r *ArtworkRepository) GetByMediaItems(ctx context.Context, mediaItemIDs []
 }
 
 func (r *ArtworkRepository) GetByPerson(ctx context.Context, personID string) ([]*metadata.ArtworkRecord, error) {
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
 	rows, err := r.db.QueryContext(ctx,
 		`SELECT id, media_item_id, person_id, type, provider, source_url, local_path, webp_path, width, height, language, sort_order
 		 FROM artwork WHERE person_id = $1 ORDER BY sort_order`, personID)
@@ -89,21 +99,29 @@ func (r *ArtworkRepository) GetByPerson(ctx context.Context, personID string) ([
 }
 
 func (r *ArtworkRepository) UpdateSortOrder(ctx context.Context, id string, sortOrder int) error {
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
 	_, err := r.db.ExecContext(ctx, `UPDATE artwork SET sort_order = $1 WHERE id = $2`, sortOrder, id)
 	return err
 }
 
 func (r *ArtworkRepository) UpdateWebPPath(ctx context.Context, id string, webpPath string) error {
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
 	_, err := r.db.ExecContext(ctx, `UPDATE artwork SET webp_path = $1 WHERE id = $2`, webpPath, id)
 	return err
 }
 
 func (r *ArtworkRepository) Delete(ctx context.Context, id string) error {
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
 	_, err := r.db.ExecContext(ctx, `DELETE FROM artwork WHERE id = $1`, id)
 	return err
 }
 
 func (r *ArtworkRepository) DeleteByMediaItemID(ctx context.Context, mediaItemID string) error {
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
 	_, err := r.db.ExecContext(ctx, `DELETE FROM artwork WHERE media_item_id = $1`, mediaItemID)
 	return err
 }

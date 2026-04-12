@@ -18,6 +18,8 @@ func NewTrickplayRepository(db *sql.DB) *TrickplayRepository {
 }
 
 func (r *TrickplayRepository) Create(ctx context.Context, m *library.TrickplayManifest) error {
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
 	_, err := r.db.ExecContext(ctx,
 		`INSERT INTO trickplay_manifests (id, media_item_id, interval_sec, width, height, tile_width, tile_height, image_count, image_path, created_at)
 		 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
@@ -36,6 +38,8 @@ func (r *TrickplayRepository) Create(ctx context.Context, m *library.TrickplayMa
 }
 
 func (r *TrickplayRepository) GetByMediaItemID(ctx context.Context, mediaItemID string) (*library.TrickplayManifest, error) {
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
 	m := &library.TrickplayManifest{}
 	err := r.db.QueryRowContext(ctx,
 		`SELECT id, media_item_id, interval_sec, width, height, tile_width, tile_height, image_count, image_path, created_at
@@ -48,11 +52,15 @@ func (r *TrickplayRepository) GetByMediaItemID(ctx context.Context, mediaItemID 
 }
 
 func (r *TrickplayRepository) Delete(ctx context.Context, mediaItemID string) error {
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
 	_, err := r.db.ExecContext(ctx, `DELETE FROM trickplay_manifests WHERE media_item_id = $1`, mediaItemID)
 	return err
 }
 
 func (r *TrickplayRepository) ListMissingMediaItemIDs(ctx context.Context) ([]string, error) {
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
 	rows, err := r.db.QueryContext(ctx,
 		`SELECT id FROM media_items mi
 		 WHERE mi.file_path != ''

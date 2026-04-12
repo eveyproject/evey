@@ -19,6 +19,8 @@ func NewWatchProgressRepository(db *sql.DB) *WatchProgressRepository {
 }
 
 func (r *WatchProgressRepository) Upsert(ctx context.Context, wp *playback.WatchProgress) error {
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
 	_, err := r.db.ExecContext(ctx,
 		`INSERT INTO watch_progress (id, profile_id, media_item_id, position_ms, completed, play_count, last_played_at)
 		 VALUES ($1,$2,$3,$4,$5,$6,$7)
@@ -36,6 +38,8 @@ func (r *WatchProgressRepository) Upsert(ctx context.Context, wp *playback.Watch
 }
 
 func (r *WatchProgressRepository) GetByProfileAndMedia(ctx context.Context, profileID, mediaItemID string) (*playback.WatchProgress, error) {
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
 	wp := &playback.WatchProgress{}
 	err := r.db.QueryRowContext(ctx,
 		`SELECT id, profile_id, media_item_id, position_ms, completed, play_count, last_played_at
@@ -51,6 +55,8 @@ func (r *WatchProgressRepository) GetByProfileAndMedia(ctx context.Context, prof
 }
 
 func (r *WatchProgressRepository) GetByProfile(ctx context.Context, profileID string, limit, offset int) ([]*playback.WatchProgress, error) {
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
 	rows, err := r.db.QueryContext(ctx,
 		`SELECT id, profile_id, media_item_id, position_ms, completed, play_count, last_played_at
 		 FROM watch_progress WHERE profile_id = $1
@@ -63,6 +69,8 @@ func (r *WatchProgressRepository) GetByProfile(ctx context.Context, profileID st
 }
 
 func (r *WatchProgressRepository) GetResumeItems(ctx context.Context, profileID string, limit int) ([]*playback.WatchProgress, error) {
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
 	rows, err := r.db.QueryContext(ctx,
 		`SELECT id, profile_id, media_item_id, position_ms, completed, play_count, last_played_at
 		 FROM watch_progress WHERE profile_id = $1 AND completed = FALSE AND position_ms > 0
@@ -78,6 +86,8 @@ func (r *WatchProgressRepository) GetResumeItems(ctx context.Context, profileID 
 // It finds episodes where the previous episode (index_number - 1) was completed,
 // but the current episode has not been completed yet.
 func (r *WatchProgressRepository) GetNextUp(ctx context.Context, profileID string, limit int) ([]*playback.WatchProgress, error) {
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
 	rows, err := r.db.QueryContext(ctx,
 		`SELECT DISTINCT ON (mi.parent_id)
 		   COALESCE(wp.id, ''), $1, mi.id, COALESCE(wp.position_ms, 0),

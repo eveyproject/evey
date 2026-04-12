@@ -18,6 +18,8 @@ func NewFeedAdminConfigRepository(db *sql.DB) *FeedAdminConfigRepository {
 }
 
 func (r *FeedAdminConfigRepository) GetAll(ctx context.Context) ([]*feed.AdminConfig, error) {
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
 	rows, err := r.db.QueryContext(ctx,
 		`SELECT feed_type, enabled, display_order, max_items, params FROM feed_admin_config ORDER BY display_order`)
 	if err != nil {
@@ -43,6 +45,8 @@ func (r *FeedAdminConfigRepository) GetAll(ctx context.Context) ([]*feed.AdminCo
 }
 
 func (r *FeedAdminConfigRepository) Upsert(ctx context.Context, cfg *feed.AdminConfig) error {
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
 	paramsJSON, err := json.Marshal(cfg.Params)
 	if err != nil {
 		return err
@@ -61,6 +65,8 @@ func (r *FeedAdminConfigRepository) Upsert(ctx context.Context, cfg *feed.AdminC
 }
 
 func (r *FeedAdminConfigRepository) BatchUpsert(ctx context.Context, cfgs []*feed.AdminConfig) error {
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
 	tx, err := r.db.BeginTx(ctx, nil)
 	if err != nil {
 		return err
@@ -93,6 +99,8 @@ func (r *FeedAdminConfigRepository) BatchUpsert(ctx context.Context, cfgs []*fee
 }
 
 func (r *FeedAdminConfigRepository) DeleteByType(ctx context.Context, feedType feed.Type) error {
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
 	_, err := r.db.ExecContext(ctx,
 		`DELETE FROM feed_admin_config WHERE feed_type = $1`, string(feedType))
 	return err
@@ -107,6 +115,8 @@ func NewFeedProfileConfigRepository(db *sql.DB) *FeedProfileConfigRepository {
 }
 
 func (r *FeedProfileConfigRepository) GetByProfile(ctx context.Context, profileID string) ([]*feed.ProfileConfig, error) {
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
 	rows, err := r.db.QueryContext(ctx,
 		`SELECT feed_type, enabled, display_order, max_items, params FROM feed_profile_config WHERE profile_id = $1 ORDER BY display_order LIMIT 100`, profileID)
 	if err != nil {
@@ -132,6 +142,8 @@ func (r *FeedProfileConfigRepository) GetByProfile(ctx context.Context, profileI
 }
 
 func (r *FeedProfileConfigRepository) Upsert(ctx context.Context, cfg *feed.ProfileConfig) error {
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
 	paramsJSON, err := json.Marshal(cfg.Params)
 	if err != nil {
 		return err
@@ -150,6 +162,8 @@ func (r *FeedProfileConfigRepository) Upsert(ctx context.Context, cfg *feed.Prof
 }
 
 func (r *FeedProfileConfigRepository) Delete(ctx context.Context, profileID string, feedType feed.Type) error {
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
 	_, err := r.db.ExecContext(ctx,
 		`DELETE FROM feed_profile_config WHERE profile_id = $1 AND feed_type = $2`,
 		profileID, string(feedType))
@@ -157,6 +171,8 @@ func (r *FeedProfileConfigRepository) Delete(ctx context.Context, profileID stri
 }
 
 func (r *FeedProfileConfigRepository) DeleteByType(ctx context.Context, feedType feed.Type) error {
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
 	_, err := r.db.ExecContext(ctx,
 		`DELETE FROM feed_profile_config WHERE feed_type = $1`, string(feedType))
 	return err

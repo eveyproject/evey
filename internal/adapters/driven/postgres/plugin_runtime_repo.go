@@ -16,6 +16,8 @@ func NewPluginRuntimeRepository(db *sql.DB) *PluginRuntimeRepository {
 }
 
 func (r *PluginRuntimeRepository) Create(ctx context.Context, rt *plugin.PluginRuntime) error {
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
 	_, err := r.db.ExecContext(ctx,
 		`INSERT INTO plugin_runtimes (id, language, version, status, notes, tested_at)
 		 VALUES ($1,$2,$3,$4,$5,$6)`,
@@ -25,6 +27,8 @@ func (r *PluginRuntimeRepository) Create(ctx context.Context, rt *plugin.PluginR
 }
 
 func (r *PluginRuntimeRepository) GetByLanguageAndVersion(ctx context.Context, language, version string) (*plugin.PluginRuntime, error) {
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
 	rt := &plugin.PluginRuntime{}
 	err := r.db.QueryRowContext(ctx,
 		`SELECT id, language, version, status, notes, tested_at
@@ -37,6 +41,8 @@ func (r *PluginRuntimeRepository) GetByLanguageAndVersion(ctx context.Context, l
 }
 
 func (r *PluginRuntimeRepository) ListByLanguage(ctx context.Context, language string) ([]*plugin.PluginRuntime, error) {
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
 	rows, err := r.db.QueryContext(ctx,
 		`SELECT id, language, version, status, notes, tested_at
 		 FROM plugin_runtimes WHERE language = $1 ORDER BY version LIMIT 100`, language)
@@ -48,6 +54,8 @@ func (r *PluginRuntimeRepository) ListByLanguage(ctx context.Context, language s
 }
 
 func (r *PluginRuntimeRepository) List(ctx context.Context) ([]*plugin.PluginRuntime, error) {
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
 	rows, err := r.db.QueryContext(ctx,
 		`SELECT id, language, version, status, notes, tested_at
 		 FROM plugin_runtimes ORDER BY language, version LIMIT 1000`)
@@ -59,6 +67,8 @@ func (r *PluginRuntimeRepository) List(ctx context.Context) ([]*plugin.PluginRun
 }
 
 func (r *PluginRuntimeRepository) Delete(ctx context.Context, id string) error {
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
 	_, err := r.db.ExecContext(ctx, `DELETE FROM plugin_runtimes WHERE id = $1`, id)
 	return err
 }

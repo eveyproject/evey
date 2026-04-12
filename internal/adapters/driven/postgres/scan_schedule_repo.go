@@ -19,6 +19,8 @@ func NewScanScheduleRepository(db *sql.DB) *ScanScheduleRepository {
 }
 
 func (r *ScanScheduleRepository) Upsert(ctx context.Context, s *library.ScanSchedule) error {
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
 	_, err := r.db.ExecContext(ctx,
 		`INSERT INTO scan_schedules (library_id, cron_expression, enabled, last_run_at, next_run_at, created_at, updated_at)
 		 VALUES ($1, $2, $3, $4, $5, NOW(), NOW())
@@ -33,6 +35,8 @@ func (r *ScanScheduleRepository) Upsert(ctx context.Context, s *library.ScanSche
 }
 
 func (r *ScanScheduleRepository) GetByLibraryID(ctx context.Context, libraryID string) (*library.ScanSchedule, error) {
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
 	s := &library.ScanSchedule{}
 	err := r.db.QueryRowContext(ctx,
 		`SELECT library_id, cron_expression, enabled, last_run_at, next_run_at, created_at, updated_at
@@ -45,11 +49,15 @@ func (r *ScanScheduleRepository) GetByLibraryID(ctx context.Context, libraryID s
 }
 
 func (r *ScanScheduleRepository) Delete(ctx context.Context, libraryID string) error {
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
 	_, err := r.db.ExecContext(ctx, `DELETE FROM scan_schedules WHERE library_id = $1`, libraryID)
 	return err
 }
 
 func (r *ScanScheduleRepository) List(ctx context.Context) ([]*library.ScanSchedule, error) {
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
 	rows, err := r.db.QueryContext(ctx,
 		`SELECT library_id, cron_expression, enabled, last_run_at, next_run_at, created_at, updated_at
 		 FROM scan_schedules ORDER BY library_id`)
@@ -69,6 +77,8 @@ func (r *ScanScheduleRepository) List(ctx context.Context) ([]*library.ScanSched
 }
 
 func (r *ScanScheduleRepository) ListEnabled(ctx context.Context) ([]*library.ScanSchedule, error) {
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
 	rows, err := r.db.QueryContext(ctx,
 		`SELECT library_id, cron_expression, enabled, last_run_at, next_run_at, created_at, updated_at
 		 FROM scan_schedules WHERE enabled = TRUE ORDER BY library_id LIMIT 1000`)
@@ -88,6 +98,8 @@ func (r *ScanScheduleRepository) ListEnabled(ctx context.Context) ([]*library.Sc
 }
 
 func (r *ScanScheduleRepository) UpdateAfterRun(ctx context.Context, libraryID string, lastRun, nextRun time.Time) error {
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
 	_, err := r.db.ExecContext(ctx,
 		`UPDATE scan_schedules SET last_run_at = $1, next_run_at = $2, updated_at = NOW() WHERE library_id = $3`,
 		lastRun, nextRun, libraryID,

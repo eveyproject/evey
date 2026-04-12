@@ -16,6 +16,8 @@ func NewPushSubscriptionRepository(db *sql.DB) *PushSubscriptionRepository {
 }
 
 func (r *PushSubscriptionRepository) Upsert(ctx context.Context, userID, profileID, endpoint, p256dh, auth string) error {
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
 	_, err := r.db.ExecContext(ctx, `
 		INSERT INTO push_subscriptions (user_id, profile_id, endpoint, p256dh, auth, updated_at)
 		VALUES ($1, $2, $3, $4, $5, NOW())
@@ -30,16 +32,22 @@ func (r *PushSubscriptionRepository) Upsert(ctx context.Context, userID, profile
 }
 
 func (r *PushSubscriptionRepository) DeleteByEndpoint(ctx context.Context, userID, endpoint string) error {
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
 	_, err := r.db.ExecContext(ctx, `DELETE FROM push_subscriptions WHERE endpoint = $1 AND user_id = $2`, endpoint, userID)
 	return err
 }
 
 func (r *PushSubscriptionRepository) DeleteByUser(ctx context.Context, userID string) error {
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
 	_, err := r.db.ExecContext(ctx, `DELETE FROM push_subscriptions WHERE user_id = $1`, userID)
 	return err
 }
 
 func (r *PushSubscriptionRepository) GetByProfile(ctx context.Context, profileID string) ([]notification.PushSubscription, error) {
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
 	rows, err := r.db.QueryContext(ctx, `
 		SELECT id, user_id, profile_id, endpoint, p256dh, auth, created_at, updated_at
 		FROM push_subscriptions WHERE profile_id = $1
@@ -53,6 +61,8 @@ func (r *PushSubscriptionRepository) GetByProfile(ctx context.Context, profileID
 }
 
 func (r *PushSubscriptionRepository) ListByUser(ctx context.Context, userID string) ([]notification.PushSubscription, error) {
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
 	rows, err := r.db.QueryContext(ctx, `
 		SELECT id, user_id, profile_id, endpoint, p256dh, auth, created_at, updated_at
 		FROM push_subscriptions WHERE user_id = $1

@@ -20,6 +20,8 @@ func NewPlaySessionRepository(db *sql.DB) *PlaySessionRepository {
 }
 
 func (r *PlaySessionRepository) Create(ctx context.Context, s *playback.PlaySession) error {
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
 	_, err := r.db.ExecContext(ctx,
 		`INSERT INTO play_sessions (id, profile_id, media_item_id, device_name, device_type, client_ip,
 		 play_method, video_codec, audio_codec, resolution, bandwidth_bps, started_at, ended_at, duration_ms, position_ms)
@@ -35,6 +37,8 @@ func (r *PlaySessionRepository) Create(ctx context.Context, s *playback.PlaySess
 }
 
 func (r *PlaySessionRepository) Update(ctx context.Context, s *playback.PlaySession) error {
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
 	_, err := r.db.ExecContext(ctx,
 		`UPDATE play_sessions SET device_name=$1, device_type=$2, client_ip=$3, play_method=$4,
 		 video_codec=$5, audio_codec=$6, resolution=$7, bandwidth_bps=$8, ended_at=$9, duration_ms=$10, position_ms=$11,
@@ -51,6 +55,8 @@ func (r *PlaySessionRepository) Update(ctx context.Context, s *playback.PlaySess
 }
 
 func (r *PlaySessionRepository) GetByID(ctx context.Context, id string) (*playback.PlaySession, error) {
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
 	s := &playback.PlaySession{}
 	err := r.db.QueryRowContext(ctx,
 		`SELECT id, profile_id, media_item_id, device_name, device_type, client_ip, play_method,
@@ -114,6 +120,8 @@ func (r *PlaySessionRepository) ListActiveSessions(ctx context.Context) ([]*play
 }
 
 func (r *PlaySessionRepository) GetActiveByProfile(ctx context.Context, profileID string) ([]*playback.PlaySession, error) {
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
 	rows, err := r.db.QueryContext(ctx,
 		`SELECT id, profile_id, media_item_id, device_name, device_type, client_ip, play_method,
 		 video_codec, audio_codec, resolution, bandwidth_bps, started_at, ended_at, duration_ms, position_ms
@@ -174,6 +182,8 @@ func (r *PlaySessionRepository) GetHistory(ctx context.Context, f playback.PlayS
 }
 
 func (r *PlaySessionRepository) CloseStale(ctx context.Context, olderThan time.Duration) (int, error) {
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
 	cutoff := time.Now().Add(-olderThan)
 	res, err := r.db.ExecContext(ctx,
 		`UPDATE play_sessions SET ended_at = NOW()
@@ -189,6 +199,8 @@ func (r *PlaySessionRepository) CloseStale(ctx context.Context, olderThan time.D
 }
 
 func (r *PlaySessionRepository) SetRemoteCommand(ctx context.Context, sessionID, command string) error {
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
 	_, err := r.db.ExecContext(ctx,
 		`UPDATE play_sessions SET remote_command = $1 WHERE id = $2 AND ended_at IS NULL`, command, sessionID)
 	if err != nil {
@@ -198,6 +210,8 @@ func (r *PlaySessionRepository) SetRemoteCommand(ctx context.Context, sessionID,
 }
 
 func (r *PlaySessionRepository) ConsumeRemoteCommand(ctx context.Context, sessionID string) (string, error) {
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
 	var cmd string
 	err := r.db.QueryRowContext(ctx,
 		`WITH old AS (SELECT remote_command FROM play_sessions WHERE id = $1 AND remote_command != '')
@@ -210,6 +224,8 @@ func (r *PlaySessionRepository) ConsumeRemoteCommand(ctx context.Context, sessio
 }
 
 func (r *PlaySessionRepository) CountActiveByUser(ctx context.Context, userID string) (int, error) {
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
 	var count int
 	err := r.db.QueryRowContext(ctx,
 		`SELECT COUNT(*) FROM play_sessions ps

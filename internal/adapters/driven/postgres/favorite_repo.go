@@ -17,6 +17,8 @@ func NewFavoriteRepository(db *sql.DB) *FavoriteRepository {
 }
 
 func (r *FavoriteRepository) Add(ctx context.Context, fav *favorite.Favorite) error {
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
 	_, err := r.db.ExecContext(ctx,
 		`INSERT INTO favorites (id, profile_id, media_item_id, created_at)
 		 VALUES ($1,$2,$3,$4)
@@ -30,6 +32,8 @@ func (r *FavoriteRepository) Add(ctx context.Context, fav *favorite.Favorite) er
 }
 
 func (r *FavoriteRepository) Remove(ctx context.Context, profileID, mediaItemID string) error {
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
 	_, err := r.db.ExecContext(ctx,
 		`DELETE FROM favorites WHERE profile_id = $1 AND media_item_id = $2`,
 		profileID, mediaItemID,
@@ -41,6 +45,8 @@ func (r *FavoriteRepository) Remove(ctx context.Context, profileID, mediaItemID 
 }
 
 func (r *FavoriteRepository) List(ctx context.Context, profileID string, limit, offset int) ([]*favorite.Favorite, error) {
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
 	rows, err := r.db.QueryContext(ctx,
 		`SELECT id, profile_id, media_item_id, created_at
 		 FROM favorites WHERE profile_id = $1
@@ -66,6 +72,8 @@ func (r *FavoriteRepository) List(ctx context.Context, profileID string, limit, 
 }
 
 func (r *FavoriteRepository) IsFavorite(ctx context.Context, profileID, mediaItemID string) (bool, error) {
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
 	var exists bool
 	err := r.db.QueryRowContext(ctx,
 		`SELECT EXISTS(SELECT 1 FROM favorites WHERE profile_id = $1 AND media_item_id = $2)`,

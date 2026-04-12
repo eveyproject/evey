@@ -16,12 +16,16 @@ func NewTranscodeProfileRepository(db *sql.DB) *TranscodeProfileRepository {
 }
 
 func (r *TranscodeProfileRepository) GetByID(ctx context.Context, id string) (*transcoding.TranscodeProfile, error) {
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
 	return r.scanProfile(r.db.QueryRowContext(ctx,
 		`SELECT id, name, video_codec, audio_codec, container, max_width, max_height, video_bitrate, audio_bitrate, preset
 		 FROM transcode_profiles WHERE id = $1`, id))
 }
 
 func (r *TranscodeProfileRepository) List(ctx context.Context) ([]*transcoding.TranscodeProfile, error) {
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
 	rows, err := r.db.QueryContext(ctx,
 		`SELECT id, name, video_codec, audio_codec, container, max_width, max_height, video_bitrate, audio_bitrate, preset
 		 FROM transcode_profiles ORDER BY name LIMIT 100`)
@@ -43,6 +47,8 @@ func (r *TranscodeProfileRepository) List(ctx context.Context) ([]*transcoding.T
 }
 
 func (r *TranscodeProfileRepository) Create(ctx context.Context, profile *transcoding.TranscodeProfile) error {
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
 	_, err := r.db.ExecContext(ctx,
 		`INSERT INTO transcode_profiles (id, name, video_codec, audio_codec, container, max_width, max_height, video_bitrate, audio_bitrate, preset)
 		 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
@@ -53,6 +59,8 @@ func (r *TranscodeProfileRepository) Create(ctx context.Context, profile *transc
 }
 
 func (r *TranscodeProfileRepository) Update(ctx context.Context, profile *transcoding.TranscodeProfile) error {
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
 	_, err := r.db.ExecContext(ctx,
 		`UPDATE transcode_profiles SET name=$2, video_codec=$3, audio_codec=$4, container=$5, max_width=$6, max_height=$7, video_bitrate=$8, audio_bitrate=$9, preset=$10 WHERE id=$1`,
 		profile.ID, profile.Name, profile.VideoCodec, profile.AudioCodec, profile.Container,
@@ -62,6 +70,8 @@ func (r *TranscodeProfileRepository) Update(ctx context.Context, profile *transc
 }
 
 func (r *TranscodeProfileRepository) Delete(ctx context.Context, id string) error {
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
 	_, err := r.db.ExecContext(ctx, `DELETE FROM transcode_profiles WHERE id = $1`, id)
 	return err
 }

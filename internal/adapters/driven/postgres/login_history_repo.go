@@ -16,6 +16,8 @@ func NewLoginHistoryRepository(db *sql.DB) *LoginHistoryRepository {
 }
 
 func (r *LoginHistoryRepository) Create(ctx context.Context, e *activity.LoginEntry) error {
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
 	_, err := r.db.ExecContext(ctx,
 		`INSERT INTO login_history (id, user_id, client_ip, user_agent, auth_method, success, failure_reason, created_at)
 		 VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`,
@@ -25,6 +27,8 @@ func (r *LoginHistoryRepository) Create(ctx context.Context, e *activity.LoginEn
 }
 
 func (r *LoginHistoryRepository) GetByUserID(ctx context.Context, userID string, limit, offset int) ([]*activity.LoginEntry, error) {
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
 	rows, err := r.db.QueryContext(ctx,
 		`SELECT id, user_id, client_ip, user_agent, auth_method, success, failure_reason, created_at
 		 FROM login_history WHERE user_id = $1

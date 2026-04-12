@@ -22,6 +22,8 @@ func NewCollectionRepository(db *sql.DB) *CollectionRepository {
 }
 
 func (r *CollectionRepository) Create(ctx context.Context, col *library.Collection) error {
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
 	rulesJSON, err := json.Marshal(col.Rules)
 	if err != nil {
 		rulesJSON = []byte("[]")
@@ -40,6 +42,8 @@ func (r *CollectionRepository) Create(ctx context.Context, col *library.Collecti
 }
 
 func (r *CollectionRepository) Upsert(ctx context.Context, col *library.Collection) error {
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
 	rulesJSON, err := json.Marshal(col.Rules)
 	if err != nil {
 		rulesJSON = []byte("[]")
@@ -66,6 +70,8 @@ func (r *CollectionRepository) Upsert(ctx context.Context, col *library.Collecti
 }
 
 func (r *CollectionRepository) Update(ctx context.Context, col *library.Collection) error {
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
 	rulesJSON, err := json.Marshal(col.Rules)
 	if err != nil {
 		rulesJSON = []byte("[]")
@@ -93,6 +99,8 @@ func (r *CollectionRepository) Update(ctx context.Context, col *library.Collecti
 }
 
 func (r *CollectionRepository) GetByID(ctx context.Context, id string) (*library.Collection, error) {
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
 	col := &library.Collection{}
 	var rulesJSON []byte
 	err := r.db.QueryRowContext(ctx,
@@ -113,6 +121,8 @@ func (r *CollectionRepository) GetByID(ctx context.Context, id string) (*library
 }
 
 func (r *CollectionRepository) GetByTmdbID(ctx context.Context, tmdbID int) (*library.Collection, error) {
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
 	col := &library.Collection{}
 	var rulesJSON []byte
 	err := r.db.QueryRowContext(ctx,
@@ -133,6 +143,8 @@ func (r *CollectionRepository) GetByTmdbID(ctx context.Context, tmdbID int) (*li
 }
 
 func (r *CollectionRepository) List(ctx context.Context) ([]*library.Collection, error) {
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
 	rows, err := r.db.QueryContext(ctx,
 		`SELECT id, name, overview, tmdb_id, poster_url, backdrop_url, rules, sort_by, created_at, updated_at
 		 FROM collections ORDER BY name LIMIT 1000`)
@@ -158,6 +170,8 @@ func (r *CollectionRepository) List(ctx context.Context) ([]*library.Collection,
 }
 
 func (r *CollectionRepository) Delete(ctx context.Context, id string) error {
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
 	res, err := r.db.ExecContext(ctx, `DELETE FROM collections WHERE id = $1`, id)
 	if err != nil {
 		return err
@@ -173,6 +187,8 @@ func (r *CollectionRepository) Delete(ctx context.Context, id string) error {
 }
 
 func (r *CollectionRepository) LinkItem(ctx context.Context, collectionID, mediaItemID string, sortOrder int) error {
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
 	_, err := r.db.ExecContext(ctx,
 		`INSERT INTO collection_items (collection_id, media_item_id, sort_order)
 		 VALUES ($1, $2, $3)
@@ -183,6 +199,8 @@ func (r *CollectionRepository) LinkItem(ctx context.Context, collectionID, media
 }
 
 func (r *CollectionRepository) GetItems(ctx context.Context, collectionID string, limit, offset int) ([]*library.MediaItem, error) {
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
 	query := `SELECT m.id, m.library_id, m.parent_id, m.type, m.title, m.sort_title, m.original_title,
 		 m.overview, m.tagline, m.file_path, m.file_size, m.file_fingerprint, m.duration_ms, m.bitrate,
 		 m.container_format, m.index_number, m.community_rating, m.official_rating,
@@ -199,6 +217,8 @@ func (r *CollectionRepository) GetItems(ctx context.Context, collectionID string
 }
 
 func (r *CollectionRepository) CountItems(ctx context.Context, collectionID string) (int, error) {
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
 	var count int
 	err := r.db.QueryRowContext(ctx,
 		`SELECT COUNT(*) FROM collection_items WHERE collection_id = $1`, collectionID,
@@ -263,6 +283,8 @@ func NewCollectionSmartQuerier(db *sql.DB) *CollectionSmartQuerier {
 }
 
 func (q *CollectionSmartQuerier) QueryByRules(ctx context.Context, rules []library.CollectionRule, sortBy, sortOrder string, limit int) ([]*library.MediaItem, error) {
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
 	query := `SELECT id, library_id, parent_id, type, title, sort_title, original_title, overview, tagline,
 		file_path, file_size, file_fingerprint, duration_ms, bitrate, container_format, index_number, community_rating,
 		official_rating, premiere_date, year, provider_ids, genres, studios, tags, added_at, updated_at

@@ -24,10 +24,14 @@ func NewMediaItemQueryRepoAdapter(db *sql.DB) *MediaItemQueryRepoAdapter {
 }
 
 func (r *MediaItemQueryRepoAdapter) GetByID(ctx context.Context, id string) (*library.MediaItem, error) {
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
 	return r.items.GetByID(ctx, id)
 }
 
 func (r *MediaItemQueryRepoAdapter) GetByIDs(ctx context.Context, ids []string) ([]*library.MediaItem, error) {
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
 	if len(ids) == 0 {
 		return nil, nil
 	}
@@ -52,15 +56,21 @@ func (r *MediaItemQueryRepoAdapter) GetByIDs(ctx context.Context, ids []string) 
 }
 
 func (r *MediaItemQueryRepoAdapter) List(ctx context.Context, filter library.ListMediaItemsFilter) ([]*library.MediaItem, error) {
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
 	return r.items.List(ctx, filter)
 }
 
 func (r *MediaItemQueryRepoAdapter) Count(ctx context.Context, filter library.ListMediaItemsFilter) (int, error) {
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
 	return r.items.Count(ctx, filter)
 }
 
 // GetCastByMediaItem returns cast members with person info in a single JOIN query.
 func (r *MediaItemQueryRepoAdapter) GetCastByMediaItem(ctx context.Context, mediaItemID string) ([]library.CastMember, error) {
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
 	rows, err := r.db.QueryContext(ctx,
 		`SELECT mp.person_id, p.name, p.thumb_path, mp.role_type, mp.character_name, mp.sort_order
 		 FROM media_people mp
@@ -85,6 +95,8 @@ func (r *MediaItemQueryRepoAdapter) GetCastByMediaItem(ctx context.Context, medi
 
 // GetCastForItems fetches cast for multiple media items in one query — eliminates N+1 in gallery listing.
 func (r *MediaItemQueryRepoAdapter) GetCastForItems(ctx context.Context, mediaItemIDs []string) (map[string][]library.CastMember, error) {
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
 	if len(mediaItemIDs) == 0 {
 		return map[string][]library.CastMember{}, nil
 	}

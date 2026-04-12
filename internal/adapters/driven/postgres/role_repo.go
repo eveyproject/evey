@@ -18,6 +18,8 @@ func NewRoleRepository(db *sql.DB) *RoleRepository {
 }
 
 func (r *RoleRepository) Create(ctx context.Context, role *user.Role) error {
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
 	permJSON, err := json.Marshal(role.Permissions)
 	if err != nil {
 		return err
@@ -31,18 +33,24 @@ func (r *RoleRepository) Create(ctx context.Context, role *user.Role) error {
 }
 
 func (r *RoleRepository) GetByID(ctx context.Context, id string) (*user.Role, error) {
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
 	return r.scanRole(r.db.QueryRowContext(ctx,
 		`SELECT id, name, description, permissions, is_system
 		 FROM roles WHERE id = $1`, id))
 }
 
 func (r *RoleRepository) GetByName(ctx context.Context, name string) (*user.Role, error) {
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
 	return r.scanRole(r.db.QueryRowContext(ctx,
 		`SELECT id, name, description, permissions, is_system
 		 FROM roles WHERE name = $1`, name))
 }
 
 func (r *RoleRepository) List(ctx context.Context) ([]*user.Role, error) {
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
 	rows, err := r.db.QueryContext(ctx,
 		`SELECT id, name, description, permissions, is_system
 		 FROM roles ORDER BY name LIMIT 1000`)

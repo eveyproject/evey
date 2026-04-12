@@ -17,6 +17,8 @@ func NewServerMetricRepository(db *sql.DB) *ServerMetricRepository {
 }
 
 func (r *ServerMetricRepository) Create(ctx context.Context, m *activity.ServerMetric) error {
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
 	_, err := r.db.ExecContext(ctx,
 		`INSERT INTO server_metrics (id, cpu_percent, memory_used_bytes, memory_total_bytes, active_streams,
 		 active_transcodes, bandwidth_bps, storage_used_bytes, storage_total_bytes, recorded_at)
@@ -28,6 +30,8 @@ func (r *ServerMetricRepository) Create(ctx context.Context, m *activity.ServerM
 }
 
 func (r *ServerMetricRepository) GetByTimeRange(ctx context.Context, from, to time.Time) ([]*activity.ServerMetric, error) {
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
 	rows, err := r.db.QueryContext(ctx,
 		`SELECT id, cpu_percent, memory_used_bytes, memory_total_bytes, active_streams, active_transcodes,
 		 bandwidth_bps, storage_used_bytes, storage_total_bytes, recorded_at
@@ -51,6 +55,8 @@ func (r *ServerMetricRepository) GetByTimeRange(ctx context.Context, from, to ti
 }
 
 func (r *ServerMetricRepository) Purge(ctx context.Context, before time.Time) error {
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
 	_, err := r.db.ExecContext(ctx, `DELETE FROM server_metrics WHERE recorded_at < $1`, before)
 	return err
 }

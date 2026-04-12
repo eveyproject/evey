@@ -24,6 +24,8 @@ func NewPlaylistRepository(db *sql.DB) *PlaylistRepository {
 }
 
 func (r *PlaylistRepository) Create(ctx context.Context, pl *playlist.Playlist) error {
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
 	rulesJSON, err := json.Marshal(pl.Rules)
 	if err != nil {
 		return fmt.Errorf("PlaylistRepo.Create marshal rules: %w", err)
@@ -40,6 +42,8 @@ func (r *PlaylistRepository) Create(ctx context.Context, pl *playlist.Playlist) 
 }
 
 func (r *PlaylistRepository) GetByID(ctx context.Context, id string) (*playlist.Playlist, error) {
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
 	pl := &playlist.Playlist{}
 	var rulesJSON []byte
 	err := r.db.QueryRowContext(ctx,
@@ -59,6 +63,8 @@ func (r *PlaylistRepository) GetByID(ctx context.Context, id string) (*playlist.
 }
 
 func (r *PlaylistRepository) List(ctx context.Context, userID string) ([]*playlist.Playlist, error) {
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
 	rows, err := r.db.QueryContext(ctx,
 		`SELECT id, name, description, user_id, type, rules, sort_by, sort_order, created_at, updated_at
 		 FROM playlists WHERE user_id = $1 ORDER BY created_at DESC LIMIT 1000`, userID,
@@ -87,6 +93,8 @@ func (r *PlaylistRepository) List(ctx context.Context, userID string) ([]*playli
 }
 
 func (r *PlaylistRepository) Update(ctx context.Context, pl *playlist.Playlist) error {
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
 	rulesJSON, err := json.Marshal(pl.Rules)
 	if err != nil {
 		return fmt.Errorf("PlaylistRepo.Update marshal rules: %w", err)
@@ -102,6 +110,8 @@ func (r *PlaylistRepository) Update(ctx context.Context, pl *playlist.Playlist) 
 }
 
 func (r *PlaylistRepository) Delete(ctx context.Context, id string) error {
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
 	_, err := r.db.ExecContext(ctx, `DELETE FROM playlists WHERE id = $1`, id)
 	if err != nil {
 		return fmt.Errorf("PlaylistRepo.Delete: %w", err)
@@ -120,6 +130,8 @@ func NewPlaylistItemRepository(db *sql.DB) *PlaylistItemRepository {
 }
 
 func (r *PlaylistItemRepository) Add(ctx context.Context, item *playlist.PlaylistItem) error {
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
 	_, err := r.db.ExecContext(ctx,
 		`INSERT INTO playlist_items (playlist_id, media_item_id, sort_order, added_at)
 		 VALUES ($1,$2,$3,$4) ON CONFLICT DO NOTHING`,
@@ -132,6 +144,8 @@ func (r *PlaylistItemRepository) Add(ctx context.Context, item *playlist.Playlis
 }
 
 func (r *PlaylistItemRepository) Remove(ctx context.Context, playlistID, mediaItemID string) error {
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
 	res, err := r.db.ExecContext(ctx,
 		`DELETE FROM playlist_items WHERE playlist_id = $1 AND media_item_id = $2`,
 		playlistID, mediaItemID,
@@ -150,6 +164,8 @@ func (r *PlaylistItemRepository) Remove(ctx context.Context, playlistID, mediaIt
 }
 
 func (r *PlaylistItemRepository) GetByPlaylistID(ctx context.Context, playlistID string) ([]*playlist.PlaylistItem, error) {
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
 	rows, err := r.db.QueryContext(ctx,
 		`SELECT playlist_id, media_item_id, sort_order, added_at
 		 FROM playlist_items WHERE playlist_id = $1 ORDER BY sort_order`, playlistID,
@@ -174,6 +190,8 @@ func (r *PlaylistItemRepository) GetByPlaylistID(ctx context.Context, playlistID
 }
 
 func (r *PlaylistItemRepository) Reorder(ctx context.Context, playlistID string, mediaItemIDs []string) error {
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
 	tx, err := r.db.BeginTx(ctx, nil)
 	if err != nil {
 		return fmt.Errorf("PlaylistItemRepo.Reorder begin tx: %w", err)
@@ -212,6 +230,8 @@ func NewSmartPlaylistQuerier(db *sql.DB) *SmartPlaylistQuerier {
 }
 
 func (q *SmartPlaylistQuerier) QueryByRules(ctx context.Context, rules []playlist.Rule, sortBy, sortOrder string, limit int) ([]*library.MediaItem, error) {
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
 	query := `SELECT id, library_id, parent_id, type, title, sort_title, original_title, overview, tagline,
 		file_path, file_size, duration_ms, bitrate, container_format, index_number, community_rating,
 		official_rating, premiere_date, year, provider_ids, genres, studios, tags, added_at, updated_at

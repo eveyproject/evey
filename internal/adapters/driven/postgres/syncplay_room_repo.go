@@ -18,6 +18,8 @@ func NewSyncPlayRoomRepo(db *sql.DB) *SyncPlayRoomRepo {
 }
 
 func (r *SyncPlayRoomRepo) Create(ctx context.Context, room *syncplay.Room) error {
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
 	membersJSON, err := json.Marshal(room.Members)
 	if err != nil {
 		return err
@@ -35,19 +37,23 @@ func (r *SyncPlayRoomRepo) Create(ctx context.Context, room *syncplay.Room) erro
 }
 
 func (r *SyncPlayRoomRepo) Get(ctx context.Context, id string) (*syncplay.Room, error) {
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
 	return r.scanRoom(ctx, `SELECT id, code, name, host_id, media_id, members, state, created_at
 		 FROM syncplay_rooms WHERE id = $1`, id)
 }
 
 func (r *SyncPlayRoomRepo) GetByCode(ctx context.Context, code string) (*syncplay.Room, error) {
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
 	return r.scanRoom(ctx, `SELECT id, code, name, host_id, media_id, members, state, created_at
 		 FROM syncplay_rooms WHERE code = $1`, code)
 }
 
-func (r *SyncPlayRoomRepo) scanRoom(_ context.Context, query string, arg string) (*syncplay.Room, error) {
+func (r *SyncPlayRoomRepo) scanRoom(ctx context.Context, query string, arg string) (*syncplay.Room, error) {
 	var room syncplay.Room
 	var membersJSON, stateJSON []byte
-	err := r.db.QueryRow(query, arg).Scan(
+	err := r.db.QueryRowContext(ctx, query, arg).Scan(
 		&room.ID, &room.Code, &room.Name, &room.HostID, &room.MediaID,
 		&membersJSON, &stateJSON, &room.CreatedAt,
 	)
@@ -67,6 +73,8 @@ func (r *SyncPlayRoomRepo) scanRoom(_ context.Context, query string, arg string)
 }
 
 func (r *SyncPlayRoomRepo) AddMember(ctx context.Context, roomID string, member syncplay.Member) error {
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
 	room, err := r.Get(ctx, roomID)
 	if err != nil {
 		return err
@@ -92,6 +100,8 @@ func (r *SyncPlayRoomRepo) AddMember(ctx context.Context, roomID string, member 
 }
 
 func (r *SyncPlayRoomRepo) RemoveMember(ctx context.Context, roomID string, userID string) error {
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
 	room, err := r.Get(ctx, roomID)
 	if err != nil {
 		return err
@@ -117,6 +127,8 @@ func (r *SyncPlayRoomRepo) RemoveMember(ctx context.Context, roomID string, user
 }
 
 func (r *SyncPlayRoomRepo) UpdateState(ctx context.Context, roomID string, state syncplay.PlaybackState) error {
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
 	stateJSON, err := json.Marshal(state)
 	if err != nil {
 		return err
@@ -129,6 +141,8 @@ func (r *SyncPlayRoomRepo) UpdateState(ctx context.Context, roomID string, state
 }
 
 func (r *SyncPlayRoomRepo) Delete(ctx context.Context, id string) error {
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
 	_, err := r.db.ExecContext(ctx,
 		`DELETE FROM syncplay_rooms WHERE id = $1`, id,
 	)

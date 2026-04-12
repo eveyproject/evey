@@ -18,6 +18,8 @@ func NewPersonTranslationRepository(db *sql.DB) *PersonTranslationRepository {
 }
 
 func (r *PersonTranslationRepository) Upsert(ctx context.Context, t *library.PersonTranslation) error {
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
 	_, err := r.db.ExecContext(ctx, `
 		INSERT INTO person_translations (person_id, locale, biography)
 		VALUES ($1, $2, $3)
@@ -28,6 +30,8 @@ func (r *PersonTranslationRepository) Upsert(ctx context.Context, t *library.Per
 }
 
 func (r *PersonTranslationRepository) GetByPersonAndLocale(ctx context.Context, personID, locale string) (*library.PersonTranslation, error) {
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
 	row := r.db.QueryRowContext(ctx, `
 		SELECT person_id, locale, biography
 		FROM person_translations
@@ -44,6 +48,8 @@ func (r *PersonTranslationRepository) GetByPersonAndLocale(ctx context.Context, 
 }
 
 func (r *PersonTranslationRepository) GetByPerson(ctx context.Context, personID string) ([]*library.PersonTranslation, error) {
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
 	rows, err := r.db.QueryContext(ctx, `
 		SELECT person_id, locale, biography
 		FROM person_translations
@@ -66,6 +72,8 @@ func (r *PersonTranslationRepository) GetByPerson(ctx context.Context, personID 
 }
 
 func (r *PersonTranslationRepository) DeleteByPerson(ctx context.Context, personID string) error {
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
 	_, err := r.db.ExecContext(ctx, `DELETE FROM person_translations WHERE person_id = $1`, personID)
 	return err
 }

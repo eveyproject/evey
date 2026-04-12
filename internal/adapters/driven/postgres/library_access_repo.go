@@ -16,6 +16,8 @@ func NewLibraryAccessRepository(db *sql.DB) *LibraryAccessRepository {
 }
 
 func (r *LibraryAccessRepository) Grant(ctx context.Context, userID, libraryID string) error {
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
 	_, err := r.db.ExecContext(ctx,
 		`INSERT INTO library_access (user_id, library_id) VALUES ($1, $2) ON CONFLICT DO NOTHING`,
 		userID, libraryID)
@@ -23,6 +25,8 @@ func (r *LibraryAccessRepository) Grant(ctx context.Context, userID, libraryID s
 }
 
 func (r *LibraryAccessRepository) Revoke(ctx context.Context, userID, libraryID string) error {
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
 	_, err := r.db.ExecContext(ctx,
 		`DELETE FROM library_access WHERE user_id = $1 AND library_id = $2`,
 		userID, libraryID)
@@ -30,6 +34,8 @@ func (r *LibraryAccessRepository) Revoke(ctx context.Context, userID, libraryID 
 }
 
 func (r *LibraryAccessRepository) GetByUserID(ctx context.Context, userID string) ([]string, error) {
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
 	rows, err := r.db.QueryContext(ctx,
 		`SELECT library_id FROM library_access WHERE user_id = $1 ORDER BY granted_at`, userID)
 	if err != nil {
@@ -48,6 +54,8 @@ func (r *LibraryAccessRepository) GetByUserID(ctx context.Context, userID string
 }
 
 func (r *LibraryAccessRepository) HasAccess(ctx context.Context, userID, libraryID string) (bool, error) {
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
 	var count int
 	err := r.db.QueryRowContext(ctx,
 		`SELECT COUNT(*) FROM library_access WHERE user_id = $1`, userID).Scan(&count)
@@ -64,6 +72,8 @@ func (r *LibraryAccessRepository) HasAccess(ctx context.Context, userID, library
 }
 
 func (r *LibraryAccessRepository) ListUsersWithRestrictions(ctx context.Context) (map[string][]string, error) {
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
 	rows, err := r.db.QueryContext(ctx,
 		`SELECT user_id, library_id FROM library_access ORDER BY user_id, granted_at LIMIT 1000`)
 	if err != nil {

@@ -19,6 +19,8 @@ func NewMusicTrackRepository(db *sql.DB) *MusicTrackRepository {
 }
 
 func (r *MusicTrackRepository) Upsert(ctx context.Context, t music.Track) error {
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
 	if t.ID == "" {
 		t.ID = uuid.New().String()
 	}
@@ -48,6 +50,8 @@ func (r *MusicTrackRepository) Upsert(ctx context.Context, t music.Track) error 
 }
 
 func (r *MusicTrackRepository) GetByID(ctx context.Context, id string) (*music.Track, error) {
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
 	t := &music.Track{}
 	err := r.db.QueryRowContext(ctx, `
 		SELECT id, library_id, title, artist, album, album_artist,
@@ -67,11 +71,15 @@ func (r *MusicTrackRepository) GetByID(ctx context.Context, id string) (*music.T
 }
 
 func (r *MusicTrackRepository) Delete(ctx context.Context, id string) error {
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
 	_, err := r.db.ExecContext(ctx, `DELETE FROM music_tracks WHERE id=$1`, id)
 	return err
 }
 
 func (r *MusicTrackRepository) ListByLibrary(ctx context.Context, libraryID string, limit, offset int, search string) ([]music.Track, int, error) {
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
 	if limit <= 0 {
 		limit = 50
 	}
@@ -94,6 +102,8 @@ func (r *MusicTrackRepository) ListByLibrary(ctx context.Context, libraryID stri
 }
 
 func (r *MusicTrackRepository) ListByAlbum(ctx context.Context, album, artist string) ([]music.Track, error) {
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
 	rows, err := r.db.QueryContext(ctx, `
 		SELECT id, library_id, title, artist, album, album_artist,
 		       year, track_number, disk_number, duration, file_path,
@@ -110,6 +120,8 @@ func (r *MusicTrackRepository) ListByAlbum(ctx context.Context, album, artist st
 }
 
 func (r *MusicTrackRepository) ListByArtist(ctx context.Context, artist string, limit, offset int) ([]music.Track, int, error) {
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
 	if limit <= 0 {
 		limit = 50
 	}
@@ -130,6 +142,8 @@ func (r *MusicTrackRepository) ListByArtist(ctx context.Context, artist string, 
 }
 
 func (r *MusicTrackRepository) Search(ctx context.Context, query string, limit int) ([]music.Track, error) {
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
 	if limit <= 0 {
 		limit = 20
 	}
@@ -150,6 +164,8 @@ func (r *MusicTrackRepository) Search(ctx context.Context, query string, limit i
 }
 
 func (r *MusicTrackRepository) GetAlbums(ctx context.Context, libraryID string) ([]music.Album, error) {
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
 	rows, err := r.db.QueryContext(ctx, `
 		SELECT album, COALESCE(NULLIF(album_artist,''), artist),
 		       MIN(year), COUNT(*), SUM(duration), MIN(cover_art_url)
@@ -174,6 +190,8 @@ func (r *MusicTrackRepository) GetAlbums(ctx context.Context, libraryID string) 
 }
 
 func (r *MusicTrackRepository) GetArtists(ctx context.Context, libraryID string) ([]music.Artist, error) {
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
 	rows, err := r.db.QueryContext(ctx, `
 		SELECT COALESCE(NULLIF(album_artist,''), artist), COUNT(*), COUNT(DISTINCT album)
 		FROM music_tracks WHERE library_id=$1
@@ -196,6 +214,8 @@ func (r *MusicTrackRepository) GetArtists(ctx context.Context, libraryID string)
 }
 
 func (r *MusicTrackRepository) ListAllByLibrary(ctx context.Context, libraryID string) ([]music.Track, error) {
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
 	rows, err := r.db.QueryContext(ctx, `
 		SELECT id, library_id, title, artist, album, album_artist,
 		       year, track_number, disk_number, duration, file_path,
@@ -212,6 +232,8 @@ func (r *MusicTrackRepository) ListAllByLibrary(ctx context.Context, libraryID s
 }
 
 func (r *MusicTrackRepository) UpdateFilePath(ctx context.Context, id, newPath string, modTime time.Time) error {
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
 	_, err := r.db.ExecContext(ctx,
 		`UPDATE music_tracks SET file_path = $1, mod_time = $2, updated_at = NOW() WHERE id = $3`,
 		newPath, modTime, id)

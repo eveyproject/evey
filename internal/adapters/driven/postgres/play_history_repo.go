@@ -17,6 +17,8 @@ func NewPlayHistoryRepository(db *sql.DB) *PlayHistoryRepository {
 }
 
 func (r *PlayHistoryRepository) List(ctx context.Context, filter activity.PlayHistoryFilter) ([]*activity.PlayHistoryEntry, error) {
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
 	query := `
 		SELECT ps.id, ps.profile_id, ps.media_item_id,
 		       mi.title, mi.type,

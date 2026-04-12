@@ -21,22 +21,32 @@ func NewFeedConfigCommandRepo(db *sql.DB) *FeedConfigCommandRepo {
 }
 
 func (r *FeedConfigCommandRepo) UpsertAdminConfig(ctx context.Context, cfg *feed.AdminConfig) error {
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
 	return r.admin.Upsert(ctx, cfg)
 }
 
 func (r *FeedConfigCommandRepo) UpsertProfileConfig(ctx context.Context, cfg *feed.ProfileConfig) error {
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
 	return r.profile.Upsert(ctx, cfg)
 }
 
 func (r *FeedConfigCommandRepo) BatchUpsertAdminConfig(ctx context.Context, cfgs []*feed.AdminConfig) error {
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
 	return r.admin.BatchUpsert(ctx, cfgs)
 }
 
 func (r *FeedConfigCommandRepo) DeleteProfileConfig(ctx context.Context, profileID string, feedType feed.Type) error {
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
 	return r.profile.Delete(ctx, profileID, feedType)
 }
 
 func (r *FeedConfigCommandRepo) DeleteAdminConfigByType(ctx context.Context, feedType feed.Type) error {
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
 	if err := r.profile.DeleteByType(ctx, feedType); err != nil {
 		return err
 	}
@@ -57,10 +67,14 @@ func NewFeedConfigQueryRepo(db *sql.DB) *FeedConfigQueryRepo {
 }
 
 func (r *FeedConfigQueryRepo) GetAdminConfig(ctx context.Context) ([]*feed.AdminConfig, error) {
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
 	return r.admin.GetAll(ctx)
 }
 
 func (r *FeedConfigQueryRepo) GetProfileConfig(ctx context.Context, profileID string) ([]*feed.ProfileConfig, error) {
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
 	return r.profile.GetByProfile(ctx, profileID)
 }
 

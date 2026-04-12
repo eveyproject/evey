@@ -17,6 +17,8 @@ func NewNotificationSettingsRepository(db *sql.DB) *NotificationSettingsReposito
 }
 
 func (r *NotificationSettingsRepository) GetByProfile(ctx context.Context, profileID string) (*notification.Settings, error) {
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
 	s := &notification.Settings{ProfileID: profileID}
 	var ml, sl, msl string
 	err := r.db.QueryRowContext(ctx,
@@ -37,6 +39,8 @@ func (r *NotificationSettingsRepository) GetByProfile(ctx context.Context, profi
 }
 
 func (r *NotificationSettingsRepository) GetByProfiles(ctx context.Context, profileIDs []string) (map[string]*notification.Settings, error) {
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
 	result := make(map[string]*notification.Settings, len(profileIDs))
 	if len(profileIDs) == 0 {
 		return result, nil
@@ -80,6 +84,8 @@ func (r *NotificationSettingsRepository) GetByProfiles(ctx context.Context, prof
 }
 
 func (r *NotificationSettingsRepository) Upsert(ctx context.Context, s *notification.Settings) error {
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
 	_, err := r.db.ExecContext(ctx,
 		`INSERT INTO notification_settings (profile_id, movie_level, series_level, music_level)
 		 VALUES ($1,$2,$3,$4)
@@ -93,6 +99,8 @@ func (r *NotificationSettingsRepository) Upsert(ctx context.Context, s *notifica
 }
 
 func (r *NotificationSettingsRepository) GetGlobalDefaults(ctx context.Context) (*notification.Settings, error) {
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
 	s := &notification.Settings{}
 	var ml, sl, msl string
 	err := r.db.QueryRowContext(ctx,
@@ -108,6 +116,8 @@ func (r *NotificationSettingsRepository) GetGlobalDefaults(ctx context.Context) 
 }
 
 func (r *NotificationSettingsRepository) UpsertGlobalDefaults(ctx context.Context, s *notification.Settings) error {
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
 	_, err := r.db.ExecContext(ctx,
 		`UPDATE notification_settings_global SET movie_level=$1, series_level=$2, music_level=$3 WHERE id=1`,
 		string(s.MovieLevel), string(s.SeriesLevel), string(s.MusicLevel),

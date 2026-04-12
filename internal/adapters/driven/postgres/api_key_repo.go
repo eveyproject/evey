@@ -19,6 +19,8 @@ func NewAPIKeyRepository(db *sql.DB) *APIKeyRepository {
 }
 
 func (r *APIKeyRepository) Create(ctx context.Context, key *user.APIKeyModel) error {
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
 	permJSON, err := json.Marshal(key.Permissions)
 	if err != nil {
 		return err
@@ -32,6 +34,8 @@ func (r *APIKeyRepository) Create(ctx context.Context, key *user.APIKeyModel) er
 }
 
 func (r *APIKeyRepository) GetByKeyHash(ctx context.Context, hash string) (*user.APIKeyModel, error) {
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
 	key := &user.APIKeyModel{}
 	var permJSON []byte
 	err := r.db.QueryRowContext(ctx,
@@ -48,6 +52,8 @@ func (r *APIKeyRepository) GetByKeyHash(ctx context.Context, hash string) (*user
 }
 
 func (r *APIKeyRepository) ListByUserID(ctx context.Context, userID string) ([]*user.APIKeyModel, error) {
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
 	rows, err := r.db.QueryContext(ctx,
 		`SELECT id, user_id, key_hash, name, permissions, last_used_at, expires_at, created_at
 		 FROM api_keys WHERE user_id = $1 ORDER BY created_at LIMIT 100`, userID)
@@ -72,11 +78,15 @@ func (r *APIKeyRepository) ListByUserID(ctx context.Context, userID string) ([]*
 }
 
 func (r *APIKeyRepository) Delete(ctx context.Context, id string) error {
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
 	_, err := r.db.ExecContext(ctx, `DELETE FROM api_keys WHERE id = $1`, id)
 	return err
 }
 
 func (r *APIKeyRepository) UpdateLastUsed(ctx context.Context, id string, t time.Time) error {
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
 	_, err := r.db.ExecContext(ctx,
 		`UPDATE api_keys SET last_used_at = $1 WHERE id = $2`, t, id)
 	return err

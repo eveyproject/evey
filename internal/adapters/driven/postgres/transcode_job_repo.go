@@ -16,6 +16,8 @@ func NewTranscodeJobRepository(db *sql.DB) *TranscodeJobRepository {
 }
 
 func (r *TranscodeJobRepository) Create(ctx context.Context, job *transcoding.TranscodeJob) error {
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
 	_, err := r.db.ExecContext(ctx,
 		`INSERT INTO transcode_sessions (id, media_item_id, input_codec, output_codec, hw_accel_type, preset,
 		 resolution_in, resolution_out, bitrate_in, bitrate_out, speed, status, error_message,
@@ -29,6 +31,8 @@ func (r *TranscodeJobRepository) Create(ctx context.Context, job *transcoding.Tr
 }
 
 func (r *TranscodeJobRepository) GetByID(ctx context.Context, id string) (*transcoding.TranscodeJob, error) {
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
 	return r.scanJob(r.db.QueryRowContext(ctx,
 		`SELECT id, media_item_id, input_codec, output_codec, hw_accel_type, preset,
 		 resolution_in, resolution_out, bitrate_in, bitrate_out, speed, status, error_message,
@@ -37,6 +41,8 @@ func (r *TranscodeJobRepository) GetByID(ctx context.Context, id string) (*trans
 }
 
 func (r *TranscodeJobRepository) Update(ctx context.Context, job *transcoding.TranscodeJob) error {
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
 	_, err := r.db.ExecContext(ctx,
 		`UPDATE transcode_sessions SET media_item_id=$1, input_codec=$2, output_codec=$3, hw_accel_type=$4,
 		 preset=$5, resolution_in=$6, resolution_out=$7, bitrate_in=$8, bitrate_out=$9, speed=$10,
@@ -50,6 +56,8 @@ func (r *TranscodeJobRepository) Update(ctx context.Context, job *transcoding.Tr
 }
 
 func (r *TranscodeJobRepository) ListActive(ctx context.Context) ([]*transcoding.TranscodeJob, error) {
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
 	rows, err := r.db.QueryContext(ctx,
 		`SELECT id, media_item_id, input_codec, output_codec, hw_accel_type, preset,
 		 resolution_in, resolution_out, bitrate_in, bitrate_out, speed, status, error_message,
@@ -64,6 +72,8 @@ func (r *TranscodeJobRepository) ListActive(ctx context.Context) ([]*transcoding
 }
 
 func (r *TranscodeJobRepository) ListByMediaItem(ctx context.Context, mediaItemID string) ([]*transcoding.TranscodeJob, error) {
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
 	rows, err := r.db.QueryContext(ctx,
 		`SELECT id, media_item_id, input_codec, output_codec, hw_accel_type, preset,
 		 resolution_in, resolution_out, bitrate_in, bitrate_out, speed, status, error_message,

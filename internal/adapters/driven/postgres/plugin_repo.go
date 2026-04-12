@@ -18,6 +18,8 @@ func NewPluginRepository(db *sql.DB) *PluginRepository {
 }
 
 func (r *PluginRepository) Create(ctx context.Context, p *plugin.Plugin) error {
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
 	capJSON, err := json.Marshal(p.Capabilities)
 	if err != nil {
 		return err
@@ -46,6 +48,8 @@ func (r *PluginRepository) Create(ctx context.Context, p *plugin.Plugin) error {
 }
 
 func (r *PluginRepository) GetByID(ctx context.Context, id string) (*plugin.Plugin, error) {
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
 	return r.scanPlugin(r.db.QueryRowContext(ctx,
 		`SELECT id, name, version, description, author, language, entrypoint, install_dir,
 		 capabilities, permissions, config_schema, config, enabled, status, error_message, installed_at, updated_at, source_hash
@@ -53,6 +57,8 @@ func (r *PluginRepository) GetByID(ctx context.Context, id string) (*plugin.Plug
 }
 
 func (r *PluginRepository) GetByName(ctx context.Context, name string) (*plugin.Plugin, error) {
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
 	return r.scanPlugin(r.db.QueryRowContext(ctx,
 		`SELECT id, name, version, description, author, language, entrypoint, install_dir,
 		 capabilities, permissions, config_schema, config, enabled, status, error_message, installed_at, updated_at, source_hash
@@ -60,6 +66,8 @@ func (r *PluginRepository) GetByName(ctx context.Context, name string) (*plugin.
 }
 
 func (r *PluginRepository) List(ctx context.Context) ([]*plugin.Plugin, error) {
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
 	rows, err := r.db.QueryContext(ctx,
 		`SELECT id, name, version, description, author, language, entrypoint, install_dir,
 		 capabilities, permissions, config_schema, config, enabled, status, error_message, installed_at, updated_at, source_hash
@@ -96,6 +104,8 @@ func (r *PluginRepository) List(ctx context.Context) ([]*plugin.Plugin, error) {
 }
 
 func (r *PluginRepository) Update(ctx context.Context, p *plugin.Plugin) error {
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
 	capJSON, err := json.Marshal(p.Capabilities)
 	if err != nil {
 		return err
@@ -124,6 +134,8 @@ func (r *PluginRepository) Update(ctx context.Context, p *plugin.Plugin) error {
 }
 
 func (r *PluginRepository) Delete(ctx context.Context, id string) error {
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
 	_, err := r.db.ExecContext(ctx, `DELETE FROM plugins WHERE id = $1`, id)
 	return err
 }

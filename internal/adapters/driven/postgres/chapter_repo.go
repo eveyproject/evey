@@ -18,6 +18,8 @@ func NewChapterRepository(db *sql.DB) *ChapterRepository {
 }
 
 func (r *ChapterRepository) ReplaceBatch(ctx context.Context, mediaItemID string, chapters []*library.Chapter) error {
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
 	tx, err := r.db.BeginTx(ctx, nil)
 	if err != nil {
 		return err
@@ -51,6 +53,8 @@ func (r *ChapterRepository) ReplaceBatch(ctx context.Context, mediaItemID string
 }
 
 func (r *ChapterRepository) GetByMediaItemID(ctx context.Context, mediaItemID string) ([]*library.Chapter, error) {
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
 	rows, err := r.db.QueryContext(ctx,
 		`SELECT id, media_item_id, title, start_time_ms, end_time_ms, sort_order
 		 FROM chapters WHERE media_item_id = $1 ORDER BY sort_order`, mediaItemID)

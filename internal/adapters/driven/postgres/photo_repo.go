@@ -17,6 +17,8 @@ func NewPhotoRepository(db *sql.DB) *PhotoRepository {
 }
 
 func (r *PhotoRepository) Upsert(ctx context.Context, p photo.Photo) error {
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
 	_, err := r.db.ExecContext(ctx, `
 		INSERT INTO photos (id, library_id, title, file_path, file_size, file_hash, mod_time, mime_type, width, height,
 		                    taken_at, latitude, longitude, camera_model, album, created_at, updated_at)
@@ -44,6 +46,8 @@ func (r *PhotoRepository) Upsert(ctx context.Context, p photo.Photo) error {
 }
 
 func (r *PhotoRepository) GetByID(ctx context.Context, id string) (*photo.Photo, error) {
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
 	p := &photo.Photo{}
 	err := r.db.QueryRowContext(ctx, `
 		SELECT id, library_id, title, file_path, file_size, file_hash, mod_time, mime_type, width, height,
@@ -64,11 +68,15 @@ func (r *PhotoRepository) GetByID(ctx context.Context, id string) (*photo.Photo,
 }
 
 func (r *PhotoRepository) Delete(ctx context.Context, id string) error {
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
 	_, err := r.db.ExecContext(ctx, `DELETE FROM photos WHERE id = $1`, id)
 	return err
 }
 
 func (r *PhotoRepository) ListByLibrary(ctx context.Context, libraryID string, limit, offset int) ([]photo.Photo, int, error) {
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
 	rows, err := r.db.QueryContext(ctx, `
 		SELECT id, library_id, title, file_path, file_size, file_hash, mod_time, mime_type, width, height,
 		       taken_at, latitude, longitude, camera_model, album, created_at, updated_at,
@@ -85,6 +93,8 @@ func (r *PhotoRepository) ListByLibrary(ctx context.Context, libraryID string, l
 }
 
 func (r *PhotoRepository) ListByAlbum(ctx context.Context, libraryID, album string, limit, offset int) ([]photo.Photo, int, error) {
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
 	rows, err := r.db.QueryContext(ctx, `
 		SELECT id, library_id, title, file_path, file_size, file_hash, mod_time, mime_type, width, height,
 		       taken_at, latitude, longitude, camera_model, album, created_at, updated_at,
@@ -101,6 +111,8 @@ func (r *PhotoRepository) ListByAlbum(ctx context.Context, libraryID, album stri
 }
 
 func (r *PhotoRepository) GetAlbums(ctx context.Context, libraryID string) ([]photo.Album, error) {
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
 	rows, err := r.db.QueryContext(ctx, `
 		SELECT album, library_id, COUNT(*) as photo_count, MIN(id) as cover_photo_id
 		FROM photos WHERE library_id = $1 AND album != ''
@@ -123,6 +135,8 @@ func (r *PhotoRepository) GetAlbums(ctx context.Context, libraryID string) ([]ph
 }
 
 func (r *PhotoRepository) Search(ctx context.Context, libraryID, query string, limit int) ([]photo.Photo, error) {
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
 	pattern := "%" + query + "%"
 	rows, err := r.db.QueryContext(ctx, `
 		SELECT id, library_id, title, file_path, file_size, file_hash, mod_time, mime_type, width, height,
@@ -139,6 +153,8 @@ func (r *PhotoRepository) Search(ctx context.Context, libraryID, query string, l
 }
 
 func (r *PhotoRepository) ListAllByLibrary(ctx context.Context, libraryID string) ([]photo.Photo, error) {
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
 	rows, err := r.db.QueryContext(ctx, `
 		SELECT id, library_id, title, file_path, file_size, file_hash, mod_time, mime_type, width, height,
 		       taken_at, latitude, longitude, camera_model, album, created_at, updated_at
@@ -154,6 +170,8 @@ func (r *PhotoRepository) ListAllByLibrary(ctx context.Context, libraryID string
 }
 
 func (r *PhotoRepository) UpdateFilePath(ctx context.Context, id, newPath string, modTime time.Time) error {
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
 	_, err := r.db.ExecContext(ctx,
 		`UPDATE photos SET file_path = $1, mod_time = $2, updated_at = NOW() WHERE id = $3`,
 		newPath, modTime, id)

@@ -17,6 +17,8 @@ func NewNotificationRepository(db *sql.DB) *NotificationRepository {
 }
 
 func (r *NotificationRepository) Create(ctx context.Context, n *notification.Notification) error {
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
 	_, err := r.db.ExecContext(ctx,
 		`INSERT INTO notifications (id, profile_id, type, title, message, media_item_id, level, created_at, expires_at)
 		 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
@@ -27,6 +29,8 @@ func (r *NotificationRepository) Create(ctx context.Context, n *notification.Not
 }
 
 func (r *NotificationRepository) ListByProfile(ctx context.Context, profileID string, unreadOnly bool, limit, offset int) ([]*notification.Notification, error) {
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
 	q := `SELECT id, profile_id, type, title, message, media_item_id, level, created_at, expires_at, delivered_at, read_at
 	      FROM notifications WHERE profile_id = $1`
 	if unreadOnly {
@@ -62,18 +66,24 @@ func scanNotifications(rows *sql.Rows) ([]*notification.Notification, error) {
 }
 
 func (r *NotificationRepository) MarkRead(ctx context.Context, id, profileID string) error {
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
 	now := time.Now()
 	_, err := r.db.ExecContext(ctx, `UPDATE notifications SET read_at = $1 WHERE id = $2 AND profile_id = $3 AND read_at IS NULL`, now, id, profileID)
 	return err
 }
 
 func (r *NotificationRepository) MarkAllRead(ctx context.Context, profileID string) error {
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
 	now := time.Now()
 	_, err := r.db.ExecContext(ctx, `UPDATE notifications SET read_at = $1 WHERE profile_id = $2 AND read_at IS NULL`, now, profileID)
 	return err
 }
 
 func (r *NotificationRepository) UnreadCount(ctx context.Context, profileID string) (int, error) {
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
 	var count int
 	err := r.db.QueryRowContext(ctx,
 		`SELECT COUNT(*) FROM notifications WHERE profile_id = $1 AND read_at IS NULL`, profileID,
@@ -82,11 +92,15 @@ func (r *NotificationRepository) UnreadCount(ctx context.Context, profileID stri
 }
 
 func (r *NotificationRepository) DeleteAll(ctx context.Context, profileID string) error {
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
 	_, err := r.db.ExecContext(ctx, `DELETE FROM notifications WHERE profile_id = $1`, profileID)
 	return err
 }
 
 func (r *NotificationRepository) CleanupExpired(ctx context.Context) error {
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
 	_, err := r.db.ExecContext(ctx, `DELETE FROM notifications WHERE expires_at IS NOT NULL AND expires_at < NOW()`)
 	return err
 }

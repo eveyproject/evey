@@ -20,6 +20,8 @@ func NewPersonRepository(db *sql.DB) *PersonRepository {
 }
 
 func (r *PersonRepository) Create(ctx context.Context, person *library.Person) error {
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
 	providerJSON, err := json.Marshal(person.ProviderIDs)
 	if err != nil {
 		return err
@@ -34,18 +36,24 @@ func (r *PersonRepository) Create(ctx context.Context, person *library.Person) e
 }
 
 func (r *PersonRepository) GetByID(ctx context.Context, id string) (*library.Person, error) {
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
 	return r.scanPerson(r.db.QueryRowContext(ctx,
 		`SELECT id, name, provider_ids, thumb_path, biography, birthday, deathday, place_of_birth, known_for
 		 FROM people WHERE id = $1`, id))
 }
 
 func (r *PersonRepository) GetByName(ctx context.Context, name string) (*library.Person, error) {
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
 	return r.scanPerson(r.db.QueryRowContext(ctx,
 		`SELECT id, name, provider_ids, thumb_path, biography, birthday, deathday, place_of_birth, known_for
 		 FROM people WHERE name = $1`, name))
 }
 
 func (r *PersonRepository) List(ctx context.Context) ([]*library.Person, error) {
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
 	rows, err := r.db.QueryContext(ctx,
 		`SELECT id, name, provider_ids, thumb_path, biography, birthday, deathday, place_of_birth, known_for
 		 FROM people ORDER BY name LIMIT 10000`)
@@ -70,6 +78,8 @@ func (r *PersonRepository) List(ctx context.Context) ([]*library.Person, error) 
 }
 
 func (r *PersonRepository) Update(ctx context.Context, person *library.Person) error {
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
 	providerJSON, err := json.Marshal(person.ProviderIDs)
 	if err != nil {
 		return err

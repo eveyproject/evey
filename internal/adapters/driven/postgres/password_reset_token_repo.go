@@ -18,6 +18,8 @@ func NewPasswordResetTokenRepository(db *sql.DB) *PasswordResetTokenRepository {
 }
 
 func (r *PasswordResetTokenRepository) Create(ctx context.Context, t *user.PasswordResetToken) error {
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
 	_, err := r.db.ExecContext(ctx,
 		`INSERT INTO password_reset_tokens (id, user_id, token_hash, expires_at, used, created_at)
 		 VALUES ($1, $2, $3, $4, $5, $6)`,
@@ -26,6 +28,8 @@ func (r *PasswordResetTokenRepository) Create(ctx context.Context, t *user.Passw
 }
 
 func (r *PasswordResetTokenRepository) GetByTokenHash(ctx context.Context, hash string) (*user.PasswordResetToken, error) {
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
 	t := &user.PasswordResetToken{}
 	err := r.db.QueryRowContext(ctx,
 		`SELECT id, user_id, token_hash, expires_at, used, created_at
@@ -41,18 +45,24 @@ func (r *PasswordResetTokenRepository) GetByTokenHash(ctx context.Context, hash 
 }
 
 func (r *PasswordResetTokenRepository) MarkUsed(ctx context.Context, id string) error {
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
 	_, err := r.db.ExecContext(ctx,
 		`UPDATE password_reset_tokens SET used = TRUE WHERE id = $1`, id)
 	return err
 }
 
 func (r *PasswordResetTokenRepository) DeleteByUserID(ctx context.Context, userID string) error {
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
 	_, err := r.db.ExecContext(ctx,
 		`DELETE FROM password_reset_tokens WHERE user_id = $1`, userID)
 	return err
 }
 
 func (r *PasswordResetTokenRepository) DeleteExpired(ctx context.Context) error {
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
 	_, err := r.db.ExecContext(ctx,
 		`DELETE FROM password_reset_tokens WHERE expires_at < NOW() OR used = TRUE`)
 	return err

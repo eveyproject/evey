@@ -18,6 +18,8 @@ func NewMediaStreamRepository(db *sql.DB) *MediaStreamRepository {
 }
 
 func (r *MediaStreamRepository) CreateBatch(ctx context.Context, streams []*library.MediaStream) error {
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
 	if len(streams) == 0 {
 		return nil
 	}
@@ -50,6 +52,8 @@ func (r *MediaStreamRepository) CreateBatch(ctx context.Context, streams []*libr
 }
 
 func (r *MediaStreamRepository) ReplaceBatch(ctx context.Context, mediaItemID string, streams []*library.MediaStream) error {
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
 	tx, err := r.db.BeginTx(ctx, nil)
 	if err != nil {
 		return fmt.Errorf("MediaStreamRepo.ReplaceBatch begin tx: %w", err)
@@ -94,6 +98,8 @@ func (r *MediaStreamRepository) ReplaceBatch(ctx context.Context, mediaItemID st
 }
 
 func (r *MediaStreamRepository) GetByMediaItemID(ctx context.Context, mediaItemID string) ([]*library.MediaStream, error) {
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
 	rows, err := r.db.QueryContext(ctx,
 		`SELECT id, media_item_id, stream_index, stream_type, codec, codec_long_name, profile, language, title,
 		 is_default, is_forced, width, height, framerate, bit_depth, color_space, hdr_type, channels,
@@ -121,6 +127,8 @@ func (r *MediaStreamRepository) GetByMediaItemID(ctx context.Context, mediaItemI
 }
 
 func (r *MediaStreamRepository) DeleteByMediaItemID(ctx context.Context, mediaItemID string) error {
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
 	_, err := r.db.ExecContext(ctx, `DELETE FROM media_streams WHERE media_item_id = $1`, mediaItemID)
 	return err
 }

@@ -18,6 +18,8 @@ func NewMediaPersonRepository(db *sql.DB) *MediaPersonRepository {
 }
 
 func (r *MediaPersonRepository) Create(ctx context.Context, mp *library.MediaPerson) error {
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
 	_, err := r.db.ExecContext(ctx,
 		`INSERT INTO media_people (media_item_id, person_id, role_type, character_name, sort_order)
 		 VALUES ($1,$2,$3,$4,$5)
@@ -28,6 +30,8 @@ func (r *MediaPersonRepository) Create(ctx context.Context, mp *library.MediaPer
 }
 
 func (r *MediaPersonRepository) CreateBatch(ctx context.Context, mps []*library.MediaPerson) error {
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
 	if len(mps) == 0 {
 		return nil
 	}
@@ -48,11 +52,15 @@ func (r *MediaPersonRepository) CreateBatch(ctx context.Context, mps []*library.
 }
 
 func (r *MediaPersonRepository) DeleteByMediaItemID(ctx context.Context, mediaItemID string) error {
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
 	_, err := r.db.ExecContext(ctx, `DELETE FROM media_people WHERE media_item_id = $1`, mediaItemID)
 	return err
 }
 
 func (r *MediaPersonRepository) GetByMediaItemID(ctx context.Context, mediaItemID string) ([]*library.MediaPerson, error) {
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
 	rows, err := r.db.QueryContext(ctx,
 		`SELECT media_item_id, person_id, role_type, character_name, sort_order
 		 FROM media_people WHERE media_item_id = $1 ORDER BY sort_order`, mediaItemID)

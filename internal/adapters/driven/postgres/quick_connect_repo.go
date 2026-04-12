@@ -18,6 +18,8 @@ func NewQuickConnectRepository(db *sql.DB) *QuickConnectRepository {
 }
 
 func (r *QuickConnectRepository) Create(ctx context.Context, req *user.QuickConnectRequest) error {
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
 	_, err := r.db.ExecContext(ctx,
 		`INSERT INTO quick_connect_requests (id, code, secret, user_id, device_name, status, expires_at, created_at)
 		 VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`,
@@ -27,6 +29,8 @@ func (r *QuickConnectRepository) Create(ctx context.Context, req *user.QuickConn
 }
 
 func (r *QuickConnectRepository) GetByCode(ctx context.Context, code string) (*user.QuickConnectRequest, error) {
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
 	req := &user.QuickConnectRequest{}
 	err := r.db.QueryRowContext(ctx,
 		`SELECT id, code, secret, user_id, device_name, status, expires_at, created_at
@@ -42,6 +46,8 @@ func (r *QuickConnectRepository) GetByCode(ctx context.Context, code string) (*u
 }
 
 func (r *QuickConnectRepository) GetByShortCode(ctx context.Context, shortCode string) (*user.QuickConnectRequest, error) {
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
 	req := &user.QuickConnectRequest{}
 	err := r.db.QueryRowContext(ctx,
 		`SELECT id, code, secret, user_id, device_name, status, expires_at, created_at
@@ -59,6 +65,8 @@ func (r *QuickConnectRepository) GetByShortCode(ctx context.Context, shortCode s
 }
 
 func (r *QuickConnectRepository) UpdateStatus(ctx context.Context, id, status string, userID *string) error {
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
 	_, err := r.db.ExecContext(ctx,
 		`UPDATE quick_connect_requests SET status = $1, user_id = $2 WHERE id = $3`,
 		status, userID, id)
@@ -66,6 +74,8 @@ func (r *QuickConnectRepository) UpdateStatus(ctx context.Context, id, status st
 }
 
 func (r *QuickConnectRepository) DeleteExpired(ctx context.Context) error {
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
 	_, err := r.db.ExecContext(ctx, `DELETE FROM quick_connect_requests WHERE expires_at < NOW()`)
 	return err
 }

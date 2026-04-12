@@ -18,6 +18,8 @@ func NewUserRoleRepository(db *sql.DB) *UserRoleRepository {
 }
 
 func (r *UserRoleRepository) AssignRole(ctx context.Context, userID, roleID string) error {
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
 	_, err := r.db.ExecContext(ctx,
 		`INSERT INTO user_roles (user_id, role_id) VALUES ($1,$2)
 		 ON CONFLICT (user_id, role_id) DO NOTHING`,
@@ -27,12 +29,16 @@ func (r *UserRoleRepository) AssignRole(ctx context.Context, userID, roleID stri
 }
 
 func (r *UserRoleRepository) RemoveRole(ctx context.Context, userID, roleID string) error {
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
 	_, err := r.db.ExecContext(ctx,
 		`DELETE FROM user_roles WHERE user_id = $1 AND role_id = $2`, userID, roleID)
 	return err
 }
 
 func (r *UserRoleRepository) GetRolesByUserID(ctx context.Context, userID string) ([]*user.Role, error) {
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
 	rows, err := r.db.QueryContext(ctx,
 		`SELECT r.id, r.name, r.description, r.permissions, r.is_system
 		 FROM roles r
