@@ -9,34 +9,42 @@ import (
 
 	"github.com/vishen/go-chromecast/application"
 	"github.com/vishen/go-chromecast/dns"
+
+	domaincast "github.com/gravity-zero/evey/internal/domain/chromecast"
 )
 
 const (
-	cacheTTL        = 60 * time.Second
+	cacheTTL         = 60 * time.Second
 	discoveryTimeout = 5 * time.Second
 )
 
-type Device struct {
-	UUID string `json:"uuid"`
-	Name string `json:"name"`
-	Addr string `json:"addr"`
-	Port int    `json:"port"`
-}
+// Device is re-exported from the domain for backwards compatibility with handlers.
+type Device = domaincast.Device
 
 type Service struct {
 	mu       sync.RWMutex
 	devices  []Device
 	lastScan time.Time
-	baseURL  string
+
+	discoverer domaincast.Discoverer
+	factory    domaincast.SessionFactory
 
 	connMu sync.Mutex
-	conns  map[string]*application.Application
+	conns  map[string]domaincast.CastSession
 }
 
-func New(baseURL string) *Service {
+// New builds a Service backed by real go-chromecast discovery/connections.
+// baseURL is retained for API compatibility; currently unused by the service.
+func New(_ string) *Service {
+	return NewWithPorts(&mdnsDiscoverer{}, &appSessionFactory{})
+}
+
+// NewWithPorts builds a Service with injected ports (used in tests).
+func NewWithPorts(discoverer domaincast.Discoverer, factory domaincast.SessionFactory) *Service {
 	return &Service{
-		baseURL: baseURL,
-		conns:   make(map[string]*application.Application),
+		discoverer: discoverer,
+		factory:    factory,
+		conns:      make(map[string]domaincast.CastSession),
 	}
 }
 
@@ -50,7 +58,7 @@ func (s *Service) Discover(ctx context.Context) ([]Device, error) {
 	}
 	s.mu.RUnlock()
 
-	devices, err := s.discover(ctx)
+	devices, err := s.discoverer.Discover(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -63,75 +71,46 @@ func (s *Service) Discover(ctx context.Context) ([]Device, error) {
 	return devices, nil
 }
 
-func (s *Service) discover(ctx context.Context) ([]Device, error) {
-	ctx, cancel := context.WithTimeout(ctx, discoveryTimeout)
-	defer cancel()
-
-	entryChan, err := dns.DiscoverCastDNSEntries(ctx, nil)
-	if err != nil {
-		return nil, fmt.Errorf("mdns discover: %w", err)
-	}
-
-	var devices []Device
-	seen := make(map[string]struct{})
-	for entry := range entryChan {
-		if _, ok := seen[entry.GetUUID()]; ok {
-			continue
-		}
-		seen[entry.GetUUID()] = struct{}{}
-		devices = append(devices, Device{
-			UUID: entry.GetUUID(),
-			Name: entry.GetName(),
-			Addr: entry.GetAddr(),
-			Port: entry.GetPort(),
-		})
-	}
-	slog.Info("chromecast: discovery complete", slog.Int("count", len(devices)))
-	return devices, nil
-}
-
 func (s *Service) findDevice(uuid string) (*Device, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	for _, d := range s.devices {
 		if d.UUID == uuid {
-			return &d, nil
+			dCopy := d
+			return &dCopy, nil
 		}
 	}
 	return nil, fmt.Errorf("device %q not found", uuid)
 }
 
-func (s *Service) getOrConnect(device *Device) (*application.Application, error) {
+func (s *Service) getOrConnect(device *Device) (domaincast.CastSession, error) {
 	s.connMu.Lock()
 	defer s.connMu.Unlock()
 
-	if app, ok := s.conns[device.UUID]; ok {
-		if err := app.Update(); err == nil {
-			return app, nil
+	if sess, ok := s.conns[device.UUID]; ok {
+		if sess.Alive() {
+			return sess, nil
 		}
-		app.Close(false)
+		_ = sess.Close()
 		delete(s.conns, device.UUID)
 	}
 
-	app := application.NewApplication(
-		application.WithCacheDisabled(true),
-		application.WithDeviceNameOverride(device.Name),
-	)
-	if err := app.Start(device.Addr, device.Port); err != nil {
+	sess, err := s.factory.Connect(*device)
+	if err != nil {
 		return nil, fmt.Errorf("connect to %s: %w", device.Name, err)
 	}
-
-	s.conns[device.UUID] = app
-	return app, nil
+	s.conns[device.UUID] = sess
+	return sess, nil
 }
 
-func (s *Service) Play(ctx context.Context, uuid, mediaURL, title string, contentType string) error {
+func (s *Service) Play(_ context.Context, uuid, mediaURL, title string, contentType string) error {
+	_ = title
 	device, err := s.findDevice(uuid)
 	if err != nil {
 		return err
 	}
 
-	app, err := s.getOrConnect(device)
+	sess, err := s.getOrConnect(device)
 	if err != nil {
 		return err
 	}
@@ -140,7 +119,7 @@ func (s *Service) Play(ctx context.Context, uuid, mediaURL, title string, conten
 		contentType = "video/mp4"
 	}
 
-	if err := app.Load(mediaURL, 0, contentType, false, false, false); err != nil {
+	if err := sess.Load(mediaURL, contentType); err != nil {
 		return fmt.Errorf("load media: %w", err)
 	}
 	slog.Info("chromecast: playing", slog.String("device", device.Name), slog.String("url", mediaURL))
@@ -152,11 +131,11 @@ func (s *Service) Pause(_ context.Context, uuid string) error {
 	if err != nil {
 		return err
 	}
-	app, err := s.getOrConnect(device)
+	sess, err := s.getOrConnect(device)
 	if err != nil {
 		return err
 	}
-	return app.Pause()
+	return sess.Pause()
 }
 
 func (s *Service) Unpause(_ context.Context, uuid string) error {
@@ -164,11 +143,11 @@ func (s *Service) Unpause(_ context.Context, uuid string) error {
 	if err != nil {
 		return err
 	}
-	app, err := s.getOrConnect(device)
+	sess, err := s.getOrConnect(device)
 	if err != nil {
 		return err
 	}
-	return app.Unpause()
+	return sess.Unpause()
 }
 
 func (s *Service) Stop(_ context.Context, uuid string) error {
@@ -180,12 +159,12 @@ func (s *Service) Stop(_ context.Context, uuid string) error {
 	s.connMu.Lock()
 	defer s.connMu.Unlock()
 
-	if app, ok := s.conns[device.UUID]; ok {
-		err := app.StopMedia()
-		app.Close(true)
+	if sess, ok := s.conns[device.UUID]; ok {
+		stopErr := sess.StopMedia()
+		_ = sess.Close()
 		delete(s.conns, device.UUID)
-		if err != nil {
-			return fmt.Errorf("stop: %w", err)
+		if stopErr != nil {
+			return fmt.Errorf("stop: %w", stopErr)
 		}
 	}
 	return nil
@@ -196,11 +175,11 @@ func (s *Service) Seek(_ context.Context, uuid string, positionSec int) error {
 	if err != nil {
 		return err
 	}
-	app, err := s.getOrConnect(device)
+	sess, err := s.getOrConnect(device)
 	if err != nil {
 		return err
 	}
-	return app.SeekToTime(float32(positionSec))
+	return sess.SeekToTime(float32(positionSec))
 }
 
 func (s *Service) SetVolume(_ context.Context, uuid string, level float32) error {
@@ -208,11 +187,11 @@ func (s *Service) SetVolume(_ context.Context, uuid string, level float32) error
 	if err != nil {
 		return err
 	}
-	app, err := s.getOrConnect(device)
+	sess, err := s.getOrConnect(device)
 	if err != nil {
 		return err
 	}
-	return app.SetVolume(level)
+	return sess.SetVolume(level)
 }
 
 func (s *Service) Status(_ context.Context, uuid string) (map[string]interface{}, error) {
@@ -220,34 +199,122 @@ func (s *Service) Status(_ context.Context, uuid string) (map[string]interface{}
 	if err != nil {
 		return nil, err
 	}
-	app, err := s.getOrConnect(device)
+	sess, err := s.getOrConnect(device)
 	if err != nil {
 		return nil, err
 	}
-	castApp, media, vol := app.Status()
+	st, err := sess.Status()
+	if err != nil {
+		return nil, err
+	}
 	result := map[string]interface{}{
 		"device": device.Name,
 	}
-	if castApp != nil {
-		result["app"] = castApp.DisplayName
+	if st.App != "" {
+		result["app"] = st.App
 	}
-	if media != nil {
-		result["playerState"] = media.PlayerState
-		result["currentTime"] = media.CurrentTime
-		result["duration"] = media.Media.Duration
+	if st.PlayerState != "" {
+		result["playerState"] = st.PlayerState
+		result["currentTime"] = st.CurrentTime
+		result["duration"] = st.Duration
 	}
-	if vol != nil {
-		result["volume"] = vol.Level
-		result["muted"] = vol.Muted
-	}
+	result["volume"] = st.Volume
+	result["muted"] = st.Muted
 	return result, nil
 }
 
 func (s *Service) Close() {
 	s.connMu.Lock()
 	defer s.connMu.Unlock()
-	for uuid, app := range s.conns {
-		app.Close(false)
+	for uuid, sess := range s.conns {
+		_ = sess.Close()
 		delete(s.conns, uuid)
 	}
+}
+
+// --- real adapters (go-chromecast) ---
+
+type mdnsDiscoverer struct{}
+
+func (mdnsDiscoverer) Discover(ctx context.Context) ([]domaincast.Device, error) {
+	ctx, cancel := context.WithTimeout(ctx, discoveryTimeout)
+	defer cancel()
+
+	entryChan, err := dns.DiscoverCastDNSEntries(ctx, nil)
+	if err != nil {
+		return nil, fmt.Errorf("mdns discover: %w", err)
+	}
+
+	var devices []domaincast.Device
+	seen := make(map[string]struct{})
+	for entry := range entryChan {
+		if _, ok := seen[entry.GetUUID()]; ok {
+			continue
+		}
+		seen[entry.GetUUID()] = struct{}{}
+		devices = append(devices, domaincast.Device{
+			UUID: entry.GetUUID(),
+			Name: entry.GetName(),
+			Addr: entry.GetAddr(),
+			Port: entry.GetPort(),
+		})
+	}
+	slog.Info("chromecast: discovery complete", slog.Int("count", len(devices)))
+	return devices, nil
+}
+
+type appSessionFactory struct{}
+
+func (appSessionFactory) Connect(device domaincast.Device) (domaincast.CastSession, error) {
+	app := application.NewApplication(
+		application.WithCacheDisabled(true),
+		application.WithDeviceNameOverride(device.Name),
+	)
+	if err := app.Start(device.Addr, device.Port); err != nil {
+		return nil, err
+	}
+	return &appSession{app: app}, nil
+}
+
+type appSession struct {
+	app *application.Application
+}
+
+func (s *appSession) Load(mediaURL, contentType string) error {
+	return s.app.Load(mediaURL, 0, contentType, false, false, false)
+}
+
+func (s *appSession) Pause() error   { return s.app.Pause() }
+func (s *appSession) Unpause() error { return s.app.Unpause() }
+func (s *appSession) StopMedia() error {
+	return s.app.StopMedia()
+}
+func (s *appSession) SeekToTime(positionSec float32) error { return s.app.SeekToTime(positionSec) }
+func (s *appSession) SetVolume(level float32) error        { return s.app.SetVolume(level) }
+
+func (s *appSession) Status() (domaincast.MediaStatus, error) {
+	castApp, media, vol := s.app.Status()
+	ms := domaincast.MediaStatus{}
+	if castApp != nil {
+		ms.App = castApp.DisplayName
+	}
+	if media != nil {
+		ms.PlayerState = media.PlayerState
+		ms.CurrentTime = media.CurrentTime
+		ms.Duration = media.Media.Duration
+	}
+	if vol != nil {
+		ms.Volume = vol.Level
+		ms.Muted = vol.Muted
+	}
+	return ms, nil
+}
+
+func (s *appSession) Alive() bool {
+	return s.app.Update() == nil
+}
+
+func (s *appSession) Close() error {
+	s.app.Close(false)
+	return nil
 }
