@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Play } from "lucide-react";
 import { createFileRoute, redirect, useNavigate, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { useUserServiceLogin, eveyFetch } from "@evey/api";
+import { useUserServiceLogin, useAdminSystemServiceGetSystemInfo, eveyFetch } from "@evey/api";
 import { useAuthStore } from "@evey/store";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/Button";
@@ -57,11 +57,7 @@ function LoginPage() {
     staleTime: 60 * 1000,
   });
 
-  const systemInfo = useQuery<{ passwordRecoveryEnabled?: boolean }>({
-    queryKey: ["system-info-recovery"],
-    queryFn: () => eveyFetch<{ passwordRecoveryEnabled?: boolean }>({ url: "/api/v1/admin/system", method: "GET" }),
-    staleTime: 60 * 1000,
-  });
+  const systemInfo = useAdminSystemServiceGetSystemInfo({ query: { staleTime: 60 * 1000 } });
 
   const login = useUserServiceLogin({
     mutation: {

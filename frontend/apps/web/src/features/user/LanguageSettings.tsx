@@ -2,7 +2,7 @@ import { useTranslation } from "react-i18next";
 import { Select } from "@/components/ui/Select";
 import { supportedLanguages } from "@/i18n";
 import { useLocaleStore, useAuthStore } from "@evey/store";
-import { useUserServiceGetCurrentUser, useUserServiceListProfiles, useUserServiceUpdateProfile, getUserServiceListProfilesQueryKey, eveyFetch } from "@evey/api";
+import { useUserServiceGetCurrentUser, useUserServiceListProfiles, useUserServiceUpdateProfile, getUserServiceListProfilesQueryKey, userServiceRefreshToken } from "@evey/api";
 import { useQueryClient } from "@tanstack/react-query";
 
 export function LanguageSettings() {
@@ -32,7 +32,7 @@ export function LanguageSettings() {
         await updateProfile.mutateAsync({ id: defaultProfile.id, data: { locale: code } });
         if (user?.id) void qc.invalidateQueries({ queryKey: getUserServiceListProfilesQueryKey(user.id) });
         // 4. Refresh token to get new JWT with updated locale
-        const resp = await eveyFetch<{ accessToken?: string }>({ url: "/api/v1/auth/refresh", method: "POST", data: {} });
+        const resp = await userServiceRefreshToken({});
         if (resp.accessToken) useAuthStore.getState().setTokens(resp.accessToken);
       } catch (err) { console.warn("locale update failed", err); }
     }

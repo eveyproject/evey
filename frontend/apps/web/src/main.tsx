@@ -4,7 +4,7 @@ import { RouterProvider, createRouter } from "@tanstack/react-router";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { routeTree } from "./routeTree.gen";
 import { useAuthStore } from "@evey/store";
-import { setTokenProvider, setTokensUpdater, setLocaleProvider, eveyFetch } from "@evey/api";
+import { setTokenProvider, setTokensUpdater, setLocaleProvider, userServiceRefreshToken } from "@evey/api";
 import { useLocaleStore } from "@evey/store";
 import { registerServiceWorker } from "@/lib/webpush";
 import "./i18n";
@@ -49,16 +49,11 @@ function scheduleTokenRefresh() {
     const delay = Math.max(refreshAt - Date.now(), 0);
     refreshTimer = setTimeout(async () => {
       try {
-        const data = await eveyFetch<{ accessToken?: string }>({
-          url: "/api/v1/auth/refresh",
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          data: {},
-        });
+        const data = await userServiceRefreshToken({});
         if (data?.accessToken) {
           useAuthStore.getState().setTokens(data.accessToken);
         }
-      } catch { /* ignore */ }
+      } catch (err) { console.warn("token refresh failed", err); }
       scheduleTokenRefresh();
     }, delay);
   } catch { /* invalid token */ }
