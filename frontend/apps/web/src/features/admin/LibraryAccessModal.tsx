@@ -1,15 +1,17 @@
 import { useState, useEffect, useCallback } from "react";
 import { useTranslation } from "react-i18next";
-import { useQuery } from "@tanstack/react-query";
+import {
+  useLibraryAccessServiceGetUserLibraryAccess,
+  useLibraryAccessServiceRevokeAllUserLibraryAccess,
+  useLibraryAccessServiceSetUserLibraryAccess,
+} from "@evey/api";
 import { toast } from "@evey/store";
-import { eveyFetch } from "@evey/api";
 import type { V1User } from "@evey/api";
 import { Checkbox } from "@/components/ui/Checkbox";
 import { Spinner } from "@/components/ui/Spinner";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
 import { Modal } from "@/components/ui/Modal";
-import type { LibraryAccessData } from "./users-constants";
 
 export function LibraryAccessModal({
   user,
@@ -24,15 +26,13 @@ export function LibraryAccessModal({
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [saving, setSaving] = useState(false);
 
-  const { data, isLoading } = useQuery<LibraryAccessData>({
-    queryKey: ["/api/v1/admin/users", user.id, "library-access"],
-    queryFn: () => eveyFetch<LibraryAccessData>({ url: `/api/v1/admin/users/${user.id}/library-access`, method: "GET" }),
-    enabled: open,
+  const { data, isLoading } = useLibraryAccessServiceGetUserLibraryAccess(user.id ?? "", {
+    query: { enabled: open && !!user.id },
   });
 
   useEffect(() => {
     if (data) {
-      setSelected(new Set(data.libraryIds));
+      setSelected(new Set(data.libraryIds ?? []));
     }
   }, [data]);
 
@@ -51,17 +51,17 @@ export function LibraryAccessModal({
     });
   }, []);
 
+  const revoke = useLibraryAccessServiceRevokeAllUserLibraryAccess();
+  const setAccess = useLibraryAccessServiceSetUserLibraryAccess();
+
   async function handleSave() {
+    if (!user.id) return;
     setSaving(true);
     try {
       if (selected.size === 0) {
-        await eveyFetch<void>({ url: `/api/v1/admin/users/${user.id}/library-access`, method: "DELETE" });
+        await revoke.mutateAsync({ userId: user.id });
       } else {
-        await eveyFetch<void>({
-          url: `/api/v1/admin/users/${user.id}/library-access`,
-          method: "PUT",
-          data: { libraryIds: Array.from(selected) },
-        });
+        await setAccess.mutateAsync({ userId: user.id, data: { libraryIds: Array.from(selected) } });
       }
       toast.success(t("admin.users.libraryAccessUpdated"));
       onClose();
@@ -97,9 +97,9 @@ export function LibraryAccessModal({
                 className="px-3 py-2 rounded-[var(--radius-md)] hover:opacity-80 bg-[var(--surface)]"
               >
                 <Checkbox
-                  label={lib.name}
-                  checked={selected.has(lib.id)}
-                  onChange={() => handleToggle(lib.id)}
+                  label={lib.name ?? ""}
+                  checked={selected.has(lib.id ?? "")}
+                  onChange={() => handleToggle(lib.id ?? "")}
                 />
               </div>
             ))}

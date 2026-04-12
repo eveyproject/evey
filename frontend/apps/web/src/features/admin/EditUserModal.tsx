@@ -1,17 +1,22 @@
 import { useState, useEffect, useCallback } from "react";
 import { useTranslation } from "react-i18next";
-import { useQueryClient, useQuery } from "@tanstack/react-query";
-import { useUserServiceUpdateUser } from "@evey/api";
+import { useQueryClient } from "@tanstack/react-query";
+import {
+  useUserServiceUpdateUser,
+  useLibraryAccessServiceGetUserLibraryAccess,
+  useLibraryAccessServiceRevokeAllUserLibraryAccess,
+  useLibraryAccessServiceSetUserLibraryAccess,
+  getLibraryAccessServiceGetUserLibraryAccessQueryKey,
+} from "@evey/api";
 import { toast } from "@evey/store";
-import { eveyFetch } from "@evey/api";
-import type { V1User } from "@evey/api";
+import type { V1User, UserServiceUpdateUserBody } from "@evey/api";
 import { Checkbox } from "@/components/ui/Checkbox";
 import { Spinner } from "@/components/ui/Spinner";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
 import { Modal } from "@/components/ui/Modal";
 import { Input } from "@/components/ui/Input";
-import { USERS_QUERY_KEY, type LibraryAccessData } from "./users-constants";
+import { USERS_QUERY_KEY } from "./users-constants";
 
 export function EditUserModal({ user, open, onClose }: { user: V1User; open: boolean; onClose: () => void }) {
   const { t } = useTranslation();
@@ -23,11 +28,10 @@ export function EditUserModal({ user, open, onClose }: { user: V1User; open: boo
   const [selectedLibs, setSelectedLibs] = useState<Set<string>>(new Set());
   const [saving, setSaving] = useState(false);
 
-  const { data: accessData, isLoading: accessLoading } = useQuery<LibraryAccessData>({
-    queryKey: ["/api/v1/admin/users", user.id, "library-access"],
-    queryFn: () => eveyFetch<LibraryAccessData>({ url: `/api/v1/admin/users/${user.id}/library-access`, method: "GET" }),
-    enabled: open && !isAdmin,
-  });
+  const { data: accessData, isLoading: accessLoading } = useLibraryAccessServiceGetUserLibraryAccess(
+    user.id ?? "",
+    { query: { enabled: open && !isAdmin && !!user.id } },
+  );
 
   const libraries = accessData?.libraries ?? [];
 
@@ -42,7 +46,7 @@ export function EditUserModal({ user, open, onClose }: { user: V1User; open: boo
 
   useEffect(() => {
     if (accessData) {
-      setSelectedLibs(new Set(accessData.libraryIds));
+      setSelectedLibs(new Set(accessData.libraryIds ?? []));
     }
   }, [accessData]);
 
@@ -59,6 +63,8 @@ export function EditUserModal({ user, open, onClose }: { user: V1User; open: boo
       onError: (err: Error) => toast.error(err.message || t("admin.users.failedUpdateUser")),
     },
   });
+  const revokeAccess = useLibraryAccessServiceRevokeAllUserLibraryAccess();
+  const setAccess = useLibraryAccessServiceSetUserLibraryAccess();
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -66,14 +72,14 @@ export function EditUserModal({ user, open, onClose }: { user: V1User; open: boo
     setSaving(true);
 
     try {
-      const data: Record<string, unknown> = {};
+      const data: UserServiceUpdateUserBody = {};
       if (username.trim() !== user.username) data.username = username.trim();
       if (email.trim() !== (user.email ?? "")) data.email = email.trim();
       if (password) data.password = password;
       if (isAdmin !== user.isAdmin) data.isAdmin = isAdmin;
 
       if (Object.keys(data).length > 0) {
-        await updateUser.mutateAsync({ id: user.id, data: data as any });
+        await updateUser.mutateAsync({ id: user.id, data });
       }
 
       if (!isAdmin) {
@@ -81,19 +87,15 @@ export function EditUserModal({ user, open, onClose }: { user: V1User; open: boo
         const changed = selectedLibs.size !== origIds.size || [...selectedLibs].some((id) => !origIds.has(id));
         if (changed) {
           if (selectedLibs.size === 0) {
-            await eveyFetch<void>({ url: `/api/v1/admin/users/${user.id}/library-access`, method: "DELETE" });
+            await revokeAccess.mutateAsync({ userId: user.id });
           } else {
-            await eveyFetch<void>({
-              url: `/api/v1/admin/users/${user.id}/library-access`,
-              method: "PUT",
-              data: { libraryIds: Array.from(selectedLibs) },
-            });
+            await setAccess.mutateAsync({ userId: user.id, data: { libraryIds: Array.from(selectedLibs) } });
           }
         }
       }
 
       queryClient.invalidateQueries({ queryKey: USERS_QUERY_KEY });
-      queryClient.invalidateQueries({ queryKey: ["/api/v1/admin/users", user.id, "library-access"] });
+      queryClient.invalidateQueries({ queryKey: getLibraryAccessServiceGetUserLibraryAccessQueryKey(user.id) });
       toast.success(t("admin.users.userUpdated") || "User updated");
       onClose();
     } catch (err: unknown) {
@@ -132,9 +134,9 @@ export function EditUserModal({ user, open, onClose }: { user: V1User; open: boo
                 {libraries.map((lib) => (
                   <div key={lib.id} className="px-3 py-2 rounded-[var(--radius-md)] hover:opacity-80 bg-[var(--surface)]">
                     <Checkbox
-                      label={lib.name}
-                      checked={selectedLibs.has(lib.id)}
-                      onChange={() => handleToggleLib(lib.id)}
+                      label={lib.name ?? ""}
+                      checked={selectedLibs.has(lib.id ?? "")}
+                      onChange={() => handleToggleLib(lib.id ?? "")}
                     />
                   </div>
                 ))}

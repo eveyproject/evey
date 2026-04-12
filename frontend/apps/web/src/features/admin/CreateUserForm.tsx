@@ -3,9 +3,9 @@ import { useTranslation } from "react-i18next";
 import {
   useUserServiceCreateUser,
   useLibraryServiceListLibraries,
+  useLibraryAccessServiceSetUserLibraryAccess,
 } from "@evey/api";
 import { toast } from "@evey/store";
-import { eveyFetch } from "@evey/api";
 import { Checkbox } from "@/components/ui/Checkbox";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
@@ -30,15 +30,16 @@ export function CreateUserForm({ onSuccess }: { onSuccess: () => void }) {
     });
   }, []);
 
+  const setAccess = useLibraryAccessServiceSetUserLibraryAccess();
+
   const createUser = useUserServiceCreateUser({
     mutation: {
       onSuccess: async (data) => {
         const userId = data?.id;
         if (userId && !isAdmin && selectedLibs.size > 0) {
           try {
-            await eveyFetch<void>({
-              url: `/api/v1/admin/users/${userId}/library-access`,
-              method: "PUT",
+            await setAccess.mutateAsync({
+              userId,
               data: { libraryIds: Array.from(selectedLibs) },
             });
           } catch {
