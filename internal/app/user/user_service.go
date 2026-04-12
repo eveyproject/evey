@@ -17,6 +17,7 @@ type UserService struct {
 	refreshTkns user.RefreshTokenRepository
 	hasher      user.PasswordHasher
 	events      shared.EventBus
+	uow         shared.TransactionalUnit
 }
 
 func NewUserService(
@@ -25,6 +26,7 @@ func NewUserService(
 	refreshTkns user.RefreshTokenRepository,
 	hasher user.PasswordHasher,
 	events shared.EventBus,
+	uow shared.TransactionalUnit,
 ) *UserService {
 	return &UserService{
 		users:       users,
@@ -32,6 +34,7 @@ func NewUserService(
 		refreshTkns: refreshTkns,
 		hasher:      hasher,
 		events:      events,
+		uow:         uow,
 	}
 }
 
@@ -52,13 +55,6 @@ func (s *UserService) CreateUser(ctx context.Context, callerIsAdmin bool, u *use
 	u.PasswordHash = hash
 	u.CreatedAt = time.Now()
 	u.UpdatedAt = time.Now()
-	if err := s.users.Create(ctx, u); err != nil {
-		return fmt.Errorf("UserService.CreateUser: %w", err)
-	}
-	evtUserCreated := user.UserCreated{UserID: u.ID, Username: u.Username, IsAdmin: u.IsAdmin, OccurredAt: time.Now()}
-	if err := s.events.Publish(ctx, evtUserCreated); err != nil {
-		slog.Warn("publish event", slog.String("event", evtUserCreated.EventName()), slog.Any("err", err))
-	}
 
 	p := &user.Profile{
 		ID:        id.New("prf-"),
@@ -67,13 +63,26 @@ func (s *UserService) CreateUser(ctx context.Context, callerIsAdmin bool, u *use
 		IsDefault: true,
 		CreatedAt: time.Now(),
 	}
-	if pErr := s.profiles.Create(ctx, p); pErr != nil {
-		slog.Warn("auto-create profile", slog.String("userID", u.ID), slog.Any("err", pErr))
-	} else {
-		evtProfile := user.ProfileCreated{ProfileID: p.ID, UserID: p.UserID, Name: p.Name, OccurredAt: time.Now()}
-		if err := s.events.Publish(ctx, evtProfile); err != nil {
-			slog.Warn("publish event", slog.String("event", evtProfile.EventName()), slog.Any("err", err))
+
+	if err := s.uow.Do(ctx, func(ctx context.Context) error {
+		if err := s.users.Create(ctx, u); err != nil {
+			return fmt.Errorf("create user: %w", err)
 		}
+		if err := s.profiles.Create(ctx, p); err != nil {
+			return fmt.Errorf("create default profile: %w", err)
+		}
+		return nil
+	}); err != nil {
+		return fmt.Errorf("UserService.CreateUser: %w", err)
+	}
+
+	evtUserCreated := user.UserCreated{UserID: u.ID, Username: u.Username, IsAdmin: u.IsAdmin, OccurredAt: time.Now()}
+	if err := s.events.Publish(ctx, evtUserCreated); err != nil {
+		slog.Warn("publish event", slog.String("event", evtUserCreated.EventName()), slog.Any("err", err))
+	}
+	evtProfile := user.ProfileCreated{ProfileID: p.ID, UserID: p.UserID, Name: p.Name, OccurredAt: time.Now()}
+	if err := s.events.Publish(ctx, evtProfile); err != nil {
+		slog.Warn("publish event", slog.String("event", evtProfile.EventName()), slog.Any("err", err))
 	}
 	return nil
 }

@@ -16,6 +16,7 @@ type userTestDeps struct {
 	refreshTkns *ufakes.FakeRefreshTokenRepository
 	hasher      *ufakes.FakePasswordHasher
 	events      *fakes.FakeEventBus
+	uow         *fakes.FakeTransactionalUnit
 	svc         *UserService
 }
 
@@ -26,8 +27,9 @@ func newUserTestDeps() *userTestDeps {
 	hasher := ufakes.NewFakePasswordHasher()
 	events := fakes.NewFakeEventBus()
 
-	svc := NewUserService(users, profiles, refreshTkns, hasher, events)
-	return &userTestDeps{users, profiles, refreshTkns, hasher, events, svc}
+	uow := fakes.NewFakeTransactionalUnit()
+	svc := NewUserService(users, profiles, refreshTkns, hasher, events, uow)
+	return &userTestDeps{users, profiles, refreshTkns, hasher, events, uow, svc}
 }
 
 func seedUserSvcUser(t *testing.T, d *userTestDeps, id, username, password string, admin, enabled bool) *user.User {
@@ -111,6 +113,56 @@ func TestCreateUser_RepoError(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error")
 	}
+}
+
+func TestCreateUser_ProfileFail_Atomic(t *testing.T) {
+	d := newUserTestDeps()
+	d.profiles.Err = errors.New("profile db down")
+	// Snapshot user count before; if uow rolls back on fn-error via hook,
+	// user insert is undone. We simulate rollback by wiring a hook into
+	// the fake uow that clears the user on fn-error.
+	d.uow.BeforeCommit = func(_ context.Context) error { return nil }
+	// Override uow.Do to snapshot + restore around fn. Replace by custom uow:
+	restoring := fakes.NewFakeTransactionalUnit()
+	d.svc = NewUserService(d.users, d.profiles, d.refreshTkns, d.hasher, d.events, &snapshotUOW{inner: restoring, users: d.users})
+
+	err := d.svc.CreateUser(context.Background(), true, &user.User{ID: "u-atomic", Username: "bob"}, "password123")
+	if err == nil {
+		t.Fatal("expected error when profile create fails")
+	}
+	if _, gerr := d.users.GetByID(context.Background(), "u-atomic"); gerr == nil {
+		t.Fatal("expected user to be rolled back when profile create fails")
+	}
+	// No events should have been published (transaction failed before event publish)
+	for _, e := range d.events.PublishedEvents() {
+		if e.EventName() == "user.created" || e.EventName() == "user.profile.created" {
+			t.Fatalf("no creation events expected on rollback, got %s", e.EventName())
+		}
+	}
+}
+
+// snapshotUOW wraps a fake uow to snapshot & restore user repo state on error.
+type snapshotUOW struct {
+	inner *fakes.FakeTransactionalUnit
+	users *ufakes.FakeUserRepository
+}
+
+func (s *snapshotUOW) Do(ctx context.Context, fn func(context.Context) error) error {
+	before, _ := s.users.List(ctx)
+	beforeIDs := map[string]struct{}{}
+	for _, u := range before {
+		beforeIDs[u.ID] = struct{}{}
+	}
+	err := s.inner.Do(ctx, fn)
+	if err != nil {
+		after, _ := s.users.List(ctx)
+		for _, u := range after {
+			if _, ok := beforeIDs[u.ID]; !ok {
+				_ = s.users.Delete(ctx, u.ID)
+			}
+		}
+	}
+	return err
 }
 
 func TestCreateUser_EventPublishError_NonFatal(t *testing.T) {

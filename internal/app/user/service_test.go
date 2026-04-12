@@ -33,7 +33,7 @@ func newUserSvc() (*appuser.UserService, *userfakes.FakeUserRepository, *userfak
 	rtRepo := userfakes.NewFakeRefreshTokenRepository()
 	hasher := userfakes.NewFakePasswordHasher()
 	bus := sharedfakes.NewFakeEventBus()
-	svc := appuser.NewUserService(userRepo, profileRepo, rtRepo, hasher, bus)
+	svc := appuser.NewUserService(userRepo, profileRepo, rtRepo, hasher, bus, sharedfakes.NewFakeTransactionalUnit())
 	return svc, userRepo, profileRepo, hasher, bus
 }
 
