@@ -31,7 +31,9 @@ type remoteAccessHandler struct {
 func (h *remoteAccessHandler) GetRemoteAccess(_ context.Context, _ *eveyv1.GetRemoteAccessRequest) (*eveyv1.RemoteAccessConfig, error) {
 	h.mu.RLock()
 	defer h.mu.RUnlock()
-	return raConfigToProto(&h.cfg.RemoteAccess), nil
+	out := raConfigToProto(&h.cfg.RemoteAccess)
+	out.ServerBaseUrl = h.cfg.Server.BaseURL
+	return out, nil
 }
 
 func (h *remoteAccessHandler) UpdateRemoteAccess(ctx context.Context, req *eveyv1.UpdateRemoteAccessRequest) (*eveyv1.RemoteAccessConfig, error) {
@@ -54,6 +56,7 @@ func (h *remoteAccessHandler) UpdateRemoteAccess(ctx context.Context, req *eveyv
 		h.cfg.RemoteAccess.MaxRemoteBitrateKbps = int(*req.MaxRemoteBitrateKbps)
 	}
 	snapshot := h.cfg.RemoteAccess
+	baseURL := h.cfg.Server.BaseURL
 	h.mu.Unlock()
 
 	if h.store != nil {
@@ -63,7 +66,9 @@ func (h *remoteAccessHandler) UpdateRemoteAccess(ctx context.Context, req *eveyv
 			}
 		}
 	}
-	return raConfigToProto(&snapshot), nil
+	out := raConfigToProto(&snapshot)
+	out.ServerBaseUrl = baseURL
+	return out, nil
 }
 
 func (h *remoteAccessHandler) GetNetworkInfo(_ context.Context, _ *eveyv1.GetNetworkInfoRequest) (*eveyv1.NetworkInfo, error) {

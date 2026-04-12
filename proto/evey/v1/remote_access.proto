@@ -30,6 +30,7 @@ message RemoteAccessConfig {
   string external_url = 2;
   repeated string lan_networks = 3;
   int32 max_remote_bitrate_kbps = 4;
+  string server_base_url = 5;
 }
 
 message UpdateRemoteAccessRequest {
