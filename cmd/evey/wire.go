@@ -321,6 +321,7 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 	)
 	infra.pluginRunner.WithIPCCallback(pluginRuntimeSvc.HandleIPCResult)
 	pluginQuerySvc := appplugin.NewQueryService(r.Plugin, r.PluginRuntime)
+	pluginTokenSvc := appplugin.NewTokenService(r.Plugin, infra.tokenGen)
 
 	permInterceptor := grpcapi.PluginPermissionInterceptor(permChecker)
 	pluginHostSrv := pluginhost.NewHostServer(r.MediaItemQuery, r.Plugin, bus, infra.pluginLogger, permInterceptor)
@@ -438,6 +439,7 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 			pluginInstallerSvc: pluginInstallerSvc,
 			pluginRuntimeSvc:   pluginRuntimeSvc,
 			pluginQuerySvc:     pluginQuerySvc,
+			pluginTokenSvc:     pluginTokenSvc,
 			pluginHostServer:   pluginHostSrv,
 		},
 		auth: authDeps{

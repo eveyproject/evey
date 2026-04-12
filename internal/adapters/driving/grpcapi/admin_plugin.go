@@ -23,7 +23,37 @@ type adminPluginHandler struct {
 	pluginInstaller *appplugin.InstallerService
 	pluginRuntime   *appplugin.RuntimeService
 	pluginQuery     *appplugin.QueryService
+	tokenSvc        *appplugin.TokenService
 	logDir          string
+}
+
+func (d *adminPluginHandler) IssuePluginToken(ctx context.Context, req *eveyv1.IssuePluginTokenRequest) (*eveyv1.IssuePluginTokenResponse, error) {
+	claims, err := requireClaims(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if req.PluginId == "" {
+		return nil, status.Error(codes.InvalidArgument, "plugin_id required")
+	}
+	if d.tokenSvc == nil {
+		return nil, status.Error(codes.Unimplemented, "plugin token service not configured")
+	}
+	issued, err := d.tokenSvc.IssueToken(ctx, claims.UserID, req.PluginId)
+	if err != nil {
+		switch {
+		case errors.Is(err, appplugin.ErrPluginNotFound):
+			return nil, status.Error(codes.NotFound, "plugin not found")
+		case errors.Is(err, appplugin.ErrPluginNotEnabled):
+			return nil, status.Error(codes.FailedPrecondition, "plugin not enabled")
+		default:
+			return nil, internalError("issue plugin token", err)
+		}
+	}
+	return &eveyv1.IssuePluginTokenResponse{
+		Token:     issued.Token,
+		ExpiresAt: timestamppb.New(issued.ExpiresAt),
+		Scopes:    issued.Scopes,
+	}, nil
 }
 
 func (d *adminPluginHandler) ListPluginRuntimes(ctx context.Context, _ *eveyv1.ListPluginRuntimesRequest) (*eveyv1.ListPluginRuntimesResponse, error) {

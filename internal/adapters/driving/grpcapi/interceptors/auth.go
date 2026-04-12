@@ -54,6 +54,10 @@ func (i *AuthInterceptor) Unary() grpc.UnaryServerInterceptor {
 		if i.rbac.PublicMethods[info.FullMethod] {
 			return handler(ctx, req)
 		}
+		if PluginClaimsFromContext(ctx) != nil {
+			// Authenticated via scoped plugin token — skip user-auth. Scope enforcement is per-RPC.
+			return handler(ctx, req)
+		}
 		newCtx, err := i.authenticate(ctx)
 		if err != nil {
 			return nil, err
@@ -68,6 +72,9 @@ func (i *AuthInterceptor) Unary() grpc.UnaryServerInterceptor {
 func (i *AuthInterceptor) Stream() grpc.StreamServerInterceptor {
 	return func(srv any, ss grpc.ServerStream, info *grpc.StreamServerInfo, handler grpc.StreamHandler) error {
 		if i.rbac.PublicMethods[info.FullMethod] {
+			return handler(srv, ss)
+		}
+		if PluginClaimsFromContext(ss.Context()) != nil {
 			return handler(srv, ss)
 		}
 		newCtx, err := i.authenticate(ss.Context())

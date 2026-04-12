@@ -16,6 +16,7 @@ import (
 
 func buildGRPCServer(deps *appDeps, cfg *config.Config, rootLog *slog.Logger, logDir string, serverCtx context.Context, qcHub *quickconnecthub.Hub) *grpcapi.GRPCServer {
 	authInterceptor := interceptors.NewAuthInterceptor(deps.auth.tokenGen).WithAPIKeys(deps.repos.apiKeyRepo, deps.repos.userRepo).WithTranslator(deps.translator)
+	pluginTokenInterceptor := interceptors.NewPluginTokenInterceptor(deps.auth.tokenGen)
 	grpcLog := eveylogger.NewWith(rootLog, "grpc")
 
 	grpcDeps := grpcapi.GRPCServerDeps{
@@ -32,6 +33,7 @@ func buildGRPCServer(deps *appDeps, cfg *config.Config, rootLog *slog.Logger, lo
 		PluginInstaller: deps.engagement.pluginInstallerSvc,
 		PluginRuntime:   deps.engagement.pluginRuntimeSvc,
 		PluginQuery:     deps.engagement.pluginQuerySvc,
+		PluginToken:     deps.engagement.pluginTokenSvc,
 		MetadataCmd:     deps.content.metadataCmdSvc,
 		MetadataQuery:   deps.content.metadataQuerySvc,
 		ActivityCmd:     deps.engagement.activityCmdSvc,
@@ -77,6 +79,7 @@ func buildGRPCServer(deps *appDeps, cfg *config.Config, rootLog *slog.Logger, lo
 			interceptors.LocaleUnary(),
 			interceptors.ClientInfoUnary(),
 			interceptors.LoggingUnary(grpcLog),
+			pluginTokenInterceptor.Unary(),
 			authInterceptor.Unary(),
 		),
 		grpc.ChainStreamInterceptor(
@@ -84,6 +87,7 @@ func buildGRPCServer(deps *appDeps, cfg *config.Config, rootLog *slog.Logger, lo
 			interceptors.LocaleStream(),
 			interceptors.ClientInfoStream(),
 			interceptors.LoggingStream(grpcLog),
+			pluginTokenInterceptor.Stream(),
 			authInterceptor.Stream(),
 		),
 	)
