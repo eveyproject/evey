@@ -130,7 +130,7 @@ function SessionCard({ session, theme, t, onKill, onCommand }: {
           <Text style={{
             fontSize: 10,
             fontWeight: "600",
-            color: session.playMethod === "transcode" ? "#f59e0b" : "#22c55e",
+            color: session.playMethod === "transcode" ? theme.colors.warning : theme.colors.success,
           }}>
             {playMethodLabel(session.playMethod ?? "", t)}
           </Text>

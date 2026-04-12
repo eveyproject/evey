@@ -100,9 +100,9 @@ export default function AdminTranscodeCacheScreen() {
         style={{ padding: 8, opacity: deletingFile === item.name ? 0.4 : 1 }}
       >
         {deletingFile === item.name ? (
-          <ActivityIndicator size="small" color="#dc2626" />
+          <ActivityIndicator size="small" color={theme.colors.error} />
         ) : (
-          <Ionicons name="trash-outline" size={20} color="#dc2626" />
+          <Ionicons name="trash-outline" size={20} color={theme.colors.error} />
         )}
       </Pressable>
     </View>
@@ -183,7 +183,7 @@ export default function AdminTranscodeCacheScreen() {
                 <Pressable
                   onPress={handleClearAll}
                   disabled={clearAll.isPending}
-                  style={[styles.dangerBtn, { borderRadius: theme.radii.md, opacity: clearAll.isPending ? 0.5 : 1 }]}
+                  style={[styles.dangerBtn, { backgroundColor: theme.colors.error, borderRadius: theme.radii.md, opacity: clearAll.isPending ? 0.5 : 1 }]}
                 >
                   {clearAll.isPending && <ActivityIndicator size="small" color="#fff" style={{ marginRight: 8 }} />}
                   <Text style={{ color: "#fff", fontWeight: "600", fontSize: 15 }}>
@@ -203,5 +203,5 @@ const styles = StyleSheet.create({
   statCard: { flex: 1, padding: 16, alignItems: "center", gap: 4 },
   section: { padding: 16 },
   fileRow: { flexDirection: "row", alignItems: "center", paddingVertical: 12, paddingHorizontal: 16, borderBottomWidth: StyleSheet.hairlineWidth },
-  dangerBtn: { backgroundColor: "#dc2626", paddingVertical: 14, alignItems: "center", justifyContent: "center", flexDirection: "row" },
+  dangerBtn: { paddingVertical: 14, alignItems: "center", justifyContent: "center", flexDirection: "row" },
 });

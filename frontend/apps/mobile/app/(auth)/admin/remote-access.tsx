@@ -114,9 +114,9 @@ export default function AdminRemoteAccessScreen() {
       ) : (
         <View style={{ padding: 16 }}>
           {/* Status badge */}
-          <View style={[styles.statusBadge, { backgroundColor: enabled ? "#22c55e20" : theme.colors.surfaceRaised, borderRadius: theme.radii.md }]}>
-            <Ionicons name={enabled ? "globe-outline" : "lock-closed-outline"} size={20} color={enabled ? "#22c55e" : theme.colors.textMuted} />
-            <Text style={{ color: enabled ? "#22c55e" : theme.colors.textMuted, fontWeight: "600", fontSize: 14 }}>
+          <View style={[styles.statusBadge, { backgroundColor: enabled ? theme.colors.success + "20" : theme.colors.surfaceRaised, borderRadius: theme.radii.md }]}>
+            <Ionicons name={enabled ? "globe-outline" : "lock-closed-outline"} size={20} color={enabled ? theme.colors.success : theme.colors.textMuted} />
+            <Text style={{ color: enabled ? theme.colors.success : theme.colors.textMuted, fontWeight: "600", fontSize: 14 }}>
               {enabled ? t("common.enabled") : t("common.disabled")}
             </Text>
           </View>
