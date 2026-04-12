@@ -135,11 +135,20 @@ export function usePlaySession(mediaId: string): PlaySessionResult {
       const sid = sessionIdRef.current;
       if (sid && !stopped.current) {
         stopped.current = true;
+        // NOTE: raw fetch (not eveyFetch) because keepalive:true is required for
+        // pagehide/beforeunload — eveyFetch doesn't propagate keepalive, and its
+        // auto-refresh path is useless here (page is unloading). Token is already
+        // fresh from the active session; if it 401s, we silently drop (expected).
         const token = useAuthStore.getState().accessToken;
         const headers: Record<string, string> = { "Content-Type": "application/json" };
         if (token) headers["Authorization"] = `Bearer ${token}`;
+        const csrfMatch = typeof document !== "undefined"
+          ? document.cookie.match(/(?:^|;\s*)_csrf=([^;]*)/)
+          : null;
+        if (csrfMatch) headers["X-CSRF-Token"] = csrfMatch[1];
         fetch("/api/v1/playback/stop", {
           method: "POST",
+          credentials: "include",
           headers,
           body: JSON.stringify({ sessionId: sid }),
           keepalive: true,
