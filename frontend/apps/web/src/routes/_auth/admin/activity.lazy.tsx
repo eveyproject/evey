@@ -2,7 +2,7 @@ import { useState, useCallback } from "react";
 import { Film, Download } from "lucide-react";
 import { createLazyFileRoute } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
-import { eveyFetch } from "@evey/api";
+import { eveyFetch, activityServiceGetPlayHistory, activityServiceGetServerStats } from "@evey/api";
 import {
   useActivityServiceGetPlayHistory,
   useActivityServiceGetServerStats,
@@ -267,16 +267,16 @@ function ActivityPage() {
     try {
       const timestamp = new Date().toISOString().slice(0, 10);
       if (tab === "play") {
-        const data = await eveyFetch<unknown>({ url: "/api/v1/activity/play-history?pagination.pageSize=10000", method: "GET" });
+        const data = await activityServiceGetPlayHistory({ "pagination.pageSize": 10000 });
         downloadJSON(data, `play-history-${timestamp}.json`);
       } else if (tab === "audit") {
         const data = await eveyFetch<unknown>({ url: "/api/v1/admin/audit?limit=10000", method: "GET" });
         downloadJSON(data, `audit-log-${timestamp}.json`);
       } else {
-        const data = await eveyFetch<unknown>({ url: "/api/v1/activity/stats", method: "GET" });
+        const data = await activityServiceGetServerStats();
         downloadJSON(data, `server-stats-${timestamp}.json`);
       }
-    } catch { /* ignore */ }
+    } catch (err) { console.warn("activity export failed", err); }
     setExporting(false);
   }, [tab]);
 
