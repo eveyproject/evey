@@ -67,9 +67,15 @@ func (g *TrickplayGenerator) Generate(ctx context.Context, filePath, outputDir s
 		return nil, err
 	}
 
-	var timestamps []float64
-	for t := 0.0; t < duration; t += float64(interval) {
-		timestamps = append(timestamps, t)
+	capHint := 1
+	if interval > 0 && duration > 0 {
+		capHint = int(duration/float64(interval)) + 1
+	}
+	timestamps := make([]float64, 0, capHint)
+	if interval > 0 {
+		for t := 0.0; t < duration; t += float64(interval) {
+			timestamps = append(timestamps, t)
+		}
 	}
 	if len(timestamps) == 0 {
 		timestamps = []float64{0}
