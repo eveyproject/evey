@@ -26,6 +26,7 @@ vi.mock("@evey/store", () => ({
 
 vi.mock("@evey/api", () => ({
   eveyFetch: vi.fn().mockResolvedValue(undefined),
+  userServiceLogout: vi.fn().mockResolvedValue(undefined),
   useUserServiceGetCurrentUser: () => ({
     data: { username: "gravity" },
   }),

@@ -5,7 +5,7 @@ import { useNavigate, useRouterState } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { useQueryClient } from "@tanstack/react-query";
 import { useAuthStore } from "@evey/store";
-import { useUserServiceGetCurrentUser, useUserServiceListProfiles, eveyFetch } from "@evey/api";
+import { useUserServiceGetCurrentUser, useUserServiceListProfiles, userServiceLogout } from "@evey/api";
 import { Search, Settings, Clock, LayoutList, LogOut, QrCode, BarChart3 } from "lucide-react";
 import { NotificationBell } from "@/features/user/NotificationBell";
 import { SearchDropdown } from "@/features/search/SearchDropdown";
@@ -47,7 +47,7 @@ function UserMenu({ userInitial, avatarUrl }: { userInitial: string; avatarUrl: 
     logout();
     localStorage.removeItem("evey-recent-searches");
     // Clear httpOnly refresh cookie server-side (best-effort)
-    void eveyFetch<void>({ url: "/api/v1/auth/logout", method: "POST", data: {} }).catch(() => undefined);
+    void userServiceLogout({}).catch(() => undefined);
     void navigate({ to: "/login" });
   };
 

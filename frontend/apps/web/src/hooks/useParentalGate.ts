@@ -1,5 +1,4 @@
-import { useQuery } from "@tanstack/react-query";
-import { eveyFetch } from "@evey/api";
+import { useParentalServiceGetParentalSettings } from "@evey/api";
 import { useAuthStore } from "@evey/store";
 
 const RATING_SEVERITY: Record<string, number> = {
@@ -18,12 +17,6 @@ function isRatingExceeded(contentRating: string | undefined, maxRating: string):
   const maxLevel = RATING_SEVERITY[max];
   if (contentLevel === undefined || maxLevel === undefined) return false;
   return contentLevel > maxLevel;
-}
-
-interface ParentalSettings {
-  maxRating: string;
-  hasPin: boolean;
-  enabled: boolean;
 }
 
 const SESSION_KEY = "evey:parental_unlocked";
@@ -53,15 +46,8 @@ export function markUnlocked(profileId: string) {
 }
 
 export function useParentalSettings(profileId: string | null) {
-  return useQuery<ParentalSettings>({
-    queryKey: [`/api/v1/profiles/${profileId}/parental`],
-    queryFn: () =>
-      eveyFetch<ParentalSettings>({
-        url: `/api/v1/profiles/${profileId}/parental`,
-        method: "GET",
-      }),
-    enabled: !!profileId,
-    staleTime: 60_000,
+  return useParentalServiceGetParentalSettings(profileId ?? "", {
+    query: { enabled: !!profileId, staleTime: 60_000 },
   });
 }
 
@@ -74,7 +60,7 @@ export function useParentalGate(officialRating: string | undefined) {
     if (!parental.enabled) return false;
     if (!parental.hasPin) return false;
     if (isProfileUnlocked(profileId)) return false;
-    return isRatingExceeded(officialRating, parental.maxRating);
+    return isRatingExceeded(officialRating, parental.maxRating ?? "");
   }
 
   return { needsPin, profileId };

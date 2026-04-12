@@ -23,6 +23,10 @@ vi.mock("@evey/api", () => ({
   useUserServiceCreateInviteLink: (...args: unknown[]) => mockCreateInviteLink(...args),
   useUserServiceRevokeInviteLink: (...args: unknown[]) => mockRevokeInviteLink(...args),
   useLibraryServiceListLibraries: () => ({ data: { libraries: [] }, isLoading: false }),
+  useLibraryAccessServiceGetUserLibraryAccess: () => ({ data: undefined, isLoading: false }),
+  useLibraryAccessServiceSetUserLibraryAccess: () => ({ mutate: vi.fn(), mutateAsync: vi.fn(), isPending: false }),
+  useLibraryAccessServiceRevokeAllUserLibraryAccess: () => ({ mutate: vi.fn(), mutateAsync: vi.fn(), isPending: false }),
+  getLibraryAccessServiceGetUserLibraryAccessQueryKey: () => ["library-access"],
 }));
 
 vi.mock("@tanstack/react-query", async (importActual) => {

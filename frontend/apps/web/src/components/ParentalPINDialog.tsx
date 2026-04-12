@@ -31,12 +31,8 @@ export function ParentalPINDialog({ open, onClose, onVerified, profileId }: Pare
     setLoading(true);
     setError(null);
     try {
-      const { eveyFetch } = await import("@evey/api");
-      const result = await eveyFetch<{ valid: boolean }>({
-        url: `/api/v1/profiles/${profileId}/parental/verify-pin`,
-        method: "POST",
-        data: { pin },
-      });
+      const { parentalServiceVerifyPin } = await import("@evey/api");
+      const result = await parentalServiceVerifyPin(profileId, { pin });
       if (result.valid) {
         onVerified();
       } else {

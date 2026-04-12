@@ -42,6 +42,13 @@ vi.mock("@tanstack/react-router", () => ({
 vi.mock("@evey/api", () => ({
   usePlaybackServiceMarkAsWatched: () => ({ mutate: vi.fn() }),
   usePlaybackServiceMarkAsUnwatched: () => ({ mutate: vi.fn() }),
+  useFavoriteServiceIsFavorite: () => ({ data: false }),
+  favoriteServiceAddFavorite: vi.fn(),
+  favoriteServiceRemoveFavorite: vi.fn(),
+  getFavoriteServiceIsFavoriteQueryKey: (id: string) => ["favorite", id],
+  getFavoriteServiceListFavoritesQueryKey: () => ["favorites"],
+  useRatingServiceGetStarRating: () => ({ data: 0 }),
+  getRatingServiceGetStarRatingQueryKey: (id: string) => ["star-rating", id],
 }));
 
 vi.mock("@evey/store", () => ({

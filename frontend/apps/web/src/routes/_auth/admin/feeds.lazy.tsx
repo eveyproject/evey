@@ -1,9 +1,8 @@
 import { useState, useEffect, useCallback } from "react";
 import { createLazyFileRoute } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
-import { useFeedServiceGetAdminFeedConfigs, useLibraryServiceListLibraries } from "@evey/api";
+import { useFeedServiceGetAdminFeedConfigs, useLibraryServiceListLibraries, feedServiceBatchUpdateAdminFeedConfigs, getFeedServiceGetAdminFeedConfigsQueryKey } from "@evey/api";
 import { toast } from "@evey/store";
-import { eveyFetch } from "@evey/api";
 import { useQueryClient } from "@tanstack/react-query";
 import { GripVertical } from "lucide-react";
 import { PageHeader } from "@/components/ui/PageHeader";
@@ -88,13 +87,9 @@ function AdminFeedsPage() {
   const save = async () => {
     setSaving(true);
     try {
-      await eveyFetch<void>({
-        url: "/api/v1/admin/feeds/config",
-        method: "PUT",
-        data: rows,
-      });
+      await feedServiceBatchUpdateAdminFeedConfigs({ configs: rows });
       toast.success(t("common.feeds.saved"));
-      queryClient.invalidateQueries({ queryKey: ["/api/v1/admin/feeds/config"] });
+      queryClient.invalidateQueries({ queryKey: getFeedServiceGetAdminFeedConfigsQueryKey() });
     } catch {
       toast.error(t("common.error"));
     } finally {

@@ -1,4 +1,4 @@
-import { eveyFetch } from "@evey/api";
+import { pushServiceGetVAPIDKey, pushServiceRegisterWebPush, pushServiceDeleteWebPushSubscription } from "@evey/api";
 
 export function isPushSupported(): boolean {
   return "serviceWorker" in navigator && "PushManager" in window && "Notification" in window;
@@ -11,11 +11,8 @@ export function registerServiceWorker(): void {
 }
 
 async function getVapidKey(): Promise<string> {
-  const res = await eveyFetch<{ key: string }>({
-    url: "/api/v1/push/vapid-key",
-    method: "GET",
-  });
-  return res.key;
+  const res = await pushServiceGetVAPIDKey();
+  return res.publicKey ?? "";
 }
 
 function urlBase64ToUint8Array(base64String: string): Uint8Array {
@@ -40,15 +37,9 @@ export async function subscribeToPush(): Promise<boolean> {
   });
 
   const json = subscription.toJSON();
-  await eveyFetch({
-    url: "/api/v1/push/subscribe",
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    data: {
-      endpoint: json.endpoint,
-      p256dh: json.keys?.p256dh,
-      auth: json.keys?.auth,
-    },
+  await pushServiceRegisterWebPush({
+    endpoint: json.endpoint,
+    keys: { p256dh: json.keys?.p256dh, auth: json.keys?.auth },
   });
 
   return true;
@@ -64,12 +55,7 @@ export async function unsubscribeFromPush(): Promise<void> {
   const endpoint = subscription.endpoint;
   await subscription.unsubscribe();
 
-  await eveyFetch({
-    url: "/api/v1/push/subscribe",
-    method: "DELETE",
-    headers: { "Content-Type": "application/json" },
-    data: { endpoint },
-  });
+  await pushServiceDeleteWebPushSubscription({ endpoint });
 }
 
 export async function isPushSubscribed(): Promise<boolean> {

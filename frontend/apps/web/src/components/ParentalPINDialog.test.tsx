@@ -5,6 +5,7 @@ import { ParentalPINDialog } from "./ParentalPINDialog";
 
 vi.mock("@evey/api", () => ({
   eveyFetch: vi.fn(),
+  parentalServiceVerifyPin: vi.fn(),
 }));
 
 vi.mock("@/components/ui/Modal", () => ({
@@ -85,8 +86,8 @@ describe("ParentalPINDialog", () => {
   });
 
   it("calls onVerified when PIN is correct", async () => {
-    const { eveyFetch } = await import("@evey/api");
-    vi.mocked(eveyFetch).mockResolvedValueOnce({ valid: true });
+    const { parentalServiceVerifyPin } = await import("@evey/api");
+    vi.mocked(parentalServiceVerifyPin).mockResolvedValueOnce({ valid: true });
 
     renderDialog();
     const input = screen.getByTestId("pin-input");
@@ -94,16 +95,12 @@ describe("ParentalPINDialog", () => {
     fireEvent.click(screen.getByTestId("pin-submit"));
 
     await waitFor(() => expect(onVerified).toHaveBeenCalledOnce());
-    expect(eveyFetch).toHaveBeenCalledWith({
-      url: "/api/v1/profiles/profile-1/parental/verify-pin",
-      method: "POST",
-      data: { pin: "1234" },
-    });
+    expect(parentalServiceVerifyPin).toHaveBeenCalledWith("profile-1", { pin: "1234" });
   });
 
   it("shows error when PIN is incorrect", async () => {
-    const { eveyFetch } = await import("@evey/api");
-    vi.mocked(eveyFetch).mockResolvedValueOnce({ valid: false });
+    const { parentalServiceVerifyPin } = await import("@evey/api");
+    vi.mocked(parentalServiceVerifyPin).mockResolvedValueOnce({ valid: false });
 
     renderDialog();
     const input = screen.getByTestId("pin-input");
@@ -116,8 +113,8 @@ describe("ParentalPINDialog", () => {
   });
 
   it("shows error when API throws", async () => {
-    const { eveyFetch } = await import("@evey/api");
-    vi.mocked(eveyFetch).mockRejectedValueOnce(new Error("network error"));
+    const { parentalServiceVerifyPin } = await import("@evey/api");
+    vi.mocked(parentalServiceVerifyPin).mockRejectedValueOnce(new Error("network error"));
 
     renderDialog();
     const input = screen.getByTestId("pin-input");

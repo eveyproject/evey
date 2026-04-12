@@ -1,33 +1,34 @@
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { eveyFetch } from "@evey/api";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import {
+  useRatingServiceGetMyThumbRating,
+  ratingServicePutThumbRating,
+  getRatingServiceGetMyThumbRatingQueryKey,
+} from "@evey/api";
 
-// value: -1=dislike, 0=neutral/removed, 1=like
 export function useMyRating(mediaId: string | undefined) {
-  return useQuery({
-    queryKey: ["rating", mediaId],
-    queryFn: () => eveyFetch<{ value: number }>({ url: `/api/v1/media/${mediaId}/my-rating`, method: "GET" }),
-    enabled: !!mediaId,
-    select: (d) => d.value,
-    staleTime: 60_000,
+  return useRatingServiceGetMyThumbRating(mediaId ?? "", {
+    query: { enabled: !!mediaId, select: (d) => d.value ?? 0, staleTime: 60_000 },
   });
 }
 
 export function useSetRating(mediaId: string | undefined) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (value: number) =>
-      eveyFetch<{ value: number }>({ url: `/api/v1/media/${mediaId}/rate`, method: "PUT", data: { value } }),
+    mutationFn: (value: number) => ratingServicePutThumbRating(mediaId ?? "", { value }),
     onMutate: async (value) => {
-      await qc.cancelQueries({ queryKey: ["rating", mediaId] });
-      const prev = qc.getQueryData<{ value: number }>(["rating", mediaId]);
-      qc.setQueryData(["rating", mediaId], { value });
+      if (!mediaId) return { prev: undefined };
+      const key = getRatingServiceGetMyThumbRatingQueryKey(mediaId);
+      await qc.cancelQueries({ queryKey: key });
+      const prev = qc.getQueryData<{ value?: number }>(key);
+      qc.setQueryData(key, { value });
       return { prev };
     },
     onError: (_err, _vars, ctx) => {
-      if (ctx?.prev !== undefined) qc.setQueryData(["rating", mediaId], ctx.prev);
+      if (ctx?.prev !== undefined && mediaId)
+        qc.setQueryData(getRatingServiceGetMyThumbRatingQueryKey(mediaId), ctx.prev);
     },
     onSettled: () => {
-      qc.invalidateQueries({ queryKey: ["rating", mediaId] });
+      if (mediaId) qc.invalidateQueries({ queryKey: getRatingServiceGetMyThumbRatingQueryKey(mediaId) });
     },
   });
 }

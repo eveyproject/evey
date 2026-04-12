@@ -43,6 +43,16 @@ vi.mock("@evey/api", () => ({
   useMetadataServiceRemoveMetadataOverride: () => ({ mutateAsync: vi.fn() }),
   getMetadataServiceListMetadataOverridesQueryKey: () => ["overrides"],
   eveyFetch: vi.fn(),
+  useParentalServiceGetParentalSettings: () => ({ data: undefined }),
+  useRatingServiceGetMyThumbRating: () => ({ data: 0 }),
+  useRatingServiceGetStarRating: () => ({ data: 0 }),
+  useRatingServiceGetRatingAggregate: () => ({ data: undefined }),
+  ratingServicePutThumbRating: vi.fn(),
+  ratingServicePostStarRating: vi.fn(),
+  ratingServiceDeleteStarRating: vi.fn(),
+  getRatingServiceGetMyThumbRatingQueryKey: (id: string) => ["rating", id],
+  getRatingServiceGetStarRatingQueryKey: (id: string) => ["star-rating", id],
+  getRatingServiceGetRatingAggregateQueryKey: (id: string) => ["star-rating-agg", id],
 }));
 
 vi.mock("@evey/store", () => ({
