@@ -1,7 +1,6 @@
-import { useQuery } from "@tanstack/react-query";
-import { eveyFetch } from "@evey/api";
+import { useActivityServiceGetPopularMedia } from "@evey/api";
 
-interface PopularItem {
+export interface PopularItem {
   mediaItemId: string;
   title: string;
   type?: string;
@@ -9,10 +8,19 @@ interface PopularItem {
 }
 
 export function useMostPopular(limit = 20) {
-  return useQuery({
-    queryKey: ["popular", limit],
-    queryFn: () => eveyFetch<{ items: PopularItem[] }>({ url: `/api/v1/popular`, method: "GET" }),
-    select: (d) => d.items ?? [],
-    staleTime: 5 * 60_000,
-  });
+  return useActivityServiceGetPopularMedia(
+    { limit },
+    {
+      query: {
+        select: (d) =>
+          (d.items ?? []).map<PopularItem>((it) => ({
+            mediaItemId: it.mediaItemId ?? "",
+            title: it.title ?? "",
+            type: it.type,
+            playCount: it.playCount ?? 0,
+          })),
+        staleTime: 5 * 60_000,
+      },
+    },
+  );
 }

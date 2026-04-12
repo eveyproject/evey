@@ -3,8 +3,26 @@ import { render, screen, waitFor } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
+const mockGetAnalytics = vi.fn();
+
+function toProto(d: typeof mockAnalytics | Record<string, unknown>) {
+  const a = d as typeof mockAnalytics;
+  return {
+    totalPlaysToday: a.total_plays_today,
+    totalPlaysThisWeek: a.total_plays_this_week,
+    activeUsersToday: a.active_users_today,
+    topMedia: (a.top_media ?? []).map((m) => ({ mediaItemId: m.media_item_id, title: m.title, playCount: m.play_count, totalDurationSeconds: String(m.total_duration_seconds) })),
+    recentActivity: (a.recent_activity ?? []).map((r) => ({ userId: r.user_id, username: r.username, mediaTitle: r.media_title, playedAt: r.played_at })),
+  };
+}
+
 vi.mock("@evey/api", () => ({
   eveyFetch: vi.fn(),
+  useActivityServiceGetAnalytics: (opts: { query?: { select?: (d: unknown) => unknown } }) => {
+    const raw = mockGetAnalytics();
+    const select = opts?.query?.select;
+    return { ...raw, data: raw?.data !== undefined && select ? select(raw.data) : raw?.data };
+  },
 }));
 
 vi.mock("@tanstack/react-router", () => ({
@@ -36,8 +54,8 @@ describe("AnalyticsPage", () => {
   });
 
   it("shows loading spinner while fetching", async () => {
-    const { eveyFetch } = await import("@evey/api");
-    vi.mocked(eveyFetch).mockReturnValue(new Promise(() => {})); // never resolves
+    
+    mockGetAnalytics.mockReturnValue({ data: undefined, isLoading: true }); // never resolves
 
     const mod = await import("./analytics.lazy");
     const AnalyticsPage = (mod.Route as unknown as { component: React.ComponentType }).component;
@@ -49,8 +67,8 @@ describe("AnalyticsPage", () => {
   });
 
   it("renders stat cards with correct values", async () => {
-    const { eveyFetch } = await import("@evey/api");
-    vi.mocked(eveyFetch).mockResolvedValue(mockAnalytics);
+    
+    mockGetAnalytics.mockReturnValue({ data: toProto(mockAnalytics), isSuccess: true });
 
     const mod = await import("./analytics.lazy");
     const AnalyticsPage = (mod.Route as unknown as { component: React.ComponentType }).component;
@@ -68,8 +86,8 @@ describe("AnalyticsPage", () => {
   });
 
   it("renders top media table with titles", async () => {
-    const { eveyFetch } = await import("@evey/api");
-    vi.mocked(eveyFetch).mockResolvedValue(mockAnalytics);
+    
+    mockGetAnalytics.mockReturnValue({ data: toProto(mockAnalytics), isSuccess: true });
 
     const mod = await import("./analytics.lazy");
     const AnalyticsPage = (mod.Route as unknown as { component: React.ComponentType }).component;
@@ -84,8 +102,8 @@ describe("AnalyticsPage", () => {
   });
 
   it("renders recent activity table with username and media", async () => {
-    const { eveyFetch } = await import("@evey/api");
-    vi.mocked(eveyFetch).mockResolvedValue(mockAnalytics);
+    
+    mockGetAnalytics.mockReturnValue({ data: toProto(mockAnalytics), isSuccess: true });
 
     const mod = await import("./analytics.lazy");
     const AnalyticsPage = (mod.Route as unknown as { component: React.ComponentType }).component;
@@ -98,8 +116,8 @@ describe("AnalyticsPage", () => {
   });
 
   it("shows error message when fetch fails", async () => {
-    const { eveyFetch } = await import("@evey/api");
-    vi.mocked(eveyFetch).mockRejectedValue(new Error("Network error"));
+    
+    mockGetAnalytics.mockReturnValue({ data: undefined, isError: true, error: new Error("Network error") });
 
     const mod = await import("./analytics.lazy");
     const AnalyticsPage = (mod.Route as unknown as { component: React.ComponentType }).component;
@@ -112,12 +130,8 @@ describe("AnalyticsPage", () => {
   });
 
   it("shows empty state rows when top_media is empty", async () => {
-    const { eveyFetch } = await import("@evey/api");
-    vi.mocked(eveyFetch).mockResolvedValue({
-      ...mockAnalytics,
-      top_media: [],
-      recent_activity: [],
-    });
+    
+    mockGetAnalytics.mockReturnValue({ data: toProto({ ...mockAnalytics, top_media: [], recent_activity: [] }), isSuccess: true });
 
     const mod = await import("./analytics.lazy");
     const AnalyticsPage = (mod.Route as unknown as { component: React.ComponentType }).component;

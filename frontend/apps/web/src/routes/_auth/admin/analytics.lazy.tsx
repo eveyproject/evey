@@ -1,7 +1,6 @@
 import { createLazyFileRoute } from "@tanstack/react-router";
-import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
-import { eveyFetch } from "@evey/api";
+import { useActivityServiceGetAnalytics } from "@evey/api";
 import { Spinner } from "@/components/ui/Spinner";
 import { PageHeader } from "@/components/ui/PageHeader";
 
@@ -32,15 +31,28 @@ interface AnalyticsData {
 }
 
 function useAnalytics() {
-  return useQuery<AnalyticsData>({
-    queryKey: ["admin", "analytics"],
-    queryFn: () =>
-      eveyFetch<AnalyticsData>({
-        url: "/api/v1/admin/analytics",
-        method: "GET",
+  return useActivityServiceGetAnalytics({
+    query: {
+      refetchInterval: 60_000,
+      refetchIntervalInBackground: false,
+      select: (d): AnalyticsData => ({
+        top_media: (d.topMedia ?? []).map((m) => ({
+          media_item_id: m.mediaItemId ?? "",
+          title: m.title ?? "",
+          play_count: m.playCount ?? 0,
+          total_duration_seconds: Number(m.totalDurationSeconds ?? 0),
+        })),
+        recent_activity: (d.recentActivity ?? []).map((a) => ({
+          user_id: a.userId ?? "",
+          username: a.username ?? "",
+          media_title: a.mediaTitle ?? "",
+          played_at: a.playedAt ?? "",
+        })),
+        total_plays_today: d.totalPlaysToday ?? 0,
+        total_plays_this_week: d.totalPlaysThisWeek ?? 0,
+        active_users_today: d.activeUsersToday ?? 0,
       }),
-    refetchInterval: 60_000,
-    refetchIntervalInBackground: false,
+    },
   });
 }
 
