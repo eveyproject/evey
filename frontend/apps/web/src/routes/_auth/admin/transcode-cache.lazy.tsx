@@ -1,11 +1,19 @@
 import { useState, useEffect, useCallback } from "react";
 import { Film } from "lucide-react";
 import { createLazyFileRoute } from "@tanstack/react-router";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { toast } from "@evey/store";
-import { eveyFetch } from "@evey/api";
-import { useAdminSystemServiceGetSystemInfo } from "@evey/api";
+import {
+  useAdminSystemServiceGetSystemInfo,
+  useTranscodeCacheServiceGetTranscodeCache,
+  transcodeCacheServiceClearTranscodeCache,
+  transcodeCacheServiceDeleteTranscodeCacheFile,
+  getTranscodeCacheServiceGetTranscodeCacheQueryKey,
+  useServerConfigServiceListServerConfigEntries,
+  serverConfigServiceSetServerConfigEntry,
+  getServerConfigServiceListServerConfigEntriesQueryKey,
+} from "@evey/api";
 import { Spinner } from "@/components/ui/Spinner";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
@@ -20,19 +28,7 @@ export const Route = createLazyFileRoute("/_auth/admin/transcode-cache")({
   component: TranscodeCachePage,
 });
 
-interface CacheFile {
-  name: string;
-  size: number;
-  lastModified: string;
-}
-
-interface CacheInfo {
-  totalSize: number;
-  fileCount: number;
-  files: CacheFile[];
-}
-
-const CACHE_QUERY_KEY = ["/api/v1/admin/transcode-cache"];
+const CACHE_QUERY_KEY = getTranscodeCacheServiceGetTranscodeCacheQueryKey();
 
 function formatSize(bytes: number): string {
   if (bytes === 0) return "0 B";
@@ -42,15 +38,8 @@ function formatSize(bytes: number): string {
   return `${val.toFixed(i > 0 ? 1 : 0)} ${units[i]}`;
 }
 
-function formatDate(d: string): string {
-  return new Date(d).toLocaleString();
-}
-
-function useCacheInfo() {
-  return useQuery<CacheInfo>({
-    queryKey: CACHE_QUERY_KEY,
-    queryFn: () => eveyFetch<CacheInfo>({ url: "/api/v1/admin/transcode-cache", method: "GET" }),
-  });
+function formatDate(d: string | undefined): string {
+  return d ? new Date(d).toLocaleString() : "";
 }
 
 const HW_ACCEL_OPTIONS = [
@@ -62,24 +51,22 @@ const HW_ACCEL_OPTIONS = [
 
 const HW_DECODE_CODECS = ["h264", "hevc", "vp9", "av1"];
 
-const CONFIG_QUERY_KEY = ["/api/v1/admin/server-config"];
-
-interface ConfigEntry { key: string; value: string }
+const CONFIG_QUERY_KEY = getServerConfigServiceListServerConfigEntriesQueryKey();
 
 function useServerConfig() {
-  return useQuery<Record<string, string>>({
-    queryKey: CONFIG_QUERY_KEY,
-    queryFn: async () => {
-      const data = await eveyFetch<{ entries: ConfigEntry[] }>({ url: "/api/v1/admin/server-config", method: "GET" });
-      const map: Record<string, string> = {};
-      for (const e of data.entries ?? []) map[e.key] = e.value;
-      return map;
+  return useServerConfigServiceListServerConfigEntries({
+    query: {
+      select: (d) => {
+        const map: Record<string, string> = {};
+        for (const e of d.entries ?? []) if (e.key) map[e.key] = e.value ?? "";
+        return map;
+      },
     },
   });
 }
 
 async function setConfigKey(key: string, value: string) {
-  await eveyFetch<void>({ url: `/api/v1/admin/server-config/${key}`, method: "PUT", data: { value } });
+  await serverConfigServiceSetServerConfigEntry(key, { value });
 }
 
 function TranscodingSettings() {
@@ -198,7 +185,7 @@ function TranscodingSettings() {
 
 function TranscodeCachePage() {
   const { t } = useTranslation();
-  const { data, isLoading } = useCacheInfo();
+  const { data, isLoading } = useTranscodeCacheServiceGetTranscodeCache();
   const queryClient = useQueryClient();
   const [showClearConfirm, setShowClearConfirm] = useState(false);
   const [clearing, setClearing] = useState(false);
@@ -207,7 +194,7 @@ function TranscodeCachePage() {
   async function handleClearAll() {
     setClearing(true);
     try {
-      await eveyFetch<void>({ url: "/api/v1/admin/transcode-cache", method: "DELETE" });
+      await transcodeCacheServiceClearTranscodeCache();
       toast.success(t("admin.transcodeCache.cacheCleared"));
       queryClient.invalidateQueries({ queryKey: CACHE_QUERY_KEY });
     } catch (err) {
@@ -221,7 +208,7 @@ function TranscodeCachePage() {
   async function handleDeleteFile(filename: string) {
     setDeletingFile(filename);
     try {
-      await eveyFetch<void>({ url: `/api/v1/admin/transcode-cache/${encodeURIComponent(filename)}`, method: "DELETE" });
+      await transcodeCacheServiceDeleteTranscodeCacheFile(filename);
       toast.success(t("admin.transcodeCache.deleted", { name: filename }));
       queryClient.invalidateQueries({ queryKey: CACHE_QUERY_KEY });
     } catch (err) {
@@ -255,7 +242,7 @@ function TranscodeCachePage() {
                 {t("admin.transcodeCache.totalSize")}
               </dt>
               <dd className="text-xl font-bold text-[var(--text)]">
-                {formatSize(data?.totalSize ?? 0)}
+                {formatSize(Number(data?.totalSize ?? 0))}
               </dd>
             </Card>
             <Card>
@@ -300,7 +287,7 @@ function TranscodeCachePage() {
                         {file.name}
                       </td>
                       <td className="px-4 py-3 whitespace-nowrap text-[var(--text-muted)]">
-                        {formatSize(file.size)}
+                        {formatSize(Number(file.size ?? 0))}
                       </td>
                       <td className="px-4 py-3 whitespace-nowrap hidden sm:table-cell text-[var(--text-muted)]">
                         {formatDate(file.lastModified)}
@@ -309,7 +296,7 @@ function TranscodeCachePage() {
                         <Button
                           variant="danger"
                           loading={deletingFile === file.name}
-                          onClick={() => handleDeleteFile(file.name)}
+                          onClick={() => file.name && handleDeleteFile(file.name)}
                           className="text-xs"
                         >
                           {t("common.delete")}
@@ -330,7 +317,7 @@ function TranscodeCachePage() {
         title={t("admin.transcodeCache.clearConfirmTitle")}
       >
         <p className="text-sm mb-4 text-[var(--text-muted)]">
-          {t("admin.transcodeCache.clearConfirm", { count: data?.fileCount ?? 0, size: formatSize(data?.totalSize ?? 0) })}
+          {t("admin.transcodeCache.clearConfirm", { count: data?.fileCount ?? 0, size: formatSize(Number(data?.totalSize ?? 0)) })}
         </p>
         <div className="flex justify-end gap-3">
           <Button variant="secondary" onClick={() => setShowClearConfirm(false)}>

@@ -19,6 +19,11 @@ vi.mock("@tanstack/react-query", async (importActual) => {
 
 vi.mock("@evey/api", () => ({
   eveyFetch: vi.fn(),
+  eveyFetchRaw: vi.fn(),
+  useBackupServiceListBackups: (...args: unknown[]) => mockUseQuery(...args),
+  backupServiceCreateBackup: vi.fn(),
+  backupServiceDeleteBackup: vi.fn(),
+  getBackupServiceListBackupsQueryKey: () => ["backups"],
 }));
 
 vi.mock("@evey/store", () => ({

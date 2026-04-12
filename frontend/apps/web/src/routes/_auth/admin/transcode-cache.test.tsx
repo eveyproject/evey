@@ -4,6 +4,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
 const mockUseQuery = vi.fn();
+const mockServerCfg = { data: undefined, isLoading: false };
 const mockInvalidateQueries = vi.fn();
 const mockEveyFetch = vi.fn();
 const mockToast = { success: vi.fn(), error: vi.fn() };
@@ -20,6 +21,13 @@ vi.mock("@tanstack/react-query", async (importActual) => {
 vi.mock("@evey/api", () => ({
   eveyFetch: (...args: unknown[]) => mockEveyFetch(...args),
   useAdminSystemServiceGetSystemInfo: () => ({ data: undefined }),
+  useTranscodeCacheServiceGetTranscodeCache: () => mockUseQuery(),
+  transcodeCacheServiceClearTranscodeCache: vi.fn(),
+  transcodeCacheServiceDeleteTranscodeCacheFile: vi.fn(),
+  getTranscodeCacheServiceGetTranscodeCacheQueryKey: () => ["transcode-cache"],
+  useServerConfigServiceListServerConfigEntries: () => mockServerCfg,
+  serverConfigServiceSetServerConfigEntry: vi.fn(),
+  getServerConfigServiceListServerConfigEntriesQueryKey: () => ["server-config"],
 }));
 
 vi.mock("@evey/store", () => ({

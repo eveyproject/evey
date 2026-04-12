@@ -1,10 +1,17 @@
 import { useRef, useState } from "react";
 import { Folder } from "lucide-react";
 import { createLazyFileRoute } from "@tanstack/react-router";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { useAuthStore, toast } from "@evey/store";
-import { eveyFetch, eveyFetchRaw } from "@evey/api";
+import {
+  eveyFetchRaw,
+  useBackupServiceListBackups,
+  backupServiceCreateBackup,
+  backupServiceDeleteBackup,
+  getBackupServiceListBackupsQueryKey,
+} from "@evey/api";
+import type { V1BackupManifest } from "@evey/api";
 import { Spinner } from "@/components/ui/Spinner";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
@@ -16,14 +23,9 @@ export const Route = createLazyFileRoute("/_auth/admin/backup")({
   component: BackupPage,
 });
 
-interface Backup {
-  id: string;
-  createdAt: string;
-  version: string;
-  size: number;
-}
+type Backup = V1BackupManifest;
 
-const BACKUPS_QUERY_KEY = ["/api/v1/admin/backups"];
+const BACKUPS_QUERY_KEY = getBackupServiceListBackupsQueryKey();
 
 function formatSize(bytes: number): string {
   if (!bytes) return "0 B";
@@ -33,12 +35,8 @@ function formatSize(bytes: number): string {
 }
 
 function useBackups() {
-  return useQuery<Backup[]>({
-    queryKey: BACKUPS_QUERY_KEY,
-    queryFn: async () => {
-      const data = await eveyFetch<{ backups: Backup[] }>({ url: "/api/v1/admin/backups", method: "GET" });
-      return data.backups ?? [];
-    },
+  return useBackupServiceListBackups({
+    query: { select: (d) => d.backups ?? [] },
   });
 }
 
@@ -46,7 +44,7 @@ function useCreateBackup() {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: () => eveyFetch<Backup>({ url: "/api/v1/admin/backups", method: "POST" }),
+    mutationFn: () => backupServiceCreateBackup({}),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: BACKUPS_QUERY_KEY });
       toast.success(t("admin.backup.backupCreated"));
@@ -59,7 +57,7 @@ function useDeleteBackup() {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (id: string) => eveyFetch<void>({ url: `/api/v1/admin/backups/${id}`, method: "DELETE" }),
+    mutationFn: (id: string) => backupServiceDeleteBackup(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: BACKUPS_QUERY_KEY });
       toast.success(t("admin.backup.backupDeleted"));
@@ -77,6 +75,7 @@ function BackupRow({ backup }: { backup: Backup }) {
   const [restoring, setRestoring] = useState(false);
 
   function handleDownload() {
+    if (!backup.id) return;
     const a = document.createElement("a");
     a.href = `/api/v1/admin/backups/${backup.id}`;
     if (token) {
@@ -87,6 +86,7 @@ function BackupRow({ backup }: { backup: Backup }) {
   }
 
   async function handleRestore() {
+    if (!backup.id) return;
     setRestoring(true);
     try {
       const fileRes = await eveyFetchRaw({ url: `/api/v1/admin/backups/${backup.id}`, method: "GET" });
@@ -108,13 +108,13 @@ function BackupRow({ backup }: { backup: Backup }) {
         {backup.id}
       </td>
       <td className="px-4 py-3 text-sm whitespace-nowrap text-[var(--text-muted)]">
-        {new Date(backup.createdAt).toLocaleString()}
+        {backup.createdAt ? new Date(backup.createdAt).toLocaleString() : ""}
       </td>
       <td className="px-4 py-3 text-sm text-[var(--text-muted)]">
         {backup.version}
       </td>
       <td className="px-4 py-3 text-sm whitespace-nowrap text-[var(--text-muted)]">
-        {formatSize(backup.size)}
+        {formatSize(Number(backup.size ?? 0))}
       </td>
       <td className="px-4 py-3">
         <Badge variant="success">{t("admin.backup.ready")}</Badge>
@@ -147,7 +147,7 @@ function BackupRow({ backup }: { backup: Backup }) {
           title={t("admin.backup.restoreBackupTitle")}
         >
           <p className="text-sm mb-4 text-[var(--text-muted)]">
-            {t("admin.backup.restoreConfirm", { date: new Date(backup.createdAt).toLocaleString() })}
+            {t("admin.backup.restoreConfirm", { date: backup.createdAt ? new Date(backup.createdAt).toLocaleString() : "" })}
           </p>
           <div className="flex justify-end gap-2">
             <Button variant="ghost" onClick={() => setConfirmRestore(false)}>
@@ -170,7 +170,7 @@ function BackupRow({ backup }: { backup: Backup }) {
           title={t("admin.backup.deleteBackupTitle")}
         >
           <p className="text-sm mb-4 text-[var(--text-muted)]">
-            {t("admin.backup.deleteConfirm", { date: new Date(backup.createdAt).toLocaleString() })}
+            {t("admin.backup.deleteConfirm", { date: backup.createdAt ? new Date(backup.createdAt).toLocaleString() : "" })}
           </p>
           <div className="flex justify-end gap-2">
             <Button variant="ghost" onClick={() => setConfirmDelete(false)}>
@@ -180,7 +180,7 @@ function BackupRow({ backup }: { backup: Backup }) {
               variant="danger"
               loading={deleteBackup.isPending}
               onClick={() => {
-                deleteBackup.mutate(backup.id);
+                if (backup.id) deleteBackup.mutate(backup.id);
                 setConfirmDelete(false);
               }}
             >
