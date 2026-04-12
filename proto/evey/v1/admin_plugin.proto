@@ -76,6 +76,28 @@ service AdminPluginService {
       get: "/api/v1/admin/plugins/{plugin_id}/logs"
     };
   }
+
+  // IssuePluginToken returns a short-lived (5min) scoped JWT for the plugin iframe.
+  // Scopes are the intersection of the plugin manifest permissions and the
+  // admin-approved permissions, filtered through the auth-layer whitelist.
+  // Forbidden scopes (admin:*, auth:*, system:*, user:write, library:write) are
+  // stripped unconditionally.
+  rpc IssuePluginToken(IssuePluginTokenRequest) returns (IssuePluginTokenResponse) {
+    option (google.api.http) = {
+      post: "/api/v1/plugins/{plugin_id}/token"
+      body: "*"
+    };
+  }
+}
+
+message IssuePluginTokenRequest {
+  string plugin_id = 1;
+}
+
+message IssuePluginTokenResponse {
+  string token = 1;
+  google.protobuf.Timestamp expires_at = 2;
+  repeated string scopes = 3;
 }
 
 message PluginRuntime {
