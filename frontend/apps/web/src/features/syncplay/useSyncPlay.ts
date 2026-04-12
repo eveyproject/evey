@@ -1,6 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useAuthStore } from "@evey/store";
-import { eveyFetch } from "@evey/api";
+import {
+  syncPlayServiceCreateRoom,
+  syncPlayServiceJoinRoom,
+  syncPlayServiceGetRoom,
+  syncPlayServiceLeaveRoom,
+  syncPlayServiceJoinByCode,
+} from "@evey/api";
 
 export interface SyncPlayMember {
   userId: string;
@@ -143,40 +149,33 @@ export function useSyncPlay(opts: UseSyncPlayOptions = {}): [SyncPlayState, Sync
   }, []);
 
   const createRoom = useCallback(async (mediaId: string): Promise<string> => {
-    const data = await eveyFetch<{ id: string; code: string }>({
-      url: "/api/v1/syncplay/rooms",
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      data: { mediaId, name: "Watch Together" },
-    });
-    setState({ roomId: data.id, roomCode: data.code, members: [], connected: false, isHost: true });
-    connect(data.id);
-    return data.id;
+    const data = await syncPlayServiceCreateRoom({ mediaId, name: "Watch Together" });
+    const id = data.id ?? "";
+    setState({ roomId: id, roomCode: data.code ?? null, members: [], connected: false, isHost: true });
+    connect(id);
+    return id;
   }, [connect]);
 
   const joinRoom = useCallback(async (roomId: string): Promise<void> => {
-    await eveyFetch<void>({
-      url: `/api/v1/syncplay/rooms/${roomId}/join`,
-      method: "POST",
+    await syncPlayServiceJoinRoom(roomId, {});
+    const info = await syncPlayServiceGetRoom(roomId);
+    setState({
+      roomId,
+      roomCode: info.code ?? null,
+      members: (info.members ?? []).map((m) => ({ userId: m.userId ?? "", username: m.username ?? "" })),
+      connected: false,
+      isHost: false,
     });
-    const info = await eveyFetch<{ members?: SyncPlayMember[]; code?: string }>({
-      url: `/api/v1/syncplay/rooms/${roomId}`,
-      method: "GET",
-    });
-    setState({ roomId, roomCode: info.code ?? null, members: info.members ?? [], connected: false, isHost: false });
     connect(roomId);
   }, [connect]);
 
   const joinByCode = useCallback(async (code: string): Promise<{ roomId: string; mediaId: string }> => {
-    const data = await eveyFetch<{ roomId: string; mediaId: string; wsUrl: string }>({
-      url: "/api/v1/syncplay/join",
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      data: { code },
-    });
-    setState({ roomId: data.roomId, roomCode: null, members: [], connected: false, isHost: false });
-    connect(data.roomId);
-    return { roomId: data.roomId, mediaId: data.mediaId };
+    const data = await syncPlayServiceJoinByCode({ code });
+    const roomId = data.roomId ?? "";
+    const mediaId = data.mediaId ?? "";
+    setState({ roomId, roomCode: null, members: [], connected: false, isHost: false });
+    connect(roomId);
+    return { roomId, mediaId };
   }, [connect]);
 
   const leaveRoom = useCallback(async (): Promise<void> => {
@@ -190,10 +189,7 @@ export function useSyncPlay(opts: UseSyncPlayOptions = {}): [SyncPlayState, Sync
     wsRef.current = null;
     setState({ roomId: null, roomCode: null, members: [], connected: false, isHost: false });
     if (roomId) {
-      await eveyFetch<void>({
-        url: `/api/v1/syncplay/rooms/${roomId}/leave`,
-        method: "DELETE",
-      }).catch(() => {});
+      await syncPlayServiceLeaveRoom(roomId).catch(() => {});
     }
   }, [state.roomId]);
 
