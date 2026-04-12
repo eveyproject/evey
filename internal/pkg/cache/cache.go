@@ -1,6 +1,7 @@
 package cache
 
 import (
+	"container/list"
 	"log/slog"
 	"sync"
 	"time"
@@ -9,18 +10,19 @@ import (
 const defaultMaxSize = 10000
 
 type entry[T any] struct {
+	key       string
 	val       T
 	expiresAt time.Time
-	createdAt time.Time
 }
 
 // TTLCache is a generic in-memory cache with per-entry TTL and max size.
-// When maxSize is exceeded, the oldest entries are evicted first.
+// Uses an LRU doubly-linked list for O(1) eviction; Get promotes entries
+// to the front, Set evicts from the back when over capacity.
 type TTLCache[T any] struct {
-	m       sync.Map
-	maxSize int
 	mu      sync.Mutex
-	count   int
+	items   map[string]*list.Element
+	lru     *list.List
+	maxSize int
 }
 
 // New returns a TTLCache that evicts expired entries every cleanupInterval.
@@ -34,7 +36,11 @@ func NewWithMaxSize[T any](cleanupInterval time.Duration, maxSize int) (*TTLCach
 	if maxSize <= 0 {
 		maxSize = defaultMaxSize
 	}
-	c := &TTLCache[T]{maxSize: maxSize}
+	c := &TTLCache[T]{
+		items:   make(map[string]*list.Element),
+		lru:     list.New(),
+		maxSize: maxSize,
+	}
 	if cleanupInterval <= 0 {
 		return c, func() {}
 	}
@@ -60,74 +66,68 @@ func NewWithMaxSize[T any](cleanupInterval time.Duration, maxSize int) (*TTLCach
 }
 
 func (c *TTLCache[T]) Get(key string) (T, bool) {
-	v, ok := c.m.Load(key)
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	el, ok := c.items[key]
 	if !ok {
 		var zero T
 		return zero, false
 	}
-	e := v.(entry[T])
+	e := el.Value.(*entry[T])
 	if time.Now().After(e.expiresAt) {
-		c.mu.Lock()
-		if _, still := c.m.LoadAndDelete(key); still {
-			c.count--
-		}
-		c.mu.Unlock()
+		c.lru.Remove(el)
+		delete(c.items, key)
 		var zero T
 		return zero, false
 	}
+	c.lru.MoveToFront(el)
 	return e.val, true
 }
 
 func (c *TTLCache[T]) Set(key string, val T, ttl time.Duration) {
 	now := time.Now()
-
 	c.mu.Lock()
-	if _, loaded := c.m.Load(key); !loaded {
-		c.count++
+	defer c.mu.Unlock()
+	if el, ok := c.items[key]; ok {
+		e := el.Value.(*entry[T])
+		e.val = val
+		e.expiresAt = now.Add(ttl)
+		c.lru.MoveToFront(el)
+		return
 	}
-	c.m.Store(key, entry[T]{val: val, expiresAt: now.Add(ttl), createdAt: now})
-	if c.count > c.maxSize {
-		c.evictOldest()
-	}
-	c.mu.Unlock()
-}
-
-func (c *TTLCache[T]) evictOldest() {
-	var oldestKey any
-	var oldestTime time.Time
-	first := true
-	c.m.Range(func(k, v any) bool {
-		e := v.(entry[T])
-		if first || e.createdAt.Before(oldestTime) {
-			oldestKey = k
-			oldestTime = e.createdAt
-			first = false
+	e := &entry[T]{key: key, val: val, expiresAt: now.Add(ttl)}
+	el := c.lru.PushFront(e)
+	c.items[key] = el
+	if c.lru.Len() > c.maxSize {
+		back := c.lru.Back()
+		if back != nil {
+			oldest := back.Value.(*entry[T])
+			c.lru.Remove(back)
+			delete(c.items, oldest.key)
 		}
-		return true
-	})
-	if oldestKey != nil {
-		c.m.Delete(oldestKey)
-		c.count--
 	}
 }
 
 func (c *TTLCache[T]) Delete(key string) {
 	c.mu.Lock()
-	if _, loaded := c.m.LoadAndDelete(key); loaded {
-		c.count--
+	defer c.mu.Unlock()
+	if el, ok := c.items[key]; ok {
+		c.lru.Remove(el)
+		delete(c.items, key)
 	}
-	c.mu.Unlock()
 }
 
 func (c *TTLCache[T]) evict() {
 	now := time.Now()
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	c.m.Range(func(k, v any) bool {
-		if e, ok := v.(entry[T]); ok && now.After(e.expiresAt) {
-			c.m.Delete(k)
-			c.count--
+	for el := c.lru.Front(); el != nil; {
+		next := el.Next()
+		e := el.Value.(*entry[T])
+		if now.After(e.expiresAt) {
+			c.lru.Remove(el)
+			delete(c.items, e.key)
 		}
-		return true
-	})
+		el = next
+	}
 }
