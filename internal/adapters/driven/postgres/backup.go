@@ -18,7 +18,7 @@ import (
 
 var (
 	pgDumpHeader    = []byte("-- PostgreSQL database dump")
-	dangerousLineRe = regexp.MustCompile(`(?i)(COPY\s+.*\s+TO\s+PROGRAM|CREATE\s+.*\s+LANGUAGE|DO\s+\$\$|EXECUTE|pg_read_file|pg_write_file|lo_import|lo_export)`)
+	dangerousLineRe = regexp.MustCompile(`(?i)(COPY\s+.*\s+TO\s+PROGRAM|CREATE\s+.*\s+LANGUAGE|DO\s+\$[^$]*\$|EXECUTE|pg_read_file|pg_write_file|lo_import|lo_export)`)
 )
 
 type DatabaseDumper struct {
