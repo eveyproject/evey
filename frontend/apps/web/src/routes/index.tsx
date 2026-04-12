@@ -1,6 +1,6 @@
 import { createFileRoute, redirect } from "@tanstack/react-router";
 import { useAuthStore } from "@evey/store";
-import { eveyFetch } from "@evey/api";
+import { adminSystemServiceGetSetupStatus } from "@evey/api";
 
 type SetupStatus = { setupComplete?: boolean };
 
@@ -10,11 +10,12 @@ export const Route = createFileRoute("/")({
     try {
       const info = await context.queryClient.fetchQuery<SetupStatus>({
         queryKey: ["setup-status"],
-        queryFn: () => eveyFetch<SetupStatus>({ url: "/api/v1/setup/status", method: "GET" }),
+        queryFn: () => adminSystemServiceGetSetupStatus(),
         staleTime: 0,
       });
       setupComplete = info.setupComplete ?? true;
-    } catch {
+    } catch (err) {
+      console.warn("setup status fetch failed", err);
       // backend unreachable — fall through to login
     }
 

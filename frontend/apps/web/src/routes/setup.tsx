@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { Play } from "lucide-react";
 import { createFileRoute, isRedirect, redirect, useNavigate } from "@tanstack/react-router";
-import { eveyFetch, useAdminSystemServiceSetupWizard, useLibraryServiceCreateLibrary } from "@evey/api";
+import { eveyFetch, useAdminSystemServiceSetupWizard, useLibraryServiceCreateLibrary, adminSystemServiceGetSetupStatus } from "@evey/api";
 import { useAuthStore } from "@evey/store";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/Button";
@@ -16,7 +16,7 @@ export const Route = createFileRoute("/setup")({
     try {
       const info = await context.queryClient.fetchQuery<SetupStatus>({
         queryKey: ["setup-status"],
-        queryFn: () => eveyFetch<SetupStatus>({ url: "/api/v1/setup/status", method: "GET" }),
+        queryFn: () => adminSystemServiceGetSetupStatus(),
         staleTime: 30_000,
       });
       if (info.setupComplete) throw redirect({ to: "/login" });
@@ -83,7 +83,8 @@ function SetupPage() {
           method: "GET",
         });
         setMediaDirs(dirs.map((d) => d.path));
-      } catch {
+      } catch (err) {
+        console.warn("fs browse failed", err);
         setMediaDirs([]);
       }
     })();
