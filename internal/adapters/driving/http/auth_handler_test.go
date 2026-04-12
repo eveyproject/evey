@@ -13,6 +13,7 @@ import (
 	"time"
 
 	appuser "github.com/gravity-zero/evey/internal/app/user"
+	domainuser "github.com/gravity-zero/evey/internal/domain/user"
 	userfakes "github.com/gravity-zero/evey/internal/domain/user/fakes"
 	"github.com/gravity-zero/evey/internal/pkg/auth"
 )
@@ -260,5 +261,97 @@ func TestExtractBearerToken_Empty(t *testing.T) {
 	got := extractBearerToken(req)
 	if got != "" {
 		t.Errorf("expected empty, got %q", got)
+	}
+}
+
+// =====================================
+// Parental — cross-profile IDOR, nil parental, rate-limit exhaustion
+// =====================================
+
+func TestParentalVerifyPIN_CrossProfileIDOR(t *testing.T) {
+	mux, gen := newParentalMux(t)
+	// user-1 authenticated with own profile, tries verify-pin on admin profile (different UserID)
+	token, _ := gen.GenerateAccessToken(domainuser.Claims{UserID: "user-1", ProfileID: "prof-1", IsAdmin: false})
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/profiles/prof-admin/parental/verify-pin", strings.NewReader(`{"pin":"1234"}`))
+	req.Header.Set("Authorization", "Bearer "+token)
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+	if w.Code != http.StatusForbidden {
+		t.Errorf("expected 403, got %d body=%s", w.Code, w.Body.String())
+	}
+	// Ensure response does NOT leak parental state (e.g. "valid" field)
+	if strings.Contains(w.Body.String(), `"valid"`) {
+		t.Errorf("cross-profile response leaked parental state: %s", w.Body.String())
+	}
+}
+
+func TestParentalVerifyPIN_AdminAllowedCrossProfile(t *testing.T) {
+	mux, gen := newParentalMux(t)
+	token, _ := gen.GenerateAccessToken(domainuser.Claims{UserID: "admin-1", ProfileID: "prof-admin", IsAdmin: true})
+	// Admin hits prof-1 (belongs to user-1) legitimately
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/profiles/prof-1/parental/verify-pin", strings.NewReader(`{"pin":"1234"}`))
+	req.Header.Set("Authorization", "Bearer "+token)
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Errorf("expected 200 for admin cross-profile, got %d body=%s", w.Code, w.Body.String())
+	}
+}
+
+func TestParentalVerifyPIN_NilParental(t *testing.T) {
+	// Profile without Parental config — must not nil-pointer crash; returns valid=true.
+	mux, gen := newParentalMux(t)
+	token, _ := gen.GenerateAccessToken(domainuser.Claims{UserID: "user-1", ProfileID: "prof-1", IsAdmin: false})
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/profiles/prof-1/parental/verify-pin", strings.NewReader(`{"pin":""}`))
+	req.Header.Set("Authorization", "Bearer "+token)
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200 (no crash) for nil Parental, got %d body=%s", w.Code, w.Body.String())
+	}
+	if !strings.Contains(w.Body.String(), `"valid":true`) {
+		t.Errorf("expected valid=true for nil parental, got %s", w.Body.String())
+	}
+}
+
+func TestParentalVerifyPIN_RateLimitExhaustion(t *testing.T) {
+	mux, gen := newParentalMux(t)
+	token, _ := gen.GenerateAccessToken(domainuser.Claims{UserID: "user-1", ProfileID: "prof-1", IsAdmin: false})
+
+	var got429 bool
+	var successCount int
+	// Burst is small (5 per production config); hammer until we see a 429.
+	for i := 0; i < 50; i++ {
+		req := httptest.NewRequest(http.MethodPost, "/api/v1/profiles/prof-1/parental/verify-pin", strings.NewReader(`{"pin":"x"}`))
+		req.Header.Set("Authorization", "Bearer "+token)
+		w := httptest.NewRecorder()
+		mux.ServeHTTP(w, req)
+		if w.Code == http.StatusTooManyRequests {
+			got429 = true
+			break
+		}
+		if w.Code == http.StatusOK {
+			successCount++
+		}
+	}
+	if !got429 {
+		t.Fatalf("expected 429 after burst exhaustion, never got one (successes=%d)", successCount)
+	}
+	if successCount == 0 {
+		t.Errorf("expected at least one successful request before RL kicks in, got 0")
+	}
+}
+
+func TestParentalUpdateSettings_CrossProfileIDOR(t *testing.T) {
+	mux, gen := newParentalMux(t)
+	// user-1 tries to update parental on foreign profile
+	token, _ := gen.GenerateAccessToken(domainuser.Claims{UserID: "user-1", ProfileID: "prof-1", IsAdmin: false})
+	body := `{"maxRating":"R","pin":"9999"}`
+	req := httptest.NewRequest(http.MethodPut, "/api/v1/profiles/prof-admin/parental", strings.NewReader(body))
+	req.Header.Set("Authorization", "Bearer "+token)
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+	if w.Code != http.StatusForbidden {
+		t.Errorf("expected 403, got %d body=%s", w.Code, w.Body.String())
 	}
 }
