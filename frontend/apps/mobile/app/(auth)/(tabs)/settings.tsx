@@ -15,7 +15,7 @@ import { useServerUrlNullable } from "../../../src/hooks/useServerUrl";
 import { clearServerUrl } from "../../../src/lib/server-config";
 import { supportedLanguages } from "../../../src/i18n";
 
-const THEME_VALUES = ["default", "light-default", "amoled"] as const;
+const THEME_VALUES = ["default", "light-default", "light-blue", "amoled"] as const;
 type ThemeValue = typeof THEME_VALUES[number];
 
 function ChevronRight({ color }: { color: string }) {
@@ -174,6 +174,7 @@ export default function SettingsScreen() {
   const themeOptions: { label: string; value: ThemeValue }[] = [
     { label: t("mobile.settings.themeDark"), value: "default" },
     { label: t("mobile.settings.themeLight"), value: "light-default" },
+    { label: t("mobile.settings.themeLightBlue", "Light Blue"), value: "light-blue" },
     { label: t("mobile.settings.themeAmoled"), value: "amoled" },
   ];
 
